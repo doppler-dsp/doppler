@@ -3,8 +3,8 @@ name: Issue tiers
 # Reconciles docs/dev/issue-tiers.toml against the LIVE issue list, daily,
 # and goes red on either kind of drift: an open issue with no tier, or a
 # tier row naming a closed issue (`make issues-check`). The red run's summary
-# page lists what to triage; the fix is to tier/delete in the map and run
-# `make issues`.
+# page lists what to triage. The fix is always the same: tier the new issues
+# in the map and run `make issues`, which drops closed issues' rows itself.
 #
 # WHY A SCHEDULE AND NOT A PULL-REQUEST GATE. The drift this finds is made by
 # filing or closing an issue, never by a diff. As a ci.yml job it would turn

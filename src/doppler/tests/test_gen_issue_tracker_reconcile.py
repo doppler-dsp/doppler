@@ -90,6 +90,33 @@ def test_drift_names_both_kinds() -> None:
     assert (untiered, stale) == ([3], [2])
 
 
+def test_write_drops_a_closed_row_and_keeps_every_open_why() -> None:
+    """`make issues` resolves a closed issue's row with no human step.
+
+    `refresh` is the part of `--write` that edits the map. Driven over the
+    committed map with one tiered issue closed: that row goes, every open
+    row keeps its tier and its `why`, and the title follows the live list.
+    """
+    gen = _gen()
+    issues = gen.load_map()["issue"]
+    before = {n: (r["tier"], r.get("why")) for n, r in issues.items()}
+    live = {int(n): r["title"] for n, r in issues.items()}
+    closed = max(live)
+    del live[closed]
+    some = min(live)
+    live[some] = "retitled upstream"
+
+    dropped = gen.refresh(issues, live, {})
+
+    assert dropped == [closed]
+    assert str(closed) not in issues
+    assert sorted(issues, key=int) == sorted(map(str, live), key=int)
+    for n, rec in issues.items():
+        assert (rec["tier"], rec.get("why")) == before[n]
+    assert issues[str(some)]["title"] == "retitled upstream"
+    assert any(rec.get("why") for rec in issues.values())
+
+
 def test_the_written_map_keeps_each_why(tmp_path: Path, monkeypatch) -> None:
     """A tier's reason survives `make issues` rewriting the map."""
     gen = _gen()

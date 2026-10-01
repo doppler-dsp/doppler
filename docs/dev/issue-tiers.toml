@@ -1,7 +1,7 @@
 # The backlog's tier assignments — the judgement half of
 # docs/dev/issues.md, committed so it can be reviewed and argued
-# with. `make issues` renders the page from this file and fails if
-# an open issue is missing here or a closed one is still listed.
+# with. `make issues` renders the page from this file, refuses while
+# an open issue is missing here, and drops a closed issue's row.
 #
 # tier 0 breaks for a user          3 measured cost
 # tier 1 a gate that does not gate  4 cannot be reached
@@ -1057,7 +1057,7 @@ why = "The refusal's reason exists in the synth builder and no face reports it; 
 [issue.1716]
 tier = 1
 title = "issues: nothing reconciles the tier map with the live issue list; 66 open issues untiered, 3 closed ones still listed"
-status = "open"
+status = "in review ([#1732](https://github.com/doppler-dsp/doppler/pull/1732))"
 why = "The tier map promises to fail on drift and nothing ran the reconcile that does"
 
 [issue.1717]

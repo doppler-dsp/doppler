@@ -12,14 +12,16 @@ Why a generator and not a hand-written page
 A hand-maintained list of eighty-odd issues is the shape this repo has had
 to delete repeatedly: a list that goes stale silently in both directions —
 missing what was filed, still naming what was closed. So the page is
-rendered, and `--write` reconciles the map against the live issue list and
+rendered, and `--reconcile` checks the map against the live issue list and
 **fails** when they disagree:
 
 - an issue that is open and has no tier is untriaged, and says so;
 - a tier entry whose issue is closed is a stale row, and says so.
 
-Neither is a warning. A tracker that quietly drops a new issue is worse than
-no tracker, because it reads as complete.
+Neither is a warning. A tracker that quietly drops a new issue is worse
+than no tracker, because it reads as complete. `--write` fixes the second
+kind itself and refuses on the first, because only the first needs
+judgement.
 
 The three modes, and where each one runs
 ----------------------------------------
@@ -36,8 +38,13 @@ PR red the moment anyone filed one. Until doppler#1716 nothing ran it at all
 -- only ``make issues`` reconciled, and nothing ran that, so on 2026-09-30
 the map had 66 open issues untiered and 3 closed ones still listed.
 
-``--write`` is ``--reconcile`` plus the refresh: on no drift it rewrites the
-map's titles and statuses and renders the page. ``make issues`` runs it.
+``--write`` (``make issues``) is the fix for a red reconcile. It refuses
+while an open issue is untiered -- that is judgement, and only a person
+supplies it -- and otherwise drops every row whose issue has closed (which
+needs none, so it says so and does it), rewrites titles and statuses, and
+renders the page. A red daily run therefore always has one fix: tier the
+new issues, then ``make issues``. The reconcile still fails on both kinds,
+so a closed row is reported the day it goes stale.
 
 ``--live FILE`` replaces the ``gh`` read with a JSON list of
 ``{"number", "title"}`` rows, so the reconcile can be driven over a seeded
@@ -348,13 +355,64 @@ def render(data: dict) -> str:
     )
     L.append("")
     L.append(
-        "`make issues` fails if an open issue has no tier, or if a tier names "
-        "an issue that is closed, and the daily `make issues-check` run goes "
-        "red on the same two — so this page cannot rot in either direction "
-        "without saying so."
+        "The daily `make issues-check` run goes red if an open issue has no "
+        "tier or a tier names an issue that is closed — so this page cannot "
+        "rot in either direction without saying so. `make issues` refuses "
+        "while an issue is untiered, and drops a closed issue's row itself."
     )
     L.append("")
     return _mdformat("\n".join(L))
+
+
+def refresh(
+    issues: dict, live: dict[int, str], closes: dict[int, int]
+) -> list[int]:
+    """Bring the map's rows up to date with the live list, in place.
+
+    Drops every row whose issue is no longer open -- that needs no
+    judgement, so ``make issues`` does it rather than refusing -- and
+    rewrites each open row's title and status. Tier and ``why`` are left
+    alone: they are the judgement, and only a person edits them. The caller
+    must already have refused an untiered open issue.
+
+    Parameters
+    ----------
+    issues : dict
+        The map's ``[issue.N]`` tables, keyed by the number as a string.
+    live : dict of int to str
+        Every open issue: number -> title.
+    closes : dict of int to int
+        Open issue -> the open pull request that closes it.
+
+    Returns
+    -------
+    list of int
+        The numbers of the rows dropped, ascending.
+
+    Examples
+    --------
+    >>> rows = {
+    ...     "1": {"tier": 2, "title": "old", "status": "open", "why": "w"},
+    ...     "2": {"tier": 5, "title": "x"},
+    ... }
+    >>> refresh(rows, {1: "new"}, {})
+    [2]
+    >>> rows["1"]["title"], rows["1"]["why"], sorted(rows)
+    ('new', 'w', ['1'])
+    """
+    _, stale = drift(live, issues)
+    for n in stale:
+        del issues[str(n)]
+    for n, title in live.items():
+        rec = issues[str(n)]
+        rec["title"] = title
+        rec["status"] = (
+            f"in review ([#{closes[n]}]"
+            f"(https://github.com/{REPO_SLUG}/pull/{closes[n]}))"
+            if n in closes
+            else "open"
+        )
+    return stale
 
 
 def do_reconcile(live_path: pathlib.Path | None) -> int:
@@ -378,8 +436,8 @@ def do_reconcile(live_path: pathlib.Path | None) -> int:
             f.write("### Issue tier map vs the live issue list\n\n```\n")
             f.write("\n".join(lines) if lines else "no drift")
             f.write(
-                "\n```\n\nFix: tier/delete in docs/dev/issue-tiers.toml"
-                ", then `make issues`.\n"
+                "\n```\n\nFix: tier the new issues in "
+                "docs/dev/issue-tiers.toml, then `make issues`.\n"
             )
     for line in lines:
         print(line)
@@ -409,24 +467,19 @@ def do_write() -> int:
     closes = pr_closes(prs, REPO_SLUG)
 
     data = load_map()
-    issues = data.get("issue", {})
+    issues = data.setdefault("issue", {})
 
-    untiered, stale = drift(live, issues)
-    lines = report_drift(live, untiered, stale)
-    if lines:
-        for line in lines:
+    untiered, _ = drift(live, issues)
+    if untiered:
+        # Tiering is the judgement half; nothing is written until it is done,
+        # so the page and the map never disagree.
+        for line in report_drift(live, untiered, []):
             print(line)
         return 1
 
-    for n, title in live.items():
-        rec = issues[str(n)]
-        rec["title"] = title
-        rec["status"] = (
-            f"in review ([#{closes[n]}]"
-            f"(https://github.com/{REPO_SLUG}/pull/{closes[n]}))"
-            if n in closes
-            else "open"
-        )
+    dropped = refresh(issues, live, closes)
+    for n in dropped:
+        print(f"gen_issue_tracker: dropped #{n}, closed since it was tiered")
 
     today = datetime.date.today().isoformat()
     data.setdefault("meta", {})["generated"] = today
@@ -443,8 +496,8 @@ def _write_map(data: dict) -> None:
     L = [
         "# The backlog's tier assignments — the judgement half of",
         "# docs/dev/issues.md, committed so it can be reviewed and argued",
-        "# with. `make issues` renders the page from this file and fails if",
-        "# an open issue is missing here or a closed one is still listed.",
+        "# with. `make issues` renders the page from this file, refuses while",
+        "# an open issue is missing here, and drops a closed issue's row.",
         "#",
         "# tier 0 breaks for a user          3 measured cost",
         "# tier 1 a gate that does not gate  4 cannot be reached",

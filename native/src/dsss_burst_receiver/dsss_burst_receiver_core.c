@@ -295,7 +295,13 @@ dsss_br_demod_one (dp_dsss_burst_receiver_state_t *s, size_t i, uint8_t *out,
       s->ev_cap  = cap;
     }
   {
-    dsss_br_event_t *r    = &s->ev[s->ev_len++];
+    dsss_br_event_t *r = &s->ev[s->ev_len++];
+    /* Zeroed first: the record ends in a uint8_t, so it carries trailing
+       struct padding no field below writes, and events() copies whole rows
+       out of this realloc'd buffer. Unzeroed, those bytes were whatever the
+       heap held, and two receivers fed the same input handed Python
+       different bytes for the same events (doppler#1699). */
+    memset (r, 0, sizeof *r);
     r->preamble_start     = s->preamble_start;
     r->doppler_hz_est     = s->doppler_hz_est;
     r->doppler_res_hz     = s->doppler_res_hz;

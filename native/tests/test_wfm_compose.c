@@ -1273,6 +1273,211 @@ test_a_scene_refuses_what_a_stream_cannot_do (void)
   return 0;
 }
 
+/* Every refusal a data source declares, each asserting its sentence: a
+   refusal is a claim, and its words are what a user reads. */
+static int
+test_every_data_refusal_names_its_fix (void)
+{
+  uint8_t bits[48];
+  six_bits (bits);
+  static const uint8_t zero[1] = { 0 };
+  const wfm_seq_t data = { .kind = WFM_SEQ_LITERAL, .bits = bits, .len = 48 };
+  const wfm_seq_t fill = { .kind = WFM_SEQ_LITERAL, .bits = zero, .len = 1 };
+  wfm_source_t    s;
+  const char     *why;
+#define REFUSED(words, what)                                                  \
+  do                                                                          \
+    {                                                                         \
+      why = dp_wfm_source_error (&s);                                         \
+      DP_CHECK_MSG (why && strstr (why, words), what);                        \
+    }                                                                         \
+  while (0)
+
+  s      = data_line ();
+  s.data = data;
+  s.type = WFM_SYNTH_DSSS;
+  REFUSED ("doppler#1719", "a data source on dsss: not built yet, by issue");
+  s.type = 0; /* a tone frames nothing */
+  REFUSED ("--type bits", "a type that cannot frame: names the types");
+  s      = data_line ();
+  s.data = (wfm_seq_t){ .kind = WFM_SEQ_DATA, .len = 8 };
+  REFUSED ("no bits of its own", "data:LEN as the data itself");
+
+  /* A carried frame: it must have a data field, and --data-len agrees. */
+  wfm_frame_desc_t     plain, df;
+  static const uint8_t two[2] = { 1, 0 };
+  const wfm_seq_t lit2   = { .kind = WFM_SEQ_LITERAL, .bits = two, .len = 2 };
+  const wfm_seq_t data16 = { .kind = WFM_SEQ_DATA, .len = 16 };
+  DP_REQUIRE (dp_wfm_frame_fixed (&plain, NULL, 0, &lit2, &lit2, 0) == 0);
+  DP_REQUIRE (dp_wfm_frame_fixed (&df, NULL, 0, NULL, &data16, 0) == 0);
+  s       = data_line ();
+  s.data  = data;
+  s.frame = &plain;
+  REFUSED ("has none", "a carried frame with no data:LEN field");
+  s.frame    = &df;
+  s.data_len = 8;
+  REFUSED ("--data-len must be 0", "--data-len against the frame's LEN");
+
+  /* stdin and files: what each needs before a byte is read. */
+  s                = data_line ();
+  s.data_from_file = "-";
+  s.fill           = fill;
+  s.data_len       = 0;
+  REFUSED ("give --data-len", "stdin has no length to take whole");
+  s.data_from_file = "/no/such/dp_wfm_data_file.bin";
+  REFUSED ("cannot be opened", "a missing file, taken whole");
+  s.data_len = 8;
+  REFUSED ("cannot be opened", "a missing file, in frames");
+
+  /* data_len 0 takes a finite source whole, as ONE frame. */
+  s                           = data_line ();
+  s.data                      = data;
+  s.data_len                  = 0;
+  wfm_segment_t           seg = { .sources = &s, .n_sources = 1, .fs = 1e6 };
+  dp_wfm_compose_state_t *c   = dp_wfm_compose_create (&seg, 1, 0, 0);
+  DP_REQUIRE (c != NULL);
+  float complex out[100];
+  DP_CHECK_MSG (dp_wfm_compose_execute (c, out, 100) == 48,
+                "data_len 0: the whole 48-bit source is one frame");
+  dp_wfm_compose_destroy (c);
+
+  /* A C caller that skips dp_wfm_source_error: the attach and the length
+     helpers refuse rather than build over nothing. */
+  dp_wfm_synth_state_t *syn = dp_wfm_synth_create (
+      WFM_SYNTH_BITS, 1e6, 0.0, 200.0, 0, 1, 1, 7, 0, 0, 0.0);
+  DP_REQUIRE (syn != NULL);
+  s       = data_line ();
+  s.data  = data;
+  s.frame = &plain;
+  DP_CHECK_MSG (dp_wfm_source_attach_frame (syn, &s) == -1,
+                "attach: a frame with no data field is not built");
+  DP_CHECK_MSG (dp_wfm_source_data_frames (&s) == 0, "nor counted in frames");
+  s.frame    = NULL;
+  s.data_len = 40; /* 48 bits leave 8 over, and there is no fill */
+  DP_CHECK_MSG (dp_wfm_source_attach_frame (syn, &s) == -1,
+                "attach: a source create refuses is not attached");
+  dp_wfm_synth_destroy (syn);
+  wfm_frame_desc_t bad = { 0 };
+  DP_REQUIRE (dp_wfm_frame_add_field (&bad, "payload", &data16, 0) == 0);
+  bad.field[bad.n_fields].bits = 16u; /* a derived field with no producer */
+  bad.n_fields++;
+  s.frame = &bad;
+  DP_CHECK_MSG (dp_wfm_source_data_frame_samples (&s) == 0,
+                "a frame that does not lay out has no samples per frame");
+
+  /* The scene reader: a "data_from_file" is a non-empty path, and a count
+     beside a FINITE source is refused. */
+  why = NULL;
+  DP_CHECK_MSG (
+      dp_wfm_compose_from_json_why (
+          "{\"segments\":[{\"type\":\"bpsk\",\"data_from_file\":5}]}", &why)
+              == NULL
+          && why && strstr (why, "path of a file"),
+      "a non-string data_from_file is refused by name");
+  why = NULL;
+  DP_CHECK_MSG (
+      dp_wfm_compose_from_json_why (
+          "{\"segments\":[{\"type\":\"bpsk\",\"data_from_file\":\"\"}]}", &why)
+              == NULL
+          && why && strstr (why, "path of a file"),
+      "and so is an empty one");
+  why = NULL;
+  DP_CHECK_MSG (dp_wfm_compose_from_json_why (
+                    "{\"segments\":[{\"type\":\"bpsk\",\"data\":\"0xABCD\","
+                    "\"data_len\":8,\"num_samples\":64}]}",
+                    &why)
+                        == NULL
+                    && why && strstr (why, "num_samples"),
+                "a scene's count beside a finite source is refused by name");
+#undef REFUSED
+  return 0;
+}
+
+/* A relative "data_from_file" is the SCENE's: read from the scene's own
+   directory, wherever the scene is read from. */
+static int
+test_a_scene_data_file_is_relative_to_the_scene (void)
+{
+  char      dir[512], data[600], scene[600];
+  const int pid = (int)getpid ();
+  snprintf (dir, sizeof dir, "%s", dp_test_tmpdir ());
+  snprintf (data, sizeof data, "%s/dp_wfm_f6a_%d.bin", dir, pid);
+  snprintf (scene, sizeof scene, "%s/dp_wfm_f6a_%d.json", dir, pid);
+  FILE *f = fopen (data, "wb");
+  DP_REQUIRE (f != NULL);
+  DP_REQUIRE (fwrite (SIX, 1, 6, f) == 6);
+  fclose (f);
+  f = fopen (scene, "wb");
+  DP_REQUIRE (f != NULL);
+  fprintf (f,
+           "{\"segments\":[{\"type\":\"bits\",\"modulation\":\"none\","
+           "\"sps\":1,\"snr\":200,\"crc\":\"none\",\"data_len\":16,"
+           "\"data_from_file\":\"dp_wfm_f6a_%d.bin\"}]}",
+           pid);
+  fclose (f);
+  const char             *why = NULL;
+  dp_wfm_compose_state_t *c   = dp_wfm_compose_from_file_why (scene, &why);
+  DP_CHECK_MSG (c != NULL, why ? why : "a scene beside its data composes");
+  if (c)
+    {
+      float complex out[100];
+      uint8_t       got[48], want[48];
+      six_bits (want);
+      DP_CHECK_MSG (dp_wfm_compose_execute (c, out, 100) == 48
+                        && as_bits (out, 48, got) == 0
+                        && memcmp (got, want, 48) == 0,
+                    "the relative path read the scene's file: its 3 frames");
+      dp_wfm_compose_destroy (c);
+    }
+  DP_CHECK (remove (scene) == 0 && remove (data) == 0);
+  return 0;
+}
+
+/* The early end, consumed a few samples at a time: the run stops on the
+   frame boundary however the reads are chunked, and with an RRC shaper --
+   which pulls symbols ahead of the output -- it still stops there. */
+static int
+test_a_stream_ends_on_its_frame_however_it_is_read (void)
+{
+  for (int shaped = 0; shaped < 2; shaped++)
+    {
+      int p[2];
+      DP_REQUIRE (t_pipe (p) == 0);
+      DP_REQUIRE (t_write (p[1], SIX, 6) == 6);
+      t_close (p[1]);
+      const int saved = t_dup (0);
+      DP_REQUIRE (saved >= 0 && t_dup2 (p[0], 0) == 0);
+      t_close (p[0]);
+
+      static const uint8_t zero[1] = { 0 };
+      wfm_source_t         src     = data_line ();
+      src.data_from_file           = "-";
+      src.fill
+          = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = zero, .len = 1 };
+      src.sps = 4;
+      if (shaped)
+        {
+          src.pulse    = 1; /* rrc */
+          src.rrc_beta = 0.35;
+          src.rrc_span = 2;
+        }
+      wfm_segment_t seg = { .sources = &src, .n_sources = 1, .fs = 1e6 };
+      dp_wfm_compose_state_t *c = dp_wfm_compose_create (&seg, 1, 0, 0);
+      DP_REQUIRE (c != NULL);
+      float complex out[8];
+      size_t        total = 0, n;
+      while ((n = dp_wfm_compose_execute (c, out, 3)) > 0)
+        total += n;
+      DP_CHECK_MSG (total == 3u * 16u * 4u,
+                    shaped ? "rrc, read 3 at a time: 3 frames, then the end"
+                           : "read 3 at a time: 3 frames, then the end");
+      dp_wfm_compose_destroy (c);
+      t_dup2 (saved, 0);
+      t_close (saved);
+    }
+  return 0;
+}
+
 int
 main (void)
 {
@@ -4274,6 +4479,12 @@ main (void)
   if (test_a_data_stream_ends_the_run_on_a_frame ())
     return 1;
   if (test_a_scene_refuses_what_a_stream_cannot_do ())
+    return 1;
+  if (test_every_data_refusal_names_its_fix ())
+    return 1;
+  if (test_a_scene_data_file_is_relative_to_the_scene ())
+    return 1;
+  if (test_a_stream_ends_on_its_frame_however_it_is_read ())
     return 1;
   if (test_a_framed_pn_type_sends_its_frame ())
     return 1;

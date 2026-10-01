@@ -100,7 +100,7 @@ The five scenes produce **4 distinct waveforms**, not five: `pn` and `bpsk` hash
 | `pn:12:1` | 2 | `error: --bits pn:12:1: a pn REG this narrow has no maximal-length polynomial: give POLY, or a wider REG` |
 | `pn:31:5:32` | 2 | `error: --bits pn:31:5:32: a pn SEED or POLY has a bit above its REG-bit register` |
 | `01a1` | 2 | `error: --bits 01a1: a binary literal holds a character other than 0 or 1` |
-| `data:1024` | 2 | `error: a payload of data:LEN draws its bits from a data source, and wfmgen does not connect one yet (doppler#1619)` |
+| `data:1024` | 2 | `error: a payload of data:LEN is drawn from a data source: give the source with --data or --data-from-file, and its bits per frame with --data-len` |
 | `pn:4000000000:5` | 2 | `error: --bits pn:4000000000:5: LEN * REPS is past the Field bound of 261120 bits` |
 
 

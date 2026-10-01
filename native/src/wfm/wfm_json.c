@@ -1220,18 +1220,18 @@ dp_wfm_compose_from_file_why (const char *path, const char **why)
   fclose (f);
   buf[rd] = '\0';
   /* The scene's own directory, so a relative "data_from_file" is the
-     scene's, not the caller's working directory's. */
-  char       *dir   = dp_xmalloc (strlen (path) + 2u);
+     scene's, not the caller's working directory's. A path with no slash is
+     in the working directory, which a NULL base already means; one in the
+     root keeps its leading "/" (n is at least 1). */
   const char *slash = strrchr (path, '/');
+  char       *dir   = NULL;
   if (slash)
     {
-      memcpy (dir, path, (size_t)(slash - path));
-      dir[slash - path] = '\0';
-      if (slash == path)
-        (void)strcpy (dir, "/");
+      const size_t n = (size_t)(slash - path) + (slash == path);
+      dir            = dp_xmalloc (n + 1u);
+      memcpy (dir, path, n);
+      dir[n] = '\0';
     }
-  else
-    (void)strcpy (dir, ".");
   dp_wfm_compose_state_t *c = dp_wfm_compose_from_json_at (buf, dir, why);
   free (dir);
   free (buf);

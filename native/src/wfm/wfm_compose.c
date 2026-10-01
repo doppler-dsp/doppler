@@ -63,6 +63,15 @@ dup_u8 (const uint8_t *src, size_t n)
   return copy;
 }
 
+/* An owned copy, aborting on OOM rather than returning NULL. */
+static uint8_t *
+dup_x (const uint8_t *src, size_t n)
+{
+  uint8_t *copy = dp_xmalloc (n);
+  memcpy (copy, src, n);
+  return copy;
+}
+
 /* Replace dst's array pointers (struct-assigned from the caller's source)
  * with owned copies. On failure every pointer is already owned-or-NULL, so
  * free_segment_sources() on the partially-built list stays safe (it never
@@ -118,28 +127,19 @@ copy_source_arrays (wfm_source_t *dst, const wfm_source_t *src)
       if (!dst->sync.bits)
         return -1;
     }
+  /* The data source's members (#1619), copied with the abort-on-OOM
+     helper: an allocation that can fail only on genuine OOM carries no
+     unwind path a test could never reach (clib_common.h). A path is
+     borrowed by a source like everything above, so the composer owns a
+     copy of it too: the data source opens it at each build. */
   if (src->data.bits && src->data.len)
-    {
-      dst->data.bits = dup_u8 (src->data.bits, src->data.len);
-      if (!dst->data.bits)
-        return -1;
-    }
+    dst->data.bits = dup_x (src->data.bits, src->data.len);
   if (src->fill.bits && src->fill.len)
-    {
-      dst->fill.bits = dup_u8 (src->fill.bits, src->fill.len);
-      if (!dst->fill.bits)
-        return -1;
-    }
-  /* A path is borrowed by a source like everything above, so the composer
-     owns a copy of it too: the data source opens it at each build. */
+    dst->fill.bits = dup_x (src->fill.bits, src->fill.len);
   if (src->data_from_file)
-    {
-      dst->data_from_file
-          = (const char *)dup_u8 ((const uint8_t *)src->data_from_file,
-                                  strlen (src->data_from_file) + 1u);
-      if (!dst->data_from_file)
-        return -1;
-    }
+    dst->data_from_file
+        = (const char *)dup_x ((const uint8_t *)src->data_from_file,
+                               strlen (src->data_from_file) + 1u);
   return 0;
 }
 

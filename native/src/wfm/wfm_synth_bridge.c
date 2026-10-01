@@ -462,10 +462,10 @@ dp_wfm_source_attach_frame (dp_wfm_synth_state_t *syn, const wfm_source_t *src)
   if (has_data (src) && type_can_frame (src))
     {
       wfm_frame_desc_t d;
-      if (source_frame (src, &d) != 0)
-        return -1;
-      const int i = data_field (&d);
-      if (i < 0)
+      int              i = -1;
+      /* A spec dp_wfm_source_error passed always has both; a C caller that
+         skipped it gets -1 rather than a frame built over nothing. */
+      if (source_frame (src, &d) != 0 || (i = data_field (&d)) < 0)
         return -1;
       wfm_data_src_t *ds = dp_wfm_data_create_seq (
           src->data_from_file ? NULL : &src->data, src->data_from_file,
@@ -849,10 +849,9 @@ dp_wfm_source_data_frames (const wfm_source_t *src)
   if (!src || !has_data (src) || dp_wfm_source_data_is_stream (src))
     return 0;
   wfm_frame_desc_t d;
-  if (source_frame (src, &d) != 0)
-    return 0;
-  const int i = data_field (&d);
-  if (i < 0 || d.field[i].seq.len == 0)
+  int              i = -1;
+  if (source_frame (src, &d) != 0 || (i = data_field (&d)) < 0
+      || d.field[i].seq.len == 0)
     return 0;
   const uint64_t total
       = src->data.len ? (uint64_t)src->data.len

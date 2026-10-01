@@ -199,12 +199,26 @@ GATES_PROVISION ?= install-deps
 # not an exception to it.
 GATES_LOCAL_ONLY ?=
 
-# Targets CI runs that the scan cannot see for itself -- one driven from an
-# `env` expression, or run by a workflow other than GATES_CI_FILE. Naming them
-# is better than widening the scan into a guess: the check refuses to run at
-# all when it meets an interpolation it cannot resolve, so a repo is told
-# exactly what to add rather than handed a wrong answer.
+# Targets run by a workflow OTHER than GATES_CI_FILE -- a scheduled job, a
+# release workflow. Naming one here counts it as run by CI, so the name is
+# VERIFIED, not taken on trust: `gates-home-check` fails unless some workflow
+# under GATES_WORKFLOW_DIR runs `make <name>` on an uncommented line, read by
+# the same extractor (_STD_MAKE_RUNS) that reads GATES_CI_FILE. Before it was,
+# a deleted or renamed workflow left its target "covered" by the declaration
+# alone -- the reverse-direction gate satisfied by a list again (doppler#1716,
+# just-makeit#1768).
+#
+# A target driven from an `env` expression (`make $${{ env.T }}`) is NOT
+# something this variable takes: the scan resolves matrix arms only, and
+# an `env` value can come from anywhere a workflow can compute one, so no
+# file read verifies it. Spell such a target as a literal `make <t>` or as a
+# matrix arm, both of which the scan reads. An unresolved interpolation
+# contributes no target, so the gate it drives reads as homeless and
+# `gates-home-check` fails naming it -- red, never a silent pass.
 GATES_CI_EXTRA ?=
+# Where the GATES_CI_EXTRA homes are looked for. Defaults to the directory
+# holding GATES_CI_FILE; overridable so the check can be sabotaged on a copy.
+GATES_WORKFLOW_DIR ?= $(patsubst %/,%,$(dir $(GATES_CI_FILE)))
 
 $(call _std_require,TEST_CMD,every repo)
 $(call _std_require,TEST_FAST_CMD,every repo)
@@ -437,22 +451,51 @@ gates-home-check: ## Verify every gate in GATES_DEPS runs in some CI job
 	         if [ "$$all" = 1 ]; then covered="$$covered$$t "; added=1; fi; \
 	     done; \
 	 done; \
-	 rc=0; n=0; \
+	 : "A GATES_CI_EXTRA name is in ci_targets by declaration, so it is"; \
+	 : "held to a real home: some workflow under GATES_WORKFLOW_DIR must run"; \
+	 : "it, read by _STD_MAKE_RUNS -- the scan GATES_CI_FILE gets, so the two"; \
+	 : "cannot disagree about what a make line is. A subshell, so the loop's"; \
+	 : "ci does not clobber the one the rest of this recipe reads."; \
+	 rc=0; \
+	 if [ -n "$(strip $(GATES_CI_EXTRA))" ]; then \
+	     ( xrc=0; \
+	       for x in $(GATES_CI_EXTRA); do \
+	           home=""; \
+	           for ci in "$(GATES_WORKFLOW_DIR)"/*.yml "$(GATES_WORKFLOW_DIR)"/*.yaml; do \
+	               [ -f "$$ci" ] || continue; \
+	               if $(_STD_MAKE_RUNS) | grep -qxF "$$x"; then home="$$ci"; break; fi; \
+	           done; \
+	           if [ -z "$$home" ]; then \
+	               echo "ERROR: GATES_CI_EXTRA names '$$x', but no workflow in $(GATES_WORKFLOW_DIR) runs 'make $$x'"; \
+	               xrc=1; \
+	           fi; \
+	       done; \
+	       if [ $$xrc -ne 0 ]; then \
+	           echo ""; \
+	           echo "  GATES_CI_EXTRA counts a name as run by CI, so each one must be: an"; \
+	           echo "  uncommented 'make <name>' line (or matrix arm) in some workflow."; \
+	           echo "  Restore the workflow line, or drop the name from GATES_CI_EXTRA."; \
+	           echo ""; \
+	       fi; \
+	       exit $$xrc ) || rc=1; \
+	 fi; \
+	 n=0; drc=0; \
 	 for t in $(GATES_DEPS); do \
 	     case " $(GATES_LOCAL_ONLY) " in *" $$t "*) continue;; esac; \
 	     n=$$((n+1)); \
 	     case "$$covered" in *" $$t "*) continue;; esac; \
 	     echo "ERROR: 'make $$t' is in GATES_DEPS, but no job in $$ci runs it"; \
-	     rc=1; \
+	     drc=1; \
 	 done; \
-	 if [ $$rc -ne 0 ]; then \
+	 if [ "$$drc" = 1 ]; then \
 	     echo ""; \
 	     echo "  A gate nothing runs guards nothing. Wire it into $$ci, drop it"; \
 	     echo "  from GATES_DEPS, or name it in GATES_LOCAL_ONLY — which takes"; \
 	     echo "  a gate that cannot run on a runner AND an aggregate whose work"; \
 	     echo "  already runs under other names. See the comment on it."; \
-	     exit 1; \
+	     rc=1; \
 	 fi; \
+	 [ $$rc -eq 0 ] || exit 1; \
 	 echo "gates-home-check: $$n gate(s) have an execution home in CI"
 
 # ── HAS_C ────────────────────────────────────────────────────────────────────
@@ -1183,10 +1226,13 @@ STD_TARGETS += hook-stage-check tracked-paths-check
 # is far too big to hold in a shell variable comfortably.
 _STD_TMP = mktemp "$${TMPDIR:-/tmp}/std.XXXXXX"
 
-# The `make <target>` invocations in $$ci, one per line, sorted and unique.
-# ONE extractor because `gates-check` and `gates-home-check` are the two
-# directions of a single claim, and two copies of a scan is how the directions
-# come to disagree about what CI runs. Takes `make` only at a command position
+# The `make <target>` invocations in the workflow file $$ci, one per line,
+# unsorted. ONE extractor because `gates-check` and `gates-home-check` are the
+# two directions of a single claim, and two copies of a scan is how the
+# directions come to disagree about what CI runs -- and the same one again
+# verifies each GATES_CI_EXTRA home, run over every workflow in
+# GATES_WORKFLOW_DIR, so "what a `make` line is" has exactly one answer.
+# Takes `make` only at a command position
 # (start of a `run:` line or block-scalar body, or after ; & |), so neither
 # `cmake` nor a `make X` inside a comment or a `name:` counts, and the first
 # token only, so a target invoked with arguments still does. Reads `ci` from
@@ -1210,11 +1256,12 @@ _STD_TMP = mktemp "$${TMPDIR:-/tmp}/std.XXXXXX"
 # repo the check was written for. The interpolation names the key that supplies
 # it, so the values are resolved rather than guessed at: `matrix.san.target`
 # reads `target:` under `san:`, and a flat `matrix.thing` reads the list.
-_STD_CI_TARGETS = { sed -E 's/(^|[[:space:]])\#.*$$//' "$$ci" \
+_STD_MAKE_RUNS = { sed -E 's/(^|[[:space:]])\#.*$$//' "$$ci" \
 	     | grep -hoE '(^[[:space:]]*(- )?run:[[:space:]]*make|^[[:space:]]*make|[;&|][[:space:]]*make)[[:space:]]+[a-zA-Z_][a-zA-Z0-9_-]*' \
 	     | grep -oE 'make[[:space:]]+[a-zA-Z_][a-zA-Z0-9_-]*$$' \
 	     | sed -E 's/make[[:space:]]+//'; \
-	   for _e in $$(grep -oE 'make[[:space:]]+\$$\{\{[[:space:]]*matrix\.[a-zA-Z0-9_.]+' "$$ci" \
+	   for _e in $$(sed -E 's/(^|[[:space:]])\#.*$$//' "$$ci" \
+	       | grep -oE 'make[[:space:]]+\$$\{\{[[:space:]]*matrix\.[a-zA-Z0-9_.]+' \
 	       | sed -E 's/.*matrix\.//' | LC_ALL=C sort -u); do \
 	     _k=$${_e%%.*}; _f=$${_e\#*.}; \
 	     if [ "$$_f" = "$$_e" ]; then \
@@ -1227,6 +1274,12 @@ _STD_CI_TARGETS = { sed -E 's/(^|[[:space:]])\#.*$$//' "$$ci" \
 	         | sed -E "s/.*$$_f:[[:space:]]*//"; \
 	     fi; \
 	   done; \
+	 }
+
+# What CI runs, as both gates read it: the scan of GATES_CI_FILE plus the
+# GATES_CI_EXTRA names, sorted and unique. The extras are trusted HERE only
+# because `gates-home-check` verifies each against a real workflow line.
+_STD_CI_TARGETS = { $(_STD_MAKE_RUNS); \
 	   for _x in $(GATES_CI_EXTRA); do echo "$$_x"; done; \
 	 } | LC_ALL=C sort -u
 

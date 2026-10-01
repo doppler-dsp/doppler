@@ -511,11 +511,6 @@ tier = 2
 title = "gold: the CCSDS constants are certified against the published vector, not against the document"
 status = "open"
 
-[issue.1153]
-tier = 0
-title = "wfmgen: --from-file <scene> --realtime never terminates on a finite scene"
-status = "open"
-
 [issue.1173]
 tier = 3
 title = "BurstCapture: the per-burst window copy is measured only at a 20 kB window, and it scales with burst_len"
@@ -1043,12 +1038,6 @@ title = "wfm: pn:0 (a seeded data stream) on the text faces"
 status = "open"
 why = "The C data source takes pn:0 as an endless seeded stream and no text face can say it"
 
-[issue.1718]
-tier = 5
-title = "wfm: delete --bits, --bits-file and the payload cycle (#1619 F6b)"
-status = "in review ([#1731](https://github.com/doppler-dsp/doppler/pull/1731))"
-why = "--data and --bits are two ways to say one thing until the old one is deleted (#1619 F6b)"
-
 [issue.1722]
 tier = 4
 title = "wfm: Plan's refusals carry no reason (const char **why, #1686)"
@@ -1072,24 +1061,6 @@ tier = 0
 title = "Composer face: num_samples beside a finite data source is silently dropped; retired bits=/payload=/pattern= need the Composer assertion"
 status = "open"
 why = "Composer silently drops num_samples beside a finite data source; the CLI and JSON faces refuse it"
-
-[issue.1733]
-tier = 0
-title = "wfmgen: a scene whose segments differ in fs is written, streamed and paced at segment 0's rate"
-status = "open"
-why = "A mixed-fs scene is written, streamed and paced at segment 0's rate: the SigMF/BLUE/stream rate is false for later segments and --realtime runs them at the wrong speed"
-
-[issue.1737]
-tier = 1
-title = "ci-image: the nightly is green while a repin is pending, so nobody learns the merge queue is jammed"
-status = "open"
-why = "The nightly ends green while ci/repin-image holds an unlanded repin, which makes the repin gate red on every PR and ejects every queued one; nothing notifies anyone"
-
-[issue.1738]
-tier = 5
-title = "Dockerfile.ci: downloads use curl with no --fail and no retry, so a transient HTTP error fails the image build as 'not in gzip format'"
-status = "open"
-why = "The image build fetches with no --fail or --retry, so a transient error page fails later in tar, misnamed; red, not silently green, so harness hygiene rather than tier 1"
 
 [issue.1740]
 tier = 5

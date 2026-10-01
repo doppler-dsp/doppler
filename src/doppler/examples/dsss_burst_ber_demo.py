@@ -187,9 +187,12 @@ rx.reset()
 x = plan.at(BASE_EBN0_DB, 2)
 fresh = receiver()
 assert np.array_equal(np.asarray(rx.push(x)), np.asarray(fresh.push(x)))
-assert rx.events().tobytes() == fresh.events().tobytes(), (
-    "a reset() receiver's events differ from a fresh receiver's"
-)
+# Field by field, never tobytes(): a row ends in a uint8, so it carries
+# seven bytes of C struct padding that no field owns and nothing writes.
+ev, ev_fresh = rx.events(), fresh.events()
+assert len(ev) == len(ev_fresh) and all(
+    ev[f].tobytes() == ev_fresh[f].tobytes() for f in ev.dtype.names
+), "a reset() receiver's events differ from a fresh receiver's"
 rx.reset()
 # --8<-- [end:reuse]
 

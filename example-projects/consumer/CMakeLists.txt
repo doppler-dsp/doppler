@@ -14,7 +14,7 @@ project(doppler_consumer C)
 # This example builds one executable per mode so both are exercised; a real
 # consumer just picks the target matching its linking policy.
 # <!-- doc-version:start -->
-find_package(doppler 0.59.0 REQUIRED)
+find_package(doppler 0.60.0 REQUIRED)
 # <!-- doc-version:end -->
 
 add_executable(consumer_shared main.c)

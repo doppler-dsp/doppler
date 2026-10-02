@@ -13,6 +13,374 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.60.0] - 2026-10-02
+
+### Breaking
+
+- **`dp_ccsds_tm_randomise_with`, `_rand_seq_with` and `_rand_init` refuse
+    `NULL`.** They return `int` now, `DP_ERR_INVALID` for `NULL` with nothing
+    written, where `NULL` used to mean the default. `NULL` is
+    `dp_ccsds_tm_rand_select`'s refusal, so it must stay one downstream. For
+    the default, call `dp_ccsds_tm_randomise` / `_rand_seq` or pass
+    `&dp_CCSDS_TM_RAND` (#1633).
+
+- **A scene refuses a key it does not take, by name and place**
+    ([#1153](https://github.com/doppler-dsp/doppler/issues/1153)).
+    Every level used to drop unknown keys in silence. A top-level `"fs"` left
+    every segment at fs = 1, and `--realtime` then paced a 7 ms scene for
+    two hours.
+
+- **A `Synth`/`Segment` bit field takes bits, never text.** `data=`,
+    `fill=`, `sync=`, `acq_code=` and `data_code=` refuse a `str` with a
+    `ValueError` that names `field_bits()`. Before, they read `"0101"` and
+    `"0xAA55"` with a grammar of their own and refused `pn:`/`*REPS`. Arrays,
+    `bytes` and 0/1 sequences are taken as before. Migrate:
+    `Segment(data="0xAA55")` → `Segment(data=field_bits("0xAA55"))`.
+
+- **A payload is a data source, sent once: `--bits` and the cycle are
+    gone** ([#1718](https://github.com/doppler-dsp/doppler/issues/1718)).
+    `--bits`/`--bits-file`/`"payload"`/`bits=` are `--data`/
+    `--data-from-file`/`"data"`/`data=`, each old spelling refused; a fixed
+    pattern plays once, then silence. Migration:
+    [design §5](https://doppler-dsp.github.io/doppler/design/payload-data-source/#5-what-is-deleted).
+
+### Added
+
+- **A header's C `@code` example is now compiled and run.** `make   test-snippets` builds each one `-Werror` against `libdoppler.a`, wrapping
+    a fragment in `main`; 44 of 123 pass, the rest are a shrinking backlog
+    (#1635, #1651).
+
+- **`dp_hash64`: FNV-1a 64, the one content hash**
+    ([#1619](https://github.com/doppler-dsp/doppler/issues/1619)). It is
+    header-only and incremental, so a file hashed read by read gives the
+    hash of the whole. It is how a record will identify a
+    `--data-from-file` source. Pinned against the published FNV vectors.
+
+- **A DSSS burst's BER vs Eb/N0, through one `wfm.Plan`.**
+    `dsss_burst_ber_demo.py` draws each trial with `plan.at(snr, seed)`,
+    decodes it blind with `DsssBurstReceiver`, and scores the PN payload
+    against its own Field. Every point's `BerMeter` interval must fall
+    between ideal BPSK and the receiver's sync-phase-limited curve
+    ([gallery](docs/gallery/dsss-burst-receiver.md#ber-vs-ebn0-through-one-plan), #1619).
+
+- **A Field can be `data:LEN`: a frame's payload drawn from a data
+    source** ([#1619](https://github.com/doppler-dsp/doppler/issues/1619)).
+    It parses, prints and lays out, with at most one per frame. It has no
+    bits of its own, so rendering it is refused, and until a source is
+    connected every face refuses a frame that uses it, naming the data
+    source. Design:
+    [The Payload as a Data Source](docs/design/payload-data-source.md).
+
+- **`make lint-doc-claims`: a docs fence or example must check what it
+    shows.** A bare `np.array_equal(a, b)` or `a == b` statement runs green and
+    checks nothing, and an example with no `assert`/`raise`/`sys.exit(<expr>)`
+    can only exit 0. Three such claims on `main` are now asserts (#1682).
+
+- **A `Synth`/`Segment` takes `frame=`.** A source's frame description now
+    arrives from Python as a `FrameDesc` or a `Frame`, as it does from
+    `wfmgen --frame` and a scene's `"frame"` key (just-makeit#1711, toward
+    #1617). The source keeps its own copy. `frame=` is an input: read it
+    back from `Composer.to_json()`. A `str` is refused, naming the object
+    forms and the scene key. C gains `dp_wfm_frame_copy` and
+    `dp_wfm_frame_to_json`.
+
+- **A data source on continuous DSSS**
+    ([#1719](https://github.com/doppler-dsp/doppler/issues/1719)).
+    `--data` / `--data-from-file` / `Synth(data=)` with `--symbol-rate`
+    sends one bit per data symbol, with no frame, and a finite source ends
+    the run with its last symbol. `--data-len`, `--fill` and `--realtime`
+    over stdin are refused by name. With no data source it still sends its
+    seeded PRBS, byte for byte. `dp_wfm_source_data_samples` is the one
+    length a data-source run is measured in.
+
+- **One continuous-DSSS symbol clock, exact under `-ffast-math`**
+    ([#1725](https://github.com/doppler-dsp/doppler/issues/1725)).
+    `dp_wfm_dsss_cont_edge` is the first chip of a data symbol. The synth's
+    kernel, a data source's run length and `dp_wfm_cont_dsss_chips` all use
+    it, so they cannot disagree about where a symbol starts. It computes the
+    exact quotient: a fast-math rewrite had put an edge a chip late.
+
+- **A synth pulls its frames from a data source instead of cycling one**
+    ([#1619](https://github.com/doppler-dsp/doppler/issues/1619)). Each
+    frame is assembled over the next chunk when its first bit is due, so a
+    CRC or an outer code covers that frame's own data. A paced source with
+    nothing yet sends an idle frame of fill, and after the data ends the
+    synth is silent rather than holding its last symbol. Not wired to a
+    face yet.
+
+- **A frame's payload drawn from a data source, on every face**
+    ([#1619](https://github.com/doppler-dsp/doppler/issues/1619)).
+    `--data FIELD` / `"data"` / `Synth(data=bits)`, or
+    `--data-from-file PATH` (`-` for stdin), is split into `--data-len`-bit
+    frames, each with its own CRC, the last padded from `--fill`. A finite
+    source sets the run's length; stdin ends it on a frame boundary, and
+    under `--realtime` a pause sends idle frames. Code-only continuous DSSS
+    is now `--code-only` (`"code_only"`); `--data none|prbs` is refused,
+    naming it.
+
+- **The data source, in C (`wfm/wfm_data.h`)**
+    ([#1619](https://github.com/doppler-dsp/doppler/issues/1619)). A
+    `data:LEN` payload's bits come from a finite Field, a `pn:0` stream, a
+    file or a pipe, `LEN` at a time: one draw per frame, the last chunk
+    padded from `--fill`, and a pipe's pause reported as "nothing yet" for
+    an idle frame. It refuses before the first sample what it can decide
+    then, and it hashes a file as it reads it. Not wired to a face yet.
+
+- **A data source on a DSSS burst**
+    ([#1719](https://github.com/doppler-dsp/doppler/issues/1719)).
+    `--data` / `--data-from-file` / `Synth(data=)` on `--type dsss` sends
+    one burst per `--data-len` chunk: the preamble, then that chunk's frame
+    spread by the data code. The run is the bursts, and stdin ends it where
+    the input ends. `dp_wfm_dsss_desc_chips_data` builds one such burst.
+
+- **How We Work: one policy from branch to release.**
+    `docs/dev/workflow.md` covers how to shape a change, prove it locally,
+    merge it on green and up to date, stop the line on a red `main`, and
+    keep a release a bump alone. It names the three lanes where CI runs
+    less (a docs-only PR, `main` after a merge, a release PR) and the proof
+    behind each. It covers how a change to the shared `standard.mk` lands,
+    and which gate enforces each rule. Pre-commit is lint and formatting
+    only, never skipped, and `make gates` is only for debugging a CI red.
+    The policy moved there from `CONTRIBUTING.md` and `release.md`.
+
+### Changed
+
+- **Every self-triggered workflow can be started by hand.** `ci.yml`,
+    `docs.yml` and `release.yml` take `workflow_dispatch`, because a run
+    that fails at startup cannot be re-run. A dispatched release names an
+    existing tag (`tag` input): every checkout builds it, `verify-ci` polls
+    its commit, and the GitHub Release is created for it explicitly, never
+    inferred from `github.ref`. A dispatched `docs.yml` on `main`
+    redeploys the site. Pre-commit's four non-`make` hooks are declared in
+    `HOOK_DISPATCH_EXEMPT` (just-makeit#1801).
+
+- **A docs-only PR skips every job docs cannot break.** standard.mk's `make ci-docs`
+    answers `code=false` when every changed path matches `CI_DOCS_RE` and
+    nothing outside `docs/` or `changelog.d/` was deleted. Then the C
+    builds, Doxygen, sanitizers, coverage, glibc, packages, Docker and the
+    sweep skip (`CI passed`'s `CODE_ONLY`). Lint, the site build and the
+    full Python suite on one leg still run. `make ci-aggregator-check`
+    holds `CODE_ONLY` to the jobs gated on `code`.
+
+- **CI runs in the org standard's shared toolchain image.** doppler's own
+    `Dockerfile.ci`, `ci-image.yml` and source-hash script are replaced by
+    canonical's (`HAS_CI_IMAGE`), configured from the Makefile; doppler's
+    extras (clang's profile runtime, a checksummed nats-server) move to
+    `docker/ci-extra.sh`. A pending weekly repin now keeps `ci-image.yml`
+    red on `main` instead of failing every PR, so the `ci-image-repin` job
+    is gone; `ci-image-refs-check` keeps the container-ref half of the old
+    `ci-image-check`.
+
+- **`main` no longer re-runs the matrix a PR just ran, and runs it
+    nightly instead.** On a push, `changes` asks `make ci-tree-tested`
+    whether the landed tree already passed `CI passed` as a PR head that
+    contained the previous tip. `protect-main` requires PRs to be up to
+    date, so that is every merge, and the push run skips to the cheap
+    gates. A nightly `schedule` run never skips, so environment drift goes
+    red on `main`. `standard.mk` is re-vendored for the target.
+
+- **Every pull request runs the full CI matrix, and there is no merge
+    queue.** `ci.yml` has no `merge_group` trigger. `CI passed` grants a
+    skip only to a version bump alone, and `make ci-aggregator-check`
+    refuses any trace of a pull_request/queue split coming back. See
+    `docs/dev/ci.md`.
+
+- **The DSSS burst BER Monte Carlo takes Eb/N0 straight and reuses one
+    receiver.** `Composer(type="dsss", snr_mode="ebno", …)` lets
+    `plan.at(ebn0, seed)` take the number the curve is plotted against, and
+    `rx.reset()` (asserted output-identical to a fresh receiver) cuts a trial
+    from 25 ms to 7 ms: the same curve, 3.4× faster.
+
+- **The DSSS burst walkthrough is one page, sent from a description.**
+    `dsss_burst_receiver_demo.py` now transmits its train from a
+    `FrameDesc` on all three wfmgen faces (`--frame`, a scene's `"frame"`,
+    `Segment(frame=)`), asserts them byte-identical, and checks the decoded
+    frames with `FrameDesc.check`/`deframe` on the same object. Its codes are
+    Field text. The duplicate `dsss-burst-pipeline` page, script, figure and
+    test are removed (#1682).
+
+- **A `str` passed to `Frame`/`FrameDesc` as bits now names
+    `field_bits()`.** `preamble=`, `sync=`, `payload=`, `add_field`'s
+    `bits` and `rx_bits` on `crc_ok`/`deframe`/`check` still raise
+    `TypeError`. The message now ends with the reason a composer source
+    field gives: *a bit field takes bits (a uint8 array); build them from
+    text with field_bits()* (doppler#1708).
+
+- **just-makeit pin 0.93.0 → 0.95.0.** Every generated array argument now
+    refuses a `str` with a `TypeError` naming the parameter, and a `uint8`/
+    `int8` input array also takes `bytes`/`bytearray`/`memoryview`
+    (just-makeit#1700). A self-sized output past `NPY_MAX_INTP` raises
+    `OverflowError` rather than numpy's "negative dimensions"
+    (just-makeit#1710).
+
+- **just-makeit pin 0.95.0 → 0.96.0.** A generated array argument can now
+    say where text goes: a `str_hint` on the parameter is appended to its
+    `TypeError` for a `str` (just-makeit#1756). It also adds `create_why`
+    for a composer's create and makes a composer honour `create_fn`
+    (just-makeit#1755, #1758). doppler declares neither yet, so they change
+    nothing here.
+
+### Removed
+
+- **wfmgen's docs keep one home per topic.** The frame description's scene
+    and Python faces move into `waveforms.md` beside `--frame FILE`;
+    `guide/wfmgen/python.md` (every section duplicated the Python API page)
+    and the orphaned `wfm_stream_demo.py` are deleted (#1682).
+
+- **Three duplicate wfmgen gallery pages are gone** — `plan`, `wfm-write`
+    and `wfm-json`, with their scripts and figures. `Plan` is taught in
+    [Scenes](docs/guide/wfmgen/scenes.md#prepare-once-sweep-many-plan) and
+    exercised by the DSSS BER Monte Carlo; writing is `wfm-io`; the JSON
+    round trip is an asserting fence in Scenes' `--record` section. Stale
+    `rs_depth`, BER-recipe and frame-API prose fixed alongside
+    ([#1682](https://github.com/doppler-dsp/doppler/issues/1682)).
+
+### Fixed
+
+- **The `dsss_burst_receiver` C benchmark times the whole frame.** It told
+    the receiver `frame_syms = 32` for a 61-symbol burst, so it sliced half
+    a frame and none of its bursts passed the CRC. The length is now read
+    off the burst the benchmark builds: 30 of 30 bursts pass, where 0 did
+    (#1669).
+
+- **The CI image fetches fail loudly, and so does a pending repin.**
+    Every `curl` in `deploy/docker/Dockerfile.ci` now uses
+    `-fsSL --retry 5 --retry-all-errors --retry-delay 2`, and the
+    `get-jb.sh` installer is downloaded before it runs instead of piped
+    into `bash`. `make lint-curl-fail` refuses a `curl` without `--fail`
+    in `deploy/docker/` or `.github/` (#1738). The nightly `ci-image.yml`
+    run now ends red while `ci/repin-image` holds an unlanded repin,
+    because that blocks every PR (#1737).
+
+- **A repin is one file on its base, and the repin gate no longer grafts
+    history.** `ci-image-repin-check` fetched `ci/repin-image` with
+    `--depth=1` even in a full clone, which made the repin commit look
+    parentless locally. That misdiagnosis was made twice. It now fetches
+    shallow only in a shallow clone. ci-image.yml's push step runs
+    `make ci-image-repin-commit-check`, which refuses a repin that is not
+    exactly `.github/ci-images.env` on the run's commit (#1510).
+
+- **The CI image's package installer is pinned too.** `Dockerfile.ci` ran
+    `get-jb.sh` and `jbx install-deps`, which always took the newest
+    just-bashit, including the newest install logic, resolved at run time.
+    It now runs `install-deps.sh` from a pinned just-bashit release tarball
+    (`CI_JB_VERSION`, `CI_JB_SHA256` in `.github/ci-images.env`), verified
+    by checksum and re-picked only by the weekly re-pin. The dry-run
+    install plan is byte-identical to before (#1751).
+
+- **The CI image no longer rebuilds on `main`.**
+    `ci-image.yml`'s push trigger was `branches: ['**']`, so merging a
+    Dockerfile change rebuilt an image the PR had already built and pinned.
+    The rebuild re-resolved apt against a moved mirror and owed a fresh
+    repin, which blocked every PR. It is now `branches-ignore: [main]`.
+    Main rebuilds from the weekly run and `workflow_dispatch` only, and a
+    feature branch still
+    builds the image it pins (#1748).
+
+- **The CI image re-pins weekly, and a rebuild in between reproduces it.**
+    The two inputs that moved under an unchanged `Dockerfile.ci`, the base
+    image tag and the apt mirror, are build arguments with no default.
+    Their values are pinned in `.github/ci-images.env`: `CI_BASE_2204` and
+    `CI_BASE_2404` by digest, and `CI_APT_SNAPSHOT`, which every apt source
+    is rewritten to on `snapshot.ubuntu.com`. Only the Monday `ci-image.yml`
+    run (or a dispatch with `refresh`) picks new values. Every other build
+    reads the pin. On 2026-10-01 the old nightly-plus-main rebuilds owed
+    three re-pins in one day (#1748).
+
+- **The `python` job's single-leg steps name their leg by role.** The
+    doc-fence gates, `make validate-check` and the coverage run chose their
+    leg with a literal `'3.12'`, which would match no leg once 3.12 left the
+    classifiers. They now run on the primary leg, the floor, from
+    `scripts/python_versions.py --primary`. `make ci-aggregator-check`
+    refuses a version literal in a leg selector. See `docs/dev/ci.md`
+    (#1714).
+
+- **`DsssBurstReceiver.events()` is deterministic to the byte** (#1699).
+    Each row ends in a `uint8_t`, and its seven bytes of struct padding were
+    copied out of an unzeroed heap buffer, so two receivers fed the same
+    input could return different `tobytes()` for equal events. Rows are now
+    zeroed before they are filled.
+
+- **A refused scene says why, on every face** (#1696, #1706). A dsss
+    source missing a code -- a burst with neither a preamble nor a frame, a
+    continuous stream with no `data_code` -- and a continuous stream below
+    one chip per data symbol (`fs / sps < symbol_rate`, the default
+    `fs = 1.0` with a rate in Hz) are refused naming the fix. `Composer([...])`
+    raises `ValueError(<the reason>)` for any refused scene, through the new
+    `dp_wfm_compose_create_why`, instead of `dp_wfm_compose_create failed`.
+    A preamble alone stays a valid burst, and `waveforms.md` says so.
+
+- **`Frame`/`FrameDesc` refuse a `str` where they take bits.** Their
+    bindings were hand-owned and read `Frame(sync="0101")` as the number
+    101, then failed later with an unrelated reason. Regenerated, every
+    array argument (`preamble=`, `sync=`, `payload=`, `add_field`, and
+    `crc_ok`/`deframe`/`check`'s `rx_bits`) now raises `TypeError` naming
+    the parameter, and takes `bytes` as its stub already said. Make bits
+    from text with `field_bits()` (doppler#1654).
+
+- **Every committed gallery plot is re-rendered by `make gallery`.** Its PNG
+    move list is derived from `GALLERY_SCRIPTS`, which now holds every
+    plotting example, and `make gallery-scripts-check` (on `lint`) fails on a
+    committed plot no script re-renders. Five plots that had drifted from
+    their code are re-rendered; three more wait on a behaviour decision
+    (#1644, #1647, #1670, #1675).
+
+- **The data source's header examples compile and run**
+    ([#1619](https://github.com/doppler-dsp/doppler/issues/1619)). The
+    `@code` examples for `dp_wfm_data_frame`, `dp_wfm_frame_assemble_data`
+    and `dp_wfm_synth_set_refill` now build their own inputs and pass the
+    header-code gate, and `dp_wfm_field_parse`'s example has left its
+    ignore list.
+
+- **The issue tier map is reconciled against the live list, daily.**
+    `make issues-check` fails on an open issue with no tier or a tier row
+    for a closed one, and `.github/workflows/issues.yml` runs it on a
+    schedule rather than on pull requests, since filing an issue is not a
+    diff. `make issues` now drops a closed issue's row itself and refuses
+    only on an untiered one, so the fix for a red run is always "tier the
+    new issues, run `make issues`". The map is reconciled too: 20 closed
+    rows dropped, 71 open issues tiered, each with a one-line `why`.
+    `GATES_CI_EXTRA` is held by `make gates-extra-home-check`. See
+    `docs/dev/issues.md` (#1716).
+
+- **wfmgen no longer labels or paces a mixed-rate scene at its first
+    segment's rate**
+    ([#1733](https://github.com/doppler-dsp/doppler/issues/1733)).
+    `--realtime` and `nats://` frames follow each segment's own `fs`, SigMF
+    leaves the rate out, and BLUE refuses by name.
+
+- **The NDA carrier gallery plot shows the loop it describes again.**
+    `mpsk_nda_theory_demo.py` kept `bn=0.02` after #300 made `bn`
+    cycles/sample, so its loop ran twice as wide with ~3x the jitter. It now
+    builds the 0.01 cycles/sample loop and asserts the jitter against the
+    loop's own theory (#1675).
+
+- **A `Plan` over a scene with no noise refuses an `snr`** (#1695).
+    `plan.at(snr)` and `render(snr=…)` returned the clean signal at every SNR,
+    so a BER sweep over one read a perfect receiver. They now raise
+    `ValueError` naming the fix; C gets `dp_wfm_plan_check_snr()` and a 0
+    return.
+
+- **A scene refuses `"payload"` beside `"frame"`**, as the CLI refuses
+    `--bits` beside `--frame`. It used to exit 0 and drop the payload
+    (#1683). A carried frame description is the whole frame, payload
+    included. The pair is one declaration in the field table, and the CLI,
+    a scene, a `Synth`/`Segment`, `--help` and the schema all refuse from
+    it. A refused `Synth` now raises `ValueError` with the source's reason
+    rather than `RuntimeError: ... returned NULL`. A framed `bits` source
+    with no flat payload now builds.
+
+- **The shared libraries export only the public API** (#1164).
+    `libdoppler.so` exported 1658 symbols, including vendored cJSON and
+    PFFFT, so a program with its own cJSON had doppler call its parser.
+    Exports now come from the headers: 1556, and 89 for the stream library.
+
+- **A refusal reason has one shape, and a gate holds it.** Every public
+    refusal API names its cause through `const char **why`, the only shape
+    jm binds. `docs/dev/contributing/error-convention.md` now states the
+    rule, and `make lint-why-param` fails on any `why` / `*_why` parameter
+    spelled another way (#1684).
+
 ## [0.59.0] - 2026-09-29
 
 ### Breaking
@@ -15131,7 +15499,8 @@ ______________________________________________________________________
 [0.58.0]: https://github.com/doppler-dsp/doppler/compare/v0.57.0...v0.58.0
 [0.59.0]: https://github.com/doppler-dsp/doppler/compare/v0.58.0...v0.59.0
 [0.6.0]: https://github.com/doppler-dsp/doppler/compare/v0.5.5...v0.6.0
+[0.60.0]: https://github.com/doppler-dsp/doppler/compare/v0.59.0...v0.60.0
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.59.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.60.0...HEAD

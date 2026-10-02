@@ -8,7 +8,7 @@
 # tier 2 a claim nothing measures   5 convergence and hygiene
 
 [meta]
-generated = "2026-10-01"
+generated = "2026-10-02"
 
 [issue.502]
 tier = 3
@@ -996,12 +996,6 @@ title = "wfm: the data source and a synth pulling from it have no state triplet"
 status = "open"
 why = "The data source has no state triplet, so a synth pulling from one refuses checkpoint/restore (explicitly)"
 
-[issue.1682]
-tier = 5
-title = "wfmgen docs and Python examples: v0.60.0 coverage audit"
-status = "open"
-why = "The v0.60.0 audit of wfmgen docs and examples; part done, the rest is deletion and stale lines"
-
 [issue.1692]
 tier = 4
 title = "wfm: FrameDesc has no from_json constructor (a description is built from JSON only as a scene's \"frame\" key)"
@@ -1067,3 +1061,18 @@ tier = 5
 title = "curl without --fail outside the image: install-deps pipes get-jb.sh into bash (Makefile, standard.mk), release-watch.sh"
 status = "open"
 why = "#1738's defect outside the image: install-deps pipes get-jb.sh into bash (Makefile, vendored standard.mk), release-watch.sh polls with curl -s; red when it bites, so hygiene like #1738"
+
+[issue.1769]
+tier = 2
+title = "DsssBurstReceiver: frame_valid assumes a CRC-16 trailer, so a crc=none frame never owns its span"
+status = "open"
+
+[issue.1770]
+tier = 1
+title = "A mypy gate: doppler's own code type-checked against its stubs, ratcheted"
+status = "open"
+
+[issue.1772]
+tier = 1
+title = "release-freshness-check: one changed asset passes every changed gallery script"
+status = "open"

@@ -43,7 +43,7 @@
 # all, so its targets do not exist and `help` does not list them):
 #
 #   HAS_C HAS_PYTHON HAS_RUST HAS_DOCS HAS_DOXYGEN HAS_BENCH HAS_COVERAGE
-#   HAS_RELEASE HAS_CHANGELOG HAS_EXAMPLES
+#   HAS_RELEASE HAS_CHANGELOG HAS_EXAMPLES HAS_CI_IMAGE HAS_PR_WATCH
 #
 # A command variable either has a universally correct default (`TEST_RUST_CMD`
 # is `cargo test`) or is REQUIRED once its flag is on — see "Required
@@ -798,6 +798,35 @@ coverage-gate: ## Fail when coverage falls below the threshold
 	$(COVERAGE_GATE_CMD)
 endif
 
+# ── HAS_PR_WATCH ─────────────────────────────────────────────────────────────
+# `make pr-watch PR=<n>` reports what a PR's checks did: landed, genuinely
+# failing, or stuck in a way waiting cannot fix. It is NOT the merge gate --
+# `gh pr merge --auto` is, server-side -- and it never merges or cancels.
+#
+# A target here rather than one per repo, for the reason VENDORED_FILES walks
+# a list: two repos each wrote `pr-watch` around the same script, one vendored
+# it and the other kept a hand copy, and the copy silently missed both the
+# REPO derivation and the stuck-queued-run detector
+# (just-buildit/just-makeit#1818). The flag vendors the script it runs, so the
+# target and its file cannot come apart.
+#
+# A flag rather than always-on: a repo that already defines its own
+# `pr-watch` takes the standard one when it drops its own, not as an
+# `overriding recipe` warning on its next re-vendor.
+#
+# Nothing to configure. REPO derives from the origin remote, and ADVISORY,
+# TIMEOUT_MIN, INTERVAL and QUIET are read from the environment, which is
+# where make puts a command-line variable: `make pr-watch PR=12
+# TIMEOUT_MIN=90` reaches the script. Its header documents each.
+ifeq ($(HAS_PR_WATCH),1)
+STD_TARGETS    += pr-watch
+VENDORED_FILES += scripts/pr-watch.sh
+
+pr-watch: ## PR=<n> — report whether a PR landed or is genuinely failing (never merges)
+	@test -n '$(PR)' || { echo "usage: make pr-watch PR=<number>"; exit 2; }
+	@bash scripts/pr-watch.sh '$(PR)'
+endif
+
 # ── HAS_RELEASE ──────────────────────────────────────────────────────────────
 # The release workflow, in dependency order: release-branch (bump on a branch)
 # -> PR -> merge -> tag-release -> release-watch, with `ship` doing the last
@@ -1462,7 +1491,7 @@ _STD_SECTION = case "$$t" in \
     bench|bench-save|bench-compare) tsec="Bench";; \
     coverage|coverage-gate) tsec="Coverage";; \
     bump-version|version-check|release-branch|tag-release|release-watch \
-        |ship|ci-changes|ci-tree-tested|ci-docs) tsec="Release";; \
+        |ship|ci-changes|ci-tree-tested|ci-docs|pr-watch) tsec="Release";; \
     changelog-check|changelog-sections-check|changelog-assemble \
         |changelog-assembled-check) tsec="Changelog";; \
     test-examples) tsec="Examples";; \

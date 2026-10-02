@@ -1473,6 +1473,15 @@ HOOK_DISPATCH_EXEMPT = check-yaml check-toml end-of-file-fixer trailing-whitespa
 # broken asset is still caught -- just not by re-running the C/Python tests.
 CI_INERT_RE = ^(CHANGELOG\.md|changelog\.d/.+|docs/assets/[^/]+\.png|benchmarks/published/.+|docs/benchmarks\.md)$$
 
+# THE one declaration of what doppler's docs are, for standard.mk's
+# `make ci-docs` (canonical; just-makeit#1801). A diff touching any of these
+# builds the site; a diff touching ONLY these is docs-only, and skips every
+# job docs cannot break (CODE_ONLY in ci.yml). A deletion outside
+# CI_DOCS_DIRS is never docs-only. README.md is generated from
+# docs/index.md, so the two move together; benchmarks/published/ feeds the
+# site and nothing compiled.
+CI_DOCS_RE = ^(docs/|benchmarks/published/|mkdocs[^/]*\.yml$$|CHANGELOG\.md$$|changelog\.d/|README\.md$$|CONTRIBUTING\.md$$)
+
 include standard.mk
 
 # ── Everything below is genuinely doppler's own ──────────────────────────────

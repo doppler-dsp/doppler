@@ -106,6 +106,8 @@ _FAST = """
     jobs:
       changes:
         runs-on: ubuntu-latest
+        outputs:
+          src: x
       lint:
         runs-on: ubuntu-latest
       matrix:
@@ -142,6 +144,61 @@ def test_a_gated_job_missing_from_skippable_is_caught(
     r = _check(tmp_path, _FAST.format(needs="changes", skippable="other"))
     assert r.returncode == 1
     assert "not in `ci-passed`'s SKIPPABLE" in r.stdout
+
+
+def test_a_gated_output_changes_does_not_declare_is_refused(
+    tmp_path: Path,
+) -> None:
+    body = _FAST.format(needs="changes", skippable="matrix").replace(
+        "        outputs:\n          src: x\n", ""
+    )
+    r = _check(tmp_path, body)
+    assert r.returncode == 1
+    assert "declares no `src` output" in r.stdout
+
+
+# The docs-only permission, held the same way: CODE_ONLY == jobs on `code`.
+_CODE = """
+    jobs:
+      changes:
+        runs-on: ubuntu-latest
+        outputs:
+          src: x
+          code: x
+      lint:
+        runs-on: ubuntu-latest
+      macos:
+        needs: changes
+        if: needs.changes.outputs.code == 'true'
+        runs-on: ubuntu-latest
+      ci-passed:
+        name: CI passed
+        needs: [changes, lint, macos]
+        if: always()
+        runs-on: ubuntu-latest
+        steps:
+          - env:
+              CODE_ONLY: {code_only}
+            run: python3 scripts/ci_passed.py
+"""
+
+
+def test_a_sound_docs_lane_passes(tmp_path: Path) -> None:
+    r = _check(tmp_path, _CODE.format(code_only="macos"))
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_a_code_job_missing_from_code_only_is_caught(tmp_path: Path) -> None:
+    r = _check(tmp_path, _CODE.format(code_only="other"))
+    assert r.returncode == 1
+    assert "not in `ci-passed`'s CODE_ONLY" in r.stdout
+
+
+def test_code_only_may_not_name_an_ungated_job(tmp_path: Path) -> None:
+    # The dangerous direction: a docs-only PR could skip lint, green.
+    r = _check(tmp_path, _CODE.format(code_only="macos lint"))
+    assert r.returncode == 1
+    assert "CODE_ONLY lists `lint`, which is not gated" in r.stdout
 
 
 def test_skippable_may_not_name_an_ungated_job(tmp_path: Path) -> None:

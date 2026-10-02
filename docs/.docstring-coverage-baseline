@@ -1717,10 +1717,8 @@ doppler.wfm.Frame.__enter__ sr
 doppler.wfm.Frame.__exit__ sr
 doppler.wfm.Frame.add_derived sr
 doppler.wfm.Frame.add_field sr
-doppler.wfm.Frame.add_hex sr
 doppler.wfm.Frame.add_stage sr
 doppler.wfm.Frame.add_stage_over sr
-doppler.wfm.Frame.add_value sr
 doppler.wfm.Frame.bits sr
 doppler.wfm.Frame.bits_max_out sr
 doppler.wfm.Frame.build sr
@@ -1732,7 +1730,6 @@ doppler.wfm.Frame.destroy sr
 doppler.wfm.Frame.field_bits sr
 doppler.wfm.Frame.field_index sr
 doppler.wfm.Frame.field_off sr
-doppler.wfm.Frame.layout sr
 doppler.wfm.Frame.n_fields sr
 doppler.wfm.Frame.n_stages sr
 doppler.wfm.Frame.name_field sr
@@ -1756,10 +1753,8 @@ doppler.wfm.FrameDesc.__enter__ sr
 doppler.wfm.FrameDesc.__exit__ sr
 doppler.wfm.FrameDesc.add_derived sr
 doppler.wfm.FrameDesc.add_field sr
-doppler.wfm.FrameDesc.add_hex sr
 doppler.wfm.FrameDesc.add_stage sr
 doppler.wfm.FrameDesc.add_stage_over sr
-doppler.wfm.FrameDesc.add_value sr
 doppler.wfm.FrameDesc.bits sr
 doppler.wfm.FrameDesc.bits_max_out sr
 doppler.wfm.FrameDesc.build sr
@@ -1771,7 +1766,6 @@ doppler.wfm.FrameDesc.destroy sr
 doppler.wfm.FrameDesc.field_bits sr
 doppler.wfm.FrameDesc.field_index sr
 doppler.wfm.FrameDesc.field_off sr
-doppler.wfm.FrameDesc.layout sr
 doppler.wfm.FrameDesc.n_fields sr
 doppler.wfm.FrameDesc.n_stages sr
 doppler.wfm.FrameDesc.name_field sr
@@ -1782,8 +1776,6 @@ doppler.wfm.FrameDesc.rx_symbols sr
 doppler.wfm.FrameDesc.rx_units sr
 doppler.wfm.FrameDesc.stage_bits sr
 doppler.wfm.FrameDesc.stage_first sr
-doppler.wfm.FrameLayout sr
-doppler.wfm.FrameLayout.crc_bits sr
 doppler.wfm.Gold s
 doppler.wfm.Gold.__enter__ sr
 doppler.wfm.Gold.__exit__ sr

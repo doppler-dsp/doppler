@@ -96,8 +96,6 @@ ______________________________________________________________________
     reference for both classes and `write_blue_header`.
 - [Gallery: Waveform I/O](../../gallery/wfm-io.md) — one capture round-tripped
     through all four file types, confirmed lossless.
-- [Gallery: Waveform Write](../../gallery/wfm-write.md) — a minimal
-    Composer → Writer → Reader walkthrough.
 - [Waveform Generator (`wfmgen`)](../wfmgen/index.md) — generating the samples
     in the first place, and the CLI that writes them.
 - [Type System → Reading interleaved I/Q](../../types.md#reading-interleaved-iq-in-python)

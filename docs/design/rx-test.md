@@ -130,29 +130,28 @@ including the output axes (`--file-type`, `--endian`, `--record`,
 `--sample-type`) and the level/SNR controls (`--level`, `--snr`,
 `--snr-mode`).
 
-### 1.3 Framing — exists, but only for DSSS
+### 1.3 Framing — one description, every waveform
 
-The frame layout lives in `native/inc/doppler/wfm/wfm_dsp.h`:
+A frame is a description (`wfm_frame_desc_t`,
+`native/inc/doppler/wfm/wfm_frame.h`): fields, plus the stages that cover them.
+The common layout `[preamble x reps | sync | payload | CRC-16]` is
+`dp_wfm_frame_fixed()`, and the DSSS spreader takes whatever description it is
+given:
 
 <!-- docs-snippet: skip=a DECLARATION SKETCH with `…` elisions, not a translation unit; the real headers are native/inc/doppler/wfm/wfm_frame.h, native/inc/doppler/wfm/wfm_dsp.h and native/tests/dp_ber_test.h, each compiled and tested where it lives -->
 
 ```c
-size_t dp_wfm_frame_dsss_nchips (size_t acq_len, size_t acq_reps, size_t data_len, …);
-size_t dp_wfm_frame_dsss_chips  (const uint8_t *acq_code, size_t acq_len, …);
+int    dp_wfm_frame_fixed (wfm_frame_desc_t *d, const wfm_seq_t *preamble, …);
+size_t dp_wfm_dsss_desc_nchips (const wfm_frame_desc_t *d, size_t acq_len, …);
+size_t dp_wfm_dsss_desc_chips  (const wfm_frame_desc_t *d,
+                                const wfm_frame_ops_t *ops, …);
 ```
 
-Both emit **chips**, and the layout `[preamble | sync | payload | CRC-16]` is
-expressed exactly once — inside the DSSS spreader. The synth's DSSS entry
-point took `acq_code`/`acq_reps` (repeated preamble), `sync`/`sync_len`
-(frame-sync word, Barker-13 by convention), `payload`, and `crc`.
-
-**The unspread path has none of it.** `dp_wfm_synth_set_bits(state, bits, n, modulation)` takes bits and a modulation index and nothing else. wfmgen's own
-help states the continuous DSSS mode has "No preamble/sync/CRC frame" and
-"Rejects the burst-frame flags (`--acq-code`/`--sync`/`--crc`)".
-
-So a framed waveform is reachable only through DSSS spreading. A plain
-BPSK/QPSK stream — what a non-spread receiver is tested against — is an
-unframed PRBS.
+The layout is expressed once, in the description. A DSSS burst assembles it
+and spreads it, prepending the repeated preamble, which is not a field of the
+description. An unspread waveform reaches the same description:
+`dp_wfm_frame_assemble()` materialises the frame and `dp_wfm_synth_set_bits()`
+modulates it.
 
 Barker-13 is not a library constant. It appears as the literal
 `"1111100110101"` in `scripts/gen_wfmgen_flag_matrix.py`, and as prose in
@@ -310,8 +309,9 @@ What exists today:
 
 - `dp_crc16_ccitt (const uint8_t *bits, size_t n)` — `native/inc/doppler/dp_crc16.h`,
     header-only.
-- `wfmgen --crc none|crc16` emits the trailer; `dp_wfm_frame_dsss_chips()`
-    assembles `[preamble | sync | payload | CRC-16]`.
+- `wfmgen --crc none|crc16` emits the trailer; `dp_wfm_frame_fixed()`
+    describes `[preamble | sync | payload | CRC-16]` and
+    `dp_wfm_frame_assemble()` builds it.
 - `dp_burst_demod_state_t` exposes per-frame read-backs after `demod()`:
     `frame_valid` (CRC matched), `frame_offset` (sync word symbol offset),
     `n_symbols`, `est_freq_hz`, `est_rate_hz`, `est_cn0_dbhz`,
@@ -572,10 +572,9 @@ ______________________________________________________________________
     argues for changing the Barker-13 convention — it argues for knowing which
     of the two jobs a sync word is being asked to do.
 
-- **Where the frame primitive belongs.** Lifting `[preamble | sync | payload |   CRC]` out of `dp_wfm_frame_dsss_chips()` so it serves unspread BPSK/QPSK is a
-    refactor of the library generator, not a test-only feature — a real modem
-    sends a framed waveform. The DSSS path should then assemble the frame and
-    spread it, rather than carry its own copy of the layout.
+- **Where the frame primitive belongs** — settled by §7. The frame is a
+    description, and `dp_wfm_dsss_desc_chips()` spreads whatever description
+    it is given, so unspread BPSK/QPSK and DSSS share one layout.
 
 - **~~An output-rate invariant~~ — the observed `steps()`/`bits()`
     disagreement at high oversampling.** Resolved in two halves, and they go to
@@ -627,8 +626,8 @@ BPSK stream and a two-code DSSS burst alike: DSSS becomes *assemble the frame
 bits, then spread them*, rather than a second copy of the layout.
 
 The CRC is **the one we already have** — `dp_crc16_ccitt()`, over the payload
-only, MSB-first — carried as the same `int crc` flag
-`dp_wfm_frame_dsss_chips()` already takes. No enum, no variants: a second CRC is
+only, MSB-first — carried as the `int crc` flag of
+`dp_wfm_frame_fixed()`. No enum, no variants: a second CRC is
 a wire-format decision, and there is nothing asking for one.
 
 **Every field is a sequence, and we already ship three generators.** Rather
@@ -704,9 +703,9 @@ restriction.
 
 ### 7.2 The derived geometry — one answer, not a computation each caller redoes
 
-Both directions need to know where each field sits. Today that arithmetic is
-inline in `dp_wfm_frame_dsss_nchips()`; a receiver scoring a frame would have to
-recompute it, which is exactly how TX and RX drift.
+Both directions need to know where each field sits. `dp_wfm_frame_desc_layout()`
+answers it once, and `dp_wfm_dsss_desc_nchips()` reads that answer rather than
+restating it, so a transmitter and a receiver scoring its frames cannot drift.
 
 <!-- docs-snippet: skip=a DECLARATION SKETCH with `…` elisions, not a translation unit; the real headers are native/inc/doppler/wfm/wfm_frame.h, native/inc/doppler/wfm/wfm_dsp.h and native/tests/dp_ber_test.h, each compiled and tested where it lives -->
 
@@ -733,17 +732,15 @@ int dp_wfm_frame_desc_crc_ok (const wfm_frame_desc_t *d,
 `dp_wfm_frame_desc_crc_ok()` is what makes the truth-free FER of §2.5 possible: it
 needs the layout and the received bits, and no payload truth at all.
 
-### 7.3 What it costs the existing DSSS path
+### 7.3 The DSSS path
 
-`dp_wfm_frame_dsss_chips()` keeps its signature and its contract, but its body
-becomes: describe the frame from its arguments, assemble it for
-the `sync | payload | crc` group, spread that, and prepend the repeated
-preamble. The layout stops being expressed twice. `dp_wfm_frame_dsss_nchips()`
-becomes `preamble bits + dp_wfm_frame_nbits(frame group) * data_len`.
-
-That refactor is the point at which the existing DSSS round-trip tests become
-the regression test for the new primitive — it should be bit-identical before
-and after, which is a checkable claim rather than a hope.
+`dp_wfm_dsss_desc_chips()` assembles the description with
+`dp_wfm_frame_assemble()`, spreads it, and prepends the repeated preamble. The
+layout is expressed once. `dp_wfm_dsss_desc_nchips()` is
+`acq_len × acq_reps + out_bits × data_len`, where `out_bits` is what leaves the
+description's last emitting stage. A common DSSS burst is this spreader with a
+description from `dp_wfm_frame_fixed()`, and the DSSS round-trip tests are the
+regression test for the primitive.
 
 ### 7.4 The starter set — **built**, `native/tests/dp_frame_test.h`
 
@@ -820,9 +817,10 @@ own payload, and that Barker-13 matches the literal every caller types.
 ### 7.6 What landed
 
 `native/inc/doppler/wfm/wfm_frame.h` + `native/src/wfm/wfm_frame.c`: the structs of
-§7.1, the geometry of §7.2 (`dp_wfm_frame_layout` / `nbits` / `bits` /
-`crc_ok`), all four sequence kinds, and the §7.3 refactor —
-`dp_wfm_frame_dsss_chips()` now assembles the frame and spreads it, with the
+§7.1, the geometry of §7.2 (`dp_wfm_frame_desc_layout` /
+`dp_wfm_frame_assemble` / `dp_wfm_frame_desc_crc_ok`), all four sequence
+kinds, and the §7.3 spreader — `dp_wfm_dsss_desc_chips()` assembles the frame
+and spreads it, with the
 existing DSSS round-trips passing unchanged, which is the regression check
 §7.3 promised. `native/tests/test_wfm_frame.c` pins the layout against the
 bits it writes, the repeated preamble, PN regeneration against `dp_pn_generate`
@@ -865,8 +863,7 @@ accumulator of §2.5. §8.7 is the run that ties them to a receiver.
 ### 7.5 Open
 
 - **Bit packing.** Everything above is *unpacked* bits, one per `uint8_t`,
-    because `dp_crc16_ccitt()` and `dp_wfm_frame_dsss_chips()` already work that
-    way. A packed form is a separate concern and should not leak in here.
+    because `dp_crc16_ccitt()` and `dp_wfm_dsss_desc_chips()` work that way. A packed form is a separate concern and should not leak in here.
 - **Multi-frame records.** The descriptor is one frame. A record is a repeat
     count and an inter-frame gap, which belongs with the frame-statistics
     accumulator (§2.5) rather than in this struct.
@@ -1004,8 +1001,8 @@ Ordered so that nothing depends on an unpinned measurement:
     invariant is not wanted, because the detection it would have preceded
     already refuses the cases it was for.
 1. **Lift the frame out of DSSS** (§1.3, §7) — **done for the library**:
-    `wfm_frame_*` over `wfm_seq_t`, `dp_wfm_frame_dsss_chips()` refactored to call
-    it (DSSS round-trips bit-identical, as promised), and the named set of
+    `wfm_frame_*` over `wfm_seq_t`, the DSSS spreader
+    (`dp_wfm_dsss_desc_chips()`) built on it (DSSS round-trips bit-identical, as promised), and the named set of
     §7.4. A framed unspread waveform reaches `dp_wfm_synth_set_bits()` by
     materialising the frame first. **Since closed on the generation side**:
     `--sync`/`--acq-*`/`--crc` now reach the samples for `--type bits` on all

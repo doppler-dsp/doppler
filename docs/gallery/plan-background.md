@@ -2,7 +2,7 @@
 
 ![Cache footprint vs population, and one gain moving the whole field](../assets/plan_background_demo.png)
 
-[`Plan`](plan.md) is fast because it caches every source of a scene
+[`Plan`](../guide/wfmgen/scenes.md#prepare-once-sweep-many-plan) is fast because it caches every source of a scene
 *separately*: each render is a re-weighted sum of buffers that were synthesised
 once, so any source can be re-levelled, rotated or dropped without touching the
 DSP. The price of that separability is one full-length buffer per source.
@@ -131,7 +131,10 @@ silent amplitude error.
 
 ## See also
 
-- [Prepare Once, Sweep Many](plan.md) — the `Plan` component cache this builds on.
+- [Prepare once, sweep many — `Plan`](../guide/wfmgen/scenes.md#prepare-once-sweep-many-plan)
+    — the `Plan` component cache this builds on.
+- [BER vs Eb/N0, through one `Plan`](dsss-burst-receiver.md#ber-vs-ebn0-through-one-plan)
+    — a `Plan` driving a Monte Carlo against theory.
 - [Composing a Scene](wfm-composition.md) — building the `Composer` scenes a Plan prepares.
 - [Crowded Band](crowded-band.md) — a many-source scene rendered the ordinary way.
 

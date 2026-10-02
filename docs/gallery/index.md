@@ -20,7 +20,6 @@ Those live on the [Examples](../examples/index.md) page instead.
 - [Symbols: bring your own constellation](symbols.md) — pi/4-QPSK and 16-QAM from an arbitrary complex stream.
 - [Waveform Scenes](wfm-composition.md) — sum, add, headroom; a SoI under a CW interferer over one noise floor.
 - [Waveform I/O](wfm-io.md) — one capture written to raw / CSV / BLUE / SigMF and read back.
-- [Waveform JSON Round-Trip](wfm-json.md) — `--record` a scene to JSON and replay it byte-identically.
 - [A Frame You Built, Generated](wfmgen-carried-frame.md) — `wfm_source_t.frame`:
     a source carries the description a caller built, so a layout no flag
     spells reaches the samples — and the common frame's flags build one of
@@ -33,9 +32,7 @@ Those live on the [Examples](../examples/index.md) page instead.
     convolutional inner code that are nobody's standard, run end to end; and
     what a bounded-distance decoder does past its radius, where a refusal is
     safe and a miscorrection is not
-- [Waveform Write](wfm-write.md) — the shortest path from a `Composer` to a file and back.
 - [WCDMA Carriers](wcdma-carriers.md) — four RRC channels measured with `PSD` and `AccTrace`.
-- [Prepare Once, Sweep Many (Plan)](plan.md) — one declarative scene evaluated at many SNR operating points via the `Plan` stimulus engine.
 - [One Cache Slot for a Whole Background Field](plan-background.md) — `background=True` folds a static emitter population into a single pre-summed cache entry: 67x smaller, and the whole field becomes one overridable control.
 - [A Crowded Band](crowded-band.md) — twenty RRC carriers in one segment, prepared in parallel across cores; `Plan.render(enable=...)` thins them for free.
 - [AWGN](awgn.md) — complex Box-Muller noise, amplitude histogram, and flat PSD.

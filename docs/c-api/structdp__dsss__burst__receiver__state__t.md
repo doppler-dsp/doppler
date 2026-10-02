@@ -509,7 +509,7 @@ int dp_dsss_burst_receiver_state_t::frame_valid;
 
 
 
-The last window's frame passed its error detection  THIS receiver's frame carries a CRC-16 trailer. The verdict the capture cannot reach: a window that failed is given back with [**dp\_burst\_capture\_release()**](burst__capture__core_8h.md#function-dp_burst_capture_release), so a decoy cannot own the span of a real burst behind it (doppler#1181, doppler#1004). 
+The last window's frame passed its error detection  THIS receiver's frame carries a CRC-16 trailer. The verdict the capture cannot reach: a window that failed is given back with [**dp\_burst\_capture\_release()**](burst__capture__core_8h.md#function-dp_burst_capture_release), so a decoy cannot own the span of a real burst behind it (doppler#1181, doppler#1004). The trailer is ASSUMED, not declared: the receiver knows a frame only by `frame_syms`, so a frame with no CRC is never valid  its bits are still returned, and every window is released (doppler#1769; decision D3 of docs/design/rx-frame-description.md). 
  
 
 

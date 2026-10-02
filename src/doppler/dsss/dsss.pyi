@@ -4101,7 +4101,10 @@ class DsssBurstReceiver:
     chip_rate : float, default 1000000.0
         Chip rate in Hz (> 0).
     frame_syms : int, default 64
-        Frame symbols per burst (>= 1) — what push() returns, bit for bit.
+        Frame symbols per burst (>= 1) — what push() returns, bit for bit. The
+        frame is taken to END in a CRC-16. A frame sent without one, or too
+        short to hold one after the sync word, still returns its bits, but
+        `frame_valid` is 0 and no window owns its span.
     cn0_dbhz : float
         Carrier-to-noise density in dB-Hz sizing the acquisition search: any
         finite value, or NaN (ACQ_CN0_NONE) for no design point.
@@ -4557,7 +4560,10 @@ class DsssBurstReceiver:
         this receiver's frame ends in a CRC-16. The verdict that decides
         whether the window OWNS its span: a failed window is given back to the
         capture (`release`), so a decoy ahead of a real burst cannot swallow it
-        (doppler#1181). Per burst, read `events()['frame_valid']`.
+        (doppler#1181). The trailer is assumed, not declared: the receiver
+        knows a frame only by `frame_syms`, so a frame with no CRC is never
+        valid -- its bits are still returned, and every window is released
+        (doppler#1769). Per burst, read `events()['frame_valid']`.
         """
 
     @property

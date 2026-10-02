@@ -141,7 +141,13 @@ typedef struct {
                                 cannot reach: a window that failed is given
                                 back with dp_burst_capture_release(), so a
                                 decoy cannot own the span of a real burst
-                                behind it (doppler#1181, doppler#1004).   */
+                                behind it (doppler#1181, doppler#1004).
+                                The trailer is ASSUMED, not declared: the
+                                receiver knows a frame only by `frame_syms`,
+                                so a frame with no CRC is never valid -- its
+                                bits are still returned, and every window
+                                is released (doppler#1769; decision D3 of
+                                docs/design/rx-frame-description.md).     */
 
   /* ── The completed bursts of the LAST push ───────────────────────────
    * Scratch, deliberately NOT serialized: it describes the most recent
@@ -192,7 +198,11 @@ typedef struct {
  * @param spc  Samples per chip (>= 1).
  * @param chip_rate  Chip rate in Hz (> 0).
  * @param frame_syms   Frame symbols per burst (>= 1) — what push()
- *                     returns, bit for bit.
+ *                     returns, bit for bit. The frame is taken to END in
+ *                     a CRC-16. A frame sent without one, or too short to
+ *                     hold one after the sync word, still returns its
+ *                     bits, but `frame_valid` is 0 and no window owns its
+ *                     span.
  * @param cn0_dbhz  Carrier-to-noise density in dB-Hz sizing the
  *                  acquisition search: any finite value, or NaN
  *                  (ACQ_CN0_NONE) for no design point.

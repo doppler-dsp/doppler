@@ -119,9 +119,10 @@ put_symbol (float _Complex *y, size_t n, const uint8_t *dcode, uint8_t bit)
   return n;
 }
 
-/** @brief One burst: preamble, sync, payload, CRC-16, on carrier @p f0. */
+/** @brief One burst: preamble, sync, the first @p payload payload bits and,
+ *         when @p crc, their CRC-16 -- on carrier @p f0. */
 static size_t
-build_burst (float _Complex *y, double f0)
+build_burst_frame (float _Complex *y, double f0, size_t payload, int crc)
 {
   const uint8_t *acode = acq_code (), *dcode = data_code ();
   const uint8_t *sy = sync_word (), *pl = payload_bits ();
@@ -132,17 +133,24 @@ build_burst (float _Complex *y, double f0)
         y[n++] = csign (acode[c]);
   for (size_t j = 0; j < SYNC_LEN; j++)
     n = put_symbol (y, n, dcode, sy[j]);
-  for (size_t j = 0; j < PAYLOAD; j++)
+  for (size_t j = 0; j < payload; j++)
     n = put_symbol (y, n, dcode, pl[j]);
-  uint16_t crc = dp_crc16_ccitt (pl, PAYLOAD);
-  for (size_t j = 0; j < 16u; j++)
-    n = put_symbol (y, n, dcode, (uint8_t)((crc >> (15u - j)) & 1u));
+  uint16_t fcs = dp_crc16_ccitt (pl, payload);
+  for (size_t j = 0; crc && j < 16u; j++)
+    n = put_symbol (y, n, dcode, (uint8_t)((fcs >> (15u - j)) & 1u));
   for (size_t i = 0; i < n; i++)
     {
       double ph = 2.0 * M_PI * f0 * (double)i;
       y[i] *= (float)cos (ph) + (float)sin (ph) * I;
     }
   return n;
+}
+
+/** @brief One burst: preamble, sync, payload, CRC-16, on carrier @p f0. */
+static size_t
+build_burst (float _Complex *y, double f0)
+{
+  return build_burst_frame (y, f0, PAYLOAD, 1);
 }
 
 /**
@@ -1254,6 +1262,96 @@ test_max_rate_bounds_the_acquisition (void)
   return 0;
 }
 
+/**
+ * A frame with NO CRC is never valid, so it never owns its span -- and its
+ * bits are still delivered (doppler#1769).
+ *
+ * This receiver knows a frame by `frame_syms` alone. That the frame ends in
+ * a CRC-16 is the one framing fact it assumes, because `frame_valid` decides
+ * span ownership (#1181). Told the length of a `sync | payload` frame, it
+ * cannot know the trailer is absent: `frame_valid` reads the payload's last
+ * 16 bits as a CRC or, below `sync_len + 16` symbols, has none to read.
+ * Decision D3 of docs/design/rx-frame-description.md keeps that: no CRC is
+ * NOT valid, and the window is released. "Valid on demodulation", the rule
+ * before #1181, is the one it rejected.
+ *
+ * Measured on the #1181 scene (the 0.35-amplitude decoy 2100 samples ahead,
+ * pushed across the cut between them) at two lengths: 45 symbols (a 32-bit
+ * payload, 16 of whose bits are misread as a CRC) and 21 (an 8-bit payload,
+ * too short for a trailer). Each window is demodulated, its payload is
+ * bit-exact, `frame_valid` is 0 and it is given back. The decoy does not
+ * cost the burst, and the burst does not own its span either. The CRC-16
+ * twin of the same burst is the control that makes the last claim
+ * non-vacuous: it DOES own its span.
+ */
+static int
+crc_none_case (size_t payload, int crc)
+{
+  const size_t AT = 9000u, LEAD = 2100u, CUT = 9400u, N = 40000u;
+  const size_t fsyms = SYNC_LEN + payload + (crc ? 16u : 0u);
+  static float _Complex cap[40000];
+  static float _Complex burst[1 << 15];
+  uint32_t st = 7u;
+  for (size_t i = 0; i < N; i++)
+    {
+      float re = (float)(0.02 * dp_gauss (&st));
+      float im = (float)(0.02 * dp_gauss (&st));
+      cap[i]   = re + im * I;
+    }
+  size_t nb = build_burst_frame (burst, 0.0, payload, crc);
+  for (size_t i = 0; i < nb; i++)
+    cap[AT + i] += burst[i];
+  for (size_t i = 0; i < REPS * ACQ_SF * SPC; i++)
+    cap[AT - LEAD + i] += 0.35f * burst[i];
+
+  dp_dsss_burst_receiver_state_t *s = dp_dsss_burst_receiver_create (
+      acq_code (), ACQ_SF, data_code (), DATA_SF, sync_word (), SYNC_LEN, REPS,
+      SPC, 1.0e6, fsyms, 55.0, 0.0, 1e-3, 0.9, 0.0, 0.0, 10);
+  DP_REQUIRE (s != NULL);
+  DP_REQUIRE (dp_burst_capture_configure_search_raw (s->cap, REPS, 1) == 0);
+  uint8_t         out[4 * FRAME_SYMS];
+  dsss_br_event_t ev[4];
+
+  /* The decoy: demodulated, not valid, given back. */
+  DP_CHECK (dp_dsss_burst_receiver_push (s, cap, CUT, out, sizeof out)
+            == fsyms);
+  DP_REQUIRE (dp_dsss_burst_receiver_events (s, 0, ev, 4u) == 1u);
+  DP_CHECK (ev[0].preamble_start == AT - LEAD);
+  DP_CHECK (ev[0].frame_valid == 0);
+
+  /* The burst behind it is found, and its bits are the transmitter's. */
+  DP_CHECK (
+      dp_dsss_burst_receiver_push (s, cap + CUT, N - CUT, out, sizeof out)
+      == fsyms);
+  DP_REQUIRE (dp_dsss_burst_receiver_events (s, 0, ev, 4u) == 1u);
+  DP_CHECK (ev[0].preamble_start == AT);
+  DP_CHECK (memcmp (out, sync_word (), SYNC_LEN) == 0);
+  DP_CHECK (memcmp (out + SYNC_LEN, payload_bits (), payload) == 0);
+
+  /* The verdict, and the span it decides. suppress_until is the stream
+     position below which the capture takes a detection for this burst's
+     own payload; a released window leaves it short of the burst. */
+  DP_CHECK (ev[0].frame_valid == (crc ? 1 : 0));
+  DP_CHECK (dp_dsss_burst_receiver_get_frame_valid (s) == (crc != 0));
+  if (crc)
+    DP_CHECK (s->cap->suppress_until >= AT + s->burst_len);
+  else
+    DP_CHECK (s->cap->suppress_until < AT);
+
+  dp_dsss_burst_receiver_destroy (s);
+  return 0;
+}
+
+static int
+test_a_frame_with_no_crc_is_not_valid (void)
+{
+  if (crc_none_case (PAYLOAD, 1)) /* the control: CRC-16, owns its span */
+    return 1;
+  if (crc_none_case (PAYLOAD, 0)) /* 16 payload bits misread as a CRC */
+    return 1;
+  return crc_none_case (8u, 0); /* below sync_len + 16: no trailer */
+}
+
 int
 main (void)
 {
@@ -1270,6 +1368,8 @@ main (void)
   if (test_true_burst_once_and_false_alarms_marked ())
     return 1;
   if (test_a_failed_frame_gives_its_span_back ())
+    return 1;
+  if (test_a_frame_with_no_crc_is_not_valid ())
     return 1;
   if (test_silence_yields_no_burst ())
     return 1;

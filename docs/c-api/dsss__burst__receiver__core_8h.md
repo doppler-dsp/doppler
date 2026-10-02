@@ -270,7 +270,7 @@ The look-back buffer is NOT a parameter. Its span is derived from the geometry h
 * `reps` Preamble code repetitions (&gt;= 1). 
 * `spc` Samples per chip (&gt;= 1). 
 * `chip_rate` Chip rate in Hz (&gt; 0). 
-* `frame_syms` Frame symbols per burst (&gt;= 1) — what push() returns, bit for bit. 
+* `frame_syms` Frame symbols per burst (&gt;= 1) — what push() returns, bit for bit. The frame is taken to END in a CRC-16. A frame sent without one, or too short to hold one after the sync word, still returns its bits, but `frame_valid` is 0 and no window owns its span. 
 * `cn0_dbhz` Carrier-to-noise density in dB-Hz sizing the acquisition search: any finite value, or NaN (ACQ\_CN0\_NONE) for no design point. 
 * `doppler_uncertainty` One-sided Doppler half-range, Hz. 
 * `pfa` Target false-alarm probability, in (0, 1). 

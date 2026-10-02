@@ -338,6 +338,7 @@ nav:
           - Docs Conventions: dev/contributing/docs-conventions.md
       - Maintainer internals:
           - Open Issues: dev/issues.md
+          - How We Work: dev/workflow.md
           - Continuous Integration: dev/ci.md
           - Release: dev/release.md
           - Build Internals: dev/build-internals.md

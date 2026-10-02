@@ -23,33 +23,11 @@ gh pr checks <last-merged-pr>  # spot-check CI was actually green, if in doubt
 just-makeit bench --python-only --tag vX.Y.Z   # local fallback; CI commits automatically on tag push
 ```
 
-!!! tip "Push early; CI is the gate. `make gates` reproduces it"
+!!! tip "The release is the bump-only fast path"
 
-    **Locally, before pushing**, run only what proves *this* change: its test,
-    written first and seen red; the sabotage, in a copy, that turns it red
-    again; the tests the change can reach; and lint on the files it touches.
-    Then push, and let CI run the rest. On a red, read the job log
-    (`gh api repos/<owner>/<repo>/actions/jobs/<id>/logs`): it is minutes, and
-    it costs one CI cycle.
-
-    Not `make gates` before every push. That repeats CI's work serially, on
-    every push, and CI then runs the same gates again in parallel. A CI-only
-    red costs one cycle to find; a local `make gates` costs that much
-    wall-clock every time (#1646).
-
-    **Keep locally only what CI cannot see:** whether two PRs compose
-    (`git merge-tree`, whether a merged golden still parses), `main`'s own CI
-    after back-to-back merges, and the benchmark and gallery renders a
-    release owes (§2, §2b).
-
-    **What `make gates` is for.** It is the list of every gate CI runs —
-    `lint`, the changelog / drift / doxygen / docs checks, `test-all`, the
-    stub / api-docs / snippet doc-test gates, `test-rust`, the ABI / link /
-    consumer-faces / glibc / specan portability checks, `coverage` and its
-    gate, and `docker-examples` — and the tool for reproducing a CI red
-    locally (`make ci-gates` does it in the pinned CI image). `make gates-check` (part of `make lint`, from the vendored `standard.mk`) scans
-    `ci.yml` and fails if `gates` omits any target CI runs, so the list cannot
-    silently drift behind CI.
+    A release PR skips the matrix only when everything else has already
+    landed through its own PR. How changes are shaped and merged so that
+    holds: [How We Work](workflow.md#6-release-the-bump-only-fast-path).
 
 ______________________________________________________________________
 

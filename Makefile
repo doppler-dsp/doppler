@@ -1466,6 +1466,13 @@ VENDORED_FILES = scripts/release-watch.sh scripts/pr-watch.sh
 # broken asset is still caught -- just not by re-running the C/Python tests.
 CI_INERT_RE = ^(CHANGELOG\.md|changelog\.d/.+|docs/assets/[^/]+\.png|benchmarks/published/.+|docs/benchmarks\.md)$$
 
+# THE one declaration of what the docs are, for CI (`make ci-docs`). A diff
+# touching any of these builds the site; a diff touching ONLY these is
+# docs-only, and skips every job docs cannot break (scripts/ci_docs.py says
+# which, and why a deletion outside docs/ is never docs-only). README.md is
+# generated from docs/index.md, so the two move together.
+CI_DOCS_RE = ^(docs/|benchmarks/published/|mkdocs[^/]*\.yml$$|CHANGELOG\.md$$|changelog\.d/|README\.md$$|CONTRIBUTING\.md$$)
+
 include standard.mk
 
 # ── Everything below is genuinely doppler's own ──────────────────────────────
@@ -3761,6 +3768,11 @@ ccache-stats: ## Print compiler-cache hit statistics (no-op without ccache)
 # synced uv environment -- it has neither a setup-python nor a uv install step.
 # Nothing is unpinned by this: `uv run` pins dependencies, and this script has
 # none.
+# docs=/code= for HEAD against BASE: did the docs change, and did anything
+# else? ci.yml's `changes` job gates on both (scripts/ci_docs.py).
+ci-docs: ## [BASE=<rev>] docs=/code= for a diff -- code=false when only docs changed
+	@python3 scripts/ci_docs.py --base '$(or $(BASE),HEAD^)' --re '$(CI_DOCS_RE)'
+
 ci-image-source-hash: ## Print the hash of the CI image's inputs (plumbing)
 	@python3 scripts/ci_image_source_hash.py
 

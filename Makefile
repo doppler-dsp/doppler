@@ -28,6 +28,10 @@ HAS_COVERAGE = 1
 HAS_RELEASE  = 1
 HAS_EXAMPLES = 1
 
+# `make pr-watch PR=<n>`: canonical's (scripts/pr-watch.sh, vendored), which
+# reports whether a PR landed or is genuinely failing and never merges.
+HAS_PR_WATCH = 1
+
 # The CI toolchain image (gh-885), now the org standard's shared one
 # (just-buildit.github.io#86): every Linux CI job runs inside it, pinned with
 # every input it was built from in .github/ci-images.env. The flag vendors
@@ -1462,7 +1466,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 container-mount-check \
                 cargo-lock-check design-pages-check wfmgen-flag-matrix \
                 gallery-scripts-check \
-                ci-run ci-gates ccache-stats pr-watch \
+                ci-run ci-gates ccache-stats \
                 wheel-check wheel-smoke release-smoke release-smoke-pypi \
                 release-smoke-packages \
                 bench-python \
@@ -1474,7 +1478,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
 # ── Vendored from canonical ──────────────────────────────────────────────────
 # Verbatim copies the drift gate holds to canonical, alongside standard.mk
 # itself. Edit canonical and re-vendor; never edit these in place.
-VENDORED_FILES = scripts/release-watch.sh scripts/pr-watch.sh
+VENDORED_FILES = scripts/release-watch.sh
 
 # Pre-commit hooks that run their own tool rather than `make -s lint-<tool>`
 # (standard.mk's hook-dispatch-check refuses any other). All four are
@@ -3836,32 +3840,6 @@ ci-run: ## Run `make TARGET=<goals>` inside the PINNED CI image
 ci-gates: ## Run the full gate set inside the PINNED CI image (reproduce CI)
 	@$(MAKE) --no-print-directory ci-run TARGET=gates
 
-# Report what a PR's checks did. It NEVER authorizes a merge -- that is
-# `gh pr merge <n> --auto --rebase`, which evaluates the repo's required set
-# SERVER-side and cannot be got wrong by a poll loop. Arm auto-merge first;
-# use this to find out whether the PR landed or is genuinely stuck, so a
-# failure is noticed rather than waited on forever.
-#
-# It exists because every hand-rolled version of this loop fails TOWARD green,
-# silently, and all three ways have been hit for real:
-#
-#   1. `gh run list -L 1` returns the newest run of ANY workflow on the
-#      branch, so it reports the docker job finishing while the test matrix is
-#      still queued. Bind to the PR's head SHA instead.
-#   2. Right after a force-push GitHub has not created the check runs yet, so
-#      a `grep pending` finds nothing and the loop declares victory over ZERO
-#      checks. An empty check set is not a green one.
-#   3. `gh pr checks --watch` can attach to the PRIOR run after a re-push and
-#      render its old conclusions instantly, which looks like a fast pass.
-#
-# Ported from just-buildit/just-makeit (skills://merge-set says to); REPO
-# derives from `git remote get-url origin` here rather than being required.
-#
-#   make pr-watch PR=1044
-#   make pr-watch PR=1044 TIMEOUT_MIN=90 ADVISORY="codecov/patch,flaky-thing"
-pr-watch: ## Watch PR=<n>'s checks to a settled verdict (never merges)
-	@test -n "$(PR)" || { echo "usage: make pr-watch PR=<number>"; exit 2; }
-	@bash scripts/pr-watch.sh $(PR)
 
 
 # Does every image a workflow can run in trace back to the pin file? A

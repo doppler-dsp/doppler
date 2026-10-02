@@ -394,6 +394,8 @@
 ## w
 
 * **WFM\_NUM\_SAMPLES\_PLAIN** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **WFM\_DATA\_STATE\_MAGIC** ([**wfm\_data.h**](wfm__data_8h.md))
+* **WFM\_DATA\_STATE\_VERSION** ([**wfm\_data.h**](wfm__data_8h.md))
 * **WFM\_SEGMENT\_DEFAULTS** ([**wfm\_defaults.h**](wfm__defaults_8h.md))
 * **WFM\_SOURCE\_DEFAULTS** ([**wfm\_defaults.h**](wfm__defaults_8h.md))
 * **WFM\_FIELD\_MAX\_BITS** ([**wfm\_frame.h**](wfm__frame_8h.md))

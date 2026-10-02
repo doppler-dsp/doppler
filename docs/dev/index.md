@@ -35,6 +35,9 @@ needs these:
 - [Open Issues](issues.md) — the whole backlog, tiered by the kind of harm
     each issue does rather than by age or label; generated from
     [`issue-tiers.toml`](issue-tiers.toml) by `make issues`
+- [How We Work](workflow.md) — the policy from branch to release: shape
+    the change, prove it locally, merge on green, stop the line on a red
+    `main`, and keep the release PR a bump alone
 - [Continuous Integration](ci.md) — the pinned toolchain image and how to run
     CI's environment yourself (`make ci-gates`), the compiler cache, and the
     gates that watch CI itself

@@ -21,9 +21,11 @@ ______________________________________________________________________
 
 ## Git workflow
 
-Every change to `main` goes through a branch and a PR — the release
-version bump included. The `protect-main` ruleset refuses direct pushes,
-force-pushes and deletion of `main`.
+Every change to `main` goes through a branch and a PR, the release
+version bump included. **The policy (how to shape a change, prove it, merge
+it, and release) is [How We Work](docs/dev/workflow.md).** In short: one
+change per PR, run the full matrix on every PR, merge on green by rebase,
+and stop the line when `main` goes red.
 
 ### Branch naming
 
@@ -33,38 +35,14 @@ force-pushes and deletion of `main`.
 | `fix/`   | bug fix                           |
 | `docs/`  | documentation only                |
 | `chore/` | tooling, CI, deps, version bump   |
+| `ci/`    | CI workflows and the CI image     |
 
 ```sh
-git checkout -b feat/cic-compensator
+git fetch origin && git checkout -b feat/cic-compensator origin/main
 # ... implement, test ...
 gh pr create --fill
-gh pr merge --rebase   # or --squash, once `CI passed` is green; the branch is deleted for you
+gh pr merge --rebase   # once `CI passed` is green; the branch is deleted for you
 ```
-
-### PR rules
-
-The `protect-main` ruleset decides what a merge needs:
-
-- **`CI passed` must be green.** It is the only required status check. It
-    succeeds only when every job in its `needs` did, so a job missing from
-    that list gates nothing — `make ci-aggregator-check` fails when one is.
-- **No approving review is required**, but every review thread must be
-    resolved before the PR can merge.
-- **Rebase or squash.** Both keep `main` linear, which the ruleset requires;
-    merge commits are disabled. Rebase keeps a branch's commits (and their
-    changelog-worthy messages); squash lands the PR as one commit.
-- **The branch does not have to be up to date with `main`.** To update it
-    anyway, rebase: `git rebase origin/main && git push --force-with-lease`.
-    Never use GitHub's *Update branch* button — it adds a merge commit, which
-    linear history then refuses.
-- Keep PRs focused — one logical change per PR.
-- The PR title becomes the CHANGELOG entry; write it accordingly.
-
-### What goes directly on `main`
-
-Nothing. The release bump (`chore: release vX.Y.Z`) is a PR like any other,
-and `protect-main` refuses a direct push — see
-[release.md](docs/dev/release.md).
 
 ______________________________________________________________________
 
@@ -454,16 +432,16 @@ ______________________________________________________________________
 | `make test-python` | pytest, the same selection CI runs        |
 | `make test-rust`   | Rust FFI tests (`cargo test`)             |
 | `make docs`        | Build documentation site                  |
-| `make gates`       | every gate CI runs — to reproduce a red   |
+| `make gates`       | debug a CI red only — never before CI     |
 
 **Two pre-commit hooks cover the generated tree**, which `make lint` cannot
 see: `gen-c-api-drift` regenerates `docs/c-api` when a staged file matches the
 Doxyfile's inputs (19 s, headers only), and `docs-invariants` runs the 13 fast
 checks from `docs-check` — API-doc coverage, the docstring ratchet, nav index,
 doc/face parity — in about 1.6 s on every commit. Both are the same commands
-CI runs, so a local pass means a CI pass. `make gates` remains the full
-contract; the expensive half of it (coverage, the site build, docker, Rust) is
-CI's job.
+CI runs, so a local pass means a CI pass. Testing is CI's job; `make gates`
+reproduces CI's whole gate set locally, and exists only to debug a CI red
+([How We Work](docs/dev/workflow.md#2-prove-it-locally-then-push)).
 
 ______________________________________________________________________
 

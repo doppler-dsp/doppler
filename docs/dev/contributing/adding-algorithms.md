@@ -117,8 +117,9 @@ ______________________________________________________________________
 | 9   | **Document**   | header `@code`, a guide if needed, benchmarks, examples    | [Docstring Authoring](docstring-authoring.md), [Doc Examples](doc-examples.md)   | `make test-stubs`, `make test-examples-c`, `make bench` |
 | 10  | **Land**       | `changelog.d/<section>/<slug>.md`, issues for what is left | [Release](../release.md)                                                         | `make changelog-check`, `make issue-link-check`         |
 
-`make gates` runs the merge-guarding set; the per-phase targets above are how
-you find out sooner.
+CI runs the merge-guarding set; the per-phase targets above are how you
+find out sooner. (`make gates` reproduces that set locally, and is only for
+debugging a CI red: [How We Work](../workflow.md#2-prove-it-locally-then-push).)
 
 ______________________________________________________________________
 

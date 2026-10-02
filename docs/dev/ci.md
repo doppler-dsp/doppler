@@ -282,10 +282,10 @@ There is **no merge queue**. It was retired on 2026-10-01. While it ran, a
 PR got only the fast gates and the queue ran the heavy jobs on main plus
 the PR. That split meant a PR's own checks could be green while the run
 that decided the merge had not started. It also meant a pending CI-image
-repin ejected every queued PR. Without the queue, a PR is tested against
-the main it was opened on. Two PRs that each pass can still conflict
-semantically once both land, and the `push` run on `main` is what catches
-that.
+repin ejected every queued PR. Instead, `protect-main` requires a PR to be
+up to date with `main` before it merges, so the tree a PR's run tested is
+the tree that lands. A behind PR rebases and runs again. See
+[How We Work](workflow.md#4-merge).
 
 **The primary leg.** Some steps of the `python` job are worth running once,
 not on every interpreter. They run on the *primary* leg, which is named by

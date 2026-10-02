@@ -232,10 +232,10 @@ A fix made while measuring contaminates the measurement it came from.
 
 They answer different questions, and the split is the whole point.
 
-| gate                        | question                             | what runs it                   |
-| --------------------------- | ------------------------------------ | ------------------------------ |
-| `test_validation_limits.py` | do the limits still hold?            | `make test-python`, per module |
-| `make validate-check`       | is the committed `results.md` stale? | `make gates`                   |
+| gate                        | question                             | what runs it                       |
+| --------------------------- | ------------------------------------ | ---------------------------------- |
+| `test_validation_limits.py` | do the limits still hold?            | `make test-python`, per module     |
+| `make validate-check`       | is the committed `results.md` stale? | CI, the `python` job's primary leg |
 
 **The limits gate** lives at
 `src/doppler/<module>/tests/test_validation_limits.py`. It runs each

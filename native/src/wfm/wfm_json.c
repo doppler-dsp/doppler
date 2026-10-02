@@ -397,41 +397,32 @@ typedef struct
   int         used;
 } replay_t;
 
-/* Read a record's "data_sent" identity: 1 with @p bits and @p h when it
-   carries a hash, 0 when the key is absent or has none (a hand-written
-   scene, or a Field's truth), -1 with @p why when it is malformed. */
+/* Read a data_from_file source's "data_sent" identity: 1 with @p bits and
+   @p h, 0 when the key is absent (a scene written by hand), -1 with @p why
+   when it is not what --record writes. */
 static int
 read_data_identity (const cJSON *so, uint64_t *bits, uint64_t *h,
                     const char **why)
 {
-  static const char bad[]
-      = "\"data_sent\" is an object: {\"bits\": N, \"hash\": \"0x...\"}, "
-        "as --record writes it";
   const cJSON *d = cJSON_GetObjectItemCaseSensitive (so, "data_sent");
   if (!d)
     return 0;
-  if (!cJSON_IsObject (d))
+  /* A file or stdin hashes every octet it reads, so the "data_sent" a
+     --record writes for one always has both keys: anything else is one
+     refusal, whatever is wrong with it. (A non-object has no members, so
+     it falls out here too.) */
+  const cJSON *bj = cJSON_GetObjectItemCaseSensitive (d, "bits");
+  const char  *txt
+      = cJSON_GetStringValue (cJSON_GetObjectItemCaseSensitive (d, "hash"));
+  char *end = NULL;
+  errno     = 0;
+  if (cJSON_IsNumber (bj) && bj->valuedouble >= 0.0 && txt
+      && strncmp (txt, "0x", 2) == 0)
+    *h = (uint64_t)strtoull (txt + 2, &end, 16);
+  if (!end || errno || end == txt + 2 || *end)
     {
-      *why = bad;
-      return -1;
-    }
-  const cJSON *hj = cJSON_GetObjectItemCaseSensitive (d, "hash");
-  if (!hj)
-    return 0;
-  const cJSON *bj  = cJSON_GetObjectItemCaseSensitive (d, "bits");
-  const char  *txt = cJSON_GetStringValue (hj);
-  char        *end = NULL;
-  if (!txt || !cJSON_IsNumber (bj) || bj->valuedouble < 0.0
-      || strncmp (txt, "0x", 2) != 0)
-    {
-      *why = bad;
-      return -1;
-    }
-  errno = 0;
-  *h    = (uint64_t)strtoull (txt + 2, &end, 16);
-  if (errno || end == txt + 2 || *end)
-    {
-      *why = bad;
+      *why = "\"data_sent\" of a \"data_from_file\" is an object: "
+             "{\"bits\": N, \"hash\": \"0x...\"}, as --record writes it";
       return -1;
     }
   *bits = (uint64_t)bj->valuedouble;

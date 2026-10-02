@@ -64,8 +64,11 @@
 # branch push, `make ci-image`, a manual dispatch -- reads the pinned ones
 # and so rebuilds the pinned image's package set exactly. A re-pin is still
 # the one file the weekly writes, and still lands by a human merging it.
-# What this does NOT pin: jbx itself (get-jb.sh always installs the latest);
-# it supplies the install mechanism, while bootstrap.toml supplies the list.
+# - JB_VERSION + JB_SHA256 are a just-bashit release and the SHA-256 of its
+#   tarball (CI_JB_VERSION / CI_JB_SHA256, #1751). The package installer runs
+#   from that tarball, verified, and NEVER from the network at run time:
+#   `jbx install-deps` resolved install-deps through aliases.toml on Pages,
+#   so pinning jbx alone would have pinned nothing that installs a package.
 ARG BASE
 FROM ${BASE}
 
@@ -146,13 +149,21 @@ RUN apt-get -o Acquire::https::Verify-Peer=false update \
 # not curl's.
 COPY bootstrap.toml /tmp/bootstrap.toml
 WORKDIR /tmp
-RUN curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 \
-      -o /tmp/get-jb.sh https://just-buildit.github.io/get-jb.sh \
- && bash /tmp/get-jb.sh \
- && rm -f /tmp/get-jb.sh \
- && PATH="$HOME/.local/bin:$PATH" jbx install-deps \
- && PATH="$HOME/.local/bin:$PATH" jbx install-deps -g docs \
- && rm -f /tmp/bootstrap.toml \
+# The pinned just-bashit release (#1751): fetched, checked against its pinned
+# SHA-256, and its install-deps.sh run in place -- it sources its sibling
+# libs from its own directory, so nothing is fetched at run time. Unset is
+# refused, never defaulted, like APT_SNAPSHOT.
+ARG JB_VERSION
+ARG JB_SHA256
+RUN test -n "$JB_VERSION" && test -n "$JB_SHA256" \
+    || { echo "JB_VERSION/JB_SHA256 unset: read them from .github/ci-images.env" >&2; exit 1; } \
+ && curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 -o /tmp/jb.tgz \
+      "https://github.com/just-buildit/just-bashit/releases/download/${JB_VERSION}/just-bashit.tar.gz" \
+ && echo "${JB_SHA256}  /tmp/jb.tgz" | sha256sum -c - \
+ && mkdir -p /tmp/jb && tar xzf /tmp/jb.tgz -C /tmp/jb \
+ && bash /tmp/jb/src/just_bashit/install-deps.sh \
+ && bash /tmp/jb/src/just_bashit/install-deps.sh -g docs \
+ && rm -rf /tmp/jb /tmp/jb.tgz /tmp/bootstrap.toml \
  && rm -rf /var/lib/apt/lists/*
 
 # clang's profile runtime, which bootstrap.toml deliberately cannot name.

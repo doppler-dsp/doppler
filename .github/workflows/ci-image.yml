@@ -148,6 +148,22 @@ jobs:
           echo "apt_snapshot=$snap" >> "$GITHUB_OUTPUT"
           echo "apt snapshot: $snap (refresh=$refresh)"
 
+          # The package installer: a just-bashit release and its tarball's
+          # SHA-256 (#1751), picked like the snapshot -- latest release on a
+          # refresh, the pin otherwise.
+          jbv="$(pinned CI_JB_VERSION)"; jbsha="$(pinned CI_JB_SHA256)"
+          if [ "$refresh" = 1 ] || [ -z "$jbv" ] || [ -z "$jbsha" ]; then
+            jbv="$(curl -fsSL --retry 5 --retry-all-errors \
+                     https://api.github.com/repos/just-buildit/just-bashit/releases/latest \
+                   | jq -r .tag_name)"
+            jbsha="$(curl -fsSL --retry 5 --retry-all-errors \
+                       "https://github.com/just-buildit/just-bashit/releases/download/$jbv/just-bashit.tar.gz" \
+                     | sha256sum | cut -d' ' -f1)"
+          fi
+          echo "jb_version=$jbv" >> "$GITHUB_OUTPUT"
+          echo "jb_sha256=$jbsha" >> "$GITHUB_OUTPUT"
+          echo "just-bashit: $jbv ($jbsha)"
+
           for base in ubuntu:22.04 ubuntu:24.04; do
             slug="${base/:/-}"                        # ubuntu:24.04 -> ubuntu-24.04
             key="$(echo "$slug" | tr -dc '0-9')"      # -> 2404
@@ -177,6 +193,8 @@ jobs:
             docker buildx build -f deploy/docker/Dockerfile.ci \
                 --build-arg "BASE=$ref" \
                 --build-arg "APT_SNAPSHOT=$snap" \
+                --build-arg "JB_VERSION=$jbv" \
+                --build-arg "JB_SHA256=$jbsha" \
                 --platform linux/amd64,linux/arm64 \
                 --provenance=false --sbom=false \
                 --metadata-file "$meta" \
@@ -239,6 +257,8 @@ jobs:
           F2204: ${{ steps.publish.outputs.fingerprint_2204 }}
           F2404: ${{ steps.publish.outputs.fingerprint_2404 }}
           SNAP: ${{ steps.publish.outputs.apt_snapshot }}
+          JBV: ${{ steps.publish.outputs.jb_version }}
+          JBSHA: ${{ steps.publish.outputs.jb_sha256 }}
           B2204: ${{ steps.publish.outputs.base_2204 }}
           B2404: ${{ steps.publish.outputs.base_2404 }}
         run: |
@@ -270,6 +290,8 @@ jobs:
           # FROM, and every non-weekly build reads them back (#1748), so a
           # rebuild reproduces this package set instead of drifting off it.
           CI_APT_SNAPSHOT=$SNAP
+          CI_JB_VERSION=$JBV
+          CI_JB_SHA256=$JBSHA
           CI_BASE_2204=$B2204
           CI_BASE_2404=$B2404
           CI_IMAGE_2204=$IMAGE@$D2204

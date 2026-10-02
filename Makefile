@@ -3789,7 +3789,9 @@ ci-image: ## Build the CI toolchain image locally, one per base
 	     key="$$(echo $$b | tr -dc '0-9')"; \
 	     ref="$$(grep "^CI_BASE_$$key=" $(CI_IMAGE_PIN) | cut -d= -f2)"; \
 	     snap="$$(grep '^CI_APT_SNAPSHOT=' $(CI_IMAGE_PIN) | cut -d= -f2)"; \
-	     if [ -z "$$ref" ] || [ -z "$$snap" ]; then \
+	     jbv="$$(grep '^CI_JB_VERSION=' $(CI_IMAGE_PIN) | cut -d= -f2)"; \
+	     jbsha="$$(grep '^CI_JB_SHA256=' $(CI_IMAGE_PIN) | cut -d= -f2)"; \
+	     if [ -z "$$ref" ] || [ -z "$$snap" ] || [ -z "$$jbv" ] || [ -z "$$jbsha" ]; then \
 	         echo "ci-image: $(CI_IMAGE_PIN) has no CI_BASE_$$key or"; \
 	         echo "  CI_APT_SNAPSHOT -- push a branch so ci-image.yml"; \
 	         echo "  builds and prints the pin block, and commit it."; \
@@ -3797,7 +3799,8 @@ ci-image: ## Build the CI toolchain image locally, one per base
 	     fi; \
 	     echo "=== $$ref @ apt $$snap -> $$tag"; \
 	     docker build -f $(CI_DOCKERFILE) --build-arg BASE=$$ref \
-	         --build-arg APT_SNAPSHOT=$$snap -t "$$tag" . || exit 1; \
+	         --build-arg APT_SNAPSHOT=$$snap --build-arg JB_VERSION=$$jbv \
+	         --build-arg JB_SHA256=$$jbsha -t "$$tag" . || exit 1; \
 	 done
 
 # Run it like CI runs it, in the SAME image CI pins -- by digest, not by a

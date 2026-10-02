@@ -11,12 +11,26 @@ on:
   # is no merge queue (retired 2026-10-01), so nothing runs after a PR's own
   # checks and before it lands; docs/dev/ci.md has why.
   pull_request:
+  # NIGHTLY, the one full run main still gets. protect-main requires a PR to
+  # be up to date, so every tree on main was tested green as a PR, and its
+  # push run skips the matrix (ci-tree-tested, below). What that cannot see
+  # is the ENVIRONMENT moving under an unchanged tree: hosted runner images,
+  # unpinned tools (#1751). This run never takes a skip (`changes` answers
+  # src=true for any event but pull_request and push), so drift goes red
+  # here, on main, instead of on whichever PR meets it first. 03:43 UTC:
+  # off the hour, and clear of ci-image.yml's Monday 04:17.
+  schedule:
+    - cron: '43 3 * * *'
 
 # A force-push to a PR (routine while a stacked branch rebases) supersedes
 # the in-flight run — cancel it. Pushes to main/develop never cancel: a PR
 # push lands in the PR's own `refs/pull/N/merge` group and cannot reach them.
+#
+# The event is in the group so the nightly and a push to main never share
+# one: in a group, a newer pending run cancels an older pending run, so a
+# shared group would let either one silently replace the other.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -79,6 +93,9 @@ jobs:
       with:
         fetch-depth: 2
     - id: classify
+      env:
+        # ci-tree-tested asks the API which PR this push merged.
+        GH_TOKEN: ${{ github.token }}
       run: |
         # The Python matrix is read from pyproject.toml's classifiers, never
         # written here.
@@ -92,7 +109,16 @@ jobs:
           # A push: the pushed range. If `before` cannot be fetched (a new
           # branch is all zeros), ci-changes cannot prove a bump -> src=true.
           push) base="${{ github.event.before }}"
-                git fetch -q --depth=1 origin "$base" 2>/dev/null || true ;;
+                git fetch -q --depth=1 origin "$base" 2>/dev/null || true
+                # The tree this push landed already passed as a PR that
+                # contained `before` (protect-main requires it to be up to
+                # date): nothing here is untested, so the matrix skips, as
+                # for a bump, and so does the site the PR already built.
+                tested=$(make -s ci-tree-tested BEFORE="$base")
+                if [ "$tested" = tested=true ]; then
+                  { echo "src=false"; echo "docs=false"; } >> "$GITHUB_OUTPUT"
+                  exit 0
+                fi ;;
           *) { echo "src=true"; echo "docs=true"; } >> "$GITHUB_OUTPUT"
              exit 0 ;;
         esac

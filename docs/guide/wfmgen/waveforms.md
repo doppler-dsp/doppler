@@ -686,7 +686,14 @@ wfmgen --type dsss --fs 4e6 --sps 4 --seed 1 --snr 10 --snr-mode esno \
 
 # the record is the resolved scene, and it replays byte for byte
 wfmgen --from-file train.json -o replay.cf32
-cmp train.cf32 replay.cf32 && echo byte-identical
+python3 - <<'EOF'
+import pathlib
+import sys
+
+a = pathlib.Path("train.cf32").read_bytes()
+b = pathlib.Path("replay.cf32").read_bytes()
+sys.exit(a != b)
+EOF
 ```
 
 `--file-type sigmf` writes the annotated sidecar. The three faces render

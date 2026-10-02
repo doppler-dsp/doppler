@@ -265,11 +265,17 @@ source is refused as two spellings of one thing.
     some frame period, input that is actually flowing would read as an
     underrun and produce spurious idle frames. That period is unmeasured.
     The prototype worked at 50 ms per frame, which says nothing about 50 µs.
+    *Measured:* there is no such period. A read costs about 1 µs. A
+    producer paced to the frame rate must stay up to one 4096-sample block
+    ahead, at any frame period
+    ([measurements §6.2](payload-data-source-measurements.md#62-the-shortest-frame-period-a-paced-stdin-keeps-up-with)).
 - **The cost of assembling every frame.** Today one frame is assembled per
     segment instance. Now every frame is, including Reed-Solomon and the
     convolutional code for a CADU. Frames per second against the rate a
     real-time run needs is unmeasured, and it decides whether assembly has
-    to run ahead of the pacer.
+    to run ahead of the pacer. *Measured:* it does not. A CADU assembles
+    in 20–25 µs, about 11 % of a frame at one sample per bit
+    ([measurements §6.1](payload-data-source-measurements.md#61-the-cost-of-assembling-every-frame)).
 - **When SigMF metadata is written.** The idle count is known only at the
     end of a run. Whether `.sigmf-meta` is written at close or has to be
     rewritten there is unread.

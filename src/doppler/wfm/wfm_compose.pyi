@@ -556,9 +556,12 @@ class Segment:
         Sample rate in Hz, one per segment and shared by all its sources. At
         the default 1.0 every frequency is normalised (cycles per sample);
         state it whenever a scene is in real Hz.
-    num_samples : int | tuple[int, int], default 1024
-        Segment on-time in samples: the synth runs for exactly this many
-        samples before the trailing gap.
+    num_samples : int | tuple[int, int], default 0
+        Segment on-time in samples, before the trailing gap: 0 derives it from
+        the sources, or 1024 when they set none. A finite data source sets its
+        frames, a lone dsss burst one burst, and a stream runs to its end. A
+        count beside a finite data source or a lone dsss burst is refused,
+        since they set the length; give repeats for more.
     off_samples : int | tuple[int, int], default 0
         Trailing gap after the on-time, in samples. It carries the noise floor
         or hard zeros, per gap_noise.

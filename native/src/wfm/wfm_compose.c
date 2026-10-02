@@ -545,6 +545,82 @@ const char dp_wfm_why_dsss_cont_rate[]
       "segment's default 1.0 is a normalised rate), lower sps, or lower "
       "symbol_rate";
 
+const char dp_wfm_why_count_derived[]
+    = "a finite data source -- data, or a carried frame of fixed bits -- "
+      "or a lone dsss burst sets its segment's length (its frames, or one "
+      "burst), so num_samples is derived: leave it 0, and give repeats for "
+      "more";
+
+/* A lone dsss BURST's on-time, which is intrinsic -- exactly one burst,
+   n_chips * sps samples -- or 0 when the segment is not one. A dsss
+   source inside a multi-source sum is not lone: the mix's span is the
+   caller's call. A CONTINUOUS dsss source (symbol_rate > 0) has no
+   intrinsic length, and dp_wfm_source_dsss_nchips() answers garbage for
+   it, so it is excluded before that is asked. A burst over a DATA SOURCE
+   is one burst per frame of it, which the data rule sets. */
+static size_t
+lone_burst_samples (const wfm_segment_t *g)
+{
+  if (g->n_sources != 1)
+    return 0;
+  const wfm_source_t *d = &g->sources[0];
+  if (d->type != WFM_SYNTH_DSSS || d->symbol_rate > 0.0 || d->data.len
+      || d->data_from_file)
+    return 0;
+  /* Through the source's own description, so a coding stage that
+     lengthens the frame lengthens the segment by the SAME arithmetic the
+     assembler uses -- a rate-1/2 inner code doubles both. */
+  const size_t nchips = dp_wfm_source_dsss_nchips (d);
+  return nchips * (size_t)(d->sps < 1 ? 1 : d->sps);
+}
+
+/* The longest finite data source's run, in samples; 0 with none. Sets
+ *stream when a source is a stream. */
+static size_t
+finite_data_samples (const wfm_segment_t *g, int *stream)
+{
+  size_t finite = 0;
+  for (size_t k = 0; k < g->n_sources; k++)
+    {
+      const wfm_source_t *d = &g->sources[k];
+      if (stream && dp_wfm_source_data_is_stream (d))
+        *stream = 1;
+      const size_t n = (size_t)dp_wfm_source_data_samples (
+          d, g->fs, dp_wfm_source_data_frames (d));
+      if (n > finite)
+        finite = n;
+    }
+  return finite;
+}
+
+int
+dp_wfm_segment_sets_length (const wfm_segment_t *seg)
+{
+  return finite_data_samples (seg, NULL) > 0 || lone_burst_samples (seg) > 0;
+}
+
+/* A segment's on-time, its num_samples resolved (payload-data-source.md
+   4.6). A count given -- non-zero, or ranged -- is the caller's (and
+   dp_wfm_scene_error() has refused one beside sources that set it). 0
+   derives it: the longest finite data source's frames, the others falling
+   silent at their end; a stream runs until it ends (the early end in
+   execute); a lone dsss burst is one burst; anything else is
+   WFM_NUM_SAMPLES_PLAIN. */
+static size_t
+resolved_num_samples (const wfm_segment_t *g)
+{
+  if (g->num_samples || (g->ranged & WFM_RANGE_NUM_SAMPLES))
+    return g->num_samples;
+  int          stream = 0;
+  const size_t finite = finite_data_samples (g, &stream);
+  if (finite)
+    return finite;
+  if (stream)
+    return SIZE_MAX; /* until the stream ends */
+  const size_t burst = lone_burst_samples (g);
+  return burst ? burst : WFM_NUM_SAMPLES_PLAIN;
+}
+
 const char *
 dp_wfm_scene_error (const wfm_segment_t *segs, size_t n_segs, int repeat,
                     int continuous)
@@ -577,6 +653,14 @@ dp_wfm_scene_error (const wfm_segment_t *segs, size_t n_segs, int repeat,
         if (++n_stream > 1)
           return "stdin can feed one data source in a scene, not two";
       }
+  /* After every source's own reason, so a source that cannot be built
+     says so first. A count beside sources that set the length would be
+     dropped by the resolution below, so it is refused -- here, where
+     every face lands (doppler#1729). */
+  for (size_t i = 0; i < n_segs; i++)
+    if ((segs[i].num_samples || (segs[i].ranged & WFM_RANGE_NUM_SAMPLES))
+        && dp_wfm_segment_sets_length (&segs[i]))
+      return dp_wfm_why_count_derived;
   return NULL;
 }
 
@@ -623,10 +707,14 @@ dp_wfm_compose_create_why (const wfm_segment_t *segs, size_t n_segs,
   for (size_t i = 0; i < n_segs; i++)
     for (size_t k = 0; k < segs[i].n_sources; k++)
       {
-        const wfm_source_t   *src = &segs[i].sources[k];
-        dp_wfm_synth_state_t *syn = dp_wfm_compose_build_synth (
-            src, segs[i].fs, segs[i].num_samples, src->freq, src->snr,
-            src->f_end, 0u, WFM_SEED_ADVANCE_NONE, 0u);
+        /* The on-time the render will use; a stream's has no end, which
+           the builder reads as none. */
+        const size_t          on     = resolved_num_samples (&segs[i]);
+        const size_t          on_len = on == SIZE_MAX ? 0 : on;
+        const wfm_source_t   *src    = &segs[i].sources[k];
+        dp_wfm_synth_state_t *syn    = dp_wfm_compose_build_synth (
+            src, segs[i].fs, on_len, src->freq, src->snr, src->f_end, 0u,
+            WFM_SEED_ADVANCE_NONE, 0u);
         if (!syn)
           return NULL;
         dp_wfm_synth_destroy (syn);
@@ -660,70 +748,11 @@ dp_wfm_compose_create_why (const wfm_segment_t *segs, size_t n_segs,
           s->segs[i].sources[k] = segs[i].sources[k]; /* scalar fields */
           copy_source_arrays (&s->segs[i].sources[k], &segs[i].sources[k]);
         }
-      /* A lone dsss BURST's on-time is intrinsic — exactly one burst
-       * (n_chips * sps samples) — so num_samples is derived here, on the
-       * private copy, and any caller-supplied value (or range) is ignored:
-       * every face resolves identically and --record emits the real span.
-       * (A dsss source inside a multi-source sum keeps the segment's
-       * explicit num_samples — the mix's span is the caller's call.)
-       *
-       * A CONTINUOUS dsss source (symbol_rate > 0) has NO intrinsic length —
-       * the stream is endless and --count IS the span. It must be excluded
-       * here, and not only because the derivation is meaningless:
-       * dp_wfm_source_dsss_nchips() returns a nonzero (garbage) value for it
-       * (n_bits payload * data_code.len + a spurious CRC), which would pass
-       * the `if (nchips)` guard and silently overwrite the user's num_samples.
-       */
-      /* A burst over a DATA SOURCE is one burst per frame of it, and the
-         rule below sets that run -- a stream's included, whose length is
-         where its input ends, not one burst. */
-      if (s->segs[i].n_sources == 1
-          && s->segs[i].sources[0].type == WFM_SYNTH_DSSS
-          && s->segs[i].sources[0].symbol_rate <= 0.0
-          && !s->segs[i].sources[0].data.len
-          && !s->segs[i].sources[0].data_from_file)
-        {
-          const wfm_source_t *d = &s->segs[i].sources[0];
-          /* Through the source's own description, so a coding stage that
-             lengthens the frame lengthens the segment by the SAME arithmetic
-             the assembler uses -- a rate-1/2 inner code doubles both. */
-          size_t nchips = dp_wfm_source_dsss_nchips (d);
-          if (nchips)
-            {
-              int sps                   = (d->sps < 1) ? 1 : d->sps;
-              s->segs[i].num_samples    = nchips * (size_t)sps;
-              s->segs[i].num_samples_hi = 0;
-              s->segs[i].ranged &= ~(unsigned)WFM_RANGE_NUM_SAMPLES;
-            }
-        }
-      /* A data source sets its own length (payload-data-source.md 4.6). A
-         FINITE one is ceil(bits / LEN) frames, so the on-time is derived
-         here, on the private copy, as the dsss burst's is: the longest of
-         the segment's finite sources, the others falling silent at their
-         end. A STREAM with no count runs until it ends (the early end in
-         execute); with one, the count bounds it. The CLI and a scene refuse
-         a count given beside a finite source by name; this is where every
-         face lands. */
-      size_t finite = 0;
-      int    stream = 0;
-      for (size_t k = 0; k < ns; k++)
-        {
-          const wfm_source_t *d = &s->segs[i].sources[k];
-          if (dp_wfm_source_data_is_stream (d))
-            stream = 1;
-          const size_t n = (size_t)dp_wfm_source_data_samples (
-              d, s->segs[i].fs, dp_wfm_source_data_frames (d));
-          if (n > finite)
-            finite = n;
-        }
-      if (finite)
-        {
-          s->segs[i].num_samples    = finite;
-          s->segs[i].num_samples_hi = 0;
-          s->segs[i].ranged &= ~(unsigned)WFM_RANGE_NUM_SAMPLES;
-        }
-      else if (stream && s->segs[i].num_samples == 0)
-        s->segs[i].num_samples = SIZE_MAX; /* until the stream ends */
+      /* Resolved on the private copy, so the caller's struct is untouched
+         and every face resolves identically: a record emits the real span,
+         and omits it where the sources set it
+         (dp_wfm_segment_sets_length()). */
+      s->segs[i].num_samples = resolved_num_samples (&segs[i]);
     }
   /* Resolve the per-segment noise model on the copy (may append a noise
    * source) — runs here so every face resolves identically. No-op at 1 src. */

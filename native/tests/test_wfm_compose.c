@@ -586,13 +586,19 @@ test_a_source_carries_the_frame_a_caller_built (void)
     DP_CHECK_MSG (dp_wfm_source_data_frames (&once) == 1
                       && dp_wfm_source_data_samples (&once, 1e6, 1) == FB,
                   "it is a finite source of one frame");
+    /* A count beside it is refused, not dropped (doppler#1729). */
+    {
+      wfm_segment_t seg = {
+        .sources = &once, .n_sources = 1, .fs = 1e6, .num_samples = 3 * FB
+      };
+      DP_CHECK_MSG (dp_wfm_scene_error (&seg, 1, 0, 0)
+                        == dp_wfm_why_count_derived,
+                    "a count beside a fixed frame is refused");
+    }
     for (size_t reps = 1; reps <= 2; reps++)
       {
-        wfm_segment_t seg         = { .sources     = &once,
-                                      .n_sources   = 1,
-                                      .fs          = 1e6,
-                                      .num_samples = 3 * FB, /* not the run */
-                                      .repeats     = reps };
+        wfm_segment_t seg
+            = { .sources = &once, .n_sources = 1, .fs = 1e6, .repeats = reps };
         dp_wfm_compose_state_t *c = dp_wfm_compose_create (&seg, 1, 0, 0);
         DP_REQUIRE (c != NULL);
         float complex y[3 * FB];
@@ -1939,6 +1945,128 @@ test_a_stream_ends_on_its_frame_however_it_is_read (void)
   return 0;
 }
 
+/* Samples a composer emits, run to its end. */
+static size_t
+drain (dp_wfm_compose_state_t *c)
+{
+  float complex out[256];
+  size_t        total = 0, n;
+  while ((n = dp_wfm_compose_execute (c, out, 256)) > 0)
+    total += n;
+  return total;
+}
+
+/* doppler#1729: num_samples is 0 by default, "derive it". Sources that set
+   the segment's length -- a finite data source, a lone dsss burst -- REFUSE
+   a count given beside them, on every face, from ONE rule
+   (dp_wfm_scene_error); before, the object face dropped it in silence. A
+   plain segment derives WFM_NUM_SAMPLES_PLAIN and keeps a count it is
+   given. */
+static int
+test_num_samples_derives_or_is_refused (void)
+{
+  static const uint8_t bits32[32] = { 1, 0, 1, 1, 0, 1 };
+  static const uint8_t acq[8]     = { 1, 0, 1, 1, 0, 0, 1, 0 };
+  wfm_source_t         data       = data_line (); /* 16-bit frames */
+  data.data
+      = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = bits32, .len = 32 };
+  wfm_source_t burst
+      = { .type      = WFM_SYNTH_DSSS,
+          .snr       = 200.0,
+          .seed      = 1,
+          .sps       = 2,
+          .pn_length = 7,
+          .acq_reps  = 2,
+          .acq_code
+          = { .kind = WFM_SEQ_LITERAL, .bits = acq, .len = sizeof acq } };
+  wfm_source_t plain = { .type = 0, .snr = 200.0, .seed = 1, .sps = 1 };
+
+  const struct
+  {
+    const char   *name;
+    wfm_source_t *src;
+    int           sets; /* dp_wfm_segment_sets_length */
+    size_t        on;   /* what 0 derives */
+  } cases[] = {
+    { "a finite data source", &data, 1,
+      (size_t)dp_wfm_source_data_samples (&data, 1e6, 2) },
+    { "a lone dsss burst", &burst, 1,
+      dp_wfm_source_dsss_nchips (&burst) * 2u },
+    { "a plain segment", &plain, 0, WFM_NUM_SAMPLES_PLAIN },
+  };
+  DP_REQUIRE_MSG (cases[0].on == 32 && cases[1].on == 8 * 2 * 2,
+                  "the derived on-times are what the sources say");
+  for (size_t k = 0; k < sizeof cases / sizeof *cases; k++)
+    {
+      wfm_segment_t g = { .sources = cases[k].src, .n_sources = 1, .fs = 1e6 };
+      DP_CHECK_MSG (dp_wfm_segment_sets_length (&g) == cases[k].sets,
+                    cases[k].name);
+
+      /* 0 derives it, and the run is exactly that long. */
+      dp_wfm_compose_state_t *c = dp_wfm_compose_create (&g, 1, 0, 0);
+      DP_REQUIRE_MSG (c, cases[k].name);
+      size_t               ns = 0;
+      const wfm_segment_t *rs = dp_wfm_compose_segments (c, &ns, NULL, NULL);
+      DP_CHECK_MSG (rs[0].num_samples == cases[k].on, cases[k].name);
+      DP_CHECK_MSG (drain (c) == cases[k].on, cases[k].name);
+      dp_wfm_compose_destroy (c);
+
+      /* A count given, plain or ranged: refused beside sources that set
+         the length, with the one reason; kept by a plain segment. */
+      for (int ranged = 0; ranged < 2; ranged++)
+        {
+          g.num_samples    = ranged ? 0 : 100;
+          g.num_samples_hi = ranged ? 100 : 0;
+          g.ranged         = ranged ? WFM_RANGE_NUM_SAMPLES : 0u;
+          const char *why  = "untouched";
+          c                = dp_wfm_compose_create_why (&g, 1, 0, 0, &why);
+          if (cases[k].sets)
+            {
+              DP_CHECK_MSG (c == NULL && why == dp_wfm_why_count_derived,
+                            cases[k].name);
+              DP_CHECK_MSG (dp_wfm_scene_error (&g, 1, 0, 0)
+                                == dp_wfm_why_count_derived,
+                            cases[k].name);
+            }
+          else
+            {
+              DP_CHECK_MSG (c != NULL, cases[k].name);
+              if (c && !ranged)
+                DP_CHECK_MSG (drain (c) == 100, "a plain count is kept");
+            }
+          dp_wfm_compose_destroy (c);
+        }
+    }
+
+  /* A scene lands on the same rule, with the same reason. */
+  const char *why = NULL;
+  DP_CHECK_MSG (dp_wfm_compose_from_json_why (
+                    "{\"segments\":[{\"type\":\"bits\",\"data\":\"0xABCD\","
+                    "\"data_len\":8,\"num_samples\":64}]}",
+                    &why)
+                        == NULL
+                    && why == dp_wfm_why_count_derived,
+                "a scene's count beside a finite source: the one reason");
+
+  /* A record of a burst omits its derived count, so it replays. */
+  wfm_segment_t           g = { .sources = &burst, .n_sources = 1, .fs = 1e6 };
+  dp_wfm_compose_state_t *c = dp_wfm_compose_create (&g, 1, 0, 0);
+  DP_REQUIRE (c != NULL);
+  size_t               ns = 0;
+  const wfm_segment_t *rs = dp_wfm_compose_segments (c, &ns, NULL, NULL);
+  char                *js = dp_wfm_spec_to_json (rs, ns, 0, 0, 0, 0.0);
+  DP_REQUIRE (js != NULL);
+  DP_CHECK_MSG (strstr (js, "num_samples") == NULL,
+                "a burst's record omits the count it derives");
+  dp_wfm_compose_state_t *r = dp_wfm_compose_from_json (js);
+  DP_CHECK_MSG (r != NULL && drain (r) == cases[1].on,
+                "and the record replays to the same run");
+  dp_wfm_compose_destroy (r);
+  free (js);
+  dp_wfm_compose_destroy (c);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -2584,10 +2712,15 @@ main (void)
 
   /* ── empty on-time with a trailing gap: the off-only segment branch ── */
   {
-    /* num_samples 0 → no synth started → straight to the PHASE_OFF gap. */
+    /* An on-time of 0 → no synth started → straight to the PHASE_OFF gap.
+       A plain 0 now DERIVES the on-time (doppler#1729), so the empty one is
+       a ranged draw of (0, 0): a count given, and given as nothing. */
     wfm_source_t  src = { .type = 0, .snr = 100.0, .seed = 1, .sps = 1 };
-    wfm_segment_t g
-        = { .sources = &src, .n_sources = 1, .fs = 1e6, .off_samples = 8 };
+    wfm_segment_t g   = { .sources     = &src,
+                          .n_sources   = 1,
+                          .fs          = 1e6,
+                          .off_samples = 8,
+                          .ranged      = WFM_RANGE_NUM_SAMPLES };
     float _Complex buf[8];
     dp_wfm_compose_state_t *c   = dp_wfm_compose_create (&g, 1, 0, 0);
     size_t                  got = dp_wfm_compose_execute (c, buf, 8);
@@ -2648,12 +2781,17 @@ main (void)
                           .data.bits = pay, /* payload */
                           .data.len  = 5,
                           .crc       = 1 };
-    /* deliberately wrong num_samples: the intrinsic on-time must win */
+    /* A count beside it is refused, not dropped (doppler#1729): its data
+       sets the on-time. 0 derives it. */
     wfm_segment_t g = { .sources     = &dsss,
                         .n_sources   = 1,
                         .fs          = 1e6,
                         .num_samples = 17,
                         .off_samples = 10 };
+    DP_REQUIRE_MSG (dp_wfm_scene_error (&g, 1, 0, 0)
+                        == dp_wfm_why_count_derived,
+                    "a count beside the burst's data is refused");
+    g.num_samples = 0;
 
     /* The burst the source should produce, through the description pair:
        the common frame over the same sync/payload/CRC, spread. */
@@ -2688,21 +2826,19 @@ main (void)
                                             chips, sizeof chips)
                         == nchips,
                     "hand chips");
-    wfm_source_t            bits = { .type = WFM_SYNTH_BITS,
-                                     .snr  = 6.0 - 10.0 * log10 (4.0 * 2.0),
-                                     .snr_mode   = 1, /* fs */
-                                     .seed       = 7,
-                                     .sps        = 2,
-                                     .pn_length  = 7,
-                                     .data.bits  = chips,
-                                     .data.len   = nchips,
-                                     .modulation = 1 };
-    wfm_segment_t           gb   = { .sources     = &bits,
-                                     .n_sources   = 1,
-                                     .fs          = 1e6,
-                                     .num_samples = on,
-                                     .off_samples = 10 };
-    dp_wfm_compose_state_t *cb   = dp_wfm_compose_create (&gb, 1, 0, 0);
+    wfm_source_t bits = { .type       = WFM_SYNTH_BITS,
+                          .snr        = 6.0 - 10.0 * log10 (4.0 * 2.0),
+                          .snr_mode   = 1, /* fs */
+                          .seed       = 7,
+                          .sps        = 2,
+                          .pn_length  = 7,
+                          .data.bits  = chips,
+                          .data.len   = nchips,
+                          .modulation = 1 };
+    /* Its data sets the on-time (on), so no count is given. */
+    wfm_segment_t gb
+        = { .sources = &bits, .n_sources = 1, .fs = 1e6, .off_samples = 10 };
+    dp_wfm_compose_state_t *cb = dp_wfm_compose_create (&gb, 1, 0, 0);
     DP_REQUIRE_MSG (cb, "bits create");
     static float _Complex ball[1024];
     size_t bt = 0;
@@ -3022,16 +3158,20 @@ main (void)
       };
       for (size_t c = 0; c < sizeof cases / sizeof *cases; c++)
         {
-          wfm_source_t  src = { .type        = WFM_SYNTH_DSSS,
-                                .sps         = 2,
-                                .acq_reps    = 2,
-                                .acq_code    = cases[c].acq,
-                                .data_code   = cases[c].data,
-                                .data        = cases[c].payload,
-                                .symbol_rate = cases[c].symbol_rate };
-          wfm_segment_t g   = {
-            .sources = &src, .n_sources = 1, .fs = 1e6, .num_samples = 64
-          };
+          wfm_source_t src = { .type        = WFM_SYNTH_DSSS,
+                               .sps         = 2,
+                               .acq_reps    = 2,
+                               .acq_code    = cases[c].acq,
+                               .data_code   = cases[c].data,
+                               .data        = cases[c].payload,
+                               .symbol_rate = cases[c].symbol_rate };
+          /* A burst sets its own on-time, so only continuous takes a
+             count (doppler#1729). */
+          wfm_segment_t g
+              = { .sources     = &src,
+                  .n_sources   = 1,
+                  .fs          = 1e6,
+                  .num_samples = cases[c].symbol_rate > 0.0 ? 64 : 0 };
           const char             *why = "untouched";
           dp_wfm_compose_state_t *st
               = dp_wfm_compose_create_why (&g, 1, 0, 0, &why);
@@ -5089,9 +5229,12 @@ main (void)
     DP_REQUIRE_MSG (js && jn == 1 && js[0].n_sources == 1,
                     "one segment, one source");
     const wfm_source_t *jsrc = &js[0].sources[0];
-    DP_CHECK_MSG (js[0].num_samples == dg.num_samples,
-                  "omitted num_samples is the manifest default, not 0 (an "
-                  "empty segment)");
+    /* The default is 0, "derive it" (doppler#1729), and a plain segment
+       derives WFM_NUM_SAMPLES_PLAIN -- never an empty one. */
+    DP_CHECK_MSG (dg.num_samples == 0
+                      && js[0].num_samples == WFM_NUM_SAMPLES_PLAIN,
+                  "omitted num_samples is the manifest default, 0, which "
+                  "derives the plain on-time, not an empty segment");
     DP_CHECK_MSG (jsrc->seed == ds.seed, "omitted seed is the default");
     DP_CHECK_MSG (jsrc->sps == ds.sps, "omitted sps is the default");
     DP_CHECK_MSG (jsrc->pn_length == ds.pn_length,
@@ -5129,6 +5272,8 @@ main (void)
   if (test_a_mixed_rate_scene_reads_one_rate_a_block ())
     return 1;
   if (test_a_stream_ends_on_its_frame_however_it_is_read ())
+    return 1;
+  if (test_num_samples_derives_or_is_refused ())
     return 1;
   if (test_a_framed_pn_type_sends_its_frame ())
     return 1;

@@ -709,14 +709,18 @@ main (void)
                   "reject ranged num_samples");
   free (jnum);
 
-  /* zero on-time is rejected. */
+  /* A zero on-time DERIVES it (doppler#1729): a plain segment's is
+   * WFM_NUM_SAMPLES_PLAIN, so the plan prepares at that length rather than
+   * refusing an empty segment. */
   wfm_segment_t zseg = {
     .sources = &plain_solo, .n_sources = 1, .fs = 1e6, .num_samples = 0
   };
   char *jzero = dp_wfm_spec_to_json (&zseg, 1, 0, 0, 0, 0.0);
   DP_REQUIRE_MSG (jzero, "zero-num-samples json");
-  DP_REQUIRE_MSG (dp_wfm_plan_prepare (jzero) == NULL,
-                  "reject num_samples == 0");
+  wfm_plan_t *pzero = dp_wfm_plan_prepare (jzero);
+  DP_REQUIRE_MSG (pzero && dp_wfm_plan_len (pzero) == WFM_NUM_SAMPLES_PLAIN,
+                  "num_samples == 0 derives the plain on-time");
+  dp_wfm_plan_destroy (pzero);
   free (jzero);
 
   /* two noise sources in one segment, or a non-trailing noise source, are

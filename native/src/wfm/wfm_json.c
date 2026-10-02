@@ -1009,16 +1009,12 @@ dp_wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
          Both forms are the same rows in the same order, so a key cannot be
          written by one and missed by the other. */
       add_rows (s, WFM_SURF_SEGMENT, g);
-      /* A finite source -- data, or a carried frame of fixed bits -- SETS
-         the segment's length (its frames), so a record omits the derived
-         num_samples exactly as a scene must: the reader refuses one given
-         beside it, and a replay derives it again. */
-      for (size_t k = 0; k < g->n_sources; k++)
-        if (dp_wfm_source_data_frames (&g->sources[k]) > 0)
-          {
-            cJSON_DeleteItemFromObjectCaseSensitive (s, "num_samples");
-            break;
-          }
+      /* Sources that SET the segment's length -- a finite data source,
+         a lone dsss burst -- make num_samples derived, so a record omits
+         it exactly as a scene must: a count given beside them is refused,
+         and a replay derives it again. */
+      if (dp_wfm_segment_sets_length (g))
+        cJSON_DeleteItemFromObjectCaseSensitive (s, "num_samples");
       if (g->n_sources == 1)
         add_source_obj (s, &g->sources[0]);
       else
@@ -1215,34 +1211,9 @@ dp_wfm_compose_from_json_at (const char *json, const char *base,
     segs[i] = (wfm_segment_t){ .sources = srcs, .n_sources = ns };
     /* A segment has no required row, so this cannot refuse. */
     (void)read_rows (s, WFM_SURF_SEGMENT, &segs[i], why);
-    {
-      /* A data source sets the segment's length (payload-data-source.md
-         4.6). A finite one is its frames, so a "num_samples" beside it is
-         refused by name; with any data source an absent one is 0 -- the
-         composer derives it, or runs a stream until it ends -- rather
-         than the 1024 default. */
-      int has = 0, finite = 0;
-      for (size_t k = 0; k < ns; k++)
-        {
-          has |= srcs[k].data.len || srcs[k].data_from_file;
-          finite |= dp_wfm_source_data_frames (&srcs[k]) > 0;
-        }
-      const int given
-          = cJSON_GetObjectItemCaseSensitive (s, "num_samples") != NULL;
-      if (finite && given)
-        {
-          if (why)
-            *why = "\"num_samples\": a finite source -- data, or a carried "
-                   "frame of fixed bits, sent once -- sets the segment's "
-                   "length (its frames); drop num_samples, and give "
-                   "\"repeats\" for more";
-          free_src_bits (srcs, ns);
-          free (srcs);
-          goto reject;
-        }
-      if ((has || finite) && !given)
-        segs[i].num_samples = 0;
-    }
+    /* A count beside sources that set the segment's length is refused
+       by dp_wfm_scene_error() below, the one rule every face asks; an
+       absent one is the default 0, "derive it". */
     i++;
     continue;
   reject:

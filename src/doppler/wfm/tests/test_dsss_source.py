@@ -103,11 +103,16 @@ def _scene_json(kwargs_list) -> dict:
 
 def test_intrinsic_on_time():
     """A dsss segment's on-time is its bursts, one per frame of its data --
-    here one -- so num_samples is derived and any caller-supplied value
-    ignored. The record leaves it out: a replay derives it again from the
-    data, and a recorded count beside a finite source is refused."""
+    here one -- so num_samples is derived, and a count given beside it is
+    refused rather than dropped (doppler#1729). The record leaves it out: a
+    replay derives it again from the data."""
     acq, dat, pay = _codes()
-    seg = Segment(**_seg_kwargs(1, 500, acq, dat, pay), num_samples=17)
+    with pytest.raises(ValueError, match="num_samples is derived"):
+        Composer(
+            [Segment(**_seg_kwargs(1, 500, acq, dat, pay), num_samples=17)]
+        )
+    seg = Segment(**_seg_kwargs(1, 500, acq, dat, pay))
+    assert seg.num_samples == 0  # the default: derive it
     comp = Composer([seg])
     x = comp.compose()
     assert len(x) == BURST_LEN + 500

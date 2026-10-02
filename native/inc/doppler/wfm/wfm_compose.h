@@ -428,9 +428,14 @@ typedef struct {
                               by all its sources. At the default 1.0 every
                               frequency is normalised (cycles per sample);
                               state it whenever a scene is in real Hz. */
-    size_t num_samples;    /* Segment on-time in samples: the synth runs for
-                              exactly this many samples before the trailing
-                              gap. */
+    size_t num_samples;    /* Segment on-time in samples, before the
+                              trailing gap: 0 derives it from the sources,
+                              or 1024 when they set none. A finite data
+                              source sets its frames, a lone dsss burst one
+                              burst, and a stream runs to its end. A count beside a finite
+                              data source or a lone dsss burst is refused,
+                              since they set the length; give repeats for
+                              more. */
     size_t off_samples;    /* Trailing gap after the on-time, in samples. It
                               carries the noise floor or hard zeros, per
                               gap_noise. */
@@ -935,6 +940,10 @@ void dp_wfm_synth_set_data_pacing(dp_wfm_synth_state_t *syn,
  *   synth's own floor (dp_wfm_source_dsss_cps()). The default `fs = 1.0`
  *   with a `symbol_rate` in Hz is the case that finds it (doppler#1706);
  *   the reason is dp_wfm_why_dsss_cont_rate.
+ * - A count (`num_samples`, non-zero or ranged) beside sources that set
+ *   the segment's length (dp_wfm_segment_sets_length()) is refused with
+ *   dp_wfm_why_count_derived: the length is theirs, so it would be dropped
+ *   (doppler#1729).
  * - A data STREAM (`--data-from-file -`) has no end to repeat, so
  *   `repeat`, `continuous` and a segment's `repeats > 1` are refused, and
  *   stdin feeds at most one source.
@@ -953,6 +962,58 @@ const char *dp_wfm_scene_error(const wfm_segment_t *segs, size_t n_segs,
  *        CLI can name the values beside it, by identity.
  */
 extern const char dp_wfm_why_dsss_cont_rate[];
+
+/**
+ * @brief A plain segment's on-time when its `num_samples` is 0 and no
+ *        source sets one: what `--count`, a scene and `Segment` default
+ *        to.
+ */
+#define WFM_NUM_SAMPLES_PLAIN ((size_t)1024)
+
+/**
+ * @brief Whether a segment's sources SET its on-time, so its
+ *        `num_samples` is derived and a count given beside them refused.
+ *
+ * Two kinds of source set a length (payload-data-source.md 4.6):
+ *
+ * - **A finite data source** -- `data`, a finite file, or a carried frame
+ *   of fixed bits -- is its frames (dp_wfm_source_data_frames()); the
+ *   longest of a segment's sets it.
+ * - **A lone dsss burst** -- one dsss source, no `symbol_rate`, no data
+ *   source -- is one burst (dp_wfm_source_dsss_nchips() times `sps`).
+ *
+ * A stream sets none: it runs to its end, and a count may bound it. A
+ * non-zero `num_samples` (or a ranged one) beside a segment this answers
+ * 1 for is refused by dp_wfm_scene_error() with
+ * dp_wfm_why_count_derived, on every face.
+ *
+ * @code
+ * static const uint8_t bits[16] = { 1 };
+ * wfm_source_t  src  = { .type       = WFM_SYNTH_BITS,
+ *                        .modulation = 1, // bpsk
+ *                        .sps        = 1,
+ *                        .pn_length  = 7 };
+ * src.data = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = bits,
+ *                         .len = 16 };
+ * wfm_segment_t seg = { .sources = &src, .n_sources = 1, .fs = 1e6 };
+ * if (!dp_wfm_segment_sets_length (&seg)) // its frames are the run
+ *   return 1;
+ * seg.num_samples = 1000;                 // so a count is refused
+ * if (dp_wfm_scene_error (&seg, 1, 0, 0) != dp_wfm_why_count_derived)
+ *   return 1;
+ * @endcode
+ *
+ * @param seg  the segment, as the caller gave it.
+ * @return 1 when its sources set its on-time, else 0.
+ */
+int dp_wfm_segment_sets_length(const wfm_segment_t *seg);
+
+/**
+ * @brief The reason dp_wfm_scene_error() gives a count beside a segment
+ *        whose sources set its length (dp_wfm_segment_sets_length()) --
+ *        exported so the wfmgen CLI can name its flag beside it.
+ */
+extern const char dp_wfm_why_count_derived[];
 
 
 /**

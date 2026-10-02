@@ -551,8 +551,9 @@ wfm_surface_row_is_set (const wfm_surface_row_t *r,
 #define WFM_SURFACE_HELP_SIGNAL \
   "  --fs HZ         Sample rate in Hz, one per segment and shared by all its\n" \
   "                  sources. (default 1.0)\n" \
-  "  --count N[:N]   Segment on-time in samples: the synth runs for exactly this\n" \
-  "                  many samples before the trailing gap. (default 1024)\n" \
+  "  --count N[:N]   Segment on-time in samples, before the trailing gap: 0\n" \
+  "                  derives it from the sources, or 1024 when they set none.\n" \
+  "                  (default 0)\n" \
   "  --off N[:N]     Trailing gap after the on-time, in samples. (default 0)\n" \
   "  --repeats N     Play the segment this many times back-to-back (each instance\n" \
   "                  = delay + on-time + trailing gap) before advancing.\n" \

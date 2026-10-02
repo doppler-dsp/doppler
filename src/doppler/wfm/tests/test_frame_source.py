@@ -463,7 +463,7 @@ def _recorded(src) -> dict | None:
     `frame=` is an input. The composer's JSON (the scene's "frame" key) is
     where a source's frame is read, so every check below goes through it.
     """
-    seg = Segment.sum(src, num_samples=64)
+    seg = Segment.sum(src)
     return json.loads(Composer(seg).to_json())["segments"][0].get("frame")
 
 

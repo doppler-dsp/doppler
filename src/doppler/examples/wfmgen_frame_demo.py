@@ -40,7 +40,6 @@ common = {
     "modulation": "bpsk",
     "snr": 100.0,
     "snr_mode": "fs",
-    "num_samples": 224,
 }
 framed = Segment(**common, frame=d)
 x = np.asarray(Composer([framed]).compose())
@@ -53,8 +52,7 @@ import sys  # noqa: E402
 def main() -> int:
     # 1. The frame reaches the samples.
     # The same payload bits as a data source, sent as given: no frame.
-    bare = {k: v for k, v in common.items() if k != "num_samples"}
-    unframed = Segment(**bare, data=field_bits("1010" * 6), crc="none")
+    unframed = Segment(**common, data=field_bits("1010" * 6), crc="none")
     y0 = np.asarray(Composer([unframed]).compose())
     ok1 = not np.array_equal(x[: y0.size], y0)
     print("framed != unframed:", ok1)

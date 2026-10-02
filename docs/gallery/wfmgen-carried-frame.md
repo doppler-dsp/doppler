@@ -72,8 +72,7 @@ main (void)
   wfm_segment_t seg = { 0 };
   seg.sources = &src;
   seg.n_sources = 1u;
-  seg.fs = 1.0e6;
-  seg.num_samples = NS;
+  seg.fs = 1.0e6; /* no num_samples: the frame sets the run, NS samples */
 
   dp_wfm_compose_state_t *c = dp_wfm_compose_create (&seg, 1u, 0, 0);
   if (!c)

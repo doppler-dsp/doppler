@@ -2071,7 +2071,7 @@ static int
 Segment_init (SegmentObject *self, PyObject *args, PyObject *kwds)
 {
   self->fs               = 1.0;
-  self->num_samples      = 1024;
+  self->num_samples      = 0;
   self->off_samples      = 0;
   self->repeats          = 1;
   self->delay_samples    = 0;
@@ -2244,7 +2244,7 @@ Segment_sum (PyObject *cls, PyObject *args, PyObject *kwds)
     }
   self->sources          = list;
   self->fs               = 1.0;
-  self->num_samples      = 1024;
+  self->num_samples      = 0;
   self->off_samples      = 0;
   self->repeats          = 1;
   self->delay_samples    = 0;
@@ -2972,8 +2972,11 @@ static PyGetSetDef Segment_getset[] = {
     NULL },
   { "num_samples", (getter)Segment_get_num_samples,
     (setter)Segment_set_num_samples,
-    "Segment on-time in samples: the synth runs for exactly this many samples "
-    "before the trailing gap.\n",
+    "Segment on-time in samples, before the trailing gap: 0 derives it from "
+    "the sources, or 1024 when they set none. A finite data source sets its "
+    "frames, a lone dsss burst one burst, and a stream runs to its end. A "
+    "count beside a finite data source or a lone dsss burst is refused, since "
+    "they set the length; give repeats for more.\n",
     NULL },
   { "off_samples", (getter)Segment_get_off_samples,
     (setter)Segment_set_off_samples,

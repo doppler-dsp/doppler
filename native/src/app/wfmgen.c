@@ -309,7 +309,7 @@ static const char USAGE[]
       "  preamble (code A), then the frame [sync | data:LEN | CRC-16],\n"
       "  every frame bit spread by a second code B. --sps is samples per\n"
       "  CHIP; the run is derived (n_chips * sps samples a burst, one burst\n"
-      "  with no data source) and --count ignored; --snr-mode esno is the\n"
+      "  with no data source) and --count refused; --snr-mode esno is the\n"
       "  Es/N0 of the outer DATA symbol (code-B chips x sps "
       "samples).\n" WFM_SURFACE_HELP_DSSS_BURST "\n"
       "FIELDS  (--acq-code / --sync / --data-code / --data / --fill)\n"
@@ -1495,30 +1495,11 @@ load_frame (wfmgen_opts_t *o)
 static int
 check_source (wfmgen_opts_t *o)
 {
-  /* A data source sets the run's length (payload-data-source.md 4.6): a
-     finite one is its frames, so a --count beside it is refused by name
-     -- the one face that can tell a count given from its default -- and
-     an absent count is 0 (the composer derives it, or runs a stream until
-     it ends). A stream may take a --count as an upper bound. */
+  /* A data source sets the run's length (payload-data-source.md 4.6),
+     and so does a lone dsss burst: a --count beside either is refused by
+     dp_wfm_scene_error() below, the one rule every face asks, and an
+     absent one is 0 -- "derive it". */
   const int has_data = o->src.data.len || o->src.data_from_file;
-  /* A carried frame of fixed bits is a finite source too: one frame, sent
-     once (doppler#1718) -- more of it is --repeats, a gap after it
-     --off. */
-  const int finite = dp_wfm_source_data_frames (&o->src) > 0;
-  if (finite && o->surf_seen[WFM_SURFACE_segment_num_samples])
-    {
-      (void)fprintf (stderr,
-                     has_data ? "error: --count: a finite data source sets "
-                                "the run's length (its frames); drop "
-                                "--count\n"
-                              : "error: --count: a carried frame of fixed "
-                                "bits is sent once and sets the run's length "
-                                "(one frame); drop --count, and give "
-                                "--repeats for more\n");
-      return 2;
-    }
-  if ((has_data || finite) && !o->surf_seen[WFM_SURFACE_segment_num_samples])
-    o->seg.num_samples = 0;
   if (has_data)
     {
       /* Paced, a pause in a pipe is an idle frame -- and continuous dsss
@@ -1543,6 +1524,9 @@ check_source (wfmgen_opts_t *o)
                    (unsigned long long)o->src.pn_poly, o->src.pn_length, why);
   else if (why == dp_wfm_why_dsss_frame_no_data_code)
     (void)fprintf (stderr, "error: --data-code: %s\n", why);
+  else if (why == dp_wfm_why_count_derived)
+    (void)fprintf (stderr, "error: --count %zu: %s\n", o->seg.num_samples,
+                   why);
   else if (why == dp_wfm_why_dsss_cont_rate)
     (void)fprintf (stderr, "error: --symbol-rate %g, --fs %g, --sps %d: %s\n",
                    o->src.symbol_rate, o->seg.fs, o->src.sps, why);

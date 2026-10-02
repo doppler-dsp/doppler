@@ -1607,6 +1607,7 @@ dp_wfm_resolve_noise function
 dp_wfm_rrc_polyphase_bank function
 dp_wfm_rrc_taps function
 dp_wfm_scene_error function
+dp_wfm_segment_sets_length function
 dp_wfm_seq_bits function
 dp_wfm_seq_pn_create function
 dp_wfm_sigmf_meta_json function
@@ -1674,6 +1675,7 @@ dp_wfm_synth_state_bytes function
 dp_wfm_synth_state_refusal function
 dp_wfm_synth_step function
 dp_wfm_synth_steps function
+dp_wfm_why_count_derived data
 dp_wfm_why_dsss_cont_no_data_code data
 dp_wfm_why_dsss_cont_rate data
 dp_wfm_why_dsss_empty data

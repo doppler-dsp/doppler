@@ -327,8 +327,17 @@ table's row.
 `make python-versions-check` holds the lowest classifier equal to the
 `requires-python` floor and every classifier inside its range.
 
-**The one skip is a version bump alone.** `changes` diffs the PR (or the
-pushed range) and says `src=false` when the only change is a version bump.
+**`src=false`: nothing here is untested.** `changes` answers it for two
+reasons. A diff that is a version bump alone (`make ci-changes`). Or, on a
+push to `main`, a tree that already passed as a PR whose head contained the
+previous tip (`make ci-tree-tested`). `protect-main` requires a PR to be up
+to date, so that is every merge: `main`'s push run checks the cheap gates
+and skips the matrix the PR just ran.
+
+**Nightly, `main` gets the full run anyway.** A `schedule` run at 03:43 UTC
+never takes a skip. Its job is the environment, not the tree: hosted runner
+images and unpinned tools move under an unchanged tree, and the nightly is
+where that goes red, rather than on whichever PR meets it first.
 Every heavy job is gated on `if: needs.changes.outputs.src == 'true'`, and
 `scripts/ci_passed.py` treats a skip as green only for a job in the
 aggregator's `SKIPPABLE` list and only on `src=false`.

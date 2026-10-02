@@ -128,9 +128,12 @@ compose_one (const wfm_source_t *src, float complex *out, size_t n)
   seg.sources     = (wfm_source_t *)src;
   seg.n_sources   = 1u;
   seg.fs          = FS;
-  seg.num_samples = n;
   seg.off_samples = 0u;
   seg.gap_noise   = 0;
+  /* A source that sets its own length (a finite data source, a lone dsss
+     burst) takes no count: 0 derives it, and a count beside it is refused.
+     Anything else runs for the caller's n. */
+  seg.num_samples = dp_wfm_segment_sets_length (&seg) ? 0u : n;
 
   dp_wfm_compose_state_t *c = dp_wfm_compose_create (&seg, 1u, 0, 0);
   if (!c)

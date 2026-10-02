@@ -680,7 +680,6 @@ doppler.dsss.AsyncDsssReceiver.tracking sr
 doppler.acquire.BurstAcquisition s
 doppler.acquire.BurstAcquisition.__enter__ sr
 doppler.acquire.BurstAcquisition.__exit__ sr
-doppler.acquire.BurstAcquisition.chip_rate sr
 doppler.acquire.BurstAcquisition.cn0_dbhz sr
 doppler.acquire.BurstAcquisition.code_bins sr
 doppler.acquire.BurstAcquisition.configure_search_raw sr
@@ -705,8 +704,6 @@ doppler.acquire.BurstAcquisition.reset s
 doppler.acquire.BurstAcquisition.ring_cap sr
 doppler.acquire.BurstAcquisition.set_max_peaks sr
 doppler.acquire.BurstAcquisition.set_state sr
-doppler.acquire.BurstAcquisition.sf sr
-doppler.acquire.BurstAcquisition.spc sr
 doppler.acquire.BurstAcquisition.state_bytes sr
 doppler.acquire.BurstAcquisition.straddle_loss sr
 doppler.acquire.BurstAcquisition.threshold sr
@@ -756,7 +753,6 @@ doppler.dsss.BurstDemod.destroy sr
 doppler.dsss.BurstDemod.est_freq_hz sr
 doppler.dsss.BurstDemod.est_n0 sr
 doppler.dsss.BurstDemod.est_rate_hz sr
-doppler.dsss.BurstDemod.est_snr_db sr
 doppler.dsss.BurstDemod.frame_offset sr
 doppler.dsss.BurstDemod.frame_syms sr
 doppler.dsss.BurstDemod.llrs sr
@@ -820,7 +816,6 @@ doppler.dsss.DsssBurstReceiver.doppler_res_hz sr
 doppler.dsss.DsssBurstReceiver.dropped sr
 doppler.dsss.DsssBurstReceiver.est_freq_hz sr
 doppler.dsss.DsssBurstReceiver.est_rate_hz sr
-doppler.dsss.DsssBurstReceiver.est_snr_db sr
 doppler.dsss.DsssBurstReceiver.events sr
 doppler.dsss.DsssBurstReceiver.events_max_out sr
 doppler.dsss.DsssBurstReceiver.frame_valid sr

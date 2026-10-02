@@ -158,11 +158,13 @@ mentioning them:
 
 ## The receiver stops at hard and soft decisions
 
-This object used to assume `sync | payload | CRC-16`, then briefly held a
-frame description of its own — four knobs, a checker and a `frame_valid`
-read-back. Neither is a physical-layer fact, and the second put a CCSDS
-coverage policy inside a header that says it "knows nothing about CCSDS"
-([#1022](https://github.com/doppler-dsp/doppler/issues/1022)).
+The receiver knows one thing about a frame besides its length: that it ends
+in a CRC-16. `frame_valid` reports whether a window passed it, because that
+verdict decides whether the window owns its span
+([#1181](https://github.com/doppler-dsp/doppler/issues/1181)). The fields,
+the stages and what each covers are not physical-layer facts, so they live in
+a frame description one layer up, and the receiver carries no framing policy
+of its own ([#1022](https://github.com/doppler-dsp/doppler/issues/1022)).
 
 So the chain is three objects, each knowing one thing:
 

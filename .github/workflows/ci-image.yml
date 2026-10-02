@@ -42,17 +42,15 @@ on:
     # min on v0.51.0 for a tree that could not have changed it.
     # scripts/check_workflow_tag_triggers.py holds the rule.
     #
-    # Feature branches only: main and the merge queue are ignored (#1748).
-    # A branch that touches these paths builds the image and carries its own
-    # pin (`make ci-image-check` refuses it otherwise), so rebuilding the
-    # same source on main after the merge only re-resolves apt against a
-    # mirror that has moved since -- a new fingerprint, and a repin owed for
-    # nothing. On 2026-10-01 that turned #1736 into #1742 and #1743 into
-    # #1747, and each pending repin ejected the whole queue. A
-    # `gh-readonly-queue/*` ref is a temporary merge candidate; publishing
-    # an image for it is pure cost. Main rebuilds from `schedule` and
+    # Feature branches only: main is ignored (#1748). A branch that touches
+    # these paths builds the image and carries its own pin (`make
+    # ci-image-check` refuses it otherwise), so rebuilding the same source
+    # on main after the merge only re-resolves apt against a mirror that has
+    # moved since -- a new fingerprint, and a repin owed for nothing. On
+    # 2026-10-01 that turned #1736 into #1742 and #1743 into #1747, and each
+    # pending repin blocked every PR. Main rebuilds from `schedule` and
     # `workflow_dispatch` alone, which is where the repin steps below run.
-    branches-ignore: [main, 'gh-readonly-queue/**']
+    branches-ignore: [main]
     paths:
       - deploy/docker/Dockerfile.ci
       - bootstrap.toml
@@ -382,8 +380,8 @@ jobs:
             echo "## A repin is pending"
             echo
             echo 'The `CI image repin pending` job in ci.yml is now RED on'
-            echo 'every PR until this lands, and so it ejects EVERY PR in the'
-            echo 'merge queue. This run ends red for the same reason. To land it:'
+            echo 'every PR until this lands, so no PR can merge. This run'
+            echo 'ends red for the same reason. To land it:'
             echo
             echo '```sh'
             echo "gh pr create --head $branch --fill"
@@ -413,8 +411,8 @@ jobs:
 
       # LAST, and the reason this run can end red with nothing broken. A
       # pending repin used to leave the scheduled run GREEN: the summary above said
-      # so, but a green run notifies nobody, and since the merge queue went
-      # live an unlanded repin ejects every queued PR -- #1732 was ejected
+      # so, but a green run notifies nobody, and an unlanded repin blocks
+      # every PR -- #1732 was ejected from the merge queue (since retired)
       # that way, an hour before anyone traced it (doppler#1737). So the run
       # asks the ONE definition of "a repin is pending", the gate ci.yml
       # already runs on every PR, and fails while it fails.

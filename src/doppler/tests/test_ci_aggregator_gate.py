@@ -14,6 +14,8 @@ import sys
 import textwrap
 from typing import TYPE_CHECKING
 
+import pytest
+
 from doppler.tests._repo import repo_root
 
 if TYPE_CHECKING:
@@ -151,19 +153,21 @@ def test_skippable_may_not_name_an_ungated_job(tmp_path: Path) -> None:
     assert "lists `lint`, which is not gated" in r.stdout
 
 
-_SPLIT = """
+# The merge queue's pull_request split, retired 2026-10-01: every run is full,
+# so each trace of it is a skip permission nothing takes. Each case below
+# restores ONE trace onto an otherwise sound workflow.
+_RETIRED = """
     jobs:
       changes:
         runs-on: ubuntu-latest
         outputs:
           src: x
-          full: x
-          heavy: x
+          EXTRA_OUTPUT
       lint:
         runs-on: ubuntu-latest
       matrix:
         needs: changes
-        if: needs.changes.outputs.heavy == 'true'
+        if: GATE
         runs-on: ubuntu-latest
       ci-passed:
         name: CI passed
@@ -173,36 +177,45 @@ _SPLIT = """
         steps:
           - env:
               SKIPPABLE: matrix
-              HEAVY: {heavy}
+              EXTRA_ENV
             run: python3 scripts/ci_passed.py
 """
 
 
-def test_a_sound_split_passes(tmp_path: Path) -> None:
-    r = _check(tmp_path, _SPLIT.format(heavy="matrix"))
+def _retired(
+    output: str = "docs: x",
+    gate: str = "needs.changes.outputs.src == 'true'",
+    env: str = "NEEDS: x",
+) -> str:
+    return (
+        _RETIRED.replace("EXTRA_OUTPUT", output)
+        .replace("GATE", gate)
+        .replace("EXTRA_ENV", env)
+    )
+
+
+def test_no_split_passes(tmp_path: Path) -> None:
+    r = _check(tmp_path, _retired())
     assert r.returncode == 0, r.stdout + r.stderr
-    assert "1 heavy" in r.stdout
 
 
-def test_a_heavy_job_missing_from_heavy_is_caught(tmp_path: Path) -> None:
-    # Every pull_request would go red on the skip it takes by design.
-    r = _check(tmp_path, _SPLIT.format(heavy="other"))
+@pytest.mark.parametrize("key", ["full", "heavy", "primary_full"])
+def test_a_retired_output_is_refused(tmp_path: Path, key: str) -> None:
+    r = _check(tmp_path, _retired(output=f"{key}: x"))
     assert r.returncode == 1
-    assert "not in `ci-passed`'s HEAVY" in r.stdout
+    assert f"`changes` declares `{key}`" in r.stdout
 
 
-def test_heavy_may_not_name_an_ungated_job(tmp_path: Path) -> None:
-    # The dangerous direction: a PR could skip lint and stay green.
-    r = _check(tmp_path, _SPLIT.format(heavy="matrix lint"))
+def test_a_job_gated_on_heavy_is_refused(tmp_path: Path) -> None:
+    r = _check(tmp_path, _retired(gate="needs.changes.outputs.heavy == 1"))
     assert r.returncode == 1
-    assert "HEAVY lists `lint`, which is not" in r.stdout
+    assert "job `matrix` is gated on a retired" in r.stdout
 
 
-def test_the_split_needs_changes_to_declare_full(tmp_path: Path) -> None:
-    body = _SPLIT.format(heavy="matrix").replace("          full: x\n", "")
-    r = _check(tmp_path, body)
+def test_a_heavy_list_is_refused(tmp_path: Path) -> None:
+    r = _check(tmp_path, _retired(env="HEAVY: matrix"))
     assert r.returncode == 1
-    assert "no `full` output" in r.stdout
+    assert "declares HEAVY" in r.stdout
 
 
 # A python job whose single-leg steps name their leg by role (doppler#1714).
@@ -225,12 +238,12 @@ _LEGS = """
             if: SELECTOR
             run: make test-snippets
           - name: Test
-            if: matrix.python-version != needs.changes.outputs.primary_full
+            if: matrix.python-version != needs.changes.outputs.primary
             run: make test-python
           - name: Test with coverage
             if: >-
               ${{ matrix.python-version ==
-                  needs.changes.outputs.primary_full }}
+                  needs.changes.outputs.primary }}
             run: make test-python PYTEST_ARGS=--cov
       ci-passed:
         name: CI passed
@@ -243,7 +256,7 @@ _FAST_SEL = "matrix.python-version == needs.changes.outputs.primary"
 
 def _legs(
     sel: str = _FAST_SEL,
-    outputs: str = "primary: x\n          primary_full: x",
+    outputs: str = "primary: x",
     derive: str = "p=$(python3 scripts/python_versions.py --primary)",
 ) -> str:
     return (
@@ -257,8 +270,8 @@ def test_steps_named_by_role_pass(tmp_path: Path) -> None:
     r = _check(tmp_path, _legs())
     assert r.returncode == 0, r.stdout + r.stderr
     assert "3 single-leg step(s), named by role" in r.stdout
-    assert "fast   make test-snippets" in r.stdout
-    assert "heavy  make test-python" in r.stdout
+    assert "primary  make test-snippets" in r.stdout
+    assert "rest     make test-python" in r.stdout
 
 
 def test_a_version_literal_selector_is_refused(tmp_path: Path) -> None:
@@ -284,7 +297,7 @@ def test_an_undeclared_selector_is_refused(tmp_path: Path) -> None:
 
 
 def test_a_missing_primary_output_is_refused(tmp_path: Path) -> None:
-    r = _check(tmp_path, _legs(outputs="primary_full: x"))
+    r = _check(tmp_path, _legs(outputs="docs: x"))
     assert r.returncode == 1
     assert "declares no `primary` output" in r.stdout
 
@@ -312,7 +325,7 @@ _DOC = """\
 | --- | --- | --- | --- |
 | Fences | `make test-snippets` | FENCE_LANE | 1 s |
 | Test | `make test-python` | rest | 1 s |
-| Test with coverage | `make test-python` | heavy | 1 s |
+| Test with coverage | `make test-python` | primary | 1 s |
 EXTRA
 <!-- python-legs:end -->
 """
@@ -330,7 +343,7 @@ def _check_doc(tmp_path: Path, doc: str):
     )
 
 
-def _doc(lane: str = "fast", extra: str = "") -> str:
+def _doc(lane: str = "primary", extra: str = "") -> str:
     return _DOC.replace("FENCE_LANE", lane).replace("EXTRA", extra)
 
 
@@ -340,14 +353,16 @@ def test_a_doc_table_that_matches_passes(tmp_path: Path) -> None:
 
 
 def test_a_doc_table_with_the_wrong_lane_is_refused(tmp_path: Path) -> None:
-    r = _check_doc(tmp_path, _doc(lane="heavy"))
+    r = _check_doc(tmp_path, _doc(lane="rest"))
     assert r.returncode == 1
-    assert "lacks `Fences` | `make test-snippets` | fast" in r.stdout
-    assert "states `Fences` | `make test-snippets` | heavy" in r.stdout
+    assert "lacks `Fences` | `make test-snippets` | primary" in r.stdout
+    assert "states `Fences` | `make test-snippets` | rest" in r.stdout
 
 
 def test_a_doc_table_with_a_ghost_row_is_refused(tmp_path: Path) -> None:
-    r = _check_doc(tmp_path, _doc(extra="| Gone | `make gone` | fast | 1 |"))
+    r = _check_doc(
+        tmp_path, _doc(extra="| Gone | `make gone` | primary | 1 |")
+    )
     assert r.returncode == 1
     assert "states `Gone`" in r.stdout
 

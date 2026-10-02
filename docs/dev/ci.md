@@ -64,7 +64,7 @@ on one bad day it stalled five runs of a single PR, one job trickling for
 21 minutes against a 25-minute ceiling.
 
 **The image has no package list of its own.** It copies `bootstrap.toml` and
-installs its `CI_IMAGE_GROUPS` (`runtime dev docs`) with a pinned just-bashit
+installs its `CI_IMAGE_GROUPS` (`dev docs`) with a pinned just-bashit
 release's `install-deps.sh` — the same file `make install-deps` reads. A
 second list is exactly what `bootstrap.toml` exists to prevent, and it would
 rot in the way hardest to notice: the image would keep working while no

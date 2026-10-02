@@ -244,7 +244,7 @@ test-fast: ## Run tests, stopping at the first failure
 # `lint` is the gate — CI runs exactly this and nothing else. The three
 # consistency gates come first because they are near-free and catch the class
 # of rot that review demonstrably does not.
-lint: standard-check help-check ghost-check hook-dispatch-check hook-stage-check tracked-paths-check gates-check gates-home-check ## Run the full lint gate (CI runs this)
+lint: standard-check help-check ghost-check hook-dispatch-check hook-stage-check tracked-paths-check workflow-timeout-check gates-check gates-home-check ## Run the full lint gate (CI runs this)
 	@hook=$$(git rev-parse --git-path hooks/pre-commit 2>/dev/null); \
 	 if [ -n "$$hook" ] && [ ! -f "$$hook" ]; then \
 	     $(PRE_COMMIT) install >/dev/null 2>&1 \
@@ -1242,7 +1242,7 @@ tracked-paths-check: ## Tracked paths are typeable, and none differ only in case
 	 echo "tracked-paths-check: $$(git ls-files | grep -c .) tracked path(s), every name typeable, none differ only in case"
 
 STD_TARGETS += standard-check standard-update help-check ghost-check hook-dispatch-check
-STD_TARGETS += hook-stage-check tracked-paths-check
+STD_TARGETS += hook-stage-check tracked-paths-check workflow-timeout-check
 
 # A temp file, portably: bare `mktemp` is a GNU extension, and the BSD one
 # macOS ships requires a template. The gates parse make's own database, which
@@ -1355,7 +1355,7 @@ _STD_SECTION = case "$$t" in \
     changelog-check|changelog-sections-check|changelog-assemble \
         |changelog-assembled-check) tsec="Changelog";; \
     test-examples) tsec="Examples";; \
-    standard-check|standard-update|help-check|ghost-check|hook-dispatch-check|hook-stage-check|tracked-paths-check) \
+    standard-check|standard-update|help-check|ghost-check|hook-dispatch-check|hook-stage-check|tracked-paths-check|workflow-timeout-check) \
         tsec="Gates";; \
     *) tsec="Local";; \
 esac
@@ -1599,7 +1599,13 @@ ghost-check: ## Verify every .PHONY target has a recipe
 # containing $(MAKE). Probing a target must not run it.
 #
 # Inert with no config file, so a repo without pre-commit is not asked to care.
-hook-dispatch-check: ## Verify every pre-commit `make` dispatch names a real target
+# Pre-commit hooks that run their own tool rather than `make -s lint-<tool>`,
+# each a declared exception (hook id). The gate refuses an undeclared one and
+# an exemption that no longer names a non-dispatching hook, so the list can
+# only shrink toward the rule. Set it with the reason beside it.
+HOOK_DISPATCH_EXEMPT ?=
+
+hook-dispatch-check: ## Verify every pre-commit hook dispatches to a real `make` target
 	@cfg=.pre-commit-config.yaml; \
 	 if [ ! -f "$$cfg" ]; then \
 	     echo "hook-dispatch-check: no $$cfg — nothing to check"; \
@@ -1608,7 +1614,7 @@ hook-dispatch-check: ## Verify every pre-commit `make` dispatch names a real tar
 	 db=$$($(_STD_TMP)); trap 'rm -f "$$db"' EXIT; \
 	 $(MAKE) -rpn --no-print-directory .std-db-goal >"$$db" 2>/dev/null; \
 	 n=0; missing=""; \
-	 for t in $$(sed -n "s/^[[:space:]]*entry:[[:space:]]*make[[:space:]]\{1,\}\(-s[[:space:]]\{1,\}\)\{0,1\}\([a-zA-Z0-9_.-]\{1,\}\).*/\2/p" "$$cfg"); do \
+	 for t in $$(sed -n "s/^[[:space:]]*entry:[[:space:]]*[\"']\{0,1\}make[[:space:]]\{1,\}\(-s[[:space:]]\{1,\}\)\{0,1\}\([a-zA-Z0-9_.-]\{1,\}\).*/\2/p" "$$cfg"); do \
 	     n=$$((n + 1)); \
 	     grep -q "^$$t:" "$$db" || missing="$$missing $$t"; \
 	 done; \
@@ -1634,7 +1640,127 @@ hook-dispatch-check: ## Verify every pre-commit `make` dispatch names a real tar
 	     echo "  written to prevent."; \
 	     exit 1; \
 	 fi; \
-	 echo "hook-dispatch-check: $$n make dispatch(es) resolve"
+	 : "Every hook dispatches, or is declared not to (just-makeit#1801 item"; \
+	 : "4). Counting only the hooks that DO dispatch reported 7 resolving"; \
+	 : "while uv-lock ran upstream's own uv, pinned apart from the repo's:"; \
+	 : "the second source of truth this standard exists to end. A hook from"; \
+	 : "a remote repo has no entry: at all, so it is per hook, by id."; \
+	 verdict=$$(awk -v exempt="$(HOOK_DISPATCH_EXEMPT)" ' \
+	   function flush() { \
+	     if (id != "" && ent !~ /^make[[:space:]]/) nodisp[id] = 1; \
+	     id = ""; ent = "" \
+	   } \
+	   /^[[:space:]]*#/ { next } \
+	   /^[[:space:]]*-[[:space:]]*id:/ { \
+	     flush(); v = $$0; sub(/^[^:]*:[[:space:]]*/, "", v); \
+	     sub(/[[:space:]]*#.*/, "", v); gsub(/["\047]/, "", v); id = v; next \
+	   } \
+	   /^[[:space:]]*-[[:space:]]*repo:/ { flush(); next } \
+	   id != "" && /^[[:space:]]*entry:/ { \
+	     v = $$0; sub(/^[^:]*:[[:space:]]*/, "", v); gsub(/["\047]/, "", v); \
+	     ent = v; next \
+	   } \
+	   END { \
+	     flush(); n = split(exempt, ex, /[[:space:]]+/); \
+	     for (i = 1; i <= n; i++) if (ex[i] != "") isex[ex[i]] = 1; \
+	     for (h in nodisp) if (!(h in isex)) print "undeclared " h; \
+	     for (h in isex) if (!(h in nodisp)) print "stale " h; \
+	   } \
+	 ' "$$cfg"); \
+	 undeclared=$$(printf '%s\n' "$$verdict" | sed -n 's/^undeclared //p'); \
+	 stale=$$(printf '%s\n' "$$verdict" | sed -n 's/^stale //p'); \
+	 if [ -n "$$undeclared" ]; then \
+	     echo "ERROR: pre-commit hooks that do not dispatch through make:"; \
+	     printf '  %s\n' $$undeclared; \
+	     echo ""; \
+	     echo "  A hook that runs its own tool at its own pin is a second source"; \
+	     echo "  of truth for how that tool runs. Route it through a"; \
+	     echo "  \`make -s lint-<tool>\` target, or name it in"; \
+	     echo "  HOOK_DISPATCH_EXEMPT, with the reason beside it, as a known"; \
+	     echo "  exception the list may only shrink from."; \
+	     exit 1; \
+	 fi; \
+	 if [ -n "$$stale" ]; then \
+	     echo "ERROR: HOOK_DISPATCH_EXEMPT names hooks that are not exceptions:"; \
+	     printf '  %s\n' $$stale; \
+	     echo ""; \
+	     echo "  Each is no hook here, or now dispatches through make. Drop it:"; \
+	     echo "  an exemption that outlives its reason is granted to whatever"; \
+	     echo "  next takes the name."; \
+	     exit 1; \
+	 fi; \
+	 ex=$$(echo $(HOOK_DISPATCH_EXEMPT) | wc -w); \
+	 echo "hook-dispatch-check: $$n make dispatch(es) resolve; $$ex declared exception(s)"
+
+# ── workflow-timeout-check ──────────────────────────────────────────────────
+#
+# Every job in .github/workflows/ declares `timeout-minutes` (just-makeit#1801,
+# modification 6). An aggregator counts `cancelled` as a failure, but a job
+# with no ceiling is not cancelled for SIX HOURS, GitHub's default: a hung
+# job holds every PR's required check that long, and the third instance of
+# jm#1792 was exactly that (nco_tone). The ceiling is what turns a hang into a
+# prompt, attributable red.
+#
+# Job level only: a step's `timeout-minutes` bounds that step, not the job.
+# A job that is a reusable-workflow call (`uses:` at job level) is exempt --
+# its jobs live in the callee, which this gate reads too.
+#
+# POSIX awk, not a YAML library: a C-only repo has no Python YAML. Indentation
+# is LEARNED per file (the first key under `jobs:` sets the job indent, the
+# first deeper line of each job its attribute indent), so 2- and 4-space files
+# both parse, and a flow-style or unparseable job is reported, never passed.
+workflow-timeout-check: ## Verify every workflow job declares timeout-minutes
+	@dir=.github/workflows; \
+	 set -- $$dir/*.yml $$dir/*.yaml; \
+	 files=""; for f in "$$@"; do [ -f "$$f" ] && files="$$files $$f"; done; \
+	 if [ -z "$$files" ]; then \
+	     echo "workflow-timeout-check: no workflows — nothing to check"; \
+	     exit 0; \
+	 fi; \
+	 out=$$(awk ' \
+	   function lead(s) { match(s, /^ */); return RLENGTH } \
+	   function done_job() { \
+	     if (job != "" && !has_t && !has_u) print jfile ": " job; \
+	     job = ""; has_t = 0; has_u = 0; ai = -1 \
+	   } \
+	   FNR == 1 { done_job(); injobs = 0; ji = -1 } \
+	   /^[[:space:]]*(#|$$)/ { next } \
+	   /^jobs:[[:space:]]*(#.*)?$$/ { injobs = 1; next } \
+	   injobs && /^[^[:space:]]/ { done_job(); injobs = 0; next } \
+	   !injobs { next } \
+	   { \
+	     n = lead($$0); \
+	     if (ji < 0) ji = n; \
+	     if (n == ji) { \
+	       done_job(); k = $$0; sub(/^ */, "", k); sub(/:.*/, "", k); \
+	       job = k; jfile = FILENAME; total++; next \
+	     } \
+	     if (job == "") next; \
+	     if (ai < 0) ai = n; \
+	     if (n != ai) next; \
+	     if ($$0 ~ /^ *timeout-minutes:/) has_t = 1; \
+	     if ($$0 ~ /^ *uses:/) has_u = 1; \
+	   } \
+	   END { done_job(); print "TOTAL " total + 0 } \
+	 ' $$files); \
+	 total=$$(printf '%s\n' "$$out" | sed -n 's/^TOTAL //p'); \
+	 missing=$$(printf '%s\n' "$$out" | grep -v '^TOTAL ' || true); \
+	 if [ "$$total" -eq 0 ]; then \
+	     echo "ERROR: workflows exist but no job was parsed under \`jobs:\`."; \
+	     echo "  A gate that matched nothing is indistinguishable from one that"; \
+	     echo "  passed. Fix the parse, or delete this gate deliberately."; \
+	     exit 1; \
+	 fi; \
+	 if [ -n "$$missing" ]; then \
+	     echo "ERROR: workflow jobs without timeout-minutes:"; \
+	     printf '%s\n' "$$missing" | sed 's/^/  /'; \
+	     echo ""; \
+	     echo "  A job with no ceiling hangs for GitHub's six-hour default before"; \
+	     echo "  anything reports it. Give each job a timeout-minutes that bounds"; \
+	     echo "  its real worst case (a reusable-workflow call is exempt)."; \
+	     exit 1; \
+	 fi; \
+	 echo "workflow-timeout-check: $$total job(s), each with timeout-minutes"
 
 # ── hook-stage-check ────────────────────────────────────────────────────────
 #

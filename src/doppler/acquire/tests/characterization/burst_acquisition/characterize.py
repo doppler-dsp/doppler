@@ -65,9 +65,10 @@ Panels (saved to ``dsss_acq_characterization.png``)
 
 gh-394 — blind, overlapping-dwell sweep Pfa
 --------------------------------------------
-``dsss_burst_pipeline_demo.py`` drives ``Acquisition`` blindly across a
-whole capture with ``reset()``-between-dwells at a hop smaller than one
-dwell (75% overlap) — a single run there once measured 3 false alarms
+A blind sweep drives ``Acquisition`` across a whole capture with
+``reset()``-between-dwells at a hop smaller than one dwell (75% overlap)
+— the hand-composed burst chain did exactly that, and a single run of it
+once measured 3 false alarms
 against a naive ``pfa * n_dwells`` estimate of ~0.47, and it was unclear
 whether that was normal single-run variance or a real per-dwell
 calibration gap that overlapping dwells expose (filed as gh-394).
@@ -407,9 +408,8 @@ def _cluster_count(positions: list[int], window: int) -> int:
     """Collapse sorted hit positions into cluster counts.
 
     A hit within ``window`` samples of the previous kept position merges
-    into the same cluster (mirrors the position-based dedup
-    ``dsss_burst_pipeline_demo.py``'s ``demo_acquisition()`` already does
-    for real detections — cluster raw crossings within one dwell-width of
+    into the same cluster (the position-based dedup a blind sweep applies
+    to real detections — cluster raw crossings within one dwell-width of
     each other and keep one per cluster).  Only the count is needed here.
     """
     last = None
@@ -426,7 +426,7 @@ def measure_sweep_pfa(
 ) -> dict[str, float]:
     """Empirical false-alarm rate for a blind, overlapping-dwell sweep.
 
-    Mirrors ``dsss_burst_pipeline_demo.py``'s ``demo_acquisition()``:
+    The blind-sweep pattern described in the module docstring:
     ``reset()`` between dwells at a ``hop``-sample stride across a
     pure-noise capture, so every threshold crossing is by construction a
     false alarm — this isolates gh-394's question (is a naive
@@ -569,7 +569,7 @@ def main(out_path: str | Path | None = None) -> None:
     # gh-394: is a blind, overlapping-dwell sweep's false-alarm rate well
     # explained by the naive `pfa * n_dwells` estimate, or does overlap
     # inflate it?  Control (non-overlapping dwells) vs. 75% overlap (the
-    # dsss_burst_pipeline_demo.py sweep shape) over the same total sample
+    # blind-sweep shape) over the same total sample
     # budget, both raw and clustered (one-per-physical-excursion) counts.
     sweep_capture_len = 400_000
     sweep_n_captures = 150

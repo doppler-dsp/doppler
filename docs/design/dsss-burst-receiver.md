@@ -966,8 +966,7 @@ A user of that bank who wants the burst has two routes, and both are bad.
     reach back into, plus a retention rule, plus a claim rule keyed on
     `refine_span`. §3.2 says getting it wrong is a cliff: a burst one period
     out decodes as noise, not as a degraded frame.
-- **Sweep acquisition in dwells**, as
-    `src/doppler/examples/dsss_burst_pipeline_demo.py` does. `reset()` per
+- **Sweep acquisition in dwells.** `reset()` per
     dwell makes `pos + code_phase` a real position, so refine is not needed —
     paid for with `PRE_LEN/ACQ_HOP` overlapping FFT dwells over the whole
     stream, two window constants nothing derives, a hand-rolled

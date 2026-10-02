@@ -174,5 +174,6 @@ for the scene JSON's `frame` key and what Python does with it.
     the inner code and by neither the outer code nor the randomiser.
 - [Name Your Own Code](coding.md) — an outer and an inner code that are
     nobody's standard, run end to end.
-- [5-Burst DSSS Link](dsss-burst-pipeline.md) — the flag-spelled frame,
-    through every wfmgen production path.
+- [DsssBurstReceiver](dsss-burst-receiver.md) — a spread frame from a
+    description, transmitted on all three wfmgen faces and checked against
+    the same description on receive.

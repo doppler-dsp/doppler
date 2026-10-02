@@ -5,12 +5,14 @@
 The composed form of `BurstAcquisition -> refine -> BurstDemod`, the burst
 DSSS receive chain, in one C object:
 [`DsssBurstReceiver`](../api/python-dsss.md). Its continuous counterpart is
-[`DsssReceiver`](dsss-receiver.md); the hand-composed version of *this*
-chain — each stage demonstrated on its own — is the
-[5-Burst DSSS Link](dsss-burst-pipeline.md) page, and that page is still the
-one to read first if you want to see what each stage does.
+[`DsssReceiver`](dsss-receiver.md). Each stage on its own is its API page:
+[`BurstAcquisition`](../api/python-acquire.md),
+[`BurstDemod`](../api/python-dsss.md).
 
-This page is what composing them buys. It is not fewer lines.
+This page is the end-to-end walkthrough: a frame **description**, the burst
+train `wfmgen` transmits from it on all three of its faces, the receiver,
+and the frames checked against the same description. It ends with a BER
+curve. What composing the stages buys is not fewer lines.
 
 ## What the hand-off actually costs
 
@@ -25,6 +27,47 @@ redoing, and getting subtly wrong:
 - the bin→frequency fold was restated at four call sites in three mutually
     inconsistent ways before it became
     [`dp_fftfreq()`](../c-api/index.md).
+
+## One description, three faces, one capture
+
+The frame is a **description**: its fields in wire order, and the CRC stage
+with the span it covers. It is written twice in the script, once as the
+JSON that `wfmgen --frame` reads and a scene's `"frame"` key holds, and
+once as a [`FrameDesc`](../api/python-wfmgen.md), by the same names:
+
+<!-- docs-snippet: skip=an excerpt whose names (SYNC_SPEC, PAYLOAD_SPEC) live in the example's namespace; the script itself is executed on every push by `make test-examples-python` -->
+
+```python
+--8<-- "src/doppler/examples/dsss_burst_receiver_demo.py:description"
+```
+
+The burst train is one `type="dsss"` segment played four times, rendered on
+every face `wfmgen` has: Python objects with `frame=` taking the
+`FrameDesc`, a JSON scene with the description under `"frame"`, and the
+command line with `--frame spread.json`. The three captures are asserted
+**byte-identical**, so whichever door a capture came in by, it is the same
+samples. The `FrameDesc` handed to the transmitter is the object the frames
+are checked against at the end.
+
+<!-- docs-snippet: skip=an excerpt whose names (desc, FRAME, GAP) live in the example's namespace; the script itself is executed on every push by `make test-examples-python` -->
+
+```python
+--8<-- "src/doppler/examples/dsss_burst_receiver_demo.py:faces"
+```
+
+The command it runs, as printed by the script:
+
+```text
+wfmgen --type dsss --fs 2000000 --snr 12 --snr-mode esno --seed 1 --sps 2
+       --acq-code 'pn:255:8:1*5' --data-code pn:31:5:3 --frame spread.json
+       --repeats 4 --off 6020 -o train.cf32
+```
+
+Every run of bits is a [Field](../guide/wfmgen/fields.md): the codes are
+`pn:255:8:1` and `pn:31:5:3`, one period of each m-sequence, and the
+payload is `pn:96:7:5`. The `*5` on the preamble is its repetition; a scene
+has no separate `acq_reps`. The reference for every `type="dsss"` key is
+[DSSS bursts](../guide/wfmgen/waveforms.md#dsss-bursts).
 
 ## Four properties, each asserted
 
@@ -131,7 +174,7 @@ object's entire diagnostic surface:
 The bottom two panels of the figure are those rows plotted. The left one is
 the reason the chain does not stop at acquisition: the search grid can only
 promise half a bin — **1961 Hz** at this geometry — and refine plus demod
-resolve the residual to well under a hertz, three orders of magnitude
+resolve the residual to a few hertz, three orders of magnitude
 inside it. The right one puts the quality read-backs beside the scene that
 produced them: the C/N0 estimate lands within about a decibel of the
 scene's **57.1 dB-Hz** on every burst, from a bound that is allowed to be
@@ -176,9 +219,10 @@ So the chain is three objects, each knowing one thing:
 
 `push()` returns **`frame_syms` bits per burst** — the frame as received,
 sync word first — and `llrs()` returns the same decisions as soft values.
-That is the whole output. Undoing the frame is a separate call:
+That is the whole output. Undoing the frame is a separate call, on the
+same description the transmitter was given:
 
-<!-- docs-snippet: skip=an excerpt whose names (ref_bits, payload) live in the example's namespace; the script itself is executed on every push by `make test-examples-python` -->
+<!-- docs-snippet: skip=an excerpt whose names (ref_bits, desc) live in the example's namespace; the script itself is executed on every push by `make test-examples-python` -->
 
 ```python
 --8<-- "src/doppler/examples/dsss_burst_receiver_demo.py:deframe"
@@ -368,6 +412,6 @@ there is no frame to check.
 
 ## Related pages
 
-- [5-Burst DSSS Link](dsss-burst-pipeline.md) — the same chain, hand-composed, each stage on its own
+- [Spread frames on `--type dsss`](../guide/wfmgen/waveforms.md#on-type-dsss) — the reference for a description on a dsss source
 - [DsssReceiver](dsss-receiver.md) — the continuous counterpart
 - [DSSS Acquisition: Pd/Pfa](dsss-acq-characterization.md) — the search stage characterised

@@ -1927,7 +1927,6 @@ GALLERY_SCRIPTS := \
     src/doppler/examples/awgn_demo.py \
     src/doppler/examples/doppler_channel_demo.py \
     src/doppler/examples/wfm_io_demo.py \
-    src/doppler/examples/dsss_burst_pipeline_demo.py \
     src/doppler/examples/dsss_burst_receiver_demo.py \
     src/doppler/examples/dsss_burst_ber_demo.py \
     src/doppler/examples/async_dsss_receiver_spec_demo.py \

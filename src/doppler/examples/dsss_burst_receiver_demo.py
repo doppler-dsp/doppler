@@ -1,10 +1,9 @@
-"""dsss_burst_receiver_demo.py — the burst chain as ONE object.
+"""dsss_burst_receiver_demo.py — a DSSS burst link, end to end.
 
-`dsss_burst_pipeline_demo.py` shows `BurstAcquisition`, `BurstDespreader`
-and `BurstDemod` driven separately, each on its own, and it is worth reading
-first: it is where you see what each stage does. This file is the other
-half — the same job through :class:`~doppler.dsss.DsssBurstReceiver`, which
-composes **search → refine → demod** behind a single ``push()``.
+One frame DESCRIPTION, the burst train ``wfmgen`` transmits from it, the
+receiver that decodes the train, and the frames checked against the same
+description. The receiver is :class:`~doppler.dsss.DsssBurstReceiver`,
+which composes **search -> refine -> demod** behind a single ``push()``.
 
 What the composition buys is not fewer lines. It is that the *hand-off*
 stops being the caller's problem:
@@ -13,15 +12,21 @@ stops being the caller's problem:
   and neither of those is a burst start. Refine turns them into one;
 - one preamble raises several detections, and coalescing them is the
   object's job, not a loop the caller writes;
-- a bin→frequency fold that four call sites once restated three mutually
+- a bin->frequency fold that four call sites once restated three mutually
   inconsistent ways is now inside.
 
-Four properties are demonstrated, each with an assertion rather than a
+Six properties are demonstrated, each with an assertion rather than a
 claim — exit 0 means measured, not merely run.
+
+**0. One description, three faces, one capture.** The frame is a
+:class:`~doppler.wfm.FrameDesc` and, written as JSON, the file
+``wfmgen --frame`` reads and a scene's ``"frame"`` key holds. The burst
+train is rendered from it by the ``wfmgen`` command line, by a JSON scene
+and by Python objects, and the three captures are asserted byte-identical.
 
 **1. Block size does not change the answer.** The same capture is pushed as
 one giant call, as 64k blocks, and as blocks far smaller than a burst. All
-three decode the same bursts at the same samples. This is not free: it is
+of them decode the same bursts at the same samples. This is not free: it is
 what `dropped == 0` and an internally sliced history ring are for
 (doppler#1008 was three separate discard sites that broke exactly this).
 
@@ -47,6 +52,10 @@ generated at, the coarse Doppler with its own bin, the refined residual
 with a hundredth of it. A read-back nobody checks is a number, not a
 measurement.
 
+**5. The frames are checked against the description that sent them.** The
+receiver stops at decisions. ``FrameDesc.check`` and ``deframe``, on the
+same object the transmitter was given, return the verdict and the payload.
+
 Four panels
 -----------
 Top left
@@ -69,6 +78,11 @@ Bottom right
     at run time.
 """
 
+import json
+import subprocess
+import tempfile
+from pathlib import Path
+
 import matplotlib
 import numpy as np
 
@@ -76,7 +90,14 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from doppler.dsss import DsssBurstReceiver
-from doppler.wfm import PN, Composer, FrameDesc, Segment
+from doppler.wfm import (
+    STAGE_CRC16,
+    Composer,
+    FrameDesc,
+    Segment,
+    cli,
+    field_bits,
+)
 
 # ── geometry ────────────────────────────────────────────────────────────────
 # 255 chips at 2 samples/chip is 510 = 2*3*5*17 correlation bins. The length
@@ -85,30 +106,49 @@ from doppler.wfm import PN, Composer, FrameDesc, Segment
 # and a 127-chip m-sequence at spc=4 gives 508 = 2^2*127, where pocketfft
 # falls back to Bluestein and costs 12x. 255 is smooth AND keeps the ideal
 # m-sequence autocorrelation. spc >= 2 always.
-ACQ_BITS, DATA_BITS = 8, 5  # 255- and 31-chip m-sequences
-REPS, SPC, PAYLOAD = 5, 2, 96
+#
+# Every run of bits is a Field: the text the command line, a scene and
+# `field_bits` all read with one parser. `pn:LEN:REG:SEED` is LEN bits of
+# the REG-bit maximal-length register from SEED: 255 and 31 are one period.
+ACQ_SPEC, DATA_SPEC = "pn:255:8:1", "pn:31:5:3"
+SYNC_SPEC = "0000011001010"  # Barker-13, inverted
+PAYLOAD_SPEC = "pn:96:7:5"  # 96 payload bits from a 7-bit register
+REPS, SPC = 5, 2
 CHIP_RATE = 1.0e6
 FS = CHIP_RATE * SPC
 ESN0_DB = 12.0
 N_BURSTS = 4
-SYNC = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], dtype=np.uint8)
+SEED = 1
 
-
-def mls(n_stages, seed):
-    """An m-sequence from doppler's own PN generator, not a random array."""
-    n = 2**n_stages - 1
-    return (
-        np.asarray(PN(poly=0, seed=seed, length=n_stages).generate(n)) & 1
-    ).astype(np.uint8)
-
-
-acq_code = mls(ACQ_BITS, seed=1)
-data_code = mls(DATA_BITS, seed=3)
-payload = np.random.default_rng(0).integers(0, 2, PAYLOAD).astype(np.uint8)
-
+acq_code, data_code = field_bits(ACQ_SPEC), field_bits(DATA_SPEC)
 ACQ_SF, DATA_SF = len(acq_code), len(data_code)
-FRAME_SYMS = len(SYNC) + PAYLOAD + 16  # sync | payload | CRC-16
-PAYLOAD_OFF = len(SYNC)  # push() returns the FRAME; the payload is a slice
+
+# --8<-- [start:description]
+# The frame, as a DESCRIPTION: fields in wire order, and the stage that
+# fills the CRC over the span it covers. Written once as JSON -- the file
+# `wfmgen --frame` reads and the value a scene's "frame" key holds -- and
+# once as the Python object, by the same names. Property 0 below is what
+# proves the two are one description: they render byte-identical bursts.
+FRAME = {
+    "fields": [
+        {"name": "sync", "spec": SYNC_SPEC},  # found, not decoded
+        {"name": "payload", "spec": PAYLOAD_SPEC},
+        {"name": "crc", "bits": 16, "derived_by": 1},  # stage 0 fills it
+    ],
+    "stages": [{"kind": "crc16", "first_field": 1, "n_fields": 2}],
+}
+
+desc = FrameDesc()
+desc.add_field("sync", field_bits(SYNC_SPEC))
+desc.add_field("payload", field_bits(PAYLOAD_SPEC))
+desc.add_derived("crc", 16)
+desc.add_stage_over(STAGE_CRC16, "payload", "crc")  # CRC-16 over both
+desc.build()
+
+FRAME_SYMS = desc.nbits  # the frame's length is the description's to say
+# --8<-- [end:description]
+
+PAYLOAD = desc.field_bits(desc.field_index("payload"))
 BURST_LEN = (REPS * ACQ_SF + FRAME_SYMS * DATA_SF) * SPC
 
 
@@ -117,7 +157,7 @@ def receiver():
     return DsssBurstReceiver(
         acq_code=acq_code,
         data_code=data_code,
-        sync=SYNC,
+        sync=field_bits(SYNC_SPEC),
         reps=REPS,
         spc=SPC,
         chip_rate=CHIP_RATE,
@@ -146,35 +186,86 @@ GAP = MIN_GAP
 SPACING = BURST_LEN + GAP
 # --8<-- [end:spacing]
 
-# ── the capture ─────────────────────────────────────────────────────────────
-# One declarative dsss segment per burst: the engine tiles the preamble,
-# spreads sync|payload|CRC-16 by the data code, and sizes the on-time itself.
-segments = [
-    Segment(
-        type="dsss",
-        fs=FS,
-        freq=0.0,
-        snr=ESN0_DB,
-        snr_mode="esno",  # Es/N0 of the DATA_SF-chip data symbol
-        seed=k + 1,
-        sps=SPC,  # samples per CHIP
-        acq_code=acq_code.tobytes(),
-        acq_reps=REPS,
-        data_code=data_code.tobytes(),
-        sync=SYNC.tobytes(),
-        data=payload,  # one burst; CRC-16 appended by the engine
-        gap_noise="auto",  # the floor runs through the gaps, as a real capture
-        off_samples=GAP if k < N_BURSTS - 1 else RETAIN_SPAN * 2,
-    )
-    for k in range(N_BURSTS)
-]
-capture = Composer(segments).compose()
+# ── 0. one description, three faces, one capture ───────────────────────────
+print("the burst train, rendered on all three wfmgen faces:")
+# --8<-- [start:faces]
+# One dsss segment, played N_BURSTS times: the engine tiles the preamble,
+# spreads the described frame by the data code, sizes the on-time itself,
+# and draws fresh noise per burst. `gap_noise` stays at its default, so the
+# floor runs through the gaps, as it does in a real capture.
+#
+# Python: the description is the FrameDesc object itself.
+python_face = Composer(
+    [
+        Segment(
+            type="dsss",
+            fs=FS,
+            snr=ESN0_DB,
+            snr_mode="esno",  # Es/N0 of the DATA_SF-chip data symbol
+            seed=SEED,
+            sps=SPC,  # samples per CHIP
+            acq_code=acq_code,
+            acq_reps=REPS,
+            data_code=data_code,
+            frame=desc,
+            repeats=N_BURSTS,
+            off_samples=GAP,
+        )
+    ]
+).compose()
+
+# A scene: the same segment as JSON, the description under "frame", every
+# code as its Field text. A scene has no `acq_reps`: the repetition rides
+# in the preamble's Field, as `*REPS`.
+scene = {
+    "version": 1,
+    "segments": [
+        {
+            "type": "dsss",
+            "fs": FS,
+            "snr": ESN0_DB,
+            "snr_mode": "esno",
+            "seed": SEED,
+            "sps": SPC,
+            "acq_code": f"{ACQ_SPEC}*{REPS}",
+            "data_code": DATA_SPEC,
+            "frame": FRAME,
+            "repeats": N_BURSTS,
+            "off_samples": GAP,
+        }
+    ],
+}
+scene_face = Composer.from_json(json.dumps(scene)).compose()
+
+# The command line: the description is a file, and `--frame` reads it.
+argv = [
+    "wfmgen", "--type", "dsss", "--fs", f"{FS:.0f}",
+    "--snr", f"{ESN0_DB:g}", "--snr-mode", "esno",
+    "--seed", f"{SEED}", "--sps", f"{SPC}",
+    "--acq-code", f"{ACQ_SPEC}*{REPS}", "--data-code", DATA_SPEC,
+    "--frame", "spread.json",
+    "--repeats", f"{N_BURSTS}", "--off", f"{GAP}",
+    "-o", "train.cf32",
+]  # fmt: skip
+with tempfile.TemporaryDirectory() as tmp:
+    Path(tmp, "spread.json").write_text(json.dumps(FRAME, indent=2))
+    # `cli._runnable()` is the one locator for the bundled C binary.
+    subprocess.run([cli._runnable(), *argv[1:]], cwd=tmp, check=True)
+    cli_face = np.fromfile(Path(tmp, "train.cf32"), dtype=np.complex64)
+
+assert np.array_equal(python_face, scene_face), "Python vs scene differ"
+assert np.array_equal(cli_face, python_face), "CLI vs Python differ"
+capture = python_face
+# --8<-- [end:faces]
 truth = [k * SPACING for k in range(N_BURSTS)]
 
-print(f"capture: {capture.size} samples at {FS / 1e6:.1f} MHz")
+print("  " + " ".join(f"'{a}'" if "*" in a else a for a in argv))
+print(f"  -> CLI, scene and Python: {capture.size} samples, byte-identical")
+print(f"\ncapture: {capture.size} samples at {FS / 1e6:.1f} MHz")
 print(f"  burst_len   {BURST_LEN:>7}   spacing {SPACING}")
 print(f"  min_gap     {MIN_GAP:>7}   (the gap used, read from the object)")
 print(f"  retain_span {RETAIN_SPAN:>7}   (history kept per anchor)")
+assert capture.size == N_BURSTS * SPACING, "one burst and one gap, N times"
 
 
 # --8<-- [start:decode]
@@ -233,12 +324,11 @@ assert len(ref_starts) == N_BURSTS, (
 )
 for got, want in zip(ref_starts, truth):
     assert got == want, f"burst start {got} != {want}"
-assert ref_bits.size == N_BURSTS * FRAME_SYMS
-for k in range(N_BURSTS):
-    assert np.array_equal(
-        ref_bits[k * FRAME_SYMS + PAYLOAD_OFF :][:PAYLOAD], payload
-    ), f"burst {k} payload is not bit-exact"
-print(f"  -> {N_BURSTS}/{N_BURSTS} bursts, exact samples, payloads bit-exact")
+# The description is the truth: N copies of its frame, bit for bit.
+assert np.array_equal(ref_bits, desc.bits(N_BURSTS)), (
+    "the decoded frames are not the described frame, bit-exact"
+)
+print(f"  -> {N_BURSTS}/{N_BURSTS} bursts, exact samples, frames bit-exact")
 
 # (3. is the spacing above: the capture sits AT min_gap, and section 1's
 # assertions are its guarantee.)
@@ -262,7 +352,7 @@ print(
 assert first.size == 0, "a half-arrived burst must not be emitted"
 assert held == 1, "pending must report the burst being held"
 assert rx.pending == 0, "pending must clear once the burst is emitted"
-assert np.array_equal(second[PAYLOAD_OFF:][:PAYLOAD], payload), (
+assert np.array_equal(second[:FRAME_SYMS], desc.bits(1)), (
     "the split burst is not exact"
 )
 print("  -> held, then returned whole. Read pending before you stop feeding.")
@@ -377,36 +467,39 @@ print(
 )
 # --8<-- [end:probes]
 
-# ── 5. the frame is undone one layer up ────────────────────────────────────
+# ── 5. the frames are checked against the description that sent them ─────
 # --8<-- [start:deframe]
 # The receiver stopped at decisions: `push()` handed back FRAME BITS and no
-# opinion about them (doppler#1022). Turning those into a payload — and into
-# a verdict — needs the frame's description, which is what `FrameDesc` is.
-# One object, built once, describing exactly what the generator built.
-deframer = FrameDesc()
-deframer.add_field("sync", SYNC)  # found, not decoded
-deframer.add_field("payload", np.zeros(PAYLOAD, np.uint8))  # the geometry
-deframer.add_derived("crc", 16)  # the CRC; the stage below fills it
-deframer.add_stage(0, first_field=1, n_fields=2)  # CRC-16 over both
-deframer.build()
-
+# opinion about them (doppler#1022). The verdict and the payload need the
+# frame's description -- and it is the SAME object the transmitter was
+# given. `check()` reverses every checking stage and reports; `deframe()`
+# hands back the corrected frame, where the payload is a slice found by name.
+off = desc.field_off(desc.field_index("payload"))
 deframed_ok, payloads = [], []
 for k in range(N_BURSTS):
     frame = ref_bits[k * FRAME_SYMS : (k + 1) * FRAME_SYMS]
-    got = np.asarray(deframer.deframe(frame))
-    deframed_ok.append(deframer.rx_ok == deframer.rx_units == 1)
-    payloads.append(got[PAYLOAD_OFF : PAYLOAD_OFF + PAYLOAD])
+    verdict = desc.check(frame)
+    deframed_ok.append(verdict.passed == verdict.checked == 1)
+    got = np.asarray(desc.deframe(frame))
+    payloads.append(got[off : off + PAYLOAD])
 
-print("\ndeframed by wfm.FrameDesc (the receiver has no opinion):")
+sent = field_bits(PAYLOAD_SPEC)
+exact = sum(int(np.array_equal(p, sent)) for p in payloads)
+print("\nchecked against the description (the receiver has no opinion):")
 print(
     f"  {sum(deframed_ok)}/{N_BURSTS} frames check out, "
-    f"{sum(int(np.array_equal(p, payload)) for p in payloads)}/{N_BURSTS} "
-    "payloads bit-exact"
+    f"{exact}/{N_BURSTS} payloads bit-exact"
 )
 assert all(deframed_ok), "every frame's CRC must check out"
 for k, got in enumerate(payloads):
-    assert np.array_equal(got, payload), f"burst {k} payload is not exact"
-print("  -> decide, then deframe. Two objects, one frame, no shared secret.")
+    assert np.array_equal(got, sent), f"burst {k} payload is not exact"
+
+# ...and a check that cannot fail is not a check: one flipped payload bit
+# turns the verdict over.
+bad = ref_bits[:FRAME_SYMS].copy()
+bad[off] ^= 1
+assert desc.check(bad).passed == 0, "a corrupted frame must fail its CRC"
+print("  -> one description: transmitted from, decided on, checked against.")
 # --8<-- [end:deframe]
 
 # ── figure ──────────────────────────────────────────────────────────────────

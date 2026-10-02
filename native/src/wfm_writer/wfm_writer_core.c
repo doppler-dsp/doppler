@@ -12,6 +12,7 @@
 #include "doppler/wfm/wfm_time.h" /* J1950 <-> UNIX, WFM_TIMECODE_UNSET */
 
 #include "doppler/dp_complex.h"
+#include <inttypes.h> /* PRIx64: a data source's dp_hash64 */
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -1106,6 +1107,29 @@ dp_wfm_sigmf_meta_json_ex (int sample_type, int endian, double fs, double fc,
                                      src->symbol_rate);
             if (src->dsss_code_only)
               cJSON_AddStringToObject (a, "wfmgen:data", "none");
+          }
+        /* The truth for scoring (payload-data-source.md 4.8): what the
+         * source's data sent, as the record carries it -- frames, the fill
+         * bits padding the last, idle frames, the source bits read and a
+         * file's or stdin's hash. Per instance, which is what a row is: a
+         * finite source sends the same frames in every instance, and a
+         * stream has only one. Written at close, after the run, so the idle
+         * count is final; a source that sent nothing writes none. */
+        const wfm_data_stats_t *ds = &src->data_sent;
+        if (ds->frames || ds->idle_frames)
+          {
+            cJSON_AddNumberToObject (a, "wfmgen:frames", (double)ds->frames);
+            cJSON_AddNumberToObject (a, "wfmgen:pad_bits",
+                                     (double)ds->pad_bits);
+            cJSON_AddNumberToObject (a, "wfmgen:idle_frames",
+                                     (double)ds->idle_frames);
+            cJSON_AddNumberToObject (a, "wfmgen:data_bits", (double)ds->bits);
+            if (ds->hashed)
+              {
+                char h[19]; /* "0x" + 16 hex digits */
+                (void)snprintf (h, sizeof h, "0x%016" PRIx64, ds->hash);
+                cJSON_AddStringToObject (a, "wfmgen:data_hash", h);
+              }
           }
         /* Clock Doppler, from the DRAWN row for the same reason snr and
          * level are: a ranged `--doppler 0:5` scene has one span in the spec

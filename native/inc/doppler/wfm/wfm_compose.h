@@ -411,6 +411,15 @@ typedef struct {
                           source, so bits=, and its aliases payload= and
                           pattern=, are refused naming data=; the CLI and a
                           scene refuse --bits and "payload" the same way. */
+    wfm_data_stats_t data_sent; /* What this source's data sent in the
+                          composer's latest instance: its frames, the fill
+                          bits padding the last, its idle frames, the source
+                          bits read and, for data_from_file, the dp_hash64
+                          of the octets read. The truth --record and SigMF
+                          carry (payload-data-source.md section 4.8), kept
+                          by the composer, which clears it at create; zero
+                          until an instance has sent a frame. Not an input:
+                          no face sets it. */
 } wfm_source_t;
 
 /**
@@ -1369,6 +1378,10 @@ void dp_wfm_compose_destroy(dp_wfm_compose_state_t *state);
 
 /**
  * @brief Borrow the composer's stored segment list (for --record / SigMF).
+ *
+ * Each source's `data_sent` holds what its data source has sent so far in
+ * the latest instance, brought up to date by this call, so a record or a
+ * SigMF sidecar written after a run carries the run's truth.
  * @param state      the composer.
  * @param n_out      receives the segment count.
  * @param repeat     receives the repeat flag (may be NULL).
@@ -1631,6 +1644,52 @@ dp_wfm_compose_state_t *dp_wfm_compose_from_json_why(const char *json,
 dp_wfm_compose_state_t *dp_wfm_compose_from_json_at(const char *json,
                                                     const char *base,
                                                     const char **why);
+
+/**
+ * @brief dp_wfm_compose_from_json_at(), replaying a record by its data.
+ *
+ * A `--record` stores each data source's truth as `"data_sent"`: the
+ * frames, the fill bits padding the last, the idle frames, and for a file
+ * or stdin the bits read and their `dp_hash64` (payload-data-source.md
+ * §4.8). A replay identifies a file by that content, not by its name:
+ *
+ * - a `"data_from_file"` whose `"data_sent"` carries a hash is refused
+ *   unless the file's length in bits and hash are the record's. The reason
+ *   names the file and both hashes;
+ * - a `"data_from_file": "-"` is a run read from stdin, whose octets are
+ *   gone. It is refused unless @p data_file names the file that held
+ *   them, which is then checked the same way. `-` again is refused: a pipe
+ *   could only be checked after it had been sent;
+ * - a @p data_file that no `"-"` source takes is refused: a scene carries
+ *   its own data.
+ *
+ * Every check is made before anything is built. A scene with no hash (one
+ * written by hand) replays its files unchecked.
+ *
+ * @param json       the scene's text.
+ * @param base       the scene's directory, or NULL.
+ * @param data_file  the file a record's stdin is replayed from
+ *                   (`--data-from-file` given again), as typed: relative to
+ *                   the working directory, not to @p base. NULL for none.
+ * @param why        optional; receives the reason for a refusal. A
+ *                   mismatch's names the numbers, so it is formatted into
+ *                   a thread-local buffer, valid until this thread reads
+ *                   another scene; never freed by the caller.
+ * @return the composer, or NULL.
+ *
+ * @code
+ * const char *why = NULL;
+ * dp_wfm_compose_state_t *c = dp_wfm_compose_from_json_data (
+ *     "{\"segments\":[{\"type\":\"bits\",\"data_from_file\":\"-\"}]}",
+ *     NULL, NULL, &why);
+ * if (c || !why) // stdin with no file given again: refused, with a reason
+ *   return 1;
+ * @endcode
+ */
+dp_wfm_compose_state_t *dp_wfm_compose_from_json_data(const char *json,
+                                                      const char *base,
+                                                      const char *data_file,
+                                                      const char **why);
 
 dp_wfm_compose_state_t *dp_wfm_compose_from_file(const char *path);
 

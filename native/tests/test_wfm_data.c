@@ -303,6 +303,11 @@ test_file (void)
                     && st.hash == dp_hash64 (DP_HASH64_INIT, oct, sizeof oct),
                 "the file's hash, read once, equals the whole file's");
   dp_wfm_data_destroy (s);
+  uint64_t id_bits = 0, id_hash = 0;
+  DP_CHECK_MSG (dp_wfm_data_file_identity (path, &id_bits, &id_hash) == 0
+                    && id_bits == st.bits && id_hash == st.hash,
+                "the identity a replay checks is what a full read reports: "
+                "the record and the check agree");
 
   why = NULL;
   DP_CHECK_MSG (dp_wfm_data_create (NULL, path, 128, NULL, &why) == NULL,
@@ -318,6 +323,8 @@ test_file (void)
   unlink (path);
   DP_CHECK_MSG (dp_wfm_data_create (NULL, path, 8, "0", &why) == NULL,
                 "a file that cannot be opened is refused");
+  DP_CHECK_MSG (dp_wfm_data_file_identity (path, &id_bits, &id_hash) == -1,
+                "and has no identity");
   return 0;
 }
 

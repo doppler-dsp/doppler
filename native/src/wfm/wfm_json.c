@@ -8,6 +8,8 @@
 #include "doppler/wfm/wfm_compose.h"
 
 #include "doppler/dp_complex.h"
+#include <errno.h>
+#include <inttypes.h> /* PRIx64: a record's dp_hash64 */
 #include <stdarg.h>
 #include <stddef.h> /* offsetof — the frame key tables name members once */
 #include <stdio.h>
@@ -339,6 +341,42 @@ read_stage_kind (const cJSON *o, uint32_t *out)
  * without one stays byte-identical to what it was before this existed. */
 static cJSON *frame_desc_obj (const wfm_frame_desc_t *d);
 
+/* A dp_hash64 as text: JSON numbers are doubles, which hold 53 bits, so a
+   64-bit hash would round. Hex, the form the hash is quoted in everywhere
+   else. */
+#define HASH_TEXT_MAX 19 /* "0x" + 16 digits + NUL */
+
+static void
+hash_text (char out[HASH_TEXT_MAX], uint64_t h)
+{
+  (void)snprintf (out, HASH_TEXT_MAX, "0x%016" PRIx64, h);
+}
+
+/* What a data source SENT (wfm_source_t.data_sent), once it has sent
+ * anything: the truth for scoring -- frames, the fill bits padding the last,
+ * idle frames -- and the source bits read, with a file's or stdin's hash of
+ * the octets read. A replay checks a file against `bits` and `hash`
+ * (read_data_file); the counts are what the replay will send again. Omitted
+ * before a run, so a record written up front is the scene alone. */
+static void
+add_data_sent (cJSON *o, const wfm_source_t *src)
+{
+  const wfm_data_stats_t *st = &src->data_sent;
+  if (!st->frames && !st->idle_frames)
+    return;
+  cJSON *d = cJSON_AddObjectToObject (o, "data_sent");
+  cJSON_AddNumberToObject (d, "bits", (double)st->bits);
+  if (st->hashed)
+    {
+      char h[HASH_TEXT_MAX];
+      hash_text (h, st->hash);
+      cJSON_AddStringToObject (d, "hash", h);
+    }
+  cJSON_AddNumberToObject (d, "frames", (double)st->frames);
+  cJSON_AddNumberToObject (d, "pad_bits", (double)st->pad_bits);
+  cJSON_AddNumberToObject (d, "idle_frames", (double)st->idle_frames);
+}
+
 static void
 add_frame_desc (cJSON *o, const wfm_source_t *src)
 {
@@ -347,6 +385,92 @@ add_frame_desc (cJSON *o, const wfm_source_t *src)
   /* The surface-only data_from_file row is bespoke: written as its path. */
   if (src->data_from_file)
     cJSON_AddStringToObject (o, "data_from_file", src->data_from_file);
+  add_data_sent (o, src);
+}
+
+/* A replay's stdin: the file `--data-from-file` names when a record of a
+   stdin run is replayed (dp_wfm_compose_from_json_data), and whether a
+   source took it. */
+typedef struct
+{
+  const char *file;
+  int         used;
+} replay_t;
+
+/* Read a record's "data_sent" identity: 1 with @p bits and @p h when it
+   carries a hash, 0 when the key is absent or has none (a hand-written
+   scene, or a Field's truth), -1 with @p why when it is malformed. */
+static int
+read_data_identity (const cJSON *so, uint64_t *bits, uint64_t *h,
+                    const char **why)
+{
+  static const char bad[]
+      = "\"data_sent\" is an object: {\"bits\": N, \"hash\": \"0x...\"}, "
+        "as --record writes it";
+  const cJSON *d = cJSON_GetObjectItemCaseSensitive (so, "data_sent");
+  if (!d)
+    return 0;
+  if (!cJSON_IsObject (d))
+    {
+      *why = bad;
+      return -1;
+    }
+  const cJSON *hj = cJSON_GetObjectItemCaseSensitive (d, "hash");
+  if (!hj)
+    return 0;
+  const cJSON *bj  = cJSON_GetObjectItemCaseSensitive (d, "bits");
+  const char  *txt = cJSON_GetStringValue (hj);
+  char        *end = NULL;
+  if (!txt || !cJSON_IsNumber (bj) || bj->valuedouble < 0.0
+      || strncmp (txt, "0x", 2) != 0)
+    {
+      *why = bad;
+      return -1;
+    }
+  errno = 0;
+  *h    = (uint64_t)strtoull (txt + 2, &end, 16);
+  if (errno || end == txt + 2 || *end)
+    {
+      *why = bad;
+      return -1;
+    }
+  *bits = (uint64_t)bj->valuedouble;
+  return 1;
+}
+
+/* Refuse a data file that is not the one the record sent: its length or
+   its dp_hash64 differs (payload-data-source.md 4.8). Before the first
+   sample, so a replay never sends different data under the same record.
+   The reason names the file and BOTH hashes, so it is formatted, into a
+   thread-local buffer as refuse_unknown_keys does: no static sentence can
+   hold the numbers, and nothing is allocated on the error path. */
+static int
+check_data_identity (const char *path, uint64_t bits, uint64_t want,
+                     const char **why)
+{
+  static _Thread_local char buf[512];
+  uint64_t                  got_bits = 0, got = 0;
+  if (dp_wfm_data_file_identity (path, &got_bits, &got) != 0)
+    {
+      (void)snprintf (buf, sizeof buf,
+                      "\"data_from_file\": %.300s cannot be read as a "
+                      "regular file to check it against the record",
+                      path);
+      *why = buf;
+      return -1;
+    }
+  if (got_bits == bits && got == want)
+    return 0;
+  char hw[HASH_TEXT_MAX], hg[HASH_TEXT_MAX];
+  hash_text (hw, want);
+  hash_text (hg, got);
+  (void)snprintf (buf, sizeof buf,
+                  "\"data_from_file\": %.300s is not the data the record "
+                  "sent: the record's hash is %s over %" PRIu64
+                  " bits, the file's is %s over %" PRIu64 " bits",
+                  path, hw, bits, hg, got_bits);
+  *why = buf;
+  return -1;
 }
 
 /* A scene's "data_from_file": a path to a file of packed octets, owned by
@@ -356,7 +480,7 @@ add_frame_desc (cJSON *o, const wfm_source_t *src)
  * section 4.8). Returns 0, or -1 with the reason in @p why. */
 static int
 read_data_file (const cJSON *so, wfm_source_t *out, const char *base,
-                const char **why)
+                replay_t *rp, const char **why)
 {
   const cJSON *it = cJSON_GetObjectItemCaseSensitive (so, "data_from_file");
   if (!it)
@@ -367,17 +491,39 @@ read_data_file (const cJSON *so, wfm_source_t *out, const char *base,
       *why = "\"data_from_file\" is the path of a file of packed octets";
       return -1;
     }
-  if (strcmp (path, "-") == 0)
+  uint64_t  bits = 0, want = 0;
+  const int has = read_data_identity (so, &bits, &want, why);
+  if (has < 0)
+    return -1;
+  /* A record of a stdin run (section 4.8, row 4): its octets are gone, so
+     it replays only from a file given again -- the caller's, as typed, not
+     the scene's -- and that file is checked like any other. A pipe given
+     again could only be checked after it had been sent. */
+  const int stdin_rec = strcmp (path, "-") == 0;
+  if (stdin_rec)
     {
-      *why = "\"data_from_file\": \"-\" is stdin, a stream a scene cannot "
-             "replay from its record; give a file, or use wfmgen "
-             "--data-from-file - on the command line";
-      return -1;
+      if (!rp->file)
+        {
+          *why = "\"data_from_file\": \"-\" records a run read from stdin, "
+                 "whose octets are gone: replay it with --data-from-file "
+                 "FILE given again, the data stdin held";
+          return -1;
+        }
+      if (strcmp (rp->file, "-") == 0)
+        {
+          *why = "--data-from-file -: a record of stdin replays from a "
+                 "file, which is checked against the record's hash before "
+                 "the first sample; a pipe could only be checked after it "
+                 "had been sent";
+          return -1;
+        }
+      rp->used = 1;
+      path     = rp->file;
     }
   /* A relative path is the SCENE's, resolved against the directory the
      scene was read from (when the reader knows it): a scene is moved and
      replayed as a unit with its data, not from wherever it is run. */
-  const int    rel = base && *base && path[0] != '/';
+  const int    rel = !stdin_rec && base && *base && path[0] != '/';
   const size_t nb  = rel ? strlen (base) + 1u : 0u;
   const size_t n   = nb + strlen (path) + 1u;
   char        *p   = dp_xmalloc (n);
@@ -385,6 +531,11 @@ read_data_file (const cJSON *so, wfm_source_t *out, const char *base,
     (void)snprintf (p, n, "%s/%s", base, path);
   else
     memcpy (p, path, n);
+  if (has && check_data_identity (p, bits, want, why) != 0)
+    {
+      free (p);
+      return -1;
+    }
   out->data_from_file = p;
   return 0;
 }
@@ -870,7 +1021,8 @@ read_frame_fields (const cJSON *so, wfm_source_t *out)
  * Returns 0, or -1 on a missing/unknown waveform type. */
 static int
 parse_source_obj (const cJSON *so, wfm_source_t *out, const char *base,
-                  wfm_json_level_t lvl, const char *where, const char **why)
+                  replay_t *rp, wfm_json_level_t lvl, const char *where,
+                  const char **why)
 {
   /* Keys a Field replaced, refused by name with what replaced them -- never
      read as aliases (docs/design/frame-description.md F.3). */
@@ -944,7 +1096,7 @@ parse_source_obj (const cJSON *so, wfm_source_t *out, const char *base,
    * a sync word or an unspread preamble read beside it above is refused by
    * dp_wfm_source_frame_error() rather than merged with it or dropped. */
   if (read_frame_desc (so, out, where, why) != 0
-      || read_data_file (so, out, base, why))
+      || read_data_file (so, out, base, rp, why))
     {
       /* A refused description is still an ALLOCATED one -- it is reachable
          from `out->frame` the moment it exists, so that the partial-failure
@@ -1012,8 +1164,15 @@ dp_wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
       /* Sources that SET the segment's length -- a finite data source,
          a lone dsss burst -- make num_samples derived, so a record omits
          it exactly as a scene must: a count given beside them is refused,
-         and a replay derives it again. */
-      if (dp_wfm_segment_sets_length (g))
+         and a replay derives it again. A record of a stream omits it too:
+         it replays only from a file given again (read_data_file), which is
+         finite and checked to hold exactly the bits the stream read, so
+         the replay derives its frames from them, and a count bounding the
+         original run would be refused beside them. */
+      int stream = 0;
+      for (size_t k = 0; k < g->n_sources; k++)
+        stream |= dp_wfm_source_data_is_stream (&g->sources[k]);
+      if (stream || dp_wfm_segment_sets_length (g))
         cJSON_DeleteItemFromObjectCaseSensitive (s, "num_samples");
       if (g->n_sources == 1)
         add_source_obj (s, &g->sources[0]);
@@ -1116,6 +1275,14 @@ dp_wfm_compose_state_t *
 dp_wfm_compose_from_json_at (const char *json, const char *base,
                              const char **why)
 {
+  return dp_wfm_compose_from_json_data (json, base, NULL, why);
+}
+
+dp_wfm_compose_state_t *
+dp_wfm_compose_from_json_data (const char *json, const char *base,
+                               const char *data_file, const char **why)
+{
+  replay_t rp = { .file = data_file, .used = 0 };
   /* Every reader below names its refusal through `why`, so it always has
      somewhere to write -- the caller's, or this one when they pass NULL. */
   const char *unasked = NULL;
@@ -1183,7 +1350,8 @@ dp_wfm_compose_from_json_at (const char *json, const char *base,
         cJSON_ArrayForEach (so, sum)
         {
           json_path (at, sizeof at, "%s.sum[%zu]", where, k);
-          if (parse_source_obj (so, &srcs[k], base, WFM_JSON_SOURCE, at, why)
+          if (parse_source_obj (so, &srcs[k], base, &rp, WFM_JSON_SOURCE, at,
+                                why)
               != 0)
             {
               free_src_bits (srcs,
@@ -1200,7 +1368,7 @@ dp_wfm_compose_from_json_at (const char *json, const char *base,
         srcs = malloc (sizeof (wfm_source_t));
         if (!srcs)
           goto reject;
-        if (parse_source_obj (s, &srcs[0], base, WFM_JSON_INLINE_SEGMENT,
+        if (parse_source_obj (s, &srcs[0], base, &rp, WFM_JSON_INLINE_SEGMENT,
                               where, why)
             != 0)
           {
@@ -1228,13 +1396,22 @@ dp_wfm_compose_from_json_at (const char *json, const char *base,
   }
   cJSON_Delete (root);
 
+  /* A file for stdin that no source took names data the scene does not
+     read: refused, rather than replaying the scene without it. */
+  const char *bad = NULL;
+  if (rp.file && !rp.used)
+    bad = "--data-from-file with --from-file replays a record of stdin, "
+          "and this scene has no \"data_from_file\": \"-\" source: a "
+          "scene carries its own data";
+
   /* Ask the ONE frame rule before handing over, purely so the reason can be
      REPORTED. dp_wfm_compose_create() asks it too and would refuse either way;
      what it cannot do is say why, because it answers with a NULL pointer.
      A spec is the interface most likely to be hand-written, so it is the one
      that most needs the sentence -- doppler#1155, where a derived field
      naming no producing stage generated a wrong record in silence. */
-  const char *bad = dp_wfm_scene_error (segs, n, repeat, cont);
+  if (!bad)
+    bad = dp_wfm_scene_error (segs, n, repeat, cont);
 
   dp_wfm_compose_state_t *c = NULL;
   if (bad)

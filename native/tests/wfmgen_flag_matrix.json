@@ -19,6 +19,13 @@
         {
           "crc": "crc16",
           "data_from_file": "bits.bin",
+          "data_sent": {
+            "bits": 32,
+            "frames": 1,
+            "hash": "0x8106a1371e2c1ccb",
+            "idle_frames": 0,
+            "pad_bits": 0
+          },
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
@@ -61,6 +68,12 @@
       "segments": [
         {
           "data": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "data_sent": {
+            "bits": 1784,
+            "frames": 1,
+            "idle_frames": 0,
+            "pad_bits": 0
+          },
           "frame": {
             "fields": [
               {
@@ -140,6 +153,12 @@
       "segments": [
         {
           "data": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "data_sent": {
+            "bits": 1784,
+            "frames": 1,
+            "idle_frames": 0,
+            "pad_bits": 0
+          },
           "frame": {
             "fields": [
               {
@@ -219,6 +238,12 @@
       "segments": [
         {
           "data": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "data_sent": {
+            "bits": 1784,
+            "frames": 1,
+            "idle_frames": 0,
+            "pad_bits": 0
+          },
           "frame": {
             "fields": [
               {
@@ -285,6 +310,12 @@
       "segments": [
         {
           "data": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "data_sent": {
+            "bits": 1784,
+            "frames": 1,
+            "idle_frames": 0,
+            "pad_bits": 0
+          },
           "frame": {
             "fields": [
               {
@@ -359,6 +390,12 @@
           "acq_code": "0xa*2",
           "crc": "crc16",
           "data": "0xb2",
+          "data_sent": {
+            "bits": 8,
+            "frames": 1,
+            "idle_frames": 0,
+            "pad_bits": 0
+          },
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
@@ -399,6 +436,12 @@
         {
           "crc": "crc16",
           "data": "0xb2",
+          "data_sent": {
+            "bits": 8,
+            "frames": 1,
+            "idle_frames": 0,
+            "pad_bits": 0
+          },
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
@@ -440,6 +483,12 @@
         {
           "crc": "crc16",
           "data": "0xb2",
+          "data_sent": {
+            "bits": 8,
+            "frames": 1,
+            "idle_frames": 0,
+            "pad_bits": 0
+          },
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
@@ -483,6 +532,12 @@
         {
           "crc": "crc16",
           "data": "pn:64:7",
+          "data_sent": {
+            "bits": 64,
+            "frames": 1,
+            "idle_frames": 0,
+            "pad_bits": 0
+          },
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
@@ -527,6 +582,12 @@
         {
           "crc": "crc16",
           "data": "0xb2",
+          "data_sent": {
+            "bits": 8,
+            "frames": 1,
+            "idle_frames": 0,
+            "pad_bits": 0
+          },
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
@@ -571,6 +632,12 @@
         {
           "crc": "crc16",
           "data": "0xb2",
+          "data_sent": {
+            "bits": 8,
+            "frames": 1,
+            "idle_frames": 0,
+            "pad_bits": 0
+          },
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
@@ -615,6 +682,12 @@
         {
           "crc": "crc16",
           "data": "pn:64:7",
+          "data_sent": {
+            "bits": 64,
+            "frames": 1,
+            "idle_frames": 0,
+            "pad_bits": 0
+          },
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
@@ -817,6 +890,12 @@
           "crc": "crc16",
           "data": "0xabcdef",
           "data_len": 8,
+          "data_sent": {
+            "bits": 24,
+            "frames": 3,
+            "idle_frames": 0,
+            "pad_bits": 0
+          },
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
@@ -858,6 +937,12 @@
           "crc": "crc16",
           "data": "0xabc",
           "data_len": 8,
+          "data_sent": {
+            "bits": 12,
+            "frames": 2,
+            "idle_frames": 0,
+            "pad_bits": 4
+          },
           "fill": "01",
           "freq": 0,
           "fs": 1,
@@ -898,6 +983,13 @@
           "crc": "crc16",
           "data_from_file": "bits.bin",
           "data_len": 8,
+          "data_sent": {
+            "bits": 32,
+            "frames": 4,
+            "hash": "0x8106a1371e2c1ccb",
+            "idle_frames": 0,
+            "pad_bits": 0
+          },
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
@@ -1057,6 +1149,12 @@
           "crc": "crc16",
           "data": "0xaa",
           "data_code": "0xb",
+          "data_sent": {
+            "bits": 8,
+            "frames": 1,
+            "idle_frames": 0,
+            "pad_bits": 0
+          },
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
@@ -1104,6 +1202,12 @@
           "crc": "none",
           "data": "0x0f",
           "data_code": "0xb2",
+          "data_sent": {
+            "bits": 8,
+            "frames": 1,
+            "idle_frames": 0,
+            "pad_bits": 0
+          },
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
@@ -1195,6 +1299,12 @@
           "crc": "crc16",
           "data": "0xb",
           "data_code": "pn:7:3:0x1",
+          "data_sent": {
+            "bits": 4,
+            "frames": 1,
+            "idle_frames": 0,
+            "pad_bits": 0
+          },
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
@@ -1327,6 +1437,12 @@
           "acq_code": "0xa*2",
           "data": "10110010101",
           "data_code": "0xb",
+          "data_sent": {
+            "bits": 11,
+            "frames": 1,
+            "idle_frames": 0,
+            "pad_bits": 0
+          },
           "frame": {
             "fields": [
               {
@@ -1413,6 +1529,12 @@
           "crc": "crc16",
           "data": "pn:31:5",
           "data_code": "0x6",
+          "data_sent": {
+            "bits": 31,
+            "frames": 1,
+            "idle_frames": 0,
+            "pad_bits": 0
+          },
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",
@@ -2847,6 +2969,12 @@
         {
           "crc": "crc16",
           "data": "pn:128:9",
+          "data_sent": {
+            "bits": 128,
+            "frames": 1,
+            "idle_frames": 0,
+            "pad_bits": 0
+          },
           "freq": 0,
           "fs": 1,
           "lfsr": "galois",

@@ -90,6 +90,14 @@ designed in the know can recognise an idle frame by comparing its payload
 with the fill, and the number of fill bits in a data frame is never
 anything but zero, except in the last.
 
+**An idle frame is defined by the fill.** It is a data frame whose data
+field is the declared fill Field, tiled over `LEN` bits, and it is framed
+identically: the same preamble, sync word or ASM, a CRC computed over that
+field, and every coding stage of the description. The pull assembles both
+through one call (`data_pull_refill` in `wfm_synth_bridge.c`), and the
+composer's C test pins an idle frame against the frame a Field of fill
+makes, its CRC included.
+
 ### 4.2 A chunk need not be a whole number of octets
 
 `LEN` is in bits and need not be a multiple of 8. Octets straddle frames,
@@ -156,7 +164,9 @@ user sees in the record is never a frame cut short.
 ### 4.8 What `--record` and SigMF carry
 
 **The record** (`--record`, `dp_wfm_spec_to_json`) stores the data source
-as it was given:
+as it was given, and, once a run has sent anything, what it sent, as the
+source's `"data_sent"` object (`bits`, `hash`, `frames`, `pad_bits`,
+`idle_frames`):
 
 | source                   | recorded                                        | a replay                                                                            |
 | ------------------------ | ----------------------------------------------- | ----------------------------------------------------------------------------------- |
@@ -164,6 +174,16 @@ as it was given:
 | `--data pn:0:REG[:SEED]` | the Field                                       | regenerates it from the seed                                                        |
 | `--data-from-file PATH`  | the path, the length in bits, a 64-bit hash     | refuses a file whose hash differs, naming the file and both hashes                  |
 | `--data-from-file -`     | `"-"`, the bits read, the hash of what was read | refuses unless `--data-from-file` is given again, then checks its hash the same way |
+
+A replay is checked before the first sample, by the scene reader
+(`dp_wfm_compose_from_json_data`), so every face that reads a scene refuses
+the same way. A mismatch names the file, the record's hash and the file's,
+each over its length in bits. Those numbers make the reason a formatted
+one, held in a thread-local buffer as the reader's unknown-key refusal
+already is: no static sentence can carry them, and nothing is allocated on
+the error path. For stdin, `-` given again is refused too: a pipe could
+only be checked after it had been sent. A scene with no hash, one written
+by hand, replays its files unchecked.
 
 A file is identified by its **content**, not its name: a path alone
 replays whatever that file holds on the day, and a length alone misses an
@@ -180,7 +200,17 @@ computed as the source reads each chunk, so a file is never read twice.
 
 **The truth for scoring**: frames sent, fill bits in the last frame, idle
 frames sent. These go in the record, and as `wfmgen:` annotations in the
-SigMF metadata beside today's `wfmgen:seed` and `wfmgen:data`.
+SigMF metadata beside `wfmgen:seed` and `wfmgen:data`: `wfmgen:frames`,
+`wfmgen:pad_bits`, `wfmgen:idle_frames`, `wfmgen:data_bits` and, for a file
+or stdin, `wfmgen:data_hash`. They are per instance, which is what an
+annotation row is: a finite source sends the same frames in every
+instance, and a stream has only one.
+
+The composer keeps them on its own copy of each source
+(`wfm_source_t.data_sent`), copied from the source's counts when an
+instance ends and whenever the segments are borrowed. So the record and
+the SigMF emitter read them from the segments they already take, and
+neither signature changed.
 
 ### 4.9 Each face, one source
 
@@ -276,9 +306,14 @@ source is refused as two spellings of one thing.
     to run ahead of the pacer. *Measured:* it does not. A CADU assembles
     in 20–25 µs, about 11 % of a frame at one sample per bit
     ([measurements §6.1](payload-data-source-measurements.md#61-the-cost-of-assembling-every-frame)).
-- **When SigMF metadata is written.** The idle count is known only at the
-    end of a run. Whether `.sigmf-meta` is written at close or has to be
-    rewritten there is unread.
+- **When SigMF metadata is written: at close.** Read for step 7. wfmgen
+    writes `.sigmf-meta` once, after the emit loop has finished
+    (`write_sigmf_meta`), and refuses SigMF for an endless run, so the idle
+    count is already final when it is written. Nothing is rewritten. The
+    record is the one sidecar written twice: before the run, as it always
+    was, so a run that never ends still leaves its scene, and again after
+    it, with `"data_sent"`. A signal ends the drain gracefully, so an
+    interrupted run is recorded as far as it went.
 
 ## 7. The plan, in phases
 
@@ -326,7 +361,11 @@ by `dp_wfm_frame_assemble`, once per chunk.
     `wfm_source_t`.
 1. **The record and SigMF** (§4.8), and replay: a literal byte for byte, a
     file checked by its hash, `pn:0` by its seed, and stdin refused
-    without a file.
+    without a file. Built: the record's `"data_sent"`, the SigMF
+    annotations and the replay checks, with
+    `dp_wfm_compose_set_data_pacing` fixed to reach the synths create
+    has already built
+    ([#1782](https://github.com/doppler-dsp/doppler/issues/1782)).
 1. **Explore, once:** measure the two throughput unknowns of §6, and write
     fast tests at the points they find.
 1. **Document:** the guide's payload section becomes the §F.5 table, and
@@ -343,7 +382,7 @@ Steps 1 to 6 are built: step 1 is
 [#1726](https://github.com/doppler-dsp/doppler/pull/1726) (a DSSS burst and
 continuous DSSS) and
 [#1731](https://github.com/doppler-dsp/doppler/pull/1731) (the deletions of
-§5). Steps 7 to 9 are open.
+§5). Step 7 (the record and replay) is built too. Steps 8 and 9 are open.
 
 ## 8. Deliberately not in scope
 

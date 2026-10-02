@@ -31,7 +31,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 #: Where the rule applies, relative to the root.
-SCOPES = ("deploy/docker", ".github")
+#: ``docker`` is the shared CI image's extension point, docker/ci-extra.sh.
+SCOPES = ("deploy/docker", "docker", ".github")
 
 #: ``curl`` where a command starts. Group 1 is everything after it.
 _INVOKE = re.compile(

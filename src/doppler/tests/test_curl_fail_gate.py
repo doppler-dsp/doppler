@@ -94,3 +94,13 @@ def test_the_live_tree_passes() -> None:
         [sys.executable, str(SCRIPT)], capture_output=True, text=True
     )
     assert r.returncode == 0, r.stdout
+
+
+def test_the_ci_image_extra_script_is_in_scope(tmp_path: Path) -> None:
+    """docker/ci-extra.sh runs in the shared CI image's build (gh-885)."""
+    d = tmp_path / "docker"
+    d.mkdir()
+    (d / "ci-extra.sh").write_text("curl -sSL -o t https://x\n", "utf-8")
+    r = _run(tmp_path)
+    assert r.returncode == 1, r.stdout
+    assert "docker/ci-extra.sh:1: curl" in r.stdout

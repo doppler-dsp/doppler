@@ -6,7 +6,7 @@
 # One definition, shared by every ci.yml job that needs the broker.
 #
 # TWO WAYS TO GET A BROKER, and the binary is preferred deliberately. CI now
-# runs its Linux jobs INSIDE a container (deploy/docker/Dockerfile.ci), where
+# runs its Linux jobs INSIDE a container (the CI image, docker/ci-extra.sh), where
 # there is no docker daemon to run a sibling container with -- so a
 # docker-only script would leave 127.0.0.1:4222 unreachable and the nats://
 # tests would SELF-SKIP. That is the bad failure: the suite stays green while

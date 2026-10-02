@@ -28,6 +28,28 @@ HAS_COVERAGE = 1
 HAS_RELEASE  = 1
 HAS_EXAMPLES = 1
 
+# The CI toolchain image (gh-885), now the org standard's shared one
+# (just-buildit.github.io#86): every Linux CI job runs inside it, pinned with
+# every input it was built from in .github/ci-images.env. The flag vendors
+# docker/ci.Dockerfile, scripts/ci-image.py and .github/workflows/ci-image.yml
+# and hangs `ci-image-check` off lint; doppler's own copy of all three is gone.
+# doppler's extras (clang's profile runtime, nats-server) are
+# docker/ci-extra.sh, canonical's extension point.
+#
+# TWO BASES, and the pair is load-bearing rather than thorough: build-and-test
+# runs ubuntu-22.04 and ubuntu-24.04 on purpose (two glibcs). One image for
+# both would leave the matrix naming two environments while testing one.
+# `docs` is doxygen + graphviz for the doxygen job; `runtime` is what the
+# library itself links against. LANDING=branch because the org forbids
+# Actions from opening PRs: a weekly repin is pushed to ci/repin-image, and
+# that run stays red until a human lands it.
+HAS_CI_IMAGE          = 1
+CI_IMAGE_REPO         = ghcr.io/doppler-dsp/doppler-ci
+CI_IMAGE_BASES        = ubuntu:22.04 ubuntu:24.04
+CI_IMAGE_GROUPS       = runtime dev docs
+CI_IMAGE_LANDING      = branch
+CI_IMAGE_SMOKE_TARGET = build
+
 # ── Layout ───────────────────────────────────────────────────────────────────
 BUILD_DIR   ?= build
 BUILD_TYPE  ?= Release
@@ -688,7 +710,7 @@ GATES_DEPS    = lint changelog-check release-notes-size-check \
                 test-asan test-ubsan test-tsan \
                 consumer-faces-check burst-pipeline-check uno-q-check uno-q-nats-check glibc-gate \
                 check-isotime-parity coverage coverage-gate \
-                docker-examples ci-image-repin-check package-linux-smoke \
+                docker-examples package-linux-smoke \
                 issues-check
 
 # Gates whose execution home is a workflow other than ci.yml, which is all
@@ -1434,14 +1456,12 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 installed-headers-check exported-link-check symbol-prefix-check \
                 export-check public-symbols \
                 vendored-collision-check \
-                ci-image ci-image-check ci-image-repin-check \
-                ci-image-repin-commit-check \
+                ci-image-refs-check \
                 ccsds-isolation-check instrumented-sweep-check \
                 container-mount-check \
                 cargo-lock-check design-pages-check wfmgen-flag-matrix \
                 gallery-scripts-check \
-                ci-image-shell ci-image-source-hash \
-                ci-shell ci-run ci-gates ccache-stats pr-watch \
+                ci-run ci-gates ccache-stats pr-watch \
                 wheel-check wheel-smoke release-smoke release-smoke-pypi \
                 release-smoke-packages \
                 bench-python \
@@ -1525,7 +1545,7 @@ include standard.mk
 # Docker whenever local doxygen is not exactly DOXYGEN_VERSION (1.9.8), which
 # is every box measured so far (this one ships 1.18.0). That is a deliberate,
 # recorded trade -- doppler development assumes Docker, and it is already
-# required by docker-examples, glibc-gate and ci-image-repin-check. It is the
+# required by docker-examples and glibc-gate. It is the
 # reason to re-open this line if that ever stops being true: the failure mode
 # is `lint` refusing to report on a contributor's own change for a reason
 # that has nothing to do with it. Pinning local doxygen to 1.9.8 makes it
@@ -1534,7 +1554,7 @@ lint: tests-ssot characterization-check validation-report-check changelog-check 
       workflow-syntax-check ci-aggregator-check python-versions-check \
       gates-extra-home-check \
       release-notes-size-check \
-      issue-link-check deps-budget-check ci-image-check cargo-floor-check \
+      issue-link-check deps-budget-check ci-image-refs-check cargo-floor-check \
       bench-coverage-check kwarg-parity-check doc-sections-check \
       ccsds-isolation-check container-mount-check cargo-lock-check \
       instrumented-sweep-check \
@@ -1794,6 +1814,12 @@ cargo-floor-check: ## Fail if the Rust lockfile or MSRV leaves the distro floor
 # mid-download. Derived from the real numbers on both sides -- DEPS_* here, the
 # `timeout-minutes:` the workflows actually carry -- so moving either one
 # without the other fails here instead of four minutes into a CI retry.
+# Every workflow but the VENDORED ones: canonical owns their ceilings, and none
+# of them provisions through install-deps-ci, so DEPS_* says nothing about
+# them (ci-image.yml builds the image the provisioning moved into). A vendored
+# workflow that started provisioning would be canonical's to budget.
+DEPS_BUDGET_WORKFLOWS = $(filter-out $(VENDORED_FILES),\
+                          $(wildcard .github/workflows/*.yml))
 deps-budget-check: ## Verify DEPS_DEADLINE x DEPS_TRIES fits the workflow ceiling
 	@budget=$$(( $(DEPS_DEADLINE) * $(DEPS_TRIES) )); \
 	 backoff=0; i=1; \
@@ -1801,8 +1827,8 @@ deps-budget-check: ## Verify DEPS_DEADLINE x DEPS_TRIES fits the workflow ceilin
 	     backoff=$$(( backoff + i * 10 )); i=$$(( i + 1 )); \
 	 done; \
 	 need=$$(( budget + backoff )); \
-	 ceilings=$$(grep -rhoE '^[[:space:]]*timeout-minutes: [0-9]+' \
-	     .github/workflows/*.yml | grep -oE '[0-9]+' | LC_ALL=C sort -un); \
+	 ceilings=$$(grep -hoE '^[[:space:]]*timeout-minutes: [0-9]+' \
+	     $(DEPS_BUDGET_WORKFLOWS) | grep -oE '[0-9]+' | LC_ALL=C sort -un); \
 	 if [ -z "$$ceilings" ]; then \
 	     echo "ERROR: deps-budget-check found no timeout-minutes in"; \
 	     echo "  .github/workflows — the scan found nothing, so it did not"; \
@@ -3735,29 +3761,11 @@ glibc-gate: glibc-image ## Build in a glibc $(GLIBC_MAX) container, then run gli
 
 # ── The CI toolchain image (gh-885) ──────────────────────────────────────────
 # Beside the glibc image above and for the same reason: this is a build
-# ENVIRONMENT for gates, not one of the images doppler ships. Every Linux CI
-# job used to open by apt-installing the dev group -- ~112 MB per job, ten
-# jobs a run, and most of it already on the runner outside dpkg. That download
-# was the whole exposure to mirror weather; baking it removes the step.
-#
-# TWO BASES, and the pair is load-bearing rather than thorough: build-and-test
-# runs ubuntu-22.04 and ubuntu-24.04 on purpose. One image for both would
-# leave the matrix naming two environments while testing one.
-CI_IMAGE_REPO  ?= ghcr.io/doppler-dsp/doppler-ci
-CI_IMAGE_BASES ?= ubuntu:22.04 ubuntu:24.04
-CI_DOCKERFILE  := deploy/docker/Dockerfile.ci
-# The pin. `include`d rather than parsed so make reads the digests directly,
-# and `-` so a fresh clone before the first publish is a clear gate failure
-# rather than a parse error.
-CI_IMAGE_PIN   := .github/ci-images.env
--include $(CI_IMAGE_PIN)
+# ENVIRONMENT for gates, not one of the images doppler ships. Building,
+# pinning, repinning and `ci-image-check` are canonical's (HAS_CI_IMAGE, set
+# with its settings at the top of this file); what stays here is what only
+# doppler does with the image -- run its gates inside it.
 
-# What the pinned image was built FROM. Hashing the two inputs is what makes
-# the gate offline and instant: it answers "has anyone changed the dependency
-# list or the image recipe since this digest was taken", which is the drift a
-# developer can actually cause. Whether UPSTREAM packages moved is a different
-# question, and the weekly re-pin in ci-image.yml is what asks it -- it
-# compares the package fingerprint baked into the image, not this.
 # Make the cache's effect VISIBLE. CI calls this after its build steps, so
 # the hit rate is in the log rather than being an assumption about a tool
 # nobody can see working -- if the cache silently stopped hitting, the only
@@ -3769,39 +3777,6 @@ ccache-stats: ## Print compiler-cache hit statistics (no-op without ccache)
 	 else \
 	    echo "ccache-stats: ccache not installed — builds are uncached"; \
 	 fi
-
-# Plain `python3`, not `$(UV) run python`, and deliberately: the script is
-# stdlib-only, and ci-image.yml shells out to THIS target so the workflow and
-# the check cannot compute different numbers. That workflow builds the image
-# the rest of CI runs inside, so it is the one place that cannot assume a
-# synced uv environment -- it has neither a setup-python nor a uv install step.
-# Nothing is unpinned by this: `uv run` pins dependencies, and this script has
-# none.
-ci-image-source-hash: ## Print the hash of the CI image's inputs (plumbing)
-	@python3 scripts/ci_image_source_hash.py
-
-# From the PINNED apt snapshot and base digests (#1748), the same values every
-# non-weekly ci-image.yml build reads, so a local image reproduces the pinned
-# package set rather than whatever the mirror holds today.
-ci-image: ## Build the CI toolchain image locally, one per base
-	@for b in $(CI_IMAGE_BASES); do \
-	     tag="doppler-ci:$$(echo $$b | tr ':' '-')"; \
-	     key="$$(echo $$b | tr -dc '0-9')"; \
-	     ref="$$(grep "^CI_BASE_$$key=" $(CI_IMAGE_PIN) | cut -d= -f2)"; \
-	     snap="$$(grep '^CI_APT_SNAPSHOT=' $(CI_IMAGE_PIN) | cut -d= -f2)"; \
-	     jbv="$$(grep '^CI_JB_VERSION=' $(CI_IMAGE_PIN) | cut -d= -f2)"; \
-	     jbsha="$$(grep '^CI_JB_SHA256=' $(CI_IMAGE_PIN) | cut -d= -f2)"; \
-	     if [ -z "$$ref" ] || [ -z "$$snap" ] || [ -z "$$jbv" ] || [ -z "$$jbsha" ]; then \
-	         echo "ci-image: $(CI_IMAGE_PIN) has no CI_BASE_$$key or"; \
-	         echo "  CI_APT_SNAPSHOT -- push a branch so ci-image.yml"; \
-	         echo "  builds and prints the pin block, and commit it."; \
-	         exit 1; \
-	     fi; \
-	     echo "=== $$ref @ apt $$snap -> $$tag"; \
-	     docker build -f $(CI_DOCKERFILE) --build-arg BASE=$$ref \
-	         --build-arg APT_SNAPSHOT=$$snap --build-arg JB_VERSION=$$jbv \
-	         --build-arg JB_SHA256=$$jbsha -t "$$tag" . || exit 1; \
-	 done
 
 # Run it like CI runs it, in the SAME image CI pins -- by digest, not by a
 # local tag that happens to share a name. This is the payoff of baking the
@@ -3819,10 +3794,6 @@ ci-image: ## Build the CI toolchain image locally, one per base
 CI_IMAGE     ?= $(CI_IMAGE_2404)
 CI_BUILD_DIR ?= build-ci
 CI_DOCKER_RUN = docker run --rm $(call CONTAINER_CHECKOUT,$(CI_BUILD_DIR))
-
-ci-shell: ## Interactive shell in the PINNED CI image, checkout at /w
-	@docker run --rm -it $(call CONTAINER_CHECKOUT,$(CI_BUILD_DIR)) \
-	    $(CI_IMAGE) bash
 
 ci-run: ## Run `make TARGET=<goals>` inside the PINNED CI image
 	@if [ -z "$(TARGET)" ]; then \
@@ -3868,9 +3839,6 @@ ci-run: ## Run `make TARGET=<goals>` inside the PINNED CI image
 ci-gates: ## Run the full gate set inside the PINNED CI image (reproduce CI)
 	@$(MAKE) --no-print-directory ci-run TARGET=gates
 
-ci-image-shell: ## A shell in the LOCALLY BUILT CI image (see ci-image)
-	@docker run --rm -it $(call CONTAINER_CHECKOUT,$(CI_BUILD_DIR)) \
-	    doppler-ci:ubuntu-24.04 bash
 # Report what a PR's checks did. It NEVER authorizes a merge -- that is
 # `gh pr merge <n> --auto --rebase`, which evaluates the repo's required set
 # SERVER-side and cannot be got wrong by a poll loop. Arm auto-merge first;
@@ -3899,66 +3867,18 @@ pr-watch: ## Watch PR=<n>'s checks to a settled verdict (never merges)
 	@bash scripts/pr-watch.sh $(PR)
 
 
-# The gate. Two questions, both answerable with no network and no docker:
-#
-#   1. Does every image a workflow can run in trace back to the pin file? A
-#      `container:` naming anything else is how a run stops being
-#      reproducible -- including a tag, which is mutable by definition.
-#      Delegated to scripts/ci_image_refs_check.py: the refs are expressions
-#      now, so answering this means RESOLVING `${{ … }}` rather than
-#      skipping it, which is more than a grep should be asked to do. Its own
-#      header carries why the previous shell scan could not survive the
-#      change (#1215).
-#   2. Is the pin still describing the current inputs? bootstrap.toml gaining
-#      a package with no rebuild means CI provisions an environment the repo
-#      no longer describes, and the failure would land later, somewhere else,
-#      as a missing tool.
-ci-image-check: ## Fail when the pinned CI image no longer matches its inputs
-	@rc=0; \
-	 if [ ! -f "$(CI_IMAGE_PIN)" ]; then \
-	     echo "ci-image-check: $(CI_IMAGE_PIN) is missing — the CI image has"; \
-	     echo "  never been published, or the pin was deleted. Run the"; \
-	     echo "  ci-image workflow and commit the pin it prints."; \
-	     exit 1; \
-	 fi; \
-	 have=$$($(MAKE) -s ci-image-source-hash); \
-	 if [ "$$have" != "$(CI_IMAGE_SOURCE_HASH)" ]; then \
-	     echo "ci-image-check: the CI image's inputs changed since the"; \
-	     echo "  pinned image was built (bootstrap.toml's package/tool"; \
-	     echo "  tables, or $(CI_DOCKERFILE) -- NOT [project], which"; \
-	     echo "  no layer reads; see scripts/ci_image_source_hash.py)."; \
-	     echo "    pinned inputs: $(CI_IMAGE_SOURCE_HASH)"; \
-	     echo "    this tree:     $$have"; \
-	     echo "  Push the branch (ci-image.yml builds on those paths), then"; \
-	     echo "  commit the pin block it prints into $(CI_IMAGE_PIN)."; \
-	     rc=1; \
-	 fi; \
-	 $(UV) run python scripts/ci_image_refs_check.py || rc=1; \
-	 [ $$rc -eq 0 ] || exit 1; \
-	 echo "ci-image-check: OK — pin matches its inputs"
-
-# The OTHER half of the same question, and the half `ci-image-check` above
-# deliberately cannot answer: it is a no-network gate, so it compares OUR
-# inputs (CI_IMAGE_SOURCE_HASH) and never the package fingerprints the image
-# actually came out with. Upstream moving underneath an unchanged Dockerfile
-# is exactly the drift the weekly re-pin exists to find, and until doppler#1212
-# nothing gated it -- the nightly's only delivery mechanism was a PR the org
-# forbids Actions from opening, so it force-pushed `ci/repin-image` and died.
-#
-# Logic in a script rather than an inline recipe for the same reason
-# `issue-link-check` is: the gate's own test drives it over two seeded pin
-# blocks instead of fabricating a scratch repository and a remote.
-ci-image-repin-check: ## Fail when a rebuilt CI-image pin is pending and unmerged
-	@bash scripts/ci-image-repin-check.sh
-
-# What ci-image.yml's push step asserts before it pushes ci/repin-image: the
-# repin commit is exactly one file, .github/ci-images.env, on top of exactly
-# the commit the run built from. A human is told to land that branch, so
-# anything else it carried would land with it.
-REPIN_BASE ?= origin/main
-REPIN_HEAD ?= HEAD
-ci-image-repin-commit-check: ## Verify a repin commit is one file on its base
-	@bash scripts/ci-image-repin-commit-check.sh "$(REPIN_BASE)" "$(REPIN_HEAD)"
+# Does every image a workflow can run in trace back to the pin file? A
+# `container:` naming anything else is how a run stops being reproducible --
+# including a tag, which is mutable by definition. Canonical's
+# `ci-image-check` asks the other question (is the pin built from this
+# tree's image sources); this one is doppler's, because only doppler's ci.yml
+# reads the pin through a `pin` job. Delegated to
+# scripts/ci_image_refs_check.py: the refs are expressions, so answering this
+# means RESOLVING `${{ … }}` rather than skipping it, which is more than a
+# grep should be asked to do. Its own header carries why the previous shell
+# scan could not survive the change (#1215).
+ci-image-refs-check: ## Fail when a workflow container image is not the pin's
+	@$(UV) run python scripts/ci_image_refs_check.py
 
 # The layering `wfm/wfm_frame.h` states about itself -- "`ccsds_tm` must depend
 # on this file ... so this file must not call `ccsds_tm`'s kernels" -- is a

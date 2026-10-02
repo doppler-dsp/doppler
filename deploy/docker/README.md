@@ -16,10 +16,10 @@ the Makefile (the single driver — never a raw `docker build`):
 
 ## The two images that are not images *of* doppler
 
-| Image                  | For                                          | Dockerfile            | Built by                 | Published                        |
-| ---------------------- | -------------------------------------------- | --------------------- | ------------------------ | -------------------------------- |
-| **`doppler-glibc228`** | *gating* the glibc floor — a toolchain       | `Dockerfile.glibc228` | `make glibc-gate`        | never (local + CI)               |
-| **`doppler-ci`**       | *running* CI — the toolchain every job needs | `Dockerfile.ci`       | `make ci-image` / weekly | `ghcr.io/doppler-dsp/doppler-ci` |
+| Image                  | For                                          | Dockerfile                                                | Built by                       | Published                        |
+| ---------------------- | -------------------------------------------- | --------------------------------------------------------- | ------------------------------ | -------------------------------- |
+| **`doppler-glibc228`** | *gating* the glibc floor — a toolchain       | `Dockerfile.glibc228`                                     | `make glibc-gate`              | never (local + CI)               |
+| **`doppler-ci`**       | *running* CI — the toolchain every job needs | `docker/ci.Dockerfile` (canonical) + `docker/ci-extra.sh` | `make ci-image-build` / weekly | `ghcr.io/doppler-dsp/doppler-ci` |
 
 Every image in the first table bakes doppler *in*. These two bake nothing in:
 they are a base plus a toolchain, and the checkout is bind-mounted into them.
@@ -134,15 +134,14 @@ again.** Ask of anything added whether it is a requirement or a workaround.
 
 ## Files
 
-| File                  | Role                                                                                                                                      |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `Dockerfile.cli`      | runtime "try it" image (wheel + demos)                                                                                                    |
-| `Dockerfile.examples` | the shared-base multi-target build-on-doppler images                                                                                      |
-| `Dockerfile`          | k8s `stream_tool` (produce/consume)                                                                                                       |
-| `Dockerfile.glibc228` | Debian 10 build toolchain for the `glibc-gate` gate                                                                                       |
-| `Dockerfile.ci`       | the toolchain every Linux CI job runs inside — and the pinned doxygen `make doxygen-check` / `gen-c-api` shim in when a dev box's differs |
-| `stream_tool.c`       | its source                                                                                                                                |
-| `*-README.md`         | the in-image guide COPYed into each image                                                                                                 |
+| File                  | Role                                                 |
+| --------------------- | ---------------------------------------------------- |
+| `Dockerfile.cli`      | runtime "try it" image (wheel + demos)               |
+| `Dockerfile.examples` | the shared-base multi-target build-on-doppler images |
+| `Dockerfile`          | k8s `stream_tool` (produce/consume)                  |
+| `Dockerfile.glibc228` | Debian 10 build toolchain for the `glibc-gate` gate  |
+| `stream_tool.c`       | its source                                           |
+| `*-README.md`         | the in-image guide COPYed into each image            |
 
 See [`docs/install/docker.md`](../../docs/install/docker.md) for the user-facing
 walkthrough.

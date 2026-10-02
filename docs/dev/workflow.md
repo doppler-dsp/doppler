@@ -224,7 +224,7 @@ ______________________________________________________________________
 | `main` gets a full run anyway, nightly           | `ci.yml`'s `schedule` (never skipped)                                                           |
 | every job has a ceiling                          | `workflow-timeout-check` (in `make lint`)                                                       |
 | every self-triggered workflow can be re-run      | `workflow-dispatch-check` (in `make lint`)                                                      |
-| the repin lands before anything else             | `ci-image-repin-check` (red on every PR while one is pending)                                   |
+| a pending repin is loud                          | `ci-image.yml` (every `main` run red while `ci/repin-image` differs)                            |
 | PR up to date before merging                     | `protect-main` (strict required status checks)                                                  |
 | review threads resolved                          | `protect-main`                                                                                  |
 | one change per PR, ≤ ~400 lines, stack depth ≤ 2 | judgement (a target, not a limit)                                                               |

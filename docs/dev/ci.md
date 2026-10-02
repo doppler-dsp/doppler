@@ -47,7 +47,13 @@ ______________________________________________________________________
 
 ## The toolchain image
 
-`deploy/docker/Dockerfile.ci` builds it; `.github/ci-images.env` pins it.
+The image is the org standard's (`HAS_CI_IMAGE` in the Makefile): canonical's
+vendored `docker/ci.Dockerfile` builds it, `.github/workflows/ci-image.yml`
+publishes it, `scripts/ci-image.py` decides when it owes a repin, and
+`.github/ci-images.env` pins it. doppler supplies configuration — the
+`CI_IMAGE_*` settings at the top of the Makefile — and one extension,
+`docker/ci-extra.sh`. Why each pin exists is `scripts/ci-image.py`'s
+docstring; change any of the vendored files in canonical, never here.
 
 Every Linux job used to open with `make install-deps-ci`, which apt-installs
 the dev group — about 112 MB per job, ten jobs a run. Most of it was already
@@ -58,18 +64,19 @@ on one bad day it stalled five runs of a single PR, one job trickling for
 21 minutes against a 25-minute ceiling.
 
 **The image has no package list of its own.** It copies `bootstrap.toml` and
-runs the same two `jbx install-deps` commands `make install-deps` and
-`make install-docs-deps` run. A second list is exactly what `bootstrap.toml`
-exists to prevent, and it would rot in the way hardest to notice: the image
-would keep working while no longer being what a developer gets.
+installs its `CI_IMAGE_GROUPS` (`runtime dev docs`) with a pinned just-bashit
+release's `install-deps.sh` — the same file `make install-deps` reads. A
+second list is exactly what `bootstrap.toml` exists to prevent, and it would
+rot in the way hardest to notice: the image would keep working while no
+longer being what a developer gets.
 
-Two things are installed *outside* that list, each for a reason one
-cross-distro package list cannot express:
+Two things are installed *outside* that list, by `docker/ci-extra.sh`, each
+for a reason one cross-distro package list cannot express:
 
-| what                  | why it cannot come from `bootstrap.toml`                                                                                                                                                                                                                                                                                 |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `libclang-rt-<n>-dev` | Whether clang bundles its profile runtime is a property of the distro *release*. 22.04 bundles it and has no such package at all — naming one fails apt outright — while 24.04 splits it out and clang does not depend on it. The image asks apt, tolerates a miss, and then *compiles the probe* as the real assertion. |
-| `nats-server`         | `make nats-up` shells out to `docker run`, and there is no docker daemon inside a container job.                                                                                                                                                                                                                         |
+| what                  | why it cannot come from `bootstrap.toml`                                                                                                                                                                                                                                                                                  |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `libclang-rt-<n>-dev` | Whether clang bundles its profile runtime is a property of the distro *release*. 22.04 bundles it and has no such package at all — naming one fails apt outright — while 24.04 splits it out and clang does not depend on it. The script asks apt, tolerates a miss, and then *compiles the probe* as the real assertion. |
+| `nats-server`         | `make nats-up` shells out to `docker run`, and there is no docker daemon inside a container job. Pinned by version **and** by the release's SHA-256.                                                                                                                                                                      |
 
 That last one matters more than it looks. The `nats://` stream tests
 **self-skip** when 127.0.0.1:4222 is unreachable, so without a broker the
@@ -77,6 +84,12 @@ suite would stay green while silently dropping the whole NATS path — and the
 coverage number with it. `scripts/start-nats.sh` prefers the binary and falls
 back to docker, so a dev box without docker *gains* those tests rather than
 skipping them.
+
+`ci-extra.sh --fingerprint` prints `rustup`, `cargo` and `nats-server`
+version lines, which the image hashes together with every dpkg package. A
+dpkg-only fingerprint once left an entire Rust toolchain invisible: anything
+installed outside dpkg has to be in it, or the weekly comparison is blind to
+exactly the parts installed by hand.
 
 ### What is deliberately *not* in it
 
@@ -100,8 +113,8 @@ the environment is one nobody sees again.
 
 `build-and-test` runs ubuntu-22.04 and ubuntu-24.04 because they are two
 different glibcs. One image for both legs would leave that matrix naming two
-environments while testing one, so `BASE` is a build argument and both are
-published.
+environments while testing one, so `CI_IMAGE_BASES` names both and each is
+built natively on amd64 and arm64.
 
 !!! note "The glibc 2.28 floor is a separate question"
 
@@ -122,117 +135,60 @@ job outputs, and every containerised job consumes
 `${{ needs.pin.outputs.image_2404 }}`.
 
 It was not always so, and the reason is worth keeping. The digest used to live
-in the pin file *and* in six literal `container:` refs in `ci.yml`, which
-`ci-image-check` required to agree — while nothing could move both.
-`ci-image.yml` writes the pin file, and the platform refuses any
-`GITHUB_TOKEN` push touching `.github/workflows/**`. So the nightly's repin
-branch was **born failing lint**, and the repin path had never once completed
-end to end ([#1215](https://github.com/doppler-dsp/doppler/issues/1215)).
+in the pin file *and* in six literal `container:` refs in `ci.yml`, while
+nothing could move both: `ci-image.yml` writes the pin file, and the platform
+refuses any `GITHUB_TOKEN` push touching `.github/workflows/**`. So the
+repin branch was **born failing lint**
+([#1215](https://github.com/doppler-dsp/doppler/issues/1215)). A whole job for
+two `echo`s is the price of `container:` being resolved *before* any of its
+job's steps run: nothing a step sets can reach it.
 
-A whole job for two `echo`s is the price of `container:` being resolved
-*before* any of its job's steps run: nothing a step sets can reach it, so the
-value must arrive from a job that already finished. The jobs still fan out in
-parallel behind it, so it costs one hop, not one per job.
+Every input to the image is pinned beside its digest — the apt snapshot every
+source is rewritten to, each base by digest, and the just-bashit release — so
+a rebuild reproduces the pinned package set
+([#1748](https://github.com/doppler-dsp/doppler/issues/1748),
+[#1751](https://github.com/doppler-dsp/doppler/issues/1751)). Only the Monday
+`ci-image.yml` run (or a dispatch with `refresh`) picks new inputs, and it
+repins only when a package fingerprint or the image's sources moved — a new
+snapshot alone is not a change.
 
-**The image re-pins weekly, and only weekly**
-([#1748](https://github.com/doppler-dsp/doppler/issues/1748)). Two inputs move
-upstream under an unchanged Dockerfile: the base image tag and the apt mirror.
-Both are build arguments of `Dockerfile.ci` with no default, and both are
-pinned in the same file as the digests they produced: `CI_APT_SNAPSHOT` (a
-`snapshot.ubuntu.com` timestamp that every apt source is rewritten to) and
-`CI_BASE_2204`/`CI_BASE_2404` (the bases by digest).
-
-The Monday `ci-image.yml` run is the only build that picks new values: the
-snapshot becomes now, and the bases become today's tag digests. A dispatch
-with `refresh` does the same off-cycle. It compares the *package fingerprint*
-baked into the image and pushes the refreshed pin to `ci/repin-image` only when
-the content moved. Every other build (a branch push, a plain dispatch,
-`make ci-image`) reads the pinned values, so it rebuilds the pinned package
-set exactly and owes no re-pin. Before this, the run rebuilt nightly and on
-every push to `main` against the live mirror, and on 2026-10-01 that meant
-three re-pins in one day, each one blocking every merge.
-
-**The weekly run pushes a branch; it does not open a PR.** It used to try, and
-could never succeed — the `doppler-dsp` org forbids GitHub Actions from
-creating pull requests, so the step force-pushed the branch and then died on
-`gh pr create`. That left the workflow red on every `main` run for three
-releases; because it feeds no aggregator, its red gated nothing and was
-indistinguishable from the image genuinely breaking
-([#1212](https://github.com/doppler-dsp/doppler/issues/1212)).
-
-So the branch is the deliverable, and a **gate** reads it rather than a human
-noticing a PR. `make ci-image-repin-check` — its own required job in `ci.yml`
-— fails while `ci/repin-image` carries a pin the tree does not:
+**A weekly repin lands on a branch, not a PR** (`CI_IMAGE_LANDING = branch`):
+the `doppler-dsp` org forbids Actions from opening pull requests, so the run
+pushes `ci/repin-image` and stops. On `main`, every `ci-image.yml` run then
+**ends red** while that branch carries a pin `main` does not, until a human
+lands it:
 
 ```sh
-gh pr create --head ci/repin-image --fill   # land it; the gate goes green
+gh pr create --head ci/repin-image --fill
 ```
 
-It compares the two `CI_IMAGE_FINGERPRINT_*` values and
-`CI_IMAGE_SOURCE_HASH`, and deliberately **not** the digests: a rebuild
-changes the digest every time while the content is identical, so a file diff
-would be red every morning and everyone would learn to ignore the one morning
-that mattered. Comparing values also makes it self-clearing — once the repin
-lands, the tree's fingerprints equal the branch's and the gate goes green on
-its own.
-
-This is the half `ci-image-check` structurally cannot cover. That one is
-offline, so it compares *our* inputs; only the weekly run learns that *upstream*
-moved under an unchanged Dockerfile. Blocking is the point: an unmerged repin
-means every Linux job is running in an image the repo no longer describes.
-
-The fingerprint covers every dpkg package plus `rustc`, `cargo` and
-`nats-server` — the tools that arrive outside dpkg. It did not, at first, and
-adding an entire Rust toolchain left it byte-identical; a fingerprint blind to
-the parts the Dockerfile installs by hand is blind to exactly what it is
-supposed to watch.
-
-To change what is in the image:
+A push to any other branch that touches the image's sources builds from the
+pinned inputs and commits the new pin onto that branch, so the PR carries its
+own pin. To change what is in the image:
 
 ```sh
-# edit bootstrap.toml (or Dockerfile.ci), then:
-make ci-image           # build both bases locally
-make ci-image-check     # will FAIL until the pin is updated -- that is the point
-git push                # ci-image.yml rebuilds and prints the pin block
-# commit the printed block into .github/ci-images.env
+# edit bootstrap.toml or docker/ci-extra.sh, then:
+make ci-image-build     # [BASE=ubuntu:22.04] build one base locally
+make ci-image-check     # FAILS until the pin is updated -- that is the point
+git push                # ci-image.yml builds, smokes and commits the pin
 ```
 
-`ci-image-check` runs inside `make lint`. It is offline and instant, and asks
-two questions: does the tree's input hash still match what the pin recorded,
-and does every image a workflow can run in trace back to the pin file?
+`ci-image-check` runs inside `make lint`. It is offline and instant: the pin
+must be complete and well formed, and its `CI_IMAGE_SOURCE_HASH` must be this
+tree's hash of `docker/ci.Dockerfile`, `docker/ci-extra.sh` and
+`bootstrap.toml`. That hash covers `bootstrap.toml` whole, so a release's
+version bump also moves it and owes a repin
+([#1765](https://github.com/doppler-dsp/doppler/issues/1765)).
 
-The second half is `scripts/ci_image_refs_check.py`. It **resolves**
-`${{ … }}` rather than skipping it — a `needs.<job>.outputs.<name>` ref is
-accepted only when that job is in the consumer's `needs`, declares the output,
-and genuinely reads `.github/ci-images.env`; a `matrix.<key>` ref is followed
-into the include entries and each result re-checked. A literal is still legal
-and still must be a pinned digest, because a tag is mutable by definition and
-the image a PR passed on would not have to be the one it merges with. Anything
-else fails: the gate refuses to guess at an interpolation.
-
-The scan it replaced *skipped* expressions, on the reasoning that a matrix
-`image:` line elsewhere carried the literal they resolved to. Removing the
-literals voided exactly that reasoning — it would have walked six expressions,
-checked none, and printed OK. Finding **zero** references is therefore a
-failure too: a scan that matches nothing has not passed, it has not run.
-
-**"Inputs" is narrower than "those two files", and the difference matters.**
-The hash was `cat bootstrap.toml Dockerfile.ci | sha256sum` — the *files*, not
-the *image*. `bootstrap.toml` also carries doppler's `[project] version`, which
-no layer reads, so keeping that version in step with a release would have
-demanded an image rebuild on every release; a reformatted comment did the same.
-`scripts/ci_image_source_hash.py` now parses `bootstrap.toml`, drops
-`[project]`, and hashes the rest by value alongside the Dockerfile — so the
-`[dev.*]`/`[docs.*]` package lists and `[tools.install-deps] groups`, which
-decide what `jbx install-deps` installs, still fire a rebuild, while identity
-and formatting no longer do.
-
-Excluding one reasoned table rather than listing the ones to include is the
-whole design: an include-list stops covering a table added later, which is a
-gate that keeps passing because it stopped looking. Forgetting, here, costs an
-extra rebuild rather than a missed one. `ci-image.yml` calls
-`make -s ci-image-source-hash` rather than spelling the hash a second time, so
-the gate and the pin cannot compute different numbers.
+`ci-image-refs-check`, also in `make lint`, asks doppler's half: does every
+image a workflow can run in trace back to the pin file?
+`scripts/ci_image_refs_check.py` **resolves** `${{ … }}` rather than skipping
+it — a `needs.<job>.outputs.<name>` ref is accepted only when that job is in
+the consumer's `needs`, declares the output, and genuinely reads
+`.github/ci-images.env`; a `matrix.<key>` ref is followed into the include
+entries and each result re-checked. A literal is still legal and still must be
+a pinned digest, because a tag is mutable by definition. Finding **zero**
+references is a failure too: a scan that matches nothing has not run.
 
 ______________________________________________________________________
 
@@ -265,7 +221,7 @@ These exist because each one failed to hold at least once:
 | gate                | what it refuses                                                                                                                                                                                                                                                                         |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `gates-check`       | CI running a `make` target that `make gates` cannot reach. It reads one file, so moving steps out of `ci.yml` into a composite action shrinks what it checks *while still reporting OK* — it dropped from 29 targets to 21 that way once, which is why the build/test steps are inline. |
-| `ci-image-check`    | The tree describing an image CI is not running, or a `container:` pinned to a mutable tag.                                                                                                                                                                                              |
+| `ci-image-check`    | The tree describing an image CI is not running (canonical's); `ci-image-refs-check` adds a `container:` that does not trace to the pin, such as a mutable tag.                                                                                                                          |
 | `deps-budget-check` | `DEPS_DEADLINE × DEPS_TRIES + backoff` exceeding the smallest step ceiling in any workflow, so a retry cannot be killed mid-download.                                                                                                                                                   |
 | `lint-ci-pipefail`  | A workflow step whose shell pipeline discards an exit code. The default Actions shell is `bash -e`, where a pipeline reports the *last* command's status — `make coverage \| tee` was green over a recipe that had failed, and the missing report only surfaced a step later.           |
 

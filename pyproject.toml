@@ -221,6 +221,7 @@ extend-exclude = [
     # Vendored VERBATIM from canonical standard.mk's VENDORED_FILES, held to
     # it byte for byte by standard-check: reformatting it here is drift.
     "scripts/ci-docs.py",
+    "scripts/ci-image.py",
 ]
 # pre-commit passes files explicitly; force-exclude ensures extend-exclude
 # still applies even when ruff receives a .pyi path on the command line.

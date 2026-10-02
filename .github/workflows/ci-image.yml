@@ -1,463 +1,296 @@
 name: CI image
 
-# Builds and publishes the CI toolchain image (deploy/docker/Dockerfile.ci),
-# the environment every Linux job in ci.yml runs inside.
+# VENDORED from canonical (HAS_CI_IMAGE) -- change it there, not here;
+# standard-check fails on any difference. Every per-repo value comes from
+# `make ci-image-config` (the Makefile), every pin decision from
+# scripts/ci-image.py, so this file holds no second copy of either.
 #
-# WHY THIS IS A SEPARATE WORKFLOW. The whole point of baking the toolchain is
-# that a PR never provisions one. If ci.yml built the image, every PR would
-# pay for the apt install again -- with the mirror weather back on the
-# critical path, which is what gh-885 is about. Here it is off it: a failed
-# build publishes nothing and CI keeps using the last pinned digest.
+# Builds the CI toolchain image (docker/ci.Dockerfile), one per base in
+# CI_IMAGE_BASES, natively on amd64 AND arm64 -- no emulation, so the smoke
+# target really runs on both -- and repins .github/ci-images.env ONLY when a
+# package fingerprint or the image's sources moved. A new apt snapshot alone
+# is not a change, so a quiet week opens nothing.
 #
-# WHAT "RE-PIN WEEKLY" MEANS HERE. The pin in .github/ci-images.env is what
-# CI reads, and it only moves when a human merges the re-pin this pushes. The
-# weekly run asks "have the upstream packages moved?" against a NEW apt
-# snapshot and today's base digests, and answers it by comparing the package
-# fingerprint baked into the image. Every other run builds from the PINNED
-# snapshot and digests, so it cannot drift: before #1748 the run asked that
-# question nightly and on every push to main, against a live mirror, and
-# 2026-10-01 owed three re-pins in one day.
+# - schedule (weekly) or dispatch with refresh: pick new inputs (snapshot,
+#   base digests, the just-bashit release), build, compare, repin through
+#   CI_IMAGE_LANDING: a PR, or a pushed ci/repin-image branch where the org
+#   forbids Actions from opening PRs.
+# - a push to a non-default branch that touches the image's sources: build
+#   from the PINNED inputs and commit the new pin onto that branch, so the
+#   PR carries its own pin and `make ci-image-check` passes.
 #
-# ONE JOB, NOT A MATRIX, and that is deliberate. Both images are built here in
-# sequence because the pin is ONE file naming BOTH digests: a matrix would
-# have to hand its two halves to a downstream job through job outputs, which
-# merge across legs in a way that is documented as unreliable and fails by
-# silently pinning one base twice. Sequential costs a few minutes on a
-# workflow nobody waits for.
-#
-# EACH BASE IS ALSO MULTI-PLATFORM (linux/amd64 + linux/arm64, the latter
-# under QEMU emulation) -- the same buildx/QEMU pattern release.yml already
-# uses to publish the runtime/SDK/downstream-jm images. Without this, the
-# pinned digest only ever named an amd64 image, so `docker run
-# $(CI_IMAGE)` -- and `container:` in ci.yml, which pins the identical
-# digest -- failed outright ("exec format error") on an arm64 dev box or
-# runner. A multi-platform build cannot `--load` into the local daemon, so
-# the smoke step below runs against the PUSHED image, split by platform;
-# see its own comment for what that trades away.
+# A push or PR made with GITHUB_TOKEN starts no workflow, so a repin
+# dispatches CI_IMAGE_CI_WORKFLOW on its branch.
 
 on:
-  push:
-    # Branches only. GitHub does not evaluate `paths:` for TAG pushes, so
-    # without this every release tag rebuilt and published the image -- 19.4
-    # min on v0.51.0 for a tree that could not have changed it.
-    # scripts/check_workflow_tag_triggers.py holds the rule.
-    #
-    # Feature branches only: main is ignored (#1748). A branch that touches
-    # these paths builds the image and carries its own pin (`make
-    # ci-image-check` refuses it otherwise), so rebuilding the same source
-    # on main after the merge only re-resolves apt against a mirror that has
-    # moved since -- a new fingerprint, and a repin owed for nothing. On
-    # 2026-10-01 that turned #1736 into #1742 and #1743 into #1747, and each
-    # pending repin blocked every PR. Main rebuilds from `schedule` and
-    # `workflow_dispatch` alone, which is where the repin steps below run.
-    branches-ignore: [main]
-    paths:
-      - deploy/docker/Dockerfile.ci
-      - bootstrap.toml
-      - .github/workflows/ci-image.yml
   schedule:
-    # WEEKLY, Monday 04:17 UTC -- off the hour, because everyone schedules on
-    # the hour and the runner queue at :00 is the worst time to ask for a
-    # machine. This is the ONLY run that picks a new apt snapshot and new
-    # base digests (#1748); every other build reads the pinned ones, so the
-    # image moves once a week, by one re-pin, and never in between.
-    - cron: '17 4 * * 1'
+    # Monday 04:23 UTC, off the hour to avoid the scheduler's peak.
+    - cron: "23 4 * * 1"
   workflow_dispatch:
     inputs:
       refresh:
-        description: >-
-          Pick a new apt snapshot and base digests now, as the weekly run
-          does (an off-cycle re-pin). Off: rebuild the pinned inputs.
+        description: Pick new inputs (snapshot, base digests, installer) first
         type: boolean
         default: false
-
-concurrency:
-  # One build per ref. A push that lands while a build is running makes the
-  # running one obsolete, and two publishes racing to the same tag is how a
-  # tag ends up pointing at the older image.
-  group: ci-image-${{ github.ref }}
-  cancel-in-progress: true
+  push:
+    # Not the default branch: a merged change already carried its pin, and
+    # rebuilding it there would only re-resolve inputs nobody asked to move.
+    branches-ignore: [main, master]
+    paths:
+      - docker/ci.Dockerfile
+      - docker/ci-extra.sh
+      - bootstrap.toml
+      - .github/workflows/ci-image.yml
 
 permissions:
   contents: read
-  packages: write
+
+concurrency:
+  group: ci-image-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build, verify, publish, compare
+  resolve:
+    name: Resolve the inputs
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-    # `pull-requests: write` is deliberately ABSENT. It was here for the
-    # `gh pr create` this workflow can no longer do -- the org forbids Actions
-    # from creating PRs (doppler#1212) -- and a permission granted for a call
-    # that is gone reads as though the call might come back.
-    permissions:
-      contents: write
-      packages: write
-
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.cfg.outputs.matrix }}
+      repo: ${{ steps.cfg.outputs.repo }}
+      groups: ${{ steps.cfg.outputs.groups }}
+      smoke: ${{ steps.cfg.outputs.smoke }}
+      landing: ${{ steps.cfg.outputs.landing }}
+      ci_workflow: ${{ steps.cfg.outputs.ci_workflow }}
+      tag: ${{ steps.cfg.outputs.tag }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v6
 
-      - name: Log in to GHCR
-        uses: docker/login-action@v4
+      - uses: docker/setup-buildx-action@v4
+
+      - id: cfg
+        env:
+          REFRESH: ${{ github.event_name == 'schedule' || inputs.refresh == true }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          make -s ci-image-config >> "$GITHUB_OUTPUT"
+          bases=$(make -s ci-image-config | sed -n 's/^bases=//p')
+          export CI_IMAGE_BASES="$bases"
+          flag=; [ "$REFRESH" = true ] && flag=--refresh
+          python3 scripts/ci-image.py inputs $flag > inputs.env
+          cat inputs.env
+          # base x arch, each on its native runner.
+          matrix=$(for b in $bases; do
+            for a in amd64:ubuntu-latest arm64:ubuntu-24.04-arm; do
+              printf '{"base":"%s","key":"%s","arch":"%s","runs_on":"%s"}\n' \
+                "$b" "$(python3 scripts/ci-image.py key "$b")" \
+                "${a%%:*}" "${a#*:}"
+            done
+          done | jq -sc '{include: .}')
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          snap=$(sed -n 's/^CI_APT_SNAPSHOT=//p' inputs.env)
+          echo "tag=${snap}-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ci-image-inputs
+          path: inputs.env
+          if-no-files-found: error
+
+  build:
+    name: Build and smoke (${{ matrix.key }}, ${{ matrix.arch }})
+    needs: resolve
+    runs-on: ${{ matrix.runs_on }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: true
+      matrix: ${{ fromJSON(needs.resolve.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: ci-image-inputs
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # The emulator only ever executes the arm64 smoke checks below (a few
-      # `--version` calls and the fingerprint file, not a compile) plus
-      # whatever `jbx install-deps`/apt do under emulation during the build
-      # itself -- never a `make build` C compile, which stays native-only.
-      # Same trade-off release.yml's SDK/downstream-jm images already make.
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
+      - name: Build, smoke, push
+        env:
+          REPO: ${{ needs.resolve.outputs.repo }}
+          TAG: ${{ needs.resolve.outputs.tag }}
+          # Not GROUPS: bash's GROUPS is a builtin array of the user's gids,
+          # so `$GROUPS` would expand to a gid and install no group at all.
+          IMAGE_GROUPS: ${{ needs.resolve.outputs.groups }}
+          KEY: ${{ matrix.key }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          . ./inputs.env
+          base_ref=$(eval echo "\$CI_BASE_$KEY")
+          img="$REPO:$KEY-$TAG-$ARCH"
+          # --provenance/--sbom off: the index the publish job builds must
+          # name exactly the platform images, so a pinned digest resolves to
+          # a runnable image on either arch.
+          docker buildx build --load --provenance=false --sbom=false \
+            -f docker/ci.Dockerfile \
+            --build-arg BASE="$base_ref" \
+            --build-arg APT_SNAPSHOT="$CI_APT_SNAPSHOT" \
+            --build-arg JB_VERSION="$CI_JB_VERSION" \
+            --build-arg JB_SHA256="$CI_JB_SHA256" \
+            --build-arg CI_IMAGE_GROUPS="$IMAGE_GROUPS" \
+            -t "$img" .
+          # The smoke runs BEFORE anything is pushed, natively, on this arch.
+          make ci-image-smoke IMAGE="$img"
+          docker push "$img"
+          fp=$(docker run --rm "$img" cat /etc/ci-image-fingerprint)
+          mkdir -p out
+          echo "$ARCH=$fp" > "out/fp-$KEY-$ARCH"
+          echo "$KEY $ARCH fingerprint $fp"
+
+      - uses: actions/upload-artifact@v7
         with:
-          platforms: arm64
+          name: ci-image-fp-${{ matrix.key }}-${{ matrix.arch }}
+          path: out/
+          if-no-files-found: error
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+  publish:
+    name: Repin if anything moved
+    needs: [resolve, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      packages: write
+      pull-requests: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v6
 
-      - name: Build, smoke, and push both bases
-        id: publish
-        shell: bash
+      - uses: actions/download-artifact@v8
+        with:
+          path: art
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Join the arches and assemble the pin
+        id: pin
         env:
-          EVENT: ${{ github.event_name }}
-          REFRESH: ${{ inputs.refresh }}
+          REPO: ${{ needs.resolve.outputs.repo }}
+          TAG: ${{ needs.resolve.outputs.tag }}
         run: |
           set -euo pipefail
-          image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/doppler-ci"
-          echo "image=$image" >> "$GITHUB_OUTPUT"
+          CI_IMAGE_BASES=$(make -s ci-image-config | sed -n 's/^bases=//p')
+          export CI_IMAGE_BASES
+          {
+            cat art/inputs.env
+            for b in $CI_IMAGE_BASES; do
+              k=$(python3 scripts/ci-image.py key "$b")
+              docker buildx imagetools create -t "$REPO:$k-$TAG" \
+                "$REPO:$k-$TAG-amd64" "$REPO:$k-$TAG-arm64"
+              d=$(docker buildx imagetools inspect "$REPO:$k-$TAG" \
+                    --format '{{json .Manifest}}' | jq -r .digest)
+              echo "CI_IMAGE_$k=$REPO@$d"
+              # One `arch=fp` word per file, one file per arch.
+              mapfile -t fps < <(cat "art/fp-$k-"*)
+              echo "CI_IMAGE_FINGERPRINT_$k=$(python3 scripts/ci-image.py \
+                join-fingerprint "${fps[@]}")"
+            done
+            echo "CI_IMAGE_SOURCE_HASH=$(python3 scripts/ci-image.py source-hash)"
+          } | python3 scripts/ci-image.py write-pin --out new-pin.env
+          python3 scripts/ci-image.py changed --new new-pin.env >> "$GITHUB_OUTPUT"
+          cat new-pin.env
+          cat new-pin.env >> "$GITHUB_STEP_SUMMARY"
 
-          # The two inputs that move upstream (#1748): the apt snapshot and
-          # each base image's digest. The weekly run (or a dispatch with
-          # `refresh`) picks new ones; every other build reads the pin, so
-          # a branch rebuild reproduces the pinned package set and owes no
-          # re-pin. A pin with no value yet (the first build after this
-          # change) is the one other case that picks fresh.
-          pin=.github/ci-images.env
-          pinned() { grep "^$1=" "$pin" 2>/dev/null | cut -d= -f2 || true; }
-          refresh=0
-          if [ "$EVENT" = schedule ] || [ "$REFRESH" = true ]; then
-            refresh=1
-          fi
-          snap="$(pinned CI_APT_SNAPSHOT)"
-          if [ "$refresh" = 1 ] || [ -z "$snap" ]; then
-            snap="$(date -u +%Y%m%dT%H%M%SZ)"
-          fi
-          echo "apt_snapshot=$snap" >> "$GITHUB_OUTPUT"
-          echo "apt snapshot: $snap (refresh=$refresh)"
-
-          # The package installer: a just-bashit release and its tarball's
-          # SHA-256 (#1751), picked like the snapshot -- latest release on a
-          # refresh, the pin otherwise.
-          jbv="$(pinned CI_JB_VERSION)"; jbsha="$(pinned CI_JB_SHA256)"
-          if [ "$refresh" = 1 ] || [ -z "$jbv" ] || [ -z "$jbsha" ]; then
-            jbv="$(curl -fsSL --retry 5 --retry-all-errors \
-                     https://api.github.com/repos/just-buildit/just-bashit/releases/latest \
-                   | jq -r .tag_name)"
-            jbsha="$(curl -fsSL --retry 5 --retry-all-errors \
-                       "https://github.com/just-buildit/just-bashit/releases/download/$jbv/just-bashit.tar.gz" \
-                     | sha256sum | cut -d' ' -f1)"
-          fi
-          echo "jb_version=$jbv" >> "$GITHUB_OUTPUT"
-          echo "jb_sha256=$jbsha" >> "$GITHUB_OUTPUT"
-          echo "just-bashit: $jbv ($jbsha)"
-
-          for base in ubuntu:22.04 ubuntu:24.04; do
-            slug="${base/:/-}"                        # ubuntu:24.04 -> ubuntu-24.04
-            key="$(echo "$slug" | tr -dc '0-9')"      # -> 2404
-            tag="$image:$slug"
-            echo "::group::$base"
-
-            ref="$(pinned "CI_BASE_$key")"
-            if [ "$refresh" = 1 ] || [ -z "$ref" ]; then
-              ref="$base@$(docker buildx imagetools inspect "$base" \
-                             --format '{{json .Manifest}}' | jq -r .digest)"
-            fi
-            echo "base_$key=$ref" >> "$GITHUB_OUTPUT"
-            echo "base: $ref"
-
-            # --provenance/--sbom off on purpose: the index this produces
-            # names exactly the two platform manifests below and nothing
-            # else, so the digest a `container:` pins resolves straight to
-            # a real image on whichever platform pulls it -- the same
-            # standard OCI manifest-list mechanism that already makes
-            # `container: image: node:20` work on any runner architecture.
-            #
-            # A multi-platform build cannot `--load` into the local daemon
-            # (buildx only supports that for a single platform), so there
-            # is no local image left to `docker inspect` or to smoke before
-            # pushing -- both happen below, against the pushed tag instead.
-            meta="/tmp/meta-$key.json"
-            docker buildx build -f deploy/docker/Dockerfile.ci \
-                --build-arg "BASE=$ref" \
-                --build-arg "APT_SNAPSHOT=$snap" \
-                --build-arg "JB_VERSION=$jbv" \
-                --build-arg "JB_SHA256=$jbsha" \
-                --platform linux/amd64,linux/arm64 \
-                --provenance=false --sbom=false \
-                --metadata-file "$meta" \
-                --push -t "$tag" .
-            digest="$(jq -r '."containerimage.digest"' "$meta")"
-
-            # The image states what it contains; ask it rather than
-            # recomputing the answer outside it. Native platform: this also
-            # doubles as the first proof the push landed at all.
-            fp="$(docker run --rm --platform linux/amd64 "$tag" \
-                  cat /etc/doppler-ci-fingerprint)"
-
-            # Smoke AFTER push now -- buildx left nothing local to smoke
-            # before it -- split by platform, since only one of the two
-            # runs at native speed.
-            #
-            # Native (amd64): the full toolchain smoke, unchanged from
-            # before this file went multi-arch. An image that cannot build
-            # the tree is worse than no image: every job would fail inside
-            # it, far from this file. As the runner user, so the
-            # bind-mounted checkout does not fill with root-owned output.
-            docker run --rm --platform linux/amd64 \
-                -u "$(id -u):$(id -g)" -v "$PWD":/w -w /w "$tag" \
-                make build BUILD_DIR=build-ci-smoke
-            docker run --rm --platform linux/amd64 \
-                -u "$(id -u):$(id -g)" -v "$PWD":/w -w /w "$tag" \
-                bash scripts/start-nats.sh
-            rm -rf build-ci-smoke
-
-            # Emulated (arm64): a full `make build` C compile under QEMU
-            # would multiply this already-sequential, two-base workflow's
-            # runtime for a leg nobody is waiting on -- doubly so on the
-            # weekly schedule. This still catches "the arm64 layer is
-            # fundamentally broken" (every toolchain binary actually
-            # executes for that platform) without paying for an emulated
-            # compile on every run.
-            docker run --rm --platform linux/arm64 "$tag" bash -c '
-                set -euo pipefail
-                cc --version
-                cmake --version
-                doxygen --version
-                nats-server --version
-                cat /etc/doppler-ci-fingerprint
-            '
-
-            echo "digest_$key=$digest" >> "$GITHUB_OUTPUT"
-            echo "fingerprint_$key=$fp" >> "$GITHUB_OUTPUT"
-            printf '### %s\n```\n%s@%s\nfingerprint %s\n```\n' \
-                "$base" "$image" "$digest" "$fp" >> "$GITHUB_STEP_SUMMARY"
-            echo "::endgroup::"
-          done
-
-      - name: Assemble the pin and decide whether anything moved
-        id: cmp
-        shell: bash
+      - name: Land the repin
+        if: steps.pin.outputs.changed == '1'
         env:
-          IMAGE: ${{ steps.publish.outputs.image }}
-          D2204: ${{ steps.publish.outputs.digest_2204 }}
-          D2404: ${{ steps.publish.outputs.digest_2404 }}
-          F2204: ${{ steps.publish.outputs.fingerprint_2204 }}
-          F2404: ${{ steps.publish.outputs.fingerprint_2404 }}
-          SNAP: ${{ steps.publish.outputs.apt_snapshot }}
-          JBV: ${{ steps.publish.outputs.jb_version }}
-          JBSHA: ${{ steps.publish.outputs.jb_sha256 }}
-          B2204: ${{ steps.publish.outputs.base_2204 }}
-          B2404: ${{ steps.publish.outputs.base_2404 }}
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.resolve.outputs.tag }}
+          LANDING: ${{ needs.resolve.outputs.landing }}
+          CI_WORKFLOW: ${{ needs.resolve.outputs.ci_workflow }}
+          DEFAULT: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
-          # ONE definition of this hash, in the Makefile, called from here.
-          # It used to be spelled out again in this file, so the workflow and
-          # `make ci-image-check` were two implementations of the same number
-          # and a change to either alone would have made the gate compare a
-          # tree against a pin computed a different way.
-          src="$(make -s ci-image-source-hash)"
-
-          # Column 0, no indentation: make `include`s this file, and a line
-          # with leading whitespace reads to make as a recipe outside a
-          # target -- "recipe commences before first target", on every
-          # invocation of every target.
-          cat > /tmp/ci-images.env <<EOF
-          # GENERATED by .github/workflows/ci-image.yml -- do not hand-edit.
-          #
-          # The CI toolchain image every Linux job in ci.yml runs inside,
-          # pinned by DIGEST so a run is reproducible: an image rebuild cannot
-          # change what an in-flight PR was tested against. \`make
-          # ci-image-check\` fails when bootstrap.toml or Dockerfile.ci move
-          # without a repin. A human lands each repin, not the weekly build:
-          # it pushes ci/repin-image and stops -- why is the "Push the repin
-          # branch" comment in .github/workflows/ci-image.yml. Until a repin
-          # lands, ci-image-repin-check is red on every PR.
-          #
-          # CI_APT_SNAPSHOT and CI_BASE_* are what the images were built
-          # FROM, and every non-weekly build reads them back (#1748), so a
-          # rebuild reproduces this package set instead of drifting off it.
-          CI_APT_SNAPSHOT=$SNAP
-          CI_JB_VERSION=$JBV
-          CI_JB_SHA256=$JBSHA
-          CI_BASE_2204=$B2204
-          CI_BASE_2404=$B2404
-          CI_IMAGE_2204=$IMAGE@$D2204
-          CI_IMAGE_2404=$IMAGE@$D2404
-          CI_IMAGE_FINGERPRINT_2204=$F2204
-          CI_IMAGE_FINGERPRINT_2404=$F2404
-          CI_IMAGE_SOURCE_HASH=$src
-          EOF
-          sed -i 's/^[[:space:]]*//' /tmp/ci-images.env
-
-          # The FINGERPRINTS are the comparison, not the digests: a rebuild
-          # changes the digest every time (timestamps, layer ids) while the
-          # content is identical, and a PR a day that moves a hash and nothing
-          # else is a PR nobody reads.
-          changed=0
-          for k in 2204 2404; do
-            want="$(grep "^CI_IMAGE_FINGERPRINT_$k=" /tmp/ci-images.env | cut -d= -f2)"
-            have="$(grep "^CI_IMAGE_FINGERPRINT_$k=" .github/ci-images.env 2>/dev/null \
-                    | cut -d= -f2 || true)"
-            if [ "$want" != "$have" ]; then
-              printf '%s: package set changed\n  was: %s\n  now: %s\n' \
-                  "$k" "${have:-<unpinned>}" "$want"
-              changed=1
-            fi
-          done
-
-          # A source change repins even when the packages happen to land
-          # identical: the pin records what the image was built FROM, and
-          # `make ci-image-check` compares exactly that.
-          have_src="$(grep '^CI_IMAGE_SOURCE_HASH=' .github/ci-images.env 2>/dev/null \
-                      | cut -d= -f2 || true)"
-          if [ "$src" != "$have_src" ]; then
-            printf 'inputs changed\n  was: %s\n  now: %s\n' "${have_src:-<unpinned>}" "$src"
-            changed=1
-          fi
-
-          echo "changed=$changed" >> "$GITHUB_OUTPUT"
-          # An `if`, not `[ ... ] && echo`: under `set -e` a false test in an
-          # AND-list fails the list and ends the step, so the happy path would
-          # be the one that exits non-zero.
-          if [ "$changed" -eq 0 ]; then echo "nothing moved — no repin needed"; fi
-          cat /tmp/ci-images.env >> "$GITHUB_STEP_SUMMARY"
-          # And to the LOG: a branch that changes the image commits this
-          # block by hand (`make ci-image-check` says so), and a job summary
-          # is not readable through the API -- the log is.
-          echo "--- pin block ---"; cat /tmp/ci-images.env; echo "--- end ---"
-
-      # Push the refreshed pin to a branch and STOP. Opening a PR from here
-      # is not possible: the `doppler-dsp` org forbids GitHub Actions from
-      # creating pull requests, so `gh pr create` returned
-      #
-      #   GraphQL: GitHub Actions is not permitted to create or approve
-      #   pull requests (createPullRequest)
-      #
-      # on every `main` run -- this workflow was red for three releases while
-      # gating nothing, because it feeds no aggregator. A step that cannot
-      # succeed reports a failure nobody can act on, which is worse than no
-      # step: its red is indistinguishable from the image genuinely breaking.
-      #
-      # What replaced it is a GATE rather than a notification. The branch push
-      # below always worked, so the refreshed pin is already committed and
-      # reviewable; `make ci-image-repin-check` (its own required job in
-      # ci.yml) turns a pending, unmerged repin into a red check on every PR.
-      # Landing it is `gh pr create --head ci/repin-image --fill`, by a human
-      # -- which is the only actor the org policy permits, and the actor who
-      # should be deciding to move every Linux job onto a new image anyway.
-      # doppler#1212.
-      #
-      # Only from the default branch. A feature branch that touches the
-      # Dockerfile still BUILDS and PUBLISHES (so it can be pinned and tested),
-      # but it must not push a pin branch off main carrying a digest for an
-      # image built from source that is not on main yet -- the pin and the
-      # Dockerfile would land separately, in either order. On a branch the
-      # block is printed in the summary and committed by hand.
-      - name: Push the repin branch
-        if: steps.cmp.outputs.changed == '1' && github.ref == 'refs/heads/main'
-        shell: bash
-        run: |
-          set -euo pipefail
-          cp /tmp/ci-images.env .github/ci-images.env
-          if git diff --quiet -- .github/ci-images.env; then
-            echo "pin on this ref is already current — nothing to push"
-            exit 0
-          fi
-          branch=ci/repin-image
-          git config user.name  "github-actions[bot]"
+          cp new-pin.env .github/ci-images.env
+          git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -B "$branch"
-          git add .github/ci-images.env
-          git commit -F - <<'MSG'
-          chore(ci): repin the CI toolchain image
-
-          The rebuild of deploy/docker/Dockerfile.ci produced a different
-          package set, or its inputs moved, so the digest CI pins is no
-          longer the environment bootstrap.toml describes.
-
-          Generated by .github/workflows/ci-image.yml.
-          MSG
-          # A repin is ONE file on top of the commit this run built from.
-          # Anything else -- a second file, no parent, a different parent --
-          # is not mergeable as a repin and must not reach the branch a human
-          # is told to land.
-          make -s ci-image-repin-commit-check \
-              REPIN_BASE="$GITHUB_SHA" REPIN_HEAD=HEAD
-          git push -f origin "$branch"
-
-          {
-            echo "## A repin is pending"
-            echo
-            echo 'The `CI image repin pending` job in ci.yml is now RED on'
-            echo 'every PR until this lands, so no PR can merge. This run'
-            echo 'ends red for the same reason. To land it:'
-            echo
-            echo '```sh'
-            echo "gh pr create --head $branch --fill"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      # Hygiene, and it must run on the day the drift goes away rather than
-      # waiting for someone to notice: once `main` carries a pin that matches
-      # the latest rebuild, any `ci/repin-image` left over is describing an
-      # image nobody is going to merge. `ci-image-repin-check` compares VALUES
-      # rather than branch existence, so a stale branch does not fail the gate
-      # -- deleting it just stops it looking like pending work in the branch
-      # list.
-      - name: Retire the repin branch once nothing is owed
-        if: steps.cmp.outputs.changed == '0' && github.ref == 'refs/heads/main'
-        shell: bash
-        run: |
-          set -euo pipefail
-          branch=ci/repin-image
-          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1
-          then
-            git push origin --delete "$branch"
-            echo "nothing owed — deleted the stale $branch"
+          if [ "$GITHUB_REF_NAME" = "$DEFAULT" ]; then
+            branch="ci/repin-image"
+            git switch -C "$branch"
           else
-            echo "nothing owed and no $branch — clean"
+            branch="$GITHUB_REF_NAME"
           fi
+          git add .github/ci-images.env
+          git commit -m "chore(ci): repin the CI toolchain image $TAG"
+          git push -f origin "HEAD:$branch"
+          if [ "$GITHUB_REF_NAME" = "$DEFAULT" ]; then
+            if [ "$LANDING" = pr ]; then
+              gh pr view "$branch" >/dev/null 2>&1 \
+                || gh pr create --base "$DEFAULT" --head "$branch" \
+                     --title "chore(ci): repin the CI toolchain image" \
+                     --body "Opened by ci-image.yml (run $GITHUB_RUN_ID): a package fingerprint or the image's sources moved. CI on this PR runs on the new image; merging adopts it."
+            else
+              echo "Repin pushed to $branch. Land it: gh pr create --head $branch --fill" \
+                >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
+          gh workflow run "$CI_WORKFLOW" --ref "$branch"
 
-      # LAST, and the reason this run can end red with nothing broken. A
-      # pending repin used to leave the scheduled run GREEN: the summary above said
-      # so, but a green run notifies nobody, and an unlanded repin blocks
-      # every PR -- #1732 was ejected from the merge queue (since retired)
-      # that way, an hour before anyone traced it (doppler#1737). So the run
-      # asks the ONE definition of "a repin is pending", the gate ci.yml
-      # already runs on every PR, and fails while it fails.
-      #
-      # Against main's pin, not the working tree's: the push step above
-      # checked out ci/repin-image with the NEW pin, and comparing that
-      # branch with itself would always pass. Main only, like the push: a
-      # branch build never pushes a repin, and must not go red over one main
-      # owes.
-      - name: A pending repin ends this run red
-        if: github.ref == 'refs/heads/main'
-        shell: bash
+      # LAST, and the reason a branch-landing run can end red with nothing
+      # broken. With no PR, a pushed repin is visible only on a branch list,
+      # and a green run notifies nobody: in doppler-dsp an unlanded repin sat
+      # for an hour while it blocked work (doppler#1737). So on the default
+      # branch, EVERY run -- not just the one that pushed -- fails while
+      # ci/repin-image's pin differs from the default branch's, until a
+      # human lands it. PR landing needs none of this: the open PR is the
+      # signal, and only it waits.
+      - name: An unlanded repin keeps this run red
+        if: >-
+          needs.resolve.outputs.landing == 'branch' &&
+          github.ref_name == github.event.repository.default_branch
+        env:
+          DEFAULT: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
-          git fetch -q --depth=1 origin main
-          git checkout -q FETCH_HEAD -- .github/ci-images.env
+          # ls-remote, not a failed fetch: a fetch also fails on a network or
+          # auth error, and reading that as "absent" would be the quiet green
+          # this step exists to prevent. rc 2 = no such branch; 0 = present;
+          # anything else is unknown, and unknown is red.
           rc=0
-          make -s ci-image-repin-check > /tmp/repin-check.txt 2>&1 || rc=$?
-          cat /tmp/repin-check.txt
+          git ls-remote --exit-code --heads origin ci/repin-image \
+            >/dev/null || rc=$?
+          case "$rc" in
+            0) ;;
+            2) echo "no ci/repin-image: nothing owed"; exit 0 ;;
+            *) echo "::error::cannot tell whether ci/repin-image exists" \
+                    "(git ls-remote exited $rc)"; exit 1 ;;
+          esac
+          git fetch -q origin "$DEFAULT" ci/repin-image
+          if git diff --quiet "origin/$DEFAULT" origin/ci/repin-image \
+               -- .github/ci-images.env; then
+            echo "ci/repin-image matches $DEFAULT: nothing owed"; exit 0
+          fi
           {
-            echo "## Repin gate (exit $rc)"
-            echo '```'
-            cat /tmp/repin-check.txt
-            echo '```'
+            echo "## A CI image repin is waiting to land"
+            echo
+            echo 'gh pr create --head ci/repin-image --fill'
           } >> "$GITHUB_STEP_SUMMARY"
-          exit "$rc"
+          echo "::error::ci/repin-image carries a pin $DEFAULT does not;" \
+               "land it: gh pr create --head ci/repin-image --fill"
+          exit 1

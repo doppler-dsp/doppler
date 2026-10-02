@@ -12,6 +12,7 @@ _A frame's data source: where a_ `data:LEN` _payload's bits come from._[More...]
 
 * `#include <stddef.h>`
 * `#include <stdint.h>`
+* `#include "doppler/dp_state.h"`
 * `#include "doppler/wfm/wfm_frame.h"`
 
 
@@ -71,9 +72,13 @@ _A frame's data source: where a_ `data:LEN` _payload's bits come from._[More...]
 |  [**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* | [**dp\_wfm\_data\_create\_seq**](#function-dp_wfm_data_create_seq) (const [**wfm\_seq\_t**](structwfm__seq__t.md) \* data, const char \* path, size\_t len, const [**wfm\_seq\_t**](structwfm__seq__t.md) \* fill, const char \*\* why) <br>_Build a data source from a source's own members. NULL on refusal._  |
 |  void | [**dp\_wfm\_data\_destroy**](#function-dp_wfm_data_destroy) ([**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* s) <br>_Free a source; closes a file it opened itself. NULL is a no-op._  |
 |  [**wfm\_data\_status\_t**](wfm__data_8h.md#enum-wfm_data_status_t) | [**dp\_wfm\_data\_frame**](#function-dp_wfm_data_frame) ([**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* s, [**wfm\_data\_pacing\_t**](wfm__data_8h.md#enum-wfm_data_pacing_t) pacing, size\_t reps, uint8\_t \* out, size\_t max\_out) <br>_The next frame's data field under a pacing: THE rule for idle frames._  |
+|  void | [**dp\_wfm\_data\_get\_state**](#function-dp_wfm_data_get_state) (const [**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* s, void \* blob) <br>_Serialize the source into_ `blob` _, of_[_**dp\_wfm\_data\_state\_bytes**_](wfm__data_8h.md#function-dp_wfm_data_state_bytes) _bytes. A no-op when it refuses._ |
 |  [**wfm\_data\_status\_t**](wfm__data_8h.md#enum-wfm_data_status_t) | [**dp\_wfm\_data\_idle**](#function-dp_wfm_data_idle) ([**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* s, size\_t reps, uint8\_t \* out, size\_t max\_out) <br>_Write an idle frame's data field: all fill,_ `reps` _times._ |
 |  uint64\_t | [**dp\_wfm\_data\_length\_bits**](#function-dp_wfm_data_length_bits) (const char \* data, const char \* path) <br>_A source's length in bits, known before it is built; 0 for a stream._  |
 |  [**wfm\_data\_status\_t**](wfm__data_8h.md#enum-wfm_data_status_t) | [**dp\_wfm\_data\_next**](#function-dp_wfm_data_next) ([**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* s, size\_t reps, uint8\_t \* out, size\_t max\_out, int timeout\_ms) <br>_Write the next frame's data field: ONE chunk of_ `LEN` _bits, written_`reps` _times._ |
+|  int | [**dp\_wfm\_data\_set\_state**](#function-dp_wfm_data_set_state) ([**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* s, const void \* blob) <br>_Restore a source built with the same config from_ `blob` _._ |
+|  size\_t | [**dp\_wfm\_data\_state\_bytes**](#function-dp_wfm_data_state_bytes) (const [**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* s) <br>_Bytes in the source's state blob; 0 when it refuses (_ [_**dp\_wfm\_data\_state\_refusal**_](wfm__data_8h.md#function-dp_wfm_data_state_refusal) _)._ |
+|  const char \* | [**dp\_wfm\_data\_state\_refusal**](#function-dp_wfm_data_state_refusal) (const [**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* s) <br>_Why a source's state cannot be serialized, or NULL when it can._  |
 |  void | [**dp\_wfm\_data\_stats**](#function-dp_wfm_data_stats) (const [**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* s, [**wfm\_data\_stats\_t**](structwfm__data__stats__t.md) \* out) <br>_What the source has done so far._  |
 
 
@@ -102,6 +107,12 @@ _A frame's data source: where a_ `data:LEN` _payload's bits come from._[More...]
 
 
 
+## Macros
+
+| Type | Name |
+| ---: | :--- |
+| define  | [**WFM\_DATA\_STATE\_MAGIC**](wfm__data_8h.md#define-wfm_data_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('W', 'F', 'D', 'S')`<br>_The data source's state blob type tag (_ [_**dp\_state.h**_](dp__state_8h.md) _)._ |
+| define  | [**WFM\_DATA\_STATE\_VERSION**](wfm__data_8h.md#define-wfm_data_state_version)  `1u`<br>_The data source's state blob format version._  |
 
 ## Detailed Description
 
@@ -138,7 +149,7 @@ A file and a pipe carry **packed** octets, unpacked MSB first by `dp_bytes_to_bi
 A source read from an fd hashes every octet it reads with `dp_hash64()`, so a record can identify the file without reading it twice (§4.8).
 
 
-Not in this object yet: the state triplet (a stream's resume position), which lands with the faces that serialize it. 
+**A source resumes bit for bit when its bytes can be had again** ([**dp\_wfm\_data\_get\_state**](wfm__data_8h.md#function-dp_wfm_data_get_state)): a Field, `pn:0` and a regular file. A pipe cannot  the octets it has delivered are gone  so its state is refused at both ends, and [**dp\_wfm\_data\_state\_refusal**](wfm__data_8h.md#function-dp_wfm_data_state_refusal) says why. 
 
 
     
@@ -397,6 +408,23 @@ dp_wfm_data_destroy (s);
 
 
 
+### function dp\_wfm\_data\_get\_state 
+
+_Serialize the source into_ `blob` _, of_[_**dp\_wfm\_data\_state\_bytes**_](wfm__data_8h.md#function-dp_wfm_data_state_bytes) _bytes. A no-op when it refuses._
+```C++
+void dp_wfm_data_get_state (
+    const wfm_data_src_t * s,
+    void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function dp\_wfm\_data\_idle 
 
 _Write an idle frame's data field: all fill,_ `reps` _times._
@@ -511,6 +539,106 @@ WFM\_DATA\_FRAME, or WFM\_DATA\_NOT\_YET (nothing written; the bits already read
 
 
 
+### function dp\_wfm\_data\_set\_state 
+
+_Restore a source built with the same config from_ `blob` _._
+```C++
+int dp_wfm_data_set_state (
+    wfm_data_src_t * s,
+    const void * blob
+) 
+```
+
+
+
+The receiving source must be the same kind over the same length in the same `LEN`. A file is re-read from its start up to the blob's octet offset and the `dp_hash64` of that prefix must equal the blob's: a file that changed under the checkpoint is refused, never resumed into different data. Nothing changes on a refusal.
+
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID: a bad envelope, another kind, size or `LEN`, a pipe, a position past the end, or a prefix whose hash differs.
+
+
+
+```C++
+const char     *why;
+wfm_data_src_t *a = dp_wfm_data_create ("0xABCD", NULL, 8, NULL, &why);
+wfm_data_src_t *b = dp_wfm_data_create ("0xABCD", NULL, 8, NULL, &why);
+uint8_t         x[8], y[8], blob[256];
+if (dp_wfm_data_state_bytes (a) > sizeof blob)
+  return 1;
+dp_wfm_data_next (a, 1, x, sizeof x, -1); // 1010 1011
+dp_wfm_data_get_state (a, blob);
+if (dp_wfm_data_set_state (b, blob) != DP_OK)
+  return 1;
+dp_wfm_data_next (a, 1, x, sizeof x, -1); // 1100 1101
+dp_wfm_data_next (b, 1, y, sizeof y, -1); // the same frame
+if (memcmp (x, y, sizeof x) != 0)
+  return 1;
+dp_wfm_data_destroy (a);
+dp_wfm_data_destroy (b);
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_data\_state\_bytes 
+
+_Bytes in the source's state blob; 0 when it refuses (_ [_**dp\_wfm\_data\_state\_refusal**_](wfm__data_8h.md#function-dp_wfm_data_state_refusal) _)._
+```C++
+size_t dp_wfm_data_state_bytes (
+    const wfm_data_src_t * s
+) 
+```
+
+
+
+The blob carries only what RUNS  the counts, the end latch, and the position: a Field's cursor, `pn:0`'s register (a nested `dp_pn` blob), or a file's residue and running hash. The bits, the fill and `LEN` are config, rebuilt by the create that built the receiving source. 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_data\_state\_refusal 
+
+_Why a source's state cannot be serialized, or NULL when it can._ 
+```C++
+const char * dp_wfm_data_state_refusal (
+    const wfm_data_src_t * s
+) 
+```
+
+
+
+A pipe (stdin, a FIFO, a socket) is the one source that cannot resume: the octets it has delivered are gone, so a blob could only restart it from wherever the pipe is now  different data under the same frame count. It is refused at BOTH ends: [**dp\_wfm\_data\_state\_bytes**](wfm__data_8h.md#function-dp_wfm_data_state_bytes) is 0, so a checkpoint fails when it is taken rather than on the pod that relies on it, and [**dp\_wfm\_data\_set\_state**](wfm__data_8h.md#function-dp_wfm_data_set_state) is `DP_ERR_INVALID`.
+
+
+
+
+**Returns:**
+
+NULL, or a STATIC sentence naming the cause. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_wfm\_data\_stats 
 
 _What the source has done so far._ 
@@ -519,6 +647,37 @@ void dp_wfm_data_stats (
     const wfm_data_src_t * s,
     wfm_data_stats_t * out
 ) 
+```
+
+
+
+
+<hr>
+## Macro Definition Documentation
+
+
+
+
+
+### define WFM\_DATA\_STATE\_MAGIC 
+
+_The data source's state blob type tag (_ [_**dp\_state.h**_](dp__state_8h.md) _)._
+```C++
+#define WFM_DATA_STATE_MAGIC `DP_FOURCC ('W', 'F', 'D', 'S')`
+```
+
+
+
+
+<hr>
+
+
+
+### define WFM\_DATA\_STATE\_VERSION 
+
+_The data source's state blob format version._ 
+```C++
+#define WFM_DATA_STATE_VERSION `1u`
 ```
 
 

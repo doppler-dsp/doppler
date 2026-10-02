@@ -384,6 +384,7 @@
 * **gain** ([**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md))
 * **gen** ([**dp\_pool\_t**](structdp__pool__t.md), [**rs\_t**](structrs__t.md))
 * **gap\_noise** ([**wfm\_segment\_t**](structwfm__segment__t.md))
+* **get\_state** ([**wfm\_synth\_refill\_state\_t**](structwfm__synth__refill__state__t.md))
 
 
 ## h
@@ -826,6 +827,7 @@
 * **rate\_est** ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md), [**ratesync\_loop\_t**](structratesync__loop__t.md))
 * **refill** ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md))
 * **refill\_free** ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md))
+* **refill\_state** ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md))
 * **refill\_user** ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md))
 * **rbw\_hz** ([**imd\_meas\_t**](structimd__meas__t.md), [**npr\_meas\_t**](structnpr__meas__t.md), [**tone\_meas\_t**](structtone__meas__t.md))
 * **rate\_norm** ([**ppe\_result\_t**](structppe__result__t.md))
@@ -840,6 +842,7 @@
 * **rrc\_span** ([**wfm\_source\_t**](structwfm__source__t.md))
 * **range\_bit** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 * **reps\_off** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
+* **refusal** ([**wfm\_synth\_refill\_state\_t**](structwfm__synth__refill__state__t.md))
 
 
 ## s
@@ -944,6 +947,8 @@
 * **sources** ([**wfm\_segment\_t**](structwfm__segment__t.md))
 * **snr\_hi** ([**wfm\_source\_t**](structwfm__source__t.md))
 * **snr\_mode** ([**wfm\_source\_t**](structwfm__source__t.md))
+* **set\_state** ([**wfm\_synth\_refill\_state\_t**](structwfm__synth__refill__state__t.md))
+* **state\_bytes** ([**wfm\_synth\_refill\_state\_t**](structwfm__synth__refill__state__t.md))
 
 
 ## t

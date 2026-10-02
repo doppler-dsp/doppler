@@ -156,6 +156,23 @@ wfm_synth_mls_poly(uint32_t n)
  */
 typedef int (*wfm_synth_refill_fn)(void *user, uint8_t *bits, size_t n);
 
+/**
+ * @brief A frame source's own state triplet, over its `user` pointer.
+ *
+ * What lets a synth that pulls its frames serialize: the synth carries the
+ * frame in play, and nests the source's position as this triplet's
+ * self-validating sub-blob (dp_state.h). `state_bytes` returning 0 is a
+ * refusal, and `refusal` says why (a static sentence). A table, not four
+ * arguments, because one is shared by every source of a kind (static
+ * storage: the synth keeps the pointer). See dp_wfm_synth_set_refill_state().
+ */
+typedef struct {
+    size_t (*state_bytes)(const void *user);
+    void (*get_state)(const void *user, void *blob);
+    int (*set_state)(void *user, const void *blob);
+    const char *(*refusal)(const void *user);
+} wfm_synth_refill_state_t;
+
 typedef struct {
     int wtype;
     int nsps;
@@ -205,6 +222,9 @@ typedef struct {
     wfm_synth_refill_fn refill;
     void *refill_user;
     void (*refill_free)(void *);
+    /* The refill's state triplet (dp_wfm_synth_set_refill_state); NULL: a
+       refill with none, which refuses serialization. */
+    const wfm_synth_refill_state_t *refill_state;
     uint8_t data_ended;
 } dp_wfm_synth_state_t;
 
@@ -578,10 +598,12 @@ int dp_wfm_synth_set_bits(dp_wfm_synth_state_t *state, const uint8_t *bits, size
  * writing the next `n` bits, and the chips are silent once it reports the
  * end.
  *
- * A synth with a refill attached REFUSES serialization --
- * dp_wfm_synth_state_bytes() returns 0 and dp_wfm_synth_set_state() is
- * DP_ERR_INVALID -- because the pulled frame and the source's position are
- * state it cannot yet carry (doppler#1681).
+ * A refill attached here has no state of its own, so the synth REFUSES
+ * serialization -- dp_wfm_synth_state_bytes() returns 0 and
+ * dp_wfm_synth_set_state() is DP_ERR_INVALID -- until the source's
+ * triplet is attached with dp_wfm_synth_set_refill_state(): the pulled
+ * frame and the source's position are state, and a blob without them
+ * would resume the wrong data. dp_wfm_synth_state_refusal() says why.
  *
  * @param state      a type=bits synth with a pattern set, a type=dsss
  *                   burst with its chips set, or a continuous one whose
@@ -627,6 +649,30 @@ int dp_wfm_synth_set_bits(dp_wfm_synth_state_t *state, const uint8_t *bits, size
  */
 int dp_wfm_synth_set_refill(dp_wfm_synth_state_t *state, wfm_synth_refill_fn fn,
                          void *user, void (*free_user)(void *));
+
+/**
+ * @brief Give the attached refill its state triplet, so the synth serializes.
+ *
+ * The blob then carries the frame in play (`bits`, which a refill rewrites
+ * and so is state, not config) and nests @p ops' sub-blob over the
+ * refill's `user`. A later dp_wfm_synth_set_refill() -- any attach or
+ * detach -- drops @p ops with the refill it belonged to.
+ *
+ * @param state  a synth with a refill attached.
+ * @param ops    the triplet, in static storage; NULL takes it away.
+ * @return 0, or -1 when no refill is attached.
+ */
+int dp_wfm_synth_set_refill_state(dp_wfm_synth_state_t *state,
+                                  const wfm_synth_refill_state_t *ops);
+
+/**
+ * @brief Why the synth's state cannot be serialized, or NULL when it can.
+ *
+ * A refill with no triplet (dp_wfm_synth_set_refill_state()), or a source
+ * whose triplet refuses -- a pipe, whose delivered octets are gone. The
+ * reason is static, as every refusal's is.
+ */
+const char *dp_wfm_synth_state_refusal(const dp_wfm_synth_state_t *state);
 
 /** @brief Non-zero once an attached frame source has reported its end. */
 int dp_wfm_synth_data_ended(const dp_wfm_synth_state_t *state);
@@ -1109,9 +1155,13 @@ void dp_wfm_synth_set_cur_im(dp_wfm_synth_state_t *state, float val);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * composition of optional fir/lo/awgn/pn children (presence-flagged) +
- * running waveform-position scalars; bits/config restored by create. */
+ * running waveform-position scalars + the data-ended latch; a pattern's
+ * bits are config restored by create, but a PULLED frame is state: with a
+ * refill the blob carries it and nests the refill's own sub-blob. */
 #define WFM_SYNTH_STATE_MAGIC DP_FOURCC ('W','F','M','S')
-#define WFM_SYNTH_STATE_VERSION 2u /* v2: + continuous-DSSS chip/symbol clocks */
+/* v2: + continuous-DSSS chip/symbol clocks; v3: + data_ended, the pulled
+   frame and the refill's sub-blob (doppler#1681) */
+#define WFM_SYNTH_STATE_VERSION 3u
 size_t dp_wfm_synth_state_bytes (const dp_wfm_synth_state_t *state);
 void dp_wfm_synth_get_state (const dp_wfm_synth_state_t *state, void *blob);
 int dp_wfm_synth_set_state (dp_wfm_synth_state_t *state, const void *blob);

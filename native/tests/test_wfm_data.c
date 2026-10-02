@@ -10,6 +10,7 @@
 #include "doppler/dp_hash64.h"
 #include "doppler/wfm/wfm_data.h"
 #include "doppler/wfm/wfm_frame.h"
+#include "dp_state_test.h"
 #include "dp_test.h"
 
 #include <stdio.h>
@@ -440,6 +441,190 @@ test_from_a_sequence (void)
   return 0;
 }
 
+/* ── state: a finite source and pn:0 resume bit for bit; a pipe refuses ── */
+
+/* Run @p a to its end (or @p cap frames), recording every frame and the
+   stats; @p b likewise; then compare. The frames are the observable a
+   receiver sees, the stats the record's truth. */
+static int
+same_tail (wfm_data_src_t *a, wfm_data_src_t *b, size_t len, size_t cap)
+{
+  uint8_t x[256], y[256];
+  DP_REQUIRE (len <= sizeof x);
+  for (size_t f = 0; f < cap; f++)
+    {
+      const wfm_data_status_t sa = dp_wfm_data_next (a, 1, x, len, -1);
+      const wfm_data_status_t sb = dp_wfm_data_next (b, 1, y, len, -1);
+      DP_CHECK_MSG (sa == sb, "the same outcome, frame for frame");
+      if (sa != WFM_DATA_FRAME)
+        break;
+      DP_CHECK_MSG (memcmp (x, y, len) == 0, "the same frame, bit for bit");
+    }
+  wfm_data_stats_t s1, s2;
+  dp_wfm_data_stats (a, &s1);
+  dp_wfm_data_stats (b, &s2);
+  DP_CHECK_MSG (memcmp (&s1, &s2, sizeof s1) == 0,
+                "and the same stats: frames, idle, pad, bits, hash");
+  return 0;
+}
+
+/* A finite Field with a fill, split before every frame including the
+   padded last and after the end: the round trip (determinism, fidelity,
+   envelope reject) and then the rest of the run, bit for bit. */
+static int
+test_state_field (void)
+{
+  /* 20 bits in 8-bit frames: two full, the third 4 bits + 4 of fill. */
+  for (size_t k = 0; k <= 4; k++)
+    {
+      wfm_data_src_t *a = dp_wfm_data_create ("0xABCDE", NULL, 8, "10", &why);
+      wfm_data_src_t *b = dp_wfm_data_create ("0xABCDE", NULL, 8, "10", &why);
+      DP_REQUIRE_MSG (a && b, why);
+      uint8_t x[8];
+      DP_REQUIRE (dp_wfm_data_idle (a, 1, x, sizeof x) == WFM_DATA_FRAME);
+      for (size_t f = 0; f < k; f++)
+        (void)dp_wfm_data_next (a, 1, x, sizeof x, -1);
+      DP_CHECK_MSG (dp_wfm_data_state_refusal (a) == NULL,
+                    "a Field serializes");
+      DP_STATE_ROUNDTRIP_TEST (dp_wfm_data, a, b);
+      if (same_tail (a, b, 8, 8))
+        return 1;
+      dp_wfm_data_destroy (a);
+      dp_wfm_data_destroy (b);
+    }
+
+  /* Another source's blob is refused, not reinterpreted: a Field of
+     another length (same LEN, so the same blob size), and pn:0. */
+  wfm_data_src_t *a = dp_wfm_data_create ("0xABCDE", NULL, 8, "10", &why);
+  wfm_data_src_t *o = dp_wfm_data_create ("0xABC", NULL, 8, "10", &why);
+  wfm_data_src_t *p = dp_wfm_data_create ("pn:0:9", NULL, 8, NULL, &why);
+  DP_REQUIRE_MSG (a && o && p, why);
+  uint8_t blob[512];
+  DP_REQUIRE (dp_wfm_data_state_bytes (a) <= sizeof blob
+              && dp_wfm_data_state_bytes (a) == dp_wfm_data_state_bytes (o));
+  dp_wfm_data_get_state (a, blob);
+  DP_CHECK_MSG (dp_wfm_data_set_state (o, blob) == DP_ERR_INVALID,
+                "a Field of another length refuses the blob");
+  DP_CHECK_MSG (dp_wfm_data_set_state (p, blob) == DP_ERR_INVALID,
+                "and so does another kind");
+  dp_wfm_data_destroy (a);
+  dp_wfm_data_destroy (o);
+  dp_wfm_data_destroy (p);
+  return 0;
+}
+
+/* pn:0 is a stream that resumes: its next bit is its register's. */
+static int
+test_state_pn (void)
+{
+  wfm_data_src_t *a = dp_wfm_data_create ("pn:0:9:0x7", NULL, 50, NULL, &why);
+  wfm_data_src_t *b = dp_wfm_data_create ("pn:0:9:0x7", NULL, 50, NULL, &why);
+  DP_REQUIRE_MSG (a && b, why);
+  uint8_t x[50];
+  for (size_t f = 0; f < 3; f++)
+    (void)dp_wfm_data_next (a, 1, x, sizeof x, -1);
+  DP_STATE_ROUNDTRIP_TEST (dp_wfm_data, a, b);
+  if (same_tail (a, b, 50, 20))
+    return 1;
+  dp_wfm_data_destroy (a);
+  dp_wfm_data_destroy (b);
+  return 0;
+}
+
+/* A regular file: 37 octets in 12-bit frames, so octets straddle frames
+   and a split leaves a residue. Every split point resumes, the running
+   hash with it; a file that changed under the blob is refused. */
+static int
+test_state_file (void)
+{
+  uint8_t oct[37];
+  for (size_t i = 0; i < sizeof oct; i++)
+    oct[i] = (uint8_t)(i * 53u + 7u);
+  char path[512];
+  DP_REQUIRE (temp_file (oct, sizeof oct, path, sizeof path) == 0);
+  for (size_t k = 0; k <= 26; k++) /* 296 bits: 25 frames, the last padded */
+    {
+      wfm_data_src_t *a = dp_wfm_data_create (NULL, path, 12, "0", &why);
+      wfm_data_src_t *b = dp_wfm_data_create (NULL, path, 12, "0", &why);
+      DP_REQUIRE_MSG (a && b, why);
+      uint8_t x[12];
+      for (size_t f = 0; f < k; f++)
+        (void)dp_wfm_data_next (a, 1, x, sizeof x, -1);
+      DP_STATE_ROUNDTRIP_TEST (dp_wfm_data, a, b);
+      if (same_tail (a, b, 12, 40))
+        return 1;
+      wfm_data_stats_t st;
+      dp_wfm_data_stats (b, &st);
+      DP_CHECK_MSG (st.frames == 25 && st.pad_bits == 4
+                        && st.hash
+                               == dp_hash64 (DP_HASH64_INIT, oct, sizeof oct),
+                    "the resumed run counts every frame and hashes the "
+                    "whole file, as one unbroken run would");
+      dp_wfm_data_destroy (a);
+      dp_wfm_data_destroy (b);
+    }
+
+  /* A checkpoint 10 frames in, then the file changes in its prefix. */
+  wfm_data_src_t *a = dp_wfm_data_create (NULL, path, 12, "0", &why);
+  DP_REQUIRE_MSG (a != NULL, why);
+  uint8_t x[12], blob[512];
+  for (size_t f = 0; f < 10; f++)
+    (void)dp_wfm_data_next (a, 1, x, sizeof x, -1);
+  DP_REQUIRE (dp_wfm_data_state_bytes (a) <= sizeof blob);
+  dp_wfm_data_get_state (a, blob);
+  dp_wfm_data_destroy (a);
+  oct[3] ^= 0x10u;
+  unlink (path);
+  DP_REQUIRE (temp_file (oct, sizeof oct, path, sizeof path) == 0);
+  wfm_data_src_t *c = dp_wfm_data_create (NULL, path, 12, "0", &why);
+  DP_REQUIRE_MSG (c != NULL, why);
+  DP_CHECK_MSG (dp_wfm_data_set_state (c, blob) == DP_ERR_INVALID,
+                "a prefix whose hash differs is refused, never resumed "
+                "into different data");
+  uint8_t want[296];
+  unpack (oct, sizeof oct, want);
+  DP_REQUIRE (dp_wfm_data_next (c, 1, x, sizeof x, -1) == WFM_DATA_FRAME);
+  DP_CHECK_MSG (memcmp (x, want, 12) == 0,
+                "and nothing changed: the source still starts at the top");
+  dp_wfm_data_destroy (c);
+  unlink (path);
+  return 0;
+}
+
+/* A pipe refuses at both ends, with a static reason. */
+static int
+test_state_pipe (void)
+{
+  int p[2];
+  DP_REQUIRE (pipe (p) == 0);
+  DP_REQUIRE (write (p[1], (const uint8_t[]){ 0xC3, 0x5A }, 2) == 2);
+  wfm_data_src_t *s = dp_wfm_data_create_fd (p[0], 8, "0", &why);
+  DP_REQUIRE_MSG (s != NULL, why);
+  uint8_t x[8];
+  DP_REQUIRE (dp_wfm_data_next (s, 1, x, sizeof x, -1) == WFM_DATA_FRAME);
+  const char *r = dp_wfm_data_state_refusal (s);
+  DP_CHECK_MSG (r && strstr (r, "pipe"), "a pipe says why it refuses");
+  DP_CHECK_MSG (dp_wfm_data_state_bytes (s) == 0,
+                "refused at the checkpoint: no blob to take");
+  uint8_t blob[512];
+  memset (blob, 0xA5, sizeof blob);
+  dp_wfm_data_get_state (s, blob);
+  DP_CHECK_MSG (blob[0] == 0xA5 && blob[sizeof blob - 1] == 0xA5,
+                "get_state writes nothing");
+
+  /* A well-formed blob of the same LEN from a Field is refused too. */
+  wfm_data_src_t *f = dp_wfm_data_create ("0xAB", NULL, 8, NULL, &why);
+  DP_REQUIRE_MSG (f != NULL, why);
+  dp_wfm_data_get_state (f, blob);
+  DP_CHECK_MSG (dp_wfm_data_set_state (s, blob) == DP_ERR_INVALID,
+                "and at the restore");
+  dp_wfm_data_destroy (f);
+  close (p[1]);
+  dp_wfm_data_destroy (s);
+  close (p[0]);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -460,6 +645,14 @@ main (void)
   if (test_refusals ())
     return 1;
   if (test_from_a_sequence ())
+    return 1;
+  if (test_state_field ())
+    return 1;
+  if (test_state_pn ())
+    return 1;
+  if (test_state_file ())
+    return 1;
+  if (test_state_pipe ())
     return 1;
   DP_TEST_END ("wfm_data");
 }

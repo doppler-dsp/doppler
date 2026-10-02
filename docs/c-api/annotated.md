@@ -167,4 +167,5 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**wfm\_stage\_t**](structwfm__stage__t.md) _One transform, and — the whole point — the fields it covers._     
 * **struct** [**wfm\_surface\_exclusive\_t**](structwfm__surface__exclusive__t.md)     
 * **struct** [**wfm\_surface\_row\_t**](structwfm__surface__row__t.md)     
+* **struct** [**wfm\_synth\_refill\_state\_t**](structwfm__synth__refill__state__t.md) _A frame source's own state triplet, over its_ `user` _pointer._    
 

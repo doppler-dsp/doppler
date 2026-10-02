@@ -38,8 +38,7 @@ A user of that bank who wants the burst has two routes, and both are bad.
     [§3.2](dsss-burst-receiver.md) makes getting it wrong a **cliff**: a
     window one period out decodes at half the payload in error, which is
     noise, not degradation.
-- **Sweep acquisition in `reset()`-per-dwell dwells**, as
-    `src/doppler/examples/dsss_burst_pipeline_demo.py` does. That makes
+- **Sweep acquisition in `reset()`-per-dwell dwells.** That makes
     `pos + code_phase` a real position, so refine is not needed — paid for
     with `PRE_LEN/ACQ_HOP` overlapping FFT dwells over the whole stream, two
     window constants nothing derives, a hand-rolled cluster-and-keep-strongest

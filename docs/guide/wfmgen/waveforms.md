@@ -673,19 +673,28 @@ across block boundaries, every frame checked — is the
 
 The JSON scene carries the same keys (codes as Field strings, ranges as
 pairs, `"repeats": 5`; `"gap_noise"`/`"delay_samples"` only when
-non-default), and the CLI single-segment face is:
+non-default), and on the command line a train of the same shape is one
+command. Here every run of bits is a [Field](fields.md) rather than the
+random arrays above:
 
 ```sh
 wfmgen --type dsss --fs 4e6 --sps 4 --seed 1 --snr 10 --snr-mode esno \
-       --acq-code '0x<hexA>*4' --data-code 0x<hexB> \
-       --sync 1111100110101 --data 0x<payload-hex> \
+       --acq-code 'pn:127:7*4' --data-code pn:31:5 \
+       --sync 1111100110101 --data pn:200:9 \
        --delay 2000:10000 --off 4000:12000 --repeats 5 \
        --record train.json -o train.cf32
+
+# the record is the resolved scene, and it replays byte for byte
+wfmgen --from-file train.json -o replay.cf32
+cmp train.cf32 replay.cf32 && echo byte-identical
 ```
 
-All three faces render byte-identically; `--record` emits the resolved scene
-for a byte-exact `--from-file` replay, and `--file-type sigmf` writes the
-annotated sidecar.
+`--file-type sigmf` writes the annotated sidecar. The three faces render
+byte-identically, and the
+[DsssBurstReceiver walkthrough](../../gallery/dsss-burst-receiver.md#one-description-three-faces-one-capture)
+asserts it on a train sent from a frame description: the command line, a
+scene and Python objects, then decoded and checked against that
+description.
 
 ______________________________________________________________________
 
@@ -1095,6 +1104,10 @@ receiver correlates raw chips against:
 wfmgen --type dsss --acq-code '1101100*4' --data-code 10110 \
        --frame spread.json --sps 2 -o dsss.cf32
 ```
+
+A train sent from a description on all three faces, decoded by
+`DsssBurstReceiver` and checked against the same description, is the
+[DsssBurstReceiver walkthrough](../../gallery/dsss-burst-receiver.md).
 
 Everything else `type="dsss"` means — the second code, the chip clock, the
 Es/N0 that refers to the outer data symbol — is in

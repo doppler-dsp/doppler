@@ -20,10 +20,9 @@ scalar:
 Source:
 [`src/doppler/snr/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/snr/__init__.py)
 
-See the
-[5-Burst DSSS Link gallery page](../gallery/dsss-burst-pipeline.md#esn0-db-not-snr_est-now-a-standalone-dopplersnr-module)
-for both estimators used against a real despread burst, including the
-`_series` sliding-window plot.
+The blind estimator, `snr_m2m4_db`, is used against real receiver output in the
+[M-PSK Receiver](../gallery/mpsk-receiver.md) and
+[Async DSSS Receiver](../gallery/async-dsss-receiver-spec.md) gallery pages.
 
 ```pycon
 >>> import numpy as np
@@ -69,7 +68,7 @@ ______________________________________________________________________
 
 <!-- related-pages:start -->
 
-**Gallery** — [Async DSSS Receiver: the SPEC waveform through coupled Doppler](../gallery/async-dsss-receiver-spec.md), [A 5-Burst DSSS Link — wfmgen's Three Faces, the Full Receiver Chain](../gallery/dsss-burst-pipeline.md), [M-PSK Receiver — Pull-in, Lock, and BER](../gallery/mpsk-receiver.md)
+**Gallery** — [Async DSSS Receiver: the SPEC waveform through coupled Doppler](../gallery/async-dsss-receiver-spec.md), [M-PSK Receiver — Pull-in, Lock, and BER](../gallery/mpsk-receiver.md)
 **Design** — [Receiver Test Harness](../design/rx-test.md)
 
 <!-- related-pages:end -->

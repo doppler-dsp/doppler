@@ -167,7 +167,6 @@ nav:
           - "Lock Detection: Verify Counts": gallery/lockdet.md
           - 2-D Acquisition: gallery/detection2d.md
           - "DSSS Acquisition: Pd/Pfa": gallery/dsss-acq-characterization.md
-          - 5-Burst DSSS Link (wfmgen's 3 Faces): gallery/dsss-burst-pipeline.md
           - Streaming Async Despreader: gallery/async-despread.md
           - Full-Chain Lock-Up: gallery/receiver-lock.md
           - DsssReceiver (Composed Object): gallery/dsss-receiver.md

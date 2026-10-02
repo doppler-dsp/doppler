@@ -214,6 +214,9 @@ main (void)
   src.snr_mode     = WFM_SNR_ESNO;
   src.seed         = SEED;
   src.frame        = &d; /* borrowed; the description outlives compose */
+  /* No on-time on the segments below: a carried frame of fixed bits sets
+     its own length -- BURST_ON, one frame -- so `num_samples` stays 0
+     (derive), and a count beside it is refused (doppler#1729). */
 
   /* The naive shape: one segment per burst. It works, and it is sixty copies
      of one fact — change the gap and you change it sixty times. */
@@ -228,7 +231,6 @@ main (void)
       many[i].sources       = &src;
       many[i].n_sources     = 1u;
       many[i].fs            = FS;
-      many[i].num_samples   = BURST_ON;
       many[i].off_samples   = BURST_OFF;
       many[i].delay_samples = DELAY_SAMPLES;
     }
@@ -246,7 +248,6 @@ main (void)
   one.sources       = &src;
   one.n_sources     = 1u;
   one.fs            = FS;
-  one.num_samples   = BURST_ON;
   one.off_samples   = BURST_OFF;
   one.delay_samples = DELAY_SAMPLES;
   one.repeats       = N_BURSTS;

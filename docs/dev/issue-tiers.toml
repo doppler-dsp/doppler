@@ -884,7 +884,7 @@ why = "The Docker image re-resolves the jm pin against PyPI instead of the locke
 
 [issue.1617]
 tier = 5
-title = "wfm: move sync/crc/payload off wfm_source_t (#853 item 11 remainder)"
+title = "wfm: move sync/crc off wfm_source_t (#853 item 11 remainder)"
 status = "open"
 why = "Convergence for #853: sync/crc/payload still on wfm_source_t beside the frame= field"
 
@@ -1026,12 +1026,6 @@ title = "wfm: a scene drops \"crc\" beside \"frame\" silently; the CLI refuses -
 status = "open"
 why = "A scene with crc beside frame is accepted and the crc dropped, while the CLI refuses the same pair"
 
-[issue.1717]
-tier = 4
-title = "wfm: pn:0 (a seeded data stream) on the text faces"
-status = "open"
-why = "The C data source takes pn:0 as an endless seeded stream and no text face can say it"
-
 [issue.1722]
 tier = 4
 title = "wfm: Plan's refusals carry no reason (const char **why, #1686)"
@@ -1075,4 +1069,24 @@ status = "open"
 [issue.1772]
 tier = 1
 title = "release-freshness-check: one changed asset passes every changed gallery script"
+status = "open"
+
+[issue.1774]
+tier = 5
+title = "ber.FrameMeter takes Frame.check()'s result, not a bare CRC outcome"
+status = "open"
+
+[issue.1775]
+tier = 2
+title = "wfm_frame: decide bounded vs unbounded field list and contiguous vs bitmask cover"
+status = "open"
+
+[issue.1776]
+tier = 4
+title = "wfm: the composer has no state triplet"
+status = "open"
+
+[issue.1777]
+tier = 2
+title = "Certify wfm_data and dp_hash64 in the Validation Log"
 status = "open"

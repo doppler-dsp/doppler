@@ -45,6 +45,7 @@ _One additive source within a segment: a_ `synth` _config + its level._[More...]
 |  [**wfm\_seq\_t**](structwfm__seq__t.md) | [**data\_code**](#variable-data_code)  <br> |
 |  const char \* | [**data\_from\_file**](#variable-data_from_file)  <br> |
 |  size\_t | [**data\_len**](#variable-data_len)  <br> |
+|  [**wfm\_data\_stats\_t**](structwfm__data__stats__t.md) | [**data\_sent**](#variable-data_sent)  <br> |
 |  double | [**doppler**](#variable-doppler)  <br> |
 |  double | [**doppler\_hi**](#variable-doppler_hi)  <br> |
 |  int | [**doppler\_lifetime**](#variable-doppler_lifetime)  <br> |
@@ -246,6 +247,19 @@ const char* wfm_source_t::data_from_file;
 
 ```C++
 size_t wfm_source_t::data_len;
+```
+
+
+
+
+<hr>
+
+
+
+### variable data\_sent 
+
+```C++
+wfm_data_stats_t wfm_source_t::data_sent;
 ```
 
 

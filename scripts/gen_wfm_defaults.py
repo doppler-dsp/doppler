@@ -749,8 +749,8 @@ def row_schema(r: dict, doc: str) -> dict:
 #: The schema keys their owner writes by hand, per object: every OTHER key
 #: on these objects is a surface row's, generated -- and removed with it.
 HAND_OWNED = {
-    "source": {"symbols", "crc"},
-    "inline_segment": {"symbols", "crc"},
+    "source": {"symbols", "crc", "data_sent"},
+    "inline_segment": {"symbols", "crc", "data_sent"},
     "sum_segment": {"sum"},
 }
 

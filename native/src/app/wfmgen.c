@@ -363,11 +363,17 @@ static const char USAGE[]
       "  --detached      BLUE detached header: the HCB to <out>.hdr and the\n"
       "                  data to <out>.det, instead of one file. Needs\n"
       "                  --file-type blue, --output, and a finite run.\n"
-      "  --record FILE   Write a JSON record of the resolved run to FILE\n"
+      "  --record FILE   Write a JSON record of the resolved run to FILE;\n"
+      "                  a data source's \"data_sent\" (frames, idle\n"
+      "                  frames, fill, and a file's or stdin's hash) is\n"
+      "                  written once the run ends\n"
       "\n"
       "COMPOSITION\n"
       "  --from-file F   Load a multi-segment JSON scene (overrides signal"
-      " flags)\n"
+      " flags).\n"
+      "                  A recorded data file whose hash differs is refused;\n"
+      "                  a record of stdin replays only with\n"
+      "                  --data-from-file FILE given again\n"
       "  --repeat        Loop the spec indefinitely\n"
       "  --continuous    Stream continuously (no defined end)\n"
       "  --seed-advance A  none | noise | all (default none): how the seed "
@@ -1189,8 +1195,14 @@ emit_detached_blue (const emit_ctx_t *e)
 static void
 write_sigmf_meta (const emit_ctx_t *e)
 {
+  /* Borrowed again rather than from e->segs: borrowing brings each data
+     source's truth up to date (wfm_source_t.data_sent), and this runs at
+     close, after the run, so the idle count is final (section 4.8). */
+  size_t               n = 0;
+  const wfm_segment_t *segs
+      = dp_wfm_compose_segments (e->comp, &n, NULL, NULL);
   char *meta = dp_wfm_sigmf_meta_json (e->o->sample_type, e->o->endian, e->fs,
-                                       e->o->fc, 0.0, e->segs, e->n_segs);
+                                       e->o->fc, 0.0, segs, n);
   if (!meta)
     return;
   char  meta_path[1024];
@@ -1285,11 +1297,20 @@ emit_to_file (const emit_ctx_t *e)
 }
 
 /* The --record sidecar: the fully-resolved run, as the JSON that --from-file
- * reads back. Best-effort, like the SigMF sidecar. */
+ * reads back. Best-effort, like the SigMF sidecar.
+ *
+ * Written twice: before the run, so a run that never ends (--continuous,
+ * killed) still leaves its scene, and again after it, when each data
+ * source's "data_sent" -- the frames, idle frames and fill it sent, and a
+ * file's or stdin's hash -- is known. The segments are borrowed again each
+ * time, which is what brings that truth up to date. */
 static void
 write_record (const emit_ctx_t *e, int repeating)
 {
-  char *json = dp_wfm_spec_to_json (e->segs, e->n_segs, repeating, e->endless,
+  size_t               n = 0;
+  const wfm_segment_t *segs
+      = dp_wfm_compose_segments (e->comp, &n, NULL, NULL);
+  char *json = dp_wfm_spec_to_json (segs, n, repeating, e->endless,
                                     dp_wfm_compose_seed_advance (e->comp),
                                     e->o->headroom);
   if (!json)
@@ -1573,9 +1594,8 @@ dir_of (const char *path)
  * common case -- the path is kept as typed, so a record stays portable.
  * Returns a malloc'd absolute path to use instead, or NULL to keep it. */
 static char *
-data_path_for_record (const wfmgen_opts_t *o)
+data_path_for_record (const wfmgen_opts_t *o, const char *p)
 {
-  const char *p = o->src.data_from_file;
   if (!p || !o->record_path || p[0] == '/' || strcmp (p, "-") == 0)
     return NULL;
   char     *rdir = dir_of (o->record_path);
@@ -1694,15 +1714,6 @@ wfmgen_run (int argc, char *argv[])
   if (rc)
     goto done;
 
-  if (o.surf_text[WFM_SURFACE_source_data_from_file] && o.from_file)
-    {
-      (void)fprintf (stderr, "error: --data-from-file names the data of a "
-                             "run built from flags; a --from-file scene "
-                             "carries its own, as a source's "
-                             "\"data_from_file\"\n");
-      rc = 2;
-      goto done;
-    }
   if (FRAME_PATH (&o) && o.from_file)
     {
       (void)fprintf (stderr, "error: --frame describes the frame of a run "
@@ -1728,9 +1739,17 @@ wfmgen_run (int argc, char *argv[])
       /* A refused FRAME is the one spec failure with a sentence behind it,
          so it exits here rather than falling through to the generic line
          below — two messages for one fault reads as two faults. */
+      /* --data-from-file beside --from-file is the file a record of a
+         stdin run is replayed from (section 4.8): the reader checks it
+         against the record's hash, and refuses it for a scene that carries
+         its own data. Made absolute when the new record lands elsewhere,
+         as for a run built from flags. */
+      const char *df   = o.surf_text[WFM_SURFACE_source_data_from_file];
+      data_abs         = df ? data_path_for_record (&o, df) : NULL;
       const char *why  = NULL;
       char       *sdir = dir_of (o.from_file);
-      comp             = dp_wfm_compose_from_json_at (spec, sdir, &why);
+      comp = dp_wfm_compose_from_json_data (spec, sdir,
+                                            data_abs ? data_abs : df, &why);
       free (sdir);
       if (!comp && why)
         {
@@ -1751,7 +1770,7 @@ wfmgen_run (int argc, char *argv[])
       /* The surface-only --data-from-file row: its text is the path, read
          by the data source when the synth is built (wfm/wfm_data.h). */
       o.src.data_from_file = o.surf_text[WFM_SURFACE_source_data_from_file];
-      data_abs             = data_path_for_record (&o);
+      data_abs             = data_path_for_record (&o, o.src.data_from_file);
       if (data_abs)
         o.src.data_from_file = data_abs;
       rc = check_continuous_dsss (&o);
@@ -1823,6 +1842,10 @@ wfmgen_run (int argc, char *argv[])
     rc = emit_detached_blue (&e);
   else
     rc = emit_to_file (&e);
+
+  /* Again, now the run's truth is known (write_record). */
+  if (o.record_path)
+    write_record (&e, r);
 
   if (o.realtime && clk.underruns)
     (void)fprintf (

@@ -81,6 +81,9 @@ extern "C"
 
   void dp_wfm_data_stats (const wfm_data_src_t *s, wfm_data_stats_t *out);
 
+  int dp_wfm_data_file_identity (const char *path, uint64_t *bits,
+                                 uint64_t *h);
+
 #define WFM_DATA_STATE_MAGIC DP_FOURCC ('W', 'F', 'D', 'S')
 #define WFM_DATA_STATE_VERSION 1u
 

@@ -661,6 +661,41 @@ main (void)
     free (jb);
   }
 
+  /* ── the truth for scoring: what a data source sent (section 4.8) ── */
+  {
+    wfm_source_t  framed = { .type = WFM_SYNTH_BITS, .sps = 1 };
+    wfm_segment_t sf
+        = { .sources = &framed, .n_sources = 1, .fs = 1e6, .num_samples = 72 };
+    char *j0 = dp_wfm_sigmf_meta_json (0, 0, 1e6, 0, 0.0, &sf, 1);
+    DP_REQUIRE_MSG (j0 && !strstr (j0, "wfmgen:frames")
+                        && !strstr (j0, "wfmgen:idle_frames"),
+                    "a source that sent nothing writes no truth");
+    free (j0);
+    framed.data_sent
+        = (wfm_data_stats_t){ .frames      = 3,
+                              .idle_frames = 176,
+                              .pad_bits    = 4,
+                              .bits        = 44,
+                              .hash        = UINT64_C (0x85944171f73967e8),
+                              .hashed      = 1 };
+    char *j1 = dp_wfm_sigmf_meta_json (0, 0, 1e6, 0, 0.0, &sf, 1);
+    DP_REQUIRE_MSG (
+        j1 && strstr (j1, "\"wfmgen:frames\":3")
+            && strstr (j1, "\"wfmgen:idle_frames\":176")
+            && strstr (j1, "\"wfmgen:pad_bits\":4")
+            && strstr (j1, "\"wfmgen:data_bits\":44")
+            && strstr (j1, "\"wfmgen:data_hash\":\"0x85944171f73967e8\""),
+        "a source that sent frames annotates the frames, idle "
+        "frames, fill and the bits read, with their hash");
+    free (j1);
+    framed.data_sent.hashed = 0; /* a Field: no octets were read */
+    char *j2 = dp_wfm_sigmf_meta_json (0, 0, 1e6, 0, 0.0, &sf, 1);
+    DP_REQUIRE_MSG (j2 && strstr (j2, "\"wfmgen:frames\":3")
+                        && !strstr (j2, "wfmgen:data_hash"),
+                    "a Field's truth carries no hash");
+    free (j2);
+  }
+
   /* ── clip detection: peak (always) + opt-in fraction ── */
   {
     /* s0: |re|=1.5 clips, |im|=0.5 ok; s1: |re|=0.5 ok, |im|=2.0 clips.

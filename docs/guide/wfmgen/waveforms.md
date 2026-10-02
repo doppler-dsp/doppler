@@ -96,7 +96,7 @@ seeded PRBS, as it always has.
 | flag (scene key)                             | what it is                                                                           |
 | -------------------------------------------- | ------------------------------------------------------------------------------------ |
 | `--data FIELD` (`"data"`)                    | the source's bits, as a [Field](fields.md): `0x…`, `0101`, or a finite `pn:`/`gold:` |
-| `--data-from-file PATH` (`"data_from_file"`) | a file of packed octets, MSB first; `-` is stdin (the command line only)             |
+| `--data-from-file PATH` (`"data_from_file"`) | a file of packed octets, MSB first; `-` is stdin (the command line, and its record)  |
 | `--data-len BITS` (`"data_len"`)             | bits per frame; `0` takes a finite source whole, as one frame                        |
 | `--fill FIELD` (`"fill"`)                    | pads the last frame when the data does not divide into frames, and an idle frame     |
 
@@ -110,9 +110,77 @@ table in [`wfm/wfm_data.h`](../../c-api/wfm__data_8h.md), the one home of it.
     naming the fix.
 - **stdin is a stream**: it always needs `--fill`, ends the run on the frame
     boundary where the input ends, and cannot be repeated (`--repeat`,
-    `--repeats`, `--continuous`) or used in a scene. Under `--realtime`, a pause
-    in the input sends **idle frames** -- all fill -- so the carrier and the
-    frame timing never break.
+    `--repeats`, `--continuous`) or written into a scene by hand. Under
+    `--realtime`, a pause in the input sends **idle frames**, so the carrier
+    and the frame timing never break.
+
+**An idle frame is defined by the fill.** It is a data frame whose data
+field is the declared `--fill` Field, tiled from its first bit across
+`--data-len` bits, and it is framed exactly like any other frame: the same
+preamble, sync word or ASM, the CRC computed over it, and every coding stage
+of the frame description applied. Only the data field differs. A receiver
+recognises an idle frame by comparing its decoded data field with the fill.
+Bits that arrived before the pause wait for the next data frame, and are
+never mixed into an idle frame. Only a paced (`--realtime`) stream has idle
+frames: unpaced, the writer waits for the input, as `cat` does.
+
+### Recording and replaying a data source
+
+`--record` stores the data source as it was given: a `--data` Field inline,
+and a `--data-from-file` by its path. Once the run ends it adds
+`"data_sent"`, what the source sent, which is the truth for scoring:
+
+| key           | what it counts                                               |
+| ------------- | ------------------------------------------------------------ |
+| `frames`      | data frames sent, the padded last included                   |
+| `pad_bits`    | fill bits padding the last frame (0 when the data divides)   |
+| `idle_frames` | idle frames sent; only a paced stream has any                |
+| `bits`        | source bits read, fill excluded                              |
+| `hash`        | a file or stdin only: `dp_hash64` (FNV-1a 64) of octets read |
+
+The counts are per instance of the segment: a finite source sends the same
+frames in every instance, and a stream has only one. A SigMF capture
+carries the same truth on each annotation, as `wfmgen:frames`,
+`wfmgen:pad_bits`, `wfmgen:idle_frames`, `wfmgen:data_bits` and
+`wfmgen:data_hash`. Both are written when the run ends, so the idle count
+is final.
+
+A replay identifies a file by its **content**, not by its name. A path alone
+would replay whatever the file holds on the day, and a length alone misses
+an edit of the same size. So, before the first sample:
+
+- a recorded file whose length in bits or hash differs is **refused**, and
+    the error names the file, the record's hash and the file's;
+- a run read from stdin is recorded as `"data_from_file": "-"` with the hash
+    of what was read. Its octets are gone, so it replays only when
+    `--data-from-file FILE` is given again, naming a file that holds them,
+    which is checked the same way. `-` again is refused, because a pipe could
+    only be checked after it had been sent;
+- a `--data` Field replays from the record itself, and `pn:0` from its seed.
+
+```sh
+# Record a run from a file: the record names the file, its length in bits
+# and its hash, and what was sent. The replay sends the same samples.
+printf 'F7F7' > msg.bin
+wfmgen --type bpsk --data-from-file msg.bin --data-len 16 --sps 4 \
+       --record msg.json -o a.cf32
+wfmgen --from-file msg.json -o b.cf32
+
+# The same length, edited in place: the replay is refused before it writes
+# anything, naming the record's hash and the file's.
+printf 'F7F8' > msg.bin
+wfmgen --from-file msg.json -o c.cf32 || echo "refused, exit $?"
+
+# From stdin: recorded as "-", replayed from the file given again.
+printf 'F7F7' > msg.bin
+wfmgen --type bpsk --data-from-file - --data-len 16 --fill 0 --sps 4 \
+       --record piped.json -o d.cf32 < msg.bin
+wfmgen --from-file piped.json --data-from-file msg.bin -o e.cf32
+
+python3 -c "import filecmp as f; assert f.cmp('a.cf32', 'b.cf32', 0)"
+python3 -c "import filecmp as f; assert f.cmp('d.cf32', 'e.cf32', 0)"
+python3 -c "import os; assert not os.path.exists('c.cf32')"
+```
 
 ```sh
 # A message, three 16-bit frames, each with a CRC-16 over its own chunk.

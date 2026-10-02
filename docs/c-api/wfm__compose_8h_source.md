@@ -329,6 +329,15 @@ typedef struct {
                           source, so bits=, and its aliases payload= and
                           pattern=, are refused naming data=; the CLI and a
                           scene refuse --bits and "payload" the same way. */
+    wfm_data_stats_t data_sent; /* What this source's data sent in the
+                          composer's latest instance: its frames, the fill
+                          bits padding the last, its idle frames, the source
+                          bits read and, for data_from_file, the dp_hash64
+                          of the octets read. The truth --record and SigMF
+                          carry (payload-data-source.md section 4.8), kept
+                          by the composer, which clears it at create; zero
+                          until an instance has sent a frame. Not an input:
+                          no face sets it. */
 } wfm_source_t;
 
 typedef struct {
@@ -574,6 +583,11 @@ dp_wfm_compose_state_t *dp_wfm_compose_from_json_why(const char *json,
 dp_wfm_compose_state_t *dp_wfm_compose_from_json_at(const char *json,
                                                     const char *base,
                                                     const char **why);
+
+dp_wfm_compose_state_t *dp_wfm_compose_from_json_data(const char *json,
+                                                      const char *base,
+                                                      const char *data_file,
+                                                      const char **why);
 
 dp_wfm_compose_state_t *dp_wfm_compose_from_file(const char *path);
 

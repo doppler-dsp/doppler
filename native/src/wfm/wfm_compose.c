@@ -157,6 +157,9 @@ struct wfm_compose_state
   unsigned char    *stream;
 };
 
+/* Defined below struct wfm_render, whose members it reads. */
+static void keep_truth (const dp_wfm_compose_state_t *s);
+
 /* Destroy the active segment's renderers (the rend[] array stays allocated).
  * A PERSIST source's channel is BORROWED, so it survives this by construction
  * -- that is the whole point of the borrow: this teardown is exactly the
@@ -164,6 +167,7 @@ struct wfm_compose_state
 static void
 stop_synths (dp_wfm_compose_state_t *s)
 {
+  keep_truth (s);
   for (size_t k = 0; k < s->n_syn; k++)
     if (s->rend[k])
       {
@@ -269,6 +273,24 @@ struct wfm_render
   size_t          hold_n;  /* valid samples in hold            */
   size_t          hold_rd; /* how many of them are spent       */
 };
+
+/* Copy each live renderer's data-source counts onto its source in the
+ * composer's own segments: the truth --record and SigMF read from there
+ * (wfm_source_t.data_sent). Kept when an instance ends, and again whenever
+ * the segments are borrowed, so a run stopped mid-instance (a signal ending
+ * the drain) is recorded as far as it went. The segments are the
+ * composer's own allocation, so this writes through a const state. */
+static void
+keep_truth (const dp_wfm_compose_state_t *s)
+{
+  for (size_t k = 0; k < s->n_syn; k++)
+    {
+      const wfm_data_src_t *ds
+          = s->rend[k] ? dp_wfm_synth_data_source (s->rend[k]->syn) : NULL;
+      if (ds)
+        dp_wfm_data_stats (ds, &s->segs[s->cur].sources[k].data_sent);
+    }
+}
 
 /* Input block fed per refill. Not DOPPLER_CHANNEL_MAX_BLOCK: the holdover
  * buffer is sized from execute_max_out(), which assumes a FULL max block, so
@@ -756,6 +778,10 @@ dp_wfm_compose_create_why (const wfm_segment_t *segs, size_t n_segs,
         {
           s->segs[i].sources[k] = segs[i].sources[k]; /* scalar fields */
           copy_source_arrays (&s->segs[i].sources[k], &segs[i].sources[k]);
+          /* The truth is this composer's own run's: segments borrowed from
+             another composer after its run must not arrive with that
+             run's counts already in them. */
+          s->segs[i].sources[k].data_sent = (wfm_data_stats_t){ 0 };
         }
       /* Resolved on the private copy, so the caller's struct is untouched
          and every face resolves identically: a record emits the real span,
@@ -1030,6 +1056,7 @@ const wfm_segment_t *
 dp_wfm_compose_segments (const dp_wfm_compose_state_t *state, size_t *n_out,
                          int *repeat, int *continuous)
 {
+  keep_truth (state);
   if (n_out)
     *n_out = state->n_segs;
   if (repeat)

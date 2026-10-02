@@ -264,6 +264,7 @@
 * **data** ([**wfm\_source\_t**](structwfm__source__t.md))
 * **data\_from\_file** ([**wfm\_source\_t**](structwfm__source__t.md))
 * **data\_len** ([**wfm\_source\_t**](structwfm__source__t.md))
+* **data\_sent** ([**wfm\_source\_t**](structwfm__source__t.md))
 * **doppler\_hi** ([**wfm\_source\_t**](structwfm__source__t.md))
 * **doppler\_lifetime** ([**wfm\_source\_t**](structwfm__source__t.md))
 * **doppler\_rate\_hi** ([**wfm\_source\_t**](structwfm__source__t.md))

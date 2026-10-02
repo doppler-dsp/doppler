@@ -775,6 +775,28 @@ hash_prefix (int fd, uint64_t n, uint64_t *h)
   return 0;
 }
 
+int
+dp_wfm_data_file_identity (const char *path, uint64_t *bits, uint64_t *h)
+{
+  if (!path || strcmp (path, "-") == 0)
+    return -1;
+  const int fd = fd_open (path);
+  if (fd < 0)
+    return -1;
+  int                regular = 0;
+  unsigned long long bytes   = 0;
+  /* The same reader a restore checks its prefix with, over the whole file:
+     one way to hash a file, so the record and the checkpoint agree. */
+  const int rc = fd_stat (fd, &regular, &bytes) == 0 && regular
+                         && hash_prefix (fd, (uint64_t)bytes, h) == 0
+                     ? 0
+                     : -1;
+  fd_close (fd);
+  if (rc == 0 && bits)
+    *bits = (uint64_t)bytes * 8u;
+  return rc;
+}
+
 /* Put a file where a blob's position says, checking that its prefix is
    the one the blob read: 0, or -1 with the read position where it was. */
 static int

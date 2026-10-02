@@ -8,6 +8,7 @@
 #include "doppler/ccsds_tm/ccsds_tm.h"
 #include "doppler/ccsds_tm/ccsds_tm_frame.h"
 #include "doppler/dp_crc16.h"
+#include "doppler/dp_hash64.h"
 #include "doppler/dp_interleave.h"
 #include "doppler/gold/gold_core.h"
 #include "doppler/pn/pn_core.h"
@@ -1588,11 +1589,29 @@ test_a_data_stream_ends_the_run_on_a_frame (void)
   return 0;
 }
 
+/* The one frame a Field of @p len bits makes under @p tmpl's framing, as
+   bits into @p fr: what the data source sends for those bits. */
+static int
+frame_of (const wfm_source_t *tmpl, const uint8_t *bits, size_t len,
+          uint8_t *fr, size_t n)
+{
+  wfm_source_t f   = *tmpl;
+  f.data_from_file = NULL;
+  f.data = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = bits, .len = len };
+  wfm_segment_t           seg = { .sources = &f, .n_sources = 1, .fs = 1e6 };
+  dp_wfm_compose_state_t *c   = dp_wfm_compose_create (&seg, 1, 0, 0);
+  float complex           x[128];
+  const size_t got = c && n <= 128 ? dp_wfm_compose_execute (c, x, 128) : 0;
+  dp_wfm_compose_destroy (c);
+  return got == n ? as_bits (x, n, fr) : -1;
+}
+
 /* Paced AFTER create, as wfmgen paces it: create has already built the
    segment's synths, so the setter must reach them, or a pipe with nothing
    in it is waited on instead of sent as idle frames (doppler#1782). An idle
-   frame is the declared fill framed like any other: the sync, then the
-   data field all fill. */
+   frame is defined by the fill: a data frame whose data field is the
+   declared fill, framed like any other -- the same sync and a CRC computed
+   over it -- so it is pinned against the frame a Field of fill makes. */
 static int
 test_pacing_set_after_create_sends_idle_frames (void)
 {
@@ -1600,7 +1619,7 @@ test_pacing_set_after_create_sends_idle_frames (void)
   {
     SYNC = 8,
     LEN  = 16,
-    FR   = SYNC + LEN
+    FR   = SYNC + LEN + 16 /* the CRC-16 */
   };
   int p[2];
   DP_REQUIRE (t_pipe (p) == 0);
@@ -1616,9 +1635,16 @@ test_pacing_set_after_create_sends_idle_frames (void)
   static const uint8_t one[1]     = { 1 };
   static const uint8_t sync[SYNC] = { 1, 0, 1, 0, 0, 1, 0, 1 };
   wfm_source_t         src        = data_line ();
-  src.data_from_file              = "-";
+  src.crc                         = 1; /* crc16 */
   src.sync = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = sync, .len = SYNC };
   src.fill = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = one, .len = 1 };
+  uint8_t ones[LEN], want[48], idle_fr[FR], data_fr[FR];
+  memset (ones, 1, sizeof ones);
+  six_bits (want);
+  DP_REQUIRE (frame_of (&src, ones, LEN, idle_fr, FR) == 0);
+  DP_REQUIRE (frame_of (&src, want, LEN, data_fr, FR) == 0);
+
+  src.data_from_file          = "-";
   wfm_segment_t           seg = { .sources = &src, .n_sources = 1, .fs = 1e6 };
   dp_wfm_compose_state_t *c   = dp_wfm_compose_create (&seg, 1, 0, 0);
   DP_REQUIRE_MSG (c != NULL, "a stdin source composes");
@@ -1632,27 +1658,244 @@ test_pacing_set_after_create_sends_idle_frames (void)
                 "frames are due and three are sent");
   int idle = as_bits (out, 3 * FR, got) == 0;
   for (size_t f = 0; f < 3 && idle; f++)
-    {
-      idle = memcmp (got + f * FR, sync, SYNC) == 0;
-      for (size_t i = 0; i < LEN && idle; i++)
-        idle = got[f * FR + SYNC + i] == 1;
-    }
-  DP_CHECK_MSG (idle, "each is an idle frame: the sync, then the data "
-                      "field all fill");
+    idle = memcmp (got + f * FR, idle_fr, FR) == 0;
+  DP_CHECK_MSG (idle, "each is an idle frame: the frame a Field of fill "
+                      "makes, its sync and its CRC included");
 
   /* The data arrives: the next frame carries it, framed the same way. */
   DP_REQUIRE (t_write (p[1], SIX, 2) == 2);
   t_close (p[1]);
-  uint8_t want[48];
-  six_bits (want);
   const size_t n = dp_wfm_compose_execute (c, out, 4 * FR);
   DP_CHECK_MSG (n == FR && as_bits (out, FR, got) == 0
-                    && memcmp (got, sync, SYNC) == 0
-                    && memcmp (got + SYNC, want, LEN) == 0,
+                    && memcmp (got, data_fr, FR) == 0,
                 "then the pipe's 16 bits as one data frame, and the end");
+  const wfm_segment_t    *segs = dp_wfm_compose_segments (c, NULL, NULL, NULL);
+  const wfm_data_stats_t *st   = &segs[0].sources[0].data_sent;
+  DP_CHECK_MSG (st->idle_frames == 3 && st->frames == 1 && st->bits == 16
+                    && st->hashed
+                    && st->hash == dp_hash64 (DP_HASH64_INIT, SIX, 2),
+                "and the composer counts them: 3 idle frames, 1 data frame "
+                "of 16 bits, hashed as read");
   dp_wfm_compose_destroy (c);
   t_dup2 (saved, 0);
   t_close (saved);
+  return 0;
+}
+
+/* Run a composer to its end; the samples it sent. */
+static size_t
+run_out (dp_wfm_compose_state_t *c, float complex *out, size_t cap)
+{
+  size_t n = 0, got;
+  while (n < cap && (got = dp_wfm_compose_execute (c, out + n, cap - n)) > 0)
+    n += got;
+  return n;
+}
+
+/* The record of @p c, after its run: what dp_wfm_spec_to_json writes from
+   the borrowed segments. Caller frees. */
+static char *
+record_of (const dp_wfm_compose_state_t *c)
+{
+  size_t               n = 0;
+  int                  r = 0, k = 0;
+  const wfm_segment_t *segs = dp_wfm_compose_segments (c, &n, &r, &k);
+  return dp_wfm_spec_to_json (segs, n, r, k, 0, 0.0);
+}
+
+static int
+write_file (const char *path, const uint8_t *b, size_t n)
+{
+  FILE *f = fopen (path, "wb");
+  if (!f)
+    return -1;
+  const size_t w = fwrite (b, 1, n, f);
+  fclose (f);
+  return w == n ? 0 : -1;
+}
+
+/* Whether @p why names @p h as the record writes a hash. */
+static int
+names_hash (const char *why, uint64_t h)
+{
+  char t[19];
+  snprintf (t, sizeof t, "0x%016llx", (unsigned long long)h);
+  return why && strstr (why, t) != NULL;
+}
+
+/* F7 (payload-data-source.md 4.8): the record carries what each data
+   source SENT -- frames, fill, idle frames, the bits read and a file's
+   hash -- and a replay identifies a file by that content. A changed file,
+   same length or not, is refused naming both hashes; a record of stdin
+   replays only from a file given again, checked the same way. */
+static int
+test_a_record_replays_its_data_by_hash (void)
+{
+  uint8_t want[48], got[48];
+  six_bits (want);
+  float complex out[200];
+
+  /* A Field: the truth, and no hash -- nothing was read from a file. */
+  {
+    wfm_source_t src = data_line ();
+    src.data = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = want, .len = 48 };
+    wfm_segment_t seg         = { .sources = &src, .n_sources = 1, .fs = 1e6 };
+    dp_wfm_compose_state_t *c = dp_wfm_compose_create (&seg, 1, 0, 0);
+    DP_REQUIRE (c != NULL);
+    char *before = record_of (c);
+    DP_CHECK_MSG (before && !strstr (before, "data_sent"),
+                  "a record written before the run is the scene alone");
+    free (before);
+    DP_REQUIRE (run_out (c, out, 200) == 48);
+    const wfm_data_stats_t *st
+        = &dp_wfm_compose_segments (c, NULL, NULL, NULL)[0]
+               .sources[0]
+               .data_sent;
+    DP_CHECK_MSG (st->frames == 3 && st->pad_bits == 0 && st->idle_frames == 0
+                      && st->bits == 48 && !st->hashed,
+                  "a Field's truth: 3 frames, no fill, no idle, no hash");
+    char *rec = record_of (c);
+    DP_CHECK_MSG (rec && strstr (rec, "\"data_sent\"")
+                      && strstr (rec, "\"frames\":\t3")
+                      && !strstr (rec, "\"hash\""),
+                  "and the record carries it after the run");
+    dp_wfm_compose_destroy (c);
+    const char *why = NULL;
+    c = rec ? dp_wfm_compose_from_json_at (rec, NULL, &why) : NULL;
+    DP_CHECK_MSG (c != NULL, why ? why : "the record replays");
+    if (c)
+      {
+        DP_CHECK_MSG (run_out (c, out, 200) == 48
+                          && as_bits (out, 48, got) == 0
+                          && memcmp (got, want, 48) == 0,
+                      "the same frames");
+        dp_wfm_compose_destroy (c);
+      }
+    free (rec);
+  }
+
+  char      dir[512], data[600], other[600];
+  const int pid = (int)getpid ();
+  snprintf (dir, sizeof dir, "%s", dp_test_tmpdir ());
+  snprintf (data, sizeof data, "%s/dp_wfm_f7_%d.bin", dir, pid);
+  snprintf (other, sizeof other, "%s/dp_wfm_f7_%d_b.bin", dir, pid);
+  const uint64_t h6 = dp_hash64 (DP_HASH64_INIT, SIX, 6);
+
+  /* A file: the record names it, its length in bits and its hash. */
+  DP_REQUIRE (write_file (data, SIX, 6) == 0);
+  wfm_source_t src            = data_line ();
+  src.data_from_file          = data;
+  wfm_segment_t           seg = { .sources = &src, .n_sources = 1, .fs = 1e6 };
+  dp_wfm_compose_state_t *c   = dp_wfm_compose_create (&seg, 1, 0, 0);
+  DP_REQUIRE (c != NULL);
+  DP_REQUIRE (run_out (c, out, 200) == 48);
+  char *rec = record_of (c);
+  dp_wfm_compose_destroy (c);
+  char ht[19];
+  snprintf (ht, sizeof ht, "0x%016llx", (unsigned long long)h6);
+  DP_REQUIRE_MSG (rec && strstr (rec, ht) && strstr (rec, "\"bits\":\t48"),
+                  "a file's record carries its 48 bits and its dp_hash64");
+
+  const char *why = NULL;
+  c               = dp_wfm_compose_from_json_at (rec, NULL, &why);
+  DP_CHECK_MSG (c != NULL, why ? why : "the unchanged file replays");
+  if (c)
+    {
+      DP_CHECK_MSG (run_out (c, out, 200) == 48 && as_bits (out, 48, got) == 0
+                        && memcmp (got, want, 48) == 0,
+                    "the same frames");
+      dp_wfm_compose_destroy (c);
+    }
+
+  /* The same length, one bit changed: a length check alone would pass. */
+  static const uint8_t EDIT[6] = { 0x01, 0x23, 0x45, 0x67, 0x89, 0xAA };
+  DP_REQUIRE (write_file (data, EDIT, 6) == 0);
+  why = NULL;
+  c   = dp_wfm_compose_from_json_at (rec, NULL, &why);
+  DP_CHECK_MSG (c == NULL, "a file edited in place is refused");
+  dp_wfm_compose_destroy (c);
+  DP_CHECK_MSG (names_hash (why, h6)
+                    && names_hash (why, dp_hash64 (DP_HASH64_INIT, EDIT, 6))
+                    && strstr (why, data),
+                "naming the file, the record's hash and the file's");
+
+  /* Longer, with the record's octets as its prefix. */
+  static const uint8_t LONGER[7] = { 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0 };
+  DP_REQUIRE (write_file (data, LONGER, 7) == 0);
+  why = NULL;
+  c   = dp_wfm_compose_from_json_at (rec, NULL, &why);
+  DP_CHECK_MSG (c == NULL && why && strstr (why, "56 bits"),
+                "a file that grew is refused, naming its length");
+  dp_wfm_compose_destroy (c);
+  free (rec);
+
+  /* stdin: recorded as "-" with the hash of what was read. */
+  DP_REQUIRE (write_file (data, SIX, 6) == 0);
+  int p[2];
+  DP_REQUIRE (t_pipe (p) == 0);
+  DP_REQUIRE (t_write (p[1], SIX, 6) == 6);
+  t_close (p[1]);
+  const int saved = t_dup (0);
+  DP_REQUIRE (saved >= 0 && t_dup2 (p[0], 0) == 0);
+  t_close (p[0]);
+  static const uint8_t zero[1] = { 0 };
+  src.data_from_file           = "-";
+  src.fill = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = zero, .len = 1 };
+  c        = dp_wfm_compose_create (&seg, 1, 0, 0);
+  DP_REQUIRE (c != NULL);
+  DP_REQUIRE (run_out (c, out, 200) == 48);
+  rec = record_of (c);
+  dp_wfm_compose_destroy (c);
+  t_dup2 (saved, 0);
+  t_close (saved);
+  DP_REQUIRE_MSG (rec && strstr (rec, "\"data_from_file\":\t\"-\"")
+                      && strstr (rec, ht),
+                  "a stdin run records \"-\" and the hash of what it read");
+
+  why = NULL;
+  c   = dp_wfm_compose_from_json_at (rec, NULL, &why);
+  DP_CHECK_MSG (c == NULL && why && strstr (why, "--data-from-file"),
+                "a record of stdin is refused with no file given again, "
+                "naming --data-from-file");
+  dp_wfm_compose_destroy (c);
+  why = NULL;
+  c   = dp_wfm_compose_from_json_data (rec, NULL, "-", &why);
+  DP_CHECK_MSG (c == NULL && why, "and from a pipe given again, which could "
+                                  "only be checked after it was sent");
+  dp_wfm_compose_destroy (c);
+  why = NULL;
+  c   = dp_wfm_compose_from_json_data (rec, NULL, data, &why);
+  DP_CHECK_MSG (c != NULL, why ? why
+                               : "it replays from the file that held "
+                                 "stdin's octets");
+  if (c)
+    {
+      DP_CHECK_MSG (run_out (c, out, 200) == 48 && as_bits (out, 48, got) == 0
+                        && memcmp (got, want, 48) == 0,
+                    "sending what stdin sent");
+      dp_wfm_compose_destroy (c);
+    }
+  DP_REQUIRE (write_file (other, EDIT, 6) == 0);
+  why = NULL;
+  c   = dp_wfm_compose_from_json_data (rec, NULL, other, &why);
+  DP_CHECK_MSG (c == NULL && names_hash (why, h6)
+                    && names_hash (why, dp_hash64 (DP_HASH64_INIT, EDIT, 6)),
+                "a file that is not what stdin held is refused, naming both "
+                "hashes");
+  dp_wfm_compose_destroy (c);
+  free (rec);
+
+  /* A file given for a scene with no stdin source names data it does not
+     read. */
+  why = NULL;
+  c   = dp_wfm_compose_from_json_data (
+      "{\"segments\":[{\"type\":\"tone\",\"num_samples\":8}]}", NULL, data,
+      &why);
+  DP_CHECK_MSG (c == NULL && why,
+                "a file for stdin, given to a scene with none, is refused");
+  dp_wfm_compose_destroy (c);
+
+  DP_CHECK (remove (data) == 0 && remove (other) == 0);
   return 0;
 }
 
@@ -5331,6 +5574,8 @@ main (void)
   if (test_a_dsss_burst_draws_a_chunk_per_burst ())
     return 1;
   if (test_pacing_set_after_create_sends_idle_frames ())
+    return 1;
+  if (test_a_record_replays_its_data_by_hash ())
     return 1;
   if (test_continuous_dsss_draws_a_bit_per_symbol ())
     return 1;

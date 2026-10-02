@@ -98,6 +98,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* | [**dp\_wfm\_compose\_from\_file\_why**](#function-dp_wfm_compose_from_file_why) (const char \* path, const char \*\* why) <br>[_**dp\_wfm\_compose\_from\_file**_](wfm__compose_8h.md#function-dp_wfm_compose_from_file) _, able to say why a scene was refused._ |
 |  [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* | [**dp\_wfm\_compose\_from\_json**](#function-dp_wfm_compose_from_json) (const char \* json) <br>_Build a composer from a JSON spec string (for_  _from-file)._ |
 |  [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* | [**dp\_wfm\_compose\_from\_json\_at**](#function-dp_wfm_compose_from_json_at) (const char \* json, const char \* base, const char \*\* why) <br>_Build a composer from a JSON spec file._  |
+|  [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* | [**dp\_wfm\_compose\_from\_json\_data**](#function-dp_wfm_compose_from_json_data) (const char \* json, const char \* base, const char \* data\_file, const char \*\* why) <br>[_**dp\_wfm\_compose\_from\_json\_at()**_](wfm__compose_8h.md#function-dp_wfm_compose_from_json_at) _, replaying a record by its data._ |
 |  [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* | [**dp\_wfm\_compose\_from\_json\_why**](#function-dp_wfm_compose_from_json_why) (const char \* json, const char \*\* why) <br>_The same, but able to say why a FRAME was refused._  |
 |  int | [**dp\_wfm\_compose\_seed\_advance**](#function-dp_wfm_compose_seed_advance) (const [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* state) <br>_The composer's current seed-advance mode (a_ `wfm_seed_advance_t` _)._ |
 |  const [**wfm\_segment\_t**](structwfm__segment__t.md) \* | [**dp\_wfm\_compose\_segments**](#function-dp_wfm_compose_segments) (const [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* state, size\_t \* n\_out, int \* repeat, int \* continuous) <br>_Borrow the composer's stored segment list (for_  _record / SigMF)._ |
@@ -968,6 +969,69 @@ dp_wfm_compose_destroy (c);
 
 
 
+### function dp\_wfm\_compose\_from\_json\_data 
+
+[_**dp\_wfm\_compose\_from\_json\_at()**_](wfm__compose_8h.md#function-dp_wfm_compose_from_json_at) _, replaying a record by its data._
+```C++
+dp_wfm_compose_state_t * dp_wfm_compose_from_json_data (
+    const char * json,
+    const char * base,
+    const char * data_file,
+    const char ** why
+) 
+```
+
+
+
+A `--record` stores each data source's truth as `"data_sent"`: the frames, the fill bits padding the last, the idle frames, and for a file or stdin the bits read and their `dp_hash64` (payload-data-source.md §4.8). A replay identifies a file by that content, not by its name:
+
+
+
+* a `"data_from_file"` whose `"data_sent"` carries a hash is refused unless the file's length in bits and hash are the record's. The reason names the file and both hashes;
+* a `"data_from_file": "-"` is a run read from stdin, whose octets are gone. It is refused unless `data_file` names the file that held them, which is then checked the same way. `-` again is refused: a pipe could only be checked after it had been sent;
+* a `data_file` that no `"-"` source takes is refused: a scene carries its own data.
+
+
+
+
+Every check is made before anything is built. A scene with no hash (one written by hand) replays its files unchecked.
+
+
+
+
+**Parameters:**
+
+
+* `json` the scene's text. 
+* `base` the scene's directory, or NULL. 
+* `data_file` the file a record's stdin is replayed from (`--data-from-file` given again), as typed: relative to the working directory, not to `base`. NULL for none. 
+* `why` optional; receives the reason for a refusal. A mismatch's names the numbers, so it is formatted into a thread-local buffer, valid until this thread reads another scene; never freed by the caller. 
+
+
+
+**Returns:**
+
+the composer, or NULL.
+
+
+
+```C++
+const char *why = NULL;
+dp_wfm_compose_state_t *c = dp_wfm_compose_from_json_data (
+    "{\"segments\":[{\"type\":\"bits\",\"data_from_file\":\"-\"}]}",
+    NULL, NULL, &why);
+if (c || !why) // stdin with no file given again: refused, with a reason
+  return 1;
+```
+ 
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_wfm\_compose\_from\_json\_why 
 
 _The same, but able to say why a FRAME was refused._ 
@@ -1051,7 +1115,7 @@ const wfm_segment_t * dp_wfm_compose_segments (
 
 
 
-
+Each source's `data_sent` holds what its data source has sent so far in the latest instance, brought up to date by this call, so a record or a SigMF sidecar written after a run carries the run's truth. 
 
 **Parameters:**
 

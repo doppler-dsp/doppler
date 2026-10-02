@@ -71,6 +71,7 @@ _A frame's data source: where a_ `data:LEN` _payload's bits come from._[More...]
 |  [**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* | [**dp\_wfm\_data\_create\_fd**](#function-dp_wfm_data_create_fd) (int fd, size\_t len, const char \* fill, const char \*\* why) <br>_Build a data source over an open file descriptor. NULL on refusal._  |
 |  [**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* | [**dp\_wfm\_data\_create\_seq**](#function-dp_wfm_data_create_seq) (const [**wfm\_seq\_t**](structwfm__seq__t.md) \* data, const char \* path, size\_t len, const [**wfm\_seq\_t**](structwfm__seq__t.md) \* fill, const char \*\* why) <br>_Build a data source from a source's own members. NULL on refusal._  |
 |  void | [**dp\_wfm\_data\_destroy**](#function-dp_wfm_data_destroy) ([**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* s) <br>_Free a source; closes a file it opened itself. NULL is a no-op._  |
+|  int | [**dp\_wfm\_data\_file\_identity**](#function-dp_wfm_data_file_identity) (const char \* path, uint64\_t \* bits, uint64\_t \* h) <br>_A regular file's identity, as a record carries it: its length in bits and the_ `dp_hash64()` _of all its octets._ |
 |  [**wfm\_data\_status\_t**](wfm__data_8h.md#enum-wfm_data_status_t) | [**dp\_wfm\_data\_frame**](#function-dp_wfm_data_frame) ([**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* s, [**wfm\_data\_pacing\_t**](wfm__data_8h.md#enum-wfm_data_pacing_t) pacing, size\_t reps, uint8\_t \* out, size\_t max\_out) <br>_The next frame's data field under a pacing: THE rule for idle frames._  |
 |  void | [**dp\_wfm\_data\_get\_state**](#function-dp_wfm_data_get_state) (const [**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* s, void \* blob) <br>_Serialize the source into_ `blob` _, of_[_**dp\_wfm\_data\_state\_bytes**_](wfm__data_8h.md#function-dp_wfm_data_state_bytes) _bytes. A no-op when it refuses._ |
 |  [**wfm\_data\_status\_t**](wfm__data_8h.md#enum-wfm_data_status_t) | [**dp\_wfm\_data\_idle**](#function-dp_wfm_data_idle) ([**wfm\_data\_src\_t**](wfm__data_8h.md#typedef-wfm_data_src_t) \* s, size\_t reps, uint8\_t \* out, size\_t max\_out) <br>_Write an idle frame's data field: all fill,_ `reps` _times._ |
@@ -354,6 +355,61 @@ void dp_wfm_data_destroy (
 
 
 
+
+<hr>
+
+
+
+### function dp\_wfm\_data\_file\_identity 
+
+_A regular file's identity, as a record carries it: its length in bits and the_ `dp_hash64()` _of all its octets._
+```C++
+int dp_wfm_data_file_identity (
+    const char * path,
+    uint64_t * bits,
+    uint64_t * h
+) 
+```
+
+
+
+What a source over the same file reports in its stats once it has read to the end (`bits` and `hash`), computed here without building one. A replay compares it with the record's and refuses a file that differs (payload-data-source.md §4.8), before the first sample.
+
+
+
+
+**Parameters:**
+
+
+* `path` a regular file; `-` and anything that is not a regular file (a pipe, a FIFO) have no identity to read up front. 
+* `bits` receives `8 * octets`; may be NULL. 
+* `h` receives the hash. 
+
+
+
+**Returns:**
+
+0, or -1 when `path` cannot be opened, is not a regular file, or a read fails.
+
+
+
+```C++
+FILE *f = fopen ("ident.bin", "wb");
+if (!f || fwrite ("foobar", 1, 6, f) != 6)
+  return 1;
+fclose (f);
+uint64_t bits, h;
+const int rc = dp_wfm_data_file_identity ("ident.bin", &bits, &h);
+remove ("ident.bin");
+if (rc != 0 || bits != 48 || h != UINT64_C (0x85944171f73967e8))
+  return 1; // 6 octets, and FNV-1a 64 of "foobar"
+if (dp_wfm_data_file_identity ("-", &bits, &h) != -1)
+  return 1; // stdin has no identity to read up front
+```
+ 
+
+
+        
 
 <hr>
 

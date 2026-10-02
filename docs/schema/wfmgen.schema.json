@@ -324,10 +324,39 @@
         "data_from_file": {
           "type": "string",
           "minLength": 1,
-          "not": {
-            "const": "-"
+          "description": "A data source read from a file of packed octets, MSB first, instead of \"data\". A path, relative to the scene. \"-\" is a record of a run read from stdin, whose octets are gone: it replays only with `wfmgen --from-file SCENE --data-from-file FILE`, the file given again and checked against \"data_sent\"."
+        },
+        "data_sent": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "bits": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Source bits read, fill excluded."
+            },
+            "hash": {
+              "type": "string",
+              "pattern": "^0x[0-9a-f]{16}$",
+              "description": "dp_hash64 (FNV-1a 64) of the octets read: a file or stdin only."
+            },
+            "frames": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Data frames sent, the padded last included."
+            },
+            "pad_bits": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Fill bits padding the last frame; 0 otherwise."
+            },
+            "idle_frames": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Idle frames sent: the data field all fill, framed like any other. Only a paced (--realtime) stream has them."
+            }
           },
-          "description": "A data source read from a file of packed octets, MSB first, instead of \"data\". A path; \"-\" (stdin) is refused in a scene, because a scene is replayed from its record and stdin cannot be: stdin is `wfmgen --data-from-file -` alone."
+          "description": "Written by --record after the run, never by hand: what the data source sent in an instance -- the truth for scoring. A replay refuses a \"data_from_file\" whose length in bits or hash differs from \"bits\" and \"hash\", naming both hashes."
         },
         "code_only": {
           "type": "boolean",
@@ -616,6 +645,9 @@
         },
         "data_from_file": {
           "$ref": "#/$defs/source/properties/data_from_file"
+        },
+        "data_sent": {
+          "$ref": "#/$defs/source/properties/data_sent"
         },
         "code_only": {
           "$ref": "#/$defs/source/properties/code_only"

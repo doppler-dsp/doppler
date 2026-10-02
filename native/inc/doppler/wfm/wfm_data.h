@@ -279,6 +279,39 @@ extern "C"
   /** @brief What the source has done so far. */
   void dp_wfm_data_stats (const wfm_data_src_t *s, wfm_data_stats_t *out);
 
+  /**
+   * @brief A regular file's identity, as a record carries it: its length in
+   * bits and the `dp_hash64()` of all its octets.
+   *
+   * What a source over the same file reports in its stats once it has read
+   * to the end (`bits` and `hash`), computed here without building one. A
+   * replay compares it with the record's and refuses a file that differs
+   * (payload-data-source.md §4.8), before the first sample.
+   *
+   * @param path  a regular file; `-` and anything that is not a regular
+   *              file (a pipe, a FIFO) have no identity to read up front.
+   * @param bits  receives `8 * octets`; may be NULL.
+   * @param h     receives the hash.
+   * @return 0, or -1 when @p path cannot be opened, is not a regular file,
+   *         or a read fails.
+   *
+   * @code
+   * FILE *f = fopen ("ident.bin", "wb");
+   * if (!f || fwrite ("foobar", 1, 6, f) != 6)
+   *   return 1;
+   * fclose (f);
+   * uint64_t bits, h;
+   * const int rc = dp_wfm_data_file_identity ("ident.bin", &bits, &h);
+   * remove ("ident.bin");
+   * if (rc != 0 || bits != 48 || h != UINT64_C (0x85944171f73967e8))
+   *   return 1; // 6 octets, and FNV-1a 64 of "foobar"
+   * if (dp_wfm_data_file_identity ("-", &bits, &h) != -1)
+   *   return 1; // stdin has no identity to read up front
+   * @endcode
+   */
+  int dp_wfm_data_file_identity (const char *path, uint64_t *bits,
+                                 uint64_t *h);
+
 /** @brief The data source's state blob type tag (dp_state.h). */
 #define WFM_DATA_STATE_MAGIC DP_FOURCC ('W', 'F', 'D', 'S')
 /** @brief The data source's state blob format version. */

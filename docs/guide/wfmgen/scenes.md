@@ -319,6 +319,15 @@ The recorded `--headroom` is reapplied on replay; an explicit `--headroom` on th
 `--from-file` run overrides it. Use `--record` to document a capture next to its
 data, or to pin an exact scenario in a test.
 
+A source drawing from a data source is recorded with what it sent, its
+`"data_sent"`: the frames, the fill padding the last, the idle frames and,
+for a file or stdin, the bits read and their hash. The record is written
+before the run and again when it ends, so a run that never ends still
+leaves its scene. A replay refuses a file whose hash differs, naming both
+hashes, and replays a record of stdin only from a file given again with
+`--data-from-file` (see
+[Recording and replaying a data source](waveforms.md#recording-and-replaying-a-data-source)).
+
 Python reaches the same record. `Composer.to_json()` writes the string
 `--record` writes, and `Composer.from_json()` (or `from_file()` for a path)
 takes the path `--from-file` takes, so a scene rebuilt from its own JSON
@@ -575,7 +584,12 @@ wfmgen --type qpsk --fs 1e6 --sps 8 --continuous --realtime \
 The schedule is **drift-free**: each deadline is recomputed from the cumulative
 sample count against a fixed epoch, so sleep jitter never accumulates — the
 long-run rate is exactly `fs`. Pacing does **not** alter the samples; a file
-written with and without `--realtime` is byte-identical.
+written with and without `--realtime` is byte-identical, with one exception.
+A data stream (`--data-from-file -`) that pauses under `--realtime` sends
+**idle frames**: data frames whose data field is the `--fill`, framed like
+any other (sync, CRC and coding unchanged). They are counted in the record's
+`"data_sent"` and the SigMF `wfmgen:idle_frames`
+([Data](waveforms.md#data-a-payload-drawn-frame-by-frame)).
 
 If the producer can't keep up (a block takes longer than its `N/fs` period — an
 *underrun*), `wfmgen` keeps the absolute timeline and prints a summary to stderr

@@ -336,5 +336,62 @@ endif()
 run(--from-file wg_mixed.json -o wg_mixed.cf32)
 expect_size(wg_mixed.cf32 8000)
 
+# 22. F7 (#1619, payload-data-source.md 4.8): a record carries what each
+#     data source SENT -- frames, fill, idle frames, the bits read and a
+#     file's hash -- and a replay identifies a file by that content. A file
+#     edited in place (same length) is refused, naming both hashes; a
+#     record of stdin replays only with --data-from-file given again.
+file(WRITE wg_f7.bin "F7F7")
+run(--type bits --data-from-file wg_f7.bin --data-len 16 --sps 1
+    --record wg_f7.json --file-type sigmf -o wg_f7_a)
+expect_contains(wg_f7.json "\"data_sent\"")
+expect_contains(wg_f7.json "\"bits\":\t32")
+expect_contains(wg_f7_a.sigmf-meta "\"wfmgen:frames\":2")
+expect_contains(wg_f7_a.sigmf-meta "\"wfmgen:idle_frames\":0")
+file(READ wg_f7.json _rec)
+string(REGEX MATCH "\"hash\":\t\"(0x[0-9a-f]+)\"" _m "${_rec}")
+set(_h7 "${CMAKE_MATCH_1}")
+if(NOT _h7)
+    message(FATAL_ERROR "wg_f7.json: no data_sent hash")
+endif()
+expect_contains(wg_f7_a.sigmf-meta "\"wfmgen:data_hash\":\"${_h7}\"")
+run(--from-file wg_f7.json -o wg_f7_b.cf32)
+file(MD5 wg_f7_a.sigmf-data _ha)
+file(MD5 wg_f7_b.cf32 _hb)
+if(NOT _ha STREQUAL _hb)
+    message(FATAL_ERROR "a file's record replays different samples")
+endif()
+file(WRITE wg_f7.bin "F7F8")
+execute_process(COMMAND ${EXE} --from-file wg_f7.json -o wg_f7_c.cf32
+                RESULT_VARIABLE rc ERROR_VARIABLE err)
+if(NOT rc EQUAL 2 OR NOT err MATCHES "${_h7}"
+   OR NOT err MATCHES "the file's is 0x[0-9a-f]+ over 32 bits")
+    message(FATAL_ERROR "a file edited in place replays: exit ${rc}, "
+                        "'${err}' -- expected 2, naming both hashes")
+endif()
+file(WRITE wg_f7.bin "F7F7")
+execute_process(COMMAND ${EXE} --type bits --data-from-file - --data-len 16
+                --fill 0 --sps 1 --record wg_f7s.json -o wg_f7s_a.cf32
+                INPUT_FILE wg_f7.bin RESULT_VARIABLE rc)
+if(NOT rc EQUAL 0)
+    message(FATAL_ERROR "a stdin run with --record: exit ${rc}")
+endif()
+expect_contains(wg_f7s.json "\"data_from_file\":\t\"-\"")
+expect_contains(wg_f7s.json "${_h7}")
+execute_process(COMMAND ${EXE} --from-file wg_f7s.json -o wg_f7s_b.cf32
+                RESULT_VARIABLE rc ERROR_VARIABLE err)
+if(NOT rc EQUAL 2 OR NOT err MATCHES "--data-from-file")
+    message(FATAL_ERROR "a record of stdin replays with no file: exit "
+                        "${rc}, '${err}' -- expected 2, naming the flag")
+endif()
+run(--from-file wg_f7s.json --data-from-file wg_f7.bin -o wg_f7s_b.cf32)
+file(MD5 wg_f7s_a.cf32 _sa)
+file(MD5 wg_f7s_b.cf32 _sb)
+if(NOT _sa STREQUAL _sb)
+    message(FATAL_ERROR "a record of stdin replays different samples")
+endif()
+expect_exit(2 --from-file wg_f7.json --data-from-file wg_f7.bin
+            -o wg_f7_d.cf32)  # a scene with no stdin source
+
 sweep_scratch()
 message(STATUS "wfmgen_cli: OK")

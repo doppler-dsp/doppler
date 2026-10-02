@@ -177,7 +177,13 @@ def measure_faces(d: Data) -> None:
     ok, dsss_ok = True, False
     for label, kw in FACE_CASES:
         a = np.asarray(Synth(fs=FS, **kw).steps(N))
-        b = composed(num_samples=N, **kw)
+        # A dsss burst sets its own on-time; a count beside it is refused
+        # (doppler#1729), so only the others are given one.
+        b = (
+            composed(**kw)
+            if label == "dsss"
+            else composed(num_samples=N, **kw)
+        )
         n = min(len(a), len(b))
         same = bool(np.array_equal(a[:n], b[:n]))
         ok = ok and same

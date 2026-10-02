@@ -516,8 +516,8 @@
               "$ref": "#/$defs/count_range"
             }
           ],
-          "default": 1024,
-          "description": "Segment on-time in samples: the synth runs for exactly this many samples before the trailing gap. Scalar, or a [lo, hi] pair drawn uniformly per repeat."
+          "default": 0,
+          "description": "Segment on-time in samples, before the trailing gap: 0 derives it from the sources, or 1024 when they set none. A finite data source sets its frames, a lone dsss burst one burst, and a stream runs to its end. A count beside a finite data source or a lone dsss burst is refused, since they set the length; give repeats for more. Scalar, or a [lo, hi] pair drawn uniformly per repeat."
         },
         "off_samples": {
           "oneOf": [

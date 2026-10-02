@@ -59,6 +59,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
+|  const char | [**dp\_wfm\_why\_count\_derived**](#variable-dp_wfm_why_count_derived)  <br>_The reason_ [_**dp\_wfm\_scene\_error()**_](wfm__compose_8h.md#function-dp_wfm_scene_error) _gives a count beside a segment whose sources set its length (_[_**dp\_wfm\_segment\_sets\_length()**_](wfm__compose_8h.md#function-dp_wfm_segment_sets_length) _)_ _exported so the wfmgen CLI can name its flag beside it._ |
 |  const char | [**dp\_wfm\_why\_dsss\_cont\_no\_data\_code**](#variable-dp_wfm_why_dsss_cont_no_data_code)  <br>_The reasons_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives a dsss source missing a code (doppler#1696): a burst whose frame has no data\_code to spread it, a burst with neither a preamble nor a frame, and a continuous stream with no data\_code. Exported so a test or a face can hold a refusal to its reason by identity._ |
 |  const char | [**dp\_wfm\_why\_dsss\_cont\_rate**](#variable-dp_wfm_why_dsss_cont_rate)  <br>_The reason_ [_**dp\_wfm\_scene\_error()**_](wfm__compose_8h.md#function-dp_wfm_scene_error) _gives a continuous dsss source whose chip rate is below its symbol rate_ _exported so the wfmgen CLI can name the values beside it, by identity._ |
 |  const char | [**dp\_wfm\_why\_dsss\_empty**](#variable-dp_wfm_why_dsss_empty)  <br>_The reasons_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives a dsss source missing a code (doppler#1696): a burst whose frame has no data\_code to spread it, a burst with neither a preamble nor a frame, and a continuous stream with no data\_code. Exported so a test or a face can hold a refusal to its reason by identity._ |
@@ -114,6 +115,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  void | [**dp\_wfm\_render\_steps**](#function-dp_wfm_render_steps) ([**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* r, float \_Complex \* dst, size\_t n) <br>_Pull exactly_ `n` _samples from_`r` _, through its channel if any._ |
 |  int | [**dp\_wfm\_resolve\_noise**](#function-dp_wfm_resolve_noise) ([**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n) <br>_Resolve a segment list's noise model in place (Phase 4b)._  |
 |  const char \* | [**dp\_wfm\_scene\_error**](#function-dp_wfm_scene_error) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, int repeat, int continuous) <br>_Why a scene cannot be composed, or NULL: the one validator._  |
+|  int | [**dp\_wfm\_segment\_sets\_length**](#function-dp_wfm_segment_sets_length) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* seg) <br>_Whether a segment's sources SET its on-time, so its_ `num_samples` _is derived and a count given beside them refused._ |
 |  double | [**dp\_wfm\_snr\_over\_fs**](#function-dp_wfm_snr_over_fs) (int snr\_mode, int type, int sps, size\_t sf, double sym\_span, double snr) <br>_SNR (dB) referred to fs, from a source's snr/snr\_mode/sps/type._  |
 |  int | [**dp\_wfm\_source\_attach\_dsss**](#function-dp_wfm_source_attach_dsss) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* syn, const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs) <br>_Attach a dsss source's data to a freshly-created synth._  |
 |  int | [**dp\_wfm\_source\_attach\_frame**](#function-dp_wfm_source_attach_frame) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* syn, const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Attach an unspread source's bit pattern, framed or not._  |
@@ -167,6 +169,11 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 
 
 
+## Macros
+
+| Type | Name |
+| ---: | :--- |
+| define  | [**WFM\_NUM\_SAMPLES\_PLAIN**](wfm__compose_8h.md#define-wfm_num_samples_plain)  `((size\_t)1024)`<br>_A plain segment's on-time when its_ `num_samples` _is 0 and no source sets one: what_`--count` _, a scene and_`Segment` _default to._ |
 
 ## Detailed Description
 
@@ -359,6 +366,20 @@ The scale a number in dB is quoted on is not a detail a caller can infer, and it
 <hr>
 ## Public Attributes Documentation
 
+
+
+
+### variable dp\_wfm\_why\_count\_derived 
+
+_The reason_ [_**dp\_wfm\_scene\_error()**_](wfm__compose_8h.md#function-dp_wfm_scene_error) _gives a count beside a segment whose sources set its length (_[_**dp\_wfm\_segment\_sets\_length()**_](wfm__compose_8h.md#function-dp_wfm_segment_sets_length) _)_ _exported so the wfmgen CLI can name its flag beside it._
+```C++
+const char dp_wfm_why_count_derived[];
+```
+
+
+
+
+<hr>
 
 
 
@@ -1535,6 +1556,7 @@ Every source's [**dp\_wfm\_source\_error()**](wfm__compose_8h.md#function-dp_wfm
 
 
 * A continuous dsss source's chip rate `fs / sps`, at its segment's `fs`, is at least its `symbol_rate`  one chip per data symbol, the synth's own floor ([**dp\_wfm\_source\_dsss\_cps()**](wfm__compose_8h.md#function-dp_wfm_source_dsss_cps)). The default `fs = 1.0` with a `symbol_rate` in Hz is the case that finds it (doppler#1706); the reason is dp\_wfm\_why\_dsss\_cont\_rate.
+* A count (`num_samples`, non-zero or ranged) beside sources that set the segment's length ([**dp\_wfm\_segment\_sets\_length()**](wfm__compose_8h.md#function-dp_wfm_segment_sets_length)) is refused with dp\_wfm\_why\_count\_derived: the length is theirs, so it would be dropped (doppler#1729).
 * A data STREAM (`--data-from-file -`) has no end to repeat, so `repeat`, `continuous` and a segment's `repeats > 1` are refused, and stdin feeds at most one source.
 
 
@@ -1548,6 +1570,72 @@ Every source's [**dp\_wfm\_source\_error()**](wfm__compose_8h.md#function-dp_wfm
 **Returns:**
 
 a static sentence naming the fault and its fix, or NULL. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_segment\_sets\_length 
+
+_Whether a segment's sources SET its on-time, so its_ `num_samples` _is derived and a count given beside them refused._
+```C++
+int dp_wfm_segment_sets_length (
+    const wfm_segment_t * seg
+) 
+```
+
+
+
+Two kinds of source set a length (payload-data-source.md 4.6):
+
+
+
+* **A finite data source**  `data`, a finite file, or a carried frame of fixed bits  is its frames ([**dp\_wfm\_source\_data\_frames()**](wfm__compose_8h.md#function-dp_wfm_source_data_frames)); the longest of a segment's sets it.
+* **A lone dsss burst**  one dsss source, no `symbol_rate`, no data source  is one burst ([**dp\_wfm\_source\_dsss\_nchips()**](wfm__compose_8h.md#function-dp_wfm_source_dsss_nchips) times `sps`).
+
+
+
+
+A stream sets none: it runs to its end, and a count may bound it. A non-zero `num_samples` (or a ranged one) beside a segment this answers 1 for is refused by [**dp\_wfm\_scene\_error()**](wfm__compose_8h.md#function-dp_wfm_scene_error) with dp\_wfm\_why\_count\_derived, on every face.
+
+
+
+```C++
+static const uint8_t bits[16] = { 1 };
+wfm_source_t  src  = { .type       = WFM_SYNTH_BITS,
+                       .modulation = 1, // bpsk
+                       .sps        = 1,
+                       .pn_length  = 7 };
+src.data = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = bits,
+                        .len = 16 };
+wfm_segment_t seg = { .sources = &src, .n_sources = 1, .fs = 1e6 };
+if (!dp_wfm_segment_sets_length (&seg)) // its frames are the run
+  return 1;
+seg.num_samples = 1000;                 // so a count is refused
+if (dp_wfm_scene_error (&seg, 1, 0, 0) != dp_wfm_why_count_derived)
+  return 1;
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `seg` the segment, as the caller gave it. 
+
+
+
+**Returns:**
+
+1 when its sources set its on-time, else 0. 
 
 
 
@@ -2430,6 +2518,23 @@ the shared fs, or 0.0 when the segments differ or there are none.
 
 
         
+
+<hr>
+## Macro Definition Documentation
+
+
+
+
+
+### define WFM\_NUM\_SAMPLES\_PLAIN 
+
+_A plain segment's on-time when its_ `num_samples` _is 0 and no source sets one: what_`--count` _, a scene and_`Segment` _default to._
+```C++
+#define WFM_NUM_SAMPLES_PLAIN `((size_t)1024)`
+```
+
+
+
 
 <hr>
 

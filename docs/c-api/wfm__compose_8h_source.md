@@ -338,9 +338,14 @@ typedef struct {
                               by all its sources. At the default 1.0 every
                               frequency is normalised (cycles per sample);
                               state it whenever a scene is in real Hz. */
-    size_t num_samples;    /* Segment on-time in samples: the synth runs for
-                              exactly this many samples before the trailing
-                              gap. */
+    size_t num_samples;    /* Segment on-time in samples, before the
+                              trailing gap: 0 derives it from the sources,
+                              or 1024 when they set none. A finite data
+                              source sets its frames, a lone dsss burst one
+                              burst, and a stream runs to its end. A count beside a finite
+                              data source or a lone dsss burst is refused,
+                              since they set the length; give repeats for
+                              more. */
     size_t off_samples;    /* Trailing gap after the on-time, in samples. It
                               carries the noise floor or hard zeros, per
                               gap_noise. */
@@ -446,6 +451,12 @@ const char *dp_wfm_scene_error(const wfm_segment_t *segs, size_t n_segs,
                                int repeat, int continuous);
 
 extern const char dp_wfm_why_dsss_cont_rate[];
+
+#define WFM_NUM_SAMPLES_PLAIN ((size_t)1024)
+
+int dp_wfm_segment_sets_length(const wfm_segment_t *seg);
+
+extern const char dp_wfm_why_count_derived[];
 
 
 int dp_wfm_source_data_is_stream(const wfm_source_t *src);

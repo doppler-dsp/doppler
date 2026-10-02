@@ -52,6 +52,7 @@
 * **dp\_lo\_sin\_lut** ([**lo\_core.h**](lo__core_8h.md))
 * **dp\_tlm\_sink\_t** ([**tlm\_sink.h**](tlm__sink_8h.md))
 * **dp\_wfm\_compose\_state\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **dp\_wfm\_why\_count\_derived** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_why\_dsss\_cont\_no\_data\_code** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_why\_dsss\_cont\_rate** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_why\_dsss\_empty** ([**wfm\_compose.h**](wfm__compose_8h.md))

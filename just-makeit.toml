@@ -1676,8 +1676,8 @@ cli = "--count"
 metavar = "N"
 help_section = "SIGNAL"
 type = "size_t"
-default = "1024"
-doc = "Segment on-time in samples: the synth runs for exactly this many samples before the trailing gap."
+default = "0"
+doc = "Segment on-time in samples, before the trailing gap: 0 derives it from the sources, or 1024 when they set none. A finite data source sets its frames, a lone dsss burst one burst, and a stream runs to its end. A count beside a finite data source or a lone dsss burst is refused, since they set the length; give repeats for more."
 
 [[module.wfm_compose.segment.fields]]
 name = "off_samples"

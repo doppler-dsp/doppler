@@ -43,7 +43,6 @@
 #define WFM_SEGMENT_DEFAULTS \
   { \
     .fs = 1.0, \
-    .num_samples = 1024, \
     .repeats = 1 \
   }
 

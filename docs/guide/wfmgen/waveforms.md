@@ -329,7 +329,7 @@ ______________________________________________________________________
 | `--pulse`        | `rect rrc`                                        | `rect`   | pulse shape; `rrc` = band-limited RRC shaping                                                    |
 | `--rrc-beta`     | float                                             | `0.35`   | RRC roll-off (`--pulse rrc`)                                                                     |
 | `--rrc-span`     | int                                               | `8`      | RRC filter support in symbols (`--pulse rrc`)                                                    |
-| `--count`        | int                                               | `1024`   | number of complex samples to generate                                                            |
+| `--count`        | int                                               | `0`      | on-time in samples; `0` derives it (the sources' length, else 1024)                              |
 
 ______________________________________________________________________
 
@@ -569,9 +569,10 @@ A `dsss` segment is one complete burst honouring the
     JSON key `"data"`): one burst per `data_len` chunk, the whole of it when
     `data_len` is 0.
 - `sps` is samples per **chip**; the burst's span is intrinsic
-    (`n_chips x sps` samples a burst), so `num_samples` is derived and a
-    replay derives it again. (A dsss source inside a multi-source `sum()`
-    keeps the segment's explicit `num_samples`.)
+    (`n_chips x sps` samples a burst), so `num_samples` is derived, a count
+    given beside it is refused, and a replay derives it again. (A dsss
+    source inside a multi-source `sum()` keeps the segment's explicit
+    `num_samples`.)
 
 Either half may be absent, not both. A **preamble alone** (`acq_code`, no
 sync, no payload) is a valid burst, the stimulus for an acquisition test;

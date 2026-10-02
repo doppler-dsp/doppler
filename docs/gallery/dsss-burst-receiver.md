@@ -162,8 +162,7 @@ object's entire diagnostic surface:
 | `est_rate_hz`        | chirp-rate estimate                         | zero, because `max_rate=0` switches that axis **off**    |
 | `demod_cn0_dbhz`     | C/N0 **measured** on the decoded symbols    | the scene's own C/N0, from the other side of the bound   |
 | `demod_timing_chips` | burst-start error the demod removed         | a fraction of a chip — acquisition resolves to a sample  |
-| `frame_valid`        | every check that RAN came out good          | 1, on every burst                                        |
-| `frame_checked`      | checking stages actually reversed           | 1 with a CRC, 0 with none — a different fact from a fail |
+| `frame_valid`        | the frame's CRC-16 trailer checked out      | 1, on every burst                                        |
 
 <!-- docs-snippet: skip=an excerpt whose names (results, capture, truth) live in the example's namespace; the script itself is executed on every push by `make test-examples-python` -->
 
@@ -228,10 +227,17 @@ same description the transmitter was given:
 --8<-- "src/doppler/examples/dsss_burst_receiver_demo.py:deframe"
 ```
 
-- **`crc=none`** is simply a shorter frame — the receiver is told a smaller
-    `frame_syms`, and the DeFramer reports `rx_checked == 0`: *carries no
-    check* is not *the check failed*, and an FER conflating them would score
-    every unprotected frame as an error.
+- **`crc=none`** still decodes, but it is never `frame_valid`. Told a
+    smaller `frame_syms`, the receiver returns the frame's bits unchanged,
+    and the DeFramer reports `rx_checked == 0`: *carries no check* is not
+    *the check failed*, and an FER conflating them would score every
+    unprotected frame as an error. The receiver cannot draw that line. It
+    knows a frame only by its length, so it reads the last 16 symbols as a
+    CRC anyway, finds no valid one, and gives every window's span back.
+    A frame with no CRC is not valid by design
+    ([D3](../design/rx-frame-description.md#10-decided)). The cost is that
+    an unprotected burst never suppresses a detection inside its own span
+    ([#1769](https://github.com/doppler-dsp/doppler/issues/1769)).
 - **A randomiser** round-trips when both descriptions carry it; a receiver
     that does not derandomise gets bits the CRC rejects rather than a
     silently wrong payload.

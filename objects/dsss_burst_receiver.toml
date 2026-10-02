@@ -259,7 +259,7 @@ doc = "Burst-start error the demodulator measured on the last completed burst, i
 [[dsss_burst_receiver.properties]]
 name = "frame_valid"
 type = "bool"
-doc = "Whether the most recent window's frame passed its error detection -- this receiver's frame ends in a CRC-16. The verdict that decides whether the window OWNS its span: a failed window is given back to the capture (`release`), so a decoy ahead of a real burst cannot swallow it (doppler#1181). Per burst, read `events()['frame_valid']`."
+doc = "Whether the most recent window's frame passed its error detection -- this receiver's frame ends in a CRC-16. The verdict that decides whether the window OWNS its span: a failed window is given back to the capture (`release`), so a decoy ahead of a real burst cannot swallow it (doppler#1181). The trailer is assumed, not declared: the receiver knows a frame only by `frame_syms`, so a frame with no CRC is never valid -- its bits are still returned, and every window is released (doppler#1769). Per burst, read `events()['frame_valid']`."
 
 # The two spans a caller must respect, and could not read (gh-1011).
 #

@@ -877,7 +877,10 @@ static PyGetSetDef DsssBurstReceiver_getset[] = {
     "this receiver's frame ends in a CRC-16. The verdict that decides whether "
     "the window OWNS its span: a failed window is given back to the capture "
     "(`release`), so a decoy ahead of a real burst cannot swallow it "
-    "(doppler#1181). Per burst, read `events()['frame_valid']`.\n",
+    "(doppler#1181). The trailer is assumed, not declared: the receiver knows "
+    "a frame only by `frame_syms`, so a frame with no CRC is never valid -- "
+    "its bits are still returned, and every window is released "
+    "(doppler#1769). Per burst, read `events()['frame_valid']`.\n",
     NULL },
   { "min_gap", (getter)DsssBurstReceiver_getprop_min_gap, NULL,
     "Dead air to leave BETWEEN bursts, in samples — edge to edge.\n"
@@ -1407,7 +1410,11 @@ static PyTypeObject DsssBurstReceiverObjType = {
     "chip_rate : float, default 1000000.0\n"
     "    Chip rate in Hz (> 0).\n"
     "frame_syms : int, default 64\n"
-    "    Frame symbols per burst (>= 1) — what push() returns, bit for bit.\n"
+    "    Frame symbols per burst (>= 1) — what push() returns, bit for bit. "
+    "The\n"
+    "    frame is taken to END in a CRC-16. A frame sent without one, or too\n"
+    "    short to hold one after the sync word, still returns its bits, but\n"
+    "    `frame_valid` is 0 and no window owns its span.\n"
     "cn0_dbhz : float\n"
     "    Carrier-to-noise density in dB-Hz sizing the acquisition search: "
     "any\n"

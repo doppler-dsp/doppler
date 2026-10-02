@@ -1649,6 +1649,9 @@ test_pacing_set_after_create_sends_idle_frames (void)
   dp_wfm_compose_state_t *c   = dp_wfm_compose_create (&seg, 1, 0, 0);
   DP_REQUIRE_MSG (c != NULL, "a stdin source composes");
   dp_wfm_compose_set_data_pacing (c, WFM_DATA_PACED);
+  /* wfmgen paces before it checks that create succeeded, so a NULL
+     composer is a caller's real argument: a no-op, not a crash. */
+  dp_wfm_compose_set_data_pacing (NULL, WFM_DATA_PACED);
 
   /* Nothing in the pipe: three frames are due, and each is idle. */
   float complex out[4 * FR];
@@ -1828,6 +1831,50 @@ test_a_record_replays_its_data_by_hash (void)
                 "a file that grew is refused, naming its length");
   dp_wfm_compose_destroy (c);
   free (rec);
+
+  /* A "data_sent" that is not what --record writes is refused, whatever
+     is wrong with it: not an object, no hash, a hash that is not hex. */
+  {
+    static const char *const BAD[] = {
+      "[1]",
+      "{\"bits\": 48}",
+      "{\"bits\": 48, \"hash\": \"0xZZ\"}",
+      "{\"bits\": 48, \"hash\": \"85944171f73967e8\"}",
+      "{\"bits\": -1, \"hash\": \"0x85944171f73967e8\"}",
+    };
+    for (size_t i = 0; i < sizeof BAD / sizeof *BAD; i++)
+      {
+        char scene[1024];
+        snprintf (scene, sizeof scene,
+                  "{\"segments\":[{\"type\":\"bits\",\"data_len\":16,"
+                  "\"data_from_file\":\"%s\",\"data_sent\":%s}]}",
+                  data, BAD[i]);
+        why = NULL;
+        c   = dp_wfm_compose_from_json_at (scene, NULL, &why);
+        DP_CHECK_MSG (c == NULL && why && strstr (why, "\"data_sent\""),
+                      BAD[i]);
+        dp_wfm_compose_destroy (c);
+      }
+  }
+
+  /* A record whose file is gone cannot be checked, so it is refused,
+     naming the file -- never replayed unchecked. */
+  {
+    DP_REQUIRE (write_file (data, SIX, 6) == 0);
+    c = dp_wfm_compose_create (&seg, 1, 0, 0);
+    DP_REQUIRE (c != NULL);
+    DP_REQUIRE (run_out (c, out, 200) == 48);
+    char *gone = record_of (c);
+    dp_wfm_compose_destroy (c);
+    DP_REQUIRE (gone != NULL && remove (data) == 0);
+    why = NULL;
+    c   = dp_wfm_compose_from_json_at (gone, NULL, &why);
+    DP_CHECK_MSG (c == NULL && why && strstr (why, data)
+                      && strstr (why, "cannot be read"),
+                  "a recorded file that is gone is refused, naming it");
+    dp_wfm_compose_destroy (c);
+    free (gone);
+  }
 
   /* stdin: recorded as "-" with the hash of what was read. */
   DP_REQUIRE (write_file (data, SIX, 6) == 0);

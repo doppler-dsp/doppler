@@ -1263,9 +1263,11 @@ void dp_wfm_compose_set_seed_advance(dp_wfm_compose_state_t *state, int mode);
 /**
  * @brief Pace a composer's data sources: WFM_DATA_PACED under `--realtime`.
  *
- * Applied to every synth the composer builds from here on, so a data stream
- * with nothing yet sends an idle frame of fill rather than waiting
- * (dp_wfm_data_frame, the one rule). The default, WFM_DATA_UNPACED, waits.
+ * Applied to the synths already built -- create builds the first
+ * segment's, before this can be called -- and to every synth built from here
+ * on, so a data stream with nothing yet sends an idle frame of fill rather
+ * than waiting (dp_wfm_data_frame, the one rule). The default,
+ * WFM_DATA_UNPACED, waits.
  */
 void dp_wfm_compose_set_data_pacing(dp_wfm_compose_state_t *state,
                                     wfm_data_pacing_t pacing);

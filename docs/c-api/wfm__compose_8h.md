@@ -1089,7 +1089,7 @@ void dp_wfm_compose_set_data_pacing (
 
 
 
-Applied to every synth the composer builds from here on, so a data stream with nothing yet sends an idle frame of fill rather than waiting (dp\_wfm\_data\_frame, the one rule). The default, WFM\_DATA\_UNPACED, waits. 
+Applied to the synths already built  create builds the first segment's, before this can be called  and to every synth built from here on, so a data stream with nothing yet sends an idle frame of fill rather than waiting (dp\_wfm\_data\_frame, the one rule). The default, WFM\_DATA\_UNPACED, waits. 
 
 
         

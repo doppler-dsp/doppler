@@ -47,9 +47,8 @@ is reached at the last sample; a `span` on the source overrides it.
 
 A standalone Python `Synth`/`chirp()` has no segment to lend a span, so a
 sweeping one must declare `span=`. It raises on first generation otherwise,
-rather than guessing one from the size of the first read — which is what it
-used to do, making `step()`, `steps(n)` and block reads three different
-waveforms
+rather than guessing one from the size of the first read, which would make
+`step()`, `steps(n)` and block reads three different waveforms
 ([#1115](https://github.com/doppler-dsp/doppler/issues/1115)).
 
 ______________________________________________________________________

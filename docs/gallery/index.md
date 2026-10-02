@@ -22,8 +22,8 @@ Those live on the [Examples](../examples/index.md) page instead.
 - [Waveform I/O](wfm-io.md) — one capture written to raw / CSV / BLUE / SigMF and read back.
 - [A Frame You Built, Generated](wfmgen-carried-frame.md) — `wfm_source_t.frame`:
     a source carries the description a caller built, so a layout no flag
-    spells reaches the samples — and the common frame's flags build one of
-    these too
+    spells reaches the samples; `--acq-code`, `--sync` and `--crc` build one
+    through `dp_wfm_frame_fixed()`
 - [A CCSDS CADU](ccsds-link.md) — a frame as a list of fields and a list of
     stages, each carrying the span it covers: why a pipeline cannot express
     the one thing CCSDS's stages disagree about, and what an outer code

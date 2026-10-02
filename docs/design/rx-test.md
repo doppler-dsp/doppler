@@ -312,8 +312,8 @@ What exists today:
 - `wfmgen --crc none|crc16` emits the trailer; `dp_wfm_frame_fixed()`
     describes `[preamble | sync | payload | CRC-16]` and
     `dp_wfm_frame_assemble()` builds it.
-- `dp_burst_demod_state_t` exposes per-frame read-backs after `demod()`:
-    `frame_valid` (CRC matched), `frame_offset` (sync word symbol offset),
+- `dp_burst_demod_state_t` exposes per-burst read-backs after `demod()`:
+    `frame_offset` (sync word symbol offset),
     `n_symbols`, `est_freq_hz`, `est_rate_hz`, `est_cn0_dbhz`,
     `est_timing_chips`.
 

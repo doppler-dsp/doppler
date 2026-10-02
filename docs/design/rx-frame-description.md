@@ -157,8 +157,8 @@ ______________________________________________________________________
     and the binding refuse a caller that tries.
 - **The receiver and the transmitter are built from one description, in
     every example and test.** In C that is `dp_wfm_dsss_desc_chips()` and the
-    receiver over one `wfm_frame_desc_t`. In Python the transmit side can
-    take a description only after [#1617][i1617] (§8.3).
+    receiver over one `wfm_frame_desc_t`. In Python it is a `Source(frame=)`
+    built from the receiver's `Frame` (§8.3).
 - **Byte-identical against the current receivers on the existing burst
     suite.** Same stimulus, same parameters, the old constructor against the
     new: identical frame bits, LLRs, symbols, events, read-backs and state
@@ -388,25 +388,29 @@ cannot describe a `data:LEN` payload today. The existing test works around
 it with zeros, "geometry, when the bits arrive later"
 (`src/doppler/dsss/tests/test_dsss_burst_receiver.py:397`). The fix is
 `FrameDesc.add_data(name, n)`, over a C `dp_frame_add_data` that adds a
-`WFM_SEQ_DATA` field (D5). It depends on #1660 merging, and nothing
-before plan step 6 needs it.
+`WFM_SEQ_DATA` field (D5). #1660, which it builds on, is merged, and
+nothing before plan step 6 needs it.
 
-### 8.3 The transmit side in Python waits for #1617
+### 8.3 The transmit side in Python takes the description
 
-`Source` takes `sync=`/`data=`/`crc=` and has no `frame=` ([#1617][i1617],
-which needs a jm composer feature). Until it lands, a Python test builds the
-transmitter from its description in one of two ways that exist: feeding
-`Frame.bits()` as an unframed spread payload (the pattern at
-`test_dsss_burst_receiver.py:346-353`), or a JSON scene's `"frame"` key
-through `Composer.from_json`. Neither renders a `data:LEN` payload; F's step
-6 (`Source(data=)`) does. The Python half of goal 2 therefore completes
-after #1617 and F step 6. The C half does not wait.
+`Source` takes `frame=`, a `FrameDesc` or a `Frame`
+([#1703](https://github.com/doppler-dsp/doppler/pull/1703), the first half
+of [#1617][i1617]), and `data=` with `data_len=`, a payload drawn from a
+data source (F step 6,
+[#1721](https://github.com/doppler-dsp/doppler/pull/1721)). So a Python test
+builds the transmitter from the receiver's `Frame` directly. A `data:LEN`
+payload renders through `data=` on the common frame (`sync=`, `crc=`); a
+`frame=` description carrying a `data:LEN` field needs
+`FrameDesc.add_data` (§8.2). The Python half of goal 2 waits on that and on
+moving the existing tests and examples (step 7), not on #1617, whose
+remainder moves `sync` and `crc` off `wfm_source_t`.
 
 ### 8.4 Dependencies
 
 - Plan steps 2 to 5 need nothing from F.
-- Step 6 needs #1660 merged (`WFM_SEQ_DATA`).
-- Step 7 needs #1617 (`Source(frame=)`) and F step 6 (`Source(data=)`).
+- Step 6 builds on #1660 (`WFM_SEQ_DATA`), which is merged.
+- Step 7 builds on `Source(frame=)` and F step 6 (`Source(data=)`), both
+    built, and on step 6 for a `data:LEN` description.
 
 ______________________________________________________________________
 
@@ -505,8 +509,9 @@ ______________________________________________________________________
     `FrameDesc.add_data` (D5), and a receiver test over a `data:LEN`
     description whose frames are compared with the source. Gate: `make test`,
     `make test-python`.
-1. **The Python transmit side from the description**, after #1617 and F
-    step 6: the remaining Python tests and examples build `Source(frame=)`
+1. **The Python transmit side from the description**, over
+    `Source(frame=)` and `Source(data=)`, which exist: the remaining Python
+    tests and examples build `Source(frame=)`
     from the receiver's `Frame`. Gate: the targets of §4.1.
 
 Each code PR carries a `changelog.d/` fragment and `Refs #1620`; step 7

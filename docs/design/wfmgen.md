@@ -1,15 +1,17 @@
 # wfmgen — the waveform generator
 
-!!! note "Status: shipped, and uncertified"
+!!! note "Certified per object, not per scene"
 
-    Every part of this is built, and most of it is gated. None of it is
-    **certified** — no `wfm` object appears in the
-    [Validation Log](../dev/contributing/validation-log.md) — so there is
-    plenty of measurement but no published statement of the bounds a caller
+    Every part of this is built, and most of it is gated. Each `wfm`
+    object — Gold, PN, `Synth`, the composer, `Frame`, `Plan`, `Reader` and
+    `Writer` — and `wfmgen` itself has a report in the
+    [Validation Log](../dev/contributing/validation-log.md); the data
+    source and `dp_hash64` do not yet
+    ([#1777](https://github.com/doppler-dsp/doppler/issues/1777)). What no
+    report states is the envelope of a whole **scene**: the bounds a caller
     may rely on and that a change may not silently break — what
     [Object Validation](../dev/contributing/validation.md) calls a certified
-    envelope.
-    That is the gap this page exists to make visible, and
+    envelope. That is the gap this page exists to make visible, and
     [Unknowns](#unknowns) is the list.
 
 A fast, full-featured waveform generator — modulations, impairments and
@@ -98,7 +100,7 @@ implementation, declared rather than coded.
 
 Both readings point the same way on certification. A tool users depend on
 owes them a stated envelope; a tool we calibrate against owes it to every
-result derived through it. It currently has neither.
+result derived through it. Its objects each have one; a scene does not.
 
 ## Use cases
 
@@ -335,7 +337,9 @@ stated limit (its *certify* phase).
 1. **The envelope beyond each object.** The objects are certified — Gold,
     PN, `Synth`, the composer, `Frame`, `Plan`, `Reader`, `Writer` and
     `wfmgen` itself each have a report
-    ([Validation Log](../dev/contributing/validation-log.md)). What no report
+    ([Validation Log](../dev/contributing/validation-log.md)); the data
+    source and `dp_hash64` are next
+    ([#1777](https://github.com/doppler-dsp/doppler/issues/1777)). What no report
     states is the envelope of a whole *scene*, which is where the unknowns
     below live.
 1. **Realised Es/N0 in `esno`, `ebno` and `auto`.** Only `fs` mode has a
@@ -376,7 +380,8 @@ stated limit (its *certify* phase).
     `check_serializable.py` never reaches it and nothing says so. A long
     paced run therefore cannot be resumed. This is a missing capability
     rather than a missing measurement: owed by the lifecycle's *instrument*
-    phase, before certification rather than by it.
+    phase, before certification rather than by it
+    ([#1776](https://github.com/doppler-dsp/doppler/issues/1776)).
 
 ## Non-goals
 

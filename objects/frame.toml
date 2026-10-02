@@ -224,7 +224,7 @@ params = [
 
 [[frame.methods]]
 name = "build"
-doc = "Lay out and materialise a description. Where a description is checked: one that cannot produce its own bits is not a frame. Separate from the constructor only because the description arrives over several calls and there is no earlier moment at which it is complete. Raises if it is empty, unbuildable, names a stage no kernel here covers, or was already built."
+doc = "Lay out and materialise a description. Where a description is checked: one that cannot produce its own bits is not a frame. Separate from the constructor only because the description arrives over several calls and there is no earlier moment at which it is complete. A description with a data field builds too, laid out from its lengths with its stages proved runnable over a discarded chunk: it has no single frame, so bits() returns none, while deframe() and check() work. Raises if it is empty, unbuildable, names a stage no kernel here covers, or was already built."
 arg_type = "void"
 return_type = "int"
 status_return = true

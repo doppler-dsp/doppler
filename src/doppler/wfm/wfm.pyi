@@ -1433,9 +1433,12 @@ class Frame:
         """Lay out and materialise a description. Where a description is
         checked: one that cannot produce its own bits is not a frame. Separate
         from the constructor only because the description arrives over several
-        calls and there is no earlier moment at which it is complete. Raises if
-        it is empty, unbuildable, names a stage no kernel here covers, or was
-        already built.
+        calls and there is no earlier moment at which it is complete. A
+        description with a data field builds too, laid out from its lengths
+        with its stages proved runnable over a discarded chunk: it has no
+        single frame, so bits() returns none, while deframe() and check() work.
+        Raises if it is empty, unbuildable, names a stage no kernel here
+        covers, or was already built.
 
         The point at which a description is checked, which for dp_frame_create
         happens inside the constructor: a description that cannot produce its
@@ -1449,6 +1452,13 @@ class Frame:
         nothing here carries is refused rather than skipped, because a stage
         that quietly did not run produces a frame that still assembles and
         syncs to nothing.
+
+        A description with a data field (dp_frame_add_data) builds too: the
+        field has no bits until a source draws them, so the description is laid
+        out from its lengths and its stages are proved runnable over a chunk
+        that is thrown away. It then has no single frame, so dp_frame_bits
+        writes none, while dp_frame_deframe and dp_frame_check work as for any
+        other -- a receiver needs the data field's length and nothing else.
 
         The inner encoder starts from the all-zero register on every build: a
         description describes ONE frame. A stream of CADUs sharing one register
@@ -2430,9 +2440,12 @@ class FrameDesc:
         """Lay out and materialise a description. Where a description is
         checked: one that cannot produce its own bits is not a frame. Separate
         from the constructor only because the description arrives over several
-        calls and there is no earlier moment at which it is complete. Raises if
-        it is empty, unbuildable, names a stage no kernel here covers, or was
-        already built.
+        calls and there is no earlier moment at which it is complete. A
+        description with a data field builds too, laid out from its lengths
+        with its stages proved runnable over a discarded chunk: it has no
+        single frame, so bits() returns none, while deframe() and check() work.
+        Raises if it is empty, unbuildable, names a stage no kernel here
+        covers, or was already built.
 
         The point at which a description is checked, which for dp_frame_create
         happens inside the constructor: a description that cannot produce its
@@ -2446,6 +2459,13 @@ class FrameDesc:
         nothing here carries is refused rather than skipped, because a stage
         that quietly did not run produces a frame that still assembles and
         syncs to nothing.
+
+        A description with a data field (dp_frame_add_data) builds too: the
+        field has no bits until a source draws them, so the description is laid
+        out from its lengths and its stages are proved runnable over a chunk
+        that is thrown away. It then has no single frame, so dp_frame_bits
+        writes none, while dp_frame_deframe and dp_frame_check work as for any
+        other -- a receiver needs the data field's length and nothing else.
 
         The inner encoder starts from the all-zero register on every build: a
         description describes ONE frame. A stream of CADUs sharing one register

@@ -664,5 +664,60 @@ main (void)
     dp_frame_destroy (two);
   }
 
+  /* ── a description with a data field has a receive face (#1789) ───────
+   *
+   * A data field has no bits until a source draws them, so build() cannot
+   * materialise it -- but a receiver needs only its LENGTH. build() lays the
+   * description out and proves its stages runnable over a discarded chunk;
+   * bits() has no single frame to repeat and writes none; deframe() and
+   * check() read the layout, which is all they ever did. */
+  {
+    static const uint8_t sync[7] = { 1, 1, 1, 1, 1, 1, 1 };
+    static const uint8_t pay[8]  = { 0, 1, 1, 0, 1, 0, 0, 1 };
+    uint8_t              rx[31], out[31], one[31];
+
+    /* The truth a transmitter would send: the same shape, payload given. */
+    dp_frame_state_t *t = dp_frame_create (NULL, 0, sync, 7, pay, 8, 1);
+    DP_REQUIRE (t != NULL && t->nbits == 31);
+    DP_REQUIRE (dp_frame_bits (t, 1, rx, sizeof rx) == 31);
+    dp_frame_destroy (t);
+
+    dp_frame_state_t *d = empty_desc ();
+    DP_REQUIRE (d != NULL);
+    DP_CHECK (dp_frame_add_field (d, "sync", sync, 7) == 0);
+    DP_CHECK (dp_frame_add_data (d, "payload", 8u) == 1);
+    DP_CHECK (dp_frame_add_derived (d, "crc", 16) == 2);
+    DP_CHECK (
+        dp_frame_add_stage_over (d, WFM_STAGE_CRC16, "payload", "crc", 0, 0)
+        == 0);
+    DP_CHECK_MSG (dp_frame_build (d) == 0, "a data description builds");
+    DP_CHECK_MSG (d->nbits == 31, "...to the length its lengths say");
+    DP_CHECK_MSG (dp_frame_bits (d, 1, one, sizeof one) == 0,
+                  "...but has no single frame, so bits() writes none");
+    DP_CHECK_MSG (dp_frame_build (d) == -1, "and is built once");
+    DP_CHECK_MSG (dp_frame_deframe (d, rx, sizeof rx, out, sizeof out) == 31,
+                  "deframe() reads it");
+    DP_CHECK_MSG (memcmp (out + 7, pay, 8) == 0,
+                  "...and the payload is where the data field says");
+    frame_check_t ck = dp_frame_check (d, rx, sizeof rx);
+    DP_CHECK_MSG (ck.passed == 1 && ck.checked == 1, "check() passes it");
+    rx[9] ^= 1u;
+    ck = dp_frame_check (d, rx, sizeof rx);
+    DP_CHECK_MSG (ck.passed == 0 && ck.checked == 1,
+                  "...and fails a frame with a flipped payload bit");
+    dp_frame_destroy (d);
+
+    /* build() still proves the stages runnable: no kernel, no build. */
+    dp_frame_state_t *bad = empty_desc ();
+    DP_REQUIRE (bad != NULL);
+    DP_CHECK (dp_frame_add_data (bad, "payload", 8u) == 0);
+    DP_CHECK (dp_frame_add_derived (bad, "crc", 16) == 1);
+    DP_CHECK (dp_frame_add_stage_over (bad, 9999, "payload", "crc", 0, 0)
+              >= -1);
+    DP_CHECK_MSG (dp_frame_build (bad) == -1,
+                  "a data description naming a missing kernel is refused");
+    dp_frame_destroy (bad);
+  }
+
   DP_TEST_END ("frame_core");
 }

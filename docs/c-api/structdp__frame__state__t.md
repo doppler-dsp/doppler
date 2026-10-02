@@ -36,6 +36,7 @@ _Frame state._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
+|  int | [**built**](#variable-built)  <br> |
 |  [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) | [**d**](#variable-d)  <br> |
 |  [**wfm\_frame\_desc\_layout\_t**](structwfm__frame__desc__layout__t.md) | [**dl**](#variable-dl)  <br> |
 |  size\_t | [**nbits**](#variable-nbits)  <br> |
@@ -98,6 +99,23 @@ Allocate with [**dp\_frame\_create()**](frame__core_8h.md#function-dp_frame_crea
     
 ## Public Attributes Documentation
 
+
+
+
+### variable built 
+
+```C++
+int dp_frame_state_t::built;
+```
+
+
+
+Non-zero once the description is fixed: set by [**dp\_frame\_create**](frame__core_8h.md#function-dp_frame_create) and by a successful [**dp\_frame\_build**](frame__core_8h.md#function-dp_frame_build). It is NOT `one != NULL`, because a description with a data field is built, laid out and checkable, yet has no single frame to hold  its data field has no bits of its own, so `one` stays NULL and [**dp\_frame\_bits**](frame__core_8h.md#function-dp_frame_bits) writes none. 
+
+
+        
+
+<hr>
 
 
 

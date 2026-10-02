@@ -38,6 +38,7 @@ import pytest
 from doppler.wfm import (
     STAGE_CRC16,
     Composer,
+    Frame,
     FrameDesc,
     Segment,
     Synth,
@@ -914,3 +915,40 @@ def test_the_cli_prefixes_its_flag_to_the_frame_sentence(tmp_path):
     )
     assert p.returncode == 2, p.stderr
     assert f"error: --data-code: {why}" in p.stderr, p.stderr
+
+
+# ── a data description is receivable (doppler#1789) ─────────────────────────
+#
+# A data field has no bits until a source draws them, so build() cannot
+# materialise one -- but a receiver needs only the field's LENGTH. build()
+# lays the description out; bits() has no single frame to repeat and returns
+# none; deframe() and check() read the layout.
+
+
+def _data_rx(chunk: np.ndarray) -> np.ndarray:
+    """What a transmitter sends for `chunk`: the same shape, payload given."""
+    return np.asarray(
+        Frame(sync=SYNC, payload=chunk, crc="crc16").bits(), np.uint8
+    )
+
+
+def test_a_data_description_builds_and_has_no_single_frame():
+    d = _data_desc()
+    d.build()
+    assert d.nbits == _DBITS
+    assert len(d.bits()) == 0  # no frame of its own: nothing fabricated
+
+
+def test_a_data_description_deframes_and_checks_a_received_frame():
+    d = _data_desc()
+    d.build()
+    chunk = _DSRC[:_DLEN]
+    rx = _data_rx(chunk)
+    got = np.asarray(d.deframe(rx))
+    assert len(got) == _DBITS
+    off = d.field_off(d.field_index("payload"))
+    assert np.array_equal(got[off : off + _DLEN], chunk)
+    assert d.check(rx).passed == 1
+    bad = rx.copy()
+    bad[off + 3] ^= 1
+    assert d.check(bad).passed == 0

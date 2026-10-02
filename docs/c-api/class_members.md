@@ -77,6 +77,7 @@
 * **buf** ([**dp\_delay\_state\_t**](structdp__delay__state__t.md), [**dp\_ppe\_state\_t**](structdp__ppe__state__t.md), [**dp\_reader\_t**](structdp__reader__t.md), [**dp\_writer\_t**](structdp__writer__t.md))
 * **bit\_acc** ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md))
 * **bit\_phase** ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md))
+* **built** ([**dp\_frame\_state\_t**](structdp__frame__state__t.md))
 * **body** ([**dp\_pf\_shared\_t**](structdp__pf__shared__t.md))
 * **busy** ([**dp\_pool\_t**](structdp__pool__t.md))
 * **bytes** ([**dp\_state\_hdr\_t**](structdp__state__hdr__t.md))

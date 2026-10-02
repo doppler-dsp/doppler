@@ -106,6 +106,13 @@ typedef struct {
         repeat is bit-identical by construction and a PN field cannot advance
         its register between them. */
     uint8_t *one;
+    /** Non-zero once the description is fixed: set by @ref dp_frame_create
+        and by a successful @ref dp_frame_build. It is NOT `one != NULL`,
+        because a description with a data field is built, laid out and
+        checkable, yet has no single frame to hold -- its data field has no
+        bits of its own, so `one` stays NULL and @ref dp_frame_bits writes
+        none. */
+    int built;
 /*<<property_struct_fields>>*/
   size_t nbits;
 } dp_frame_state_t;
@@ -382,6 +389,13 @@ int dp_frame_add_stage(dp_frame_state_t *state, int kind, uint32_t first_field,
  * object is where a caller meets them. A stage naming a kernel nothing here
  * carries is refused rather than skipped, because a stage that quietly did
  * not run produces a frame that still assembles and syncs to nothing.
+ *
+ * A description with a data field (@ref dp_frame_add_data) builds too: the
+ * field has no bits until a source draws them, so the description is laid out
+ * from its lengths and its stages are proved runnable over a chunk that is
+ * thrown away. It then has no single frame, so @ref dp_frame_bits writes
+ * none, while @ref dp_frame_deframe and @ref dp_frame_check work as for any
+ * other -- a receiver needs the data field's length and nothing else.
  *
  * The inner encoder starts from the all-zero register on every build: a
  * description describes ONE frame. A stream of CADUs sharing one register is

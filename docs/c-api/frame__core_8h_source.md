@@ -33,6 +33,7 @@ typedef struct {
     int rx_symbols;
     uint8_t *own[WFM_FRAME_MAX_FIELDS];
     uint8_t *one;
+    int built;
 /*<<property_struct_fields>>*/
   size_t nbits;
 } dp_frame_state_t;

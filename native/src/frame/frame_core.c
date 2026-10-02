@@ -110,6 +110,7 @@ dp_frame_create (const uint8_t *preamble, size_t preamble_len,
       dp_frame_destroy (obj);
       return NULL;
     }
+  obj->built = 1;
   return obj;
 }
 
@@ -133,7 +134,10 @@ dp_frame_bits_max_out (dp_frame_state_t *state, size_t n)
 size_t
 dp_frame_bits (dp_frame_state_t *state, size_t n, uint8_t *out, size_t max_out)
 {
-  if (!state || !out)
+  /* No single frame to repeat: a description with a data field is built and
+     checkable but has no bits of its own, and zeros in its place would make
+     this a fabricated frame. */
+  if (!state || !out || !state->one)
     return 0;
   /* Whole frames only: half a frame is not a frame, and a caller comparing
      against a capture would silently misalign every subsequent one. */
@@ -195,7 +199,7 @@ int
 dp_frame_add_field (dp_frame_state_t *state, const char *name,
                     const uint8_t *bits, size_t bits_len)
 {
-  if (!state || state->one != NULL || !bits || bits_len == 0
+  if (!state || state->built || !bits || bits_len == 0
       || state->d.n_fields >= WFM_FRAME_MAX_FIELDS)
     return -1;
 
@@ -220,7 +224,7 @@ dp_frame_add_stage (dp_frame_state_t *state, int kind, uint32_t first_field,
                     uint32_t n_fields, uint32_t depth, uint32_t emit_num,
                     uint32_t emit_den, uint32_t unit_bits)
 {
-  if (!state || state->one != NULL)
+  if (!state || state->built)
     return -1;
   /* The general layer appends, and wires a derived last field's producer by
      the same rule the by-name form uses; this object only adds the
@@ -240,7 +244,7 @@ dp_frame_add_stage (dp_frame_state_t *state, int kind, uint32_t first_field,
 int
 dp_frame_build (dp_frame_state_t *state)
 {
-  if (!state || state->one != NULL)
+  if (!state || state->built)
     return -1;
   if (dp_wfm_frame_desc_layout (&state->d, &state->dl) != 0)
     return -1;
@@ -269,16 +273,34 @@ dp_frame_build (dp_frame_state_t *state)
   wfm_frame_ops_t ops;
   dp_ccsds_tm_frame_ops (&ops, NULL);
 
-  state->one = (uint8_t *)malloc (state->nbits);
-  if (!state->one
-      || dp_wfm_frame_assemble (&state->d, &ops, state->one, state->nbits)
-             != state->nbits)
+  /* A data field has no bits until a source draws them, so such a
+     description is laid out from lengths (all a receiver needs) and its
+     stages are proved runnable over a SCRATCH chunk that is thrown away:
+     the same check as below, with nothing kept that could pass for the
+     frame. bits() then has no single frame to repeat. */
+  int has_data = 0;
+  for (unsigned i = 0; i < state->d.n_fields; i++)
+    if (!state->d.field[i].derived_by
+        && state->d.field[i].seq.kind == WFM_SEQ_DATA
+        && state->dl.field_bits[i])
+      has_data = 1;
+
+  uint8_t     *frame   = dp_xmalloc (state->nbits);
+  uint8_t     *scratch = has_data ? dp_xcalloc (state->nbits, 1) : NULL;
+  const size_t n = dp_wfm_frame_assemble_data (&state->d, &ops, scratch, frame,
+                                               state->nbits);
+  free (scratch);
+  if (n != state->nbits)
     {
-      free (state->one);
-      state->one   = NULL;
+      free (frame);
       state->nbits = 0;
       return -1;
     }
+  if (has_data)
+    free (frame);
+  else
+    state->one = frame;
+  state->built = 1;
   return 0;
 }
 
@@ -426,7 +448,7 @@ dp_frame_field_index (dp_frame_state_t *state, const char *name)
 int
 dp_frame_name_field (dp_frame_state_t *state, uint32_t index, const char *name)
 {
-  if (!state || state->one != NULL || index >= state->d.n_fields)
+  if (!state || state->built || index >= state->d.n_fields)
     return -1;
   /* Refuse a duplicate here too: a rename that collided would make
      field_index answer with whichever field it reached first. */
@@ -449,7 +471,7 @@ dp_frame_name_field (dp_frame_state_t *state, uint32_t index, const char *name)
 int
 dp_frame_add_derived (dp_frame_state_t *state, const char *name, size_t bits)
 {
-  if (!state || state->one != NULL)
+  if (!state || state->built)
     return -1;
   return dp_wfm_frame_add_derived (&state->d, name, bits);
 }
@@ -459,7 +481,7 @@ dp_frame_add_data (dp_frame_state_t *state, const char *name, size_t len)
 {
   /* The range the Field grammar accepts for `data:LEN`, so this door
      admits exactly what the text door does. */
-  if (!state || state->one != NULL || len == 0 || len > WFM_FIELD_MAX_BITS)
+  if (!state || state->built || len == 0 || len > WFM_FIELD_MAX_BITS)
     return -1;
   /* The field `data:LEN` parses to: a WFM_SEQ_DATA sequence of that
      length, written once, as the parser writes it. Nothing is owned --
@@ -472,7 +494,7 @@ int
 dp_frame_add_stage_over (dp_frame_state_t *state, int kind, const char *first,
                          const char *last, uint32_t depth, uint32_t unit_bits)
 {
-  if (!state || state->one != NULL)
+  if (!state || state->built)
     return -1;
   const int s
       = dp_wfm_frame_add_stage (&state->d, (uint32_t)kind, first, last);

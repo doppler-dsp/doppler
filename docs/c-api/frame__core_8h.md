@@ -578,6 +578,9 @@ The point at which a description is checked, which for [**dp\_frame\_create**](f
 The CRC, the outer code, the randomiser and the inner code are all runnable: `ccsds_tm` has no Python binding and is not getting one, so this object is where a caller meets them. A stage naming a kernel nothing here carries is refused rather than skipped, because a stage that quietly did not run produces a frame that still assembles and syncs to nothing.
 
 
+A description with a data field ([**dp\_frame\_add\_data**](frame__core_8h.md#function-dp_frame_add_data)) builds too: the field has no bits until a source draws them, so the description is laid out from its lengths and its stages are proved runnable over a chunk that is thrown away. It then has no single frame, so [**dp\_frame\_bits**](frame__core_8h.md#function-dp_frame_bits) writes none, while [**dp\_frame\_deframe**](frame__core_8h.md#function-dp_frame_deframe) and [**dp\_frame\_check**](frame__core_8h.md#function-dp_frame_check) work as for any other  a receiver needs the data field's length and nothing else.
+
+
 The inner encoder starts from the all-zero register on every build: a description describes ONE frame. A stream of CADUs sharing one register is a transmitter's job and lives in `dp_ccsds_tm_frame_encode`.
 
 

@@ -176,8 +176,8 @@ git push                # ci-image.yml builds, smokes and commits the pin
 `ci-image-check` runs inside `make lint`. It is offline and instant: the pin
 must be complete and well formed, and its `CI_IMAGE_SOURCE_HASH` must be this
 tree's hash of `docker/ci.Dockerfile`, `docker/ci-extra.sh` and
-`bootstrap.toml`. That hash covers `bootstrap.toml` whole, so a release's
-version bump also moves it and owes a repin
+`bootstrap.toml`. It leaves out `bootstrap.toml`'s `[project]` table, which
+no layer reads, so a release's version bump owes no repin
 ([#1765](https://github.com/doppler-dsp/doppler/issues/1765)).
 
 `ci-image-refs-check`, also in `make lint`, asks doppler's half: does every

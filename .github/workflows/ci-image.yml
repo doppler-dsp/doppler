@@ -62,8 +62,23 @@ jobs:
       landing: ${{ steps.cfg.outputs.landing }}
       ci_workflow: ${{ steps.cfg.outputs.ci_workflow }}
       tag: ${{ steps.cfg.outputs.tag }}
+      owed: ${{ steps.owed.outputs.owed }}
     steps:
       - uses: actions/checkout@v6
+
+      # A branch push builds only when the pin is OWED: when this tree's image
+      # sources no longer match it. A release bump edits bootstrap.toml's
+      # [project] version, which the source hash leaves out, so it owes
+      # nothing and builds nothing; before this, every release branch built
+      # every base on both arches to change a string no layer reads. The
+      # weekly run and a dispatch always build: they exist to ask.
+      - id: owed
+        run: |
+          if [ "${{ github.event_name }}" = push ] && make -s ci-image-check; then
+            echo "owed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "owed=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: docker/setup-buildx-action@v4
 
@@ -100,6 +115,7 @@ jobs:
   build:
     name: Build and smoke (${{ matrix.key }}, ${{ matrix.arch }})
     needs: resolve
+    if: needs.resolve.outputs.owed == 'true'
     runs-on: ${{ matrix.runs_on }}
     timeout-minutes: 60
     permissions:

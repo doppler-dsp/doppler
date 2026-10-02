@@ -3,6 +3,10 @@ name: Docs
 on:
   push:
     branches: [main]
+  # A push run that fails at startup cannot be re-run; dispatch on main
+  # rebuilds and redeploys the site (the deploy steps gate on main), and on a
+  # branch only builds (workflow-dispatch-check, just-makeit#1801).
+  workflow_dispatch:
   # On a PR, only when the C API pipeline itself could break.
   #
   # This trigger used to be unfiltered, so that stacked PRs would build the

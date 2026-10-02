@@ -1455,6 +1455,13 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
 # itself. Edit canonical and re-vendor; never edit these in place.
 VENDORED_FILES = scripts/release-watch.sh scripts/pr-watch.sh
 
+# Pre-commit hooks that run their own tool rather than `make -s lint-<tool>`
+# (standard.mk's hook-dispatch-check refuses any other). All four are
+# pre-commit/pre-commit-hooks' fixers and syntax checks, pinned by that repo's
+# `rev:` -- the second source of truth the rule exists to end, kept as named
+# exceptions until each gets a lint target. The list may only shrink.
+HOOK_DISPATCH_EXEMPT = check-yaml check-toml end-of-file-fixer trailing-whitespace
+
 # What `ci-changes` may IGNORE when it asks "is this a version bump and
 # nothing else?" (standard.mk's knob, extended rather than copied). A release
 # PR carries more than the bump: the gallery PNGs `make gallery` re-rendered

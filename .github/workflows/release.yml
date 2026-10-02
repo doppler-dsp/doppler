@@ -5,6 +5,18 @@ on:
   push:
     tags:
       - 'v[0-9]*'
+  # A tag push is a webhook event, the kind an Actions incident drops, and a
+  # run that fails at startup cannot be re-run ("This workflow run cannot be
+  # retried"). A release that cannot be started is the one automation that
+  # most needs a manual handle (workflow-dispatch-check, just-makeit#1801).
+  # The tag must ALREADY exist and be green: every checkout below builds it,
+  # verify-ci polls ITS commit, and nothing here creates a tag.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to build, e.g. v0.59.0"
+        required: true
+        type: string
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -20,15 +32,29 @@ jobs:
     outputs:
       version: ${{ steps.get.outputs.version }}
       jm_version: ${{ steps.get.outputs.jm_version }}
+      # The commit under release, read from the checkout above -- on a
+      # dispatch, github.sha is main's head, not the tag's commit.
+      sha: ${{ steps.get.outputs.sha }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The tag under release: pushed, or named by a dispatch.
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Extract tag version
         id: get
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
         run: |
-          TAG="${GITHUB_REF_NAME}"          # e.g. v0.2.1
+          TAG="${INPUT_TAG:-$GITHUB_REF_NAME}"   # e.g. v0.2.1
+          case "$TAG" in
+            v[0-9]*) ;;
+            *) echo "::error::'$TAG' is not a release tag (v<digit>...)"
+               exit 1 ;;
+          esac
           VERSION="${TAG#v}"                # e.g.   0.2.1
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           # The jm pin the SDK image bakes in — asked of the Makefile, which
           # already derives JM_VERSION from just-makeit.toml for the docker-*
           # targets. This step had its own grep/sed doing the same job, so one
@@ -80,7 +106,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
-          SHA: ${{ github.sha }}
+          SHA: ${{ needs.verify-version.outputs.sha }}
         # `shell: bash` for pipefail: the `| head -n1` below otherwise
         # reports head's status and a failed `gh api` reads as an empty
         # answer. The `|| line=""` keeps that tolerance DELIBERATE rather
@@ -137,6 +163,9 @@ jobs:
           - { tag: aarch64, runner: ubuntu-24.04-arm }
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The tag under release: pushed, or named by a dispatch.
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Build wheel (${{ matrix.python }}) in manylinux container
         # `make wheel` (= uv build --wheel) is the reference wheel build and is
@@ -206,6 +235,9 @@ jobs:
         python: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The tag under release: pushed, or named by a dispatch.
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Install uv + Python ${{ matrix.python }}
         uses: astral-sh/setup-uv@v7
@@ -261,6 +293,9 @@ jobs:
         python: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The tag under release: pushed, or named by a dispatch.
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: MSVC developer environment (x64)
         uses: ilammy/msvc-dev-cmd@v1
@@ -291,6 +326,9 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The tag under release: pushed, or named by a dispatch.
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -331,6 +369,9 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The tag under release: pushed, or named by a dispatch.
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Build + tar the C library in the manylinux container
         run: |
@@ -404,6 +445,9 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The tag under release: pushed, or named by a dispatch.
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Install system dependencies
         timeout-minutes: 25
@@ -440,6 +484,9 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The tag under release: pushed, or named by a dispatch.
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: MSVC developer environment (x64)
         uses: ilammy/msvc-dev-cmd@v1
@@ -483,6 +530,9 @@ jobs:
           - { tag: win_amd64, runner: windows-latest, artifact: python-dist-windows-3.12 }
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The tag under release: pushed, or named by a dispatch.
+          ref: ${{ inputs.tag || github.ref }}
 
       - uses: actions/setup-python@v7
         with:
@@ -560,6 +610,9 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The tag under release: pushed, or named by a dispatch.
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Wait for the version to be resolvable on PyPI
         # The SIMPLE INDEX is what pip actually reads, and curl is always
@@ -696,6 +749,9 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The tag under release: pushed, or named by a dispatch.
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Download the digests
         uses: actions/download-artifact@v8
@@ -795,6 +851,9 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The tag under release: pushed, or named by a dispatch.
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Download Python artifacts
         uses: actions/download-artifact@v8
@@ -832,6 +891,9 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v3
         with:
+          # Named, never inferred: the action defaults to github.ref, which on
+          # a dispatch is main, not the tag under release.
+          tag_name: ${{ inputs.tag || github.ref_name }}
           generate_release_notes: true
           files: dist/*
           # body_path takes precedence over body; the action then APPENDS its
@@ -867,6 +929,9 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The tag under release: pushed, or named by a dispatch.
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Install pkg-config (macOS)
         if: runner.os == 'macOS'
@@ -912,6 +977,9 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The tag under release: pushed, or named by a dispatch.
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Install the published packages in each distro
         env:
@@ -951,6 +1019,9 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The tag under release: pushed, or named by a dispatch.
+          ref: ${{ inputs.tag || github.ref }}
 
       - uses: actions/setup-python@v7
         with:

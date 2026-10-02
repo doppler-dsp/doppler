@@ -14,7 +14,7 @@ project(doppler_uno_q C)
 # friends for its own arithmetic; doppler's own libm use comes with the
 # imported target.
 # <!-- doc-version:start -->
-find_package(doppler 0.59.0 REQUIRED)
+find_package(doppler 0.60.0 REQUIRED)
 # <!-- doc-version:end -->
 
 add_executable(uno_q_shared main.c scene.c)

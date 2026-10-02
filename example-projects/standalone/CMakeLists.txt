@@ -50,7 +50,7 @@ if(DEFINED DOPPLER_BUILD_DIR)
     endif()
 else()
     # <!-- doc-version:start -->
-    find_package(doppler 0.59.0 REQUIRED)
+    find_package(doppler 0.60.0 REQUIRED)
     # <!-- doc-version:end -->
 endif()
 

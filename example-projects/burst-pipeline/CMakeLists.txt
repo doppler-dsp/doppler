@@ -17,7 +17,7 @@ project(doppler_burst_pipeline C)
 # links libm for that reason, exactly as it would without doppler. Dropped
 # here it fails at the link, not at runtime, which is how you find out.
 # <!-- doc-version:start -->
-find_package(doppler 0.59.0 REQUIRED)
+find_package(doppler 0.60.0 REQUIRED)
 # <!-- doc-version:end -->
 
 add_executable(burst_pipeline_shared main.c)

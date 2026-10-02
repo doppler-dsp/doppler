@@ -317,8 +317,28 @@ wfmgen --from-file run.json -o b.iq      # a.iq and b.iq are identical
 
 The recorded `--headroom` is reapplied on replay; an explicit `--headroom` on the
 `--from-file` run overrides it. Use `--record` to document a capture next to its
-data, or to pin an exact scenario in a test. The resolved spec also round-trips
-through JSON in Python — `Composer.from_json(c.to_json())` reproduces the stream.
+data, or to pin an exact scenario in a test.
+
+Python reaches the same record. `Composer.to_json()` writes the string
+`--record` writes, and `Composer.from_json()` (or `from_file()` for a path)
+takes the path `--from-file` takes, so a scene rebuilt from its own JSON
+composes the same samples to the last bit:
+
+```python
+import numpy as np
+from doppler.wfm import Composer, Segment
+
+scene = Composer([
+    Segment("tone", fs=1e6, freq=1.5e5, num_samples=8_000, off_samples=2_000),
+    Segment("qpsk", fs=1e6, snr=12.0, snr_mode="esno", sps=8, pulse="rrc",
+            rrc_beta=0.35, rrc_span=8, num_samples=16_000),
+    Segment("chirp", fs=1e6, freq=-4e5, f_end=4e5, num_samples=10_000),
+])
+spec = scene.to_json()                  # the string --record writes
+replay = Composer.from_json(spec)       # the path --from-file takes
+assert replay.to_json() == spec         # the resolved spec is a fixed point
+assert np.array_equal(replay.compose(), scene.compose())
+```
 
 ______________________________________________________________________
 
@@ -418,34 +438,11 @@ draws = list(plan.monte_carlo(6.0, 16, seed0=1000))
 assert len({d.tobytes() for d in draws}) == 16       # every realization differs
 ```
 
-### Recipe — a detection / BER curve
+### Recipe — a BER curve
 
-Sweep the channel SNR and measure a per-point statistic. Here a light
-matched-filter peak-SNR against a clean copy of the wanted user (itself produced
-by disabling the interferer — see the next recipe). A real campaign averages each
-point over Monte-Carlo draws:
-
-```python
-# a clean, interference-free copy of the wanted user = the matched filter
-template = plan.render(enable=[True, False])[: len(plan) // 2]
-template = template / (np.linalg.norm(template) + 1e-30)
-
-def peak_snr(x):
-    c = np.abs(np.correlate(x, template, mode="valid"))
-    pk = int(c.argmax())
-    off = np.delete(c, slice(max(0, pk - 4), pk + 5))
-    return 10 * np.log10(c[pk] ** 2 / (np.mean(off ** 2) + 1e-30))
-
-snrs = np.arange(-6.0, 13.0, 3.0)
-# each point: mean peak-SNR over 8 independent noise draws
-detect = [np.mean([peak_snr(plan.at(s, 2000 + j)) for j in range(8)])
-          for s in snrs]
-assert len(detect) == len(snrs)
-```
-
-The measured curve climbs with channel SNR and then flattens as the
-multiple-access interference floor takes over — and the cache reproduces the
-precise noise power the resolver placed at every point.
+The [DSSS BER Monte Carlo](../../gallery/dsss-burst-receiver.md#ber-vs-ebn0-through-one-plan)
+is the worked one: `plan.at(snr, seed)` per trial, into a receiver, scored
+against theory.
 
 ### Recipe — isolate or recombine sources
 
@@ -503,13 +500,12 @@ refuses:
 | a **ranged signal** field — `snr=(4, 8)`, `freq=(0.01, 0.05)` | the value the cache was rendered at is the one thing a sweep is supposed to vary afterwards, so a per-repeat redraw of it has nothing to re-weight |
 | **`continuous=True`**                                         | the length is open-ended, and the cache is the rendered samples                                                                                    |
 
-Everything else the scene can say is fine — including three things this page
-used to claim were rejected. Multi-segment scenes, `repeats`, and ranged
-**timing** (`off_samples`, `delay_samples`, the per-instance jitter a burst
-train wants) all prepare, which is what
-[DSSS bursts](waveforms.md#sweeping-a-burst-train-with-plan) relies on. So
-does a lone **bundled** noisy source, whose private RNG is fused into the
-signal.
+Everything else the scene can say is fine. Multi-segment scenes, `repeats`,
+and ranged **timing** (`off_samples`, `delay_samples`, the per-instance jitter
+a burst train wants) all prepare. So does a lone **bundled** noisy source,
+whose private RNG is fused into the signal: the
+[DSSS BER Monte Carlo](../../gallery/dsss-burst-receiver.md#ber-vs-ebn0-through-one-plan)
+prepares one.
 
 ```pycon
 >>> from doppler.wfm import Composer, Segment, prepare

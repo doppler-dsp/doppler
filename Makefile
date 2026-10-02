@@ -1920,12 +1920,10 @@ GALLERY_SCRIPTS := \
     src/doppler/examples/symbols_demo.py \
     src/doppler/examples/wfm_composition_demo.py \
     src/doppler/examples/wcdma_carriers_demo.py \
-    src/doppler/examples/plan_demo.py \
     src/doppler/examples/plan_background_demo.py \
     src/doppler/examples/crowded_band_demo.py \
     src/doppler/examples/measure_demo.py \
     src/doppler/examples/measure_imd_npr_demo.py \
-    src/doppler/examples/wfm_write_demo.py \
     src/doppler/examples/awgn_demo.py \
     src/doppler/examples/doppler_channel_demo.py \
     src/doppler/examples/wfm_io_demo.py \
@@ -1954,8 +1952,7 @@ GALLERY_SCRIPTS := \
     src/doppler/examples/q15_uq15_demo.py \
     src/doppler/examples/receiver_lock_demo.py \
     src/doppler/examples/symsync_demo.py \
-    src/doppler/examples/symsync_theory_demo.py \
-    src/doppler/examples/wfm_json_demo.py
+    src/doppler/examples/symsync_theory_demo.py
 
 # The receiver-dynamics figure. NOT a gallery script: the measurement is C
 # (validate_rx_dynamics) and this only renders the telemetry that harness

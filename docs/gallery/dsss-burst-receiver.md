@@ -191,7 +191,8 @@ That is the whole output. Undoing the frame is a separate call:
     silently wrong payload.
 - **An outer code REPAIRS** inside `deframe()`, before the payload is
     sliced. Measured on this chain: eight injected bit errors reach the
-    payload without `rs_depth` and are gone with it.
+    payload when the description has no `rs` stage, and are gone when it
+    has one.
 
 What the receiver gained by giving all that up is that it can be pointed at
 *any* frame: it needs a template to correlate and a length to slice, and

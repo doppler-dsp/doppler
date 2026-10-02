@@ -211,5 +211,3 @@ ______________________________________________________________________
 
 - [Gallery: Waveform I/O](../../gallery/wfm-io.md) — round-tripping one capture
     through all four file types, visually confirmed lossless.
-- [Gallery: Waveform Write](../../gallery/wfm-write.md) — a minimal
-    Composer → Writer → Reader walkthrough.

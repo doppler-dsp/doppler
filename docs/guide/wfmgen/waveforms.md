@@ -823,61 +823,14 @@ is written after the capture) requires a finite `--count`, not `--continuous`.
 
 ______________________________________________________________________
 
-### Sweeping a burst train with `Plan`
+### A burst train in a `Plan`
 
-`Plan` supports the same `repeats` + ranged-`off_samples`/`delay_samples`
-declaration used above — prepare the 5-burst scene once, then sweep Es/N0
-(or redraw the inter-burst jitter via a Monte-Carlo `seed`) without
-re-running the DSSS spreading/pulse-shaping per point:
-
-```python
-import numpy as np
-from doppler.wfm import Composer, Segment, prepare
-
-rng = np.random.default_rng(0)
-acq = rng.integers(0, 2, 128, dtype=np.uint8)
-dat = rng.integers(0, 2, 25, dtype=np.uint8)
-pay = rng.integers(0, 2, 200, dtype=np.uint8)
-BARKER13 = np.array([1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 1], np.uint8)
-
-burst = Segment(
-    type="dsss", fs=4e6, sps=4, seed=1,
-    snr=10.0, snr_mode="esno",
-    acq_code=acq, acq_reps=4,
-    data_code=dat,
-    sync=BARKER13, data=pay,
-    delay_samples=(2_000, 10_000),
-    off_samples=(4_000, 12_000),
-    repeats=5,
-)
-scene = Composer([burst])
-
-plan = prepare(scene)                    # spreading/pulse-shaping ONCE
-assert np.array_equal(plan.render(), scene.compose())   # bit-identical
-# each point below is a cheap re-weighted sum + a regenerated noise synth,
-# not a re-synthesis -- both the Es/N0 AND the inter-burst jitter move
-for esn0_db in (4.0, 7.0, 10.0, 13.0):
-    for mc_seed in (1000, 1001, 1002):
-        draw = plan.render(snr=esn0_db, seed=mc_seed)
-        # feed `draw` to a DsssBurstReceiver (the walkthrough linked
-        # above) for a Pd/Pfa-vs-Es/N0 curve
-len(plan)   # worst-case capacity (every ranged gap at its `hi` bound)
-```
-
-A lone bundled noisy source (like this DSSS burst — one source carrying its
-own `snr`) is supported: its AWGN is reconstructed via a per-instance noise
-synth rather than an external multiply, matching a full compose bit-for-bit
-at every Es/N0 and seed.
-
-#### Remaining `Plan` restriction
-
-Ranged **per-source** `freq`/`snr`/`level`/`f_end` stay out of `Plan`'s
-scope — redrawing a source's frequency or SNR would invalidate its cached
-render, defeating the "expensive DSP once" guarantee `Plan` exists to
-provide. A ranged on-time (`num_samples`) is out of scope for the same
-reason (it would invalidate the fixed-length signal cache). Both still
-raise `ValueError` at `prepare()`; everything else on this page — ranged
-gaps, ranged delay, `repeats`, a bundled noisy source — is fully supported.
+A burst train prepares: `repeats`, ranged gaps and delay, and a bundled noisy
+source all go into a `Plan`. A ranged per-source `freq`, `snr`, `level` or
+`f_end`, or a ranged `num_samples`, raises `ValueError` at `prepare()`, because
+each would invalidate the cached render. The
+[DSSS BER Monte Carlo](../../gallery/dsss-burst-receiver.md#ber-vs-ebn0-through-one-plan)
+sweeps one.
 
 ______________________________________________________________________
 

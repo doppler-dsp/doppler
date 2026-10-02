@@ -43,6 +43,7 @@ t_write (int f, const void *b, size_t n)
 #define t_dup _dup
 #define t_dup2 _dup2
 #else
+#include <fcntl.h> /* O_NONBLOCK: a paced test must not hang when red */
 #include <unistd.h>
 static int
 t_pipe (int p[2])
@@ -1582,6 +1583,74 @@ test_a_data_stream_ends_the_run_on_a_frame (void)
                 "then the run is done");
   dp_wfm_compose_destroy (c);
 
+  t_dup2 (saved, 0);
+  t_close (saved);
+  return 0;
+}
+
+/* Paced AFTER create, as wfmgen paces it: create has already built the
+   segment's synths, so the setter must reach them, or a pipe with nothing
+   in it is waited on instead of sent as idle frames (doppler#1782). An idle
+   frame is the declared fill framed like any other: the sync, then the
+   data field all fill. */
+static int
+test_pacing_set_after_create_sends_idle_frames (void)
+{
+  enum
+  {
+    SYNC = 8,
+    LEN  = 16,
+    FR   = SYNC + LEN
+  };
+  int p[2];
+  DP_REQUIRE (t_pipe (p) == 0);
+#ifndef _WIN32
+  /* Red must not mean hung: unpaced, the pull would wait on this pipe for
+     ever. Non-blocking, an unpaced pull fails at once and sends nothing. */
+  DP_REQUIRE (fcntl (p[0], F_SETFL, fcntl (p[0], F_GETFL) | O_NONBLOCK) == 0);
+#endif
+  const int saved = t_dup (0);
+  DP_REQUIRE (saved >= 0 && t_dup2 (p[0], 0) == 0);
+  t_close (p[0]);
+
+  static const uint8_t one[1]     = { 1 };
+  static const uint8_t sync[SYNC] = { 1, 0, 1, 0, 0, 1, 0, 1 };
+  wfm_source_t         src        = data_line ();
+  src.data_from_file              = "-";
+  src.sync = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = sync, .len = SYNC };
+  src.fill = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = one, .len = 1 };
+  wfm_segment_t           seg = { .sources = &src, .n_sources = 1, .fs = 1e6 };
+  dp_wfm_compose_state_t *c   = dp_wfm_compose_create (&seg, 1, 0, 0);
+  DP_REQUIRE_MSG (c != NULL, "a stdin source composes");
+  dp_wfm_compose_set_data_pacing (c, WFM_DATA_PACED);
+
+  /* Nothing in the pipe: three frames are due, and each is idle. */
+  float complex out[4 * FR];
+  uint8_t       got[4 * FR];
+  DP_CHECK_MSG (dp_wfm_compose_execute (c, out, 3 * FR) == 3 * FR,
+                "paced after create, an empty pipe still sends: three "
+                "frames are due and three are sent");
+  int idle = as_bits (out, 3 * FR, got) == 0;
+  for (size_t f = 0; f < 3 && idle; f++)
+    {
+      idle = memcmp (got + f * FR, sync, SYNC) == 0;
+      for (size_t i = 0; i < LEN && idle; i++)
+        idle = got[f * FR + SYNC + i] == 1;
+    }
+  DP_CHECK_MSG (idle, "each is an idle frame: the sync, then the data "
+                      "field all fill");
+
+  /* The data arrives: the next frame carries it, framed the same way. */
+  DP_REQUIRE (t_write (p[1], SIX, 2) == 2);
+  t_close (p[1]);
+  uint8_t want[48];
+  six_bits (want);
+  const size_t n = dp_wfm_compose_execute (c, out, 4 * FR);
+  DP_CHECK_MSG (n == FR && as_bits (out, FR, got) == 0
+                    && memcmp (got, sync, SYNC) == 0
+                    && memcmp (got + SYNC, want, LEN) == 0,
+                "then the pipe's 16 bits as one data frame, and the end");
+  dp_wfm_compose_destroy (c);
   t_dup2 (saved, 0);
   t_close (saved);
   return 0;
@@ -5260,6 +5329,8 @@ main (void)
   if (test_a_data_stream_ends_the_run_on_a_frame ())
     return 1;
   if (test_a_dsss_burst_draws_a_chunk_per_burst ())
+    return 1;
+  if (test_pacing_set_after_create_sends_idle_frames ())
     return 1;
   if (test_continuous_dsss_draws_a_bit_per_symbol ())
     return 1;

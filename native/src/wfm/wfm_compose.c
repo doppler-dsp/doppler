@@ -668,8 +668,17 @@ void
 dp_wfm_compose_set_data_pacing (dp_wfm_compose_state_t *state,
                                 wfm_data_pacing_t       pacing)
 {
-  if (state)
-    state->pacing = pacing;
+  if (!state)
+    return;
+  state->pacing = pacing;
+  /* The synths of the segment in play were built by create, before any
+     caller could set this, so they take it here too. Storing the field
+     alone left them pulling unpaced: a stream cannot repeat, so its one
+     segment was never rebuilt, and `--realtime` never sent an idle frame
+     (doppler#1782). */
+  for (size_t k = 0; k < state->n_syn; k++)
+    if (state->rend[k])
+      dp_wfm_synth_set_data_pacing (state->rend[k]->syn, pacing);
 }
 
 dp_wfm_compose_state_t *

@@ -877,6 +877,7 @@ dp_fir_reset function
 dp_fir_set_state function
 dp_fir_state_bytes function
 dp_fmod_pos function
+dp_frame_add_data function
 dp_frame_add_derived function
 dp_frame_add_field function
 dp_frame_add_stage function

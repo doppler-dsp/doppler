@@ -380,16 +380,25 @@ source, the fill or the seed.
 - **A data field is never the sync word** (§3.3). #1660 already refuses
     `data:LEN` outside the payload slot on every transmit face.
 
-### 8.2 The Python door for a data field is missing
+### 8.2 The Python door for a data field
 
 `FrameDesc.add_field(name, bits)` takes bits only ([§F.3][f3]), and
-`field_bits("data:1024")` raises by design (#1660). So a Python caller
-cannot describe a `data:LEN` payload today. The existing test works around
-it with zeros, "geometry, when the bits arrive later"
-(`src/doppler/dsss/tests/test_dsss_burst_receiver.py:397`). The fix is
-`FrameDesc.add_data(name, n)`, over a C `dp_frame_add_data` that adds a
-`WFM_SEQ_DATA` field (D5). #1660, which it builds on, is merged, and
-nothing before plan step 6 needs it.
+`field_bits("data:1024")` raises by design (#1660). The door for a
+`data:LEN` payload is `FrameDesc.add_data(name, n)`, over the C
+`dp_frame_add_data`, which appends the `WFM_SEQ_DATA` field the Field parser
+builds from `data:n` (D5, [#1786][i1786]). A `Source(frame=)` holding it
+renders the same samples as a scene's `"frame"` key or `wfmgen --frame` with
+that text, byte for byte, over a multi-frame data source
+(`test_frame_source.py`; `test_frame_core.c` holds the two fields equal).
+
+The receive half is not built. `deframe()` and `check()` read the layout
+that `build()` writes, and `build()` refuses a description with a data
+field, because it materialises one frame and a data field has no bits of its
+own. The existing receiver test still works around it with zeros,
+"geometry, when the bits arrive later"
+(`src/doppler/dsss/tests/test_dsss_burst_receiver.py:397`); plan step 6
+replaces it. What `build()` and `bits()` mean for a data description is an
+open question, [#1789][i1789].
 
 ### 8.3 The transmit side in Python takes the description
 
@@ -399,10 +408,10 @@ of [#1617][i1617]), and `data=` with `data_len=`, a payload drawn from a
 data source (F step 6,
 [#1721](https://github.com/doppler-dsp/doppler/pull/1721)). So a Python test
 builds the transmitter from the receiver's `Frame` directly. A `data:LEN`
-payload renders through `data=` on the common frame (`sync=`, `crc=`); a
-`frame=` description carrying a `data:LEN` field needs
-`FrameDesc.add_data` (§8.2). The Python half of goal 2 waits on that and on
-moving the existing tests and examples (step 7), not on #1617, whose
+payload renders through `data=` on the common frame (`sync=`, `crc=`), or
+through a `frame=` description carrying a `data:LEN` field from
+`FrameDesc.add_data` (§8.2). The Python half of goal 2 waits on moving the
+existing tests and examples (step 7), not on #1617, whose
 remainder moves `sync` and `crc` off `wfm_source_t`.
 
 ### 8.4 Dependencies
@@ -521,6 +530,8 @@ closes it.
 [i1617]: https://github.com/doppler-dsp/doppler/issues/1617
 [i1620]: https://github.com/doppler-dsp/doppler/issues/1620
 [i1669]: https://github.com/doppler-dsp/doppler/issues/1669
+[i1786]: https://github.com/doppler-dsp/doppler/issues/1786
+[i1789]: https://github.com/doppler-dsp/doppler/issues/1789
 [i853]: https://github.com/doppler-dsp/doppler/issues/853
 [p1650]: https://github.com/doppler-dsp/doppler/pull/1650
 [p1660]: https://github.com/doppler-dsp/doppler/pull/1660

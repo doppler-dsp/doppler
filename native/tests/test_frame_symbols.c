@@ -35,6 +35,7 @@ const jm_any_fn jm_bound_symbols_frame[] = {
     (jm_any_fn)dp_frame_field_index,
     (jm_any_fn)dp_frame_name_field,
     (jm_any_fn)dp_frame_add_derived,
+    (jm_any_fn)dp_frame_add_data,
     (jm_any_fn)dp_frame_add_stage_over,
     (jm_any_fn)dp_frame_check,
     (jm_any_fn)dp_frame_deframe,

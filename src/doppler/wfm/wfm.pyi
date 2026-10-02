@@ -1300,6 +1300,68 @@ class Frame:
 
         """
 
+    def add_data(self, name: str, len: int) -> int:
+        """Append a named DATA field: len bits a data source fills, one chunk
+        per frame. Returns its index; -1 in C, `ValueError` from Python.
+
+        The object spelling of the Field text `data:LEN`, and the same field: a
+        WFM_SEQ_DATA sequence of length len, which is exactly what
+        `dp_wfm_field_parse("data:LEN")` produces for a scene's or the CLI's
+        frame. The description knows the field's length and never its bits: a
+        transmitter draws them from its data source at each frame (a source's
+        `data=`), and a CRC or outer code covering the field covers that
+        frame's chunk. It is a method rather than Field text in
+        dp_frame_add_field because an object takes bits, and a data field has
+        none (rx-frame-description.md, D5).
+
+        A frame draws from one data source, so a description carries at most
+        one data field; a second is refused where geometry is judged, by the
+        layout, as it is for every other face.
+
+        Parameters
+        ----------
+        name : str
+            The field's name, or NULL/"" for anonymous; a name another field
+            carries is refused.
+        len : int
+            Bits per frame, `LEN` in `data:LEN`: from 1 to WFM_FIELD_MAX_BITS,
+            the bound the Field grammar puts on the text form.
+
+        Returns
+        -------
+        int
+            The new field's index, or -1 if len is out of range, the
+            description is full or already built, or the name is taken.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a negative value. The exception message is
+            ``cannot append a data field: len is 0 or past the Field grammar's
+            bound (WFM_FIELD_MAX_BITS), or the description is full, already
+            built, or already carries the name``, with the return code appended
+            (gh-869).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc, STAGE_CRC16, Segment, Composer
+        >>> d = FrameDesc()
+        >>> d.add_field("sync", np.array([1, 1, 1, 0, 0, 1, 0], np.uint8))
+        0
+        >>> d.add_data("payload", 8)          # 8 bits of the data source a frame
+        1
+        >>> d.add_derived("crc", 16)
+        2
+        >>> d.add_stage_over(STAGE_CRC16, "payload", "crc")
+        0
+        >>> seg = Segment(type="bits", sps=1, modulation="bpsk", frame=d,
+        ...               data=np.unpackbits(np.array([0xA5, 0x3C], np.uint8)))
+        >>> len(Composer([seg]).compose())    # two frames of 7 + 8 + 16 bits
+        62
+
+        """
+
     def add_stage_over(
         self,
         kind: int,
@@ -2232,6 +2294,68 @@ class FrameDesc:
         0
         >>> d.add_derived("crc", 16)          # a stage will fill it
         1
+
+        """
+
+    def add_data(self, name: str, len: int) -> int:
+        """Append a named DATA field: len bits a data source fills, one chunk
+        per frame. Returns its index; -1 in C, `ValueError` from Python.
+
+        The object spelling of the Field text `data:LEN`, and the same field: a
+        WFM_SEQ_DATA sequence of length len, which is exactly what
+        `dp_wfm_field_parse("data:LEN")` produces for a scene's or the CLI's
+        frame. The description knows the field's length and never its bits: a
+        transmitter draws them from its data source at each frame (a source's
+        `data=`), and a CRC or outer code covering the field covers that
+        frame's chunk. It is a method rather than Field text in
+        dp_frame_add_field because an object takes bits, and a data field has
+        none (rx-frame-description.md, D5).
+
+        A frame draws from one data source, so a description carries at most
+        one data field; a second is refused where geometry is judged, by the
+        layout, as it is for every other face.
+
+        Parameters
+        ----------
+        name : str
+            The field's name, or NULL/"" for anonymous; a name another field
+            carries is refused.
+        len : int
+            Bits per frame, `LEN` in `data:LEN`: from 1 to WFM_FIELD_MAX_BITS,
+            the bound the Field grammar puts on the text form.
+
+        Returns
+        -------
+        int
+            The new field's index, or -1 if len is out of range, the
+            description is full or already built, or the name is taken.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a negative value. The exception message is
+            ``cannot append a data field: len is 0 or past the Field grammar's
+            bound (WFM_FIELD_MAX_BITS), or the description is full, already
+            built, or already carries the name``, with the return code appended
+            (gh-869).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import FrameDesc, STAGE_CRC16, Segment, Composer
+        >>> d = FrameDesc()
+        >>> d.add_field("sync", np.array([1, 1, 1, 0, 0, 1, 0], np.uint8))
+        0
+        >>> d.add_data("payload", 8)          # 8 bits of the data source a frame
+        1
+        >>> d.add_derived("crc", 16)
+        2
+        >>> d.add_stage_over(STAGE_CRC16, "payload", "crc")
+        0
+        >>> seg = Segment(type="bits", sps=1, modulation="bpsk", frame=d,
+        ...               data=np.unpackbits(np.array([0xA5, 0x3C], np.uint8)))
+        >>> len(Composer([seg]).compose())    # two frames of 7 + 8 + 16 bits
+        62
 
         """
 

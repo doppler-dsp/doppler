@@ -496,6 +496,54 @@ int dp_frame_name_field(dp_frame_state_t *state, uint32_t index, const char *nam
 int dp_frame_add_derived(dp_frame_state_t *state, const char *name, size_t bits);
 
 /**
+ * @brief Append a named DATA field: @p len bits a data source fills, one
+ * chunk per frame. Returns its index; -1 in C, `ValueError` from Python.
+ *
+ * The object spelling of the Field text `data:LEN`, and the same field:
+ * a @ref WFM_SEQ_DATA sequence of length @p len, which is exactly what
+ * `dp_wfm_field_parse("data:LEN")` produces for a scene's or the CLI's
+ * frame. The description knows the field's length and never its bits:
+ * a transmitter draws them from its data source at each frame (a source's
+ * `data=`), and a CRC or outer code covering the field covers that frame's
+ * chunk. It is a method rather than Field text in @ref dp_frame_add_field
+ * because an object takes bits, and a data field has none
+ * (rx-frame-description.md, D5).
+ *
+ * A frame draws from one data source, so a description carries at most
+ * one data field; a second is refused where geometry is judged, by the
+ * layout, as it is for every other face.
+ *
+ * @param state  A frame from @ref dp_frame_create_desc.
+ * @param name   The field's name, or NULL/"" for anonymous; a name another
+ *               field carries is refused.
+ * @param len    Bits per frame, `LEN` in `data:LEN`: from 1 to
+ *               @ref WFM_FIELD_MAX_BITS, the bound the Field grammar puts
+ *               on the text form.
+ * @return The new field's index, or -1 if @p len is out of range, the
+ *         description is full or already built, or the name is taken.
+ *
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.wfm import FrameDesc, STAGE_CRC16, Segment, Composer
+ * >>> d = FrameDesc()
+ * >>> d.add_field("sync", np.array([1, 1, 1, 0, 0, 1, 0], np.uint8))
+ * 0
+ * >>> d.add_data("payload", 8)          # 8 bits of the data source a frame
+ * 1
+ * >>> d.add_derived("crc", 16)
+ * 2
+ * >>> d.add_stage_over(STAGE_CRC16, "payload", "crc")
+ * 0
+ * >>> seg = Segment(type="bits", sps=1, modulation="bpsk", frame=d,
+ * ...               data=np.unpackbits(np.array([0xA5, 0x3C], np.uint8)))
+ * >>> len(Composer([seg]).compose())    # two frames of 7 + 8 + 16 bits
+ * 62
+ *
+ * @endcode
+ */
+int dp_frame_add_data(dp_frame_state_t *state, const char *name, size_t len);
+
+/**
  * @brief Append a stage covering `[first .. last]` by name.
  *
  * The cover is the load-bearing part of the representation and this is the

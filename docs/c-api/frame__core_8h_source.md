@@ -63,6 +63,8 @@ int dp_frame_name_field(dp_frame_state_t *state, uint32_t index, const char *nam
 
 int dp_frame_add_derived(dp_frame_state_t *state, const char *name, size_t bits);
 
+int dp_frame_add_data(dp_frame_state_t *state, const char *name, size_t len);
+
 int dp_frame_add_stage_over(dp_frame_state_t *state, int kind, const char *first,
                          const char *last, uint32_t depth,
                          uint32_t unit_bits);

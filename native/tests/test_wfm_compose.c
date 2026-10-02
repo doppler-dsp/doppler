@@ -1842,13 +1842,27 @@ test_a_record_replays_its_data_by_hash (void)
       "{\"bits\": 48, \"hash\": \"85944171f73967e8\"}",
       "{\"bits\": -1, \"hash\": \"0x85944171f73967e8\"}",
     };
+    /* The path goes into a JSON string, and a Windows temp dir is
+       full of backslashes: escape them, or the scene fails to parse
+       for a reason that never mentions "data_sent". */
+    char jpath[1300];
+    {
+      size_t n = 0;
+      for (const char *q = data; *q; q++)
+        {
+          if (*q == '\\' || *q == '"')
+            jpath[n++] = '\\';
+          jpath[n++] = *q;
+        }
+      jpath[n] = '\0';
+    }
     for (size_t i = 0; i < sizeof BAD / sizeof *BAD; i++)
       {
-        char scene[1024];
+        char scene[2048];
         snprintf (scene, sizeof scene,
                   "{\"segments\":[{\"type\":\"bits\",\"data_len\":16,"
                   "\"data_from_file\":\"%s\",\"data_sent\":%s}]}",
-                  data, BAD[i]);
+                  jpath, BAD[i]);
         why = NULL;
         c   = dp_wfm_compose_from_json_at (scene, NULL, &why);
         DP_CHECK_MSG (c == NULL && why && strstr (why, "\"data_sent\""),

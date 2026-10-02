@@ -334,6 +334,20 @@ previous tip (`make ci-tree-tested`). `protect-main` requires a PR to be up
 to date, so that is every merge: `main`'s push run checks the cheap gates
 and skips the matrix the PR just ran.
 
+**`code=false`: only docs changed.** `make ci-docs` reads `CI_DOCS_RE` in
+the Makefile, the one declaration of what the docs are (`docs/`,
+`mkdocs.yml`, the changelog, `README.md`, `CONTRIBUTING.md`). When every
+changed path matches, and nothing outside `docs/` or `changelog.d/` was
+deleted, it answers `code=false`. Then every job docs cannot break skips:
+the C builds on every platform, Doxygen (it reads `native/` only),
+sanitizers, coverage, glibc, packages, Docker and the sweep. Each is in
+`CI passed`'s `CODE_ONLY` list. What docs *can* break still runs: lint,
+the site build, and the `python` job, on the primary leg alone. Docs can
+fail the suite (the doc fences, and the gate tests that read the live tree),
+but not on one interpreter more than another. `make ci-aggregator-check`
+holds `CODE_ONLY` to exactly the jobs gated on `code`, as it holds
+`SKIPPABLE` to the jobs gated on `src`.
+
 **Nightly, `main` gets the full run anyway.** A `schedule` run at 03:43 UTC
 never takes a skip. Its job is the environment, not the tree: hosted runner
 images and unpinned tools move under an unchanged tree, and the nightly is

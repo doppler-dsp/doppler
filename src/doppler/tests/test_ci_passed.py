@@ -45,7 +45,7 @@ def test_a_bump_may_skip_the_matrix() -> None:
         {"python": "skipped", "coverage": "skipped", "lint": "success"},
     )
     assert r.returncode == 0, r.stdout
-    assert "version bump alone" in r.stdout
+    assert "nothing untested" in r.stdout
 
 
 def test_a_bump_may_not_skip_a_kept_gate() -> None:
@@ -73,4 +73,60 @@ def test_a_skip_when_changes_did_not_run_is_red() -> None:
 
 def test_cancelled_is_red() -> None:
     r = _run("true", {"python": "cancelled"})
+    assert r.returncode == 1
+
+
+# The docs-only lane: CODE_ONLY jobs may skip on an explicit code=false.
+CODE_ONLY = "macos coverage"
+
+
+def _run_docs(
+    code: str | None, results: dict[str, str], src: str = "true"
+) -> subprocess.CompletedProcess[str]:
+    needs = {job: {"result": r, "outputs": {}} for job, r in results.items()}
+    outputs = {"src": src}
+    if code is not None:
+        outputs["code"] = code
+    needs["changes"] = {"result": "success", "outputs": outputs}
+    env = {
+        **os.environ,
+        "NEEDS": json.dumps(needs),
+        "SKIPPABLE": "python docs",
+        "CODE_ONLY": CODE_ONLY,
+    }
+    return subprocess.run(
+        [sys.executable, str(SCRIPT)], env=env, capture_output=True, text=True
+    )
+
+
+def test_docs_only_may_skip_the_code_jobs() -> None:
+    r = _run_docs(
+        "false",
+        {"python": "success", "docs": "success", "macos": "skipped"},
+    )
+    assert r.returncode == 0, r.stdout
+    assert "docs only" in r.stdout
+
+
+def test_docs_only_may_not_skip_python() -> None:
+    """Docs can break the suite: live-tree gate tests, doc fences."""
+    r = _run_docs("false", {"python": "skipped", "macos": "skipped"})
+    assert r.returncode == 1
+    assert "python was skipped" in r.stdout
+
+
+def test_a_code_job_skipped_when_code_changed_is_red() -> None:
+    """The sabotage: code=true and a code-only job did not run."""
+    r = _run_docs("true", {"python": "success", "macos": "skipped"})
+    assert r.returncode == 1
+    assert "docs cannot break it, but code changed" in r.stdout
+
+
+def test_an_unset_code_is_not_docs_only() -> None:
+    r = _run_docs(None, {"python": "success", "macos": "skipped"})
+    assert r.returncode == 1
+
+
+def test_a_code_job_failure_on_docs_only_is_still_red() -> None:
+    r = _run_docs("false", {"python": "success", "macos": "failure"})
     assert r.returncode == 1

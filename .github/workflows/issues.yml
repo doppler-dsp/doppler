@@ -26,7 +26,7 @@ name: Issue tiers
 on:
   schedule:
     # 05:41 UTC: off the hour (the runner queue at :00 is the worst time to
-    # ask for a machine) and clear of ci-image.yml's 04:17.
+    # ask for a machine) and clear of ci-image.yml's 04:23.
     - cron: '41 5 * * *'
   workflow_dispatch:
 

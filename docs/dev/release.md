@@ -180,9 +180,10 @@ a missed one is a red gate rather than a number nobody reads.
 
     Its bytes fed the CI image fingerprint, so moving the version demanded an
     image rebuild and a repin — every release, for a string no image layer
-    reads. `make ci-image-source-hash` now hashes the tables that decide the
-    image (everything but `[project]`) instead of the whole file, so the
-    version travels freely and a rebuild still fires on any real change. See
+    reads. doppler's own source hash once dropped `[project]` to end that;
+    the shared CI image's `ci-image-check` hashes the whole file again, so
+    until canonical drops it too a version bump carries a repin commit
+    ([#1765](https://github.com/doppler-dsp/doppler/issues/1765)). See
     [Build Internals](build-internals.md).
 
     `just-makeit.toml`'s copy has a second reason to be right:

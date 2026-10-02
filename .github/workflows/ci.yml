@@ -18,7 +18,7 @@ on:
   # unpinned tools (#1751). This run never takes a skip (`changes` answers
   # src=true for any event but pull_request and push), so drift goes red
   # here, on main, instead of on whichever PR meets it first. 03:43 UTC:
-  # off the hour, and clear of ci-image.yml's Monday 04:17.
+  # off the hour, and clear of ci-image.yml's Monday 04:23.
   schedule:
     - cron: '43 3 * * *'
   # By hand: a full run (`changes` skips nothing for it), and the way back in
@@ -584,7 +584,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     # No provisioning step: the toolchain is the image. See
-    # deploy/docker/Dockerfile.ci and .github/ci-images.env.
+    # docker/ci.Dockerfile (canonical's, vendored), docker/ci-extra.sh and
+    # .github/ci-images.env.
     container:
       image: ${{ needs.pin.outputs.image_2404 }}
       credentials:
@@ -1028,41 +1029,6 @@ jobs:
         CHANGELOG_BASE: ${{ github.event.pull_request.base.sha || 'origin/main' }}
       run: make lint
 
-  # The pending-repin gate. `ci-image-check` (in `pre-commit`'s `make lint`)
-  # is a no-network check of OUR inputs; it cannot see that the weekly
-  # rebuild produced a different PACKAGE SET under an unchanged Dockerfile.
-  # That is the drift ci-image.yml exists to find, and it had no gate at all:
-  # the nightly's only way to report it was a PR the org forbids Actions from
-  # opening, so the workflow force-pushed `ci/repin-image`, died on
-  # `gh pr create`, and was red on every `main` run for three releases while
-  # gating nothing (doppler#1212).
-  #
-  # Its own job, not a step on `pre-commit`, for the reason `ci-image-check`
-  # is not in it either: this one needs the network, and folding a fetch into
-  # the lint job would make `make lint` mean something different here than on
-  # a dev box.
-  #
-  # `fetch-depth: 0` is NOT needed -- the script fetches the one branch it
-  # reads at depth 1 -- but `persist-credentials` must stay on so that fetch
-  # authenticates on a private fork.
-  ci-image-repin:
-    name: CI image repin pending
-    runs-on: ubuntu-latest
-    # 25, not the 10 this job's actual work justifies (a checkout, a depth-1
-    # fetch of one branch, and a shell comparison -- seconds). `make
-    # deps-budget-check` requires EVERY `timeout-minutes` in the tree to
-    # exceed the provisioning budget (DEPS_DEADLINE x DEPS_TRIES + backoff =
-    # 1290s), because a ceiling under it would kill a retry mid-download. 25
-    # is the tightest value that clears it, and is a backstop against a hung
-    # fetch rather than an estimate.
-    timeout-minutes: 25
-
-    steps:
-    - uses: actions/checkout@v7
-
-    - name: Check for an unmerged CI-image repin
-      run: make ci-image-repin-check
-
   manifest-drift:
     name: jm manifest drift gate
     runs-on: ubuntu-latest
@@ -1302,7 +1268,6 @@ jobs:
       - linux-packages
       - pre-commit
       - manifest-drift
-      - ci-image-repin
       - coverage
       - sanitizers
     runs-on: ubuntu-latest

@@ -1599,7 +1599,13 @@ ghost-check: ## Verify every .PHONY target has a recipe
 # containing $(MAKE). Probing a target must not run it.
 #
 # Inert with no config file, so a repo without pre-commit is not asked to care.
-hook-dispatch-check: ## Verify every pre-commit `make` dispatch names a real target
+# Pre-commit hooks that run their own tool rather than `make -s lint-<tool>`,
+# each a declared exception (hook id). The gate refuses an undeclared one and
+# an exemption that no longer names a non-dispatching hook, so the list can
+# only shrink toward the rule. Set it with the reason beside it.
+HOOK_DISPATCH_EXEMPT ?=
+
+hook-dispatch-check: ## Verify every pre-commit hook dispatches to a real `make` target
 	@cfg=.pre-commit-config.yaml; \
 	 if [ ! -f "$$cfg" ]; then \
 	     echo "hook-dispatch-check: no $$cfg — nothing to check"; \
@@ -1608,7 +1614,7 @@ hook-dispatch-check: ## Verify every pre-commit `make` dispatch names a real tar
 	 db=$$($(_STD_TMP)); trap 'rm -f "$$db"' EXIT; \
 	 $(MAKE) -rpn --no-print-directory .std-db-goal >"$$db" 2>/dev/null; \
 	 n=0; missing=""; \
-	 for t in $$(sed -n "s/^[[:space:]]*entry:[[:space:]]*make[[:space:]]\{1,\}\(-s[[:space:]]\{1,\}\)\{0,1\}\([a-zA-Z0-9_.-]\{1,\}\).*/\2/p" "$$cfg"); do \
+	 for t in $$(sed -n "s/^[[:space:]]*entry:[[:space:]]*[\"']\{0,1\}make[[:space:]]\{1,\}\(-s[[:space:]]\{1,\}\)\{0,1\}\([a-zA-Z0-9_.-]\{1,\}\).*/\2/p" "$$cfg"); do \
 	     n=$$((n + 1)); \
 	     grep -q "^$$t:" "$$db" || missing="$$missing $$t"; \
 	 done; \
@@ -1634,7 +1640,57 @@ hook-dispatch-check: ## Verify every pre-commit `make` dispatch names a real tar
 	     echo "  written to prevent."; \
 	     exit 1; \
 	 fi; \
-	 echo "hook-dispatch-check: $$n make dispatch(es) resolve"
+	 : "Every hook dispatches, or is declared not to (just-makeit#1801 item"; \
+	 : "4). Counting only the hooks that DO dispatch reported 7 resolving"; \
+	 : "while uv-lock ran upstream's own uv, pinned apart from the repo's:"; \
+	 : "the second source of truth this standard exists to end. A hook from"; \
+	 : "a remote repo has no entry: at all, so it is per hook, by id."; \
+	 verdict=$$(awk -v exempt="$(HOOK_DISPATCH_EXEMPT)" ' \
+	   function flush() { \
+	     if (id != "" && ent !~ /^make[[:space:]]/) nodisp[id] = 1; \
+	     id = ""; ent = "" \
+	   } \
+	   /^[[:space:]]*#/ { next } \
+	   /^[[:space:]]*-[[:space:]]*id:/ { \
+	     flush(); v = $$0; sub(/^[^:]*:[[:space:]]*/, "", v); \
+	     sub(/[[:space:]]*#.*/, "", v); gsub(/["\047]/, "", v); id = v; next \
+	   } \
+	   /^[[:space:]]*-[[:space:]]*repo:/ { flush(); next } \
+	   id != "" && /^[[:space:]]*entry:/ { \
+	     v = $$0; sub(/^[^:]*:[[:space:]]*/, "", v); gsub(/["\047]/, "", v); \
+	     ent = v; next \
+	   } \
+	   END { \
+	     flush(); n = split(exempt, ex, /[[:space:]]+/); \
+	     for (i = 1; i <= n; i++) if (ex[i] != "") isex[ex[i]] = 1; \
+	     for (h in nodisp) if (!(h in isex)) print "undeclared " h; \
+	     for (h in isex) if (!(h in nodisp)) print "stale " h; \
+	   } \
+	 ' "$$cfg"); \
+	 undeclared=$$(printf '%s\n' "$$verdict" | sed -n 's/^undeclared //p'); \
+	 stale=$$(printf '%s\n' "$$verdict" | sed -n 's/^stale //p'); \
+	 if [ -n "$$undeclared" ]; then \
+	     echo "ERROR: pre-commit hooks that do not dispatch through make:"; \
+	     printf '  %s\n' $$undeclared; \
+	     echo ""; \
+	     echo "  A hook that runs its own tool at its own pin is a second source"; \
+	     echo "  of truth for how that tool runs. Route it through a"; \
+	     echo "  \`make -s lint-<tool>\` target, or name it in"; \
+	     echo "  HOOK_DISPATCH_EXEMPT, with the reason beside it, as a known"; \
+	     echo "  exception the list may only shrink from."; \
+	     exit 1; \
+	 fi; \
+	 if [ -n "$$stale" ]; then \
+	     echo "ERROR: HOOK_DISPATCH_EXEMPT names hooks that are not exceptions:"; \
+	     printf '  %s\n' $$stale; \
+	     echo ""; \
+	     echo "  Each is no hook here, or now dispatches through make. Drop it:"; \
+	     echo "  an exemption that outlives its reason is granted to whatever"; \
+	     echo "  next takes the name."; \
+	     exit 1; \
+	 fi; \
+	 ex=$$(echo $(HOOK_DISPATCH_EXEMPT) | wc -w); \
+	 echo "hook-dispatch-check: $$n make dispatch(es) resolve; $$ex declared exception(s)"
 
 # ── hook-stage-check ────────────────────────────────────────────────────────
 #

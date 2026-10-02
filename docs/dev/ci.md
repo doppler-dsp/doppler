@@ -271,112 +271,82 @@ These exist because each one failed to hold at least once:
 
 ______________________________________________________________________
 
-## Pull requests and the merge queue
+## Pull requests
 
-`ci.yml` runs on three events, and CI does not do the same work on all three:
+`ci.yml` runs on `pull_request` and on `push` to `main` / `develop`, and it
+does the same work on both: **every job, and `python` on every version
+3.9–3.14**. The PR run is the one that gates the merge (`CI passed`, the
+one required check), so it is the full matrix.
 
-| event                           | what runs                                                                                                                                                                     |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pull_request`                  | the **fast gates**: `changes`, `pin`, `build-and-test-linux`, `pre-commit` (`make lint`), `manifest-drift`, `docs`, `doxygen`, `ci-image-repin`, and `python` on **3.9 only** |
-| `merge_group` (the merge queue) | **everything**: the fast gates, `python` on every version 3.9–3.14, and the heavy jobs listed below                                                                           |
-| `push` to `main` / `develop`    | everything, as for `merge_group`                                                                                                                                              |
-
-The heavy jobs are `build-and-test-linux-arm64`, `build-and-test-windows`,
-`wheel-smoke-windows`, `build-and-test-macos`, `glibc-228`,
-`sweep-validators`, `docker`, `linux-packages`, `sanitizers` and `coverage`.
-
-**Why split.** A queued PR is tested again, on a temporary
-`gh-readonly-queue/main/pr-N-<sha>` branch holding main, the entries ahead of
-it in the queue, and the PR. That run is the one that gates the merge,
-because it tests the tree that will actually land. If both runs did the full
-matrix, every PR would cost two, and the first would prove less than the
-second. So a PR gets fast feedback, and the queue pays for the full matrix
-once.
-
-On a PR, `python` runs only on 3.9 because that is the declared floor, and
-code that breaks on an older interpreter usually breaks there first. The
-other versions run in the queue.
+There is **no merge queue**. It was retired on 2026-10-01. While it ran, a
+PR got only the fast gates and the queue ran the heavy jobs on main plus
+the PR. That split meant a PR's own checks could be green while the run
+that decided the merge had not started. It also meant a pending CI-image
+repin ejected every queued PR. Without the queue, a PR is tested against
+the main it was opened on. Two PRs that each pass can still conflict
+semantically once both land, and the `push` run on `main` is what catches
+that.
 
 **The primary leg.** Some steps of the `python` job are worth running once,
 not on every interpreter. They run on the *primary* leg, which is named by
 role, never by version: `scripts/python_versions.py --primary` prints it, and
-the rule is that **the primary is the floor**. The floor is the one version
-in both matrices, so a primary-leg step runs on a PR and again in the queue,
-on the same interpreter. These steps used to select `'3.12'`, the first leg
-of the original matrix. When 3.9 was added below it the literal stayed, and
-once a PR ran the floor alone, no PR ran them. `make validate-check` then
-ejected #1721 from the queue after every PR check had passed (#1714).
+the rule is that **the primary is the floor**. These steps used to select
+`'3.12'`, the first leg of the original matrix. When 3.9 was added below it
+the literal stayed, and while a PR ran the floor alone, no PR ran them
+(#1714).
 
-`changes` emits two outputs, and a step's `if:` compares
-`matrix.python-version` against exactly one of them. Which one is the step's
+`changes` emits a `primary` output, and a step's `if:` compares
+`matrix.python-version` against it one of two ways. Which one is the step's
 *lane*:
 
-- `primary` — **fast**: the primary leg on every run, a PR included. For a
-    cheap, deterministic gate that should fail for the author before review.
-- `primary_full` — **heavy**: the primary leg on a full run only; empty on a
-    PR, so it matches no leg. For the coverage-producing run.
-- `!= primary_full` — **rest**: every other leg, and on a PR every leg.
+- `== primary`: **primary**, the primary leg alone. For the
+    version-independent gates and the coverage-producing run.
+- `!= primary`: **rest**, every other leg.
 
 <!-- python-legs:start -->
 
-| step                                 | target                    | lane  | cost (merge-queue run 36820085885, 3.12) |
-| ------------------------------------ | ------------------------- | ----- | ---------------------------------------- |
-| Doc fence gates (python + C + shell) | `make test-snippets`      | fast  | 74 s                                     |
-| Test                                 | `make test-python`        | rest  | 264 s (3.9 leg)                          |
-| Test with coverage                   | `make test-python`        | heavy | 288 s                                    |
-| Validation reports are not stale     | `make validate-check`     | fast  | 233 s                                    |
-| Upload coverage report               | `actions/upload-artifact` | heavy | 1 s                                      |
+| step                                 | target                    | lane    | cost (run 36820085885, 3.12) |
+| ------------------------------------ | ------------------------- | ------- | ---------------------------- |
+| Doc fence gates (python + C + shell) | `make test-snippets`      | primary | 74 s                         |
+| Test                                 | `make test-python`        | rest    | 264 s (3.9 leg)              |
+| Test with coverage                   | `make test-python`        | primary | 288 s                        |
+| Validation reports are not stale     | `make validate-check`     | primary | 233 s                        |
+| Upload coverage report               | `actions/upload-artifact` | primary | 1 s                          |
 
 <!-- python-legs:end -->
 
 `make ci-aggregator-check` holds this table to `ci.yml`: same steps, same
 targets, same lanes. It refuses any other leg selector, a version literal
 above all, and a `changes` that does not derive `primary` from the
-classifiers. `make python-versions-check` refuses a primary leg missing from
-either matrix. To move a step between lanes, change the output it compares
-against and this table's row.
+classifiers. To move a step between lanes, flip its comparison and this
+table's row.
 
-**One declaration.** The `changes` job decides the split:
+`pythons` is the Python matrix. It is read from `pyproject.toml`'s
+`Programming Language :: Python :: 3.N` classifiers by
+`scripts/python_versions.py`, so `ci.yml` names no version.
+`make python-versions-check` holds the lowest classifier equal to the
+`requires-python` floor and every classifier inside its range.
 
-- `full` is `false` on a `pull_request` and `true` for every other event, so
-    an event it does not know is treated as a full run.
-- `heavy` is `src && full`. Every heavy job is gated on
-    `if: needs.changes.outputs.heavy == 'true'`, and none of them reads the
-    event name.
-- `pythons` is the Python matrix: the lowest version or all of them. It
-    is read from `pyproject.toml`'s `Programming Language :: Python :: 3.N`
-    classifiers by `scripts/python_versions.py`; `ci.yml` names no version.
-    `make python-versions-check` holds the lowest classifier equal to the
-    `requires-python` floor and every classifier inside its range.
+**The one skip is a version bump alone.** `changes` diffs the PR (or the
+pushed range) and says `src=false` when the only change is a version bump.
+Every heavy job is gated on `if: needs.changes.outputs.src == 'true'`, and
+`scripts/ci_passed.py` treats a skip as green only for a job in the
+aggregator's `SKIPPABLE` list and only on `src=false`.
+`make ci-aggregator-check` holds `SKIPPABLE` to exactly the gated jobs. It
+also refuses any surviving trace of the queue's split: a `full`, `heavy` or
+`primary_full` output, a job gated on one, or a `HEAVY` list. Each of those
+would be a skip permission that nothing takes.
 
-**`CI passed` knows the difference.** On a pull_request, a skipped heavy job
-is green: it was skipped by design. On `merge_group` or `push`, a skipped
-heavy job is **red** unless the diff is a version bump alone.
-`scripts/ci_passed.py` makes that call from the aggregator's `HEAVY` list and
-the `full` output. `make ci-aggregator-check` holds `HEAVY` to exactly the
-jobs gated on `heavy`. It fails if a job is gated but not listed, because
-then every PR goes red. It also fails if a job is listed but not gated,
-because then the aggregator would let a job skip that never should.
+**Per-PR bases.** `CHANGELOG_BASE` (for `changelog-check` and
+`issue-link-check`) and `coverage`'s `COV_BASE` both read
+`pull_request.base.sha`, falling back to `origin/main` on a push.
 
-**The bump fast path still works in the queue.** `changes` compares the
-group to its `merge_group.base_sha`: main plus the entries ahead, so the diff
-is this PR alone. A release PR's version bump is therefore still classified
-as a bump (`src=false`) in the queue. The per-branch gates use the same base:
-`CHANGELOG_BASE` (for `changelog-check` and `issue-link-check`) and
-`coverage`'s `COV_BASE` both read `merge_group.base_sha`. Diff coverage
-compared against `origin/main` would also judge the lines of every queue
-entry ahead of this one.
+**Merge method: rebase.** `issue-link-check` reads the `Closes #N` /
+`No-issue:` declaration from commit messages. A squash commit carries
+whatever message the squash template produces, which can drop that
+declaration.
 
-**A queue run is never cancelled by a PR push.** Every merge group has its
-own ref, so it is alone in its concurrency group, and `cancel-in-progress`
-is only on for `pull_request`. A push to a PR goes to that PR's own group.
-
-**Merge method.** Configure the queue to **rebase**. `issue-link-check`
-reads the `Closes #N` / `No-issue:` declaration from commit messages. A
-squash commit carries whatever message the squash template produces, which
-can drop that declaration.
-
-`windows.yml` is advisory, and it does not change with the queue.
+`windows.yml` is advisory.
 
 ______________________________________________________________________
 
@@ -386,7 +356,7 @@ ______________________________________________________________________
 | ---------------------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | `build-and-test-linux`                                           | pinned image, one per glibc           | split from macOS because `container:` is Linux-only and cannot be switched off for one matrix leg |
 | `build-and-test-macos`                                           | hosted runner, brew                   | no macOS container to bake                                                                        |
-| `python` (3.9 on a PR; 3.9–3.14 in the queue)                    | pinned image                          | uv supplies the interpreters; only the extension build differs per ABI                            |
+| `python` (3.9–3.14)                                              | pinned image                          | uv supplies the interpreters; only the extension build differs per ABI                            |
 | `coverage`                                                       | pinned image                          | clang source-based, C ∪ Python ∪ Rust — see [Coverage](coverage.md)                               |
 | `glibc-228`                                                      | Debian 10 image via `make glibc-gate` | the floor gate; its own toolchain by necessity                                                    |
 | `doxygen`, `docs`, `pre-commit`, `manifest-drift`, `specan-demo` | pinned image or plain runner          | no system deps beyond the image                                                                   |

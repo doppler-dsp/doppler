@@ -5,7 +5,7 @@
     into `bash`. `make lint-curl-fail` refuses a `curl` without `--fail`
     in `deploy/docker/` or `.github/` (#1738). The nightly `ci-image.yml`
     run now ends red while `ci/repin-image` holds an unlanded repin,
-    because that ejects every PR in the merge queue (#1737).
+    because that blocks every PR (#1737).
 - **A repin is one file on its base, and the repin gate no longer grafts
     history.** `ci-image-repin-check` fetched `ci/repin-image` with
     `--depth=1` even in a full clone, which made the repin commit look

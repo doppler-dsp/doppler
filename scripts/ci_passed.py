@@ -1,18 +1,14 @@
 #!/usr/bin/env python3
 """The verdict of ci.yml's ``CI passed``, the one required check.
 
-Every job in the aggregator's ``needs`` must have SUCCEEDED, with exactly two
-exceptions, and both need the ``changes`` job itself to have succeeded:
+Every job in the aggregator's ``needs`` must have SUCCEEDED, with exactly one
+exception, and it needs the ``changes`` job itself to have succeeded:
 
 - **a version bump alone.** A job in ``SKIPPABLE`` may be SKIPPED when
   ``changes`` classified the diff as a bump (``make ci-changes`` said
   ``src=false``). A release commit re-tests nothing its parent passed.
-- **a pull_request run.** A job in ``HEAVY`` may be SKIPPED when ``changes``
-  said ``full=false``. A PR gets the fast gates; the full matrix runs in the
-  merge queue (merge_group) and on push, where ``full=true`` and a skipped
-  heavy job is red. An unset ``full`` counts as a full run.
 
-Those are the ONLY ways a skip is green:
+That is the ONLY way a skip is green:
 
 - ``failure`` or ``cancelled``: always red. A job killed at its timeout ends
   ``cancelled``, and treating that as a pass is how a gate stops gating.
@@ -25,8 +21,7 @@ Those are the ONLY ways a skip is green:
   exits 0 outright on ``src=false``; this one does not.
 
 Inputs are environment variables, so a test drives it with any results:
-``NEEDS`` is ``toJSON(needs)``; ``SKIPPABLE`` and ``HEAVY`` are
-space-separated job ids.
+``NEEDS`` is ``toJSON(needs)``; ``SKIPPABLE`` is space-separated job ids.
 Standard library only: it runs on the bare runner.
 """
 
@@ -37,17 +32,13 @@ import os
 import sys
 
 
-def verdict(
-    needs: dict, skippable: set[str], heavy: frozenset[str] = frozenset()
-) -> tuple[bool, list[str]]:
+def verdict(needs: dict, skippable: set[str]) -> tuple[bool, list[str]]:
     """``(green, report lines)`` for one set of ``needs`` results."""
     changes = needs.get("changes", {})
     outputs = changes.get("outputs") or {}
     ran = changes.get("result") == "success"
     src = outputs.get("src", "")
     fast = ran and src == "false"
-    # Only an explicit "false" is a pull_request run; anything else is full.
-    light = ran and outputs.get("full", "") == "false"
     lines: list[str] = []
     green = True
     for job, info in sorted(needs.items()):
@@ -57,17 +48,9 @@ def verdict(
         if result == "skipped" and fast and job in skippable:
             lines.append(f"  skipped (version bump alone): {job}")
             continue
-        if result == "skipped" and light and job in heavy:
-            lines.append(f"  skipped (heavy; runs in the merge queue): {job}")
-            continue
         green = False
         if result == "skipped":
-            if job in heavy and not light:
-                why = (
-                    "it is heavy and this is a full run "
-                    f"(full={outputs.get('full') or 'unset'}), so it must run"
-                )
-            elif fast:
+            if fast:
                 why = "it is not one the fast path may skip"
             else:
                 why = f"no bump-only classification (src={src or 'unset'})"
@@ -77,13 +60,6 @@ def verdict(
     if not green:
         lines.append(
             "::error::a required CI job did not succeed — CI not green"
-        )
-    elif light and any(
-        needs.get(j, {}).get("result") == "skipped" for j in heavy
-    ):
-        lines.append(
-            "CI passed: the fast gates of a pull_request -- the heavy jobs "
-            "run in the merge queue, and every gate that ran is green."
         )
     elif fast:
         lines.append(
@@ -98,8 +74,7 @@ def verdict(
 def main() -> int:
     needs = json.loads(os.environ["NEEDS"])
     skippable = set(os.environ.get("SKIPPABLE", "").split())
-    heavy = frozenset(os.environ.get("HEAVY", "").split())
-    green, lines = verdict(needs, skippable, heavy)
+    green, lines = verdict(needs, skippable)
     print("\n".join(lines))
     return 0 if green else 1
 

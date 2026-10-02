@@ -21,23 +21,18 @@ What is checked
 - every other job in the workflow is in its ``needs``;
 - every entry in its ``needs`` names a job that exists;
 - the bump-only fast path agrees with itself: every job gated on
-  ``needs.changes.outputs.src`` or ``.heavy`` needs ``changes``, and the
-  aggregator's ``SKIPPABLE`` is exactly the set of gated jobs (see
-  scripts/ci_passed.py);
-- the pull_request split agrees with itself: the aggregator's ``HEAVY`` is
-  exactly the jobs gated on ``needs.changes.outputs.heavy``, and ``changes``
-  declares both ``full`` (which ci_passed.py reads to tell a skip by design
-  from a skip that should not have happened) and ``heavy``. Without the
-  equality a heavy job missing from HEAVY turns every PR red, and a job in
-  HEAVY that is not gated is granted a skip it never takes;
+  ``needs.changes.outputs.src`` needs ``changes``, and the aggregator's
+  ``SKIPPABLE`` is exactly the set of gated jobs (see scripts/ci_passed.py);
+- there is no second skip permission: the aggregator declares no ``HEAVY``
+  and ``changes`` no ``full``/``heavy``/``primary_full`` output. Those were
+  the merge queue's pull_request split, retired with the queue on
+  2026-10-01; one left behind would grant a skip nothing takes;
 - a step that runs on one Python leg names the leg by ROLE: its ``if`` is
   exactly one of the ``LEG_SELECTORS`` below, which compare
-  ``matrix.python-version`` against ``changes``' ``primary`` (every run) or
-  ``primary_full`` (full runs only) output -- never a version literal, which
-  silently matches no leg once that version leaves the classifiers, and
-  never a leg that a pull_request's matrix lacks (doppler#1714). ``changes``
-  must declare both outputs and derive them with
-  ``scripts/python_versions.py --primary``;
+  ``matrix.python-version`` against ``changes``' ``primary`` output -- never
+  a version literal, which silently matches no leg once that version leaves
+  the classifiers (doppler#1714). ``changes`` must declare the output and
+  derive it with ``scripts/python_versions.py --primary``;
 - docs/dev/ci.md's table of those steps (between the ``python-legs``
   markers) names exactly the steps, targets and lanes the workflow runs.
 
@@ -66,20 +61,19 @@ AGGREGATOR = "ci-passed"
 REQUIRED_NAME = "CI passed"
 
 #: The ONE declaration of where a single-leg step runs: the only ``if:``
-#: forms a step may use to pick a Python leg, each mapped to its lane. The
-#: lane is decided by which ``changes`` output the step compares against, so
-#: moving a step between lanes is a one-token edit this table already knows.
+#: forms a step may use to pick a Python leg, each mapped to its lane.
 LEG_SELECTORS = {
-    "matrix.python-version == needs.changes.outputs.primary": "fast",
-    "matrix.python-version == needs.changes.outputs.primary_full": "heavy",
-    "matrix.python-version != needs.changes.outputs.primary_full": "rest",
+    "matrix.python-version == needs.changes.outputs.primary": "primary",
+    "matrix.python-version != needs.changes.outputs.primary": "rest",
 }
 #: What each lane means, for the messages and docs/dev/ci.md's table.
 LANES = {
-    "fast": "the primary leg, every run (a pull_request included)",
-    "heavy": "the primary leg, full runs only (merge_group, push)",
-    "rest": "every leg but the heavy lane's",
+    "primary": "the primary leg alone",
+    "rest": "every leg but the primary",
 }
+#: What the merge queue's pull_request split declared. None may come back:
+#: with every run full, each would be a skip permission nothing takes.
+RETIRED_OUTPUTS = ("full", "heavy", "primary_full")
 #: A version literal anywhere in a selector, e.g. ``'3.12'``.
 _LITERAL = re.compile(r"""['"]\d+\.\d+['"]""")
 #: The markers around docs/dev/ci.md's table of single-leg steps.
@@ -138,7 +132,7 @@ def check(path: pathlib.Path) -> list[str]:
             f"{path}: `{AGGREGATOR}` needs `{job}`, which is not a job here"
         )
     problems += _check_fast_path(path, jobs, agg)
-    problems += _check_heavy(path, jobs, agg)
+    problems += _check_retired(path, jobs, agg)
     problems += _check_legs(path, jobs)[0]
     return problems
 
@@ -165,7 +159,6 @@ def _check_fast_path(path: pathlib.Path, jobs: dict, agg: dict) -> list[str]:
         name
         for name, job in jobs.items()
         if "needs.changes.outputs.src" in str(job.get("if", ""))
-        or "needs.changes.outputs.heavy" in str(job.get("if", ""))
     }
     problems = [
         f"{path}: job `{name}` is gated on `changes` but does not need it, "
@@ -208,48 +201,33 @@ def _declared(agg: dict, key: str) -> set[str] | None:
     return out
 
 
-def _check_heavy(path: pathlib.Path, jobs: dict, agg: dict) -> list[str]:
-    """The pull_request split: HEAVY is exactly the jobs gated on ``heavy``.
+def _check_retired(path: pathlib.Path, jobs: dict, agg: dict) -> list[str]:
+    """No trace of the merge queue's pull_request split survives.
 
-    A heavy job is skipped on every pull_request by design and must run on
-    merge_group and push. ci_passed.py grants the skip only to HEAVY, and only
-    when ``changes.full`` is ``false``, so both directions of drift show up:
-
-    - gated on ``heavy`` but missing from HEAVY: every PR goes red;
-    - in HEAVY but not gated: the aggregator would pass a skip of a job that
-      should never skip -- the permission outlives the reason.
+    Until 2026-10-01 a pull_request ran the fast gates and the merge queue ran
+    the rest, so ``changes`` declared ``full``/``heavy``/``primary_full`` and
+    the aggregator a ``HEAVY`` list it might skip. With the queue retired every
+    run is full; any of those coming back is a second skip permission.
     """
-    gated = {
-        name
-        for name, job in jobs.items()
-        if "needs.changes.outputs.heavy" in str(job.get("if", ""))
-    }
-    declared = _declared(agg, "HEAVY")
     problems: list[str] = []
-    if gated or declared:
-        outputs = (jobs.get("changes") or {}).get("outputs") or {}
-        for key in ("full", "heavy"):
-            if key not in outputs:
-                problems.append(
-                    f"{path}: `changes` declares no `{key}` output, so the "
-                    "pull_request split has nothing to read"
-                )
-    if gated and declared is None:
+    outputs = (jobs.get("changes") or {}).get("outputs") or {}
+    for key in RETIRED_OUTPUTS:
+        if key in outputs:
+            problems.append(
+                f"{path}: `changes` declares `{key}`, the retired merge "
+                "queue's pull_request split -- every run is full now"
+            )
+    if _declared(agg, "HEAVY") is not None:
         problems.append(
-            f"{path}: jobs are gated on `heavy` but `{AGGREGATOR}` declares "
-            "no HEAVY, so every pull_request would read as a failure"
+            f"{path}: `{AGGREGATOR}` declares HEAVY, a skip permission from "
+            "the retired merge queue -- every run is full now"
         )
-        return problems
-    for name in sorted(gated - (declared or set())):
-        problems.append(
-            f"{path}: `{name}` is gated on `heavy` but not in "
-            f"`{AGGREGATOR}`'s HEAVY -- every pull_request goes red"
-        )
-    for name in sorted((declared or set()) - gated):
-        problems.append(
-            f"{path}: `{AGGREGATOR}`'s HEAVY lists `{name}`, which is not "
-            "gated on `heavy` -- a skip it should never take would be green"
-        )
+    for name, job in jobs.items():
+        cond = str((job or {}).get("if", ""))
+        if any(f"needs.changes.outputs.{k}" in cond for k in RETIRED_OUTPUTS):
+            problems.append(
+                f"{path}: job `{name}` is gated on a retired `changes` output"
+            )
     return problems
 
 
@@ -314,7 +292,7 @@ def _check_legs(
     if used:
         changes = jobs.get("changes") or {}
         outputs = changes.get("outputs") or {}
-        for key in sorted({"primary", "primary_full"} - set(outputs)):
+        for key in sorted({"primary"} - set(outputs)):
             problems.append(
                 f"{path}: `changes` declares no `{key}` output, so every "
                 "step selecting on it matches no leg and skips"
@@ -394,15 +372,13 @@ def main(argv: list[str]) -> int:
     doc = yaml.safe_load(paths[0].read_text(encoding="utf-8")) or {}
     jobs = doc.get("jobs") or {}
     gated = len(jobs) - 1  # every job but the aggregator
-    heavy = len(_declared(jobs.get(AGGREGATOR) or {}, "HEAVY") or ())
     legs = _check_legs(paths[0], jobs)[1]
     print(
         f"ci-aggregator-check: OK -- all {gated} job(s) gate `{REQUIRED_NAME}`"
-        f"; {heavy} heavy, skipped on pull_request, required on merge_group "
-        f"and push; {len(legs)} single-leg step(s), named by role"
+        f" on every run; {len(legs)} single-leg step(s), named by role"
     )
     for name, target, lane in legs:
-        print(f"  {lane:5}  {target:28}  {name}")
+        print(f"  {lane:7}  {target:28}  {name}")
     return 0
 
 

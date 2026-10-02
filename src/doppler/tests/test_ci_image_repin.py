@@ -215,13 +215,12 @@ def test_a_softened_nightly_is_caught(old: str, new: str, why: str) -> None:
 
 #: The refs a push must never rebuild the image on (#1748). Main already
 #: holds the pin the merged branch built; rebuilding re-resolves apt against
-#: a moved mirror and owes a repin for nothing. A merge-queue ref is a
-#: temporary candidate whose image nobody pins.
-NO_PUSH_REBUILD = ("main", "gh-readonly-queue/**")
+#: a moved mirror and owes a repin for nothing.
+NO_PUSH_REBUILD = ("main",)
 
 
 def _trigger_problems(text: str) -> list[str]:
-    """Why ci-image.yml's push trigger would rebuild on main or the queue."""
+    """Why ci-image.yml's push trigger would rebuild on main."""
     doc = yaml.safe_load(text)
     push = (doc.get("on", doc.get(True)) or {}).get("push") or {}
     if "branches" in push:
@@ -236,7 +235,7 @@ def _trigger_problems(text: str) -> list[str]:
     ]
 
 
-def test_a_push_to_main_or_the_queue_does_not_rebuild() -> None:
+def test_a_push_to_main_does_not_rebuild() -> None:
     assert _trigger_problems(NIGHTLY.read_text(encoding="utf-8")) == []
 
 
@@ -244,19 +243,14 @@ def test_a_push_to_main_or_the_queue_does_not_rebuild() -> None:
     ("old", "new", "why"),
     [
         (
-            "branches-ignore: [main, 'gh-readonly-queue/**']",
+            "branches-ignore: [main]",
             "branches: ['**']",
             "names branches",
         ),
         (
-            "branches-ignore: [main, 'gh-readonly-queue/**']",
-            "branches-ignore: ['gh-readonly-queue/**']",
-            "rebuilds on main",
-        ),
-        (
-            "branches-ignore: [main, 'gh-readonly-queue/**']",
             "branches-ignore: [main]",
-            "rebuilds on gh-readonly-queue",
+            "branches-ignore: [develop]",
+            "rebuilds on main",
         ),
     ],
 )

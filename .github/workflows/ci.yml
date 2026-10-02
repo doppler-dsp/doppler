@@ -7,20 +7,14 @@ on:
   # get the same CI as one targeting main — an unfiltered pull_request event
   # runs on every PR, while the push trigger above keeps post-merge runs
   # scoped to the long-lived branches (no double-run for feature pushes).
+  # Every PR runs the FULL matrix: it is the run that gates the merge. There
+  # is no merge queue (retired 2026-10-01), so nothing runs after a PR's own
+  # checks and before it lands; docs/dev/ci.md has why.
   pull_request:
-  # The merge queue. A queued PR is tested once more, on a temporary
-  # `gh-readonly-queue/main/pr-N-<sha>` branch = main + the entries ahead of
-  # it + the PR. That is the run that gates the merge, so it gets the FULL
-  # matrix; a pull_request run gets the fast gates only (`changes.full`
-  # below). docs/dev/ci.md has the split and the reason.
-  merge_group:
-    types: [checks_requested]
 
 # A force-push to a PR (routine while a stacked branch rebases) supersedes
-# the in-flight run — cancel it. Pushes to main/develop never cancel, and
-# neither does a queue run: every merge group has its own ref, so no other
-# run shares its group, and cancel-in-progress is false for it anyway. A PR
-# push lands in the PR's own `refs/pull/N/merge` group and cannot reach it.
+# the in-flight run — cancel it. Pushes to main/develop never cancel: a PR
+# push lands in the PR's own `refs/pull/N/merge` group and cannot reach them.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -71,51 +65,26 @@ jobs:
       # changelog -- all inert to the C/Python matrix (CI_INERT_RE), none of
       # them inert to the site. Fail-safe: anything unclassifiable is true.
       docs: ${{ steps.classify.outputs.docs }}
-      # THE one declaration of which runs get the full matrix: every event
-      # but pull_request (merge_group, push). A heavy job reads `heavy`, never
-      # the event name, and ci_passed.py reads `full` to tell a skip by design
-      # from a skip that should not have happened. Fail-safe: an unknown
-      # event is full.
-      full: ${{ steps.classify.outputs.full }}
-      # src AND full: the heavy jobs run on a full run that is not a version
-      # bump alone. check_ci_aggregator.py holds ci-passed's HEAVY to exactly
-      # the jobs gated on it.
-      heavy: >-
-        ${{ steps.classify.outputs.src == 'true' &&
-            steps.classify.outputs.full == 'true' }}
-      # The Python matrix: the declared floor alone on a pull_request, every
-      # supported version on a full run.
+      # The Python matrix: every supported version, on every run.
       pythons: ${{ steps.classify.outputs.pythons }}
       # The `python` job's PRIMARY leg, by role rather than by number: the one
       # interpreter that runs the steps worth running once. It is the floor
-      # (scripts/python_versions.py --primary states the rule), so it is in
-      # every matrix above and a PR runs those steps before the queue does.
-      # A step names its LANE by which of these two it compares against:
-      #   primary       the fast lane -- every run, so a PR's author sees it;
-      #   primary_full  the heavy lane -- the primary on a full run, and ''
-      #                 (no leg) on a pull_request.
+      # (scripts/python_versions.py --primary states the rule). A step runs
+      # on it with `== primary`, or on every other leg with `!= primary`;
       # check_ci_aggregator.py refuses any other leg selector, a version
-      # literal above all, and holds docs/dev/ci.md's table of lanes to it.
+      # literal above all, and holds docs/dev/ci.md's table of them to it.
       primary: ${{ steps.classify.outputs.primary }}
-      primary_full: ${{ steps.classify.outputs.primary_full }}
     steps:
     - uses: actions/checkout@v7
       with:
         fetch-depth: 2
     - id: classify
       run: |
-        # One place decides fast vs full; see the outputs above.
         # The Python matrix is read from pyproject.toml's classifiers, never
-        # written here: the lowest on a pull_request, all of them otherwise.
+        # written here.
         primary=$(python3 scripts/python_versions.py --primary)
-        if [ "${{ github.event_name }}" = pull_request ]; then
-          full=false; versions=floor; primary_full=
-        else
-          full=true; versions=full; primary_full=$primary
-        fi
-        pythons=$(python3 scripts/python_versions.py --matrix "$versions")
-        { echo "full=$full"; echo "pythons=$pythons"
-          echo "primary=$primary"; echo "primary_full=$primary_full"
+        pythons=$(python3 scripts/python_versions.py --matrix)
+        { echo "pythons=$pythons"; echo "primary=$primary"
         } >> "$GITHUB_OUTPUT"
         case "${{ github.event_name }}" in
           # A PR is checked out as its merge commit: HEAD^ is the base tip.
@@ -123,11 +92,6 @@ jobs:
           # A push: the pushed range. If `before` cannot be fetched (a new
           # branch is all zeros), ci-changes cannot prove a bump -> src=true.
           push) base="${{ github.event.before }}"
-                git fetch -q --depth=1 origin "$base" 2>/dev/null || true ;;
-          # A queue run: the group's base is main + the entries ahead of this
-          # one, so the diff is this PR alone and a release PR's version bump
-          # still takes the fast path in the queue.
-          merge_group) base="${{ github.event.merge_group.base_sha }}"
                 git fetch -q --depth=1 origin "$base" 2>/dev/null || true ;;
           *) { echo "src=true"; echo "docs=true"; } >> "$GITHUB_OUTPUT"
              exit 0 ;;
@@ -325,8 +289,8 @@ jobs:
   # multi-platform index, so the arm runner pulls its arm64 variant.
   build-and-test-linux-arm64:
     # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
-    # Heavy: merge_group and push only, and skipped on a bump alone.
-    if: needs.changes.outputs.heavy == 'true'
+    # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
+    if: needs.changes.outputs.src == 'true'
     needs: [pin, changes]
     name: Build on ubuntu-24.04-arm
     runs-on: ubuntu-24.04-arm
@@ -373,8 +337,8 @@ jobs:
   build-and-test-windows:
     needs: changes
     # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
-    # Heavy: merge_group and push only, and skipped on a bump alone.
-    if: needs.changes.outputs.heavy == 'true'
+    # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
+    if: needs.changes.outputs.src == 'true'
     name: Build on windows-latest (clang-cl)
     runs-on: windows-latest
     timeout-minutes: 45
@@ -453,8 +417,8 @@ jobs:
   # rebuild, and serialising it would roughly double that job's wall time.
   wheel-smoke-windows:
     needs: changes
-    # Heavy: merge_group and push only, and skipped on a bump alone.
-    if: needs.changes.outputs.heavy == 'true'
+    # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
+    if: needs.changes.outputs.src == 'true'
     name: Wheel smoke (win_amd64, cp312)
     runs-on: windows-latest
     timeout-minutes: 45
@@ -489,8 +453,8 @@ jobs:
   build-and-test-macos:
     needs: changes
     # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
-    # Heavy: merge_group and push only, and skipped on a bump alone.
-    if: needs.changes.outputs.heavy == 'true'
+    # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
+    if: needs.changes.outputs.src == 'true'
     name: Build on macos-latest
     runs-on: macos-latest
     timeout-minutes: 45
@@ -587,8 +551,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # One version on a pull_request, all of them on a full run: the list
-        # is declared once, in `changes` (its `pythons` output).
+        # Every supported version: the list is declared once, in `changes`
+        # (its `pythons` output), read from pyproject.toml's classifiers.
         python-version: ${{ fromJSON(needs.changes.outputs.pythons) }}
 
     steps:
@@ -657,9 +621,8 @@ jobs:
       # and `make test-snippets` reports all three instead of stopping at the
       # first, which is a whole CI round trip per class.
       #
-      # Fast lane: the primary leg on EVERY run, a pull_request included, so a
-      # broken fence fails for the author before review rather than in the
-      # merge queue after it (doppler#1714).
+      # The primary leg (doppler#1714: a version literal here once matched no
+      # leg a pull_request ran, so a broken fence reached main).
       if: matrix.python-version == needs.changes.outputs.primary
       run: make test-snippets
 
@@ -670,18 +633,16 @@ jobs:
       #
       # No PYTEST_ARGS here: this is every leg except the one that keeps a
       # report, and coverage that is computed and discarded is just a slower
-      # test run. The Python line coverage is uploaded from the primary leg on
-      # a full run (below), and the number the patch gate actually reads comes
-      # from the `coverage` job, which measures C ∪ Python ∪ Rust against one
-      # instrumented build. On a pull_request `primary_full` is empty, so every
-      # leg -- the primary included -- runs this step.
-      if: matrix.python-version != needs.changes.outputs.primary_full
+      # test run. The Python line coverage is uploaded from the primary leg
+      # (below), and the number the patch gate actually reads comes from the
+      # `coverage` job, which measures C ∪ Python ∪ Rust against one
+      # instrumented build.
+      if: matrix.python-version != needs.changes.outputs.primary
       run: make test-python
 
     - name: Test with coverage
-      # Heavy lane: the primary leg on a full run only -- the coverage.xml it
-      # writes is uploaded below, and a pull_request has no use for it.
-      if: matrix.python-version == needs.changes.outputs.primary_full
+      # The primary leg: the coverage.xml it writes is uploaded below.
+      if: matrix.python-version == needs.changes.outputs.primary
       run: |
         make test-python PYTEST_ARGS="--cov \
           --cov-report=term-missing \
@@ -728,16 +689,13 @@ jobs:
       # in a container, against this box's 15.2 / 2.43 -- where all eleven now
       # pass. Version-independent, so once, like the fence gates.
       #
-      # Fast lane: a generated-report diff, deterministic, and it fails for
-      # the author before review. On the queue-only leg it ejected #1721 from
-      # the merge queue after every PR check had passed (run 36801286202).
       if: matrix.python-version == needs.changes.outputs.primary
       run: make validate-check
 
     - name: Upload coverage report
       uses: actions/upload-artifact@v7
-      # Heavy lane, with the run that wrote the file.
-      if: matrix.python-version == needs.changes.outputs.primary_full
+      # The primary leg, with the step that wrote the file.
+      if: matrix.python-version == needs.changes.outputs.primary
       with:
         name: coverage-report
         path: coverage.xml
@@ -749,8 +707,8 @@ jobs:
   glibc-228:
     needs: changes
     # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
-    # Heavy: merge_group and push only, and skipped on a bump alone.
-    if: needs.changes.outputs.heavy == 'true'
+    # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
+    if: needs.changes.outputs.src == 'true'
     name: glibc 2.28 (Debian 10)
     # No `container:` any more, and no provisioning inline. The Debian 10
     # environment this job needs is deploy/docker/Dockerfile.glibc228, and
@@ -832,8 +790,8 @@ jobs:
   # ------------------------------------------------------------------
   sweep-validators:
     # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
-    # Heavy: merge_group and push only, and skipped on a bump alone.
-    if: needs.changes.outputs.heavy == 'true'
+    # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
+    if: needs.changes.outputs.src == 'true'
     needs: [pin, changes]
     name: sweep validators
     runs-on: ubuntu-latest
@@ -917,8 +875,8 @@ jobs:
   docker:
     needs: changes
     # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
-    # Heavy: merge_group and push only, and skipped on a bump alone.
-    if: needs.changes.outputs.heavy == 'true'
+    # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
+    if: needs.changes.outputs.src == 'true'
     name: Docker
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -940,8 +898,8 @@ jobs:
   linux-packages:
     needs: changes
     # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
-    # Heavy: merge_group and push only, and skipped on a bump alone.
-    if: needs.changes.outputs.heavy == 'true'
+    # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
+    if: needs.changes.outputs.src == 'true'
     name: Linux packages (.deb + .rpm)
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -1025,7 +983,7 @@ jobs:
       # Makefile passes it through), so both per-branch gates measure against
       # the same commit rather than two subtly different ones.
       env:
-        CHANGELOG_BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || 'origin/main' }}
+        CHANGELOG_BASE: ${{ github.event.pull_request.base.sha || 'origin/main' }}
       run: make lint
 
   # The pending-repin gate. `ci-image-check` (in `pre-commit`'s `make lint`)
@@ -1127,8 +1085,8 @@ jobs:
   # ------------------------------------------------------------------
   sanitizers:
     # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
-    # Heavy: merge_group and push only, and skipped on a bump alone.
-    if: needs.changes.outputs.heavy == 'true'
+    # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
+    if: needs.changes.outputs.src == 'true'
     needs: [pin, changes]
     name: ${{ matrix.san.label }}
     runs-on: ubuntu-latest
@@ -1193,8 +1151,8 @@ jobs:
   # ------------------------------------------------------------------
   coverage:
     # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
-    # Heavy: merge_group and push only, and skipped on a bump alone.
-    if: needs.changes.outputs.heavy == 'true'
+    # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
+    if: needs.changes.outputs.src == 'true'
     needs: [pin, changes]
     name: coverage (C + Python + Rust)
     runs-on: ubuntu-latest
@@ -1253,11 +1211,9 @@ jobs:
       # diff-cover fails the job (→ blocks ci-passed) when a PR's added/changed
       # C lines aren't covered by the merged report. Pure .py/.rs diffs carry no
       # C coverage data and aren't counted. Pushes to main diff empty → pass.
-      # Coverage is heavy, so the PR it gates is the one in the MERGE QUEUE,
-      # and its base is the group's base_sha: main + the entries ahead. Against
-      # origin/main it would also judge the lines of every entry ahead of it.
+      # A PR's base is the main it was merged onto for this run.
       env:
-        COV_BASE: ${{ github.event.merge_group.base_sha || 'origin/main' }}
+        COV_BASE: ${{ github.event.pull_request.base.sha || 'origin/main' }}
       run: |
         git fetch --no-tags origin main
         make coverage-gate COV_BASE="$COV_BASE"
@@ -1314,17 +1270,11 @@ jobs:
       - uses: actions/checkout@v7
       # scripts/ci_passed.py: every job must SUCCEED, except that a job in
       # SKIPPABLE may be skipped when `changes` classified the diff as a
-      # version bump alone, and a job in HEAVY may be skipped on a
-      # pull_request (changes.full=false). On merge_group and push a skipped
-      # HEAVY job is red. scripts/check_ci_aggregator.py holds SKIPPABLE to
-      # the jobs gated on `changes` and HEAVY to the jobs gated on `heavy`.
+      # version bump alone. scripts/check_ci_aggregator.py holds SKIPPABLE to
+      # the jobs gated on `changes`.
       - name: Require all jobs to have succeeded
         env:
           NEEDS: ${{ toJSON(needs) }}
-          HEAVY: >-
-            build-and-test-linux-arm64 build-and-test-windows
-            wheel-smoke-windows build-and-test-macos glibc-228
-            sweep-validators docker linux-packages sanitizers coverage
           SKIPPABLE: >-
             build-and-test-linux build-and-test-linux-arm64 build-and-test-windows
             wheel-smoke-windows

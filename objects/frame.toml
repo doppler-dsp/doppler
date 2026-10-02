@@ -190,6 +190,22 @@ params = [
     { name = "bits", type = "size_t" },
 ]
 
+# The object spelling of the Field text `data:LEN` (rx-frame-description.md
+# §8.2, D5): a field whose bits a data source supplies per frame. A method,
+# not Field text in add_field, because an object takes bits and a data
+# field has none.
+[[frame.methods]]
+name = "add_data"
+arg_type = "void"
+return_type = "int"
+error_negative = true
+error = "ValueError"
+error_message = "cannot append a data field: len is 0 or past the Field grammar's bound (WFM_FIELD_MAX_BITS), or the description is full, already built, or already carries the name"
+params = [
+    { name = "name", type = "const char *" },
+    { name = "len", type = "size_t" },
+]
+
 [[frame.methods]]
 name = "add_stage_over"
 doc = "Append a stage covering `[first .. last]` BY NAME -- `add_stage_over(STAGE_CRC16, \"payload\", \"crc\")` says what three integers used to. It wires a derived field's producer for you, which applies the invariant the layout already enforces: a field with a declared length and no source sitting at the end of a cover has exactly one possible producer. `kind` is a stage kind, as for `add_stage`. Returns the new stage's index; a refusal raises `ValueError`."

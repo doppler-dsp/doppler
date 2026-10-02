@@ -455,6 +455,20 @@ dp_frame_add_derived (dp_frame_state_t *state, const char *name, size_t bits)
 }
 
 int
+dp_frame_add_data (dp_frame_state_t *state, const char *name, size_t len)
+{
+  /* The range the Field grammar accepts for `data:LEN`, so this door
+     admits exactly what the text door does. */
+  if (!state || state->one != NULL || len == 0 || len > WFM_FIELD_MAX_BITS)
+    return -1;
+  /* The field `data:LEN` parses to: a WFM_SEQ_DATA sequence of that
+     length, written once, as the parser writes it. Nothing is owned --
+     a data field has no bits of its own to copy. */
+  const wfm_seq_t seq = { .kind = WFM_SEQ_DATA, .len = len };
+  return dp_wfm_frame_add_field (&state->d, name, &seq, 1u);
+}
+
+int
 dp_frame_add_stage_over (dp_frame_state_t *state, int kind, const char *first,
                          const char *last, uint32_t depth, uint32_t unit_bits)
 {

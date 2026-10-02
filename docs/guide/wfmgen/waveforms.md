@@ -1089,6 +1089,31 @@ The whole script, `src/doppler/examples/wfmgen_frame_demo.py`, checks that
 the frame reaches the samples and that the record rebuilds them; its C twin
 is `native/examples/wfmgen_frame_demo.c`.
 
+A **data field** from Python is `add_data(name, LEN)`: the field the text
+`data:LEN` describes, whose bits the source's `data=` supplies one
+`LEN`-bit chunk per frame, padded from `fill=` at the end. `add_field` takes
+bits, and a data field has none until it is sent, so it has its own method.
+In C it is `dp_frame_add_data()`.
+
+```python
+import numpy as np
+from doppler.wfm import STAGE_CRC16, Composer, FrameDesc, Segment
+
+barker13 = np.array([1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 1], np.uint8)
+desc = FrameDesc()
+desc.add_field("sync", barker13)
+desc.add_data("payload", 24)  # data:24, filled per frame
+desc.add_derived("crc", 16)
+desc.add_stage_over(STAGE_CRC16, "payload", "crc")
+
+payload = np.random.default_rng(0).integers(0, 2, 60, dtype=np.uint8)
+seg = Segment(type="bits", sps=1, modulation="bpsk", frame=desc,
+              data=payload, fill=np.array([1, 0], np.uint8))
+x = Composer([seg]).compose()
+# 60 bits are two 24-bit frames and a third padded with fill
+assert len(x) == 3 * (13 + 24 + 16)
+```
+
 A description goes back **out** through `to_json()` and `--record`, so a
 scene read and re-written keeps its frame. A stage whose `kind` has no
 kernel — a number from `WFM_STAGE_USER` (4096) up with no `wfm_frame_ops_t`

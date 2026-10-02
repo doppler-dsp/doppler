@@ -1048,6 +1048,7 @@
 * **dp\_fir\_reset** ([**fir\_core.h**](fir__core_8h.md))
 * **dp\_fir\_set\_state** ([**fir\_core.h**](fir__core_8h.md))
 * **dp\_fir\_state\_bytes** ([**fir\_core.h**](fir__core_8h.md))
+* **dp\_frame\_add\_data** ([**frame\_core.h**](frame__core_8h.md))
 * **dp\_frame\_add\_derived** ([**frame\_core.h**](frame__core_8h.md))
 * **dp\_frame\_add\_field** ([**frame\_core.h**](frame__core_8h.md))
 * **dp\_frame\_add\_stage** ([**frame\_core.h**](frame__core_8h.md))

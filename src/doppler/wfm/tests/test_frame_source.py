@@ -36,6 +36,7 @@ import numpy as np
 import pytest
 
 from doppler.wfm import (
+    STAGE_CRC16,
     Composer,
     FrameDesc,
     Segment,
@@ -543,6 +544,129 @@ def test_frame_survives_the_composer_record():
     assert np.array_equal(
         np.asarray(again.compose()), np.asarray(Composer([seg]).compose())
     )
+
+
+# ── a data field from Python: FrameDesc.add_data (doppler#1786) ────────────
+#
+# `data:LEN` used to reach a description only as text -- a scene's "frame"
+# key, the CLI's --frame FILE -- so a Python `frame=` could carry a fixed
+# payload and nothing more. add_data is the object door to the same field;
+# these hold the two doors to one waveform over a source of several frames.
+
+_DLEN = 24
+# 60 bits: two whole 24-bit frames and a third of 12 bits padded with fill.
+_DSRC = np.random.default_rng(1786).integers(0, 2, 60, dtype=np.uint8)
+_FILL = np.array([1, 0], np.uint8)
+_DFRAME = {
+    "fields": [
+        {"name": "sync", "spec": _bits(SYNC)},
+        {"name": "payload", "spec": f"data:{_DLEN}"},
+        {"name": "crc", "bits": 16, "derived_by": 1},
+    ],
+    "stages": [{"kind": "crc16", "first_field": 1, "n_fields": 2}],
+}
+_DBITS = len(SYNC) + _DLEN + 16
+
+
+def _data_desc() -> FrameDesc:
+    """`[sync | data:24 | crc16]`, described from Python."""
+    d = FrameDesc()
+    d.add_field("sync", SYNC)
+    d.add_data("payload", _DLEN)
+    d.add_derived("crc", 16)
+    d.add_stage_over(STAGE_CRC16, "payload", "crc")
+    return d
+
+
+def _data_segment(sps: int = SPS, fs: float = FS) -> Segment:
+    return Segment(
+        type="bits",
+        fs=fs,
+        sps=sps,
+        modulation="bpsk",
+        frame=_data_desc(),
+        data=_DSRC,
+        fill=_FILL,
+    )
+
+
+def test_add_data_is_the_field_data_len_describes():
+    """The object door records the field the text door writes."""
+    rec = json.loads(Composer([_data_segment()]).to_json())
+    got = rec["segments"][0]["frame"]
+    assert got["fields"] == _DFRAME["fields"]
+    assert got["stages"] == _DFRAME["stages"]
+
+
+def test_add_data_sends_each_chunk_of_a_multi_frame_source():
+    """Three frames, each the next 24-bit chunk under the same sync word,
+    the last padded from fill, each with its own CRC-16. Read at one sample
+    per symbol: BPSK sends bit 0 as +1 and bit 1 as -1."""
+    y = np.asarray(Composer([_data_segment(1, 1.0)]).compose()).real
+    assert y.size == 3 * _DBITS
+    wire = (y < 0).astype(np.uint8).reshape(3, _DBITS)
+    padded = np.concatenate([_DSRC, np.tile(_FILL, 6)])
+    for k in range(3):
+        chunk = padded[k * _DLEN : (k + 1) * _DLEN]
+        crc = crc16(chunk)
+        trailer = np.array(
+            [(crc >> (15 - i)) & 1 for i in range(16)], np.uint8
+        )
+        assert np.array_equal(
+            wire[k], np.concatenate([SYNC, chunk, trailer])
+        ), f"frame {k}"
+
+
+def test_add_data_matches_the_cli_and_the_scene_byte_for_byte(tmp_path):
+    """One description, three faces, one waveform: Python's add_data, the
+    CLI's --frame FILE with `data:24`, and a scene's "frame" key."""
+    py = np.asarray(Composer([_data_segment()]).compose(), np.complex64)
+
+    frame_file = tmp_path / "frame.json"
+    frame_file.write_text(json.dumps(_DFRAME), encoding="utf-8")
+    p, out = _cli(
+        [
+            "--type",
+            "bits",
+            "--modulation",
+            "bpsk",
+            "--fs",
+            str(FS),
+            "--sps",
+            str(SPS),
+            "--frame",
+            str(frame_file),
+            "--data",
+            _bits(_DSRC),
+            "--fill",
+            _bits(_FILL),
+        ],
+        tmp_path,
+    )
+    assert p.returncode == 0, p.stderr
+    assert out.read_bytes() == py.tobytes()
+
+    seg = {
+        "type": "bits",
+        "fs": FS,
+        "sps": SPS,
+        "modulation": "bpsk",
+        "data": _bits(_DSRC),
+        "fill": _bits(_FILL),
+        "frame": _DFRAME,
+    }
+    scene = Composer.from_json(json.dumps({"version": 1, "segments": [seg]}))
+    assert np.asarray(scene.compose(), np.complex64).tobytes() == py.tobytes()
+
+
+@pytest.mark.parametrize(
+    ("name", "n"),
+    [("more", 0), ("sync", 8), ("more", 261121)],  # WFM_FIELD_MAX_BITS + 1
+    ids=["zero-length", "name-taken", "past-the-field-bound"],
+)
+def test_add_data_refuses_what_the_field_text_refuses(name, n):
+    with pytest.raises(ValueError, match="cannot append a data field"):
+        _data_desc().add_data(name, n)
 
 
 # ── a derived field must name its producer (doppler#1155) ───────────────────

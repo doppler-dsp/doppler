@@ -25,6 +25,7 @@
  * bits, through dp_wfm_field_bits -- the same door every text face uses.
  */
 #include "doppler/frame/frame_core.h"
+#include "doppler/wfm/wfm_data.h"
 #include "doppler/wfm/wfm_frame.h"
 #include "dp_test.h"
 
@@ -47,6 +48,20 @@ static dp_frame_state_t *
 empty_desc (void)
 {
   return dp_frame_create_desc (NULL, 0, NULL, 0, NULL, 0, 0);
+}
+
+/* Member by member, so struct padding cannot decide the answer. */
+static int
+same_field (const wfm_field_t *x, const wfm_field_t *y)
+{
+  const wfm_seq_t *p = &x->seq, *q = &y->seq;
+  return strcmp (x->name, y->name) == 0 && p->kind == q->kind
+         && p->len == q->len && p->bits == q->bits && p->poly == q->poly
+         && p->seed == q->seed && p->reg_bits == q->reg_bits
+         && p->lfsr == q->lfsr && p->taps_a == q->taps_a
+         && p->seed_a == q->seed_a && p->taps_b == q->taps_b
+         && p->seed_b == q->seed_b && x->reps == y->reps && x->bits == y->bits
+         && x->derived_by == y->derived_by;
 }
 
 int
@@ -553,6 +568,100 @@ main (void)
     DP_CHECK_MSG (dp_frame_name_field (d, 0u, "payload") == -1,
                   "a rename onto a taken name is refused");
     dp_frame_destroy (d);
+  }
+
+  /* ── a data field: the object spelling of `data:LEN` (doppler#1786) ───
+   *
+   * `dp_frame_add_data` must build the field the Field parser builds from
+   * `data:24` -- the one a scene's "frame" or the CLI's `--frame` carries --
+   * and a description holding it must assemble a multi-frame data source the
+   * same way. If the two doors disagreed, a Python transmitter and a scene
+   * would send different frames from one description.
+   */
+  {
+    dp_frame_state_t *a = empty_desc ();
+    DP_REQUIRE (a != NULL);
+    DP_CHECK (dp_frame_add_field (a, "sync", SYNC, 13u) == 0);
+    DP_CHECK (dp_frame_add_data (a, "payload", 24u) == 1);
+    DP_CHECK (dp_frame_add_derived (a, "crc", 16u) == 2);
+    DP_CHECK (
+        dp_frame_add_stage_over (a, 0 /* crc16 */, "payload", "crc", 0, 0)
+        == 0);
+
+    /* The text door, field by field as wfm_json.c's frame reader writes
+       it: the Field parsed, then its name copied in. */
+    wfm_frame_desc_t t;
+    memset (&t, 0, sizeof t);
+    const wfm_seq_t sy = { .kind = WFM_SEQ_LITERAL, .bits = SYNC, .len = 13 };
+    DP_REQUIRE (dp_wfm_frame_add_field (&t, "sync", &sy, 0u) == 0);
+    wfm_field_t f;
+    uint8_t    *owned = NULL;
+    DP_REQUIRE (dp_wfm_field_parse ("data:24", &f, &owned, NULL) == DP_OK);
+    DP_CHECK_MSG (owned == NULL, "a data field owns no bits");
+    snprintf (f.name, sizeof f.name, "%s", "payload");
+    t.field[t.n_fields++] = f;
+    DP_REQUIRE (dp_wfm_frame_add_derived (&t, "crc", 16u) == 2);
+    DP_REQUIRE (dp_wfm_frame_add_stage (&t, WFM_STAGE_CRC16, "payload", "crc")
+                == 0);
+
+    DP_CHECK_MSG (same_field (&a->d.field[1], &t.field[1]),
+                  "add_data builds the field `data:24` parses to");
+    wfm_frame_desc_layout_t la, lt;
+    memset (&la, 0, sizeof la);
+    memset (&lt, 0, sizeof lt);
+    DP_REQUIRE (dp_wfm_frame_desc_layout (&a->d, &la) == 0);
+    DP_REQUIRE (dp_wfm_frame_desc_layout (&t, &lt) == 0);
+    DP_CHECK_MSG (memcmp (&la, &lt, sizeof la) == 0,
+                  "...and the two descriptions lay out identically");
+    DP_CHECK_MSG (la.frame_bits == 13u + 24u + 16u,
+                  "the data field lays out at its length, CRC behind it");
+
+    /* A multi-frame source: 60 bits in 24-bit chunks is three frames, the
+       last 12 bits of data and 12 of fill. Each chunk is assembled through
+       both descriptions, the way a transmitter does per frame. */
+    const char     *why = NULL;
+    wfm_data_src_t *src
+        = dp_wfm_data_create ("0x0123456789ABCDE", NULL, 24u, "10", &why);
+    DP_REQUIRE_MSG (src != NULL, why ? why : "data source");
+    uint8_t chunk[24], fa[64], ft[64];
+    int     frames = 0;
+    while (dp_wfm_data_next (src, 1u, chunk, sizeof chunk, -1)
+           == WFM_DATA_FRAME)
+      {
+        frames++;
+        DP_CHECK (
+            dp_wfm_frame_assemble_data (&a->d, NULL, chunk, fa, sizeof fa)
+            == 53u);
+        DP_CHECK (dp_wfm_frame_assemble_data (&t, NULL, chunk, ft, sizeof ft)
+                  == 53u);
+        DP_CHECK_MSG (memcmp (fa, ft, 53u) == 0,
+                      "both doors send the same frame for every chunk");
+        DP_CHECK_MSG (memcmp (fa + 13, chunk, 24u) == 0,
+                      "the chunk lands at the data field's offset");
+        DP_CHECK_MSG (dp_wfm_frame_desc_crc_ok (&a->d, fa) == 1,
+                      "and the CRC covers THIS frame's chunk");
+      }
+    DP_CHECK_MSG (frames == 3, "60 bits in 24-bit chunks are three frames");
+    dp_wfm_data_destroy (src);
+
+    /* The refusals are the text door's: LEN in 1..WFM_FIELD_MAX_BITS, a
+       name another field carries, and nothing once built. */
+    DP_CHECK (dp_frame_add_data (a, "more", 0u) == -1);
+    DP_CHECK (dp_wfm_field_parse ("data:0", &f, &owned, NULL) != DP_OK);
+    DP_CHECK (dp_frame_add_data (a, "more", WFM_FIELD_MAX_BITS + 1u) == -1);
+    DP_CHECK (dp_frame_add_data (a, "payload", 8u) == -1);
+    DP_CHECK (dp_frame_add_data (NULL, "x", 8u) == -1);
+    dp_frame_destroy (a);
+
+    /* A frame draws from one source: a second data field is refused where
+       geometry is judged, as for every face. */
+    dp_frame_state_t *two = empty_desc ();
+    DP_REQUIRE (two != NULL);
+    DP_CHECK (dp_frame_add_data (two, "a", 8u) == 0);
+    DP_CHECK (dp_frame_add_data (two, "b", 8u) == 1);
+    DP_CHECK_MSG (dp_wfm_frame_desc_layout (&two->d, &la) == -1,
+                  "two data fields do not lay out");
+    dp_frame_destroy (two);
   }
 
   DP_TEST_END ("frame_core");

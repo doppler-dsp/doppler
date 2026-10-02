@@ -65,6 +65,7 @@ _A frame's bit layout, held as an object so Python can describe one._ [More...](
 
 | Type | Name |
 | ---: | :--- |
+|  int | [**dp\_frame\_add\_data**](#function-dp_frame_add_data) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state, const char \* name, size\_t len) <br>_Append a named DATA field:_ `len` _bits a data source fills, one chunk per frame. Returns its index; -1 in C,_`ValueError` _from Python._ |
 |  int | [**dp\_frame\_add\_derived**](#function-dp_frame_add_derived) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state, const char \* name, size\_t bits) <br>_Append a named field a stage will fill. Returns its index; -1 in C,_ `ValueError` _from Python._ |
 |  int | [**dp\_frame\_add\_field**](#function-dp_frame_add_field) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state, const char \* name, const uint8\_t \* bits, size\_t bits\_len) <br>_Append one named field to a description. Returns its index; -1 in C,_ `ValueError` _from Python._ |
 |  int | [**dp\_frame\_add\_stage**](#function-dp_frame_add_stage) ([**dp\_frame\_state\_t**](structdp__frame__state__t.md) \* state, int kind, uint32\_t first\_field, uint32\_t n\_fields, uint32\_t depth, uint32\_t emit\_num, uint32\_t emit\_den, uint32\_t unit\_bits) <br>_Append one stage, and the span of fields it covers._  |
@@ -172,6 +173,68 @@ dp_frame_destroy(f);
     
 ## Public Functions Documentation
 
+
+
+
+### function dp\_frame\_add\_data 
+
+_Append a named DATA field:_ `len` _bits a data source fills, one chunk per frame. Returns its index; -1 in C,_`ValueError` _from Python._
+```C++
+int dp_frame_add_data (
+    dp_frame_state_t * state,
+    const char * name,
+    size_t len
+) 
+```
+
+
+
+The object spelling of the Field text `data:LEN`, and the same field: a WFM\_SEQ\_DATA sequence of length `len`, which is exactly what `dp_wfm_field_parse("data:LEN")` produces for a scene's or the CLI's frame. The description knows the field's length and never its bits: a transmitter draws them from its data source at each frame (a source's `data=`), and a CRC or outer code covering the field covers that frame's chunk. It is a method rather than Field text in [**dp\_frame\_add\_field**](frame__core_8h.md#function-dp_frame_add_field) because an object takes bits, and a data field has none (rx-frame-description.md, D5).
+
+
+A frame draws from one data source, so a description carries at most one data field; a second is refused where geometry is judged, by the layout, as it is for every other face.
+
+
+
+
+**Parameters:**
+
+
+* `state` A frame from [**dp\_frame\_create\_desc**](frame__core_8h.md#function-dp_frame_create_desc). 
+* `name` The field's name, or NULL/"" for anonymous; a name another field carries is refused. 
+* `len` Bits per frame, `LEN` in `data:LEN`: from 1 to [**WFM\_FIELD\_MAX\_BITS**](wfm__frame_8h.md#define-wfm_field_max_bits), the bound the Field grammar puts on the text form. 
+
+
+
+**Returns:**
+
+The new field's index, or -1 if `len` is out of range, the description is full or already built, or the name is taken.
+
+
+
+```C++
+>>> import numpy as np
+>>> from doppler.wfm import FrameDesc, STAGE_CRC16, Segment, Composer
+>>> d = FrameDesc()
+>>> d.add_field("sync", np.array([1, 1, 1, 0, 0, 1, 0], np.uint8))
+0
+>>> d.add_data("payload", 8)          # 8 bits of the data source a frame
+1
+>>> d.add_derived("crc", 16)
+2
+>>> d.add_stage_over(STAGE_CRC16, "payload", "crc")
+0
+>>> seg = Segment(type="bits", sps=1, modulation="bpsk", frame=d,
+...               data=np.unpackbits(np.array([0xA5, 0x3C], np.uint8)))
+>>> len(Composer([seg]).compose())    # two frames of 7 + 8 + 16 bits
+62
+```
+ 
+
+
+        
+
+<hr>
 
 
 

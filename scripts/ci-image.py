@@ -29,7 +29,10 @@ and what was built from them:
 ``CI_IMAGE_SOURCE_HASH``
     a hash of the files the image is built from (the Dockerfile, the
     optional ``docker/ci-extra.sh``, ``bootstrap.toml``). ``check`` refuses a
-    tree whose sources moved without a repin.
+    tree whose sources moved without a repin. ``bootstrap.toml``'s
+    ``[project]`` table is left out: no layer reads it, and it holds the
+    release version, so hashing it made every version bump owe a full
+    rebuild of every base on both arches (doppler-dsp/doppler#1765).
 
 Only a refresh (the weekly run, or a dispatch asking for one) picks new
 inputs; every other build reads the pinned ones.
@@ -129,12 +132,61 @@ def read_pin(path: Path = PIN) -> "dict[str, str]":
     return out
 
 
+# A TOML table header on a line of its own: ``[a.b]`` or ``[[a.b]]``, keys
+# bare or quoted, an optional trailing comment. Only read outside an array
+# value: inside one, ``['project']`` alone on a line is an element, and
+# reading it as a header would drop the lines after it unhashed.
+_TABLE = re.compile(r"""^\s*\[\[?\s*([\w.\-"' ]+?)\s*\]\]?\s*(#.*)?$""")
+# What brackets a line opens or closes cannot see inside: its strings, then
+# its comment.
+_NOT_BRACKETS = re.compile(r"""("(?:\\.|[^"\\])*"|'[^']*')|#.*""")
+
+
+def _unread_by_the_image(name: str) -> bool:
+    """Whether a table is one no image layer reads: ``[project]``, nested too.
+
+    Excluding the one table nothing reads, rather than listing the ones the
+    image does, is deliberate: an include-list silently misses a group a
+    later ``bootstrap.toml`` adds. ``docker/ci-extra.sh`` is the adopter's
+    and could read anything; one that reads ``[project]`` must say so in a
+    table of its own.
+    """
+    first = name.split(".", 1)[0].strip().strip("\"'")
+    return first == "project"
+
+
+def _image_bytes(path: Path) -> bytes:
+    """A source file's bytes as the image sees them.
+
+    ``bootstrap.toml`` without its ``[project]`` table(s), every other byte
+    kept: a comment or whitespace edit still owes a repin, which only ever
+    errs toward rebuilding. A line filter rather than ``tomllib``, which
+    needs Python 3.11 where this runs on the floor Python; one reading, not
+    a parser with a fallback that could disagree with it.
+    """
+    if not path.exists():
+        return b"<absent>"
+    if path != BOOTSTRAP:
+        return path.read_bytes()
+    keep, depth, out = True, 0, []
+    for line in path.read_bytes().decode("utf-8").splitlines(keepends=True):
+        m = _TABLE.match(line) if depth == 0 else None
+        if m:
+            keep = not _unread_by_the_image(m.group(1))
+        else:
+            bare = _NOT_BRACKETS.sub("", line)
+            depth = max(0, depth + bare.count("[") - bare.count("]"))
+        if keep:
+            out.append(line)
+    return "".join(out).encode("utf-8")
+
+
 def source_hash() -> str:
     """Hash every file the image is built from, by name and content."""
     h = hashlib.sha256()
     for path in (DOCKERFILE, EXTRA, BOOTSTRAP):
         h.update(str(path).encode() + b"\0")
-        h.update(path.read_bytes() if path.exists() else b"<absent>")
+        h.update(_image_bytes(path))
         h.update(b"\0")
     return h.hexdigest()
 

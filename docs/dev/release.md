@@ -180,11 +180,10 @@ a missed one is a red gate rather than a number nobody reads.
 
     Its bytes fed the CI image fingerprint, so moving the version demanded an
     image rebuild and a repin — every release, for a string no image layer
-    reads. doppler's own source hash once dropped `[project]` to end that;
-    the shared CI image's `ci-image-check` hashes the whole file again, so
-    until canonical drops it too a version bump carries a repin commit
-    ([#1765](https://github.com/doppler-dsp/doppler/issues/1765)). See
-    [Build Internals](build-internals.md).
+    reads. The shared CI image's source hash leaves out the `[project]`
+    table ([#1765](https://github.com/doppler-dsp/doppler/issues/1765)), so
+    the version travels freely and a rebuild still fires on any real change.
+    See [Build Internals](build-internals.md).
 
     `just-makeit.toml`'s copy has a second reason to be right:
     [just-makeit#1141](https://github.com/just-buildit/just-makeit/issues/1141)

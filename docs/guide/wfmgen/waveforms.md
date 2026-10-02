@@ -911,7 +911,14 @@ wfmgen --type bits --modulation bpsk --frame cadu.json \
 
 # the record carries the description, and replays it byte for byte
 wfmgen --from-file cadu-run.json -o replay.cf32
-python3 -c "print(open('cadu.cf32','rb').read()==open('replay.cf32','rb').read())"
+python3 - <<'EOF'
+import pathlib
+import sys
+
+a = pathlib.Path("cadu.cf32").read_bytes()
+b = pathlib.Path("replay.cf32").read_bytes()
+sys.exit(a != b)
+EOF
 ```
 
 The run is exactly one frame, 4144 samples: 32 marker bits plus a 2040-bit

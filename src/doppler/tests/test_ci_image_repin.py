@@ -280,7 +280,7 @@ def _reproducible_problems(
     froms = re.findall(r"^FROM\s+(\S+)", dockerfile, re.M)
     if froms != ["${BASE}"]:
         out.append(f"Dockerfile.ci builds FROM {froms}, not the pinned BASE")
-    for arg in ("BASE", "APT_SNAPSHOT"):
+    for arg in ("BASE", "APT_SNAPSHOT", "JB_VERSION", "JB_SHA256"):
         if not re.search(rf"^ARG {arg}$", dockerfile, re.M):
             out.append(f"ARG {arg} is missing or has a default")
     lines = dockerfile.splitlines()
@@ -294,16 +294,35 @@ def _reproducible_problems(
     )
     if rewrite > first_apt:
         out.append("apt-get runs before the snapshot rewrite")
+    # The installer comes from the pinned, checksummed tarball (#1751), never
+    # from a live fetch of its logic: get-jb.sh and `jbx install-deps` both
+    # resolve the newest install-deps at run time.
+    live = [s for _, s in code if "get-jb.sh" in s or "jbx install-deps" in s]
+    if live:
+        out.append(
+            f"Dockerfile.ci fetches its installer live: {live[0].strip()}"
+        )
+    if not any("sha256sum -c" in s for _, s in code):
+        out.append("Dockerfile.ci does not verify the just-bashit tarball")
     vals = dict(
         ln.split("=", 1) for ln in pin.splitlines() if re.match(r"\w+=", ln)
     )
     if not re.fullmatch(r"\d{8}T\d{6}Z", vals.get("CI_APT_SNAPSHOT", "")):
         out.append("pin has no CI_APT_SNAPSHOT timestamp")
+    if not re.fullmatch(r"v\d+\.\d+\.\d+", vals.get("CI_JB_VERSION", "")):
+        out.append("pin has no CI_JB_VERSION release tag")
+    if not re.fullmatch(r"[0-9a-f]{64}", vals.get("CI_JB_SHA256", "")):
+        out.append("pin has no CI_JB_SHA256")
     for key in ("2204", "2404"):
         ref = vals.get(f"CI_BASE_{key}", "")
         if not re.fullmatch(r"ubuntu:\d\d\.\d\d@sha256:[0-9a-f]{64}", ref):
             out.append(f"pin has no digest-pinned CI_BASE_{key}")
-    for arg in ('"BASE=$ref"', '"APT_SNAPSHOT=$snap"'):
+    for arg in (
+        '"BASE=$ref"',
+        '"APT_SNAPSHOT=$snap"',
+        '"JB_VERSION=$jbv"',
+        '"JB_SHA256=$jbsha"',
+    ):
         if f"--build-arg {arg}" not in workflow:
             out.append(f"ci-image.yml does not pass {arg}")
     crons = re.findall(r"cron:\s*'([^']+)'", workflow)
@@ -344,6 +363,21 @@ def test_the_image_rebuilds_from_its_pin() -> None:
             "2204",
         ),
         (2, '"APT_SNAPSHOT=$snap"', '"X=$snap"', "does not pass"),
+        (0, "ARG JB_VERSION\n", "ARG JB_VERSION=v0.6.0\n", "ARG JB_VERSION"),
+        (
+            0,
+            " | sha256sum -c - \\\n",
+            " \\\n",
+            "does not verify",
+        ),
+        (
+            0,
+            "ARG JB_SHA256\n",
+            "ARG JB_SHA256\nRUN bash get-jb.sh\n",
+            "fetches its installer live",
+        ),
+        (1, "CI_JB_SHA256=", "CI_JB_SHA256_GONE=", "CI_JB_SHA256"),
+        (2, '"JB_VERSION=$jbv"', '"X=$jbv"', "does not pass"),
         (2, "'17 4 * * 1'", "'17 4 * * *'", "not weekly"),
     ],
 )

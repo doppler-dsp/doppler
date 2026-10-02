@@ -43,6 +43,7 @@ _Synth component API._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 | struct | [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) <br> |
+| struct | [**wfm\_synth\_refill\_state\_t**](structwfm__synth__refill__state__t.md) <br>_A frame source's own state triplet, over its_ `user` _pointer._ |
 
 
 ## Public Types
@@ -97,12 +98,14 @@ _Synth component API._ [More...](#detailed-description)
 |  int | [**dp\_wfm\_synth\_set\_dsss\_window**](#function-dp_wfm_synth_set_dsss_window) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, size\_t code\_only\_symbols, size\_t frame\_symbols) <br>_Give the continuous DSSS stream a frame with a pure-code window._  |
 |  void | [**dp\_wfm\_synth\_set\_nsps**](#function-dp_wfm_synth_set_nsps) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, int val) <br>_Override the samples-per-symbol count in-place. Does not flush the symbol-position counter (sym\_pos); set sym\_pos=0 as well when changing sps mid-stream._  |
 |  int | [**dp\_wfm\_synth\_set\_refill**](#function-dp_wfm_synth_set_refill) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, [**wfm\_synth\_refill\_fn**](wfm__synth__core_8h.md#typedef-wfm_synth_refill_fn) fn, void \* user, void(\*)(void \*) free\_user) <br>_Pull each frame from_ `fn` _instead of cycling the pattern._ |
+|  int | [**dp\_wfm\_synth\_set\_refill\_state**](#function-dp_wfm_synth_set_refill_state) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, const [**wfm\_synth\_refill\_state\_t**](structwfm__synth__refill__state__t.md) \* ops) <br>_Give the attached refill its state triplet, so the synth serializes._  |
 |  int | [**dp\_wfm\_synth\_set\_rrc**](#function-dp_wfm_synth_set_rrc) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, const float \* taps, size\_t ntaps) <br>_Enable RRC pulse shaping on a symbol synth (pn/bpsk/qpsk/bits)._  |
 |  int | [**dp\_wfm\_synth\_set\_state**](#function-dp_wfm_synth_set_state) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, const void \* blob) <br> |
 |  void | [**dp\_wfm\_synth\_set\_sym\_pos**](#function-dp_wfm_synth_set_sym_pos) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, int val) <br>_Override the symbol-position counter in-place. Injecting 0 forces the next_ [_**dp\_wfm\_synth\_step()**_](wfm__synth__core_8h.md#function-dp_wfm_synth_step) _to latch a new PN chip; any other value fast-forwards into the middle of the current symbol hold._ |
 |  int | [**dp\_wfm\_synth\_set\_symbols**](#function-dp_wfm_synth_set_symbols) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, const float \_Complex \* symbols, size\_t n) <br>_Attach a complex-symbol stream to a type=symbols synth (no-op else)._  |
 |  void | [**dp\_wfm\_synth\_set\_wtype**](#function-dp_wfm_synth_set_wtype) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, int val) <br>_Override the waveform type discriminant in-place. Changing wtype does not reinitialise sub-objects; use with care._  |
 |  size\_t | [**dp\_wfm\_synth\_state\_bytes**](#function-dp_wfm_synth_state_bytes) (const [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state) <br> |
+|  const char \* | [**dp\_wfm\_synth\_state\_refusal**](#function-dp_wfm_synth_state_refusal) (const [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state) <br>_Why the synth's state cannot be serialized, or NULL when it can._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**dp\_wfm\_synth\_step**](#function-dp_wfm_synth_step) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state) <br>_Generate one output sample from internal state. Advances the PN LFSR (modulated types only, on symbol boundaries), the LO phase accumulator, and the AWGN engine, then returns the mixed result:_ `sym * carrier + noise` _. Inlined and hot-path annotated so tight per-sample loops pay no call overhead._ |
 |  void | [**dp\_wfm\_synth\_steps**](#function-dp_wfm_synth_steps) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, float \_Complex \* output, size\_t n) <br>_Generate a block of output samples. Calls_ [_**dp\_wfm\_synth\_step()**_](wfm__synth__core_8h.md#function-dp_wfm_synth_step) _in a tight loop, writing each cf32 sample into_`output` _. The Python binding returns a freshly allocated NumPy complex64 array; ownership is transferred to the caller._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**wfm\_synth\_bit\_next**](#function-wfm_synth_bit_next) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* s, unsigned \* bit) <br>_The next bit of the pattern, or none once the data has ended._  |
@@ -148,7 +151,7 @@ _Synth component API._ [More...](#detailed-description)
 | define  | [**WFM\_DSSS\_ENDED**](wfm__synth__core_8h.md#define-wfm_dsss_ended)  `2u`<br> |
 | define  | [**WFM\_SYNTH\_SNR\_CLEAN**](wfm__synth__core_8h.md#define-wfm_synth_snr_clean)  `100.0`<br> |
 | define  | [**WFM\_SYNTH\_STATE\_MAGIC**](wfm__synth__core_8h.md#define-wfm_synth_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('W','F','M','S')`<br> |
-| define  | [**WFM\_SYNTH\_STATE\_VERSION**](wfm__synth__core_8h.md#define-wfm_synth_state_version)  `2u /\* v2: + continuous-DSSS chip/symbol clocks \*/`<br> |
+| define  | [**WFM\_SYNTH\_STATE\_VERSION**](wfm__synth__core_8h.md#define-wfm_synth_state_version)  `3u`<br> |
 
 ## Detailed Description
 
@@ -983,7 +986,7 @@ The pattern set by [**dp\_wfm\_synth\_set\_bits()**](wfm__synth__core_8h.md#func
 A dsss BURST plays its chips through the same cursor, so it takes a refill too: the pattern is the burst [**dp\_wfm\_synth\_set\_dsss\_chips()**](wfm__synth__core_8h.md#function-dp_wfm_synth_set_dsss_chips) installed, and `fn` writes the next burst's chips (doppler#1719). A later [**dp\_wfm\_synth\_set\_dsss\_chips()**](wfm__synth__core_8h.md#function-dp_wfm_synth_set_dsss_chips) detaches it. A CONTINUOUS dsss stream set up with `WFM_DSSS_DATA_BITS` takes one as well: each data symbol reads the next bit through the cursor instead of cycling its payload, the refill writing the next `n` bits, and the chips are silent once it reports the end.
 
 
-A synth with a refill attached REFUSES serialization  [**dp\_wfm\_synth\_state\_bytes()**](wfm__synth__core_8h.md#function-dp_wfm_synth_state_bytes) returns 0 and [**dp\_wfm\_synth\_set\_state()**](wfm__synth__core_8h.md#function-dp_wfm_synth_set_state) is DP\_ERR\_INVALID  because the pulled frame and the source's position are state it cannot yet carry (doppler#1681).
+A refill attached here has no state of its own, so the synth REFUSES serialization  [**dp\_wfm\_synth\_state\_bytes()**](wfm__synth__core_8h.md#function-dp_wfm_synth_state_bytes) returns 0 and [**dp\_wfm\_synth\_set\_state()**](wfm__synth__core_8h.md#function-dp_wfm_synth_set_state) is DP\_ERR\_INVALID  until the source's triplet is attached with [**dp\_wfm\_synth\_set\_refill\_state()**](wfm__synth__core_8h.md#function-dp_wfm_synth_set_refill_state): the pulled frame and the source's position are state, and a blob without them would resume the wrong data. [**dp\_wfm\_synth\_state\_refusal()**](wfm__synth__core_8h.md#function-dp_wfm_synth_state_refusal) says why.
 
 
 
@@ -1037,6 +1040,45 @@ main (void)
 }
 ```
  
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_synth\_set\_refill\_state 
+
+_Give the attached refill its state triplet, so the synth serializes._ 
+```C++
+int dp_wfm_synth_set_refill_state (
+    dp_wfm_synth_state_t * state,
+    const wfm_synth_refill_state_t * ops
+) 
+```
+
+
+
+The blob then carries the frame in play (`bits`, which a refill rewrites and so is state, not config) and nests `ops'` sub-blob over the refill's `user`. A later [**dp\_wfm\_synth\_set\_refill()**](wfm__synth__core_8h.md#function-dp_wfm_synth_set_refill)  any attach or detach  drops `ops` with the refill it belonged to.
+
+
+
+
+**Parameters:**
+
+
+* `state` a synth with a refill attached. 
+* `ops` the triplet, in static storage; NULL takes it away. 
+
+
+
+**Returns:**
+
+0, or -1 when no refill is attached. 
+
+
+
 
 
         
@@ -1222,6 +1264,26 @@ size_t dp_wfm_synth_state_bytes (
 
 
 
+
+<hr>
+
+
+
+### function dp\_wfm\_synth\_state\_refusal 
+
+_Why the synth's state cannot be serialized, or NULL when it can._ 
+```C++
+const char * dp_wfm_synth_state_refusal (
+    const dp_wfm_synth_state_t * state
+) 
+```
+
+
+
+A refill with no triplet ([**dp\_wfm\_synth\_set\_refill\_state()**](wfm__synth__core_8h.md#function-dp_wfm_synth_set_refill_state)), or a source whose triplet refuses  a pipe, whose delivered octets are gone. The reason is static, as every refusal's is. 
+
+
+        
 
 <hr>
 
@@ -1638,7 +1700,7 @@ double eb_db = wfm_synth_snr_over_fs (2, wfm_synth_bps (WFM_SYNTH_QPSK),
 ### define WFM\_SYNTH\_STATE\_VERSION 
 
 ```C++
-#define WFM_SYNTH_STATE_VERSION `2u /* v2: + continuous-DSSS chip/symbol clocks */`
+#define WFM_SYNTH_STATE_VERSION `3u`
 ```
 
 

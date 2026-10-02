@@ -67,6 +67,7 @@
 |  uint8\_t | [**primed**](#variable-primed)  <br> |
 |  [**wfm\_synth\_refill\_fn**](wfm__synth__core_8h.md#typedef-wfm_synth_refill_fn) | [**refill**](#variable-refill)  <br> |
 |  void(\* | [**refill\_free**](#variable-refill_free)  <br> |
+|  const [**wfm\_synth\_refill\_state\_t**](structwfm__synth__refill__state__t.md) \* | [**refill\_state**](#variable-refill_state)  <br> |
 |  void \* | [**refill\_user**](#variable-refill_user)  <br> |
 |  [**resamp\_state\_t**](structresamp__state__t.md) \* | [**shaper**](#variable-shaper)  <br> |
 |  uint64\_t | [**sym\_idx**](#variable-sym_idx)  <br> |
@@ -517,6 +518,19 @@ wfm_synth_refill_fn dp_wfm_synth_state_t::refill;
 
 ```C++
 void(* dp_wfm_synth_state_t::refill_free) (void *);
+```
+
+
+
+
+<hr>
+
+
+
+### variable refill\_state 
+
+```C++
+const wfm_synth_refill_state_t* dp_wfm_synth_state_t::refill_state;
 ```
 
 

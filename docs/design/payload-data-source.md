@@ -289,8 +289,11 @@ source is refused as two spellings of one thing.
 
 It composes, rather than re-implements: `dp_bytes_to_bin` for the unpack,
 `dp_pn_generate` for `pn:0` (stateful, and already serializable), and the
-Field parser for literal and fill text. Its state triplet makes a stream
-resumable like every other stateful object. The frame is still assembled
+Field parser for literal and fill text. Its state triplet resumes a Field,
+`pn:0` and a regular file bit for bit (a file re-read to its offset, the
+hash of that prefix checked); a pipe refuses at both ends, with its reason,
+because the octets it delivered are gone. A synth pulling from a source
+nests that blob beside the frame in play. The frame is still assembled
 by `dp_wfm_frame_assemble`, once per chunk.
 
 **The order of work**, following

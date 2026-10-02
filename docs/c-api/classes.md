@@ -219,5 +219,6 @@
 * [**wfm\_stage\_t**](structwfm__stage__t.md)
 * [**wfm\_surface\_exclusive\_t**](structwfm__surface__exclusive__t.md)
 * [**wfm\_surface\_row\_t**](structwfm__surface__row__t.md)
+* [**wfm\_synth\_refill\_state\_t**](structwfm__synth__refill__state__t.md)
 
 

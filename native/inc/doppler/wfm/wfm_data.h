@@ -42,8 +42,10 @@
  * `dp_hash64()`, so a record can identify the file without reading it
  * twice (§4.8).
  *
- * Not in this object yet: the state triplet (a stream's resume position),
- * which lands with the faces that serialize it.
+ * **A source resumes bit for bit when its bytes can be had again**
+ * (@ref dp_wfm_data_get_state): a Field, `pn:0` and a regular file. A pipe
+ * cannot -- the octets it has delivered are gone -- so its state is refused
+ * at both ends, and @ref dp_wfm_data_state_refusal says why.
  */
 #ifndef WFM_DATA_H
 #define WFM_DATA_H
@@ -51,6 +53,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "doppler/dp_state.h"      /* DP_FOURCC, the state envelope */
 #include "doppler/wfm/wfm_frame.h" /* wfm_seq_t */
 
 #ifdef __cplusplus
@@ -275,6 +278,76 @@ extern "C"
 
   /** @brief What the source has done so far. */
   void dp_wfm_data_stats (const wfm_data_src_t *s, wfm_data_stats_t *out);
+
+/** @brief The data source's state blob type tag (dp_state.h). */
+#define WFM_DATA_STATE_MAGIC DP_FOURCC ('W', 'F', 'D', 'S')
+/** @brief The data source's state blob format version. */
+#define WFM_DATA_STATE_VERSION 1u
+
+  /**
+   * @brief Why a source's state cannot be serialized, or NULL when it can.
+   *
+   * A pipe (stdin, a FIFO, a socket) is the one source that cannot resume:
+   * the octets it has delivered are gone, so a blob could only restart it
+   * from wherever the pipe is now -- different data under the same frame
+   * count. It is refused at BOTH ends: @ref dp_wfm_data_state_bytes is 0,
+   * so a checkpoint fails when it is taken rather than on the pod that
+   * relies on it, and @ref dp_wfm_data_set_state is `DP_ERR_INVALID`.
+   *
+   * @return NULL, or a STATIC sentence naming the cause.
+   */
+  const char *dp_wfm_data_state_refusal (const wfm_data_src_t *s);
+
+  /**
+   * @brief Bytes in the source's state blob; 0 when it refuses
+   * (@ref dp_wfm_data_state_refusal).
+   *
+   * The blob carries only what RUNS -- the counts, the end latch, and the
+   * position: a Field's cursor, `pn:0`'s register (a nested `dp_pn` blob),
+   * or a file's residue and running hash. The bits, the fill and `LEN` are
+   * config, rebuilt by the create that built the receiving source.
+   */
+  size_t dp_wfm_data_state_bytes (const wfm_data_src_t *s);
+
+  /**
+   * @brief Serialize the source into @p blob, of
+   * @ref dp_wfm_data_state_bytes bytes. A no-op when it refuses.
+   */
+  void dp_wfm_data_get_state (const wfm_data_src_t *s, void *blob);
+
+  /**
+   * @brief Restore a source built with the same config from @p blob.
+   *
+   * The receiving source must be the same kind over the same length in
+   * the same `LEN`. A file is re-read from its start up to the blob's
+   * octet offset and the `dp_hash64` of that prefix must equal the blob's:
+   * a file that changed under the checkpoint is refused, never resumed
+   * into different data. Nothing changes on a refusal.
+   *
+   * @return DP_OK, or DP_ERR_INVALID: a bad envelope, another kind, size or
+   *         `LEN`, a pipe, a position past the end, or a prefix whose hash
+   *         differs.
+   *
+   * @code
+   * const char     *why;
+   * wfm_data_src_t *a = dp_wfm_data_create ("0xABCD", NULL, 8, NULL, &why);
+   * wfm_data_src_t *b = dp_wfm_data_create ("0xABCD", NULL, 8, NULL, &why);
+   * uint8_t         x[8], y[8], blob[256];
+   * if (dp_wfm_data_state_bytes (a) > sizeof blob)
+   *   return 1;
+   * dp_wfm_data_next (a, 1, x, sizeof x, -1); // 1010 1011
+   * dp_wfm_data_get_state (a, blob);
+   * if (dp_wfm_data_set_state (b, blob) != DP_OK)
+   *   return 1;
+   * dp_wfm_data_next (a, 1, x, sizeof x, -1); // 1100 1101
+   * dp_wfm_data_next (b, 1, y, sizeof y, -1); // the same frame
+   * if (memcmp (x, y, sizeof x) != 0)
+   *   return 1;
+   * dp_wfm_data_destroy (a);
+   * dp_wfm_data_destroy (b);
+   * @endcode
+   */
+  int dp_wfm_data_set_state (wfm_data_src_t *s, const void *blob);
 
 #ifdef __cplusplus
 }

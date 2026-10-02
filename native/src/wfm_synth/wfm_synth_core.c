@@ -267,10 +267,38 @@ dp_wfm_synth_set_refill (dp_wfm_synth_state_t *state, wfm_synth_refill_fn fn,
   state->refill      = fn;
   state->refill_user = user;
   state->refill_free = fn ? free_user : NULL;
-  state->data_ended  = 0;
+  /* A triplet belongs to the refill it was given for. */
+  state->refill_state = NULL;
+  state->data_ended   = 0;
   if (!fn && state->bit_idx >= state->n_bits)
     state->bit_idx = 0; /* detached at a boundary: cycle from the top */
   return 0;
+}
+
+int
+dp_wfm_synth_set_refill_state (dp_wfm_synth_state_t           *state,
+                               const wfm_synth_refill_state_t *ops)
+{
+  if (!state->refill)
+    return -1;
+  state->refill_state = ops;
+  return 0;
+}
+
+const char *
+dp_wfm_synth_state_refusal (const dp_wfm_synth_state_t *state)
+{
+  if (!state->refill)
+    return NULL;
+  const wfm_synth_refill_state_t *ops = state->refill_state;
+  if (!ops)
+    return "the synth pulls its frames from a source with no state of its "
+           "own, so the frame in play and the source's position cannot be "
+           "carried";
+  if (ops->state_bytes (state->refill_user) == 0)
+    return ops->refusal ? ops->refusal (state->refill_user)
+                        : "the synth's frame source refuses to serialize";
+  return NULL;
 }
 
 int
@@ -466,18 +494,20 @@ dp_wfm_synth_reseed_noise (dp_wfm_synth_state_t *state, uint32_t seed)
 
 /* Serializable state — running waveform-position scalars + the optional
  * fir/shaper/lo/awgn/pn children (presence-flagged, so a payload-only or
- * noiseless synth round-trips); bits[] + sweep geometry are config (restored
- * by create). The polyphase shaper carries its own delay line/phase, and
- * `primed` records whether the sps-sample latency priming has run, so a
- * mid-stream hand-off resumes the shaped waveform bit-for-bit.
+ * noiseless synth round-trips); a set pattern's bits[] + sweep geometry are
+ * config (restored by create). The polyphase shaper carries its own delay
+ * line/phase, and `primed` records whether the sps-sample latency priming
+ * has run, so a mid-stream hand-off resumes the shaped waveform
+ * bit-for-bit. A REFILL rewrites bits[] with each frame it pulls, so there
+ * the frame is state: v3 carries it, then the refill's own sub-blob
+ * (doppler#1681), last so every fixed-size field precedes it.
  */
 size_t
 dp_wfm_synth_state_bytes (const dp_wfm_synth_state_t *s)
 {
-  /* A pulled frame and its source's position are state this blob cannot
-     carry yet (doppler#1681): refused, rather than a blob that resumes the
-     wrong data. */
-  if (s->refill)
+  /* A refill with no triplet, or one that refuses (a pipe): refused here,
+     at the checkpoint, rather than a blob that resumes the wrong data. */
+  if (dp_wfm_synth_state_refusal (s))
     return 0;
   size_t b = sizeof (dp_state_hdr_t) + sizeof (uint32_t) /* sym_pos      */
              + 2 * sizeof (float)                        /* cur_re/im    */
@@ -489,7 +519,8 @@ dp_wfm_synth_state_bytes (const dp_wfm_synth_state_t *s)
              + sizeof (uint64_t)                         /* sym_idx      */
              + sizeof (uint8_t)                          /* cur_data     */
              + sizeof (uint8_t)                          /* primed       */
-             + 5;                                        /* presence     */
+             + sizeof (uint8_t)                          /* data_ended   */
+             + 6;                                        /* presence     */
   if (s->fir)
     b += dp_fir_state_bytes (s->fir);
   if (s->shaper)
@@ -500,14 +531,16 @@ dp_wfm_synth_state_bytes (const dp_wfm_synth_state_t *s)
     b += dp_awgn_state_bytes (s->awgn);
   if (s->pn)
     b += dp_pn_state_bytes (s->pn);
+  if (s->refill) /* the frame in play, then the source's position */
+    b += s->n_bits + s->refill_state->state_bytes (s->refill_user);
   return b;
 }
 
 void
 dp_wfm_synth_get_state (const dp_wfm_synth_state_t *s, void *blob)
 {
-  if (s->refill)
-    return; /* refused: state_bytes said 0 (doppler#1681) */
+  if (dp_wfm_synth_state_refusal (s))
+    return; /* refused: state_bytes said 0 */
   DP_GET_OPEN (WFM_SYNTH_STATE_MAGIC, WFM_SYNTH_STATE_VERSION,
                dp_wfm_synth_state_bytes (s));
   dp_w_u32 (&_w, (uint32_t)s->sym_pos);
@@ -521,9 +554,10 @@ dp_wfm_synth_get_state (const dp_wfm_synth_state_t *s, void *blob)
   dp_w_u64 (&_w, s->sym_idx);
   dp_w_bytes (&_w, &s->cur_data, 1);
   dp_w_bytes (&_w, &s->primed, 1);
-  uint8_t pres[5] = { s->fir != NULL, s->shaper != NULL, s->lo != NULL,
-                      s->awgn != NULL, s->pn != NULL };
-  dp_w_bytes (&_w, pres, 5);
+  dp_w_bytes (&_w, &s->data_ended, 1);
+  uint8_t pres[6] = { s->fir != NULL,  s->shaper != NULL, s->lo != NULL,
+                      s->awgn != NULL, s->pn != NULL,     s->refill != NULL };
+  dp_w_bytes (&_w, pres, 6);
   if (s->fir)
     DP_W_CHILD (&_w, dp_fir, s->fir);
   if (s->shaper)
@@ -534,13 +568,22 @@ dp_wfm_synth_get_state (const dp_wfm_synth_state_t *s, void *blob)
     DP_W_CHILD (&_w, dp_awgn, s->awgn);
   if (s->pn)
     DP_W_CHILD (&_w, dp_pn, s->pn);
+  if (s->refill)
+    {
+      const wfm_synth_refill_state_t *ops = s->refill_state;
+      dp_w_bytes (&_w, s->bits, s->n_bits);
+      void *sub = dp_w_reserve (&_w, ops->state_bytes (s->refill_user));
+      if (sub)
+        ops->get_state (s->refill_user, sub);
+    }
 }
 
 int
 dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
 {
-  if (s->refill)
-    return DP_ERR_INVALID; /* doppler#1681 */
+  /* A refill that cannot carry its position cannot take one either. */
+  if (dp_wfm_synth_state_refusal (s))
+    return DP_ERR_INVALID;
   DP_SET_OPEN (WFM_SYNTH_STATE_MAGIC, WFM_SYNTH_STATE_VERSION,
                dp_wfm_synth_state_bytes (s));
   s->sym_pos = (int)dp_r_u32 (&_r);
@@ -553,23 +596,25 @@ dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
   s->chip_n       = dp_r_u64 (&_r);
   s->sym_idx      = dp_r_u64 (&_r);
   dp_r_bytes (&_r, &s->cur_data, 1);
-  /* Derived, so not in the blob: a pattern's end is its cursor's, and the
-     next read past it latches it again (a refill refuses serialization). */
-  s->data_ended = 0;
   /* Derived, so not in the blob: the next symbol's edge, from the one
      symbol clock (chip 0 recomputes it in the kernel). */
   if (s->chips_per_symbol > 0.0 && s->chip_n)
     s->next_edge
         = dp_wfm_dsss_cont_edge (s->sym_idx + 1u, s->chips_per_symbol);
   dp_r_bytes (&_r, &s->primed, 1);
-  uint8_t pres[5];
-  dp_r_bytes (&_r, pres, 5);
-  /* the blob's child set must match this instance's config (same wtype). */
+  /* In the blob since v3: a refill's end is its source's, which the
+     sub-blob below restores, so it is carried rather than re-derived. */
+  dp_r_bytes (&_r, &s->data_ended, 1);
+  uint8_t pres[6];
+  dp_r_bytes (&_r, pres, 6);
+  /* the blob's child set must match this instance's config (same wtype,
+     and a frame source if and only if this synth pulls from one). */
   if ((pres[0] != 0) != (s->fir != NULL)
       || (pres[1] != 0) != (s->shaper != NULL)
       || (pres[2] != 0) != (s->lo != NULL)
       || (pres[3] != 0) != (s->awgn != NULL)
-      || (pres[4] != 0) != (s->pn != NULL))
+      || (pres[4] != 0) != (s->pn != NULL)
+      || (pres[5] != 0) != (s->refill != NULL))
     return DP_ERR_INVALID;
   if (s->fir)
     DP_R_CHILD (&_r, dp_fir, s->fir);
@@ -581,6 +626,17 @@ dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
     DP_R_CHILD (&_r, dp_awgn, s->awgn);
   if (s->pn)
     DP_R_CHILD (&_r, dp_pn, s->pn);
+  if (s->refill)
+    {
+      const wfm_synth_refill_state_t *ops   = s->refill_state;
+      const uint8_t                  *frame = dp_r_reserve (&_r, s->n_bits);
+      const void *sub = dp_r_reserve (&_r, ops->state_bytes (s->refill_user));
+      /* The source first: it validates its own envelope (and a file its
+         prefix), and the frame is kept only if it accepts. */
+      if (!frame || !sub || ops->set_state (s->refill_user, sub) != DP_OK)
+        return DP_ERR_INVALID;
+      memcpy (s->bits, frame, s->n_bits);
+    }
   return DP_OK;
 }
 

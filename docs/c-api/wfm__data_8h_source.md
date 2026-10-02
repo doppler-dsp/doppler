@@ -15,6 +15,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "doppler/dp_state.h"      /* DP_FOURCC, the state envelope */
 #include "doppler/wfm/wfm_frame.h" /* wfm_seq_t */
 
 #ifdef __cplusplus
@@ -79,6 +80,17 @@ extern "C"
                                        uint8_t *out, size_t max_out);
 
   void dp_wfm_data_stats (const wfm_data_src_t *s, wfm_data_stats_t *out);
+
+#define WFM_DATA_STATE_MAGIC DP_FOURCC ('W', 'F', 'D', 'S')
+#define WFM_DATA_STATE_VERSION 1u
+
+  const char *dp_wfm_data_state_refusal (const wfm_data_src_t *s);
+
+  size_t dp_wfm_data_state_bytes (const wfm_data_src_t *s);
+
+  void dp_wfm_data_get_state (const wfm_data_src_t *s, void *blob);
+
+  int dp_wfm_data_set_state (wfm_data_src_t *s, const void *blob);
 
 #ifdef __cplusplus
 }

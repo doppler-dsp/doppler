@@ -649,6 +649,38 @@ data_pull_refill (void *u, uint8_t *bits, size_t n)
   return got == n ? 0 : 1;
 }
 
+/* The pull's state IS its source's: the chunk is scratch, rewritten before
+   each frame is assembled from it, and the description, the codes and the
+   pacing are config. So the synth nests the source's own blob, and a
+   source that refuses (a pipe) refuses the synth's. */
+static size_t
+data_pull_state_bytes (const void *u)
+{
+  return dp_wfm_data_state_bytes (((const data_pull_t *)u)->src);
+}
+
+static void
+data_pull_get_state (const void *u, void *blob)
+{
+  dp_wfm_data_get_state (((const data_pull_t *)u)->src, blob);
+}
+
+static int
+data_pull_set_state (void *u, const void *blob)
+{
+  return dp_wfm_data_set_state (((data_pull_t *)u)->src, blob);
+}
+
+static const char *
+data_pull_refusal (const void *u)
+{
+  return dp_wfm_data_state_refusal (((const data_pull_t *)u)->src);
+}
+
+static const wfm_synth_refill_state_t data_pull_state
+    = { data_pull_state_bytes, data_pull_get_state, data_pull_set_state,
+        data_pull_refusal };
+
 /* A pull over description `d`, owning `src` from here, success or not:
    NULL (and `src` destroyed) when `d` has no data:LEN field to fill. */
 static data_pull_t *
@@ -720,6 +752,7 @@ pull_park (dp_wfm_synth_state_t *syn, data_pull_t *p, size_t n, int modulation)
       data_pull_free (p);
       return -1;
     }
+  (void)dp_wfm_synth_set_refill_state (syn, &data_pull_state);
   syn->bit_idx = syn->n_bits;
   return 0;
 }

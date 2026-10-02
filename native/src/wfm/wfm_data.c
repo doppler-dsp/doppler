@@ -63,6 +63,19 @@ fd_stat (int fd, int *regular, unsigned long long *bytes)
                                        no ^Z as end of file */
   return 0;
 }
+/* Move a regular file's read position to @p off octets from its start, 0
+   or -1, and say where it is now. Only a regular file is ever moved: a
+   restore re-reads its prefix (dp_wfm_data_set_state). */
+static int
+fd_seek (int fd, long long off)
+{
+  return _lseeki64 (fd, off, SEEK_SET) < 0 ? -1 : 0;
+}
+static long long
+fd_tell (int fd)
+{
+  return _lseeki64 (fd, 0, SEEK_CUR);
+}
 static int
 fd_wait (int fd, int timeout_ms)
 {
@@ -109,6 +122,16 @@ fd_stat (int fd, int *regular, unsigned long long *bytes)
   *regular = S_ISREG (sb.st_mode);
   *bytes   = (unsigned long long)sb.st_size;
   return 0;
+}
+static int
+fd_seek (int fd, long long off)
+{
+  return lseek (fd, (off_t)off, SEEK_SET) < 0 ? -1 : 0;
+}
+static long long
+fd_tell (int fd)
+{
+  return (long long)lseek (fd, 0, SEEK_CUR);
 }
 static int
 fd_wait (int fd, int timeout_ms)
@@ -634,4 +657,194 @@ dp_wfm_data_stats (const wfm_data_src_t *s, wfm_data_stats_t *out)
       return;
     }
   *out = s->st;
+}
+
+/* ── state (dp_state.h) ─────────────────────────────────────────────────
+   [hdr][kind ended eof 0x5][len][total_bits][frames idle pad bits][kind's]
+   where the kind's own part is a Field's cursor, `pn:0`'s register as a
+   nested dp_pn blob, or a file's running hash, residue count and residue
+   (len + 8 one-bit bytes, zero past the count, so the size is config). The
+   octet offset is not stored: every read is whole octets, so it is
+   (bits + have) / 8 by construction. */
+
+/* A pipe cannot resume: the octets it delivered are gone. pn:0 is a stream
+   too, but its next bit is its register's, so it resumes. */
+static int
+is_pipe (const wfm_data_src_t *s)
+{
+  return s->kind == SRC_FD && s->st.stream;
+}
+
+const char *
+dp_wfm_data_state_refusal (const wfm_data_src_t *s)
+{
+  if (s && is_pipe (s))
+    return "a pipe cannot resume: the octets it has delivered are gone, so "
+           "a blob could only restart it from wherever the pipe is now";
+  return NULL;
+}
+
+/* The bytes ahead of the kind's own part. */
+#define DATA_STATE_HEAD (sizeof (dp_state_hdr_t) + 8u + 6u * sizeof (uint64_t))
+
+/* The residue region: at most len + 7 bits are ever held (src_on_fd). */
+static size_t
+res_cap (const wfm_data_src_t *s)
+{
+  return s->len + 8u;
+}
+
+size_t
+dp_wfm_data_state_bytes (const wfm_data_src_t *s)
+{
+  if (!s || is_pipe (s))
+    return 0;
+  switch (s->kind)
+    {
+    case SRC_FIELD:
+      return DATA_STATE_HEAD + sizeof (uint64_t);
+    case SRC_PN:
+      return DATA_STATE_HEAD + dp_pn_state_bytes (s->pn);
+    case SRC_FD:
+      return DATA_STATE_HEAD + 2u * sizeof (uint64_t) + res_cap (s);
+    }
+  return 0;
+}
+
+void
+dp_wfm_data_get_state (const wfm_data_src_t *s, void *blob)
+{
+  const size_t bytes = dp_wfm_data_state_bytes (s);
+  if (bytes == 0)
+    return; /* refused: state_bytes said 0 */
+  DP_GET_OPEN (WFM_DATA_STATE_MAGIC, WFM_DATA_STATE_VERSION, bytes);
+  const uint8_t flags[8]
+      = { (uint8_t)s->kind, (uint8_t)(s->ended != 0), (uint8_t)(s->eof != 0) };
+  dp_w_bytes (&_w, flags, sizeof flags);
+  dp_w_u64 (&_w, s->len);
+  dp_w_u64 (&_w, s->st.total_bits);
+  dp_w_u64 (&_w, s->st.frames);
+  dp_w_u64 (&_w, s->st.idle_frames);
+  dp_w_u64 (&_w, s->st.pad_bits);
+  dp_w_u64 (&_w, s->st.bits);
+  switch (s->kind)
+    {
+    case SRC_FIELD:
+      dp_w_u64 (&_w, s->pos);
+      break;
+    case SRC_PN:
+      DP_W_CHILD (&_w, dp_pn, s->pn);
+      break;
+    case SRC_FD:
+      {
+        dp_w_u64 (&_w, s->st.hash);
+        dp_w_u64 (&_w, s->have);
+        uint8_t *r = dp_w_reserve (&_w, res_cap (s));
+        if (r)
+          {
+            memcpy (r, s->res, s->have);
+            memset (r + s->have, 0, res_cap (s) - s->have);
+          }
+        break;
+      }
+    }
+}
+
+/* The dp_hash64 of a file's first @p n octets, read from its start; the
+   read position is left at @p n. 0, or -1 for a read error or a file
+   shorter than @p n. */
+static int
+hash_prefix (int fd, uint64_t n, uint64_t *h)
+{
+  if (fd_seek (fd, 0) != 0)
+    return -1;
+  uint8_t  buf[4096];
+  uint64_t acc = DP_HASH64_INIT;
+  while (n)
+    {
+      const size_t    want = n < sizeof buf ? (size_t)n : sizeof buf;
+      const long long got  = fd_read (fd, buf, want);
+      if (got < 0 && errno == EINTR)
+        continue;
+      if (got <= 0)
+        return -1;
+      acc = dp_hash64 (acc, buf, (size_t)got);
+      n -= (uint64_t)got;
+    }
+  *h = acc;
+  return 0;
+}
+
+/* Put a file where a blob's position says, checking that its prefix is
+   the one the blob read: 0, or -1 with the read position where it was. */
+static int
+seek_checked (wfm_data_src_t *s, uint64_t octets, uint64_t hash)
+{
+  const long long was = fd_tell (s->fd);
+  uint64_t        h   = 0;
+  if (was < 0)
+    return -1;
+  if (hash_prefix (s->fd, octets, &h) != 0 || h != hash)
+    {
+      (void)fd_seek (s->fd, was);
+      return -1;
+    }
+  return 0;
+}
+
+int
+dp_wfm_data_set_state (wfm_data_src_t *s, const void *blob)
+{
+  if (!s || !blob || is_pipe (s))
+    return DP_ERR_INVALID;
+  DP_SET_OPEN (WFM_DATA_STATE_MAGIC, WFM_DATA_STATE_VERSION,
+               dp_wfm_data_state_bytes (s));
+  uint8_t flags[8];
+  dp_r_bytes (&_r, flags, sizeof flags);
+  const uint64_t   len   = dp_r_u64 (&_r);
+  const uint64_t   total = dp_r_u64 (&_r);
+  wfm_data_stats_t st    = s->st; /* config members kept: total, stream */
+  st.frames              = dp_r_u64 (&_r);
+  st.idle_frames         = dp_r_u64 (&_r);
+  st.pad_bits            = dp_r_u64 (&_r);
+  st.bits                = dp_r_u64 (&_r);
+  /* The same kind over the same data in the same LEN, or the blob is
+     another source's: refused, never reinterpreted. */
+  if (flags[0] != (uint8_t)s->kind || len != s->len
+      || total != s->st.total_bits || flags[1] > 1 || flags[2] > 1)
+    return DP_ERR_INVALID;
+
+  /* The kind's own part is validated whole before anything changes. */
+  uint64_t pos = 0, have = 0;
+  switch (s->kind)
+    {
+    case SRC_FIELD:
+      pos = dp_r_u64 (&_r);
+      if (pos > s->nbits || st.bits != pos)
+        return DP_ERR_INVALID;
+      break;
+    case SRC_PN:
+      /* The last check: the child validates its own envelope and changes
+         nothing when it refuses. */
+      DP_R_CHILD (&_r, dp_pn, s->pn);
+      break;
+    case SRC_FD:
+      {
+        st.hash          = dp_r_u64 (&_r);
+        have             = dp_r_u64 (&_r);
+        const uint8_t *r = dp_r_reserve (&_r, res_cap (s));
+        if (!r || have > s->len + 7u || (st.bits + have) % 8u
+            || st.bits + have > total
+            || seek_checked (s, (st.bits + have) / 8u, st.hash) != 0)
+          return DP_ERR_INVALID;
+        memcpy (s->res, r, (size_t)have);
+        break;
+      }
+    }
+  s->pos   = (size_t)pos;
+  s->have  = (size_t)have;
+  s->ended = flags[1];
+  s->eof   = flags[2];
+  s->st    = st;
+  return DP_OK;
 }

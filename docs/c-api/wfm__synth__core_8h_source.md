@@ -87,6 +87,13 @@ wfm_synth_mls_poly(uint32_t n)
 typedef int (*wfm_synth_refill_fn)(void *user, uint8_t *bits, size_t n);
 
 typedef struct {
+    size_t (*state_bytes)(const void *user);
+    void (*get_state)(const void *user, void *blob);
+    int (*set_state)(void *user, const void *blob);
+    const char *(*refusal)(const void *user);
+} wfm_synth_refill_state_t;
+
+typedef struct {
     int wtype;
     int nsps;
     int sym_pos;
@@ -135,6 +142,9 @@ typedef struct {
     wfm_synth_refill_fn refill;
     void *refill_user;
     void (*refill_free)(void *);
+    /* The refill's state triplet (dp_wfm_synth_set_refill_state); NULL: a
+       refill with none, which refuses serialization. */
+    const wfm_synth_refill_state_t *refill_state;
     uint8_t data_ended;
 } dp_wfm_synth_state_t;
 
@@ -285,6 +295,11 @@ int dp_wfm_synth_set_bits(dp_wfm_synth_state_t *state, const uint8_t *bits, size
 
 int dp_wfm_synth_set_refill(dp_wfm_synth_state_t *state, wfm_synth_refill_fn fn,
                          void *user, void (*free_user)(void *));
+
+int dp_wfm_synth_set_refill_state(dp_wfm_synth_state_t *state,
+                                  const wfm_synth_refill_state_t *ops);
+
+const char *dp_wfm_synth_state_refusal(const dp_wfm_synth_state_t *state);
 
 int dp_wfm_synth_data_ended(const dp_wfm_synth_state_t *state);
 
@@ -469,9 +484,13 @@ void dp_wfm_synth_set_cur_im(dp_wfm_synth_state_t *state, float val);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * composition of optional fir/lo/awgn/pn children (presence-flagged) +
- * running waveform-position scalars; bits/config restored by create. */
+ * running waveform-position scalars + the data-ended latch; a pattern's
+ * bits are config restored by create, but a PULLED frame is state: with a
+ * refill the blob carries it and nests the refill's own sub-blob. */
 #define WFM_SYNTH_STATE_MAGIC DP_FOURCC ('W','F','M','S')
-#define WFM_SYNTH_STATE_VERSION 2u /* v2: + continuous-DSSS chip/symbol clocks */
+/* v2: + continuous-DSSS chip/symbol clocks; v3: + data_ended, the pulled
+   frame and the refill's sub-blob (doppler#1681) */
+#define WFM_SYNTH_STATE_VERSION 3u
 size_t dp_wfm_synth_state_bytes (const dp_wfm_synth_state_t *state);
 void dp_wfm_synth_get_state (const dp_wfm_synth_state_t *state, void *blob);
 int dp_wfm_synth_set_state (dp_wfm_synth_state_t *state, const void *blob);

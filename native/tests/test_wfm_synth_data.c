@@ -15,6 +15,7 @@
 #include "doppler/wfm/wfm_data.h"
 #include "doppler/wfm/wfm_frame.h"
 #include "doppler/wfm_synth/wfm_synth_core.h"
+#include "dp_state_test.h"
 #include "dp_test.h"
 
 #include <complex.h>
@@ -288,18 +289,147 @@ test_contract (void)
                   dp_wfm_data_create ("0xABCD", NULL, 8, NULL, &why),
                   WFM_DATA_UNPACED, 0)
               == 0);
-  DP_CHECK_MSG (dp_wfm_synth_state_bytes (s) == 0,
-                "a synth pulling from a source refuses to serialize "
-                "(doppler#1681)");
-  uint8_t blob[8] = { 0 };
-  DP_CHECK_MSG (dp_wfm_synth_set_state (s, blob) == DP_ERR_INVALID,
-                "and refuses a blob");
+  DP_CHECK_MSG (dp_wfm_synth_state_refusal (s) == NULL
+                    && dp_wfm_synth_state_bytes (s) > 0,
+                "a synth pulling from a Field serializes (doppler#1681)");
   DP_REQUIRE (dp_wfm_synth_set_bits (s, (const uint8_t[]){ 1, 0 }, 2, 0) == 0);
   DP_CHECK_MSG (dp_wfm_synth_data_source (s) == NULL
                     && dp_wfm_synth_state_bytes (s) > 0,
                 "a new pattern detaches the source; the synth serializes "
                 "again");
   dp_wfm_synth_destroy (s);
+  return 0;
+}
+
+/* ── state: the frame in play and the source's position (doppler#1681) ── */
+
+/* A synth over [data:16 | crc16] pulling "0x0123456789ABCDE" (60 bits, so
+   four frames, the last 12 bits + 4 of fill): 128 samples of frames, then
+   silence. */
+static dp_wfm_synth_state_t *
+framed_synth (void)
+{
+  wfm_frame_desc_t d;
+  data_frame (&d, 16, 1);
+  dp_wfm_synth_state_t *s = line_synth ();
+  if (dp_wfm_synth_attach_data (
+          s, &d, NULL,
+          dp_wfm_data_create ("0x0123456789ABCDE", NULL, 16, "10", &why),
+          WFM_DATA_UNPACED, 1)
+      != 0)
+    {
+      dp_wfm_synth_destroy (s);
+      return NULL;
+    }
+  return s;
+}
+
+/* Split anywhere -- before the first frame is pulled, mid-frame, on a
+   frame boundary, in the padded last frame, after the end -- and the rest
+   of the waveform is bit-for-bit the unbroken one's. */
+static int
+test_state_resume (void)
+{
+  static const size_t cut[] = { 0, 5, 32, 33, 70, 100, 127, 128, 140 };
+  enum
+  {
+    TOTAL = 180
+  };
+  dp_wfm_synth_state_t *ref = framed_synth ();
+  DP_REQUIRE_MSG (ref != NULL, why);
+  float _Complex whole[TOTAL];
+  dp_wfm_synth_steps (ref, whole, TOTAL);
+  dp_wfm_synth_destroy (ref);
+
+  for (size_t c = 0; c < sizeof cut / sizeof cut[0]; c++)
+    {
+      dp_wfm_synth_state_t *a = framed_synth ();
+      dp_wfm_synth_state_t *b = framed_synth ();
+      DP_REQUIRE (a && b);
+      float _Complex x[TOTAL];
+      dp_wfm_synth_steps (a, x, cut[c]);
+      DP_STATE_ROUNDTRIP_TEST (dp_wfm_synth, a, b);
+      /* b, built afresh and handed a's blob, plays the rest. */
+      dp_wfm_synth_steps (b, x + cut[c], TOTAL - cut[c]);
+      DP_CHECK_MSG (
+          memcmp (x + cut[c], whole + cut[c], (TOTAL - cut[c]) * sizeof x[0])
+              == 0,
+          "the resumed waveform is the unbroken one, bit for "
+          "bit");
+      DP_CHECK_MSG (dp_wfm_synth_data_ended (b),
+                    "and it ends where the data does");
+      wfm_data_stats_t sa, sb;
+      dp_wfm_synth_steps (a, x, TOTAL - cut[c]);
+      dp_wfm_data_stats (dp_wfm_synth_data_source (a), &sa);
+      dp_wfm_data_stats (dp_wfm_synth_data_source (b), &sb);
+      DP_CHECK_MSG (sb.frames == 4 && sb.pad_bits == 4
+                        && memcmp (&sa, &sb, sizeof sa) == 0,
+                    "with the source's own count: four frames, one "
+                    "padded");
+      dp_wfm_synth_destroy (a);
+      dp_wfm_synth_destroy (b);
+    }
+  return 0;
+}
+
+static int
+never (void *u, uint8_t *bits, size_t n)
+{
+  (void)u;
+  (void)bits;
+  (void)n;
+  return 1;
+}
+
+/* What refuses: a refill with no triplet, and a source that cannot resume
+   (a pipe) -- each with its static reason, at both ends. */
+static int
+test_state_refusals (void)
+{
+  dp_wfm_synth_state_t *s = line_synth ();
+  DP_CHECK_MSG (dp_wfm_synth_set_refill_state (s, NULL) == -1,
+                "a triplet needs a refill to belong to");
+  DP_REQUIRE (dp_wfm_synth_set_bits (s, (const uint8_t[]){ 1, 0 }, 2, 0) == 0);
+  DP_REQUIRE (dp_wfm_synth_set_refill (s, never, NULL, NULL) == 0);
+  const char *r = dp_wfm_synth_state_refusal (s);
+  DP_CHECK_MSG (r && strstr (r, "no state"),
+                "a refill with no state of its own says so");
+  DP_CHECK_MSG (dp_wfm_synth_state_bytes (s) == 0, "and refuses a blob");
+  dp_wfm_synth_destroy (s);
+
+  /* The same frame over a pipe: the source's own refusal is the synth's. */
+  int p[2];
+  DP_REQUIRE (pipe (p) == 0);
+  wfm_frame_desc_t d;
+  data_frame (&d, 16, 1);
+  wfm_data_src_t *src = dp_wfm_data_create_fd (p[0], 16, "10", &why);
+  DP_REQUIRE_MSG (src != NULL, why);
+  s = line_synth ();
+  DP_REQUIRE (dp_wfm_synth_attach_data (s, &d, NULL, src, WFM_DATA_UNPACED, 1)
+              == 0);
+  r = dp_wfm_synth_state_refusal (s);
+  DP_CHECK_MSG (
+      r != NULL
+          && r == dp_wfm_data_state_refusal (dp_wfm_synth_data_source (s)),
+      "a pipe-fed synth refuses with the pipe's reason");
+  DP_CHECK_MSG (dp_wfm_synth_state_bytes (s) == 0,
+                "at the checkpoint: no blob to take");
+
+  /* A good blob from the same frame over a Field is refused at the
+     restore too: the pipe's position cannot be set. */
+  dp_wfm_synth_state_t *f = framed_synth ();
+  DP_REQUIRE (f != NULL);
+  const size_t n    = dp_wfm_synth_state_bytes (f);
+  void        *blob = malloc (n);
+  DP_REQUIRE (blob != NULL);
+  dp_wfm_synth_get_state (f, blob);
+  DP_CHECK_MSG (dp_wfm_synth_set_state (s, blob) == DP_ERR_INVALID,
+                "and at the restore");
+  free (blob);
+  dp_wfm_synth_destroy (f);
+  close (p[1]);
+  dp_wfm_synth_destroy (s);
+  close (p[0]);
   return 0;
 }
 
@@ -317,6 +447,10 @@ main (void)
   if (test_symbol_straddle ())
     return 1;
   if (test_contract ())
+    return 1;
+  if (test_state_resume ())
+    return 1;
+  if (test_state_refusals ())
     return 1;
   DP_TEST_END ("wfm_synth_data");
 }

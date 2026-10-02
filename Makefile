@@ -39,14 +39,15 @@ HAS_EXAMPLES = 1
 # TWO BASES, and the pair is load-bearing rather than thorough: build-and-test
 # runs ubuntu-22.04 and ubuntu-24.04 on purpose (two glibcs). One image for
 # both would leave the matrix naming two environments while testing one.
-# `docs` is doxygen + graphviz for the doxygen job; `runtime` is what the
-# library itself links against. LANDING=branch because the org forbids
-# Actions from opening PRs: a weekly repin is pushed to ci/repin-image, and
-# that run stays red until a human lands it.
+# `docs` is doxygen + graphviz for the doxygen job. NOT `runtime`: doppler
+# has no [runtime.*] tables (its FFT is vendored), and install-deps.sh
+# refuses a named group with nothing in it. LANDING=branch because the org
+# forbids Actions from opening PRs: a weekly repin is pushed to
+# ci/repin-image, and that run stays red until a human lands it.
 HAS_CI_IMAGE          = 1
 CI_IMAGE_REPO         = ghcr.io/doppler-dsp/doppler-ci
 CI_IMAGE_BASES        = ubuntu:22.04 ubuntu:24.04
-CI_IMAGE_GROUPS       = runtime dev docs
+CI_IMAGE_GROUPS       = dev docs
 CI_IMAGE_LANDING      = branch
 CI_IMAGE_SMOKE_TARGET = build
 

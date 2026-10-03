@@ -833,7 +833,8 @@ endif
 # two in one go. `release` is NOT part of this — it is the C build type.
 ifeq ($(HAS_RELEASE),1)
 STD_TARGETS += bump-version version-check release-branch tag-release \
-               release-watch ship ci-changes ci-tree-tested ci-docs
+               release-watch ship ci-changes ci-tree-tested ci-docs \
+               ci-check-name ci-changes-wiring-check
 
 BUMP_VERSION_CMD  ?=
 RELEASE_WATCH_CMD ?=
@@ -1048,6 +1049,164 @@ ci-docs: ## [BASE=<rev>] docs=/code= for a diff -- code=false when only docs cha
 	@python3 scripts/ci-docs.py --base '$(or $(BASE),HEAD^)' \
 	    --re '$(CI_DOCS_RE)' --exclude '$(CI_DOCS_EXCLUDE_RE)' \
 	    --dirs '$(CI_DOCS_DIRS)'
+
+# ── the `changes` workflow, and the gate that it is wired ──────────────────
+#
+# ci-tree-tested, ci-changes and ci-docs are only answers; a workflow has to
+# ask them. .github/workflows/changes.yml is the ONE job that does, vendored
+# here so every repo asks the same way (it was born in just-makeit; jm and
+# doppler wired copies, while just-bashit and just-buildit vendored the
+# script and never asked, re-running the whole matrix on every merge of a
+# tree their PR had already passed -- 2026-10-03).
+VENDORED_FILES += .github/workflows/changes.yml
+
+# The aggregator's check name for a workflow step, so changes.yml carries no
+# second copy of it.
+ci-check-name: ## Print CI_CHECK_NAME, the aggregate check's name
+	@printf '%s\n' '$(CI_CHECK_NAME)'
+
+# ── ci-changes-wiring-check ─────────────────────────────────────────────────
+#
+# Vendoring the job is half of it: GATES_CI_FILE must call it and every job
+# must listen. Each job in that file is one of:
+#
+#   - the call itself (`uses: ./.github/workflows/changes.yml`);
+#   - gated: it `needs:` that job and its text reads `needs.<id>.outputs`;
+#   - the aggregator, the job whose `name:` is CI_CHECK_NAME -- it runs
+#     always() and counts a skipped matrix as passed;
+#   - after the aggregator: it `needs:` it (a mirror trigger, a deploy) AND
+#     its `if:` says always(). Without a status function GitHub ANDs in
+#     success(), which is false when anything upstream was SKIPPED -- so on
+#     exactly the merges this gate exists for, the job never runs. All
+#     three repos' mirror triggers were skipped that way on the first
+#     skipped merges (2026-10-03), leaving the CDN on its daily cron;
+#   - declared always-run, in CI_ALWAYS_RUN_JOBS.
+#
+# Always-run is a POLICY, so it is the repo's to declare, not the gate's to
+# forbid: doppler runs its image pin, pre-commit and manifest drift on every
+# tree, version bumps included, on purpose (2026-10-03, when this gate first
+# shipped without the exemption and turned every doppler PR red). A declared
+# name that is not a job in GATES_CI_FILE is refused, so the list cannot
+# outlive the jobs it excuses. Set it with the reason beside it.
+#
+# Anything else re-runs on a tree CI already tested, which is the waste this
+# exists to stop, and is named. No call, no aggregator, or a file that parses
+# no job at all is refused: a gate that matched nothing is indistinguishable
+# from one that passed. POSIX awk with learned indentation, like
+# workflow-timeout-check; `needs:` is read inline, as a flow list (on its
+# line or the next -- just-buildit's aggregator writes it that way), or as a
+# block list.
+CI_ALWAYS_RUN_JOBS ?=
+
+lint: ci-changes-wiring-check
+
+ci-changes-wiring-check: ## Verify GATES_CI_FILE gates every job on the vendored changes job
+	@ci='$(GATES_CI_FILE)'; \
+	 if [ ! -f "$$ci" ]; then \
+	     echo "ci-changes-wiring-check: no $$ci — nothing to check"; \
+	     exit 0; \
+	 fi; \
+	 out=$$(awk -v agg='$(CI_CHECK_NAME)' -v always='$(CI_ALWAYS_RUN_JOBS)' ' \
+	   function lead(s) { match(s, /^ */); return RLENGTH } \
+	   function val(s) { sub(/^[^:]*:[[:space:]]*/, "", s); sub(/[[:space:]]+#.*$$/, "", s); \
+	                     gsub(/^["\047]|["\047]$$/, "", s); return s } \
+	   function addneeds(j, s) { gsub(/[][,]/, " ", s); needs[j] = needs[j] " " s " " } \
+	   /^[[:space:]]*(#|$$)/ { next } \
+	   /^jobs:[[:space:]]*(#.*)?$$/ { injobs = 1; next } \
+	   injobs && /^[^[:space:]]/ { injobs = 0; next } \
+	   !injobs { next } \
+	   { \
+	     n = lead($$0); \
+	     if (ji < 0 || ji == "") ji = n; \
+	     if (n == ji) { \
+	       job = $$0; sub(/^ */, "", job); sub(/:.*/, "", job); \
+	       order[++total] = job; ai = -1; inneeds = 0; next \
+	     } \
+	     text[job] = text[job] " " $$0; \
+	     if (ai < 0) ai = n; \
+	     if (n == ai) { \
+	       inneeds = 0; \
+	       if ($$0 ~ /^ *uses:/) uses[job] = val($$0); \
+	       else if ($$0 ~ /^ *name:/) nm[job] = val($$0); \
+	       else if ($$0 ~ /^ *needs:/) { v = val($$0); if (v == "") inneeds = 1; else addneeds(job, v) } \
+	       next \
+	     } \
+	     if (inneeds) { v = $$0; sub(/^ *(- *)?/, "", v); addneeds(job, v) } \
+	   } \
+	   END { \
+	     print "TOTAL " total + 0; \
+	     na = split(always, al, /[[:space:]]+/); \
+	     for (i = 1; i <= na; i++) if (al[i] != "") isalways[al[i]] = 1; \
+	     for (i = 1; i <= total; i++) seen[order[i]] = 1; \
+	     for (k in isalways) if (!(k in seen)) print "STALE " k; \
+	     for (i = 1; i <= total; i++) { j = order[i]; \
+	       if (uses[j] ~ /^\.\/\.github\/workflows\/changes\.ya?ml$$/) c = j; \
+	       if (nm[j] == agg) a = j } \
+	     if (c == "") { print "NOCALL"; exit } \
+	     if (a == "") { print "NOAGG"; exit } \
+	     for (i = 1; i <= total; i++) { j = order[i]; \
+	       if (j == c || j == a || (j in isalways)) continue; \
+	       if (index(needs[j], " " a " ")) { \
+	         if (index(text[j], "always()")) continue; \
+	         print "NOALWAYS " j; continue } \
+	       if (index(needs[j], " " c " ") && index(text[j], "needs." c ".outputs")) continue; \
+	       print "UNGATED " j } \
+	   } \
+	 ' ji=-1 "$$ci"); \
+	 total=$$(printf '%s\n' "$$out" | sed -n 's/^TOTAL //p'); \
+	 if [ "$${total:-0}" -eq 0 ]; then \
+	     echo "ERROR: $$ci exists but no job was parsed under \`jobs:\`."; \
+	     echo "  A gate that matched nothing is indistinguishable from one that"; \
+	     echo "  passed. Fix the parse, or delete this gate deliberately."; \
+	     exit 1; \
+	 fi; \
+	 if printf '%s\n' "$$out" | grep -q '^NOCALL'; then \
+	     echo "ERROR: $$ci has no job calling ./.github/workflows/changes.yml."; \
+	     echo "  Every merge then re-runs the matrix on a tree its PR already"; \
+	     echo "  passed. Add, and make every job wait on it:"; \
+	     echo "    changes:"; \
+	     echo "      uses: ./.github/workflows/changes.yml"; \
+	     echo "      permissions: { checks: read, contents: read }"; \
+	     exit 1; \
+	 fi; \
+	 if printf '%s\n' "$$out" | grep -q '^NOAGG'; then \
+	     echo "ERROR: $$ci has no job named '$(CI_CHECK_NAME)' (CI_CHECK_NAME)."; \
+	     echo "  The aggregator is what turns a skipped matrix into a pass."; \
+	     exit 1; \
+	 fi; \
+	 stale=$$(printf '%s\n' "$$out" | sed -n 's/^STALE //p'); \
+	 if [ -n "$$stale" ]; then \
+	     echo "ERROR: CI_ALWAYS_RUN_JOBS names jobs $$ci does not have:"; \
+	     printf '%s\n' "$$stale" | sed 's/^/  /'; \
+	     echo "  An exemption that outlives its job is granted to whatever next"; \
+	     echo "  takes the name. Drop it."; \
+	     exit 1; \
+	 fi; \
+	 noalways=$$(printf '%s\n' "$$out" | sed -n 's/^NOALWAYS //p'); \
+	 if [ -n "$$noalways" ]; then \
+	     echo "ERROR: $$ci jobs after '$(CI_CHECK_NAME)' that can never run on a skipped tree:"; \
+	     printf '%s\n' "$$noalways" | sed 's/^/  /'; \
+	     echo ""; \
+	     echo "  With no status function GitHub adds success(), false whenever"; \
+	     echo "  anything upstream was skipped -- the already-tested merges. Use"; \
+	     echo "    if: always() && needs.<aggregator-job>.result == 'success' && ..."; \
+	     exit 1; \
+	 fi; \
+	 bad=$$(printf '%s\n' "$$out" | sed -n 's/^UNGATED //p'); \
+	 if [ -n "$$bad" ]; then \
+	     echo "ERROR: $$ci jobs that ignore the changes job:"; \
+	     printf '%s\n' "$$bad" | sed 's/^/  /'; \
+	     echo ""; \
+	     echo "  Each re-runs on a tree CI already tested. Give it"; \
+	     echo "    needs: [changes, ...]"; \
+	     echo "    if: needs.changes.outputs.src == 'true'"; \
+	     echo "  or make it need the '$(CI_CHECK_NAME)' job if it belongs after CI,"; \
+	     echo "  or, if it must run on every tree by policy, name it in"; \
+	     echo "  CI_ALWAYS_RUN_JOBS (Makefile) with the reason beside it."; \
+	     exit 1; \
+	 fi; \
+	 ex=$$(echo $(CI_ALWAYS_RUN_JOBS) | wc -w); \
+	 echo "ci-changes-wiring-check: $$total job(s) in $$ci, each gated on changes; $$ex declared always-run"
 
 # The explicit origin/main start point matters: a bare `checkout -b` forks from
 # whatever HEAD the invoker happens to be on (a feature branch, a stale main),
@@ -1491,7 +1650,8 @@ _STD_SECTION = case "$$t" in \
     bench|bench-save|bench-compare) tsec="Bench";; \
     coverage|coverage-gate) tsec="Coverage";; \
     bump-version|version-check|release-branch|tag-release|release-watch \
-        |ship|ci-changes|ci-tree-tested|ci-docs|pr-watch) tsec="Release";; \
+        |ship|ci-changes|ci-tree-tested|ci-docs|ci-check-name \
+        |ci-changes-wiring-check|pr-watch) tsec="Release";; \
     changelog-check|changelog-sections-check|changelog-assemble \
         |changelog-assembled-check) tsec="Changelog";; \
     test-examples) tsec="Examples";; \

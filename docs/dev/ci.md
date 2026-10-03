@@ -251,7 +251,7 @@ the rule is that **the primary is the floor**. These steps used to select
 the literal stayed, and while a PR ran the floor alone, no PR ran them
 (#1714).
 
-`changes` emits a `primary` output, and a step's `if:` compares
+The `pythons` job emits a `primary` output, and a step's `if:` compares
 `matrix.python-version` against it one of two ways. Which one is the step's
 *lane*:
 
@@ -273,15 +273,28 @@ the literal stayed, and while a PR ran the floor alone, no PR ran them
 
 `make ci-aggregator-check` holds this table to `ci.yml`: same steps, same
 targets, same lanes. It refuses any other leg selector, a version literal
-above all, and a `changes` that does not derive `primary` from the
+above all, and a `pythons` job that does not derive `primary` from the
 classifiers. To move a step between lanes, flip its comparison and this
 table's row.
 
-`pythons` is the Python matrix. It is read from `pyproject.toml`'s
+The `pythons` job also emits the Python matrix itself (its `pythons`
+output: every version, or the primary alone when `code=false`). It is
+doppler's own, so it sits beside `changes` rather than in it. The matrix is
+read from `pyproject.toml`'s
 `Programming Language :: Python :: 3.N` classifiers by
 `scripts/python_versions.py`, so `ci.yml` names no version.
 `make python-versions-check` holds the lowest classifier equal to the
 `requires-python` floor and every classifier inside its range.
+
+**`changes` is canonical's.** It is the vendored
+`.github/workflows/changes.yml` (`standard-check` holds it byte-identical),
+the same job every just-buildit repo calls, so the rules below are the org's.
+It writes `src`, `docs` and `code` on every path; `src=false` implies
+`code=false`. `make ci-changes-wiring-check` refuses a `ci.yml` job that
+ignores it, except the three this repo runs on every tree by policy, declared
+in the Makefile's `CI_ALWAYS_RUN_JOBS`: `pin` (a repin PR must resolve its
+image), `pre-commit` and `manifest-drift` (lint and drift check exactly what
+a version bump changes).
 
 **`src=false`: nothing here is untested.** `changes` answers it for two
 reasons. A diff that is a version bump alone (`make ci-changes`). Or, on a

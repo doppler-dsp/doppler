@@ -19,6 +19,12 @@ already 722 lines. This is a separate pass with its own inventory, deletions
 and plan, the same shape as the payload pass beside it ([#1650][p1650]). The
 model page's "not in scope: the receive side" entry links here.
 
+**Status (2026-10-03).** Steps 1-5 of §11 have landed: both receivers are
+built from a description only. The `frame_syms` constructors,
+`dp_burst_demod_set_sync()` and the hand CRC are deleted (#1620 step 5);
+what remains is `data:LEN` on the receive side and the Python transmit side.
+`frame_syms` survives as a read-only result of the layout.
+
 ______________________________________________________________________
 
 ## 1. Why
@@ -74,11 +80,11 @@ description does not carry the preamble
 (`native/inc/doppler/wfm/wfm_frame.h:848`).
 
 ```text
-today                                      after
-dp_burst_demod_create (data_code, len,     dp_burst_demod_create (data_code,
-    spc, …, frame_syms, est_segments)          len, frame, spc, …)
+before (deleted in step 5)                 now
+dp_burst_demod_create (data_code, len,     dp_burst_demod_create_desc (
+    spc, …, frame_syms, est_segments)          data_code, len, frame, spc, …)
   + dp_burst_demod_set_sync (d, sync, n)   (the sync word is the frame's)
-dp_dsss_burst_receiver_create (acq, …,     dp_dsss_burst_receiver_create (
+dp_dsss_burst_receiver_create (acq, …,     dp_dsss_burst_receiver_create_desc (
     sync, sync_len, reps, …, frame_syms,       acq, …, data, …, frame,
     …)                                         reps, …)
 BurstDemod(data_code, …, frame_syms=)      BurstDemod(data_code, frame, …)

@@ -729,13 +729,14 @@ by measurement rather than by taste.
 
 ```c
 /* Lifecycle */
-dp_dsss_burst_receiver_state_t *dp_dsss_burst_receiver_create (
+dp_dsss_burst_receiver_state_t *dp_dsss_burst_receiver_create_desc (
     const uint8_t *acq_code, size_t acq_code_len,
     const uint8_t *data_code, size_t data_code_len,
-    const uint8_t *sync, size_t sync_len,
-    size_t reps, size_t spc, double chip_rate, size_t frame_syms,
+    const wfm_frame_desc_t *frame,   /* sync word and frame length */
+    size_t reps, size_t spc, double chip_rate,
     double cn0_dbhz, double doppler_uncertainty, double pfa, double pd,
-    double carrier_hz, double max_rate, size_t est_segments);
+    double carrier_hz, double max_rate, size_t est_segments,
+    const char **why);
 void   dp_dsss_burst_receiver_destroy (dp_dsss_burst_receiver_state_t *);
 void   dp_dsss_burst_receiver_reset   (dp_dsss_burst_receiver_state_t *);
 

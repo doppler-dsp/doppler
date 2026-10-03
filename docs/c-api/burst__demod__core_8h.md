@@ -42,7 +42,7 @@ _Feedforward BPSK DSSS frame demodulator._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) <br>_BurstDemod state. Allocate with_ [_**dp\_burst\_demod\_create()**_](burst__demod__core_8h.md#function-dp_burst_demod_create) _._ |
+| struct | [**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) <br>_BurstDemod state. Allocate with_ [_**dp\_burst\_demod\_create\_desc()**_](burst__demod__core_8h.md#function-dp_burst_demod_create_desc) _._ |
 
 
 
@@ -69,7 +69,6 @@ _Feedforward BPSK DSSS frame demodulator._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  [**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* | [**dp\_burst\_demod\_create**](#function-dp_burst_demod_create) (const uint8\_t \* data\_code, size\_t data\_code\_len, size\_t spc, double chip\_rate, double carrier\_hz, double max\_rate, size\_t frame\_syms, size\_t est\_segments) <br>_Create a feedforward BPSK DSSS burst demodulator._  |
 |  [**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* | [**dp\_burst\_demod\_create\_desc**](#function-dp_burst_demod_create_desc) (const uint8\_t \* data\_code, size\_t data\_code\_len, const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* frame, size\_t spc, double chip\_rate, double carrier\_hz, double max\_rate, size\_t est\_segments, const char \*\* why) <br>_Create a demodulator from the frame DESCRIPTION the transmitter spread, in place of a sync word and a hand-counted_ `frame_syms` _._ |
 |  [**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* | [**dp\_burst\_demod\_create\_frame**](#function-dp_burst_demod_create_frame) (const uint8\_t \* data\_code, size\_t data\_code\_len, const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* frame, size\_t spc, double chip\_rate, double carrier\_hz, double max\_rate, size\_t est\_segments) <br>_The Python binding's constructor:_ [_**dp\_burst\_demod\_create\_desc**_](burst__demod__core_8h.md#function-dp_burst_demod_create_desc) _without the_`why` _out-parameter._ |
 |  size\_t | [**dp\_burst\_demod\_demod**](#function-dp_burst_demod_demod) ([**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, uint8\_t \* out, size\_t max\_out) <br>_Demodulate one burst end to end and write the frame's bits._  |
@@ -80,7 +79,6 @@ _Feedforward BPSK DSSS frame demodulator._ [More...](#detailed-description)
 |  void | [**dp\_burst\_demod\_reset**](#function-dp_burst_demod_reset) ([**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* state) <br>_Clear the per-burst read-backs, leaving the configuration intact._  |
 |  void | [**dp\_burst\_demod\_set\_preamble**](#function-dp_burst_demod_set_preamble) ([**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* state, const uint8\_t \* acq\_code, size\_t acq\_code\_len, size\_t reps) <br>_Register the unmodulated acquisition preamble code and its repetition count used for the feedforward (f0, rate) estimate._  |
 |  void | [**dp\_burst\_demod\_set\_prior**](#function-dp_burst_demod_set_prior) ([**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* state, double f0\_coarse, size\_t start) <br>_Seed the demodulator from acquisition with the coarse Doppler and the preamble start sample._  |
-|  void | [**dp\_burst\_demod\_set\_sync**](#function-dp_burst_demod_set_sync) ([**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* state, const uint8\_t \* sync, size\_t sync\_len) <br>_Register the known frame-sync word used for frame alignment and phase/sign resolution._  |
 |  size\_t | [**dp\_burst\_demod\_symbols**](#function-dp_burst_demod_symbols) ([**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* state, size\_t n, float \_Complex \* out, size\_t max\_out) <br>_The last demod()'s DEROTATED complex symbols — the constellation the LLRs are the real part of._  |
 |  size\_t | [**dp\_burst\_demod\_symbols\_max\_out**](#function-dp_burst_demod_symbols_max_out) ([**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* state, size\_t n) <br>_Max symbols_ [_**dp\_burst\_demod\_symbols()**_](burst__demod__core_8h.md#function-dp_burst_demod_symbols) _writes: the frame's length._ |
 
@@ -131,19 +129,32 @@ The whole post-acquisition payload chain, in C, with no tracking loops:
 At a decision. It hands back one bit per symbol (demod()) and one LLR per symbol ([**dp\_burst\_demod\_llrs()**](burst__demod__core_8h.md#function-dp_burst_demod_llrs)), and it does not know what any of them mean: which are payload, which are a check, what an outer code would repair are all questions about a FRAME, and answering them needs a description this object deliberately does not hold (doppler#1022). It used to hold half of one — a hard-coded `sync | payload | CRC-16` — which is how a burst sent without a trailer came to be reported invalid.
 
 
-What it does need is the sync word, to find the frame and resolve the BPSK sign, and `frame_syms`, to know how many symbols to slice. Both are physical-layer facts.
+What it does need is the sync word, to find the frame and resolve the BPSK sign, and `frame_syms`, to know how many symbols to slice. Both are physical-layer facts, and both come from ONE place: the frame description the transmitter spread. Its field 0 is the sync word and its layout is the frame's length, so the two cannot disagree with each other or with the transmitter.
 
 
-Seed from acquisition with set\_prior(coarse Doppler, preamble start), set\_preamble(acq code, reps) and set\_sync(sync word), then demod(burst). One `max_rate` knob spans near-static Doppler (0) to severe LEO chirp. One-shot per burst. Composes ppe (which composes fft + spectral).
+Build it from that description with [**dp\_burst\_demod\_create\_desc()**](burst__demod__core_8h.md#function-dp_burst_demod_create_desc), seed it with set\_preamble(acq code, reps) and set\_prior(coarse Doppler, preamble
+start), then demod(burst). One `max_rate` knob spans near-static Doppler (0) to severe LEO chirp. One-shot per burst. Composes ppe (which composes fft + spectral).
 
 
 
 ```C++
-dp_burst_demod_state_t *d = dp_burst_demod_create(dcode, 50, 4, 1e6, 0, 0, 256, 10);
-dp_burst_demod_set_preamble(d, acode, 500, 5);
-dp_burst_demod_set_sync(d, sync, 31);
-dp_burst_demod_set_prior(d, f0_coarse, preamble_start);
-size_t nbits = dp_burst_demod_demod(d, x, n, bits, 256);   // frame bits out
+const uint8_t    sb[3] = { 1, 0, 1 }, dcode[4] = { 1, 0, 1, 1 };
+const uint8_t    acode[8] = { 1, 1, 1, 0, 1, 0, 0, 1 };
+const wfm_seq_t  sync  = { .kind = WFM_SEQ_LITERAL, .bits = sb, .len = 3 };
+const wfm_seq_t  data  = { .kind = WFM_SEQ_DATA, .len = 8 };
+wfm_frame_desc_t f;
+dp_wfm_frame_fixed (&f, NULL, 0, &sync, &data, 1); // sync|data:8|crc16
+dp_burst_demod_state_t *d = dp_burst_demod_create_desc (
+    dcode, 4, &f, 4, 1e6, 0.0, 0.0, 10, NULL);
+if (!d)
+  return 1;
+dp_burst_demod_set_preamble (d, acode, 8, 5);
+dp_burst_demod_set_prior (d, 0.0, 0);  // coarse Doppler, preamble start
+float _Complex x[16] = { 0 };          // a real burst goes here
+uint8_t        bits[3 + 8 + 16];
+size_t nbits = dp_burst_demod_demod (d, x, 16, bits, sizeof bits);
+(void)nbits;                           // 0: too short to be a burst
+dp_burst_demod_destroy (d);
 ```
  
 
@@ -152,53 +163,6 @@ size_t nbits = dp_burst_demod_demod(d, x, n, bits, 256);   // frame bits out
     
 ## Public Functions Documentation
 
-
-
-
-### function dp\_burst\_demod\_create 
-
-_Create a feedforward BPSK DSSS burst demodulator._ 
-```C++
-dp_burst_demod_state_t * dp_burst_demod_create (
-    const uint8_t * data_code,
-    size_t data_code_len,
-    size_t spc,
-    double chip_rate,
-    double carrier_hz,
-    double max_rate,
-    size_t frame_syms,
-    size_t est_segments
-) 
-```
-
-
-
-Recovers the payload of a single spread burst end to end, with no tracking loops: it estimates the burst's Doppler (and Doppler rate) from the unmodulated acquisition preamble, dechirps by that estimate, despreads the data section into soft symbols, aligns on the known sync word, slices to bits, and checks the CRC-16 trailer. One `max_rate` knob spans the whole range from near-static Doppler (0) to a severe LEO chirp.
-
-
-After construction, register the templates and the acquisition seed — set\_preamble(), set\_sync(), set\_prior() — then call demod() once per burst. (Python builds one from a frame description instead: see [**dp\_burst\_demod\_create\_frame**](burst__demod__core_8h.md#function-dp_burst_demod_create_frame).)
-
-
-
-
-**Parameters:**
-
-
-* `data_code` Data spreading code, one 0/1 chip per element; copied into the object (its length is the data spreading factor, chips/symbol). 
-* `data_code_len` Data spreading factor (chips/symbol); the length of `data_code`. 
-* `spc` Samples per chip (front-end oversample). 
-* `chip_rate` Chip rate (Hz); sets the sample rate as spc\*chip\_rate. 
-* `carrier_hz` RF carrier (Hz) for code-Doppler scaling; 0 = ignore. 
-* `max_rate` Chirp-rate search half-span (cycles/sample^2 at the input rate); 0 = Doppler only (no rate search). 
-* `frame_syms` Symbols the frame occupies after the sync word — how many bits demod() hands back per burst. What they mean is a frame description's business. 
-* `est_segments` Partial correlations per acq period (segmentation for the feedforward estimate; larger tolerates more rate). 
-
-
-
-
-        
-
-<hr>
 
 
 
@@ -221,7 +185,7 @@ dp_burst_demod_state_t * dp_burst_demod_create_desc (
 
 
 
-The sync word is the description's field 0 and `frame_syms` is its layout's length, both read by [**dp\_wfm\_frame\_desc\_rx**](wfm__frame_8h.md#function-dp_wfm_frame_desc_rx), so the receiver and the transmitter are told the same thing by the same code. The description is read here and not kept: the sync bits are copied into the demodulator, so the caller may free `frame` at once. Everything else is as [**dp\_burst\_demod\_create**](burst__demod__core_8h.md#function-dp_burst_demod_create), and the result is byte-identical to `dp_burst_demod_create` followed by `dp_burst_demod_set_sync` with the same bits.
+The sync word is the description's field 0 and `frame_syms` is its layout's length, both read by [**dp\_wfm\_frame\_desc\_rx**](wfm__frame_8h.md#function-dp_wfm_frame_desc_rx), so the receiver and the transmitter are told the same thing by the same code. The description is read here and not kept: the sync bits are copied into the demodulator, so the caller may free `frame` at once. It is the one constructor: the demodulator is then seeded with set\_preamble() and set\_prior(), and demod() is called once per burst.
 
 
 
@@ -366,7 +330,7 @@ size_t dp_burst_demod_demod (
 Runs the whole feedforward chain on the supplied samples: estimate the (frequency, chirp-rate) from the preamble, dechirp, despread the data section to soft symbols, sync-align and derotate, and slice `frame_syms` symbols to bits. It writes the frame as received — sync word first — and makes no claim about what those bits are for: undoing the frame needs a description, and that is a caller's, not this object's. The soft twin of the same decisions is [**dp\_burst\_demod\_llrs()**](burst__demod__core_8h.md#function-dp_burst_demod_llrs).
 
 
-On return the read-back fields report the outcome — `frame_offset`, `n_symbols`, and the `est_freq_hz` / `est_rate_hz` / `est_cn0_dbhz` / `est_timing_chips` estimates. The templates and prior must already be set via set\_preamble(), set\_prior() (and, in C, set\_sync()).
+On return the read-back fields report the outcome — `frame_offset`, `n_symbols`, and the `est_freq_hz` / `est_rate_hz` / `est_cn0_dbhz` / `est_timing_chips` estimates. The templates and prior must already be set via set\_preamble() and set\_prior().
 
 
 The C function returns the number of bits written; the Python binding returns those bits as an array (a view into a reused buffer unless an `out` buffer is supplied).
@@ -701,50 +665,6 @@ These come from the upstream acquisition stage: `f0_coarse` centres the feedforw
 >>> d.set_prior(0.012, start=0)   # coarse Doppler + start, from acq
 ```
  
-
-
-
-
-        
-
-<hr>
-
-
-
-### function dp\_burst\_demod\_set\_sync 
-
-_Register the known frame-sync word used for frame alignment and phase/sign resolution._ 
-```C++
-void dp_burst_demod_set_sync (
-    dp_burst_demod_state_t * state,
-    const uint8_t * sync,
-    size_t sync_len
-) 
-```
-
-
-
-After the data section is despread to soft BPSK symbols, demod() correlates them against this word; the complex correlation peak locates the frame (its `frame_offset`) and its phase resolves the residual carrier rotation and the BPSK sign ambiguity before slicing. Pass the word as 0/1 symbols; it is copied and stored internally as +/-1.
-
-
-This is the ONLY thing this object is told about the frame's content, and it is told it for a physical-layer reason: without the sign the slicer would be a coin toss. Everything else — where the payload sits, which stages cover what, whether a check passed — needs the frame's description and belongs one layer up (doppler#1022).
-
-
-
-
-**Parameters:**
-
-
-* `state` Demodulator handle. 
-* `sync` Frame-sync word, one 0/1 symbol per element; copied. 
-* `sync_len` Sync word length (symbols); the length of `sync`.
-
-
-
-**Note:**
-
-C only. The Python face takes the sync word as the FIRST field of the frame description it is constructed from, so there is one statement of it, not two that could disagree. 
-
 
 
 

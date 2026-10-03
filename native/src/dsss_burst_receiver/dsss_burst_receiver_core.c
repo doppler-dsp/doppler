@@ -14,20 +14,11 @@
 #include "doppler/dsss_burst_receiver/dsss_burst_receiver_core.h"
 
 #include "doppler/cvt/cvt_core.h"
-#include "doppler/dp_crc16.h"
 #include "doppler/util/util_core.h"
 
 #include <stdbool.h>
 
 #include <math.h>
-
-/* Frame trailer: the CRC-16 this receiver's frame ends in. Named rather than
- * spelled 16 at each use -- the burst length below is derived from it, and a
- * bare 16 beside a payload length reads like a block size. It is THIS
- * receiver's frame (sync | payload | CRC-16), not a property of burst DSSS:
- * other links code, interleave, put a midamble in, or detect errors some
- * other way, so nothing below this object assumes it. */
-#define DSSS_BR_CRC_BITS 16u
 
 /**
  * @brief Did the frame the demodulator just produced pass its trailer?
@@ -43,50 +34,42 @@ dsss_br_frame_valid (const dp_dsss_burst_receiver_state_t *s)
 {
   const dp_burst_demod_state_t *d = s->demod;
   const size_t                  n = d->n_llr;
-  /* Built from a description: its layout says where the trailer is, and a
-     description with no CRC stage is never valid (-1 is not 1). */
-  if (s->frame)
-    {
-      if (n != s->frame_bits)
-        return 0;
-      uint8_t *fb = dp_xmalloc (n);
-      for (size_t j = 0; j < n; j++)
-        fb[j] = d->llr[j] < 0.0f; /* positive means bit 0 */
-      const int ok = dp_wfm_frame_desc_crc_ok (s->frame, fb) == 1;
-      free (fb);
-      return ok;
-    }
-  if (n != s->frame_bits || n < s->sync_len + DSSS_BR_CRC_BITS)
+  /* The verdict is the description's: its layout says where the trailer is,
+     and a description with no CRC stage is never valid (-1 is not 1). */
+  if (n != s->frame_syms)
     return 0;
-  uint8_t bits[n];
+  uint8_t *fb = dp_xmalloc (n);
   for (size_t j = 0; j < n; j++)
-    bits[j] = d->llr[j] < 0.0f; /* positive means bit 0 */
-  const size_t payload = n - s->sync_len - DSSS_BR_CRC_BITS;
-  uint16_t     rx      = 0;
-  for (size_t j = 0; j < DSSS_BR_CRC_BITS; j++)
-    rx = (uint16_t)((rx << 1) | bits[s->sync_len + payload + j]);
-  return rx == dp_crc16_ccitt (bits + s->sync_len, payload);
+    fb[j] = d->llr[j] < 0.0f; /* positive means bit 0 */
+  const int ok = dp_wfm_frame_desc_crc_ok (s->frame, fb) == 1;
+  free (fb);
+  return ok;
 }
 
 dp_dsss_burst_receiver_state_t *
-dp_dsss_burst_receiver_create (const uint8_t *acq_code, size_t acq_code_len,
-                               const uint8_t *data_code, size_t data_code_len,
-                               const uint8_t *sync, size_t sync_len,
-                               size_t reps, size_t spc, double chip_rate,
-                               size_t frame_syms, double cn0_dbhz,
-                               double doppler_uncertainty, double pfa,
-                               double pd, double carrier_hz, double max_rate,
-                               size_t est_segments)
+dp_dsss_burst_receiver_create_desc (
+    const uint8_t *acq_code, size_t acq_code_len, const uint8_t *data_code,
+    size_t data_code_len, const wfm_frame_desc_t *frame, size_t reps,
+    size_t spc, double chip_rate, double cn0_dbhz, double doppler_uncertainty,
+    double pfa, double pd, double carrier_hz, double max_rate,
+    size_t est_segments, const char **why)
 {
   /* Every one of these is an ARGUMENT error, and the manifest's
    * create_error/create_error_message turn a NULL return into a ValueError
    * naming the constraint -- not the blanket MemoryError this would
    * otherwise surface as (the gh-782 shape, declared per object under
-   * objects/). */
+   * objects/). A refused DESCRIPTION is named by the demodulator below,
+   * which is the one place that reads field 0 and the layout. */
   if (!acq_code || acq_code_len == 0 || !data_code || data_code_len == 0
-      || !sync || sync_len == 0 || reps < 1 || spc < 1 || chip_rate <= 0.0
-      || frame_syms < 1 || pfa <= 0.0 || pfa >= 1.0 || pd <= 0.0 || pd >= 1.0)
-    return NULL;
+      || !frame || reps < 1 || spc < 1 || chip_rate <= 0.0 || pfa <= 0.0
+      || pfa >= 1.0 || pd <= 0.0 || pd >= 1.0)
+    {
+      if (why)
+        *why = "DsssBurstReceiver: invalid parameter (need non-empty "
+               "acq_code/data_code, reps >= 1, spc >= 1, chip_rate > 0, "
+               "cn0_dbhz finite or NaN, 0 < pfa < 1, 0 < pd < 1)";
+      return NULL;
+    }
   /* cn0_dbhz: the acquisition engine's rule, checked there (doppler#1484;
      see dp_burst_capture_create). */
 
@@ -97,45 +80,47 @@ dp_dsss_burst_receiver_create (const uint8_t *acq_code, size_t acq_code_len,
   s->reps          = reps;
   s->spc           = spc;
   s->chip_rate     = chip_rate;
-  s->frame_syms    = frame_syms;
   s->acq_code_len  = acq_code_len;
   s->data_code_len = data_code_len;
-  s->sync_len      = sync_len;
 
   /* The codes outlive the caller's buffers: this object is fed across many
    * push() calls and rebuilds its demodulator per burst, so borrowing would
    * be a use-after-free the first time a caller freed its own array. */
   s->acq_code  = malloc (acq_code_len);
   s->data_code = malloc (data_code_len);
-  s->sync      = malloc (sync_len);
-  if (!s->acq_code || !s->data_code || !s->sync)
+  if (!s->acq_code || !s->data_code)
     goto fail;
   memcpy (s->acq_code, acq_code, acq_code_len);
   memcpy (s->data_code, data_code, data_code_len);
-  memcpy (s->sync, sync, sync_len);
 
   /* ── The demodulator, built FIRST, because it owns the frame ────────
    * Its description says how long the frame is, and everything below is
-   * measured in bursts. That used to be `sync + payload + CRC-16` spelled
-   * out here -- a fourth copy of one frame shape, and the one that decides
-   * how much history the ring keeps, so a frame the transmitter actually
-   * sent could not fit in the window this object reserved for it. */
-  s->demod
-      = dp_burst_demod_create (s->data_code, data_code_len, spc, chip_rate,
-                               carrier_hz, max_rate, frame_syms, est_segments);
+   * measured in bursts: the one place a frame's length is derived, so the
+   * burst length, the history ring and the row stride of push() cannot
+   * disagree with what the transmitter sent. */
+  s->demod = dp_burst_demod_create_desc (s->data_code, data_code_len, frame,
+                                         spc, chip_rate, carrier_hz, max_rate,
+                                         est_segments, why);
   if (!s->demod)
     goto fail;
   dp_burst_demod_set_preamble (s->demod, s->acq_code, acq_code_len, reps);
-  dp_burst_demod_set_sync (s->demod, s->sync, sync_len);
+
+  /* Keep the layout, not the bits: the verdict reads lengths and stages
+     only, and a borrowed sequence pointer would dangle the moment the
+     caller freed its description. */
+  s->frame  = dp_xmalloc (sizeof *s->frame);
+  *s->frame = *frame;
+  for (unsigned i = 0; i < s->frame->n_fields; i++)
+    s->frame->field[i].seq.bits = NULL;
 
   /* ── Derived geometry ───────────────────────────────────────────────
    * code_period: one acquisition code repetition, in samples. This is the
    * modulus every epoch ambiguity in the design doc is stated against --
    * acq's code_phase is exactly `burst_start mod code_period` (§3.1).
    * burst_len: preamble + the spread frame, whatever the frame is. */
-  s->frame_bits  = frame_syms; /* the row stride of push() and llrs() */
+  s->frame_syms  = s->demod->frame_syms; /* the row stride of push()/llrs() */
   s->code_period = acq_code_len * spc;
-  s->burst_len   = (reps * acq_code_len + frame_syms * data_code_len) * spc;
+  s->burst_len   = (reps * acq_code_len + s->frame_syms * data_code_len) * spc;
 
   /* ── The composed children ──────────────────────────────────────────
    * Certified individually; this object owns only the seam between them.
@@ -176,44 +161,6 @@ fail:
 }
 
 dp_dsss_burst_receiver_state_t *
-dp_dsss_burst_receiver_create_desc (
-    const uint8_t *acq_code, size_t acq_code_len, const uint8_t *data_code,
-    size_t data_code_len, const wfm_frame_desc_t *frame, size_t reps,
-    size_t spc, double chip_rate, double cn0_dbhz, double doppler_uncertainty,
-    double pfa, double pd, double carrier_hz, double max_rate,
-    size_t est_segments, const char **why)
-{
-  uint8_t                        *sync     = dp_xmalloc (WFM_FIELD_MAX_BITS);
-  size_t                          sync_len = 0, frame_syms = 0;
-  dp_dsss_burst_receiver_state_t *s = NULL;
-  if (dp_wfm_frame_desc_rx (frame, sync, WFM_FIELD_MAX_BITS, &sync_len,
-                            &frame_syms, why)
-      == 0)
-    {
-      s = dp_dsss_burst_receiver_create (
-          acq_code, acq_code_len, data_code, data_code_len, sync, sync_len,
-          reps, spc, chip_rate, frame_syms, cn0_dbhz, doppler_uncertainty, pfa,
-          pd, carrier_hz, max_rate, est_segments);
-      if (s)
-        {
-          /* Keep the layout, not the bits: the verdict reads lengths and
-             stages only, and a borrowed sequence pointer would dangle the
-             moment the caller freed its description. */
-          s->frame  = dp_xmalloc (sizeof *s->frame);
-          *s->frame = *frame;
-          for (unsigned i = 0; i < s->frame->n_fields; i++)
-            s->frame->field[i].seq.bits = NULL;
-        }
-      else if (why)
-        *why = "DsssBurstReceiver: invalid parameter (need non-empty "
-               "acq_code/data_code, reps >= 1, spc >= 1, chip_rate > 0, "
-               "cn0_dbhz finite or NaN, 0 < pfa < 1, 0 < pd < 1)";
-    }
-  free (sync);
-  return s;
-}
-
-dp_dsss_burst_receiver_state_t *
 dp_dsss_burst_receiver_create_frame (
     const uint8_t *acq_code, size_t acq_code_len, const uint8_t *data_code,
     size_t data_code_len, const wfm_frame_desc_t *frame, size_t reps,
@@ -243,7 +190,6 @@ dp_dsss_burst_receiver_destroy (dp_dsss_burst_receiver_state_t *state)
   free (state->llr);
   free (state->acq_code);
   free (state->data_code);
-  free (state->sync);
   free (state->frame);
   free (state);
 }
@@ -341,18 +287,18 @@ dsss_br_demod_one (dp_dsss_burst_receiver_state_t *s, size_t i, uint8_t *out,
      push can complete several, and a decoder handed the payload needs the
      LLRs of THAT burst (doppler#1018). */
   {
-    const size_t want = s->llr_len + s->frame_bits;
+    const size_t want = s->llr_len + s->frame_syms;
     if (want > s->llr_cap)
       {
-        size_t cap = s->llr_cap ? s->llr_cap * 2u : (s->frame_bits * 4u);
+        size_t cap = s->llr_cap ? s->llr_cap * 2u : (s->frame_syms * 4u);
         while (cap < want)
           cap *= 2u;
         s->llr     = dp_xrealloc (s->llr, cap * sizeof *s->llr);
         s->llr_cap = cap;
       }
-    if (s->llr_len + s->frame_bits <= s->llr_cap)
+    if (s->llr_len + s->frame_syms <= s->llr_cap)
       s->llr_len += dp_burst_demod_llrs (s->demod, 1, s->llr + s->llr_len,
-                                         s->frame_bits);
+                                         s->frame_syms);
   }
 
   /* ...and the same event into this burst's OWN row. One push can complete

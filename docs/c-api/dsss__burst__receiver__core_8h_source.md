@@ -58,10 +58,8 @@ typedef struct {
   /* ── Configuration, copied at create() ──────────────────────────────── */
   uint8_t *acq_code;     
   uint8_t *data_code;    
-  uint8_t *sync;         
   size_t   acq_code_len; 
   size_t   data_code_len;
-  size_t   sync_len;     
   wfm_frame_desc_t *frame; 
   size_t   reps;         
   size_t   spc;          
@@ -94,14 +92,11 @@ typedef struct {
   float  *llr;     
   size_t  llr_cap; 
   size_t  llr_len; 
-  size_t  frame_bits; 
   size_t           ev_len; 
   /* ── Bookkeeping ────────────────────────────────────────────────────── */
   uint64_t n_bursts; 
 /*<<property_struct_fields>>*/
 } dp_dsss_burst_receiver_state_t;
-
-dp_dsss_burst_receiver_state_t *dp_dsss_burst_receiver_create(const uint8_t *acq_code, size_t acq_code_len, const uint8_t *data_code, size_t data_code_len, const uint8_t *sync, size_t sync_len, size_t reps, size_t spc, double chip_rate, size_t frame_syms, double cn0_dbhz, double doppler_uncertainty, double pfa, double pd, double carrier_hz, double max_rate, size_t est_segments);
 
 dp_dsss_burst_receiver_state_t *dp_dsss_burst_receiver_create_frame(
     const uint8_t *acq_code, size_t acq_code_len, const uint8_t *data_code,

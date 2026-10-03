@@ -728,9 +728,9 @@ static PyGetSetDef BurstDemod_getset[] = {
     "zero.\n",
     NULL },
   { "frame_syms", (getter)BurstDemod_getprop_frame_syms, NULL,
-    "symbols the frame occupies AFTER the sync word — a number the caller "
-    "states. What they MEAN is the frame description's business, one layer "
-    "up.\n",
+    "symbols the frame occupies, sync word included — the description's "
+    "layout length, read at create. What they MEAN is the frame description's "
+    "business, one layer up.\n",
     NULL },
   { "est_n0", (getter)BurstDemod_getprop_est_n0, NULL,
     "Noise power the LLRs are scaled by, referred to unit symbol amplitude — "
@@ -1030,7 +1030,7 @@ static PyMethodDef BurstDemodObj_methods[] = {
     "On return the read-back fields report the outcome — frame_offset,\n"
     "n_symbols, and the est_freq_hz / est_rate_hz / est_cn0_dbhz /\n"
     "est_timing_chips estimates. The templates and prior must already be set\n"
-    "via set_preamble(), set_prior() (and, in C, set_sync()).\n"
+    "via set_preamble() and set_prior().\n"
     "\n"
     "The C function returns the number of bits written; the Python binding\n"
     "returns those bits as an array (a view into a reused buffer unless an\n"

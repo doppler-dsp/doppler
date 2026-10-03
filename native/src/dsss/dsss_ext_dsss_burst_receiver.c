@@ -1003,14 +1003,14 @@ static PyGetSetDef DsssBurstReceiver_getset[] = {
     "here is structural.\n",
     NULL },
   { "frame_valid", (getter)DsssBurstReceiver_getprop_frame_valid, NULL,
-    "Whether the most recent window's frame passed its error detection -- "
-    "this receiver's frame ends in a CRC-16. The verdict that decides whether "
-    "the window OWNS its span: a failed window is given back to the capture "
-    "(`release`), so a decoy ahead of a real burst cannot swallow it "
-    "(doppler#1181). The trailer is assumed, not declared: the receiver knows "
-    "a frame only by `frame_syms`, so a frame with no CRC is never valid -- "
-    "its bits are still returned, and every window is released "
-    "(doppler#1769). Per burst, read `events()['frame_valid']`.\n",
+    "Whether the most recent window's frame passed its error detection -- the "
+    "frame description's CRC stage covered it. The verdict that decides "
+    "whether the window OWNS its span: a failed window is given back to the "
+    "capture (`release`), so a decoy ahead of a real burst cannot swallow it "
+    "(doppler#1181). The verdict is the frame description's own, so a frame "
+    "whose description has no CRC stage is never valid -- its bits are still "
+    "returned, and every window is released (doppler#1769). Per burst, read "
+    "`events()['frame_valid']`.\n",
     NULL },
   { "min_gap", (getter)DsssBurstReceiver_getprop_min_gap, NULL,
     "Dead air to leave BETWEEN bursts, in samples — edge to edge.\n"
@@ -1222,7 +1222,7 @@ static PyMethodDef DsssBurstReceiverObj_methods[] = {
     "llrs(count=1) -> ndarray\n"
     "\n"
     "The SOFT bits of every burst the last push() returned, concatenated: "
-    "burst i occupies llr[i*frame_bits:(i+1)*frame_bits], in the same order "
+    "burst i occupies llr[i*frame_syms:(i+1)*frame_syms], in the same order "
     "as push()'s payloads and events()' rows. `mpsk_soft_demap`'s convention "
     "— positive means bit 0, so `L < 0` reproduces exactly the bits push() "
     "returned, which is asserted rather than assumed. Spans the WHOLE frame "
@@ -1240,7 +1240,7 @@ static PyMethodDef DsssBurstReceiverObj_methods[] = {
     "what makes a coded burst worth coding.\n"
     "\n"
     "Concatenated the same way push()'s payloads are, one row of\n"
-    "`frame_bits` per burst: burst i starts at `i * frame_bits`, in the\n"
+    "`frame_syms` per burst: burst i starts at `i * frame_syms`, in the\n"
     "order events() reports. The convention is `mpsk_soft_demap`'s —\n"
     "positive means bit 0, so `L < 0` reproduces exactly the bits push()\n"
     "returned. Spans the WHOLE frame rather than the payload alone, because\n"

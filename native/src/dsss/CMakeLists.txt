@@ -39,9 +39,6 @@ target_link_libraries(dsss PRIVATE
     spectral_core
     wfm_frame_core
     cvt_core
-    ccsds_tm_core
-    conv_core
-    rs_core
     pn_core
     gold_core
     mpsk_core

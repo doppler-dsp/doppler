@@ -21,7 +21,6 @@ doppler/buffer/buffer.h::_peek
 doppler/buffer/buffer.h::_write_some
 doppler/burst_acq/burst_acq_core.h::dp_burst_acq_create
 doppler/burst_capture/burst_capture_core.h::DP_FOURCC
-doppler/burst_demod/burst_demod_core.h::dp_burst_demod_create
 doppler/carrier_acq/carrier_acq_core.h::dp_carrier_acq_create
 doppler/carrier_mpsk/carrier_mpsk_core.h::dp_carrier_mpsk_init
 doppler/carrier_nda/carrier_nda_core.h::carrier_nda_disc
@@ -45,7 +44,6 @@ doppler/dp_simd.h::DP_SUMSQ_F32
 doppler/dp_tlm_capture/dp_tlm_capture_core.h::dp_tlm_capture_open
 doppler/dp_tlm/dp_tlm_core.h::DECLARE_DP_BUFFER
 doppler/dp_tlm/dp_tlm_core.h::dp_tlm_demux
-doppler/dsss_burst_receiver/dsss_burst_receiver_core.h::dp_dsss_burst_receiver_create
 doppler/dsss_receiver/dsss_receiver_core.h::dp_dsss_receiver_create
 doppler/f32_to_uq15/f32_to_uq15_core.h::dp_f32_to_uq15_create
 doppler/farrow/farrow_core.h::farrow_init

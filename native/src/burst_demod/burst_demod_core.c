@@ -1,6 +1,5 @@
 #include "doppler/burst_demod/burst_demod_core.h"
 
-#include "doppler/ccsds_tm/ccsds_tm_frame.h" /* the stage kernels + the ASM bits    */
 #include "doppler/clib_common.h"    /* dp_xnn — abort-on-OOM, see below    */
 #include "doppler/mpsk/mpsk_core.h" /* mpsk_soft_demap — the ONE LLR rule  */
 
@@ -9,7 +8,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define BURST_DEMOD_CRC_BITS 16 /* CRC-16-CCITT trailer */
 #define BURST_DEMOD_EST_ITERS 4 /* preamble estimate refinement passes */
 
 /* PN chip / BPSK bit sign: 0 -> +1, 1 -> -1. */
@@ -27,43 +25,15 @@ wrap_pi (double ph)
 }
 
 dp_burst_demod_state_t *
-dp_burst_demod_create (const uint8_t *data_code, size_t data_code_len,
-                       size_t spc, double chip_rate, double carrier_hz,
-                       double max_rate, size_t frame_syms, size_t est_segments)
-{
-  if (!data_code || data_code_len == 0 || spc == 0 || chip_rate <= 0.0
-      || max_rate < 0.0 || est_segments == 0)
-    return NULL;
-  dp_burst_demod_state_t *s = calloc (1, sizeof (*s));
-  if (!s)
-    return NULL;
-  s->data_code = malloc (data_code_len);
-  if (!s->data_code)
-    {
-      free (s);
-      return NULL;
-    }
-  memcpy (s->data_code, data_code, data_code_len);
-  s->data_sf      = data_code_len;
-  s->spc          = spc;
-  s->chip_rate    = chip_rate;
-  s->carrier_hz   = carrier_hz;
-  s->max_rate     = max_rate;
-  s->frame_syms   = frame_syms;
-  s->est_segments = est_segments;
-  return s;
-}
-
-dp_burst_demod_state_t *
 dp_burst_demod_create_desc (const uint8_t *data_code, size_t data_code_len,
                             const wfm_frame_desc_t *frame, size_t spc,
                             double chip_rate, double carrier_hz,
                             double max_rate, size_t est_segments,
                             const char **why)
 {
-  /* The sync word's bits, rendered once from field 0 and handed to the old
-     constructor's own set_sync: one way to build a demodulator, two ways to
-     name its frame. */
+  /* The sync word's bits and the frame's length, both read once from the
+     description (field 0 and the layout): the only statement of either, so
+     the correlator and the slicer cannot disagree about the frame. */
   uint8_t                *sync     = dp_xmalloc (WFM_FIELD_MAX_BITS);
   size_t                  sync_len = 0, frame_syms = 0;
   dp_burst_demod_state_t *s = NULL;
@@ -71,11 +41,26 @@ dp_burst_demod_create_desc (const uint8_t *data_code, size_t data_code_len,
                             &frame_syms, why)
       == 0)
     {
-      s = dp_burst_demod_create (data_code, data_code_len, spc, chip_rate,
-                                 carrier_hz, max_rate, frame_syms,
-                                 est_segments);
-      if (s)
-        dp_burst_demod_set_sync (s, sync, sync_len);
+      if (data_code && data_code_len > 0 && spc > 0 && chip_rate > 0.0
+          && max_rate >= 0.0 && est_segments > 0)
+        {
+          /* Abort-on-OOM allocators: an out-of-memory is not an invalid
+             parameter, so it must not be reported as one. */
+          s            = dp_xcalloc (1, sizeof (*s));
+          s->data_code = dp_xmalloc (data_code_len);
+          s->sync      = dp_xmalloc (sync_len * sizeof (int8_t));
+          memcpy (s->data_code, data_code, data_code_len);
+          s->data_sf      = data_code_len;
+          s->spc          = spc;
+          s->chip_rate    = chip_rate;
+          s->carrier_hz   = carrier_hz;
+          s->max_rate     = max_rate;
+          s->frame_syms   = frame_syms;
+          s->est_segments = est_segments;
+          for (size_t i = 0; i < sync_len; i++)
+            s->sync[i] = (sync[i] & 1u) ? -1 : 1; /* 0 -> +1, 1 -> -1 */
+          s->sync_len = sync_len;
+        }
       else if (why)
         *why = "BurstDemod: invalid parameter (need a data code, spc >= 1, "
                "chip_rate > 0, max_rate >= 0, est_segments >= 1)";
@@ -154,21 +139,6 @@ dp_burst_demod_set_preamble (dp_burst_demod_state_t *s,
   if (s->ppe)
     dp_ppe_destroy (s->ppe);
   s->ppe = dp_ppe_create (s->n_part, ppe_max_rate);
-}
-
-void
-dp_burst_demod_set_sync (dp_burst_demod_state_t *s, const uint8_t *sync,
-                         size_t sync_len)
-{
-  if (!sync || sync_len == 0)
-    return;
-  free (s->sync);
-  s->sync = malloc (sync_len * sizeof (int8_t));
-  if (!s->sync)
-    return;
-  for (size_t i = 0; i < sync_len; i++)
-    s->sync[i] = (sync[i] & 1u) ? -1 : 1; /* 0 -> +1, 1 -> -1 */
-  s->sync_len = sync_len;
 }
 
 void

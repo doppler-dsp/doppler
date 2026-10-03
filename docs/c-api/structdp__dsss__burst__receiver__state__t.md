@@ -56,7 +56,6 @@ _DsssBurstReceiver state._ [More...](#detailed-description)
 |  size\_t | [**ev\_cap**](#variable-ev_cap)  <br> |
 |  size\_t | [**ev\_len**](#variable-ev_len)  <br> |
 |  [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* | [**frame**](#variable-frame)  <br> |
-|  size\_t | [**frame\_bits**](#variable-frame_bits)  <br> |
 |  size\_t | [**frame\_syms**](#variable-frame_syms)  <br> |
 |  int | [**frame\_valid**](#variable-frame_valid)  <br> |
 |  float \* | [**llr**](#variable-llr)  <br> |
@@ -66,8 +65,6 @@ _DsssBurstReceiver state._ [More...](#detailed-description)
 |  uint64\_t | [**preamble\_start**](#variable-preamble_start)  <br> |
 |  size\_t | [**reps**](#variable-reps)  <br> |
 |  size\_t | [**spc**](#variable-spc)  <br> |
-|  uint8\_t \* | [**sync**](#variable-sync)  <br> |
-|  size\_t | [**sync\_len**](#variable-sync_len)  <br> |
 
 
 
@@ -115,7 +112,7 @@ _DsssBurstReceiver state._ [More...](#detailed-description)
 ## Detailed Description
 
 
-Allocate with [**dp\_dsss\_burst\_receiver\_create()**](dsss__burst__receiver__core_8h.md#function-dp_dsss_burst_receiver_create). 
+Allocate with [**dp\_dsss\_burst\_receiver\_create\_desc()**](dsss__burst__receiver__core_8h.md#function-dp_dsss_burst_receiver_create_desc). 
 
 
     
@@ -474,26 +471,7 @@ wfm_frame_desc_t* dp_dsss_burst_receiver_state_t::frame;
 
 
 
-The frame description this receiver was built from, an owned copy whose sequences are NOT kept (the verdict reads only the layout), or NULL when built from a sync word and a `frame_syms`, which assumes `sync | payload | CRC-16`. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable frame\_bits 
-
-```C++
-size_t dp_dsss_burst_receiver_state_t::frame_bits;
-```
-
-
-
-The frame's length, from the description  the stride of a row in `llr`. 
- 
+The frame description this receiver was built from, an owned copy whose sequences are NOT kept (the verdict reads only the layout). 
 
 
         
@@ -510,7 +488,7 @@ size_t dp_dsss_burst_receiver_state_t::frame_syms;
 
 
 
-Symbols the frame occupies after the sync word, and so bits per burst out of push(). What they MEAN is a frame description's business, one layer up (doppler#1022). 
+Symbols the frame occupies, sync word included  the description's layout length, so bits per burst out of push() and the row stride of llrs(). What they MEAN is the frame description's business (doppler#1022). 
  
 
 
@@ -528,7 +506,7 @@ int dp_dsss_burst_receiver_state_t::frame_valid;
 
 
 
-The last window's frame passed its error detection  THIS receiver's frame carries a CRC-16 trailer. The verdict the capture cannot reach: a window that failed is given back with [**dp\_burst\_capture\_release()**](burst__capture__core_8h.md#function-dp_burst_capture_release), so a decoy cannot own the span of a real burst behind it (doppler#1181, doppler#1004). The trailer is ASSUMED, not declared: the receiver knows a frame only by `frame_syms`, so a frame with no CRC is never valid  its bits are still returned, and every window is released (doppler#1769; decision D3 of docs/design/rx-frame-description.md). 
+The last window's frame passed its error detection  THIS receiver's frame carries a CRC-16 trailer. The verdict the capture cannot reach: a window that failed is given back with [**dp\_burst\_capture\_release()**](burst__capture__core_8h.md#function-dp_burst_capture_release), so a decoy cannot own the span of a real burst behind it (doppler#1181, doppler#1004). The verdict is the description's own (dp\_wfm\_frame\_desc\_crc\_ok), so a frame with no CRC stage is never valid  its bits are still returned, and every window is released (doppler#1769; decision D3 of docs/design/rx-frame-description.md). 
  
 
 
@@ -546,7 +524,7 @@ float* dp_dsss_burst_receiver_state_t::llr;
 
 
 
-The soft bits of every burst the last push returned, concatenated: burst i starts at i\*frame\_bits. Scratch, like `ev`  it describes one call and is never serialized. 
+The soft bits of every burst the last push returned, concatenated: burst i starts at i\*frame\_syms. Scratch, like `ev`  it describes one call and is never serialized. 
  
 
 
@@ -654,42 +632,6 @@ size_t dp_dsss_burst_receiver_state_t::spc;
 
 
 Samples per chip. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable sync 
-
-```C++
-uint8_t* dp_dsss_burst_receiver_state_t::sync;
-```
-
-
-
-Frame sync word, owned copy. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable sync\_len 
-
-```C++
-size_t dp_dsss_burst_receiver_state_t::sync_len;
-```
-
-
-
-Sync word length, symbols. 
  
 
 

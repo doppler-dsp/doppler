@@ -39,7 +39,7 @@ native/src/app/wfmgen.c 2  # caller-sized: --frame/--from-file and --symbols-fil
 native/src/awgn/awgn_core.c 1
 native/src/boxcar/boxcar_core.c 1
 native/src/burst_acq/burst_acq_core.c 1
-native/src/burst_demod/burst_demod_core.c 9
+native/src/burst_demod/burst_demod_core.c 6
 native/src/burst_despreader/burst_despreader_core.c 3
 native/src/carrier_acq/carrier_acq_core.c 6
 native/src/carrier_mpsk/carrier_mpsk_core.c 1
@@ -59,7 +59,7 @@ native/src/dll/dll_core.c 9
 native/src/dp_interrupt_guard/dp_interrupt_guard_core.c 1
 native/src/dp_tlm/dp_tlm_core.c 1
 native/src/dp_tlm_capture/dp_tlm_capture_core.c 5
-native/src/dsss_burst_receiver/dsss_burst_receiver_core.c 4
+native/src/dsss_burst_receiver/dsss_burst_receiver_core.c 3
 native/src/f32_to_i16/f32_to_i16_core.c 1
 native/src/f32_to_i16u32/f32_to_i16u32_core.c 1
 native/src/f32_to_i16u64/f32_to_i16u64_core.c 1

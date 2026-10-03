@@ -82,8 +82,7 @@ _DsssBurstReceiver — the burst chain composed in C._ [More...](#detailed-descr
 | Type | Name |
 | ---: | :--- |
 |  int | [**dp\_dsss\_burst\_receiver\_configure\_search\_raw**](#function-dp_dsss_burst_receiver_configure_search_raw) ([**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the acquisition search grid, bypassing the auto-sizing._  |
-|  [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* | [**dp\_dsss\_burst\_receiver\_create**](#function-dp_dsss_burst_receiver_create) (const uint8\_t \* acq\_code, size\_t acq\_code\_len, const uint8\_t \* data\_code, size\_t data\_code\_len, const uint8\_t \* sync, size\_t sync\_len, size\_t reps, size\_t spc, double chip\_rate, size\_t frame\_syms, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, double carrier\_hz, double max\_rate, size\_t est\_segments) <br>_Create a burst receiver: acquisition, refine and demodulation composed behind one push()._  |
-|  [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* | [**dp\_dsss\_burst\_receiver\_create\_desc**](#function-dp_dsss_burst_receiver_create_desc) (const uint8\_t \* acq\_code, size\_t acq\_code\_len, const uint8\_t \* data\_code, size\_t data\_code\_len, const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* frame, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, double carrier\_hz, double max\_rate, size\_t est\_segments, const char \*\* why) <br>_Create a receiver from the frame DESCRIPTION the transmitter spread, in place of a sync word and a hand-counted_ `frame_syms` _._ |
+|  [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* | [**dp\_dsss\_burst\_receiver\_create\_desc**](#function-dp_dsss_burst_receiver_create_desc) (const uint8\_t \* acq\_code, size\_t acq\_code\_len, const uint8\_t \* data\_code, size\_t data\_code\_len, const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* frame, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, double carrier\_hz, double max\_rate, size\_t est\_segments, const char \*\* why) <br>_Create a receiver from the frame DESCRIPTION the transmitter spread, and no hand-counted frame length._  |
 |  [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* | [**dp\_dsss\_burst\_receiver\_create\_frame**](#function-dp_dsss_burst_receiver_create_frame) (const uint8\_t \* acq\_code, size\_t acq\_code\_len, const uint8\_t \* data\_code, size\_t data\_code\_len, const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* frame, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, double carrier\_hz, double max\_rate, size\_t est\_segments) <br>_The Python binding's constructor:_ [_**dp\_dsss\_burst\_receiver\_create\_desc**_](dsss__burst__receiver__core_8h.md#function-dp_dsss_burst_receiver_create_desc) _without the_`why` _out-parameter._ |
 |  void | [**dp\_dsss\_burst\_receiver\_destroy**](#function-dp_dsss_burst_receiver_destroy) ([**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br>_Destroy a dsss\_burst\_receiver instance and release all memory._  |
 |  size\_t | [**dp\_dsss\_burst\_receiver\_events**](#function-dp_dsss_burst_receiver_events) ([**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state, size\_t n, [**dsss\_br\_event\_t**](structdsss__br__event__t.md) \* out, size\_t max\_out) <br>_The event record for each burst the last push() returned._  |
@@ -156,13 +155,23 @@ Lifecycle: create, then push() repeatedly, then destroy. There is no step()/step
 
 
 ```C++
-uint8_t acq[31], data[8], sync[13];
-dp_dsss_burst_receiver_state_t *rx = dp_dsss_burst_receiver_create (
-    acq, 31, data, 8, sync, 13, 4, 4, 1.0e6, 61,
-    55.0, 0.0, 1e-3, 0.9, 0.0, 0.0, 10);
-uint8_t bits[61];   // frame_syms per burst: sync | payload | CRC
-size_t n = dp_dsss_burst_receiver_push (rx, samples, n_samples, bits, 61);
-// the bits are the FRAME as received; undoing it is a Frame's job
+uint8_t acq[31] = { 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0,
+                    0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0 };
+uint8_t data[8] = { 1, 0, 1, 1, 0, 0, 1, 0 }, sb[13] = { 0 };
+const wfm_seq_t sync = { .kind = WFM_SEQ_LITERAL, .bits = sb, .len = 13 };
+const wfm_seq_t body = { .kind = WFM_SEQ_DATA, .len = 32 };
+wfm_frame_desc_t f;
+dp_wfm_frame_fixed (&f, NULL, 0, &sync, &body, 1);  // sync|data:32|crc16
+dp_dsss_burst_receiver_state_t *rx = dp_dsss_burst_receiver_create_desc (
+    acq, 31, data, 8, &f, 4, 4, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0.0, 0.0, 10,
+    NULL);
+if (!rx)
+  return 1;
+float _Complex samples[256] = { 0 };   // the stream goes here
+uint8_t bits[(13 + 32 + 16) * 4];      // frame_syms per burst: sync|payload|CRC
+size_t n = dp_dsss_burst_receiver_push (rx, samples, 256, bits,
+                                        sizeof bits);
+(void)n;                               // the bits are the FRAME as received
 dp_dsss_burst_receiver_destroy (rx);
 ```
  
@@ -228,88 +237,9 @@ The escape hatch for a caller who wants a specific (doppler\_bins, n\_noncoh) ra
 
 
 
-### function dp\_dsss\_burst\_receiver\_create 
-
-_Create a burst receiver: acquisition, refine and demodulation composed behind one push()._ 
-```C++
-dp_dsss_burst_receiver_state_t * dp_dsss_burst_receiver_create (
-    const uint8_t * acq_code,
-    size_t acq_code_len,
-    const uint8_t * data_code,
-    size_t data_code_len,
-    const uint8_t * sync,
-    size_t sync_len,
-    size_t reps,
-    size_t spc,
-    double chip_rate,
-    size_t frame_syms,
-    double cn0_dbhz,
-    double doppler_uncertainty,
-    double pfa,
-    double pd,
-    double carrier_hz,
-    double max_rate,
-    size_t est_segments
-) 
-```
-
-
-
-Give it the waveform  the two codes and the frame sync word  plus the geometry, and stream samples in. It searches blindly for a burst, recovers the exact preamble start, and demodulates, publishing one detection event per burst through the read-back fields.
-
-
-The look-back buffer is NOT a parameter. Its span is derived from the geometry here (detection lag + refine search + the burst itself), because every term is already known and a caller asked to size a history buffer is a caller handed a way to lose bursts silently.
-
-
-
-
-**Parameters:**
-
-
-* `acq_code` Preamble PN chips (0/1), length `acq_code_len`. 
-* `acq_code_len` Preamble code length, chips. 
-* `data_code` Payload spreading chips (0/1), `data_code_len` long. 
-* `data_code_len` Data code length, chips. 
-* `sync` Frame sync word (0/1 symbols), `sync_len` long. 
-* `sync_len` Sync word length, symbols. 
-* `reps` Preamble code repetitions (&gt;= 1). 
-* `spc` Samples per chip (&gt;= 1). 
-* `chip_rate` Chip rate in Hz (&gt; 0). 
-* `frame_syms` Frame symbols per burst (&gt;= 1) — what push() returns, bit for bit. The frame is taken to END in a CRC-16. A frame sent without one, or too short to hold one after the sync word, still returns its bits, but `frame_valid` is 0 and no window owns its span. 
-* `cn0_dbhz` Carrier-to-noise density in dB-Hz sizing the acquisition search: any finite value, or NaN (ACQ\_CN0\_NONE) for no design point. 
-* `doppler_uncertainty` One-sided Doppler half-range, Hz. 
-* `pfa` Target false-alarm probability, in (0, 1). 
-* `pd` Target detection probability, in (0, 1). 
-* `carrier_hz` RF carrier (Hz) for code-Doppler; 0 = ignore. 
-* `max_rate` Chirp-rate search half-span (cycles/sample^2). 
-* `est_segments` Segments the feedforward estimator fits over. 
-
-
-
-**Returns:**
-
-Heap-allocated state, or NULL if any argument is invalid. 
-
-
-
-
-**Note:**
-
-Caller must call [**dp\_dsss\_burst\_receiver\_destroy()**](dsss__burst__receiver__core_8h.md#function-dp_dsss_burst_receiver_destroy) when done. (Python builds one from a frame description instead: see [**dp\_dsss\_burst\_receiver\_create\_frame**](dsss__burst__receiver__core_8h.md#function-dp_dsss_burst_receiver_create_frame).) 
-
-
-
-
-
-        
-
-<hr>
-
-
-
 ### function dp\_dsss\_burst\_receiver\_create\_desc 
 
-_Create a receiver from the frame DESCRIPTION the transmitter spread, in place of a sync word and a hand-counted_ `frame_syms` _._
+_Create a receiver from the frame DESCRIPTION the transmitter spread, and no hand-counted frame length._ 
 ```C++
 dp_dsss_burst_receiver_state_t * dp_dsss_burst_receiver_create_desc (
     const uint8_t * acq_code,
@@ -333,7 +263,7 @@ dp_dsss_burst_receiver_state_t * dp_dsss_burst_receiver_create_desc (
 
 
 
-The sync word is the description's field 0, `frame_syms` its layout's length (both from [**dp\_wfm\_frame\_desc\_rx**](wfm__frame_8h.md#function-dp_wfm_frame_desc_rx)), and a frame's verdict is [**dp\_wfm\_frame\_desc\_crc\_ok**](wfm__frame_8h.md#function-dp_wfm_frame_desc_crc_ok) over the description, so a frame with no CRC stage is never valid (decision D3 of docs/design/rx-frame-description.md). The description is copied (without its sequences), so the caller may free it at once. Otherwise as [**dp\_dsss\_burst\_receiver\_create**](dsss__burst__receiver__core_8h.md#function-dp_dsss_burst_receiver_create), and byte-identical to it for a `sync | payload | CRC-16` frame.
+The sync word is the description's field 0, `frame_syms` its layout's length (both from [**dp\_wfm\_frame\_desc\_rx**](wfm__frame_8h.md#function-dp_wfm_frame_desc_rx)), and a frame's verdict is [**dp\_wfm\_frame\_desc\_crc\_ok**](wfm__frame_8h.md#function-dp_wfm_frame_desc_crc_ok) over the description, so a frame with no CRC stage is never valid (decision D3 of docs/design/rx-frame-description.md). The description is copied (without its sequences), so the caller may free it at once. This is the one constructor: acquisition, refine and demodulation composed behind one push(), with the look-back span DERIVED from the geometry rather than asked of the caller.
 
 
 
@@ -377,7 +307,7 @@ const char *why = NULL;
 dp_dsss_burst_receiver_state_t *rx = dp_dsss_burst_receiver_create_desc (
     acq, 7, dcode, 4, &f, 3, 2, 1e6, 60.0, 0.0, 1e-3, 0.9, 0.0, 0.0, 10,
     &why);
-if (!rx || rx->frame_bits != 3 + 8 + 16)
+if (!rx || rx->frame_syms != 3 + 8 + 16)
   return 1;
 dp_dsss_burst_receiver_destroy (rx);
 ```
@@ -851,7 +781,7 @@ size_t dp_dsss_burst_receiver_llrs (
 `crealf(sym * derot)` IS the log-likelihood ratio up to a scale, and the demodulator used to compute it, slice it to one bit and free it. A hard decision throws away roughly 2 dB of the coding gain a soft-input decoder exists to deliver (`mpsk_soft_demap`'s own docstring), which is what makes a coded burst worth coding.
 
 
-Concatenated the same way push()'s payloads are, one row of `frame_bits` per burst: burst `i` starts at `i * frame_bits`, in the order events() reports. The convention is `mpsk_soft_demap`'s — positive means bit 0, so `L < 0` reproduces exactly the bits push() returned. Spans the WHOLE frame rather than the payload alone, because a code covers what its description says it covers.
+Concatenated the same way push()'s payloads are, one row of `frame_syms` per burst: burst `i` starts at `i * frame_syms`, in the order events() reports. The convention is `mpsk_soft_demap`'s — positive means bit 0, so `L < 0` reproduces exactly the bits push() returned. Spans the WHOLE frame rather than the payload alone, because a code covers what its description says it covers.
 
 
 Valid until the next push(), reset() or set\_state(); deliberately not serialized, for the same reason events() is not: it describes one call.

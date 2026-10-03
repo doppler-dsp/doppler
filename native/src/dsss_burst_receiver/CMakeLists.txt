@@ -32,9 +32,6 @@ target_link_libraries(dsss_burst_receiver_core PUBLIC
     ppe_core
     spectral_core
     wfm_frame_core
-    ccsds_tm_core
-    conv_core
-    rs_core
     gold_core
     mpsk_core
     burst_despreader_core
@@ -59,9 +56,6 @@ target_link_libraries(test_dsss_burst_receiver_core
     ppe_core
     spectral_core
     wfm_frame_core
-    ccsds_tm_core
-    conv_core
-    rs_core
     gold_core
     mpsk_core
     burst_despreader_core
@@ -90,9 +84,6 @@ target_link_libraries(bench_dsss_burst_receiver_core
     ppe_core
     spectral_core
     wfm_frame_core
-    ccsds_tm_core
-    conv_core
-    rs_core
     gold_core
     mpsk_core
     burst_despreader_core

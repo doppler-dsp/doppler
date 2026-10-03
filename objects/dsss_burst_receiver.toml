@@ -40,9 +40,6 @@ depends_on = [
     { name = "acq", link = true },
     { name = "burst_demod", link = true },
     { name = "wfm_frame", link = true },
-    { name = "ccsds_tm", link = true },
-    { name = "conv", link = true },
-    { name = "rs", link = true },
     { name = "pn", link = true },
     { name = "gold", link = true },
     { name = "mpsk", link = true },
@@ -66,7 +63,7 @@ depends_on = [
 
 # ── Construction ─────────────────────────────────────────────────────────────
 # Everything the chain needs, at once. That is the point of the object: the
-# hand-wired alternative is three constructors plus set_preamble/set_sync/
+# hand-wired alternative is three constructors plus set_preamble/
 # set_prior, and the epoch arithmetic between them is what four call sites
 # got wrong three different ways (gh-1001).
 #
@@ -167,7 +164,7 @@ params = [{ name = "x", type = "float _Complex[]" }]
 # function of configuration (finding F5).
 [[dsss_burst_receiver.methods]]
 name = "llrs"
-doc = "The SOFT bits of every burst the last push() returned, concatenated: burst i occupies llr[i*frame_bits:(i+1)*frame_bits], in the same order as push()'s payloads and events()' rows. `mpsk_soft_demap`'s convention — positive means bit 0, so `L < 0` reproduces exactly the bits push() returned, which is asserted rather than assumed. Spans the WHOLE frame rather than the payload alone, because a code covers what its description says it covers and a decoder needs the bits the code protects. Scaled by the burst's own noise estimate: a Viterbi is invariant to a positive scale, but LLRs from different bursts are not comparable without one. Valid until the next push(), reset() or set_state()."
+doc = "The SOFT bits of every burst the last push() returned, concatenated: burst i occupies llr[i*frame_syms:(i+1)*frame_syms], in the same order as push()'s payloads and events()' rows. `mpsk_soft_demap`'s convention — positive means bit 0, so `L < 0` reproduces exactly the bits push() returned, which is asserted rather than assumed. Spans the WHOLE frame rather than the payload alone, because a code covers what its description says it covers and a decoder needs the bits the code protects. Scaled by the burst's own noise estimate: a Viterbi is invariant to a positive scale, but LLRs from different bursts are not comparable without one. Valid until the next push(), reset() or set_state()."
 arg_type = "void"
 return_type = "float"
 variable_output = true
@@ -261,7 +258,7 @@ doc = "Burst-start error the demodulator measured on the last completed burst, i
 [[dsss_burst_receiver.properties]]
 name = "frame_valid"
 type = "bool"
-doc = "Whether the most recent window's frame passed its error detection -- this receiver's frame ends in a CRC-16. The verdict that decides whether the window OWNS its span: a failed window is given back to the capture (`release`), so a decoy ahead of a real burst cannot swallow it (doppler#1181). The trailer is assumed, not declared: the receiver knows a frame only by `frame_syms`, so a frame with no CRC is never valid -- its bits are still returned, and every window is released (doppler#1769). Per burst, read `events()['frame_valid']`."
+doc = "Whether the most recent window's frame passed its error detection -- the frame description's CRC stage covered it. The verdict that decides whether the window OWNS its span: a failed window is given back to the capture (`release`), so a decoy ahead of a real burst cannot swallow it (doppler#1181). The verdict is the frame description's own, so a frame whose description has no CRC stage is never valid -- its bits are still returned, and every window is released (doppler#1769). Per burst, read `events()['frame_valid']`."
 
 # The two spans a caller must respect, and could not read (gh-1011).
 #

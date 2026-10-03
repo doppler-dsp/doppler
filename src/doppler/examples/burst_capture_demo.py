@@ -30,7 +30,13 @@ import numpy as np
 
 from doppler.acquire import BurstCapture
 from doppler.cvt import bin_to_nrz
-from doppler.wfm import PN, Composer, Segment
+from doppler.wfm import (
+    PN,
+    STAGE_CRC16,
+    Composer,
+    FrameDesc,
+    Segment,
+)
 
 # ── Geometry ────────────────────────────────────────────────────────────────
 ACQ_SF, DATA_SF, REPS, SPC = 31, 8, 4, 4
@@ -72,6 +78,16 @@ def data_code() -> np.ndarray:
     return np.array([(i >> 1) & 1 for i in range(DATA_SF)], dtype=np.uint8)
 
 
+def frame_desc() -> FrameDesc:
+    """`[sync | data | crc16]`: the frame one burst's payload is drawn into."""
+    d = FrameDesc()
+    d.add_field("sync", SYNC)
+    d.add_data("payload", len(PAYLOAD))
+    d.add_derived("crc", 16)
+    d.add_stage_over(STAGE_CRC16, "payload", "crc")
+    return d
+
+
 def one_burst() -> np.ndarray:
     """One burst, from the library's own generator.
 
@@ -92,8 +108,8 @@ def one_burst() -> np.ndarray:
         acq_code=acq_code().tobytes(),
         acq_reps=REPS,
         data_code=data_code().tobytes(),
-        sync=SYNC.tobytes(),
-        data=PAYLOAD,  # one burst; CRC-16 auto-appended
+        frame=frame_desc(),
+        data=PAYLOAD,  # one burst, drawn into the frame's data field
         gap_noise="auto",
         off_samples=0,
     )

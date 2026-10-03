@@ -64,7 +64,7 @@ import numpy as np
 
 from doppler.acquire import BurstAcquisition
 from doppler.spectral import FFT, PSD, Corr, hann_window, magnitude_db_cf32
-from doppler.wfm import PN, Composer, Segment, bpsk_map
+from doppler.wfm import PN, Composer, FrameDesc, Segment, bpsk_map
 
 # ── burst geometry ───────────────────────────────────────────────────────────
 PN_LENGTH = 7  # preamble LFSR length; MLS period = 2^L − 1 = 127 chips
@@ -165,6 +165,11 @@ def build_burst(
     payload = np.random.default_rng(seed).integers(
         0, 2, n_payload_sym, dtype=np.uint8
     )
+    # An acquisition-only burst (no payload symbols) has no data to describe.
+    frame = None
+    if len(payload):
+        frame = FrameDesc()
+        frame.add_data("payload", len(payload))
     burst = Segment(
         type="dsss",
         fs=FS,
@@ -175,9 +180,8 @@ def build_burst(
         acq_code=bytes(ACQ_CODE.tolist()),
         acq_reps=acq_reps,
         data_code=bytes(DATA_CODE.tolist()),
-        sync=b"",  # no frame sync word: this demo detects, it does not decode
+        frame=frame,  # the data alone: this demo detects, it does not decode
         data=payload,
-        crc="none",
         off_samples=silence_chips * CHIP_SPS,
     )
     return Composer([burst]).compose()

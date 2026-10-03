@@ -23,7 +23,7 @@ Import it and call it.
 
 import numpy as np
 
-from doppler.wfm import PN, Composer, Segment
+from doppler.wfm import PN, STAGE_CRC16, Composer, FrameDesc, Segment
 
 #: Small on purpose: several bursts fit one 64k block and the benchmarks run
 #: in seconds. Throughput is what these files measure; sensitivity is the
@@ -76,6 +76,16 @@ def mls(n_stages, seed):
     ).astype(np.uint8)
 
 
+def _frame(n_bits):
+    """`[sync | data:n_bits | crc16]`: the frame one burst is drawn into."""
+    d = FrameDesc()
+    d.add_field("sync", SYNC)
+    d.add_data("payload", n_bits)
+    d.add_derived("crc", 16)
+    d.add_stage_over(STAGE_CRC16, "payload", "crc")
+    return d
+
+
 def _segment(acq_code, data_code, payload, k, off):
     return Segment(
         type="dsss",
@@ -88,8 +98,8 @@ def _segment(acq_code, data_code, payload, k, off):
         acq_code=acq_code.tobytes(),
         acq_reps=REPS,
         data_code=data_code.tobytes(),
-        sync=SYNC.tobytes(),
-        data=payload,  # one burst; CRC-16 auto-appended
+        frame=_frame(len(payload)),
+        data=payload,  # one burst, drawn into the frame's data field
         gap_noise="auto",
         off_samples=off,
     )

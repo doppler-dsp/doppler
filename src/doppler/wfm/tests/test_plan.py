@@ -14,7 +14,9 @@ import numpy as np
 import pytest
 
 from doppler.wfm import (
+    STAGE_CRC16,
     Composer,
+    FrameDesc,
     Plan,
     PlanFromBlob,
     PlanFromFile,
@@ -196,6 +198,11 @@ def test_accepts_bundled_dsss_source_with_owned_arrays() -> None:
     dat = rng.integers(0, 2, 13, dtype=np.uint8)
     pay = rng.integers(0, 2, 40, dtype=np.uint8)
     sync = np.array([1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 1], dtype=np.uint8)
+    frame = FrameDesc()
+    frame.add_field("sync", sync)
+    frame.add_data("payload", len(pay))
+    frame.add_derived("crc", 16)
+    frame.add_stage_over(STAGE_CRC16, "payload", "crc")
 
     def _seg(snr: float) -> Segment:
         return Segment(
@@ -208,7 +215,7 @@ def test_accepts_bundled_dsss_source_with_owned_arrays() -> None:
             acq_code=acq,
             acq_reps=4,
             data_code=dat,
-            sync=sync,
+            frame=frame,
             data=pay,
         )
 

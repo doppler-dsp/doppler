@@ -58,7 +58,7 @@ import numpy as np
 
 from doppler.acquire import BurstCapture
 from doppler.acquire.tests._preamble import code_preamble
-from doppler.wfm import PN, Composer, Segment
+from doppler.wfm import PN, STAGE_CRC16, Composer, FrameDesc, Segment
 
 # ── Geometry ────────────────────────────────────────────────────────────────
 # The C suite's geometry, so the two bodies of evidence describe one object.
@@ -130,6 +130,11 @@ def burst() -> np.ndarray:
     first version built the preamble and payload itself and had no CRC at all,
     which is a different burst from the one any caller transmits.
     """
+    frame = FrameDesc()
+    frame.add_field("sync", SYNC)
+    frame.add_data("payload", len(PAYLOAD_BITS))
+    frame.add_derived("crc", 16)
+    frame.add_stage_over(STAGE_CRC16, "payload", "crc")
     seg = Segment(
         type="dsss",
         fs=CHIP_RATE * SPC,
@@ -141,8 +146,8 @@ def burst() -> np.ndarray:
         acq_code=acq_code().tobytes(),
         acq_reps=REPS,
         data_code=data_code().tobytes(),
-        sync=SYNC.tobytes(),
-        data=PAYLOAD_BITS,  # one burst; CRC-16 auto-appended
+        frame=frame,
+        data=PAYLOAD_BITS,  # one burst, drawn into the frame's data field
         gap_noise="auto",
         off_samples=0,
     )

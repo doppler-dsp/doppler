@@ -46,6 +46,7 @@ octets = np.frombuffer(message, np.uint8)
 bits = np.zeros(8 * octets.size, np.uint8)
 bytes_to_bin(octets, bits, 0)  # MSB first, as a file is read
 fill = np.array([0, 1], np.uint8)  # pads the short last frame
+frames = math.ceil(bits.size / CHUNK)  # one burst per chunk
 
 # The frame, once: a sync word, one chunk of the source, a CRC-16 over it.
 d = FrameDesc()
@@ -92,7 +93,6 @@ out = np.asarray(receiver.push(x))
 events = receiver.events()
 # --8<-- [end:link]
 
-frames = math.ceil(bits.size / CHUNK)
 BURST = (REPS * acq_code.size + NB * data_code.size) * SPC
 
 
@@ -121,7 +121,7 @@ chunks = []
 for k in range(frames):
     frame = out[k * NB : (k + 1) * NB]
     verdict = d.check(frame)
-    check(verdict.passed == verdict.checked == 1, f"2. frame {k}: CRC ok")
+    assert verdict.passed == verdict.checked == 1, f"frame {k}: CRC failed"
     chunks.append(np.asarray(d.deframe(frame))[off : off + CHUNK])
 got = np.concatenate(chunks)
 # --8<-- [end:deframe]

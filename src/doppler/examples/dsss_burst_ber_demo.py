@@ -51,7 +51,7 @@ import numpy as np
 
 from doppler.ber import BerMeter, ber_esn0_db_for_ser, ber_theory_ber
 from doppler.dsss import DsssBurstReceiver
-from doppler.wfm import Composer, field_bits, prepare
+from doppler.wfm import Composer, FrameDesc, field_bits, prepare
 
 FULL = "--full" in sys.argv
 
@@ -143,6 +143,9 @@ def sync_phase_limited_ber(ebn0_db: float) -> float:
 # ── the scene, and the Plan over it ─────────────────────────────────────────
 # --8<-- [start:plan]
 BASE_EBN0_DB = 6.0
+FRAME = FrameDesc()  # [sync | data]: no CRC, so nothing follows the payload
+FRAME.add_field("sync", SYNC)
+FRAME.add_data("payload", len(PAYLOAD))
 rx = receiver()  # ONE receiver for the whole sweep: reset() between trials
 # One dsss source is the whole scene, so the Composer takes it directly.
 # snr_mode="ebno" makes `snr` the Eb/N0 of one data bit (a dsss source's
@@ -158,9 +161,8 @@ scene = Composer(
     acq_code=ACQ,
     acq_reps=REPS,
     data_code=DATA,
-    sync=SYNC,
+    frame=FRAME,
     data=PAYLOAD,  # PN data, and nothing after it
-    crc="none",
     delay_samples=LEAD,
     # the receiver holds a burst until it has seen refine_span past its
     # end, so that much trailing noise is what lets it emit

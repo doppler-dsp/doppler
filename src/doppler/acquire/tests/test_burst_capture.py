@@ -442,7 +442,7 @@ def test_no_design_point_refines_exactly_at_any_depth(reps):
     """
     import math
 
-    from doppler.wfm import Composer, Segment
+    from doppler.wfm import STAGE_CRC16, Composer, FrameDesc, Segment
 
     sync = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], dtype=np.uint8)
     payload_bits = np.array(
@@ -450,6 +450,11 @@ def test_no_design_point_refines_exactly_at_any_depth(reps):
         dtype=np.uint8,
     )
     burst_len = (reps * ACQ_SF + PAYLOAD_SYMS * DATA_SF) * SPC
+    frame = FrameDesc()
+    frame.add_field("sync", sync)
+    frame.add_data("payload", len(payload_bits))
+    frame.add_derived("crc", 16)
+    frame.add_stage_over(STAGE_CRC16, "payload", "crc")
     seg = Segment(
         type="dsss",
         fs=CHIP_RATE * SPC,
@@ -461,7 +466,7 @@ def test_no_design_point_refines_exactly_at_any_depth(reps):
         acq_code=acq_code().tobytes(),
         acq_reps=reps,
         data_code=data_code().tobytes(),
-        sync=sync.tobytes(),
+        frame=frame,
         data=payload_bits,
         gap_noise="auto",
         off_samples=0,

@@ -41,6 +41,7 @@ d = FrameDesc()
 d.add_data("payload", 96)  # bits of the source per frame
 d.add_derived("crc", 16)
 d.add_stage_over(STAGE_CRC16, "payload", "crc")  # a CRC-16 over its chunk
+d.build()  # lay it out: the receive side (check, deframe) reads the layout
 seg = Segment(
     type="bpsk",
     fs=1e6,
@@ -55,8 +56,6 @@ x = np.asarray(Composer([seg]).compose())
 # --8<-- [end:data]
 
 import math  # noqa: E402
-
-from doppler.wfm import crc16  # noqa: E402
 
 
 def check(ok: bool, what: str) -> None:
@@ -80,9 +79,12 @@ sent = np.concatenate([bits, fill])
 for f in range(frames):
     frame = rx[f * FRAME : (f + 1) * FRAME]
     chunk = sent[f * 96 : (f + 1) * 96]
-    check(np.array_equal(frame[:96], chunk), f"1. frame {f} carries chunk {f}")
-    got = int("".join(map(str, frame[96:])), 2)
-    check(got == crc16(chunk), f"2. frame {f}'s CRC covers its own chunk")
+    # The description that built the frame also reads it back: `deframe`
+    # hands the corrected frame, `check` the CRC verdict -- no field offsets
+    # written twice.
+    back = np.asarray(d.deframe(frame))
+    check(np.array_equal(back[:96], chunk), f"1. frame {f} carries chunk {f}")
+    check(d.check(frame).passed == 1, f"2. frame {f}'s CRC covers its chunk")
 last = (frames - 1) * FRAME + 96
 check(
     np.array_equal(rx[last - pad : last], fill),

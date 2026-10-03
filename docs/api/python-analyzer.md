@@ -3,7 +3,8 @@
 `doppler.analyzer` is a single CPython extension exposing **`Specan`** — a
 streaming spectrum analyzer driven by the *instrument* parameters an operator
 already knows (**center, span, RBW, reference level**) instead of the DSP knobs
-(window length, Kaiser beta, zero-pad) underneath them.
+(transform length, Kaiser beta) underneath them — derived by the rules in
+[Spectrum Analyzer](../design/specan.md).
 
 It is the C-first home for the natural-parameter → DSP mapping: a `Specan`
 composes the [`DDC`](python-ddc.md) tuner/decimator and the
@@ -82,6 +83,6 @@ ______________________________________________________________________
 <!-- related-pages:start -->
 
 **Guides** — [Power Spectra & Measurements](../guide/spectral-psd.md)
-**Design** — [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [Spectral & Measurement API Map](../design/spectral-api-map.md)
+**Design** — [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [Spectrum Analyzer](../design/specan.md), [Spectral & Measurement API Map](../design/spectral-api-map.md)
 
 <!-- related-pages:end -->

@@ -114,7 +114,7 @@ double dp_specan_state_t::beta;
 
 
 
-Kaiser beta realising [**rbw**](structdp__specan__state__t.md#variable-rbw). 
+Kaiser beta realising [**rbw**](structdp__specan__state__t.md#variable-rbw) (&gt;= ~12). 
  
 
 
@@ -238,7 +238,7 @@ size_t dp_specan_state_t::n;
 
 
 
-Segment / window length (samples). 
+Window length, a power of two &gt;= 16. 
  
 
 
@@ -274,7 +274,7 @@ size_t dp_specan_state_t::nfft;
 
 
 
-Zero-padded transform length. 
+Transform length, max(n, 512). 
  
 
 
@@ -398,7 +398,7 @@ double dp_specan_state_t::rbw;
 
 
 
-Requested resolution bandwidth, Hz. 
+Realised resolution bandwidth, Hz. 
  
 
 
@@ -452,7 +452,7 @@ double dp_specan_state_t::span;
 
 
 
-Display span, Hz. 
+Display span, Hz (clamped to fs/1.28). 
  
 
 

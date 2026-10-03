@@ -37,8 +37,8 @@ static int
 SpecanObj_init (SpecanObject *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[]
-      = { "fs",         "span", "rbw",    "src_center", "center", "offset_db",
-          "full_scale", "bits", "window", "navg",       NULL };
+      = { "fs",        "span",       "rbw",  "src_center", "center",
+          "offset_db", "full_scale", "bits", "navg",       NULL };
   double             fs         = 2.048e6;
   double             span       = 200e3;
   double             rbw        = 500.0;
@@ -47,29 +47,16 @@ SpecanObj_init (SpecanObject *self, PyObject *args, PyObject *kwds)
   double             offset_db  = 0.0;
   double             full_scale = 1.0;
   unsigned long long bits_raw   = 0;
-  const char        *window_str = "kaiser";
   unsigned long long navg_raw   = 1;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "ddd|ddddKsK", kwlist, &fs, &span, &rbw, &src_center,
-          &center, &offset_db, &full_scale, &bits_raw, &window_str, &navg_raw))
+          args, kwds, "ddd|ddddKK", kwlist, &fs, &span, &rbw, &src_center,
+          &center, &offset_db, &full_scale, &bits_raw, &navg_raw))
     return -1;
-  size_t bits   = (size_t)bits_raw;
-  int    window = 0;
-  if (strcmp (window_str, "hann") == 0)
-    window = 0;
-  else if (strcmp (window_str, "kaiser") == 0)
-    window = 1;
-  else
-    {
-      PyErr_Format (PyExc_ValueError,
-                    "window must be one of \"hann\", \"kaiser\", got '%s'",
-                    window_str);
-      return -1;
-    }
+  size_t bits  = (size_t)bits_raw;
   size_t navg  = (size_t)navg_raw;
   self->handle = dp_specan_create (fs, span, rbw, src_center, center,
-                                   offset_db, full_scale, bits, window, navg);
+                                   offset_db, full_scale, bits, navg);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_MemoryError, "dp_specan_create returned NULL");
@@ -104,8 +91,7 @@ SpecanObj_execute (SpecanObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
-                                             NPY_ARRAY_C_CONTIGUOUS);
+  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     return NULL;
   if (out_obj && out_obj != Py_None)
@@ -123,8 +109,9 @@ SpecanObj_execute (SpecanObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (x_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_FLOAT,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (x_arr);
@@ -156,6 +143,15 @@ SpecanObj_execute (SpecanObject *self, PyObject *args, PyObject *kwds)
         n_out = dp_specan_execute (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "Specan.execute: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       if (!n_out)
         {
           Py_DECREF (out_arr);
@@ -182,7 +178,16 @@ SpecanObj_execute (SpecanObject *self, PyObject *args, PyObject *kwds)
   size_t _cap  = dp_specan_execute_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "Specan.execute: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_FLOAT);
   if (!arr0)
     {
@@ -201,6 +206,14 @@ SpecanObj_execute (SpecanObject *self, PyObject *args, PyObject *kwds)
     n_out = dp_specan_execute (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_RuntimeError,
+                    "Specan.execute: wrote %zu elements into a buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if (!n_out)
     {
       Py_DECREF (arr0);
@@ -398,18 +411,18 @@ Specan_getprop_display_size (SpecanObject *self, void *Py_UNUSED (closure))
 static PyGetSetDef Specan_getset[]
     = { { "fs_out", (getter)Specan_getprop_fs_out, NULL,
           "Decimated rate, Hz (= span·1.28, ≤ fs_in).\n", NULL },
-        { "span", (getter)Specan_getprop_span, NULL, "Display span, Hz.\n",
-          NULL },
+        { "span", (getter)Specan_getprop_span, NULL,
+          "Display span, Hz (clamped to fs/1.28).\n", NULL },
         { "rbw", (getter)Specan_getprop_rbw, NULL,
-          "Requested resolution bandwidth, Hz.\n", NULL },
+          "Realised resolution bandwidth, Hz.\n", NULL },
         { "center", (getter)Specan_getprop_center, NULL,
           "Display center frequency, Hz.\n", NULL },
         { "beta", (getter)Specan_getprop_beta, NULL,
-          "Kaiser beta realising rbw.\n", NULL },
+          "Kaiser beta realising rbw (>= ~12).\n", NULL },
         { "n", (getter)Specan_getprop_n, NULL,
-          "Segment / window length (samples).\n", NULL },
+          "Window length, a power of two >= 16.\n", NULL },
         { "nfft", (getter)Specan_getprop_nfft, NULL,
-          "Zero-padded transform length.\n", NULL },
+          "Transform length, max(n, 512).\n", NULL },
         { "navg", (getter)Specan_getprop_navg, NULL,
           "Segments averaged per emitted frame.\n", NULL },
         { "display_size", (getter)Specan_getprop_display_size, NULL,
@@ -513,21 +526,18 @@ static PyMethodDef SpecanObj_methods[] = {
     "    >>> import numpy as np\n"
     "    >>> from doppler.analyzer import Specan\n"
     "    >>> obj = Specan(fs=2.048e6, span=200e3, rbw=500.0, src_center=0.0, "
-    "center=0.0, offset_db=0.0, full_scale=1.0, bits=0, window=\"kaiser\", "
-    "navg=1)\n"
+    "center=0.0, offset_db=0.0, full_scale=1.0, bits=0, navg=1)\n"
     "    >>> obj.retune(0.0)\n" },
   { "reset", (PyCFunction)SpecanObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
-    "Drop pending samples and the running average; zero LO/filter\n"
-    "history.\n"
+    "Drop pending samples and the running average; zero LO/filter history.\n"
     "\n"
     "Examples\n"
     "--------\n"
     "    >>> from doppler.analyzer import Specan\n"
     "    >>> obj = Specan(fs=2.048e6, span=200e3, rbw=500.0, src_center=0.0, "
-    "center=0.0, offset_db=0.0, full_scale=1.0, bits=0, window=\"kaiser\", "
-    "navg=1)\n"
+    "center=0.0, offset_db=0.0, full_scale=1.0, bits=0, navg=1)\n"
     "    >>> obj.reset()\n" },
   { "state_bytes", (PyCFunction)SpecanObj_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"
@@ -616,7 +626,7 @@ static PyMethodDef SpecanObj_methods[] = {
 };
 
 static PyTypeObject SpecanObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "analyzer.Specan",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.analyzer.Specan",
   .tp_basicsize                           = sizeof (SpecanObject),
   .tp_dealloc                             = (destructor)SpecanObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
@@ -628,9 +638,12 @@ static PyTypeObject SpecanObjType = {
     "fs : float\n"
     "    Input sample rate (Hz). Must be > 0.\n"
     "span : float\n"
-    "    Display span (Hz). Must be > 0.\n"
+    "    Display span (Hz). 0 = auto, the whole input band (fs/1.28); "
+    "negative\n"
+    "    is refused.\n"
     "rbw : float\n"
-    "    Resolution bandwidth (Hz). Must be > 0.\n"
+    "    Resolution bandwidth (Hz). 0 = auto (span/100); negative is "
+    "refused.\n"
     "src_center : float, default 0.0\n"
     "    Source center frequency (Hz); the input band is centred here, so "
     "the\n"
@@ -647,8 +660,6 @@ static PyTypeObject SpecanObjType = {
     "    ADC depth: bits>0 sets the 0-dBFS reference to 2^(bits-1) in the "
     "shared\n"
     "    PSD core (the single source of truth for the dBFS reference).\n"
-    "window : Literal[\"hann\", \"kaiser\"], default \"kaiser\"\n"
-    "    Window index: 0 = Hann, 1 = Kaiser (RBW-trimmable).\n"
     "navg : int, default 1\n"
     "    Segments averaged per emitted frame (>= 1).\n"
     "\n"
@@ -658,10 +669,10 @@ static PyTypeObject SpecanObjType = {
     ">>> sa = Specan(fs=2.048e6, span=200e3, rbw=500.0)\n"
     ">>> sa.fs_out\n"
     "256000.0\n"
-    ">>> sa.n, sa.nfft\n"
-    "(1024, 2048)\n"
-    ">>> round(sa.beta, 1)\n"
-    "11.9\n",
+    ">>> sa.nfft, sa.display_size\n"
+    "(1024, 801)\n"
+    ">>> round(sa.rbw)\n"
+    "500\n",
   .tp_methods = SpecanObj_methods,
   .tp_getset  = Specan_getset,
   .tp_new     = SpecanObj_new,

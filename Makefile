@@ -1891,7 +1891,7 @@ specan: ## Launch the live spectrum analyzer in a browser
 
 record-demo: ## Re-record the specan demo frames (docs/specan/frames.json)
 	uv run python -m doppler.specan.record_demo \
-	    --frames 120 --fft-size 512 \
+	    --frames 120 --rbw 4000 \
 	    -o docs/specan/frames.json
 
 # Run all plot-generating examples and copy output PNGs to docs/assets/.

@@ -73,7 +73,7 @@ _Specan — natural-parameter spectrum analyzer (DDC + averaging PSD)._ [More...
 
 | Type | Name |
 | ---: | :--- |
-|  [**dp\_specan\_state\_t**](structdp__specan__state__t.md) \* | [**dp\_specan\_create**](#function-dp_specan_create) (double fs, double span, double rbw, double src\_center, double center, double offset\_db, double full\_scale, size\_t bits, int window, size\_t navg) <br>_Create a natural-parameter spectrum analyzer._  |
+|  [**dp\_specan\_state\_t**](structdp__specan__state__t.md) \* | [**dp\_specan\_create**](#function-dp_specan_create) (double fs, double span, double rbw, double src\_center, double center, double offset\_db, double full\_scale, size\_t bits, size\_t navg) <br>_Create a natural-parameter spectrum analyzer._  |
 |  void | [**dp\_specan\_destroy**](#function-dp_specan_destroy) ([**dp\_specan\_state\_t**](structdp__specan__state__t.md) \* state) <br>_Destroy a Specan instance and release all memory._  |
 |  size\_t | [**dp\_specan\_execute**](#function-dp_specan_execute) ([**dp\_specan\_state\_t**](structdp__specan__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \* out, size\_t max\_out) <br>_Mix, decimate, average and return one display spectrum, or nothing._  |
 |  size\_t | [**dp\_specan\_execute\_max\_out**](#function-dp_specan_execute_max_out) ([**dp\_specan\_state\_t**](structdp__specan__state__t.md) \* state) <br>_Output capacity hint for_ [_**dp\_specan\_execute()**_](specan__core_8h.md#function-dp_specan_execute) _; equals disp\_n._ |
@@ -119,7 +119,7 @@ _Specan — natural-parameter spectrum analyzer (DDC + averaging PSD)._ [More...
 ## Detailed Description
 
 
-A streaming spectrum analyzer that speaks the _instrument_ parameters an operator already knows — center frequency, span, resolution bandwidth (RBW), and reference level — instead of the DSP knobs (window length, Kaiser beta, zero-pad factor) underneath them. It is the C-first home for the mapping that `doppler.specan`'s engine used to hand-roll in Python.
+A streaming spectrum analyzer that speaks the _instrument_ parameters an operator already knows — center frequency, span, resolution bandwidth (RBW), and reference level — instead of the DSP knobs (transform length, Kaiser beta) underneath them. It is the C-first home for the mapping that `doppler.specan`'s engine used to hand-roll in Python.
 
 
 It composes the existing library, re-implementing nothing:
@@ -128,7 +128,7 @@ It composes the existing library, re-implementing nothing:
 
 ```C++
 cf32 in (fs_in)  →  Ddc  (mix center→DC, decimate to fs_out = span·1.28)
-                 →  PSD (window → zero-pad FFT → cg²-normalised power,
+                 →  PSD (Kaiser window → FFT → cg²-normalised power,
                            averaged over `navg` segments)
                  →  crop to the central ±span/2 display band
                  →  dB + ref offset  →  float display spectrum
@@ -153,7 +153,7 @@ Lifecycle: create → (execute / retune / reset)\* → destroy.
 ```C++
 // 200 kHz span, 500 Hz RBW around DC of a 2.048 MHz cf32 stream
 dp_specan_state_t *sa = dp_specan_create(2.048e6, 200e3, 500.0, 0.0, 0.0,
-                                   0.0, 1, 1);
+                                   0.0, 1.0, 0, 1);
 float disp[8192];
 size_t n = dp_specan_execute(sa, iq, 65536, disp, 8192);  // 0 until a frame
 dp_specan_destroy(sa);
@@ -180,14 +180,24 @@ dp_specan_state_t * dp_specan_create (
     double offset_db,
     double full_scale,
     size_t bits,
-    int window,
     size_t navg
 ) 
 ```
 
 
 
-Derives the DSP from the instrument parameters: `fs_out = min(span·1.28, fs)`, the window length `n` (the coarse RBW knob), a Kaiser `beta` solved so the window ENBW realises `rbw` (the fine knob), `nfft = next_pow_two(2·n)`, and the central display crop covering ±span/2. For Kaiser, `n = ceil(2·fs_out/rbw)`  any length, so the window is never asked for less than 2 bins of ENBW and every RBW gets beta &gt;= ~12 (peak sidelobe ~-90 dB). For Hann, `n = next_pow_two(ceil(fs_out/rbw))`.
+Derives the DSP from the instrument parameters (docs/design/specan.md):
+
+
+
+* `fs_out = 1.28·span`, so ±span/2 lands exactly on bin ±nfft/2.56. A span the input cannot supply is clamped to `fs/1.28`.
+* The window `n` is the smallest power of two (at least 16) whose narrowest RBW, `2·fs_out/n` (a Kaiser ENBW of 2 bins, beta ~12, sidelobes ~-90 dB), does not exceed `rbw`. The transform is `nfft = max(n, 512)`: zero-padded only when the window is shorter than the 512 points the display needs (401 bins).
+* Kaiser `beta` widens the ENBW, from 2 up to 4 bins, to meet `rbw`. The widest RBW is 4 bins of the shortest window, `fs_out/4`; wider is clamped. Auto (`rbw` 0) is `span/100`.
+
+
+
+
+[**dp\_specan\_state\_t::rbw**](structdp__specan__state__t.md#variable-rbw) and [**dp\_specan\_state\_t::span**](structdp__specan__state__t.md#variable-span) hold what was realised, which a clamp can make differ from the request.
 
 
 
@@ -196,14 +206,13 @@ Derives the DSP from the instrument parameters: `fs_out = min(span·1.28, fs)`, 
 
 
 * `fs` Input sample rate (Hz). Must be &gt; 0. 
-* `span` Display span (Hz). Must be &gt; 0. 
-* `rbw` Resolution bandwidth (Hz). Must be &gt; 0. 
+* `span` Display span (Hz). 0 = auto, the whole input band (fs/1.28); negative is refused. 
+* `rbw` Resolution bandwidth (Hz). 0 = auto (span/100); negative is refused. 
 * `src_center` Source center frequency (Hz); the input band is centred here, so the analyzer mixes (center − src\_center) to DC. 
 * `center` Desired display center frequency (Hz). 
 * `offset_db` Additive dB offset on the display spectrum, applied on top of dBFS (e.g. a dBm calibration the application computes from a reference level). 
 * `full_scale` Amplitude that reads 0 dBFS (&gt; 0). Ignored if bits &gt; 0. 
 * `bits` ADC depth: bits&gt;0 sets the 0-dBFS reference to 2^(bits-1) in the shared PSD core (the single source of truth for the dBFS reference). 
-* `window` Window index: 0 = Hann, 1 = Kaiser (RBW-trimmable). 
 * `navg` Segments averaged per emitted frame (&gt;= 1). 
 
 
@@ -226,10 +235,10 @@ Caller must call [**dp\_specan\_destroy()**](specan__core_8h.md#function-dp_spec
 >>> sa = Specan(fs=2.048e6, span=200e3, rbw=500.0)
 >>> sa.fs_out
 256000.0
->>> sa.n, sa.nfft
-(1024, 2048)
->>> round(sa.beta, 1)
-11.9
+>>> sa.nfft, sa.display_size
+(1024, 801)
+>>> round(sa.rbw)
+500
 ```
  
 

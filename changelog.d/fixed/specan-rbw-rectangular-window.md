@@ -1,4 +1,5 @@
-- **The spectrum analyzer no longer paints -13 dB sidelobes at some RBWs.**
-    The window length was rounded to a power of two, so an RBW of `fs_out/2^k`
-    got a rectangular window (Kaiser beta 0); the specan demo (4 kHz) showed
-    exactly that. Every RBW now gets beta ~12, about -90 dB sidelobes.
+- **The spectrum analyzer's skirt no longer depends on the RBW.** An RBW of
+    `fs_out/2^k` got a rectangular window and −13 dB sidelobes; the specan demo
+    sat exactly there. Span, transform length and Kaiser beta now follow
+    [the design](https://doppler-dsp.github.io/doppler/design/specan/): beta ≈ 12
+    or more, about −90 dB, at every RBW.

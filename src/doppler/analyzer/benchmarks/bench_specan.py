@@ -13,4 +13,4 @@ BLOCK_64K = 65_536
 
 @pytest.fixture
 def obj():
-    return Specan(fs=2.048e6, span=200e3, rbw=500.0, window="kaiser", navg=1)
+    return Specan(fs=2.048e6, span=200e3, rbw=500.0, navg=1)

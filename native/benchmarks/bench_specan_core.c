@@ -65,7 +65,7 @@ main (void)
     {
       /* window 1, navg 1, no offset, full scale 1.0, float input (bits 0) */
       dp_specan_state_t *s
-          = dp_specan_create (FS, SPAN, rbws[k], 0.0, 0.0, 0.0, 1.0, 0, 1, 1);
+          = dp_specan_create (FS, SPAN, rbws[k], 0.0, 0.0, 0.0, 1.0, 0, 1);
       if (!s)
         {
           (void)fprintf (stderr, "bench_specan: create(rbw=%.0f) NULL\n",

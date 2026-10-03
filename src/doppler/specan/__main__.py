@@ -90,7 +90,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=None,
         metavar="Hz",
-        help="Resolution bandwidth in Hz (default: span/401)",
+        help="Resolution bandwidth in Hz (default: span/100)",
     )
     parser.add_argument(
         "--level",

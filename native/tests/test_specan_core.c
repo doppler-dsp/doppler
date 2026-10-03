@@ -1,10 +1,12 @@
 #include "doppler/dp_complex.h"
 #include "doppler/specan/specan_core.h"
+#include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 static const double PI = 3.14159265358979323846;
 
@@ -115,6 +117,56 @@ main (void)
         DP_CHECK (out[pkk] - worst >= 80.0f);
         dp_specan_destroy (sk);
       }
+  }
+
+  /* 2c. Integrated noise power confirms the ENBW per bin. Complex white noise
+   * of unit variance has density N0 = 1/fs, so every display bin must read
+   * N0 * rbw = rbw / fs -- the RBW measured from the OUTPUT, not read back
+   * from the window's own enbw field. Averaged over 64+ frames and the
+   * central 80% of the display (the DDC passband edge is clear of it); the
+   * scatter is then ~0.01 dB, so 0.1 dB is a bias, not noise. This checks
+   * calibration, not the skirt: a rectangle meets its RBW too, which is why
+   * 2b exists. */
+  {
+    const double rbws[] = { 1000.0, 2000.0, 4000.0, 1500.0, 3000.0 };
+    float _Complex nz[4096];
+    double *acc = malloc (2048 * sizeof *acc);
+    DP_CHECK (acc != NULL);
+    for (size_t r = 0; acc && r < sizeof rbws / sizeof rbws[0]; r++)
+      {
+        dp_specan_state_t *sn
+            = dp_specan_create (fs, span, rbws[r], 0, 0, 0, 1.0, 0, 1, 16);
+        DP_CHECK (sn != NULL);
+        if (!sn)
+          continue;
+        uint32_t st     = 0x5eed0u + (uint32_t)r;
+        size_t   frames = 0, m = 0;
+        memset (acc, 0, 2048 * sizeof *acc);
+        while (frames < 64)
+          {
+            for (size_t i = 0; i < 4096; i++)
+              nz[i] = dp_cgauss (&st); /* E|z|^2 = 1 */
+            size_t no = dp_specan_execute (sn, nz, 4096, out, 2048);
+            if (!no)
+              continue;
+            m = no;
+            for (size_t i = 0; i < no; i++)
+              acc[i] += pow (10.0, (double)out[i] / 10.0);
+            frames++;
+          }
+        double sum = 0.0;
+        size_t lo = m / 10, hi = m - m / 10;
+        for (size_t i = lo; i < hi; i++)
+          sum += acc[i] / (double)frames;
+        double per_bin = sum / (double)(hi - lo);
+        double err_db  = 10.0 * log10 (per_bin * fs / rbws[r]);
+        if (fabs (err_db) > 0.1)
+          printf ("rbw %.0f: noise reads %+.3f dB off N0*RBW\n", rbws[r],
+                  err_db);
+        DP_CHECK (fabs (err_db) <= 0.1);
+        dp_specan_destroy (sn);
+      }
+    free (acc);
   }
 
   /* 3. A unit tone at +30 kHz lands at +30 kHz in the display, near 0 dB. */

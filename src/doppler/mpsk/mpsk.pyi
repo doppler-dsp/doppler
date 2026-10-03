@@ -1,8 +1,9 @@
 # mpsk/mpsk.pyi — type stubs for the mpsk C extension.
 import numpy as np
+import numpy.typing as npt
 from numpy.typing import NDArray
 def mpsk_map(
-    sym: NDArray[np.uint8] | bytes | bytearray | memoryview,
+    sym: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
     m: int = 4,
 ) -> NDArray[np.complex64]:
     """Map Gray-coded M-PSK labels to unit-amplitude constellation points.
@@ -13,7 +14,7 @@ def mpsk_map(
 
     Parameters
     ----------
-    sym : NDArray[np.uint8] | bytes | bytearray | memoryview
+    sym : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
         Gray label bytes (0..M-1), one per symbol.
     m : int
         M in {2,4,8}.
@@ -36,7 +37,7 @@ def mpsk_map(
 
     """
 
-def mpsk_demap(x: NDArray[np.complex64], m: int = 4) -> NDArray[np.uint8]:
+def mpsk_demap(x: npt.NDArray[np.complex64], m: int = 4) -> NDArray[np.uint8]:
     """Hard-decide M-PSK symbols to their Gray-coded label bytes.
 
     Element-wise inverse of dp_mpsk_map(): each cf32 symbol is sliced to
@@ -46,7 +47,7 @@ def mpsk_demap(x: NDArray[np.complex64], m: int = 4) -> NDArray[np.uint8]:
 
     Parameters
     ----------
-    x : NDArray[np.complex64]
+    x : npt.NDArray[np.complex64]
         Received symbols (any amplitude; phase only).
     m : int
         M in {2,4,8}.
@@ -67,7 +68,7 @@ def mpsk_demap(x: NDArray[np.complex64], m: int = 4) -> NDArray[np.uint8]:
     """
 
 def mpsk_diff_map(
-    sym: NDArray[np.uint8] | bytes | bytearray | memoryview,
+    sym: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
     m: int = 4,
 ) -> NDArray[np.complex64]:
     """Differential M-PSK map: the label selects a phase INCREMENT.
@@ -86,7 +87,7 @@ def mpsk_diff_map(
 
     Parameters
     ----------
-    sym : NDArray[np.uint8] | bytes | bytearray | memoryview
+    sym : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
         Gray label bytes (0..M-1), one per symbol.
     m : int
         M in {2,4,8}.
@@ -110,7 +111,10 @@ def mpsk_diff_map(
 
     """
 
-def mpsk_diff_demap(x: NDArray[np.complex64], m: int = 4) -> NDArray[np.uint8]:
+def mpsk_diff_demap(
+    x: npt.NDArray[np.complex64],
+    m: int = 4,
+) -> NDArray[np.uint8]:
     """Differential M-PSK demap: decide from the phase DIFFERENCE.
 
     Inverse of dp_mpsk_diff_map(): the Gray label of each symbol is decided
@@ -120,7 +124,7 @@ def mpsk_diff_demap(x: NDArray[np.complex64], m: int = 4) -> NDArray[np.uint8]:
 
     Parameters
     ----------
-    x : NDArray[np.complex64]
+    x : npt.NDArray[np.complex64]
         Received symbols (any amplitude; phase only).
     m : int
         M in {2,4,8}.
@@ -141,8 +145,8 @@ def mpsk_diff_demap(x: NDArray[np.complex64], m: int = 4) -> NDArray[np.uint8]:
     """
 
 def mpsk_soft_demap(
-    x: NDArray[np.complex64],
-    llr: NDArray[np.float32],
+    x: npt.NDArray[np.complex64],
+    llr: npt.NDArray[np.float32],
     m: int = 4,
     n0: float = 1.0,
 ) -> None:
@@ -184,10 +188,10 @@ def mpsk_soft_demap(
 
     Parameters
     ----------
-    x : NDArray[np.complex64]
+    x : npt.NDArray[np.complex64]
         Received symbols (amplitude matters here — unlike the hard path,
         which uses phase only).
-    llr : NDArray[np.float32]
+    llr : npt.NDArray[np.float32]
         Out: x_len * log2(M) LLRs.
     m : int
         M in {2,4,8}.

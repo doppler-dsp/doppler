@@ -1,7 +1,7 @@
 # ber/ber.pyi — type stubs for the ber C extension.
 from typing import final
 import numpy as np
-from numpy.typing import NDArray
+import numpy.typing as npt
 
 @final
 class BerInterval(tuple[float, float, float, float, float, int, int]):
@@ -121,7 +121,7 @@ class BerMeter:
 
     def set_truth(
         self,
-        truth: NDArray[np.uint8] | bytes | bytearray | memoryview,
+        truth: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
     ) -> None:
         """Install the transmitted symbol INDICES (0..m-1, not Gray labels)
         this meter scores against. Copied, so the caller's buffer need not
@@ -136,7 +136,7 @@ class BerMeter:
 
         Parameters
         ----------
-        truth : NDArray[np.uint8] | bytes | bytearray | memoryview
+        truth : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
             Transmitted symbol indices, each in `0..m-1`.
 
         Raises
@@ -161,7 +161,7 @@ class BerMeter:
 
     def align(
         self,
-        rx: NDArray[np.complex64],
+        rx: npt.NDArray[np.complex64],
         t0: int = 0,
         n_marker: int = 0,
         period: int = 0,
@@ -192,7 +192,7 @@ class BerMeter:
 
         Parameters
         ----------
-        rx : NDArray[np.complex64]
+        rx : npt.NDArray[np.complex64]
             Recovered symbols to align against the truth.
         t0 : int
             Truth index of the marker's first occurrence.
@@ -229,7 +229,7 @@ class BerMeter:
 
     def score(
         self,
-        rx: NDArray[np.complex64],
+        rx: npt.NDArray[np.complex64],
         lo: int = 0,
         hi: int = 0,
     ) -> int:
@@ -252,7 +252,7 @@ class BerMeter:
 
         Parameters
         ----------
-        rx : NDArray[np.complex64]
+        rx : npt.NDArray[np.complex64]
             Recovered symbols to score.
         lo : int
             First symbol index to score (inclusive).
@@ -1028,7 +1028,7 @@ def ber_settle_syms(bn_timing: float, bn_carrier: float) -> int:
     """
 
 def ber_lock_symbol(
-    flags: NDArray[np.uint8] | bytes | bytearray | memoryview,
+    flags: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
     sustain: int = 200,
     min_frac: float = 0.9,
 ) -> int:
@@ -1052,7 +1052,7 @@ def ber_lock_symbol(
 
     Parameters
     ----------
-    flags : NDArray[np.uint8] | bytes | bytearray | memoryview
+    flags : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
         Input.
     sustain : int
         Input.
@@ -1067,7 +1067,7 @@ def ber_lock_symbol(
     """
 
 def ber_evm_db(
-    rx: NDArray[np.complex64],
+    rx: npt.NDArray[np.complex64],
     lo: int = 0,
     hi: int = 0,
     m: int = 4,
@@ -1102,7 +1102,7 @@ def ber_evm_db(
 
     Parameters
     ----------
-    rx : NDArray[np.complex64]
+    rx : npt.NDArray[np.complex64]
         Input.
     lo : int
         Input.

@@ -1,6 +1,7 @@
 # resample/resample.pyi — type stubs for the resample C extension.
 from typing import Any, final, Literal
 import numpy as np
+import numpy.typing as npt
 from numpy.typing import NDArray
 
 @final
@@ -31,8 +32,8 @@ class Resampler:
     def __init__(self, rate: float = 0.0) -> None: ...
     def execute(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Resample a block of CF32 samples at the fixed base rate. Uses the
         dual-mode polyphase engine: output-driven for rate >= 1
@@ -42,9 +43,9 @@ class Resampler:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             CF32 input samples.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Output buffer; must hold at least RESAMPLER_MAX_OUT samples.
 
         Returns
@@ -75,8 +76,8 @@ class Resampler:
 
     def execute_ctrl(
         self,
-        x: NDArray[np.complex64],
-        ctrl: NDArray[np.float64],
+        x: npt.NDArray[np.complex64],
+        ctrl: npt.NDArray[np.float64],
     ) -> NDArray[np.complex64]:
         """Resample with per-sample additive rate deviations. Effective rate
         for sample i is base_rate + `ctrl[i]`. Uses a unified double-precision
@@ -86,9 +87,9 @@ class Resampler:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             CF32 input samples.
-        ctrl : NDArray[np.float64]
+        ctrl : npt.NDArray[np.float64]
             Real float64 array, same length as x; the per-sample rate addend.
             Anything numpy can safely widen to float64 is accepted (float32, a
             plain list); a complex array is refused rather than truncated.
@@ -304,11 +305,11 @@ class HalfbandDecimator:
 
     """
 
-    def __init__(self, h: NDArray[np.float32]) -> None: ...
+    def __init__(self, h: npt.NDArray[np.float32]) -> None: ...
     def execute(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Decimate x by 2 using the polyphase halfband FIR filter. Processes
         every second input sample through the FIR branch and passes the other
@@ -318,10 +319,10 @@ class HalfbandDecimator:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             CF32 input array. Length must be even for exact half-rate output;
             odd lengths write floor(x_len/2).
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Output buffer; must hold at least floor(x_len/2) samples.
 
         Returns
@@ -556,8 +557,8 @@ class CIC:
 
     def decimate(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Decimate a block of CF32 samples through the CIC pipeline. Each
         sample is converted to offset-binary UQ16, pushed through CIC_N
@@ -569,9 +570,9 @@ class CIC:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Input.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Output buffer; must hold at least max_out elements.
 
         Returns
@@ -768,8 +769,8 @@ class RateConverter:
     def __init__(self, rate: float = 1.0, compensate: int = 0) -> None: ...
     def execute(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Convert a block of CF32 samples through the cascade. Passes input
         through each stage in order, ping-ponging between two intermediate
@@ -779,9 +780,9 @@ class RateConverter:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Input.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Output buffer; must hold at least max_out samples.
 
         Returns
@@ -815,7 +816,7 @@ class RateConverter:
 
     def execute_ctrl(
         self,
-        x: NDArray[np.complex64],
+        x: npt.NDArray[np.complex64],
         ctrl: float,
     ) -> NDArray[np.complex64]:
         """Convert a block, steering the cascade's fractional stage by ctrl.
@@ -838,7 +839,7 @@ class RateConverter:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             CF32 input block.
         ctrl : float
             Rate deviation added to the terminal Resampler stage's rate.
@@ -866,7 +867,7 @@ class RateConverter:
         self,
         x: complex,
         ctrl: float,
-        out: NDArray[np.complex64] | None = None,
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Push ONE input sample; emit whatever outputs it completes.
 
@@ -891,7 +892,7 @@ class RateConverter:
         ctrl : float
             Rate deviation added to the terminal stage's rate for this input
             (referenced to the terminal, post-decimation rate).
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Output buffer for any emitted samples.
 
         Returns
@@ -1152,8 +1153,8 @@ class MatchedRateConverter:
     ) -> None: ...
     def execute(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Convert a block of CF32 samples through the cascade. Passes input
         through each stage in order, ping-ponging between two intermediate
@@ -1163,9 +1164,9 @@ class MatchedRateConverter:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Input.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Output buffer; must hold at least max_out samples.
 
         Returns
@@ -1199,7 +1200,7 @@ class MatchedRateConverter:
 
     def execute_ctrl(
         self,
-        x: NDArray[np.complex64],
+        x: npt.NDArray[np.complex64],
         ctrl: float,
     ) -> NDArray[np.complex64]:
         """Convert a block, steering the cascade's fractional stage by ctrl.
@@ -1222,7 +1223,7 @@ class MatchedRateConverter:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             CF32 input block.
         ctrl : float
             Rate deviation added to the terminal Resampler stage's rate.
@@ -1250,7 +1251,7 @@ class MatchedRateConverter:
         self,
         x: complex,
         ctrl: float,
-        out: NDArray[np.complex64] | None = None,
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Push ONE input sample; emit whatever outputs it completes.
 
@@ -1275,7 +1276,7 @@ class MatchedRateConverter:
         ctrl : float
             Rate deviation added to the terminal stage's rate for this input
             (referenced to the terminal, post-decimation rate).
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Output buffer for any emitted samples.
 
         Returns
@@ -1496,7 +1497,7 @@ class Farrow:
     ) -> None: ...
     def delay(
         self,
-        x: NDArray[np.complex64],
+        x: npt.NDArray[np.complex64],
         mu: float,
     ) -> NDArray[np.complex64]:
         """Apply a constant fractional delay of `mu` samples to a cf32 block
@@ -1515,7 +1516,7 @@ class Farrow:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             CF32 input samples.
         mu : float
             Fractional delay in samples; the offset in `[0,1)` into the
@@ -1716,11 +1717,11 @@ class HalfbandDecimatorQ15:
 
     """
 
-    def __init__(self, h: NDArray[np.float32]) -> None: ...
+    def __init__(self, h: npt.NDArray[np.float32]) -> None: ...
     def execute(
         self,
-        x: NDArray[np.int16],
-        out: NDArray[np.int16] | None = None,
+        x: npt.NDArray[np.int16],
+        out: npt.NDArray[np.int16] | None = None,
     ) -> NDArray[np.int16]:
         """Decimate a block of interleaved IQ int16 samples by 2. Input must be
         interleaved int16_t IQ pairs (I₀ Q₀ I₁ Q₁ …); pass a 1-D array of
@@ -1731,9 +1732,9 @@ class HalfbandDecimatorQ15:
 
         Parameters
         ----------
-        x : NDArray[np.int16]
+        x : npt.NDArray[np.int16]
             Input.
-        out : NDArray[np.int16] | None
+        out : npt.NDArray[np.int16] | None
             Output buffer; caller must provide space for 2*max_out int16_t
             values (one interleaved I/Q pair per output).
 

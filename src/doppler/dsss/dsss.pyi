@@ -1,6 +1,7 @@
 # dsss/dsss.pyi — type stubs for the dsss C extension.
 from typing import Any, final
 import numpy as np
+import numpy.typing as npt
 from numpy.typing import NDArray
 
 @final
@@ -289,7 +290,7 @@ class Despreader:
 
     def __init__(
         self,
-        code: NDArray[np.uint8] | bytes | bytearray | memoryview,
+        code: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
         sps: int = 4,
         init_norm_freq: float = 0.0,
         init_chip: float = 0.0,
@@ -733,7 +734,7 @@ class BurstDespreader:
 
     def __init__(
         self,
-        code: NDArray[np.uint8] | bytes | bytearray | memoryview,
+        code: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
         sf: int = 1,
         sps: int = 2,
         init_norm_freq: float = 0.0,
@@ -830,7 +831,7 @@ class BurstDespreader:
 
     def set_acq(
         self,
-        acq_code: NDArray[np.uint8] | bytes | bytearray | memoryview,
+        acq_code: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
         acq_reps: int,
     ) -> None:
         """Enable preamble-aided pull-in: track acq_reps periods of the
@@ -850,7 +851,7 @@ class BurstDespreader:
 
         Parameters
         ----------
-        acq_code : NDArray[np.uint8] | bytes | bytearray | memoryview
+        acq_code : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
             Acquisition code (0/1), length acq_code_len; copied.
         acq_reps : int
             Number of acq-code periods in the preamble.
@@ -1274,7 +1275,7 @@ class BurstDemod:
 
     def __init__(
         self,
-        data_code: NDArray[np.uint8] | bytes | bytearray | memoryview,
+        data_code: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
         spc: int = 4,
         chip_rate: float = 1.0e6,
         carrier_hz: float = 0.0,
@@ -1305,7 +1306,7 @@ class BurstDemod:
 
     def set_preamble(
         self,
-        acq_code: NDArray[np.uint8] | bytes | bytearray | memoryview,
+        acq_code: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
         reps: int,
     ) -> None:
         """Set the (unmodulated) acquisition preamble code + repetition count
@@ -1319,7 +1320,7 @@ class BurstDemod:
 
         Parameters
         ----------
-        acq_code : NDArray[np.uint8] | bytes | bytearray | memoryview
+        acq_code : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
             Acq preamble spreading code, one 0/1 chip per element; copied into
             the object.
         reps : int
@@ -1338,7 +1339,7 @@ class BurstDemod:
 
     def set_sync(
         self,
-        sync: NDArray[np.uint8] | bytes | bytearray | memoryview,
+        sync: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
     ) -> None:
         """Set the known frame-sync word (0/1 BPSK symbols) used for frame
         alignment and phase/sign resolution. The ONLY thing this object is told
@@ -1361,7 +1362,7 @@ class BurstDemod:
 
         Parameters
         ----------
-        sync : NDArray[np.uint8] | bytes | bytearray | memoryview
+        sync : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
             Frame-sync word, one 0/1 symbol per element; copied.
 
         Examples
@@ -1378,7 +1379,7 @@ class BurstDemod:
     def llrs(
         self,
         count: int = 1,
-        out: NDArray[np.float32] | None = None,
+        out: npt.NDArray[np.float32] | None = None,
     ) -> NDArray[np.float32]:
         """The soft bits of the last demod() — one LLR per FRAME bit, in
         `mpsk_soft_demap`'s convention: positive means bit 0, so `L < 0`
@@ -1417,7 +1418,7 @@ class BurstDemod:
             How many output samples to ask for. The call may return fewer; size
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
-        out : NDArray[np.float32] | None
+        out : npt.NDArray[np.float32] | None
             Receives the LLRs, one per frame bit.
 
         Returns
@@ -1455,7 +1456,7 @@ class BurstDemod:
     def symbols(
         self,
         count: int = 1,
-        out: NDArray[np.complex64] | None = None,
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """The DEROTATED complex symbols of the last demod() — the
         constellation `llrs()` is the real part of. Same span and
@@ -1493,7 +1494,7 @@ class BurstDemod:
             How many output samples to ask for. The call may return fewer; size
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Receives the symbols, one per frame bit.
 
         Returns
@@ -1777,7 +1778,7 @@ class DsssReceiver:
 
     def __init__(
         self,
-        code: NDArray[np.uint8] | bytes | bytearray | memoryview,
+        code: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
         chip_rate: float = 1000000.0,
         symbol_rate: float = 1000.0,
         spc: int = 2,
@@ -1792,8 +1793,8 @@ class DsssReceiver:
     ) -> None: ...
     def steps(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Stream raw cf32 samples through the receiver. While searching,
         samples feed the embedded Acquisition and nothing is emitted (an empty
@@ -1819,9 +1820,9 @@ class DsssReceiver:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Input cf32 samples.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Output symbols; caller provides max_out capacity.
 
         Returns
@@ -2298,7 +2299,7 @@ class AsyncDsssReceiver:
 
     def __init__(
         self,
-        code: NDArray[np.uint8] | bytes | bytearray | memoryview,
+        code: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
         chip_rate: float = 1000000.0,
         symbol_rate: float = 1000.0,
         spc: int = 2,
@@ -2322,8 +2323,8 @@ class AsyncDsssReceiver:
     ) -> None: ...
     def steps(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Stream raw cf32 samples through the receiver. While searching,
         samples feed the embedded Acquisition and nothing is emitted. On a hit,
@@ -2354,9 +2355,9 @@ class AsyncDsssReceiver:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Input cf32 samples.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Output symbols; caller provides max_out capacity.
 
         Returns
@@ -3042,7 +3043,7 @@ class CellAsyncDsssReceiver:
 
     def __init__(
         self,
-        code: NDArray[np.uint8] | bytes | bytearray | memoryview,
+        code: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
         chip_rate: float = 1000000.0,
         symbol_rate: float = 1000.0,
         spc: int = 2,
@@ -3061,8 +3062,8 @@ class CellAsyncDsssReceiver:
     ) -> None: ...
     def steps(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Stream raw cf32 samples through the receiver. While searching,
         samples feed the embedded Acquisition and nothing is emitted. On a hit,
@@ -3093,9 +3094,9 @@ class CellAsyncDsssReceiver:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Input cf32 samples.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Output symbols; caller provides max_out capacity.
 
         Returns
@@ -3713,7 +3714,7 @@ class AsyncDsssPool:
 
     def __init__(
         self,
-        code: NDArray[np.uint8] | bytes | bytearray | memoryview,
+        code: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
         chip_rate: float = 1000000.0,
         symbol_rate: float = 1000.0,
         spc: int = 2,
@@ -3760,7 +3761,7 @@ class AsyncDsssPool:
 
         """
 
-    def push(self, x: NDArray[np.complex64]) -> int:
+    def push(self, x: npt.NDArray[np.complex64]) -> int:
         """One block of raw cf32 samples through the population (design section
         8.2), in order: the searcher; the table refreshed from every live
         receiver's status(); every peak within one chip of a live row's code
@@ -3789,7 +3790,7 @@ class AsyncDsssPool:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Input samples.
 
         Returns
@@ -3852,7 +3853,7 @@ class AsyncDsssPool:
     def symbols(
         self,
         slot: int,
-        out: NDArray[np.complex64] | None = None,
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """The symbols slot `slot`'s receiver decided on the last push(),
         borrowed from the pool's own buffer (grown on demand to the largest
@@ -3868,7 +3869,7 @@ class AsyncDsssPool:
         ----------
         slot : int
             The slot.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Caller buffer.
 
         Returns
@@ -4146,9 +4147,9 @@ class DsssBurstReceiver:
 
     def __init__(
         self,
-        acq_code: NDArray[np.uint8] | bytes | bytearray | memoryview,
-        data_code: NDArray[np.uint8] | bytes | bytearray | memoryview,
-        sync: NDArray[np.uint8] | bytes | bytearray | memoryview,
+        acq_code: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
+        data_code: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
+        sync: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
         reps: int = 5,
         spc: int = 4,
         chip_rate: float = 1000000.0,
@@ -4163,8 +4164,8 @@ class DsssBurstReceiver:
     ) -> None: ...
     def push(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.uint8] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.uint8] | None = None,
     ) -> NDArray[np.uint8]:
         """Stream raw cf32 samples and get back the FRAME BITS of every burst
         that completed. Samples feed the embedded BurstAcquisition and are
@@ -4208,9 +4209,9 @@ class DsssBurstReceiver:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Input samples (cf32), x_len long.
-        out : NDArray[np.uint8] | None
+        out : npt.NDArray[np.uint8] | None
             Payload bits, caller-owned, max_out long.
 
         Returns
@@ -4261,7 +4262,7 @@ class DsssBurstReceiver:
     def llrs(
         self,
         count: int = 1,
-        out: NDArray[np.float32] | None = None,
+        out: npt.NDArray[np.float32] | None = None,
     ) -> NDArray[np.float32]:
         """The SOFT bits of every burst the last push() returned, concatenated:
         burst i occupies llr[i*frame_bits:(i+1)*frame_bits], in the same order
@@ -4297,7 +4298,7 @@ class DsssBurstReceiver:
             How many output samples to ask for. The call may return fewer; size
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
-        out : NDArray[np.float32] | None
+        out : npt.NDArray[np.float32] | None
             Receives the LLRs.
 
         Returns
@@ -4338,7 +4339,7 @@ class DsssBurstReceiver:
     def events(
         self,
         count: int = 1,
-        out: NDArray[Any] | None = None,
+        out: npt.NDArray[Any] | None = None,
     ) -> NDArray[Any]:
         """The event record for each burst the last push() returned. Row i
         describes the frame at bits[i*frame_syms ...] of that push. Valid until
@@ -4360,7 +4361,7 @@ class DsssBurstReceiver:
             How many output samples to ask for. The call may return fewer; size
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
-        out : NDArray[Any] | None
+        out : npt.NDArray[Any] | None
             Records, caller-owned, max_out long.
 
         Returns

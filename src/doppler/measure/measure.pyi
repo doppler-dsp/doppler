@@ -1,6 +1,7 @@
 # measure/measure.pyi — type stubs for the measure C extension.
 from typing import final
 import numpy as np
+import numpy.typing as npt
 from numpy.typing import NDArray
 
 @final
@@ -469,8 +470,8 @@ class ToneMeasure:
 
     def spectrum_dbfs(
         self,
-        x: NDArray[np.float32],
-        out: NDArray[np.float32] | None = None,
+        x: npt.NDArray[np.float32],
+        out: npt.NDArray[np.float32] | None = None,
     ) -> NDArray[np.float32]:
         """DC-centred dBFS magnitude spectrum of a capture (length nfft, for
         plots).
@@ -482,9 +483,9 @@ class ToneMeasure:
 
         Parameters
         ----------
-        x : NDArray[np.float32]
+        x : npt.NDArray[np.float32]
             Real time-domain capture (length x_len).
-        out : NDArray[np.float32] | None
+        out : npt.NDArray[np.float32] | None
             Destination buffer (length >= max_out).
 
         Returns
@@ -715,8 +716,8 @@ class NPRMeasure:
 
     def spectrum_dbfs(
         self,
-        x: NDArray[np.float32],
-        out: NDArray[np.float32] | None = None,
+        x: npt.NDArray[np.float32],
+        out: npt.NDArray[np.float32] | None = None,
     ) -> NDArray[np.float32]:
         """DC-centred dBFS magnitude spectrum of a capture (length nfft, for
         plots).
@@ -728,9 +729,9 @@ class NPRMeasure:
 
         Parameters
         ----------
-        x : NDArray[np.float32]
+        x : npt.NDArray[np.float32]
             Real time-domain capture (length x_len).
-        out : NDArray[np.float32] | None
+        out : npt.NDArray[np.float32] | None
             Destination buffer (length >= max_out).
 
         Returns
@@ -915,8 +916,8 @@ class IMDMeasure:
 
     def spectrum_dbfs(
         self,
-        x: NDArray[np.float32],
-        out: NDArray[np.float32] | None = None,
+        x: npt.NDArray[np.float32],
+        out: npt.NDArray[np.float32] | None = None,
     ) -> NDArray[np.float32]:
         """DC-centred dBFS magnitude spectrum of a capture (length nfft, for
         plots).
@@ -928,9 +929,9 @@ class IMDMeasure:
 
         Parameters
         ----------
-        x : NDArray[np.float32]
+        x : npt.NDArray[np.float32]
             Real time-domain capture (length x_len).
-        out : NDArray[np.float32] | None
+        out : npt.NDArray[np.float32] | None
             Destination buffer (length >= max_out).
 
         Returns

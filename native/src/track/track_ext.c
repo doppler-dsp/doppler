@@ -15,21 +15,24 @@
 #ifndef JM_ARRAY_ARG_DEFINED
 #define JM_ARRAY_ARG_DEFINED
 /* Convert a Python argument for an array parameter to an ndarray of
- * `typenum` meeting `requirements` -- PyArray_FROM_OTF, less the two inputs
- * it reads as text (gh-1700): a str is refused, never parsed as a number,
- * and for a one-byte element type a byte buffer (bytes, bytearray,
- * memoryview) is its bytes, one element per byte. `name` is the parameter,
- * for the message, and `hint` (NULL for none) is appended to a str's
- * refusal. Returns a new reference, or NULL with an exception. */
+ * `typenum` meeting `requirements` -- PyArray_FROM_OTF, except that for a
+ * one-byte element type a byte buffer (bytes, bytearray, memoryview) is its
+ * bytes, one element per byte (gh-1700). `name` is the parameter, for the
+ * message. `hint` is its declared str_hint, or NULL. Declaring one is the
+ * opt-in to refusing text (gh-1824): a str, or a bytes numpy would parse as
+ * a number, and a str's refusal ends with the hint (gh-1756). With NULL,
+ * numpy converts a str as it converts anything else. Returns a new
+ * reference, or NULL with an exception. */
 static inline PyArrayObject *
 jm_array_arg_hint (PyObject *obj, int typenum, int requirements,
                    const char *name, const char *hint)
 {
   int one_byte = typenum == NPY_UINT8 || typenum == NPY_INT8;
-  if (PyUnicode_Check (obj) || (!one_byte && PyBytes_Check (obj)))
+  int text     = PyUnicode_Check (obj) || (!one_byte && PyBytes_Check (obj));
+  if (hint && text)
     {
-      /* `hint` (gh-1756) says where text goes instead: a str only. */
-      int say = hint && PyUnicode_Check (obj);
+      /* The hint says where text goes instead: a str's refusal only. */
+      int say = PyUnicode_Check (obj);
       PyErr_Format (PyExc_TypeError,
                     "%s must be an array of numbers, not %.200s%s%s", name,
                     Py_TYPE (obj)->tp_name, say ? ": " : "", say ? hint : "");
@@ -55,6 +58,12 @@ jm_array_arg_hint (PyObject *obj, int typenum, int requirements,
     }
   return (PyArrayObject *)PyArray_FROM_OTF (obj, typenum, requirements);
 }
+/* `unused` (gh-1747): emitted into every extension translation unit,
+ * including one that takes no array, or calls only jm_array_arg_hint above
+ * -- which needs no mark, since this wrapper always calls it. */
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__ ((unused))
+#endif
 static inline PyArrayObject *
 jm_array_arg (PyObject *obj, int typenum, int requirements, const char *name)
 {

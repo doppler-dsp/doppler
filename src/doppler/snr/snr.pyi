@@ -1,9 +1,10 @@
 # snr/snr.pyi — type stubs for the snr C extension.
 import numpy as np
+import numpy.typing as npt
 from numpy.typing import NDArray
 def snr_data_aided_db(
-    soft: NDArray[np.complex64],
-    sign_bits: NDArray[np.uint8] | bytes | bytearray | memoryview,
+    soft: npt.NDArray[np.complex64],
+    sign_bits: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
 ) -> float:
     """Data-aided Es/N0 (dB): strip the known sign, Es/N0 = a^2 /
     mean(|z-a|^2).
@@ -17,9 +18,9 @@ def snr_data_aided_db(
 
     Parameters
     ----------
-    soft : NDArray[np.complex64]
+    soft : npt.NDArray[np.complex64]
         Despread complex symbols.
-    sign_bits : NDArray[np.uint8] | bytes | bytearray | memoryview
+    sign_bits : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
         Known transmitted bits (0/1; 0 -> +1, 1 -> -1).
 
     Returns
@@ -43,7 +44,7 @@ def snr_data_aided_db(
 
     """
 
-def snr_m2m4_db(x: NDArray[np.complex64]) -> float:
+def snr_m2m4_db(x: npt.NDArray[np.complex64]) -> float:
     """Non-data-aided moment-based (M2M4) Es/N0 (dB) for a constant-modulus
     signal in AWGN.
 
@@ -52,7 +53,7 @@ def snr_m2m4_db(x: NDArray[np.complex64]) -> float:
 
     Parameters
     ----------
-    x : NDArray[np.complex64]
+    x : npt.NDArray[np.complex64]
         Complex baseband samples (post-carrier-lock; residual phase does
         not bias the moment-based estimate).
 
@@ -79,8 +80,8 @@ def snr_m2m4_db(x: NDArray[np.complex64]) -> float:
     """
 
 def snr_data_aided_db_series(
-    soft: NDArray[np.complex64],
-    sign_bits: NDArray[np.uint8] | bytes | bytearray | memoryview,
+    soft: npt.NDArray[np.complex64],
+    sign_bits: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
     window: int,
 ) -> NDArray[np.float64]:
     """Sliding-window data-aided Es/N0 (dB) vs index, for visualizing drift.
@@ -92,9 +93,9 @@ def snr_data_aided_db_series(
 
     Parameters
     ----------
-    soft : NDArray[np.complex64]
+    soft : npt.NDArray[np.complex64]
         Despread complex symbols.
-    sign_bits : NDArray[np.uint8] | bytes | bytearray | memoryview
+    sign_bits : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
         Known transmitted bits (0/1).
     window : int
         Window width in samples.
@@ -106,7 +107,7 @@ def snr_data_aided_db_series(
     """
 
 def snr_m2m4_db_series(
-    x: NDArray[np.complex64],
+    x: npt.NDArray[np.complex64],
     window: int,
 ) -> NDArray[np.float64]:
     """Sliding-window blind (M2M4) Es/N0 (dB) vs index, for visualizing drift.
@@ -117,7 +118,7 @@ def snr_m2m4_db_series(
 
     Parameters
     ----------
-    x : NDArray[np.complex64]
+    x : npt.NDArray[np.complex64]
         Complex baseband samples.
     window : int
         Window width in samples.

@@ -241,7 +241,7 @@ static PyMethodDef UQ15ToF32Obj_methods[] = {
     "\n"
     "Parameters\n"
     "----------\n"
-    "x : NDArray[np.uint16]\n"
+    "x : npt.NDArray[np.uint16]\n"
     "    Input sample.\n"
     "\n"
     "Returns\n"

@@ -1,6 +1,7 @@
 # wfm/wfm.pyi — type stubs for the wfm C extension.
 from typing import Any, final, Literal
 import numpy as np
+import numpy.typing as npt
 from numpy.typing import NDArray
 
 @final
@@ -130,7 +131,7 @@ class PN:
     def generate(
         self,
         count: int = 1,
-        out: NDArray[np.uint8] | None = None,
+        out: npt.NDArray[np.uint8] | None = None,
     ) -> NDArray[np.uint8]:
         """Generate ``n`` chips into ``out`` and advance the LFSR by ``n``
         positions. Each element of ``out`` is 0 or 1. Requesting more than one
@@ -145,7 +146,7 @@ class PN:
             How many output samples to ask for. The call may return fewer; size
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
-        out : NDArray[np.uint8] | None
+        out : npt.NDArray[np.uint8] | None
             Output buffer of at least ``n`` uint8 elements; each element
             receives 0 or 1.
 
@@ -746,7 +747,7 @@ class Gold:
     def generate(
         self,
         count: int = 1,
-        out: NDArray[np.uint8] | None = None,
+        out: npt.NDArray[np.uint8] | None = None,
     ) -> NDArray[np.uint8]:
         """Generate ``n`` chips into ``out`` and advance both LFSRs by ``n``
         positions. Each element of ``out`` is 0 or 1. Requesting more than one
@@ -760,7 +761,7 @@ class Gold:
             How many output samples to ask for. The call may return fewer; size
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
-        out : NDArray[np.uint8] | None
+        out : npt.NDArray[np.uint8] | None
             Output buffer of at least ``n`` uint8 elements; each element
             receives 0 or 1.
 
@@ -937,15 +938,15 @@ class Frame:
 
     def __init__(
         self,
-        preamble: NDArray[np.uint8] | bytes | bytearray | memoryview = ...,
-        sync: NDArray[np.uint8] | bytes | bytearray | memoryview = ...,
-        payload: NDArray[np.uint8] | bytes | bytearray | memoryview = ...,
+        preamble: npt.NDArray[np.uint8] | bytes | bytearray | memoryview = ...,
+        sync: npt.NDArray[np.uint8] | bytes | bytearray | memoryview = ...,
+        payload: npt.NDArray[np.uint8] | bytes | bytearray | memoryview = ...,
         crc: Literal["none", "crc16"] = "none",
     ) -> None: ...
     def bits(
         self,
         count: int = 1,
-        out: NDArray[np.uint8] | None = None,
+        out: npt.NDArray[np.uint8] | None = None,
     ) -> NDArray[np.uint8]:
         """Materialise n consecutive frames, one bit per byte.
 
@@ -961,7 +962,7 @@ class Frame:
             How many output samples to ask for. The call may return fewer; size
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
-        out : NDArray[np.uint8] | None
+        out : npt.NDArray[np.uint8] | None
             Output, one bit per byte.
 
         Returns
@@ -1000,7 +1001,7 @@ class Frame:
 
     def crc_ok(
         self,
-        rx_bits: NDArray[np.uint8] | bytes | bytearray | memoryview,
+        rx_bits: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
     ) -> int:
         """Check one received frame's CRC.
 
@@ -1011,7 +1012,7 @@ class Frame:
 
         Parameters
         ----------
-        rx_bits : NDArray[np.uint8] | bytes | bytearray | memoryview
+        rx_bits : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
             Received bits, one per byte.
 
         Returns
@@ -1040,7 +1041,7 @@ class Frame:
     def add_field(
         self,
         name: str,
-        bits: NDArray[np.uint8] | bytes | bytearray | memoryview,
+        bits: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
     ) -> int:
         """Append one named field to a description (see `FrameDesc`): bits and
         nothing else, one per element, each 0 or 1. Text reaches it through
@@ -1059,7 +1060,7 @@ class Frame:
         name : str
             The field's name, or NULL/"" for anonymous; a name another field
             carries is refused.
-        bits : NDArray[np.uint8] | bytes | bytearray | memoryview
+        bits : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
             The bits, one per element, each 0 or 1.
 
         Returns
@@ -1495,8 +1496,8 @@ class Frame:
 
     def deframe(
         self,
-        rx_bits: NDArray[np.uint8] | bytes | bytearray | memoryview,
-        out: NDArray[np.uint8] | None = None,
+        rx_bits: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
+        out: npt.NDArray[np.uint8] | None = None,
     ) -> NDArray[np.uint8]:
         """Undo the description's stages over a received frame and hand back
         the CORRECTED bits — the layer a receiver stops short of
@@ -1525,10 +1526,10 @@ class Frame:
 
         Parameters
         ----------
-        rx_bits : NDArray[np.uint8] | bytes | bytearray | memoryview
+        rx_bits : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
             Received bits, `frame_bits` of them; treated as a capture and never
             modified.
-        out : NDArray[np.uint8] | None
+        out : npt.NDArray[np.uint8] | None
             Receives the corrected frame.
 
         Returns
@@ -1584,7 +1585,7 @@ class Frame:
 
     def check(
         self,
-        rx_bits: NDArray[np.uint8] | bytes | bytearray | memoryview,
+        rx_bits: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
     ) -> FrameCheck:
         """Undo the description's stages over a received frame and report what
         was found -- the receive mirror of `bits()`, reading the same
@@ -1615,7 +1616,7 @@ class Frame:
 
         Parameters
         ----------
-        rx_bits : NDArray[np.uint8] | bytes | bytearray | memoryview
+        rx_bits : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
             Received bits, one per byte. Copied, not modified.
 
         Returns
@@ -1944,15 +1945,15 @@ class FrameDesc:
 
     def __init__(
         self,
-        preamble: NDArray[np.uint8] | bytes | bytearray | memoryview = ...,
-        sync: NDArray[np.uint8] | bytes | bytearray | memoryview = ...,
-        payload: NDArray[np.uint8] | bytes | bytearray | memoryview = ...,
+        preamble: npt.NDArray[np.uint8] | bytes | bytearray | memoryview = ...,
+        sync: npt.NDArray[np.uint8] | bytes | bytearray | memoryview = ...,
+        payload: npt.NDArray[np.uint8] | bytes | bytearray | memoryview = ...,
         crc: Literal["none", "crc16"] = "none",
     ) -> None: ...
     def bits(
         self,
         count: int = 1,
-        out: NDArray[np.uint8] | None = None,
+        out: npt.NDArray[np.uint8] | None = None,
     ) -> NDArray[np.uint8]:
         """Materialise n consecutive frames, one bit per byte.
 
@@ -1968,7 +1969,7 @@ class FrameDesc:
             How many output samples to ask for. The call may return fewer; size
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
-        out : NDArray[np.uint8] | None
+        out : npt.NDArray[np.uint8] | None
             Output, one bit per byte.
 
         Returns
@@ -2007,7 +2008,7 @@ class FrameDesc:
 
     def crc_ok(
         self,
-        rx_bits: NDArray[np.uint8] | bytes | bytearray | memoryview,
+        rx_bits: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
     ) -> int:
         """Check one received frame's CRC.
 
@@ -2018,7 +2019,7 @@ class FrameDesc:
 
         Parameters
         ----------
-        rx_bits : NDArray[np.uint8] | bytes | bytearray | memoryview
+        rx_bits : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
             Received bits, one per byte.
 
         Returns
@@ -2047,7 +2048,7 @@ class FrameDesc:
     def add_field(
         self,
         name: str,
-        bits: NDArray[np.uint8] | bytes | bytearray | memoryview,
+        bits: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
     ) -> int:
         """Append one named field to a description (see `FrameDesc`): bits and
         nothing else, one per element, each 0 or 1. Text reaches it through
@@ -2066,7 +2067,7 @@ class FrameDesc:
         name : str
             The field's name, or NULL/"" for anonymous; a name another field
             carries is refused.
-        bits : NDArray[np.uint8] | bytes | bytearray | memoryview
+        bits : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
             The bits, one per element, each 0 or 1.
 
         Returns
@@ -2502,8 +2503,8 @@ class FrameDesc:
 
     def deframe(
         self,
-        rx_bits: NDArray[np.uint8] | bytes | bytearray | memoryview,
-        out: NDArray[np.uint8] | None = None,
+        rx_bits: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
+        out: npt.NDArray[np.uint8] | None = None,
     ) -> NDArray[np.uint8]:
         """Undo the description's stages over a received frame and hand back
         the CORRECTED bits — the layer a receiver stops short of
@@ -2532,10 +2533,10 @@ class FrameDesc:
 
         Parameters
         ----------
-        rx_bits : NDArray[np.uint8] | bytes | bytearray | memoryview
+        rx_bits : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
             Received bits, `frame_bits` of them; treated as a capture and never
             modified.
-        out : NDArray[np.uint8] | None
+        out : npt.NDArray[np.uint8] | None
             Receives the corrected frame.
 
         Returns
@@ -2591,7 +2592,7 @@ class FrameDesc:
 
     def check(
         self,
-        rx_bits: NDArray[np.uint8] | bytes | bytearray | memoryview,
+        rx_bits: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
     ) -> FrameCheck:
         """Undo the description's stages over a received frame and report what
         was found -- the receive mirror of `bits()`, reading the same
@@ -2622,7 +2623,7 @@ class FrameDesc:
 
         Parameters
         ----------
-        rx_bits : NDArray[np.uint8] | bytes | bytearray | memoryview
+        rx_bits : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
             Received bits, one per byte. Copied, not modified.
 
         Returns
@@ -2901,12 +2902,12 @@ class FrameDesc:
             Traceback object, or None. Ignored.
         """
 
-def bpsk_map(bits: NDArray[np.uint8] | bytes | bytearray | memoryview) -> NDArray[np.complex64]:
+def bpsk_map(bits: npt.NDArray[np.uint8] | bytes | bytearray | memoryview) -> NDArray[np.complex64]:
     """Map bits {0,1} to BPSK symbols {+1,-1} (cf32).
 
     Parameters
     ----------
-    bits : NDArray[np.uint8] | bytes | bytearray | memoryview
+    bits : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
         Array of uint8 values; only the LSB of each byte is used.
 
     Returns
@@ -2924,12 +2925,12 @@ def bpsk_map(bits: NDArray[np.uint8] | bytes | bytearray | memoryview) -> NDArra
 
     """
 
-def qpsk_map(syms: NDArray[np.uint8] | bytes | bytearray | memoryview) -> NDArray[np.complex64]:
+def qpsk_map(syms: npt.NDArray[np.uint8] | bytes | bytearray | memoryview) -> NDArray[np.complex64]:
     """Map QPSK symbol indices {0,1,2,3} to Gray-coded symbols (cf32).
 
     Parameters
     ----------
-    syms : NDArray[np.uint8] | bytes | bytearray | memoryview
+    syms : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
         Array of uint8 symbol indices; values must be in {0,1,2,3}. Bits
         above position 1 are ignored.
 
@@ -3029,14 +3030,14 @@ def mls_poly(n: int) -> int:
 
     """
 
-def crc16(bits: NDArray[np.uint8] | bytes | bytearray | memoryview) -> int:
+def crc16(bits: npt.NDArray[np.uint8] | bytes | bytearray | memoryview) -> int:
     """CRC-16-CCITT (poly 0x1021, init 0xFFFF) over an unpacked 0/1 bit array,
     MSB-first — the DSSS burst frame trailer wfmgen appends and BurstDemod
     validates.
 
     Parameters
     ----------
-    bits : NDArray[np.uint8] | bytes | bytearray | memoryview
+    bits : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
         Array of 0/1 bit values (one per byte).
 
     Returns
@@ -3054,7 +3055,7 @@ def crc16(bits: NDArray[np.uint8] | bytes | bytearray | memoryview) -> int:
 
     """
 
-def rrc_h(t: NDArray[np.float64], beta: float) -> NDArray[np.float64]:
+def rrc_h(t: npt.NDArray[np.float64], beta: float) -> NDArray[np.float64]:
     """Analytic root-raised-cosine pulse at arbitrary (non-grid) times `t`, in
     symbol periods. The transmit half of a matched-filter pair. Use this, not a
     transcription of the formula, whenever a stimulus needs the pulse off the
@@ -3063,7 +3064,7 @@ def rrc_h(t: NDArray[np.float64], beta: float) -> NDArray[np.float64]:
     filter taps.
     """
 
-def rc_h(t: NDArray[np.float64], beta: float) -> NDArray[np.float64]:
+def rc_h(t: npt.NDArray[np.float64], beta: float) -> NDArray[np.float64]:
     """Analytic full raised-cosine pulse at arbitrary (non-grid) times `t`, in
     symbol periods. Already the Nyquist response a matched TX/RX pair produces,
     so this is what models the matched-filter OUTPUT directly — a
@@ -3119,8 +3120,8 @@ def rrc_taps(beta: float, sps: int, span: int) -> NDArray[np.float32]:
     """
 
 def dsss_spread(
-    syms: NDArray[np.complex64],
-    code: NDArray[np.uint8] | bytes | bytearray | memoryview,
+    syms: npt.NDArray[np.complex64],
+    code: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
     sf: int,
 ) -> NDArray[np.complex64]:
     """Direct-sequence spread syms by the ±1 chip code; yields len(syms)*sf

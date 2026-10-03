@@ -2,6 +2,7 @@
 from typing import final, Literal
 import os
 import numpy as np
+import numpy.typing as npt
 from numpy.typing import NDArray
 
 @final
@@ -91,7 +92,7 @@ class Reader:
     def read(
         self,
         count: int = 1,
-        out: NDArray[np.complex64] | None = None,
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Read up to count samples, returning them as `complex64`.
 
@@ -108,7 +109,7 @@ class Reader:
             How many output samples to ask for. The call may return fewer; size
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             destination, at least max_out samples.
 
         Returns
@@ -166,7 +167,7 @@ class Reader:
     def read_follow(
         self,
         count: int = 1,
-        out: NDArray[np.complex64] | None = None,
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Read whatever whole samples have arrived in a capture that is still
         being written, blocking until at least one does. Unlike `read()`, a
@@ -192,7 +193,7 @@ class Reader:
             How many output samples to ask for. The call may return fewer; size
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Optional pre-allocated output buffer. When given, the result is
             written into it and the returned array is a view of exactly the
             samples produced; when omitted, a fresh array is allocated.

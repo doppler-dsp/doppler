@@ -1,6 +1,7 @@
 # source/source.pyi — type stubs for the source C extension.
 from typing import final
 import numpy as np
+import numpy.typing as npt
 from numpy.typing import NDArray
 
 @final
@@ -55,7 +56,7 @@ class NCO:
     def steps_u32(
         self,
         count: int = 1,
-        out: NDArray[np.uint32] | None = None,
+        out: npt.NDArray[np.uint32] | None = None,
     ) -> NDArray[np.uint32]:
         """Advance n samples; write raw uint32 accumulator values. Each element
         is the phase value BEFORE the increment fires, so `out[0]` is the phase
@@ -69,7 +70,7 @@ class NCO:
             How many output samples to ask for. The call may return fewer; size
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
-        out : NDArray[np.uint32] | None
+        out : npt.NDArray[np.uint32] | None
             Output buffer; must hold at least n uint32_t values.
 
         Returns
@@ -117,7 +118,7 @@ class NCO:
     def steps_u32_scaled(
         self,
         count: int = 1,
-        out: NDArray[np.uint32] | None = None,
+        out: npt.NDArray[np.uint32] | None = None,
     ) -> NDArray[np.uint32]:
         """Advance n samples; values scaled to `[0, nmax)`. Uses the branchless
         fixed-point identity `out[i]` = (uint64_t)phase * nmax >> 32 to map the
@@ -132,7 +133,7 @@ class NCO:
             How many output samples to ask for. The call may return fewer; size
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
-        out : NDArray[np.uint32] | None
+        out : npt.NDArray[np.uint32] | None
             Output buffer; must hold at least n uint32_t values.
 
         Returns
@@ -206,8 +207,8 @@ class NCO:
 
     def steps_u32_ctrl(
         self,
-        ctrl: NDArray[np.float64],
-        out: NDArray[np.uint32] | None = None,
+        ctrl: npt.NDArray[np.float64],
+        out: npt.NDArray[np.uint32] | None = None,
     ) -> NDArray[np.uint32]:
         """Advance ctrl_len samples; raw phase, with a per-sample control
         offset added on top of the fixed phase_inc (not persisted).
@@ -242,7 +243,7 @@ class NCO:
 
         Parameters
         ----------
-        ctrl : NDArray[np.float64]
+        ctrl : npt.NDArray[np.float64]
             Per-sample normalised-frequency control offsets in `double`, any
             sign (the fractional cycle is taken, so it wraps correctly).
             `double` because that is the width the conversion works in and
@@ -250,7 +251,7 @@ class NCO:
             request before the fold ever saw it, so the same commanded rate
             landed on a different phase word depending on which face it entered
             by.
-        out : NDArray[np.uint32] | None
+        out : npt.NDArray[np.uint32] | None
             Output buffer; must hold at least ctrl_len uint32_t values.
 
         Returns
@@ -289,8 +290,8 @@ class NCO:
 
     def steps_u32_scaled_ctrl(
         self,
-        ctrl: NDArray[np.float64],
-        out: NDArray[np.uint32] | None = None,
+        ctrl: npt.NDArray[np.float64],
+        out: npt.NDArray[np.uint32] | None = None,
     ) -> NDArray[np.uint32]:
         """Advance ctrl_len samples; values scaled to `[0, nmax)`, with a
         per-sample control offset added on top of phase_inc.
@@ -305,7 +306,7 @@ class NCO:
 
         Parameters
         ----------
-        ctrl : NDArray[np.float64]
+        ctrl : npt.NDArray[np.float64]
             Per-sample normalised-frequency control offsets in `double`, any
             sign (the fractional cycle is taken, so it wraps correctly).
             `double` because that is the width the conversion works in and
@@ -313,7 +314,7 @@ class NCO:
             request before the fold ever saw it, so the same commanded rate
             landed on a different phase word depending on which face it entered
             by.
-        out : NDArray[np.uint32] | None
+        out : npt.NDArray[np.uint32] | None
             Output buffer; must hold at least ctrl_len uint32_t values.
 
         Returns
@@ -350,7 +351,7 @@ class NCO:
 
     def steps_u32_ovf_ctrl(
         self,
-        ctrl: NDArray[np.float64],
+        ctrl: npt.NDArray[np.float64],
     ) -> tuple[NDArray[np.uint32], NDArray[np.uint8]]:
         """Advance ctrl_len samples; raw phase + per-sample carry, with a
         per-sample control offset added on top of phase_inc.
@@ -372,7 +373,7 @@ class NCO:
 
         Parameters
         ----------
-        ctrl : NDArray[np.float64]
+        ctrl : npt.NDArray[np.float64]
             Per-sample normalised-frequency control offsets in `double`, any
             sign (the fractional cycle is taken, so it wraps correctly).
             `double` because that is the width the conversion works in and
@@ -569,7 +570,7 @@ class LO:
     def steps(
         self,
         count: int = 1,
-        out: NDArray[np.complex64] | None = None,
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Generate n CF32 phasors at the current norm_freq. Each sample is
         cos(θ) + j·sin(θ) where θ is the phase BEFORE the accumulator is
@@ -583,7 +584,7 @@ class LO:
             How many output samples to ask for. The call may return fewer; size
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Output buffer; must hold at least n float _Complex values.
 
         Returns
@@ -616,8 +617,8 @@ class LO:
 
     def steps_ctrl(
         self,
-        ctrl: NDArray[np.float64],
-        out: NDArray[np.complex64] | None = None,
+        ctrl: npt.NDArray[np.float64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Generate CF32 phasors with per-sample FM deviation. For each sample
         i, `ctrl[i]`'s fractional part is converted to a delta phase-increment
@@ -629,12 +630,12 @@ class LO:
 
         Parameters
         ----------
-        ctrl : NDArray[np.float64]
+        ctrl : npt.NDArray[np.float64]
             Per-sample normalised-frequency deviations in `double`. Only the
             fractional part of each element contributes. See
             dp_nco_steps_u32_ctrl() on why the port is `double` and not
             float32.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Output buffer; must hold at least ctrl_len float _Complex values.
 
         Returns
@@ -843,7 +844,7 @@ class AWGN:
     def generate(
         self,
         count: int = 1,
-        out: NDArray[np.complex64] | None = None,
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Generate n complex CF32 AWGN samples. Uses Box-Muller with
         xoshiro256++ to fill `out` with independent complex Gaussians: Re and
@@ -857,7 +858,7 @@ class AWGN:
             How many output samples to ask for. The call may return fewer; size
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Output buffer; must hold at least n float _Complex values.
 
         Returns

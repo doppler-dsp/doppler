@@ -1,6 +1,7 @@
 # accumulator/accumulator.pyi — type stubs for the accumulator C extension.
 from typing import final, Literal
 import numpy as np
+import numpy.typing as npt
 from numpy.typing import NDArray
 
 @final
@@ -69,7 +70,7 @@ class AccF32:
 
         """
 
-    def steps(self, x: NDArray[np.float32]) -> None:
+    def steps(self, x: npt.NDArray[np.float32]) -> None:
         """Add all samples in ``input`` to the running sum. Equivalent to
         calling ``dp_acc_f32_step`` for each element, but SIMD-vectorised on
         platforms that provide it (AVX-512 / AVX2 / SSE2). The loop uses
@@ -78,7 +79,7 @@ class AccF32:
 
         Parameters
         ----------
-        x : NDArray[np.float32]
+        x : npt.NDArray[np.float32]
             Input.
 
         Examples
@@ -138,7 +139,11 @@ class AccF32:
 
         """
 
-    def madd(self, x: NDArray[np.float32], h: NDArray[np.float32]) -> None:
+    def madd(
+        self,
+        x: npt.NDArray[np.float32],
+        h: npt.NDArray[np.float32],
+    ) -> None:
         """Dot-product accumulate: ``acc += sum(x[i] * h[i])`` for ``i`` in ``0
         .. min(x_len, h_len) - 1``. The shorter of the two arrays limits the
         iteration count; no out-of-bounds access occurs. Typical use: apply a
@@ -147,9 +152,9 @@ class AccF32:
 
         Parameters
         ----------
-        x : NDArray[np.float32]
+        x : npt.NDArray[np.float32]
             Signal samples (float32 array).
-        h : NDArray[np.float32]
+        h : npt.NDArray[np.float32]
             Coefficient / weight array (float32 array).
 
         Examples
@@ -165,7 +170,7 @@ class AccF32:
 
         """
 
-    def add2d(self, x: NDArray[np.float32]) -> None:
+    def add2d(self, x: npt.NDArray[np.float32]) -> None:
         """Sum all elements of a (logically) 2-D float array into the
         accumulator. The array is treated as a flat C-order buffer of ``x_len``
         floats regardless of the original shape; the caller is responsible for
@@ -173,7 +178,7 @@ class AccF32:
 
         Parameters
         ----------
-        x : NDArray[np.float32]
+        x : npt.NDArray[np.float32]
             Input array (float32, any shape — passed as flat buffer).
 
         Examples
@@ -188,7 +193,11 @@ class AccF32:
 
         """
 
-    def madd2d(self, x: NDArray[np.float32], h: NDArray[np.float32]) -> None:
+    def madd2d(
+        self,
+        x: npt.NDArray[np.float32],
+        h: npt.NDArray[np.float32],
+    ) -> None:
         """Dot-product accumulate over a flat 2-D buffer: ``acc += sum(x[i] *
         h[i])`` for ``i`` in ``0 .. min(x_len, h_len) - 1``. Combines ``add2d``
         and ``madd`` semantics — a 2-D signal array is weighted element-wise by
@@ -197,9 +206,9 @@ class AccF32:
 
         Parameters
         ----------
-        x : NDArray[np.float32]
+        x : npt.NDArray[np.float32]
             Signal samples (float32, flat buffer of the 2-D array).
-        h : NDArray[np.float32]
+        h : npt.NDArray[np.float32]
             Coefficient / weight array (float32).
 
         Examples
@@ -426,14 +435,14 @@ class AccCf64:
 
         """
 
-    def steps(self, x: NDArray[np.complex128]) -> None:
+    def steps(self, x: npt.NDArray[np.complex128]) -> None:
         """Add all samples in ``input`` to the running sum. Equivalent to
         calling ``dp_acc_cf64_step`` for each element; iterates
         element-by-element over double-precision complex samples.
 
         Parameters
         ----------
-        x : NDArray[np.complex128]
+        x : npt.NDArray[np.complex128]
             Input.
 
         Examples
@@ -493,7 +502,11 @@ class AccCf64:
 
         """
 
-    def madd(self, x: NDArray[np.complex128], h: NDArray[np.float32]) -> None:
+    def madd(
+        self,
+        x: npt.NDArray[np.complex128],
+        h: npt.NDArray[np.float32],
+    ) -> None:
         """Dot-product accumulate with complex signal and float weights: ``acc
         += sum(x[i] * h[i])`` for ``i`` in ``0 .. min(x_len, h_len) - 1``. The
         signal array ``x`` is double-precision complex; the coefficient array
@@ -502,9 +515,9 @@ class AccCf64:
 
         Parameters
         ----------
-        x : NDArray[np.complex128]
+        x : npt.NDArray[np.complex128]
             Complex signal samples (complex128 array).
-        h : NDArray[np.float32]
+        h : npt.NDArray[np.float32]
             Real coefficient / weight array (float32 array).
 
         Examples
@@ -520,7 +533,7 @@ class AccCf64:
 
         """
 
-    def add2d(self, x: NDArray[np.complex128]) -> None:
+    def add2d(self, x: npt.NDArray[np.complex128]) -> None:
         """Sum all elements of a (logically) 2-D complex array into the
         accumulator. The array is treated as a flat C-order buffer of ``x_len``
         complex128 samples regardless of the original shape; the caller is
@@ -528,7 +541,7 @@ class AccCf64:
 
         Parameters
         ----------
-        x : NDArray[np.complex128]
+        x : npt.NDArray[np.complex128]
             Input array (complex128, any shape — passed as flat buffer).
 
         Examples
@@ -545,8 +558,8 @@ class AccCf64:
 
     def madd2d(
         self,
-        x: NDArray[np.complex128],
-        h: NDArray[np.float32],
+        x: npt.NDArray[np.complex128],
+        h: npt.NDArray[np.float32],
     ) -> None:
         """Dot-product accumulate over a flat 2-D complex buffer: ``acc +=
         sum(x[i] * h[i])`` for ``i`` in ``0 .. min(x_len, h_len) - 1``.
@@ -556,9 +569,9 @@ class AccCf64:
 
         Parameters
         ----------
-        x : NDArray[np.complex128]
+        x : npt.NDArray[np.complex128]
             Complex signal samples (complex128, flat buffer).
-        h : NDArray[np.float32]
+        h : npt.NDArray[np.float32]
             Real coefficient / weight array (float32).
 
         Examples
@@ -745,12 +758,12 @@ class AccTrace:
         mode: Literal["mean", "exp", "maxhold", "minhold"] = "mean",
         alpha: float = 0.1,
     ) -> None: ...
-    def accumulate(self, p: NDArray[np.float32]) -> None:
+    def accumulate(self, p: npt.NDArray[np.float32]) -> None:
         """Fold one length-n frame into the running trace.
 
         Parameters
         ----------
-        p : NDArray[np.float32]
+        p : npt.NDArray[np.float32]
             Input frame (float32).
 
         Examples
@@ -783,7 +796,7 @@ class AccTrace:
     def value(
         self,
         count: int = 1,
-        out: NDArray[np.float32] | None = None,
+        out: npt.NDArray[np.float32] | None = None,
     ) -> NDArray[np.float32]:
         """Copy the current averaged trace (None before any accumulate).
 
@@ -793,7 +806,7 @@ class AccTrace:
             How many output samples to ask for. The call may return fewer; size
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
-        out : NDArray[np.float32] | None
+        out : npt.NDArray[np.float32] | None
             Destination, at least n float32 elements.
 
         Returns

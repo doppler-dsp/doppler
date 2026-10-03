@@ -1,6 +1,7 @@
 # arith/arith.pyi — type stubs for the arith C extension.
 from typing import final
 import numpy as np
+import numpy.typing as npt
 from numpy.typing import NDArray
 
 @final
@@ -63,14 +64,14 @@ class AccQ15:
 
         """
 
-    def steps(self, x: NDArray[np.int16]) -> None:
+    def steps(self, x: npt.NDArray[np.int16]) -> None:
         """Accumulate a contiguous block of Q15 samples. Equivalent to calling
         step() n times but faster for large arrays because the loop can be
         auto-vectorised by the compiler.
 
         Parameters
         ----------
-        x : NDArray[np.int16]
+        x : npt.NDArray[np.int16]
             Input.
 
         Examples
@@ -124,15 +125,15 @@ class AccQ15:
 
         """
 
-    def madd(self, a: NDArray[np.int16], b: NDArray[np.int16]) -> None:
+    def madd(self, a: npt.NDArray[np.int16], b: npt.NDArray[np.int16]) -> None:
         """Multiply-accumulate: acc += sum(a[i] * b[i]) for i in [0, len(a)).
         Uses AVX2 when available.
 
         Parameters
         ----------
-        a : NDArray[np.int16]
+        a : npt.NDArray[np.int16]
             First input array (int16_t).
-        b : NDArray[np.int16]
+        b : npt.NDArray[np.int16]
             Second input array (int16_t), same length as a.
 
         Examples
@@ -349,14 +350,17 @@ class AccQ8:
 
         """
 
-    def steps(self, x: NDArray[np.int8]) -> None:
+    def steps(
+        self,
+        x: npt.NDArray[np.int8] | bytes | bytearray | memoryview,
+    ) -> None:
         """Accumulate a contiguous block of Q8 samples. Equivalent to calling
         step() n times; the single loop is more amenable to auto-vectorisation
         than repeated method calls.
 
         Parameters
         ----------
-        x : NDArray[np.int8]
+        x : npt.NDArray[np.int8] | bytes | bytearray | memoryview
             Input.
 
         Examples
@@ -412,16 +416,16 @@ class AccQ8:
 
     def madd(
         self,
-        a: NDArray[np.int8] | bytes | bytearray | memoryview,
-        b: NDArray[np.int8] | bytes | bytearray | memoryview,
+        a: npt.NDArray[np.int8] | bytes | bytearray | memoryview,
+        b: npt.NDArray[np.int8] | bytes | bytearray | memoryview,
     ) -> None:
         """Multiply-accumulate: acc += sum(a[i] * b[i]) for i in [0, len(a)).
 
         Parameters
         ----------
-        a : NDArray[np.int8] | bytes | bytearray | memoryview
+        a : npt.NDArray[np.int8] | bytes | bytearray | memoryview
             First input array (int8_t).
-        b : NDArray[np.int8] | bytes | bytearray | memoryview
+        b : npt.NDArray[np.int8] | bytes | bytearray | memoryview
             Second input array (int8_t), same length as a.
 
         Examples
@@ -574,14 +578,17 @@ class AccQ8:
             Traceback object, or None. Ignored.
         """
 
-def add_q15(a: NDArray[np.int16], b: NDArray[np.int16]) -> NDArray[np.int16]:
+def add_q15(
+    a: npt.NDArray[np.int16],
+    b: npt.NDArray[np.int16],
+) -> NDArray[np.int16]:
     """Elementwise saturating two's complement add of two Q15 arrays.
 
     Parameters
     ----------
-    a : NDArray[np.int16]
+    a : npt.NDArray[np.int16]
         First input array (int16_t).
-    b : NDArray[np.int16]
+    b : npt.NDArray[np.int16]
         Second input array (int16_t), same length as a.
 
     Returns
@@ -600,14 +607,17 @@ def add_q15(a: NDArray[np.int16], b: NDArray[np.int16]) -> NDArray[np.int16]:
 
     """
 
-def sub_q15(a: NDArray[np.int16], b: NDArray[np.int16]) -> NDArray[np.int16]:
+def sub_q15(
+    a: npt.NDArray[np.int16],
+    b: npt.NDArray[np.int16],
+) -> NDArray[np.int16]:
     """Elementwise saturating two's complement subtract of two Q15 arrays.
 
     Parameters
     ----------
-    a : NDArray[np.int16]
+    a : npt.NDArray[np.int16]
         Minuend array (int16_t).
-    b : NDArray[np.int16]
+    b : npt.NDArray[np.int16]
         Subtrahend array (int16_t), same length as a.
 
     Returns
@@ -626,15 +636,18 @@ def sub_q15(a: NDArray[np.int16], b: NDArray[np.int16]) -> NDArray[np.int16]:
 
     """
 
-def mul_q15(a: NDArray[np.int16], b: NDArray[np.int16]) -> NDArray[np.int16]:
+def mul_q15(
+    a: npt.NDArray[np.int16],
+    b: npt.NDArray[np.int16],
+) -> NDArray[np.int16]:
     """Elementwise Q15 multiply with round-half-up: out[i] = sat16((a[i]*b[i] +
     16384) >> 15).
 
     Parameters
     ----------
-    a : NDArray[np.int16]
+    a : npt.NDArray[np.int16]
         First input array (int16_t).
-    b : NDArray[np.int16]
+    b : npt.NDArray[np.int16]
         Second input array (int16_t), same length as a.
 
     Returns
@@ -653,15 +666,15 @@ def mul_q15(a: NDArray[np.int16], b: NDArray[np.int16]) -> NDArray[np.int16]:
 
     """
 
-def dot_q15(a: NDArray[np.int16], b: NDArray[np.int16]) -> int:
+def dot_q15(a: npt.NDArray[np.int16], b: npt.NDArray[np.int16]) -> int:
     """Inner product of two Q15 arrays. Returns the raw Q30 accumulation as
     int64_t. Shift right 15 to get a Q15 scalar.
 
     Parameters
     ----------
-    a : NDArray[np.int16]
+    a : npt.NDArray[np.int16]
         First input array (int16_t).
-    b : NDArray[np.int16]
+    b : npt.NDArray[np.int16]
         Second input array (int16_t), same length as a.
 
     Returns
@@ -680,13 +693,13 @@ def dot_q15(a: NDArray[np.int16], b: NDArray[np.int16]) -> int:
 
     """
 
-def shl_q15(a: NDArray[np.int16], n: int) -> NDArray[np.int16]:
+def shl_q15(a: npt.NDArray[np.int16], n: int) -> NDArray[np.int16]:
     """Elementwise arithmetic left shift of a Q15 array with saturation.
     Equivalent to multiplying by 2^n in fixed-point.
 
     Parameters
     ----------
-    a : NDArray[np.int16]
+    a : npt.NDArray[np.int16]
         Input array (int16_t).
     n : int
         Shift count (non-negative integer).
@@ -706,13 +719,13 @@ def shl_q15(a: NDArray[np.int16], n: int) -> NDArray[np.int16]:
 
     """
 
-def shr_q15(a: NDArray[np.int16], n: int) -> NDArray[np.int16]:
+def shr_q15(a: npt.NDArray[np.int16], n: int) -> NDArray[np.int16]:
     """Elementwise arithmetic right shift of a Q15 array with round-half-up.
     Equivalent to dividing by 2^n.
 
     Parameters
     ----------
-    a : NDArray[np.int16]
+    a : npt.NDArray[np.int16]
         Input array (int16_t).
     n : int
         Shift count (non-negative integer).
@@ -733,16 +746,16 @@ def shr_q15(a: NDArray[np.int16], n: int) -> NDArray[np.int16]:
     """
 
 def add_q8(
-    a: NDArray[np.int8] | bytes | bytearray | memoryview,
-    b: NDArray[np.int8] | bytes | bytearray | memoryview,
+    a: npt.NDArray[np.int8] | bytes | bytearray | memoryview,
+    b: npt.NDArray[np.int8] | bytes | bytearray | memoryview,
 ) -> NDArray[np.int8]:
     """Elementwise saturating two's complement add of two Q8 arrays.
 
     Parameters
     ----------
-    a : NDArray[np.int8] | bytes | bytearray | memoryview
+    a : npt.NDArray[np.int8] | bytes | bytearray | memoryview
         First input array (int8_t).
-    b : NDArray[np.int8] | bytes | bytearray | memoryview
+    b : npt.NDArray[np.int8] | bytes | bytearray | memoryview
         Second input array (int8_t), same length as a.
 
     Returns
@@ -762,16 +775,16 @@ def add_q8(
     """
 
 def sub_q8(
-    a: NDArray[np.int8] | bytes | bytearray | memoryview,
-    b: NDArray[np.int8] | bytes | bytearray | memoryview,
+    a: npt.NDArray[np.int8] | bytes | bytearray | memoryview,
+    b: npt.NDArray[np.int8] | bytes | bytearray | memoryview,
 ) -> NDArray[np.int8]:
     """Elementwise saturating two's complement subtract of two Q8 arrays.
 
     Parameters
     ----------
-    a : NDArray[np.int8] | bytes | bytearray | memoryview
+    a : npt.NDArray[np.int8] | bytes | bytearray | memoryview
         Minuend array (int8_t).
-    b : NDArray[np.int8] | bytes | bytearray | memoryview
+    b : npt.NDArray[np.int8] | bytes | bytearray | memoryview
         Subtrahend array (int8_t), same length as a.
 
     Returns
@@ -791,17 +804,17 @@ def sub_q8(
     """
 
 def mul_q8(
-    a: NDArray[np.int8] | bytes | bytearray | memoryview,
-    b: NDArray[np.int8] | bytes | bytearray | memoryview,
+    a: npt.NDArray[np.int8] | bytes | bytearray | memoryview,
+    b: npt.NDArray[np.int8] | bytes | bytearray | memoryview,
 ) -> NDArray[np.int8]:
     """Elementwise Q8 multiply with round-half-up: out[i] = sat8((a[i]*b[i] +
     64) >> 7).
 
     Parameters
     ----------
-    a : NDArray[np.int8] | bytes | bytearray | memoryview
+    a : npt.NDArray[np.int8] | bytes | bytearray | memoryview
         First input array (int8_t).
-    b : NDArray[np.int8] | bytes | bytearray | memoryview
+    b : npt.NDArray[np.int8] | bytes | bytearray | memoryview
         Second input array (int8_t), same length as a.
 
     Returns
@@ -821,17 +834,17 @@ def mul_q8(
     """
 
 def dot_q8(
-    a: NDArray[np.int8] | bytes | bytearray | memoryview,
-    b: NDArray[np.int8] | bytes | bytearray | memoryview,
+    a: npt.NDArray[np.int8] | bytes | bytearray | memoryview,
+    b: npt.NDArray[np.int8] | bytes | bytearray | memoryview,
 ) -> int:
     """Inner product of two Q8 arrays. Returns the raw Q14 accumulation as
     int32_t.
 
     Parameters
     ----------
-    a : NDArray[np.int8] | bytes | bytearray | memoryview
+    a : npt.NDArray[np.int8] | bytes | bytearray | memoryview
         First input array (int8_t).
-    b : NDArray[np.int8] | bytes | bytearray | memoryview
+    b : npt.NDArray[np.int8] | bytes | bytearray | memoryview
         Second input array (int8_t), same length as a.
 
     Returns
@@ -851,14 +864,14 @@ def dot_q8(
     """
 
 def shl_q8(
-    a: NDArray[np.int8] | bytes | bytearray | memoryview,
+    a: npt.NDArray[np.int8] | bytes | bytearray | memoryview,
     n: int,
 ) -> NDArray[np.int8]:
     """Elementwise arithmetic left shift of a Q8 array with saturation.
 
     Parameters
     ----------
-    a : NDArray[np.int8] | bytes | bytearray | memoryview
+    a : npt.NDArray[np.int8] | bytes | bytearray | memoryview
         Input array (int8_t).
     n : int
         Shift count (non-negative integer).
@@ -879,14 +892,14 @@ def shl_q8(
     """
 
 def shr_q8(
-    a: NDArray[np.int8] | bytes | bytearray | memoryview,
+    a: npt.NDArray[np.int8] | bytes | bytearray | memoryview,
     n: int,
 ) -> NDArray[np.int8]:
     """Elementwise arithmetic right shift of a Q8 array with round-half-up.
 
     Parameters
     ----------
-    a : NDArray[np.int8] | bytes | bytearray | memoryview
+    a : npt.NDArray[np.int8] | bytes | bytearray | memoryview
         Input array (int8_t).
     n : int
         Shift count (non-negative integer).
@@ -906,13 +919,13 @@ def shr_q8(
 
     """
 
-def shl_i64(a: NDArray[np.int64], n: int) -> NDArray[np.int64]:
+def shl_i64(a: npt.NDArray[np.int64], n: int) -> NDArray[np.int64]:
     """Elementwise logical left shift of an int64_t array. No saturation
     (caller ensures no overflow).
 
     Parameters
     ----------
-    a : NDArray[np.int64]
+    a : npt.NDArray[np.int64]
         Input array (int64_t).
     n : int
         Shift count (non-negative integer; >= 63 yields 0).
@@ -932,13 +945,13 @@ def shl_i64(a: NDArray[np.int64], n: int) -> NDArray[np.int64]:
 
     """
 
-def shr_i64(a: NDArray[np.int64], n: int) -> NDArray[np.int64]:
+def shr_i64(a: npt.NDArray[np.int64], n: int) -> NDArray[np.int64]:
     """Elementwise arithmetic right shift of an int64_t array with
     round-half-up. Useful for normalising dot_q15 Q30 results back to Q15.
 
     Parameters
     ----------
-    a : NDArray[np.int64]
+    a : npt.NDArray[np.int64]
         Input array (int64_t).
     n : int
         Shift count (non-negative integer; >= 63 is clamped to 63).

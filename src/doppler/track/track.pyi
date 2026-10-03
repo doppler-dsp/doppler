@@ -1,6 +1,7 @@
 # track/track.pyi — type stubs for the track C extension.
 from typing import final, Literal
 import numpy as np
+import numpy.typing as npt
 from numpy.typing import NDArray
 
 @final
@@ -77,8 +78,8 @@ class LoopFilter:
 
     def steps(
         self,
-        x: NDArray[np.float64],
-        out: NDArray[np.float64] | None = None,
+        x: npt.NDArray[np.float64],
+        out: npt.NDArray[np.float64] | None = None,
     ) -> NDArray[np.float64]:
         """Filter a whole block of loop errors, returning the control value for
         each update.
@@ -92,7 +93,7 @@ class LoopFilter:
 
         Parameters
         ----------
-        x : NDArray[np.float64]
+        x : npt.NDArray[np.float64]
             Loop-error array, one discriminator sample per update.
 
         Returns
@@ -334,8 +335,8 @@ class Costas:
     ) -> None: ...
     def steps(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """De-rotate a cf32 block with the integer-NCO carrier, coherently
         integrate over each tsamps-sample symbol, run the decision-directed
@@ -352,9 +353,9 @@ class Costas:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Input samples, one complex baseband sample each.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Prompt-symbol output buffer.
 
         Returns
@@ -736,7 +737,7 @@ class Dll:
 
     def __init__(
         self,
-        code: NDArray[np.uint8] | bytes | bytearray | memoryview,
+        code: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
         sps: int = 2,
         init_chip: float = 0.0,
         bn: float = 0.01,
@@ -746,8 +747,8 @@ class Dll:
     ) -> None: ...
     def steps(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Correlate a cf32 block against the local code with early/prompt/late
         taps and steer the code NCO each code period on the non-coherent
@@ -779,9 +780,9 @@ class Dll:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Carrier-wiped input samples (one contiguous block).
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Output buffer for the emitted prompt symbols.
 
         Returns
@@ -1550,8 +1551,8 @@ class SymbolSync:
     ) -> None: ...
     def steps(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Recover symbol timing from an oversampled cf32 baseband block: a
         timing-error detector (Gardner or DTTL, see the `ted` param) drives an
@@ -1570,9 +1571,9 @@ class SymbolSync:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Oversampled input samples (~sps samples per symbol).
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Recovered symbol-rate samples.
 
         Returns
@@ -2054,8 +2055,8 @@ class RateSync:
     ) -> None: ...
     def steps(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Recover symbols from an oversampled cf32 baseband block. The owned
         RateConverter's terminal stage IS the matched filter, and the polyphase
@@ -2073,9 +2074,9 @@ class RateSync:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Input samples.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Recovered symbols.
 
         Returns
@@ -2472,8 +2473,8 @@ class CarrierMpsk:
     ) -> None: ...
     def steps(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """De-rotate a cf32 block with the integer-NCO carrier, coherently
         integrate over each tsamps-sample symbol, run the decision-directed
@@ -2502,9 +2503,9 @@ class CarrierMpsk:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Input block, one complex baseband sample per element.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Prompt output buffer written by the binding.
 
         Returns
@@ -2789,8 +2790,8 @@ class CarrierNda:
     ) -> None: ...
     def steps(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """De-rotate a cf32 block with the integer-NCO carrier and return the
         de-rotated samples (one per input sample). Internally the loop runs a
@@ -2814,9 +2815,9 @@ class CarrierNda:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Input samples (average power at or below unity).
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             De-rotated samples, one per input.
 
         Returns
@@ -3387,8 +3388,8 @@ class MpskReceiver:
 
     def steps(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Demodulate a cf32 block and return the recovered M-PSK symbols (one
         cf32 per recovered symbol period, ~ len(x)/sps outputs). Per sample the
@@ -3414,9 +3415,9 @@ class MpskReceiver:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Input cf32 samples.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Output symbols; caller provides max_out capacity.
 
         Returns
@@ -3457,8 +3458,8 @@ class MpskReceiver:
 
     def bits(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.uint8] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.uint8] | None = None,
     ) -> NDArray[np.uint8]:
         """Demodulate a cf32 block and return hard Gray-coded bits (log2(m)
         bytes of 0/1 per recovered symbol, LSB-first). Coherent by default; if
@@ -3476,9 +3477,9 @@ class MpskReceiver:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Input cf32 samples.
-        out : NDArray[np.uint8] | None
+        out : npt.NDArray[np.uint8] | None
             Output bytes (0/1); caller provides max_out capacity.
 
         Returns
@@ -3961,8 +3962,8 @@ class BpskReceiver:
 
     def steps(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Demodulate a cf32 block and return the recovered M-PSK symbols (one
         cf32 per recovered symbol period, ~ len(x)/sps outputs). Per sample the
@@ -3988,9 +3989,9 @@ class BpskReceiver:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Input cf32 samples.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Output symbols; caller provides max_out capacity.
 
         Returns
@@ -4031,8 +4032,8 @@ class BpskReceiver:
 
     def bits(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.uint8] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.uint8] | None = None,
     ) -> NDArray[np.uint8]:
         """Demodulate a cf32 block and return hard Gray-coded bits (log2(m)
         bytes of 0/1 per recovered symbol, LSB-first). Coherent by default; if
@@ -4050,9 +4051,9 @@ class BpskReceiver:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Input cf32 samples.
-        out : NDArray[np.uint8] | None
+        out : npt.NDArray[np.uint8] | None
             Output bytes (0/1); caller provides max_out capacity.
 
         Returns
@@ -4650,8 +4651,8 @@ class MpskReceiverR:
 
     def steps(
         self,
-        x: NDArray[np.float32],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.float32],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Demodulate a real f32 block and return the recovered M-PSK symbols
         (one cf32 per recovered symbol period, ~ len(x)/sps outputs). Per
@@ -4679,9 +4680,9 @@ class MpskReceiverR:
 
         Parameters
         ----------
-        x : NDArray[np.float32]
+        x : npt.NDArray[np.float32]
             Real f32 input samples.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Output symbols; caller provides max_out capacity.
 
         Returns
@@ -4724,8 +4725,8 @@ class MpskReceiverR:
 
     def bits(
         self,
-        x: NDArray[np.float32],
-        out: NDArray[np.uint8] | None = None,
+        x: npt.NDArray[np.float32],
+        out: npt.NDArray[np.uint8] | None = None,
     ) -> NDArray[np.uint8]:
         """Demodulate a real f32 block and return hard Gray-coded bits (log2(m)
         bytes of 0/1 per recovered symbol, LSB-first). Coherent by default; if
@@ -4739,9 +4740,9 @@ class MpskReceiverR:
 
         Parameters
         ----------
-        x : NDArray[np.float32]
+        x : npt.NDArray[np.float32]
             Real f32 input samples.
-        out : NDArray[np.uint8] | None
+        out : npt.NDArray[np.uint8] | None
             Output bytes (0/1); caller provides max_out capacity.
 
         Returns

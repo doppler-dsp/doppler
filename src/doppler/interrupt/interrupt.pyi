@@ -1,7 +1,7 @@
 # interrupt/interrupt.pyi — type stubs for the interrupt C extension.
 from typing import final
 import numpy as np
-from numpy.typing import NDArray
+import numpy.typing as npt
 
 @final
 class Interrupt:
@@ -33,7 +33,7 @@ class Interrupt:
 
     def __init__(
         self,
-        signals: NDArray[np.int32],
+        signals: npt.NDArray[np.int32],
         latency_ms: int = 0,
     ) -> None: ...
     def interrupt(self) -> None:

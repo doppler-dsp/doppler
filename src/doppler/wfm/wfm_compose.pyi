@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Iterator
 from typing_extensions import disjoint_base
 import numpy as np
+import numpy.typing as npt
 from numpy.typing import NDArray
 from doppler.wfm import FrameDesc
 
@@ -126,7 +127,7 @@ class Synth:
     rrc_span : int, default 8
         RRC filter support in symbols when pulse=rrc, ONE-SIDED: the filter has
         2*rrc_span*sps + 1 taps, unit energy (sum of h^2 = 1).
-    symbols : NDArray[np.complex64] | None, default None
+    symbols : npt.NDArray[np.complex64] | None, default None
         For type=symbols: a complex constellation stream. Each element is the
         output point itself, oversampled by sps, cycled, and RRC-shaped with
         pulse=rrc, which generalises any modulation (pi/4-QPSK, QAM, ...).
@@ -242,7 +243,7 @@ class Synth:
         pulse: str = ...,
         rrc_beta: float = ...,
         rrc_span: int = ...,
-        symbols: NDArray[np.complex64] | None = ...,
+        symbols: npt.NDArray[np.complex64] | None = ...,
         acq_code: bytes | None = ...,
         acq_reps: int = ...,
         data_code: bytes | None = ...,
@@ -278,7 +279,7 @@ class Synth:
     pulse: str
     rrc_beta: float
     rrc_span: int
-    symbols: NDArray[np.complex64] | None
+    symbols: npt.NDArray[np.complex64] | None
     acq_code: bytes | None
     acq_reps: int
     data_code: bytes | None
@@ -465,7 +466,7 @@ class Segment:
     rrc_span : int, default 8
         RRC filter support in symbols when pulse=rrc, ONE-SIDED: the filter has
         2*rrc_span*sps + 1 taps, unit energy (sum of h^2 = 1).
-    symbols : NDArray[np.complex64] | None, default None
+    symbols : npt.NDArray[np.complex64] | None, default None
         For type=symbols: a complex constellation stream. Each element is the
         output point itself, oversampled by sps, cycled, and RRC-shaped with
         pulse=rrc, which generalises any modulation (pi/4-QPSK, QAM, ...).
@@ -612,7 +613,7 @@ class Segment:
     pulse: str
     rrc_beta: float
     rrc_span: int
-    symbols: NDArray[np.complex64] | None
+    symbols: npt.NDArray[np.complex64] | None
     acq_code: bytes | None
     acq_reps: int
     data_code: bytes | None
@@ -648,7 +649,7 @@ class Segment:
         pulse: str = ...,
         rrc_beta: float = ...,
         rrc_span: int = ...,
-        symbols: NDArray[np.complex64] | None = ...,
+        symbols: npt.NDArray[np.complex64] | None = ...,
         acq_code: bytes | None = ...,
         acq_reps: int = ...,
         data_code: bytes | None = ...,

@@ -1,6 +1,7 @@
 # spectral/spectral.pyi — type stubs for the spectral C extension.
 from typing import Any, final, Literal
 import numpy as np
+import numpy.typing as npt
 from numpy.typing import NDArray
 
 @final
@@ -46,8 +47,8 @@ class FFT:
 
     def execute_cf64(
         self,
-        x: NDArray[np.complex128],
-        out: NDArray[np.complex128] | None = None,
+        x: npt.NDArray[np.complex128],
+        out: npt.NDArray[np.complex128] | None = None,
     ) -> NDArray[np.complex128]:
         """Compute an out-of-place 1-D DFT on a double-precision complex input.
         The output is written to a fresh caller-supplied buffer; in and out
@@ -57,9 +58,9 @@ class FFT:
 
         Parameters
         ----------
-        x : NDArray[np.complex128]
+        x : npt.NDArray[np.complex128]
             Input.
-        out : NDArray[np.complex128] | None
+        out : npt.NDArray[np.complex128] | None
             Output buffer of length >= state->n (CF64, caller-allocated).
 
         Returns
@@ -89,8 +90,8 @@ class FFT:
 
     def execute_cf32(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Compute an out-of-place 1-D DFT on a single-precision complex input.
         Identical to dp_fft_execute_cf64() but operates on float _Complex
@@ -100,9 +101,9 @@ class FFT:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Input.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Output buffer of length >= state->n (CF32, caller-allocated).
 
         Returns
@@ -132,8 +133,8 @@ class FFT:
 
     def execute_inplace_cf64(
         self,
-        x: NDArray[np.complex128],
-        out: NDArray[np.complex128] | None = None,
+        x: npt.NDArray[np.complex128],
+        out: npt.NDArray[np.complex128] | None = None,
     ) -> NDArray[np.complex128]:
         """Copy in into out, then transform out in-place (CF64). The copy step
         lets callers preserve their input while keeping the output buffer hot
@@ -143,9 +144,9 @@ class FFT:
 
         Parameters
         ----------
-        x : NDArray[np.complex128]
+        x : npt.NDArray[np.complex128]
             Input.
-        out : NDArray[np.complex128] | None
+        out : npt.NDArray[np.complex128] | None
             Destination buffer, length >= state->n; must not alias in.
 
         Returns
@@ -175,8 +176,8 @@ class FFT:
 
     def execute_inplace_cf32(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Copy in into out, then transform out in-place (CF32).
         Single-precision variant of dp_fft_execute_inplace_cf64(). Copies
@@ -185,9 +186,9 @@ class FFT:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Input.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Destination buffer, length >= state->n; must not alias in.
 
         Returns
@@ -345,8 +346,8 @@ class FFT2D:
 
     def execute_cf64(
         self,
-        x: NDArray[np.complex128],
-        out: NDArray[np.complex128] | None = None,
+        x: npt.NDArray[np.complex128],
+        out: npt.NDArray[np.complex128] | None = None,
     ) -> NDArray[np.complex128]:
         """Compute an out-of-place 2-D DFT on a double-precision complex grid.
         in is a flat row-major CF64 array of length ny*nx. The output is
@@ -355,9 +356,9 @@ class FFT2D:
 
         Parameters
         ----------
-        x : NDArray[np.complex128]
+        x : npt.NDArray[np.complex128]
             Input.
-        out : NDArray[np.complex128] | None
+        out : npt.NDArray[np.complex128] | None
             Flat row-major CF64 output, length >= ny*nx (caller-allocated).
 
         Returns
@@ -390,8 +391,8 @@ class FFT2D:
 
     def execute_cf32(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Compute an out-of-place 2-D DFT on a single-precision complex grid.
         Single-precision variant of dp_fft2d_execute_cf64(). Accepts and
@@ -400,9 +401,9 @@ class FFT2D:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Input.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Flat row-major CF32 output, length >= ny*nx (caller-allocated).
 
         Returns
@@ -435,8 +436,8 @@ class FFT2D:
 
     def execute_inplace_cf64(
         self,
-        x: NDArray[np.complex128],
-        out: NDArray[np.complex128] | None = None,
+        x: npt.NDArray[np.complex128],
+        out: npt.NDArray[np.complex128] | None = None,
     ) -> NDArray[np.complex128]:
         """Copy in into out, then transform out in-place (CF64 2-D). The ny*nx
         CF64 samples from in are first memcpy'd to out; the 2-D DFT is then
@@ -445,9 +446,9 @@ class FFT2D:
 
         Parameters
         ----------
-        x : NDArray[np.complex128]
+        x : npt.NDArray[np.complex128]
             Input.
-        out : NDArray[np.complex128] | None
+        out : npt.NDArray[np.complex128] | None
             Destination, length >= ny*nx; must not alias in.
 
         Returns
@@ -478,8 +479,8 @@ class FFT2D:
 
     def execute_inplace_cf32(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Copy in into out, then transform out in-place (CF32 2-D).
         Single-precision variant of dp_fft2d_execute_inplace_cf64(). Copies
@@ -487,9 +488,9 @@ class FFT2D:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Input.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Destination, length >= ny*nx; must not alias in.
 
         Returns
@@ -613,7 +614,7 @@ class Corr:
 
     def __init__(
         self,
-        ref: NDArray[np.complex64],
+        ref: npt.NDArray[np.complex64],
         dwell: int = 1,
         nthreads: int = 1,
         n_out: int = 0,
@@ -641,8 +642,8 @@ class Corr:
 
     def execute(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Correlate one frame and optionally dump the coherent accumulator.
         Runs: forward FFT → pointwise multiply with ref_spec → accumulate the
@@ -657,9 +658,9 @@ class Corr:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Input.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Output buffer for the correlation map (CF32, length n_out); written
             only on a dump call.
 
@@ -858,7 +859,7 @@ class Corr2D:
 
     def __init__(
         self,
-        ref: NDArray[np.complex64],
+        ref: npt.NDArray[np.complex64],
         dwell: int = 1,
         nthreads: int = 1,
         ny_out: int = 0,
@@ -887,8 +888,8 @@ class Corr2D:
 
     def execute(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Correlate one 2-D frame and optionally dump the coherent
         accumulator. Runs the 2-D pipeline: FFT2 → pointwise multiply with
@@ -902,9 +903,9 @@ class Corr2D:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Input.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Output buffer for the correlation map (CF32, length ny*nx); written
             only on a dump call.
 
@@ -1111,7 +1112,7 @@ class CorrDetector:
 
     def __init__(
         self,
-        ref: NDArray[np.complex64],
+        ref: npt.NDArray[np.complex64],
         dwell: int = 1,
         noise_lo: int = 0,
         noise_hi: int = ...,
@@ -1354,7 +1355,7 @@ class CorrDetector2D:
 
     def __init__(
         self,
-        ref: NDArray[np.complex64],
+        ref: npt.NDArray[np.complex64],
         dwell: int = 1,
         noise_lo: int = 0,
         noise_hi: int = ...,
@@ -1612,12 +1613,12 @@ class PSD:
         mode: Literal["mean", "exp", "maxhold", "minhold"] = "mean",
         alpha: float = 0.1,
     ) -> None: ...
-    def accumulate(self, x: NDArray[np.complex64]) -> None:
+    def accumulate(self, x: npt.NDArray[np.complex64]) -> None:
         """Window, FFT and fold floor(n_in/n) cf32 frames into the average.
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Complex baseband samples (cf32).
 
         Examples
@@ -1640,13 +1641,13 @@ class PSD:
 
         """
 
-    def accumulate_real(self, x: NDArray[np.float32]) -> None:
+    def accumulate_real(self, x: npt.NDArray[np.float32]) -> None:
         """Window, zero-pad, FFT and fold floor(n_in/n) real frames into the
         average.
 
         Parameters
         ----------
-        x : NDArray[np.float32]
+        x : npt.NDArray[np.float32]
             Real samples (f32).
         """
 
@@ -1657,7 +1658,7 @@ class PSD:
     def psd_db(
         self,
         count: int = 1,
-        out: NDArray[np.float32] | None = None,
+        out: npt.NDArray[np.float32] | None = None,
     ) -> NDArray[np.float32]:
         """Averaged power spectrum in dB (None before any accumulate).
 
@@ -1667,7 +1668,7 @@ class PSD:
             How many output samples to ask for. The call may return fewer; size
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
-        out : NDArray[np.float32] | None
+        out : npt.NDArray[np.float32] | None
             Destination, at least n float32 elements.
 
         Returns
@@ -1688,7 +1689,7 @@ class PSD:
     def psd_dbhz(
         self,
         count: int = 1,
-        out: NDArray[np.float32] | None = None,
+        out: npt.NDArray[np.float32] | None = None,
     ) -> NDArray[np.float32]:
         """Averaged power spectral density in dB/Hz (None before any
         accumulate).
@@ -1699,7 +1700,7 @@ class PSD:
             How many output samples to ask for. The call may return fewer; size
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
-        out : NDArray[np.float32] | None
+        out : npt.NDArray[np.float32] | None
             Optional pre-allocated output buffer. When given, the result is
             written into it and the returned array is a view of exactly the
             samples produced; when omitted, a fresh array is allocated.
@@ -1733,7 +1734,7 @@ class PSD:
     def power_twosided(
         self,
         count: int = 1,
-        out: NDArray[np.float32] | None = None,
+        out: npt.NDArray[np.float32] | None = None,
     ) -> NDArray[np.float32]:
         """Averaged linear power, DC-centred two-sided (length nfft);
         cg^2-normalised.
@@ -1744,7 +1745,7 @@ class PSD:
             How many output samples to ask for. The call may return fewer; size
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
-        out : NDArray[np.float32] | None
+        out : npt.NDArray[np.float32] | None
             Destination, at least nfft float32 elements.
 
         Returns
@@ -1765,7 +1766,7 @@ class PSD:
     def power_onesided(
         self,
         count: int = 1,
-        out: NDArray[np.float32] | None = None,
+        out: npt.NDArray[np.float32] | None = None,
     ) -> NDArray[np.float32]:
         """Averaged linear power, one-sided fold (length nfft/2+1);
         cg^2-normalised.
@@ -1776,7 +1777,7 @@ class PSD:
             How many output samples to ask for. The call may return fewer; size
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
-        out : NDArray[np.float32] | None
+        out : npt.NDArray[np.float32] | None
             Destination, at least nfft/2 + 1 float32 elements.
 
         Returns
@@ -1796,16 +1797,16 @@ class PSD:
 
     def band_power(
         self,
-        bands: NDArray[np.float64],
-        out: NDArray[np.float32] | None = None,
+        bands: npt.NDArray[np.float64],
+        out: npt.NDArray[np.float32] | None = None,
     ) -> NDArray[np.float32]:
         """Integrated power per band in dB; bands = [lo0,hi0,lo1,hi1,...] Hz.
 
         Parameters
         ----------
-        bands : NDArray[np.float64]
+        bands : npt.NDArray[np.float64]
             Flat `[lo,hi,...]` band edges, Hz.
-        out : NDArray[np.float32] | None
+        out : npt.NDArray[np.float32] | None
             Destination, at least n_bands float32 elements.
 
         Returns
@@ -1834,12 +1835,12 @@ class PSD:
             Output.
         """
 
-    def total_band_power(self, bands: NDArray[np.float64]) -> float:
+    def total_band_power(self, bands: npt.NDArray[np.float64]) -> float:
         """Total integrated power across all bands in dB.
 
         Parameters
         ----------
-        bands : NDArray[np.float64]
+        bands : npt.NDArray[np.float64]
             Flat `[lo,hi,...]` band edges, Hz.
 
         Returns
@@ -2038,7 +2039,7 @@ class PSD:
             Traceback object, or None. Ignored.
         """
 
-def kaiser_enbw(w: NDArray[np.float32]) -> float:
+def kaiser_enbw(w: npt.NDArray[np.float32]) -> float:
     """Compute the equivalent noise bandwidth of a window in bins. ENBW = N
     * sum(w²) / (sum(w))² quantifies how many noise bins the window smears
     into the main lobe. A rectangular window has ENBW = 1.0; tapered
@@ -2046,7 +2047,7 @@ def kaiser_enbw(w: NDArray[np.float32]) -> float:
 
     Parameters
     ----------
-    w : NDArray[np.float32]
+    w : npt.NDArray[np.float32]
         Float32 window coefficients array; any length >= 1.
 
     Returns
@@ -2065,7 +2066,7 @@ def kaiser_enbw(w: NDArray[np.float32]) -> float:
 
     """
 
-def kaiser_window(w: NDArray[np.float32], beta: float) -> None:
+def kaiser_window(w: npt.NDArray[np.float32], beta: float) -> None:
     """Fill w with a Kaiser window of shape parameter beta. I0 is computed
     via the converging power-series expansion. Increasing beta raises
     sidelobe attenuation at the cost of a wider main lobe (beta=0 →
@@ -2074,7 +2075,7 @@ def kaiser_window(w: NDArray[np.float32], beta: float) -> None:
 
     Parameters
     ----------
-    w : NDArray[np.float32]
+    w : npt.NDArray[np.float32]
         Output buffer modified in-place; must be length >= 1.
     beta : float
         Window shape parameter (float, >= 0).
@@ -2126,7 +2127,7 @@ def kaiser_beta_for_sidelobe(atten_db: float) -> float:
 
     """
 
-def hann_window(w: NDArray[np.float32]) -> None:
+def hann_window(w: npt.NDArray[np.float32]) -> None:
     """Fill w with a Hann (raised-cosine) window. Computes w(k) = 0.5*(1 -
     cos(2π k/(N-1))) for k = 0..N-1. The window tapers smoothly to zero at
     both endpoints, providing ~31 dB first-sidelobe rejection. Takes no
@@ -2134,7 +2135,7 @@ def hann_window(w: NDArray[np.float32]) -> None:
 
     Parameters
     ----------
-    w : NDArray[np.float32]
+    w : npt.NDArray[np.float32]
         Output buffer modified in-place; must be length >= 1.
 
     Examples
@@ -2148,7 +2149,7 @@ def hann_window(w: NDArray[np.float32]) -> None:
 
     """
 
-def blackman_harris_window(w: NDArray[np.float32]) -> None:
+def blackman_harris_window(w: npt.NDArray[np.float32]) -> None:
     """Fill w with a 4-term Blackman-Harris window. Computes the minimum
     4-term Blackman-Harris window: w(k) = 0.35875 - 0.48829*cos(2πk/(N-1))
     + 0.14128*cos(4πk/(N-1)) - 0.01168*cos(6πk/(N-1)) for k = 0..N-1.
@@ -2159,7 +2160,7 @@ def blackman_harris_window(w: NDArray[np.float32]) -> None:
 
     Parameters
     ----------
-    w : NDArray[np.float32]
+    w : npt.NDArray[np.float32]
         Output buffer modified in-place; must be length >= 1.
 
     Examples
@@ -2174,7 +2175,7 @@ def blackman_harris_window(w: NDArray[np.float32]) -> None:
     """
 
 def magnitude_db_cf32(
-    x: NDArray[np.complex64],
+    x: npt.NDArray[np.complex64],
     lin_floor: float,
     offset_db: float,
 ) -> NDArray[np.float32]:
@@ -2186,7 +2187,7 @@ def magnitude_db_cf32(
 
     Parameters
     ----------
-    x : NDArray[np.complex64]
+    x : npt.NDArray[np.complex64]
         CF32 complex spectrum array, length x_len.
     lin_floor : float
         Linear amplitude floor (must be > 0, e.g. 1e-12).
@@ -2209,7 +2210,7 @@ def magnitude_db_cf32(
     """
 
 def magnitude_db_cf64(
-    x: NDArray[np.complex128],
+    x: npt.NDArray[np.complex128],
     lin_floor: float,
     offset_db: float,
 ) -> NDArray[np.float32]:
@@ -2221,7 +2222,7 @@ def magnitude_db_cf64(
 
     Parameters
     ----------
-    x : NDArray[np.complex128]
+    x : npt.NDArray[np.complex128]
         CF64 complex spectrum array, length x_len.
     lin_floor : float
         Linear amplitude floor (double, must be > 0).
@@ -2244,7 +2245,7 @@ def magnitude_db_cf64(
     """
 
 def find_peaks_f32(
-    db: NDArray[np.float32],
+    db: npt.NDArray[np.float32],
     n_peaks: int,
     min_db: float,
 ) -> Any:
@@ -2258,7 +2259,7 @@ def find_peaks_f32(
 
     Parameters
     ----------
-    db : NDArray[np.float32]
+    db : npt.NDArray[np.float32]
         F32 dB spectrum, DC-centred, length >= 3.
     n_peaks : int
         Maximum number of peaks to return.
@@ -2282,8 +2283,12 @@ def find_peaks_f32(
 
     """
 
-def obw_from_power(pwr: NDArray[np.float64], fs: float, frac: float) -> float:
+def obw_from_power(
+    pwr: npt.NDArray[np.float64],
+    fs: float,
+    frac: float,
+) -> float:
     """Obw from power."""
 
-def noise_floor_db(db: NDArray[np.float32]) -> float:
+def noise_floor_db(db: npt.NDArray[np.float32]) -> float:
     """Noise floor db."""

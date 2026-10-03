@@ -236,7 +236,7 @@ static PyMethodDef SyncFinderObj_methods[] = {
     "\n"
     "Parameters\n"
     "----------\n"
-    "bits : NDArray[np.uint8] | bytes | bytearray | memoryview\n"
+    "bits : npt.NDArray[np.uint8] | bytes | bytearray | memoryview\n"
     "    Unpacked bits, one per byte.\n"
     "max_errors : int\n"
     "    Largest tolerated Hamming distance, in bits.\n"

@@ -236,7 +236,7 @@ static PyMethodDef I8ToF32Obj_methods[] = {
     "\n"
     "Parameters\n"
     "----------\n"
-    "x : NDArray[np.int8]\n"
+    "x : npt.NDArray[np.int8] | bytes | bytearray | memoryview\n"
     "    Input sample.\n"
     "\n"
     "Returns\n"

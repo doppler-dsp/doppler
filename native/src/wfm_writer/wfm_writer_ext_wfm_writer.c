@@ -504,7 +504,7 @@ static PyMethodDef WriterObj_methods[] = {
     "\n"
     "Parameters\n"
     "----------\n"
-    "x : NDArray[np.complex64]\n"
+    "x : npt.NDArray[np.complex64]\n"
     "    Input.\n"
     "\n"
     "Returns\n"

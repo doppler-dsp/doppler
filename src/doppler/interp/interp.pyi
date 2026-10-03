@@ -1,6 +1,7 @@
 # interp/interp.pyi — type stubs for the interp C extension.
 from typing import final, Literal
 import numpy as np
+import numpy.typing as npt
 from numpy.typing import NDArray
 
 @final
@@ -28,7 +29,7 @@ class InterpolatedTable:
 
     def __init__(
         self,
-        table: NDArray[np.complex128],
+        table: npt.NDArray[np.complex128],
         method: Literal["floor", "nearest", "linear"] = "linear",
     ) -> None: ...
     def reset(self) -> None:
@@ -53,8 +54,8 @@ class InterpolatedTable:
 
     def execute(
         self,
-        x: NDArray[np.float64],
-        out: NDArray[np.complex128] | None = None,
+        x: npt.NDArray[np.float64],
+        out: npt.NDArray[np.complex128] | None = None,
     ) -> NDArray[np.complex128]:
         """Evaluate the table at each of n_in points via periodic
         interpolation.
@@ -68,9 +69,9 @@ class InterpolatedTable:
 
         Parameters
         ----------
-        x : NDArray[np.float64]
+        x : npt.NDArray[np.float64]
             Input.
-        out : NDArray[np.complex128] | None
+        out : npt.NDArray[np.complex128] | None
             Output buffer; must hold at least n_in values.
 
         Returns

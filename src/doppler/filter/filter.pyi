@@ -1,6 +1,7 @@
 # filter/filter.pyi — type stubs for the filter C extension.
 from typing import final
 import numpy as np
+import numpy.typing as npt
 from numpy.typing import NDArray
 
 @final
@@ -29,7 +30,10 @@ class FIR:
 
     """
 
-    def __init__(self, taps: NDArray[np.complex64]) -> None: ...
+    def __init__(
+        self,
+        taps: npt.NDArray[np.complex64] | npt.NDArray[np.float32],
+    ) -> None: ...
     def reset(self) -> None:
         """Zero the delay line; preserve taps and scratch capacity. After a
         reset the filter behaves identically to a freshly constructed instance
@@ -54,8 +58,8 @@ class FIR:
 
     def execute(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Filter n_in CF32 samples and write the results to out. Each output
         sample is the inner product of the tap vector with the current delay
@@ -66,9 +70,9 @@ class FIR:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Input.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Output buffer; caller must provide space for n_in CF32 values.
 
         Returns
@@ -273,8 +277,8 @@ class MovingAverage:
 
     def steps(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Filter a block: write the gained moving average of each sample.
 
@@ -286,7 +290,7 @@ class MovingAverage:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Input samples.
 
         Returns

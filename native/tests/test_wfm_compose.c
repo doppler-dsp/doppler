@@ -603,8 +603,8 @@ test_a_source_carries_the_frame_a_caller_built (void)
             = { .sources = &once, .n_sources = 1, .fs = 1e6, .repeats = reps };
         dp_wfm_compose_state_t *c = dp_wfm_compose_create (&seg, 1, 0, 0);
         DP_REQUIRE (c != NULL);
-        float complex y[3 * FB];
-        size_t        n = 0, got;
+        float _Complex y[3 * FB];
+        size_t n = 0, got;
         while ((got = dp_wfm_compose_execute (c, y + n, 3 * FB - n)) > 0)
           n += got;
         dp_wfm_compose_destroy (c);
@@ -1226,7 +1226,7 @@ data_line (void)
 
 /* Read n samples back as bits; -1 if any is not a clean 0 or 1. */
 static int
-as_bits (const float complex *x, size_t n, uint8_t *b)
+as_bits (const float _Complex *x, size_t n, uint8_t *b)
 {
   for (size_t i = 0; i < n; i++)
     {
@@ -1248,8 +1248,8 @@ test_a_finite_data_source_sets_the_run (void)
   wfm_segment_t           seg = { .sources = &src, .n_sources = 1, .fs = 1e6 };
   dp_wfm_compose_state_t *c   = dp_wfm_compose_create (&seg, 1, 0, 0);
   DP_REQUIRE_MSG (c != NULL, "a source drawing from a Field composes");
-  float complex out[200];
-  const size_t  n = dp_wfm_compose_execute (c, out, 200);
+  float _Complex out[200];
+  const size_t n = dp_wfm_compose_execute (c, out, 200);
   DP_CHECK_MSG (n == 48,
                 "48 bits in 16-bit frames is 3 frames: the run's length is "
                 "DERIVED from the data, not the 1024 default");
@@ -1306,8 +1306,8 @@ test_a_dsss_burst_draws_a_chunk_per_burst (void)
   wfm_segment_t           seg = { .sources = &src, .n_sources = 1, .fs = 1e6 };
   dp_wfm_compose_state_t *c   = dp_wfm_compose_create (&seg, 1, 0, 0);
   DP_REQUIRE_MSG (c != NULL, "it composes");
-  float complex out[NBUR * NCH + 64];
-  const size_t  n = dp_wfm_compose_execute (c, out, NBUR * NCH + 64);
+  float _Complex out[NBUR * NCH + 64];
+  const size_t n = dp_wfm_compose_execute (c, out, NBUR * NCH + 64);
   dp_wfm_compose_destroy (c);
   DP_CHECK_MSG (n == NBUR * NCH,
                 "the run is 3 bursts, derived from 48 bits in 16-bit "
@@ -1370,8 +1370,8 @@ test_a_dsss_burst_draws_a_chunk_per_burst (void)
   src.fill = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = zero, .len = 1 };
   c        = dp_wfm_compose_create (&seg, 1, 0, 0);
   DP_REQUIRE_MSG (c != NULL, "a dsss burst over stdin composes");
-  float complex piped[NBUR * NCH + 64];
-  size_t        m = 0, got;
+  float _Complex piped[NBUR * NCH + 64];
+  size_t m = 0, got;
   while ((got = dp_wfm_compose_execute (c, piped + m, NBUR * NCH + 64 - m))
          > 0)
     m += got;
@@ -1424,8 +1424,8 @@ test_continuous_dsss_draws_a_bit_per_symbol (void)
   wfm_segment_t           seg = { .sources = &src, .n_sources = 1, .fs = fs };
   dp_wfm_compose_state_t *c   = dp_wfm_compose_create (&seg, 1, 0, 0);
   DP_REQUIRE_MSG (c != NULL, "it composes");
-  float complex out[256];
-  size_t        n = 0, got;
+  float _Complex out[256];
+  size_t n = 0, got;
   while ((got = dp_wfm_compose_execute (c, out + n, 256 - n)) > 0)
     n += got;
   dp_wfm_compose_destroy (c);
@@ -1451,8 +1451,8 @@ test_continuous_dsss_draws_a_bit_per_symbol (void)
   src.data_from_file = "-";
   c                  = dp_wfm_compose_create (&seg, 1, 0, 0);
   DP_REQUIRE_MSG (c != NULL, "a continuous dsss source over stdin composes");
-  float complex piped[256];
-  size_t        m = 0;
+  float _Complex piped[256];
+  size_t m = 0;
   while ((got = dp_wfm_compose_execute (c, piped + m, 256 - m)) > 0)
     m += got;
   dp_wfm_compose_destroy (c);
@@ -1479,11 +1479,11 @@ test_continuous_dsss_draws_a_bit_per_symbol (void)
     const unsigned ds[2] = { 51, 15 };
     for (size_t t = 0; t < 2; t++)
       {
-        g.data              = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL,
-                                           .bits = alt,
-                                           .len  = ds[t] };
-        const size_t   nmax = 60000;
-        float complex *x    = malloc (nmax * sizeof *x);
+        g.data               = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL,
+                                            .bits = alt,
+                                            .len  = ds[t] };
+        const size_t    nmax = 60000;
+        float _Complex *x    = malloc (nmax * sizeof *x);
         DP_REQUIRE (x != NULL);
         dp_wfm_synth_state_t *syn = dp_wfm_compose_build_synth (
             &g, gfs, 0, 0.0, 200.0, 0.0, 0, 0, 0);
@@ -1568,8 +1568,8 @@ test_a_data_stream_ends_the_run_on_a_frame (void)
   dp_wfm_compose_state_t *c = dp_wfm_compose_create (&seg, 1, 0, 0);
   DP_REQUIRE_MSG (c != NULL, "a stdin source composes");
 
-  float complex out[400];
-  uint8_t       want[48], got[48];
+  float _Complex out[400];
+  uint8_t want[48], got[48];
   six_bits (want);
   const size_t n = dp_wfm_compose_execute (c, out, 400);
   DP_CHECK_MSG (n == 48,
@@ -1600,7 +1600,7 @@ frame_of (const wfm_source_t *tmpl, const uint8_t *bits, size_t len,
   f.data = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = bits, .len = len };
   wfm_segment_t           seg = { .sources = &f, .n_sources = 1, .fs = 1e6 };
   dp_wfm_compose_state_t *c   = dp_wfm_compose_create (&seg, 1, 0, 0);
-  float complex           x[128];
+  float _Complex x[128];
   const size_t got = c && n <= 128 ? dp_wfm_compose_execute (c, x, 128) : 0;
   dp_wfm_compose_destroy (c);
   return got == n ? as_bits (x, n, fr) : -1;
@@ -1654,8 +1654,8 @@ test_pacing_set_after_create_sends_idle_frames (void)
   dp_wfm_compose_set_data_pacing (NULL, WFM_DATA_PACED);
 
   /* Nothing in the pipe: three frames are due, and each is idle. */
-  float complex out[4 * FR];
-  uint8_t       got[4 * FR];
+  float _Complex out[4 * FR];
+  uint8_t got[4 * FR];
   DP_CHECK_MSG (dp_wfm_compose_execute (c, out, 3 * FR) == 3 * FR,
                 "paced after create, an empty pipe still sends: three "
                 "frames are due and three are sent");
@@ -1687,7 +1687,7 @@ test_pacing_set_after_create_sends_idle_frames (void)
 
 /* Run a composer to its end; the samples it sent. */
 static size_t
-run_out (dp_wfm_compose_state_t *c, float complex *out, size_t cap)
+run_out (dp_wfm_compose_state_t *c, float _Complex *out, size_t cap)
 {
   size_t n = 0, got;
   while (n < cap && (got = dp_wfm_compose_execute (c, out + n, cap - n)) > 0)
@@ -1736,7 +1736,7 @@ test_a_record_replays_its_data_by_hash (void)
 {
   uint8_t want[48], got[48];
   six_bits (want);
-  float complex out[200];
+  float _Complex out[200];
 
   /* A Field: the truth, and no hash -- nothing was read from a file. */
   {
@@ -2061,7 +2061,7 @@ test_every_data_refusal_names_its_fix (void)
   wfm_segment_t           seg = { .sources = &s, .n_sources = 1, .fs = 1e6 };
   dp_wfm_compose_state_t *c   = dp_wfm_compose_create (&seg, 1, 0, 0);
   DP_REQUIRE (c != NULL);
-  float complex out[100];
+  float _Complex out[100];
   DP_CHECK_MSG (dp_wfm_compose_execute (c, out, 100) == 48,
                 "data_len 0: the whole 48-bit source is one frame");
   dp_wfm_compose_destroy (c);
@@ -2200,8 +2200,8 @@ test_a_scene_data_file_is_relative_to_the_scene (void)
   DP_CHECK_MSG (c != NULL, why ? why : "a scene beside its data composes");
   if (c)
     {
-      float complex out[100];
-      uint8_t       got[48], want[48];
+      float _Complex out[100];
+      uint8_t got[48], want[48];
       six_bits (want);
       DP_CHECK_MSG (dp_wfm_compose_execute (c, out, 100) == 48
                         && as_bits (out, 48, got) == 0
@@ -2304,8 +2304,8 @@ test_a_stream_ends_on_its_frame_however_it_is_read (void)
       wfm_segment_t seg = { .sources = &src, .n_sources = 1, .fs = 1e6 };
       dp_wfm_compose_state_t *c = dp_wfm_compose_create (&seg, 1, 0, 0);
       DP_REQUIRE (c != NULL);
-      float complex out[8];
-      size_t        total = 0, n;
+      float _Complex out[8];
+      size_t total = 0, n;
       while ((n = dp_wfm_compose_execute (c, out, 3)) > 0)
         total += n;
       DP_CHECK_MSG (total == 3u * 16u * 4u,
@@ -2322,8 +2322,8 @@ test_a_stream_ends_on_its_frame_however_it_is_read (void)
 static size_t
 drain (dp_wfm_compose_state_t *c)
 {
-  float complex out[256];
-  size_t        total = 0, n;
+  float _Complex out[256];
+  size_t total = 0, n;
   while ((n = dp_wfm_compose_execute (c, out, 256)) > 0)
     total += n;
   return total;

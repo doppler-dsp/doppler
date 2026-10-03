@@ -1,6 +1,7 @@
 # analyzer/analyzer.pyi — type stubs for the analyzer C extension.
 from typing import final, Literal
 import numpy as np
+import numpy.typing as npt
 from numpy.typing import NDArray
 
 @final
@@ -60,8 +61,8 @@ class Specan:
     ) -> None: ...
     def execute(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.float32] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.float32] | None = None,
     ) -> NDArray[np.float32]:
         """Mix, decimate, average; return one DC-centred dB display frame, or
         None.
@@ -74,9 +75,9 @@ class Specan:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             cf32 input block (C-only; the binding passes it).
-        out : NDArray[np.float32] | None
+        out : npt.NDArray[np.float32] | None
             Display-spectrum buffer, dB (C-only).
 
         Returns

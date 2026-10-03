@@ -3,7 +3,7 @@ from typing import final, Literal
 from collections.abc import Sequence
 import os
 import numpy as np
-from numpy.typing import NDArray
+import numpy.typing as npt
 
 @final
 class Writer:
@@ -125,7 +125,7 @@ class Writer:
         t0: float = 0.0,
         sidecar: bool = True,
     ) -> None: ...
-    def write(self, x: NDArray[np.complex64]) -> int:
+    def write(self, x: npt.NDArray[np.complex64]) -> int:
         """Convert and write a block of samples.
 
         Takes `complex64` at unit scale and emits it in the writer's wire type.
@@ -133,7 +133,7 @@ class Writer:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Input.
 
         Returns

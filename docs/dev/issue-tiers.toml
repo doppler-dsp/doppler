@@ -8,7 +8,7 @@
 # tier 2 a claim nothing measures   5 convergence and hygiene
 
 [meta]
-generated = "2026-10-02"
+generated = "2026-10-03"
 
 [issue.502]
 tier = 3
@@ -248,11 +248,6 @@ status = "open"
 [issue.847]
 tier = 1
 title = "Phase 4's sabotage rule is stated on three pages and executed by none"
-status = "open"
-
-[issue.853]
-tier = 5
-title = "A frame is a field list and a stage list: fold both framers into one description"
 status = "open"
 
 [issue.855]
@@ -882,24 +877,6 @@ title = "Docker image re-resolves the jm pin against PyPI instead of installing 
 status = "open"
 why = "The Docker image re-resolves the jm pin against PyPI instead of the locked wheel; it failed two PRs on a CDN lag"
 
-[issue.1617]
-tier = 5
-title = "wfm: move sync/crc off wfm_source_t (#853 item 11 remainder)"
-status = "open"
-why = "Convergence for #853: sync/crc/payload still on wfm_source_t beside the frame= field"
-
-[issue.1619]
-tier = 4
-title = "wfm: the payload is a data source -- data:LEN, --data, --fill, idle frames (#853 F)"
-status = "open"
-why = "The payload as a data source (#853 F); built, with F6b, the state triplet and pn:0 left as #1718, #1681, #1717"
-
-[issue.1620]
-tier = 4
-title = "rx: BurstDemod/DsssBurstReceiver take a frame description (#853 E)"
-status = "open"
-why = "Receivers cannot take a frame description; callers compute frame_syms by hand"
-
 [issue.1637]
 tier = 1
 title = "wfm: the Field corpus cannot see a constant field (why it missed #1624)"
@@ -990,12 +967,6 @@ title = "track.Dll: at segments=1 the code loop's realised Bn is 56-79x the conf
 status = "open"
 why = "track.Dll at segments=1 realises 56-79x the configured bn with zeta ~0.05, so the code loop rings"
 
-[issue.1681]
-tier = 4
-title = "wfm: the data source and a synth pulling from it have no state triplet"
-status = "open"
-why = "The data source has no state triplet, so a synth pulling from one refuses checkpoint/restore (explicitly)"
-
 [issue.1692]
 tier = 4
 title = "wfm: FrameDesc has no from_json constructor (a description is built from JSON only as a scene's \"frame\" key)"
@@ -1020,12 +991,6 @@ title = "wfm_compose: 105 source/segment field docs are declared twice (header c
 status = "open"
 why = "105 composer field docs declared twice, gated equal; derive them from the header"
 
-[issue.1700]
-tier = 0
-title = "wfm: a scene drops \"crc\" beside \"frame\" silently; the CLI refuses --crc beside --frame"
-status = "open"
-why = "A scene with crc beside frame is accepted and the crc dropped, while the CLI refuses the same pair"
-
 [issue.1722]
 tier = 4
 title = "wfm: Plan's refusals carry no reason (const char **why, #1686)"
@@ -1044,22 +1009,11 @@ title = "ci: two jobs upload an artifact named coverage-report in the same run"
 status = "open"
 why = "Two artifacts named coverage-report in one run; which one a by-name fetch gets is not declared"
 
-[issue.1729]
-tier = 0
-title = "Composer face: num_samples beside a finite data source is silently dropped; retired bits=/payload=/pattern= need the Composer assertion"
-status = "open"
-why = "Composer silently drops num_samples beside a finite data source; the CLI and JSON faces refuse it"
-
 [issue.1740]
 tier = 5
 title = "curl without --fail outside the image: install-deps pipes get-jb.sh into bash (Makefile, standard.mk), release-watch.sh"
 status = "open"
 why = "#1738's defect outside the image: install-deps pipes get-jb.sh into bash (Makefile, vendored standard.mk), release-watch.sh polls with curl -s; red when it bites, so hygiene like #1738"
-
-[issue.1769]
-tier = 2
-title = "DsssBurstReceiver: frame_valid assumes a CRC-16 trailer, so a crc=none frame never owns its span"
-status = "open"
 
 [issue.1770]
 tier = 1
@@ -1089,4 +1043,34 @@ status = "open"
 [issue.1777]
 tier = 2
 title = "Certify wfm_data and dp_hash64 in the Validation Log"
+status = "open"
+
+[issue.1780]
+tier = 4
+title = "wfm: no Python face serializes a synth pulling from a data source"
+status = "open"
+
+[issue.1787]
+tier = 1
+title = "docs: the sh fence gate silently skips executing a fence with a non-allowlisted command (cmp)"
+status = "open"
+
+[issue.1797]
+tier = 1
+title = "examples: dsss_realtime_file_demod.py exits 0 with an empty results table when its wfmgen writer refuses the scene"
+status = "open"
+
+[issue.1800]
+tier = 5
+title = "rx: object constructors lose dp_wfm_frame_desc_rx's reason; needs an object-level create_why in jm"
+status = "open"
+
+[issue.1803]
+tier = 4
+title = "Python face for dp_syncword_search, plus M-ary (QPSK 4-fold) ambiguity resolution"
+status = "open"
+
+[issue.1809]
+tier = 5
+title = "Unpin STANDARD_URL from canonical 30f8e77b once ci-changes-wiring-check can exempt always-run jobs"
 status = "open"

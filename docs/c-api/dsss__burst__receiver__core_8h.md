@@ -350,7 +350,21 @@ The sync word is the description's field 0, `frame_syms` its layout's length (bo
 **Parameters:**
 
 
+* `acq_code` preamble code, 0/1 chips. 
+* `acq_code_len` its length, chips. 
+* `data_code` payload spreading code, 0/1 chips. 
+* `data_code_len` its length, chips. 
 * `frame` the description (`const  wfm_frame_desc_t *`). 
+* `reps` preamble code repetitions. 
+* `spc` samples per chip. 
+* `chip_rate` chips per second. 
+* `cn0_dbhz` design C/N0 for the acquisition, dB-Hz (or NaN). 
+* `doppler_uncertainty` the Doppler span to search, cycles/sample. 
+* `pfa` false-alarm probability, in (0, 1). 
+* `pd` detection probability, in (0, 1). 
+* `carrier_hz` the carrier the baseband is offset by, Hz. 
+* `max_rate` the Doppler rate expected, cycles/sample^2. 
+* `est_segments` partials per acquisition period. 
 * `why` on a NULL return, a static sentence naming the fix; may be `NULL`. 
 
 

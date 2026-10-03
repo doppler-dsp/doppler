@@ -249,9 +249,23 @@ dp_dsss_burst_receiver_state_t *dp_dsss_burst_receiver_create(const uint8_t *acq
  * @ref dp_dsss_burst_receiver_create, and byte-identical to it for a
  * `sync | payload | CRC-16` frame.
  *
- * @param frame  the description (`const wfm_frame_desc_t *`).
- * @param why    on a NULL return, a static sentence naming the fix; may be
- *               `NULL`.
+ * @param acq_code            preamble code, 0/1 chips.
+ * @param acq_code_len        its length, chips.
+ * @param data_code           payload spreading code, 0/1 chips.
+ * @param data_code_len       its length, chips.
+ * @param frame               the description (`const wfm_frame_desc_t *`).
+ * @param reps                preamble code repetitions.
+ * @param spc                 samples per chip.
+ * @param chip_rate           chips per second.
+ * @param cn0_dbhz            design C/N0 for the acquisition, dB-Hz (or NaN).
+ * @param doppler_uncertainty the Doppler span to search, cycles/sample.
+ * @param pfa                 false-alarm probability, in (0, 1).
+ * @param pd                  detection probability, in (0, 1).
+ * @param carrier_hz          the carrier the baseband is offset by, Hz.
+ * @param max_rate            the Doppler rate expected, cycles/sample^2.
+ * @param est_segments        partials per acquisition period.
+ * @param why                 on a NULL return, a static sentence naming the
+ *                            fix; may be `NULL`.
  * @return the receiver, or NULL with @p why set.
  *
  * @code

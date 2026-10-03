@@ -5,6 +5,5 @@
     refuses a description whose field 0 is not known bits, is covered by a
     stage, is named `preamble`, or whose stages emit a new stream. A
     `DsssBurstReceiver` built this way reads its CRC verdict from the
-    description. Byte-identical to the sync-word constructors on every
-    existing fixture; the old constructors stay for now
-    ([#1620](https://github.com/doppler-dsp/doppler/issues/1620), step 2).
+    description
+    ([#1620](https://github.com/doppler-dsp/doppler/issues/1620)).

@@ -13,6 +13,187 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.61.0] - 2026-10-03
+
+### Breaking
+
+- **`num_samples` defaults to 0, "derive it", and a count beside sources
+    that set the length is refused on every face.** A finite data source
+    (its frames) and a lone dsss burst (one burst) set a segment's on-time;
+    `Segment(..., num_samples=1000)` beside one composed 24 samples without
+    a word ([#1729](https://github.com/doppler-dsp/doppler/issues/1729)).
+    One rule, `dp_wfm_scene_error`, now refuses it in Python, a scene and
+    the CLI. C ABI: a zero-filled `wfm_segment_t` derives its on-time
+    (1024 for a plain segment) instead of being empty, and `Plan.prepare`
+    takes it; an empty on-time is a ranged `(0, 0)`.
+
+- **`BurstDemod` and `DsssBurstReceiver` take the frame description.** The
+    Python constructors take `frame` (a `Frame` or a `FrameDesc`) in place of
+    a sync word and a hand-counted `frame_syms`: `BurstDemod(data_code, frame, ...)` and
+    `DsssBurstReceiver(acq_code, data_code, frame, ...)`.
+    The sync word is the description's first field, the length is its
+    layout, and a `DsssBurstReceiver` reads its CRC verdict from it (no CRC
+    stage, never `frame_valid`). `BurstDemod.set_sync()` is gone, and a
+    description the receiver cannot use is refused, naming the rule ([#1620](https://github.com/doppler-dsp/doppler/issues/1620)).
+
+- **A source no longer has `sync` or `crc`: the frame is a description, and a
+    CRC exists only if it says so.** `Segment`/`Synth`/`Source` refuse
+    `sync=` and `crc=` with any value, and a scene refuses the `"sync"` and
+    `"crc"` keys, each naming `frame=` / `"frame"`. A frame that relied on the
+    implicit CRC-16 trailer declares a CRC stage. `wfmgen --sync` and `--crc`
+    stay and build the description for you: without `--crc` no CRC is sent
+    (it was CRC-16), and `--record` stores a `"frame"` object; an old record
+    with `"sync"`/`"crc"` is refused on replay
+    ([#1617](https://github.com/doppler-dsp/doppler/issues/1617),
+    [#1700](https://github.com/doppler-dsp/doppler/issues/1700)).
+
+### Added
+
+- **A multi-frame data source, sent over DSSS and received** —
+    `data_source_link_demo.py` (and its C twin) sends a message one chunk per
+    burst, builds `DsssBurstReceiver` from the same `FrameDesc`, and gets the
+    message back byte for byte through `FrameDesc.check`/`deframe`. The
+    BPSK data-source demo now reads its frames back the same way instead of
+    slicing bit positions by hand.
+    ([#1620](https://github.com/doppler-dsp/doppler/issues/1620))
+
+- **A synth pulling from a data source now checkpoints and resumes bit for
+    bit.** The data source has its own state triplet (a Field's cursor,
+    `pn:0`'s register, a file's residue and running hash, the prefix
+    re-checked on restore), and the synth blob (v3) nests it beside the frame
+    in play. A pipe refuses at both ends with a static reason
+    (`dp_wfm_data_state_refusal`). C only for now: no Python face serializes
+    a data-backed synth yet
+    ([#1780](https://github.com/doppler-dsp/doppler/issues/1780)).
+    ([#1681](https://github.com/doppler-dsp/doppler/issues/1681))
+
+- **The frame benchmark times a frame pulled from a data source.** Five
+    new `bench_frame_core` rows cover the per-frame path a `data:LEN` frame
+    takes: a pull from `pn:0` or a pipe, plain assembly, and CADU assembly
+    with RS + randomise + conv. A CADU costs 20–25 µs, about 11 % of a
+    frame at one sample per bit, so assembly does not need to run ahead of
+    the pacer. The numbers are in
+    [the measurement record, §6](https://doppler-dsp.github.io/doppler/design/payload-data-source-measurements/#6-unknowns-the-two-throughput-ones-measured-2026-10-02).
+
+- **A framed BPSK/QPSK link example** — `framed_link_demo.py` (and its C
+    twin) sends frames built from one `FrameDesc`, receives them with
+    `MpskReceiver`, resolves the carrier-phase ambiguity by the sync word and
+    judges every frame with `FrameDesc.check`. It asserts that every passed
+    payload was sent, a flipped bit is rejected and, at low Es/N0, damaged
+    frames fail rather than pass.
+    ([#1620](https://github.com/doppler-dsp/doppler/issues/1620))
+
+- **`FrameDesc.add_data(name, len)` describes a `data:LEN` field from
+    Python** (C: `dp_frame_add_data`). It is the field the Field text
+    `data:LEN` parses to, so a `Source(frame=)` holding it sends a
+    multi-frame data source byte-identical to a scene's `"frame"` key or
+    `wfmgen --frame`
+    ([#1786](https://github.com/doppler-dsp/doppler/issues/1786)).
+
+- **A receiver test over a `data:LEN` description** — `DsssBurstReceiver`
+    built from `[sync | data:LEN | crc]` returns, burst by burst through
+    `FrameDesc.deframe`, the chunk the source sent (padded last chunk
+    included), and a corrupted burst fails its check.
+    ([#1620](https://github.com/doppler-dsp/doppler/issues/1620))
+
+- **A record replays its data by hash.** `--record` and SigMF now carry
+    what each data source sent (`"data_sent"`; `wfmgen:frames`,
+    `wfmgen:idle_frames`, `wfmgen:pad_bits`, and a file's or stdin's
+    `dp_hash64`). A replay refuses a changed file, naming both hashes, and
+    a record of stdin replays only with `--data-from-file FILE` given again
+    ([#1619](https://github.com/doppler-dsp/doppler/issues/1619)).
+
+- **Receivers can be built from the frame description the transmitter spread.**
+    `dp_burst_demod_create_desc` and `dp_dsss_burst_receiver_create_desc` (C)
+    take the `wfm_frame_desc_t` and derive the sync word (field 0) and the
+    frame length from it, through the new `dp_wfm_frame_desc_rx`, which
+    refuses a description whose field 0 is not known bits, is covered by a
+    stage, is named `preamble`, or whose stages emit a new stream. A
+    `DsssBurstReceiver` built this way reads its CRC verdict from the
+    description
+    ([#1620](https://github.com/doppler-dsp/doppler/issues/1620)).
+
+### Changed
+
+- **The C burst-receiver tests, benches and example describe their frame.**
+    `test_burst_demod_core`, `test_dsss_burst_receiver_core`, their benches and
+    `dsss_burst_receiver_demo` build a `wfm_frame_desc_t` and the
+    `*_create_desc` constructors in place of a hand-counted `frame_syms` and
+    `set_sync()`, and build their bursts with `dp_wfm_dsss_desc_chips` instead
+    of a private builder (proved sample-identical before it was deleted)
+    ([#1620](https://github.com/doppler-dsp/doppler/issues/1620)).
+
+- **Framed examples, benches and tests describe their frame.** The burst
+    callers that passed `sync=` to a source now pass `frame=` (a `FrameDesc`
+    with `add_data`), the form that replaces the flat fields retired in this release
+    ([#1617](https://github.com/doppler-dsp/doppler/issues/1617)); each
+    composes the same samples as before.
+
+- **A `FrameDesc` with a data field now builds, and its receive face works.**
+    `build()` lays the description out from its lengths and proves its stages
+    runnable; `bits()` has no single frame and returns none; `deframe()` and
+    `check()` read the layout instead of returning zeros
+    ([#1789](https://github.com/doppler-dsp/doppler/issues/1789)).
+
+- **The backlog's tier map is current** — the closed v0.61.0 issues leave it and
+    the six new ones are tiered, so `make issues-check` passes again
+    ([#1716](https://github.com/doppler-dsp/doppler/issues/1716)).
+
+- **just-makeit pin 0.96.0 → 0.98.0.** Every array parameter's stub now
+    states exactly its declared `npt.NDArray` type (just-makeit#1724), and an
+    array argument refuses a `str` only where its param declares `str_hint`
+    (just-makeit#1824). 0.97.0 is included.
+
+- **The data-source design page states what is built** — steps 8 and 9 and the
+    receive side are done, not open
+    ([#1619](https://github.com/doppler-dsp/doppler/issues/1619)).
+
+- **A `str` passed to a `BurstDemod` or `DsssBurstReceiver` bit code is
+    refused** (`data_code`, `acq_code`, and `set_preamble`'s code), naming
+    `field_bits()`, rather than parsed as a number: their bindings now come
+    from jm's current template, with its output-size and error checks too
+    ([#1620](https://github.com/doppler-dsp/doppler/issues/1620)).
+
+- **The shared `standard.mk` is pinned to the commit our vendored files match**
+    (`STANDARD_URL` in the Makefile), so a canonical commit published after
+    ours no longer turns every PR red in `standard-check`; the pin is lifted
+    when the wiring it adds is adopted
+    ([#1809](https://github.com/doppler-dsp/doppler/issues/1809)).
+
+- **The wfmgen guide says which waveforms have a receiver.** Unspread
+    preamble bursts, `chirp` and `symbols` (QAM, APSK, pi/4-QPSK) are
+    stimulus only: no demodulator, though `BurstAcquisition` and
+    `BurstCapture` can still detect and cut the bursts out
+    ([#1620](https://github.com/doppler-dsp/doppler/issues/1620)).
+
+### Removed
+
+- **The `frame_syms` constructors of `BurstDemod` and `DsssBurstReceiver` are
+    gone.** C: `dp_burst_demod_create()`, `dp_burst_demod_set_sync()` and
+    `dp_dsss_burst_receiver_create()` (a sync word plus a hand-counted
+    `frame_syms`) are removed, with the receiver's hand-rolled CRC check;
+    build from a frame description with `dp_burst_demod_create_desc()` /
+    `dp_dsss_burst_receiver_create_desc()`. The receiver state loses `sync`,
+    `sync_len` and `frame_bits` (use `frame_syms`, now read from the
+    description). The serialized blob is unchanged
+    ([#1620](https://github.com/doppler-dsp/doppler/issues/1620)).
+
+### Fixed
+
+- **`DsssBurstReceiver`: a frame with no CRC is never valid.** The gallery
+    called `crc=none` "simply a shorter frame". The receiver still returns
+    those bits unchanged, but its verdict is the frame description's
+    (`dp_wfm_frame_desc_crc_ok`), so a description with no CRC stage is never
+    `frame_valid` and every window is released (D3). The header, the property
+    and the page now say so, and a C test pins it against a decoy
+    ([#1769](https://github.com/doppler-dsp/doppler/issues/1769)).
+
+- **`wfmgen --realtime` sends idle frames again while stdin pauses.**
+    `dp_wfm_compose_set_data_pacing` now also paces the synths `create`
+    already built, so a paced stream with nothing yet sends a fill frame
+    instead of stalling the output
+    ([#1782](https://github.com/doppler-dsp/doppler/issues/1782)).
+
 ## [0.60.0] - 2026-10-02
 
 ### Breaking
@@ -15500,7 +15681,8 @@ ______________________________________________________________________
 [0.59.0]: https://github.com/doppler-dsp/doppler/compare/v0.58.0...v0.59.0
 [0.6.0]: https://github.com/doppler-dsp/doppler/compare/v0.5.5...v0.6.0
 [0.60.0]: https://github.com/doppler-dsp/doppler/compare/v0.59.0...v0.60.0
+[0.61.0]: https://github.com/doppler-dsp/doppler/compare/v0.60.0...v0.61.0
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.60.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.61.0...HEAD

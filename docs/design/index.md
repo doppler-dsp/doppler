@@ -22,6 +22,9 @@ instead.)
 - [Quantization](QUANTIZATION.md) — fixed-point pipeline design
 - [CIC Decimator](cic.md) — the fixed-point input budget: DC gain and PAPR headroom
 - [Measurement Suite](measurement-suite.md) — tone, NPR, and IMD metric internals
+- [Spectrum Analyzer](specan.md) — how span and RBW set the rate, the
+    transform length and the Kaiser beta, and why every RBW gets the same
+    −90 dB skirt
 - [State Serialization](state-serialization.md) — the standard bytes interface for bit-exact checkpoint/resume
 - [Telemetry](telemetry.md) — zero-cost scalar taps (loop stress, AGC gain) for running pipelines
 - [Streaming](streaming.md) — the transport contract: the 96-byte SIGS

@@ -14,82 +14,98 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "doppler/spectral/spectral_core.h" /* kaiser_window, kaiser_enbw */
-
-/* fs_out = span * 1.28 places the display window (±span/2) inside the DDC
- * passband (±0.4·fs_out = ±0.512·span); the transition/stop bands are cropped
- * off by keeping the central 2·round(nfft/2.56)+1 bins. */
+/* The design (docs/design/specan.md), in three rules:
+ *
+ * 1. SPAN SETS THE RATE. fs_out = 1.28 * span, so ±span/2 = ±fs_out/2.56
+ *    falls exactly on bin ±nfft/2.56 -- an integer for every power-of-two
+ *    nfft >= 256 -- and inside the DDC passband (±0.4 * fs_out). A span the
+ *    input cannot supply (1.28 * span > fs) is clamped to fs / 1.28 rather
+ *    than kept with fs_out = fs, which would put its edges between bins.
+ *
+ * 2. THE WINDOW IS A POWER OF TWO, n, and the transform is
+ *    nfft = max(n, SPECAN_NFFT_MIN): zero padding only when the window is
+ *    shorter than the 512-point floor the display needs (401 bins). The base
+ *    RBW, 2 * fs_out / n, is the narrowest a given n offers -- a Kaiser ENBW
+ *    of 2 bins, beta ~12, peak sidelobe ~-90 dB. n is the SMALLEST power of
+ *    two whose base RBW does not exceed the request (any larger one also
+ *    fits, with a wider-than-needed ENBW), and at least SPECAN_N_MIN.
+ *
+ * 3. BETA WIDENS THE ENBW to meet the request: target = rbw * n / fs_out, in
+ *    [2, 4), and beta = kaiser_beta_for_enbw(target, n). The widest RBW is
+ *    4 bins of the shortest window, 4 * fs_out / SPECAN_N_MIN; a wider
+ *    request is clamped to it. Auto is span / 100.
+ *
+ * Every RBW therefore gets beta >= ~12. The rule this replaces chose the
+ * SMALLEST power of two >= fs_out / rbw, leaving a target in [1, 2): an RBW
+ * of fs_out / 2^k asked for exactly 1 bin, which only a rectangle (beta 0,
+ * -13 dB sidelobes) meets, and the specan demo sat exactly there. */
 #define SPECAN_OVERSAMPLE 1.28
-#define SPECAN_PAD 2u
+#define SPECAN_NFFT_MIN 512u
+/* The shortest window. Below 16 the beta fit stops holding (7% at n = 8). */
+#define SPECAN_N_MIN 16u
+#define SPECAN_ENBW_MIN 2.0
+#define SPECAN_ENBW_MAX 4.0
+/* dp_psd_create's window index for Kaiser (its header: 0 Hann, 1 Kaiser,
+ * 2 Blackman-Harris). The analyzer always uses Kaiser: beta is its RBW knob.
+ */
+#define PSD_WINDOW_KAISER 1
 #define SPECAN_EPS 1e-20f
-/* The Kaiser window is never asked for less than this ENBW, in bins of its
- * own length. At 2.0 bins beta is ~12 and the peak sidelobe ~-90 dB, so every
- * RBW gets the same skirt. Without the floor, n = next_pow_two(fs_out/rbw)
- * left the target anywhere in [1, 2): an RBW of fs_out/2^k asked for exactly 1
- * bin, which only a rectangle (beta 0, -13 dB sidelobes) meets -- the
- * recorded specan demo (rbw = fs/512) showed exactly that. */
-#define SPECAN_MIN_ENBW 2.0
 
-/* Smallest power of two >= x (x >= 1). */
-
-/* Kaiser beta whose equivalent noise bandwidth (in FFT bins) equals
- * target_enbw, found by bisection on the actual window — exact for this n.
- * Mirrors the inverse search doppler.specan's engine used to do in Python. */
+/* Kaiser beta whose ENBW, for an n-point window, is `enbw` bins (2..4).
+ *
+ * A cubic least-squares fit of beta against ENBW, from np.kaiser(4096, beta)
+ * over beta in [10, 55] restricted to ENBW in [1.98, 4.02]. A symmetric
+ * n-point window spans n - 1 sample intervals, so its ENBW is the long-window
+ * value times n / (n - 1); the fit is evaluated at enbw * (n - 1) / n to
+ * undo that. The realised ENBW is then within 0.03% of the target for every
+ * n >= 16 (uncorrected it was 0.18% at 512 and 6.7% at 16). The analyzer
+ * reports the RBW the window actually realises, so this sets how close that
+ * lands to the request, not what is reported -- test_specan_core.c bounds
+ * it. */
 static double
-kaiser_beta_for_enbw (double target_enbw, size_t n)
+kaiser_beta_for_enbw (double enbw, size_t n)
 {
-  if (target_enbw <= 1.0)
-    return 0.0;
-  float *w = malloc (n * sizeof *w);
-  if (!w)
-    return 0.0;
-  double lo = 0.0, hi = 60.0; /* beta=60 gives ENBW well past 2.1 bins */
-  for (int i = 0; i < 60; i++)
-    {
-      double mid = 0.5 * (lo + hi);
-      dp_kaiser_window (w, n, (float)mid);
-      if ((double)dp_kaiser_enbw (w, n) < target_enbw)
-        lo = mid;
-      else
-        hi = mid;
-    }
-  free (w);
-  return 0.5 * (lo + hi);
+  double e = enbw * (double)(n - 1) / (double)n;
+  return ((0.00590559 * e + 3.07532701) * e + 0.24521102) * e - 0.960144;
 }
 
 dp_specan_state_t *
 dp_specan_create (double fs, double span, double rbw, double src_center,
                   double center, double offset_db, double full_scale,
-                  size_t bits, int window, size_t navg)
+                  size_t bits, size_t navg)
 {
-  if (fs <= 0.0 || span <= 0.0 || rbw <= 0.0 || navg < 1)
+  if (fs <= 0.0 || span < 0.0 || rbw < 0.0 || navg < 1)
     return NULL;
 
-  /* span → decimated rate (clamped so we never up-sample above the input). */
+  /* 1. Span sets the rate; clamp a span the input cannot supply. 0 is auto:
+   * the widest span there is, the whole input band. */
+  if (span == 0.0 || span * SPECAN_OVERSAMPLE > fs)
+    span = fs / SPECAN_OVERSAMPLE;
   double fs_out = span * SPECAN_OVERSAMPLE;
-  if (fs_out > fs)
-    fs_out = fs;
+  /* 0 is auto: span / 100, which is also the widest RBW (rule 3). */
+  if (rbw == 0.0)
+    rbw = span / 100.0;
 
-  /* RBW → window length (coarse) + Kaiser beta (fine). The Kaiser length is
-   * NOT rounded to a power of two: ceil() puts the target ENBW in
-   * [SPECAN_MIN_ENBW, SPECAN_MIN_ENBW + rbw/fs_out), and only the zero-padded
-   * transform (nfft, below) needs to be a power of two. The other windows
-   * have a fixed ENBW and keep the power-of-two length. */
-  size_t n = (window == 1) ? (size_t)ceil (SPECAN_MIN_ENBW * fs_out / rbw)
-                           : dp_next_pow_two ((size_t)ceil (fs_out / rbw));
-  if (n < 2)
-    n = 2;
-  double target_enbw = rbw / (fs_out / (double)n);
-  if (target_enbw < 1.0)
-    target_enbw = 1.0;
-  double beta = (window == 1) ? kaiser_beta_for_enbw (target_enbw, n) : 0.0;
+  /* 2. The window: smallest power of two whose narrowest RBW fits the
+   * request. The 1e-9 keeps an exact power of two (1000 Hz at 256 kHz is
+   * 512.0) from being pushed to the next by rounding in the division. The
+   * transform pads it to the display's floor only when it is shorter. */
+  size_t n
+      = dp_next_pow_two ((size_t)ceil (SPECAN_ENBW_MIN * fs_out / rbw - 1e-9));
+  if (n < SPECAN_N_MIN)
+    n = SPECAN_N_MIN;
+  size_t nfft = n < SPECAN_NFFT_MIN ? SPECAN_NFFT_MIN : n;
 
-  /* Zero-padded transform length (must match dp_psd_create's nfft) and the
-   * central display crop covering ±span/2. */
-  size_t nfft = dp_next_pow_two (n * SPECAN_PAD);
+  /* 3. Beta widens the ENBW to the request, up to 4 bins of the window. */
+  double target = rbw * (double)n / fs_out;
+  if (target < SPECAN_ENBW_MIN)
+    target = SPECAN_ENBW_MIN;
+  if (target > SPECAN_ENBW_MAX)
+    target = SPECAN_ENBW_MAX;
+  double beta = kaiser_beta_for_enbw (target, n);
+
+  /* The display crop: bins ±nfft/2.56 are the span edges, exactly. */
   size_t half = (size_t)lround ((double)nfft / 2.56);
-  if (half > nfft / 2)
-    half = nfft / 2;
 
   dp_specan_state_t *s = calloc (1, sizeof *s);
   if (!s)
@@ -103,7 +119,7 @@ dp_specan_create (double fs, double span, double rbw, double src_center,
   s->ddc           = dp_ddc_create (norm_freq, rate);
   /* The PSD core owns the 0-dBFS reference (full_scale / bits); the display
    * reads it back as s->psd->full_scale, so dBFS is single-sourced. */
-  s->psd = dp_psd_create (n, fs_out, window, (float)beta, SPECAN_PAD,
+  s->psd = dp_psd_create (n, fs_out, PSD_WINDOW_KAISER, (float)beta, nfft / n,
                           full_scale, bits, 0, 0.1);
   s->pwr = malloc (nfft * sizeof *s->pwr);
   if (!s->ddc || !s->psd || !s->pwr)
@@ -116,7 +132,7 @@ dp_specan_create (double fs, double span, double rbw, double src_center,
   s->src_center = src_center;
   s->center     = center;
   s->span       = span;
-  s->rbw        = rbw;
+  s->rbw        = s->psd->enbw * fs_out / (double)n; /* realised */
   s->offset_db  = offset_db;
   s->fs_out     = fs_out;
   s->beta       = beta;

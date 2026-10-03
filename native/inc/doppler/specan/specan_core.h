@@ -4,15 +4,15 @@
  *
  * A streaming spectrum analyzer that speaks the *instrument* parameters an
  * operator already knows — center frequency, span, resolution bandwidth (RBW),
- * and reference level — instead of the DSP knobs (window length, Kaiser beta,
- * zero-pad factor) underneath them.  It is the C-first home for the mapping
+ * and reference level — instead of the DSP knobs (transform length, Kaiser
+ * beta) underneath them.  It is the C-first home for the mapping
  * that ``doppler.specan``'s engine used to hand-roll in Python.
  *
  * It composes the existing library, re-implementing nothing:
  *
  * ```
  * cf32 in (fs_in)  →  Ddc  (mix center→DC, decimate to fs_out = span·1.28)
- *                  →  PSD (window → zero-pad FFT → cg²-normalised power,
+ *                  →  PSD (Kaiser window → FFT → cg²-normalised power,
  *                            averaged over `navg` segments)
  *                  →  crop to the central ±span/2 display band
  *                  →  dB + ref offset  →  float display spectrum
@@ -34,7 +34,7 @@
  * @code
  * // 200 kHz span, 500 Hz RBW around DC of a 2.048 MHz cf32 stream
  * dp_specan_state_t *sa = dp_specan_create(2.048e6, 200e3, 500.0, 0.0, 0.0,
- *                                    0.0, 1, 1);
+ *                                    0.0, 1.0, 0, 1);
  * float disp[8192];
  * size_t n = dp_specan_execute(sa, iq, 65536, disp, 8192);  // 0 until a frame
  * dp_specan_destroy(sa);
@@ -82,13 +82,13 @@ extern "C"
     double         fs_in; /**< Input sample rate, Hz.                     */
     double src_center;    /**< Source center frequency, Hz.              */
     double center;        /**< Display center frequency, Hz.             */
-    double span;          /**< Display span, Hz.                         */
-    double rbw;           /**< Requested resolution bandwidth, Hz.       */
+    double span;          /**< Display span, Hz (clamped to fs/1.28).    */
+    double rbw;           /**< Realised resolution bandwidth, Hz.        */
     double offset_db;     /**< Additive dB offset on the display (dBm cal).*/
     double fs_out;        /**< Decimated rate, Hz (= span·1.28, ≤ fs_in).*/
-    double beta;          /**< Kaiser beta realising @ref rbw.           */
-    size_t n;             /**< Segment / window length (samples).        */
-    size_t nfft;          /**< Zero-padded transform length.             */
+    double beta;          /**< Kaiser beta realising @ref rbw (>= ~12).  */
+    size_t n;             /**< Window length, a power of two >= 16.      */
+    size_t nfft;          /**< Transform length, max(n, 512).            */
     size_t navg;          /**< Segments averaged per emitted frame.      */
     size_t disp_n;        /**< Display band length (cropped bins).       */
     size_t disp_lo;       /**< First display bin in the DC-centred array.*/
@@ -97,17 +97,27 @@ extern "C"
   /**
    * @brief Create a natural-parameter spectrum analyzer.
    *
-   * Derives the DSP from the instrument parameters: `fs_out = min(span·1.28,
-   * fs)`, the window length `n` (the coarse RBW knob), a Kaiser `beta` solved
-   * so the window ENBW realises `rbw` (the fine knob),
-   * `nfft = next_pow_two(2·n)`, and the central display crop covering ±span/2.
-   * For Kaiser, `n = ceil(2·fs_out/rbw)` -- any length, so the window is never
-   * asked for less than 2 bins of ENBW and every RBW gets beta >= ~12 (peak
-   * sidelobe ~-90 dB). For Hann, `n = next_pow_two(ceil(fs_out/rbw))`.
+   * Derives the DSP from the instrument parameters (docs/design/specan.md):
+   *
+   * - `fs_out = 1.28·span`, so ±span/2 lands exactly on bin ±nfft/2.56. A
+   *   span the input cannot supply is clamped to `fs/1.28`.
+   * - The window `n` is the smallest power of two (at least 16) whose
+   *   narrowest RBW, `2·fs_out/n` (a Kaiser ENBW of 2 bins, beta ~12,
+   *   sidelobes ~-90 dB), does not exceed `rbw`. The transform is
+   *   `nfft = max(n, 512)`: zero-padded only when the window is shorter than
+   *   the 512 points the display needs (401 bins).
+   * - Kaiser `beta` widens the ENBW, from 2 up to 4 bins, to meet `rbw`. The
+   *   widest RBW is 4 bins of the shortest window, `fs_out/4`; wider is
+   *   clamped. Auto (`rbw` 0) is `span/100`.
+   *
+   * dp_specan_state_t::rbw and dp_specan_state_t::span hold what was realised,
+   * which a clamp can make differ from the request.
    *
    * @param fs          Input sample rate (Hz).  Must be > 0.
-   * @param span        Display span (Hz).  Must be > 0.
-   * @param rbw         Resolution bandwidth (Hz).  Must be > 0.
+   * @param span        Display span (Hz).  0 = auto, the whole input band
+   *                    (fs/1.28); negative is refused.
+   * @param rbw         Resolution bandwidth (Hz).  0 = auto (span/100);
+   *                    negative is refused.
    * @param src_center  Source center frequency (Hz); the input band is centred
    *                    here, so the analyzer mixes (center − src_center) to
    * DC.
@@ -119,7 +129,6 @@ extern "C"
    * @param bits        ADC depth: bits>0 sets the 0-dBFS reference to
    *                    2^(bits-1) in the shared PSD core (the single source of
    *                    truth for the dBFS reference).
-   * @param window      Window index: 0 = Hann, 1 = Kaiser (RBW-trimmable).
    * @param navg        Segments averaged per emitted frame (>= 1).
    * @return Heap-allocated state, or NULL on invalid argument or OOM.
    * @note Caller must call dp_specan_destroy() when done.  Argument order keeps
@@ -131,16 +140,16 @@ extern "C"
    * >>> sa = Specan(fs=2.048e6, span=200e3, rbw=500.0)
    * >>> sa.fs_out
    * 256000.0
-   * >>> sa.n, sa.nfft
-   * (1024, 2048)
-   * >>> round(sa.beta, 1)
-   * 11.9
+   * >>> sa.nfft, sa.display_size
+   * (1024, 801)
+   * >>> round(sa.rbw)
+   * 500
    * @endcode
    */
   dp_specan_state_t *dp_specan_create (double fs, double span, double rbw,
                                  double src_center, double center,
                                  double offset_db, double full_scale,
-                                 size_t bits, int window, size_t navg);
+                                 size_t bits, size_t navg);
 
   /**
    * @brief Destroy a Specan instance and release all memory.

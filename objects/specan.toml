@@ -2,7 +2,7 @@
 #
 # Composes the Ddc tuner/decimator and the PSD averaging-PSD core so an
 # operator drives it with instrument parameters (center, span, RBW, ref level)
-# instead of DSP knobs (window length, Kaiser beta, zero-pad).  cf32 in,
+# instead of DSP knobs (transform length, Kaiser beta).  cf32 in,
 # real dB display band out.  Peaks are obtained idiomatically by composing the
 # find_peaks_f32 free function on the returned trace.
 
@@ -58,11 +58,6 @@ default = "1.0"
 name = "bits"
 type = "size_t"
 default = "0"
-
-[[specan.init_params]]
-name = "window"
-type = "string_enum:hann,kaiser"
-default = "kaiser"
 
 [[specan.init_params]]
 name = "navg"

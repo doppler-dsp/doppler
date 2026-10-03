@@ -47,7 +47,8 @@ class SpecanConfig:
     span : float
         Display bandwidth in Hz.  0 means auto (full input bandwidth).
     rbw : float
-        Resolution bandwidth in Hz.  0 means auto (span / 401).
+        Resolution bandwidth in Hz.  0 means auto (span / 100); the
+        analyzer resolves it.
     level : float
         Reference level — top of display — in dBm.
     web : bool
@@ -80,22 +81,6 @@ class SpecanConfig:
     # ----------------------------------------------------------------
     # Derived properties
     # ----------------------------------------------------------------
-
-    def effective_span(self, input_fs: float) -> float:
-        """Return the display span in Hz, defaulting to full bandwidth.
-
-        span = fs_out / 1.28, so the display window (±span/2) sits fully
-        inside the DDC passband (±0.4·fs_out = ±0.512·span).
-        """
-        if self.span > 0:
-            return self.span
-        return input_fs / 1.28
-
-    def effective_rbw(self, span: float) -> float:
-        """Return the RBW in Hz, defaulting to span / 401."""
-        if self.rbw > 0:
-            return self.rbw
-        return span / 401.0
 
 
 # ------------------------------------------------------------------

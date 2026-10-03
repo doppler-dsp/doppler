@@ -51,7 +51,7 @@ def committed() -> list[dict]:
 @pytest.fixture(scope="module")
 def fresh(committed: list[dict]) -> list[dict]:
     """Re-record with the same knobs `make record-demo` uses."""
-    return record(n_frames=len(committed), fft_size=512)
+    return record(n_frames=len(committed))
 
 
 def test_the_committed_file_ends_in_a_newline() -> None:
@@ -93,6 +93,6 @@ def test_levels_match_within_tolerance(
 
 def test_the_recording_is_reproducible() -> None:
     """The seed is what lets every assertion above mean anything."""
-    a = record(n_frames=3, fft_size=512)
-    b = record(n_frames=3, fft_size=512)
+    a = record(n_frames=3)
+    b = record(n_frames=3)
     assert a == b

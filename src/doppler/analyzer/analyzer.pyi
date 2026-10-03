@@ -1,5 +1,5 @@
 # analyzer/analyzer.pyi — type stubs for the analyzer C extension.
-from typing import final, Literal
+from typing import final
 import numpy as np
 import numpy.typing as npt
 from numpy.typing import NDArray
@@ -13,9 +13,10 @@ class Specan:
     fs : float
         Input sample rate (Hz). Must be > 0.
     span : float
-        Display span (Hz). Must be > 0.
+        Display span (Hz). 0 = auto, the whole input band (fs/1.28); negative
+        is refused.
     rbw : float
-        Resolution bandwidth (Hz). Must be > 0.
+        Resolution bandwidth (Hz). 0 = auto (span/100); negative is refused.
     src_center : float, default 0.0
         Source center frequency (Hz); the input band is centred here, so the
         analyzer mixes (center − src_center) to DC.
@@ -30,8 +31,6 @@ class Specan:
     bits : int, default 0
         ADC depth: bits>0 sets the 0-dBFS reference to 2^(bits-1) in the shared
         PSD core (the single source of truth for the dBFS reference).
-    window : Literal["hann", "kaiser"], default "kaiser"
-        Window index: 0 = Hann, 1 = Kaiser (RBW-trimmable).
     navg : int, default 1
         Segments averaged per emitted frame (>= 1).
 
@@ -41,10 +40,10 @@ class Specan:
     >>> sa = Specan(fs=2.048e6, span=200e3, rbw=500.0)
     >>> sa.fs_out
     256000.0
-    >>> sa.n, sa.nfft
-    (1024, 2048)
-    >>> round(sa.beta, 1)
-    11.9
+    >>> sa.nfft, sa.display_size
+    (1024, 801)
+    >>> round(sa.rbw)
+    500
 
     """
 
@@ -58,7 +57,6 @@ class Specan:
         offset_db: float = 0.0,
         full_scale: float = 1.0,
         bits: int = 0,
-        window: Literal["hann", "kaiser"] = "kaiser",
         navg: int = 1,
     ) -> None: ...
     def execute(
@@ -187,11 +185,11 @@ class Specan:
 
     @property
     def span(self) -> float:
-        """Display span, Hz."""
+        """Display span, Hz (clamped to fs/1.28)."""
 
     @property
     def rbw(self) -> float:
-        """Requested resolution bandwidth, Hz."""
+        """Realised resolution bandwidth, Hz."""
 
     @property
     def center(self) -> float:
@@ -199,15 +197,15 @@ class Specan:
 
     @property
     def beta(self) -> float:
-        """Kaiser beta realising rbw."""
+        """Kaiser beta realising rbw (>= ~12)."""
 
     @property
     def n(self) -> int:
-        """Segment / window length (samples)."""
+        """Window length, a power of two >= 16."""
 
     @property
     def nfft(self) -> int:
-        """Zero-padded transform length."""
+        """Transform length, max(n, 512)."""
 
     @property
     def navg(self) -> int:

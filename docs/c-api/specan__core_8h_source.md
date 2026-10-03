@@ -63,7 +63,7 @@ extern "C"
   dp_specan_state_t *dp_specan_create (double fs, double span, double rbw,
                                  double src_center, double center,
                                  double offset_db, double full_scale,
-                                 size_t bits, int window, size_t navg);
+                                 size_t bits, size_t navg);
 
   void dp_specan_destroy (dp_specan_state_t *state);
 

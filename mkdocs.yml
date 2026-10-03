@@ -267,6 +267,7 @@ nav:
       - Quantization: design/QUANTIZATION.md
       - CIC Decimator: design/cic.md
       - Measurement Suite: design/measurement-suite.md
+      - Spectrum Analyzer: design/specan.md
       - State Serialization: design/state-serialization.md
       - Telemetry: design/telemetry.md
       - Streaming: design/streaming.md

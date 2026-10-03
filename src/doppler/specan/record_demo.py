@@ -9,7 +9,7 @@ Usage
 -----
     python -m doppler.specan.record_demo                 # stdout
     python -m doppler.specan.record_demo -o frames.json  # file
-    python -m doppler.specan.record_demo --frames 120 --fft-size 512
+    python -m doppler.specan.record_demo --frames 120 --rbw 4000
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ def _next_power_of_two(n: int) -> int:
 
 def record(
     n_frames: int = 120,
-    fft_size: int = 512,
+    rbw: float = 4000.0,
     sample_rate: float = 2.048e6,
     center_freq: float = 0.0,
     tone_freq: float = 100e3,
@@ -45,9 +45,10 @@ def record(
     ----------
     n_frames : int
         Number of frames to capture.
-    fft_size : int
-        Sets the RBW to ``sample_rate / fft_size``. The analyzer derives its
-        own window and FFT lengths from that RBW.
+    rbw : float
+        Resolution bandwidth in Hz (default 4 kHz). The span is auto -- the
+        whole input band -- and the analyzer derives its transform length
+        and Kaiser beta from the two.
     sample_rate : float
         DemoSource sample rate in Hz.
     center_freq : float
@@ -80,20 +81,11 @@ def record(
     from doppler.specan.engine import SpecanEngine
     from doppler.specan.source import DemoSource
 
-    # Full-bandwidth span, and an RBW of fs_out / fft_size (4 kHz at the
-    # defaults). The window length is the analyzer's to derive from the RBW
-    # (dp_specan_create); this used to pick the RBW so that length came out
-    # as exactly fft_size, which was the one RBW that made the Kaiser window
-    # a rectangle and painted -13 dB sidelobes round the tone.
-    span = sample_rate * 0.8  # full-bandwidth span
-    fs_out = span / 0.8  # = sample_rate
-    rbw = fs_out / fft_size
-
     cfg = SpecanConfig(
         source="demo",
         fs=sample_rate,
         center=center_freq,
-        span=span,
+        span=0.0,  # auto: the whole input band
         rbw=rbw,
         demo=DemoConfig(
             tone_freq=tone_freq,
@@ -112,11 +104,9 @@ def record(
     )
     engine = SpecanEngine(cfg)
 
-    source.set_fft_size(fft_size)
-
     frames: list[dict] = []
     warmed = 0
-    block = max(fft_size * 4, 4096)
+    block = 4096
 
     while len(frames) < n_frames:
         iq, fs, cf = source.read(block)
@@ -157,10 +147,10 @@ def main() -> None:
         help="number of frames (default: 120)",
     )
     ap.add_argument(
-        "--fft-size",
-        type=int,
-        default=512,
-        help="sets RBW = fs / N (default: 512, i.e. 4 kHz)",
+        "--rbw",
+        type=float,
+        default=4000.0,
+        help="resolution bandwidth Hz (default: 4000)",
     )
     ap.add_argument(
         "--fs",
@@ -189,7 +179,7 @@ def main() -> None:
     print("Recording demo frames...", file=sys.stderr)
     frames = record(
         n_frames=args.frames,
-        fft_size=args.fft_size,
+        rbw=args.rbw,
         sample_rate=args.fs,
         center_freq=args.center,
         tone_freq=args.tone_freq,

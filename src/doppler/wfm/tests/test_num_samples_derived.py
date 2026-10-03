@@ -48,12 +48,14 @@ def test_the_default_is_derive():
 @pytest.mark.parametrize(
     ("make", "on"),
     [
-        # three frames of 8 data bits and the default CRC-16, one sample a bit
-        (_data_seg, 3 * (8 + 16)),
+        # three frames of 8 data bits, no CRC unless asked: one sample a bit
+        (_data_seg, 3 * 8),
+        # ...and with a CRC-16 trailer on each frame
+        (lambda: _data_seg(crc="crc16"), 3 * (8 + 16)),
         (_burst_seg, 31 * 2 * 2),  # the preamble x reps, at sps chips
         (lambda: Segment(type="tone"), 1024),  # a plain segment
     ],
-    ids=["finite data", "lone dsss burst", "plain"],
+    ids=["finite data", "finite data with crc", "lone dsss burst", "plain"],
 )
 def test_zero_derives_the_on_time(make, on):
     assert Composer([make()]).compose().size == on

@@ -489,9 +489,10 @@ typedef struct
   int           headroom_set; /* explicit --headroom overrides a record */
   int           sample_type, file_type, endian;
   /* Which surface rows were given, indexed WFM_SURFACE_<owner>_<name>.
-     Presence matters where a value's default is not "absent": --crc
-     defaults to crc16, so giving it is what frames a waveform, and a given
-     --symbol-rate is refused at <= 0 where the default 0 means burst. */
+     Presence matters where a value's default is not "absent": a given
+     --crc is refused beside --frame even as `none`, which no other face can
+     tell from the default, and a given --symbol-rate is refused at <= 0
+     where the default 0 means burst. */
   int surf_seen[WFM_SURFACE_N];
   /* A BESPOKE row's raw value (--frame FILE), read by this face's own code
      rather than the generic parse switch. */
@@ -1468,8 +1469,9 @@ check_exclusive (const wfmgen_opts_t *o)
  * of that form (dp_wfm_frame_from_json). A carried description IS the frame,
  * so the flags that spell the common frame are refused beside it rather than
  * silently dropped: the sync word and an unspread preamble by the bridge
- * (dp_wfm_source_frame_error); --crc here,
- * because only this face can tell it was GIVEN (crc defaults to crc16).
+ * (dp_wfm_source_frame_error), which refuses a crc16 too; --crc here as
+ * well, because only this face can tell `--crc none` was GIVEN (the default
+ * is none).
  * Returns 0, or the exit code. */
 static int
 load_frame (wfmgen_opts_t *o)

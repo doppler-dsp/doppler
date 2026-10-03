@@ -267,10 +267,11 @@ typedef struct {
     int crc;             /* The frame trailer: crc16 appends a CRC-16-CCITT
                             over the payload bits (what BurstDemod validates
                             as frame_valid, and what makes a truth-free
-                            frame error rate possible); none omits it.
-                            Applies only to a FRAMED source: it defaults to
-                            crc16, so it alone never frames an otherwise
-                            plain pattern. */
+                            frame error rate possible); none, the
+                            default, omits it: a source carries no CRC
+                            unless this or a frame description gives one.
+                            Applies only to a FRAMED source, so it alone
+                            never frames an otherwise plain pattern. */
     /* type=dsss, CONTINUOUS mode: a data-symbol rate independent of the code
        epoch rate selects the continuous form (dp_wfm_synth_set_dsss_cont) over
        the burst form above -- one waveform type, one discriminator, rather

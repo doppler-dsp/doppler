@@ -79,6 +79,7 @@ def _seg_kwargs(seed: int, off: int, acq, dat, pay) -> dict:
         "acq_reps": REPS,
         "data_code": dat.tobytes(),
         "sync": SYNC.tobytes(),
+        "crc": "crc16",  # a burst carries its CRC only when asked
         "data": pay.tobytes(),  # one burst: the data source, whole
         "off_samples": off,
     }
@@ -180,6 +181,8 @@ def test_cli_bare_flags_match_kwargs(tmp_path):
             "".join(map(str, dat)),
             "--sync",
             "".join(map(str, SYNC)),
+            "--crc",
+            "crc16",  # the kwargs face asks for it; a source has none else
             "--data",
             "".join(map(str, pay)),
             "--output",
@@ -387,7 +390,7 @@ def test_a_record_carries_the_stages_and_replays_them():
     }
     seg = _scene_json([_seg_kwargs(1, 0, acq, dat, pay)])["segments"][0]
     seg["snr"] = 99.0
-    del seg["sync"], seg["data"]
+    del seg["sync"], seg["crc"], seg["data"]  # the frame carries them
     seg["frame"] = frame
 
     c = Composer.from_json(json.dumps({**_scene_json([]), "segments": [seg]}))

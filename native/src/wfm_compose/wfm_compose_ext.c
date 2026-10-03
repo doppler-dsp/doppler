@@ -487,7 +487,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   size_t       acq_reps         = 1;
   PyObject    *data_code        = NULL;
   PyObject    *sync             = NULL;
-  const char  *crc              = "crc16";
+  const char  *crc              = "none";
   double       symbol_rate      = 0.0;
   int          dsss_code_only   = 0;
   PyObject    *frame            = NULL;
@@ -1777,9 +1777,10 @@ static PyGetSetDef Synth_getset[] = {
   { "crc", (getter)Synth_get_crc, (setter)Synth_set_crc,
     "The frame trailer: crc16 appends a CRC-16-CCITT over the payload bits "
     "(what BurstDemod validates as frame_valid, and what makes a truth-free "
-    "frame error rate possible); none omits it. Applies only to a FRAMED "
-    "source: it defaults to crc16, so it alone never frames an otherwise "
-    "plain pattern.\n",
+    "frame error rate possible); none, the default, omits it: a source "
+    "carries no CRC unless this or a frame description gives one. Applies "
+    "only to a FRAMED source, so it alone never frames an otherwise plain "
+    "pattern.\n",
     NULL },
   { "symbol_rate", (getter)Synth_get_symbol_rate,
     (setter)Synth_set_symbol_rate,
@@ -3169,9 +3170,10 @@ static PyGetSetDef Segment_getset[] = {
   { "crc", (getter)Segment_flat_crc, NULL,
     "The frame trailer: crc16 appends a CRC-16-CCITT over the payload bits "
     "(what BurstDemod validates as frame_valid, and what makes a truth-free "
-    "frame error rate possible); none omits it. Applies only to a FRAMED "
-    "source: it defaults to crc16, so it alone never frames an otherwise "
-    "plain pattern.\n",
+    "frame error rate possible); none, the default, omits it: a source "
+    "carries no CRC unless this or a frame description gives one. Applies "
+    "only to a FRAMED source, so it alone never frames an otherwise plain "
+    "pattern.\n",
     NULL },
   { "symbol_rate", (getter)Segment_flat_symbol_rate, NULL,
     "For type=dsss: > 0 selects CONTINUOUS asynchronous mode. The spreading "

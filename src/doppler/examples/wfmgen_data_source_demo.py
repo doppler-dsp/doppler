@@ -45,6 +45,7 @@ seg = Segment(
     snr_mode="fs",
     data=bits,  # the source: its bits
     data_len=96,  # bits of it per frame
+    crc="crc16",  # each frame ends with a CRC-16 over its own chunk
     fill=np.array([0, 1], np.uint8),  # pads the short last frame
 )
 x = np.asarray(Composer([seg]).compose())

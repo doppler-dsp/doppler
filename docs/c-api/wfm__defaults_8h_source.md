@@ -35,8 +35,7 @@
     .modulation = 1 /* bitmod: bpsk */, \
     .rrc_beta = 0.35, \
     .rrc_span = 8, \
-    .acq_reps = 1, \
-    .crc = 1 /* crc: crc16 */ \
+    .acq_reps = 1 \
   }
 
 /* Non-zero defaults for a wfm_segment_t. */

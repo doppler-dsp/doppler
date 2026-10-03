@@ -652,8 +652,10 @@ wfm_surface_row_is_set (const wfm_surface_row_t *r,
   "                  alignment detects against.\n" \
   "  --crc C         The frame trailer: crc16 appends a CRC-16-CCITT over the\n" \
   "                  payload bits (what BurstDemod validates as frame_valid, and\n" \
-  "                  what makes a truth-free frame error rate possible); none\n" \
-  "                  omits it. One of: none | crc16. (default crc16)\n"
+  "                  what makes a truth-free frame error rate possible); none, the\n" \
+  "                  default, omits it: a source carries no CRC unless this or a\n" \
+  "                  frame description gives one. One of: none | crc16.\n" \
+  "                  (default none)\n"
 
 #define WFM_SURFACE_HELP_DSSS_CONT \
   "  --symbol-rate HZ\n" \

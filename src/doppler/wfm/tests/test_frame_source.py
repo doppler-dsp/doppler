@@ -311,6 +311,51 @@ def test_the_cli_refuses_with_the_reason(tmp_path):
     assert "--data" in p2.stderr
 
 
+def test_a_framing_flag_never_writes_an_unframed_waveform(tmp_path):
+    """`--sync`/`--crc` build a description, and a description over nothing
+    to frame must not be sent as though it were a frame (doppler#1617).
+
+    The flags once framed through the source itself, and a source with no
+    data source refused them. Building the description first would have let
+    `--type bpsk --sync 1010` exit 0 with a sync-only frame; each of these
+    still refuses, naming the fix, with the sentence the bridge uses for the
+    same source (one rule, shared through dp_wfm_framing_flags_error).
+    """
+    bad = {
+        # the type's own first refusal wins where it has one
+        ("--type", "bits", "--modulation", "bpsk", "--sync", "1010"): (
+            "type=bits"
+        ),
+        # a type that carries a bit stream, but no data source to fill it
+        ("--type", "bpsk", "--sync", "1010"): "--data",
+        ("--type", "qpsk", "--sync", "1010", "--crc", "crc16"): "--data",
+        # a type with no bit stream at all cannot be framed
+        ("--type", "tone", "--sync", "1010"): "no bit stream",
+    }
+    for args, needle in bad.items():
+        p, _ = _cli(list(args), tmp_path)
+        assert p.returncode == 2, (args, p.stderr)
+        assert needle in p.stderr, (args, p.stderr)
+
+    # A dsss burst of preamble and sync alone is a burst, not a refusal.
+    ok, _ = _cli(
+        [
+            "--type",
+            "dsss",
+            "--acq-code",
+            "0x9",
+            "--data-code",
+            "0xd",
+            "--sync",
+            "1010",
+            "--sps",
+            "1",
+        ],
+        tmp_path,
+    )
+    assert ok.returncode == 0, ok.stderr
+
+
 # ── the record round-trip ────────────────────────────────────────────────────
 
 

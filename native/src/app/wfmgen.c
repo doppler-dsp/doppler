@@ -1551,7 +1551,10 @@ build_common_frame (wfmgen_opts_t *o)
   const char *no = dp_wfm_framing_flags_error (&o->src);
   if (no)
     {
-      (void)fprintf (stderr, "error: %s\n", no);
+      /* The source's own first refusal wins where it has one (type=bits
+         names its own fix); the flags' rule is the answer where it has not. */
+      const char *first = dp_wfm_source_error (&o->src);
+      (void)fprintf (stderr, "error: %s\n", first ? first : no);
       return 2;
     }
   wfm_frame_desc_t d;

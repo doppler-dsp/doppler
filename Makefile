@@ -16,6 +16,10 @@
 #   NPROC        Parallel build jobs        (default: nproc || 4)
 #   CMAKE_ARGS   Extra -D flags for every configure step
 
+# Pinned to the canonical commit our vendored files match, until the org's
+# always-run exemption lands upstream and the wiring is adopted (#1809).
+STANDARD_URL = https://raw.githubusercontent.com/just-buildit/just-buildit.github.io/30f8e77b/standard.mk
+
 # ── Feature flags ────────────────────────────────────────────────────────────
 # doppler is the demanding consumer: every group is on.
 HAS_C        = 1

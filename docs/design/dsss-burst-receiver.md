@@ -810,14 +810,17 @@ caller of `bits = rx.push(x)` working unchanged.
 import numpy as np
 from doppler.dsss import DsssBurstReceiver
 
+from doppler.wfm import Frame
+
 rng = np.random.default_rng(0)
 PAYLOAD_LEN = 32
-FRAME_SYMS = 13 + PAYLOAD_LEN + 16       # sync | payload | CRC-16
+desc = Frame(sync=np.zeros(13, np.uint8),     # sync | payload | CRC-16, ONE
+             payload=np.zeros(PAYLOAD_LEN, np.uint8), crc="crc16")
+FRAME_SYMS = desc.nbits                       # the description's to say
 rx = DsssBurstReceiver(
     rng.integers(0, 2, 31).astype(np.uint8),   # acquisition code
     rng.integers(0, 2, 8).astype(np.uint8),    # data code
-    np.zeros(13, dtype=np.uint8),              # sync word
-    reps=4, spc=4, frame_syms=FRAME_SYMS,
+    desc, reps=4, spc=4,
 )
 
 bits = rx.push(np.zeros(4096, dtype=np.complex64))   # k * frame_syms
@@ -878,11 +881,11 @@ coverage policy had moved into `wfm/wfm_frame.h`, whose own header says it
 
 ### 10.1 Three layers, each knowing one thing
 
-| layer    | object                              | knows                                                                   |
-| -------- | ----------------------------------- | ----------------------------------------------------------------------- |
-| physical | `BurstDemod`, `DsssBurstReceiver`   | the codes, the sync word, and `frame_syms` — how many symbols follow it |
-| frame    | `frame` (`wfm.Frame` / `FrameDesc`) | the fields, the stages, and the span each covers                        |
-| codes    | `conv`, `rs` via `ccsds_tm`'s ops   | the arithmetic a stage calls                                            |
+| layer    | object                              | knows                                                               |
+| -------- | ----------------------------------- | ------------------------------------------------------------------- |
+| physical | `BurstDemod`, `DsssBurstReceiver`   | the codes, and the frame description (its sync word and its length) |
+| frame    | `frame` (`wfm.Frame` / `FrameDesc`) | the fields, the stages, and the span each covers                    |
+| codes    | `conv`, `rs` via `ccsds_tm`'s ops   | the arithmetic a stage calls                                        |
 
 `push()` returns `frame_syms` bits per burst and `llrs()` the matching soft
 values. That is the entire output. `Frame.deframe()` is the receive
@@ -1024,7 +1027,7 @@ are not re-made:
 ### 11.4 The look-back IS the blob
 
 Measured 2026-09-01 by constructing
-`DsssBurstReceiver(acq_code, data_code, sync13, reps, spc=4, chip_rate=1e6, frame_syms=13+payload+16)` and reading its own `retain_span`
+`DsssBurstReceiver(acq_code, data_code, frame, reps, spc=4, chip_rate=1e6)` over a `sync13 | payload | CRC-16` description and reading its own `retain_span`
 and `state_bytes()`:
 
 | geometry                | `retain_span` | `state_bytes()` |

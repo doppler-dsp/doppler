@@ -103,11 +103,10 @@ def receiver() -> DsssBurstReceiver:
     return DsssBurstReceiver(
         acq_code=ACQ,
         data_code=DATA,
-        sync=SYNC,
+        frame=FRAME,  # the description the transmitter spreads (below)
         reps=REPS,
         spc=SPC,
         chip_rate=CHIP_RATE,
-        frame_syms=FRAME_SYMS,
         cn0_dbhz=CN0_DESIGN_DBHZ,
         doppler_uncertainty=0.0,
         pfa=1e-3,

@@ -213,6 +213,23 @@ dp_dsss_burst_receiver_create_desc (
   return s;
 }
 
+dp_dsss_burst_receiver_state_t *
+dp_dsss_burst_receiver_create_frame (
+    const uint8_t *acq_code, size_t acq_code_len, const uint8_t *data_code,
+    size_t data_code_len, const wfm_frame_desc_t *frame, size_t reps,
+    size_t spc, double chip_rate, double cn0_dbhz, double doppler_uncertainty,
+    double pfa, double pd, double carrier_hz, double max_rate,
+    size_t est_segments)
+{
+  /* The binding's constructor: an object's create has no `why` channel, so
+     the reason a description is refused is the manifest's
+     create_error_message, which names the rules. */
+  return dp_dsss_burst_receiver_create_desc (
+      acq_code, acq_code_len, data_code, data_code_len, frame, reps, spc,
+      chip_rate, cn0_dbhz, doppler_uncertainty, pfa, pd, carrier_hz, max_rate,
+      est_segments, NULL);
+}
+
 void
 dp_dsss_burst_receiver_destroy (dp_dsss_burst_receiver_state_t *state)
 {

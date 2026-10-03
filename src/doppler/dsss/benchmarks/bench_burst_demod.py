@@ -26,12 +26,12 @@ import pytest
 from doppler.dsss import BurstDemod
 from doppler.dsss.benchmarks._burst_stimulus import (
     CHIP_RATE,
+    FRAME,
     FRAME_SYMS,
     PAYLOAD,
     PAYLOAD_OFF,
     REPS,
     SPC,
-    SYNC,
     burst_stimulus,
     rate,
 )
@@ -43,9 +43,10 @@ def waveform():
 
 
 def _demod(acq_code, data_code):
-    d = BurstDemod(data_code, SPC, CHIP_RATE, 0.0, 0.0, FRAME_SYMS, 10)
+    d = BurstDemod(
+        data_code, FRAME, spc=SPC, chip_rate=CHIP_RATE, est_segments=10
+    )
     d.set_preamble(acq_code, REPS)
-    d.set_sync(SYNC)
     return d
 
 

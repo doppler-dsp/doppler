@@ -73,6 +73,11 @@ extern "C"
                                            double max_rate, size_t frame_syms,
                                            size_t est_segments);
 
+  dp_burst_demod_state_t *dp_burst_demod_create_frame (
+      const uint8_t *data_code, size_t data_code_len,
+      const wfm_frame_desc_t *frame, size_t spc, double chip_rate,
+      double carrier_hz, double max_rate, size_t est_segments);
+
   dp_burst_demod_state_t *dp_burst_demod_create_desc (
       const uint8_t *data_code, size_t data_code_len,
       const wfm_frame_desc_t *frame, size_t spc, double chip_rate,

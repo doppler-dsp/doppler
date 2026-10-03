@@ -71,6 +71,7 @@ _Feedforward BPSK DSSS frame demodulator._ [More...](#detailed-description)
 | ---: | :--- |
 |  [**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* | [**dp\_burst\_demod\_create**](#function-dp_burst_demod_create) (const uint8\_t \* data\_code, size\_t data\_code\_len, size\_t spc, double chip\_rate, double carrier\_hz, double max\_rate, size\_t frame\_syms, size\_t est\_segments) <br>_Create a feedforward BPSK DSSS burst demodulator._  |
 |  [**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* | [**dp\_burst\_demod\_create\_desc**](#function-dp_burst_demod_create_desc) (const uint8\_t \* data\_code, size\_t data\_code\_len, const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* frame, size\_t spc, double chip\_rate, double carrier\_hz, double max\_rate, size\_t est\_segments, const char \*\* why) <br>_Create a demodulator from the frame DESCRIPTION the transmitter spread, in place of a sync word and a hand-counted_ `frame_syms` _._ |
+|  [**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* | [**dp\_burst\_demod\_create\_frame**](#function-dp_burst_demod_create_frame) (const uint8\_t \* data\_code, size\_t data\_code\_len, const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* frame, size\_t spc, double chip\_rate, double carrier\_hz, double max\_rate, size\_t est\_segments) <br>_The Python binding's constructor:_ [_**dp\_burst\_demod\_create\_desc**_](burst__demod__core_8h.md#function-dp_burst_demod_create_desc) _without the_`why` _out-parameter._ |
 |  size\_t | [**dp\_burst\_demod\_demod**](#function-dp_burst_demod_demod) ([**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, uint8\_t \* out, size\_t max\_out) <br>_Demodulate one burst end to end and write the frame's bits._  |
 |  size\_t | [**dp\_burst\_demod\_demod\_max\_out**](#function-dp_burst_demod_demod_max_out) ([**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* state) <br>_Max output bits = frame\_syms (caller sizes the buffer)._  |
 |  void | [**dp\_burst\_demod\_destroy**](#function-dp_burst_demod_destroy) ([**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* state) <br>_Destroy a demodulator._  |
@@ -175,7 +176,7 @@ dp_burst_demod_state_t * dp_burst_demod_create (
 Recovers the payload of a single spread burst end to end, with no tracking loops: it estimates the burst's Doppler (and Doppler rate) from the unmodulated acquisition preamble, dechirps by that estimate, despreads the data section into soft symbols, aligns on the known sync word, slices to bits, and checks the CRC-16 trailer. One `max_rate` knob spans the whole range from near-static Doppler (0) to a severe LEO chirp.
 
 
-After construction, register the templates and the acquisition seed — set\_preamble(), set\_sync(), set\_prior() — then call demod() once per burst.
+After construction, register the templates and the acquisition seed — set\_preamble(), set\_sync(), set\_prior() — then call demod() once per burst. (Python builds one from a frame description instead: see [**dp\_burst\_demod\_create\_frame**](burst__demod__core_8h.md#function-dp_burst_demod_create_frame).)
 
 
 
@@ -191,42 +192,6 @@ After construction, register the templates and the acquisition seed — set\_pre
 * `max_rate` Chirp-rate search half-span (cycles/sample^2 at the input rate); 0 = Doppler only (no rate search). 
 * `frame_syms` Symbols the frame occupies after the sync word — how many bits demod() hands back per burst. What they mean is a frame description's business. 
 * `est_segments` Partial correlations per acq period (segmentation for the feedforward estimate; larger tolerates more rate). 
-```C++
->>> import numpy as np
->>> from doppler.dsss import BurstDemod
->>> spc, acq_sf, reps, data_sf = 4, 500, 5, 50
->>> sync = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], np.uint8)
->>> acode = ((np.arange(acq_sf) * 2654435761 >> 13) & 1).astype(
-...     np.uint8)
->>> dcode = ((np.arange(data_sf) * 40503 >> 7) & 1).astype(np.uint8)
->>> payload = ((np.arange(64) * 7 + 3) & 1).astype(np.uint8)
->>> def crc16(bits):
-...     c = 0xFFFF
-...     for b in bits:
-...         c ^= (int(b) & 1) << 15
-...         c = (((c << 1) ^ 0x1021) & 0xFFFF
-...              if c & 0x8000 else (c << 1) & 0xFFFF)
-...     return c
->>> crc = crc16(payload)
->>> crc_bits = np.array(
-...     [(crc >> (15 - j)) & 1 for j in range(16)], np.uint8)
->>> frame = np.concatenate([sync, payload, crc_bits])
->>> csign = lambda b: np.where(np.asarray(b) & 1, -1.0, 1.0)
->>> chips = ([np.tile(csign(acode), reps)]
-...          + [csign(b) * csign(dcode) for b in frame])
->>> bb = np.repeat(np.concatenate(chips), spc).astype(np.complex64)
->>> n = np.arange(len(bb))
->>> f0 = 0.012
->>> x = (bb * np.exp(2j * np.pi * f0 * n)).astype(np.complex64)
->>> d = BurstDemod(dcode, spc=spc, chip_rate=1e6, frame_syms=len(frame))
->>> d.set_preamble(acode, reps)   # unmodulated (f0, rate) preamble
->>> d.set_sync(sync)              # Barker-13: frame align + sign fix
->>> d.set_prior(f0, 0)            # coarse Doppler + preamble start
->>> bits = d.demod(x)      # estimate -> dechirp -> despread -> slice
->>> bool(np.array_equal(bits, frame))   # the FRAME, not the payload
-True
-```
- 
 
 
 
@@ -305,6 +270,84 @@ dp_burst_demod_destroy (d);
 
 
 
+### function dp\_burst\_demod\_create\_frame 
+
+_The Python binding's constructor:_ [_**dp\_burst\_demod\_create\_desc**_](burst__demod__core_8h.md#function-dp_burst_demod_create_desc) _without the_`why` _out-parameter._
+```C++
+dp_burst_demod_state_t * dp_burst_demod_create_frame (
+    const uint8_t * data_code,
+    size_t data_code_len,
+    const wfm_frame_desc_t * frame,
+    size_t spc,
+    double chip_rate,
+    double carrier_hz,
+    double max_rate,
+    size_t est_segments
+) 
+```
+
+
+
+An object's generated constructor has no channel for a reason, so a refused description surfaces as the manifest's `create_error_message`, which names the rules. C callers that want the reason call the `_desc` form.
+
+
+
+
+**Parameters:**
+
+
+* `data_code` the data spreading code, 0/1 chips. 
+* `data_code_len` its length (the spreading factor). 
+* `frame` the description (`const  wfm_frame_desc_t *`). 
+* `spc` samples per chip. 
+* `chip_rate` chips per second. 
+* `carrier_hz` the carrier the baseband is offset by, Hz. 
+* `max_rate` the Doppler rate searched, cycles/sample^2. 
+* `est_segments` partials per acquisition period for the estimate. 
+
+
+
+**Returns:**
+
+the demodulator, or NULL.
+
+
+
+```C++
+>>> import numpy as np
+>>> from doppler.dsss import BurstDemod
+>>> from doppler.wfm import Frame
+>>> spc, acq_sf, reps, data_sf = 4, 500, 5, 50
+>>> sync = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], np.uint8)
+>>> acode = ((np.arange(acq_sf) * 2654435761 >> 13) & 1).astype(
+...     np.uint8)
+>>> dcode = ((np.arange(data_sf) * 40503 >> 7) & 1).astype(np.uint8)
+>>> payload = ((np.arange(64) * 7 + 3) & 1).astype(np.uint8)
+>>> desc = Frame(sync=sync, payload=payload, crc="crc16")
+>>> frame = desc.bits()    # sync | payload | CRC-16: ONE description
+>>> csign = lambda b: np.where(np.asarray(b) & 1, -1.0, 1.0)
+>>> chips = ([np.tile(csign(acode), reps)]
+...          + [csign(b) * csign(dcode) for b in frame])
+>>> bb = np.repeat(np.concatenate(chips), spc).astype(np.complex64)
+>>> n = np.arange(len(bb))
+>>> f0 = 0.012
+>>> x = (bb * np.exp(2j * np.pi * f0 * n)).astype(np.complex64)
+>>> d = BurstDemod(dcode, desc, spc=spc, chip_rate=1e6)
+>>> d.set_preamble(acode, reps)   # unmodulated (f0, rate) preamble
+>>> d.set_prior(f0, 0)            # coarse Doppler + preamble start
+>>> bits = d.demod(x)      # estimate -> dechirp -> despread -> slice
+>>> bool(np.array_equal(bits, frame))   # the FRAME, not the payload
+True
+```
+ 
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_burst\_demod\_demod 
 
 _Demodulate one burst end to end and write the frame's bits._ 
@@ -323,7 +366,7 @@ size_t dp_burst_demod_demod (
 Runs the whole feedforward chain on the supplied samples: estimate the (frequency, chirp-rate) from the preamble, dechirp, despread the data section to soft symbols, sync-align and derotate, and slice `frame_syms` symbols to bits. It writes the frame as received — sync word first — and makes no claim about what those bits are for: undoing the frame needs a description, and that is a caller's, not this object's. The soft twin of the same decisions is [**dp\_burst\_demod\_llrs()**](burst__demod__core_8h.md#function-dp_burst_demod_llrs).
 
 
-On return the read-back fields report the outcome — `frame_offset`, `n_symbols`, and the `est_freq_hz` / `est_rate_hz` / `est_cn0_dbhz` / `est_timing_chips` estimates. The templates and prior must already be set via set\_preamble(), set\_sync(), set\_prior().
+On return the read-back fields report the outcome — `frame_offset`, `n_symbols`, and the `est_freq_hz` / `est_rate_hz` / `est_cn0_dbhz` / `est_timing_chips` estimates. The templates and prior must already be set via set\_preamble(), set\_prior() (and, in C, set\_sync()).
 
 
 The C function returns the number of bits written; the Python binding returns those bits as an array (a view into a reused buffer unless an `out` buffer is supplied).
@@ -372,9 +415,10 @@ Number of frame bits written (0 on failure / too-short burst).
 >>> n = np.arange(len(bb))
 >>> f0 = 0.012
 >>> x = (bb * np.exp(2j * np.pi * f0 * n)).astype(np.complex64)
->>> d = BurstDemod(dcode, spc=spc, chip_rate=1e6, frame_syms=93)
+>>> from doppler.wfm import Frame
+>>> desc = Frame(sync=sync, payload=np.zeros(64, np.uint8), crc="crc16")
+>>> d = BurstDemod(dcode, desc, spc=spc, chip_rate=1e6)
 >>> d.set_preamble(acode, reps)
->>> d.set_sync(sync)
 >>> d.set_prior(f0, 0)
 >>> bits = d.demod(x)
 >>> bool(np.array_equal(bits, frame))     # sync | payload | CRC, as sent
@@ -483,8 +527,10 @@ LLRs written — `min(frame bits, max_out)`, or 0 if the last demod() produced n
 >>> import numpy as np
 >>> from doppler.dsss import BurstDemod
 >>> dcode = (np.arange(50) & 1).astype(np.uint8)
->>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, frame_syms=93)
->>> d.set_sync(np.zeros(13, dtype=np.uint8))
+>>> from doppler.wfm import Frame
+>>> desc = Frame(sync=np.zeros(13, np.uint8), payload=np.zeros(64, np.uint8),
+...              crc="crc16")      # 13 + 64 + 16 = 93 symbols
+>>> d = BurstDemod(dcode, desc, spc=4, chip_rate=1e6)
 >>> d.llrs_max_out(1)          # one per frame symbol
 93
 ```
@@ -553,7 +599,10 @@ Zeros the after-demod fields (`frame_offset`, `n_symbols`, and the `est_*` estim
 >>> import numpy as np
 >>> from doppler.dsss import BurstDemod
 >>> dcode = (np.arange(50) & 1).astype(np.uint8)
->>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, frame_syms=93)
+>>> from doppler.wfm import Frame
+>>> desc = Frame(sync=np.zeros(13, np.uint8), payload=np.zeros(64, np.uint8),
+...              crc="crc16")      # 13 + 64 + 16 = 93 symbols
+>>> d = BurstDemod(dcode, desc, spc=4, chip_rate=1e6)
 >>> d.reset()          # clears the estimates, keeps the config
 >>> d.frame_offset
 0
@@ -599,7 +648,10 @@ The preamble is the acq spreading code transmitted `reps` times with no data mod
 >>> import numpy as np
 >>> from doppler.dsss import BurstDemod
 >>> dcode = (np.arange(50) & 1).astype(np.uint8)
->>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, frame_syms=93)
+>>> from doppler.wfm import Frame
+>>> desc = Frame(sync=np.zeros(13, np.uint8), payload=np.zeros(64, np.uint8),
+...              crc="crc16")      # 13 + 64 + 16 = 93 symbols
+>>> d = BurstDemod(dcode, desc, spc=4, chip_rate=1e6)
 >>> acode = (np.arange(500) & 1).astype(np.uint8)  # unmodulated
 >>> d.set_preamble(acode, reps=5)  # 5 reps drive the (f0, rate) fit
 ```
@@ -642,7 +694,10 @@ These come from the upstream acquisition stage: `f0_coarse` centres the feedforw
 >>> import numpy as np
 >>> from doppler.dsss import BurstDemod
 >>> dcode = (np.arange(50) & 1).astype(np.uint8)
->>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, frame_syms=93)
+>>> from doppler.wfm import Frame
+>>> desc = Frame(sync=np.zeros(13, np.uint8), payload=np.zeros(64, np.uint8),
+...              crc="crc16")      # 13 + 64 + 16 = 93 symbols
+>>> d = BurstDemod(dcode, desc, spc=4, chip_rate=1e6)
 >>> d.set_prior(0.012, start=0)   # coarse Doppler + start, from acq
 ```
  
@@ -682,16 +737,14 @@ This is the ONLY thing this object is told about the frame's content, and it is 
 
 * `state` Demodulator handle. 
 * `sync` Frame-sync word, one 0/1 symbol per element; copied. 
-* `sync_len` Sync word length (symbols); the length of `sync`. 
-```C++
->>> import numpy as np
->>> from doppler.dsss import BurstDemod
->>> dcode = (np.arange(50) & 1).astype(np.uint8)
->>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, frame_syms=93)
->>> sync = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], np.uint8)
->>> d.set_sync(sync)   # Barker-13: frame align + phase/sign fix
-```
- 
+* `sync_len` Sync word length (symbols); the length of `sync`.
+
+
+
+**Note:**
+
+C only. The Python face takes the sync word as the FIRST field of the frame description it is constructed from, so there is one statement of it, not two that could disagree. 
+
 
 
 
@@ -741,8 +794,10 @@ Symbols written — `min(frame bits, max_out)`, or 0 if the last demod() produce
 >>> import numpy as np
 >>> from doppler.dsss import BurstDemod
 >>> dcode = (np.arange(50) & 1).astype(np.uint8)
->>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, frame_syms=93)
->>> d.set_sync(np.zeros(13, dtype=np.uint8))
+>>> from doppler.wfm import Frame
+>>> desc = Frame(sync=np.zeros(13, np.uint8), payload=np.zeros(64, np.uint8),
+...              crc="crc16")      # 13 + 64 + 16 = 93 symbols
+>>> d = BurstDemod(dcode, desc, spc=4, chip_rate=1e6)
 >>> d.symbols_max_out(1)       # one per frame symbol, as llrs()
 93
 ```

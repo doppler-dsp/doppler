@@ -74,6 +74,20 @@ def _codes():
     return acq, dat, pay
 
 
+def _rx_frame(pay):
+    """The description the receiver is handed: ``[sync | payload | CRC-16]``.
+
+    The receiver reads its sync word (field 0) and the frame's length from
+    it; the payload bits only fill the layout, so the transmitter's own are
+    reused and both ends hold one description.
+    """
+    from doppler.wfm import Frame
+
+    frame = Frame(sync=SYNC, payload=pay, crc="crc16")
+    assert frame.nbits == FRAME
+    return frame
+
+
 def _data_desc() -> FrameDesc:
     """``[sync | data:PAYLOAD | CRC-16]``: the frame a burst spreads. The
     preamble stays on the source -- it is sent unspread, outside this."""
@@ -279,9 +293,8 @@ def test_five_bursts_decode_through_burst_demod():
 
     n_valid = 0
     for _k, s in enumerate(starts):
-        bd = BurstDemod(dat, spc=SPC, chip_rate=FS / SPC, frame_syms=FRAME)
+        bd = BurstDemod(dat, _rx_frame(pay), spc=SPC, chip_rate=FS / SPC)
         bd.set_preamble(acq, REPS)
-        bd.set_sync(SYNC)
         bd.set_prior(0.0, 0)
         bits = bd.demod(x[s : s + BURST_LEN])
         if _frame_ok(bits, pay):
@@ -493,9 +506,8 @@ def test_repeats_burst_train_decodes():
 
     n_valid = 0
     for s in starts:
-        bd = BurstDemod(dat, spc=SPC, chip_rate=FS / SPC, frame_syms=FRAME)
+        bd = BurstDemod(dat, _rx_frame(pay), spc=SPC, chip_rate=FS / SPC)
         bd.set_preamble(acq, REPS)
-        bd.set_sync(SYNC)
         bd.set_prior(0.0, 0)
         bits = bd.demod(x[s : s + BURST_LEN])
         if _frame_ok(bits, pay):
@@ -539,9 +551,8 @@ def test_gap_noise_default_floor_and_decode():
 
     n_valid = 0
     for s in starts:
-        bd = BurstDemod(dat, spc=SPC, chip_rate=FS / SPC, frame_syms=FRAME)
+        bd = BurstDemod(dat, _rx_frame(pay), spc=SPC, chip_rate=FS / SPC)
         bd.set_preamble(acq, REPS)
-        bd.set_sync(SYNC)
         bd.set_prior(0.0, 0)
         bits = bd.demod(x[s : s + BURST_LEN])
         if _frame_ok(bits, pay):

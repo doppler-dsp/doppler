@@ -74,7 +74,7 @@ import sys
 import numpy as np
 
 from doppler.dsss import DsssBurstReceiver
-from doppler.wfm import crc16
+from doppler.wfm import Frame, crc16
 
 # ── Geometry ─────────────────────────────────────────────────────────────
 # Small enough to sweep in minutes, large enough that the preamble is 4
@@ -220,13 +220,16 @@ def _run_one(
     cap[at : at + burst.size] += burst
 
     rx = DsssBurstReceiver(
-        acq_code,
-        data_code,
-        sync,
+        acq_code=acq_code,
+        data_code=data_code,
+        # The description the transmitter spread; the receiver reads the sync
+        # word and the frame's length from it. Only the layout matters to it.
+        frame=Frame(
+            sync=sync, payload=np.zeros(PAYLOAD, np.uint8), crc="crc16"
+        ),
         reps=REPS,
         spc=SPC,
         chip_rate=CHIP_RATE,
-        frame_syms=len(SYNC) + PAYLOAD + 16,
         cn0_dbhz=55.0,
     )
     for off in range(0, N_CAP, PUSH):

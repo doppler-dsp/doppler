@@ -1212,50 +1212,52 @@ class PolynomialPhaseEstimator:
 
 @final
 class BurstDemod:
-    """Create a feedforward BPSK DSSS burst demodulator.
+    """The Python binding's constructor: dp_burst_demod_create_desc without the
+    `why` out-parameter.
 
     Parameters
     ----------
     data_code : NDArray[np.uint8]
-        Data spreading code, one 0/1 chip per element; copied into the object
-        (its length is the data spreading factor, chips/symbol).
+        the data spreading code, 0/1 chips.
+    frame : Any
+        The frame description the transmitter spread (a Frame or a FrameDesc,
+        built or not): its first field is the sync word the receiver correlates
+        for, and its layout is the frame's length. Copied at construction, so
+        it need not outlive the receiver.
     spc : int, default 4
-        Samples per chip (front-end oversample).
+        samples per chip.
     chip_rate : float, default 1.0e6
-        Chip rate (Hz); sets the sample rate as spc*chip_rate.
+        chips per second.
     carrier_hz : float, default 0.0
-        RF carrier (Hz) for code-Doppler scaling; 0 = ignore.
+        the carrier the baseband is offset by, Hz.
     max_rate : float, default 0.0
-        Chirp-rate search half-span (cycles/sample^2 at the input rate); 0 =
-        Doppler only (no rate search).
-    frame_syms : int, default 0
-        Symbols the frame occupies after the sync word — how many bits demod()
-        hands back per burst. What they mean is a frame description's business.
+        the Doppler rate searched, cycles/sample^2.
     est_segments : int, default 10
-        Partial correlations per acq period (segmentation for the feedforward
-        estimate; larger tolerates more rate).
+        partials per acquisition period for the estimate.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``BurstDemod: invalid
+        parameter (need a non-empty data_code, spc >= 1, chip_rate > 0,
+        max_rate >= 0, est_segments >= 1) or a frame description whose first
+        field is not known bits (empty, derived by a stage, a data field,
+        covered by a stage, or named "preamble"), or whose stages emit a new
+        stream (a convolutional code)``.
 
     Examples
     --------
     >>> import numpy as np
     >>> from doppler.dsss import BurstDemod
+    >>> from doppler.wfm import Frame
     >>> spc, acq_sf, reps, data_sf = 4, 500, 5, 50
     >>> sync = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], np.uint8)
     >>> acode = ((np.arange(acq_sf) * 2654435761 >> 13) & 1).astype(
     ...     np.uint8)
     >>> dcode = ((np.arange(data_sf) * 40503 >> 7) & 1).astype(np.uint8)
     >>> payload = ((np.arange(64) * 7 + 3) & 1).astype(np.uint8)
-    >>> def crc16(bits):
-    ...     c = 0xFFFF
-    ...     for b in bits:
-    ...         c ^= (int(b) & 1) << 15
-    ...         c = (((c << 1) ^ 0x1021) & 0xFFFF
-    ...              if c & 0x8000 else (c << 1) & 0xFFFF)
-    ...     return c
-    >>> crc = crc16(payload)
-    >>> crc_bits = np.array(
-    ...     [(crc >> (15 - j)) & 1 for j in range(16)], np.uint8)
-    >>> frame = np.concatenate([sync, payload, crc_bits])
+    >>> desc = Frame(sync=sync, payload=payload, crc="crc16")
+    >>> frame = desc.bits()    # sync | payload | CRC-16: ONE description
     >>> csign = lambda b: np.where(np.asarray(b) & 1, -1.0, 1.0)
     >>> chips = ([np.tile(csign(acode), reps)]
     ...          + [csign(b) * csign(dcode) for b in frame])
@@ -1263,9 +1265,8 @@ class BurstDemod:
     >>> n = np.arange(len(bb))
     >>> f0 = 0.012
     >>> x = (bb * np.exp(2j * np.pi * f0 * n)).astype(np.complex64)
-    >>> d = BurstDemod(dcode, spc=spc, chip_rate=1e6, frame_syms=len(frame))
+    >>> d = BurstDemod(dcode, desc, spc=spc, chip_rate=1e6)
     >>> d.set_preamble(acode, reps)   # unmodulated (f0, rate) preamble
-    >>> d.set_sync(sync)              # Barker-13: frame align + sign fix
     >>> d.set_prior(f0, 0)            # coarse Doppler + preamble start
     >>> bits = d.demod(x)      # estimate -> dechirp -> despread -> slice
     >>> bool(np.array_equal(bits, frame))   # the FRAME, not the payload
@@ -1276,11 +1277,11 @@ class BurstDemod:
     def __init__(
         self,
         data_code: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
+        frame: object,
         spc: int = 4,
         chip_rate: float = 1.0e6,
         carrier_hz: float = 0.0,
         max_rate: float = 0.0,
-        frame_syms: int = 0,
         est_segments: int = 10,
     ) -> None: ...
     def reset(self) -> None:
@@ -1297,7 +1298,10 @@ class BurstDemod:
         >>> import numpy as np
         >>> from doppler.dsss import BurstDemod
         >>> dcode = (np.arange(50) & 1).astype(np.uint8)
-        >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, frame_syms=93)
+        >>> from doppler.wfm import Frame
+        >>> desc = Frame(sync=np.zeros(13, np.uint8), payload=np.zeros(64, np.uint8),
+        ...              crc="crc16")      # 13 + 64 + 16 = 93 symbols
+        >>> d = BurstDemod(dcode, desc, spc=4, chip_rate=1e6)
         >>> d.reset()          # clears the estimates, keeps the config
         >>> d.frame_offset
         0
@@ -1331,48 +1335,12 @@ class BurstDemod:
         >>> import numpy as np
         >>> from doppler.dsss import BurstDemod
         >>> dcode = (np.arange(50) & 1).astype(np.uint8)
-        >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, frame_syms=93)
+        >>> from doppler.wfm import Frame
+        >>> desc = Frame(sync=np.zeros(13, np.uint8), payload=np.zeros(64, np.uint8),
+        ...              crc="crc16")      # 13 + 64 + 16 = 93 symbols
+        >>> d = BurstDemod(dcode, desc, spc=4, chip_rate=1e6)
         >>> acode = (np.arange(500) & 1).astype(np.uint8)  # unmodulated
         >>> d.set_preamble(acode, reps=5)  # 5 reps drive the (f0, rate) fit
-
-        """
-
-    def set_sync(
-        self,
-        sync: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
-    ) -> None:
-        """Set the known frame-sync word (0/1 BPSK symbols) used for frame
-        alignment and phase/sign resolution. The ONLY thing this object is told
-        about the frame's content, and for a physical-layer reason: without the
-        sign the slicer would be a coin toss. Where the payload sits, which
-        stages cover what and whether a check passed all need the frame's
-        description and belong one layer up (doppler#1022).
-
-        After the data section is despread to soft BPSK symbols, demod()
-        correlates them against this word; the complex correlation peak locates
-        the frame (its frame_offset) and its phase resolves the residual
-        carrier rotation and the BPSK sign ambiguity before slicing. Pass the
-        word as 0/1 symbols; it is copied and stored internally as +/-1.
-
-        This is the ONLY thing this object is told about the frame's content,
-        and it is told it for a physical-layer reason: without the sign the
-        slicer would be a coin toss. Everything else — where the payload sits,
-        which stages cover what, whether a check passed — needs the frame's
-        description and belongs one layer up (doppler#1022).
-
-        Parameters
-        ----------
-        sync : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
-            Frame-sync word, one 0/1 symbol per element; copied.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.dsss import BurstDemod
-        >>> dcode = (np.arange(50) & 1).astype(np.uint8)
-        >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, frame_syms=93)
-        >>> sync = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], np.uint8)
-        >>> d.set_sync(sync)   # Barker-13: frame align + phase/sign fix
 
         """
 
@@ -1432,8 +1400,10 @@ class BurstDemod:
         >>> import numpy as np
         >>> from doppler.dsss import BurstDemod
         >>> dcode = (np.arange(50) & 1).astype(np.uint8)
-        >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, frame_syms=93)
-        >>> d.set_sync(np.zeros(13, dtype=np.uint8))
+        >>> from doppler.wfm import Frame
+        >>> desc = Frame(sync=np.zeros(13, np.uint8), payload=np.zeros(64, np.uint8),
+        ...              crc="crc16")      # 13 + 64 + 16 = 93 symbols
+        >>> d = BurstDemod(dcode, desc, spc=4, chip_rate=1e6)
         >>> d.llrs_max_out(1)          # one per frame symbol
         93
 
@@ -1508,8 +1478,10 @@ class BurstDemod:
         >>> import numpy as np
         >>> from doppler.dsss import BurstDemod
         >>> dcode = (np.arange(50) & 1).astype(np.uint8)
-        >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, frame_syms=93)
-        >>> d.set_sync(np.zeros(13, dtype=np.uint8))
+        >>> from doppler.wfm import Frame
+        >>> desc = Frame(sync=np.zeros(13, np.uint8), payload=np.zeros(64, np.uint8),
+        ...              crc="crc16")      # 13 + 64 + 16 = 93 symbols
+        >>> d = BurstDemod(dcode, desc, spc=4, chip_rate=1e6)
         >>> d.symbols_max_out(1)       # one per frame symbol, as llrs()
         93
 
@@ -1550,7 +1522,10 @@ class BurstDemod:
         >>> import numpy as np
         >>> from doppler.dsss import BurstDemod
         >>> dcode = (np.arange(50) & 1).astype(np.uint8)
-        >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, frame_syms=93)
+        >>> from doppler.wfm import Frame
+        >>> desc = Frame(sync=np.zeros(13, np.uint8), payload=np.zeros(64, np.uint8),
+        ...              crc="crc16")      # 13 + 64 + 16 = 93 symbols
+        >>> d = BurstDemod(dcode, desc, spc=4, chip_rate=1e6)
         >>> d.set_prior(0.012, start=0)   # coarse Doppler + start, from acq
 
         """
@@ -4084,62 +4059,62 @@ class AsyncDsssPool:
 
 @final
 class DsssBurstReceiver:
-    """Create a burst receiver: acquisition, refine and demodulation composed
-    behind one push().
+    """The Python binding's constructor: dp_dsss_burst_receiver_create_desc
+    without the `why` out-parameter.
 
     Parameters
     ----------
     acq_code : NDArray[np.uint8]
-        Preamble PN chips (0/1), length acq_code_len.
+        preamble code, 0/1 chips.
     data_code : NDArray[np.uint8]
-        Payload spreading chips (0/1), data_code_len long.
-    sync : NDArray[np.uint8]
-        Frame sync word (0/1 symbols), sync_len long.
+        payload spreading code, 0/1 chips.
+    frame : Any
+        The frame description the transmitter spread (a Frame or a FrameDesc,
+        built or not): its first field is the sync word the receiver correlates
+        for, and its layout is the frame's length. Copied at construction, so
+        it need not outlive the receiver.
     reps : int, default 5
-        Preamble code repetitions (>= 1).
+        preamble code repetitions.
     spc : int, default 4
-        Samples per chip (>= 1).
+        samples per chip.
     chip_rate : float, default 1000000.0
-        Chip rate in Hz (> 0).
-    frame_syms : int, default 64
-        Frame symbols per burst (>= 1) — what push() returns, bit for bit. The
-        frame is taken to END in a CRC-16. A frame sent without one, or too
-        short to hold one after the sync word, still returns its bits, but
-        `frame_valid` is 0 and no window owns its span.
+        chips per second.
     cn0_dbhz : float
-        Carrier-to-noise density in dB-Hz sizing the acquisition search: any
-        finite value, or NaN (ACQ_CN0_NONE) for no design point.
+        design C/N0 for the acquisition, dB-Hz (or NaN).
     doppler_uncertainty : float, default 0.0
-        One-sided Doppler half-range, Hz.
+        the Doppler span to search, cycles/sample.
     pfa : float, default 1e-3
-        Target false-alarm probability, in (0, 1).
+        false-alarm probability, in (0, 1).
     pd : float, default 0.9
-        Target detection probability, in (0, 1).
+        detection probability, in (0, 1).
     carrier_hz : float, default 0.0
-        RF carrier (Hz) for code-Doppler; 0 = ignore.
+        the carrier the baseband is offset by, Hz.
     max_rate : float, default 0.0
-        Chirp-rate search half-span (cycles/sample^2).
+        the Doppler rate expected, cycles/sample^2.
     est_segments : int, default 10
-        Segments the feedforward estimator fits over.
+        partials per acquisition period.
 
     Raises
     ------
     ValueError
         If construction fails. The exception message is ``DsssBurstReceiver:
-        invalid parameter (need non-empty acq_code/data_code/sync, reps >= 1,
-        spc >= 1, chip_rate > 0, frame_syms >= 1, cn0_dbhz finite or NaN, 0 <
-        pfa < 1, 0 < pd < 1)``.
+        invalid parameter (need non-empty acq_code/data_code, reps >= 1, spc >=
+        1, chip_rate > 0, cn0_dbhz finite or NaN, 0 < pfa < 1, 0 < pd < 1) or a
+        frame description whose first field is not known bits (empty, derived
+        by a stage, a data field, covered by a stage, or named "preamble"), or
+        whose stages emit a new stream (a convolutional code)``.
 
     Examples
     --------
     >>> import numpy as np
     >>> from doppler.dsss import DsssBurstReceiver
+    >>> from doppler.wfm import Frame
     >>> rng = np.random.default_rng(0)
     >>> acq = rng.integers(0, 2, 31).astype(np.uint8)
     >>> dat = rng.integers(0, 2, 8).astype(np.uint8)
-    >>> syn = np.zeros(13, dtype=np.uint8)
-    >>> rx = DsssBurstReceiver(acq, dat, syn, reps=4, spc=4,
-    ...                        frame_syms=32)
+    >>> desc = Frame(sync=np.zeros(13, np.uint8), payload=np.zeros(3, np.uint8),
+    ...              crc="crc16")     # the 32-symbol frame the burst carries
+    >>> rx = DsssBurstReceiver(acq, dat, desc, reps=4, spc=4)
     >>> rx.n_bursts
     0
 
@@ -4149,11 +4124,10 @@ class DsssBurstReceiver:
         self,
         acq_code: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
         data_code: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
-        sync: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
+        frame: object,
         reps: int = 5,
         spc: int = 4,
         chip_rate: float = 1000000.0,
-        frame_syms: int = 64,
         cn0_dbhz: float = ...,
         doppler_uncertainty: float = 0.0,
         pfa: float = 1e-3,
@@ -4223,11 +4197,13 @@ class DsssBurstReceiver:
         --------
         >>> import numpy as np
         >>> from doppler.dsss import DsssBurstReceiver
+        >>> from doppler.wfm import Frame
         >>> rng = np.random.default_rng(0)
+        >>> desc = Frame(sync=np.zeros(13, np.uint8), payload=np.zeros(3, np.uint8),
+        ...              crc="crc16")     # 13 + 3 + 16 = 32 symbols a burst
         >>> rx = DsssBurstReceiver(
         ...     rng.integers(0, 2, 31).astype(np.uint8),
-        ...     rng.integers(0, 2, 8).astype(np.uint8),
-        ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, frame_syms=32)
+        ...     rng.integers(0, 2, 8).astype(np.uint8), desc, reps=4, spc=4)
         >>> bits = rx.push(np.zeros(4096, dtype=np.complex64))
         >>> bits.size            # silence carries no burst
         0
@@ -4310,11 +4286,13 @@ class DsssBurstReceiver:
         --------
         >>> import numpy as np
         >>> from doppler.dsss import DsssBurstReceiver
+        >>> from doppler.wfm import Frame
         >>> rng = np.random.default_rng(0)
+        >>> desc = Frame(sync=np.zeros(13, np.uint8), payload=np.zeros(3, np.uint8),
+        ...              crc="crc16")     # 13 + 3 + 16 = 32 symbols a burst
         >>> rx = DsssBurstReceiver(
         ...     rng.integers(0, 2, 31).astype(np.uint8),
-        ...     rng.integers(0, 2, 8).astype(np.uint8),
-        ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, frame_syms=32)
+        ...     rng.integers(0, 2, 8).astype(np.uint8), desc, reps=4, spc=4)
         >>> bits = rx.push(np.zeros(4096, dtype=np.complex64))
         >>> len(bits), len(rx.llrs(rx.llrs_max_out(1)))   # nothing decoded
         (0, 0)
@@ -4373,11 +4351,13 @@ class DsssBurstReceiver:
         --------
         >>> import numpy as np
         >>> from doppler.dsss import DsssBurstReceiver
+        >>> from doppler.wfm import Frame
         >>> rng = np.random.default_rng(0)
+        >>> desc = Frame(sync=np.zeros(13, np.uint8), payload=np.zeros(3, np.uint8),
+        ...              crc="crc16")     # 13 + 3 + 16 = 32 symbols a burst
         >>> rx = DsssBurstReceiver(
         ...     rng.integers(0, 2, 31).astype(np.uint8),
-        ...     rng.integers(0, 2, 8).astype(np.uint8),
-        ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, frame_syms=32)
+        ...     rng.integers(0, 2, 8).astype(np.uint8), desc, reps=4, spc=4)
         >>> bits = rx.push(np.zeros(4096, dtype=np.complex64))
         >>> len(rx.events()) == bits.size // 32   # one record per payload
         True
@@ -4420,11 +4400,13 @@ class DsssBurstReceiver:
         --------
         >>> import numpy as np
         >>> from doppler.dsss import DsssBurstReceiver
+        >>> from doppler.wfm import Frame
         >>> rng = np.random.default_rng(0)
+        >>> desc = Frame(sync=np.zeros(13, np.uint8), payload=np.zeros(3, np.uint8),
+        ...              crc="crc16")     # 13 + 3 + 16 = 32 symbols a burst
         >>> rx = DsssBurstReceiver(
         ...     rng.integers(0, 2, 31).astype(np.uint8),
-        ...     rng.integers(0, 2, 8).astype(np.uint8),
-        ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, frame_syms=32)
+        ...     rng.integers(0, 2, 8).astype(np.uint8), desc, reps=4, spc=4)
         >>> rx.configure_search_raw(doppler_bins=1, n_noncoh=1)
 
         """
@@ -4446,11 +4428,13 @@ class DsssBurstReceiver:
         --------
         >>> import numpy as np
         >>> from doppler.dsss import DsssBurstReceiver
+        >>> from doppler.wfm import Frame
         >>> rng = np.random.default_rng(0)
+        >>> desc = Frame(sync=np.zeros(13, np.uint8), payload=np.zeros(3, np.uint8),
+        ...              crc="crc16")     # 13 + 3 + 16 = 32 symbols a burst
         >>> rx = DsssBurstReceiver(
         ...     rng.integers(0, 2, 31).astype(np.uint8),
-        ...     rng.integers(0, 2, 8).astype(np.uint8),
-        ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, frame_syms=32)
+        ...     rng.integers(0, 2, 8).astype(np.uint8), desc, reps=4, spc=4)
         >>> _ = rx.push(np.zeros(1024, dtype=np.complex64))
         >>> rx.reset()
 
@@ -4591,7 +4575,7 @@ class DsssBurstReceiver:
         reach matters depends on the burst: at a 255-chip code, `reps=5`, `spc=2`
         it is 12240 samples, and 8316-sample bursts with 600 samples of dead air
         between them (against the 3924 `min_gap` asks for) decode 2 of 7; the same
-        code with `frame_syms=2053` gives 261228-sample bursts, 21.3x the reach,
+        code with a 2053-symbol frame gives 261228-sample bursts, 21.3x the reach,
         and every spacing down to zero dead air decodes 7 of 7 (doppler#1085).
         """
 

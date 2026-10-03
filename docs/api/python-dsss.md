@@ -77,9 +77,11 @@ def _sign(b):                              # 0/1 chips -> +1/-1 BPSK
     return np.where(np.asarray(b) & 1, -1.0, 1.0)
 
 
-crc = _crc16(payload)
-crc_bits = np.array([(crc >> (15 - j)) & 1 for j in range(16)], np.uint8)
-frame = np.concatenate([sync_word, payload, crc_bits])
+# ONE description of the frame: the transmitter spreads it, the receiver is
+# told it (its sync word and its length), and nobody sums field lengths.
+from doppler.wfm import Frame
+desc = Frame(sync=sync_word, payload=payload, crc="crc16")
+frame = desc.bits()                        # sync | payload | CRC-16
 chips = [np.tile(_sign(acq_code), 5)]      # unmodulated preamble
 chips += [_sign(b) * _sign(data_code) for b in frame]
 f0, preamble_start = 0.012, 0              # cyc/sample; from acquisition
@@ -87,10 +89,9 @@ bb = np.repeat(np.concatenate(chips), 4).astype(np.complex64)
 nn = np.arange(len(bb))
 rx = (bb * np.exp(2j * np.pi * f0 * nn)).astype(np.complex64)
 
-d = BurstDemod(data_code, spc=4, chip_rate=1e6, carrier_hz=0.0,
-               max_rate=0.0, frame_syms=13 + 64 + 16, est_segments=10)
+d = BurstDemod(data_code, desc, spc=4, chip_rate=1e6, carrier_hz=0.0,
+               max_rate=0.0, est_segments=10)
 d.set_preamble(acq_code, reps=5)
-d.set_sync(sync_word)               # 0/1 BPSK sync header
 d.set_prior(f0, preamble_start)
 frame = d.demod(rx)                 # the FRAME's bits, sync word first
 # The demodulator stops at decisions; the frame is undone one layer up.

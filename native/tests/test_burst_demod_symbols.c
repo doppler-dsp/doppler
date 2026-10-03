@@ -23,11 +23,10 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_burst_demod[] = {
-    (jm_any_fn)dp_burst_demod_create,
+    (jm_any_fn)dp_burst_demod_create_frame,
     (jm_any_fn)dp_burst_demod_destroy,
     (jm_any_fn)dp_burst_demod_reset,
     (jm_any_fn)dp_burst_demod_set_preamble,
-    (jm_any_fn)dp_burst_demod_set_sync,
     (jm_any_fn)dp_burst_demod_llrs,
     (jm_any_fn)dp_burst_demod_llrs_max_out,
     (jm_any_fn)dp_burst_demod_symbols,

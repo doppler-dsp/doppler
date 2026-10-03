@@ -73,6 +73,7 @@ typedef struct
 #include "doppler/gold/gold_core.h"
 #include "doppler/mpsk/mpsk_core.h"
 #include "doppler/cvt/cvt_core.h"
+#include "doppler/wfm/wfm_frame.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -220,21 +221,58 @@ typedef struct {
  * @param est_segments  Segments the feedforward estimator fits over.
  * @return Heap-allocated state, or NULL if any argument is invalid.
  * @note Caller must call dp_dsss_burst_receiver_destroy() when done.
+ *       (Python builds one from a frame description instead: see
+ *       @ref dp_dsss_burst_receiver_create_frame.)
+ */
+dp_dsss_burst_receiver_state_t *dp_dsss_burst_receiver_create(const uint8_t *acq_code, size_t acq_code_len, const uint8_t *data_code, size_t data_code_len, const uint8_t *sync, size_t sync_len, size_t reps, size_t spc, double chip_rate, size_t frame_syms, double cn0_dbhz, double doppler_uncertainty, double pfa, double pd, double carrier_hz, double max_rate, size_t est_segments);
+
+/**
+ * @brief The Python binding's constructor: @ref dp_dsss_burst_receiver_create_desc
+ *        without the `why` out-parameter.
+ *
+ * An object's generated constructor has no channel for a reason, so a refused
+ * description surfaces as the manifest's `create_error_message`, which names
+ * the rules. C callers that want the reason call the `_desc` form.
+ *
+ * @param acq_code            preamble code, 0/1 chips.
+ * @param acq_code_len        its length, chips.
+ * @param data_code           payload spreading code, 0/1 chips.
+ * @param data_code_len       its length, chips.
+ * @param frame               the description (`const wfm_frame_desc_t *`).
+ * @param reps                preamble code repetitions.
+ * @param spc                 samples per chip.
+ * @param chip_rate           chips per second.
+ * @param cn0_dbhz            design C/N0 for the acquisition, dB-Hz (or NaN).
+ * @param doppler_uncertainty the Doppler span to search, cycles/sample.
+ * @param pfa                 false-alarm probability, in (0, 1).
+ * @param pd                  detection probability, in (0, 1).
+ * @param carrier_hz          the carrier the baseband is offset by, Hz.
+ * @param max_rate            the Doppler rate expected, cycles/sample^2.
+ * @param est_segments        partials per acquisition period.
+ * @return the receiver, or NULL.
+ *
  * @code
  * >>> import numpy as np
  * >>> from doppler.dsss import DsssBurstReceiver
+ * >>> from doppler.wfm import Frame
  * >>> rng = np.random.default_rng(0)
  * >>> acq = rng.integers(0, 2, 31).astype(np.uint8)
  * >>> dat = rng.integers(0, 2, 8).astype(np.uint8)
- * >>> syn = np.zeros(13, dtype=np.uint8)
- * >>> rx = DsssBurstReceiver(acq, dat, syn, reps=4, spc=4,
- * ...                        frame_syms=32)
+ * >>> desc = Frame(sync=np.zeros(13, np.uint8), payload=np.zeros(3, np.uint8),
+ * ...              crc="crc16")     # the 32-symbol frame the burst carries
+ * >>> rx = DsssBurstReceiver(acq, dat, desc, reps=4, spc=4)
  * >>> rx.n_bursts
  * 0
  *
  * @endcode
  */
-dp_dsss_burst_receiver_state_t *dp_dsss_burst_receiver_create(const uint8_t *acq_code, size_t acq_code_len, const uint8_t *data_code, size_t data_code_len, const uint8_t *sync, size_t sync_len, size_t reps, size_t spc, double chip_rate, size_t frame_syms, double cn0_dbhz, double doppler_uncertainty, double pfa, double pd, double carrier_hz, double max_rate, size_t est_segments);
+dp_dsss_burst_receiver_state_t *dp_dsss_burst_receiver_create_frame(
+    const uint8_t *acq_code, size_t acq_code_len, const uint8_t *data_code,
+    size_t data_code_len, const wfm_frame_desc_t *frame, size_t reps,
+    size_t spc, double chip_rate, double cn0_dbhz, double doppler_uncertainty,
+    double pfa, double pd, double carrier_hz, double max_rate,
+    size_t est_segments);
+
 
 /**
  * @brief Create a receiver from the frame DESCRIPTION the transmitter spread,
@@ -310,11 +348,13 @@ void dp_dsss_burst_receiver_destroy(dp_dsss_burst_receiver_state_t *state);
  * @code
  * >>> import numpy as np
  * >>> from doppler.dsss import DsssBurstReceiver
+ * >>> from doppler.wfm import Frame
  * >>> rng = np.random.default_rng(0)
+ * >>> desc = Frame(sync=np.zeros(13, np.uint8), payload=np.zeros(3, np.uint8),
+ * ...              crc="crc16")     # 13 + 3 + 16 = 32 symbols a burst
  * >>> rx = DsssBurstReceiver(
  * ...     rng.integers(0, 2, 31).astype(np.uint8),
- * ...     rng.integers(0, 2, 8).astype(np.uint8),
- * ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, frame_syms=32)
+ * ...     rng.integers(0, 2, 8).astype(np.uint8), desc, reps=4, spc=4)
  * >>> _ = rx.push(np.zeros(1024, dtype=np.complex64))
  * >>> rx.reset()
  *
@@ -376,11 +416,13 @@ size_t dp_dsss_burst_receiver_push_max_out(dp_dsss_burst_receiver_state_t *state
  * @code
  * >>> import numpy as np
  * >>> from doppler.dsss import DsssBurstReceiver
+ * >>> from doppler.wfm import Frame
  * >>> rng = np.random.default_rng(0)
+ * >>> desc = Frame(sync=np.zeros(13, np.uint8), payload=np.zeros(3, np.uint8),
+ * ...              crc="crc16")     # 13 + 3 + 16 = 32 symbols a burst
  * >>> rx = DsssBurstReceiver(
  * ...     rng.integers(0, 2, 31).astype(np.uint8),
- * ...     rng.integers(0, 2, 8).astype(np.uint8),
- * ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, frame_syms=32)
+ * ...     rng.integers(0, 2, 8).astype(np.uint8), desc, reps=4, spc=4)
  * >>> bits = rx.push(np.zeros(4096, dtype=np.complex64))
  * >>> bits.size            # silence carries no burst
  * 0
@@ -424,11 +466,13 @@ size_t dp_dsss_burst_receiver_events_max_out(dp_dsss_burst_receiver_state_t *sta
  * @code
  * >>> import numpy as np
  * >>> from doppler.dsss import DsssBurstReceiver
+ * >>> from doppler.wfm import Frame
  * >>> rng = np.random.default_rng(0)
+ * >>> desc = Frame(sync=np.zeros(13, np.uint8), payload=np.zeros(3, np.uint8),
+ * ...              crc="crc16")     # 13 + 3 + 16 = 32 symbols a burst
  * >>> rx = DsssBurstReceiver(
  * ...     rng.integers(0, 2, 31).astype(np.uint8),
- * ...     rng.integers(0, 2, 8).astype(np.uint8),
- * ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, frame_syms=32)
+ * ...     rng.integers(0, 2, 8).astype(np.uint8), desc, reps=4, spc=4)
  * >>> bits = rx.push(np.zeros(4096, dtype=np.complex64))
  * >>> len(bits), len(rx.llrs(rx.llrs_max_out(1)))   # nothing decoded
  * (0, 0)
@@ -470,11 +514,13 @@ size_t dp_dsss_burst_receiver_llrs_max_out(dp_dsss_burst_receiver_state_t *state
  * @code
  * >>> import numpy as np
  * >>> from doppler.dsss import DsssBurstReceiver
+ * >>> from doppler.wfm import Frame
  * >>> rng = np.random.default_rng(0)
+ * >>> desc = Frame(sync=np.zeros(13, np.uint8), payload=np.zeros(3, np.uint8),
+ * ...              crc="crc16")     # 13 + 3 + 16 = 32 symbols a burst
  * >>> rx = DsssBurstReceiver(
  * ...     rng.integers(0, 2, 31).astype(np.uint8),
- * ...     rng.integers(0, 2, 8).astype(np.uint8),
- * ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, frame_syms=32)
+ * ...     rng.integers(0, 2, 8).astype(np.uint8), desc, reps=4, spc=4)
  * >>> bits = rx.push(np.zeros(4096, dtype=np.complex64))
  * >>> len(rx.events()) == bits.size // 32   # one record per payload
  * True
@@ -496,11 +542,13 @@ size_t dp_dsss_burst_receiver_events(dp_dsss_burst_receiver_state_t *state, size
  * @code
  * >>> import numpy as np
  * >>> from doppler.dsss import DsssBurstReceiver
+ * >>> from doppler.wfm import Frame
  * >>> rng = np.random.default_rng(0)
+ * >>> desc = Frame(sync=np.zeros(13, np.uint8), payload=np.zeros(3, np.uint8),
+ * ...              crc="crc16")     # 13 + 3 + 16 = 32 symbols a burst
  * >>> rx = DsssBurstReceiver(
  * ...     rng.integers(0, 2, 31).astype(np.uint8),
- * ...     rng.integers(0, 2, 8).astype(np.uint8),
- * ...     np.zeros(13, dtype=np.uint8), reps=4, spc=4, frame_syms=32)
+ * ...     rng.integers(0, 2, 8).astype(np.uint8), desc, reps=4, spc=4)
  * >>> rx.configure_search_raw(doppler_bins=1, n_noncoh=1)
  *
  * @endcode

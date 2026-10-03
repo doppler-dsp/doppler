@@ -23,7 +23,7 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_dsss_burst_receiver[] = {
-    (jm_any_fn)dp_dsss_burst_receiver_create,
+    (jm_any_fn)dp_dsss_burst_receiver_create_frame,
     (jm_any_fn)dp_dsss_burst_receiver_destroy,
     (jm_any_fn)dp_dsss_burst_receiver_reset,
     (jm_any_fn)dp_dsss_burst_receiver_push_max_out,

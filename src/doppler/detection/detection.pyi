@@ -1,6 +1,7 @@
 # detection/detection.pyi — type stubs for the detection C extension.
 from typing import final
 import numpy as np
+import numpy.typing as npt
 from numpy.typing import NDArray
 
 @final
@@ -114,8 +115,8 @@ class LockDet:
 
     def steps(
         self,
-        x: NDArray[np.float64],
-        out: NDArray[np.int32] | None = None,
+        x: npt.NDArray[np.float64],
+        out: npt.NDArray[np.int32] | None = None,
     ) -> NDArray[np.int32]:
         """Run a block of lock-metric looks through the detector. Applies
         dp_lockdet_step() to each look in turn, so the decision flag and the
@@ -124,7 +125,7 @@ class LockDet:
 
         Parameters
         ----------
-        x : NDArray[np.float64]
+        x : npt.NDArray[np.float64]
             Lock-metric looks, one scalar per look (length >= n).
 
         Returns
@@ -355,11 +356,11 @@ class SyncFinder:
 
     def __init__(
         self,
-        marker: NDArray[np.uint8] | bytes | bytearray | memoryview,
+        marker: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
     ) -> None: ...
     def find(
         self,
-        bits: NDArray[np.uint8] | bytes | bytearray | memoryview,
+        bits: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
         max_errors: int = 0,
     ) -> SyncHit:
         """Find the first marker in bits, either polarity.
@@ -374,7 +375,7 @@ class SyncFinder:
 
         Parameters
         ----------
-        bits : NDArray[np.uint8] | bytes | bytearray | memoryview
+        bits : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
             Unpacked bits, one per byte.
         max_errors : int
             Largest tolerated Hamming distance, in bits.

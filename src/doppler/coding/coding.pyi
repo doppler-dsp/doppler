@@ -1,6 +1,7 @@
 # coding/coding.pyi — type stubs for the coding C extension.
 from typing import final
 import numpy as np
+import numpy.typing as npt
 from numpy.typing import NDArray
 
 @final
@@ -36,7 +37,7 @@ class ConvEncoder:
 
     def __init__(
         self,
-        poly: NDArray[np.uint32],
+        poly: npt.NDArray[np.uint32],
         k: int = 7,
         invert: int = 0,
     ) -> None: ...
@@ -58,8 +59,8 @@ class ConvEncoder:
 
     def encode(
         self,
-        x: NDArray[np.uint8] | bytes | bytearray | memoryview,
-        out: NDArray[np.uint8] | None = None,
+        x: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
+        out: npt.NDArray[np.uint8] | None = None,
     ) -> NDArray[np.uint8]:
         """Encode information bits into channel symbols.
 
@@ -72,9 +73,9 @@ class ConvEncoder:
 
         Parameters
         ----------
-        x : NDArray[np.uint8] | bytes | bytearray | memoryview
+        x : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
             Input.
-        out : NDArray[np.uint8] | None
+        out : npt.NDArray[np.uint8] | None
             Receives `n_in * n` unpacked symbols, one per byte.
 
         Returns
@@ -250,7 +251,7 @@ class Viterbi:
 
     def __init__(
         self,
-        poly: NDArray[np.uint32],
+        poly: npt.NDArray[np.uint32],
         k: int = 7,
         invert: int = 0,
         depth: int = 35,
@@ -274,8 +275,8 @@ class Viterbi:
 
     def decode(
         self,
-        x: NDArray[np.float32],
-        out: NDArray[np.uint8] | None = None,
+        x: npt.NDArray[np.float32],
+        out: npt.NDArray[np.uint8] | None = None,
     ) -> NDArray[np.uint8]:
         """Decode soft channel symbols into information bits.
 
@@ -302,9 +303,9 @@ class Viterbi:
 
         Parameters
         ----------
-        x : NDArray[np.float32]
+        x : npt.NDArray[np.float32]
             Input.
-        out : NDArray[np.uint8] | None
+        out : npt.NDArray[np.uint8] | None
             Receives the decoded information bits, one per byte.
 
         Returns
@@ -499,8 +500,8 @@ class ReedSolomon:
     ) -> None: ...
     def encode(
         self,
-        x: NDArray[np.uint8] | bytes | bytearray | memoryview,
-        out: NDArray[np.uint8] | None = None,
+        x: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
+        out: npt.NDArray[np.uint8] | None = None,
     ) -> NDArray[np.uint8]:
         """Encode `k` information symbols into a whole `n`-symbol codeword.
 
@@ -521,9 +522,9 @@ class ReedSolomon:
 
         Parameters
         ----------
-        x : NDArray[np.uint8] | bytes | bytearray | memoryview
+        x : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
             Input.
-        out : NDArray[np.uint8] | None
+        out : npt.NDArray[np.uint8] | None
             Receives `n` symbols; may be in.
 
         Returns
@@ -562,7 +563,7 @@ class ReedSolomon:
             Output.
         """
 
-    def decode(self, codeword: NDArray[np.uint8]) -> int:
+    def decode(self, codeword: npt.NDArray[np.uint8]) -> int:
         """Correct up to `E` symbol errors, IN PLACE.
 
         `dp_rs_decode`, over the caller's own buffer: the corrected symbols
@@ -582,7 +583,7 @@ class ReedSolomon:
 
         Parameters
         ----------
-        codeword : NDArray[np.uint8]
+        codeword : npt.NDArray[np.uint8]
             `n` symbols, corrected in place.
 
         Returns
@@ -611,8 +612,8 @@ class ReedSolomon:
 
     def syndromes(
         self,
-        x: NDArray[np.uint8] | bytes | bytearray | memoryview,
-        out: NDArray[np.uint8] | None = None,
+        x: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
+        out: npt.NDArray[np.uint8] | None = None,
     ) -> NDArray[np.uint8]:
         """The `nroots` syndromes of an `n`-symbol word.
 
@@ -623,9 +624,9 @@ class ReedSolomon:
 
         Parameters
         ----------
-        x : NDArray[np.uint8] | bytes | bytearray | memoryview
+        x : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
             Input.
-        out : NDArray[np.uint8] | None
+        out : npt.NDArray[np.uint8] | None
             Receives `nroots` syndromes.
 
         Returns
@@ -663,13 +664,13 @@ class ReedSolomon:
 
     def codeword_ok(
         self,
-        codeword: NDArray[np.uint8] | bytes | bytearray | memoryview,
+        codeword: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
     ) -> int:
         """Is this a valid codeword? — every syndrome zero.
 
         Parameters
         ----------
-        codeword : NDArray[np.uint8] | bytes | bytearray | memoryview
+        codeword : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
             `n` symbols.
 
         Returns
@@ -691,7 +692,7 @@ class ReedSolomon:
 
         """
 
-    def generator(self, out: NDArray[np.uint8]) -> int:
+    def generator(self, out: npt.NDArray[np.uint8]) -> int:
         """The `nroots + 1` coefficients of `g(x)`, `out[i]` for `x^i`.
 
         Exposed because standards PUBLISH them — CCSDS 131.0-B Annex G prints
@@ -707,7 +708,7 @@ class ReedSolomon:
 
         Parameters
         ----------
-        out : NDArray[np.uint8]
+        out : npt.NDArray[np.uint8]
             Receives `nroots + 1` coefficients; `out[i]` is the coefficient of
             `x^i`, so `out[nroots]` is 1.
 
@@ -856,8 +857,8 @@ class Interleaver:
 
     def interleave(
         self,
-        x: NDArray[np.uint8] | bytes | bytearray | memoryview,
-        out: NDArray[np.uint8] | None = None,
+        x: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
+        out: npt.NDArray[np.uint8] | None = None,
     ) -> NDArray[np.uint8]:
         """Interleave a whole number of blocks: write the input by rows into a
         `rows` x `cols` matrix and read it back by columns. Length-preserving.
@@ -867,9 +868,9 @@ class Interleaver:
 
         Parameters
         ----------
-        x : NDArray[np.uint8] | bytes | bytearray | memoryview
+        x : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
             Input.
-        out : NDArray[np.uint8] | None
+        out : npt.NDArray[np.uint8] | None
             Where to write n_in bits; must not overlap in.
 
         Returns
@@ -922,8 +923,8 @@ class Interleaver:
 
     def deinterleave(
         self,
-        x: NDArray[np.uint8] | bytes | bytearray | memoryview,
-        out: NDArray[np.uint8] | None = None,
+        x: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
+        out: npt.NDArray[np.uint8] | None = None,
     ) -> NDArray[np.uint8]:
         """Undo `interleave()` over the same geometry. De-interleaving a `rows`
         x `cols` block is interleaving a `cols` x `rows` one, so this is the
@@ -932,9 +933,9 @@ class Interleaver:
 
         Parameters
         ----------
-        x : NDArray[np.uint8] | bytes | bytearray | memoryview
+        x : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
             Input.
-        out : NDArray[np.uint8] | None
+        out : npt.NDArray[np.uint8] | None
             Where to write n_in bits; must not overlap in.
 
         Returns
@@ -982,8 +983,8 @@ class Interleaver:
 
     def deinterleave_soft(
         self,
-        x: NDArray[np.float32],
-        out: NDArray[np.float32] | None = None,
+        x: npt.NDArray[np.float32],
+        out: npt.NDArray[np.float32] | None = None,
     ) -> NDArray[np.float32]:
         """Undo an interleave over SOFT values -- the receive path that
         matters. `DsssBurstReceiver.llrs` span the whole frame, and an outer
@@ -1000,9 +1001,9 @@ class Interleaver:
 
         Parameters
         ----------
-        x : NDArray[np.float32]
+        x : npt.NDArray[np.float32]
             Input.
-        out : NDArray[np.float32] | None
+        out : npt.NDArray[np.float32] | None
             Where to write n_in values; must not overlap in.
 
         Returns
@@ -1182,8 +1183,8 @@ class Deinterleaver:
 
     def deinterleave(
         self,
-        x: NDArray[np.uint8] | bytes | bytearray | memoryview,
-        out: NDArray[np.uint8] | None = None,
+        x: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
+        out: npt.NDArray[np.uint8] | None = None,
     ) -> NDArray[np.uint8]:
         """Undo `interleave()` over the same geometry. De-interleaving a `rows`
         x `cols` block is interleaving a `cols` x `rows` one, so this is the
@@ -1192,9 +1193,9 @@ class Deinterleaver:
 
         Parameters
         ----------
-        x : NDArray[np.uint8] | bytes | bytearray | memoryview
+        x : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
             Input.
-        out : NDArray[np.uint8] | None
+        out : npt.NDArray[np.uint8] | None
             Where to write n_in bits; must not overlap in.
 
         Returns
@@ -1242,8 +1243,8 @@ class Deinterleaver:
 
     def deinterleave_soft(
         self,
-        x: NDArray[np.float32],
-        out: NDArray[np.float32] | None = None,
+        x: npt.NDArray[np.float32],
+        out: npt.NDArray[np.float32] | None = None,
     ) -> NDArray[np.float32]:
         """Undo an interleave over SOFT values -- the receive path that
         matters. `DsssBurstReceiver.llrs` span the whole frame, and an outer
@@ -1260,9 +1261,9 @@ class Deinterleaver:
 
         Parameters
         ----------
-        x : NDArray[np.float32]
+        x : npt.NDArray[np.float32]
             Input.
-        out : NDArray[np.float32] | None
+        out : npt.NDArray[np.float32] | None
             Where to write n_in values; must not overlap in.
 
         Returns

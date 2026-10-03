@@ -1,6 +1,6 @@
 # util/util.pyi — type stubs for the util C extension.
 import numpy as np
-from numpy.typing import NDArray
+import numpy.typing as npt
 def square_clip(y: complex, lin: float) -> complex:
     """Square-clip a complex sample: clip the real and imaginary parts
     independently to [-lin, lin] (a square region in the IQ plane).
@@ -393,7 +393,7 @@ def mean_sinc(umax: float) -> float:
 
     """
 
-def simpson_weights(w: NDArray[np.float64]) -> None:
+def simpson_weights(w: npt.NDArray[np.float64]) -> None:
     """Fill w with composite Simpson weights for the MEAN of a function over an
     interval: sum(w[i] * f(a + i*(b - a)/(n - 1))) approximates the mean of f
     over [a, b], for n = len(w) odd and at least 3. The weights sum to 1.
@@ -406,7 +406,7 @@ def simpson_weights(w: NDArray[np.float64]) -> None:
 
     Parameters
     ----------
-    w : NDArray[np.float64]
+    w : npt.NDArray[np.float64]
         Output, `w_len` weights.
 
     Examples
@@ -423,7 +423,7 @@ def simpson_weights(w: NDArray[np.float64]) -> None:
 
     """
 
-def midpoint_nodes(u: NDArray[np.float64]) -> None:
+def midpoint_nodes(u: npt.NDArray[np.float64]) -> None:
     """Fill u with the midpoint-rule nodes on [0, 1], u[k] = (k + 1/2)/n for n
     = len(u): the points a uniform average over n equal cells is evaluated at,
     each weighted 1/n.
@@ -433,7 +433,7 @@ def midpoint_nodes(u: NDArray[np.float64]) -> None:
 
     Parameters
     ----------
-    u : NDArray[np.float64]
+    u : npt.NDArray[np.float64]
         Output, `u_len` nodes, ascending.
 
     Examples
@@ -447,7 +447,10 @@ def midpoint_nodes(u: NDArray[np.float64]) -> None:
 
     """
 
-def gauss_hermite(z: NDArray[np.float64], p: NDArray[np.float64]) -> None:
+def gauss_hermite(
+    z: npt.NDArray[np.float64],
+    p: npt.NDArray[np.float64],
+) -> None:
     """Fill z and p with the n-point Gauss-Hermite rule for a STANDARD NORMAL:
     sum(p[i] * f(z[i])) approximates E[f(Z)], Z ~ N(0, 1), exactly for any
     polynomial f of degree up to 2n - 1. For X ~ N(mu, sigma^2) evaluate f(mu +
@@ -468,9 +471,9 @@ def gauss_hermite(z: NDArray[np.float64], p: NDArray[np.float64]) -> None:
 
     Parameters
     ----------
-    z : NDArray[np.float64]
+    z : npt.NDArray[np.float64]
         Output, `n` nodes.
-    p : NDArray[np.float64]
+    p : npt.NDArray[np.float64]
         Output, `n` weights.
 
     Examples

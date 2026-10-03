@@ -284,7 +284,7 @@ static PyMethodDef GoldObj_methods[] = {
     "    How many output samples to ask for. The call may return fewer; size\n"
     "    an `out=` buffer with the matching `_max_out()` when you need the\n"
     "    worst case.\n"
-    "out : NDArray[np.uint8] | None\n"
+    "out : npt.NDArray[np.uint8] | None\n"
     "    Output buffer of at least ``n`` uint8 elements; each element\n"
     "    receives 0 or 1.\n"
     "\n"

@@ -1,6 +1,7 @@
 # delay/delay.pyi — type stubs for the delay C extension.
 from typing import final
 import numpy as np
+import numpy.typing as npt
 from numpy.typing import NDArray
 
 @final
@@ -76,7 +77,7 @@ class DelayCf64:
     def ptr(
         self,
         count: int = ...,
-        out: NDArray[np.complex128] | None = None,
+        out: npt.NDArray[np.complex128] | None = None,
     ) -> NDArray[np.complex128]:
         """Snapshot the n most recent samples. Copies at most min(n, num_taps)
         samples starting from `buf[head]` into out. Because the dual-buffer
@@ -92,7 +93,7 @@ class DelayCf64:
             How many output samples to ask for. The call may return fewer; size
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
-        out : NDArray[np.complex128] | None
+        out : npt.NDArray[np.complex128] | None
             Output buffer; must hold at least max_out elements.
 
         Returns
@@ -134,7 +135,7 @@ class DelayCf64:
     def push_ptr(
         self,
         x: complex,
-        out: NDArray[np.complex128] | None = None,
+        out: npt.NDArray[np.complex128] | None = None,
     ) -> NDArray[np.complex128]:
         """Atomically push a sample and snapshot the current window. Equivalent
         to calling dp_delay_push() then dp_delay_ptr(num_taps), but avoids the
@@ -146,7 +147,7 @@ class DelayCf64:
         ----------
         x : complex
             New complex sample to insert.
-        out : NDArray[np.complex128] | None
+        out : npt.NDArray[np.complex128] | None
             Output buffer; must hold at least max_out elements.
 
         Returns

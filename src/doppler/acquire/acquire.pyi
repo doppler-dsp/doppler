@@ -2,6 +2,7 @@
 from typing import Any, final, Literal
 import os
 import numpy as np
+import numpy.typing as npt
 from numpy.typing import NDArray
 
 @final
@@ -81,21 +82,21 @@ class CarrierAcquisition:
         zero_pad: int = 4,
         window: Literal["hann", "kaiser", "blackman-harris"] = "hann",
         beta: float = 0.0,
-        psd_template: NDArray[np.float32] = ...,
+        psd_template: npt.NDArray[np.float32] = ...,
         pfa: float = 1e-3,
         pd: float = 0.9,
         design_snr: float = 2.0,
         sequential: bool = True,
         max_n_blocks: int = 100000,
     ) -> None: ...
-    def steps(self, x: NDArray[np.complex64]) -> None:
+    def steps(self, x: npt.NDArray[np.complex64]) -> None:
         """Fold raw complex samples into the running PSD average and test for a
         detection; any chunk size across repeated calls (a partial trailing
         block carries to the next call).
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Raw complex input samples (cf32).
 
         Examples
@@ -355,7 +356,7 @@ class Acquisition:
 
     def __init__(
         self,
-        code: NDArray[np.uint8] | bytes | bytearray | memoryview,
+        code: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
         spc: int = 4,
         chip_rate: float = 1000000.0,
         symbol_rate: float = 1000.0,
@@ -721,7 +722,7 @@ class Acquisition:
 
         """
 
-    def surface(self, out: NDArray[np.float32]) -> int:
+    def surface(self, out: npt.NDArray[np.float32]) -> int:
         """The last decided dwell's surface, in the gate's own units.
 
         Copies the surface the last dwell was decided on into out, row-major
@@ -738,7 +739,7 @@ class Acquisition:
 
         Parameters
         ----------
-        out : NDArray[np.float32]
+        out : npt.NDArray[np.float32]
             At least `surface_rows * code_bins` floats.
 
         Returns
@@ -766,7 +767,7 @@ class Acquisition:
 
         """
 
-    def surface_doppler_hz(self, out: NDArray[np.float64]) -> int:
+    def surface_doppler_hz(self, out: npt.NDArray[np.float64]) -> int:
         """The surface's Doppler axis: the frequency of each row, in Hz.
 
         One value per surface row, the fold and scale a hit's `doppler_hz_est`
@@ -776,7 +777,7 @@ class Acquisition:
 
         Parameters
         ----------
-        out : NDArray[np.float64]
+        out : npt.NDArray[np.float64]
             At least `surface_rows` doubles.
 
         Returns
@@ -801,7 +802,7 @@ class Acquisition:
 
         """
 
-    def surface_chip_phase(self, out: NDArray[np.float64]) -> int:
+    def surface_chip_phase(self, out: npt.NDArray[np.float64]) -> int:
         """The surface's code-phase axis: the chip phase of each column.
 
         One value per surface column, in chips, the same mapping
@@ -810,7 +811,7 @@ class Acquisition:
 
         Parameters
         ----------
-        out : NDArray[np.float64]
+        out : npt.NDArray[np.float64]
             At least `code_bins` doubles.
 
         Returns
@@ -834,7 +835,7 @@ class Acquisition:
 
         """
 
-    def surface_complex(self, out: NDArray[np.complex64]) -> int:
+    def surface_complex(self, out: npt.NDArray[np.complex64]) -> int:
         """The last decided dwell's surface, complex: amplitude and carrier
         phase per cell, before the magnitude the gate reads.
 
@@ -851,7 +852,7 @@ class Acquisition:
 
         Parameters
         ----------
-        out : NDArray[np.complex64]
+        out : npt.NDArray[np.complex64]
             At least `surface_rows * code_bins` complex floats.
 
         Returns
@@ -885,7 +886,7 @@ class Acquisition:
         self,
         tile: int,
         col: int,
-        out: NDArray[np.complex64],
+        out: npt.NDArray[np.complex64],
     ) -> int:
         """One cell's column of the last whole block: the per-epoch complex
         correlations at a code phase, the despread stream at epoch rate.
@@ -909,7 +910,7 @@ class Acquisition:
             surface's rows are cut in).
         col : int
             Code-phase column, `0 … code_bins-1`.
-        out : NDArray[np.complex64]
+        out : npt.NDArray[np.complex64]
             At least `coherent_bins` complex floats.
 
         Returns
@@ -944,7 +945,7 @@ class Acquisition:
 
         """
 
-    def block_raw(self, out: NDArray[np.complex64]) -> int:
+    def block_raw(self, out: npt.NDArray[np.complex64]) -> int:
         """The last whole block's raw samples, as pushed.
 
         Copies the `coherent_bins * code_bins` samples the block-coherent
@@ -959,7 +960,7 @@ class Acquisition:
 
         Parameters
         ----------
-        out : NDArray[np.complex64]
+        out : npt.NDArray[np.complex64]
             At least `coherent_bins * code_bins` complex floats.
 
         Returns
@@ -1357,7 +1358,7 @@ class BurstAcquisition:
 
     def __init__(
         self,
-        preamble: NDArray[np.complex64],
+        preamble: npt.NDArray[np.complex64],
         reps: int = 1,
         fs: float = 1.0,
         cn0_dbhz: float = ...,
@@ -1835,7 +1836,7 @@ class BurstCapture:
 
     def __init__(
         self,
-        preamble: NDArray[np.complex64],
+        preamble: npt.NDArray[np.complex64],
         burst_len: int = 8192,
         reps: int = 5,
         fs: float = 1.0,
@@ -1848,8 +1849,8 @@ class BurstCapture:
     ) -> None: ...
     def push(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Stream raw cf32 samples and get back the SAMPLES of every burst
         whose window has fully arrived, concatenated: burst i occupies
@@ -1874,9 +1875,9 @@ class BurstCapture:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Input samples, x_len long.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Written with the completed windows; may be NULL to drop.
 
         Returns
@@ -1920,7 +1921,7 @@ class BurstCapture:
     def detections(
         self,
         count: int = 1,
-        out: NDArray[Any] | None = None,
+        out: npt.NDArray[Any] | None = None,
     ) -> NDArray[Any]:
         """Every hit the search made in the last push(), unfiltered — before
         the claim rule coalesced the several detections of one preamble, and
@@ -1944,7 +1945,7 @@ class BurstCapture:
             How many output samples to ask for. The call may return fewer; size
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
-        out : NDArray[Any] | None
+        out : npt.NDArray[Any] | None
             Optional pre-allocated output buffer. When given, the result is
             written into it and the returned array is a view of exactly the
             samples produced; when omitted, a fresh array is allocated.
@@ -1985,7 +1986,7 @@ class BurstCapture:
     def events(
         self,
         count: int = 1,
-        out: NDArray[Any] | None = None,
+        out: npt.NDArray[Any] | None = None,
     ) -> NDArray[Any]:
         """The event record for each burst the last push() returned. Row i
         describes the window at samples[i*burst_len ...] of that push. Valid
@@ -2000,7 +2001,7 @@ class BurstCapture:
             How many output samples to ask for. The call may return fewer; size
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
-        out : NDArray[Any] | None
+        out : npt.NDArray[Any] | None
             Optional pre-allocated output buffer. When given, the result is
             written into it and the returned array is a view of exactly the
             samples produced; when omitted, a fresh array is allocated.
@@ -2533,7 +2534,7 @@ class PersistentBurstCapture:
     def __init__(
         self,
         path: str | os.PathLike,
-        preamble: NDArray[np.complex64],
+        preamble: npt.NDArray[np.complex64],
         burst_len: int = 8192,
         reps: int = 5,
         fs: float = 1.0,
@@ -2546,8 +2547,8 @@ class PersistentBurstCapture:
     ) -> None: ...
     def push(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Stream raw cf32 samples and get back the SAMPLES of every burst
         whose window has fully arrived, concatenated: burst i occupies
@@ -2572,9 +2573,9 @@ class PersistentBurstCapture:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Input samples, x_len long.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Written with the completed windows; may be NULL to drop.
 
         Returns
@@ -2618,7 +2619,7 @@ class PersistentBurstCapture:
     def detections(
         self,
         count: int = 1,
-        out: NDArray[Any] | None = None,
+        out: npt.NDArray[Any] | None = None,
     ) -> NDArray[Any]:
         """Every hit the search made in the last push(), unfiltered — before
         the claim rule coalesced the several detections of one preamble, and
@@ -2642,7 +2643,7 @@ class PersistentBurstCapture:
             How many output samples to ask for. The call may return fewer; size
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
-        out : NDArray[Any] | None
+        out : npt.NDArray[Any] | None
             Optional pre-allocated output buffer. When given, the result is
             written into it and the returned array is a view of exactly the
             samples produced; when omitted, a fresh array is allocated.
@@ -2683,7 +2684,7 @@ class PersistentBurstCapture:
     def events(
         self,
         count: int = 1,
-        out: NDArray[Any] | None = None,
+        out: npt.NDArray[Any] | None = None,
     ) -> NDArray[Any]:
         """The event record for each burst the last push() returned. Row i
         describes the window at samples[i*burst_len ...] of that push. Valid
@@ -2698,7 +2699,7 @@ class PersistentBurstCapture:
             How many output samples to ask for. The call may return fewer; size
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
-        out : NDArray[Any] | None
+        out : npt.NDArray[Any] | None
             Optional pre-allocated output buffer. When given, the result is
             written into it and the returned array is a view of exactly the
             samples produced; when omitted, a fresh array is allocated.

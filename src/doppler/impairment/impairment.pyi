@@ -1,6 +1,7 @@
 # impairment/impairment.pyi — type stubs for the impairment C extension.
 from typing import final
 import numpy as np
+import numpy.typing as npt
 from numpy.typing import NDArray
 
 @final
@@ -41,8 +42,8 @@ class DopplerChannel:
     ) -> None: ...
     def execute(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Apply clock Doppler to a block of complex baseband.
 
@@ -57,9 +58,9 @@ class DopplerChannel:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Input block.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Output buffer.
 
         Returns

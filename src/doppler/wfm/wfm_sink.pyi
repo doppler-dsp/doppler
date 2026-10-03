@@ -6,7 +6,8 @@ from __future__ import annotations
 
 from typing import Any, final
 
-from numpy.typing import NDArray
+import numpy as np
+import numpy.typing as npt
 
 @final
 class StreamSink:
@@ -24,12 +25,12 @@ class StreamSink:
     """
 
     def __init__(self, endpoint: int, sample_type: str = ...) -> None: ...
-    def send(self, x: NDArray[Any], fs: float, fc: float) -> int:
+    def send(self, x: npt.NDArray[np.complex64], fs: float, fc: float) -> int:
         """Convert a cf32 block to the wire type and publish it.
 
         Parameters
         ----------
-        iq : NDArray[Any]
+        iq : npt.NDArray[np.complex64]
             Complex-float samples; @param n complex sample count.
         fs : float
             sample rate (Hz); @param fc center frequency (Hz) — wire header.

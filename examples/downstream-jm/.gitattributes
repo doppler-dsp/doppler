@@ -1,0 +1,8 @@
+# just-makeit writes every file with LF line endings, on every platform, and
+# `jm status` compares the tree against that render. Git for Windows checks
+# text files out CRLF unless told otherwise; this keeps every checkout LF.
+* text=auto eol=lf
+
+# Windows batch files are the exception: cmd.exe needs CRLF to run them.
+*.bat text eol=crlf
+*.cmd text eol=crlf

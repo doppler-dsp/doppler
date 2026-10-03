@@ -334,7 +334,7 @@ static PyMethodDef AWGNObj_methods[] = {
     "    How many output samples to ask for. The call may return fewer; size\n"
     "    an `out=` buffer with the matching `_max_out()` when you need the\n"
     "    worst case.\n"
-    "out : NDArray[np.complex64] | None\n"
+    "out : npt.NDArray[np.complex64] | None\n"
     "    Output buffer; must hold at least n float _Complex values.\n"
     "\n"
     "Returns\n"

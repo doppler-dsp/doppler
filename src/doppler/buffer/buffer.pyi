@@ -1,6 +1,7 @@
 # buffer/buffer.pyi — type stubs for the buffer C extension.
 from typing import Any, final
 import numpy as np
+import numpy.typing as npt
 from numpy.typing import NDArray
 
 @final
@@ -36,7 +37,7 @@ class F32Buffer:
     """
 
     def __init__(self, capacity: int) -> None: ...
-    def write(self, x: NDArray[np.complex64]) -> bool:
+    def write(self, x: npt.NDArray[np.complex64]) -> bool:
         """Write samples into the buffer without blocking.
 
         Copies the complex64 array into the ring buffer in a single ``memcpy``.
@@ -49,7 +50,7 @@ class F32Buffer:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Samples to write. Must be 1-D and C-contiguous.
 
         Returns
@@ -73,7 +74,7 @@ class F32Buffer:
 
         """
 
-    def write_some(self, x: NDArray[np.complex64]) -> int:
+    def write_some(self, x: npt.NDArray[np.complex64]) -> int:
         """Write as much of ``x`` as fits and say how much that was.
 
         The partial-write twin of :meth:`write`. Where :meth:`write` refuses a
@@ -85,7 +86,7 @@ class F32Buffer:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Samples to write. Must be 1-D and C-contiguous.
 
         Returns
@@ -424,7 +425,7 @@ class F64Buffer:
     """
 
     def __init__(self, capacity: int) -> None: ...
-    def write(self, x: NDArray[np.complex128]) -> bool:
+    def write(self, x: npt.NDArray[np.complex128]) -> bool:
         """Write complex128 samples into the buffer without blocking.
 
         Copies the entire array in a single ``memcpy``. Rejects the write
@@ -434,7 +435,7 @@ class F64Buffer:
 
         Parameters
         ----------
-        x : NDArray[np.complex128]
+        x : npt.NDArray[np.complex128]
             Samples to write. Must be 1-D and C-contiguous.
 
         Returns
@@ -458,7 +459,7 @@ class F64Buffer:
 
         """
 
-    def write_some(self, x: NDArray[np.complex128]) -> int:
+    def write_some(self, x: npt.NDArray[np.complex128]) -> int:
         """Write as much of ``x`` as fits and say how much that was.
 
         The partial-write twin of :meth:`write`. Where :meth:`write` refuses a
@@ -470,7 +471,7 @@ class F64Buffer:
 
         Parameters
         ----------
-        x : NDArray[np.complex128]
+        x : npt.NDArray[np.complex128]
             Samples to write. Must be 1-D and C-contiguous.
 
         Returns
@@ -806,7 +807,7 @@ class I16Buffer:
     """
 
     def __init__(self, capacity: int) -> None: ...
-    def write(self, x: NDArray[Any]) -> bool:
+    def write(self, x: npt.NDArray[Any]) -> bool:
         """Write IQ samples into the buffer without blocking.
 
         Copies the record array into the ring in a single ``memcpy``. With
@@ -820,7 +821,7 @@ class I16Buffer:
 
         Parameters
         ----------
-        x : NDArray[Any]
+        x : npt.NDArray[Any]
             IQ samples to write: 1-D, C-contiguous, dtype ``[("i", "<i2"),
             ("q", "<i2")]``.
 
@@ -846,7 +847,7 @@ class I16Buffer:
 
         """
 
-    def write_some(self, x: NDArray[Any]) -> int:
+    def write_some(self, x: npt.NDArray[Any]) -> int:
         """Write as much of ``x`` as fits and say how much that was.
 
         The partial-write twin of :meth:`write`. Where :meth:`write` refuses a
@@ -858,7 +859,7 @@ class I16Buffer:
 
         Parameters
         ----------
-        x : NDArray[Any]
+        x : npt.NDArray[Any]
             Samples to write: 1-D, C-contiguous, dtype ``[("i", "<i2"), ("q",
             "<i2")]``.
 

@@ -2,6 +2,7 @@
 from typing import final, Literal
 import os
 import numpy as np
+import numpy.typing as npt
 from numpy.typing import NDArray
 
 @final
@@ -54,7 +55,7 @@ class Capture:
     def read(
         self,
         count: int = 1,
-        out: NDArray[np.complex64] | None = None,
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Read up to `count` samples as unit-scale complex64; an empty array
         at end of file.
@@ -65,7 +66,7 @@ class Capture:
             How many output samples to ask for. The call may return fewer; size
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Optional pre-allocated output buffer. When given, the result is
             written into it and the returned array is a view of exactly the
             samples produced; when omitted, a fresh array is allocated.
@@ -214,7 +215,7 @@ class RawCapture:
     def read(
         self,
         count: int = 1,
-        out: NDArray[np.complex64] | None = None,
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Read up to `count` samples as unit-scale complex64; an empty array
         at end of file.
@@ -225,7 +226,7 @@ class RawCapture:
             How many output samples to ask for. The call may return fewer; size
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Optional pre-allocated output buffer. When given, the result is
             written into it and the returned array is a view of exactly the
             samples produced; when omitted, a fresh array is allocated.

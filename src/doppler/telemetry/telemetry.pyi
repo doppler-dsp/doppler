@@ -1,6 +1,7 @@
 # telemetry/telemetry.pyi — type stubs for the telemetry C extension.
 from typing import Any, final
 import os
+import numpy.typing as npt
 from numpy.typing import NDArray
 import numpy as np
 
@@ -69,7 +70,7 @@ class Telemetry:
     def read(
         self,
         n: int = 0,
-        out: NDArray[Any] | None = None,
+        out: npt.NDArray[Any] | None = None,
     ) -> NDArray[Any]:
         """Drains records into out. Non-blocking.
 
@@ -81,7 +82,7 @@ class Telemetry:
         ----------
         n : int
             Records wanted; 0 means "everything available".
-        out : NDArray[Any] | None
+        out : npt.NDArray[Any] | None
             Destination.
 
         Returns
@@ -552,7 +553,7 @@ class MemoryCapture:
     def records(
         self,
         n: int = 0,
-        out: NDArray[Any] | None = None,
+        out: npt.NDArray[Any] | None = None,
     ) -> NDArray[Any]:
         """Copies accumulated records out. Memory mode only.
 
@@ -569,7 +570,7 @@ class MemoryCapture:
         ----------
         n : int
             Records wanted; 0 means "everything accumulated".
-        out : NDArray[Any] | None
+        out : npt.NDArray[Any] | None
             Destination.
 
         Returns

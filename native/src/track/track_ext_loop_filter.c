@@ -407,7 +407,7 @@ static PyMethodDef LoopFilterObj_methods[] = {
     "\n"
     "Parameters\n"
     "----------\n"
-    "x : NDArray[np.float64]\n"
+    "x : npt.NDArray[np.float64]\n"
     "    Loop-error array, one discriminator sample per update.\n"
     "\n"
     "Returns\n"

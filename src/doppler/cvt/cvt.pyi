@@ -1,6 +1,7 @@
 # cvt/cvt.pyi — type stubs for the cvt C extension.
 from typing import final, Literal
 import numpy as np
+import numpy.typing as npt
 from numpy.typing import NDArray
 
 @final
@@ -77,8 +78,8 @@ class F32ToI8:
 
     def steps(
         self,
-        x: NDArray[np.float32],
-        out: NDArray[np.int8] | None = None,
+        x: npt.NDArray[np.float32],
+        out: npt.NDArray[np.int8] | None = None,
     ) -> NDArray[np.int8]:
         """Process a block of float samples to int8.
 
@@ -89,7 +90,7 @@ class F32ToI8:
 
         Parameters
         ----------
-        x : NDArray[np.float32]
+        x : npt.NDArray[np.float32]
             Input.
 
         Returns
@@ -284,8 +285,8 @@ class F32ToI16:
 
     def steps(
         self,
-        x: NDArray[np.float32],
-        out: NDArray[np.int16] | None = None,
+        x: npt.NDArray[np.float32],
+        out: npt.NDArray[np.int16] | None = None,
     ) -> NDArray[np.int16]:
         """Process a block of float samples to int16.
 
@@ -296,7 +297,7 @@ class F32ToI16:
 
         Parameters
         ----------
-        x : NDArray[np.float32]
+        x : npt.NDArray[np.float32]
             Input.
 
         Returns
@@ -499,8 +500,8 @@ class F32ToI32:
 
     def steps(
         self,
-        x: NDArray[np.float32],
-        out: NDArray[np.int32] | None = None,
+        x: npt.NDArray[np.float32],
+        out: npt.NDArray[np.int32] | None = None,
     ) -> NDArray[np.int32]:
         """Process a block of float samples to int32.
 
@@ -511,7 +512,7 @@ class F32ToI32:
 
         Parameters
         ----------
-        x : NDArray[np.float32]
+        x : npt.NDArray[np.float32]
             Input.
 
         Returns
@@ -700,8 +701,8 @@ class I8ToF32:
 
     def steps(
         self,
-        x: NDArray[np.int8],
-        out: NDArray[np.float32] | None = None,
+        x: npt.NDArray[np.int8] | bytes | bytearray | memoryview,
+        out: npt.NDArray[np.float32] | None = None,
     ) -> NDArray[np.float32]:
         """Process a block of int8 samples to float32.
 
@@ -710,7 +711,7 @@ class I8ToF32:
 
         Parameters
         ----------
-        x : NDArray[np.int8]
+        x : npt.NDArray[np.int8] | bytes | bytearray | memoryview
             Input.
 
         Returns
@@ -843,8 +844,8 @@ class U8ToF32:
 
     def steps(
         self,
-        x: NDArray[np.uint8],
-        out: NDArray[np.float32] | None = None,
+        x: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
+        out: npt.NDArray[np.float32] | None = None,
     ) -> NDArray[np.float32]:
         """Convert a block of offset-binary codes to float32.
 
@@ -855,7 +856,7 @@ class U8ToF32:
 
         Parameters
         ----------
-        x : NDArray[np.uint8]
+        x : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
             Input.
 
         Returns
@@ -988,8 +989,8 @@ class I16ToF32:
 
     def steps(
         self,
-        x: NDArray[np.int16],
-        out: NDArray[np.float32] | None = None,
+        x: npt.NDArray[np.int16],
+        out: npt.NDArray[np.float32] | None = None,
     ) -> NDArray[np.float32]:
         """Process a block of int16 samples to float32.
 
@@ -998,7 +999,7 @@ class I16ToF32:
 
         Parameters
         ----------
-        x : NDArray[np.int16]
+        x : npt.NDArray[np.int16]
             Input.
 
         Returns
@@ -1131,8 +1132,8 @@ class I32ToF32:
 
     def steps(
         self,
-        x: NDArray[np.int32],
-        out: NDArray[np.float32] | None = None,
+        x: npt.NDArray[np.int32],
+        out: npt.NDArray[np.float32] | None = None,
     ) -> NDArray[np.float32]:
         """Process a block of int32 samples to float32.
 
@@ -1141,7 +1142,7 @@ class I32ToF32:
 
         Parameters
         ----------
-        x : NDArray[np.int32]
+        x : npt.NDArray[np.int32]
             Input.
 
         Returns
@@ -1277,8 +1278,8 @@ class F32ToI16U32:
 
     def steps(
         self,
-        x: NDArray[np.float32],
-        out: NDArray[np.uint32] | None = None,
+        x: npt.NDArray[np.float32],
+        out: npt.NDArray[np.uint32] | None = None,
     ) -> NDArray[np.uint32]:
         """Process a block of float samples to Q15-in-uint32.
 
@@ -1288,7 +1289,7 @@ class F32ToI16U32:
 
         Parameters
         ----------
-        x : NDArray[np.float32]
+        x : npt.NDArray[np.float32]
             Input.
 
         Returns
@@ -1481,8 +1482,8 @@ class F32ToI16U64:
 
     def steps(
         self,
-        x: NDArray[np.float32],
-        out: NDArray[np.uint64] | None = None,
+        x: npt.NDArray[np.float32],
+        out: npt.NDArray[np.uint64] | None = None,
     ) -> NDArray[np.uint64]:
         """Process a block of float samples to Q15-in-uint64.
 
@@ -1492,7 +1493,7 @@ class F32ToI16U64:
 
         Parameters
         ----------
-        x : NDArray[np.float32]
+        x : npt.NDArray[np.float32]
             Input.
 
         Returns
@@ -1681,8 +1682,8 @@ class I16U32ToF32:
 
     def steps(
         self,
-        x: NDArray[np.uint32],
-        out: NDArray[np.float32] | None = None,
+        x: npt.NDArray[np.uint32],
+        out: npt.NDArray[np.float32] | None = None,
     ) -> NDArray[np.float32]:
         """Process a block of Q15-in-uint32 samples to float32.
 
@@ -1691,7 +1692,7 @@ class I16U32ToF32:
 
         Parameters
         ----------
-        x : NDArray[np.uint32]
+        x : npt.NDArray[np.uint32]
             Input.
 
         Returns
@@ -1822,8 +1823,8 @@ class I16U64ToF32:
 
     def steps(
         self,
-        x: NDArray[np.uint64],
-        out: NDArray[np.float32] | None = None,
+        x: npt.NDArray[np.uint64],
+        out: npt.NDArray[np.float32] | None = None,
     ) -> NDArray[np.float32]:
         """Process a block of Q15-in-uint64 samples to float32.
 
@@ -1832,7 +1833,7 @@ class I16U64ToF32:
 
         Parameters
         ----------
-        x : NDArray[np.uint64]
+        x : npt.NDArray[np.uint64]
             Input.
 
         Returns
@@ -1969,8 +1970,8 @@ class F32ToUQ15:
 
     def steps(
         self,
-        x: NDArray[np.float32],
-        out: NDArray[np.uint16] | None = None,
+        x: npt.NDArray[np.float32],
+        out: npt.NDArray[np.uint16] | None = None,
     ) -> NDArray[np.uint16]:
         """Process a block of float samples to UQ15 uint16.
 
@@ -1980,7 +1981,7 @@ class F32ToUQ15:
 
         Parameters
         ----------
-        x : NDArray[np.float32]
+        x : npt.NDArray[np.float32]
             Input.
 
         Returns
@@ -2171,8 +2172,8 @@ class UQ15ToF32:
 
     def steps(
         self,
-        x: NDArray[np.uint16],
-        out: NDArray[np.float32] | None = None,
+        x: npt.NDArray[np.uint16],
+        out: npt.NDArray[np.float32] | None = None,
     ) -> NDArray[np.float32]:
         """Process a block of UQ15 samples to float32.
 
@@ -2182,7 +2183,7 @@ class UQ15ToF32:
 
         Parameters
         ----------
-        x : NDArray[np.uint16]
+        x : npt.NDArray[np.uint16]
             Input.
 
         Returns
@@ -2330,8 +2331,8 @@ class ADC:
 
     def steps(
         self,
-        x: NDArray[np.float32],
-        out: NDArray[np.int64] | None = None,
+        x: npt.NDArray[np.float32],
+        out: npt.NDArray[np.int64] | None = None,
     ) -> NDArray[np.int64]:
         """Process a block of float samples to int64.
 
@@ -2343,7 +2344,7 @@ class ADC:
 
         Parameters
         ----------
-        x : NDArray[np.float32]
+        x : npt.NDArray[np.float32]
             Input.
 
         Returns
@@ -2476,7 +2477,7 @@ class ADC:
 def int_to_bin(
     v: int,
     n_bits: int,
-    out: NDArray[np.uint8],
+    out: npt.NDArray[np.uint8],
     bitorder: int,
 ) -> int:
     """Expand the low n_bits of an integer to unpacked bits, one per byte. The
@@ -2503,7 +2504,7 @@ def int_to_bin(
         the value.
     n_bits : int
         1..64.
-    out : NDArray[np.uint8]
+    out : npt.NDArray[np.uint8]
         receives n_bits bytes, each 0 or 1.
     bitorder : int
         DP_BITORDER_BIG or DP_BITORDER_LITTLE.
@@ -2525,7 +2526,7 @@ def int_to_bin(
 
     """
 
-def hex_to_bin(hex: str, out: NDArray[np.uint8], bitorder: int) -> int:
+def hex_to_bin(hex: str, out: npt.NDArray[np.uint8], bitorder: int) -> int:
     """Expand a hex string to unpacked bits, one per byte. For what int_to_bin
     cannot serve: a literal wider than 64 bits, or one arriving as TEXT from a
     CLI flag or a JSON record. An odd number of digits is accepted and yields a
@@ -2546,7 +2547,7 @@ def hex_to_bin(hex: str, out: NDArray[np.uint8], bitorder: int) -> int:
     ----------
     hex : str
         NUL-terminated `0-9a-fA-F`. No `0x`, no separators.
-    out : NDArray[np.uint8]
+    out : npt.NDArray[np.uint8]
         receives `4 * strlen(hex)` bytes, each 0 or 1.
     bitorder : int
         DP_BITORDER_BIG or DP_BITORDER_LITTLE.
@@ -2569,8 +2570,8 @@ def hex_to_bin(hex: str, out: NDArray[np.uint8], bitorder: int) -> int:
     """
 
 def bytes_to_bin(
-    octets: NDArray[np.uint8] | bytes | bytearray | memoryview,
-    out: NDArray[np.uint8],
+    octets: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
+    out: npt.NDArray[np.uint8],
     bitorder: int,
 ) -> int:
     r"""Unpack octets to bits, one per byte: 8 bits an octet, MSB first under
@@ -2587,9 +2588,9 @@ def bytes_to_bin(
 
     Parameters
     ----------
-    octets : NDArray[np.uint8] | bytes | bytearray | memoryview
+    octets : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
         the packed bytes.
-    out : NDArray[np.uint8]
+    out : npt.NDArray[np.uint8]
         receives `8 * octets_len` bytes, each 0 or 1.
     bitorder : int
         DP_BITORDER_BIG or DP_BITORDER_LITTLE.
@@ -2613,7 +2614,7 @@ def bytes_to_bin(
     """
 
 def bin_to_int(
-    bits: NDArray[np.uint8] | bytes | bytearray | memoryview,
+    bits: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
     bitorder: int,
 ) -> int:
     """Read unpacked bits back into an integer -- the inverse of int_to_bin.
@@ -2626,7 +2627,7 @@ def bin_to_int(
 
     Parameters
     ----------
-    bits : NDArray[np.uint8] | bytes | bytearray | memoryview
+    bits : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
         1..64 unpacked bits; any non-zero byte reads as 1.
     bitorder : int
         DP_BITORDER_BIG or DP_BITORDER_LITTLE.
@@ -2647,8 +2648,8 @@ def bin_to_int(
     """
 
 def bin_to_hex(
-    bits: NDArray[np.uint8] | bytes | bytearray | memoryview,
-    out: NDArray[np.uint8],
+    bits: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
+    out: npt.NDArray[np.uint8],
     bitorder: int,
 ) -> int:
     """Render unpacked bits back to hex digits -- the exact inverse of
@@ -2668,9 +2669,9 @@ def bin_to_hex(
 
     Parameters
     ----------
-    bits : NDArray[np.uint8] | bytes | bytearray | memoryview
+    bits : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
         unpacked bits; any non-zero byte reads as 1.
-    out : NDArray[np.uint8]
+    out : npt.NDArray[np.uint8]
         receives the digits plus a NUL.
     bitorder : int
         DP_BITORDER_BIG or DP_BITORDER_LITTLE.
@@ -2695,8 +2696,8 @@ def bin_to_hex(
     """
 
 def bin_to_nrz(
-    bits: NDArray[np.uint8] | bytes | bytearray | memoryview,
-    out: NDArray[np.float32],
+    bits: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
+    out: npt.NDArray[np.float32],
 ) -> int:
     """Map unpacked bits to bipolar NRZ symbols: bit 0 -> +1.0, bit 1 -> -1.0.
     That is `1 - 2*b`, the convention already used across doppler (qpsk_map.c
@@ -2715,9 +2716,9 @@ def bin_to_nrz(
 
     Parameters
     ----------
-    bits : NDArray[np.uint8] | bytes | bytearray | memoryview
+    bits : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
         unpacked bits; any non-zero byte reads as 1.
-    out : NDArray[np.float32]
+    out : npt.NDArray[np.float32]
         receives bits_len symbols, each +1.0f or -1.0f.
 
     Returns
@@ -2738,7 +2739,10 @@ def bin_to_nrz(
 
     """
 
-def nrz_to_bin(nrz: NDArray[np.float32], out: NDArray[np.uint8]) -> int:
+def nrz_to_bin(
+    nrz: npt.NDArray[np.float32],
+    out: npt.NDArray[np.uint8],
+) -> int:
     """Hard-decide bipolar NRZ symbols back to unpacked bits -- the inverse of
     bin_to_nrz. Negative is a 1, zero and positive are a 0, matching `1 - 2*b`.
     Exactly zero is a 0 rather than a coin toss, so the mapping is total and a
@@ -2751,9 +2755,9 @@ def nrz_to_bin(nrz: NDArray[np.float32], out: NDArray[np.uint8]) -> int:
 
     Parameters
     ----------
-    nrz : NDArray[np.float32]
+    nrz : npt.NDArray[np.float32]
         symbols.
-    out : NDArray[np.uint8]
+    out : npt.NDArray[np.uint8]
         receives nrz_len bytes, each 0 or 1.
 
     Returns

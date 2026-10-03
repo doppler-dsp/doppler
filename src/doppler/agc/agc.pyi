@@ -1,6 +1,7 @@
 # agc/agc.pyi — type stubs for the agc C extension.
 from typing import final
 import numpy as np
+import numpy.typing as npt
 from numpy.typing import NDArray
 
 @final
@@ -114,8 +115,8 @@ class AGC:
 
     def steps(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Process a block of complex samples through the decimated AGC loop.
         Splits the input into chunks of decim samples. Within each chunk the
@@ -128,7 +129,7 @@ class AGC:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             Input.
 
         Returns

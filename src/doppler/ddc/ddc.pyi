@@ -1,6 +1,7 @@
 # ddc/ddc.pyi — type stubs for the ddc C extension.
 from typing import final
 import numpy as np
+import numpy.typing as npt
 from numpy.typing import NDArray
 
 @final
@@ -40,16 +41,16 @@ class DDC:
     def __init__(self, norm_freq: float = 0.0, rate: float = 0.25) -> None: ...
     def execute(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Mix input block with LO, then rate-convert.
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             CF32 input block; accepted as float32 (auto-cast).
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             CF32 output buffer (C-only, hidden from Python).
 
         Returns
@@ -97,7 +98,7 @@ class DDC:
 
     def execute_ctrl(
         self,
-        x: NDArray[np.complex64],
+        x: npt.NDArray[np.complex64],
         rate_ctrl: float,
         freq_ctrl: float,
     ) -> NDArray[np.complex64]:
@@ -118,7 +119,7 @@ class DDC:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             CF32 input block.
         rate_ctrl : float
             Rate deviation added to the terminal Resampler stage's rate.
@@ -154,7 +155,7 @@ class DDC:
         x: complex,
         rate_ctrl: float,
         freq_ctrl: float,
-        out: NDArray[np.complex64] | None = None,
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Push ONE input sample; emit whatever outputs it completes.
 
@@ -176,7 +177,7 @@ class DDC:
         freq_ctrl : float
             Frequency deviation for this input, cycles/sample at the input
             rate.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Output buffer for any emitted samples.
 
         Returns
@@ -405,16 +406,16 @@ class MatchedDDC:
     ) -> None: ...
     def execute(
         self,
-        x: NDArray[np.complex64],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Mix input block with LO, then rate-convert.
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             CF32 input block; accepted as float32 (auto-cast).
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             CF32 output buffer (C-only, hidden from Python).
 
         Returns
@@ -462,7 +463,7 @@ class MatchedDDC:
 
     def execute_ctrl(
         self,
-        x: NDArray[np.complex64],
+        x: npt.NDArray[np.complex64],
         rate_ctrl: float,
         freq_ctrl: float,
     ) -> NDArray[np.complex64]:
@@ -483,7 +484,7 @@ class MatchedDDC:
 
         Parameters
         ----------
-        x : NDArray[np.complex64]
+        x : npt.NDArray[np.complex64]
             CF32 input block.
         rate_ctrl : float
             Rate deviation added to the terminal Resampler stage's rate.
@@ -519,7 +520,7 @@ class MatchedDDC:
         x: complex,
         rate_ctrl: float,
         freq_ctrl: float,
-        out: NDArray[np.complex64] | None = None,
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Push ONE input sample; emit whatever outputs it completes.
 
@@ -541,7 +542,7 @@ class MatchedDDC:
         freq_ctrl : float
             Frequency deviation for this input, cycles/sample at the input
             rate.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Output buffer for any emitted samples.
 
         Returns
@@ -757,16 +758,16 @@ class Ddcr:
     def __init__(self, norm_freq: float = 0.0, rate: float = 0.25) -> None: ...
     def execute(
         self,
-        x: NDArray[np.float32],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.float32],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Down-convert a block of real float32 samples to CF32 baseband.
 
         Parameters
         ----------
-        x : NDArray[np.float32]
+        x : npt.NDArray[np.float32]
             Input.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             CF32 output buffer (C-only, hidden from Python).
 
         Returns
@@ -804,7 +805,7 @@ class Ddcr:
 
     def execute_ctrl(
         self,
-        x: NDArray[np.float32],
+        x: npt.NDArray[np.float32],
         rate_ctrl: float,
         freq_ctrl: float,
     ) -> NDArray[np.complex64]:
@@ -815,7 +816,7 @@ class Ddcr:
 
         Parameters
         ----------
-        x : NDArray[np.float32]
+        x : npt.NDArray[np.float32]
             Real float32 input block.
         rate_ctrl : float
             Rate deviation added to the terminal Resampler stage's rate
@@ -851,7 +852,7 @@ class Ddcr:
         x: float,
         rate_ctrl: float,
         freq_ctrl: float,
-        out: NDArray[np.complex64] | None = None,
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Push ONE real input sample; emit whatever outputs it completes.
 
@@ -869,7 +870,7 @@ class Ddcr:
             Rate deviation for this input (terminal-stage rate).
         freq_ctrl : float
             Frequency deviation, cycles/sample at fs_in/2.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Output buffer for any emitted samples.
 
         Returns
@@ -1103,16 +1104,16 @@ class MatchedDdcr:
     ) -> None: ...
     def execute(
         self,
-        x: NDArray[np.float32],
-        out: NDArray[np.complex64] | None = None,
+        x: npt.NDArray[np.float32],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Down-convert a block of real float32 samples to CF32 baseband.
 
         Parameters
         ----------
-        x : NDArray[np.float32]
+        x : npt.NDArray[np.float32]
             Input.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             CF32 output buffer (C-only, hidden from Python).
 
         Returns
@@ -1150,7 +1151,7 @@ class MatchedDdcr:
 
     def execute_ctrl(
         self,
-        x: NDArray[np.float32],
+        x: npt.NDArray[np.float32],
         rate_ctrl: float,
         freq_ctrl: float,
     ) -> NDArray[np.complex64]:
@@ -1161,7 +1162,7 @@ class MatchedDdcr:
 
         Parameters
         ----------
-        x : NDArray[np.float32]
+        x : npt.NDArray[np.float32]
             Real float32 input block.
         rate_ctrl : float
             Rate deviation added to the terminal Resampler stage's rate
@@ -1197,7 +1198,7 @@ class MatchedDdcr:
         x: float,
         rate_ctrl: float,
         freq_ctrl: float,
-        out: NDArray[np.complex64] | None = None,
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Push ONE real input sample; emit whatever outputs it completes.
 
@@ -1215,7 +1216,7 @@ class MatchedDdcr:
             Rate deviation for this input (terminal-stage rate).
         freq_ctrl : float
             Frequency deviation, cycles/sample at fs_in/2.
-        out : NDArray[np.complex64] | None
+        out : npt.NDArray[np.complex64] | None
             Output buffer for any emitted samples.
 
         Returns

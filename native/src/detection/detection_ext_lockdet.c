@@ -422,7 +422,7 @@ static PyMethodDef LockDetObj_methods[] = {
     "\n"
     "Parameters\n"
     "----------\n"
-    "x : NDArray[np.float64]\n"
+    "x : npt.NDArray[np.float64]\n"
     "    Lock-metric looks, one scalar per look (length >= n).\n"
     "\n"
     "Returns\n"

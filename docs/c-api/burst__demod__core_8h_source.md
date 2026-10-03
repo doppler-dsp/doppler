@@ -22,6 +22,7 @@
 #include "doppler/rs/rs_core.h"
 #include "doppler/pn/pn_core.h"
 #include "doppler/gold/gold_core.h"
+#include "doppler/wfm/wfm_frame.h"
 #include "doppler/mpsk/mpsk_core.h"
 #include "doppler/cvt/cvt_core.h"
 #ifdef __cplusplus
@@ -71,6 +72,12 @@ extern "C"
                                            double chip_rate, double carrier_hz,
                                            double max_rate, size_t frame_syms,
                                            size_t est_segments);
+
+  dp_burst_demod_state_t *dp_burst_demod_create_desc (
+      const uint8_t *data_code, size_t data_code_len,
+      const wfm_frame_desc_t *frame, size_t spc, double chip_rate,
+      double carrier_hz, double max_rate, size_t est_segments,
+      const char **why);
 
   void dp_burst_demod_destroy (dp_burst_demod_state_t *state);
 

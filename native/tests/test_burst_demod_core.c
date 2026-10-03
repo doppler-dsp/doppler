@@ -1,11 +1,13 @@
 #include "doppler/burst_demod/burst_demod_core.h"
 #include "doppler/dp_complex.h"
 #include "doppler/dp_crc16.h"
+#include "doppler/wfm/wfm_frame.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define ACQ_SF 500
 #define ACQ_REPS 5
@@ -181,6 +183,112 @@ run_case (const char *name, double f0, double f0_prior, double mu,
   return 0;
 }
 
+/* ── a demodulator built from the DESCRIPTION is the old one (#1620) ─────
+ *
+ * A/B while both constructors exist (docs/design/rx-frame-description.md
+ * section 4.1): the same burst through a demodulator told its sync word and
+ * length by hand and one told them by the description the transmitter
+ * spread. Everything a caller can read is compared exactly -- the bits, the
+ * soft bits, the derotated symbols and every estimate -- because the two
+ * run the same arithmetic on the same inputs. */
+static int
+run_case_ab (const char *name, double f0, double f0_prior, double mu,
+             double max_rate)
+{
+  uint8_t acode[ACQ_SF], dcode[DATA_SF], payload[PAYLOAD];
+  for (size_t i = 0; i < ACQ_SF; i++)
+    acode[i] = (uint8_t)((i * 2654435761u >> 13) & 1u);
+  for (size_t i = 0; i < DATA_SF; i++)
+    dcode[i] = (uint8_t)((i * 40503u >> 7) & 1u);
+  for (size_t i = 0; i < PAYLOAD; i++)
+    payload[i] = (uint8_t)((i * 7u + 3u) & 1u);
+
+  size_t cap
+      = (ACQ_SF * ACQ_REPS + (SYNC_LEN + PAYLOAD + CRC_BITS) * DATA_SF) * SPC
+        + 16;
+  float _Complex *y = malloc (cap * sizeof *y);
+  DP_REQUIRE (y != NULL);
+  size_t n = build_burst (y, acode, dcode, payload, f0, mu);
+
+  /* The transmitter's description of that frame: sync | payload | CRC-16. */
+  const wfm_seq_t sync
+      = { .kind = WFM_SEQ_LITERAL, .bits = SYNC, .len = SYNC_LEN };
+  const wfm_seq_t pay
+      = { .kind = WFM_SEQ_LITERAL, .bits = payload, .len = PAYLOAD };
+  wfm_frame_desc_t f;
+  DP_REQUIRE (dp_wfm_frame_fixed (&f, NULL, 0, &sync, &pay, 1) == 0);
+
+  dp_burst_demod_state_t *a = dp_burst_demod_create (
+      dcode, DATA_SF, SPC, CHIP_RATE, 0.0, max_rate, FRAME_SYMS, 10);
+  const char             *why = NULL;
+  dp_burst_demod_state_t *b   = dp_burst_demod_create_desc (
+      dcode, DATA_SF, &f, SPC, CHIP_RATE, 0.0, max_rate, 10, &why);
+  DP_REQUIRE (a != NULL && b != NULL);
+  memset (&f, 0xA5, sizeof f); /* the demodulator kept none of it */
+  dp_burst_demod_set_preamble (a, acode, ACQ_SF, ACQ_REPS);
+  dp_burst_demod_set_preamble (b, acode, ACQ_SF, ACQ_REPS);
+  dp_burst_demod_set_sync (a, SYNC, SYNC_LEN);
+  dp_burst_demod_set_prior (a, f0_prior, 0);
+  dp_burst_demod_set_prior (b, f0_prior, 0);
+
+  uint8_t      ba[FRAME_SYMS], bb[FRAME_SYMS];
+  const size_t na = dp_burst_demod_demod (a, y, n, ba, FRAME_SYMS);
+  const size_t nb = dp_burst_demod_demod (b, y, n, bb, FRAME_SYMS);
+  DP_CHECK_MSG (na == FRAME_SYMS && nb == na && memcmp (ba, bb, na) == 0,
+                name);
+  DP_CHECK (a->frame_syms == b->frame_syms && a->sync_len == b->sync_len);
+  DP_CHECK (a->n_llr == b->n_llr && a->n_sym == b->n_sym
+            && memcmp (a->llr, b->llr, a->n_llr * sizeof *a->llr) == 0
+            && memcmp (a->sym, b->sym, a->n_sym * sizeof *a->sym) == 0);
+  DP_CHECK (a->frame_offset == b->frame_offset && a->n_symbols == b->n_symbols
+            && a->est_freq_hz == b->est_freq_hz
+            && a->est_rate_hz == b->est_rate_hz
+            && a->est_cn0_dbhz == b->est_cn0_dbhz && a->est_n0 == b->est_n0
+            && a->est_timing_chips == b->est_timing_chips);
+  DP_CHECK_MSG (frame_ok (bb, nb), "and it is the frame that was sent");
+
+  dp_burst_demod_destroy (a);
+  dp_burst_demod_destroy (b);
+  free (y);
+  return 0;
+}
+
+/* A refused description is a NULL demodulator whose `why` names the fix. */
+static int
+run_desc_refusals (void)
+{
+  uint8_t dc[DATA_SF];
+  for (size_t i = 0; i < DATA_SF; i++)
+    dc[i] = (uint8_t)(i & 1u);
+  const wfm_seq_t pay
+      = { .kind = WFM_SEQ_LITERAL, .bits = SYNC, .len = SYNC_LEN };
+  const wfm_seq_t sync
+      = { .kind = WFM_SEQ_LITERAL, .bits = SYNC, .len = SYNC_LEN };
+  wfm_frame_desc_t f;
+  const char      *why = NULL;
+
+  /* field 0 is a data field: nothing to correlate against */
+  const wfm_seq_t data = { .kind = WFM_SEQ_DATA, .len = 8 };
+  DP_REQUIRE (dp_wfm_frame_fixed (&f, NULL, 0, NULL, &data, 1) == 0);
+  DP_CHECK (dp_burst_demod_create_desc (dc, DATA_SF, &f, SPC, CHIP_RATE, 0.0,
+                                        0.0, 10, &why)
+                == NULL
+            && why && strstr (why, "sync word"));
+
+  /* a good description, a bad parameter: the demodulator's own refusal */
+  DP_REQUIRE (dp_wfm_frame_fixed (&f, NULL, 0, &sync, &pay, 1) == 0);
+  why = NULL;
+  DP_CHECK (dp_burst_demod_create_desc (dc, DATA_SF, &f, 0 /* spc */,
+                                        CHIP_RATE, 0.0, 0.0, 10, &why)
+                == NULL
+            && why && strstr (why, "invalid parameter"));
+  /* ...and with `why` NULL, still a NULL and not a crash */
+  DP_CHECK (dp_burst_demod_create_desc (dc, DATA_SF, &f, 0, CHIP_RATE, 0.0,
+                                        0.0, 10, NULL)
+            == NULL);
+  return 0;
+}
+
 /* Guard / error / clamp paths the happy-path cases never reach. */
 static int
 run_edge_cases (void)
@@ -257,6 +365,10 @@ int
 main (void)
 {
   (void)run_edge_cases ();
+  if (run_case_ab ("ab static", 0.012, 0.012, 0.0, 0.0)
+      || run_case_ab ("ab leo", 0.012, 0.0115, 6.0e-7, 1.0e-6)
+      || run_desc_refusals ())
+    return 1;
 
   /* Near-static Doppler (negligible rate): max_rate = 0, single-FFT estimate.
    */

@@ -90,6 +90,7 @@ _A frame's BIT layout, described once and read from both ends._ [More...](#detai
 |  int | [**dp\_wfm\_frame\_check**](#function-dp_wfm_frame_check) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const [**wfm\_frame\_ops\_t**](structwfm__frame__ops__t.md) \* ops, uint8\_t \* bits, [**wfm\_frame\_rx\_t**](structwfm__frame__rx__t.md) \* rx) <br>_Undo a description's stages over a received frame, and report._  |
 |  int | [**dp\_wfm\_frame\_desc\_crc\_ok**](#function-dp_wfm_frame_desc_crc_ok) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const uint8\_t \* rx\_bits) <br>_Check a received frame's CRC against any description that has one._  |
 |  int | [**dp\_wfm\_frame\_desc\_layout**](#function-dp_wfm_frame_desc_layout) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, [**wfm\_frame\_desc\_layout\_t**](structwfm__frame__desc__layout__t.md) \* out) <br>_Derive every field offset, every stage span and both lengths._  |
+|  int | [**dp\_wfm\_frame\_desc\_rx**](#function-dp_wfm_frame_desc_rx) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, uint8\_t \* sync, size\_t sync\_max, size\_t \* sync\_len, size\_t \* frame\_syms, const char \*\* why) <br>_What a receiver is told by a frame description: its sync word and its length._  |
 |  int | [**dp\_wfm\_frame\_field\_index**](#function-dp_wfm_frame_field_index) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const char \* name) <br>_Index of the field called_ `name` _, or -1._ |
 |  int | [**dp\_wfm\_frame\_fixed**](#function-dp_wfm_frame_fixed) ([**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d, const [**wfm\_seq\_t**](structwfm__seq__t.md) \* preamble, size\_t reps, const [**wfm\_seq\_t**](structwfm__seq__t.md) \* sync, const [**wfm\_seq\_t**](structwfm__seq__t.md) \* payload, int crc) <br>_Describe the common frame:_ `[preamble x reps | sync | payload | crc]` _._ |
 |  int | [**dp\_wfm\_parse\_u64**](#function-dp_wfm_parse_u64) (const char \* p, size\_t n, uint64\_t \* v) <br>_Read an unsigned integer the way a Field's numbers are read._  |
@@ -1045,6 +1046,74 @@ A frame draws from ONE data source, so it carries at most one WFM\_SEQ\_DATA fie
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_frame\_desc\_rx 
+
+_What a receiver is told by a frame description: its sync word and its length._ 
+```C++
+int dp_wfm_frame_desc_rx (
+    const wfm_frame_desc_t * d,
+    uint8_t * sync,
+    size_t sync_max,
+    size_t * sync_len,
+    size_t * frame_syms,
+    const char ** why
+) 
+```
+
+
+
+A receiver that demodulates a frame must know the bits to correlate for (the sync word) and how many symbols the frame occupies. Both are in the description the transmitter spread, so both are read from it here, by the layout the transmitter's assembler uses, rather than restated by each caller from the field lengths it happens to remember.
+
+
+**The sync word is field 0.** That holds for `dp_wfm_frame_fixed()` without a preamble and for a CCSDS CADU, whose fields have no names. Field 0 is refused when it is empty, derived or a data field (the receiver needs bits it knows), when any stage covers it (a stage that rewrites the sync word on the wire leaves the receiver correlating against bits nobody sent), or when it is named `preamble` (a DSSS preamble is sent unspread and is not a field of the spread frame).
+
+
+**A description with an emitting stage is refused** (`out_bits` differs from `frame_bits`, as a convolutional code makes it): the code covers the sync word, so frame synchronisation would have to run after the Viterbi.
+
+
+
+
+**Parameters:**
+
+
+* `d` the description. 
+* `sync` receives field 0's bits, one per byte. 
+* `sync_max` capacity of `sync`. 
+* `sync_len` receives field 0's length in bits. 
+* `frame_syms` receives the frame's length in symbols, one per bit, counted from the sync word on and sync included. 
+* `why` on refusal, receives a static sentence naming the fix; may be `NULL`. 
+
+
+
+**Returns:**
+
+0, or -1 with `why` set. Nothing is written on refusal.
+
+
+
+```C++
+const uint8_t    bits[3] = { 1, 0, 1 };
+const wfm_seq_t  sync    = { .kind = WFM_SEQ_LITERAL, .bits = bits,
+                             .len = 3 };
+const wfm_seq_t  data    = { .kind = WFM_SEQ_DATA, .len = 8 };
+wfm_frame_desc_t d;
+dp_wfm_frame_fixed (&d, NULL, 0, &sync, &data, 1); // sync|data:8|crc16
+uint8_t      w[3];
+size_t       n = 0, frame = 0;
+const char  *why = NULL;
+if (dp_wfm_frame_desc_rx (&d, w, sizeof w, &n, &frame, &why) != 0
+    || n != 3 || frame != 3 + 8 + 16 || w[0] != 1 || w[1] != 0)
+  return 1;
+```
+ 
 
 
         

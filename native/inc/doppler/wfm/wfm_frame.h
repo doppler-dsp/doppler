@@ -1070,6 +1070,57 @@ extern "C"
   int dp_wfm_frame_desc_crc_ok (const wfm_frame_desc_t *d,
                              const uint8_t          *rx_bits);
 
+  /**
+   * @brief What a receiver is told by a frame description: its sync word and
+   *        its length.
+   *
+   * A receiver that demodulates a frame must know the bits to correlate for
+   * (the sync word) and how many symbols the frame occupies. Both are in the
+   * description the transmitter spread, so both are read from it here, by the
+   * layout the transmitter's assembler uses, rather than restated by each
+   * caller from the field lengths it happens to remember.
+   *
+   * **The sync word is field 0.** That holds for `dp_wfm_frame_fixed()`
+   * without a preamble and for a CCSDS CADU, whose fields have no names.
+   * Field 0 is refused when it is empty, derived or a data field (the
+   * receiver needs bits it knows), when any stage covers it (a stage that
+   * rewrites the sync word on the wire leaves the receiver correlating
+   * against bits nobody sent), or when it is named `preamble` (a DSSS
+   * preamble is sent unspread and is not a field of the spread frame).
+   *
+   * **A description with an emitting stage is refused** (`out_bits` differs
+   * from `frame_bits`, as a convolutional code makes it): the code covers the
+   * sync word, so frame synchronisation would have to run after the Viterbi.
+   *
+   * @param d          the description.
+   * @param sync       receives field 0's bits, one per byte.
+   * @param sync_max   capacity of @p sync.
+   * @param sync_len   receives field 0's length in bits.
+   * @param frame_syms receives the frame's length in symbols, one per bit,
+   *                   counted from the sync word on and sync included.
+   * @param why        on refusal, receives a static sentence naming the fix;
+   *                   may be `NULL`.
+   * @return 0, or -1 with @p why set. Nothing is written on refusal.
+   *
+   * @code
+   * const uint8_t    bits[3] = { 1, 0, 1 };
+   * const wfm_seq_t  sync    = { .kind = WFM_SEQ_LITERAL, .bits = bits,
+   *                              .len = 3 };
+   * const wfm_seq_t  data    = { .kind = WFM_SEQ_DATA, .len = 8 };
+   * wfm_frame_desc_t d;
+   * dp_wfm_frame_fixed (&d, NULL, 0, &sync, &data, 1); // sync|data:8|crc16
+   * uint8_t      w[3];
+   * size_t       n = 0, frame = 0;
+   * const char  *why = NULL;
+   * if (dp_wfm_frame_desc_rx (&d, w, sizeof w, &n, &frame, &why) != 0
+   *     || n != 3 || frame != 3 + 8 + 16 || w[0] != 1 || w[1] != 0)
+   *   return 1;
+   * @endcode
+   */
+  int dp_wfm_frame_desc_rx (const wfm_frame_desc_t *d, uint8_t *sync,
+                            size_t sync_max, size_t *sync_len,
+                            size_t *frame_syms, const char **why);
+
 
 #ifdef __cplusplus
 }

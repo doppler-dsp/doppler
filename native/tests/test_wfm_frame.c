@@ -991,6 +991,98 @@ test_data_field (void)
   return 0;
 }
 
+/* ── what a receiver is told by a description (#1620) ───────────────────
+ *
+ * dp_wfm_frame_desc_rx reads the sync word (field 0) and the frame's length
+ * from the layout the transmitter assembles by. Each refusal is a state in
+ * which the receiver would otherwise correlate against, or count, something
+ * the transmitter never sent, so each is pinned by name. */
+static int
+test_desc_rx (void)
+{
+  static const uint8_t sb[3] = { 1, 0, 1 };
+  const wfm_seq_t sync = { .kind = WFM_SEQ_LITERAL, .bits = sb, .len = 3 };
+  const wfm_seq_t data = { .kind = WFM_SEQ_DATA, .len = 8 };
+  uint8_t         w[64];
+  size_t          n = 99, frame = 99;
+  const char     *why = NULL;
+
+  wfm_frame_desc_t d;
+  DP_REQUIRE (dp_wfm_frame_fixed (&d, NULL, 0, &sync, &data, 1) == 0);
+  DP_CHECK_MSG (dp_wfm_frame_desc_rx (&d, w, sizeof w, &n, &frame, &why) == 0
+                    && n == 3 && frame == 3u + 8u + WFM_FRAME_CRC_BITS
+                    && w[0] == 1 && w[1] == 0 && w[2] == 1,
+                "field 0 is the sync word and the frame counts from it");
+
+  /* A GENERATED sync word is rendered, not read from a pointer. */
+  wfm_frame_desc_t g  = { 0 };
+  const wfm_seq_t  pn = { .kind = WFM_SEQ_PN, .len = 15, .reg_bits = 4 };
+  uint8_t          want[15];
+  DP_REQUIRE (dp_wfm_seq_bits (&pn, want, sizeof want) == 15);
+  DP_REQUIRE (dp_wfm_frame_add_field (&g, "sync", &pn, 1) == 0);
+  DP_CHECK_MSG (dp_wfm_frame_desc_rx (&g, w, sizeof w, &n, &frame, &why) == 0
+                    && n == 15 && frame == 15 && memcmp (w, want, 15) == 0,
+                "a generated sync word comes out as the bits it generates");
+
+  /* Every refusal names its fix, writes nothing and leaves *why static. */
+  struct
+  {
+    const char *what;
+    const char *needle;
+  } bad[6];
+  size_t           nb = 0;
+  wfm_frame_desc_t r[6];
+
+  memset (&r[nb], 0, sizeof r[nb]);
+  bad[nb++] = (typeof (bad[0])){ "an empty description", "does not lay out" };
+
+  DP_REQUIRE (dp_wfm_frame_fixed (&r[nb], NULL, 0, NULL, &data, 1) == 0);
+  bad[nb++] = (typeof (bad[0])){ "a data field as field 0", "field 0 is the" };
+
+  static const uint8_t pre[2] = { 1, 1 };
+  const wfm_seq_t prs = { .kind = WFM_SEQ_LITERAL, .bits = pre, .len = 2 };
+  DP_REQUIRE (dp_wfm_frame_fixed (&r[nb], &prs, 2, &sync, &data, 1) == 0);
+  bad[nb++] = (typeof (bad[0])){ "a field 0 named preamble", "preamble" };
+
+  memset (&r[nb], 0, sizeof r[nb]);
+  DP_REQUIRE (dp_wfm_frame_add_field (&r[nb], "sync", &sync, 1) == 0);
+  DP_REQUIRE (dp_wfm_frame_add_field (&r[nb], "payload", &sync, 1) == 1);
+  DP_REQUIRE (dp_wfm_frame_add_derived (&r[nb], "crc", 16) == 2);
+  DP_REQUIRE (dp_wfm_frame_add_stage (&r[nb], WFM_STAGE_CRC16, "sync", "crc")
+              >= 0);
+  bad[nb++] = (typeof (bad[0])){ "a stage covering the sync word", "covers" };
+
+  DP_REQUIRE (dp_wfm_frame_fixed (&r[nb], NULL, 0, &sync, &data, 1) == 0);
+  const int cst
+      = dp_wfm_frame_add_stage (&r[nb], WFM_STAGE_CONV, "sync", "crc");
+  DP_REQUIRE (cst >= 0);
+  r[nb].stage[cst].emit_num = 2u;
+  r[nb].stage[cst].emit_den = 1u;
+  bad[nb++] = (typeof (bad[0])){ "an emitting stage", "emits" };
+
+  for (size_t i = 0; i < nb; i++)
+    {
+      n = frame = 99;
+      why       = NULL;
+      DP_CHECK_MSG (
+          dp_wfm_frame_desc_rx (&r[i], w, sizeof w, &n, &frame, &why) == -1
+              && n == 99 && frame == 99 && why && strstr (why, bad[i].needle),
+          bad[i].what);
+    }
+
+  /* The buffer is the caller's: too small is a refusal, not an overrun. */
+  why = NULL;
+  DP_CHECK_MSG (dp_wfm_frame_desc_rx (&d, w, 2, &n, &frame, &why) == -1 && why
+                    && strstr (why, "buffer"),
+                "a sync buffer shorter than the sync word is refused");
+  DP_CHECK_MSG (dp_wfm_frame_desc_rx (&d, NULL, 8, &n, &frame, NULL) == -1,
+                "...and so is none, with why left NULL");
+  DP_CHECK_MSG (dp_wfm_frame_desc_rx (NULL, w, sizeof w, &n, &frame, &why)
+                    == -1,
+                "a NULL description is refused");
+  return 0;
+}
+
 int
 main (void)
 {
@@ -2160,6 +2252,8 @@ main (void)
   if (test_field_claims ())
     return 1;
   if (test_frame_fixed_claims ())
+    return 1;
+  if (test_desc_rx ())
     return 1;
   DP_TEST_END ("wfm_frame");
 }

@@ -43,6 +43,19 @@ dsss_br_frame_valid (const dp_dsss_burst_receiver_state_t *s)
 {
   const dp_burst_demod_state_t *d = s->demod;
   const size_t                  n = d->n_llr;
+  /* Built from a description: its layout says where the trailer is, and a
+     description with no CRC stage is never valid (-1 is not 1). */
+  if (s->frame)
+    {
+      if (n != s->frame_bits)
+        return 0;
+      uint8_t *fb = dp_xmalloc (n);
+      for (size_t j = 0; j < n; j++)
+        fb[j] = d->llr[j] < 0.0f; /* positive means bit 0 */
+      const int ok = dp_wfm_frame_desc_crc_ok (s->frame, fb) == 1;
+      free (fb);
+      return ok;
+    }
   if (n != s->frame_bits || n < s->sync_len + DSSS_BR_CRC_BITS)
     return 0;
   uint8_t bits[n];
@@ -162,6 +175,44 @@ fail:
   return NULL;
 }
 
+dp_dsss_burst_receiver_state_t *
+dp_dsss_burst_receiver_create_desc (
+    const uint8_t *acq_code, size_t acq_code_len, const uint8_t *data_code,
+    size_t data_code_len, const wfm_frame_desc_t *frame, size_t reps,
+    size_t spc, double chip_rate, double cn0_dbhz, double doppler_uncertainty,
+    double pfa, double pd, double carrier_hz, double max_rate,
+    size_t est_segments, const char **why)
+{
+  uint8_t                        *sync     = dp_xmalloc (WFM_FIELD_MAX_BITS);
+  size_t                          sync_len = 0, frame_syms = 0;
+  dp_dsss_burst_receiver_state_t *s = NULL;
+  if (dp_wfm_frame_desc_rx (frame, sync, WFM_FIELD_MAX_BITS, &sync_len,
+                            &frame_syms, why)
+      == 0)
+    {
+      s = dp_dsss_burst_receiver_create (
+          acq_code, acq_code_len, data_code, data_code_len, sync, sync_len,
+          reps, spc, chip_rate, frame_syms, cn0_dbhz, doppler_uncertainty, pfa,
+          pd, carrier_hz, max_rate, est_segments);
+      if (s)
+        {
+          /* Keep the layout, not the bits: the verdict reads lengths and
+             stages only, and a borrowed sequence pointer would dangle the
+             moment the caller freed its description. */
+          s->frame  = dp_xmalloc (sizeof *s->frame);
+          *s->frame = *frame;
+          for (unsigned i = 0; i < s->frame->n_fields; i++)
+            s->frame->field[i].seq.bits = NULL;
+        }
+      else if (why)
+        *why = "DsssBurstReceiver: invalid parameter (need non-empty "
+               "acq_code/data_code, reps >= 1, spc >= 1, chip_rate > 0, "
+               "cn0_dbhz finite or NaN, 0 < pfa < 1, 0 < pd < 1)";
+    }
+  free (sync);
+  return s;
+}
+
 void
 dp_dsss_burst_receiver_destroy (dp_dsss_burst_receiver_state_t *state)
 {
@@ -176,6 +227,7 @@ dp_dsss_burst_receiver_destroy (dp_dsss_burst_receiver_state_t *state)
   free (state->acq_code);
   free (state->data_code);
   free (state->sync);
+  free (state->frame);
   free (state);
 }
 

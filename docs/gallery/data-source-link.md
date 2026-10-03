@@ -40,3 +40,5 @@ twin is `native/examples/data_source_link_demo.c`.
 ## Related
 
 - [DSSS Burst Receiver](dsss-burst-receiver.md) — the receiver used here.
+- [A Framed Link, Checked by Its Description](framed-link.md) — the same idea
+    for BPSK and QPSK.

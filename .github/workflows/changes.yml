@@ -1,0 +1,204 @@
+name: changes
+
+# VENDORED from canonical (HAS_RELEASE) -- change it there, not here;
+# standard-check fails on any difference. Every per-repo value comes from the
+# Makefile (CI_CHECK_NAME through `make ci-check-name`, the classifiers
+# through `make ci-tree-tested`, `ci-changes` and `ci-docs`), so this file
+# holds no second copy of any of them.
+#
+# The ONE answer to "has this run anything left to prove?", for every
+# workflow that should not spend a matrix on a tree CI already passed, a
+# version bump alone, or a docs-only diff. ci.yml gates its jobs on it:
+#
+#   changes:
+#     uses: ./.github/workflows/changes.yml
+#     permissions:
+#       checks: read
+#       contents: read
+#   <job>:
+#     needs: changes
+#     if: needs.changes.outputs.src == 'true'
+#
+# and `make ci-changes-wiring-check` (in `lint`) refuses a ci.yml job that
+# neither does that, nor is the CI_CHECK_NAME aggregator, nor runs after it.
+#
+# Each tree that lands on the default branch is tested once
+# (just-makeit#1801): a branch rebased onto the tip and green as a PR merges
+# at no CI cost; a stale one gets the full run, which is the composition test
+# it owes. Moved here from just-makeit, where it was born, so every repo runs
+# the same logic -- just-bashit and just-buildit vendored the script but
+# never wired it, and re-ran the full matrix on every merge (2026-10-03).
+
+on:
+  workflow_call:
+    outputs:
+      src:
+        description: "'false' for a version bump alone or a tree already tested, else 'true'"
+        value: ${{ jobs.changes.outputs.src }}
+      tested:
+        description: "'true' when a push's tree already passed CI as a merged PR"
+        value: ${{ jobs.changes.outputs.tested }}
+      docs:
+        description: "'true' when the diff touches the docs (ci-docs)"
+        value: ${{ jobs.changes.outputs.docs }}
+      code:
+        description: "'false' only for a docs-only diff (ci-docs); else 'true' or unset"
+        value: ${{ jobs.changes.outputs.code }}
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # `checks: read` is for the base commit's "CI passed" (just-makeit#1763).
+    # A reusable workflow's token is capped by its caller's, and the repo's
+    # default token grants no `checks`, so every caller grants these too.
+    permissions:
+      checks: read
+      contents: read
+    outputs:
+      src: ${{ steps.check.outputs.src }}
+      tested: ${{ steps.check.outputs.tested }}
+      docs: ${{ steps.check.outputs.docs }}
+      code: ${{ steps.check.outputs.code }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 2
+
+      - id: check
+        # Every value the script reads comes in through env, so a test can
+        # run this exact `run:` text with a fake `gh` and no GitHub.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          REPO: ${{ github.repository }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          # ONE output contract, on every path: src, docs and code are each
+          # written exactly once, by `emit`, at the one exit. Each classifier
+          # runs with GITHUB_OUTPUT blanked and its answer is captured, so
+          # none can write a second, conflicting value. Fail-safe: all three
+          # start true, and anything this cannot prove leaves them true.
+          #
+          #   src=false   nothing left to test: a version bump alone, or a
+          #               push whose tree a merged PR already passed
+          #   code=false  nothing docs cannot break: a docs-only diff, and
+          #               always when src=false (a bump has no code to test)
+          #   docs=false  the site's inputs did not move; also for an
+          #               already-tested tree, whose PR built the site
+          #   tested=     written only when ci-tree-tested was asked (a push)
+          #
+          # A job gated `code == 'true'` alone (doppler) then skips a bump
+          # and still runs the nightly, which an unset code= did not allow.
+          src=true docs=true code=true tested=
+          emit() {
+            {
+              echo "src=$src"
+              echo "docs=$docs"
+              echo "code=$code"
+              if [ -n "$tested" ]; then echo "tested=$tested"; fi
+            } >> "$GITHUB_OUTPUT"
+            echo "changes: src=$src docs=$docs code=$code${tested:+ tested=$tested} -- $1" >&2
+            exit 0
+          }
+
+          # The aggregator's check name: the Makefile's CI_CHECK_NAME, the
+          # same one `tag-release` and `ci-tree-tested` read. No literal
+          # fallback -- a second copy of the name is how they drift -- so a
+          # Makefile that cannot answer runs everything, like any doubt here.
+          if ! CI_CHECK=$(make -s ci-check-name) || [ -z "$CI_CHECK" ]; then
+            emit "make ci-check-name failed; running all"
+          fi
+
+          # Dispatched and scheduled events always run everything, and so
+          # does a push that is not to a branch: release.yml calls docker.yml
+          # on the tag push, and the tag's images must be built. (Only a
+          # push: a pull_request's ref is refs/pull/N/merge.)
+          case "$EVENT" in
+            workflow_dispatch|schedule) emit "$EVENT runs everything" ;;
+          esac
+          if [[ "$EVENT" == "push" && "$REF" != refs/heads/* ]]; then
+            emit "a push to $REF runs everything"
+          fi
+
+          if [[ "$EVENT" == "pull_request" ]]; then
+            base="$PR_BASE"
+            git cat-file -e "$base^{commit}" 2>/dev/null || base="HEAD^"
+          else
+            # Each tree that lands on main is tested once (just-makeit#1801).
+            # A merged PR whose head IS this tree, contains the tip this push
+            # replaced, and passed the aggregator already ran the matrix on
+            # exactly this code, so main does not run it again. The canonical
+            # answer is `make ci-tree-tested`; it fails safe (tested=false) on
+            # any doubt, and so does a helper that cannot run at all. This
+            # comes BEFORE the bump check because it proves the tree passed
+            # directly: a superseded pending run on the base no longer leaves
+            # the commit uncertified.
+            tested=$(GITHUB_OUTPUT= GITHUB_REPOSITORY="$REPO" \
+                       make -s ci-tree-tested BEFORE="$BEFORE" \
+                     | sed -n 's/^tested=//p') || tested=false
+            tested=${tested:-false}
+            if [[ "$tested" == "true" ]]; then
+              src=false docs=false code=false
+              emit "this tree already passed '$CI_CHECK' as a merged PR"
+            fi
+
+            # push: diff the whole pushed range. Fail SAFE -- if the previous
+            # tip is not reachable in this shallow clone we cannot prove the
+            # push is bump-only, so run everything.
+            base="$BEFORE"
+            if ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+              emit "previous tip $base is not in this clone"
+            fi
+
+            # A bump skips CI only because the code under it already passed
+            # it -- so that has to be TRUE, not assumed (just-makeit#1763). A
+            # push's base is the branch's previous tip, and ci.yml's
+            # concurrency group keeps ONE pending run per group: a third push
+            # cancels the second's pending run, which then never runs at all.
+            # Cutting jm 0.96.0, #1759's merge (07f09d2) was superseded that
+            # way and has no "CI passed" check; the bump-only release commit
+            # on top of it would have been certified green over code main
+            # never ran.
+            #
+            # So the fast path holds only when the base has a COMPLETED,
+            # SUCCESSFUL aggregator check. Anything else -- in progress,
+            # cancelled, failed, absent, or an API error -- runs everything. A
+            # PR needs no such check: its own run covers its whole diff.
+            if ! runs=$(gh api --paginate \
+                   "repos/$REPO/commits/$base/check-runs?per_page=100"); then
+              emit "cannot read $base's checks; running all"
+            fi
+            verdict=$(printf '%s\n' "$runs" | jq -r --arg n "$CI_CHECK" \
+              '.check_runs[] | select(.name == $n)
+               | "\(.status) \(.conclusion)"' | head -n1) || verdict=""
+            if [[ "$verdict" != "completed success" ]]; then
+              emit "$base's '$CI_CHECK' is '${verdict:-absent}', not a pass; running all"
+            fi
+          fi
+
+          # Is this a version bump and nothing else? The standard's answer
+          # (just-makeit#1537), not a hand-kept list of files: every changed
+          # path, except CHANGELOG.md and changelog.d/ (which a release
+          # rewrites), must equal its $base copy with the old version
+          # replaced by the new one, read through the Makefile's
+          # VERSION_PROBES. A dependency moving in uv.lock fails the
+          # substitution and runs everything.
+          c=$(GITHUB_OUTPUT= make -s ci-changes BASE="$base" \
+                | sed -n 's/^src=//p') || c=""
+          src=${c:-true}
+
+          # Is it docs and nothing else (just-makeit#1801 item 3)? The
+          # standard's answer, `make ci-docs`: CI_DOCS_RE minus
+          # CI_DOCS_EXCLUDE_RE, and a deletion outside the docs dirs is never
+          # docs-only. A classifier that cannot run leaves both true.
+          d=$(GITHUB_OUTPUT= make -s ci-docs BASE="$base") || d=""
+          v=$(printf '%s\n' "$d" | sed -n 's/^docs=//p'); docs=${v:-true}
+          v=$(printf '%s\n' "$d" | sed -n 's/^code=//p'); code=${v:-true}
+
+          # A bump alone has no code to test either: code=false keeps every
+          # job gated on code alone in step with the ones gated on src.
+          if [[ "$src" == "false" ]]; then code=false; fi
+          emit "classified $base..HEAD"

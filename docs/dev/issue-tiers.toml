@@ -1074,3 +1074,23 @@ status = "open"
 tier = 5
 title = "Unpin STANDARD_URL from canonical 30f8e77b once ci-changes-wiring-check can exempt always-run jobs"
 status = "open"
+
+[issue.1814]
+tier = 2
+title = "bench_wfm_synth::test_bench_step can calibrate to 1 iteration and time the clock, not step()"
+status = "open"
+
+[issue.1815]
+tier = 5
+title = "Adopt Keep a Changelog 2.0.0: Breaking marker within its type, an optional version summary, and a gate for six types"
+status = "open"
+
+[issue.1816]
+tier = 3
+title = "ci-changes: a release's waiver file counts as source, so the release commit runs the full matrix"
+status = "open"
+
+[issue.1817]
+tier = 0
+title = "Windows wheels for Python 3.13/3.14 carry ABI tag 'cpwin_amd64' \u2014 pip cannot install them (since v0.60.0 at least)"
+status = "open"

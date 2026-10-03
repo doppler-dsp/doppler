@@ -1400,11 +1400,20 @@ endef
 # RW_PUBLISH_JOB must stay precise: a matcher that also caught
 # "Publish container images" would read PyPI as live before it is, and one that
 # matches nothing at all would let a rerun fire after a successful publish.
-RELEASE_WATCH_CMD = @REPO=doppler-dsp/doppler RW_PKG=doppler-dsp \
-                        RW_PUBLISH_JOB="publish to pypi" \
-                        HANG_MIN=30 RW_MIN_ASSETS=8 \
-                        RW_ASSET_PATTERN='\.(tar\.gz|zip)$$' \
-                        scripts/release-watch.sh "$(VERSION)"
+#
+# The wheel-tag check runs AFTER the script verified the release, against what
+# was actually published: the script counts archives and never reads a wheel
+# name, which is how two uninstallable Windows wheels shipped (doppler#1817).
+# A canned recipe, so the second line stays doppler's and the script stays
+# verbatim.
+define RELEASE_WATCH_CMD
+@REPO=doppler-dsp/doppler RW_PKG=doppler-dsp \
+    RW_PUBLISH_JOB="publish to pypi" \
+    HANG_MIN=30 RW_MIN_ASSETS=8 \
+    RW_ASSET_PATTERN='\.(tar\.gz|zip)$$' \
+    scripts/release-watch.sh "$(VERSION)"
+@$(MAKE) -s release-wheel-tags VERSION=$(VERSION)
+endef
 
 # ── Clean ────────────────────────────────────────────────────────────────────
 CLEAN_PATHS = $(BUILD_DIR) $(PY_BUILD_DIR) $(UBSAN_DIR) $(TSAN_DIR) \
@@ -1472,6 +1481,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 gallery-scripts-check \
                 ci-run ci-gates ccache-stats \
                 wheel-check wheel-smoke release-smoke release-smoke-pypi \
+                check-wheel-tags release-wheel-tags \
                 release-smoke-packages \
                 bench-python \
                 bench-interleaved bench-publish bench-docs bench-stream \
@@ -3470,6 +3480,27 @@ ifndef VERSION
 	@echo "usage: make release-smoke-pypi VERSION=<x.y.z>"; exit 1
 endif
 	bash tests/install/wheel-smoke.sh --pypi "$(VERSION)"
+
+# Every wheel's filename must be one pip would install (doppler#1817): parsed
+# by packaging's parse_wheel_filename, and at least one of its tags among
+# cpython_tags() for its OWN Python and platform. v0.60.0 and v0.61.0 shipped
+# `cp313-cpwin_amd64-win_amd64`, which pip skips for the sdist. Two faces, one
+# script: WHEELS= is the built dist/ that release.yml checks before
+# publish-python, VERSION= is what PyPI and the GitHub Release now serve.
+# --no-install-project: a name check has no reason to build the extension.
+WHEEL_TAGS = $(UV) sync -q --group dev --no-install-project && \
+             $(UV) run --no-sync python scripts/check_wheel_tags.py
+
+check-wheel-tags: ## WHEELS="dist/*.whl" — refuse a wheel pip would never install
+	@test -n '$(WHEELS)' || { echo "usage: make check-wheel-tags WHEELS=<wheels>"; exit 2; }
+	@$(WHEEL_TAGS) $(WHEELS)
+
+release-wheel-tags: ## VERSION=x.y.z — the same check on the PUBLISHED wheels
+ifndef VERSION
+	@echo "usage: make release-wheel-tags VERSION=<x.y.z>"; exit 1
+endif
+	@$(WHEEL_TAGS) --pypi doppler-dsp $(VERSION) \
+	    --release doppler-dsp/doppler v$(VERSION)
 
 # ── The binary-hygiene gates ─────────────────────────────────────────────────
 # These inspect what the build actually produced, and each one exists because

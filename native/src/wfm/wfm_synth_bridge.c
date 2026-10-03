@@ -81,6 +81,7 @@ static const char WHY_NEEDS_DATA[]
       "--data-from-file PATH";
 
 static int type_can_frame (const wfm_source_t *src);
+static int has_data (const wfm_source_t *src);
 
 const char *
 dp_wfm_framing_flags_error (const wfm_source_t *src)
@@ -89,7 +90,7 @@ dp_wfm_framing_flags_error (const wfm_source_t *src)
     return NULL; /* a burst of preamble and sync alone is a burst */
   if (!type_can_frame (src))
     return WHY_CANNOT_FRAME;
-  if (!(src->data.len || src->data_from_file))
+  if (!has_data (src))
     return WHY_NEEDS_DATA;
   return NULL;
 }
@@ -334,14 +335,24 @@ dp_wfm_source_frame_error (const wfm_source_t *src)
       if (why)
         return why;
     }
-  else if (!type_can_frame (src))
-    return WHY_CANNOT_FRAME;
   /* The common frame's payload is its data:LEN field, filled frame by
      frame from a data source (doppler#1718). A CARRIED description is the
      whole frame and may be fixed bits throughout -- sent once, never
-     cycled -- or name a data:LEN field a data source fills. */
-  else if (!src->frame && !has_data (src))
-    return WHY_NEEDS_DATA;
+     cycled -- or name a data:LEN field a data source fills, so it needs only
+     a type that carries bits. Without one, the flags' rule applies: the CLI
+     asks the same function before it builds a description, so the two cannot
+     disagree about when a source can be framed. */
+  else if (src->frame)
+    {
+      if (!type_can_frame (src))
+        return WHY_CANNOT_FRAME;
+    }
+  else
+    {
+      const char *no = dp_wfm_framing_flags_error (src);
+      if (no)
+        return no;
+    }
 
   /* Last, and deliberately last: does the description this source resolves to
      actually lay out? Every check above is about ONE flag's value, so it can

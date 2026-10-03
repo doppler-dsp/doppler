@@ -1549,6 +1549,7 @@ dp_wfm_frame_free function
 dp_wfm_frame_from_json function
 dp_wfm_frame_refuse_text function
 dp_wfm_frame_to_json function
+dp_wfm_framing_flags_error function
 dp_wfm_kw_check_standard function
 dp_wfm_kw_decode function
 dp_wfm_kw_elem_size function
@@ -1622,6 +1623,8 @@ dp_wfm_snr_over_fs function
 dp_wfm_source_attach_dsss function
 dp_wfm_source_attach_frame function
 dp_wfm_source_bits_refuse_text function
+dp_wfm_source_common_frame function
+dp_wfm_source_crc_refuse_text function
 dp_wfm_source_create_snr function
 dp_wfm_source_data_frames function
 dp_wfm_source_data_is_stream function
@@ -1631,6 +1634,7 @@ dp_wfm_source_dsss_nchips function
 dp_wfm_source_error function
 dp_wfm_source_frame_error function
 dp_wfm_source_has_frame function
+dp_wfm_source_sync_refuse_text function
 dp_wfm_source_synth_type function
 dp_wfm_source_to_synth function
 dp_wfm_source_to_synth_error function
@@ -1688,6 +1692,8 @@ dp_wfm_why_dsss_empty data
 dp_wfm_why_dsss_frame_no_data_code data
 dp_wfm_why_pn_poly data
 dp_wfm_why_retired_bits data
+dp_wfm_why_retired_crc data
+dp_wfm_why_retired_sync data
 dp_wfm_writer_add_keyword function
 dp_wfm_writer_clip_fraction function
 dp_wfm_writer_close function

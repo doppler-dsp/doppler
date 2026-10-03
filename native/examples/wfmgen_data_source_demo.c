@@ -65,11 +65,20 @@ main (void)
   src.snr          = 100.0;
   src.seed         = 1;
   src.pn_length    = 7;
-  src.crc          = 1;
   src.data
       = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = bits, .len = 8u * nmsg };
   src.data_len = LEN;
   src.fill     = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = f01, .len = 2 };
+  /* Each frame ends in a CRC-16 over its own chunk: a frame DESCRIPTION,
+     [data:LEN | crc16], since a source carries no CRC of its own. It is
+     borrowed, so it lives as long as `src` is used. */
+  wfm_frame_desc_t frame;
+  if (dp_wfm_source_common_frame (&src, NULL, 1, &frame) != 0)
+    {
+      fprintf (stderr, "the frame does not lay out\n");
+      return 1;
+    }
+  src.frame         = &frame;
   wfm_segment_t seg = { .sources = &src, .n_sources = 1, .fs = 1e6 };
 
   const char *why = dp_wfm_scene_error (&seg, 1, 0, 0);

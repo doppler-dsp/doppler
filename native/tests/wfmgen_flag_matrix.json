@@ -17,7 +17,6 @@
       "repeat": false,
       "segments": [
         {
-          "crc": "none",
           "data_from_file": "bits.bin",
           "data_sent": {
             "bits": 32,
@@ -387,14 +386,40 @@
       "repeat": false,
       "segments": [
         {
-          "acq_code": "0xa*2",
-          "crc": "crc16",
           "data": "0xb2",
           "data_sent": {
             "bits": 8,
             "frames": 1,
             "idle_frames": 0,
             "pad_bits": 0
+          },
+          "frame": {
+            "fields": [
+              {
+                "name": "preamble",
+                "spec": "0xa*2"
+              },
+              {
+                "name": "sync",
+                "spec": "1111100110101"
+              },
+              {
+                "name": "payload",
+                "spec": "data:8"
+              },
+              {
+                "bits": 16,
+                "derived_by": 1,
+                "name": "crc"
+              }
+            ],
+            "stages": [
+              {
+                "first_field": 2,
+                "kind": "crc16",
+                "n_fields": 2
+              }
+            ]
           },
           "freq": 0,
           "fs": 1,
@@ -407,7 +432,6 @@
           "snr": 100,
           "snr_mode": "auto",
           "sps": 2,
-          "sync": "1111100110101",
           "type": "bits"
         }
       ],
@@ -434,7 +458,6 @@
       "repeat": false,
       "segments": [
         {
-          "crc": "none",
           "data": "0xb2",
           "data_sent": {
             "bits": 8,
@@ -481,7 +504,6 @@
       "repeat": false,
       "segments": [
         {
-          "crc": "none",
           "data": "0xb2",
           "data_sent": {
             "bits": 8,
@@ -530,13 +552,25 @@
       "repeat": false,
       "segments": [
         {
-          "crc": "none",
           "data": "pn:64:7",
           "data_sent": {
             "bits": 64,
             "frames": 1,
             "idle_frames": 0,
             "pad_bits": 0
+          },
+          "frame": {
+            "fields": [
+              {
+                "name": "sync",
+                "spec": "1111100110101"
+              },
+              {
+                "name": "payload",
+                "spec": "data:64"
+              }
+            ],
+            "stages": []
           },
           "freq": 0,
           "fs": 1,
@@ -549,7 +583,6 @@
           "snr": 100,
           "snr_mode": "auto",
           "sps": 2,
-          "sync": "1111100110101",
           "type": "bits"
         }
       ],
@@ -580,13 +613,25 @@
       "repeat": false,
       "segments": [
         {
-          "crc": "none",
           "data": "0xb2",
           "data_sent": {
             "bits": 8,
             "frames": 1,
             "idle_frames": 0,
             "pad_bits": 0
+          },
+          "frame": {
+            "fields": [
+              {
+                "name": "sync",
+                "spec": "gold:64:10:0x3a6:0x15e:0x237:0x49"
+              },
+              {
+                "name": "payload",
+                "spec": "data:8"
+              }
+            ],
+            "stages": []
           },
           "freq": 0,
           "fs": 1,
@@ -599,7 +644,6 @@
           "snr": 100,
           "snr_mode": "auto",
           "sps": 2,
-          "sync": "gold:64:10:0x3a6:0x15e:0x237:0x49",
           "type": "bits"
         }
       ],
@@ -630,13 +674,25 @@
       "repeat": false,
       "segments": [
         {
-          "crc": "none",
           "data": "0xb2",
           "data_sent": {
             "bits": 8,
             "frames": 1,
             "idle_frames": 0,
             "pad_bits": 0
+          },
+          "frame": {
+            "fields": [
+              {
+                "name": "sync",
+                "spec": "pn:31:5:0x3"
+              },
+              {
+                "name": "payload",
+                "spec": "data:8"
+              }
+            ],
+            "stages": []
           },
           "freq": 0,
           "fs": 1,
@@ -649,7 +705,6 @@
           "snr": 100,
           "snr_mode": "auto",
           "sps": 2,
-          "sync": "pn:31:5:0x3",
           "type": "bits"
         }
       ],
@@ -680,13 +735,25 @@
       "repeat": false,
       "segments": [
         {
-          "crc": "none",
           "data": "pn:64:7",
           "data_sent": {
             "bits": 64,
             "frames": 1,
             "idle_frames": 0,
             "pad_bits": 0
+          },
+          "frame": {
+            "fields": [
+              {
+                "name": "sync",
+                "spec": "1111100110101"
+              },
+              {
+                "name": "payload",
+                "spec": "data:64"
+              }
+            ],
+            "stages": []
           },
           "freq": 0,
           "fs": 1,
@@ -698,7 +765,6 @@
           "snr": 100,
           "snr_mode": "auto",
           "sps": 2,
-          "sync": "1111100110101",
           "type": "bpsk"
         }
       ],
@@ -887,7 +953,6 @@
       "repeat": false,
       "segments": [
         {
-          "crc": "none",
           "data": "0xabcdef",
           "data_len": 8,
           "data_sent": {
@@ -934,7 +999,6 @@
       "repeat": false,
       "segments": [
         {
-          "crc": "none",
           "data": "0xabc",
           "data_len": 8,
           "data_sent": {
@@ -980,7 +1044,6 @@
       "repeat": false,
       "segments": [
         {
-          "crc": "none",
           "data_from_file": "bits.bin",
           "data_len": 8,
           "data_sent": {
@@ -1146,7 +1209,6 @@
       "segments": [
         {
           "acq_code": "0xa*2",
-          "crc": "crc16",
           "data": "0xaa",
           "data_code": "0xb",
           "data_sent": {
@@ -1154,6 +1216,30 @@
             "frames": 1,
             "idle_frames": 0,
             "pad_bits": 0
+          },
+          "frame": {
+            "fields": [
+              {
+                "name": "sync",
+                "spec": "1111100110101"
+              },
+              {
+                "name": "payload",
+                "spec": "data:8"
+              },
+              {
+                "bits": 16,
+                "derived_by": 1,
+                "name": "crc"
+              }
+            ],
+            "stages": [
+              {
+                "first_field": 1,
+                "kind": "crc16",
+                "n_fields": 2
+              }
+            ]
           },
           "freq": 0,
           "fs": 1,
@@ -1165,7 +1251,6 @@
           "snr": 100,
           "snr_mode": "auto",
           "sps": 2,
-          "sync": "1111100110101",
           "type": "dsss"
         }
       ],
@@ -1199,7 +1284,6 @@
       "segments": [
         {
           "acq_code": "0xa5",
-          "crc": "none",
           "data": "0x0f",
           "data_code": "0xb2",
           "data_sent": {
@@ -1296,7 +1380,6 @@
       "segments": [
         {
           "acq_code": "dotted:8*2",
-          "crc": "none",
           "data": "0xb",
           "data_code": "pn:7:3:0x1",
           "data_sent": {
@@ -1304,6 +1387,19 @@
             "frames": 1,
             "idle_frames": 0,
             "pad_bits": 0
+          },
+          "frame": {
+            "fields": [
+              {
+                "name": "sync",
+                "spec": "gold:16:10:0x3a6:0x15e:0x237:0x49"
+              },
+              {
+                "name": "payload",
+                "spec": "data:4"
+              }
+            ],
+            "stages": []
           },
           "freq": 0,
           "fs": 1,
@@ -1315,7 +1411,6 @@
           "snr": 100,
           "snr_mode": "auto",
           "sps": 2,
-          "sync": "gold:16:10:0x3a6:0x15e:0x237:0x49",
           "type": "dsss"
         }
       ],
@@ -1526,7 +1621,6 @@
       "segments": [
         {
           "acq_code": "0xaa*2",
-          "crc": "none",
           "data": "pn:31:5",
           "data_code": "0x6",
           "data_sent": {
@@ -1534,6 +1628,19 @@
             "frames": 1,
             "idle_frames": 0,
             "pad_bits": 0
+          },
+          "frame": {
+            "fields": [
+              {
+                "name": "sync",
+                "spec": "10"
+              },
+              {
+                "name": "payload",
+                "spec": "data:31"
+              }
+            ],
+            "stages": []
           },
           "freq": 0,
           "fs": 1,
@@ -1545,7 +1652,6 @@
           "snr": 100,
           "snr_mode": "auto",
           "sps": 2,
-          "sync": "10",
           "type": "dsss"
         }
       ],
@@ -2967,13 +3073,25 @@
       "repeat": false,
       "segments": [
         {
-          "crc": "none",
           "data": "pn:128:9",
           "data_sent": {
             "bits": 128,
             "frames": 1,
             "idle_frames": 0,
             "pad_bits": 0
+          },
+          "frame": {
+            "fields": [
+              {
+                "name": "sync",
+                "spec": "1111100110101"
+              },
+              {
+                "name": "payload",
+                "spec": "data:128"
+              }
+            ],
+            "stages": []
           },
           "freq": 0,
           "fs": 1,
@@ -2985,7 +3103,6 @@
           "snr": 100,
           "snr_mode": "auto",
           "sps": 2,
-          "sync": "1111100110101",
           "type": "qpsk"
         }
       ],

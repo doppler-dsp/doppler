@@ -116,8 +116,7 @@ def transmit(bits: np.ndarray) -> np.ndarray:
         snr=200.0,  # >= WFM_SYNTH_SNR_CLEAN: AWGN is skipped
         snr_mode="fs",
         seed=1,
-        data=bits,  # sent once, as given:
-        crc="none",  # the frame already carries its own check
+        data=bits,  # sent once, as given: the frame carries its own check
     )
     return np.asarray(Composer([seg]).compose())
 

@@ -102,7 +102,6 @@ def test_bits_qpsk_pattern():
         G.Segment(
             type="bits",
             data=bytes(pat),
-            crc="none",
             modulation="qpsk",
             sps=4,
             fs=1e6,
@@ -112,7 +111,6 @@ def test_bits_qpsk_pattern():
         R.Segment(
             type="bits",
             data=pat,
-            crc="none",
             modulation="qpsk",
             sps=4,
             fs=1e6,

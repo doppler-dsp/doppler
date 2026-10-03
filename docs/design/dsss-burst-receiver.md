@@ -864,7 +864,7 @@ ______________________________________________________________________
 
 Sections 1–9 describe a receiver whose frame is `sync | payload | CRC-16`.
 That shape was written down in **four** places, and two consequences were
-measured: a burst generated with `crc="none"` decoded bit-exactly and was
+measured: a burst generated with no CRC stage decoded bit-exactly and was
 reported *invalid*, and `wfmgen --type dsss --conv` produced a waveform
 byte-identical to no `--conv` at all.
 

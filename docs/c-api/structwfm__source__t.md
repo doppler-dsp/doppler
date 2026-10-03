@@ -40,7 +40,6 @@ _One additive source within a segment: a_ `synth` _config + its level._[More...]
 |  size\_t | [**acq\_reps**](#variable-acq_reps)  <br> |
 |  int | [**background**](#variable-background)  <br> |
 |  double | [**carrier\_hz**](#variable-carrier_hz)  <br> |
-|  int | [**crc**](#variable-crc)  <br> |
 |  [**wfm\_seq\_t**](structwfm__seq__t.md) | [**data**](#variable-data)  <br> |
 |  [**wfm\_seq\_t**](structwfm__seq__t.md) | [**data\_code**](#variable-data_code)  <br> |
 |  const char \* | [**data\_from\_file**](#variable-data_from_file)  <br> |
@@ -68,6 +67,8 @@ _One additive source within a segment: a_ `synth` _config + its level._[More...]
 |  int | [**pulse**](#variable-pulse)  <br> |
 |  unsigned | [**ranged**](#variable-ranged)  <br> |
 |  [**wfm\_seq\_t**](structwfm__seq__t.md) | [**retired\_bits**](#variable-retired_bits)  <br> |
+|  [**wfm\_seq\_t**](structwfm__seq__t.md) | [**retired\_crc**](#variable-retired_crc)  <br> |
+|  [**wfm\_seq\_t**](structwfm__seq__t.md) | [**retired\_sync**](#variable-retired_sync)  <br> |
 |  double | [**rrc\_beta**](#variable-rrc_beta)  <br> |
 |  int | [**rrc\_span**](#variable-rrc_span)  <br> |
 |  uint32\_t | [**seed**](#variable-seed)  <br> |
@@ -78,7 +79,6 @@ _One additive source within a segment: a_ `synth` _config + its level._[More...]
 |  int | [**sps**](#variable-sps)  <br> |
 |  double | [**symbol\_rate**](#variable-symbol_rate)  <br> |
 |  float \_Complex \* | [**symbols**](#variable-symbols)  <br> |
-|  [**wfm\_seq\_t**](structwfm__seq__t.md) | [**sync**](#variable-sync)  <br> |
 |  int | [**type**](#variable-type)  <br> |
 
 
@@ -182,19 +182,6 @@ int wfm_source_t::background;
 
 ```C++
 double wfm_source_t::carrier_hz;
-```
-
-
-
-
-<hr>
-
-
-
-### variable crc 
-
-```C++
-int wfm_source_t::crc;
 ```
 
 
@@ -555,6 +542,32 @@ wfm_seq_t wfm_source_t::retired_bits;
 
 
 
+### variable retired\_crc 
+
+```C++
+wfm_seq_t wfm_source_t::retired_crc;
+```
+
+
+
+
+<hr>
+
+
+
+### variable retired\_sync 
+
+```C++
+wfm_seq_t wfm_source_t::retired_sync;
+```
+
+
+
+
+<hr>
+
+
+
 ### variable rrc\_beta 
 
 ```C++
@@ -676,19 +689,6 @@ double wfm_source_t::symbol_rate;
 
 ```C++
 float _Complex* wfm_source_t::symbols;
-```
-
-
-
-
-<hr>
-
-
-
-### variable sync 
-
-```C++
-wfm_seq_t wfm_source_t::sync;
 ```
 
 

@@ -136,8 +136,8 @@ class Synth:
         Field's *REPS on the command line and in a scene) -- the coherent
         pull-in target BurstDespreader.set_acq and BurstDemod.set_preamble lock
         to. For type=dsss it is unmodulated chips ahead of the spread frame;
-        for type=bits it is the head of the bit pattern. Setting it (or sync)
-        is what makes a source FRAMED.
+        for type=bits it is the head of the bit pattern. Setting it is what
+        makes a source FRAMED.
     acq_reps : int, default 1
         Preamble repetitions: periods of acq_code before the sync word. On the
         command line and in a scene it is acq_code's *REPS.
@@ -146,18 +146,15 @@ class Synth:
         acq_code. Every frame bit (sync, payload, crc) is XOR-spread across its
         full length, so len(data_code) is the spreading factor.
     sync : bytes | None, default None
-        The frame-sync word (such as Barker-13) between the preamble and the
-        payload -- what BurstDemod.set_frame correlates to resolve frame
-        position and BPSK polarity, and what a BER alignment detects against.
-        Optional; setting it (or acq_code) is what makes a source FRAMED.
-    crc : str, default ``"none"``
-        The frame trailer: crc16 appends a CRC-16-CCITT over the payload bits
-        (what BurstDemod validates as frame_valid, and what makes a truth-free
-        frame error rate possible); none, the default, omits it: a source
-        carries no CRC unless this or a frame description gives one. Applies
-        only to a FRAMED source, so it alone never frames an otherwise plain
-        pattern.
-        One of ``"none"``, ``"crc16"``.
+        RETIRED (doppler#1617): nothing reads it but the refusal. The
+        frame-sync word is a field of the frame DESCRIPTION, so sync= is
+        refused naming frame=; the CLI's --sync builds that description for
+        you, and a scene refuses the "sync" key.
+    crc : bytes | None, default None
+        RETIRED (doppler#1617): nothing reads it but the refusal. A CRC is a
+        stage of the frame DESCRIPTION, so crc= is refused naming frame=,
+        whatever its value (crc="none" included); the CLI's --crc builds that
+        description for you, and a scene refuses the "crc" key.
     symbol_rate : float, default 0.0
         For type=dsss: > 0 selects CONTINUOUS asynchronous mode. The spreading
         code repeats endlessly and data rides on it at this symbol rate (Hz),
@@ -177,15 +174,15 @@ class Synth:
         at a position of their choosing, a stage covering a span they name.
         `wfmgen --frame FILE`, a scene's `frame` key and Python's `frame=` (a
         FrameDesc or a Frame) all land here. When it is set it IS the frame,
-        and the common-frame fields below (acq_code/sync/crc/payload) do not
-        frame this source. NULL means the common frame, `[preamble x reps |
-        sync | payload | crc]`, which `dp_wfm_frame_fixed()` builds from the
-        fields below. A C caller's description is borrowed, exactly as
-        `wfm_seq_t` is borrowed elsewhere here, so it must outlive the source.
-        The composer and a Python source hold their own copy
-        (`dp_wfm_frame_copy()`), so a later change to the FrameDesc does not
-        reach them. On the Python face `frame=` is an input: read it back from
-        the composer's JSON (its getter is jm's, pending removal:
+        and an unspread acq_code beside it is refused. NULL means the common
+        frame, `[preamble x reps | data]`, which `dp_wfm_frame_fixed()` builds
+        from acq_code and the data source; a sync word or a CRC is a field or a
+        stage of a description, never a flat field. A C caller's description is
+        borrowed, exactly as `wfm_seq_t` is borrowed elsewhere here, so it must
+        outlive the source. The composer and a Python source hold their own
+        copy (`dp_wfm_frame_copy()`), so a later change to the FrameDesc does
+        not reach them. On the Python face `frame=` is an input: read it back
+        from the composer's JSON (its getter is jm's, pending removal:
         doppler#1694). KERNELS stay in C by design. A description names a
         stage's KIND; the code that runs it is a `wfm_frame_ops_t` entry, and a
         caller adding a genuinely new transform (convolutional interleaving,
@@ -249,7 +246,7 @@ class Synth:
         acq_reps: int = ...,
         data_code: bytes | None = ...,
         sync: bytes | None = ...,
-        crc: str = ...,
+        crc: bytes | None = ...,
         symbol_rate: float = ...,
         dsss_code_only: int = ...,
         frame: FrameDesc | str | None = ...,
@@ -285,7 +282,7 @@ class Synth:
     acq_reps: int
     data_code: bytes | None
     sync: bytes | None
-    crc: str
+    crc: bytes | None
     symbol_rate: float
     dsss_code_only: int
     @property
@@ -476,8 +473,8 @@ class Segment:
         Field's *REPS on the command line and in a scene) -- the coherent
         pull-in target BurstDespreader.set_acq and BurstDemod.set_preamble lock
         to. For type=dsss it is unmodulated chips ahead of the spread frame;
-        for type=bits it is the head of the bit pattern. Setting it (or sync)
-        is what makes a source FRAMED.
+        for type=bits it is the head of the bit pattern. Setting it is what
+        makes a source FRAMED.
     acq_reps : int, default 1
         Preamble repetitions: periods of acq_code before the sync word. On the
         command line and in a scene it is acq_code's *REPS.
@@ -486,18 +483,15 @@ class Segment:
         acq_code. Every frame bit (sync, payload, crc) is XOR-spread across its
         full length, so len(data_code) is the spreading factor.
     sync : bytes | None, default None
-        The frame-sync word (such as Barker-13) between the preamble and the
-        payload -- what BurstDemod.set_frame correlates to resolve frame
-        position and BPSK polarity, and what a BER alignment detects against.
-        Optional; setting it (or acq_code) is what makes a source FRAMED.
-    crc : str, default ``"none"``
-        The frame trailer: crc16 appends a CRC-16-CCITT over the payload bits
-        (what BurstDemod validates as frame_valid, and what makes a truth-free
-        frame error rate possible); none, the default, omits it: a source
-        carries no CRC unless this or a frame description gives one. Applies
-        only to a FRAMED source, so it alone never frames an otherwise plain
-        pattern.
-        One of ``"none"``, ``"crc16"``.
+        RETIRED (doppler#1617): nothing reads it but the refusal. The
+        frame-sync word is a field of the frame DESCRIPTION, so sync= is
+        refused naming frame=; the CLI's --sync builds that description for
+        you, and a scene refuses the "sync" key.
+    crc : bytes | None, default None
+        RETIRED (doppler#1617): nothing reads it but the refusal. A CRC is a
+        stage of the frame DESCRIPTION, so crc= is refused naming frame=,
+        whatever its value (crc="none" included); the CLI's --crc builds that
+        description for you, and a scene refuses the "crc" key.
     symbol_rate : float, default 0.0
         For type=dsss: > 0 selects CONTINUOUS asynchronous mode. The spreading
         code repeats endlessly and data rides on it at this symbol rate (Hz),
@@ -517,15 +511,15 @@ class Segment:
         at a position of their choosing, a stage covering a span they name.
         `wfmgen --frame FILE`, a scene's `frame` key and Python's `frame=` (a
         FrameDesc or a Frame) all land here. When it is set it IS the frame,
-        and the common-frame fields below (acq_code/sync/crc/payload) do not
-        frame this source. NULL means the common frame, `[preamble x reps |
-        sync | payload | crc]`, which `dp_wfm_frame_fixed()` builds from the
-        fields below. A C caller's description is borrowed, exactly as
-        `wfm_seq_t` is borrowed elsewhere here, so it must outlive the source.
-        The composer and a Python source hold their own copy
-        (`dp_wfm_frame_copy()`), so a later change to the FrameDesc does not
-        reach them. On the Python face `frame=` is an input: read it back from
-        the composer's JSON (its getter is jm's, pending removal:
+        and an unspread acq_code beside it is refused. NULL means the common
+        frame, `[preamble x reps | data]`, which `dp_wfm_frame_fixed()` builds
+        from acq_code and the data source; a sync word or a CRC is a field or a
+        stage of a description, never a flat field. A C caller's description is
+        borrowed, exactly as `wfm_seq_t` is borrowed elsewhere here, so it must
+        outlive the source. The composer and a Python source hold their own
+        copy (`dp_wfm_frame_copy()`), so a later change to the FrameDesc does
+        not reach them. On the Python face `frame=` is an input: read it back
+        from the composer's JSON (its getter is jm's, pending removal:
         doppler#1694). KERNELS stay in C by design. A description names a
         stage's KIND; the code that runs it is a `wfm_frame_ops_t` entry, and a
         caller adding a genuinely new transform (convolutional interleaving,
@@ -620,7 +614,7 @@ class Segment:
     acq_reps: int
     data_code: bytes | None
     sync: bytes | None
-    crc: str
+    crc: bytes | None
     symbol_rate: float
     dsss_code_only: int
     frame: str | None
@@ -656,7 +650,7 @@ class Segment:
         acq_reps: int = ...,
         data_code: bytes | None = ...,
         sync: bytes | None = ...,
-        crc: str = ...,
+        crc: bytes | None = ...,
         symbol_rate: float = ...,
         dsss_code_only: int = ...,
         frame: FrameDesc | str | None = ...,

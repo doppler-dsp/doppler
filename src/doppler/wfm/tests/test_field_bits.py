@@ -98,7 +98,8 @@ def test_malformed_text_raises_its_reason_never_returns_empty(spec):
 #
 # An object takes bits; module helpers make them (docs/design/
 # frame-description.md, F.3). A composer source's bit fields (data, fill,
-# sync, acq_code, data_code) keep jm's `coerce = "bit_pattern"`, because
+# acq_code, data_code; `sync` is retired, see test_frame_source.py)
+# keep jm's `coerce = "bit_pattern"`, because
 # without it jm refuses arrays, and name `coerce_str_fn =
 # "dp_wfm_source_bits_refuse_text"`, which refuses every str with one reason
 # pointing here. So text has one door, field_bits(), and the object one
@@ -107,7 +108,7 @@ def test_malformed_text_raises_its_reason_never_returns_empty(spec):
 _REFUSED = re.escape("build them from text with field_bits()")
 
 #: Every source bit field, and a kwarg that reaches it.
-_FIELDS = ["data", "fill", "sync", "acq_code", "data_code"]
+_FIELDS = ["data", "fill", "acq_code", "data_code"]
 
 
 def _synth(**kw):
@@ -124,7 +125,7 @@ def test_a_source_bit_field_refuses_text_naming_field_bits(field, spec):
         _synth(**{field: spec})
 
 
-@pytest.mark.parametrize("field", ["data", "sync", "acq_code", "data_code"])
+@pytest.mark.parametrize("field", ["data", "acq_code", "data_code"])
 def test_the_setter_refuses_text_and_keeps_the_bits(field):
     src = _synth(**{field: field_bits("0101")})
     with pytest.raises(ValueError, match=_REFUSED):

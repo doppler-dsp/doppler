@@ -227,7 +227,7 @@ same description the transmitter was given:
 --8<-- "src/doppler/examples/dsss_burst_receiver_demo.py:deframe"
 ```
 
-- **`crc=none`** still decodes, but it is never `frame_valid`. Told a
+- **A frame with no CRC stage** still decodes, but it is never `frame_valid`. Told a
     smaller `frame_syms`, the receiver returns the frame's bits unchanged,
     and the DeFramer reports `rx_checked == 0`: *carries no check* is not
     *the check failed*, and an FER conflating them would score every

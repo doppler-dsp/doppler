@@ -163,8 +163,6 @@ enum wfm__surface_8h_1a385c44f6fb256e5716a2302a5b940388 {
     WFM_SURFACE_source_symbols,
     WFM_SURFACE_source_acq_code,
     WFM_SURFACE_source_data_code,
-    WFM_SURFACE_source_sync,
-    WFM_SURFACE_source_crc,
     WFM_SURFACE_source_symbol_rate,
     WFM_SURFACE_source_dsss_code_only,
     WFM_SURFACE_source_frame,

@@ -89,8 +89,6 @@ enum
   WFM_SURFACE_source_symbols,
   WFM_SURFACE_source_acq_code,
   WFM_SURFACE_source_data_code,
-  WFM_SURFACE_source_sync,
-  WFM_SURFACE_source_crc,
   WFM_SURFACE_source_symbol_rate,
   WFM_SURFACE_source_dsss_code_only,
   WFM_SURFACE_source_frame,
@@ -348,23 +346,6 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .kind = WFM_SV_FIELD,
     .off = offsetof (wfm_source_t, data_code),
     .json = "data_code",
-  },
-  [WFM_SURFACE_source_sync] = {
-    .name = "sync",
-    .cli = "--sync",
-    .owner = WFM_SURF_SOURCE,
-    .kind = WFM_SV_FIELD,
-    .off = offsetof (wfm_source_t, sync),
-    .json = "sync",
-  },
-  [WFM_SURFACE_source_crc] = {
-    .name = "crc",
-    .cli = "--crc",
-    .owner = WFM_SURF_SOURCE,
-    .kind = WFM_SV_CHOICE,
-    .off = offsetof (wfm_source_t, crc),
-    .choices = CRC_NAMES,
-    .n_choices = (int)(sizeof CRC_NAMES / sizeof *CRC_NAMES),
   },
   [WFM_SURFACE_source_symbol_rate] = {
     .name = "symbol_rate",
@@ -645,17 +626,7 @@ wfm_surface_row_is_set (const wfm_surface_row_t *r,
   "                  BurstDemod.set_preamble lock to.\n" \
   "  --data-code FIELD\n" \
   "                  For type=dsss: the payload spreading code, a second code\n" \
-  "                  distinct from acq_code.\n" \
-  "  --sync FIELD    The frame-sync word (such as Barker-13) between the preamble\n" \
-  "                  and the payload -- what BurstDemod.set_frame correlates to\n" \
-  "                  resolve frame position and BPSK polarity, and what a BER\n" \
-  "                  alignment detects against.\n" \
-  "  --crc C         The frame trailer: crc16 appends a CRC-16-CCITT over the\n" \
-  "                  payload bits (what BurstDemod validates as frame_valid, and\n" \
-  "                  what makes a truth-free frame error rate possible); none, the\n" \
-  "                  default, omits it: a source carries no CRC unless this or a\n" \
-  "                  frame description gives one. One of: none | crc16.\n" \
-  "                  (default none)\n"
+  "                  distinct from acq_code.\n"
 
 #define WFM_SURFACE_HELP_DSSS_CONT \
   "  --symbol-rate HZ\n" \
@@ -700,7 +671,6 @@ static const char *const WFM_JSON_KEYS_INLINE_SEGMENT[] = {
   "background",
   "carrier_hz",
   "code_only",
-  "crc",
   "data",
   "data_code",
   "data_from_file",
@@ -734,7 +704,6 @@ static const char *const WFM_JSON_KEYS_INLINE_SEGMENT[] = {
   "sps",
   "symbol_rate",
   "symbols",
-  "sync",
   "type",
   NULL
 };
@@ -755,7 +724,6 @@ static const char *const WFM_JSON_KEYS_SOURCE[] = {
   "background",
   "carrier_hz",
   "code_only",
-  "crc",
   "data",
   "data_code",
   "data_from_file",
@@ -783,7 +751,6 @@ static const char *const WFM_JSON_KEYS_SOURCE[] = {
   "sps",
   "symbol_rate",
   "symbols",
-  "sync",
   "type",
   NULL
 };

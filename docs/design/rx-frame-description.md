@@ -408,9 +408,10 @@ of [#1617][i1617]), and `data=` with `data_len=`, a payload drawn from a
 data source (F step 6,
 [#1721](https://github.com/doppler-dsp/doppler/pull/1721)). So a Python test
 builds the transmitter from the receiver's `Frame` directly. A `data:LEN`
-payload renders through `data=` on the common frame (`sync=`, `crc=`), or
+payload renders through `data=` on the common frame (`[preamble | data]`), or
 through a `frame=` description carrying a `data:LEN` field from
-`FrameDesc.add_data` (§8.2). The Python half of goal 2 waits on moving the
+`FrameDesc.add_data` (§8.2), which is also how a sync word and a CRC are
+given: a source carries neither (#1617). The Python half of goal 2 waits on moving the
 existing tests and examples (step 7), not on #1617, whose
 remainder moves `sync` and `crc` off `wfm_source_t`.
 

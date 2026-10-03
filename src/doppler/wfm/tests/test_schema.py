@@ -524,9 +524,23 @@ _VALID_STATICS: list[tuple[str, dict[str, Any]]] = [
     # A sequence produced from numbers rather than carried as an array: the
     # METADATA reproduces the capture, so the record says it -- as ONE Field
     # text per field (frame-description.md F.1), `*REPS` on the preamble.
+    # The sync word is a field of the frame description (the flat `sync` key
+    # is retired), so the generated word lives in the frame's fields.
     (
         "generated_pn_sync",
-        {"version": 1, "segments": [{**_SEG, "sync": "pn:1023:10:0x1:0x409"}]},
+        {
+            "version": 1,
+            "segments": [
+                {
+                    **_SEG,
+                    "frame": {
+                        "fields": [
+                            {"name": "sync", "spec": "pn:1023:10:0x1:0x409"}
+                        ]
+                    },
+                }
+            ],
+        },
     ),
     (
         "generated_gold_acq_code",
@@ -561,6 +575,12 @@ _INVALID_STATICS: list[tuple[str, dict[str, Any]]] = [
     (
         "retired_payload_key",
         {"version": 1, "segments": [{**_SEG, "payload": "10110010"}]},
+    ),
+    # `sync` is a retired key: the frame-sync word is a field of "frame",
+    # so the key is not in the schema at all.
+    (
+        "retired_sync_key",
+        {"version": 1, "segments": [{**_SEG, "sync": "0x1acf"}]},
     ),
     ("wrong_version", {"version": 2, "segments": [_SEG]}),
     ("empty_segments", {"version": 1, "segments": []}),

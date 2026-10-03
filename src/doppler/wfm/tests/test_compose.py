@@ -694,7 +694,6 @@ def _bits(snr, n=64):
         # n bits of data, sent as given: a data source sets its own run, so
         # the segment carries no num_samples (it would be refused)
         "data": f"pn:{n}:7",
-        "crc": "none",
         "off_samples": 0,
     }
 
@@ -1466,7 +1465,6 @@ def test_bits_byte_parity_vs_wfmgen(tmp_path):
         Segment(
             "bits",
             data=field_bits("0xb4b4b4b4"),
-            crc="none",
             modulation="qpsk",
             sps=4,
             fs=1e6,
@@ -1488,7 +1486,6 @@ def test_bits_json_roundtrip():
             Segment(
                 "bits",
                 data=field_bits("110100"),
-                crc="none",
                 modulation="bpsk",
                 sps=2,
             )
@@ -1508,7 +1505,6 @@ def test_bits_in_sum_scene():
     mix = Segment.sum(
         bits(
             data=field_bits("0xb5b5b5b5"),  # 32 bits x 4 sps: the run
-            crc="none",
             modulation="bpsk",
             sps=4,
         ),

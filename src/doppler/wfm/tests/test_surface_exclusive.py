@@ -166,7 +166,7 @@ def test_the_cli_refuses_reps_off_the_preamble_with_the_generated_reason(
 
 def test_a_scene_refuses_reps_off_the_preamble_with_the_generated_reason():
     with pytest.raises(ValueError) as e:
-        Composer.from_json(_scene(data="1100", sync="0101*2"))
+        Composer.from_json(_scene(data="1100*2"))
     assert str(e.value) == _macro("WFM_SURFACE_REPS_WHY_JSON")
 
 
@@ -287,7 +287,6 @@ def test_python_data_is_drawn_frame_by_frame():
         snr=200.0,
         data=bits,
         data_len=16,
-        crc="none",
     )
     x = s.steps(32).real
     assert np.array_equal((x > 0.5).astype(np.uint8), bits)
@@ -309,7 +308,6 @@ def test_python_data_on_a_dsss_burst_is_a_burst_per_chunk():
         "data_code": code,
         "data": bits,
         "data_len": 16,
-        "crc": "none",
     }
     nch = 4 + 16 * 4
     x = Synth(**kw).steps(2 * nch + 8).real

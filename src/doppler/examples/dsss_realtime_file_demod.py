@@ -139,7 +139,8 @@ def _bitstr(bits):
 def write_scene(path, *, snr_db=SNR_DB):
     """Write the wfmgen scene: ONE `dsss` segment per burst, streamed
     `continuous`. The segment is a *description* of the burst — two codes, a
-    repeat count, a sync word and the payload bits — and the engine assembles
+    repeat count, a frame description (sync word, payload, CRC-16) and the
+    payload bits — and the engine assembles
     `[preamble x REPS | sync | payload | CRC-16]`, spreads the frame with the
     data code, appends the CRC and derives the segment's own length. The
     ranged fields make each repeat distinct: `freq` is a uniform Doppler draw,
@@ -161,9 +162,18 @@ def write_scene(path, *, snr_db=SNR_DB):
                 # the preamble's repetitions ride in its Field as *REPS
                 "acq_code": f"{_bitstr(_ACODE)}*{REPS}",
                 "data_code": _bitstr(_DCODE),
-                "sync": _bitstr(SYNC),
                 "data": _bitstr(_PAYLOAD_BITS),  # one burst's data, whole
-                "crc": "crc16",
+                # the frame: [sync | the data source | CRC-16 over the data]
+                "frame": {
+                    "fields": [
+                        {"name": "sync", "spec": _bitstr(SYNC)},
+                        {"name": "payload", "spec": f"data:{PAYLOAD}"},
+                        {"name": "crc", "bits": 16, "derived_by": 1},
+                    ],
+                    "stages": [
+                        {"kind": "crc16", "first_field": 1, "n_fields": 2}
+                    ],
+                },
                 # A dsss burst sizes itself (one burst = n_chips * sps), so
                 # num_samples is derived, not written here.
                 # nominal PRI gap + uniform arrival jitter → varying code phase

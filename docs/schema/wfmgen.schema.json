@@ -259,26 +259,12 @@
         "acq_code": {
           "type": "string",
           "minLength": 1,
-          "description": "The preamble code, sent acq_reps times at the head of the frame (a Field's *REPS on the command line and in a scene) -- the coherent pull-in target BurstDespreader.set_acq and BurstDemod.set_preamble lock to. For type=dsss it is unmodulated chips ahead of the spread frame; for type=bits it is the head of the bit pattern. Setting it (or sync) is what makes a source FRAMED."
+          "description": "The preamble code, sent acq_reps times at the head of the frame (a Field's *REPS on the command line and in a scene) -- the coherent pull-in target BurstDespreader.set_acq and BurstDemod.set_preamble lock to. For type=dsss it is unmodulated chips ahead of the spread frame; for type=bits it is the head of the bit pattern. Setting it is what makes a source FRAMED."
         },
         "data_code": {
           "type": "string",
           "minLength": 1,
           "description": "For type=dsss: the payload spreading code, a second code distinct from acq_code. Every frame bit (sync, payload, crc) is XOR-spread across its full length, so len(data_code) is the spreading factor."
-        },
-        "sync": {
-          "type": "string",
-          "minLength": 1,
-          "description": "The frame-sync word (such as Barker-13) between the preamble and the payload -- what BurstDemod.set_frame correlates to resolve frame position and BPSK polarity, and what a BER alignment detects against. Optional; setting it (or acq_code) is what makes a source FRAMED."
-        },
-        "crc": {
-          "type": "string",
-          "enum": [
-            "none",
-            "crc16"
-          ],
-          "default": "crc16",
-          "description": "type=dsss (burst): frame trailer — crc16 appends a CRC-16-CCITT over the payload bits (what BurstDemod validates as frame_valid); none omits it. Ignored in continuous mode (no frame)."
         },
         "symbol_rate": {
           "type": "number",
@@ -388,7 +374,7 @@
       ]
     },
     "frame_desc": {
-      "description": "The FRAME, as a description, when the source carries one: fields in wire order and stages that each name the span they cover. It is the only way to add a coding stage (crc16, rs, randomise, interleave, conv, or a kind of your own) and how a CCSDS CADU is written. Present, it IS the frame: a sync word or an unspread preamble beside it is refused, and the flat keys acq_code, sync and crc describe only the common frame [preamble x reps | sync | payload | crc] when it is absent. `wfmgen --frame FILE` reads this same object. KERNELS are not in here and cannot be: a stage names a KIND, and the code that runs it is a wfm_frame_ops_t entry a caller supplies in C.",
+      "description": "The FRAME, as a description, when the source carries one: fields in wire order and stages that each name the span they cover. It is the only way to add a coding stage (crc16, rs, randomise, interleave, conv, or a kind of your own) and how a CCSDS CADU is written. Present, it IS the frame: an unspread preamble beside it is refused, and a sync word or a CRC is a field or a stage of this object -- the keys \"sync\" and \"crc\" are retired and refused, naming \"frame\". When it is absent, acq_code and the data source describe the common frame [preamble x reps | data]. `wfmgen --frame FILE` reads this same object, and `--sync` and `--crc` build one for you. KERNELS are not in here and cannot be: a stage names a KIND, and the code that runs it is a wfm_frame_ops_t entry a caller supplies in C.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -615,12 +601,6 @@
         },
         "data_code": {
           "$ref": "#/$defs/source/properties/data_code"
-        },
-        "sync": {
-          "$ref": "#/$defs/source/properties/sync"
-        },
-        "crc": {
-          "$ref": "#/$defs/source/properties/crc"
         },
         "symbol_rate": {
           "$ref": "#/$defs/source/properties/symbol_rate"

@@ -52,7 +52,7 @@ import sys  # noqa: E402
 def main() -> int:
     # 1. The frame reaches the samples.
     # The same payload bits as a data source, sent as given: no frame.
-    unframed = Segment(**common, data=field_bits("1010" * 6), crc="none")
+    unframed = Segment(**common, data=field_bits("1010" * 6))
     y0 = np.asarray(Composer([unframed]).compose())
     ok1 = not np.array_equal(x[: y0.size], y0)
     print("framed != unframed:", ok1)

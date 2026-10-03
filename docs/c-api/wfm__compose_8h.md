@@ -66,6 +66,8 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  const char | [**dp\_wfm\_why\_dsss\_frame\_no\_data\_code**](#variable-dp_wfm_why_dsss_frame_no_data_code)  <br>_The reasons_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives a dsss source missing a code (doppler#1696): a burst whose frame has no data\_code to spread it, a burst with neither a preamble nor a frame, and a continuous stream with no data\_code. Exported so a test or a face can hold a refusal to its reason by identity._ |
 |  const char | [**dp\_wfm\_why\_pn\_poly**](#variable-dp_wfm_why_pn_poly)  <br>_The reason_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives for a_`pn_poly` _wider than its register_ _exported so a face that knows the values (the wfmgen CLI) can name them beside it, by identity rather than by matching text._ |
 |  const char | [**dp\_wfm\_why\_retired\_bits**](#variable-dp_wfm_why_retired_bits)  <br>_The reason_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives for_`retired_bits` _set: Python's retired_`bits=` _(and_`payload=` _,_`pattern=` _), named once. The CLI's and a scene's RETIRED tables say the same in their own spelling (doppler#1718)._ |
+|  const char | [**dp\_wfm\_why\_retired\_crc**](#variable-dp_wfm_why_retired_crc)  <br> |
+|  const char | [**dp\_wfm\_why\_retired\_sync**](#variable-dp_wfm_why_retired_sync)  <br>_The reasons_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives for_`retired_sync` _and_`retired_crc` _set._ |
 
 
 
@@ -111,6 +113,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* | [**dp\_wfm\_frame\_from\_json**](#function-dp_wfm_frame_from_json) (const char \* json, const char \*\* why) <br>_Read a frame description from its JSON form._  |
 |  [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* | [**dp\_wfm\_frame\_refuse\_text**](#function-dp_wfm_frame_refuse_text) (const char \* text, const char \*\* why) <br>_Refuse text for a source's_ `frame=` _: it takes a description._ |
 |  char \* | [**dp\_wfm\_frame\_to\_json**](#function-dp_wfm_frame_to_json) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d) <br>_Write a description as its JSON frame object, the text_ [_**dp\_wfm\_frame\_from\_json()**_](wfm__compose_8h.md#function-dp_wfm_frame_from_json) _reads back._ |
+|  const char \* | [**dp\_wfm\_framing\_flags\_error**](#function-dp_wfm_framing_flags_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Why_ `--sync` _/_`--crc` _/_`--acq-code` _cannot frame this source, or NULL._ |
 |  void | [**dp\_wfm\_render\_destroy**](#function-dp_wfm_render_destroy) ([**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* r) <br>_Free a renderer and everything it owns. NULL-safe._  |
 |  void | [**dp\_wfm\_render\_noise\_steps**](#function-dp_wfm_render_noise_steps) ([**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* r, float \_Complex \* dst, size\_t n) <br>_Pull_ `n` _samples of the source's NOISE FLOOR only, through the same channel._ |
 |  void | [**dp\_wfm\_render\_steps**](#function-dp_wfm_render_steps) ([**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* r, float \_Complex \* dst, size\_t n) <br>_Pull exactly_ `n` _samples from_`r` _, through its channel if any._ |
@@ -121,6 +124,8 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  int | [**dp\_wfm\_source\_attach\_dsss**](#function-dp_wfm_source_attach_dsss) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* syn, const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs) <br>_Attach a dsss source's data to a freshly-created synth._  |
 |  int | [**dp\_wfm\_source\_attach\_frame**](#function-dp_wfm_source_attach_frame) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* syn, const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Attach an unspread source's bit pattern, framed or not._  |
 |  size\_t | [**dp\_wfm\_source\_bits\_refuse\_text**](#function-dp_wfm_source_bits_refuse_text) (const char \* text, uint8\_t \* out, size\_t max\_out, const char \*\* why) <br>_Refuse text for a source's bit field: an object takes bits._  |
+|  int | [**dp\_wfm\_source\_common\_frame**](#function-dp_wfm_source_common_frame) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, const [**wfm\_seq\_t**](structwfm__seq__t.md) \* sync, int crc, [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d) <br>_The common frame as a description:_ `[preamble x reps | sync | data | crc]` _, built by the ONE function that builds it._ |
+|  size\_t | [**dp\_wfm\_source\_crc\_refuse\_text**](#function-dp_wfm_source_crc_refuse_text) (const char \* text, uint8\_t \* out, size\_t max\_out, const char \*\* why) <br>_Refuse text for the retired_ `crc=` _: a CRC is a stage of the frame description._ |
 |  double | [**dp\_wfm\_source\_create\_snr**](#function-dp_wfm_source_create_snr) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, double snr, int \* snr\_mode) <br>_Resolve a source's (snr, snr\_mode) into the pair to hand to_ `dp_wfm_synth_create()` _._ |
 |  uint64\_t | [**dp\_wfm\_source\_data\_frames**](#function-dp_wfm_source_data_frames) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Frames a FINITE data source makes,_ `ceil(bits / LEN)` _; 0 for a stream or none. On continuous dsss, which has no frame, its bits._ |
 |  int | [**dp\_wfm\_source\_data\_is\_stream**](#function-dp_wfm_source_data_is_stream) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Whether a source's data is a stream:_ `data_from_file` _is_`-` _._ |
@@ -130,6 +135,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  const char \* | [**dp\_wfm\_source\_error**](#function-dp_wfm_source_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_NULL when this source can be built; else why not, as a sentence._  |
 |  const char \* | [**dp\_wfm\_source\_frame\_error**](#function-dp_wfm_source_frame_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_NULL when this source's frame fields can be honoured; else why not._  |
 |  int | [**dp\_wfm\_source\_has\_frame**](#function-dp_wfm_source_has_frame) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Non-zero when this source describes a FRAME._  |
+|  size\_t | [**dp\_wfm\_source\_sync\_refuse\_text**](#function-dp_wfm_source_sync_refuse_text) (const char \* text, uint8\_t \* out, size\_t max\_out, const char \*\* why) <br>_Refuse text for the retired_ `sync=` _: a sync word is a field of the frame description._ |
 |  int | [**dp\_wfm\_source\_synth\_type**](#function-dp_wfm_source_synth_type) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_The synth type to create this source with._  |
 |  const char \* | [**dp\_wfm\_source\_to\_synth\_error**](#function-dp_wfm_source_to_synth_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs) <br>_Why_ [_**dp\_wfm\_source\_to\_synth()**_](wfm__compose__bridge_8h.md#function-dp_wfm_source_to_synth) _refused this source, or NULL._ |
 |  double | [**dp\_wfm\_spec\_headroom**](#function-dp_wfm_spec_headroom) (const char \* json) <br>_The top-level_ `headroom` _(dB) from a spec JSON, or 0 if absent._ |
@@ -463,6 +469,37 @@ const char dp_wfm_why_retired_bits[];
 
 
 
+
+<hr>
+
+
+
+### variable dp\_wfm\_why\_retired\_crc 
+
+```C++
+const char dp_wfm_why_retired_crc[];
+```
+
+
+
+
+<hr>
+
+
+
+### variable dp\_wfm\_why\_retired\_sync 
+
+_The reasons_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives for_`retired_sync` _and_`retired_crc` _set._
+```C++
+const char dp_wfm_why_retired_sync[];
+```
+
+
+
+One sentence each, naming `frame=`; the CLI and a scene say the same in their own spelling. Exposed so a test can pin the wording once. 
+
+
+        
 
 <hr>
 ## Public Functions Documentation
@@ -1511,6 +1548,43 @@ dp_wfm_frame_free (d);
 
 
 
+### function dp\_wfm\_framing\_flags\_error 
+
+_Why_ `--sync` _/_`--crc` _/_`--acq-code` _cannot frame this source, or NULL._
+```C++
+const char * dp_wfm_framing_flags_error (
+    const wfm_source_t * src
+) 
+```
+
+
+
+The CLI's flags spell the common frame, which needs a waveform that carries a bit stream and, off dsss, a data source to fill it. Said once here and used by the same refusal inside [**dp\_wfm\_source\_frame\_error**](wfm__compose_8h.md#function-dp_wfm_source_frame_error), so the flags and a bare source give one answer. A dsss burst needs neither.
+
+
+
+
+**Parameters:**
+
+
+* `src` the source. 
+
+
+
+**Returns:**
+
+a static sentence naming the fix, or NULL. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_wfm\_render\_destroy 
 
 _Free a renderer and everything it owns. NULL-safe._ 
@@ -1896,6 +1970,92 @@ size_t      n = dp_wfm_source_bits_refuse_text ("0101", NULL, 0, &why);
 
 
 
+### function dp\_wfm\_source\_common\_frame 
+
+_The common frame as a description:_ `[preamble x reps | sync | data | crc]` _, built by the ONE function that builds it._
+```C++
+int dp_wfm_source_common_frame (
+    const wfm_source_t * src,
+    const wfm_seq_t * sync,
+    int crc,
+    wfm_frame_desc_t * d
+) 
+```
+
+
+
+Used by the bridge (a scene's or Python's `acq_code` + data, with no sync word and no CRC) and by `wfmgen` for `--sync` and `--crc`, which are sugar for these fields. The preamble is a field for an unspread source and is NOT one for a spread burst: a DSSS preamble is sent unspread outside the description. The description borrows `src`'s and `sync`'s sequences.
+
+
+
+
+**Parameters:**
+
+
+* `src` the source (its `acq_code`, `acq_reps`, `data`, `data_from_file` and `data_len` are read). 
+* `sync` the sync word, or NULL for none. 
+* `crc` non-zero appends a CRC-16 over the payload. 
+* `d` receives the description. 
+
+
+
+**Returns:**
+
+0, or -1 when it does not lay out. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_source\_crc\_refuse\_text 
+
+_Refuse text for the retired_ `crc=` _: a CRC is a stage of the frame description._
+```C++
+size_t dp_wfm_source_crc_refuse_text (
+    const char * text,
+    uint8_t * out,
+    size_t max_out,
+    const char ** why
+) 
+```
+
+
+
+As [**dp\_wfm\_source\_sync\_refuse\_text**](wfm__compose_8h.md#function-dp_wfm_source_sync_refuse_text), for `crc=`. `crc="none"` is refused too: it would otherwise be a spelling that works forever with no way to retire it.
+
+
+
+
+**Parameters:**
+
+
+* `text` the str (unused: every str is refused). 
+* `out` unused. 
+* `max_out` unused. 
+* `why` receives the sentence. 
+
+
+
+**Returns:**
+
+0. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_wfm\_source\_create\_snr 
 
 _Resolve a source's (snr, snr\_mode) into the pair to hand to_ `dp_wfm_synth_create()` _._
@@ -2227,7 +2387,7 @@ int dp_wfm_source_has_frame (
 
 
 
-A carried description, a preamble or a sync word is what says "framed". **Deliberately not `crc`**: it is a trailer, not a frame, so reading it as intent would silently append one to every unframed bit pattern that names it. With neither a preamble nor a sync word, `crc` stays inert exactly as it always was.
+A carried description, a preamble or a data source is what says "framed".
 
 
 
@@ -2236,6 +2396,49 @@ A carried description, a preamble or a sync word is what says "framed". **Delibe
 
 
 * `src` The source; NULL reads as unframed. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_source\_sync\_refuse\_text 
+
+_Refuse text for the retired_ `sync=` _: a sync word is a field of the frame description._
+```C++
+size_t dp_wfm_source_sync_refuse_text (
+    const char * text,
+    uint8_t * out,
+    size_t max_out,
+    const char ** why
+) 
+```
+
+
+
+The coercion hook of the `sync` tombstone: ANY `str` reaching it is refused, and a non-empty array is refused by [**dp\_wfm\_source\_error**](wfm__compose_8h.md#function-dp_wfm_source_error), so `sync=` fails whatever it is given and the sentence names `frame=`.
+
+
+
+
+**Parameters:**
+
+
+* `text` the str (unused: every str is refused). 
+* `out` unused. 
+* `max_out` unused. 
+* `why` receives the sentence. 
+
+
+
+**Returns:**
+
+0. 
+
 
 
 

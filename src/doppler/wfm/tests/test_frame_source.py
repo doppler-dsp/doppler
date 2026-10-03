@@ -72,10 +72,23 @@ def _field(a, reps: int = 1) -> str:
     return text + (f"*{reps}" if reps > 1 else "")
 
 
+def _framed_desc() -> FrameDesc:
+    """``[preamble x reps | sync | data | CRC-16]`` as one description: on
+    an unspread type the preamble is the description's first field."""
+    d = FrameDesc()
+    d.add_field("acq", np.tile(ACQ, REPS))
+    d.add_field("sync", SYNC)
+    d.add_data("payload", len(PAYLOAD))
+    d.add_derived("crc", 16)
+    d.add_stage_over(STAGE_CRC16, "payload", "crc")
+    return d
+
+
 def _seg_kwargs(framed: bool) -> dict:
     """The payload as a data source, one frame of it: framed, it is
     ``[preamble x reps | sync | payload | CRC-16]``; unframed, the bits as
-    given (``crc="none"``). The run is the data's, so no num_samples."""
+    given (no CRC: none is the default). The run is the data's, so no
+    num_samples."""
     kw = {
         "type": "bits",
         "fs": FS,
@@ -84,14 +97,7 @@ def _seg_kwargs(framed: bool) -> dict:
         "modulation": "bpsk",
     }
     if framed:
-        kw |= {
-            "acq_code": ACQ.tobytes(),
-            "acq_reps": REPS,
-            "sync": SYNC.tobytes(),
-            "crc": "crc16",
-        }
-    else:
-        kw["crc"] = "none"
+        kw["frame"] = _framed_desc()
     return kw
 
 
@@ -123,8 +129,6 @@ def _cli_frame_args(framed: bool) -> list[str]:
         "--sps",
         str(SPS),
     ]
-    if not framed:
-        args += ["--crc", "none"]
     if framed:
         args += [
             "--acq-code",
@@ -325,10 +329,20 @@ def test_the_record_carries_the_frame_and_rebuilds_it(tmp_path):
     assert p.returncode == 0, p.stderr
 
     seg = json.loads(rec.read_text(encoding="utf-8"))["segments"][0]
-    assert seg["acq_code"] == _field(ACQ, REPS)
-    assert "acq_reps" not in seg, "its repetitions ride in the Field"
-    assert seg["sync"] == _bits(SYNC)
-    assert seg["crc"] == "crc16"
+    # The flat flags are retired from the record: the frame is ONE object,
+    # its preamble a first field (repetitions ride in the Field) and its
+    # CRC a stage over the payload and its trailer.
+    assert not {"acq_code", "acq_reps", "sync", "crc"} & set(seg)
+    fields = seg["frame"]["fields"]
+    assert [f["name"] for f in fields] == [
+        "preamble",
+        "sync",
+        "payload",
+        "crc",
+    ]
+    assert fields[0]["spec"] == _field(ACQ, REPS)
+    assert fields[1]["spec"] == _bits(SYNC)
+    assert [s["kind"] for s in seg["frame"]["stages"]] == ["crc16"]
 
     p2, out2 = _cli(["--from-file", str(rec)], tmp_path, "b.dat")
     assert p2.returncode == 0, p2.stderr
@@ -336,9 +350,9 @@ def test_the_record_carries_the_frame_and_rebuilds_it(tmp_path):
 
 
 def test_an_unframed_record_stays_unframed(tmp_path):
-    """A run with no preamble or sync word records none, and its
-    ``crc="none"`` survives: a data source is a frame's payload, so a record
-    that dropped it would add a CRC-16 trailer on the way back in."""
+    """A run with no preamble or sync word records no frame at all, and
+    replays with no CRC trailer: none is the default now, so nothing needs
+    to survive in the record for the replay to stay unframed."""
     rec = tmp_path / "rec.json"
     p, out = _cli(
         [*_cli_frame_args(False), "--record", str(rec)], tmp_path, "a.dat"
@@ -346,8 +360,7 @@ def test_an_unframed_record_stays_unframed(tmp_path):
     assert p.returncode == 0, p.stderr
 
     seg = json.loads(rec.read_text(encoding="utf-8"))["segments"][0]
-    assert "acq_code" not in seg and "sync" not in seg
-    assert seg["crc"] == "none"
+    assert not {"acq_code", "sync", "crc", "frame"} & set(seg)
 
     p2, out2 = _cli(["--from-file", str(rec)], tmp_path, "b.dat")
     assert p2.returncode == 0, p2.stderr
@@ -368,7 +381,6 @@ def _carried(with_frame: bool) -> np.ndarray:
     }
     if not with_frame:
         seg["data"] = _bits(PAYLOAD)  # the payload alone, as given
-        seg["crc"] = "none"
     else:
         seg["frame"] = {
             "fields": [
@@ -768,6 +780,19 @@ def test_a_pn_poly_above_its_register_is_refused(make):
 
 _ACQ = "pn:31:5"
 _DATA = "pn:15:4"
+# A dsss frame is a description (the flat `sync` key is retired).
+_SYNC_FRAME = {"fields": [{"name": "sync", "spec": "0101"}]}
+
+
+def _as_kwarg(v):
+    """A scene value as the Python kwarg that spells it: code text becomes
+    bits, a "frame" dict becomes a FrameDesc."""
+    if isinstance(v, dict):
+        d = FrameDesc()
+        for f in v["fields"]:
+            d.add_field(f["name"], field_bits(f["spec"]))
+        return d
+    return field_bits(v) if isinstance(v, str) else v
 
 
 def _scene_why(seg: dict) -> str:
@@ -782,8 +807,8 @@ def _scene_why(seg: dict) -> str:
     [
         ({}, "give acq_code"),
         ({"data_code": _DATA}, "give acq_code"),
-        ({"acq_code": _ACQ, "sync": "0101"}, "give data_code"),
-        ({"sync": "0101"}, "give data_code"),
+        ({"acq_code": _ACQ, "frame": _SYNC_FRAME}, "give data_code"),
+        ({"frame": _SYNC_FRAME}, "give data_code"),
         ({"symbol_rate": 1e3}, "give data_code"),
     ],
     ids=[
@@ -799,9 +824,7 @@ def test_a_dsss_source_missing_a_code_names_it(codes, field):
     standalone Synth and a scene say the SAME sentence, because all three
     ask dp_wfm_scene_error. The Composer's create carries it through
     create_why (just-makeit gh-1755) instead of "<create> failed"."""
-    kw = {
-        k: field_bits(v) if isinstance(v, str) else v for k, v in codes.items()
-    }
+    kw = {k: _as_kwarg(v) for k, v in codes.items()}
     why = _scene_why({"type": "dsss", "sps": 2, "fs": 1e6, **codes})
     assert field in why, why
 
@@ -898,7 +921,7 @@ def test_the_cli_prefixes_its_flag_to_the_frame_sentence(tmp_path):
     """The sentence names the FIELD on every face; the CLI adds its own
     flag context in front, as it does for the rate refusal."""
     why = _scene_why(
-        {"type": "dsss", "sps": 2, "acq_code": _ACQ, "sync": "0101"}
+        {"type": "dsss", "sps": 2, "acq_code": _ACQ, "frame": _SYNC_FRAME}
     )
     p, _ = _cli(
         [
@@ -954,49 +977,49 @@ def test_a_data_description_deframes_and_checks_a_received_frame():
     assert d.check(bad).passed == 0
 
 
-# ── a CRC beside a carried frame is refused (doppler#1700) ──────────────────
+# ── `sync` and `crc` are retired (doppler#1617) ─────────────────────────────
 #
-# A carried description IS the frame, CRC stage and all, so a `crc` beside it
-# is a second statement about the same trailer -- and one that used to be
-# dropped without a word on the scene and object faces (the CLI refused it).
-# The default is `none` now, so `crc16` is distinguishable from absent and
-# every face can refuse it; an explicit `none` says nothing the default did
-# not, and is accepted.
+# The frame is ONLY a description. The flat `sync` word and the `crc` name
+# were a second statement of what a description already says, so they are
+# gone from the source objects and the scene: any value is refused, and the
+# refusal names `frame`. (An empty `sync=b""` array is the one exception the
+# binding accepts, and is not exercised here.)
 
 _CARRIED = {"fields": [{"name": "payload", "spec": "1010"}]}
 
 
-@pytest.mark.parametrize("crc", ["crc16"])
-def test_a_scene_crc_beside_a_frame_is_refused_naming_frame(crc):
-    why = _scene_why(
-        {
-            "type": "bits",
-            "crc": crc,
-            "frame": _CARRIED,
-        }
-    )
-    assert '"frame"' in why and "CRC" in why, why
+@pytest.mark.parametrize("crc", ["crc16", "none"])
+def test_a_scene_crc_is_refused_naming_frame(crc):
+    """Any value, `none` included: the key itself is retired."""
+    why = _scene_why({"type": "bits", "crc": crc, "frame": _CARRIED})
+    assert '"crc" is retired' in why and '"frame"' in why, why
+    # Beside no description at all it is refused the same way.
+    assert '"crc" is retired' in _scene_why({"type": "bits", "crc": crc})
 
 
-def test_a_scene_crc_none_beside_a_frame_says_nothing_the_default_did_not():
-    Composer.from_json(
-        json.dumps(
-            {
-                "segments": [
-                    {
-                        "type": "bits",
-                        "crc": "none",
-                        "frame": _CARRIED,
-                    }
-                ]
-            }
-        )
-    )
+@pytest.mark.parametrize("sync", ["0101", ""])
+def test_a_scene_sync_is_refused_naming_frame(sync):
+    why = _scene_why({"type": "bits", "sync": sync, "frame": _CARRIED})
+    assert '"sync" is retired' in why and '"frame"' in why, why
 
 
-def test_a_python_crc_beside_a_frame_is_refused():
+@pytest.mark.parametrize("crc", ["crc16", "none"])
+def test_a_python_crc_is_refused_naming_frame(crc):
     desc = FrameDesc()
     desc.add_field("payload", field_bits("1010"))
     desc.build()
-    with pytest.raises((ValueError, RuntimeError), match="frame"):
-        Composer([Segment(type="bits", frame=desc, crc="crc16")]).compose()
+    with pytest.raises(ValueError, match="crc is retired") as err:
+        Composer([Segment(type="bits", frame=desc, crc=crc)]).compose()
+    assert "frame" in str(err.value)
+    with pytest.raises(ValueError) as err:
+        Synth(type="bits", crc=crc).steps(8)
+    assert "frame" in str(err.value)
+
+
+def test_a_python_sync_is_refused_naming_frame():
+    with pytest.raises(ValueError, match="sync is retired") as err:
+        Composer([Segment(type="bits", sync=SYNC.tobytes())]).compose()
+    assert "frame" in str(err.value)
+    with pytest.raises(ValueError) as err:
+        Synth(type="bits", sync=SYNC.tobytes()).steps(8)
+    assert "frame" in str(err.value)

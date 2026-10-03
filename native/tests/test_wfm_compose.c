@@ -292,7 +292,11 @@ test_the_two_faces_agree (void)
     s.data.kind                  = WFM_SEQ_LITERAL;
     s.data.bits                  = pay;
     s.data.len                   = sizeof pay;
-    s.crc                        = 1;
+    /* A frame with a CRC-16 trailer: a description, since a source carries
+       no CRC of its own. */
+    wfm_frame_desc_t fd;
+    DP_REQUIRE (dp_wfm_source_common_frame (&s, NULL, 1, &fd) == 0);
+    s.frame = &fd;
 
     float _Complex *da = malloc (n * sizeof *da);
     float _Complex *db = malloc (n * sizeof *db);
@@ -541,13 +545,22 @@ test_a_source_carries_the_frame_a_caller_built (void)
                   "frame: the wire carries the caller's description, bit for "
                   "bit");
 
-  /* ONE frame, said one way: a sync word beside a carried description is a
-     second spelling of part of it, and the description would silently win.
-     Refused -- and for the same reason an unspread preamble is. */
-  src.sync = marker;
-  DP_REQUIRE_MSG (dp_wfm_source_frame_error (&src) != NULL,
-                  "frame: a sync word beside a carried frame is refused");
-  memset (&src.sync, 0, sizeof src.sync);
+  /* ONE frame, said one way. A sync word or a CRC on the source is the
+     retired spelling of part of the description (doppler#1617), refused by
+     name whatever sits beside it -- the sentence names frame=. An unspread
+     preamble beside a carried frame is a second spelling too. */
+  src.retired_sync     = marker;
+  const char *why_sync = dp_wfm_source_error (&src);
+  DP_REQUIRE_MSG (
+      why_sync == dp_wfm_why_retired_sync && strstr (why_sync, "frame="),
+      "frame: a sync word on the source is refused, naming frame=");
+  memset (&src.retired_sync, 0, sizeof src.retired_sync);
+  src.retired_crc     = marker;
+  const char *why_crc = dp_wfm_source_error (&src);
+  DP_REQUIRE_MSG (why_crc == dp_wfm_why_retired_crc
+                      && strstr (why_crc, "frame="),
+                  "frame: so is a crc, whatever its value");
+  memset (&src.retired_crc, 0, sizeof src.retired_crc);
   src.acq_code = marker;
   src.acq_reps = 2;
   DP_REQUIRE_MSG (dp_wfm_source_frame_error (&src) != NULL,
@@ -877,13 +890,16 @@ test_a_framed_pn_type_sends_its_frame (void)
   src.seed         = 5;
   src.pn_length    = 7;
   src.snr          = 100.0;
-  src.crc          = 1; /* crc16 */
-  src.sync.kind    = WFM_SEQ_LITERAL;
-  src.sync.bits    = barker;
-  src.sync.len     = sizeof barker;
   src.data.kind    = WFM_SEQ_LITERAL;
   src.data.bits    = pay;
   src.data.len     = sizeof pay;
+  /* Barker-13 | payload | CRC-16: a frame DESCRIPTION, since a source
+     carries neither a sync word nor a CRC of its own. */
+  const wfm_seq_t barker_seq
+      = { .kind = WFM_SEQ_LITERAL, .bits = barker, .len = sizeof barker };
+  wfm_frame_desc_t fd;
+  DP_REQUIRE (dp_wfm_source_common_frame (&src, &barker_seq, 1, &fd) == 0);
+  src.frame = &fd;
   DP_REQUIRE_MSG (dp_wfm_source_frame_error (&src) == NULL,
                   "precondition: a framed bpsk is a shape the rule accepts");
 
@@ -947,13 +963,13 @@ test_a_framed_pn_type_sends_its_frame (void)
         dp_wfm_synth_destroy (bridge);
       }
 
-  /* An UNFRAMED bpsk -- no sync, no data source -- keeps its PN stream:
+  /* An UNFRAMED bpsk -- no frame, no data source -- keeps its PN stream:
      the switch is the frame's, not the type's. A bridge that made every
      bpsk a BITS synth would pass everything above and silence every
      unframed PN source. */
   {
     wfm_source_t u = src;
-    memset (&u.sync, 0, sizeof u.sync);
+    u.frame        = NULL;
     memset (&u.data, 0, sizeof u.data);
     DP_REQUIRE (!dp_wfm_source_has_frame (&u));
     DP_CHECK_MSG (dp_wfm_source_synth_type (&u) == WFM_SYNTH_BPSK,
@@ -1635,16 +1651,24 @@ test_pacing_set_after_create_sends_idle_frames (void)
   static const uint8_t one[1]     = { 1 };
   static const uint8_t sync[SYNC] = { 1, 0, 1, 0, 0, 1, 0, 1 };
   wfm_source_t         src        = data_line ();
-  src.crc                         = 1; /* crc16 */
-  src.sync = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = sync, .len = SYNC };
   src.fill = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = one, .len = 1 };
+  src.data_from_file = "-";
+  /* sync | data:LEN | CRC-16 as a description (a source carries neither a
+     sync word nor a CRC of its own). It is built once the data source is
+     attached, because a description with no data source has no data field.
+     The data field is what an idle frame's fill and a data frame's chunk
+     both land in. */
+  const wfm_seq_t sync_seq
+      = { .kind = WFM_SEQ_LITERAL, .bits = sync, .len = SYNC };
+  wfm_frame_desc_t fd;
+  DP_REQUIRE (dp_wfm_source_common_frame (&src, &sync_seq, 1, &fd) == 0);
+  src.frame = &fd;
   uint8_t ones[LEN], want[48], idle_fr[FR], data_fr[FR];
   memset (ones, 1, sizeof ones);
   six_bits (want);
   DP_REQUIRE (frame_of (&src, ones, LEN, idle_fr, FR) == 0);
   DP_REQUIRE (frame_of (&src, want, LEN, data_fr, FR) == 0);
 
-  src.data_from_file          = "-";
   wfm_segment_t           seg = { .sources = &src, .n_sources = 1, .fs = 1e6 };
   dp_wfm_compose_state_t *c   = dp_wfm_compose_create (&seg, 1, 0, 0);
   DP_REQUIRE_MSG (c != NULL, "a stdin source composes");
@@ -2191,7 +2215,7 @@ test_a_scene_data_file_is_relative_to_the_scene (void)
   DP_REQUIRE (f != NULL);
   fprintf (f,
            "{\"segments\":[{\"type\":\"bits\",\"modulation\":\"none\","
-           "\"sps\":1,\"snr\":200,\"crc\":\"none\",\"data_len\":16,"
+           "\"sps\":1,\"snr\":200,\"data_len\":16,"
            "\"data_from_file\":\"dp_wfm_f6a_%d.bin\"}]}",
            pid);
   fclose (f);
@@ -3150,10 +3174,15 @@ main (void)
                           .acq_code  = { .bits = acq, .len = 8 },
                           .acq_reps  = 3,
                           .data_code = { .bits = dcode, .len = 4 },
-                          .sync      = { .bits = sync, .len = 2 },
                           .data.bits = pay, /* payload */
-                          .data.len  = 5,
-                          .crc       = 1 };
+                          .data.len  = 5 };
+    /* The frame: 2-bit sync | data:5 | CRC-16, a description (a source
+       carries neither a sync word nor a CRC of its own). */
+    const wfm_seq_t ssync
+        = { .kind = WFM_SEQ_LITERAL, .bits = sync, .len = 2 };
+    wfm_frame_desc_t sfd;
+    DP_REQUIRE (dp_wfm_source_common_frame (&dsss, &ssync, 1, &sfd) == 0);
+    dsss.frame = &sfd;
     /* A count beside it is refused, not dropped (doppler#1729): its data
        sets the on-time. 0 derives it. */
     wfm_segment_t g = { .sources     = &dsss,
@@ -3233,8 +3262,11 @@ main (void)
     dp_wfm_compose_destroy (c); /* json built; the borrow ends here */
     DP_REQUIRE_MSG (js && strstr (js, "\"dsss\""), "dsss type name");
     DP_REQUIRE_MSG (strstr (js, "acq_code") && strstr (js, "data_code")
-                        && strstr (js, "\"data\"") && strstr (js, "\"crc\""),
-                    "dsss geometry keys");
+                        && strstr (js, "\"data\"") && strstr (js, "\"frame\"")
+                        && !strstr (js, "\"crc\":")
+                        && !strstr (js, "\"sync\":"),
+                    "dsss geometry keys, the frame as a description and no "
+                    "sync or crc key");
     dp_wfm_compose_state_t *jc2 = dp_wfm_compose_from_json (js);
     DP_REQUIRE_MSG (jc2, "dsss from_json");
     static float _Complex j2[1024];
@@ -3272,6 +3304,32 @@ main (void)
       }
     free (js);
 
+    /* "sync" and "crc" are retired too (doppler#1617): the sync word is a
+     * field and the CRC a stage of the "frame" description. A scene carrying
+     * either -- whatever its value, "none" included -- is refused naming
+     * "frame", which is also what an old --record is told on replay. */
+    static const struct
+    {
+      const char *key, *value;
+    } gone[] = { { "sync", "\"0101\"" },
+                 { "crc", "\"crc16\"" },
+                 { "crc", "\"none\"" } };
+    for (size_t k = 0; k < sizeof gone / sizeof *gone; k++)
+      {
+        char scene[128];
+        (void)snprintf (scene, sizeof scene,
+                        "{\"segments\":[{\"type\":\"bits\",\"%s\":%s}]}",
+                        gone[k].key, gone[k].value);
+        const char             *why = NULL;
+        dp_wfm_compose_state_t *jp
+            = dp_wfm_compose_from_json_why (scene, &why);
+        DP_CHECK_MSG (jp == NULL, "a retired sync/crc key is refused");
+        DP_CHECK_MSG (why && strstr (why, gone[k].key)
+                          && strstr (why, "\"frame\""),
+                      "naming the key it refused, and \"frame\"");
+        dp_wfm_compose_destroy (jp);
+      }
+
     /* ebno on a dsss burst is esno (BPSK payload, 1 bit/symbol): same
      * bytes as the esno render above. */
     wfm_source_t  eb           = dsss;
@@ -3297,8 +3355,7 @@ main (void)
     wfm_source_t  nos          = dsss;
     wfm_segment_t gnos         = g;
     gnos.sources               = &nos;
-    nos.sync.bits              = NULL;
-    nos.sync.len               = 0;
+    nos.frame                  = NULL; /* no frame, so no sync word */
     dp_wfm_compose_state_t *cn = dp_wfm_compose_create (&gnos, 1, 0, 0);
     DP_REQUIRE_MSG (cn, "no-sync dsss create");
     size_t               nn  = 0;
@@ -3327,27 +3384,25 @@ main (void)
      */
     {
       wfm_frame_desc_t cvd;
-      DP_REQUIRE (
-          dp_wfm_frame_fixed (&cvd, NULL, 0, &dsss.sync, &dsss.data, dsss.crc)
-          == 0);
+      DP_REQUIRE (dp_wfm_frame_fixed (&cvd, NULL, 0, &ssync, &dsss.data, 1)
+                  == 0);
       const int cst
           = dp_wfm_frame_add_stage (&cvd, WFM_STAGE_CONV, "sync", "crc");
       DP_REQUIRE (cst >= 0);
       cvd.stage[cst].emit_num = 2u; /* rate 1/2 */
       cvd.stage[cst].emit_den = 1u;
       wfm_source_t cv         = dsss;
-      memset (&cv.sync, 0, sizeof cv.sync);
-      cv.crc = 0; /* ...and so is the CRC stage: a carried frame is the whole
-                     frame, and a crc beside it is refused */
       /* The payload is a field of the description too (doppler#1683). */
       memset (&cv.data, 0, sizeof cv.data);
       cv.frame = &cvd;
-      /* A crc beside the carried frame is a second statement about the same
-         trailer: refused on the object face, as the CLI and a scene do
-         (doppler#1700). `none` is the default, so it says nothing. */
-      wfm_source_t cvcrc = cv;
-      cvcrc.crc          = 1;
-      DP_CHECK_MSG (dp_wfm_source_error (&cvcrc) != NULL,
+      /* A crc on the source is the retired spelling of the description's CRC
+         stage, refused by name on the object face as the CLI and a scene do
+         (doppler#1700, #1617). The frame alone is not. */
+      wfm_source_t         cvcrc       = cv;
+      static const uint8_t one_byte[1] = { 1 };
+      cvcrc.retired_crc
+          = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = one_byte, .len = 1 };
+      DP_CHECK_MSG (dp_wfm_source_error (&cvcrc) == dp_wfm_why_retired_crc,
                     "a crc beside a carried frame is refused");
       DP_CHECK_MSG (dp_wfm_source_error (&cv) == NULL,
                     "...and the frame alone is not");
@@ -4228,9 +4283,18 @@ main (void)
     framed.acq_code.bits = acq_bits;
     framed.acq_code.len  = sizeof acq_bits;
     framed.acq_reps      = 4;
-    framed.sync.bits     = sync_bits;
-    framed.sync.len      = sizeof sync_bits;
-    framed.crc           = 1;
+    /* [preamble x 4 | Barker-13 | data | CRC-16] as a DESCRIPTION: a source
+       carries neither a sync word nor a CRC of its own, and a carried frame
+       is the whole frame, so the unspread preamble moves into it. */
+    const wfm_seq_t  framed_sync = { .kind = WFM_SEQ_LITERAL,
+                                     .bits = sync_bits,
+                                     .len  = sizeof sync_bits };
+    wfm_frame_desc_t framed_fd;
+    DP_REQUIRE (
+        dp_wfm_source_common_frame (&framed, &framed_sync, 1, &framed_fd)
+        == 0);
+    framed.frame    = &framed_fd;
+    framed.acq_code = (wfm_seq_t){ 0 };
 
     /* A data source IS a frame's payload: [data:LEN | crc] at the least,
        so a source with one is framed (doppler#1718 retired the unframed
@@ -4238,15 +4302,6 @@ main (void)
     DP_REQUIRE_MSG (dp_wfm_source_has_frame (&plain),
                     "a data source frames its source");
     DP_REQUIRE_MSG (dp_wfm_source_has_frame (&framed), "and so does this");
-    /* `crc` alone must NOT read as a frame: it is a trailer, not a frame,
-       so treating it as intent would frame every waveform that names one. */
-    wfm_source_t crc_only = plain;
-    crc_only.data         = (wfm_seq_t){ 0 };
-    crc_only.type         = WFM_SYNTH_BPSK;
-    crc_only.crc          = 1;
-    DP_REQUIRE_MSG (!dp_wfm_source_has_frame (&crc_only),
-                    "crc alone is a default, not an intent to frame");
-
     /* The frame is honoured where the payload is explicit, and refused with a
        reason where it is not — never accepted and dropped. */
     DP_REQUIRE_MSG (dp_wfm_source_frame_error (&framed) == NULL,
@@ -4322,12 +4377,9 @@ main (void)
       cd.type               = WFM_SYNTH_DSSS;
       cd.sps                = 2;
       cd.symbol_rate        = 12500.0;
-      cd.crc                = 0; /* unframed: a crc16 would make
-                                    this a FRAME, and the payload would ride
-                                    attach_frame instead of the data path
-                                    under test -- which is exactly how the
-                                    first version of this pin passed with the
-                                    defect put back */
+      /* Unframed: a frame would make the payload ride attach_frame instead
+         of the data path under test -- which is exactly how the first
+         version of this pin passed with the defect put back. */
       cd.data_code
           = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .len = 4, .bits = dcode };
       cd.data                  = gen;
@@ -4455,8 +4507,12 @@ main (void)
      * frame is asked whether it assembles, and a field that cannot be built
      * is a frame that does not. The build paths still refuse on their own,
      * because a caller may build without asking. */
-    wfm_source_t broken  = framed;
-    broken.acq_code.bits = NULL; /* .len and acq_reps still set */
+    wfm_source_t broken = framed;
+    broken.frame        = NULL; /* the common frame, from the preamble: */
+    broken.acq_code     = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL,
+                                       .bits = NULL, /* a LENGTH, no array */
+                                       .len  = sizeof acq_bits };
+    broken.acq_reps     = 4;
     DP_REQUIRE_MSG (dp_wfm_source_has_frame (&broken),
                     "still reads as framed");
     const char *bwhy = dp_wfm_source_frame_error (&broken);
@@ -4487,11 +4543,12 @@ main (void)
     const char *pwhy  = dp_wfm_source_error (&bare);
     DP_REQUIRE_MSG (pwhy && strstr (pwhy, "no bits of its own"),
                     "and with no frame around it");
-    wfm_source_t syn = framed;
-    syn.sync         = (wfm_seq_t){ .kind = WFM_SEQ_DATA, .len = 16 };
-    const char *swhy = dp_wfm_source_error (&syn);
+    wfm_source_t pre = framed;
+    pre.frame        = NULL;
+    pre.acq_code     = (wfm_seq_t){ .kind = WFM_SEQ_DATA, .len = 16 };
+    const char *swhy = dp_wfm_source_error (&pre);
     DP_REQUIRE_MSG (swhy && strstr (swhy, "only a frame's payload"),
-                    "a data:LEN sync word is refused: only a payload draws "
+                    "a data:LEN preamble is refused: only a payload draws "
                     "from a data source");
 
     dp_wfm_synth_destroy (sp);
@@ -4531,7 +4588,6 @@ main (void)
                           .sps        = 1,
                           .pn_length  = 7,
                           .modulation = 1,
-                          .crc        = 0,
                           .data       = pl,
                           .frame      = &d5 };
     DP_REQUIRE_MSG (dp_wfm_source_frame_error (&cadu) == NULL,
@@ -4813,17 +4869,23 @@ main (void)
 
     wfm_source_t src;
     memset (&src, 0, sizeof src);
-    src.type          = WFM_SYNTH_BITS;
-    src.sps           = 2;
-    src.data.bits     = pay;
-    src.data.len      = sizeof pay;
-    src.sync.kind     = WFM_SEQ_PN;
-    src.sync.len      = 31u; /* one period of a 5-bit register */
-    src.sync.reg_bits = 5u;
-    src.sync.seed     = 3u;
+    src.type      = WFM_SYNTH_BITS;
+    src.sps       = 2;
+    src.data.bits = pay;
+    src.data.len  = sizeof pay;
+    /* The sync word is a field of the frame description, here a GENERATED
+       one: one period of a 5-bit register. */
+    wfm_seq_t sync_pn = { 0 };
+    sync_pn.kind      = WFM_SEQ_PN;
+    sync_pn.len       = 31u;
+    sync_pn.reg_bits  = 5u;
+    sync_pn.seed      = 3u;
+    wfm_frame_desc_t fd;
+    DP_REQUIRE (dp_wfm_source_common_frame (&src, &sync_pn, 0, &fd) == 0);
+    src.frame = &fd;
 
-    /* A generated sequence has NO array, so a source that tested its frame
-       on the pointer read this as unframed and emitted the payload bare. */
+    /* A generated sequence has NO array, so a frame tested on the pointer
+       read this as unframed and emitted the payload bare. */
     DP_REQUIRE_MSG (dp_wfm_source_has_frame (&src),
                     "a PN sync frames a source -- the test is on length, "
                     "not on an array a generated kind never has");
@@ -4844,9 +4906,9 @@ main (void)
     dp_pn_destroy (pn);
     DP_REQUIRE_MSG (
         memcmp (got, want, 31u) == 0,
-        "a PN sync declared on the SOURCE is dp_pn_generate of its "
-        "own three numbers, on the wire -- the kind SURVIVED the bridge, "
-        "which is the whole of gh-762 step 2");
+        "a PN sync field is dp_pn_generate of its own three numbers, on "
+        "the wire -- the kind SURVIVED the bridge, which is the whole of "
+        "gh-762 step 2");
     DP_REQUIRE_MSG (memcmp (got + 31, pay, sizeof pay) == 0,
                     "and the payload follows it");
 
@@ -4855,10 +4917,12 @@ main (void)
        and break every existing caller. */
     static const uint8_t lit[4] = { 1, 0, 0, 1 };
     wfm_source_t         plain  = src;
-    memset (&plain.sync, 0, sizeof plain.sync);
-    plain.sync.kind = WFM_SEQ_LITERAL;
-    plain.sync.bits = lit;
-    plain.sync.len  = sizeof lit;
+    const wfm_seq_t      sync_lit
+        = { .kind = WFM_SEQ_LITERAL, .bits = lit, .len = sizeof lit };
+    wfm_frame_desc_t fd_lit;
+    DP_REQUIRE (dp_wfm_source_common_frame (&plain, &sync_lit, 0, &fd_lit)
+                == 0);
+    plain.frame = &fd_lit;
     uint8_t got2[sizeof lit + 64];
     DP_REQUIRE (wire_bits (&plain, got2, sizeof got2) == sizeof got2);
     DP_REQUIRE_MSG (memcmp (got2, lit, sizeof lit) == 0
@@ -4890,11 +4954,15 @@ main (void)
     src.sps           = 2;
     src.data.bits     = pay;
     src.data.len      = sizeof pay;
-    src.sync.kind     = WFM_SEQ_PN;
-    src.sync.len      = 31u;
-    src.sync.reg_bits = 5u;
-    src.sync.seed     = 3u;
-    src.sync.poly     = 0u; /* derive the maximal-length polynomial */
+    wfm_seq_t sync_pn = { 0 };
+    sync_pn.kind      = WFM_SEQ_PN;
+    sync_pn.len       = 31u;
+    sync_pn.reg_bits  = 5u;
+    sync_pn.seed      = 3u;
+    sync_pn.poly      = 0u; /* derive the maximal-length polynomial */
+    wfm_frame_desc_t fd;
+    DP_REQUIRE (dp_wfm_source_common_frame (&src, &sync_pn, 0, &fd) == 0);
+    src.frame = &fd;
 
     wfm_segment_t seg
         = { .sources = &src, .n_sources = 1, .fs = 1e6, .num_samples = 256 };
@@ -4956,13 +5024,17 @@ main (void)
       g.data_code.len      = 7u;
       g.data_code.reg_bits = 3u;
       g.data_code.seed     = 1u;
-      g.sync.kind          = WFM_SEQ_GOLD;
-      g.sync.len           = 16u;
-      g.sync.reg_bits      = 10u;
-      g.sync.taps_a        = 934u;
-      g.sync.seed_a        = 350u;
-      g.sync.taps_b        = 567u;
-      g.sync.seed_b        = 73u;
+      wfm_seq_t sync_gold  = { 0 };
+      sync_gold.kind       = WFM_SEQ_GOLD;
+      sync_gold.len        = 16u;
+      sync_gold.reg_bits   = 10u;
+      sync_gold.taps_a     = 934u;
+      sync_gold.seed_a     = 350u;
+      sync_gold.taps_b     = 567u;
+      sync_gold.seed_b     = 73u;
+      wfm_frame_desc_t gfd;
+      DP_REQUIRE (dp_wfm_source_common_frame (&g, &sync_gold, 0, &gfd) == 0);
+      g.frame = &gfd;
 
       wfm_segment_t gseg
           = { .sources = &g, .n_sources = 1, .fs = 1e6, .num_samples = 512 };
@@ -4981,25 +5053,23 @@ main (void)
       DP_REQUIRE_MSG (gc, "gold/dotted from_json");
 
       /* The Gold sync's bits, against dp_gold_generate of the same numbers,
-         from the RELOADED source. A burst's frame is the common frame over
-         its sync, payload and CRC (the preamble is outside it, unspread),
-         so that description -- built from what the record gave back -- is
-         what is spread. */
+         from the RELOADED source. A burst's frame is the description the
+         record carries (the preamble is outside it, unspread), so that
+         description -- read back from the record -- is what is spread. */
       size_t               gn = 0;
       const wfm_segment_t *gseg2
           = dp_wfm_compose_segments (gc, &gn, NULL, NULL);
       DP_REQUIRE (gn == 1 && gseg2[0].n_sources == 1);
       const wfm_source_t *gr = &gseg2[0].sources[0];
-      wfm_frame_desc_t    gd;
-      DP_REQUIRE (
-          dp_wfm_frame_fixed (&gd, NULL, 0, &gr->sync, &gr->data, gr->crc)
-          == 0);
-      const int gi = dp_wfm_frame_field_index (&gd, "sync");
+      DP_REQUIRE_MSG (gr->frame, "the record carries the frame description");
+      wfm_frame_desc_t gd = *gr->frame;
+      const int        gi = dp_wfm_frame_field_index (&gd, "sync");
       DP_REQUIRE (gi >= 0);
       wfm_frame_desc_layout_t gl;
       DP_REQUIRE (dp_wfm_frame_desc_layout (&gd, &gl) == 0);
       static uint8_t gbits[4096];
-      DP_REQUIRE (dp_wfm_frame_assemble (&gd, NULL, gbits, sizeof gbits)
+      DP_REQUIRE (dp_wfm_frame_assemble_data (&gd, NULL, gr->data.bits, gbits,
+                                              sizeof gbits)
                   == gl.out_bits);
       static uint8_t   gwant[16];
       dp_gold_state_t *gs = dp_gold_create (934u, 350u, 567u, 73u, 10u);
@@ -5020,7 +5090,7 @@ main (void)
   "{\"segments\":[{\"fs\":1e6,\"type\":\"bits\","                             \
   "\"data\":\"0101\"," EXTRA "}]}"
     DP_REQUIRE_MSG (
-        !dp_wfm_compose_from_json (BITS_SCENE ("\"sync\":\"martian:8\"")),
+        !dp_wfm_compose_from_json (BITS_SCENE ("\"acq_code\":\"martian:8\"")),
         "an unknown kind is refused, not silently dropped -- a newer writer's "
         "record must not load as a different waveform");
     DP_REQUIRE_MSG (
@@ -5029,19 +5099,19 @@ main (void)
             "\"reg_bits\":3}")),
         "a retired sync_gen beside the Field is refused, not merged");
     DP_REQUIRE_MSG (
-        !dp_wfm_compose_from_json (BITS_SCENE ("\"sync\":\"pn:8:0\"")),
+        !dp_wfm_compose_from_json (BITS_SCENE ("\"acq_code\":\"pn:8:0\"")),
         "a PN with no register width is refused");
     DP_REQUIRE_MSG (
-        !dp_wfm_compose_from_json (BITS_SCENE ("\"sync\":5")),
+        !dp_wfm_compose_from_json (BITS_SCENE ("\"acq_code\":5")),
         "a Field that is not text is refused -- a number there is a writer "
         "this reader does not understand");
     DP_REQUIRE_MSG (
-        !dp_wfm_compose_from_json (BITS_SCENE ("\"sync\":\"pn:0:5\"")),
+        !dp_wfm_compose_from_json (BITS_SCENE ("\"acq_code\":\"pn:0:5\"")),
         "a generator of no length is refused -- length is the one parameter "
         "no default can supply");
     DP_REQUIRE_MSG (
         !dp_wfm_compose_from_json (
-            BITS_SCENE ("\"sync\":\"gold:8:65:1:1:1:1\"")),
+            BITS_SCENE ("\"acq_code\":\"gold:8:65:1:1:1:1\"")),
         "a Gold register wider than the 64 bits dp_gold_create() holds is "
         "refused, not silently masked down");
     /* The coding sugar is retired, each key refused with what replaced it:
@@ -5110,18 +5180,21 @@ main (void)
 
     /* A burst with NO acquisition preamble. The expansion still runs over the
        absent field and must yield nothing rather than invent one. */
-    wfm_source_t          nopre = { .type      = WFM_SYNTH_DSSS,
-                                    .snr       = 40.0,
-                                    .snr_mode  = 1,
-                                    .seed      = 7,
-                                    .sps       = 2,
-                                    .pn_length = 7,
-                                    .data_code = { .bits = dcode4, .len = 4 },
-                                    .sync      = { .bits = sync2, .len = 2 },
-                                    .data.bits = pay5,
-                                    .data.len  = 5,
-                                    .crc       = 1 };
-    dp_wfm_synth_state_t *ns    = dp_wfm_source_to_synth (&nopre, 1e6);
+    wfm_source_t    nopre = { .type      = WFM_SYNTH_DSSS,
+                              .snr       = 40.0,
+                              .snr_mode  = 1,
+                              .seed      = 7,
+                              .sps       = 2,
+                              .pn_length = 7,
+                              .data_code = { .bits = dcode4, .len = 4 },
+                              .data.bits = pay5,
+                              .data.len  = 5 };
+    const wfm_seq_t nsync
+        = { .kind = WFM_SEQ_LITERAL, .bits = sync2, .len = 2 };
+    wfm_frame_desc_t nfd;
+    DP_REQUIRE (dp_wfm_source_common_frame (&nopre, &nsync, 1, &nfd) == 0);
+    nopre.frame              = &nfd;
+    dp_wfm_synth_state_t *ns = dp_wfm_source_to_synth (&nopre, 1e6);
     DP_REQUIRE_MSG (ns, "a burst with a sync word and no preamble is a burst");
     dp_wfm_synth_destroy (ns);
 
@@ -5765,8 +5838,7 @@ main (void)
                                "\t\t\t\t\t\"pulse\":\t\"rrc\",\n"
                                "\t\t\t\t\t\"rrc_beta\":\t0.35,\n"
                                "\t\t\t\t\t\"rrc_span\":\t8,\n"
-                               "\t\t\t\t\t\"data\":\t\"0xb2\",\n"
-                               "\t\t\t\t\t\"crc\":\t\"none\"\n"
+                               "\t\t\t\t\t\"data\":\t\"0xb2\"\n"
                                "\t\t\t\t}, {\n"
                                "\t\t\t\t\t\"type\":\t\"tone\",\n"
                                "\t\t\t\t\t\"freq\":\t0.125,\n"

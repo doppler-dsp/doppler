@@ -211,10 +211,11 @@ typedef struct {
        caller's own bits at a position of their choosing, a stage covering a
        span they name. `wfmgen --frame FILE`, a scene's
        `frame` key and Python's `frame=` (a FrameDesc or a Frame) all land
-       here. When it is set it IS the frame, and the common-frame
-       fields below (acq_code/sync/crc/payload) do not frame this source.
-       NULL means the common frame, `[preamble x reps | sync | payload |
-       crc]`, which `dp_wfm_frame_fixed()` builds from the fields below.
+       here. When it is set it IS the frame, and an unspread acq_code
+       beside it is refused. NULL means the common frame, `[preamble x
+       reps | data]`, which `dp_wfm_frame_fixed()` builds from acq_code and
+       the data source; a sync word or a CRC is a field or a stage of a
+       description, never a flat field.
 
        A C caller's description is borrowed, exactly as `wfm_seq_t` is
        borrowed elsewhere here, so it must outlive the source. The composer
@@ -248,8 +249,8 @@ typedef struct {
                             BurstDemod.set_preamble lock to. For type=dsss
                             it is unmodulated chips ahead of the spread
                             frame; for type=bits it is the head of the bit
-                            pattern. Setting it (or sync) is what makes a
-                            source FRAMED. */
+                            pattern. Setting it is what makes a source
+                            FRAMED. */
     size_t acq_reps;     /* Preamble repetitions: periods of acq_code before
                             the sync word. On the command line and in a
                             scene it is acq_code's *REPS. */
@@ -258,25 +259,11 @@ typedef struct {
                             bit (sync, payload, crc) is XOR-spread across
                             its full length, so len(data_code) is the
                             spreading factor. */
-    wfm_seq_t sync;      /* The frame-sync word (such as Barker-13) between
-                            the preamble and the payload -- what
-                            BurstDemod.set_frame correlates to resolve frame
-                            position and BPSK polarity, and what a BER
-                            alignment detects against. Optional; setting it
-                            (or acq_code) is what makes a source FRAMED. */
-    int crc;             /* The frame trailer: crc16 appends a CRC-16-CCITT
-                            over the payload bits (what BurstDemod validates
-                            as frame_valid, and what makes a truth-free
-                            frame error rate possible); none, the
-                            default, omits it: a source carries no CRC
-                            unless this or a frame description gives one.
-                            Applies only to a FRAMED source, so it alone
-                            never frames an otherwise plain pattern. */
     /* type=dsss, CONTINUOUS mode: a data-symbol rate independent of the code
        epoch rate selects the continuous form (dp_wfm_synth_set_dsss_cont) over
        the burst form above -- one waveform type, one discriminator, rather
        than a tenth entry in five hand-maintained name tables. 0 = burst.
-       The frame fields (acq_code/sync/crc/bits) are meaningless when this is
+       The frame fields (acq_code/frame/data) are meaningless when this is
        set and are rejected by the caller rather than silently ignored. */
     double symbol_rate;  /* For type=dsss: > 0 selects CONTINUOUS
                             asynchronous mode. The spreading code repeats
@@ -330,6 +317,17 @@ typedef struct {
                           source, so bits=, and its aliases payload= and
                           pattern=, are refused naming data=; the CLI and a
                           scene refuse --bits and "payload" the same way. */
+    wfm_seq_t retired_sync; /* RETIRED (doppler#1617): nothing reads it but
+                          the refusal. The frame-sync word is a field of the
+                          frame DESCRIPTION, so sync= is refused naming
+                          frame=; the CLI's --sync builds that description
+                          for you, and a scene refuses the "sync" key. */
+    wfm_seq_t retired_crc; /* RETIRED (doppler#1617): nothing reads it but
+                          the refusal. A CRC is a stage of the frame
+                          DESCRIPTION, so crc= is refused naming frame=,
+                          whatever its value (crc="none" included); the
+                          CLI's --crc builds that description for you, and
+                          a scene refuses the "crc" key. */
     wfm_data_stats_t data_sent; /* What this source's data sent in the
                           composer's latest instance: its frames, the fill
                           bits padding the last, its idle frames, the source
@@ -445,6 +443,9 @@ extern const char dp_wfm_why_dsss_empty[];
 extern const char dp_wfm_why_dsss_cont_no_data_code[];
 
 extern const char dp_wfm_why_retired_bits[];
+
+extern const char dp_wfm_why_retired_sync[];
+extern const char dp_wfm_why_retired_crc[];
 
 const char *dp_wfm_source_to_synth_error(const wfm_source_t *src, double fs);
 
@@ -566,6 +567,17 @@ char *dp_wfm_spec_template_json(void);
 wfm_frame_desc_t *dp_wfm_frame_from_json(const char *json, const char **why);
 
 void dp_wfm_frame_free(wfm_frame_desc_t *d);
+
+size_t dp_wfm_source_sync_refuse_text(const char *text, uint8_t *out,
+                                      size_t max_out, const char **why);
+
+size_t dp_wfm_source_crc_refuse_text(const char *text, uint8_t *out,
+                                     size_t max_out, const char **why);
+
+const char *dp_wfm_framing_flags_error(const wfm_source_t *src);
+
+int dp_wfm_source_common_frame(const wfm_source_t *src, const wfm_seq_t *sync,
+                               int crc, wfm_frame_desc_t *d);
 
 size_t dp_wfm_source_bits_refuse_text(const char *text, uint8_t *out,
                                       size_t max_out, const char **why);

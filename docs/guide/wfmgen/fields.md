@@ -107,14 +107,18 @@ produced its bits:
 wfmgen --type bits --data 0101010111001010 \
        --sync pn:0x1f:5:0:0:galois --acq-code '1111*2' \
        --record run.json -o framed.cf32
-grep -E '"(data|acq_code|sync)"' run.json
+grep -E '"(data|spec)"' run.json
 ```
 
 ```text
-			"acq_code":	"0xf*2",
-			"sync":	"pn:31:5",
 			"data":	"0x55ca",
+						"spec":	"0xf*2"
+						"spec":	"pn:31:5"
+						"spec":	"data:16"
 ```
+
+The preamble, the sync word and the payload are the fields of the frame
+description the flags spell, so the record stores them there, as Fields.
 
 ## From C
 

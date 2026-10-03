@@ -36,7 +36,6 @@ def _field_composer() -> Composer:
                 modulation="none",
                 sps=1,
                 snr=200.0,
-                crc="none",
                 data=BITS,
                 data_len=16,
                 fill=np.array([0], np.uint8),
@@ -75,7 +74,6 @@ def _file_scene(path: Path) -> str:
                     "modulation": "none",
                     "sps": 1,
                     "snr": 200.0,
-                    "crc": "none",
                     "data_len": 16,
                     "data_from_file": str(path),
                 }

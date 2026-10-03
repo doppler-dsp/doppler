@@ -61,27 +61,26 @@ generated field such as `pn:31:5` — and a `str` passed directly is refused,
 naming it. `modulation` maps the bits to symbols (`"none"` → 0/1 amplitude,
 `"bpsk"` → ±1, `"qpsk"` → two bits per symbol, Gray-coded). Each bit is held
 `sps` samples and the bits are sent **once**, then silence. A data source is a
-frame's payload, so `crc="none"` sends them exactly as given; the default
-`crc16` appends a CRC-16 (see [Data](../guide/wfmgen/waveforms.md#data-a-payload-drawn-frame-by-frame)).
+frame's payload and is sent exactly as given; a CRC-16 trailer, a sync word or
+a coding stage is part of a frame *description*, passed as `frame=` (see
+[Data](../guide/wfmgen/waveforms.md#data-a-payload-drawn-frame-by-frame)).
 
 ```python
 from doppler.wfm import Synth, bits, field_bits
 
 # 8-bit preamble, BPSK, 4 samples/bit → 32 samples, sent once
-s = bits(data=field_bits("10110101"), crc="none", sps=4, modulation="bpsk")
+s = bits(data=field_bits("10110101"), sps=4, modulation="bpsk")
 preamble = s.steps(32)  # 8 bits * 4 sps
 
 # Hex sync word, unmodulated 0/1; direct construction is equivalent
 sync = Synth(
-    type="bits", data=field_bits("0xAA55"), crc="none", modulation="none",
-    sps=8,
+    type="bits", data=field_bits("0xAA55"), modulation="none", sps=8,
 )
 
 # From a numpy array
 import numpy as np
 payload = bits(
-    data=np.array([1, 0, 1, 1, 0, 1, 0, 1], np.uint8), crc="none",
-    modulation="qpsk",
+    data=np.array([1, 0, 1, 1, 0, 1, 0, 1], np.uint8), modulation="qpsk",
 )
 ```
 
@@ -476,8 +475,8 @@ raises rather than coming back empty.
 
 A frame is `[preamble × reps | sync | payload | CRC]`, and the point of
 describing it as an object is that the **transmitter and the receiver hold the
-same description**. The generator already took these fields as flags
-(`Segment(sync=…, acq_code=…, crc=…)`, `wfmgen --sync …`); `Frame` is the same
+same description**. The generator takes the frame as a description too
+(`Segment(frame=…)`, or `wfmgen --sync …` / `--frame FILE`); `Frame` is the same
 layout on the analysis side, so a capture is scored against the frame that was
 actually sent rather than one reconstructed from parts.
 
@@ -702,7 +701,7 @@ literals: [Python CCSDS API](python-ccsds.md#asm_bits).
 <!-- related-pages:start -->
 
 **Gallery** — [AsyncDsssPool: the population's lifecycle](../gallery/async-dsss-pool.md), [Async DSSS Receiver: the SPEC waveform through coupled Doppler](../gallery/async-dsss-receiver-spec.md), [CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md), [A CCSDS CADU, as a Frame Description](../gallery/ccsds-link.md), [Name Your Own Code — and What Happens Past the Radius](../gallery/coding.md), [A Crowded Band — Many Signals, One Parallel `prepare`](../gallery/crowded-band.md), [DSSS Acquisition — Pd / Pfa vs Es/N0](../gallery/dsss-acq-characterization.md), [DsssBurstReceiver — the Composed Burst Chain](../gallery/dsss-burst-receiver.md), [Gallery](../gallery/index.md), [One Cache Slot for a Whole Background Field](../gallery/plan-background.md), [type="symbols" — Bring Your Own Constellation](../gallery/symbols.md), [Composing a Scene — `.sum()`, `.add()`, and Headroom](../gallery/wfm-composition.md), [Waveform I/O — One Capture, Four File Types](../gallery/wfm-io.md), [wfmgen — One Engine, Every Waveform](../gallery/wfmgen.md)
-**Guides** — [Real-Time Pacing & Timestamping](../guide/timing.md), [Reading captures](../guide/wfm-io/reading.md), [Writing captures — output & file types](../guide/wfm-io/writing.md), [Fields — bits, written as text](../guide/wfmgen/fields.md), [Waveform Generator — `wfmgen`](../guide/wfmgen/index.md), [Field reference](../guide/wfmgen/options.md), [Scenes — composing in time](../guide/wfmgen/scenes.md), [Waveforms — what you can generate](../guide/wfmgen/waveforms.md)
+**Guides** — [Real-Time Pacing & Timestamping](../guide/timing.md), [Reading captures](../guide/wfm-io/reading.md), [Writing captures — output & file types](../guide/wfm-io/writing.md), [Fields — bits, written as text](../guide/wfmgen/fields.md), [Waveform Generator — `wfmgen`](../guide/wfmgen/index.md), [Scenes — composing in time](../guide/wfmgen/scenes.md), [Waveforms — what you can generate](../guide/wfmgen/waveforms.md)
 **Design** — [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [AsyncDsssReceiver — the measurement record](../design/async-dsss-receiver-measurements.md), [BurstBank — the coarse-Doppler bank as one C object](../design/burst-bank.md), [`DsssBurstReceiver`: the burst chain, composed in C](../design/dsss-burst-receiver.md), [A Frame as a Description — the measurement record](../design/frame-description-measurements.md), [A Frame as a Description](../design/frame-description.md), [Design](../design/index.md), [MPSK Receiver](../design/mpsk.md), [The Payload as a Data Source — the measurement record](../design/payload-data-source-measurements.md), [The Payload as a Data Source](../design/payload-data-source.md), [A Receiver Built from a Frame Description](../design/rx-frame-description.md), [Receiver Test Harness](../design/rx-test.md), [Telemetry — zero-cost scalar taps for running pipelines](../design/telemetry.md), [One home for the waveform enum tables](../design/waveform-enum-ssot.md), [Waveform amplitude & composition](../design/wfmgen-composition.md), [wfmgen — the waveform generator](../design/wfmgen.md)
 **Contributing** — [Adding an algorithm — the lifecycle](../dev/contributing/adding-algorithms.md), [Measuring a receiver](../dev/contributing/measuring-a-receiver.md), [Validation log](../dev/contributing/validation-log.md)
 

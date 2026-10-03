@@ -1539,6 +1539,7 @@ same_receivers (const float _Complex *cap, size_t n_cap)
   DP_CHECK (dp_dsss_burst_receiver_get_dropped (a)
             == dp_dsss_burst_receiver_get_dropped (b));
   DP_CHECK (a->burst_len == b->burst_len && a->frame_syms == b->frame_syms);
+  DP_CHECK (a->demod->sync_len == b->demod->sync_len); /* from field 0 */
 
   const size_t nb = dp_dsss_burst_receiver_state_bytes (a);
   DP_REQUIRE (dp_dsss_burst_receiver_state_bytes (b) == nb);

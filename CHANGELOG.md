@@ -13,6 +13,30 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.61.1] - 2026-10-03
+
+### Added
+
+- **A release refuses a wheel pip would never install.** v0.60.0 and v0.61.0
+    shipped Windows 3.13/3.14 wheels tagged `cp313-cpwin_amd64`, which pip skips
+    for the sdist. `make check-wheel-tags` now gates `publish-python` on every
+    built wheel, and `make release-watch` re-checks what PyPI and the GitHub
+    Release serve ([#1817](https://github.com/doppler-dsp/doppler/issues/1817)).
+
+### Changed
+
+- **Four new issues are tiered** (#1814, #1815, #1816, #1817), so the daily
+    `make issues-check` passes
+    ([#1716](https://github.com/doppler-dsp/doppler/issues/1716)).
+
+### Fixed
+
+- **Windows wheels for Python 3.13 and 3.14 install again.** v0.60.0 and
+    v0.61.0 named them `cp313-cpwin_amd64`, so pip skipped them and built the
+    sdist. The build backend floor is now just-buildit 0.6.2, which reads the
+    ABI tag correctly
+    ([#1817](https://github.com/doppler-dsp/doppler/issues/1817)).
+
 ## [0.61.0] - 2026-10-03
 
 v0.61.0 is a waveform-generation release: **a frame is a description, and its
@@ -15688,7 +15712,8 @@ ______________________________________________________________________
 [0.6.0]: https://github.com/doppler-dsp/doppler/compare/v0.5.5...v0.6.0
 [0.60.0]: https://github.com/doppler-dsp/doppler/compare/v0.59.0...v0.60.0
 [0.61.0]: https://github.com/doppler-dsp/doppler/compare/v0.60.0...v0.61.0
+[0.61.1]: https://github.com/doppler-dsp/doppler/compare/v0.61.0...v0.61.1
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.61.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.61.1...HEAD

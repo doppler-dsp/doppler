@@ -125,6 +125,13 @@ last data symbol, and `--realtime` over stdin is refused (there is no idle
 frame to send while the pipe pauses). With no data source it sends its
 seeded PRBS, as it always has.
 
+**A paced producer must stay ahead.** Under `--realtime`, a frame's data has
+to be in the pipe when its block is computed, up to one 4096-sample block
+(`4096 / fs` seconds) early. A producer that is ahead of the run, as `cat`
+always is, never trips this. A producer that paces itself to the frame rate
+gets idle frames at the start until it is one block ahead, and that holds at
+any frame period.
+
 | flag (scene key)                             | what it is                                                                           |
 | -------------------------------------------- | ------------------------------------------------------------------------------------ |
 | `--data FIELD` (`"data"`)                    | the source's bits, as a [Field](fields.md): `0x…`, `0101`, or a finite `pn:`/`gold:` |

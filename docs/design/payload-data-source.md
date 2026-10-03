@@ -382,7 +382,11 @@ Steps 1 to 6 are built: step 1 is
 [#1726](https://github.com/doppler-dsp/doppler/pull/1726) (a DSSS burst and
 continuous DSSS) and
 [#1731](https://github.com/doppler-dsp/doppler/pull/1731) (the deletions of
-§5). Step 7 (the record and replay) is built too. Steps 8 and 9 are open.
+§5). Step 7 (the record and replay) is built too, and so is step 8
+([#1784](https://github.com/doppler-dsp/doppler/pull/1784), the throughput
+measurement, which owes no fast test because it found no threshold to test
+at) and step 9 (the guide's `--data` table in
+`docs/guide/wfmgen/waveforms.md`).
 
 ## 8. Deliberately not in scope
 
@@ -395,5 +399,3 @@ continuous DSSS) and
 - **In-band signalling.** A length, a frame counter or an idle flag is a
     field at a known position, declared in the description (§F.5). The data
     source does not write one.
-- **The receive side.** Receivers that consume these frames are
-    [#1620](https://github.com/doppler-dsp/doppler/issues/1620).

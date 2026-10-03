@@ -558,9 +558,40 @@ jobs:
         # (8/10) when it was the harness.
         run: make wheel-smoke
 
+  # ------------------------------------------------------------------
+  # Every built wheel's NAME must be one pip would install (doppler#1817).
+  # v0.60.0/v0.61.0 published `cp313-cpwin_amd64-win_amd64` wheels: the upload
+  # succeeds, PyPI lists them, and pip silently skips them for the sdist. The
+  # smoke above installs one wheel per platform, so a name-only defect on any
+  # other Python passes it. Its own job, so the OIDC publish job stays a
+  # download-and-upload with no checkout.
+  # ------------------------------------------------------------------
+  wheel-tags:
+    name: Check every wheel's tags are installable
+    needs: [build-python, build-macos, build-windows]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Download the wheels
+        uses: actions/download-artifact@v8
+        with:
+          pattern: python-dist-*
+          merge-multiple: true
+          path: dist/
+
+      - name: Parse every wheel name against cpython_tags()
+        run: make check-wheel-tags WHEELS="$(echo dist/*.whl)"
+
   publish-python:
     name: Publish to PyPI
-    needs: [verify-version, verify-ci, smoke-wheel, build-sdist, build-python, build-macos, build-windows]
+    needs: [verify-version, verify-ci, smoke-wheel, wheel-tags, build-sdist, build-python, build-macos, build-windows]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: pypi

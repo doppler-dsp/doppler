@@ -120,6 +120,10 @@ dev = [
     "matplotlib>=3.10.9; python_version >= '3.10'",
     "matplotlib<3.10; python_version == '3.9'",
     "jsonschema>=4.18",
+    # scripts/check_wheel_tags.py judges every wheel name with pip's own
+    # parser and tag table (doppler#1817). Transitive already; named here
+    # because a release gate imports it directly.
+    "packaging>=24",
     # The stdlib TOML parser under its pre-3.11 name. `tomllib` landed in
     # 3.11; scripts/check_wfm_enum_tables.py reads just-makeit.toml and is
     # driven by a test that invokes it with `sys.executable`, so it runs under

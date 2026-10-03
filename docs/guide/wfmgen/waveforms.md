@@ -41,25 +41,29 @@ wfmgen is a *transmitter*. Some of what it sends has a receiver in doppler and
 some is stimulus only, and it is better to know which before building a test
 around one.
 
-| You send                                                                   | Received by                                                                                             |
-| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `bpsk` / `qpsk` / `bits` with a BPSK or QPSK `--modulation`, framed or not | [`MpskReceiver`](../../api/python-track.md#mpskreceiver-pulse-shaped-m-psk-modem) and `FrameDesc.check` |
-| a `dsss` burst (`--acq-code`, `--data-code`, a frame)                      | [`DsssBurstReceiver`](../../api/python-dsss.md) (or `BurstDemod` once a burst is located)               |
-| continuous `dsss` (`--symbol-rate`)                                        | [`DsssReceiver`](../../api/python-dsss.md#dsssreceiver-the-composed-continuous-receiver)                |
-| **an unspread preamble burst** (`--acq-code` on `bits` / `bpsk` / `qpsk`)  | *stimulus only*: no demodulator                                                                         |
-| **`chirp`**                                                                | *stimulus only*: no demodulator                                                                         |
-| **`symbols`** (QAM, APSK, pi/4-QPSK, anything you supply)                  | *stimulus only*: no demodulator for the constellation                                                   |
-| `tone`, `noise`, `pn`                                                      | measurement and correlation inputs, not links                                                           |
+| You send                                                                                                                                        | Received by                                                                                                                  |
+| ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `bpsk` / `qpsk` / `bits` (a BPSK or QPSK mapping) as a **continuous stream**, framed (preamble, sync word, data, CRC) or not                    | [`MpskReceiver`](../../api/python-track.md#mpskreceiver-pulse-shaped-m-psk-modem), with `FrameDesc.check` scoring each frame |
+| a `dsss` burst (`--acq-code`, `--data-code`, a frame)                                                                                           | [`DsssBurstReceiver`](../../api/python-dsss.md) (or `BurstDemod` once a burst is located)                                    |
+| continuous `dsss` (`--symbol-rate`)                                                                                                             | [`DsssReceiver`](../../api/python-dsss.md#dsssreceiver-the-composed-continuous-receiver)                                     |
+| **an unspread burst**: `bits` / `bpsk` / `qpsk` frames with silence or noise between them (`--off`, `--repeats`, `--delay`), or one frame alone | *stimulus only*: it must be located before it can be demodulated, and nothing here does both                                 |
+| **`chirp`**                                                                                                                                     | *stimulus only*: no demodulator                                                                                              |
+| **`symbols`** (QAM, APSK, pi/4-QPSK, anything you supply)                                                                                       | *stimulus only*: no demodulator for the constellation                                                                        |
+| `tone`, `noise`, `pn`                                                                                                                           | measurement and correlation inputs, not links                                                                                |
+
+What makes a burst stimulus-only is not its preamble. A preamble is part of a
+continuously framed stream, and `MpskReceiver` receives that stream and scores
+its frames; it is the **schedule** (a frame, then silence, then another) that
+leaves no receiver, because a tracking loop has nothing to track in the gaps.
 
 "Stimulus only" is a statement about *demodulating*, not about finding the
-signal. A burst that starts with a complex preamble, including an unspread
-one, can still be **detected and located** with
+signal. A burst that starts with a complex preamble can still be **detected and
+located** with
 [`BurstAcquisition`](../../api/python-acquire.md#burstacquisition-the-burst-front-door-to-acquisition),
 and [`BurstCapture`](../../api/python-acquire.md#burstcapture-acquisitions-output-turned-into-bursts)
 cuts the located bursts out of a stream; what you do with their samples next
-is yours. doppler does not ship a receiver for these, and none is planned for
-this release: they exist to drive your own receiver, an acquisition test, or
-a plot.
+is yours. doppler does not ship a receiver for these: they exist to drive your
+own receiver, an acquisition test, or a plot.
 
 ______________________________________________________________________
 

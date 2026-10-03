@@ -171,6 +171,7 @@ nav:
           - Full-Chain Lock-Up: gallery/receiver-lock.md
           - DsssReceiver (Composed Object): gallery/dsss-receiver.md
           - DsssBurstReceiver (Composed Burst Chain): gallery/dsss-burst-receiver.md
+          - "A Message Over DSSS, Received and Deframed": gallery/data-source-link.md
           - "AsyncDsssReceiver: the SPEC Waveform": gallery/async-dsss-receiver-spec.md
           - "AsyncDsssPool: the population's lifecycle": gallery/async-dsss-pool.md
           - "CarrierAcquisition: RRC Pulse Shaping": gallery/carrier-acq-rrc.md

@@ -282,7 +282,7 @@ itself, so a capture is reproducible from its metadata — which is the point of
 the kinds, not a shorthand for them:
 
 ```json
-"sync": "pn:1023:10"
+{"name": "sync", "spec": "pn:1023:10"}
 ```
 
 ### The payload is a data source
@@ -314,9 +314,11 @@ naming `--data`, rather than writing an unframed waveform at exit 0. A type
 that carries no bit stream at all — `tone`, `noise`, `chirp`, `symbols` —
 cannot be framed, with or without one.
 
-The same keywords work on the Python `Synth` and `Segment`
-(`sync=`, `acq_code=`, `acq_reps=`, `crc=`), and `--record` carries them, so
-`--from-file` rebuilds the framed waveform byte for byte.
+The Python `Synth` and `Segment` take the frame as a description, `frame=`
+(a `FrameDesc`), with `acq_code=` and `acq_reps=` for a DSSS preamble;
+`--sync` and `--crc` build that same description for you, and `--record`
+stores it, so `--from-file` rebuilds the framed waveform byte for byte. A
+scene's old `"sync"` and `"crc"` keys are refused, naming `"frame"`.
 
 The layout is one C descriptor (`native/inc/doppler/wfm/wfm_frame.h`) read by the
 generator that builds it and the measurer that scores it — see
@@ -580,7 +582,7 @@ noise floor* — is one `Segment`:
 
 ```python
 import numpy as np
-from doppler.wfm import Composer, Segment
+from doppler.wfm import STAGE_CRC16, Composer, FrameDesc, Segment
 
 rng = np.random.default_rng(0)
 acq = rng.integers(0, 2, 128, dtype=np.uint8)   # preamble code A
@@ -588,12 +590,19 @@ dat = rng.integers(0, 2, 25, dtype=np.uint8)    # data-spreading code B
 pay = rng.integers(0, 2, 200, dtype=np.uint8)   # payload bits
 BARKER13 = np.array([1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 1], np.uint8)
 
+# The frame is a description: Barker-13 | the payload | a CRC-16 over it
+frame = FrameDesc()
+frame.add_field("sync", BARKER13)
+frame.add_data("payload", len(pay))
+frame.add_derived("crc", 16)
+frame.add_stage_over(STAGE_CRC16, "payload", "crc")
+
 burst = Segment(
     type="dsss", fs=4e6, sps=4, seed=1,
     snr=10.0, snr_mode="esno",            # data-symbol Es/N0 (see below)
     acq_code=acq, acq_reps=4,             # preamble: code A x 4
     data_code=dat,                        # payload spread: code B
-    sync=BARKER13, data=pay, crc="crc16",  # one burst; CRC-16 trailer asked for
+    frame=frame, data=pay,                # one burst of the data source
     delay_samples=(2_000, 10_000),        # arrival jitter before each burst
     off_samples=(4_000, 12_000),          # trailing gap, min 4k samples
     repeats=5,                            # -> a 5-burst train
@@ -629,8 +638,9 @@ A `dsss` segment is one complete burst honouring the
     correlates against.
 - The **frame** is `sync | payload | CRC-16` (CCITT, over the payload bits
     — the same `doppler.wfm.crc16` kernel the demod validates), each bit
-    XOR-spread by the full `data_code`. The sync word is optional;
-    `crc="none"` drops the trailer.
+    XOR-spread by the full `data_code`. The sync word and the CRC are
+    optional fields of the frame description; a frame with neither is the
+    payload alone.
 - Codes are plain 0/1 arrays of **any length** — no `2^n - 1` restriction —
     so the geometry matches whatever the receiver expects. The payload is a
     [data source](#data-a-payload-drawn-frame-by-frame) (keyword `data=`;

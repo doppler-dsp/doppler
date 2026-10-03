@@ -12,7 +12,9 @@ from doppler.mpsk import mpsk_map
 from doppler.snr import snr_data_aided_db
 from doppler.wfm import (
     PN,
+    STAGE_CRC16,
     Composer,
+    FrameDesc,
     Segment,
     Synth,
     bits,
@@ -292,14 +294,14 @@ def test_rrc_only_modulated():
 
 
 def _src(pat, n_bits=0, **kw):
-    """A ``bits`` source sending ``pat`` as given (``crc="none"``: no frame
-    check). A payload is sent ONCE (doppler#1718), so a test that reads more
-    than one pass tiles the pattern to ``n_bits`` itself -- the repeat is the
-    test's, said here, not the synth's."""
+    """A ``bits`` source sending ``pat`` as given (no frame description:
+    no frame check). A payload is sent ONCE (doppler#1718), so a test that
+    reads more than one pass tiles the pattern to ``n_bits`` itself -- the
+    repeat is the test's, said here, not the synth's."""
     pat = np.asarray(pat, np.uint8)
     if n_bits:
         pat = np.resize(pat, n_bits)
-    return bits(data=pat, crc="none", **kw)
+    return bits(data=pat, **kw)
 
 
 def test_rrc_shapes_bits():
@@ -394,7 +396,6 @@ def test_rrc_bits_carrier_and_noise():
     pat = field_bits("1011001010110100")
     base = {
         "data": np.resize(pat, 4096),
-        "crc": "none",
         "sps": 8,
         "modulation": "bpsk",
         "pulse": "rrc",
@@ -876,9 +877,9 @@ def test_rrc_shaper_lives_at_every_power_of_two_sps(sps: int) -> None:
 
 # ── The unspread frame ───────────────────────────────────────────────────────
 #
-# `sync` / `acq_code` / `acq_reps` / `crc` were accepted on every face, stored,
-# and readable back — and applied only on `type="dsss"`. A caller who asked for
-# a framed BPSK waveform got an unframed one, exit 0, no warning. What let that
+# Frame kwargs were accepted on every face, stored, and readable back -- and
+# applied only on `type="dsss"`. A caller who asked for a framed BPSK
+# waveform got an unframed one, exit 0, no warning. What let that
 # ship is that nothing asserted a frame kwarg CHANGES the waveform, so that is
 # what these assert. A flag-presence check would have passed throughout.
 
@@ -888,7 +889,18 @@ PAYLOAD = np.array([0, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1, 0], np.uint8)
 
 
 def _framed_kwargs():
-    return {"sync": BARKER13, "acq_code": ACQ8, "acq_reps": 4, "crc": "crc16"}
+    """``frame=`` for ``[preamble x 4 | Barker-13 | payload | CRC-16]``.
+
+    The unspread preamble is the first field of the description (a carried
+    frame is the whole frame), so no ``acq_code`` rides on the source.
+    """
+    d = FrameDesc()
+    d.add_field("preamble", np.tile(ACQ8, 4))
+    d.add_field("sync", BARKER13)
+    d.add_data("payload", len(PAYLOAD))
+    d.add_derived("crc", 16)
+    d.add_stage_over(STAGE_CRC16, "payload", "crc")
+    return {"frame": d}
 
 
 def test_a_frame_changes_the_waveform():
@@ -975,10 +987,10 @@ def test_a_frame_with_no_payload_is_refused():
 
 
 def test_a_data_source_carries_no_crc_unless_asked():
-    """A data source goes out as given: ``crc`` defaults to ``none``, so a
-    CRC-16 trailer is there only when ``crc="crc16"`` asks for one (the
-    default was crc16 until doppler#1617 made a source carry no CRC of its
-    own accord)."""
+    """A data source goes out as given: a CRC-16 trailer is there only when
+    a ``frame=`` description carries a CRC stage. The retired ``crc=``
+    spelling is refused (any value, ``"none"`` included) and names
+    ``frame=``."""
     common = {
         "type": "bits",
         "fs": 1.0,
@@ -988,12 +1000,24 @@ def test_a_data_source_carries_no_crc_unless_asked():
     }
     as_given = np.asarray(Synth(**common).steps(len(PAYLOAD)))
     np.testing.assert_allclose(as_given.real, 1.0 - 2.0 * PAYLOAD, atol=1e-6)
-    assert np.array_equal(
-        np.asarray(Synth(**common, crc="none").steps(len(PAYLOAD))), as_given
-    ), "crc='none' is the default, spelled out"
-    framed = np.asarray(Synth(**common, crc="crc16").steps(len(PAYLOAD) + 16))
+    for bad in ("none", "crc16"):
+        with pytest.raises(ValueError, match="frame"):
+            Synth(**common, crc=bad)
+    d = FrameDesc()
+    d.add_data("payload", len(PAYLOAD))
+    d.add_derived("crc", 16)
+    d.add_stage_over(STAGE_CRC16, "payload", "crc")
+    framed = np.asarray(Synth(**common, frame=d).steps(len(PAYLOAD) + 16))
     np.testing.assert_array_equal(framed[: len(PAYLOAD)], as_given)
     assert np.all(np.abs(framed[len(PAYLOAD) :]) > 0.5), "and its CRC-16"
+
+
+def test_the_retired_sync_spelling_is_refused_naming_frame():
+    """``sync=`` is a field of the frame description now: any non-empty
+    value is refused and the message points at ``frame=``."""
+    for bad in (BARKER13, "0x1acf", b"\x1a"):
+        with pytest.raises((RuntimeError, ValueError), match="frame"):
+            Synth(type="bits", data=PAYLOAD, sync=bad).steps(8)
 
 
 def test_dsss_window_opens_each_frame_with_the_pure_code():

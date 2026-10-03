@@ -323,7 +323,6 @@ main (void)
   /* The same data, sent as given: no frame, no check. */
   wfm_source_t plain = bits_source (payload_bits);
   plain.data_len     = 0;
-  plain.crc          = 0;
 
   /* The description is the WHOLE frame; the source's data fills its
      data:LEN field, one chunk a frame. */
@@ -391,36 +390,41 @@ main (void)
   /* ── 5. The common frame is a description too ───────────────────────── */
   printf ("--- 5. The flags spell the common frame; so can you ---\n");
 
-  /* Spelled the old way: a sync word, a payload, and a CRC trailer. */
-  wfm_source_t flags = bits_source (payload_bits);
-  flags.sync         = literal (hdr_bits, HDR_BITS);
-  flags.crc          = 1;
-  check (dp_wfm_source_has_frame (&flags), "the flat fields frame it too");
-
-  /* The same frame, as the description dp_wfm_frame_fixed() builds — the
-     one function the flags go through, so there is no second layout. */
+  /* wfmgen's --sync and --crc are sugar for the fields of one fixed layout,
+     [preamble x reps | sync | data | crc]. One function builds it, and the
+     flags go through that function, so there is no second layout. */
+  wfm_seq_t        sync  = literal (hdr_bits, HDR_BITS);
+  wfm_source_t     flags = bits_source (payload_bits);
   wfm_frame_desc_t from_flags;
-  check (dp_wfm_frame_fixed (&from_flags, NULL, 0, &flags.sync, &dq, flags.crc)
-             == 0,
-         "dp_wfm_frame_fixed describes the common frame");
+  check (dp_wfm_source_common_frame (&flags, &sync, 1, &from_flags) == 0,
+         "dp_wfm_source_common_frame describes the common frame");
 
+  /* ...and underneath it is dp_wfm_frame_fixed(), which you can call
+     yourself with the same arguments. */
+  wfm_frame_desc_t direct;
+  check (dp_wfm_frame_fixed (&direct, NULL, 0, &sync, &dq, 1) == 0,
+         "dp_wfm_frame_fixed describes the same frame directly");
+  check (memcmp (&from_flags, &direct, sizeof direct) == 0,
+         "and the two descriptions are identical");
+
+  wfm_source_t sugared = bits_source (payload_bits);
+  sugared.frame        = &from_flags;
   wfm_source_t carried = bits_source (payload_bits);
-  carried.frame        = &from_flags;
+  carried.frame        = &direct;
 
-  size_t n_sugar   = compose_one (&flags, sugar, TOTAL);
+  size_t n_sugar   = compose_one (&sugared, sugar, TOTAL);
   size_t n_relayed = compose_one (&carried, relayed, TOTAL);
   check (n_sugar == TOTAL && n_relayed == TOTAL,
          "both compose the declared length");
   check (memcmp (sugar, relayed, TOTAL * sizeof *sugar) == 0,
-         "flag-spelled and description-carried are BYTE-IDENTICAL");
+         "flag-built and hand-built are BYTE-IDENTICAL");
 
-  /* And the two descriptions differ, which is what makes section 3's
-     header check a demonstration rather than a coincidence: the flat
-     fields put a sync word where this description puts a header, and
-     nothing in the flags can produce the stage cover built above. */
+  /* And the flags' description is not the one built above, which is what
+     makes section 3's header check a demonstration rather than a
+     coincidence: nothing in the flags can produce that stage cover. */
   check (memcmp (&from_flags, &d, sizeof d) != 0,
-         "yet it is not the same description — the flags cannot spell this "
-         "one");
+         "yet it is not the description of section 1 — the flags cannot "
+         "spell that one");
   printf ("\n");
 
   /* ── 6. A stage kind that is YOURS ──────────────────────────────────── */

@@ -621,6 +621,10 @@ def _data_scene(snr: float) -> Composer:
     """One bpsk source whose payload is drawn from a 40-bit data source,
     16 bits a frame with a CRC: its length is the frames', derived."""
     bits = np.array([1, 0, 1, 1, 0, 0, 1, 0] * 5, np.uint8)
+    desc = FrameDesc()
+    desc.add_data("payload", 16)
+    desc.add_derived("crc", 16)
+    desc.add_stage_over(STAGE_CRC16, "payload", "crc")
     return Composer(
         [
             Segment(
@@ -630,8 +634,7 @@ def _data_scene(snr: float) -> Composer:
                 snr=snr,
                 seed=11,
                 data=bits,
-                data_len=16,
-                crc="crc16",
+                frame=desc,
                 fill=np.array([0, 1], np.uint8),
             )
         ]

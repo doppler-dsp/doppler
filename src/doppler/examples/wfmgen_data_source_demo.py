@@ -29,7 +29,7 @@ Run: python src/doppler/examples/wfmgen_data_source_demo.py
 import numpy as np
 
 from doppler.cvt import bytes_to_bin
-from doppler.wfm import Composer, Segment
+from doppler.wfm import STAGE_CRC16, Composer, FrameDesc, Segment
 
 message = b"a payload drawn from a data source, frame by frame"
 octets = np.frombuffer(message, np.uint8)
@@ -37,6 +37,10 @@ bits = np.zeros(8 * octets.size, np.uint8)
 bytes_to_bin(octets, bits, 0)  # MSB first, as a file is read
 
 SPS = 4
+d = FrameDesc()
+d.add_data("payload", 96)  # bits of the source per frame
+d.add_derived("crc", 16)
+d.add_stage_over(STAGE_CRC16, "payload", "crc")  # a CRC-16 over its chunk
 seg = Segment(
     type="bpsk",
     fs=1e6,
@@ -44,8 +48,7 @@ seg = Segment(
     snr=100.0,
     snr_mode="fs",
     data=bits,  # the source: its bits
-    data_len=96,  # bits of it per frame
-    crc="crc16",  # each frame ends with a CRC-16 over its own chunk
+    frame=d,  # each frame: its chunk, then a CRC-16 over it
     fill=np.array([0, 1], np.uint8),  # pads the short last frame
 )
 x = np.asarray(Composer([seg]).compose())

@@ -123,12 +123,6 @@ static const char *const _enum_wfm_pulse[] = {
   NULL,
 };
 
-static const char *const _enum_crc[] = {
-  "none",
-  "crc16",
-  NULL,
-};
-
 static const char *const _enum_gap_noise[] = {
   "auto",
   "off",
@@ -195,7 +189,8 @@ Synth_dealloc (SynthObject *self)
   free (self->src.symbols);
   free ((void *)self->src.acq_code.bits);
   free ((void *)self->src.data_code.bits);
-  free ((void *)self->src.sync.bits);
+  free ((void *)self->src.retired_sync.bits);
+  free ((void *)self->src.retired_crc.bits);
   free ((void *)self->src.retired_bits.bits);
   free ((void *)self->src.data.bits);
   free ((void *)self->src.fill.bits);
@@ -422,6 +417,98 @@ _coerce_dp_wfm_source_bits_refuse_text (uint8_t **dst, size_t *n_dst,
   return 1;
 }
 
+/* A str is read by the project's dp_wfm_source_sync_refuse_text()
+ * (coerce_str_fn, gh-1709) -- sized, then filled; 0 is a refusal and *why
+ * its reason. Anything else is _attach_bytes's. */
+static int
+_coerce_dp_wfm_source_sync_refuse_text (uint8_t **dst, size_t *n_dst,
+                                        PyObject *obj)
+{
+  if (!obj || !PyUnicode_Check (obj))
+    return _attach_bytes (dst, n_dst, obj);
+  Py_ssize_t  slen;
+  const char *s = PyUnicode_AsUTF8AndSize (obj, &slen);
+  if (!s)
+    return 0;
+  if (strlen (s) != (size_t)slen)
+    {
+      PyErr_SetString (PyExc_ValueError, "embedded null character");
+      return 0;
+    }
+  const char *why = NULL;
+  uint8_t    *buf = NULL;
+  size_t      nb  = dp_wfm_source_sync_refuse_text (s, NULL, 0, &why);
+  if (nb)
+    {
+      buf = (uint8_t *)malloc (nb);
+      if (!buf)
+        {
+          PyErr_NoMemory ();
+          return 0;
+        }
+      why = NULL;
+      nb  = dp_wfm_source_sync_refuse_text (s, buf, nb, &why);
+    }
+  if (!nb)
+    {
+      free (buf);
+      PyErr_SetString (
+          PyExc_ValueError,
+          why ? why : "dp_wfm_source_sync_refuse_text() refused the text");
+      return 0;
+    }
+  free (*dst);
+  *dst   = buf;
+  *n_dst = nb;
+  return 1;
+}
+
+/* A str is read by the project's dp_wfm_source_crc_refuse_text()
+ * (coerce_str_fn, gh-1709) -- sized, then filled; 0 is a refusal and *why
+ * its reason. Anything else is _attach_bytes's. */
+static int
+_coerce_dp_wfm_source_crc_refuse_text (uint8_t **dst, size_t *n_dst,
+                                       PyObject *obj)
+{
+  if (!obj || !PyUnicode_Check (obj))
+    return _attach_bytes (dst, n_dst, obj);
+  Py_ssize_t  slen;
+  const char *s = PyUnicode_AsUTF8AndSize (obj, &slen);
+  if (!s)
+    return 0;
+  if (strlen (s) != (size_t)slen)
+    {
+      PyErr_SetString (PyExc_ValueError, "embedded null character");
+      return 0;
+    }
+  const char *why = NULL;
+  uint8_t    *buf = NULL;
+  size_t      nb  = dp_wfm_source_crc_refuse_text (s, NULL, 0, &why);
+  if (nb)
+    {
+      buf = (uint8_t *)malloc (nb);
+      if (!buf)
+        {
+          PyErr_NoMemory ();
+          return 0;
+        }
+      why = NULL;
+      nb  = dp_wfm_source_crc_refuse_text (s, buf, nb, &why);
+    }
+  if (!nb)
+    {
+      free (buf);
+      PyErr_SetString (
+          PyExc_ValueError,
+          why ? why : "dp_wfm_source_crc_refuse_text() refused the text");
+      return 0;
+    }
+  free (*dst);
+  *dst   = buf;
+  *n_dst = nb;
+  return 1;
+}
+
 static int
 Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
 {
@@ -487,7 +574,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   size_t       acq_reps         = 1;
   PyObject    *data_code        = NULL;
   PyObject    *sync             = NULL;
-  const char  *crc              = "none";
+  PyObject    *crc              = NULL;
   double       symbol_rate      = 0.0;
   int          dsss_code_only   = 0;
   PyObject    *frame            = NULL;
@@ -583,7 +670,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
       }
     }
   if (!PyArg_ParseTupleAndKeywords (
-          args, _kw, "|sOOsIiiKsOiOnOOdsssdiOOnOOsdiOOOnOd", kwlist, &type,
+          args, _kw, "|sOOsIiiKsOiOnOOdsssdiOOnOOOdiOOOnOd", kwlist, &type,
           &freq, &snr, &snr_mode, &seed, &sps, &pn_length, &pn_poly, &lfsr,
           &level, &background, &f_end, &span, &doppler, &doppler_rate,
           &carrier_hz, &doppler_lifetime, &modulation, &pulse, &rrc_beta,
@@ -815,19 +902,14 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
           (uint8_t **)&self->src.data_code.bits, &self->src.data_code.len,
           data_code))
     return -1;
-  if (!_coerce_dp_wfm_source_bits_refuse_text (
-          (uint8_t **)&self->src.sync.bits, &self->src.sync.len, sync))
+  if (!_coerce_dp_wfm_source_sync_refuse_text (
+          (uint8_t **)&self->src.retired_sync.bits,
+          &self->src.retired_sync.len, sync))
     return -1;
-  {
-    int _i = _enum_index (_enum_crc, crc);
-    if (_i < 0)
-      {
-        PyErr_Format (PyExc_ValueError,
-                      "invalid crc '%s' (choices: none, crc16)", crc);
-        return -1;
-      }
-    self->src.crc = _i;
-  }
+  if (!_coerce_dp_wfm_source_crc_refuse_text (
+          (uint8_t **)&self->src.retired_crc.bits, &self->src.retired_crc.len,
+          crc))
+    return -1;
   self->src.symbol_rate    = symbol_rate;
   self->src.dsss_code_only = dsss_code_only;
   if (!_attach_frame (&self->src, frame))
@@ -1431,17 +1513,19 @@ static PyObject *
 Synth_get_sync (SynthObject *self, void *closure)
 {
   (void)closure;
-  if (self->src.sync.bits && self->src.sync.len)
-    return PyBytes_FromStringAndSize ((const char *)self->src.sync.bits,
-                                      (Py_ssize_t)self->src.sync.len);
+  if (self->src.retired_sync.bits && self->src.retired_sync.len)
+    return PyBytes_FromStringAndSize (
+        (const char *)self->src.retired_sync.bits,
+        (Py_ssize_t)self->src.retired_sync.len);
   Py_RETURN_NONE;
 }
 static int
 Synth_set_sync (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  return _coerce_dp_wfm_source_bits_refuse_text (
-             (uint8_t **)&self->src.sync.bits, &self->src.sync.len, value)
+  return _coerce_dp_wfm_source_sync_refuse_text (
+             (uint8_t **)&self->src.retired_sync.bits,
+             &self->src.retired_sync.len, value)
              ? 0
              : -1;
 }
@@ -1449,33 +1533,20 @@ static PyObject *
 Synth_get_crc (SynthObject *self, void *closure)
 {
   (void)closure;
-  long _v = (long)(self->src.crc);
-  if (_v < 0 || _v >= 2)
-    {
-      PyErr_Format (PyExc_ValueError,
-                    "crc holds out-of-range crc value %ld"
-                    " (valid: 0..1)",
-                    _v);
-      return NULL;
-    }
-  return PyUnicode_FromString (_enum_crc[_v]);
+  if (self->src.retired_crc.bits && self->src.retired_crc.len)
+    return PyBytes_FromStringAndSize ((const char *)self->src.retired_crc.bits,
+                                      (Py_ssize_t)self->src.retired_crc.len);
+  Py_RETURN_NONE;
 }
 static int
 Synth_set_crc (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  const char *s = PyUnicode_AsUTF8 (value);
-  if (!s)
-    return -1;
-  int _i = _enum_index (_enum_crc, s);
-  if (_i < 0)
-    {
-      PyErr_Format (PyExc_ValueError,
-                    "invalid crc '%s' (choices: none, crc16)", s);
-      return -1;
-    }
-  self->src.crc = _i;
-  return 0;
+  return _coerce_dp_wfm_source_crc_refuse_text (
+             (uint8_t **)&self->src.retired_crc.bits,
+             &self->src.retired_crc.len, value)
+             ? 0
+             : -1;
 }
 static PyObject *
 Synth_get_symbol_rate (SynthObject *self, void *closure)
@@ -1756,8 +1827,8 @@ static PyGetSetDef Synth_getset[] = {
     "Field's *REPS on the command line and in a scene) -- the coherent "
     "pull-in target BurstDespreader.set_acq and BurstDemod.set_preamble lock "
     "to. For type=dsss it is unmodulated chips ahead of the spread frame; for "
-    "type=bits it is the head of the bit pattern. Setting it (or sync) is "
-    "what makes a source FRAMED.\n",
+    "type=bits it is the head of the bit pattern. Setting it is what makes a "
+    "source FRAMED.\n",
     NULL },
   { "acq_reps", (getter)Synth_get_acq_reps, (setter)Synth_set_acq_reps,
     "Preamble repetitions: periods of acq_code before the sync word. On the "
@@ -1769,18 +1840,16 @@ static PyGetSetDef Synth_getset[] = {
     "full length, so len(data_code) is the spreading factor.\n",
     NULL },
   { "sync", (getter)Synth_get_sync, (setter)Synth_set_sync,
-    "The frame-sync word (such as Barker-13) between the preamble and the "
-    "payload -- what BurstDemod.set_frame correlates to resolve frame "
-    "position and BPSK polarity, and what a BER alignment detects against. "
-    "Optional; setting it (or acq_code) is what makes a source FRAMED.\n",
+    "RETIRED (doppler#1617): nothing reads it but the refusal. The frame-sync "
+    "word is a field of the frame DESCRIPTION, so sync= is refused naming "
+    "frame=; the CLI's --sync builds that description for you, and a scene "
+    "refuses the \"sync\" key.\n",
     NULL },
   { "crc", (getter)Synth_get_crc, (setter)Synth_set_crc,
-    "The frame trailer: crc16 appends a CRC-16-CCITT over the payload bits "
-    "(what BurstDemod validates as frame_valid, and what makes a truth-free "
-    "frame error rate possible); none, the default, omits it: a source "
-    "carries no CRC unless this or a frame description gives one. Applies "
-    "only to a FRAMED source, so it alone never frames an otherwise plain "
-    "pattern.\n",
+    "RETIRED (doppler#1617): nothing reads it but the refusal. A CRC is a "
+    "stage of the frame DESCRIPTION, so crc= is refused naming frame=, "
+    "whatever its value (crc=\"none\" included); the CLI's --crc builds that "
+    "description for you, and a scene refuses the \"crc\" key.\n",
     NULL },
   { "symbol_rate", (getter)Synth_get_symbol_rate,
     (setter)Synth_set_symbol_rate,
@@ -1805,19 +1874,19 @@ static PyGetSetDef Synth_getset[] = {
     "at a position of their choosing, a stage covering a span they name. "
     "`wfmgen --frame FILE`, a scene's `frame` key and Python's `frame=` (a "
     "FrameDesc or a Frame) all land here. When it is set it IS the frame, and "
-    "the common-frame fields below (acq_code/sync/crc/payload) do not frame "
-    "this source. NULL means the common frame, `[preamble x reps | sync | "
-    "payload | crc]`, which `dp_wfm_frame_fixed()` builds from the fields "
-    "below. A C caller's description is borrowed, exactly as `wfm_seq_t` is "
-    "borrowed elsewhere here, so it must outlive the source. The composer and "
-    "a Python source hold their own copy (`dp_wfm_frame_copy()`), so a later "
-    "change to the FrameDesc does not reach them. On the Python face `frame=` "
-    "is an input: read it back from the composer's JSON (its getter is jm's, "
-    "pending removal: doppler#1694). KERNELS stay in C by design. A "
-    "description names a stage's KIND; the code that runs it is a "
-    "`wfm_frame_ops_t` entry, and a caller adding a genuinely new transform "
-    "(convolutional interleaving, say) writes that kernel in C and hands it "
-    "to `dp_wfm_frame_assemble` directly.\n",
+    "an unspread acq_code beside it is refused. NULL means the common frame, "
+    "`[preamble x reps | data]`, which `dp_wfm_frame_fixed()` builds from "
+    "acq_code and the data source; a sync word or a CRC is a field or a stage "
+    "of a description, never a flat field. A C caller's description is "
+    "borrowed, exactly as `wfm_seq_t` is borrowed elsewhere here, so it must "
+    "outlive the source. The composer and a Python source hold their own copy "
+    "(`dp_wfm_frame_copy()`), so a later change to the FrameDesc does not "
+    "reach them. On the Python face `frame=` is an input: read it back from "
+    "the composer's JSON (its getter is jm's, pending removal: doppler#1694). "
+    "KERNELS stay in C by design. A description names a stage's KIND; the "
+    "code that runs it is a `wfm_frame_ops_t` entry, and a caller adding a "
+    "genuinely new transform (convolutional interleaving, say) writes that "
+    "kernel in C and hands it to `dp_wfm_frame_assemble` directly.\n",
     NULL },
   { "bits", (getter)Synth_get_bits, (setter)Synth_set_bits,
     "RETIRED (doppler#1718): nothing reads it but the refusal. A payload is "
@@ -3149,8 +3218,8 @@ static PyGetSetDef Segment_getset[] = {
     "Field's *REPS on the command line and in a scene) -- the coherent "
     "pull-in target BurstDespreader.set_acq and BurstDemod.set_preamble lock "
     "to. For type=dsss it is unmodulated chips ahead of the spread frame; for "
-    "type=bits it is the head of the bit pattern. Setting it (or sync) is "
-    "what makes a source FRAMED.\n",
+    "type=bits it is the head of the bit pattern. Setting it is what makes a "
+    "source FRAMED.\n",
     NULL },
   { "acq_reps", (getter)Segment_flat_acq_reps, NULL,
     "Preamble repetitions: periods of acq_code before the sync word. On the "
@@ -3162,18 +3231,16 @@ static PyGetSetDef Segment_getset[] = {
     "full length, so len(data_code) is the spreading factor.\n",
     NULL },
   { "sync", (getter)Segment_flat_sync, NULL,
-    "The frame-sync word (such as Barker-13) between the preamble and the "
-    "payload -- what BurstDemod.set_frame correlates to resolve frame "
-    "position and BPSK polarity, and what a BER alignment detects against. "
-    "Optional; setting it (or acq_code) is what makes a source FRAMED.\n",
+    "RETIRED (doppler#1617): nothing reads it but the refusal. The frame-sync "
+    "word is a field of the frame DESCRIPTION, so sync= is refused naming "
+    "frame=; the CLI's --sync builds that description for you, and a scene "
+    "refuses the \"sync\" key.\n",
     NULL },
   { "crc", (getter)Segment_flat_crc, NULL,
-    "The frame trailer: crc16 appends a CRC-16-CCITT over the payload bits "
-    "(what BurstDemod validates as frame_valid, and what makes a truth-free "
-    "frame error rate possible); none, the default, omits it: a source "
-    "carries no CRC unless this or a frame description gives one. Applies "
-    "only to a FRAMED source, so it alone never frames an otherwise plain "
-    "pattern.\n",
+    "RETIRED (doppler#1617): nothing reads it but the refusal. A CRC is a "
+    "stage of the frame DESCRIPTION, so crc= is refused naming frame=, "
+    "whatever its value (crc=\"none\" included); the CLI's --crc builds that "
+    "description for you, and a scene refuses the \"crc\" key.\n",
     NULL },
   { "symbol_rate", (getter)Segment_flat_symbol_rate, NULL,
     "For type=dsss: > 0 selects CONTINUOUS asynchronous mode. The spreading "
@@ -3196,19 +3263,19 @@ static PyGetSetDef Segment_getset[] = {
     "at a position of their choosing, a stage covering a span they name. "
     "`wfmgen --frame FILE`, a scene's `frame` key and Python's `frame=` (a "
     "FrameDesc or a Frame) all land here. When it is set it IS the frame, and "
-    "the common-frame fields below (acq_code/sync/crc/payload) do not frame "
-    "this source. NULL means the common frame, `[preamble x reps | sync | "
-    "payload | crc]`, which `dp_wfm_frame_fixed()` builds from the fields "
-    "below. A C caller's description is borrowed, exactly as `wfm_seq_t` is "
-    "borrowed elsewhere here, so it must outlive the source. The composer and "
-    "a Python source hold their own copy (`dp_wfm_frame_copy()`), so a later "
-    "change to the FrameDesc does not reach them. On the Python face `frame=` "
-    "is an input: read it back from the composer's JSON (its getter is jm's, "
-    "pending removal: doppler#1694). KERNELS stay in C by design. A "
-    "description names a stage's KIND; the code that runs it is a "
-    "`wfm_frame_ops_t` entry, and a caller adding a genuinely new transform "
-    "(convolutional interleaving, say) writes that kernel in C and hands it "
-    "to `dp_wfm_frame_assemble` directly.\n",
+    "an unspread acq_code beside it is refused. NULL means the common frame, "
+    "`[preamble x reps | data]`, which `dp_wfm_frame_fixed()` builds from "
+    "acq_code and the data source; a sync word or a CRC is a field or a stage "
+    "of a description, never a flat field. A C caller's description is "
+    "borrowed, exactly as `wfm_seq_t` is borrowed elsewhere here, so it must "
+    "outlive the source. The composer and a Python source hold their own copy "
+    "(`dp_wfm_frame_copy()`), so a later change to the FrameDesc does not "
+    "reach them. On the Python face `frame=` is an input: read it back from "
+    "the composer's JSON (its getter is jm's, pending removal: doppler#1694). "
+    "KERNELS stay in C by design. A description names a stage's KIND; the "
+    "code that runs it is a `wfm_frame_ops_t` entry, and a caller adding a "
+    "genuinely new transform (convolutional interleaving, say) writes that "
+    "kernel in C and hands it to `dp_wfm_frame_assemble` directly.\n",
     NULL },
   { "bits", (getter)Segment_flat_bits, NULL,
     "RETIRED (doppler#1718): nothing reads it but the refusal. A payload is "
@@ -3471,17 +3538,31 @@ _dp_wfm_compose_segments_to_list (const wfm_segment_t *src, size_t n)
               syn->src.data_code.bits = NULL;
               syn->src.data_code.len  = 0;
             }
-          if (syn->src.sync.bits && syn->src.sync.len)
+          if (syn->src.retired_sync.bits && syn->src.retired_sync.len)
             {
-              uint8_t *copy = (uint8_t *)malloc (syn->src.sync.len);
+              uint8_t *copy = (uint8_t *)malloc (syn->src.retired_sync.len);
               if (copy)
-                memcpy (copy, syn->src.sync.bits, syn->src.sync.len);
-              syn->src.sync.bits = copy;
+                memcpy (copy, syn->src.retired_sync.bits,
+                        syn->src.retired_sync.len);
+              syn->src.retired_sync.bits = copy;
             }
           else
             {
-              syn->src.sync.bits = NULL;
-              syn->src.sync.len  = 0;
+              syn->src.retired_sync.bits = NULL;
+              syn->src.retired_sync.len  = 0;
+            }
+          if (syn->src.retired_crc.bits && syn->src.retired_crc.len)
+            {
+              uint8_t *copy = (uint8_t *)malloc (syn->src.retired_crc.len);
+              if (copy)
+                memcpy (copy, syn->src.retired_crc.bits,
+                        syn->src.retired_crc.len);
+              syn->src.retired_crc.bits = copy;
+            }
+          else
+            {
+              syn->src.retired_crc.bits = NULL;
+              syn->src.retired_crc.len  = 0;
             }
           if (syn->src.retired_bits.bits && syn->src.retired_bits.len)
             {

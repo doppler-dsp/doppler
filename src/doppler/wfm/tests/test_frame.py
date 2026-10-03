@@ -31,6 +31,7 @@ from doppler.ber import FrameMeter
 from doppler.ccsds import asm_bits
 from doppler.wfm import (
     STAGE_CONV,
+    STAGE_CRC16,
     STAGE_RANDOMISE,
     STAGE_RS,
     Composer,
@@ -195,14 +196,19 @@ def test_the_generated_waveform_is_the_frames_own_bits():
     unexplained error floor at a receiver.
     """
     f = _frame()
+    # The transmitter's flat flags are retired: its frame is a description,
+    # the preamble its first field, the CRC a stage over payload + trailer.
+    d = FrameDesc()
+    d.add_field("preamble", np.tile(ACQ, REPS))
+    d.add_field("sync", SYNC)
+    d.add_data("payload", len(PAYLOAD))
+    d.add_derived("crc", 16)
+    d.add_stage_over(STAGE_CRC16, "payload", "crc")
     seg = Segment(
         type="bits",
         modulation="bpsk",
         data=PAYLOAD,  # one frame: the data source, whole
-        acq_code=ACQ,
-        acq_reps=REPS,
-        sync=SYNC,
-        crc="crc16",
+        frame=d,
         sps=1,
         fs=1.0,
         snr=100.0,

@@ -87,7 +87,6 @@ free_src_bits (wfm_source_t *srcs, size_t ns)
         free (srcs[k].symbols);
         free ((void *)srcs[k].acq_code.bits);
         free ((void *)srcs[k].data_code.bits);
-        free ((void *)srcs[k].sync.bits);
         free ((void *)srcs[k].data.bits);
         free ((void *)srcs[k].fill.bits);
         free ((void *)srcs[k].data_from_file);
@@ -100,39 +99,6 @@ free_src_bits (wfm_source_t *srcs, size_t ns)
         dp_wfm_frame_free ((wfm_frame_desc_t *)srcs[k].frame);
         srcs[k].frame = NULL;
       }
-}
-
-/* The frame keys the surface table does not own: the CRC choice, whenever
- * the source is framed. Deliberately NOT type-gated: an unspread `bits`
- * source can be framed too, and gating it on dsss is how a framed bits
- * --record once came to omit the frame entirely. `dp_wfm_source_has_frame()`
- * is the predicate the generator uses, so what is recorded is what was
- * applied. The preamble, the sync word and the payload are table rows. */
-static void
-add_frame_fields (cJSON *o, const wfm_source_t *src)
-{
-  /* A carried description IS the frame, CRC stage and all, so the common
-     frame's crc key would be a second, false statement beside it. */
-  if (!dp_wfm_source_has_frame (src) || src->frame)
-    return;
-  cJSON_AddStringToObject (o, "crc", CRC_NAMES[src->crc ? 1 : 0]);
-}
-
-/* A dsss source's keys the table does not own: its CRC choice as a burst,
- * or -- continuous (symbol_rate > 0), which has no frame -- the data source
- * when it is the code alone. The codes and the payload are table rows. */
-static void
-add_dsss_fields (cJSON *o, const wfm_source_t *src)
-{
-  if (src->type != WFM_SYNTH_DSSS)
-    {
-      add_frame_fields (o, src); /* not spread, but possibly framed */
-      return;
-    }
-  if (src->symbol_rate > 0.0)
-    return;        /* code-only is the table's "code_only" row */
-  if (!src->frame) /* a carried description carries its own CRC stage */
-    cJSON_AddStringToObject (o, "crc", CRC_NAMES[src->crc ? 1 : 0]);
 }
 
 /* Emit a symbols source's complex constellation as a flat interleaved
@@ -334,8 +300,7 @@ read_stage_kind (const cJSON *o, uint32_t *out)
  * the caller's own bits at a position of their choosing, a stage covering a
  * span they name. Without this key a `--record` of such a source would write
  * the flat fields alone and `--from-file` would rebuild the DERIVED frame --
- * a different waveform, silently. That is the same failure add_frame_fields()
- * describes for a framed source recorded unframed, one level up.
+ * a different waveform, silently.
  *
  * Written only when a description is carried, so every record from a source
  * without one stays byte-identical to what it was before this existed. */
@@ -797,7 +762,6 @@ add_source_obj (cJSON *so, const wfm_source_t *src)
 {
   add_rows (so, WFM_SURF_SOURCE, src);
   add_symbols_fields (so, src);
-  add_dsss_fields (so, src);
   /* Last, and only when one is carried: a source without a description
      writes exactly the bytes it wrote before this key existed. */
   add_frame_desc (so, src);
@@ -990,25 +954,6 @@ read_frame_obj (const cJSON *fr, wfm_frame_desc_t *d, const char *where,
   return 0;
 }
 
-/* Read the frame back: the CRC choice (the preamble and sync word are table
- * rows). The
- * inverse of add_frame_fields(), and called for every waveform type for the
- * same reason it is written for every waveform type. An absent `crc` keeps
- * the source's default (none: a source carries no CRC unless this key or a
- * frame description gives one) and the key is inert unless a preamble or a
- * sync word is present. Returns 0, or -1 on OOM (partials released). */
-static int
-read_frame_fields (const cJSON *so, wfm_source_t *out)
-{
-  int c = name_index (
-      cJSON_GetStringValue (cJSON_GetObjectItemCaseSensitive (so, "crc")),
-      CRC_NAMES, 2);
-  if (c >= 0)
-    out->crc = c;
-
-  return 0;
-}
-
 /* Parse a source object (the inline segment, or a "sum" entry) into *out.
  * Returns 0, or -1 on a missing/unknown waveform type. */
 static int
@@ -1022,6 +967,14 @@ parse_source_obj (const cJSON *so, wfm_source_t *out, const char *base,
   {
     const char *key, *why;
   } RETIRED[] = {
+    { "sync", "\"sync\" is retired: the frame-sync word is a field of the "
+              "\"frame\" description -- give it as the first field of "
+              "\"frame\"; a --record written before this carries the key "
+              "and is refused on replay" },
+    { "crc", "\"crc\" is retired: a CRC is a stage of the \"frame\" "
+             "description -- add a crc16 stage over the payload and its "
+             "trailer; a --record written before this carries the key and "
+             "is refused on replay" },
     { "payload", "\"payload\" is retired: a payload is a data source, "
                  "\"data\" (a Field) with \"data_len\" bits per frame "
                  "(doppler#1718)" },
@@ -1035,8 +988,9 @@ parse_source_obj (const cJSON *so, wfm_source_t *out, const char *base,
                   "Field, e.g. \"acq_code\": \"pn:31:5*4\"" },
     { "data_code_gen", "\"data_code_gen\" is retired: write the generated "
                        "code as \"data_code\"" },
-    { "sync_gen", "\"sync_gen\" is retired: write the generated sync word "
-                  "as \"sync\", e.g. \"pn:63:6\"" },
+    { "sync_gen", "\"sync_gen\" is retired: the sync word is a field of the "
+                  "\"frame\" description -- give the generated one as its "
+                  "\"spec\", e.g. \"pn:63:6\"" },
     /* The coding sugar: a coded frame is a description, "frame", whose
        stages name the spans they cover (frame-description.md R). */
     { "rs_depth", "\"rs_depth\" is retired: a coded frame is a \"frame\" "
@@ -1078,14 +1032,8 @@ parse_source_obj (const cJSON *so, wfm_source_t *out, const char *base,
       return -1;
     }
   const int t = out->type;
-  /* The FRAME, whatever the waveform carrying it. Read for every type, the
-   * mirror of add_frame_fields() on the way out — a framed `bits` source that
-   * wrote its preamble and sync must get them back, or --record → --from-file
-   * quietly rebuilds a different waveform. */
-  if (read_frame_fields (so, out) != 0)
-    return -1;
   /* A CARRIED description, if the record has one. It is the whole frame, so
-   * a sync word or an unspread preamble read beside it above is refused by
+   * an unspread preamble read beside it above is refused by
    * dp_wfm_source_frame_error() rather than merged with it or dropped. */
   if (read_frame_desc (so, out, where, why) != 0
       || read_data_file (so, out, base, rp, why))
@@ -1212,7 +1160,6 @@ dp_wfm_spec_template_json (void)
     .modulation = 2, /* qpsk */
     /* A data source as a generated Field, sent as one frame with no check:
        2000 PN bits are 1000 qpsk symbols, the segment's 8000 samples. */
-    .crc      = 0,
     .data     = { .kind = WFM_SEQ_PN, .len = 2000, .reg_bits = 11 },
     .pulse    = 1, /* rrc */
     .rrc_beta = 0.35,

@@ -21,7 +21,14 @@ import subprocess
 import numpy as np
 import pytest
 
-from doppler.wfm import Composer, Segment, cli, field_bits
+from doppler.wfm import (
+    STAGE_CRC16,
+    Composer,
+    FrameDesc,
+    Segment,
+    cli,
+    field_bits,
+)
 
 #: The one reason, as every face words it (wfm_compose.c).
 WHY = "num_samples is derived: leave it 0, and give repeats for more"
@@ -32,6 +39,15 @@ DATA = np.array([1, 0, 1, 1, 0, 0, 1, 0] * 3, np.uint8)
 
 def _data_seg(**kw) -> Segment:
     return Segment(type="bits", modulation="bpsk", data=DATA, data_len=8, **kw)
+
+
+def _crc_frame() -> FrameDesc:
+    """``[data:8 | crc16]``: a CRC-16 trailer on each 8-bit frame."""
+    d = FrameDesc()
+    d.add_data("payload", 8)
+    d.add_derived("crc", 16)
+    d.add_stage_over(STAGE_CRC16, "payload", "crc")
+    return d
 
 
 def _burst_seg(**kw) -> Segment:
@@ -51,7 +67,7 @@ def test_the_default_is_derive():
         # three frames of 8 data bits, no CRC unless asked: one sample a bit
         (_data_seg, 3 * 8),
         # ...and with a CRC-16 trailer on each frame
-        (lambda: _data_seg(crc="crc16"), 3 * (8 + 16)),
+        (lambda: _data_seg(frame=_crc_frame()), 3 * (8 + 16)),
         (_burst_seg, 31 * 2 * 2),  # the preamble x reps, at sps chips
         (lambda: Segment(type="tone"), 1024),  # a plain segment
     ],

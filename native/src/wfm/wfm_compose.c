@@ -35,7 +35,6 @@ free_segment_sources (wfm_segment_t *seg)
         free (seg->sources[k].symbols);
         free ((void *)seg->sources[k].acq_code.bits);
         free ((void *)seg->sources[k].data_code.bits);
-        free ((void *)seg->sources[k].sync.bits);
         free ((void *)seg->sources[k].data.bits);
         free ((void *)seg->sources[k].fill.bits);
         free ((void *)seg->sources[k].data_from_file);
@@ -80,7 +79,6 @@ copy_source_arrays (wfm_source_t *dst, const wfm_source_t *src)
   dst->frame          = dp_wfm_frame_copy (src->frame);
   dst->acq_code.bits  = dup_u8 (src->acq_code.bits, src->acq_code.len);
   dst->data_code.bits = dup_u8 (src->data_code.bits, src->data_code.len);
-  dst->sync.bits      = dup_u8 (src->sync.bits, src->sync.len);
   dst->symbols        = NULL;
   if (src->symbols && src->n_symbols)
     {

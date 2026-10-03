@@ -100,7 +100,6 @@ free_source_arrays (wfm_source_t *s)
   free (s->symbols);
   free ((void *)s->acq_code.bits);
   free ((void *)s->data_code.bits);
-  free ((void *)s->sync.bits);
 }
 
 /* malloc+memcpy an owned byte array (NULL for an empty one). */
@@ -124,7 +123,6 @@ copy_source_arrays (wfm_source_t *dst, const wfm_source_t *src)
   dst->symbols        = NULL;
   dst->acq_code.bits  = NULL;
   dst->data_code.bits = NULL;
-  dst->sync.bits      = NULL;
   if (src->symbols && src->n_symbols)
     {
       size_t nbytes = src->n_symbols * sizeof *src->symbols;
@@ -138,9 +136,6 @@ copy_source_arrays (wfm_source_t *dst, const wfm_source_t *src)
   if (src->data_code.bits && src->data_code.len)
     if (!(dst->data_code.bits
           = dup_u8 (src->data_code.bits, src->data_code.len)))
-      return -1;
-  if (src->sync.bits && src->sync.len)
-    if (!(dst->sync.bits = dup_u8 (src->sync.bits, src->sync.len)))
       return -1;
   return 0;
 }

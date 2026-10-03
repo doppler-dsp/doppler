@@ -292,6 +292,12 @@ static const char USAGE[]
       "      [preamble x REPS | sync | data:LEN | CRC-16]\n"
       "  each carrying the next --data-len bits of --data or\n"
       "  --data-from-file until the source ends, which ends the run.\n"
+      "  --sync FIELD    The frame-sync word, between the preamble and the\n"
+      "                  data (such as Barker-13).\n"
+      "  --crc C         none (the default) or crc16: a CRC-16-CCITT over\n"
+      "                  the data, as the frame's last field.\n"
+      "  --sync and --crc build the frame description for you; --frame\n"
+      "  FILE is the same thing written out, and --record stores it.\n"
       "  For --type bits --modulation maps the frames to BPSK or QPSK; the\n"
       "  PN-sourced types map them as their names say. Types with no bit\n"
       "  stream (tone, noise, chirp, symbols) cannot be framed.\n"
@@ -425,7 +431,6 @@ source_free (wfm_source_t *s)
   free (s->symbols);
   free ((void *)s->acq_code.bits);
   free ((void *)s->data_code.bits);
-  free ((void *)s->sync.bits);
   free ((void *)s->data.bits);
   free ((void *)s->fill.bits);
   s->data.bits = NULL;
@@ -435,7 +440,6 @@ source_free (wfm_source_t *s)
   s->symbols        = NULL;
   s->acq_code.bits  = NULL;
   s->data_code.bits = NULL;
-  s->sync.bits      = NULL;
   /* A --frame description is the CLI's own, read from its file. */
   dp_wfm_frame_free ((wfm_frame_desc_t *)s->frame);
   s->frame = NULL;
@@ -477,22 +481,28 @@ typedef struct
   } discard;
   wfm_source_t  src;
   wfm_segment_t seg;
-  double        headroom; /* dB of peak backoff; gain = 10^(-H/20) */
-  double        fc;       /* centre frequency, SigMF metadata only */
-  const char   *from_file;
-  const char   *out_path;
-  const char   *record_path;
-  int           repeat, continuous, detached;
-  int           seed_advance; /* wfm_seed_advance_t: none/noise/all */
-  int           realtime, realtime_resync;
-  int           clip_report, clip_error;
-  int           headroom_set; /* explicit --headroom overrides a record */
-  int           sample_type, file_type, endian;
+  /* --sync and --crc are sugar for fields of one fixed layout,
+     [preamble x reps | sync | data | crc], that build_common_frame() turns
+     into a frame DESCRIPTION before anything else sees it (frame-description
+     .md R). They live here, not on the source: a source carries no sync word
+     and no CRC, only the description. `sync` owns its bits; `crc_set` is
+     whether --crc was GIVEN, which --frame refuses even as `none`. */
+  wfm_seq_t   sync;
+  int         crc, crc_set;
+  double      headroom; /* dB of peak backoff; gain = 10^(-H/20) */
+  double      fc;       /* centre frequency, SigMF metadata only */
+  const char *from_file;
+  const char *out_path;
+  const char *record_path;
+  int         repeat, continuous, detached;
+  int         seed_advance; /* wfm_seed_advance_t: none/noise/all */
+  int         realtime, realtime_resync;
+  int         clip_report, clip_error;
+  int         headroom_set; /* explicit --headroom overrides a record */
+  int         sample_type, file_type, endian;
   /* Which surface rows were given, indexed WFM_SURFACE_<owner>_<name>.
      Presence matters where a value's default is not "absent": a given
-     --crc is refused beside --frame even as `none`, which no other face can
-     tell from the default, and a given --symbol-rate is refused at <= 0
-     where the default 0 means burst. */
+     --symbol-rate is refused at <= 0 where the default 0 means burst. */
   int surf_seen[WFM_SURFACE_N];
   /* A BESPOKE row's raw value (--frame FILE), read by this face's own code
      rather than the generic parse switch. */
@@ -583,6 +593,12 @@ static const opt_t OPTS[] = {
     .kind = OPT_CHOICE,
     .off  = OFF (endian),
     CHOICES (ENDIAN_NAMES) },
+  { .name = "--sync", .kind = OPT_FIELD, .off = OFF (sync) },
+  { .name = "--crc",
+    .kind = OPT_CHOICE,
+    .off  = OFF (crc),
+    .seen = SEEN (crc_set),
+    CHOICES (CRC_NAMES) },
   { .name = "--fc", .kind = OPT_DOUBLE, .off = OFF (fc) },
   { .name = "--repeat", .kind = OPT_SET, .off = OFF (repeat) },
   { .name = "--continuous", .kind = OPT_SET, .off = OFF (continuous) },
@@ -1423,8 +1439,7 @@ check_continuous_dsss (const wfmgen_opts_t *o)
                              "--data-code\n");
       return 2;
     }
-  if (o->src.acq_code.len || o->src.sync.len || o->src.frame
-      || o->surf_seen[WFM_SURFACE_source_crc])
+  if (o->src.acq_code.len || o->sync.len || o->src.frame || o->crc_set)
     {
       (void)fprintf (stderr, "error: --acq-code/--sync/--crc/--frame are "
                              "burst-frame flags, meaningless with "
@@ -1468,20 +1483,20 @@ check_exclusive (const wfmgen_opts_t *o)
  * The file holds what a scene's "frame" key holds, through the one reader
  * of that form (dp_wfm_frame_from_json). A carried description IS the frame,
  * so the flags that spell the common frame are refused beside it rather than
- * silently dropped: the sync word and an unspread preamble by the bridge
- * (dp_wfm_source_frame_error), which refuses a crc16 too; --crc here as
- * well, because only this face can tell `--crc none` was GIVEN (the default
- * is none).
+ * silently dropped: an unspread preamble by the bridge
+ * (dp_wfm_source_frame_error); --sync and --crc here, because they are this
+ * face's own flags (and `--crc none` counts: it was GIVEN).
  * Returns 0, or the exit code. */
 static int
 load_frame (wfmgen_opts_t *o)
 {
   if (!FRAME_PATH (o))
     return 0;
-  if (o->surf_seen[WFM_SURFACE_source_crc])
+  if (o->crc_set || o->sync.len)
     {
-      (void)fprintf (stderr, "error: --frame FILE is the whole frame: its CRC "
-                             "is a stage in the file, so --crc cannot sit "
+      (void)fprintf (stderr, "error: --frame FILE is the whole frame: its "
+                             "sync word is a field and its CRC a stage in "
+                             "the file, so --sync and --crc cannot sit "
                              "beside it\n");
       return 2;
     }
@@ -1499,6 +1514,66 @@ load_frame (wfmgen_opts_t *o)
       (void)fprintf (stderr, "error: %s: %s\n", FRAME_PATH (o),
                      why ? why : "not a frame description");
       return 2;
+    }
+  return 0;
+}
+
+/**
+ * @brief Turn --sync and --crc into the frame DESCRIPTION they spell.
+ *
+ * The CLI takes a frame two ways and they are not two representations:
+ * `--frame FILE` is a description, and for the common frame `--acq-code`,
+ * `--sync`, `--data`/`--data-len` and `--crc` are the fields of one fixed
+ * layout, `[preamble x reps | sync | data | crc]`, which
+ * dp_wfm_source_common_frame (dp_wfm_frame_fixed underneath) builds into a
+ * description here. Nothing downstream knows which was used, and --record
+ * stores the description.
+ *
+ * Built only when --sync or a --crc16 on an otherwise framed source asked
+ * for it: `--acq-code` and `--data` alone stay the bridge's common frame, so
+ * a run that never said sync or crc records exactly what it recorded before.
+ * The description holds its own copy of the bits, so the options may be
+ * freed; an unspread preamble moves INTO it (a carried frame is the whole
+ * frame), while a DSSS preamble stays on the source, sent unspread outside
+ * the description.
+ *
+ * Returns 0, or the exit code having said why.
+ */
+static int
+build_common_frame (wfmgen_opts_t *o)
+{
+  if (o->src.frame
+      || !(o->sync.len || (o->crc && dp_wfm_source_has_frame (&o->src))))
+    return 0;
+  /* The flags frame a waveform only where it can be framed: a type with a
+     bit stream and, off dsss, a data source. Said before building, because a
+     carried frame would otherwise be taken for a fixed-bits one and sent. */
+  const char *no = dp_wfm_framing_flags_error (&o->src);
+  if (no)
+    {
+      (void)fprintf (stderr, "error: %s\n", no);
+      return 2;
+    }
+  wfm_frame_desc_t d;
+  if (dp_wfm_source_common_frame (&o->src, o->sync.len ? &o->sync : NULL,
+                                  o->crc, &d)
+      != 0)
+    {
+      (void)fprintf (stderr, "error: the frame --sync/--crc describe does "
+                             "not lay out: give it a --data source or an "
+                             "--acq-code to frame\n");
+      return 2;
+    }
+  o->src.frame = dp_wfm_frame_copy (&d);
+  if (!o->src.frame)
+    {
+      (void)fprintf (stderr, "error: could not copy the frame description\n");
+      return 1;
+    }
+  if (o->src.type != WFM_SYNTH_DSSS)
+    {
+      free ((void *)o->src.acq_code.bits);
+      o->src.acq_code = (wfm_seq_t){ 0 };
     }
   return 0;
 }
@@ -1778,6 +1853,9 @@ wfmgen_run (int argc, char *argv[])
       rc = check_continuous_dsss (&o);
       if (rc)
         goto done;
+      rc = build_common_frame (&o);
+      if (rc)
+        goto done;
       rc = check_source (&o);
       if (rc)
         goto done;
@@ -1861,6 +1939,7 @@ wfmgen_run (int argc, char *argv[])
 done:
   dp_wfm_compose_destroy (comp);
   source_free (&o.src);
+  free ((void *)o.sync.bits);
   free (data_abs);
   return rc;
 }

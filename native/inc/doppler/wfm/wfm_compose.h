@@ -293,10 +293,11 @@ typedef struct {
        caller's own bits at a position of their choosing, a stage covering a
        span they name. `wfmgen --frame FILE`, a scene's
        `frame` key and Python's `frame=` (a FrameDesc or a Frame) all land
-       here. When it is set it IS the frame, and the common-frame
-       fields below (acq_code/sync/crc/payload) do not frame this source.
-       NULL means the common frame, `[preamble x reps | sync | payload |
-       crc]`, which `dp_wfm_frame_fixed()` builds from the fields below.
+       here. When it is set it IS the frame, and an unspread acq_code
+       beside it is refused. NULL means the common frame, `[preamble x
+       reps | data]`, which `dp_wfm_frame_fixed()` builds from acq_code and
+       the data source; a sync word or a CRC is a field or a stage of a
+       description, never a flat field.
 
        A C caller's description is borrowed, exactly as `wfm_seq_t` is
        borrowed elsewhere here, so it must outlive the source. The composer
@@ -330,8 +331,8 @@ typedef struct {
                             BurstDemod.set_preamble lock to. For type=dsss
                             it is unmodulated chips ahead of the spread
                             frame; for type=bits it is the head of the bit
-                            pattern. Setting it (or sync) is what makes a
-                            source FRAMED. */
+                            pattern. Setting it is what makes a source
+                            FRAMED. */
     size_t acq_reps;     /* Preamble repetitions: periods of acq_code before
                             the sync word. On the command line and in a
                             scene it is acq_code's *REPS. */
@@ -340,25 +341,11 @@ typedef struct {
                             bit (sync, payload, crc) is XOR-spread across
                             its full length, so len(data_code) is the
                             spreading factor. */
-    wfm_seq_t sync;      /* The frame-sync word (such as Barker-13) between
-                            the preamble and the payload -- what
-                            BurstDemod.set_frame correlates to resolve frame
-                            position and BPSK polarity, and what a BER
-                            alignment detects against. Optional; setting it
-                            (or acq_code) is what makes a source FRAMED. */
-    int crc;             /* The frame trailer: crc16 appends a CRC-16-CCITT
-                            over the payload bits (what BurstDemod validates
-                            as frame_valid, and what makes a truth-free
-                            frame error rate possible); none, the
-                            default, omits it: a source carries no CRC
-                            unless this or a frame description gives one.
-                            Applies only to a FRAMED source, so it alone
-                            never frames an otherwise plain pattern. */
     /* type=dsss, CONTINUOUS mode: a data-symbol rate independent of the code
        epoch rate selects the continuous form (dp_wfm_synth_set_dsss_cont) over
        the burst form above -- one waveform type, one discriminator, rather
        than a tenth entry in five hand-maintained name tables. 0 = burst.
-       The frame fields (acq_code/sync/crc/bits) are meaningless when this is
+       The frame fields (acq_code/frame/data) are meaningless when this is
        set and are rejected by the caller rather than silently ignored. */
     double symbol_rate;  /* For type=dsss: > 0 selects CONTINUOUS
                             asynchronous mode. The spreading code repeats
@@ -412,6 +399,17 @@ typedef struct {
                           source, so bits=, and its aliases payload= and
                           pattern=, are refused naming data=; the CLI and a
                           scene refuse --bits and "payload" the same way. */
+    wfm_seq_t retired_sync; /* RETIRED (doppler#1617): nothing reads it but
+                          the refusal. The frame-sync word is a field of the
+                          frame DESCRIPTION, so sync= is refused naming
+                          frame=; the CLI's --sync builds that description
+                          for you, and a scene refuses the "sync" key. */
+    wfm_seq_t retired_crc; /* RETIRED (doppler#1617): nothing reads it but
+                          the refusal. A CRC is a stage of the frame
+                          DESCRIPTION, so crc= is refused naming frame=,
+                          whatever its value (crc="none" included); the
+                          CLI's --crc builds that description for you, and
+                          a scene refuses the "crc" key. */
     wfm_data_stats_t data_sent; /* What this source's data sent in the
                           composer's latest instance: its frames, the fill
                           bits padding the last, its idle frames, the source
@@ -701,10 +699,7 @@ int dp_wfm_source_attach_dsss(dp_wfm_synth_state_t *syn, const wfm_source_t *src
 /**
  * @brief Non-zero when this source describes a FRAME.
  *
- * A carried description, a preamble or a sync word is what says "framed". **Deliberately not `crc`**:
- * it is a trailer, not a frame, so reading it as intent would silently
- * append one to every unframed bit pattern that names it. With neither a
- * preamble nor a sync word, `crc` stays inert exactly as it always was.
+ * A carried description, a preamble or a data source is what says "framed".
  *
  * @param src  The source; NULL reads as unframed.
  */
@@ -838,6 +833,16 @@ extern const char dp_wfm_why_dsss_cont_no_data_code[];
  *        spelling (doppler#1718).
  */
 extern const char dp_wfm_why_retired_bits[];
+
+/**
+ * @brief The reasons dp_wfm_source_error() gives for `retired_sync` and
+ *        `retired_crc` set.
+ *
+ * One sentence each, naming `frame=`; the CLI and a scene say the same in
+ * their own spelling. Exposed so a test can pin the wording once.
+ */
+extern const char dp_wfm_why_retired_sync[];
+extern const char dp_wfm_why_retired_crc[];
 
 /**
  * @brief Why dp_wfm_source_to_synth() refused this source, or NULL.
@@ -1488,6 +1493,74 @@ wfm_frame_desc_t *dp_wfm_frame_from_json(const char *json, const char **why);
  * @endcode
  */
 void dp_wfm_frame_free(wfm_frame_desc_t *d);
+
+/**
+ * @brief Refuse text for the retired `sync=`: a sync word is a field of the
+ *        frame description.
+ *
+ * The coercion hook of the `sync` tombstone: ANY `str` reaching it is
+ * refused, and a non-empty array is refused by @ref dp_wfm_source_error, so
+ * `sync=` fails whatever it is given and the sentence names `frame=`.
+ *
+ * @param text    the str (unused: every str is refused).
+ * @param out     unused.
+ * @param max_out unused.
+ * @param why     receives the sentence.
+ * @return 0.
+ */
+size_t dp_wfm_source_sync_refuse_text(const char *text, uint8_t *out,
+                                      size_t max_out, const char **why);
+
+/**
+ * @brief Refuse text for the retired `crc=`: a CRC is a stage of the frame
+ *        description.
+ *
+ * As @ref dp_wfm_source_sync_refuse_text, for `crc=`. `crc="none"` is
+ * refused too: it would otherwise be a spelling that works forever with no
+ * way to retire it.
+ *
+ * @param text    the str (unused: every str is refused).
+ * @param out     unused.
+ * @param max_out unused.
+ * @param why     receives the sentence.
+ * @return 0.
+ */
+size_t dp_wfm_source_crc_refuse_text(const char *text, uint8_t *out,
+                                     size_t max_out, const char **why);
+
+/**
+ * @brief Why `--sync` / `--crc` / `--acq-code` cannot frame this source, or
+ *        NULL.
+ *
+ * The CLI's flags spell the common frame, which needs a waveform that carries
+ * a bit stream and, off dsss, a data source to fill it. Said once here and
+ * used by the same refusal inside @ref dp_wfm_source_frame_error, so the
+ * flags and a bare source give one answer. A dsss burst needs neither.
+ *
+ * @param src  the source.
+ * @return a static sentence naming the fix, or NULL.
+ */
+const char *dp_wfm_framing_flags_error(const wfm_source_t *src);
+
+/**
+ * @brief The common frame as a description: `[preamble x reps | sync |
+ *        data | crc]`, built by the ONE function that builds it.
+ *
+ * Used by the bridge (a scene's or Python's `acq_code` + data, with no sync
+ * word and no CRC) and by `wfmgen` for `--sync` and `--crc`, which are sugar
+ * for these fields. The preamble is a field for an unspread source and is
+ * NOT one for a spread burst: a DSSS preamble is sent unspread outside the
+ * description. The description borrows `src`'s and `sync`'s sequences.
+ *
+ * @param src   the source (its `acq_code`, `acq_reps`, `data`,
+ *              `data_from_file` and `data_len` are read).
+ * @param sync  the sync word, or NULL for none.
+ * @param crc   non-zero appends a CRC-16 over the payload.
+ * @param d     receives the description.
+ * @return 0, or -1 when it does not lay out.
+ */
+int dp_wfm_source_common_frame(const wfm_source_t *src, const wfm_seq_t *sync,
+                               int crc, wfm_frame_desc_t *d);
 
 /**
  * @brief Refuse text for a source's bit field: an object takes bits.

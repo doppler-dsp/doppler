@@ -113,11 +113,17 @@ dsss_source (uint8_t *acq, uint8_t *data, uint8_t *sy, uint8_t *payload)
   src.acq_reps       = REPS;
   src.data_code.bits = data;
   src.data_code.len  = DATA_SF;
-  src.sync.bits      = sy;
-  src.sync.len       = SYNC_LEN;
-  src.crc            = 1;       /* crc16 trailer, appended by the engine */
   src.data.bits      = payload; /* one burst: the data source, whole */
   src.data.len       = PAYLOAD;
+  /* The frame is a DESCRIPTION: [sync | data | crc16], the common frame the
+     engine spreads. A source carries no sync word or CRC of its own. The
+     description is borrowed, so it is static: it outlives every source this
+     returns. */
+  static wfm_frame_desc_t frame;
+  const wfm_seq_t         sync
+      = { .kind = WFM_SEQ_LITERAL, .bits = sy, .len = SYNC_LEN };
+  if (dp_wfm_source_common_frame (&src, &sync, 1, &frame) == 0)
+    src.frame = &frame;
   return src;
 }
 

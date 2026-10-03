@@ -272,7 +272,6 @@ class TestBits:
         x = w.Synth(
             type="bits",
             data=pat,
-            crc="none",
             modulation="bpsk",
             sps=1,
             snr=100.0,
@@ -288,7 +287,6 @@ class TestBits:
         x = w.Synth(
             type="bits",
             data=pat,
-            crc="none",
             modulation="bpsk",
             sps=1,
             snr=100.0,

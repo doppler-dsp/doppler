@@ -120,13 +120,12 @@ def make_signal_wfmgen(cn0_dbhz, doppler_hz, seed, n_sym=N_SYM):
     n_total = n_sym * DATA_SPS
 
     # Each stream is its bits sent ONCE (a payload no longer cycles), so
-    # the code is tiled to cover the span; crc="none" sends the bits as
-    # given rather than as a frame with a CRC-16 trailer.
+    # the code is tiled to cover the span; a source with no frame= sends the
+    # bits as given, with no CRC trailer.
     n_codes = -(-n_total // (CODE.size * CHIP_SPS))
     chip_stream = Synth(
         type="bits",
         data=np.tile(CODE, n_codes),
-        crc="none",
         modulation="bpsk",
         sps=CHIP_SPS,
         fs=FS_GEN,
@@ -134,7 +133,6 @@ def make_signal_wfmgen(cn0_dbhz, doppler_hz, seed, n_sym=N_SYM):
     data_stream = Synth(
         type="bits",
         data=data_bits,
-        crc="none",
         modulation="bpsk",
         sps=DATA_SPS,
         fs=FS_GEN,

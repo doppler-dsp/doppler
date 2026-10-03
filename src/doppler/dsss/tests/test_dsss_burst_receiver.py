@@ -337,20 +337,19 @@ def _link(payload_bits=96, *, crc=True, **stages):
         "acq_code": acq.tobytes(),
         "acq_reps": _TX_REPS,
         "data_code": data.tobytes(),
-        "sync": _TX_SYNC.tobytes(),
-        "data": payload.tobytes(),  # one burst: the data source, whole
         "gap_noise": "auto",
         "off_samples": 200_000,  # room for the receiver's retain span
-        "crc": "crc16" if crc else "none",
     }
+    tx = _deframer(payload_bits, crc=crc, payload=payload, **stages)
     if stages:
         # The whole coded frame, sync word first, IS the payload of an
         # otherwise unframed spread: the preamble stays on the source,
         # unspread, and everything after it is the description's bits.
-        tx = _deframer(payload_bits, crc=crc, payload=payload, **stages)
         seg["data"] = np.asarray(tx.bits()).tobytes()
-        del seg["sync"]
-        seg["crc"] = "none"
+    else:
+        # The description IS the burst: sync word, payload and (when asked
+        # for) a CRC-16 trailer, spread after the unspread preamble.
+        seg["frame"] = tx
     # The frame's LENGTH is all the receiver is told, and every stage that
     # adds a field adds to it: an outer code's check symbols are on the wire
     # like everything else.
@@ -539,8 +538,7 @@ def _link_at(esno_db, **stages):
         "acq_code": acq.tobytes(),
         "acq_reps": _TX_REPS,
         "data_code": data.tobytes(),
-        "sync": _TX_SYNC.tobytes(),
-        "data": payload.tobytes(),  # one burst: the data source, whole
+        "frame": _deframer(len(payload), payload=payload),
         "gap_noise": "auto",
         "off_samples": 200_000,
     }

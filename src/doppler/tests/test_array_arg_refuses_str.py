@@ -107,7 +107,7 @@ def _composer_reason() -> str:
     from doppler.wfm import Synth
 
     with pytest.raises(ValueError) as exc:
-        Synth(type="dsss", sync="0101")
+        Synth(type="dsss", data_code="0101")
     return str(exc.value)
 
 

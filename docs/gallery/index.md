@@ -83,6 +83,7 @@ Those live on the [Examples](../examples/index.md) page instead.
 - [M-PSK Receiver](mpsk-receiver.md) — integrated carrier + timing + bit recovery.
 - [M-PSK Receiver: Performance](mpsk-receiver-performance.md) — EVM, SER, lock time, false alarm and level invariance over random geometries.
 - [M-PSK Receiver: Doppler Profile](mpsk-doppler-profile.md) — sizing bn_carrier for a predictable acquisition, and what a step and two ramps actually cost.
+- [A Framed Link, Checked by Its Description](framed-link.md) — framed BPSK/QPSK from one `FrameDesc`, received by `MpskReceiver`, judged by `FrameDesc.check`.
 
 ## Measurement
 

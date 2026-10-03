@@ -189,6 +189,7 @@ nav:
           - M-PSK Receiver: gallery/mpsk-receiver.md
           - "M-PSK Receiver: Performance": gallery/mpsk-receiver-performance.md
           - "M-PSK Receiver: Doppler Profile": gallery/mpsk-doppler-profile.md
+          - "A Framed Link, Checked by Its Description": gallery/framed-link.md
       - Measurement:
           - Measurement Suite: gallery/measure.md
           - "Measurement Suite: IMD & NPR": gallery/measure-imd-npr.md

@@ -15,17 +15,23 @@ ______________________________________________________________________
 
 ## [0.61.0] - 2026-10-03
 
+v0.61.0 is a waveform-generation release: **a frame is a description, and its
+payload is a data source.** One `FrameDesc` now defines the frame on every face
+of `wfmgen` and builds the receivers that undo it, and a `data:LEN` field
+carries a message, a file or stdin across as many frames as it takes.
+
 ### Breaking
 
-- **`num_samples` defaults to 0, "derive it", and a count beside sources
-    that set the length is refused on every face.** A finite data source
-    (its frames) and a lone dsss burst (one burst) set a segment's on-time;
-    `Segment(..., num_samples=1000)` beside one composed 24 samples without
-    a word ([#1729](https://github.com/doppler-dsp/doppler/issues/1729)).
-    One rule, `dp_wfm_scene_error`, now refuses it in Python, a scene and
-    the CLI. C ABI: a zero-filled `wfm_segment_t` derives its on-time
-    (1024 for a plain segment) instead of being empty, and `Plan.prepare`
-    takes it; an empty on-time is a ranged `(0, 0)`.
+- **A segment's length now comes from its sources.** `num_samples` is how
+    many samples a waveform `Segment` composes (`--count` on `wfmgen`,
+    `"num_samples"` in a scene). It now defaults to 0, "derive it": a finite
+    data source sets it from its frames, a lone DSSS burst from the burst.
+    A count given beside such a source is refused on every face, where
+    `Segment(..., num_samples=1000)` used to compose 24 samples without a
+    word ([#1729](https://github.com/doppler-dsp/doppler/issues/1729)).
+    C ABI: a zero-filled `wfm_segment_t` derives its on-time (1024 for a
+    plain segment) instead of being empty, and `Plan.prepare` takes it; an
+    empty on-time is now a ranged `(0, 0)`.
 
 - **`BurstDemod` and `DsssBurstReceiver` take the frame description.** The
     Python constructors take `frame` (a `Frame` or a `FrameDesc`) in place of

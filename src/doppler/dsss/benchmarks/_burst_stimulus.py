@@ -23,7 +23,7 @@ Import it and call it.
 
 import numpy as np
 
-from doppler.wfm import PN, STAGE_CRC16, Composer, FrameDesc, Segment
+from doppler.wfm import PN, STAGE_CRC16, Composer, Frame, FrameDesc, Segment
 
 #: Small on purpose: several bursts fit one 64k block and the benchmarks run
 #: in seconds. Throughput is what these files measure; sensitivity is the
@@ -52,7 +52,14 @@ SYNC = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], dtype=np.uint8)
 
 ACQ_SF = 2**ACQ_SF_BITS - 1
 DATA_SF = 2**DATA_SF_BITS - 1
-FRAME_SYMS = len(SYNC) + PAYLOAD + 16  # sync | payload | CRC-16
+#: The frame description the receivers are told -- sync | payload | CRC-16.
+#: Only its layout matters to a receiver (its first field is the sync word,
+#: its `nbits` the frame length), so the payload bits are a placeholder; the
+#: transmitter side draws the real ones into `_frame()` below.
+FRAME = Frame(sync=SYNC, payload=np.zeros(PAYLOAD, np.uint8), crc="crc16")
+#: Symbols per burst, read off the description rather than summed here.
+FRAME_SYMS = FRAME.nbits
+assert len(SYNC) + PAYLOAD + 16 == FRAME_SYMS
 #: What the receiver hands back per burst — it stops at decisions, so the
 #: frame comes back whole and the payload is a slice at `len(SYNC)`.
 PAYLOAD_OFF = len(SYNC)
@@ -165,11 +172,10 @@ def packing(acq_code, data_code):
     probe = DsssBurstReceiver(
         acq_code=acq_code,
         data_code=data_code,
-        sync=SYNC,
+        frame=FRAME,
         reps=REPS,
         spc=SPC,
         chip_rate=CHIP_RATE,
-        frame_syms=FRAME_SYMS,
         cn0_dbhz=60.0,
         doppler_uncertainty=0.0,
         pfa=1e-3,

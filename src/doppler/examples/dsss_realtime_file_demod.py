@@ -66,7 +66,6 @@ PAYLOAD = 64
 #: first. It stops at decisions (doppler#1022), so the payload is a slice
 #: and the frame is checked one layer up, by the FrameDesc below.
 PAYLOAD_OFF = 13
-FRAME_SYMS = PAYLOAD_OFF + PAYLOAD + 16
 PRI_MS = 250.0  # nominal burst spacing (the writer paces to this in realtime)
 SYNC = np.array(
     [0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], dtype=np.uint8
@@ -124,7 +123,7 @@ _ACODE = _pn(ACQ_BITS, ACQ_SF, 1)  # preamble code (511-chip MLS)
 _DCODE = _pn(DATA_BITS, DATA_SF, 1)  # data code (63-chip MLS)
 _PAYLOAD_BITS = ((np.arange(PAYLOAD) * 7 + 3) & 1).astype(np.uint8)
 # Active burst = preamble (REPS × 511 chips) + spread frame, in samples.
-_BURST = (ACQ_SF * REPS + (len(SYNC) + PAYLOAD + 16) * DATA_SF) * SPC
+_BURST = (ACQ_SF * REPS + _deframer().nbits * DATA_SF) * SPC
 _PERIOD = round(PRI_MS * 1e-3 * FS)  # nominal samples between burst starts
 _NOMINAL_GAP = _PERIOD - _BURST  # trailing zeros for the nominal PRI
 # Reader window: the burst plus the full jitter span plus search margin.
@@ -275,9 +274,10 @@ def decode_chunk(chunk, *, nominal_hz=NOMINAL_HZ):
     }
 
     deframer = _deframer()
-    d = BurstDemod(_DCODE, SPC, CHIP_RATE, 0.0, 0.0, FRAME_SYMS, 10)
+    # The demodulator reads the sync word (field 0) and the frame's length
+    # from the same description the DeFramer undoes it with.
+    d = BurstDemod(_DCODE, deframer, SPC, CHIP_RATE, 0.0, 0.0, 10)
     d.set_preamble(_ACODE, REPS)
-    d.set_sync(SYNC)
     npre = ACQ_SF * REPS * SPC
     # Try the acquired code phase first (sample-precise), then fall back to a
     # coarse grid scan over one code period in case the peak was a chip off.

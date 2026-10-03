@@ -49,6 +49,7 @@ typedef struct
 #include "doppler/gold/gold_core.h"
 #include "doppler/mpsk/mpsk_core.h"
 #include "doppler/cvt/cvt_core.h"
+#include "doppler/wfm/wfm_frame.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -101,6 +102,14 @@ typedef struct {
 } dp_dsss_burst_receiver_state_t;
 
 dp_dsss_burst_receiver_state_t *dp_dsss_burst_receiver_create(const uint8_t *acq_code, size_t acq_code_len, const uint8_t *data_code, size_t data_code_len, const uint8_t *sync, size_t sync_len, size_t reps, size_t spc, double chip_rate, size_t frame_syms, double cn0_dbhz, double doppler_uncertainty, double pfa, double pd, double carrier_hz, double max_rate, size_t est_segments);
+
+dp_dsss_burst_receiver_state_t *dp_dsss_burst_receiver_create_frame(
+    const uint8_t *acq_code, size_t acq_code_len, const uint8_t *data_code,
+    size_t data_code_len, const wfm_frame_desc_t *frame, size_t reps,
+    size_t spc, double chip_rate, double cn0_dbhz, double doppler_uncertainty,
+    double pfa, double pd, double carrier_hz, double max_rate,
+    size_t est_segments);
+
 
 dp_dsss_burst_receiver_state_t *dp_dsss_burst_receiver_create_desc(
     const uint8_t *acq_code, size_t acq_code_len, const uint8_t *data_code,

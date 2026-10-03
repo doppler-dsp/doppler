@@ -84,6 +84,19 @@ dp_burst_demod_create_desc (const uint8_t *data_code, size_t data_code_len,
   return s;
 }
 
+dp_burst_demod_state_t *
+dp_burst_demod_create_frame (const uint8_t *data_code, size_t data_code_len,
+                             const wfm_frame_desc_t *frame, size_t spc,
+                             double chip_rate, double carrier_hz,
+                             double max_rate, size_t est_segments)
+{
+  /* The binding's constructor: no `why` channel on an object's create, so the
+     reason is the manifest's create_error_message, which names the rules. */
+  return dp_burst_demod_create_desc (data_code, data_code_len, frame, spc,
+                                     chip_rate, carrier_hz, max_rate,
+                                     est_segments, NULL);
+}
+
 void
 dp_burst_demod_destroy (dp_burst_demod_state_t *s)
 {

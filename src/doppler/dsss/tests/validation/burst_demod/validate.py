@@ -32,6 +32,7 @@ import numpy as np
 
 from doppler.dsss import BurstDemod
 from doppler.tests._validation_common import Report, cli
+from doppler.wfm import Frame
 
 HERE = Path(__file__).resolve().parent
 R = Report()
@@ -57,6 +58,13 @@ def _dcode() -> np.ndarray:
 
 def _payload() -> np.ndarray:
     return ((np.arange(PAYLOAD_LEN) * 7 + 3) & 1).astype(np.uint8)
+
+
+#: The description the transmitter spread: sync | payload | CRC-16. The demod
+#: reads the sync word (field 0) and the frame's length from it.
+FRAME = Frame(sync=SYNC, payload=_payload(), crc="crc16")
+FRAME_SYMS = FRAME.nbits
+assert len(SYNC) + PAYLOAD_LEN + CRC_BITS == FRAME_SYMS
 
 
 def _crc16(bits: np.ndarray) -> int:
@@ -142,14 +150,13 @@ def _burst(
 def _demod(x: np.ndarray, *, max_rate: float = 0.0, carrier_hz: float = 0.0):
     d = BurstDemod(
         _dcode(),
+        FRAME,
         spc=SPC,
         chip_rate=CHIP_RATE,
-        frame_syms=len(SYNC) + PAYLOAD_LEN + CRC_BITS,
         max_rate=max_rate,
         carrier_hz=carrier_hz,
     )
     d.set_preamble(_acode(), REPS)
-    d.set_sync(SYNC)
     d.set_prior(F0, 0)
     return d, d.demod(x)
 
@@ -329,11 +336,10 @@ def _sec_crc(d: Data) -> None:
     rows, csv = [], []
     all_reject = True
     still_decodes = True
-    frame_syms = len(SYNC) + PAYLOAD_LEN + CRC_BITS
     for pos in (0, 17, PAYLOAD_LEN - 1):
         _dd, bb = _demod(_burst(payload, corrupt_at=pos))
         all_reject &= not _frame_ok(bb)
-        still_decodes &= len(bb) == frame_syms
+        still_decodes &= len(bb) == FRAME_SYMS
         reached = bool(_payload_of(bb)[pos] != payload[pos])
         rows.append(
             [
@@ -537,15 +543,12 @@ def _sec_bounds(d: Data) -> None:
     R.md()
     dd = BurstDemod(
         _dcode(),
+        FRAME,
         spc=SPC,
         chip_rate=CHIP_RATE,
-        frame_syms=len(SYNC) + PAYLOAD_LEN + CRC_BITS,
     )
-    d.max_out_is_payload = (
-        dd.demod_max_out() == len(SYNC) + PAYLOAD_LEN + CRC_BITS
-    )
+    d.max_out_is_payload = dd.demod_max_out() == FRAME_SYMS
     dd.set_preamble(_acode(), REPS)
-    dd.set_sync(SYNC)
     dd.set_prior(F0, 0)
     rows = []
     refused = True
@@ -612,7 +615,7 @@ def review(d: Data) -> None:
         "despread data section — filler, sync, payload and trailer — not "
         "the payload. That distinction is invisible until the sync is not "
         "at offset zero, which is why it needed the same stimulus as F2. "
-        "Sabotage-proven by reporting `frame_syms` instead.",
+        "Sabotage-proven by reporting the frame length instead.",
     )
     R.find(
         "F4",

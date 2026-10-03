@@ -35,7 +35,7 @@ import numpy as np
 
 from doppler.dsss import DsssBurstReceiver
 from doppler.tests._validation_common import Report, cli
-from doppler.wfm import PN, crc16, mls_poly
+from doppler.wfm import PN, Frame, crc16, mls_poly
 
 HERE = Path(__file__).resolve().parent
 R = Report()
@@ -111,7 +111,11 @@ def _capture(at: int, sigma: float, seed: int, burst=None) -> np.ndarray:
     return cap
 
 
-FRAME_SYMS = len(SYNC) + PAYLOAD + 16  # sync | payload | CRC-16
+#: The ONE description both ends share: the transmitter spreads its bits
+#: (`_burst*`), the receiver reads its sync word and length from it.
+FRAME = Frame(sync=SYNC, payload=PAYLOAD_BITS, crc="crc16")
+FRAME_SYMS = FRAME.nbits  # sync | payload | CRC-16
+assert len(SYNC) + PAYLOAD + 16 == FRAME_SYMS
 PAYLOAD_OFF = len(SYNC)
 
 
@@ -141,13 +145,12 @@ def _frame_ok(frame) -> bool:
 
 def _rx(acq_code=ACQ_CODE) -> DsssBurstReceiver:
     return DsssBurstReceiver(
-        acq_code,
-        DATA_CODE,
-        SYNC,
+        acq_code=acq_code,
+        data_code=DATA_CODE,
+        frame=FRAME,
         reps=REPS,
         spc=SPC,
         chip_rate=CHIP_RATE,
-        frame_syms=FRAME_SYMS,
         cn0_dbhz=55.0,
     )
 
@@ -776,7 +779,7 @@ def _sec_decoy(d: Data) -> None:
     )
     R.md()
 
-    burst_len = (REPS * ACQ_SF + (SYNC_LEN + PAYLOAD + 16) * DATA_SF) * SPC
+    burst_len = (REPS * ACQ_SF + FRAME_SYMS * DATA_SF) * SPC
     at, amp = 5000, 0.35
     preamble = _burst_reps(REPS)[: REPS * CODE_PERIOD]
 
@@ -1254,15 +1257,16 @@ def build(write: bool = True) -> Report:
             "payloads out. It owns the hand-off between acquisition, a "
             "refine stage and the demodulator, which is the part a "
             "hand-wired chain gets wrong (§1). Configure it once with the "
-            "waveform -- the two codes, the sync word, and the geometry -- "
-            "and stream; there is no per-burst setup.",
+            "waveform -- the two codes, the frame description, and the "
+            "geometry -- and stream; there is no per-burst setup.",
             "**The shape of the call.** `push(x)` returns the payload "
             "bits of EVERY burst that completed in that call, "
             "concatenated, and `events()` returns one record per payload "
             "in the same order: burst `i` is "
-            "`bits[i*frame_syms:(i+1)*frame_syms]` with `events()[i]` "
-            "describing it. Every sample is consumed whatever the block "
-            "size, and a burst split across calls is completed by a later "
+            "`bits[i*n:(i+1)*n]` (n = the description's `nbits`) with "
+            "`events()[i]` describing it. Every sample is consumed "
+            "whatever the block size, and a burst split across calls is "
+            "completed by a later "
             "one, so a caller never sizes or aligns anything (§2.10).",
             f"**Whether it fits your link.** End to end -- exact sample "
             f"AND valid CRC -- this geometry decodes "

@@ -31,12 +31,12 @@ import pytest
 from doppler.dsss import DsssBurstReceiver
 from doppler.dsss.benchmarks._burst_stimulus import (
     CHIP_RATE,
+    FRAME,
     FRAME_SYMS,
     PAYLOAD,
     PAYLOAD_OFF,
     REPS,
     SPC,
-    SYNC,
     burst_stimulus,
     on_fresh,
     packing,
@@ -65,11 +65,10 @@ def _receiver(acq_code, data_code):
     return DsssBurstReceiver(
         acq_code=acq_code,
         data_code=data_code,
-        sync=SYNC,
+        frame=FRAME,
         reps=REPS,
         spc=SPC,
         chip_rate=CHIP_RATE,
-        frame_syms=FRAME_SYMS,
         cn0_dbhz=60.0,
         doppler_uncertainty=0.0,
         pfa=1e-3,

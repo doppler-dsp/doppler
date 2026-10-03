@@ -7,26 +7,33 @@ feedforward, across both regimes the one ``max_rate`` knob spans: near-static
 Doppler and a severe LEO chirp.
 
 **The demodulator hands back the FRAME**, sync word first, and makes no claim
-about what the bits are for: this object stops at decisions, and undoing a
-frame needs a description it deliberately does not hold (doppler#1022). So the
-payload is a slice at ``PAYLOAD_OFF`` here, and the CRC is checked by this
-file — which is what a caller does, and what ``wfm.Frame.deframe()`` does for
-one that holds a description.
+about what the bits are for: it reads only the sync word and the length from
+the description it is given, stops at decisions, and does not undo the frame
+(doppler#1022). So the payload is a slice at ``PAYLOAD_OFF`` here, and the
+CRC is checked by this file — which is what a caller does, and what
+``wfm.Frame.deframe()`` does for one that holds a description.
 """
 
 import numpy as np
 import pytest
 
 from doppler.dsss import BurstDemod
+from doppler.wfm import Frame
 
 ACQ_SF, REPS, DATA_SF, SPC = 500, 5, 50, 4
 PAYLOAD = 64
 PAYLOAD_OFF = 13  # the sync word comes first in every frame here
-FRAME_SYMS = PAYLOAD_OFF + PAYLOAD + 16  # sync | payload | CRC-16
 CHIP_RATE = 1.0e6
 FS = CHIP_RATE * SPC
 # Barker-13 frame-sync word (0/1).
 SYNC = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], dtype=np.uint8)
+
+#: The description the transmitter spread: sync | payload | CRC-16. The
+#: receiver reads the sync word (field 0) and the frame length from it; only
+#: the layout matters to it, so the payload bits here are placeholders.
+FRAME = Frame(sync=SYNC, payload=np.zeros(PAYLOAD, np.uint8), crc="crc16")
+FRAME_SYMS = FRAME.nbits
+assert FRAME_SYMS == PAYLOAD_OFF + PAYLOAD + 16
 
 _ACODE = ((np.arange(ACQ_SF) * 2654435761 >> 13) & 1).astype(np.uint8)
 _DCODE = ((np.arange(DATA_SF) * 40503 >> 7) & 1).astype(np.uint8)
@@ -82,9 +89,8 @@ def _burst(payload, f0, mu, *, rng=None, sigma=0.0):
 
 
 def _make(max_rate):
-    d = BurstDemod(_DCODE, SPC, CHIP_RATE, 0.0, max_rate, FRAME_SYMS, 10)
+    d = BurstDemod(_DCODE, FRAME, SPC, CHIP_RATE, 0.0, max_rate, 10)
     d.set_preamble(_ACODE, REPS)
-    d.set_sync(SYNC)
     return d
 
 
@@ -132,9 +138,7 @@ def test_leo_decodes_under_noise():
 def test_bad_args():
     # An empty data code -> create() returns NULL -> jm raises MemoryError.
     with pytest.raises((ValueError, TypeError, MemoryError)):
-        BurstDemod(
-            np.array([], np.uint8), SPC, CHIP_RATE, 0.0, 0.0, FRAME_SYMS, 10
-        )
+        BurstDemod(np.array([], np.uint8), FRAME, SPC, CHIP_RATE, 0.0, 0.0, 10)
 
 
 def test_demod_out_writes_into_callers_buffer():
@@ -325,9 +329,8 @@ def test_cn0_does_not_depend_on_est_segments():
         got = []
         for s in range(6):
             rng = np.random.default_rng(800 + s)
-            d = BurstDemod(_DCODE, SPC, CHIP_RATE, 0.0, 0.0, FRAME_SYMS, segs)
+            d = BurstDemod(_DCODE, FRAME, SPC, CHIP_RATE, 0.0, 0.0, segs)
             d.set_preamble(_ACODE, REPS)
-            d.set_sync(SYNC)
             d.set_prior(0.012, 0)
             d.demod(
                 _burst(payload, 0.012, 0.0, rng=rng, sigma=_sigma_for(25.0))

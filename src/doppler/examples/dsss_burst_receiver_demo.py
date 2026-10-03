@@ -157,11 +157,10 @@ def receiver():
     return DsssBurstReceiver(
         acq_code=acq_code,
         data_code=data_code,
-        sync=field_bits(SYNC_SPEC),
+        frame=desc,  # sync word and frame length, from the description
         reps=REPS,
         spc=SPC,
         chip_rate=CHIP_RATE,
-        frame_syms=FRAME_SYMS,
         cn0_dbhz=60.0,
         doppler_uncertainty=0.0,
         pfa=1e-3,

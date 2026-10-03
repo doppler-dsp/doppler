@@ -26,6 +26,43 @@ REPS, SPC, PAYLOAD = 4, 4, 32
 FRAME_SYMS = SYNC_LEN + PAYLOAD + 16
 
 
+def _frame(sync, payload=PAYLOAD):
+    """The description the transmitter spread: sync | payload | CRC-16."""
+    from doppler.wfm import Frame
+
+    return Frame(sync=sync, payload=np.zeros(payload, np.uint8), crc="crc16")
+
+
+def _refused_descriptions():
+    """Descriptions the receiver refuses, one rule each (FrameDesc)."""
+    from doppler.wfm import FrameDesc
+
+    sync, pay = np.ones(SYNC_LEN, np.uint8), np.zeros(8, np.uint8)
+    out = {}
+
+    d = FrameDesc()  # field 0 is derived, not known bits
+    d.add_derived("sync", 16)
+    d.add_field("payload", pay)
+    d.add_stage(0, first_field=0, n_fields=1)
+    d.build()
+    out["derived_sync"] = d
+
+    d = FrameDesc()  # field 0 is covered by a stage
+    d.add_field("sync", sync)
+    d.add_field("payload", pay)
+    d.add_derived("crc", 16)
+    d.add_stage(0, first_field=0, n_fields=3)
+    d.build()
+    out["covered_sync"] = d
+
+    d = FrameDesc()  # field 0 is named "preamble"
+    d.add_field("preamble", sync)
+    d.add_field("payload", pay)
+    d.build()
+    out["preamble_named"] = d
+    return out
+
+
 def _codes():
     rng = np.random.default_rng(0)
     return (
@@ -40,11 +77,10 @@ def _make(**kw):
     args = {
         "acq_code": acq,
         "data_code": data,
-        "sync": sync,
+        "frame": _frame(sync),
         "reps": REPS,
         "spc": SPC,
         "chip_rate": 1.0e6,
-        "frame_syms": FRAME_SYMS,
         "cn0_dbhz": 50.0,
     }
     args.update(kw)
@@ -78,11 +114,9 @@ def test_construct_and_read_back_the_event_fields() -> None:
     [
         {"acq_code": np.zeros(0, np.uint8)},
         {"data_code": np.zeros(0, np.uint8)},
-        {"sync": np.zeros(0, np.uint8)},
         {"reps": 0},
         {"spc": 0},
         {"chip_rate": 0.0},
-        {"frame_syms": 0},
         {"pfa": 1.0},
         {"pd": 0.0},
     ],
@@ -99,11 +133,26 @@ def test_refuses_bad_arguments_as_value_error(bad: dict) -> None:
         _make(**bad)
 
 
+@pytest.mark.parametrize(
+    "rule", ["derived_sync", "covered_sync", "preamble_named"]
+)
+def test_refuses_a_description_with_no_usable_sync_word(rule: str) -> None:
+    """The sync word is the description's FIRST field, and must be bits.
+
+    Replaces the old "empty sync / frame_syms=0" refusals: the receiver no
+    longer takes either, it reads them from the description, and a
+    description whose field 0 is derived, covered by a stage or named
+    "preamble" has no sync word to correlate for. Each case breaks ONE rule.
+    """
+    with pytest.raises(ValueError, match="first"):
+        _make(frame=_refused_descriptions()[rule])
+
+
 def test_a_valid_parameter_set_still_builds() -> None:
     """The control for the refusals above.
 
     Without it, a constructor that rejected everything would pass every
-    one of the nine cases -- a reject test that cannot fail
+    one of the cases -- a reject test that cannot fail
     independently is decoration.
     """
     assert _make() is not None
@@ -121,7 +170,7 @@ def test_silence_yields_no_burst() -> None:
     assert out.size == 0
     assert r.n_bursts == 0
     # The bound scales with the input: push() returns EVERY burst the call
-    # completed, so a constant frame_syms would under-size the buffer the
+    # completed, so a constant frame length would under-size the buffer the
     # moment one call carried two bursts (doppler#1008).
     assert r.push_max_out(1) >= PAYLOAD
     assert r.push_max_out(1 << 20) > r.push_max_out(1)
@@ -314,8 +363,8 @@ def _link(payload_bits=96, *, crc=True, **stages):
     A coded burst is a DESCRIPTION: `_deframer`'s, with the real payload,
     whose bits the source spreads -- the one frame both ends read. The
     stages reach the scene only through it. The receiver is told nothing
-    about them — that is the split — so its `frame_syms` is the frame's
-    length and nothing else.
+    about them — that is the split — so what it is given is the
+    description, and it reads the frame's length and sync word from it.
     """
     from doppler.wfm import Composer, Segment
 
@@ -350,19 +399,20 @@ def _link(payload_bits=96, *, crc=True, **stages):
         # The description IS the burst: sync word, payload and (when asked
         # for) a CRC-16 trailer, spread after the unspread preamble.
         seg["frame"] = tx
-    # The frame's LENGTH is all the receiver is told, and every stage that
-    # adds a field adds to it: an outer code's check symbols are on the wire
-    # like everything else.
+    # The receiver is handed the description the transmitter spread: it reads
+    # the sync word (field 0) and the frame's length from it, and every stage
+    # that adds a field adds to the length: an outer code's check symbols are
+    # on the wire like everything else.
     frame_syms = len(_TX_SYNC) + payload_bits + (_CRC_BITS if crc else 0)
     frame_syms += 32 * 8 * int(stages.get("rs_depth", 0))
+    assert tx.nbits == frame_syms
     rx_kw = {
         "acq_code": acq,
         "data_code": data,
-        "sync": _TX_SYNC,
+        "frame": tx,
         "reps": _TX_REPS,
         "spc": _TX_SPC,
         "chip_rate": 1.0e6,
-        "frame_syms": frame_syms,
         "cn0_dbhz": 60.0,
         "doppler_uncertainty": 0.0,
         "pfa": 1e-3,
@@ -416,14 +466,14 @@ def _deframer(
 def test_the_receiver_returns_the_frame_and_the_deframer_reads_it() -> None:
     """The whole split, in one pass: decide, then deframe.
 
-    `push()` returns `frame_syms` bits — the frame as received, sync word
-    first — and `FrameDesc.deframe()` turns them into a payload and a
+    `push()` returns the description's `nbits` — the frame as received,
+    sync word first — and `FrameDesc.deframe()` turns them into a payload and a
     verdict. Neither object knows the other's job.
     """
     cap, payload, rx_kw = _link()
     rx = DsssBurstReceiver(**rx_kw)
     bits = np.asarray(rx.push(cap))
-    assert bits.size == rx_kw["frame_syms"], "one frame's worth of decisions"
+    assert bits.size == rx_kw["frame"].nbits, "one frame's worth of decisions"
 
     d = _deframer()
     got = np.asarray(d.deframe(bits))
@@ -558,7 +608,7 @@ def test_the_soft_bits_are_the_hard_ones_seen_a_second_way() -> None:
     bits = np.asarray(rx.push(cap))
     llr = np.asarray(rx.llrs(rx.llrs_max_out(1)))
 
-    assert llr.size == rx_kw["frame_syms"], "one LLR per frame symbol"
+    assert llr.size == rx_kw["frame"].nbits, "one LLR per frame symbol"
     # `push()` returns the same decisions as bits, so the two faces of one
     # rule must agree symbol for symbol, sync word included.
     hard = (llr < 0).astype(np.uint8)

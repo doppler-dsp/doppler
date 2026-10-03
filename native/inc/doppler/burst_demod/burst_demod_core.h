@@ -244,10 +244,19 @@ extern "C"
    * `dp_burst_demod_create` followed by `dp_burst_demod_set_sync` with the
    * same bits.
    *
-   * @param frame  the description (`const wfm_frame_desc_t *`).
-   * @param why    on a NULL return, receives a static sentence naming the
-   *               fix (a description refused by @ref dp_wfm_frame_desc_rx,
-   *               or a bad parameter); may be `NULL`.
+   * @param data_code      the data spreading code, 0/1 chips.
+   * @param data_code_len  its length (the spreading factor).
+   * @param frame          the description (`const wfm_frame_desc_t *`).
+   * @param spc            samples per chip.
+   * @param chip_rate      chips per second.
+   * @param carrier_hz     the carrier the baseband is offset by, Hz.
+   * @param max_rate       the Doppler rate searched, cycles/sample^2; 0
+   *                       selects the single-FFT estimate.
+   * @param est_segments   partials per acquisition period for the estimate.
+   * @param why            on a NULL return, receives a static sentence
+   *                       naming the fix (a description refused by
+   *                       @ref dp_wfm_frame_desc_rx, or a bad parameter);
+   *                       may be `NULL`.
    * @return the demodulator, or NULL with @p why set.
    *
    * @code

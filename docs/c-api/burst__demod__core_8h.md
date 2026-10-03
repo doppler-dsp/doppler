@@ -264,7 +264,14 @@ The sync word is the description's field 0 and `frame_syms` is its layout's leng
 **Parameters:**
 
 
+* `data_code` the data spreading code, 0/1 chips. 
+* `data_code_len` its length (the spreading factor). 
 * `frame` the description (`const  wfm_frame_desc_t *`). 
+* `spc` samples per chip. 
+* `chip_rate` chips per second. 
+* `carrier_hz` the carrier the baseband is offset by, Hz. 
+* `max_rate` the Doppler rate searched, cycles/sample^2; 0 selects the single-FFT estimate. 
+* `est_segments` partials per acquisition period for the estimate. 
 * `why` on a NULL return, receives a static sentence naming the fix (a description refused by [**dp\_wfm\_frame\_desc\_rx**](wfm__frame_8h.md#function-dp_wfm_frame_desc_rx), or a bad parameter); may be `NULL`. 
 
 

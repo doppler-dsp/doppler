@@ -1082,6 +1082,68 @@ dp_wfm_frame_desc_crc_ok (const wfm_frame_desc_t *d, const uint8_t *rx_bits)
   return -1; /* no CRC stage: "carries no check" is not "the check failed" */
 }
 
+int
+dp_wfm_frame_desc_rx (const wfm_frame_desc_t *d, uint8_t *sync,
+                      size_t sync_max, size_t *sync_len, size_t *frame_syms,
+                      const char **why)
+{
+  static const char *const NO_LAYOUT
+      = "the frame description does not lay out: it is empty, or a field, "
+        "stage or cover is refused by dp_wfm_frame_desc_layout";
+  static const char *const BAD_SYNC
+      = "field 0 is the sync word, so it must be bits the receiver knows: "
+        "not empty, not derived by a stage and not a data field";
+  static const char *const COVERED
+      = "a stage covers field 0, the sync word: the receiver would "
+        "correlate against bits nobody sent, so start the stage's cover "
+        "at field 1";
+  static const char *const PREAMBLE
+      = "field 0 is named \"preamble\": a DSSS preamble is sent unspread "
+        "and is not a field of the spread frame, so describe the frame from "
+        "its sync word";
+  static const char *const EMITS
+      = "a stage emits a new stream (a convolutional code): it covers the "
+        "sync word, so frame synchronisation would have to run after the "
+        "Viterbi; describe the frame without the inner code";
+  static const char *const TOO_BIG
+      = "the sync word is longer than the buffer for it";
+
+  const char             *r = NULL;
+  wfm_frame_desc_layout_t l;
+  if (!d || !sync_len || !frame_syms || dp_wfm_frame_desc_layout (d, &l) != 0
+      || l.n_fields == 0)
+    r = NO_LAYOUT;
+  else if (d->field[0].derived_by || d->field[0].seq.kind == WFM_SEQ_DATA
+           || l.field_bits[0] == 0)
+    r = BAD_SYNC;
+  else if (strcmp (d->field[0].name, "preamble") == 0)
+    r = PREAMBLE;
+  else if (l.out_bits != l.frame_bits)
+    r = EMITS;
+  else if (l.field_bits[0] > sync_max || !sync)
+    r = TOO_BIG;
+  else
+    for (unsigned s = 0; s < d->n_stages && !r; s++)
+      if (l.stage[s].n && d->stage[s].first_field == 0u)
+        r = COVERED;
+  if (r)
+    {
+      if (why)
+        *why = r;
+      return -1;
+    }
+  if (dp_wfm_field_render (&d->field[0], sync, l.field_bits[0])
+      != l.field_bits[0])
+    {
+      if (why)
+        *why = BAD_SYNC;
+      return -1;
+    }
+  *sync_len   = l.field_bits[0];
+  *frame_syms = l.frame_bits;
+  return 0;
+}
+
 /* ── the DSSS burst: a FRAME, then spread ──────────────────────────────
  *
  * These live here rather than in wfm_dsp.c because they are frame functions:

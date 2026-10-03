@@ -1284,8 +1284,36 @@ test_max_rate_bounds_the_acquisition (void)
  * twin of the same burst is the control that makes the last claim
  * non-vacuous: it DOES own its span.
  */
+/* The same receiver, told its frame by a DESCRIPTION: sync | payload | an
+ * optional CRC-16, built the way the transmitter's `dp_wfm_frame_fixed`
+ * builds it (doppler#1620). */
+static dp_dsss_burst_receiver_state_t *
+rx_from_desc (size_t payload, int crc, size_t fsyms)
+{
+  const wfm_seq_t sync
+      = { .kind = WFM_SEQ_LITERAL, .bits = sync_word (), .len = SYNC_LEN };
+  const wfm_seq_t pay
+      = { .kind = WFM_SEQ_LITERAL, .bits = payload_bits (), .len = payload };
+  wfm_frame_desc_t d;
+  if (dp_wfm_frame_fixed (&d, NULL, 0, &sync, &pay, crc) != 0)
+    return NULL;
+  const char                     *why = NULL;
+  dp_dsss_burst_receiver_state_t *s   = dp_dsss_burst_receiver_create_desc (
+      acq_code (), ACQ_SF, data_code (), DATA_SF, &d, REPS, SPC, 1.0e6, 55.0,
+      0.0, 1e-3, 0.9, 0.0, 0.0, 10, &why);
+  /* The caller may free its description at once: scribble on it to prove
+     the receiver kept nothing of it that it still reads. */
+  memset (&d, 0xA5, sizeof d);
+  if (s && s->frame_bits != fsyms)
+    {
+      dp_dsss_burst_receiver_destroy (s);
+      return NULL;
+    }
+  return s;
+}
+
 static int
-crc_none_case (size_t payload, int crc)
+crc_none_case (size_t payload, int crc, int via_desc)
 {
   const size_t AT = 9000u, LEAD = 2100u, CUT = 9400u, N = 40000u;
   const size_t fsyms = SYNC_LEN + payload + (crc ? 16u : 0u);
@@ -1304,9 +1332,13 @@ crc_none_case (size_t payload, int crc)
   for (size_t i = 0; i < REPS * ACQ_SF * SPC; i++)
     cap[AT - LEAD + i] += 0.35f * burst[i];
 
-  dp_dsss_burst_receiver_state_t *s = dp_dsss_burst_receiver_create (
-      acq_code (), ACQ_SF, data_code (), DATA_SF, sync_word (), SYNC_LEN, REPS,
-      SPC, 1.0e6, fsyms, 55.0, 0.0, 1e-3, 0.9, 0.0, 0.0, 10);
+  dp_dsss_burst_receiver_state_t *s
+      = via_desc
+            ? rx_from_desc (payload, crc, fsyms)
+            : dp_dsss_burst_receiver_create (acq_code (), ACQ_SF, data_code (),
+                                             DATA_SF, sync_word (), SYNC_LEN,
+                                             REPS, SPC, 1.0e6, fsyms, 55.0,
+                                             0.0, 1e-3, 0.9, 0.0, 0.0, 10);
   DP_REQUIRE (s != NULL);
   DP_REQUIRE (dp_burst_capture_configure_search_raw (s->cap, REPS, 1) == 0);
   uint8_t         out[4 * FRAME_SYMS];
@@ -1345,11 +1377,164 @@ crc_none_case (size_t payload, int crc)
 static int
 test_a_frame_with_no_crc_is_not_valid (void)
 {
-  if (crc_none_case (PAYLOAD, 1)) /* the control: CRC-16, owns its span */
+  /* Once told its frame by parts, once by the description: the decision
+     (D3) is the same either way. */
+  for (int via_desc = 0; via_desc < 2; via_desc++)
+    {
+      if (crc_none_case (PAYLOAD, 1, via_desc)) /* control: owns its span */
+        return 1;
+      if (crc_none_case (PAYLOAD, 0, via_desc)) /* 16 bits misread as CRC */
+        return 1;
+      if (crc_none_case (8u, 0, via_desc)) /* below sync_len + 16 */
+        return 1;
+    }
+  return 0;
+}
+
+/* ── the description constructor is the old one, byte for byte (#1620) ───
+ *
+ * A/B while both constructors exist (docs/design/rx-frame-description.md
+ * section 4.1): the same stimulus through a receiver built from its parts
+ * and one built from the description the transmitter spread. Everything a
+ * caller can read is compared with memcmp -- the bits push() returns, the
+ * events (frame_valid among them), the soft bits, the read-backs and the
+ * state blob -- over a clean burst, a burst under residual Doppler, and a
+ * capture of several. */
+static int
+same_receivers (const float _Complex *cap, size_t n_cap)
+{
+  dp_dsss_burst_receiver_state_t *a = make_rx ();
+  dp_dsss_burst_receiver_state_t *b = rx_from_desc (PAYLOAD, 1, FRAME_SYMS);
+  DP_REQUIRE (a != NULL && b != NULL);
+
+  const size_t BLK = 5000u;
+  for (size_t at = 0; at < n_cap; at += BLK)
+    {
+      const size_t len = n_cap - at < BLK ? n_cap - at : BLK;
+      const size_t m   = dp_dsss_burst_receiver_push_max_out (a, len);
+      DP_REQUIRE (dp_dsss_burst_receiver_push_max_out (b, len) == m);
+      uint8_t *oa = calloc (m ? m : 1, 1), *ob = calloc (m ? m : 1, 1);
+      DP_REQUIRE (oa && ob);
+      const size_t ga = dp_dsss_burst_receiver_push (a, cap + at, len, oa, m);
+      const size_t gb = dp_dsss_burst_receiver_push (b, cap + at, len, ob, m);
+      DP_CHECK_MSG (ga == gb && memcmp (oa, ob, ga) == 0,
+                    "the bits push() returns are identical");
+
+      const size_t ne = dp_dsss_burst_receiver_events_max_out (a);
+      DP_REQUIRE (dp_dsss_burst_receiver_events_max_out (b) == ne);
+      if (ne)
+        {
+          dsss_br_event_t *ea = calloc (ne, sizeof *ea);
+          dsss_br_event_t *eb = calloc (ne, sizeof *eb);
+          DP_REQUIRE (ea && eb);
+          DP_REQUIRE (dp_dsss_burst_receiver_events (a, ne, ea, ne) == ne);
+          DP_REQUIRE (dp_dsss_burst_receiver_events (b, ne, eb, ne) == ne);
+          DP_CHECK_MSG (memcmp (ea, eb, ne * sizeof *ea) == 0,
+                        "the events, frame_valid included, are identical");
+          free (ea);
+          free (eb);
+        }
+      const size_t nl = dp_dsss_burst_receiver_llrs_max_out (a, 0);
+      DP_REQUIRE (dp_dsss_burst_receiver_llrs_max_out (b, 0) == nl);
+      if (nl)
+        {
+          float *la = calloc (nl, sizeof *la), *lb = calloc (nl, sizeof *lb);
+          DP_REQUIRE (la && lb);
+          const size_t xa = dp_dsss_burst_receiver_llrs (a, 0, la, nl);
+          const size_t xb = dp_dsss_burst_receiver_llrs (b, 0, lb, nl);
+          DP_CHECK_MSG (xa == xb && memcmp (la, lb, xa * sizeof *la) == 0,
+                        "the soft bits are identical");
+          free (la);
+          free (lb);
+        }
+      free (oa);
+      free (ob);
+    }
+  DP_CHECK (dp_dsss_burst_receiver_get_n_bursts (a)
+            == dp_dsss_burst_receiver_get_n_bursts (b));
+  /* Not vacuous: identical NOTHING would pass every comparison above. */
+  DP_CHECK_MSG (dp_dsss_burst_receiver_get_n_bursts (a) >= 1u,
+                "the stimulus really is decoded, so identity means something");
+  DP_CHECK (dp_dsss_burst_receiver_get_est_freq_hz (a)
+            == dp_dsss_burst_receiver_get_est_freq_hz (b));
+  DP_CHECK (dp_dsss_burst_receiver_get_dropped (a)
+            == dp_dsss_burst_receiver_get_dropped (b));
+  DP_CHECK (a->burst_len == b->burst_len && a->frame_bits == b->frame_bits
+            && a->sync_len == b->sync_len);
+
+  const size_t nb = dp_dsss_burst_receiver_state_bytes (a);
+  DP_REQUIRE (dp_dsss_burst_receiver_state_bytes (b) == nb);
+  void *ba = malloc (nb), *bb = malloc (nb);
+  DP_REQUIRE (ba && bb);
+  dp_dsss_burst_receiver_get_state (a, ba);
+  dp_dsss_burst_receiver_get_state (b, bb);
+  DP_CHECK_MSG (memcmp (ba, bb, nb) == 0, "the state blobs are identical");
+  free (ba);
+  free (bb);
+  dp_dsss_burst_receiver_destroy (a);
+  dp_dsss_burst_receiver_destroy (b);
+  return 0;
+}
+
+static int
+test_the_description_constructor_is_byte_identical (void)
+{
+  static float _Complex cap[50000];
+
+  build_capture (cap, 40000, 5000, 0.0, 0.02, 12345u);
+  if (same_receivers (cap, 40000))
     return 1;
-  if (crc_none_case (PAYLOAD, 0)) /* 16 payload bits misread as a CRC */
+
+  build_capture (cap, 40000, 5000, 0.0004, 0.02,
+                 12345u); /* residual Doppler */
+  if (same_receivers (cap, 40000))
     return 1;
-  return crc_none_case (8u, 0); /* below sync_len + 16: no trailer */
+
+  const size_t at[3] = { 3000u, 14000u, 26000u };
+  build_capture_multi (cap, 50000, at, 3u, 0.02, 777u);
+  return same_receivers (cap, 50000);
+}
+
+/* A refused description is a NULL receiver whose `why` names the fix, and
+ * the bad-parameter refusal speaks through the same channel. */
+static int
+test_a_refused_description_names_its_fix (void)
+{
+  const wfm_seq_t pay
+      = { .kind = WFM_SEQ_LITERAL, .bits = payload_bits (), .len = PAYLOAD };
+  const wfm_seq_t sync
+      = { .kind = WFM_SEQ_LITERAL, .bits = sync_word (), .len = SYNC_LEN };
+  wfm_frame_desc_t d;
+  const char      *why = NULL;
+
+  /* field 0 is the payload, not a sync word: nothing to correlate against */
+  DP_REQUIRE (dp_wfm_frame_fixed (&d, NULL, 0, NULL, &pay, 1) == 0);
+  DP_CHECK (dp_dsss_burst_receiver_create_desc (
+                acq_code (), ACQ_SF, data_code (), DATA_SF, &d, REPS, SPC,
+                1.0e6, 55.0, 0.0, 1e-3, 0.9, 0.0, 0.0, 10, &why)
+                == NULL
+            && why && strstr (why, "sync word"));
+
+  /* a good description with a bad parameter: the receiver's own refusal */
+  DP_REQUIRE (dp_wfm_frame_fixed (&d, NULL, 0, &sync, &pay, 1) == 0);
+  why = NULL;
+  DP_CHECK (dp_dsss_burst_receiver_create_desc (
+                acq_code (), ACQ_SF, data_code (), DATA_SF, &d, 0 /* reps */,
+                SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0.0, 0.0, 10, &why)
+                == NULL
+            && why && strstr (why, "invalid parameter"));
+  /* ...and with `why` left NULL, both refusals are still a NULL, not a crash
+   */
+  DP_CHECK (dp_dsss_burst_receiver_create_desc (
+                acq_code (), ACQ_SF, data_code (), DATA_SF, &d, 0, SPC, 1.0e6,
+                55.0, 0.0, 1e-3, 0.9, 0.0, 0.0, 10, NULL)
+            == NULL);
+  DP_REQUIRE (dp_wfm_frame_fixed (&d, NULL, 0, NULL, &pay, 1) == 0);
+  DP_CHECK (dp_dsss_burst_receiver_create_desc (
+                acq_code (), ACQ_SF, data_code (), DATA_SF, &d, REPS, SPC,
+                1.0e6, 55.0, 0.0, 1e-3, 0.9, 0.0, 0.0, 10, NULL)
+            == NULL);
+  return 0;
 }
 
 int
@@ -1370,6 +1555,10 @@ main (void)
   if (test_a_failed_frame_gives_its_span_back ())
     return 1;
   if (test_a_frame_with_no_crc_is_not_valid ())
+    return 1;
+  if (test_the_description_constructor_is_byte_identical ())
+    return 1;
+  if (test_a_refused_description_names_its_fix ())
     return 1;
   if (test_silence_yields_no_burst ())
     return 1;

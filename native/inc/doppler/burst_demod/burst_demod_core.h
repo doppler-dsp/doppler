@@ -52,6 +52,7 @@
 #include "doppler/rs/rs_core.h"
 #include "doppler/pn/pn_core.h"
 #include "doppler/gold/gold_core.h"
+#include "doppler/wfm/wfm_frame.h"
 #include "doppler/mpsk/mpsk_core.h"
 #include "doppler/cvt/cvt_core.h"
 #ifdef __cplusplus
@@ -229,6 +230,46 @@ extern "C"
                                            double chip_rate, double carrier_hz,
                                            double max_rate, size_t frame_syms,
                                            size_t est_segments);
+
+  /**
+   * @brief Create a demodulator from the frame DESCRIPTION the transmitter
+   *        spread, in place of a sync word and a hand-counted `frame_syms`.
+   *
+   * The sync word is the description's field 0 and `frame_syms` is its
+   * layout's length, both read by @ref dp_wfm_frame_desc_rx, so the receiver
+   * and the transmitter are told the same thing by the same code. The
+   * description is read here and not kept: the sync bits are copied into the
+   * demodulator, so the caller may free `frame` at once. Everything else is
+   * as @ref dp_burst_demod_create, and the result is byte-identical to
+   * `dp_burst_demod_create` followed by `dp_burst_demod_set_sync` with the
+   * same bits.
+   *
+   * @param frame  the description (`const wfm_frame_desc_t *`).
+   * @param why    on a NULL return, receives a static sentence naming the
+   *               fix (a description refused by @ref dp_wfm_frame_desc_rx,
+   *               or a bad parameter); may be `NULL`.
+   * @return the demodulator, or NULL with @p why set.
+   *
+   * @code
+   * const uint8_t    sb[3] = { 1, 0, 1 }, dcode[4] = { 1, 0, 1, 1 };
+   * const wfm_seq_t  sync  = { .kind = WFM_SEQ_LITERAL, .bits = sb,
+   *                            .len = 3 };
+   * const wfm_seq_t  data  = { .kind = WFM_SEQ_DATA, .len = 8 };
+   * wfm_frame_desc_t f;
+   * dp_wfm_frame_fixed (&f, NULL, 0, &sync, &data, 1); // sync|data:8|crc16
+   * const char *why = NULL;
+   * dp_burst_demod_state_t *d = dp_burst_demod_create_desc (
+   *     dcode, 4, &f, 4, 1e6, 0.0, 0.0, 10, &why);
+   * if (!d || dp_burst_demod_llrs_max_out (d, 1) != 3 + 8 + 16)
+   *   return 1;
+   * dp_burst_demod_destroy (d);
+   * @endcode
+   */
+  dp_burst_demod_state_t *dp_burst_demod_create_desc (
+      const uint8_t *data_code, size_t data_code_len,
+      const wfm_frame_desc_t *frame, size_t spc, double chip_rate,
+      double carrier_hz, double max_rate, size_t est_segments,
+      const char **why);
 
   /** @brief Destroy a demodulator.  @param state May be NULL. */
   void dp_burst_demod_destroy (dp_burst_demod_state_t *state);

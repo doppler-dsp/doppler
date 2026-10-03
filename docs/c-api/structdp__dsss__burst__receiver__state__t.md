@@ -55,6 +55,7 @@ _DsssBurstReceiver state._ [More...](#detailed-description)
 |  [**dsss\_br\_event\_t**](structdsss__br__event__t.md) \* | [**ev**](#variable-ev)  <br> |
 |  size\_t | [**ev\_cap**](#variable-ev_cap)  <br> |
 |  size\_t | [**ev\_len**](#variable-ev_len)  <br> |
+|  [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* | [**frame**](#variable-frame)  <br> |
 |  size\_t | [**frame\_bits**](#variable-frame_bits)  <br> |
 |  size\_t | [**frame\_syms**](#variable-frame_syms)  <br> |
 |  int | [**frame\_valid**](#variable-frame_valid)  <br> |
@@ -456,6 +457,24 @@ size_t dp_dsss_burst_receiver_state_t::ev_len;
 
 
 Records the last push() wrote. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable frame 
+
+```C++
+wfm_frame_desc_t* dp_dsss_burst_receiver_state_t::frame;
+```
+
+
+
+The frame description this receiver was built from, an owned copy whose sequences are NOT kept (the verdict reads only the layout), or NULL when built from a sync word and a `frame_syms`, which assumes `sync | payload | CRC-16`. 
  
 
 

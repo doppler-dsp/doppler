@@ -54,6 +54,36 @@ dp_burst_demod_create (const uint8_t *data_code, size_t data_code_len,
   return s;
 }
 
+dp_burst_demod_state_t *
+dp_burst_demod_create_desc (const uint8_t *data_code, size_t data_code_len,
+                            const wfm_frame_desc_t *frame, size_t spc,
+                            double chip_rate, double carrier_hz,
+                            double max_rate, size_t est_segments,
+                            const char **why)
+{
+  /* The sync word's bits, rendered once from field 0 and handed to the old
+     constructor's own set_sync: one way to build a demodulator, two ways to
+     name its frame. */
+  uint8_t                *sync     = dp_xmalloc (WFM_FIELD_MAX_BITS);
+  size_t                  sync_len = 0, frame_syms = 0;
+  dp_burst_demod_state_t *s = NULL;
+  if (dp_wfm_frame_desc_rx (frame, sync, WFM_FIELD_MAX_BITS, &sync_len,
+                            &frame_syms, why)
+      == 0)
+    {
+      s = dp_burst_demod_create (data_code, data_code_len, spc, chip_rate,
+                                 carrier_hz, max_rate, frame_syms,
+                                 est_segments);
+      if (s)
+        dp_burst_demod_set_sync (s, sync, sync_len);
+      else if (why)
+        *why = "BurstDemod: invalid parameter (need a data code, spc >= 1, "
+               "chip_rate > 0, max_rate >= 0, est_segments >= 1)";
+    }
+  free (sync);
+  return s;
+}
+
 void
 dp_burst_demod_destroy (dp_burst_demod_state_t *s)
 {

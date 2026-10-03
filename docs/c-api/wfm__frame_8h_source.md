@@ -218,6 +218,10 @@ extern "C"
   int dp_wfm_frame_desc_crc_ok (const wfm_frame_desc_t *d,
                              const uint8_t          *rx_bits);
 
+  int dp_wfm_frame_desc_rx (const wfm_frame_desc_t *d, uint8_t *sync,
+                            size_t sync_max, size_t *sync_len,
+                            size_t *frame_syms, const char **why);
+
 
 #ifdef __cplusplus
 }

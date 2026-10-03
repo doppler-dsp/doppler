@@ -363,6 +363,7 @@ dp_burst_capture_set_state function
 dp_burst_capture_state_bytes function
 dp_burst_capture_window function
 dp_burst_demod_create function
+dp_burst_demod_create_desc function
 dp_burst_demod_demod function
 dp_burst_demod_demod_max_out function
 dp_burst_demod_destroy function
@@ -717,6 +718,7 @@ dp_dot_q15 function
 dp_dot_q8 function
 dp_dsss_burst_receiver_configure_search_raw function
 dp_dsss_burst_receiver_create function
+dp_dsss_burst_receiver_create_desc function
 dp_dsss_burst_receiver_destroy function
 dp_dsss_burst_receiver_events function
 dp_dsss_burst_receiver_events_max_out function
@@ -1540,6 +1542,7 @@ dp_wfm_frame_check function
 dp_wfm_frame_copy function
 dp_wfm_frame_desc_crc_ok function
 dp_wfm_frame_desc_layout function
+dp_wfm_frame_desc_rx function
 dp_wfm_frame_field_index function
 dp_wfm_frame_fixed function
 dp_wfm_frame_free function

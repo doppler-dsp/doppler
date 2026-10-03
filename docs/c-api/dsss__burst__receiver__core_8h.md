@@ -82,6 +82,7 @@ _DsssBurstReceiver — the burst chain composed in C._ [More...](#detailed-descr
 | ---: | :--- |
 |  int | [**dp\_dsss\_burst\_receiver\_configure\_search\_raw**](#function-dp_dsss_burst_receiver_configure_search_raw) ([**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the acquisition search grid, bypassing the auto-sizing._  |
 |  [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* | [**dp\_dsss\_burst\_receiver\_create**](#function-dp_dsss_burst_receiver_create) (const uint8\_t \* acq\_code, size\_t acq\_code\_len, const uint8\_t \* data\_code, size\_t data\_code\_len, const uint8\_t \* sync, size\_t sync\_len, size\_t reps, size\_t spc, double chip\_rate, size\_t frame\_syms, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, double carrier\_hz, double max\_rate, size\_t est\_segments) <br>_Create a burst receiver: acquisition, refine and demodulation composed behind one push()._  |
+|  [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* | [**dp\_dsss\_burst\_receiver\_create\_desc**](#function-dp_dsss_burst_receiver_create_desc) (const uint8\_t \* acq\_code, size\_t acq\_code\_len, const uint8\_t \* data\_code, size\_t data\_code\_len, const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* frame, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, double carrier\_hz, double max\_rate, size\_t est\_segments, const char \*\* why) <br>_Create a receiver from the frame DESCRIPTION the transmitter spread, in place of a sync word and a hand-counted_ `frame_syms` _._ |
 |  void | [**dp\_dsss\_burst\_receiver\_destroy**](#function-dp_dsss_burst_receiver_destroy) ([**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br>_Destroy a dsss\_burst\_receiver instance and release all memory._  |
 |  size\_t | [**dp\_dsss\_burst\_receiver\_events**](#function-dp_dsss_burst_receiver_events) ([**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state, size\_t n, [**dsss\_br\_event\_t**](structdsss__br__event__t.md) \* out, size\_t max\_out) <br>_The event record for each burst the last push() returned._  |
 |  size\_t | [**dp\_dsss\_burst\_receiver\_events\_max\_out**](#function-dp_dsss_burst_receiver_events_max_out) ([**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br>_Max records events() writes: one per burst the last push() returned._  |
@@ -307,6 +308,75 @@ Caller must call [**dp\_dsss\_burst\_receiver\_destroy()**](dsss__burst__receive
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_dsss\_burst\_receiver\_create\_desc 
+
+_Create a receiver from the frame DESCRIPTION the transmitter spread, in place of a sync word and a hand-counted_ `frame_syms` _._
+```C++
+dp_dsss_burst_receiver_state_t * dp_dsss_burst_receiver_create_desc (
+    const uint8_t * acq_code,
+    size_t acq_code_len,
+    const uint8_t * data_code,
+    size_t data_code_len,
+    const wfm_frame_desc_t * frame,
+    size_t reps,
+    size_t spc,
+    double chip_rate,
+    double cn0_dbhz,
+    double doppler_uncertainty,
+    double pfa,
+    double pd,
+    double carrier_hz,
+    double max_rate,
+    size_t est_segments,
+    const char ** why
+) 
+```
+
+
+
+The sync word is the description's field 0, `frame_syms` its layout's length (both from [**dp\_wfm\_frame\_desc\_rx**](wfm__frame_8h.md#function-dp_wfm_frame_desc_rx)), and a frame's verdict is [**dp\_wfm\_frame\_desc\_crc\_ok**](wfm__frame_8h.md#function-dp_wfm_frame_desc_crc_ok) over the description, so a frame with no CRC stage is never valid (decision D3 of docs/design/rx-frame-description.md). The description is copied (without its sequences), so the caller may free it at once. Otherwise as [**dp\_dsss\_burst\_receiver\_create**](dsss__burst__receiver__core_8h.md#function-dp_dsss_burst_receiver_create), and byte-identical to it for a `sync | payload | CRC-16` frame.
+
+
+
+
+**Parameters:**
+
+
+* `frame` the description (`const  wfm_frame_desc_t *`). 
+* `why` on a NULL return, a static sentence naming the fix; may be `NULL`. 
+
+
+
+**Returns:**
+
+the receiver, or NULL with `why` set.
+
+
+
+```C++
+const uint8_t   sb[3] = { 1, 0, 1 }, acq[7] = { 1, 1, 1, 0, 1, 0, 0 };
+const uint8_t   dcode[4] = { 1, 0, 1, 1 };
+const wfm_seq_t sync = { .kind = WFM_SEQ_LITERAL, .bits = sb, .len = 3 };
+const wfm_seq_t data = { .kind = WFM_SEQ_DATA, .len = 8 };
+wfm_frame_desc_t f;
+dp_wfm_frame_fixed (&f, NULL, 0, &sync, &data, 1); // sync|data:8|crc16
+const char *why = NULL;
+dp_dsss_burst_receiver_state_t *rx = dp_dsss_burst_receiver_create_desc (
+    acq, 7, dcode, 4, &f, 3, 2, 1e6, 60.0, 0.0, 1e-3, 0.9, 0.0, 0.0, 10,
+    &why);
+if (!rx || rx->frame_bits != 3 + 8 + 16)
+  return 1;
+dp_dsss_burst_receiver_destroy (rx);
+```
+ 
 
 
         

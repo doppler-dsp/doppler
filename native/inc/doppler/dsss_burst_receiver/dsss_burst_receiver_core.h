@@ -90,6 +90,12 @@ typedef struct {
   size_t   acq_code_len; /**< Preamble code length, chips.                 */
   size_t   data_code_len;/**< Data code length, chips.                     */
   size_t   sync_len;     /**< Sync word length, symbols.                   */
+  wfm_frame_desc_t *frame; /**< The frame description this receiver was
+                              built from, an owned copy whose sequences are
+                              NOT kept (the verdict reads only the layout),
+                              or NULL when built from a sync word and a
+                              `frame_syms`, which assumes `sync | payload
+                              | CRC-16`.                                   */
   size_t   reps;         /**< Preamble code repetitions.                   */
   size_t   spc;          /**< Samples per chip.                            */
   double   chip_rate;    /**< Chip rate, Hz.                               */
@@ -229,6 +235,47 @@ typedef struct {
  * @endcode
  */
 dp_dsss_burst_receiver_state_t *dp_dsss_burst_receiver_create(const uint8_t *acq_code, size_t acq_code_len, const uint8_t *data_code, size_t data_code_len, const uint8_t *sync, size_t sync_len, size_t reps, size_t spc, double chip_rate, size_t frame_syms, double cn0_dbhz, double doppler_uncertainty, double pfa, double pd, double carrier_hz, double max_rate, size_t est_segments);
+
+/**
+ * @brief Create a receiver from the frame DESCRIPTION the transmitter spread,
+ *        in place of a sync word and a hand-counted `frame_syms`.
+ *
+ * The sync word is the description's field 0, `frame_syms` its layout's
+ * length (both from @ref dp_wfm_frame_desc_rx), and a frame's verdict is
+ * @ref dp_wfm_frame_desc_crc_ok over the description, so a frame with no CRC
+ * stage is never valid (decision D3 of
+ * docs/design/rx-frame-description.md). The description is copied (without
+ * its sequences), so the caller may free it at once. Otherwise as
+ * @ref dp_dsss_burst_receiver_create, and byte-identical to it for a
+ * `sync | payload | CRC-16` frame.
+ *
+ * @param frame  the description (`const wfm_frame_desc_t *`).
+ * @param why    on a NULL return, a static sentence naming the fix; may be
+ *               `NULL`.
+ * @return the receiver, or NULL with @p why set.
+ *
+ * @code
+ * const uint8_t   sb[3] = { 1, 0, 1 }, acq[7] = { 1, 1, 1, 0, 1, 0, 0 };
+ * const uint8_t   dcode[4] = { 1, 0, 1, 1 };
+ * const wfm_seq_t sync = { .kind = WFM_SEQ_LITERAL, .bits = sb, .len = 3 };
+ * const wfm_seq_t data = { .kind = WFM_SEQ_DATA, .len = 8 };
+ * wfm_frame_desc_t f;
+ * dp_wfm_frame_fixed (&f, NULL, 0, &sync, &data, 1); // sync|data:8|crc16
+ * const char *why = NULL;
+ * dp_dsss_burst_receiver_state_t *rx = dp_dsss_burst_receiver_create_desc (
+ *     acq, 7, dcode, 4, &f, 3, 2, 1e6, 60.0, 0.0, 1e-3, 0.9, 0.0, 0.0, 10,
+ *     &why);
+ * if (!rx || rx->frame_bits != 3 + 8 + 16)
+ *   return 1;
+ * dp_dsss_burst_receiver_destroy (rx);
+ * @endcode
+ */
+dp_dsss_burst_receiver_state_t *dp_dsss_burst_receiver_create_desc(
+    const uint8_t *acq_code, size_t acq_code_len, const uint8_t *data_code,
+    size_t data_code_len, const wfm_frame_desc_t *frame, size_t reps,
+    size_t spc, double chip_rate, double cn0_dbhz, double doppler_uncertainty,
+    double pfa, double pd, double carrier_hz, double max_rate,
+    size_t est_segments, const char **why);
 
 /**
  * @brief Destroy a dsss_burst_receiver instance and release all memory.

@@ -35,9 +35,9 @@
  * sidelobes set the CFAR reference, which changes how often the refine and
  * demod stages run and therefore what this benchmark measures.
  */
-#include "doppler/dp_crc16.h"
 #include "doppler/dsss_burst_receiver/dsss_burst_receiver_core.h"
 #include "doppler/pn/pn_core.h"
+#include "doppler/wfm/wfm_frame.h"
 
 #include "jm_bench.h"
 
@@ -59,9 +59,9 @@
 #define CHIP_RATE 1.0e6
 #define CN0_DBHZ 55.0
 
-/* One burst is REPS*ACQ_SF*SPC preamble + (SYNC_LEN+PAYLOAD+16) symbols of
- * DATA_SF*SPC each = 496 + 1952 = 2448 samples. The block is sized to hold
- * one comfortably, with noise either side. */
+/* One burst is the REPS*ACQ_SF*SPC-sample unspread preamble and the spread
+ * frame its description lays out (2448 samples for sync | 32 bits | CRC-16).
+ * The block is sized to hold one comfortably, with noise either side. */
 #define BENCH_N 8192
 #define BURST_AT 2048
 
@@ -126,34 +126,25 @@ payload_bits (void)
   return p;
 }
 
-static size_t
-put_symbol (float _Complex *y, size_t n, const uint8_t *dcode, uint8_t bit)
-{
-  float a = csign (bit);
-  for (size_t c = 0; c < DATA_SF; c++)
-    for (size_t k = 0; k < SPC; k++)
-      y[n++] = a * csign (dcode[c]);
-  return n;
-}
+/* The frame -- sync | payload | CRC-16 -- described ONCE: the burst is
+ * spread from this description and the receiver is built from it, so the
+ * receiver's sync word and frame length are the transmitter's. (It used to
+ * be told a `frame_syms` read back off the burst's own sample count; the
+ * description's layout says it directly.) */
+static wfm_frame_desc_t frame;
 
-/** @brief One burst: preamble, sync, payload, CRC-16, at zero carrier. */
+/** @brief One burst: preamble, then the spread frame, at zero carrier. */
 static size_t
 build_burst (float _Complex *y)
 {
-  const uint8_t *acode = acq_code (), *dcode = data_code ();
-  const uint8_t *sy = sync_word (), *pl = payload_bits ();
-  size_t         n = 0;
-  for (size_t r = 0; r < REPS; r++)
-    for (size_t c = 0; c < ACQ_SF; c++)
-      for (size_t k = 0; k < SPC; k++)
-        y[n++] = csign (acode[c]);
-  for (size_t j = 0; j < SYNC_LEN; j++)
-    n = put_symbol (y, n, dcode, sy[j]);
-  for (size_t j = 0; j < PAYLOAD; j++)
-    n = put_symbol (y, n, dcode, pl[j]);
-  uint16_t crc = dp_crc16_ccitt (pl, PAYLOAD);
-  for (size_t j = 0; j < 16u; j++)
-    n = put_symbol (y, n, dcode, (uint8_t)((crc >> (15u - j)) & 1u));
+  static uint8_t chips[2048];
+  const size_t   nc
+      = dp_wfm_dsss_desc_chips (&frame, NULL, acq_code (), ACQ_SF, REPS,
+                                data_code (), DATA_SF, chips, sizeof chips);
+  size_t n = 0;
+  for (size_t c = 0; c < nc; c++)
+    for (size_t k = 0; k < SPC; k++)
+      y[n++] = csign (chips[c]);
   return n;
 }
 
@@ -171,20 +162,18 @@ fill_noise (float _Complex *x, size_t n, double sigma, uint32_t seed)
     }
 }
 
-/* Symbols the frame occupies, from the sync word on: what the receiver is
- * told to slice. Read off the burst build_burst() actually produced -- its
- * samples past the preamble, one symbol per DATA_SF*SPC of them -- rather
- * than restated, so the receiver cannot be told a different frame from the
- * one transmitted. It was passed PAYLOAD (32 of 61) until doppler#1669,
- * which timed half a decode and failed every CRC. */
+/* Symbols the frame occupies, from the sync word on: the description's
+ * layout, so what the receiver slices is by construction what was sent. It
+ * was passed PAYLOAD (32 of 61) until doppler#1669, which timed half a
+ * decode and failed every CRC. */
 static size_t frame_syms;
 
 static dp_dsss_burst_receiver_state_t *
 make_rx (void)
 {
-  return dp_dsss_burst_receiver_create (
-      acq_code (), ACQ_SF, data_code (), DATA_SF, sync_word (), SYNC_LEN, REPS,
-      SPC, CHIP_RATE, frame_syms, CN0_DBHZ, 0.0, 1e-3, 0.9, 0.0, 0.0, 10);
+  return dp_dsss_burst_receiver_create_desc (
+      acq_code (), ACQ_SF, data_code (), DATA_SF, &frame, REPS, SPC, CHIP_RATE,
+      CN0_DBHZ, 0.0, 1e-3, 0.9, 0.0, 0.0, 10, NULL);
 }
 
 /**
@@ -254,23 +243,28 @@ main (void)
 
   fill_noise (idle, BENCH_N, 0.1, 12345u);
   fill_noise (hit, BENCH_N, 0.1, 12345u);
-  /* The frame's length is read off the burst, so a burst whose tail past
-     the preamble is not a whole number of symbols has no length to read:
-     dividing would drop the remainder and tell the receiver a frame nobody
-     sent. Refused before anything is timed. */
-  const size_t nb  = build_burst (burst);
-  const size_t pre = REPS * ACQ_SF * SPC;
-  const size_t sym = DATA_SF * SPC;
-  if (nb <= pre || (nb - pre) % sym != 0)
+  const wfm_seq_t sync
+      = { .kind = WFM_SEQ_LITERAL, .bits = sync_word (), .len = SYNC_LEN };
+  const wfm_seq_t pay
+      = { .kind = WFM_SEQ_LITERAL, .bits = payload_bits (), .len = PAYLOAD };
+  wfm_frame_desc_layout_t lay;
+  if (dp_wfm_frame_fixed (&frame, NULL, 0, &sync, &pay, 1) != 0
+      || dp_wfm_frame_desc_layout (&frame, &lay) != 0)
     {
-      (void)fprintf (stderr,
-                     "bench_dsss_burst_receiver: the burst's %zu samples past "
-                     "the preamble are not a whole number of %zu-sample "
-                     "symbols\n",
-                     nb > pre ? nb - pre : 0u, sym);
+      (void)fprintf (stderr, "bench_dsss_burst_receiver: bad description\n");
       return 1;
     }
-  frame_syms = (nb - pre) / sym;
+  frame_syms                            = lay.frame_bits;
+  const size_t                    nb    = build_burst (burst);
+  dp_dsss_burst_receiver_state_t *probe = make_rx ();
+  if (nb == 0 || probe == NULL)
+    {
+      (void)fprintf (stderr,
+                     "bench_dsss_burst_receiver: no burst, or the receiver "
+                     "refused its description\n");
+      return 1;
+    }
+  dp_dsss_burst_receiver_destroy (probe);
   for (size_t i = 0; i < nb && BURST_AT + i < BENCH_N; i++)
     hit[BURST_AT + i] += burst[i];
 

@@ -71,9 +71,18 @@
 #define ESN0_DB 12.0
 #define CN0_DBHZ 60.0
 
-#define FRAME_SYMS (SYNC_LEN + PAYLOAD + 16u) /* sync | payload | CRC-16 */
-#define BURST_LEN ((REPS * ACQ_SF + FRAME_SYMS * DATA_SF) * SPC)
 #define CAP_MAX 200000u
+/* Scratch for one frame's symbols; a bound, not a length. */
+#define MAX_FRAME 256u
+
+/* THE frame, described once: [sync | payload | crc16]. The transmitter
+ * spreads it (the source below carries a pointer to it) and the receiver is
+ * built from it, so neither is told a sync word or a length by hand: the
+ * receiver reads the sync from field 0 and the length from the layout. It is
+ * static because a source BORROWS its description. */
+static wfm_frame_desc_t frame;
+static size_t frame_syms; /* the layout's frame_bits, sync included */
+static size_t burst_len;  /* preamble + spread frame, in samples */
 
 static const char SYNC_BITS[SYNC_LEN + 1] = "0000011001010";
 
@@ -119,8 +128,7 @@ dsss_source (uint8_t *acq, uint8_t *data, uint8_t *sy, uint8_t *payload)
      engine spreads. A source carries no sync word or CRC of its own. The
      description is borrowed, so it is static: it outlives every source this
      returns. */
-  static wfm_frame_desc_t frame;
-  const wfm_seq_t         sync
+  const wfm_seq_t sync
       = { .kind = WFM_SEQ_LITERAL, .bits = sy, .len = SYNC_LEN };
   if (dp_wfm_source_common_frame (&src, &sync, 1, &frame) == 0)
     src.frame = &frame;
@@ -154,21 +162,26 @@ compose (wfm_source_t *src, size_t repeats, size_t gap, float complex *out,
   return total;
 }
 
+/** @brief The receiver, built from the description the transmitter spread. */
 static dp_dsss_burst_receiver_state_t *
-make_rx (const uint8_t *acode, const uint8_t *dcode, const uint8_t *sy)
+make_rx (const uint8_t *acode, const uint8_t *dcode)
 {
-  return dp_dsss_burst_receiver_create (
-      acode, ACQ_SF, dcode, DATA_SF, sy, SYNC_LEN, REPS, SPC, CHIP_RATE,
-      FRAME_SYMS, CN0_DBHZ, 0.0, 1e-3, 0.9, 0.0, 0.0, 10);
+  const char                     *why = NULL;
+  dp_dsss_burst_receiver_state_t *rx  = dp_dsss_burst_receiver_create_desc (
+      acode, ACQ_SF, dcode, DATA_SF, &frame, REPS, SPC, CHIP_RATE, CN0_DBHZ,
+      0.0, 1e-3, 0.9, 0.0, 0.0, 10, &why);
+  if (!rx)
+    fprintf (stderr, "create_desc refused: %s\n", why ? why : "(no reason)");
+  return rx;
 }
 
 /** @brief Push `cap` in `block` chunks; return payloads decoded. */
 static size_t
 decode_in_blocks (const float complex *cap, size_t cap_len, size_t block,
                   const uint8_t *acode, const uint8_t *dcode,
-                  const uint8_t *sy, uint8_t *first_payload)
+                  uint8_t *first_payload)
 {
-  dp_dsss_burst_receiver_state_t *rx = make_rx (acode, dcode, sy);
+  dp_dsss_burst_receiver_state_t *rx = make_rx (acode, dcode);
   if (!rx)
     return 0;
   /* The buffer is the CALLER's, and its size comes from push_max_out on the
@@ -191,13 +204,13 @@ decode_in_blocks (const float complex *cap, size_t cap_len, size_t block,
       size_t          nev = dp_dsss_burst_receiver_events_max_out (rx);
       nev = dp_dsss_burst_receiver_events (rx, nev, ev,
                                            sizeof ev / sizeof *ev);
-      for (size_t i = 0; i < nev && i < got / FRAME_SYMS; i++)
+      for (size_t i = 0; i < nev && i < got / frame_syms; i++)
         {
           if (!ev[i].frame_valid)
             continue;
           if (!kept && first_payload)
             {
-              memcpy (first_payload, out + i * FRAME_SYMS, FRAME_SYMS);
+              memcpy (first_payload, out + i * frame_syms, frame_syms);
               kept = 1;
             }
           total++;
@@ -218,14 +231,23 @@ main (void)
   for (size_t i = 0; i < PAYLOAD; i++)
     payload[i] = (uint8_t)((i * 7u + 3u) & 1u);
 
-  wfm_source_t src = dsss_source (acode, dcode, sy, payload);
+  wfm_source_t            src = dsss_source (acode, dcode, sy, payload);
+  wfm_frame_desc_layout_t lay;
+  if (src.frame != &frame || dp_wfm_frame_desc_layout (&frame, &lay) != 0
+      || lay.frame_bits > MAX_FRAME)
+    {
+      fprintf (stderr, "the frame description does not lay out\n");
+      return 1;
+    }
+  frame_syms = lay.frame_bits;
+  burst_len  = dp_wfm_dsss_desc_nchips (&frame, ACQ_SF, REPS, DATA_SF) * SPC;
 
   /* The spans a caller must respect, read from the object rather than
      restated: `min_gap` is the dead air to leave between bursts, edge to
      edge, and `retain_span` is the history kept per anchor. `refine_span`,
      which `min_gap` is derived from, is a start-to-start reach -- reading it
      as a spacing was doppler#1514. */
-  dp_dsss_burst_receiver_state_t *probe = make_rx (acode, dcode, sy);
+  dp_dsss_burst_receiver_state_t *probe = make_rx (acode, dcode);
   if (!probe)
     {
       fprintf (stderr, "create failed\n");
@@ -240,7 +262,7 @@ main (void)
   printf ("=== DsssBurstReceiver — the burst chain as one object ===\n");
   printf ("  waveform    one wfmgen segment via dp_wfm_compose_create()\n");
   printf ("  burst_len   %6zu samples   (%u-chip preamble x%u, spc %u)\n",
-          (size_t)BURST_LEN, ACQ_SF, REPS, SPC);
+          burst_len, ACQ_SF, REPS, SPC);
   printf ("  min_gap     %6zu           dead air to leave between bursts\n",
           min_gap);
   printf ("  retain_span %6zu           history kept per anchor\n\n",
@@ -257,8 +279,8 @@ main (void)
         fprintf (stderr, "compose failed\n");
         return 1;
       }
-    uint8_t got[FRAME_SYMS];
-    size_t  d     = decode_in_blocks (cap, n, n, acode, dcode, sy, got);
+    uint8_t got[MAX_FRAME];
+    size_t  d     = decode_in_blocks (cap, n, n, acode, dcode, got);
     int     exact = (d == 1u);
     /* push() hands back the FRAME — this receiver stops at decisions
        (doppler#1022) — so the payload is a slice, and the trailer is
@@ -276,7 +298,7 @@ main (void)
     for (size_t b = 0; b < sizeof blocks / sizeof *blocks; b++)
       {
         size_t got_n
-            = decode_in_blocks (cap, n, blocks[b], acode, dcode, sy, NULL);
+            = decode_in_blocks (cap, n, blocks[b], acode, dcode, NULL);
         printf ("      %6zu-sample blocks -> %zu burst(s)\n", blocks[b],
                 got_n);
         if (got_n != 1u)
@@ -287,8 +309,8 @@ main (void)
       }
 
     /* ── §3  a split burst is held, and `pending` says so ──────────────── */
-    dp_dsss_burst_receiver_state_t *rx  = make_rx (acode, dcode, sy);
-    size_t                          cut = BURST_LEN / 2u;
+    dp_dsss_burst_receiver_state_t *rx  = make_rx (acode, dcode);
+    size_t                          cut = burst_len / 2u;
     size_t   cap_out = dp_dsss_burst_receiver_push_max_out (rx, n);
     uint8_t *out     = malloc (cap_out);
     size_t   a1   = dp_dsss_burst_receiver_push (rx, cap, cut, out, cap_out);
@@ -297,9 +319,9 @@ main (void)
         = dp_dsss_burst_receiver_push (rx, cap + cut, n - cut, out, cap_out);
     printf ("§3  split mid-burst: push 1 -> %zu payload(s), pending %zu;"
             "  push 2 -> %zu, pending %zu\n",
-            a1 / FRAME_SYMS, held, a2 / FRAME_SYMS,
+            a1 / frame_syms, held, a2 / frame_syms,
             dp_dsss_burst_receiver_get_pending (rx));
-    int ok = (a1 == 0 && held == 1u && a2 == FRAME_SYMS
+    int ok = (a1 == 0 && held == 1u && a2 == frame_syms
               && dp_dsss_burst_receiver_get_pending (rx) == 0);
     for (size_t i = 0; i < PAYLOAD && ok; i++)
       ok = (out[SYNC_LEN + i] == payload[i]);
@@ -321,8 +343,8 @@ main (void)
        small blocks alike (doppler#1527). */
     size_t want = 4u;
     size_t n    = compose (&src, want, min_gap, cap, CAP_MAX);
-    size_t dw   = decode_in_blocks (cap, n, n, acode, dcode, sy, NULL);
-    size_t ds   = decode_in_blocks (cap, n, 333u, acode, dcode, sy, NULL);
+    size_t dw   = decode_in_blocks (cap, n, n, acode, dcode, NULL);
+    size_t ds   = decode_in_blocks (cap, n, 333u, acode, dcode, NULL);
     printf ("§4  %zu bursts, %zu samples of dead air (min_gap): %zu decoded"
             " whole, %zu in 333-sample blocks\n",
             want, min_gap, dw, ds);
@@ -345,10 +367,10 @@ main (void)
         = ESN0_DB + 10.0 * log10 (CHIP_RATE / (double)DATA_SF);
 
     const size_t want    = 4u;
-    const size_t spacing = BURST_LEN + min_gap; /* start to start */
+    const size_t spacing = burst_len + min_gap; /* start to start */
     size_t       n       = compose (&src, want, min_gap, cap, CAP_MAX);
 
-    dp_dsss_burst_receiver_state_t *rx = make_rx (acode, dcode, sy);
+    dp_dsss_burst_receiver_state_t *rx = make_rx (acode, dcode);
     if (!rx || !n)
       {
         fprintf (stderr, "§5 setup failed\n");
@@ -365,7 +387,7 @@ main (void)
     nev = dp_dsss_burst_receiver_events (rx, nev, ev, sizeof ev / sizeof *ev);
 
     printf ("§5  every read-back, per burst (%zu payload(s), %zu event(s)):\n",
-            got / FRAME_SYMS, nev);
+            got / frame_syms, nev);
     printf ("       # %8s %8s %8s %9s %8s %8s %8s\n", "start", "dopp_hz",
             "res_hz", "cn0_dBHz", "freq_hz", "rate_hz", "conf_dB");
     for (size_t i = 0; i < nev; i++)
@@ -443,18 +465,18 @@ main (void)
         }
       const size_t nbits  = dp_frame_deframe_max_out (f, 0);
       uint8_t     *undone = malloc (nbits ? nbits : 1u);
-      int          all_ok = (nbits == FRAME_SYMS) && undone != NULL;
+      int          all_ok = (nbits == frame_syms) && undone != NULL;
       printf ("§6  deframed by dp_frame_deframe() (the receiver has no "
               "opinion):\n");
       for (size_t i = 0; i < nev && all_ok; i++)
         {
-          const size_t got_n = dp_frame_deframe (f, out + i * FRAME_SYMS,
-                                                 FRAME_SYMS, undone, nbits);
+          const size_t got_n = dp_frame_deframe (f, out + i * frame_syms,
+                                                 frame_syms, undone, nbits);
           /* The payload is found by NAME: a frame is a description, and
              every field in it is read the same way. */
           const size_t poff = dp_frame_field_off (
               f, (size_t)dp_frame_field_index (f, "payload"));
-          int same = (got_n == FRAME_SYMS);
+          int same = (got_n == frame_syms);
           for (size_t k = 0; k < PAYLOAD && same; k++)
             same = (undone[poff + k] == payload[k]);
           /* `checked` is the load-bearing half: a frame carrying NO check

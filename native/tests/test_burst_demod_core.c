@@ -16,13 +16,30 @@
 #define SYNC_LEN 13
 #define PAYLOAD 64
 #define CRC_BITS 16
-/* What demod() hands back per burst: the frame as received. */
-#define FRAME_SYMS (SYNC_LEN + PAYLOAD + CRC_BITS)
 #define CHIP_RATE 1.0e6
+
+/* Scratch capacity for a frame's symbols and for the burst built from it. A
+ * generous constant, not a derived length: the frame's own length comes from
+ * its description's layout (frame_syms() below), and every buffer here is
+ * merely big enough to hold any frame this file builds. */
+#define MAX_FRAME 256u
+#define BURST_CAP ((ACQ_SF * ACQ_REPS + MAX_FRAME * DATA_SF) * SPC + 64)
 
 /* Barker-13 as 0/1 (0 -> +1, 1 -> -1). */
 static const uint8_t SYNC[SYNC_LEN]
     = { 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0 };
+
+/* MUST returns from the CALLER, which is wrong inside a void helper;
+ * a helper that cannot continue records the failure and leaves. */
+#define MUST(cond)                                                            \
+  do                                                                          \
+    {                                                                         \
+      const int must_ok_ = (cond) ? 1 : 0;                                    \
+      DP_CHECK (must_ok_);                                                    \
+      if (!must_ok_)                                                          \
+        exit (1);                                                             \
+    }                                                                         \
+  while (0)
 
 static float
 csign (uint8_t c)
@@ -30,52 +47,113 @@ csign (uint8_t c)
   return (c & 1u) ? -1.0f : 1.0f;
 }
 
+/* ── One description, both ends ───────────────────────────────────────────
+ *
+ * The frame is `sync | payload | CRC-16`, described ONCE as a
+ * wfm_frame_desc_t. The receiver is built from that description
+ * (create_desc derives the sync word from field 0 and the length from the
+ * layout), and the burst it is fed is spread from a description too
+ * (dp_wfm_dsss_desc_chips). Nothing here counts symbols by hand. */
+
+static void
+frame_desc (wfm_frame_desc_t *f, const uint8_t *payload, int crc)
+{
+  const wfm_seq_t sync
+      = { .kind = WFM_SEQ_LITERAL, .bits = SYNC, .len = SYNC_LEN };
+  const wfm_seq_t pay
+      = { .kind = WFM_SEQ_LITERAL, .bits = payload, .len = PAYLOAD };
+  MUST (dp_wfm_frame_fixed (f, NULL, 0, &sync, &pay, crc) == 0);
+}
+
+static void
+layout_of (const wfm_frame_desc_t *f, wfm_frame_desc_layout_t *l)
+{
+  MUST (dp_wfm_frame_desc_layout (f, l) == 0);
+}
+
+/* The receiver's frame length in symbols, sync included: the layout's. */
+static size_t
+desc_syms (const wfm_frame_desc_t *f)
+{
+  wfm_frame_desc_layout_t l;
+  layout_of (f, &l);
+  return l.frame_bits;
+}
+
+/* Length of the standard sync | payload | CRC-16 frame. */
+static size_t
+frame_syms (void)
+{
+  static const uint8_t zero[PAYLOAD] = { 0 };
+  wfm_frame_desc_t     f;
+  frame_desc (&f, zero, 1);
+  return desc_syms (&f);
+}
+
 /* The caller's half of the split: does the frame's own trailer match its
  * own payload? This object stops at decisions (doppler#1022), so every
  * assertion that used to read `frame_valid` reads this instead — the same
  * arithmetic, at the layer that owns it. `wfm.Frame.deframe()` is the
- * shipped form; six lines here keep this test linked against burst objects
- * only. */
+ * shipped form; a few lines here keep this test linked against burst
+ * objects only. Where the payload and the trailer sit comes from the
+ * description's layout, not from adding lengths up. */
 static int
 frame_ok (const uint8_t *frame, size_t n)
 {
-  if (n < SYNC_LEN + PAYLOAD + CRC_BITS)
+  static const uint8_t    zero[PAYLOAD] = { 0 };
+  wfm_frame_desc_t        f;
+  wfm_frame_desc_layout_t l;
+  frame_desc (&f, zero, 1);
+  layout_of (&f, &l);
+  if (n < l.frame_bits)
     return 0;
   uint16_t rx = 0;
-  for (size_t j = 0; j < CRC_BITS; j++)
-    rx = (uint16_t)((rx << 1) | (frame[SYNC_LEN + PAYLOAD + j] & 1u));
-  return rx == dp_crc16_ccitt (frame + SYNC_LEN, PAYLOAD);
+  for (size_t j = 0; j < l.field_bits[2]; j++)
+    rx = (uint16_t)((rx << 1) | (frame[l.field_off[2] + j] & 1u));
+  return rx == dp_crc16_ccitt (frame + l.field_off[1], l.field_bits[1]);
 }
 
-/* Append one BPSK data symbol (bit -> +/-1) spread by data_code. */
-static size_t
-put_symbol (float _Complex *y, size_t n, const uint8_t *dcode, uint8_t bit)
+/* A demodulator built from the description the transmitter spread. */
+static dp_burst_demod_state_t *
+make_demod_for (const uint8_t *dcode, const wfm_frame_desc_t *rx,
+                double max_rate, size_t segs)
 {
-  float a = csign (bit);
-  for (size_t c = 0; c < DATA_SF; c++)
-    for (size_t k = 0; k < SPC; k++)
-      y[n++] = a * csign (dcode[c]);
-  return n;
+  const char             *why = NULL;
+  dp_burst_demod_state_t *d   = dp_burst_demod_create_desc (
+      dcode, DATA_SF, rx, SPC, CHIP_RATE, 0.0, max_rate, segs, &why);
+  if (!d)
+    printf ("create_desc refused: %s\n", why ? why : "(no reason)");
+  MUST (d != NULL);
+  return d;
 }
 
-/* Build preamble (5x500 unmod) + frame (sync|payload|crc), then apply the
- * carrier exp(j2π(f0·n + ½μ·n²)). Returns total sample count. */
-static size_t
-build_burst (float _Complex *y, const uint8_t *acode, const uint8_t *dcode,
-             const uint8_t *payload, double f0, double mu)
+/* The standard receiver: sync-first, sync | payload | CRC-16. The payload
+ * bits are irrelevant to a receiver (only its length is), so a zero payload
+ * stands in for whatever the transmitter sends. */
+static dp_burst_demod_state_t *
+make_demod (const uint8_t *dcode, double max_rate, size_t segs)
 {
+  static const uint8_t zero[PAYLOAD] = { 0 };
+  wfm_frame_desc_t     rx;
+  frame_desc (&rx, zero, 1);
+  return make_demod_for (dcode, &rx, max_rate, segs);
+}
+
+/* Spread the whole burst a TRANSMIT description names (the unspread
+ * preamble, then the spread frame), hold each chip SPC samples, and apply
+ * the carrier exp(j2π(f0·n + ½μ·n²)). Returns the sample count. */
+static size_t
+burst_from_desc (float _Complex *y, const uint8_t *acode, const uint8_t *dcode,
+                 const wfm_frame_desc_t *tx, double f0, double mu)
+{
+  static uint8_t chips[BURST_CAP / SPC];
+  const size_t   nc = dp_wfm_dsss_desc_chips (
+      tx, NULL, acode, ACQ_SF, ACQ_REPS, dcode, DATA_SF, chips, sizeof chips);
+  MUST (nc > 0 && nc * SPC <= BURST_CAP);
   size_t n = 0;
-  for (size_t r = 0; r < ACQ_REPS; r++)
-    for (size_t c = 0; c < ACQ_SF; c++)
-      for (size_t k = 0; k < SPC; k++)
-        y[n++] = csign (acode[c]); /* unmodulated preamble */
-  for (size_t j = 0; j < SYNC_LEN; j++)
-    n = put_symbol (y, n, dcode, SYNC[j]);
-  for (size_t j = 0; j < PAYLOAD; j++)
-    n = put_symbol (y, n, dcode, payload[j]);
-  uint16_t crc = dp_crc16_ccitt (payload, PAYLOAD);
-  for (size_t j = 0; j < CRC_BITS; j++)
-    n = put_symbol (y, n, dcode, (crc >> (CRC_BITS - 1 - j)) & 1u);
+  for (size_t c = 0; c < nc; c++)
+    for (size_t k = 0; k < SPC; k++)
+      y[n++] = csign (chips[c]);
 
   for (size_t i = 0; i < n; i++)
     {
@@ -86,44 +164,81 @@ build_burst (float _Complex *y, const uint8_t *acode, const uint8_t *dcode,
   return n;
 }
 
-/* As build_burst(), but with `filler` random-ish data symbols BEFORE the
- * sync word, and an optional payload bit flipped after the CRC is computed
- * (so the trailer no longer matches). Both are what the read-back claims
- * below need: frame_offset is only meaningful when the sync is NOT at 0,
- * and frame_valid's negative case needs a frame that ARRIVES and fails. */
+/* The standard burst: preamble + sync|payload|crc, carrier on top. */
+static size_t
+build_burst (float _Complex *y, const uint8_t *acode, const uint8_t *dcode,
+             const uint8_t *payload, double f0, double mu)
+{
+  wfm_frame_desc_t f;
+  frame_desc (&f, payload, 1);
+  return burst_from_desc (y, acode, dcode, &f, f0, mu);
+}
+
+/* As build_burst(), but with `filler` data symbols BEFORE the sync word, and
+ * an optional payload bit transmitted wrong AFTER the CRC was computed (so
+ * the trailer no longer matches). Both are what the read-back claims below
+ * need: frame_offset is only meaningful when the sync is NOT at 0, and
+ * frame_valid's negative case needs a frame that ARRIVES and fails.
+ *
+ * Each is a different TRANSMIT description; the receiver's stays sync-first.
+ *   filler:     [filler | sync | payload | crc]
+ *   corrupt_at: [sync | payload' | crc], all literal -- payload' has the bit
+ *               flipped and crc is the CLEAN frame's trailer, so the wrong
+ *               bit is on the wire and the CRC is not recomputed over it. */
 static size_t
 build_burst_ex (float _Complex *y, const uint8_t *acode, const uint8_t *dcode,
                 const uint8_t *payload, double f0, size_t filler,
                 int corrupt_at)
 {
-  size_t n = 0;
-  for (size_t r = 0; r < ACQ_REPS; r++)
-    for (size_t c = 0; c < ACQ_SF; c++)
-      for (size_t k = 0; k < SPC; k++)
-        y[n++] = csign (acode[c]);
+  uint8_t fill[MAX_FRAME];
   for (size_t j = 0; j < filler; j++)
-    n = put_symbol (y, n, dcode, (uint8_t)((j * 5u + 1u) & 1u));
-  for (size_t j = 0; j < SYNC_LEN; j++)
-    n = put_symbol (y, n, dcode, SYNC[j]);
+    fill[j] = (uint8_t)((j * 5u + 1u) & 1u);
+  const wfm_seq_t fseq
+      = { .kind = WFM_SEQ_LITERAL, .bits = fill, .len = filler };
+  const wfm_seq_t sync
+      = { .kind = WFM_SEQ_LITERAL, .bits = SYNC, .len = SYNC_LEN };
 
-  uint16_t crc
-      = dp_crc16_ccitt (payload, PAYLOAD); /* over the CLEAN payload */
-  for (size_t j = 0; j < PAYLOAD; j++)
+  wfm_frame_desc_t tx = { 0 };
+  if (corrupt_at < 0)
     {
-      uint8_t b = payload[j];
-      if (corrupt_at >= 0 && (size_t)corrupt_at == j)
-        b = (uint8_t)(b ^ 1u); /* transmitted wrong; CRC unchanged */
-      n = put_symbol (y, n, dcode, b);
+      const wfm_seq_t pay
+          = { .kind = WFM_SEQ_LITERAL, .bits = payload, .len = PAYLOAD };
+      if (filler)
+        MUST (dp_wfm_frame_add_field (&tx, "filler", &fseq, 1) >= 0);
+      MUST (dp_wfm_frame_add_field (&tx, "sync", &sync, 1) >= 0);
+      MUST (dp_wfm_frame_add_field (&tx, "payload", &pay, 1) >= 0);
+      MUST (dp_wfm_frame_add_derived (&tx, "crc", CRC_BITS) >= 0);
+      MUST (dp_wfm_frame_add_stage (&tx, WFM_STAGE_CRC16, "payload", "crc")
+            >= 0);
     }
-  for (size_t j = 0; j < CRC_BITS; j++)
-    n = put_symbol (y, n, dcode, (crc >> (CRC_BITS - 1 - j)) & 1u);
+  else
+    {
+      /* The clean frame's bits give the trailer; the wrong bit is then
+         transmitted in front of it. */
+      wfm_frame_desc_t        clean;
+      wfm_frame_desc_layout_t l;
+      uint8_t                 bits[MAX_FRAME];
+      frame_desc (&clean, payload, 1);
+      layout_of (&clean, &l);
+      MUST (dp_wfm_frame_assemble (&clean, NULL, bits, sizeof bits)
+            == l.frame_bits);
+      uint8_t wrong[PAYLOAD];
+      memcpy (wrong, payload, PAYLOAD);
+      wrong[corrupt_at] = (uint8_t)(wrong[corrupt_at] ^ 1u);
 
-  for (size_t i = 0; i < n; i++)
-    {
-      double ph = 2.0 * M_PI * f0 * (double)i;
-      y[i] *= (float)cos (ph) + (float)sin (ph) * I;
+      const wfm_seq_t pay
+          = { .kind = WFM_SEQ_LITERAL, .bits = wrong, .len = PAYLOAD };
+      const wfm_seq_t crc = { .kind = WFM_SEQ_LITERAL,
+                              .bits = bits + l.field_off[2],
+                              .len  = l.field_bits[2] };
+      if (filler)
+        MUST (dp_wfm_frame_add_field (&tx, "filler", &fseq, 1) >= 0);
+      MUST (dp_wfm_frame_add_field (&tx, "sync", &sync, 1) >= 0);
+      MUST (dp_wfm_frame_add_field (&tx, "payload", &pay, 1) >= 0);
+      MUST (dp_wfm_frame_add_field (&tx, "crc", &crc, 1) >= 0);
+      return burst_from_desc (y, acode, dcode, &tx, f0, 0.0);
     }
-  return n;
+  return burst_from_desc (y, acode, dcode, &tx, f0, 0.0);
 }
 
 static int
@@ -139,22 +254,29 @@ run_case (const char *name, double f0, double f0_prior, double mu,
   for (size_t i = 0; i < PAYLOAD; i++)
     payload[i] = (uint8_t)((i * 7u + 3u) & 1u);
 
-  size_t cap
-      = (ACQ_SF * ACQ_REPS + (SYNC_LEN + PAYLOAD + CRC_BITS) * DATA_SF) * SPC
-        + 16;
-  float _Complex *y = malloc (cap * sizeof *y);
-  size_t          n = build_burst (y, acode, dcode, payload, f0, mu);
+  const size_t    cap = BURST_CAP;
+  float _Complex *y   = malloc (cap * sizeof *y);
+  DP_REQUIRE (y != NULL);
 
-  dp_burst_demod_state_t *d = dp_burst_demod_create (
-      dcode, DATA_SF, SPC, CHIP_RATE, 0.0, max_rate, FRAME_SYMS, 10);
+  /* ONE description: the transmitter spreads it, the receiver is built from
+     it. The receiver derives its sync word (field 0) and its length from the
+     layout; nothing here states either by hand. */
+  wfm_frame_desc_t f;
+  frame_desc (&f, payload, 1);
+  const size_t n = burst_from_desc (y, acode, dcode, &f, f0, mu);
+
+  dp_burst_demod_state_t *d = make_demod_for (dcode, &f, max_rate, 10);
   DP_CHECK (d != NULL);
+  DP_CHECK_MSG (d->frame_syms == desc_syms (&f) && d->sync_len == SYNC_LEN,
+                "the receiver took its length and its sync word from the "
+                "description");
+  memset (&f, 0xA5, sizeof f); /* the demodulator kept none of it */
   dp_burst_demod_set_preamble (d, acode, ACQ_SF, ACQ_REPS);
-  dp_burst_demod_set_sync (d, SYNC, SYNC_LEN);
   dp_burst_demod_set_prior (d, f0_prior, 0);
 
-  uint8_t bits[FRAME_SYMS];
-  size_t  nb = dp_burst_demod_demod (d, y, n, bits, FRAME_SYMS);
-  DP_CHECK (nb == FRAME_SYMS);
+  uint8_t bits[MAX_FRAME];
+  size_t  nb = dp_burst_demod_demod (d, y, n, bits, frame_syms ());
+  DP_CHECK (nb == frame_syms ());
   /* The FRAME comes back, sync word first, exactly as transmitted. Which
      bits are payload is the caller's arithmetic now, and so is the check:
      this object stops at decisions (doppler#1022). */
@@ -183,101 +305,91 @@ run_case (const char *name, double f0, double f0_prior, double mu,
   return 0;
 }
 
-/* ── a demodulator built from the DESCRIPTION is the old one (#1620) ─────
+/* A refused description is a NULL demodulator whose `why` names the fix.
  *
- * A/B while both constructors exist (docs/design/rx-frame-description.md
- * section 4.1): the same burst through a demodulator told its sync word and
- * length by hand and one told them by the description the transmitter
- * spread. Everything a caller can read is compared exactly -- the bits, the
- * soft bits, the derotated symbols and every estimate -- because the two
- * run the same arithmetic on the same inputs. */
-static int
-run_case_ab (const char *name, double f0, double f0_prior, double mu,
-             double max_rate)
-{
-  uint8_t acode[ACQ_SF], dcode[DATA_SF], payload[PAYLOAD];
-  for (size_t i = 0; i < ACQ_SF; i++)
-    acode[i] = (uint8_t)((i * 2654435761u >> 13) & 1u);
-  for (size_t i = 0; i < DATA_SF; i++)
-    dcode[i] = (uint8_t)((i * 40503u >> 7) & 1u);
-  for (size_t i = 0; i < PAYLOAD; i++)
-    payload[i] = (uint8_t)((i * 7u + 3u) & 1u);
-
-  size_t cap
-      = (ACQ_SF * ACQ_REPS + (SYNC_LEN + PAYLOAD + CRC_BITS) * DATA_SF) * SPC
-        + 16;
-  float _Complex *y = malloc (cap * sizeof *y);
-  DP_REQUIRE (y != NULL);
-  size_t n = build_burst (y, acode, dcode, payload, f0, mu);
-
-  /* The transmitter's description of that frame: sync | payload | CRC-16. */
-  const wfm_seq_t sync
-      = { .kind = WFM_SEQ_LITERAL, .bits = SYNC, .len = SYNC_LEN };
-  const wfm_seq_t pay
-      = { .kind = WFM_SEQ_LITERAL, .bits = payload, .len = PAYLOAD };
-  wfm_frame_desc_t f;
-  DP_REQUIRE (dp_wfm_frame_fixed (&f, NULL, 0, &sync, &pay, 1) == 0);
-
-  dp_burst_demod_state_t *a = dp_burst_demod_create (
-      dcode, DATA_SF, SPC, CHIP_RATE, 0.0, max_rate, FRAME_SYMS, 10);
-  const char             *why = NULL;
-  dp_burst_demod_state_t *b   = dp_burst_demod_create_desc (
-      dcode, DATA_SF, &f, SPC, CHIP_RATE, 0.0, max_rate, 10, &why);
-  DP_REQUIRE (a != NULL && b != NULL);
-  memset (&f, 0xA5, sizeof f); /* the demodulator kept none of it */
-  dp_burst_demod_set_preamble (a, acode, ACQ_SF, ACQ_REPS);
-  dp_burst_demod_set_preamble (b, acode, ACQ_SF, ACQ_REPS);
-  dp_burst_demod_set_sync (a, SYNC, SYNC_LEN);
-  dp_burst_demod_set_prior (a, f0_prior, 0);
-  dp_burst_demod_set_prior (b, f0_prior, 0);
-
-  uint8_t      ba[FRAME_SYMS], bb[FRAME_SYMS];
-  const size_t na = dp_burst_demod_demod (a, y, n, ba, FRAME_SYMS);
-  const size_t nb = dp_burst_demod_demod (b, y, n, bb, FRAME_SYMS);
-  DP_CHECK_MSG (na == FRAME_SYMS && nb == na && memcmp (ba, bb, na) == 0,
-                name);
-  DP_CHECK (a->frame_syms == b->frame_syms && a->sync_len == b->sync_len);
-  DP_CHECK (a->n_llr == b->n_llr && a->n_sym == b->n_sym
-            && memcmp (a->llr, b->llr, a->n_llr * sizeof *a->llr) == 0
-            && memcmp (a->sym, b->sym, a->n_sym * sizeof *a->sym) == 0);
-  DP_CHECK (a->frame_offset == b->frame_offset && a->n_symbols == b->n_symbols
-            && a->est_freq_hz == b->est_freq_hz
-            && a->est_rate_hz == b->est_rate_hz
-            && a->est_cn0_dbhz == b->est_cn0_dbhz && a->est_n0 == b->est_n0
-            && a->est_timing_chips == b->est_timing_chips);
-  DP_CHECK_MSG (frame_ok (bb, nb), "and it is the frame that was sent");
-
-  dp_burst_demod_destroy (a);
-  dp_burst_demod_destroy (b);
-  free (y);
-  return 0;
-}
-
-/* A refused description is a NULL demodulator whose `why` names the fix. */
+ * What used to be "the caller got frame_syms or the sync word wrong" is a
+ * description refusal now: there is no longer a number to get wrong, only a
+ * description that does not say where the sync word is. Each is built the way
+ * test_wfm_frame.c's test_desc_rx builds it, and checked through `why`. */
 static int
 run_desc_refusals (void)
 {
   uint8_t dc[DATA_SF];
   for (size_t i = 0; i < DATA_SF; i++)
     dc[i] = (uint8_t)(i & 1u);
-  const wfm_seq_t pay
-      = { .kind = WFM_SEQ_LITERAL, .bits = SYNC, .len = SYNC_LEN };
   const wfm_seq_t sync
       = { .kind = WFM_SEQ_LITERAL, .bits = SYNC, .len = SYNC_LEN };
-  wfm_frame_desc_t f;
-  const char      *why = NULL;
-
-  /* field 0 is a data field: nothing to correlate against */
   const wfm_seq_t data = { .kind = WFM_SEQ_DATA, .len = 8 };
-  DP_REQUIRE (dp_wfm_frame_fixed (&f, NULL, 0, NULL, &data, 1) == 0);
-  DP_CHECK (dp_burst_demod_create_desc (dc, DATA_SF, &f, SPC, CHIP_RATE, 0.0,
-                                        0.0, 10, &why)
-                == NULL
-            && why && strstr (why, "sync word"));
+  const wfm_seq_t pre
+      = { .kind = WFM_SEQ_LITERAL, .bits = SYNC, .len = SYNC_LEN };
+
+  struct
+  {
+    const char      *what;
+    const char      *needle;
+    wfm_frame_desc_t d;
+  } bad[6];
+  size_t nb = 0;
+
+  memset (&bad[nb], 0, sizeof bad[nb]);
+  bad[nb].what     = "an empty description";
+  bad[nb++].needle = "does not lay out";
+
+  bad[nb].what   = "a data field as field 0: nothing to correlate against";
+  bad[nb].needle = "field 0 is the";
+  DP_REQUIRE (dp_wfm_frame_fixed (&bad[nb++].d, NULL, 0, NULL, &data, 1) == 0);
+
+  memset (&bad[nb], 0, sizeof bad[nb]);
+  bad[nb].what   = "a derived field as field 0";
+  bad[nb].needle = "field 0 is the";
+  DP_REQUIRE (dp_wfm_frame_add_derived (&bad[nb].d, "crc", 16) == 0);
+  DP_REQUIRE (dp_wfm_frame_add_field (&bad[nb].d, "payload", &sync, 1) == 1);
+  DP_REQUIRE (
+      dp_wfm_frame_add_stage (&bad[nb].d, WFM_STAGE_CRC16, "crc", "crc") >= 0);
+  nb++;
+
+  bad[nb].what   = "a field 0 named preamble";
+  bad[nb].needle = "preamble";
+  DP_REQUIRE (dp_wfm_frame_fixed (&bad[nb++].d, &pre, 2, &sync, &data, 1)
+              == 0);
+
+  memset (&bad[nb], 0, sizeof bad[nb]);
+  bad[nb].what   = "a stage covering the sync word";
+  bad[nb].needle = "covers";
+  DP_REQUIRE (dp_wfm_frame_add_field (&bad[nb].d, "sync", &sync, 1) == 0);
+  DP_REQUIRE (dp_wfm_frame_add_field (&bad[nb].d, "payload", &sync, 1) == 1);
+  DP_REQUIRE (dp_wfm_frame_add_derived (&bad[nb].d, "crc", 16) == 2);
+  DP_REQUIRE (
+      dp_wfm_frame_add_stage (&bad[nb].d, WFM_STAGE_CRC16, "sync", "crc")
+      >= 0);
+  nb++;
+
+  bad[nb].what   = "an emitting stage";
+  bad[nb].needle = "emits";
+  DP_REQUIRE (dp_wfm_frame_fixed (&bad[nb].d, NULL, 0, &sync, &data, 1) == 0);
+  const int cst
+      = dp_wfm_frame_add_stage (&bad[nb].d, WFM_STAGE_CONV, "sync", "crc");
+  DP_REQUIRE (cst >= 0);
+  bad[nb].d.stage[cst].emit_num = 2u;
+  bad[nb].d.stage[cst].emit_den = 1u;
+  nb++;
+
+  for (size_t i = 0; i < nb; i++)
+    {
+      const char *why = NULL;
+      DP_CHECK_MSG (dp_burst_demod_create_desc (dc, DATA_SF, &bad[i].d, SPC,
+                                                CHIP_RATE, 0.0, 0.0, 10, &why)
+                            == NULL
+                        && why && strstr (why, bad[i].needle),
+                    bad[i].what);
+      if (why && !strstr (why, bad[i].needle))
+        printf ("    (%s: why = \"%s\")\n", bad[i].what, why);
+    }
 
   /* a good description, a bad parameter: the demodulator's own refusal */
-  DP_REQUIRE (dp_wfm_frame_fixed (&f, NULL, 0, &sync, &pay, 1) == 0);
-  why = NULL;
+  wfm_frame_desc_t f;
+  frame_desc (&f, SYNC, 1);
+  const char *why = NULL;
   DP_CHECK (dp_burst_demod_create_desc (dc, DATA_SF, &f, 0 /* spc */,
                                         CHIP_RATE, 0.0, 0.0, 10, &why)
                 == NULL
@@ -299,62 +411,77 @@ run_edge_cases (void)
   for (size_t i = 0; i < ACQ_SF; i++)
     ac[i] = (uint8_t)(i & 1u);
 
-  /* Argument validation → NULL (each clause of the create guard). */
-  DP_CHECK (dp_burst_demod_create (NULL, DATA_SF, SPC, CHIP_RATE, 0, 0,
-                                   FRAME_SYMS, 10)
-            == NULL);
-  DP_CHECK (dp_burst_demod_create (dc, 0, SPC, CHIP_RATE, 0, 0, FRAME_SYMS, 10)
-            == NULL);
-  DP_CHECK (
-      dp_burst_demod_create (dc, DATA_SF, 0, CHIP_RATE, 0, 0, FRAME_SYMS, 10)
-      == NULL);
-  DP_CHECK (dp_burst_demod_create (dc, DATA_SF, SPC, 0.0, 0, 0, FRAME_SYMS, 10)
-            == NULL);
-  DP_CHECK (dp_burst_demod_create (dc, DATA_SF, SPC, CHIP_RATE, 0, -1.0,
-                                   FRAME_SYMS, 10)
-            == NULL);
-  DP_CHECK (
-      dp_burst_demod_create (dc, DATA_SF, SPC, CHIP_RATE, 0, 0, PAYLOAD, 0)
-      == NULL);
+  /* Argument validation → NULL (each clause of the create guard), now
+     against a GOOD description so it is the parameter that is refused. */
+  wfm_frame_desc_t f;
+  frame_desc (&f, SYNC, 1);
+#define REFUSED(call)                                                         \
+  do                                                                          \
+    {                                                                         \
+      const char             *why_ = NULL;                                    \
+      dp_burst_demod_state_t *r_   = (call);                                  \
+      DP_CHECK (r_ == NULL && why_ && strstr (why_, "invalid parameter"));    \
+      dp_burst_demod_destroy (r_);                                            \
+    }                                                                         \
+  while (0)
+#define WHY &why_
+  /* A NULL description is refused, not dereferenced. */
+  {
+    const char *why_ = NULL;
+    DP_CHECK (dp_burst_demod_create_desc (dc, DATA_SF, NULL, SPC, CHIP_RATE, 0,
+                                          0, 10, WHY)
+              == NULL);
+    DP_CHECK (why_ != NULL);
+  }
+  REFUSED (dp_burst_demod_create_desc (NULL, DATA_SF, &f, SPC, CHIP_RATE, 0, 0,
+                                       10, WHY));
+  REFUSED (
+      dp_burst_demod_create_desc (dc, 0, &f, SPC, CHIP_RATE, 0, 0, 10, WHY));
+  REFUSED (dp_burst_demod_create_desc (dc, DATA_SF, &f, 0, CHIP_RATE, 0, 0, 10,
+                                       WHY));
+  REFUSED (
+      dp_burst_demod_create_desc (dc, DATA_SF, &f, SPC, 0.0, 0, 0, 10, WHY));
+  REFUSED (dp_burst_demod_create_desc (dc, DATA_SF, &f, SPC, CHIP_RATE, 0,
+                                       -1.0, 10, WHY));
+  REFUSED (dp_burst_demod_create_desc (dc, DATA_SF, &f, SPC, CHIP_RATE, 0, 0,
+                                       0, WHY));
+#undef WHY
+#undef REFUSED
 
   dp_burst_demod_destroy (NULL); /* no-op on NULL */
 
-  dp_burst_demod_state_t *d = dp_burst_demod_create (
-      dc, DATA_SF, SPC, CHIP_RATE, 0, 0, FRAME_SYMS, 10);
+  dp_burst_demod_state_t *d = make_demod (dc, 0.0, 10);
   DP_CHECK (d != NULL);
   dp_burst_demod_set_preamble (d, NULL, 0, 0); /* guard: ignored */
-  dp_burst_demod_set_sync (d, NULL, 0);        /* guard: ignored */
   dp_burst_demod_set_preamble (d, ac, ACQ_SF, ACQ_REPS);
   dp_burst_demod_set_preamble (d, ac, ACQ_SF,
                                ACQ_REPS); /* re-arm: frees old ppe */
-  dp_burst_demod_set_sync (d, SYNC, SYNC_LEN);
 
   /* Too-short input → clean failure: no frame, so no bits and no LLRs. */
   float _Complex tiny[8] = { 0 };
-  uint8_t eb[FRAME_SYMS];
+  uint8_t eb[MAX_FRAME];
   dp_burst_demod_set_prior (d, 0.0, 0);
-  DP_CHECK (dp_burst_demod_demod (d, tiny, 8, eb, FRAME_SYMS) == 0);
-  float el[FRAME_SYMS];
-  DP_CHECK (dp_burst_demod_llrs (d, 1, el, FRAME_SYMS) == 0);
-  float _Complex esym[FRAME_SYMS];
-  DP_CHECK_MSG (dp_burst_demod_symbols (d, 1, esym, FRAME_SYMS) == 0,
+  DP_CHECK (dp_burst_demod_demod (d, tiny, 8, eb, frame_syms ()) == 0);
+  float el[MAX_FRAME];
+  DP_CHECK (dp_burst_demod_llrs (d, 1, el, frame_syms ()) == 0);
+  float _Complex esym[MAX_FRAME];
+  DP_CHECK_MSG (dp_burst_demod_symbols (d, 1, esym, frame_syms ()) == 0,
                 "no frame yet: the constellation read-back is empty, not "
                 "stale");
   /* The capacity accessor answers from the CONFIGURATION, so it reports a
      frame's worth even when the last call produced none — that is what a
      caller sizes a buffer with, before there is anything to size for. */
-  DP_CHECK_MSG (dp_burst_demod_llrs_max_out (d, 1) == FRAME_SYMS,
+  DP_CHECK_MSG (dp_burst_demod_llrs_max_out (d, 1) == frame_syms (),
                 "llrs_max_out is the frame's length, not the last call's");
-  DP_CHECK_MSG (dp_burst_demod_symbols_max_out (d, 1) == FRAME_SYMS,
+  DP_CHECK_MSG (dp_burst_demod_symbols_max_out (d, 1) == frame_syms (),
                 "symbols_max_out matches llrs_max_out -- the two read-backs "
                 "describe ONE frame at one length");
-  DP_CHECK_MSG (dp_burst_demod_demod_max_out (d) == FRAME_SYMS,
+  DP_CHECK_MSG (dp_burst_demod_demod_max_out (d) == frame_syms (),
                 "and demod_max_out agrees with it");
   dp_burst_demod_destroy (d);
 
   /* est_segments > acq_sf forces the per-segment chip clamp (Lseg >= 1). */
-  dp_burst_demod_state_t *d2 = dp_burst_demod_create (
-      dc, DATA_SF, SPC, CHIP_RATE, 0, 0, FRAME_SYMS, ACQ_SF + 100);
+  dp_burst_demod_state_t *d2 = make_demod (dc, 0.0, ACQ_SF + 100);
   DP_CHECK (d2 != NULL);
   dp_burst_demod_set_preamble (d2, ac, ACQ_SF, 1);
   dp_burst_demod_destroy (d2);
@@ -365,9 +492,7 @@ int
 main (void)
 {
   (void)run_edge_cases ();
-  if (run_case_ab ("ab static", 0.012, 0.012, 0.0, 0.0)
-      || run_case_ab ("ab leo", 0.012, 0.0115, 6.0e-7, 1.0e-6)
-      || run_desc_refusals ())
+  if (run_desc_refusals ())
     return 1;
 
   /* Near-static Doppler (negligible rate): max_rate = 0, single-FFT estimate.
@@ -399,34 +524,26 @@ main (void)
     for (size_t i = 0; i < PAYLOAD; i++)
       payload[i] = (uint8_t)((i * 7u + 3u) & 1u);
 
-    const size_t cap
-        = (ACQ_SF * ACQ_REPS + (16 + SYNC_LEN + PAYLOAD + CRC_BITS) * DATA_SF)
-              * SPC
-          + 16;
-    float _Complex *y = malloc (cap * sizeof *y);
+    const size_t    cap = BURST_CAP;
+    float _Complex *y   = malloc (cap * sizeof *y);
     DP_CHECK (y != NULL);
     if (y)
       {
         const double f0 = 0.012;
-        uint8_t      bits[FRAME_SYMS];
+        uint8_t      bits[MAX_FRAME];
 
         /* Baseline: clean, so the negative results below are not simply a
            demodulator that never works. */
         size_t n = build_burst_ex (y, acode, dcode, payload, f0, 0, -1);
-        dp_burst_demod_state_t *d = dp_burst_demod_create (
-            dcode, DATA_SF, SPC, CHIP_RATE, 0.0, 0.0, FRAME_SYMS, 10);
+        dp_burst_demod_state_t *d = make_demod (dcode, 0.0, 10);
         DP_CHECK (d != NULL);
         if (d)
           {
             dp_burst_demod_set_preamble (d, acode, ACQ_SF, ACQ_REPS);
-            dp_burst_demod_set_sync (d, SYNC, SYNC_LEN);
             dp_burst_demod_set_prior (d, f0, 0);
-            DP_CHECK (dp_burst_demod_demod (d, y, n, bits, FRAME_SYMS)
-                      == FRAME_SYMS);
-            uint16_t rx = 0;
-            for (size_t j = 0; j < CRC_BITS; j++)
-              rx = (uint16_t)((rx << 1) | (bits[SYNC_LEN + PAYLOAD + j] & 1u));
-            DP_CHECK (rx == dp_crc16_ccitt (bits + SYNC_LEN, PAYLOAD));
+            DP_CHECK (dp_burst_demod_demod (d, y, n, bits, frame_syms ())
+                      == frame_syms ());
+            DP_CHECK (frame_ok (bits, frame_syms ()));
             dp_burst_demod_destroy (d);
           }
 
@@ -435,18 +552,17 @@ main (void)
         for (int si = 0; si < 3; si++)
           {
             n = build_burst_ex (y, acode, dcode, payload, f0, 0, spots[si]);
-            dp_burst_demod_state_t *b = dp_burst_demod_create (
-                dcode, DATA_SF, SPC, CHIP_RATE, 0.0, 0.0, FRAME_SYMS, 10);
+            dp_burst_demod_state_t *b = make_demod (dcode, 0.0, 10);
             DP_CHECK (b != NULL);
             if (b)
               {
                 dp_burst_demod_set_preamble (b, acode, ACQ_SF, ACQ_REPS);
-                dp_burst_demod_set_sync (b, SYNC, SYNC_LEN);
                 dp_burst_demod_set_prior (b, f0, 0);
-                size_t nb = dp_burst_demod_demod (b, y, n, bits, FRAME_SYMS);
+                size_t nb
+                    = dp_burst_demod_demod (b, y, n, bits, frame_syms ());
                 /* The frame is still demodulated -- this is not the
                    too-short path. */
-                DP_CHECK (nb == FRAME_SYMS);
+                DP_CHECK (nb == frame_syms ());
                 /* The flip is IN the output, at the bit it was applied to:
                    the demodulator reports what arrived. */
                 DP_CHECK_MSG (bits[SYNC_LEN + (size_t)spots[si]]
@@ -470,11 +586,7 @@ main (void)
                 DP_CHECK_MSG (sync_moved == 0, "and the sync word is intact");
                 /* ...and the trailer no longer matches, which is the check
                    doing its job one layer up. */
-                uint16_t rx = 0;
-                for (size_t j = 0; j < CRC_BITS; j++)
-                  rx = (uint16_t)((rx << 1)
-                                  | (bits[SYNC_LEN + PAYLOAD + j] & 1u));
-                DP_CHECK (rx != dp_crc16_ccitt (bits + SYNC_LEN, PAYLOAD));
+                DP_CHECK (!frame_ok (bits, nb));
                 dp_burst_demod_destroy (b);
               }
           }
@@ -502,40 +614,34 @@ main (void)
     for (size_t i = 0; i < PAYLOAD; i++)
       payload[i] = (uint8_t)((i * 7u + 3u) & 1u);
 
-    const size_t cap
-        = (ACQ_SF * ACQ_REPS + (16 + SYNC_LEN + PAYLOAD + CRC_BITS) * DATA_SF)
-              * SPC
-          + 16;
-    float _Complex *y = malloc (cap * sizeof *y);
+    const size_t    cap = BURST_CAP;
+    float _Complex *y   = malloc (cap * sizeof *y);
     DP_CHECK (y != NULL);
     if (y)
       {
         const double f0       = 0.012;
         const size_t fills[3] = { 0, 3, 9 };
-        uint8_t      bits[FRAME_SYMS];
+        uint8_t      bits[MAX_FRAME];
         size_t       prev_syms = 0;
         for (int fi = 0; fi < 3; fi++)
           {
             size_t n
                 = build_burst_ex (y, acode, dcode, payload, f0, fills[fi], -1);
-            dp_burst_demod_state_t *d = dp_burst_demod_create (
-                dcode, DATA_SF, SPC, CHIP_RATE, 0.0, 0.0, FRAME_SYMS, 10);
+            dp_burst_demod_state_t *d = make_demod (dcode, 0.0, 10);
             DP_CHECK (d != NULL);
             if (d)
               {
                 dp_burst_demod_set_preamble (d, acode, ACQ_SF, ACQ_REPS);
-                dp_burst_demod_set_sync (d, SYNC, SYNC_LEN);
                 dp_burst_demod_set_prior (d, f0, 0);
-                DP_CHECK (dp_burst_demod_demod (d, y, n, bits, FRAME_SYMS)
-                          == FRAME_SYMS);
-                DP_CHECK_MSG (frame_ok (bits, FRAME_SYMS),
+                DP_CHECK (dp_burst_demod_demod (d, y, n, bits, frame_syms ())
+                          == frame_syms ());
+                DP_CHECK_MSG (frame_ok (bits, frame_syms ()),
                               "a frame behind filler symbols still checks "
                               "out — the offset is found, not guessed");
                 /* the sync sits exactly `filler` symbols in */
                 DP_CHECK (d->frame_offset == fills[fi]);
                 /* and the whole data section was despread */
-                DP_CHECK (d->n_symbols
-                          == fills[fi] + SYNC_LEN + PAYLOAD + CRC_BITS);
+                DP_CHECK (d->n_symbols == fills[fi] + frame_syms ());
                 DP_CHECK (d->n_symbols > prev_syms || fi == 0);
                 prev_syms = d->n_symbols;
                 dp_burst_demod_destroy (d);
@@ -561,27 +667,23 @@ main (void)
     for (size_t i = 0; i < PAYLOAD; i++)
       payload[i] = (uint8_t)((i * 7u + 3u) & 1u);
 
-    const size_t cap
-        = (ACQ_SF * ACQ_REPS + (SYNC_LEN + PAYLOAD + CRC_BITS) * DATA_SF) * SPC
-          + 16;
-    float _Complex *y = malloc (cap * sizeof *y);
+    const size_t    cap = BURST_CAP;
+    float _Complex *y   = malloc (cap * sizeof *y);
     DP_CHECK (y != NULL);
     if (y)
       {
         const double f0 = 0.012;
-        uint8_t      bits[FRAME_SYMS];
+        uint8_t      bits[MAX_FRAME];
         size_t       n = build_burst_ex (y, acode, dcode, payload, f0, 0, -1);
-        dp_burst_demod_state_t *d = dp_burst_demod_create (
-            dcode, DATA_SF, SPC, CHIP_RATE, 0.0, 0.0, FRAME_SYMS, 10);
+        dp_burst_demod_state_t *d = make_demod (dcode, 0.0, 10);
         DP_CHECK (d != NULL);
         if (d)
           {
             dp_burst_demod_set_preamble (d, acode, ACQ_SF, ACQ_REPS);
-            dp_burst_demod_set_sync (d, SYNC, SYNC_LEN);
             dp_burst_demod_set_prior (d, f0, 0);
-            DP_CHECK (dp_burst_demod_demod (d, y, n, bits, FRAME_SYMS)
-                      == FRAME_SYMS);
-            DP_CHECK_MSG (frame_ok (bits, FRAME_SYMS),
+            DP_CHECK (dp_burst_demod_demod (d, y, n, bits, frame_syms ())
+                      == frame_syms ());
+            DP_CHECK_MSG (frame_ok (bits, frame_syms ()),
                           "the burst this reset is tested against really "
                           "decoded, or the preconditions below are vacuous");
             /* the precondition: they are NON-zero before the reset, or the
@@ -622,29 +724,21 @@ main (void)
 
     /* The same burst as everywhere else in this file, with the trailer
        simply not transmitted. */
-    const size_t    no_crc = SYNC_LEN + PAYLOAD;
-    size_t          cap    = (ACQ_SF * ACQ_REPS + no_crc * DATA_SF) * SPC + 16;
+    wfm_frame_desc_t f;
+    frame_desc (&f, payload, 0); /* sync | payload, no CRC-16 */
+    const size_t    no_crc = desc_syms (&f);
+    const size_t    cap    = BURST_CAP;
     float _Complex *y      = malloc (cap * sizeof *y);
     DP_REQUIRE (y != NULL);
-    size_t n = 0;
-    for (size_t r = 0; r < ACQ_REPS; r++)
-      for (size_t c = 0; c < ACQ_SF; c++)
-        for (size_t k = 0; k < SPC; k++)
-          y[n++] = csign (acode[c]);
-    for (size_t j = 0; j < SYNC_LEN; j++)
-      n = put_symbol (y, n, dcode, SYNC[j]);
-    for (size_t j = 0; j < PAYLOAD; j++)
-      n = put_symbol (y, n, dcode, payload[j]);
+    const size_t n = burst_from_desc (y, acode, dcode, &f, 0.0, 0.0);
 
-    dp_burst_demod_state_t *d = dp_burst_demod_create (
-        dcode, DATA_SF, SPC, CHIP_RATE, 0.0, 0.0, no_crc, 10);
+    dp_burst_demod_state_t *d = make_demod_for (dcode, &f, 0.0, 10);
     DP_REQUIRE (d != NULL);
     dp_burst_demod_set_preamble (d, acode, ACQ_SF, ACQ_REPS);
-    dp_burst_demod_set_sync (d, SYNC, SYNC_LEN);
     dp_burst_demod_set_prior (d, 0.0, 0);
 
-    uint8_t bits[FRAME_SYMS];
-    size_t  nb = dp_burst_demod_demod (d, y, n, bits, FRAME_SYMS);
+    uint8_t bits[MAX_FRAME];
+    size_t  nb = dp_burst_demod_demod (d, y, n, bits, frame_syms ());
     DP_CHECK_MSG (nb == no_crc,
                   "the caller asked for a shorter frame and got one");
     size_t errs = 0;
@@ -657,8 +751,8 @@ main (void)
     DP_CHECK_MSG (errs == 0, "...bit-exactly, sync word included");
     DP_CHECK_MSG (dp_burst_demod_llrs_max_out (d, 1) == no_crc,
                   "and the soft twin is the same length");
-    float sl[FRAME_SYMS];
-    DP_CHECK (dp_burst_demod_llrs (d, 1, sl, FRAME_SYMS) == no_crc);
+    float sl[MAX_FRAME];
+    DP_CHECK (dp_burst_demod_llrs (d, 1, sl, frame_syms ()) == no_crc);
     size_t soft_bad = 0;
     for (size_t i = 0; i < no_crc; i++)
       if (((sl[i] < 0.0f) ? 1u : 0u) != bits[i])
@@ -685,32 +779,29 @@ main (void)
     for (size_t i = 0; i < PAYLOAD; i++)
       payload[i] = (uint8_t)((i * 7u + 3u) & 1u);
 
-    size_t cap
-        = (ACQ_SF * ACQ_REPS + (SYNC_LEN + PAYLOAD + CRC_BITS) * DATA_SF) * SPC
-          + 16;
-    float _Complex *y = malloc (cap * sizeof *y);
+    const size_t    cap = BURST_CAP;
+    float _Complex *y   = malloc (cap * sizeof *y);
     DP_REQUIRE (y != NULL);
     size_t n = build_burst (y, acode, dcode, payload, 0.0, 0.0);
 
-    dp_burst_demod_state_t *d = dp_burst_demod_create (
-        dcode, DATA_SF, SPC, CHIP_RATE, 0.0, 0.0, FRAME_SYMS, 10);
+    dp_burst_demod_state_t *d = make_demod (dcode, 0.0, 10);
     DP_REQUIRE (d != NULL);
     dp_burst_demod_set_preamble (d, acode, ACQ_SF, ACQ_REPS);
-    dp_burst_demod_set_sync (d, SYNC, SYNC_LEN);
     dp_burst_demod_set_prior (d, 0.0, 0);
 
-    uint8_t bits[FRAME_SYMS];
-    DP_CHECK (dp_burst_demod_demod (d, y, n, bits, FRAME_SYMS) == FRAME_SYMS);
+    uint8_t bits[MAX_FRAME];
+    DP_CHECK (dp_burst_demod_demod (d, y, n, bits, frame_syms ())
+              == frame_syms ());
 
     const size_t nl = dp_burst_demod_llrs_max_out (d, 1);
-    DP_CHECK_MSG (nl == FRAME_SYMS,
+    DP_CHECK_MSG (nl == frame_syms (),
                   "one LLR per FRAME symbol, not per payload bit");
     float *llr = malloc (nl * sizeof *llr);
     DP_REQUIRE (llr != NULL);
     DP_CHECK (dp_burst_demod_llrs (d, 1, llr, nl) == nl);
 
     size_t disagree = 0;
-    for (size_t i = 0; i < FRAME_SYMS; i++)
+    for (size_t i = 0; i < frame_syms (); i++)
       if (((llr[i] < 0.0f) ? 1u : 0u) != bits[i])
         disagree++;
     DP_CHECK_MSG (disagree == 0,
@@ -805,13 +896,11 @@ main (void)
     for (size_t i = 0; i < PAYLOAD; i++)
       payload[i] = (uint8_t)((i * 7u + 3u) & 1u);
 
-    const double sym_rate = CHIP_RATE / (double)DATA_SF;
-    const size_t cap
-        = (ACQ_SF * ACQ_REPS + (SYNC_LEN + PAYLOAD + CRC_BITS) * DATA_SF) * SPC
-          + 64;
-    float _Complex *y    = malloc (cap * sizeof *y);
-    float _Complex *z    = malloc (cap * sizeof *z);
-    uint8_t        *bits = malloc (FRAME_SYMS);
+    const double    sym_rate = CHIP_RATE / (double)DATA_SF;
+    const size_t    cap      = BURST_CAP;
+    float _Complex *y        = malloc (cap * sizeof *y);
+    float _Complex *z        = malloc (cap * sizeof *z);
+    uint8_t        *bits     = malloc (MAX_FRAME);
     DP_REQUIRE (y != NULL && z != NULL && bits != NULL);
 
     /* One burst at a stated Es/N0, started `lead` samples late, demodulated
@@ -838,15 +927,13 @@ main (void)
          power -- the shared harness owns the convention. */                  \
       for (size_t k_ = 0; k_ < n_ + (lead); k_++)                             \
         z[k_] += (float)sig_ * dp_cgauss (&seed_state);                       \
-      dp_burst_demod_state_t *dd_ = dp_burst_demod_create (                   \
-          dcode, DATA_SF, SPC, CHIP_RATE, 0.0, 0.0, FRAME_SYMS, (segs));      \
+      dp_burst_demod_state_t *dd_ = make_demod (dcode, 0.0, (segs));          \
       DP_REQUIRE (dd_ != NULL);                                               \
       dp_burst_demod_set_preamble (dd_, acode, ACQ_SF, ACQ_REPS);             \
-      dp_burst_demod_set_sync (dd_, SYNC, SYNC_LEN);                          \
       dp_burst_demod_set_prior (dd_, f0_, 0);                                 \
       size_t nb_                                                              \
-          = dp_burst_demod_demod (dd_, z, n_ + (lead), bits, FRAME_SYMS);     \
-      got_cn0 = (nb_ == FRAME_SYMS) ? dd_->est_cn0_dbhz : -1e9;               \
+          = dp_burst_demod_demod (dd_, z, n_ + (lead), bits, frame_syms ());  \
+      got_cn0 = (nb_ == frame_syms ()) ? dd_->est_cn0_dbhz : -1e9;            \
       got_tau = dd_->est_timing_chips;                                        \
       dp_burst_demod_destroy (dd_);                                           \
     }                                                                         \

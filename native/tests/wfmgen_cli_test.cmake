@@ -228,14 +228,14 @@ expect_exit(2 --type bpsk --data-from-file - --data-len 8 --fill 0 --repeat)
 expect_exit(2 --type bpsk --data 0xABC --data-len 8)  # 12 bits, no --fill
 
 # 18. #1719, a data source on a dsss BURST: a burst per chunk, so "AB" in
-#     8-bit chunks is two bursts of 4 + (8 + 16) * 4 = 100 chips, whether the
-#     bits come as a Field or from a file.
+#     8-bit chunks is two bursts of 4 + 8 * 4 = 36 chips (no CRC unless
+#     --crc asks for one), whether the bits come as a Field or from a file.
 file(WRITE wg_ab.bin "AB")
 run(--type dsss --acq-code 0x9 --data-code 0xd --data 0x4142 --data-len 8
     --sps 1 -o wg_dsss_field.cf32)
 run(--type dsss --acq-code 0x9 --data-code 0xd --data-from-file wg_ab.bin
     --data-len 8 --sps 1 -o wg_dsss_file.cf32)
-expect_size(wg_dsss_field.cf32 1600)
+expect_size(wg_dsss_field.cf32 576)
 file(MD5 wg_dsss_field.cf32 dsf)
 file(MD5 wg_dsss_file.cf32 dsg)
 if(NOT dsf STREQUAL dsg)

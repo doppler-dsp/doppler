@@ -2227,7 +2227,7 @@ int dp_wfm_source_has_frame (
 
 
 
-A carried description, a preamble or a sync word is what says "framed". **Deliberately not `crc`**: it defaults to crc16 on every source (`[[module.wfm_compose.source.fields]]` and wfmgen alike), so reading it as intent would silently append a trailer to every unframed bit pattern anyone has ever generated. With neither a preamble nor a sync word, `crc` stays inert exactly as it always was.
+A carried description, a preamble or a sync word is what says "framed". **Deliberately not `crc`**: it is a trailer, not a frame, so reading it as intent would silently append one to every unframed bit pattern that names it. With neither a preamble nor a sync word, `crc` stays inert exactly as it always was.
 
 
 

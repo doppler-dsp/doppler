@@ -993,17 +993,18 @@ read_frame_obj (const cJSON *fr, wfm_frame_desc_t *d, const char *where,
 /* Read the frame back: the CRC choice (the preamble and sync word are table
  * rows). The
  * inverse of add_frame_fields(), and called for every waveform type for the
- * same reason it is written for every waveform type. `crc` defaults to crc16
- * (the burst_demod frame contract carries a trailer) and is inert unless a
- * preamble or a sync word is present. Returns 0, or -1 on OOM (partials
- * released). */
+ * same reason it is written for every waveform type. An absent `crc` keeps
+ * the source's default (none: a source carries no CRC unless this key or a
+ * frame description gives one) and the key is inert unless a preamble or a
+ * sync word is present. Returns 0, or -1 on OOM (partials released). */
 static int
 read_frame_fields (const cJSON *so, wfm_source_t *out)
 {
   int c = name_index (
       cJSON_GetStringValue (cJSON_GetObjectItemCaseSensitive (so, "crc")),
       CRC_NAMES, 2);
-  out->crc = (c < 0) ? 1 : c;
+  if (c >= 0)
+    out->crc = c;
 
   return 0;
 }

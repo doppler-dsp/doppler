@@ -9,7 +9,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 384
+        "bytes": 256
       }
     },
     "record": {
@@ -17,7 +17,7 @@
       "repeat": false,
       "segments": [
         {
-          "crc": "crc16",
+          "crc": "none",
           "data_from_file": "bits.bin",
           "data_sent": {
             "bits": 32,
@@ -426,7 +426,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 192
+        "bytes": 64
       }
     },
     "record": {
@@ -434,7 +434,7 @@
       "repeat": false,
       "segments": [
         {
-          "crc": "crc16",
+          "crc": "none",
           "data": "0xb2",
           "data_sent": {
             "bits": 8,
@@ -473,7 +473,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 192
+        "bytes": 64
       }
     },
     "record": {
@@ -481,7 +481,7 @@
       "repeat": false,
       "segments": [
         {
-          "crc": "crc16",
+          "crc": "none",
           "data": "0xb2",
           "data_sent": {
             "bits": 8,
@@ -522,7 +522,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 1488
+        "bytes": 1232
       }
     },
     "record": {
@@ -530,7 +530,7 @@
       "repeat": false,
       "segments": [
         {
-          "crc": "crc16",
+          "crc": "none",
           "data": "pn:64:7",
           "data_sent": {
             "bits": 64,
@@ -572,7 +572,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 1408
+        "bytes": 1152
       }
     },
     "record": {
@@ -580,7 +580,7 @@
       "repeat": false,
       "segments": [
         {
-          "crc": "crc16",
+          "crc": "none",
           "data": "0xb2",
           "data_sent": {
             "bits": 8,
@@ -622,7 +622,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 880
+        "bytes": 624
       }
     },
     "record": {
@@ -630,7 +630,7 @@
       "repeat": false,
       "segments": [
         {
-          "crc": "crc16",
+          "crc": "none",
           "data": "0xb2",
           "data_sent": {
             "bits": 8,
@@ -672,7 +672,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 1488
+        "bytes": 1232
       }
     },
     "record": {
@@ -680,7 +680,7 @@
       "repeat": false,
       "segments": [
         {
-          "crc": "crc16",
+          "crc": "none",
           "data": "pn:64:7",
           "data_sent": {
             "bits": 64,
@@ -879,7 +879,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 576
+        "bytes": 192
       }
     },
     "record": {
@@ -887,7 +887,7 @@
       "repeat": false,
       "segments": [
         {
-          "crc": "crc16",
+          "crc": "none",
           "data": "0xabcdef",
           "data_len": 8,
           "data_sent": {
@@ -926,7 +926,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 384
+        "bytes": 128
       }
     },
     "record": {
@@ -934,7 +934,7 @@
       "repeat": false,
       "segments": [
         {
-          "crc": "crc16",
+          "crc": "none",
           "data": "0xabc",
           "data_len": 8,
           "data_sent": {
@@ -972,7 +972,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 768
+        "bytes": 256
       }
     },
     "record": {
@@ -980,7 +980,7 @@
       "repeat": false,
       "segments": [
         {
-          "crc": "crc16",
+          "crc": "none",
           "data_from_file": "bits.bin",
           "data_len": 8,
           "data_sent": {
@@ -1287,7 +1287,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 4288
+        "bytes": 2496
       }
     },
     "record": {
@@ -1296,7 +1296,7 @@
       "segments": [
         {
           "acq_code": "dotted:8*2",
-          "crc": "crc16",
+          "crc": "none",
           "data": "0xb",
           "data_code": "pn:7:3:0x1",
           "data_sent": {
@@ -1517,7 +1517,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 3392
+        "bytes": 2368
       }
     },
     "record": {
@@ -1526,7 +1526,7 @@
       "segments": [
         {
           "acq_code": "0xaa*2",
-          "crc": "crc16",
+          "crc": "none",
           "data": "pn:31:5",
           "data_code": "0x6",
           "data_sent": {
@@ -2959,7 +2959,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 1264
+        "bytes": 1136
       }
     },
     "record": {
@@ -2967,7 +2967,7 @@
       "repeat": false,
       "segments": [
         {
-          "crc": "crc16",
+          "crc": "none",
           "data": "pn:128:9",
           "data_sent": {
             "bits": 128,

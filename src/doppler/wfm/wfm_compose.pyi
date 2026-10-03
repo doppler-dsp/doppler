@@ -150,12 +150,13 @@ class Synth:
         payload -- what BurstDemod.set_frame correlates to resolve frame
         position and BPSK polarity, and what a BER alignment detects against.
         Optional; setting it (or acq_code) is what makes a source FRAMED.
-    crc : str, default ``"crc16"``
+    crc : str, default ``"none"``
         The frame trailer: crc16 appends a CRC-16-CCITT over the payload bits
         (what BurstDemod validates as frame_valid, and what makes a truth-free
-        frame error rate possible); none omits it. Applies only to a FRAMED
-        source: it defaults to crc16, so it alone never frames an otherwise
-        plain pattern.
+        frame error rate possible); none, the default, omits it: a source
+        carries no CRC unless this or a frame description gives one. Applies
+        only to a FRAMED source, so it alone never frames an otherwise plain
+        pattern.
         One of ``"none"``, ``"crc16"``.
     symbol_rate : float, default 0.0
         For type=dsss: > 0 selects CONTINUOUS asynchronous mode. The spreading
@@ -489,12 +490,13 @@ class Segment:
         payload -- what BurstDemod.set_frame correlates to resolve frame
         position and BPSK polarity, and what a BER alignment detects against.
         Optional; setting it (or acq_code) is what makes a source FRAMED.
-    crc : str, default ``"crc16"``
+    crc : str, default ``"none"``
         The frame trailer: crc16 appends a CRC-16-CCITT over the payload bits
         (what BurstDemod validates as frame_valid, and what makes a truth-free
-        frame error rate possible); none omits it. Applies only to a FRAMED
-        source: it defaults to crc16, so it alone never frames an otherwise
-        plain pattern.
+        frame error rate possible); none, the default, omits it: a source
+        carries no CRC unless this or a frame description gives one. Applies
+        only to a FRAMED source, so it alone never frames an otherwise plain
+        pattern.
         One of ``"none"``, ``"crc16"``.
     symbol_rate : float, default 0.0
         For type=dsss: > 0 selects CONTINUOUS asynchronous mode. The spreading

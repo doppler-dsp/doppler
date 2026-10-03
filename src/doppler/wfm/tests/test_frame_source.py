@@ -952,3 +952,51 @@ def test_a_data_description_deframes_and_checks_a_received_frame():
     bad = rx.copy()
     bad[off + 3] ^= 1
     assert d.check(bad).passed == 0
+
+
+# ── a CRC beside a carried frame is refused (doppler#1700) ──────────────────
+#
+# A carried description IS the frame, CRC stage and all, so a `crc` beside it
+# is a second statement about the same trailer -- and one that used to be
+# dropped without a word on the scene and object faces (the CLI refused it).
+# The default is `none` now, so `crc16` is distinguishable from absent and
+# every face can refuse it; an explicit `none` says nothing the default did
+# not, and is accepted.
+
+_CARRIED = {"fields": [{"name": "payload", "spec": "1010"}]}
+
+
+@pytest.mark.parametrize("crc", ["crc16"])
+def test_a_scene_crc_beside_a_frame_is_refused_naming_frame(crc):
+    why = _scene_why(
+        {
+            "type": "bits",
+            "crc": crc,
+            "frame": _CARRIED,
+        }
+    )
+    assert '"frame"' in why and "CRC" in why, why
+
+
+def test_a_scene_crc_none_beside_a_frame_says_nothing_the_default_did_not():
+    Composer.from_json(
+        json.dumps(
+            {
+                "segments": [
+                    {
+                        "type": "bits",
+                        "crc": "none",
+                        "frame": _CARRIED,
+                    }
+                ]
+            }
+        )
+    )
+
+
+def test_a_python_crc_beside_a_frame_is_refused():
+    desc = FrameDesc()
+    desc.add_field("payload", field_bits("1010"))
+    desc.build()
+    with pytest.raises((ValueError, RuntimeError), match="frame"):
+        Composer([Segment(type="bits", frame=desc, crc="crc16")]).compose()

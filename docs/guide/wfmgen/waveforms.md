@@ -593,7 +593,7 @@ burst = Segment(
     snr=10.0, snr_mode="esno",            # data-symbol Es/N0 (see below)
     acq_code=acq, acq_reps=4,             # preamble: code A x 4
     data_code=dat,                        # payload spread: code B
-    sync=BARKER13, data=pay,              # one burst; CRC-16 auto-appended
+    sync=BARKER13, data=pay, crc="crc16",  # one burst; CRC-16 trailer asked for
     delay_samples=(2_000, 10_000),        # arrival jitter before each burst
     off_samples=(4_000, 12_000),          # trailing gap, min 4k samples
     repeats=5,                            # -> a 5-burst train

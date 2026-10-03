@@ -974,11 +974,11 @@ def test_a_frame_with_no_payload_is_refused():
         s.steps(64)
 
 
-def test_a_data_source_is_a_frame_its_crc_is_on_by_default():
-    """A data source is a frame's payload, so ``crc`` -- crc16 by default --
-    applies to it: the bits go out with a CRC-16 trailer unless
-    ``crc="none"`` says to send them as given (doppler#1718 retired the
-    unframed pattern this used to leave alone)."""
+def test_a_data_source_carries_no_crc_unless_asked():
+    """A data source goes out as given: ``crc`` defaults to ``none``, so a
+    CRC-16 trailer is there only when ``crc="crc16"`` asks for one (the
+    default was crc16 until doppler#1617 made a source carry no CRC of its
+    own accord)."""
     common = {
         "type": "bits",
         "fs": 1.0,
@@ -986,9 +986,12 @@ def test_a_data_source_is_a_frame_its_crc_is_on_by_default():
         "data": PAYLOAD,
         "modulation": "bpsk",
     }
-    as_given = np.asarray(Synth(**common, crc="none").steps(len(PAYLOAD)))
-    framed = np.asarray(Synth(**common).steps(len(PAYLOAD) + 16))
+    as_given = np.asarray(Synth(**common).steps(len(PAYLOAD)))
     np.testing.assert_allclose(as_given.real, 1.0 - 2.0 * PAYLOAD, atol=1e-6)
+    assert np.array_equal(
+        np.asarray(Synth(**common, crc="none").steps(len(PAYLOAD))), as_given
+    ), "crc='none' is the default, spelled out"
+    framed = np.asarray(Synth(**common, crc="crc16").steps(len(PAYLOAD) + 16))
     np.testing.assert_array_equal(framed[: len(PAYLOAD)], as_given)
     assert np.all(np.abs(framed[len(PAYLOAD) :]) > 0.5), "and its CRC-16"
 

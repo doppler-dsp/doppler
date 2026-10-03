@@ -255,12 +255,13 @@ dp_wfm_source_frame_error (const wfm_source_t *src)
      field (it is sent unspread, outside the description), so it may sit
      beside one. */
   if (src->frame
-      && (src->sync.len
+      && (src->sync.len || src->crc
           || (src->type != WFM_SYNTH_DSSS && src->acq_code.len
               && src->acq_reps)))
     return "a carried frame (--frame FILE, or a scene's \"frame\") is the "
-           "whole frame: put the sync word and the preamble in it as fields, "
-           "or drop it and use --acq-code/--sync/--crc for the common frame";
+           "whole frame: put the sync word, the preamble and the CRC stage "
+           "in it as fields, or drop it and use --acq-code/--sync/--crc for "
+           "the common frame";
   if (src->type == WFM_SYNTH_DSSS)
     {
       /* A CONTINUOUS dsss stream has no frame at all; the CLI and the

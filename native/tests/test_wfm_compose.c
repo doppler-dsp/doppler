@@ -3337,9 +3337,20 @@ main (void)
       cvd.stage[cst].emit_den = 1u;
       wfm_source_t cv         = dsss;
       memset (&cv.sync, 0, sizeof cv.sync);
+      cv.crc = 0; /* ...and so is the CRC stage: a carried frame is the whole
+                     frame, and a crc beside it is refused */
       /* The payload is a field of the description too (doppler#1683). */
       memset (&cv.data, 0, sizeof cv.data);
       cv.frame = &cvd;
+      /* A crc beside the carried frame is a second statement about the same
+         trailer: refused on the object face, as the CLI and a scene do
+         (doppler#1700). `none` is the default, so it says nothing. */
+      wfm_source_t cvcrc = cv;
+      cvcrc.crc          = 1;
+      DP_CHECK_MSG (dp_wfm_source_error (&cvcrc) != NULL,
+                    "a crc beside a carried frame is refused");
+      DP_CHECK_MSG (dp_wfm_source_error (&cv) == NULL,
+                    "...and the frame alone is not");
       wfm_segment_t gcv
           = { .sources = &cv, .n_sources = 1, .fs = 1e6, .off_samples = 0 };
       wfm_segment_t gpl
@@ -4227,9 +4238,8 @@ main (void)
     DP_REQUIRE_MSG (dp_wfm_source_has_frame (&plain),
                     "a data source frames its source");
     DP_REQUIRE_MSG (dp_wfm_source_has_frame (&framed), "and so does this");
-    /* `crc` alone must NOT read as a frame: it defaults to crc16 on every
-       source, so treating it as intent would frame every waveform ever
-       generated. */
+    /* `crc` alone must NOT read as a frame: it is a trailer, not a frame,
+       so treating it as intent would frame every waveform that names one. */
     wfm_source_t crc_only = plain;
     crc_only.data         = (wfm_seq_t){ 0 };
     crc_only.type         = WFM_SYNTH_BPSK;
@@ -4312,7 +4322,7 @@ main (void)
       cd.type               = WFM_SYNTH_DSSS;
       cd.sps                = 2;
       cd.symbol_rate        = 12500.0;
-      cd.crc                = 0; /* unframed: the default crc16 would make
+      cd.crc                = 0; /* unframed: a crc16 would make
                                     this a FRAME, and the payload would ride
                                     attach_frame instead of the data path
                                     under test -- which is exactly how the
@@ -5756,7 +5766,7 @@ main (void)
                                "\t\t\t\t\t\"rrc_beta\":\t0.35,\n"
                                "\t\t\t\t\t\"rrc_span\":\t8,\n"
                                "\t\t\t\t\t\"data\":\t\"0xb2\",\n"
-                               "\t\t\t\t\t\"crc\":\t\"crc16\"\n"
+                               "\t\t\t\t\t\"crc\":\t\"none\"\n"
                                "\t\t\t\t}, {\n"
                                "\t\t\t\t\t\"type\":\t\"tone\",\n"
                                "\t\t\t\t\t\"freq\":\t0.125,\n"

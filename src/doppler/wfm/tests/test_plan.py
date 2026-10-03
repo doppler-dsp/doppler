@@ -631,6 +631,7 @@ def _data_scene(snr: float) -> Composer:
                 seed=11,
                 data=bits,
                 data_len=16,
+                crc="crc16",
                 fill=np.array([0, 1], np.uint8),
             )
         ]

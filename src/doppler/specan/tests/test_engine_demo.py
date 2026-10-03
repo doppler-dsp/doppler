@@ -44,13 +44,16 @@ def _first_frame(cfg, max_reads: int = 300):
 def _bin_freqs_hz(frame):
     """Reconstruct the per-bin absolute frequency axis of a frame.
 
-    ``frame.db`` is the central passband of a ``data_size * 2`` zero-padded
+    ``frame.db`` is the central passband of an ``nfft``-point zero-padded
     FFT, DC-centred, so bin ``i`` maps to
-    ``(i - len/2) * fs_out / nfft + center_freq``.
+    ``(i - len/2) * fs_out / nfft + center_freq``. ``nfft`` is read from the
+    frame, not re-derived from ``data_size``: the window length is no longer
+    a power of two, so ``nfft`` is not simply ``2 * data_size``.
     """
     n = len(frame.db)
-    nfft = frame.data_size * 2
-    return (np.arange(n) - n // 2) * frame.fs_out / nfft + frame.center_freq
+    return (
+        np.arange(n) - n // 2
+    ) * frame.fs_out / frame.nfft + frame.center_freq
 
 
 def test_demo_produces_a_frame():

@@ -22,6 +22,13 @@
 #define SPECAN_OVERSAMPLE 1.28
 #define SPECAN_PAD 2u
 #define SPECAN_EPS 1e-20f
+/* The Kaiser window is never asked for less than this ENBW, in bins of its
+ * own length. At 2.0 bins beta is ~12 and the peak sidelobe ~-90 dB, so every
+ * RBW gets the same skirt. Without the floor, n = next_pow_two(fs_out/rbw)
+ * left the target anywhere in [1, 2): an RBW of fs_out/2^k asked for exactly 1
+ * bin, which only a rectangle (beta 0, -13 dB sidelobes) meets -- the
+ * recorded specan demo (rbw = fs/512) showed exactly that. */
+#define SPECAN_MIN_ENBW 2.0
 
 /* Smallest power of two >= x (x >= 1). */
 
@@ -63,8 +70,13 @@ dp_specan_create (double fs, double span, double rbw, double src_center,
   if (fs_out > fs)
     fs_out = fs;
 
-  /* RBW → window length (coarse) + Kaiser beta (fine). */
-  size_t n = dp_next_pow_two ((size_t)ceil (fs_out / rbw));
+  /* RBW → window length (coarse) + Kaiser beta (fine). The Kaiser length is
+   * NOT rounded to a power of two: ceil() puts the target ENBW in
+   * [SPECAN_MIN_ENBW, SPECAN_MIN_ENBW + rbw/fs_out), and only the zero-padded
+   * transform (nfft, below) needs to be a power of two. The other windows
+   * have a fixed ENBW and keep the power-of-two length. */
+  size_t n = (window == 1) ? (size_t)ceil (SPECAN_MIN_ENBW * fs_out / rbw)
+                           : dp_next_pow_two ((size_t)ceil (fs_out / rbw));
   if (n < 2)
     n = 2;
   double target_enbw = rbw / (fs_out / (double)n);

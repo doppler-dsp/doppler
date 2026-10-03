@@ -72,12 +72,50 @@ main (void)
   if (!sa)
     return 1;
   DP_CHECK (dp_near (sa->fs_out, span * 1.28, 1.0)); /* span -> decim rate */
-  DP_CHECK (sa->nfft == 2 * sa->n);                  /* pad = 2, n is pow2  */
-  DP_CHECK (sa->disp_n % 2 == 1);                    /* odd, DC-centred     */
+  DP_CHECK ((sa->nfft & (sa->nfft - 1)) == 0);       /* FFT is a power of 2 */
+  DP_CHECK (sa->nfft >= 2 * sa->n && sa->nfft < 4 * sa->n); /* pad >= 2    */
+  DP_CHECK (sa->disp_n % 2 == 1); /* odd, DC-centred     */
   DP_CHECK (sa->disp_lo + sa->disp_n <= sa->nfft);
   double realized_rbw = sa->psd->enbw * sa->fs_out / (double)sa->n;
   DP_CHECK (dp_near (realized_rbw, rbw, rbw * 0.05)); /* RBW met within 5% */
   DP_CHECK (sa->beta > 0.0);                          /* Kaiser actually used*/
+
+  /* 2b. Every RBW gets the same skirt. The window length used to be
+   * next_pow_two(fs_out/rbw), leaving the Kaiser ENBW target anywhere in [1,
+   * 2) bins; an RBW of fs_out/2^k asked for exactly 1 bin, got beta = 0 -- a
+   * rectangle -- and painted -13 dB sidelobes around every tone. 1000, 2000
+   * and 4000 Hz are exactly that case here (fs_out = 256 kHz). For each, a
+   * noiseless tone must sit >= 80 dB above every bin outside its main lobe
+   * (Kaiser beta ~12: null at ~4 bins of n, so 5 bins of n in display bins
+   * of nfft clears it). */
+  {
+    const double rbws[] = { 1000.0, 2000.0, 4000.0, 1500.0, 1999.0, 3000.0 };
+    for (size_t r = 0; r < sizeof rbws / sizeof rbws[0]; r++)
+      {
+        dp_specan_state_t *sk
+            = dp_specan_create (fs, span, rbws[r], 0, 0, 0, 1.0, 0, 1, 1);
+        DP_CHECK (sk != NULL);
+        if (!sk)
+          continue;
+        DP_CHECK (sk->psd->enbw >= 2.0 - 1e-3); /* never below 2 bins */
+        DP_CHECK (dp_near (sk->psd->enbw * sk->fs_out / (double)sk->n, rbws[r],
+                           rbws[r] * 0.01)); /* RBW exact      */
+        gen_tone (tone, NTONE, 30e3 / fs, 1.0);
+        size_t nf = drive_first_frame (sk, tone, NTONE, 4096, out, 2048);
+        DP_CHECK (nf == sk->disp_n);
+        size_t pkk   = argmax (out, nf);
+        size_t guard = 5 * sk->nfft / sk->n;
+        float  worst = -1e30f;
+        for (size_t i = 0; i < nf; i++)
+          if ((i + guard < pkk || i > pkk + guard) && out[i] > worst)
+            worst = out[i];
+        if (out[pkk] - worst < 80.0f)
+          printf ("rbw %.0f: skirt only %.1f dB below the tone (beta %.2f)\n",
+                  rbws[r], (double)(out[pkk] - worst), sk->beta);
+        DP_CHECK (out[pkk] - worst >= 80.0f);
+        dp_specan_destroy (sk);
+      }
+  }
 
   /* 3. A unit tone at +30 kHz lands at +30 kHz in the display, near 0 dB. */
   const double f_off = 30e3;

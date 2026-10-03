@@ -52,6 +52,7 @@ class SpectrumFrame:
     db: list[float]  # dBm values, length fft_size, DC-centred
     fft_size: int  # number of display bins (the cropped passband)
     data_size: int  # N: Kaiser window / RBW frame size
+    nfft: int  # zero-padded transform length; display bin = fs_out / nfft
     fs_out: float  # Hz — output (display) sample rate
     center_freq: float  # Hz — display center frequency
     rbw: float  # Hz — actual RBW = enbw_bins * fs_out / N
@@ -175,6 +176,7 @@ class SpecanEngine:
             db=db.tolist(),
             fft_size=len(db),
             data_size=self._data_size,
+            nfft=self._nfft,
             fs_out=self._fs_out,
             center_freq=self._cfg.center,
             rbw=rbw,

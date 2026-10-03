@@ -658,8 +658,10 @@ static PyTypeObject SpecanObjType = {
     ">>> sa = Specan(fs=2.048e6, span=200e3, rbw=500.0)\n"
     ">>> sa.fs_out\n"
     "256000.0\n"
-    ">>> sa.nfft == 2 * sa.n\n"
-    "True\n",
+    ">>> sa.n, sa.nfft\n"
+    "(1024, 2048)\n"
+    ">>> round(sa.beta, 1)\n"
+    "11.9\n",
   .tp_methods = SpecanObj_methods,
   .tp_getset  = Specan_getset,
   .tp_new     = SpecanObj_new,

@@ -187,7 +187,7 @@ dp_specan_state_t * dp_specan_create (
 
 
 
-Derives the DSP from the instrument parameters: `fs_out = min(span·1.28, fs)`, `n = next_pow_two(ceil(fs_out/rbw))` (the coarse RBW knob), a Kaiser `beta` solved so the window ENBW realises `rbw` (the fine knob), `nfft = next_pow_two(2·n)`, and the central display crop covering ±span/2.
+Derives the DSP from the instrument parameters: `fs_out = min(span·1.28, fs)`, the window length `n` (the coarse RBW knob), a Kaiser `beta` solved so the window ENBW realises `rbw` (the fine knob), `nfft = next_pow_two(2·n)`, and the central display crop covering ±span/2. For Kaiser, `n = ceil(2·fs_out/rbw)`  any length, so the window is never asked for less than 2 bins of ENBW and every RBW gets beta &gt;= ~12 (peak sidelobe ~-90 dB). For Hann, `n = next_pow_two(ceil(fs_out/rbw))`.
 
 
 
@@ -226,8 +226,10 @@ Caller must call [**dp\_specan\_destroy()**](specan__core_8h.md#function-dp_spec
 >>> sa = Specan(fs=2.048e6, span=200e3, rbw=500.0)
 >>> sa.fs_out
 256000.0
->>> sa.nfft == 2 * sa.n
-True
+>>> sa.n, sa.nfft
+(1024, 2048)
+>>> round(sa.beta, 1)
+11.9
 ```
  
 

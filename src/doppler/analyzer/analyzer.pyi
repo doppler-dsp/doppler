@@ -41,8 +41,10 @@ class Specan:
     >>> sa = Specan(fs=2.048e6, span=200e3, rbw=500.0)
     >>> sa.fs_out
     256000.0
-    >>> sa.nfft == 2 * sa.n
-    True
+    >>> sa.n, sa.nfft
+    (1024, 2048)
+    >>> round(sa.beta, 1)
+    11.9
 
     """
 

@@ -46,7 +46,8 @@ def record(
     n_frames : int
         Number of frames to capture.
     fft_size : int
-        FFT size (forced via rbw calculation).
+        Sets the RBW to ``sample_rate / fft_size``. The analyzer derives its
+        own window and FFT lengths from that RBW.
     sample_rate : float
         DemoSource sample rate in Hz.
     center_freq : float
@@ -79,12 +80,14 @@ def record(
     from doppler.specan.engine import SpecanEngine
     from doppler.specan.source import DemoSource
 
-    # Build config — force span so fft_size comes out exactly right.
-    # With fs_out = span / 0.8 and fft_size = nextpow2(fs_out / rbw):
-    # pick rbw = fs_out / fft_size → always lands on fft_size exactly.
+    # Full-bandwidth span, and an RBW of fs_out / fft_size (4 kHz at the
+    # defaults). The window length is the analyzer's to derive from the RBW
+    # (dp_specan_create); this used to pick the RBW so that length came out
+    # as exactly fft_size, which was the one RBW that made the Kaiser window
+    # a rectangle and painted -13 dB sidelobes round the tone.
     span = sample_rate * 0.8  # full-bandwidth span
     fs_out = span / 0.8  # = sample_rate
-    rbw = fs_out / fft_size  # forces the desired FFT size
+    rbw = fs_out / fft_size
 
     cfg = SpecanConfig(
         source="demo",
@@ -154,7 +157,10 @@ def main() -> None:
         help="number of frames (default: 120)",
     )
     ap.add_argument(
-        "--fft-size", type=int, default=512, help="FFT size (default: 512)"
+        "--fft-size",
+        type=int,
+        default=512,
+        help="sets RBW = fs / N (default: 512, i.e. 4 kHz)",
     )
     ap.add_argument(
         "--fs",

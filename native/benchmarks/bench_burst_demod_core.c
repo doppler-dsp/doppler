@@ -29,7 +29,7 @@
  */
 #include "doppler/burst_demod/burst_demod_core.h"
 #include "doppler/dp_complex.h"
-#include "doppler/dp_crc16.h"
+#include "doppler/wfm/wfm_frame.h"
 #include "jm_bench.h"
 #include <math.h>
 #include <stdio.h>
@@ -43,9 +43,10 @@
 #define SPC 4
 #define SYNC_LEN 13
 #define PAYLOAD 64
-/* What demod() returns per burst: the frame as received. */
-#define FRAME_SYMS (SYNC_LEN + PAYLOAD + CRC_BITS)
-#define CRC_BITS 16
+/* Scratch capacity for a frame's symbols and for the burst built from it: a
+ * generous constant. The frame's own length is its description's layout. */
+#define MAX_FRAME 256u
+#define BURST_CAP ((ACQ_SF * ACQ_REPS + MAX_FRAME * DATA_SF) * SPC + 64)
 #define CHIP_RATE 1.0e6
 #define ITERATIONS 20
 #define WARMUP_S 0.25
@@ -60,32 +61,38 @@ csign (uint8_t c)
   return (c & 1u) ? -1.0f : 1.0f;
 }
 
+/* The frame -- sync | payload | CRC-16 -- described ONCE. The burst is
+ * spread from this description and the demodulator is built from it, so the
+ * receiver's sync word and frame length are the transmitter's, not a second
+ * count. Returns the frame's length in symbols (the layout's). */
 static size_t
-put_symbol (float _Complex *y, size_t n, const uint8_t *dcode, uint8_t bit)
+frame_desc (wfm_frame_desc_t *f, const uint8_t *payload)
 {
-  float a = csign (bit);
-  for (size_t c = 0; c < DATA_SF; c++)
-    for (size_t k = 0; k < SPC; k++)
-      y[n++] = a * csign (dcode[c]);
-  return n;
+  const wfm_seq_t sync
+      = { .kind = WFM_SEQ_LITERAL, .bits = SYNC, .len = SYNC_LEN };
+  const wfm_seq_t pay
+      = { .kind = WFM_SEQ_LITERAL, .bits = payload, .len = PAYLOAD };
+  wfm_frame_desc_layout_t l;
+  if (dp_wfm_frame_fixed (f, NULL, 0, &sync, &pay, 1) != 0
+      || dp_wfm_frame_desc_layout (f, &l) != 0)
+    return 0;
+  return l.frame_bits;
 }
 
+/* Spread the burst the description names (the unspread preamble, then the
+ * spread frame), hold each chip SPC samples, and apply the carrier
+ * exp(j2π(f0·n + ½μ·n²)). Returns the sample count, 0 on failure. */
 static size_t
-build_burst (float _Complex *y, const uint8_t *acode, const uint8_t *dcode,
-             const uint8_t *payload, double f0, double mu)
+build_burst (float _Complex *y, const wfm_frame_desc_t *f,
+             const uint8_t *acode, const uint8_t *dcode, double f0, double mu)
 {
+  static uint8_t chips[BURST_CAP / SPC];
+  const size_t   nc = dp_wfm_dsss_desc_chips (
+      f, NULL, acode, ACQ_SF, ACQ_REPS, dcode, DATA_SF, chips, sizeof chips);
   size_t n = 0;
-  for (size_t r = 0; r < ACQ_REPS; r++)
-    for (size_t c = 0; c < ACQ_SF; c++)
-      for (size_t k = 0; k < SPC; k++)
-        y[n++] = csign (acode[c]); /* unmodulated preamble */
-  for (size_t j = 0; j < SYNC_LEN; j++)
-    n = put_symbol (y, n, dcode, SYNC[j]);
-  for (size_t j = 0; j < PAYLOAD; j++)
-    n = put_symbol (y, n, dcode, payload[j]);
-  uint16_t crc = dp_crc16_ccitt (payload, PAYLOAD);
-  for (size_t j = 0; j < CRC_BITS; j++)
-    n = put_symbol (y, n, dcode, (crc >> (CRC_BITS - 1 - j)) & 1u);
+  for (size_t c = 0; c < nc; c++)
+    for (size_t k = 0; k < SPC; k++)
+      y[n++] = csign (chips[c]);
 
   for (size_t i = 0; i < n; i++)
     {
@@ -121,12 +128,11 @@ main (void)
   for (size_t i = 0; i < PAYLOAD; i++)
     payload[i] = (uint8_t)((i * 7u + 3u) & 1u);
 
-  const size_t cap
-      = (ACQ_SF * ACQ_REPS + (SYNC_LEN + PAYLOAD + CRC_BITS) * DATA_SF) * SPC
-        + 16;
-  float _Complex *y    = malloc (cap * sizeof *y);
-  uint8_t        *bits = malloc (FRAME_SYMS);
-  if (!y || !bits)
+  wfm_frame_desc_t f;
+  const size_t     frame_syms = frame_desc (&f, payload);
+  float _Complex  *y          = malloc (BURST_CAP * sizeof *y);
+  uint8_t         *bits       = malloc (MAX_FRAME);
+  if (!frame_syms || frame_syms > MAX_FRAME || !y || !bits)
     return 1;
 
   printf ("=== burst_demod benchmark ===\n");
@@ -148,26 +154,27 @@ main (void)
 
   for (int k = 0; k < 3; k++)
     {
-      size_t n  = build_burst (y, acode, dcode, payload, f0s[k], mus[k]);
+      size_t n  = build_burst (y, &f, acode, dcode, f0s[k], mus[k]);
       n_samples = n;
 
-      dp_burst_demod_state_t *d = dp_burst_demod_create (
-          dcode, DATA_SF, SPC, CHIP_RATE, 0.0, rates[k], FRAME_SYMS, 10);
-      if (!d)
+      const char             *why = NULL;
+      dp_burst_demod_state_t *d   = dp_burst_demod_create_desc (
+          dcode, DATA_SF, &f, SPC, CHIP_RATE, 0.0, rates[k], 10, &why);
+      if (!d || !n)
         {
-          (void)fprintf (stderr, "bench_burst_demod: create NULL\n");
+          (void)fprintf (stderr, "bench_burst_demod: create NULL (%s)\n",
+                         why ? why : "burst build failed");
           return 1;
         }
       dp_burst_demod_set_preamble (d, acode, ACQ_SF, ACQ_REPS);
-      dp_burst_demod_set_sync (d, SYNC, SYNC_LEN);
       dp_burst_demod_set_prior (d, priors[k], 0);
 
       /* The precondition. Every stage of this object exits early on a
          signal that is not there, so without proving a real demodulation
          first the loop below would faithfully time the give-up path. */
-      memset (bits, 0, FRAME_SYMS);
-      size_t nb = dp_burst_demod_demod (d, y, n, bits, FRAME_SYMS);
-      if (nb != FRAME_SYMS || memcmp (bits + SYNC_LEN, payload, PAYLOAD) != 0)
+      memset (bits, 0, MAX_FRAME);
+      size_t nb = dp_burst_demod_demod (d, y, n, bits, frame_syms);
+      if (nb != frame_syms || memcmp (bits + SYNC_LEN, payload, PAYLOAD) != 0)
         {
           (void)fprintf (stderr,
                          "bench_burst_demod: %s did not demodulate (nb=%zu) "
@@ -183,7 +190,7 @@ main (void)
         {
           dp_burst_demod_reset (d);
           dp_burst_demod_set_prior (d, priors[k], 0);
-          sink += dp_burst_demod_demod (d, y, n, bits, FRAME_SYMS);
+          sink += dp_burst_demod_demod (d, y, n, bits, frame_syms);
           w1 = jm_bench_now_ns ();
         }
       while (jm_bench_elapsed_sec (w0, w1) < WARMUP_S);
@@ -193,7 +200,7 @@ main (void)
           dp_burst_demod_reset (d);
           dp_burst_demod_set_prior (d, priors[k], 0);
           t0 = jm_bench_now_ns ();
-          sink += dp_burst_demod_demod (d, y, n, bits, FRAME_SYMS);
+          sink += dp_burst_demod_demod (d, y, n, bits, frame_syms);
           t1         = jm_bench_now_ns ();
           t_dm[k][r] = jm_bench_elapsed_sec (t0, t1);
         }

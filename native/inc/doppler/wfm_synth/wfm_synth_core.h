@@ -689,8 +689,8 @@ int dp_wfm_synth_data_ended(const dp_wfm_synth_state_t *state);
  * *chip* here. The common frame `sync | payload | CRC-16` is
  * `dp_wfm_frame_fixed()`; a coded burst is any other description. This is
  * the transmit side of `BurstDemod`'s frame contract: the same codes, sync
- * word, and payload length hand to `dp_burst_demod_set_preamble`/`set_sync`
- * on receive.
+ * word, and payload length hand to `dp_burst_demod_create_desc` (as a frame
+ * description) and `dp_burst_demod_set_preamble` on receive.
  *
  * One pass of the pattern is one burst (`n_chips * sps` samples), sent once
  * like the bits pattern, and silence after it -- the composer sizes a dsss

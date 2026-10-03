@@ -1603,9 +1603,9 @@ class BurstDemod:
 
     @property
     def frame_syms(self) -> int:
-        """symbols the frame occupies AFTER the sync word — a number the caller
-        states. What they MEAN is the frame description's business, one layer
-        up.
+        """symbols the frame occupies, sync word included — the description's
+        layout length, read at create. What they MEAN is the frame
+        description's business, one layer up.
         """
 
     @property
@@ -4241,7 +4241,7 @@ class DsssBurstReceiver:
         out: npt.NDArray[np.float32] | None = None,
     ) -> NDArray[np.float32]:
         """The SOFT bits of every burst the last push() returned, concatenated:
-        burst i occupies llr[i*frame_bits:(i+1)*frame_bits], in the same order
+        burst i occupies llr[i*frame_syms:(i+1)*frame_syms], in the same order
         as push()'s payloads and events()' rows. `mpsk_soft_demap`'s convention
         — positive means bit 0, so `L < 0` reproduces exactly the bits push()
         returned, which is asserted rather than assumed. Spans the WHOLE frame
@@ -4259,7 +4259,7 @@ class DsssBurstReceiver:
         what makes a coded burst worth coding.
 
         Concatenated the same way push()'s payloads are, one row of
-        `frame_bits` per burst: burst i starts at `i * frame_bits`, in the
+        `frame_syms` per burst: burst i starts at `i * frame_syms`, in the
         order events() reports. The convention is `mpsk_soft_demap`'s —
         positive means bit 0, so `L < 0` reproduces exactly the bits push()
         returned. Spans the WHOLE frame rather than the payload alone, because
@@ -4542,13 +4542,13 @@ class DsssBurstReceiver:
     @property
     def frame_valid(self) -> bool:
         """Whether the most recent window's frame passed its error detection --
-        this receiver's frame ends in a CRC-16. The verdict that decides
+        the frame description's CRC stage covered it. The verdict that decides
         whether the window OWNS its span: a failed window is given back to the
         capture (`release`), so a decoy ahead of a real burst cannot swallow it
-        (doppler#1181). The trailer is assumed, not declared: the receiver
-        knows a frame only by `frame_syms`, so a frame with no CRC is never
-        valid -- its bits are still returned, and every window is released
-        (doppler#1769). Per burst, read `events()['frame_valid']`.
+        (doppler#1181). The verdict is the frame description's own, so a frame
+        whose description has no CRC stage is never valid -- its bits are still
+        returned, and every window is released (doppler#1769). Per burst, read
+        `events()['frame_valid']`.
         """
 
     @property

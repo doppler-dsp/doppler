@@ -55,7 +55,7 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) _Boxcar moving-average state (cf32)._ 
 * **struct** [**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) _BurstAcquisition state: a pure wrapper around one shared_ [_**dp\_acq\_state\_t**_](structdp__acq__state__t.md) _engine._
 * **struct** [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) _BurstCapture state._ 
-* **struct** [**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) _BurstDemod state. Allocate with_ [_**dp\_burst\_demod\_create()**_](burst__demod__core_8h.md#function-dp_burst_demod_create) _._
+* **struct** [**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) _BurstDemod state. Allocate with_ [_**dp\_burst\_demod\_create\_desc()**_](burst__demod__core_8h.md#function-dp_burst_demod_create_desc) _._
 * **struct** [**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) _BurstDespreader state._ 
 * **struct** [**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) _CarrierAcquisition state._ 
 * **struct** [**dp\_carrier\_mpsk\_state\_t**](structdp__carrier__mpsk__state__t.md) _M-PSK carrier loop state._ 

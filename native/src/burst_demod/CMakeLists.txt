@@ -23,9 +23,6 @@ target_link_libraries(burst_demod_core PUBLIC
     spectral_core
     wfm_frame_core
     cvt_core
-    ccsds_tm_core
-    conv_core
-    rs_core
     pn_core
     gold_core
     mpsk_core)
@@ -39,9 +36,6 @@ target_link_libraries(test_burst_demod_core
     spectral_core
     wfm_frame_core
     cvt_core
-    ccsds_tm_core
-    conv_core
-    rs_core
     pn_core
     gold_core
     mpsk_core
@@ -59,9 +53,6 @@ target_link_libraries(bench_burst_demod_core
     spectral_core
     wfm_frame_core
     cvt_core
-    ccsds_tm_core
-    conv_core
-    rs_core
     pn_core
     gold_core
     mpsk_core

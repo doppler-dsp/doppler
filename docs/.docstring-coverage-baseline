@@ -761,7 +761,6 @@ doppler.dsss.BurstDemod.n_symbols sr
 doppler.dsss.BurstDemod.reset sr
 doppler.dsss.BurstDemod.set_preamble sr
 doppler.dsss.BurstDemod.set_prior sr
-doppler.dsss.BurstDemod.set_sync sr
 doppler.dsss.BurstDemod.symbols sr
 doppler.dsss.BurstDemod.symbols_max_out sr
 doppler.dsss.BurstDespreader s

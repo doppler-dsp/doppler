@@ -25,19 +25,15 @@ create_fn = "dp_burst_demod_create_frame"
 create_error = "ValueError"
 create_error_message = "BurstDemod: invalid parameter (need a non-empty data_code, spc >= 1, chip_rate > 0, max_rate >= 0, est_segments >= 1) or a frame description whose first field is not known bits (empty, derived by a stage, a data field, covered by a stage, or named \"preamble\"), or whose stages emit a new stream (a convolutional code)"
 # wfm_frame is where a frame's layout lives, for BOTH ends of a link: the
-# demodulator describes the frame it expects with the same builder the
-# generator assembles from. ccsds_tm supplies the stage KERNELS (and the ASM
-# bits) as a table -- wfm_frame.c cannot call them, since ccsds_tm depends on
-# it -- so every consumer carries ccsds_tm and the two codes it configures.
+# demodulator reads the frame it expects from the same description the
+# generator assembles from. The pn/gold/cvt/mpsk entries are what wfm_frame
+# and the soft demapper link against.
 depends_on = [
     { name = "ppe", link = true },
     { name = "fft", link = true },
     { name = "spectral", link = true },
     { name = "wfm_frame", link = true },
     { name = "cvt", link = true }, # wfm_frame.c expands a hex Field through it
-    { name = "ccsds_tm", link = true },
-    { name = "conv", link = true },
-    { name = "rs", link = true },
     { name = "pn", link = true },
     { name = "gold", link = true },
     { name = "mpsk", link = true },

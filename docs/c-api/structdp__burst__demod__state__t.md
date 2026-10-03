@@ -8,7 +8,7 @@
 
 
 
-_BurstDemod state. Allocate with_ [_**dp\_burst\_demod\_create()**_](burst__demod__core_8h.md#function-dp_burst_demod_create) _._
+_BurstDemod state. Allocate with_ [_**dp\_burst\_demod\_create\_desc()**_](burst__demod__core_8h.md#function-dp_burst_demod_create_desc) _._
 
 * `#include <burst_demod_core.h>`
 
@@ -390,7 +390,7 @@ size_t dp_burst_demod_state_t::frame_syms;
 
 
 
-symbols the frame occupies AFTER the sync word — a number the caller states. What they MEAN is the frame description's business, one layer up. 
+symbols the frame occupies, sync word included — the description's layout length, read at create. What they MEAN is the frame description's business, one layer up. 
  
 
 

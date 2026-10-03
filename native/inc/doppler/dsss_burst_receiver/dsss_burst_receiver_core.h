@@ -13,13 +13,23 @@
  * step()/steps(): a burst is a frame, not a sample.
  *
  * @code
- * uint8_t acq[31], data[8], sync[13];
- * dp_dsss_burst_receiver_state_t *rx = dp_dsss_burst_receiver_create (
- *     acq, 31, data, 8, sync, 13, 4, 4, 1.0e6, 61,
- *     55.0, 0.0, 1e-3, 0.9, 0.0, 0.0, 10);
- * uint8_t bits[61];   // frame_syms per burst: sync | payload | CRC
- * size_t n = dp_dsss_burst_receiver_push (rx, samples, n_samples, bits, 61);
- * // the bits are the FRAME as received; undoing it is a Frame's job
+ * uint8_t acq[31] = { 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0,
+ *                     0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0 };
+ * uint8_t data[8] = { 1, 0, 1, 1, 0, 0, 1, 0 }, sb[13] = { 0 };
+ * const wfm_seq_t sync = { .kind = WFM_SEQ_LITERAL, .bits = sb, .len = 13 };
+ * const wfm_seq_t body = { .kind = WFM_SEQ_DATA, .len = 32 };
+ * wfm_frame_desc_t f;
+ * dp_wfm_frame_fixed (&f, NULL, 0, &sync, &body, 1);  // sync|data:32|crc16
+ * dp_dsss_burst_receiver_state_t *rx = dp_dsss_burst_receiver_create_desc (
+ *     acq, 31, data, 8, &f, 4, 4, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0.0, 0.0, 10,
+ *     NULL);
+ * if (!rx)
+ *   return 1;
+ * float _Complex samples[256] = { 0 };   // the stream goes here
+ * uint8_t bits[(13 + 32 + 16) * 4];      // frame_syms per burst: sync|payload|CRC
+ * size_t n = dp_dsss_burst_receiver_push (rx, samples, 256, bits,
+ *                                         sizeof bits);
+ * (void)n;                               // the bits are the FRAME as received
  * dp_dsss_burst_receiver_destroy (rx);
  * @endcode
  */
@@ -81,29 +91,25 @@ extern "C" {
 /**
  * @brief DsssBurstReceiver state.
  *
- * Allocate with dp_dsss_burst_receiver_create().
+ * Allocate with dp_dsss_burst_receiver_create_desc().
  */
 typedef struct {
   /* ── Configuration, copied at create() ──────────────────────────────── */
   uint8_t *acq_code;     /**< Preamble code, owned copy.                   */
   uint8_t *data_code;    /**< Payload spreading code, owned copy.          */
-  uint8_t *sync;         /**< Frame sync word, owned copy.                 */
   size_t   acq_code_len; /**< Preamble code length, chips.                 */
   size_t   data_code_len;/**< Data code length, chips.                     */
-  size_t   sync_len;     /**< Sync word length, symbols.                   */
   wfm_frame_desc_t *frame; /**< The frame description this receiver was
                               built from, an owned copy whose sequences are
-                              NOT kept (the verdict reads only the layout),
-                              or NULL when built from a sync word and a
-                              `frame_syms`, which assumes `sync | payload
-                              | CRC-16`.                                   */
+                              NOT kept (the verdict reads only the layout). */
   size_t   reps;         /**< Preamble code repetitions.                   */
   size_t   spc;          /**< Samples per chip.                            */
   double   chip_rate;    /**< Chip rate, Hz.                               */
-  size_t   frame_syms;   /**< Symbols the frame occupies after the sync
-                              word, and so bits per burst out of push().
-                              What they MEAN is a frame description's
-                              business, one layer up (doppler#1022).     */
+  size_t   frame_syms;   /**< Symbols the frame occupies, sync word
+                              included -- the description's layout length,
+                              so bits per burst out of push() and the row
+                              stride of llrs(). What they MEAN is the frame
+                              description's business (doppler#1022).     */
 
   /* ── Derived geometry ───────────────────────────────────────────────── */
   size_t code_period; /**< One preamble repetition, in SAMPLES. The modulus
@@ -149,11 +155,11 @@ typedef struct {
                                 back with dp_burst_capture_release(), so a
                                 decoy cannot own the span of a real burst
                                 behind it (doppler#1181, doppler#1004).
-                                The trailer is ASSUMED, not declared: the
-                                receiver knows a frame only by `frame_syms`,
-                                so a frame with no CRC is never valid -- its
-                                bits are still returned, and every window
-                                is released (doppler#1769; decision D3 of
+                                The verdict is the description's own
+                                (dp_wfm_frame_desc_crc_ok), so a frame with
+                                no CRC stage is never valid -- its bits are
+                                still returned, and every window is
+                                released (doppler#1769; decision D3 of
                                 docs/design/rx-frame-description.md).     */
 
   /* ── The completed bursts of the LAST push ───────────────────────────
@@ -166,12 +172,10 @@ typedef struct {
   size_t           ev_cap; /**< Allocated records.                          */
   float  *llr;     /**< The soft bits of every burst the last push
                         returned, concatenated: burst i starts at
-                        i*frame_bits. Scratch, like `ev` -- it describes
+                        i*frame_syms. Scratch, like `ev` -- it describes
                         one call and is never serialized.              */
   size_t  llr_cap; /**< Allocated floats.                               */
   size_t  llr_len; /**< Floats written by the last push.                */
-  size_t  frame_bits; /**< The frame's length, from the description --
-                           the stride of a row in `llr`.                */
   size_t           ev_len; /**< Records the last push() wrote.              */
   /* ── Bookkeeping ────────────────────────────────────────────────────── */
   uint64_t n_bursts; /**< Bursts DEMODULATED, lifetime. Distinct from the
@@ -180,51 +184,6 @@ typedef struct {
                           and that difference is the thing worth seeing.  */
 /*<<property_struct_fields>>*/
 } dp_dsss_burst_receiver_state_t;
-
-/**
- * @brief Create a burst receiver: acquisition, refine and demodulation
- *        composed behind one push().
- *
- * Give it the waveform -- the two codes and the frame sync word -- plus the
- * geometry, and stream samples in. It searches blindly for a burst,
- * recovers the exact preamble start, and demodulates, publishing one
- * detection event per burst through the read-back fields.
- *
- * The look-back buffer is NOT a parameter. Its span is derived from the
- * geometry here (detection lag + refine search + the burst itself), because
- * every term is already known and a caller asked to size a history buffer
- * is a caller handed a way to lose bursts silently.
- *
- * @param acq_code  Preamble PN chips (0/1), length @p acq_code_len.
- * @param acq_code_len  Preamble code length, chips.
- * @param data_code  Payload spreading chips (0/1), @p data_code_len long.
- * @param data_code_len  Data code length, chips.
- * @param sync  Frame sync word (0/1 symbols), @p sync_len long.
- * @param sync_len  Sync word length, symbols.
- * @param reps  Preamble code repetitions (>= 1).
- * @param spc  Samples per chip (>= 1).
- * @param chip_rate  Chip rate in Hz (> 0).
- * @param frame_syms   Frame symbols per burst (>= 1) — what push()
- *                     returns, bit for bit. The frame is taken to END in
- *                     a CRC-16. A frame sent without one, or too short to
- *                     hold one after the sync word, still returns its
- *                     bits, but `frame_valid` is 0 and no window owns its
- *                     span.
- * @param cn0_dbhz  Carrier-to-noise density in dB-Hz sizing the
- *                  acquisition search: any finite value, or NaN
- *                  (ACQ_CN0_NONE) for no design point.
- * @param doppler_uncertainty  One-sided Doppler half-range, Hz.
- * @param pfa  Target false-alarm probability, in (0, 1).
- * @param pd  Target detection probability, in (0, 1).
- * @param carrier_hz  RF carrier (Hz) for code-Doppler; 0 = ignore.
- * @param max_rate  Chirp-rate search half-span (cycles/sample^2).
- * @param est_segments  Segments the feedforward estimator fits over.
- * @return Heap-allocated state, or NULL if any argument is invalid.
- * @note Caller must call dp_dsss_burst_receiver_destroy() when done.
- *       (Python builds one from a frame description instead: see
- *       @ref dp_dsss_burst_receiver_create_frame.)
- */
-dp_dsss_burst_receiver_state_t *dp_dsss_burst_receiver_create(const uint8_t *acq_code, size_t acq_code_len, const uint8_t *data_code, size_t data_code_len, const uint8_t *sync, size_t sync_len, size_t reps, size_t spc, double chip_rate, size_t frame_syms, double cn0_dbhz, double doppler_uncertainty, double pfa, double pd, double carrier_hz, double max_rate, size_t est_segments);
 
 /**
  * @brief The Python binding's constructor: @ref dp_dsss_burst_receiver_create_desc
@@ -276,16 +235,17 @@ dp_dsss_burst_receiver_state_t *dp_dsss_burst_receiver_create_frame(
 
 /**
  * @brief Create a receiver from the frame DESCRIPTION the transmitter spread,
- *        in place of a sync word and a hand-counted `frame_syms`.
+ *        and no hand-counted frame length.
  *
  * The sync word is the description's field 0, `frame_syms` its layout's
  * length (both from @ref dp_wfm_frame_desc_rx), and a frame's verdict is
  * @ref dp_wfm_frame_desc_crc_ok over the description, so a frame with no CRC
  * stage is never valid (decision D3 of
  * docs/design/rx-frame-description.md). The description is copied (without
- * its sequences), so the caller may free it at once. Otherwise as
- * @ref dp_dsss_burst_receiver_create, and byte-identical to it for a
- * `sync | payload | CRC-16` frame.
+ * its sequences), so the caller may free it at once. This is the one
+ * constructor: acquisition, refine and demodulation composed behind one
+ * push(), with the look-back span DERIVED from the geometry rather than
+ * asked of the caller.
  *
  * @param acq_code            preamble code, 0/1 chips.
  * @param acq_code_len        its length, chips.
@@ -317,7 +277,7 @@ dp_dsss_burst_receiver_state_t *dp_dsss_burst_receiver_create_frame(
  * dp_dsss_burst_receiver_state_t *rx = dp_dsss_burst_receiver_create_desc (
  *     acq, 7, dcode, 4, &f, 3, 2, 1e6, 60.0, 0.0, 1e-3, 0.9, 0.0, 0.0, 10,
  *     &why);
- * if (!rx || rx->frame_bits != 3 + 8 + 16)
+ * if (!rx || rx->frame_syms != 3 + 8 + 16)
  *   return 1;
  * dp_dsss_burst_receiver_destroy (rx);
  * @endcode
@@ -448,8 +408,8 @@ size_t dp_dsss_burst_receiver_events_max_out(dp_dsss_burst_receiver_state_t *sta
  * exists to deliver (`mpsk_soft_demap`'s own docstring), which is what makes
  * a coded burst worth coding.
  *
- * Concatenated the same way push()'s payloads are, one row of `frame_bits`
- * per burst: burst @c i starts at `i * frame_bits`, in the order events()
+ * Concatenated the same way push()'s payloads are, one row of `frame_syms`
+ * per burst: burst @c i starts at `i * frame_syms`, in the order events()
  * reports. The convention
  * is `mpsk_soft_demap`'s — positive means bit 0, so `L < 0` reproduces
  * exactly the bits push() returned. Spans the WHOLE frame rather than the

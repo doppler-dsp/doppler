@@ -67,12 +67,6 @@ extern "C"
     double est_timing_chips; 
   } dp_burst_demod_state_t;
 
-  dp_burst_demod_state_t *dp_burst_demod_create (const uint8_t *data_code,
-                                           size_t data_code_len, size_t spc,
-                                           double chip_rate, double carrier_hz,
-                                           double max_rate, size_t frame_syms,
-                                           size_t est_segments);
-
   dp_burst_demod_state_t *dp_burst_demod_create_frame (
       const uint8_t *data_code, size_t data_code_len,
       const wfm_frame_desc_t *frame, size_t spc, double chip_rate,
@@ -91,9 +85,6 @@ extern "C"
   void dp_burst_demod_set_preamble (dp_burst_demod_state_t *state,
                                  const uint8_t *acq_code, size_t acq_code_len,
                                  size_t reps);
-
-  void dp_burst_demod_set_sync (dp_burst_demod_state_t *state, const uint8_t *sync,
-                             size_t sync_len);
 
   size_t dp_burst_demod_llrs (dp_burst_demod_state_t *state, size_t n, float *out,
                            size_t max_out);

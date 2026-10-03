@@ -329,7 +329,7 @@ test_create_copies_and_derives (void)
 
   DP_CHECK (s->acq_code_len == ACQ_SF);
   DP_CHECK (s->data_code_len == DATA_SF);
-  DP_CHECK (s->sync_len == SYNC_LEN);
+  DP_CHECK (s->demod->sync_len == SYNC_LEN);
   DP_CHECK (s->acq_code[1] == 1u); /* the copy survived its source */
 
   /* One preamble repetition, in samples -- the modulus every epoch
@@ -338,7 +338,7 @@ test_create_copies_and_derives (void)
 
   /* preamble + spread (sync | payload | CRC-16) frame: the transmitter's
      own chip count for that description, in samples. */
-  DP_CHECK (s->frame_bits == frame_syms ());
+  DP_CHECK (s->frame_syms == frame_syms ());
   DP_CHECK (s->burst_len == burst_samples ());
 
   /* The look-back ring holds detection lag + refine span + the burst
@@ -1383,7 +1383,7 @@ crc_none_case (size_t payload, int crc)
 
   dp_dsss_burst_receiver_state_t *s = rx_from_desc (&d, 1e-3, 0.0);
   DP_REQUIRE (s != NULL);
-  DP_CHECK_MSG (s->frame_bits == fsyms,
+  DP_CHECK_MSG (s->frame_syms == fsyms,
                 "the receiver's frame is the description's layout");
   DP_REQUIRE (dp_burst_capture_configure_search_raw (s->cap, REPS, 1) == 0);
   uint8_t         out[4 * MAX_FRAME];
@@ -1538,8 +1538,7 @@ same_receivers (const float _Complex *cap, size_t n_cap)
             == dp_dsss_burst_receiver_get_est_freq_hz (b));
   DP_CHECK (dp_dsss_burst_receiver_get_dropped (a)
             == dp_dsss_burst_receiver_get_dropped (b));
-  DP_CHECK (a->burst_len == b->burst_len && a->frame_bits == b->frame_bits
-            && a->sync_len == b->sync_len);
+  DP_CHECK (a->burst_len == b->burst_len && a->frame_syms == b->frame_syms);
 
   const size_t nb = dp_dsss_burst_receiver_state_bytes (a);
   DP_REQUIRE (dp_dsss_burst_receiver_state_bytes (b) == nb);

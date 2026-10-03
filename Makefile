@@ -16,9 +16,12 @@
 #   NPROC        Parallel build jobs        (default: nproc || 4)
 #   CMAKE_ARGS   Extra -D flags for every configure step
 
-# Pinned to the canonical commit our vendored files match, until the org's
-# always-run exemption lands upstream and the wiring is adopted (#1809).
-STANDARD_URL = https://raw.githubusercontent.com/just-buildit/just-buildit.github.io/30f8e77b/standard.mk
+# ci.yml jobs that run on every tree by policy, so the vendored `changes`
+# job does not gate them (ci-changes-wiring-check, #1809):
+#   pin             a repin PR must resolve its image, version bump or not
+#   pre-commit      lint checks exactly the files a version bump changes
+#   manifest-drift  likewise for the generated-vs-manifest drift
+CI_ALWAYS_RUN_JOBS = pin pre-commit manifest-drift
 
 # ── Feature flags ────────────────────────────────────────────────────────────
 # doppler is the demanding consumer: every group is on.

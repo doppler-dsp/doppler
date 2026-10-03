@@ -69,87 +69,49 @@ jobs:
   # drift and the CI-image pin still run, because they check the very files
   # a bump changes. Any doubt (unreachable base, empty probe, anything else
   # changed) answers src=true and the whole matrix runs.
+  # Is this diff a version bump, a tree CI already passed, or docs alone?
+  # The vendored `changes.yml` answers (canonical, standard-check holds it
+  # verbatim): src=false for a bump or an already-tested tree, code=false for
+  # a docs-only diff, docs=true when the site's inputs moved. Every job below
+  # waits on it, and `make ci-changes-wiring-check` refuses one that does not.
   changes:
-    name: Classify the diff (a version bump alone?)
+    uses: ./.github/workflows/changes.yml
+    permissions:
+      checks: read
+      contents: read
+
+  # The Python matrix, which is doppler's own and so not the vendored
+  # workflow's to answer: every supported version, or the primary alone when
+  # code=false (docs can break the full suite, but not on one interpreter more
+  # than another). Read from pyproject.toml's classifiers, never written here.
+  pythons:
+    name: Python matrix
+    needs: changes
     runs-on: ubuntu-latest
-    # Seconds of work; 25 because deps-budget-check holds EVERY ceiling in
-    # the workflows above the provisioning retry budget, as `pin`'s is.
     timeout-minutes: 25
     outputs:
-      src: ${{ steps.classify.outputs.src }}
-      # The site's inputs changed, so the `docs` job must build it even when
-      # the matrix can skip. A release PR re-renders gallery PNGs, publishes
-      # benchmark snapshots, renders docs/benchmarks.md and assembles the
-      # changelog -- all inert to the C/Python matrix (CI_INERT_RE), none of
-      # them inert to the site. Fail-safe: anything unclassifiable is true.
-      docs: ${{ steps.classify.outputs.docs }}
-      # Something other than the docs changed (`make ci-docs`, CI_DOCS_RE).
-      # The jobs docs cannot break are gated on it, and `CI passed` lets
-      # them skip only on an explicit code=false (its CODE_ONLY list). False
-      # for a docs-only diff, a bump, and a push whose tree its PR tested.
-      code: ${{ steps.classify.outputs.code }}
-      # The Python matrix: every supported version, or the primary alone
-      # when code=false -- docs can break the full suite (live-tree gate
-      # tests, doc fences), but not on one interpreter more than another.
-      pythons: ${{ steps.classify.outputs.pythons }}
+      pythons: ${{ steps.matrix.outputs.pythons }}
       # The `python` job's PRIMARY leg, by role rather than by number: the one
       # interpreter that runs the steps worth running once. It is the floor
       # (scripts/python_versions.py --primary states the rule). A step runs
       # on it with `== primary`, or on every other leg with `!= primary`;
       # check_ci_aggregator.py refuses any other leg selector, a version
       # literal above all, and holds docs/dev/ci.md's table of them to it.
-      primary: ${{ steps.classify.outputs.primary }}
+      primary: ${{ steps.matrix.outputs.primary }}
     steps:
     - uses: actions/checkout@v7
-      with:
-        fetch-depth: 2
-    - id: classify
+    - id: matrix
       env:
-        # ci-tree-tested asks the API which PR this push merged.
-        GH_TOKEN: ${{ github.token }}
+        CODE: ${{ needs.changes.outputs.code }}
       run: |
-        # Fail-safe: everything runs unless a classifier proves otherwise.
-        # Each one is called with GITHUB_OUTPUT blanked and its answer
-        # captured, so every output is written exactly once, at the end.
-        src=true docs=true code=true base=
-        case "${{ github.event_name }}" in
-          # A PR is checked out as its merge commit: HEAD^ is the base tip.
-          pull_request) base=HEAD^ ;;
-          # A push: the pushed range. If `before` cannot be fetched (a new
-          # branch is all zeros), the classifiers cannot prove anything.
-          push) base="${{ github.event.before }}"
-                git fetch -q --depth=1 origin "$base" 2>/dev/null || true
-                # The tree this push landed already passed as a PR that
-                # contained `before` (protect-main requires it to be up to
-                # date): nothing here is untested, so the matrix skips, as
-                # for a bump, and so does the site the PR already built.
-                t=$(GITHUB_OUTPUT= make -s ci-tree-tested BEFORE="$base")
-                if [ "$t" = tested=true ]; then
-                  src=false docs=false code=false base=
-                fi ;;
-          # schedule (the nightly) and anything else: a full run.
-        esac
-        if [ -n "$base" ]; then
-          c=$(GITHUB_OUTPUT= make -s ci-changes BASE="$base")
-          src=${c#src=}
-          d=$(GITHUB_OUTPUT= make -s ci-docs BASE="$base")
-          docs=$(sed -n 's/^docs=//p' <<< "$d")
-          code=$(sed -n 's/^code=//p' <<< "$d")
-          # A bump alone has no code to test either.
-          if [ "$src" = false ]; then code=false; fi
-        fi
-        # The Python matrix is read from pyproject.toml's classifiers, never
-        # written here.
         primary=$(python3 scripts/python_versions.py --primary)
-        if [ "$code" = true ]; then
-          pythons=$(python3 scripts/python_versions.py --matrix)
-        else
+        if [ "$CODE" = false ]; then
           pythons="[\"$primary\"]"
+        else
+          pythons=$(python3 scripts/python_versions.py --matrix)
         fi
-        { echo "src=$src"; echo "docs=$docs"; echo "code=$code"
-          echo "pythons=$pythons"; echo "primary=$primary"
-        } >> "$GITHUB_OUTPUT"
-        echo "src=$src docs=$docs code=$code pythons=$pythons"
+        { echo "pythons=$pythons"; echo "primary=$primary"; } >> "$GITHUB_OUTPUT"
+        echo "pythons=$pythons primary=$primary"
 
   pin:
     name: Resolve the pinned CI image
@@ -579,7 +541,7 @@ jobs:
   python:
     # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
     if: needs.changes.outputs.src == 'true'
-    needs: [pin, changes]
+    needs: [pin, changes, pythons]
     name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -594,9 +556,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Every supported version: the list is declared once, in `changes`
+        # Every supported version: the list is declared once, in `pythons`
         # (its `pythons` output), read from pyproject.toml's classifiers.
-        python-version: ${{ fromJSON(needs.changes.outputs.pythons) }}
+        python-version: ${{ fromJSON(needs.pythons.outputs.pythons) }}
 
     steps:
     - uses: actions/checkout@v7
@@ -666,7 +628,7 @@ jobs:
       #
       # The primary leg (doppler#1714: a version literal here once matched no
       # leg a pull_request ran, so a broken fence reached main).
-      if: matrix.python-version == needs.changes.outputs.primary
+      if: matrix.python-version == needs.pythons.outputs.primary
       run: make test-snippets
 
     - name: Test
@@ -680,12 +642,12 @@ jobs:
       # (below), and the number the patch gate actually reads comes from the
       # `coverage` job, which measures C ∪ Python ∪ Rust against one
       # instrumented build.
-      if: matrix.python-version != needs.changes.outputs.primary
+      if: matrix.python-version != needs.pythons.outputs.primary
       run: make test-python
 
     - name: Test with coverage
       # The primary leg: the coverage.xml it writes is uploaded below.
-      if: matrix.python-version == needs.changes.outputs.primary
+      if: matrix.python-version == needs.pythons.outputs.primary
       run: |
         make test-python PYTEST_ARGS="--cov \
           --cov-report=term-missing \
@@ -732,13 +694,13 @@ jobs:
       # in a container, against this box's 15.2 / 2.43 -- where all eleven now
       # pass. Version-independent, so once, like the fence gates.
       #
-      if: matrix.python-version == needs.changes.outputs.primary
+      if: matrix.python-version == needs.pythons.outputs.primary
       run: make validate-check
 
     - name: Upload coverage report
       uses: actions/upload-artifact@v7
       # The primary leg, with the step that wrote the file.
-      if: matrix.python-version == needs.changes.outputs.primary
+      if: matrix.python-version == needs.pythons.outputs.primary
       with:
         name: coverage-report
         path: coverage.xml
@@ -1253,6 +1215,7 @@ jobs:
     name: CI passed
     needs:
       - changes
+      - pythons
       - pin
       - build-and-test-linux
       - build-and-test-linux-arm64

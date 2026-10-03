@@ -23,17 +23,23 @@ What is checked
 - each skip permission agrees with itself (``SKIP_LISTS``): every job
   gated on ``needs.changes.outputs.src`` (or ``.code``) needs ``changes``,
   ``changes`` declares that output, and the aggregator's ``SKIPPABLE`` (or
-  ``CODE_ONLY``) is exactly the set of gated jobs (see scripts/ci_passed.py);
+  ``CODE_ONLY``) is exactly the set of gated jobs (see scripts/ci_passed.py).
+  ``changes`` is the canonical workflow, vendored (#1809): a job that
+  ``uses:`` a local workflow declares the outputs that FILE declares under
+  ``on.workflow_call.outputs``, so that is where they are read;
 - there is no second skip permission: the aggregator declares no ``HEAVY``
   and ``changes`` no ``full``/``heavy``/``primary_full`` output. Those were
   the merge queue's pull_request split, retired with the queue on
   2026-10-01; one left behind would grant a skip nothing takes;
 - a step that runs on one Python leg names the leg by ROLE: its ``if`` is
   exactly one of the ``LEG_SELECTORS`` below, which compare
-  ``matrix.python-version`` against ``changes``' ``primary`` output -- never
-  a version literal, which silently matches no leg once that version leaves
-  the classifiers (doppler#1714). ``changes`` must declare the output and
-  derive it with ``scripts/python_versions.py --primary``;
+  ``matrix.python-version`` against the ``pythons`` job's ``primary`` output
+  -- never a version literal, which silently matches no leg once that version
+  leaves the classifiers (doppler#1714). The job the selectors name
+  (``LEG_SOURCE``, read from them) must declare the output and derive it with
+  ``scripts/python_versions.py --primary``, and a selecting job must need it.
+  It was ``changes`` until that became the vendored workflow (#1809), which
+  knows nothing of doppler's Python matrix;
 - docs/dev/ci.md's table of those steps (between the ``python-legs``
   markers) names exactly the steps, targets and lanes the workflow runs.
 
@@ -64,9 +70,20 @@ REQUIRED_NAME = "CI passed"
 #: The ONE declaration of where a single-leg step runs: the only ``if:``
 #: forms a step may use to pick a Python leg, each mapped to its lane.
 LEG_SELECTORS = {
-    "matrix.python-version == needs.changes.outputs.primary": "primary",
-    "matrix.python-version != needs.changes.outputs.primary": "rest",
+    "matrix.python-version == needs.pythons.outputs.primary": "primary",
+    "matrix.python-version != needs.pythons.outputs.primary": "rest",
 }
+#: The job whose ``primary`` output the selectors read -- taken from them, so
+#: it is declared once, there.
+LEG_SOURCE = {
+    m.group(1)
+    for m in (
+        re.search(r"needs\.([\w-]+)\.outputs\.primary", s)
+        for s in LEG_SELECTORS
+    )
+    if m
+}.pop()
+
 #: What each lane means, for the messages and docs/dev/ci.md's table.
 LANES = {
     "primary": "the primary leg alone",
@@ -138,6 +155,28 @@ def check(path: pathlib.Path) -> list[str]:
     return problems
 
 
+def _outputs(path: pathlib.Path, jobs: dict, name: str) -> dict:
+    """The outputs job ``name`` declares, wherever it declares them.
+
+    A job that ``uses:`` a local reusable workflow (``./.github/...``) has
+    no ``outputs`` of its own: they are the called file's
+    ``on.workflow_call.outputs``. Reading only the job would report every
+    output of the vendored ``changes`` missing.
+    """
+    job = jobs.get(name) or {}
+    uses = str(job.get("uses", ""))
+    if not uses.startswith("./"):
+        return job.get("outputs") or {}
+    called = path.resolve().parents[2] / uses[2:]
+    try:
+        doc = yaml.safe_load(called.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        return {}
+    on = doc.get(True, doc.get("on")) or {}
+    call = on.get("workflow_call") if isinstance(on, dict) else None
+    return (call or {}).get("outputs") or {}
+
+
 def _needs(job: dict) -> set[str]:
     n = job.get("needs") or []
     return {n} if isinstance(n, str) else set(n)
@@ -169,7 +208,7 @@ def _check_fast_path(path: pathlib.Path, jobs: dict, agg: dict) -> list[str]:
       reason, and the next edit to that job inherits it).
     """
     problems: list[str] = []
-    outputs = (jobs.get("changes") or {}).get("outputs") or {}
+    outputs = _outputs(path, jobs, "changes")
     for key, env_name, cost in SKIP_LISTS:
         gated = {
             name
@@ -228,7 +267,7 @@ def _check_retired(path: pathlib.Path, jobs: dict, agg: dict) -> list[str]:
     run is full; any of those coming back is a second skip permission.
     """
     problems: list[str] = []
-    outputs = (jobs.get("changes") or {}).get("outputs") or {}
+    outputs = _outputs(path, jobs, "changes")
     for key in RETIRED_OUTPUTS:
         if key in outputs:
             problems.append(
@@ -299,29 +338,29 @@ def _check_legs(
                     )
                 )
                 continue
-            if "changes" not in _needs(job):
+            if LEG_SOURCE not in _needs(job):
                 problems.append(
-                    f"{path}: job `{jname}` step `{name}` reads a `changes` "
-                    "output but the job does not need `changes`, so it "
-                    "compares against nothing"
+                    f"{path}: job `{jname}` step `{name}` reads a "
+                    f"`{LEG_SOURCE}` output but the job does not need "
+                    f"`{LEG_SOURCE}`, so it compares against nothing"
                 )
             used.add(cond.rsplit(".", 1)[1])
             rows.append((str(name), _target(step), lane))
     if used:
-        changes = jobs.get("changes") or {}
-        outputs = changes.get("outputs") or {}
+        source = jobs.get(LEG_SOURCE) or {}
+        outputs = _outputs(path, jobs, LEG_SOURCE)
         for key in sorted({"primary"} - set(outputs)):
             problems.append(
-                f"{path}: `changes` declares no `{key}` output, so every "
-                "step selecting on it matches no leg and skips"
+                f"{path}: `{LEG_SOURCE}` declares no `{key}` output, so "
+                "every step selecting on it matches no leg and skips"
             )
         text = " ".join(
-            str(s.get("run", "")) for s in changes.get("steps") or []
+            str(s.get("run", "")) for s in source.get("steps") or []
         )
         if "python_versions.py --primary" not in text:
             problems.append(
-                f"{path}: `changes` does not derive the primary leg with "
-                "`scripts/python_versions.py --primary`, so the leg is "
+                f"{path}: `{LEG_SOURCE}` does not derive the primary leg "
+                "with `scripts/python_versions.py --primary`, so the leg is "
                 "written down here instead of read from the classifiers"
             )
     return problems, rows

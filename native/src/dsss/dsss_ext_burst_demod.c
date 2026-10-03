@@ -54,8 +54,8 @@ BurstDemodObj_init (BurstDemodObject *self, PyObject *args, PyObject *kwds)
   size_t         spc           = (size_t)spc_raw;
   size_t         frame_syms    = (size_t)frame_syms_raw;
   size_t         est_segments  = (size_t)est_segments_raw;
-  PyArrayObject *data_code_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      data_code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *data_code_arr = jm_array_arg (
+      data_code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "data_code");
   if (!data_code_arr)
     {
       return -1;
@@ -102,8 +102,8 @@ BurstDemodObj_set_preamble (BurstDemodObject *self, PyObject *args,
                                     &reps_raw))
     return NULL;
   size_t         reps         = (size_t)reps_raw;
-  PyArrayObject *acq_code_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      acq_code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *acq_code_arr = jm_array_arg (
+      acq_code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "acq_code");
   if (!acq_code_arr)
     {
       return NULL;
@@ -127,8 +127,8 @@ BurstDemodObj_set_sync (BurstDemodObject *self, PyObject *args, PyObject *kwds)
   PyObject    *sync_obj  = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &sync_obj))
     return NULL;
-  PyArrayObject *sync_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      sync_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *sync_arr
+      = jm_array_arg (sync_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "sync");
   if (!sync_arr)
     {
       return NULL;
@@ -182,8 +182,9 @@ BurstDemodObj_llrs (BurstDemodObject *self, PyObject *args, PyObject *kwds)
                            " ndarray of the output dtype");
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_FLOAT,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           return NULL;
@@ -200,6 +201,15 @@ BurstDemodObj_llrs (BurstDemodObject *self, PyObject *args, PyObject *kwds)
         }
       size_t n_out = dp_burst_demod_llrs (
           self->handle, (size_t)n, (float *)PyArray_DATA (out_arr), _cap);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "BurstDemod.llrs: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_FLOAT,
                                                     PyArray_DATA (out_arr));
@@ -208,13 +218,27 @@ BurstDemodObj_llrs (BurstDemodObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)n;
   size_t _cap  = dp_burst_demod_llrs_max_out (self->handle, (size_t)n);
   (void)_need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "BurstDemod.llrs: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_FLOAT);
   if (!arr0)
     {
@@ -222,6 +246,14 @@ BurstDemodObj_llrs (BurstDemodObject *self, PyObject *args, PyObject *kwds)
     }
   float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t n_out = dp_burst_demod_llrs (self->handle, (size_t)n, _d0, _cap);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_RuntimeError,
+                    "BurstDemod.llrs: wrote %zu elements into a buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -280,9 +312,9 @@ BurstDemodObj_symbols (BurstDemodObject *self, PyObject *args, PyObject *kwds)
                            " ndarray of the output dtype");
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_COMPLEX64,
-          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           return NULL;
@@ -300,6 +332,15 @@ BurstDemodObj_symbols (BurstDemodObject *self, PyObject *args, PyObject *kwds)
       size_t n_out = dp_burst_demod_symbols (
           self->handle, (size_t)n, (float _Complex *)PyArray_DATA (out_arr),
           _cap);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "BurstDemod.symbols: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
                                                     PyArray_DATA (out_arr));
@@ -308,13 +349,27 @@ BurstDemodObj_symbols (BurstDemodObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)n;
   size_t _cap  = dp_burst_demod_symbols_max_out (self->handle, (size_t)n);
   (void)_need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "BurstDemod.symbols: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
   if (!arr0)
     {
@@ -322,6 +377,15 @@ BurstDemodObj_symbols (BurstDemodObject *self, PyObject *args, PyObject *kwds)
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t n_out = dp_burst_demod_symbols (self->handle, (size_t)n, _d0, _cap);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "BurstDemod.symbols: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -385,8 +449,7 @@ BurstDemodObj_demod (BurstDemodObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
-                                             NPY_ARRAY_C_CONTIGUOUS);
+  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     return NULL;
   if (out_obj && out_obj != Py_None)
@@ -404,8 +467,9 @@ BurstDemodObj_demod (BurstDemodObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (x_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_UINT8,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (x_arr);
@@ -437,6 +501,15 @@ BurstDemodObj_demod (BurstDemodObject *self, PyObject *args, PyObject *kwds)
         n_out = dp_burst_demod_demod (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "BurstDemod.demod: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_UINT8,
                                                     PyArray_DATA (out_arr));
@@ -445,14 +518,29 @@ BurstDemodObj_demod (BurstDemodObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   size_t _cap  = dp_burst_demod_demod_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "BurstDemod.demod: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_UINT8);
   if (!arr0)
     {
@@ -471,6 +559,15 @@ BurstDemodObj_demod (BurstDemodObject *self, PyObject *args, PyObject *kwds)
     n_out = dp_burst_demod_demod (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "BurstDemod.demod: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -890,8 +987,8 @@ static PyMethodDef BurstDemodObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "set_prior(f0_coarse, start) -> None\n"
     "\n"
-    "Seed from acquisition: coarse Doppler (cycles/sample at the input\n"
-    "rate) and the preamble start sample.\n"
+    "Seed from acquisition: coarse Doppler (cycles/sample at the input rate) "
+    "and the preamble start sample.\n"
     "\n"
     "These come from the upstream acquisition stage: f0_coarse centres the\n"
     "feedforward frequency search near the true Doppler, and start tells\n"
@@ -1035,7 +1132,7 @@ static PyMethodDef BurstDemodObj_methods[] = {
 };
 
 static PyTypeObject BurstDemodObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "dsss.BurstDemod",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.dsss.BurstDemod",
   .tp_basicsize                           = sizeof (BurstDemodObject),
   .tp_dealloc                             = (destructor)BurstDemodObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

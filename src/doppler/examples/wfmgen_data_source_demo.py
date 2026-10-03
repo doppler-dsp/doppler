@@ -38,7 +38,8 @@ bytes_to_bin(octets, bits, 0)  # MSB first, as a file is read
 
 SPS = 4
 d = FrameDesc()
-d.add_data("payload", 96)  # bits of the source per frame
+PAYLOAD = 96  # bits of the source per frame
+d.add_data("payload", PAYLOAD)
 d.add_derived("crc", 16)
 d.add_stage_over(STAGE_CRC16, "payload", "crc")  # a CRC-16 over its chunk
 d.build()  # lay it out: the receive side (check, deframe) reads the layout
@@ -64,8 +65,9 @@ def check(ok: bool, what: str) -> None:
     print(f"PASS {what}")
 
 
-FRAME = 96 + 16  # data, then a CRC-16 over it
-frames = math.ceil(bits.size / 96)
+FRAME = d.nbits  # the layout's length: data, then a CRC-16 over it
+OFF = d.field_off(d.field_index("payload"))  # where the chunk starts
+frames = math.ceil(bits.size / PAYLOAD)
 check(
     x.size == frames * FRAME * SPS,
     f"3. the run is exactly {frames} frames, with no num_samples given",
@@ -73,19 +75,22 @@ check(
 
 # BPSK at the symbol centre: bit 1 is -1.
 rx = (x[SPS // 2 :: SPS].real < 0).astype(np.uint8)
-pad = frames * 96 - bits.size  # the spare bits of the last frame
+pad = frames * PAYLOAD - bits.size  # the spare bits of the last frame
 fill = np.tile(np.array([0, 1], np.uint8), pad)[:pad]
 sent = np.concatenate([bits, fill])
 for f in range(frames):
     frame = rx[f * FRAME : (f + 1) * FRAME]
-    chunk = sent[f * 96 : (f + 1) * 96]
+    chunk = sent[f * PAYLOAD : (f + 1) * PAYLOAD]
     # The description that built the frame also reads it back: `deframe`
     # hands the corrected frame, `check` the CRC verdict -- no field offsets
     # written twice.
     back = np.asarray(d.deframe(frame))
-    check(np.array_equal(back[:96], chunk), f"1. frame {f} carries chunk {f}")
+    check(
+        np.array_equal(back[OFF : OFF + PAYLOAD], chunk),
+        f"1. frame {f} carries chunk {f}",
+    )
     check(d.check(frame).passed == 1, f"2. frame {f}'s CRC covers its chunk")
-last = (frames - 1) * FRAME + 96
+last = (frames - 1) * FRAME + OFF + PAYLOAD
 check(
     np.array_equal(rx[last - pad : last], fill),
     f"1. the last frame's {pad} spare bits are the fill",

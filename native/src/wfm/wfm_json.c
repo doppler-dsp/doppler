@@ -579,10 +579,13 @@ row_get (const wfm_surface_row_t *r, const void *base, size_t off)
       return (double)*(const uint32_t *)p;
     case WFM_SV_U64:
       return (double)*(const uint64_t *)p;
+    /* A Field is text and its caller owns it; a bespoke row is a pointer each
+       face reads with its own code: neither is a double. Named, with no
+       `default:`, so -Wswitch flags the next new kind. */
+    case WFM_SV_FIELD:
+    case WFM_SV_BESPOKE:
     case WFM_SV_SYMBOLS:
       break; /* not a JSON row: a symbols stream has its own encoding */
-    case WFM_SV_FIELD:
-      break; /* its caller owns it: a Field is text, not a double */
     }
   return 0.0;
 }
@@ -609,10 +612,11 @@ row_set (const wfm_surface_row_t *r, void *base, size_t off, double v)
     case WFM_SV_U64:
       *(uint64_t *)p = (uint64_t)v;
       break;
+    /* A Field and a bespoke row have their own owners: not a double. */
+    case WFM_SV_FIELD:
+    case WFM_SV_BESPOKE:
     case WFM_SV_SYMBOLS:
       break;
-    case WFM_SV_FIELD:
-      break; /* its caller owns it: a Field is text, not a double */
     }
 }
 

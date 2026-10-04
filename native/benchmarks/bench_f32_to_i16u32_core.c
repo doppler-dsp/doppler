@@ -75,6 +75,7 @@ main (void)
             (double)BENCH_N / (_s / ITERATIONS) / 1e6);
   }
 
+  (void)_sink; /* the volatile sink defeats DCE; this read consumes it */
   jm_bench_write_json (&_bench, "f32_to_i16u32");
   dp_f32_to_i16u32_destroy (obj);
   free (in);

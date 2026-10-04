@@ -77,6 +77,7 @@ main (void)
             (double)BENCH_N / (_s / ITERATIONS) / 1e6);
   }
 
+  (void)_sink; /* the volatile sink defeats DCE; this read consumes it */
   jm_bench_write_json (&_bench, "lockdet");
   dp_lockdet_destroy (obj);
   free (in);

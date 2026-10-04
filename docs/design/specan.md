@@ -94,8 +94,8 @@ showed rectangle sidelobes. Under these rules the ENBW target is never below
 ## The beta fit
 
 Beta comes from a cubic least-squares fit of beta against ENBW, from
-`np.kaiser(4096, beta)` for beta in [10, 55], restricted to ENBW in
-\[1.98, 4.02\]:
+`np.kaiser(4096, beta)` for beta from 10 to 55, restricted to ENBW from
+1.98 to 4.02:
 
 ```text
 beta(e) = 0.00590559 e³ + 3.07532701 e² + 0.24521102 e − 0.960144

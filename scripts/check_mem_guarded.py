@@ -81,14 +81,14 @@ def heavy(command: str) -> str | None:
 
 
 def check(paths: list[Path]) -> int:
-    texts = [p.read_text(encoding="utf-8") for p in paths]
+    files = [(p, p.read_text(encoding="utf-8")) for p in paths]
     variables: dict[str, str] = {}
-    for text in texts:
+    for _, text in files:
         for name, value in assignments(text).items():
             variables.setdefault(name, value)
     findings: list[str] = []
     checked = 0
-    for path, text in zip(paths, texts, strict=True):
+    for path, text in files:
         # The whole file as one block: a heavy command is as likely to sit
         # in a `X_CMD = ...` assignment spanning continuations as in a
         # recipe, and the joining is the same either way.

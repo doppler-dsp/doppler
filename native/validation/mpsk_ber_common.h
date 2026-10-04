@@ -159,7 +159,7 @@ mpsk_ber_burst (const mpsk_ber_cfg_t *c, double esn0_db, uint32_t seed,
         {
           size_t        n  = k * isps + j;
           double        ph = 2.0 * MPSK_PI * c->fc * (double)n;
-          float complex y;
+          float complex y  = 0.0f; /* written when the step returns 1 */
           int           got;
           if (c->real)
             {

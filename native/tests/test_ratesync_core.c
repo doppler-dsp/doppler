@@ -215,7 +215,7 @@ _lock_sweep (double sps, double evm_max_db, const char *label)
   double       worst  = -200.0;
   for (size_t t = 0; t < 8; t++)
     {
-      size_t          n;
+      size_t          n = 0;
       float _Complex *x = _tx (sps, taus[t], &n);
       float _Complex *y = calloc (n, sizeof *y);
       DP_CHECK (x && y);
@@ -278,7 +278,7 @@ test_tracks_a_clock_offset (void)
   const double actual[] = { 8.0, 8.008, 7.992 }; /* 0, +1000, -1000 ppm */
   for (size_t i = 0; i < 3; i++)
     {
-      size_t          n;
+      size_t          n = 0;
       float _Complex *x = _tx (actual[i], 0.2, &n);
       float _Complex *y = calloc (n, sizeof *y);
       DP_CHECK (x && y);
@@ -312,7 +312,7 @@ test_step_equals_steps (void)
 {
   /* One block, one sample at a time, or two arbitrary chunks — the object is
      block-boundary invariant, so all three must agree bit-for-bit. */
-  size_t          n;
+  size_t          n = 0;
   float _Complex *x = _tx (17.333333333, 0.3, &n);
   float _Complex *a = calloc (n, sizeof *a);
   float _Complex *b = calloc (n, sizeof *b);
@@ -367,7 +367,7 @@ test_step_equals_steps (void)
 static void
 test_reset (void)
 {
-  size_t          n;
+  size_t          n = 0;
   float _Complex *x = _tx (4.0, 0.4, &n);
   float _Complex *a = calloc (n, sizeof *a);
   float _Complex *b = calloc (n, sizeof *b);
@@ -404,7 +404,7 @@ test_reset (void)
 static void
 test_state_roundtrip (void)
 {
-  size_t          n;
+  size_t          n = 0;
   float _Complex *x = _tx (17.333333333, 0.2, &n);
   float _Complex *a = calloc (n, sizeof *a);
   float _Complex *b = calloc (n, sizeof *b);
@@ -542,7 +542,7 @@ test_two_outputs_per_input (void)
   const int    expect_two = 1; /* index 0 and 2 have terminal rate 1.0 */
   for (size_t i = 0; i < 3; i++)
     {
-      size_t          n;
+      size_t          n = 0;
       float _Complex *x = _tx (sps[i], 0.3, &n);
       DP_CHECK (x != NULL);
       if (!x)
@@ -602,7 +602,7 @@ test_dttl_detector (void)
   double       g_scale = 0.0, d_scale = 0.0;
   for (size_t i = 0; i < 3; i++)
     {
-      size_t          n;
+      size_t          n = 0;
       float _Complex *x = _tx (sps[i], 0.3, &n);
       float _Complex *y = calloc (n, sizeof *y);
       DP_CHECK (x && y);
@@ -701,10 +701,10 @@ static void
 test_loop_without_the_object (void)
 {
   const double    sps = 17.333333333;
-  size_t          n;
-  float _Complex *x = _tx (sps, 0.3, &n);
-  float _Complex *a = calloc (n, sizeof *a);
-  float _Complex *b = calloc (n, sizeof *b);
+  size_t          n   = 0;
+  float _Complex *x   = _tx (sps, 0.3, &n);
+  float _Complex *a   = calloc (n, sizeof *a);
+  float _Complex *b   = calloc (n, sizeof *b);
   DP_CHECK (x && a && b);
   if (!x || !a || !b)
     {
@@ -774,9 +774,9 @@ static void
 test_ctrl_scale_is_the_terminal_rate (void)
 {
   const double    sps = 64.0; /* CIC(32) + Resampler(1.0): a 32x decimation */
-  size_t          n;
-  float _Complex *x = _tx (sps, 0.3, &n);
-  float _Complex *y = calloc (n, sizeof *y);
+  size_t          n   = 0;
+  float _Complex *x   = _tx (sps, 0.3, &n);
+  float _Complex *y   = calloc (n, sizeof *y);
   DP_CHECK (x && y);
   if (!x || !y)
     {
@@ -846,7 +846,7 @@ test_clipped_reports_overdrive (void)
   for (size_t i = 0; i < 3; i++)
     for (int over = 0; over < 2; over++)
       {
-        size_t          n;
+        size_t          n = 0;
         float _Complex *x = _tx_amp (sps[i], 0.2, over ? 4.0 : 1.0, &n);
         float _Complex *y = calloc (n, sizeof *y);
         DP_CHECK (x && y);
@@ -896,7 +896,7 @@ test_iandd_needs_m4 (void)
   double lock[5] = { 0 };
   for (size_t m = 2; m <= 4; m += 2)
     {
-      size_t          n;
+      size_t          n = 0;
       float _Complex *x = _tx_nrz (4.0, &n);
       float _Complex *y = calloc (n, sizeof *y);
       DP_CHECK (x && y);
@@ -954,10 +954,10 @@ static void
 _loop_state_roundtrip_at_parity (int parity)
 {
   const double    sps = 17.333333333;
-  size_t          n;
-  float _Complex *x = _tx (sps, 0.25, &n);
-  float _Complex *a = calloc (n, sizeof *a);
-  float _Complex *b = calloc (n, sizeof *b);
+  size_t          n   = 0;
+  float _Complex *x   = _tx (sps, 0.25, &n);
+  float _Complex *a   = calloc (n, sizeof *a);
+  float _Complex *b   = calloc (n, sizeof *b);
   DP_CHECK (x && a && b);
   if (!x || !a || !b)
     {
@@ -1130,7 +1130,7 @@ test_telemetry_attach_is_atomic (void)
 static void
 test_configure_semantics (void)
 {
-  size_t          n;
+  size_t          n = 0;
   float _Complex *x = _tx (8.0, 0.2, &n);
   float _Complex *y = calloc (n, sizeof *y);
   DP_CHECK (x && y);
@@ -1188,7 +1188,7 @@ test_configure_semantics (void)
 static void
 test_max_out (void)
 {
-  size_t          n;
+  size_t          n = 0;
   float _Complex *x = _tx (4.0, 0.2, &n);
   float _Complex *y = calloc (n, sizeof *y);
   DP_CHECK (x && y);

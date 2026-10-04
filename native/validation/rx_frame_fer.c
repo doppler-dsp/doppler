@@ -236,7 +236,7 @@ rx_frame_burst (const rx_frame_cfg_t *c, const uint8_t *bits, size_t nbits,
 
   for (size_t n = 0; n < nsamp; n++)
     {
-      float complex y;
+      float complex y = 0.0f; /* written when the step returns 1 */
       if (mpsk_receiver_step_ted (rx, x[n] * MPSK_BER_AMP, &y,
                                   RATESYNC_TED_GARDNER)
           && nout < nsym)

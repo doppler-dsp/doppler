@@ -133,7 +133,7 @@ over the same cable, and exposes its downstream ports to the board as host.
 A plain bus-powered hub can't do this, and neither can an unpowered
 adapter.
 
-Arduino sells one for the board, the
+Arduino sells one for the board (not tested here), the
 [USB-C Hub (8-in-1)](https://thepihut.com/products/arduino-usb-c-hub-8-in-1)
 (65 W power passthrough, a USB-C data port, USB-A 2.0 and 3.0 ports, 4K30
 HDMI, 100 Mbps Ethernet, SD and TF readers). It needs external power on its
@@ -149,10 +149,9 @@ ssh arduino@<board-address>         # a fixed address avoids DHCP surprises
 ```
 
 Measured with the board booted with a PD pass-through hub already attached.
-That hub is not necessarily Arduino's: it reports two Genesys Logic hub
-chips (05e3:0610 and 05e3:0626) and a Gigabit Ethernet adapter (ASIX
-AX88179), where Arduino's lists 100 Mbps. The board enumerated all of them
-and the dongle. `lsusb` on the board
+That hub is not Arduino's: it reports two Genesys Logic hub chips
+(05e3:0610 and 05e3:0626) and a Gigabit Ethernet adapter (ASIX AX88179). The
+board enumerated all of them and the dongle. `lsusb` on the board
 lists the dongle when it works; if it doesn't, the board did not take the
 host role.
 

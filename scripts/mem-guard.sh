@@ -11,6 +11,17 @@
 # children in a fresh scope with MemoryMax set, inheriting the environment,
 # so a `VAR=x mem-guard.sh cmd` prefix reaches cmd unchanged.
 #
+# The ceiling is SHARED. Every guarded command lands in one systemd slice,
+# doppler-guard.slice, and the ceiling is set on the slice, not on each
+# scope: two commands under their own 3/4-of-RAM caps can each stay legal and
+# still sink the machine together, which is exactly how the VM died on
+# 2026-10-01 and again on 2026-10-03 -- the docs build (6.0 GiB) beside an
+# xdist pytest run. In one slice they share one budget, and an overrun
+# kills the largest of them instead of the VM. The last guarded command to
+# start sets the slice's ceiling; with the default that is the same value
+# every time. scripts/check_mem_guarded.py fails `make lint` when a parallel
+# pytest or a zensical command is reachable without this script.
+#
 # The ceiling is PROVED before it is trusted. A user manager that accepts
 # MemoryMax without the memory controller delegated to it enforces nothing,
 # and that would be an inert guard reporting a ceiling it does not hold. So a
@@ -55,9 +66,13 @@ systemd-run --user --scope -q -- true 2>/dev/null \
 # would arm a guard on a broken probe. `bytearray(b'x') * n` copies, so
 # every page is written and counted. Through a function with its stderr
 # redirected, so the kill is not announced by this shell as if it were the
-# command's.
+# command's. It runs under a SLICE ceiling, its own, because a slice ceiling
+# is what the command will be held to: proving a per-scope one would prove a
+# mechanism this script no longer uses.
 probe() {
-  systemd-run --user --scope -q -p MemoryMax=32M -p MemorySwapMax=0 -- \
+  systemctl --user set-property --runtime doppler-guard-probe.slice \
+    MemoryMax=32M MemorySwapMax=0 || return 1
+  systemd-run --user --scope -q --slice=doppler-guard-probe.slice -- \
     "$py" -c "bytearray(b'x') * (64 << 20)"
 }
 rc=0
@@ -65,6 +80,9 @@ probe >/dev/null 2>&1 || rc=$?
 [ "$rc" -eq 137 ] \
   || unguarded "probe exited $rc, not 137: ceiling not proved" "$@"
 
-echo "mem-guard: ceiling $max" >&2
-exec systemd-run --user --scope -q -p MemoryMax="$max" -p MemorySwapMax=0 \
-  -- "$@"
+slice=doppler-guard.slice
+systemctl --user set-property --runtime "$slice" \
+  MemoryMax="$max" MemorySwapMax=0 \
+  || unguarded "could not set the ceiling on $slice" "$@"
+echo "mem-guard: ceiling $max, shared across $slice" >&2
+exec systemd-run --user --scope -q --slice="$slice" -- "$@"

@@ -489,6 +489,12 @@ TEST_EXCLUDE_SWEEP = $(if $(TEST_SWEEP),,-LE sweep)
 # wrapper returns the suite's own exit code when it fails. Stdlib-only, so it
 # runs on the plain python3 of every CI image and matrix leg.
 LEAK_CHECK    = python3 scripts/check_test_leaks.py
+# The shared memory ceiling (scripts/mem-guard.sh): every parallel pytest and
+# every zensical command runs inside one capped systemd slice, so the docs
+# build (6 GiB) and an xdist run cannot together exceed RAM and kill the VM --
+# which they did twice, 2026-10-01 and 2026-10-03. `MEM_GUARD=0` skips it;
+# `make mem-guard-check` fails on a heavy command that does not reach it.
+MEM_GUARD_CMD = scripts/mem-guard.sh
 TEST_CMD      = $(LEAK_CHECK) --ctest -- \
                     $(CTEST) --test-dir $(BUILD_DIR) --output-on-failure \
                     $(TEST_EXCLUDE_SWEEP)
@@ -549,7 +555,7 @@ PYTEST_BENCH_DIRS = $(wildcard src/doppler/*/benchmarks)
 # 268s step, on all SIX Python versions, ~14 minutes a run spent timing code
 # on a shared runner and discarding the numbers. Timing on a shared runner is
 # also the thing doppler#543 already deleted perf-regression.yml over.
-TEST_PYTHON_CMD = $(LEAK_CHECK) -- uv run pytest src/ -v $(PYTEST_SELECT) \
+TEST_PYTHON_CMD = $(MEM_GUARD_CMD) $(LEAK_CHECK) -- uv run pytest src/ -v $(PYTEST_SELECT) \
                       --benchmark-disable -n auto $(PYTEST_ARGS)
 TEST_RUST_CMD   = cargo test --manifest-path $(RUST_DIR)/Cargo.toml
 
@@ -811,7 +817,7 @@ WHEEL_CMD = $(UV) build --wheel
 # invocation, so a clean checkout renders identically to CI. A stale local
 # zensical.toml (gitignored, absent in CI) shadows mkdocs.yml and silently
 # truncates the nav, so it is removed before every build.
-ZENSICAL     = $(UV) run --group docs zensical
+ZENSICAL     = $(MEM_GUARD_CMD) $(UV) run --group docs zensical
 DOCS_PREPARE = @rm -f zensical.toml
 
 # The docs gate: every check runs, every failure is reported in one pass. The
@@ -1027,7 +1033,7 @@ COV_PATCH_MIN ?= 90
 # interpreter is exported rather than prefixed, because the ctest phase
 # runs from inside $(COV_DIR) and reaches the script through $(CURDIR)/ --
 # a prefix there would be taken for the path.
-COV_GUARD     ?= scripts/mem-guard.sh
+COV_GUARD     ?= $(MEM_GUARD_CMD)
 # The instrumented C suite excludes the `sweep` validators, exactly as the
 # three sanitizer suites do (SAN_EXCLUDE_SWEEP). Spelled as its own variable
 # rather than a literal so `check_instrumented_sweep.py` can resolve it, and
@@ -1475,7 +1481,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 export-check public-symbols \
                 vendored-collision-check \
                 ci-image-refs-check \
-                ccsds-isolation-check instrumented-sweep-check \
+                ccsds-isolation-check instrumented-sweep-check mem-guard-check \
                 container-mount-check \
                 cargo-lock-check design-pages-check wfmgen-flag-matrix \
                 gallery-scripts-check \
@@ -1576,7 +1582,7 @@ lint: tests-ssot characterization-check validation-report-check changelog-check 
       issue-link-check deps-budget-check ci-image-refs-check cargo-floor-check \
       bench-coverage-check kwarg-parity-check doc-sections-check \
       ccsds-isolation-check container-mount-check cargo-lock-check \
-      instrumented-sweep-check \
+      instrumented-sweep-check mem-guard-check \
       design-pages-check gallery-scripts-check drift-check doxygen-check
 
 # The base the assertion ratchet compares against, same shape as COV_BASE:
@@ -3950,6 +3956,15 @@ cargo-lock-check: ## Fail when Cargo.lock's doppler version lags Cargo.toml
 instrumented-sweep-check: ## Fail when an instrumented ctest leg runs the sweep validators
 	@$(UV) run python scripts/check_instrumented_sweep.py
 
+# The VM dies, it does not fail, when RAM runs out: twice in three days the
+# docs build and an xdist pytest run took it down together, each fine alone.
+# scripts/mem-guard.sh now holds every guarded command to ONE shared slice
+# ceiling -- which only helps the commands that reach it. The rule is the
+# property: a parallel pytest or a zensical command must expand to the guard.
+# A new heavy suite is covered the day it is written.
+mem-guard-check: ## Fail when a parallel pytest or a docs build runs outside the memory guard
+	@$(UV) run python scripts/check_mem_guarded.py
+
 # A design page states what IS. The convention was written down, applied once
 # by hand to this very page -- async-dsss-receiver.md was split at 3686 lines,
 # its dated record moved to a companion -measurements.md keeping the section
@@ -4143,8 +4158,8 @@ test-snippets: ## Run the python/C/shell doc-fence gates (PAGE=<path> to narrow)
 # the macOS build job, where there is no nats-server to start). It
 # self-skips without either.
 test-examples-python: ## Run the Python example gate (requires pyext)
-	$(LEAK_CHECK) -- uv run pytest -m "examples and not examples_serial" \
-	    -q -n auto \
+	$(MEM_GUARD_CMD) $(LEAK_CHECK) -- uv run pytest \
+	    -m "examples and not examples_serial" -q -n auto \
 	    $(PYTEST_ARGS) src/doppler/tests/test_examples.py \
 	    src/doppler/tests/test_c_example_pairs.py
 	@# Exit 5 is pytest's "no tests collected", which is what an EMPTY

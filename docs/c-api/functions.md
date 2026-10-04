@@ -744,6 +744,7 @@
 * **dp\_det\_verify\_delay** ([**detection\_core.h**](detection__core_8h.md))
 * **dp\_marcum\_q** ([**detection\_core.h**](detection__core_8h.md))
 * **det\_cmp\_f32\_asc** ([**det\_private.h**](det__private_8h.md))
+* **det\_noise\_chunk** ([**det\_private.h**](det__private_8h.md))
 * **det\_noise\_estimate** ([**det\_private.h**](det__private_8h.md))
 * **det\_peak\_list** ([**det\_private.h**](det__private_8h.md))
 * **det\_peak\_scan** ([**det\_private.h**](det__private_8h.md))

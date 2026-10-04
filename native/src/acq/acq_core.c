@@ -190,14 +190,12 @@ acq_tile_decide (size_t r, void *ctx)
       st->mag_buf[k] = cabsf (st->out_buf[k]);
   memcpy (st->peak_mask + k0, st->band_mask + k0, k1 - k0);
   acq_part_t *p = &st->parts[r];
-  /* sc->reference is never set for MEDIAN (acq_scan_surface: it has no
-     per-chunk form and needs a scratch buffer a tile does not have). Said
-     here too, so the estimator's median branch is unreachable with this
-     NULL scratch by construction rather than by a caller's say-so. */
-  p->ref
-      = sc->reference && st->noise_mode != DET_NOISE_MEDIAN
-            ? det_noise_estimate (sc->surf, k0, k1 - 1, NULL, st->noise_mode)
-            : 0.0f;
+  /* A tile has no scratch buffer, so it asks for the per-chunk aggregate,
+     which cannot be a median. sc->reference is never set for MEDIAN anyway
+     (acq_scan_surface: it has no per-chunk form). */
+  p->ref         = sc->reference
+                       ? det_noise_chunk (sc->surf, k0, k1 - 1, st->noise_mode)
+                       : 0.0f;
   const size_t b = det_peak_scan (sc->surf, st->band_mask, k0, k1);
   p->best        = b == k1 ? st->n_surf : b;
 }

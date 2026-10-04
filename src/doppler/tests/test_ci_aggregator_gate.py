@@ -276,39 +276,40 @@ def test_a_heavy_list_is_refused(tmp_path: Path) -> None:
 
 
 # A python job whose single-leg steps name their leg by role (doppler#1714).
-# The fence step's selector, `changes`' outputs and how it derives them are
-# the seams each case below breaks.
+# The fence step's selector, `pythons`' outputs and how it derives them are
+# the seams each case below breaks. `pythons` owns the matrix and its
+# primary leg; `changes` is the vendored classifier and says nothing of it.
 _LEGS = """
     jobs:
-      changes:
+      pythons:
         runs-on: ubuntu-latest
         outputs:
           OUTPUTS
         steps:
-          - id: classify
+          - id: legs
             run: DERIVE
       python:
-        needs: changes
+        needs: pythons
         runs-on: ubuntu-latest
         steps:
           - name: Fences
             if: SELECTOR
             run: make test-snippets
           - name: Test
-            if: matrix.python-version != needs.changes.outputs.primary
+            if: matrix.python-version != needs.pythons.outputs.primary
             run: make test-python
           - name: Test with coverage
             if: >-
               ${{ matrix.python-version ==
-                  needs.changes.outputs.primary }}
+                  needs.pythons.outputs.primary }}
             run: make test-python PYTEST_ARGS=--cov
       ci-passed:
         name: CI passed
-        needs: [changes, python]
+        needs: [pythons, python]
         if: always()
         runs-on: ubuntu-latest
 """
-_FAST_SEL = "matrix.python-version == needs.changes.outputs.primary"
+_FAST_SEL = "matrix.python-version == needs.pythons.outputs.primary"
 
 
 def _legs(
@@ -366,11 +367,11 @@ def test_a_primary_written_down_is_refused(tmp_path: Path) -> None:
     assert "does not derive the primary leg" in r.stdout
 
 
-def test_a_selecting_job_must_need_changes(tmp_path: Path) -> None:
-    body = _legs().replace("        needs: changes\n", "", 1)
+def test_a_selecting_job_must_need_pythons(tmp_path: Path) -> None:
+    body = _legs().replace("        needs: pythons\n", "", 1)
     r = _check(tmp_path, body)
     assert r.returncode == 1
-    assert "does not need `changes`" in r.stdout
+    assert "does not need `pythons`" in r.stdout
 
 
 _DOC = """\

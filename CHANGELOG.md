@@ -13,6 +13,29 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.62.0] - 2026-10-04
+
+### Breaking
+
+- **`Specan` drops `window`; span and RBW 0 mean auto.** `dp_specan_create`
+    loses its `window` argument (always Kaiser). `span`/`rbw` 0 are auto
+    (`fs/1.28`, `span/100`); an oversize span or RBW is clamped, and `.span` and
+    `.rbw` report what was realised.
+
+### Fixed
+
+- **A docs build and a parallel test run can no longer take the dev VM down
+    together.** `scripts/mem-guard.sh` now holds every guarded command to one
+    shared systemd slice ceiling instead of one per command, and the docs
+    build and every xdist pytest run go through it. `make mem-guard-check`
+    (in `make lint`) fails on a heavy command that does not.
+
+- **The spectrum analyzer's skirt no longer depends on the RBW.** An RBW of
+    `fs_out/2^k` got a rectangular window and −13 dB sidelobes; the specan demo
+    sat exactly there. Span, transform length and Kaiser beta now follow
+    [the design](https://doppler-dsp.github.io/doppler/design/specan/): beta ≈ 12
+    or more, about −90 dB, at every RBW.
+
 ## [0.61.1] - 2026-10-03
 
 ### Added
@@ -15713,7 +15736,8 @@ ______________________________________________________________________
 [0.60.0]: https://github.com/doppler-dsp/doppler/compare/v0.59.0...v0.60.0
 [0.61.0]: https://github.com/doppler-dsp/doppler/compare/v0.60.0...v0.61.0
 [0.61.1]: https://github.com/doppler-dsp/doppler/compare/v0.61.0...v0.61.1
+[0.62.0]: https://github.com/doppler-dsp/doppler/compare/v0.61.1...v0.62.0
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.61.1...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.62.0...HEAD

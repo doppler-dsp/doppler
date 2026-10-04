@@ -745,7 +745,6 @@ dp_wfm_synth_steps (dp_wfm_synth_state_t *state, float _Complex *output,
            * matched filter — identical machinery to the PN/PSK RRC path. */
           const uint8_t *bits = state->bits;
           size_t         nb   = state->n_bits;
-          int            bmod = state->bit_mod;
           if (state->fir)
             {
               for (size_t i = 0; i < m; i++)

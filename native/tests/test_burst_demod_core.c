@@ -919,8 +919,7 @@ main (void)
           = pow (10.0, -((es_n0_db) - 10.0 * log10 ((double)(DATA_SF * SPC))) \
                            / 20.0);                                           \
       seed_state = 12345u;                                                    \
-      for (size_t k_ = 0; k_ < (lead); k_++)                                  \
-        z[k_] = 0.0f;                                                         \
+      memset (z, 0, (lead) * sizeof *z);                                      \
       for (size_t k_ = 0; k_ < n_; k_++)                                      \
         z[k_ + (lead)] = y[k_];                                               \
       /* dp_cgauss is E|z|^2 = 1, so sigma scales straight to total noise     \

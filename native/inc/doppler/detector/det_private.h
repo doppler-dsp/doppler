@@ -64,7 +64,7 @@ det_cmp_f32_asc (const void *a, const void *b)
  * @param mode    Aggregation mode.
  * @return        Aggregated noise estimate, or 0 if lo > hi.
  */
-static float
+static inline float
 det_noise_estimate (const float *mag, size_t lo, size_t hi, float *scratch,
                  det_noise_mode_t mode)
 {
@@ -158,7 +158,7 @@ typedef struct
  * @param max_peaks Capacity of `out`.
  * @return          Peaks listed (0 when nothing exceeds the gate).
  */
-static size_t
+static inline size_t
 det_peak_list (const float *surf, size_t ny, size_t nx, float gate,
                size_t excl_rows, size_t excl_cols, uint8_t *mask,
                det_peak_t *out, size_t max_peaks);
@@ -218,7 +218,7 @@ det_peak_zone (uint8_t *mask, size_t ny, size_t nx, size_t r, size_t c,
     }
 }
 
-static size_t
+static inline size_t
 det_peak_list (const float *surf, size_t ny, size_t nx, float gate,
                size_t excl_rows, size_t excl_cols, uint8_t *mask,
                det_peak_t *out, size_t max_peaks)

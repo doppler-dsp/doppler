@@ -84,8 +84,6 @@ static wfm_frame_desc_t frame;
 static size_t frame_syms; /* the layout's frame_bits, sync included */
 static size_t burst_len;  /* preamble + spread frame, in samples */
 
-static const char SYNC_BITS[SYNC_LEN + 1] = "0000011001010";
-
 /** @brief `2^stages - 1` chips of an m-sequence, from wfm's PN generator.
  *
  * The same generator `doppler.wfm.PN` binds, so the C and Python examples

@@ -131,7 +131,7 @@ static int det_cmp_f32_asc (
 
 _Aggregate \|corr\| over bins &#91;lo, hi&#93; using the selected mode._ 
 ```C++
-static float det_noise_estimate (
+static inline float det_noise_estimate (
     const float * mag,
     size_t lo,
     size_t hi,
@@ -176,7 +176,7 @@ Aggregated noise estimate, or 0 if lo &gt; hi.
 
 _The maximum of a surface, iterated with exclusion zones: every peak above a gate, strongest first, at most_ `max_peaks` _of them._
 ```C++
-static size_t det_peak_list (
+static inline size_t det_peak_list (
     const float * surf,
     size_t ny,
     size_t nx,

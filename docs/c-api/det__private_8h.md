@@ -63,6 +63,7 @@ _Shared internals for detector\_core.c and detector2d\_core.c._ [More...](#detai
 | Type | Name |
 | ---: | :--- |
 |  int | [**det\_cmp\_f32\_asc**](#function-det_cmp_f32_asc) (const void \* a, const void \* b) <br> |
+|  float | [**det\_noise\_chunk**](#function-det_noise_chunk) (const float \* mag, size\_t lo, size\_t hi, [**det\_noise\_mode\_t**](detector__core_8h.md#enum-det_noise_mode_t) mode) <br>_The per-chunk noise aggregates_  _MEAN, MIN, MAX_ _over bins &#91;lo, hi&#93;, needing no scratch buffer._ |
 |  float | [**det\_noise\_estimate**](#function-det_noise_estimate) (const float \* mag, size\_t lo, size\_t hi, float \* scratch, [**det\_noise\_mode\_t**](detector__core_8h.md#enum-det_noise_mode_t) mode) <br>_Aggregate \|corr\| over bins &#91;lo, hi&#93; using the selected mode._  |
 |  size\_t | [**det\_peak\_list**](#function-det_peak_list) (const float \* surf, size\_t ny, size\_t nx, float gate, size\_t excl\_rows, size\_t excl\_cols, uint8\_t \* mask, [**det\_peak\_t**](structdet__peak__t.md) \* out, size\_t max\_peaks) <br>_The maximum of a surface, iterated with exclusion zones: every peak above a gate, strongest first, at most_ `max_peaks` _of them._ |
 |  size\_t | [**det\_peak\_scan**](#function-det_peak_scan) (const float \* surf, const uint8\_t \* mask, size\_t k0, size\_t k1) <br>_One scan of det\_peak\_list(): the first maximum of_ `surf` _over the cells_`[k0, k1)` _that_`mask` _leaves as candidates._ |
@@ -122,6 +123,49 @@ static int det_cmp_f32_asc (
 
 
 
+
+<hr>
+
+
+
+### function det\_noise\_chunk 
+
+_The per-chunk noise aggregates_  _MEAN, MIN, MAX_ _over bins &#91;lo, hi&#93;, needing no scratch buffer._
+```C++
+static inline float det_noise_chunk (
+    const float * mag,
+    size_t lo,
+    size_t hi,
+    det_noise_mode_t mode
+) 
+```
+
+
+
+MEDIAN has no per-chunk form (it must sort the whole range), so it is not computed here and returns 0; use det\_noise\_estimate() for it. A caller that works a chunk at a time (acq's parallel tiles) calls THIS, so it cannot even ask for a median without a scratch buffer: the invariant is in the signature, not in a NULL passed to something that would dereference it.
+
+
+
+
+**Parameters:**
+
+
+* `mag` Magnitude vector (length &gt;= hi+1). 
+* `lo` First bin, inclusive. 
+* `hi` Last bin, inclusive. 
+* `mode` DET\_NOISE\_MEAN, DET\_NOISE\_MIN or DET\_NOISE\_MAX. 
+
+
+
+**Returns:**
+
+The aggregate; 0 if lo &gt; hi or mode is DET\_NOISE\_MEDIAN. 
+
+
+
+
+
+        
 
 <hr>
 

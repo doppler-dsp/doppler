@@ -100,7 +100,7 @@ flowchart LR
         hubA -- "USB-C<br/>adb shell, adb reverse" --> bdA["UNO Q<br/>uno_q_shared"]
         pcA -. "SSH over Wi-Fi" .-> bdA
     end
-    subgraph B["B: board is the USB host (not measured)"]
+    subgraph B["B: board is the USB host (measured)"]
         direction LR
         hubB["PD pass-through hub<br/>(+ power supply)"] -- "USB-C" --> bdB["UNO Q<br/>rtl_sdr | uno_q_shared"]
         dB["RTL-SDR"] -- USB --> hubB
@@ -148,9 +148,25 @@ network. Join the board to Wi-Fi once, then:
 ssh arduino@<board-address>         # a fixed address avoids DHCP surprises
 ```
 
-Whether the board takes the host role depends on the hub's PD negotiation,
-which isn't something this project controls. Check that `lsusb` on the board
-lists the dongle before relying on this setup. `arduino` is the board's
+Measured with the board booted with a PD pass-through hub already attached.
+That hub is not necessarily Arduino's: it reports two Genesys Logic hub
+chips (05e3:0610 and 05e3:0626) and a Gigabit Ethernet adapter (ASIX
+AX88179), where Arduino's lists 100 Mbps. The board enumerated all of them
+and the dongle. `lsusb` on the board
+lists the dongle when it works; if it doesn't, the board did not take the
+host role.
+
+The dongle needs the RTL-SDR tools and permission to open it:
+
+```sh
+sudo apt install rtl-sdr
+sudo usermod -aG plugdev arduino    # then log in again; the udev rule grants plugdev
+rtl_test -t                         # finds the R820T tuner
+```
+
+Without the group, `rtl_test` fails with `usb_open error -3` ("Please fix
+the device permissions"). `rtl_test -t` ends with "No E4000 tuner found" on
+an R820T dongle; that is the expected result. `arduino` is the board's
 default user; the address is whatever your router or `nmcli` shows. If Wi-Fi
 connects but gets no IPv4 address, see Board notes.
 
@@ -321,8 +337,14 @@ host of a power-delivery pass-through hub (see
 the hub and SSH over Wi-Fi for control. Then:
 
 ```sh
-rtl_sdr -f 99.8e6 -s 2.4e6 - | build/uno_q_shared --offset 100e3 --rate 0.25 -
+rtl_sdr -f 100e6 -s 2.4e6 - | build/uno_q_shared --offset -100e3 --rate 0.25 --seconds 10 -
 ```
+
+Measured this way through a power-delivery hub: 24,000,000 samples, which is
+10.00 s of input at 2.400 MSa/s, at 49.5% of one core (the receiver's own
+CPU time, with `schedutil`). `rtl_sdr` then prints "Short write, samples
+lost, exiting!": that is it noticing the receiver closed the pipe at
+`--seconds`, not a loss.
 
 **Dongle on a PC, stream to the board** (how this was measured). This works
 when the board is a USB device of the PC, directly or through a hub. The PC

@@ -11,19 +11,20 @@
  *
  * Three ways to run it:
  *
- *   uno_q [flags]             SELF-TEST. Synthesises one second of what an
- *                             RTL-SDR would send for a tone at --offset in
- *                             noise, runs the chain, and CHECKS the result.
- *                             Every failed check exits non-zero; this is the
- *                             mode `make run` and CI use.
- *   uno_q [flags] - | FILE    LIVE. Reads cu8 from stdin or a capture file
- *                             and reports what it found. Nothing is checked
- *                             — live RF is not known in advance.
- *   uno_q [flags] --nats URL  NATS. Receives ci8 frames that uno_q_pub
- *                             published (built only when the doppler install
- *                             has its stream component). Counts lost and
- *                             duplicated frames from the wire header, then
- *                             runs the same chain.
+ *   uno_q_shared [flags]
+ *       SELF-TEST. Synthesises one second of what an RTL-SDR would send for
+ *       a tone at --offset in noise, runs the chain, and CHECKS the result.
+ *       Every failed check exits non-zero; this is the mode `make run` and
+ *       CI use.
+ *   uno_q_shared [flags] - | FILE
+ *       LIVE. Reads cu8 from stdin or a capture file and reports what it
+ *       found. Nothing is checked — live RF is not known in advance.
+ *   uno_q_shared [flags] --nats URL
+ *       NATS. Receives ci8 frames that uno_q_pub published (built only when
+ *       the doppler install has its stream component). Counts lost and
+ *       duplicated frames from the wire header, then runs the same chain.
+ *
+ * (`uno_q_static` is the same program linked against libdoppler.a.)
  *
  *     --fs HZ        input sample rate (default 2.4e6; NATS: from the header)
  *     --offset HZ    where the wanted channel sits relative to the tuned

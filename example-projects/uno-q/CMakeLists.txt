@@ -25,6 +25,11 @@ if(TARGET doppler::doppler-static)
     target_link_libraries(uno_q_static PRIVATE doppler::doppler-static m)
 endif()
 
+# The 2-D correlation detector and its parts, timed through the public API
+# only (`make bench`). It is built with everything else so CI compiles it.
+add_executable(uno_q_bench bench.c)
+target_link_libraries(uno_q_bench PRIVATE doppler::doppler m)
+
 # The NATS transport is OPTIONAL: doppler's stream component (doppler::stream,
 # the vendored nats.c folded in) exists only in a POSIX install built with
 # it. Where it does, the receiver gains --nats and the publisher is built;

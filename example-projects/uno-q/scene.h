@@ -2,8 +2,8 @@
  *
  * One definition of the test scene: the receiver's self-test builds it
  * locally, and `uno_q_pub --synthetic` publishes the same bytes over NATS, so
- * `uno_q --check` can hold data that crossed the transport to exactly the
- * predictions the self-test uses.
+ * `uno_q_shared --check` can hold data that crossed the transport to exactly
+ * the predictions the self-test uses.
  */
 #ifndef UNO_Q_SCENE_H
 #define UNO_Q_SCENE_H

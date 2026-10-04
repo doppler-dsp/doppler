@@ -571,7 +571,7 @@ _mf_best_evm_db (double sps, int compensate)
   double best = 1e9;
   for (int j = 0; j < 16; j++)
     {
-      size_t          n;
+      size_t          n = 0;
       float _Complex *x = _mf_tx (sps, j / 16.0, &n);
       float _Complex *y = calloc (n, sizeof *y);
       if (!x || !y)
@@ -904,7 +904,7 @@ _mf_recovered_amp (double sps, double beta, int compensate)
   double best = 0.0;
   for (int j = 0; j < 16; j++)
     {
-      size_t          n;
+      size_t          n = 0;
       float _Complex *x = _mf_tx_beta (sps, beta, j / 16.0, &n);
       float _Complex *y = calloc (n, sizeof *y);
       if (x && y)
@@ -973,7 +973,7 @@ _mf_amp_scaled (double scale, int use_agc)
   double       best = 0.0;
   for (int j = 0; j < 16; j++)
     {
-      size_t          n;
+      size_t          n = 0;
       float _Complex *x = _mf_tx_beta (sps, beta, j / 16.0, &n);
       float _Complex *y = calloc (n, sizeof *y);
       if (x && y)
@@ -1287,7 +1287,7 @@ test_matched_push_equals_block (void)
   const double sps[] = { 4.0, 17.333333333, 64.0 };
   for (size_t s = 0; s < 3; s++)
     {
-      size_t          n;
+      size_t          n = 0;
       float _Complex *x = _mf_tx (sps[s], 0.3, &n);
       float _Complex *y = calloc (n, sizeof *y);
       float _Complex *z = calloc (n, sizeof *z);
@@ -1352,7 +1352,7 @@ test_matched_push_equals_block (void)
 static void
 test_matched_state_roundtrip (void)
 {
-  size_t          n;
+  size_t          n = 0;
   float _Complex *x = _mf_tx (17.333333333, 0.2, &n);
   float _Complex *y = calloc (n, sizeof *y);
   float _Complex *z = calloc (n, sizeof *z);
@@ -1411,10 +1411,10 @@ test_agc_state_roundtrip_mid_convergence (void)
      splits at n/2, long past it. Cut at a handful of pre-terminal samples
      instead, which is where the state actually exists. */
   const double    sps = 4.0;
-  size_t          n;
-  float _Complex *x = _mf_tx_beta (sps, _MF_BETA, 0.0, &n);
-  float _Complex *y = calloc (n, sizeof *y);
-  float _Complex *z = calloc (n, sizeof *z);
+  size_t          n   = 0;
+  float _Complex *x   = _mf_tx_beta (sps, _MF_BETA, 0.0, &n);
+  float _Complex *y   = calloc (n, sizeof *y);
+  float _Complex *z   = calloc (n, sizeof *z);
   DP_CHECK (x && y && z);
   if (!x || !y || !z)
     {

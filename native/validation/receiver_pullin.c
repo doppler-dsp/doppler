@@ -240,7 +240,7 @@ main (int argc, char **argv)
           double tl = 0.0;
           for (size_t t = 0; t < trials; t++)
             {
-              double tlock;
+              double tlock = 0.0; /* set by pullin() when it returns 1 */
               /* Both signs: the seed's error has no preferred side. */
               const double sgn = (t & 1u) ? -1.0 : 1.0;
               int r = pullin (&draws[t], code, cn0s[ci], sgn * offs[oi], at,

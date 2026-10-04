@@ -605,7 +605,7 @@ dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
   /* In the blob since v3: a refill's end is its source's, which the
      sub-blob below restores, so it is carried rather than re-derived. */
   dp_r_bytes (&_r, &s->data_ended, 1);
-  uint8_t pres[6];
+  uint8_t pres[6] = { 0 }; /* dp_r_bytes writes nothing on an errored reader */
   dp_r_bytes (&_r, pres, 6);
   /* the blob's child set must match this instance's config (same wtype,
      and a frame source if and only if this synth pulls from one). */

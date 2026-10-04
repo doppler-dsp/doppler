@@ -387,7 +387,7 @@ cascade_eye (int ted, int rs_pulse, int tx_pulse, double beta, double sps,
         }
       double        sum  = 0.0;
       long          used = 0, cnt = 0;
-      float complex sym;
+      float complex sym = 0.0f; /* written when the step returns 1 */
       for (size_t i = 0; i < n; i++)
         if (ratesync_step (rs, x[i], &sym))
           if (++cnt > CASC_SKIP)

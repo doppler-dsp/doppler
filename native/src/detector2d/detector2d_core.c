@@ -26,7 +26,7 @@ detector2d_compute_stat_2d (dp_detector2d_state_t *state)
 
   /* The one argmax under both detectors (det_peak_list, at one peak and
      no gate: the maximum, as this detector has always reported it). */
-  det_peak_t pk;
+  det_peak_t pk = { 0 }; /* stays zero if the list is empty (all-NaN map) */
   (void)det_peak_list (state->mag_buf, state->ny, state->nx, -1.0f, 0, 0, NULL,
                        &pk, 1);
   state->peak_row = pk.row;

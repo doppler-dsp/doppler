@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(doppler VERSION 0.61.1 LANGUAGES C)
+project(doppler VERSION 0.62.0 LANGUAGES C)
 
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -907,7 +907,7 @@ add_subdirectory(native/src/stream)
 # so before this
 # line a C consumer could include the header and link none of it. Python was
 # unaffected throughout, since the extension links each core directly, which
-# is exactly why it went unnoticed until jm 0.62.0's wiring check.
+# is exactly why it went unnoticed until jm 0.62's wiring check.
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:ccsds_tm_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:ccsds_tm_core>)
 
@@ -915,7 +915,7 @@ target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:ccsds_tm_core>)
 # is an installed header whose every function is out-of-line, and `ccsds_tm`
 # now reaches the encoder THROUGH it -- so without this line ccsds_tm's own
 # symbols resolve inside the archive and the codec they call does not.
-# jm 0.62.0's wiring check is what named it; the line is ours.
+# jm 0.62's wiring check is what named it; the line is ours.
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:conv_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:conv_core>)
 

@@ -651,17 +651,18 @@ static const retired_t RETIRED[] = {
   { "--bits", "--data <FIELD> --data-len <BITS>", DATA_SOURCE },
   { "--bits-file", "--data-from-file <PATH> (- for stdin)", DATA_SOURCE },
 #undef DATA_SOURCE
-  { "--bits-hex", "--data 0x<HEX>" },
-  { "--payload-gen", "--data <FIELD>, e.g. --data pn:1024:10" },
+  { "--bits-hex", "--data 0x<HEX>", NULL },
+  { "--payload-gen", "--data <FIELD>, e.g. --data pn:1024:10", NULL },
   { "--payload-len",
-    "--data pn:<N>:<pn-length>[:<seed>[:<poly>]] -- the same bits" },
-  { "--acq-code-hex", "--acq-code 0x<HEX>" },
-  { "--acq-code-gen", "--acq-code <FIELD>, e.g. --acq-code pn:1023:10" },
-  { "--acq-reps", "--acq-code '<FIELD>*<N>', e.g. --acq-code 'pn:31:5*4'" },
-  { "--data-code-hex", "--data-code 0x<HEX>" },
-  { "--data-code-gen",
-    "--data-code <FIELD>, e.g. --data-code gold:64:10:..." },
-  { "--sync-gen", "--sync <FIELD>, e.g. --sync pn:63:6" },
+    "--data pn:<N>:<pn-length>[:<seed>[:<poly>]] -- the same bits", NULL },
+  { "--acq-code-hex", "--acq-code 0x<HEX>", NULL },
+  { "--acq-code-gen", "--acq-code <FIELD>, e.g. --acq-code pn:1023:10", NULL },
+  { "--acq-reps", "--acq-code '<FIELD>*<N>', e.g. --acq-code 'pn:31:5*4'",
+    NULL },
+  { "--data-code-hex", "--data-code 0x<HEX>", NULL },
+  { "--data-code-gen", "--data-code <FIELD>, e.g. --data-code gold:64:10:...",
+    NULL },
+  { "--sync-gen", "--sync <FIELD>, e.g. --sync pn:63:6", NULL },
 /* The coding sugar (docs/design/frame-description.md R): a coded frame is
    a description, and a stage names the span it covers. */
 #define CODED "a coded frame is a description"

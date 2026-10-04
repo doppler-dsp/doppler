@@ -219,6 +219,11 @@ main (int argc, char **argv)
         mono = 0;
       prev = pv;
     }
+  /* Doubling bn must roughly double the jitter (x1.6..x2.5 each step). */
+  printf ("   jitter scales with bn at each doubling: %s\n",
+          mono ? "yes" : "NO");
+  if (check && !mono)
+    fail = 1;
 
   /* tracking threshold tightens with M: jitter at a mid SNR explodes for the
    * larger constellation while the smaller one is still locked */

@@ -359,7 +359,7 @@ main (void)
   {
     dp_f32_t *buf = dp_f32_create (1);
     size_t    cap = buf->capacity;
-    PRIME_TO (f32, float, buf, 0); /* no-op; head = tail = 0 */
+    /* no priming: head = tail = 0 */
 
     /* Fill to capacity in 64-sample chunks (avoids a cap-sized stack array),
      * leaving the data in place so the buffer ends up full. */

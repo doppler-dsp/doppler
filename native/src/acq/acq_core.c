@@ -120,13 +120,6 @@ acq_in_doppler_band (const dp_acq_state_t *st, size_t k)
  * the surface is sampled, not how many independent chances the noise gets. */
 #define ACQ_DOPPLER_INTERP 2u
 
-/* Is this surface cell on a NATIVE Doppler row (not an interpolated one)? */
-static inline int
-acq_is_native_cell (const dp_acq_state_t *st, size_t k)
-{
-  return st->interp <= 1 || ((k / st->code_bins) % st->interp) == 0;
-}
-
 /* The native row a surface pick reports: the surface is the Doppler axis
  * interpolated `interp`-fold, and every consumer scales `doppler_bin` by
  * `doppler_res_hz`, so a pick on an interpolated row is reported at the
@@ -197,9 +190,14 @@ acq_tile_decide (size_t r, void *ctx)
       st->mag_buf[k] = cabsf (st->out_buf[k]);
   memcpy (st->peak_mask + k0, st->band_mask + k0, k1 - k0);
   acq_part_t *p = &st->parts[r];
-  p->ref = sc->reference ? det_noise_estimate (sc->surf, k0, k1 - 1, NULL,
-                                               st->noise_mode)
-                         : 0.0f;
+  /* sc->reference is never set for MEDIAN (acq_scan_surface: it has no
+     per-chunk form and needs a scratch buffer a tile does not have). Said
+     here too, so the estimator's median branch is unreachable with this
+     NULL scratch by construction rather than by a caller's say-so. */
+  p->ref
+      = sc->reference && st->noise_mode != DET_NOISE_MEDIAN
+            ? det_noise_estimate (sc->surf, k0, k1 - 1, NULL, st->noise_mode)
+            : 0.0f;
   const size_t b = det_peak_scan (sc->surf, st->band_mask, k0, k1);
   p->best        = b == k1 ? st->n_surf : b;
 }

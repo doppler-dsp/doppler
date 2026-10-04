@@ -82,6 +82,7 @@ main (void)
         _times_get[r] = jm_bench_elapsed_sec (t0, t1);
       }
     jm_bench_add (&_bench, "get", _times_get, ITERATIONS, BENCH_N);
+    (void)get_sink; /* consume the DCE sink */
     {
       double _s = 0.0;
       for (int r = 0; r < ITERATIONS; r++)
@@ -106,6 +107,7 @@ main (void)
         _times_dump[r] = jm_bench_elapsed_sec (t0, t1);
       }
     jm_bench_add (&_bench, "dump", _times_dump, ITERATIONS, BENCH_N);
+    (void)dump_sink; /* consume the DCE sink */
     {
       double _s = 0.0;
       for (int r = 0; r < ITERATIONS; r++)

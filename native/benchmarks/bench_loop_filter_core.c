@@ -75,6 +75,7 @@ main (void)
             (double)BENCH_N / (_s / ITERATIONS) / 1e6);
   }
 
+  (void)_sink; /* the volatile sink defeats DCE; this read consumes it */
   jm_bench_write_json (&_bench, "loop_filter");
   dp_loop_filter_destroy (obj);
   free (in);

@@ -73,6 +73,7 @@
 #include "doppler/i8_to_f32/i8_to_f32_core.h"
 #include "doppler/psd/psd_core.h"
 #include "doppler/spectral/spectral_core.h"
+#include "doppler/timing/timing_core.h"
 #include "doppler/u8_to_f32/u8_to_f32_core.h"
 #ifdef UNO_Q_NATS
 #include "doppler/stream/stream.h"
@@ -99,13 +100,11 @@ check (int ok, const char *what)
     failures++;
 }
 
-/** @brief Monotonic seconds. CLOCK_MONOTONIC, so it is not NTP's to move. */
+/** @brief Monotonic seconds, from the library's clock (dp_mono_ns). */
 static double
 now_s (void)
 {
-  struct timespec t;
-  clock_gettime (CLOCK_MONOTONIC, &t);
-  return (double)t.tv_sec + (double)t.tv_nsec * 1e-9;
+  return (double)dp_mono_ns () * 1e-9;
 }
 
 /** @brief Process CPU seconds, to report load as a share of one core. */
@@ -250,19 +249,21 @@ chain_push_ci8 (chain_t *c, const int8_t *ci8, size_t pairs)
     }
 }
 
-/** @brief Strongest bin of the averaged spectrum, as (frequency Hz, dB). */
+/**
+ * @brief Strongest peak of the averaged spectrum, as (frequency Hz, dB), from
+ * the library's interpolating peak finder rather than a bin argmax.
+ */
 static void
 spectrum_peak (chain_t *c, double fs_out, float *db, double *f_hz,
                double *level_db)
 {
+  dp_peak_t pk;
   dp_psd_psd_db (c->psd, c->n, db, c->n);
-  size_t k = 0;
-  for (size_t i = 1; i < c->n; i++)
-    if (db[i] > db[k])
-      k = i;
-  /* DC-centred: bin i is (i - n/2) / n of the output rate. */
-  *f_hz     = ((double)k - (double)(c->n / 2)) * fs_out / (double)c->n;
-  *level_db = db[k];
+  /* A gate nothing falls under: the strongest local maximum, whatever it is.
+   */
+  size_t np = dp_find_peaks_f32 (db, c->n, 1, -1e30f, &pk);
+  *f_hz     = np ? (double)pk.freq_norm * fs_out : 0.0;
+  *level_db = np ? (double)pk.amplitude_db : -1e30;
 }
 
 /**

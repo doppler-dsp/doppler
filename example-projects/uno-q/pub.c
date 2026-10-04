@@ -33,27 +33,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
 #include "doppler/stream/stream.h"
+#include "doppler/timing/timing_core.h"
 #include "scene.h"
 
 static double
 now_s (void)
 {
-  struct timespec t;
-  clock_gettime (CLOCK_MONOTONIC, &t);
-  return (double)t.tv_sec + (double)t.tv_nsec * 1e-9;
-}
-
-static void
-sleep_until (double t)
-{
-  double d = t - now_s ();
-  if (d <= 0.0)
-    return;
-  struct timespec ts = { (time_t)d, (long)((d - (double)(time_t)d) * 1e9) };
-  nanosleep (&ts, NULL);
+  return (double)dp_mono_ns () * 1e-9;
 }
 
 int
@@ -124,8 +112,10 @@ main (int argc, char **argv)
   if (!cu8 || !ci8)
     return 1;
 
-  size_t sent = 0, refused = 0, samples = 0;
-  double t0 = now_s ();
+  size_t            sent = 0, refused = 0, samples = 0;
+  double            t0 = now_s ();
+  dp_sample_clock_t clk;
+  dp_sample_clock_init (&clk, fs, 0);
   for (;;)
     {
       size_t pairs;
@@ -135,7 +125,9 @@ main (int argc, char **argv)
             break;
           pairs = scene_n - samples < frame ? scene_n - samples : frame;
           memcpy (cu8, scene + 2 * samples, 2 * pairs);
-          sleep_until (t0 + (double)samples / fs); /* real-time pacing */
+          /* Real-time pacing: the library's sample clock sleeps until this
+             block's deadline (epoch + n/fs) and counts a late one. */
+          (void)dp_sample_clock_pace (&clk, pairs);
         }
       else
         {

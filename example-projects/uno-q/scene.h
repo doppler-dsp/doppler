@@ -30,7 +30,8 @@ uint8_t scene_rtl_code (float v);
 /**
  * @brief `n` complex samples of the scene as interleaved cu8 (2n bytes):
  * a tone at `offset` Hz plus AWGN, through scene_rtl_code(). Built with the
- * library's own LO and AWGN sources. Returns a malloc'd buffer, or NULL.
+ * library's waveform synthesizer (the engine behind wfmgen). Returns a
+ * malloc'd buffer, or NULL.
  */
 uint8_t *scene_cu8 (double fs, double offset, size_t n);
 

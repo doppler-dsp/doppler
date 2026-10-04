@@ -13,11 +13,11 @@ directory as the starting point for an SDR front end.
 
 ## Three modes
 
-| command                                   | input                                   | what it does                                                                                                                                                                                                  |
-| ----------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `uno_q [flags]`                           | none                                    | **Self-test.** Synthesises one second of what an RTL-SDR would send (a tone at `--offset` in noise, through a model of its 8-bit ADC), runs the chain and checks the result. Any failed check exits non-zero. |
-| `uno_q [flags] -` or `uno_q [flags] FILE` | `cu8` on stdin, or a capture file       | **Live.** Reports throughput, CPU load, the strongest peaks and the level in the channel. Nothing is checked, because live RF is not known in advance.                                                        |
-| `uno_q [flags] --nats URL`                | `ci8` frames from `uno_q_pub` over NATS | **NATS.** Counts lost and repeated frames from the wire header, then runs the same chain. Built when the doppler install has its stream component.                                                            |
+| command                                                 | input                                   | what it does                                                                                                                                                                                                  |
+| ------------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `uno_q_shared [flags]`                                  | none                                    | **Self-test.** Synthesises one second of what an RTL-SDR would send (a tone at `--offset` in noise, through a model of its 8-bit ADC), runs the chain and checks the result. Any failed check exits non-zero. |
+| `uno_q_shared [flags] -` or `uno_q_shared [flags] FILE` | `cu8` on stdin, or a capture file       | **Live.** Reports throughput, CPU load, the strongest peaks and the level in the channel. Nothing is checked, because live RF is not known in advance.                                                        |
+| `uno_q_shared [flags] --nats URL`                       | `ci8` frames from `uno_q_pub` over NATS | **NATS.** Counts lost and repeated frames from the wire header, then runs the same chain. Built when the doppler install has its stream component.                                                            |
 
 | flag          | default   | meaning                                                                            |
 | ------------- | --------- | ---------------------------------------------------------------------------------- |
@@ -84,6 +84,78 @@ Two lessons are built into how it measures:
 Measured on 2026-09-26. The board runs Debian 13 on four Cortex-A53-class
 cores (`/proc/cpuinfo` part `0x801`); GCC 14.2 and CMake 3.31 from Debian.
 
+**Connecting to the board.**
+
+The board has one USB-C port, and it can only report itself as a power sink.
+So the port is either a **device link to a PC** (power, `adb`, and a
+tunnel for samples) or a **host port on a power-delivery hub** (the dongle
+plugs into the hub). Pick one; the build steps are the same.
+
+```mermaid
+flowchart LR
+    subgraph A["A: PC is the USB host (measured)"]
+        direction LR
+        pcA["PC<br/>rtl_tcp :1234 or NATS :4222"] -- "USB" --> hubA["powered hub"]
+        hubA -- USB --> dA["RTL-SDR"]
+        hubA -- "USB-C<br/>adb shell, adb reverse" --> bdA["UNO Q<br/>uno_q_shared"]
+        pcA -. "SSH over Wi-Fi" .-> bdA
+    end
+    subgraph B["B: board is the USB host (not measured)"]
+        direction LR
+        hubB["PD pass-through hub<br/>(+ power supply)"] -- "USB-C" --> bdB["UNO Q<br/>rtl_sdr | uno_q_shared"]
+        dB["RTL-SDR"] -- USB --> hubB
+        pcB["PC"] -. "SSH over Wi-Fi" .-> bdB
+    end
+```
+
+**A. PC as the host.** The PC's USB port goes to a powered hub; the dongle
+and the board's USB-C port go to two of the hub's other ports (a direct PC
+port for either works too). The PC sees both, and the dongle stays on the
+PC:
+
+```sh
+lsusb | grep -E 'RTL2838|UNO Q'     # the dongle and the board
+adb devices                         # the board is listed as `device`
+adb shell                           # a shell on the board
+```
+
+`adb reverse` carries samples to the board over the same cable (see
+[Dongle on a PC](#live-input-from-an-rtl-sdr) and
+[Over NATS](#over-nats-every-frame-accounted-for)), so the board needs no
+network for the stream. If it is on Wi-Fi, `ssh arduino@<board-address>`
+gives the same shell. Under `adb shell`, set `TMPDIR=/tmp` (see Board
+notes).
+
+**B. Board as the host.** The single USB-C port must carry power in and USB
+data out at once, so this needs a USB-C hub or dock with **power-delivery
+pass-through**: the hub takes the supply on its PD input, powers the board
+over the same cable, and exposes its downstream ports to the board as host.
+A plain bus-powered hub can't do this, and neither can an unpowered
+adapter.
+
+Arduino sells one for the board, the
+[USB-C Hub (8-in-1)](https://thepihut.com/products/arduino-usb-c-hub-8-in-1)
+(65 W power passthrough, a USB-C data port, USB-A 2.0 and 3.0 ports, 4K30
+HDMI, 100 Mbps Ethernet, SD and TF readers). It needs external power on its
+PD port. The dongle goes in a USB-A port (2.4 MSa/s is about 4.8 MB/s, well
+inside even USB 2.0), and the Ethernet port gives the board a wired address
+for SSH if Wi-Fi is a problem.
+
+Nothing arrives over the cable to the PC, so the shell comes over the
+network. Join the board to Wi-Fi once, then:
+
+```sh
+ssh arduino@<board-address>         # a fixed address avoids DHCP surprises
+```
+
+Whether the board takes the host role depends on the hub's PD negotiation,
+which isn't something this project controls. Check that `lsusb` on the board
+lists the dongle before relying on this setup. `arduino` is the board's
+default user; the address is whatever your router or `nmcli` shows. If Wi-Fi
+connects but gets no IPv4 address, see Board notes.
+
+Either way, finish with the toolchain and build below, run on the board.
+
 **Toolchain.** The board ships without one:
 
 ```sh
@@ -113,6 +185,53 @@ make package-c PREFIX=$HOME/.local CMAKE_ARGS=-DCMAKE_C_FLAGS=-mcpu=cortex-a53
 **Throughput of this chain**, from the self-test on one core: 20.0 MSa/s,
 8.3× real time at 2.4 MSa/s (portable build). The desktop x86-64 machine
 used for comparison ran it at 275 MSa/s.
+
+**Benchmarks of the 2-D correlation detector and its parts.** `make bench`
+times them through doppler's installed public API (`bench.c`), single
+thread, and prints a table in this shape; re-run it on your board or build
+(`make bench PREFIX=$HOME/.local-a53 CPU_FLAGS=-mcpu=cortex-a53`). Each case
+reports its fastest of 60 rounds. The UNO Q columns were measured on
+2026-10-04 with the release current on that date, CPU governor `schedutil`. "Portable" is the
+default build; "A53" adds `-mcpu=cortex-a53` (see Tuning).
+
+The last column is doppler's published portable build for that release on an AMD
+Ryzen AI 9 465 (governor `performance`, boost on, pinned to the fastest
+cores; [`benchmarks/published/`](../../benchmarks/published/)),
+from the library's own benchmarks rather than `bench.c`.
+
+| algorithm                         | case                      | UNO Q portable | UNO Q A53   | Ryzen AI 9 465 |
+| --------------------------------- | ------------------------- | -------------- | ----------- | -------------- |
+| `detector2d` (corr + ring + peak) | 16 × 1024 bins            | 6.4 MSa/s      | 6.4 MSa/s   | 100.2 MSa/s    |
+|                                   | 128 × 128 bins            | 6.7 MSa/s      | 6.6 MSa/s   | 162.9 MSa/s    |
+| `corr2d`                          | 16 × 2046, single-row ref | 3.1 MSa/s      | 3.1 MSa/s   | 76.0 MSa/s     |
+|                                   | 16 × 2046, multi-row ref  | 2.5 MSa/s      | 2.5 MSa/s   | 60.9 MSa/s     |
+| `fft2d` (cf32, forward)           | 256 × 256                 | 11.0 Mbin/s    | 11.3 Mbin/s | 390.3 Mbin/s   |
+|                                   | 16 × 4096                 | 10.9 Mbin/s    | 10.6 Mbin/s | 223.8 Mbin/s   |
+| `fft` (cf32, forward)             | n = 256                   | 67.8 Mbin/s    | 69.7 Mbin/s | 686.6 Mbin/s   |
+|                                   | n = 4096                  | 34.3 Mbin/s    | 33.6 Mbin/s | 683.8 Mbin/s   |
+|                                   | n = 65536                 | 6.7 Mbin/s     | 6.8 Mbin/s  | 551.8 Mbin/s   |
+| `fir`, real taps                  | 15 taps                   | 24.9 MSa/s     | 32.1 MSa/s  | 393.7 MSa/s    |
+|                                   | 63 taps                   | 7.2 MSa/s      | 9.5 MSa/s   | 91.1 MSa/s     |
+|                                   | 255 taps                  | 1.9 MSa/s      | 2.5 MSa/s   | 17.5 MSa/s     |
+| `fir`, complex taps               | 15 taps                   | 10.7 MSa/s     | 11.2 MSa/s  | 168.3 MSa/s    |
+|                                   | 63 taps                   | 3.0 MSa/s      | 3.0 MSa/s   | 56.7 MSa/s     |
+|                                   | 255 taps                  | 0.8 MSa/s      | 0.8 MSa/s   | 17.0 MSa/s     |
+
+How to read it:
+
+- **The detector runs about 2.7× faster than the dongle's 2.4 MSa/s on one
+    core**, in either shape. `detector2d` is the `corr2d` transform plus a
+    ring, a peak search and a noise estimate; the shape (16 × 1024 against
+    128 × 128) moves it by under 10%. One UNO Q core is 16–24× slower than a
+    Ryzen core on it.
+- **The A53 build helps the real-tap FIR and little else.** Real-tap FIR
+    gained 29–32% at every length; complex taps, the FFTs, `corr2d` and the
+    detector did not move beyond run-to-run noise (about 5%).
+- **A real-tap FIR costs 2.3–3.2× less per sample than a complex-tap one** on
+    the same coefficients, so give a symmetric real filter real taps.
+- **The `fft` n = 4096 row differs from doppler's own `bench_fft_core`**
+    (22 Mbin/s there, 34 here). The cause wasn't investigated, so compare
+    columns within one table rather than across tools.
 
 **Board notes:**
 
@@ -197,8 +316,9 @@ yourself and unload it. `rtl_test -t` then finds the tuner.
 
 **Dongle on the board.** The UNO Q has one USB-C port, and it can only report
 itself as a power sink. To use the dongle directly, the board must be the USB
-host of a powered hub, with the dongle on the hub and SSH over Wi-Fi for
-control. Then:
+host of a power-delivery pass-through hub (see
+[Connecting to the board](#on-an-arduino-uno-q), setup B), with the dongle on
+the hub and SSH over Wi-Fi for control. Then:
 
 ```sh
 rtl_sdr -f 99.8e6 -s 2.4e6 - | build/uno_q_shared --offset 100e3 --rate 0.25 -

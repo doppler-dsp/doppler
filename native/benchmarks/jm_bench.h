@@ -89,6 +89,25 @@ typedef struct {
     int count;
 } jm_bench_t;
 
+/* Copy src into dst[0..n-1], truncating, always NUL-terminated.
+ *
+ * gh-1745: the one bounded copy this header makes, for the entry name and
+ * the machine fields. `strncpy(dst, src, n - 1)` plus a hand-written NUL is
+ * correct, but gcc's -Wstringop-truncation cannot see the NUL, and
+ * `snprintf(dst, n, "%s", src)` trips -Wformat-truncation instead whenever
+ * src (a 65-byte utsname field) may be longer than dst -- each an error for
+ * a project building its benchmarks with -Werror. An explicit length and a
+ * memcpy say the same thing with nothing for either warning to guess at. */
+static inline void
+jm_bench_strcpy(char *dst, size_t n, const char *src)
+{
+    size_t k = strlen(src);
+    if (k >= n)
+        k = n - 1;
+    memcpy(dst, src, k);
+    dst[k] = '\0';
+}
+
 /* Copy times[0..rounds-1] into the bench.  iters = BENCH_N.
  *
  * gh-840: `static inline`, not plain `static`. A benchmark that has not been
@@ -104,8 +123,7 @@ jm_bench_add(jm_bench_t *b, const char *name,
     if (b->count >= JM_BENCH_MAX_ENTRIES)
         return;
     jm_bench_entry_t *e = &b->entries[b->count++];
-    strncpy(e->name, name, JM_BENCH_NAME_LEN - 1);
-    e->name[JM_BENCH_NAME_LEN - 1] = '\0';
+    jm_bench_strcpy(e->name, sizeof(e->name), name);
     e->times = (double *)malloc((size_t)rounds * sizeof(double));
     if (!e->times) { b->count--; return; }
     memcpy(e->times, times, (size_t)rounds * sizeof(double));
@@ -151,21 +169,21 @@ jm_bench_write_json(const jm_bench_t *b, const char *component)
     char machine[64]   = "unknown";
 
 #if defined(_WIN32)
-    strncpy(sys_name, "Windows", 63);
+    jm_bench_strcpy(sys_name, sizeof(sys_name), "Windows");
     {
         DWORD n = (DWORD)sizeof(node_name);
         GetComputerNameA(node_name, &n);
     }
-    strncpy(machine, "x86_64", 63);
-    strncpy(release, "unknown", 63);
+    jm_bench_strcpy(machine, sizeof(machine), "x86_64");
+    jm_bench_strcpy(release, sizeof(release), "unknown");
 #else
     {
         struct utsname u;
         if (uname(&u) == 0) {
-            strncpy(sys_name,  u.sysname,  63);
-            strncpy(node_name, u.nodename, 63);
-            strncpy(release,   u.release,  63);
-            strncpy(machine,   u.machine,  63);
+            jm_bench_strcpy(sys_name,  sizeof(sys_name),  u.sysname);
+            jm_bench_strcpy(node_name, sizeof(node_name), u.nodename);
+            jm_bench_strcpy(release,   sizeof(release),   u.release);
+            jm_bench_strcpy(machine,   sizeof(machine),   u.machine);
         }
     }
 #endif

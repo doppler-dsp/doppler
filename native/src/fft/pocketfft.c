@@ -280,12 +280,13 @@ aligned16 (const void *p)
   return ((uintptr_t)p & 15u) == 0;
 }
 
-/* In-place 1-D transform of one interleaved double[2*len] vector. */
+/* In-place 1-D transform of one interleaved (re,im) double vector. The
+ * length is not an argument: `plan` was made for it. */
 static void
-xform (cfft_plan plan, int sign, double *c, size_t len)
+xform (cfft_plan plan, int sign, double *c)
 {
   /* The upstream core uses fct=1.0 (unnormalised); the inverse does NOT
-   * divide by len, matching doppler's documented contract. */
+   * divide by the length, matching doppler's documented contract. */
   if (sign < 0)
     cfft_forward (plan, c, 1.0);
   else
@@ -301,7 +302,7 @@ dp_pocketfft_execute_1d (pocketfft_plan *p, const void *in, void *out)
   /* cf64: copy in -> out, transform out in place. */
   if (in != out)
     memcpy (out, in, sizeof (double _Complex) * p->n);
-  xform (p->row, p->sign, (double *)out, p->n);
+  xform (p->row, p->sign, (double *)out);
 }
 
 void
@@ -336,7 +337,7 @@ dp_pocketfft_execute_1d_cf32 (pocketfft_plan *p, const void *in, void *out)
       d[2 * i]     = (double)crealf (fin[i]);
       d[2 * i + 1] = (double)cimagf (fin[i]);
     }
-  xform (p->row, p->sign, d, n);
+  xform (p->row, p->sign, d);
   for (size_t i = 0; i < n; ++i)
     fout[i] = (float)d[2 * i] + (float)d[2 * i + 1] * I;
 }
@@ -394,7 +395,7 @@ exec_1d_int (pocketfft_plan *p, const void *in, void *out, int is8)
   else
     for (size_t i = 0; i < n2; ++i)
       d[i] = (double)dp_i16_to_f32_step (&c16, s16[i]);
-  xform (p->row, p->sign, d, n);
+  xform (p->row, p->sign, d);
   float _Complex *fout = (float _Complex *)out;
   for (size_t i = 0; i < n; ++i)
     fout[i] = (float)d[2 * i] + (float)d[2 * i + 1] * I;
@@ -427,14 +428,14 @@ xform_2d (pocketfft_plan *p, double *d)
   size_t ny = p->ny, nx = p->nx;
 
   for (size_t r = 0; r < ny; ++r)
-    xform (p->row, p->sign, d + 2 * r * nx, nx);
+    xform (p->row, p->sign, d + 2 * r * nx);
 
   if (p->use_transpose)
     {
       double *t = p->tbuf;
       transpose_cplx (d, t, ny, nx);  /* d[ny][nx] -> t[nx][ny]            */
       for (size_t r = 0; r < nx; ++r) /* each t-row is an original column */
-        xform (p->col, p->sign, t + 2 * r * ny, ny);
+        xform (p->col, p->sign, t + 2 * r * ny);
       transpose_cplx (t, d, nx, ny); /* t[nx][ny] -> d[ny][nx]            */
       return;
     }
@@ -447,7 +448,7 @@ xform_2d (pocketfft_plan *p, double *d)
           col[2 * r]     = d[2 * (r * nx + c)];
           col[2 * r + 1] = d[2 * (r * nx + c) + 1];
         }
-      xform (p->col, p->sign, col, ny);
+      xform (p->col, p->sign, col);
       for (size_t r = 0; r < ny; ++r)
         {
           d[2 * (r * nx + c)]     = col[2 * r];
@@ -506,7 +507,7 @@ dp_pocketfft_execute_2d_cf32 (pocketfft_plan *p, const void *in, void *out)
           rb[2 * c]     = (double)crealf (row[c]);
           rb[2 * c + 1] = (double)cimagf (row[c]);
         }
-      xform (p->row, p->sign, rb, nx);
+      xform (p->row, p->sign, rb);
       for (size_t c = 0; c < nx; ++c)
         row[c] = (float)rb[2 * c] + (float)rb[2 * c + 1] * I;
     }
@@ -519,7 +520,7 @@ dp_pocketfft_execute_2d_cf32 (pocketfft_plan *p, const void *in, void *out)
           col[2 * r]     = (double)crealf (fout[r * nx + c]);
           col[2 * r + 1] = (double)cimagf (fout[r * nx + c]);
         }
-      xform (p->col, p->sign, col, ny);
+      xform (p->col, p->sign, col);
       for (size_t r = 0; r < ny; ++r)
         fout[r * nx + c] = (float)col[2 * r] + (float)col[2 * r + 1] * I;
     }

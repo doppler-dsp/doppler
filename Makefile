@@ -1449,7 +1449,7 @@ endef
 # standard target" — a local target help omits is exactly as invisible.
 LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 docs-invariants \
-                jm-apply jm-apply-downstream \
+                jm-apply jm-apply-downstream jm-adopt \
                 jm-upgrade changelog-assemble changelog-assembled-check \
                 plot-rx-dynamics \
                 gen-c-api-check \
@@ -3106,6 +3106,30 @@ jm-apply: ## Regenerate jm-owned glue from the manifest (then run drift-check)
 # enough to have its own note. A bare `jm apply` now regenerates both; a
 # scoped one is about one object of doppler's and leaves the example alone.
 	$(if $(JM_APPLY_ARGS),,@$(MAKE) --no-print-directory jm-apply-downstream)
+
+# `jm adopt` hands a hand-owned binding fragment to jm (#1446): it sets
+# `fragment = "generated"` on the object and renders the whole file, which is
+# then drift-gated like a `.pyi`. A sacred fragment is reconciled member by
+# member and never re-rendered, so none of jm's fixes to a wrapper it already
+# wrote reach it; this is how they do. It rewrites a hand-owned file, so it is
+# a target: the make-SSOT hook blocks the bare tool.
+#
+#   make jm-adopt JM_ADOPT_ARGS='--check --all'            what would flip
+#   make jm-adopt JM_ADOPT_ARGS='<obj>... --accept-additions'
+#
+# `--accept-additions` takes a unit where the render keeps every token of the
+# fragment and ADDS code; a unit that DIFFERS removes code and is taken only by
+# name (`--accept <unit>`), after reading the diff -- jm cannot tell a
+# hand-written body from a render that predates a codegen change.
+#
+# Each fragment adopted is one fewer file on scripts/.warnings-exempt: delete
+# its line, which the -Wall -Wextra gate requires once the file stops warning.
+jm-adopt: ## JM_ADOPT_ARGS='<obj>... [--accept-additions] | --check --all' — flip fragments to jm-owned
+	@test -n "$(JM_ADOPT_ARGS)" || { \
+	    echo "usage: make jm-adopt JM_ADOPT_ARGS='<obj>... --accept-additions'"; \
+	    echo "       make jm-adopt JM_ADOPT_ARGS='--check --all'"; exit 2; }
+	uv sync --group dev --no-install-project
+	uv run just-makeit adopt $(JM_ADOPT_ARGS)
 
 jm-apply-downstream: ## Regenerate the downstream example's jm glue (same pin)
 	cd $(DOWNSTREAM_DIR) && uv run --project $(CURDIR) just-makeit apply

@@ -466,7 +466,8 @@ static PyMethodDef Plan_methods[] = {
     "-------\n"
     "bytes\n"
     "    Output.\n" },
-  { "dump", (PyCFunction)Plan_dump, METH_VARARGS | METH_KEYWORDS,
+  { "dump", (PyCFunction)(void (*) (void))Plan_dump,
+    METH_VARARGS | METH_KEYWORDS,
     "Save a Plan to a file (dp_wfm_plan_save() bytes at path).\n"
     "\n"
     "Parameters\n"

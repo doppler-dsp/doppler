@@ -302,7 +302,8 @@ SampleClock_dealloc (SampleClockObject *self)
 }
 
 static PyMethodDef SampleClock_methods[] = {
-  { "pace", (PyCFunction)SampleClock_pace, METH_VARARGS | METH_KEYWORDS,
+  { "pace", (PyCFunction)(void (*) (void))SampleClock_pace,
+    METH_VARARGS | METH_KEYWORDS,
     "Advance by count samples and sleep until that block's deadline\n"
     "(``epoch + n/fs``). Returns the slack in seconds measured before\n"
     "sleeping: ``>= 0`` means early (and it slept that long); ``< 0`` means\n"
@@ -328,7 +329,7 @@ static PyMethodDef SampleClock_methods[] = {
     "-------\n"
     "int\n"
     "    Output.\n" },
-  { "stamp_at", (PyCFunction)SampleClock_stamp_at,
+  { "stamp_at", (PyCFunction)(void (*) (void))SampleClock_stamp_at,
     METH_VARARGS | METH_KEYWORDS,
     "Ideal wall-clock timestamp (ns since the UNIX epoch) of an ARBITRARY\n"
     "sample index n — past, present, or future, not just the clock's own\n"
@@ -347,7 +348,8 @@ static PyMethodDef SampleClock_methods[] = {
     "-------\n"
     "int\n"
     "    Output.\n" },
-  { "track", (PyCFunction)SampleClock_track, METH_VARARGS | METH_KEYWORDS,
+  { "track", (PyCFunction)(void (*) (void))SampleClock_track,
+    METH_VARARGS | METH_KEYWORDS,
     "Reconcile c's epoch_real_ns against one OBSERVED (timestamp, sample\n"
     "index) pair read off an incoming stream header — the receive-side dual\n"
     "of pace()'s resync: instead of sleeping toward a deadline, this adopts\n"

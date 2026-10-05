@@ -311,7 +311,8 @@ StreamSink_dealloc (StreamSinkObject *self)
 }
 
 static PyMethodDef StreamSink_methods[] = {
-  { "send", (PyCFunction)StreamSink_send, METH_VARARGS | METH_KEYWORDS,
+  { "send", (PyCFunction)(void (*) (void))StreamSink_send,
+    METH_VARARGS | METH_KEYWORDS,
     "Convert a cf32 block to the wire type and publish it.\n"
     "\n"
     "Parameters\n"
@@ -341,7 +342,8 @@ static PyMethodDef StreamSink_methods[] = {
     "    If the C call returns a non-zero status. The exception message is\n"
     "    ``dp_wfm_stream_sink_send_eos failed``, with the return code\n"
     "    appended (gh-869).\n" },
-  { "drain", (PyCFunction)StreamSink_drain, METH_VARARGS | METH_KEYWORDS,
+  { "drain", (PyCFunction)(void (*) (void))StreamSink_drain,
+    METH_VARARGS | METH_KEYWORDS,
     "Let everything already sent reach the server, then stop.\n"
     "\n"
     "A send hands a block to the NATS client and returns; the client writes\n"
@@ -366,7 +368,7 @@ static PyMethodDef StreamSink_methods[] = {
     "    If the C call returns a non-zero status. The exception message is\n"
     "    ``dp_wfm_stream_sink_drain failed``, with the return code appended\n"
     "    (gh-869).\n" },
-  { "track_clipping", (PyCFunction)StreamSink_track_clipping,
+  { "track_clipping", (PyCFunction)(void (*) (void))StreamSink_track_clipping,
     METH_VARARGS | METH_KEYWORDS,
     "Enable the per-component clip counter (off by default; peak always\n"
     "on).\n"

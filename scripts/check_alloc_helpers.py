@@ -60,10 +60,10 @@ from __future__ import annotations
 
 import argparse
 import re
-import subprocess
 import sys
 from pathlib import Path
 
+from _gitbase import BaseUnreadableError, in_git_repo, show_at_base
 from _layout import header
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -163,41 +163,18 @@ def allow_at(
     An empty dict is the third answer -- "no baseline to compare against,
     and that is correct here" -- for a --root that is not a git repo.
     """
-    # NOT a git repo at all -> the raise check does not APPLY. That is this
+    # NOT a git repo at all -> the raise check does not APPLY: that is this
     # gate's own test harness, which runs it against a synthetic tree via
-    # --root, and a synthetic tree has no history to have raised anything
-    # in. Distinct from "a repo whose ref will not resolve", which is the
-    # shallow clone and IS a failure: there the baseline exists and could
-    # not be read.
-    if (
-        subprocess.run(
-            ["git", "rev-parse", "--git-dir"],
-            cwd=root,
-            capture_output=True,
-            text=True,
-        ).returncode
-        != 0
-    ):
+    # --root, and a synthetic tree has no history to have raised anything in.
+    # Distinct from "a repository whose ref will not resolve", which is the
+    # shallow clone and IS a failure -- see scripts/_gitbase.py.
+    if not in_git_repo(root):
         return {}
-
-    mb = subprocess.run(
-        ["git", "merge-base", "HEAD", ref],
-        cwd=root,
-        capture_output=True,
-        text=True,
-    )
-    base = (
-        mb.stdout.strip() if mb.returncode == 0 and mb.stdout.strip() else ref
-    )
-    show = subprocess.run(
-        ["git", "show", f"{base}:{rel_allow}"],
-        cwd=root,
-        capture_output=True,
-        text=True,
-    )
-    if show.returncode != 0:
+    try:
+        text = show_at_base(root, ref, rel_allow)
+    except BaseUnreadableError:
         return None
-    return load_allow_text(show.stdout)
+    return None if text is None else load_allow_text(text)
 
 
 HEADER = """\

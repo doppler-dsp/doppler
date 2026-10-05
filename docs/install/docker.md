@@ -32,8 +32,15 @@ Both platforms install the exact wheel published to PyPI for that release
 Pin a release instead of `latest`, or drive a streaming pipeline at a reachable
 `nats-server`:
 
+<!-- doc-version:start -->
+
 ```sh
-docker run --rm ghcr.io/doppler-dsp/doppler:X.Y.Z doppler --help
+docker run --rm ghcr.io/doppler-dsp/doppler:0.62.0 doppler --help
+```
+
+<!-- doc-version:end -->
+
+```sh
 docker run --rm --network host ghcr.io/doppler-dsp/doppler \
     wfmgen --type qpsk --count 4096 --output nats://127.0.0.1:4222/iq
 ```

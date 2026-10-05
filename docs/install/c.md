@@ -30,39 +30,40 @@ toolchain or build step.
 !!! tip "One-liner via jbx"
 
     ```sh
-    jbx get-doppler                          # extracts to $HOME/.local/doppler
-    jbx get-doppler --prefix /opt/doppler    # or a custom prefix
-    jbx get-doppler --version 0.33.1         # pin a specific release
-    jbx get-doppler --restore                # roll back to the prior install
+    jbx get-doppler # extracts to $HOME/.local/doppler
     ```
 
     Resolves the latest release, downloads the platform-appropriate tarball,
-    and extracts it — the manual steps below, in one command. A previous
-    install at the same prefix is moved aside first, restored automatically
-    if the new one fails a sanity check, and restorable any time with
-    `--restore`. Needs `jbx`: [Get `jbx`](#get-jbx).
-    Source: [`scripts/get-doppler.sh`](https://github.com/doppler-dsp/doppler/blob/main/scripts/get-doppler.sh).
+    and extracts it — the manual steps below, in one command.
 
-Or by hand:
+    A previous install at the same prefix is moved aside first, restored
+    automatically if the new one fails a sanity check, and restorable any
+    time with `--restore`.
+
+    Needs `jbx`: [Get `jbx`](#get-jbx). Source: [`scripts/get-doppler.sh`](https://github.com/doppler-dsp/doppler/blob/main/scripts/get-doppler.sh).
+
+Or by hand. The version in the URL is the current release; change it to
+install another one from the [releases page](https://github.com/doppler-dsp/doppler/releases):
+
+<!-- doc-version:start -->
 
 ```sh
-# Resolve the latest release tag (or set VERSION=x.y.z to pin a specific one):
-VERSION=$(curl -fsSL https://api.github.com/repos/doppler-dsp/doppler/releases/latest \
-  | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p')
 # Linux x86_64 — for Linux aarch64 swap the suffix for `linux-aarch64`,
 # for macOS arm64 swap it for `macos-arm64`:
 curl -L -o doppler.tar.gz \
-  "https://github.com/doppler-dsp/doppler/releases/download/v${VERSION}/doppler-${VERSION}-linux-x86_64.tar.gz"
+  "https://github.com/doppler-dsp/doppler/releases/download/v0.62.0/doppler-0.62.0-linux-x86_64.tar.gz"
 mkdir -p "$HOME/.local/doppler" && tar -xzf doppler.tar.gz -C "$HOME/.local/doppler"
 ```
 
-Point your build at the extracted prefix — CMake via `CMAKE_PREFIX_PATH`, or
-pkg-config via `PKG_CONFIG_PATH` — then use the **find_package** or
-**pkg-config** method shown below:
+<!-- doc-version:end -->
+
+The library is now in `$HOME/.local/doppler`. To build against it, tell CMake
+or pkg-config where it landed, then follow the **find_package** or
+**pkg-config** method below:
 
 ```sh
-cmake -B build -DCMAKE_PREFIX_PATH="$HOME/.local/doppler"     # for find_package(doppler)
-export PKG_CONFIG_PATH="$HOME/.local/doppler/lib/pkgconfig"   # for pkg-config doppler
+cmake -B build -DCMAKE_PREFIX_PATH="$HOME/.local/doppler"     # CMake: find_package(doppler)
+export PKG_CONFIG_PATH="$HOME/.local/doppler/lib/pkgconfig"   # pkg-config: doppler
 ```
 
 The core library is pure C and links `-lm` and `-lpthread`, both part of a
@@ -82,14 +83,18 @@ clang-cl against the MSVC runtime. Your own code must be compiled with
 saying so. From a *Developer PowerShell for VS* (x64), with the *C++ Clang
 tools for Windows* component installed:
 
+<!-- doc-version:start -->
+
 ```powershell
-$v = "X.Y.Z"   # the release to install
+$v = "0.62.0"   # the release to install
 curl.exe -L -o doppler.zip `
   "https://github.com/doppler-dsp/doppler/releases/download/v$v/doppler-$v-windows-x86_64.zip"
 Expand-Archive doppler.zip -DestinationPath "$HOME\doppler"
 cmake -B build -G Ninja -DCMAKE_C_COMPILER=clang-cl `
   -DCMAKE_PREFIX_PATH="$HOME\doppler"
 ```
+
+<!-- doc-version:end -->
 
 `find_package(doppler)` works exactly as below; pkg-config is not the Windows
 path. `doppler::doppler` links the DLL — put `$HOME\doppler\bin` on `PATH`,
@@ -107,8 +112,10 @@ in, so you get the version you cloned, and it is not in the upstream
 `microsoft/vcpkg` registry — whose default `x64-windows` triplet compiles
 with `cl.exe` and therefore cannot build doppler.
 
+<!-- doc-version:start -->
+
 ```powershell
-$v = "X.Y.Z"   # the release to install
+$v = "0.62.0"   # the release to install
 git clone --depth 1 --branch "v$v" https://github.com/doppler-dsp/doppler
 vcpkg install doppler:x64-windows-clangcl `
   --overlay-ports=doppler/packaging/vcpkg/ports `
@@ -117,6 +124,8 @@ cmake -B build -G Ninja -DCMAKE_C_COMPILER=clang-cl `
   -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake" `
   -DVCPKG_TARGET_TRIPLET=x64-windows-clangcl
 ```
+
+<!-- doc-version:end -->
 
 vcpkg's toolchain finds the package and copies `doppler.dll` beside your
 executable, so there is no `CMAKE_PREFIX_PATH` and no `PATH` edit. vcpkg
@@ -151,15 +160,33 @@ community triplets; CI exercises the Windows one on every pull request
 Every release carries native packages for x86_64 and aarch64, attached to the
 [GitHub Release](https://github.com/doppler-dsp/doppler/releases). Download
 the ones for your format and install them with your package manager, which
-resolves the dependencies:
+resolves the dependencies. The commands are for x86_64; on aarch64 swap the
+architecture in the file names (`amd64` → `arm64` for `.deb`, `x86_64` →
+`aarch64` for `.rpm`).
 
-```text
-# Debian / Ubuntu
-sudo apt install ./libdoppler-dsp0.*_*.deb ./libdoppler-dsp-dev_*.deb
+Debian / Ubuntu:
 
-# Fedora / RHEL / AlmaLinux
-sudo dnf install ./libdoppler-dsp-0.*.rpm ./libdoppler-dsp-devel-*.rpm
+<!-- doc-version:start -->
+
+```sh
+base=https://github.com/doppler-dsp/doppler/releases/download/v0.62.0
+curl -fL -O "$base/libdoppler-dsp0.62_0.62.0_amd64.deb" -O "$base/libdoppler-dsp-dev_0.62.0_amd64.deb"
+sudo apt install ./libdoppler-dsp0.62_0.62.0_amd64.deb ./libdoppler-dsp-dev_0.62.0_amd64.deb
 ```
+
+<!-- doc-version:end -->
+
+Fedora / RHEL / AlmaLinux:
+
+<!-- doc-version:start -->
+
+```sh
+base=https://github.com/doppler-dsp/doppler/releases/download/v0.62.0
+curl -fL -O "$base/libdoppler-dsp-0.62.0-1.x86_64.rpm" -O "$base/libdoppler-dsp-devel-0.62.0-1.x86_64.rpm"
+sudo dnf install ./libdoppler-dsp-0.62.0-1.x86_64.rpm ./libdoppler-dsp-devel-0.62.0-1.x86_64.rpm
+```
+
+<!-- doc-version:end -->
 
 |                                         | Debian / Ubuntu       | Fedora / RHEL          |
 | --------------------------------------- | --------------------- | ---------------------- |

@@ -46,3 +46,26 @@ def test_a_region_elsewhere_does_not_cover_a_bare_call():
 def test_every_example_project_is_scanned():
     names = {p.parent.name for p in gen.example_cmakelists()}
     assert {"uno-q", "consumer"} <= names
+
+
+DEB = (
+    "<!-- doc-version:start -->\n"
+    "sudo apt install ./libdoppler-dsp0.1_0.1.0_amd64.deb"
+    " ./libdoppler-dsp-dev_0.1.0_amd64.deb\n"
+    "<!-- doc-version:end -->\n"
+)
+
+
+def test_a_debian_runtime_package_series_follows_the_version():
+    out = gen.render(DEB, "9.8.7")
+    assert "libdoppler-dsp9.8_9.8.7_amd64.deb" in out
+    assert "libdoppler-dsp-dev_9.8.7_amd64.deb" in out
+
+
+def test_a_two_part_number_without_the_package_prefix_is_left_alone():
+    text = (
+        "<!-- doc-version:start -->\n"
+        "release 1.2 of x\n"
+        "<!-- doc-version:end -->\n"
+    )
+    assert gen.render(text, "9.8.7") == text

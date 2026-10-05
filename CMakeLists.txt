@@ -1604,6 +1604,14 @@ install(FILES
 # Windows, where it stopped the configure outright.
 string(REGEX REPLACE "[^/]+" ".." DOPPLER_PC_TO_PREFIX
        "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
+# The rpath a pkg-config consumer needs to RUN what it links (see doppler.pc.in).
+# GNU ld and Apple ld take -Wl,-rpath; the COFF toolchains Windows builds with
+# do not, and there the DLLs travel next to the executable instead.
+if(WIN32)
+    set(DOPPLER_PC_RPATH "")
+else()
+    set(DOPPLER_PC_RPATH " -Wl,-rpath,\${libdir}")
+endif()
 configure_file(cmake/doppler.pc.in doppler.pc @ONLY)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/doppler.pc"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)

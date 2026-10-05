@@ -26,7 +26,14 @@ Version: @PROJECT_VERSION@
 # The optional NATS stream layer has its own module: `pkg-config --cflags
 # --libs doppler_stream` gives the complete streaming link line (it Requires:
 # this core module, and inherits these through it).
-Libs: -L${libdir} -ldoppler -lm -lpthread
+#
+# The rpath flag in Libs (set in CMakeLists.txt; absent on Windows). A .pc that
+# names -L but not an rpath builds a binary that links and then cannot RUN
+# unless the prefix is on the loader path, which an extracted release tarball
+# (`jbx get-doppler`, ~/.local/doppler) never is. The exported CMake target
+# records its library directory for the build tree; this is the same promise
+# for the other consumer, and stream inherits it through Requires.
+Libs: -L${libdir}@DOPPLER_PC_RPATH@ -ldoppler -lm -lpthread
 # The feature-test macro is part of the contract, not a convenience: the
 # installed headers call syscall()/ftruncate() and name MAP_ANONYMOUS, which a
 # strict -std=c99 hides on glibc < 2.34 unless it is defined BEFORE libc is

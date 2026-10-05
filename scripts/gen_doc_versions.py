@@ -34,7 +34,12 @@ Regions are delimited exactly like the other generators::
 
 Inside a region every semver-looking token is rewritten to the current
 version, so a region needs no placeholder syntax and stays readable and
-runnable as committed. Outside a region nothing is touched --
+runnable as committed. That includes anything shaped like one -- a dotted-quad
+address such as ``127.0.0.1`` is a semver-looking token -- so keep a region
+tight around the command that carries the version. One two-part token is
+stamped too: the Debian runtime package embeds its ABI series in its name
+(``libdoppler-dsp0.62_0.62.0_amd64.deb``), and ``0.62`` is the version's
+major.minor. Outside a region nothing is touched --
 ``check_version_strings.py`` still forbids hand-typed versions
 everywhere else, and skips these regions so the two gates cannot
 contradict each other.
@@ -62,6 +67,11 @@ END = "<!-- doc-version:end -->"
 VERSION_TOKEN = re.compile(
     r"(?<![0-9.])\d+\.\d+\.\d+(?:[A-Za-z0-9.]*)?(?![0-9.])"
 )
+
+# The ABI series a Debian runtime package carries in its NAME
+# (libdoppler-dsp0.62): the version's major.minor, anchored to that prefix so
+# no other two-part number is ever rewritten.
+SERIES_TOKEN = re.compile(r"(?<=libdoppler-dsp)\d+\.\d+(?![0-9.])")
 
 REGION = re.compile(
     rf"({re.escape(START)}\n)(.*?)(\n?{re.escape(END)})",
@@ -131,7 +141,9 @@ def render(text: str, version: str) -> str:
 
     def one(m: re.Match[str]) -> str:
         head, body, tail = m.group(1), m.group(2), m.group(3)
-        return head + VERSION_TOKEN.sub(version, body) + tail
+        series = ".".join(version.split(".")[:2])
+        body = SERIES_TOKEN.sub(series, VERSION_TOKEN.sub(version, body))
+        return head + body + tail
 
     return REGION.sub(one, text)
 

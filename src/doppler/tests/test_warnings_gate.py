@@ -25,6 +25,8 @@ import subprocess
 import sys
 from typing import TYPE_CHECKING
 
+import pytest
+
 from doppler.tests._repo import repo_root
 
 if TYPE_CHECKING:
@@ -79,9 +81,13 @@ def _build(
     )
     n = len(units) if compiled is None else compiled
     lines = [f"[ 50%] Building C object {i}.o" for i in range(n)]
+    # Paths go in as given: a tree-relative one is resolved against the tree
+    # by the gate, and a POSIX-absolute one stands for a header outside it.
+    # Never `str(root / rel)`: on Windows that is `C:\\...`, and a drive
+    # letter's colon is not the gate's to parse -- it reads gcc and clang logs
+    # from the Linux image -- so these tests must not need it to.
     for rel, line, flag in warnings or []:
-        path = rel if rel.startswith("/") else str(root / rel)
-        lines.append(f"{path}:{line}:5: warning: seeded [{flag}]")
+        lines.append(f"{rel}:{line}:5: warning: seeded [{flag}]")
     lines += extra_lines
     log = root / f"build-warnings-{name}.log"
     log.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -134,6 +140,30 @@ def test_a_warning_in_own_code_fails(tmp_path: Path) -> None:
     assert f"{OWN}:12" in r.stdout
     assert FLAG in r.stdout
     assert "Do NOT add the file" in r.stdout
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="the gate reads gcc/clang logs from the Linux image; a drive "
+    "letter's colon is not a path separator it parses",
+)
+def test_an_absolute_path_in_the_tree_is_made_relative(
+    tmp_path: Path,
+) -> None:
+    """A real gcc/clang log names the file absolutely, and the gate must key
+    it by repo-relative path or no exemption would ever match."""
+    absolute = f"{tmp_path / FRAGMENT}:40:5: warning: seeded [{FLAG}]"
+    g = _build(tmp_path, "gcc", [], units=(OWN, FRAGMENT))
+    c = _build(
+        tmp_path, "clang", [], units=(OWN, FRAGMENT), extra_lines=(absolute,)
+    )
+    exempt = _run(tmp_path, f"{FRAGMENT}\n", ("gcc", *g), ("clang", *c))
+    assert exempt.returncode == 0, exempt.stdout
+    assert "1 in exempt files" in exempt.stdout
+    # and the same absolute line, with no exemption, is the failure it names
+    bare = _run(tmp_path, "", ("gcc", *g), ("clang", *c))
+    assert bare.returncode == 1
+    assert f"{FRAGMENT}:40" in bare.stdout
 
 
 def test_one_compiler_is_enough_to_fail(tmp_path: Path) -> None:

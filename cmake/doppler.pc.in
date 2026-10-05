@@ -1,11 +1,19 @@
-# Relocatable: derive the prefix from this file's own location
-# (<prefix>/<libdir>/pkgconfig/doppler.pc), so an extracted release tarball
-# works wherever it lands — not only the build-time CMAKE_INSTALL_PREFIX.
-# The hop count is DERIVED from the libdir (DOPPLER_PC_TO_PREFIX in
-# CMakeLists.txt): it was a literal `../..`, which is right for lib/ and
-# lib64/ and wrong for Debian's lib/<multiarch>/, where it resolved the
-# prefix to /usr/lib and the include path to /usr/lib/include.
-prefix=${pcfiledir}/@DOPPLER_PC_TO_PREFIX@
+# Written at INSTALL time (cmake/install_pc.cmake), in one of two flavours,
+# because only the install knows its prefix:
+#
+#  * a system prefix (/usr, the .deb/.rpm): the prefix is that literal path,
+#    so pkg-config recognises -I/usr/include and the system -L as system
+#    directories and drops them (doppler#1547), and there is no rpath -- the
+#    packages register the library with ldconfig.
+#  * anything else (the release tarball, `jbx get-doppler`, ~/.local):
+#    RELOCATABLE. The prefix is derived from this file's own location
+#    (<prefix>/<libdir>/pkgconfig/doppler.pc), so an extracted tree works
+#    wherever it lands -- not only the build-time CMAKE_INSTALL_PREFIX -- and
+#    Libs carries an rpath (below). The hop count back to the prefix is DERIVED
+#    from the libdir (DOPPLER_PC_TO_PREFIX in CMakeLists.txt): it was a literal
+#    `../..`, right for lib/ and lib64/ and wrong for Debian's
+#    lib/<multiarch>/, where it resolved the prefix to /usr/lib.
+prefix=@DOPPLER_PC_PREFIX@
 exec_prefix=${prefix}
 libdir=${exec_prefix}/@CMAKE_INSTALL_LIBDIR@
 includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
@@ -27,9 +35,10 @@ Version: @PROJECT_VERSION@
 # --libs doppler_stream` gives the complete streaming link line (it Requires:
 # this core module, and inherits these through it).
 #
-# The rpath flag in Libs (set in CMakeLists.txt; absent on Windows). A .pc that
-# names -L but not an rpath builds a binary that links and then cannot RUN
-# unless the prefix is on the loader path, which an extracted release tarball
+# The rpath flag in Libs: present in the relocatable flavour, absent for a
+# system prefix and on Windows (cmake/install_pc.cmake). A .pc that names -L
+# but not an rpath builds a binary that links and then cannot RUN unless the
+# prefix is on the loader path, which an extracted release tarball
 # (`jbx get-doppler`, ~/.local/doppler) never is. The exported CMake target
 # records its library directory for the build tree; this is the same promise
 # for the other consumer, and stream inherits it through Requires.

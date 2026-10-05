@@ -3612,10 +3612,11 @@ link-check: ## Smoke-test that a downstream links libdoppler.a with -lm -lpthrea
 # --8<-- include its command regions, and release-smoke.sh runs the same
 # script against the PUBLISHED tarball. This target gives CI's per-commit path
 # and a local dev the exact same check without waiting for a release.
-consumer-faces-check: build ## Build a consumer via cc/CMake/pkg-config, assert identical output
+consumer-faces-check: build ## Build a consumer via cc/CMake/pkg-config, assert identical output and both .pc flavours
 	@t=$$(mktemp -d); \
 	 $(CMAKE) --install $(BUILD_DIR) --prefix "$$t/pfx" > /dev/null \
-	 && bash tests/install/stream-consumer/build-three-ways.sh "$$t/pfx"; \
+	 && bash tests/install/stream-consumer/build-three-ways.sh "$$t/pfx" \
+	 && CMAKE=$(CMAKE) bash tests/install/pc-flavours.sh $(BUILD_DIR) "$$t/pfx"; \
 	 rc=$$?; rm -rf "$$t"; exit $$rc
 
 # example-projects/burst-pipeline is a directory users are told to COPY, so it

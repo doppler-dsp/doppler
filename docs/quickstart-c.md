@@ -72,7 +72,9 @@ PREFIX="$HOME/.local/doppler"
 
 The `cc` face is static and self-contained. The CMake and pkg-config faces
 link the shared libraries in `$PREFIX/lib` and record that directory in the
-executable (an rpath), so `./app` runs as built. If you move the binary off
+executable (an rpath), so `./app` runs as built. (A `.deb`/`.rpm` install
+registers the library with the system loader instead, so there the
+executable records nothing.) If you move the binary off
 this machine, or delete the prefix, set `LD_LIBRARY_PATH`
 (`DYLD_LIBRARY_PATH` on macOS) or re-link.
 

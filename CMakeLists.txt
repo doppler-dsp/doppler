@@ -1604,23 +1604,29 @@ install(FILES
 # Windows, where it stopped the configure outright.
 string(REGEX REPLACE "[^/]+" ".." DOPPLER_PC_TO_PREFIX
        "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
-# The rpath a pkg-config consumer needs to RUN what it links (see doppler.pc.in).
-# GNU ld and Apple ld take -Wl,-rpath; the COFF toolchains Windows builds with
-# do not, and there the DLLs travel next to the executable instead.
-if(WIN32)
-    set(DOPPLER_PC_RPATH "")
-else()
-    set(DOPPLER_PC_RPATH " -Wl,-rpath,\${libdir}")
-endif()
-configure_file(cmake/doppler.pc.in doppler.pc @ONLY)
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/doppler.pc"
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
+# The .pc files are filled in when they are INSTALLED, not here: a system
+# prefix (/usr, the .deb/.rpm) and a relocatable one (the tarball, ~/.local)
+# want different files, and only the install knows which it is doing. See
+# cmake/install_pc.cmake. Same dev component the plain install(FILES) had.
+function(doppler_install_pc name)
+    install(CODE "
+        set(PC_NAME [[${name}.pc]])
+        set(PC_TEMPLATE [[${CMAKE_CURRENT_SOURCE_DIR}/cmake/${name}.pc.in]])
+        set(PC_TMPDIR [[${CMAKE_CURRENT_BINARY_DIR}/pc-install]])
+        set(PC_LIBDIR [[${CMAKE_INSTALL_LIBDIR}]])
+        set(PC_INCLUDEDIR [[${CMAKE_INSTALL_INCLUDEDIR}]])
+        set(PC_TO_PREFIX [[${DOPPLER_PC_TO_PREFIX}]])
+        set(PC_VERSION [[${PROJECT_VERSION}]])
+        set(PC_FEATURE_CFLAGS [[${DOPPLER_PC_FEATURE_CFLAGS}]])
+        set(PC_WIN32 [[${WIN32}]])
+        include([[${CMAKE_CURRENT_SOURCE_DIR}/cmake/install_pc.cmake]])
+    " COMPONENT dev)
+endfunction()
+doppler_install_pc(doppler)
 if(TARGET doppler_stream)
     # One pkg-config name for the whole streaming link line:
     # `pkg-config --cflags --libs doppler_stream` (Requires: doppler).
-    configure_file(cmake/doppler_stream.pc.in doppler_stream.pc @ONLY)
-    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/doppler_stream.pc"
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
+    doppler_install_pc(doppler_stream)
 endif()
 
 # ── App ───────────────────────────────────────────────────────────

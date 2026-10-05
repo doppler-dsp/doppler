@@ -913,12 +913,6 @@ title = "build: -Wswitch is never an error, so an unhandled enum value warns and
 status = "in review ([#1664](https://github.com/doppler-dsp/doppler/pull/1664))"
 why = "Nothing turns -Wswitch into a failure, so an unhandled enum value warns and ships (#1642)"
 
-[issue.1658]
-tier = 1
-title = "The C library builds with no warning flags: 0 of 691 compile lines carry -Wall"
-status = "in review ([#1664](https://github.com/doppler-dsp/doppler/pull/1664))"
-why = "0 of 691 library compile lines carry any warning flag, so every warning-class defect is invisible"
-
 [issue.1663]
 tier = 1
 title = "DP_NODISCARD: an ignored refusal is invisible to every compiler flag"
@@ -1093,4 +1087,14 @@ status = "open"
 [issue.1817]
 tier = 0
 title = "Windows wheels for Python 3.13/3.14 carry ABI tag 'cpwin_amd64' \u2014 pip cannot install them (since v0.60.0 at least)"
+status = "open"
+
+[issue.1838]
+tier = 5
+title = "Five copies of the merge-base read in scripts/: move them onto scripts/_gitbase.py"
+status = "open"
+
+[issue.1839]
+tier = 5
+title = "clang: three validation targets override -ffast-math with -ffp-contract=off (-Woverriding-option)"
 status = "open"

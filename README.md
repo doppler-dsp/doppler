@@ -32,7 +32,7 @@ implementation, no divergence, full SIMD throughput from any language.
 **New here?** Start with [Start Here](docs/start-here.md) — a one-page map from
 "what are you trying to do" to the right doc.
 
-**Navigate** — [Quick Start](docs/quickstart.md) · [Architecture](docs/architecture.md) · [Gallery](docs/gallery/index.md) · [Examples](docs/examples/index.md) · [Guides](docs/guide/index.md) · [Waveform Generator](docs/guide/wfmgen/index.md) · [Design](docs/design/index.md) · [Contributing](docs/dev/index.md)
+**Navigate** — [Python Quick Start](docs/quickstart.md) · [Architecture](docs/architecture.md) · [Gallery](docs/gallery/index.md) · [Examples](docs/examples/index.md) · [Guides](docs/guide/index.md) · [Waveform Generator](docs/guide/wfmgen/index.md) · [Design](docs/design/index.md) · [Contributing](docs/dev/index.md)
 
 **API Reference** — [Full Python + C API index](docs/api/index.md)
 
@@ -73,7 +73,7 @@ print(f"FFT: {len(x)} samples in -> {X.shape[0]} complex64 bins out")
 > the headers in one command — see [C Quick Start](docs/quickstart-c.md).
 
 Everything else — install options, the waveform generator, streaming,
-building from source — is in [Quick Start](docs/quickstart.md).
+building from source — is in [Python Quick Start](docs/quickstart.md).
 
 ## Docs
 

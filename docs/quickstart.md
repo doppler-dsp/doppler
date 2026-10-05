@@ -1,4 +1,11 @@
-# Quick Start
+# Python Quick Start
+
+!!! tip "Using C?"
+
+    This page is Python. To build a C program against the library, go to
+    the [C Quick Start](quickstart-c.md): [`jbx get-doppler`](install/c.md#get-jbx)
+    gets the library and headers in one command, and it builds with plain
+    `cc`, CMake, or pkg-config.
 
 ## Get it!
 
@@ -20,9 +27,7 @@ Everything under [Signal processing](#signal-processing) and
 [Streaming](#streaming) below runs against this install alone; the
 [C transmitter](#c-transmitter-python-subscriber) example binary needs
 [Build from source](#build-from-source), called out at each point it
-applies. Just want the C **library** itself (headers + `libdoppler.a`/`.so`,
-no example binaries)? [`jbx get-doppler`](install/c.md#get-jbx) grabs a
-pre-built release tarball instead — see [C Library](install/c.md#install-from-a-release-tarball).
+applies.
 
 !!! tip "Optional extras"
 
@@ -49,12 +54,6 @@ pre-built release tarball instead — see [C Library](install/c.md#install-from-
     [Docker](install/docker.md#runtime-try-it) for details.
 
 ______________________________________________________________________
-
-## Use the C library
-
-Building against the C library — plain `cc`, CMake, or pkg-config, all
-three CI-verified to produce identical binaries? One page:
-[C Quick Start](quickstart-c.md).
 
 ## Signal processing
 
@@ -167,11 +166,19 @@ print(f"Received {len(samples)} samples @ {hdr['sample_rate']/1e6:.1f} MHz")
 
 ### C transmitter → Python subscriber
 
-Build the C examples once, then mix and match:
+The C examples are not in the pip wheel: they are built from a clone of the
+repository, once (all it needs is a C compiler — see
+[Build from source](#build-from-source)):
 
 ```bash
+git clone https://github.com/doppler-dsp/doppler
+cd doppler
 make          # builds ./build/native/examples/transmitter, receiver, etc.
+```
 
+Then mix and match, from that clone:
+
+```bash
 # Terminal 1 (transmitter takes ci32 or cf64 — not cf32)
 ./build/native/examples/transmitter nats://127.0.0.1:4222/iq cf64
 
@@ -199,9 +206,13 @@ stream — the CLI and the Python API produce byte-identical output:
 
 ```sh
 wfmgen --type qpsk --snr 12 --count 100000 -o capture.cf32                    # a single waveform
-wfmgen --from-file scenario.json -o scenario.cf32                             # a multi-segment scene
+wfmgen json-template scenario.json                                            # write an example scene to edit
+wfmgen --from-file scenario.json -o scenario.cf32                             # play the multi-segment scene
 wfmgen --type qpsk --continuous --realtime --output nats://127.0.0.1:4222/iq  # stream to NATS
 ```
+
+A scene is a JSON file of segments; `json-template` writes a working one
+(a tone, a QPSK burst, and two sources summed) for you to edit.
 
 The same waveform from Python:
 

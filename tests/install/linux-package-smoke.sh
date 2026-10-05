@@ -111,6 +111,20 @@ cc "$SRC/example-projects/consumer/main.c" -o "$work/pc" \
 "$work/pc" >/dev/null || die "pkg-config consumer did not run"
 say "find_package (shared + static) and pkg-config consumers build and run"
 
+# The packaged .pc is the CONVENTIONAL one, not the relocatable tarball's
+# (cmake/install_pc.cmake chooses by prefix): the literal /usr, so pkg-config
+# drops the system -I/-L instead of leaking them (doppler#1547), and no rpath,
+# because ldconfig -- step 3 -- is what tells the loader where the library is.
+[ "$(pkg-config --variable=prefix doppler)" = "/usr" ] \
+    || die "packaged doppler.pc prefix is not the literal /usr: $(pkg-config --variable=prefix doppler)"
+case " $(pkg-config --cflags doppler) " in
+    *" -I/usr/include "*) die "packaged doppler.pc leaks the system -I/usr/include" ;;
+esac
+case "$(pkg-config --libs doppler)" in
+    *rpath*) die "packaged doppler.pc carries an rpath: $(pkg-config --libs doppler)" ;;
+esac
+say "the packaged doppler.pc is the system flavour: prefix /usr, no system -I, no rpath"
+
 # ── 6. the .pc's Cflags are SUFFICIENT: every installed header compiles at a
 #       strict -std=c99 with nothing but what pkg-config reports (doppler#1451).
 # That is the contract a .pc file IS, and it went unasserted: doppler.pc

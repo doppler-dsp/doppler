@@ -1,6 +1,8 @@
-# Relocatable, like doppler.pc: derive the prefix from this file's own
-# location so an extracted release tarball works wherever it lands.
-prefix=${pcfiledir}/@DOPPLER_PC_TO_PREFIX@
+# Written at install time in the same two flavours as doppler.pc (see there):
+# a literal /usr for the packages, a location-derived relocatable prefix
+# otherwise. The rpath that relocatable installs need comes through
+# `Requires: doppler`.
+prefix=@DOPPLER_PC_PREFIX@
 exec_prefix=${prefix}
 libdir=${exec_prefix}/@CMAKE_INSTALL_LIBDIR@
 includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@

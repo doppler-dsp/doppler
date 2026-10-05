@@ -21,8 +21,8 @@ Everything under [Signal processing](#signal-processing) and
 [C transmitter](#c-transmitter-python-subscriber) example binary needs
 [Build from source](#build-from-source), called out at each point it
 applies. Just want the C **library** itself (headers + `libdoppler.a`/`.so`,
-no example binaries)? `jbx get-doppler` grabs a pre-built release tarball
-instead — see [C Library](install/c.md#install-from-a-release-tarball).
+no example binaries)? [`jbx get-doppler`](install/c.md#get-jbx) grabs a
+pre-built release tarball instead — see [C Library](install/c.md#install-from-a-release-tarball).
 
 !!! tip "Optional extras"
 
@@ -272,15 +272,14 @@ ______________________________________________________________________
 ## Build from source
 
 Only need the C **library** itself (headers + `libdoppler.a`/`.so`, no
-examples, no Rust FFI, no toolchain)? `jbx get-doppler` — see
-[Get it!](#get-it) above — is faster. This section is for the examples,
+examples, no Rust FFI, no toolchain)? [`jbx get-doppler`](install/c.md#get-jbx) —
+see [Get it!](#get-it) above — is faster. This section is for the examples,
 the Rust FFI bindings, running the test suite, or contributing.
 
 !!! tip "Don't have `jbx` yet?"
 
     `make install-deps` bootstraps it for you (installs system build
-    dependencies too). Or by hand:
-    `. <(curl -sSL https://just-buildit.github.io/get-jb.sh)`.
+    dependencies too). Or by hand: [Get `jbx`](install/c.md#get-jbx).
 
 ```bash
 git clone https://github.com/doppler-dsp/doppler

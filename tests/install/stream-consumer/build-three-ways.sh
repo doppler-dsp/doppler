@@ -50,10 +50,12 @@ cc app.c $(pkg-config --cflags --libs doppler_stream) -lm -o app
 # --8<-- [end:pkg-config]
 mv app app-pc
 
-# CMake/pkg-config faces link the shared libs; point the loader at the
-# prefix so all three run in one identical environment.
-export LD_LIBRARY_PATH="$PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-export DYLD_LIBRARY_PATH="$PREFIX/lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
+# The binaries run AS BUILT. The CMake and pkg-config faces link the shared
+# libraries, and an inherited loader path would let an install that forgot to
+# record where they live pass here and fail for the user: doppler.pc named -L
+# but no rpath, this script exported LD_LIBRARY_PATH around it, and
+# `./app` failed on a clean shell. So the environment is cleared, not extended.
+unset LD_LIBRARY_PATH DYLD_LIBRARY_PATH
 
 ./app-cc     > out-cc.txt
 ./app-cmake  > out-cmake.txt

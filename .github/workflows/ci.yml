@@ -1110,6 +1110,54 @@ jobs:
       run: make ccache-stats
 
   # ------------------------------------------------------------------
+  # -Wall -Wextra, gcc AND clang (doppler#1658). The tree compiled with no
+  # warning flag at all, so an unused result, a sign compare or an unhandled
+  # enum was invisible to every other job here. `make warnings-check` builds
+  # every target (Python extensions included) in a fresh Release tree under
+  # each compiler and fails on any warning outside vendor/ and the jm glue
+  # files on scripts/.warnings-exempt, a list that may only shrink.
+  #
+  # Both compilers in ONE job rather than a matrix: which exempt files have
+  # gone clean is judged over the union of the two, so the verdict has to see
+  # both logs. The image carries both toolchains, and it is the reference the
+  # gate is held to -- a gcc here is not the gcc on a developer's box, so a
+  # local disagreement is reproduced with `make ci-run TARGET=warnings-check`.
+  # ------------------------------------------------------------------
+  warnings:
+    # Docs cannot break this: skipped when code=false; see `changes`.
+    if: needs.changes.outputs.code == 'true'
+    needs: [pin, changes]
+    name: -Wall -Wextra (gcc + clang)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container:
+      image: ${{ needs.pin.outputs.image_2404 }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - uses: ./.github/actions/ccache
+      with:
+        key: warnings
+
+    # The Python extensions are where the glue's warnings live, so the build
+    # needs the dev group's numpy and a Python with headers.
+    - name: Install uv + Python + package deps
+      uses: ./.github/actions/setup-uv
+      with:
+        python-version: '3.13'
+        sync: --group dev
+
+    - name: Build under -Wall -Wextra, both compilers
+      run: make warnings-check
+
+    - name: Compiler-cache statistics
+      run: make ccache-stats
+
+  # ------------------------------------------------------------------
   # Code coverage (C tests ∪ Python ∪ Rust). clang source-based instrumentation
   # (-fprofile-instr-generate -fcoverage-mapping) on every first-party C object;
   # the CTest suite, pytest (against the instrumented .so), and the Rust FFI
@@ -1233,6 +1281,7 @@ jobs:
       - manifest-drift
       - coverage
       - sanitizers
+      - warnings
     runs-on: ubuntu-latest
     timeout-minutes: 45
     if: always()
@@ -1252,5 +1301,5 @@ jobs:
             build-and-test-linux build-and-test-linux-arm64
             build-and-test-windows wheel-smoke-windows build-and-test-macos
             glibc-228 doxygen sweep-validators docker linux-packages
-            sanitizers coverage
+            sanitizers coverage warnings
         run: python3 scripts/ci_passed.py

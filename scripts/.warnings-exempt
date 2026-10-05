@@ -1,0 +1,118 @@
+# Files exempt from the -Wall -Wextra gate -- a RATCHET that only SHRINKS.
+#
+# scripts/check_warnings.py fails a build that warns anywhere in doppler's C
+# except in the files below (and vendor/). These are the CPython glue files
+# jm does not re-render: the hand-owned `<mod>_ext_<obj>.c` fragments (jm
+# reconciles them member by member, so a pin bump never clears them) and the
+# hand-written stream_ext.c. Their warnings are the template patterns jm
+# fixed in 0.98.1 for what it DOES re-render: the unused args/kwds on tp_new,
+# the one-field { NULL } sentinels, the PyCFunction casts of METH_KEYWORDS
+# methods -- plus, in two fragments, one unused function.
+#
+# An entry comes OFF when its file stops warning under both compilers (the
+# fragment migration, doppler#1446): the gate fails on a listed file that is
+# clean, so the entry cannot outlive its reason. No entry may be ADDED --
+# `make lint-warnings-exempt` compares this file with the merge base. A new
+# warning is fixed at its cause.
+#
+# Format: one repo-relative path per line.
+native/src/accumulator/accumulator_ext_acc_cf64.c
+native/src/accumulator/accumulator_ext_acc_f32.c
+native/src/accumulator/accumulator_ext_acc_trace.c
+native/src/acquire/acquire_ext_acq.c
+native/src/acquire/acquire_ext_burst_acq.c
+native/src/acquire/acquire_ext_burst_capture.c
+native/src/acquire/acquire_ext_carrier_acq.c
+native/src/acquire/acquire_ext_persistentburstcapture.c
+native/src/agc/agc_ext_agc.c
+native/src/analyzer/analyzer_ext_specan.c
+native/src/arith/arith_ext_acc_q15.c
+native/src/arith/arith_ext_acc_q8.c
+native/src/ber/ber_ext_ber_meter.c
+native/src/ber/ber_ext_frame_meter.c
+native/src/buffer/buffer_ext_f32_buffer.c
+native/src/buffer/buffer_ext_f64_buffer.c
+native/src/buffer/buffer_ext_i16_buffer.c
+native/src/coding/coding_ext_conv_enc.c
+native/src/coding/coding_ext_deinterleaver.c
+native/src/coding/coding_ext_interleaver.c
+native/src/coding/coding_ext_rs_codec.c
+native/src/coding/coding_ext_viterbi.c
+native/src/cvt/cvt_ext_adc.c
+native/src/cvt/cvt_ext_f32_to_i16.c
+native/src/cvt/cvt_ext_f32_to_i16u32.c
+native/src/cvt/cvt_ext_f32_to_i16u64.c
+native/src/cvt/cvt_ext_f32_to_i32.c
+native/src/cvt/cvt_ext_f32_to_i8.c
+native/src/cvt/cvt_ext_f32_to_uq15.c
+native/src/cvt/cvt_ext_i16_to_f32.c
+native/src/cvt/cvt_ext_i16u32_to_f32.c
+native/src/cvt/cvt_ext_i16u64_to_f32.c
+native/src/cvt/cvt_ext_i32_to_f32.c
+native/src/cvt/cvt_ext_i8_to_f32.c
+native/src/cvt/cvt_ext_u8_to_f32.c
+native/src/cvt/cvt_ext_uq15_to_f32.c
+native/src/ddc/ddc_ext_ddc.c
+native/src/ddc/ddc_ext_ddcr.c
+native/src/ddc/ddc_ext_matchedddc.c
+native/src/ddc/ddc_ext_matchedddcr.c
+native/src/delay/delay_ext_delay.c
+native/src/detection/detection_ext_lockdet.c
+native/src/detection/detection_ext_syncword.c
+native/src/dsss/dsss_ext_async_dsss_pool.c
+native/src/dsss/dsss_ext_async_dsss_receiver.c
+native/src/dsss/dsss_ext_burst_demod.c
+native/src/dsss/dsss_ext_burst_despreader.c
+native/src/dsss/dsss_ext_cellasyncdsssreceiver.c
+native/src/dsss/dsss_ext_despreader.c
+native/src/dsss/dsss_ext_dsss_burst_receiver.c
+native/src/dsss/dsss_ext_dsss_receiver.c
+native/src/dsss/dsss_ext_ppe.c
+native/src/filter/filter_ext_boxcar.c
+native/src/filter/filter_ext_fir.c
+native/src/impairment/impairment_ext_doppler_channel.c
+native/src/interp/interp_ext_interp_table.c
+native/src/interrupt/interrupt_ext_dp_interrupt_guard.c
+native/src/measure/measure_ext_imdmeas.c
+native/src/measure/measure_ext_nprmeas.c
+native/src/measure/measure_ext_tonemeas.c
+native/src/resample/resample_ext_HalfbandDecimator.c
+native/src/resample/resample_ext_RateConverter.c
+native/src/resample/resample_ext_Resampler.c
+native/src/resample/resample_ext_cic.c
+native/src/resample/resample_ext_extra.c
+native/src/resample/resample_ext_farrow.c
+native/src/resample/resample_ext_hbdecim_q15.c
+native/src/resample/resample_ext_matchedrateconverter.c
+native/src/source/source_ext_awgn.c
+native/src/source/source_ext_lo.c
+native/src/source/source_ext_nco.c
+native/src/spectral/spectral_ext_corr.c
+native/src/spectral/spectral_ext_corr2d.c
+native/src/spectral/spectral_ext_detector.c
+native/src/spectral/spectral_ext_detector2d.c
+native/src/spectral/spectral_ext_fft.c
+native/src/spectral/spectral_ext_fft2d.c
+native/src/spectral/spectral_ext_psd.c
+native/src/stream/stream_ext.c
+native/src/telemetry/telemetry_ext_capture.c
+native/src/telemetry/telemetry_ext_dp_event_log.c
+native/src/telemetry/telemetry_ext_dp_tlm.c
+native/src/telemetry/telemetry_ext_dp_tlm_capture.c
+native/src/track/track_ext_bpskreceiver.c
+native/src/track/track_ext_carrier_mpsk.c
+native/src/track/track_ext_carrier_nda.c
+native/src/track/track_ext_costas.c
+native/src/track/track_ext_dll.c
+native/src/track/track_ext_loop_filter.c
+native/src/track/track_ext_mpsk_receiver.c
+native/src/track/track_ext_mpskreceiverr.c
+native/src/track/track_ext_ratesync.c
+native/src/track/track_ext_symsync.c
+native/src/wfm/wfm_ext_frame.c
+native/src/wfm/wfm_ext_framedesc.c
+native/src/wfm/wfm_ext_gold.c
+native/src/wfm/wfm_ext_pn.c
+native/src/wfm/wfm_ext_wfm_synth.c
+native/src/wfm_reader/wfm_reader_ext_wfm_reader.c
+native/src/wfm_writer/wfm_writer_ext_wfm_writer.c

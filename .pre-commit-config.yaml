@@ -260,6 +260,17 @@ repos:
         pass_filenames: false
         types_or: [c]
 
+      # The files exempt from the -Wall -Wextra gate may only shrink: every
+      # entry exists and none was added since the merge base. Fires on the
+      # list itself and on any C glue file, whose rename or deletion strands
+      # an entry. The build half (`make warnings-check`) is a CI gate.
+      - id: warnings-exempt
+        name: warnings exempt list
+        entry: make -s lint-warnings-exempt
+        language: system
+        pass_filenames: false
+        files: (^scripts/\.warnings-exempt$|_ext(_[A-Za-z0-9_]+)?\.c$)
+
       # A retired identifier stays retired. Fires on every text type the
       # scan covers, because the stragglers a rename leaves are as often in
       # a test's printed name or a design page as in code.

@@ -161,7 +161,8 @@ LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format \
                wfm-enum-tables fmod-fold lgamma-reentrant full-scale \
                bench-timer bare-libm gnu-flags workflow-tag-triggers \
                version-literals text-encoding cmake-script-policy \
-               why-param doc-claims public-symbols curl-fail
+               why-param doc-claims public-symbols curl-fail \
+               warnings-exempt
 FORMAT_TOOLS = ruff-format ruff mdformat clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -345,6 +346,12 @@ LINT_text-encoding = $(UV) run python scripts/check_text_encoding.py
 # beside a helper call passed every gate the repo had. Ratcheted: the 313
 # sites that predate it may only shrink.
 LINT_alloc-helpers = $(UV) run python scripts/check_alloc_helpers.py
+
+# The list of files exempt from the -Wall -Wextra gate (`warnings-check`, below):
+# every entry exists, and none was ADDED since the merge base -- it may only
+# shrink. The build half needs two compilers and a Release build, so it is a
+# CI gate (GATES_DEPS), not a lint.
+LINT_warnings-exempt = $(UV) run python scripts/check_warnings.py --exempt-only
 
 lint-alloc-helpers-baseline: ## Re-record the alloc ratchet after converting some
 	@$(UV) run python scripts/check_alloc_helpers.py --update-baseline
@@ -725,7 +732,7 @@ GATES_DEPS    = lint changelog-check release-notes-size-check \
                 abi-check link-check installed-headers-check \
                 exported-link-check symbol-prefix-check export-check \
                 vendored-collision-check \
-                test-asan test-ubsan test-tsan \
+                test-asan test-ubsan test-tsan warnings-check \
                 consumer-faces-check burst-pipeline-check uno-q-check uno-q-nats-check glibc-gate \
                 check-isotime-parity coverage coverage-gate \
                 docker-examples package-linux-smoke \
@@ -1466,7 +1473,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 test-example-downstream-python \
                 package-starter-tarball test-starter-tarball \
                 test-stubs test-api-docs test-snippets lint-stubs \
-                test-ubsan test-tsan test-asan \
+                test-ubsan test-tsan test-asan warnings-check \
                 check-docstring-coverage \
                 abi-check link-check consumer-faces-check \
                 burst-pipeline-check uno-q-check uno-q-nats-check \
@@ -2230,6 +2237,59 @@ test-tsan: ## Run the C suite under TSan; any data race fails
 	TSAN_OPTIONS=$(TSAN_OPTS) \
 		$(CTEST) --test-dir $(TSAN_DIR) -E '$(TSAN_EXCLUDE)' $(SAN_EXCLUDE_SWEEP) \
 		--output-on-failure
+
+# ── -Wall -Wextra (#1658) ────────────────────────────────────────────────────
+# This tree compiled with no warning flag at all: 0 of 691 compile lines
+# carried -Wall, so an unused result, a sign compare, a fallthrough or an
+# unhandled enum was invisible to every gate but the doc-snippet compiles.
+# Measuring it turned up three real defects among the warnings in doppler's
+# own C (#1831, #1832). That C is at ZERO under gcc and clang; this keeps it so.
+#
+# What stops it coming back is this target: a Release build of every library,
+# test, benchmark, example and Python extension under both compilers, with
+# the warnings read from the log by scripts/check_warnings.py. A warning in
+# any file not on scripts/.warnings-exempt fails. It is a gate over the BUILD
+# LOG rather than a flag in CMakeLists.txt because the one mechanism that
+# exempts a single SOURCE file in a subdirectory (a TARGET_DIRECTORY source
+# property) is CMake 3.18, and this tree supports 3.16; and a bare -Werror in
+# the build would make every user's newer compiler a build break.
+#
+# BOTH compilers, because they disagree: the gcc-only findings were all
+# -Wmaybe-uninitialized, the clang-only ones -Wmissing-field-initializers.
+# RELEASE, because -Wmaybe-uninitialized needs the optimiser's flow analysis;
+# a Debug build says nothing about it. A fresh tree each run, so every
+# translation unit compiles and none is skipped as up to date.
+#
+# --output-sync=target keeps two parallel jobs from interleaving one
+# diagnostic mid-line, which would drop a warning from the count; LC_ALL=C
+# keeps the word `warning` English, since a translated one matches nothing
+# and reads as a clean build.
+#
+# The exempt list is the progress meter of the fragment migration (#1446):
+# the hand-owned `<mod>_ext_<obj>.c` fragments carry the glue's remaining
+# warnings and jm never re-renders them, so the list may only SHRINK -- see
+# scripts/check_warnings.py.
+WARN_DIR   ?= build-warnings
+WARN_CCS   ?= gcc clang
+WARN_FLAGS ?= -Wall -Wextra
+
+warnings-check: ## Build under -Wall -Wextra with gcc AND clang; a warning off the exempt list fails
+	@set -e; args=""; \
+	 for cc in $(WARN_CCS); do \
+	   d=$(WARN_DIR)-$$cc; rm -rf $$d; \
+	   $(CMAKE) -B $$d -S . -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
+	       $(CMAKE_FLAGS) -DBUILD_PYTHON=ON \
+	       -DCMAKE_C_COMPILER=$$cc "-DCMAKE_C_FLAGS=$(WARN_FLAGS)" \
+	       > $$d.configure.log 2>&1 || { cat $$d.configure.log; exit 1; }; \
+	   if ! LC_ALL=C MAKEFLAGS=--output-sync=target \
+	        $(CMAKE) --build $$d --parallel $(NPROC) > $$d.log 2>&1; then \
+	     cat $$d.log; \
+	     echo "warnings-check: the $$cc build FAILED, so nothing was measured"; \
+	     exit 1; \
+	   fi; \
+	   args="$$args --compiler $$cc $$d.log $$d"; \
+	 done; \
+	 $(UV) run python scripts/check_warnings.py $$args
 
 blazing: ## Clean + Release + -march=native (max speed; never packaged)
 	@$(MAKE) --no-print-directory clean
@@ -3853,7 +3913,8 @@ ci-run: ## Run `make TARGET=<goals>` inside the PINNED CI image
 	        STANDALONE_BUILD_DIR=$(CI_BUILD_DIR)/standalone \
 	        ASAN_DIR=$(CI_BUILD_DIR)-asan \
 	        UBSAN_DIR=$(CI_BUILD_DIR)-ubsan \
-	        TSAN_DIR=$(CI_BUILD_DIR)-tsan
+	        TSAN_DIR=$(CI_BUILD_DIR)-tsan \
+        WARN_DIR=$(CI_BUILD_DIR)-warnings
 # DOPPLER_BUILD_DIR as well as BUILD_DIR, because they are read by different
 # consumers and missing the second one fails in a way that reads as a code
 # bug: ffi/rust/build.rs locates the library itself, defaulting to ../../build

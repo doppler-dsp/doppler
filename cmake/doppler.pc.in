@@ -15,12 +15,12 @@
 #    lib/<multiarch>/, where it resolved the prefix to /usr/lib.
 prefix=@DOPPLER_PC_PREFIX@
 exec_prefix=${prefix}
-libdir=${exec_prefix}/@CMAKE_INSTALL_LIBDIR@
-includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
+libdir=${exec_prefix}/@DOPPLER_PC_LIBDIR@
+includedir=${prefix}/@DOPPLER_PC_INCLUDEDIR@
 
 Name: doppler
 Description: doppler C library
-Version: @PROJECT_VERSION@
+Version: @DOPPLER_PC_VERSION@
 # -lm and -lpthread are in Libs, NOT Libs.private, and that is deliberate
 # (doppler#1450). Private is for what only libdoppler itself calls. doppler's
 # headers define code -- every step() is inline, dp_thread.h and the ring are

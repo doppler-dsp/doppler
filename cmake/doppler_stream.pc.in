@@ -4,12 +4,12 @@
 # `Requires: doppler`.
 prefix=@DOPPLER_PC_PREFIX@
 exec_prefix=${prefix}
-libdir=${exec_prefix}/@CMAKE_INSTALL_LIBDIR@
-includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
+libdir=${exec_prefix}/@DOPPLER_PC_LIBDIR@
+includedir=${prefix}/@DOPPLER_PC_INCLUDEDIR@
 
 Name: doppler_stream
 Description: doppler NATS stream component (dp_pub_*/dp_sub_* wire layer)
-Version: @PROJECT_VERSION@
+Version: @DOPPLER_PC_VERSION@
 # Requires pulls in the core's flags, so one name gives the whole link
 # line: `pkg-config --cflags --libs doppler_stream`. The vendored nats.c
 # is statically embedded in both library forms — no external NATS client

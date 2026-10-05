@@ -320,15 +320,31 @@ def test_an_empty_database_is_not_a_pass(tmp_path: Path) -> None:
     assert "nothing was measured" in r.stdout
 
 
-def test_driver_warnings_are_reported_but_do_not_gate(tmp_path: Path) -> None:
-    """`clang: warning: overriding '-ffast-math'` has no line to point at."""
+def test_a_driver_warning_fails(tmp_path: Path) -> None:
+    """`clang: warning: overriding '-ffast-math'` has no line to point at.
+
+    It is about how a target was configured, so there is no file to exempt
+    and it fails: it used to be reported and let through (doppler#1839),
+    which left three always-expected warnings in every clang run, the kind
+    that teaches people to read past warnings.
+    """
     note = "clang: warning: overriding '-ffast-math' [-Woverriding-option]"
     g = _build(tmp_path, "gcc", [])
     c = _build(tmp_path, "clang", [], extra_lines=(note,))
     r = _run(tmp_path, "", ("gcc", *g), ("clang", *c))
-    assert r.returncode == 0, r.stdout
+    assert r.returncode == 1
     assert "driver warning" in r.stdout
+    assert "no file to exempt" in r.stdout
     assert "-Woverriding-option" in r.stdout
+
+
+def test_make_noise_is_not_a_driver_warning(tmp_path: Path) -> None:
+    """`make[4]: warning: -j0 forced in submake` is not the compiler's."""
+    note = "make[4]: warning: -j0 forced in submake: resetting jobserver mode."
+    g = _build(tmp_path, "gcc", [], extra_lines=(note,))
+    c = _build(tmp_path, "clang", [])
+    r = _run(tmp_path, "", ("gcc", *g), ("clang", *c))
+    assert r.returncode == 0, r.stdout
 
 
 # ---------------------------------------------------------------------------

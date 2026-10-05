@@ -16,6 +16,8 @@ examples, Python extensions) in a fresh Release tree under each compiler with
 
 What it enforces, per warning (unique `file:line:flag`):
 
+- a driver warning (no source location: `clang: warning: overriding
+  '-ffast-math' ...`) fails; there is no file to exempt;
 - a warning in a file under `vendor/` is not ours and is counted, not judged;
 - a warning in a file on the EXEMPT list is tolerated -- see below;
 - a warning anywhere else FAILS. There is no allowance and no count: new
@@ -73,6 +75,7 @@ import os
 import re
 import shlex
 import sys
+from collections import Counter
 from pathlib import Path
 
 from _gitbase import BaseUnreadableError, in_git_repo, show_at_base
@@ -95,8 +98,10 @@ WARNING = re.compile(
 FLAG = re.compile(r"\[(-W[^\]]+)\]\s*$")
 
 #: A driver-level warning has no source location (`clang: warning: overriding
-#: '-ffast-math' ...`). It is reported, not judged: it is about how a target
-#: was configured, not about a line of C, and there is nothing to exempt.
+#: '-ffast-math' ...`). It is about how a target was configured rather than
+#: about a line of C, so there is no file to exempt and it simply fails: a
+#: flag the build asked for twice, or one the compiler ignored, is a build
+#: that measured something other than what it says it did.
 DRIVER = re.compile(r"^(?:clang|gcc|cc1|cc): warning: ")
 
 #: One per translation unit, from `make` and `ninja` alike.
@@ -294,7 +299,7 @@ def main() -> int:
     summary: list[str] = []
     dirty: set[str] = set()
     own: dict[str, list[tuple[str, int, str, str]]] = {}
-    driver_all: list[str] = []
+    driver_all: list[tuple[str, str]] = []
 
     for name, log_arg, build_arg in a.compiler:
         log, build = Path(log_arg), Path(build_arg)
@@ -319,7 +324,7 @@ def main() -> int:
                 "partial log has not measured the tree"
             )
         found, driver = parse_log(text)
-        driver_all += [f"{name}: {d}" for d in driver]
+        driver_all += [(name, d) for d in driver]
         n_vendored = n_exempt = n_own = 0
         for (path, line, flag), msg in sorted(found.items()):
             rel = to_rel(path, root, build)
@@ -371,9 +376,17 @@ def main() -> int:
 
     print("\n".join(summary) + slack_note)
     if driver_all:
-        print(
-            f"  {len(driver_all)} driver warning(s), not gated (no source "
-            "location):\n" + "\n".join(f"      {d}" for d in driver_all)
+        # One build repeats the same driver warning once per translation
+        # unit that asked for the flag, so group them: the count says how
+        # widespread it is and the line says what it is.
+        grouped = Counter(driver_all)
+        failures.append(
+            f"  {len(driver_all)} driver warning(s), which have no source "
+            "location and so no file to exempt:\n"
+            + "\n".join(
+                f"      {n} x ({name}) {line}"
+                for (name, line), n in sorted(grouped.items())
+            )
         )
     if failures:
         print(

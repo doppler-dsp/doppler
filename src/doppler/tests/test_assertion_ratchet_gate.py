@@ -31,7 +31,10 @@ if TYPE_CHECKING:
 SCRIPT = repo_root(__file__) / "scripts" / "check_tests_ssot.py"
 
 
-def _load() -> ModuleType:
+def _load(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
+    # scripts/ is on sys.path when the gate runs as a script, and the gate
+    # imports its sibling `_gitbase`; loading it here must see the same.
+    monkeypatch.syspath_prepend(str(SCRIPT.parent))
     spec = importlib.util.spec_from_file_location("check_tests_ssot", SCRIPT)
     assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
@@ -70,7 +73,7 @@ def gate(
         ],
         check=True,
     )
-    mod = _load()
+    mod = _load(monkeypatch)
     monkeypatch.setattr(mod, "ROOT", root)
     monkeypatch.setattr(mod, "TESTS", tests)
     monkeypatch.setattr(mod, "IGNORE", tests / ".assertion-ratchet-ignore")

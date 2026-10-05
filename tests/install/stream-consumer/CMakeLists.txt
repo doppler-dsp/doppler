@@ -12,3 +12,8 @@ target_link_libraries(app PRIVATE doppler::doppler)
 # Using dp_pub_*/dp_sub_*? Add the optional stream component:
 target_link_libraries(app PRIVATE doppler::stream)
 # --8<-- [end:cmake]
+
+# Not in the docs region: a consumer of ONLY the stream API, to hold that the
+# shared libraries resolve each other (see stream_only.c).
+add_executable(app_stream_only stream_only.c)
+target_link_libraries(app_stream_only PRIVATE doppler::stream)

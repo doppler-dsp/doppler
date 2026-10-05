@@ -1440,6 +1440,23 @@ if(TARGET stream_core_obj)
         VERSION   ${PROJECT_VERSION}
         SOVERSION ${DOPPLER_SOVERSION})
     set_target_properties(doppler_stream_static PROPERTIES EXPORT_NAME stream-static)
+    # An installed tree resolves its own siblings. libdoppler_stream NEEDs
+    # libdoppler.so.<series> and neither said where to look, so a consumer on a
+    # prefix that is on nobody's loader path (the release tarball, ~/.local)
+    # found libdoppler_stream through ITS rpath but not the core one level down:
+    # RUNPATH is not searched for a dependency's dependencies, and gcc on
+    # Debian/Ubuntu drops a -ldoppler the consumer never calls (--as-needed), so
+    # a pub/sub-only program died at start with `libdoppler.so.0.62: cannot open
+    # shared object file`. $ORIGIN (@loader_path on macOS) is the library's own
+    # directory, wherever the tree was extracted. Inert for a package install,
+    # where the core is on the default path anyway; the static form needs none.
+    if(APPLE)
+        set_target_properties(doppler_stream PROPERTIES
+                              INSTALL_RPATH "@loader_path")
+    elseif(NOT WIN32)
+        set_target_properties(doppler_stream PROPERTIES
+                              INSTALL_RPATH "$ORIGIN")
+    endif()
     # The stream component calls INTO the core: tlm_sink.c's dp_tlm_read
     # (telemetry_core) and stream_core.c's dp_stream_interrupt* wrappers
     # over the core's interrupt API (dp_interrupt, dp_resume, ...). The

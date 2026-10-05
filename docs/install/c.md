@@ -283,6 +283,14 @@ gcc -o app main.c $(pkg-config --cflags doppler) \
     -lpthread -lm
 ```
 
+The shared recipes produce a binary that runs as built. Which `.pc` you get
+depends on how doppler was installed: from a package (`apt`, `dnf`) it is the
+plain `/usr` one and the system loader already knows the library; from the
+tarball, `jbx get-doppler`, or any other prefix it carries an rpath to the
+library directory, so no `LD_LIBRARY_PATH` is needed. If you move the binary
+off the machine, or delete the prefix, set `LD_LIBRARY_PATH` or link
+statically.
+
 !!! tip "Custom install prefix"
 
     ```sh

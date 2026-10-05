@@ -27,7 +27,7 @@
  * dp_f32_create requires the byte count to be page-aligned, which varies
  * by OS (4 KiB on Linux/Windows, 16 KiB on macOS).  We start at the
  * smallest power-of-2 >= cap_min and double until create succeeds. */
-static dp_f32_t *
+static inline dp_f32_t *
 det_ring_create (size_t cap_min)
 {
   size_t cap = dp_next_pow_two (cap_min > 1 ? cap_min : 1);

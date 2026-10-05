@@ -33,8 +33,11 @@
 #   PC_FEATURE_CFLAGS  the feature-test macro for Cflags (may be empty)
 #   PC_WIN32           true when building for Windows
 
-if("${CMAKE_INSTALL_PREFIX}" STREQUAL "/usr")
-    set(DOPPLER_PC_PREFIX "${CMAKE_INSTALL_PREFIX}")
+# Normalised first, so `--prefix /usr/` or `/usr/.` is the system prefix too.
+get_filename_component(_prefix "${CMAKE_INSTALL_PREFIX}" ABSOLUTE)
+
+if("${_prefix}" STREQUAL "/usr")
+    set(DOPPLER_PC_PREFIX "/usr")
     set(DOPPLER_PC_RPATH "")
 else()
     set(DOPPLER_PC_PREFIX "\${pcfiledir}/${PC_TO_PREFIX}")
@@ -47,10 +50,10 @@ else()
     endif()
 endif()
 
-# The names doppler.pc.in substitutes.
-set(CMAKE_INSTALL_LIBDIR "${PC_LIBDIR}")
-set(CMAKE_INSTALL_INCLUDEDIR "${PC_INCLUDEDIR}")
-set(PROJECT_VERSION "${PC_VERSION}")
+# The names the .pc.in files substitute: their own, not CMake's.
+set(DOPPLER_PC_LIBDIR "${PC_LIBDIR}")
+set(DOPPLER_PC_INCLUDEDIR "${PC_INCLUDEDIR}")
+set(DOPPLER_PC_VERSION "${PC_VERSION}")
 set(DOPPLER_PC_FEATURE_CFLAGS "${PC_FEATURE_CFLAGS}")
 
 configure_file("${PC_TEMPLATE}" "${PC_TMPDIR}/${PC_NAME}" @ONLY)

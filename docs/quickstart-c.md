@@ -5,9 +5,20 @@ The commands below are the tested ones — copy them as they are.
 
 ## Get the library
 
-No toolchain needed — `jbx get-doppler` grabs the pre-built release
-tarball (headers + `libdoppler.a`/`.so` + the optional stream
-component):
+No toolchain needed — [`jbx`](install/c.md#get-jbx) `get-doppler` grabs
+the pre-built release tarball (headers + `libdoppler.a`/`.so` + the optional
+stream component):
+
+!!! tip "Don't have `jbx` yet?"
+
+    Install it once, then run the command below:
+
+    ```sh
+    . <(curl -sSL https://just-buildit.github.io/get-jb.sh)
+    ```
+
+    It lands in `$HOME/.local/bin` and the leading `.` puts that on `PATH`
+    for this shell. Details: [Get `jbx`](install/c.md#get-jbx).
 
 ```sh
 jbx get-doppler                          # extracts to $HOME/.local/doppler
@@ -29,9 +40,9 @@ core-only app (then the whole link line is `libdoppler.a -lm -lpthread`):
 
 ## Compile it — three ways
 
-Set the prefix once (wherever `jbx get-doppler` extracted), then pick
-any face; they build the same program, so use whichever matches your build
-system.
+Set the prefix once (wherever [`jbx get-doppler`](install/c.md#get-jbx)
+extracted), then pick any face; they build the same program, so use whichever
+matches your build system.
 
 ```sh
 PREFIX="$HOME/.local/doppler"

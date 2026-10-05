@@ -66,8 +66,8 @@ print(f"FFT: {len(x)} samples in -> {X.shape[0]} complex64 bins out")
 
 !!! tip "Using C?"
 
-    `jbx get-doppler` gets `libdoppler.a`/`.so` and the headers in one
-    command — see [C Quick Start](quickstart-c.md).
+    [`jbx get-doppler`](install/c.md#get-jbx) gets `libdoppler.a`/`.so` and
+    the headers in one command — see [C Quick Start](quickstart-c.md).
 
 Everything else — install options, the waveform generator, streaming,
 building from source — is in [Quick Start](quickstart.md).

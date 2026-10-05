@@ -5,6 +5,22 @@ or **[building from source](source.md)** — then choose an integration method
 below. Either way you get the headers plus a shared (`libdoppler.so`) and a
 self-contained static (`libdoppler.a`) library.
 
+## Get `jbx`
+
+[`jbx`](https://just-buildit.github.io/) is the just-buildit command-line
+tool that installs doppler's pre-built C library (`jbx get-doppler`) and a
+source build's system dependencies (`jbx install-deps`). If `command -v jbx`
+prints nothing, install it once:
+
+```sh
+. <(curl -sSL https://just-buildit.github.io/get-jb.sh)
+```
+
+It installs to `$HOME/.local/bin`; sourcing the script (the leading `.`) puts
+that on `PATH` for the current shell, and a new login shell picks it up from
+your profile. From a clone of doppler, `make install-deps` does the same
+bootstrap for you and then installs the system packages.
+
 ## Install from a release tarball
 
 Every [GitHub release](https://github.com/doppler-dsp/doppler/releases) ships a
@@ -24,9 +40,7 @@ toolchain or build step.
     and extracts it — the manual steps below, in one command. A previous
     install at the same prefix is moved aside first, restored automatically
     if the new one fails a sanity check, and restorable any time with
-    `--restore`. Needs
-    [`jbx`](https://just-buildit.github.io/) (`make install-deps` bootstraps
-    it, or by hand: `. <(curl -sSL https://just-buildit.github.io/get-jb.sh)`).
+    `--restore`. Needs `jbx`: [Get `jbx`](#get-jbx).
     Source: [`scripts/get-doppler.sh`](https://github.com/doppler-dsp/doppler/blob/main/scripts/get-doppler.sh).
 
 Or by hand:

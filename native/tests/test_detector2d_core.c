@@ -1,4 +1,9 @@
 #include "doppler/detector2d/detector2d_core.h"
+
+/* det_private.h needs det_noise_mode_t from the header above, and the include
+   sorter would put it first; its own block keeps the order. */
+#include "doppler/detector/det_private.h"
+
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
@@ -450,6 +455,37 @@ main (void)
     DP_CHECK (det->peak_row == 0 && det->peak_col == 0);
 
     dp_detector2d_destroy (det);
+  }
+
+  /* ── the noise aggregates, directly ─────────────────────────────────────
+   * det_noise_chunk is the scratch-free MEAN/MIN/MAX form a parallel tile
+   * calls (acq); det_noise_estimate adds the MEDIAN, which needs a scratch.
+   * Both against the independent _agg oracle, plus the contract the callers
+   * lean on: an empty range is 0, and a chunk cannot be a median (0, not a
+   * crash) -- it takes no scratch at all, which is what acq's tile relies
+   * on. */
+  {
+    const float v[10]
+        = { 4.0f, -1.0f, 9.0f, 2.5f, 7.0f, 0.0f, 3.0f, 8.0f, 5.5f, 1.0f };
+    float                  scratch[10];
+    const det_noise_mode_t modes[4]
+        = { DET_NOISE_MEAN, DET_NOISE_MEDIAN, DET_NOISE_MIN, DET_NOISE_MAX };
+    for (int m = 0; m < 4; m++)
+      {
+        const float want = _agg (v, 2, 8, modes[m]);
+        DP_CHECK_NEAR (det_noise_estimate (v, 2, 8, scratch, modes[m]), want,
+                       1e-6f);
+        if (modes[m] != DET_NOISE_MEDIAN)
+          DP_CHECK_NEAR (det_noise_chunk (v, 2, 8, modes[m]), want, 1e-6f);
+        /* An empty range (lo > hi) aggregates to 0, scratch or not. */
+        DP_CHECK (det_noise_estimate (v, 5, 4, scratch, modes[m]) == 0.0f);
+        DP_CHECK (det_noise_chunk (v, 5, 4, modes[m]) == 0.0f);
+      }
+    /* A chunk has no median form: documented as 0. */
+    DP_CHECK (det_noise_chunk (v, 2, 8, DET_NOISE_MEDIAN) == 0.0f);
+    /* One bin is its own aggregate in every mode. */
+    for (int m = 0; m < 4; m++)
+      DP_CHECK (det_noise_estimate (v, 3, 3, scratch, modes[m]) == v[3]);
   }
 
   DP_TEST_END ("test_detector2d_core");

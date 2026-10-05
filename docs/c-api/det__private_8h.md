@@ -322,7 +322,7 @@ static void det_peak_zone (
 ### function det\_ring\_create 
 
 ```C++
-static dp_f32_t * det_ring_create (
+static inline dp_f32_t * det_ring_create (
     size_t cap_min
 ) 
 ```

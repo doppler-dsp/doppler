@@ -56,21 +56,22 @@ cp build/app app-cmake
 echo "== face 3: pkg-config =="
 # --8<-- [start:pkg-config]
 export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
-cc app.c $(pkg-config --cflags --libs doppler_stream) -lm -o app
+cc app.c $(pkg-config --cflags --libs doppler_stream) \
+   -Wl,-rpath,"$(pkg-config --variable=libdir doppler_stream)" -lm -o app
 # --8<-- [end:pkg-config]
 mv app app-pc
 
 echo "== stream only: pkg-config, and CMake's second target =="
 # shellcheck disable=SC2046
 cc stream_only.c $asneeded $(pkg-config --cflags --libs doppler_stream) \
-   -lm -o app-stream-pc
+   -Wl,-rpath,"$(pkg-config --variable=libdir doppler_stream)" -lm -o app-stream-pc
 cp build/app_stream_only app-stream-cmake
 
 # The binaries run AS BUILT. The CMake and pkg-config faces link the shared
-# libraries, and an inherited loader path would let an install that forgot to
-# record where they live pass here and fail for the user: doppler.pc named -L
-# but no rpath, this script exported LD_LIBRARY_PATH around it, and
-# `./app` failed on a clean shell. So the environment is cleared, not extended.
+# libraries, and an inherited loader path would let a recipe that forgot to say
+# where they live pass here and fail for the user: the pkg-config command had no
+# rpath, this script exported LD_LIBRARY_PATH around it, and `./app` failed on a
+# clean shell. So the environment is cleared, not extended.
 unset LD_LIBRARY_PATH DYLD_LIBRARY_PATH
 
 ./app-cc     > out-cc.txt

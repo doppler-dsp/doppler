@@ -3,13 +3,13 @@
 #
 #  * a system prefix (/usr, the .deb/.rpm): the prefix is that literal path,
 #    so pkg-config recognises -I/usr/include and the system -L as system
-#    directories and drops them (doppler#1547), and there is no rpath -- the
-#    packages register the library with ldconfig.
+#    directories and drops them (doppler#1547); the packages register the
+#    library with ldconfig.
 #  * anything else (the release tarball, `jbx get-doppler`, ~/.local):
 #    RELOCATABLE. The prefix is derived from this file's own location
 #    (<prefix>/<libdir>/pkgconfig/doppler.pc), so an extracted tree works
-#    wherever it lands -- not only the build-time CMAKE_INSTALL_PREFIX -- and
-#    Libs carries an rpath (below). The hop count back to the prefix is DERIVED
+#    wherever it lands -- not only the build-time CMAKE_INSTALL_PREFIX. The hop
+#    count back to the prefix is DERIVED
 #    from the libdir (DOPPLER_PC_TO_PREFIX in CMakeLists.txt): it was a literal
 #    `../..`, right for lib/ and lib64/ and wrong for Debian's
 #    lib/<multiarch>/, where it resolved the prefix to /usr/lib.
@@ -35,14 +35,17 @@ Version: @DOPPLER_PC_VERSION@
 # --libs doppler_stream` gives the complete streaming link line (it Requires:
 # this core module, and inherits these through it).
 #
-# The rpath flag in Libs: present in the relocatable flavour, absent for a
-# system prefix and on Windows (cmake/install_pc.cmake). A .pc that names -L
-# but not an rpath builds a binary that links and then cannot RUN unless the
-# prefix is on the loader path, which an extracted release tarball
-# (`jbx get-doppler`, ~/.local/doppler) never is. The exported CMake target
-# records its library directory for the build tree; this is the same promise
-# for the other consumer, and stream inherits it through Requires.
-Libs: -L${libdir}@DOPPLER_PC_RPATH@ -ldoppler -lm -lpthread
+# No rpath in Libs, deliberately. A consumer of a prefix that is not on the
+# loader path (the release tarball, ~/.local) adds one itself:
+#     -Wl,-rpath,$(pkg-config --variable=libdir doppler)
+# An rpath written here is invisible to the consumer and not theirs to remove:
+# pkgconf 1.x/2.x put PKG_CONFIG_SYSROOT_DIR into ${libdir} first, so a cross
+# build embeds the BUILD host's sysroot in the target binary; GNU ld makes it
+# DT_RPATH on RHEL 9, which overrides LD_LIBRARY_PATH; it survives `cmake
+# --install` of the consumer; and pkgconf 3's pccritic rates it MAJOR. The
+# libraries resolve each other themselves ($ORIGIN, see CMakeLists.txt), so the
+# one explicit flag is all a consumer needs.
+Libs: -L${libdir} -ldoppler -lm -lpthread
 # The feature-test macro is part of the contract, not a convenience: the
 # installed headers call syscall()/ftruncate() and name MAP_ANONYMOUS, which a
 # strict -std=c99 hides on glibc < 2.34 unless it is defined BEFORE libc is

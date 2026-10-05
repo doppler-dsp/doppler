@@ -1,8 +1,6 @@
-- **A binary built from `pkg-config --libs doppler` (or `doppler_stream`) now
-    runs.** `doppler.pc` named `-L${libdir}` but no rpath, so the program
-    linked and then failed with `error while loading shared libraries:   libdoppler_stream.so.0.62` unless the prefix was on `LD_LIBRARY_PATH`,
-    which an extracted release tarball (`jbx get-doppler`) never is. `Libs`
-    now carries `-Wl,-rpath,${libdir}` (not on Windows), and `doppler_stream`
-    inherits it through `Requires`. The C Quick Start's three-ways script now
-    runs every binary with a cleared loader path, so the install is what is
-    tested, not the shell around it.
+- **The C Quick Start's pkg-config recipe runs.** It linked and then failed with
+    `error while loading shared libraries: libdoppler_stream.so.0.62` from an
+    extracted tarball, whose prefix is on nobody's loader path. The recipe now
+    says where the library is, once (`-Wl,-rpath,$(pkg-config --variable=libdir   doppler_stream)`), and the install pages say when it is needed. The `.pc`
+    deliberately carries no rpath: a cross build would embed the build host's
+    sysroot, and the consumer could not remove it.

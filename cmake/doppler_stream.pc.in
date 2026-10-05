@@ -1,7 +1,6 @@
 # Written at install time in the same two flavours as doppler.pc (see there):
 # a literal /usr for the packages, a location-derived relocatable prefix
-# otherwise. The rpath that relocatable installs need comes through
-# `Requires: doppler`.
+# otherwise. No rpath here either; see the note on Libs in doppler.pc.
 prefix=@DOPPLER_PC_PREFIX@
 exec_prefix=${prefix}
 libdir=${exec_prefix}/@DOPPLER_PC_LIBDIR@

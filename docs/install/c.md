@@ -234,6 +234,20 @@ sudo ldconfig
 --8<-- "tests/install/cmake-install.sh:install"
 ```
 
+!!! note "Fedora, RHEL and AlmaLinux"
+
+    `/usr/local/lib` is not on their loader path by default (Debian's and
+    Ubuntu's is), so `ldconfig` alone does not make the library findable
+    there. Add the directory the install used once
+    (`pkg-config --variable=libdir doppler` prints it), then refresh the cache:
+
+    ```sh
+    echo /usr/local/lib | sudo tee /etc/ld.so.conf.d/usr-local.conf
+    sudo ldconfig
+    ```
+
+    Or install the `.rpm` packages below, which need neither.
+
 Either way, verify the install is visible to your toolchain:
 
 ```sh
@@ -283,13 +297,18 @@ gcc -o app main.c $(pkg-config --cflags doppler) \
     -lpthread -lm
 ```
 
-The shared recipes produce a binary that runs as built. Which `.pc` you get
-depends on how doppler was installed: from a package (`apt`, `dnf`) it is the
-plain `/usr` one and the system loader already knows the library; from the
-tarball, `jbx get-doppler`, or any other prefix it carries an rpath to the
-library directory, so no `LD_LIBRARY_PATH` is needed. If you move the binary
-off the machine, or delete the prefix, set `LD_LIBRARY_PATH` or link
-statically.
+These recipes assume the library is on the loader path, which it is after an
+`apt` or `dnf` install. From a prefix that is not (the release tarball,
+`jbx get-doppler`, `~/.local`), also say where it is, once, on the link line:
+
+```sh
+gcc -o app main.c $(pkg-config --cflags --libs doppler) \
+    -Wl,-rpath,"$(pkg-config --variable=libdir doppler)"
+```
+
+The `.pc` does not add that for you: an rpath written there would be invisible
+to you, and wrong for a cross build. If you move the binary off the machine, or
+delete the prefix, set `LD_LIBRARY_PATH` or link statically.
 
 !!! tip "Custom install prefix"
 

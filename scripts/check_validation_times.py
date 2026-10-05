@@ -57,6 +57,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from _gitbase import BaseUnreadableError, in_git_repo, show_at_base
+
 ROOT = Path(__file__).resolve().parent.parent
 BUDGET = Path(__file__).parent / ".validation-time-budget"
 
@@ -126,32 +128,13 @@ def base_budget(root: Path, ref: str) -> dict[str, tuple[float, str]] | None:
     people to ignore it.
     """
     rel = BUDGET.relative_to(root).as_posix()
-    if (
-        subprocess.run(
-            ["git", "rev-parse", "--git-dir"],
-            cwd=root,
-            capture_output=True,
-        ).returncode
-        != 0
-    ):
+    if not in_git_repo(root):
         return None
-    mb = subprocess.run(
-        ["git", "merge-base", "HEAD", ref],
-        cwd=root,
-        capture_output=True,
-        text=True,
-    )
-    ok = mb.returncode == 0 and mb.stdout.strip()
-    base = mb.stdout.strip() if ok else ref
-    show = subprocess.run(
-        ["git", "show", f"{base}:{rel}"],
-        cwd=root,
-        capture_output=True,
-        text=True,
-    )
-    if show.returncode != 0:
+    try:
+        text = show_at_base(root, ref, rel)
+    except BaseUnreadableError:
         return None
-    return parse_budget(show.stdout)
+    return None if text is None else parse_budget(text)
 
 
 def render(budget: dict[str, tuple[float, str]]) -> str:

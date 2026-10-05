@@ -88,6 +88,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from _gitbase import BaseUnreadableError, resolve_base, show_at
+
 if sys.version_info >= (3, 11):
     import tomllib
 else:  # pragma: no cover - the 3.9/3.10 CI matrix jobs
@@ -255,21 +257,10 @@ def branch_added_text(base: str) -> str | None:
 
 def merge_base(base: str) -> str | None:
     """The merge base with @p base, or None if git cannot resolve it."""
-    mb = subprocess.run(
-        ["git", "merge-base", "HEAD", base],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-    )
-    if mb.returncode == 0 and mb.stdout.strip():
-        return mb.stdout.strip()
-    rev = subprocess.run(
-        ["git", "rev-parse", "--verify", f"{base}^{{commit}}"],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-    )
-    return base if rev.returncode == 0 else None
+    try:
+        return resolve_base(ROOT, base)
+    except BaseUnreadableError:
+        return None
 
 
 def base_pin(base: str) -> str | None:
@@ -284,15 +275,10 @@ def base_pin(base: str) -> str | None:
     ref = merge_base(base)
     if ref is None:
         return None
-    show = subprocess.run(
-        ["git", "show", f"{ref}:{SSOT.name}"],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-    )
-    if show.returncode != 0:
+    text = show_at(ROOT, ref, SSOT.name)
+    if text is None:
         return None
-    m = JM_VERSION_RE.search(show.stdout)
+    m = JM_VERSION_RE.search(text)
     return m.group(2) if m else None
 
 

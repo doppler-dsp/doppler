@@ -122,6 +122,8 @@ import re
 import subprocess
 import sys
 
+from _gitbase import BaseUnreadableError, resolve_base, show_at
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 TESTS = ROOT / "native" / "tests"
 VALIDATION = ROOT / "native" / "validation"
@@ -749,34 +751,19 @@ def ratchet(base: str) -> list[str]:
     cannot be computed is not silently skipped.
     """
     ref = base
-    mb = subprocess.run(
-        ["git", "merge-base", "HEAD", base],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-    )
-    if mb.returncode == 0 and mb.stdout.strip():
-        base = mb.stdout.strip()
-        shown = f"the merge base with {ref} ({base[:9]})"
-    else:
-        shown = ref
-
-    rev = subprocess.run(
-        ["git", "rev-parse", "--verify", f"{base}^{{commit}}"],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-    )
-    if rev.returncode != 0:
+    try:
+        base = resolve_base(ROOT, ref)
+    except BaseUnreadableError:
         raise LookupError(
-            f"base ref {base!r} does not resolve.\n"
+            f"base ref {ref!r} does not resolve.\n"
             "  A ratchet that cannot read its baseline has not passed, so\n"
             "  this is a failure rather than a skip — but it is NOT a lost\n"
             "  assertion, and reporting it as one sends the reader hunting\n"
             "  a regression that is not there.\n"
             "  Fetch it:  git fetch --no-tags --depth=1 origin \\\n"
             "               +refs/heads/main:refs/remotes/origin/main"
-        )
+        ) from None
+    shown = f"the merge base with {ref} ({base[:9]})" if base != ref else ref
 
     # Two forms, and the difference matters. A bare `<file>  <reason>` is a
     # permanent, unbounded excuse -- the file's ratchet is off from then on,
@@ -820,29 +807,19 @@ def ratchet(base: str) -> list[str]:
         """Assertion count for a repo-relative path at the base ref. A file
         the base does not have counts zero, which is what a move into a
         brand-new file needs."""
-        r = subprocess.run(
-            ["git", "show", f"{base}:{rel}"],
-            cwd=ROOT,
-            capture_output=True,
-            text=True,
-        )
-        return count_assertions(r.stdout) if r.returncode == 0 else 0
+        text = show_at(ROOT, base, rel)
+        return 0 if text is None else count_assertions(text)
 
     bad = []
     for rel in (f for f in listing if f.endswith(".c")):
-        was = subprocess.run(
-            ["git", "show", f"{base}:{rel}"],
-            cwd=ROOT,
-            capture_output=True,
-            text=True,
-        )
-        if was.returncode != 0:
+        was = show_at(ROOT, base, rel)
+        if was is None:
             continue
         now = ROOT / rel
         if not now.exists():
             continue  # deletion is a visible act, not a silent loss
         before, after = (
-            count_assertions(was.stdout),
+            count_assertions(was),
             count_assertions(now.read_text()),
         )
         if after >= before:

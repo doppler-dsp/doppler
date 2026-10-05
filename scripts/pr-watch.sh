@@ -43,6 +43,15 @@
 # and the force-cancel command, and never reports green while it holds.
 # REPORT-ONLY: cancelling a run is a decision, and this script makes none.
 #
+# A gh that cannot answer is not a PR with nothing to report
+# (just-buildit.github.io#113). `gh pr checks --json` arrived in gh 2.50.0,
+# and Debian 13 packages 2.46.0, which rejects the flag. With gh's
+# stderr discarded, its empty answer read as "no checks yet" and the
+# watcher waited out its whole timeout, as an auth error did too. So every
+# read is judged by gh's EXIT CODE, never by an empty answer: a gh too old
+# or not authenticated stops at once, naming the fix, and any other error
+# is named while it waits. A failed read is never a verdict, green or not.
+#
 # Advisory checks that must not block a merge are named in ADVISORY (a
 # comma-separated list of check names, default `codecov/patch`). They are
 # reported but never fatal.
@@ -59,7 +68,9 @@
 # Usage:  make pr-watch PR=<n>            # the way to run it
 #         scripts/pr-watch.sh <pr-number>
 #         REPO=owner/name ADVISORY="codecov/patch,..." scripts/pr-watch.sh <n>
-# Exit:   0 settled green (or merged) · 1 real failure · 2 timed out
+# Exit:   0 settled green (or merged) · 1 real failure · 2 no verdict:
+#         timed out, or gh cannot answer (missing, too old, not authenticated)
+# Needs:  gh >= 2.50.0, the first with `gh pr checks --json` (cli/cli#9079)
 # Pair:   gh pr merge <n> --auto --rebase   # the gate; this is the report
 # See:    skills://merge-set
 set -uo pipefail
@@ -91,7 +102,48 @@ say() {
 # empty, no branch matches, and the watcher spins until timeout reporting
 # nothing. Two monitors were lost to exactly that before this script existed.
 # GH names the binary so the tests can answer from a recorded fixture.
-q() { "${GH:-gh}" "$@" 2>/dev/null; }
+#
+# gh's stderr goes to GH_ERR, which the main loop sets, rather than away: a
+# failed call and an empty answer look alike in a variable, and gh_failed
+# needs what gh SAID to tell "too old" from "no checks yet" (#113).
+# Sourced, as the tests do, it is discarded as before.
+q() { "${GH:-gh}" "$@" 2>"${GH_ERR:-/dev/null}"; }
+
+# The wait for a check set that does not exist yet. NOT a green one: this is
+# failure mode 2 above, and it is the whole reason this script exists.
+no_checks_yet() {
+  say "no checks reported yet for ${sha:0:9} — waiting (not green)"
+  sleep "$INTERVAL"
+}
+
+# gh_failed RC WHAT -- a q call exited RC while trying to WHAT. Stop if
+# waiting cannot change gh's answer; otherwise say what gh said and wait
+# one interval, and the caller polls again:
+#   x=$(q ...) || { gh_failed $? "read the checks"; continue; }
+# Never inside $(...): its `exit` must end the script, not a subshell.
+gh_failed() {
+  local rc="$1" what="$2" said version
+  said=$(head -n 1 "${GH_ERR:-/dev/null}" 2>/dev/null)
+  case "$rc:$said" in
+    4:* | *"HTTP 401"*)   # 4 is gh's own exit code for an auth failure
+      echo "::error:: gh cannot authenticate: ${said:-exit $rc}"
+      echo "  Waiting cannot fix this; see \`gh auth status\`."
+      exit 2 ;;
+    *"unknown flag: "*)
+      version=$("${GH:-gh}" --version 2>/dev/null | head -n 1)
+      echo "::error:: gh rejected a flag this script needs: $said"
+      echo "  Installed: ${version:-gh (version unreadable)}"
+      echo "  Needed:    gh >= 2.50.0, the first with \`gh pr checks --json\`"
+      echo "             (cli/cli#9079). Waiting cannot fix this: upgrade gh."
+      exit 2 ;;
+    *"no checks reported"*)   # how gh >= 2.50 answers for an empty set
+      no_checks_yet ;;
+    *)
+      said="gh exited $rc: ${said:-(no message)}"
+      say "cannot $what: $said — retrying (not green)"
+      sleep "$INTERVAL" ;;
+  esac
+}
 
 # Is $1 in the comma-separated ADVISORY list?
 advisory() {
@@ -113,18 +165,15 @@ advisory() {
 # run has zero jobs for a moment; neither is stuck while nothing older is
 # queued. Runs are matched by branch and event, not by `pull_requests`:
 # both real cases had that list EMPTY.
+# A failed read returns gh's exit code: "could not look" is not "nothing is
+# stuck", which would let the loop call the other workflows' checks green.
 stuck_runs() {
-  local repo="$1" sha="$2" branch="$3" line new jobs
+  local repo="$1" sha="$2" branch="$3" line new jobs runs
   [ -n "$sha" ] && [ -n "$branch" ] || return 0
   # The jq is single-quoted on purpose: `$r`/`$n` are jq's, only the SHA
   # is spliced in (hex, so it cannot break the quoting).
   # shellcheck disable=SC2016
-  while IFS= read -r line; do
-    [ -z "$line" ] && continue
-    new="${line%% *}"
-    jobs=$(q api "repos/$repo/actions/runs/$new/jobs" --jq '.total_count')
-    if [ "$jobs" = "0" ]; then echo "$line"; fi
-  done < <(q api \
+  runs=$(q api \
     "repos/$repo/actions/runs?branch=$branch&event=pull_request&per_page=50" \
     --jq '.workflow_runs as $r
       | $r[] | select(.head_sha == "'"$sha"'" and .status == "pending")
@@ -134,7 +183,14 @@ stuck_runs() {
                and .head_sha != "'"$sha"'"
                and .status == "queued"
                and .created_at < $n.created_at)
-      | "\($n.id) \(.id) \(.head_sha[0:9]) \(.name)"')
+      | "\($n.id) \(.id) \(.head_sha[0:9]) \(.name)"') || return
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    new="${line%% *}"
+    jobs=$(q api "repos/$repo/actions/runs/$new/jobs" --jq '.total_count') \
+      || return
+    if [ "$jobs" = "0" ]; then echo "$line"; fi
+  done <<<"$runs"
 }
 
 # report_stuck REPO LINE -- what to do about one stuck_runs line.
@@ -168,11 +224,16 @@ TIMEOUT_MIN="${TIMEOUT_MIN:-60}"
 
 deadline=$(( $(date +%s) + TIMEOUT_MIN * 60 ))
 anchor=""
+sha=""
 last=""
 last_said=0
 reported=""   # stuck_runs lines already reported, so each prints once
 
 command -v "${GH:-gh}" >/dev/null || { echo "::error:: gh not on PATH"; exit 2; }
+
+# gh's stderr from the latest q call, for gh_failed to read.
+GH_ERR=$(mktemp)
+trap 'rm -f "$GH_ERR"' EXIT
 
 echo "pr-watch: $REPO #$PR  (advisory: $ADVISORY)"
 
@@ -182,8 +243,10 @@ while :; do
     exit 2
   fi
 
-  state=$(q pr view "$PR" -R "$REPO" --json state --jq .state)
-  sha=$(q pr view "$PR" -R "$REPO" --json headRefOid --jq .headRefOid)
+  state=$(q pr view "$PR" -R "$REPO" --json state --jq .state) \
+    || { gh_failed $? "read the PR"; continue; }
+  sha=$(q pr view "$PR" -R "$REPO" --json headRefOid --jq .headRefOid) \
+    || { gh_failed $? "read the PR"; continue; }
   if [ -z "$state" ] || [ -z "$sha" ]; then
     say "cannot read PR (transient?) — retrying"; sleep "$INTERVAL"; continue
   fi
@@ -204,8 +267,10 @@ while :; do
   # The #1812 shape. Reported once per pair, never through `say`'s
   # throttle, and it holds off a green verdict: the stuck workflow has
   # reported no checks, so "all settled" would be about the others.
-  branch=$(q pr view "$PR" -R "$REPO" --json headRefName --jq .headRefName)
-  stuck=$(stuck_runs "$REPO" "$sha" "$branch")
+  branch=$(q pr view "$PR" -R "$REPO" --json headRefName --jq .headRefName) \
+    || { gh_failed $? "read the PR"; continue; }
+  stuck=$(stuck_runs "$REPO" "$sha" "$branch") \
+    || { gh_failed $? "look for stuck runs"; continue; }
   while IFS= read -r line; do
     [ -z "$line" ] && continue
     case $'\n'"$reported"$'\n' in *$'\n'"$line"$'\n'*) continue ;; esac
@@ -213,28 +278,30 @@ while :; do
     reported="$reported"$'\n'"$line"
   done <<<"$stuck"
 
-  n=$(q pr checks "$PR" -R "$REPO" --json name --jq 'length')
-  # A check set that does not exist yet is NOT a green one. This is failure
-  # mode 2 above, and it is the whole reason this script exists.
-  if [ -z "$n" ] || [ "$n" -eq 0 ]; then
-    say "no checks reported yet for ${sha:0:9} — waiting (not green)"
-    sleep "$INTERVAL"; continue
-  fi
+  # gh >= 2.50 answers an empty set with an error, which gh_failed
+  # recognises; a gh that answers it with `[]` is caught here.
+  n=$(q pr checks "$PR" -R "$REPO" --json name --jq 'length') \
+    || { gh_failed $? "read the checks"; continue; }
+  if [ -z "$n" ] || [ "$n" -eq 0 ]; then no_checks_yet; continue; fi
 
   pending=$(q pr checks "$PR" -R "$REPO" --json bucket \
-            --jq '[.[] | select(.bucket=="pending")] | length')
+            --jq '[.[] | select(.bucket=="pending")] | length') \
+    || { gh_failed $? "read the checks"; continue; }
   if [ -n "$pending" ] && [ "$pending" -gt 0 ]; then
     say "$(( n - pending ))/${n} settled for ${sha:0:9}…"
     sleep "$INTERVAL"; continue
   fi
 
-  # Fully settled. Split real failures from advisory ones.
+  # Fully settled. Split real failures from advisory ones -- read first,
+  # so a failed read is not an empty list of failures.
+  failing=$(q pr checks "$PR" -R "$REPO" --json name,bucket \
+            --jq '.[] | select(.bucket=="fail") | .name') \
+    || { gh_failed $? "read the checks"; continue; }
   real=(); adv=()
   while IFS= read -r f; do
     [ -z "$f" ] && continue
     if advisory "$f"; then adv+=("$f"); else real+=("$f"); fi
-  done < <(q pr checks "$PR" -R "$REPO" --json name,bucket \
-           --jq '.[] | select(.bucket=="fail") | .name' | sort -u)
+  done < <(sort -u <<<"$failing")
 
   [ "${#adv[@]}" -gt 0 ] && echo "  advisory (not blocking): ${adv[*]}"
 

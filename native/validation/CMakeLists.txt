@@ -65,7 +65,21 @@ target_link_libraries(validate_dll_jitter PRIVATE doppler_lib_static ${DP_MATH_L
 # knife-edge nxn>=1.05 gate on macOS/arm64 while passing on x86. Disabling
 # contraction makes both platforms round every multiply-add separately (the
 # gates are tuned once against that), so the harness is host-deterministic.
+#
+# -fno-fast-math comes BEFORE -ffp-contract=off, here and in the two sibling
+# harnesses below. The tree compiles with -ffast-math (top of CMakeLists.txt),
+# which implies -ffp-contract=fast, so a bare -ffp-contract=off after it made
+# clang 23 say "overriding '-ffast-math' option with '-ffp-contract=off'"
+# (-Woverriding-option, doppler#1839) at every one of these targets, a warning
+# that is always expected and so teaches people to read past warnings. Turning
+# fast-math off first says what is meant. Measured on x86-64 with gcc 16 and
+# clang 23: every harness still passes, and clang's printed tables are
+# byte-identical. The only table that moves is dll_jitter under gcc, in its
+# last printed digit, and it moves TO clang's output (8 differing lines
+# between the compilers before, 0 after); the nxn rise the knife-edge gate
+# reads is 1.14 both ways, against its 1.05.
 dp_gnu_compile_options(validate_dll_jitter PRIVATE -O3 -funroll-loops
+                                                    -fno-fast-math
                                                     -ffp-contract=off)
 add_test(NAME validate_dll_jitter
          COMMAND validate_dll_jitter --check)
@@ -178,6 +192,7 @@ target_include_directories(validate_ratesync_scurve
                                    ${CMAKE_SOURCE_DIR}/native/tests)
 target_link_libraries(validate_ratesync_scurve PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 dp_gnu_compile_options(validate_ratesync_scurve PRIVATE -O3 -funroll-loops
+                                                         -fno-fast-math
                                                          -ffp-contract=off)
 add_test(NAME validate_ratesync_scurve
          COMMAND validate_ratesync_scurve --check)
@@ -210,7 +225,7 @@ target_link_libraries(validate_loop_filter_noise_bw PRIVATE doppler_lib_static $
 # hundreds of thousands of updates. The 1% gate is nowhere near that
 # sensitive, but the printed table is compared across machines.
 dp_gnu_compile_options(validate_loop_filter_noise_bw PRIVATE
-                        -O3 -funroll-loops -ffp-contract=off)
+                        -O3 -funroll-loops -fno-fast-math -ffp-contract=off)
 add_test(NAME validate_loop_filter_noise_bw
          COMMAND validate_loop_filter_noise_bw --check)
 

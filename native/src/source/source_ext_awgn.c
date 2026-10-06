@@ -1,8 +1,10 @@
+/* jm:generated source_ext_awgn.c */
 /*
  * source_ext_awgn.c — AWGN type for the source module.
  *
  * Included by source_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in source_ext_awgn_extra.c.
  * Do NOT compile this file directly — only source_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ AWGNObj_dealloc (AWGNObject *self)
 static PyObject *
 AWGNObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   AWGNObject *self = (AWGNObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -103,9 +108,9 @@ AWGNObj_generate (AWGNObject *self, PyObject *args, PyObject *kwds)
                            " ndarray of the output dtype");
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_COMPLEX64,
-          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           return NULL;
@@ -123,6 +128,15 @@ AWGNObj_generate (AWGNObject *self, PyObject *args, PyObject *kwds)
       size_t n_out
           = dp_awgn_generate (self->handle, (size_t)n,
                               (float _Complex *)PyArray_DATA (out_arr), _cap);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "AWGN.generate: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
                                                     PyArray_DATA (out_arr));
@@ -144,7 +158,15 @@ AWGNObj_generate (AWGNObject *self, PyObject *args, PyObject *kwds)
   size_t _cap  = dp_awgn_generate_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "AWGN.generate: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
   if (!arr0)
     {
@@ -152,6 +174,14 @@ AWGNObj_generate (AWGNObject *self, PyObject *args, PyObject *kwds)
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t n_out        = dp_awgn_generate (self->handle, (size_t)n, _d0, _cap);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_RuntimeError,
+                    "AWGN.generate: wrote %zu elements into a buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -268,7 +298,7 @@ static PyGetSetDef AWGN_getset[]
     = { { "amplitude", (getter)AWGN_getprop_amplitude,
           (setter)AWGN_setprop_amplitude,
           "Return the current amplitude (per-component std dev).\n", NULL },
-        { NULL } };
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 AWGNObj_destroy (AWGNObject *self, PyObject *Py_UNUSED (ignored))
@@ -373,9 +403,8 @@ static PyMethodDef AWGNObj_methods[] = {
     "reseed(seed) -> None\n"
     "\n"
     "Reseed the RNG and reset all xoshiro256++ state. Equivalent to\n"
-    "calling dp_awgn_destroy() and dp_awgn_create(seed, amplitude) but reuses "
-    "the\n"
-    "existing allocation. amplitude is unchanged.\n"
+    "calling dp_awgn_destroy() and dp_awgn_create(seed, amplitude) but\n"
+    "reuses the existing allocation. amplitude is unchanged.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -476,11 +505,11 @@ static PyMethodDef AWGNObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject AWGNObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "source.AWGN",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.source.AWGN",
   .tp_basicsize                           = sizeof (AWGNObject),
   .tp_dealloc                             = (destructor)AWGNObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

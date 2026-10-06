@@ -52,6 +52,7 @@ no_step = "true"
 no_reset = "true"
 create_error = "OSError"
 create_error_message = "cannot install a handler for one of the signals requested"
+fragment = "generated"
 
 [[dp_interrupt_guard.init_params]]
 name = "signals"

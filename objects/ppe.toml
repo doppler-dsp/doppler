@@ -21,6 +21,7 @@ no_state = "true"
 no_step = "true"
 class_name = "PolynomialPhaseEstimator"
 depends_on = [{ name = "fft", link = true }, { name = "spectral", link = true }]
+fragment = "generated"
 
 [[ppe.init_params]]
 name = "max_len"

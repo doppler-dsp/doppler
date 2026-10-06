@@ -1,9 +1,11 @@
+/* jm:generated interrupt_ext_dp_interrupt_guard.c */
 /*
  * interrupt_ext_dp_interrupt_guard.c — Interrupt type for the interrupt
  * module.
  *
  * Included by interrupt_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in interrupt_ext_dp_interrupt_guard_extra.c.
  * Do NOT compile this file directly — only interrupt_ext.c is compiled.
  */
 /* ======================================================== */
@@ -28,6 +30,9 @@ InterruptObj_dealloc (InterruptObject *self)
 static PyObject *
 InterruptObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   InterruptObject *self = (InterruptObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -45,8 +50,8 @@ InterruptObj_init (InterruptObject *self, PyObject *args, PyObject *kwds)
                                     &latency_ms_raw))
     return -1;
   uint32_t       latency_ms  = (uint32_t)latency_ms_raw;
-  PyArrayObject *signals_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      signals_obj, NPY_INT32, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *signals_arr = jm_array_arg (
+      signals_obj, NPY_INT32, NPY_ARRAY_C_CONTIGUOUS, "signals");
   if (!signals_arr)
     {
       return -1;
@@ -253,11 +258,11 @@ static PyMethodDef InterruptObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject InterruptObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "interrupt.Interrupt",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.interrupt.Interrupt",
   .tp_basicsize                           = sizeof (InterruptObject),
   .tp_dealloc                             = (destructor)InterruptObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

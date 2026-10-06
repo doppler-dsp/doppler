@@ -7,6 +7,7 @@ no_step = "true"
 class_name = "DopplerChannel"
 serializable = "true"
 depends_on = [{ name = "resamp", link = true }]
+fragment = "generated"
 
 [[doppler_channel.init_params]]
 name = "fs"

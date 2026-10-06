@@ -1,8 +1,10 @@
+/* jm:generated dsss_ext_ppe.c */
 /*
  * dsss_ext_ppe.c — PolynomialPhaseEstimator type for the dsss module.
  *
  * Included by dsss_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in dsss_ext_ppe_extra.c.
  * Do NOT compile this file directly — only dsss_ext.c is compiled.
  */
 /* ======================================================== */
@@ -28,6 +30,9 @@ static PyObject *
 PolynomialPhaseEstimatorObj_new (PyTypeObject *type, PyObject *args,
                                  PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   PolynomialPhaseEstimatorObject *self
       = (PolynomialPhaseEstimatorObject *)type->tp_alloc (type, 0);
   if (self)
@@ -94,10 +99,12 @@ PolynomialPhaseEstimatorObj_estimate (PolynomialPhaseEstimatorObject *self,
   PyObject *in_obj = NULL;
   if (!PyArg_ParseTuple (args, "O", &in_obj))
     return NULL;
-  PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *in_arr
+      = jm_array_arg (in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!in_arr)
-    return NULL;
+    {
+      return NULL;
+    }
   size_t n_in = (size_t)PyArray_SIZE (in_arr);
   if (!PolynomialPhaseEstimatorObj_estimate_type)
     {
@@ -111,7 +118,8 @@ PolynomialPhaseEstimatorObj_estimate (PolynomialPhaseEstimatorObject *self,
     }
   /* nogil: GIL released across the pure-C kernel — sound only when
    * this object is not shared across threads concurrently (one
-   * object per stream). */
+   * object per stream); the kernel touches only this object's
+   * state/buffers and the caller's input. */
   const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (in_arr);
   ppe_result_t          _r;
   Py_BEGIN_ALLOW_THREADS
@@ -181,14 +189,14 @@ static PyGetSetDef PolynomialPhaseEstimator_getset[] = {
     "zero-padded transform length: 4 * next_pow_two (max_len). The 4x is "
     "deliberate -- a finer frequency grid before the parabolic peak "
     "refinement, which matters because the input is often short (preamble "
-    "partials, symbol streams). It also sizes `buf`, `spec` and `mag`, so "
-    "the footprint is 4x what a bare next-pow2 would suggest.\n",
+    "partials, symbol streams). It also sizes `buf`, `spec` and `mag`, so the "
+    "footprint is 4x what a bare next-pow2 would suggest.\n",
     NULL },
   { "max_rate", (getter)PolynomialPhaseEstimator_getprop_max_rate, NULL,
     "chirp-rate search half-span (cycles/sample^2).\n", NULL },
   { "n_rate", (getter)PolynomialPhaseEstimator_getprop_n_rate, NULL,
     "number of chirp-rate hypotheses (1 if max_rate=0).\n", NULL },
-  { NULL }
+  { NULL, NULL, NULL, NULL, NULL }
 };
 
 static PyObject *
@@ -286,12 +294,11 @@ static PyMethodDef PolynomialPhaseEstimatorObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)PolynomialPhaseEstimatorObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
@@ -318,11 +325,12 @@ static PyMethodDef PolynomialPhaseEstimatorObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject PolynomialPhaseEstimatorObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "dsss.PolynomialPhaseEstimator",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name
+  = "doppler.dsss.PolynomialPhaseEstimator",
   .tp_basicsize = sizeof (PolynomialPhaseEstimatorObject),
   .tp_dealloc   = (destructor)PolynomialPhaseEstimatorObj_dealloc,
   .tp_flags     = Py_TPFLAGS_DEFAULT,

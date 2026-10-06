@@ -6,6 +6,7 @@ no_state = "true"
 no_step = "true"
 serializable = "true"
 class_name = "Gold"
+fragment = "generated"
 
 [[gold.init_params]]
 name = "taps_a"

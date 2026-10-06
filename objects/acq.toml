@@ -36,6 +36,7 @@ depends_on = [
 ]
 # dp_parallel.h's persistent pool is pthreads (the roll per thread, §2.3).
 extra_link_libs = ["Threads::Threads"]
+fragment = "generated"
 
 # ── Construction: physics in, grid out ───────────────────────────────────────
 # The user states the waveform, front end, and operating point in real units;

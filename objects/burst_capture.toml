@@ -24,6 +24,7 @@ create_error_message = "BurstCapture: invalid parameter (need a non-empty preamb
 warnings = [
   { after = "__init__", condition = "underpowered", category = "UserWarning", message = "BurstCapture: the search cannot meet the requested pd at this cn0_dbhz and geometry (pd_burst < pd). It still builds a best-effort grid, so the symptom is bursts that are never captured rather than an error. Lower pd, raise cn0_dbhz, or give the preamble more repetitions." },
 ]
+fragment = "generated"
 # burst_acq and its transitive closure -- jm's depends_on linking is not
 # recursive, the same reason objects/dsss_burst_receiver.toml repeats it:
 # burst_acq pulls acq -> corr2d/fft2d/fft/detection.

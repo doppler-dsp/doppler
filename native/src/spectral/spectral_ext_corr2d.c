@@ -1,8 +1,10 @@
+/* jm:generated spectral_ext_corr2d.c */
 /*
  * spectral_ext_corr2d.c — Corr2D type for the spectral module.
  *
  * Included by spectral_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in spectral_ext_corr2d_extra.c.
  * Do NOT compile this file directly — only spectral_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ Corr2DObj_dealloc (Corr2DObject *self)
 static PyObject *
 Corr2DObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   Corr2DObject *self = (Corr2DObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -49,23 +54,19 @@ Corr2DObj_init (Corr2DObject *self, PyObject *args, PyObject *kwds)
                                     &dwell_raw, &nthreads, &ny_out_raw,
                                     &nx_out_raw, &col_out))
     return -1;
-  size_t         dwell   = (size_t)dwell_raw;
-  size_t         ny_out  = (size_t)ny_out_raw;
-  size_t         nx_out  = (size_t)nx_out_raw;
-  PyArrayObject *ref_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      ref_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  size_t         dwell  = (size_t)dwell_raw;
+  size_t         ny_out = (size_t)ny_out_raw;
+  size_t         nx_out = (size_t)nx_out_raw;
+  PyArrayObject *ref_arr
+      = jm_array_arg (ref_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "ref");
   if (!ref_arr)
     {
       return -1;
     }
-  /* Hand-patch (sacred fragment): dp_corr2d_create takes the reference's two
-     dimensions split out, which a flat array init-param cannot express, so
-     this marshaling stays hand-written. Regenerating this file drops it —
-     see the note in docs/dev/contributing/adding-a-module.md. */
   if (PyArray_NDIM (ref_arr) != 2)
     {
+      PyErr_SetString (PyExc_ValueError, "ref must be a 2-D array");
       Py_DECREF (ref_arr);
-      PyErr_SetString (PyExc_ValueError, "ref must be a 2-D (ny, nx) array");
       return -1;
     }
   size_t ref_dim0 = (size_t)PyArray_DIM (ref_arr, 0);
@@ -119,10 +120,12 @@ Corr2DObj_execute (Corr2DObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &in_obj,
                                     &out_obj))
     return NULL;
-  PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *in_arr
+      = jm_array_arg (in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!in_arr)
-    return NULL;
+    {
+      return NULL;
+    }
   Py_ssize_t n = PyArray_SIZE (in_arr);
   if (out_obj && out_obj != Py_None)
     {
@@ -139,9 +142,9 @@ Corr2DObj_execute (Corr2DObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_COMPLEX64,
-          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (in_arr);
@@ -162,6 +165,15 @@ Corr2DObj_execute (Corr2DObject *self, PyObject *args, PyObject *kwds)
           self->handle, (const float _Complex *)PyArray_DATA (in_arr),
           (size_t)n, (float _Complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "Corr2D.execute: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       if (!n_out)
         {
           Py_DECREF (out_arr);
@@ -175,14 +187,29 @@ Corr2DObj_execute (Corr2DObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)n;
   size_t _cap  = dp_corr2d_execute_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (in_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "Corr2D.execute: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
   if (!arr0)
     {
@@ -194,6 +221,14 @@ Corr2DObj_execute (Corr2DObject *self, PyObject *args, PyObject *kwds)
       self->handle, (const float _Complex *)PyArray_DATA (in_arr), (size_t)n,
       _d0, _cap);
   Py_DECREF (in_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_RuntimeError,
+                    "Corr2D.execute: wrote %zu elements into a buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if (!n_out)
     {
       Py_DECREF (arr0);
@@ -320,6 +355,16 @@ Corr2D_getprop_n_out (Corr2DObject *self, void *Py_UNUSED (closure))
   return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->n_out);
 }
 static PyObject *
+Corr2D_getprop_col_out (Corr2DObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromLong ((long)self->handle->col_out);
+}
+static PyObject *
 Corr2D_getprop_dwell (Corr2DObject *self, void *Py_UNUSED (closure))
 {
   if (!self->handle)
@@ -340,17 +385,6 @@ Corr2D_getprop_count (Corr2DObject *self, void *Py_UNUSED (closure))
   return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->count);
 }
 
-static PyObject *
-Corr2D_getprop_col_out (Corr2DObject *self, void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromLong ((long)self->handle->col_out);
-}
-
 static PyGetSetDef Corr2D_getset[]
     = { { "ny", (getter)Corr2D_getprop_ny, NULL, "Row count.\n", NULL },
         { "nx", (getter)Corr2D_getprop_nx, NULL, "Column count.\n", NULL },
@@ -360,13 +394,13 @@ static PyGetSetDef Corr2D_getset[]
           "Output columns (== nx unless decoupled).\n", NULL },
         { "n_out", (getter)Corr2D_getprop_n_out, NULL,
           "ny_out * nx_out — output element count.\n", NULL },
+        { "col_out", (getter)Corr2D_getprop_col_out, NULL,
+          "Output column, or < 0 for the full map.\n", NULL },
         { "dwell", (getter)Corr2D_getprop_dwell, NULL, "Integration depth.\n",
           NULL },
         { "count", (getter)Corr2D_getprop_count, NULL,
           "Frames accumulated (0 … dwell-1).\n", NULL },
-        { "col_out", (getter)Corr2D_getprop_col_out, NULL,
-          "Output column, or < 0 for the full map.\n", NULL },
-        { NULL } };
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 Corr2DObj_destroy (Corr2DObject *self, PyObject *Py_UNUSED (ignored))
@@ -520,12 +554,11 @@ static PyMethodDef Corr2DObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)Corr2DObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
@@ -551,11 +584,11 @@ static PyMethodDef Corr2DObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject Corr2DObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "spectral.Corr2D",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.spectral.Corr2D",
   .tp_basicsize                           = sizeof (Corr2DObject),
   .tp_dealloc                             = (destructor)Corr2DObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

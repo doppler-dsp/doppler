@@ -58,6 +58,7 @@ depends_on = [
 # the canonical blind M2M4 SNR validator (snr_m2m4_db) that same test uses to
 # validate lock independently of BER.
 extra_link_libs = ["wfm_dsp_core", "gold_core", "snr_core"]
+fragment = "generated"
 
 # ── Construction: only the signal itself is required ─────────────────────────
 

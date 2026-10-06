@@ -16,36 +16,18 @@
 # warning is fixed at its cause.
 #
 # Format: one repo-relative path per line.
-native/src/acquire/acquire_ext_acq.c
-native/src/acquire/acquire_ext_burst_acq.c
-native/src/acquire/acquire_ext_burst_capture.c
-native/src/acquire/acquire_ext_persistentburstcapture.c
-native/src/ber/ber_ext_ber_meter.c
 native/src/coding/coding_ext_deinterleaver.c
 native/src/coding/coding_ext_interleaver.c
-native/src/dsss/dsss_ext_async_dsss_receiver.c
-native/src/dsss/dsss_ext_cellasyncdsssreceiver.c
-native/src/filter/filter_ext_fir.c
 native/src/resample/resample_ext_HalfbandDecimator.c
 native/src/resample/resample_ext_Resampler.c
 native/src/resample/resample_ext_extra.c
 native/src/resample/resample_ext_farrow.c
 native/src/resample/resample_ext_hbdecim_q15.c
-native/src/spectral/spectral_ext_corr2d.c
-native/src/spectral/spectral_ext_detector.c
-native/src/spectral/spectral_ext_detector2d.c
 native/src/spectral/spectral_ext_fft.c
-native/src/spectral/spectral_ext_psd.c
 native/src/stream/stream_ext.c
 native/src/telemetry/telemetry_ext_capture.c
 native/src/telemetry/telemetry_ext_dp_tlm.c
 native/src/telemetry/telemetry_ext_dp_tlm_capture.c
-native/src/track/track_ext_bpskreceiver.c
-native/src/track/track_ext_dll.c
-native/src/track/track_ext_mpsk_receiver.c
-native/src/track/track_ext_mpskreceiverr.c
-native/src/wfm/wfm_ext_frame.c
-native/src/wfm/wfm_ext_framedesc.c
 native/src/wfm/wfm_ext_wfm_synth.c
 native/src/wfm_reader/wfm_reader_ext_wfm_reader.c
 native/src/wfm_writer/wfm_writer_ext_wfm_writer.c

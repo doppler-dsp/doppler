@@ -17,6 +17,7 @@ create_error_message = "BurstAcquisition: invalid parameter (need a non-empty pr
 warnings = [
   { after = "__init__", condition = "underpowered", category = "UserWarning", message = "BurstAcquisition is under-powered: pd_burst < pd at this reps/cn0_dbhz. Raise reps or cn0_dbhz, or narrow doppler_uncertainty." },
 ]
+fragment = "generated"
 # Composes acq's shared engine (dp_acq_state_t/acq_core.c) -- this class is the
 # BURST front door (see docs/design/async-dsss-receiver.md's Acquisition/
 # BurstAcquisition split); today's existing pre-split Acquisition behavior,

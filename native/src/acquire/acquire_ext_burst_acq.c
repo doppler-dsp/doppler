@@ -1,8 +1,10 @@
+/* jm:generated acquire_ext_burst_acq.c */
 /*
  * acquire_ext_burst_acq.c — BurstAcquisition type for the acquire module.
  *
  * Included by acquire_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in acquire_ext_burst_acq_extra.c.
  * Do NOT compile this file directly — only acquire_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ BurstAcquisitionObj_dealloc (BurstAcquisitionObject *self)
 static PyObject *
 BurstAcquisitionObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   BurstAcquisitionObject *self
       = (BurstAcquisitionObject *)type->tp_alloc (type, 0);
   if (self)
@@ -75,8 +80,8 @@ BurstAcquisitionObj_init (BurstAcquisitionObject *self, PyObject *args,
                     noise_mode_str);
       return -1;
     }
-  PyArrayObject *preamble_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      preamble_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *preamble_arr = jm_array_arg (
+      preamble_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "preamble");
   if (!preamble_arr)
     {
       return -1;
@@ -133,8 +138,8 @@ BurstAcquisitionObj_push (BurstAcquisitionObject *self, PyObject *args)
   PyObject *in_obj = NULL;
   if (!PyArg_ParseTuple (args, "O", &in_obj))
     return NULL;
-  PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *in_arr
+      = jm_array_arg (in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!in_arr)
     {
       return NULL;
@@ -151,6 +156,14 @@ BurstAcquisitionObj_push (BurstAcquisitionObject *self, PyObject *args)
     n_out = dp_burst_acq_push (self->handle, _ng0, n_in, results, 64);
   Py_END_ALLOW_THREADS
   Py_DECREF (in_arr);
+  if ((size_t)(n_out) > (size_t)(64))
+    {
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "BurstAcquisition.push: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(64));
+      return NULL;
+    }
   PyObject *lst = PyList_New ((Py_ssize_t)n_out);
   if (!lst)
     return NULL;
@@ -450,6 +463,17 @@ BurstAcquisition_getprop_pd_burst (BurstAcquisitionObject *self,
   return PyFloat_FromDouble ((self->handle->engine->pd_burst));
 }
 static PyObject *
+BurstAcquisition_getprop_psl_db (BurstAcquisitionObject *self,
+                                 void                   *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble ((dp_acq_psl_db (self->handle->engine)));
+}
+static PyObject *
 BurstAcquisition_getprop_straddle_loss (BurstAcquisitionObject *self,
                                         void *Py_UNUSED (closure))
 {
@@ -538,18 +562,6 @@ BurstAcquisition_getprop_underpowered (BurstAcquisitionObject *self,
   return PyBool_FromLong ((long)((self->handle->engine->underpowered)));
 }
 
-static PyObject *
-BurstAcquisition_getprop_psl_db (BurstAcquisitionObject *self,
-                                 void                   *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyFloat_FromDouble ((dp_acq_psl_db (self->handle->engine)));
-}
-
 static PyGetSetDef BurstAcquisition_getset[] = {
   { "max_peaks", (getter)BurstAcquisition_getprop_max_peaks, NULL,
     "The peak list's capacity per dwell (1 = the classic gated maximum); set "
@@ -599,6 +611,16 @@ static PyGetSetDef BurstAcquisition_getset[] = {
     "`underpowered` is set from; pd_predicted is one aligned dwell. NaN with "
     "no design cn0_dbhz or with n_noncoh > 1.\n",
     NULL },
+  { "psl_db", (getter)BurstAcquisition_getprop_psl_db, NULL,
+    "The preamble's peak sidelobe level, dB: the largest lag of its periodic "
+    "autocorrelation OUTSIDE the mainlobe, relative to the peak. A "
+    "detection's sidelobes sit this far below it, at delays the peak list's "
+    "exclusion does not cover, so a burst clearing the threshold by more than "
+    "`-psl_db` also lists its own sidelobe (with `max_peaks > 1`), and a "
+    "strong burst's sidelobe can mask a weak one there. -29.8 dB for a "
+    "31-chip m-sequence (1/31); `-inf` for a perfect sequence such as "
+    "Zadoff-Chu. Fixed at construction.\n",
+    NULL },
   { "straddle_loss", (getter)BurstAcquisition_getprop_straddle_loss, NULL,
     "Mean amplitude derating of the correlation peak from grid straddle "
     "(slow-time Doppler scalloping x intra-segment rotation x code-phase "
@@ -628,17 +650,7 @@ static PyGetSetDef BurstAcquisition_getset[] = {
     "than failing; because C cannot raise a Python warning from a successful "
     "create, construction also emits a UserWarning in this case.\n",
     NULL },
-  { "psl_db", (getter)BurstAcquisition_getprop_psl_db, NULL,
-    "The preamble's peak sidelobe level, dB: the largest lag of its periodic "
-    "autocorrelation OUTSIDE the mainlobe, relative to the peak. A "
-    "detection's sidelobes sit this far below it, at delays the peak list's "
-    "exclusion does not cover, so a burst clearing the threshold by more than "
-    "`-psl_db` also lists its own sidelobe (with `max_peaks > 1`), and a "
-    "strong burst's sidelobe can mask a weak one there. -29.8 dB for a "
-    "31-chip m-sequence (1/31); `-inf` for a perfect sequence such as "
-    "Zadoff-Chu. Fixed at construction.\n",
-    NULL },
-  { NULL }
+  { NULL, NULL, NULL, NULL, NULL }
 };
 
 static PyObject *
@@ -677,11 +689,11 @@ static PyMethodDef BurstAcquisitionObj_methods[] = {
   { "reset", (PyCFunction)BurstAcquisitionObj_reset, METH_NOARGS,
     "Drain the input ring and reset the coherent accumulator.\n"
     "\n"
-    "Forwards to dp_acq_reset() on the embedded engine: discards any "
-    "buffered\n"
-    "samples that have not yet completed a frame and clears the non-coherent\n"
-    "power accumulator and dwell bookkeeping, so the next push() begins a\n"
-    "fresh search from an empty ring. Construction parameters are untouched.\n"
+    "Forwards to dp_acq_reset() on the embedded engine: discards any\n"
+    "buffered samples that have not yet completed a frame and clears the\n"
+    "non-coherent power accumulator and dwell bookkeeping, so the next\n"
+    "push() begins a fresh search from an empty ring. Construction\n"
+    "parameters are untouched.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -704,9 +716,8 @@ static PyMethodDef BurstAcquisitionObj_methods[] = {
     "\n"
     "Stream raw samples; emit one event per CFAR dump above threshold.\n"
     "\n"
-    "Forwards to dp_acq_push() on the embedded engine (see its doc comment "
-    "in\n"
-    "acq_core.h for the framing/CFAR mechanics). Each event carries the\n"
+    "Forwards to dp_acq_push() on the embedded engine (see its doc comment\n"
+    "in acq_core.h for the framing/CFAR mechanics). Each event carries the\n"
     "peak's Doppler bin and code phase (the two search axes), its CFAR\n"
     "statistic, and an estimated C/N0 — see acq_result_t.\n"
     "\n"
@@ -738,24 +749,23 @@ static PyMethodDef BurstAcquisitionObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "configure_search_raw(doppler_bins, n_noncoh) -> None\n"
     "\n"
-    "Pin the search grid directly, bypassing both auto-sizing searches --\n"
-    "the advanced escape hatch (mirrors\n"
-    "Dll.configure_lock_raw/Costas.configure_lock). Resizes every\n"
-    "buffer/plan that depends on the grid (the slow-time FFT, the code\n"
-    "correlator, the reference, and every per-frame scratch buffer),\n"
-    "re-derives the threshold ladder for the pinned grid from the same\n"
-    "physics __init__ used, and clears in-flight accumulation (ring\n"
-    "contents, the non-coherent power accumulator, dwell bookkeeping) --\n"
-    "call between push() calls, never a substitute for one. Raises\n"
-    "ValueError if doppler_bins is outside [1, reps] or n_noncoh is outside\n"
-    "[1, 256] (the internal non-coherent-look safety-valve ceiling).\n"
+    "Pin the search grid directly, bypassing both auto-sizing searches -- the "
+    "advanced escape hatch (mirrors "
+    "Dll.configure_lock_raw/Costas.configure_lock). Resizes every buffer/plan "
+    "that depends on the grid (the slow-time FFT, the code correlator, the "
+    "reference, and every per-frame scratch buffer), re-derives the threshold "
+    "ladder for the pinned grid from the same physics __init__ used, and "
+    "clears in-flight accumulation (ring contents, the non-coherent power "
+    "accumulator, dwell bookkeeping) -- call between push() calls, never a "
+    "substitute for one. Raises ValueError if doppler_bins is outside [1, "
+    "reps] or n_noncoh is outside [1, 256] (the internal non-coherent-look "
+    "safety-valve ceiling).\n"
     "\n"
-    "Forwards to dp_acq_configure_search_raw() on the embedded engine (see "
-    "its\n"
-    "doc comment in acq_core.h): resizes every grid-dependent buffer/plan,\n"
-    "re-derives the threshold ladder for the pinned grid, and clears\n"
-    "in-flight accumulation — call between push() calls, never a substitute\n"
-    "for one.\n"
+    "Forwards to dp_acq_configure_search_raw() on the embedded engine (see\n"
+    "its doc comment in acq_core.h): resizes every grid-dependent\n"
+    "buffer/plan, re-derives the threshold ladder for the pinned grid, and\n"
+    "clears in-flight accumulation — call between push() calls, never a\n"
+    "substitute for one.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -792,18 +802,18 @@ static PyMethodDef BurstAcquisitionObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "set_max_peaks(n) -> None\n"
     "\n"
-    "How many peaks a dwell may report -- the peak list's capacity\n"
-    "(docs/design/async-dsss-receiver.md section 7.1). One (the default) is\n"
-    "the classic gated maximum. More lists every peak above the same gate,\n"
-    "strongest first, with an exclusion zone of one Doppler bin by one chip\n"
-    "around each (one emitter's main lobe, so its own shoulders are not the\n"
-    "next peak) and the two-epoch rule for a peak at an already-listed code\n"
-    "phase (a data transition inside the epoch splits one emitter into twins\n"
-    "at its own code phase on other tiles; such a peak is held for one dwell\n"
-    "and listed only if it is still there, at the same tile, on the next).\n"
-    "Each listed peak is one record from push(), all of a dwell's sharing\n"
-    "samples_consumed and noise_est; a held twin takes one of the n slots\n"
-    "that dwell but is not reported. The threshold does not change with n.\n"
+    "How many peaks a dwell may report -- the peak list's capacity "
+    "(docs/design/async-dsss-receiver.md section 7.1). One (the default) is "
+    "the classic gated maximum. More lists every peak above the same gate, "
+    "strongest first, with an exclusion zone of one Doppler bin by one chip "
+    "around each (one emitter's main lobe, so its own shoulders are not the "
+    "next peak) and the two-epoch rule for a peak at an already-listed code "
+    "phase (a data transition inside the epoch splits one emitter into twins "
+    "at its own code phase on other tiles; such a peak is held for one dwell "
+    "and listed only if it is still there, at the same tile, on the next). "
+    "Each listed peak is one record from push(), all of a dwell's sharing "
+    "samples_consumed and noise_est; a held twin takes one of the n slots "
+    "that dwell but is not reported. The threshold does not change with n. "
     "Raises ValueError outside 1..64. Clears the held candidates.\n"
     "\n"
     "Forwards to dp_acq_set_max_peaks() on the embedded engine (see its doc\n"
@@ -922,11 +932,11 @@ static PyMethodDef BurstAcquisitionObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject BurstAcquisitionObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "acquire.BurstAcquisition",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.acquire.BurstAcquisition",
   .tp_basicsize                           = sizeof (BurstAcquisitionObject),
   .tp_dealloc = (destructor)BurstAcquisitionObj_dealloc,
   .tp_flags   = Py_TPFLAGS_DEFAULT,

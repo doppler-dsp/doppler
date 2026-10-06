@@ -85,15 +85,16 @@ AccCf64_step (AccCf64Object *self, PyObject *args)
 }
 
 static PyObject *
-AccCf64_steps (AccCf64Object *self, PyObject *args)
+AccCf64_steps (AccCf64Object *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  PyObject *in_obj = NULL;
-  if (!PyArg_ParseTuple (args, "O", &in_obj))
+  static char *kwlist[] = { "x", NULL };
+  PyObject    *in_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", kwlist, &in_obj))
     return NULL;
 
   PyArrayObject *in_arr = (PyArrayObject *)jm_array_arg (
@@ -375,8 +376,8 @@ static PyMethodDef AccCf64_methods[] = {
     ">>> obj.get()\n"
     "(3+2j)\n"
     "\n" },
-  { "steps", (PyCFunction)AccCf64_steps, METH_VARARGS,
-    "steps(x[, out]) -> ndarray\n"
+  { "steps", (PyCFunction)(void *)AccCf64_steps, METH_VARARGS | METH_KEYWORDS,
+    "steps(x)\n"
     "\n"
     "Add all samples in ``input`` to the running sum. Equivalent to\n"
     "calling ``dp_acc_cf64_step`` for each element; iterates\n"

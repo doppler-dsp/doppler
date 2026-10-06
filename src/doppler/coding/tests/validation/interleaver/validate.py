@@ -779,7 +779,7 @@ def measure_refusals(d: Data) -> None:
             refused = False
         except ValueError as exc:
             verdict, msg = "ValueError", str(exc)
-            names &= f"block_bits = {blk}" in msg
+            names &= "block_bits" in msg
         rows.append([f"`{name}`", n, why, verdict])
     for r, c, u, why in (
         (0, 4, 1, "rows"),
@@ -808,10 +808,12 @@ def measure_refusals(d: Data) -> None:
             )
     R.table(["call", "length", "case", "outcome"], rows)
     R.md(
-        f"The message names the block size — *"
-        f"`interleave: length {blk + 1} is not a whole number of blocks of "
-        f"block_bits = {blk}`* — which is the number a caller needs to fix "
-        f"their framing, and is not derivable from the exception type."
+        f"The message names the property that holds the block size, "
+        f"`block_bits` (here {blk}), which is what a caller needs to fix "
+        f"their framing and is not derivable from the exception type. It "
+        f"names the property rather than quoting its value: the refusal is "
+        f"declared in the manifest (`error_on_empty`), whose message is "
+        f"static text, and the number is one `il.block_bits` read away."
     )
     R.md()
     R.md(
@@ -1181,7 +1183,7 @@ def limits(d: Data) -> None:
     )
     R.limit(
         d.refusal_names_the_block,
-        "the refusal names block_bits, the number a caller needs to fix "
+        "the refusal names block_bits, the property a caller reads to fix "
         "their framing",
     )
     R.limit(

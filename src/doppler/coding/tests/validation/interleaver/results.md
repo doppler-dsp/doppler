@@ -166,7 +166,7 @@ A partial block is REFUSED — never padded, never truncated to the whole blocks
 | `Interleaver()` | 4x0x1 | zero cols | ValueError |
 | `Interleaver()` | 4x4x0 | zero unit_bits | ValueError |
 
-The message names the block size — *`interleave: length 13 is not a whole number of blocks of block_bits = 12`* — which is the number a caller needs to fix their framing, and is not derivable from the exception type.
+The message names the property that holds the block size, `block_bits` (here 12), which is what a caller needs to fix their framing and is not derivable from the exception type. It names the property rather than quoting its value: the refusal is declared in the manifest (`error_on_empty`), whose message is static text, and the number is one `il.block_bits` read away.
 
 **Nothing survives between calls.** The sentence that exempts this object from the state-serialization standard every other stateful object obeys, and its only observable is that the same input answers the same way regardless of history. Measured across a successful call, a refused one, the inverse direction and a `reset`.
 
@@ -235,7 +235,7 @@ Claims a caller may rely on. A failure here is a regression, not a new finding. 
 | PASS | the soft path is the same permutation as the hard one, exactly |
 | PASS | +/-inf, NaN and -0.0 arrive bit-for-bit: the soft path moves values, it does not compute with them |
 | PASS | every method refuses a partial block, an empty input and a zero geometry, and nothing survives between calls |
-| PASS | the refusal names block_bits, the number a caller needs to fix their framing |
+| PASS | the refusal names block_bits, the property a caller reads to fix their framing |
 | PASS | the receive face reads back one geometry with the transmit face and undoes what it interleaved |
 | PASS | `interleave` is absent from Deinterleaver — a receive-only face cannot silently run the forward direction |
 | PASS | a mismatched geometry is NOT refused and returns the right length with up to 91% of positions wrong |

@@ -16,8 +16,6 @@
 # warning is fixed at its cause.
 #
 # Format: one repo-relative path per line.
-native/src/coding/coding_ext_deinterleaver.c
-native/src/coding/coding_ext_interleaver.c
 native/src/resample/resample_ext_HalfbandDecimator.c
 native/src/resample/resample_ext_Resampler.c
 native/src/resample/resample_ext_extra.c

@@ -19,6 +19,7 @@ no_step = "true"
 class_name = "Interleaver"
 create_error = "ValueError"
 create_error_message = "Interleaver: rows, cols and unit_bits must all be non-zero, and their product must fit a size_t"
+fragment = "generated"
 
 # Interleaving depth: how many codewords are interleaved, and so the longest
 # burst that lands at most once in each.
@@ -61,6 +62,10 @@ init_params = [
 ]
 exclude_methods = ["interleave"]
 
+# A partial block is a REFUSAL, not an empty answer (jm gh-1159, error_on_empty):
+# the kernel returns 0, and without this the Python face returned a zero-length
+# array, so a frame came back short with nothing to say why. The message is
+# static text; it names `block_bits` rather than quoting its value.
 [[interleaver.methods]]
 name = "interleave"
 doc = "Interleave a whole number of blocks: write the input by rows into a `rows` x `cols` matrix and read it back by columns. Length-preserving. A length that is not a whole multiple of `block_bits` is REFUSED rather than padded -- padding changes the length, and a receiver de-interleaving the padded block recovers different bits."
@@ -68,6 +73,9 @@ arg_type = "uint8_t"
 return_type = "uint8_t"
 variable_output = true
 pass_capacity = true
+error_on_empty = true
+error = "ValueError"
+error_message = "interleave: the length is not a whole number of blocks. A partial block is refused, not padded; one block is this object's block_bits"
 
 [[interleaver.methods]]
 name = "deinterleave"
@@ -76,6 +84,9 @@ arg_type = "uint8_t"
 return_type = "uint8_t"
 variable_output = true
 pass_capacity = true
+error_on_empty = true
+error = "ValueError"
+error_message = "deinterleave: the length is not a whole number of blocks. A partial block is refused, not padded; one block is this object's block_bits"
 
 [[interleaver.methods]]
 name = "deinterleave_soft"
@@ -84,6 +95,9 @@ arg_type = "float"
 return_type = "float"
 variable_output = true
 pass_capacity = true
+error_on_empty = true
+error = "ValueError"
+error_message = "deinterleave_soft: the length is not a whole number of blocks. A partial block is refused, not padded; one block is this object's block_bits"
 
 [[interleaver.properties]]
 name = "rows"

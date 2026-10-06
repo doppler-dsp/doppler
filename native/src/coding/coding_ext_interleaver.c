@@ -1,8 +1,10 @@
+/* jm:generated coding_ext_interleaver.c */
 /*
  * coding_ext_interleaver.c — Interleaver type for the coding module.
  *
  * Included by coding_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in coding_ext_interleaver_extra.c.
  * Do NOT compile this file directly — only coding_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ InterleaverObj_dealloc (InterleaverObject *self)
 static PyObject *
 InterleaverObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   InterleaverObject *self = (InterleaverObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -100,10 +105,12 @@ InterleaverObj_interleave (InterleaverObject *self, PyObject *args,
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &in_obj,
                                     &out_obj))
     return NULL;
-  PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      in_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *in_arr
+      = jm_array_arg (in_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!in_arr)
-    return NULL;
+    {
+      return NULL;
+    }
   Py_ssize_t n = PyArray_SIZE (in_arr);
   if (out_obj && out_obj != Py_None)
     {
@@ -120,8 +127,9 @@ InterleaverObj_interleave (InterleaverObject *self, PyObject *args,
           Py_DECREF (in_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_UINT8,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (in_arr);
@@ -143,21 +151,23 @@ InterleaverObj_interleave (InterleaverObject *self, PyObject *args,
           self->handle, (const uint8_t *)PyArray_DATA (in_arr), (size_t)n,
           (uint8_t *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
-      /* A kernel refusal is 0, and 0 is not a length here: every method below
-         refuses n_in == 0 too, so an empty result can only mean the input was
-         not a whole number of blocks. Returning an empty array would be a
-         silent wrong answer -- the frame comes back short and nothing says
-         why. jm has no declarative hook for this: `error`/`status_return`
-         apply to an int-returning method and a variable_output one has no
-         status to carry (just-makeit#1159). */
-      if (n_out == 0)
+      if ((size_t)(n_out) > (size_t)(_cap))
         {
           Py_DECREF (out_arr);
-          PyErr_Format (
+          PyErr_Format (PyExc_RuntimeError,
+                        "Interleaver.interleave: wrote %zu elements into a "
+                        "buffer of %zu",
+                        (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
+      if (!n_out)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (
               PyExc_ValueError,
-              "interleave: length %zd is not a whole number of blocks "
-              "of block_bits = %zu",
-              (Py_ssize_t)n, dp_interleaver_get_block_bits (self->handle));
+              "interleave: the length is not a whole number of "
+              "blocks. A partial block is refused, not padded; one "
+              "block is this object's block_bits");
           return NULL;
         }
       npy_intp  _odim  = (npy_intp)n_out;
@@ -168,13 +178,29 @@ InterleaverObj_interleave (InterleaverObject *self, PyObject *args,
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)n;
   size_t _cap  = dp_interleaver_interleave_max_out (self->handle, (size_t)n);
   (void)_need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (in_arr);
+      PyErr_Format (
+          PyExc_OverflowError,
+          "Interleaver.interleave: output of %zu elements is too large",
+          _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_UINT8);
   if (!arr0)
     {
@@ -186,21 +212,22 @@ InterleaverObj_interleave (InterleaverObject *self, PyObject *args,
       self->handle, (const uint8_t *)PyArray_DATA (in_arr), (size_t)n, _d0,
       _cap);
   Py_DECREF (in_arr);
-  /* A kernel refusal is 0, and 0 is not a length here: every method below
-     refuses n_in == 0 too, so an empty result can only mean the input was
-     not a whole number of blocks. Returning an empty array would be a
-     silent wrong answer -- the frame comes back short and nothing says
-     why. jm has no declarative hook for this: `error`/`status_return`
-     apply to an int-returning method and a variable_output one has no
-     status to carry (just-makeit#1159). */
-  if (n_out == 0)
+  if ((size_t)(n_out) > (size_t)(_cap))
     {
       Py_DECREF (arr0);
-      PyErr_Format (PyExc_ValueError,
-                    "interleave: length %zd is not a whole number of blocks "
-                    "of block_bits = %zu",
-                    (Py_ssize_t)n,
-                    dp_interleaver_get_block_bits (self->handle));
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "Interleaver.interleave: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
+  if (!n_out)
+    {
+      Py_DECREF (arr0);
+      PyErr_SetString (PyExc_ValueError,
+                       "interleave: the length is not a whole number of "
+                       "blocks. A partial block is refused, not padded; one "
+                       "block is this object's block_bits");
       return NULL;
     }
   if ((size_t)n_out == _cap)
@@ -249,10 +276,12 @@ InterleaverObj_deinterleave (InterleaverObject *self, PyObject *args,
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &in_obj,
                                     &out_obj))
     return NULL;
-  PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      in_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *in_arr
+      = jm_array_arg (in_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!in_arr)
-    return NULL;
+    {
+      return NULL;
+    }
   Py_ssize_t n = PyArray_SIZE (in_arr);
   if (out_obj && out_obj != Py_None)
     {
@@ -269,8 +298,9 @@ InterleaverObj_deinterleave (InterleaverObject *self, PyObject *args,
           Py_DECREF (in_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_UINT8,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (in_arr);
@@ -292,21 +322,23 @@ InterleaverObj_deinterleave (InterleaverObject *self, PyObject *args,
           self->handle, (const uint8_t *)PyArray_DATA (in_arr), (size_t)n,
           (uint8_t *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
-      /* A kernel refusal is 0, and 0 is not a length here: every method below
-         refuses n_in == 0 too, so an empty result can only mean the input was
-         not a whole number of blocks. Returning an empty array would be a
-         silent wrong answer -- the frame comes back short and nothing says
-         why. jm has no declarative hook for this: `error`/`status_return`
-         apply to an int-returning method and a variable_output one has no
-         status to carry (just-makeit#1159). */
-      if (n_out == 0)
+      if ((size_t)(n_out) > (size_t)(_cap))
         {
           Py_DECREF (out_arr);
-          PyErr_Format (
+          PyErr_Format (PyExc_RuntimeError,
+                        "Interleaver.deinterleave: wrote %zu elements into a "
+                        "buffer of %zu",
+                        (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
+      if (!n_out)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (
               PyExc_ValueError,
-              "deinterleave: length %zd is not a whole number of blocks "
-              "of block_bits = %zu",
-              (Py_ssize_t)n, dp_interleaver_get_block_bits (self->handle));
+              "deinterleave: the length is not a whole number of "
+              "blocks. A partial block is refused, not padded; one "
+              "block is this object's block_bits");
           return NULL;
         }
       npy_intp  _odim  = (npy_intp)n_out;
@@ -317,13 +349,29 @@ InterleaverObj_deinterleave (InterleaverObject *self, PyObject *args,
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)n;
   size_t _cap  = dp_interleaver_deinterleave_max_out (self->handle, (size_t)n);
   (void)_need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (in_arr);
+      PyErr_Format (
+          PyExc_OverflowError,
+          "Interleaver.deinterleave: output of %zu elements is too large",
+          _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_UINT8);
   if (!arr0)
     {
@@ -335,21 +383,22 @@ InterleaverObj_deinterleave (InterleaverObject *self, PyObject *args,
       self->handle, (const uint8_t *)PyArray_DATA (in_arr), (size_t)n, _d0,
       _cap);
   Py_DECREF (in_arr);
-  /* A kernel refusal is 0, and 0 is not a length here: every method below
-     refuses n_in == 0 too, so an empty result can only mean the input was
-     not a whole number of blocks. Returning an empty array would be a
-     silent wrong answer -- the frame comes back short and nothing says
-     why. jm has no declarative hook for this: `error`/`status_return`
-     apply to an int-returning method and a variable_output one has no
-     status to carry (just-makeit#1159). */
-  if (n_out == 0)
+  if ((size_t)(n_out) > (size_t)(_cap))
     {
       Py_DECREF (arr0);
-      PyErr_Format (PyExc_ValueError,
-                    "deinterleave: length %zd is not a whole number of blocks "
-                    "of block_bits = %zu",
-                    (Py_ssize_t)n,
-                    dp_interleaver_get_block_bits (self->handle));
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "Interleaver.deinterleave: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
+  if (!n_out)
+    {
+      Py_DECREF (arr0);
+      PyErr_SetString (PyExc_ValueError,
+                       "deinterleave: the length is not a whole number of "
+                       "blocks. A partial block is refused, not padded; one "
+                       "block is this object's block_bits");
       return NULL;
     }
   if ((size_t)n_out == _cap)
@@ -399,10 +448,12 @@ InterleaverObj_deinterleave_soft (InterleaverObject *self, PyObject *args,
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &in_obj,
                                     &out_obj))
     return NULL;
-  PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      in_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *in_arr
+      = jm_array_arg (in_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!in_arr)
-    return NULL;
+    {
+      return NULL;
+    }
   Py_ssize_t n = PyArray_SIZE (in_arr);
   if (out_obj && out_obj != Py_None)
     {
@@ -419,8 +470,9 @@ InterleaverObj_deinterleave_soft (InterleaverObject *self, PyObject *args,
           Py_DECREF (in_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_FLOAT,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (in_arr);
@@ -442,21 +494,23 @@ InterleaverObj_deinterleave_soft (InterleaverObject *self, PyObject *args,
           self->handle, (const float *)PyArray_DATA (in_arr), (size_t)n,
           (float *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
-      /* A kernel refusal is 0, and 0 is not a length here: every method below
-         refuses n_in == 0 too, so an empty result can only mean the input was
-         not a whole number of blocks. Returning an empty array would be a
-         silent wrong answer -- the frame comes back short and nothing says
-         why. jm has no declarative hook for this: `error`/`status_return`
-         apply to an int-returning method and a variable_output one has no
-         status to carry (just-makeit#1159). */
-      if (n_out == 0)
+      if ((size_t)(n_out) > (size_t)(_cap))
         {
           Py_DECREF (out_arr);
-          PyErr_Format (
+          PyErr_Format (PyExc_RuntimeError,
+                        "Interleaver.deinterleave_soft: wrote %zu elements "
+                        "into a buffer of %zu",
+                        (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
+      if (!n_out)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (
               PyExc_ValueError,
-              "deinterleave_soft: length %zd is not a whole number of blocks "
-              "of block_bits = %zu",
-              (Py_ssize_t)n, dp_interleaver_get_block_bits (self->handle));
+              "deinterleave_soft: the length is not a whole number "
+              "of blocks. A partial block is refused, not padded; "
+              "one block is this object's block_bits");
           return NULL;
         }
       npy_intp  _odim  = (npy_intp)n_out;
@@ -467,14 +521,30 @@ InterleaverObj_deinterleave_soft (InterleaverObject *self, PyObject *args,
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)n;
   size_t _cap
       = dp_interleaver_deinterleave_soft_max_out (self->handle, (size_t)n);
   (void)_need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (in_arr);
+      PyErr_Format (
+          PyExc_OverflowError,
+          "Interleaver.deinterleave_soft: output of %zu elements is too large",
+          _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_FLOAT);
   if (!arr0)
     {
@@ -486,21 +556,22 @@ InterleaverObj_deinterleave_soft (InterleaverObject *self, PyObject *args,
       self->handle, (const float *)PyArray_DATA (in_arr), (size_t)n, _d0,
       _cap);
   Py_DECREF (in_arr);
-  /* A kernel refusal is 0, and 0 is not a length here: every method below
-     refuses n_in == 0 too, so an empty result can only mean the input was
-     not a whole number of blocks. Returning an empty array would be a
-     silent wrong answer -- the frame comes back short and nothing says
-     why. jm has no declarative hook for this: `error`/`status_return`
-     apply to an int-returning method and a variable_output one has no
-     status to carry (just-makeit#1159). */
-  if (n_out == 0)
+  if ((size_t)(n_out) > (size_t)(_cap))
     {
       Py_DECREF (arr0);
-      PyErr_Format (
-          PyExc_ValueError,
-          "deinterleave_soft: length %zd is not a whole number of blocks "
-          "of block_bits = %zu",
-          (Py_ssize_t)n, dp_interleaver_get_block_bits (self->handle));
+      PyErr_Format (PyExc_RuntimeError,
+                    "Interleaver.deinterleave_soft: wrote %zu elements into a "
+                    "buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
+  if (!n_out)
+    {
+      Py_DECREF (arr0);
+      PyErr_SetString (PyExc_ValueError,
+                       "deinterleave_soft: the length is not a whole number "
+                       "of blocks. A partial block is refused, not padded; "
+                       "one block is this object's block_bits");
       return NULL;
     }
   if ((size_t)n_out == _cap)
@@ -612,7 +683,7 @@ static PyGetSetDef Interleaver_getset[]
           "burst ACROSS. Equal to `cols`, and named for what it buys rather "
           "than for the matrix it comes from.\n",
           NULL },
-        { NULL } };
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 InterleaverObj_destroy (InterleaverObject *self, PyObject *Py_UNUSED (ignored))
@@ -688,6 +759,15 @@ static PyMethodDef InterleaverObj_methods[] = {
     "    padding changes the length, and a receiver that de-interleaved the\n"
     "    padded block would recover different bits.\n"
     "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call writes no output. Its return value is a count, so a\n"
+    "    zero-length result is a REFUSAL rather than an empty answer. The\n"
+    "    exception message is ``interleave: the length is not a whole number\n"
+    "    of blocks. A partial block is refused, not padded; one block is\n"
+    "    this object's block_bits``.\n"
+    "\n"
     "Examples\n"
     "--------\n"
     ">>> import numpy as np\n"
@@ -744,6 +824,15 @@ static PyMethodDef InterleaverObj_methods[] = {
     "NDArray[np.uint8]\n"
     "    n_in, or 0 on a refusal.\n"
     "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call writes no output. Its return value is a count, so a\n"
+    "    zero-length result is a REFUSAL rather than an empty answer. The\n"
+    "    exception message is ``deinterleave: the length is not a whole\n"
+    "    number of blocks. A partial block is refused, not padded; one block\n"
+    "    is this object's block_bits``.\n"
+    "\n"
     "Examples\n"
     "--------\n"
     ">>> import numpy as np\n"
@@ -759,9 +848,8 @@ static PyMethodDef InterleaverObj_methods[] = {
     "\n"
     "Output bits for n_in input bits — the same number.\n"
     "\n"
-    "Identical to dp_interleaver_interleave_max_out, and for the same "
-    "reason:\n"
-    "the inverse of a permutation is a permutation.\n"
+    "Identical to dp_interleaver_interleave_max_out, and for the same\n"
+    "reason: the inverse of a permutation is a permutation.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -806,6 +894,15 @@ static PyMethodDef InterleaverObj_methods[] = {
     "-------\n"
     "NDArray[np.float32]\n"
     "    n_in, or 0 on a refusal.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call writes no output. Its return value is a count, so a\n"
+    "    zero-length result is a REFUSAL rather than an empty answer. The\n"
+    "    exception message is ``deinterleave_soft: the length is not a whole\n"
+    "    number of blocks. A partial block is refused, not padded; one block\n"
+    "    is this object's block_bits``.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -871,11 +968,11 @@ static PyMethodDef InterleaverObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject InterleaverObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "coding.Interleaver",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.coding.Interleaver",
   .tp_basicsize                           = sizeof (InterleaverObject),
   .tp_dealloc                             = (destructor)InterleaverObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

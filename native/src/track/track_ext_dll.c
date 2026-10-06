@@ -1,8 +1,10 @@
+/* jm:generated track_ext_dll.c */
 /*
  * track_ext_dll.c — Dll type for the track module.
  *
  * Included by track_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in track_ext_dll_extra.c.
  * Do NOT compile this file directly — only track_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ DllObj_dealloc (DllObject *self)
 static PyObject *
 DllObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   DllObject *self = (DllObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -52,8 +57,8 @@ DllObj_init (DllObject *self, PyObject *args, PyObject *kwds)
     return -1;
   size_t         sps      = (size_t)sps_raw;
   size_t         segments = (size_t)segments_raw;
-  PyArrayObject *code_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *code_arr
+      = jm_array_arg (code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "code");
   if (!code_arr)
     {
       return -1;
@@ -97,8 +102,7 @@ DllObj_steps (DllObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
-                                             NPY_ARRAY_C_CONTIGUOUS);
+  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     return NULL;
   if (out_obj && out_obj != Py_None)
@@ -116,9 +120,9 @@ DllObj_steps (DllObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (x_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_COMPLEX64,
-          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (x_arr);
@@ -150,6 +154,14 @@ DllObj_steps (DllObject *self, PyObject *args, PyObject *kwds)
         n_out = dp_dll_steps (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (PyExc_RuntimeError,
+                        "Dll.steps: wrote %zu elements into a buffer of %zu",
+                        (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
                                                     PyArray_DATA (out_arr));
@@ -158,14 +170,29 @@ DllObj_steps (DllObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   size_t _cap  = dp_dll_steps_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "Dll.steps: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
   if (!arr0)
     {
@@ -184,6 +211,14 @@ DllObj_steps (DllObject *self, PyObject *args, PyObject *kwds)
     n_out = dp_dll_steps (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_RuntimeError,
+                    "Dll.steps: wrote %zu elements into a buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -237,7 +272,8 @@ DllObj_set_telemetry (DllObject *self, PyObject *args, PyObject *kwds)
   int      _rc   = dp_dll_set_telemetry (self->handle, tlm, prefix, decim);
   if (_rc != 0)
     {
-      PyErr_Format (PyExc_ValueError, "set_telemetry failed (rc=%d)", _rc);
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_telemetry failed",
+                    (long long)_rc);
       return NULL;
     }
   Py_RETURN_NONE;
@@ -277,6 +313,83 @@ DllObj_set_rate_aid (DllObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+DllObj_take_error_mean (DllObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  double y = dp_dll_take_error_mean (self->handle);
+  return PyFloat_FromDouble (y);
+}
+
+static PyObject *
+DllObj_set_code_phase (DllObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "chips", NULL };
+  double       chips     = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist, &chips))
+    return NULL;
+  dp_dll_set_code_phase (self->handle, chips);
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+DllObj_set_symbol_period (DllObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[]           = { "partials_per_symbol", NULL };
+  double       partials_per_symbol = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist,
+                                    &partials_per_symbol))
+    return NULL;
+  int _rc = dp_dll_set_symbol_period (self->handle, partials_per_symbol);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "set_symbol_period failed", (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+DllObj_set_lock_verify (DllObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char  *_kwlist[]  = { "n_up", "n_down", NULL };
+  unsigned long n_up_raw   = 0UL;
+  unsigned long n_down_raw = 0UL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "kk", _kwlist, &n_up_raw,
+                                    &n_down_raw))
+    return NULL;
+  uint32_t n_up   = (uint32_t)n_up_raw;
+  uint32_t n_down = (uint32_t)n_down_raw;
+  int      _rc    = dp_dll_set_lock_verify (self->handle, n_up, n_down);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_lock_verify failed",
+                    (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
 DllObj_configure_lock (DllObject *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
@@ -295,7 +408,8 @@ DllObj_configure_lock (DllObject *self, PyObject *args, PyObject *kwds)
   int    _rc = dp_dll_configure_lock (self->handle, pfa, n_looks, ref_snr_db);
   if (_rc != 0)
     {
-      PyErr_Format (PyExc_ValueError, "configure_lock failed (rc=%d)", _rc);
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "configure_lock failed",
+                    (long long)_rc);
       return NULL;
     }
   Py_RETURN_NONE;
@@ -464,6 +578,18 @@ Dll_getprop_segments (DllObject *self, void *Py_UNUSED (closure))
       (unsigned long long)dp_dll_get_segments (self->handle));
 }
 static PyObject *
+Dll_getprop_symbol_window (DllObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)dp_dll_get_symbol_window (self->handle));
+}
+static PyObject *
 Dll_getprop_locked (DllObject *self, void *Py_UNUSED (closure))
 {
   if (!self->handle)
@@ -497,49 +623,35 @@ Dll_getprop_noise_est (DllObject *self, void *Py_UNUSED (closure))
   return PyFloat_FromDouble (dp_dll_get_noise_est (self->handle));
 }
 
-static PyObject *
-Dll_getprop_symbol_window (DllObject *self, void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)dp_dll_get_symbol_window (self->handle));
-}
-
-static PyGetSetDef Dll_getset[] = {
-  { "bn", (getter)Dll_getprop_bn, (setter)Dll_setprop_bn,
-    "loop noise bandwidth (retained).\n", NULL },
-  { "code_phase", (getter)Dll_getprop_code_phase, NULL, "Code phase.\n",
-    NULL },
-  { "code_rate", (getter)Dll_getprop_code_rate, NULL,
-    "chips advanced per nominal chip (~1.0).\n", NULL },
-  { "last_error", (getter)Dll_getprop_last_error, NULL,
-    "last discriminator output (loop stress).\n", NULL },
-  { "segments", (getter)Dll_getprop_segments, NULL,
-    "partial correlations per epoch (1 = full).\n", NULL },
-  { "locked", (getter)Dll_getprop_locked, NULL,
-    "Current lock decision: True after the verify count of consecutive "
-    "above-threshold N-look decisions, False again after the drop count of "
-    "consecutive below-threshold ones (see configure_lock).\n",
-    NULL },
-  { "lock_stat", (getter)Dll_getprop_lock_stat, NULL,
-    "Last code-lock test statistic R = sqrt(2*sum|P|^2 / E|O|^2); compare "
-    "against det_threshold_noncoherent(pfa, n_looks).\n",
-    NULL },
-  { "noise_est", (getter)Dll_getprop_noise_est, NULL,
-    "Current CFAR noise-power estimate E|O|^2 from the off-peak (noise) tap "
-    "EMA.\n",
-    NULL },
-  { "symbol_window", (getter)Dll_getprop_symbol_window, NULL,
-    "The lock detector's coherent window in partials when set_symbol_period "
-    "is on (0 = off) -- size n_looks from it.\n",
-    NULL },
-  { NULL }
-};
+static PyGetSetDef Dll_getset[]
+    = { { "bn", (getter)Dll_getprop_bn, (setter)Dll_setprop_bn,
+          "loop noise bandwidth (retained).\n", NULL },
+        { "code_phase", (getter)Dll_getprop_code_phase, NULL, "Code phase.\n",
+          NULL },
+        { "code_rate", (getter)Dll_getprop_code_rate, NULL,
+          "chips advanced per nominal chip (~1.0).\n", NULL },
+        { "last_error", (getter)Dll_getprop_last_error, NULL,
+          "last discriminator output (loop stress).\n", NULL },
+        { "segments", (getter)Dll_getprop_segments, NULL,
+          "partial correlations per epoch (1 = full).\n", NULL },
+        { "symbol_window", (getter)Dll_getprop_symbol_window, NULL,
+          "The lock detector's coherent window in partials when "
+          "set_symbol_period is on (0 = off) -- size n_looks from it.\n",
+          NULL },
+        { "locked", (getter)Dll_getprop_locked, NULL,
+          "Current lock decision: True after the verify count of consecutive "
+          "above-threshold N-look decisions, False again after the drop count "
+          "of consecutive below-threshold ones (see configure_lock).\n",
+          NULL },
+        { "lock_stat", (getter)Dll_getprop_lock_stat, NULL,
+          "Last code-lock test statistic R = sqrt(2*sum|P|^2 / E|O|^2); "
+          "compare against det_threshold_noncoherent(pfa, n_looks).\n",
+          NULL },
+        { "noise_est", (getter)Dll_getprop_noise_est, NULL,
+          "Current CFAR noise-power estimate E|O|^2 from the off-peak (noise) "
+          "tap EMA.\n",
+          NULL },
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 DllObj_destroy (DllObject *self, PyObject *Py_UNUSED (ignored))
@@ -569,83 +681,6 @@ DllObj_exit (DllObject *self, PyObject *args)
       self->handle = NULL;
     }
   Py_RETURN_NONE;
-}
-
-static PyObject *
-DllObj_set_symbol_period (DllObject *self, PyObject *args, PyObject *kwds)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  static char *_kwlist[]           = { "partials_per_symbol", NULL };
-  double       partials_per_symbol = 0.0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist,
-                                    &partials_per_symbol))
-    return NULL;
-  int _rc = dp_dll_set_symbol_period (self->handle, partials_per_symbol);
-  if (_rc != 0)
-    {
-      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
-                    "set_symbol_period failed", (long long)_rc);
-      return NULL;
-    }
-  Py_RETURN_NONE;
-}
-
-static PyObject *
-DllObj_set_lock_verify (DllObject *self, PyObject *args, PyObject *kwds)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  static char  *_kwlist[]  = { "n_up", "n_down", NULL };
-  unsigned long n_up_raw   = 0UL;
-  unsigned long n_down_raw = 0UL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "kk", _kwlist, &n_up_raw,
-                                    &n_down_raw))
-    return NULL;
-  uint32_t n_up   = (uint32_t)n_up_raw;
-  uint32_t n_down = (uint32_t)n_down_raw;
-  int      _rc    = dp_dll_set_lock_verify (self->handle, n_up, n_down);
-  if (_rc != 0)
-    {
-      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_lock_verify failed",
-                    (long long)_rc);
-      return NULL;
-    }
-  Py_RETURN_NONE;
-}
-
-static PyObject *
-DllObj_set_code_phase (DllObject *self, PyObject *args, PyObject *kwds)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  static char *_kwlist[] = { "chips", NULL };
-  double       chips     = 0.0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist, &chips))
-    return NULL;
-  dp_dll_set_code_phase (self->handle, chips);
-  Py_RETURN_NONE;
-}
-
-static PyObject *
-DllObj_take_error_mean (DllObject *self, PyObject *Py_UNUSED (ignored))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  double y = dp_dll_take_error_mean (self->handle);
-  return PyFloat_FromDouble (y);
 }
 
 static PyMethodDef DllObj_methods[] = {
@@ -807,13 +842,13 @@ static PyMethodDef DllObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "set_rate_aid(rate_aid) -> None\n"
     "\n"
-    "Set the carrier-aiding code-rate deviation (ratio; 0 = off): a fixed\n"
-    "fractional rate bias summed into the code NCO's phase_inc every epoch,\n"
-    "on top of the loop's own control. For physically-coupled Doppler, pass\n"
-    "carrier_offset_hz / carrier_freq_hz so the code NCO rides the code-rate\n"
-    "dilation the discriminator alone can't pull in at low SNR. Applied\n"
-    "continuously across the epoch (not a phase pulse), and nudges the\n"
-    "current phase_inc so the aid takes effect before the first period\n"
+    "Set the carrier-aiding code-rate deviation (ratio; 0 = off): a fixed "
+    "fractional rate bias summed into the code NCO's phase_inc every epoch, "
+    "on top of the loop's own control. For physically-coupled Doppler, pass "
+    "carrier_offset_hz / carrier_freq_hz so the code NCO rides the code-rate "
+    "dilation the discriminator alone can't pull in at low SNR. Applied "
+    "continuously across the epoch (not a phase pulse), and nudges the "
+    "current phase_inc so the aid takes effect before the first period "
     "update. code_rate stays the loop's own observable and is unaffected.\n"
     "\n"
     "A fixed fractional rate bias summed into the sample-and-hold\n"
@@ -824,12 +859,11 @@ static PyMethodDef DllObj_methods[] = {
     "`phase_inc`), not as a phase pulse. Also nudges the current `phase_inc`\n"
     "so the aid takes effect before the first period update. `code_rate`\n"
     "stays the loop's own observable and is unaffected. A HELD loop\n"
-    "(dp_dll_set_coast()) takes the new aid at once: nothing steers a "
-    "coasting\n"
-    "loop's `phase_inc`, so it is recomputed here from the held filter and\n"
-    "the new aid -- a holder that refreshes the Doppler it holds (a\n"
-    "searcher-timed receiver's fold) sees the code rate follow. Before this,\n"
-    "a coasting loop kept the aid it was held with.\n"
+    "(dp_dll_set_coast()) takes the new aid at once: nothing steers a\n"
+    "coasting loop's `phase_inc`, so it is recomputed here from the held\n"
+    "filter and the new aid -- a holder that refreshes the Doppler it holds\n"
+    "(a searcher-timed receiver's fold) sees the code rate follow. Before\n"
+    "this, a coasting loop kept the aid it was held with.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -855,6 +889,213 @@ static PyMethodDef DllObj_methods[] = {
     ">>> _ = aided.steps(x)\n"
     ">>> round(aided.code_rate, 4)      # loop integrator stays at nominal\n"
     "1.0\n" },
+  { "take_error_mean", (PyCFunction)DllObj_take_error_mean, METH_NOARGS,
+    "take_error_mean() -> float\n"
+    "\n"
+    "dp_dll_take_error() as one number: the mean of the steers taken, or\n"
+    "NaN when none were -- the Python face of the primitive.\n"
+    "\n"
+    "The block-mean discriminator a holder corrects a coasting loop on\n"
+    "(dp_dll_set_code_phase()), read once per interval; each read starts the\n"
+    "next interval's sum from zero.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "float\n"
+    "    The mean of the steers since the last take; NaN when there were\n"
+    "    none.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.track import Dll\n"
+    ">>> rng = np.random.default_rng(3)\n"
+    ">>> code = rng.integers(0, 2, 63).astype(np.uint8)\n"
+    ">>> idx = (np.arange(63 * 4 * 200) // 4) % 63\n"
+    ">>> x = np.where(code[idx] & 1, -1.0, 1.0).astype(np.complex64)\n"
+    ">>> d = Dll(code, sps=4, init_chip=0.15, bn=0.005)   # 0.15 chip off\n"
+    ">>> _ = d.steps(x)                        # 200 epochs: the loop pulls "
+    "in\n"
+    ">>> m = d.take_error_mean()               # the 200 steers' mean\n"
+    ">>> 0.0 < abs(m) < 0.5                    # the pull-in's transient\n"
+    "True\n"
+    ">>> import math\n"
+    ">>> math.isnan(d.take_error_mean())       # taken: nothing left\n"
+    "True\n" },
+  { "set_code_phase", (PyCFunction)(void *)DllObj_set_code_phase,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_code_phase(chips) -> None\n"
+    "\n"
+    "Set the prompt code phase, in chips: the correction a holder applies\n"
+    "to a coasting loop.\n"
+    "\n"
+    "Moves the code NCO to chips (modulo the code length): the loop filter,\n"
+    "the rate aid, the lock detector and the symbol-period aid keep their\n"
+    "state. Within a period the accumulators of the period in progress\n"
+    "finish on the new phase. Across the period wrap -- where a holder fed\n"
+    "whole periods sits -- the move is taken the short way round and the\n"
+    "epoch follows it: a put forward across the wrap closes the epoch in\n"
+    "progress on the next sample (the wrap it was waiting for has happened),\n"
+    "and a put back across it closes nothing until the next wrap (those\n"
+    "samples are the tail of an epoch already closed) and starts the epoch\n"
+    "there. Either way a put never emits a burst of short partials and never\n"
+    "folds a second period into one epoch. This is the other half of\n"
+    "dp_dll_set_coast(): a coasting loop advances at its held rate, which\n"
+    "its 32-bit NCO quantises to a few parts in 10^7 -- about 0.06 chip per\n"
+    "31 ms block at 5 Mcps (design §12.22) -- so whoever holds it on another\n"
+    "clock (a searcher's cell, a carrier aid) puts it back where that clock\n"
+    "says, once per block, and reads the discriminator between. Nominally at\n"
+    "a period boundary; called mid-period it costs that one period's read.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "chips : float\n"
+    "    The prompt's code phase, chips; folded into [0, code_len).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.track import Dll\n"
+    ">>> rng = np.random.default_rng(3)\n"
+    ">>> code = rng.integers(0, 2, 63).astype(np.uint8)\n"
+    ">>> d = Dll(code, sps=4, init_chip=0.0, bn=0.01)\n"
+    ">>> d.set_code_phase(5.25)\n"
+    ">>> round(d.code_phase, 2)\n"
+    "5.25\n"
+    ">>> d.set_code_phase(63.0 + 1.5)      # folded into the period\n"
+    ">>> round(d.code_phase, 2)\n"
+    "1.5\n" },
+  { "set_symbol_period", (PyCFunction)(void *)DllObj_set_symbol_period,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_symbol_period(partials_per_symbol) -> None\n"
+    "\n"
+    "Give the code-lock detector the data-symbol period in partials (segments "
+    "* chip_rate / (sf * symbol_rate); 0 = off), so its looks are coherent "
+    "over a symbol instead of a quarter-epoch partial. The per-epoch "
+    "max-power look-back lifted to the symbol scale: ceil(period) "
+    "boundary-phase hypotheses each own a transition-free window of L = "
+    "min(floor(period) - 1, 4 * segments) partials per symbol, the hypothesis "
+    "whose windows carry the most power (an EMA over ~32 symbols) is the "
+    "symbol timing, and its windows become the detector's looks -- 7.8 dB "
+    "more per look at 1.8 epochs per symbol and four partials per epoch, and "
+    "never across a transition. Size n_looks with detection.det_n_noncoh over "
+    "L * (sf * sps / segments) samples. Only the detector's looks change: the "
+    "discriminator keeps its per-epoch window and the emitted partial stream "
+    "is untouched. Raises ValueError when segments <= 1 or the period is in "
+    "(0, 2).\n"
+    "\n"
+    "In `segments > 1` mode every partial is a look for the code-lock\n"
+    "detector (dp_dll_configure_lock()) and the discriminator sees one epoch\n"
+    "through the per-epoch look-back: the smallest integrations the\n"
+    "asynchronous data allows when nothing is known about where its\n"
+    "transitions fall, and therefore the weakest. This is the same max-power\n"
+    "search the per-epoch look-back already runs, lifted to the symbol scale\n"
+    "once the symbol PERIOD is known: with `P = partials_per_symbol` the\n"
+    "transitions recur every `P` partials, so `ceil(P)` boundary-phase\n"
+    "hypotheses each define a transition-free window of `L = min(floor(P) -\n"
+    "1, 4 * segments)` partials per symbol. Each hypothesis accumulates the\n"
+    "power of its coherently summed windows (an EMA over the last ~32\n"
+    "symbols); the one with the most power IS the symbol timing, and its\n"
+    "windows become the detector's looks and the discriminator's windows. A\n"
+    "look then integrates `L` partials coherently -- at SPEC's 1.8 epochs\n"
+    "per symbol and four partials per epoch, six partials instead of one,\n"
+    "7.8 dB more per look -- and never straddles a transition. Size\n"
+    "`n_looks` for it with detection.det_n_noncoh() over `L * (sf * sps /\n"
+    "segments)` samples.\n"
+    "\n"
+    "The code loop steers once per symbol, on the early/prompt/late sums\n"
+    "over the winning window, instead of once per epoch on the look-back's:\n"
+    "the same discriminator on a window half again as long and never across\n"
+    "a transition. The loop filter is re-timed to the symbol interval, so\n"
+    "`bn` keeps its per-epoch meaning and the tracked rate is continuous\n"
+    "across the switch either way -- a loop that has pulled in a code\n"
+    "Doppler keeps it when the aid is turned on or off. Measured against the\n"
+    "per-epoch loop at the operating point\n"
+    "(docs/design/async-dsss-receiver-measurements.md §12.5,\n"
+    "`validate_dll_aid_jitter`): pull-in about 20% faster, and a code jitter\n"
+    "0.8x the per-epoch loop's above 45 dB-Hz -- where the look-back's own\n"
+    "handling of the data transitions sets it -- and 1.2-1.4x at the 40\n"
+    "dB-Hz floor, where the noise sets it and the window's unused partials\n"
+    "cost more than its coherence buys; hundredths of a chip either way. The\n"
+    "emitted partial stream is untouched: the look-back still supplies its\n"
+    "normalisation. The search is blind to WHICH hypothesis is right on any\n"
+    "one symbol -- it needs no decision and no external timing -- so it\n"
+    "costs nothing at cold start and follows a slowly drifting symbol clock\n"
+    "by itself. `L` is capped at four epochs of partials so a long symbol (a\n"
+    "low data rate) does not ask for coherence across more carrier than the\n"
+    "wipe-off holds.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "partials_per_symbol : float\n"
+    "    Data-symbol period in emitted partials, `segments * chip_rate / (sf\n"
+    "    * symbol_rate)`; >= 2. 0 disables (per-partial looks again).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``set_symbol_period failed``, with the return code appended\n"
+    "    (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.track import Dll\n"
+    ">>> code = (np.arange(63) * 7 % 2).astype(np.uint8)\n"
+    ">>> d = Dll(code, sps=2, segments=4)\n"
+    ">>> d.set_symbol_period(7.24)      # 1.81 epochs per symbol, 4 "
+    "partials/epoch\n"
+    ">>> d.symbol_window                # coherent partials per look\n"
+    "6\n"
+    ">>> d.set_symbol_period(0.0)       # back to per-partial looks\n"
+    ">>> d.symbol_window\n"
+    "0\n" },
+  { "set_lock_verify", (PyCFunction)(void *)DllObj_set_lock_verify,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_lock_verify(n_up, n_down) -> None\n"
+    "\n"
+    "Set the lock detector's verify counts, keeping its thresholds and noise "
+    "reference: n_up consecutive above-threshold decisions to declare, n_down "
+    "consecutive below-threshold decisions to drop. configure_lock derives "
+    "n_up from pfa and fixes n_down at 2; a caller that sized n_looks for a "
+    "target Pd knows the per-decision miss probability 1 - pd, and "
+    "detection.det_verify_count(1 - pd, budget) is the drop count that holds "
+    "the false-drop rate under a budget (3 for pd = 0.99 at 1e-6 per "
+    "decision). The running verify counter and the flag restart. Raises "
+    "ValueError when either count is 0.\n"
+    "\n"
+    "dp_dll_configure_lock() derives the declare count from `pfa` and fixes\n"
+    "the drop count at 2. A caller that has sized `n_looks` for a target Pd\n"
+    "knows the per-decision miss probability `1 - pd`, and\n"
+    "det_verify_count(1 - pd, budget) is the drop count that holds the\n"
+    "false-drop rate under a budget -- three consecutive misses for pd =\n"
+    "0.99 at 1e-6 per decision. This sets both counts without touching the\n"
+    "thresholds or the noise reference; the running verify counter and the\n"
+    "flag restart.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n_up : int\n"
+    "    Consecutive above-threshold decisions to declare (>= 1).\n"
+    "n_down : int\n"
+    "    Consecutive below-threshold decisions to drop (>= 1).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``set_lock_verify failed``, with the return code appended (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.track import Dll\n"
+    ">>> from doppler.detection import det_verify_count\n"
+    ">>> d = Dll(np.zeros(31, dtype=np.uint8), sps=2, segments=4)\n"
+    ">>> d.set_lock_verify(2, det_verify_count(0.01, 1e-6))\n"
+    ">>> d.locked\n"
+    "False\n" },
   { "configure_lock", (PyCFunction)(void *)DllObj_configure_lock,
     METH_VARARGS | METH_KEYWORDS,
     "configure_lock(pfa, n_looks, ref_snr_db) -> None\n"
@@ -1092,18 +1333,16 @@ static PyMethodDef DllObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)DllObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
-    "Lets a Dll be used in a `with` statement so its C resources are "
-    "released\n"
-    "deterministically on exit rather than at collection time.\n"
+    "Lets a Dll be used in a `with` statement so its C resources are\n"
+    "released deterministically on exit rather than at collection time.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -1113,9 +1352,8 @@ static PyMethodDef DllObj_methods[] = {
     "Exit a context manager, releasing the Dll.\n"
     "\n"
     "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
-    "raised inside the `with` body propagates normally; this never "
-    "suppresses\n"
-    "one.\n"
+    "raised inside the `with` body propagates normally; this never\n"
+    "suppresses one.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1125,220 +1363,11 @@ static PyMethodDef DllObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { "set_symbol_period", (PyCFunction)(void *)DllObj_set_symbol_period,
-    METH_VARARGS | METH_KEYWORDS,
-    "set_symbol_period(partials_per_symbol) -> None\n"
-    "\n"
-    "Give the code-lock detector the data-symbol period in partials\n"
-    "(segments * chip_rate / (sf * symbol_rate); 0 = off), so its looks are\n"
-    "coherent over a symbol instead of a quarter-epoch partial. The\n"
-    "per-epoch max-power look-back lifted to the symbol scale: ceil(period)\n"
-    "boundary-phase hypotheses each own a transition-free window of L =\n"
-    "min(floor(period) - 1, 4 * segments) partials per symbol, the\n"
-    "hypothesis whose windows carry the most power (an EMA over ~32 symbols)\n"
-    "is the symbol timing, and its windows become the detector's looks --\n"
-    "7.8 dB more per look at 1.8 epochs per symbol and four partials per\n"
-    "epoch, and never across a transition. Size n_looks with\n"
-    "detection.det_n_noncoh over L * (sf * sps / segments) samples. Only the\n"
-    "detector's looks change: the discriminator keeps its per-epoch window\n"
-    "and the emitted partial stream is untouched. Raises ValueError when\n"
-    "segments <= 1 or the period is in (0, 2).\n"
-    "\n"
-    "In `segments > 1` mode every partial is a look for the code-lock\n"
-    "detector (dp_dll_configure_lock()) and the discriminator sees one epoch\n"
-    "through the per-epoch look-back: the smallest integrations the\n"
-    "asynchronous data allows when nothing is known about where its\n"
-    "transitions fall, and therefore the weakest. This is the same max-power\n"
-    "search the per-epoch look-back already runs, lifted to the symbol scale\n"
-    "once the symbol PERIOD is known: with `P = partials_per_symbol` the\n"
-    "transitions recur every `P` partials, so `ceil(P)` boundary-phase\n"
-    "hypotheses each define a transition-free window of `L = min(floor(P) -\n"
-    "1, 4 * segments)` partials per symbol. Each hypothesis accumulates the\n"
-    "power of its coherently summed windows (an EMA over the last ~32\n"
-    "symbols); the one with the most power IS the symbol timing, and its\n"
-    "windows become the detector's looks and the discriminator's windows. A\n"
-    "look then integrates `L` partials coherently -- at SPEC's 1.8 epochs\n"
-    "per symbol and four partials per epoch, six partials instead of one,\n"
-    "7.8 dB more per look -- and never straddles a transition. Size\n"
-    "`n_looks` for it with detection.det_n_noncoh() over `L * (sf * sps /\n"
-    "segments)` samples.\n"
-    "\n"
-    "The code loop steers once per symbol, on the early/prompt/late sums\n"
-    "over the winning window, instead of once per epoch on the look-back's:\n"
-    "the same discriminator on a window half again as long and never across\n"
-    "a transition. The loop filter is re-timed to the symbol interval, so\n"
-    "`bn` keeps its per-epoch meaning and the tracked rate is continuous\n"
-    "across the switch either way -- a loop that has pulled in a code\n"
-    "Doppler keeps it when the aid is turned on or off. Measured against the\n"
-    "per-epoch loop at the operating point\n"
-    "(docs/design/async-dsss-receiver-measurements.md §12.5,\n"
-    "`validate_dll_aid_jitter`): pull-in about 20% faster, and a code jitter\n"
-    "0.8x the per-epoch loop's above 45 dB-Hz -- where the look-back's own\n"
-    "handling of the data transitions sets it -- and 1.2-1.4x at the 40\n"
-    "dB-Hz floor, where the noise sets it and the window's unused partials\n"
-    "cost more than its coherence buys; hundredths of a chip either way. The\n"
-    "emitted partial stream is untouched: the look-back still supplies its\n"
-    "normalisation. The search is blind to WHICH hypothesis is right on any\n"
-    "one symbol -- it needs no decision and no external timing -- so it\n"
-    "costs nothing at cold start and follows a slowly drifting symbol clock\n"
-    "by itself. `L` is capped at four epochs of partials so a long symbol (a\n"
-    "low data rate) does not ask for coherence across more carrier than the\n"
-    "wipe-off holds.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "partials_per_symbol : float\n"
-    "    Data-symbol period in emitted partials, `segments * chip_rate / (sf\n"
-    "    * symbol_rate)`; >= 2. 0 disables (per-partial looks again).\n"
-    "\n"
-    "Raises\n"
-    "------\n"
-    "ValueError\n"
-    "    If the C call returns a non-zero status. The exception message is\n"
-    "    ``set_symbol_period failed``, with the return code appended\n"
-    "    (gh-869).\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    ">>> import numpy as np\n"
-    ">>> from doppler.track import Dll\n"
-    ">>> code = (np.arange(63) * 7 % 2).astype(np.uint8)\n"
-    ">>> d = Dll(code, sps=2, segments=4)\n"
-    ">>> d.set_symbol_period(7.24)      # 1.81 epochs per symbol, 4 "
-    "partials/epoch\n"
-    ">>> d.symbol_window                # coherent partials per look\n"
-    "6\n"
-    ">>> d.set_symbol_period(0.0)       # back to per-partial looks\n"
-    ">>> d.symbol_window\n"
-    "0\n" },
-  { "set_lock_verify", (PyCFunction)(void *)DllObj_set_lock_verify,
-    METH_VARARGS | METH_KEYWORDS,
-    "set_lock_verify(n_up, n_down) -> None\n"
-    "\n"
-    "Set the lock detector's verify counts, keeping its thresholds and\n"
-    "noise reference: n_up consecutive above-threshold decisions to declare,\n"
-    "n_down consecutive below-threshold decisions to drop. configure_lock\n"
-    "derives n_up from pfa and fixes n_down at 2; a caller that sized\n"
-    "n_looks for a target Pd knows the per-decision miss probability 1 - pd,\n"
-    "and detection.det_verify_count(1 - pd, budget) is the drop count that\n"
-    "holds the false-drop rate under a budget (3 for pd = 0.99 at 1e-6 per\n"
-    "decision). The running verify counter and the flag restart. Raises\n"
-    "ValueError when either count is 0.\n"
-    "\n"
-    "dp_dll_configure_lock() derives the declare count from `pfa` and fixes "
-    "the\n"
-    "drop count at 2. A caller that has sized `n_looks` for a target Pd\n"
-    "knows the per-decision miss probability `1 - pd`, and\n"
-    "det_verify_count(1 - pd, budget) is the drop count that holds the\n"
-    "false-drop rate under a budget -- three consecutive misses for pd =\n"
-    "0.99 at 1e-6 per decision. This sets both counts without touching the\n"
-    "thresholds or the noise reference; the running verify counter and the\n"
-    "flag restart.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "n_up : int\n"
-    "    Consecutive above-threshold decisions to declare (>= 1).\n"
-    "n_down : int\n"
-    "    Consecutive below-threshold decisions to drop (>= 1).\n"
-    "\n"
-    "Raises\n"
-    "------\n"
-    "ValueError\n"
-    "    If the C call returns a non-zero status. The exception message is\n"
-    "    ``set_lock_verify failed``, with the return code appended (gh-869).\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    ">>> import numpy as np\n"
-    ">>> from doppler.track import Dll\n"
-    ">>> from doppler.detection import det_verify_count\n"
-    ">>> d = Dll(np.zeros(31, dtype=np.uint8), sps=2, segments=4)\n"
-    ">>> d.set_lock_verify(2, det_verify_count(0.01, 1e-6))\n"
-    ">>> d.locked\n"
-    "False\n" },
-  { "set_code_phase", (PyCFunction)(void *)DllObj_set_code_phase,
-    METH_VARARGS | METH_KEYWORDS,
-    "set_code_phase(chips) -> None\n"
-    "\n"
-    "Set the prompt code phase, in chips: the correction a holder applies\n"
-    "to a coasting loop.\n"
-    "\n"
-    "Moves the code NCO to chips (modulo the code length): the loop filter,\n"
-    "the rate aid, the lock detector and the symbol-period aid keep their\n"
-    "state. Within a period the accumulators of the period in progress\n"
-    "finish on the new phase. Across the period wrap -- where a holder fed\n"
-    "whole periods sits -- the move is taken the short way round and the\n"
-    "epoch follows it: a put forward across the wrap closes the epoch in\n"
-    "progress on the next sample (the wrap it was waiting for has happened),\n"
-    "and a put back across it closes nothing until the next wrap (those\n"
-    "samples are the tail of an epoch already closed) and starts the epoch\n"
-    "there. Either way a put never emits a burst of short partials and never\n"
-    "folds a second period into one epoch. This is the other half of\n"
-    "dp_dll_set_coast(): a coasting loop advances at its held rate, which "
-    "its\n"
-    "32-bit NCO quantises to a few parts in 10^7 -- about 0.06 chip per 31\n"
-    "ms block at 5 Mcps (design §12.22) -- so whoever holds it on another\n"
-    "clock (a searcher's cell, a carrier aid) puts it back where that clock\n"
-    "says, once per block, and reads the discriminator between. Nominally at\n"
-    "a period boundary; called mid-period it costs that one period's read.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "chips : float\n"
-    "    The prompt's code phase, chips; folded into [0, code_len).\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    ">>> import numpy as np\n"
-    ">>> from doppler.track import Dll\n"
-    ">>> rng = np.random.default_rng(3)\n"
-    ">>> code = rng.integers(0, 2, 63).astype(np.uint8)\n"
-    ">>> d = Dll(code, sps=4, init_chip=0.0, bn=0.01)\n"
-    ">>> d.set_code_phase(5.25)\n"
-    ">>> round(d.code_phase, 2)\n"
-    "5.25\n"
-    ">>> d.set_code_phase(63.0 + 1.5)      # folded into the period\n"
-    ">>> round(d.code_phase, 2)\n"
-    "1.5\n" },
-  { "take_error_mean", (PyCFunction)DllObj_take_error_mean, METH_NOARGS,
-    "take_error_mean() -> float\n"
-    "\n"
-    "dp_dll_take_error() as one number: the mean of the steers taken, or NaN\n"
-    "when none were -- the Python face of the primitive.\n"
-    "\n"
-    "The block-mean discriminator a holder corrects a coasting loop on\n"
-    "(dp_dll_set_code_phase()), read once per interval; each read starts the\n"
-    "next interval's sum from zero.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "float\n"
-    "    The mean of the steers since the last take; NaN when there were\n"
-    "    none.\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    ">>> import numpy as np\n"
-    ">>> from doppler.track import Dll\n"
-    ">>> rng = np.random.default_rng(3)\n"
-    ">>> code = rng.integers(0, 2, 63).astype(np.uint8)\n"
-    ">>> idx = (np.arange(63 * 4 * 200) // 4) % 63\n"
-    ">>> x = np.where(code[idx] & 1, -1.0, 1.0).astype(np.complex64)\n"
-    ">>> d = Dll(code, sps=4, init_chip=0.15, bn=0.005)   # 0.15 chip off\n"
-    ">>> _ = d.steps(x)                        # 200 epochs: the loop pulls "
-    "in\n"
-    ">>> m = d.take_error_mean()               # the 200 steers' mean\n"
-    ">>> 0.0 < abs(m) < 0.5                    # the pull-in's transient\n"
-    "True\n"
-    ">>> import math\n"
-    ">>> math.isnan(d.take_error_mean())       # taken: nothing left\n"
-    "True\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject DllObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "track.Dll",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.track.Dll",
   .tp_basicsize                           = sizeof (DllObject),
   .tp_dealloc                             = (destructor)DllObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

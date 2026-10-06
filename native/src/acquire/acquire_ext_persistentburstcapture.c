@@ -1,9 +1,11 @@
+/* jm:generated acquire_ext_persistentburstcapture.c */
 /*
  * acquire_ext_persistentburstcapture.c — PersistentBurstCapture type for the
  * acquire module.
  *
  * Included by acquire_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in acquire_ext_persistentburstcapture_extra.c.
  * Do NOT compile this file directly — only acquire_ext.c is compiled.
  */
 /* ======================================================== */
@@ -29,6 +31,9 @@ static PyObject *
 PersistentBurstCaptureObj_new (PyTypeObject *type, PyObject *args,
                                PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   PersistentBurstCaptureObject *self
       = (PersistentBurstCaptureObject *)type->tp_alloc (type, 0);
   if (self)
@@ -84,8 +89,8 @@ PersistentBurstCaptureObj_init (PersistentBurstCaptureObject *self,
       Py_XDECREF (path);
       return -1;
     }
-  PyArrayObject *preamble_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      preamble_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *preamble_arr = jm_array_arg (
+      preamble_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "preamble");
   if (!preamble_arr)
     {
       Py_XDECREF (path);
@@ -143,8 +148,7 @@ PersistentBurstCaptureObj_push (PersistentBurstCaptureObject *self,
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
-                                             NPY_ARRAY_C_CONTIGUOUS);
+  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     return NULL;
   if (out_obj && out_obj != Py_None)
@@ -162,9 +166,9 @@ PersistentBurstCaptureObj_push (PersistentBurstCaptureObject *self,
           Py_DECREF (x_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_COMPLEX64,
-          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (x_arr);
@@ -195,6 +199,15 @@ PersistentBurstCaptureObj_push (PersistentBurstCaptureObject *self,
         n_out = dp_burst_capture_push (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (PyExc_RuntimeError,
+                        "PersistentBurstCapture.push: wrote %zu elements into "
+                        "a buffer of %zu",
+                        (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
                                                     PyArray_DATA (out_arr));
@@ -216,7 +229,17 @@ PersistentBurstCaptureObj_push (PersistentBurstCaptureObject *self,
   size_t _cap  = dp_burst_capture_push_max_out (self->handle,
                                                 (size_t)PyArray_SIZE (x_arr));
   (void)_need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      PyErr_Format (
+          PyExc_OverflowError,
+          "PersistentBurstCapture.push: output of %zu elements is too large",
+          _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
   if (!arr0)
     {
@@ -235,6 +258,15 @@ PersistentBurstCaptureObj_push (PersistentBurstCaptureObject *self,
     n_out = dp_burst_capture_push (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_RuntimeError,
+                    "PersistentBurstCapture.push: wrote %zu elements into a "
+                    "buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -387,6 +419,15 @@ PersistentBurstCaptureObj_detections (PersistentBurstCaptureObject *self,
       size_t n_out = dp_burst_capture_detections (
           self->handle, (size_t)n,
           (burst_capture_detection_t *)PyArray_DATA (out_arr), _cap);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (PyExc_RuntimeError,
+                        "PersistentBurstCapture.detections: wrote %zu "
+                        "elements into a buffer of %zu",
+                        (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp       _odim = (npy_intp)n_out;
       PyArray_Descr *_vdescr
           = PersistentBurstCaptureObj_detections_get_dtype ();
@@ -415,7 +456,16 @@ PersistentBurstCaptureObj_detections (PersistentBurstCaptureObject *self,
   size_t _need = (size_t)n;
   size_t _cap  = dp_burst_capture_detections_max_out (self->handle, (size_t)n);
   (void)_need;
-  npy_intp       _adim  = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "PersistentBurstCapture.detections: output of %zu "
+                    "elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp       _adim  = (npy_intp)_adim_need;
   PyArray_Descr *_descr = PersistentBurstCaptureObj_detections_get_dtype ();
   if (!_descr)
     {
@@ -431,6 +481,15 @@ PersistentBurstCaptureObj_detections (PersistentBurstCaptureObject *self,
       = (burst_capture_detection_t *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t n_out
       = dp_burst_capture_detections (self->handle, (size_t)n, _d0, _cap);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_RuntimeError,
+                    "PersistentBurstCapture.detections: wrote %zu elements "
+                    "into a buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -579,6 +638,15 @@ PersistentBurstCaptureObj_events (PersistentBurstCaptureObject *self,
       size_t n_out = dp_burst_capture_events (
           self->handle, (size_t)n,
           (burst_capture_event_t *)PyArray_DATA (out_arr), _cap);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (PyExc_RuntimeError,
+                        "PersistentBurstCapture.events: wrote %zu elements "
+                        "into a buffer of %zu",
+                        (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp       _odim   = (npy_intp)n_out;
       PyArray_Descr *_vdescr = PersistentBurstCaptureObj_events_get_dtype ();
       if (!_vdescr)
@@ -606,7 +674,16 @@ PersistentBurstCaptureObj_events (PersistentBurstCaptureObject *self,
   size_t _need = (size_t)n;
   size_t _cap  = dp_burst_capture_events_max_out (self->handle, (size_t)n);
   (void)_need;
-  npy_intp       _adim  = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (
+          PyExc_OverflowError,
+          "PersistentBurstCapture.events: output of %zu elements is too large",
+          _adim_need);
+      return NULL;
+    }
+  npy_intp       _adim  = (npy_intp)_adim_need;
   PyArray_Descr *_descr = PersistentBurstCaptureObj_events_get_dtype ();
   if (!_descr)
     {
@@ -621,6 +698,15 @@ PersistentBurstCaptureObj_events (PersistentBurstCaptureObject *self,
   burst_capture_event_t *_d0
       = (burst_capture_event_t *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t n_out = dp_burst_capture_events (self->handle, (size_t)n, _d0, _cap);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_RuntimeError,
+                    "PersistentBurstCapture.events: wrote %zu elements into a "
+                    "buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -905,6 +991,18 @@ PersistentBurstCapture_getprop_pd_burst (PersistentBurstCaptureObject *self,
   return PyFloat_FromDouble (dp_burst_capture_get_pd_burst (self->handle));
 }
 static PyObject *
+PersistentBurstCapture_getprop_psl_db (PersistentBurstCaptureObject *self,
+                                       void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (dp_burst_capture_get_psl_db (self->handle));
+}
+static PyObject *
 PersistentBurstCapture_getprop_eta (PersistentBurstCaptureObject *self,
                                     void *Py_UNUSED (closure))
 {
@@ -1033,19 +1131,6 @@ PersistentBurstCapture_getprop_n_bursts (PersistentBurstCaptureObject *self,
       (unsigned long long)dp_burst_capture_get_n_bursts (self->handle));
 }
 
-static PyObject *
-PersistentBurstCapture_getprop_psl_db (PersistentBurstCaptureObject *self,
-                                       void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (dp_burst_capture_get_psl_db (self->handle));
-}
-
 static PyGetSetDef PersistentBurstCapture_getset[] = {
   { "preamble_start", (getter)PersistentBurstCapture_getprop_preamble_start,
     NULL,
@@ -1159,6 +1244,16 @@ static PyGetSetDef PersistentBurstCapture_getset[] = {
     "and at 0.9, the default `pd` (validation report §2.8). NaN with no "
     "design `cn0_dbhz`.\n",
     NULL },
+  { "psl_db", (getter)PersistentBurstCapture_getprop_psl_db, NULL,
+    "The preamble's peak sidelobe level, dB: the largest lag of its periodic "
+    "autocorrelation OUTSIDE the mainlobe, relative to the peak. A "
+    "detection's sidelobes sit this far below it, at delays the peak list's "
+    "exclusion does not cover, so a burst clearing the threshold by more than "
+    "`-psl_db` also lists its own sidelobe (with `max_peaks > 1`), and a "
+    "strong burst's sidelobe can mask a weak one there. -29.8 dB for a "
+    "31-chip m-sequence (1/31); `-inf` for a perfect sequence such as "
+    "Zadoff-Chu. Fixed at construction.\n",
+    NULL },
   { "eta", (getter)PersistentBurstCapture_getprop_eta, NULL,
     "Coherent detection gate: the normalised statistic a single-look decision "
     "must clear, from `pfa` spread across the search surface. In force when "
@@ -1218,17 +1313,7 @@ static PyGetSetDef PersistentBurstCapture_getset[] = {
     NULL },
   { "n_bursts", (getter)PersistentBurstCapture_getprop_n_bursts, NULL,
     "Windows emitted, lifetime.\n", NULL },
-  { "psl_db", (getter)PersistentBurstCapture_getprop_psl_db, NULL,
-    "The preamble's peak sidelobe level, dB: the largest lag of its periodic "
-    "autocorrelation OUTSIDE the mainlobe, relative to the peak. A "
-    "detection's sidelobes sit this far below it, at delays the peak list's "
-    "exclusion does not cover, so a burst clearing the threshold by more than "
-    "`-psl_db` also lists its own sidelobe (with `max_peaks > 1`), and a "
-    "strong burst's sidelobe can mask a weak one there. -29.8 dB for a "
-    "31-chip m-sequence (1/31); `-inf` for a perfect sequence such as "
-    "Zadoff-Chu. Fixed at construction.\n",
-    NULL },
-  { NULL }
+  { NULL, NULL, NULL, NULL, NULL }
 };
 
 static PyObject *
@@ -1476,8 +1561,8 @@ static PyMethodDef PersistentBurstCaptureObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "configure_search_raw(doppler_bins, n_noncoh) -> None\n"
     "\n"
-    "Pin the embedded BurstAcquisition's search grid directly, bypassing\n"
-    "the auto-sizing -- the escape hatch for a caller who wants a specific\n"
+    "Pin the embedded BurstAcquisition's search grid directly, bypassing the "
+    "auto-sizing -- the escape hatch for a caller who wants a specific "
     "(doppler_bins, n_noncoh). Forwards to the engine unchanged.\n"
     "\n"
     "The escape hatch for a caller who wants a specific (doppler_bins,\n"
@@ -1516,12 +1601,12 @@ static PyMethodDef PersistentBurstCaptureObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "release(i) -> None\n"
     "\n"
-    "Give back the span window `i` of the last push() claimed. An emitted\n"
-    "window owns its whole span: detections inside it are the payload firing\n"
-    "against the acquisition code, so they are HELD rather than reported. A\n"
-    "consumer that knows better -- a demodulator whose CRC failed -- calls\n"
-    "this for that window, and the held detections are searched again on the\n"
-    "next push(). Unreleased, they are dropped when the next push() begins.\n"
+    "Give back the span window `i` of the last push() claimed. An emitted "
+    "window owns its whole span: detections inside it are the payload firing "
+    "against the acquisition code, so they are HELD rather than reported. A "
+    "consumer that knows better -- a demodulator whose CRC failed -- calls "
+    "this for that window, and the held detections are searched again on the "
+    "next push(). Unreleased, they are dropped when the next push() begins. "
     "Raises ValueError if `i` is not a window of the last push().\n"
     "\n"
     "An emitted window owns its whole span: a detection inside it is the\n"
@@ -1568,10 +1653,10 @@ static PyMethodDef PersistentBurstCaptureObj_methods[] = {
   { "reset", (PyCFunction)PersistentBurstCaptureObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
-    "Return to the searching state: resets the embedded acquisition,\n"
-    "drops the history ring's contents, clears every queued detection and\n"
-    "every read-back, so a fresh stream cannot inherit the previous one's\n"
-    "position. Construction parameters are untouched.\n"
+    "Return to the searching state: resets the embedded acquisition, drops "
+    "the history ring's contents, clears every queued detection and every "
+    "read-back, so a fresh stream cannot inherit the previous one's position. "
+    "Construction parameters are untouched.\n"
     "\n"
     "Resets the embedded acquisition, rewinds the history ring, clears every\n"
     "queued detection and every read-back. Construction parameters are\n"
@@ -1677,11 +1762,12 @@ static PyMethodDef PersistentBurstCaptureObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject PersistentBurstCaptureObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "acquire.PersistentBurstCapture",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name
+  = "doppler.acquire.PersistentBurstCapture",
   .tp_basicsize = sizeof (PersistentBurstCaptureObject),
   .tp_dealloc   = (destructor)PersistentBurstCaptureObj_dealloc,
   .tp_flags     = Py_TPFLAGS_DEFAULT,

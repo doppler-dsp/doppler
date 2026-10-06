@@ -1,8 +1,10 @@
+/* jm:generated ber_ext_ber_meter.c */
 /*
  * ber_ext_ber_meter.c — BerMeter type for the ber module.
  *
  * Included by ber_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in ber_ext_ber_meter_extra.c.
  * Do NOT compile this file directly — only ber_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ BerMeterObj_dealloc (BerMeterObject *self)
 static PyObject *
 BerMeterObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   BerMeterObject *self = (BerMeterObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -79,8 +84,8 @@ BerMeterObj_set_truth (BerMeterObject *self, PyObject *args, PyObject *kwds)
   PyObject    *truth_obj = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &truth_obj))
     return NULL;
-  PyArrayObject *truth_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      truth_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *truth_arr
+      = jm_array_arg (truth_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "truth");
   if (!truth_arr)
     {
       return NULL;
@@ -121,8 +126,8 @@ BerMeterObj_align (BerMeterObject *self, PyObject *args, PyObject *kwds)
   size_t         t0       = (size_t)t0_raw;
   size_t         n_marker = (size_t)n_marker_raw;
   size_t         period   = (size_t)period_raw;
-  PyArrayObject *rx_arr   = (PyArrayObject *)PyArray_FROM_OTF (
-      rx_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *rx_arr
+      = jm_array_arg (rx_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "rx");
   if (!rx_arr)
     {
       return NULL;
@@ -150,10 +155,10 @@ BerMeterObj_score (BerMeterObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|KK", _kwlist, &rx_obj,
                                     &lo_raw, &hi_raw))
     return NULL;
-  size_t         lo     = (size_t)lo_raw;
-  size_t         hi     = (size_t)hi_raw;
-  PyArrayObject *rx_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      rx_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  size_t         lo = (size_t)lo_raw;
+  size_t         hi = (size_t)hi_raw;
+  PyArrayObject *rx_arr
+      = jm_array_arg (rx_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "rx");
   if (!rx_arr)
     {
       return NULL;
@@ -183,7 +188,7 @@ static PyStructSequence_Desc BerMeterObj_ser_desc
 static PyTypeObject *BerMeterObj_ser_type = NULL;
 
 static PyObject *
-BerMeterObj_ser (BerMeterObject *self, PyObject *args)
+BerMeterObj_ser (BerMeterObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -230,7 +235,7 @@ static PyStructSequence_Desc BerMeterObj_ber_desc
 static PyTypeObject *BerMeterObj_ber_type = NULL;
 
 static PyObject *
-BerMeterObj_ber (BerMeterObject *self, PyObject *args)
+BerMeterObj_ber (BerMeterObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -644,7 +649,7 @@ static PyGetSetDef BerMeter_getset[] = {
     "True when the last align() was detected, unambiguous and unsaturated. "
     "score() is meaningless unless this is True.\n",
     NULL },
-  { NULL }
+  { NULL, NULL, NULL, NULL, NULL }
 };
 
 static PyObject *
@@ -856,16 +861,16 @@ static PyMethodDef BerMeterObj_methods[] = {
     "736\n"
     ">>> met.errors, met.skipped\n"
     "(0, 64)\n" },
-  { "ser", (PyCFunction)BerMeterObj_ser, METH_VARARGS,
+  { "ser", (PyCFunction)BerMeterObj_ser, METH_NOARGS,
     "ser() -> BerInterval record (p_hat, lo, hi, rel, conf, errors, symbols)\n"
     "\n"
-    "Symbol error rate with its EXACT confidence interval, as a\n"
-    "BerInterval. Assert on `lo`, never on `p_hat`: comparing the lower\n"
-    "limit against a spec is the form that cannot flake on counting noise.\n"
-    "The interval is the Gamma/chi-square one for inverse binomial sampling\n"
-    "-- no normal approximation anywhere, so it stays honest at the small\n"
-    "error counts where a Wald interval is worst -- and its quantiles come\n"
-    "from doppler's own detection primitives rather than a second copy of an\n"
+    "Symbol error rate with its EXACT confidence interval, as a BerInterval. "
+    "Assert on `lo`, never on `p_hat`: comparing the lower limit against a "
+    "spec is the form that cannot flake on counting noise. The interval is "
+    "the Gamma/chi-square one for inverse binomial sampling -- no normal "
+    "approximation anywhere, so it stays honest at the small error counts "
+    "where a Wald interval is worst -- and its quantiles come from doppler's "
+    "own detection primitives rather than a second copy of an "
     "incomplete-gamma kernel.\n"
     "\n"
     "Divides the accumulated symbol-error count by the symbols scored and\n"
@@ -899,10 +904,10 @@ static PyMethodDef BerMeterObj_methods[] = {
     "(12, 736)\n"
     ">>> round(r.lo, 4)                 # assert on lo, never on p_hat\n"
     "0.0067\n" },
-  { "ber", (PyCFunction)BerMeterObj_ber, METH_VARARGS,
+  { "ber", (PyCFunction)BerMeterObj_ber, METH_NOARGS,
     "ber() -> BerInterval record (p_hat, lo, hi, rel, conf, errors, symbols)\n"
     "\n"
-    "Gray-coded bit error rate with its EXACT confidence interval, as a\n"
+    "Gray-coded bit error rate with its EXACT confidence interval, as a "
     "BerInterval. Same statistics as ser(), counted over bits.\n"
     "\n"
     "The same exact statistics as ser(), counted over Gray-coded bits rather\n"
@@ -940,13 +945,12 @@ static PyMethodDef BerMeterObj_methods[] = {
     "interval(errors, symbols) -> BerInterval record (p_hat, lo, hi, rel, "
     "conf, errors, symbols)\n"
     "\n"
-    "The exact confidence interval for error/trial counts gathered\n"
-    "elsewhere, at this meter's confidence level. Same statistics as ser():\n"
-    "the Gamma/chi-square interval for inverse binomial sampling, with\n"
-    "quantiles from doppler's own inverse regularized incomplete gamma\n"
-    "rather than a normal approximation, so it stays honest at the small\n"
-    "error counts where a Wald interval is worst. Assert on `lo`, never on\n"
-    "`p_hat`.\n"
+    "The exact confidence interval for error/trial counts gathered elsewhere, "
+    "at this meter's confidence level. Same statistics as ser(): the "
+    "Gamma/chi-square interval for inverse binomial sampling, with quantiles "
+    "from doppler's own inverse regularized incomplete gamma rather than a "
+    "normal approximation, so it stays honest at the small error counts where "
+    "a Wald interval is worst. Assert on `lo`, never on `p_hat`.\n"
     "\n"
     "The pure-function face of the meter's statistics, at this meter's own\n"
     "confidence level: hand it any error and trial counts and it returns the\n"
@@ -1058,11 +1062,11 @@ static PyMethodDef BerMeterObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject BerMeterObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "ber.BerMeter",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.ber.BerMeter",
   .tp_basicsize                           = sizeof (BerMeterObject),
   .tp_dealloc                             = (destructor)BerMeterObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

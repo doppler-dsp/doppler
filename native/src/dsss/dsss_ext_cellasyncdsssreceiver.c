@@ -1,9 +1,11 @@
+/* jm:generated dsss_ext_cellasyncdsssreceiver.c */
 /*
  * dsss_ext_cellasyncdsssreceiver.c — CellAsyncDsssReceiver type for the dsss
  * module.
  *
  * Included by dsss_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in dsss_ext_cellasyncdsssreceiver_extra.c.
  * Do NOT compile this file directly — only dsss_ext.c is compiled.
  */
 /* ======================================================== */
@@ -29,6 +31,9 @@ static PyObject *
 CellAsyncDsssReceiverObj_new (PyTypeObject *type, PyObject *args,
                               PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   CellAsyncDsssReceiverObject *self
       = (CellAsyncDsssReceiverObject *)type->tp_alloc (type, 0);
   if (self)
@@ -85,8 +90,8 @@ CellAsyncDsssReceiverObj_init (CellAsyncDsssReceiverObject *self,
   size_t         sps              = (size_t)sps_raw;
   size_t         correct_periods  = (size_t)correct_periods_raw;
   size_t         pullin_intervals = (size_t)pullin_intervals_raw;
-  PyArrayObject *code_arr         = (PyArrayObject *)PyArray_FROM_OTF (
-      code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *code_arr
+      = jm_array_arg (code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "code");
   if (!code_arr)
     {
       return -1;
@@ -136,8 +141,7 @@ CellAsyncDsssReceiverObj_steps (CellAsyncDsssReceiverObject *self,
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
-                                             NPY_ARRAY_C_CONTIGUOUS);
+  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     return NULL;
   if (out_obj && out_obj != Py_None)
@@ -155,9 +159,9 @@ CellAsyncDsssReceiverObj_steps (CellAsyncDsssReceiverObject *self,
           Py_DECREF (x_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_COMPLEX64,
-          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (x_arr);
@@ -190,6 +194,15 @@ CellAsyncDsssReceiverObj_steps (CellAsyncDsssReceiverObject *self,
                                               _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (PyExc_RuntimeError,
+                        "CellAsyncDsssReceiver.steps: wrote %zu elements into "
+                        "a buffer of %zu",
+                        (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
                                                     PyArray_DATA (out_arr));
@@ -198,14 +211,30 @@ CellAsyncDsssReceiverObj_steps (CellAsyncDsssReceiverObject *self,
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   size_t _cap  = dp_async_dsss_receiver_steps_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      PyErr_Format (
+          PyExc_OverflowError,
+          "CellAsyncDsssReceiver.steps: output of %zu elements is too large",
+          _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
   if (!arr0)
     {
@@ -224,6 +253,15 @@ CellAsyncDsssReceiverObj_steps (CellAsyncDsssReceiverObject *self,
     n_out = dp_async_dsss_receiver_steps (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_RuntimeError,
+                    "CellAsyncDsssReceiver.steps: wrote %zu elements into a "
+                    "buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -303,7 +341,7 @@ static PyTypeObject *CellAsyncDsssReceiverObj_status_type = NULL;
 
 static PyObject *
 CellAsyncDsssReceiverObj_status (CellAsyncDsssReceiverObject *self,
-                                 PyObject                    *args)
+                                 PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -835,7 +873,7 @@ static PyGetSetDef CellAsyncDsssReceiver_getset[] = {
     "(pfa-tuned) lock detector -- the fundamental DSSS \"am I despreading\" "
     "lock, de-chattered by up/down hysteresis.\n",
     NULL },
-  { NULL }
+  { NULL, NULL, NULL, NULL, NULL }
 };
 
 static PyObject *
@@ -979,13 +1017,13 @@ static PyMethodDef CellAsyncDsssReceiverObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "seed(chip_phase, doppler_hz_est, cn0_dbhz_est) -> None\n"
     "\n"
-    "Take a detection from outside and start refining from it: the hit's\n"
-    "chip phase (Dll's instantaneous convention, at the next sample fed),\n"
-    "coarse Doppler estimate and C/N0 estimate -- exactly what the searching\n"
-    "flavor's own hit produces. Accepted while idle (cell mode) or\n"
-    "searching; refused on a receiver that already holds a seed (refining,\n"
-    "tracking or lost -- reset() releases it) and for a chip_phase outside\n"
-    "[0, code_len).\n"
+    "Take a detection from outside and start refining from it: the hit's chip "
+    "phase (Dll's instantaneous convention, at the next sample fed), coarse "
+    "Doppler estimate and C/N0 estimate -- exactly what the searching "
+    "flavor's own hit produces. Accepted while idle (cell mode) or searching; "
+    "refused on a receiver that already holds a seed (refining, tracking or "
+    "lost -- reset() releases it) and for a chip_phase outside [0, "
+    "code_len).\n"
     "\n"
     "The hand-off of docs/design/async-dsss-receiver.md section 11.1: the\n"
     "three numbers a searcher's hit carries that this receiver uses --\n"
@@ -1051,21 +1089,21 @@ static PyMethodDef CellAsyncDsssReceiverObj_methods[] = {
     "Traceback (most recent call last):\n"
     "    ...\n"
     "ValueError: seed refused: ...\n" },
-  { "status", (PyCFunction)CellAsyncDsssReceiverObj_status, METH_VARARGS,
+  { "status", (PyCFunction)CellAsyncDsssReceiverObj_status, METH_NOARGS,
     "status() -> ReceiverStatus record (state, doppler_hz, chip_phase, "
     "code_rate, cn0_dbhz_est, code_locked, locked, lock_metric, "
     "lock_threshold, car_last_error, mpsk_last_error, state_samples, "
     "both_down_samples)\n"
     "\n"
-    "One consistent picture of the receiver, by value (design section\n"
-    "11.3): state, where the emitter is now (the whole carrier estimate --\n"
-    "loop 1's plus what loop 2 took up beyond it -- only as good as\n"
-    "`locked`; chip phase, code rate, C/N0), both lock flags with the\n"
-    "symbol-lock metric and threshold, both residual carrier errors, and the\n"
-    "two clocks in input samples (since the state was entered; both flags\n"
-    "down without a break). Read on demand by the holder of a pool -- the\n"
-    "one-at-a-time properties are the same fields' other face. No timestamp:\n"
-    "the holder owns the sample clock and stamps it.\n"
+    "One consistent picture of the receiver, by value (design section 11.3): "
+    "state, where the emitter is now (the whole carrier estimate -- loop 1's "
+    "plus what loop 2 took up beyond it -- only as good as `locked`; chip "
+    "phase, code rate, C/N0), both lock flags with the symbol-lock metric and "
+    "threshold, both residual carrier errors, and the two clocks in input "
+    "samples (since the state was entered; both flags down without a break). "
+    "Read on demand by the holder of a pool -- the one-at-a-time properties "
+    "are the same fields' other face. No timestamp: the holder owns the "
+    "sample clock and stamps it.\n"
     "\n"
     "Cheap and allocation-free: every field is a read of live state. The\n"
     "one-at-a-time getters below report the same fields; this is the face a\n"
@@ -1100,8 +1138,8 @@ static PyMethodDef CellAsyncDsssReceiverObj_methods[] = {
     "configure_lock_raw(up_thresh, down_thresh, n_looks, alpha, n_up, n_down) "
     "-> None\n"
     "\n"
-    "Re-tune the live-tracking Dll's code-lock detector directly. Only\n"
-    "meaningful once tracking has begun; a no-op while searching or\n"
+    "Re-tune the live-tracking Dll's code-lock detector directly. Only "
+    "meaningful once tracking has begun; a no-op while searching or "
     "refining.\n"
     "\n"
     "Parameters\n"
@@ -1140,10 +1178,10 @@ static PyMethodDef CellAsyncDsssReceiverObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "configure_chain_raw(segments, sps, n) -> None\n"
     "\n"
-    "Pin the live-tracking despread/resample/demod grid directly,\n"
-    "bypassing the create-time segments/sps defaults. Only meaningful once\n"
-    "tracking; rebuilds the chain with every replacement allocated first, so\n"
-    "a failed pin leaves the receiver on its prior grid.\n"
+    "Pin the live-tracking despread/resample/demod grid directly, bypassing "
+    "the create-time segments/sps defaults. Only meaningful once tracking; "
+    "rebuilds the chain with every replacement allocated first, so a failed "
+    "pin leaves the receiver on its prior grid.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1175,9 +1213,9 @@ static PyMethodDef CellAsyncDsssReceiverObj_methods[] = {
   { "reset", (PyCFunction)CellAsyncDsssReceiverObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
-    "Return to the searching state: resets the embedded Acquisition and\n"
-    "frees every refine-stage/track-stage child (rebuilt from scratch on the\n"
-    "next hit).\n"
+    "Return to the searching state: resets the embedded Acquisition and frees "
+    "every refine-stage/track-stage child (rebuilt from scratch on the next "
+    "hit).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1278,11 +1316,12 @@ static PyMethodDef CellAsyncDsssReceiverObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject CellAsyncDsssReceiverObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "dsss.CellAsyncDsssReceiver",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name
+  = "doppler.dsss.CellAsyncDsssReceiver",
   .tp_basicsize = sizeof (CellAsyncDsssReceiverObject),
   .tp_dealloc   = (destructor)CellAsyncDsssReceiverObj_dealloc,
   .tp_flags     = Py_TPFLAGS_DEFAULT,

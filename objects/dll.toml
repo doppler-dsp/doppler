@@ -12,6 +12,7 @@ depends_on = [
   { name = "dp_tlm", link = true },
 ]
 serializable = "true"
+fragment = "generated"
 
 [[dll.init_params]]
 name = "code"

@@ -1,8 +1,10 @@
+/* jm:generated filter_ext_fir.c */
 /*
  * filter_ext_fir.c — FIR type for the filter module.
  *
  * Included by filter_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in filter_ext_fir_extra.c.
  * Do NOT compile this file directly — only filter_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ FIRObj_dealloc (FIRObject *self)
 static PyObject *
 FIRObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   FIRObject *self = (FIRObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -41,40 +46,39 @@ FIRObj_init (FIRObject *self, PyObject *args, PyObject *kwds)
 
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", kwlist, &taps_obj))
     return -1;
-  /* dtype dispatch: float → dp_fir_create_real, float _Complex → dp_fir_create
-   */
+  /* dtype dispatch: float -> dp_fir_create_real, float _Complex ->
+   * dp_fir_create */
+  int _taps_real = 0;
   {
     PyArrayObject *_taps_probe = (PyArrayObject *)PyArray_CheckFromAny (
         taps_obj, NULL, 1, 1, NPY_ARRAY_C_CONTIGUOUS, NULL);
-    int _taps_real = _taps_probe && (PyArray_TYPE (_taps_probe) == NPY_FLOAT);
-    Py_XDECREF (_taps_probe);
-    if (_taps_real)
+    if (_taps_probe)
       {
-        PyArrayObject *taps_arr = (PyArrayObject *)PyArray_FROM_OTF (
-            taps_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
-        if (!taps_arr)
-          {
-            return -1;
-          }
-        size_t taps_len = (size_t)PyArray_SIZE (taps_arr);
-        self->handle    = dp_fir_create_real (
-            (const float *)PyArray_DATA (taps_arr), taps_len);
-        Py_DECREF (taps_arr);
+        _taps_real = PyArray_TYPE (_taps_probe) == NPY_FLOAT;
+        Py_DECREF (_taps_probe);
       }
     else
       {
-        PyArrayObject *taps_arr = (PyArrayObject *)PyArray_FROM_OTF (
-            taps_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
-        if (!taps_arr)
-          {
-            return -1;
-          }
-        size_t taps_len = (size_t)PyArray_SIZE (taps_arr);
-        self->handle    = dp_fir_create (
-            (const float _Complex *)PyArray_DATA (taps_arr), taps_len);
-        Py_DECREF (taps_arr);
+        PyErr_Clear ();
       }
   }
+  PyArrayObject *taps_arr
+      = _taps_real ? jm_array_arg (taps_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS,
+                                   "taps")
+                   : jm_array_arg (taps_obj, NPY_COMPLEX64,
+                                   NPY_ARRAY_C_CONTIGUOUS, "taps");
+  if (!taps_arr)
+    {
+      return -1;
+    }
+  size_t taps_len = (size_t)PyArray_SIZE (taps_arr);
+  if (_taps_real)
+    self->handle = dp_fir_create_real ((const float *)PyArray_DATA (taps_arr),
+                                       taps_len);
+  else
+    self->handle = dp_fir_create (
+        (const float _Complex *)PyArray_DATA (taps_arr), taps_len);
+  Py_DECREF (taps_arr);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_MemoryError, "dp_fir_create returned NULL");
@@ -120,8 +124,8 @@ FIRObj_execute (FIRObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &in_obj,
                                     &out_obj))
     return NULL;
-  PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *in_arr
+      = jm_array_arg (in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!in_arr)
     {
       return NULL;
@@ -142,9 +146,9 @@ FIRObj_execute (FIRObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_COMPLEX64,
-          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (in_arr);
@@ -165,6 +169,14 @@ FIRObj_execute (FIRObject *self, PyObject *args, PyObject *kwds)
           self->handle, (const float _Complex *)PyArray_DATA (in_arr),
           (size_t)n, (float _Complex *)PyArray_DATA (out_arr));
       Py_DECREF (in_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (PyExc_RuntimeError,
+                        "FIR.execute: wrote %zu elements into a buffer of %zu",
+                        (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
                                                     PyArray_DATA (out_arr));
@@ -186,7 +198,16 @@ FIRObj_execute (FIRObject *self, PyObject *args, PyObject *kwds)
   size_t _cap  = dp_fir_execute_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (in_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "FIR.execute: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
   if (!arr0)
     {
@@ -198,6 +219,14 @@ FIRObj_execute (FIRObject *self, PyObject *args, PyObject *kwds)
                                  (const float _Complex *)PyArray_DATA (in_arr),
                                  (size_t)n, _d0);
   Py_DECREF (in_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_RuntimeError,
+                    "FIR.execute: wrote %zu elements into a buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -289,21 +318,20 @@ FIR_getprop_is_real (FIRObject *self, void *Py_UNUSED (closure))
   return PyBool_FromLong ((long)(dp_fir_get_is_real (self->handle)));
 }
 
-static PyGetSetDef FIR_getset[] = {
-  { "num_taps", (getter)FIR_getprop_num_taps, NULL,
-    "Number of tap coefficients supplied at creation. This equals the filter "
-    "group delay plus one, and determines the minimum input block length for "
-    "which no latency is observable.\n",
-    NULL },
-  { "is_real", (getter)FIR_getprop_is_real, NULL,
-    "True when the filter was created with real-valued tap coefficients. "
-    "Real-tap filters (dp_fir_create_real) use a cheaper inner loop: 1 "
-    "FMA/tap "
-    "versus the 2 FMA + lane permute required for complex multiplication. Use "
-    "this flag to confirm which constructor path was used at runtime.\n",
-    NULL },
-  { NULL }
-};
+static PyGetSetDef FIR_getset[]
+    = { { "num_taps", (getter)FIR_getprop_num_taps, NULL,
+          "Number of tap coefficients supplied at creation. This equals the "
+          "filter group delay plus one, and determines the minimum input "
+          "block length for which no latency is observable.\n",
+          NULL },
+        { "is_real", (getter)FIR_getprop_is_real, NULL,
+          "True when the filter was created with real-valued tap "
+          "coefficients. Real-tap filters (dp_fir_create_real) use a cheaper "
+          "inner loop: 1 FMA/tap versus the 2 FMA + lane permute required for "
+          "complex multiplication. Use this flag to confirm which constructor "
+          "path was used at runtime.\n",
+          NULL },
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 FIRObj_destroy (FIRObject *self, PyObject *Py_UNUSED (ignored))
@@ -490,11 +518,11 @@ static PyMethodDef FIRObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject FIRObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "filter.FIR",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.filter.FIR",
   .tp_basicsize                           = sizeof (FIRObject),
   .tp_dealloc                             = (destructor)FIRObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

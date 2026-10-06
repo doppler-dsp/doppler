@@ -6,6 +6,7 @@ no_state = "true"
 no_step = "true"
 class_name = "FIR"
 serializable = "true"
+fragment = "generated"
 
 [[fir.init_params]]
 name = "taps"

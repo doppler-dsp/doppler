@@ -1,8 +1,10 @@
+/* jm:generated spectral_ext_psd.c */
 /*
  * spectral_ext_psd.c — PSD type for the spectral module.
  *
  * Included by spectral_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in spectral_ext_psd_extra.c.
  * Do NOT compile this file directly — only spectral_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ PSDObj_dealloc (PSDObject *self)
 static PyObject *
 PSDObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   PSDObject *self = (PSDObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -109,8 +114,8 @@ PSDObj_accumulate (PSDObject *self, PyObject *args, PyObject *kwds)
   PyObject    *x_obj     = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &x_obj))
     return NULL;
-  PyArrayObject *x_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     {
       return NULL;
@@ -134,8 +139,8 @@ PSDObj_accumulate_real (PSDObject *self, PyObject *args, PyObject *kwds)
   PyObject    *x_obj     = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &x_obj))
     return NULL;
-  PyArrayObject *x_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      x_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     {
       return NULL;
@@ -197,8 +202,9 @@ PSDObj_psd_db (PSDObject *self, PyObject *args, PyObject *kwds)
                            " ndarray of the output dtype");
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_FLOAT,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           return NULL;
@@ -215,6 +221,14 @@ PSDObj_psd_db (PSDObject *self, PyObject *args, PyObject *kwds)
         }
       size_t n_out = dp_psd_psd_db (self->handle, (size_t)n,
                                     (float *)PyArray_DATA (out_arr), _cap);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (PyExc_RuntimeError,
+                        "PSD.psd_db: wrote %zu elements into a buffer of %zu",
+                        (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       if (!n_out)
         {
           Py_DECREF (out_arr);
@@ -228,14 +242,28 @@ PSDObj_psd_db (PSDObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)n;
   size_t _cap  = dp_psd_psd_db_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "PSD.psd_db: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_FLOAT);
   if (!arr0)
     {
@@ -243,6 +271,14 @@ PSDObj_psd_db (PSDObject *self, PyObject *args, PyObject *kwds)
     }
   float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t n_out = dp_psd_psd_db (self->handle, (size_t)n, _d0, _cap);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_RuntimeError,
+                    "PSD.psd_db: wrote %zu elements into a buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if (!n_out)
     {
       Py_DECREF (arr0);
@@ -302,8 +338,9 @@ PSDObj_psd_dbhz (PSDObject *self, PyObject *args, PyObject *kwds)
                            " ndarray of the output dtype");
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_FLOAT,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           return NULL;
@@ -320,6 +357,15 @@ PSDObj_psd_dbhz (PSDObject *self, PyObject *args, PyObject *kwds)
         }
       size_t n_out = dp_psd_psd_dbhz (self->handle, (size_t)n,
                                       (float *)PyArray_DATA (out_arr), _cap);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "PSD.psd_dbhz: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       if (!n_out)
         {
           Py_DECREF (out_arr);
@@ -333,14 +379,28 @@ PSDObj_psd_dbhz (PSDObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)n;
   size_t _cap  = dp_psd_psd_dbhz_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "PSD.psd_dbhz: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_FLOAT);
   if (!arr0)
     {
@@ -348,6 +408,14 @@ PSDObj_psd_dbhz (PSDObject *self, PyObject *args, PyObject *kwds)
     }
   float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t n_out = dp_psd_psd_dbhz (self->handle, (size_t)n, _d0, _cap);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_RuntimeError,
+                    "PSD.psd_dbhz: wrote %zu elements into a buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if (!n_out)
     {
       Py_DECREF (arr0);
@@ -407,8 +475,9 @@ PSDObj_power_twosided (PSDObject *self, PyObject *args, PyObject *kwds)
                            " ndarray of the output dtype");
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_FLOAT,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           return NULL;
@@ -425,6 +494,15 @@ PSDObj_power_twosided (PSDObject *self, PyObject *args, PyObject *kwds)
         }
       size_t n_out = dp_psd_power_twosided (
           self->handle, (size_t)n, (float *)PyArray_DATA (out_arr), _cap);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "PSD.power_twosided: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       if (!n_out)
         {
           Py_DECREF (out_arr);
@@ -438,14 +516,28 @@ PSDObj_power_twosided (PSDObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)n;
   size_t _cap  = dp_psd_power_twosided_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "PSD.power_twosided: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_FLOAT);
   if (!arr0)
     {
@@ -453,6 +545,15 @@ PSDObj_power_twosided (PSDObject *self, PyObject *args, PyObject *kwds)
     }
   float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t n_out = dp_psd_power_twosided (self->handle, (size_t)n, _d0, _cap);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "PSD.power_twosided: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if (!n_out)
     {
       Py_DECREF (arr0);
@@ -512,8 +613,9 @@ PSDObj_power_onesided (PSDObject *self, PyObject *args, PyObject *kwds)
                            " ndarray of the output dtype");
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_FLOAT,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           return NULL;
@@ -530,6 +632,15 @@ PSDObj_power_onesided (PSDObject *self, PyObject *args, PyObject *kwds)
         }
       size_t n_out = dp_psd_power_onesided (
           self->handle, (size_t)n, (float *)PyArray_DATA (out_arr), _cap);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "PSD.power_onesided: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       if (!n_out)
         {
           Py_DECREF (out_arr);
@@ -543,14 +654,28 @@ PSDObj_power_onesided (PSDObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)n;
   size_t _cap  = dp_psd_power_onesided_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "PSD.power_onesided: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_FLOAT);
   if (!arr0)
     {
@@ -558,6 +683,15 @@ PSDObj_power_onesided (PSDObject *self, PyObject *args, PyObject *kwds)
     }
   float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t n_out = dp_psd_power_onesided (self->handle, (size_t)n, _d0, _cap);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "PSD.power_onesided: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if (!n_out)
     {
       Py_DECREF (arr0);
@@ -605,8 +739,8 @@ PSDObj_band_power (PSDObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &bands_obj,
                                     &out_obj))
     return NULL;
-  bands_arr = (PyArrayObject *)PyArray_FROM_OTF (bands_obj, NPY_DOUBLE,
-                                                 NPY_ARRAY_C_CONTIGUOUS);
+  bands_arr
+      = jm_array_arg (bands_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS, "bands");
   if (!bands_arr)
     return NULL;
   if (out_obj && out_obj != Py_None)
@@ -624,8 +758,9 @@ PSDObj_band_power (PSDObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (bands_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_FLOAT,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (bands_arr);
@@ -649,6 +784,15 @@ PSDObj_band_power (PSDObject *self, PyObject *args, PyObject *kwds)
           (size_t)PyArray_SIZE (bands_arr), (float *)PyArray_DATA (out_arr),
           _cap);
       Py_DECREF (bands_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "PSD.band_power: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_FLOAT,
                                                     PyArray_DATA (out_arr));
@@ -657,14 +801,29 @@ PSDObj_band_power (PSDObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (bands_arr);
   size_t _cap  = dp_psd_band_power_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (bands_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "PSD.band_power: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_FLOAT);
   if (!arr0)
     {
@@ -676,6 +835,14 @@ PSDObj_band_power (PSDObject *self, PyObject *args, PyObject *kwds)
       self->handle, (const double *)PyArray_DATA (bands_arr),
       (size_t)PyArray_SIZE (bands_arr), _d0, _cap);
   Py_DECREF (bands_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_RuntimeError,
+                    "PSD.band_power: wrote %zu elements into a buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -704,8 +871,8 @@ PSDObj_total_band_power (PSDObject *self, PyObject *args, PyObject *kwds)
   PyObject    *bands_obj = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &bands_obj))
     return NULL;
-  PyArrayObject *bands_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      bands_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *bands_arr
+      = jm_array_arg (bands_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS, "bands");
   if (!bands_arr)
     {
       return NULL;
@@ -898,8 +1065,8 @@ PSD_getprop_rbw (PSDObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble (self->handle->enbw * self->handle->fs
-                             / (double)self->handle->n);
+  return PyFloat_FromDouble (
+      (self->handle->enbw * self->handle->fs / (double)self->handle->n));
 }
 static PyObject *
 PSD_getprop_count (PSDObject *self, void *Py_UNUSED (closure))
@@ -910,7 +1077,7 @@ PSD_getprop_count (PSDObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)(size_t)self->handle->avg->count);
+      (unsigned long long)((size_t)self->handle->avg->count));
 }
 static PyObject *
 PSD_getprop_mode (PSDObject *self, void *Py_UNUSED (closure))
@@ -920,7 +1087,7 @@ PSD_getprop_mode (PSDObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromLong ((long)(int)self->handle->avg->mode);
+  return PyLong_FromLong ((long)((int)self->handle->avg->mode));
 }
 
 static PyGetSetDef PSD_getset[]
@@ -942,7 +1109,7 @@ static PyGetSetDef PSD_getset[]
           "Trace reduction mode, as the enum index: 0 mean, 1 exp, 2 maxhold, "
           "3 minhold.\n",
           NULL },
-        { NULL } };
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 PSDObj_destroy (PSDObject *self, PyObject *Py_UNUSED (ignored))
@@ -1393,12 +1560,11 @@ static PyMethodDef PSDObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)PSDObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
@@ -1424,11 +1590,11 @@ static PyMethodDef PSDObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject PSDObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "spectral.PSD",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.spectral.PSD",
   .tp_basicsize                           = sizeof (PSDObject),
   .tp_dealloc                             = (destructor)PSDObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

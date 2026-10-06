@@ -1,8 +1,10 @@
+/* jm:generated spectral_ext_detector.c */
 /*
  * spectral_ext_detector.c — CorrDetector type for the spectral module.
  *
  * Included by spectral_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in spectral_ext_detector_extra.c.
  * Do NOT compile this file directly — only spectral_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ CorrDetectorObj_dealloc (CorrDetectorObject *self)
 static PyObject *
 CorrDetectorObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   CorrDetectorObject *self = (CorrDetectorObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -70,8 +75,8 @@ CorrDetectorObj_init (CorrDetectorObject *self, PyObject *args, PyObject *kwds)
                     noise_mode_str);
       return -1;
     }
-  PyArrayObject *ref_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      ref_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *ref_arr
+      = jm_array_arg (ref_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "ref");
   if (!ref_arr)
     {
       return -1;
@@ -112,16 +117,26 @@ CorrDetectorObj_push (CorrDetectorObject *self, PyObject *args)
   PyObject *in_obj = NULL;
   if (!PyArg_ParseTuple (args, "O", &in_obj))
     return NULL;
-  PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *in_arr
+      = jm_array_arg (in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!in_arr)
-    return NULL;
+    {
+      return NULL;
+    }
   size_t       n_in = (size_t)PyArray_SIZE (in_arr);
   det_result_t results[64];
   size_t       n_out = dp_detector_push (
       self->handle, (const float _Complex *)PyArray_DATA (in_arr), n_in,
       results, 64);
   Py_DECREF (in_arr);
+  if ((size_t)(n_out) > (size_t)(64))
+    {
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "CorrDetector.push: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(64));
+      return NULL;
+    }
   PyObject *lst = PyList_New ((Py_ssize_t)n_out);
   if (!lst)
     return NULL;
@@ -217,7 +232,7 @@ CorrDetector_getprop_dwell (CorrDetectorObject *self,
       return NULL;
     }
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)self->handle->corr->dwell);
+      (unsigned long long)(self->handle->corr->dwell));
 }
 static PyObject *
 CorrDetector_getprop_count (CorrDetectorObject *self,
@@ -229,7 +244,7 @@ CorrDetector_getprop_count (CorrDetectorObject *self,
       return NULL;
     }
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)self->handle->corr->count);
+      (unsigned long long)(self->handle->corr->count));
 }
 static PyObject *
 CorrDetector_getprop_ring_cap (CorrDetectorObject *self,
@@ -289,42 +304,55 @@ CorrDetector_getprop_last_corr (CorrDetectorObject *self,
     }
   if (!self->handle->_last_corr_valid)
     Py_RETURN_NONE;
-  npy_intp  dim = (npy_intp)self->handle->n;
-  PyObject *arr = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64,
-                                             self->handle->out_buf);
+  size_t _dim_need = (size_t)(self->handle->n);
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (
+          PyExc_OverflowError,
+          "CorrDetector.last_corr: output of %zu elements is too large",
+          _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
+  PyObject *arr  = PyArray_SimpleNewFromData (1, &_dim, NPY_COMPLEX64,
+                                              (void *)(self->handle->out_buf));
   if (!arr)
     return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
   Py_INCREF (self);
+  if (PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self) < 0)
+    {
+      Py_DECREF (self);
+      Py_DECREF (arr);
+      return NULL;
+    }
   return arr;
 }
 
-static PyGetSetDef CorrDetector_getset[] = {
-  { "n", (getter)CorrDetector_getprop_n, NULL,
-    "Frame / FFT length in complex samples.\n", NULL },
-  { "dwell", (getter)CorrDetector_getprop_dwell, NULL,
-    "Integration depth: a detection statistic is dumped every `dwell` "
-    "frames.\n",
-    NULL },
-  { "count", (getter)CorrDetector_getprop_count, NULL,
-    "Frames accumulated toward the next dump (0 ... dwell-1).\n", NULL },
-  { "ring_cap", (getter)CorrDetector_getprop_ring_cap, NULL,
-    "Ring buffer capacity in complex samples.\n", NULL },
-  { "noise_lo", (getter)CorrDetector_getprop_noise_lo, NULL,
-    "Noise bin range lower bound (inclusive).\n", NULL },
-  { "noise_hi", (getter)CorrDetector_getprop_noise_hi, NULL,
-    "Noise bin range upper bound (inclusive).\n", NULL },
-  { "threshold", (getter)CorrDetector_getprop_threshold, NULL,
-    "0 = always fire; >0 = gate on test_stat.\n", NULL },
-  { "last_corr", (getter)CorrDetector_getprop_last_corr, NULL,
-    "The correlation vector from the most recent push() that produced a "
-    "result (None before that). This is a zero-copy view into a buffer owned "
-    "by the detector and reused every push() -- the next push() (even one "
-    "that doesn't produce a result) overwrites it in place. Copy the array "
-    "before the next push() if you need to retain it.\n",
-    NULL },
-  { NULL }
-};
+static PyGetSetDef CorrDetector_getset[]
+    = { { "n", (getter)CorrDetector_getprop_n, NULL,
+          "Frame / FFT length in complex samples.\n", NULL },
+        { "dwell", (getter)CorrDetector_getprop_dwell, NULL,
+          "Integration depth: a detection statistic is dumped every `dwell` "
+          "frames.\n",
+          NULL },
+        { "count", (getter)CorrDetector_getprop_count, NULL,
+          "Frames accumulated toward the next dump (0 ... dwell-1).\n", NULL },
+        { "ring_cap", (getter)CorrDetector_getprop_ring_cap, NULL,
+          "Ring buffer capacity in complex samples.\n", NULL },
+        { "noise_lo", (getter)CorrDetector_getprop_noise_lo, NULL,
+          "Noise bin range lower bound (inclusive).\n", NULL },
+        { "noise_hi", (getter)CorrDetector_getprop_noise_hi, NULL,
+          "Noise bin range upper bound (inclusive).\n", NULL },
+        { "threshold", (getter)CorrDetector_getprop_threshold, NULL,
+          "0 = always fire; >0 = gate on test_stat.\n", NULL },
+        { "last_corr", (getter)CorrDetector_getprop_last_corr, NULL,
+          "The correlation vector from the most recent push() that produced a "
+          "result (None before that). This is a zero-copy view into a buffer "
+          "owned by the detector and reused every push() -- the next push() "
+          "(even one that doesn't produce a result) overwrites it in place. "
+          "Copy the array before the next push() if you need to retain it.\n",
+          NULL },
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 CorrDetectorObj_destroy (CorrDetectorObject *self,
@@ -379,13 +407,13 @@ static PyMethodDef CorrDetectorObj_methods[] = {
   { "push", (PyCFunction)CorrDetectorObj_push, METH_VARARGS,
     "push(x) -> list[tuple]\n"
     "\n"
-    "Stream an arbitrary-length CF32 chunk through the detector "
-    "pipeline. Writes samples into the ring buffer, drains complete "
-    "n-sample frames through the correlator, and on every int-dump "
-    "computes the test statistic peak_mag / noise_est.  Detections that "
-    "pass the threshold are appended to the Python return list as (lag, "
-    "peak_mag, noise_est, test_stat) tuples. In Python the result is "
-    "always a list, even when empty.\n"
+    "Stream an arbitrary-length CF32 chunk through the detector pipeline.\n"
+    "Writes samples into the ring buffer, drains complete n-sample frames\n"
+    "through the correlator, and on every int-dump computes the test\n"
+    "statistic peak_mag / noise_est. Detections that pass the threshold are\n"
+    "appended to the Python return list as (lag, peak_mag, noise_est,\n"
+    "test_stat) tuples. In Python the result is always a list, even when\n"
+    "empty.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -463,12 +491,11 @@ static PyMethodDef CorrDetectorObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)CorrDetectorObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
@@ -494,24 +521,22 @@ static PyMethodDef CorrDetectorObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject CorrDetectorObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "spectral.CorrDetector",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.spectral.CorrDetector",
   .tp_basicsize                           = sizeof (CorrDetectorObject),
   .tp_dealloc = (destructor)CorrDetectorObj_dealloc,
   .tp_flags   = Py_TPFLAGS_DEFAULT,
   .tp_doc
   = "Allocate a 1-D streaming signal detector backed by an FFT correlator.\n"
-    "Combines a dp_corr_state_t with a double-mapped ring buffer so that "
-    "arbitrary\n"
-    "chunk sizes can be pushed. After every int-dump the peak-to-noise test\n"
-    "statistic is compared against threshold; a det_result_t is emitted when "
-    "it\n"
-    "passes. Setting threshold to 0.0 unconditionally fires on every dump. "
-    "The\n"
-    "ring capacity is next_pow_two(max(n, 512)) complex samples.\n"
+    "Combines a dp_corr_state_t with a double-mapped ring buffer so that\n"
+    "arbitrary chunk sizes can be pushed. After every int-dump the "
+    "peak-to-noise\n"
+    "test statistic is compared against threshold; a det_result_t is emitted\n"
+    "when it passes. Setting threshold to 0.0 unconditionally fires on every\n"
+    "dump. The ring capacity is next_pow_two(max(n, 512)) complex samples.\n"
     "\n"
     "Parameters\n"
     "----------\n"

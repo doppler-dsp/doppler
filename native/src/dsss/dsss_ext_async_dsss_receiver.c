@@ -1,8 +1,10 @@
+/* jm:generated dsss_ext_async_dsss_receiver.c */
 /*
  * dsss_ext_async_dsss_receiver.c — AsyncDsssReceiver type for the dsss module.
  *
  * Included by dsss_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in dsss_ext_async_dsss_receiver_extra.c.
  * Do NOT compile this file directly — only dsss_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ AsyncDsssReceiverObj_dealloc (AsyncDsssReceiverObject *self)
 static PyObject *
 AsyncDsssReceiverObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   AsyncDsssReceiverObject *self
       = (AsyncDsssReceiverObject *)type->tp_alloc (type, 0);
   if (self)
@@ -99,8 +104,8 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
   size_t refine_zero_pad           = (size_t)refine_zero_pad_raw;
   bool   refine_sequential         = (int)refine_sequential_raw;
   size_t refine_max_n_blocks       = (size_t)refine_max_n_blocks_raw;
-  PyArrayObject *code_arr          = (PyArrayObject *)PyArray_FROM_OTF (
-      code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *code_arr
+      = jm_array_arg (code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "code");
   if (!code_arr)
     {
       return -1;
@@ -151,8 +156,7 @@ AsyncDsssReceiverObj_steps (AsyncDsssReceiverObject *self, PyObject *args,
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
-                                             NPY_ARRAY_C_CONTIGUOUS);
+  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     return NULL;
   if (out_obj && out_obj != Py_None)
@@ -170,9 +174,9 @@ AsyncDsssReceiverObj_steps (AsyncDsssReceiverObject *self, PyObject *args,
           Py_DECREF (x_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_COMPLEX64,
-          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (x_arr);
@@ -205,6 +209,15 @@ AsyncDsssReceiverObj_steps (AsyncDsssReceiverObject *self, PyObject *args,
                                               _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (PyExc_RuntimeError,
+                        "AsyncDsssReceiver.steps: wrote %zu elements into a "
+                        "buffer of %zu",
+                        (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
                                                     PyArray_DATA (out_arr));
@@ -213,14 +226,30 @@ AsyncDsssReceiverObj_steps (AsyncDsssReceiverObject *self, PyObject *args,
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   size_t _cap  = dp_async_dsss_receiver_steps_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      PyErr_Format (
+          PyExc_OverflowError,
+          "AsyncDsssReceiver.steps: output of %zu elements is too large",
+          _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
   if (!arr0)
     {
@@ -239,6 +268,15 @@ AsyncDsssReceiverObj_steps (AsyncDsssReceiverObject *self, PyObject *args,
     n_out = dp_async_dsss_receiver_steps (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "AsyncDsssReceiver.steps: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -286,6 +324,77 @@ AsyncDsssReceiverObj_seed (AsyncDsssReceiverObject *self, PyObject *args,
   Py_RETURN_NONE;
 }
 
+static PyStructSequence_Field AsyncDsssReceiverObj_status_fields[] = {
+  { "state", "ASYNC_DSSS_RX_SEARCHING .. _LOST -- where it is." },
+  { "doppler_hz",
+    "Where the emitter is NOW: the whole carrier estimate, Hz -- loop 1's "
+    "plus what loop 2 has taken up beyond it (the seed while refining, 0 when "
+    "idle, frozen where it was when lost). Only as good as `locked`: with the "
+    "carrier unlocked, loop 1 free-runs and this wanders." },
+  { "chip_phase", "Live Dll code phase, chips." },
+  { "code_rate", "Live Dll code rate, chips/sample." },
+  { "cn0_dbhz_est", "C/N0 estimate, dB-Hz (the hit's)." },
+  { "code_locked", "Presence flag: the Dll's lock detector." },
+  { "locked", "Health flag: the symbol-lock detector." },
+  { "lock_metric", "cos(2*phi) over the symbols, drives `locked`." },
+  { "lock_threshold", "`locked` latches above this." },
+  { "car_last_error", "Pre-despread Costas residual, rad." },
+  { "mpsk_last_error", "Post-despread carrier residual, rad." },
+  { "state_samples", "Input samples since `state` was entered." },
+  { "both_down_samples",
+    "Input samples both flags have been down without a break (the release "
+    "clock); in lost it keeps counting -- samples since the flags dropped." },
+  { NULL, NULL },
+};
+static PyStructSequence_Desc AsyncDsssReceiverObj_status_desc
+    = { "doppler.dsss.ReceiverStatus",
+        "AsyncDsssReceiver's status record: state (0 searching, 1 refining, 2 "
+        "tracking, 3 idle, 4 lost), the live estimates, both lock flags, and "
+        "the two clocks in input samples.",
+        AsyncDsssReceiverObj_status_fields, 13 };
+static PyTypeObject *AsyncDsssReceiverObj_status_type = NULL;
+
+static PyObject *
+AsyncDsssReceiverObj_status (AsyncDsssReceiverObject *self,
+                             PyObject                *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!AsyncDsssReceiverObj_status_type)
+    {
+      AsyncDsssReceiverObj_status_type
+          = PyStructSequence_NewType (&AsyncDsssReceiverObj_status_desc);
+      if (!AsyncDsssReceiverObj_status_type)
+        return NULL;
+    }
+  async_dsss_receiver_status_t _r
+      = dp_async_dsss_receiver_status (self->handle);
+  PyObject *_o = PyStructSequence_New (AsyncDsssReceiverObj_status_type);
+  if (!_o)
+    return NULL;
+  PyStructSequence_SET_ITEM (_o, 0, PyLong_FromLong ((long)_r.state));
+  PyStructSequence_SET_ITEM (_o, 1, PyFloat_FromDouble (_r.doppler_hz));
+  PyStructSequence_SET_ITEM (_o, 2, PyFloat_FromDouble (_r.chip_phase));
+  PyStructSequence_SET_ITEM (_o, 3, PyFloat_FromDouble (_r.code_rate));
+  PyStructSequence_SET_ITEM (_o, 4, PyFloat_FromDouble (_r.cn0_dbhz_est));
+  PyStructSequence_SET_ITEM (_o, 5, PyLong_FromLong ((long)_r.code_locked));
+  PyStructSequence_SET_ITEM (_o, 6, PyLong_FromLong ((long)_r.locked));
+  PyStructSequence_SET_ITEM (_o, 7, PyFloat_FromDouble (_r.lock_metric));
+  PyStructSequence_SET_ITEM (_o, 8, PyFloat_FromDouble (_r.lock_threshold));
+  PyStructSequence_SET_ITEM (_o, 9, PyFloat_FromDouble (_r.car_last_error));
+  PyStructSequence_SET_ITEM (_o, 10, PyFloat_FromDouble (_r.mpsk_last_error));
+  PyStructSequence_SET_ITEM (
+      _o, 11,
+      PyLong_FromUnsignedLongLong ((unsigned long long)_r.state_samples));
+  PyStructSequence_SET_ITEM (
+      _o, 12,
+      PyLong_FromUnsignedLongLong ((unsigned long long)_r.both_down_samples));
+  return _o;
+}
+
 static PyObject *
 AsyncDsssReceiverObj_configure_search_raw (AsyncDsssReceiverObject *self,
                                            PyObject *args, PyObject *kwds)
@@ -309,6 +418,31 @@ AsyncDsssReceiverObj_configure_search_raw (AsyncDsssReceiverObject *self,
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
                     "configure_search_raw failed", (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+AsyncDsssReceiverObj_set_refine_min_blocks (AsyncDsssReceiverObject *self,
+                                            PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char       *_kwlist[]    = { "n_blocks", NULL };
+  unsigned long long n_blocks_raw = 0ULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &n_blocks_raw))
+    return NULL;
+  size_t n_blocks = (size_t)n_blocks_raw;
+  int    _rc
+      = dp_async_dsss_receiver_set_refine_min_blocks (self->handle, n_blocks);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "set_refine_min_blocks failed", (long long)_rc);
       return NULL;
     }
   Py_RETURN_NONE;
@@ -440,6 +574,18 @@ AsyncDsssReceiverObj_set_state (AsyncDsssReceiverObject *self, PyObject *arg)
       return NULL;
     }
   Py_RETURN_NONE;
+}
+static PyObject *
+AsyncDsssReceiver_getprop_refine_min_blocks (AsyncDsssReceiverObject *self,
+                                             void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)self->handle->refine_min_blocks);
 }
 static PyObject *
 AsyncDsssReceiver_getprop_tracking (AsyncDsssReceiverObject *self,
@@ -713,20 +859,12 @@ AsyncDsssReceiver_getprop_code_locked (AsyncDsssReceiverObject *self,
       (long)dp_async_dsss_receiver_get_code_locked (self->handle));
 }
 
-static PyObject *
-AsyncDsssReceiver_getprop_refine_min_blocks (AsyncDsssReceiverObject *self,
-                                             void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)self->handle->refine_min_blocks);
-}
-
 static PyGetSetDef AsyncDsssReceiver_getset[] = {
+  { "refine_min_blocks", (getter)AsyncDsssReceiver_getprop_refine_min_blocks,
+    NULL,
+    "Floor on the refine's dwell, blocks (default 7); set with "
+    "set_refine_min_blocks().\n",
+    NULL },
   { "tracking", (getter)AsyncDsssReceiver_getprop_tracking, NULL,
     "1 once the live tracking chain is built and demodulating; 0 while "
     "searching or refining.\n",
@@ -816,12 +954,7 @@ static PyGetSetDef AsyncDsssReceiver_getset[] = {
     "(pfa-tuned) lock detector -- the fundamental DSSS \"am I despreading\" "
     "lock, de-chattered by up/down hysteresis.\n",
     NULL },
-  { "refine_min_blocks", (getter)AsyncDsssReceiver_getprop_refine_min_blocks,
-    NULL,
-    "Floor on the refine's dwell, blocks (default 7); set with "
-    "set_refine_min_blocks().\n",
-    NULL },
-  { NULL }
+  { NULL, NULL, NULL, NULL, NULL }
 };
 
 static PyObject *
@@ -852,101 +985,6 @@ AsyncDsssReceiverObj_exit (AsyncDsssReceiverObject *self, PyObject *args)
     {
       dp_async_dsss_receiver_destroy (self->handle);
       self->handle = NULL;
-    }
-  Py_RETURN_NONE;
-}
-
-static PyStructSequence_Field AsyncDsssReceiverObj_status_fields[] = {
-  { "state", "ASYNC_DSSS_RX_SEARCHING .. _LOST -- where it is." },
-  { "doppler_hz",
-    "Where the emitter is NOW: the whole carrier estimate, Hz -- loop 1's "
-    "plus what loop 2 has taken up beyond it (the seed while refining, 0 when "
-    "idle, frozen where it was when lost). Only as good as `locked`: with the "
-    "carrier unlocked, loop 1 free-runs and this wanders." },
-  { "chip_phase", "Live Dll code phase, chips." },
-  { "code_rate", "Live Dll code rate, chips/sample." },
-  { "cn0_dbhz_est", "C/N0 estimate, dB-Hz (the hit's)." },
-  { "code_locked", "Presence flag: the Dll's lock detector." },
-  { "locked", "Health flag: the symbol-lock detector." },
-  { "lock_metric", "cos(2*phi) over the symbols, drives `locked`." },
-  { "lock_threshold", "`locked` latches above this." },
-  { "car_last_error", "Pre-despread Costas residual, rad." },
-  { "mpsk_last_error", "Post-despread carrier residual, rad." },
-  { "state_samples", "Input samples since `state` was entered." },
-  { "both_down_samples",
-    "Input samples both flags have been down without a break (the release "
-    "clock); in lost it keeps counting -- samples since the flags dropped." },
-  { NULL, NULL },
-};
-static PyStructSequence_Desc AsyncDsssReceiverObj_status_desc
-    = { "doppler.dsss.ReceiverStatus",
-        "AsyncDsssReceiver's status record: state (0 searching, 1 refining, 2 "
-        "tracking, 3 idle, 4 lost), the live estimates, both lock flags, and "
-        "the two clocks in input samples.",
-        AsyncDsssReceiverObj_status_fields, 13 };
-static PyTypeObject *AsyncDsssReceiverObj_status_type = NULL;
-
-static PyObject *
-AsyncDsssReceiverObj_status (AsyncDsssReceiverObject *self, PyObject *args)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  if (!AsyncDsssReceiverObj_status_type)
-    {
-      AsyncDsssReceiverObj_status_type
-          = PyStructSequence_NewType (&AsyncDsssReceiverObj_status_desc);
-      if (!AsyncDsssReceiverObj_status_type)
-        return NULL;
-    }
-  async_dsss_receiver_status_t _r
-      = dp_async_dsss_receiver_status (self->handle);
-  PyObject *_o = PyStructSequence_New (AsyncDsssReceiverObj_status_type);
-  if (!_o)
-    return NULL;
-  PyStructSequence_SET_ITEM (_o, 0, PyLong_FromLong ((long)_r.state));
-  PyStructSequence_SET_ITEM (_o, 1, PyFloat_FromDouble (_r.doppler_hz));
-  PyStructSequence_SET_ITEM (_o, 2, PyFloat_FromDouble (_r.chip_phase));
-  PyStructSequence_SET_ITEM (_o, 3, PyFloat_FromDouble (_r.code_rate));
-  PyStructSequence_SET_ITEM (_o, 4, PyFloat_FromDouble (_r.cn0_dbhz_est));
-  PyStructSequence_SET_ITEM (_o, 5, PyLong_FromLong ((long)_r.code_locked));
-  PyStructSequence_SET_ITEM (_o, 6, PyLong_FromLong ((long)_r.locked));
-  PyStructSequence_SET_ITEM (_o, 7, PyFloat_FromDouble (_r.lock_metric));
-  PyStructSequence_SET_ITEM (_o, 8, PyFloat_FromDouble (_r.lock_threshold));
-  PyStructSequence_SET_ITEM (_o, 9, PyFloat_FromDouble (_r.car_last_error));
-  PyStructSequence_SET_ITEM (_o, 10, PyFloat_FromDouble (_r.mpsk_last_error));
-  PyStructSequence_SET_ITEM (
-      _o, 11,
-      PyLong_FromUnsignedLongLong ((unsigned long long)_r.state_samples));
-  PyStructSequence_SET_ITEM (
-      _o, 12,
-      PyLong_FromUnsignedLongLong ((unsigned long long)_r.both_down_samples));
-  return _o;
-}
-
-static PyObject *
-AsyncDsssReceiverObj_set_refine_min_blocks (AsyncDsssReceiverObject *self,
-                                            PyObject *args, PyObject *kwds)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  static char       *_kwlist[]    = { "n_blocks", NULL };
-  unsigned long long n_blocks_raw = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &n_blocks_raw))
-    return NULL;
-  size_t n_blocks = (size_t)n_blocks_raw;
-  int    _rc
-      = dp_async_dsss_receiver_set_refine_min_blocks (self->handle, n_blocks);
-  if (_rc != 0)
-    {
-      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
-                    "set_refine_min_blocks failed", (long long)_rc);
-      return NULL;
     }
   Py_RETURN_NONE;
 }
@@ -1059,13 +1097,13 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "seed(chip_phase, doppler_hz_est, cn0_dbhz_est) -> None\n"
     "\n"
-    "Take a detection from outside and start refining from it: the hit's\n"
-    "chip phase (Dll's instantaneous convention, at the next sample fed),\n"
-    "coarse Doppler estimate and C/N0 estimate -- exactly what the searching\n"
-    "flavor's own hit produces. Accepted while idle (cell mode) or\n"
-    "searching; refused on a receiver that already holds a seed (refining,\n"
-    "tracking or lost -- reset() releases it) and for a chip_phase outside\n"
-    "[0, code_len).\n"
+    "Take a detection from outside and start refining from it: the hit's chip "
+    "phase (Dll's instantaneous convention, at the next sample fed), coarse "
+    "Doppler estimate and C/N0 estimate -- exactly what the searching "
+    "flavor's own hit produces. Accepted while idle (cell mode) or searching; "
+    "refused on a receiver that already holds a seed (refining, tracking or "
+    "lost -- reset() releases it) and for a chip_phase outside [0, "
+    "code_len).\n"
     "\n"
     "The hand-off of docs/design/async-dsss-receiver.md section 11.1: the\n"
     "three numbers a searcher's hit carries that this receiver uses --\n"
@@ -1131,12 +1169,55 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "Traceback (most recent call last):\n"
     "    ...\n"
     "ValueError: seed refused: ...\n" },
+  { "status", (PyCFunction)AsyncDsssReceiverObj_status, METH_NOARGS,
+    "status() -> ReceiverStatus record (state, doppler_hz, chip_phase, "
+    "code_rate, cn0_dbhz_est, code_locked, locked, lock_metric, "
+    "lock_threshold, car_last_error, mpsk_last_error, state_samples, "
+    "both_down_samples)\n"
+    "\n"
+    "One consistent picture of the receiver, by value (design section 11.3): "
+    "state, where the emitter is now (the whole carrier estimate -- loop 1's "
+    "plus what loop 2 took up beyond it -- only as good as `locked`; chip "
+    "phase, code rate, C/N0), both lock flags with the symbol-lock metric and "
+    "threshold, both residual carrier errors, and the two clocks in input "
+    "samples (since the state was entered; both flags down without a break). "
+    "Read on demand by the holder of a pool -- the one-at-a-time properties "
+    "are the same fields' other face. No timestamp: the holder owns the "
+    "sample clock and stamps it.\n"
+    "\n"
+    "Cheap and allocation-free: every field is a read of live state. The\n"
+    "one-at-a-time getters below report the same fields; this is the face a\n"
+    "pool holder uses.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "ReceiverStatus\n"
+    "    The record, by value.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import CellAsyncDsssReceiver\n"
+    ">>> from doppler.wfm import Gold\n"
+    ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
+    ">>> rx = CellAsyncDsssReceiver(code, chip_rate=3.069e6,\n"
+    "...                            symbol_rate=2700.0, spc=2)\n"
+    ">>> st = rx.status()\n"
+    ">>> (st.state, st.doppler_hz, st.code_locked, st.locked)   # idle\n"
+    "(3, 0.0, 0, 0)\n"
+    ">>> rx.seed(chip_phase=100.0, doppler_hz_est=-250.0, cn0_dbhz_est=50.0)\n"
+    ">>> st = rx.status()\n"
+    ">>> (st.state, round(st.doppler_hz, 6), st.cn0_dbhz_est)  # refining\n"
+    "(1, -250.0, 50.0)\n"
+    ">>> _ = rx.steps(np.zeros(2046, np.complex64))\n"
+    ">>> rx.status().state_samples                             # since seed\n"
+    "2046\n" },
   { "configure_search_raw",
     (PyCFunction)(void *)AsyncDsssReceiverObj_configure_search_raw,
     METH_VARARGS | METH_KEYWORDS,
     "configure_search_raw(doppler_bins, n_noncoh) -> None\n"
     "\n"
-    "Pin the embedded Acquisition's search grid directly, bypassing the\n"
+    "Pin the embedded Acquisition's search grid directly, bypassing the "
     "symbol_rate-driven auto-sizing. Only meaningful while searching.\n"
     "\n"
     "Parameters\n"
@@ -1168,14 +1249,65 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     ">>> rx.configure_search_raw(doppler_bins=1, n_noncoh=16)  # pin it\n"
     ">>> rx.refining                # still searching, on the pinned grid\n"
     "0\n" },
+  { "set_refine_min_blocks",
+    (PyCFunction)(void *)AsyncDsssReceiverObj_set_refine_min_blocks,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_refine_min_blocks(n_blocks) -> None\n"
+    "\n"
+    "Floor the refine's dwell at n_blocks whatever the detection sizing asks "
+    "(design section 12.16, #1265): CarrierAcquisition's dwell is sized for "
+    "detection at the derated C/N0 and shortens as the C/N0 rises -- two "
+    "blocks at 45 dB-Hz with the shipped margin -- while the noise of the "
+    "estimate it hands the tracking chain does not shorten with it (210 Hz at "
+    "two blocks against a chain that pulls in from a few hundred). The "
+    "default of 7 blocks (42 ms) holds it to 77 Hz. Applied to the next "
+    "refine chain built; 0 removes the floor; clamped by refine_max_n_blocks. "
+    "Config, not running state.\n"
+    "\n"
+    "CarrierAcquisition's dwell is sized for DETECTION at the derated C/N0\n"
+    "(`cn0_dbhz - refine_design_margin_db`), so it shortens as the C/N0\n"
+    "rises -- two blocks at 45 dB-Hz with the shipped margin -- while the\n"
+    "noise of the estimate it hands the tracking chain does not shorten with\n"
+    "it: 210 Hz at two blocks against a chain that pulls in from a few\n"
+    "hundred, so one hand-over in sixty landed outside and tracked the code\n"
+    "with the carrier never locked. Seven blocks (42 ms, the default and\n"
+    "section 12.10's floor dwell) hold the estimate to 77 Hz. Applied to the\n"
+    "next refine chain built -- a receiver already refining keeps its dwell.\n"
+    "Config, not running state: not in the blob. `n_blocks` of 0 removes the\n"
+    "floor; the value is clamped by `refine_max_n_blocks` where that cap is\n"
+    "lower.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n_blocks : int\n"
+    "    The floor, blocks.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``set_refine_min_blocks failed``, with the return code appended\n"
+    "    (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.dsss import AsyncDsssReceiver\n"
+    ">>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,\n"
+    "...                        symbol_rate=1e6 / 28.0, spc=4, "
+    "cn0_dbhz=60.0)\n"
+    ">>> rx.refine_min_blocks                     # the default floor\n"
+    "7\n"
+    ">>> rx.set_refine_min_blocks(12)\n"
+    ">>> rx.refine_min_blocks\n"
+    "12\n" },
   { "configure_lock_raw",
     (PyCFunction)(void *)AsyncDsssReceiverObj_configure_lock_raw,
     METH_VARARGS | METH_KEYWORDS,
     "configure_lock_raw(up_thresh, down_thresh, n_looks, alpha, n_up, n_down) "
     "-> None\n"
     "\n"
-    "Re-tune the live-tracking Dll's code-lock detector directly. Only\n"
-    "meaningful once tracking has begun; a no-op while searching or\n"
+    "Re-tune the live-tracking Dll's code-lock detector directly. Only "
+    "meaningful once tracking has begun; a no-op while searching or "
     "refining.\n"
     "\n"
     "Parameters\n"
@@ -1214,10 +1346,10 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "configure_chain_raw(segments, sps, n) -> None\n"
     "\n"
-    "Pin the live-tracking despread/resample/demod grid directly,\n"
-    "bypassing the create-time segments/sps defaults. Only meaningful once\n"
-    "tracking; rebuilds the chain with every replacement allocated first, so\n"
-    "a failed pin leaves the receiver on its prior grid.\n"
+    "Pin the live-tracking despread/resample/demod grid directly, bypassing "
+    "the create-time segments/sps defaults. Only meaningful once tracking; "
+    "rebuilds the chain with every replacement allocated first, so a failed "
+    "pin leaves the receiver on its prior grid.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1249,9 +1381,9 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
   { "reset", (PyCFunction)AsyncDsssReceiverObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
-    "Return to the searching state: resets the embedded Acquisition and\n"
-    "frees every refine-stage/track-stage child (rebuilt from scratch on the\n"
-    "next hit).\n"
+    "Return to the searching state: resets the embedded Acquisition and frees "
+    "every refine-stage/track-stage child (rebuilt from scratch on the next "
+    "hit).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1350,105 +1482,11 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { "status", (PyCFunction)AsyncDsssReceiverObj_status, METH_VARARGS,
-    "status() -> ReceiverStatus record (state, doppler_hz, chip_phase, "
-    "code_rate, cn0_dbhz_est, code_locked, locked, lock_metric, "
-    "lock_threshold, car_last_error, mpsk_last_error, state_samples, "
-    "both_down_samples)\n"
-    "\n"
-    "One consistent picture of the receiver, by value (design section\n"
-    "11.3): state, where the emitter is now (the whole carrier estimate --\n"
-    "loop 1's plus what loop 2 took up beyond it -- only as good as\n"
-    "`locked`; chip phase, code rate, C/N0), both lock flags with the\n"
-    "symbol-lock metric and threshold, both residual carrier errors, and the\n"
-    "two clocks in input samples (since the state was entered; both flags\n"
-    "down without a break). Read on demand by the holder of a pool -- the\n"
-    "one-at-a-time properties are the same fields' other face. No timestamp:\n"
-    "the holder owns the sample clock and stamps it.\n"
-    "\n"
-    "Cheap and allocation-free: every field is a read of live state. The\n"
-    "one-at-a-time getters below report the same fields; this is the face a\n"
-    "pool holder uses.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "ReceiverStatus\n"
-    "    The record, by value.\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    ">>> import numpy as np\n"
-    ">>> from doppler.dsss import CellAsyncDsssReceiver\n"
-    ">>> from doppler.wfm import Gold\n"
-    ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
-    ">>> rx = CellAsyncDsssReceiver(code, chip_rate=3.069e6,\n"
-    "...                            symbol_rate=2700.0, spc=2)\n"
-    ">>> st = rx.status()\n"
-    ">>> (st.state, st.doppler_hz, st.code_locked, st.locked)   # idle\n"
-    "(3, 0.0, 0, 0)\n"
-    ">>> rx.seed(chip_phase=100.0, doppler_hz_est=-250.0, cn0_dbhz_est=50.0)\n"
-    ">>> st = rx.status()\n"
-    ">>> (st.state, round(st.doppler_hz, 6), st.cn0_dbhz_est)  # refining\n"
-    "(1, -250.0, 50.0)\n"
-    ">>> _ = rx.steps(np.zeros(2046, np.complex64))\n"
-    ">>> rx.status().state_samples                             # since seed\n"
-    "2046\n" },
-  { "set_refine_min_blocks",
-    (PyCFunction)(void *)AsyncDsssReceiverObj_set_refine_min_blocks,
-    METH_VARARGS | METH_KEYWORDS,
-    "set_refine_min_blocks(n_blocks) -> None\n"
-    "\n"
-    "Floor the refine's dwell at n_blocks whatever the detection sizing\n"
-    "asks (design section 12.16, #1265): CarrierAcquisition's dwell is sized\n"
-    "for detection at the derated C/N0 and shortens as the C/N0 rises -- two\n"
-    "blocks at 45 dB-Hz with the shipped margin -- while the noise of the\n"
-    "estimate it hands the tracking chain does not shorten with it (210 Hz\n"
-    "at two blocks against a chain that pulls in from a few hundred). The\n"
-    "default of 7 blocks (42 ms) holds it to 77 Hz. Applied to the next\n"
-    "refine chain built; 0 removes the floor; clamped by\n"
-    "refine_max_n_blocks. Config, not running state.\n"
-    "\n"
-    "CarrierAcquisition's dwell is sized for DETECTION at the derated C/N0\n"
-    "(`cn0_dbhz - refine_design_margin_db`), so it shortens as the C/N0\n"
-    "rises -- two blocks at 45 dB-Hz with the shipped margin -- while the\n"
-    "noise of the estimate it hands the tracking chain does not shorten with\n"
-    "it: 210 Hz at two blocks against a chain that pulls in from a few\n"
-    "hundred, so one hand-over in sixty landed outside and tracked the code\n"
-    "with the carrier never locked. Seven blocks (42 ms, the default and\n"
-    "section 12.10's floor dwell) hold the estimate to 77 Hz. Applied to the\n"
-    "next refine chain built -- a receiver already refining keeps its dwell.\n"
-    "Config, not running state: not in the blob. `n_blocks` of 0 removes the\n"
-    "floor; the value is clamped by `refine_max_n_blocks` where that cap is\n"
-    "lower.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "n_blocks : int\n"
-    "    The floor, blocks.\n"
-    "\n"
-    "Raises\n"
-    "------\n"
-    "ValueError\n"
-    "    If the C call returns a non-zero status. The exception message is\n"
-    "    ``set_refine_min_blocks failed``, with the return code appended\n"
-    "    (gh-869).\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    ">>> from doppler.dsss import AsyncDsssReceiver\n"
-    ">>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,\n"
-    "...                        symbol_rate=1e6 / 28.0, spc=4, "
-    "cn0_dbhz=60.0)\n"
-    ">>> rx.refine_min_blocks                     # the default floor\n"
-    "7\n"
-    ">>> rx.set_refine_min_blocks(12)\n"
-    ">>> rx.refine_min_blocks\n"
-    "12\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject AsyncDsssReceiverObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "dsss.AsyncDsssReceiver",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.dsss.AsyncDsssReceiver",
   .tp_basicsize                           = sizeof (AsyncDsssReceiverObject),
   .tp_dealloc = (destructor)AsyncDsssReceiverObj_dealloc,
   .tp_flags   = Py_TPFLAGS_DEFAULT,

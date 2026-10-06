@@ -25,6 +25,7 @@ serializable = "true"
 create_error = "ValueError"
 create_error_message = "m must be 2, 4 or 8 and conf must lie in (0, 1)"
 depends_on = [{ name = "detection", link = true }, { name = "ber" }]
+fragment = "generated"
 
 [[ber_meter.init_params]]
 name = "m"

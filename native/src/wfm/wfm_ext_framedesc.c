@@ -1,8 +1,10 @@
+/* jm:generated wfm_ext_framedesc.c */
 /*
  * wfm_ext_framedesc.c — FrameDesc type for the wfm module.
  *
  * Included by wfm_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in wfm_ext_framedesc_extra.c.
  * Do NOT compile this file directly — only wfm_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ FrameDescObj_dealloc (FrameDescObject *self)
 static PyObject *
 FrameDescObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   FrameDescObject *self = (FrameDescObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -188,6 +193,15 @@ FrameDescObj_bits (FrameDescObject *self, PyObject *args, PyObject *kwds)
       Py_BEGIN_ALLOW_THREADS
         n_out = dp_frame_bits (self->handle, (size_t)n, _ng0, _cap);
       Py_END_ALLOW_THREADS
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "FrameDesc.bits: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_UINT8,
                                                     PyArray_DATA (out_arr));
@@ -231,6 +245,14 @@ FrameDescObj_bits (FrameDescObject *self, PyObject *args, PyObject *kwds)
   Py_BEGIN_ALLOW_THREADS
     n_out = dp_frame_bits (self->handle, (size_t)n, _d0, _cap);
   Py_END_ALLOW_THREADS
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_RuntimeError,
+                    "FrameDesc.bits: wrote %zu elements into a buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -427,6 +449,35 @@ FrameDescObj_add_derived (FrameDescObject *self, PyObject *args,
 }
 
 static PyObject *
+FrameDescObj_add_data (FrameDescObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char       *_kwlist[] = { "name", "len", NULL };
+  const char        *name      = NULL;
+  unsigned long long len_raw   = 0ULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "sK", _kwlist, &name,
+                                    &len_raw))
+    return NULL;
+  size_t len = (size_t)len_raw;
+  int    _rc = dp_frame_add_data (self->handle, name, len);
+  if (_rc < 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "cannot append a data field: len is 0 or past the Field "
+                    "grammar's bound (WFM_FIELD_MAX_BITS), or the "
+                    "description is full, already built, or already carries "
+                    "the name",
+                    (long long)_rc);
+      return NULL;
+    }
+  return PyLong_FromLong ((long)_rc);
+}
+
+static PyObject *
 FrameDescObj_add_stage_over (FrameDescObject *self, PyObject *args,
                              PyObject *kwds)
 {
@@ -558,6 +609,15 @@ FrameDescObj_deframe (FrameDescObject *self, PyObject *args, PyObject *kwds)
           (size_t)PyArray_SIZE (rx_bits_arr),
           (uint8_t *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (rx_bits_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "FrameDesc.deframe: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_UINT8,
                                                     PyArray_DATA (out_arr));
@@ -600,6 +660,15 @@ FrameDescObj_deframe (FrameDescObject *self, PyObject *args, PyObject *kwds)
       self->handle, (const uint8_t *)PyArray_DATA (rx_bits_arr),
       (size_t)PyArray_SIZE (rx_bits_arr), _d0, _cap);
   Py_DECREF (rx_bits_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "FrameDesc.deframe: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -880,7 +949,7 @@ static PyGetSetDef FrameDesc_getset[] = {
     "`wfm_frame_desc_t *`), the handle a composer source's `frame=` copies "
     "from. Valid while this object lives.\n",
     NULL },
-  { NULL }
+  { NULL, NULL, NULL, NULL, NULL }
 };
 
 static PyObject *
@@ -911,34 +980,6 @@ FrameDescObj_exit (FrameDescObject *self, PyObject *args)
       self->handle = NULL;
     }
   Py_RETURN_NONE;
-}
-
-static PyObject *
-FrameDescObj_add_data (FrameDescObject *self, PyObject *args, PyObject *kwds)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  static char       *_kwlist[] = { "name", "len", NULL };
-  const char        *name      = NULL;
-  unsigned long long len_raw   = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "sK", _kwlist, &name,
-                                    &len_raw))
-    return NULL;
-  size_t len = (size_t)len_raw;
-  int    _rc = dp_frame_add_data (self->handle, name, len);
-  if (_rc < 0)
-    {
-      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
-                    "cannot append a data field: len must be 1..261120 (the "
-                    "Field grammar's bound), and the description must not be "
-                    "full, already built, or already carry the name",
-                    (long long)_rc);
-      return NULL;
-    }
-  return PyLong_FromLong ((long)_rc);
 }
 
 static PyMethodDef FrameDescObj_methods[] = {
@@ -1285,6 +1326,69 @@ static PyMethodDef FrameDescObj_methods[] = {
     "0\n"
     ">>> d.add_derived(\"crc\", 16)          # a stage will fill it\n"
     "1\n" },
+  { "add_data", (PyCFunction)(void *)FrameDescObj_add_data,
+    METH_VARARGS | METH_KEYWORDS,
+    "add_data(name, len) -> int\n"
+    "\n"
+    "Append a named DATA field: len bits a data source fills, one chunk\n"
+    "per frame. Returns its index; -1 in C, `ValueError` from Python.\n"
+    "\n"
+    "The object spelling of the Field text `data:LEN`, and the same field: a\n"
+    "WFM_SEQ_DATA sequence of length len, which is exactly what\n"
+    "`dp_wfm_field_parse(\"data:LEN\")` produces for a scene's or the CLI's\n"
+    "frame. The description knows the field's length and never its bits: a\n"
+    "transmitter draws them from its data source at each frame (a source's\n"
+    "`data=`), and a CRC or outer code covering the field covers that\n"
+    "frame's chunk. It is a method rather than Field text in\n"
+    "dp_frame_add_field because an object takes bits, and a data field has\n"
+    "none (rx-frame-description.md, D5).\n"
+    "\n"
+    "A frame draws from one data source, so a description carries at most\n"
+    "one data field; a second is refused where geometry is judged, by the\n"
+    "layout, as it is for every other face.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "name : str\n"
+    "    The field's name, or NULL/\"\" for anonymous; a name another field\n"
+    "    carries is refused.\n"
+    "len : int\n"
+    "    Bits per frame, `LEN` in `data:LEN`: from 1 to WFM_FIELD_MAX_BITS,\n"
+    "    the bound the Field grammar puts on the text form.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    The new field's index, or -1 if len is out of range, the\n"
+    "    description is full or already built, or the name is taken.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a negative value. The exception message is\n"
+    "    ``cannot append a data field: len is 0 or past the Field grammar's\n"
+    "    bound (WFM_FIELD_MAX_BITS), or the description is full, already\n"
+    "    built, or already carries the name``, with the return code appended\n"
+    "    (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.wfm import FrameDesc, STAGE_CRC16, Segment, Composer\n"
+    ">>> d = FrameDesc()\n"
+    ">>> d.add_field(\"sync\", np.array([1, 1, 1, 0, 0, 1, 0], np.uint8))\n"
+    "0\n"
+    ">>> d.add_data(\"payload\", 8)          # 8 bits of the data source a "
+    "frame\n"
+    "1\n"
+    ">>> d.add_derived(\"crc\", 16)\n"
+    "2\n"
+    ">>> d.add_stage_over(STAGE_CRC16, \"payload\", \"crc\")\n"
+    "0\n"
+    ">>> seg = Segment(type=\"bits\", sps=1, modulation=\"bpsk\", frame=d,\n"
+    "...               data=np.unpackbits(np.array([0xA5, 0x3C], np.uint8)))\n"
+    ">>> len(Composer([seg]).compose())    # two frames of 7 + 8 + 16 bits\n"
+    "62\n" },
   { "add_stage_over", (PyCFunction)(void *)FrameDescObj_add_stage_over,
     METH_VARARGS | METH_KEYWORDS,
     "add_stage_over(kind, first, last, depth, unit_bits) -> int\n"
@@ -1751,70 +1855,7 @@ static PyMethodDef FrameDescObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { "add_data", (PyCFunction)(void *)FrameDescObj_add_data,
-    METH_VARARGS | METH_KEYWORDS,
-    "add_data(name, len) -> int\n"
-    "\n"
-    "Append a named DATA field: len bits a data source fills, one chunk\n"
-    "per frame. Returns its index; -1 in C, `ValueError` from Python.\n"
-    "\n"
-    "The object spelling of the Field text `data:LEN`, and the same field: a\n"
-    "WFM_SEQ_DATA sequence of length len, which is exactly what\n"
-    "`dp_wfm_field_parse(\"data:LEN\")` produces for a scene's or the CLI's\n"
-    "frame. The description knows the field's length and never its bits: a\n"
-    "transmitter draws them from its data source at each frame (a source's\n"
-    "`data=`), and a CRC or outer code covering the field covers that\n"
-    "frame's chunk. It is a method rather than Field text in\n"
-    "dp_frame_add_field because an object takes bits, and a data field has\n"
-    "none (rx-frame-description.md, D5).\n"
-    "\n"
-    "A frame draws from one data source, so a description carries at most\n"
-    "one data field; a second is refused where geometry is judged, by the\n"
-    "layout, as it is for every other face.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "name : str\n"
-    "    The field's name, or NULL/\"\" for anonymous; a name another field\n"
-    "    carries is refused.\n"
-    "len : int\n"
-    "    Bits per frame, `LEN` in `data:LEN`: from 1 to WFM_FIELD_MAX_BITS,\n"
-    "    the bound the Field grammar puts on the text form.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "int\n"
-    "    The new field's index, or -1 if len is out of range, the\n"
-    "    description is full or already built, or the name is taken.\n"
-    "\n"
-    "Raises\n"
-    "------\n"
-    "ValueError\n"
-    "    If the C call returns a negative value. The exception message is\n"
-    "    ``cannot append a data field: len is 0 or past the Field grammar's\n"
-    "    bound (WFM_FIELD_MAX_BITS), or the description is full, already\n"
-    "    built, or already carries the name``, with the return code appended\n"
-    "    (gh-869).\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    ">>> import numpy as np\n"
-    ">>> from doppler.wfm import FrameDesc, STAGE_CRC16, Segment, Composer\n"
-    ">>> d = FrameDesc()\n"
-    ">>> d.add_field(\"sync\", np.array([1, 1, 1, 0, 0, 1, 0], np.uint8))\n"
-    "0\n"
-    ">>> d.add_data(\"payload\", 8)          # 8 bits of the data source a "
-    "frame\n"
-    "1\n"
-    ">>> d.add_derived(\"crc\", 16)\n"
-    "2\n"
-    ">>> d.add_stage_over(STAGE_CRC16, \"payload\", \"crc\")\n"
-    "0\n"
-    ">>> seg = Segment(type=\"bits\", sps=1, modulation=\"bpsk\", frame=d,\n"
-    "...               data=np.unpackbits(np.array([0xA5, 0x3C], np.uint8)))\n"
-    ">>> len(Composer([seg]).compose())    # two frames of 7 + 8 + 16 bits\n"
-    "62\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject FrameDescObjType = {

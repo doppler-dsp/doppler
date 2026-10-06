@@ -17,6 +17,7 @@ no_step = "true"
 class_name = "PSD"
 depends_on = ["fft_core", "spectral_core", { name = "acc_trace", link = true }]
 serializable = "true"
+fragment = "generated"
 
 [[psd.init_params]]
 name = "n"

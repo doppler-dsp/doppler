@@ -1,8 +1,10 @@
+/* jm:generated spectral_ext_detector2d.c */
 /*
  * spectral_ext_detector2d.c — CorrDetector2D type for the spectral module.
  *
  * Included by spectral_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in spectral_ext_detector2d_extra.c.
  * Do NOT compile this file directly — only spectral_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ CorrDetector2DObj_dealloc (CorrDetector2DObject *self)
 static PyObject *
 CorrDetector2DObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   CorrDetector2DObject *self
       = (CorrDetector2DObject *)type->tp_alloc (type, 0);
   if (self)
@@ -38,17 +43,11 @@ static int
 CorrDetector2DObj_init (CorrDetector2DObject *self, PyObject *args,
                         PyObject *kwds)
 {
-  /* Hand-patch (sacred fragment): the parameter ORDER here must track
-     objects/detector.toml, because the .pyi is hand-owned and states that
-     order. An older jm hoisted the string_enum `noise_mode` to the front;
-     it no longer does, but this fragment is hand-owned for the 2-D ref
-     marshaling below, so it never picked the fix up and the stub and the
-     binding disagreed. Keep the two in step by hand. */
   static char *kwlist[] = { "ref",        "dwell",     "noise_lo", "noise_hi",
                             "noise_mode", "threshold", "nthreads", NULL };
   PyObject    *ref_obj  = NULL;
-  unsigned long long dwell_raw      = 1ULL;
-  unsigned long long noise_lo_raw   = 0ULL;
+  unsigned long long dwell_raw      = 1;
+  unsigned long long noise_lo_raw   = 0;
   unsigned long long noise_hi_raw   = (unsigned long long)-1ULL;
   const char        *noise_mode_str = "mean";
   float              threshold      = 0.0f;
@@ -58,7 +57,10 @@ CorrDetector2DObj_init (CorrDetector2DObject *self, PyObject *args,
                                     &dwell_raw, &noise_lo_raw, &noise_hi_raw,
                                     &noise_mode_str, &threshold, &nthreads))
     return -1;
-  int noise_mode = 0;
+  size_t dwell      = (size_t)dwell_raw;
+  size_t noise_lo   = (size_t)noise_lo_raw;
+  size_t noise_hi   = (size_t)noise_hi_raw;
+  int    noise_mode = 0;
   if (strcmp (noise_mode_str, "mean") == 0)
     noise_mode = 0;
   else if (strcmp (noise_mode_str, "median") == 0)
@@ -75,11 +77,8 @@ CorrDetector2DObj_init (CorrDetector2DObject *self, PyObject *args,
                     noise_mode_str);
       return -1;
     }
-  size_t         dwell    = (size_t)dwell_raw;
-  size_t         noise_lo = (size_t)noise_lo_raw;
-  size_t         noise_hi = (size_t)noise_hi_raw;
-  PyArrayObject *ref_arr  = (PyArrayObject *)PyArray_FROM_OTF (
-      ref_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *ref_arr
+      = jm_array_arg (ref_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "ref");
   if (!ref_arr)
     {
       return -1;
@@ -129,25 +128,38 @@ CorrDetector2DObj_push (CorrDetector2DObject *self, PyObject *args)
   PyObject *in_obj = NULL;
   if (!PyArg_ParseTuple (args, "O", &in_obj))
     return NULL;
-  PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *in_arr
+      = jm_array_arg (in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!in_arr)
-    return NULL;
+    {
+      return NULL;
+    }
   size_t         n_in = (size_t)PyArray_SIZE (in_arr);
   det_result2d_t results[64];
   size_t         n_out = dp_detector2d_push (
       self->handle, (const float _Complex *)PyArray_DATA (in_arr), n_in,
       results, 64);
   Py_DECREF (in_arr);
+  if ((size_t)(n_out) > (size_t)(64))
+    {
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "CorrDetector2D.push: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(64));
+      return NULL;
+    }
   PyObject *lst = PyList_New ((Py_ssize_t)n_out);
   if (!lst)
     return NULL;
   for (size_t i = 0; i < n_out; i++)
     {
       PyObject *tup = Py_BuildValue (
-          "(KKfff)", (unsigned long long)results[i].row,
-          (unsigned long long)results[i].col, results[i].peak_mag,
-          results[i].noise_est, results[i].test_stat);
+          "(NNNNN)",
+          PyLong_FromUnsignedLongLong ((unsigned long long)results[i].row),
+          PyLong_FromUnsignedLongLong ((unsigned long long)results[i].col),
+          PyFloat_FromDouble ((double)results[i].peak_mag),
+          PyFloat_FromDouble ((double)results[i].noise_est),
+          PyFloat_FromDouble ((double)results[i].test_stat));
       if (!tup)
         {
           Py_DECREF (lst);
@@ -156,6 +168,62 @@ CorrDetector2DObj_push (CorrDetector2DObject *self, PyObject *args)
       PyList_SET_ITEM (lst, (Py_ssize_t)i, tup);
     }
   return lst;
+}
+
+static PyObject *
+CorrDetector2DObj_state_bytes (CorrDetector2DObject *self,
+                               PyObject             *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (dp_detector2d_state_bytes (self->handle));
+}
+
+static PyObject *
+CorrDetector2DObj_get_state (CorrDetector2DObject *self,
+                             PyObject             *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = dp_detector2d_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  dp_detector2d_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+CorrDetector2DObj_set_state (CorrDetector2DObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg)
+      != dp_detector2d_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (dp_detector2d_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
+  Py_RETURN_NONE;
 }
 static PyObject *
 CorrDetector2D_getprop_ny (CorrDetector2DObject *self,
@@ -200,7 +268,7 @@ CorrDetector2D_getprop_dwell (CorrDetector2DObject *self,
       return NULL;
     }
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)self->handle->corr->dwell);
+      (unsigned long long)(self->handle->corr->dwell));
 }
 static PyObject *
 CorrDetector2D_getprop_count (CorrDetector2DObject *self,
@@ -212,7 +280,7 @@ CorrDetector2D_getprop_count (CorrDetector2DObject *self,
       return NULL;
     }
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)self->handle->corr->count);
+      (unsigned long long)(self->handle->corr->count));
 }
 static PyObject *
 CorrDetector2D_getprop_ring_cap (CorrDetector2DObject *self,
@@ -272,13 +340,27 @@ CorrDetector2D_getprop_last_corr (CorrDetector2DObject *self,
     }
   if (!self->handle->_last_corr_valid)
     Py_RETURN_NONE;
-  npy_intp  dim = (npy_intp)self->handle->n;
-  PyObject *arr = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64,
-                                             self->handle->out_buf);
+  size_t _dim_need = (size_t)(self->handle->n);
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (
+          PyExc_OverflowError,
+          "CorrDetector2D.last_corr: output of %zu elements is too large",
+          _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
+  PyObject *arr  = PyArray_SimpleNewFromData (1, &_dim, NPY_COMPLEX64,
+                                              (void *)(self->handle->out_buf));
   if (!arr)
     return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
   Py_INCREF (self);
+  if (PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self) < 0)
+    {
+      Py_DECREF (self);
+      Py_DECREF (arr);
+      return NULL;
+    }
   return arr;
 }
 
@@ -310,7 +392,7 @@ static PyGetSetDef CorrDetector2D_getset[]
           "(even one that doesn't produce a result) overwrites it in place. "
           "Copy the array before the next push() if you need to retain it.\n",
           NULL },
-        { NULL } };
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 CorrDetector2DObj_destroy (CorrDetector2DObject *self,
@@ -344,62 +426,6 @@ CorrDetector2DObj_exit (CorrDetector2DObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyObject *
-CorrDetector2DObj_state_bytes (CorrDetector2DObject *self,
-                               PyObject             *Py_UNUSED (ignored))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromSize_t (dp_detector2d_state_bytes (self->handle));
-}
-
-static PyObject *
-CorrDetector2DObj_get_state (CorrDetector2DObject *self,
-                             PyObject             *Py_UNUSED (ignored))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  size_t    _n = dp_detector2d_state_bytes (self->handle);
-  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
-  if (!_b)
-    return NULL;
-  dp_detector2d_get_state (self->handle, PyBytes_AS_STRING (_b));
-  return _b;
-}
-
-static PyObject *
-CorrDetector2DObj_set_state (CorrDetector2DObject *self, PyObject *arg)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  if (!PyBytes_Check (arg))
-    {
-      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
-      return NULL;
-    }
-  if ((size_t)PyBytes_GET_SIZE (arg)
-      != dp_detector2d_state_bytes (self->handle))
-    {
-      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
-      return NULL;
-    }
-  if (dp_detector2d_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
-    {
-      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
-      return NULL;
-    }
-  Py_RETURN_NONE;
-}
-
 static PyMethodDef CorrDetector2DObj_methods[] = {
   { "reset", (PyCFunction)CorrDetector2DObj_reset, METH_NOARGS,
     "Reset the 2-D correlator, ring buffer, and last-corr flag. Discards\n"
@@ -421,12 +447,11 @@ static PyMethodDef CorrDetector2DObj_methods[] = {
   { "push", (PyCFunction)CorrDetector2DObj_push, METH_VARARGS,
     "push(x) -> list[tuple]\n"
     "\n"
-    "Stream an arbitrary-length CF32 chunk through the 2-D detector. "
-    "Identical to dp_detector_push() except frames are ny*nx complex samples "
-    "and "
-    "each detection event carries (row, col) for the peak location instead of "
-    "a single lag index.  In Python the result is always a list of (row, col, "
-    "peak_mag, noise_est, test_stat) tuples.\n"
+    "Stream an arbitrary-length CF32 chunk through the 2-D detector.\n"
+    "Identical to dp_detector_push() except frames are ny*nx complex samples\n"
+    "and each detection event carries (row, col) for the peak location\n"
+    "instead of a single lag index. In Python the result is always a list of\n"
+    "(row, col, peak_mag, noise_est, test_stat) tuples.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -451,42 +476,6 @@ static PyMethodDef CorrDetector2DObj_methods[] = {
     ">>> row, col, peak, noise, stat = results[0]\n"
     ">>> row, col, round(peak, 4), round(noise, 4), round(stat, 4)\n"
     "(0, 0, 1.0, 1.0, 1.0)\n" },
-  { "destroy", (PyCFunction)CorrDetector2DObj_destroy, METH_NOARGS,
-    "Release the underlying C resources immediately.\n"
-    "\n"
-    "Ordinarily unnecessary: the resources are freed when the object is\n"
-    "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
-    "exit.\n"
-    "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
-  { "__enter__", (PyCFunction)CorrDetector2DObj_enter, METH_NOARGS,
-    "Enter a context manager, returning this object.\n"
-    "\n"
-    "Lets a CorrDetector2D be used in a `with` statement so its C resources\n"
-    "are released deterministically on exit rather than at collection time.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "CorrDetector2D\n"
-    "    This same object, not a copy.\n" },
-  { "__exit__", (PyCFunction)CorrDetector2DObj_exit, METH_VARARGS,
-    "Exit a context manager, releasing the CorrDetector2D.\n"
-    "\n"
-    "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
-    "raised inside the `with` body propagates normally; this never\n"
-    "suppresses one.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "exc_type : object | None\n"
-    "    Exception class, or None. Ignored.\n"
-    "exc : object | None\n"
-    "    Exception instance, or None. Ignored.\n"
-    "tb : object | None\n"
-    "    Traceback object, or None. Ignored.\n" },
   { "state_bytes", (PyCFunction)CorrDetector2DObj_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"
     "\n"
@@ -537,11 +526,46 @@ static PyMethodDef CorrDetector2DObj_methods[] = {
     "blob : bytes\n"
     "    A `get_state()` blob from this type, exactly `state_bytes()` "
     "long.\n" },
-  { NULL }
+  { "destroy", (PyCFunction)CorrDetector2DObj_destroy, METH_NOARGS,
+    "Release the underlying C resources immediately.\n"
+    "\n"
+    "Ordinarily unnecessary: the resources are freed when the object is\n"
+    "garbage-collected. Call this to release them at a definite point\n"
+    "instead, or use the object as a context manager, which calls it on\n"
+    "exit.\n"
+    "\n"
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
+  { "__enter__", (PyCFunction)CorrDetector2DObj_enter, METH_NOARGS,
+    "Enter a context manager, returning this object.\n"
+    "\n"
+    "Lets a CorrDetector2D be used in a `with` statement so its C resources\n"
+    "are released deterministically on exit rather than at collection time.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "CorrDetector2D\n"
+    "    This same object, not a copy.\n" },
+  { "__exit__", (PyCFunction)CorrDetector2DObj_exit, METH_VARARGS,
+    "Exit a context manager, releasing the CorrDetector2D.\n"
+    "\n"
+    "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
+    "raised inside the `with` body propagates normally; this never\n"
+    "suppresses one.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "exc_type : object | None\n"
+    "    Exception class, or None. Ignored.\n"
+    "exc : object | None\n"
+    "    Exception instance, or None. Ignored.\n"
+    "tb : object | None\n"
+    "    Traceback object, or None. Ignored.\n" },
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject CorrDetector2DObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "spectral.CorrDetector2D",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.spectral.CorrDetector2D",
   .tp_basicsize                           = sizeof (CorrDetector2DObject),
   .tp_dealloc = (destructor)CorrDetector2DObj_dealloc,
   .tp_flags   = Py_TPFLAGS_DEFAULT,

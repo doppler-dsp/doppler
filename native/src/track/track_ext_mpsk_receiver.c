@@ -1,8 +1,10 @@
+/* jm:generated track_ext_mpsk_receiver.c */
 /*
  * track_ext_mpsk_receiver.c — MpskReceiver type for the track module.
  *
  * Included by track_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in track_ext_mpsk_receiver_extra.c.
  * Do NOT compile this file directly — only track_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ MpskReceiverObj_dealloc (MpskReceiverObject *self)
 static PyObject *
 MpskReceiverObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   MpskReceiverObject *self = (MpskReceiverObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -168,8 +173,7 @@ MpskReceiverObj_steps (MpskReceiverObject *self, PyObject *args,
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
-                                             NPY_ARRAY_C_CONTIGUOUS);
+  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     return NULL;
   if (out_obj && out_obj != Py_None)
@@ -187,9 +191,9 @@ MpskReceiverObj_steps (MpskReceiverObject *self, PyObject *args,
           Py_DECREF (x_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_COMPLEX64,
-          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (x_arr);
@@ -221,6 +225,15 @@ MpskReceiverObj_steps (MpskReceiverObject *self, PyObject *args,
         n_out = dp_mpsk_receiver_steps (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "MpskReceiver.steps: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
                                                     PyArray_DATA (out_arr));
@@ -229,14 +242,29 @@ MpskReceiverObj_steps (MpskReceiverObject *self, PyObject *args,
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   size_t _cap  = dp_mpsk_receiver_steps_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "MpskReceiver.steps: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
   if (!arr0)
     {
@@ -255,6 +283,15 @@ MpskReceiverObj_steps (MpskReceiverObject *self, PyObject *args,
     n_out = dp_mpsk_receiver_steps (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "MpskReceiver.steps: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -298,8 +335,7 @@ MpskReceiverObj_bits (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
-                                             NPY_ARRAY_C_CONTIGUOUS);
+  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     return NULL;
   if (out_obj && out_obj != Py_None)
@@ -317,8 +353,9 @@ MpskReceiverObj_bits (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (x_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_UINT8,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (x_arr);
@@ -350,6 +387,15 @@ MpskReceiverObj_bits (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
         n_out = dp_mpsk_receiver_bits (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "MpskReceiver.bits: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_UINT8,
                                                     PyArray_DATA (out_arr));
@@ -358,14 +404,29 @@ MpskReceiverObj_bits (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   size_t _cap  = dp_mpsk_receiver_bits_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "MpskReceiver.bits: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_UINT8);
   if (!arr0)
     {
@@ -384,6 +445,15 @@ MpskReceiverObj_bits (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
     n_out = dp_mpsk_receiver_bits (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "MpskReceiver.bits: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -605,6 +675,18 @@ MpskReceiver_getprop_bn_agc_ratio (MpskReceiverObject *self,
   return PyFloat_FromDouble (dp_mpsk_receiver_get_bn_agc_ratio (self->handle));
 }
 static PyObject *
+MpskReceiver_getprop_locked (MpskReceiverObject *self,
+                             void               *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyLong_FromLong ((long)dp_mpsk_receiver_get_locked (self->handle));
+}
+static PyObject *
 MpskReceiver_getprop_lock_time (MpskReceiverObject *self,
                                 void               *Py_UNUSED (closure))
 {
@@ -677,19 +759,6 @@ MpskReceiver_getprop_clipped (MpskReceiverObject *self,
   return PyLong_FromLong ((long)dp_mpsk_receiver_get_clipped (self->handle));
 }
 
-static PyObject *
-MpskReceiver_getprop_locked (MpskReceiverObject *self,
-                             void               *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyLong_FromLong ((long)dp_mpsk_receiver_get_locked (self->handle));
-}
-
 static PyGetSetDef MpskReceiver_getset[] = {
   { "agc_gain_db", (getter)MpskReceiver_getprop_agc_gain_db, NULL,
     "Gain the front-end AGC is applying, in dB; 0.0 when `agc=0`. The "
@@ -759,6 +828,18 @@ static PyGetSetDef MpskReceiver_getset[] = {
     "use. Reads back the DERIVED 0.05 when the constructor was given 0. See "
     "`zeta` for why every derived value is reported.\n",
     NULL },
+  { "locked", (getter)MpskReceiver_getprop_locked, NULL,
+    "Binary carrier-lock flag from the hysteretic (verify-counted) detector "
+    "on `lock` -- de-chattered, unlike the raw metric. It declares after 8 "
+    "consecutive symbols above `lock_thresh` and withdraws after 32 below "
+    "`lock_drop_thresh`, so it answers 'is this receiver locked' rather than "
+    "'was the statistic above the line on this symbol'. **It is an INDICATOR "
+    "and nothing else**: it steers no loop, gates no output, and the "
+    "M-th-power NDA discriminator runs from the first strobe whether or not "
+    "this has declared. So a caller uses it to size a measurement window, and "
+    "a wrong reading costs them that window and costs the demodulator "
+    "nothing. `lock_time` dates its first declaration.\n",
+    NULL },
   { "lock_time", (getter)MpskReceiver_getprop_lock_time, NULL,
     "Symbols from reset to the FIRST carrier-lock declaration, or -1 if the "
     "receiver has not locked yet -- the acquisition time as a number, rather "
@@ -791,19 +872,7 @@ static PyGetSetDef MpskReceiver_getset[] = {
     "~25 dB of EVM that no lock metric reveals. Always 0 for a plan with no "
     "CIC stage.\n",
     NULL },
-  { "locked", (getter)MpskReceiver_getprop_locked, NULL,
-    "Binary carrier-lock flag from the hysteretic (verify-counted) detector "
-    "on `lock` -- de-chattered, unlike the raw metric. It declares after 8 "
-    "consecutive symbols above `lock_thresh` and withdraws after 32 below "
-    "`lock_drop_thresh`, so it answers 'is this receiver locked' rather than "
-    "'was the statistic above the line on this symbol'. **It is an INDICATOR "
-    "and nothing else**: it steers no loop, gates no output, and the "
-    "M-th-power NDA discriminator runs from the first strobe whether or not "
-    "this has declared. So a caller uses it to size a measurement window, and "
-    "a wrong reading costs them that window and costs the demodulator "
-    "nothing. `lock_time` dates its first declaration.\n",
-    NULL },
-  { NULL }
+  { NULL, NULL, NULL, NULL, NULL }
 };
 
 static PyObject *
@@ -1061,8 +1130,8 @@ static PyMethodDef MpskReceiverObj_methods[] = {
   { "reset", (PyCFunction)MpskReceiverObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
-    "Re-seed the carrier and symbol-timing loops to their create-time\n"
-    "state; preserve configuration.\n"
+    "Re-seed the carrier and symbol-timing loops to their create-time state; "
+    "preserve configuration.\n"
     "\n"
     "Clears the cascade's filter memory, the carrier and timing NCOs, the\n"
     "loop-filter integrators and the lock detectors, and returns the carrier\n"
@@ -1166,11 +1235,11 @@ static PyMethodDef MpskReceiverObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject MpskReceiverObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "track.MpskReceiver",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.track.MpskReceiver",
   .tp_basicsize                           = sizeof (MpskReceiverObject),
   .tp_dealloc = (destructor)MpskReceiverObj_dealloc,
   .tp_flags   = Py_TPFLAGS_DEFAULT,

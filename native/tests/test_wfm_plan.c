@@ -1125,7 +1125,10 @@ main (void)
     {
       DGAP = 200,
       DDLY = 100,
-      DREP = 2,
+      /* 5 x 1024 samples clears the render's parallel threshold (4096), so
+       * these cases run the instances CONCURRENTLY and still have to equal
+       * the serial compose() to the bit. */
+      DREP = 5,
       DCAP = (L + DGAP + DDLY) * DREP
     };
     wfm_source_t  dsrc = { .type      = 0, /* clean tone */

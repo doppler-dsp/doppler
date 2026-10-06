@@ -87,6 +87,7 @@ typedef struct
    * slot of the segment has one. */
   wfm_source_t *dop;
   size_t       *dop_k;
+  int           chain; /* a PERSIST channel ties this segment's instances */
 } wfm_plan_segment_t;
 
 #define DOP_NONE ((size_t)-1)
@@ -341,12 +342,268 @@ render_doppler_source (const wfm_source_t *d, double fs, double doppler,
   return y;
 }
 
+/* Below this many samples of channel work the thread hand-off costs more than
+ * the parallel render saves, so a Doppler segment stays serial. */
+#define PLAN_RENDER_PARALLEL_MIN 4096u
+
+/* Everything one render needs besides which instance it is rendering. */
+typedef struct
+{
+  const wfm_plan_t            *p;
+  const double                *gains_db, *phases;
+  const int                   *enable;
+  double                       snr;
+  int                          snr_given;
+  uint64_t                     seed;
+  int                          seed_given;
+  float _Complex              *out;
+  dp_doppler_channel_state_t **pch; /* PERSIST slots, or NULL */
+} mat_ctx_t;
+
+/* One instance's ranged gaps. Two DIFFERENT default seeds are in play across
+ * materialize_instance(), and conflating them is a silent bug.
+ *
+ * The ranged off/delay draws key off the segment's first source
+ * (wfm_compose.c's start_segment does the same, so the drawn lengths match),
+ * while the noise synth must be rebuilt from the seed the RESOLVER gave the
+ * noise source -- the anchor's, i.e. whichever source carries the SNR
+ * (wfm_resolve.c). Those are the same number only when the anchor happens to
+ * be sources[0]; anywhere else, seeding the noise from sources[0]
+ * reconstructs a completely different realization than compose() produced. A
+ * seed override (Monte-Carlo) still moves both. */
+static void
+instance_gaps (const mat_ctx_t *m, const wfm_plan_segment_t *ps, size_t si,
+               size_t inst, size_t *dly, size_t *off)
+{
+  uint32_t draw_seed = m->seed_given ? (uint32_t)m->seed : ps->dseed;
+  *dly = (ps->ranged & WFM_RANGE_DELAY_SAMPLES)
+             ? dp__wfm_draw_samples (draw_seed, 0, inst, si,
+                                     WFM_RANGE_DELAY_SAMPLES, ps->delay_lo,
+                                     ps->delay_hi)
+             : ps->delay_lo;
+  *off = (ps->ranged & WFM_RANGE_OFF_SAMPLES)
+             ? dp__wfm_draw_samples (draw_seed, 0, inst, si,
+                                     WFM_RANGE_OFF_SAMPLES, ps->off_lo,
+                                     ps->off_hi)
+             : ps->off_lo;
+}
+
+/* The Doppler outputs of one instance: a work item per Doppler source. */
+typedef struct
+{
+  const mat_ctx_t          *m;
+  const wfm_plan_segment_t *ps;
+  size_t                    si, inst, dly, on, y_len;
+  int                       gap_off;
+  dp_wfm_synth_state_t     *gsyn;
+  float _Complex          **y;
+  const size_t             *kks; /* the slots to render */
+} y_job_t;
+
+static void
+y_one (size_t w, void *ctx)
+{
+  const y_job_t   *j  = (const y_job_t *)ctx;
+  const mat_ctx_t *m  = j->m;
+  size_t           kk = j->kks[w];
+  size_t           gi = j->ps->sig_off + kk;
+  wfm_source_t     d  = j->ps->dop[kk];
+  if (m->seed_given)
+    d.seed = (uint32_t)m->seed;
+  wfm_src_draw_t v;
+  dp_wfm_draw_source (&d, 0, j->inst, j->si, j->ps->dop_k[kk], &v);
+  dp_doppler_channel_state_t *borrow = dp_wfm_compose_persist_channel (
+      &d, m->p->fs, v.doppler, v.doppler_rate, m->pch ? &m->pch[gi] : NULL);
+  j->y[kk] = render_doppler_source (
+      &d, m->p->fs, v.doppler, v.doppler_rate, borrow, m->p->cache_sig[gi],
+      j->dly, j->on, j->y_len, j->gap_off, m->phases ? m->phases[gi] : 0.0,
+      j->ps->bundled ? j->gsyn : NULL);
+}
+
+/* Render one repeat instance of segment @p si into out at @p pos, and return
+ * where the next one starts. Reads only the plan and its own locals, and
+ * writes only [pos, pos + delay + on + off), so instances that share no
+ * channel state can be rendered concurrently. @p par_src: parallelise across
+ * this instance's Doppler sources (for a caller that is itself serial). */
+static size_t
+materialize_instance (const mat_ctx_t *m, size_t si, size_t inst, size_t pos,
+                      int par_src)
+{
+  const wfm_plan_t         *p        = m->p;
+  const wfm_plan_segment_t *ps       = &p->segs[si];
+  const double             *gains_db = m->gains_db;
+  const double             *phases   = m->phases;
+  const int                *enable   = m->enable;
+  float _Complex           *out      = m->out;
+  uint32_t noise_seed = m->seed_given ? (uint32_t)m->seed : ps->noise_src.seed;
+  size_t   dly, off;
+  instance_gaps (m, ps, si, inst, &dly, &off);
+  size_t on = ps->num_samples;
+
+  float ext_gain = 1.0f;
+  if (ps->bundled)
+    {
+      size_t gi = ps->sig_off;
+      ext_gain  = gains_db ? (float)pow (10.0, gains_db[gi] / 20.0)
+                           : p->base_gain[gi];
+      if (enable && !enable[gi])
+        ext_gain = 0.0f;
+    }
+  else
+    ext_gain = segment_noise_gain (ps, m->snr, m->snr_given);
+
+  dp_wfm_synth_state_t *gsyn
+      = build_gap_synth (ps, p->fs, m->snr, m->snr_given, noise_seed, inst);
+
+  /* Each Doppler source's channel output over this instance, at gain 1, or
+   * NULL where the source has none this instance (it declared none, drew
+   * zero, or was dropped). Drawn through the same helper compose() resolves
+   * through, keyed the same way (source index, segment, instance), so a
+   * ranged Doppler is the SAME number.
+   *
+   * y[] spans the whole instance when the gaps are pulled
+   * (delay + on + off) and only the ON region when they are not (gap_noise
+   * off: the channel never runs through them), and y_on is where ON starts
+   * inside it. */
+  float _Complex **y       = NULL;
+  const int        gap_off = ps->gap_noise;
+  const size_t     y_len   = gap_off ? on : dly + on + off;
+  const size_t     y_on    = gap_off ? 0 : dly;
+  if (ps->dop)
+    {
+      y           = dp_xcalloc (ps->n_sig, sizeof *y);
+      size_t *kks = dp_xmalloc (ps->n_sig * sizeof *kks);
+      size_t  nk  = 0;
+      for (size_t kk = 0; kk < ps->n_sig; kk++)
+        if (ps->dop_k[kk] != DOP_NONE
+            && !(enable && !enable[ps->sig_off + kk]))
+          kks[nk++] = kk; /* a dropped source contributes nothing */
+      y_job_t job = { m, ps, si, inst, dly, on, y_len, gap_off, gsyn, y, kks };
+      /* Sources are independent (their own channels and their own PERSIST
+       * slots), so they can run at once; a bundled segment has one source and
+       * nothing to fan out. */
+      dp_parallel_for (
+          nk, y_one, &job,
+          (par_src && nk > 1 && y_len >= PLAN_RENDER_PARALLEL_MIN) ? 0 : 1);
+      free (kks);
+    }
+  /* A bundled source that went through a channel carries its noise inside it
+   * (the feed drew it), so nothing is added around it. */
+  const int bun_y = ps->bundled && y && y[0];
+
+  /* The sources' float order is compose()'s: signal sources in spec order,
+   * the noise source last. A Doppler source's gap output is its ring-out,
+   * accumulated before the gap noise for that reason. */
+#define GAIN_OF(gi_)                                                          \
+  (enable && !enable[gi_] ? 0.0f                                              \
+   : gains_db             ? (float)pow (10.0, gains_db[gi_] / 20.0)           \
+                          : p->base_gain[gi_])
+
+  if (y && !bun_y && !gap_off)
+    for (size_t kk = 0; kk < ps->n_sig; kk++)
+      if (y[kk])
+        (kk == 0 ? assign_scaled : accumulate) (
+            out + pos, dly, GAIN_OF (ps->sig_off + kk), 0.0, y[kk]);
+  if (gsyn && !gap_off && !bun_y)
+    add_noise (gsyn, out + pos, dly, ext_gain);
+  pos += dly;
+
+  if (bun_y)
+    {
+      /* One synth, one multiply, as below: out = y * g. Assigned, not
+       * accumulated: a bundled segment owns its whole region. */
+      float _Complex *dst = out + pos - (gap_off ? 0 : dly);
+      for (size_t j = 0; j < y_len; j++)
+        dst[j] = y[0][j] * ext_gain;
+    }
+  else if (ps->bundled)
+    {
+      /* One synth, one multiply: the composer scales a lone source's signal
+       * AND its baked-in noise together, out[j] = g*scratch[j] over the
+       * combined stream. Scaling the cached signal and the reconstructed
+       * noise separately is the same number in exact arithmetic but NOT in
+       * float -- g*sig + g*noise drifts about an ULP from g*(sig+noise) -- so
+       * the pieces are summed at unit gain and the ON region is scaled once,
+       * exactly as compose does. A bundled segment owns its whole ON region
+       * (n_sig == 1, no other source writes here), so the in-place scale is
+       * safe. */
+      double ph = phases ? phases[ps->sig_off] : 0.0;
+      accumulate (out + pos, on, 1.0f, ph, p->cache_sig[ps->sig_off]);
+      if (gsyn)
+        add_noise (gsyn, out + pos, on, 1.0f);
+      if (ext_gain != 1.0f)
+        for (size_t i = 0; i < on; i++)
+          out[pos + i] *= ext_gain;
+    }
+  else
+    {
+      for (size_t k = 0; k < ps->n_sig; k++)
+        {
+          size_t gi = ps->sig_off + k;
+          float  g  = GAIN_OF (gi);
+          double ph = phases ? phases[gi] : 0.0;
+          if (y && y[k])
+            (k == 0 ? assign_scaled : accumulate) (out + pos, on, g, 0.0,
+                                                   y[k] + y_on);
+          else
+            (k == 0 ? assign_scaled : accumulate) (out + pos, on, g, ph,
+                                                   p->cache_sig[gi]);
+        }
+      if (gsyn) /* ON always carries noise, regardless of gap_noise */
+        add_noise (gsyn, out + pos, on, ext_gain);
+    }
+  pos += on;
+
+  if (y && !bun_y && !gap_off)
+    for (size_t kk = 0; kk < ps->n_sig; kk++)
+      if (y[kk])
+        (kk == 0 ? assign_scaled : accumulate) (
+            out + pos, off, GAIN_OF (ps->sig_off + kk), 0.0, y[kk] + dly + on);
+  if (gsyn && !gap_off && !bun_y)
+    add_noise (gsyn, out + pos, off, ext_gain);
+  pos += off;
+#undef GAIN_OF
+
+  if (y)
+    {
+      for (size_t kk = 0; kk < ps->n_sig; kk++)
+        free (y[kk]);
+      free (y);
+    }
+  if (gsyn)
+    dp_wfm_synth_destroy (gsyn);
+  return pos;
+}
+
+/* Instance-level fan-out for a segment whose instances share nothing. */
+typedef struct
+{
+  const mat_ctx_t *m;
+  size_t           si;
+  const size_t    *starts; /* [repeats]: where each instance begins */
+} inst_job_t;
+
+static void
+inst_one (size_t inst, void *ctx)
+{
+  const inst_job_t *j = (const inst_job_t *)ctx;
+  materialize_instance (j->m, j->si, inst, j->starts[inst], 0);
+}
+
 /* The shared kernel behind render() and at(): walk every segment's repeat
- * instances, accumulating the cached ON-time signal plus a gap-spanning
- * noise synth (delay -> on -> off, matching the composer's own phase
- * sequencing so gap_noise/level semantics are byte-identical). Returns the
- * actual materialized length for this draw (<= dp_wfm_plan_len(p), the
- * worst-case capacity `out` was sized to). */
+ * instances, accumulating the cached ON-time signal plus a gap-spanning noise
+ * synth (delay -> on -> off, matching the composer's own phase sequencing so
+ * gap_noise/level semantics are byte-identical). Returns the actual
+ * materialized length for this draw (<= dp_wfm_plan_len(p), the worst-case
+ * capacity `out` was sized to).
+ *
+ * Parallelism lives where the cost is, which is the Doppler channel and
+ * nowhere else: a cached re-weight is bandwidth-bound and stays serial. A
+ * segment with Doppler sources renders its instances concurrently when none of
+ * them PERSIST (each writes only its own region of `out` and shares no
+ * channel); a segment whose instances ARE chained by a PERSIST channel renders
+ * them in order, as compose() does, and fans out across its sources instead.
+ * Either way every sample is the same number the serial render gives. */
 static size_t
 materialize (const wfm_plan_t *p, const double *gains_db, const double *phases,
              const int *enable, double snr, int snr_given, uint64_t seed,
@@ -358,176 +615,32 @@ materialize (const wfm_plan_t *p, const double *gains_db, const double *phases,
    * instances, which a render walks in order, exactly as compose() does. */
   dp_doppler_channel_state_t **pch
       = p->persists ? dp_xcalloc (p->n_sig, sizeof *pch) : NULL;
-  size_t pos = 0;
+  mat_ctx_t m   = { p,         gains_db, phases,     enable, snr,
+                    snr_given, seed,     seed_given, out,    pch };
+  size_t    pos = 0;
   for (size_t si = 0; si < p->n_segs; si++)
     {
       const wfm_plan_segment_t *ps = &p->segs[si];
-      /* Two DIFFERENT default seeds, and conflating them is a silent bug.
-       * The ranged off/delay draws key off the segment's first source
-       * (wfm_compose.c's start_segment does the same, so the drawn lengths
-       * match), while the noise synth must be rebuilt from the seed the
-       * RESOLVER gave the noise source — the anchor's, i.e. whichever source
-       * carries the SNR (wfm_resolve.c). Those are the same number only when
-       * the anchor happens to be sources[0]; anywhere else, seeding the noise
-       * from sources[0] reconstructs a completely different realization than
-       * compose() produced. A seed override (Monte-Carlo) still moves both. */
-      uint32_t draw_seed  = seed_given ? (uint32_t)seed : ps->dseed;
-      uint32_t noise_seed = seed_given ? (uint32_t)seed : ps->noise_src.seed;
-      for (size_t inst = 0; inst < ps->repeats; inst++)
+      if (ps->dop && !ps->chain && ps->repeats > 1
+          && ps->num_samples * ps->repeats >= PLAN_RENDER_PARALLEL_MIN)
         {
-          size_t dly = (ps->ranged & WFM_RANGE_DELAY_SAMPLES)
-                           ? dp__wfm_draw_samples (draw_seed, 0, inst, si,
-                                                   WFM_RANGE_DELAY_SAMPLES,
-                                                   ps->delay_lo, ps->delay_hi)
-                           : ps->delay_lo;
-          size_t off = (ps->ranged & WFM_RANGE_OFF_SAMPLES)
-                           ? dp__wfm_draw_samples (draw_seed, 0, inst, si,
-                                                   WFM_RANGE_OFF_SAMPLES,
-                                                   ps->off_lo, ps->off_hi)
-                           : ps->off_lo;
-          size_t on  = ps->num_samples;
-
-          float ext_gain = 1.0f;
-          if (ps->bundled)
+          size_t *starts = dp_xmalloc (ps->repeats * sizeof *starts);
+          size_t  cur    = pos;
+          for (size_t inst = 0; inst < ps->repeats; inst++)
             {
-              size_t gi = ps->sig_off;
-              ext_gain  = gains_db ? (float)pow (10.0, gains_db[gi] / 20.0)
-                                   : p->base_gain[gi];
-              if (enable && !enable[gi])
-                ext_gain = 0.0f;
+              size_t dly, off;
+              instance_gaps (&m, ps, si, inst, &dly, &off);
+              starts[inst] = cur;
+              cur += dly + ps->num_samples + off;
             }
-          else
-            ext_gain = segment_noise_gain (ps, snr, snr_given);
-
-          dp_wfm_synth_state_t *gsyn
-              = build_gap_synth (ps, p->fs, snr, snr_given, noise_seed, inst);
-
-          /* Each Doppler source's channel output over this instance, at gain
-           * 1, or NULL where the source has none this instance (it declared
-           * none, drew zero, or was dropped). Drawn through the same helper
-           * compose() resolves through, keyed the same way (source index,
-           * segment, instance), so a ranged Doppler is the SAME number.
-           *
-           * y[] spans the whole instance when the gaps are pulled
-           * (delay + on + off) and only the ON region when they are not
-           * (gap_noise off: the channel never runs through them), and
-           * y_on is where ON starts inside it. */
-          float _Complex **y       = NULL;
-          const int        gap_off = ps->gap_noise;
-          const size_t     y_len   = gap_off ? on : dly + on + off;
-          const size_t     y_on    = gap_off ? 0 : dly;
-          if (ps->dop)
-            {
-              y = dp_xcalloc (ps->n_sig, sizeof *y);
-              for (size_t kk = 0; kk < ps->n_sig; kk++)
-                {
-                  if (ps->dop_k[kk] == DOP_NONE)
-                    continue;
-                  size_t gi = ps->sig_off + kk;
-                  if (enable && !enable[gi])
-                    continue; /* dropped: it contributes nothing */
-                  wfm_source_t d = ps->dop[kk];
-                  if (seed_given)
-                    d.seed = (uint32_t)seed;
-                  wfm_src_draw_t v;
-                  dp_wfm_draw_source (&d, 0, inst, si, ps->dop_k[kk], &v);
-                  dp_doppler_channel_state_t *borrow
-                      = dp_wfm_compose_persist_channel (&d, p->fs, v.doppler,
-                                                        v.doppler_rate,
-                                                        pch ? &pch[gi] : NULL);
-                  y[kk] = render_doppler_source (
-                      &d, p->fs, v.doppler, v.doppler_rate, borrow,
-                      p->cache_sig[gi], dly, on, y_len, gap_off,
-                      phases ? phases[gi] : 0.0, ps->bundled ? gsyn : NULL);
-                }
-            }
-          /* A bundled source that went through a channel carries its noise
-           * inside it (the feed drew it), so nothing is added around it. */
-          const int bun_y = ps->bundled && y && y[0];
-
-          /* The sources' float order is compose()'s: signal sources in spec
-           * order, the noise source last. A Doppler source's gap output is
-           * its ring-out, accumulated before the gap noise for that reason. */
-#define GAIN_OF(gi_)                                                          \
-  (enable && !enable[gi_] ? 0.0f                                              \
-   : gains_db             ? (float)pow (10.0, gains_db[gi_] / 20.0)           \
-                          : p->base_gain[gi_])
-
-          if (y && !bun_y && !gap_off)
-            for (size_t kk = 0; kk < ps->n_sig; kk++)
-              if (y[kk])
-                (kk == 0 ? assign_scaled : accumulate) (
-                    out + pos, dly, GAIN_OF (ps->sig_off + kk), 0.0, y[kk]);
-          if (gsyn && !gap_off && !bun_y)
-            add_noise (gsyn, out + pos, dly, ext_gain);
-          pos += dly;
-
-          if (bun_y)
-            {
-              /* One synth, one multiply, as below: out = y * g. Assigned, not
-               * accumulated: a bundled segment owns its whole region. */
-              float _Complex *dst = out + pos - (gap_off ? 0 : dly);
-              for (size_t j = 0; j < y_len; j++)
-                dst[j] = y[0][j] * ext_gain;
-            }
-          else if (ps->bundled)
-            {
-              /* One synth, one multiply: the composer scales a lone source's
-               * signal AND its baked-in noise together, out[j] = g*scratch[j]
-               * over the combined stream. Scaling the cached signal and the
-               * reconstructed noise separately is the same number in exact
-               * arithmetic but NOT in float — g*sig + g*noise drifts about an
-               * ULP from g*(sig+noise) — so the pieces are summed at unit gain
-               * and the ON region is scaled once, exactly as compose does. A
-               * bundled segment owns its whole ON region (n_sig == 1, no other
-               * source writes here), so the in-place scale is safe. */
-              double ph = phases ? phases[ps->sig_off] : 0.0;
-              accumulate (out + pos, on, 1.0f, ph, p->cache_sig[ps->sig_off]);
-              if (gsyn)
-                add_noise (gsyn, out + pos, on, 1.0f);
-              if (ext_gain != 1.0f)
-                for (size_t i = 0; i < on; i++)
-                  out[pos + i] *= ext_gain;
-            }
-          else
-            {
-              for (size_t k = 0; k < ps->n_sig; k++)
-                {
-                  size_t gi = ps->sig_off + k;
-                  float  g  = GAIN_OF (gi);
-                  double ph = phases ? phases[gi] : 0.0;
-                  if (y && y[k])
-                    (k == 0 ? assign_scaled : accumulate) (out + pos, on, g,
-                                                           0.0, y[k] + y_on);
-                  else
-                    (k == 0 ? assign_scaled : accumulate) (
-                        out + pos, on, g, ph, p->cache_sig[gi]);
-                }
-              if (gsyn) /* ON always carries noise, regardless of gap_noise */
-                add_noise (gsyn, out + pos, on, ext_gain);
-            }
-          pos += on;
-
-          if (y && !bun_y && !gap_off)
-            for (size_t kk = 0; kk < ps->n_sig; kk++)
-              if (y[kk])
-                (kk == 0 ? assign_scaled : accumulate) (
-                    out + pos, off, GAIN_OF (ps->sig_off + kk), 0.0,
-                    y[kk] + dly + on);
-          if (gsyn && !gap_off && !bun_y)
-            add_noise (gsyn, out + pos, off, ext_gain);
-          pos += off;
-#undef GAIN_OF
-
-          if (y)
-            {
-              for (size_t kk = 0; kk < ps->n_sig; kk++)
-                free (y[kk]);
-              free (y);
-            }
-          if (gsyn)
-            dp_wfm_synth_destroy (gsyn);
+          inst_job_t job = { &m, si, starts };
+          dp_parallel_for (ps->repeats, inst_one, &job, 0);
+          free (starts);
+          pos = cur;
         }
+      else
+        for (size_t inst = 0; inst < ps->repeats; inst++)
+          pos = materialize_instance (&m, si, inst, pos, ps->dop != NULL);
     }
   if (pch)
     {
@@ -988,8 +1101,8 @@ cache_segment_signals (wfm_plan_t *p, wfm_plan_segment_t *ps,
           d->acq_code.bits            = NULL;
           d->data_code.bits           = NULL;
           ps->dop_k[si - ps->sig_off] = k;
-          p->persists
-              |= (g->sources[k].doppler_lifetime == WFM_DOPPLER_PERSIST);
+          if (g->sources[k].doppler_lifetime == WFM_DOPPLER_PERSIST)
+            ps->chain = p->persists = 1;
         }
       nw++;
       si++;

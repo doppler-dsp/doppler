@@ -17,6 +17,7 @@ create_error_message = "cannot open the capture for writing: check the path, the
 # removes the method entirely rather than shipping a no-op or a hand-written
 # raise (which would silently degrade to a no-op if a regeneration dropped it).
 no_reset = "true"
+fragment = "generated"
 
 # close() is finalisation, not cleanup: the BLUE data_size patch and the
 # extended header are both written during close, so a failed write there means
@@ -66,17 +67,21 @@ required = true
 
 [[wfm_writer.init_params]]
 name = "file_type"
-type = "string_enum:raw,csv,blue,sigmf"
+type = "enum:ftype"
 default = "raw"
 
+# The wire vocabulary is the project's [[enum]] tables, not a list spelled out
+# here: this param repeated the FIVE complex names while stype has TEN (the real
+# types drop Q, doppler#1032), so the binding the manifest described accepted
+# less than the hand-written one did.
 [[wfm_writer.init_params]]
 name = "sample_type"
-type = "string_enum:cf32,cf64,ci32,ci16,ci8"
+type = "enum:stype"
 default = "cf32"
 
 [[wfm_writer.init_params]]
 name = "endian"
-type = "string_enum:le,be"
+type = "enum:endian"
 default = "le"
 
 [[wfm_writer.init_params]]

@@ -29,7 +29,7 @@ class Writer:
         `"sigmf"`. BLUE and SigMF record `fs`/`fc`/`t0` in the capture itself;
         raw and CSV have nowhere to put them and keep them in the `sidecar`
         instead.
-    sample_type : Literal["cf32", "cf64", "ci32", "ci16", "ci8"], default "cf32"
+    sample_type : Literal["cf32", "cf64", "ci32", "ci16", "ci8", "f32", "f64", "i32", "i16", "i8"], default "cf32"
         wire type: `"cf32"`, `"cf64"`, `"ci32"`, `"ci16"` or `"ci8"`. The
         integer types quantise ±1.0 to full scale and can clip -- see
         track_clipping()/peak_dbfs.
@@ -117,7 +117,7 @@ class Writer:
         path: str | os.PathLike,
         fs: float,
         file_type: Literal["raw", "csv", "blue", "sigmf"] = "raw",
-        sample_type: Literal["cf32", "cf64", "ci32", "ci16", "ci8"] = "cf32",
+        sample_type: Literal["cf32", "cf64", "ci32", "ci16", "ci8", "f32", "f64", "i32", "i16", "i8"] = "cf32",
         endian: Literal["le", "be"] = "le",
         fc: float = 0.0,
         total: int = 0,

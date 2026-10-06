@@ -6,6 +6,13 @@ no_state = "true"
 no_step = "true"
 class_name = "PN"
 serializable = "true"
+# poly = 0 means "the maximal-length polynomial for this register" (#191). That
+# resolution is made by the constructor, not the binding: dp_pn_create() takes
+# `poly` verbatim (0 is a register with no feedback, pinned in test_pn_core.c),
+# and dp_pn_create_mls() is `poly ? poly : pn_mls_poly (length)` in front of it,
+# so a Rust or C caller gets PN(length=7) the same as Python does.
+create_fn = "dp_pn_create_mls"
+fragment = "generated"
 
 [[pn.init_params]]
 name = "poly"

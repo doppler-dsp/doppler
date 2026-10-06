@@ -70,36 +70,38 @@ class PN:
     seeded from ``seed`` and will produce a pseudo-random binary sequence with
     period 2^length - 1 for any primitive ``poly``. Both Galois and Fibonacci
     realizations share the same primitive polynomial and therefore the same
-    period; they differ only in chip ordering/phase.
+    period; they differ only in chip ordering/phase. Leave ``poly`` at 0 and
+    the maximal-length polynomial for ``length`` is used, so ``PN(seed=1,
+    length=7)`` is the 127-chip m-sequence.
 
     Parameters
     ----------
     poly : int, default 0
         Galois feedback tap polynomial (right-shift convention). The LSB is the
         tap at position 0 (always 1 for a primitive poly); bit k=1 means tap at
-        position k. Default 96 (0x60) is primitive for length=7, giving period
-        127. The Fibonacci taps are derived automatically so you only supply
-        one value.
+        position k. 0 (the default) selects the maximal-length polynomial for
+        ``length``. The Fibonacci taps are derived automatically so you only
+        supply one value.
     seed : int, default 0
         Initial LFSR register state; must be non-zero WITHIN the register,
         `seed & pn_register_mask (length)` -- the all-zero state is a fixed
         point, and a seed that masks to it (128 on 7 bits) is refused like 0.
-        Default 1.
     length : int, default 0
         Register width in bits, 1..64. The sequence period is 2^length - 1 for
-        a primitive polynomial. Default 7.
+        a primitive polynomial.
     lfsr : Literal["galois", "fibonacci"], default "galois"
         Realization: PN_GALOIS (0, default) or PN_FIBONACCI (1).
 
     Examples
     --------
     >>> from doppler.wfm import PN
-    >>> import numpy as np
     >>> p = PN(poly=96, seed=1, length=7)
     >>> chips = p.generate(127)
     >>> chips.dtype
     dtype('uint8')
     >>> int(chips.sum())   # 64 ones per MLS period (2^(n-1))
+    64
+    >>> int(PN(seed=1, length=7).generate(127).sum())
     64
 
     """

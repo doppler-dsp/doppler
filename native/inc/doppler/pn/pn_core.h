@@ -52,8 +52,9 @@ typedef struct {
  * so `poly = 0` is a register with no feedback: it shifts out the seed and
  * then emits zeros forever. Every caller that lets a user say "default"
  * therefore resolves it as `poly ? poly : pn_mls_poly (n)` -- wfm_synth's
- * create does, and wfm_frame's PN sequence kind does. A caller that forgets
- * gets a constant field that still looks like a field.
+ * create does, wfm_frame's PN sequence kind does, and dp_pn_create_mls() is
+ * that resolution as a constructor (the ``PN`` binding calls it). A caller
+ * that forgets gets a constant field that still looks like a field.
  *
  * Returns 0 for lengths outside 2..64 (caller errors). Generated from verified
  * primitive polynomials (period 2^n-1); the n=2..16 values are unchanged.
@@ -203,6 +204,47 @@ pn_register_mask(uint32_t n)
  * @endcode
  */
 dp_pn_state_t *dp_pn_create(uint64_t poly, uint64_t seed, uint32_t length, int lfsr);
+
+/**
+ * @brief Allocate and initialise a maximal-length-sequence LFSR.
+ * The register is seeded from ``seed`` and will produce a pseudo-random
+ * binary sequence with period 2^length - 1 for any primitive ``poly``.
+ * Both Galois and Fibonacci realizations share the same primitive polynomial
+ * and therefore the same period; they differ only in chip ordering/phase.
+ * Leave ``poly`` at 0 and the maximal-length polynomial for ``length`` is
+ * used, so ``PN(seed=1, length=7)`` is the 127-chip m-sequence.
+ *
+ * @param poly  Galois feedback tap polynomial (right-shift convention).
+ *              The LSB is the tap at position 0 (always 1 for a primitive
+ *              poly); bit k=1 means tap at position k. 0 (the default)
+ *              selects the maximal-length polynomial for ``length``. The
+ *              Fibonacci taps are derived automatically so you only supply
+ *              one value.
+ * @param seed  Initial LFSR register state; must be non-zero WITHIN the
+ *              register, `seed & pn_register_mask (length)` -- the all-zero
+ *              state is a fixed point, and a seed that masks to it (128 on
+ *              7 bits) is refused like 0.
+ * @param length  Register width in bits, 1..64. The sequence period is
+ *              2^length - 1 for a primitive polynomial.
+ * @param lfsr  Realization: PN_GALOIS (0, default) or PN_FIBONACCI (1).
+ * @return Heap-allocated state, or NULL on a refused argument or allocation
+ *         failure.
+ * @note Caller must call dp_pn_destroy() when done. A width with no
+ *       m-sequence (anything outside 2..64) leaves ``poly`` at 0, which
+ *       dp_pn_create() takes verbatim: a register with no feedback.
+ * @code
+ * >>> from doppler.wfm import PN
+ * >>> p = PN(poly=96, seed=1, length=7)
+ * >>> chips = p.generate(127)
+ * >>> chips.dtype
+ * dtype('uint8')
+ * >>> int(chips.sum())   # 64 ones per MLS period (2^(n-1))
+ * 64
+ * >>> int(PN(seed=1, length=7).generate(127).sum())
+ * 64
+ * @endcode
+ */
+dp_pn_state_t *dp_pn_create_mls(uint64_t poly, uint64_t seed, uint32_t length, int lfsr);
 
 /**
  * @brief Destroy a pn instance and release all memory.

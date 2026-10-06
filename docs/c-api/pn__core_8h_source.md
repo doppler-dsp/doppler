@@ -117,6 +117,8 @@ pn_register_mask(uint32_t n)
 
 dp_pn_state_t *dp_pn_create(uint64_t poly, uint64_t seed, uint32_t length, int lfsr);
 
+dp_pn_state_t *dp_pn_create_mls(uint64_t poly, uint64_t seed, uint32_t length, int lfsr);
+
 void dp_pn_destroy(dp_pn_state_t *state);
 
 void dp_pn_reset(dp_pn_state_t *state);

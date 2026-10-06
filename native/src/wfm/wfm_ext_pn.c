@@ -1,8 +1,10 @@
+/* jm:generated wfm_ext_pn.c */
 /*
  * wfm_ext_pn.c — PN type for the wfm module.
  *
  * Included by wfm_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in wfm_ext_pn_extra.c.
  * Do NOT compile this file directly — only wfm_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ PNObj_dealloc (PNObject *self)
 static PyObject *
 PNObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   PNObject *self = (PNObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -60,17 +65,10 @@ PNObj_init (PNObject *self, PyObject *args, PyObject *kwds)
                     lfsr_str);
       return -1;
     }
-  /* Hand-patch (sacred fragment): poly=0 means auto-select the MLS primitive
-     polynomial for `length`, matching the Synth(pn_poly=0) convention (#191).
-     The MLS table starts at n=2, so guard length >= 2 — below that there is
-     no maximal-length sequence and poly stays 0. Not expressible in the
-     manifest; re-apply after any regeneration of this fragment. */
-  if (poly == 0 && length >= 2)
-    poly = dp_mls_poly (length);
-  self->handle = dp_pn_create (poly, seed, length, lfsr);
+  self->handle = dp_pn_create_mls (poly, seed, length, lfsr);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "dp_pn_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_pn_create_mls returned NULL");
       return -1;
     }
   return 0;
@@ -126,8 +124,9 @@ PNObj_generate (PNObject *self, PyObject *args, PyObject *kwds)
                            " ndarray of the output dtype");
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_UINT8,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           return NULL;
@@ -144,6 +143,14 @@ PNObj_generate (PNObject *self, PyObject *args, PyObject *kwds)
         }
       size_t n_out = dp_pn_generate (self->handle, (size_t)n,
                                      (uint8_t *)PyArray_DATA (out_arr), _cap);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (PyExc_RuntimeError,
+                        "PN.generate: wrote %zu elements into a buffer of %zu",
+                        (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_UINT8,
                                                     PyArray_DATA (out_arr));
@@ -152,14 +159,28 @@ PNObj_generate (PNObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)n;
   size_t _cap  = dp_pn_generate_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "PN.generate: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_UINT8);
   if (!arr0)
     {
@@ -167,6 +188,14 @@ PNObj_generate (PNObject *self, PyObject *args, PyObject *kwds)
     }
   uint8_t *_d0   = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t   n_out = dp_pn_generate (self->handle, (size_t)n, _d0, _cap);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_RuntimeError,
+                    "PN.generate: wrote %zu elements into a buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -387,12 +416,11 @@ static PyMethodDef PNObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)PNObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
@@ -418,11 +446,11 @@ static PyMethodDef PNObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject PNObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "wfm.PN",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.wfm.PN",
   .tp_basicsize                           = sizeof (PNObject),
   .tp_dealloc                             = (destructor)PNObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
@@ -433,7 +461,10 @@ static PyTypeObject PNObjType = {
     "period 2^length - 1 for any primitive ``poly``. Both Galois and "
     "Fibonacci\n"
     "realizations share the same primitive polynomial and therefore the same\n"
-    "period; they differ only in chip ordering/phase.\n"
+    "period; they differ only in chip ordering/phase. Leave ``poly`` at 0 "
+    "and\n"
+    "the maximal-length polynomial for ``length`` is used, so ``PN(seed=1,\n"
+    "length=7)`` is the 127-chip m-sequence.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -442,33 +473,33 @@ static PyTypeObject PNObjType = {
     "the\n"
     "    tap at position 0 (always 1 for a primitive poly); bit k=1 means tap "
     "at\n"
-    "    position k. Default 96 (0x60) is primitive for length=7, giving "
-    "period\n"
-    "    127. The Fibonacci taps are derived automatically so you only "
-    "supply\n"
-    "    one value.\n"
+    "    position k. 0 (the default) selects the maximal-length polynomial "
+    "for\n"
+    "    ``length``. The Fibonacci taps are derived automatically so you "
+    "only\n"
+    "    supply one value.\n"
     "seed : int, default 0\n"
     "    Initial LFSR register state; must be non-zero WITHIN the register,\n"
     "    `seed & pn_register_mask (length)` -- the all-zero state is a fixed\n"
     "    point, and a seed that masks to it (128 on 7 bits) is refused like "
     "0.\n"
-    "    Default 1.\n"
     "length : int, default 0\n"
     "    Register width in bits, 1..64. The sequence period is 2^length - 1 "
     "for\n"
-    "    a primitive polynomial. Default 7.\n"
+    "    a primitive polynomial.\n"
     "lfsr : Literal[\"galois\", \"fibonacci\"], default \"galois\"\n"
     "    Realization: PN_GALOIS (0, default) or PN_FIBONACCI (1).\n"
     "\n"
     "Examples\n"
     "--------\n"
     ">>> from doppler.wfm import PN\n"
-    ">>> import numpy as np\n"
     ">>> p = PN(poly=96, seed=1, length=7)\n"
     ">>> chips = p.generate(127)\n"
     ">>> chips.dtype\n"
     "dtype('uint8')\n"
     ">>> int(chips.sum())   # 64 ones per MLS period (2^(n-1))\n"
+    "64\n"
+    ">>> int(PN(seed=1, length=7).generate(127).sum())\n"
     "64\n",
   .tp_methods = PNObj_methods,
   .tp_new     = PNObj_new,

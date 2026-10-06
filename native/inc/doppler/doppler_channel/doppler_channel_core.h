@@ -336,9 +336,9 @@ size_t dp_doppler_channel_execute_profile_max_out(dp_doppler_channel_state_t *st
  *     a fraction below one input sample is floating point.
  *
  * Mixing the two calls on one stream is permitted and coherent -- both
- * advance the same clocks -- but a stream a profile has driven reports
- * dp_doppler_channel_get_offset_hz() from the profile, since the closed form
- * no longer describes it. The profile is in the serialized state (layout
+ * advance the same clocks -- and dp_doppler_channel_get_offset_hz() reports
+ * whichever drove the most recent call: the profile's last value after
+ * this, the closed form again after the next dp_doppler_channel_execute(). The profile is in the serialized state (layout
  * version 2) only as that last value; the carrier needs none.
  *
  * @code
@@ -365,7 +365,9 @@ size_t dp_doppler_channel_execute_profile_max_out(dp_doppler_channel_state_t *st
  * @param ppm_len  Profile length; must EQUAL @p x_len.
  * @param out      Output buffer.
  * @param max_out  Capacity of @p out in samples.
- * @return Samples written. 0 if any pointer is NULL, if @p ppm_len differs
+ * @return Samples written; in Python, the array's length. 0 (an EMPTY array in
+ *         Python, which cannot raise from a `variable_output` method: see
+ *         doppler#938) if any pointer is NULL, if @p ppm_len differs
  *         from @p x_len, or if any profile sample is non-finite or below
  *         -5e5 ppm (a scale under 1/2: past the 2x expansion the output is
  *         sized for, and at -1e6 ppm time stops, which create() already

@@ -443,3 +443,16 @@ def test_non_finite_profile_sample_rejected() -> None:
         ch = DopplerChannel(fs=FS, carrier_hz=0.0)
         assert len(ch.execute_profile(x, prof)) == 0
         assert ch.elapsed_s == 0.0
+
+
+def test_scalar_execute_hands_offset_hz_back_to_the_closed_form() -> None:
+    """Mixing is allowed, so the diagnostic follows the most recent driver:
+    after a profile it is the profile's last value, and after the next scalar
+    ``execute`` it is the closed form again rather than a stale profile."""
+    n = 4096
+    ch = DopplerChannel(fs=FS, carrier_hz=FC, doppler_ppm=PPM)
+    ch.execute_profile(_dc(n), np.full(n, -PPM))
+    assert ch.offset_hz == pytest.approx(-50e3, abs=1.0)
+    ch.execute(_dc(n))
+    # The closed form at the stream's own receive time, not the profile's.
+    assert ch.offset_hz == pytest.approx(+50e3, abs=1.0)

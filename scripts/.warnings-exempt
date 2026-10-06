@@ -25,7 +25,6 @@ native/src/acquire/acquire_ext_burst_capture.c
 native/src/acquire/acquire_ext_carrier_acq.c
 native/src/acquire/acquire_ext_persistentburstcapture.c
 native/src/agc/agc_ext_agc.c
-native/src/analyzer/analyzer_ext_specan.c
 native/src/arith/arith_ext_acc_q15.c
 native/src/arith/arith_ext_acc_q8.c
 native/src/ber/ber_ext_ber_meter.c
@@ -61,11 +60,9 @@ native/src/detection/detection_ext_lockdet.c
 native/src/detection/detection_ext_syncword.c
 native/src/dsss/dsss_ext_async_dsss_pool.c
 native/src/dsss/dsss_ext_async_dsss_receiver.c
-native/src/dsss/dsss_ext_burst_demod.c
 native/src/dsss/dsss_ext_burst_despreader.c
 native/src/dsss/dsss_ext_cellasyncdsssreceiver.c
 native/src/dsss/dsss_ext_despreader.c
-native/src/dsss/dsss_ext_dsss_burst_receiver.c
 native/src/dsss/dsss_ext_dsss_receiver.c
 native/src/dsss/dsss_ext_ppe.c
 native/src/filter/filter_ext_boxcar.c
@@ -96,7 +93,6 @@ native/src/spectral/spectral_ext_fft2d.c
 native/src/spectral/spectral_ext_psd.c
 native/src/stream/stream_ext.c
 native/src/telemetry/telemetry_ext_capture.c
-native/src/telemetry/telemetry_ext_dp_event_log.c
 native/src/telemetry/telemetry_ext_dp_tlm.c
 native/src/telemetry/telemetry_ext_dp_tlm_capture.c
 native/src/track/track_ext_bpskreceiver.c

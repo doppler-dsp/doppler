@@ -1,8 +1,10 @@
+/* jm:generated dsss_ext_burst_demod.c */
 /*
  * dsss_ext_burst_demod.c — BurstDemod type for the dsss module.
  *
  * Included by dsss_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in dsss_ext_burst_demod_extra.c.
  * Do NOT compile this file directly — only dsss_ext.c is compiled.
  */
 /* ======================================================== */
@@ -29,6 +31,9 @@ BurstDemodObj_dealloc (BurstDemodObject *self)
 static PyObject *
 BurstDemodObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   BurstDemodObject *self = (BurstDemodObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -741,7 +746,7 @@ static PyGetSetDef BurstDemod_getset[] = {
     "it beside `symbols()` is what turns the constellation into an absolute "
     "measurement rather than a picture.\n",
     NULL },
-  { NULL }
+  { NULL, NULL, NULL, NULL, NULL }
 };
 
 static PyObject *
@@ -1133,7 +1138,7 @@ static PyMethodDef BurstDemodObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject BurstDemodObjType = {

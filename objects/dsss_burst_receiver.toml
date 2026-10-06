@@ -60,6 +60,7 @@ depends_on = [
     # does not (the same shape objects/dsss_receiver.toml uses for `snr`).
     { name = "pn" },
 ]
+fragment = "generated"
 
 # ── Construction ─────────────────────────────────────────────────────────────
 # Everything the chain needs, at once. That is the point of the object: the

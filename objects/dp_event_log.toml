@@ -22,6 +22,7 @@ create_fn = "dp_event_log_open"
 # is OOM, and MemoryError would send the caller looking in the wrong place.
 create_error = "OSError"
 create_error_message = "event log could not be opened: the path must be non-empty and writable (the file is truncated if it exists)"
+fragment = "generated"
 
 # The emitter, and the ONLY reason this component links anything: finalize
 # renders through dp_wfm_sigmf_meta_json_ex() rather than spelling `global` and

@@ -1,8 +1,10 @@
+/* jm:generated telemetry_ext_dp_event_log.c */
 /*
  * telemetry_ext_dp_event_log.c — EventLog type for the telemetry module.
  *
  * Included by telemetry_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in telemetry_ext_dp_event_log_extra.c.
  * Do NOT compile this file directly — only telemetry_ext.c is compiled.
  */
 /* ======================================================== */
@@ -34,6 +36,9 @@ EventLogObj_dealloc (EventLogObject *self)
 static PyObject *
 EventLogObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   EventLogObject *self = (EventLogObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -171,7 +176,8 @@ EventLogObj_append (EventLogObject *self, PyObject *args, PyObject *kwds)
     {
       PyErr_Format (PyExc_OSError, "%s (rc=%lld)",
                     "append: the event could not be written (the log is "
-                    "closed, or the write failed)",
+                    "closed, the write failed, or the event renders to 16 "
+                    "KiB or more)",
                     (long long)_rc);
       return NULL;
     }
@@ -218,8 +224,9 @@ EventLogObj_finalize (EventLogObject *self, PyObject *args, PyObject *kwds)
   if (_rc != 0)
     {
       PyErr_Format (PyExc_OSError, "%s (rc=%lld)",
-                    "finalize: the event file could not be read or the "
-                    "sidecar could not be written",
+                    "finalize: the event file could not be read, is not an "
+                    "event log (not a regular file, or a line of 16 KiB or "
+                    "more), or the sidecar could not be written",
                     (long long)_rc);
       return NULL;
     }
@@ -302,7 +309,6 @@ EventLog_getprop_count (EventLogObject *self, void *Py_UNUSED (closure))
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)(dp_event_log_count (self->handle)));
 }
-
 static PyObject *
 EventLog_getprop__capsule (EventLogObject *self, void *Py_UNUSED (closure))
 {
@@ -322,7 +328,7 @@ static PyGetSetDef EventLog_getset[] = {
     "Events appended so far, counting only the ones that reached the disk.\n",
     NULL },
   { "_capsule", (getter)EventLog_getprop__capsule, NULL, " capsule.\n", NULL },
-  { NULL }
+  { NULL, NULL, NULL, NULL, NULL }
 };
 
 static PyObject *
@@ -706,11 +712,11 @@ static PyMethodDef EventLogObj_methods[] = {
     "    If ``close()`` reports failure. ``__exit__`` calls it and raises\n"
     "    what it raises, so a failed finalize propagates out of the ``with``\n"
     "    block (gh-805 §H).\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject EventLogObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "telemetry.EventLog",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.telemetry.EventLog",
   .tp_basicsize                           = sizeof (EventLogObject),
   .tp_dealloc                             = (destructor)EventLogObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

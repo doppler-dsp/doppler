@@ -1,8 +1,10 @@
+/* jm:generated analyzer_ext_specan.c */
 /*
  * analyzer_ext_specan.c — Specan type for the analyzer module.
  *
  * Included by analyzer_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in analyzer_ext_specan_extra.c.
  * Do NOT compile this file directly — only analyzer_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ SpecanObj_dealloc (SpecanObject *self)
 static PyObject *
 SpecanObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   SpecanObject *self = (SpecanObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -427,7 +432,7 @@ static PyGetSetDef Specan_getset[]
           "Segments averaged per emitted frame.\n", NULL },
         { "display_size", (getter)Specan_getprop_display_size, NULL,
           "Display size.\n", NULL },
-        { NULL } };
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 SpecanObj_destroy (SpecanObject *self, PyObject *Py_UNUSED (ignored))
@@ -622,7 +627,7 @@ static PyMethodDef SpecanObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject SpecanObjType = {

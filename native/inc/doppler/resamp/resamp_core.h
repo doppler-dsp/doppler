@@ -183,6 +183,38 @@ extern "C"
                               const double *ctrl, size_t num_in,
                               float _Complex *out, size_t max_out);
 
+  /**
+   * @brief dp_resamp_execute_ctrl(), also reporting where each output sits on
+   * the input timeline.
+   *
+   * Identical outputs, bit for bit: this IS dp_resamp_execute_ctrl() (same
+   * accumulator, same push loop), with one extra read per emitted output.
+   * `pos[j]` is output `j`'s position on the input timeline, in input
+   * samples, measured from `in[0]`: the newest input sample under the taps
+   * plus the fraction of an interval past it, exactly the quantity the
+   * accumulator already holds. It is NEGATIVE only for an output emitted
+   * before `in[0]` was loaded -- the first tick of a fresh stream, at
+   * `-1`. The group delay (dp_resamp_get_delay()) is not in it: it is where
+   * the interpolation is centred, not where the content came from.
+   *
+   * What it is for: the excess delay a time-dilating channel has accumulated
+   * at output `k` is `(P + pos[j] - k + 1) / fs`, where `P` is the number of
+   * inputs consumed by earlier calls and `k` the absolute output index. That
+   * is the dilation itself, read off the resampler rather than integrated a
+   * second time beside it, so a carrier phase derived from it cannot disagree
+   * with the dilation and cannot depend on how the stream was chunked --
+   * `pos` is relative to `in[0]` only so that its magnitude stays small.
+   *
+   * @param pos  Output positions, parallel to @p out (capacity @p max_out).
+   *             Must be non-NULL.
+   * @see dp_resamp_execute_ctrl
+   */
+  size_t dp_resamp_execute_ctrl_pos (resamp_state_t *state,
+                                     const float _Complex *in,
+                                     const double *ctrl, size_t num_in,
+                                     float _Complex *out, double *pos,
+                                     size_t max_out);
+
   /* ------------------------------------------------------------------
    * Streaming interpolation (fixed integer rate, output-count driven)
    * ------------------------------------------------------------------ */

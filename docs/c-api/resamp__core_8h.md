@@ -64,6 +64,7 @@ _Continuously-variable polyphase resampler for CF32 IQ._ [More...](#detailed-des
 |  void | [**dp\_resamp\_destroy**](#function-dp_resamp_destroy) ([**resamp\_state\_t**](structresamp__state__t.md) \* state) <br> |
 |  size\_t | [**dp\_resamp\_execute**](#function-dp_resamp_execute) ([**resamp\_state\_t**](structresamp__state__t.md) \* state, const float \_Complex \* in, size\_t num\_in, float \_Complex \* out, size\_t max\_out) <br>_Resample a block of CF32 samples (fixed rate)._  |
 |  size\_t | [**dp\_resamp\_execute\_ctrl**](#function-dp_resamp_execute_ctrl) ([**resamp\_state\_t**](structresamp__state__t.md) \* state, const float \_Complex \* in, const double \* ctrl, size\_t num\_in, float \_Complex \* out, size\_t max\_out) <br>_Resample with per-sample additive rate deviation._  |
+|  size\_t | [**dp\_resamp\_execute\_ctrl\_pos**](#function-dp_resamp_execute_ctrl_pos) ([**resamp\_state\_t**](structresamp__state__t.md) \* state, const float \_Complex \* in, const double \* ctrl, size\_t num\_in, float \_Complex \* out, double \* pos, size\_t max\_out) <br>[_**dp\_resamp\_execute\_ctrl()**_](resamp__core_8h.md#function-dp_resamp_execute_ctrl) _, also reporting where each output sits on the input timeline._ |
 |  size\_t | [**dp\_resamp\_execute\_ctrl\_push**](#function-dp_resamp_execute_ctrl_push) ([**resamp\_state\_t**](structresamp__state__t.md) \* state, float \_Complex x, double ctrl, float \_Complex \* out, size\_t max\_out) <br>_Push one input at an instantaneous rate deviation; emit any outputs._  |
 |  double | [**dp\_resamp\_get\_ctrl\_acc**](#function-dp_resamp_get_ctrl_acc) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_The control accumulator's fractional phase, in [0, 1)._  |
 |  double | [**dp\_resamp\_get\_delay**](#function-dp_resamp_get_delay) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_Group delay of the interpolator, in INPUT samples._  |
@@ -347,6 +348,48 @@ Output buffer: allocate ceil(num\_in × (rate + max\_ctrl)) samples.
 Number of output samples written. 
 
 
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_resamp\_execute\_ctrl\_pos 
+
+[_**dp\_resamp\_execute\_ctrl()**_](resamp__core_8h.md#function-dp_resamp_execute_ctrl) _, also reporting where each output sits on the input timeline._
+```C++
+size_t dp_resamp_execute_ctrl_pos (
+    resamp_state_t * state,
+    const float _Complex * in,
+    const double * ctrl,
+    size_t num_in,
+    float _Complex * out,
+    double * pos,
+    size_t max_out
+) 
+```
+
+
+
+Identical outputs, bit for bit: this IS [**dp\_resamp\_execute\_ctrl()**](resamp__core_8h.md#function-dp_resamp_execute_ctrl) (same accumulator, same push loop), with one extra read per emitted output. `pos[j]` is output `j`'s position on the input timeline, in input samples, measured from `in[0]`: the newest input sample under the taps plus the fraction of an interval past it, exactly the quantity the accumulator already holds. It is NEGATIVE only for an output emitted before `in[0]` was loaded  the first tick of a fresh stream, at `-1`. The group delay ([**dp\_resamp\_get\_delay()**](resamp__core_8h.md#function-dp_resamp_get_delay)) is not in it: it is where the interpolation is centred, not where the content came from.
+
+
+What it is for: the excess delay a time-dilating channel has accumulated at output `k` is `(P + pos[j] - k + 1) / fs`, where `P` is the number of inputs consumed by earlier calls and `k` the absolute output index. That is the dilation itself, read off the resampler rather than integrated a second time beside it, so a carrier phase derived from it cannot disagree with the dilation and cannot depend on how the stream was chunked  `pos` is relative to `in[0]` only so that its magnitude stays small.
+
+
+
+
+**Parameters:**
+
+
+* `pos` Output positions, parallel to `out` (capacity `max_out`). Must be non-NULL. 
+
+
+
+**See also:** [**dp\_resamp\_execute\_ctrl**](resamp__core_8h.md#function-dp_resamp_execute_ctrl) 
 
 
 

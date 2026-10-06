@@ -423,6 +423,52 @@ main (void)
       dp_doppler_channel_destroy (ch);
     }
 
+    /* 8c2. The validation and the sizing are ONE number (PR #1857 review).
+       execute_profile_max_out() holds a 2x expansion, so a scale under 1/2
+       would ask for more outputs than the buffer has and the kernel would
+       stop short -- silently, after advancing the input clock. It is refused
+       instead. Just inside the floor every output is produced and none is
+       lost to the cap; non-finite samples are refused too (+inf passes a
+       "> 0" test and used to yield a single output with no error). The
+       boundary itself is not tested: 1 + (-5e5)*1e-6 is not exactly 0.5. */
+    {
+      const size_t                m = 1000u;
+      dp_doppler_channel_state_t *ch
+          = dp_doppler_channel_create (T_FS, T_FC, 0.0, 0.0);
+      DP_CHECK (ch != NULL);
+      size_t bcap        = dp_doppler_channel_execute_profile_max_out (ch, m);
+      float _Complex *y  = malloc (bcap * sizeof *y);
+      double         *fp = malloc (m * sizeof *fp);
+      DP_CHECK (y && fp);
+      for (size_t i = 0; i < m; i++)
+        fp[i] = -4.9e5; /* scale 0.51: a 1.96x expansion */
+      size_t ni
+          = dp_doppler_channel_execute_profile (ch, xs, m, fp, m, y, bcap);
+      DP_CHECK (ni < bcap); /* the cap was not what ended the call */
+      DP_CHECK (fabs ((double)ni - (double)m / 0.51) <= 2.0);
+
+      dp_doppler_channel_reset (ch);
+      fp[500] = -5.5e5; /* scale 0.45: past the sizing */
+      DP_CHECK (dp_doppler_channel_execute_profile (ch, xs, m, fp, m, y, bcap)
+                == 0);
+      DP_CHECK (dp_doppler_channel_get_elapsed_s (ch) == 0.0);
+
+      const double bad[] = { NAN, INFINITY, -INFINITY };
+      for (size_t b = 0; b < sizeof bad / sizeof bad[0]; b++)
+        {
+          fp[500] = -4.9e5;
+          fp[m - 1u]
+              = bad[b]; /* last, so only a whole-profile check sees it */
+          DP_CHECK (
+              dp_doppler_channel_execute_profile (ch, xs, m, fp, m, y, bcap)
+              == 0);
+          DP_CHECK (dp_doppler_channel_get_elapsed_s (ch) == 0.0);
+        }
+      free (fp);
+      free (y);
+      dp_doppler_channel_destroy (ch);
+    }
+
     /* 8d. A mid-stream split resumes bit-exact through the blob, and the
        restored stream still reports the profile's last d. */
     {

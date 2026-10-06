@@ -392,7 +392,7 @@ A sign change mid-record is the point: no `(doppler_ppm, doppler_rate_ppm_s)` pa
 
 **Returns:**
 
-Samples written. 0 if any pointer is NULL, if `ppm_len` differs from `x_len`, or if any profile sample is at or below -1e6 ppm (a scale of zero or less: time stopped or ran backwards, which create() already refuses for the scalar). All checked over the whole profile BEFORE any output is produced, so a bad call writes nothing rather than a valid prefix. 
+Samples written. 0 if any pointer is NULL, if `ppm_len` differs from `x_len`, or if any profile sample is non-finite or below -5e5 ppm (a scale under 1/2: past the 2x expansion the output is sized for, and at -1e6 ppm time stops, which create() already refuses for the scalar). All checked over the whole profile BEFORE any output is produced, so a bad call writes nothing rather than a valid prefix. 
 
 
 

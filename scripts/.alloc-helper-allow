@@ -96,8 +96,6 @@ native/src/psd/psd_core.c 6
 native/src/ratesync/ratesync_core.c 1
 native/src/resamp/resamp_core.c 7
 native/src/resample/hbdecim_r2c_core.c 4
-native/src/resample/resample_ext_HalfbandDecimator.c 1
-native/src/resample/resample_ext_Resampler.c 2
 native/src/rs_codec/rs_codec_core.c 1
 native/src/specan/specan_core.c 5
 native/src/spectral/find_peaks_f32.c 1

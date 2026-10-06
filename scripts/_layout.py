@@ -56,6 +56,17 @@ C_PREFIX = _project_key("c_prefix") or ""
 HEADER_ROOT = f"{INC_DIR}/{PKG}"
 
 
+#: jm's generated CPython glue: the per-module aggregator `<mod>_ext.c` and the
+#: per-object fragments `<mod>_ext_<object>.c`. The object part is not
+#: lowercase: `RateConverter`, `HalfbandDecimator` and `Resampler` keep their
+#: class-case names, and three gates each wrote this as `[a-z0-9_]+`, so those
+#: three fragments were treated as hand-written code -- including by the
+#: patch-coverage gate, which then demanded tests for the defensive guards jm
+#: renders (#1848). One definition now; `test_glue_fragment_pattern.py` holds
+#: the Makefile's copy, which cannot import this, to the same rule.
+GLUE_FRAGMENT = re.compile(r"_ext(_[A-Za-z0-9_]+)?\.c$")
+
+
 def header(rel: str) -> str:
     """A header's repo-relative path, from its include spelling minus the
     package: ``header("wfm/wfm_frame.h")``."""

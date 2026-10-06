@@ -63,7 +63,7 @@ import re
 import sys
 from pathlib import Path
 
-from _layout import INC_DIR, header
+from _layout import GLUE_FRAGMENT, INC_DIR, header
 
 # `tomllib` is 3.11+. Every OTHER gate under scripts/ that a test in
 # src/doppler/tests/ drives is stdlib-only and so runs on the floor Python,
@@ -90,7 +90,7 @@ MANIFEST_REL = "just-makeit.toml"
 #: duplicate. They are gated for AGREEMENT instead -- see rule 6, and the
 #: reason the two rules had to be split.
 SCAN_ROOTS = ("native/src", "native/inc")
-GENERATED_RE = re.compile(r"_ext(_[a-z0-9_]+)?\.c$")
+GENERATED_RE = GLUE_FRAGMENT
 
 #: jm's own tables, in the binding files rule 1 skips. `_enum_stype` is the
 #: bare form and `_enum_Reader_t0_source` the per-property one; both end in

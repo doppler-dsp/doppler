@@ -1077,7 +1077,7 @@ export MEM_GUARD_PYTHON ?= $(PYTHON_EXECUTABLE)
 # stay measured. Only jm's own inline functions lose attribution, and the SIMD
 # MACROS doppler actually uses are unaffected — a macro expands at its call
 # site and is attributed to the `.c` that used it.
-COV_IGNORE    ?= (^|/)(vendor|build|build-cov|native/src/app)/|(^|/)jm_[a-z]+\.h$$|_ext(_[a-z0-9_]+)?\.c$$|/(tests|benchmarks|validation)/
+COV_IGNORE    ?= (^|/)(vendor|build|build-cov|native/src/app)/|(^|/)jm_[a-z]+\.h$$|_ext(_[A-Za-z0-9_]+)?\.c$$|/(tests|benchmarks|validation)/
 
 # Preflight: can this toolchain link an instrumented binary at all? Without
 # it the build compiles every object and dies at the FIRST LINK with "cannot

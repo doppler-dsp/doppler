@@ -1189,6 +1189,26 @@ void dp_wfm_render_steps(wfm_render_t *r, float _Complex *dst, size_t n);
 void dp_wfm_render_noise_steps(wfm_render_t *r, float _Complex *dst, size_t n);
 
 /** @brief Free a renderer and everything it owns. NULL-safe. */
+/**
+ * @brief Tell a Doppler renderer where its INPUT's phases fall.
+ *
+ * A renderer with a channel pulls the synth in refills sized to the channel's
+ * input, not to what the caller asked for, so it cannot learn the phase
+ * boundaries from the pull calls: the channel's input and output clocks are
+ * decoupled. This states them, in INPUT samples -- `delay` noise-only, then
+ * `on` signal, then noise-only for ever -- and the renderer follows that
+ * timeline however the output is drained (doppler#1858).
+ *
+ * Without it a channel renderer falls back to choosing per refill from the
+ * phase of the output being drained, which is wrong at every phase boundary.
+ * No effect on a renderer with no channel.
+ *
+ * @param r      Renderer from dp_wfm_compose_build_render().
+ * @param delay  Leading noise-only samples.
+ * @param on     Signal samples after the delay.
+ */
+void dp_wfm_render_set_input_timeline(wfm_render_t *r, size_t delay, size_t on);
+
 void dp_wfm_render_destroy(wfm_render_t *r);
 
 /**

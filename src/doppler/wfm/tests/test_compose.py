@@ -1952,3 +1952,61 @@ def test_draws_describes_a_fixed_scene_too() -> None:
     rows = draws(scene)
     assert len(rows) == 2
     assert all(r["freq"] == 1e5 for r in rows)
+
+
+# ---------------------------------------------------------------------------
+# A Doppler burst's gap carries ring-out, not signal (doppler#1858)
+# ---------------------------------------------------------------------------
+#
+# The channel's input and output clocks are decoupled, so which phase the
+# OUTPUT is draining says nothing reliable about which phase the next block of
+# INPUT belongs to. The renderer used to choose signal-or-noise once per
+# refill from the output phase: a refill during ON pulled 4096 signal samples
+# for a burst with 1000 left, the synth ran on past its end, and the gap
+# drained it as signal at full amplitude. A refill during a gap did the mirror
+# image to the start of a burst. Every scene below is CLEAN (no noise floor),
+# because a floor hides exactly this: a gap of noise looks like a gap.
+
+#: The resampler's group delay (10.5 for the built-in bank) plus its taps: past
+#: this many samples after the burst's end only noise can remain.
+_RING = 64
+
+
+def _clean_burst(sig, *, delay: int = 0, on: int = 1000, off: int = 3000):
+    seg = Segment.sum(
+        sig,
+        fs=1e6,
+        num_samples=on,
+        off_samples=off,
+        delay_samples=delay,
+    )
+    return np.abs(np.asarray(Composer(seg).compose()))
+
+
+@pytest.mark.parametrize("kind", ["tone", "qpsk"])
+def test_doppler_burst_gap_is_silent_beyond_the_ring_out(kind: str) -> None:
+    kw = {"doppler": 20.0, "carrier_hz": 2.2e9, "seed": 3, "sps": 8}
+    sig = tone(freq=1e5, **kw) if kind == "tone" else qpsk(pn_length=7, **kw)
+    a = _clean_burst(sig)
+    # The signal is really there ...
+    assert a[100:900].mean() > 0.9
+    # ... it rings out for a few samples (a dilated tail, not a cliff) ...
+    assert a[1000 : 1000 + _RING].max() > 0.0
+    # ... and then the gap is EXACTLY silent: not "quiet", zero.
+    assert a[1000 + _RING :].max() == 0.0
+
+
+@pytest.mark.parametrize("delay", [64, 2000, 5000])
+def test_doppler_burst_after_a_delay_arrives_where_it_should(
+    delay: int,
+) -> None:
+    """The mirror image: a refill started in the leading delay must not feed
+    noise over the start of the burst. 5000 > RENDER_FEED, 64 < it, 2000
+    straddles it -- the block boundary is where the old logic changed its
+    mind."""
+    sig = tone(freq=1e5, doppler=20.0, carrier_hz=2.2e9, seed=3, sps=8)
+    a = _clean_burst(sig, delay=delay)
+    assert a[:delay].max() == 0.0
+    # The burst, less its two edges' ring: full amplitude, whole length.
+    assert a[delay + _RING : delay + 1000 - _RING].min() > 0.9
+    assert a[delay + 1000 + _RING :].max() == 0.0

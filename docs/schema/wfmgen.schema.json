@@ -237,7 +237,7 @@
             "persist"
           ],
           "default": "per_instance",
-          "description": "How long this source's Doppler channel lives. per_instance: the channel dies with each `repeats` instance, so the geometry restarts -- the repeated-trial shape, which composes with a ranged doppler re-drawn per instance. persist: one continuous pass carries across the segment's gaps and repeat instances, keyed by (segment, source) position -- the only lifetime under which doppler_rate accumulates across a multi-burst scene. Plan.prepare() REFUSES a persist source, because its cache renders each source independently and concurrently; compose() and stream() honour both. Omitted from a record at its default."
+          "description": "How long this source's Doppler channel lives. per_instance: the channel dies with each `repeats` instance, so the geometry restarts -- the repeated-trial shape, which composes with a ranged doppler re-drawn per instance. persist: one continuous pass carries across the segment's gaps and repeat instances, keyed by (segment, source) position -- the only lifetime under which doppler_rate accumulates across a multi-burst scene. compose(), stream() and Plan.prepare() all honour both. Omitted from a record at its default."
         },
         "modulation": {
           "type": "string",

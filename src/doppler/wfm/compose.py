@@ -161,13 +161,26 @@ class Plan:
     per-instance noise synth rather than an external multiply. Still out of
     scope, and raising ``ValueError`` at construction: a ranged on-time
     (``num_samples`` — it would invalidate the fixed-length signal cache) or
-    any ranged per-source field (``freq``/``snr``/``level``/``f_end`` —
-    redrawing one would invalidate its cached render). The overridable axes
+    any ranged per-source field but the Doppler pair
+    (``freq``/``snr``/``level``/``f_end`` — redrawing one would invalidate
+    its cached render). The overridable axes
     are per-source ``gains`` (dBFS levels), ``phases`` (radians), ``enable``
     (drop a source), the global ``snr`` (the noise floor), and the
-    Monte-Carlo ``seed`` (also redraws any ranged gap length) — applied
-    uniformly across every segment/instance that carries noise. Frequency
-    (Doppler) and multipath delay are planned follow-ups.
+    Monte-Carlo ``seed`` (also redraws any ranged gap length and any ranged
+    Doppler) — applied uniformly across every segment/instance that carries
+    noise.
+
+    A source with clock ``doppler`` / ``doppler_rate`` is served, and the
+    render is :meth:`Composer.compose` to the bit: both lifetimes, the gap
+    ring-out, a leading delay, and the AWGN of a bundled source (which sits
+    *inside* the channel). The cache holds the signal *before* the channel
+    and the channel runs at render time over it, so a render of a Doppler
+    scene is no longer a pure re-weight: each Doppler source costs one
+    resampler pass over its timeline, on top of the (still cached) synthesis.
+    The one exception is a ``background=True`` source with Doppler, which is
+    refused — the background fold sums those into one composite before any
+    channel could run, and a channel is per source. Multipath delay is a
+    planned follow-up.
 
     Examples
     --------
@@ -205,9 +218,10 @@ class Plan:
                 "scene cannot be prepared as a Plan: expected finite "
                 "segments (no continuous/repeat scene) with a ranged "
                 "on-time or a ranged per-source field (freq/snr/level/"
-                "f_end), and no source carrying clock doppler/"
-                "doppler_rate -- ranged off_samples/delay_samples and "
-                "repeats are supported, as is a lone bundled noisy source"
+                "f_end; a ranged doppler/doppler_rate is fine), and no "
+                "background source carrying clock doppler/doppler_rate -- "
+                "ranged off_samples/delay_samples, repeats and a Doppler "
+                "source are supported, as is a lone bundled noisy source"
             ) from exc
 
     def render(

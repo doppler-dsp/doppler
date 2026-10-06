@@ -1797,9 +1797,7 @@ static PyGetSetDef Synth_getset[] = {
     "instance. persist: one continuous pass carries across the segment's gaps "
     "and repeat instances, keyed by (segment, source) position -- the only "
     "lifetime under which doppler_rate accumulates across a multi-burst "
-    "scene. Plan.prepare() REFUSES a persist source, because its cache "
-    "renders each source independently and concurrently; compose() and "
-    "stream() honour both.\n",
+    "scene. compose(), stream() and Plan.prepare() all honour both.\n",
     NULL },
   { "modulation", (getter)Synth_get_modulation, (setter)Synth_set_modulation,
     "Symbol mapping of a bits pattern. none: the pattern shaped and output "
@@ -3188,9 +3186,7 @@ static PyGetSetDef Segment_getset[] = {
     "instance. persist: one continuous pass carries across the segment's gaps "
     "and repeat instances, keyed by (segment, source) position -- the only "
     "lifetime under which doppler_rate accumulates across a multi-burst "
-    "scene. Plan.prepare() REFUSES a persist source, because its cache "
-    "renders each source independently and concurrently; compose() and "
-    "stream() honour both.\n",
+    "scene. compose(), stream() and Plan.prepare() all honour both.\n",
     NULL },
   { "modulation", (getter)Segment_flat_modulation, NULL,
     "Symbol mapping of a bits pattern. none: the pattern shaped and output "

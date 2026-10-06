@@ -92,7 +92,7 @@ There is no list here to update.
 | [PN](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/pn/results.md)                                  | `wfm`        | 16/16  | 4        | none                       |
 | [Composer](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_compose/results.md)                   | `wfm`        | 15/15  | 4        | none                       |
 | [Frame](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_frame/results.md)                        | `wfm`        | 16/16  | 4        | 1 — F2                     |
-| [Plan](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_plan/results.md)                          | `wfm`        | 17/17  | 4        | 2 — F1, F2                 |
+| [Plan](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_plan/results.md)                          | `wfm`        | 18/18  | 4        | 2 — F1, F2                 |
 | [Reader](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_reader/results.md)                      | `wfm`        | 20/20  | 4        | 2 — F2, F3                 |
 | [Synth](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_synth/results.md)                        | `wfm`        | 21/21  | 6        | 1 — F5                     |
 | [Writer](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_writer/results.md)                      | `wfm`        | 16/16  | 5        | none                       |

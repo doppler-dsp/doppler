@@ -200,10 +200,8 @@ typedef struct {
                                keyed by (segment, source) position -- the
                                only lifetime under which doppler_rate
                                accumulates across a multi-burst scene.
-                               Plan.prepare() REFUSES a persist source,
-                               because its cache renders each source
-                               independently and concurrently; compose() and
-                               stream() honour both. */
+                               compose(), stream() and Plan.prepare() all
+                               honour both. */
     /* A frame DESCRIPTION, the whole frame: fields in wire order, and
        stages that each name the span they cover (crc16, rs, randomise,
        interleave, conv, or a kind of your own). It is the only way a source
@@ -499,6 +497,12 @@ wfm_render_t *dp_wfm_compose_build_render(const wfm_source_t *src, double fs,
 void dp_wfm_render_steps(wfm_render_t *r, float _Complex *dst, size_t n);
 
 void dp_wfm_render_noise_steps(wfm_render_t *r, float _Complex *dst, size_t n);
+
+typedef void (*wfm_feed_fn)(void *ctx, float _Complex *dst, size_t n, int signal);
+
+wfm_render_t *dp_wfm_render_from_feed(const wfm_source_t *src, double fs, double doppler, double doppler_rate, dp_doppler_channel_state_t *borrow, size_t delay, size_t on, wfm_feed_fn feed, void *feed_ctx);
+
+dp_doppler_channel_state_t *dp_wfm_compose_persist_channel(const wfm_source_t *src, double fs, double doppler, double doppler_rate, dp_doppler_channel_state_t **slot);
 
 void dp_wfm_render_set_input_timeline(wfm_render_t *r, size_t delay, size_t on);
 

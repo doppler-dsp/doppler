@@ -273,34 +273,232 @@ def _doppler_scene(**extra) -> Composer:
     )
 
 
-@pytest.mark.parametrize(
-    "extra",
-    [
-        pytest.param({"doppler": 5.0}, id="offset"),
-        pytest.param({"doppler_rate": 200.0}, id="rate"),
-        pytest.param(
-            {"doppler": 5.0, "doppler_lifetime": "per_instance"},
-            id="per_instance",
-        ),
-        pytest.param(
-            {"doppler": 5.0, "doppler_lifetime": "persist"}, id="persist"
-        ),
-    ],
-)
-def test_rejects_a_doppler_source(extra) -> None:
-    """A Doppler channel is refused rather than cached wrong.
+# ── Doppler: a channel applied at render time over the cached signal ───────
+#
+# The cache holds each source's clean ON-time, BEFORE the channel. A channel is
+# stateful and runs through the gaps (gh-409), so it cannot live in a
+# per-source on-time cache; the Plan runs it at render time, through the
+# composer's own renderer, over the cached signal (doppler#1109). Everything
+# below is therefore asserted against compose() to the BIT, which is the whole
+# contract: a Plan that differs from compose() in a way nothing downstream can
+# see is worse than no Plan.
 
-    Both lifetimes, for reasons measured against ``compose()`` rather than
-    assumed. The cache holds one source's clean on-time in isolation, but a
-    Doppler channel is a stateful resampler that also runs through the gaps:
-    a trailing gap carries the burst's ring-out and a leading delay advances
-    the geometry before the burst starts, neither of which the cache can
-    hold. Separately, ``compose()`` puts the AWGN *inside* the channel and
-    the cache re-weights noise outside it. See ``plan_build()`` for the
-    measurements; gh-1109 is the follow-up.
-    """
+_D = {"doppler": 20.0, "carrier_hz": 2.2e9}
+_K = {"fs": 1e6, "num_samples": 3000}
+_GAPS = {"off_samples": 700, "delay_samples": 300, "repeats": 3}
+
+
+def _assert_bits(got: np.ndarray, want: np.ndarray) -> None:
+    """Bit-identical, not merely equal: ``assert_array_equal`` treats -0.0 and
+    +0.0 as the same number, and a Doppler channel's ring-out is precisely
+    where a filter running on zeros emits a negative zero. A Plan that summed
+    into a zeroed buffer matched compose() in value and differed in bits, and
+    only the C ``memcmp`` could see it."""
+    assert got.shape == want.shape
+    assert got.tobytes() == want.tobytes()
+
+
+def _q(**kw):
+    return qpsk(seed=7, sps=8, pn_length=7, **kw)
+
+
+def _t(**kw):
+    return tone(freq=1e5, seed=3, sps=8, **kw)
+
+
+#: Scene shapes, each one a way the cache used to be wrong. The first four are
+#: the measurements doppler#1109 was filed against: the gap carries the
+#: burst's ring-out, a leading delay advances the geometry, and (bundled) the
+#: noise sits INSIDE the channel, which the old clean-cache-plus-noise model
+#: missed by 1.73 on a unit-power signal.
+_DOPPLER_SCENES = {
+    "clean_gaps": lambda: Segment.sum(_t(**_D), **_GAPS, **_K),
+    "bundled_noisy": lambda: Segment.sum(_q(snr=12.0, **_D), **_GAPS, **_K),
+    "shared_noise_doppler_on_anchor": lambda: Segment.sum(
+        _q(snr=12.0, **_D), _t(), **_GAPS, **_K
+    ),
+    "shared_noise_doppler_on_clean": lambda: Segment.sum(
+        _q(snr=12.0), _t(**_D), **_GAPS, **_K
+    ),
+    "two_doppler_sources": lambda: Segment.sum(
+        _q(snr=12.0, **_D),
+        _t(doppler=-9.0, carrier_hz=2.2e9),
+        **_GAPS,
+        **_K,
+    ),
+    "persist": lambda: Segment.sum(
+        _t(doppler_rate=300.0, carrier_hz=2.2e9, doppler_lifetime="persist"),
+        off_samples=700,
+        delay_samples=300,
+        repeats=4,
+        **_K,
+    ),
+    "persist_bundled": lambda: Segment.sum(
+        _q(
+            snr=12.0,
+            doppler_rate=300.0,
+            carrier_hz=2.2e9,
+            doppler_lifetime="persist",
+        ),
+        **_GAPS,
+        **_K,
+    ),
+    "gap_noise_off": lambda: Segment.sum(
+        _t(**_D),
+        gap_noise="off",
+        off_samples=700,
+        delay_samples=300,
+        repeats=2,
+        **_K,
+    ),
+    "gap_noise_off_shared": lambda: Segment.sum(
+        _q(snr=12.0, **_D),
+        _t(),
+        gap_noise="off",
+        off_samples=700,
+        delay_samples=300,
+        repeats=2,
+        **_K,
+    ),
+    "ranged_doppler": lambda: Segment.sum(
+        _t(doppler=(2.0, 9.0), carrier_hz=2.2e9), **_GAPS, **_K
+    ),
+    "ranged_doppler_rate": lambda: Segment.sum(
+        _t(doppler_rate=(100.0, 500.0), carrier_hz=2.2e9), **_GAPS, **_K
+    ),
+}
+
+
+@pytest.mark.parametrize("name", sorted(_DOPPLER_SCENES))
+def test_doppler_scene_is_bit_identical_to_compose(name: str) -> None:
+    scene = Composer(_DOPPLER_SCENES[name]())
+    plan = prepare(scene)
+    ref = scene.compose()
+    assert len(plan) == len(ref)
+    _assert_bits(plan.render(), ref)
+
+
+def test_persist_is_per_segment_and_source_not_per_scene() -> None:
+    """A PERSIST channel is one pass across a segment's repeats, keyed by
+    (segment, source). Two segments therefore carry two independent passes,
+    and the Plan has to key them the same way compose() does."""
+    kw = {"doppler_rate": 300.0, "carrier_hz": 2.2e9}
+    scene = Composer(
+        [
+            Segment.sum(
+                _t(doppler_lifetime="persist", **kw),
+                off_samples=400,
+                repeats=3,
+                **_K,
+            ),
+            Segment.sum(
+                _t(doppler_lifetime="persist", **kw),
+                off_samples=400,
+                repeats=2,
+                **_K,
+            ),
+        ]
+    )
+    _assert_bits(prepare(scene).render(), scene.compose())
+
+
+def test_doppler_burst_gap_is_ring_out_through_the_plan() -> None:
+    """The Plan inherits the doppler#1858 behaviour rather than restating it:
+    a clean burst's gap is silent beyond the ring-out."""
+    scene = Composer(
+        Segment.sum(_t(**_D), fs=1e6, num_samples=1000, off_samples=3000)
+    )
+    a = np.abs(prepare(scene).render())
+    assert a[100:900].mean() > 0.9
+    assert a[1000 + 64 :].max() == 0.0
+
+
+def test_doppler_gain_axis_matches_compose() -> None:
+    # The channel is linear, so a gain is applied AFTER it, as compose()
+    # does. Level on the Doppler tone; the noise floor (the qpsk anchor) is
+    # untouched.
+    def scene(level: float) -> Composer:
+        return Composer(
+            Segment.sum(_q(snr=12.0), _t(level=level, **_D), **_GAPS, **_K)
+        )
+
+    plan = prepare(scene(0.0))
+    _assert_bits(plan.render(gains=[0.0, -6.0]), scene(-6.0).compose())
+
+
+def test_doppler_snr_axis_matches_compose() -> None:
+    # Bundled: the AWGN sits inside the channel, so an SNR override has to move
+    # the noise that is FED to it, not one added afterwards.
+    def scene(snr: float) -> Composer:
+        return Composer(Segment.sum(_q(snr=snr, **_D), **_GAPS, **_K))
+
+    plan = prepare(scene(12.0))
+    _assert_bits(
+        plan.render(snr=6.0, seed=plan.anchor_seed), scene(6.0).compose()
+    )
+
+
+def test_ranged_doppler_redraws_per_seed_and_matches_compose() -> None:
+    """The Monte-Carlo shape #1109 names: a ranged Doppler, a seed per trial.
+    Each seed must be exactly the scene composed with that seed -- the draw is
+    the same number, not merely a similar one."""
+
+    def scene(seed: int) -> Composer:
+        return Composer(
+            Segment.sum(
+                tone(
+                    freq=1e5,
+                    seed=seed,
+                    sps=8,
+                    doppler=(2.0, 9.0),
+                    carrier_hz=2.2e9,
+                ),
+                **_GAPS,
+                **_K,
+            )
+        )
+
+    plan = prepare(scene(3))
+    r1, r2 = plan.render(seed=101), plan.render(seed=202)
+    _assert_bits(r1, scene(101).compose())
+    _assert_bits(r2, scene(202).compose())
+    assert not np.array_equal(r1, r2)
+
+
+def test_doppler_plan_survives_save_and_restore() -> None:
+    """The cache is the signal BEFORE the channel, so a saved Plan restores
+    from it and still renders the channel exactly."""
+    scene = Composer(_DOPPLER_SCENES["bundled_noisy"]())
+    plan = prepare(scene)
+    restored = PlanFromBlob(plan.save())
+    _assert_bits(restored.render(), scene.compose())
+
+
+def test_doppler_phase_override_rotates_the_signal() -> None:
+    """A phase override is applied to the signal BEFORE the channel (the
+    channel is linear, so it commutes). Identity is exact; a real rotation
+    changes the output without moving the gap's ring-out in time."""
+    plan = prepare(Composer(_DOPPLER_SCENES["clean_gaps"]()))
+    base = plan.render()
+    np.testing.assert_array_equal(plan.render(phases=[0.0]), base)
+    rot = plan.render(phases=[np.pi / 2])
+    assert not np.array_equal(rot, base)
+    np.testing.assert_allclose(np.abs(rot), np.abs(base), atol=1e-5)
+
+
+def test_background_source_with_doppler_is_still_refused() -> None:
+    """The one carve-out. The background fold sums sources into a single
+    composite before the render, and a channel is per source: it cannot be
+    applied to a sum. Refused rather than cached wrong."""
+    scene = Composer(
+        Segment.sum(
+            _q(level=-24.0, background=True, **_D),
+            _q(snr=12.0),
+            **_K,
+        )
+    )
     with pytest.raises(ValueError, match="doppler"):
-        prepare(_doppler_scene(**extra))
+        prepare(scene)
 
 
 def test_doppler_free_scene_still_prepares() -> None:

@@ -276,6 +276,11 @@ struct wfm_render
      the output-phase behaviour, which is what a channel-less pull is. */
   size_t in_dly, in_on, in_pos;
   int    in_set;
+  /* Where the channel's input comes FROM. NULL: the live synth `syn`. Set: a
+     caller-supplied feed, with no synth at all -- the Plan's cache, which
+     holds the clean ON-time already and has no business rebuilding it. */
+  wfm_feed_fn feed;
+  void       *feed_ctx;
 };
 
 /* Copy each live renderer's data-source counts onto its source in the
@@ -318,6 +323,40 @@ dp_wfm_render_destroy (wfm_render_t *r)
   free (r);
 }
 
+/* Give a renderer its channel, if the source has one. 0 on success (including
+ * "no channel needed"), -1 if the channel could not be created.
+ *
+ * No declared motion, no channel: the pull is then a straight
+ * dp_wfm_synth_steps and the scene is byte-identical to before Doppler
+ * existed. Both terms are checked because a pure rate ramp starting from zero
+ * offset is a legitimate pass. */
+static int
+attach_channel (wfm_render_t *r, const wfm_source_t *src, double fs,
+                double doppler, double doppler_rate,
+                dp_doppler_channel_state_t *borrow)
+{
+  if (!borrow && doppler == 0.0 && doppler_rate == 0.0)
+    return 0;
+
+  if (borrow)
+    {
+      /* A PERSIST source: the scene owns this channel across segments, so
+         the geometry carries rather than restarting when the synth is torn
+         down at a boundary. */
+      r->ch          = borrow;
+      r->ch_borrowed = 1;
+    }
+  else
+    r->ch = dp_doppler_channel_create (fs, src->carrier_hz, doppler,
+                                       doppler_rate);
+  if (!r->ch)
+    return -1;
+  r->hold_cap = dp_doppler_channel_execute_max_out (r->ch);
+  r->in       = dp_xmalloc (RENDER_FEED * sizeof *r->in);
+  r->hold     = dp_xmalloc (r->hold_cap * sizeof *r->hold);
+  return 0;
+}
+
 wfm_render_t *
 dp_wfm_compose_build_render (const wfm_source_t *src, double fs, size_t on_len,
                              double freq, double snr, double f_end,
@@ -335,33 +374,54 @@ dp_wfm_compose_build_render (const wfm_source_t *src, double fs, size_t on_len,
       free (r);
       return NULL;
     }
-  /* No declared motion, no channel: the pull below is then a straight
-     dp_wfm_synth_steps and the scene is byte-identical to before Doppler
-     existed. Both terms are checked because a pure rate ramp starting from
-     zero offset is a legitimate pass. */
-  if (!borrow && doppler == 0.0 && doppler_rate == 0.0)
-    return r;
-
-  if (borrow)
-    {
-      /* A PERSIST source: the scene owns this channel across segments, so
-         the geometry carries rather than restarting when the synth is torn
-         down at a boundary. */
-      r->ch          = borrow;
-      r->ch_borrowed = 1;
-    }
-  else
-    r->ch = dp_doppler_channel_create (fs, src->carrier_hz, doppler,
-                                       doppler_rate);
-  if (!r->ch)
+  if (attach_channel (r, src, fs, doppler, doppler_rate, borrow) != 0)
     {
       dp_wfm_render_destroy (r);
       return NULL;
     }
-  r->hold_cap = dp_doppler_channel_execute_max_out (r->ch);
-  r->in       = dp_xmalloc (RENDER_FEED * sizeof *r->in);
-  r->hold     = dp_xmalloc (r->hold_cap * sizeof *r->hold);
   return r;
+}
+
+wfm_render_t *
+dp_wfm_render_from_feed (const wfm_source_t *src, double fs, double doppler,
+                         double                      doppler_rate,
+                         dp_doppler_channel_state_t *borrow, size_t delay,
+                         size_t on, wfm_feed_fn feed, void *feed_ctx)
+{
+  /* Without a channel there is nothing for a feed to be the input OF: a
+     channel-less renderer is a straight synth pull, which a caller holding
+     its own signal does not need a renderer for. */
+  if (!borrow && doppler == 0.0 && doppler_rate == 0.0)
+    return NULL;
+  wfm_render_t *r = dp_xcalloc (1, sizeof *r);
+  if (attach_channel (r, src, fs, doppler, doppler_rate, borrow) != 0)
+    {
+      dp_wfm_render_destroy (r);
+      return NULL;
+    }
+  r->feed     = feed;
+  r->feed_ctx = feed_ctx;
+  r->in_dly   = delay;
+  r->in_on    = on;
+  r->in_set   = 1;
+  return r;
+}
+
+dp_doppler_channel_state_t *
+dp_wfm_compose_persist_channel (const wfm_source_t *src, double fs,
+                                double doppler, double doppler_rate,
+                                dp_doppler_channel_state_t **slot)
+{
+  if (src->doppler_lifetime != WFM_DOPPLER_PERSIST || !slot
+      || (doppler == 0.0 && doppler_rate == 0.0))
+    return NULL;
+  /* Created on first use, so a scene that never reaches a segment never pays
+     for it, and with the geometry of the first instance to arrive: a PERSIST
+     channel is ONE pass, so a later instance's draw does not restart it. */
+  if (!*slot)
+    *slot = dp_doppler_channel_create (fs, src->carrier_hz, doppler,
+                                       doppler_rate);
+  return *slot;
 }
 
 void
@@ -398,7 +458,9 @@ feed_input (wfm_render_t *r, size_t feed)
                                                 : feed - done;
       if (run > feed - done)
         run = feed - done;
-      if (sig)
+      if (r->feed)
+        r->feed (r->feed_ctx, r->in + done, run, sig);
+      else if (sig)
         dp_wfm_synth_steps (r->syn, r->in + done, run);
       else
         dp_wfm_synth_noise_steps (r->syn, r->in + done, run);
@@ -534,16 +596,9 @@ start_segment (dp_wfm_compose_state_t *s)
          slot, created on first use so a scene that never reaches a segment
          never pays for it. PER_INSTANCE passes NULL and the renderer makes
          its own, which dies with the instance -- the repeated-trial shape. */
-      dp_doppler_channel_state_t *borrow = NULL;
-      if (src->doppler_lifetime == WFM_DOPPLER_PERSIST
-          && (v.doppler != 0.0 || v.doppler_rate != 0.0) && s->pch)
-        {
-          size_t slot = s->pch_off[s->cur] + k;
-          if (!s->pch[slot])
-            s->pch[slot] = dp_doppler_channel_create (
-                g->fs, src->carrier_hz, v.doppler, v.doppler_rate);
-          borrow = s->pch[slot];
-        }
+      dp_doppler_channel_state_t *borrow = dp_wfm_compose_persist_channel (
+          src, g->fs, v.doppler, v.doppler_rate,
+          s->pch ? &s->pch[s->pch_off[s->cur] + k] : NULL);
       s->rend[k] = dp_wfm_compose_build_render (
           src, g->fs, s->cur_num, freq, snr, f_end, v.doppler, v.doppler_rate,
           s->epoch, s->seed_advance, s->instance, borrow);

@@ -1388,7 +1388,7 @@ help_section = "DOPPLER"
 type = "int"
 enum = "doppler_lifetime"
 default = "per_instance"
-doc = "How long this source's Doppler channel lives. per_instance: the channel dies with each `repeats` instance, so the geometry restarts -- the repeated-trial shape, which composes with a ranged doppler re-drawn per instance. persist: one continuous pass carries across the segment's gaps and repeat instances, keyed by (segment, source) position -- the only lifetime under which doppler_rate accumulates across a multi-burst scene. Plan.prepare() REFUSES a persist source, because its cache renders each source independently and concurrently; compose() and stream() honour both."
+doc = "How long this source's Doppler channel lives. per_instance: the channel dies with each `repeats` instance, so the geometry restarts -- the repeated-trial shape, which composes with a ranged doppler re-drawn per instance. persist: one continuous pass carries across the segment's gaps and repeat instances, keyed by (segment, source) position -- the only lifetime under which doppler_rate accumulates across a multi-burst scene. compose(), stream() and Plan.prepare() all honour both."
 
 [[module.wfm_compose.source.fields]]
 name = "modulation"

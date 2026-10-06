@@ -1,8 +1,10 @@
+/* jm:generated wfm_writer_ext_wfm_writer.c */
 /*
  * wfm_writer_ext_wfm_writer.c — Writer type for the wfm_writer module.
  *
  * Included by wfm_writer_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in wfm_writer_ext_wfm_writer_extra.c.
  * Do NOT compile this file directly — only wfm_writer_ext.c is compiled.
  */
 /* ======================================================== */
@@ -34,6 +36,9 @@ WriterObj_dealloc (WriterObject *self)
 static PyObject *
 WriterObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   WriterObject *self = (WriterObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -106,11 +111,11 @@ WriterObj_init (WriterObject *self, PyObject *args, PyObject *kwds)
     sample_type = 9;
   else
     {
-      PyErr_Format (PyExc_ValueError,
-                    "sample_type must be one of \"cf32\", \"cf64\", \"ci32\", "
-                    "\"ci16\", \"ci8\", \"f32\", \"f64\", \"i32\", \"i16\", "
-                    "\"i8\", got '%s'",
-                    sample_type_str);
+      PyErr_Format (
+          PyExc_ValueError,
+          "sample_type must be one of \"cf32\", \"cf64\", \"ci32\", \"ci16\", "
+          "\"ci8\", \"f32\", \"f64\", \"i32\", \"i16\", \"i8\", got '%s'",
+          sample_type_str);
       Py_XDECREF (path);
       return -1;
     }
@@ -159,8 +164,8 @@ WriterObj_write (WriterObject *self, PyObject *args, PyObject *kwds)
   PyObject    *x_obj     = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &x_obj))
     return NULL;
-  PyArrayObject *x_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     {
       return NULL;
@@ -438,7 +443,7 @@ static PyGetSetDef Writer_getset[] = {
     "type is one of `ci32`/`ci16`/`ci8`. Always False for `cf32`/`cf64`, "
     "which cannot clip: a float sample above full scale is merely loud.\n",
     NULL },
-  { NULL }
+  { NULL, NULL, NULL, NULL, NULL }
 };
 
 static PyObject *
@@ -535,10 +540,10 @@ static PyMethodDef WriterObj_methods[] = {
   { "flush", (PyCFunction)WriterObj_flush, METH_NOARGS,
     "flush() -> None\n"
     "\n"
-    "Make every sample written so far durable and observable to a\n"
-    "concurrent reader, without ending the capture. Leaves the file on a\n"
-    "sample boundary, which is what lets a follower read it without meeting\n"
-    "a partial sample. Raises OSError if this or any earlier write failed; a\n"
+    "Make every sample written so far durable and observable to a concurrent "
+    "reader, without ending the capture. Leaves the file on a sample "
+    "boundary, which is what lets a follower read it without meeting a "
+    "partial sample. Raises OSError if this or any earlier write failed; a "
     "capture is not finished until close().\n"
     "\n"
     "Leaves the file on a sample boundary -- write() emits whole samples, so\n"
@@ -655,11 +660,11 @@ static PyMethodDef WriterObj_methods[] = {
     "    If the C destructor reports failure. Raised from an explicit call\n"
     "    and from ``__exit__`` alike, so a failing teardown propagates out\n"
     "    of a ``with`` block (gh-541).\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject WriterObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "wfm_writer.Writer",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.wfm.Writer",
   .tp_basicsize                           = sizeof (WriterObject),
   .tp_dealloc                             = (destructor)WriterObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
@@ -693,8 +698,8 @@ static PyTypeObject WriterObjType = {
     "itself;\n"
     "    raw and CSV have nowhere to put them and keep them in the `sidecar`\n"
     "    instead.\n"
-    "sample_type : Literal[\"cf32\", \"cf64\", \"ci32\", \"ci16\", \"ci8\"], "
-    "default \"cf32\"\n"
+    "sample_type : Literal[\"cf32\", \"cf64\", \"ci32\", \"ci16\", \"ci8\", "
+    "\"f32\", \"f64\", \"i32\", \"i16\", \"i8\"], default \"cf32\"\n"
     "    wire type: `\"cf32\"`, `\"cf64\"`, `\"ci32\"`, `\"ci16\"` or "
     "`\"ci8\"`. The\n"
     "    integer types quantise ±1.0 to full scale and can clip -- see\n"

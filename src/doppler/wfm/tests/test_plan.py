@@ -343,6 +343,18 @@ _DOPPLER_SCENES = {
         **_GAPS,
         **_K,
     ),
+    # Two PERSIST sources over 4096+ samples: the instances are chained by the
+    # channels, so the render walks them in order and fans out ACROSS the
+    # sources instead, each with its own slot.
+    "persist_two_sources": lambda: Segment.sum(
+        _t(doppler_rate=300.0, carrier_hz=2.2e9, doppler_lifetime="persist"),
+        _q(doppler=-7.0, carrier_hz=2.2e9, doppler_lifetime="persist"),
+        fs=1e6,
+        num_samples=6000,
+        off_samples=700,
+        delay_samples=300,
+        repeats=3,
+    ),
     "gap_noise_off": lambda: Segment.sum(
         _t(**_D),
         gap_noise="off",

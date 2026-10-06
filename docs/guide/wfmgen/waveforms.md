@@ -1504,7 +1504,10 @@ print(len(plan.render(seed=101)), len(plan.render(seed=202)))
 
 Two things are worth knowing. A render of a Doppler scene is **no longer a pure
 re-weight of the cache**: each Doppler source runs one resampler pass over its
-timeline, on top of the synthesis the cache still saves. And one shape is still
+timeline, on top of the synthesis the cache still saves. That pass is what
+`render()` parallelises: a segment's repeats render concurrently, or its sources
+do when a `persist` channel chains the repeats, so it costs wall-clock mainly
+for a single burst from a single source. And one shape is still
 refused, with a `ValueError`: a `background=True` source with Doppler, because
 the background fold sums those sources into one composite before any channel
 could run, and a channel is per source.

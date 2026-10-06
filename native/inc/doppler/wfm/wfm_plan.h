@@ -107,6 +107,12 @@ extern "C"
    * instance exactly as compose() draws it, and a seed override moves it.
    * Cost: a Doppler scene's render() is no longer a pure re-weight of the
    * cache -- each Doppler source runs one resampler pass over its timeline.
+   * That pass is what render() parallelises: a segment's repeat instances
+   * render concurrently when no source PERSISTs (they share no channel), and a
+   * PERSIST segment, whose instances its channels chain, fans out across its
+   * sources instead. The result is the same bits as the serial render. A
+   * single burst from a single source has nothing to fan out, so there the
+   * pass is simply the cost.
    *
    * The one refusal is a BACKGROUND source with Doppler: the background fold
    * sums those into a single composite before the render, and a channel is

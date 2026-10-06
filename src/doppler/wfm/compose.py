@@ -177,6 +177,9 @@ class Plan:
     and the channel runs at render time over it, so a render of a Doppler
     scene is no longer a pure re-weight: each Doppler source costs one
     resampler pass over its timeline, on top of the (still cached) synthesis.
+    That pass is parallelised — a segment's repeats render concurrently, or
+    its sources do when a ``persist`` channel chains the repeats — so it costs
+    wall-clock mainly for a single burst from a single source.
     The one exception is a ``background=True`` source with Doppler, which is
     refused — the background fold sums those into one composite before any
     channel could run, and a channel is per source. Multipath delay is a

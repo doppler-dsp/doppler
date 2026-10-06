@@ -44,6 +44,10 @@ _DopplerChannel state._ [More...](#detailed-description)
 |  double | [**fs**](#variable-fs)  <br> |
 |  uint64\_t | [**n\_in**](#variable-n_in)  <br> |
 |  uint64\_t | [**n\_out**](#variable-n_out)  <br> |
+|  double \* | [**pos**](#variable-pos)  <br> |
+|  size\_t | [**pos\_cap**](#variable-pos_cap)  <br> |
+|  double | [**prof\_d**](#variable-prof_d)  <br> |
+|  uint8\_t | [**profiled**](#variable-profiled)  <br> |
 |  [**resamp\_state\_t**](structresamp__state__t.md) \* | [**rs**](#variable-rs)  <br> |
 
 
@@ -196,6 +200,58 @@ uint64_t dp_doppler_channel_state_t::n_in;
 
 ```C++
 uint64_t dp_doppler_channel_state_t::n_out;
+```
+
+
+
+
+<hr>
+
+
+
+### variable pos 
+
+```C++
+double* dp_doppler_channel_state_t::pos;
+```
+
+
+
+
+<hr>
+
+
+
+### variable pos\_cap 
+
+```C++
+size_t dp_doppler_channel_state_t::pos_cap;
+```
+
+
+
+
+<hr>
+
+
+
+### variable prof\_d 
+
+```C++
+double dp_doppler_channel_state_t::prof_d;
+```
+
+
+
+
+<hr>
+
+
+
+### variable profiled 
+
+```C++
+uint8_t dp_doppler_channel_state_t::profiled;
 ```
 
 

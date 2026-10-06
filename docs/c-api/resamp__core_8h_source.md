@@ -108,6 +108,12 @@ extern "C"
                               const double *ctrl, size_t num_in,
                               float _Complex *out, size_t max_out);
 
+  size_t dp_resamp_execute_ctrl_pos (resamp_state_t *state,
+                                     const float _Complex *in,
+                                     const double *ctrl, size_t num_in,
+                                     float _Complex *out, double *pos,
+                                     size_t max_out);
+
   /* ------------------------------------------------------------------
    * Streaming interpolation (fixed integer rate, output-count driven)
    * ------------------------------------------------------------------ */

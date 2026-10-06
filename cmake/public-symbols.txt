@@ -704,6 +704,8 @@ dp_doppler_channel_create function
 dp_doppler_channel_destroy function
 dp_doppler_channel_execute function
 dp_doppler_channel_execute_max_out function
+dp_doppler_channel_execute_profile function
+dp_doppler_channel_execute_profile_max_out function
 dp_doppler_channel_get_delay_samples function
 dp_doppler_channel_get_elapsed_s function
 dp_doppler_channel_get_offset_hz function
@@ -1302,6 +1304,7 @@ dp_resamp_dc_gain function
 dp_resamp_destroy function
 dp_resamp_execute function
 dp_resamp_execute_ctrl function
+dp_resamp_execute_ctrl_pos function
 dp_resamp_execute_ctrl_push function
 dp_resamp_get_ctrl_acc function
 dp_resamp_get_delay function

@@ -615,9 +615,10 @@ dp_resamp_execute (resamp_state_t *s, const float _Complex *in, size_t num_in,
  * Only the real part of ctrl[] is used.
  */
 
-size_t
-dp_resamp_execute_ctrl_push (resamp_state_t *s, float _Complex x, double ctrl,
-                             float _Complex *out, size_t max_out)
+static inline size_t
+ctrl_push_impl (resamp_state_t *s, float _Complex x, double ctrl,
+                float _Complex *out, size_t max_out, double *pos,
+                size_t call_idx)
 {
   /* NOTE the sample is NOT pushed here.  Nothing enters an interpolator's
      delay line without a load request: a tick emits, the accumulator fails
@@ -669,6 +670,15 @@ dp_resamp_execute_ctrl_push (resamp_state_t *s, float _Complex x, double ctrl,
              reachable.  The saturating `arm >= num_phases` guard this
              replaces was a symptom of running the decimator's accumulator
              here, not of a range that needed guarding. */
+          /* Where this output sits on the INPUT timeline, in input samples
+             relative to the first sample of the stream this chunk belongs to:
+             the newest sample under the taps (every earlier call's sample is
+             loaded, plus this call's if it has been) and the fraction of an
+             interval past it. The accumulator already holds both, so this
+             is a read, not a second accumulator. */
+          if (pos)
+            pos[n] = (double)call_idx + (offered ? -1.0 : 0.0)
+                     + nco_word_to_norm (s->ctrl_phase);
           out[n++] = dot_cf32 (dl_ptr (s), get_branch (s, s->ctrl_phase),
                                s->num_taps);
           uint32_t new_ph = s->ctrl_phase + frac;
@@ -709,6 +719,13 @@ dp_resamp_execute_ctrl_push (resamp_state_t *s, float _Complex x, double ctrl,
   return n;
 }
 
+size_t
+dp_resamp_execute_ctrl_push (resamp_state_t *s, float _Complex x, double ctrl,
+                             float _Complex *out, size_t max_out)
+{
+  return ctrl_push_impl (s, x, ctrl, out, max_out, NULL, 0);
+}
+
 /* ------------------------------------------------------------------ */
 /* execute_ctrl — the block form, a loop over the push form            */
 /* so the two cannot drift.  ctrl is real double, as the push form takes. */
@@ -723,5 +740,17 @@ dp_resamp_execute_ctrl (resamp_state_t *s, const float _Complex *in,
   for (size_t xi = 0; xi < num_in && oi < max_out; xi++)
     oi += dp_resamp_execute_ctrl_push (s, in[xi], ctrl[xi], out + oi,
                                        max_out - oi);
+  return oi;
+}
+
+size_t
+dp_resamp_execute_ctrl_pos (resamp_state_t *s, const float _Complex *in,
+                            const double *ctrl, size_t num_in,
+                            float _Complex *out, double *pos, size_t max_out)
+{
+  size_t oi = 0;
+  for (size_t xi = 0; xi < num_in && oi < max_out; xi++)
+    oi += ctrl_push_impl (s, in[xi], ctrl[xi], out + oi, max_out - oi,
+                          pos + oi, xi);
   return oi;
 }

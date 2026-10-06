@@ -198,3 +198,211 @@ def test_time_reversing_doppler_rejected() -> None:
     accepted on arm64/macOS)."""
     with pytest.raises((ValueError, MemoryError)):
         DopplerChannel(fs=FS, carrier_hz=FC, doppler_ppm=-2.0e6)
+
+
+# ── the array form: a Doppler PROFILE, one value per waveform sample ──────
+#
+# The scalar pair (doppler_ppm, doppler_rate_ppm_s) is a straight line, and a
+# real pass is not one. execute_profile() takes the Doppler as a sample-rate
+# array instead. The properties that carry the design: the stream must not
+# depend on how the caller CHUNKED it (the first attempt, doppler#939, did,
+# and was reverted), a flat profile must reproduce the scalar route, the
+# profile is ABSOLUTE rather than a correction, and the array must express a
+# geometry no (d0, d_dot) can.
+
+
+def _lerp_pass(n: int) -> np.ndarray:
+    """A curved pass, +25 -> -25 ppm: no straight line reproduces it."""
+    return 25.0 * np.cos(np.pi * np.arange(n) / n)
+
+
+@pytest.mark.parametrize("block", [1000, 7777, 10000, 50000])
+def test_profile_is_independent_of_how_the_stream_was_chunked(
+    block: int,
+) -> None:
+    """The regression that reverted #939: block size moved the carrier.
+
+    The same stream and the same profile, fed whole and fed in blocks, must
+    be the same samples -- bit for bit, because nothing here maps a profile
+    index to an output index any more: the carrier is read off the
+    resampler's own position. The length is > one internal block
+    (DOPPLER_CHANNEL_MAX_BLOCK) so the old chord would have been re-cut, and
+    the block sizes are not divisors of each other. A test that only varied
+    the SPLIT POINT passed against the broken version, because both halves
+    fit one internal block.
+    """
+    n = 200_000
+    x = _dc(n)
+    prof = _lerp_pass(n)
+
+    whole = DopplerChannel(fs=FS, carrier_hz=FC).execute_profile(x, prof)
+
+    ch = DopplerChannel(fs=FS, carrier_hz=FC)
+    parts = [
+        ch.execute_profile(x[i : i + block], prof[i : i + block])
+        for i in range(0, n, block)
+    ]
+    joined = np.concatenate(parts)
+
+    assert len(joined) == len(whole)
+    assert np.array_equal(joined, whole)
+
+
+def test_flat_profile_matches_the_scalar_route_to_the_rate_quantum() -> None:
+    """A constant profile is the scalar Doppler, by another route.
+
+    Not bit-exact, and the residual is a property to bound rather than hide:
+    the resampler steps in a 32-bit fraction of an input interval, so the
+    dilation it ACTUALLY performs differs from the ideal by up to ``2**-32``
+    of a sample per output. The profile's carrier is read off the resampler
+    and so follows what it did; the scalar's closed form is the ideal. They
+    differ by a constant frequency of at most ``fc * 2**-32`` (0.58 Hz at
+    2.5 GHz), so the phase error is bounded by ``2*pi*that*T`` -- asserted,
+    with the amplitude on the same terms.
+    """
+    n = 200_000
+    x = _dc(n)
+    scalar = DopplerChannel(fs=FS, carrier_hz=FC, doppler_ppm=PPM).execute(x)
+    prof = DopplerChannel(fs=FS, carrier_hz=FC).execute_profile(
+        x, np.full(n, PPM)
+    )
+
+    assert len(scalar) == len(prof)
+    m = len(prof)
+    # Skip the resampler's start-up transient: both begin from a zeroed delay
+    # line, so the first group-delay's worth is the filter filling, not the
+    # carrier.
+    d_phase = np.unwrap(
+        np.angle(scalar[200:m].astype(complex) * np.conj(prof[200:m]))
+    )
+    bound = 2.0 * np.pi * FC * 2.0**-32 * (m / FS)
+    assert np.abs(d_phase).max() <= bound, (np.abs(d_phase).max(), bound)
+
+
+def test_profile_ramp_matches_the_scalar_ramp() -> None:
+    """The scalar's closed-form ramp, handed over as an array, is the same
+    stream to the same bound: the array form adds nothing the scalar form
+    could not already say, which is what makes it safe to call it a
+    generalisation."""
+    n = 200_000
+    x = _dc(n)
+    d0, dr = 20.0, 0.5
+    scalar = DopplerChannel(
+        fs=FS, carrier_hz=FC, doppler_ppm=d0, doppler_rate_ppm_s=dr
+    ).execute(x)
+    prof = DopplerChannel(fs=FS, carrier_hz=FC).execute_profile(
+        x, d0 + dr * np.arange(n) / FS
+    )
+
+    assert abs(len(scalar) - len(prof)) <= 1
+    m = min(len(scalar), len(prof))
+    d_phase = np.unwrap(
+        np.angle(scalar[200:m].astype(complex) * np.conj(prof[200:m]))
+    )
+    bound = 2.0 * np.pi * FC * 2.0**-32 * (m / FS)
+    assert np.abs(d_phase).max() <= bound, (np.abs(d_phase).max(), bound)
+
+
+def test_zero_profile_is_a_plain_resample() -> None:
+    """No Doppler is no carrier: a DC block comes back DC, with no phase
+    ramp and no per-sample multiply paid for it."""
+    n = 50_000
+    y = DopplerChannel(fs=FS, carrier_hz=FC).execute_profile(
+        _dc(n), np.zeros(n)
+    )
+    assert len(y) == n
+    assert np.abs(np.angle(y[100:])).max() == 0.0
+
+
+def test_profile_is_absolute_not_a_correction() -> None:
+    """The create-time scalar cancels: it sets the resampler's base and the
+    profile is the deviation from that same base, so the sum is the profile.
+    Constructing with a *different* scalar must not move the result."""
+    x = _dc()
+    prof = np.full(N, PPM)
+    a = DopplerChannel(fs=FS, carrier_hz=FC, doppler_ppm=0.0)
+    b = DopplerChannel(fs=FS, carrier_hz=FC, doppler_ppm=-13.0)
+
+    ya = a.execute_profile(x, prof)
+    yb = b.execute_profile(x, prof)
+
+    assert len(ya) == len(yb)
+    worst = np.abs(ya.astype(complex) - yb.astype(complex)).max()
+    assert worst < 1e-3, f"the create-time scalar leaked in ({worst:.2e})"
+
+
+def test_profile_expresses_what_a_ramp_cannot() -> None:
+    """A sign change mid-record: no (d0, d_dot) reproduces it.
+
+    This is the reason the array form exists, so it is asserted on the
+    physics -- the measured carrier offset in each half -- rather than on the
+    array having been accepted.
+    """
+    x = _dc()
+    prof = np.where(np.arange(N) < N // 2, +PPM, -PPM).astype(float)
+    ch = DopplerChannel(fs=FS, carrier_hz=FC)
+    y = ch.execute_profile(x, prof)
+
+    half = len(y) // 2
+    assert _peak_hz(y[:half], FS) == pytest.approx(+50e3, abs=2e3)
+    assert _peak_hz(y[half:], FS) == pytest.approx(-50e3, abs=2e3)
+    # The diagnostic reports where the profile ENDED, not where a ramp
+    # through those points would have gone.
+    assert ch.offset_hz == pytest.approx(-50e3, abs=1e3)
+
+
+def test_profile_resumes_bit_exact_across_a_split() -> None:
+    """The carrier is read off the resampler's position, which the blob
+    already carries, so a resumed profile has no seam. ``offset_hz`` is the
+    one thing the profile adds to the blob, and a blob without it would
+    resume reporting the closed form."""
+    n = 8192
+    x = _dc(n)
+    prof = _lerp_pass(n)
+
+    whole = DopplerChannel(fs=FS, carrier_hz=FC).execute_profile(x, prof)
+
+    part = DopplerChannel(fs=FS, carrier_hz=FC)
+    first = part.execute_profile(x[: n // 2], prof[: n // 2])
+    resumed = DopplerChannel(fs=FS, carrier_hz=FC)
+    resumed.set_state(part.get_state())
+    # Before another sample is fed: the restored stream must still report the
+    # profile's last d, not the closed form (which is 0 Hz for this channel).
+    assert resumed.offset_hz == part.offset_hz != 0.0
+    second = resumed.execute_profile(x[n // 2 :], prof[n // 2 :])
+
+    joined = np.concatenate([first, second])
+    assert len(joined) == len(whole)
+    assert np.array_equal(joined, whole)
+
+
+def test_profile_length_must_match_the_waveform() -> None:
+    """One Doppler value per waveform sample is the contract, and it is
+    checked rather than trusted -- a short profile is a rejected call, not a
+    silent read of whichever array ran out first.
+
+    The rejection surfaces as an EMPTY result rather than an exception: the
+    C kernel reports "wrote nothing" and jm's ``variable_output`` binding has
+    no channel to turn that into a raise (doppler#938). Blunt, but not
+    silent -- nothing downstream mistakes it for a capture.
+    """
+    x = _dc()
+    ch = DopplerChannel(fs=FS, carrier_hz=FC)
+    assert len(ch.execute_profile(x, np.full(N - 1, PPM))) == 0
+    assert ch.elapsed_s == 0.0
+
+
+def test_time_reversing_profile_sample_rejected() -> None:
+    """create() refuses a scalar at or past -1e6 ppm; the array form must not
+    be the way in. Checked over the whole profile before any output, so the
+    offending sample being LAST still writes nothing -- a check folded into
+    the block loop would have emitted every earlier sample first.
+
+    Same empty-result reporting as the length mismatch above (doppler#938).
+    """
+    x = _dc()
+    prof = np.full(N, 10.0)
+    prof[-1] = -2.0e6
+    ch = DopplerChannel(fs=FS, carrier_hz=FC)
+    assert len(ch.execute_profile(x, prof)) == 0
+    assert ch.elapsed_s == 0.0

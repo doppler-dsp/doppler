@@ -370,6 +370,78 @@ eq_ctrl_push (double rate)
   return ok;
 }
 
+/* dp_resamp_execute_ctrl_pos is dp_resamp_execute_ctrl plus one read per
+ * output, and the read has to be the position the accumulator holds. Three
+ * claims, each of which a plausible bug breaks on its own:
+ *
+ *   1. the OUTPUTS are bit-identical to execute_ctrl -- adding the position
+ *      must not perturb the accumulator it reads;
+ *   2. the position obeys the rate law: output k sits at k/rate - 1 on the
+ *      input timeline (the -1 is the pipeline: the first tick of a fresh
+ *      stream precedes any load), to the accumulator's 2^-32 quantum per
+ *      output;
+ *   3. positions are relative to in[0] of the CALL, so a stream split in two
+ *      reports, once the earlier call's input count is added back, the same
+ *      absolute positions as the whole -- chunking cannot move a position.
+ *
+ * Returns 1 ok.
+ */
+static int
+eq_ctrl_pos (double rate)
+{
+  enum
+  {
+    L   = 600,
+    CAP = 2048
+  };
+  float _Complex in[L], out_ref[CAP], out_pos[CAP], out_a[CAP], out_b[CAP];
+  double ctrl[L], pos[CAP], pos_a[CAP], pos_b[CAP];
+  for (size_t i = 0; i < (size_t)L; i++)
+    {
+      double ph = 2.0 * M_PI * 0.023 * (double)i;
+      in[i]     = CMPLXF ((float)cos (ph), (float)sin (ph));
+      ctrl[i]   = 0.0;
+    }
+
+  resamp_state_t *r0 = dp_resamp_create (rate);
+  size_t nref        = dp_resamp_execute_ctrl (r0, in, ctrl, L, out_ref, CAP);
+  dp_resamp_destroy (r0);
+
+  resamp_state_t *r1 = dp_resamp_create (rate);
+  size_t np = dp_resamp_execute_ctrl_pos (r1, in, ctrl, L, out_pos, pos, CAP);
+  dp_resamp_destroy (r1);
+
+  int ok = (np == nref);
+  for (size_t i = 0; i < nref && i < np; i++)
+    if (crealf (out_ref[i]) != crealf (out_pos[i])
+        || cimagf (out_ref[i]) != cimagf (out_pos[i]))
+      ok = 0;
+
+  /* 2. rate law. Tolerance: 2^-32 of an input interval per output, times the
+        outputs so far, plus slack for the double arithmetic of the check. */
+  for (size_t k = 0; k < np; k++)
+    {
+      double want = (double)k / rate - 1.0;
+      double tol  = (double)(k + 1) * 4.0 / 4294967296.0 + 1e-9;
+      if (fabs (pos[k] - want) > tol)
+        ok = 0;
+    }
+
+  /* 3. split invariance. */
+  size_t          half = L / 2;
+  resamp_state_t *r2   = dp_resamp_create (rate);
+  size_t          na
+      = dp_resamp_execute_ctrl_pos (r2, in, ctrl, half, out_a, pos_a, CAP);
+  size_t nb = dp_resamp_execute_ctrl_pos (r2, in + half, ctrl + half, L - half,
+                                          out_b, pos_b, CAP);
+  dp_resamp_destroy (r2);
+  ok = ok && (na + nb == np);
+  for (size_t j = 0; j < nb && na + j < np; j++)
+    if (pos_b[j] + (double)half != pos[na + j])
+      ok = 0;
+  return ok;
+}
+
 /* ── §10 — `mu` is in [0, 1), and it names the arm the NEXT output reads ──
  *
  * dp_resamp_get_ctrl_acc() is the control port's only observable, and before
@@ -1271,6 +1343,15 @@ main (void)
   DP_CHECK (eq_ctrl_push (1.001));
   DP_CHECK (eq_ctrl_push (2.0));
   DP_CHECK (eq_ctrl_push (3.0));
+
+  /* Same neighbourhood, for the position-reporting form. */
+  DP_CHECK (eq_ctrl_pos (0.4));
+  DP_CHECK (eq_ctrl_pos (0.923));
+  DP_CHECK (eq_ctrl_pos (0.999));
+  DP_CHECK (eq_ctrl_pos (1.0));
+  DP_CHECK (eq_ctrl_pos (1.001));
+  DP_CHECK (eq_ctrl_pos (2.0));
+  DP_CHECK (eq_ctrl_pos (3.0));
 
   /* A SINGLE-PHASE bank must select arm 0, not shift by 32.
    *

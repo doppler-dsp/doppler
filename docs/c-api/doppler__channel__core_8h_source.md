@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #define DOPPLER_CHANNEL_STATE_MAGIC DP_FOURCC('D', 'P', 'C', 'H')
-#define DOPPLER_CHANNEL_STATE_VERSION 1u
+#define DOPPLER_CHANNEL_STATE_VERSION 2u
 
 #define DOPPLER_CHANNEL_MAX_BLOCK 65536u
 
@@ -43,6 +43,18 @@ typedef struct {
 
     double *ctrl;         /* per-sample rate deviation scratch         */
     size_t ctrl_cap;
+
+    /* Profile mode (dp_doppler_channel_execute_profile). The carrier needs no
+       state of its own there: it is read off the resampler's position (see
+       dp_resamp_execute_ctrl_pos), which the resampler blob and the two
+       clocks already carry. What a profile does leave behind is the most
+       recent instantaneous d, the one thing the closed form can no longer
+       report -- hence these two, and the layout version. */
+    double  prof_d;   /* most recent instantaneous d (dimensionless) */
+    uint8_t profiled; /* a profile has driven this stream            */
+
+    double *pos;      /* per-output input position scratch (not state) */
+    size_t  pos_cap;
 } dp_doppler_channel_state_t;
 
 static inline double
@@ -78,6 +90,10 @@ int dp_doppler_channel_set_state(dp_doppler_channel_state_t *state, const void *
 size_t dp_doppler_channel_execute_max_out(dp_doppler_channel_state_t *state);
 
 size_t dp_doppler_channel_execute(dp_doppler_channel_state_t *state, const float _Complex *x, size_t x_len, float _Complex *out, size_t max_out);
+
+size_t dp_doppler_channel_execute_profile_max_out(dp_doppler_channel_state_t *state, size_t n);
+
+size_t dp_doppler_channel_execute_profile(dp_doppler_channel_state_t *state, const float _Complex *x, size_t x_len, const double *ppm, size_t ppm_len, float _Complex *out, size_t max_out);
 
 double dp_doppler_channel_get_elapsed_s(const dp_doppler_channel_state_t *state);
 

@@ -31,6 +31,8 @@ const jm_any_fn jm_bound_symbols_doppler_channel[] = {
     (jm_any_fn)dp_doppler_channel_set_state,
     (jm_any_fn)dp_doppler_channel_execute_max_out,
     (jm_any_fn)dp_doppler_channel_execute,
+    (jm_any_fn)dp_doppler_channel_execute_profile_max_out,
+    (jm_any_fn)dp_doppler_channel_execute_profile,
     (jm_any_fn)dp_doppler_channel_get_elapsed_s,
     (jm_any_fn)dp_doppler_channel_get_offset_hz,
     (jm_any_fn)dp_doppler_channel_get_delay_samples,

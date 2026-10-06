@@ -401,9 +401,7 @@ dp_wfm_render_from_feed (const wfm_source_t *src, double fs, double doppler,
     }
   r->feed     = feed;
   r->feed_ctx = feed_ctx;
-  r->in_dly   = delay;
-  r->in_on    = on;
-  r->in_set   = 1;
+  dp_wfm_render_set_input_timeline (r, delay, on);
   return r;
 }
 

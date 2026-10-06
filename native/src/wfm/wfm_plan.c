@@ -27,6 +27,7 @@
 
 #include "doppler/awgn/awgn_core.h"
 #include "doppler/clib_common.h"
+#include "doppler/jm_perf.h"
 #include "doppler/wfm/wfm_compose.h"
 #include "doppler/wfm/wfm_plan_dsp_hash.h" /* WFM_PLAN_DSP_HASH_U64 (configure-time) */
 #include "doppler/wfm_synth/wfm_synth_core.h"
@@ -153,8 +154,14 @@ copy_source_arrays (wfm_source_t *dst, const wfm_source_t *src)
   return 0;
 }
 
-/* Accumulate one source into out: real*complex when phi==0 (exactly the
- * composer's expression), else the phase-rotated complex*complex form.
+/* Scale one source into out: real*complex when phi==0 (exactly the
+ * composer's expression), else the phase-rotated complex*complex form. With
+ * @p assign it WRITES, else it ACCUMULATES. One body for both, because the two
+ * forms must stay the same arithmetic: they differ by `=` against `+=` and
+ * nothing else.
+ *
+ * Forced inline so @p assign is a compile-time constant at each wrapper and
+ * the loop is specialised, not branched on per sample.
  *
  * restrict is the difference between a half-width SLP vectorization (one
  * complex sample per iteration) and a full 128-bit loop vectorization: with
@@ -162,19 +169,36 @@ copy_source_arrays (wfm_source_t *dst, const wfm_source_t *src)
  * aliases them — a cache slot is a distinct allocation from the render
  * output and from the fold's accumulator — and the op is element-wise, so
  * the wider form is bit-identical. */
+JM_FORCEINLINE static void
+scale_into (float _Complex *restrict out, size_t len, float g, double phase,
+            const float _Complex *restrict cache, int assign)
+{
+  if (phase == 0.0)
+    {
+      if (assign)
+        for (size_t i = 0; i < len; i++)
+          out[i] = g * cache[i];
+      else
+        for (size_t i = 0; i < len; i++)
+          out[i] += g * cache[i];
+    }
+  else
+    {
+      float _Complex w = g * cexpf ((float _Complex) (I * phase));
+      if (assign)
+        for (size_t i = 0; i < len; i++)
+          out[i] = w * cache[i];
+      else
+        for (size_t i = 0; i < len; i++)
+          out[i] += w * cache[i];
+    }
+}
+
 static void
 accumulate (float _Complex *restrict out, size_t len, float g, double phase,
             const float _Complex *restrict cache)
 {
-  if (phase == 0.0)
-    for (size_t i = 0; i < len; i++)
-      out[i] += g * cache[i];
-  else
-    {
-      float _Complex w = g * cexpf ((float _Complex) (I * phase));
-      for (size_t i = 0; i < len; i++)
-        out[i] += w * cache[i];
-    }
+  scale_into (out, len, g, phase, cache, 0);
 }
 
 /* The FIRST signal source of a region ASSIGNS, as compose() does:
@@ -187,15 +211,7 @@ static void
 assign_scaled (float _Complex *restrict out, size_t len, float g, double phase,
                const float _Complex *restrict cache)
 {
-  if (phase == 0.0)
-    for (size_t i = 0; i < len; i++)
-      out[i] = g * cache[i];
-  else
-    {
-      float _Complex w = g * cexpf ((float _Complex) (I * phase));
-      for (size_t i = 0; i < len; i++)
-        out[i] = w * cache[i];
-    }
+  scale_into (out, len, g, phase, cache, 1);
 }
 
 /* SHARED-mode external multiply: 10^(floor/20), the resolved base floor or
@@ -388,6 +404,53 @@ instance_gaps (const mat_ctx_t *m, const wfm_plan_segment_t *ps, size_t si,
              : ps->off_lo;
 }
 
+/* Does compose() FAIL this instance? A channel cannot be built for a drawn
+ * Doppler at or below -1e6 ppm (a time base that stops or runs backwards:
+ * dp_doppler_channel_create refuses it), and compose() then fails the WHOLE
+ * instance: it emits `delay + off` samples of silence and drops the ON
+ * region (start_segment's "failed segment" branch). Serving the clean signal
+ * instead would be a wrong answer where compose() degrades quietly, so the
+ * Plan reaches the same verdict from the same draws.
+ *
+ * Sources are visited in spec order and the walk STOPS at the first one that
+ * fails, as compose()'s build loop does. @p create: for a PERSIST source,
+ * also create its slot, because compose() has by then created the slots of
+ * every source up to and including the failing one, with THIS instance's
+ * draws, and a later instance borrows them. A dropped source (`enable`) is
+ * not part of the scene. */
+static int
+instance_failed (const mat_ctx_t *m, const wfm_plan_segment_t *ps, size_t si,
+                 size_t inst, int create)
+{
+  if (!ps->dop)
+    return 0;
+  for (size_t kk = 0; kk < ps->n_sig; kk++)
+    {
+      if (ps->dop_k[kk] == DOP_NONE)
+        continue;
+      size_t gi = ps->sig_off + kk;
+      if (m->enable && !m->enable[gi])
+        continue;
+      wfm_source_t d = ps->dop[kk];
+      if (m->seed_given)
+        d.seed = (uint32_t)m->seed;
+      wfm_src_draw_t v;
+      dp_wfm_draw_source (&d, 0, inst, si, ps->dop_k[kk], &v);
+      /* A BORROWED channel is never rebuilt, so once a PERSIST slot exists a
+         later instance cannot fail on its own draw: only the instance that
+         has to CREATE the channel can. */
+      dp_doppler_channel_state_t *borrow
+          = (create && m->pch)
+                ? dp_wfm_compose_persist_channel (&d, m->p->fs, v.doppler,
+                                                  v.doppler_rate, &m->pch[gi])
+                : NULL;
+      if (!borrow && (v.doppler != 0.0 || v.doppler_rate != 0.0)
+          && !(1.0 + v.doppler * 1e-6 > 0.0))
+        return 1;
+    }
+  return 0;
+}
+
 /* The Doppler outputs of one instance: a work item per Doppler source. */
 typedef struct
 {
@@ -439,6 +502,10 @@ materialize_instance (const mat_ctx_t *m, size_t si, size_t inst, size_t pos,
   size_t   dly, off;
   instance_gaps (m, ps, si, inst, &dly, &off);
   size_t on = ps->num_samples;
+
+  /* compose() fails the instance: silence for the delay and the gap, no ON. */
+  if (instance_failed (m, ps, si, inst, 1))
+    return pos + dly + off;
 
   float ext_gain = 1.0f;
   if (ps->bundled)
@@ -631,7 +698,10 @@ materialize (const wfm_plan_t *p, const double *gains_db, const double *phases,
               size_t dly, off;
               instance_gaps (&m, ps, si, inst, &dly, &off);
               starts[inst] = cur;
-              cur += dly + ps->num_samples + off;
+              /* A failed instance is shorter: it has no ON region. */
+              cur += instance_failed (&m, ps, si, inst, 0)
+                         ? dly + off
+                         : dly + ps->num_samples + off;
             }
           inst_job_t job = { &m, si, starts };
           dp_parallel_for (ps->repeats, inst_one, &job, 0);

@@ -1198,7 +1198,8 @@ void dp_wfm_render_noise_steps(wfm_render_t *r, float _Complex *dst, size_t n);
  * @param n       Samples wanted.
  * @param signal  Non-zero: ON samples. Zero: noise-only.
  */
-typedef void (*wfm_feed_fn)(void *ctx, float _Complex *dst, size_t n, int signal);
+typedef void (*wfm_feed_fn)(void *ctx, float _Complex *dst, size_t n,
+                            int signal);
 
 /**
  * @brief A renderer whose input is a caller-supplied feed, not a live synth.
@@ -1224,7 +1225,10 @@ typedef void (*wfm_feed_fn)(void *ctx, float _Complex *dst, size_t n, int signal
  *         no Doppler to apply (@p doppler and @p doppler_rate both zero and
  *         no @p borrow) or the channel could not be built.
  */
-wfm_render_t *dp_wfm_render_from_feed(const wfm_source_t *src, double fs, double doppler, double doppler_rate, dp_doppler_channel_state_t *borrow, size_t delay, size_t on, wfm_feed_fn feed, void *feed_ctx);
+wfm_render_t *dp_wfm_render_from_feed(
+    const wfm_source_t *src, double fs, double doppler, double doppler_rate,
+    dp_doppler_channel_state_t *borrow, size_t delay, size_t on,
+    wfm_feed_fn feed, void *feed_ctx);
 
 /**
  * @brief The PERSIST channel for one (segment, source) slot, created on first
@@ -1241,7 +1245,9 @@ wfm_render_t *dp_wfm_render_from_feed(const wfm_source_t *src, double fs, double
  * @param doppler_rate  This instance's drawn Doppler rate, ppm/s.
  * @param slot          The scene-owned slot for this (segment, source).
  */
-dp_doppler_channel_state_t *dp_wfm_compose_persist_channel(const wfm_source_t *src, double fs, double doppler, double doppler_rate, dp_doppler_channel_state_t **slot);
+dp_doppler_channel_state_t *dp_wfm_compose_persist_channel(
+    const wfm_source_t *src, double fs, double doppler, double doppler_rate,
+    dp_doppler_channel_state_t **slot);
 
 /**
  * @brief Tell a Doppler renderer where its INPUT's phases fall.
@@ -1261,7 +1267,8 @@ dp_doppler_channel_state_t *dp_wfm_compose_persist_channel(const wfm_source_t *s
  * @param delay  Leading noise-only samples.
  * @param on     Signal samples after the delay.
  */
-void dp_wfm_render_set_input_timeline(wfm_render_t *r, size_t delay, size_t on);
+void dp_wfm_render_set_input_timeline(wfm_render_t *r, size_t delay,
+                                      size_t on);
 
 /** @brief Free a renderer and everything it owns. NULL-safe. */
 void dp_wfm_render_destroy(wfm_render_t *r);

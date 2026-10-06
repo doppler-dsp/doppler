@@ -7,6 +7,7 @@ no_step = "true"
 class_name = "BurstDespreader"
 depends_on = [{ name = "loop_filter", link = true }]
 serializable = "true"
+fragment = "generated"
 
 [[burst_despreader.init_params]]
 name = "code"

@@ -1,8 +1,10 @@
+/* jm:generated spectral_ext_corr.c */
 /*
  * spectral_ext_corr.c — Corr type for the spectral module.
  *
  * Included by spectral_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in spectral_ext_corr_extra.c.
  * Do NOT compile this file directly — only spectral_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ CorrObj_dealloc (CorrObject *self)
 static PyObject *
 CorrObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   CorrObject *self = (CorrObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -45,10 +50,10 @@ CorrObj_init (CorrObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|KiK", kwlist, &ref_obj,
                                     &dwell_raw, &nthreads, &n_out_raw))
     return -1;
-  size_t         dwell   = (size_t)dwell_raw;
-  size_t         n_out   = (size_t)n_out_raw;
-  PyArrayObject *ref_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      ref_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  size_t         dwell = (size_t)dwell_raw;
+  size_t         n_out = (size_t)n_out_raw;
+  PyArrayObject *ref_arr
+      = jm_array_arg (ref_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "ref");
   if (!ref_arr)
     {
       return -1;
@@ -103,10 +108,12 @@ CorrObj_execute (CorrObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &in_obj,
                                     &out_obj))
     return NULL;
-  PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *in_arr
+      = jm_array_arg (in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!in_arr)
-    return NULL;
+    {
+      return NULL;
+    }
   Py_ssize_t n = PyArray_SIZE (in_arr);
   if (out_obj && out_obj != Py_None)
     {
@@ -123,9 +130,9 @@ CorrObj_execute (CorrObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_COMPLEX64,
-          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (in_arr);
@@ -146,6 +153,15 @@ CorrObj_execute (CorrObject *self, PyObject *args, PyObject *kwds)
           self->handle, (const float _Complex *)PyArray_DATA (in_arr),
           (size_t)n, (float _Complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "Corr.execute: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       if (!n_out)
         {
           Py_DECREF (out_arr);
@@ -159,14 +175,29 @@ CorrObj_execute (CorrObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)n;
   size_t _cap  = dp_corr_execute_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (in_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "Corr.execute: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
   if (!arr0)
     {
@@ -178,6 +209,14 @@ CorrObj_execute (CorrObject *self, PyObject *args, PyObject *kwds)
       self->handle, (const float _Complex *)PyArray_DATA (in_arr), (size_t)n,
       _d0, _cap);
   Py_DECREF (in_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_RuntimeError,
+                    "Corr.execute: wrote %zu elements into a buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if (!n_out)
     {
       Py_DECREF (arr0);
@@ -301,7 +340,7 @@ static PyGetSetDef Corr_getset[]
           "Integration depth; dump every dwell calls.\n", NULL },
         { "count", (getter)Corr_getprop_count, NULL,
           "Frames accumulated so far (0 … dwell-1).\n", NULL },
-        { NULL } };
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 CorrObj_destroy (CorrObject *self, PyObject *Py_UNUSED (ignored))
@@ -337,9 +376,8 @@ static PyMethodDef CorrObj_methods[] = {
   { "reset", (PyCFunction)CorrObj_reset, METH_NOARGS,
     "Zero the accumulator and reset the integration counter to 0.\n"
     "Equivalent to starting a fresh dwell cycle without tearing down the FFT\n"
-    "plans. Does NOT recompute ref_spec; use dp_corr_set_ref() to replace "
-    "the\n"
-    "reference.\n"
+    "plans. Does NOT recompute ref_spec; use dp_corr_set_ref() to replace\n"
+    "the reference.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -456,12 +494,11 @@ static PyMethodDef CorrObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)CorrObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
@@ -476,9 +513,8 @@ static PyMethodDef CorrObj_methods[] = {
     "Exit a context manager, releasing the Corr.\n"
     "\n"
     "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
-    "raised inside the `with` body propagates normally; this never "
-    "suppresses\n"
-    "one.\n"
+    "raised inside the `with` body propagates normally; this never\n"
+    "suppresses one.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -488,11 +524,11 @@ static PyMethodDef CorrObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject CorrObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "spectral.Corr",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.spectral.Corr",
   .tp_basicsize                           = sizeof (CorrObject),
   .tp_dealloc                             = (destructor)CorrObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

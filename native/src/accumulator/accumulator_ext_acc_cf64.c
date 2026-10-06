@@ -1,8 +1,10 @@
+/* jm:generated accumulator_ext_acc_cf64.c */
 /*
  * accumulator_ext_acc_cf64.c — AccCf64 type for the accumulator module.
  *
  * Included by accumulator_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in accumulator_ext_acc_cf64_extra.c.
  * Do NOT compile this file directly — only accumulator_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ AccCf64_dealloc (AccCf64Object *self)
 static PyObject *
 AccCf64_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   AccCf64Object *self = (AccCf64Object *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -91,8 +96,8 @@ AccCf64_steps (AccCf64Object *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "O", &in_obj))
     return NULL;
 
-  PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      in_obj, NPY_COMPLEX128, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *in_arr = (PyArrayObject *)jm_array_arg (
+      in_obj, NPY_COMPLEX128, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!in_arr)
     return NULL;
 
@@ -167,16 +172,16 @@ AccCf64_madd (AccCf64Object *self, PyObject *args, PyObject *kwds)
   PyObject    *h_obj     = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO", _kwlist, &x_obj, &h_obj))
     return NULL;
-  PyArrayObject *x_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      x_obj, NPY_COMPLEX128, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_COMPLEX128, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     {
       return NULL;
     }
   const double _Complex *x     = (const double _Complex *)PyArray_DATA (x_arr);
   size_t                 x_len = (size_t)PyArray_SIZE (x_arr);
-  PyArrayObject         *h_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      h_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject         *h_arr
+      = jm_array_arg (h_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS, "h");
   if (!h_arr)
     {
       Py_DECREF (x_arr);
@@ -202,8 +207,8 @@ AccCf64_add2d (AccCf64Object *self, PyObject *args, PyObject *kwds)
   PyObject    *x_obj     = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &x_obj))
     return NULL;
-  PyArrayObject *x_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      x_obj, NPY_COMPLEX128, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_COMPLEX128, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     {
       return NULL;
@@ -228,16 +233,16 @@ AccCf64_madd2d (AccCf64Object *self, PyObject *args, PyObject *kwds)
   PyObject    *h_obj     = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO", _kwlist, &x_obj, &h_obj))
     return NULL;
-  PyArrayObject *x_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      x_obj, NPY_COMPLEX128, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_COMPLEX128, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     {
       return NULL;
     }
   const double _Complex *x     = (const double _Complex *)PyArray_DATA (x_arr);
   size_t                 x_len = (size_t)PyArray_SIZE (x_arr);
-  PyArrayObject         *h_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      h_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject         *h_arr
+      = jm_array_arg (h_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS, "h");
   if (!h_arr)
     {
       Py_DECREF (x_arr);
@@ -338,10 +343,9 @@ static PyMethodDef AccCf64_methods[] = {
   { "reset", (PyCFunction)AccCf64_reset, METH_NOARGS,
     "Zero the accumulator, restoring the same state as a fresh\n"
     "``AccCf64(0j)`` — regardless of the value supplied to\n"
-    "``dp_acc_cf64_create``. Both the real and imaginary parts are set to "
-    "0.0.\n"
-    "Subsequent ``get`` / ``dump`` calls return ``0j`` until new samples are\n"
-    "processed.\n"
+    "``dp_acc_cf64_create``. Both the real and imaginary parts are set to\n"
+    "0.0. Subsequent ``get`` / ``dump`` calls return ``0j`` until new\n"
+    "samples are processed.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -605,11 +609,11 @@ static PyMethodDef AccCf64_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject AccCf64Type = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "accumulator.AccCf64",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.accumulator.AccCf64",
   .tp_basicsize                           = sizeof (AccCf64Object),
   .tp_dealloc                             = (destructor)AccCf64_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

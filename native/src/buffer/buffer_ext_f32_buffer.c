@@ -1,8 +1,10 @@
+/* jm:generated buffer_ext_f32_buffer.c */
 /*
  * buffer_ext_f32_buffer.c — F32Buffer type for the buffer module.
  *
  * Included by buffer_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in buffer_ext_f32_buffer_extra.c.
  * Do NOT compile this file directly — only buffer_ext.c is compiled.
  */
 /* ======================================================== */
@@ -28,6 +30,9 @@ F32BufferObj_dealloc (F32BufferObject *self)
 static PyObject *
 F32BufferObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   F32BufferObject *self = (F32BufferObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -189,7 +194,15 @@ F32BufferObj_wait (F32BufferObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   self->_jm_borrowed = (size_t)(n);
-  npy_intp  _dim     = (npy_intp)(n);
+  size_t _dim_need   = (size_t)((n));
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "F32Buffer.wait: output of %zu elements is too large",
+                    _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
   PyObject *_view
       = PyArray_SimpleNewFromData (1, &_dim, NPY_COMPLEX64, (void *)(_p));
   if (!_view)
@@ -245,7 +258,15 @@ F32BufferObj_peek (F32BufferObject *self, PyObject *args, PyObject *kwds)
       Py_RETURN_NONE;
     }
   self->_jm_borrowed = (size_t)(n);
-  npy_intp  _dim     = (npy_intp)(n);
+  size_t _dim_need   = (size_t)((n));
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "F32Buffer.peek: output of %zu elements is too large",
+                    _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
   PyObject *_view
       = PyArray_SimpleNewFromData (1, &_dim, NPY_COMPLEX64, (void *)(_p));
   if (!_view)
@@ -393,7 +414,7 @@ static PyGetSetDef F32Buffer_getset[] = {
     "Cumulative samples in REFUSED writes -- not samples lost.\n", NULL },
   { "closed", (getter)F32Buffer_getprop_closed, NULL,
     "``True`` once the producer has called :meth:`close`.\n", NULL },
-  { NULL }
+  { NULL, NULL, NULL, NULL, NULL }
 };
 
 static PyObject *
@@ -750,11 +771,11 @@ static PyMethodDef F32BufferObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject F32BufferObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "buffer.F32Buffer",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.buffer.F32Buffer",
   .tp_basicsize                           = sizeof (F32BufferObject),
   .tp_dealloc                             = (destructor)F32BufferObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

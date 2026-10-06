@@ -1,8 +1,10 @@
+/* jm:generated arith_ext_acc_q15.c */
 /*
  * arith_ext_acc_q15.c — AccQ15 type for the arith module.
  *
  * Included by arith_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in arith_ext_acc_q15_extra.c.
  * Do NOT compile this file directly — only arith_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ AccQ15_dealloc (AccQ15Object *self)
 static PyObject *
 AccQ15_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   AccQ15Object *self = (AccQ15Object *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -91,8 +96,8 @@ AccQ15_steps (AccQ15Object *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "O", &in_obj))
     return NULL;
 
-  PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      in_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *in_arr = (PyArrayObject *)jm_array_arg (
+      in_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!in_arr)
     return NULL;
 
@@ -165,16 +170,16 @@ AccQ15_madd (AccQ15Object *self, PyObject *args, PyObject *kwds)
   PyObject    *b_obj     = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO", _kwlist, &a_obj, &b_obj))
     return NULL;
-  PyArrayObject *a_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      a_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *a_arr
+      = jm_array_arg (a_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS, "a");
   if (!a_arr)
     {
       return NULL;
     }
   const int16_t *a     = (const int16_t *)PyArray_DATA (a_arr);
   size_t         a_len = (size_t)PyArray_SIZE (a_arr);
-  PyArrayObject *b_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      b_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *b_arr
+      = jm_array_arg (b_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS, "b");
   if (!b_arr)
     {
       Py_DECREF (a_arr);
@@ -480,11 +485,11 @@ static PyMethodDef AccQ15_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject AccQ15Type = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "arith.AccQ15",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.arith.AccQ15",
   .tp_basicsize                           = sizeof (AccQ15Object),
   .tp_dealloc                             = (destructor)AccQ15_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

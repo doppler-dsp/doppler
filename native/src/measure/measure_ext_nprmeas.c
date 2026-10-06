@@ -1,8 +1,10 @@
+/* jm:generated measure_ext_nprmeas.c */
 /*
  * measure_ext_nprmeas.c — NPRMeasure type for the measure module.
  *
  * Included by measure_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in measure_ext_nprmeas_extra.c.
  * Do NOT compile this file directly — only measure_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ NPRMeasureObj_dealloc (NPRMeasureObject *self)
 static PyObject *
 NPRMeasureObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   NPRMeasureObject *self = (NPRMeasureObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -105,8 +110,8 @@ NPRMeasureObj_analyze (NPRMeasureObject *self, PyObject *args, PyObject *kwds)
                                     &active_lo, &active_hi, &notch_lo,
                                     &notch_hi, &guard_hz))
     return NULL;
-  PyArrayObject *x_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      x_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     {
       return NULL;
@@ -177,8 +182,7 @@ NPRMeasureObj_spectrum_dbfs (NPRMeasureObject *self, PyObject *args,
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_FLOAT,
-                                             NPY_ARRAY_C_CONTIGUOUS);
+  x_arr = jm_array_arg (x_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     return NULL;
   if (out_obj && out_obj != Py_None)
@@ -196,8 +200,9 @@ NPRMeasureObj_spectrum_dbfs (NPRMeasureObject *self, PyObject *args,
           Py_DECREF (x_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_FLOAT,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (x_arr);
@@ -220,6 +225,15 @@ NPRMeasureObj_spectrum_dbfs (NPRMeasureObject *self, PyObject *args,
           self->handle, (const float *)PyArray_DATA (x_arr),
           (size_t)PyArray_SIZE (x_arr), (float *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (x_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (PyExc_RuntimeError,
+                        "NPRMeasure.spectrum_dbfs: wrote %zu elements into a "
+                        "buffer of %zu",
+                        (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_FLOAT,
                                                     PyArray_DATA (out_arr));
@@ -241,7 +255,17 @@ NPRMeasureObj_spectrum_dbfs (NPRMeasureObject *self, PyObject *args,
   size_t _cap  = dp_nprmeas_spectrum_dbfs_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      PyErr_Format (
+          PyExc_OverflowError,
+          "NPRMeasure.spectrum_dbfs: output of %zu elements is too large",
+          _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_FLOAT);
   if (!arr0)
     {
@@ -253,6 +277,15 @@ NPRMeasureObj_spectrum_dbfs (NPRMeasureObject *self, PyObject *args,
       self->handle, (const float *)PyArray_DATA (x_arr),
       (size_t)PyArray_SIZE (x_arr), _d0, _cap);
   Py_DECREF (x_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "NPRMeasure.spectrum_dbfs: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -318,7 +351,7 @@ static PyGetSetDef NPRMeasure_getset[]
         { "fs", (getter)NPRMeasure_getprop_fs, NULL, "Sample rate, Hz.\n",
           NULL },
         { "rbw", (getter)NPRMeasure_getprop_rbw, NULL, "Rbw.\n", NULL },
-        { NULL } };
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 NPRMeasureObj_destroy (NPRMeasureObject *self, PyObject *Py_UNUSED (ignored))
@@ -374,8 +407,8 @@ static PyMethodDef NPRMeasureObj_methods[] = {
     "NPRMetrics record (npr_db, inband_psd_dbfs, notch_psd_dbfs, "
     "n_inband_bins, n_notch_bins, rbw_hz)\n"
     "\n"
-    "NPR of a notched-noise capture over [active_lo,active_hi] with a\n"
-    "notch [notch_lo,notch_hi] (Hz) and guard keep-out.\n"
+    "NPR of a notched-noise capture over [active_lo,active_hi] with a notch "
+    "[notch_lo,notch_hi] (Hz) and guard keep-out.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -493,11 +526,11 @@ static PyMethodDef NPRMeasureObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject NPRMeasureObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "measure.NPRMeasure",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.measure.NPRMeasure",
   .tp_basicsize                           = sizeof (NPRMeasureObject),
   .tp_dealloc                             = (destructor)NPRMeasureObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

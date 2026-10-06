@@ -14,6 +14,7 @@ no_state = "true"
 no_step = "true"
 class_name = "NPRMeasure"
 depends_on = ["fft_core", "spectral_core", "psd_core", "acc_trace_core"]
+fragment = "generated"
 
 [[nprmeas.init_params]]
 name = "n"

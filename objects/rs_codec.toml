@@ -43,6 +43,7 @@ class_name = "ReedSolomon"
 create_error = "ValueError"
 create_error_message = "ReedSolomon: not a usable code — need an even nroots in 2..64 leaving at least one information symbol, 2 <= symbol_bits <= 8, a PRIMITIVE field_poly, and a root_stride coprime with 2**symbol_bits - 1"
 depends_on = [{ name = "rs", link = true }]
+fragment = "generated"
 
 # The five numbers that ARE the code (rs_code_t). A struct-pointer
 # constructor is not jm-expressible, so the declared form takes them

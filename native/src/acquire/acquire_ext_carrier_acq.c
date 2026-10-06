@@ -1,8 +1,10 @@
+/* jm:generated acquire_ext_carrier_acq.c */
 /*
  * acquire_ext_carrier_acq.c — CarrierAcquisition type for the acquire module.
  *
  * Included by acquire_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in acquire_ext_carrier_acq_extra.c.
  * Do NOT compile this file directly — only acquire_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ CarrierAcquisitionObj_dealloc (CarrierAcquisitionObject *self)
 static PyObject *
 CarrierAcquisitionObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   CarrierAcquisitionObject *self
       = (CarrierAcquisitionObject *)type->tp_alloc (type, 0);
   if (self)
@@ -92,8 +97,8 @@ CarrierAcquisitionObj_init (CarrierAcquisitionObject *self, PyObject *args,
   size_t         psd_template_len = 0;
   if (psd_template_obj && psd_template_obj != Py_None)
     {
-      psd_template_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          psd_template_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
+      psd_template_arr = jm_array_arg (psd_template_obj, NPY_FLOAT,
+                                       NPY_ARRAY_C_CONTIGUOUS, "psd_template");
       if (!psd_template_arr)
         {
           return -1;
@@ -127,8 +132,8 @@ CarrierAcquisitionObj_steps (CarrierAcquisitionObject *self, PyObject *args,
   PyObject    *x_obj     = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &x_obj))
     return NULL;
-  PyArrayObject *x_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     {
       return NULL;
@@ -304,7 +309,7 @@ static PyGetSetDef CarrierAcquisition_getset[] = {
     "PSD transform length (next_pow_two(n_fft*zero_pad)) -- the length any "
     "caller-supplied template array must match.\n",
     NULL },
-  { NULL }
+  { NULL, NULL, NULL, NULL, NULL }
 };
 
 static PyObject *
@@ -375,8 +380,8 @@ static PyMethodDef CarrierAcquisitionObj_methods[] = {
   { "reset", (PyCFunction)CarrierAcquisitionObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
-    "Discard the running PSD average and detection state; counters return\n"
-    "to zero.\n"
+    "Discard the running PSD average and detection state; counters return to "
+    "zero.\n"
     "\n"
     "Use it to reuse one detector across successive captures: after a\n"
     "detection (or a give-up) the running average and counters are cleared,\n"
@@ -481,14 +486,15 @@ static PyMethodDef CarrierAcquisitionObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject CarrierAcquisitionObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "acquire.CarrierAcquisition",
-  .tp_basicsize                           = sizeof (CarrierAcquisitionObject),
-  .tp_dealloc = (destructor)CarrierAcquisitionObj_dealloc,
-  .tp_flags   = Py_TPFLAGS_DEFAULT,
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name
+  = "doppler.acquire.CarrierAcquisition",
+  .tp_basicsize = sizeof (CarrierAcquisitionObject),
+  .tp_dealloc   = (destructor)CarrierAcquisitionObj_dealloc,
+  .tp_flags     = Py_TPFLAGS_DEFAULT,
   .tp_doc
   = "Create a carrier_acq instance.\n"
     "\n"

@@ -6,6 +6,7 @@ no_state = "true"
 no_step = "true"
 class_name = "DelayCf64"
 serializable = "true"
+fragment = "generated"
 
 [[delay.init_params]]
 name = "num_taps"

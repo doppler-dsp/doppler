@@ -41,6 +41,7 @@ depends_on = [
 # pulse option -- a wfmcompose-internal OBJECT lib, not a jm component, so it
 # rides extra_link_libs the same way objects/mpsk_receiver.toml's own does.
 extra_link_libs = ["wfm_dsp_core"]
+fragment = "generated"
 
 # ── Construction: only the signal itself is required ─────────────────────────
 # code/chip_rate/symbol_rate describe the waveform; everything else is a

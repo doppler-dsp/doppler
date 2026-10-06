@@ -1,8 +1,10 @@
+/* jm:generated source_ext_lo.c */
 /*
  * source_ext_lo.c — LO type for the source module.
  *
  * Included by source_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in source_ext_lo_extra.c.
  * Do NOT compile this file directly — only source_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ LOObj_dealloc (LOObject *self)
 static PyObject *
 LOObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   LOObject *self = (LOObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -100,9 +105,9 @@ LOObj_steps (LOObject *self, PyObject *args, PyObject *kwds)
                            " ndarray of the output dtype");
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_COMPLEX64,
-          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           return NULL;
@@ -120,6 +125,14 @@ LOObj_steps (LOObject *self, PyObject *args, PyObject *kwds)
       size_t n_out
           = dp_lo_steps (self->handle, (size_t)n,
                          (float _Complex *)PyArray_DATA (out_arr), _cap);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (PyExc_RuntimeError,
+                        "LO.steps: wrote %zu elements into a buffer of %zu",
+                        (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
                                                     PyArray_DATA (out_arr));
@@ -141,7 +154,15 @@ LOObj_steps (LOObject *self, PyObject *args, PyObject *kwds)
   size_t _cap  = dp_lo_steps_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "LO.steps: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
   if (!arr0)
     {
@@ -149,6 +170,14 @@ LOObj_steps (LOObject *self, PyObject *args, PyObject *kwds)
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t          n_out = dp_lo_steps (self->handle, (size_t)n, _d0, _cap);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_RuntimeError,
+                    "LO.steps: wrote %zu elements into a buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -191,8 +220,8 @@ LOObj_steps_ctrl (LOObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &ctrl_obj,
                                     &out_obj))
     return NULL;
-  ctrl_arr = (PyArrayObject *)PyArray_FROM_OTF (ctrl_obj, NPY_DOUBLE,
-                                                NPY_ARRAY_C_CONTIGUOUS);
+  ctrl_arr
+      = jm_array_arg (ctrl_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS, "ctrl");
   if (!ctrl_arr)
     return NULL;
   if (out_obj && out_obj != Py_None)
@@ -210,9 +239,9 @@ LOObj_steps_ctrl (LOObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (ctrl_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_COMPLEX64,
-          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (ctrl_arr);
@@ -236,6 +265,15 @@ LOObj_steps_ctrl (LOObject *self, PyObject *args, PyObject *kwds)
           (size_t)PyArray_SIZE (ctrl_arr),
           (float _Complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (ctrl_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "LO.steps_ctrl: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
                                                     PyArray_DATA (out_arr));
@@ -257,7 +295,16 @@ LOObj_steps_ctrl (LOObject *self, PyObject *args, PyObject *kwds)
   size_t _cap  = dp_lo_steps_ctrl_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (ctrl_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "LO.steps_ctrl: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
   if (!arr0)
     {
@@ -269,6 +316,14 @@ LOObj_steps_ctrl (LOObject *self, PyObject *args, PyObject *kwds)
                                    (const double *)PyArray_DATA (ctrl_arr),
                                    (size_t)PyArray_SIZE (ctrl_arr), _d0, _cap);
   Py_DECREF (ctrl_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_RuntimeError,
+                    "LO.steps_ctrl: wrote %zu elements into a buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -420,7 +475,7 @@ static PyGetSetDef LO_getset[]
           "floor(frac(norm_freq) × 2^32).  A freq of 0.25 gives phase_inc = "
           "1073741824 (0x40000000).\n",
           NULL },
-        { NULL } };
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 LOObj_destroy (LOObject *self, PyObject *Py_UNUSED (ignored))
@@ -652,11 +707,11 @@ static PyMethodDef LOObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject LOObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "source.LO",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.source.LO",
   .tp_basicsize                           = sizeof (LOObject),
   .tp_dealloc                             = (destructor)LOObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
@@ -664,9 +719,8 @@ static PyTypeObject LOObjType = {
   = "Create an LO instance. Allocates state, sets phase to 0, and derives\n"
     "phase_inc from norm_freq. Initialises the shared 65536-entry float LUT "
     "on\n"
-    "the first call (single-threaded concern: call dp_lo_create() before "
-    "spawning\n"
-    "threads that share LO instances).\n"
+    "the first call (single-threaded concern: call dp_lo_create() before\n"
+    "spawning threads that share LO instances).\n"
     "\n"
     "Parameters\n"
     "----------\n"

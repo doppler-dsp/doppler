@@ -27,6 +27,7 @@ depends_on = [
   { name = "agc", link = true },
   { name = "dp_tlm", link = true },
 ]
+fragment = "generated"
 
 # close() is the name this type has always had; destroy() stays as an alias
 # (gh-544) so existing callers and the context manager keep working.

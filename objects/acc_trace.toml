@@ -13,6 +13,7 @@ no_state = "true"
 no_step = "true"
 class_name = "AccTrace"
 serializable = "true"
+fragment = "generated"
 
 [[acc_trace.init_params]]
 name = "n"

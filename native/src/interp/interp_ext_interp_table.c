@@ -1,8 +1,10 @@
+/* jm:generated interp_ext_interp_table.c */
 /*
  * interp_ext_interp_table.c — InterpolatedTable type for the interp module.
  *
  * Included by interp_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in interp_ext_interp_table_extra.c.
  * Do NOT compile this file directly — only interp_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ InterpolatedTableObj_dealloc (InterpolatedTableObject *self)
 static PyObject *
 InterpolatedTableObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   InterpolatedTableObject *self
       = (InterpolatedTableObject *)type->tp_alloc (type, 0);
   if (self)
@@ -60,8 +65,8 @@ InterpolatedTableObj_init (InterpolatedTableObject *self, PyObject *args,
           method_str);
       return -1;
     }
-  PyArrayObject *table_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      table_obj, NPY_COMPLEX128, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *table_arr = jm_array_arg (table_obj, NPY_COMPLEX128,
+                                           NPY_ARRAY_C_CONTIGUOUS, "table");
   if (!table_arr)
     {
       return -1;
@@ -119,8 +124,8 @@ InterpolatedTableObj_execute (InterpolatedTableObject *self, PyObject *args,
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &in_obj,
                                     &out_obj))
     return NULL;
-  PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      in_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *in_arr
+      = jm_array_arg (in_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!in_arr)
     {
       return NULL;
@@ -141,9 +146,9 @@ InterpolatedTableObj_execute (InterpolatedTableObject *self, PyObject *args,
           Py_DECREF (in_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_COMPLEX128,
-          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX128,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (in_arr);
@@ -164,6 +169,15 @@ InterpolatedTableObj_execute (InterpolatedTableObject *self, PyObject *args,
           self->handle, (const double *)PyArray_DATA (in_arr), (size_t)n,
           (double _Complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (PyExc_RuntimeError,
+                        "InterpolatedTable.execute: wrote %zu elements into a "
+                        "buffer of %zu",
+                        (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX128,
                                                     PyArray_DATA (out_arr));
@@ -185,7 +199,17 @@ InterpolatedTableObj_execute (InterpolatedTableObject *self, PyObject *args,
   size_t _cap  = dp_interp_table_execute_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (in_arr);
+      PyErr_Format (
+          PyExc_OverflowError,
+          "InterpolatedTable.execute: output of %zu elements is too large",
+          _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX128);
   if (!arr0)
     {
@@ -198,6 +222,15 @@ InterpolatedTableObj_execute (InterpolatedTableObject *self, PyObject *args,
       self->handle, (const double *)PyArray_DATA (in_arr), (size_t)n, _d0,
       _cap);
   Py_DECREF (in_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "InterpolatedTable.execute: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -228,7 +261,7 @@ InterpolatedTable_getprop_n (InterpolatedTableObject *self,
 static PyGetSetDef InterpolatedTable_getset[]
     = { { "n", (getter)InterpolatedTable_getprop_n, NULL,
           "Table length (one period), read-only.\n", NULL },
-        { NULL } };
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 InterpolatedTableObj_destroy (InterpolatedTableObject *self,
@@ -363,11 +396,11 @@ static PyMethodDef InterpolatedTableObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject InterpolatedTableObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "interp.InterpolatedTable",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.interp.InterpolatedTable",
   .tp_basicsize                           = sizeof (InterpolatedTableObject),
   .tp_dealloc = (destructor)InterpolatedTableObj_dealloc,
   .tp_flags   = Py_TPFLAGS_DEFAULT,

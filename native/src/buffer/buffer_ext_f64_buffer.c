@@ -1,8 +1,10 @@
+/* jm:generated buffer_ext_f64_buffer.c */
 /*
  * buffer_ext_f64_buffer.c — F64Buffer type for the buffer module.
  *
  * Included by buffer_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in buffer_ext_f64_buffer_extra.c.
  * Do NOT compile this file directly — only buffer_ext.c is compiled.
  */
 /* ======================================================== */
@@ -28,6 +30,9 @@ F64BufferObj_dealloc (F64BufferObject *self)
 static PyObject *
 F64BufferObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   F64BufferObject *self = (F64BufferObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -189,7 +194,15 @@ F64BufferObj_wait (F64BufferObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   self->_jm_borrowed = (size_t)(n);
-  npy_intp  _dim     = (npy_intp)(n);
+  size_t _dim_need   = (size_t)((n));
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "F64Buffer.wait: output of %zu elements is too large",
+                    _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
   PyObject *_view
       = PyArray_SimpleNewFromData (1, &_dim, NPY_COMPLEX128, (void *)(_p));
   if (!_view)
@@ -245,7 +258,15 @@ F64BufferObj_peek (F64BufferObject *self, PyObject *args, PyObject *kwds)
       Py_RETURN_NONE;
     }
   self->_jm_borrowed = (size_t)(n);
-  npy_intp  _dim     = (npy_intp)(n);
+  size_t _dim_need   = (size_t)((n));
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "F64Buffer.peek: output of %zu elements is too large",
+                    _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
   PyObject *_view
       = PyArray_SimpleNewFromData (1, &_dim, NPY_COMPLEX128, (void *)(_p));
   if (!_view)
@@ -393,7 +414,7 @@ static PyGetSetDef F64Buffer_getset[] = {
     "Cumulative samples in REFUSED writes -- not samples lost.\n", NULL },
   { "closed", (getter)F64Buffer_getprop_closed, NULL,
     "``True`` once the producer has called :meth:`close`.\n", NULL },
-  { NULL }
+  { NULL, NULL, NULL, NULL, NULL }
 };
 
 static PyObject *
@@ -740,11 +761,11 @@ static PyMethodDef F64BufferObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject F64BufferObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "buffer.F64Buffer",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.buffer.F64Buffer",
   .tp_basicsize                           = sizeof (F64BufferObject),
   .tp_dealloc                             = (destructor)F64BufferObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

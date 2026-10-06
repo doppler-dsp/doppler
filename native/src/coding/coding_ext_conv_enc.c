@@ -1,8 +1,10 @@
+/* jm:generated coding_ext_conv_enc.c */
 /*
  * coding_ext_conv_enc.c — ConvEncoder type for the coding module.
  *
  * Included by coding_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in coding_ext_conv_enc_extra.c.
  * Do NOT compile this file directly — only coding_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ ConvEncoderObj_dealloc (ConvEncoderObject *self)
 static PyObject *
 ConvEncoderObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   ConvEncoderObject *self = (ConvEncoderObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -44,10 +49,10 @@ ConvEncoderObj_init (ConvEncoderObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|kk", kwlist, &poly_obj,
                                     &k_raw, &invert_raw))
     return -1;
-  uint32_t       k        = (uint32_t)k_raw;
-  uint32_t       invert   = (uint32_t)invert_raw;
-  PyArrayObject *poly_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      poly_obj, NPY_UINT32, NPY_ARRAY_C_CONTIGUOUS);
+  uint32_t       k      = (uint32_t)k_raw;
+  uint32_t       invert = (uint32_t)invert_raw;
+  PyArrayObject *poly_arr
+      = jm_array_arg (poly_obj, NPY_UINT32, NPY_ARRAY_C_CONTIGUOUS, "poly");
   if (!poly_arr)
     {
       return -1;
@@ -107,10 +112,12 @@ ConvEncoderObj_encode (ConvEncoderObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &in_obj,
                                     &out_obj))
     return NULL;
-  PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      in_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *in_arr
+      = jm_array_arg (in_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!in_arr)
-    return NULL;
+    {
+      return NULL;
+    }
   Py_ssize_t n = PyArray_SIZE (in_arr);
   if (out_obj && out_obj != Py_None)
     {
@@ -127,8 +134,9 @@ ConvEncoderObj_encode (ConvEncoderObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_UINT8,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (in_arr);
@@ -149,6 +157,15 @@ ConvEncoderObj_encode (ConvEncoderObject *self, PyObject *args, PyObject *kwds)
           self->handle, (const uint8_t *)PyArray_DATA (in_arr), (size_t)n,
           (uint8_t *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "ConvEncoder.encode: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_UINT8,
                                                     PyArray_DATA (out_arr));
@@ -157,13 +174,28 @@ ConvEncoderObj_encode (ConvEncoderObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)n;
   size_t _cap  = dp_conv_enc_encode_max_out (self->handle, (size_t)n);
   (void)_need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (in_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "ConvEncoder.encode: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_UINT8);
   if (!arr0)
     {
@@ -175,6 +207,15 @@ ConvEncoderObj_encode (ConvEncoderObject *self, PyObject *args, PyObject *kwds)
                                        (const uint8_t *)PyArray_DATA (in_arr),
                                        (size_t)n, _d0, _cap);
   Py_DECREF (in_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "ConvEncoder.encode: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -333,9 +374,7 @@ static PyMethodDef ConvEncoderObj_methods[] = {
     "Symbols dp_conv_enc_encode writes for n_in input bits.\n"
     "\n"
     "Exactly `n_in * n` — a convolutional code has no fill and no latency on\n"
-    "\n"
     "the encode side, which is the asymmetry with dp_viterbi_decode_max_out,\n"
-    "\n"
     "where the traceback still owes bits at the start of a stream.\n"
     "\n"
     "Parameters\n"
@@ -430,11 +469,11 @@ static PyMethodDef ConvEncoderObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject ConvEncoderObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "coding.ConvEncoder",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.coding.ConvEncoder",
   .tp_basicsize                           = sizeof (ConvEncoderObject),
   .tp_dealloc                             = (destructor)ConvEncoderObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

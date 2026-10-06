@@ -1,8 +1,10 @@
+/* jm:generated dsss_ext_async_dsss_pool.c */
 /*
  * dsss_ext_async_dsss_pool.c — AsyncDsssPool type for the dsss module.
  *
  * Included by dsss_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in dsss_ext_async_dsss_pool_extra.c.
  * Do NOT compile this file directly — only dsss_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ AsyncDsssPoolObj_dealloc (AsyncDsssPoolObject *self)
 static PyObject *
 AsyncDsssPoolObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   AsyncDsssPoolObject *self = (AsyncDsssPoolObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -98,8 +103,8 @@ AsyncDsssPoolObj_init (AsyncDsssPoolObject *self, PyObject *args,
   size_t         segments         = (size_t)segments_raw;
   size_t         sps              = (size_t)sps_raw;
   size_t         pullin_intervals = (size_t)pullin_intervals_raw;
-  PyArrayObject *code_arr         = (PyArrayObject *)PyArray_FROM_OTF (
-      code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *code_arr
+      = jm_array_arg (code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "code");
   if (!code_arr)
     {
       return -1;
@@ -155,8 +160,8 @@ AsyncDsssPoolObj_push (AsyncDsssPoolObject *self, PyObject *args,
   PyObject    *x_obj     = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &x_obj))
     return NULL;
-  PyArrayObject *x_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     {
       return NULL;
@@ -294,9 +299,9 @@ AsyncDsssPoolObj_symbols (AsyncDsssPoolObject *self, PyObject *args,
                            " ndarray of the output dtype");
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_COMPLEX64,
-          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           return NULL;
@@ -316,6 +321,15 @@ AsyncDsssPoolObj_symbols (AsyncDsssPoolObject *self, PyObject *args,
         }
       size_t n_out = dp_async_dsss_pool_symbols (
           self->handle, slot, (float _Complex *)PyArray_DATA (out_arr), _cap);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "AsyncDsssPool.symbols: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
                                                     PyArray_DATA (out_arr));
@@ -324,14 +338,29 @@ AsyncDsssPoolObj_symbols (AsyncDsssPoolObject *self, PyObject *args,
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = dp_async_dsss_pool_symbols_max_out (self->handle);
   size_t _cap  = dp_async_dsss_pool_symbols_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (
+          PyExc_OverflowError,
+          "AsyncDsssPool.symbols: output of %zu elements is too large",
+          _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
   if (!arr0)
     {
@@ -339,6 +368,15 @@ AsyncDsssPoolObj_symbols (AsyncDsssPoolObject *self, PyObject *args,
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t n_out = dp_async_dsss_pool_symbols (self->handle, slot, _d0, _cap);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "AsyncDsssPool.symbols: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -558,7 +596,7 @@ static PyGetSetDef AsyncDsssPool_getset[] = {
     "The searcher's block-coherent depth D, from code_only_epochs and "
     "doppler_rate (section 2.3).\n",
     NULL },
-  { NULL }
+  { NULL, NULL, NULL, NULL, NULL }
 };
 
 static PyObject *
@@ -675,11 +713,11 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     "code_rate, cn0_dbhz_est, code_locked, locked, lock_metric, "
     "state_samples, both_down_samples, assigned_samples)\n"
     "\n"
-    "One slot's picture, by value: whether it is assigned, the seed it\n"
-    "was assigned from (sample, chip phase, Doppler, C/N0 -- the searcher's\n"
-    "hand-off record, verbatim), the receiver's own status record (state,\n"
-    "the live Doppler, chip phase, code rate and C/N0, both lock flags, the\n"
-    "symbol-lock metric, the two clocks), and the samples since the\n"
+    "One slot's picture, by value: whether it is assigned, the seed it was "
+    "assigned from (sample, chip phase, Doppler, C/N0 -- the searcher's "
+    "hand-off record, verbatim), the receiver's own status record (state, the "
+    "live Doppler, chip phase, code rate and C/N0, both lock flags, the "
+    "symbol-lock metric, the two clocks), and the samples since the "
     "assignment. Raises ValueError for a slot outside [0, n_slots).\n"
     "\n"
     "Allocation-free: the row plus the receiver's own status record. A slot\n"
@@ -760,13 +798,12 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "set_event_log(log) -> None\n"
     "\n"
-    "Attach the run's event log (design section 8.1): from now on every\n"
-    "transition -- seeded, tracking, degrade, lost, released, dropped -- is\n"
-    "appended at the sample it happened, with the slot, the receiver's\n"
-    "state, the Doppler, the chip phase and the C/N0 staged as\n"
-    "doppler:<name> fields beside the label (core:label). The pool is the\n"
-    "one component that stamps; the log is borrowed, never owned. None\n"
-    "detaches.\n"
+    "Attach the run's event log (design section 8.1): from now on every "
+    "transition -- seeded, tracking, degrade, lost, released, dropped -- is "
+    "appended at the sample it happened, with the slot, the receiver's state, "
+    "the Doppler, the chip phase and the C/N0 staged as doppler:<name> fields "
+    "beside the label (core:label). The pool is the one component that "
+    "stamps; the log is borrowed, never owned. None detaches.\n"
     "\n"
     "Borrowed, never owned: the holder opens, finalizes and closes it. From\n"
     "now on every transition is appended at the sample it happened, with\n"
@@ -888,11 +925,11 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject AsyncDsssPoolObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "dsss.AsyncDsssPool",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.dsss.AsyncDsssPool",
   .tp_basicsize                           = sizeof (AsyncDsssPoolObject),
   .tp_dealloc = (destructor)AsyncDsssPoolObj_dealloc,
   .tp_flags   = Py_TPFLAGS_DEFAULT,

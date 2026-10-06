@@ -21,6 +21,7 @@ create_fn = "dp_f32_create"
 # the OS refused -- the caller's to fix, not an allocation failure.
 create_error = "ValueError"
 create_error_message = "capacity must be at least 1, and small enough to map"
+fragment = "generated"
 
 [[f32_buffer.depends_on]]
 name = "dp_interrupt_guard"

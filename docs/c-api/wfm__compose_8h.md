@@ -114,9 +114,9 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* | [**dp\_wfm\_frame\_refuse\_text**](#function-dp_wfm_frame_refuse_text) (const char \* text, const char \*\* why) <br>_Refuse text for a source's_ `frame=` _: it takes a description._ |
 |  char \* | [**dp\_wfm\_frame\_to\_json**](#function-dp_wfm_frame_to_json) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d) <br>_Write a description as its JSON frame object, the text_ [_**dp\_wfm\_frame\_from\_json()**_](wfm__compose_8h.md#function-dp_wfm_frame_from_json) _reads back._ |
 |  const char \* | [**dp\_wfm\_framing\_flags\_error**](#function-dp_wfm_framing_flags_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Why_ `--sync` _/_`--crc` _/_`--acq-code` _cannot frame this source, or NULL._ |
-|  void | [**dp\_wfm\_render\_destroy**](#function-dp_wfm_render_destroy) ([**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* r) <br> |
+|  void | [**dp\_wfm\_render\_destroy**](#function-dp_wfm_render_destroy) ([**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* r) <br>_Free a renderer and everything it owns. NULL-safe._  |
 |  void | [**dp\_wfm\_render\_noise\_steps**](#function-dp_wfm_render_noise_steps) ([**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* r, float \_Complex \* dst, size\_t n) <br>_Pull_ `n` _samples of the source's NOISE FLOOR only, through the same channel._ |
-|  void | [**dp\_wfm\_render\_set\_input\_timeline**](#function-dp_wfm_render_set_input_timeline) ([**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* r, size\_t delay, size\_t on) <br>_Free a renderer and everything it owns. NULL-safe._  |
+|  void | [**dp\_wfm\_render\_set\_input\_timeline**](#function-dp_wfm_render_set_input_timeline) ([**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* r, size\_t delay, size\_t on) <br>_Tell a Doppler renderer where its INPUT's phases fall._  |
 |  void | [**dp\_wfm\_render\_steps**](#function-dp_wfm_render_steps) ([**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* r, float \_Complex \* dst, size\_t n) <br>_Pull exactly_ `n` _samples from_`r` _, through its channel if any._ |
 |  int | [**dp\_wfm\_resolve\_noise**](#function-dp_wfm_resolve_noise) ([**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n) <br>_Resolve a segment list's noise model in place (Phase 4b)._  |
 |  const char \* | [**dp\_wfm\_scene\_error**](#function-dp_wfm_scene_error) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, int repeat, int continuous) <br>_Why a scene cannot be composed, or NULL: the one validator._  |
@@ -1588,6 +1588,7 @@ a static sentence naming the fix, or NULL.
 
 ### function dp\_wfm\_render\_destroy 
 
+_Free a renderer and everything it owns. NULL-safe._ 
 ```C++
 void dp_wfm_render_destroy (
     wfm_render_t * r
@@ -1625,7 +1626,7 @@ What a gap renders (gh-409). The channel runs here too, and deliberately: an emi
 
 ### function dp\_wfm\_render\_set\_input\_timeline 
 
-_Free a renderer and everything it owns. NULL-safe._ 
+_Tell a Doppler renderer where its INPUT's phases fall._ 
 ```C++
 void dp_wfm_render_set_input_timeline (
     wfm_render_t * r,
@@ -1634,9 +1635,6 @@ void dp_wfm_render_set_input_timeline (
 ) 
 ```
 
-
-
-Tell a Doppler renderer where its INPUT's phases fall.
 
 
 A renderer with a channel pulls the synth in refills sized to the channel's input, not to what the caller asked for, so it cannot learn the phase boundaries from the pull calls: the channel's input and output clocks are decoupled. This states them, in INPUT samples  `delay` noise-only, then `on` signal, then noise-only for ever  and the renderer follows that timeline however the output is drained (doppler#1858).

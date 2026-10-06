@@ -1,8 +1,10 @@
+/* jm:generated dsss_ext_dsss_burst_receiver.c */
 /*
  * dsss_ext_dsss_burst_receiver.c — DsssBurstReceiver type for the dsss module.
  *
  * Included by dsss_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in dsss_ext_dsss_burst_receiver_extra.c.
  * Do NOT compile this file directly — only dsss_ext.c is compiled.
  */
 /* ======================================================== */
@@ -29,6 +31,9 @@ DsssBurstReceiverObj_dealloc (DsssBurstReceiverObject *self)
 static PyObject *
 DsssBurstReceiverObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   DsssBurstReceiverObject *self
       = (DsssBurstReceiverObject *)type->tp_alloc (type, 0);
   if (self)
@@ -1089,7 +1094,7 @@ static PyGetSetDef DsssBurstReceiver_getset[] = {
     "which is windows EMITTED: they differ by any window the demodulator "
     "refused, and that difference is the thing worth seeing.\n",
     NULL },
-  { NULL }
+  { NULL, NULL, NULL, NULL, NULL }
 };
 
 static PyObject *
@@ -1527,7 +1532,7 @@ static PyMethodDef DsssBurstReceiverObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject DsssBurstReceiverObjType = {

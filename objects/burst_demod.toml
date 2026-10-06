@@ -38,6 +38,7 @@ depends_on = [
     { name = "gold", link = true },
     { name = "mpsk", link = true },
 ]
+fragment = "generated"
 
 [[burst_demod.init_params]]
 name = "data_code"

@@ -881,6 +881,15 @@ class Interleaver:
             padding changes the length, and a receiver that de-interleaved the
             padded block would recover different bits.
 
+        Raises
+        ------
+        ValueError
+            If the C call writes no output. Its return value is a count, so a
+            zero-length result is a REFUSAL rather than an empty answer. The
+            exception message is ``interleave: the length is not a whole number
+            of blocks. A partial block is refused, not padded; one block is
+            this object's block_bits``.
+
         Examples
         --------
         >>> import numpy as np
@@ -942,6 +951,15 @@ class Interleaver:
         -------
         NDArray[np.uint8]
             n_in, or 0 on a refusal.
+
+        Raises
+        ------
+        ValueError
+            If the C call writes no output. Its return value is a count, so a
+            zero-length result is a REFUSAL rather than an empty answer. The
+            exception message is ``deinterleave: the length is not a whole
+            number of blocks. A partial block is refused, not padded; one block
+            is this object's block_bits``.
 
         Examples
         --------
@@ -1010,6 +1028,15 @@ class Interleaver:
         -------
         NDArray[np.float32]
             n_in, or 0 on a refusal.
+
+        Raises
+        ------
+        ValueError
+            If the C call writes no output. Its return value is a count, so a
+            zero-length result is a REFUSAL rather than an empty answer. The
+            exception message is ``deinterleave_soft: the length is not a whole
+            number of blocks. A partial block is refused, not padded; one block
+            is this object's block_bits``.
 
         Examples
         --------
@@ -1203,6 +1230,15 @@ class Deinterleaver:
         NDArray[np.uint8]
             n_in, or 0 on a refusal.
 
+        Raises
+        ------
+        ValueError
+            If the C call writes no output. Its return value is a count, so a
+            zero-length result is a REFUSAL rather than an empty answer. The
+            exception message is ``deinterleave: the length is not a whole
+            number of blocks. A partial block is refused, not padded; one block
+            is this object's block_bits``.
+
         Examples
         --------
         >>> import numpy as np
@@ -1270,6 +1306,15 @@ class Deinterleaver:
         -------
         NDArray[np.float32]
             n_in, or 0 on a refusal.
+
+        Raises
+        ------
+        ValueError
+            If the C call writes no output. Its return value is a count, so a
+            zero-length result is a REFUSAL rather than an empty answer. The
+            exception message is ``deinterleave_soft: the length is not a whole
+            number of blocks. A partial block is refused, not padded; one block
+            is this object's block_bits``.
 
         Examples
         --------

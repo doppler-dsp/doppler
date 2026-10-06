@@ -79,11 +79,11 @@ def test_interleave_soft_does_not_exist():
     "method", ["interleave", "deinterleave", "deinterleave_soft"]
 )
 def test_a_partial_block_raises_rather_than_returning_empty(method):
-    """The kernel signals a refusal with 0, and jm has no declarative hook to
-    turn that into an exception for a variable_output method
-    (just-buildit/just-makeit#1159) -- so the sacred fragment raises by hand,
-    and this is what holds it there. An empty array would be a silent wrong
-    answer: the frame comes back short and nothing says why."""
+    """The kernel signals a refusal with 0, and the manifest's
+    ``error_on_empty`` (jm gh-1159) turns that into a ValueError on every call
+    path, so this is what holds the declaration there. An empty array would
+    be a silent wrong answer: the frame comes back short and nothing says
+    why."""
     il = Interleaver(rows=3, cols=4)
     dtype = np.float32 if method.endswith("soft") else np.uint8
     bad = np.zeros(il.block_bits + 1, dtype=dtype)
@@ -91,10 +91,16 @@ def test_a_partial_block_raises_rather_than_returning_empty(method):
         getattr(il, method)(bad)
 
 
-def test_the_refusal_names_the_block_size():
-    """A caller who got the geometry wrong needs the number, not just a no."""
+def test_the_refusal_points_at_block_bits():
+    """A caller who got the geometry wrong needs to know what a block is.
+
+    The message is the manifest's static ``error_message``, so it names the
+    ``block_bits`` property rather than quoting its value; the value is one
+    attribute read away and this pins that the two agree on the name.
+    """
     il = Interleaver(rows=3, cols=4, unit_bits=8)
-    with pytest.raises(ValueError, match="block_bits = 96"):
+    assert il.block_bits == 96
+    with pytest.raises(ValueError, match="block_bits"):
         il.interleave(np.zeros(7, dtype=np.uint8))
 
 

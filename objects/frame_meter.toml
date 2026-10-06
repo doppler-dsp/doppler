@@ -28,6 +28,7 @@ create_error_message = "conf must lie in (0, 1)"
 # rather than growing a second one here -- means depending on the sibling that
 # houses it.
 depends_on = [{ name = "ber", link = true }, { name = "ber_meter", link = true }, { name = "detection", link = true }]
+fragment = "generated"
 
 [[frame_meter.init_params]]
 name = "target_errors"

@@ -21,7 +21,6 @@ native/src/acquire/acquire_ext_burst_acq.c
 native/src/acquire/acquire_ext_burst_capture.c
 native/src/acquire/acquire_ext_persistentburstcapture.c
 native/src/ber/ber_ext_ber_meter.c
-native/src/ber/ber_ext_frame_meter.c
 native/src/coding/coding_ext_deinterleaver.c
 native/src/coding/coding_ext_interleaver.c
 native/src/dsss/dsss_ext_async_dsss_receiver.c

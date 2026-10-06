@@ -83,6 +83,15 @@ adoption notes below — `uvx --from 'just-makeit==X'` in the older ones,
 that note was written**. None of them is an instruction about how to invoke
 jm; `make jm-apply` is, and it is the only spelling that survives a pin bump.
 
+**`make jm-apply` also re-renders every adopted fragment** (one with
+`fragment = "generated"`; see "`_ext_<obj>.c` fragments" below), so a pin bump
+can change `_ext_<obj>.c` files, not just `.pyi`; commit the diff, never
+hand-patch it.
+Adopting is its own driver, **`make jm-adopt JM_ADOPT_ARGS='…'`**, and the
+raw `just-makeit adopt` is blocked like the rest. Both sync the dev group
+*without* the project, which uninstalls the editable `doppler-dsp` from the
+venv: run `make pyext` before the next test.
+
 **Never `uvx just-makeit`.** An unpinned `uvx <tool>` does NOT fetch the latest
 release: it silently reuses whatever version is installed as a uv *tool*, which
 drifts per machine and never updates. That is not hypothetical — `make bench`
@@ -281,12 +290,37 @@ Because grow-on-demand re-sizes on the next `execute`, an explicit
 buffer-invalidation in a rate/​config setter is no longer required (it is at
 most defensive; RateConverter keeps one, harmlessly).
 
-**`_ext_<obj>.c` fragments are hand-owned.** doppler splits each module
-binding into per-object `native/src/<mod>/<mod>_ext_<obj>.c` fragments that the
-generated aggregator `<mod>_ext.c` `#include`s. `jm status`/`apply` regenerate
-**only the aggregator** — the fragments are sacred, like `_core.c`. Bespoke
-binding logic (e.g. HalfbandDecimatorR2C's float64→float32 input cast) lives
-there by design and is **not** drift.
+**`_ext_<obj>.c` fragments are hand-owned only until they are adopted.**
+doppler splits each module binding into per-object
+`native/src/<mod>/<mod>_ext_<obj>.c` fragments that the generated aggregator
+`<mod>_ext.c` `#include`s. A fragment starts out sacred, like `_core.c`:
+`jm status`/`apply` regenerate **only the aggregator**, and bespoke binding
+logic (e.g. HalfbandDecimatorR2C's float64→float32 input cast) lives there by
+design and is **not** drift.
+
+**An adopted fragment is the opposite: jm owns it.** `fragment = "generated"`
+in `objects/<obj>.toml` stamps its fragments `/* jm:generated */`, after which
+`jm apply` re-renders it from the manifest like a `.pyi`, a hand edit turns
+`make drift-check` red (`STALE`), and its line comes off
+`scripts/.warnings-exempt`. The #1446 migration moved most fragments over, so
+**check the banner before assuming a fragment is yours to patch**; a
+behaviour jm cannot render is declared in the manifest, not hand-edited in.
+
+What is left is derived, never restated here (a count in this file goes stale
+with the next adoption):
+
+```sh
+# per object: REFUSES, or what needs acknowledging
+make jm-adopt JM_ADOPT_ARGS='--check --all'
+# the meter: entries remaining, a ratchet that only shrinks
+grep -vc '^#' scripts/.warnings-exempt
+```
+
+Read the `REFUSES` and `needs acknowledgement` entries, not the closing
+`N of M object(s) could flip` total, which also counts objects already
+adopted. The method — adopt, sort, what a re-render changes, which `differs`
+units are removed behaviour — is `skills://just-makeit`, "Adopting fragments in
+bulk".
 
 ### jm gaps — all resolved in **jm 0.14.4** (pin bumped)
 

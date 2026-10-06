@@ -35,8 +35,9 @@
  * v1 axes (all bit-exact vs a full compose): per-source gain/level, phase,
  * enable/disable, global SNR/noise-floor and Monte-Carlo noise-seed —
  * applied uniformly across every segment/instance that carries noise.
- * Frequency (Doppler) and multipath delay are staged follow-ups on the same
- * frame.
+ * Clock Doppler is served too, by a different mechanism: the cache holds the
+ * signal BEFORE the channel, and the channel is run at render time over it
+ * (see dp_wfm_plan_prepare()). Multipath delay is a staged follow-up.
  *
  * Scope: any number of finite segments (no continuous/repeat scene — that
  * has no fixed capacity); each segment may declare `repeats` (bounded

@@ -25,8 +25,9 @@
  * v1 axes (all bit-exact vs a full compose): per-source gain/level, phase,
  * enable/disable, global SNR/noise-floor and Monte-Carlo noise-seed —
  * applied uniformly across every segment/instance that carries noise.
- * Frequency (Doppler) and multipath delay are staged follow-ups on the same
- * frame.
+ * Clock Doppler is served too, by a different mechanism: the cache holds the
+ * signal BEFORE the channel, and the channel is run at render time over it
+ * (see dp_wfm_plan_prepare()). Multipath delay is a staged follow-up.
  *
  * Scope: any number of finite segments (no continuous/repeat scene — that
  * has no fixed capacity); each segment may declare `repeats` (bounded
@@ -92,17 +93,24 @@ extern "C"
    * and caches each segment's clean signal ON-time at gain 1. Returns NULL on
    * parse failure or an out-of-scope spec (continuous/repeat scene, a ranged
    * on-time, a ranged per-source field, a non-trailing/multiple noise
-   * source within a segment, or a source carrying clock Doppler).
+   * source within a segment, or a BACKGROUND source carrying clock Doppler).
    *
-   * The last is a refusal rather than a limitation to work around. This cache
-   * holds one source's clean ON-time in isolation; a Doppler channel is a
-   * resampler with state that runs through the gaps too, so what a burst
-   * renders as depends on the leading delay and on the previous instance's
-   * gap, and the cache has nowhere to keep that. It also puts the AWGN
-   * outside the channel where compose() puts it inside. Both were measured
-   * against compose(), not assumed -- see the note in plan_build(). Refusing
-   * beats caching a render that differs from compose() invisibly; teaching
-   * the cache to carry a channel's history is gh-1109.
+   * A source with clock Doppler IS served, and the render is compose() to the
+   * bit. A Doppler channel is a resampler with state that runs through the
+   * gaps too, so what a burst renders as depends on the leading delay and on
+   * the previous instance's gap, and it resamples the AWGN of a bundled
+   * source along with the signal. A per-source on-time cache cannot hold
+   * either, so the cache holds the signal BEFORE the channel and render()
+   * runs the channel over it, through the composer's own renderer: the delay,
+   * the gaps, the noise and (for a PERSIST lifetime) the earlier segments are
+   * all in hand when it runs. A ranged `doppler` / `doppler_rate` is drawn per
+   * instance exactly as compose() draws it, and a seed override moves it.
+   * Cost: a Doppler scene's render() is no longer a pure re-weight of the
+   * cache -- each Doppler source runs one resampler pass over its timeline.
+   *
+   * The one refusal is a BACKGROUND source with Doppler: the background fold
+   * sums those into a single composite before the render, and a channel is
+   * per source, so it cannot be applied to a sum.
    *
    * @param spec_json A NUL-terminated composer spec JSON string.
    * @return Heap Plan (caller dp_wfm_plan_destroy()s it), or NULL.

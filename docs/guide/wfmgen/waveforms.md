@@ -1456,56 +1456,58 @@ print(x.shape, x.dtype)
 
 ______________________________________________________________________
 
-### `Plan` refuses a Doppler source
+### `Plan` serves a Doppler source
 
-[`Plan`](scenes.md#prepare-once-sweep-many-plan) caches each source's clean **on-time** once, in isolation,
-and then re-weights it. A Doppler channel does not fit in that box, for two
-reasons that were measured against `compose()` rather than assumed:
+[`Plan`](scenes.md#prepare-once-sweep-many-plan) caches each source's clean
+**on-time** once and re-weights it. A Doppler channel cannot live *in* that
+cache, for two reasons that were measured against `compose()`:
 
 - **A burst depends on what came before it.** The channel is a stateful
     resampler and it runs through the gaps, so a trailing gap carries the
     burst's ring-out and a leading `delay_samples` advances the geometry
-    before the burst starts. A cached on-time has nowhere to keep that
-    history. Measured on a clean one-source scene: `off_samples = 256`
-    diverges from `compose()` across all 256 gap samples, and
-    `delay_samples = 256` diverges over the *burst*, from sample 257 on.
-- **The noise sits on the wrong side.** `compose()` puts the AWGN inside the
-    synth, so the channel resamples it too; the cache holds a clean render
-    and adds noise outside the channel. Measured on a bundled single noisy
-    source with no gaps at all: max |err| 1.73 on a unit-power signal.
+    before the burst starts.
+- **The noise sits inside the channel.** `compose()` puts a bundled source's
+    AWGN inside the synth, so the channel resamples it too.
 
-`persist` would be refused even without those, and for its own reason: the
-cache builds each source **independently and concurrently**, and
-"bit-identical to the serial build" is a documented property of it — a
-channel carrying across segments makes segment *i* depend on segments
-0…*i*−1 having been rendered, in order.
-
-So `prepare()` refuses, rather than caching a render that differs from
-`compose()` in a way nothing downstream can see:
+So the cache holds the signal **before** the channel, and `render()` runs the
+channel over it at render time, through the composer's own renderer. The
+delay, the gaps, the noise and (for `persist`) the earlier segments are all in
+hand when it runs, and the result is `compose()` to the bit:
 
 ```python
+import numpy as np
+
 from doppler.wfm import prepare
 from doppler.wfm.compose import Composer, Segment
 
 kw = dict(fs=1e6, sps=4, num_samples=4096, carrier_hz=2.2e9)
-
-try:
-    prepare(Composer([Segment("bpsk", doppler=5.0, **kw)]).to_json())
-except ValueError as exc:
-    print("refused:", "doppler" in str(exc))
-
-# ...but the keys alone cost nothing: zero doppler AND zero doppler_rate
-# builds no channel, so a declared lifetime describes nothing.
-plan = prepare(
-    Composer([Segment("bpsk", doppler_lifetime="persist", **kw)]).to_json()
+scene = Composer(
+    [
+        Segment(
+            "bpsk",
+            snr=12.0,
+            doppler=(2.0, 9.0),  # a ranged Doppler, drawn per repeat
+            off_samples=512,
+            delay_samples=128,
+            repeats=3,
+            **kw,
+        )
+    ]
 )
-print(len(plan))
+plan = prepare(scene.to_json())
+assert np.array_equal(plan.render(), scene.compose())
+
+# A Monte-Carlo trial is a seed: it redraws the Doppler as well as the noise,
+# and each seed is exactly the scene composed with that seed.
+print(len(plan.render(seed=101)), len(plan.render(seed=202)))
 ```
 
-`compose()` and `stream()` honour both lifetimes in full — only the sweep
-cache is restricted. Teaching the cache to carry a channel's history is the
-follow-up, [doppler#1109](https://github.com/doppler-dsp/doppler/issues/1109);
-until then, sweep a Doppler scene by composing it per point.
+Two things are worth knowing. A render of a Doppler scene is **no longer a pure
+re-weight of the cache**: each Doppler source runs one resampler pass over its
+timeline, on top of the synthesis the cache still saves. And one shape is still
+refused, with a `ValueError`: a `background=True` source with Doppler, because
+the background fold sums those sources into one composite before any channel
+could run, and a channel is per source.
 
 ______________________________________________________________________
 

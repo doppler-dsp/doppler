@@ -48,6 +48,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 | enum  | [**wfm\_\_compose\_8h\_1ab04a0655cd1e3bcac5e8f48c18df1a57**](#enum-wfm__compose_8h_1ab04a0655cd1e3bcac5e8f48c18df1a57)  <br>_Per-field "draw uniformly each repeat" flags (_ `ranged` _bitmask)._ |
 | enum  | [**wfm\_bitmod\_t**](#enum-wfm_bitmod_t)  <br>_How a_ `WFM_SYNTH_BITS` _source maps its payload to symbols._ |
 | enum  | [**wfm\_doppler\_lifetime\_t**](#enum-wfm_doppler_lifetime_t)  <br>_When a source's Doppler channel restarts._  |
+| typedef void(\* | [**wfm\_feed\_fn**](#typedef-wfm_feed_fn)  <br>_Where a channel renderer's INPUT comes from, when it is not a synth._  |
 | typedef struct wfm\_render | [**wfm\_render\_t**](#typedef-wfm_render_t)  <br>_One source's renderer: its synth, plus its Doppler channel._  |
 | enum  | [**wfm\_seed\_advance\_t**](#enum-wfm_seed_advance_t)  <br>_Per-repeat seed policy for a looped/continuous stream._  |
 | enum  | [**wfm\_snr\_mode\_t**](#enum-wfm_snr_mode_t)  <br>_What a source's_ `snr` _is measured against._ |
@@ -102,6 +103,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* | [**dp\_wfm\_compose\_from\_json\_at**](#function-dp_wfm_compose_from_json_at) (const char \* json, const char \* base, const char \*\* why) <br>_Build a composer from a JSON spec file._  |
 |  [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* | [**dp\_wfm\_compose\_from\_json\_data**](#function-dp_wfm_compose_from_json_data) (const char \* json, const char \* base, const char \* data\_file, const char \*\* why) <br>[_**dp\_wfm\_compose\_from\_json\_at()**_](wfm__compose_8h.md#function-dp_wfm_compose_from_json_at) _, replaying a record by its data._ |
 |  [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* | [**dp\_wfm\_compose\_from\_json\_why**](#function-dp_wfm_compose_from_json_why) (const char \* json, const char \*\* why) <br>_The same, but able to say why a FRAME was refused._  |
+|  [**dp\_doppler\_channel\_state\_t**](structdp__doppler__channel__state__t.md) \* | [**dp\_wfm\_compose\_persist\_channel**](#function-dp_wfm_compose_persist_channel) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, double doppler, double doppler\_rate, [**dp\_doppler\_channel\_state\_t**](structdp__doppler__channel__state__t.md) \*\* slot) <br>_The PERSIST channel for one (segment, source) slot, created on first use, or NULL when the source does not persist._  |
 |  int | [**dp\_wfm\_compose\_seed\_advance**](#function-dp_wfm_compose_seed_advance) (const [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* state) <br>_The composer's current seed-advance mode (a_ `wfm_seed_advance_t` _)._ |
 |  const [**wfm\_segment\_t**](structwfm__segment__t.md) \* | [**dp\_wfm\_compose\_segments**](#function-dp_wfm_compose_segments) (const [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* state, size\_t \* n\_out, int \* repeat, int \* continuous) <br>_Borrow the composer's stored segment list (for_  _record / SigMF)._ |
 |  void | [**dp\_wfm\_compose\_set\_data\_pacing**](#function-dp_wfm_compose_set_data_pacing) ([**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* state, [**wfm\_data\_pacing\_t**](wfm__data_8h.md#enum-wfm_data_pacing_t) pacing) <br>_Pace a composer's data sources: WFM\_DATA\_PACED under_ `--realtime` _._ |
@@ -115,6 +117,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  char \* | [**dp\_wfm\_frame\_to\_json**](#function-dp_wfm_frame_to_json) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d) <br>_Write a description as its JSON frame object, the text_ [_**dp\_wfm\_frame\_from\_json()**_](wfm__compose_8h.md#function-dp_wfm_frame_from_json) _reads back._ |
 |  const char \* | [**dp\_wfm\_framing\_flags\_error**](#function-dp_wfm_framing_flags_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Why_ `--sync` _/_`--crc` _/_`--acq-code` _cannot frame this source, or NULL._ |
 |  void | [**dp\_wfm\_render\_destroy**](#function-dp_wfm_render_destroy) ([**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* r) <br>_Free a renderer and everything it owns. NULL-safe._  |
+|  [**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* | [**dp\_wfm\_render\_from\_feed**](#function-dp_wfm_render_from_feed) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, double doppler, double doppler\_rate, [**dp\_doppler\_channel\_state\_t**](structdp__doppler__channel__state__t.md) \* borrow, size\_t delay, size\_t on, [**wfm\_feed\_fn**](wfm__compose_8h.md#typedef-wfm_feed_fn) feed, void \* feed\_ctx) <br>_A renderer whose input is a caller-supplied feed, not a live synth._  |
 |  void | [**dp\_wfm\_render\_noise\_steps**](#function-dp_wfm_render_noise_steps) ([**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* r, float \_Complex \* dst, size\_t n) <br>_Pull_ `n` _samples of the source's NOISE FLOOR only, through the same channel._ |
 |  void | [**dp\_wfm\_render\_set\_input\_timeline**](#function-dp_wfm_render_set_input_timeline) ([**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* r, size\_t delay, size\_t on) <br>_Tell a Doppler renderer where its INPUT's phases fall._  |
 |  void | [**dp\_wfm\_render\_steps**](#function-dp_wfm_render_steps) ([**wfm\_render\_t**](wfm__compose_8h.md#typedef-wfm_render_t) \* r, float \_Complex \* dst, size\_t n) <br>_Pull exactly_ `n` _samples from_`r` _, through its channel if any._ |
@@ -308,6 +311,37 @@ Neither is a superset of the other, so it is declared rather than defaulted into
 
 The channel is keyed by (segment, source), because that is the only source identity the composer has — a position. So a PERSIST source persists over its own segment's instances; two DIFFERENT segments each get their own pass, even where a reader might call them the same emitter. Sharing one across segments needs a declared source id, which nothing in the scene format carries yet; gh-942 says as much ("no per-source identity that
 survives it ... the repeats/epoch machinery is where one would hang"). 
+
+
+        
+
+<hr>
+
+
+
+### typedef wfm\_feed\_fn 
+
+_Where a channel renderer's INPUT comes from, when it is not a synth._ 
+```C++
+typedef void(* wfm_feed_fn) (void *ctx, float _Complex *dst, size_t n, int signal);
+```
+
+
+
+Called with the next `n` input samples wanted, `signal` non-zero for ON samples and zero for noise-only ones (the delay and the gap), in INPUT order: the ON calls together cover the burst exactly once, front to back.
+
+
+
+
+**Parameters:**
+
+
+* `ctx` The pointer given to [**dp\_wfm\_render\_from\_feed()**](wfm__compose_8h.md#function-dp_wfm_render_from_feed). 
+* `dst` Write `n` samples here. 
+* `n` Samples wanted. 
+* `signal` Non-zero: ON samples. Zero: noise-only. 
+
+
 
 
         
@@ -1112,6 +1146,45 @@ Composer state, or NULL on parse error / bad type / no segments / a refused fram
 
 
 
+### function dp\_wfm\_compose\_persist\_channel 
+
+_The PERSIST channel for one (segment, source) slot, created on first use, or NULL when the source does not persist._ 
+```C++
+dp_doppler_channel_state_t * dp_wfm_compose_persist_channel (
+    const wfm_source_t * src,
+    double fs,
+    double doppler,
+    double doppler_rate,
+    dp_doppler_channel_state_t ** slot
+) 
+```
+
+
+
+The one place that decides "does this instance borrow a scene-owned
+channel": the composer and the Plan both call it, so they cannot disagree. NULL for a `per_instance` source, for a NULL `slot`, and for an instance that drew no Doppler at all (the channel then does not exist for it).
+
+
+
+
+**Parameters:**
+
+
+* `src` The source. 
+* `fs` Sample rate, Hz. 
+* `doppler` This instance's drawn Doppler, ppm. 
+* `doppler_rate` This instance's drawn Doppler rate, ppm/s. 
+* `slot` The scene-owned slot for this (segment, source). 
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_wfm\_compose\_seed\_advance 
 
 _The composer's current seed-advance mode (a_ `wfm_seed_advance_t` _)._
@@ -1597,6 +1670,59 @@ void dp_wfm_render_destroy (
 
 
 
+
+<hr>
+
+
+
+### function dp\_wfm\_render\_from\_feed 
+
+_A renderer whose input is a caller-supplied feed, not a live synth._ 
+```C++
+wfm_render_t * dp_wfm_render_from_feed (
+    const wfm_source_t * src,
+    double fs,
+    double doppler,
+    double doppler_rate,
+    dp_doppler_channel_state_t * borrow,
+    size_t delay,
+    size_t on,
+    wfm_feed_fn feed,
+    void * feed_ctx
+) 
+```
+
+
+
+This is what lets the Plan run a Doppler channel over its CACHED clean on-time through the one renderer the composer uses, so the dilation, the holdover and the input timeline are the same code rather than a second implementation of them. [**dp\_wfm\_render\_steps()**](wfm__compose_8h.md#function-dp_wfm_render_steps) then yields the channel's output exactly as it does for a synth-backed renderer.
+
+
+
+
+**Parameters:**
+
+
+* `src` Source whose `carrier_hz` the channel uses. 
+* `fs` Sample rate, Hz. 
+* `doppler` Drawn Doppler, ppm. 
+* `doppler_rate` Drawn Doppler rate, ppm/s. 
+* `borrow` A PERSIST channel the caller owns, or NULL to make one that dies with the renderer. 
+* `delay` Leading noise-only INPUT samples (0 if the gaps are never pulled: see [**dp\_wfm\_render\_set\_input\_timeline()**](wfm__compose_8h.md#function-dp_wfm_render_set_input_timeline)). 
+* `on` ON input samples. 
+* `feed` Input source. 
+* `feed_ctx` Passed to `feed`. 
+
+
+
+**Returns:**
+
+A renderer ([**dp\_wfm\_render\_destroy()**](wfm__compose_8h.md#function-dp_wfm_render_destroy) it), or NULL if the source has no Doppler to apply (`doppler` and `doppler_rate` both zero and no `borrow`) or the channel could not be built. 
+
+
+
+
+
+        
 
 <hr>
 

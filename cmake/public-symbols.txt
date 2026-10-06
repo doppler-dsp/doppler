@@ -1504,6 +1504,7 @@ dp_wfm_compose_from_json function
 dp_wfm_compose_from_json_at function
 dp_wfm_compose_from_json_data function
 dp_wfm_compose_from_json_why function
+dp_wfm_compose_persist_channel function
 dp_wfm_compose_seed_advance function
 dp_wfm_compose_segments function
 dp_wfm_compose_set_data_pacing function
@@ -1611,6 +1612,7 @@ dp_wfm_reader_set_follow_grace_ms function
 dp_wfm_reader_set_follow_timeout_ms function
 dp_wfm_reader_set_stop_fn function
 dp_wfm_render_destroy function
+dp_wfm_render_from_feed function
 dp_wfm_render_noise_steps function
 dp_wfm_render_set_input_timeline function
 dp_wfm_render_steps function

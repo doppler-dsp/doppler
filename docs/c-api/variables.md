@@ -143,6 +143,7 @@
 * **wfm\_\_compose\_8h\_1ab04a0655cd1e3bcac5e8f48c18df1a57** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_bitmod\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_doppler\_lifetime\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **wfm\_feed\_fn** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_render\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_seed\_advance\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_snr\_mode\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))

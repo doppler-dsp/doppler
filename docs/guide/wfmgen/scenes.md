@@ -560,8 +560,10 @@ and re-`prepare()` on the far side — the re-render is almost always cheaper th
 shipping and deserializing the cache, and the spec is kilobytes, not gigabytes.
 The rule of thumb: transport the *recipe*, not the *rendered signal*.
 
-Frequency (Doppler) and delay (multipath) are planned follow-ups on the same
-frame — additive axes, not a rewrite.
+Clock Doppler is served too: the cache holds the signal before the channel and
+`render()` runs the channel over it, bit-identical to `compose()`
+([details](waveforms.md#plan-serves-a-doppler-source)). Delay (multipath) is a
+planned follow-up on the same frame — an additive axis, not a rewrite.
 
 ______________________________________________________________________
 

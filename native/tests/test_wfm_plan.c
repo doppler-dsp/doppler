@@ -1108,28 +1108,39 @@ main (void)
                     "load of a missing file is NULL");
   }
 
-  /* ── the Doppler refusal: a DECISION, not a gap (gh-1109) ──────────────
-   * A source carrying clock Doppler is refused outright rather than cached
-   * wrong. The channel is a resampler whose state runs THROUGH the gaps,
-   * while this cache holds one clean ON-time in isolation and re-weights the
-   * noise OUTSIDE the channel; both divergences were measured against
-   * compose() (see plan_build's note). So the contract is that no plan comes
-   * back at all — and the EDGE is part of the rule: a lifetime declared on a
-   * source with zero doppler builds no channel and must NOT be refused.
+  /* ── a Doppler source is SERVED, and to the bit (gh-1109) ───────────────
+   * The cache holds the signal BEFORE the channel; the channel runs at render
+   * time over it, through the composer's own renderer. So a source carrying
+   * clock Doppler is accepted and the render is compose(), sample for sample,
+   * across what the old refusal cited: the gap carries the burst's ring-out
+   * and a leading delay advances the geometry, both of which only exist with a
+   * gap and a delay in the scene -- hence both below, and repeats, which is
+   * where PERSIST differs from PER_INSTANCE.
    *
-   * Each case moves ONE field off an accepted baseline, so a NULL is
-   * attributable to that field and to nothing else; and each asserts the
-   * serialized spec actually CARRIES the field, because a reject test over a
-   * key the writer silently drops passes for the wrong reason. */
+   * Each case moves ONE field off an accepted baseline, and asserts the
+   * serialized spec actually CARRIES it, because an equality test over a key
+   * the writer silently drops passes for the wrong reason. */
   {
+    enum
+    {
+      DGAP = 200,
+      DDLY = 100,
+      DREP = 2,
+      DCAP = (L + DGAP + DDLY) * DREP
+    };
     wfm_source_t  dsrc = { .type      = 0, /* clean tone */
                            .freq      = 1e5,
                            .snr       = 100.0,
                            .seed      = 5,
                            .sps       = 8,
                            .pn_length = 7 };
-    wfm_segment_t dseg
-        = { .sources = &dsrc, .n_sources = 1, .fs = 1e6, .num_samples = L };
+    wfm_segment_t dseg = { .sources       = &dsrc,
+                           .n_sources     = 1,
+                           .fs            = 1e6,
+                           .num_samples   = L,
+                           .off_samples   = DGAP,
+                           .delay_samples = DDLY,
+                           .repeats       = DREP };
 
     /* The baseline this whole block is differential against. */
     char *jb = dp_wfm_spec_to_json (&dseg, 1, 0, 0, 0, 0.0);
@@ -1139,29 +1150,68 @@ main (void)
     dp_wfm_plan_destroy (pb);
     free (jb);
 
-    /* 1. a constant Doppler offset. */
-    dsrc.doppler = 5.0; /* ppm */
-    char *jd     = dp_wfm_spec_to_json (&dseg, 1, 0, 0, 0, 0.0);
-    DP_REQUIRE_MSG (jd && strstr (jd, "\"doppler\""),
-                    "doppler json carries the field (else vacuous)");
-    DP_REQUIRE_MSG (dp_wfm_plan_prepare (jd) == NULL,
-                    "DOPPLER: doppler != 0 is refused (gh-1109)");
-    free (jd);
-    dsrc.doppler = 0.0;
+    float _Complex *dref = malloc (DCAP * sizeof *dref);
+    float _Complex *dgot = malloc (DCAP * sizeof *dgot);
+    DP_REQUIRE_MSG (dref && dgot, "doppler buffers");
 
-    /* 2. a Doppler RATE alone is equally a channel. */
-    dsrc.doppler_rate = 0.5; /* ppm/s */
-    char *jr          = dp_wfm_spec_to_json (&dseg, 1, 0, 0, 0, 0.0);
-    DP_REQUIRE_MSG (jr && strstr (jr, "\"doppler_rate\""),
-                    "doppler_rate json carries the field (else vacuous)");
-    DP_REQUIRE_MSG (dp_wfm_plan_prepare (jr) == NULL,
-                    "DOPPLER: doppler_rate != 0 is refused (gh-1109)");
-    free (jr);
-    dsrc.doppler_rate = 0.0;
+    /* [offset, rate, lifetime] per case. */
+    static const struct
+    {
+      double      ppm, rate;
+      int         persist;
+      const char *key, *name;
+    } cases[] = {
+      { 5.0, 0.0, 0, "\"doppler\"", "a constant offset" },
+      { 0.0, 500.0, 0, "\"doppler_rate\"", "a rate alone" },
+      { 5.0, 300.0, 1, "\"doppler_lifetime\"", "persist, offset and rate" },
+    };
+    for (size_t i = 0; i < sizeof cases / sizeof *cases; i++)
+      {
+        dsrc.doppler          = cases[i].ppm;
+        dsrc.doppler_rate     = cases[i].rate;
+        dsrc.carrier_hz       = 2.2e9;
+        dsrc.doppler_lifetime = cases[i].persist ? WFM_DOPPLER_PERSIST : 0;
+        char *jd              = dp_wfm_spec_to_json (&dseg, 1, 0, 0, 0, 0.0);
+        DP_REQUIRE_MSG (jd && strstr (jd, cases[i].key),
+                        "doppler json carries the field (else vacuous)");
+        wfm_plan_t *pd = dp_wfm_plan_prepare (jd);
+        DP_REQUIRE_MSG (pd, "DOPPLER: a Doppler source is ACCEPTED");
+        size_t nref = compose_n (jd, dref, DCAP);
+        size_t ngot = dp_wfm_plan_render (pd, "{}", dgot);
+        printf ("  doppler %-26s plan %zu / compose %zu samples\n",
+                cases[i].name, ngot, nref);
+        DP_REQUIRE_MSG (nref == (size_t)DCAP && ngot == nref,
+                        "DOPPLER: same length as compose()");
+        {
+          /* Where it first diverges, not just THAT it does: a bit-exactness
+           * failure with no index is a debugging session. */
+          size_t first = nref;
+          for (size_t j = 0; j < nref; j++)
+            if (memcmp (&dref[j], &dgot[j], sizeof *dref) != 0)
+              {
+                first = j;
+                break;
+              }
+          if (first < nref)
+            printf (
+                "  first divergence at %zu: compose (%g,%g) plan (%g,%g)\n",
+                first, crealf (dref[first]), cimagf (dref[first]),
+                crealf (dgot[first]), cimagf (dgot[first]));
+          DP_REQUIRE_MSG (first == nref,
+                          "DOPPLER: the render is compose(), bit for bit");
+        }
+        dp_wfm_plan_destroy (pd);
+        free (jd);
+      }
+    free (dref);
+    free (dgot);
+    dsrc.doppler          = 0.0;
+    dsrc.doppler_rate     = 0.0;
+    dsrc.doppler_lifetime = 0;
 
-    /* 3. THE EDGE: a lifetime on a source with zero doppler and zero
-     *    doppler_rate builds no channel, so it is NOT refused for a field it
-     *    does not use. PERSIST is the only lifetime the writer serializes. */
+    /* THE EDGE: a lifetime on a source with zero doppler and zero
+     * doppler_rate builds no channel; it must be accepted as it always was.
+     * PERSIST is the only lifetime the writer serializes. */
     dsrc.doppler_lifetime = WFM_DOPPLER_PERSIST;
     char *jl              = dp_wfm_spec_to_json (&dseg, 1, 0, 0, 0, 0.0);
     DP_REQUIRE_MSG (jl && strstr (jl, "\"doppler_lifetime\""),
@@ -1172,6 +1222,42 @@ main (void)
     dp_wfm_plan_destroy (pl2);
     free (jl);
     dsrc.doppler_lifetime = 0;
+  }
+
+  /* The ONE refusal that remains: a BACKGROUND source with Doppler. The fold
+   * sums background sources into a single composite before the render, and a
+   * channel is per source -- it cannot be applied to a sum. */
+  {
+    wfm_source_t s[2];
+    memset (s, 0, sizeof s);
+    s[0] = (wfm_source_t){ .type       = 0,
+                           .freq       = 1e5,
+                           .snr        = 100.0,
+                           .seed       = 5,
+                           .sps        = 8,
+                           .pn_length  = 7,
+                           .level      = -24.0,
+                           .background = 1,
+                           .doppler    = 5.0,
+                           .carrier_hz = 2.2e9 };
+    s[1] = (wfm_source_t){
+      .type = 4, .snr = 12.0, .seed = 9, .sps = 8, .pn_length = 7
+    };
+    wfm_segment_t g
+        = { .sources = s, .n_sources = 2, .fs = 1e6, .num_samples = L };
+    char *jbg = dp_wfm_spec_to_json (&g, 1, 0, 0, 0, 0.0);
+    DP_REQUIRE_MSG (jbg && strstr (jbg, "\"background\""),
+                    "background json carries the field (else vacuous)");
+    DP_REQUIRE_MSG (dp_wfm_plan_prepare (jbg) == NULL,
+                    "DOPPLER: a BACKGROUND source with doppler is refused");
+    s[0].doppler = 0.0; /* the same scene without the channel is accepted */
+    free (jbg);
+    jbg             = dp_wfm_spec_to_json (&g, 1, 0, 0, 0, 0.0);
+    wfm_plan_t *pbg = dp_wfm_plan_prepare (jbg);
+    DP_REQUIRE_MSG (pbg, "DOPPLER: the same background scene, no doppler, "
+                         "is ACCEPTED");
+    dp_wfm_plan_destroy (pbg);
+    free (jbg);
   }
 
   /* ── len() is a CAPACITY and the tail is zero padding ───────────────────

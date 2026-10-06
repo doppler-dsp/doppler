@@ -108,9 +108,7 @@ class Synth:
         instance. persist: one continuous pass carries across the segment's
         gaps and repeat instances, keyed by (segment, source) position -- the
         only lifetime under which doppler_rate accumulates across a multi-burst
-        scene. Plan.prepare() REFUSES a persist source, because its cache
-        renders each source independently and concurrently; compose() and
-        stream() honour both.
+        scene. compose(), stream() and Plan.prepare() all honour both.
         One of ``"per_instance"``, ``"persist"``.
     modulation : str, default ``"bpsk"``
         Symbol mapping of a bits pattern. none: the pattern shaped and output
@@ -445,9 +443,7 @@ class Segment:
         instance. persist: one continuous pass carries across the segment's
         gaps and repeat instances, keyed by (segment, source) position -- the
         only lifetime under which doppler_rate accumulates across a multi-burst
-        scene. Plan.prepare() REFUSES a persist source, because its cache
-        renders each source independently and concurrently; compose() and
-        stream() honour both.
+        scene. compose(), stream() and Plan.prepare() all honour both.
         One of ``"per_instance"``, ``"persist"``.
     modulation : str, default ``"bpsk"``
         Symbol mapping of a bits pattern. none: the pattern shaped and output

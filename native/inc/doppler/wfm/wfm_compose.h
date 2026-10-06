@@ -282,10 +282,8 @@ typedef struct {
                                keyed by (segment, source) position -- the
                                only lifetime under which doppler_rate
                                accumulates across a multi-burst scene.
-                               Plan.prepare() REFUSES a persist source,
-                               because its cache renders each source
-                               independently and concurrently; compose() and
-                               stream() honour both. */
+                               compose(), stream() and Plan.prepare() all
+                               honour both. */
     /* A frame DESCRIPTION, the whole frame: fields in wire order, and
        stages that each name the span they cover (crc16, rs, randomise,
        interleave, conv, or a kind of your own). It is the only way a source
@@ -1187,6 +1185,63 @@ void dp_wfm_render_steps(wfm_render_t *r, float _Complex *dst, size_t n);
  * quietly means "rate per unit of ON time" instead of per second.
  */
 void dp_wfm_render_noise_steps(wfm_render_t *r, float _Complex *dst, size_t n);
+
+/**
+ * @brief Where a channel renderer's INPUT comes from, when it is not a synth.
+ *
+ * Called with the next @p n input samples wanted, `signal` non-zero for ON
+ * samples and zero for noise-only ones (the delay and the gap), in INPUT
+ * order: the ON calls together cover the burst exactly once, front to back.
+ *
+ * @param ctx     The pointer given to dp_wfm_render_from_feed().
+ * @param dst     Write @p n samples here.
+ * @param n       Samples wanted.
+ * @param signal  Non-zero: ON samples. Zero: noise-only.
+ */
+typedef void (*wfm_feed_fn)(void *ctx, float _Complex *dst, size_t n, int signal);
+
+/**
+ * @brief A renderer whose input is a caller-supplied feed, not a live synth.
+ *
+ * This is what lets the Plan run a Doppler channel over its CACHED clean
+ * on-time through the one renderer the composer uses, so the dilation, the
+ * holdover and the input timeline are the same code rather than a second
+ * implementation of them. dp_wfm_render_steps() then yields the channel's
+ * output exactly as it does for a synth-backed renderer.
+ *
+ * @param src           Source whose `carrier_hz` the channel uses.
+ * @param fs            Sample rate, Hz.
+ * @param doppler       Drawn Doppler, ppm.
+ * @param doppler_rate  Drawn Doppler rate, ppm/s.
+ * @param borrow        A PERSIST channel the caller owns, or NULL to make one
+ *                      that dies with the renderer.
+ * @param delay         Leading noise-only INPUT samples (0 if the gaps are
+ *                      never pulled: see dp_wfm_render_set_input_timeline()).
+ * @param on            ON input samples.
+ * @param feed          Input source.
+ * @param feed_ctx      Passed to @p feed.
+ * @return A renderer (dp_wfm_render_destroy() it), or NULL if the source has
+ *         no Doppler to apply (@p doppler and @p doppler_rate both zero and
+ *         no @p borrow) or the channel could not be built.
+ */
+wfm_render_t *dp_wfm_render_from_feed(const wfm_source_t *src, double fs, double doppler, double doppler_rate, dp_doppler_channel_state_t *borrow, size_t delay, size_t on, wfm_feed_fn feed, void *feed_ctx);
+
+/**
+ * @brief The PERSIST channel for one (segment, source) slot, created on first
+ * use, or NULL when the source does not persist.
+ *
+ * The one place that decides "does this instance borrow a scene-owned
+ * channel": the composer and the Plan both call it, so they cannot disagree.
+ * NULL for a `per_instance` source, for a NULL @p slot, and for an instance
+ * that drew no Doppler at all (the channel then does not exist for it).
+ *
+ * @param src           The source.
+ * @param fs            Sample rate, Hz.
+ * @param doppler       This instance's drawn Doppler, ppm.
+ * @param doppler_rate  This instance's drawn Doppler rate, ppm/s.
+ * @param slot          The scene-owned slot for this (segment, source).
+ */
+dp_doppler_channel_state_t *dp_wfm_compose_persist_channel(const wfm_source_t *src, double fs, double doppler, double doppler_rate, dp_doppler_channel_state_t **slot);
 
 /**
  * @brief Tell a Doppler renderer where its INPUT's phases fall.

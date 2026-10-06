@@ -174,6 +174,8 @@ class Data:
     phase_identity: bool = False
     reject_rows: list[list[str]] = field(default_factory=list)
     all_rejected: bool = False
+    doppler_rows: list[list[str]] = field(default_factory=list)
+    doppler_exact: bool = False
     edge_rows: list[list[str]] = field(default_factory=list)
     all_edges_accepted: bool = False
     cap: int = 0
@@ -371,17 +373,12 @@ def measure_refusals(d: Data) -> None:
             else "**served**",
         ],
         [
-            "a source with `doppler`",
-            "a channel is a stateful resampler; the cache has no history",
+            "a BACKGROUND source with `doppler`",
+            "the fold sums background sources into one composite before "
+            "the render; a channel is per source and cannot be applied to "
+            "a sum",
             "ValueError"
-            if rejected(lambda: prepare(_dop(doppler=5.0)))
-            else "**served**",
-        ],
-        [
-            "a source with `doppler_rate`",
-            "same channel, same absence of history",
-            "ValueError"
-            if rejected(lambda: prepare(_dop(doppler_rate=200.0)))
+            if rejected(lambda: prepare(_dop_background()))
             else "**served**",
         ],
     ]
@@ -393,13 +390,14 @@ def measure_refusals(d: Data) -> None:
     R.md(
         "A cache that cannot serve a shape has two honest options and one "
         "dishonest one. `Plan` refuses, rather than serving a render that "
-        "differs from `compose()` in a way nothing downstream can see. The "
-        "Doppler rows are the interesting ones: the reasons are measured "
-        "against `compose()` in `plan_build()` -- a channel rings the "
-        "burst's tail out across the trailing gap, and `compose()` puts "
-        "the AWGN inside the channel while the cache re-weights it "
-        "outside -- and teaching the cache to carry that history is "
-        "[gh-1109](https://github.com/doppler-dsp/doppler/issues/1109)."
+        "differs from `compose()` in a way nothing downstream can see. A "
+        "Doppler source used to be refused outright, because a channel "
+        "rings the burst's tail out across the trailing gap and "
+        "`compose()` puts the AWGN inside it; "
+        "[gh-1109](https://github.com/doppler-dsp/doppler/issues/1109) "
+        "serves it instead (§2.3b). What is still refused is the shape no "
+        "per-source render can express: a channel on a source the "
+        "background fold has already summed away."
     )
     R.md()
     R.table(["out-of-scope scene", "why", "outcome"], rows)
@@ -432,6 +430,7 @@ def measure_refusals(d: Data) -> None:
         all_ok &= ok
         erows.append([name, why, "prepared" if ok else "**REFUSED**"])
     d.edge_rows, d.all_edges_accepted = erows, all_ok
+    measure_doppler(d)
 
     R.md(
         "The other half of a refusal is what it must NOT catch. A rule "
@@ -474,6 +473,117 @@ def _dop(**extra) -> Composer:
             )
         ]
     )
+
+
+def _dop_background() -> Composer:
+    return Composer(
+        Segment.sum(
+            qpsk(
+                seed=7,
+                sps=8,
+                pn_length=7,
+                level=-24.0,
+                background=True,
+                doppler=20.0,
+                carrier_hz=2.2e9,
+            ),
+            qpsk(seed=9, sps=8, pn_length=7, snr=12.0),
+            fs=FS,
+            num_samples=2048,
+        )
+    )
+
+
+def measure_doppler(d: Data) -> None:
+    """2.3b — a Doppler source is SERVED, and exactly.
+
+    The cache holds the signal before the channel; the channel runs at
+    render time, through the composer's own renderer, over it. So every
+    shape the old refusal cited is asserted here against `compose()` to the
+    bit -- not against a tolerance, because the whole point of the refusal
+    was that "close" is invisible and wrong."""
+    dd = {"doppler": 20.0, "carrier_hz": 2.2e9}
+    kw = {"fs": FS, "num_samples": 3000}
+    gaps = {"off_samples": 700, "delay_samples": 300, "repeats": 3}
+
+    def q(**k):
+        return qpsk(seed=7, sps=8, pn_length=7, **k)
+
+    def t(**k):
+        return tone(freq=1e5, seed=3, sps=8, **k)
+
+    scenes = [
+        (
+            "clean burst, gap and delay",
+            "the gap carries ring-out; the delay advances the geometry",
+            lambda: Segment.sum(t(**dd), **gaps, **kw),
+        ),
+        (
+            "bundled noisy source",
+            "the AWGN sits INSIDE the channel (the case measured at "
+            "1.73 by the old cache)",
+            lambda: Segment.sum(q(snr=12.0, **dd), **gaps, **kw),
+        ),
+        (
+            "shared noise, Doppler on a clean source",
+            "the noise is a separate source, added after the channel",
+            lambda: Segment.sum(q(snr=12.0), t(**dd), **gaps, **kw),
+        ),
+        (
+            "`persist`",
+            "one pass across repeats; the channel carries between instances",
+            lambda: Segment.sum(
+                t(
+                    doppler_rate=300.0,
+                    carrier_hz=2.2e9,
+                    doppler_lifetime="persist",
+                ),
+                off_samples=700,
+                delay_samples=300,
+                repeats=4,
+                **kw,
+            ),
+        ),
+        (
+            '`gap_noise="off"`',
+            "the gaps are never pulled, so the channel never sees them",
+            lambda: Segment.sum(
+                t(**dd),
+                gap_noise="off",
+                off_samples=700,
+                delay_samples=300,
+                repeats=2,
+                **kw,
+            ),
+        ),
+        (
+            "ranged `doppler`",
+            "drawn per instance through compose()'s own helper",
+            lambda: Segment.sum(
+                t(doppler=(2.0, 9.0), carrier_hz=2.2e9), **gaps, **kw
+            ),
+        ),
+    ]
+    rows, ok = [], True
+    for name, why, build in scenes:
+        scene = Composer(build())
+        try:
+            a = arr(prepare(scene).render())
+            exact = bool(np.array_equal(a, arr(scene.compose())))
+        except Exception:
+            exact = False
+        ok &= exact
+        rows.append([name, why, "identical" if exact else "**DIFFERS**"])
+    d.doppler_rows, d.doppler_exact = rows, ok
+    R.md()
+    R.md("### 2.3b A Doppler source is served, bit-identically")
+    R.md()
+    R.md(
+        "Every shape the refusal used to cite, rendered by the Plan and "
+        "by `compose()` and compared to the bit:"
+    )
+    R.md()
+    R.table(["scene", "what it exercises", "vs compose()"], rows)
 
 
 def measure_capacity(d: Data) -> None:
@@ -754,21 +864,18 @@ def review(d: Data) -> None:
     )
     R.find(
         "F4",
-        "BY DESIGN",
-        "**The Doppler refusal is the honest half of the cache's "
-        "contract, not a missing feature.** A Doppler channel is a "
-        "stateful resampler that runs through the gaps, so what a burst "
-        "renders as depends on the leading delay and the previous "
-        "instance's gap; the cache holds one clean on-time in isolation "
-        "and has nowhere to keep that history. It also puts the AWGN "
-        "outside the channel where `compose()` puts it inside. Both were "
-        "measured against `compose()` rather than assumed (§2.3), and a "
-        "cached render that differs from `compose()` invisibly is worse "
-        "than no plan. Carrying the history is "
-        "[gh-1109](https://github.com/doppler-dsp/doppler/issues/1109). "
-        "The refusal is correctly scoped to the behaviour and not to the "
-        "field: a `doppler_lifetime` on a source with zero doppler builds "
-        "no channel and still prepares.",
+        "FIXED",
+        "**A Doppler source is served, and exactly.** It used to be "
+        "refused, because a channel is a stateful resampler that runs "
+        "through the gaps and `compose()` puts the AWGN inside it, which "
+        "a per-source on-time cache cannot hold. The cache now holds the "
+        "signal BEFORE the channel and the channel runs at render time "
+        "over it, through the composer's own renderer, so the delay, the "
+        "gaps, the noise and (for `persist`) the earlier segments are all "
+        "in hand when it runs (§2.3b). The one refusal left is a "
+        "BACKGROUND source with Doppler, which the fold has summed "
+        "before any channel could see it. "
+        "[gh-1109](https://github.com/doppler-dsp/doppler/issues/1109).",
     )
 
 
@@ -807,14 +914,20 @@ def limits(d: Data) -> None:
     R.limit(
         d.all_rejected,
         "every out-of-scope scene is REFUSED with ValueError -- a ranged "
-        "per-source field, a ranged on-time, and a source carrying "
-        "doppler or doppler_rate",
+        "per-source field, a ranged on-time, and a background source "
+        "carrying doppler",
     )
     R.limit(
         d.all_edges_accepted,
         "and the refusal is scoped to the behaviour, not the field: a "
         "lifetime with zero doppler, ranged gaps, and repeats all still "
         "prepare",
+    )
+    R.limit(
+        d.doppler_exact,
+        "a source with doppler is SERVED and reproduces compose() bit for "
+        "bit -- a clean burst with gap and delay, a bundled noisy source, "
+        "shared noise, persist, gap_noise off, and a ranged doppler",
     )
     R.limit(
         d.cap == 3072 and d.draw_le_cap,
@@ -902,12 +1015,12 @@ def build(write: bool = True) -> Report:
             f"distinct lengths over {len(GAP_SEEDS)} seeds here. Both "
             "rectangular Monte-Carlo idioms raise on such a scene, and "
             "the docstring promises they will not (§2.4, F1).",
-            "**A Doppler source is refused, and that is the contract "
-            "working.** The cache cannot hold a channel's history, so it "
-            "declines rather than serving a render that differs from "
-            "`compose()` invisibly. Scoped to the behaviour, not the "
-            "field: zero doppler with a declared lifetime still prepares "
-            "(§2.3, F4).",
+            "**A Doppler source is served, bit-identically.** The cache "
+            "holds the signal before the channel and the channel runs at "
+            "render time over it, so the gap ring-out, the delay, the "
+            "noise inside the channel and `persist` all match "
+            "`compose()` exactly. Only a BACKGROUND source with Doppler "
+            "is refused (§2.3, §2.3b, F4).",
             "**Persist the spec, not the blob, unless the DSP cost says "
             f"otherwise.** A {N}-sample two-source scene serializes to "
             f"{d.blob_bytes / 1024:.0f} KB, {d.buffer_fraction:.0%} of it "

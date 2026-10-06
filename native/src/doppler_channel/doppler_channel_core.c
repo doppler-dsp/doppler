@@ -152,19 +152,33 @@ dp_doppler_channel_execute_profile_max_out (dp_doppler_channel_state_t *state,
 {
   (void)state; /* jm's signature: the binding sizes before it sees ppm[] */
   /* The profile is unseen, so scale the known length by a floor on the scale
-     (a 2x expansion) plus the resampler's carried-accumulator slack, the same
-     slack dp_doppler_channel_execute_max_out() allows. */
+     (PROFILE_MIN_SCALE: a 2x expansion, which profile_ok enforces) plus the
+     resampler's carried-accumulator slack, the same slack
+     dp_doppler_channel_execute_max_out() allows. */
   return 2u * n + 2u;
 }
 
-/* Reject a profile sample at or below -1e6 ppm: a scale of zero or less
+/* The smallest scale a profile sample may ask for. A scale of zero or less
    means time has stopped or reversed -- create() already refuses the scalar
-   equivalent, and the array form must not be the way in. Also catches NaN. */
+   equivalent, and the array form must not be the way in -- but the floor is
+   higher than that, because dp_doppler_channel_execute_profile_max_out()
+   sizes the output for an expansion of at most 2x. A scale below 1/2 would
+   ask for more samples than the buffer holds, and the kernel would stop
+   short: silently, with the input clock already advanced past the chunk. So
+   the validation and the sizing are one number, and a sample that would
+   overflow the sizing is refused rather than truncated. 1/2 is a -5e5 ppm
+   Doppler, which no real pass approaches. */
+#define PROFILE_MIN_SCALE 0.5
+
+/* A profile is valid only if EVERY sample is finite and keeps the scale at or
+   above PROFILE_MIN_SCALE. Non-finite is refused explicitly: NaN fails the
+   comparison by accident, but +inf passes any "> 0" test and used to yield a
+   single output with no error. */
 static int
 profile_ok (const double *ppm, size_t n)
 {
   for (size_t i = 0; i < n; i++)
-    if (!(1.0 + ppm[i] * 1e-6 > 0.0))
+    if (!(isfinite (ppm[i]) && 1.0 + ppm[i] * 1e-6 >= PROFILE_MIN_SCALE))
       return 0;
   return 1;
 }

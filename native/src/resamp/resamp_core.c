@@ -672,13 +672,14 @@ ctrl_push_impl (resamp_state_t *s, float _Complex x, double ctrl,
              here, not of a range that needed guarding. */
           /* Where this output sits on the INPUT timeline, in input samples
              relative to the first sample of the stream this chunk belongs to:
-             the newest sample under the taps (every earlier call's sample is
-             loaded, plus this call's if it has been) and the fraction of an
-             interval past it. The accumulator already holds both, so this
-             is a read, not a second accumulator. */
+             the newest sample under the taps and the fraction of an interval
+             past it. A tick is only ever emitted while this call's own sample
+             is still unloaded (`offered` is 1 for the whole loop), so the
+             newest loaded sample is the previous call's: call_idx - 1. The
+             accumulator already holds the fraction, so this is a read, not a
+             second accumulator. */
           if (pos)
-            pos[n] = (double)call_idx + (offered ? -1.0 : 0.0)
-                     + nco_word_to_norm (s->ctrl_phase);
+            pos[n] = (double)call_idx - 1.0 + nco_word_to_norm (s->ctrl_phase);
           out[n++] = dot_cf32 (dl_ptr (s), get_branch (s, s->ctrl_phase),
                                s->num_taps);
           uint32_t new_ph = s->ctrl_phase + frac;

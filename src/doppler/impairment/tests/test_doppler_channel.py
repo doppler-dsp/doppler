@@ -406,3 +406,40 @@ def test_time_reversing_profile_sample_rejected() -> None:
     ch = DopplerChannel(fs=FS, carrier_hz=FC)
     assert len(ch.execute_profile(x, prof)) == 0
     assert ch.elapsed_s == 0.0
+
+
+def test_profile_that_would_outgrow_the_output_buffer_is_refused() -> None:
+    """The validation and the sizing are one number (PR #1857 review).
+
+    ``execute_profile`` sizes its output for at most a 2x expansion, so a
+    scale under 1/2 (below -5e5 ppm) would ask for more samples than it can
+    hold. It used to stop short without a word: -9e5 ppm returned 2002 samples
+    where 10000 were due. It is refused instead, with nothing written and the
+    clocks untouched; just inside the floor every output is produced.
+    """
+    n = 1000
+    x = np.ones(n, dtype=np.complex64)
+
+    ch = DopplerChannel(fs=FS, carrier_hz=0.0)
+    y = ch.execute_profile(x, np.full(n, -4.9e5))
+    # 1.96x expansion: every output is produced, none lost to the cap.
+    assert abs(len(y) - n / 0.51) <= 2
+
+    for ppm in (-5.5e5, -9e5):
+        ch = DopplerChannel(fs=FS, carrier_hz=0.0)
+        assert len(ch.execute_profile(x, np.full(n, ppm))) == 0
+        assert ch.elapsed_s == 0.0
+
+
+def test_non_finite_profile_sample_rejected() -> None:
+    """NaN failed the old ``> 0`` test by accident; ``+inf`` passed it and
+    produced one output with no error. Last sample, so only a whole-profile
+    check sees it."""
+    n = 1000
+    x = np.ones(n, dtype=np.complex64)
+    for bad in (np.nan, np.inf, -np.inf):
+        prof = np.full(n, 10.0)
+        prof[-1] = bad
+        ch = DopplerChannel(fs=FS, carrier_hz=0.0)
+        assert len(ch.execute_profile(x, prof)) == 0
+        assert ch.elapsed_s == 0.0

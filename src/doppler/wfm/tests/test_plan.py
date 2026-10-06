@@ -355,6 +355,43 @@ _DOPPLER_SCENES = {
         delay_samples=300,
         repeats=3,
     ),
+    # The branch #1863 just broke, in its noisiest form: a BUNDLED source,
+    # whose AWGN sits inside the channel, with the gaps never pulled.
+    "bundled_gap_noise_off": lambda: Segment.sum(
+        _q(snr=12.0, **_D),
+        gap_noise="off",
+        off_samples=700,
+        delay_samples=300,
+        repeats=3,
+        **_K,
+    ),
+    # A drawn Doppler no channel can be built for (at or below -1e6 ppm: a
+    # time base that stops or runs backwards). compose() fails the WHOLE
+    # instance -- delay + off of silence, no ON region -- and the Plan has to
+    # reach the same verdict from the same draws, not serve the clean signal.
+    "unbuildable_doppler": lambda: Segment.sum(
+        _t(doppler=-2.0e6, carrier_hz=2.2e9), **_GAPS, **_K
+    ),
+    # Some instances build and some do not: the failed ones are SHORTER, so
+    # every later instance moves, which the parallel render must also know.
+    "ranged_doppler_some_unbuildable": lambda: Segment.sum(
+        _t(doppler=(-1.5e6, 5.0), carrier_hz=2.2e9),
+        off_samples=700,
+        delay_samples=300,
+        repeats=12,
+        **_K,
+    ),
+    "persist_some_unbuildable": lambda: Segment.sum(
+        _t(
+            doppler=(-1.5e6, 5.0),
+            carrier_hz=2.2e9,
+            doppler_lifetime="persist",
+        ),
+        off_samples=700,
+        delay_samples=300,
+        repeats=12,
+        **_K,
+    ),
     "gap_noise_off": lambda: Segment.sum(
         _t(**_D),
         gap_noise="off",
@@ -386,7 +423,9 @@ def test_doppler_scene_is_bit_identical_to_compose(name: str) -> None:
     scene = Composer(_DOPPLER_SCENES[name]())
     plan = prepare(scene)
     ref = scene.compose()
-    assert len(plan) == len(ref)
+    # len() is a worst-case CAPACITY: a scene whose instances fail is shorter.
+    # The drawn length is the array's, which is what has to match.
+    assert len(plan) >= len(ref)
     _assert_bits(plan.render(), ref)
 
 
@@ -496,6 +535,79 @@ def test_doppler_phase_override_rotates_the_signal() -> None:
     rot = plan.render(phases=[np.pi / 2])
     assert not np.array_equal(rot, base)
     np.testing.assert_allclose(np.abs(rot), np.abs(base), atol=1e-5)
+
+
+def test_doppler_gain_axis_on_a_bundled_source_matches_compose() -> None:
+    """A bundled source's gain multiplies signal AND noise together, after the
+    channel (the noise is inside it), as compose() scales the whole stream."""
+
+    def scene(level: float) -> Composer:
+        return Composer(
+            Segment.sum(_q(snr=12.0, level=level, **_D), **_GAPS, **_K)
+        )
+
+    plan = prepare(scene(0.0))
+    _assert_bits(plan.render(gains=[-6.0]), scene(-6.0).compose())
+
+
+def test_doppler_phase_axis_on_a_bundled_source() -> None:
+    """Identity is exact; a real rotation changes the render. (Phase is a
+    Plan-only axis, so there is no compose() to compare a rotation to.)"""
+    plan = prepare(Composer(_DOPPLER_SCENES["bundled_noisy"]()))
+    base = plan.render()
+    _assert_bits(plan.render(phases=[0.0]), base)
+    assert not np.array_equal(plan.render(phases=[1.0]), base)
+
+
+def test_doppler_enable_axis() -> None:
+    """Dropping a Doppler source removes it: all-on is the baseline exactly,
+    and all-but-the-Doppler-tone is the same as that tone at a vanishing
+    level (its channel is not run at all)."""
+    plan = prepare(
+        Composer(_DOPPLER_SCENES["shared_noise_doppler_on_clean"]())
+    )
+    base = plan.render()
+    _assert_bits(plan.render(enable=[True, True]), base)
+    dropped = plan.render(enable=[True, False])
+    assert not np.array_equal(dropped, base)
+    np.testing.assert_allclose(
+        dropped, plan.render(gains=[0.0, -300.0]), atol=1e-6
+    )
+
+
+def test_seed_override_sets_every_sources_draw_seed() -> None:
+    """A seed override replaces EVERY source's seed for the Doppler draw, as it
+    does for the gap draw, so two ranged-Doppler sources stay independent
+    through the source index in the draw key rather than through their own
+    seeds. Tones, because their signal does not depend on the seed: the cache
+    is still the right signal for the recomposed scene."""
+
+    def scene(seed_a: int, seed_b: int) -> Composer:
+        return Composer(
+            Segment.sum(
+                tone(
+                    freq=1e5,
+                    seed=seed_a,
+                    sps=8,
+                    doppler=(2.0, 9.0),
+                    carrier_hz=2.2e9,
+                ),
+                tone(
+                    freq=-1e5,
+                    seed=seed_b,
+                    sps=8,
+                    doppler=(-8.0, -1.0),
+                    carrier_hz=2.2e9,
+                ),
+                **_GAPS,
+                **_K,
+            )
+        )
+
+    plan = prepare(scene(3, 5))
+    got = plan.render(seed=101)
+    _assert_bits(got, scene(101, 101).compose())
+    assert got.tobytes() != scene(101, 5).compose().tobytes()
 
 
 def test_background_source_with_doppler_is_still_refused() -> None:

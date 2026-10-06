@@ -976,6 +976,16 @@ version-check: ## [VERSION=x.y.z] Verify version strings agree
 # holding both the project's version and a dependency's at the same value
 # cannot be split, and runs everything.
 #
+# Each path is read from its `git diff --raw` record -- its old and new
+# mode, and the two blobs compared -- never from a list of names: a name
+# list has no modes, so a bump plus `chmod +x` on a script compared equal
+# and read as a bump alone (just-buildit.github.io#117). Only a regular
+# file whose mode did not change can be a bumped manifest. A mode change,
+# an added or removed file (mode 000000 on one side), a symlink (its blob
+# is a target path, which can read as a bumped line) and a submodule each
+# run everything. Submodules are never ignored, since `ignore = all` in
+# .gitmodules otherwise hides a moved pointer from the diff entirely.
+#
 # Fail-safe in every direction: an unreadable BASE, a probe that prints
 # nothing, no version change, an empty diff -- each answers src=true. The
 # worst this can do wrong is run a matrix that was not needed.
@@ -1003,15 +1013,21 @@ ci-changes: ## [BASE=<rev>] src=false when HEAD is only a version bump over BASE
 	 [ -n "$$old" ] && [ -n "$$new" ] \
 	     || say true "could not read the version at $$base or HEAD"; \
 	 [ "$$old" != "$$new" ] || say true "version unchanged ($$new)"; \
-	 files=$$(git diff --name-only "$$base" HEAD); \
-	 [ -n "$$files" ] || say true "no changes"; \
-	 n=0; \
-	 for f in $$files; do \
+	 git -c core.quotePath=false diff --raw --no-abbrev --no-renames \
+	     --ignore-submodules=none "$$base" HEAD > "$$tmp/raw" \
+	     || say true "cannot diff $$base against HEAD"; \
+	 [ -s "$$tmp/raw" ] || say true "no changes"; \
+	 tab=$$(printf '\t'); n=0; \
+	 while IFS="$$tab" read -r meta f; do \
 	     if printf '%s\n' "$$f" | grep -Eq '$(CI_INERT_RE)'; then continue; fi; \
-	     git cat-file -e "$$base:$$f" 2>/dev/null && git cat-file -e "HEAD:$$f" 2>/dev/null \
-	         || say true "$$f was added or removed"; \
-	     git show "$$base:$$f" > "$$tmp/was" \
-	         && git show "HEAD:$$f" > "$$tmp/got" \
+	     set -- $$meta; was=$${1#:}; now=$$2; \
+	     [ "$$was" = "$$now" ] \
+	         || say true "$$f was added, removed or changed mode ($$was -> $$now)"; \
+	     case "$$now" in 100644|100755) ;; \
+	         *) say true "$$f is a symlink or submodule (mode $$now), not a file";; \
+	     esac; \
+	     git cat-file blob "$$3" > "$$tmp/was" \
+	         && git cat-file blob "$$4" > "$$tmp/got" \
 	         || say true "cannot read $$f at $$base or HEAD"; \
 	     OLD="$$old" NEW="$$new" EOL=$$(tail -c1 "$$tmp/was" | wc -l) awk ' \
 	       function bump(s,   o, i) { \
@@ -1030,7 +1046,7 @@ ci-changes: ## [BASE=<rev>] src=false when HEAD is only a version bump over BASE
 	     && cmp -s "$$tmp/want" "$$tmp/got" \
 	         || say true "$$f changes more than the version string"; \
 	     n=$$((n + 1)); \
-	 done; \
+	 done < "$$tmp/raw"; \
 	 say false "a version bump alone ($$old -> $$new, $$n manifest(s)); the matrix can skip"
 
 # The other change CI has already tested: a push whose tree is a merged PR's

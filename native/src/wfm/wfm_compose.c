@@ -551,9 +551,14 @@ start_segment (dp_wfm_compose_state_t *s)
         ok = 0;
       else
         {
+          /* With gap_noise off the gaps are hard zeros and are never PULLED
+             (render_gap memsets), so the channel never sees the delay: its
+             input starts at ON. Declaring the delay anyway would feed it
+             `delay` samples of noise ahead of the burst and the burst would
+             land after its own ON region -- lost entirely. */
           if (s->rend[k]->ch)
-            dp_wfm_render_set_input_timeline (s->rend[k], s->cur_delay,
-                                              s->cur_num);
+            dp_wfm_render_set_input_timeline (
+                s->rend[k], g->gap_noise ? 0u : s->cur_delay, s->cur_num);
           s->n_syn = k + 1; /* track for stop_synths on partial failure */
           dp_wfm_synth_set_data_pacing (s->rend[k]->syn, s->pacing);
           s->stream[k] = (unsigned char)dp_wfm_source_data_is_stream (src);

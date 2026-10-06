@@ -2010,3 +2010,28 @@ def test_doppler_burst_after_a_delay_arrives_where_it_should(
     # The burst, less its two edges' ring: full amplitude, whole length.
     assert a[delay + _RING : delay + 1000 - _RING].min() > 0.9
     assert a[delay + 1000 + _RING :].max() == 0.0
+
+
+@pytest.mark.parametrize("delay", [64, 2000, 5000])
+def test_doppler_burst_with_gap_noise_off_is_not_shifted_by_the_delay(
+    delay: int,
+) -> None:
+    """With ``gap_noise="off"`` the gaps are hard zeros and are never pulled,
+    so the channel never sees the delay and its input starts at ON. Declaring
+    the delay to the channel anyway fed it ``delay`` samples ahead of the
+    burst and the burst landed after its own ON region: lost entirely (mean
+    0.0 against 1.0). A regression of the doppler#1858 fix, found by reading
+    ``render_gap``; the default ``auto`` was never affected, which is why the
+    tests above did not see it."""
+    seg = Segment.sum(
+        tone(freq=1e5, doppler=20.0, carrier_hz=2.2e9, seed=3, sps=8),
+        fs=1e6,
+        num_samples=1000,
+        off_samples=3000,
+        delay_samples=delay,
+        gap_noise="off",
+    )
+    a = np.abs(np.asarray(Composer(seg).compose()))
+    assert a[:delay].max() == 0.0
+    assert a[delay + _RING : delay + 1000 - _RING].min() > 0.9
+    assert a[delay + 1000 + _RING :].max() == 0.0

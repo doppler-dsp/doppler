@@ -83,15 +83,16 @@ AccF32_step (AccF32Object *self, PyObject *args)
 }
 
 static PyObject *
-AccF32_steps (AccF32Object *self, PyObject *args)
+AccF32_steps (AccF32Object *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  PyObject *in_obj = NULL;
-  if (!PyArg_ParseTuple (args, "O", &in_obj))
+  static char *kwlist[] = { "x", NULL };
+  PyObject    *in_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", kwlist, &in_obj))
     return NULL;
 
   PyArrayObject *in_arr = (PyArrayObject *)jm_array_arg (
@@ -370,8 +371,8 @@ static PyMethodDef AccF32_methods[] = {
     ">>> obj.get()\n"
     "3.0\n"
     "\n" },
-  { "steps", (PyCFunction)AccF32_steps, METH_VARARGS,
-    "steps(x[, out]) -> ndarray\n"
+  { "steps", (PyCFunction)(void *)AccF32_steps, METH_VARARGS | METH_KEYWORDS,
+    "steps(x)\n"
     "\n"
     "Add all samples in ``input`` to the running sum. Equivalent to\n"
     "calling ``dp_acc_f32_step`` for each element, but SIMD-vectorised on\n"

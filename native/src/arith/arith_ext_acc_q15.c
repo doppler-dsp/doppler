@@ -85,15 +85,16 @@ AccQ15_step (AccQ15Object *self, PyObject *args)
 }
 
 static PyObject *
-AccQ15_steps (AccQ15Object *self, PyObject *args)
+AccQ15_steps (AccQ15Object *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  PyObject *in_obj = NULL;
-  if (!PyArg_ParseTuple (args, "O", &in_obj))
+  static char *kwlist[] = { "x", NULL };
+  PyObject    *in_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", kwlist, &in_obj))
     return NULL;
 
   PyArrayObject *in_arr = (PyArrayObject *)jm_array_arg (
@@ -311,8 +312,8 @@ static PyMethodDef AccQ15_methods[] = {
     ">>> obj.get()\n"
     "300\n"
     "\n" },
-  { "steps", (PyCFunction)AccQ15_steps, METH_VARARGS,
-    "steps(x[, out]) -> ndarray\n"
+  { "steps", (PyCFunction)(void *)AccQ15_steps, METH_VARARGS | METH_KEYWORDS,
+    "steps(x)\n"
     "\n"
     "Accumulate a contiguous block of Q15 samples. Equivalent to calling\n"
     "step() n times but faster for large arrays because the loop can be\n"

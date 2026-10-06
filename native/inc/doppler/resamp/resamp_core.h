@@ -205,8 +205,15 @@ extern "C"
    * with the dilation and cannot depend on how the stream was chunked --
    * `pos` is relative to `in[0]` only so that its magnitude stays small.
    *
-   * @param pos  Output positions, parallel to @p out (capacity @p max_out).
-   *             Must be non-NULL.
+   * @param state    Must be non-NULL.
+   * @param in       Input CF32 samples (length num_in).
+   * @param ctrl     Rate deviations, parallel to in (length num_in).
+   * @param num_in   Number of input samples (= length of ctrl).
+   * @param out      Output buffer.
+   * @param pos      Output positions, parallel to @p out (capacity
+   *                 @p max_out). Must be non-NULL.
+   * @param max_out  Capacity of @p out and @p pos in samples.
+   * @return Number of output samples written.
    * @see dp_resamp_execute_ctrl
    */
   size_t dp_resamp_execute_ctrl_pos (resamp_state_t *state,

@@ -64,7 +64,7 @@ import sys
 from pathlib import Path
 
 from _gitbase import BaseUnreadableError, in_git_repo, show_at_base
-from _layout import header
+from _layout import GLUE_FRAGMENT, header
 
 ROOT = Path(__file__).resolve().parent.parent
 ALLOW = Path(__file__).parent / ".alloc-helper-allow"
@@ -82,7 +82,7 @@ SANCTIONED = header("clib_common.h")
 #: buffers whose size comes from the CALLER, checks for NULL and raises
 #: MemoryError -- correct, reachable error handling -- and jm owns the code
 #: either way, so a gate here would be a gate against the generator.
-GENERATED = re.compile(r"_ext(_[a-z0-9_]+)?\.c$")
+GENERATED = GLUE_FRAGMENT
 
 #: `dp_xmalloc (` must not match: the character before `malloc` is `x`, which
 #: the look-behind rejects. `p->realloc_hook` likewise, via the `.`/`>` guard.

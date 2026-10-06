@@ -91,9 +91,9 @@ The Fibonacci output is the Galois output read BACKWARDS about index 0. No plain
 
 ### 2.4 Defaulting, reset and resume
 
-**`poly = 0` is not a polynomial.** At the C level `dp_pn_create` takes the mask verbatim, so a zero tap mask is a register with no feedback: it shifts the seed out and emits zeros forever -- "a constant field that still looks like a field". Every caller that lets a user say *default* therefore resolves it as `poly ? poly : pn_mls_poly(n)`. That resolution was audited across the tree for this report and all three production call sites do it: `dp_wfm_synth_create` on both its branches (and it rejects a width the table has no entry for), `wfm_frame`'s PN sequence kind, and the `PN` binding itself (guarded at `length >= 2`, since the table starts at n=2).
+**`poly = 0` is not a polynomial.** At the C level `dp_pn_create` takes the mask verbatim, so a zero tap mask is a register with no feedback: it shifts the seed out and emits zeros forever -- "a constant field that still looks like a field". Every caller that lets a user say *default* therefore resolves it as `poly ? poly : pn_mls_poly(n)`. That resolution was audited across the tree for this report and all three production call sites do it: `dp_wfm_synth_create` on both its branches (and it rejects a width the table has no entry for), `wfm_frame`'s PN sequence kind, and `dp_pn_create_mls`, the constructor the `PN` binding calls (a width the table has no entry for keeps `poly = 0` and is built as `dp_pn_create` builds it).
 
-So from Python `PN(seed=1, length=7)`, `PN(poly=0, ...)` and `PN(poly=mls_poly(7), ...)` are one sequence. The unresolved C-level behaviour is **C-ONLY** -- the binding resolves it before `dp_pn_create` sees it, so Python cannot reach the zeros; it is pinned in `test_pn_core.c` (F3).
+So from Python `PN(seed=1, length=7)`, `PN(poly=0, ...)` and `PN(poly=mls_poly(7), ...)` are one sequence. The unresolved C-level behaviour is **C-ONLY** -- the binding's constructor, `dp_pn_create_mls`, resolves it before `dp_pn_create` sees it, so Python cannot reach the zeros; both are pinned in `test_pn_core.c` (F3).
 
 `reset()` returns the register to its seed so the sequence restarts from chip 0, and a serialized blob resumes a mid-sequence generator bit-exactly into a fresh instance -- both over a full period.
 

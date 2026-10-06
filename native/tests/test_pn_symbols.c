@@ -23,7 +23,7 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_pn[] = {
-    (jm_any_fn)dp_pn_create,
+    (jm_any_fn)dp_pn_create_mls,
     (jm_any_fn)dp_pn_destroy,
     (jm_any_fn)dp_pn_reset,
     (jm_any_fn)dp_pn_state_bytes,

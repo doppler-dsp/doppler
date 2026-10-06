@@ -308,5 +308,53 @@ main (void)
       }
   }
 
+  /* ── dp_pn_create_mls: the resolution, as a constructor ────────────────
+   * dp_pn_create stays verbatim (pinned just above); dp_pn_create_mls is
+   * `poly ? poly : pn_mls_poly (length)` in front of it, and is what the PN
+   * binding calls. */
+  {
+    /* poly 0 is the m-sequence polynomial, bit-for-bit what the caller
+       would have got by resolving it themselves, in both realisations and
+       across widths that straddle 32 (poly > 2^32) and the 64-bit top. */
+    const uint32_t widths[] = { 2, 5, 7, 9, 16, 20, 32, 33, 64 };
+    for (size_t w = 0; w < sizeof (widths) / sizeof (widths[0]); w++)
+      for (int kind = PN_GALOIS; kind <= PN_FIBONACCI; kind++)
+        {
+          const uint32_t n = widths[w];
+          dp_pn_state_t *a = dp_pn_create_mls (0, 1, n, kind);
+          dp_pn_state_t *b = dp_pn_create (pn_mls_poly (n), 1, n, kind);
+          DP_CHECK (a != NULL && b != NULL);
+          if (a && b)
+            {
+              uint8_t ca[256], cb[256];
+              DP_CHECK (a->poly == b->poly && a->poly != 0);
+              DP_CHECK (dp_pn_generate (a, 256, ca, 256) == 256);
+              DP_CHECK (dp_pn_generate (b, 256, cb, 256) == 256);
+              DP_CHECK (memcmp (ca, cb, sizeof ca) == 0);
+            }
+          dp_pn_destroy (a);
+          dp_pn_destroy (b);
+        }
+
+    /* A non-zero poly is taken as given, not replaced by the table's. */
+    {
+      dp_pn_state_t *p = dp_pn_create_mls (0x30, 1, 7, PN_GALOIS);
+      DP_CHECK (p != NULL && p->poly == 0x30u);
+      dp_pn_destroy (p);
+    }
+
+    /* A width with no m-sequence keeps poly 0 and builds as dp_pn_create
+       builds it -- the width-1 PN() the Python tests pin. 65 has no register
+       to build, and a seed that masks to zero is refused, as before. */
+    {
+      dp_pn_state_t *one = dp_pn_create_mls (0, 1, 1, PN_GALOIS);
+      DP_CHECK (one != NULL && one->poly == 0u);
+      dp_pn_destroy (one);
+    }
+    DP_CHECK (dp_pn_create_mls (0, 1, 65, PN_GALOIS) == NULL);
+    DP_CHECK (dp_pn_create_mls (0, 0, 7, PN_GALOIS) == NULL);
+    DP_CHECK (dp_pn_create_mls (0, 1, 0, PN_GALOIS) == NULL);
+  }
+
   DP_TEST_END ("test_pn_core");
 }

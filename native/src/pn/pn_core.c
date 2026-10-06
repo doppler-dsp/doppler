@@ -41,6 +41,17 @@ dp_pn_create (uint64_t poly, uint64_t seed, uint32_t length, int lfsr)
   return obj;
 }
 
+dp_pn_state_t *
+dp_pn_create_mls (uint64_t poly, uint64_t seed, uint32_t length, int lfsr)
+{
+  /* poly 0 is "the maximal-length polynomial for this register" (#191), the
+     resolution dp_wfm_synth_create() and dp_wfm_seq_pn_create() make before
+     they call dp_pn_create(), which takes the mask verbatim. pn_mls_poly()
+     is 0 outside 2..64, so a width with no m-sequence keeps poly 0 and is
+     built exactly as dp_pn_create() builds it. */
+  return dp_pn_create (poly ? poly : pn_mls_poly (length), seed, length, lfsr);
+}
+
 void
 dp_pn_destroy (dp_pn_state_t *state)
 {

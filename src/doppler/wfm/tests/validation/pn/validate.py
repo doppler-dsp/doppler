@@ -558,16 +558,18 @@ def measure_lifecycle(d: Data) -> None:
         "across the tree for this report and all three production call "
         "sites do it: `dp_wfm_synth_create` on both its branches (and it "
         "rejects a width the table has no entry for), `wfm_frame`'s PN "
-        "sequence kind, and the `PN` binding itself (guarded at "
-        "`length >= 2`, since the table starts at n=2)."
+        "sequence kind, and `dp_pn_create_mls`, the constructor the `PN` "
+        "binding calls (a width the table has no entry for keeps "
+        "`poly = 0` and is built as `dp_pn_create` builds it)."
     )
     R.md()
     R.md(
         "So from Python `PN(seed=1, length=7)`, `PN(poly=0, ...)` and "
         "`PN(poly=mls_poly(7), ...)` are one sequence. The unresolved "
-        "C-level behaviour is **C-ONLY** -- the binding resolves it "
-        "before `dp_pn_create` sees it, so Python cannot reach the zeros; "
-        "it is pinned in `test_pn_core.c` (F3)."
+        "C-level behaviour is **C-ONLY** -- the binding's constructor, "
+        "`dp_pn_create_mls`, resolves it before `dp_pn_create` sees it, so "
+        "Python cannot reach the zeros; both are pinned in "
+        "`test_pn_core.c` (F3)."
     )
     R.md()
     R.md(

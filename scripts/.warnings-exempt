@@ -46,7 +46,6 @@ native/src/track/track_ext_mpsk_receiver.c
 native/src/track/track_ext_mpskreceiverr.c
 native/src/wfm/wfm_ext_frame.c
 native/src/wfm/wfm_ext_framedesc.c
-native/src/wfm/wfm_ext_pn.c
 native/src/wfm/wfm_ext_wfm_synth.c
 native/src/wfm_reader/wfm_reader_ext_wfm_reader.c
 native/src/wfm_writer/wfm_writer_ext_wfm_writer.c

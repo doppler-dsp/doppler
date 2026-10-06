@@ -1312,6 +1312,7 @@
 * **dp\_nprmeas\_spectrum\_dbfs** ([**nprmeas\_core.h**](nprmeas__core_8h.md))
 * **dp\_nprmeas\_spectrum\_dbfs\_max\_out** ([**nprmeas\_core.h**](nprmeas__core_8h.md))
 * **dp\_pn\_create** ([**pn\_core.h**](pn__core_8h.md))
+* **dp\_pn\_create\_mls** ([**pn\_core.h**](pn__core_8h.md))
 * **dp\_pn\_destroy** ([**pn\_core.h**](pn__core_8h.md))
 * **dp\_pn\_generate** ([**pn\_core.h**](pn__core_8h.md))
 * **dp\_pn\_generate\_max\_out** ([**pn\_core.h**](pn__core_8h.md))

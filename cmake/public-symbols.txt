@@ -1175,6 +1175,7 @@ dp_nprmeas_spectrum_dbfs_max_out function
 dp_nrz_to_bin function
 dp_obw_from_power function
 dp_pn_create function
+dp_pn_create_mls function
 dp_pn_destroy function
 dp_pn_generate function
 dp_pn_generate_max_out function

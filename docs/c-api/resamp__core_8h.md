@@ -385,7 +385,20 @@ What it is for: the excess delay a time-dilating channel has accumulated at outp
 **Parameters:**
 
 
+* `state` Must be non-NULL. 
+* `in` Input CF32 samples (length num\_in). 
+* `ctrl` Rate deviations, parallel to in (length num\_in). 
+* `num_in` Number of input samples (= length of ctrl). 
+* `out` Output buffer. 
 * `pos` Output positions, parallel to `out` (capacity `max_out`). Must be non-NULL. 
+* `max_out` Capacity of `out` and `pos` in samples. 
+
+
+
+**Returns:**
+
+Number of output samples written. 
+
 
 
 

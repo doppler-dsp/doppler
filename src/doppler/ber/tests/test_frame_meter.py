@@ -164,3 +164,19 @@ def test_context_manager():
 def test_destroy():
     obj = FrameMeter(target_errors=200, conf=0.99)
     obj.destroy()
+
+
+@pytest.mark.parametrize("rate", ["fer", "sync_miss"])
+def test_a_rate_takes_no_arguments(rate: str) -> None:
+    """`fer()` and `sync_miss()` are METH_NOARGS: a stray argument is refused.
+
+    They were METH_VARARGS wrappers that never read their arguments, so
+    `meter.fer(1)` quietly returned the rate. jm renders a no-argument method
+    that returns a record as METH_NOARGS (jm gh-1959), and a caller who thought
+    `fer` took a confidence now hears about it.
+    """
+    meter = FrameMeter(target_errors=10, conf=0.99)
+    meter.add(1, 1)
+    getattr(meter, rate)()  # the real call still works
+    with pytest.raises(TypeError):
+        getattr(meter, rate)(1)

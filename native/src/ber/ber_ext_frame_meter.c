@@ -1,8 +1,10 @@
+/* jm:generated ber_ext_frame_meter.c */
 /*
  * ber_ext_frame_meter.c — FrameMeter type for the ber module.
  *
  * Included by ber_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in ber_ext_frame_meter_extra.c.
  * Do NOT compile this file directly — only ber_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ FrameMeterObj_dealloc (FrameMeterObject *self)
 static PyObject *
 FrameMeterObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   FrameMeterObject *self = (FrameMeterObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -100,7 +105,7 @@ static PyStructSequence_Desc FrameMeterObj_fer_desc
 static PyTypeObject *FrameMeterObj_fer_type = NULL;
 
 static PyObject *
-FrameMeterObj_fer (FrameMeterObject *self, PyObject *args)
+FrameMeterObj_fer (FrameMeterObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -148,7 +153,7 @@ static PyStructSequence_Desc FrameMeterObj_sync_miss_desc
 static PyTypeObject *FrameMeterObj_sync_miss_type = NULL;
 
 static PyObject *
-FrameMeterObj_sync_miss (FrameMeterObject *self, PyObject *args)
+FrameMeterObj_sync_miss (FrameMeterObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -309,7 +314,7 @@ static PyGetSetDef FrameMeter_getset[]
           "measurement has the precision it asked for rather than until a "
           "frame count someone guessed.\n",
           NULL },
-        { NULL } };
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 FrameMeterObj_destroy (FrameMeterObject *self, PyObject *Py_UNUSED (ignored))
@@ -398,19 +403,18 @@ static PyMethodDef FrameMeterObj_methods[] = {
     ">>> met.add(1, -1)   # found, no CRC: delivered but not CHECKED\n"
     ">>> met.frames, met.sync_detected, met.crc_passed, met.errors\n"
     "(4, 3, 1, 2)\n" },
-  { "fer", (PyCFunction)FrameMeterObj_fer, METH_VARARGS,
+  { "fer", (PyCFunction)FrameMeterObj_fer, METH_NOARGS,
     "fer() -> BerInterval record (p_hat, lo, hi, rel, conf, errors, symbols)\n"
     "\n"
-    "Frame error rate with its exact interval, as a BerInterval. Assert\n"
-    "on `lo`, never on `p_hat`: comparing the lower limit against a spec is\n"
-    "the form that cannot flake on counting noise. A frame that was never\n"
-    "detected counts as an error -- a frame you did not detect is a frame\n"
-    "you did not deliver.\n"
+    "Frame error rate with its exact interval, as a BerInterval. Assert on "
+    "`lo`, never on `p_hat`: comparing the lower limit against a spec is the "
+    "form that cannot flake on counting noise. A frame that was never "
+    "detected counts as an error -- a frame you did not detect is a frame you "
+    "did not deliver.\n"
     "\n"
-    "`dp_ber_confidence(errors, frames, conf)` — the same interval "
-    "`ber_meter`\n"
-    "reports, which is generic over trials and therefore applies to frames\n"
-    "unchanged. Assert on `lo`, never on `p_hat`.\n"
+    "`dp_ber_confidence(errors, frames, conf)` — the same interval\n"
+    "`ber_meter` reports, which is generic over trials and therefore applies\n"
+    "to frames unchanged. Assert on `lo`, never on `p_hat`.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -428,15 +432,15 @@ static PyMethodDef FrameMeterObj_methods[] = {
     ">>> fer = met.fer()\n"
     ">>> round(fer.p_hat, 3), fer.lo < fer.p_hat < fer.hi\n"
     "(0.158, True)\n" },
-  { "sync_miss", (PyCFunction)FrameMeterObj_sync_miss, METH_VARARGS,
+  { "sync_miss", (PyCFunction)FrameMeterObj_sync_miss, METH_NOARGS,
     "sync_miss() -> BerInterval record (p_hat, lo, hi, rel, conf, errors, "
     "symbols)\n"
     "\n"
-    "Sync MISS rate with its exact interval, as a BerInterval. Reported\n"
-    "as a miss rather than a detection rate so it is an ERROR rate like\n"
-    "every other number in this module and the same interval applies\n"
-    "unchanged. This is what turns 'is this sync word long enough at this\n"
-    "Es/N0' into a measurement rather than a judgement.\n"
+    "Sync MISS rate with its exact interval, as a BerInterval. Reported as a "
+    "miss rather than a detection rate so it is an ERROR rate like every "
+    "other number in this module and the same interval applies unchanged. "
+    "This is what turns 'is this sync word long enough at this Es/N0' into a "
+    "measurement rather than a judgement.\n"
     "\n"
     "Reported as a miss rate rather than a detection rate so it is an ERROR\n"
     "rate like every other number here, and so the same interval applies\n"
@@ -544,11 +548,11 @@ static PyMethodDef FrameMeterObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject FrameMeterObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "ber.FrameMeter",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.ber.FrameMeter",
   .tp_basicsize                           = sizeof (FrameMeterObject),
   .tp_dealloc                             = (destructor)FrameMeterObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

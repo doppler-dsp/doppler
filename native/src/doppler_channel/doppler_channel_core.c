@@ -92,6 +92,11 @@ dp_doppler_channel_execute (dp_doppler_channel_state_t *state,
                             float _Complex *out, size_t max_out)
 {
   size_t n_out = 0;
+  /* The closed form drives this call, so it is what offset_hz describes
+     again: a profile's last d would otherwise outlive the stream it was the
+     Doppler of. An empty call applies nothing and leaves it alone. */
+  if (x_len)
+    state->profiled = 0u;
   /* Chip away at the input in ctrl-buffer-sized pieces. dp_resamp_execute_ctrl
      is input-driven and its accumulator carries across calls, so chunking here
      is invisible in the output. */

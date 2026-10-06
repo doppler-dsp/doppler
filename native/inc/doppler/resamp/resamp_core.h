@@ -192,9 +192,11 @@ extern "C"
    * `pos[j]` is output `j`'s position on the input timeline, in input
    * samples, measured from `in[0]`: the newest input sample under the taps
    * plus the fraction of an interval past it, exactly the quantity the
-   * accumulator already holds. It is NEGATIVE only for an output emitted
-   * before `in[0]` was loaded -- the first tick of a fresh stream, at
-   * `-1`. The group delay (dp_resamp_get_delay()) is not in it: it is where
+   * accumulator already holds. It is NEGATIVE for an output emitted
+   * before `in[0]` was loaded, which is a tick that falls ahead of a call's
+   * first sample -- possible at the head of EVERY call, not only the first
+   * of a fresh stream (where it is `-1`). Add the count of inputs consumed
+   * by earlier calls and it is the stream-absolute position. The group delay (dp_resamp_get_delay()) is not in it: it is where
    * the interpolation is centred, not where the content came from.
    *
    * What it is for: the excess delay a time-dilating channel has accumulated

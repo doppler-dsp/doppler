@@ -1,8 +1,10 @@
+/* jm:generated track_ext_carrier_mpsk.c */
 /*
  * track_ext_carrier_mpsk.c — CarrierMpsk type for the track module.
  *
  * Included by track_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in track_ext_carrier_mpsk_extra.c.
  * Do NOT compile this file directly — only track_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ CarrierMpskObj_dealloc (CarrierMpskObject *self)
 static PyObject *
 CarrierMpskObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   CarrierMpskObject *self = (CarrierMpskObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -87,8 +92,7 @@ CarrierMpskObj_steps (CarrierMpskObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
-                                             NPY_ARRAY_C_CONTIGUOUS);
+  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     return NULL;
   if (out_obj && out_obj != Py_None)
@@ -106,9 +110,9 @@ CarrierMpskObj_steps (CarrierMpskObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (x_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_COMPLEX64,
-          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (x_arr);
@@ -140,6 +144,15 @@ CarrierMpskObj_steps (CarrierMpskObject *self, PyObject *args, PyObject *kwds)
         n_out = dp_carrier_mpsk_steps (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "CarrierMpsk.steps: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
                                                     PyArray_DATA (out_arr));
@@ -148,14 +161,29 @@ CarrierMpskObj_steps (CarrierMpskObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   size_t _cap  = dp_carrier_mpsk_steps_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "CarrierMpsk.steps: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
   if (!arr0)
     {
@@ -174,6 +202,15 @@ CarrierMpskObj_steps (CarrierMpskObject *self, PyObject *args, PyObject *kwds)
     n_out = dp_carrier_mpsk_steps (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "CarrierMpsk.steps: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -404,7 +441,7 @@ static PyGetSetDef CarrierMpsk_getset[]
           "FLL-assist bandwidth (0 = pure PLL).\n", NULL },
         { "m", (getter)CarrierMpsk_getprop_m, NULL,
           "constellation order M (2, 4, 8).\n", NULL },
-        { NULL } };
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 CarrierMpskObj_destroy (CarrierMpskObject *self, PyObject *Py_UNUSED (ignored))
@@ -523,12 +560,11 @@ static PyMethodDef CarrierMpskObj_methods[] = {
     "frequency/phase estimate.\n"
     "\n"
     "Re-derives the proportional/integral gains of the embedded 2nd-order\n"
-    "loop filter for the new noise bandwidth and damping, leaving the "
-    "running\n"
-    "frequency and phase estimate (the NCO and the loop integrator) "
-    "untouched\n"
-    "— a live lock survives a re-tune. Use it to widen the loop for fast\n"
-    "pull-in and then narrow it for low-jitter tracking, mid-stream.\n"
+    "loop filter for the new noise bandwidth and damping, leaving the\n"
+    "running frequency and phase estimate (the NCO and the loop integrator)\n"
+    "untouched — a live lock survives a re-tune. Use it to widen the loop\n"
+    "for fast pull-in and then narrow it for low-jitter tracking,\n"
+    "mid-stream.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -634,12 +670,11 @@ static PyMethodDef CarrierMpskObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)CarrierMpskObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
@@ -654,9 +689,8 @@ static PyMethodDef CarrierMpskObj_methods[] = {
     "Exit a context manager, releasing the CarrierMpsk.\n"
     "\n"
     "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
-    "raised inside the `with` body propagates normally; this never "
-    "suppresses\n"
-    "one.\n"
+    "raised inside the `with` body propagates normally; this never\n"
+    "suppresses one.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -666,11 +700,11 @@ static PyMethodDef CarrierMpskObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject CarrierMpskObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "track.CarrierMpsk",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.track.CarrierMpsk",
   .tp_basicsize                           = sizeof (CarrierMpskObject),
   .tp_dealloc                             = (destructor)CarrierMpskObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

@@ -6,6 +6,7 @@ no_state = "true"
 no_step = "false"
 class_name = "AGC"
 serializable = "true"
+fragment = "generated"
 
 # Telemetry attach (jm gh-432): the dp_tlm_t* crosses as the named capsule
 # exposed by doppler.telemetry.Telemetry._capsule (the binding also accepts

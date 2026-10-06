@@ -1,8 +1,10 @@
+/* jm:generated track_ext_symsync.c */
 /*
  * track_ext_symsync.c — SymbolSync type for the track module.
  *
  * Included by track_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in track_ext_symsync_extra.c.
  * Do NOT compile this file directly — only track_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ SymbolSyncObj_dealloc (SymbolSyncObject *self)
 static PyObject *
 SymbolSyncObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   SymbolSyncObject *self = (SymbolSyncObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -110,8 +115,7 @@ SymbolSyncObj_steps (SymbolSyncObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
-                                             NPY_ARRAY_C_CONTIGUOUS);
+  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     return NULL;
   if (out_obj && out_obj != Py_None)
@@ -129,9 +133,9 @@ SymbolSyncObj_steps (SymbolSyncObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (x_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_COMPLEX64,
-          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (x_arr);
@@ -163,6 +167,15 @@ SymbolSyncObj_steps (SymbolSyncObject *self, PyObject *args, PyObject *kwds)
         n_out = dp_symsync_steps (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "SymbolSync.steps: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
                                                     PyArray_DATA (out_arr));
@@ -171,14 +184,29 @@ SymbolSyncObj_steps (SymbolSyncObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   size_t _cap  = dp_symsync_steps_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "SymbolSync.steps: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
   if (!arr0)
     {
@@ -197,6 +225,15 @@ SymbolSyncObj_steps (SymbolSyncObject *self, PyObject *args, PyObject *kwds)
     n_out = dp_symsync_steps (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "SymbolSync.steps: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -251,7 +288,8 @@ SymbolSyncObj_set_telemetry (SymbolSyncObject *self, PyObject *args,
   int      _rc   = dp_symsync_set_telemetry (self->handle, tlm, prefix, decim);
   if (_rc != 0)
     {
-      PyErr_Format (PyExc_ValueError, "set_telemetry failed (rc=%d)", _rc);
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_telemetry failed",
+                    (long long)_rc);
       return NULL;
     }
   Py_RETURN_NONE;
@@ -296,7 +334,8 @@ SymbolSyncObj_configure_lock (SymbolSyncObject *self, PyObject *args,
                                        pd);
   if (_rc != 0)
     {
-      PyErr_Format (PyExc_ValueError, "configure_lock failed (rc=%d)", _rc);
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "configure_lock failed",
+                    (long long)_rc);
       return NULL;
     }
   Py_RETURN_NONE;
@@ -485,7 +524,7 @@ static PyGetSetDef SymbolSync_getset[]
           "consecutive above-threshold decisions, False again after the drop "
           "count of consecutive below-threshold ones (see configure_lock).\n",
           NULL },
-        { NULL } };
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 SymbolSyncObj_destroy (SymbolSyncObject *self, PyObject *Py_UNUSED (ignored))
@@ -632,9 +671,8 @@ static PyMethodDef SymbolSyncObj_methods[] = {
     "Recompute the loop gains for a new (bn, zeta); preserve the timing "
     "estimate.\n"
     "\n"
-    "Retunes the PI timing loop in place: the proportional/integral gains "
-    "are\n"
-    "recomputed from the new noise bandwidth and damping, while the NCO\n"
+    "Retunes the PI timing loop in place: the proportional/integral gains\n"
+    "are recomputed from the new noise bandwidth and damping, while the NCO\n"
     "phase, tracked rate and loop-filter integrator carry over — so a locked\n"
     "loop is re-bandwidthed (e.g. narrowed after acquisition) without losing\n"
     "lock.\n"
@@ -657,19 +695,19 @@ static PyMethodDef SymbolSyncObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "configure_lock(rolloff, esno_min_db, pfa, pd) -> None\n"
     "\n"
-    "Tune the always-on timing-lock detector to a target (pfa, pd) at a\n"
-    "given link operating point. The statistic is a Gardner-style\n"
-    "eye-opening ratio, lock_signal =\n"
-    "2*(|on-time|^2-|mid-symbol|^2)/(|on-time|^2+|mid-symbol|^2),\n"
-    "non-coherently block-averaged over avgs looks before each decision\n"
-    "(mirroring Dll's tumbling-window CFAR pattern). avgs and the declare\n"
-    "threshold are sized from a Gaussian approximation: a per-look mean is\n"
-    "estimated from rolloff and esno_min_db, then the classic N =\n"
-    "variance*((Q^-1(pfa)-Q^-1(pd))/mean)^2 / threshold =\n"
-    "Q^-1(pfa)*mean/(Q^-1(pfa)-Q^-1(pd)) derivation gives (avgs, threshold).\n"
-    "No level hysteresis by default (up=down=threshold, matching\n"
-    "Dll.configure_lock's shape); n_up=1, n_down=8. Raises ValueError if\n"
-    "pfa/pd are outside (0, 1) or pd does not exceed pfa. Read the result\n"
+    "Tune the always-on timing-lock detector to a target (pfa, pd) at a given "
+    "link operating point. The statistic is a Gardner-style eye-opening "
+    "ratio, lock_signal = "
+    "2*(|on-time|^2-|mid-symbol|^2)/(|on-time|^2+|mid-symbol|^2), "
+    "non-coherently block-averaged over avgs looks before each decision "
+    "(mirroring Dll's tumbling-window CFAR pattern). avgs and the declare "
+    "threshold are sized from a Gaussian approximation: a per-look mean is "
+    "estimated from rolloff and esno_min_db, then the classic N = "
+    "variance*((Q^-1(pfa)-Q^-1(pd))/mean)^2 / threshold = "
+    "Q^-1(pfa)*mean/(Q^-1(pfa)-Q^-1(pd)) derivation gives (avgs, threshold). "
+    "No level hysteresis by default (up=down=threshold, matching "
+    "Dll.configure_lock's shape); n_up=1, n_down=8. Raises ValueError if "
+    "pfa/pd are outside (0, 1) or pd does not exceed pfa. Read the result "
     "from the locked / lock_stat properties.\n"
     "\n"
     "Sizes the non-coherent block size (avgs) and declare threshold from a\n"
@@ -779,9 +817,8 @@ static PyMethodDef SymbolSyncObj_methods[] = {
     "to the nominal one-wrap-per-symbol rate, the Farrow history and TED\n"
     "state are cleared, the loop-filter integrator is emptied and the lock\n"
     "detector is dropped. The configured (bn, zeta), TED selection and any\n"
-    "lock geometry are preserved, so the same object can be re-run on a "
-    "fresh\n"
-    "stream.\n"
+    "lock geometry are preserved, so the same object can be re-run on a\n"
+    "fresh stream.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -847,12 +884,11 @@ static PyMethodDef SymbolSyncObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)SymbolSyncObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
@@ -878,11 +914,11 @@ static PyMethodDef SymbolSyncObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject SymbolSyncObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "track.SymbolSync",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.track.SymbolSync",
   .tp_basicsize                           = sizeof (SymbolSyncObject),
   .tp_dealloc                             = (destructor)SymbolSyncObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

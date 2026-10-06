@@ -5,6 +5,7 @@ mutable = "false"
 no_state = "true"
 no_step = "false"
 class_name = "I16U64ToF32"
+fragment = "generated"
 
 [[i16u64_to_f32.init_params]]
 name = "scale"

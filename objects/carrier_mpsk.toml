@@ -10,6 +10,7 @@ depends_on = [
   { name = "lo", link = true },
   { name = "loop_filter", link = true },
 ]
+fragment = "generated"
 
 [[carrier_mpsk.init_params]]
 name = "bn"

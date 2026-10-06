@@ -5,6 +5,7 @@ mutable = "false"
 no_state = "true"
 no_step = "false"
 class_name = "UQ15ToF32"
+fragment = "generated"
 
 [[uq15_to_f32.init_params]]
 name = "scale"

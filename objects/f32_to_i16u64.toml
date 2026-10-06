@@ -6,6 +6,7 @@ no_state = "true"
 no_step = "false"
 class_name = "F32ToI16U64"
 serializable = "true"
+fragment = "generated"
 
 [[f32_to_i16u64.init_params]]
 name = "scale"

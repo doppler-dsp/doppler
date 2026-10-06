@@ -1,8 +1,10 @@
+/* jm:generated track_ext_loop_filter.c */
 /*
  * track_ext_loop_filter.c — LoopFilter type for the track module.
  *
  * Included by track_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in track_ext_loop_filter_extra.c.
  * Do NOT compile this file directly — only track_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ LoopFilterObj_dealloc (LoopFilterObject *self)
 static PyObject *
 LoopFilterObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   LoopFilterObject *self = (LoopFilterObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -85,8 +90,8 @@ LoopFilter_steps (LoopFilterObject *self, PyObject *args, PyObject *kwds)
                                     &out_obj))
     return NULL;
 
-  PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      in_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *in_arr = (PyArrayObject *)jm_array_arg (
+      in_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!in_arr)
     return NULL;
 
@@ -107,8 +112,9 @@ LoopFilter_steps (LoopFilterObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr = (PyArrayObject *)jm_array_arg (
+          out_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE,
+          "out");
       if (!out_arr)
         {
           Py_DECREF (in_arr);
@@ -321,7 +327,7 @@ static PyGetSetDef LoopFilter_getset[]
           "damping factor (0.707 = critically damped).\n", NULL },
         { "t", (getter)LoopFilter_getprop_t, NULL,
           "update period in samples.\n", NULL },
-        { NULL } };
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 LoopFilterObj_destroy (LoopFilterObject *self, PyObject *Py_UNUSED (ignored))
@@ -431,7 +437,7 @@ static PyMethodDef LoopFilterObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "configure(bn, zeta, t) -> None\n"
     "\n"
-    "Recompute the loop gains for a new (bn, zeta, t); preserves the\n"
+    "Recompute the loop gains for a new (bn, zeta, t); preserves the "
     "integrator.\n"
     "\n"
     "Recomputes the proportional and integral gains from the standard\n"
@@ -564,11 +570,11 @@ static PyMethodDef LoopFilterObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject LoopFilterObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "track.LoopFilter",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.track.LoopFilter",
   .tp_basicsize                           = sizeof (LoopFilterObject),
   .tp_dealloc                             = (destructor)LoopFilterObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

@@ -1,8 +1,10 @@
+/* jm:generated detection_ext_lockdet.c */
 /*
  * detection_ext_lockdet.c — LockDet type for the detection module.
  *
  * Included by detection_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in detection_ext_lockdet_extra.c.
  * Do NOT compile this file directly — only detection_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ LockDetObj_dealloc (LockDetObject *self)
 static PyObject *
 LockDetObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   LockDetObject *self = (LockDetObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -87,8 +92,8 @@ LockDet_steps (LockDetObject *self, PyObject *args, PyObject *kwds)
                                     &out_obj))
     return NULL;
 
-  PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      in_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *in_arr = (PyArrayObject *)jm_array_arg (
+      in_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!in_arr)
     return NULL;
 
@@ -109,8 +114,9 @@ LockDet_steps (LockDetObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_INT32, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr = (PyArrayObject *)jm_array_arg (
+          out_obj, NPY_INT32, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE,
+          "out");
       if (!out_arr)
         {
           Py_DECREF (in_arr);
@@ -340,7 +346,7 @@ static PyGetSetDef LockDet_getset[]
           NULL },
         { "locked", (getter)LockDet_getprop_locked, NULL,
           "Current decision (True = locked).\n", NULL },
-        { NULL } };
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 LockDetObj_destroy (LockDetObject *self, PyObject *Py_UNUSED (ignored))
@@ -444,7 +450,7 @@ static PyMethodDef LockDetObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "configure(up_thresh, down_thresh, n_up, n_down) -> None\n"
     "\n"
-    "Re-tune thresholds and verify counts; a live lock survives, the\n"
+    "Re-tune thresholds and verify counts; a live lock survives, the "
     "in-flight verify run restarts under the new config.\n"
     "\n"
     "The current locked flag survives (a live lock is not dropped by a\n"
@@ -568,11 +574,11 @@ static PyMethodDef LockDetObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject LockDetObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "detection.LockDet",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.detection.LockDet",
   .tp_basicsize                           = sizeof (LockDetObject),
   .tp_dealloc                             = (destructor)LockDetObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

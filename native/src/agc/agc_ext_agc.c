@@ -1,8 +1,10 @@
+/* jm:generated agc_ext_agc.c */
 /*
  * agc_ext_agc.c — AGC type for the agc module.
  *
  * Included by agc_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in agc_ext_agc_extra.c.
  * Do NOT compile this file directly — only agc_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ AGCObj_dealloc (AGCObject *self)
 static PyObject *
 AGCObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   AGCObject *self = (AGCObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -96,8 +101,8 @@ AGC_steps (AGCObject *self, PyObject *args, PyObject *kwds)
                                     &out_obj))
     return NULL;
 
-  PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *in_arr = (PyArrayObject *)jm_array_arg (
+      in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!in_arr)
     return NULL;
 
@@ -118,9 +123,9 @@ AGC_steps (AGCObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_COMPLEX64,
-          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr = (PyArrayObject *)jm_array_arg (
+          out_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE,
+          "out");
       if (!out_arr)
         {
           Py_DECREF (in_arr);
@@ -426,35 +431,35 @@ AGC_setprop_gain_update_period (AGCObject *self, PyObject *value,
   return 0;
 }
 
-static PyGetSetDef AGC_getset[] = {
-  { "gain_db", (getter)AGC_getprop_gain_db, NULL, "Gain db.\n", NULL },
-  { "applied_gain_db", (getter)AGC_getprop_applied_gain_db, NULL,
-    "Return the gain (in dB) actually applied to the most recent "
-    "sample. Computes 20*log10(g_last), where g_last is the linear "
-    "multiplier that was used on the most recently processed sample.  "
-    "This differs from gain_db (the loop integrator's current command) "
-    "because the loop filter advances the command one step ahead after "
-    "each sample: immediately after dp_agc_step() gain_db already reflects "
-    "the updated command while applied_gain_db still reflects what the "
-    "signal actually saw.  At loop convergence the two values are "
-    "numerically equal.  At create/reset both are 0.0 dB (unity).\n",
-    NULL },
-  { "ref_db", (getter)AGC_getprop_ref_db, (setter)AGC_setprop_ref_db,
-    "Ref db.\n", NULL },
-  { "loop_bw", (getter)AGC_getprop_loop_bw, (setter)AGC_setprop_loop_bw,
-    "Loop bw.\n", NULL },
-  { "alpha", (getter)AGC_getprop_alpha, (setter)AGC_setprop_alpha, "Alpha.\n",
-    NULL },
-  { "decim", (getter)AGC_getprop_decim, (setter)AGC_setprop_decim,
-    "Envelope decimation: the detector and loop filter run once per "
-    "chunk of this many samples, >= 1 (typically 8, 16 or 32).\n",
-    NULL },
-  { "clip_db", (getter)AGC_getprop_clip_db, (setter)AGC_setprop_clip_db,
-    "Clip db.\n", NULL },
-  { "gain_update_period", (getter)AGC_getprop_gain_update_period,
-    (setter)AGC_setprop_gain_update_period, "Gain update period.\n", NULL },
-  { NULL }
-};
+static PyGetSetDef AGC_getset[]
+    = { { "gain_db", (getter)AGC_getprop_gain_db, NULL, "Gain db.\n", NULL },
+        { "applied_gain_db", (getter)AGC_getprop_applied_gain_db, NULL,
+          "Return the gain (in dB) actually applied to the most recent "
+          "sample. Computes 20*log10(g_last), where g_last is the linear "
+          "multiplier that was used on the most recently processed sample.  "
+          "This differs from gain_db (the loop integrator's current command) "
+          "because the loop filter advances the command one step ahead after "
+          "each sample: immediately after dp_agc_step() gain_db already "
+          "reflects the updated command while applied_gain_db still reflects "
+          "what the signal actually saw.  At loop convergence the two values "
+          "are numerically equal.  At create/reset both are 0.0 dB (unity).\n",
+          NULL },
+        { "ref_db", (getter)AGC_getprop_ref_db, (setter)AGC_setprop_ref_db,
+          "Ref db.\n", NULL },
+        { "loop_bw", (getter)AGC_getprop_loop_bw, (setter)AGC_setprop_loop_bw,
+          "Loop bw.\n", NULL },
+        { "alpha", (getter)AGC_getprop_alpha, (setter)AGC_setprop_alpha,
+          "Alpha.\n", NULL },
+        { "decim", (getter)AGC_getprop_decim, (setter)AGC_setprop_decim,
+          "Envelope decimation: the detector and loop filter run once per "
+          "chunk of this many samples, >= 1 (typically 8, 16 or 32).\n",
+          NULL },
+        { "clip_db", (getter)AGC_getprop_clip_db, (setter)AGC_setprop_clip_db,
+          "Clip db.\n", NULL },
+        { "gain_update_period", (getter)AGC_getprop_gain_update_period,
+          (setter)AGC_setprop_gain_update_period, "Gain update period.\n",
+          NULL },
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 AGCObj_destroy (AGCObject *self, PyObject *Py_UNUSED (ignored))
@@ -519,10 +524,9 @@ static PyMethodDef AGCObj_methods[] = {
     "every sample but the loop-filter command (and the exp10/log10 it needs)\n"
     "refreshes once per P samples — a zero-order hold on the gain that\n"
     "amortises the transcendentals on a sample-rate hot loop, the streaming\n"
-    "analogue of dp_agc_steps()' decimation. dp_agc_steps() is the faster "
-    "block\n"
-    "equivalent; neither is bit-identical to the P == 1 loop once decimated,\n"
-    "but both converge to the same steady state.\n"
+    "analogue of dp_agc_steps()' decimation. dp_agc_steps() is the faster\n"
+    "block equivalent; neither is bit-identical to the P == 1 loop once\n"
+    "decimated, but both converge to the same steady state.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -735,11 +739,11 @@ static PyMethodDef AGCObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject AGCObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "agc.AGC",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.agc.AGC",
   .tp_basicsize                           = sizeof (AGCObject),
   .tp_dealloc                             = (destructor)AGCObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
@@ -768,9 +772,8 @@ static PyTypeObject AGCObjType = {
     "    dB in, worse at small alpha). Treat 1/(4*loop_bw) as a floor on\n"
     "    settling, not an estimate of it. Smaller values are slower and\n"
     "    smoother. With dp_agc_steps(), the pairing rule is 4*decim*loop_bw "
-    "<= "
-    "0.05\n"
-    "    — see \"Choosing decim\".\n"
+    "<=\n"
+    "    0.05 — see \"Choosing decim\".\n"
     "alpha : float, default 0.05\n"
     "    Power-detector EMA coefficient in (0, 1]; smaller values smooth "
     "harder\n"

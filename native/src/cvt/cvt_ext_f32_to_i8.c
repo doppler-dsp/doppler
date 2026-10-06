@@ -1,8 +1,10 @@
+/* jm:generated cvt_ext_f32_to_i8.c */
 /*
  * cvt_ext_f32_to_i8.c — F32ToI8 type for the cvt module.
  *
  * Included by cvt_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in cvt_ext_f32_to_i8_extra.c.
  * Do NOT compile this file directly — only cvt_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ F32ToI8Obj_dealloc (F32ToI8Object *self)
 static PyObject *
 F32ToI8Obj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   F32ToI8Object *self = (F32ToI8Object *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -92,8 +97,8 @@ F32ToI8_steps (F32ToI8Object *self, PyObject *args, PyObject *kwds)
                                     &out_obj))
     return NULL;
 
-  PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      in_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *in_arr = (PyArrayObject *)jm_array_arg (
+      in_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!in_arr)
     return NULL;
 
@@ -114,8 +119,9 @@ F32ToI8_steps (F32ToI8Object *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_INT8, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr = (PyArrayObject *)jm_array_arg (
+          out_obj, NPY_INT8, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE,
+          "out");
       if (!out_arr)
         {
           Py_DECREF (in_arr);
@@ -219,7 +225,7 @@ static PyGetSetDef F32ToI8_getset[]
     = { { "clipped", (getter)F32ToI8_getprop_clipped, NULL,
           "True if any sample has been saturated since the last reset().\n",
           NULL },
-        { NULL } };
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 F32ToI8Obj_destroy (F32ToI8Object *self, PyObject *Py_UNUSED (ignored))
@@ -412,11 +418,11 @@ static PyMethodDef F32ToI8Obj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject F32ToI8ObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "cvt.F32ToI8",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.cvt.F32ToI8",
   .tp_basicsize                           = sizeof (F32ToI8Object),
   .tp_dealloc                             = (destructor)F32ToI8Obj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

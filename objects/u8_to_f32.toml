@@ -5,6 +5,7 @@ mutable = "false"
 no_state = "true"
 no_step = "false"
 class_name = "U8ToF32"
+fragment = "generated"
 
 [[u8_to_f32.init_params]]
 name = "mode"

@@ -1,8 +1,10 @@
+/* jm:generated track_ext_costas.c */
 /*
  * track_ext_costas.c — Costas type for the track module.
  *
  * Included by track_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in track_ext_costas_extra.c.
  * Do NOT compile this file directly — only track_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ CostasObj_dealloc (CostasObject *self)
 static PyObject *
 CostasObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   CostasObject *self = (CostasObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -83,8 +88,7 @@ CostasObj_steps (CostasObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
-                                             NPY_ARRAY_C_CONTIGUOUS);
+  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     return NULL;
   if (out_obj && out_obj != Py_None)
@@ -102,9 +106,9 @@ CostasObj_steps (CostasObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (x_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_COMPLEX64,
-          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (x_arr);
@@ -136,6 +140,15 @@ CostasObj_steps (CostasObject *self, PyObject *args, PyObject *kwds)
         n_out = dp_costas_steps (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "Costas.steps: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
                                                     PyArray_DATA (out_arr));
@@ -144,14 +157,29 @@ CostasObj_steps (CostasObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   size_t _cap  = dp_costas_steps_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "Costas.steps: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
   if (!arr0)
     {
@@ -170,6 +198,14 @@ CostasObj_steps (CostasObject *self, PyObject *args, PyObject *kwds)
     n_out = dp_costas_steps (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_RuntimeError,
+                    "Costas.steps: wrote %zu elements into a buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -223,7 +259,8 @@ CostasObj_set_telemetry (CostasObject *self, PyObject *args, PyObject *kwds)
   int      _rc   = dp_costas_set_telemetry (self->handle, tlm, prefix, decim);
   if (_rc != 0)
     {
-      PyErr_Format (PyExc_ValueError, "set_telemetry failed (rc=%d)", _rc);
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_telemetry failed",
+                    (long long)_rc);
       return NULL;
     }
   Py_RETURN_NONE;
@@ -463,7 +500,7 @@ static PyGetSetDef Costas_getset[]
         { "bn_fll", (getter)Costas_getprop_bn_fll,
           (setter)Costas_setprop_bn_fll,
           "FLL-assist bandwidth (0 = pure PLL).\n", NULL },
-        { NULL } };
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 CostasObj_destroy (CostasObject *self, PyObject *Py_UNUSED (ignored))
@@ -618,9 +655,8 @@ static PyMethodDef CostasObj_methods[] = {
     "Re-derives the PI coefficients from the loop bandwidth and damping and\n"
     "installs them live. The NCO frequency, phase and loop integrator are\n"
     "left untouched, so a converged loop keeps tracking straight through the\n"
-    "re-tune — narrow the bandwidth once pulled in for lower phase jitter, "
-    "or\n"
-    "widen it to chase a faster-moving residual.\n"
+    "re-tune — narrow the bandwidth once pulled in for lower phase jitter,\n"
+    "or widen it to chase a faster-moving residual.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -651,21 +687,18 @@ static PyMethodDef CostasObj_methods[] = {
     "\n"
     "The always-on lock decision steps a verify-counted detector\n"
     "(lockdet_core.h) on the |Re P|/|P| lock-metric EMA once per dumped\n"
-    "symbol: `locked` flips up after n_up consecutive symbols with the "
-    "metric\n"
-    "above up_thresh and drops after n_down consecutive symbols below\n"
+    "symbol: `locked` flips up after n_up consecutive symbols with the\n"
+    "metric above up_thresh and drops after n_down consecutive symbols below\n"
     "down_thresh. The defaults derive from the metric's own H0 statistics —\n"
     "with no carrier, |Re P|/|P| = |cos(theta)| for a uniform theta, whose\n"
     "mean is 2/pi (~0.637) and per-symbol std ~0.31; the COSTAS_LOCK_ALPHA =\n"
     "0.1 EMA reduces that to ~0.071, so the default declare threshold 0.85\n"
-    "sits ~3 sigma above the no-carrier mean, with the drop threshold at "
-    "0.78\n"
-    "for level hysteresis and 8-up/32-down verify counts for time hysteresis\n"
-    "(declare fast, drop reluctantly — the EMA already correlates adjacent\n"
-    "looks, so the counts guard against band-edge dwell rather than\n"
-    "compounding i.i.d. probabilities). A live lock survives the re-tune; "
-    "the\n"
-    "in-flight verify run restarts.\n"
+    "sits ~3 sigma above the no-carrier mean, with the drop threshold at\n"
+    "0.78 for level hysteresis and 8-up/32-down verify counts for time\n"
+    "hysteresis (declare fast, drop reluctantly — the EMA already correlates\n"
+    "adjacent looks, so the counts guard against band-edge dwell rather than\n"
+    "compounding i.i.d. probabilities). A live lock survives the re-tune;\n"
+    "the in-flight verify run restarts.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -692,11 +725,10 @@ static PyMethodDef CostasObj_methods[] = {
     "Re-seed the loop to the create-time frequency/phase; preserve config.\n"
     "\n"
     "Drops the lock and rewinds the NCO, loop integrator and\n"
-    "integrate-and-dump accumulators to the create-time seed frequency, "
-    "while\n"
-    "retaining the configured loop bandwidth, damping and lock-detector\n"
-    "thresholds. Reprocess the same input after a reset and the output is\n"
-    "bit-identical.\n"
+    "integrate-and-dump accumulators to the create-time seed frequency,\n"
+    "while retaining the configured loop bandwidth, damping and\n"
+    "lock-detector thresholds. Reprocess the same input after a reset and\n"
+    "the output is bit-identical.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -770,12 +802,11 @@ static PyMethodDef CostasObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)CostasObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
@@ -790,9 +821,8 @@ static PyMethodDef CostasObj_methods[] = {
     "Exit a context manager, releasing the Costas.\n"
     "\n"
     "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
-    "raised inside the `with` body propagates normally; this never "
-    "suppresses\n"
-    "one.\n"
+    "raised inside the `with` body propagates normally; this never\n"
+    "suppresses one.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -802,11 +832,11 @@ static PyMethodDef CostasObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject CostasObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "track.Costas",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.track.Costas",
   .tp_basicsize                           = sizeof (CostasObject),
   .tp_dealloc                             = (destructor)CostasObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

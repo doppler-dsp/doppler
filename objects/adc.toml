@@ -25,6 +25,7 @@ impl = """
     return (int64_t)v;
 """
 serializable = "true"
+fragment = "generated"
 
 [[adc.init_params]]
 name = "bits"

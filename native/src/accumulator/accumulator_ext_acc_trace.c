@@ -1,8 +1,10 @@
+/* jm:generated accumulator_ext_acc_trace.c */
 /*
  * accumulator_ext_acc_trace.c — AccTrace type for the accumulator module.
  *
  * Included by accumulator_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in accumulator_ext_acc_trace_extra.c.
  * Do NOT compile this file directly — only accumulator_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ AccTraceObj_dealloc (AccTraceObject *self)
 static PyObject *
 AccTraceObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   AccTraceObject *self = (AccTraceObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -83,8 +88,8 @@ AccTraceObj_accumulate (AccTraceObject *self, PyObject *args, PyObject *kwds)
   PyObject    *p_obj     = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &p_obj))
     return NULL;
-  PyArrayObject *p_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      p_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *p_arr
+      = jm_array_arg (p_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS, "p");
   if (!p_arr)
     {
       return NULL;
@@ -146,8 +151,9 @@ AccTraceObj_value (AccTraceObject *self, PyObject *args, PyObject *kwds)
                            " ndarray of the output dtype");
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_FLOAT,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           return NULL;
@@ -164,6 +170,15 @@ AccTraceObj_value (AccTraceObject *self, PyObject *args, PyObject *kwds)
         }
       size_t n_out = dp_acc_trace_value (
           self->handle, (size_t)n, (float *)PyArray_DATA (out_arr), _cap);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "AccTrace.value: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       if (!n_out)
         {
           Py_DECREF (out_arr);
@@ -190,7 +205,15 @@ AccTraceObj_value (AccTraceObject *self, PyObject *args, PyObject *kwds)
   size_t _cap  = dp_acc_trace_value_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "AccTrace.value: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_FLOAT);
   if (!arr0)
     {
@@ -198,6 +221,14 @@ AccTraceObj_value (AccTraceObject *self, PyObject *args, PyObject *kwds)
     }
   float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t n_out = dp_acc_trace_value (self->handle, (size_t)n, _d0, _cap);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_RuntimeError,
+                    "AccTrace.value: wrote %zu elements into a buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if (!n_out)
     {
       Py_DECREF (arr0);
@@ -336,7 +367,7 @@ static PyGetSetDef AccTrace_getset[] = {
   { "count", (getter)AccTrace_getprop_count, NULL,
     "Frames folded in so far.\n", NULL },
   { "mode", (getter)AccTrace_getprop_mode, NULL, "Reduction mode.\n", NULL },
-  { NULL }
+  { NULL, NULL, NULL, NULL, NULL }
 };
 
 static PyObject *
@@ -528,11 +559,11 @@ static PyMethodDef AccTraceObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject AccTraceObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "accumulator.AccTrace",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.accumulator.AccTrace",
   .tp_basicsize                           = sizeof (AccTraceObject),
   .tp_dealloc                             = (destructor)AccTraceObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

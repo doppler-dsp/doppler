@@ -1,8 +1,10 @@
+/* jm:generated source_ext_nco.c */
 /*
  * source_ext_nco.c — NCO type for the source module.
  *
  * Included by source_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in source_ext_nco_extra.c.
  * Do NOT compile this file directly — only source_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ NCOObj_dealloc (NCOObject *self)
 static PyObject *
 NCOObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   NCOObject *self = (NCOObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -103,8 +108,9 @@ NCOObj_steps_u32 (NCOObject *self, PyObject *args, PyObject *kwds)
                            " ndarray of the output dtype");
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_UINT32, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_UINT32,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           return NULL;
@@ -121,6 +127,15 @@ NCOObj_steps_u32 (NCOObject *self, PyObject *args, PyObject *kwds)
         }
       size_t n_out = dp_nco_steps_u32 (
           self->handle, (size_t)n, (uint32_t *)PyArray_DATA (out_arr), _cap);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "NCO.steps_u32: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_UINT32,
                                                     PyArray_DATA (out_arr));
@@ -142,7 +157,15 @@ NCOObj_steps_u32 (NCOObject *self, PyObject *args, PyObject *kwds)
   size_t _cap  = dp_nco_steps_u32_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "NCO.steps_u32: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_UINT32);
   if (!arr0)
     {
@@ -150,6 +173,14 @@ NCOObj_steps_u32 (NCOObject *self, PyObject *args, PyObject *kwds)
     }
   uint32_t *_d0   = (uint32_t *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t    n_out = dp_nco_steps_u32 (self->handle, (size_t)n, _d0, _cap);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_RuntimeError,
+                    "NCO.steps_u32: wrote %zu elements into a buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -205,8 +236,9 @@ NCOObj_steps_u32_scaled (NCOObject *self, PyObject *args, PyObject *kwds)
                            " ndarray of the output dtype");
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_UINT32, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_UINT32,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           return NULL;
@@ -223,6 +255,15 @@ NCOObj_steps_u32_scaled (NCOObject *self, PyObject *args, PyObject *kwds)
         }
       size_t n_out = dp_nco_steps_u32_scaled (
           self->handle, (size_t)n, (uint32_t *)PyArray_DATA (out_arr), _cap);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "NCO.steps_u32_scaled: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_UINT32,
                                                     PyArray_DATA (out_arr));
@@ -244,7 +285,16 @@ NCOObj_steps_u32_scaled (NCOObject *self, PyObject *args, PyObject *kwds)
   size_t _cap  = dp_nco_steps_u32_scaled_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (
+          PyExc_OverflowError,
+          "NCO.steps_u32_scaled: output of %zu elements is too large",
+          _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_UINT32);
   if (!arr0)
     {
@@ -252,6 +302,15 @@ NCOObj_steps_u32_scaled (NCOObject *self, PyObject *args, PyObject *kwds)
     }
   uint32_t *_d0 = (uint32_t *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t n_out  = dp_nco_steps_u32_scaled (self->handle, (size_t)n, _d0, _cap);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "NCO.steps_u32_scaled: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -283,7 +342,15 @@ NCOObj_steps_u32_ovf (NCOObject *self, PyObject *args)
   size_t _cap  = dp_nco_steps_u32_ovf_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "NCO.steps_u32_ovf: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_UINT32);
   PyObject *arr1  = PyArray_SimpleNew (1, &_adim, NPY_UINT8);
   if (!arr0 || !arr1)
@@ -296,6 +363,16 @@ NCOObj_steps_u32_ovf (NCOObject *self, PyObject *args)
   uint8_t  *_d1 = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr1);
   size_t    n_out
       = dp_nco_steps_u32_ovf (self->handle, (size_t)n, _d0, _d1, _cap);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "NCO.steps_u32_ovf: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       PyObject *_exact = PyTuple_Pack (2, arr0, arr1);
@@ -354,8 +431,8 @@ NCOObj_steps_u32_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &ctrl_obj,
                                     &out_obj))
     return NULL;
-  ctrl_arr = (PyArrayObject *)PyArray_FROM_OTF (ctrl_obj, NPY_DOUBLE,
-                                                NPY_ARRAY_C_CONTIGUOUS);
+  ctrl_arr
+      = jm_array_arg (ctrl_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS, "ctrl");
   if (!ctrl_arr)
     return NULL;
   if (out_obj && out_obj != Py_None)
@@ -373,8 +450,9 @@ NCOObj_steps_u32_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (ctrl_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_UINT32, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_UINT32,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (ctrl_arr);
@@ -398,6 +476,15 @@ NCOObj_steps_u32_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
           (size_t)PyArray_SIZE (ctrl_arr), (uint32_t *)PyArray_DATA (out_arr),
           _cap);
       Py_DECREF (ctrl_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "NCO.steps_u32_ctrl: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_UINT32,
                                                     PyArray_DATA (out_arr));
@@ -419,7 +506,16 @@ NCOObj_steps_u32_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
   size_t _cap  = dp_nco_steps_u32_ctrl_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (ctrl_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "NCO.steps_u32_ctrl: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_UINT32);
   if (!arr0)
     {
@@ -431,6 +527,15 @@ NCOObj_steps_u32_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
       self->handle, (const double *)PyArray_DATA (ctrl_arr),
       (size_t)PyArray_SIZE (ctrl_arr), _d0, _cap);
   Py_DECREF (ctrl_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "NCO.steps_u32_ctrl: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -475,8 +580,8 @@ NCOObj_steps_u32_scaled_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &ctrl_obj,
                                     &out_obj))
     return NULL;
-  ctrl_arr = (PyArrayObject *)PyArray_FROM_OTF (ctrl_obj, NPY_DOUBLE,
-                                                NPY_ARRAY_C_CONTIGUOUS);
+  ctrl_arr
+      = jm_array_arg (ctrl_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS, "ctrl");
   if (!ctrl_arr)
     return NULL;
   if (out_obj && out_obj != Py_None)
@@ -494,8 +599,9 @@ NCOObj_steps_u32_scaled_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (ctrl_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_UINT32, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_UINT32,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (ctrl_arr);
@@ -519,6 +625,15 @@ NCOObj_steps_u32_scaled_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
           (size_t)PyArray_SIZE (ctrl_arr), (uint32_t *)PyArray_DATA (out_arr),
           _cap);
       Py_DECREF (ctrl_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (PyExc_RuntimeError,
+                        "NCO.steps_u32_scaled_ctrl: wrote %zu elements into a "
+                        "buffer of %zu",
+                        (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_UINT32,
                                                     PyArray_DATA (out_arr));
@@ -540,7 +655,17 @@ NCOObj_steps_u32_scaled_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
   size_t _cap  = dp_nco_steps_u32_scaled_ctrl_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (ctrl_arr);
+      PyErr_Format (
+          PyExc_OverflowError,
+          "NCO.steps_u32_scaled_ctrl: output of %zu elements is too large",
+          _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_UINT32);
   if (!arr0)
     {
@@ -552,6 +677,15 @@ NCOObj_steps_u32_scaled_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
       self->handle, (const double *)PyArray_DATA (ctrl_arr),
       (size_t)PyArray_SIZE (ctrl_arr), _d0, _cap);
   Py_DECREF (ctrl_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "NCO.steps_u32_scaled_ctrl: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -581,15 +715,25 @@ NCOObj_steps_u32_ovf_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
   PyArrayObject *ctrl_arr  = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &ctrl_obj))
     return NULL;
-  ctrl_arr = (PyArrayObject *)PyArray_FROM_OTF (ctrl_obj, NPY_DOUBLE,
-                                                NPY_ARRAY_C_CONTIGUOUS);
+  ctrl_arr
+      = jm_array_arg (ctrl_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS, "ctrl");
   if (!ctrl_arr)
     return NULL;
   size_t _need = (size_t)PyArray_SIZE (ctrl_arr);
   size_t _cap  = dp_nco_steps_u32_ovf_ctrl_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (ctrl_arr);
+      PyErr_Format (
+          PyExc_OverflowError,
+          "NCO.steps_u32_ovf_ctrl: output of %zu elements is too large",
+          _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_UINT32);
   PyObject *arr1  = PyArray_SimpleNew (1, &_adim, NPY_UINT8);
   if (!arr0 || !arr1)
@@ -605,6 +749,16 @@ NCOObj_steps_u32_ovf_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
       self->handle, (const double *)PyArray_DATA (ctrl_arr),
       (size_t)PyArray_SIZE (ctrl_arr), _d0, _d1, _cap);
   Py_DECREF (ctrl_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "NCO.steps_u32_ovf_ctrl: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       PyObject *_exact = PyTuple_Pack (2, arr0, arr1);
@@ -772,7 +926,7 @@ static PyGetSetDef NCO_getset[] = {
     "floor(frac(norm_freq) × 2^32).  Updated automatically whenever norm_freq "
     "is written.  A freq of 0.25 gives phase_inc = 1073741824 (0x40000000).\n",
     NULL },
-  { NULL }
+  { NULL, NULL, NULL, NULL, NULL }
 };
 
 static PyObject *
@@ -808,10 +962,9 @@ NCOObj_exit (NCOObject *self, PyObject *args)
 static PyMethodDef NCOObj_methods[] = {
   { "reset", (PyCFunction)NCOObj_reset, METH_NOARGS,
     "Zero the phase accumulator. Sets phase to 0 so the next\n"
-    "dp_nco_steps_u32 call starts from the beginning of the cycle. "
-    "norm_freq,\n"
-    "phase_inc, and nmax are unchanged; the NCO is ready to generate samples\n"
-    "again immediately.\n"
+    "dp_nco_steps_u32 call starts from the beginning of the cycle.\n"
+    "norm_freq, phase_inc, and nmax are unchanged; the NCO is ready to\n"
+    "generate samples again immediately.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1235,11 +1388,11 @@ static PyMethodDef NCOObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject NCOObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "source.NCO",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.source.NCO",
   .tp_basicsize                           = sizeof (NCOObject),
   .tp_dealloc                             = (destructor)NCOObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
@@ -1259,9 +1412,8 @@ static PyTypeObject NCOObjType = {
     "    fractional part matters. Negative values fold correctly (−0.25 →\n"
     "    3×2^30).\n"
     "nmax : int, default 0\n"
-    "    Wrap target for dp_nco_steps_u32_scaled. Pass 0 to return the raw "
-    "32-bit\n"
-    "    accumulator.\n"
+    "    Wrap target for dp_nco_steps_u32_scaled. Pass 0 to return the raw\n"
+    "    32-bit accumulator.\n"
     "\n"
     "Examples\n"
     "--------\n"

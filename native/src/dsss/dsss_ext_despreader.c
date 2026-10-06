@@ -1,8 +1,10 @@
+/* jm:generated dsss_ext_despreader.c */
 /*
  * dsss_ext_despreader.c — Despreader type for the dsss module.
  *
  * Included by dsss_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in dsss_ext_despreader_extra.c.
  * Do NOT compile this file directly — only dsss_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ DespreaderObj_dealloc (DespreaderObject *self)
 static PyObject *
 DespreaderObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   DespreaderObject *self = (DespreaderObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -59,8 +64,8 @@ DespreaderObj_init (DespreaderObject *self, PyObject *args, PyObject *kwds)
     return -1;
   size_t         sps             = (size_t)sps_raw;
   size_t         periods_per_bit = (size_t)periods_per_bit_raw;
-  PyArrayObject *code_arr        = (PyArrayObject *)PyArray_FROM_OTF (
-      code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *code_arr
+      = jm_array_arg (code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "code");
   if (!code_arr)
     {
       return -1;
@@ -106,8 +111,7 @@ DespreaderObj_steps (DespreaderObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
-                                             NPY_ARRAY_C_CONTIGUOUS);
+  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     return NULL;
   if (out_obj && out_obj != Py_None)
@@ -125,9 +129,9 @@ DespreaderObj_steps (DespreaderObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (x_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_COMPLEX64,
-          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (x_arr);
@@ -159,6 +163,15 @@ DespreaderObj_steps (DespreaderObject *self, PyObject *args, PyObject *kwds)
         n_out = dp_despreader_steps (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "Despreader.steps: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
                                                     PyArray_DATA (out_arr));
@@ -167,14 +180,29 @@ DespreaderObj_steps (DespreaderObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   size_t _cap  = dp_despreader_steps_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "Despreader.steps: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
   if (!arr0)
     {
@@ -193,6 +221,15 @@ DespreaderObj_steps (DespreaderObject *self, PyObject *args, PyObject *kwds)
     n_out = dp_despreader_steps (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "Despreader.steps: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -236,8 +273,7 @@ DespreaderObj_bits (DespreaderObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
-                                             NPY_ARRAY_C_CONTIGUOUS);
+  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     return NULL;
   if (out_obj && out_obj != Py_None)
@@ -255,8 +291,9 @@ DespreaderObj_bits (DespreaderObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (x_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_UINT8,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (x_arr);
@@ -288,6 +325,15 @@ DespreaderObj_bits (DespreaderObject *self, PyObject *args, PyObject *kwds)
         n_out = dp_despreader_bits (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "Despreader.bits: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_UINT8,
                                                     PyArray_DATA (out_arr));
@@ -296,14 +342,29 @@ DespreaderObj_bits (DespreaderObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   size_t _cap  = dp_despreader_bits_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "Despreader.bits: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_UINT8);
   if (!arr0)
     {
@@ -322,6 +383,14 @@ DespreaderObj_bits (DespreaderObject *self, PyObject *args, PyObject *kwds)
     n_out = dp_despreader_bits (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_RuntimeError,
+                    "Despreader.bits: wrote %zu elements into a buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -376,7 +445,8 @@ DespreaderObj_set_telemetry (DespreaderObject *self, PyObject *args,
   int _rc = dp_despreader_set_telemetry (self->handle, tlm, prefix, decim);
   if (_rc != 0)
     {
-      PyErr_Format (PyExc_ValueError, "set_telemetry failed (rc=%d)", _rc);
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_telemetry failed",
+                    (long long)_rc);
       return NULL;
     }
   Py_RETURN_NONE;
@@ -428,8 +498,8 @@ DespreaderObj_configure_code_lock (DespreaderObject *self, PyObject *args,
                                                   ref_snr_db);
   if (_rc != 0)
     {
-      PyErr_Format (PyExc_ValueError, "configure_code_lock failed (rc=%d)",
-                    _rc);
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "configure_code_lock failed", (long long)_rc);
       return NULL;
     }
   Py_RETURN_NONE;
@@ -687,7 +757,7 @@ static PyGetSetDef Despreader_getset[] = {
     (setter)Despreader_setprop_bn_carrier, "Bn carrier.\n", NULL },
   { "bn_code", (getter)Despreader_getprop_bn_code,
     (setter)Despreader_setprop_bn_code, "Bn code.\n", NULL },
-  { NULL }
+  { NULL, NULL, NULL, NULL, NULL }
 };
 
 static PyObject *
@@ -909,14 +979,12 @@ static PyMethodDef DespreaderObj_methods[] = {
     "config should be writable too, rather than forcing a caller who needs "
     "this control to drop to raw Dll+Costas composition.\n"
     "\n"
-    "Thin forwarder to dp_costas_configure_lock() on the embedded Costas loop "
-    "—\n"
-    "symmetric with dp_despreader_get_carrier_locked() exposing its state: "
-    "state\n"
-    "is readable, so config should be writable too, rather than forcing a\n"
-    "caller who needs this control to drop to raw Dll+Costas composition\n"
-    "instead of Despreader. See dp_costas_configure_lock() for the parameter\n"
-    "semantics.\n"
+    "Thin forwarder to dp_costas_configure_lock() on the embedded Costas\n"
+    "loop — symmetric with dp_despreader_get_carrier_locked() exposing its\n"
+    "state: state is readable, so config should be writable too, rather than\n"
+    "forcing a caller who needs this control to drop to raw Dll+Costas\n"
+    "composition instead of Despreader. See dp_costas_configure_lock() for\n"
+    "the parameter semantics.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -941,19 +1009,19 @@ static PyMethodDef DespreaderObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "configure_code_lock(pfa, n_looks, ref_snr_db) -> None\n"
     "\n"
-    "Re-tune the embedded code loop's lock detector: forwards to the\n"
-    "DLL's configure_lock (see Dll.configure_lock) -- the derived\n"
-    "(pfa-style) entry point, matching Despreader's role as the easy\n"
-    "composed API (Dll's raw escape hatch, configure_lock_raw, stays a\n"
-    "Dll-only control for a caller that composes Dll+Costas directly).\n"
-    "Raises ValueError for pfa outside (0, 1).\n"
+    "Re-tune the embedded code loop's lock detector: forwards to the DLL's "
+    "configure_lock (see Dll.configure_lock) -- the derived (pfa-style) entry "
+    "point, matching Despreader's role as the easy composed API (Dll's raw "
+    "escape hatch, configure_lock_raw, stays a Dll-only control for a caller "
+    "that composes Dll+Costas directly). Raises ValueError for pfa outside "
+    "(0, 1).\n"
     "\n"
     "Thin forwarder to dp_dll_configure_lock() on the embedded DLL — the\n"
     "derived (pfa-style) entry point, matching Despreader's role as the\n"
-    "\"easy\" composed API (Dll's raw escape hatch, "
-    "dp_dll_configure_lock_raw(),\n"
-    "stays a Dll-only control for a caller that composes Dll+Costas\n"
-    "directly). See dp_dll_configure_lock() for the parameter semantics.\n"
+    "\"easy\" composed API (Dll's raw escape hatch,\n"
+    "dp_dll_configure_lock_raw(), stays a Dll-only control for a caller that\n"
+    "composes Dll+Costas directly). See dp_dll_configure_lock() for the\n"
+    "parameter semantics.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -992,9 +1060,9 @@ static PyMethodDef DespreaderObj_methods[] = {
     "Restores the carrier NCO to init_norm_freq and the code phase to\n"
     "init_chip, zeroes the loop-filter accumulators and the bit-sync\n"
     "histogram, and clears the lock detectors — the spreading code and every\n"
-    "configured bandwidth are preserved. Use it to re-run the same "
-    "despreader\n"
-    "over an independent stream and get a fresh instance's result.\n"
+    "configured bandwidth are preserved. Use it to re-run the same\n"
+    "despreader over an independent stream and get a fresh instance's\n"
+    "result.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1064,12 +1132,11 @@ static PyMethodDef DespreaderObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)DespreaderObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
@@ -1084,9 +1151,8 @@ static PyMethodDef DespreaderObj_methods[] = {
     "Exit a context manager, releasing the Despreader.\n"
     "\n"
     "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
-    "raised inside the `with` body propagates normally; this never "
-    "suppresses\n"
-    "one.\n"
+    "raised inside the `with` body propagates normally; this never\n"
+    "suppresses one.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1096,11 +1162,11 @@ static PyMethodDef DespreaderObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject DespreaderObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "dsss.Despreader",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.dsss.Despreader",
   .tp_basicsize                           = sizeof (DespreaderObject),
   .tp_dealloc                             = (destructor)DespreaderObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

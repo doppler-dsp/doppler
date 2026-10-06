@@ -44,6 +44,7 @@ depends_on = [
   { name = "acc_trace", link = true },
 ]
 serializable = "true"
+fragment = "generated"
 
 [[carrier_acq.init_params]]
 name = "sample_rate_hz"

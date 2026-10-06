@@ -39,6 +39,7 @@ create_error_message = "SyncFinder: the marker must be a non-empty array of 0/1 
 # dp_syncword.h's binomial tail calls dp_lgamma(), the library's one
 # reentrant lgamma, defined beside marcum_q() in detection (#1260).
 depends_on = [{ name = "detection", link = true }]
+fragment = "generated"
 
 # The marker, unpacked: one bit per element, LSB. The same convention
 # dp_wfm_frame_assemble, dp_crc16_ccitt and dp_ccsds_tm_randomise already pass

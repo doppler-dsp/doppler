@@ -50,6 +50,7 @@ depends_on = [
     { name = "fft", link = true },
     { name = "dp_tlm", link = true },
 ]
+fragment = "generated"
 
 # ── The pool's own numbers (§8.2) ────────────────────────────────────────
 [[async_dsss_pool.init_params]]

@@ -6,6 +6,7 @@ no_state = "true"
 no_step = "true"
 class_name = "FFT2D"
 depends_on = ["fft_core"]
+fragment = "generated"
 
 [[fft2d.init_params]]
 name = "ny"

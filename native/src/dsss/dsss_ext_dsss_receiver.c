@@ -1,8 +1,10 @@
+/* jm:generated dsss_ext_dsss_receiver.c */
 /*
  * dsss_ext_dsss_receiver.c — DsssReceiver type for the dsss module.
  *
  * Included by dsss_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in dsss_ext_dsss_receiver_extra.c.
  * Do NOT compile this file directly — only dsss_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ DsssReceiverObj_dealloc (DsssReceiverObject *self)
 static PyObject *
 DsssReceiverObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   DsssReceiverObject *self = (DsssReceiverObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -62,8 +67,8 @@ DsssReceiverObj_init (DsssReceiverObject *self, PyObject *args, PyObject *kwds)
   size_t         spc      = (size_t)spc_raw;
   size_t         segments = (size_t)segments_raw;
   size_t         sps      = (size_t)sps_raw;
-  PyArrayObject *code_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *code_arr
+      = jm_array_arg (code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "code");
   if (!code_arr)
     {
       return -1;
@@ -115,8 +120,7 @@ DsssReceiverObj_steps (DsssReceiverObject *self, PyObject *args,
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
-                                             NPY_ARRAY_C_CONTIGUOUS);
+  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     return NULL;
   if (out_obj && out_obj != Py_None)
@@ -134,9 +138,9 @@ DsssReceiverObj_steps (DsssReceiverObject *self, PyObject *args,
           Py_DECREF (x_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_COMPLEX64,
-          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (x_arr);
@@ -168,6 +172,15 @@ DsssReceiverObj_steps (DsssReceiverObject *self, PyObject *args,
         n_out = dp_dsss_receiver_steps (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "DsssReceiver.steps: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
                                                     PyArray_DATA (out_arr));
@@ -176,14 +189,29 @@ DsssReceiverObj_steps (DsssReceiverObject *self, PyObject *args,
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   size_t _cap  = dp_dsss_receiver_steps_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "DsssReceiver.steps: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
   if (!arr0)
     {
@@ -202,6 +230,15 @@ DsssReceiverObj_steps (DsssReceiverObject *self, PyObject *args,
     n_out = dp_dsss_receiver_steps (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "DsssReceiver.steps: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -512,7 +549,7 @@ static PyGetSetDef DsssReceiver_getset[] = {
     "MpskReceiver's carrier lock EMA; 0.0 while searching.\n", NULL },
   { "norm_freq", (getter)DsssReceiver_getprop_norm_freq, NULL,
     "MpskReceiver's tracked carrier frequency; 0.0 while searching.\n", NULL },
-  { NULL }
+  { NULL, NULL, NULL, NULL, NULL }
 };
 
 static PyObject *
@@ -642,9 +679,9 @@ static PyMethodDef DsssReceiverObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "configure_search_raw(doppler_bins, n_noncoh) -> None\n"
     "\n"
-    "Pin the embedded Acquisition's search grid directly, bypassing the\n"
-    "symbol_rate-driven auto-sizing -- the escape hatch for a power user who\n"
-    "wants a specific (doppler_bins, n_noncoh). Only meaningful while\n"
+    "Pin the embedded Acquisition's search grid directly, bypassing the "
+    "symbol_rate-driven auto-sizing -- the escape hatch for a power user who "
+    "wants a specific (doppler_bins, n_noncoh). Only meaningful while "
     "searching.\n"
     "\n"
     "Parameters\n"
@@ -681,8 +718,8 @@ static PyMethodDef DsssReceiverObj_methods[] = {
     "configure_lock_raw(up_thresh, down_thresh, n_looks, alpha, n_up, n_down) "
     "-> None\n"
     "\n"
-    "Re-tune the embedded Dll's code-lock detector directly. Only\n"
-    "meaningful once tracking has begun; a no-op while searching.\n"
+    "Re-tune the embedded Dll's code-lock detector directly. Only meaningful "
+    "once tracking has begun; a no-op while searching.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -719,13 +756,13 @@ static PyMethodDef DsssReceiverObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "configure_chain_raw(segments, sps, n) -> None\n"
     "\n"
-    "Pin the despread/resample/demod grid directly, bypassing the\n"
-    "create-time segments/sps defaults -- segments (Dll's tracking\n"
-    "parameter) and sps/n (MpskReceiver's rate/carrier-arm parameters) stay\n"
-    "independently overridable here, still bridged by a freshly-sized\n"
-    "RateConverter, never coupled to each other. Only meaningful once\n"
-    "tracking; rebuilds the chain with every replacement allocated first, so\n"
-    "a failed pin leaves the receiver on its prior grid.\n"
+    "Pin the despread/resample/demod grid directly, bypassing the create-time "
+    "segments/sps defaults -- segments (Dll's tracking parameter) and sps/n "
+    "(MpskReceiver's rate/carrier-arm parameters) stay independently "
+    "overridable here, still bridged by a freshly-sized RateConverter, never "
+    "coupled to each other. Only meaningful once tracking; rebuilds the chain "
+    "with every replacement allocated first, so a failed pin leaves the "
+    "receiver on its prior grid.\n"
     "\n"
     "The escape hatch for the one composition-specific knob this object adds\n"
     "beyond its children's own: `segments` (Dll's tracking parameter) and\n"
@@ -738,9 +775,8 @@ static PyMethodDef DsssReceiverObj_methods[] = {
     "failed pin leaves the receiver tracking on its prior grid, not\n"
     "half-destroyed. Only meaningful once tracking (the grid defaults still\n"
     "apply to create-time auto-sizing for the next hit while searching; call\n"
-    "`dp_dsss_receiver_create()` with different `segments`/`sps` for that, "
-    "or\n"
-    "re-pin here again after the next hit).\n"
+    "`dp_dsss_receiver_create()` with different `segments`/`sps` for that,\n"
+    "or re-pin here again after the next hit).\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -771,9 +807,8 @@ static PyMethodDef DsssReceiverObj_methods[] = {
   { "reset", (PyCFunction)DsssReceiverObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
-    "Return to the searching state: resets the embedded Acquisition and\n"
-    "frees Dll/RateConverter/MpskReceiver (rebuilt from scratch on the next\n"
-    "hit).\n"
+    "Return to the searching state: resets the embedded Acquisition and frees "
+    "Dll/RateConverter/MpskReceiver (rebuilt from scratch on the next hit).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -868,11 +903,11 @@ static PyMethodDef DsssReceiverObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject DsssReceiverObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "dsss.DsssReceiver",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.dsss.DsssReceiver",
   .tp_basicsize                           = sizeof (DsssReceiverObject),
   .tp_dealloc = (destructor)DsssReceiverObj_dealloc,
   .tp_flags   = Py_TPFLAGS_DEFAULT,

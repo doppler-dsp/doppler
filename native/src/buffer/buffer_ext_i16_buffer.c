@@ -1,8 +1,10 @@
+/* jm:generated buffer_ext_i16_buffer.c */
 /*
  * buffer_ext_i16_buffer.c — I16Buffer type for the buffer module.
  *
  * Included by buffer_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in buffer_ext_i16_buffer_extra.c.
  * Do NOT compile this file directly — only buffer_ext.c is compiled.
  */
 /* ======================================================== */
@@ -28,6 +30,9 @@ I16BufferObj_dealloc (I16BufferObject *self)
 static PyObject *
 I16BufferObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   I16BufferObject *self = (I16BufferObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -353,8 +358,16 @@ I16BufferObj_wait (I16BufferObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_ValueError, "wait failed");
       return NULL;
     }
-  self->_jm_borrowed    = (size_t)(n);
-  npy_intp       _dim   = (npy_intp)(n);
+  self->_jm_borrowed = (size_t)(n);
+  size_t _dim_need   = (size_t)((n));
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "I16Buffer.wait: output of %zu elements is too large",
+                    _dim_need);
+      return NULL;
+    }
+  npy_intp       _dim   = (npy_intp)_dim_need;
   PyArray_Descr *_descr = I16BufferObj_wait_get_dtype ();
   if (!_descr)
     return NULL;
@@ -461,8 +474,16 @@ I16BufferObj_peek (I16BufferObject *self, PyObject *args, PyObject *kwds)
         }
       Py_RETURN_NONE;
     }
-  self->_jm_borrowed    = (size_t)(n);
-  npy_intp       _dim   = (npy_intp)(n);
+  self->_jm_borrowed = (size_t)(n);
+  size_t _dim_need   = (size_t)((n));
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "I16Buffer.peek: output of %zu elements is too large",
+                    _dim_need);
+      return NULL;
+    }
+  npy_intp       _dim   = (npy_intp)_dim_need;
   PyArray_Descr *_descr = I16BufferObj_peek_get_dtype ();
   if (!_descr)
     return NULL;
@@ -615,7 +636,7 @@ static PyGetSetDef I16Buffer_getset[]
           NULL },
         { "closed", (getter)I16Buffer_getprop_closed, NULL,
           "``True`` once the producer has called :meth:`close`.\n", NULL },
-        { NULL } };
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 I16BufferObj_destroy (I16BufferObject *self, PyObject *Py_UNUSED (ignored))
@@ -976,11 +997,11 @@ static PyMethodDef I16BufferObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject I16BufferObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "buffer.I16Buffer",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.buffer.I16Buffer",
   .tp_basicsize                           = sizeof (I16BufferObject),
   .tp_dealloc                             = (destructor)I16BufferObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

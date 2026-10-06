@@ -1,8 +1,10 @@
+/* jm:generated coding_ext_rs_codec.c */
 /*
  * coding_ext_rs_codec.c — ReedSolomon type for the coding module.
  *
  * Included by coding_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in coding_ext_rs_codec_extra.c.
  * Do NOT compile this file directly — only coding_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ ReedSolomonObj_dealloc (ReedSolomonObject *self)
 static PyObject *
 ReedSolomonObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   ReedSolomonObject *self = (ReedSolomonObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -96,10 +101,12 @@ ReedSolomonObj_encode (ReedSolomonObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &in_obj,
                                     &out_obj))
     return NULL;
-  PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      in_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *in_arr
+      = jm_array_arg (in_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!in_arr)
-    return NULL;
+    {
+      return NULL;
+    }
   Py_ssize_t n = PyArray_SIZE (in_arr);
   if (out_obj && out_obj != Py_None)
     {
@@ -116,8 +123,9 @@ ReedSolomonObj_encode (ReedSolomonObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_UINT8,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (in_arr);
@@ -138,6 +146,15 @@ ReedSolomonObj_encode (ReedSolomonObject *self, PyObject *args, PyObject *kwds)
           self->handle, (const uint8_t *)PyArray_DATA (in_arr), (size_t)n,
           (uint8_t *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "ReedSolomon.encode: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_UINT8,
                                                     PyArray_DATA (out_arr));
@@ -146,13 +163,28 @@ ReedSolomonObj_encode (ReedSolomonObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)n;
   size_t _cap  = dp_rs_codec_encode_max_out (self->handle, (size_t)n);
   (void)_need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (in_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "ReedSolomon.encode: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_UINT8);
   if (!arr0)
     {
@@ -164,6 +196,15 @@ ReedSolomonObj_encode (ReedSolomonObject *self, PyObject *args, PyObject *kwds)
                                        (const uint8_t *)PyArray_DATA (in_arr),
                                        (size_t)n, _d0, _cap);
   Py_DECREF (in_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "ReedSolomon.encode: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -204,8 +245,9 @@ ReedSolomonObj_decode (ReedSolomonObject *self, PyObject *args, PyObject *kwds)
                        " ndarray of the output dtype");
       return NULL;
     }
-  PyArrayObject *codeword_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      codeword_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+  PyArrayObject *codeword_arr = jm_array_arg (
+      codeword_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE,
+      "codeword");
   if (!codeword_arr)
     {
       return NULL;
@@ -247,10 +289,12 @@ ReedSolomonObj_syndromes (ReedSolomonObject *self, PyObject *args,
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &in_obj,
                                     &out_obj))
     return NULL;
-  PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      in_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *in_arr
+      = jm_array_arg (in_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!in_arr)
-    return NULL;
+    {
+      return NULL;
+    }
   Py_ssize_t n = PyArray_SIZE (in_arr);
   if (out_obj && out_obj != Py_None)
     {
@@ -267,8 +311,9 @@ ReedSolomonObj_syndromes (ReedSolomonObject *self, PyObject *args,
           Py_DECREF (in_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_UINT8,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (in_arr);
@@ -289,6 +334,15 @@ ReedSolomonObj_syndromes (ReedSolomonObject *self, PyObject *args,
           self->handle, (const uint8_t *)PyArray_DATA (in_arr), (size_t)n,
           (uint8_t *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "ReedSolomon.syndromes: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_UINT8,
                                                     PyArray_DATA (out_arr));
@@ -297,13 +351,29 @@ ReedSolomonObj_syndromes (ReedSolomonObject *self, PyObject *args,
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)n;
   size_t _cap  = dp_rs_codec_syndromes_max_out (self->handle, (size_t)n);
   (void)_need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (in_arr);
+      PyErr_Format (
+          PyExc_OverflowError,
+          "ReedSolomon.syndromes: output of %zu elements is too large",
+          _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_UINT8);
   if (!arr0)
     {
@@ -315,6 +385,15 @@ ReedSolomonObj_syndromes (ReedSolomonObject *self, PyObject *args,
                                         (const uint8_t *)PyArray_DATA (in_arr),
                                         (size_t)n, _d0, _cap);
   Py_DECREF (in_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "ReedSolomon.syndromes: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -344,8 +423,8 @@ ReedSolomonObj_codeword_ok (ReedSolomonObject *self, PyObject *args,
   PyObject    *codeword_obj = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &codeword_obj))
     return NULL;
-  PyArrayObject *codeword_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      codeword_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *codeword_arr = jm_array_arg (
+      codeword_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "codeword");
   if (!codeword_arr)
     {
       return NULL;
@@ -381,8 +460,8 @@ ReedSolomonObj_generator (ReedSolomonObject *self, PyObject *args,
                                         " ndarray of the output dtype");
       return NULL;
     }
-  PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      out_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+  PyArrayObject *out_arr = jm_array_arg (
+      out_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
   if (!out_arr)
     {
       return NULL;
@@ -466,7 +545,7 @@ static PyGetSetDef ReedSolomon_getset[]
           "Parity symbols per codeword, `2E`.\n", NULL },
         { "symbol_bits", (getter)ReedSolomon_getprop_symbol_bits, NULL,
           "Symbol width `J`, in bits.\n", NULL },
-        { NULL } };
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 ReedSolomonObj_destroy (ReedSolomonObject *self, PyObject *Py_UNUSED (ignored))
@@ -549,8 +628,8 @@ static PyMethodDef ReedSolomonObj_methods[] = {
   { "encode_max_out", (PyCFunction)ReedSolomonObj_encode_max_out, METH_VARARGS,
     "encode_max_out(n_in) -> int\n"
     "\n"
-    "Symbols dp_rs_codec_encode writes for n_in information symbols: a whole\n"
-    "codeword, `n`.\n"
+    "Symbols dp_rs_codec_encode writes for n_in information symbols: a\n"
+    "whole codeword, `n`.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -759,11 +838,11 @@ static PyMethodDef ReedSolomonObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject ReedSolomonObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "coding.ReedSolomon",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.coding.ReedSolomon",
   .tp_basicsize                           = sizeof (ReedSolomonObject),
   .tp_dealloc                             = (destructor)ReedSolomonObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

@@ -1,8 +1,10 @@
+/* jm:generated accumulator_ext_acc_f32.c */
 /*
  * accumulator_ext_acc_f32.c — AccF32 type for the accumulator module.
  *
  * Included by accumulator_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in accumulator_ext_acc_f32_extra.c.
  * Do NOT compile this file directly — only accumulator_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ AccF32_dealloc (AccF32Object *self)
 static PyObject *
 AccF32_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   AccF32Object *self = (AccF32Object *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -89,8 +94,8 @@ AccF32_steps (AccF32Object *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "O", &in_obj))
     return NULL;
 
-  PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      in_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *in_arr = (PyArrayObject *)jm_array_arg (
+      in_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!in_arr)
     return NULL;
 
@@ -162,16 +167,16 @@ AccF32_madd (AccF32Object *self, PyObject *args, PyObject *kwds)
   PyObject    *h_obj     = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO", _kwlist, &x_obj, &h_obj))
     return NULL;
-  PyArrayObject *x_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      x_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     {
       return NULL;
     }
   const float   *x     = (const float *)PyArray_DATA (x_arr);
   size_t         x_len = (size_t)PyArray_SIZE (x_arr);
-  PyArrayObject *h_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      h_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *h_arr
+      = jm_array_arg (h_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS, "h");
   if (!h_arr)
     {
       Py_DECREF (x_arr);
@@ -197,8 +202,8 @@ AccF32_add2d (AccF32Object *self, PyObject *args, PyObject *kwds)
   PyObject    *x_obj     = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &x_obj))
     return NULL;
-  PyArrayObject *x_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      x_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     {
       return NULL;
@@ -223,16 +228,16 @@ AccF32_madd2d (AccF32Object *self, PyObject *args, PyObject *kwds)
   PyObject    *h_obj     = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO", _kwlist, &x_obj, &h_obj))
     return NULL;
-  PyArrayObject *x_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      x_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     {
       return NULL;
     }
   const float   *x     = (const float *)PyArray_DATA (x_arr);
   size_t         x_len = (size_t)PyArray_SIZE (x_arr);
-  PyArrayObject *h_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      h_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *h_arr
+      = jm_array_arg (h_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS, "h");
   if (!h_arr)
     {
       Py_DECREF (x_arr);
@@ -333,9 +338,8 @@ static PyMethodDef AccF32_methods[] = {
   { "reset", (PyCFunction)AccF32_reset, METH_NOARGS,
     "Zero the accumulator, restoring the same state as a fresh\n"
     "``AccF32(0.0)`` — regardless of the value supplied to\n"
-    "``dp_acc_f32_create``. Subsequent ``get`` / ``dump`` calls return "
-    "``0.0``\n"
-    "until new samples are processed.\n"
+    "``dp_acc_f32_create``. Subsequent ``get`` / ``dump`` calls return\n"
+    "``0.0`` until new samples are processed.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -601,11 +605,11 @@ static PyMethodDef AccF32_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject AccF32Type = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "accumulator.AccF32",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.accumulator.AccF32",
   .tp_basicsize                           = sizeof (AccF32Object),
   .tp_dealloc                             = (destructor)AccF32_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

@@ -28,6 +28,7 @@ serializable = "true"
 create_error = "ValueError"
 create_error_message = "ConvEncoder: not a usable code (need 1 to 6 non-zero polynomials, each under 2**k, and 2 <= k <= 9)"
 depends_on = [{ name = "conv", link = true }]
+fragment = "generated"
 
 # The generator polynomials, one per output — the array IS the code, and its
 # length gives n. Same shape as viterbi's and as fir's `taps`: a

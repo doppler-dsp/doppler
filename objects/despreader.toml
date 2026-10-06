@@ -17,6 +17,7 @@ depends_on = [
   { name = "detection", link = true },
 ]
 serializable = "true"
+fragment = "generated"
 
 [[despreader.init_params]]
 name = "code"

@@ -1,8 +1,10 @@
+/* jm:generated detection_ext_syncword.c */
 /*
  * detection_ext_syncword.c — SyncFinder type for the detection module.
  *
  * Included by detection_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in detection_ext_syncword_extra.c.
  * Do NOT compile this file directly — only detection_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ SyncFinderObj_dealloc (SyncFinderObject *self)
 static PyObject *
 SyncFinderObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   SyncFinderObject *self = (SyncFinderObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -41,8 +46,8 @@ SyncFinderObj_init (SyncFinderObject *self, PyObject *args, PyObject *kwds)
 
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", kwlist, &marker_obj))
     return -1;
-  PyArrayObject *marker_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      marker_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *marker_arr
+      = jm_array_arg (marker_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "marker");
   if (!marker_arr)
     {
       return -1;
@@ -96,8 +101,8 @@ SyncFinderObj_find (SyncFinderObject *self, PyObject *args, PyObject *kwds)
                                     &max_errors_raw))
     return NULL;
   uint32_t       max_errors = (uint32_t)max_errors_raw;
-  PyArrayObject *bits_arr   = (PyArrayObject *)PyArray_FROM_OTF (
-      bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *bits_arr
+      = jm_array_arg (bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "bits");
   if (!bits_arr)
     {
       return NULL;
@@ -185,7 +190,7 @@ SyncFinder_getprop_nbits (SyncFinderObject *self, void *Py_UNUSED (closure))
 static PyGetSetDef SyncFinder_getset[]
     = { { "nbits", (getter)SyncFinder_getprop_nbits, NULL,
           "Marker length in bits.\n", NULL },
-        { NULL } };
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 SyncFinderObj_destroy (SyncFinderObject *self, PyObject *Py_UNUSED (ignored))
@@ -366,11 +371,11 @@ static PyMethodDef SyncFinderObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject SyncFinderObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "detection.SyncFinder",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.detection.SyncFinder",
   .tp_basicsize                           = sizeof (SyncFinderObject),
   .tp_dealloc                             = (destructor)SyncFinderObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

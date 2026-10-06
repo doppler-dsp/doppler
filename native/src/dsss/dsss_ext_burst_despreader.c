@@ -1,8 +1,10 @@
+/* jm:generated dsss_ext_burst_despreader.c */
 /*
  * dsss_ext_burst_despreader.c — BurstDespreader type for the dsss module.
  *
  * Included by dsss_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in dsss_ext_burst_despreader_extra.c.
  * Do NOT compile this file directly — only dsss_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ BurstDespreaderObj_dealloc (BurstDespreaderObject *self)
 static PyObject *
 BurstDespreaderObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   BurstDespreaderObject *self
       = (BurstDespreaderObject *)type->tp_alloc (type, 0);
   if (self)
@@ -53,10 +58,10 @@ BurstDespreaderObj_init (BurstDespreaderObject *self, PyObject *args,
                                     &sf_raw, &sps_raw, &init_norm_freq,
                                     &init_chip_phase, &bn_carrier, &bn_code))
     return -1;
-  size_t         sf       = (size_t)sf_raw;
-  size_t         sps      = (size_t)sps_raw;
-  PyArrayObject *code_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  size_t         sf  = (size_t)sf_raw;
+  size_t         sps = (size_t)sps_raw;
+  PyArrayObject *code_arr
+      = jm_array_arg (code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "code");
   if (!code_arr)
     {
       return -1;
@@ -103,8 +108,7 @@ BurstDespreaderObj_steps (BurstDespreaderObject *self, PyObject *args,
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
-                                             NPY_ARRAY_C_CONTIGUOUS);
+  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     return NULL;
   if (out_obj && out_obj != Py_None)
@@ -122,9 +126,9 @@ BurstDespreaderObj_steps (BurstDespreaderObject *self, PyObject *args,
           Py_DECREF (x_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_COMPLEX64,
-          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (x_arr);
@@ -157,6 +161,15 @@ BurstDespreaderObj_steps (BurstDespreaderObject *self, PyObject *args,
             = dp_burst_despreader_steps (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "BurstDespreader.steps: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
                                                     PyArray_DATA (out_arr));
@@ -165,14 +178,30 @@ BurstDespreaderObj_steps (BurstDespreaderObject *self, PyObject *args,
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   size_t _cap  = dp_burst_despreader_steps_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      PyErr_Format (
+          PyExc_OverflowError,
+          "BurstDespreader.steps: output of %zu elements is too large",
+          _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
   if (!arr0)
     {
@@ -191,6 +220,15 @@ BurstDespreaderObj_steps (BurstDespreaderObject *self, PyObject *args,
     n_out = dp_burst_despreader_steps (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "BurstDespreader.steps: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -235,8 +273,7 @@ BurstDespreaderObj_bits (BurstDespreaderObject *self, PyObject *args,
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
-                                             NPY_ARRAY_C_CONTIGUOUS);
+  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     return NULL;
   if (out_obj && out_obj != Py_None)
@@ -254,8 +291,9 @@ BurstDespreaderObj_bits (BurstDespreaderObject *self, PyObject *args,
           Py_DECREF (x_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_UINT8,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (x_arr);
@@ -288,6 +326,15 @@ BurstDespreaderObj_bits (BurstDespreaderObject *self, PyObject *args,
             = dp_burst_despreader_bits (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "BurstDespreader.bits: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_UINT8,
                                                     PyArray_DATA (out_arr));
@@ -296,14 +343,30 @@ BurstDespreaderObj_bits (BurstDespreaderObject *self, PyObject *args,
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   size_t _cap  = dp_burst_despreader_bits_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      PyErr_Format (
+          PyExc_OverflowError,
+          "BurstDespreader.bits: output of %zu elements is too large",
+          _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_UINT8);
   if (!arr0)
     {
@@ -322,6 +385,15 @@ BurstDespreaderObj_bits (BurstDespreaderObject *self, PyObject *args,
     n_out = dp_burst_despreader_bits (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "BurstDespreader.bits: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -354,8 +426,8 @@ BurstDespreaderObj_set_acq (BurstDespreaderObject *self, PyObject *args,
                                     &acq_reps_raw))
     return NULL;
   size_t         acq_reps     = (size_t)acq_reps_raw;
-  PyArrayObject *acq_code_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      acq_code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *acq_code_arr = jm_array_arg (
+      acq_code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "acq_code");
   if (!acq_code_arr)
     {
       return NULL;
@@ -619,7 +691,7 @@ static PyGetSetDef BurstDespreader_getset[] = {
     NULL },
   { "stat_n", (getter)BurstDespreader_getprop_stat_n, NULL,
     "Number of prompts folded into the burst statistics so far.\n", NULL },
-  { NULL }
+  { NULL, NULL, NULL, NULL, NULL }
 };
 
 static PyObject *
@@ -813,15 +885,12 @@ static PyMethodDef BurstDespreaderObj_methods[] = {
     "\n"
     "Re-seed the loops to the create-time phase/frequency; preserve config.\n"
     "\n"
-    "Restores the carrier NCO to the seed frequency and the code phase to "
-    "the\n"
-    "seed chip, zeroes the loop accumulators, and clears the cumulative "
-    "burst\n"
-    "read-backs (lock_metric / snr_est / lock_stat / stat_n) — the spreading\n"
-    "code and bandwidths are kept. Call it between bursts so each burst's\n"
-    "statistics start clean; a prior dp_burst_despreader_set_acq() preamble "
-    "is\n"
-    "also re-armed.\n"
+    "Restores the carrier NCO to the seed frequency and the code phase to\n"
+    "the seed chip, zeroes the loop accumulators, and clears the cumulative\n"
+    "burst read-backs (lock_metric / snr_est / lock_stat / stat_n) — the\n"
+    "spreading code and bandwidths are kept. Call it between bursts so each\n"
+    "burst's statistics start clean; a prior dp_burst_despreader_set_acq()\n"
+    "preamble is also re-armed.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -893,12 +962,11 @@ static PyMethodDef BurstDespreaderObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)BurstDespreaderObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
@@ -913,9 +981,8 @@ static PyMethodDef BurstDespreaderObj_methods[] = {
     "Exit a context manager, releasing the BurstDespreader.\n"
     "\n"
     "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
-    "raised inside the `with` body propagates normally; this never "
-    "suppresses\n"
-    "one.\n"
+    "raised inside the `with` body propagates normally; this never\n"
+    "suppresses one.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -925,11 +992,11 @@ static PyMethodDef BurstDespreaderObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject BurstDespreaderObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "dsss.BurstDespreader",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.dsss.BurstDespreader",
   .tp_basicsize                           = sizeof (BurstDespreaderObject),
   .tp_dealloc = (destructor)BurstDespreaderObj_dealloc,
   .tp_flags   = Py_TPFLAGS_DEFAULT,

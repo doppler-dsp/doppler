@@ -1,8 +1,10 @@
+/* jm:generated track_ext_carrier_nda.c */
 /*
  * track_ext_carrier_nda.c — CarrierNda type for the track module.
  *
  * Included by track_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in track_ext_carrier_nda_extra.c.
  * Do NOT compile this file directly — only track_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ CarrierNdaObj_dealloc (CarrierNdaObject *self)
 static PyObject *
 CarrierNdaObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   CarrierNdaObject *self = (CarrierNdaObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -86,8 +91,7 @@ CarrierNdaObj_steps (CarrierNdaObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
-                                             NPY_ARRAY_C_CONTIGUOUS);
+  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     return NULL;
   if (out_obj && out_obj != Py_None)
@@ -105,9 +109,9 @@ CarrierNdaObj_steps (CarrierNdaObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (x_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_COMPLEX64,
-          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (x_arr);
@@ -139,6 +143,15 @@ CarrierNdaObj_steps (CarrierNdaObject *self, PyObject *args, PyObject *kwds)
         n_out = dp_carrier_nda_steps (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "CarrierNda.steps: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
                                                     PyArray_DATA (out_arr));
@@ -147,14 +160,29 @@ CarrierNdaObj_steps (CarrierNdaObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   size_t _cap  = dp_carrier_nda_steps_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "CarrierNda.steps: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
   if (!arr0)
     {
@@ -173,6 +201,15 @@ CarrierNdaObj_steps (CarrierNdaObject *self, PyObject *args, PyObject *kwds)
     n_out = dp_carrier_nda_steps (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "CarrierNda.steps: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -227,7 +264,8 @@ CarrierNdaObj_set_telemetry (CarrierNdaObject *self, PyObject *args,
   int _rc = dp_carrier_nda_set_telemetry (self->handle, tlm, prefix, decim);
   if (_rc != 0)
     {
-      PyErr_Format (PyExc_ValueError, "set_telemetry failed (rc=%d)", _rc);
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_telemetry failed",
+                    (long long)_rc);
       return NULL;
     }
   Py_RETURN_NONE;
@@ -466,7 +504,7 @@ static PyGetSetDef CarrierNda_getset[]
           "sets the MA window (= a 1/n-symbol box).\n", NULL },
         { "sps", (getter)CarrierNda_getprop_sps, NULL, "samples per symbol.\n",
           NULL },
-        { NULL } };
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 CarrierNdaObj_destroy (CarrierNdaObject *self, PyObject *Py_UNUSED (ignored))
@@ -621,27 +659,26 @@ static PyMethodDef CarrierNdaObj_methods[] = {
     "Re-tune the carrier lock detector: locked flips up after n_up "
     "consecutive samples with the lock-signal EMA above up_thresh, and drops "
     "after n_down consecutive samples below down_thresh (level + time "
-    "hysteresis; see detection.LockDet). Defaults are 0.5/0.4 with 64 up / "
-    "32 down. The THRESHOLDS are Pfa-derived: 0.5 is 4.416 sigma on the "
-    "statistic's H0 spread, a per-look false-alarm rate of 5e-6, and it "
-    "means that at every M because the limited statistic's H0 variance is "
-    "1/2 for all of them. The VERIFY COUNT is not derived that way and must "
-    "not be. Compounding a per-look Pfa over n_up assumes successive looks "
-    "are independent; this detector steps once per sample and its lock EMA "
-    "stays correlated for roughly 39 samples, so a shorter count is counting "
-    "one look several times. Measured against noise-only input, n_up=8 -- "
-    "the value MpskReceiver uses on this same statistic -- false-locked 4 "
-    "trials in 30, while 64 was the smallest count clean over 300. Raise "
-    "n_up rather than lower it unless you have re-measured. A live lock "
-    "survives the re-tune; the in-flight verify run restarts.\n"
+    "hysteresis; see detection.LockDet). Defaults are 0.5/0.4 with 64 up / 32 "
+    "down. The THRESHOLDS are Pfa-derived: 0.5 is 4.416 sigma on the "
+    "statistic's H0 spread, a per-look false-alarm rate of 5e-6, and it means "
+    "that at every M because the limited statistic's H0 variance is 1/2 for "
+    "all of them. The VERIFY COUNT is not derived that way and must not be. "
+    "Compounding a per-look Pfa over n_up assumes successive looks are "
+    "independent; this detector steps once per sample and its lock EMA stays "
+    "correlated for roughly 39 samples, so a shorter count is counting one "
+    "look several times. Measured against noise-only input, n_up=8 -- the "
+    "value MpskReceiver uses on this same statistic -- false-locked 4 trials "
+    "in 30, while 64 was the smallest count clean over 300. Raise n_up rather "
+    "than lower it unless you have re-measured. A live lock survives the "
+    "re-tune; the in-flight verify run restarts.\n"
     "\n"
     "Full lockdet control, mirroring dp_costas_configure_lock(): a split\n"
     "declare/drop threshold pair on the lock-signal EMA (level hysteresis)\n"
     "and both verify counts (time hysteresis). Defaults (0.5/0.4, 64 up / 32\n"
-    "down) start from MpskReceiver's own pre-existing acquisition<-> "
-    "tracking\n"
-    "handover thresholds, but size n_up independently: `lock` is a fast\n"
-    "per-sample EMA, so consecutive looks are highly autocorrelated and\n"
+    "down) start from MpskReceiver's own pre-existing acquisition<->\n"
+    "tracking handover thresholds, but size n_up independently: `lock` is a\n"
+    "fast per-sample EMA, so consecutive looks are highly autocorrelated and\n"
     "MpskReceiver's own n_up=8 does not compound the false-declare rate the\n"
     "way it would for independent looks (direct Monte Carlo against a\n"
     "noise-only, no-carrier input found real false locks at n_up=8; n_up=64\n"
@@ -675,11 +712,10 @@ static PyMethodDef CarrierNdaObj_methods[] = {
     "Re-seed the loop to the create-time frequency/phase; preserve config.\n"
     "\n"
     "Restores the object to its post-create state: the carrier NCO is reset\n"
-    "to the seed frequency it was constructed with (init_norm_freq) with "
-    "zero\n"
-    "phase, the moving-average arm, the loop-filter integrator and the lock\n"
-    "EMA are cleared, and the lock detector is dropped. The configured (bn,\n"
-    "zeta), the arm geometry (sps, n) and the constellation order m are\n"
+    "to the seed frequency it was constructed with (init_norm_freq) with\n"
+    "zero phase, the moving-average arm, the loop-filter integrator and the\n"
+    "lock EMA are cleared, and the lock detector is dropped. The configured\n"
+    "(bn, zeta), the arm geometry (sps, n) and the constellation order m are\n"
     "preserved, so the same object can re-acquire a fresh capture.\n"
     "\n"
     "Examples\n"
@@ -752,12 +788,11 @@ static PyMethodDef CarrierNdaObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)CarrierNdaObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
@@ -772,9 +807,8 @@ static PyMethodDef CarrierNdaObj_methods[] = {
     "Exit a context manager, releasing the CarrierNda.\n"
     "\n"
     "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
-    "raised inside the `with` body propagates normally; this never "
-    "suppresses\n"
-    "one.\n"
+    "raised inside the `with` body propagates normally; this never\n"
+    "suppresses one.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -784,11 +818,11 @@ static PyMethodDef CarrierNdaObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject CarrierNdaObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "track.CarrierNda",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.track.CarrierNda",
   .tp_basicsize                           = sizeof (CarrierNdaObject),
   .tp_dealloc                             = (destructor)CarrierNdaObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

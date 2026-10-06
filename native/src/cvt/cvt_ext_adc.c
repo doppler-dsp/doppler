@@ -1,8 +1,10 @@
+/* jm:generated cvt_ext_adc.c */
 /*
  * cvt_ext_adc.c — ADC type for the cvt module.
  *
  * Included by cvt_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in cvt_ext_adc_extra.c.
  * Do NOT compile this file directly — only cvt_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ ADCObj_dealloc (ADCObject *self)
 static PyObject *
 ADCObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   ADCObject *self = (ADCObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -95,8 +100,8 @@ ADC_steps (ADCObject *self, PyObject *args, PyObject *kwds)
                                     &out_obj))
     return NULL;
 
-  PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      in_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *in_arr = (PyArrayObject *)jm_array_arg (
+      in_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!in_arr)
     return NULL;
 
@@ -117,8 +122,9 @@ ADC_steps (ADCObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_INT64, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr = (PyArrayObject *)jm_array_arg (
+          out_obj, NPY_INT64, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE,
+          "out");
       if (!out_arr)
         {
           Py_DECREF (in_arr);
@@ -240,7 +246,7 @@ static PyGetSetDef ADC_getset[]
     = { { "clipped", (getter)ADC_getprop_clipped, NULL, "Clipped.\n", NULL },
         { "scale", (getter)ADC_getprop_scale, NULL, "Scale.\n", NULL },
         { "bits", (getter)ADC_getprop_bits, NULL, "Bits.\n", NULL },
-        { NULL } };
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 ADCObj_destroy (ADCObject *self, PyObject *Py_UNUSED (ignored))
@@ -437,11 +443,11 @@ static PyMethodDef ADCObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject ADCObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "cvt.ADC",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.cvt.ADC",
   .tp_basicsize                           = sizeof (ADCObject),
   .tp_dealloc                             = (destructor)ADCObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

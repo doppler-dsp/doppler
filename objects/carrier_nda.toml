@@ -16,6 +16,7 @@ depends_on = [
   { name = "lockdet", link = true },
   { name = "dp_tlm", link = true },
 ]
+fragment = "generated"
 
 [[carrier_nda.init_params]]
 name = "bn"

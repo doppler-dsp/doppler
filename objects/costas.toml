@@ -12,6 +12,7 @@ depends_on = [
   { name = "loop_filter", link = true },
   { name = "dp_tlm", link = true },
 ]
+fragment = "generated"
 
 [[costas.init_params]]
 name = "bn"

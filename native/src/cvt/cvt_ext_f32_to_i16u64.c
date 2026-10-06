@@ -1,8 +1,10 @@
+/* jm:generated cvt_ext_f32_to_i16u64.c */
 /*
  * cvt_ext_f32_to_i16u64.c — F32ToI16U64 type for the cvt module.
  *
  * Included by cvt_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in cvt_ext_f32_to_i16u64_extra.c.
  * Do NOT compile this file directly — only cvt_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ F32ToI16U64Obj_dealloc (F32ToI16U64Object *self)
 static PyObject *
 F32ToI16U64Obj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   F32ToI16U64Object *self = (F32ToI16U64Object *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -93,8 +98,8 @@ F32ToI16U64_steps (F32ToI16U64Object *self, PyObject *args, PyObject *kwds)
                                     &out_obj))
     return NULL;
 
-  PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      in_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *in_arr = (PyArrayObject *)jm_array_arg (
+      in_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!in_arr)
     return NULL;
 
@@ -115,8 +120,9 @@ F32ToI16U64_steps (F32ToI16U64Object *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_UINT64, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr = (PyArrayObject *)jm_array_arg (
+          out_obj, NPY_UINT64, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE,
+          "out");
       if (!out_arr)
         {
           Py_DECREF (in_arr);
@@ -224,7 +230,7 @@ static PyGetSetDef F32ToI16U64_getset[]
     = { { "clipped", (getter)F32ToI16U64_getprop_clipped, NULL,
           "True if any sample has been saturated since the last reset().\n",
           NULL },
-        { NULL } };
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 F32ToI16U64Obj_destroy (F32ToI16U64Object *self, PyObject *Py_UNUSED (ignored))
@@ -415,11 +421,11 @@ static PyMethodDef F32ToI16U64Obj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject F32ToI16U64ObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "cvt.F32ToI16U64",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.cvt.F32ToI16U64",
   .tp_basicsize                           = sizeof (F32ToI16U64Object),
   .tp_dealloc                             = (destructor)F32ToI16U64Obj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

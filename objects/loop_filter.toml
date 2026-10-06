@@ -11,6 +11,7 @@ serializable = "true"
 # not that malloc failed, so say so rather than raising MemoryError.
 create_error = "ValueError"
 create_error_message = "bn must be >= 0, zeta > 0 and t > 0, and all three finite"
+fragment = "generated"
 
 [[loop_filter.init_params]]
 name = "bn"

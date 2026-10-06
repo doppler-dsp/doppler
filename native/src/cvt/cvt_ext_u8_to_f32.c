@@ -1,8 +1,10 @@
+/* jm:generated cvt_ext_u8_to_f32.c */
 /*
  * cvt_ext_u8_to_f32.c — U8ToF32 type for the cvt module.
  *
  * Included by cvt_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in cvt_ext_u8_to_f32_extra.c.
  * Do NOT compile this file directly — only cvt_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ U8ToF32Obj_dealloc (U8ToF32Object *self)
 static PyObject *
 U8ToF32Obj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   U8ToF32Object *self = (U8ToF32Object *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -105,8 +110,8 @@ U8ToF32_steps (U8ToF32Object *self, PyObject *args, PyObject *kwds)
                                     &out_obj))
     return NULL;
 
-  PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      in_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *in_arr = (PyArrayObject *)jm_array_arg (
+      in_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!in_arr)
     return NULL;
 
@@ -127,8 +132,9 @@ U8ToF32_steps (U8ToF32Object *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr = (PyArrayObject *)jm_array_arg (
+          out_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE,
+          "out");
       if (!out_arr)
         {
           Py_DECREF (in_arr);
@@ -302,7 +308,7 @@ static PyMethodDef U8ToF32Obj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject U8ToF32ObjType = {

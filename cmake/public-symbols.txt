@@ -1612,6 +1612,7 @@ dp_wfm_reader_set_follow_timeout_ms function
 dp_wfm_reader_set_stop_fn function
 dp_wfm_render_destroy function
 dp_wfm_render_noise_steps function
+dp_wfm_render_set_input_timeline function
 dp_wfm_render_steps function
 dp_wfm_resolve_noise function
 dp_wfm_rrc_polyphase_bank function

@@ -1561,6 +1561,7 @@
 * **dp\_wfm\_framing\_flags\_error** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_render\_destroy** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_render\_noise\_steps** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **dp\_wfm\_render\_set\_input\_timeline** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_render\_steps** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_resolve\_noise** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_scene\_error** ([**wfm\_compose.h**](wfm__compose_8h.md))

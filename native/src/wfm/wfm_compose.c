@@ -270,6 +270,12 @@ struct wfm_render
   size_t          hold_cap;
   size_t          hold_n;  /* valid samples in hold            */
   size_t          hold_rd; /* how many of them are spent       */
+  /* The channel's INPUT timeline, in input samples: `in_dly` noise-only,
+     `in_on` signal, then noise-only for ever. Only meaningful with a channel
+     (`ch`), and only once set: a NULL-schedule renderer (in_set == 0) keeps
+     the output-phase behaviour, which is what a channel-less pull is. */
+  size_t in_dly, in_on, in_pos;
+  int    in_set;
 };
 
 /* Copy each live renderer's data-source counts onto its source in the
@@ -358,6 +364,49 @@ dp_wfm_compose_build_render (const wfm_source_t *src, double fs, size_t on_len,
   return r;
 }
 
+void
+dp_wfm_render_set_input_timeline (wfm_render_t *r, size_t delay, size_t on)
+{
+  r->in_dly = delay;
+  r->in_on  = on;
+  r->in_pos = 0;
+  r->in_set = 1;
+}
+
+/* Feed `feed` samples of the channel's INPUT from the synth, following the
+ * input timeline: the delay and the gap are noise-only, the ON samples are
+ * the signal, each counted in INPUT samples.
+ *
+ * Counting input samples is the whole point. The channel's input and output
+ * clocks are decoupled by the dilation and by the holdover, so which phase the
+ * OUTPUT being drained is in says nothing reliable about which phase the next
+ * `feed` INPUT samples belong to. Choosing `steps` or `noise_steps` once per
+ * refill from the output phase fed a burst past its end (the synth runs on
+ * beyond `num_samples`), which the gap then drained as signal -- doppler#1858
+ * -- and mirror-image, fed noise over the start of a burst. */
+static void
+feed_input (wfm_render_t *r, size_t feed)
+{
+  size_t done = 0;
+  while (done < feed)
+    {
+      size_t edge_on  = r->in_dly;
+      size_t edge_off = r->in_dly + r->in_on;
+      int    sig      = (r->in_pos >= edge_on && r->in_pos < edge_off);
+      size_t run      = sig                     ? edge_off - r->in_pos
+                        : (r->in_pos < edge_on) ? edge_on - r->in_pos
+                                                : feed - done;
+      if (run > feed - done)
+        run = feed - done;
+      if (sig)
+        dp_wfm_synth_steps (r->syn, r->in + done, run);
+      else
+        dp_wfm_synth_noise_steps (r->syn, r->in + done, run);
+      r->in_pos += run;
+      done += run;
+    }
+}
+
 /* Pull `n` samples, taking the synth's full output or only its AWGN.
  *
  * The channel RUNS EITHER WAY, and that is the point rather than an
@@ -426,7 +475,9 @@ render_pull (wfm_render_t *r, float _Complex *dst, size_t n, int noise_only)
       size_t feed = (fits < RENDER_FEED) ? fits : RENDER_FEED;
       if (feed == 0)
         feed = 1;
-      if (noise_only)
+      if (r->in_set)
+        feed_input (r, feed);
+      else if (noise_only)
         dp_wfm_synth_noise_steps (r->syn, r->in, feed);
       else
         dp_wfm_synth_steps (r->syn, r->in, feed);
@@ -500,6 +551,9 @@ start_segment (dp_wfm_compose_state_t *s)
         ok = 0;
       else
         {
+          if (s->rend[k]->ch)
+            dp_wfm_render_set_input_timeline (s->rend[k], s->cur_delay,
+                                              s->cur_num);
           s->n_syn = k + 1; /* track for stop_synths on partial failure */
           dp_wfm_synth_set_data_pacing (s->rend[k]->syn, s->pacing);
           s->stream[k] = (unsigned char)dp_wfm_source_data_is_stream (src);

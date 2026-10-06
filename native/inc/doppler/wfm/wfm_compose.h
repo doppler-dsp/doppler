@@ -1188,7 +1188,6 @@ void dp_wfm_render_steps(wfm_render_t *r, float _Complex *dst, size_t n);
  */
 void dp_wfm_render_noise_steps(wfm_render_t *r, float _Complex *dst, size_t n);
 
-/** @brief Free a renderer and everything it owns. NULL-safe. */
 /**
  * @brief Tell a Doppler renderer where its INPUT's phases fall.
  *
@@ -1209,6 +1208,7 @@ void dp_wfm_render_noise_steps(wfm_render_t *r, float _Complex *dst, size_t n);
  */
 void dp_wfm_render_set_input_timeline(wfm_render_t *r, size_t delay, size_t on);
 
+/** @brief Free a renderer and everything it owns. NULL-safe. */
 void dp_wfm_render_destroy(wfm_render_t *r);
 
 /**

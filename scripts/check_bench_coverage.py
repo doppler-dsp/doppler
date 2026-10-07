@@ -187,7 +187,6 @@ PY_HOLLOW_ALLOW: set[str] = {
     "ber/benchmarks/bench_frame_meter.py",
     "dsss/benchmarks/bench_async_dsss_receiver.py",
     "dsss/benchmarks/bench_dsss_receiver.py",
-    "impairment/benchmarks/bench_doppler_channel.py",
     "interp/benchmarks/bench_interp_table.py",
     "measure/benchmarks/bench_imdmeas.py",
     "measure/benchmarks/bench_nprmeas.py",

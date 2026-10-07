@@ -14,6 +14,20 @@
  * second update is measurable is what a harness author wants to know
  * before deciding to sweep drift rates.
  *
+ * A third row times the ARRAY form, `dp_doppler_channel_execute_profile`, at a
+ * flat 3 ppm so its Doppler matches the static row and only the cost of the
+ * form itself differs: validating the profile, the position the resampler
+ * reports per output, and a carrier read from it rather than from a closed
+ * form.
+ *
+ * Measured 2026-10-06, an 8-core WSL2 box, three runs of this binary at
+ * fs = 10 MHz, 65536-sample blocks: static 13.1, ramp 13.2-13.5, profile
+ * 13.9-14.2 ns/sample, so the array form costs 1.06-1.08x the closed form.
+ * That is the price of validating the array, reading the resampler's position
+ * per output, and deriving the carrier from it. It is a few percent, not
+ * zero, and it is the number to quote: the Python row beside it
+ * (src/doppler/impairment/benchmarks/) also pays the binding's array setup.
+ *
  * Timing is MIN over rounds, not mean -- benchmark noise is one-sided.
  */
 #include "doppler/doppler_channel/doppler_channel_core.h"
@@ -131,6 +145,58 @@ main (void)
               (double)BENCH_N / min_sec (t_ex[k], ITERATIONS) / 1e6);
       dp_doppler_channel_destroy (c);
     }
+
+  /* The array form, at a flat profile equal to the static row's Doppler.
+     The scratch the position array lives in grows on the first call, so the
+     warm-up below is what keeps that allocation out of the timed rounds. */
+  static double t_pf[ITERATIONS];
+  {
+    double *ppm = malloc (BENCH_N * sizeof *ppm);
+    if (!ppm)
+      return 1;
+    for (int i = 0; i < BENCH_N; i++)
+      ppm[i] = 3.0;
+    dp_doppler_channel_state_t *c
+        = dp_doppler_channel_create (FS, CARRIER, 0.0, 0.0);
+    if (!c)
+      {
+        (void)fprintf (stderr, "bench_doppler_channel: create NULL\n");
+        return 1;
+      }
+    size_t got = dp_doppler_channel_execute_profile (c, x, BENCH_N, ppm,
+                                                     BENCH_N, out, BENCH_N);
+    if (got + 2u < (size_t)BENCH_N || got > (size_t)BENCH_N)
+      {
+        (void)fprintf (stderr,
+                       "bench_doppler_channel: profile emitted %zu of %d "
+                       "samples -- the timing would measure a short path\n",
+                       got, BENCH_N);
+        return 1;
+      }
+    for (int w = 0; w < 32; w++)
+      {
+        dp_doppler_channel_reset (c);
+        sink += dp_doppler_channel_execute_profile (c, x, BENCH_N, ppm,
+                                                    BENCH_N, out, BENCH_N);
+      }
+    for (int r = 0; r < ITERATIONS; r++)
+      {
+        dp_doppler_channel_reset (c);
+        t0 = jm_bench_now_ns ();
+        sink += dp_doppler_channel_execute_profile (c, x, BENCH_N, ppm,
+                                                    BENCH_N, out, BENCH_N);
+        t1      = jm_bench_now_ns ();
+        t_pf[r] = jm_bench_elapsed_sec (t0, t1);
+      }
+    jm_bench_add (&_bench, "execute[profile]", t_pf, ITERATIONS, BENCH_N);
+    printf ("  %-20s %7.2f ns/sample  %8.1f MSa/s\n", "execute[profile]",
+            min_sec (t_pf, ITERATIONS) / BENCH_N * 1e9,
+            (double)BENCH_N / min_sec (t_pf, ITERATIONS) / 1e6);
+    dp_doppler_channel_destroy (c);
+    free (ppm);
+  }
+  printf ("\n  profile/static = %.2fx\n",
+          min_sec (t_pf, ITERATIONS) / min_sec (t_ex[0], ITERATIONS));
 
   printf ("\n  ramp/static = %.2fx -- a drifting offset costs the same as a\n"
           "  fixed one. Advancing the phase INCREMENT is one add beside the\n"

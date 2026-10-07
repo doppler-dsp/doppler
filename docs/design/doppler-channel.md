@@ -152,9 +152,11 @@ function of the resampler's position, which the blob already carries.
     double evaluated from the sample index and reduced to one turn before a
     `float` `cexpf`. The header states ~1e-8 cycles of representation error at
     1000 s, 20 ppm, 2.5 GHz; that is arithmetic, not a sweep.
-- **How the per-sample cost splits.** A Plan render of a Doppler scene costs
-    about 24 ns per output sample end to end; how much of that is the resampler
-    and how much the carrier's `cexpf` has not been measured.
+- **How the per-sample cost splits.** The channel alone costs about 13 ns per
+    sample (`bench_doppler_channel_core`: 13.1 for the closed form, 13.9–14.2
+    for the array form, 1.06–1.08×), and a Plan render of a Doppler scene about
+    24 ns per output sample end to end. How the channel's 13 ns divides between
+    the resampler and the carrier's `cexpf` has not been measured.
 - **The size of the scalar form's input-time approximation.** `ctrl[i]` is
     evaluated at `n_in/fs`, not at the true receive time, which differ by the
     dilation itself (~1e-5 relative). The induced error in `d` is
@@ -173,5 +175,7 @@ shared with this page.
 
 - [Gallery: Doppler Channel](../gallery/doppler-channel.md) — the scalar form,
     measured.
+- [Gallery: a Doppler profile](../gallery/doppler-channel-profile.md) — the
+    array form, driven by one cosine period.
 - [State serialization](state-serialization.md) — the blob envelope.
 - [Resampler](RESAMPLER.md) — the per-sample rate control underneath.

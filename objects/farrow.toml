@@ -6,6 +6,7 @@ no_state = "true"
 no_step = "true"
 class_name = "Farrow"
 serializable = "true"
+fragment = "generated"
 
 [[farrow.init_params]]
 name = "order"
@@ -31,8 +32,3 @@ return_type = "void"
 [[farrow.properties]]
 name = "group_delay"
 type = "size_t"
-
-# gh-428 manual_stub: hand-written .pyi symbol. NOT obsoleted by jm 0.64.0's
-# gh-1079 generator -- Farrow.delay takes an array beside a scalar, which
-# `_outbuf.why_not` excludes ("an array beside other params (gh-412)"), so no
-# delay_max_out is generated and this stub is still the only one.

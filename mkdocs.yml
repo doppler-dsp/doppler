@@ -274,6 +274,8 @@ nav:
       - Ending a Wait: design/io-termination.md
       - The Ring Buffer: design/ring-buffer.md
       - The Ring Buffer — Measurements: design/ring-buffer-measurements.md
+      - The Doppler Channel: design/doppler-channel.md
+      - The Doppler Channel — Measurements: design/doppler-channel-measurements.md
       - Capture Files: design/capture-files.md
       - Ending a Capture: design/end-of-capture.md
       - DSSS Acquisition: design/dsss-acquisition.md

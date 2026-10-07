@@ -5,13 +5,13 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 serializable = "true"
-# Held hand-owned: init_params cannot declare `rank`, so the render drops
-# the 1-D guard on `h` (just-makeit#2004). Adopt once that ships.
 depends_on = [{ name = "hbdecim", link = true }, { name = "hbdecim_r2c", link = true }]
+fragment = "generated"
 
 [[HalfbandDecimator.init_params]]
 name = "h"
 type = "float[]"
+rank = 1
 
 [[HalfbandDecimator.methods]]
 name = "execute"

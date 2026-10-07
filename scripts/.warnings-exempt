@@ -16,7 +16,6 @@
 # warning is fixed at its cause.
 #
 # Format: one repo-relative path per line.
-native/src/resample/resample_ext_HalfbandDecimator.c
 native/src/resample/resample_ext_extra.c
 native/src/resample/resample_ext_farrow.c
 native/src/resample/resample_ext_hbdecim_q15.c

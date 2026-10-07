@@ -1,8 +1,10 @@
+/* jm:generated resample_ext_Resampler.c */
 /*
  * resample_ext_Resampler.c — Resampler type for the resample module.
  *
  * Included by resample_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in resample_ext_Resampler_extra.c.
  * Do NOT compile this file directly — only resample_ext.c is compiled.
  */
 /* ======================================================== */
@@ -10,16 +12,10 @@
 /* ======================================================== */
 
 #include "doppler/Resampler/Resampler_core.h"
-#include "doppler/dp_state_pyhelp.h"
 
 typedef struct
 {
   PyObject_HEAD dp_Resampler_state_t *handle;
-  float _Complex *_execute_buf;     /* pre-allocated output for execute */
-  size_t          _execute_buf_cap; /* elements allocated above */
-  float _Complex
-        *_execute_ctrl_buf;     /* pre-allocated output for execute_ctrl */
-  size_t _execute_ctrl_buf_cap; /* elements allocated above */
 } ResamplerObject;
 
 static void
@@ -27,14 +23,15 @@ ResamplerObj_dealloc (ResamplerObject *self)
 {
   if (self->handle)
     dp_Resampler_destroy (self->handle);
-  free (self->_execute_buf);
-  free (self->_execute_ctrl_buf);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
 static PyObject *
 ResamplerObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   ResamplerObject *self = (ResamplerObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -51,30 +48,30 @@ ResamplerObj_init (ResamplerObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "|dO", kwlist, &rate,
                                     &bank_obj))
     return -1;
-
   if (bank_obj && bank_obj != Py_None)
     {
-      PyArrayObject *bank_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          bank_obj, NPY_FLOAT32, NPY_ARRAY_C_CONTIGUOUS);
+      PyArrayObject *bank_arr
+          = jm_array_arg (bank_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS, "bank");
       if (!bank_arr)
-        return -1;
-      if (PyArray_NDIM (bank_arr) != 2)
         {
-          Py_DECREF (bank_arr);
-          PyErr_SetString (PyExc_ValueError, "bank must be 2-D float32");
           return -1;
         }
-      size_t num_phases = (size_t)PyArray_DIM (bank_arr, 0);
-      size_t num_taps   = (size_t)PyArray_DIM (bank_arr, 1);
-      self->handle      = dp_Resampler_create_custom (
-          num_phases, num_taps, (const float *)PyArray_DATA (bank_arr), rate);
+      if (PyArray_NDIM (bank_arr) != 2)
+        {
+          PyErr_SetString (PyExc_ValueError, "bank must be a 2-D array");
+          Py_DECREF (bank_arr);
+          return -1;
+        }
+      size_t bank_dim0 = (size_t)PyArray_DIM (bank_arr, 0);
+      size_t bank_dim1 = (size_t)PyArray_DIM (bank_arr, 1);
+      self->handle     = dp_Resampler_create_custom (
+          bank_dim0, bank_dim1, (const float *)PyArray_DATA (bank_arr), rate);
       Py_DECREF (bank_arr);
     }
   else
     {
       self->handle = dp_Resampler_create (rate);
     }
-
   if (!self->handle)
     {
       PyErr_SetString (PyExc_MemoryError, "dp_Resampler_create returned NULL");
@@ -103,39 +100,34 @@ ResamplerObj_execute (ResamplerObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char   *kwlist[] = { "x", "out", NULL };
-  PyObject      *x_obj    = NULL;
-  PyObject      *out_obj  = NULL;
-  PyArrayObject *x_arr    = NULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", kwlist, &x_obj,
+  static char   *_kwlist[] = { "x", "out", NULL };
+  PyObject      *x_obj     = NULL;
+  PyArrayObject *x_arr     = NULL;
+  PyObject      *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
-                                             NPY_ARRAY_C_CONTIGUOUS);
+  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     return NULL;
-
   if (out_obj && out_obj != Py_None)
     {
-      /* Require the exact output dtype — no silent cast (a cast writes
-       * into a temp copy instead of the caller's buffer). Hand-written
-       * here because this fragment stays hand-owned; keep in step with
-       * jm's generated form (gh-581). */
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
       if (!PyArray_Check (out_obj)
           || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
           || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
           || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
         {
-          PyErr_SetString (
-              PyExc_TypeError,
-              "out must be a writable, C-contiguous ndarray of the "
-              "output dtype");
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
           Py_DECREF (x_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_COMPLEX64,
-          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (x_arr);
@@ -143,8 +135,9 @@ ResamplerObj_execute (ResamplerObject *self, PyObject *args, PyObject *kwds)
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
       size_t _omax    = dp_Resampler_execute_max_out (self->handle);
-      size_t _n_in    = (size_t)PyArray_SIZE (x_arr);
-      size_t _min_cap = _omax > _n_in ? _omax : _n_in;
+      size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
+                            ? _omax
+                            : ((size_t)PyArray_SIZE (x_arr));
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -154,9 +147,19 @@ ResamplerObj_execute (ResamplerObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t n_out = dp_Resampler_execute (
-          self->handle, (const float _Complex *)PyArray_DATA (x_arr), _n_in,
+          self->handle, (const float _Complex *)PyArray_DATA (x_arr),
+          (size_t)PyArray_SIZE (x_arr),
           (float _Complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (x_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "Resampler.execute: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
                                                     PyArray_DATA (out_arr));
@@ -165,41 +168,63 @@ ResamplerObj_execute (ResamplerObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
-      return _oview;
-    }
-
-  if (!self->_execute_buf)
-    {
-      /* dp_Resampler_execute_max_out() always returns the fixed
-       * RESAMPLER_MAX_OUT (65536) regardless of input size -- the kernel's
-       * own contract caps output there, so one allocation at that size
-       * covers every future call; no growth path is needed. */
-      size_t _max = dp_Resampler_execute_max_out (self->handle);
-      if (!_max)
-        _max = (size_t)PyArray_SIZE (x_arr);
-      self->_execute_buf     = malloc (_max * sizeof (float _Complex));
-      self->_execute_buf_cap = _max;
-      if (!self->_execute_buf)
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
         {
-          Py_DECREF (x_arr);
-          PyErr_NoMemory ();
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
           return NULL;
         }
+      return _oview;
     }
-  size_t n_out = dp_Resampler_execute (
+  size_t _need = (size_t)PyArray_SIZE (x_arr);
+  size_t _cap  = dp_Resampler_execute_max_out (self->handle);
+  if (!_cap || _cap < _need)
+    _cap = _need;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "Resampler.execute: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
+  if (!arr0)
+    {
+      Py_DECREF (x_arr);
+      return NULL;
+    }
+  float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  size_t          n_out = dp_Resampler_execute (
       self->handle, (const float _Complex *)PyArray_DATA (x_arr),
-      (size_t)PyArray_SIZE (x_arr), self->_execute_buf,
-      self->_execute_buf_cap);
-  npy_intp  dim = (npy_intp)n_out;
-  PyObject *arr
-      = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64, self->_execute_buf);
-  if (!arr)
-    return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
+      (size_t)PyArray_SIZE (x_arr), _d0, _cap);
   Py_DECREF (x_arr);
-  return arr;
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "Resampler.execute: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
+  if ((size_t)n_out == _cap)
+    {
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  return arr0;
 }
 
 static PyObject *
@@ -223,56 +248,44 @@ ResamplerObj_execute_ctrl (ResamplerObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char   *kwlist[] = { "x", "ctrl", "out", NULL };
-  PyObject      *x_obj    = NULL;
-  PyArrayObject *x_arr    = NULL;
-  PyObject      *ctrl_obj = NULL;
-  PyArrayObject *ctrl_arr = NULL;
-  PyObject      *out_obj  = NULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO|O", kwlist, &x_obj,
+  static char   *_kwlist[] = { "x", "ctrl", "out", NULL };
+  PyObject      *x_obj     = NULL;
+  PyArrayObject *x_arr     = NULL;
+  PyObject      *ctrl_obj  = NULL;
+  PyArrayObject *ctrl_arr  = NULL;
+  PyObject      *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO|O", _kwlist, &x_obj,
                                     &ctrl_obj, &out_obj))
     return NULL;
-  x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
-                                             NPY_ARRAY_C_CONTIGUOUS);
+  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     return NULL;
-  ctrl_arr = (PyArrayObject *)PyArray_FROM_OTF (ctrl_obj, NPY_DOUBLE,
-                                                NPY_ARRAY_C_CONTIGUOUS);
+  ctrl_arr
+      = jm_array_arg (ctrl_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS, "ctrl");
   if (!ctrl_arr)
     {
       Py_DECREF (x_arr);
       return NULL;
     }
-  if (PyArray_SIZE (ctrl_arr) < PyArray_SIZE (x_arr))
-    {
-      Py_DECREF (x_arr);
-      Py_DECREF (ctrl_arr);
-      PyErr_SetString (PyExc_ValueError, "ctrl must be at least as long as x");
-      return NULL;
-    }
-
   if (out_obj && out_obj != Py_None)
     {
-      /* Require the exact output dtype — no silent cast (a cast writes
-       * into a temp copy instead of the caller's buffer). Hand-written
-       * here because this fragment stays hand-owned; keep in step with
-       * jm's generated form (gh-581). */
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
       if (!PyArray_Check (out_obj)
           || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
           || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
           || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
         {
-          PyErr_SetString (
-              PyExc_TypeError,
-              "out must be a writable, C-contiguous ndarray of the "
-              "output dtype");
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
           Py_DECREF (x_arr);
           Py_DECREF (ctrl_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_COMPLEX64,
-          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (x_arr);
@@ -281,8 +294,9 @@ ResamplerObj_execute_ctrl (ResamplerObject *self, PyObject *args,
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
       size_t _omax    = dp_Resampler_execute_ctrl_max_out (self->handle);
-      size_t _n_in    = (size_t)PyArray_SIZE (x_arr);
-      size_t _min_cap = _omax > _n_in ? _omax : _n_in;
+      size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
+                            ? _omax
+                            : ((size_t)PyArray_SIZE (x_arr));
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -292,13 +306,31 @@ ResamplerObj_execute_ctrl (ResamplerObject *self, PyObject *args,
           Py_DECREF (ctrl_arr);
           return NULL;
         }
-      size_t n_out = dp_Resampler_execute_ctrl (
-          self->handle, (const float _Complex *)PyArray_DATA (x_arr), _n_in,
+      int64_t _rc = dp_Resampler_execute_ctrl (
+          self->handle, (const float _Complex *)PyArray_DATA (x_arr),
+          (size_t)PyArray_SIZE (x_arr),
           (const double *)PyArray_DATA (ctrl_arr),
           (size_t)PyArray_SIZE (ctrl_arr),
           (float _Complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (x_arr);
       Py_DECREF (ctrl_arr);
+      if (_rc < 0)
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                        "ctrl must be at least as long as x", (long long)_rc);
+          return NULL;
+        }
+      size_t n_out = (size_t)_rc;
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (PyExc_RuntimeError,
+                        "Resampler.execute_ctrl: wrote %zu elements into a "
+                        "buffer of %zu",
+                        (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
                                                     PyArray_DATA (out_arr));
@@ -307,43 +339,76 @@ ResamplerObj_execute_ctrl (ResamplerObject *self, PyObject *args,
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
-      return _oview;
-    }
-
-  if (!self->_execute_ctrl_buf)
-    {
-      /* dp_Resampler_execute_ctrl_max_out() always returns the fixed
-       * RESAMPLER_MAX_OUT (65536) regardless of input size -- same
-       * fixed-capacity contract as execute(); no growth path needed. */
-      size_t _max = dp_Resampler_execute_ctrl_max_out (self->handle);
-      if (!_max)
-        _max = (size_t)PyArray_SIZE (x_arr);
-      self->_execute_ctrl_buf     = malloc (_max * sizeof (float _Complex));
-      self->_execute_ctrl_buf_cap = _max;
-      if (!self->_execute_ctrl_buf)
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
         {
-          Py_DECREF (x_arr);
-          Py_DECREF (ctrl_arr);
-          PyErr_NoMemory ();
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
           return NULL;
         }
+      return _oview;
     }
-  size_t n_out = dp_Resampler_execute_ctrl (
+  size_t _need = (size_t)PyArray_SIZE (x_arr);
+  size_t _cap  = dp_Resampler_execute_ctrl_max_out (self->handle);
+  if (!_cap || _cap < _need)
+    _cap = _need;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      Py_DECREF (ctrl_arr);
+      PyErr_Format (
+          PyExc_OverflowError,
+          "Resampler.execute_ctrl: output of %zu elements is too large",
+          _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
+  if (!arr0)
+    {
+      Py_DECREF (x_arr);
+      Py_DECREF (ctrl_arr);
+      return NULL;
+    }
+  float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  int64_t         _rc = dp_Resampler_execute_ctrl (
       self->handle, (const float _Complex *)PyArray_DATA (x_arr),
       (size_t)PyArray_SIZE (x_arr), (const double *)PyArray_DATA (ctrl_arr),
-      (size_t)PyArray_SIZE (ctrl_arr), self->_execute_ctrl_buf,
-      self->_execute_ctrl_buf_cap);
-  npy_intp  dim = (npy_intp)n_out;
-  PyObject *arr = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64,
-                                             self->_execute_ctrl_buf);
-  if (!arr)
-    return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
+      (size_t)PyArray_SIZE (ctrl_arr), _d0, _cap);
   Py_DECREF (x_arr);
   Py_DECREF (ctrl_arr);
-  return arr;
+  if (_rc < 0)
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "ctrl must be at least as long as x", (long long)_rc);
+      return NULL;
+    }
+  size_t n_out = (size_t)_rc;
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "Resampler.execute_ctrl: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
+  if ((size_t)n_out == _cap)
+    {
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  return arr0;
 }
 
 static PyObject *
@@ -355,6 +420,60 @@ ResamplerObj_reset (ResamplerObject *self, PyObject *Py_UNUSED (ignored))
       return NULL;
     }
   dp_Resampler_reset (self->handle);
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+ResamplerObj_state_bytes (ResamplerObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (dp_Resampler_state_bytes (self->handle));
+}
+
+static PyObject *
+ResamplerObj_get_state (ResamplerObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = dp_Resampler_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  dp_Resampler_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+ResamplerObj_set_state (ResamplerObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg)
+      != dp_Resampler_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (dp_Resampler_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
   Py_RETURN_NONE;
 }
 static PyObject *
@@ -384,6 +503,17 @@ Resampler_setprop_rate (ResamplerObject *self, PyObject *value,
   return 0;
 }
 static PyObject *
+Resampler_getprop_ctrl_acc (ResamplerObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (dp_Resampler_get_ctrl_acc (self->handle));
+}
+static PyObject *
 Resampler_getprop_num_phases (ResamplerObject *self, void *Py_UNUSED (closure))
 {
   if (!self->handle)
@@ -407,19 +537,6 @@ Resampler_getprop_num_taps (ResamplerObject *self, void *Py_UNUSED (closure))
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_Resampler_get_num_taps (self->handle));
 }
-
-static PyObject *
-Resampler_getprop_ctrl_acc (ResamplerObject *self, void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (dp_Resampler_get_ctrl_acc (self->handle));
-}
-
 static PyObject *
 Resampler_getprop_delay (ResamplerObject *self, void *Py_UNUSED (closure))
 {
@@ -440,17 +557,17 @@ static PyGetSetDef Resampler_getset[] = {
     "of (rate - 1) (i.e. crossing the boundary between interp and decim "
     "modes) requires a fresh create().\n",
     NULL },
+  { "ctrl_acc", (getter)Resampler_getprop_ctrl_acc, NULL,
+    "The control accumulator's fractional phase, in [0, 1).\n", NULL },
   { "num_phases", (getter)Resampler_getprop_num_phases, NULL, "Num phases.\n",
     NULL },
   { "num_taps", (getter)Resampler_getprop_num_taps, NULL,
     "Taps per polyphase branch. Total prototype filter length is num_phases * "
     "num_taps - 1. The built-in bank uses 19 taps per branch.\n",
     NULL },
-  { "ctrl_acc", (getter)Resampler_getprop_ctrl_acc, NULL,
-    "The control accumulator's fractional phase, in [0, 1).\n", NULL },
   { "delay", (getter)Resampler_getprop_delay, NULL,
     "Group delay of the interpolator, in input samples.\n", NULL },
-  { NULL }
+  { NULL, NULL, NULL, NULL, NULL }
 };
 
 static PyObject *
@@ -482,11 +599,6 @@ ResamplerObj_exit (ResamplerObject *self, PyObject *args)
     }
   Py_RETURN_NONE;
 }
-
-/* serializable (gh-400): the standard state triplet, generated by the
- * shared macro (see dp_state_pyhelp.h) — byte-identical to jm's output.
- * The matching PyMethodDef rows are below. */
-DP_PY_STATE_METHODS (ResamplerObj, ResamplerObject, self->handle, dp_Resampler)
 
 static PyMethodDef ResamplerObj_methods[] = {
 
@@ -555,7 +667,17 @@ static PyMethodDef ResamplerObj_methods[] = {
     "-------\n"
     "NDArray[np.complex64]\n"
     "    CF32 output array; length depends on accumulated rate deviations,\n"
-    "    capped at max_out.\n"
+    "    capped at max_out. In C, the count written (>= 0), or\n"
+    "    DP_ERR_INVALID (negative) when ctrl_len is shorter than x_len:\n"
+    "    nothing is written. 0 stays a valid, empty result, so the sign\n"
+    "    alone tells a refusal from it (doppler#1869).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a negative value. The exception message is\n"
+    "    ``ctrl must be at least as long as x``, with the return code\n"
+    "    appended (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -647,12 +769,11 @@ static PyMethodDef ResamplerObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)ResamplerObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
@@ -667,9 +788,8 @@ static PyMethodDef ResamplerObj_methods[] = {
     "Exit a context manager, releasing the Resampler.\n"
     "\n"
     "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
-    "raised inside the `with` body propagates normally; this never "
-    "suppresses\n"
-    "one.\n"
+    "raised inside the `with` body propagates normally; this never\n"
+    "suppresses one.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -679,11 +799,11 @@ static PyMethodDef ResamplerObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject ResamplerObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "resample.Resampler",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.resample.Resampler",
   .tp_basicsize                           = sizeof (ResamplerObject),
   .tp_dealloc                             = (destructor)ResamplerObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
@@ -701,6 +821,10 @@ static PyTypeObject ResamplerObjType = {
     "    Output-to-input sample rate ratio (any positive float). Values >= "
     "1.0\n"
     "    interpolate; values < 1.0 decimate.\n"
+    "bank : NDArray[np.float32] or None\n"
+    "    Optional polyphase bank: a 2-D float32 array of shape (num_phases,\n"
+    "    num_taps), num_phases a power of two. Omit for the built-in 4096x19\n"
+    "    Kaiser bank.\n"
     "\n"
     "Examples\n"
     "--------\n"

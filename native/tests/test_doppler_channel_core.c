@@ -310,9 +310,10 @@ main (void)
     size_t          cap   = 2u * n + 2u;
     float _Complex *whole = malloc (cap * sizeof *whole);
     DP_CHECK (whole_ch && whole);
-    size_t nw = dp_doppler_channel_execute_profile (whole_ch, xs, n, ppm, n,
-                                                    whole, cap);
-    DP_CHECK (nw > 0);
+    int64_t nw_s = dp_doppler_channel_execute_profile (whole_ch, xs, n, ppm, n,
+                                                       whole, cap);
+    DP_CHECK (nw_s > 0);
+    size_t nw = (size_t)nw_s;
 
     /* 8a. Chunk-independence, bit for bit, at block sizes that do not divide
        each other. This is the assertion the first attempt failed (2.75e-2). */
@@ -326,9 +327,11 @@ main (void)
         size_t ny = 0;
         for (size_t off = 0; off < n; off += blocks[b])
           {
-            size_t m = (n - off < blocks[b]) ? n - off : blocks[b];
-            ny += dp_doppler_channel_execute_profile (
+            size_t  m   = (n - off < blocks[b]) ? n - off : blocks[b];
+            int64_t got = dp_doppler_channel_execute_profile (
                 ch, xs + off, m, ppm + off, m, y + ny, cap - ny);
+            DP_CHECK (got >= 0);
+            ny += (size_t)got;
           }
         DP_CHECK (ny == nw);
         int same = 1;
@@ -373,8 +376,10 @@ main (void)
           na += dp_doppler_channel_execute (sc, ones + off, m, ya + na,
                                             fcap - na);
         }
-      size_t nb = dp_doppler_channel_execute_profile (pr, ones, nf, flat, nf,
-                                                      yb, fcap);
+      int64_t nb_s = dp_doppler_channel_execute_profile (pr, ones, nf, flat,
+                                                         nf, yb, fcap);
+      DP_CHECK (nb_s >= 0);
+      size_t nb = (size_t)nb_s;
       DP_CHECK (na == nb);
       double bound = 2.0 * 3.14159265358979323846 * T_FC
                      * 2.3283064365386963e-10 * ((double)nb / T_FS);
@@ -405,19 +410,23 @@ main (void)
       DP_CHECK (ch && y);
       DP_CHECK (
           dp_doppler_channel_execute_profile (ch, xs, 1000, ppm, 999, y, cap)
-          == 0);
+          == DP_ERR_INVALID);
       double saved = ppm[999];
       ppm[999]     = -2.0e6;
       DP_CHECK (
           dp_doppler_channel_execute_profile (ch, xs, 1000, ppm, 1000, y, cap)
-          == 0);
+          == DP_ERR_INVALID);
       ppm[999] = saved;
       DP_CHECK (dp_doppler_channel_execute_profile (ch, NULL, 1000, ppm, 1000,
                                                     y, cap)
-                == 0);
+                == DP_ERR_INVALID);
       DP_CHECK (
           dp_doppler_channel_execute_profile (ch, xs, 1000, NULL, 1000, y, cap)
-          == 0);
+          == DP_ERR_INVALID);
+      /* ... and a valid call that happens to emit nothing is NOT a refusal:
+         the two are told apart by the sign alone (doppler#1869). */
+      DP_CHECK (dp_doppler_channel_execute_profile (ch, xs, 0, ppm, 0, y, cap)
+                == 0);
       DP_CHECK (dp_doppler_channel_get_elapsed_s (ch) == 0.0);
       free (y);
       dp_doppler_channel_destroy (ch);
@@ -442,15 +451,17 @@ main (void)
       DP_CHECK (y && fp);
       for (size_t i = 0; i < m; i++)
         fp[i] = -4.9e5; /* scale 0.51: a 1.96x expansion */
-      size_t ni
+      int64_t ni_s
           = dp_doppler_channel_execute_profile (ch, xs, m, fp, m, y, bcap);
+      DP_CHECK (ni_s >= 0);
+      size_t ni = (size_t)ni_s;
       DP_CHECK (ni < bcap); /* the cap was not what ended the call */
       DP_CHECK (fabs ((double)ni - (double)m / 0.51) <= 2.0);
 
       dp_doppler_channel_reset (ch);
       fp[500] = -5.5e5; /* scale 0.45: past the sizing */
       DP_CHECK (dp_doppler_channel_execute_profile (ch, xs, m, fp, m, y, bcap)
-                == 0);
+                == DP_ERR_INVALID);
       DP_CHECK (dp_doppler_channel_get_elapsed_s (ch) == 0.0);
 
       const double bad[] = { NAN, INFINITY, -INFINITY };
@@ -461,7 +472,7 @@ main (void)
               = bad[b]; /* last, so only a whole-profile check sees it */
           DP_CHECK (
               dp_doppler_channel_execute_profile (ch, xs, m, fp, m, y, bcap)
-              == 0);
+              == DP_ERR_INVALID);
           DP_CHECK (dp_doppler_channel_get_elapsed_s (ch) == 0.0);
         }
       free (fp);
@@ -478,8 +489,10 @@ main (void)
       float _Complex *y1 = malloc (cap * sizeof *y1);
       float _Complex *y2 = malloc (cap * sizeof *y2);
       DP_CHECK (a && y1 && y2);
-      size_t n1 = dp_doppler_channel_execute_profile (a, xs, half, ppm, half,
-                                                      y1, cap);
+      int64_t n1_s = dp_doppler_channel_execute_profile (a, xs, half, ppm,
+                                                         half, y1, cap);
+      DP_CHECK (n1_s >= 0);
+      size_t n1    = (size_t)n1_s;
       size_t bytes = dp_doppler_channel_state_bytes (a);
       void  *blob  = malloc (bytes);
       DP_CHECK (blob != NULL);
@@ -490,8 +503,10 @@ main (void)
       DP_CHECK (dp_doppler_channel_get_offset_hz (b)
                 == dp_doppler_channel_get_offset_hz (a));
       DP_CHECK (dp_doppler_channel_get_offset_hz (b) != 0.0);
-      size_t n2 = dp_doppler_channel_execute_profile (
+      int64_t n2_s = dp_doppler_channel_execute_profile (
           b, xs + half, n - half, ppm + half, n - half, y2, cap);
+      DP_CHECK (n2_s >= 0);
+      size_t n2 = (size_t)n2_s;
       DP_CHECK (n1 + n2 == nw);
       int same = 1;
       for (size_t i = 0; i < n1; i++)

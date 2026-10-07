@@ -12,6 +12,8 @@
 #ifndef DP_DOPPLER_CHANNEL_CORE_H
 #define DP_DOPPLER_CHANNEL_CORE_H
 
+#include <stdint.h>
+
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
 #include "doppler/jm_perf.h"
@@ -93,7 +95,7 @@ size_t dp_doppler_channel_execute(dp_doppler_channel_state_t *state, const float
 
 size_t dp_doppler_channel_execute_profile_max_out(dp_doppler_channel_state_t *state, size_t n);
 
-size_t dp_doppler_channel_execute_profile(dp_doppler_channel_state_t *state, const float _Complex *x, size_t x_len, const double *ppm, size_t ppm_len, float _Complex *out, size_t max_out);
+int64_t dp_doppler_channel_execute_profile(dp_doppler_channel_state_t *state, const float _Complex *x, size_t x_len, const double *ppm, size_t ppm_len, float _Complex *out, size_t max_out);
 
 double dp_doppler_channel_get_elapsed_s(const dp_doppler_channel_state_t *state);
 

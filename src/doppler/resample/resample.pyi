@@ -16,6 +16,10 @@ class Resampler:
     rate : float, default 0.0
         Output-to-input sample rate ratio (any positive float). Values >= 1.0
         interpolate; values < 1.0 decimate.
+    bank : NDArray[np.float32] or None
+        Optional polyphase bank: a 2-D float32 array of shape (num_phases,
+        num_taps), num_phases a power of two. Omit for the built-in 4096x19
+        Kaiser bank.
 
     Examples
     --------
@@ -29,7 +33,11 @@ class Resampler:
 
     """
 
-    def __init__(self, rate: float = 0.0) -> None: ...
+    def __init__(
+        self,
+        rate: float = 0.0,
+        bank: npt.NDArray[np.float32] | None = None,
+    ) -> None: ...
     def execute(
         self,
         x: npt.NDArray[np.complex64],
@@ -101,7 +109,17 @@ class Resampler:
         -------
         NDArray[np.complex64]
             CF32 output array; length depends on accumulated rate deviations,
-            capped at max_out.
+            capped at max_out. In C, the count written (>= 0), or
+            DP_ERR_INVALID (negative) when ctrl_len is shorter than x_len:
+            nothing is written. 0 stays a valid, empty result, so the sign
+            alone tells a refusal from it (doppler#1869).
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a negative value. The exception message is
+            ``ctrl must be at least as long as x``, with the return code
+            appended (gh-869).
 
         Examples
         --------

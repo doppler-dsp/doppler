@@ -6,11 +6,23 @@ no_state = "true"
 no_step = "true"
 serializable = "true"
 depends_on = ["resamp"]
+fragment = "generated"
 
 [[Resampler.init_params]]
 name = "rate"
 type = "double"
 default = "0.0"
+
+[[Resampler.init_params]]
+name = "bank"
+type = "float[][]"
+doc = """\
+Optional polyphase bank: a 2-D float32 array of shape (num_phases,
+num_taps), num_phases a power of two. Omit for the built-in 4096x19
+Kaiser bank."""
+optional = true
+create_fn = "dp_Resampler_create_custom"
+derived = ["num_phases", "num_taps"]
 
 [[Resampler.methods]]
 name = "execute"
@@ -27,6 +39,12 @@ name = "execute_ctrl"
 arg_type = "void"
 return_type = "float _Complex"
 variable_output = true
+# The kernel returns the count, or a negative DP_ERR_* when `ctrl` is
+# shorter than `x`: a count of 0 is a valid answer here.
+count_type = "int64_t"
+error_negative = true
+error = "ValueError"
+error_message = "ctrl must be at least as long as x"
 params = [{name = "x", type = "float _Complex[]"}, {name = "ctrl", type = "double[]"}]
 # Kernel is told its write limit (jm gh-138): an under-reporting
 # max_out truncates the emission instead of overrunning `out`.

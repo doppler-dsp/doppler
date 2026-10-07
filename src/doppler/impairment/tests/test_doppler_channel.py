@@ -381,14 +381,15 @@ def test_profile_length_must_match_the_waveform() -> None:
     checked rather than trusted -- a short profile is a rejected call, not a
     silent read of whichever array ran out first.
 
-    The rejection surfaces as an EMPTY result rather than an exception, and
-    an empty result is also a VALID one (a one-sample call returns it about
-    half the time at +1e6 ppm), so the evidence of a refusal is that the
-    clocks did not move, which is asserted below (doppler#1869).
+    The rejection raises ``ValueError``: the C call returns a negative code,
+    so it cannot be mistaken for an empty result, which is also a VALID one
+    (a one-sample call returns it about half the time at +1e6 ppm). The clocks
+    did not move either (doppler#1869).
     """
     x = _dc()
     ch = DopplerChannel(fs=FS, carrier_hz=FC)
-    assert len(ch.execute_profile(x, np.full(N - 1, PPM))) == 0
+    with pytest.raises(ValueError, match="same length"):
+        ch.execute_profile(x, np.full(N - 1, PPM))
     assert ch.elapsed_s == 0.0
 
 
@@ -398,14 +399,15 @@ def test_time_reversing_profile_sample_rejected() -> None:
     offending sample being LAST still writes nothing -- a check folded into
     the block loop would have emitted every earlier sample first.
 
-    Same empty-result reporting as the length mismatch above, and the same
-    evidence: the clocks (doppler#1869).
+    Same ``ValueError`` as the length mismatch above, and the clocks stay
+    put (doppler#1869).
     """
     x = _dc()
     prof = np.full(N, 10.0)
     prof[-1] = -2.0e6
     ch = DopplerChannel(fs=FS, carrier_hz=FC)
-    assert len(ch.execute_profile(x, prof)) == 0
+    with pytest.raises(ValueError, match="refused"):
+        ch.execute_profile(x, prof)
     assert ch.elapsed_s == 0.0
 
 
@@ -428,7 +430,8 @@ def test_profile_that_would_outgrow_the_output_buffer_is_refused() -> None:
 
     for ppm in (-5.5e5, -9e5):
         ch = DopplerChannel(fs=FS, carrier_hz=0.0)
-        assert len(ch.execute_profile(x, np.full(n, ppm))) == 0
+        with pytest.raises(ValueError, match="refused"):
+            ch.execute_profile(x, np.full(n, ppm))
         assert ch.elapsed_s == 0.0
 
 
@@ -442,7 +445,8 @@ def test_non_finite_profile_sample_rejected() -> None:
         prof = np.full(n, 10.0)
         prof[-1] = bad
         ch = DopplerChannel(fs=FS, carrier_hz=0.0)
-        assert len(ch.execute_profile(x, prof)) == 0
+        with pytest.raises(ValueError, match="refused"):
+            ch.execute_profile(x, prof)
         assert ch.elapsed_s == 0.0
 
 

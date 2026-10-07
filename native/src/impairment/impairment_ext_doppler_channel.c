@@ -322,13 +322,23 @@ DopplerChannelObj_execute_profile (DopplerChannelObject *self, PyObject *args,
       const double   *_ng2 = (const double *)PyArray_DATA (ppm_arr);
       size_t          _ng3 = (size_t)PyArray_SIZE (ppm_arr);
       float _Complex *_ng4 = (float _Complex *)PyArray_DATA (out_arr);
-      size_t          n_out;
+      int64_t         _rc;
       Py_BEGIN_ALLOW_THREADS
-        n_out = dp_doppler_channel_execute_profile (self->handle, _ng0, _ng1,
-                                                    _ng2, _ng3, _ng4, _cap);
+        _rc = dp_doppler_channel_execute_profile (self->handle, _ng0, _ng1,
+                                                  _ng2, _ng3, _ng4, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       Py_DECREF (ppm_arr);
+      if (_rc < 0)
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                        "execute_profile refused: x and ppm must be the same "
+                        "length and every ppm sample finite and above -5e5",
+                        (long long)_rc);
+          return NULL;
+        }
+      size_t n_out = (size_t)_rc;
       if ((size_t)(n_out) > (size_t)(_cap))
         {
           Py_DECREF (out_arr);
@@ -387,13 +397,23 @@ DopplerChannelObj_execute_profile (DopplerChannelObject *self, PyObject *args,
   size_t                _ng1 = (size_t)PyArray_SIZE (x_arr);
   const double         *_ng2 = (const double *)PyArray_DATA (ppm_arr);
   size_t                _ng3 = (size_t)PyArray_SIZE (ppm_arr);
-  size_t                n_out;
+  int64_t               _rc;
   Py_BEGIN_ALLOW_THREADS
-    n_out = dp_doppler_channel_execute_profile (self->handle, _ng0, _ng1, _ng2,
-                                                _ng3, _d0, _cap);
+    _rc = dp_doppler_channel_execute_profile (self->handle, _ng0, _ng1, _ng2,
+                                              _ng3, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   Py_DECREF (ppm_arr);
+  if (_rc < 0)
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "execute_profile refused: x and ppm must be the same "
+                    "length and every ppm sample finite and above -5e5",
+                    (long long)_rc);
+      return NULL;
+    }
+  size_t n_out = (size_t)_rc;
   if ((size_t)(n_out) > (size_t)(_cap))
     {
       Py_DECREF (arr0);
@@ -742,17 +762,25 @@ static PyMethodDef DopplerChannelObj_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[np.complex64]\n"
-    "    Samples written; in Python, the array's length. A refused call\n"
-    "    writes nothing, leaves the clocks alone and returns 0, but 0 is\n"
-    "    also a valid result (a one-sample call returns it about half the\n"
-    "    time at +1e6 ppm), so the return value alone cannot tell a refusal\n"
-    "    from an empty answer: check the clocks (doppler#1869). Refused: a\n"
-    "    NULL pointer, a ppm_len that differs from x_len, or a profile\n"
-    "    sample that is non-finite or below -5e5 ppm (a scale under 1/2:\n"
-    "    past the 2x expansion the output is sized for, and at -1e6 ppm time\n"
-    "    stops, which create() already refuses for the scalar). All checked\n"
-    "    over the whole profile BEFORE any output is produced, so a bad call\n"
+    "    Samples written (>= 0); in Python, the array's length. A refused\n"
+    "    call writes nothing, leaves the clocks alone and returns\n"
+    "    DP_ERR_INVALID (negative), so a refusal is never mistaken for an\n"
+    "    empty answer: 0 is a valid result (a one-sample call returns it\n"
+    "    about half the time at +1e6 ppm). Refused: a NULL pointer, a\n"
+    "    ppm_len that differs from x_len, or a profile sample that is\n"
+    "    non-finite or below -5e5 ppm (a scale under 1/2: past the 2x\n"
+    "    expansion the output is sized for, and at -1e6 ppm time stops,\n"
+    "    which create() already refuses for the scalar). All checked over\n"
+    "    the whole profile BEFORE any output is produced, so a bad call\n"
     "    writes nothing rather than a valid prefix.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a negative value. The exception message is\n"
+    "    ``execute_profile refused: x and ppm must be the same length and\n"
+    "    every ppm sample finite and above -5e5``, with the return code\n"
+    "    appended (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"

@@ -85,7 +85,13 @@ main (void)
     double ctrl[64];
     for (int i = 0; i < 64; i++)
       ctrl[i] = 0.0;
-    DP_CHECK (dp_Resampler_execute_ctrl (r, in, 64, ctrl, 64, out, 3) <= 3);
+    int64_t n3 = dp_Resampler_execute_ctrl (r, in, 64, ctrl, 64, out, 3);
+    DP_CHECK (n3 >= 0 && n3 <= 3);
+
+    /* A ctrl shorter than x is a refusal, distinct from an empty result. */
+    DP_CHECK (dp_Resampler_execute_ctrl (r, in, 64, ctrl, 32, out, 64)
+              == DP_ERR_INVALID);
+    DP_CHECK (dp_Resampler_execute_ctrl (r, in, 0, ctrl, 0, out, 64) == 0);
     dp_Resampler_destroy (r);
   }
 

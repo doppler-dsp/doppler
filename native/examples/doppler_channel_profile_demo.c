@@ -132,11 +132,15 @@ run_pass (size_t block, size_t n_total, pass_t *r, int verbose)
         ppm[i]
             = AMP_PPM * cos (2.0 * M_PI * (double)(off + i) / (double)n_total);
 
-      /* 0 is not "refused": it is also a valid answer (doppler#1869), so a
-       * failure here would show as the checks below going red, which is what
-       * they are for, not as an early exit on a return value. */
-      size_t got
+      /* A refusal is negative, never a short count (doppler#1869). */
+      int64_t got_s
           = dp_doppler_channel_execute_profile (ch, in, n, ppm, n, out, cap);
+      if (got_s < 0)
+        {
+          (void)fprintf (stderr, "execute_profile refused (%d)\n", (int)got_s);
+          return 1;
+        }
+      size_t got = (size_t)got_s;
 
       /* Mean phase step over this block's outputs, and the mean of the theory
        * fc*d(t) over the SAME steps, so the comparison is exact in the
@@ -241,10 +245,9 @@ main (void)
   check (fabs (a.last_offset_hz - peak) < 1.0,
          "offset_hz after the last block is fc * the profile's last d");
 
-  /* A bad call writes nothing and leaves the clocks alone. The return value
-   * cannot show that by itself, because 0 is also a valid answer
-   * (doppler#1869): so the same call is first shown VALID, with outputs, and
-   * the refusals are judged by the clocks not moving. */
+  /* A bad call writes nothing, leaves the clocks alone and returns a
+   * negative DP_ERR_*: 0 stays a valid, empty answer (doppler#1869), so the
+   * sign alone tells a refusal from an empty result. */
   {
     dp_doppler_channel_state_t *ch
         = dp_doppler_channel_create (FS, FC, 0.0, 0.0);
@@ -255,18 +258,19 @@ main (void)
         in[i]  = 1.0f;
         ppm[i] = 10.0;
       }
-    size_t valid
+    int64_t valid
         = dp_doppler_channel_execute_profile (ch, in, 16, ppm, 16, out, 64);
-    double t_valid = dp_doppler_channel_get_elapsed_s (ch);
-    size_t short_len
+    double  t_valid = dp_doppler_channel_get_elapsed_s (ch);
+    int64_t short_len
         = dp_doppler_channel_execute_profile (ch, in, 16, ppm, 15, out, 64);
     ppm[15] = -2.0e6; /* a scale of zero or less: time stopped */
-    size_t reversed
+    int64_t reversed
         = dp_doppler_channel_execute_profile (ch, in, 16, ppm, 16, out, 64);
     check (valid > 0, "the same call, with a valid profile, is accepted");
-    check (short_len == 0 && reversed == 0
+    check (short_len == DP_ERR_INVALID && reversed == DP_ERR_INVALID
                && dp_doppler_channel_get_elapsed_s (ch) == t_valid,
-           "a length mismatch or a time-reversing sample writes nothing");
+           "a length mismatch or a time-reversing sample is refused, "
+           "writes nothing and leaves the clocks");
     dp_doppler_channel_destroy (ch);
   }
 

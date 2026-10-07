@@ -532,7 +532,7 @@ static PyMethodDef ResamplerObj_methods[] = {
     "    Output.\n" },
   { "execute_ctrl", (PyCFunction)(void *)ResamplerObj_execute_ctrl,
     METH_VARARGS | METH_KEYWORDS,
-    "execute_ctrl(x, ctrl) -> ndarray\n"
+    "execute_ctrl(x, ctrl, out) -> ndarray\n"
     "\n"
     "Resample with per-sample additive rate deviations. Effective rate\n"
     "for sample i is base_rate + `ctrl[i]`. Uses a unified double-precision\n"
@@ -548,6 +548,8 @@ static PyMethodDef ResamplerObj_methods[] = {
     "    Real float64 array, same length as x; the per-sample rate addend.\n"
     "    Anything numpy can safely widen to float64 is accepted (float32, a\n"
     "    plain list); a complex array is refused rather than truncated.\n"
+    "out : npt.NDArray[np.complex64] | None\n"
+    "    Output buffer; must hold at least RESAMPLER_MAX_OUT samples.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -567,8 +569,14 @@ static PyMethodDef ResamplerObj_methods[] = {
     "((64,), dtype('complex64'))\n" },
   { "execute_ctrl_max_out", (PyCFunction)ResamplerObj_execute_ctrl_max_out,
     METH_NOARGS,
-    "execute_ctrl_max_out() -> int\n\nMax output length execute_ctrl() can "
-    "produce for the current state.\nUse to size the ``out=`` buffer." },
+    "execute_ctrl_max_out() -> int\n"
+    "\n"
+    "Always returns RESAMPLER_MAX_OUT.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "reset", (PyCFunction)ResamplerObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"

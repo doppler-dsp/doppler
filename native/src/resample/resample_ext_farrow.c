@@ -349,7 +349,7 @@ static PyMethodDef FarrowObj_methods[] = {
 
   { "delay", (PyCFunction)(void *)FarrowObj_delay,
     METH_VARARGS | METH_KEYWORDS,
-    "delay(x, mu) -> ndarray\n"
+    "delay(x, mu, out) -> ndarray\n"
     "\n"
     "Apply a constant fractional delay of `mu` samples to a cf32 block via "
     "the Farrow interpolator; output[i] is the input interpolated at i - "
@@ -372,6 +372,8 @@ static PyMethodDef FarrowObj_methods[] = {
     "mu : float\n"
     "    Fractional delay in samples; the offset in `[0,1)` into the\n"
     "    interpolation interval (values outside extrapolate).\n"
+    "out : npt.NDArray[np.complex64] | None\n"
+    "    Output buffer; one output per input sample.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -389,8 +391,20 @@ static PyMethodDef FarrowObj_methods[] = {
     ">>> [round(float(v.real), 4) for v in y]  # first 2 are transient\n"
     "[0.0, -0.0625, 0.4375, 1.5, 2.5, 3.5, 4.5, 5.5]\n" },
   { "delay_max_out", (PyCFunction)FarrowObj_delay_max_out, METH_NOARGS,
-    "delay_max_out() -> int\n\nMax output length delay() can produce for "
-    "the current state.\nUse to size the ``out=`` buffer." },
+    "delay_max_out() -> int\n"
+    "\n"
+    "Largest number of samples delay() can return in the current state.\n"
+    "\n"
+    "Size an `out=` buffer with this before calling delay(), or use it to\n"
+    "allocate one up front. The bound is this object's own: what it depends\n"
+    "on is a property of the algorithm, so a header block on delay_max_out()\n"
+    "replaces this text.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Upper bound on the output length; the actual call may return "
+    "fewer.\n" },
   { "reset", (PyCFunction)FarrowObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"

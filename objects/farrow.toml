@@ -36,6 +36,3 @@ type = "size_t"
 # gh-1079 generator -- Farrow.delay takes an array beside a scalar, which
 # `_outbuf.why_not` excludes ("an array beside other params (gh-412)"), so no
 # delay_max_out is generated and this stub is still the only one.
-[[farrow.methods]]
-name = "delay_max_out"
-manual_stub = true

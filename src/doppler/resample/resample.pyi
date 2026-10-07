@@ -1,5 +1,5 @@
 # resample/resample.pyi — type stubs for the resample C extension.
-from typing import Any, final, Literal
+from typing import final, Literal
 import numpy as np
 import numpy.typing as npt
 from numpy.typing import NDArray
@@ -78,6 +78,7 @@ class Resampler:
         self,
         x: npt.NDArray[np.complex64],
         ctrl: npt.NDArray[np.float64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Resample with per-sample additive rate deviations. Effective rate
         for sample i is base_rate + `ctrl[i]`. Uses a unified double-precision
@@ -93,6 +94,8 @@ class Resampler:
             Real float64 array, same length as x; the per-sample rate addend.
             Anything numpy can safely widen to float64 is accepted (float32, a
             plain list); a complex array is refused rather than truncated.
+        out : npt.NDArray[np.complex64] | None
+            Output buffer; must hold at least RESAMPLER_MAX_OUT samples.
 
         Returns
         -------
@@ -113,6 +116,15 @@ class Resampler:
 
         """
 
+    def execute_ctrl_max_out(self) -> int:
+        """Always returns RESAMPLER_MAX_OUT.
+
+        Returns
+        -------
+        int
+            Output.
+        """
+
     def reset(self) -> None:
         """Zero the delay line and phase accumulator. Rate and polyphase bank
         are preserved so the resampler can be resumed at the same ratio.
@@ -128,26 +140,6 @@ class Resampler:
         >>> r.reset()
         >>> r.rate
         2.0
-
-        """
-
-    def execute_ctrl_max_out(self) -> int:
-        """Max samples ``execute_ctrl()`` can emit, for any input block.
-
-        The bound is the resampler's fixed internal capacity
-        (``RESAMPLER_MAX_OUT``), not a function of the block about to be
-        passed — which is why this accessor takes no argument.
-
-        Returns
-        -------
-        int
-            Capacity, in samples, to allocate for an ``out=`` buffer.
-
-        Examples
-        --------
-        >>> from doppler.resample import Resampler
-        >>> Resampler(rate=2.0).execute_ctrl_max_out()
-        65536
 
         """
 
@@ -818,6 +810,7 @@ class RateConverter:
         self,
         x: npt.NDArray[np.complex64],
         ctrl: float,
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Convert a block, steering the cascade's fractional stage by ctrl.
 
@@ -843,6 +836,8 @@ class RateConverter:
             CF32 input block.
         ctrl : float
             Rate deviation added to the terminal Resampler stage's rate.
+        out : npt.NDArray[np.complex64] | None
+            Output buffer; must hold at least max_out samples.
 
         Returns
         -------
@@ -861,6 +856,15 @@ class RateConverter:
         >>> rc2.execute_ctrl(x, 0.05).shape[0]  # +ctrl speeds the tail up
         851
 
+        """
+
+    def execute_ctrl_max_out(self) -> int:
+        """As dp_RateConverter_execute_max_out(), for the block control form.
+
+        Returns
+        -------
+        int
+            Output.
         """
 
     def execute_ctrl_push(
@@ -1202,6 +1206,7 @@ class MatchedRateConverter:
         self,
         x: npt.NDArray[np.complex64],
         ctrl: float,
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Convert a block, steering the cascade's fractional stage by ctrl.
 
@@ -1227,6 +1232,8 @@ class MatchedRateConverter:
             CF32 input block.
         ctrl : float
             Rate deviation added to the terminal Resampler stage's rate.
+        out : npt.NDArray[np.complex64] | None
+            Output buffer; must hold at least max_out samples.
 
         Returns
         -------
@@ -1245,6 +1252,15 @@ class MatchedRateConverter:
         >>> rc2.execute_ctrl(x, 0.05).shape[0]  # +ctrl speeds the tail up
         851
 
+        """
+
+    def execute_ctrl_max_out(self) -> int:
+        """As dp_RateConverter_execute_max_out(), for the block control form.
+
+        Returns
+        -------
+        int
+            Output.
         """
 
     def execute_ctrl_push(
@@ -1499,6 +1515,7 @@ class Farrow:
         self,
         x: npt.NDArray[np.complex64],
         mu: float,
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Apply a constant fractional delay of `mu` samples to a cf32 block
         via the Farrow interpolator; output[i] is the input interpolated at i -
@@ -1521,6 +1538,8 @@ class Farrow:
         mu : float
             Fractional delay in samples; the offset in `[0,1)` into the
             interpolation interval (values outside extrapolate).
+        out : npt.NDArray[np.complex64] | None
+            Output buffer; one output per input sample.
 
         Returns
         -------
@@ -1538,6 +1557,20 @@ class Farrow:
         >>> [round(float(v.real), 4) for v in y]  # first 2 are transient
         [0.0, -0.0625, 0.4375, 1.5, 2.5, 3.5, 4.5, 5.5]
 
+        """
+
+    def delay_max_out(self) -> int:
+        """Largest number of samples delay() can return in the current state.
+
+        Size an `out=` buffer with this before calling delay(), or use it to
+        allocate one up front. The bound is this object's own: what it depends
+        on is a property of the algorithm, so a header block on delay_max_out()
+        replaces this text.
+
+        Returns
+        -------
+        int
+            Upper bound on the output length; the actual call may return fewer.
         """
 
     def reset(self) -> None:
@@ -1560,30 +1593,6 @@ class Farrow:
         >>> x = np.arange(8, dtype=np.complex64)
         >>> f.delay(x, 0.5)[3:].real.tolist()   # steady part: ramp - 1.5
         [1.5, 2.5, 3.5, 4.5, 5.5]
-
-        """
-
-    def delay_max_out(self) -> int:
-        """Extra capacity ``delay()`` needs beyond the input length: none.
-
-        An ``out=`` buffer must hold ``max(delay_max_out(), len(x))``
-        elements. ``delay()`` emits at most one sample per input sample,
-        so it imposes no requirement of its own and this returns 0 —
-        ``len(x)`` alone is the exact bound. A non-zero value here means
-        the opposite: that a method can emit *more* than it is given
-        (``Resampler.execute_ctrl_max_out`` interpolates, ``FFT`` pads to
-        ``n``), which is the only case the accessor exists to cover.
-
-        Returns
-        -------
-        int
-            0 — size an ``out=`` buffer from ``len(x)``.
-
-        Examples
-        --------
-        >>> from doppler.resample import Farrow
-        >>> Farrow().delay_max_out()
-        0
 
         """
 

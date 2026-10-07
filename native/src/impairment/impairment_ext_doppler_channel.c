@@ -232,6 +232,22 @@ DopplerChannelObj_execute (DopplerChannelObject *self, PyObject *args,
 }
 
 static PyObject *
+DopplerChannelObj_execute_profile_max_out (DopplerChannelObject *self,
+                                           PyObject             *args)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  Py_ssize_t x_len = 0;
+  if (!PyArg_ParseTuple (args, "n", &x_len))
+    return NULL;
+  return PyLong_FromSize_t (dp_doppler_channel_execute_profile_max_out (
+      self->handle, (size_t)x_len));
+}
+
+static PyObject *
 DopplerChannelObj_execute_profile (DopplerChannelObject *self, PyObject *args,
                                    PyObject *kwds)
 {
@@ -240,13 +256,14 @@ DopplerChannelObj_execute_profile (DopplerChannelObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char   *_kwlist[] = { "x", "ppm", NULL };
+  static char   *_kwlist[] = { "x", "ppm", "out", NULL };
   PyObject      *x_obj     = NULL;
   PyArrayObject *x_arr     = NULL;
   PyObject      *ppm_obj   = NULL;
   PyArrayObject *ppm_arr   = NULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO", _kwlist, &x_obj,
-                                    &ppm_obj))
+  PyObject      *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO|O", _kwlist, &x_obj,
+                                    &ppm_obj, &out_obj))
     return NULL;
   x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
@@ -256,6 +273,87 @@ DopplerChannelObj_execute_profile (DopplerChannelObject *self, PyObject *args,
     {
       Py_DECREF (x_arr);
       return NULL;
+    }
+  if (out_obj && out_obj != Py_None)
+    {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          Py_DECREF (x_arr);
+          Py_DECREF (ppm_arr);
+          return NULL;
+        }
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
+      if (!out_arr)
+        {
+          Py_DECREF (x_arr);
+          Py_DECREF (ppm_arr);
+          return NULL;
+        }
+      size_t _cap  = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax = dp_doppler_channel_execute_profile_max_out (
+          self->handle, (size_t)PyArray_SIZE (x_arr));
+      size_t _min_cap = _omax;
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          Py_DECREF (ppm_arr);
+          return NULL;
+        }
+      /* nogil: GIL released across the pure-C kernel — sound only when
+       * this object is not shared across threads concurrently (one
+       * object per stream); the kernel touches only this object's
+       * state/buffers and the caller's input. */
+      const float _Complex *_ng0
+          = (const float _Complex *)PyArray_DATA (x_arr);
+      size_t          _ng1 = (size_t)PyArray_SIZE (x_arr);
+      const double   *_ng2 = (const double *)PyArray_DATA (ppm_arr);
+      size_t          _ng3 = (size_t)PyArray_SIZE (ppm_arr);
+      float _Complex *_ng4 = (float _Complex *)PyArray_DATA (out_arr);
+      size_t          n_out;
+      Py_BEGIN_ALLOW_THREADS
+        n_out = dp_doppler_channel_execute_profile (self->handle, _ng0, _ng1,
+                                                    _ng2, _ng3, _ng4, _cap);
+      Py_END_ALLOW_THREADS
+      Py_DECREF (x_arr);
+      Py_DECREF (ppm_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (PyExc_RuntimeError,
+                        "DopplerChannel.execute_profile: wrote %zu elements "
+                        "into a buffer of %zu",
+                        (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
+      return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   size_t _cap  = dp_doppler_channel_execute_profile_max_out (
@@ -586,7 +684,7 @@ static PyMethodDef DopplerChannelObj_methods[] = {
     "    Output.\n" },
   { "execute_profile", (PyCFunction)(void *)DopplerChannelObj_execute_profile,
     METH_VARARGS | METH_KEYWORDS,
-    "execute_profile(x, ppm) -> ndarray\n"
+    "execute_profile(x, ppm, out) -> ndarray\n"
     "\n"
     "Apply a per-sample Doppler PROFILE to a block of complex baseband.\n"
     "\n"
@@ -638,6 +736,8 @@ static PyMethodDef DopplerChannelObj_methods[] = {
     "    Input CF32 samples, x_len of them.\n"
     "ppm : npt.NDArray[np.float64]\n"
     "    Doppler in ppm, parallel to x.\n"
+    "out : npt.NDArray[np.complex64] | None\n"
+    "    Output buffer.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -667,6 +767,31 @@ static PyMethodDef DopplerChannelObj_methods[] = {
     "(1001,)\n"
     ">>> round(ch.offset_hz, 1)   # fc * d at the last profile sample\n"
     "-50000.0\n" },
+  { "execute_profile_max_out",
+    (PyCFunction)DopplerChannelObj_execute_profile_max_out, METH_VARARGS,
+    "execute_profile_max_out(x_len) -> int\n"
+    "\n"
+    "The BINDING's output bound for execute_profile() (jm pass_capacity).\n"
+    "\n"
+    "The generated binding knows the INPUT LENGTH n -- it passes it -- but\n"
+    "has not looked at the profile array, so it knows how many samples go in\n"
+    "and not how far they dilate. With the profile unseen there is no exact\n"
+    "answer: the bound scales n by a floor on the scale and the kernel\n"
+    "clamps to the caller's real capacity, as\n"
+    "`Resampler_execute_ctrl_max_out` does for its equally arbitrary `ctrl`.\n"
+    "The floor allows a 2x expansion, i.e. a Doppler of -500000 ppm -- half\n"
+    "the speed of light closing, six orders of magnitude past any geometry\n"
+    "this object models.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x_len : int\n"
+    "    Input.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    The capacity the binding allocates.\n" },
   { "reset", (PyCFunction)DopplerChannelObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"

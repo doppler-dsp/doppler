@@ -99,6 +99,7 @@ class DopplerChannel:
         self,
         x: npt.NDArray[np.complex64],
         ppm: npt.NDArray[np.float64],
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Apply a per-sample Doppler PROFILE to a block of complex baseband.
 
@@ -150,6 +151,8 @@ class DopplerChannel:
             Input CF32 samples, x_len of them.
         ppm : npt.NDArray[np.float64]
             Doppler in ppm, parallel to x.
+        out : npt.NDArray[np.complex64] | None
+            Output buffer.
 
         Returns
         -------
@@ -179,6 +182,39 @@ class DopplerChannel:
         >>> round(ch.offset_hz, 1)   # fc * d at the last profile sample
         -50000.0
 
+        """
+
+    def execute_profile_max_out(self, x_len: int) -> int:
+        """The BINDING's output bound for execute_profile() (jm pass_capacity).
+
+        The generated binding knows the INPUT LENGTH n -- it passes it -- but
+
+        has not looked at the profile array, so it knows how many samples go in
+
+        and not how far they dilate. With the profile unseen there is no exact
+
+        answer: the bound scales n by a floor on the scale and the kernel
+        clamps
+
+        to the caller's real capacity, as `Resampler_execute_ctrl_max_out` does
+        for
+
+        its equally arbitrary `ctrl`. The floor allows a 2x expansion, i.e. a
+
+        Doppler of -500000 ppm -- half the speed of light closing, six orders
+        of
+
+        magnitude past any geometry this object models.
+
+        Parameters
+        ----------
+        x_len : int
+            Input.
+
+        Returns
+        -------
+        int
+            The capacity the binding allocates.
         """
 
     def reset(self) -> None:

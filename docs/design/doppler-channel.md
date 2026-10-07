@@ -94,9 +94,15 @@ A profile sample below −5e5 ppm (a scale under ½) is refused with nothing
 written, as is a non-finite one: that is the 2× expansion the output buffer is
 sized for, and at −1e6 ppm time stops, which `create()` already refuses for the
 scalar. The whole profile is validated before any output is produced, so a bad
-call writes nothing rather than a valid prefix. The Python binding returns an
-empty array for a refused call, because a `variable_output` method cannot
-raise ([#938](https://github.com/doppler-dsp/doppler/issues/938)).
+call writes nothing rather than a valid prefix.
+
+**A refusal is indistinguishable from an empty result.** A refused call returns
+0, and 0 is also a valid answer: a one-sample call returns it 333 times in 1000
+at +5e5 ppm and 500 in 1000 at +1e6 ppm (measured, §4.7). So the return value
+alone cannot say, to a C caller or to a binding, and a caller who must know
+checks the clocks: `elapsed_s` does not move on a refusal. The Python binding
+returns an empty array for both. A convention for count-returning calls that can
+refuse is [#1869](https://github.com/doppler-dsp/doppler/issues/1869).
 
 Mixing the two calls on one stream is coherent: both advance the same clocks,
 and `offset_hz` reports whichever drove the most recent call.

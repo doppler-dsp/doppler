@@ -38,7 +38,7 @@ Those live on the [Examples](../examples/index.md) page instead.
 - [AWGN](awgn.md) — complex Box-Muller noise, amplitude histogram, and flat PSD.
 - [Doppler Channel: a Doppler Profile](doppler-channel-profile.md) — one
     cosine period as the Doppler: the carrier follows `fc·d(t)` to 1.4 Hz of
-    50 kHz, the code slip rises to 2.4 chips and returns to zero, and no
+    50 kHz, the code slip peaks at 2.5 chips (2.44 in theory) and returns to zero, and no
     straight line explains any of it.
 - [Doppler Channel](doppler-channel.md) — clock Doppler as an impairment: one ppm dilates the whole time base *and* shifts the carrier, so a code loop sees the rate error its carrier loop implies.
 

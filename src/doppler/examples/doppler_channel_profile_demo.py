@@ -52,6 +52,7 @@ AMP_PPM = 20.0  # +/-50 kHz at 2.5 GHz
 PERIOD_S = 0.25  # one cosine period
 N = round(FS * PERIOD_S)  # input samples in that one period
 BLOCK = 1 << 18  # fed in blocks: the answer must not depend on this
+BLOCK_B = 99_991  # a second, unrelated size: not a divisor of the first
 
 
 def cosine_profile(n: int, amp_ppm: float) -> np.ndarray:
@@ -59,8 +60,8 @@ def cosine_profile(n: int, amp_ppm: float) -> np.ndarray:
     return amp_ppm * np.cos(2.0 * np.pi * np.arange(n) / n)
 
 
-def drive(x: np.ndarray, ppm: np.ndarray):
-    """Run ``x`` through the channel under ``ppm``, block by block.
+def drive(x: np.ndarray, ppm: np.ndarray, block: int = BLOCK):
+    """Run ``x`` through the channel under ``ppm``, ``block`` at a time.
 
     The channel is created with no Doppler of its own: a profile is absolute,
     so the array is the whole story. Returns the output and, after each block,
@@ -69,10 +70,10 @@ def drive(x: np.ndarray, ppm: np.ndarray):
     ch = DopplerChannel(fs=FS, carrier_hz=FC)
     ys, counts = [], []
     n_in = n_out = 0
-    for i in range(0, len(x), BLOCK):
-        y = ch.execute_profile(x[i : i + BLOCK], ppm[i : i + BLOCK])
+    for i in range(0, len(x), block):
+        y = ch.execute_profile(x[i : i + block], ppm[i : i + block])
         ys.append(y)
-        n_in += min(BLOCK, len(x) - i)
+        n_in += min(block, len(x) - i)
         n_out += len(y)
         counts.append((n_in, n_out))
     return np.concatenate(ys), np.array(counts)
@@ -119,6 +120,10 @@ def main(out_path: str = "doppler_channel_profile_demo.png") -> None:
     # --- the stream does not depend on how it was fed ----------------------
     whole = DopplerChannel(fs=FS, carrier_hz=FC).execute_profile(x, ppm)
     assert np.array_equal(y, whole), "blocks and one call must be the same"
+    # Block-size dependence is exactly what the first attempt at this had: a
+    # second, unrelated size, and the same stream again.
+    y_b, _ = drive(x, ppm, BLOCK_B)
+    assert np.array_equal(y, y_b), "two block sizes must be the same stream"
 
     # --- no straight line explains it --------------------------------------
     t_in = np.arange(N) / FS
@@ -137,7 +142,9 @@ def main(out_path: str = "doppler_channel_profile_demo.png") -> None:
     # Measured ~1.4 Hz of 50 kHz: what is left is the theory's argument. It is
     # evaluated at the RECEIVE time and the profile is indexed by the input
     # (emission) clock, which differ by the excess delay, ~1e-5 relative.
-    assert f_err < 1e-3 * f_peak, (
+    # 5e-5 of the peak is 2.5 Hz, so a 0.05% error in the carrier (25 Hz)
+    # fails; a looser gate would pass an error 35x the measurement.
+    assert f_err < 5e-5 * f_peak, (
         f"offset off its fc*d(t) by {f_err:.1f} Hz of {f_peak:.0f}"
     )
 

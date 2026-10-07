@@ -30,8 +30,9 @@ evaluated at the receive time, while the profile is indexed by the input
 
 **Right — the time base dilates, and gives it back.** This is the panel a
 carrier-only model gets wrong: it would be flat on the dotted line. The code
-slips by `Rc·∫d dt = Rc·(A/ω)·sin(ωt)`, peaking at **2.4 chips** a quarter of a
-period in and returning to **zero** when the period ends, because the integral
+slips by `Rc·∫d dt = Rc·(A/ω)·sin(ωt)`, peaking a quarter of a period in at **2.44
+chips** in theory (2.50 as counted in whole samples) and returning to **zero**
+when the period ends, because the integral
 of a cosine over a whole period is zero. The trace is counted in whole samples
 (`spc = 8`), so an eighth of a chip is its floor. The same closure shows up in
 the stream's length: a full period is net-zero dilation, and the output is
@@ -45,7 +46,7 @@ on every push, not just plotted:
 - the stream fed in blocks is **bit-identical** to one call (the result must
     not depend on how it was chunked);
 - the best straight line leaves more than 99% of the curve unexplained;
-- the carrier offset is within 0.1% of its peak of `fc·d(t)`;
+- the carrier offset is within 0.005% (2.5 Hz) of `fc·d(t)`;
 - the code slip follows `Rc·∫d dt` to within two samples (a quarter chip);
 - the stream is within two samples of its input length.
 

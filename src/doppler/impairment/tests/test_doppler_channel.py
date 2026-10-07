@@ -381,10 +381,10 @@ def test_profile_length_must_match_the_waveform() -> None:
     checked rather than trusted -- a short profile is a rejected call, not a
     silent read of whichever array ran out first.
 
-    The rejection surfaces as an EMPTY result rather than an exception: the
-    C kernel reports "wrote nothing" and jm's ``variable_output`` binding has
-    no channel to turn that into a raise (doppler#938). Blunt, but not
-    silent -- nothing downstream mistakes it for a capture.
+    The rejection surfaces as an EMPTY result rather than an exception, and
+    an empty result is also a VALID one (a one-sample call returns it about
+    half the time at +1e6 ppm), so the evidence of a refusal is that the
+    clocks did not move, which is asserted below (doppler#1869).
     """
     x = _dc()
     ch = DopplerChannel(fs=FS, carrier_hz=FC)
@@ -398,7 +398,8 @@ def test_time_reversing_profile_sample_rejected() -> None:
     offending sample being LAST still writes nothing -- a check folded into
     the block loop would have emitted every earlier sample first.
 
-    Same empty-result reporting as the length mismatch above (doppler#938).
+    Same empty-result reporting as the length mismatch above, and the same
+    evidence: the clocks (doppler#1869).
     """
     x = _dc()
     prof = np.full(N, 10.0)

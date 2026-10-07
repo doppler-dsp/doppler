@@ -132,16 +132,11 @@ run_pass (size_t block, size_t n_total, pass_t *r, int verbose)
         ppm[i]
             = AMP_PPM * cos (2.0 * M_PI * (double)(off + i) / (double)n_total);
 
+      /* 0 is not "refused": it is also a valid answer (doppler#1869), so a
+       * failure here would show as the checks below going red, which is what
+       * they are for, not as an early exit on a return value. */
       size_t got
           = dp_doppler_channel_execute_profile (ch, in, n, ppm, n, out, cap);
-      if (got == 0)
-        {
-          free (in);
-          free (ppm);
-          free (out);
-          dp_doppler_channel_destroy (ch);
-          return -1;
-        }
 
       /* Mean phase step over this block's outputs, and the mean of the theory
        * fc*d(t) over the SAME steps, so the comparison is exact in the
@@ -233,7 +228,9 @@ main (void)
          "the stream does not depend on how it was fed (hash equal)");
   printf ("      carrier offset peak %.1f Hz of %.1f, worst error %.2f Hz\n",
           a.peak_hz, peak, a.worst_hz);
-  check (a.worst_hz < 1e-3 * peak, "carrier offset follows fc*d(t) to 0.1%");
+  /* Measured 1.3 Hz of 50 kHz; 5e-5 of the peak is 2.5 Hz, so a 0.1% scale
+   * error in the carrier (50 Hz) and a 0.05% one (25 Hz) both fail. */
+  check (a.worst_hz < 5e-5 * peak, "carrier offset follows fc*d(t) to 0.005%");
   printf ("      code slip peak %.2f chips, worst error %.2f samples\n",
           a.peak_slip, a.worst_slip);
   check (a.worst_slip < 2.0,
@@ -244,7 +241,10 @@ main (void)
   check (fabs (a.last_offset_hz - peak) < 1.0,
          "offset_hz after the last block is fc * the profile's last d");
 
-  /* A bad call writes nothing and leaves the clocks alone. */
+  /* A bad call writes nothing and leaves the clocks alone. The return value
+   * cannot show that by itself, because 0 is also a valid answer
+   * (doppler#1869): so the same call is first shown VALID, with outputs, and
+   * the refusals are judged by the clocks not moving. */
   {
     dp_doppler_channel_state_t *ch
         = dp_doppler_channel_create (FS, FC, 0.0, 0.0);
@@ -255,13 +255,17 @@ main (void)
         in[i]  = 1.0f;
         ppm[i] = 10.0;
       }
+    size_t valid
+        = dp_doppler_channel_execute_profile (ch, in, 16, ppm, 16, out, 64);
+    double t_valid = dp_doppler_channel_get_elapsed_s (ch);
     size_t short_len
         = dp_doppler_channel_execute_profile (ch, in, 16, ppm, 15, out, 64);
     ppm[15] = -2.0e6; /* a scale of zero or less: time stopped */
     size_t reversed
         = dp_doppler_channel_execute_profile (ch, in, 16, ppm, 16, out, 64);
+    check (valid > 0, "the same call, with a valid profile, is accepted");
     check (short_len == 0 && reversed == 0
-               && dp_doppler_channel_get_elapsed_s (ch) == 0.0,
+               && dp_doppler_channel_get_elapsed_s (ch) == t_valid,
            "a length mismatch or a time-reversing sample writes nothing");
     dp_doppler_channel_destroy (ch);
   }

@@ -123,6 +123,27 @@ The Python rows (`bench_doppler_channel.py`, 64 K blocks) read 65.0 and
 56.8 MSa/s, 1.14×, because they also pay the binding's array setup, so the C
 number is the one to quote.
 
+### 4.7 A refusal and an empty result are the same return value (2026-10-06)
+
+Raised in the review of #1868 and measured the same day on `main`, with a
+**valid** one-sample `execute_profile` call (it passes validation) repeated 1000
+times at `fs = 24.552 MS/s`:
+
+| Doppler  | calls returning 0 outputs |
+| -------- | ------------------------- |
+| 20 ppm   | 0 of 1000                 |
+| +5e5 ppm | 333 of 1000               |
+| +1e6 ppm | 500 of 1000               |
+
+A one-sample call returns nothing whenever the resampler's accumulator has not
+yet crossed to the next output, and a refused call (length mismatch, a
+time-reversing sample, a NULL pointer) also returns 0. So the first version of
+the C example's `got == 0` test for failure, and the design page's pointer to
+#938 (closed as moot when its reproducer was reverted), both claimed more than
+the return value can say. The example now judges a refusal by the clocks, with
+the same call shown valid first; the contract is stated as it is, and the
+convention question is #1869.
+
 ### 5.1 The gap carried the signal (2026-10-06)
 
 With Doppler on, a clean burst's gap was not silent. `fs = 1 MHz`, `on = 1000`,

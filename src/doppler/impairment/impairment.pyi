@@ -154,14 +154,17 @@ class DopplerChannel:
         Returns
         -------
         NDArray[np.complex64]
-            Samples written; in Python, the array's length. 0 (an EMPTY array
-            in Python, which cannot raise from a `variable_output` method: see
-            doppler#938) if any pointer is NULL, if ppm_len differs from x_len,
-            or if any profile sample is non-finite or below -5e5 ppm (a scale
-            under 1/2: past the 2x expansion the output is sized for, and at
-            -1e6 ppm time stops, which create() already refuses for the
-            scalar). All checked over the whole profile BEFORE any output is
-            produced, so a bad call writes nothing rather than a valid prefix.
+            Samples written; in Python, the array's length. A refused call
+            writes nothing, leaves the clocks alone and returns 0, but 0 is
+            also a valid result (a one-sample call returns it about half the
+            time at +1e6 ppm), so the return value alone cannot tell a refusal
+            from an empty answer: check the clocks (doppler#1869). Refused: a
+            NULL pointer, a ppm_len that differs from x_len, or a profile
+            sample that is non-finite or below -5e5 ppm (a scale under 1/2:
+            past the 2x expansion the output is sized for, and at -1e6 ppm time
+            stops, which create() already refuses for the scalar). All checked
+            over the whole profile BEFORE any output is produced, so a bad call
+            writes nothing rather than a valid prefix.
 
         Examples
         --------

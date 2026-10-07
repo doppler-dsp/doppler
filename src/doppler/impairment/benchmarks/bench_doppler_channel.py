@@ -12,6 +12,10 @@ Run: pytest src/doppler/impairment/benchmarks/bench_doppler_channel.py
 
 The C side (``native/benchmarks/bench_doppler_channel_core.c``) is the number
 to quote: this one includes the binding's array setup.
+
+Each row asserts it produced a full block, because a refused or short call
+returns an empty array and benchmarks very fast. The channel is not reset
+between rounds: state accumulates, which is fine for throughput.
 """
 
 import numpy as np
@@ -38,7 +42,8 @@ def profiled():
 
 def test_bench_execute_static_64k(benchmark, obj):
     x = np.ones(BLOCK_64K, dtype=np.complex64)
-    benchmark(obj.execute, x)
+    y = benchmark(obj.execute, x)
+    assert len(y) >= BLOCK_64K - 2, "a short path would time as a fast one"
     if benchmark.stats:
         benchmark.extra_info["MSa_s"] = (
             BLOCK_64K / benchmark.stats["mean"] / 1e6
@@ -48,7 +53,8 @@ def test_bench_execute_static_64k(benchmark, obj):
 def test_bench_execute_profile_64k(benchmark, profiled):
     x = np.ones(BLOCK_64K, dtype=np.complex64)
     ppm = np.full(BLOCK_64K, PPM)
-    benchmark(profiled.execute_profile, x, ppm)
+    y = benchmark(profiled.execute_profile, x, ppm)
+    assert len(y) >= BLOCK_64K - 2, "a refused call would time as a fast one"
     if benchmark.stats:
         benchmark.extra_info["MSa_s"] = (
             BLOCK_64K / benchmark.stats["mean"] / 1e6

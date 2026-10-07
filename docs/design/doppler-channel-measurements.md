@@ -102,6 +102,27 @@ written. The review also found `+inf` accepted (`1 + inf > 0`). The validation
 pass costs about 0.2 ns per sample against 17 ns for the call (1.2%, an upper
 bound that includes the binding's array setup).
 
+### 4.6 What the array form costs (2026-10-06)
+
+`bench_doppler_channel_core` (`fs = 10 MHz`, 65 536-sample blocks, min over 100
+rounds after a process-level warm-up, an 8-core WSL2 box), three runs of the
+binary:
+
+| row                | ns per sample, three runs | vs static      |
+| ------------------ | ------------------------- | -------------- |
+| `execute[static]`  | 13.07, 13.11, 13.11       | 1.00×          |
+| `execute[ramp]`    | 13.24, 13.32, 13.45       | 1.01–1.03×     |
+| `execute[profile]` | 14.16, 13.94, 13.92       | **1.06–1.08×** |
+
+The profile is flat at the static row's 3 ppm, so the Doppler is the same and
+only the form differs: validating the array, the position the resampler
+reports per output, and a carrier read from it. It costs a few percent more than
+the closed form, which is not "the same". (The reverted first attempt read
+0.96× against the closed form, with a carrier that depended on the chunking.)
+The Python rows (`bench_doppler_channel.py`, 64 K blocks) read 65.0 and
+56.8 MSa/s, 1.14×, because they also pay the binding's array setup, so the C
+number is the one to quote.
+
 ### 5.1 The gap carried the signal (2026-10-06)
 
 With Doppler on, a clean burst's gap was not silent. `fs = 1 MHz`, `on = 1000`,

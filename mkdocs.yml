@@ -151,6 +151,7 @@ nav:
           - "A Crowded Band (parallel prepare)": gallery/crowded-band.md
           - AWGN: gallery/awgn.md
           - Doppler Channel: gallery/doppler-channel.md
+          - "Doppler Channel: a Doppler Profile": gallery/doppler-channel-profile.md
           - LO: examples/python-lo.md
           - NCO: examples/python-nco.md
       - Filters & Resampling:

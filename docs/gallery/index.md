@@ -36,6 +36,10 @@ Those live on the [Examples](../examples/index.md) page instead.
 - [One Cache Slot for a Whole Background Field](plan-background.md) — `background=True` folds a static emitter population into a single pre-summed cache entry: 67x smaller, and the whole field becomes one overridable control.
 - [A Crowded Band](crowded-band.md) — twenty RRC carriers in one segment, prepared in parallel across cores; `Plan.render(enable=...)` thins them for free.
 - [AWGN](awgn.md) — complex Box-Muller noise, amplitude histogram, and flat PSD.
+- [Doppler Channel: a Doppler Profile](doppler-channel-profile.md) — one
+    cosine period as the Doppler: the carrier follows `fc·d(t)` to 1.4 Hz of
+    50 kHz, the code slip rises to 2.4 chips and returns to zero, and no
+    straight line explains any of it.
 - [Doppler Channel](doppler-channel.md) — clock Doppler as an impairment: one ppm dilates the whole time base *and* shifts the carrier, so a code loop sees the rate error its carrier loop implies.
 
 ## Filters & Resampling

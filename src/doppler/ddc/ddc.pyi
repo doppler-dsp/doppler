@@ -101,6 +101,7 @@ class DDC:
         x: npt.NDArray[np.complex64],
         rate_ctrl: float,
         freq_ctrl: float,
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Mix and resample a block, steering both control ports.
 
@@ -129,6 +130,8 @@ class DDC:
         freq_ctrl : float
             Frequency deviation added to the LO, in cycles/sample at the INPUT
             rate (any sign).
+        out : npt.NDArray[np.complex64] | None
+            CF32 output buffer.
 
         Returns
         -------
@@ -148,6 +151,26 @@ class DDC:
         >>> round(float(abs(y[100:].mean())), 2)  # settled output sits at DC
         1.0
 
+        """
+
+    def execute_ctrl_max_out(self, x_len: int) -> int:
+        """Largest number of samples execute_ctrl() can return for x_len
+        inputs.
+
+        Size an `out=` buffer with this before calling execute_ctrl(), or use
+        it to allocate one up front. The bound is this object's own: what it
+        depends on is a property of the algorithm, so a header block on
+        execute_ctrl_max_out() replaces this text.
+
+        Parameters
+        ----------
+        x_len : int
+            Number of input samples execute_ctrl() will be given.
+
+        Returns
+        -------
+        int
+            Upper bound on the output length; the actual call may return fewer.
         """
 
     def execute_ctrl_push(
@@ -466,6 +489,7 @@ class MatchedDDC:
         x: npt.NDArray[np.complex64],
         rate_ctrl: float,
         freq_ctrl: float,
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Mix and resample a block, steering both control ports.
 
@@ -494,6 +518,8 @@ class MatchedDDC:
         freq_ctrl : float
             Frequency deviation added to the LO, in cycles/sample at the INPUT
             rate (any sign).
+        out : npt.NDArray[np.complex64] | None
+            CF32 output buffer.
 
         Returns
         -------
@@ -513,6 +539,26 @@ class MatchedDDC:
         >>> round(float(abs(y[100:].mean())), 2)  # settled output sits at DC
         1.0
 
+        """
+
+    def execute_ctrl_max_out(self, x_len: int) -> int:
+        """Largest number of samples execute_ctrl() can return for x_len
+        inputs.
+
+        Size an `out=` buffer with this before calling execute_ctrl(), or use
+        it to allocate one up front. The bound is this object's own: what it
+        depends on is a property of the algorithm, so a header block on
+        execute_ctrl_max_out() replaces this text.
+
+        Parameters
+        ----------
+        x_len : int
+            Number of input samples execute_ctrl() will be given.
+
+        Returns
+        -------
+        int
+            Upper bound on the output length; the actual call may return fewer.
         """
 
     def execute_ctrl_push(
@@ -808,6 +854,7 @@ class Ddcr:
         x: npt.NDArray[np.float32],
         rate_ctrl: float,
         freq_ctrl: float,
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Process a real block, steering both control ports.
 
@@ -826,6 +873,8 @@ class Ddcr:
             INTERMEDIATE rate (fs_in/2) — the halfband has already decimated by
             two by the time the mix happens, so a discriminator working in
             cycles per ADC sample must be doubled before it lands here.
+        out : npt.NDArray[np.complex64] | None
+            CF32 output buffer.
 
         Returns
         -------
@@ -845,6 +894,15 @@ class Ddcr:
         >>> round(float(abs(y[100:].mean())), 2)    # real tone -> DC, amp 1.0
         1.0
 
+        """
+
+    def execute_ctrl_max_out(self) -> int:
+        """As dp_ddcr_execute_max_out(), for the block control-port form.
+
+        Returns
+        -------
+        int
+            Output.
         """
 
     def execute_ctrl_push(
@@ -1154,6 +1212,7 @@ class MatchedDdcr:
         x: npt.NDArray[np.float32],
         rate_ctrl: float,
         freq_ctrl: float,
+        out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Process a real block, steering both control ports.
 
@@ -1172,6 +1231,8 @@ class MatchedDdcr:
             INTERMEDIATE rate (fs_in/2) — the halfband has already decimated by
             two by the time the mix happens, so a discriminator working in
             cycles per ADC sample must be doubled before it lands here.
+        out : npt.NDArray[np.complex64] | None
+            CF32 output buffer.
 
         Returns
         -------
@@ -1191,6 +1252,15 @@ class MatchedDdcr:
         >>> round(float(abs(y[100:].mean())), 2)    # real tone -> DC, amp 1.0
         1.0
 
+        """
+
+    def execute_ctrl_max_out(self) -> int:
+        """As dp_ddcr_execute_max_out(), for the block control-port form.
+
+        Returns
+        -------
+        int
+            Output.
         """
 
     def execute_ctrl_push(

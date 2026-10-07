@@ -211,6 +211,19 @@ RateConverterObj_execute (RateConverterObject *self, PyObject *args,
 }
 
 static PyObject *
+RateConverterObj_execute_ctrl_max_out (RateConverterObject *self,
+                                       PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (
+      dp_RateConverter_execute_ctrl_max_out (self->handle));
+}
+
+static PyObject *
 RateConverterObj_execute_ctrl (RateConverterObject *self, PyObject *args,
                                PyObject *kwds)
 {
@@ -219,15 +232,84 @@ RateConverterObj_execute_ctrl (RateConverterObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char   *_kwlist[] = { "x", "ctrl", NULL };
+  static char   *_kwlist[] = { "x", "ctrl", "out", NULL };
   PyObject      *x_obj     = NULL;
   PyArrayObject *x_arr     = NULL;
   double         ctrl      = 0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Od", _kwlist, &x_obj, &ctrl))
+  PyObject      *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Od|O", _kwlist, &x_obj, &ctrl,
+                                    &out_obj))
     return NULL;
   x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     return NULL;
+  if (out_obj && out_obj != Py_None)
+    {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          Py_DECREF (x_arr);
+          return NULL;
+        }
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
+      if (!out_arr)
+        {
+          Py_DECREF (x_arr);
+          return NULL;
+        }
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = dp_RateConverter_execute_ctrl_max_out (self->handle);
+      size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
+                            ? _omax
+                            : ((size_t)PyArray_SIZE (x_arr));
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          return NULL;
+        }
+      size_t n_out = dp_RateConverter_execute_ctrl (
+          self->handle, (const float _Complex *)PyArray_DATA (x_arr),
+          (size_t)PyArray_SIZE (x_arr), ctrl,
+          (float _Complex *)PyArray_DATA (out_arr), _cap);
+      Py_DECREF (x_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (PyExc_RuntimeError,
+                        "RateConverter.execute_ctrl: wrote %zu elements into "
+                        "a buffer of %zu",
+                        (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
+      return _oview;
+    }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   size_t _cap  = dp_RateConverter_execute_ctrl_max_out (self->handle);
   if (!_cap || _cap < _need)
@@ -723,7 +805,7 @@ static PyMethodDef RateConverterObj_methods[] = {
     "    Output.\n" },
   { "execute_ctrl", (PyCFunction)(void *)RateConverterObj_execute_ctrl,
     METH_VARARGS | METH_KEYWORDS,
-    "execute_ctrl(x, ctrl) -> ndarray\n"
+    "execute_ctrl(x, ctrl, out) -> ndarray\n"
     "\n"
     "Convert a block, steering the cascade's fractional stage by ctrl.\n"
     "\n"
@@ -749,6 +831,8 @@ static PyMethodDef RateConverterObj_methods[] = {
     "    CF32 input block.\n"
     "ctrl : float\n"
     "    Rate deviation added to the terminal Resampler stage's rate.\n"
+    "out : npt.NDArray[np.complex64] | None\n"
+    "    Output buffer; must hold at least max_out samples.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -766,6 +850,16 @@ static PyMethodDef RateConverterObj_methods[] = {
     ">>> rc2 = RateConverter(rate=0.8, compensate=0)\n"
     ">>> rc2.execute_ctrl(x, 0.05).shape[0]  # +ctrl speeds the tail up\n"
     "851\n" },
+  { "execute_ctrl_max_out", (PyCFunction)RateConverterObj_execute_ctrl_max_out,
+    METH_NOARGS,
+    "execute_ctrl_max_out() -> int\n"
+    "\n"
+    "As dp_RateConverter_execute_max_out(), for the block control form.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "execute_ctrl_push",
     (PyCFunction)(void *)RateConverterObj_execute_ctrl_push,
     METH_VARARGS | METH_KEYWORDS,

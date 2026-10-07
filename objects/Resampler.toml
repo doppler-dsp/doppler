@@ -59,6 +59,3 @@ name = "delay"
 type = "double"
 
 # gh-428 manual_stub: hand-written .pyi symbol (see status_allow rationale).
-[[Resampler.methods]]
-name = "execute_ctrl_max_out"
-manual_stub = true

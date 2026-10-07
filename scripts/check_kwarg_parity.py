@@ -67,13 +67,11 @@ _STR = re.compile(r'"([^"]*)"')
 #: Each maps ``(module, Class, method)`` to the keywords the BINDING accepts,
 #: so a change to either face fails rather than silently re-baselining.
 KNOWN: dict[tuple[str, str, str], list[str]] = {
-    # `DelayCf64.push_ptr` came OFF this list on the jm 0.64.1 bump: gh-1079
-    # gave the all-scalar `variable_output` shape a generated `out=`, so the
-    # stub now publishes the keyword the hand-written binding already took and
-    # the two agree on their own. `Farrow.delay` stays -- it is an array
-    # beside a scalar, which `_outbuf.why_not` excludes (gh-412), so jm
-    # generates no `out=` there and the hand-written one is still unmatched.
-    ("resample", "Farrow", "delay"): ["x", "mu", "out"],
+    # `DelayCf64.push_ptr` came OFF this list on the jm 0.64.1 bump (gh-1079
+    # gave the all-scalar `variable_output` shape a generated `out=`), and
+    # `Farrow.delay` came off on the 0.99.0 bump: gh-1998 generates `out=` for
+    # an array beside a scalar too, so the stub publishes the keyword the
+    # binding already took and the two agree on their own. The list is empty.
 }
 
 

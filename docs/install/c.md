@@ -51,7 +51,7 @@ install another one from the [releases page](https://github.com/doppler-dsp/dopp
 # Linux x86_64 — for Linux aarch64 swap the suffix for `linux-aarch64`,
 # for macOS arm64 swap it for `macos-arm64`:
 curl -L -o doppler.tar.gz \
-  "https://github.com/doppler-dsp/doppler/releases/download/v0.62.0/doppler-0.62.0-linux-x86_64.tar.gz"
+  "https://github.com/doppler-dsp/doppler/releases/download/v0.63.0/doppler-0.63.0-linux-x86_64.tar.gz"
 mkdir -p "$HOME/.local/doppler" && tar -xzf doppler.tar.gz -C "$HOME/.local/doppler"
 ```
 
@@ -86,7 +86,7 @@ tools for Windows* component installed:
 <!-- doc-version:start -->
 
 ```powershell
-$v = "0.62.0"   # the release to install
+$v = "0.63.0"   # the release to install
 curl.exe -L -o doppler.zip `
   "https://github.com/doppler-dsp/doppler/releases/download/v$v/doppler-$v-windows-x86_64.zip"
 Expand-Archive doppler.zip -DestinationPath "$HOME\doppler"
@@ -115,7 +115,7 @@ with `cl.exe` and therefore cannot build doppler.
 <!-- doc-version:start -->
 
 ```powershell
-$v = "0.62.0"   # the release to install
+$v = "0.63.0"   # the release to install
 git clone --depth 1 --branch "v$v" https://github.com/doppler-dsp/doppler
 vcpkg install doppler:x64-windows-clangcl `
   --overlay-ports=doppler/packaging/vcpkg/ports `
@@ -169,9 +169,9 @@ Debian / Ubuntu:
 <!-- doc-version:start -->
 
 ```sh
-base=https://github.com/doppler-dsp/doppler/releases/download/v0.62.0
-curl -fL -O "$base/libdoppler-dsp0.62_0.62.0_amd64.deb" -O "$base/libdoppler-dsp-dev_0.62.0_amd64.deb"
-sudo apt install ./libdoppler-dsp0.62_0.62.0_amd64.deb ./libdoppler-dsp-dev_0.62.0_amd64.deb
+base=https://github.com/doppler-dsp/doppler/releases/download/v0.63.0
+curl -fL -O "$base/libdoppler-dsp0.63_0.63.0_amd64.deb" -O "$base/libdoppler-dsp-dev_0.63.0_amd64.deb"
+sudo apt install ./libdoppler-dsp0.63_0.63.0_amd64.deb ./libdoppler-dsp-dev_0.63.0_amd64.deb
 ```
 
 <!-- doc-version:end -->
@@ -181,9 +181,9 @@ Fedora / RHEL / AlmaLinux:
 <!-- doc-version:start -->
 
 ```sh
-base=https://github.com/doppler-dsp/doppler/releases/download/v0.62.0
-curl -fL -O "$base/libdoppler-dsp-0.62.0-1.x86_64.rpm" -O "$base/libdoppler-dsp-devel-0.62.0-1.x86_64.rpm"
-sudo dnf install ./libdoppler-dsp-0.62.0-1.x86_64.rpm ./libdoppler-dsp-devel-0.62.0-1.x86_64.rpm
+base=https://github.com/doppler-dsp/doppler/releases/download/v0.63.0
+curl -fL -O "$base/libdoppler-dsp-0.63.0-1.x86_64.rpm" -O "$base/libdoppler-dsp-devel-0.63.0-1.x86_64.rpm"
+sudo dnf install ./libdoppler-dsp-0.63.0-1.x86_64.rpm ./libdoppler-dsp-devel-0.63.0-1.x86_64.rpm
 ```
 
 <!-- doc-version:end -->

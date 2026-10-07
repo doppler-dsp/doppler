@@ -35,7 +35,7 @@ Pin a release instead of `latest`, or drive a streaming pipeline at a reachable
 <!-- doc-version:start -->
 
 ```sh
-docker run --rm ghcr.io/doppler-dsp/doppler:0.62.0 doppler --help
+docker run --rm ghcr.io/doppler-dsp/doppler:0.63.0 doppler --help
 ```
 
 <!-- doc-version:end -->

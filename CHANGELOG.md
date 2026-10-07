@@ -13,6 +13,240 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.63.0] - 2026-10-06
+
+### Added
+
+- **`DopplerChannel.execute_profile`: a gallery page, C and Python examples, a
+    design page and benchmarks** (doppler#940). One cosine period drives the
+    Doppler: the carrier follows `fc·d(t)` to 1.4 Hz of 50 kHz, the code slip
+    returns to zero, and no straight line explains it. The array form costs
+    1.06–1.08× the closed form. See
+    [the design page](design/doppler-channel.md).
+
+- **`DopplerChannel.execute_profile(x, ppm)`: a Doppler profile, one value per
+    sample** (doppler#940). A pass is not the straight line the scalar pair
+    describes (a 550 km overhead pass departs from its best line by 21%). The
+    stream is bit-identical however it is chunked: the carrier is read off the
+    resampler's own position, `dp_resamp_execute_ctrl_pos()`, not mapped from
+    the profile. State blob layout version 2.
+
+- **`Plan` serves a Doppler source, bit-identical to `compose()`**
+    (doppler#1109). Both lifetimes, a ranged `doppler`/`doppler_rate` (a seed
+    redraws it), gap ring-out, a leading delay, and a bundled source's noise,
+    which sits inside the channel. The cache holds the signal before the
+    channel and `render()` runs the channel over it, in parallel across a
+    segment's repeats (or its sources, for `persist`). A `background=True`
+    source with Doppler is still refused.
+
+- **`dp_pn_create_mls()`: the `poly = 0` default, as a constructor**
+    (doppler#1446). `dp_pn_create()` takes `poly` verbatim, so a zero is a
+    register with no feedback, and each caller that lets a user say "default"
+    resolved it itself. `dp_pn_create_mls()` is that resolution in front of it
+    (`poly` if non-zero, else the maximal-length polynomial for `length`) and
+    is what `PN` now calls, so the rule lives in C once instead of in a
+    hand-patch to the binding. `dp_pn_create()` is unchanged and still pinned.
+    `PN`'s behaviour is unchanged, including a width-1 register being built;
+    its binding is now jm-generated (see `native/inc/doppler/pn/pn_core.h`).
+
+- **`make warnings-check` gates doppler's C at zero `-Wall -Wextra` warnings**
+    (#1658). The tree compiled with no warning flag at all; now a fresh Release
+    build of every target, Python extensions included, under gcc and clang
+    fails on any warning outside `vendor/` and the 100 jm glue files on
+    `scripts/.warnings-exempt`. That list may only shrink: an added entry
+    fails `make lint`, and a listed file that has gone clean fails the gate.
+    It found one more unused parameter, in `pocketfft.c`, now removed.
+
+### Changed
+
+- **13 more bindings are jm-generated** (acq, ber_meter, async_dsss_receiver,
+    burst_acq, burst_capture, corr2d, detector, detector2d, dll, fir, frame,
+    mpsk_receiver, psd; doppler#1446). A jm fix now reaches their fragments
+    and a hand edit turns `make drift-check` red. Two visible effects: a
+    no-argument method such as `BerMeter.ber()` rejects stray positional
+    arguments instead of ignoring them, and `BpskReceiver` / `MpskReceiverR`
+    raise the create error their manifest declares, not a generic
+    `MpskReceiver` message. The `-Wall -Wextra` exempt list goes 33 -> 15.
+
+- **CI's `changes` job is the org's vendored workflow.** `ci.yml` calls
+    canonical's `.github/workflows/changes.yml` instead of its own inline
+    classifier, so a version bump, a docs-only diff and a merged tree its PR
+    already tested are judged as in every just-buildit repo. `pin`,
+    `pre-commit` and `manifest-drift` still run on every tree, declared in
+    `CI_ALWAYS_RUN_JOBS`; the Python matrix and its primary leg come from a
+    new `pythons` job. `standard.mk` is no longer pinned
+    ([#1809](https://github.com/doppler-dsp/doppler/issues/1809)).
+
+- **`FrameMeter` is jm's, and `fer()` and `sync_miss()` refuse an argument**
+    (#1446). Its fragment is re-rendered by jm and leaves the `-Wall -Wextra`
+    exempt list, now 34 files. The two rates are `METH_NOARGS`: `meter.fer(1)`
+    used to return the rate and now raises `TypeError`. `FrameMeter` also
+    reports `doppler.ber` as its module.
+
+- **Four more binding fragments are jm's, not hand-maintained** (#1446).
+    `specan`, `burst_demod`, `dsss_burst_receiver` and `dp_event_log` now set
+    `fragment = "generated"`, so jm re-renders them on every apply and the
+    drift gate holds them, and they leave the `-Wall -Wextra` exempt list.
+    Visible: `EventLog` reports `doppler.telemetry` as its module, and its
+    `write` and `finalize` errors now name the 16 KiB event limit and the
+    not-an-event-log refusal the C core already enforced.
+
+- **Twenty-three more binding fragments are jm's, and five `track` objects
+    gain the guards the hand-owned copies never received** (#1446). The
+    `steps` wrappers of the `cvt` converters, `agc`, `boxcar`, `lockdet`,
+    `loop_filter` and the `track` objects are now re-rendered by jm, and they
+    leave the `-Wall -Wextra` exempt list. `Costas`, `CarrierMpsk`,
+    `CarrierNda`, `RateSync` and `SymbolSync` now refuse a C core that wrote
+    past the output buffer, an output too large for numpy, and a failed
+    `PyArray_SetBaseObject`, each with an exception rather than silently.
+
+- **Six more binding fragments are jm's** (#1446). `AWGN`, `CIC`,
+    `DopplerChannel`, `Interrupt`, `Gold` and `PolynomialPhaseEstimator` are
+    re-rendered by jm and leave the `-Wall -Wextra` exempt list. `AWGN`,
+    `CIC`, `DopplerChannel` and `Gold` also gain the output-buffer overrun,
+    overflow and `PyArray_SetBaseObject` guards that the hand-owned wrappers
+    lacked.
+
+- **Twenty-nine more binding objects are jm's** (#1446). The accumulators,
+    `ddc`/`ddcr`, `nco`, `lo`, `delay`, the ring buffers, `viterbi`,
+    `rs_codec`, the measurement objects and others are now re-rendered by jm
+    and leave the `-Wall -Wextra` exempt list, which is down to 35 files.
+    They gain the output-buffer overrun, overflow and `PyArray_SetBaseObject`
+    guards the hand-owned wrappers lacked; no docstring changed.
+
+- **Every ratchet reads its baseline through one `scripts/_gitbase.py`**
+    (#1838). Five gate scripts each wrote their own merge-base read, and
+    three still did. They now share `resolve_base` and `show_at`, while what
+    each does with an unreadable ref (fail closed, or "nothing to compare")
+    stays its own, pinned by `test_base_ref_reads.py`.
+
+- **`Interleaver` / `Deinterleaver` are jm-generated; a partial block is a
+    declared refusal** (doppler#1446). The `ValueError` for a length that is not
+    whole blocks was hand-written six times (per method, per call path); it is
+    now `error_on_empty` in the manifest, and the stub documents `Raises:   ValueError`. The message names the `block_bits` property instead of quoting
+    its value, so the certified limit reads "names block_bits" now. Exempt
+    list 15 to 13.
+
+- **just-makeit pin 0.98.0 → 0.98.1.** Generated CPython glue builds clean under
+    `-Wall -Wextra` (gh-1856, filed from doppler's warning sweep). In this tree
+    `jm apply` re-rendered three files (the `PyCFunction` casts), taking the
+    glue from 132 to 125 warnings under gcc 16 and from 322 to 315 under
+    clang 23. The rest is in the 99 hand-owned `_ext_<obj>.c` fragments and
+    the hand-written `stream_ext.c`, which jm never re-renders.
+
+- **just-makeit pin 0.98.1 → 0.98.2.** The release carries the fix for
+    `jm adopt` exiting 1 on a documented struct member called `name` (gh-1932,
+    filed from doppler's fragment migration, #1446). `jm apply` and
+    `jm upgrade` changed nothing in this tree: zero codegen drift.
+
+- **just-makeit pin 0.98.2 → 0.98.3.** The release carries the fix for a
+    no-argument method that returns a record rendering an unread `args`
+    (gh-1959, filed from doppler's fragment migration, #1446), and `steps()` on
+    a sink taking its argument by keyword (gh-1901). Four accumulators that jm
+    owns re-rendered: `steps(x=...)` is accepted and the docstring no longer
+    claims an `out` argument or a return value.
+
+- **just-makeit pin 0.98.3 → 0.99.0.** It carries `elements_per_sample` on a
+    `variable_output` method (gh-1996), `out=` and `<m>_max_out()` for an
+    array beside other params (gh-1998), `extra_methods` (gh-1997) and `rank`
+    on a constructor array (gh-2004), all filed from #1446. Seven methods jm
+    owns now take a keyword `out=` buffer and have a `<m>_max_out()` sizer:
+    `DopplerChannel.execute_profile` and `execute_ctrl` on `DDC`,
+    `MatchedDDC`, `Ddcr`, `MatchedDdcr`, `RateConverter`,
+    `MatchedRateConverter`. `Resampler.execute_ctrl` and `Farrow.delay` already
+    accepted `out=`; only their stubs caught up.
+
+- **The two held resample objects now cite the live jm issues.** `hbdecim_q15`
+    waited on a closed jm#612; the wall was just-makeit#1996, fixed on jm
+    `main` and unreleased. `HalfbandDecimator` is held on just-makeit#2004
+    (init_params cannot declare `rank`). Comments only.
+
+- **Clang no longer warns three times on every build, and the warnings gate
+    now fails on a driver warning** (#1839). Three validation harnesses
+    that pin `-ffp-contract=off` now turn fast-math off first, so clang 23
+    has no override to report. Their tables are unchanged under clang and
+    under gcc but for one last digit in `dll_jitter`, which now matches
+    clang's output.
+
+- **`Writer` is jm-generated, and its manifest now names the real
+    vocabulary** (doppler#1446). `sample_type`, `file_type` and `endian`
+    reference the project's `[[enum]]` tables instead of repeating lists. The
+    `sample_type` copy had five names where the enum has ten, so the manifest
+    and the type stub said `Writer(sample_type="f32")` was invalid while the
+    binding (and a test) accepted it; the stub now lists all ten. The
+    `-Wall -Wextra` exempt list goes from 15 to 14.
+
+### Fixed
+
+- **The install pages' examples paste and run.** The by-hand tarball recipe no
+    longer scrapes the GitHub API with `sed`; the Windows, vcpkg, `.deb`/`.rpm`
+    and docker examples no longer say `X.Y.Z` or a file glob. Each carries the
+    current release's real version and file names, stamped at release time by
+    `make docs-relink` (which now also stamps the Debian runtime package's
+    series, `libdoppler-dsp0.62`). The C Quick Start says how to get `jbx`, and
+    the Python Quick Start says it is Python, sends C readers to the C one, and
+    shows how to create the scene file `wfmgen --from-file` reads.
+
+- **doppler's own C builds with no `-Wall -Wextra` warning from clang, and
+    the gcc ones are down to the uninitialised reads fixed in #1831** (#1658).
+    None was silenced with a flag, pragma or blanket cast; each was fixed at
+    its cause. Two were findings: `carrier_mpsk_jitter` computed whether
+    jitter scales with `bn` and never checked it (the validation could not
+    fail on it; it is now wired in), and making `det_private.h`'s helpers
+    `static inline` showed gcc a `NULL`-scratch median path in `acq`'s tile
+    decide, now excluded in the code instead of by a caller's say-so.
+
+- **The pkg-config files come in the flavour their install needs.** A package
+    install (`apt install`, `dnf install`; prefix `/usr`) gets the literal
+    `/usr`, so pkg-config drops the system `-I/usr/include` and `-L` instead of
+    putting them on every consumer's command line. Any other prefix (the
+    release tarball, `jbx get-doppler`, `--prefix ~/.local`) keeps a prefix
+    derived from the file's own location, so a plain `tar xf` still works.
+    Chosen at install time (`cmake/install_pc.cmake`).
+
+- **The C Quick Start's pkg-config recipe runs.** It linked and then failed with
+    `error while loading shared libraries: libdoppler_stream.so.0.62` from an
+    extracted tarball, whose prefix is on nobody's loader path. The recipe now
+    says where the library is, once (`-Wl,-rpath,$(pkg-config --variable=libdir   doppler_stream)`), and the install pages say when it is needed. The `.pc`
+    deliberately carries no rpath: a cross build would embed the build host's
+    sysroot, and the consumer could not remove it.
+
+- **A pub/sub-only program built against a relocated install now starts.**
+    `libdoppler_stream` needs `libdoppler`, but neither said where to look, so a
+    program calling only `dp_pub_*` died with `libdoppler.so.0.62: cannot open   shared object file` on Debian and Ubuntu, whose gcc drops the `-ldoppler`
+    it never calls. The shared stream library now carries `$ORIGIN`
+    (`@loader_path` on macOS): it finds its sibling wherever the tree was
+    extracted. Inert for `apt`/`dnf` installs.
+
+- **Every `-Wmaybe-uninitialized` / `-Wuninitialized` in doppler's own C is
+    gone** (22 under gcc 16, `-Wall -Wextra`; #1658). Three were real:
+    `detector2d`'s argmax left `pk` unset if the peak list was empty; the
+    `RateConverter` and `ratesync` tests sized a `calloc` from an `n` their
+    helper had not set when it returned NULL; and `async_dsss_pool` and
+    `wfm_synth` read a `set_state` header that `dp_r_bytes` leaves untouched
+    on an errored reader. The rest were false positives of a documented
+    contract (the output is written exactly when the step returns 1) and now
+    initialise the local.
+
+- **wfm: with Doppler on, a burst's signal no longer continues through its
+    gap** (doppler#1858). The channel was fed by the phase of the output being
+    drained, so a refill fed a burst past its end (the gap carried it at full
+    amplitude) and a burst after a delay could be lost entirely. The feed now
+    follows the input timeline (`dp_wfm_render_set_input_timeline()`). Scenes
+    with Doppler change; scenes without it are byte-identical.
+
+- **wfm: a Doppler burst with `gap_noise="off"` and a delay is no longer lost**
+    (follow-up to doppler#1858). The fix for the gap leak declared the delay to
+    the channel even when the gaps are never pulled, which fed the burst
+    `delay` samples late. With the gaps off the channel's input starts at ON.
+
+- **`wfm_json.c`'s row switches name `WFM_SV_FIELD` and `WFM_SV_BESPOKE`.**
+    `row_get`/`row_set` stay exhaustive with no `default:`, so `-Wswitch` is
+    quiet and the next new row kind is flagged rather than silently read as
+    nothing (#1642). The labels share the existing `WFM_SV_SYMBOLS` case, so
+    they add no executable line the patch-coverage gate would count as
+    unreached.
+
 ## [0.62.0] - 2026-10-04
 
 ### Breaking
@@ -15737,7 +15971,8 @@ ______________________________________________________________________
 [0.61.0]: https://github.com/doppler-dsp/doppler/compare/v0.60.0...v0.61.0
 [0.61.1]: https://github.com/doppler-dsp/doppler/compare/v0.61.0...v0.61.1
 [0.62.0]: https://github.com/doppler-dsp/doppler/compare/v0.61.1...v0.62.0
+[0.63.0]: https://github.com/doppler-dsp/doppler/compare/v0.62.0...v0.63.0
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.62.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.63.0...HEAD

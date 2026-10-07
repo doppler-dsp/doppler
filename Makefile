@@ -1960,6 +1960,7 @@ GALLERY_SCRIPTS := \
     src/doppler/examples/measure_imd_npr_demo.py \
     src/doppler/examples/awgn_demo.py \
     src/doppler/examples/doppler_channel_demo.py \
+    src/doppler/examples/doppler_channel_profile_demo.py \
     src/doppler/examples/wfm_io_demo.py \
     src/doppler/examples/dsss_burst_receiver_demo.py \
     src/doppler/examples/dsss_burst_ber_demo.py \

@@ -1,9 +1,11 @@
+/* jm:generated resample_ext_HalfbandDecimator.c */
 /*
  * resample_ext_HalfbandDecimator.c — HalfbandDecimator type for the resample
  * module.
  *
  * Included by resample_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in resample_ext_HalfbandDecimator_extra.c.
  * Do NOT compile this file directly — only resample_ext.c is compiled.
  */
 /* ======================================================== */
@@ -11,13 +13,10 @@
 /* ======================================================== */
 
 #include "doppler/HalfbandDecimator/HalfbandDecimator_core.h"
-#include "doppler/dp_state_pyhelp.h"
 
 typedef struct
 {
   PyObject_HEAD dp_HalfbandDecimator_state_t *handle;
-  float _Complex *_execute_buf;     /* pre-allocated output for execute */
-  size_t          _execute_buf_cap; /* elements allocated above */
 } HalfbandDecimatorObject;
 
 static void
@@ -25,13 +24,15 @@ HalfbandDecimatorObj_dealloc (HalfbandDecimatorObject *self)
 {
   if (self->handle)
     dp_HalfbandDecimator_destroy (self->handle);
-  free (self->_execute_buf);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
 static PyObject *
 HalfbandDecimatorObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   HalfbandDecimatorObject *self
       = (HalfbandDecimatorObject *)type->tp_alloc (type, 0);
   if (self)
@@ -48,21 +49,19 @@ HalfbandDecimatorObj_init (HalfbandDecimatorObject *self, PyObject *args,
 
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", kwlist, &h_obj))
     return -1;
-  PyArrayObject *h_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      h_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *h_arr
+      = jm_array_arg (h_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS, "h");
   if (!h_arr)
     {
       return -1;
     }
   if (PyArray_NDIM (h_arr) != 1)
     {
+      PyErr_SetString (PyExc_ValueError, "h must be a 1-D array");
       Py_DECREF (h_arr);
-      PyErr_SetString (PyExc_ValueError, "h must be a 1-D float32 array");
       return -1;
     }
   size_t h_len = (size_t)PyArray_SIZE (h_arr);
-  /* dp_HalfbandDecimator_create(h, h_len) — the array first, matching every
-     other create in the tree and the manifest jm renders from */
   self->handle = dp_HalfbandDecimator_create (
       (const float *)PyArray_DATA (h_arr), h_len);
   Py_DECREF (h_arr);
@@ -76,48 +75,153 @@ HalfbandDecimatorObj_init (HalfbandDecimatorObject *self, PyObject *args,
 }
 
 static PyObject *
-HalfbandDecimatorObj_execute (HalfbandDecimatorObject *self, PyObject *args)
+HalfbandDecimatorObj_execute_max_out (HalfbandDecimatorObject *self,
+                                      PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  PyObject      *x_obj = NULL;
-  PyArrayObject *x_arr = NULL;
-  if (!PyArg_ParseTuple (args, "O", &x_obj))
+  return PyLong_FromSize_t (
+      dp_HalfbandDecimator_execute_max_out (self->handle));
+}
+
+static PyObject *
+HalfbandDecimatorObj_execute (HalfbandDecimatorObject *self, PyObject *args,
+                              PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char   *_kwlist[] = { "x", "out", NULL };
+  PyObject      *x_obj     = NULL;
+  PyArrayObject *x_arr     = NULL;
+  PyObject      *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
+                                    &out_obj))
     return NULL;
-  x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
-                                             NPY_ARRAY_C_CONTIGUOUS);
+  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     return NULL;
-  if (!self->_execute_buf)
+  if (out_obj && out_obj != Py_None)
     {
-      size_t _max = dp_HalfbandDecimator_execute_max_out (self->handle);
-      if (!_max)
-        _max = (size_t)PyArray_SIZE (x_arr);
-      self->_execute_buf     = malloc (_max * sizeof (float _Complex));
-      self->_execute_buf_cap = _max;
-      if (!self->_execute_buf)
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
         {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
           Py_DECREF (x_arr);
-          PyErr_NoMemory ();
           return NULL;
         }
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
+      if (!out_arr)
+        {
+          Py_DECREF (x_arr);
+          return NULL;
+        }
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = dp_HalfbandDecimator_execute_max_out (self->handle);
+      size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
+                            ? _omax
+                            : ((size_t)PyArray_SIZE (x_arr));
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          return NULL;
+        }
+      size_t n_out = dp_HalfbandDecimator_execute (
+          self->handle, (const float _Complex *)PyArray_DATA (x_arr),
+          (size_t)PyArray_SIZE (x_arr),
+          (float _Complex *)PyArray_DATA (out_arr), _cap);
+      Py_DECREF (x_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (PyExc_RuntimeError,
+                        "HalfbandDecimator.execute: wrote %zu elements into a "
+                        "buffer of %zu",
+                        (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
+      return _oview;
     }
-  size_t n_out = dp_HalfbandDecimator_execute (
+  size_t _need = (size_t)PyArray_SIZE (x_arr);
+  size_t _cap  = dp_HalfbandDecimator_execute_max_out (self->handle);
+  if (!_cap || _cap < _need)
+    _cap = _need;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      PyErr_Format (
+          PyExc_OverflowError,
+          "HalfbandDecimator.execute: output of %zu elements is too large",
+          _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
+  if (!arr0)
+    {
+      Py_DECREF (x_arr);
+      return NULL;
+    }
+  float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  size_t          n_out = dp_HalfbandDecimator_execute (
       self->handle, (const float _Complex *)PyArray_DATA (x_arr),
-      (size_t)PyArray_SIZE (x_arr), self->_execute_buf,
-      self->_execute_buf_cap);
+      (size_t)PyArray_SIZE (x_arr), _d0, _cap);
   Py_DECREF (x_arr);
-  npy_intp       dim = (npy_intp)n_out;
-  PyArrayObject *out_arr
-      = (PyArrayObject *)PyArray_SimpleNew (1, &dim, NPY_COMPLEX64);
-  if (!out_arr)
-    return NULL;
-  memcpy (PyArray_DATA (out_arr), self->_execute_buf,
-          n_out * sizeof (float _Complex));
-  return (PyObject *)out_arr;
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "HalfbandDecimator.execute: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
+  if ((size_t)n_out == _cap)
+    {
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  return arr0;
 }
 
 static PyObject *
@@ -130,6 +234,63 @@ HalfbandDecimatorObj_reset (HalfbandDecimatorObject *self,
       return NULL;
     }
   dp_HalfbandDecimator_reset (self->handle);
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+HalfbandDecimatorObj_state_bytes (HalfbandDecimatorObject *self,
+                                  PyObject                *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (dp_HalfbandDecimator_state_bytes (self->handle));
+}
+
+static PyObject *
+HalfbandDecimatorObj_get_state (HalfbandDecimatorObject *self,
+                                PyObject                *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = dp_HalfbandDecimator_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  dp_HalfbandDecimator_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+HalfbandDecimatorObj_set_state (HalfbandDecimatorObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg)
+      != dp_HalfbandDecimator_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (dp_HalfbandDecimator_set_state (self->handle, PyBytes_AS_STRING (arg))
+      != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
   Py_RETURN_NONE;
 }
 static PyObject *
@@ -158,19 +319,18 @@ HalfbandDecimator_getprop_num_taps (HalfbandDecimatorObject *self,
       (unsigned long long)dp_HalfbandDecimator_get_num_taps (self->handle));
 }
 
-static PyGetSetDef HalfbandDecimator_getset[] = {
-  { "rate", (getter)HalfbandDecimator_getprop_rate, NULL,
-    "Fixed decimation rate — always 0.5. The halfband decimator is "
-    "structurally 2:1; this property exists for API parity with Resampler "
-    "and RateConverter.\n",
-    NULL },
-  { "num_taps", (getter)HalfbandDecimator_getprop_num_taps, NULL,
-    "Number of FIR branch taps as passed to create. The all-pass "
-    "(even-phase) branch has no taps; only the odd-phase FIR branch has "
-    "length num_taps. The total prototype length is 2 * num_taps - 1.\n",
-    NULL },
-  { NULL }
-};
+static PyGetSetDef HalfbandDecimator_getset[]
+    = { { "rate", (getter)HalfbandDecimator_getprop_rate, NULL,
+          "Fixed decimation rate — always 0.5. The halfband decimator is "
+          "structurally 2:1; this property exists for API parity with "
+          "Resampler and RateConverter.\n",
+          NULL },
+        { "num_taps", (getter)HalfbandDecimator_getprop_num_taps, NULL,
+          "Number of FIR branch taps as passed to create. The all-pass "
+          "(even-phase) branch has no taps; only the odd-phase FIR branch has "
+          "length num_taps. The total prototype length is 2 * num_taps - 1.\n",
+          NULL },
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 HalfbandDecimatorObj_destroy (HalfbandDecimatorObject *self,
@@ -204,28 +364,10 @@ HalfbandDecimatorObj_exit (HalfbandDecimatorObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-/* serializable (gh-400): the standard state triplet, generated by the
- * shared macro (see dp_state_pyhelp.h) — byte-identical to jm's output.
- * The matching PyMethodDef rows are below. */
-DP_PY_STATE_METHODS (HalfbandDecimatorObj, HalfbandDecimatorObject,
-                     self->handle, dp_HalfbandDecimator)
-
-static PyObject *
-HalfbandDecimatorObj_execute_max_out (HalfbandDecimatorObject *self,
-                                      PyObject *Py_UNUSED (ignored))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromSize_t (
-      dp_HalfbandDecimator_execute_max_out (self->handle));
-}
-
 static PyMethodDef HalfbandDecimatorObj_methods[] = {
 
-  { "execute", (PyCFunction)HalfbandDecimatorObj_execute, METH_VARARGS,
+  { "execute", (PyCFunction)(void *)HalfbandDecimatorObj_execute,
+    METH_VARARGS | METH_KEYWORDS,
     "execute(x, out) -> ndarray\n"
     "\n"
     "Decimate x by 2 using the polyphase halfband FIR filter. Processes\n"
@@ -257,6 +399,16 @@ static PyMethodDef HalfbandDecimatorObj_methods[] = {
     ">>> y = hb.execute(np.zeros(100, dtype=np.complex64))\n"
     ">>> y.shape, y.dtype\n"
     "((50,), dtype('complex64'))\n" },
+  { "execute_max_out", (PyCFunction)HalfbandDecimatorObj_execute_max_out,
+    METH_NOARGS,
+    "execute_max_out() -> int\n"
+    "\n"
+    "Always returns HBDECIM_MAX_OUT.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "reset", (PyCFunction)HalfbandDecimatorObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
@@ -331,12 +483,11 @@ static PyMethodDef HalfbandDecimatorObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)HalfbandDecimatorObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
@@ -352,9 +503,8 @@ static PyMethodDef HalfbandDecimatorObj_methods[] = {
     "Exit a context manager, releasing the HalfbandDecimator.\n"
     "\n"
     "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
-    "raised inside the `with` body propagates normally; this never "
-    "suppresses\n"
-    "one.\n"
+    "raised inside the `with` body propagates normally; this never\n"
+    "suppresses one.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -364,24 +514,15 @@ static PyMethodDef HalfbandDecimatorObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { "execute_max_out", (PyCFunction)HalfbandDecimatorObj_execute_max_out,
-    METH_NOARGS,
-    "execute_max_out() -> int\n"
-    "\n"
-    "Always returns HBDECIM_MAX_OUT.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "int\n"
-    "    Output.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject HalfbandDecimatorObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "resample.HalfbandDecimator",
-  .tp_basicsize                           = sizeof (HalfbandDecimatorObject),
-  .tp_dealloc = (destructor)HalfbandDecimatorObj_dealloc,
-  .tp_flags   = Py_TPFLAGS_DEFAULT,
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name
+  = "doppler.resample.HalfbandDecimator",
+  .tp_basicsize = sizeof (HalfbandDecimatorObject),
+  .tp_dealloc   = (destructor)HalfbandDecimatorObj_dealloc,
+  .tp_flags     = Py_TPFLAGS_DEFAULT,
   .tp_doc
   = "Create a HalfbandDecimator with caller-supplied FIR taps. Implements a\n"
     "2:1 polyphase halfband decimator over CF32 IQ. The caller provides the "

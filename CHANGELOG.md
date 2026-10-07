@@ -13,6 +13,34 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.64.0] - 2026-10-07
+
+### Breaking
+
+- **A refused `execute_ctrl` / `execute_profile` returns a negative count, not
+    0** (doppler#1869). `dp_Resampler_execute_ctrl` and
+    `dp_doppler_channel_execute_profile` now return `int64_t`: the samples
+    written, or `DP_ERR_INVALID` for a `ctrl`/`ppm` shorter than `x`, a NULL
+    pointer, or a bad profile sample. 0 is still a valid, empty result, so the
+    sign alone tells a C caller which it got. Python raises `ValueError` where
+    `DopplerChannel.execute_profile` used to return an empty array.
+
+### Changed
+
+- **just-makeit pin 0.99.0 → 0.100.0.** It carries a refusal value for a
+    `variable_output` kernel whose count can legitimately be 0 (gh-2012):
+    `count_type = "int64_t"` with `error_negative`, or `error_sentinel`. Two
+    methods use it, `Resampler.execute_ctrl` and
+    `DopplerChannel.execute_profile` (see the Breaking entry). `jm apply`
+    changed nothing else in this tree.
+
+- **`Resampler` is jm-generated** (doppler#1446). Its binding is re-rendered by
+    jm and leaves the `-Wall -Wextra` exempt list. The custom `bank=` constructor
+    is declared in the manifest, and `execute_ctrl` raises `ValueError` for a
+    `ctrl` shorter than `x` from the C core's refusal rather than a check in the
+    binding. The output buffer is now per call, as for the other adopted
+    objects.
+
 ## [0.63.0] - 2026-10-06
 
 ### Added
@@ -15972,7 +16000,8 @@ ______________________________________________________________________
 [0.61.1]: https://github.com/doppler-dsp/doppler/compare/v0.61.0...v0.61.1
 [0.62.0]: https://github.com/doppler-dsp/doppler/compare/v0.61.1...v0.62.0
 [0.63.0]: https://github.com/doppler-dsp/doppler/compare/v0.62.0...v0.63.0
+[0.64.0]: https://github.com/doppler-dsp/doppler/compare/v0.63.0...v0.64.0
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.63.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.64.0...HEAD

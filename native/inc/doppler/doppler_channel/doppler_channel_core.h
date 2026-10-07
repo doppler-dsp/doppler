@@ -63,6 +63,8 @@
 #ifndef DP_DOPPLER_CHANNEL_CORE_H
 #define DP_DOPPLER_CHANNEL_CORE_H
 
+#include <stdint.h>
+
 #include "doppler/clib_common.h"
 #include "doppler/dp_state.h"
 #include "doppler/jm_perf.h"
@@ -365,11 +367,11 @@ size_t dp_doppler_channel_execute_profile_max_out(dp_doppler_channel_state_t *st
  * @param ppm_len  Profile length; must EQUAL @p x_len.
  * @param out      Output buffer.
  * @param max_out  Capacity of @p out in samples.
- * @return Samples written; in Python, the array's length. A refused call
- *         writes nothing, leaves the clocks alone and returns 0, but 0 is
- *         also a valid result (a one-sample call returns it about half the
- *         time at +1e6 ppm), so the return value alone cannot tell a refusal
- *         from an empty answer: check the clocks (doppler#1869). Refused: a
+ * @return Samples written (>= 0); in Python, the array's length. A refused
+ *         call writes nothing, leaves the clocks alone and returns
+ *         DP_ERR_INVALID (negative), so a refusal is never mistaken for an
+ *         empty answer: 0 is a valid result (a one-sample call returns it
+ *         about half the time at +1e6 ppm). Refused: a
  *         NULL pointer, a @p ppm_len that differs from @p x_len, or a profile
  *         sample that is non-finite or below -5e5 ppm (a scale under 1/2:
  *         past the 2x expansion the output is sized for, and at -1e6 ppm
@@ -377,7 +379,7 @@ size_t dp_doppler_channel_execute_profile_max_out(dp_doppler_channel_state_t *st
  *         checked over the whole profile BEFORE any output is produced, so a
  *         bad call writes nothing rather than a valid prefix.
  */
-size_t dp_doppler_channel_execute_profile(dp_doppler_channel_state_t *state, const float _Complex *x, size_t x_len, const double *ppm, size_t ppm_len, float _Complex *out, size_t max_out);
+int64_t dp_doppler_channel_execute_profile(dp_doppler_channel_state_t *state, const float _Complex *x, size_t x_len, const double *ppm, size_t ppm_len, float _Complex *out, size_t max_out);
 
 /** @brief Receive time in seconds produced so far (`n_out/fs`). */
 double dp_doppler_channel_get_elapsed_s(const dp_doppler_channel_state_t *state);

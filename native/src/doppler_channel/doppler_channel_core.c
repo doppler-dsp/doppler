@@ -188,23 +188,25 @@ profile_ok (const double *ppm, size_t n)
   return 1;
 }
 
-size_t
+int64_t
 dp_doppler_channel_execute_profile (dp_doppler_channel_state_t *state,
                                     const float _Complex *x, size_t x_len,
                                     const double *ppm, size_t ppm_len,
                                     float _Complex *out, size_t max_out)
 {
+  /* A refusal is a negative code, never 0: an empty result is a valid answer
+     here, so the return value alone must tell the two apart (doppler#1869). */
   if (!state || !x || !ppm || !out)
-    return 0;
+    return DP_ERR_INVALID;
   /* The length contract, enforced rather than documented: one Doppler value
      per waveform sample. */
   if (ppm_len != x_len)
-    return 0;
+    return DP_ERR_INVALID;
   /* Validated over the WHOLE profile first: a check folded into the chunk
      loop would emit a valid prefix and then stop, which reads as a short
      read rather than a rejected argument. */
   if (!profile_ok (ppm, x_len))
-    return 0;
+    return DP_ERR_INVALID;
 
   /* Positions come back parallel to the outputs, so the scratch is as long
      as the output buffer can be asked to fill. Grown on demand and never
@@ -272,7 +274,7 @@ dp_doppler_channel_execute_profile (dp_doppler_channel_state_t *state,
     state->prof_d = ppm[x_len - 1] * 1e-6;
   state->profiled = 1u;
   state->n_out += n_out;
-  return n_out;
+  return (int64_t)n_out;
 }
 
 double

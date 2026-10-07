@@ -144,6 +144,10 @@ the return value can say. The example now judges a refusal by the clocks, with
 the same call shown valid first; the contract is stated as it is, and the
 convention question is #1869.
 
+**Resolved (jm 0.100.0).** The call now returns a signed count: a refusal is
+`DP_ERR_INVALID` (negative) and an empty result is 0, so the return value alone
+says which. The example judges the sign, and Python raises `ValueError`.
+
 ### 5.1 The gap carried the signal (2026-10-06)
 
 With Doppler on, a clean burst's gap was not silent. `fs = 1 MHz`, `on = 1000`,

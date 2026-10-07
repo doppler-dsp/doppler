@@ -50,6 +50,13 @@ return_type = "float _Complex"
 variable_output = true
 pass_capacity = true
 nogil = true
+# A refused call returns a negative DP_ERR_* (doppler#1869), because 0 is a
+# valid count here: a one-sample call returns it about half the time at
+# +1e6 ppm.
+count_type = "int64_t"
+error_negative = true
+error = "ValueError"
+error_message = "execute_profile refused: x and ppm must be the same length and every ppm sample finite and above -5e5"
 params = [{name = "x", type = "float _Complex[]"}, {name = "ppm", type = "double[]"}]
 
 [[doppler_channel.methods]]

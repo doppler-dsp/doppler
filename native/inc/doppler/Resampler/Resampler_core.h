@@ -20,6 +20,7 @@
 #ifndef DP_RESAMPLER_CORE_H
 #define DP_RESAMPLER_CORE_H
 
+#include <stdint.h>
 #include "doppler/resamp/resamp_core.h"
 
 #ifdef __cplusplus
@@ -155,12 +156,16 @@ extern "C"
    *                  rate addend. Anything numpy can safely widen to
    *                  float64 is accepted (float32, a plain list); a
    *                  complex array is refused rather than truncated.
-   * @param ctrl_len  Number of control samples; must equal x_len.
+   * @param ctrl_len  Number of control samples; at least x_len.
    * @param out       Output buffer; must hold at least RESAMPLER_MAX_OUT samples.
    * @param max_out Capacity of @p out in elements. Emission stops there, so
    *                the return value is the number actually written.
    * @return          CF32 output array; length depends on accumulated
-   *                  rate deviations, capped at max_out.
+   *                  rate deviations, capped at max_out. In C, the count
+   *                  written (>= 0), or DP_ERR_INVALID (negative) when
+   *                  @p ctrl_len is shorter than @p x_len: nothing is
+   *                  written. 0 stays a valid, empty result, so the sign
+   *                  alone tells a refusal from it (doppler#1869).
    *
    * @code
    * >>> from doppler.resample import Resampler
@@ -173,7 +178,7 @@ extern "C"
    * ((64,), dtype('complex64'))
    * @endcode
    */
-  size_t dp_Resampler_execute_ctrl (dp_Resampler_state_t *state,
+  int64_t dp_Resampler_execute_ctrl (dp_Resampler_state_t *state,
                                  const float _Complex *x, size_t x_len,
                                  const double *ctrl, size_t ctrl_len,
                                  float _Complex *out, size_t max_out);

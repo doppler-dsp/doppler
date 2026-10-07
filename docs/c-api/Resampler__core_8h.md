@@ -10,6 +10,7 @@
 
 _Continuously-variable polyphase resampler, CF32 IQ._ [More...](#detailed-description)
 
+* `#include <stdint.h>`
 * `#include "doppler/resamp/resamp_core.h"`
 
 
@@ -61,7 +62,7 @@ _Continuously-variable polyphase resampler, CF32 IQ._ [More...](#detailed-descri
 |  [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* | [**dp\_Resampler\_create\_custom**](#function-dp_resampler_create_custom) (size\_t num\_phases, size\_t num\_taps, const float \* bank, double rate) <br>_Create a Resampler with a user-supplied polyphase bank._  |
 |  void | [**dp\_Resampler\_destroy**](#function-dp_resampler_destroy) ([**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br> |
 |  size\_t | [**dp\_Resampler\_execute**](#function-dp_resampler_execute) ([**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Resample a block of CF32 samples at the fixed base rate. Uses the dual-mode polyphase engine: output-driven for rate &gt;= 1 (interpolation), input-driven transposed-form for rate &lt; 1 (decimation). State carries over between calls, so contiguous blocks produce the same result as one large block._  |
-|  size\_t | [**dp\_Resampler\_execute\_ctrl**](#function-dp_resampler_execute_ctrl) ([**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state, const float \_Complex \* x, size\_t x\_len, const double \* ctrl, size\_t ctrl\_len, float \_Complex \* out, size\_t max\_out) <br>_Resample with per-sample additive rate deviations. Effective rate for sample i is base\_rate +_ `ctrl[i]` _. Uses a unified double-precision accumulator that handles both interpolation and decimation in a single code path — suitable for Doppler-shift simulation and fractional-sample timing correction. ctrl and x must have the same length._ |
+|  int64\_t | [**dp\_Resampler\_execute\_ctrl**](#function-dp_resampler_execute_ctrl) ([**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state, const float \_Complex \* x, size\_t x\_len, const double \* ctrl, size\_t ctrl\_len, float \_Complex \* out, size\_t max\_out) <br>_Resample with per-sample additive rate deviations. Effective rate for sample i is base\_rate +_ `ctrl[i]` _. Uses a unified double-precision accumulator that handles both interpolation and decimation in a single code path — suitable for Doppler-shift simulation and fractional-sample timing correction. ctrl and x must have the same length._ |
 |  size\_t | [**dp\_Resampler\_execute\_ctrl\_max\_out**](#function-dp_resampler_execute_ctrl_max_out) ([**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br> |
 |  size\_t | [**dp\_Resampler\_execute\_max\_out**](#function-dp_resampler_execute_max_out) ([**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br> |
 |  double | [**dp\_Resampler\_get\_ctrl\_acc**](#function-dp_resampler_get_ctrl_acc) (const [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br>_Number of polyphase branches in the filter bank. Always a power of two. The built-in bank has 4096 phases giving sub-sample timing resolution of 1/4096 of an input sample period._  |
@@ -305,7 +306,7 @@ CF32 output array; length is approximately x\_len \* rate, capped at max\_out.
 
 _Resample with per-sample additive rate deviations. Effective rate for sample i is base\_rate +_ `ctrl[i]` _. Uses a unified double-precision accumulator that handles both interpolation and decimation in a single code path — suitable for Doppler-shift simulation and fractional-sample timing correction. ctrl and x must have the same length._
 ```C++
-size_t dp_Resampler_execute_ctrl (
+int64_t dp_Resampler_execute_ctrl (
     dp_Resampler_state_t * state,
     const float _Complex * x,
     size_t x_len,
@@ -327,7 +328,7 @@ size_t dp_Resampler_execute_ctrl (
 * `x` CF32 input samples. 
 * `x_len` Number of input samples. 
 * `ctrl` Real float64 array, same length as x; the per-sample rate addend. Anything numpy can safely widen to float64 is accepted (float32, a plain list); a complex array is refused rather than truncated. 
-* `ctrl_len` Number of control samples; must equal x\_len. 
+* `ctrl_len` Number of control samples; at least x\_len. 
 * `out` Output buffer; must hold at least RESAMPLER\_MAX\_OUT samples. 
 * `max_out` Capacity of `out` in elements. Emission stops there, so the return value is the number actually written. 
 
@@ -335,7 +336,7 @@ size_t dp_Resampler_execute_ctrl (
 
 **Returns:**
 
-CF32 output array; length depends on accumulated rate deviations, capped at max\_out.
+CF32 output array; length depends on accumulated rate deviations, capped at max\_out. In C, the count written (&gt;= 0), or DP\_ERR\_INVALID (negative) when `ctrl_len` is shorter than `x_len:` nothing is written. 0 stays a valid, empty result, so the sign alone tells a refusal from it (doppler#1869).
 
 
 

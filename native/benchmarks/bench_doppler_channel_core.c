@@ -163,9 +163,10 @@ main (void)
         (void)fprintf (stderr, "bench_doppler_channel: create NULL\n");
         return 1;
       }
-    size_t got = dp_doppler_channel_execute_profile (c, x, BENCH_N, ppm,
-                                                     BENCH_N, out, BENCH_N);
-    if (got + 2u < (size_t)BENCH_N || got > (size_t)BENCH_N)
+    int64_t got_s = dp_doppler_channel_execute_profile (c, x, BENCH_N, ppm,
+                                                        BENCH_N, out, BENCH_N);
+    size_t  got   = got_s < 0 ? 0u : (size_t)got_s;
+    if (got_s < 0 || got + 2u < (size_t)BENCH_N || got > (size_t)BENCH_N)
       {
         (void)fprintf (stderr,
                        "bench_doppler_channel: profile emitted %zu of %d "

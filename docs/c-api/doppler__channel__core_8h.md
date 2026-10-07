@@ -10,6 +10,7 @@
 
 _Clock Doppler as a propagation impairment: dilate the time base and shift the carrier, coherently, from one physical parameter._ [More...](#detailed-description)
 
+* `#include <stdint.h>`
 * `#include "doppler/clib_common.h"`
 * `#include "doppler/dp_state.h"`
 * `#include "doppler/jm_perf.h"`
@@ -64,7 +65,7 @@ _Clock Doppler as a propagation impairment: dilate the time base and shift the c
 |  void | [**dp\_doppler\_channel\_destroy**](#function-dp_doppler_channel_destroy) ([**dp\_doppler\_channel\_state\_t**](structdp__doppler__channel__state__t.md) \* state) <br>_Destroy a doppler\_channel instance and release all memory._  |
 |  size\_t | [**dp\_doppler\_channel\_execute**](#function-dp_doppler_channel_execute) ([**dp\_doppler\_channel\_state\_t**](structdp__doppler__channel__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Apply clock Doppler to a block of complex baseband._  |
 |  size\_t | [**dp\_doppler\_channel\_execute\_max\_out**](#function-dp_doppler_channel_execute_max_out) ([**dp\_doppler\_channel\_state\_t**](structdp__doppler__channel__state__t.md) \* state) <br>_Upper bound on the output of one execute() call._  |
-|  size\_t | [**dp\_doppler\_channel\_execute\_profile**](#function-dp_doppler_channel_execute_profile) ([**dp\_doppler\_channel\_state\_t**](structdp__doppler__channel__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, const double \* ppm, size\_t ppm\_len, float \_Complex \* out, size\_t max\_out) <br>_Apply a per-sample Doppler PROFILE to a block of complex baseband._  |
+|  int64\_t | [**dp\_doppler\_channel\_execute\_profile**](#function-dp_doppler_channel_execute_profile) ([**dp\_doppler\_channel\_state\_t**](structdp__doppler__channel__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, const double \* ppm, size\_t ppm\_len, float \_Complex \* out, size\_t max\_out) <br>_Apply a per-sample Doppler PROFILE to a block of complex baseband._  |
 |  size\_t | [**dp\_doppler\_channel\_execute\_profile\_max\_out**](#function-dp_doppler_channel_execute_profile_max_out) ([**dp\_doppler\_channel\_state\_t**](structdp__doppler__channel__state__t.md) \* state, size\_t n) <br>_The BINDING's output bound for execute\_profile() (jm pass\_capacity)._  |
 |  double | [**dp\_doppler\_channel\_get\_delay\_samples**](#function-dp_doppler_channel_get_delay_samples) (const [**dp\_doppler\_channel\_state\_t**](structdp__doppler__channel__state__t.md) \* state) <br>_The resampler's group delay, in samples (10.5 for the built-in bank)._  |
 |  double | [**dp\_doppler\_channel\_get\_elapsed\_s**](#function-dp_doppler_channel_get_elapsed_s) (const [**dp\_doppler\_channel\_state\_t**](structdp__doppler__channel__state__t.md) \* state) <br>_Receive time in seconds produced so far (_ `n_out/fs` _)._ |
@@ -323,7 +324,7 @@ Assumes an input of at most `DOPPLER_CHANNEL_MAX_BLOCK` samples — see that mac
 
 _Apply a per-sample Doppler PROFILE to a block of complex baseband._ 
 ```C++
-size_t dp_doppler_channel_execute_profile (
+int64_t dp_doppler_channel_execute_profile (
     dp_doppler_channel_state_t * state,
     const float _Complex * x,
     size_t x_len,
@@ -392,7 +393,7 @@ A sign change mid-record is the point: no `(doppler_ppm, doppler_rate_ppm_s)` pa
 
 **Returns:**
 
-Samples written; in Python, the array's length. A refused call writes nothing, leaves the clocks alone and returns 0, but 0 is also a valid result (a one-sample call returns it about half the time at +1e6 ppm), so the return value alone cannot tell a refusal from an empty answer: check the clocks (doppler#1869). Refused: a NULL pointer, a `ppm_len` that differs from `x_len`, or a profile sample that is non-finite or below -5e5 ppm (a scale under 1/2: past the 2x expansion the output is sized for, and at -1e6 ppm time stops, which create() already refuses for the scalar). All checked over the whole profile BEFORE any output is produced, so a bad call writes nothing rather than a valid prefix. 
+Samples written (&gt;= 0); in Python, the array's length. A refused call writes nothing, leaves the clocks alone and returns DP\_ERR\_INVALID (negative), so a refusal is never mistaken for an empty answer: 0 is a valid result (a one-sample call returns it about half the time at +1e6 ppm). Refused: a NULL pointer, a `ppm_len` that differs from `x_len`, or a profile sample that is non-finite or below -5e5 ppm (a scale under 1/2: past the 2x expansion the output is sized for, and at -1e6 ppm time stops, which create() already refuses for the scalar). All checked over the whole profile BEFORE any output is produced, so a bad call writes nothing rather than a valid prefix. 
 
 
 

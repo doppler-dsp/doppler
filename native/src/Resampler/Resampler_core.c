@@ -69,16 +69,18 @@ dp_Resampler_execute_ctrl_max_out (dp_Resampler_state_t *state)
   return RESAMPLER_MAX_OUT;
 }
 
-size_t
+int64_t
 dp_Resampler_execute_ctrl (dp_Resampler_state_t *state,
                            const float _Complex *x, size_t x_len,
                            const double *ctrl, size_t ctrl_len,
                            float _Complex *out, size_t max_out)
 {
-  size_t n = x_len < ctrl_len ? x_len : ctrl_len;
+  /* A short ctrl is a refusal, not an empty result: 0 outputs is valid. */
+  if (ctrl_len < x_len)
+    return DP_ERR_INVALID;
   /* The leaf already clamps; hand it the caller's real capacity instead
      of the fixed cap (jm gh-138). */
-  return dp_resamp_execute_ctrl (state, x, ctrl, n, out, max_out);
+  return (int64_t)dp_resamp_execute_ctrl (state, x, ctrl, x_len, out, max_out);
 }
 
 double

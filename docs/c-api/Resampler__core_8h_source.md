@@ -12,6 +12,7 @@
 #ifndef DP_RESAMPLER_CORE_H
 #define DP_RESAMPLER_CORE_H
 
+#include <stdint.h>
 #include "doppler/resamp/resamp_core.h"
 
 #ifdef __cplusplus
@@ -55,7 +56,7 @@ extern "C"
 
   size_t dp_Resampler_execute_ctrl_max_out (dp_Resampler_state_t *state);
 
-  size_t dp_Resampler_execute_ctrl (dp_Resampler_state_t *state,
+  int64_t dp_Resampler_execute_ctrl (dp_Resampler_state_t *state,
                                  const float _Complex *x, size_t x_len,
                                  const double *ctrl, size_t ctrl_len,
                                  float _Complex *out, size_t max_out);

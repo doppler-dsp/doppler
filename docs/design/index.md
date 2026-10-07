@@ -41,6 +41,15 @@ instead.)
 - [The Ring Buffer — measurements](ring-buffer-measurements.md) — the
     dated record: what the ring costs per sample, what the non-blocking
     surface adds, and the three premises that were wrong.
+- [The Doppler Channel](doppler-channel.md) — one parameter drives the
+    dilation and the carrier: why a Doppler shift is not a frequency offset,
+    the scalar and the profile forms, how the carrier is read off the
+    resampler so it cannot depend on chunking, and how the composer and the
+    Plan share one renderer.
+- [The Doppler Channel — measurements](doppler-channel-measurements.md) —
+    the dated record: the first profile that was withdrawn and why, the
+    resampler's 32-bit step against the closed form, the gap that carried the
+    signal, and the Plan's speed against `compose()`.
 - [Capture Files](capture-files.md) — the file I/O subsystem underneath
     `Reader`/`Writer`: why the file type is decided by content, why one
     keyword codec serves both directions, why provenance is a value rather

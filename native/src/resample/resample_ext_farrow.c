@@ -1,8 +1,10 @@
+/* jm:generated resample_ext_farrow.c */
 /*
  * resample_ext_farrow.c — Farrow type for the resample module.
  *
  * Included by resample_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in resample_ext_farrow_extra.c.
  * Do NOT compile this file directly — only resample_ext.c is compiled.
  */
 /* ======================================================== */
@@ -14,11 +16,6 @@
 typedef struct
 {
   PyObject_HEAD dp_farrow_state_t *handle;
-  float _Complex *_delay_buf;     /* pre-allocated output for delay */
-  size_t          _delay_buf_cap; /* allocated capacity for delay */
-  void          **_delay_retired; /* gh-219 deferred free */
-  size_t          _delay_retired_n;
-  size_t          _delay_retired_cap;
 } FarrowObject;
 
 static void
@@ -26,16 +23,15 @@ FarrowObj_dealloc (FarrowObject *self)
 {
   if (self->handle)
     dp_farrow_destroy (self->handle);
-  free (self->_delay_buf);
-  for (size_t _i = 0; _i < self->_delay_retired_n; _i++)
-    free (self->_delay_retired[_i]);
-  free (self->_delay_retired);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
 static PyObject *
 FarrowObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   FarrowObject *self = (FarrowObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -71,19 +67,6 @@ FarrowObj_init (FarrowObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_MemoryError, "dp_farrow_create returned NULL");
       return -1;
     }
-  {
-    size_t _max = dp_farrow_delay_max_out (self->handle);
-    if (_max)
-      {
-        self->_delay_buf = malloc (_max * sizeof (float _Complex));
-        if (!self->_delay_buf)
-          {
-            PyErr_NoMemory ();
-            return -1;
-          }
-        self->_delay_buf_cap = _max;
-      }
-  }
   return 0;
 }
 
@@ -114,32 +97,27 @@ FarrowObj_delay (FarrowObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "Od|O", _kwlist, &x_obj, &mu,
                                     &out_obj))
     return NULL;
-  x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
-                                             NPY_ARRAY_C_CONTIGUOUS);
+  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
     return NULL;
-
   if (out_obj && out_obj != Py_None)
     {
-      /* Require the exact output dtype — no silent cast (a cast writes
-       * into a temp copy instead of the caller's buffer). Hand-written
-       * here because this fragment stays hand-owned; keep in step with
-       * jm's generated form (gh-581). */
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
       if (!PyArray_Check (out_obj)
           || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
           || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
           || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
         {
-          PyErr_SetString (
-              PyExc_TypeError,
-              "out must be a writable, C-contiguous ndarray of the "
-              "output dtype");
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
           Py_DECREF (x_arr);
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_COMPLEX64,
-          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           Py_DECREF (x_arr);
@@ -147,8 +125,9 @@ FarrowObj_delay (FarrowObject *self, PyObject *args, PyObject *kwds)
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
       size_t _omax    = dp_farrow_delay_max_out (self->handle);
-      size_t _n_in    = (size_t)PyArray_SIZE (x_arr);
-      size_t _min_cap = _omax > _n_in ? _omax : _n_in;
+      size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
+                            ? _omax
+                            : ((size_t)PyArray_SIZE (x_arr));
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -157,15 +136,28 @@ FarrowObj_delay (FarrowObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (x_arr);
           return NULL;
         }
-      const float _Complex *_ng0o
+      /* nogil: GIL released across the pure-C kernel — sound only when
+       * this object is not shared across threads concurrently (one
+       * object per stream); the kernel touches only this object's
+       * state/buffers and the caller's input. */
+      const float _Complex *_ng0
           = (const float _Complex *)PyArray_DATA (x_arr);
-      size_t          _ng1o = _n_in;
-      float _Complex *_ng2o = (float _Complex *)PyArray_DATA (out_arr);
+      size_t          _ng1 = (size_t)PyArray_SIZE (x_arr);
+      float _Complex *_ng2 = (float _Complex *)PyArray_DATA (out_arr);
       size_t          n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out = dp_farrow_delay (self->handle, _ng0o, _ng1o, mu, _ng2o, _cap);
+        n_out = dp_farrow_delay (self->handle, _ng0, _ng1, mu, _ng2, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "Farrow.delay: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
                                                     PyArray_DATA (out_arr));
@@ -174,43 +166,36 @@ FarrowObj_delay (FarrowObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
-      return _oview;
-    }
-
-  size_t _need = (size_t)PyArray_SIZE (x_arr);
-  if (!self->_delay_buf || self->_delay_buf_cap < _need)
-    {
-      size_t _max = dp_farrow_delay_max_out (self->handle);
-      if (!_max || _max < _need)
-        _max = _need;
-      if (self->_delay_buf
-          && self->_delay_retired_n == self->_delay_retired_cap)
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
         {
-          size_t _rcap
-              = self->_delay_retired_cap ? self->_delay_retired_cap * 2 : 4;
-          void **_rt = realloc (self->_delay_retired, _rcap * sizeof (void *));
-          if (!_rt)
-            {
-              Py_DECREF (x_arr);
-              PyErr_NoMemory ();
-              return NULL;
-            }
-          self->_delay_retired     = _rt;
-          self->_delay_retired_cap = _rcap;
-        }
-      float _Complex *_tmp = malloc (_max * sizeof (float _Complex));
-      if (!_tmp)
-        {
-          Py_DECREF (x_arr);
-          PyErr_NoMemory ();
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
           return NULL;
         }
-      if (self->_delay_buf)
-        self->_delay_retired[self->_delay_retired_n++] = self->_delay_buf;
-      self->_delay_buf     = _tmp;
-      self->_delay_buf_cap = _max;
+      return _oview;
     }
+  size_t _need = (size_t)PyArray_SIZE (x_arr);
+  size_t _cap  = dp_farrow_delay_max_out (self->handle);
+  if (!_cap || _cap < _need)
+    _cap = _need;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "Farrow.delay: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
+  if (!arr0)
+    {
+      Py_DECREF (x_arr);
+      return NULL;
+    }
+  float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
   /* nogil: GIL released across the pure-C kernel — sound only when
    * this object is not shared across threads concurrently (one
    * object per stream); the kernel touches only this object's
@@ -219,18 +204,31 @@ FarrowObj_delay (FarrowObject *self, PyObject *args, PyObject *kwds)
   size_t                _ng1 = (size_t)PyArray_SIZE (x_arr);
   size_t                n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = dp_farrow_delay (self->handle, _ng0, _ng1, mu, self->_delay_buf,
-                             self->_delay_buf_cap);
+    n_out = dp_farrow_delay (self->handle, _ng0, _ng1, mu, _d0, _cap);
   Py_END_ALLOW_THREADS
-  npy_intp  dim = (npy_intp)n_out;
-  PyObject *arr
-      = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64, self->_delay_buf);
-  if (!arr)
-    return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
   Py_DECREF (x_arr);
-  return arr;
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_RuntimeError,
+                    "Farrow.delay: wrote %zu elements into a buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
+  if ((size_t)n_out == _cap)
+    {
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  return arr0;
 }
 
 static PyObject *
@@ -313,7 +311,7 @@ Farrow_getprop_group_delay (FarrowObject *self, void *Py_UNUSED (closure))
 static PyGetSetDef Farrow_getset[]
     = { { "group_delay", (getter)Farrow_getprop_group_delay, NULL,
           "Group delay.\n", NULL },
-        { NULL } };
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 FarrowObj_destroy (FarrowObject *self, PyObject *Py_UNUSED (ignored))
@@ -480,12 +478,11 @@ static PyMethodDef FarrowObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)FarrowObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
@@ -500,9 +497,8 @@ static PyMethodDef FarrowObj_methods[] = {
     "Exit a context manager, releasing the Farrow.\n"
     "\n"
     "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
-    "raised inside the `with` body propagates normally; this never "
-    "suppresses\n"
-    "one.\n"
+    "raised inside the `with` body propagates normally; this never\n"
+    "suppresses one.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -512,11 +508,11 @@ static PyMethodDef FarrowObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject FarrowObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "resample.Farrow",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.resample.Farrow",
   .tp_basicsize                           = sizeof (FarrowObject),
   .tp_dealloc                             = (destructor)FarrowObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

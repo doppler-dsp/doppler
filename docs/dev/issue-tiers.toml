@@ -8,7 +8,7 @@
 # tier 2 a claim nothing measures   5 convergence and hygiene
 
 [meta]
-generated = "2026-10-03"
+generated = "2026-10-07"
 
 [issue.502]
 tier = 3
@@ -335,11 +335,6 @@ tier = 5
 title = "Four validation harnesses hand-roll AWGN instead of calling the library's awgn, and nothing says they shouldn't"
 status = "open"
 
-[issue.940]
-tier = 4
-title = "DopplerChannel per-sample Doppler profile \u2014 deferred; the carrier needs the warping step, not a chord"
-status = "open"
-
 [issue.959]
 tier = 4
 title = "Streaming API shape: role typing, ack ergonomics, control-plane parity, and an undocumented size ceiling"
@@ -469,11 +464,6 @@ status = "open"
 [issue.1073]
 tier = 4
 title = "A Bits type with methods, rather than six free conversions threading out-parameters"
-status = "open"
-
-[issue.1109]
-tier = 4
-title = "Plan cannot cache a Doppler source: refused, because a cached on-time has no channel history"
 status = "open"
 
 [issue.1114]
@@ -889,12 +879,6 @@ title = "check_wfmgen_flag_docs: the checker cannot see short flags, so -o is wa
 status = "open"
 why = "A ratchet waiver for -o that only a checker change can retire; filed as tier 5"
 
-[issue.1642]
-tier = 5
-title = "wfm_json.c: -Wswitch on WFM_SV_FIELD in row_get/row_set"
-status = "in review ([#1655](https://github.com/doppler-dsp/doppler/pull/1655))"
-why = "A -Wswitch warning on an unreachable enum case; harmless today"
-
 [issue.1651]
 tier = 5
 title = "Header @code backlog: 79 C examples do not compile or run (ratchet from #1635)"
@@ -910,7 +894,7 @@ why = "About 40 fragments still convert a str silently into a number while their
 [issue.1657]
 tier = 1
 title = "build: -Wswitch is never an error, so an unhandled enum value warns and ships"
-status = "in review ([#1664](https://github.com/doppler-dsp/doppler/pull/1664))"
+status = "open"
 why = "Nothing turns -Wswitch into a failure, so an unhandled enum value warns and ships (#1642)"
 
 [issue.1663]
@@ -930,12 +914,6 @@ tier = 5
 title = "Patch-coverage gate has no way to name an unreachable enum case, so a -Wswitch fix alone is always red"
 status = "open"
 why = "Patch coverage has no way to excuse an unreachable enum case, so a -Wswitch fix alone is red"
-
-[issue.1670]
-tier = 2
-title = "track.Dll: async_despread_demo's lock statistic now decays over the run, and the noiseless envelope ripples ~5x more than the committed plot"
-status = "in review ([#1679](https://github.com/doppler-dsp/doppler/pull/1679))"
-why = "The gallery's Dll lock figure no longer matches the code: the statistic decays and the demo's bound still passes"
 
 [issue.1671]
 tier = 1
@@ -1064,11 +1042,6 @@ tier = 4
 title = "Python face for dp_syncword_search, plus M-ary (QPSK 4-fold) ambiguity resolution"
 status = "open"
 
-[issue.1809]
-tier = 5
-title = "Unpin STANDARD_URL from canonical 30f8e77b once ci-changes-wiring-check can exempt always-run jobs"
-status = "open"
-
 [issue.1814]
 tier = 2
 title = "bench_wfm_synth::test_bench_step can calibrate to 1 iteration and time the clock, not step()"
@@ -1088,3 +1061,52 @@ status = "open"
 tier = 0
 title = "Windows wheels for Python 3.13/3.14 carry ABI tag 'cpwin_amd64' \u2014 pip cannot install them (since v0.60.0 at least)"
 status = "open"
+
+[issue.1826]
+tier = 5
+title = "ci: a docs-only diff should run the docs-reading tests, not the full Python job"
+status = "open"
+
+[issue.1828]
+tier = 4
+title = "Install the benchmark/test harness headers so downstream projects can use them"
+status = "open"
+why = "Downstream projects cannot use the benchmark/test harness headers: they are not installed"
+
+[issue.1829]
+tier = 4
+title = "Stream subscriber: expose frame-gap and duplicate accounting from the wire header"
+status = "open"
+
+[issue.1850]
+tier = 5
+title = "check_warnings.py docstring still says '99 hand-owned fragments' after #1446 adoptions"
+status = "open"
+
+[issue.1853]
+tier = 5
+title = "PN(length=1) builds a no-feedback register that wfm_synth and wfm_frame refuse"
+status = "open"
+
+[issue.1856]
+tier = 3
+title = "resamp: the ctrl step truncates to 32 bits, a constant ~8e-11 rate bias (0.2 Hz at 2.5 GHz) \u2014 may not matter"
+status = "open"
+why = "The ctrl step truncates to 32 bits: a constant rate bias of ~8e-11, measured"
+
+[issue.1865]
+tier = 4
+title = "Plan: a background=True source with Doppler is refused (fold sums it before any channel can run)"
+status = "open"
+
+[issue.1867]
+tier = 2
+title = "DopplerChannel is not certified: no validation report (adding-algorithms phases 7-8)"
+status = "open"
+why = "DopplerChannel has no validation report, so its certification claim is measured by nothing"
+
+[issue.1874]
+tier = 2
+title = "Apply the signed-count refusal (DP_ERR_INVALID) to the other count-returning calls that collide with a valid 0"
+status = "open"
+why = "A refusal and a valid empty input both return 0, so a C caller cannot tell them apart"

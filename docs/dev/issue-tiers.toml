@@ -8,7 +8,7 @@
 # tier 2 a claim nothing measures   5 convergence and hygiene
 
 [meta]
-generated = "2026-10-07"
+generated = "2026-10-08"
 
 [issue.502]
 tier = 3
@@ -1110,3 +1110,15 @@ tier = 2
 title = "Apply the signed-count refusal (DP_ERR_INVALID) to the other count-returning calls that collide with a valid 0"
 status = "open"
 why = "A refusal and a valid empty input both return 0, so a C caller cannot tell them apart"
+
+[issue.1886]
+tier = 5
+title = "Adopt fft, wfm_synth, dp_tlm and dp_tlm_capture to jm: held on extra_methods and just-makeit#2059"
+status = "open"
+why = "Four fragments stay hand-owned and keep missing jm's binding fixes until a false-positive drift finding is fixed upstream"
+
+[issue.1887]
+tier = 5
+title = "scripts/.warnings-exempt floors at 2: stream_ext.c and resample_ext_extra.c are not jm-adoptable"
+status = "open"
+why = "The -Wall -Wextra ratchet cannot reach 0 while two files jm will never own still warn"

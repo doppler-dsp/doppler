@@ -172,6 +172,7 @@
 * **wfm\_follow\_end\_t** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))
 * **wfm\_fs\_source\_t** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))
 * **wfm\_mode\_t** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))
+* **wfm\_reader\_stype\_t** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))
 * **wfm\_t0\_source\_t** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))
 * **wfm\_\_synth\_\_core\_8h\_1abc5c98fcc1211af2b80116dd6e0a035d** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **wfm\_\_synth\_\_core\_8h\_1ac36f475ca5b446f4fde4c9b90bec77c8** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))

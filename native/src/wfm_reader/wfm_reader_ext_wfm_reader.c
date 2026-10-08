@@ -1,8 +1,10 @@
+/* jm:generated wfm_reader_ext_wfm_reader.c */
 /*
  * wfm_reader_ext_wfm_reader.c — Reader type for the wfm_reader module.
  *
  * Included by wfm_reader_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in wfm_reader_ext_wfm_reader_extra.c.
  * Do NOT compile this file directly — only wfm_reader_ext.c is compiled.
  */
 /* ======================================================== */
@@ -10,15 +12,6 @@
 /* ======================================================== */
 
 #include "doppler/wfm_reader/wfm_reader_core.h"
-
-/* The stop predicate the Python face installs below. The CORE deliberately
-   does not call dp_interrupted() itself -- that would put dp_interrupt.c on
-   the link line of every C consumer of wfm_reader_core, which is why
-   read_follow() takes an injected predicate at all (end-of-capture.md 4c).
-   A binding is the layer that CAN link it, and doppler's own answer to "what
-   should stop a follow read?" is the process interrupt, exactly as
-   wfm_reader_core.h's own example says. */
-#include "doppler/dp_interrupt.h"
 
 typedef struct
 {
@@ -36,6 +29,9 @@ ReaderObj_dealloc (ReaderObject *self)
 static PyObject *
 ReaderObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   ReaderObject *self = (ReaderObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -45,11 +41,10 @@ ReaderObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 ReaderObj_init (ReaderObject *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[] = { "path", "sample_type", "endian", NULL };
-  PyObject    *path     = NULL; /* fspath -> bytes */
-  const char  *sample_type_str
-      = "auto"; /* doppler#1120: hand-owned, see below */
-  const char *endian_str = "le";
+  static char *kwlist[]        = { "path", "sample_type", "endian", NULL };
+  PyObject    *path            = NULL; /* fspath -> bytes */
+  const char  *sample_type_str = "auto";
+  const char  *endian_str      = "le";
 
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O&|ss", kwlist,
                                     PyUnicode_FSConverter, &path,
@@ -58,43 +53,35 @@ ReaderObj_init (ReaderObject *self, PyObject *args, PyObject *kwds)
       Py_XDECREF (path);
       return -1;
     }
-  /* HAND-ADDED, like the five scalar branches below it, and for the same
-     reason: jm generates this chain from the manifest's string_enum and a
-     regenerated fragment drops anything hand-owned (see
-     just-buildit/just-makeit#1273). "auto" is WFM_READER_STYPE_AUTO (-1),
-     which is not an index into any enum -- it means the caller named no
-     type, so a headerless capture takes its type from its own sidecar
-     (doppler#1120). Keep it FIRST: it is the default, so it is the branch
-     taken on almost every call. */
   int sample_type = 0;
   if (strcmp (sample_type_str, "auto") == 0)
     sample_type = WFM_READER_STYPE_AUTO;
   else if (strcmp (sample_type_str, "cf32") == 0)
-    sample_type = 0;
+    sample_type = WFM_READER_STYPE_CF32;
   else if (strcmp (sample_type_str, "cf64") == 0)
-    sample_type = 1;
+    sample_type = WFM_READER_STYPE_CF64;
   else if (strcmp (sample_type_str, "ci32") == 0)
-    sample_type = 2;
+    sample_type = WFM_READER_STYPE_CI32;
   else if (strcmp (sample_type_str, "ci16") == 0)
-    sample_type = 3;
+    sample_type = WFM_READER_STYPE_CI16;
   else if (strcmp (sample_type_str, "ci8") == 0)
-    sample_type = 4;
+    sample_type = WFM_READER_STYPE_CI8;
   else if (strcmp (sample_type_str, "f32") == 0)
-    sample_type = 5;
+    sample_type = WFM_READER_STYPE_F32;
   else if (strcmp (sample_type_str, "f64") == 0)
-    sample_type = 6;
+    sample_type = WFM_READER_STYPE_F64;
   else if (strcmp (sample_type_str, "i32") == 0)
-    sample_type = 7;
+    sample_type = WFM_READER_STYPE_I32;
   else if (strcmp (sample_type_str, "i16") == 0)
-    sample_type = 8;
+    sample_type = WFM_READER_STYPE_I16;
   else if (strcmp (sample_type_str, "i8") == 0)
-    sample_type = 9;
+    sample_type = WFM_READER_STYPE_I8;
   else
     {
       PyErr_Format (PyExc_ValueError,
-                    "sample_type must be one of \"auto\", \"cf32\", "
-                    "\"cf64\", \"ci32\", \"ci16\", \"ci8\", \"f32\", "
-                    "\"f64\", \"i32\", \"i16\", \"i8\", got '%s'",
+                    "sample_type must be one of \"auto\", \"cf32\", \"cf64\", "
+                    "\"ci32\", \"ci16\", \"ci8\", \"f32\", \"f64\", \"i32\", "
+                    "\"i16\", \"i8\", got '%s'",
                     sample_type_str);
       Py_XDECREF (path);
       return -1;
@@ -112,8 +99,8 @@ ReaderObj_init (ReaderObject *self, PyObject *args, PyObject *kwds)
       Py_XDECREF (path);
       return -1;
     }
-  self->handle
-      = dp_wfm_reader_create (PyBytes_AS_STRING (path), sample_type, endian);
+  self->handle = dp_wfm_reader_create_interruptible (PyBytes_AS_STRING (path),
+                                                     sample_type, endian);
   Py_XDECREF (path);
   if (!self->handle)
     {
@@ -123,18 +110,6 @@ ReaderObj_init (ReaderObject *self, PyObject *args, PyObject *kwds)
                        "C are supported)");
       return -1;
     }
-  /* Make Ctrl+C end a follow read. Without this the predicate is NULL and
-     read_follow() has no escape at all -- both budgets default to "forever"
-     on purpose (a stream with no rhythm we control turns any finite budget
-     into a spurious ending), so "no stop predicate" means "waits until the
-     writer closes, whatever happens".
-
-     This is only true across modules because dp_interrupt_guard is
-     `process_global` (doppler#976): the flag Interrupt() sets in
-     doppler.interrupt is the same object this module reads. Before that fix
-     it would have been a different variable and this line would have looked
-     like it worked. */
-  dp_wfm_reader_set_stop_fn (self->handle, dp_interrupted);
   return 0;
 }
 
@@ -150,21 +125,7 @@ ReaderObj_reset (ReaderObject *self, PyObject *Py_UNUSED (ignored))
   Py_RETURN_NONE;
 }
 
-/* gh-519: strcmp for the enum lookup below. Python.h already
- * pulls in <string.h>, but the include is explicit so the block
- * stands on its own wherever it is spliced. */
-#include <string.h>
-
 /* String-enum tables — order is the C int (the [[enum]] SSOT). */
-static int
-_enum_index_Reader (const char *const *tab, const char *s)
-{
-  for (int i = 0; tab[i]; i++)
-    if (strcmp (tab[i], s) == 0)
-      return i;
-  return -1;
-}
-
 static const char *const _enum_Reader_follow_end[] = {
   "none", "eof", "timeout", "interrupted", NULL,
 };
@@ -200,10 +161,6 @@ static const char *const _enum_Reader_fs_source[] = {
 static const char *const _enum_Reader_t0_source[] = {
   "none",
   "timecode",
-  /* Hand-added: `jm apply` reconciles a sacred fragment member by member and
-     does NOT re-render this table when an [[enum]] gains a value, so a
-     regenerated one would be silently short and the getter would index past
-     its end. Keep it in step with just-makeit.toml's `t0_source` enum. */
   "sigmf",
   NULL,
 };
@@ -254,9 +211,9 @@ ReaderObj_read (ReaderObject *self, PyObject *args, PyObject *kwds)
                            " ndarray of the output dtype");
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_COMPLEX64,
-          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           return NULL;
@@ -274,6 +231,14 @@ ReaderObj_read (ReaderObject *self, PyObject *args, PyObject *kwds)
       size_t n_out = dp_wfm_reader_read (
           self->handle, (size_t)n, (float _Complex *)PyArray_DATA (out_arr),
           _cap);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (PyExc_RuntimeError,
+                        "Reader.read: wrote %zu elements into a buffer of %zu",
+                        (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
                                                     PyArray_DATA (out_arr));
@@ -282,13 +247,27 @@ ReaderObj_read (ReaderObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)n;
   size_t _cap  = dp_wfm_reader_read_max_out (self->handle, (size_t)n);
   (void)_need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "Reader.read: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
   if (!arr0)
     {
@@ -296,6 +275,14 @@ ReaderObj_read (ReaderObject *self, PyObject *args, PyObject *kwds)
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t n_out = dp_wfm_reader_read (self->handle, (size_t)n, _d0, _cap);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_RuntimeError,
+                    "Reader.read: wrote %zu elements into a buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -354,9 +341,9 @@ ReaderObj_read_follow (ReaderObject *self, PyObject *args, PyObject *kwds)
                            " ndarray of the output dtype");
           return NULL;
         }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_COMPLEX64,
-          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
       if (!out_arr)
         {
           return NULL;
@@ -382,6 +369,15 @@ ReaderObj_read_follow (ReaderObject *self, PyObject *args, PyObject *kwds)
         n_out
             = dp_wfm_reader_read_follow (self->handle, (size_t)n, _ng0, _cap);
       Py_END_ALLOW_THREADS
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "Reader.read_follow: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
                                                     PyArray_DATA (out_arr));
@@ -390,13 +386,27 @@ ReaderObj_read_follow (ReaderObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)n;
   size_t _cap  = dp_wfm_reader_read_follow_max_out (self->handle, (size_t)n);
   (void)_need;
-  npy_intp  _adim = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "Reader.read_follow: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
   if (!arr0)
     {
@@ -411,6 +421,15 @@ ReaderObj_read_follow (ReaderObject *self, PyObject *args, PyObject *kwds)
   Py_BEGIN_ALLOW_THREADS
     n_out = dp_wfm_reader_read_follow (self->handle, (size_t)n, _d0, _cap);
   Py_END_ALLOW_THREADS
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "Reader.read_follow: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -425,6 +444,68 @@ ReaderObj_read_follow (ReaderObject *self, PyObject *args, PyObject *kwds)
     }
   Py_DECREF (v0);
   return arr0;
+}
+
+static PyObject *
+ReaderObj_seek (ReaderObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "index", NULL };
+  long long    index_raw = 0LL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "L", _kwlist, &index_raw))
+    return NULL;
+  int64_t index = (int64_t)index_raw;
+  int     _rc   = dp_wfm_reader_seek (self->handle, index);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "seek: index is negative, or past the end of the capture "
+                    "(0 <= index <= num_samples)",
+                    (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+ReaderObj_seek_time (ReaderObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "seconds", NULL };
+  double       seconds   = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist, &seconds))
+    return NULL;
+  int _rc = dp_wfm_reader_seek_time (self->handle, seconds);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "seek_time: the capture declares no sample rate "
+                    "(fs_source is 'none' -- raw and CSV always), or the "
+                    "time is negative, not finite, or past the end",
+                    (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+static PyObject *
+Reader_getprop_position (ReaderObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)dp_wfm_reader_get_position (self->handle));
 }
 static PyObject *
 Reader_getprop_follow_timeout_ms (ReaderObject *self,
@@ -646,11 +727,11 @@ Reader_getprop_t0_source (ReaderObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   long _v = (long)(dp_wfm_reader_get_t0_source (self->handle));
-  if (_v < 0 || _v >= 2)
+  if (_v < 0 || _v >= 3)
     {
       PyErr_Format (PyExc_ValueError,
                     "t0_source holds out-of-range t0_source value %ld"
-                    " (valid: 0..1)",
+                    " (valid: 0..2)",
                     _v);
       return NULL;
     }
@@ -1041,20 +1122,14 @@ Reader_getprop_header (ReaderObject *self, void *Py_UNUSED (closure))
   return _c;
 }
 
-static PyObject *
-Reader_getprop_position (ReaderObject *self, void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)dp_wfm_reader_get_position (self->handle));
-}
-
 static PyGetSetDef Reader_getset[] = {
+  { "position", (getter)Reader_getprop_position, NULL,
+    "How far into the capture the reader is, in samples from the first one: 0 "
+    "at open and after `reset()`, `num_samples` once the capture is "
+    "exhausted, and whatever `seek()` was last given. Every read advances it "
+    "-- `read()` and `read_follow()` alike -- so it is also how a following "
+    "reader reports where the stream it is draining has got to.\n",
+    NULL },
   { "follow_timeout_ms", (getter)Reader_getprop_follow_timeout_ms,
     (setter)Reader_setprop_follow_timeout_ms,
     "How long `read_follow()` waits for samples to arrive, in milliseconds; "
@@ -1203,14 +1278,7 @@ static PyGetSetDef Reader_getset[] = {
     "non-BLUE file type. Nothing is renamed or omitted, so what you see is "
     "what the file holds; the decoded keywords are in `keywords`.\n",
     NULL },
-  { "position", (getter)Reader_getprop_position, NULL,
-    "How far into the capture the reader is, in samples from the first one: 0 "
-    "at open and after `reset()`, `num_samples` once the capture is "
-    "exhausted, and whatever `seek()` was last given. Every read advances it "
-    "-- `read()` and `read_follow()` alike -- so it is also how a following "
-    "reader reports where the stream it is draining has got to.\n",
-    NULL },
-  { NULL }
+  { NULL, NULL, NULL, NULL, NULL }
 };
 
 static PyObject *
@@ -1239,56 +1307,6 @@ ReaderObj_exit (ReaderObject *self, PyObject *args)
     {
       dp_wfm_reader_destroy (self->handle);
       self->handle = NULL;
-    }
-  Py_RETURN_NONE;
-}
-
-static PyObject *
-ReaderObj_seek (ReaderObject *self, PyObject *args, PyObject *kwds)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  static char *_kwlist[] = { "index", NULL };
-  long long    index_raw = 0LL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "L", _kwlist, &index_raw))
-    return NULL;
-  int64_t index = (int64_t)index_raw;
-  int     _rc   = dp_wfm_reader_seek (self->handle, index);
-  if (_rc != 0)
-    {
-      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
-                    "seek: index is negative, or past the end of the capture "
-                    "(0 <= index <= num_samples)",
-                    (long long)_rc);
-      return NULL;
-    }
-  Py_RETURN_NONE;
-}
-
-static PyObject *
-ReaderObj_seek_time (ReaderObject *self, PyObject *args, PyObject *kwds)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  static char *_kwlist[] = { "seconds", NULL };
-  double       seconds   = 0.0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist, &seconds))
-    return NULL;
-  int _rc = dp_wfm_reader_seek_time (self->handle, seconds);
-  if (_rc != 0)
-    {
-      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
-                    "seek_time: the capture declares no sample rate "
-                    "(fs_source is 'none' -- raw and CSV always), or the "
-                    "time is negative, not finite, or past the end",
-                    (long long)_rc);
-      return NULL;
     }
   Py_RETURN_NONE;
 }
@@ -1450,51 +1468,6 @@ static PyMethodDef ReaderObj_methods[] = {
     "int\n"
     "    Upper bound on the output length; the actual call may return "
     "fewer.\n" },
-  { "close", (PyCFunction)ReaderObj_destroy, METH_NOARGS,
-    "Release the underlying C resources immediately.\n"
-    "\n"
-    "Ordinarily unnecessary: the resources are freed when the object is\n"
-    "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on\n"
-    "exit.\n"
-    "\n"
-    "Idempotent: calling it again on an already-released object does\n"
-    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
-  { "destroy", (PyCFunction)ReaderObj_destroy, METH_NOARGS,
-    "Release the underlying C resources immediately.\n"
-    "\n"
-    "Ordinarily unnecessary: the resources are freed when the object is\n"
-    "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on\n"
-    "exit.\n"
-    "\n"
-    "Idempotent: calling it again on an already-released object does\n"
-    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
-  { "__enter__", (PyCFunction)ReaderObj_enter, METH_NOARGS,
-    "Enter a context manager, returning this object.\n"
-    "\n"
-    "Lets a Reader be used in a `with` statement so its C resources are\n"
-    "released deterministically on exit rather than at collection time.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "Reader\n"
-    "    This same object, not a copy.\n" },
-  { "__exit__", (PyCFunction)ReaderObj_exit, METH_VARARGS,
-    "Exit a context manager, releasing the Reader.\n"
-    "\n"
-    "Equivalent to calling `close()`. Returns ``None``, so an exception\n"
-    "raised inside the `with` body propagates normally; this never\n"
-    "suppresses one.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "exc_type : object | None\n"
-    "    Exception class, or None. Ignored.\n"
-    "exc : object | None\n"
-    "    Exception instance, or None. Ignored.\n"
-    "tb : object | None\n"
-    "    Traceback object, or None. Ignored.\n" },
   { "seek", (PyCFunction)(void *)ReaderObj_seek, METH_VARARGS | METH_KEYWORDS,
     "seek(index) -> None\n"
     "\n"
@@ -1642,11 +1615,56 @@ static PyMethodDef ReaderObj_methods[] = {
     "250\n"
     ">>> h.close()\n"
     ">>> tmp.cleanup()\n" },
-  { NULL }
+  { "close", (PyCFunction)ReaderObj_destroy, METH_NOARGS,
+    "Release the underlying C resources immediately.\n"
+    "\n"
+    "Ordinarily unnecessary: the resources are freed when the object is\n"
+    "garbage-collected. Call this to release them at a definite point\n"
+    "instead, or use the object as a context manager, which calls it on\n"
+    "exit.\n"
+    "\n"
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
+  { "destroy", (PyCFunction)ReaderObj_destroy, METH_NOARGS,
+    "Release the underlying C resources immediately.\n"
+    "\n"
+    "Ordinarily unnecessary: the resources are freed when the object is\n"
+    "garbage-collected. Call this to release them at a definite point\n"
+    "instead, or use the object as a context manager, which calls it on\n"
+    "exit.\n"
+    "\n"
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
+  { "__enter__", (PyCFunction)ReaderObj_enter, METH_NOARGS,
+    "Enter a context manager, returning this object.\n"
+    "\n"
+    "Lets a Reader be used in a `with` statement so its C resources are\n"
+    "released deterministically on exit rather than at collection time.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "Reader\n"
+    "    This same object, not a copy.\n" },
+  { "__exit__", (PyCFunction)ReaderObj_exit, METH_VARARGS,
+    "Exit a context manager, releasing the Reader.\n"
+    "\n"
+    "Equivalent to calling `close()`. Returns ``None``, so an exception\n"
+    "raised inside the `with` body propagates normally; this never\n"
+    "suppresses one.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "exc_type : object | None\n"
+    "    Exception class, or None. Ignored.\n"
+    "exc : object | None\n"
+    "    Exception instance, or None. Ignored.\n"
+    "tb : object | None\n"
+    "    Traceback object, or None. Ignored.\n" },
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject ReaderObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "wfm_reader.Reader",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.wfm.Reader",
   .tp_basicsize                           = sizeof (ReaderObject),
   .tp_dealloc                             = (destructor)ReaderObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
@@ -1668,7 +1686,7 @@ static PyTypeObject ReaderObjType = {
     "    resolved). A SigMF `.sigmf-data` file resolves its `.sigmf-meta`\n"
     "    sidecar the same way.\n"
     "sample_type : Literal[\"auto\", \"cf32\", \"cf64\", \"ci32\", \"ci16\", "
-    "\"ci8\"], default \"auto\"\n"
+    "\"ci8\", \"f32\", \"f64\", \"i32\", \"i16\", \"i8\"], default \"auto\"\n"
     "    the wire sample type, used only as a HINT for the headerless file "
     "types\n"
     "    (raw, CSV) -- BLUE and SigMF carry their own and ignore it. The "
@@ -1689,9 +1707,20 @@ static PyTypeObject ReaderObjType = {
     "one\n"
     "    can be overridden. A wrong hint does not fail, and\n"
     "    ::dp_wfm_reader_get_trailing_bytes is NOT the way to notice -- see "
-    "what "
-    "it\n"
-    "    says about itself.\n"
+    "what\n"
+    "    it says about itself.\n"
+    "\n"
+    "    - ``\"auto\"`` — the caller said nothing.\n"
+    "    - ``\"cf32\"`` — interleaved float32 I/Q.\n"
+    "    - ``\"cf64\"`` — interleaved float64 I/Q.\n"
+    "    - ``\"ci32\"`` — interleaved int32 I/Q.\n"
+    "    - ``\"ci16\"`` — interleaved int16 I/Q.\n"
+    "    - ``\"ci8\"`` — interleaved int8 I/Q.\n"
+    "    - ``\"f32\"`` — real float32.\n"
+    "    - ``\"f64\"`` — real float64.\n"
+    "    - ``\"i32\"`` — real int32.\n"
+    "    - ``\"i16\"`` — real int16.\n"
+    "    - ``\"i8\"`` — real int8.\n"
     "endian : Literal[\"le\", \"be\"], default \"le\"\n"
     "    byte order, likewise a hint that only headerless raw uses; `\"le\"` "
     "or\n"

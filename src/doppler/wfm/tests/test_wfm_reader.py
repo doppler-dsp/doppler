@@ -615,6 +615,28 @@ def test_t0_becomes_sigmf_core_datetime(tmp_path):
     assert "core:datetime" not in meta["captures"][0]
 
 
+def test_reader_reports_a_sigmf_start_time_and_its_source(tmp_path):
+    """`t0_source` must be able to say "sigmf", the third of its three values.
+
+    The Reader's binding was a hand-owned fragment whose `t0_source` getter
+    range-checked against a hand-copied table of TWO names, so a SigMF capture
+    that declared its start time made the property raise
+    `ValueError: ... (valid: 0..1)` instead of returning "sigmf". The tables
+    are rendered from the manifest's `[[enum]]` now (doppler#1446).
+
+    Sabotage: restore the two-name table (`_v >= 2`) in the binding and this
+    goes red.
+    """
+    p = tmp_path / "when.sigmf-data"
+    with Writer(
+        p, file_type="sigmf", sample_type="cf32", fs=1e6, t0=1785903330.0
+    ) as w:
+        w.write(np.zeros(8, dtype=np.complex64))
+    with Reader(p) as r:
+        assert r.t0_source == "sigmf"
+        assert r.t0 == pytest.approx(1785903330.0)
+
+
 def test_fs_is_required_not_defaulted(tmp_path):
     """The whole point of the change: you cannot forget to state the rate.
 

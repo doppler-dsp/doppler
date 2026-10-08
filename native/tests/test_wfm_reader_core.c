@@ -2,6 +2,7 @@
  * test_wfm_reader.c — round-trip wfm_writer → wfm_reader across every
  * file type, plus file type auto-detection and the BLUE-magic gate.
  */
+#include "doppler/dp_interrupt.h"
 #include "doppler/wfm/wfm_keywords.h"
 #include "doppler/wfm_reader/wfm_reader_core.h"
 #include "doppler/wfm_writer/wfm_writer_core.h"
@@ -1771,10 +1772,10 @@ test_follow_ends_on_the_marker_not_on_silence (void)
 }
 
 /* The §3 shutdown rules. Testable here and now, in C, with no interrupt
-   primitive anywhere: dp_wfm_reader_set_stop_fn takes the predicate, so a test
-   supplies its own. That is the whole reason the reader does not link
-   dp_interrupt.c -- the policy is the caller's, and here the caller is this
-   file. */
+   primitive in play: dp_wfm_reader_set_stop_fn takes the predicate, so a test
+   supplies its own. The plain creator leaves the policy to the caller, and
+   here the caller is this file; dp_wfm_reader_create_interruptible is the one
+   that picks the process interrupt, and has its own test below. */
 static int g_stop = 0;
 static int
 test_stop_requested (void)
@@ -1823,6 +1824,63 @@ test_follow_drains_before_honouring_a_stop (void)
                   "a bounded grace expiring reports INTERRUPTED");
   g_stop = 0;
   dp_wfm_reader_destroy (r);
+  dp_wfm_writer_close (w);
+  fclose (fp);
+  remove (path);
+  return 0;
+}
+
+/* The interruptible creator is the one the Python Reader calls, and what it
+   adds over dp_wfm_reader_create is exactly one thing: Ctrl-C ends a follow
+   read. So pin both halves -- the plain creator ignores the process
+   interrupt (the policy is the caller's), the interruptible one honours it.
+
+   Sabotage: drop the set_stop_fn call from
+   dp_wfm_reader_create_interruptible and the second half goes red. */
+static int
+test_interruptible_creator_honours_the_process_interrupt (void)
+{
+  const char *path = "wfm_follow_intr.blue";
+  FILE       *fp   = fopen (path, "wb+");
+  DP_REQUIRE_MSG (fp, "open for write");
+  dp_wfm_writer_state_t *w
+      = dp_wfm_writer_open (fp, WFM_FT_BLUE, 3, 0, 2.4e6, 0.0, 0, 0.0);
+  DP_REQUIRE_MSG (w, "writer open");
+  float _Complex x[12];
+  make_signal (x, 12);
+  DP_REQUIRE_MSG (dp_wfm_writer_write (w, x, 12) == 12, "wrote 12");
+  DP_REQUIRE_MSG (dp_wfm_writer_flush (w) == 0, "flush");
+
+  DP_REQUIRE_MSG (
+      !dp_wfm_reader_create_interruptible ("no_such_capture.blue", 3, 0),
+      "a failed open is still NULL");
+
+  float _Complex y[16];
+  dp_interrupt ();
+
+  /* Plain creator: no predicate, so the pending interrupt is invisible and a
+     bounded timeout is what ends the wait. */
+  dp_wfm_reader_state_t *r = dp_wfm_reader_create (path, 3, 0);
+  DP_REQUIRE_MSG (r, "reader open");
+  dp_wfm_reader_set_follow_timeout_ms (r, 50);
+  DP_REQUIRE_MSG (dp_wfm_reader_read_follow (r, 16, y, 16) == 12, "drained");
+  DP_REQUIRE_MSG (dp_wfm_reader_read_follow (r, 16, y, 16) == 0, "empty");
+  DP_REQUIRE_MSG (dp_wfm_reader_get_ending (r) == WFM_FOLLOW_TIMEOUT,
+                  "no stop predicate: the timeout ends it");
+  dp_wfm_reader_destroy (r);
+
+  /* Interruptible creator: the same pending interrupt now ends the wait as
+     INTERRUPTED, once the bounded grace expires. */
+  r = dp_wfm_reader_create_interruptible (path, 3, 0);
+  DP_REQUIRE_MSG (r, "interruptible reader open");
+  dp_wfm_reader_set_follow_grace_ms (r, 50);
+  DP_REQUIRE_MSG (dp_wfm_reader_read_follow (r, 16, y, 16) == 12, "drained");
+  DP_REQUIRE_MSG (dp_wfm_reader_read_follow (r, 16, y, 16) == 0, "empty");
+  DP_REQUIRE_MSG (dp_wfm_reader_get_ending (r) == WFM_FOLLOW_INTERRUPTED,
+                  "dp_interrupted is the stop predicate");
+  dp_wfm_reader_destroy (r);
+
+  dp_resume ();
   dp_wfm_writer_close (w);
   fclose (fp);
   remove (path);
@@ -2421,6 +2479,8 @@ main (void)
   if (test_follow_drains_before_honouring_a_stop ())
     return 1;
   if (test_follow_distinguishes_timeout_from_interrupted ())
+    return 1;
+  if (test_interruptible_creator_honours_the_process_interrupt ())
     return 1;
   if (test_flush_makes_samples_observable ())
     return 1;

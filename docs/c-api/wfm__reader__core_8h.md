@@ -47,6 +47,7 @@ _Input file types for generated IQ — the dual of wfm\_writer._ [More...](#deta
 | enum  | [**wfm\_follow\_end\_t**](#enum-wfm_follow_end_t)  <br> |
 | enum  | [**wfm\_fs\_source\_t**](#enum-wfm_fs_source_t)  <br> |
 | enum  | [**wfm\_mode\_t**](#enum-wfm_mode_t)  <br> |
+| enum  | [**wfm\_reader\_stype\_t**](#enum-wfm_reader_stype_t)  <br>`sample_type` _value meaning "the caller said nothing"._ |
 | enum  | [**wfm\_t0\_source\_t**](#enum-wfm_t0_source_t)  <br> |
 
 
@@ -72,7 +73,8 @@ _Input file types for generated IQ — the dual of wfm\_writer._ [More...](#deta
 
 | Type | Name |
 | ---: | :--- |
-|  [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* | [**dp\_wfm\_reader\_create**](#function-dp_wfm_reader_create) (const char \* path, int sample\_type, int endian) <br>_Open a capture, auto-detecting its file type from its content._  |
+|  [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* | [**dp\_wfm\_reader\_create**](#function-dp_wfm_reader_create) (const char \* path, int sample\_type, int endian) <br>_Open a capture exactly as_ [_**dp\_wfm\_reader\_create\_interruptible**_](wfm__reader__core_8h.md#function-dp_wfm_reader_create_interruptible) _does, but install no stop predicate._ |
+|  [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* | [**dp\_wfm\_reader\_create\_interruptible**](#function-dp_wfm_reader_create_interruptible) (const char \* path, int sample\_type, int endian) <br>_Open a capture, auto-detecting its file type from its content._  |
 |  void | [**dp\_wfm\_reader\_destroy**](#function-dp_wfm_reader_destroy) ([**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state) <br>_Close the file, free the reader and its decoded keywords._  |
 |  const [**wfm\_keyword\_t**](structwfm__keyword__t.md) \* | [**dp\_wfm\_reader\_find\_header\_field**](#function-dp_wfm_reader_find_header_field) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state, const char \* name) <br>_Look up one HCB field by name, or NULL if absent._  |
 |  const [**wfm\_keyword\_t**](structwfm__keyword__t.md) \* | [**dp\_wfm\_reader\_find\_keyword**](#function-dp_wfm_reader_find_keyword) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* r, const char \* tag) <br> |
@@ -136,11 +138,6 @@ _Input file types for generated IQ — the dual of wfm\_writer._ [More...](#deta
 
 
 
-## Macros
-
-| Type | Name |
-| ---: | :--- |
-| define  | [**WFM\_READER\_STYPE\_AUTO**](wfm__reader__core_8h.md#define-wfm_reader_stype_auto)  `(-1)`<br>`sample_type` _value meaning "the caller said nothing"._ |
 
 ## Detailed Description
 
@@ -159,13 +156,14 @@ Samples come out as `float _Complex` at unit scale: float wire types are reinter
 
 
 ```C++
+// header-code: no-run=opens a capture file that is not on disk
 dp_wfm_reader_state_t *r = dp_wfm_reader_create("cap.sigmf-data", 0, 0);
 wfm_reader_info_t info;
 dp_wfm_reader_info(r, &info);                 // info.fs, info.sample_type, ...
 float _Complex buf[4096];
-size_t n;
+size_t n, total = 0;
 while ((n = dp_wfm_reader_read(r, 4096, buf, 4096)) > 0)   // (state, count, out)
-  consume(buf, n);
+  total += n;
 dp_wfm_reader_destroy(r);
 ```
  
@@ -294,6 +292,39 @@ Components per sample — the BLUE `format` field's _mode_ designator (HCB byte 
 
 
 
+### enum wfm\_reader\_stype\_t 
+
+`sample_type` _value meaning "the caller said nothing"._
+```C++
+enum wfm_reader_stype_t {
+    WFM_READER_STYPE_AUTO = -1,
+    WFM_READER_STYPE_CF32 = 0,
+    WFM_READER_STYPE_CF64,
+    WFM_READER_STYPE_CI32,
+    WFM_READER_STYPE_CI16,
+    WFM_READER_STYPE_CI8,
+    WFM_READER_STYPE_F32,
+    WFM_READER_STYPE_F64,
+    WFM_READER_STYPE_I32,
+    WFM_READER_STYPE_I16,
+    WFM_READER_STYPE_I8
+};
+```
+
+
+
+Distinct from cf32 deliberately. `Reader(p)` and `Reader(p, sample_type="cf32")` have to mean different things for a stale sidecar to be overridable, and they cannot if the default IS cf32. -1 was free  [**dp\_wfm\_reader\_create**](wfm__reader__core_8h.md#function-dp_wfm_reader_create) returned NULL for it  so giving it a meaning cannot change what any existing caller gets. The `sample_type` hint [**dp\_wfm\_reader\_create**](wfm__reader__core_8h.md#function-dp_wfm_reader_create) takes, by name.
+
+
+Ten wire types in wavegen order (the same indices as the `stype` manifest enum and `STYPE_NAMES[]`) plus WFM\_READER\_STYPE\_AUTO, which is NOT one of them. It is the reason this is an enum rather than the `stype` table: "auto" is -1, so a binding that numbered the names by position would make it 0 and slide every other name up by one. 
+
+
+        
+
+<hr>
+
+
+
 ### enum wfm\_t0\_source\_t 
 
 ```C++
@@ -328,7 +359,7 @@ WFM\_T0\_NONE is the common case and has to stay visible: doppler's own BLUE wri
 
 ### function dp\_wfm\_reader\_create 
 
-_Open a capture, auto-detecting its file type from its content._ 
+_Open a capture exactly as_ [_**dp\_wfm\_reader\_create\_interruptible**_](wfm__reader__core_8h.md#function-dp_wfm_reader_create_interruptible) _does, but install no stop predicate._
 ```C++
 dp_wfm_reader_state_t * dp_wfm_reader_create (
     const char * path,
@@ -337,6 +368,9 @@ dp_wfm_reader_state_t * dp_wfm_reader_create (
 ) 
 ```
 
+
+
+This is the constructor the Python `Reader` calls: it opens exactly as [**dp\_wfm\_reader\_create**](wfm__reader__core_8h.md#function-dp_wfm_reader_create) does, then installs `dp_interrupted` as the stop predicate ([**dp\_wfm\_reader\_set\_stop\_fn**](wfm__reader__core_8h.md#function-dp_wfm_reader_set_stop_fn)), so Ctrl-C ends a following read. Without a predicate a follow read has no escape at all, because both budgets default to "forever" on purpose. A C consumer that wants a different predicate, or none, keeps [**dp\_wfm\_reader\_create**](wfm__reader__core_8h.md#function-dp_wfm_reader_create). The link cost is nil: this object already links `dp_interrupt_guard_core`, and only a caller of this function pulls `dp_interrupted` out of an archive.
 
 
 Detection order, first match wins: the BLUE magic at byte 0; a first line that scans as `I,Q`; otherwise headerless raw. Two suffixes are decided by name instead, because neither has content that identifies it — `.det`, a detached payload described by its header sibling, and `.sigmf-data`, half of a pair whose other half carries the datatype.
@@ -351,7 +385,81 @@ Nothing is refused for looking unfamiliar: an unrecognised file opens as raw at 
 
 
 * `path` file to read  a `str` or any `os.PathLike` from Python. For a DETACHED BLUE capture this is normally the HEADER file  `<base>.tmp` or `<base>.prm` per BLUE 3.1.1.4 (this library's own writer emits `<base>.hdr`)  whose HCB `detached` field points at the collocated `<base>.det` payload; the extension does not decide, `detached` does. Passing the `<base>.det` directly also works (its header sibling is resolved). A SigMF `.sigmf-data` file resolves its `.sigmf-meta` sidecar the same way. 
-* `sample_type` the wire sample type, used only as a HINT for the headerless file types (raw, CSV)  BLUE and SigMF carry their own and ignore it. The five complex names `"cf32"`, `"cf64"`, `"ci32"`, `"ci16"`, `"ci8"` or the five real ones `"f32"`, `"f64"`, `"i32"`, `"i16"`, `"i8"` from Python; the matching 0..9 from C. A real hint is the only way to say that a headerless file carries one component per sample rather than interleaved I/Q. `"auto"` ([**WFM\_READER\_STYPE\_AUTO**](wfm__reader__core_8h.md#define-wfm_reader_stype_auto) from C) is the DEFAULT and says the caller has no opinion: a headerless capture takes its type, byte order and rate from the `<path>.sigmf-meta` sidecar this library's own writer leaves beside it, falling back to cf32/le when there is none. A NAMED type still wins over the sidecar, so a stale one can be overridden. A wrong hint does not fail, and [**dp\_wfm\_reader\_get\_trailing\_bytes**](wfm__reader__core_8h.md#function-dp_wfm_reader_get_trailing_bytes) is NOT the way to notice  see what it says about itself. 
+* `sample_type` the wire sample type, used only as a HINT for the headerless file types (raw, CSV)  BLUE and SigMF carry their own and ignore it. The five complex names `"cf32"`, `"cf64"`, `"ci32"`, `"ci16"`, `"ci8"` or the five real ones `"f32"`, `"f64"`, `"i32"`, `"i16"`, `"i8"` from Python; the matching 0..9 from C. A real hint is the only way to say that a headerless file carries one component per sample rather than interleaved I/Q. `"auto"` (WFM\_READER\_STYPE\_AUTO from C) is the DEFAULT and says the caller has no opinion: a headerless capture takes its type, byte order and rate from the `<path>.sigmf-meta` sidecar this library's own writer leaves beside it, falling back to cf32/le when there is none. A NAMED type still wins over the sidecar, so a stale one can be overridden. A wrong hint does not fail, and [**dp\_wfm\_reader\_get\_trailing\_bytes**](wfm__reader__core_8h.md#function-dp_wfm_reader_get_trailing_bytes) is NOT the way to notice  see what it says about itself. 
+* `endian` byte order, likewise a hint that only headerless raw uses; `"le"` or `"be"` from Python, 0 or 1 from C. 
+
+
+
+**Returns:**
+
+a reader, or NULL on open/parse failure.
+
+
+
+```C++
+>>> import pathlib, tempfile
+>>> from doppler.wfm import Composer, Reader, Segment, Writer
+>>> tmp = tempfile.TemporaryDirectory()
+>>> p = pathlib.Path(tmp.name) / "capture.blue"
+>>> x = Composer([Segment("qpsk", sps=8, num_samples=1024)]).compose()
+>>> w = Writer(p, file_type="blue", sample_type="ci16", fs=2.4e6)
+>>> w.add_keyword("NAME", "A", "demo")   # tag the header
+>>> _ = w.write(x)
+>>> w.close()
+>>> r = Reader(p)                         # file type auto-detected
+>>> r.file_type, r.sample_type, r.fs
+('blue', 'ci16', 2400000.0)
+>>> r.keywords["NAME"]                    # keyword round-trips
+'demo'
+>>> total = 0
+>>> while len(block := r.read(256)):      # read returns 0 at EOF
+...     total += len(block)
+>>> total == r.num_samples == 1024
+True
+>>> r.close()
+>>> tmp.cleanup()
+```
+  
+
+
+The one difference: the stop predicate is left NULL, so a `read_follow()` ends only with the capture or a bounded budget until the caller installs one with [**dp\_wfm\_reader\_set\_stop\_fn**](wfm__reader__core_8h.md#function-dp_wfm_reader_set_stop_fn). 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_reader\_create\_interruptible 
+
+_Open a capture, auto-detecting its file type from its content._ 
+```C++
+dp_wfm_reader_state_t * dp_wfm_reader_create_interruptible (
+    const char * path,
+    int sample_type,
+    int endian
+) 
+```
+
+
+
+This is the constructor the Python `Reader` calls: it opens exactly as [**dp\_wfm\_reader\_create**](wfm__reader__core_8h.md#function-dp_wfm_reader_create) does, then installs `dp_interrupted` as the stop predicate ([**dp\_wfm\_reader\_set\_stop\_fn**](wfm__reader__core_8h.md#function-dp_wfm_reader_set_stop_fn)), so Ctrl-C ends a following read. Without a predicate a follow read has no escape at all, because both budgets default to "forever" on purpose. A C consumer that wants a different predicate, or none, keeps [**dp\_wfm\_reader\_create**](wfm__reader__core_8h.md#function-dp_wfm_reader_create). The link cost is nil: this object already links `dp_interrupt_guard_core`, and only a caller of this function pulls `dp_interrupted` out of an archive.
+
+
+Detection order, first match wins: the BLUE magic at byte 0; a first line that scans as `I,Q`; otherwise headerless raw. Two suffixes are decided by name instead, because neither has content that identifies it — `.det`, a detached payload described by its header sibling, and `.sigmf-data`, half of a pair whose other half carries the datatype.
+
+
+Nothing is refused for looking unfamiliar: an unrecognised file opens as raw at the caller's `sample_type`, because a truncated or partial recording is a real thing and a reader that rejects it is useless. What you get instead of a refusal is [**dp\_wfm\_reader\_get\_trailing\_bytes**](wfm__reader__core_8h.md#function-dp_wfm_reader_get_trailing_bytes).
+
+
+
+
+**Parameters:**
+
+
+* `path` file to read  a `str` or any `os.PathLike` from Python. For a DETACHED BLUE capture this is normally the HEADER file  `<base>.tmp` or `<base>.prm` per BLUE 3.1.1.4 (this library's own writer emits `<base>.hdr`)  whose HCB `detached` field points at the collocated `<base>.det` payload; the extension does not decide, `detached` does. Passing the `<base>.det` directly also works (its header sibling is resolved). A SigMF `.sigmf-data` file resolves its `.sigmf-meta` sidecar the same way. 
+* `sample_type` the wire sample type, used only as a HINT for the headerless file types (raw, CSV)  BLUE and SigMF carry their own and ignore it. The five complex names `"cf32"`, `"cf64"`, `"ci32"`, `"ci16"`, `"ci8"` or the five real ones `"f32"`, `"f64"`, `"i32"`, `"i16"`, `"i8"` from Python; the matching 0..9 from C. A real hint is the only way to say that a headerless file carries one component per sample rather than interleaved I/Q. `"auto"` (WFM\_READER\_STYPE\_AUTO from C) is the DEFAULT and says the caller has no opinion: a headerless capture takes its type, byte order and rate from the `<path>.sigmf-meta` sidecar this library's own writer leaves beside it, falling back to cf32/le when there is none. A NAMED type still wins over the sidecar, so a stale one can be overridden. A wrong hint does not fail, and [**dp\_wfm\_reader\_get\_trailing\_bytes**](wfm__reader__core_8h.md#function-dp_wfm_reader_get_trailing_bytes) is NOT the way to notice  see what it says about itself. 
 * `endian` byte order, likewise a hint that only headerless raw uses; `"le"` or `"be"` from Python, 0 or 1 from C. 
 
 
@@ -1251,27 +1359,6 @@ NULL (the default) means the follow read never stops early  only the capture's e
 dp_wfm_reader_set_stop_fn (r, dp_interrupted);
 ```
  
-
-
-        
-
-<hr>
-## Macro Definition Documentation
-
-
-
-
-
-### define WFM\_READER\_STYPE\_AUTO 
-
-`sample_type` _value meaning "the caller said nothing"._
-```C++
-#define WFM_READER_STYPE_AUTO `(-1)`
-```
-
-
-
-Distinct from cf32 deliberately. `Reader(p)` and `Reader(p, sample_type="cf32")` have to mean different things for a stale sidecar to be overridable, and they cannot if the default IS cf32. -1 was free  [**dp\_wfm\_reader\_create**](wfm__reader__core_8h.md#function-dp_wfm_reader_create) returned NULL for it  so giving it a meaning cannot change what any existing caller gets. 
 
 
         

@@ -24,13 +24,14 @@
  * inverse of the writer's quantiser).
  *
  * @code
+ * // header-code: no-run=opens a capture file that is not on disk
  * dp_wfm_reader_state_t *r = dp_wfm_reader_create("cap.sigmf-data", 0, 0);
  * wfm_reader_info_t info;
  * dp_wfm_reader_info(r, &info);                 // info.fs, info.sample_type, ...
  * float _Complex buf[4096];
- * size_t n;
+ * size_t n, total = 0;
  * while ((n = dp_wfm_reader_read(r, 4096, buf, 4096)) > 0)   // (state, count, out)
- *   consume(buf, n);
+ *   total += n;
  * dp_wfm_reader_destroy(r);
  * @endcode
  */
@@ -150,7 +151,27 @@ extern "C"
    *  stale sidecar to be overridable, and they cannot if the default IS
    *  cf32. -1 was free -- ::dp_wfm_reader_create returned NULL for it -- so
    *  giving it a meaning cannot change what any existing caller gets. */
-#define WFM_READER_STYPE_AUTO (-1)
+  /** The `sample_type` hint ::dp_wfm_reader_create takes, by name.
+   *
+   *  Ten wire types in wavegen order (the same indices as the `stype`
+   *  manifest enum and `STYPE_NAMES[]`) plus ::WFM_READER_STYPE_AUTO, which is
+   *  NOT one of them. It is the reason this is an enum rather than the
+   *  `stype` table: "auto" is -1, so a binding that numbered the names by
+   *  position would make it 0 and slide every other name up by one. */
+  typedef enum
+  {
+    WFM_READER_STYPE_AUTO = -1, /**< the caller said nothing. */
+    WFM_READER_STYPE_CF32 = 0,  /**< interleaved float32 I/Q. */
+    WFM_READER_STYPE_CF64,      /**< interleaved float64 I/Q. */
+    WFM_READER_STYPE_CI32,      /**< interleaved int32 I/Q. */
+    WFM_READER_STYPE_CI16,      /**< interleaved int16 I/Q. */
+    WFM_READER_STYPE_CI8,       /**< interleaved int8 I/Q. */
+    WFM_READER_STYPE_F32,       /**< real float32. */
+    WFM_READER_STYPE_F64,       /**< real float64. */
+    WFM_READER_STYPE_I32,       /**< real int32. */
+    WFM_READER_STYPE_I16,       /**< real int16. */
+    WFM_READER_STYPE_I8         /**< real int8. */
+  } wfm_reader_stype_t;
 
   /** Resolved metadata for an open capture. Fields the file type does not
    *  carry are 0 (`fs`/`fc` for raw/CSV, `num_samples` for a stream). */
@@ -175,7 +196,28 @@ extern "C"
   } wfm_reader_info_t;
 
   /**
+   * @brief Open a capture exactly as ::dp_wfm_reader_create_interruptible
+   *        does, but install no stop predicate.
+   *
+   * @copydetails dp_wfm_reader_create_interruptible
+   *
+   * The one difference: the stop predicate is left NULL, so a
+   * `read_follow()` ends only with the capture or a bounded budget until the
+   * caller installs one with ::dp_wfm_reader_set_stop_fn.
+   */
+dp_wfm_reader_state_t *dp_wfm_reader_create(const char *path, int sample_type, int endian);
+
+  /**
    * @brief Open a capture, auto-detecting its file type from its content.
+   *
+   * This is the constructor the Python `Reader` calls: it opens exactly as
+   * ::dp_wfm_reader_create does, then installs `dp_interrupted` as the stop
+   * predicate (::dp_wfm_reader_set_stop_fn), so Ctrl-C ends a following read.
+   * Without a predicate a follow read has no escape at all, because both
+   * budgets default to "forever" on purpose. A C consumer that wants a
+   * different predicate, or none, keeps ::dp_wfm_reader_create. The link cost
+   * is nil: this object already links `dp_interrupt_guard_core`, and only a
+   * caller of this function pulls `dp_interrupted` out of an archive.
    *
    * Detection order, first match wins: the BLUE magic at byte 0; a first
    * line that scans as `I,Q`; otherwise headerless raw. Two suffixes are
@@ -247,7 +289,8 @@ extern "C"
    * >>> tmp.cleanup()
    * @endcode
    */
-dp_wfm_reader_state_t *dp_wfm_reader_create(const char *path, int sample_type, int endian);
+dp_wfm_reader_state_t *dp_wfm_reader_create_interruptible(const char *path, int sample_type, int endian);
+
 
   /** @brief Copy the resolved capture metadata into @p info. */
   void dp_wfm_reader_info (const dp_wfm_reader_state_t *r, wfm_reader_info_t *info);

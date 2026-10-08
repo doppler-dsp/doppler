@@ -23,7 +23,7 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_wfm_reader[] = {
-    (jm_any_fn)dp_wfm_reader_create,
+    (jm_any_fn)dp_wfm_reader_create_interruptible,
     (jm_any_fn)dp_wfm_reader_read,
     (jm_any_fn)dp_wfm_reader_read_max_out,
     (jm_any_fn)dp_wfm_reader_num_keywords,
@@ -35,7 +35,6 @@ const jm_any_fn jm_bound_symbols_wfm_reader[] = {
     (jm_any_fn)dp_wfm_reader_reset,
     (jm_any_fn)dp_wfm_reader_seek,
     (jm_any_fn)dp_wfm_reader_seek_time,
-    (jm_any_fn)dp_wfm_reader_set_stop_fn,
     (jm_any_fn)dp_wfm_reader_destroy,
     (jm_any_fn)dp_wfm_reader_get_fc_source,
     (jm_any_fn)dp_wfm_reader_get_fs_source,

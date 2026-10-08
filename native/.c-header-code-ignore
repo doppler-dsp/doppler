@@ -78,7 +78,6 @@ doppler/tonemeas/tonemeas_core.h::dp_tonemeas_create
 doppler/uq15_to_f32/uq15_to_f32_core.h::dp_uq15_to_f32_create
 doppler/viterbi/viterbi_core.h::dp_node_sync_scan
 doppler/wfm_reader/wfm_reader_core.h::dp_wfm_reader_set_stop_fn
-doppler/wfm_reader/wfm_reader_core.h::WFM_READER_STYPE_AUTO
 doppler/wfm_synth/wfm_synth_core.h::wfm_synth_bps
 doppler/wfm/wfm_compose.h::dp_wfm_compose_spans
 doppler/wfm/wfm_compose.h::dp_wfm_draws_json

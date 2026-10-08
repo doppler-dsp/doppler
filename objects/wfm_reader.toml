@@ -11,8 +11,13 @@ mutable = "true"
 no_state = "true"
 no_step = "true"
 class_name = "Reader"
+# Ctrl+C must end a follow read, so the Python face opens through the creator
+# that installs dp_interrupted as the stop predicate (the core's plain
+# dp_wfm_reader_create leaves it NULL, which is the C consumer's choice).
+create_fn = "dp_wfm_reader_create_interruptible"
 create_error = "ValueError"
 create_error_message = "cannot open capture: no such file, unrecognised file type, or an unsupported BLUE format mode (only S and C are supported)"
+fragment = "generated"
 
 # read_follow() consults the interrupt flag, so the reader links the primitive
 # the same way dp_interrupt_guard and [module.timing] do -- it is a root-level
@@ -62,20 +67,19 @@ link = true
 name = "path"
 type = "path"
 
-# The fragment's parse chain is HAND-OWNED and wider than this list: it also
-# takes the five scalar names and "auto" (doppler#1120, jm#1273). Do not
-# delete the fragment and re-apply -- a regenerated one silently narrows it.
-# "auto" is not an enum index at all; it is WFM_READER_STYPE_AUTO (-1),
-# meaning the caller named no type, so a headerless capture reads its type
-# from the sidecar the writer left beside it.
+# The hint is a project `[[enum]]` (reader_stype), not a repeated list: "auto"
+# is WFM_READER_STYPE_AUTO (-1), meaning the caller named no type, so a
+# headerless capture reads its type from the sidecar the writer left beside it
+# (doppler#1120). Its `enumerators` bind each name to its C constant, which is
+# what lets -1 sit beside 0..9.
 [[wfm_reader.init_params]]
 name = "sample_type"
-type = "string_enum:auto,cf32,cf64,ci32,ci16,ci8"
+type = "enum:reader_stype"
 default = "auto"
 
 [[wfm_reader.init_params]]
 name = "endian"
-type = "string_enum:le,be"
+type = "enum:endian"
 default = "le"
 
 # arg_type="void" + variable_output is the generator shape: read(n) -> ndarray.

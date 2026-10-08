@@ -71,7 +71,20 @@ extern "C"
     WFM_FOLLOW_INTERRUPTED  
   } wfm_follow_end_t;
 
-#define WFM_READER_STYPE_AUTO (-1)
+  typedef enum
+  {
+    WFM_READER_STYPE_AUTO = -1, 
+    WFM_READER_STYPE_CF32 = 0,  
+    WFM_READER_STYPE_CF64,      
+    WFM_READER_STYPE_CI32,      
+    WFM_READER_STYPE_CI16,      
+    WFM_READER_STYPE_CI8,       
+    WFM_READER_STYPE_F32,       
+    WFM_READER_STYPE_F64,       
+    WFM_READER_STYPE_I32,       
+    WFM_READER_STYPE_I16,       
+    WFM_READER_STYPE_I8         
+  } wfm_reader_stype_t;
 
   typedef struct
   {
@@ -90,6 +103,9 @@ extern "C"
   } wfm_reader_info_t;
 
 dp_wfm_reader_state_t *dp_wfm_reader_create(const char *path, int sample_type, int endian);
+
+dp_wfm_reader_state_t *dp_wfm_reader_create_interruptible(const char *path, int sample_type, int endian);
+
 
   void dp_wfm_reader_info (const dp_wfm_reader_state_t *r, wfm_reader_info_t *info);
 

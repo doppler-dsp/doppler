@@ -3618,6 +3618,20 @@ values = [
   "f32",  "f64",  "i32",  "i16",  "i8",
 ]
 
+# The Reader's sample_type HINT: the ten wire types plus "auto". Not `stype`
+# with a name added, because "auto" is -1 (WFM_READER_STYPE_AUTO) -- a plain
+# value list numbers by position, which would make it 0 and slide every other
+# name up by one. `enumerators` binds each name to its C constant instead
+# (gh-1450), so the compiler checks the table. The property `sample_type`
+# still decodes through `stype`: an open reader always resolved to one of the
+# ten, never "auto".
+[[enum]]
+name = "reader_stype"
+values = ["auto", "cf32", "cf64", "ci32", "ci16", "ci8", "f32", "f64", "i32", "i16", "i8"]
+enumerators = [
+  "WFM_READER_STYPE_AUTO", "WFM_READER_STYPE_CF32", "WFM_READER_STYPE_CF64", "WFM_READER_STYPE_CI32", "WFM_READER_STYPE_CI16", "WFM_READER_STYPE_CI8", "WFM_READER_STYPE_F32", "WFM_READER_STYPE_F64", "WFM_READER_STYPE_I32", "WFM_READER_STYPE_I16", "WFM_READER_STYPE_I8",
+]
+
 [[enum]]
 name = "endian"
 values = ["le", "be"]

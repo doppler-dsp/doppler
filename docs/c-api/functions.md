@@ -1677,6 +1677,7 @@
 * **dp\_doppler\_wfmgen** ([**wfmgen.h**](wfmgen_8h.md))
 * **dp\_wfm\_source\_to\_synth** ([**wfm\_compose\_bridge.h**](wfm__compose__bridge_8h.md))
 * **dp\_wfm\_reader\_create** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))
+* **dp\_wfm\_reader\_create\_interruptible** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))
 * **dp\_wfm\_reader\_destroy** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))
 * **dp\_wfm\_reader\_find\_header\_field** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))
 * **dp\_wfm\_reader\_find\_keyword** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))

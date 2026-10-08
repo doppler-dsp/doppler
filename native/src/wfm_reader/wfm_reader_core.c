@@ -100,7 +100,8 @@ struct wfm_reader_state
      business depending on the process interrupt primitive -- that is the
      caller's policy, and hard-wiring it would put dp_interrupt.c on the link
      line of every consumer of wfm_reader_core. So the predicate is injected;
-     doppler passes dp_interrupted, a test passes its own. NULL never stops. */
+     dp_wfm_reader_create_interruptible installs dp_interrupted, a test passes
+     its own. NULL never stops. */
   int (*stop_fn) (void);
   double t0_unix_sec; /* capture start, UNIX seconds; 0 if unknown */
   int    t0_source;   /* wfm_t0_source_t: where `t0` came from */
@@ -1456,6 +1457,25 @@ void
 dp_wfm_reader_set_stop_fn (dp_wfm_reader_state_t *r, int (*fn) (void))
 {
   r->stop_fn = fn;
+}
+
+dp_wfm_reader_state_t *
+dp_wfm_reader_create_interruptible (const char *path, int hint_stype,
+                                    int hint_endian)
+{
+  dp_wfm_reader_state_t *r
+      = dp_wfm_reader_create (path, hint_stype, hint_endian);
+  /* Ctrl+C must be able to end a follow read. Both budgets default to
+     "forever" on purpose (a stream with no rhythm we control turns any finite
+     budget into a spurious ending), so with no predicate a stopped process
+     still waits for the writer to close.
+
+     Across modules this only works because dp_interrupt_guard is
+     `process_global` (doppler#976): the flag Interrupt() sets in
+     doppler.interrupt is the same object dp_interrupted reads here. */
+  if (r)
+    dp_wfm_reader_set_stop_fn (r, dp_interrupted);
+  return r;
 }
 
 size_t

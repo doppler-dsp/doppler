@@ -20,7 +20,7 @@ class Reader:
         Passing the `<base>.det` directly also works (its header sibling is
         resolved). A SigMF `.sigmf-data` file resolves its `.sigmf-meta`
         sidecar the same way.
-    sample_type : Literal["auto", "cf32", "cf64", "ci32", "ci16", "ci8"], default "auto"
+    sample_type : Literal["auto", "cf32", "cf64", "ci32", "ci16", "ci8", "f32", "f64", "i32", "i16", "i8"], default "auto"
         the wire sample type, used only as a HINT for the headerless file types
         (raw, CSV) -- BLUE and SigMF carry their own and ignore it. The five
         complex names `"cf32"`, `"cf64"`, `"ci32"`, `"ci16"`, `"ci8"` or the
@@ -35,6 +35,18 @@ class Reader:
         can be overridden. A wrong hint does not fail, and
         ::dp_wfm_reader_get_trailing_bytes is NOT the way to notice -- see what
         it says about itself.
+
+        - ``"auto"`` — the caller said nothing.
+        - ``"cf32"`` — interleaved float32 I/Q.
+        - ``"cf64"`` — interleaved float64 I/Q.
+        - ``"ci32"`` — interleaved int32 I/Q.
+        - ``"ci16"`` — interleaved int16 I/Q.
+        - ``"ci8"`` — interleaved int8 I/Q.
+        - ``"f32"`` — real float32.
+        - ``"f64"`` — real float64.
+        - ``"i32"`` — real int32.
+        - ``"i16"`` — real int16.
+        - ``"i8"`` — real int8.
     endian : Literal["le", "be"], default "le"
         byte order, likewise a hint that only headerless raw uses; `"le"` or
         `"be"` from Python, 0 or 1 from C.
@@ -75,7 +87,7 @@ class Reader:
     def __init__(
         self,
         path: str | os.PathLike,
-        sample_type: Literal["auto", "cf32", "cf64", "ci32", "ci16", "ci8"] = "auto",
+        sample_type: Literal["auto", "cf32", "cf64", "ci32", "ci16", "ci8", "f32", "f64", "i32", "i16", "i8"] = "auto",
         endian: Literal["le", "be"] = "le",
     ) -> None: ...
     def reset(self) -> None:

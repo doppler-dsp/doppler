@@ -1575,6 +1575,7 @@ dp_wfm_plan_save function
 dp_wfm_plan_save_bytes function
 dp_wfm_polyphase_bank function
 dp_wfm_reader_create function
+dp_wfm_reader_create_interruptible function
 dp_wfm_reader_destroy function
 dp_wfm_reader_find_header_field function
 dp_wfm_reader_find_keyword function

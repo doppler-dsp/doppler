@@ -8,7 +8,7 @@
 # tier 2 a claim nothing measures   5 convergence and hygiene
 
 [meta]
-generated = "2026-10-08"
+generated = "2026-10-09"
 
 [issue.502]
 tier = 3
@@ -83,7 +83,7 @@ status = "open"
 [issue.676]
 tier = 5
 title = "Telemetry: an over-long prefix silently aliases two probes onto one id, and the attach reports DP_OK"
-status = "open"
+status = "in review ([#1898](https://github.com/doppler-dsp/doppler/pull/1898))"
 
 [issue.678]
 tier = 5
@@ -420,11 +420,6 @@ tier = 1
 title = "Nothing enforces the phase-9 rule that an object owes BOTH example faces"
 status = "open"
 
-[issue.1027]
-tier = 0
-title = "Data race on the process-wide interrupt flag (TSan)"
-status = "open"
-
 [issue.1028]
 tier = 1
 title = "Nothing enforces the UBSan alignment ratchet \u2014 it grew 821 \u2192 853 unnoticed"
@@ -554,7 +549,7 @@ status = "open"
 [issue.1257]
 tier = 5
 title = "dsss.handoff.dll_init_chip_from_acq restates acq_build_handoff()'s fold and will not carry the dwell advance"
-status = "open"
+status = "in review ([#1903](https://github.com/doppler-dsp/doppler/pull/1903))"
 
 [issue.1269]
 tier = 3
@@ -824,18 +819,6 @@ tier = 5
 title = "carrier_acq's pfa is per-test while acq's is per-search: same name, two meanings"
 status = "open"
 why = "The same parameter name, pfa, means per-test on one acquisition object and per-search on the other; both documented"
-
-[issue.1559]
-tier = 0
-title = "ber_esn0_db_for_ser(m, 0) returns -10 dB, the \"worse than anything\" end"
-status = "open"
-why = "ber_esn0_db_for_ser(m, 0) returns the bottom of the range, so a clean run reads as a gain over theory"
-
-[issue.1562]
-tier = 0
-title = "make test-fast exits 2 outside a git checkout (check_test_leaks.py needs git status)"
-status = "open"
-why = "make test-fast exits 2 in a tarball or sdist, where packagers run the suite"
 
 [issue.1566]
 tier = 1
@@ -1123,6 +1106,12 @@ title = "scripts/.warnings-exempt floors at 2: stream_ext.c and resample_ext_ext
 status = "open"
 why = "The -Wall -Wextra ratchet cannot reach 0 while two files jm will never own still warn"
 
+[issue.1893]
+tier = 0
+title = "test_fir_core fails on main: FIR state resume is not bit-exact (test_fir_core.c:86)"
+status = "in review ([#1923](https://github.com/doppler-dsp/doppler/pull/1923))"
+why = "make test is red on two dev hosts: FIR output depends on where the caller splits the stream (fix in #1923)"
+
 [issue.1894]
 tier = 4
 title = "Streaming spectrogram: a Spectrogram object over the ring's framed face (PSD per frame, no averaging)"
@@ -1140,3 +1129,87 @@ tier = 2
 title = "Chunk-invariance: burn down the ratchet (49 stateful streaming objects have no test)"
 status = "open"
 why = "49 streaming objects claim output independent of call boundaries and nothing measures it"
+
+[issue.1897]
+tier = 5
+title = "Composite set_telemetry leaves dead probe slots when a child refuses after the parent registered"
+status = "open"
+why = "Dead registry slots after a refused child attach; no aliasing, nothing user-visible"
+
+[issue.1900]
+tier = 1
+title = "make test-python ends with SIGTERM (Error 143) at ~50% on a different test each run"
+status = "open"
+why = "make test-python dies mid-run on a different test each time, so the suite cannot report"
+
+[issue.1906]
+tier = 5
+title = "Refresh prose that still says the interrupt flag is volatile sig_atomic_t (follow-up to #1027)"
+status = "open"
+why = "Stale prose: the flag is now a C11 atomic"
+
+[issue.1911]
+tier = 2
+title = "Certify PSD (validation.md): the new frame_power / frame_db kernel and the rect window are in scope"
+status = "open"
+why = "New PSD frame kernel and rect window are stated in the design page and certified by nothing"
+
+[issue.1912]
+tier = 5
+title = "Validation: migrate conv, rs and ccsds_tm onto _validation_common.harness_blocks (three private copies of the harness CSV parser)"
+status = "open"
+why = "Three private copies of the validation harness CSV parser"
+
+[issue.1915]
+tier = 1
+title = "Two manifests restate acq_result_t's fields by hand, and drifted the first time the struct grew"
+status = "open"
+why = "Two manifests restate acq_result_t by hand; no gate checks result_fields against the C struct"
+
+[issue.1916]
+tier = 5
+title = "Docs scan: 2 code-or-doc decisions and 4 unsettled claims"
+status = "open"
+why = "Decisions made; closes when #1917 merges"
+
+[issue.1918]
+tier = 2
+title = "Corr benchmark reports 206 GSa/s: about 0.32 \u00b5s per 64k-sample execute, so it likely measures an early return"
+status = "open"
+why = "Published corr throughput is 1000x wrong; benchmark fixed in #1926, republish outstanding"
+
+[issue.1919]
+tier = 0
+title = "Dopplerfile compose up: a missing executable raises an uncaught OSError after its log file is opened"
+status = "in review ([#1927](https://github.com/doppler-dsp/doppler/pull/1927))"
+why = "compose up crashes with a traceback on a missing executable instead of the documented clear error"
+
+[issue.1920]
+tier = 1
+title = "tests-ssot: the macro-stamped framer is outside the serializable/streaming gates"
+status = "open"
+why = "The framer's set_state is outside the serializable/streaming gate populations"
+
+[issue.1921]
+tier = 2
+title = "docs: assert the printed-output text fences the snippet gate does not check"
+status = "open"
+why = "Five pages print output that nothing checks"
+
+[issue.1922]
+tier = 5
+title = "Leak gate: say when it falls back to a filesystem walk outside a git checkout (#1562 follow-up)"
+status = "in review ([#1924](https://github.com/doppler-dsp/doppler/pull/1924))"
+why = "The leak gate's no-git fallback runs silently; #1562 asked it to say so"
+
+[issue.1925]
+tier = 0
+title = "Corr.execute does not check n_in: a short input is a read overrun, a long one is silently truncated"
+status = "open"
+why = "Corr.execute ignores n_in: a short input is a heap over-read"
+
+[issue.1928]
+tier = 2
+title = "Audit: SIMD kernels whose scalar tail rounds differently from the vector body (the #1893 pattern)"
+status = "open"
+why = "Other SIMD kernels may round their scalar tail differently from the body, as FIR did"

@@ -1,0 +1,1 @@
+- The interrupt flag is a lock-free C11 atomic, so a signal handler and the streaming threads no longer race on it, and the NATS stream test runs under TSan again instead of being excluded (#1027).

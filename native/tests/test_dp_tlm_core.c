@@ -547,5 +547,31 @@ main (void)
     dp_tlm_demux (recs, 6, values, index, NULL, 3);
   }
 
+  /* ── dp_tlm_name_join: the prefix.suffix join every set_telemetry uses ── */
+  {
+    char nm[DP_TLM_NAME_MAX];
+    DP_CHECK (dp_tlm_name_join (nm, "agc", "gain_db") == DP_OK);
+    DP_CHECK (strcmp (nm, "agc.gain_db") == 0);
+
+    /* The longest joined name is DP_TLM_NAME_MAX - 1 = 31 bytes: a 24-byte
+     * prefix and "locked" (6) fit exactly; one more byte does not. */
+    char p24[25], p25[26];
+    memset (p24, 'a', 24);
+    p24[24] = '\0';
+    memset (p25, 'a', 25);
+    p25[25] = '\0';
+    DP_CHECK (dp_tlm_name_join (nm, p24, "locked") == DP_OK);
+    DP_CHECK (strlen (nm) == DP_TLM_NAME_MAX - 1);
+    DP_CHECK (dp_tlm_name_join (nm, p25, "locked") == DP_ERR_INVALID);
+
+    /* Suffixes may carry dots, as the mpsk receiver's "car.locked" does. */
+    DP_CHECK (dp_tlm_name_join (nm, "rx", "car.locked") == DP_OK);
+    DP_CHECK (strcmp (nm, "rx.car.locked") == 0);
+
+    DP_CHECK (dp_tlm_name_join (nm, NULL, "y") == DP_ERR_INVALID);
+    DP_CHECK (dp_tlm_name_join (nm, "x", NULL) == DP_ERR_INVALID);
+    DP_CHECK (dp_tlm_name_join (NULL, "x", "y") == DP_ERR_INVALID);
+  }
+
   DP_TEST_END ("test_dp_tlm_core");
 }

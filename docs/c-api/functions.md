@@ -856,6 +856,7 @@
 * **dp\_tlm\_emit** ([**dp\_tlm\_core.h**](dp__tlm__core_8h.md))
 * **dp\_tlm\_emit\_checked** ([**dp\_tlm\_core.h**](dp__tlm__core_8h.md))
 * **dp\_tlm\_emitted** ([**dp\_tlm\_core.h**](dp__tlm__core_8h.md))
+* **dp\_tlm\_name\_join** ([**dp\_tlm\_core.h**](dp__tlm__core_8h.md))
 * **dp\_tlm\_probe** ([**dp\_tlm\_core.h**](dp__tlm__core_8h.md))
 * **dp\_tlm\_probe\_count** ([**dp\_tlm\_core.h**](dp__tlm__core_8h.md))
 * **dp\_tlm\_probe\_id** ([**dp\_tlm\_core.h**](dp__tlm__core_8h.md))

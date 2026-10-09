@@ -213,6 +213,55 @@ void dp_tlm_destroy (dp_tlm_t *t);
 int dp_tlm_probe (dp_tlm_t *t, const char *name, uint32_t decim);
 
 /**
+ * @brief Builds a probe name `"<prefix>.<suffix>"` into a fixed buffer, or
+ *        refuses if it would not fit.
+ *
+ * Every instrumented object names its probes the same way: the caller's
+ * prefix, a dot, and a short per-probe suffix (`"agc" + "." + "gain_db"`).
+ * The buffer those names live in is only ::DP_TLM_NAME_MAX bytes, and a
+ * prefix chosen by a caller can be arbitrarily long. A bare `snprintf` into
+ * that buffer truncates silently: the probe is then registered under a
+ * name that is a prefix of the one asked for, and two probes whose names
+ * differed only past the cut collapse onto one registry entry while the
+ * attach still reports success. This helper is the one place that join
+ * happens, and it turns that truncation into a refusal the caller can see.
+ *
+ * Callers should build every name an attach needs with this helper
+ * *before* the first dp_tlm_probe() call, so a refusal leaves the registry
+ * exactly as it was.
+ *
+ * @param name   Output buffer of ::DP_TLM_NAME_MAX bytes.  Holds the joined
+ *               name, NUL-terminated, on success.  On refusal its contents
+ *               are unspecified and must not be registered.
+ * @param prefix Caller's prefix (the object's name for its probes).
+ * @param suffix Per-probe suffix; may itself contain dots, e.g. `"car.lock"`.
+ * @return ::DP_OK when the joined name fits with its NUL, or ::DP_ERR_INVALID
+ *         on a NULL argument or when the result would be truncated.
+ *
+ * @code
+ * #include <assert.h>
+ *
+ * dp_tlm_t *tlm = dp_tlm_create (1 << 10);
+ * assert (tlm != NULL);
+ *
+ * char name[DP_TLM_NAME_MAX];
+ * assert (dp_tlm_name_join (name, "agc", "gain_db") == DP_OK);
+ * assert (strcmp (name, "agc.gain_db") == 0);
+ * assert (dp_tlm_probe (tlm, name, 1) >= 0);   // registers "agc.gain_db"
+ *
+ * // A 31-character prefix leaves no room for ".gain_db": refused, and
+ * // `too_long` is not to be registered.
+ * char too_long[DP_TLM_NAME_MAX];
+ * assert (dp_tlm_name_join (too_long, "abcdefghijklmnopqrstuvwxyz12345",
+ *                           "gain_db") == DP_ERR_INVALID);
+ *
+ * dp_tlm_destroy (tlm);
+ * @endcode
+ */
+int dp_tlm_name_join (char name[DP_TLM_NAME_MAX], const char *prefix,
+                      const char *suffix);
+
+/**
  * @brief Looks up a probe id by name; ::DP_ERR_INVALID if unknown.
  *
  * @param t    Context.

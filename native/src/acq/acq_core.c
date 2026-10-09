@@ -2453,13 +2453,15 @@ dp_acq_set_telemetry (dp_acq_state_t *state, dp_tlm_t *tlm, const char *prefix,
           &state->tlm.id_peak,    &state->tlm.id_row,    &state->tlm.id_col,
           &state->tlm.id_n_peaks, &state->tlm.id_n_held, &state->tlm.id_conc,
           &state->tlm.id_hit };
-  char name[DP_TLM_NAME_MAX];
+  char name[10][DP_TLM_NAME_MAX];
+  for (size_t i = 0; i < 10; i++) /* all names before any registration */
+    if (dp_tlm_name_join (name[i], p, suffix[i]) != DP_OK)
+      return DP_ERR_INVALID; /* overlong prefix: nothing registered */
   for (size_t i = 0; i < 10; i++)
     {
-      (void)snprintf (name, sizeof (name), "%s.%s", p, suffix[i]);
-      int id = dp_tlm_probe (tlm, name, decim);
+      int id = dp_tlm_probe (tlm, name[i], decim);
       if (id < 0)
-        return DP_ERR_INVALID; /* table full / bad prefix: fails whole */
+        return DP_ERR_INVALID; /* table full: fails whole */
       *ids[i] = id;
     }
   state->tlm.ctx = tlm; /* set last: the emit site gates on ctx */

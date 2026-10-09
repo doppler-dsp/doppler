@@ -938,15 +938,11 @@ decim_is_neutral_at_the_steady_state (void)
  * the second cannot -- which is the interesting case, because a half-armed
  * object would still have a valid id_gain and a live ctx.
  *
- * NB the other documented reject, "a prefixed name is invalid", is NOT
- * exercised here because it does not happen: an over-long prefix is
- * silently TRUNCATED by snprintf into DP_TLM_NAME_MAX, so
- * "<prefix>.gain_db" and "<prefix>.level_db" collapse to the same name, the
- * second lookup returns the first's id, and the attach reports DP_OK with
- * id_gain == id_level -- both series then interleave on one probe with no
- * way to separate them. Measured. Filed rather than pinned, because the
- * naming is shared by every object's set_telemetry and the fix is not the
- * AGC's to make. */
+ * The other documented reject, "a prefixed name is invalid", is pinned by
+ * set_telemetry_refuses_an_overlong_prefix() (§26): an over-long prefix used
+ * to be silently TRUNCATED into DP_TLM_NAME_MAX, so "<prefix>.gain_db" and
+ * "<prefix>.level_db" collapsed onto one name and the attach reported DP_OK
+ * with id_gain == id_level. */
 static int
 failed_attach_leaves_it_detached (void)
 {
@@ -1034,6 +1030,60 @@ failed_attach_leaves_it_detached (void)
       fprintf (stderr, "  §24 a half-attached object emitted records\n");
       ok = 0;
     }
+  dp_agc_destroy (s);
+  dp_tlm_destroy (tlm);
+  return ok;
+}
+
+/* ── §26 — an overlong prefix is refused, and nothing is registered ────────
+ *
+ * The longer AGC probe name is "<prefix>.level_db" (8 bytes of suffix), so a
+ * prefix of 22 bytes is the longest that fits in DP_TLM_NAME_MAX (31 + NUL)
+ * and 23 is the first that does not. The refusal must come before the first
+ * dp_tlm_probe(): the registry stays empty and the object stays detached. */
+static int
+set_telemetry_refuses_an_overlong_prefix (void)
+{
+  int       ok  = 1;
+  dp_tlm_t *tlm = dp_tlm_create (256);
+  if (!tlm)
+    return 0;
+  dp_agc_state_t *s = dp_agc_create (0.0, 0.0025, 0.05);
+  if (!s)
+    {
+      dp_tlm_destroy (tlm);
+      return 0;
+    }
+
+  char fit[23], over[24];
+  memset (fit, 'p', 22);
+  fit[22] = '\0';
+  memset (over, 'p', 23);
+  over[23] = '\0';
+
+  if (!(dp_agc_set_telemetry (s, tlm, over, 1) == DP_ERR_INVALID))
+    {
+      fprintf (stderr, "  §26 a 23-byte prefix was not refused\n");
+      ok = 0;
+    }
+  if (!(s->tlm.ctx == NULL && dp_tlm_probe_count (tlm) == 0))
+    {
+      fprintf (stderr, "  §26 a refused attach touched the registry or ctx\n");
+      ok = 0;
+    }
+
+  if (!(dp_agc_set_telemetry (s, tlm, fit, 1) == DP_OK))
+    {
+      fprintf (stderr, "  §26 a 22-byte prefix (the longest that fits) was "
+                       "refused\n");
+      ok = 0;
+    }
+  if (!(dp_tlm_probe_count (tlm) == 2 && s->tlm.ctx == tlm))
+    {
+      fprintf (stderr, "  §26 the fitting attach did not register both\n");
+      ok = 0;
+    }
+
   dp_agc_destroy (s);
   dp_tlm_destroy (tlm);
   return ok;
@@ -1486,6 +1536,7 @@ main (void)
   DP_CHECK (block_gain_is_a_first_order_hold ());
   DP_CHECK (decim_is_neutral_at_the_steady_state ());
   DP_CHECK (failed_attach_leaves_it_detached ());
+  DP_CHECK (set_telemetry_refuses_an_overlong_prefix ());
   DP_CHECK (settling_samples_is_the_loop_it_describes ());
 
   DP_TEST_END ("test_agc_core");

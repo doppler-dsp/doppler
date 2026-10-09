@@ -197,23 +197,22 @@ dp_ratesync_loop_set_telemetry (ratesync_loop_t *l, dp_tlm_t *tlm,
       l->tlm.ctx = NULL;
       return DP_OK;
     }
-  const char *p = prefix ? prefix : "sync";
-  char        name[DP_TLM_NAME_MAX];
-  (void)snprintf (name, sizeof (name), "%s.e", p);
-  int id_e = dp_tlm_probe (tlm, name, decim);
-  (void)snprintf (name, sizeof (name), "%s.ctrl", p);
-  int id_ctrl = dp_tlm_probe (tlm, name, decim);
-  (void)snprintf (name, sizeof (name), "%s.rate", p);
-  int id_rate = dp_tlm_probe (tlm, name, decim);
-  (void)snprintf (name, sizeof (name), "%s.lock", p);
-  int id_lock = dp_tlm_probe (tlm, name, decim);
-  (void)snprintf (name, sizeof (name), "%s.locked", p);
-  int id_locked = dp_tlm_probe (tlm, name, decim);
-  (void)snprintf (name, sizeof (name), "%s.mu", p);
-  int id_mu = dp_tlm_probe (tlm, name, decim);
+  const char              *p = prefix ? prefix : "sync";
+  static const char *const sfx[6]
+      = { "e", "ctrl", "rate", "lock", "locked", "mu" };
+  char name[6][DP_TLM_NAME_MAX];
+  for (size_t i = 0; i < 6; i++) /* all names before any registration */
+    if (dp_tlm_name_join (name[i], p, sfx[i]) != DP_OK)
+      return DP_ERR_INVALID; /* overlong prefix: nothing registered */
+  int id_e      = dp_tlm_probe (tlm, name[0], decim);
+  int id_ctrl   = dp_tlm_probe (tlm, name[1], decim);
+  int id_rate   = dp_tlm_probe (tlm, name[2], decim);
+  int id_lock   = dp_tlm_probe (tlm, name[3], decim);
+  int id_locked = dp_tlm_probe (tlm, name[4], decim);
+  int id_mu     = dp_tlm_probe (tlm, name[5], decim);
   if (id_e < 0 || id_ctrl < 0 || id_rate < 0 || id_lock < 0 || id_locked < 0
       || id_mu < 0)
-    return DP_ERR_INVALID; /* table full / bad prefix: attach fails whole */
+    return DP_ERR_INVALID; /* table full: attach fails whole */
   l->tlm.id_e      = id_e;
   l->tlm.id_ctrl   = id_ctrl;
   l->tlm.id_rate   = id_rate;

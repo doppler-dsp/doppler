@@ -92,14 +92,16 @@ dp_agc_set_telemetry (dp_agc_state_t *state, dp_tlm_t *tlm, const char *prefix,
       state->tlm.ctx = NULL;
       return DP_OK;
     }
-  const char *p = prefix ? prefix : "agc";
-  char        name[DP_TLM_NAME_MAX];
-  (void)snprintf (name, sizeof (name), "%s.gain_db", p);
-  int id_gain = dp_tlm_probe (tlm, name, decim);
-  (void)snprintf (name, sizeof (name), "%s.level_db", p);
-  int id_level = dp_tlm_probe (tlm, name, decim);
+  const char              *p      = prefix ? prefix : "agc";
+  static const char *const sfx[2] = { "gain_db", "level_db" };
+  char                     name[2][DP_TLM_NAME_MAX];
+  for (size_t i = 0; i < 2; i++) /* all names before any registration */
+    if (dp_tlm_name_join (name[i], p, sfx[i]) != DP_OK)
+      return DP_ERR_INVALID; /* overlong prefix: nothing registered */
+  int id_gain  = dp_tlm_probe (tlm, name[0], decim);
+  int id_level = dp_tlm_probe (tlm, name[1], decim);
   if (id_gain < 0 || id_level < 0)
-    return DP_ERR_INVALID; /* full table / overlong name: fails whole */
+    return DP_ERR_INVALID; /* full table: fails whole */
   state->tlm.id_gain  = id_gain;
   state->tlm.id_level = id_level;
   state->tlm.ctx      = tlm; /* set last: emit sites gate on ctx */

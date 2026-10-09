@@ -253,20 +253,19 @@ dp_symsync_set_telemetry (dp_symsync_state_t *state, dp_tlm_t *tlm,
       state->tlm.ctx = NULL;
       return DP_OK;
     }
-  const char *p = prefix ? prefix : "sync";
-  char        name[DP_TLM_NAME_MAX];
-  (void)snprintf (name, sizeof (name), "%s.e", p);
-  int id_e = dp_tlm_probe (tlm, name, decim);
-  (void)snprintf (name, sizeof (name), "%s.freq", p);
-  int id_freq = dp_tlm_probe (tlm, name, decim);
-  (void)snprintf (name, sizeof (name), "%s.rate", p);
-  int id_rate = dp_tlm_probe (tlm, name, decim);
-  (void)snprintf (name, sizeof (name), "%s.lock", p);
-  int id_lock = dp_tlm_probe (tlm, name, decim);
-  (void)snprintf (name, sizeof (name), "%s.locked", p);
-  int id_locked = dp_tlm_probe (tlm, name, decim);
+  const char              *p      = prefix ? prefix : "sync";
+  static const char *const sfx[5] = { "e", "freq", "rate", "lock", "locked" };
+  char                     name[5][DP_TLM_NAME_MAX];
+  for (size_t i = 0; i < 5; i++) /* all names before any registration */
+    if (dp_tlm_name_join (name[i], p, sfx[i]) != DP_OK)
+      return DP_ERR_INVALID; /* overlong prefix: nothing registered */
+  int id_e      = dp_tlm_probe (tlm, name[0], decim);
+  int id_freq   = dp_tlm_probe (tlm, name[1], decim);
+  int id_rate   = dp_tlm_probe (tlm, name[2], decim);
+  int id_lock   = dp_tlm_probe (tlm, name[3], decim);
+  int id_locked = dp_tlm_probe (tlm, name[4], decim);
   if (id_e < 0 || id_freq < 0 || id_rate < 0 || id_lock < 0 || id_locked < 0)
-    return DP_ERR_INVALID; /* table full / bad prefix: attach fails whole */
+    return DP_ERR_INVALID; /* table full: attach fails whole */
   state->tlm.id_e      = id_e;
   state->tlm.id_freq   = id_freq;
   state->tlm.id_rate   = id_rate;

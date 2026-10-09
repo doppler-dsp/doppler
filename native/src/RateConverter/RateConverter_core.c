@@ -913,9 +913,17 @@ dp_RateConverter_set_telemetry (dp_RateConverter_state_t *s, dp_tlm_t *tlm,
       return DP_OK;
     }
 
+  /* Refuse an overlong prefix BEFORE recording it. The request is stored
+     below and re-applied on every rebuild, so a silently truncated copy would
+     alias the AGC's probes and survive every later rebuild. Both AGC names
+     are checked: they are the only two this cascade ever registers. */
+  const char *p = prefix ? prefix : "agc";
+  char        probe[DP_TLM_NAME_MAX];
+  if (dp_tlm_name_join (probe, p, "gain_db") != DP_OK
+      || dp_tlm_name_join (probe, p, "level_db") != DP_OK)
+    return DP_ERR_INVALID;
   /* Record the request before applying it, so a later rc_agc_build() -- a rate
      change, or an enable_agc() that has not happened yet -- re-applies it. */
-  const char *p = prefix ? prefix : "agc";
   (void)snprintf (s->agc_tlm_req.prefix, sizeof (s->agc_tlm_req.prefix), "%s",
                   p);
   s->agc_tlm_req.decim = decim;

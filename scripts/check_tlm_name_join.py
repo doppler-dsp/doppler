@@ -11,19 +11,42 @@ until #676; #1898 gave the join one home in `dp_tlm_core.c`, which refuses
 instead of truncating, and `dp_tlm_core.h` says that helper "is the one
 place that join happens". This gate is what makes the sentence true (#1944).
 
-**What it refuses.** A string literal whose text begins `%s.`, the format of
-a hand-written `"<prefix>.<suffix>"` join, in any C file that takes part in
-probe naming: one that calls `dp_tlm_probe()`, or calls or defines a
-`*_set_telemetry()`. The second half is what reaches a composite, which
-builds a child's prefix (`"rx.car"`) and never registers a probe itself.
-Any formatter is caught, not only `snprintf`, because a private wrapper
-around one is the same copy with one more hop.
+**What it refuses.** A string literal that BEGINS with a `%s` conversion
+followed by a `.`, the format of a hand-written `"<prefix>.<suffix>"` join.
+That includes the spellings with a precision or a position (`"%.*s."`,
+`"%1$s."`), and a literal the compiler joins from pieces (`"%s" ".e"`).
+`%%` is a literal percent, not a conversion. Anchored at the start because
+a probe name starts with its prefix, while a file name such as
+`"tlm_capture_%s.tlm"` or `"%s/rx-dyn-%s.tlm"`, which files in scope do
+format, has the same `%s.` in its middle. It is refused in any C file
+that takes part in probe naming: one that calls `dp_tlm_probe()`, or calls
+or defines a PROBE ATTACH, meaning a `*_set_telemetry()` whose declaration
+takes a `dp_tlm_t`. That second half reaches a composite, which builds a
+child's prefix (`"rx.car"`) and never registers a probe itself. Any
+formatter is caught, not only `snprintf`, because a private wrapper around
+one is the same copy one hop away.
 
-**What it does not.** Comments and prose are skipped, so documentation may
-quote the old spelling. `dp_tlm_core.c` is the sanctioned home. A file that
-never touches telemetry may format `"%s.sigmf-meta"` or a JSON path as it
-likes. No allowlist: every site was converted when the gate landed, so the
-first new one fails.
+**What it does not.** Comments are skipped, so documentation may quote the
+old spelling, and comments and literals are read by `_c_source.py`.
+`dp_tlm_core.c` is the sanctioned home. A `*_set_telemetry()` that takes no
+`dp_tlm_t` is not a probe attach: `dp_event_log_set_telemetry()` names a
+record FILE, and its file may format `"%s.tlm"` (the same rule as
+`NOT_A_PROBE_PREFIX` in `test_tlm_prefix_refusal.py`). A file that never
+touches telemetry may format `"%s.sigmf-meta"` or a JSON path as it likes.
+No allowlist: every site was converted when the gate landed.
+
+**Blind spots**, things it cannot see by construction:
+
+- a name built without a format: `strcat`, `strncat`, `memcpy`;
+- a format `#define`d in a file that is not in scope, or joined from a
+  macro (`"%s" SEP "e"`), because the literal is not whole where it is used;
+- the separator passed as an argument (`"%s%s%s", p, ".", s`);
+- a join that does not start its literal (`"rx.%s.e"`);
+- a join in a helper file that neither registers nor attaches a probe.
+
+The runtime half covers these: `test_tlm_prefix_refusal.py` drives every
+Python face with overlong prefixes and catches a truncated name however it
+was built.
 
 Usage:  python3 scripts/check_tlm_name_join.py [--root DIR]
 Exit 0 when every probe-naming file joins through dp_tlm_name_join().
@@ -36,75 +59,64 @@ import re
 import sys
 from pathlib import Path
 
+from _c_source import string_literals, strip_comments
+
 ROOT = Path(__file__).resolve().parent.parent
 SCAN_DIR = "native"
 SANCTIONED = "native/src/dp_tlm/dp_tlm_core.c"
 
-# A file takes part in probe naming if it registers a probe or attaches one.
-# `\b...\s*\(` so `dp_tlm_probe_id (` and prose without a call do not count.
-NAMING = re.compile(r"\bdp_tlm_probe\s*\(|\w+_set_telemetry\s*\(")
-JOIN = "%s."
+# Registering a probe puts a file in scope. `\b...\s*\(` so
+# `dp_tlm_probe_id (` and prose without a call do not count.
+REGISTERS = re.compile(r"\bdp_tlm_probe\s*\(")
+# A *_set_telemetry declaration and its parameter list; it is a probe ATTACH
+# when the parameters name the telemetry context.
+SET_TLM_DECL = re.compile(r"\b(\w+_set_telemetry)\s*\(([^;{)]*)\)")
+TLM_CONTEXT = re.compile(r"\bdp_tlm(?:_state)?_t\b")
+# A literal that opens with a %s conversion (position, flags, width,
+# precision, `l` allowed) and a dot.
+JOIN = re.compile(
+    r"^%(?:\d+\$)?[-+ #0]*(?:\d+|\*(?:\d+\$)?)?"
+    r"(?:\.(?:\d+|\*(?:\d+\$)?))?l?s\."
+)
 
 
-def _strip_comments(src: str) -> tuple[str, list[tuple[int, str]]]:
-    """Blank out C comments and collect every string literal.
+def _sources(root: Path) -> dict[str, str]:
+    """Every C file under native/, comment-stripped, by path."""
+    return {
+        p.relative_to(root).as_posix(): strip_comments(
+            p.read_text(encoding="utf-8", errors="replace")
+        )
+        for p in sorted((root / SCAN_DIR).rglob("*"))
+        if p.suffix in (".c", ".h")
+    }
 
-    Returns the source with comment characters replaced by spaces (newlines
-    kept, so line numbers survive) and each string literal's line and raw
-    text, escapes left as written. A small state machine rather than a regex,
-    because `"//"` inside a string is not a comment and `\\"` inside one
-    does not end it.
-    """
-    out: list[str] = []
-    literals: list[tuple[int, str]] = []
-    i, n, line = 0, len(src), 1
-    while i < n:
-        c = src[i]
-        two = src[i : i + 2]
-        if two == "/*":
-            end = src.find("*/", i + 2)
-            end = n if end < 0 else end + 2
-            chunk = src[i:end]
-            out.append("".join("\n" if ch == "\n" else " " for ch in chunk))
-            line += chunk.count("\n")
-            i = end
-        elif two == "//":
-            end = src.find("\n", i)
-            end = n if end < 0 else end
-            out.append(" " * (end - i))
-            i = end
-        elif c in "\"'":
-            j = i + 1
-            while j < n and src[j] != c:
-                j += 2 if src[j] == "\\" else 1
-            j = min(j + 1, n)
-            if c == '"':
-                literals.append((line, src[i + 1 : j - 1]))
-            out.append(src[i:j])
-            line += src[i:j].count("\n")
-            i = j
-        else:
-            out.append(c)
-            line += c == "\n"
-            i += 1
-    return "".join(out), literals
+
+def probe_attaches(sources: dict[str, str]) -> set[str]:
+    """The *_set_telemetry functions declared to take a dp_tlm_t."""
+    return {
+        name
+        for code in sources.values()
+        for name, params in SET_TLM_DECL.findall(code)
+        if TLM_CONTEXT.search(params)
+    }
 
 
 def offenders(root: Path = ROOT) -> list[tuple[str, int, str]]:
+    sources = _sources(root)
+    attaches = probe_attaches(sources)
+    attach = (
+        re.compile(r"\b(?:" + "|".join(sorted(attaches)) + r")\s*\(")
+        if attaches
+        else None
+    )
     found: list[tuple[str, int, str]] = []
-    for path in sorted((root / SCAN_DIR).rglob("*")):
-        if path.suffix not in (".c", ".h"):
-            continue
-        rel = path.relative_to(root).as_posix()
+    for rel, code in sources.items():
         if rel == SANCTIONED:
             continue
-        code, literals = _strip_comments(
-            path.read_text(encoding="utf-8", errors="replace")
-        )
-        if not NAMING.search(code):
+        if not (REGISTERS.search(code) or (attach and attach.search(code))):
             continue
-        for line, text in literals:
-            if text.startswith(JOIN):
+        for line, text in string_literals(code):
+            if JOIN.match(text):  # "%%" cannot match: % is not a flag
                 found.append((rel, line, f'"{text}"'))
     return found
 

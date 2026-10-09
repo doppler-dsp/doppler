@@ -37,9 +37,11 @@ import os
 import re
 import subprocess
 import sys
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from bench_report import collect_meta, fastest_cpus, machine_not_ready
+from check_bench_commits import verdict
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 PUBLISHED = os.path.join(REPO, "benchmarks", "published")
@@ -75,13 +77,13 @@ def _build_info(worktree):
     return compiler, " ".join(dict.fromkeys(FLAG_RE.findall(cmd)))
 
 
-def setup_worktree(build):
+def setup_worktree(build, commit):
     wt = f"/tmp/doppler-bench-{build}"
     _run(
         ["git", "worktree", "remove", "--force", wt], REPO, capture_output=True
     )
     _run(
-        ["git", "worktree", "add", "-f", "--detach", wt, "HEAD"],
+        ["git", "worktree", "add", "-f", "--detach", wt, commit],
         REPO,
         check=True,
         capture_output=True,
@@ -140,6 +142,28 @@ def _merge_best(snaps):
     return merged
 
 
+def _provenance(commit: str) -> str:
+    """Which commit is measured, and whether origin/main has it (#1322).
+
+    `doppler_meta.commit` is the provenance a reader checks out, and
+    `make bench-commits-check` refuses one main cannot reach. Said before
+    the hour of measuring and again after it, because the usual way to
+    miss it is to measure a local commit (section 2's gallery plots,
+    committed but not landed) and find out at the publishing PR.
+    """
+    why = verdict(Path(REPO), commit, "origin/main")
+    if why is None:
+        return f"measuring doppler {commit}, which origin/main has"
+    return (
+        f"!! measuring doppler {commit}, which is {why}.\n"
+        "!! bench-commits-check will refuse this set. bench-restamp can\n"
+        "!! fix it after the merge ONLY if this exact tree lands on main\n"
+        "!! unchanged (a rebase-merge of it, never a squash). To measure\n"
+        "!! what main has instead:\n"
+        "!!   git fetch origin && git checkout --detach origin/main"
+    )
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("version")
@@ -157,7 +181,14 @@ def main() -> int:
             print(f"  - {p}")
         return 2
 
-    wts = {b: setup_worktree(b) for b in BUILD_ARGS}
+    # Read once, before building: the worktrees are made from this HEAD,
+    # so the stamp must name it even if HEAD moves during the run.
+    commit = _run(
+        ["git", "rev-parse", "--short", "HEAD"], REPO, capture_output=True
+    ).stdout.strip()
+    print(_provenance(commit), flush=True)
+
+    wts = {b: setup_worktree(b, commit) for b in BUILD_ARGS}
     info = {b: _build_info(wts[b]) for b in BUILD_ARGS}
     samples = {b: {"py": [], "c": []} for b in BUILD_ARGS}
     cpus = fastest_cpus()
@@ -175,9 +206,6 @@ def main() -> int:
             samples[b]["py"].append(py)
             samples[b]["c"].append(c)
 
-    commit = _run(
-        ["git", "rev-parse", "--short", "HEAD"], REPO, capture_output=True
-    ).stdout.strip()
     dst = os.path.join(PUBLISHED, ver)
     os.makedirs(dst, exist_ok=True)
     for b in BUILD_ARGS:
@@ -204,6 +232,7 @@ def main() -> int:
             capture_output=True,
         )
     print(f"done — {a.passes} interleaved passes per build")
+    print(_provenance(commit))
     return 0
 
 

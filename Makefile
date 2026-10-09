@@ -1703,12 +1703,6 @@ ASSERT_BASE ?= origin/main
 tests-ssot: ## Verify no C test re-defines dp_test.h's macros or loses assertions
 	@uv run python scripts/check_tests_ssot.py --base $(ASSERT_BASE)
 
-# On `lint` rather than `bench` deliberately: `bench` is the occasional
-# activity (see bench-python), so a gate hung off it reports a missing
-# benchmark weeks after the component landed, if ever. Both directions are
-# checked -- a tested component with no benchmark, and a benchmark no runner
-# can reach -- because this repo has now had both, and the second one looks
-# fixed from every angle except the snapshot it never appears in.
 # A published benchmark set stamps doppler_meta.commit as its provenance, and
 # a reader must be able to check that commit out. A set measured on a release
 # branch, then squash- or rebase-merged, names a commit main never receives;
@@ -1720,6 +1714,12 @@ BENCH_COMMIT_BASE ?= origin/main
 bench-commits-check: ## Fail when a published benchmark names a commit main cannot reach
 	@uv run python scripts/check_bench_commits.py --base $(BENCH_COMMIT_BASE)
 
+# On `lint` rather than `bench` deliberately: `bench` is the occasional
+# activity (see bench-python), so a gate hung off it reports a missing
+# benchmark weeks after the component landed, if ever. Both directions are
+# checked -- a tested component with no benchmark, and a benchmark no runner
+# can reach -- because this repo has now had both, and the second one looks
+# fixed from every angle except the snapshot it never appears in.
 bench-coverage-check: ## Verify every tested component has a benchmark that runs
 	@uv run python scripts/check_bench_coverage.py
 

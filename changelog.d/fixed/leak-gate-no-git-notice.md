@@ -1,0 +1,1 @@
+- **The test-leak gate says when it falls back to walking the tree.** Outside a git work tree it printed the same output as the git path, so a packager could not tell which mode ran. It now prints one stderr line naming the root (#1922).

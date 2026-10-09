@@ -147,3 +147,51 @@ def test_fix_rewrites_every_form_and_then_passes(tmp_path: Path) -> None:
     assert text.count("${DP_MATH_LIBRARY}") == 3, text
     r = _run(root)
     assert r.returncode == 0, r.stdout + r.stderr
+
+
+# ── contributor docs: a page that teaches the bare `m` reintroduces it ──────
+
+_PAGE = (
+    "intro\n\n```cmake\ntarget_link_libraries(b PRIVATE b_core {lib})\n```\n"
+)
+
+
+def test_a_contributor_page_teaching_bare_m_fails(tmp_path: Path) -> None:
+    """adding-a-module.md taught `m` for every hand-registered benchmark."""
+    files = {"docs/dev/contributing/x.md": _PAGE.format(lib="m")}
+    r = _run(_seed(tmp_path, files))
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "docs/dev/contributing/x.md:4" in r.stdout
+
+
+def test_a_contributor_page_with_the_variable_passes(tmp_path: Path) -> None:
+    files = {"docs/dev/x.md": _PAGE.format(lib="${DP_MATH_LIBRARY}")}
+    r = _run(_seed(tmp_path, files))
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_a_consumer_page_and_an_archive_page_are_left_alone(
+    tmp_path: Path,
+) -> None:
+    """A user guide shows the CONSUMER's CMake, where DP_MATH_LIBRARY does
+    not exist; an archive page is frozen."""
+    files = {
+        "docs/guide/x.md": _PAGE.format(lib="m"),
+        "docs/dev/archive/x.md": _PAGE.format(lib="m"),
+    }
+    r = _run(_seed(tmp_path, files))
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_only_a_cmake_fence_is_read(tmp_path: Path) -> None:
+    page = "```text\ntarget_link_libraries(b PRIVATE m)\n```\n"
+    r = _run(_seed(tmp_path, {"docs/dev/x.md": page}))
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_fix_rewrites_a_contributor_page(tmp_path: Path) -> None:
+    root = _seed(tmp_path, {"docs/dev/x.md": _PAGE.format(lib="m")})
+    _run(root, "--fix")
+    text = (root / "docs/dev/x.md").read_text(encoding="utf-8")
+    assert "b_core ${DP_MATH_LIBRARY})" in text
+    assert _run(root).returncode == 0

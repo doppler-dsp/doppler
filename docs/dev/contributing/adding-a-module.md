@@ -613,18 +613,17 @@ collector opens (`jm_bench_write_json(&b, "mycomp")`, not `"mycomp_core"` —
 a real and repeated mistake: the wrong name writes a file no collector opens,
 so the benchmark runs and its measurement is silently thrown away).
 
-**It will not run under `make bench` yet.** That needs
-[just-makeit#1023](https://github.com/just-buildit/just-makeit/issues/1023);
-run it by hand meanwhile:
+**`make bench` runs it**: jm discovers the built target
+([just-makeit#1023](https://github.com/just-buildit/just-makeit/issues/1023)).
+To run it alone:
 
 ```sh
-cmake --build build --target bench_mycomp_core
-./build/native/src/mycomp/bench_mycomp_core
+make bench BENCH_ARGS="--c-only mycomp"
 ```
 
-Background, and the four benchmarks that were compiled by every build and
-run by nothing:
-[Benchmarks jm cannot see](benchmarking.md#benchmarks-jm-cannot-see).
+Background, and the four benchmarks that were once compiled by every build
+and run by nothing:
+[Benchmarks that are not jm components](benchmarking.md#benchmarks-that-are-not-jm-components).
 
 ______________________________________________________________________
 

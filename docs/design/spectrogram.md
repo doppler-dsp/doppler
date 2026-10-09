@@ -135,26 +135,42 @@ prototype's number (§3), not on taste.
 ### 4.3 The object
 
 ```text
+dp_spectrogram_create (nfft, hop, window, beta, mode, shift);
 size_t dp_spectrogram_push (s, const cf32 *in, size_t n_in,
-                            float *rows, size_t max_rows, size_t *consumed);
-size_t dp_spectrogram_rows_for (s, size_t n_in);   /* bound, for sizing   */
-size_t dp_spectrogram_flush (s, float *row);       /* 0 or 1 padded row   */
+                            float *out, size_t max_out);  /* floats written */
+size_t dp_spectrogram_push_max_out (s, size_t n_in);  /* rows_for * nfft  */
+size_t dp_spectrogram_consumed (s);        /* input the last push took    */
+size_t dp_spectrogram_rows_for (s, size_t n_in);  /* exact, in rows       */
+size_t dp_spectrogram_flush (s, float *row);      /* 0 or nfft floats     */
 size_t dp_spectrogram_pending (s);
-/* + the state triplet: the framer's snapshot */
+/* + reset, destroy, and the state triplet */
 ```
 
 It owns a ring, a framer, and the PSD estimator whose kernel it calls. `push`
 loops `framer_feed` → `framer_next` → the PSD kernel, so any chunk size works
-whatever the ring's capacity, and a full `rows` stops it and reports
-`consumed`. Init: `nfft`, `hop` (default `nfft`), `window`, `beta`, `mode`
-(dB by default, or power), `shift`. Its state is the framer's snapshot and
-nothing else, because the window, the plan and the scratch are configuration.
+whatever the ring's capacity. **A sample is taken unless it would complete a
+row `out` has no room for** — the framer's own `feed` contract, applied to
+rows. So a short `out` stops at a whole row and `consumed()` says where to
+resume, input that completes no row is always taken (even with `max_out` 0),
+and `push_max_out(n)` is exactly the room that makes a push take all of `n`.
+
+`nfft` is a power of two and `1 <= hop <= nfft`: frame length and row width
+are then the same number, which a frame PSD zero-pads to more bins than
+samples would not give (separating the two is
+[#1966](https://github.com/doppler-dsp/doppler/issues/1966)). Rows are dBFS;
+`mode = power` is reserved and refused until PSD's normalised per-frame
+power is on main, so the two modes share one reference
+([#1968](https://github.com/doppler-dsp/doppler/issues/1968)). The state is the spectrogram's envelope around the
+framer's snapshot and nothing else, because the window, the plan and the
+scratch are configuration.
 
 The Python face is **declarative or absent**. A `push` that returns
-`(rows, nfft)` needs jm to express a two-dimensional result, which it cannot
-today (just-buildit/just-makeit#2115). No hand-written binding stands in for
-that: the C object ships first, and the binding follows the jm release that
-carries the fix.
+`(rows, nfft)` needs jm to express a two-dimensional result
+(just-buildit/just-makeit#2115, implemented by #2152's `out_cols`), and that
+is its only jm dependency: jm already sizes a `variable_output` method from
+its input through a two-argument `_max_out (state, n_in)`, which is
+`push_max_out`. Until that release, the Spectrogram is a hand-owned C
+component (`[project].c_deps`); no hand-written binding stands in.
 
 ### 4.4 What it composes, and what it does not re-implement
 

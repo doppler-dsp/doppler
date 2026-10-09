@@ -244,3 +244,23 @@ def test_ctest_with_no_working_dirs_refuses(
     r = _ctest_gate(repo, _fake_ctest(tmp_path, [], "pass"))
     assert r.returncode == 1
     assert "refusing" in r.stderr
+
+
+def test_outside_a_git_checkout_a_clean_run_passes(tmp_path: Path) -> None:
+    # An sdist has no .git: the gate must fall back to walking the root, not
+    # die in `git status` (gh-1562).
+    root = tmp_path / "sdist"
+    root.mkdir()
+    (root / "kept.txt").write_text("v1\n", encoding="utf-8")
+    r = _gate(root, "pass")
+    assert r.returncode == 0, r.stderr
+    assert "Traceback" not in r.stderr
+
+
+def test_outside_a_git_checkout_a_new_file_is_a_leak(tmp_path: Path) -> None:
+    root = tmp_path / "sdist"
+    root.mkdir()
+    r = _gate(root, "open('left.bin', 'w').write('x')")
+    assert r.returncode == 1
+    assert "left.bin" in r.stderr
+    assert "Traceback" not in r.stderr

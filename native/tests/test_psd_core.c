@@ -535,5 +535,239 @@ main (void)
     DP_CHECK (dp_psd_create (RN, 1.0, -1, 0.0f, 1, 1.0, 0, 0, 0.0) == NULL);
   }
 
+  /* ════════════════════════════════════════════════════════════════════════
+   * The per-frame kernel, certified (#1911, part a).  The Spectrogram
+   * composes dp_psd_frame_db (#1894), so the claims it stands on are pinned
+   * before the rest of PSD: the running average is untouched (T1), 0 dBFS
+   * under every window and both references (T2), the -200 dB floor (T3), the
+   * DC-centred layout for a negative bin and a padded transform (T4), ENBW
+   * (T5) and the transform length (T18).
+   * ════════════════════════════════════════════════════════════════════════
+   */
+
+  /* T1: both kernels leave a NON-EMPTY average untouched.  The check above
+   * ran frame_db against an empty average only, where "untouched" and
+   * "nothing there to touch" read the same, and never checked frame_power.
+   * The probe frame is 20 dB louder than the averaged one, so any fold,
+   * by the averager or by a write into its storage, moves the readout. */
+  {
+    uint32_t seed = 1911u;
+    float _Complex a[64], b[64];
+    for (size_t i = 0; i < N; i++)
+      a[i] = dp_cgauss (&seed);
+    for (size_t i = 0; i < N; i++)
+      b[i] = 10.0f * dp_cgauss (&seed);
+    dp_psd_state_t *w = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
+    DP_REQUIRE (w != NULL);
+    dp_psd_accumulate (w, a, N);
+    dp_psd_accumulate (w, a, N);
+    const size_t count0 = w->avg->count;
+    float        db0[64], p0[64], db1[64], p1[64], scratch[64];
+    DP_REQUIRE (dp_psd_psd_db (w, N, db0, N) == N);
+    DP_REQUIRE (dp_psd_power_twosided (w, N, p0, N) == N);
+
+    dp_psd_frame_db (w, b, scratch);
+    dp_psd_frame_power (w, b, scratch);
+
+    DP_CHECK (w->avg->count == count0);
+    DP_CHECK (dp_psd_psd_db (w, N, db1, N) == N);
+    DP_CHECK (dp_psd_power_twosided (w, N, p1, N) == N);
+    DP_CHECK (memcmp (db0, db1, sizeof db0) == 0);
+    DP_CHECK (memcmp (p0, p1, sizeof p0) == 0);
+    dp_psd_destroy (w);
+  }
+
+  /* T2: a full-scale tone on a bin reads 0 dBFS WHATEVER THE WINDOW, in the
+   * kernel and in the averaged readout, unpadded and padded, and against
+   * either reference.  It was asserted for the rectangular window only.
+   *
+   * Tolerance.  A bin-centred tone of amplitude A has |X[k]| = A * cg
+   * exactly in real arithmetic.  A float32 FFT of nfft points carries a
+   * relative amplitude error of order log2(nfft) * 2^-24 (~4e-7 at nfft =
+   * 128), i.e. ~4e-6 dB.  TOL_DB = 1e-4 dB is 25x that, and four orders of
+   * magnitude below what it guards against: a missing cg or full_scale
+   * factor moves the reading by whole dB (Hann's cg^2 vs n^2 alone is
+   * 6 dB). */
+  {
+    const float TOL_DB = 1e-4f;
+    const int   k      = 5;
+    for (int win = 0; win <= 3; win++)
+      for (size_t pad = 1; pad <= 2; pad++)
+        {
+          dp_psd_state_t *w
+              = dp_psd_create (N, 1.0, win, 8.0f, pad, 1.0, 0, 0, 0.0);
+          DP_REQUIRE (w != NULL);
+          const size_t nfft = w->nfft;
+          /* bin k of the n-point frame is bin k*nfft/n of the transform */
+          const size_t at = nfft / 2 + (size_t)k * (nfft / N);
+          float _Complex x[64];
+          fill_tone (x, N, k);
+          float *db = malloc (nfft * sizeof *db);
+          DP_REQUIRE (db != NULL);
+          dp_psd_frame_db (w, x, db);
+          DP_CHECK (fabsf (db[at]) < TOL_DB);
+          dp_psd_accumulate (w, x, N);
+          DP_CHECK (dp_psd_psd_db (w, nfft, db, nfft) == nfft);
+          DP_CHECK (fabsf (db[at]) < TOL_DB);
+          free (db);
+          dp_psd_destroy (w);
+        }
+
+    /* The reference.  A tone of amplitude FS reads 0 dBFS against
+     * full_scale = FS, and bits = B is the SAME reference as full_scale =
+     * 2^(B-1) -- bit for bit, with the full_scale argument then ignored
+     * (999 here: were it used, the tone would read +6.2 dB).  Scaling the
+     * unit tone by 2^11 is exact in float32. */
+    const size_t    B  = 12;
+    const double    FS = 2048.0; /* 2^(B-1) */
+    dp_psd_state_t *wf = dp_psd_create (N, 1.0, 0, 0.0f, 1, FS, 0, 0, 0.0);
+    dp_psd_state_t *wb = dp_psd_create (N, 1.0, 0, 0.0f, 1, 999.0, B, 0, 0.0);
+    DP_REQUIRE (wf != NULL && wb != NULL);
+    DP_CHECK (wb->full_scale == FS);
+    float _Complex x[64];
+    fill_tone (x, N, k);
+    for (size_t i = 0; i < N; i++)
+      x[i] *= (float)FS;
+    float df[64], dbits[64];
+    dp_psd_frame_db (wf, x, df);
+    dp_psd_frame_db (wb, x, dbits);
+    DP_CHECK (fabsf (df[N / 2 + (size_t)k]) < TOL_DB);
+    DP_CHECK (memcmp (df, dbits, sizeof df) == 0);
+    dp_psd_accumulate (wf, x, N);
+    DP_CHECK (dp_psd_psd_db (wf, N, df, N) == N);
+    DP_CHECK (fabsf (df[N / 2 + (size_t)k]) < TOL_DB);
+    dp_psd_destroy (wf);
+    dp_psd_destroy (wb);
+  }
+
+  /* T3: the -200 dB floor.  10*log10 of an empty bin is guarded at 1e-20,
+   * so an all-zero frame reads -200 dB in every bin: through the kernel,
+   * the averaged readout and an integrated band.  Tolerance: 10*log10 of
+   * the double 1e-20, cast to float, is -200 to within 2^-24 relative
+   * (~1.2e-5 dB); 1e-4 dB covers it.  A floor at any other power of ten
+   * misses by >= 10 dB. */
+  {
+    dp_psd_state_t *w = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
+    DP_REQUIRE (w != NULL);
+    float _Complex zero[64];
+    for (size_t i = 0; i < N; i++)
+      zero[i] = 0.0f;
+    float db[64];
+    int   at_floor = 1;
+    dp_psd_frame_db (w, zero, db);
+    for (size_t i = 0; i < N; i++)
+      if (fabsf (db[i] + 200.0f) > 1e-4f)
+        at_floor = 0;
+    DP_CHECK (at_floor);
+
+    dp_psd_accumulate (w, zero, N);
+    DP_CHECK (dp_psd_psd_db (w, N, db, N) == N);
+    at_floor = 1;
+    for (size_t i = 0; i < N; i++)
+      if (fabsf (db[i] + 200.0f) > 1e-4f)
+        at_floor = 0;
+    DP_CHECK (at_floor);
+
+    const double band[2] = { -0.25, 0.25 }; /* in span, all-zero power */
+    float        pb[1];
+    DP_CHECK (dp_psd_band_power (w, band, 2, pb, 1) == 1);
+    DP_CHECK (fabsf (pb[0] + 200.0f) < 1e-4f);
+    DP_CHECK (fabs (dp_psd_total_band_power (w, band, 2) + 200.0) < 1e-4);
+    dp_psd_destroy (w);
+  }
+
+  /* T4: the DC-centred layout for a NEGATIVE bin and a PADDED transform.
+   * Bin k of an n-point frame is frequency k/n; in an nfft-point transform
+   * that is bin k*nfft/n, stored at nfft/2 + k*nfft/n.  The tests above
+   * placed positive k with nfft == n only.  Rectangular, so a bin-centred
+   * tone has no leakage and its peak index is exact; the claim is integer
+   * and needs no tolerance. */
+  {
+    static const int ks[] = { -7, -1, 3 };
+    for (size_t pad = 1; pad <= 2; pad++)
+      for (size_t j = 0; j < sizeof ks / sizeof ks[0]; j++)
+        {
+          dp_psd_state_t *w
+              = dp_psd_create (N, 1.0, 3, 0.0f, pad, 1.0, 0, 0, 0.0);
+          DP_REQUIRE (w != NULL);
+          const size_t nfft = w->nfft;
+          const long   step = (long)(nfft / N);
+          const size_t want = (size_t)((long)(nfft / 2) + ks[j] * step);
+          float _Complex x[64];
+          fill_tone (x, N, ks[j]);
+          float *db = malloc (nfft * sizeof *db);
+          DP_REQUIRE (db != NULL);
+          dp_psd_frame_db (w, x, db);
+          DP_CHECK (argmax (db, nfft) == want);
+          dp_psd_accumulate (w, x, N);
+          DP_CHECK (dp_psd_psd_db (w, nfft, db, nfft) == nfft);
+          DP_CHECK (argmax (db, nfft) == want);
+          free (db);
+          dp_psd_destroy (w);
+        }
+  }
+
+  /* T5: ENBW against a truth that is not the code's own formula.
+   *
+   * Rectangular: sum(w) = sum(w^2) = n, so n*s2/cg^2 is exactly 1.0 in
+   * double, and nothing short of an exact 1.0 is correct.
+   *
+   * Blackman-Harris, the 4-term minimum window, from its PUBLISHED
+   * coefficients (Harris 1978, Table 1, where the periodic window's ENBW is
+   * tabulated as 2.00 bins).  doppler's window is the symmetric one (it
+   * divides by N-1): the periodic (N-1)-point window plus one end sample
+   * w0 = a0 - a1 + a2 - a3.  Every cosine product in w^2 has a frequency of
+   * at most 6 cycles, so for N-1 > 6 its sum over the period vanishes and
+   *   sum(w)   = (N-1) a0 + w0
+   *   sum(w^2) = (N-1) P  + w0^2,   P = a0^2 + (a1^2 + a2^2 + a3^2) / 2
+   * exactly (measured: the double closed form and a double-precision window
+   * agree to 1e-15).  Tolerance: the window is stored in float32, and that
+   * rounding moves ENBW by 4e-9 at N = 64 and 3e-9 at N = 100 (measured);
+   * 1e-6 absolute is 250x that, and still 19x tighter than a coefficient
+   * off in its 5th digit (a2 = 0.14128 -> 0.1413 moves ENBW by 1.9e-5). */
+  {
+    const double a0 = 0.35875, a1 = 0.48829, a2 = 0.14128, a3 = 0.01168;
+    const double P  = a0 * a0 + (a1 * a1 + a2 * a2 + a3 * a3) / 2.0;
+    const double w0 = a0 - a1 + a2 - a3;
+    DP_CHECK (fabs (P / (a0 * a0) - 2.00) < 0.005); /* Harris's 2.00 */
+    static const size_t ns[] = { 64, 100 };
+    for (size_t j = 0; j < 2; j++)
+      {
+        const double    n = (double)ns[j];
+        dp_psd_state_t *r
+            = dp_psd_create (ns[j], 1.0, 3, 0.0f, 1, 1.0, 0, 0, 0.0);
+        dp_psd_state_t *bh
+            = dp_psd_create (ns[j], 1.0, 2, 0.0f, 1, 1.0, 0, 0, 0.0);
+        DP_REQUIRE (r != NULL && bh != NULL);
+        DP_CHECK (r->enbw == 1.0);
+        const double want = n * ((n - 1.0) * P + w0 * w0)
+                            / (((n - 1.0) * a0 + w0) * ((n - 1.0) * a0 + w0));
+        DP_CHECK (fabs (bh->enbw - want) < 1e-6);
+        dp_psd_destroy (r);
+        dp_psd_destroy (bh);
+      }
+  }
+
+  /* T18: the transform length is next_pow_two(n * pad).  Rectangular so a
+   * tiny n stays a well-defined window (a symmetric Hann of 2 points is all
+   * zeros). */
+  {
+    static const struct
+    {
+      size_t n, pad, nfft;
+    } c[] = {
+      { 64, 1, 64 },  { 64, 4, 256 }, { 100, 1, 128 }, { 100, 3, 512 },
+      { 65, 1, 128 }, { 33, 2, 128 }, { 2, 1, 2 },
+    };
+    for (size_t j = 0; j < sizeof c / sizeof c[0]; j++)
+      {
+        dp_psd_state_t *w
+            = dp_psd_create (c[j].n, 1.0, 3, 0.0f, c[j].pad, 1.0, 0, 0, 0.0);
+        DP_REQUIRE (w != NULL);
+        DP_CHECK (w->nfft == c[j].nfft);
+        dp_psd_destroy (w);
+      }
+  }
+
   DP_TEST_END ("test_psd_core");
 }

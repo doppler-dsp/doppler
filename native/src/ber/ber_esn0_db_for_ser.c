@@ -15,6 +15,11 @@ double
 dp_ber_esn0_db_for_ser (int m, double ser)
 {
   double lo = -10.0, hi = 40.0;
+  /* Checked here, not left to dp_ber_theory_ser's NaN: every comparison with
+     a NaN bound is false, so the range test below would pass it and the
+     bisection would walk down to -10 dB -- a fabricated answer (#1913). */
+  if (mpsk_bps (m) == 0)
+    return NAN;
   /* Outside the bracket there is no Es/N0 in [-10, 40] dB that produces the
      rate, so there is no answer to clamp to: NaN, never a bracket end. The
      endpoints themselves are in-bracket and go through the bisection. */

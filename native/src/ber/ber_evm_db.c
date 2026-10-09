@@ -23,8 +23,9 @@ dp_ber_evm_db (const float _Complex *rx, size_t rx_len, size_t lo, size_t hi,
     hi = rx_len;
   if (hi <= lo || hi - lo < 20)
     return 0.0;
+  /* M < 2 is no constellation: NaN, not BPSK's answer (#1913). */
   if (m < 2)
-    m = 2;
+    return NAN;
   n = hi - lo;
 
   /* sum z^m (repeated multiply — m is 2, 4 or 8 in practice) and the mean

@@ -3402,7 +3402,7 @@ objects = ["ber_meter", "frame_meter"]
 
 [[module.ber.functions]]
 name = "ber_theory_ser"
-doc = "Coherent M-PSK symbol error rate at matched-filter Es/N0 (LINEAR, not dB). BPSK Q(sqrt(2 Es/N0)); QPSK 2Q(sqrt(Es/N0)); 8PSK 2Q(sqrt(2 Es/N0) sin(pi/8)). This is a COHERENT bound: a differentially-decoded rate is ~2x it, so pairing a differential measurement with this curve invents a factor of two of implementation loss."
+doc = "Coherent M-PSK symbol error rate at matched-filter Es/N0 (LINEAR, not dB). BPSK Q(sqrt(2 Es/N0)); QPSK 2Q(sqrt(Es/N0)); 8PSK 2Q(sqrt(2 Es/N0) sin(pi/8)). This is a COHERENT bound: a differentially-decoded rate is ~2x it, so pairing a differential measurement with this curve invents a factor of two of implementation loss. An M outside {2, 4, 8} returns NaN: there is no closed form for it here, and another M's rate would be a fabricated answer."
 return_type = "double"
 
 [[module.ber.functions.params]]
@@ -3415,7 +3415,7 @@ type = "double"
 
 [[module.ber.functions]]
 name = "ber_theory_ber"
-doc = "Coherent GRAY-coded M-PSK bit error rate at Es/N0 (LINEAR). BPSK and Gray QPSK are exactly Q(sqrt(2 Eb/N0)); 8PSK uses SER/log2(M)."
+doc = "Coherent GRAY-coded M-PSK bit error rate at Es/N0 (LINEAR). BPSK and Gray QPSK are exactly Q(sqrt(2 Eb/N0)); 8PSK uses SER/log2(M). An M outside {2, 4, 8} returns NaN."
 return_type = "double"
 
 [[module.ber.functions.params]]
@@ -3428,7 +3428,7 @@ type = "double"
 
 [[module.ber.functions]]
 name = "ber_esn0_db_for_ser"
-doc = "Es/N0 (dB) at which the coherent bound equals `ser`. How an implementation loss is quoted honestly: convert the MEASURED rate to the Es/N0 theory would need to produce it, and subtract. A loss in dB is comparable across M and across operating points; a ratio of rates is not. Returns NAN when no Es/N0 from -10 to 40 dB produces the rate: ser <= 0, ser above the bound at -10 dB, or ser below the bound at 40 dB. Those are NOT clamped to -10 or 40 dB, so test with isnan() and write gates as !(loss <= limit), since a loss > limit comparison is false for NaN."
+doc = "Es/N0 (dB) at which the coherent bound equals `ser`. How an implementation loss is quoted honestly: convert the MEASURED rate to the Es/N0 theory would need to produce it, and subtract. A loss in dB is comparable across M and across operating points; a ratio of rates is not. Returns NAN when no Es/N0 from -10 to 40 dB produces the rate: ser <= 0, ser above the bound at -10 dB, or ser below the bound at 40 dB. Those are NOT clamped to -10 or 40 dB, so test with isnan() and write gates as !(loss <= limit), since a loss > limit comparison is false for NaN. An M outside {2, 4, 8} also returns NaN."
 return_type = "double"
 
 [[module.ber.functions.params]]
@@ -3441,7 +3441,7 @@ type = "double"
 
 [[module.ber.functions]]
 name = "ber_evm_scatter_floor_db"
-doc = "EVM (dB) of an M-PSK constellation at a UNIFORMLY RANDOM rotation -- the FLOOR of a self-referenced EVM, i.e. what a completely destroyed constellation reads: -1.4 dB at BPSK, -7.0 at QPSK, -12.9 at 8PSK. ANY fixed EVM threshold must be stated against this, never against 0 dB: 'scattered reads ~0 dB' is the BPSK limit only, and at 8PSK a stream with no carrier recovery reads the same -12.9 dB a healthy 13 dB link does, so a `< -12.0` assertion is satisfied by pure noise. The room between 'on the bound at the SER=1e-3 anchor' and 'completely broken' collapses as M grows (5.4 / 3.3 / 2.8 dB), so at high M the EVM cannot carry a verdict alone. Not to be confused with the NOISE floor -(Es/N0)."
+doc = "EVM (dB) of an M-PSK constellation at a UNIFORMLY RANDOM rotation -- the FLOOR of a self-referenced EVM, i.e. what a completely destroyed constellation reads: -1.4 dB at BPSK, -7.0 at QPSK, -12.9 at 8PSK. ANY fixed EVM threshold must be stated against this, never against 0 dB: 'scattered reads ~0 dB' is the BPSK limit only, and at 8PSK a stream with no carrier recovery reads the same -12.9 dB a healthy 13 dB link does, so a `< -12.0` assertion is satisfied by pure noise. The room between 'on the bound at the SER=1e-3 anchor' and 'completely broken' collapses as M grows (5.4 / 3.3 / 2.8 dB), so at high M the EVM cannot carry a verdict alone. Not to be confused with the NOISE floor -(Es/N0). M < 2 returns NaN."
 return_type = "double"
 
 [[module.ber.functions.params]]
@@ -3482,7 +3482,7 @@ default = "0.9"
 
 [[module.ber.functions]]
 name = "ber_evm_db"
-doc = "Self-referenced EVM (dB) over an EXPLICIT window [lo, hi): each symbol against the stream's OWN hard decision, with the constellation rotation estimated from the data. References neither the transmitted symbols nor a lag, so it cannot be fooled by an alignment search. A locked matched-filter output reads EVM_dB ~ -(Es/N0)_dB (an I/Q-plane quantity -- no factor of two; quoting one flatters the result by 3 dB). Read it against ber_evm_scatter_floor_db(m), NEVER against 0 dB. The window is explicit because BER and EVM must be measured on the SAME one: a convenience back-half default scores a different window than the error rate did, and the two eventually disagree in a way that reads as a receiver defect rather than the harness bug it is. Returns 0.0 for a window under 20 symbols."
+doc = "Self-referenced EVM (dB) over an EXPLICIT window [lo, hi): each symbol against the stream's OWN hard decision, with the constellation rotation estimated from the data. References neither the transmitted symbols nor a lag, so it cannot be fooled by an alignment search. A locked matched-filter output reads EVM_dB ~ -(Es/N0)_dB (an I/Q-plane quantity -- no factor of two; quoting one flatters the result by 3 dB). Read it against ber_evm_scatter_floor_db(m), NEVER against 0 dB. The window is explicit because BER and EVM must be measured on the SAME one: a convenience back-half default scores a different window than the error rate did, and the two eventually disagree in a way that reads as a receiver defect rather than the harness bug it is. Returns 0.0 for a window under 20 symbols. M < 2 returns NaN."
 return_type = "double"
 
 [[module.ber.functions.params]]

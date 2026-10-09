@@ -14,6 +14,11 @@
 double
 dp_ber_theory_ser (int m, double esn0)
 {
+  /* An M without a closed form here has no answer, so NaN: falling through
+     to another M's formula would fabricate one (#1913). mpsk_bps() is the one
+     list of supported M. */
+  if (mpsk_bps (m) == 0)
+    return NAN;
   if (esn0 <= 0.0)
     return (m <= 2) ? 0.5 : 1.0 - 1.0 / (double)m;
   if (m <= 2)

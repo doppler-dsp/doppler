@@ -168,6 +168,7 @@
 * **DP\_ALIGN** ([**buffer.h**](buffer_8h.md))
 * **DP\_ASSERT\_2X** ([**buffer.h**](buffer_8h.md))
 * **DP\_ASSERT\_PWR2** ([**buffer.h**](buffer_8h.md))
+* **DP\_BUFFER\_MUST\_CHECK** ([**buffer.h**](buffer_8h.md))
 * **DP\_BUFFER\_UNUSED** ([**buffer.h**](buffer_8h.md))
 * **DP\_CACHELINE** ([**buffer.h**](buffer_8h.md))
 * **DP\_FRAMER\_STATE\_MAGIC** ([**buffer.h**](buffer_8h.md))

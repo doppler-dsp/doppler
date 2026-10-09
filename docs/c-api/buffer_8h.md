@@ -112,6 +112,7 @@ _High-performance x86-64 Circular Buffer for RF Streaming._ [More...](#detailed-
 | define  | [**DP\_ALIGN**](buffer_8h.md#define-dp_align) (n) `\_\_attribute\_\_ ((aligned (n)))`<br> |
 | define  | [**DP\_ASSERT\_2X**](buffer_8h.md#define-dp_assert_2x) (tag, elem, type) `typedef char dp\_assert\_2x\_##tag[sizeof (elem) == 2 \* sizeof (type) ? 1 : -1]`<br> |
 | define  | [**DP\_ASSERT\_PWR2**](buffer_8h.md#define-dp_assert_pwr2) (n) `typedef char dp\_assert\_pwr2\_##n[((n) & ((n) - 1)) == 0 ? 1 : -1]`<br> |
+| define  | [**DP\_BUFFER\_MUST\_CHECK**](buffer_8h.md#define-dp_buffer_must_check)  <br> |
 | define  | [**DP\_BUFFER\_UNUSED**](buffer_8h.md#define-dp_buffer_unused)  <br> |
 | define  | [**DP\_CACHELINE**](buffer_8h.md#define-dp_cacheline)  `64`<br>_Standard x86-64 cache-line size (64 bytes)._  |
 | define  | [**DP\_FRAMER\_STATE\_MAGIC**](buffer_8h.md#define-dp_framer_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('F', 'R', 'M', 'R')`<br>_FourCC of a framer snapshot (see dp\_&lt;name&gt;\_framer\_state\_bytes)._  |
@@ -430,7 +431,8 @@ It is a sibling of DECLARE\_DP\_BUFFER\_VIEW rather than part of DECLARE\_DP\_BU
 ```C++
 dp_f32_t *ring = dp_f32_create (4 * 8);
 dp_f32_framer_t fr;
-dp_f32_framer_init (&fr, ring, 8, 4);          // 8-sample frames, hop 4
+if (!ring || dp_f32_framer_init (&fr, ring, 8, 4) != DP_OK)
+  return 1;                                    // 8-sample frames, hop 4
 float _Complex x[10] = { 0 };
 size_t used = dp_f32_framer_feed_view (&fr, x, 10, 2);
 int rows = 0;
@@ -534,6 +536,19 @@ dp_f32_destroy (ab);
 #define DP_ASSERT_PWR2 (
     n
 ) `typedef char dp_assert_pwr2_##n[((n) & ((n) - 1)) == 0 ? 1 : -1]`
+```
+
+
+
+
+<hr>
+
+
+
+### define DP\_BUFFER\_MUST\_CHECK 
+
+```C++
+#define DP_BUFFER_MUST_CHECK 
 ```
 
 

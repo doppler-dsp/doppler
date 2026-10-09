@@ -250,7 +250,12 @@ main (void)
             {
               dp_f32_framer_t fr;
               size_t          fed2 = 0;
-              (void)dp_f32_framer_init (&fr, b32, STREAM_FRAME, STREAM_FRAME);
+              if (dp_f32_framer_init (&fr, b32, STREAM_FRAME, STREAM_FRAME)
+                  != DP_OK)
+                {
+                  fprintf (stderr, "framer init refused\n");
+                  return 1;
+                }
               t0 = jm_bench_now_ns ();
               while (fed2 < TOTAL)
                 {
@@ -302,7 +307,12 @@ main (void)
             {
               dp_f32_framer_t fr;
               size_t          fed4 = 0;
-              (void)dp_f32_framer_init (&fr, b32, STREAM_FRAME, STREAM_HOP);
+              if (dp_f32_framer_init (&fr, b32, STREAM_FRAME, STREAM_HOP)
+                  != DP_OK)
+                {
+                  fprintf (stderr, "framer init refused\n");
+                  return 1;
+                }
               t0 = jm_bench_now_ns ();
               while (fed4 < TOTAL)
                 {

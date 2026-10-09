@@ -73,6 +73,38 @@ typedef struct
 } run_t;
 
 /**
+ * A ring, or the harness stops: a failed allocation would otherwise be used
+ * as a framer's ring and read as a certification result.
+ */
+static dp_f32_t *
+make_ring (size_t capacity)
+{
+  dp_f32_t *ring = dp_f32_create (capacity);
+  if (!ring)
+    {
+      fprintf (stderr, "framer_certify: ring allocation failed\n");
+      exit (1);
+    }
+  return ring;
+}
+
+/**
+ * Initialise a framer, or the harness stops. A refused init leaves `*fr`
+ * unwritten, so carrying on would certify a framer nothing configured; it is
+ * a harness failure, never a result.
+ */
+static void
+start (dp_f32_framer_t *fr, dp_f32_t *ring, size_t n, size_t hop)
+{
+  if (dp_f32_framer_init (fr, ring, n, hop) != DP_OK)
+    {
+      fprintf (stderr, "framer_certify: framer_init refused n=%zu hop=%zu\n",
+               n, hop);
+      exit (1);
+    }
+}
+
+/**
  * Feed `len` samples in pieces chosen by `chunk` (0 = random 1..2n+1), with
  * room for `room` frames per feed (0 = unlimited), draining after each feed,
  * and check every frame against the oracle as it comes out.
@@ -82,14 +114,15 @@ run (size_t n, size_t hop, size_t len, size_t chunk, size_t room,
      uint32_t *rng)
 {
   run_t           r    = { 0 };
-  dp_f32_t       *ring = dp_f32_create (4 * n + 64);
+  dp_f32_t       *ring = make_ring (4 * n + 64);
   dp_f32_framer_t fr;
   cf             *in = malloc (len * sizeof *in);
-  if (!ring || !in || dp_f32_framer_init (&fr, ring, n, hop) != DP_OK)
+  if (!in)
     {
       fprintf (stderr, "framer_certify: setup failed\n");
       exit (1);
     }
+  start (&fr, ring, n, hop);
   for (size_t i = 0; i < len; i++)
     in[i] = sample (i);
 
@@ -244,9 +277,9 @@ sweep_flush (int emit)
       size_t lengths = 0, emitted = 0, wrong = 0, off = 0, second = 0, rs = 0;
       for (size_t len = 0; len <= 4 * n + 3; len++)
         {
-          dp_f32_t       *ring = dp_f32_create (4 * n + 8);
+          dp_f32_t       *ring = make_ring (4 * n + 8);
           dp_f32_framer_t fr;
-          dp_f32_framer_init (&fr, ring, n, hop);
+          start (&fr, ring, n, hop);
           cf *in = malloc ((len + n) * sizeof *in);
           for (size_t i = 0; i < len + n; i++)
             in[i] = sample (i);
@@ -310,11 +343,10 @@ sweep_snapshot (int emit)
         in[i] = sample (i);
       for (size_t cut = 0; cut <= 3 * n + 3 && cut <= total; cut++)
         {
-          dp_f32_t *ra = dp_f32_create (4 * n + 8),
-                   *rb = dp_f32_create (4 * n + 8);
+          dp_f32_t *ra = make_ring (4 * n + 8), *rb = make_ring (4 * n + 8);
           dp_f32_framer_t a, b;
-          dp_f32_framer_init (&a, ra, n, hop);
-          dp_f32_framer_init (&b, rb, n, hop);
+          start (&a, ra, n, hop);
+          start (&b, rb, n, hop);
           size_t rows = 0, bad = 0;
           /* run `a` to the cut, draining as it goes */
           dp_f32_framer_feed_view (&a, in, cut, (size_t)-1);
@@ -390,11 +422,10 @@ sweep_refusal (int emit)
       size_t tried = 0, refused = 0, changed = 0, nonzero = 0, accepted = 0;
       for (size_t extra = 0; extra < 6 * n; extra++)
         {
-          dp_f32_t *ra = dp_f32_create (16 * n + 8),
-                   *rb = dp_f32_create (16 * n + 8);
+          dp_f32_t *ra = make_ring (16 * n + 8), *rb = make_ring (16 * n + 8);
           dp_f32_framer_t a, b;
-          dp_f32_framer_init (&a, ra, n, hop);
-          dp_f32_framer_init (&b, rb, n, hop);
+          start (&a, ra, n, hop);
+          start (&b, rb, n, hop);
           cf in[1024];
           for (size_t i = 0; i < 1024; i++)
             in[i] = sample (i);

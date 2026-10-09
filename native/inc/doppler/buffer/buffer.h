@@ -888,7 +888,8 @@ typedef enum
    *                                                                          \
    * @code                                                                    \
    *     dp_f32_framer_t fr;                                                  \
-   *     dp_f32_framer_init (&fr, ab, nfft, hop);                             \
+   *     if (dp_f32_framer_init (&fr, ab, nfft, hop) != DP_OK)                \
+   *       return 1;                                                          \
    *     while (off < n)                                                      \
    *       {                                                                  \
    *         off += dp_f32_framer_feed_view (&fr, src + off, n - off, 8);     \
@@ -1127,6 +1128,17 @@ typedef enum
 #define DP_BUFFER_UNUSED
 #endif
 
+/* An initialiser that can refuse leaves its target unwritten, so a caller
+ * that ignores the status goes on to use a framer nothing initialised. The
+ * compiler enforces the check: dropping the status is a -Wall warning at
+ * every call site, not only at the ones someone remembered to review. A void
+ * cast does NOT silence gcc here; a refused init has to be handled. */
+#if defined(__GNUC__) || defined(__clang__)
+#define DP_BUFFER_MUST_CHECK __attribute__ ((warn_unused_result))
+#else
+#define DP_BUFFER_MUST_CHECK
+#endif
+
 /**
  * @def DECLARE_DP_BUFFER_FRAMES(name, type, elem)
  * @brief Declares the framed face of the @p name ring: any chunk in, fixed
@@ -1152,7 +1164,8 @@ typedef enum
  * @code
  * dp_f32_t *ring = dp_f32_create (4 * 8);
  * dp_f32_framer_t fr;
- * dp_f32_framer_init (&fr, ring, 8, 4);          // 8-sample frames, hop 4
+ * if (!ring || dp_f32_framer_init (&fr, ring, 8, 4) != DP_OK)
+ *   return 1;                                    // 8-sample frames, hop 4
  * float _Complex x[10] = { 0 };
  * size_t used = dp_f32_framer_feed_view (&fr, x, 10, 2);
  * int rows = 0;
@@ -1189,8 +1202,10 @@ typedef enum
    * @param hop      Samples between frame starts: 1 <= hop <= frame_n. Frame k \
    *                 covers stream samples [k*hop, k*hop + frame_n).          \
    * @return DP_OK, or DP_ERR_INVALID on a bad argument or a non-empty ring.  \
+   *         On DP_ERR_INVALID @p fr is NOT written: do not use it. The result \
+   *         must be checked (the compiler warns if it is dropped).          \
    */                                                                         \
-  static inline DP_BUFFER_UNUSED int                                          \
+  static inline DP_BUFFER_UNUSED DP_BUFFER_MUST_CHECK int                     \
   dp_##name##_framer_init (dp_##name##_framer_t *fr, dp_##name##_t *ring,     \
                            size_t frame_n, size_t hop)                        \
   {                                                                           \

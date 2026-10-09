@@ -730,6 +730,17 @@ typedef enum
 #define DP_BUFFER_UNUSED
 #endif
 
+/* An initialiser that can refuse leaves its target unwritten, so a caller
+ * that ignores the status goes on to use a framer nothing initialised. The
+ * compiler enforces the check: dropping the status is a -Wall warning at
+ * every call site, not only at the ones someone remembered to review. A void
+ * cast does NOT silence gcc here; a refused init has to be handled. */
+#if defined(__GNUC__) || defined(__clang__)
+#define DP_BUFFER_MUST_CHECK __attribute__ ((warn_unused_result))
+#else
+#define DP_BUFFER_MUST_CHECK
+#endif
+
 #define DECLARE_DP_BUFFER_FRAMES(name, type, elem)                            \
   DP_ASSERT_2X (name##_frames, elem, type);                                   \
                                                                               \
@@ -745,7 +756,7 @@ typedef enum
   } dp_##name##_framer_t;                                                     \
                                                                               \
                                                                          \
-  static inline DP_BUFFER_UNUSED int                                          \
+  static inline DP_BUFFER_UNUSED DP_BUFFER_MUST_CHECK int                     \
   dp_##name##_framer_init (dp_##name##_framer_t *fr, dp_##name##_t *ring,     \
                            size_t frame_n, size_t hop)                        \
   {                                                                           \

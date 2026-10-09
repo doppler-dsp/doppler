@@ -3,7 +3,7 @@
 The `doppler.mpsk` module is the **M-ary PSK constellation** layer over the C
 `mpsk` core: Gray-coded map / demap for BPSK, QPSK, and 8PSK. It is the decision
 primitive (and its transmit inverse) that the
-[`track.Carrier.Mpsk`](python-track.md) carrier loop and the MPSK receiver
+[`track.CarrierMpsk`](python-track.md) carrier loop and the MPSK receiver
 compose; the inline `mpsk_slice()` / `mpsk_constellation()` helpers in
 `mpsk_core.h` are the C composition API those loops inline per symbol.
 

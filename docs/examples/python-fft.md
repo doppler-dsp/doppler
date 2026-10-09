@@ -14,16 +14,12 @@ x32 = (rng.standard_normal(1024) + 1j * rng.standard_normal(1024)).astype(np.com
 
 f = FFT(1024)
 X32 = f.execute_cf32(x32)    # complex64 in → complex64 out
-print(X32.dtype)
+assert X32.dtype == np.complex64
 
-# Parseval: Σ|x|² == Σ|X|² / N
+# Parseval: Σ|x|² == Σ|X|² / N. The error is float32 rounding (~5e-4 on
+# this input), so bound it rather than comparing exactly.
 err = abs(np.sum(np.abs(x32)**2) - np.sum(np.abs(X32)**2) / 1024)
-print(f"Parseval error: {err:.3e}")
-```
-
-```text
-complex64
-Parseval error: 2.441e-04
+assert err < 1e-2
 ```
 
 CF64 input auto-selects the double-precision path:
@@ -31,11 +27,7 @@ CF64 input auto-selects the double-precision path:
 ```python
 x64 = rng.standard_normal(1024) + 1j * rng.standard_normal(1024)
 X64 = f.execute_cf64(x64)    # complex128 in → complex128 out
-print(X64.dtype)
-```
-
-```text
-complex128
+assert X64.dtype == np.complex128
 ```
 
 ## Reusing a plan
@@ -61,9 +53,5 @@ x = (rng.standard_normal((64, 64)) + 1j * rng.standard_normal((64, 64))).astype(
 
 f2 = FFT2D(64, 64)
 out = f2.execute_cf32(x.ravel())   # flat row-major input and output
-print(len(out), out.dtype)
-```
-
-```text
-4096 complex64
+assert len(out) == 64 * 64 and out.dtype == np.complex64
 ```

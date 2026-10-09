@@ -298,7 +298,7 @@ cd doppler
 make install-deps  # bootstrap jbx (if needed) + install system deps
 make               # C library + examples
 make pyext         # Python extensions
-make test-all      # C + Python + Rust test suites
+make test-all      # C, Python and example test suites (Rust: make test-rust)
 ```
 
 You'll need a C compiler — your system's default one is enough, no C++

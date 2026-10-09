@@ -27,13 +27,13 @@ All DSP logic runs in C; the crate is pure glue.
 
 ## Modules
 
-| Module | C functions wrapped                         |
-| ------ | ------------------------------------------- |
-| `acc`  | `acc_f32_*`, `acc_cf64_*`                   |
-| `fft`  | `dp_fft_create`, `dp_fft_execute_cf32/cf64` |
-| `fir`  | `dp_fir_create`, `dp_fir_execute`           |
-| `lo`   | `dp_lo_create`, `lo_execute_cf32`           |
-| `nco`  | `dp_nco_create`, `nco_steps_*`              |
+| Module | C functions wrapped                                                                    |
+| ------ | -------------------------------------------------------------------------------------- |
+| `acc`  | `acc_f32_*`, `acc_cf64_*`                                                              |
+| `fft`  | `dp_fft_create`, `dp_fft_execute_cf32/cf64`                                            |
+| `fir`  | `dp_fir_create`, `dp_fir_execute`                                                      |
+| `lo`   | `dp_lo_create`, `dp_lo_steps`, `dp_lo_steps_ctrl`                                      |
+| `nco`  | `dp_nco_create`, `dp_nco_steps_u32`, `dp_nco_steps_u32_scaled`, `dp_nco_steps_u32_ovf` |
 
 ## Using from another crate
 

@@ -1021,8 +1021,9 @@ static PyMethodDef BurstDemodObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "demod(x, out) -> ndarray\n"
     "\n"
-    "Demodulate a burst (preamble + frame); return the payload bits. "
-    "Read-back properties report the estimates + CRC validity.\n"
+    "Demodulate a burst (preamble + frame); return the frame's bits: sync "
+    "header, payload, then CRC-16 trailer. Read-back properties report the "
+    "estimates + CRC validity.\n"
     "\n"
     "Runs the whole feedforward chain on the supplied samples: estimate the\n"
     "(frequency, chirp-rate) from the preamble, dechirp, despread the data\n"

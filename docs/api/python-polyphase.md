@@ -1,6 +1,6 @@
 # Python Polyphase API
 
-!!! warning "Removed in 0.3.0"
+!!! warning "Removed"
 
     `doppler.polyphase` has been removed. The DPMFS polynomial-fit
     resampler (`ResamplerDpmfs`) has also been removed.

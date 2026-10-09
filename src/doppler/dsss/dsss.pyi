@@ -1534,7 +1534,7 @@ class BurstDemod:
     def demod(
         self, x: NDArray[np.complex64], out: NDArray[np.uint8] | None = ...
     ) -> NDArray[np.uint8]:
-        """Demodulate a burst (preamble + frame); return the payload bits. Read-back properties report the estimates + CRC validity.
+        """Demodulate a burst (preamble + frame); return the frame's bits: sync header, payload, then CRC-16 trailer. Read-back properties report the estimates + CRC validity.
 
         Without out=, the returned array is a view into a buffer reused on
         the next call (see demod_max_out(), or payload_len, to size an out=

@@ -53,6 +53,56 @@ def resolve_snippets(code, _seen=frozenset()):
     return _SNIPPET_LINE.sub(_repl, code)
 
 
+_FENCE_TOGGLE = re.compile(r"^[ \t]*```")
+
+
+def page_segments(path):
+    """The page as the build renders it, as ``[(origin, text), ...]``.
+
+    A ``--8<--`` line OUTSIDE a fence includes a whole file into the page:
+    ``docs/example-projects/*.md`` are each nothing but their project's
+    README, so the README stays the one copy and reads the same on GitHub
+    and on the site. Reading only the page's own text, a gate would see a
+    single include line and check none of the README's fences -- a page
+    the reader sees in full and the gates see as empty.
+
+    So the include is inlined here, once, for every gate, and each piece is
+    returned with the file it came from. ``origin`` is the page itself for
+    its own text and the included file for an include. A gate that needs
+    context checks against the origin: the sh gate validates a README's
+    ``make run`` against the Makefile beside that README, not the repo's.
+
+    Includes INSIDE a fence are left alone here; ``resolve_snippets``
+    inlines those per fence, as before.
+    """
+    segments = []
+    own = []
+    in_fence = False
+    for line in path.read_text(encoding="utf-8").splitlines(keepends=True):
+        if _FENCE_TOGGLE.match(line):
+            in_fence = not in_fence
+        m = None if in_fence else _SNIPPET_LINE.match(line)
+        if m is None:
+            own.append(line)
+            continue
+        if own:
+            segments.append((path, "".join(own)))
+            own = []
+        rel, sec = m.group("path"), m.group("sec")
+        src = REPO / rel
+        assert src.exists(), f"{path}: page include not found: {rel}"
+        text = src.read_text(encoding="utf-8")
+        segments.append((src, _snippet_section(text, sec) if sec else text))
+    if own:
+        segments.append((path, "".join(own)))
+    return segments
+
+
+def read_page(path):
+    """The page's full rendered markdown, page-level includes inlined."""
+    return "".join(text for _, text in page_segments(path))
+
+
 # A skip=/raises= opt-out, on the line (optional blank line) before a fence.
 _MARKER = re.compile(r"<!--\s*docs-snippet:\s*(.*?)\s*-->")
 

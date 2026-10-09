@@ -3,7 +3,7 @@
 ## Standalone project
 
 A minimal working project lives at
-[`example-projects/standalone/`](https://github.com/doppler-dsp/doppler/tree/main/example-projects/standalone).
+[`example-projects/standalone/`](../example-projects/standalone.md).
 It generates 4096 AWGN samples with `dp_awgn()` and prints empirical statistics.
 The same example is also available as a one-liner Python script.
 
@@ -121,7 +121,7 @@ ______________________________________________________________________
 `example-projects/standalone/` above links against a doppler **build tree**. For the
 idiomatic *installed*-library setup — `find_package(doppler)` against a system
 install or an extracted [release tarball](../install/c.md#install-from-a-release-tarball) —
-see [`example-projects/consumer/`](https://github.com/doppler-dsp/doppler/tree/main/example-projects/consumer).
+see [`example-projects/consumer/`](../example-projects/consumer.md).
 One `CMakeLists.txt` builds against **both** link targets:
 `doppler::doppler` (shared) and `doppler::doppler-static` (the pure-C static
 archive — links `-lm` and `-lpthread`, no C++ runtime). The
@@ -559,7 +559,7 @@ demo, `native/examples/wfmgen_frame_demo.c`.
 
 ### A burst waveform end to end
 
-[`example-projects/burst-pipeline/`](https://github.com/doppler-dsp/doppler/tree/main/example-projects/burst-pipeline)
+[`example-projects/burst-pipeline/`](../example-projects/burst-pipeline.md)
 is a downstream project — its own `CMakeLists.txt`, `find_package(doppler)`,
 an install prefix rather than this source tree — that walks the whole path:
 describe a frame, generate a sixty-burst train, sweep it, write BLUE, read it
@@ -584,7 +584,7 @@ work.
 
 ### An RTL-SDR front end on a small ARM board
 
-[`example-projects/uno-q/`](https://github.com/doppler-dsp/doppler/tree/main/example-projects/uno-q)
+[`example-projects/uno-q/`](../example-projects/uno-q.md)
 is the first stages of a receiver fed by an RTL-SDR, as a downstream project:
 `cu8` bytes through `U8ToF32`, a `DDC` that mixes an offset-tuned channel to DC
 and decimates, and a `PSD`. Run with no input, it synthesises an RTL-SDR

@@ -274,7 +274,7 @@ target_link_libraries(my_app PRIVATE doppler::stream-static)
 ```
 
 A complete, buildable consumer that exercises both targets lives in
-[`example-projects/consumer/`](https://github.com/doppler-dsp/doppler/tree/main/example-projects/consumer).
+[`example-projects/consumer/`](../example-projects/consumer.md).
 
 ### pkg-config
 

@@ -68,6 +68,7 @@ from doppler.tests._docs_snippet_common import (
     DOCS,
     REPO,
     iter_fences,
+    page_segments,
     resolve_snippets,
 )
 
@@ -87,15 +88,18 @@ _HEREDOC_RE = re.compile(r"<<-?\s*'?(?P<tag>\w+)'?")
 
 #: A target line in ``make help``: two-space indent, the name, then the
 #: description column. Section headers (``Core:``, ``Lint:``) sit at column
-#: zero, so anchoring the indent is what keeps them out of the set.
-_HELP_TARGET = re.compile(r"^  (\S+)\s{2,}\S")
+#: zero, so anchoring the indent is what keeps them out of the set. An
+#: example project's help spells the line out as ``  make run   ...``, so
+#: the ``make `` prefix is optional; its ``  PREFIX=<dir>`` knob lines match
+#: too, harmlessly, since a goal never carries an ``=``.
+_HELP_TARGET = re.compile(r"^  (?:make )?(\S+)\s{2,}\S")
 
 #: ``make`` flags that consume the NEXT token, so it is not a goal.
 _MAKE_FLAG_WITH_VALUE = frozenset({"-C", "-f", "-j", "-o", "-W"})
 
 
-@functools.lru_cache(maxsize=1)
-def _make_targets() -> frozenset[str]:
+@functools.cache
+def _make_targets(make_dir: Path = REPO) -> frozenset[str]:
     """Every goal ``make help`` lists, asked of make itself.
 
     Deliberately NOT a second list. ``help-check`` walks ``$(ALL_TARGETS)``
@@ -109,7 +113,7 @@ def _make_targets() -> frozenset[str]:
     """
     out = subprocess.run(
         ["make", "-s", "help"],
-        cwd=REPO,
+        cwd=make_dir,
         capture_output=True,
         text=True,
         timeout=120,
@@ -232,7 +236,7 @@ def _command_lines(code: str, console: bool) -> list[str]:
     return lines
 
 
-def _validate_cli_line(line: str, blockid: str) -> None:
+def _validate_cli_line(line: str, blockid: str, make_dir: Path = REPO) -> None:
     """Parse a doppler/doppler-specan/python line against reality."""
     try:
         words = shlex.split(line, comments=True)
@@ -262,19 +266,26 @@ def _validate_cli_line(line: str, blockid: str) -> None:
                 )
             continue
         if cmd == "make":
-            targets = _make_targets()
+            # `make -C <dir>` runs <dir>'s Makefile, so its goals are that
+            # Makefile's: `make -C example-projects/uno-q run` from the repo
+            # root names uno-q's `run`, which the root has no target for.
+            target_dir = make_dir
+            if "-C" in argv[:-1]:
+                target_dir = make_dir / argv[argv.index("-C") + 1]
+            targets = _make_targets(target_dir)
             # An empty set would make every assertion below pass for the
             # wrong reason -- absent output is not a pass.
             assert targets, (
-                f"{blockid}: `make -s help` listed no targets, so this "
+                f"{blockid}: `make -s help` in {target_dir} listed no "
+                f"targets, so this "
                 f"check would report clean without looking"
             )
             for goal in _make_goals(argv):
                 assert goal in targets, (
                     f"{blockid}: documented `make {goal}` names no target.\n"
                     f"  {line}\n"
-                    f"  Fix the doc, or add the target -- `make help` is "
-                    f"the list this reads."
+                    f"  Fix the doc, or add the target -- `make help` in "
+                    f"{target_dir} is the list this reads."
                 )
             continue
         if cmd == "doppler":
@@ -321,8 +332,17 @@ PAGES = _discover_pages()
     "page", PAGES, ids=[str(p.relative_to(DOCS)) for p in PAGES]
 )
 def test_sh_page_fences(page: Path, tmp_path: Path) -> None:
-    text = page.read_text(encoding="utf-8")
-    fences = list(iter_fences(text, "sh|bash|console"))
+    # The page as rendered: a page-level include (an example project's
+    # README) is checked like the page's own text, and each fence keeps the
+    # file it came from -- a README's `make run` names a target of the
+    # Makefile beside that README, not of this repo's.
+    segments = page_segments(page)
+    text = "".join(seg for _, seg in segments)
+    fences = [
+        (origin, marker, code)
+        for origin, seg in segments
+        for marker, code in iter_fences(seg, "sh|bash|console")
+    ]
     if not fences:
         pytest.skip("no shell fences on this page")
 
@@ -341,8 +361,12 @@ def test_sh_page_fences(page: Path, tmp_path: Path) -> None:
         )
 
     n_checked = 0
-    for i, (marker, code) in enumerate(fences):
+    for i, (origin, marker, code) in enumerate(fences):
         blockid = f"{page.relative_to(DOCS)}[sh-block {i}]"
+        make_dir = REPO
+        if origin != page:
+            blockid += f" (from {origin.relative_to(REPO)})"
+            make_dir = origin.parent
         no_exec = False
         if marker is not None:
             kind, _, reason = marker.partition("=")
@@ -350,6 +374,14 @@ def test_sh_page_fences(page: Path, tmp_path: Path) -> None:
             if kind == "skip":
                 assert reason.strip(), f"{blockid}: skip= needs a reason"
                 continue
+            if kind == "cwd":
+                # The fence runs from a directory other than its file's
+                # (a README step done "from doppler's root"): validate its
+                # `make` goals there. Repo-relative, like an include path.
+                make_dir = REPO / reason.strip()
+                assert make_dir.is_dir(), (
+                    f"{blockid}: cwd= {make_dir} is not a directory"
+                )
             if kind == "no-exec":
                 # Still parse-validated below -- just not run (the
                 # fence depends on context the page establishes outside
@@ -361,7 +393,7 @@ def test_sh_page_fences(page: Path, tmp_path: Path) -> None:
         cmd_lines = _command_lines(code, console=console)
 
         for line in cmd_lines:
-            _validate_cli_line(line, blockid)
+            _validate_cli_line(line, blockid, make_dir)
             n_checked += 1
 
         if not no_exec and _executable(code, cmd_lines, console):

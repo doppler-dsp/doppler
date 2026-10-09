@@ -1,0 +1,1 @@
+- **The first build after a compiler change no longer fails on protobuf-c (#1936).** When a build tree's vendored nats.c cache named a different C compiler, CMake deleted that cache and re-ran configure without doppler's `-D` options. NATS Streaming then defaulted to ON and asked for protobuf-c. The vendor is now configured from an empty directory each time it is built.

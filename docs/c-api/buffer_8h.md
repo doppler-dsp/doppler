@@ -430,16 +430,22 @@ It is a sibling of DECLARE\_DP\_BUFFER\_VIEW rather than part of DECLARE\_DP\_BU
 
 
 ```C++
-dp_f32_t *ring = dp_f32_create (4 * 8);
-dp_f32_framer_t fr;
-if (!ring || dp_f32_framer_init (&fr, ring, 8, 4) != DP_OK)
-  return 1;                                    // 8-sample frames, hop 4
-float _Complex x[10] = { 0 };
-size_t used = dp_f32_framer_feed_view (&fr, x, 10, 2);
-int rows = 0;
-while (dp_f32_framer_next_view (&fr))
-  rows++;                                      // 10 samples: frames at 0, 4
-dp_f32_destroy (ring);
+DECLARE_DP_BUFFER_FRAMES (f32, float, float _Complex)
+
+int main (void)
+{
+  dp_f32_t *ring = dp_f32_create (4 * 8);
+  dp_f32_framer_t fr;
+  if (!ring || dp_f32_framer_init (&fr, ring, 8, 4) != DP_OK)
+    return 1;                                  // 8-sample frames, hop 4
+  float _Complex x[12] = { 0 };
+  size_t used = dp_f32_framer_feed_view (&fr, x, 12, 2);
+  int rows = 0;
+  while (dp_f32_framer_next_view (&fr))
+    rows++;                                    // 12 samples: frames at 0, 4
+  dp_f32_destroy (ring);
+  return used > 0 && rows == 2 ? 0 : 1;
+}
 ```
  
 

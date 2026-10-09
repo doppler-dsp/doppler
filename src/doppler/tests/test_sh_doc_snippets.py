@@ -30,13 +30,20 @@ runbook confidently wrong at the one moment it is being followed, and
 the failure is ``No rule to make target`` in front of a human
 mid-release.
 
-**Execution** (fences that qualify): a fence whose every command is in a
-safe allowlist (``wfmgen``, ``cat``, ``echo``, ``printf``, ``ls``,
-``cd``, ``python``/``python3``) and that touches no live transport
-(``nats://``) runs end-to-end under ``bash -e`` in a throwaway cwd —
-``wfmgen`` is the real bundled binary, so a documented flag that does
-not exist fails here even though it has no Python parser. Repo-relative
-``src/...`` paths are rewritten absolute so fences run from the tmp dir.
+**Execution** (fences that qualify): a fence that runs ``wfmgen`` or
+``cat``, touches no live transport (``nats://``), streams no unbounded
+run and names no ``<placeholder>`` runs end-to-end under ``bash -e`` in a
+throwaway cwd — ``wfmgen`` is the real bundled binary, so a documented
+flag that does not exist fails here even though it has no Python parser.
+Repo-relative ``src/...`` paths are rewritten absolute so fences run from
+the tmp dir.
+
+Such a fence may only use the commands in ``_EXEC_ALLOWED``, the ones
+that are safe to run here. One that uses anything else **fails**, naming
+the command: before #1787 it was quietly parse-validated instead, so a
+``cmp`` that asserted the page's claim was run by nobody and passed.
+The fix is to add the command to ``_EXEC_ALLOWED`` when it is read-only
+and needs no network, or to mark the fence ``no-exec=REASON``.
 
 ``<!-- docs-snippet: skip=REASON -->`` works exactly as in the other
 gates (reason mandatory).
@@ -79,9 +86,22 @@ _EXCLUDED_RELPATHS = frozenset({"api.md", "benchmarks.md"})
 
 # Commands safe to actually execute inside a fence (no network, no
 # package managers, no state outside the tmp cwd). wfmgen is the real
-# bundled binary -- deterministic, file-writing only.
+# bundled binary -- deterministic, file-writing only. cmp and grep read
+# files and write nothing; a page uses them to assert its own claim
+# (#1787).
 _EXEC_ALLOWED = frozenset(
-    {"wfmgen", "cat", "echo", "printf", "ls", "cd", "python", "python3"}
+    {
+        "wfmgen",
+        "cat",
+        "echo",
+        "printf",
+        "ls",
+        "cd",
+        "python",
+        "python3",
+        "cmp",
+        "grep",
+    }
 )
 
 _HEREDOC_RE = re.compile(r"<<-?\s*'?(?P<tag>\w+)'?")
@@ -199,33 +219,64 @@ def _discover_pages() -> list[Path]:
     return pages
 
 
+def _quote_open(line: str) -> bool:
+    """True when ``line`` leaves a quoted string open for a later line.
+
+    Shell rules, through ``shlex``: a ``#`` starts a comment only outside
+    quotes, so a trailing ``# don't`` does not count as an open quote.
+    """
+    try:
+        shlex.split(line, comments=True)
+    except ValueError:
+        return True
+    return False
+
+
 def _command_lines(code: str, console: bool) -> list[str]:
     """Extract the command lines from a fence body.
 
     Skips comments, blank lines, and heredoc bodies; joins backslash
     continuations. In ``console`` fences only ``$ ``-prefixed lines are
     commands (the rest is displayed output).
+
+    A quoted string left open on one line continues onto the next, so a
+    multi-line ``python3 -c "..."`` is ONE command whose argument keeps its
+    newlines and indentation. Read line by line instead, its body became
+    commands named ``import`` and ``print(...)``, none of them allowlisted,
+    and the whole fence went unexecuted (#1787).
     """
     lines: list[str] = []
     heredoc_end: str | None = None
     pending = ""
+    in_quote = False
     for raw in code.splitlines():
         if heredoc_end is not None:
             if raw.strip() == heredoc_end:
                 heredoc_end = None
             continue
-        line = raw.strip()
-        if console:
-            if not line.startswith("$"):
+        if in_quote:
+            # The string's content, verbatim: no stripping, and a `#` in
+            # it is not a comment.
+            pending += "\n" + raw
+            if _quote_open(pending):
                 continue
-            line = line.lstrip("$").strip()
-        if not line or line.startswith("#"):
-            continue
-        if pending:
-            line = pending + " " + line
-            pending = ""
+            line, pending, in_quote = pending, "", False
+        else:
+            line = raw.strip()
+            if console:
+                if not line.startswith("$"):
+                    continue
+                line = line.lstrip("$").strip()
+            if not line or line.startswith("#"):
+                continue
+            if pending:
+                line = pending + " " + line
+                pending = ""
         if line.endswith("\\"):
             pending = line[:-1].strip()
+            continue
+        if _quote_open(line):
+            pending, in_quote = line, True
             continue
         m = _HEREDOC_RE.search(line)
         if m:
@@ -312,6 +363,12 @@ def _validate_cli_line(line: str, blockid: str, make_dir: Path = REPO) -> None:
 
 
 def _executable(code: str, cmd_lines: list[str], console: bool) -> bool:
+    """Whether the fence is one the gate runs.
+
+    Every ``False`` here is a property of the fence that makes running it
+    wrong or pointless, not a command the gate happens not to know. Those
+    are :func:`_unlisted`, and they fail rather than skip.
+    """
     if "nats://" in code:
         return False
     if "--realtime" in code or "--continuous" in code:
@@ -320,9 +377,13 @@ def _executable(code: str, cmd_lines: list[str], console: bool) -> bool:
         return False  # <placeholder> template invocation, not runnable
     if console and "<<" in code:
         return False  # heredoc bodies were elided from cmd_lines
-    if not any(line.split()[0] in ("wfmgen", "cat") for line in cmd_lines):
-        return False  # nothing worth executing / no state to establish
-    return all(line.split()[0] in _EXEC_ALLOWED for line in cmd_lines)
+    # nothing worth executing / no state to establish
+    return any(line.split()[0] in ("wfmgen", "cat") for line in cmd_lines)
+
+
+def _unlisted(cmd_lines: list[str]) -> list[str]:
+    """The commands a fence runs that are not in ``_EXEC_ALLOWED``."""
+    return sorted({line.split()[0] for line in cmd_lines} - _EXEC_ALLOWED)
 
 
 PAGES = _discover_pages()
@@ -397,6 +458,18 @@ def test_sh_page_fences(page: Path, tmp_path: Path) -> None:
             n_checked += 1
 
         if not no_exec and _executable(code, cmd_lines, console):
+            # A fence the gate would run, but for a command it does not
+            # know, is unchecked; it fails here rather than pass (#1787).
+            unlisted = _unlisted(cmd_lines)
+            assert not unlisted, (
+                f"{blockid}: this fence would execute, but it runs "
+                f"{', '.join(unlisted)}, which is not in _EXEC_ALLOWED. "
+                f"Unexecuted, nothing checks what it shows. Add the "
+                f"command to _EXEC_ALLOWED if it is read-only and needs no "
+                f"network, or mark the fence "
+                f"<!-- docs-snippet: no-exec=REASON -->.\n"
+                f"--- fence ---\n{code}"
+            )
             # Console fences carry displayed output -- execute only the
             # stripped command lines. sh/bash fences run verbatim (they
             # may contain heredocs the line extractor elides).

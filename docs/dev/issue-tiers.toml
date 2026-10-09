@@ -33,7 +33,7 @@ status = "open"
 [issue.635]
 tier = 4
 title = "Resampler's bank= is a working, undocumented constructor parameter"
-status = "open"
+status = "in review ([#1946](https://github.com/doppler-dsp/doppler/pull/1946))"
 
 [issue.639]
 tier = 5
@@ -79,11 +79,6 @@ status = "open"
 tier = 4
 title = "RateSync.clipped conflates transmitter over-drive with noise-crest clipping"
 status = "open"
-
-[issue.676]
-tier = 5
-title = "Telemetry: an over-long prefix silently aliases two probes onto one id, and the attach reports DP_OK"
-status = "in review ([#1898](https://github.com/doppler-dsp/doppler/pull/1898))"
 
 [issue.678]
 tier = 5
@@ -308,11 +303,6 @@ status = "open"
 [issue.919]
 tier = 1
 title = "libdoppler.a's declared link line is only checked where pthread is a separate library"
-status = "open"
-
-[issue.922]
-tier = 5
-title = "Two hand-written out= parameters are invisible to the stub they should be published in"
 status = "open"
 
 [issue.932]
@@ -579,7 +569,7 @@ status = "open"
 [issue.1297]
 tier = 5
 title = "A coverage.py database is tracked at the repo root: .coverage, committed in #537, and .gitignore has no rule for it"
-status = "open"
+status = "in review ([#1947](https://github.com/doppler-dsp/doppler/pull/1947))"
 
 [issue.1299]
 tier = 5
@@ -742,12 +732,6 @@ title = "Stub and extension disagree on a call signature in 10 sacred fragments 
 status = "open"
 why = "Stubs document call signatures the extensions refuse, e.g. HalfbandDecimator.execute(out=) raises TypeError"
 
-[issue.1446]
-tier = 5
-title = "89 binding fragments have stopped receiving just-makeit's fixes \u2014 measure, re-render the clean ones, ratchet the rest"
-status = "open"
-why = "The umbrella plan for sacred fragments jm no longer re-renders; its user-visible instance is #1654"
-
 [issue.1463]
 tier = 5
 title = "stream: _ready_queue timed out after 10s on a server-acked probe (test_push_pull_header_all_fields, py3.13 CI)"
@@ -793,7 +777,7 @@ why = "Two public primitives for one 0 -> +1, 1 -> -1 convention, and only one i
 [issue.1510]
 tier = 5
 title = "CI image repin bot commits a parentless snapshot; .coverage and stream.blue are tracked"
-status = "open"
+status = "in review ([#1947](https://github.com/doppler-dsp/doppler/pull/1947))"
 why = "The repin bot's commit has no parent and two generated files are tracked; landed by hand meanwhile"
 
 [issue.1530]
@@ -1182,7 +1166,7 @@ why = "#1923's split-invariance made 1-7 sample FIR calls 2.4-6x slower on AVX-5
 [issue.1933]
 tier = 0
 title = "FFT.execute_ci16/ci8 accept an odd-length input and ignore the stray last value"
-status = "open"
+status = "in review ([#1945](https://github.com/doppler-dsp/doppler/pull/1945))"
 why = "FFT.execute_ci16/ci8 silently ignore a stray last value in an odd-length input"
 
 [issue.1936]
@@ -1200,7 +1184,7 @@ why = "wfm Reader Python bench cells moved +11%/+21% in v0.65.0 with no measured
 [issue.1940]
 tier = 5
 title = "build: nothing pins uv, so uv.lock's marker spelling flips with whoever re-locks it (308 lines in the v0.65.0 release commit)"
-status = "open"
+status = "in review ([#1949](https://github.com/doppler-dsp/doppler/pull/1949))"
 why = "Nothing pins uv, so a re-lock rewrites uv.lock's marker spelling"
 
 [issue.1941]
@@ -1220,3 +1204,9 @@ tier = 2
 title = "Telemetry: test the overlong-prefix refusal at every set_telemetry face, and gate the one-place probe-name join (#1898 follow-up)"
 status = "open"
 why = "8 of 10 set_telemetry sites have no overlong-prefix test, and the one-place join has no gate"
+
+[issue.1950]
+tier = 1
+title = "ci: Docker, glibc and package-smoke legs pull stock images from Docker Hub anonymously and fail on its 429 rate limit when several PRs are in flight"
+status = "open"
+why = "CI legs fail on Docker Hub anonymous pull quota, not on the code"

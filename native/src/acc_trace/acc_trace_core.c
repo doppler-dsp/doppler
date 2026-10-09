@@ -10,10 +10,24 @@
 #include "doppler/acc_trace/acc_trace_core.h"
 #include "doppler/util/util_core.h"
 
+/* The one alpha rule, for create() and the setter alike.  Only the EMA reads
+ * alpha, and there it must be a smoothing factor in (0, 1]: 0 never leaves
+ * the first frame, a negative one extrapolates away from the data, and above
+ * 1 dp_ema_step saturates to pass-through -- none of them is an average.
+ * (dp_ema_step itself keeps alpha = 0 as "freeze"; this is AccTrace's
+ * contract, not the primitive's.)  The negated form also refuses a NaN. */
+static int
+acc_trace_alpha_ok (int mode, double alpha)
+{
+  return mode != ACC_TRACE_EXP || (alpha > 0.0 && alpha <= 1.0);
+}
+
 dp_acc_trace_state_t *
 dp_acc_trace_create (size_t n, int mode, double alpha)
 {
   if (n == 0 || mode < ACC_TRACE_MEAN || mode > ACC_TRACE_MINHOLD)
+    return NULL;
+  if (!acc_trace_alpha_ok (mode, alpha))
     return NULL;
 
   dp_acc_trace_state_t *s = (dp_acc_trace_state_t *)calloc (1, sizeof (*s));
@@ -32,6 +46,15 @@ dp_acc_trace_create (size_t n, int mode, double alpha)
   s->alpha = alpha;
   s->count = 0;
   return s;
+}
+
+int
+dp_acc_trace_set_alpha (dp_acc_trace_state_t *state, double alpha)
+{
+  if (!acc_trace_alpha_ok ((int)state->mode, alpha))
+    return DP_ERR_INVALID;
+  state->alpha = alpha;
+  return DP_OK;
 }
 
 void

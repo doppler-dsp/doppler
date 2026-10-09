@@ -54,6 +54,48 @@ def test_alpha_writable():
     assert abs(a.alpha - 0.25) < 1e-9
 
 
+BAD_ALPHAS = [0.0, -0.5, 1.5, float("nan")]
+
+
+@pytest.mark.parametrize("alpha", BAD_ALPHAS)
+def test_exp_refuses_alpha_outside_unit_interval(alpha):
+    # Outside (0, 1] the EMA is not an average: 0 never leaves the first
+    # frame, -0.5 reads negative power, 1.5 saturates to pass-through, NaN
+    # poisons every bin. create() refuses, which surfaces as MemoryError
+    # (no create_error is declared yet: #1986).
+    with pytest.raises(MemoryError):
+        AccTrace(n=4, mode="exp", alpha=alpha)
+
+
+@pytest.mark.parametrize("alpha", [1.0, 0.25, 1e-9])
+def test_exp_accepts_alpha_inside_unit_interval(alpha):
+    # The refusal's precondition: the nearest valid values still build.
+    assert AccTrace(n=4, mode="exp", alpha=alpha).alpha == alpha
+
+
+@pytest.mark.parametrize("mode", ["mean", "maxhold", "minhold"])
+@pytest.mark.parametrize("alpha", BAD_ALPHAS)
+def test_modes_that_never_read_alpha_accept_any(mode, alpha):
+    a = AccTrace(n=4, mode=mode, alpha=alpha)
+    a.alpha = alpha
+    assert a.alpha == alpha or (np.isnan(alpha) and np.isnan(a.alpha))
+
+
+@pytest.mark.parametrize("alpha", BAD_ALPHAS)
+def test_exp_setter_keeps_alpha_on_refusal(alpha):
+    # The setter applies create()'s rule in C (dp_acc_trace_set_alpha): a
+    # refused value leaves alpha as it was, so the trace stays an average.
+    # It does so SILENTLY: jm cannot yet render a property setter that
+    # raises (just-makeit#2182). When it can, this becomes pytest.raises
+    # (#1987).
+    a = AccTrace(n=2, mode="exp", alpha=0.5)
+    a.alpha = alpha
+    assert a.alpha == 0.5
+    a.accumulate(np.array([10.0, 20.0], dtype=np.float32))
+    a.accumulate(np.array([2.0, 4.0], dtype=np.float32))
+    np.testing.assert_allclose(a.value(), [6.0, 12.0])
+
+
 def test_bad_mode_raises():
     with pytest.raises(ValueError):
         AccTrace(n=4, mode="bogus")

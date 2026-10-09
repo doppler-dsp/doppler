@@ -63,7 +63,7 @@ _PSD — averaging power-spectral-density estimator (Welch's method) and spectra
 | ---: | :--- |
 |  void | [**dp\_psd\_accumulate**](#function-dp_psd_accumulate) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len) <br>_Window, FFT and fold complex baseband frames into the average. Processes floor(n\_in / n) full frames; a trailing partial frame is ignored._  |
 |  void | [**dp\_psd\_accumulate\_real**](#function-dp_psd_accumulate_real) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, const float \* x, size\_t x\_len) <br>_Window, zero-pad, FFT and fold real frames into the average. The real-input counterpart to_ [_**dp\_psd\_accumulate()**_](psd__core_8h.md#function-dp_psd_accumulate) _: each length-n frame is windowed, zero-padded to nfft, transformed and folded as a DC-centred two-sided power spectrum (a real frame is Hermitian, so the +k and -k bins carry equal power). Read the one-sided fold with_[_**dp\_psd\_power\_onesided()**_](psd__core_8h.md#function-dp_psd_power_onesided) _. Processes floor(n\_in / n) full frames._ |
-|  size\_t | [**dp\_psd\_band\_power**](#function-dp_psd_band_power) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, const double \* bands, size\_t bands\_len, float \* out, size\_t max\_out) <br>_Integrated power per band in dB._ `bands` _is a flat array of_`[lo0, hi0, lo1, hi1, ...]` _band edges in Hz; the output holds one dB value per band (n\_bands = bands\_len / 2). Edges are clamped to the analysed span; a band fully outside the span integrates to the dB floor. Returns 0 before any frame is accumulated._ |
+|  size\_t | [**dp\_psd\_band\_power**](#function-dp_psd_band_power) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, const double \* bands, size\_t bands\_len, float \* out, size\_t max\_out) <br>_Integrated power per band in dB._ `bands` _is a flat array of_`[lo0, hi0, lo1, hi1, ...]` _band edges in Hz; the output holds one dB value per band (n\_bands = bands\_len / 2). Edges are clamped to the analysed span; a band fully outside the span integrates to the dB floor. Returns 0 (Python None) when there is nothing to report: before any frame is accumulated, or when_`bands` _holds no complete lo/hi pair._ |
 |  size\_t | [**dp\_psd\_band\_power\_max\_out**](#function-dp_psd_band_power_max_out) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Output capacity hint for band\_power(); 0 (binding sizes from bands)._  |
 |  [**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* | [**dp\_psd\_create**](#function-dp_psd_create) (size\_t n, double fs, int window, float beta, size\_t pad, double full\_scale, size\_t bits, int mode, double alpha) <br>_Create an averaging PSD estimator._  |
 |  void | [**dp\_psd\_destroy**](#function-dp_psd_destroy) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Destroy a PSD instance and release all memory._  |
@@ -79,7 +79,7 @@ _PSD — averaging power-spectral-density estimator (Welch's method) and spectra
 |  size\_t | [**dp\_psd\_psd\_db**](#function-dp_psd_psd_db) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, size\_t n, float \* out, size\_t max\_out) <br>_Averaged power spectrum in dB, DC-centred. Normalised by window coherent gain so a full-scale tone reads its true power (a unit-amplitude tone peaks near 0 dB). Returns 0 (Python None) before any frame is accumulated._  |
 |  size\_t | [**dp\_psd\_psd\_db\_max\_out**](#function-dp_psd_psd_db_max_out) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Output capacity hint for psd\_db(); equals nfft._  |
 |  size\_t | [**dp\_psd\_psd\_dbhz**](#function-dp_psd_psd_dbhz) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, size\_t n, float \* out, size\_t max\_out) <br>_Averaged power spectral density in dB/Hz, DC-centred. Normalised by_ `fs * sum(w^2)` _(ENBW-aware), the standard one-sided-free PSD scaling. Differs from psd\_db() by the constant_`10*log10(cg^2/(fs*s2))` _. Returns 0 (Python None) before any frame is accumulated._ |
-|  size\_t | [**dp\_psd\_psd\_dbhz\_max\_out**](#function-dp_psd_psd_dbhz_max_out) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Output capacity hint for psd\_dbhz(); equals n._  |
+|  size\_t | [**dp\_psd\_psd\_dbhz\_max\_out**](#function-dp_psd_psd_dbhz_max_out) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Output capacity hint for psd\_dbhz(); equals nfft._  |
 |  void | [**dp\_psd\_reset**](#function-dp_psd_reset) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Discard the running average; the next accumulate re-seeds it._  |
 |  int | [**dp\_psd\_set\_state**](#function-dp_psd_set_state) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, const void \* blob) <br> |
 |  double | [**dp\_psd\_sfdr**](#function-dp_psd_sfdr) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, float min\_db) <br>_Spurious-free dynamic range in dB from the two strongest peaks._  |
@@ -123,7 +123,7 @@ _PSD — averaging power-spectral-density estimator (Welch's method) and spectra
 ## Detailed Description
 
 
-A stateful, C-first periodogram averager (Welch's method). It composes the existing pieces of the library rather than re-implementing them: an [**dp\_fft\_state\_t**](structdp__fft__state__t.md) forward plan, a spectral window (Hann or Kaiser) with its coherent gain and ENBW, an [**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) per-bin power averager (mean / EMA / max-hold / min-hold), and the spectral free functions ([**dp\_magnitude\_db\_cf32**](spectral__core_8h.md#function-dp_magnitude_db_cf32), [**dp\_find\_peaks\_f32**](spectral__core_8h.md#function-dp_find_peaks_f32), [**dp\_obw\_from\_power**](spectral__core_8h.md#function-dp_obw_from_power), [**dp\_noise\_floor\_db**](spectral__core_8h.md#function-dp_noise_floor_db)) for the derived measurements.
+A stateful, C-first periodogram averager (Welch's method). It composes the existing pieces of the library rather than re-implementing them: an [**dp\_fft\_state\_t**](structdp__fft__state__t.md) forward plan, a spectral window (Hann, Kaiser, Blackman-Harris or rectangular) with its coherent gain and ENBW, an [**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) per-bin power averager (mean / EMA / max-hold / min-hold), and the spectral free functions ([**dp\_magnitude\_db\_cf32**](spectral__core_8h.md#function-dp_magnitude_db_cf32), [**dp\_find\_peaks\_f32**](spectral__core_8h.md#function-dp_find_peaks_f32), [**dp\_obw\_from\_power**](spectral__core_8h.md#function-dp_obw_from_power), [**dp\_noise\_floor\_db**](spectral__core_8h.md#function-dp_noise_floor_db)) for the derived measurements.
 
 
 Feed complex baseband frames with [**dp\_psd\_accumulate()**](psd__core_8h.md#function-dp_psd_accumulate); each length-n frame is windowed, FFT'd, converted to power, fftshifted to DC-centred order and folded into the running average. Then read:
@@ -136,7 +136,7 @@ Feed complex baseband frames with [**dp\_psd\_accumulate()**](psd__core_8h.md#fu
 
 
 
-All spectra are DC-centred (fftshift), matching find\_peaks\_f32's bin -&gt; frequency convention (bin i maps to (i - n/2)/n in normalised frequency, so spectral peaks are obtained idiomatically with `find_peaks_f32(w.psd_db(), n_peaks, min_db)`).
+All spectra are DC-centred (fftshift), matching find\_peaks\_f32's bin -&gt; frequency convention (bin i maps to (i - nfft/2)/nfft in normalised frequency, so spectral peaks are obtained idiomatically with `find_peaks_f32(w.psd_db(), n_peaks, min_db)`).
 
 
 Lifecycle: create -&gt; (accumulate / reset)\* -&gt; (measurement getters)\* -&gt; destroy 
@@ -230,7 +230,7 @@ void dp_psd_accumulate_real (
 
 ### function dp\_psd\_band\_power 
 
-_Integrated power per band in dB._ `bands` _is a flat array of_`[lo0, hi0, lo1, hi1, ...]` _band edges in Hz; the output holds one dB value per band (n\_bands = bands\_len / 2). Edges are clamped to the analysed span; a band fully outside the span integrates to the dB floor. Returns 0 before any frame is accumulated._
+_Integrated power per band in dB._ `bands` _is a flat array of_`[lo0, hi0, lo1, hi1, ...]` _band edges in Hz; the output holds one dB value per band (n\_bands = bands\_len / 2). Edges are clamped to the analysed span; a band fully outside the span integrates to the dB floor. Returns 0 (Python None) when there is nothing to report: before any frame is accumulated, or when_`bands` _holds no complete lo/hi pair._
 ```C++
 size_t dp_psd_band_power (
     dp_psd_state_t * state,
@@ -258,7 +258,7 @@ size_t dp_psd_band_power (
 
 **Returns:**
 
-min(n\_bands, max\_out), or 0 if empty.
+The number of bands written, min(n\_bands, max\_out); 0 (Python None) when there is nothing to report.
 
 
 
@@ -321,20 +321,20 @@ dp_psd_state_t * dp_psd_create (
 
 
 * `n` Window / frame length in samples. Must be &gt;= 2. 
-* `fs` Sample rate in Hz (used for dB/Hz and band frequencies). 
+* `fs` Sample rate in Hz (used for dB/Hz and band frequencies); finite and &gt; 0. 
 * `window` Window index: 0 = Hann, 1 = Kaiser, 2 = Blackman-Harris, 3 = rectangular (no taper: best resolution, worst leakage). 
-* `beta` Kaiser beta (ignored for Hann/Blackman-Harris). 
-* `pad` Zero-pad factor (&gt;= 1); nfft = next\_pow\_two(n \* pad). 
-* `full_scale` Amplitude that reads 0 dBFS in the dB getters (&gt; 0). Ignored when `bits` &gt; 0. 
-* `bits` ADC depth: when &gt; 0, sets full\_scale = 2^(bits-1) (the single definition of the dBFS reference); 0 = use `full_scale` directly. 
+* `beta` Kaiser beta (ignored by every other window). One that makes the window non-finite  NaN, or large enough to overflow it  is refused. 
+* `pad` Zero-pad factor (&gt;= 1; 0 is refused); nfft = next\_pow\_two(n \* pad). 
+* `full_scale` Amplitude that reads 0 dBFS in the dB getters; finite and &gt; 0. Ignored when `bits` &gt; 0. 
+* `bits` ADC depth: when &gt; 0, sets full\_scale = 2^(bits-1) (the single definition of the dBFS reference); 0 = use `full_scale` directly. At most 64. 
 * `mode` Averaging mode index (0=mean, 1=exp, 2=maxhold, 3=minhold). 
-* `alpha` EMA smoothing factor (exp mode only). 
+* `alpha` EMA smoothing factor, exp mode only, where it must lie in (0, 1]: the rule is the AccTrace averager's, whose create refuses anything else, so this does too. Ignored, and so not checked, in the other modes. 
 
 
 
 **Returns:**
 
-Heap-allocated state, or NULL on invalid argument or OOM. 
+Heap-allocated state, or NULL on invalid argument or OOM. A window whose coherent gain sum(w) is 0  Hann at n = 2, whose symmetric form is all zeros  is refused too: every reading divides by it. So is an `n` or `n` \* `pad` too large for its buffers to be sized, rather than wrapped to a small one. 
 
 
 
@@ -524,22 +524,36 @@ double dp_psd_occupied_bw (
 
 
 
+Calls obw\_from\_power on the averaged spectrum, so the search and its domain are that function's and the two cannot disagree.
+
+
 
 
 **Parameters:**
 
 
 * `state` Must be non-NULL. 
-* `fraction` Power fraction in (0, 1], e.g. 0.99. 
+* `fraction` Power fraction in the OPEN interval (0, 1), e.g. 0.99. 1 is excluded: all of the power in float is every bin that rounding residue reached, which has no stable answer. 
 
 
 
 **Returns:**
 
-Occupied bandwidth in Hz (0 if empty or no power). 
+Occupied bandwidth in Hz (0 if empty or no power); NaN when `fraction` is outside (0, 1), before any frame too, rather than a silently clamped answer.
 
 
 
+```C++
+>>> import numpy as np
+>>> from doppler.spectral import PSD
+>>> w = PSD(n=64, fs=64.0, window="rect")
+>>> w.accumulate(np.ones(64, dtype=np.complex64))  # all power at DC
+>>> w.occupied_bw(0.99)                            # one bin, fs / 64
+1.0
+>>> w.occupied_bw(1.0)                             # outside (0, 1)
+nan
+```
+ 
 
 
         
@@ -680,15 +694,15 @@ size_t dp_psd_psd_db (
 
 
 * `state` Must be non-NULL. 
-* `n` Caller buffer capacity (ignored; buffer is pre-sized to n). 
-* `out` Destination, at least n float32 elements. 
+* `n` Caller buffer capacity (ignored; buffer is pre-sized to nfft). 
+* `out` Destination, at least nfft float32 elements. 
 * `max_out` Capacity of `out` in elements. Emission stops there, so the return value is the number actually written. 
 
 
 
 **Returns:**
 
-min(n, max\_out), or 0 if empty. 
+min(nfft, max\_out), or 0 if empty. 
 
 
 
@@ -751,7 +765,7 @@ True
 
 ### function dp\_psd\_psd\_dbhz\_max\_out 
 
-_Output capacity hint for psd\_dbhz(); equals n._ 
+_Output capacity hint for psd\_dbhz(); equals nfft._ 
 ```C++
 size_t dp_psd_psd_dbhz_max_out (
     dp_psd_state_t * state

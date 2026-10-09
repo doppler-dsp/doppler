@@ -4,6 +4,7 @@ DC-centred linear-power spectrum.
 ``obw_from_power(pwr, fs, frac)`` returns the width of the central interval
 that holds ``frac`` of the total power, excluding ``(1-frac)/2`` of the power
 from each tail symmetrically. Result is ``(ihi - ilo + 1) * fs / len(pwr)``.
+``frac`` must lie in the open interval (0, 1); outside it the answer is NaN.
 """
 
 import numpy as np
@@ -54,3 +55,25 @@ def test_per_bin_normalisation_cancels():
     assert obw_from_power(pwr, fs, frac) == pytest.approx(
         obw_from_power(pwr * 1e6, fs, frac)
     )
+
+
+@pytest.mark.parametrize("frac", [0.0, -1.0, 1.0, 1.5, float("nan")])
+def test_fraction_outside_open_unit_interval_is_nan(frac):
+    # The domain is the open interval (0, 1): outside it there is no such
+    # bandwidth, so the answer is NaN rather than a clamped width, whatever
+    # the data. 1 is outside -- "all of the power" is every bin float
+    # residue reached. PSD.occupied_bw calls this same function.
+    pwr = np.zeros(64, dtype=np.float64)
+    pwr[32] = 1.0
+    assert np.isnan(obw_from_power(pwr, 64.0, frac))
+    assert np.isnan(obw_from_power(np.zeros(64, dtype=np.float64), 64.0, frac))
+    assert np.isnan(obw_from_power(np.array([], dtype=np.float64), 1.0, frac))
+
+
+@pytest.mark.parametrize("frac", [1e-9, 0.999999])
+def test_fraction_just_inside_still_answers(frac):
+    # The refusal's precondition: the nearest values inside the domain still
+    # give the one-bin width.
+    pwr = np.zeros(64, dtype=np.float64)
+    pwr[32] = 1.0
+    assert obw_from_power(pwr, 64.0, frac) == 1.0

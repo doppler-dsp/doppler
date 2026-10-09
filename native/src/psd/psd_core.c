@@ -34,20 +34,41 @@ dp_psd_create (size_t n, double fs, int window, float beta, size_t pad,
 {
   /* The single definition of the dBFS reference: bits>0 selects an ADC
    * full scale (2^(bits-1)); otherwise full_scale is the analog/general ref.
-   */
+   * bits is a depth an ADC has: past 64 the reference outgrows any sample
+   * format, and the cast to int below would be undefined past INT_MAX. */
+  if (bits > 64)
+    return NULL;
   if (bits > 0)
     full_scale = ldexp (1.0, (int)bits - 1);
-  if (n < 2 || fs <= 0.0 || window < 0 || window > 3 || full_scale <= 0.0)
+  /* fs and full_scale divide every reading, so each must be a finite
+   * positive number; the negated form also refuses a NaN, which passed a
+   * plain `<= 0.0` and built an estimator that read NaN. */
+  if (n < 2 || pad < 1 || !(fs > 0.0 && isfinite (fs)) || window < 0
+      || window > 3 || !(full_scale > 0.0 && isfinite (full_scale)))
     return NULL;
   if (mode < ACC_TRACE_MEAN || mode > ACC_TRACE_MINHOLD)
     return NULL;
-  if (pad < 1)
-    pad = 1;
+  /* alpha is not checked here: its rule is the averager's, and an exp-mode
+   * alpha outside (0, 1] makes dp_acc_trace_create, below, return NULL. */
+  /* Every buffer is sized from n or nfft = next_pow_two(n * pad), the
+   * largest nfft complex floats, so n * pad may not pass the largest power
+   * of two whose complex buffer has a byte count a size_t holds (2^60 on a
+   * 64-bit size_t).  Refused here, before the product is formed and before
+   * any allocation: n * pad wrapped -- n = 2, pad = 2^63 read nfft = 1 and
+   * a frame of n samples into a 1-sample buffer -- and so did the byte
+   * counts, n = 2^62 asking malloc for 0 bytes that the window fill then
+   * ran off.  Not left to calloc's own overflow check: ASan and TSan
+   * report an overflowing calloc as an error rather than a NULL. */
+  const size_t top_pow2 = (((size_t)-1 / sizeof (float _Complex)) >> 1) + 1;
+  if (pad > top_pow2 / n)
+    return NULL;
 
   dp_psd_state_t *s = (dp_psd_state_t *)calloc (1, sizeof (*s));
   if (!s)
     return NULL;
 
+  /* Caller-sized, so each can still fail, and does return NULL: not
+   * dp_xmalloc, which is for trusted sizes and would abort instead. */
   const size_t nfft = dp_next_pow_two (n * pad);
   s->n              = n;
   s->nfft           = nfft;
@@ -80,6 +101,17 @@ dp_psd_create (size_t n, double fs, int window, float beta, size_t pad,
     {
       cg += (double)s->w[i];
       s2 += (double)s->w[i] * (double)s->w[i];
+    }
+  /* Every reading divides by cg^2 (or s2): a window that sums to zero --
+   * the symmetric Hann at n = 2 is [0, 0] -- would read NaN, or the -200 dB
+   * floor for any input, so it is refused here (#1911 (f)).  So is one that
+   * is not a finite number: a Kaiser beta of NaN, or one large enough that
+   * I0 overflows, makes every tap NaN.  Not a threshold on the size:
+   * Blackman-Harris at n = 2 sums to 1.2e-4, tiny but valid. */
+  if (!(cg > 0.0 && isfinite (cg)))
+    {
+      dp_psd_destroy (s);
+      return NULL;
     }
   s->cg   = cg;
   s->s2   = s2;
@@ -480,39 +512,17 @@ dp_psd_total_band_power (dp_psd_state_t *state, const double *bands,
 double
 dp_psd_occupied_bw (dp_psd_state_t *state, double fraction)
 {
-  if (!psd_pull_power (state))
-    return 0.0;
-  const size_t n   = state->nfft;
-  const double cg2 = state->cg * state->cg;
-
-  double total = 0.0;
-  for (size_t i = 0; i < n; i++)
-    total += (double)state->pwr[i] / cg2;
-  if (total <= 0.0)
-    return 0.0;
-
-  const double lower = (1.0 - fraction) * 0.5 * total;
-  const double upper = (1.0 + fraction) * 0.5 * total;
-
-  double cum    = 0.0;
-  size_t ilo    = 0;
-  size_t ihi    = n - 1;
-  int    got_lo = 0;
-  for (size_t i = 0; i < n; i++)
-    {
-      cum += (double)state->pwr[i] / cg2;
-      if (!got_lo && cum >= lower)
-        {
-          ilo    = i;
-          got_lo = 1;
-        }
-      if (cum >= upper)
-        {
-          ihi = i;
-          break;
-        }
-    }
-  return ((double)(ihi - ilo) + 1.0) * state->fs / (double)n;
+  /* The search, and the rule that a fraction outside (0, 1) reads NaN, are
+   * dp_obw_from_power's; this only hands it the averaged power, which the
+   * averager already holds DC-centred and in double (avg->acc), so there is
+   * nothing to copy or widen.  Before any frame it is handed no bins, so it
+   * still answers NaN for a bad fraction and 0 for a good one.  The power is
+   * not divided by cg^2: OBW is a ratio of power sums, so the scale cancels
+   * -- and without the division equal bins sum exactly, so an edge landing
+   * exactly on a bin boundary resolves exactly.  The private copy this
+   * replaced divided, and missed such a tie by one bin. */
+  const size_t n = state->avg->count ? state->nfft : 0;
+  return dp_obw_from_power (state->avg->acc, n, state->fs, fraction);
 }
 
 double

@@ -82,6 +82,68 @@ main (void)
     dp_acc_trace_destroy (obj);
   }
 
+  /* ── EXP alpha lies in (0, 1], at create and through the setter ────────
+   * Outside it the EMA is not an average: 0 never leaves the first frame,
+   * -0.5 extrapolates away from the data (a power trace goes negative), 1.5
+   * saturates to pass-through in dp_ema_step, NaN poisons every bin
+   * (#1911 (c)).  Each refusal sits beside its precondition: the nearest
+   * valid values are accepted, and the three modes that never read alpha
+   * accept every value, at create and through the setter. */
+  {
+    const double bad[]  = { 0.0, -0.5, 1.5, NAN };
+    const double good[] = { 1.0, 0.25, 1e-9 };
+    const int    no_read[]
+        = { ACC_TRACE_MEAN, ACC_TRACE_MAXHOLD, ACC_TRACE_MINHOLD };
+    const size_t n_bad     = sizeof bad / sizeof bad[0];
+    const size_t n_good    = sizeof good / sizeof good[0];
+    const size_t n_no_read = sizeof no_read / sizeof no_read[0];
+
+    for (size_t i = 0; i < n_bad; i++)
+      {
+        DP_CHECK (dp_acc_trace_create (4, ACC_TRACE_EXP, bad[i]) == NULL);
+        for (size_t k = 0; k < n_no_read; k++)
+          {
+            dp_acc_trace_state_t *m
+                = dp_acc_trace_create (4, no_read[k], bad[i]);
+            DP_CHECK (m != NULL);
+            if (m)
+              DP_CHECK (dp_acc_trace_set_alpha (m, bad[i]) == DP_OK);
+            dp_acc_trace_destroy (m);
+          }
+      }
+    for (size_t i = 0; i < n_good; i++)
+      {
+        dp_acc_trace_state_t *e
+            = dp_acc_trace_create (4, ACC_TRACE_EXP, good[i]);
+        DP_CHECK (e != NULL);
+        dp_acc_trace_destroy (e);
+      }
+
+    /* The setter applies the same rule: a refused alpha leaves the one the
+     * trace had, and the trace still averages with it. */
+    dp_acc_trace_state_t *e = dp_acc_trace_create (2, ACC_TRACE_EXP, 0.5);
+    DP_REQUIRE (e != NULL);
+    for (size_t i = 0; i < n_bad; i++)
+      {
+        DP_CHECK (dp_acc_trace_set_alpha (e, bad[i]) == DP_ERR_INVALID);
+        DP_CHECK (e->alpha == 0.5);
+      }
+    float s[2] = { 10, 20 };
+    float u[2] = { 2, 4 };
+    float out[2];
+    dp_acc_trace_accumulate (e, s, 2);
+    dp_acc_trace_accumulate (e, u, 2);
+    dp_acc_trace_value (e, 2, out, 2);
+    DP_CHECK (fabsf (out[0] - 6.0f) < TOL); /* 0.5*2 + 0.5*10, not -0.5's */
+    DP_CHECK (fabsf (out[1] - 12.0f) < TOL);
+    for (size_t i = 0; i < n_good; i++)
+      {
+        DP_CHECK (dp_acc_trace_set_alpha (e, good[i]) == DP_OK);
+        DP_CHECK (e->alpha == good[i]);
+      }
+    dp_acc_trace_destroy (e);
+  }
+
   /* ── MAXHOLD / MINHOLD per bin ──────────────────────────────────────── */
   {
     dp_acc_trace_state_t *mx = dp_acc_trace_create (3, ACC_TRACE_MAXHOLD, 0.1);

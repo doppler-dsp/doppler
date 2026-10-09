@@ -69,6 +69,7 @@ _AccTrace — per-bin vector trace accumulator._ [More...](#detailed-description
 |  void | [**dp\_acc\_trace\_destroy**](#function-dp_acc_trace_destroy) ([**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state) <br>_Destroy an AccTrace instance and release all memory._  |
 |  void | [**dp\_acc\_trace\_get\_state**](#function-dp_acc_trace_get_state) (const [**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state, void \* blob) <br> |
 |  void | [**dp\_acc\_trace\_reset**](#function-dp_acc_trace_reset) ([**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state) <br>_Discard the running trace; the next accumulate re-seeds it. The mode, alpha, and length are preserved._  |
+|  int | [**dp\_acc\_trace\_set\_alpha**](#function-dp_acc_trace_set_alpha) ([**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state, double alpha) <br>_Set the EMA smoothing factor, under_ [_**dp\_acc\_trace\_create()**_](acc__trace__core_8h.md#function-dp_acc_trace_create) _'s rule._ |
 |  int | [**dp\_acc\_trace\_set\_state**](#function-dp_acc_trace_set_state) ([**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state, const void \* blob) <br> |
 |  size\_t | [**dp\_acc\_trace\_state\_bytes**](#function-dp_acc_trace_state_bytes) (const [**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state) <br> |
 |  size\_t | [**dp\_acc\_trace\_value**](#function-dp_acc_trace_value) ([**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state, size\_t n, float \* out, size\_t max\_out) <br>_Return the current reduced trace, one value per bin. Copies the full length-n trace out to the caller and returns the number of samples written; the Python wrapper turns that into a fresh float32 array of the reduced trace (the running mean, EMA, max-hold, or min-hold, per the construction_ `mode` _). Before any frame has been accumulated the trace is empty: the count is 0, which the wrapper renders as_`None` _. Reading is non-destructive — the running trace keeps accumulating across later frames._ |
@@ -213,13 +214,13 @@ dp_acc_trace_state_t * dp_acc_trace_create (
 
 * `n` Trace length in bins. Must be &gt; 0; returns NULL otherwise. 
 * `mode` Reduction mode index (0=mean, 1=exp, 2=maxhold, 3=minhold). 
-* `alpha` EMA smoothing factor used only by `exp` mode (0 &lt; alpha &lt;= 1). 
+* `alpha` EMA smoothing factor, read only by `exp` mode, where it must lie in (0, 1]. Outside it the trace is not an average: 0 never leaves the first frame, a negative alpha extrapolates away from the data (a power trace goes negative), and above 1 the EMA step saturates to pass-through. A NaN is refused too. Ignored, and so not checked, in the other modes. 
 
 
 
 **Returns:**
 
-Heap-allocated state, or NULL on invalid argument or OOM. 
+Heap-allocated state, or NULL on invalid argument (including an exp-mode `alpha` outside (0, 1]) or OOM. 
 
 
 
@@ -317,6 +318,45 @@ void dp_acc_trace_reset (
 0
 ```
  
+
+
+        
+
+<hr>
+
+
+
+### function dp\_acc\_trace\_set\_alpha 
+
+_Set the EMA smoothing factor, under_ [_**dp\_acc\_trace\_create()**_](acc__trace__core_8h.md#function-dp_acc_trace_create) _'s rule._
+```C++
+int dp_acc_trace_set_alpha (
+    dp_acc_trace_state_t * state,
+    double alpha
+) 
+```
+
+
+
+In `exp` mode an `alpha` outside (0, 1], or a NaN, is refused and the trace keeps the alpha it had; the other modes never read it and accept any value, as create() does. The running trace is not touched either way.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `alpha` New smoothing factor. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID when refused (state unchanged). 
+
+
+
 
 
         

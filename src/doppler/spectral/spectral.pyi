@@ -1573,8 +1573,9 @@ class PSD:
         Window / frame length in samples. Must be >= 2.
     fs : float, default 1.0
         Sample rate in Hz (used for dB/Hz and band frequencies).
-    window : Literal["hann", "kaiser", "blackman-harris"], default "hann"
-        Window index: 0 = Hann, 1 = Kaiser, 2 = Blackman-Harris.
+    window : Literal["hann", "kaiser", "blackman-harris", "rect"], default "hann"
+        Window index: 0 = Hann, 1 = Kaiser, 2 = Blackman-Harris, 3 =
+        rectangular (no taper: best resolution, worst leakage).
     beta : float, default 0.0
         Kaiser beta (ignored for Hann/Blackman-Harris).
     pad : int, default 1
@@ -1605,7 +1606,7 @@ class PSD:
         self,
         n: int = 1024,
         fs: float = 1.0,
-        window: Literal["hann", "kaiser", "blackman-harris"] = "hann",
+        window: Literal["hann", "kaiser", "blackman-harris", "rect"] = "hann",
         beta: float = 0.0,
         pad: int = 1,
         full_scale: float = 1.0,

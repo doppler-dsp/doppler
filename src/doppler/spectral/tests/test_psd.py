@@ -172,6 +172,29 @@ def test_bad_window_raises():
         PSD(n=64, window="triangle")
 
 
+def test_rect_window_reads_a_bin_tone_at_true_level():
+    """The rectangular window is a real choice, not an alias for another.
+
+    No taper means the coherent gain is n and the equivalent noise bandwidth is
+    exactly one bin; a unit tone on a bin still reads 0 dB because the dB
+    reference divides by the coherent gain squared, whatever the window.
+    """
+    n, k = 64, 5
+    w = PSD(n=n, fs=1.0, window="rect", mode="mean")
+    assert w.enbw == pytest.approx(1.0)
+    w.accumulate(_tone(n, k))
+    psd = w.psd_db()
+    assert int(np.argmax(psd)) == n // 2 + k
+    assert float(psd[n // 2 + k]) == pytest.approx(0.0, abs=1e-3)
+    # and it is NOT Hann: Hann widens the bin
+    assert PSD(n=n, fs=1.0, window="hann").enbw > 1.4
+
+
+def test_bad_window_message_lists_rect():
+    with pytest.raises(ValueError, match="rect"):
+        PSD(n=64, window="triangle")
+
+
 def test_context_manager():
     with PSD(n=64, fs=1.0, mode="mean") as w:
         w.accumulate(np.ones(64, dtype=np.complex64))

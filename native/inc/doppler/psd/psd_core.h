@@ -64,7 +64,8 @@ typedef struct {
  *
  * @param n           Window / frame length in samples.  Must be >= 2.
  * @param fs          Sample rate in Hz (used for dB/Hz and band frequencies).
- * @param window      Window index: 0 = Hann, 1 = Kaiser, 2 = Blackman-Harris.
+ * @param window      Window index: 0 = Hann, 1 = Kaiser, 2 = Blackman-Harris,
+ *                    3 = rectangular (no taper: best resolution, worst leakage).
  * @param beta        Kaiser beta (ignored for Hann/Blackman-Harris).
  * @param pad         Zero-pad factor (>= 1); nfft = next_pow_two(n * pad).
  * @param full_scale  Amplitude that reads 0 dBFS in the dB getters (> 0).
@@ -130,6 +131,53 @@ void dp_psd_reset(dp_psd_state_t *state);
  */
 void dp_psd_accumulate(dp_psd_state_t *state, const float _Complex *x,
                       size_t x_len);
+
+/**
+ * @brief One frame's DC-centred two-sided power: window, zero-pad, FFT, |X|^2.
+ *
+ * The per-frame kernel dp_psd_accumulate() folds into its average, exposed
+ * without the average: exactly the power spectrum that would be accumulated
+ * for this frame, un-normalised (divide by the window coherent gain squared
+ * for a power that reads a tone at its true level, as dp_psd_frame_db() does).
+ * A streaming spectrogram is this call once per frame; because accumulate runs
+ * the same code, a spectrogram row and a one-frame PSD cannot disagree.
+ * Uses the estimator's scratch, so it is not thread-safe on one state and it
+ * does not touch the running average.
+ *
+ * @param state  Must be non-NULL.
+ * @param x      Exactly @c state->n complex samples (cf32).
+ * @param pwr    Output, @c state->nfft floats, bin k (centred) at index
+ *               nfft/2 + k.
+ */
+void dp_psd_frame_power(dp_psd_state_t *state, const float _Complex *x,
+                        float *pwr);
+
+/**
+ * @brief One frame in dBFS, against the estimator's own reference.
+ *
+ * dp_psd_frame_power() divided by the window coherent gain squared and the
+ * full-scale reference, as 10*log10 with the -200 dB floor: the conversion
+ * dp_psd_psd_db() applies to the averaged trace, so a full-scale tone on a bin
+ * reads 0 dB whatever the window. Does not touch the running average.
+ *
+ * @param state  Must be non-NULL.
+ * @param x      Exactly @c state->n complex samples (cf32).
+ * @param out    Output, @c state->nfft floats, DC-centred.
+ *
+ * @code
+ * dp_psd_state_t *p = dp_psd_create (8, 1.0, 3, 0.0f, 1, 1.0, 0, 0, 0.0);
+ * float _Complex x[8];
+ * float db[8];
+ * for (int i = 0; i < 8; i++)
+ *   x[i] = cexpf (I * 2.0f * 3.14159265f * 2.0f * (float)i / 8.0f);
+ * dp_psd_frame_db (p, x, db);        // unit tone on bin 2, rectangular
+ * if (fabsf (db[4 + 2]) > 1e-4f)     // DC-centred: bin 2 is at nfft/2 + 2
+ *   return 1;
+ * dp_psd_destroy (p);
+ * @endcode
+ */
+void dp_psd_frame_db(dp_psd_state_t *state, const float _Complex *x,
+                     float *out);
 
 /**
  * @brief Window, zero-pad, FFT and fold real frames into the average.

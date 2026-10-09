@@ -53,8 +53,8 @@ from doppler.spectral import PSD
 w = PSD(
     n=4096,            # segment / window length (samples)
     fs=100e6,          # sample rate (Hz)
-    window="kaiser",   # "hann" or "kaiser"
-    beta=12.0,         # Kaiser shape (ignored for Hann)
+    window="kaiser",   # "hann" | "kaiser" | "blackman-harris" | "rect"
+    beta=12.0,         # Kaiser shape (ignored by the other windows)
     pad=2,             # zero-pad factor → nfft = next_pow_two(n * pad)
     full_scale=1.0,    # amplitude that reads 0 dBFS in the dB getters
     bits=0,            # bits>0 sets full_scale = 2**(bits-1) (ADC dBFS)

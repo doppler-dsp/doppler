@@ -1509,6 +1509,10 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
 # Verbatim copies the drift gate holds to canonical, alongside standard.mk
 # itself. Edit canonical and re-vendor; never edit these in place.
 VENDORED_FILES = scripts/release-watch.sh
+# The MSVC environment for the Windows jobs (#1507): canonical's
+# vcvarsall-based replacement for ilammy/msvc-dev-cmd, a node20 action with
+# no release since 2024.
+VENDORED_FILES += scripts/msvc-env.sh
 
 # Pre-commit hooks that run their own tool rather than `make -s lint-<tool>`
 # (standard.mk's hook-dispatch-check refuses any other). All four are

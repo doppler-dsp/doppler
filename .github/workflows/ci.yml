@@ -358,9 +358,7 @@ jobs:
     # clang-cl drives the MSVC toolchain the way cl.exe does and needs its
     # environment: INCLUDE, LIB and the linker.
     - name: MSVC developer environment (x64)
-      uses: ilammy/msvc-dev-cmd@v1
-      with:
-        arch: x64
+      run: scripts/msvc-env.sh x64
 
     - name: Record the toolchain
       run: |
@@ -436,9 +434,7 @@ jobs:
     - uses: actions/checkout@v7
 
     - name: MSVC developer environment (x64)
-      uses: ilammy/msvc-dev-cmd@v1
-      with:
-        arch: x64
+      run: scripts/msvc-env.sh x64
 
     - name: Install uv + Python 3.12
       uses: astral-sh/setup-uv@v7

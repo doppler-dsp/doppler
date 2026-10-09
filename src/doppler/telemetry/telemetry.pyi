@@ -1,9 +1,9 @@
 # telemetry/telemetry.pyi — type stubs for the telemetry C extension.
 from typing import Any, final
 import os
+import numpy as np
 import numpy.typing as npt
 from numpy.typing import NDArray
-import numpy as np
 
 @final
 class TelemetryStats(tuple[int, int, int, int]):
@@ -362,6 +362,56 @@ class Telemetry:
 
         """
 
+    def read_dict(
+        self,
+        n: int = 0,
+        index: bool = False,
+    ) -> dict[str, NDArray[np.float32] | tuple[NDArray[np.uint64], NDArray[np.float32]]]:
+        """Drains like read(), but grouped by probe name.
+
+        The same records read() returns, split per probe so a consumer never
+        writes the ``recs[recs["probe"] == tlm.probe_id(name)]["value"]``
+        filter or the id-to-name inversion by hand. Every REGISTERED probe
+        gets a key, including one that emitted nothing this drain, so the key
+        set is stable across calls.
+
+        Consuming: this DRAINS the ring, exactly as read() does. Calling both
+        in one loop splits the records between them.
+
+        Parameters
+        ----------
+        n : int, optional
+            Records wanted; 0 (the default) means everything available.
+        index : bool, optional
+            When True each value is ``(n, values)`` — the sample indices
+            alongside the values, so a real time axis is ``n / fs``. When
+            False (the default) each value is just the values array.
+
+        Returns
+        -------
+        dict
+            ``{probe_name: values}``, or ``{probe_name: (n, values)}`` when
+            `index` is True.
+
+        Examples
+        --------
+        >>> from doppler.telemetry import Telemetry
+        >>> tlm = Telemetry(1 << 12)
+        >>> eid = tlm.probe("sync.e")
+        >>> lid = tlm.probe("sync.lock")
+        >>> tlm.set_now(7)
+        >>> tlm.emit(eid, 0.5)
+        >>> tlm.emit(lid, 1.0)
+        >>> d = tlm.read_dict()
+        >>> sorted(d)
+        ['sync.e', 'sync.lock']
+        >>> d["sync.e"]
+        array([0.5], dtype=float32)
+        >>> n, v = tlm.read_dict(index=True)["sync.e"]
+        >>> n.size          # drained by the call above
+        0
+        """
+
     @property
     def probe_names(self) -> dict[str, int]:
         """Registered probes as `{name: id}`, in registration order. The
@@ -441,59 +491,6 @@ class Telemetry:
             Exception instance, or None. Ignored.
         tb : object | None
             Traceback object, or None. Ignored.
-        """
-
-    # jm:hand
-    def read_dict(
-        self, n: int = 0, index: bool = False
-    ) -> dict[
-        str,
-        NDArray[np.float32] | tuple[NDArray[np.uint64], NDArray[np.float32]],
-    ]:
-        """Drains like read(), but grouped by probe name.
-
-        The same records read() returns, split per probe so a consumer never
-        writes the ``recs[recs["probe"] == tlm.probe_id(name)]["value"]``
-        filter or the id-to-name inversion by hand. Every REGISTERED probe
-        gets a key, including one that emitted nothing this drain, so the key
-        set is stable across calls.
-
-        Consuming: this DRAINS the ring, exactly as read() does. Calling both
-        in one loop splits the records between them.
-
-        Parameters
-        ----------
-        n : int, optional
-            Records wanted; 0 (the default) means everything available.
-        index : bool, optional
-            When True each value is ``(n, values)`` — the sample indices
-            alongside the values, so a real time axis is ``n / fs``. When
-            False (the default) each value is just the values array.
-
-        Returns
-        -------
-        dict
-            ``{probe_name: values}``, or ``{probe_name: (n, values)}`` when
-            `index` is True.
-
-        Examples
-        --------
-        >>> from doppler.telemetry import Telemetry
-        >>> tlm = Telemetry(1 << 12)
-        >>> eid = tlm.probe("sync.e")
-        >>> lid = tlm.probe("sync.lock")
-        >>> tlm.set_now(7)
-        >>> tlm.emit(eid, 0.5)
-        >>> tlm.emit(lid, 1.0)
-        >>> d = tlm.read_dict()
-        >>> sorted(d)
-        ['sync.e', 'sync.lock']
-        >>> d["sync.e"]
-        array([0.5], dtype=float32)
-        >>> n, v = tlm.read_dict(index=True)["sync.e"]
-        >>> n.size          # drained by the call above
-        0
-
         """
 
 @final
@@ -695,6 +692,51 @@ class MemoryCapture:
 
         """
 
+    def read_dict(
+        self,
+        n: int = 0,
+        index: bool = False,
+    ) -> dict[str, NDArray[np.float32] | tuple[NDArray[np.uint64], NDArray[np.float32]]]:
+        """The captured records, grouped by probe name.
+
+        records() hands back one structured array carrying every probe
+        interleaved; this splits it, so a consumer never writes the
+        ``recs[recs["probe"] == id]["value"]`` filter or the id-to-name
+        inversion by hand. Every REGISTERED probe gets a key, including one
+        that captured nothing, so the key set is stable.
+
+        Like records(), this does NOT consume — call it as often as you like.
+
+        Parameters
+        ----------
+        n : int, optional
+            Records to take from the front; 0 (the default) means all.
+        index : bool, optional
+            When True each value is ``(n, values)`` — the sample indices
+            alongside the values, so a real time axis is ``n / fs``.
+
+        Returns
+        -------
+        dict
+            ``{probe_name: values}``, or ``{probe_name: (n, values)}`` when
+            `index` is True.
+
+        Examples
+        --------
+        >>> from doppler.telemetry import MemoryCapture, Telemetry
+        >>> tlm = Telemetry(1 << 12)
+        >>> eid = tlm.probe("sync.e")
+        >>> with MemoryCapture(tlm, 64, None) as cap:
+        ...     tlm.set_now(0)
+        ...     tlm.emit(eid, 0.25)
+        ...     tlm.set_now(64)
+        >>> n, v = cap.read_dict(index=True)["sync.e"]
+        >>> v
+        array([0.25], dtype=float32)
+        >>> n
+        array([0], dtype=uint64)
+        """
+
     @property
     def count(self) -> int:
         """Records captured so far, across memory and file alike."""
@@ -767,54 +809,6 @@ class MemoryCapture:
             If ``close()`` reports failure. ``__exit__`` calls it and raises
             what it raises, so a failed finalize propagates out of the ``with``
             block (gh-805 §H).
-        """
-
-    # jm:hand
-    def read_dict(
-        self, n: int = 0, index: bool = False
-    ) -> dict[
-        str,
-        NDArray[np.float32] | tuple[NDArray[np.uint64], NDArray[np.float32]],
-    ]:
-        """The captured records, grouped by probe name.
-
-        records() hands back one structured array carrying every probe
-        interleaved; this splits it, so a consumer never writes the
-        ``recs[recs["probe"] == id]["value"]`` filter or the id-to-name
-        inversion by hand. Every REGISTERED probe gets a key, including one
-        that captured nothing, so the key set is stable.
-
-        Like records(), this does NOT consume — call it as often as you like.
-
-        Parameters
-        ----------
-        n : int, optional
-            Records to take from the front; 0 (the default) means all.
-        index : bool, optional
-            When True each value is ``(n, values)`` — the sample indices
-            alongside the values, so a real time axis is ``n / fs``.
-
-        Returns
-        -------
-        dict
-            ``{probe_name: values}``, or ``{probe_name: (n, values)}`` when
-            `index` is True.
-
-        Examples
-        --------
-        >>> from doppler.telemetry import MemoryCapture, Telemetry
-        >>> tlm = Telemetry(1 << 12)
-        >>> eid = tlm.probe("sync.e")
-        >>> with MemoryCapture(tlm, 64, None) as cap:
-        ...     tlm.set_now(0)
-        ...     tlm.emit(eid, 0.25)
-        ...     tlm.set_now(64)
-        >>> n, v = cap.read_dict(index=True)["sync.e"]
-        >>> v
-        array([0.25], dtype=float32)
-        >>> n
-        array([0], dtype=uint64)
-
         """
 
 @final

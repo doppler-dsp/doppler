@@ -28,10 +28,8 @@ const jm_any_fn jm_bound_symbols_dp_tlm_capture[] = {
     (jm_any_fn)dp_tlm_capture_block,
     (jm_any_fn)dp_tlm_capture_close,
     (jm_any_fn)dp_tlm_capture_count,
-    (jm_any_fn)dp_tlm_capture_records,
     (jm_any_fn)dp_tlm_capture_read_max_out,
     (jm_any_fn)dp_tlm_capture_read,
     (jm_any_fn)dp_tlm_capture_dropped,
-    (jm_any_fn)dp_tlm_capture_context,
     (jm_any_fn)dp_tlm_capture_destroy,
 };

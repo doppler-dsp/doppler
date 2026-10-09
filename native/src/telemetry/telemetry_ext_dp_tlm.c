@@ -1,8 +1,10 @@
+/* jm:generated telemetry_ext_dp_tlm.c */
 /*
  * telemetry_ext_dp_tlm.c — Telemetry type for the telemetry module.
  *
  * Included by telemetry_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in telemetry_ext_dp_tlm_extra.c.
  * Do NOT compile this file directly — only telemetry_ext.c is compiled.
  */
 /* ======================================================== */
@@ -10,7 +12,6 @@
 /* ======================================================== */
 
 #include "doppler/dp_tlm/dp_tlm_core.h"
-#include "tlm_read_dict.h"
 
 typedef struct
 {
@@ -28,6 +29,9 @@ TelemetryObj_dealloc (TelemetryObject *self)
 static PyObject *
 TelemetryObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   TelemetryObject *self = (TelemetryObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -183,6 +187,15 @@ TelemetryObj_read (TelemetryObject *self, PyObject *args, PyObject *kwds)
         }
       size_t n_out = dp_tlm_read (
           self->handle, n, (dp_tlm_rec_t *)PyArray_DATA (out_arr), _cap);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "Telemetry.read: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp       _odim   = (npy_intp)n_out;
       PyArray_Descr *_vdescr = TelemetryObj_read_get_dtype ();
       if (!_vdescr)
@@ -198,14 +211,28 @@ TelemetryObj_read (TelemetryObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = dp_tlm_read_max_out (self->handle);
   size_t _cap  = dp_tlm_read_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp       _adim  = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "Telemetry.read: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp       _adim  = (npy_intp)_adim_need;
   PyArray_Descr *_descr = TelemetryObj_read_get_dtype ();
   if (!_descr)
     {
@@ -219,6 +246,14 @@ TelemetryObj_read (TelemetryObject *self, PyObject *args, PyObject *kwds)
     }
   dp_tlm_rec_t *_d0   = (dp_tlm_rec_t *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t        n_out = dp_tlm_read (self->handle, n, _d0, _cap);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_RuntimeError,
+                    "Telemetry.read: wrote %zu elements into a buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -382,7 +417,7 @@ static PyStructSequence_Desc TelemetryObj_stats_desc
 static PyTypeObject *TelemetryObj_stats_type = NULL;
 
 static PyObject *
-TelemetryObj_stats (TelemetryObject *self, PyObject *args)
+TelemetryObj_stats (TelemetryObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -534,7 +569,7 @@ static PyGetSetDef Telemetry_getset[]
           NULL },
         { "_capsule", (getter)Telemetry_getprop__capsule, NULL, " capsule.\n",
           NULL },
-        { NULL } };
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 TelemetryObj_destroy (TelemetryObject *self, PyObject *Py_UNUSED (ignored))
@@ -566,91 +601,7 @@ TelemetryObj_exit (TelemetryObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-/* Hand-written: the return is a dict whose KEYS come from the probe registry
-   and whose VALUES are numpy arrays of data-dependent length — a shape with no
-   manifest spelling. The marshalling is shared with MemoryCapture.read_dict()
-   in tlm_read_dict.h; only the record SOURCE differs, and for this face that
-   is a drain of the ring. */
-static PyObject *
-TelemetryObj_read_dict (TelemetryObject *self, PyObject *args, PyObject *kwds)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  static char       *_kwlist[] = { "n", "index", NULL };
-  unsigned long long n_raw     = 0;
-  int                with_idx  = 0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|Kp", _kwlist, &n_raw,
-                                    &with_idx))
-    return NULL;
-
-  size_t        cap   = dp_tlm_read_max_out (self->handle);
-  dp_tlm_rec_t *recs  = NULL;
-  size_t        n_out = 0;
-  if (cap > 0)
-    {
-      recs = (dp_tlm_rec_t *)PyMem_Malloc (cap * sizeof *recs);
-      if (!recs)
-        return PyErr_NoMemory ();
-      n_out = dp_tlm_read (self->handle, (size_t)n_raw, recs, cap);
-    }
-
-  PyObject *out = tlm_build_read_dict (self->handle, recs, n_out, with_idx);
-  PyMem_Free (recs);
-  return out;
-}
-
 static PyMethodDef TelemetryObj_methods[] = {
-
-  { "read_dict", (PyCFunction)(void *)TelemetryObj_read_dict,
-    METH_VARARGS | METH_KEYWORDS,
-    "read_dict(n=0, index=False) -> dict\n"
-    "\n"
-    "Drains like read(), but grouped by probe name.\n"
-    "\n"
-    "The same records read() returns, split per probe so a consumer never\n"
-    "writes the `recs[recs[\"probe\"] == tlm.probe_id(name)][\"value\"]`\n"
-    "filter or the id-to-name inversion by hand. Every REGISTERED probe\n"
-    "gets a key, including one that emitted nothing this drain, so the key\n"
-    "set is stable across calls.\n"
-    "\n"
-    "Consuming: this DRAINS the ring, exactly as read() does. Calling both\n"
-    "in one loop splits the records between them.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "n : int, optional\n"
-    "    Records wanted; 0 (the default) means everything available.\n"
-    "index : bool, optional\n"
-    "    When True each value is ``(n, values)`` — the sample indices\n"
-    "    alongside the values, so a real time axis is ``n / fs``. When\n"
-    "    False (the default) each value is just the values array.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "dict\n"
-    "    ``{probe_name: values}``, or ``{probe_name: (n, values)}`` when\n"
-    "    `index` is True.\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    ">>> from doppler.telemetry import Telemetry\n"
-    ">>> tlm = Telemetry(1 << 12)\n"
-    ">>> eid = tlm.probe(\"sync.e\")\n"
-    ">>> lid = tlm.probe(\"sync.lock\")\n"
-    ">>> tlm.set_now(7)\n"
-    ">>> tlm.emit(eid, 0.5)\n"
-    ">>> tlm.emit(lid, 1.0)\n"
-    ">>> d = tlm.read_dict()\n"
-    ">>> sorted(d)\n"
-    "['sync.e', 'sync.lock']\n"
-    ">>> d[\"sync.e\"]\n"
-    "array([0.5], dtype=float32)\n"
-    ">>> n, v = tlm.read_dict(index=True)[\"sync.e\"]\n"
-    ">>> n.size          # drained by the call above\n"
-    "0\n" },
 
   { "read", (PyCFunction)(void *)TelemetryObj_read,
     METH_VARARGS | METH_KEYWORDS,
@@ -929,7 +880,7 @@ static PyMethodDef TelemetryObj_methods[] = {
     "2\n"
     ">>> tlm.dropped\n"
     "0\n" },
-  { "stats", (PyCFunction)TelemetryObj_stats, METH_VARARGS,
+  { "stats", (PyCFunction)TelemetryObj_stats, METH_NOARGS,
     "stats() -> TelemetryStats record (dropped, emitted, capacity, probes)\n"
     "\n"
     "Snapshots the context's counters. Zeroed for a NULL context.\n"
@@ -950,6 +901,51 @@ static PyMethodDef TelemetryObj_methods[] = {
     "probes=1)\n"
     ">>> tlm.stats().emitted\n"
     "1\n" },
+  { "read_dict", (PyCFunction)(void (*) (void))TelemetryObj_read_dict,
+    METH_VARARGS | METH_KEYWORDS,
+    "Drains like read(), but grouped by probe name.\n"
+    "\n"
+    "The same records read() returns, split per probe so a consumer never\n"
+    "writes the ``recs[recs[\"probe\"] == tlm.probe_id(name)][\"value\"]``\n"
+    "filter or the id-to-name inversion by hand. Every REGISTERED probe\n"
+    "gets a key, including one that emitted nothing this drain, so the key\n"
+    "set is stable across calls.\n"
+    "\n"
+    "Consuming: this DRAINS the ring, exactly as read() does. Calling both\n"
+    "in one loop splits the records between them.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n : int, optional\n"
+    "    Records wanted; 0 (the default) means everything available.\n"
+    "index : bool, optional\n"
+    "    When True each value is ``(n, values)`` — the sample indices\n"
+    "    alongside the values, so a real time axis is ``n / fs``. When\n"
+    "    False (the default) each value is just the values array.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "dict\n"
+    "    ``{probe_name: values}``, or ``{probe_name: (n, values)}`` when\n"
+    "    `index` is True.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.telemetry import Telemetry\n"
+    ">>> tlm = Telemetry(1 << 12)\n"
+    ">>> eid = tlm.probe(\"sync.e\")\n"
+    ">>> lid = tlm.probe(\"sync.lock\")\n"
+    ">>> tlm.set_now(7)\n"
+    ">>> tlm.emit(eid, 0.5)\n"
+    ">>> tlm.emit(lid, 1.0)\n"
+    ">>> d = tlm.read_dict()\n"
+    ">>> sorted(d)\n"
+    "['sync.e', 'sync.lock']\n"
+    ">>> d[\"sync.e\"]\n"
+    "array([0.5], dtype=float32)\n"
+    ">>> n, v = tlm.read_dict(index=True)[\"sync.e\"]\n"
+    ">>> n.size          # drained by the call above\n"
+    "0\n" },
   { "destroy", (PyCFunction)TelemetryObj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"
     "\n"
@@ -985,11 +981,11 @@ static PyMethodDef TelemetryObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject TelemetryObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "telemetry.Telemetry",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.telemetry.Telemetry",
   .tp_basicsize                           = sizeof (TelemetryObject),
   .tp_dealloc                             = (destructor)TelemetryObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

@@ -40,6 +40,7 @@ return_type = "float _Complex"
 # inside the init-param, where jm never looks for them and says nothing.
 create_error = "ValueError"
 create_error_message = "ring_records must be at least 1, and small enough to map"
+fragment = "generated"
 
 [[dp_tlm.init_params]]
 name = "ring_records"
@@ -207,3 +208,62 @@ doc = "Records currently readable, without consuming them. A lower bound while a
 name = "_capsule"
 type = "capsule"
 capsule = "doppler.telemetry.dp_tlm"
+
+# read_dict() is hand-written CPython in its _extra.c hook: the return is a
+# dict whose KEYS come from the probe registry and whose VALUES are numpy
+# arrays of data-dependent length, a shape with no manifest spelling. Both
+# objects' hooks share the marshalling in tlm_read_dict.h. This row gives jm
+# the PyMethodDef entry, the forward prototype and the stub, so the fragment
+# can be jm's while the function stays ours (doppler#1886). The `doc` is the
+# whole docstring on both faces.
+[[dp_tlm.extra_methods]]
+name = "read_dict"
+fn = "TelemetryObj_read_dict"
+flags = "METH_VARARGS | METH_KEYWORDS"
+args = "n: int = 0, index: bool = False"
+returns = "dict[str, NDArray[np.float32] | tuple[NDArray[np.uint64], NDArray[np.float32]]]"
+doc = """
+Drains like read(), but grouped by probe name.
+
+The same records read() returns, split per probe so a consumer never
+writes the ``recs[recs["probe"] == tlm.probe_id(name)]["value"]``
+filter or the id-to-name inversion by hand. Every REGISTERED probe
+gets a key, including one that emitted nothing this drain, so the key
+set is stable across calls.
+
+Consuming: this DRAINS the ring, exactly as read() does. Calling both
+in one loop splits the records between them.
+
+Parameters
+----------
+n : int, optional
+    Records wanted; 0 (the default) means everything available.
+index : bool, optional
+    When True each value is ``(n, values)`` — the sample indices
+    alongside the values, so a real time axis is ``n / fs``. When
+    False (the default) each value is just the values array.
+
+Returns
+-------
+dict
+    ``{probe_name: values}``, or ``{probe_name: (n, values)}`` when
+    `index` is True.
+
+Examples
+--------
+>>> from doppler.telemetry import Telemetry
+>>> tlm = Telemetry(1 << 12)
+>>> eid = tlm.probe("sync.e")
+>>> lid = tlm.probe("sync.lock")
+>>> tlm.set_now(7)
+>>> tlm.emit(eid, 0.5)
+>>> tlm.emit(lid, 1.0)
+>>> d = tlm.read_dict()
+>>> sorted(d)
+['sync.e', 'sync.lock']
+>>> d["sync.e"]
+array([0.5], dtype=float32)
+>>> n, v = tlm.read_dict(index=True)["sync.e"]
+>>> n.size          # drained by the call above
+0
+"""

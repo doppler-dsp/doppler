@@ -43,6 +43,7 @@ extra_link_libs = ["Threads::Threads"]
 # zero and a NULL that a blanket MemoryError would misexplain completely.
 create_error = "ValueError"
 create_error_message = "capture could not be opened: attach every probe BEFORE opening (the ring is sized from the probe table, so no probes means no bound), pass a non-zero block_samples, use a context with no capture already open, and — for the file flavour — a writable path"
+fragment = "generated"
 
 [[dp_tlm_capture.depends_on]]
 name = "dp_interrupt_guard"
@@ -216,3 +217,57 @@ link = true
 [[dp_tlm_capture.depends_on]]
 name = "timing"
 link = true
+
+# read_dict() is hand-written CPython in its _extra.c hook: the return is a
+# dict whose KEYS come from the probe registry and whose VALUES are numpy
+# arrays of data-dependent length, a shape with no manifest spelling. Both
+# objects' hooks share the marshalling in tlm_read_dict.h. This row gives jm
+# the PyMethodDef entry, the forward prototype and the stub, so the fragment
+# can be jm's while the function stays ours (doppler#1886). The `doc` is the
+# whole docstring on both faces.
+[[dp_tlm_capture.extra_methods]]
+name = "read_dict"
+fn = "MemoryCaptureObj_read_dict"
+flags = "METH_VARARGS | METH_KEYWORDS"
+args = "n: int = 0, index: bool = False"
+returns = "dict[str, NDArray[np.float32] | tuple[NDArray[np.uint64], NDArray[np.float32]]]"
+doc = """
+The captured records, grouped by probe name.
+
+records() hands back one structured array carrying every probe
+interleaved; this splits it, so a consumer never writes the
+``recs[recs["probe"] == id]["value"]`` filter or the id-to-name
+inversion by hand. Every REGISTERED probe gets a key, including one
+that captured nothing, so the key set is stable.
+
+Like records(), this does NOT consume — call it as often as you like.
+
+Parameters
+----------
+n : int, optional
+    Records to take from the front; 0 (the default) means all.
+index : bool, optional
+    When True each value is ``(n, values)`` — the sample indices
+    alongside the values, so a real time axis is ``n / fs``.
+
+Returns
+-------
+dict
+    ``{probe_name: values}``, or ``{probe_name: (n, values)}`` when
+    `index` is True.
+
+Examples
+--------
+>>> from doppler.telemetry import MemoryCapture, Telemetry
+>>> tlm = Telemetry(1 << 12)
+>>> eid = tlm.probe("sync.e")
+>>> with MemoryCapture(tlm, 64, None) as cap:
+...     tlm.set_now(0)
+...     tlm.emit(eid, 0.25)
+...     tlm.set_now(64)
+>>> n, v = cap.read_dict(index=True)["sync.e"]
+>>> v
+array([0.25], dtype=float32)
+>>> n
+array([0], dtype=uint64)
+"""

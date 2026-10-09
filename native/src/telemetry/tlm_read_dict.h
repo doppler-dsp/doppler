@@ -1,17 +1,16 @@
 /*
  * tlm_read_dict.h — the marshalling behind read_dict(), once.
  *
- * Hand-written, and shared by two sacred fragments: Telemetry.read_dict()
- * (telemetry_ext_dp_tlm.c) and MemoryCapture.read_dict()
- * (telemetry_ext_dp_tlm_capture.c). They differ only in where the records
- * come from — a drain of the ring, or the capture's accumulator — so
- * everything after that is here rather than in both.
+ * Hand-written, and shared by two hand-written hooks: Telemetry.read_dict()
+ * (telemetry_ext_dp_tlm_extra.c) and MemoryCapture.read_dict()
+ * (telemetry_ext_dp_tlm_capture_extra.c), each registered by its object's
+ * [[<obj>.extra_methods]] row (doppler#1886). They differ only in where the
+ * records come from — a drain of the ring, or the capture's accumulator —
+ * so everything after that is here rather than in both.
  *
- * It lives in a header because jm splits a module's binding into per-object
- * `_ext_<obj>.c` fragments with no sanctioned home for hand-written C shared
- * BETWEEN them. All the fragments are #included into one translation unit
- * (telemetry_ext.c), so an include-guarded static definition here is compiled
- * exactly once and is in scope for every caller.
+ * Both hooks include it. Every hook and fragment is #included into one
+ * translation unit (telemetry_ext.c), so the include-guarded static
+ * definition here is compiled exactly once and is in scope for both callers.
  *
  * The regrouping itself is NOT here: dp_tlm_demux() in dp_tlm_core.c does it,
  * so a C consumer reading a .tlm16 off disk gets the identical split. This is

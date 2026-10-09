@@ -1,8 +1,10 @@
+/* jm:generated telemetry_ext_capture.c */
 /*
  * telemetry_ext_capture.c — Capture type for the telemetry module.
  *
  * Included by telemetry_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in telemetry_ext_capture_extra.c.
  * Do NOT compile this file directly — only telemetry_ext.c is compiled.
  */
 /* ======================================================== */
@@ -38,6 +40,9 @@ CaptureObj_dealloc (CaptureObject *self)
 static PyObject *
 CaptureObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   CaptureObject *self = (CaptureObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -60,7 +65,7 @@ CaptureObj_init (CaptureObject *self, PyObject *args, PyObject *kwds)
       Py_XDECREF (path);
       return -1;
     }
-  dp_tlm_t *tlm = NULL;
+  dp_tlm_state_t *tlm = NULL;
   if (tlm_obj == Py_None || tlm_obj == NULL)
     {
       PyErr_SetString (
@@ -98,7 +103,8 @@ CaptureObj_init (CaptureObject *self, PyObject *args, PyObject *kwds)
           }
         }
     }
-  tlm = (dp_tlm_t *)PyCapsule_GetPointer (tlm_cap, "doppler.telemetry.dp_tlm");
+  tlm = (dp_tlm_state_t *)PyCapsule_GetPointer (tlm_cap,
+                                                "doppler.telemetry.dp_tlm");
   Py_DECREF (tlm_cap);
   if (!tlm)
     {
@@ -233,7 +239,7 @@ static PyGetSetDef Capture_getset[]
           "Records the ring dropped during THIS capture (latched at open "
           "against the context's monotonic counter). Non-zero means a hole.\n",
           NULL },
-        { NULL } };
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 CaptureObj_destroy (CaptureObject *self, PyObject *Py_UNUSED (ignored))
@@ -425,11 +431,11 @@ static PyMethodDef CaptureObj_methods[] = {
     "    If ``close()`` reports failure. ``__exit__`` calls it and raises\n"
     "    what it raises, so a failed finalize propagates out of the ``with``\n"
     "    block (gh-805 §H).\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject CaptureObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "telemetry.Capture",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.telemetry.Capture",
   .tp_basicsize                           = sizeof (CaptureObject),
   .tp_dealloc                             = (destructor)CaptureObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

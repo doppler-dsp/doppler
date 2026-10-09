@@ -262,6 +262,7 @@ nav:
       - Tracking a Population of DSSS Emitters: guide/async-dsss-pool.md
       - Lock Detection Across doppler.track: guide/lock-detection.md
       - Power Spectra & Measurements: guide/spectral-psd.md
+      - Streaming Spectrograms: guide/spectrogram.md
       - Real-Time Pacing & Timestamping: guide/timing.md
       - Fixed-Point Arithmetic: guide/fixed-point.md
       - Checkpoint & Resume: guide/state-serialization.md

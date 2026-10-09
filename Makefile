@@ -186,7 +186,7 @@ LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format \
                bench-timer bare-libm gnu-flags workflow-tag-triggers \
                version-literals text-encoding cmake-script-policy \
                why-param doc-claims public-symbols curl-fail \
-               warnings-exempt stock-images uv-pin uv-lock
+               warnings-exempt stock-images uv-pin uv-lock tlm-name-join
 FORMAT_TOOLS = ruff-format ruff mdformat clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -334,6 +334,15 @@ LINT_full-scale = $(UV) run python scripts/check_full_scale_sites.py
 # messages and sleeps intervals, which is a different clock for a different
 # job, and it is POSIX-only by its own CMake guard.
 LINT_bench-timer = $(UV) run python scripts/check_bench_timer.py
+
+# A telemetry probe name "<prefix>.<suffix>" has one home, dp_tlm_name_join()
+# in dp_tlm_core.c, which refuses a name that would not fit. Ten
+# set_telemetry implementations used a bare snprintf, which truncates
+# silently and aliases two probes onto one registry entry (#676). The gate
+# refuses a "%s. literal in any file that registers or attaches probes,
+# composites included (#1944). No allowlist -- every site was converted by
+# #1898.
+LINT_tlm-name-join = $(UV) run python scripts/check_tlm_name_join.py
 
 # libm has one spelling in a link line, ${DP_MATH_LIBRARY} -- resolved once in
 # the root CMakeLists by find_library, so it is a path on POSIX and empty on

@@ -147,6 +147,16 @@ repos:
         pass_filenames: false
         types_or: [c]
 
+      # A probe name "<prefix>.<suffix>" is joined by dp_tlm_name_join(),
+      # which refuses an overlong one; a bare snprintf truncates it and
+      # aliases two probes onto one registry entry (#676, #1944).
+      - id: tlm-name-join
+        name: probe names join in one place
+        entry: make -s lint-tlm-name-join
+        language: system
+        pass_filenames: false
+        types_or: [c]
+
       # read_text() names utf-8: without it Windows decodes with cp1252 and
       # fails on the first non-ASCII byte (doppler#1457).
       - id: text-encoding

@@ -1113,3 +1113,38 @@ def test_chirp_span_survives_json_in_a_summed_segment():
     )
     solo_back = Composer.from_json(solo.to_json()).compose()
     assert np.allclose(_inst_freq(solo_back, 1e6)[span:], 3e5, atol=3e3)
+
+
+# ── a setter refuses a str rather than letting numpy parse it (#1654) ───────
+#
+# numpy reads "0110" into a uint8 array as the number 110, and "0.5" into a
+# float32 array as 0.5, so a str reached each setter as a one-element
+# pattern, silently. The hand-written setters convert through
+# jm_array_arg_hint, which refuses text and says what to pass instead.
+
+
+@pytest.mark.parametrize(
+    ("kind", "call", "param"),
+    [
+        ("bpsk", lambda e: e.set_rrc("0.5"), "taps"),
+        ("bits", lambda e: e.set_bits("0110"), "pattern"),
+        ("symbols", lambda e: e.set_symbols("1"), "symbols"),
+        ("dsss", lambda e: e.set_dsss_chips("01"), "chips"),
+        ("dsss", lambda e: e.set_dsss_cont("011", 3.0), "code"),
+        (
+            "dsss",
+            lambda e: e.set_dsss_cont([0, 1, 1], 3.0, payload="10"),
+            "payload",
+        ),
+    ],
+)
+def test_a_setter_refuses_a_str(kind, call, param):
+    from doppler.wfm import _SynthEngine
+
+    e = _SynthEngine(type=kind, fs=1.0, freq=0.0, snr=100.0, sps=2)
+    with pytest.raises(
+        TypeError,
+        match=rf"^{param} must be an array of numbers, "
+        r"not str: pass ",
+    ):
+        call(e)

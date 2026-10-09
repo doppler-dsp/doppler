@@ -12,6 +12,20 @@
 
 #include "doppler/wfm_synth/wfm_synth_core.h"
 
+/* What each setter's refusal of a str says instead (jm_array_arg_hint).
+ * A str is refused rather than read by numpy as a number -- the
+ * str_hint a manifest parameter declares does the same for a generated
+ * binding (gh-1824), and these are the sentences one would carry.
+ * WFM_SYNTH_BITS_HINT serves both set_bits() and set_dsss_cont()'s
+ * payload. */
+#define WFM_SYNTH_TAPS_HINT                                                   \
+  "pass the taps as an array of floats, e.g. rrc_taps(beta, sps, span)"
+#define WFM_SYNTH_BITS_HINT "pass the bits as an array of 0/1, e.g. [0, 1, 1]"
+#define WFM_SYNTH_CHIPS_HINT "pass the chips as an array of 0/1"
+#define WFM_SYNTH_CODE_HINT "pass the spreading code as an array of 0/1"
+#define WFM_SYNTH_SYMBOLS_HINT                                                \
+  "pass the symbols as an array of complex numbers"
+
 /* set_rrc(taps) — enable RRC pulse shaping with the given real FIR taps
  * (e.g. doppler.wfm.rrc_taps(beta, sps, span)); no-op for non-modulated. */
 static PyObject *
@@ -26,8 +40,9 @@ _SynthEngine_set_rrc (PyObject *obj, PyObject *args)
   PyObject *taps_obj = NULL;
   if (!PyArg_ParseTuple (args, "O", &taps_obj))
     return NULL;
-  PyArrayObject *taps = (PyArrayObject *)PyArray_FROM_OTF (
-      taps_obj, NPY_FLOAT32, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *taps
+      = jm_array_arg_hint (taps_obj, NPY_FLOAT32, NPY_ARRAY_C_CONTIGUOUS,
+                           "taps", WFM_SYNTH_TAPS_HINT);
   if (!taps)
     return NULL;
   size_t n  = (size_t)PyArray_SIZE (taps);
@@ -59,8 +74,9 @@ _SynthEngine_set_bits (PyObject *obj, PyObject *args)
   int       modulation = 1;
   if (!PyArg_ParseTuple (args, "O|i", &pat_obj, &modulation))
     return NULL;
-  PyArrayObject *arr = (PyArrayObject *)PyArray_FROM_OTF (
-      pat_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *arr
+      = jm_array_arg_hint (pat_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS,
+                           "pattern", WFM_SYNTH_BITS_HINT);
   if (!arr)
     return NULL;
   size_t n  = (size_t)PyArray_SIZE (arr);
@@ -94,8 +110,8 @@ _SynthEngine_set_dsss_chips (PyObject *obj, PyObject *arg)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  PyArrayObject *arr = (PyArrayObject *)PyArray_FROM_OTF (
-      arg, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *arr = jm_array_arg_hint (
+      arg, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "chips", WFM_SYNTH_CHIPS_HINT);
   if (!arr)
     return NULL;
   int rc = dp_wfm_synth_set_dsss_chips (self->handle,
@@ -150,15 +166,16 @@ _SynthEngine_set_dsss_cont (PyObject *obj, PyObject *args, PyObject *kwds)
       return NULL;
     }
 
-  PyArrayObject *code_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *code_arr
+      = jm_array_arg_hint (code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "code",
+                           WFM_SYNTH_CODE_HINT);
   if (!code_arr)
     return NULL;
   PyArrayObject *pay_arr = NULL;
   if (pay_obj != Py_None)
     {
-      pay_arr = (PyArrayObject *)PyArray_FROM_OTF (pay_obj, NPY_UINT8,
-                                                   NPY_ARRAY_C_CONTIGUOUS);
+      pay_arr = jm_array_arg_hint (pay_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS,
+                                   "payload", WFM_SYNTH_BITS_HINT);
       if (!pay_arr)
         {
           Py_DECREF (code_arr);
@@ -233,8 +250,9 @@ _SynthEngine_set_symbols (PyObject *obj, PyObject *args)
   PyObject *sym_obj = NULL;
   if (!PyArg_ParseTuple (args, "O", &sym_obj))
     return NULL;
-  PyArrayObject *arr = (PyArrayObject *)PyArray_FROM_OTF (
-      sym_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_FORCECAST);
+  PyArrayObject *arr = jm_array_arg_hint (
+      sym_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_FORCECAST,
+      "symbols", WFM_SYNTH_SYMBOLS_HINT);
   if (!arr)
     return NULL;
   size_t n  = (size_t)PyArray_SIZE (arr);

@@ -7,6 +7,7 @@
 #include "doppler/dp_tlm/dp_tlm_core.h"
 
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -33,6 +34,21 @@ dp_tlm_destroy (dp_tlm_t *t)
     return;
   dp_tlmr_destroy (t->ring);
   free (t);
+}
+
+int
+dp_tlm_name_join (char name[DP_TLM_NAME_MAX], const char *prefix,
+                  const char *suffix)
+{
+  if (!name || !prefix || !suffix)
+    return DP_ERR_INVALID;
+  /* snprintf returns the length it WANTED to write, so n >= cap is the one
+     signal that the output was cut. The truncated bytes left in name are
+     never registered: the caller sees DP_ERR_INVALID and stops. */
+  int n = snprintf (name, DP_TLM_NAME_MAX, "%s.%s", prefix, suffix);
+  if (n < 0 || n >= DP_TLM_NAME_MAX)
+    return DP_ERR_INVALID;
+  return DP_OK;
 }
 
 int

@@ -422,5 +422,29 @@ main (void)
     dp_tlm_destroy (tlm);
   }
 
+  {
+    /* An overlong prefix is refused with nothing registered, and the
+     * longest prefix that fits (24 bytes: "<prefix>.locked" is 31) attaches
+     * all four probes. */
+    dp_tlm_t          *tlm = dp_tlm_create (256);
+    dp_costas_state_t *c   = dp_costas_create (0.05, 0.707, 0.01, 16, 0.0);
+    DP_CHECK (tlm != NULL && c != NULL);
+    if (tlm && c)
+      {
+        char over[26], fit[25];
+        memset (over, 'c', 25);
+        over[25] = '\0';
+        memset (fit, 'c', 24);
+        fit[24] = '\0';
+        DP_CHECK (dp_costas_set_telemetry (c, tlm, over, 1) == DP_ERR_INVALID);
+        DP_CHECK (c->tlm.ctx == NULL && dp_tlm_probe_count (tlm) == 0);
+        DP_CHECK (dp_costas_set_telemetry (c, tlm, fit, 1) == DP_OK);
+        DP_CHECK (dp_tlm_probe_count (tlm) == 4 && c->tlm.ctx == tlm);
+        DP_CHECK (dp_costas_set_telemetry (c, tlm, "car", 1) == DP_OK);
+      }
+    dp_costas_destroy (c);
+    dp_tlm_destroy (tlm);
+  }
+
   DP_TEST_END ("test_costas_core");
 }

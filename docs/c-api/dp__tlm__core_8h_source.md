@@ -71,6 +71,9 @@ void dp_tlm_destroy (dp_tlm_t *t);
 
 int dp_tlm_probe (dp_tlm_t *t, const char *name, uint32_t decim);
 
+int dp_tlm_name_join (char name[DP_TLM_NAME_MAX], const char *prefix,
+                      const char *suffix);
+
 int dp_tlm_probe_id (const dp_tlm_t *t, const char *name);
 
 int dp_tlm_emit_checked (dp_tlm_t *t, int32_t id, double v);

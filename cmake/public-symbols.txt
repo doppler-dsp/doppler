@@ -1447,6 +1447,7 @@ dp_tlm_dropped function
 dp_tlm_emit function
 dp_tlm_emit_checked function
 dp_tlm_emitted function
+dp_tlm_name_join function
 dp_tlm_probe function
 dp_tlm_probe_count function
 dp_tlm_probe_id function

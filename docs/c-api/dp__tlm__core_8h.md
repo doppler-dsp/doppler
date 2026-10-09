@@ -81,6 +81,7 @@ _Lightweight scalar telemetry taps for running DSP objects._ [More...](#detailed
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) void | [**dp\_tlm\_emit**](#function-dp_tlm_emit) ([**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* t, int32\_t id, double v) <br>_Records one scalar for probe_ `id` _. The hot-path primitive._ |
 |  int | [**dp\_tlm\_emit\_checked**](#function-dp_tlm_emit_checked) ([**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* t, int32\_t id, double v) <br>_Validating_ [_**dp\_tlm\_emit()**_](dp__tlm__core_8h.md#function-dp_tlm_emit) _: refuses an id the registry never issued._ |
 |  uint64\_t | [**dp\_tlm\_emitted**](#function-dp_tlm_emitted) (const [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* t, int id) <br>_Records written for probe_ `id` _(post-decimation, post-drop)._ |
+|  int | [**dp\_tlm\_name\_join**](#function-dp_tlm_name_join) (char name, const char \* prefix, const char \* suffix) <br>_Builds a probe name_ `"<prefix>.<suffix>"` _into a fixed buffer, or refuses if it would not fit._ |
 |  int | [**dp\_tlm\_probe**](#function-dp_tlm_probe) ([**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* t, const char \* name, uint32\_t decim) <br>_Registers (or re-registers) a named probe. Setup path, not hot._  |
 |  size\_t | [**dp\_tlm\_probe\_count**](#function-dp_tlm_probe_count) (const [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* t) <br>_Number of registered probes._  |
 |  int | [**dp\_tlm\_probe\_id**](#function-dp_tlm_probe_id) (const [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* t, const char \* name) <br>_Looks up a probe id by name;_ [_**DP\_ERR\_INVALID**_](clib__common_8h.md#define-dp_err_invalid) _if unknown._ |
@@ -666,6 +667,70 @@ Records written for that probe, 0 for an unknown id.
 2
 >>> tlm.dropped
 0
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_tlm\_name\_join 
+
+_Builds a probe name_ `"<prefix>.<suffix>"` _into a fixed buffer, or refuses if it would not fit._
+```C++
+int dp_tlm_name_join (
+    char name,
+    const char * prefix,
+    const char * suffix
+) 
+```
+
+
+
+Every instrumented object names its probes the same way: the caller's prefix, a dot, and a short per-probe suffix (`"agc" + "." + "gain_db"`). The buffer those names live in is only [**DP\_TLM\_NAME\_MAX**](dp__tlm__core_8h.md#define-dp_tlm_name_max) bytes, and a prefix chosen by a caller can be arbitrarily long. A bare `snprintf` into that buffer truncates silently: the probe is then registered under a name that is a prefix of the one asked for, and two probes whose names differed only past the cut collapse onto one registry entry while the attach still reports success. This helper is the one place that join happens, and it turns that truncation into a refusal the caller can see.
+
+
+Callers should build every name an attach needs with this helper _before_ the first [**dp\_tlm\_probe()**](dp__tlm__core_8h.md#function-dp_tlm_probe) call, so a refusal leaves the registry exactly as it was.
+
+
+
+
+**Parameters:**
+
+
+* `name` Output buffer of [**DP\_TLM\_NAME\_MAX**](dp__tlm__core_8h.md#define-dp_tlm_name_max) bytes. Holds the joined name, NUL-terminated, on success. On refusal its contents are unspecified and must not be registered. 
+* `prefix` Caller's prefix (the object's name for its probes). 
+* `suffix` Per-probe suffix; may itself contain dots, e.g. `"car.lock"`. 
+
+
+
+**Returns:**
+
+[**DP\_OK**](clib__common_8h.md#define-dp_ok) when the joined name fits with its NUL, or [**DP\_ERR\_INVALID**](clib__common_8h.md#define-dp_err_invalid) on a NULL argument or when the result would be truncated.
+
+
+
+```C++
+#include <assert.h>
+
+dp_tlm_t *tlm = dp_tlm_create (1 << 10);
+assert (tlm != NULL);
+
+char name[DP_TLM_NAME_MAX];
+assert (dp_tlm_name_join (name, "agc", "gain_db") == DP_OK);
+assert (strcmp (name, "agc.gain_db") == 0);
+assert (dp_tlm_probe (tlm, name, 1) >= 0);   // registers "agc.gain_db"
+
+// A 31-character prefix leaves no room for ".gain_db": refused, and
+// `too_long` is not to be registered.
+char too_long[DP_TLM_NAME_MAX];
+assert (dp_tlm_name_join (too_long, "abcdefghijklmnopqrstuvwxyz12345",
+                          "gain_db") == DP_ERR_INVALID);
+
+dp_tlm_destroy (tlm);
 ```
  
 

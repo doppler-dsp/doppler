@@ -94,16 +94,19 @@ dp_despreader_set_telemetry (dp_despreader_state_t *state, dp_tlm_t *tlm,
       return DP_OK;
     }
   const char *p = prefix ? prefix : "ch";
-  char        name[DP_TLM_NAME_MAX];
+  char        car[DP_TLM_NAME_MAX], code[DP_TLM_NAME_MAX];
+  /* Both child prefixes are built before either child registers anything,
+   * so an overlong prefix is refused with the registry untouched. */
+  if (dp_tlm_name_join (car, p, "car") != DP_OK
+      || dp_tlm_name_join (code, p, "code") != DP_OK)
+    return DP_ERR_INVALID;
   /* Pure forwarder: the carrier loop under "<prefix>.car", the code loop
    * under "<prefix>.code"; if the second registration fails the first is
    * unwound so nothing is left half-armed. */
-  (void)snprintf (name, sizeof (name), "%s.car", p);
-  int rc = dp_costas_set_telemetry (&state->car, tlm, name, decim);
+  int rc = dp_costas_set_telemetry (&state->car, tlm, car, decim);
   if (rc != DP_OK)
     return rc;
-  (void)snprintf (name, sizeof (name), "%s.code", p);
-  rc = dp_dll_set_telemetry (&state->code, tlm, name, decim);
+  rc = dp_dll_set_telemetry (&state->code, tlm, code, decim);
   if (rc != DP_OK)
     {
       (void)dp_costas_set_telemetry (&state->car, NULL, p, decim);

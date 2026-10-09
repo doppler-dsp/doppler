@@ -176,36 +176,43 @@ dp_mpsk_rx_set_telemetry (mpsk_rx_loops_t *l, dp_tlm_t *tlm,
       return DP_OK;
     }
   const char *p = prefix ? prefix : "rx";
-  char        name[DP_TLM_NAME_MAX];
-  (void)snprintf (name, sizeof (name), "%s.lock", p);
-  int id_lock = dp_tlm_probe (tlm, name, decim);
-  (void)snprintf (name, sizeof (name), "%s.car.e", p);
-  int id_e = dp_tlm_probe (tlm, name, decim);
-  (void)snprintf (name, sizeof (name), "%s.car.freq", p);
-  int id_freq = dp_tlm_probe (tlm, name, decim);
+  /* Every name, including the timing loop's "<prefix>.sync", is built before
+   * any registration: an overlong prefix refuses with nothing registered. */
+  static const char *const sfx[7]
+      = { "lock",       "car.e", "car.freq", "car.nco",
+          "car.locked", "sym.i", "sym.q" };
+  char name[7][DP_TLM_NAME_MAX];
+  char sync[DP_TLM_NAME_MAX];
+  for (size_t i = 0; i < 7; i++)
+    if (dp_tlm_name_join (name[i], p, sfx[i]) != DP_OK)
+      return DP_ERR_INVALID;
+  if (dp_tlm_name_join (sync, p, "sync") != DP_OK)
+    return DP_ERR_INVALID;
+  /* The timing loop attaches first: it validates its own names before its
+   * first probe, so a refusal from it leaves this loop set untouched too. */
+  int rc = dp_ratesync_loop_set_telemetry (&l->timing, tlm, sync, decim);
+  if (rc != DP_OK)
+    return rc;
+  int id_lock = dp_tlm_probe (tlm, name[0], decim);
+  int id_e    = dp_tlm_probe (tlm, name[1], decim);
+  int id_freq = dp_tlm_probe (tlm, name[2], decim);
   /* The command that actually drives the LO -- integ + kp*e, not the
      integrator alone. That sum is the frequency the receiver is APPLYING and
      is what a consumer watching a Doppler profile wants; `car.freq` is the
      integrator, i.e. the frequency MEMORY the loop carries, and on a
      ramp the two differ by exactly the proportional term. Publishing only the
      integrator made a correctly-tracking loop look like it was lagging. */
-  (void)snprintf (name, sizeof (name), "%s.car.nco", p);
-  int id_nco = dp_tlm_probe (tlm, name, decim);
-  (void)snprintf (name, sizeof (name), "%s.car.locked", p);
-  int id_locked = dp_tlm_probe (tlm, name, decim);
-  (void)snprintf (name, sizeof (name), "%s.sym.i", p);
-  int id_sym_i = dp_tlm_probe (tlm, name, decim);
-  (void)snprintf (name, sizeof (name), "%s.sym.q", p);
-  int id_sym_q = dp_tlm_probe (tlm, name, decim);
+  int id_nco    = dp_tlm_probe (tlm, name[3], decim);
+  int id_locked = dp_tlm_probe (tlm, name[4], decim);
+  int id_sym_i  = dp_tlm_probe (tlm, name[5], decim);
+  int id_sym_q  = dp_tlm_probe (tlm, name[6], decim);
   if (id_lock < 0 || id_e < 0 || id_freq < 0 || id_nco < 0 || id_locked < 0
       || id_sym_i < 0 || id_sym_q < 0)
-    return DP_ERR_INVALID;
-  /* Forward to the timing loop under "<prefix>.sync"; if it fails the whole
-     attach fails, so nothing is left half-armed. */
-  (void)snprintf (name, sizeof (name), "%s.sync", p);
-  int rc = dp_ratesync_loop_set_telemetry (&l->timing, tlm, name, decim);
-  if (rc != DP_OK)
-    return rc;
+    {
+      /* Table full: undo the timing loop so nothing is left half-armed. */
+      (void)dp_ratesync_loop_set_telemetry (&l->timing, NULL, sync, decim);
+      return DP_ERR_INVALID;
+    }
   l->tlm.id_sym_i  = id_sym_i;
   l->tlm.id_sym_q  = id_sym_q;
   l->tlm.id_lock   = id_lock;
@@ -711,16 +718,19 @@ int
 dp_mpsk_receiver_set_telemetry (dp_mpsk_receiver_state_t *state, dp_tlm_t *tlm,
                                 const char *prefix, uint32_t decim)
 {
-  int rc = dp_mpsk_rx_set_telemetry (&state->l, tlm, prefix, decim);
-  if (rc != DP_OK)
-    return rc;
   /* The front end's AGC under "<prefix>.agc". It is the third loop in this
      receiver and was the only one emitting nothing, which made its settling
      the one thing a caller had to infer rather than read -- see
      mpsk_rx_agc_bn() for why that loop is the slowest of the three and so
-     the one that sets how long the receiver takes to become usable. */
-  char name[DP_TLM_NAME_MAX];
-  (void)snprintf (name, sizeof (name), "%s.agc", prefix ? prefix : "rx");
+     the one that sets how long the receiver takes to become usable.
+     Its name is built before the loops register, so a refused prefix leaves
+     the receiver exactly as it was. A detach ignores the name. */
+  char name[DP_TLM_NAME_MAX] = "";
+  if (tlm && dp_tlm_name_join (name, prefix ? prefix : "rx", "agc") != DP_OK)
+    return DP_ERR_INVALID;
+  int rc = dp_mpsk_rx_set_telemetry (&state->l, tlm, prefix, decim);
+  if (rc != DP_OK)
+    return rc;
   int rc_agc = state->real
                    ? dp_ddcr_set_telemetry (state->fe.r, tlm, name, decim)
                    : dp_ddc_set_telemetry (state->fe.c, tlm, name, decim);

@@ -1,1 +1,0 @@
-- **`doppler compose up` refuses a chain whose block executable is missing.** It names each missing block on its own line and exits 1, before any log file or chains directory is created. It used to raise an uncaught `OSError` after opening the block's log (#1919).

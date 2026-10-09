@@ -1,1 +1,0 @@
-- **`ber_esn0_db_for_ser` returns NaN outside its bracket instead of a fabricated -10 or 40 dB.** A zero SER used to read as "very noisy" (-10 dB), and a rate above the bound at -10 dB did too. Gates written as `loss > limit` pass silently on NaN, so the validation gates are now `!(loss <= limit)` (#1559).

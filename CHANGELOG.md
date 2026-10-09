@@ -13,6 +13,120 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.65.0] - 2026-10-09
+
+### Breaking
+
+- **`FFT`, `FFT2D`, `Corr` and `Corr2D` `execute*` refuse any input that is
+    not exactly the plan length.** Pass exactly `n` samples (`ny*nx` for the
+    2-D objects). Before, a wrong length was accepted silently: a short
+    array was a heap over-read, a long one was truncated. Now the C kernels
+    return `SIZE_MAX` (nothing read, written or counted; a dwell does not
+    advance) and Python raises `ValueError`. The 12 entry points are
+    `FFT.execute_cf32 / cf64 / inplace_cf32 / inplace_cf64 / ci16 / ci8`,
+    `FFT2D.execute_cf32 / cf64 / inplace_cf32 / inplace_cf64`,
+    `Corr.execute` and `Corr2D.execute` (#1925). `execute_ci16` / `ci8` still
+    accept an odd element count and ignore the stray last value (#1933).
+
+### Added
+
+- The four example projects (`consumer`, `standalone`, `burst-pipeline`, `uno-q`) are on the docs site under Examples → Example Projects, linked from Start Here. Each page is its project's README included whole, so the README stays the one copy, and the docs gates now check those READMEs: a page-level `--8<--` include is inlined for the Python, C and shell fence gates, and a README's `make` lines are checked against the Makefile beside it (or the one `make -C` names, or a `cwd=` fence marker).
+
+- **`PSD(window="rect")`, and the per-frame kernel behind `PSD` as a public C
+    call.** A rectangular window joins Hann, Kaiser and Blackman-Harris, and
+    `dp_psd_frame_power` / `dp_psd_frame_db` expose the one frame's spectrum that
+    `accumulate` already folds, so a spectrogram row and a one-frame PSD are the
+    same numbers. Existing windows' output is unchanged, bit for bit.
+
+- **Fixed-size frames from any chunking, with no loop of your own.** The ring
+    gains a framed face (`dp_f32_framer_*`, plus `f64` and `i16`): feed any
+    chunk, take overlapping frames, flush the one zero-padded row a stream's end
+    owes. The frames are the same however the input was split, at the speed of
+    the hand-written loop (0.355 vs 0.356 ns/sample). See the
+    [ring design page](design/ring-buffer.md#9-the-framed-face-any-chunk-in-fixed-frames-out).
+
+### Changed
+
+- **`Farrow` is jm-generated** (doppler#1446). Its `delay` binding is
+    re-rendered by jm and leaves the `-Wall -Wextra` exempt list; the GIL is
+    still released across the kernel (`nogil`). `delay` returns a fresh array
+    per call instead of one the object owns, so a result survives the next
+    call. The stale `manual_stub` comment, which said `delay_max_out` was not
+    generated (it has been since jm 0.99.0), is gone from the manifest.
+
+- **`HalfbandDecimator` is jm-generated** (doppler#1446). It was held on
+    just-makeit#2004 (a constructor array could not declare `rank`); with
+    `rank = 1` on `h` the render keeps the 1-D guard, so a 2-D `h` still raises
+    `ValueError` (the message now reads `h must be a 1-D array`). The binding is
+    re-rendered by jm, leaves the `-Wall -Wextra` exempt list, and returns a
+    fresh output array per call instead of one it owns. The generated C
+    symbol test gains the state triplet rows.
+
+- **`HalfbandDecimatorQ15` is jm-generated** (doppler#1446). It waited on
+    just-makeit#1996 (`elements_per_sample` was ignored on a `variable_output`
+    method), fixed in jm 0.99.0. With `pass_capacity` and
+    `elements_per_sample = 2` on `x`, jm does the samples-to-elements
+    conversion the hand fragment did (`/ 2` on the input and capacity, `* 2` on
+    the output), so a re-render cannot drift from it. The binding leaves the
+    `-Wall -Wextra` exempt list and returns a fresh array per call.
+
+- **just-makeit pin 0.100.0 → 0.100.1.** Scaffold-side fixes only (a
+    component with its own `reset()` passes its generated tests, gh-1882;
+    `const char *` refused as a `step()` type, gh-1884). `jm apply`
+    re-rendered nothing: no generated file changed.
+
+- The README and docs home page badges are refreshed: one flat-square style with logos, live versions read from PyPI and GitHub instead of a hand-kept Python range, and new badges for the `.deb`/`.rpm` packages, the ghcr.io containers, the wheel platforms and the C99 core. The README's badge block is now generated from `docs/index.md` by `make docs-relink`, so the two cannot drift.
+
+- **`wfm.Reader` is jm-generated** (doppler#1446). Its binding is
+    re-rendered by jm and leaves the `-Wall -Wextra` exempt list. The two things
+    that kept it hand-owned are now declared: the `sample_type` hint is a
+    project `[[enum]]` (`reader_stype`) whose `enumerators` bind `"auto"` to
+    `WFM_READER_STYPE_AUTO` (-1) beside the ten wire types, and Ctrl-C ending a
+    `read_follow()` is a C creator, `dp_wfm_reader_create_interruptible`, set as
+    the object's `create_fn`. `dp_wfm_reader_create` is unchanged and still
+    installs no stop predicate. `WFM_READER_STYPE_AUTO` is now an enumerator of
+    `wfm_reader_stype_t`, alongside `WFM_READER_STYPE_CF32` … `_I8`. The `.pyi`
+    `sample_type` annotation now lists all eleven names it always accepted.
+
+### Fixed
+
+- **`ber_esn0_db_for_ser` returns NaN outside its bracket instead of a fabricated -10 or 40 dB.** A zero SER used to read as "very noisy" (-10 dB), and a rate above the bound at -10 dB did too. Gates written as `loss > limit` pass silently on NaN, so the validation gates are now `!(loss <= limit)` (#1559).
+
+- `ber_theory_ser`, `ber_theory_ber` and `ber_esn0_db_for_ser` return NaN for an M outside {2, 4, 8} instead of silently using another M's formula (16 read as 8-PSK, 0 and 1 as BPSK), and the two EVM functions return NaN for M < 2 instead of answering for BPSK (#1913).
+
+- **`BurstDemod.demod` documents what it returns: the frame's bits.** The docstring said "the payload bits", but the call returns the sync header, the payload and the CRC-16 trailer, in that order, as sent. The runtime `__doc__` and the stub now say so.
+
+- **`doppler compose up` refuses a chain whose block executable is missing.** It names each missing block on its own line and exits 1, before any log file or chains directory is created. It used to raise an uncaught `OSError` after opening the block's log (#1919).
+
+- **The `corr` Python benchmark now correlates the frame it is credited
+    with.** It handed a 64-point `Corr` 65,536 samples; the kernel read 64 and
+    ignored the rest, so `docs/benchmarks.md` printed 206 GSa/s (portable) and
+    262 GSa/s (native) for roughly 1/1000 of the work. Those published figures
+    stay until the next representative-machine run; a new gate fails any
+    published throughput above 100 GSa/s (#1918).
+
+- **`dp_fir_execute` / `FIR.execute` no longer depend on where a stream is
+    split.** On AVX2, AVX-512 and NEON builds the last samples of every call
+    were rounded differently from the rest (a rounded product then a rounded
+    add, against a fused multiply-add), so the same input gave a different
+    last bit depending on chunking, and a state hand-off was not bit-exact.
+    **The last bit can differ from previous releases on those builds**;
+    portable (SSE2) builds are unchanged. A call shorter than one vector
+    group (under 8 complex samples on AVX-512) now costs more per sample,
+    up to several times for a long filter (cost table in #1932; #1893).
+
+- The interrupt flag is a lock-free C11 atomic, so a signal handler and the streaming threads no longer race on it, and the NATS stream test runs under TSan again instead of being excluded (#1027).
+
+- **The test-leak gate says when it falls back to walking the tree.** Outside a git work tree it printed the same output as the git path, so a packager could not tell which mode ran. It now prints one stderr line naming the root (#1922).
+
+- The test-leak gate no longer crashes outside a git checkout (an sdist); it walks the root instead (#1562).
+
+- **`Reader.t0_source` no longer raises on a SigMF capture that declares a
+    start time.** The getter range-checked against a hand-copied table of two
+    names, so `"sigmf"` (the third) failed with
+    `ValueError: ... (valid: 0..1)`. The table is rendered from the `t0_source`
+    `[[enum]]` now, which is how it stays the length of the enum (doppler#1446).
+
 ## [0.64.0] - 2026-10-07
 
 ### Breaking
@@ -16001,7 +16115,8 @@ ______________________________________________________________________
 [0.62.0]: https://github.com/doppler-dsp/doppler/compare/v0.61.1...v0.62.0
 [0.63.0]: https://github.com/doppler-dsp/doppler/compare/v0.62.0...v0.63.0
 [0.64.0]: https://github.com/doppler-dsp/doppler/compare/v0.63.0...v0.64.0
+[0.65.0]: https://github.com/doppler-dsp/doppler/compare/v0.64.0...v0.65.0
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.64.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.65.0...HEAD

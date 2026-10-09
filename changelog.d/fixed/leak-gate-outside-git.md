@@ -1,0 +1,1 @@
+- The test-leak gate no longer crashes outside a git checkout (an sdist); it walks the root instead (#1562).

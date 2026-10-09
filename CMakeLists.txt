@@ -1381,7 +1381,16 @@ set(_NATS_BLD "${CMAKE_CURRENT_BINARY_DIR}/libnats-vendor")
 # CMake's own static-library spelling: libnats_static.a on POSIX,
 # nats_static.lib under clang-cl/MSVC (#1575).
 set(_NATS_LIB "${_NATS_BLD}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}nats_static${CMAKE_STATIC_LIBRARY_SUFFIX}")
+# Configured from an EMPTY directory every time (#1936). The -D options below
+# override a cache, except when the cache names a different compiler: then
+# CMake deletes it and re-runs configure with none of them, so
+# NATS_BUILD_STREAMING falls back to ON, wants protobuf-c, and the first
+# build after a compiler change fails while the second passes. This command
+# runs only when the library is missing, so nothing is rebuilt that would
+# not be anyway. remove_directory, not `-E rm` (3.17) or `--fresh` (3.24):
+# the floor is 3.16.
 add_custom_command(OUTPUT "${_NATS_LIB}"
+    COMMAND ${CMAKE_COMMAND} -E remove_directory "${_NATS_BLD}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${_NATS_BLD}"
     COMMAND ${CMAKE_COMMAND} -B "${_NATS_BLD}" -S "${_NATS_SRC}"
             # The PARENT's generator and compiler: CMake's default generator

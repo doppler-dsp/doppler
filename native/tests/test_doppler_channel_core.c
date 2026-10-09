@@ -1,5 +1,6 @@
 #include "doppler/doppler_channel/doppler_channel_core.h"
 #include "doppler/dp_complex.h"
+#include "dp_chunk_inv.h"
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
@@ -15,6 +16,68 @@
 #define T_PPM 20.0
 #define T_RATE 0.2 /* ppm/s == 500 Hz/s at 2.5 GHz */
 #define T_N 65536u
+
+/* The channel as a chunk-invariance subject (dp_chunk_inv.h). `create` makes
+   a FRESH channel with the same config each time, so every partition starts
+   from the same state. */
+static void *
+chan_create (void *arg)
+{
+  (void)arg;
+  return dp_doppler_channel_create (T_FS, T_FC, T_PPM, T_RATE);
+}
+
+static void
+chan_destroy (void *o)
+{
+  dp_doppler_channel_destroy (o);
+}
+
+static size_t
+chan_execute (void *o, const void *in, size_t n, void *out, size_t out_cap)
+{
+  return dp_doppler_channel_execute (o, in, n, out, out_cap);
+}
+
+/* The same, driven by a ppm profile aligned to the input: the profile rides
+   in the object so `process` sees only (in, n), and `off` tracks how much of
+   the stream has gone by. */
+typedef struct
+{
+  dp_doppler_channel_state_t *ch;
+  const double               *ppm;
+  size_t                      off;
+} prof_t;
+
+static void *
+prof_create (void *arg)
+{
+  prof_t *p = calloc (1, sizeof *p);
+  p->ch     = dp_doppler_channel_create (T_FS, T_FC, 0.0, 0.0);
+  p->ppm    = arg;
+  return p;
+}
+
+static void
+prof_destroy (void *o)
+{
+  prof_t *p = o;
+  dp_doppler_channel_destroy (p->ch);
+  free (p);
+}
+
+static size_t
+prof_execute (void *o, const void *in, size_t n, void *out, size_t out_cap)
+{
+  prof_t *p   = o;
+  int64_t got = dp_doppler_channel_execute_profile (
+      p->ch, in, n, p->ppm + p->off, n, out, out_cap);
+  p->off += n;
+  /* An error is an error, not a count that happens to disagree with the
+     one-shot run. */
+  DP_CHECK (got >= 0);
+  return got < 0 ? 0 : (size_t)got;
+}
 
 /* Dominant frequency of a block, by peak of a naive DFT evaluated only near
    the expected bin — enough to confirm the offset without pulling in an FFT
@@ -115,34 +178,26 @@ main (void)
   }
 
   /* ---- 5. blockwise == one big call (chunk invariance) ---------------- */
+  /* Every partition (single samples, 7, 64, a prime, random splits), bit for
+     bit -- this was one 4096-block partition at a 1e-4 tolerance
+     (dp_chunk_inv.h now owns the partitions and the comparison). */
   {
-    dp_doppler_channel_state_t *a
+    dp_doppler_channel_state_t *probe
         = dp_doppler_channel_create (T_FS, T_FC, T_PPM, T_RATE);
-    dp_doppler_channel_state_t *b
-        = dp_doppler_channel_create (T_FS, T_FC, T_PPM, T_RATE);
-    DP_CHECK (a != NULL && b != NULL);
-    size_t          cap = dp_doppler_channel_execute_max_out (a);
-    float _Complex *ya  = malloc (cap * sizeof *ya);
-    float _Complex *yb  = malloc (cap * sizeof *yb);
-    size_t          na  = dp_doppler_channel_execute (a, x, T_N, ya, cap);
-
-    size_t nb = 0;
-    for (size_t off = 0; off < T_N; off += 4096)
-      nb += dp_doppler_channel_execute (b, x + off, 4096, yb + nb, cap - nb);
-
-    DP_CHECK (na == nb);
-    int same = 1;
-    for (size_t k = 0; k < (na < nb ? na : nb); k++)
-      if (!dp_cnearf (ya[k], yb[k], 1e-4f))
-        {
-          same = 0;
-          break;
-        }
-    DP_CHECK (same);
-    free (ya);
-    free (yb);
-    dp_doppler_channel_destroy (a);
-    dp_doppler_channel_destroy (b);
+    DP_CHECK (probe != NULL);
+    dp_ci_spec_t spec = {
+      .name     = "doppler_channel execute",
+      .create   = chan_create,
+      .destroy  = chan_destroy,
+      .process  = chan_execute,
+      .in_size  = sizeof (float _Complex),
+      .out_size = sizeof (float _Complex),
+      .out_cap  = dp_doppler_channel_execute_max_out (probe),
+      /* the 4096-sample partition this test used before the harness */
+      .extra_sizes = (const size_t[]){ 4096u, 0u },
+    };
+    dp_doppler_channel_destroy (probe);
+    DP_CHECK (dp_chunk_invariance (&spec, x, T_N) == 0);
   }
 
   /* ---- 6. mid-stream resume is bit-exact ------------------------------ */
@@ -316,33 +371,33 @@ main (void)
     size_t nw = (size_t)nw_s;
 
     /* 8a. Chunk-independence, bit for bit, at block sizes that do not divide
-       each other. This is the assertion the first attempt failed (2.75e-2). */
-    static const size_t blocks[] = { 1000u, 7777u, 10000u, 50000u };
-    for (size_t b = 0; b < sizeof blocks / sizeof *blocks; b++)
-      {
-        dp_doppler_channel_state_t *ch
-            = dp_doppler_channel_create (T_FS, T_FC, 0.0, 0.0);
-        float _Complex *y = malloc (cap * sizeof *y);
-        DP_CHECK (ch && y);
-        size_t ny = 0;
-        for (size_t off = 0; off < n; off += blocks[b])
-          {
-            size_t  m   = (n - off < blocks[b]) ? n - off : blocks[b];
-            int64_t got = dp_doppler_channel_execute_profile (
-                ch, xs + off, m, ppm + off, m, y + ny, cap - ny);
-            DP_CHECK (got >= 0);
-            ny += (size_t)got;
-          }
-        DP_CHECK (ny == nw);
-        int same = 1;
-        for (size_t i = 0; i < nw && i < ny; i++)
-          if (crealf (y[i]) != crealf (whole[i])
-              || cimagf (y[i]) != cimagf (whole[i]))
-            same = 0;
-        DP_CHECK (same);
-        free (y);
-        dp_doppler_channel_destroy (ch);
-      }
+       each other. This is the assertion the first attempt failed (2.75e-2).
+       dp_chunk_inv.h supplies the small and random partitions; the large
+       ones are asked for by name because they straddle the internal block
+       boundary (DOPPLER_CHANNEL_MAX_BLOCK), which is the whole point. */
+    static const size_t blocks[]  = { 1000u, 7777u, 10000u, 50000u, 0u };
+    dp_ci_spec_t        prof_spec = {
+      .name        = "doppler_channel execute_profile",
+      .create      = prof_create,
+      .destroy     = prof_destroy,
+      .process     = prof_execute,
+      .arg         = ppm,
+      .in_size     = sizeof (float _Complex),
+      .out_size    = sizeof (float _Complex),
+      .out_cap     = cap,
+      .extra_sizes = blocks,
+    };
+    DP_CHECK (dp_chunk_invariance (&prof_spec, xs, n) == 0);
+    /* ...and the one-shot it is compared with is the whole-stream call. */
+    {
+      void           *po = prof_create (ppm);
+      float _Complex *y  = malloc (cap * sizeof *y);
+      size_t          ny = prof_execute (po, xs, n, y, cap);
+      DP_CHECK (ny == nw);
+      DP_CHECK (memcmp (y, whole, nw * sizeof *y) == 0);
+      free (y);
+      prof_destroy (po);
+    }
 
     /* 8b. A flat profile is the scalar route to the rate quantum: the
        resampler steps in 2^-32 of an input interval, so the carrier read off

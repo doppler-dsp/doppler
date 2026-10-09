@@ -19,6 +19,7 @@ _High-performance x86-64 Circular Buffer for RF Streaming._ [More...](#detailed-
 * `#include <stdbool.h>`
 * `#include <stddef.h>`
 * `#include <stdint.h>`
+* `#include "doppler/dp_state.h"`
 * `#include "doppler/jm_perf.h"`
 * `#include "doppler/util/util_core.h"`
 * `#include <stdlib.h>`
@@ -106,11 +107,13 @@ _High-performance x86-64 Circular Buffer for RF Streaming._ [More...](#detailed-
 | Type | Name |
 | ---: | :--- |
 | define  | [**DECLARE\_DP\_BUFFER**](buffer_8h.md#define-declare_dp_buffer) (name, type) <br>_Generates a type-specific circular buffer implementation._  |
+| define  | [**DECLARE\_DP\_BUFFER\_FRAMES**](buffer_8h.md#define-declare_dp_buffer_frames) (name, type, elem) <br>_Declares the framed face of the_ `name` _ring: any chunk in, fixed (and optionally overlapping) frames out._ |
 | define  | [**DECLARE\_DP\_BUFFER\_VIEW**](buffer_8h.md#define-declare_dp_buffer_view) (name, type, elem) `/* multi line expression */`<br>_Declares the element-typed face of the_ `name` _ring._ |
 | define  | [**DP\_ALIGN**](buffer_8h.md#define-dp_align) (n) `\_\_attribute\_\_ ((aligned (n)))`<br> |
 | define  | [**DP\_ASSERT\_2X**](buffer_8h.md#define-dp_assert_2x) (tag, elem, type) `typedef char dp\_assert\_2x\_##tag[sizeof (elem) == 2 \* sizeof (type) ? 1 : -1]`<br> |
 | define  | [**DP\_ASSERT\_PWR2**](buffer_8h.md#define-dp_assert_pwr2) (n) `typedef char dp\_assert\_pwr2\_##n[((n) & ((n) - 1)) == 0 ? 1 : -1]`<br> |
 | define  | [**DP\_CACHELINE**](buffer_8h.md#define-dp_cacheline)  `64`<br>_Standard x86-64 cache-line size (64 bytes)._  |
+| define  | [**DP\_FRAMER\_STATE\_MAGIC**](buffer_8h.md#define-dp_framer_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('F', 'R', 'M', 'R')`<br>_FourCC of a framer snapshot (see dp\_&lt;name&gt;\_framer\_state\_bytes)._  |
 | define  | [**DP\_SPIN\_HINT**](buffer_8h.md#define-dp_spin_hint) () `((void)0)`<br> |
 
 ## Detailed Description
@@ -394,6 +397,55 @@ _Generates a type-specific circular buffer implementation._
 
 
 
+### define DECLARE\_DP\_BUFFER\_FRAMES 
+
+_Declares the framed face of the_ `name` _ring: any chunk in, fixed (and optionally overlapping) frames out._
+```C++
+#define DECLARE_DP_BUFFER_FRAMES (
+    name,
+    type,
+    elem
+) 
+```
+
+
+
+The ring is a transport; this is what a block processor wants on top of it. A consumer of N-sample frames at hop H used to write the same loop  write what fits, peek N, process, consume H  and some wrote it against the ring's `head`, `tail` and `mask`. The framer is that loop, once: `framer_feed` and `framer_next` are the write and the drain, `framer_flush` ends a stream, and the snapshot triplet makes the carry resumable. The output is a function of the INPUT STREAM and not of how it was split into chunks.
+
+
+It is a sibling of DECLARE\_DP\_BUFFER\_VIEW rather than part of DECLARE\_DP\_BUFFER, so a ring that does not frame (telemetry's) is unchanged. Single-threaded: the framer owns its ring exclusively, on both sides.
+
+
+
+
+**Parameters:**
+
+
+* `name` Ring instance suffix, as passed to [**DECLARE\_DP\_BUFFER**](buffer_8h.md#define-declare_dp_buffer). 
+* `type` Stored scalar type. 
+* `elem` Element type spanning exactly two scalars.
+
+
+```C++
+dp_f32_t *ring = dp_f32_create (4 * 8);
+dp_f32_framer_t fr;
+dp_f32_framer_init (&fr, ring, 8, 4);          // 8-sample frames, hop 4
+float _Complex x[10] = { 0 };
+size_t used = dp_f32_framer_feed_view (&fr, x, 10, 2);
+int rows = 0;
+while (dp_f32_framer_next_view (&fr))
+  rows++;                                      // 10 samples: frames at 0, 4
+dp_f32_destroy (ring);
+```
+ 
+
+
+        
+
+<hr>
+
+
+
 ### define DECLARE\_DP\_BUFFER\_VIEW 
 
 _Declares the element-typed face of the_ `name` _ring._
@@ -495,6 +547,20 @@ dp_f32_destroy (ab);
 _Standard x86-64 cache-line size (64 bytes)._ 
 ```C++
 #define DP_CACHELINE `64`
+```
+
+
+
+
+<hr>
+
+
+
+### define DP\_FRAMER\_STATE\_MAGIC 
+
+_FourCC of a framer snapshot (see dp\_&lt;name&gt;\_framer\_state\_bytes)._ 
+```C++
+#define DP_FRAMER_STATE_MAGIC `DP_FOURCC ('F', 'R', 'M', 'R')`
 ```
 
 

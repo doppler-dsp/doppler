@@ -35,6 +35,10 @@
  * whoever adds one.
  */
 #include "doppler/buffer/buffer.h"
+
+/* The typed headers stamp the framed face beside their VIEW; this benchmark
+   builds from buffer.h alone, like test_buffer_core, so it stamps its own. */
+DECLARE_DP_BUFFER_FRAMES (f32, float, float _Complex)
 #include "doppler/dp_thread.h"
 #include "dp_bench.h"
 #include <stdio.h>
@@ -131,6 +135,7 @@ main (void)
   uint64_t      t0, t1;
   static double t[N_CFG][ITERATIONS];
   static double t_stream[ITERATIONS];       /* write_some + peek, f32   */
+  static double t_framer[ITERATIONS];       /* the framed face, same job */
   static double t_i16[N_CHUNK][ITERATIONS]; /* write/wait/consume, i16 */
   dp_f32_t     *b32   = dp_f32_create (CAPACITY);
   dp_f64_t     *b64   = dp_f64_create (CAPACITY);
@@ -235,6 +240,33 @@ main (void)
             t1          = jm_bench_now_ns ();
             t_stream[r] = jm_bench_elapsed_sec (t0, t1);
             dp_f32_reset (b32); /* leave no remainder for the next row */
+
+            /* The same job through the framed face (hop == frame, so the
+               work per sample is identical): what does owning the loop cost?
+             */
+            {
+              dp_f32_framer_t fr;
+              size_t          fed2 = 0;
+              (void)dp_f32_framer_init (&fr, b32, STREAM_FRAME, STREAM_FRAME);
+              t0 = jm_bench_now_ns ();
+              while (fed2 < TOTAL)
+                {
+                  size_t off = 0;
+                  while (off < STREAM_CHUNK)
+                    {
+                      const float *f;
+                      off += dp_f32_framer_feed (&fr, srcs + 2 * off,
+                                                 STREAM_CHUNK - off, SIZE_MAX);
+                      while ((f = dp_f32_framer_next (&fr)) != NULL)
+                        for (size_t k = 0; k < (size_t)STREAM_FRAME * 2; k++)
+                          acc += (double)f[k];
+                    }
+                  fed2 += STREAM_CHUNK;
+                }
+              t1          = jm_bench_now_ns ();
+              t_framer[r] = jm_bench_elapsed_sec (t0, t1);
+              dp_f32_framer_reset (&fr);
+            }
           }
       }
 
@@ -260,6 +292,12 @@ main (void)
                    (TOTAL + STREAM_CHUNK - 1) / STREAM_CHUNK * STREAM_CHUNK,
                    "sample");
 
+  (void)snprintf (name, sizeof name, "framer_feed_next[f32,in=%d,frame=%d]",
+                  STREAM_CHUNK, STREAM_FRAME);
+  dp_bench_record (&_bench, name, t_framer, ITERATIONS,
+                   (TOTAL + STREAM_CHUNK - 1) / STREAM_CHUNK * STREAM_CHUNK,
+                   "sample");
+
   printf (
       "\n  the streaming loop (write_some + peek), against write + wait:\n");
   printf (
@@ -269,6 +307,11 @@ main (void)
        / (double)((TOTAL + STREAM_CHUNK - 1) / STREAM_CHUNK * STREAM_CHUNK))
           / (dp_bench_min (t[REF_IDX * N_KIND + KIND_F32], ITERATIONS)
              / (double)TOTAL));
+
+  printf ("\n  the framed face, against the hand-written loop it replaces:\n"
+          "    framer_feed_next over write_some_peek_consume   %.2fx\n",
+          dp_bench_min (t_framer, ITERATIONS)
+              / dp_bench_min (t_stream, ITERATIONS));
 
   printf ("\n  straddling the wrap, against never straddling it:\n");
   for (int k = 0; k < N_KIND; k++)

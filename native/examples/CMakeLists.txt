@@ -10,7 +10,7 @@ foreach(_ex nco_demo fir_demo hbdecim_demo fft_demo agc_demo corr_demo cic_demo 
              data_source_link_demo
              wfm_field_demo
              doppler_channel_profile_demo
-             ring_drip_feed_demo ring_chunking_demo
+             ring_drip_feed_demo ring_chunking_demo ring_framer_demo
              ring_write_policy_demo ring_element_view_demo)
     add_executable(${_ex} ${_ex}.c)
     target_include_directories(${_ex} PRIVATE

@@ -592,15 +592,23 @@ def roundtripped() -> set[str]:
     return found
 
 
-def state_ratchet() -> dict[str, str]:
+def parse_ratchet(text: str) -> dict[str, str]:
+    """`key | reason` lines of a ratchet file; `#` comments and blanks out."""
     held: dict[str, str] = {}
-    if STATE_RATCHET.exists():
-        for raw in STATE_RATCHET.read_text().splitlines():
-            line = raw.strip()
-            if line and not line.startswith("#"):
-                key, _, reason = line.partition("|")
-                held[key.strip()] = reason.strip()
+    for raw in text.splitlines():
+        line = raw.strip()
+        if line and not line.startswith("#"):
+            key, _, reason = line.partition("|")
+            held[key.strip()] = reason.strip()
     return held
+
+
+def read_ratchet(path: pathlib.Path) -> dict[str, str]:
+    return parse_ratchet(path.read_text()) if path.exists() else {}
+
+
+def state_ratchet() -> dict[str, str]:
+    return read_ratchet(STATE_RATCHET)
 
 
 def state_roundtrips() -> list[str]:
@@ -648,6 +656,152 @@ def state_roundtrips() -> list[str]:
             "_set_state -- the ratchet went stale. Delete the line."
         )
     return bad
+
+
+#: A RATCHET: it may only shrink. See chunk_invariance().
+CHUNK_RATCHET = ROOT / "scripts" / ".chunk-invariance-ratchet"
+#: The harness a test uses to state the property, and the call that runs it.
+CHUNK_HARNESS = "dp_chunk_inv.h"
+CHUNK_CALL = re.compile(r"\bdp_chunk_invariance\s*\(")
+
+
+def streaming() -> set[str]:
+    """The serializable prefixes that also STREAM.
+
+    Same population as the state rule (an object is stateful when its header
+    declares `int <p>_set_state (`), narrowed to those whose header declares a
+    call made repeatedly on consecutive pieces of one input:
+    `<p>_step`, `<p>_steps*`, `<p>_execute*` or `<p>_push*`. An object that
+    carries state across calls and streams is the one whose output can depend
+    on where the calls fall.
+    """
+    text = "\n".join(
+        strip_comments(h.read_text()) for h in sorted(INC.rglob("*.h"))
+    )
+    return {
+        p
+        for p in serializable()
+        if re.search(
+            rf"\b{re.escape(p)}_(?:step|steps\w*|execute\w*|push\w*)\s*\(",
+            text,
+        )
+    }
+
+
+#: `.create = f` / `.process = (cast) f` in a `dp_ci_spec_t` initializer.
+CHUNK_WIRED = re.compile(
+    r"\.(?:create|process)\s*=\s*(?:\([^()]*(?:\([^()]*\)[^()]*)*\)\s*)?(\w+)"
+)
+
+
+def function_body(text: str, name: str) -> str:
+    """The braces after `name (...)` where it is DEFINED, else ''."""
+    for m in re.finditer(rf"\b{re.escape(name)}\s*\([^;{{}}]*\)\s*\{{", text):
+        depth, i = 1, m.end()
+        while i < len(text) and depth:
+            depth += {"{": 1, "}": -1}.get(text[i], 0)
+            i += 1
+        return text[m.end() : i]
+    return ""
+
+
+def chunk_tested() -> set[str]:
+    """Every prefix a harness-driven test actually EXERCISES.
+
+    A test counts when it includes the harness, calls `dp_chunk_invariance (`,
+    and the prefix's API is called inside a function wired into the
+    `dp_ci_spec_t` as `.create` or `.process` -- the code the harness runs
+    under every partition. Merely mentioning `<p>_` in a test that carries the
+    harness does not count: a helper elsewhere in the file would otherwise take
+    an object off the ratchet without it ever being partitioned.
+    """
+    have = serializable()
+    found: set[str] = set()
+    for path in sources():
+        if path.suffix != ".c":
+            continue
+        raw = path.read_text()
+        text = strip_comments(raw)
+        if CHUNK_HARNESS not in raw or not CHUNK_CALL.search(text):
+            continue
+        wired = "\n".join(
+            function_body(text, f) for f in set(CHUNK_WIRED.findall(text))
+        )
+        found.update(
+            p for p in have if re.search(rf"\b{re.escape(p)}_", wired)
+        )
+    return found
+
+
+def chunk_invariance() -> list[str]:
+    """Every stateful streaming object has a chunk-invariance test.
+
+    A streaming object's output must be a function of the INPUT STREAM, not
+    of how it was split into calls. That was tested three times by hand
+    (doppler_channel, wfm_synth, a resampler's split) and not at all for the
+    rest, so a carry that is off by one at a chunk size nobody tried shipped.
+    `native/tests/dp_chunk_inv.h` states the property once; this makes using
+    it the default. Both sides are derived, nothing is registered. What
+    lacked the test when the rule arrived is ratcheted; the list may only
+    shrink -- an entry that is covered, or no longer a streaming object,
+    fails as stale, and ratchet_added() fails one added since the merge base.
+    """
+    need = streaming()
+    if not need:
+        return [
+            "found no serializable object that streams -- the scan did not "
+            "run, so it has not passed"
+        ]
+    covered = chunk_tested()
+    held = read_ratchet(CHUNK_RATCHET)
+    rel = CHUNK_RATCHET.relative_to(ROOT)
+    bad: list[str] = []
+    for p in sorted(need - covered - set(held)):
+        bad.append(
+            f"{p}: serializable and streams, but no C test using "
+            f"{CHUNK_HARNESS} (and calling dp_chunk_invariance) names "
+            f"{p}_* -- its output must not depend on how the input is "
+            "chunked. A dozen lines against the harness."
+        )
+    for p in sorted(set(held) & covered):
+        bad.append(
+            f"{rel}: '{p}' has the test now -- the ratchet went stale. "
+            "Delete the line."
+        )
+    for p in sorted(set(held) - need):
+        bad.append(
+            f"{rel}: '{p}' is not a serializable streaming object -- the "
+            "ratchet went stale. Delete the line."
+        )
+    return bad
+
+
+def ratchet_added(path: pathlib.Path, base: str) -> list[str]:
+    """Entries on the ratchet at `path` that the merge base with `base` lacked.
+
+    The stale checks make a ratchet shrink; this stops it growing. Without it
+    the file is the place a new object goes to be forgiven. Compared with the
+    merge base for the reason ratchet() gives; a file that is new on this
+    branch has no earlier list to have grown from. One helper for the state and
+    chunk-invariance ratchets, so they cannot disagree about what "added" is.
+    """
+    try:
+        rev = resolve_base(ROOT, base)
+    except BaseUnreadableError:
+        raise LookupError(
+            f"base ref {base!r} does not resolve.\n"
+            "  A ratchet that cannot read its baseline has not passed."
+        ) from None
+    rel = path.relative_to(ROOT).as_posix()
+    then = show_at(ROOT, rev, rel)
+    if then is None:
+        return []
+    before = set(parse_ratchet(then))
+    return [
+        f"{rel}: '{k}' ADDED -- a ratchet may only shrink; fix the cause "
+        "(a test, a header) instead of forgiving it"
+        for k in sorted(set(read_ratchet(path)) - before)
+    ]
 
 
 IGNORE = TESTS / ".assertion-ratchet-ignore"
@@ -962,6 +1116,7 @@ def main() -> int:
     bad += double_draws()
     bad += unreported_checks()
     bad += state_roundtrips()
+    bad += chunk_invariance()
 
     if bad:
         print("check_tests_ssot: the shared harness is the single definition.")
@@ -976,8 +1131,19 @@ def main() -> int:
             base = sys.argv[i + 1]
     try:
         lost = ratchet(base) if base else []
+        added = (
+            ratchet_added(STATE_RATCHET, base)
+            + ratchet_added(CHUNK_RATCHET, base)
+            if base
+            else []
+        )
     except LookupError as exc:
         print(f"check_tests_ssot: {exc}")
+        return 1
+    if added:
+        print("check_tests_ssot: a ratchet GREW.")
+        for line in added:
+            print(f"  {line}")
         return 1
     if lost:
         print("check_tests_ssot: a test file LOST assertions.")
@@ -1024,6 +1190,12 @@ def main() -> int:
         f"  state: {len(have)} serializable object(s), "
         f"{len(have & roundtripped())} under DP_STATE_ROUNDTRIP_TEST, "
         f"{len(state_ratchet())} ratcheted (may only shrink)"
+    )
+    need = streaming()
+    print(
+        f"  chunk: {len(need)} streaming serializable "
+        f"object(s), {len(need & chunk_tested())} under {CHUNK_HARNESS}, "
+        f"{len(read_ratchet(CHUNK_RATCHET))} ratcheted (may only shrink)"
     )
     if base:
         print(f"  assertions: no file lost any vs the merge base with {base}")

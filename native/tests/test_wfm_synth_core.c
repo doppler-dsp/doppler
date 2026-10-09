@@ -2,12 +2,42 @@
 #include "doppler/mpsk/mpsk_core.h"
 #include "doppler/wfm/wfm_frame.h" /* the burst: dp_wfm_frame_fixed + spread */
 #include "doppler/wfm_synth/wfm_synth_core.h"
+#include "dp_chunk_inv.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* A pinned chirp as a chunk-invariance source (dp_chunk_inv.h): no input,
+   n elements out. Config rides in the arg so every partition gets a FRESH,
+   identical synth. */
+typedef struct
+{
+  double fs, f0, f1;
+  size_t span;
+} chirp_cfg_t;
+
+static void *
+chirp_create (void *arg)
+{
+  const chirp_cfg_t    *c = arg;
+  dp_wfm_synth_state_t *s = dp_wfm_synth_create (
+      WFM_SYNTH_CHIRP, c->fs, c->f0, 100.0, 0, 1, 8, 7, 0, 0, c->f1);
+  if (s)
+    dp_wfm_synth_set_chirp_span (s, c->span);
+  return s;
+}
+
+static size_t
+chirp_steps (void *o, const void *in, size_t n, void *out, size_t out_cap)
+{
+  (void)in;
+  (void)out_cap;
+  dp_wfm_synth_steps (o, out, n);
+  return n;
+}
 
 /* Floating-point helpers — use inline functions, not macros, so arguments
  * are evaluated exactly once.  Safe to call with stateful step() results. */
@@ -446,19 +476,29 @@ main (void)
     DP_CHECK (dp_nearf (wd_hi, f0 / fs, 2e-3f)); /* ends low   */
 
     /* #1115: the waveform may not depend on how reads are chunked. A pinned
-     * chirp read in 64-sample blocks is the one-block read, bit for bit. */
-    dp_wfm_synth_state_t *cb = dp_wfm_synth_create (
-        WFM_SYNTH_CHIRP, fs, f0, 100.0, 0, 1, 8, 7, 0, 0, f1);
-    dp_wfm_synth_set_chirp_span (cb, N);
+     * chirp read in ANY partition -- single samples, 7, 64, a prime, random
+     * splits -- is the one-block read, bit for bit (dp_chunk_inv.h; this was
+     * a single 64-sample partition). And that one-block read is `y`, the
+     * waveform every assertion above measured. */
     float _Complex *b = malloc (N * sizeof *b);
     DP_CHECK (b != NULL);
-    for (size_t off = 0; off < N; off += 64)
-      dp_wfm_synth_steps (cb, b + off, 64);
-    int block_match = 1;
-    for (size_t i = 0; i < N; i++)
-      if (b[i] != y[i])
-        block_match = 0;
-    DP_CHECK (block_match);
+    chirp_cfg_t  cfg        = { fs, f0, f1, N };
+    dp_ci_spec_t chirp_spec = {
+      .name     = "wfm_synth chirp",
+      .create   = chirp_create,
+      .destroy  = (void (*) (void *))dp_wfm_synth_destroy,
+      .process  = chirp_steps,
+      .arg      = &cfg,
+      .out_size = sizeof (float _Complex),
+      .out_cap  = N,
+    };
+    DP_CHECK (dp_chunk_invariance (&chirp_spec, NULL, N) == 0);
+    {
+      dp_wfm_synth_state_t *one = chirp_create (&cfg);
+      dp_wfm_synth_steps (one, b, N);
+      DP_CHECK (memcmp (b, y, N * sizeof *b) == 0);
+      dp_wfm_synth_destroy (one);
+    }
 
     /* An UNPINNED chirp does not sweep on either path. It used to lock its
      * span to the first steps() block while step() never locked, so the two
@@ -484,7 +524,6 @@ main (void)
     dp_wfm_synth_destroy (cu);
     dp_wfm_synth_destroy (cs);
     dp_wfm_synth_destroy (cd);
-    dp_wfm_synth_destroy (cb);
     dp_wfm_synth_destroy (un1);
     dp_wfm_synth_destroy (un2);
   }

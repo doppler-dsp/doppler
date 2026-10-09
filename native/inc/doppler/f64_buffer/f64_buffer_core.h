@@ -471,6 +471,7 @@ dp_f64_buffer_get_closed (const dp_f64_buffer_state_t *state)
 }
 
 DECLARE_DP_BUFFER_VIEW (f64, double, double _Complex)
+DECLARE_DP_BUFFER_FRAMES (f64, double, double _Complex)
 
 #ifdef __cplusplus
 }

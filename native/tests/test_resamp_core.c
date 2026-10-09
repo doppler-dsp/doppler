@@ -41,11 +41,31 @@
 
 #include "doppler/dp_complex.h"
 #include "doppler/resamp/resamp_impl.h"
+#include "dp_chunk_inv.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+/* The plain resampler as a chunk-invariance subject (dp_chunk_inv.h). */
+static void *
+ci_create (void *arg)
+{
+  return dp_resamp_create (*(const double *)arg);
+}
+
+static void
+ci_destroy (void *o)
+{
+  dp_resamp_destroy (o);
+}
+
+static size_t
+ci_execute (void *o, const void *in, size_t n, void *out, size_t out_cap)
+{
+  return dp_resamp_execute (o, in, n, out, out_cap);
+}
 
 /* File-scope so the §10+ section functions can CHECK for themselves rather
    than funnelling a bool back through main(). */
@@ -1313,6 +1333,39 @@ main (void)
   DP_CHECK (rt_resamp (0.5)); /* decimation: decim_iad/decim_tfd path */
   DP_CHECK (rt_resamp (2.0)); /* interpolation: delay_buf path        */
   DP_CHECK (rt_resamp (0.4)); /* non-integer: fractional phase + ctrl */
+
+  /* Chunk-invariance of the plain resampler across the same three regimes:
+   * single samples, 7, 64, a prime and random splits all reproduce the
+   * one-shot call, bit for bit (dp_chunk_inv.h). The cut above moves ONE
+   * boundary and hands the state across; this moves every boundary. */
+  {
+    enum
+    {
+      CI_L   = 1500,
+      CI_CAP = 4096
+    };
+    static float _Complex ci_in[CI_L];
+    for (size_t i = 0; i < (size_t)CI_L; i++)
+      {
+        double ph = 2.0 * M_PI * 0.031 * (double)i;
+        ci_in[i]  = CMPLXF ((float)cos (ph), (float)sin (ph));
+      }
+    static const double ci_rates[] = { 0.5, 2.0, 0.4, 1.7 };
+    for (size_t k = 0; k < sizeof ci_rates / sizeof *ci_rates; k++)
+      {
+        dp_ci_spec_t spec = {
+          .name     = "resamp execute",
+          .create   = ci_create,
+          .destroy  = ci_destroy,
+          .process  = ci_execute,
+          .arg      = (void *)&ci_rates[k],
+          .in_size  = sizeof (float _Complex),
+          .out_size = sizeof (float _Complex),
+          .out_cap  = CI_CAP,
+        };
+        DP_CHECK (dp_chunk_invariance (&spec, ci_in, CI_L) == 0);
+      }
+  }
 
   /* Streaming interpolation fill == dp_resamp_execute, and block-invariant
    * (single M-fill == M on-demand 1-fills). pow-2 nphases → exact overflow

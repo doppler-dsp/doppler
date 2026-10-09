@@ -15,6 +15,16 @@ target_include_directories(test_buffer_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 add_test(NAME test_buffer_core COMMAND test_buffer_core)
 
+# The framed face (DECLARE_DP_BUFFER_FRAMES) is header-only like the ring it
+# sits on, so its test lives beside test_buffer_core for the same reason.
+add_executable(test_framer_core
+               ${CMAKE_SOURCE_DIR}/native/tests/test_framer_core.c
+               $<TARGET_OBJECTS:dp_interrupt_obj>)
+target_include_directories(test_framer_core
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+add_test(NAME test_framer_core COMMAND test_framer_core)
+
 # dp_parallel.h is header-only too (the bounded parallel-for and the
 # persistent pool), so its test lives beside buffer's for the same reason:
 # nothing to link, and this CMakeLists is hand-owned. Threads for real.

@@ -68,6 +68,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "doppler/dp_state.h" /* the framer's snapshot envelope */
 #include "doppler/jm_perf.h" /* JM_FORCEINLINE */
 #include "doppler/util/util_core.h" /* next_pow_two */
 
@@ -878,14 +879,22 @@ typedef enum
    * the free room is refused whole, and one larger than the CAPACITY can     \
    * never be written at all. This takes what fits, so a producer feeds any   \
    * chunk -- larger than the ring included -- by looping, draining between   \
-   * calls:                                                                   \
+   * calls. A consumer that wants fixed, possibly overlapping frames does     \
+   * not write that loop: it hands the ring to the framed face                \
+   * (#DECLARE_DP_BUFFER_FRAMES), where dp_##name##_framer_feed is the        \
+   * write and dp_##name##_framer_next is the drain, and the hop, the         \
+   * bound on what is left over, and the order of the two are the framer's    \
+   * to get right:                                                            \
    *                                                                          \
    * @code                                                                    \
+   *     dp_f32_framer_t fr;                                                  \
+   *     dp_f32_framer_init (&fr, ab, nfft, hop);                             \
    *     while (off < n)                                                      \
    *       {                                                                  \
-   *         off += dp_f32_write_some (ab, src + 2 * off, n - off);           \
-   *         while ((frame = dp_f32_peek (ab, nfft)))                         \
-   *           { process (frame); dp_f32_consume (ab, hop); }                 \
+   *         off += dp_f32_framer_feed_view (&fr, src + off, n - off, 8);     \
+   *         const float _Complex *frame;                                     \
+   *         while ((frame = dp_f32_framer_next_view (&fr)))                  \
+   *           process (frame);                                               \
    *       }                                                                  \
    * @endcode                                                                 \
    *                                                                          \
@@ -1098,6 +1107,362 @@ typedef enum
       dp_##name##_t *ab, const elem *src, size_t n)                           \
   {                                                                           \
     return dp_##name##_write_some (ab, (const type *)src, n);                 \
+  }
+
+/* -------------------------------------------------------------------------
+ * The framed face
+ * ---------------------------------------------------------------------- */
+
+/** @brief FourCC of a framer snapshot (see dp_<name>_framer_state_bytes). */
+#define DP_FRAMER_STATE_MAGIC DP_FOURCC ('F', 'R', 'M', 'R')
+
+/**
+ * @def DECLARE_DP_BUFFER_FRAMES(name, type, elem)
+ * @brief Declares the framed face of the @p name ring: any chunk in, fixed
+ *        (and optionally overlapping) frames out.
+ *
+ * The ring is a transport; this is what a block processor wants on top of it.
+ * A consumer of N-sample frames at hop H used to write the same loop -- write
+ * what fits, peek N, process, consume H -- and some wrote it against the
+ * ring's @c head, @c tail and @c mask. The framer is that loop, once:
+ * @c framer_feed and @c framer_next are the write and
+ * the drain, @c framer_flush ends a stream, and the snapshot
+ * triplet makes the carry resumable. The output is a function of the INPUT
+ * STREAM and not of how it was split into chunks.
+ *
+ * It is a sibling of DECLARE_DP_BUFFER_VIEW rather than part of
+ * DECLARE_DP_BUFFER, so a ring that does not frame (telemetry's) is unchanged.
+ * Single-threaded: the framer owns its ring exclusively, on both sides.
+ *
+ * @param name  Ring instance suffix, as passed to #DECLARE_DP_BUFFER.
+ * @param type  Stored scalar type.
+ * @param elem  Element type spanning exactly two scalars.
+ *
+ * @code
+ * dp_f32_t *ring = dp_f32_create (4 * 8);
+ * dp_f32_framer_t fr;
+ * dp_f32_framer_init (&fr, ring, 8, 4);          // 8-sample frames, hop 4
+ * float _Complex x[10] = { 0 };
+ * size_t used = dp_f32_framer_feed_view (&fr, x, 10, 2);
+ * int rows = 0;
+ * while (dp_f32_framer_next_view (&fr))
+ *   rows++;                                      // 10 samples: frames at 0, 4
+ * dp_f32_destroy (ring);
+ * @endcode
+ */
+#define DECLARE_DP_BUFFER_FRAMES(name, type, elem)                            \
+  DP_ASSERT_2X (name##_frames, elem, type);                                   \
+                                                                              \
+  /** @brief The framed face of a ring: its stream state. */                  \
+  typedef struct                                                              \
+  {                                                                           \
+    dp_##name##_t *ring; /**< The ring, owned EXCLUSIVELY by this framer. */  \
+    size_t frame_n;      /**< Samples per frame. */                           \
+    size_t hop;          /**< Samples between frame starts. */                \
+    size_t owed;         /**< Hop of the last frame handed out, unretired. */ \
+    uint64_t written;    /**< Samples fed since the stream began. */          \
+    uint64_t frames;     /**< Frames handed out since the stream began. */    \
+  } dp_##name##_framer_t;                                                     \
+                                                                              \
+  /**                                                                         \
+   * @brief Bind a framer to an EMPTY ring.                                   \
+   *                                                                          \
+   * The framer owns the ring from here on: nothing else may write to it, peek\
+   * it or consume it. That exclusivity is what lets dp_##name##_framer_feed  \
+   * be the only write path, and the bound it enforces (below) be a fact rather\
+   * than a hope.                                                             \
+   *                                                                          \
+   * @param fr       Framer to initialise.                                    \
+   * @param ring     An empty ring of capacity at least @p frame_n.           \
+   * @param frame_n  Samples per frame (>= 1).                                \
+   * @param hop      Samples between frame starts: 1 <= hop <= frame_n. Frame k\
+   *                 covers stream samples [k*hop, k*hop + frame_n).          \
+   * @return DP_OK, or DP_ERR_INVALID on a bad argument or a non-empty ring.  \
+   */                                                                         \
+  static inline int                                                           \
+  dp_##name##_framer_init (dp_##name##_framer_t *fr, dp_##name##_t *ring,     \
+                           size_t frame_n, size_t hop)                        \
+  {                                                                           \
+    if (!fr || !ring || hop == 0 || hop > frame_n || frame_n > ring->capacity \
+        || dp_##name##_available (ring) != 0)                                 \
+      return DP_ERR_INVALID;                                                  \
+    fr->ring = ring;                                                          \
+    fr->frame_n = frame_n;                                                    \
+    fr->hop = hop;                                                            \
+    fr->owed = 0;                                                             \
+    fr->written = 0;                                                          \
+    fr->frames = 0;                                                           \
+    return DP_OK;                                                             \
+  }                                                                           \
+                                                                              \
+  /** @brief Frames a stream of @p avail unretired samples can yield. */      \
+  static inline size_t                                                        \
+  dp_##name##_framer_frames_in_ (const dp_##name##_framer_t *fr, size_t avail)\
+  {                                                                           \
+    return avail >= fr->frame_n ? (avail - fr->frame_n) / fr->hop + 1 : 0;    \
+  }                                                                           \
+                                                                              \
+  /**                                                                         \
+   * @brief Retire the hop owed for the frame last handed out.                \
+   *                                                                          \
+   * dp_##name##_framer_next retires it lazily, so the pointer it returned    \
+   * stays valid until the next call. Call this when the pointer is no longer \
+   * needed and the ring must read as drained: dp_##name##_framer_feed and    \
+   * dp_##name##_framer_flush do.                                             \
+   */                                                                         \
+  static inline void                                                          \
+  dp_##name##_framer_settle (dp_##name##_framer_t *fr)                        \
+  {                                                                           \
+    if (fr->owed)                                                             \
+      {                                                                       \
+        dp_##name##_consume (fr->ring, fr->owed);                             \
+        fr->owed = 0;                                                         \
+      }                                                                       \
+  }                                                                           \
+                                                                              \
+  /**                                                                         \
+   * @brief The next frame, or NULL when fewer than a frame is buffered.      \
+   *                                                                          \
+   * Zero-copy: a pointer into the ring, contiguous across the wrap (the double\
+   * mapping), valid until the next framer call. Never blocks.                \
+   */                                                                         \
+  static inline type *                                                        \
+  dp_##name##_framer_next (dp_##name##_framer_t *fr)                          \
+  {                                                                           \
+    dp_##name##_framer_settle (fr);                                           \
+    type *p = dp_##name##_peek (fr->ring, fr->frame_n);                       \
+    if (p)                                                                    \
+      {                                                                       \
+        fr->owed = fr->hop;                                                   \
+        fr->frames++;                                                         \
+      }                                                                       \
+    return p;                                                                 \
+  }                                                                           \
+                                                                              \
+  /**                                                                         \
+   * @brief Write input, only as far as the frames it yields fit the caller.  \
+   *                                                                          \
+   * The one write path. It takes at most the samples that make the buffered  \
+   * total yield no more than @p max_frames frames, so the caller can always  \
+   * drain what this admits into the room it has for output -- and, because the\
+   * frames it declines to admit are never parked here, **after the caller has\
+   * drained, fewer than frame_n samples are left**. That bound makes the     \
+   * carry fixed-size, and so serializable (see                               \
+   * dp_##name##_framer_state_bytes).                                         \
+   *                                                                          \
+   * @param fr          Framer.                                               \
+   * @param in          Samples (scalar face: two @c type per sample).        \
+   * @param n           Samples offered.                                      \
+   * @param max_frames  Frames the caller has room for.                       \
+   * @return Samples taken, 0..n. A short return is not a loss: the caller    \
+   *         keeps the rest and offers it again after draining.               \
+   */                                                                         \
+  static inline size_t                                                        \
+  dp_##name##_framer_feed (dp_##name##_framer_t *fr, const type *in, size_t n,\
+                           size_t max_frames)                                 \
+  {                                                                           \
+    dp_##name##_framer_settle (fr);                                           \
+    size_t avail = dp_##name##_available (fr->ring);                          \
+    size_t room = n;                                                          \
+    if (max_frames <= (SIZE_MAX - fr->frame_n) / fr->hop)                     \
+      {                                                                       \
+        /* Largest buffered total that still yields <= max_frames frames. */  \
+        size_t a_max = fr->frame_n - 1 + max_frames * fr->hop;                \
+        room = a_max > avail ? a_max - avail : 0;                             \
+      }                                                                       \
+    if (n > room)                                                             \
+      n = room;                                                               \
+    n = dp_##name##_write_some (fr->ring, in, n);                             \
+    fr->written += n;                                                         \
+    return n;                                                                 \
+  }                                                                           \
+                                                                              \
+  /** @brief Frames feed() of @p n more samples would yield. */               \
+  static inline size_t                                                        \
+  dp_##name##_framer_frames_for (const dp_##name##_framer_t *fr, size_t n)    \
+  {                                                                           \
+    return dp_##name##_framer_frames_in_ (                                    \
+        fr, dp_##name##_available (fr->ring) - fr->owed + n);                 \
+  }                                                                           \
+                                                                              \
+  /** @brief Samples fed that no handed-out frame has covered yet. */         \
+  static inline size_t                                                        \
+  dp_##name##_framer_pending (const dp_##name##_framer_t *fr)                 \
+  {                                                                           \
+    uint64_t covered                                                          \
+        = fr->frames ? (fr->frames - 1) * fr->hop + fr->frame_n : 0;          \
+    return (size_t)(fr->written - covered);                                   \
+  }                                                                           \
+                                                                              \
+  /**                                                                         \
+   * @brief Has every frame the buffered samples make been handed out?        \
+   *                                                                          \
+   * True when fewer than frame_n samples remain once the owed hop is retired,\
+   * i.e. dp_##name##_framer_next would return NULL. This is the precondition \
+   * of flush() and of the snapshot: feed() leaves the framer this way only   \
+   * after the caller has drained it.                                         \
+   */                                                                         \
+  static inline int                                                           \
+  dp_##name##_framer_drained (const dp_##name##_framer_t *fr)                 \
+  {                                                                           \
+    return dp_##name##_available (fr->ring) - fr->owed < fr->frame_n;         \
+  }                                                                           \
+                                                                              \
+  /** @brief Forget the stream: empty the ring and restart at sample 0. */    \
+  static inline void                                                          \
+  dp_##name##_framer_reset (dp_##name##_framer_t *fr)                         \
+  {                                                                           \
+    dp_##name##_reset (fr->ring);                                             \
+    fr->owed = 0;                                                             \
+    fr->written = 0;                                                          \
+    fr->frames = 0;                                                           \
+  }                                                                           \
+                                                                              \
+  /**                                                                         \
+   * @brief End the stream: emit the one zero-padded row it still owes, if any.\
+   *                                                                          \
+   * The row sits on the hop grid -- row k starts at k*hop, never at the first\
+   * uncovered sample -- so the last row of a stream is the row a one-shot run\
+   * over the zero-padded input would have produced. It is emitted if and only\
+   * if it holds at least one sample no earlier frame covered; otherwise the  \
+   * stream is already complete and this returns 0. Either way the framer then\
+   * restarts at sample 0, so a second flush returns 0.                       \
+   *                                                                          \
+   * The framer must be DRAINED: frames still buffered are rows the caller has\
+   * not taken, and flushing over them would lose them. That is refused, not  \
+   * assumed -- see dp_##name##_framer_drained.                               \
+   *                                                                          \
+   * @param fr   Framer, drained.                                             \
+   * @param row  Room for @c frame_n samples (two @c type each); the row is   \
+   *             COPIED here, so it outlives the reset.                       \
+   * @return 1 if @p row was written; 0 if nothing was pending (the stream is \
+   *         over and the framer restarted); DP_ERR_INVALID, with nothing     \
+   *         changed, if whole frames are still buffered -- call              \
+   *         dp_##name##_framer_next until it returns NULL, then flush again. \
+   */                                                                         \
+  static inline int                                                           \
+  dp_##name##_framer_flush (dp_##name##_framer_t *fr, type *row)              \
+  {                                                                           \
+    dp_##name##_framer_settle (fr);                                           \
+    if (!dp_##name##_framer_drained (fr))                                     \
+      return DP_ERR_INVALID;                                                  \
+    int emit = dp_##name##_framer_pending (fr) != 0;                          \
+    if (emit)                                                                 \
+      {                                                                       \
+        size_t live = dp_##name##_available (fr->ring);                       \
+        memcpy (row, dp_##name##_peek (fr->ring, live),                       \
+                live * 2 * sizeof (type));                                    \
+        memset (row + live * 2, 0, (fr->frame_n - live) * 2 * sizeof (type)); \
+      }                                                                       \
+    dp_##name##_framer_reset (fr);                                            \
+    return emit;                                                              \
+  }                                                                           \
+                                                                              \
+                                                                              \
+  /**                                                                         \
+   * @brief Bytes of a framer snapshot -- a function of the SHAPE alone.      \
+   *                                                                          \
+   * `[hdr][u64 live][(frame_n - 1) samples][u64 written][u64 frames][u64 hop]`.\
+   * The                                                                      \
+   * sample region is always frame_n - 1 slots, whatever is buffered, because \
+   * dp_state_validate() requires the blob's size to equal the RECEIVER's     \
+   * state_bytes: a blob sized by current fill would be refused by a fresh    \
+   * framer. frame_n - 1 suffices because the framer never holds a full frame \
+   * once drained. No ring positions are stored, so the snapshot is independent\
+   * of how the ring happens to be mapped. The hop is stored because the size \
+   * does not carry it: a framer of the same frame_n and a different hop would\
+   * otherwise accept a snapshot whose counters mean something else.          \
+   */                                                                         \
+  static inline size_t                                                        \
+  dp_##name##_framer_state_bytes (const dp_##name##_framer_t *fr)             \
+  {                                                                           \
+    return sizeof (dp_state_hdr_t) + sizeof (uint64_t)                        \
+           + (fr->frame_n - 1) * 2 * sizeof (type) + 3 * sizeof (uint64_t);   \
+  }                                                                           \
+                                                                              \
+  /**                                                                         \
+   * @brief Snapshot the carry. The framer must be drained (see               \
+   *        dp_##name##_framer_drained); any unretired hop is excluded, so the\
+   *        snapshot is the settled state.                                    \
+   *                                                                          \
+   * A snapshot that cannot be taken is not truncated: get_state returns      \
+   * nothing, so the blob is ZEROED, which no framer accepts (its magic is    \
+   * wrong, and dp_##name##_framer_set_state returns DP_ERR_INVALID). Check   \
+   * dp_##name##_framer_drained first.                                        \
+   */                                                                         \
+  static inline void                                                          \
+  dp_##name##_framer_get_state (const dp_##name##_framer_t *fr, void *blob)   \
+  {                                                                           \
+    size_t total = dp_##name##_framer_state_bytes (fr);                       \
+    if (!dp_##name##_framer_drained (fr))                                     \
+      {                                                                       \
+        memset (blob, 0, total);                                              \
+        return;                                                               \
+      }                                                                       \
+    DP_GET_OPEN (DP_FRAMER_STATE_MAGIC, 1u, total);                           \
+    size_t t = DP_LOAD_RLX (&fr->ring->tail) + fr->owed;                      \
+    size_t live = dp_##name##_available (fr->ring) - fr->owed;                \
+    dp_w_u64 (&_w, live);                                                     \
+    dp_w_bytes (&_w, &fr->ring->data[(t & fr->ring->mask) * 2],               \
+                live * 2 * sizeof (type));                                    \
+    /* The unused slots are written, as zeros: a byte get_state leaves alone is\
+       a byte of the caller's heap shipped in the blob (doppler#1471). */     \
+    size_t pad_bytes = (fr->frame_n - 1 - live) * 2 * sizeof (type);          \
+    void *pad = dp_w_reserve (&_w, pad_bytes);                                \
+    if (pad)                                                                  \
+      memset (pad, 0, pad_bytes);                                             \
+    dp_w_u64 (&_w, fr->written);                                              \
+    dp_w_u64 (&_w, fr->frames);                                               \
+    dp_w_u64 (&_w, fr->hop);                                                  \
+  }                                                                           \
+                                                                              \
+  /**                                                                         \
+   * @brief Restore a snapshot into a framer of the same shape.               \
+   * @return DP_OK, or DP_ERR_INVALID: wrong shape or magic, or counters that \
+   *         disagree with the buffered samples. Nothing is changed on failure.\
+   */                                                                         \
+  static inline int                                                           \
+  dp_##name##_framer_set_state (dp_##name##_framer_t *fr, const void *blob)   \
+  {                                                                           \
+    size_t want = dp_##name##_framer_state_bytes (fr);                        \
+    DP_SET_OPEN (DP_FRAMER_STATE_MAGIC, 1u, want);                            \
+    uint64_t live = dp_r_u64 (&_r);                                           \
+    const void *src                                                           \
+        = dp_r_reserve (&_r, (fr->frame_n - 1) * 2 * sizeof (type));          \
+    uint64_t written = dp_r_u64 (&_r);                                        \
+    uint64_t frames = dp_r_u64 (&_r);                                         \
+    uint64_t hop = dp_r_u64 (&_r);                                            \
+    /* Frames retired exactly frames*hop samples, so what remains is written  \
+       minus that. Anything else is a corrupt blob, not a snapshot. */        \
+    if (_r.err || hop != fr->hop || live > fr->frame_n - 1                    \
+        || frames > UINT64_MAX / fr->hop                                      \
+        || written < frames * fr->hop || written - frames * fr->hop != live)  \
+      return DP_ERR_INVALID;                                                  \
+    dp_##name##_framer_reset (fr);                                            \
+    dp_##name##_write_some (fr->ring, (const type *)src, (size_t)live);       \
+    fr->written = written;                                                    \
+    fr->frames = frames;                                                      \
+    return DP_OK;                                                             \
+  }                                                                           \
+                                                                              \
+  /* The element face: one ELEMENT per sample, as the VIEW macro does. */     \
+  static inline elem *                                                        \
+  dp_##name##_framer_next_view (dp_##name##_framer_t *fr)                     \
+  {                                                                           \
+    return (elem *)dp_##name##_framer_next (fr);                              \
+  }                                                                           \
+                                                                              \
+  static inline size_t                                                        \
+  dp_##name##_framer_feed_view (dp_##name##_framer_t *fr, const elem *in,     \
+                                size_t n, size_t max_frames)                  \
+  {                                                                           \
+    return dp_##name##_framer_feed (fr, (const type *)in, n, max_frames);     \
+  }                                                                           \
+                                                                              \
+  static inline int                                                           \
+  dp_##name##_framer_flush_view (dp_##name##_framer_t *fr, elem *row)         \
+  {                                                                           \
+    return dp_##name##_framer_flush (fr, (type *)row);                        \
   }
 
 /* --- Type instantiations --- */

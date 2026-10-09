@@ -139,6 +139,9 @@ and chunks much larger than the frame cost a further ~5% in cache geometry
 that no API can remove
 ([measurements §4](ring-buffer-measurements.md#4-what-the-non-blocking-surface-costs)).
 
+That loop is the same in every consumer of fixed frames, so it has a home:
+[§9, the framed face](#9-the-framed-face-any-chunk-in-fixed-frames-out).
+
 ## 5. Threading, and what "single-sided" buys
 
 Every function belongs to one side, and reads the *other* side's index in
@@ -196,3 +199,44 @@ caller's bookkeeping.
 ```c
 --8<-- "native/examples/ring_backed_demo.c"
 ```
+
+## 9. The framed face: any chunk in, fixed frames out
+
+The loop in §4 — write what fits, peek a frame, consume the hop — is the same
+in every consumer of fixed, possibly overlapping frames, and its order is easy
+to get wrong. `DECLARE_DP_BUFFER_FRAMES` stamps it once, beside the
+element-typed face, as a **framer** that owns the ring:
+
+| call                                 | what it does                                                                                                                                           |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `dp_<t>_framer_init(fr, ring, N, H)` | frames of `N` samples, `H` apart; frame *k* covers stream samples `[k·H, k·H + N)`                                                                     |
+| `dp_<t>_framer_feed(fr, in, n, max)` | takes input — **only as far as the frames it yields fit `max`** — and returns how many it took                                                         |
+| `dp_<t>_framer_next(fr)`             | the next frame, zero-copy, or `NULL`; the pointer holds until the next framer call                                                                     |
+| `dp_<t>_framer_flush(fr, row)`       | ends the stream: the one zero-padded row it still owes, **on the hop grid** (1), or none (0); refused (negative) while whole frames are still buffered |
+| `dp_<t>_framer_drained(fr)`          | true once `next()` would return `NULL`: the precondition of `flush` and of a snapshot                                                                  |
+| `dp_<t>_framer_state_bytes/get/set`  | the carry as a standard state blob, fixed-size for a given `N`                                                                                         |
+
+Three properties are the point, and each is tested rather than hoped for:
+
+- **The frames are a function of the stream, not of the chunking.** One giant
+    chunk, seven samples at a time and room for a single frame per call produce
+    the same frames, bit for bit.
+- **Once drained, fewer than `N` samples are left.** `feed()` never admits a
+    frame the caller has no room for, so a short output buffer slows the
+    stream down and loses nothing — and the leftover is small enough to snapshot
+    at a size that depends on `N` alone, so a fresh framer accepts the blob.
+- **`flush()` lands on the grid.** The last row starts at a multiple of `H`,
+    not at the first uncovered sample, and exists only if it holds a sample no
+    earlier frame covered. Afterwards the framer starts again at sample 0.
+
+The framer owns its ring: nothing else writes to it or reads it, which is what
+makes `feed()` the only way in. A reader that needs absolute positions into
+history (`burst_capture`) uses the ring directly.
+
+```c
+--8<-- "native/examples/ring_framer_demo.c"
+```
+
+It costs what the loop it replaces costs: **0.355** against 0.356 ns/sample at
+a 1024-sample frame with 3000-sample chunks
+(`framer_feed_next` against `write_some_peek_consume` in `bench_buffer_core`).

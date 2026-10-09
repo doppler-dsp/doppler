@@ -61,6 +61,42 @@ stddev (const float *a, size_t lo, size_t hi)
   return sqrt (var / (double)(hi - lo));
 }
 
+/* n samples of complex white Gaussian noise with E|x|^2 = var, from the one
+ * harness generator (dp_rng_test.h). */
+static void
+fill_cnoise (float _Complex *x, size_t n, double var, uint32_t *seed)
+{
+  const float s = (float)sqrt (var);
+  for (size_t i = 0; i < n; i++)
+    x[i] = s * dp_cgauss (seed);
+}
+
+/* sum(w^4) / sum(w^2)^2 for the state's window.  For complex white noise a
+ * frame's windowed energy sum |w_i x_i|^2 has mean var*s2 and, |x|^2 being
+ * Exp(var), variance var^2 * sum w^4: so this is the squared relative
+ * spread of one frame's energy, and /K that of a K-frame average. */
+static double
+w4_ratio (const dp_psd_state_t *s)
+{
+  double s4 = 0.0;
+  for (size_t i = 0; i < s->n; i++)
+    {
+      const double w2 = (double)s->w[i] * (double)s->w[i];
+      s4 += w2 * w2;
+    }
+  return s4 / (s->s2 * s->s2);
+}
+
+/* Mean over the first n entries, in double. */
+static double
+mean_f (const float *a, size_t n)
+{
+  double m = 0.0;
+  for (size_t i = 0; i < n; i++)
+    m += a[i];
+  return m / (double)n;
+}
+
 int
 main (void)
 {
@@ -374,6 +410,606 @@ main (void)
     free (buf);
     dp_psd_destroy (w1);
     dp_psd_destroy (wK);
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+   * The rest of PSD's header, certified (#1911, part b).  The claims the
+   * inventory found absent or pinned only at literals: the empty contract
+   * (T6), linear power without full_scale (T7), real input (T8), the four
+   * averaging modes against an external truth (T9), reset (T10), dB/Hz as an
+   * absolute (T11), band power (T12), occupied bandwidth (T13), the noise
+   * floor (T14), SNR (T15), SFDR (T16) and create's remaining arguments (T17).
+   *
+   * Statistical tests draw from dp_rng_test.h and size their tolerance from
+   * the estimator's own spread at z = 5: a correct estimator fails on fewer
+   * than 1 seed in 10^6, so a red here is the code, not the draw.
+   * ════════════════════════════════════════════════════════════════════════
+   */
+
+  /* T6: every reader's empty contract.  Before any frame, and again after a
+   * reset, the readouts return 0 and write nothing, total band power reads
+   * the -200 dB floor and the scalars return 0.  Only psd_db's was pinned.
+   * The post-reset pass carries its precondition: the same readers were
+   * non-empty the moment before. */
+  {
+    dp_psd_state_t *w = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
+    DP_REQUIRE (w != NULL);
+    float _Complex x[64];
+    fill_tone (x, N, 6);
+    const double bands[2] = { -0.25, 0.25 };
+    for (int pass = 0; pass < 2; pass++)
+      {
+        float buf[64];
+        if (pass == 1)
+          {
+            dp_psd_accumulate (w, x, N);
+            DP_REQUIRE (dp_psd_power_twosided (w, N, buf, N) == N);
+            DP_REQUIRE (dp_psd_occupied_bw (w, 0.99) > 0.0);
+            DP_REQUIRE (dp_psd_snr (w, -0.25, 0.25) != 0.0);
+            dp_psd_reset (w);
+          }
+        for (size_t i = 0; i < N; i++)
+          buf[i] = 42.0f;
+        DP_CHECK (dp_psd_power_twosided (w, N, buf, N) == 0);
+        DP_CHECK (dp_psd_power_onesided (w, N / 2 + 1, buf, N / 2 + 1) == 0);
+        DP_CHECK (dp_psd_psd_dbhz (w, N, buf, N) == 0);
+        DP_CHECK (dp_psd_band_power (w, bands, 2, buf, 1) == 0);
+        int untouched = 1;
+        for (size_t i = 0; i < N; i++)
+          if (buf[i] != 42.0f)
+            untouched = 0;
+        DP_CHECK (untouched);
+        DP_CHECK (fabs (dp_psd_total_band_power (w, bands, 2) + 200.0) < 1e-4);
+        DP_CHECK (dp_psd_occupied_bw (w, 0.99) == 0.0);
+        DP_CHECK (dp_psd_noise_floor (w) == 0.0);
+        DP_CHECK (dp_psd_snr (w, -0.25, 0.25) == 0.0);
+        DP_CHECK (dp_psd_sfdr (w, -120.0f) == 0.0);
+      }
+    dp_psd_destroy (w);
+  }
+
+  /* T7: the linear-power readouts do NOT apply full_scale, the dB ones do.
+   * The same frame into full_scale = 1, full_scale = 4 and bits = 3 (whose
+   * reference is also 4): the two- and one-sided powers are bit-identical,
+   * and -- the precondition that full_scale is live at all -- psd_db moves
+   * by exactly 20*log10(4) = 12.04 dB.  Tolerance on that: dB values here
+   * are under 100 in magnitude, where a float's spacing is <= 7.6e-6. */
+  {
+    uint32_t seed = 19112u;
+    float _Complex x[64];
+    fill_cnoise (x, N, 1.0, &seed);
+    dp_psd_state_t *w1 = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
+    dp_psd_state_t *w4 = dp_psd_create (N, 1.0, 0, 0.0f, 1, 4.0, 0, 0, 0.0);
+    dp_psd_state_t *wb = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 3, 0, 0.0);
+    DP_REQUIRE (w1 && w4 && wb);
+    dp_psd_accumulate (w1, x, N);
+    dp_psd_accumulate (w4, x, N);
+    dp_psd_accumulate (wb, x, N);
+    float a[64], b[64], c[64];
+    dp_psd_power_twosided (w1, N, a, N);
+    dp_psd_power_twosided (w4, N, b, N);
+    dp_psd_power_twosided (wb, N, c, N);
+    DP_CHECK (memcmp (a, b, sizeof a) == 0);
+    DP_CHECK (memcmp (a, c, sizeof a) == 0);
+    dp_psd_power_onesided (w1, N / 2 + 1, a, N / 2 + 1);
+    dp_psd_power_onesided (w4, N / 2 + 1, b, N / 2 + 1);
+    DP_CHECK (memcmp (a, b, (N / 2 + 1) * sizeof a[0]) == 0);
+    dp_psd_psd_db (w1, N, a, N);
+    dp_psd_psd_db (w4, N, b, N);
+    const double step  = 20.0 * log10 (4.0);
+    int          moved = 1;
+    for (size_t i = 0; i < N; i++)
+      if (fabs (((double)a[i] - (double)b[i]) - step) > 1e-4)
+        moved = 0;
+    DP_CHECK (moved);
+    dp_psd_destroy (w1);
+    dp_psd_destroy (w4);
+    dp_psd_destroy (wb);
+  }
+
+  /* T8: real input.  A real frame is Hermitian, so +k and -k carry equal
+   * power; the one-sided fold keeps DC and Nyquist as-is and sums the two
+   * halves of every interior bin; and floor(x_len / n) frames are taken.
+   *
+   * Tolerance for the symmetry: +k and -k leave the complex FFT by different
+   * arithmetic.  A radix-2 FFT's error obeys ||dX|| <= c log2(nfft) u ||X||
+   * (Higham, Accuracy and Stability of Numerical Algorithms, sec. 24.1;
+   * c ~ 5, u = 2^-24), so one bin's power moves by at most
+   * 2 |X_k| |dX| + |dX|^2 <= ~2 c log2(nfft) u * sum|X|^2: 3.6e-6 of the
+   * total at nfft = 64.  A broken symmetry (a dropped conjugate, a fold
+   * reading the wrong half) is O(1) of a bin. */
+  {
+    uint32_t seed = 19113u;
+    float    x[64 * 2 + 7];
+    for (size_t i = 0; i < sizeof x / sizeof x[0]; i++)
+      x[i] = (float)dp_gauss (&seed);
+    dp_psd_state_t *w = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
+    DP_REQUIRE (w != NULL);
+    dp_psd_accumulate_real (w, x, sizeof x / sizeof x[0]);
+    DP_CHECK (w->avg->count == 2); /* the 7-sample tail is ignored */
+    float two[64], one[33];
+    DP_REQUIRE (dp_psd_power_twosided (w, N, two, N) == N);
+    DP_REQUIRE (dp_psd_power_onesided (w, N / 2 + 1, one, N / 2 + 1)
+                == N / 2 + 1);
+    const size_t h    = N / 2;
+    const double tot  = mean_f (two, N) * (double)N;
+    const double tol  = 2.0 * 5.0 * log2 ((double)N) * ldexp (1.0, -24) * tot;
+    int          herm = 1, fold = 1;
+    for (size_t m = 1; m < h; m++)
+      {
+        if (fabs ((double)two[h + m] - (double)two[h - m]) > tol)
+          herm = 0;
+        /* one[m] and the two halves each went through one float rounding */
+        const double halves = (double)two[h + m] + (double)two[h - m];
+        if (fabs ((double)one[m] - halves) > 4.0 * ldexp (1.0, -24) * halves)
+          fold = 0;
+      }
+    DP_CHECK (herm);
+    DP_CHECK (fold);
+    DP_CHECK (one[0] == two[h]); /* DC: no mirror partner, kept as-is */
+    DP_CHECK (one[h] == two[0]); /* Nyquist: likewise */
+    dp_psd_destroy (w);
+
+    /* The fold again on a COMPLEX frame, where +k and -k carry different
+     * power.  On a real frame the halves are equal, so a fold that doubled
+     * +k instead of adding -k passes the check above (found by sabotage).
+     * Precondition: the halves do differ, by more than 10% somewhere. */
+    float _Complex z[64];
+    fill_cnoise (z, N, 1.0, &seed);
+    dp_psd_state_t *c = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
+    DP_REQUIRE (c != NULL);
+    dp_psd_accumulate (c, z, N);
+    DP_REQUIRE (dp_psd_power_twosided (c, N, two, N) == N);
+    DP_REQUIRE (dp_psd_power_onesided (c, N / 2 + 1, one, N / 2 + 1)
+                == N / 2 + 1);
+    int asym = 0;
+    fold     = 1;
+    for (size_t m = 1; m < h; m++)
+      {
+        const double halves = (double)two[h + m] + (double)two[h - m];
+        if (fabs ((double)two[h + m] - (double)two[h - m]) > 0.1 * halves)
+          asym = 1;
+        if (fabs ((double)one[m] - halves) > 4.0 * ldexp (1.0, -24) * halves)
+          fold = 0;
+      }
+    DP_REQUIRE (asym);
+    DP_CHECK (fold);
+    dp_psd_destroy (c);
+  }
+
+  /* T9: the four averaging modes, each against a truth built from the
+   * kernel's own single-frame powers rather than from another mode.  The
+   * old check (max >= min per bin) passed with two MEAN states.  Four
+   * distinct frames at 0, +9.5, -6 and +6 dB, so every mode gives a
+   * different answer.
+   *   mean:    the per-bin arithmetic mean
+   *   exp:     y1 = P1, then y += alpha (P - y)   (alpha = 0.25)
+   *   maxhold: the per-bin maximum -- exact, a float copied and returned
+   *   minhold: the per-bin minimum -- exact
+   * mean and exp are computed in double here and by Welford / the EMA step
+   * there; both then pass two float roundings (the trace value and the
+   * /cg^2), so they agree to 4 u relative.  The exp mode is deterministic:
+   * its claim is the recursion, which noise would only re-derive. */
+  {
+    static const float scales[4] = { 1.0f, 3.0f, 0.5f, 2.0f };
+    const double       alpha     = 0.25;
+    uint32_t           seed      = 19114u;
+    float _Complex f[4][64];
+    float           P[4][64];
+    dp_psd_state_t *k = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
+    DP_REQUIRE (k != NULL);
+    for (size_t j = 0; j < 4; j++)
+      {
+        fill_cnoise (f[j], N, 1.0, &seed);
+        for (size_t i = 0; i < N; i++)
+          f[j][i] *= scales[j];
+        dp_psd_frame_power (k, f[j], P[j]);
+      }
+    const double cg2 = k->cg * k->cg;
+    for (int mode = 0; mode <= 3; mode++)
+      {
+        dp_psd_state_t *w
+            = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, mode, alpha);
+        DP_REQUIRE (w != NULL);
+        for (size_t j = 0; j < 4; j++)
+          dp_psd_accumulate (w, f[j], N);
+        float got[64];
+        DP_REQUIRE (dp_psd_power_twosided (w, N, got, N) == N);
+        int ok = 1;
+        for (size_t i = 0; i < N; i++)
+          {
+            double y = P[0][i];
+            for (size_t j = 1; j < 4; j++)
+              {
+                const double p = P[j][i];
+                if (mode == ACC_TRACE_MEAN)
+                  y += p;
+                else if (mode == ACC_TRACE_EXP)
+                  y += alpha * (p - y);
+                else if (mode == ACC_TRACE_MAXHOLD)
+                  y = p > y ? p : y;
+                else
+                  y = p < y ? p : y;
+              }
+            if (mode == ACC_TRACE_MEAN)
+              y /= 4.0;
+            const double want = (double)(float)((double)(float)y / cg2);
+            if (mode == ACC_TRACE_MAXHOLD || mode == ACC_TRACE_MINHOLD)
+              {
+                if ((double)got[i] != want)
+                  ok = 0;
+              }
+            else if (fabs ((double)got[i] - want)
+                     > 4.0 * ldexp (1.0, -24) * want)
+              ok = 0;
+          }
+        DP_CHECK (ok); /* this mode matches its defining rule */
+        dp_psd_destroy (w);
+      }
+    dp_psd_destroy (k);
+  }
+
+  /* T10: reset re-seeds.  The old check reset and re-fed IDENTICAL frames
+   * in MEAN mode, where Welford's count = 1 step re-seeds whatever reset
+   * did.  Here, in maxhold and in exp -- the modes that remember -- a loud
+   * frame A, a reset, then a quiet frame B must read exactly what a fresh
+   * state reads after B alone.  Precondition: before the reset the loud
+   * frame does show. */
+  {
+    uint32_t seed = 19115u;
+    float _Complex a[64], b[64];
+    fill_cnoise (a, N, 100.0, &seed); /* +20 dB */
+    fill_cnoise (b, N, 1.0, &seed);
+    static const int modes[2] = { ACC_TRACE_MAXHOLD, ACC_TRACE_EXP };
+    for (size_t j = 0; j < 2; j++)
+      {
+        dp_psd_state_t *fresh
+            = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, modes[j], 0.25);
+        dp_psd_state_t *w
+            = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, modes[j], 0.25);
+        DP_REQUIRE (fresh && w);
+        float want[64], got[64];
+        dp_psd_accumulate (fresh, b, N);
+        dp_psd_power_twosided (fresh, N, want, N);
+        dp_psd_accumulate (w, a, N);
+        dp_psd_power_twosided (w, N, got, N);
+        DP_REQUIRE (memcmp (got, want, sizeof got) != 0);
+        dp_psd_reset (w);
+        dp_psd_accumulate (w, b, N);
+        DP_CHECK (w->avg->count == 1);
+        dp_psd_power_twosided (w, N, got, N);
+        DP_CHECK (memcmp (got, want, sizeof got) == 0);
+        dp_psd_destroy (fresh);
+        dp_psd_destroy (w);
+      }
+  }
+
+  /* T11: psd_dbhz is an absolute density.  Complex white noise of variance
+   * var, sampled at fs, has two-sided density var/fs per Hz -- padded or
+   * not -- and psd_dbhz differs from psd_db by exactly
+   * 10*log10(cg^2 / (fs*s2)).  The old test pinned "a constant", not which.
+   *
+   * Statistic: the mean over bins of the linear density.  By Parseval the
+   * mean over nfft bins of |X_k|^2 is sum_i w_i^2 |x_i|^2 (zero-padding adds
+   * no energy), so after K frames it estimates var*s2 with relative
+   * standard deviation sigma = sqrt(w4_ratio / K) -- see w4_ratio().  Hann,
+   * n = 64: sqrt(w4_ratio) = 0.174, and K = 1024 gives sigma = 0.54%.
+   * Tolerance z = 5: 10*log10(1 + 5 sigma) = 0.12 dB, against the >= 1.76 dB
+   * a lost or doubled ENBW would cost a Hann window. */
+  {
+    const size_t K   = 1024;
+    const double var = 4.0, fs = 2.0; /* density 2 per Hz: +3.01 dB/Hz */
+    for (size_t pad = 1; pad <= 2; pad++)
+      {
+        uint32_t        seed = 19116u + (uint32_t)pad;
+        dp_psd_state_t *w
+            = dp_psd_create (N, fs, 0, 0.0f, pad, 1.0, 0, 0, 0.0);
+        DP_REQUIRE (w != NULL);
+        float _Complex x[64];
+        for (size_t f = 0; f < K; f++)
+          {
+            fill_cnoise (x, N, var, &seed);
+            dp_psd_accumulate (w, x, N);
+          }
+        const size_t nfft = w->nfft;
+        float       *hz   = malloc (nfft * sizeof *hz);
+        float       *db   = malloc (nfft * sizeof *db);
+        DP_REQUIRE (hz && db);
+        DP_REQUIRE (dp_psd_psd_dbhz (w, nfft, hz, nfft) == nfft);
+        DP_REQUIRE (dp_psd_psd_db (w, nfft, db, nfft) == nfft);
+        double       lin      = 0.0;
+        int          off      = 1;
+        const double want_off = 10.0 * log10 (w->cg * w->cg / (fs * w->s2));
+        for (size_t i = 0; i < nfft; i++)
+          {
+            lin += pow (10.0, hz[i] / 10.0);
+            if (fabs (((double)hz[i] - (double)db[i]) - want_off) > 1e-4)
+              off = 0;
+          }
+        lin /= (double)nfft;
+        const double sigma = sqrt (w4_ratio (w) / (double)K);
+        const double tol   = 10.0 * log10 (1.0 + 5.0 * sigma);
+        DP_CHECK (fabs (10.0 * log10 (lin) - 10.0 * log10 (var / fs)) < tol);
+        DP_CHECK (off);
+        free (hz);
+        free (db);
+        dp_psd_destroy (w);
+      }
+  }
+
+  /* T12: band power.  (a) The rectangular window, which the window/pad
+   * sweep above leaves out, reads a full-scale tone at 0 dBFS -- exact by
+   * Parseval; summing nfft float bins rounds by <= nfft u (1.5e-5 at
+   * nfft = 256), 7e-5 dB, so 1e-3 dB.  (b) White noise integrates to its
+   * variance over the span, for every window and pad: the whole-span band is
+   * sum pwr / (nfft s2), T11's statistic over s2, with the same sigma and
+   * the same z = 5.  (c) Edges are clamped to the span: [-fs, fs] reads the
+   * same bins as [-fs/2, fs/2], bit for bit.  (d) Two halves sum to the
+   * WHOLE span, an external truth -- the old partition check compared
+   * total_band_power with the sum of the same per-band values.  The tone is
+   * off the bin the halves share (DC); with power on it each half counts
+   * it, which part c of #1911 measures as finding (e). */
+  {
+    const double whole[2] = { -0.5, 0.5 };
+    for (size_t pad = 1; pad <= 4; pad *= 4)
+      {
+        dp_psd_state_t *w
+            = dp_psd_create (N, 1.0, 3, 0.0f, pad, 1.0, 0, 0, 0.0);
+        DP_REQUIRE (w != NULL);
+        float _Complex x[64];
+        fill_tone (x, N, 9);
+        dp_psd_accumulate (w, x, N);
+        DP_CHECK (fabs (dp_psd_total_band_power (w, whole, 2)) < 1e-3);
+        dp_psd_destroy (w);
+      }
+
+    const size_t K   = 1024;
+    const double var = 0.5;
+    for (int win = 0; win <= 3; win++)
+      for (size_t pad = 1; pad <= 2; pad++)
+        {
+          uint32_t        seed = 19117u + (uint32_t)(10 * win) + (uint32_t)pad;
+          dp_psd_state_t *w
+              = dp_psd_create (N, 1.0, win, 8.0f, pad, 1.0, 0, 0, 0.0);
+          DP_REQUIRE (w != NULL);
+          float _Complex x[64];
+          for (size_t f = 0; f < K; f++)
+            {
+              fill_cnoise (x, N, var, &seed);
+              dp_psd_accumulate (w, x, N);
+            }
+          const double sigma = sqrt (w4_ratio (w) / (double)K);
+          const double tol   = 10.0 * log10 (1.0 + 5.0 * sigma);
+          DP_CHECK (
+              fabs (dp_psd_total_band_power (w, whole, 2) - 10.0 * log10 (var))
+              < tol);
+          const double wide[2] = { -1.0, 1.0 };
+          DP_CHECK (dp_psd_total_band_power (w, wide, 2)
+                    == dp_psd_total_band_power (w, whole, 2));
+          dp_psd_destroy (w);
+        }
+
+    dp_psd_state_t *w = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
+    DP_REQUIRE (w != NULL);
+    float _Complex x[64];
+    fill_tone (x, N, 10);
+    dp_psd_accumulate (w, x, N);
+    const double halves[4] = { -0.5, 0.0, 0.0, 0.5 };
+    float        per[2];
+    DP_REQUIRE (dp_psd_band_power (w, halves, 4, per, 2) == 2);
+    const double sum
+        = 10.0 * log10 (pow (10.0, per[0] / 10.0) + pow (10.0, per[1] / 10.0));
+    DP_CHECK (fabs (sum - dp_psd_total_band_power (w, whole, 2)) < 1e-3);
+    dp_psd_destroy (w);
+  }
+
+  /* T13: occupied bandwidth.  (a) A bin-centred tone under the rectangular
+   * window has all its power in one bin: OBW = fs/nfft exactly.  (b) Flat
+   * noise: OBW(0.99) is 0.99 fs to within the bin grid.  For a flat
+   * spectrum over nfft = 1024 bins the lower edge is the first bin where the
+   * running power reaches 0.5% of the total and the upper the first reaching
+   * 99.5%: bins 5 and 1018, 1014 bins.  Rectangular and unpadded, so the bins
+   * are independent K-averages of Exp, relative sd 1/sqrt(K); a running sum
+   * over the m ~ 5 bins at an edge has sd (m/nfft)/sqrt(mK) of the total,
+   * 1.2e-4 at K = 256.  The flat crossing sits just inside each edge -- the
+   * threshold is 1.2e-4 of the total past bin 4's running sum (and short of
+   * bin 1018's) -- so a ~1 sigma excursion moves an edge OUT by one bin,
+   * while moving it in needs 8.6e-4, ~6 sigma, and out by two, ~9 sigma.
+   * So 1014 <= OBW <= 1016 bins (measured 1016 on this seed); the bound
+   * asserted, [1012, 1016], is that with the 6-sigma inward move allowed.
+   * (c) An all-zero input has no power: 0. */
+  {
+    dp_psd_state_t *t = dp_psd_create (N, 1.0, 3, 0.0f, 1, 1.0, 0, 0, 0.0);
+    DP_REQUIRE (t != NULL);
+    float _Complex x[64];
+    fill_tone (x, N, 7);
+    dp_psd_accumulate (t, x, N);
+    DP_CHECK (dp_psd_occupied_bw (t, 0.99) == 1.0 / (double)N);
+    dp_psd_destroy (t);
+
+    const size_t    NN = 1024, K = 256;
+    uint32_t        seed = 19118u;
+    dp_psd_state_t *w    = dp_psd_create (NN, 1.0, 3, 0.0f, 1, 1.0, 0, 0, 0.0);
+    float _Complex *y    = malloc (NN * sizeof *y);
+    DP_REQUIRE (w && y);
+    for (size_t f = 0; f < K; f++)
+      {
+        fill_cnoise (y, NN, 1.0, &seed);
+        dp_psd_accumulate (w, y, NN);
+      }
+    /* fs = 1 and nfft = 1024: OBW * nfft is an exact integer bin count */
+    const double bins = dp_psd_occupied_bw (w, 0.99) * (double)NN;
+    DP_CHECK (bins >= 1012.0 && bins <= 1016.0);
+    free (y);
+    dp_psd_destroy (w);
+
+    dp_psd_state_t *z = dp_psd_create (N, 1.0, 3, 0.0f, 1, 1.0, 0, 0, 0.0);
+    DP_REQUIRE (z != NULL);
+    for (size_t i = 0; i < N; i++)
+      x[i] = 0.0f;
+    dp_psd_accumulate (z, x, N);
+    DP_CHECK (dp_psd_occupied_bw (z, 0.99) == 0.0);
+    dp_psd_destroy (z);
+  }
+
+  /* T14 and T15: the noise floor is the MEDIAN of the averaged dB spectrum,
+   * and SNR is the in-band peak above it.  Rectangular, unpadded, n = 256
+   * (independent bins), K = 256, complex noise of variance 1 with a unit
+   * bin-centred tone for SNR.
+   *
+   * Floor.  A bin's psd_db is 10 log10 of a K-average of Exp with mean
+   * var s2 / cg^2 = var/n.  That average is Gamma(K) with median
+   * 1 - 1/(3K) of its mean (Wilson-Hilferty) and relative sd 1/sqrt(K); the
+   * median of nfft such bins has sd sqrt(pi/2)/sqrt(nfft K) = 0.49%.
+   * Expected floor: 10 log10(var/n) + 10 log10(1 - 1/(3K)) = -24.088 dB.
+   *
+   * SNR.  The tone bin averages |A n + N_k|^2 / n^2 to A^2 + var/n; its
+   * spread is dominated by the cross term 2 Re(A n conj N_k), relative sd
+   * sqrt(2 var / n) / A per frame, 0.55% over K.  SNR = 10 log10((A^2 +
+   * var/n) / (var/n)) minus the floor's median bias = 24.105 dB, with sd
+   * sqrt(0.49^2 + 0.55^2) = 0.74%.
+   *
+   * Tolerance z = 5 on each, from those sigmas, in dB. */
+  {
+    const size_t    NN = 256, K = 256;
+    const double    var  = 1.0;
+    uint32_t        seed = 19119u;
+    dp_psd_state_t *w    = dp_psd_create (NN, 1.0, 3, 0.0f, 1, 1.0, 0, 0, 0.0);
+    float _Complex *y    = malloc (NN * sizeof *y);
+    float _Complex *s    = malloc (NN * sizeof *s);
+    DP_REQUIRE (w && y && s);
+    const int kt = 40;
+    fill_tone (s, NN, kt);
+    for (size_t f = 0; f < K; f++)
+      {
+        fill_cnoise (y, NN, var, &seed);
+        for (size_t i = 0; i < NN; i++)
+          y[i] += s[i];
+        dp_psd_accumulate (w, y, NN);
+      }
+    const double n        = (double)NN;
+    const double med_bias = 10.0 * log10 (1.0 - 1.0 / (3.0 * (double)K));
+    const double floor_sd = sqrt (M_PI / 2.0) / sqrt (n * (double)K);
+    const double cross_sd = sqrt (2.0 * var / n) / sqrt ((double)K);
+    const double want_nf  = 10.0 * log10 (var / n) + med_bias;
+    const double want_snr = 10.0 * log10 (1.0 + n / var) - med_bias;
+    const double tol_nf   = 10.0 * log10 (1.0 + 5.0 * floor_sd);
+    const double tol_snr
+        = 10.0
+          * log10 (1.0
+                   + 5.0 * sqrt (floor_sd * floor_sd + cross_sd * cross_sd));
+    const double hz_per_bin = 1.0 / n;
+    DP_CHECK (fabs (dp_psd_noise_floor (w) - want_nf) < tol_nf);
+    DP_CHECK (
+        fabs (dp_psd_snr (w, (kt - 3) * hz_per_bin, (kt + 3) * hz_per_bin)
+              - want_snr)
+        < tol_snr);
+    free (y);
+    free (s);
+    dp_psd_destroy (w);
+  }
+
+  /* T14b: it is the MEDIAN.  T14's level cannot tell a median from a mean
+   * of the dB values -- for K = 256 they differ by ~0.003 dB.  Here 32 of
+   * the 256 bins carry a bin-centred unit tone (24 dB above the noise; rect,
+   * so no leakage).  The median of 256 values with 32 high is the average
+   * of order statistics 128 and 129 of the 224 noise bins: their quantile
+   * 128.5/224 = 0.574, which for Gamma(K) is (1 - 1/(9K) + z sqrt(1/(9K)))^3
+   * = 1.0103 of the mean (Wilson-Hilferty, z = 0.1857): the floor moves UP by
+   * 0.045 dB.  That order statistic's sd is sqrt(p(1-p)/224) / phi(z) of
+   * the per-bin sd 1/sqrt(K): 0.53%, so z = 5 gives 0.114 dB.  A mean of
+   * the dB values would sit 32/256 x 24 = 3 dB high. */
+  {
+    const size_t    NN = 256, K = 256;
+    const double    var  = 1.0;
+    uint32_t        seed = 19120u;
+    dp_psd_state_t *w    = dp_psd_create (NN, 1.0, 3, 0.0f, 1, 1.0, 0, 0, 0.0);
+    float _Complex *y    = malloc (NN * sizeof *y);
+    float _Complex *t    = malloc (NN * sizeof *t);
+    float _Complex *s    = malloc (NN * sizeof *s);
+    DP_REQUIRE (w && y && t && s);
+    for (size_t i = 0; i < NN; i++)
+      s[i] = 0.0f;
+    for (int j = 0; j < 32; j++)
+      {
+        fill_tone (t, NN, 8 * j - 124); /* every 8th bin, -124 .. +124 */
+        for (size_t i = 0; i < NN; i++)
+          s[i] += t[i];
+      }
+    for (size_t f = 0; f < K; f++)
+      {
+        fill_cnoise (y, NN, var, &seed);
+        for (size_t i = 0; i < NN; i++)
+          y[i] += s[i];
+        dp_psd_accumulate (w, y, NN);
+      }
+    const double p    = 128.5 / 224.0;
+    const double z    = 0.1857; /* Phi^-1(0.5737) */
+    const double phi  = 0.3921; /* standard normal density at z */
+    const double c    = 1.0 / (9.0 * (double)K);
+    const double q    = pow (1.0 - c + z * sqrt (c), 3.0);
+    const double sd   = sqrt (p * (1.0 - p) / 224.0) / phi / sqrt ((double)K);
+    const double want = 10.0 * log10 (var / (double)NN) + 10.0 * log10 (q);
+    DP_CHECK (fabs (dp_psd_noise_floor (w) - want)
+              < 10.0 * log10 (1.0 + 5.0 * sd));
+    free (y);
+    free (t);
+    free (s);
+    dp_psd_destroy (w);
+  }
+
+  /* T16: SFDR is the carrier minus the strongest spur, and 0 with fewer than
+   * two peaks.  Bin-centred tones at 0 dB and -20 dB under Hann, placed half
+   * the transform apart (bins -16 and +16).  Each tone's own neighbours sit
+   * symmetrically at -6 dB, so find_peaks' parabolic correction vanishes; and
+   * at N/2 apart the OTHER tone's leakage is symmetric about it too.  That
+   * placement matters and was measured, with a double-precision model of
+   * this readout (window, FFT, cg^2, find_peaks): at bins 6 and 20 the
+   * carrier's -82 dBc leakage moves the spur by 5.1e-3 dB, at -16/+16 the
+   * model reads 20 dB to 4e-15.  What is left is the float32 FFT: an error
+   * of ~c log2(nfft) u ||X|| (see T8), which on a spur at 0.1 of the
+   * carrier is ~4e-5 relative, 4e-4 dB.  Tolerance 2e-3 dB.  A single tone
+   * leaves one peak above -30 dB (its main-lobe skirt is monotonic, not a
+   * peak): exactly 0. */
+  {
+    dp_psd_state_t *w = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
+    dp_psd_state_t *o = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
+    DP_REQUIRE (w && o);
+    float _Complex c[64], sp[64], x[64];
+    fill_tone (c, N, -16);
+    fill_tone (sp, N, 16);
+    for (size_t i = 0; i < N; i++)
+      x[i] = c[i] + 0.1f * sp[i];
+    dp_psd_accumulate (w, x, N);
+    DP_CHECK (fabs (dp_psd_sfdr (w, -30.0f) - 20.0) < 2e-3);
+    dp_psd_accumulate (o, c, N);
+    DP_CHECK (dp_psd_sfdr (o, -30.0f) == 0.0);
+    dp_psd_destroy (w);
+    dp_psd_destroy (o);
+  }
+
+  /* T17: create's remaining arguments.  beta shapes only the Kaiser window:
+   * Hann, Blackman-Harris and rect are bit-identical at beta 0 and 8, while
+   * Kaiser is not (the precondition: beta is live).  A negative mode is
+   * refused like an out-of-range one, and n = 2 -- the stated minimum -- is
+   * accepted. */
+  {
+    for (int win = 0; win <= 3; win++)
+      {
+        dp_psd_state_t *b0
+            = dp_psd_create (N, 1.0, win, 0.0f, 1, 1.0, 0, 0, 0.0);
+        dp_psd_state_t *b8
+            = dp_psd_create (N, 1.0, win, 8.0f, 1, 1.0, 0, 0, 0.0);
+        DP_REQUIRE (b0 && b8);
+        const int same = memcmp (b0->w, b8->w, N * sizeof b0->w[0]) == 0;
+        DP_CHECK (win == 1 ? !same : same);
+        dp_psd_destroy (b0);
+        dp_psd_destroy (b8);
+      }
+    DP_CHECK (dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, -1, 0.0) == NULL);
+    dp_psd_state_t *two = dp_psd_create (2, 1.0, 3, 0.0f, 1, 1.0, 0, 0, 0.0);
+    DP_CHECK (two != NULL);
+    dp_psd_destroy (two);
   }
 
   /* ── pass_capacity: emission stops at max_out (jm gh-138) ────────── */

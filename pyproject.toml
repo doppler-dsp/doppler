@@ -85,6 +85,15 @@ wfmgen         = "doppler.wfm.cli:main"
 command = "make just-build"
 editable_path = "src"
 
+# The ONE uv pin. uv.lock's bytes depend on the uv that writes it: a version
+# bump re-locked by uv 0.11.16 changed 2 lines, by uv 0.11.28 308 (a release
+# commit, doppler#1940). Exact, never a range -- those two share a minor
+# version. uv itself refuses every project command on any other version,
+# and .github/actions/setup-uv installs this one via `version-file`.
+# `make lint-uv-pin` holds every other installer to it.
+[tool.uv]
+required-version = "==0.12.24"
+
 [tool.pytest.ini_options]
 python_files = ["test_*.py", "bench_*.py"]
 testpaths = ["src"]

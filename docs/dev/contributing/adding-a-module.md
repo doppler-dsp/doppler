@@ -50,6 +50,25 @@ make drift-check                        # what CI runs
 
 Every jm command warns on version skew, so a stale CLI announces itself.
 
+**uv is pinned the same way**, once: `required-version` under
+`pyproject.toml`'s `[tool.uv]`, because `uv.lock`'s bytes depend on the uv
+that writes it: the same version bump re-locked by two uv releases changed 2 lines and
+308 ([#1940](https://github.com/doppler-dsp/doppler/issues/1940)). On any
+other version uv refuses every project command, and with it every `make`
+target that runs one: exit 2, and a message naming `uv self update`. That
+fix works only for a uv installed by astral's script; a uv from pacman,
+brew or pipx refuses to update itself, so install the standalone one
+alongside it, ahead of it on `PATH`:
+
+```sh
+make -s print-uv-version     # the pin, read from pyproject.toml
+uv --version                 # what you are actually running
+# uv from astral's installer (~/.local/bin/uv): move it to the pin
+uv self update "$(make -s print-uv-version)"
+# uv from a package manager: install the pinned standalone build
+curl -LsSf "https://astral.sh/uv/$(make -s print-uv-version)/install.sh" | sh
+```
+
 The scaffold writes into the doppler source tree, so run all commands from
 the repo root.
 

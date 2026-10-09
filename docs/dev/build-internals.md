@@ -314,11 +314,13 @@ ______________________________________________________________________
 To build a Linux manylinux wheel identical to what CI produces:
 
 ```bash
-# Run in the manylinux container (same image CI uses):
+# Run in the manylinux container (same image CI uses), with the uv CI
+# pins (#1940) for the repair step: `uvx` does not enforce the pin itself.
+# The host shell expands $(make ...) before the container starts.
 docker run --rm -v $PWD:/src -w /src \
   quay.io/pypa/manylinux_2_28_x86_64 \
   bash -c "
-    /opt/python/cp312-cp312/bin/pip install uv &&
+    /opt/python/cp312-cp312/bin/pip install uv==$(make -s print-uv-version) &&
     JUST_BUILDIT_PYTHON=/opt/python/cp312-cp312/bin/python3 \
     make just-build JUST_BUILDIT_OUTPUT_DIR=/tmp/out &&
     uvx auditwheel repair /tmp/out/*.whl -w dist/

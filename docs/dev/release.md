@@ -80,7 +80,17 @@ builds** so the page shows the from-source upside: **portable** (the wheel) and
 **native** (`-DDOPPLER_NATIVE=ON`).
 
 On the **same representative machine** each release (so the history stays
-comparable), measure both builds **interleaved** and publish. First put the CPU
+comparable), measure both builds **interleaved** and publish.
+
+**The bench box needs the pinned uv before `bench-interleaved`**
+([#1940](https://github.com/doppler-dsp/doppler/issues/1940)). Every build and
+run in it goes through uv, and a uv other than `pyproject.toml`'s
+`[tool.uv] required-version` refuses with exit 2 before anything is measured.
+`uv --version` must print what `make -s print-uv-version` does; when it does
+not, [Adding a Module](contributing/adding-a-module.md#prerequisites) has the
+update for each way uv gets installed.
+
+First put the CPU
 in a peak, repeatable state — the published `doppler_meta` records the governor
 either way, but `powersave` understates the numbers:
 

@@ -20,10 +20,13 @@ description: >
 #    per-job choice and stay at the call site; the invocation is fixed here,
 #    so a change to how deps are installed happens in one place.
 #
-# Deliberately NOT pinning uv's version: it buys reproducibility but, per the
-# unconditional manifest fetch above, buys nothing against the flake. Pinning
-# is worth doing on its own merits — see the follow-up issue — but it is a
-# separate decision from this one, and bundling them would misattribute the fix.
+# 3. THE uv PIN. uv.lock's bytes depend on the uv that writes it (doppler#1940),
+#    so the version is pyproject.toml's [tool.uv] required-version, and this
+#    is the only place in the tree that uses setup-uv (`make lint-uv-pin`).
+#    `version-file` is explicit because setup-uv's own search FAILS OPEN: a
+#    missing pin logs "Falling back to latest" and installs whatever released
+#    today. Named, a missing pin is an error. The pin does nothing for the
+#    flake in (1) -- the manifest is fetched either way.
 
 inputs:
   python-version:
@@ -53,12 +56,14 @@ runs:
       uses: astral-sh/setup-uv@v9.0.0
       continue-on-error: true
       with:
+        version-file: pyproject.toml
         python-version: ${{ inputs.python-version }}
 
     - name: Install uv + Python ${{ inputs.python-version }} (retry)
       if: steps.attempt1.outcome == 'failure'
       uses: astral-sh/setup-uv@v9.0.0
       with:
+        version-file: pyproject.toml
         python-version: ${{ inputs.python-version }}
 
     - name: Install Python deps (${{ inputs.sync }})

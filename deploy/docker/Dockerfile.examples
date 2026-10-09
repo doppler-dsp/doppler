@@ -101,13 +101,18 @@ COPY --from=doppler-build /opt/doppler/ /usr/local/
 RUN ldconfig
 RUN pip install --no-cache-dir --break-system-packages \
         numpy pytest doppler-dsp
-# uv → /usr/local/bin; the pinned jm as a uv tool, also on PATH. Keep this
-# version in lock-step with just-makeit.toml's jm_version.
+# uv → /usr/local/bin, at doppler's own pin; the pinned jm as a uv tool, also
+# on PATH. Keep JM_VERSION in lock-step with just-makeit.toml's jm_version.
+# UV_VERSION has NO default: one would be a second copy of pyproject.toml's
+# [tool.uv] required-version (doppler#1940). `make docker-sdk` and
+# release.yml pass it; `make -s print-uv-version` prints it.
 ARG JM_VERSION=0.43.0
+ARG UV_VERSION
 ENV UV_INSTALL_DIR=/usr/local/bin \
     UV_TOOL_BIN_DIR=/usr/local/bin \
     UV_TOOL_DIR=/opt/uv-tools
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
+RUN : "${UV_VERSION:?the UV_VERSION build-arg is required: make -s print-uv-version}" \
+ && curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh \
  && uv tool install --python python3 "just-makeit==${JM_VERSION}"
 
 # ── Target: SDK / develop image ────────────────────────────────────────────

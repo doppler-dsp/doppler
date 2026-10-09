@@ -2180,13 +2180,11 @@ test-asan: ## Run the C suite under ASan+LSan; any bad access or leak fails
 # dominated by targets that cannot report anything, which costs 2m31s of wall
 # clock and buys a denominator that is actually true.
 #
-# ONE exclusion, and it is a RATCHET that may only shrink. test_stream_nats_core
-# interrupts a stream from a second thread, which races the read of the
-# process-wide flag: `volatile sig_atomic_t` is the right type for a SIGNAL
-# handler and is not a C11 atomic, so a genuine cross-thread race on it is
-# exactly what TSan should say. Fixing it means atomics on a C99 codebase and
-# a signal-safety argument on a facility three modules share -- its own change,
-# filed as #1027, not a thing to smuggle into wiring up a gate.
+# NO exclusions. test_stream_nats_core used to be the one: it interrupts a
+# stream from a second thread, which raced the process-wide flag in
+# dp_interrupt.c. That flag is now a lock-free C11 atomic (#1027), so TSan
+# runs the whole suite. TSAN_EXCLUDE stays as a knob for a future genuine
+# carve-out, but it must come with an issue, and it is empty by default.
 #
 # halt_on_error, for exactly the reason UBSAN_OPTS gives above: without it
 # TSan prints a race and the suite still passes, and the gate is decorative.
@@ -2210,7 +2208,10 @@ TSAN_DIR     ?= build-tsan
 # instrumented full-battery run, for when a kernel change wants it.
 SAN_EXCLUDE_SWEEP = $(if $(SAN_SWEEP),,-LE sweep)
 
-TSAN_EXCLUDE ?= ^test_stream_nats_core$$
+TSAN_EXCLUDE ?=
+# The -E flag is emitted only when an exclusion is set, so the default run is
+# the whole suite and no empty regex is ever handed to ctest.
+TSAN_EXCLUDE_ARG = $(if $(TSAN_EXCLUDE),-E '$(TSAN_EXCLUDE)')
 TSAN_FLAGS    = -fsanitize=thread -fno-omit-frame-pointer -g
 TSAN_OPTS     = halt_on_error=1:second_deadlock_stack=1
 
@@ -2227,16 +2228,15 @@ test-tsan: ## Run the C suite under TSan; any data race fails
 # gates were both caught by, and the one this target's old name-pattern was
 # nearly caught by: a pattern that matches almost nothing still matches
 # something, so the guard fires only in the total case.
-	@n=$$($(CTEST) --test-dir $(TSAN_DIR) -E '$(TSAN_EXCLUDE)' $(SAN_EXCLUDE_SWEEP) -N \
+	@n=$$($(CTEST) --test-dir $(TSAN_DIR) $(TSAN_EXCLUDE_ARG) $(SAN_EXCLUDE_SWEEP) -N \
 	      | sed -n 's/^Total Tests: //p'); \
 	 if [ "$$n" = "0" ] || [ -z "$$n" ]; then \
 	   echo "test-tsan: the suite registered no tests — nothing ran,"; \
 	   echo "  so this gate has not passed."; exit 1; \
 	 fi; \
-	 echo "test-tsan: $$n test(s) under ThreadSanitizer" \
-	      "(excluding '$(TSAN_EXCLUDE)', see #1027)"
+	 echo "test-tsan: $$n test(s) under ThreadSanitizer"
 	TSAN_OPTIONS=$(TSAN_OPTS) \
-		$(CTEST) --test-dir $(TSAN_DIR) -E '$(TSAN_EXCLUDE)' $(SAN_EXCLUDE_SWEEP) \
+		$(CTEST) --test-dir $(TSAN_DIR) $(TSAN_EXCLUDE_ARG) $(SAN_EXCLUDE_SWEEP) \
 		--output-on-failure
 
 # ── -Wall -Wextra (#1658) ────────────────────────────────────────────────────

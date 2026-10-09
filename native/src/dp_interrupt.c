@@ -16,23 +16,33 @@
 #include "doppler/dp_interrupt_guard/dp_interrupt_guard_procglobal.h"
 
 #include <signal.h>
+#include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
 
+/* A signal handler may touch only a lock-free atomic: an atomic that falls
+   back to a lock can deadlock when the handler interrupts a thread that
+   already holds that lock. ATOMIC_INT_LOCK_FREE == 2 means "always lock
+   free", so the handler's store below is a single machine store. */
+_Static_assert (ATOMIC_INT_LOCK_FREE == 2,
+                "dp_interrupt: the flag must be lock-free to be "
+                "async-signal-safe");
+
 /* The state one process shares: the flag, and the wait slice.
 
-   `sig_atomic_t` because a signal handler writes it. That type is the ONLY
-   thing the C standard promises can be assigned from a handler without
-   tearing, which is what makes dp_interrupt() safe to call from one -- and
-   being safe to call from a handler is the entire point of the API.
+   An atomic, because the flag is written by a signal handler or by
+   dp_interrupt() on any thread, and read by waits on other threads. A
+   `volatile sig_atomic_t` keeps a handler's write from tearing, but says
+   nothing about a read in one thread racing a write in another, which is a
+   data race (#1027). A lock-free atomic gives both properties.
 
    INTERNAL -- it is not in dp_interrupt.h, because nothing outside this
    file has ever needed its shape. The rendezvous below hands it across as
    an opaque `void *`, which is jm's whole contract. */
 typedef struct
 {
-  volatile sig_atomic_t flag;       /* set by a handler; read by waits */
-  unsigned              latency_ms; /* wait slice, milliseconds */
+  atomic_int flag;       /* set by a handler; read by waits */
+  unsigned   latency_ms; /* wait slice, milliseconds */
 } dp_interrupt_shared_t;
 
 /* The state a C build uses: one archive, one copy, nothing to adopt.
@@ -58,7 +68,7 @@ static dp_interrupt_shared_t dp_interrupt_own_state
    run -- which is what makes dereferencing it from one safe. */
 static dp_interrupt_shared_t *dp_interrupt_shared = &dp_interrupt_own_state;
 
-#define dp_interrupt_flag (dp_interrupt_shared->flag)
+#define dp_interrupt_flag (&dp_interrupt_shared->flag)
 #define dp_interrupt_latency (dp_interrupt_shared->latency_ms)
 
 /* ── the process-global rendezvous (just-makeit gh-1117) ─────────────────
@@ -95,19 +105,19 @@ dp_interrupt_guard_state_adopt (void *shared)
 void
 dp_interrupt (void)
 {
-  dp_interrupt_flag = 1;
+  atomic_store (dp_interrupt_flag, 1);
 }
 
 void
 dp_resume (void)
 {
-  dp_interrupt_flag = 0;
+  atomic_store (dp_interrupt_flag, 0);
 }
 
 int
 dp_interrupted (void)
 {
-  return dp_interrupt_flag != 0;
+  return atomic_load (dp_interrupt_flag) != 0;
 }
 
 void
@@ -257,7 +267,9 @@ static struct
 static void
 dp_sig_forward (int sig, siginfo_t *info, void *uctx)
 {
-  dp_interrupt_flag = 1;
+  /* Lock-free by the static assert above, so this store is
+     async-signal-safe. */
+  atomic_store (dp_interrupt_flag, 1);
 
   /* Chain. The previous handler is usually an interpreter's own, and its
      absence is how "Ctrl+C works during a receive" turns into "Ctrl+C

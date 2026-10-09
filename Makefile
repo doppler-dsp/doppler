@@ -87,6 +87,12 @@ JM_VERSION          ?= $(shell grep -m1 '^jm_version' just-makeit.toml | cut -d'
 # take it as `ARG STOCK_REGISTRY` with no default; `make lint-stock-images`
 # refuses a stock image named any other way.
 STOCK_REGISTRY      ?= public.ecr.aws/docker/library
+# ECR Public rate-limits anonymous pulls per IP too, and runners share IPs, so
+# a stock image is PULLED only through scripts/stock-pull.sh, which retries a
+# rate limit with backoff (#1979): before a `docker run --pull=never`, and as
+# `$(STOCK_PULL) --dockerfile F` before a `docker build -f F`, because
+# BuildKit does not retry a FROM. `make lint-stock-images` holds every site.
+STOCK_PULL          = STOCK_REGISTRY=$(STOCK_REGISTRY) bash scripts/stock-pull.sh
 
 # The uv pin, read from pyproject.toml's [tool.uv] required-version by the
 # script that gates it -- one parser for one declaration (doppler#1940).
@@ -2728,7 +2734,8 @@ PKG_SMOKE_DISTROS ?= $(STOCK_REGISTRY)/debian:stable $(CI_IMAGE_2404) \
 PKG_SMOKE_RUN = for d in $(PKG_SMOKE_DISTROS); do \
 	    echo ">> $$d"; \
 	    net=; [ "$$d" = "$(CI_IMAGE_2404)" ] && net=--network=none; \
-	    docker run --rm $$net -v "$(CURDIR)":/w:ro -w /w $$d \
+	    $(STOCK_PULL) $$d || { echo "$(1): could not pull $$d"; exit 1; }; \
+	    docker run --rm --pull=never $$net -v "$(CURDIR)":/w:ro -w /w $$d \
 	        bash tests/install/linux-package-smoke.sh /w/$(2) \
 	        || { echo "$(1): FAILED in $$d"; exit 1; }; \
 	 done; \
@@ -4039,6 +4046,7 @@ GLIBC_DOCKERFILE := deploy/docker/Dockerfile.glibc228
 # free to drift — the exact thing Dockerfile.glibc228's own header says moving
 # it out of ci.yml was meant to stop.
 glibc-image: ## Build the glibc $(GLIBC_MAX) toolchain image (shared: glibc-gate, docker-stream)
+	$(STOCK_PULL) --dockerfile $(GLIBC_DOCKERFILE)
 	docker build -f $(GLIBC_DOCKERFILE) \
 	    --build-arg STOCK_REGISTRY=$(STOCK_REGISTRY) \
 	    -t $(GLIBC_IMAGE) deploy/docker
@@ -4549,6 +4557,7 @@ bench-report: ## Portable-build trend across releases
 # gate and the published-image gate cannot drift (see the script header).
 
 docker-runtime: ## Build+smoke the runtime "try it" image (needs the wheel on PyPI)
+	$(STOCK_PULL) --dockerfile deploy/docker/Dockerfile.cli
 	docker build -f deploy/docker/Dockerfile.cli \
 	    --build-arg STOCK_REGISTRY=$(STOCK_REGISTRY) \
 	    --build-arg STOCK_REGISTRY=$(STOCK_REGISTRY) \
@@ -4557,6 +4566,7 @@ docker-runtime: ## Build+smoke the runtime "try it" image (needs the wheel on Py
 	bash scripts/smoke-image.sh runtime $(DOCKER_IMAGE):$(DOCKER_TAG)
 
 docker-sdk: ## Build+smoke the SDK / develop image (doppler-sdk)
+	$(STOCK_PULL) --dockerfile $(EXAMPLES_DOCKERFILE)
 	docker build -f $(EXAMPLES_DOCKERFILE) --target sdk \
 	    --build-arg STOCK_REGISTRY=$(STOCK_REGISTRY) \
 	    --build-arg STOCK_REGISTRY=$(STOCK_REGISTRY) \
@@ -4569,6 +4579,7 @@ docker-sdk: ## Build+smoke the SDK / develop image (doppler-sdk)
 docker-downstream: ## Build+smoke the iqtools showcase image (doppler-downstream-jm)
 # The build itself runs `make test` inside the image, so a green build IS the
 # smoke; the run only confirms the shipped, pre-built package imports.
+	$(STOCK_PULL) --dockerfile $(EXAMPLES_DOCKERFILE)
 	docker build -f $(EXAMPLES_DOCKERFILE) --target downstream-jm \
 	    --build-arg STOCK_REGISTRY=$(STOCK_REGISTRY) \
 	    --build-arg STOCK_REGISTRY=$(STOCK_REGISTRY) \
@@ -4586,6 +4597,7 @@ docker-downstream: ## Build+smoke the iqtools showcase image (doppler-downstream
 # this image: the FROM in stream-build names a local tag nothing pulls.
 # docker-compose.yml says so at the top.
 docker-stream: glibc-image ## Build+smoke the lean compose streaming-services image
+	$(STOCK_PULL) --dockerfile $(EXAMPLES_DOCKERFILE)
 	docker build -f $(EXAMPLES_DOCKERFILE) --target stream-services \
 	    --build-arg STOCK_REGISTRY=$(STOCK_REGISTRY) \
 	    --build-arg STOCK_REGISTRY=$(STOCK_REGISTRY) \

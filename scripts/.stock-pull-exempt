@@ -1,0 +1,18 @@
+# Container builds no stock-pull.sh pre-pull can reach (doppler#1982).
+# Read by scripts/check_stock_images.py (make lint-stock-images, #1979).
+#
+# Each of these runs `docker/setup-buildx-action`, whose docker-container
+# driver runs BuildKit in its own container: it resolves and pulls the FROMs
+# there, so an image pulled into the runner's daemon is never consulted, and
+# BuildKit does not retry a 429. They run at release time and on CI-image
+# rebuilds, not on every PR; a `toomanyrequests` there is re-run by hand
+# (docs/dev/release.md).
+#
+# One site per line: the workflow, then the Dockerfile (with `:target` when
+# the step builds one), then why. This list may only SHRINK: the gate fails
+# on an entry that no longer names a container-driver build, and on a new
+# container-driver build that is not listed. Fix the build instead (#1982).
+.github/workflows/ci-image.yml docker/ci.Dockerfile CI-image rebuild; FROM ${BASE} is CI_BASE_<key>
+.github/workflows/release.yml deploy/docker/Dockerfile.cli runtime image, build-push-action
+.github/workflows/release.yml deploy/docker/Dockerfile.examples:sdk SDK image, build-push-action
+.github/workflows/release.yml deploy/docker/Dockerfile.examples:downstream-jm downstream-jm image, build-push-action

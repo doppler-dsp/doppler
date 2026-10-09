@@ -27,7 +27,6 @@ import warnings
 import numpy as np
 
 from doppler.acquire import Acquisition, bin_to_signed
-from doppler.dsss.handoff import dll_init_chip_from_acq
 from doppler.resample import RateConverter
 from doppler.track import Dll, MpskReceiver
 from doppler.wfm import Gold
@@ -153,7 +152,7 @@ def _chain(x, s0, chip_phase, doppler_hz_est, resample: bool):
 def _handoff(x):
     hit, hitpos, acq = _acquire(x)
     assert hit is not None, "acquisition failed to find the continuous code"
-    dop_bin, code_phase, _pk, _n, _ts, _c, *_rest = hit
+    dop_bin = hit[0]
     doppler_bins = acq.doppler_bins
     # The library's own mapping (clib_common.h, exposed as
     # doppler.acquire.bin_to_signed): fftfreq's convention except at the
@@ -163,7 +162,7 @@ def _handoff(x):
     # what the search meant.
     k_fold = bin_to_signed(dop_bin, doppler_bins)
     doppler_hz_est = k_fold * acq.doppler_res_hz
-    chip_phase = dll_init_chip_from_acq(code_phase, SPC, SF)
+    chip_phase = hit[7]
     frame = acq.code_bins * acq.doppler_bins
     s0 = hitpos + frame
     data_start = round((s0 - PRE_SILENCE) / TSYM)

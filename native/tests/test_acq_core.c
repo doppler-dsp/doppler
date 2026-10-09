@@ -583,6 +583,78 @@ _acq_wideband_check (void)
   return 0;
 }
 
+/* The hit's own chip_phase (filled in acq_report_peaks) and the hand-off
+ * (dp_acq_build_handoff) are one helper, so for every real hit they agree
+ * to rounding. Checked on a drifted emitter (a Doppler bin off DC, carrier
+ * set: the dwell advance is nonzero and must be in both) and uncoupled
+ * (carrier 0: no advance, the phase is the inverted lag alone). */
+static double
+_chip_sep (double a, double b, double sf)
+{
+  double d = fabs (a - b);
+  d        = fmod (d, sf);
+  return d > sf / 2.0 ? sf - d : d;
+}
+
+static int
+_acq_hit_chip_phase_check (void)
+{
+  const size_t spc = 2, sf = 7, nx = sf * spc;
+  const double PI_ = acos (-1.0);
+  for (int coupled = 0; coupled < 2; coupled++)
+    {
+      dp_acq_state_t *c = dp_acq_create_continuous (
+          CODE7, sf, spc, 1.0e6, 0.0, 60.0, 200.0e3, 1e-2, 0.9, 0, 1, 0.0);
+      DP_CHECK (c != NULL);
+      if (!c)
+        return 0;
+      DP_CHECK (coupled ? dp_acq_set_carrier_freq_hz (c, 2.5e9) == DP_OK
+                        : dp_acq_set_carrier_freq_hz (c, 0.0) == DP_OK);
+      const size_t    ndw = 4, per_dwell = c->n_noncoh * nx;
+      const size_t    n = ndw * per_dwell;
+      float _Complex *x = malloc (n * sizeof *x);
+      DP_REQUIRE (x != NULL);
+      const size_t d = 5; /* code phase of the emitter, in chips*spc */
+      for (size_t k = 0; k < n; k++)
+        {
+          size_t  q    = k % nx;
+          size_t  src  = (q + nx - (d % nx)) % nx;
+          uint8_t chip = CODE7[(src / spc) % sf];
+          double  ph   = 2.0 * PI_ * (double)k / (double)nx;
+          x[k]         = ((chip & 1u) ? -1.0f : 1.0f)
+                         * (float _Complex) (cos (ph) + I * sin (ph));
+        }
+      acq_result_t hits[16];
+      size_t       nh = dp_acq_push (c, x, n, hits, 16);
+      free (x);
+      DP_CHECK (nh >= 1);
+      int off_dc = 0;
+      for (size_t h = 0; h < nh; h++)
+        {
+          acq_handoff_t ho;
+          dp_acq_build_handoff (c, &hits[h], sf, spc, &ho);
+          DP_CHECK_MSG (
+              _chip_sep (hits[h].chip_phase, ho.chip_phase, (double)sf) < 1e-9,
+              "hit.chip_phase is the hand-off's phase");
+          double lag = (double)sf - (double)hits[h].code_phase / (double)spc;
+          double advance = _chip_sep (hits[h].chip_phase, lag, (double)sf);
+          if (coupled && hits[h].doppler_bin != 0)
+            {
+              off_dc = 1;
+              DP_CHECK_MSG (advance > 1e-3,
+                            "a drifted hit carries the dwell advance");
+            }
+          if (!coupled)
+            DP_CHECK_MSG (advance < 1e-9,
+                          "uncoupled: no advance, the phase is the lag");
+        }
+      if (coupled)
+        DP_CHECK_MSG (off_dc, "the drifted case reached a non-DC Doppler bin");
+      dp_acq_destroy (c);
+    }
+  return 0;
+}
+
 /* The wideband grid's real contract is COVERAGE, not bin count: every Doppler
  * in [-du, +du] must have a hypothesis within half a bin, and the search and
  * dp_acq_build_handoff() must agree on which one.
@@ -1636,6 +1708,7 @@ main (void)
   (void)_acq_band_edge_check ();
   (void)_acq_band_mask_check ();
   (void)_acq_wideband_check ();
+  (void)_acq_hit_chip_phase_check ();
   (void)_acq_wideband_coverage_check ();
   (void)_acq_continuous_check ();
 

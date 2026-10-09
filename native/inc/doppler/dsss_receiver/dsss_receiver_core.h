@@ -16,8 +16,8 @@
  *   - **searching** (`tracking() == 0`): samples feed the embedded
  *     `Acquisition`. Nothing is emitted. On a hit, the carrier loop/
  *     `Dll`/`RateConverter`/`MpskReceiver` are built from the hit's code
- *     phase and Doppler estimate (the exact `dll_init_chip_from_acq`
- *     phase-inversion and `RateConverter`-bridged sample-rate hand-off
+ *     phase and Doppler estimate (the exact `acq_result_t::chip_phase`
+ *     hand-off phase and `RateConverter`-bridged sample-rate hand-off
  *     this repo's gallery pages validated by hand), and the **unconsumed
  *     tail** of the same `steps()` call is handed straight to them — no
  *     samples are dropped at the transition.

@@ -158,7 +158,7 @@ not grow. That sabotage was invisible to every other test.
 
 *Question.* The framer is the drain loop every consumer used to write, written
 once. Owning the loop must not make the stream slower (design goal G6 of
-the spectrogram program, #1894).
+`docs/design/spectrogram.md`).
 
 *Method.* `bench_buffer_core`, the two pairs of rows added beside the
 streaming row. Both members of a pair run in the same round, back to back, on

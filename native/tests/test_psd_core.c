@@ -1,10 +1,13 @@
 #include "doppler/dp_complex.h"
 #include "doppler/psd/psd_core.h"
+#include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 /* argmax over a float array. */
 static size_t
@@ -69,8 +72,8 @@ main (void)
               == NULL); /* n<2  */
     DP_CHECK (dp_psd_create (N, 0.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1)
               == NULL); /* fs   */
-    DP_CHECK (dp_psd_create (N, 1.0, 3, 0.0f, 1, 1.0, 0, 0, 0.1)
-              == NULL); /* win  */
+    DP_CHECK (dp_psd_create (N, 1.0, 4, 0.0f, 1, 1.0, 0, 0, 0.1)
+              == NULL); /* win: 0..3 are Hann, Kaiser, B-H, rect */
     DP_CHECK (dp_psd_create (N, 1.0, 0, 0.0f, 1, 0.0, 0, 0, 0.1)
               == NULL); /* fscl */
     DP_CHECK (dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 9, 0.1)
@@ -442,6 +445,94 @@ main (void)
     DP_CHECK (b->avg->count == a->avg->count);
     dp_psd_destroy (a);
     dp_psd_destroy (b);
+  }
+
+  /* ── the per-frame kernel: PSD with the average taken out ───────────────
+   * dp_psd_frame_power / dp_psd_frame_db run the same code dp_psd_accumulate
+   * folds, so for ONE frame they must equal what accumulate-then-read gives,
+   * bit for bit, for every window and with zero-padding. A spectrogram row
+   * built on a second kernel (FFT + dp_magnitude_db_cf32) would differ from
+   * the PSD of the same frame by the window's coherent gain. */
+  {
+    static const size_t ns[]   = { 64, 100 }; /* 100: not a power of two */
+    static const size_t pads[] = { 1, 2 };
+    uint32_t            seed   = 12345u;
+    for (int win = 0; win <= 3; win++)
+      for (size_t a = 0; a < 2; a++)
+        for (size_t b = 0; b < 2; b++)
+          {
+            const size_t n = ns[a];
+            float _Complex x[100];
+            for (size_t i = 0; i < n; i++)
+              {
+                /* named locals: two draws in one expression have no order */
+                const float re = (float)(dp_uni (&seed) - 0.5);
+                const float im = (float)(dp_uni (&seed) - 0.5);
+                x[i]           = CMPLXF (re, im);
+              }
+
+            dp_psd_state_t *ref
+                = dp_psd_create (n, 1.0, win, 6.0f, pads[b], 1.0, 0, 0, 0.0);
+            dp_psd_state_t *k
+                = dp_psd_create (n, 1.0, win, 6.0f, pads[b], 1.0, 0, 0, 0.0);
+            DP_REQUIRE (ref && k);
+            const size_t nfft    = ref->nfft;
+            float       *want_db = malloc (nfft * sizeof *want_db);
+            float       *want_p  = malloc (nfft * sizeof *want_p);
+            float       *got_db  = malloc (nfft * sizeof *got_db);
+            float       *got_p   = malloc (nfft * sizeof *got_p);
+            DP_REQUIRE (want_db && want_p && got_db && got_p);
+
+            dp_psd_accumulate (ref, x, n);
+            DP_CHECK (dp_psd_psd_db (ref, nfft, want_db, nfft) == nfft);
+            DP_CHECK (dp_psd_power_twosided (ref, nfft, want_p, nfft) == nfft);
+
+            /* The kernel leaves the average alone: nothing accumulated. */
+            dp_psd_frame_db (k, x, got_db);
+            DP_CHECK (dp_psd_psd_db (k, nfft, got_p, nfft) == 0);
+            DP_CHECK (memcmp (got_db, want_db, nfft * sizeof *got_db) == 0);
+
+            /* raw power / cg^2 is exactly the two-sided readout */
+            dp_psd_frame_power (k, x, got_p);
+            const double cg2  = ref->cg * ref->cg;
+            int          same = 1;
+            for (size_t i = 0; i < nfft; i++)
+              if ((float)((double)got_p[i] / cg2) != want_p[i])
+                same = 0;
+            DP_CHECK (same);
+
+            free (want_db);
+            free (want_p);
+            free (got_db);
+            free (got_p);
+            dp_psd_destroy (ref);
+            dp_psd_destroy (k);
+          }
+  }
+
+  /* ── rectangular window (index 3): no taper, and the index is bounded ─── */
+  {
+    enum
+    {
+      RN = 32
+    };
+    dp_psd_state_t *r = dp_psd_create (RN, 1.0, 3, 0.0f, 1, 1.0, 0, 0, 0.0);
+    DP_REQUIRE (r != NULL);
+    int all_ones = 1;
+    for (size_t i = 0; i < RN; i++)
+      if (r->w[i] != 1.0f)
+        all_ones = 0;
+    DP_CHECK (all_ones);
+    DP_CHECK (r->cg == (double)RN); /* sum of ones */
+    float _Complex x[RN];
+    float db[RN];
+    fill_tone (x, RN, 5);
+    dp_psd_frame_db (r, x, db);
+    /* a unit tone on a bin reads 0 dBFS: cg^2 normalisation is window-blind */
+    DP_CHECK (fabsf (db[RN / 2 + 5]) < 1e-3f);
+    dp_psd_destroy (r);
+    DP_CHECK (dp_psd_create (RN, 1.0, 4, 0.0f, 1, 1.0, 0, 0, 0.0) == NULL);
+    DP_CHECK (dp_psd_create (RN, 1.0, -1, 0.0f, 1, 1.0, 0, 0, 0.0) == NULL);
   }
 
   DP_TEST_END ("test_psd_core");

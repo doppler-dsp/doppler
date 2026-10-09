@@ -67,6 +67,8 @@ _PSD — averaging power-spectral-density estimator (Welch's method) and spectra
 |  size\_t | [**dp\_psd\_band\_power\_max\_out**](#function-dp_psd_band_power_max_out) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Output capacity hint for band\_power(); 0 (binding sizes from bands)._  |
 |  [**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* | [**dp\_psd\_create**](#function-dp_psd_create) (size\_t n, double fs, int window, float beta, size\_t pad, double full\_scale, size\_t bits, int mode, double alpha) <br>_Create an averaging PSD estimator._  |
 |  void | [**dp\_psd\_destroy**](#function-dp_psd_destroy) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Destroy a PSD instance and release all memory._  |
+|  void | [**dp\_psd\_frame\_db**](#function-dp_psd_frame_db) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, const float \_Complex \* x, float \* out) <br>_One frame in dBFS, against the estimator's own reference._  |
+|  void | [**dp\_psd\_frame\_power**](#function-dp_psd_frame_power) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, const float \_Complex \* x, float \* pwr) <br>_One frame's DC-centred two-sided power: window, zero-pad, FFT, \|X\|^2._  |
 |  void | [**dp\_psd\_get\_state**](#function-dp_psd_get_state) (const [**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, void \* blob) <br> |
 |  double | [**dp\_psd\_noise\_floor**](#function-dp_psd_noise_floor) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Noise-floor estimate: median of the averaged dB spectrum._  |
 |  double | [**dp\_psd\_occupied\_bw**](#function-dp_psd_occupied_bw) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, double fraction) <br>_Occupied bandwidth in Hz holding_ `fraction` _of the total power._ |
@@ -320,7 +322,7 @@ dp_psd_state_t * dp_psd_create (
 
 * `n` Window / frame length in samples. Must be &gt;= 2. 
 * `fs` Sample rate in Hz (used for dB/Hz and band frequencies). 
-* `window` Window index: 0 = Hann, 1 = Kaiser, 2 = Blackman-Harris. 
+* `window` Window index: 0 = Hann, 1 = Kaiser, 2 = Blackman-Harris, 3 = rectangular (no taper: best resolution, worst leakage). 
 * `beta` Kaiser beta (ignored for Hann/Blackman-Harris). 
 * `pad` Zero-pad factor (&gt;= 1); nfft = next\_pow\_two(n \* pad). 
 * `full_scale` Amplitude that reads 0 dBFS in the dB getters (&gt; 0). Ignored when `bits` &gt; 0. 
@@ -377,6 +379,86 @@ void dp_psd_destroy (
 
 
 * `state` May be NULL (no-op). 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_psd\_frame\_db 
+
+_One frame in dBFS, against the estimator's own reference._ 
+```C++
+void dp_psd_frame_db (
+    dp_psd_state_t * state,
+    const float _Complex * x,
+    float * out
+) 
+```
+
+
+
+[**dp\_psd\_frame\_power()**](psd__core_8h.md#function-dp_psd_frame_power) divided by the window coherent gain squared and the full-scale reference, as 10\*log10 with the -200 dB floor, so a full-scale tone on a bin reads 0 dB whatever the window. The result equals [**dp\_psd\_psd\_db()**](psd__core_8h.md#function-dp_psd_psd_db) after accumulating that one frame, bit for bit (pinned by test\_psd\_core.c). Does not touch the running average.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `x` Exactly `state->n` complex samples (cf32). 
+* `out` Output, `state->nfft` floats, DC-centred.
+
+
+```C++
+dp_psd_state_t *p = dp_psd_create (8, 1.0, 3, 0.0f, 1, 1.0, 0, 0, 0.0);
+float _Complex x[8];
+float db[8];
+for (int i = 0; i < 8; i++)
+  x[i] = cexpf (I * 2.0f * 3.14159265f * 2.0f * (float)i / 8.0f);
+dp_psd_frame_db (p, x, db);        // unit tone on bin 2, rectangular
+if (fabsf (db[4 + 2]) > 1e-4f)     // DC-centred: bin 2 is at nfft/2 + 2
+  return 1;
+dp_psd_destroy (p);
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_psd\_frame\_power 
+
+_One frame's DC-centred two-sided power: window, zero-pad, FFT, \|X\|^2._ 
+```C++
+void dp_psd_frame_power (
+    dp_psd_state_t * state,
+    const float _Complex * x,
+    float * pwr
+) 
+```
+
+
+
+The per-frame kernel [**dp\_psd\_accumulate()**](psd__core_8h.md#function-dp_psd_accumulate) folds into its average, exposed without the average. The result is the UN-NORMALISED power the averager folds: no division by the window coherent gain squared, so a tone does not read at its true level ([**dp\_psd\_frame\_db()**](psd__core_8h.md#function-dp_psd_frame_db) applies that division). Do not compare this raw output with [**dp\_psd\_power\_twosided()**](psd__core_8h.md#function-dp_psd_power_twosided), which divides by cg^2 on the double path. A streaming spectrogram is this call once per frame. Uses the estimator's scratch, so it is not thread-safe on one state and it does not touch the running average.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `x` Exactly `state->n` complex samples (cf32). 
+* `pwr` Output, `state->nfft` floats, bin k (centred) at index nfft/2 + k. 
 
 
 

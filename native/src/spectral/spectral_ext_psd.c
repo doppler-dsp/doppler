@@ -65,11 +65,13 @@ PSDObj_init (PSDObject *self, PyObject *args, PyObject *kwds)
     window = 1;
   else if (strcmp (window_str, "blackman-harris") == 0)
     window = 2;
+  else if (strcmp (window_str, "rect") == 0)
+    window = 3;
   else
     {
       PyErr_Format (PyExc_ValueError,
                     "window must be one of \"hann\", \"kaiser\", "
-                    "\"blackman-harris\", got '%s'",
+                    "\"blackman-harris\", \"rect\", got '%s'",
                     window_str);
       return -1;
     }
@@ -1607,9 +1609,10 @@ static PyTypeObject PSDObjType = {
     "    Window / frame length in samples. Must be >= 2.\n"
     "fs : float, default 1.0\n"
     "    Sample rate in Hz (used for dB/Hz and band frequencies).\n"
-    "window : Literal[\"hann\", \"kaiser\", \"blackman-harris\"], default "
-    "\"hann\"\n"
-    "    Window index: 0 = Hann, 1 = Kaiser, 2 = Blackman-Harris.\n"
+    "window : Literal[\"hann\", \"kaiser\", \"blackman-harris\", \"rect\"], "
+    "default \"hann\"\n"
+    "    Window index: 0 = Hann, 1 = Kaiser, 2 = Blackman-Harris, 3 =\n"
+    "    rectangular (no taper: best resolution, worst leakage).\n"
     "beta : float, default 0.0\n"
     "    Kaiser beta (ignored for Hann/Blackman-Harris).\n"
     "pad : int, default 1\n"

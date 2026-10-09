@@ -50,6 +50,12 @@ void dp_psd_reset(dp_psd_state_t *state);
 void dp_psd_accumulate(dp_psd_state_t *state, const float _Complex *x,
                       size_t x_len);
 
+void dp_psd_frame_power(dp_psd_state_t *state, const float _Complex *x,
+                        float *pwr);
+
+void dp_psd_frame_db(dp_psd_state_t *state, const float _Complex *x,
+                     float *out);
+
 void dp_psd_accumulate_real(dp_psd_state_t *state, const float *x, size_t x_len);
 
 size_t dp_psd_power_twosided_max_out(dp_psd_state_t *state);

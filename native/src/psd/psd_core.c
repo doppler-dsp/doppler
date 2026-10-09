@@ -37,7 +37,7 @@ dp_psd_create (size_t n, double fs, int window, float beta, size_t pad,
    */
   if (bits > 0)
     full_scale = ldexp (1.0, (int)bits - 1);
-  if (n < 2 || fs <= 0.0 || window < 0 || window > 2 || full_scale <= 0.0)
+  if (n < 2 || fs <= 0.0 || window < 0 || window > 3 || full_scale <= 0.0)
     return NULL;
   if (mode < ACC_TRACE_MEAN || mode > ACC_TRACE_MINHOLD)
     return NULL;
@@ -69,6 +69,9 @@ dp_psd_create (size_t n, double fs, int window, float beta, size_t pad,
     dp_kaiser_window (s->w, n, beta);
   else if (window == 2)
     dp_blackman_harris_window (s->w, n);
+  else if (window == 3)
+    for (size_t i = 0; i < n; i++) /* rectangular: no spectral library entry */
+      s->w[i] = 1.0f;
   else
     dp_hann_window (s->w, n);
 
@@ -140,10 +143,12 @@ dp_psd_set_state (dp_psd_state_t *s, const void *blob)
 
 /* ── accumulation ──────────────────────────────────────────────────────── */
 
-/* Transform the already-windowed-and-zero-padded state->frame, convert to
- * DC-centred two-sided power and fold one frame into the running average. */
+/* Transform the already-windowed-and-zero-padded state->frame into DC-centred
+ * two-sided power, written to pwr[0..nfft). The one place a frame becomes a
+ * spectrum: dp_psd_accumulate folds it into the average, dp_psd_frame_power
+ * hands it to the caller, and neither can drift from the other. */
 static void
-psd_fold_frame (dp_psd_state_t *state)
+psd_transform (dp_psd_state_t *state, float *pwr)
 {
   const size_t nfft = state->nfft;
   const size_t half = nfft / 2; /* fftshift roll: bin 0 -> index nfft/2 */
@@ -157,9 +162,16 @@ psd_fold_frame (dp_psd_state_t *state)
       size_t      idx = k + half;
       if (idx >= nfft)
         idx -= nfft;
-      state->pwr[idx] = re * re + im * im;
+      pwr[idx] = re * re + im * im;
     }
-  dp_acc_trace_accumulate (state->avg, state->pwr, nfft);
+}
+
+/* Transform state->frame and fold one frame into the running average. */
+static void
+psd_fold_frame (dp_psd_state_t *state)
+{
+  psd_transform (state, state->pwr);
+  dp_acc_trace_accumulate (state->avg, state->pwr, state->nfft);
 }
 
 /* Zero the zero-pad tail frame[n..nfft-1] (no-op when nfft == n). */
@@ -168,6 +180,15 @@ psd_zero_pad (dp_psd_state_t *state)
 {
   for (size_t i = state->n; i < state->nfft; i++)
     state->frame[i] = 0.0f;
+}
+
+/* Window one n-sample complex frame into state->frame and zero-pad it. */
+static void
+psd_window_frame (dp_psd_state_t *state, const float _Complex *xf)
+{
+  for (size_t i = 0; i < state->n; i++)
+    state->frame[i] = state->w[i] * xf[i];
+  psd_zero_pad (state);
 }
 
 void
@@ -179,10 +200,7 @@ dp_psd_accumulate (dp_psd_state_t *state, const float _Complex *x,
 
   for (size_t f = 0; f < nframe; f++)
     {
-      const float _Complex *xf = x + f * n;
-      for (size_t i = 0; i < n; i++)
-        state->frame[i] = state->w[i] * xf[i];
-      psd_zero_pad (state);
+      psd_window_frame (state, x + f * n);
       psd_fold_frame (state);
     }
 }
@@ -224,6 +242,20 @@ psd_db_ref (const dp_psd_state_t *s)
   return s->cg * s->cg * s->full_scale * s->full_scale;
 }
 
+/* pwr[0..n) as dBFS against the estimator's reference: the one conversion
+ * both the averaged readouts and the single-frame readout go through. */
+static void
+psd_power_to_db (const dp_psd_state_t *s, const float *pwr, float *out,
+                 size_t n)
+{
+  const double ref = psd_db_ref (s);
+  for (size_t i = 0; i < n; i++)
+    {
+      double p = (double)pwr[i] / ref;
+      out[i]   = (float)(10.0 * log10 (fmax (p, PSD_FLOOR)));
+    }
+}
+
 /* Fill out[0..n-1] with the averaged power spectrum in dBFS, where n is
  * min(nfft, max_out).  Returns the count written, 0 if nothing has been
  * accumulated yet.  The internal callers pass state->dbbuf, which is
@@ -233,14 +265,25 @@ psd_fill_db (dp_psd_state_t *s, float *out, size_t max_out)
 {
   if (!psd_pull_power (s))
     return 0;
-  const double ref   = psd_db_ref (s);
   const size_t n_out = s->nfft < max_out ? s->nfft : max_out;
-  for (size_t i = 0; i < n_out; i++)
-    {
-      double p = (double)s->pwr[i] / ref;
-      out[i]   = (float)(10.0 * log10 (fmax (p, PSD_FLOOR)));
-    }
+  psd_power_to_db (s, s->pwr, out, n_out);
   return n_out;
+}
+
+/* ── one frame, no averaging ────────────────────────────────────────────── */
+
+void
+dp_psd_frame_power (dp_psd_state_t *state, const float _Complex *x, float *pwr)
+{
+  psd_window_frame (state, x);
+  psd_transform (state, pwr);
+}
+
+void
+dp_psd_frame_db (dp_psd_state_t *state, const float _Complex *x, float *out)
+{
+  dp_psd_frame_power (state, x, state->pwr);
+  psd_power_to_db (state, state->pwr, out, state->nfft);
 }
 
 /* ── linear-power accessors (raw spectral estimate for measurement) ────── */

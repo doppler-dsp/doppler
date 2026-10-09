@@ -1045,23 +1045,20 @@ BENCH_THRESHOLD ?= 0.30
 #   documentation changes stops being read.
 BENCH_ALLOW ?= test_bench_execute_decim_64k
 
-# `jm bench` covers jm's COMPONENTS — the objects in objects/*.toml — and
-# structurally cannot see anything else. A `c_deps` entry (conv, rs, ccsds_tm)
-# or a function-only module (mpsk, ber, snr, util, detection) is not a
-# component, so its bench binary is built by CMake and run by NOTHING:
-# `just-makeit bench util` answers `unknown component(s): util`.
+# `jm bench` runs every benchmark CMake builds, not only jm's components: a
+# `c_deps` entry (conv, rs, spectrogram) or a function-only module (mpsk,
+# ber, snr, util, detection) has a bench target and no manifest object, and
+# since just-makeit#1023 jm discovers those by scanning the built targets.
+# Observed 2026-10-09 on the pinned 0.100.1: `make bench BENCH_ARGS="--c-only
+# conv rs spectrogram mpsk ber snr util detection"` ran each and wrote its JSON.
 #
-# So ten benchmarks in this tree do not run here, and that is a known,
-# tracked gap rather than an oversight — just-makeit#1023 asks jm to run
-# them, and doppler deliberately does not carry a local runner that the fix
-# would immediately retire. Until it ships they are run by hand:
-#
-#     cmake --build build --target bench_conv_core && ./build/.../bench_conv_core
-#
-# scripts/check_bench_coverage.py holds what CAN be held meanwhile — every
-# one of them has a CMake target, records a measurement, and writes its JSON
-# under the name a collector opens. See docs/dev/contributing/benchmarking.md.
-BENCH_CMD         = uv run just-makeit bench
+# scripts/check_bench_coverage.py holds the rest -- every one of them has a
+# CMake target, records a measurement, and writes its JSON under the name a
+# collector opens. See docs/dev/contributing/benchmarking.md.
+# BENCH_ARGS names components to run instead of all of them, e.g.
+# `make bench BENCH_ARGS="spectrogram conv"` (jm takes them as positionals).
+BENCH_ARGS        ?=
+BENCH_CMD         = uv run just-makeit bench $(BENCH_ARGS)
 BENCH_SAVE_CMD    = uv run just-makeit bench --python-only --tag base
 BENCH_COMPARE_CMD = uv run just-makeit bench --check \
                         --python-only --baseline base \

@@ -27,8 +27,8 @@ target_include_directories(test_conv_core PRIVATE
 add_test(NAME test_conv_core COMMAND test_conv_core)
 
 # The benchmark. Hand-registered because `conv` is a c_dep and not one of
-# jm's components, so `jm apply` generates no target for it and `jm bench`
-# cannot run it -- just-makeit#1023; run it by hand meanwhile.
+# jm's components, so `jm apply` generates no target for it; `jm bench` runs
+# it once built, by discovering the target (just-makeit#1023).
 #
 # It measured 2.1x too slow until doppler#896: two dead buffers left behind
 # when doppler#895 moved the decode rows out were still being allocated and

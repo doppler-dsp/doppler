@@ -91,9 +91,9 @@ jobs:
       # finds the toolchain on its own. Loading vcvars64 for both keeps the
       # two legs identical except for the driver under test.
       - name: MSVC developer environment (x64)
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
+        # The job's default shell is PowerShell on Windows; the script is bash.
+        shell: bash
+        run: scripts/msvc-env.sh x64
 
       - name: Record the toolchain
         shell: bash

@@ -298,9 +298,7 @@ jobs:
           ref: ${{ inputs.tag || github.ref }}
 
       - name: MSVC developer environment (x64)
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
+        run: scripts/msvc-env.sh x64
 
       - name: Install uv + Python ${{ matrix.python }}
         uses: astral-sh/setup-uv@v7
@@ -489,9 +487,7 @@ jobs:
           ref: ${{ inputs.tag || github.ref }}
 
       - name: MSVC developer environment (x64)
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
+        run: scripts/msvc-env.sh x64
 
       - name: Build + zip the C library
         run: |
@@ -972,9 +968,7 @@ jobs:
       # environment exactly as the build did.
       - name: MSVC developer environment (Windows)
         if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
+        run: scripts/msvc-env.sh x64
 
       - name: Smoke-test the published archive
         env:

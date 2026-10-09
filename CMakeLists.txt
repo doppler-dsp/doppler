@@ -1009,9 +1009,9 @@ target_include_directories(test_ber_core
 add_test(NAME test_ber_core COMMAND test_ber_core)
 
 # mpsk, ber and snr: function-only modules, so jm generates no bench target
-# for them and `jm bench` cannot run one either (just-makeit#1023 -- run them
-# by hand meanwhile). Same reason the EMA primitive's benchmark below is
-# registered by hand. scripts/check_bench_coverage.py fails `make lint` if a
+# for them, and they are registered here by hand; `jm bench` then runs them,
+# since it discovers every built bench target (just-makeit#1023). Same reason
+# the EMA primitive's benchmark below is registered by hand. scripts/check_bench_coverage.py fails `make lint` if a
 # tested component loses its benchmark, if a benchmark records nothing, or if
 # it writes its JSON under a name no collector opens.
 add_executable(bench_mpsk_core native/benchmarks/bench_mpsk_core.c)

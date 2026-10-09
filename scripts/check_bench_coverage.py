@@ -23,21 +23,18 @@ command:
     $ .venv/bin/just-makeit bench util
     error: unknown component(s): util
 
-**This gate does not fix that half, deliberately.** Making jm run them is
-just-buildit/just-makeit#1023, and a local runner here would duplicate jm's
-own collector and be retired the day the fix ships. So ten benchmarks in
-this tree still do not run under `make bench`, tracked rather than papered
-over, and run by hand meanwhile:
+**jm fixed that half, not this gate, deliberately.** Making jm run them was
+just-buildit/just-makeit#1023, and a local runner here would have duplicated
+jm's own collector. It shipped: `jm bench` now discovers every built bench
+target by scan, component or not (observed 2026-10-09 on the pinned
+0.100.1, `make bench BENCH_ARGS="--c-only conv rs mpsk util"`).
 
-    cmake --build build --target bench_conv_core
-    ./build/native/src/conv/bench_conv_core
-
-What this gate holds in the meantime is everything that is checkable
-without running them, which is more than it sounds: they build, they record
-a measurement (rule 3), and they write their JSON under the name a
-collector opens (rule 4). Modes 3 and 4 are what actually made the never-run
-set worthless -- two of the four wrote to a filename nothing reads, so they
-would have produced nothing even once jm could run them.
+What this gate holds is everything checkable without running them, which is
+more than it sounds: they build (rule 2), they record a measurement (rule 3),
+and they write their JSON under the name a collector opens (rule 4). Modes 3
+and 4 are what actually made the never-run set worthless -- two of the four
+wrote to a filename nothing reads, so they would have produced nothing even
+once jm could run them.
 
 **3. Run, but recording nothing.** An unfilled jm scaffold -- a `main()`
 with a `TODO` and no `jm_bench_add` call -- writes `"benchmarks": []`, so
@@ -90,8 +87,8 @@ Rules
    construction: its objects carry the tests and the benchmarks.
 2. BUILDABILITY -- every `native/benchmarks/bench_<x>_core.c` for a
    NON-component has a CMake target, since jm generates one only for
-   components and nothing can run what CMake does not declare. Whether
-   those targets are then RUN is just-makeit#1023's half; see below.
+   components and nothing can run what CMake does not declare. `jm bench`
+   then runs them by discovering the built targets (just-makeit#1023).
 3. SUBSTANCE -- a benchmark that calls `jm_bench_write_json` also calls
    `jm_bench_add`, so the snapshot gets a row rather than an empty array.
 4. NAMING -- the component a benchmark writes its JSON under matches the
@@ -590,7 +587,7 @@ def main() -> int:
     print(
         "check_bench_coverage: OK — every tested component is benchmarked "
         f"and every benchmark records under a collectable name ({n_extra} "
-        "of them still await just-makeit#1023 to be RUN by `make bench`)"
+        "of them are not jm components; `make bench` runs them by discovery)"
     )
     # What is left on each ratchet, printed rather than written down: a
     # tally in a comment is true on the day it is typed and by nothing

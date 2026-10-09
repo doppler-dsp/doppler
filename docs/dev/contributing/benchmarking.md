@@ -160,22 +160,21 @@ $ just-makeit bench util
 error: unknown component(s): util
 ```
 
-**Nothing runs them here yet, and that is tracked rather than patched.**
-Making `jm bench` run a non-component benchmark is
-[just-makeit#1023](https://github.com/just-buildit/just-makeit/issues/1023);
-doppler deliberately does not carry a local runner that duplicates jm's
-collector and would be retired the day the fix ships.
-
-**How many are in that state is printed by the gate, not written here.**
-`make bench-coverage-check` counts them from the tree on every run and
-says so in its OK line; a tally copied into this page would go stale the
-first time a benchmark is added, which is exactly how the numbers in the
-section below came to be wrong. Run one by hand:
+**jm runs them now, and doppler carries no runner of its own.** Making
+`jm bench` run a non-component benchmark was
+[just-makeit#1023](https://github.com/just-buildit/just-makeit/issues/1023),
+and it shipped: `jm bench` discovers every built bench target by scan. Name
+the ones you want with `BENCH_ARGS`:
 
 ```sh
-cmake --build build --target bench_conv_core
-./build/native/src/conv/bench_conv_core
+make bench BENCH_ARGS="--c-only conv rs"
 ```
+
+**How many are not jm components is printed by the gate, not written here.**
+`make bench-coverage-check` counts them from the tree on every run and says
+so in its OK line; a tally copied into this page would go stale the first
+time a benchmark is added, which is exactly how the numbers in the section
+below came to be wrong.
 
 What `scripts/check_bench_coverage.py` (on `make lint`) holds meanwhile is
 everything checkable without running them: each has a CMake target, records

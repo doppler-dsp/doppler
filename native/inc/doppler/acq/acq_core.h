@@ -208,6 +208,14 @@ extern "C"
                                      wall-clock-agnostic; this is the raw
                                      material a caller with a real clock
                                      converts.                            */
+    double chip_phase; /**< The code's own instantaneous phase at the
+                            hand-off instant, in chips, Dll's convention --
+                            the seed a code loop wants for this hit. The
+                            same value dp_acq_build_handoff() reports as
+                            acq_handoff_t::chip_phase: the inverted lag
+                            advanced by the dwell's dilation when a carrier
+                            is set (dp_acq_set_carrier_freq_hz()). Appended
+                            last so positional initialisers do not shift. */
   } acq_result_t;
 
   /**

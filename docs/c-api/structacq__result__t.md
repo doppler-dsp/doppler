@@ -36,6 +36,7 @@ _One acquisition detection event._
 
 | Type | Name |
 | ---: | :--- |
+|  double | [**chip\_phase**](#variable-chip_phase)  <br> |
 |  float | [**cn0\_dbhz\_est**](#variable-cn0_dbhz_est)  <br> |
 |  size\_t | [**code\_phase**](#variable-code_phase)  <br> |
 |  size\_t | [**doppler\_bin**](#variable-doppler_bin)  <br> |
@@ -89,6 +90,23 @@ _One acquisition detection event._
 
 ## Public Attributes Documentation
 
+
+
+
+### variable chip\_phase 
+
+```C++
+double acq_result_t::chip_phase;
+```
+
+
+
+The code's own instantaneous phase at the hand-off instant, in chips, Dll's convention  the seed a code loop wants for this hit. The same value [**dp\_acq\_build\_handoff()**](acq__core_8h.md#function-dp_acq_build_handoff) reports as [**acq\_handoff\_t::chip\_phase**](structacq__handoff__t.md#variable-chip_phase): the inverted lag advanced by the dwell's dilation when a carrier is set ([**dp\_acq\_set\_carrier\_freq\_hz()**](acq__core_8h.md#function-dp_acq_set_carrier_freq_hz)). Appended last so positional initialisers do not shift. 
+
+
+        
+
+<hr>
 
 
 

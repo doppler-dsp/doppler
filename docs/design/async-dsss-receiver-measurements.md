@@ -794,10 +794,10 @@ drift — §12.12 measured it and gave the engine the code-rate hypothesis
 ([#1256](https://github.com/doppler-dsp/doppler/issues/1256)); the carrier
 now lives on the engine (`set_carrier_freq_hz`), one declaration for the
 hand-off's advance and the block's alignment. And
-`doppler.dsss.handoff.dll_init_chip_from_acq`, the Python lag → phase
-helper for a hand-built Acquisition → Dll chain, restates
-`dp_acq_build_handoff()`'s fold and does not carry the advance —
-[#1257](https://github.com/doppler-dsp/doppler/issues/1257).
+the Python lag → phase helper `doppler.dsss.handoff.dll_init_chip_from_acq`
+restated `dp_acq_build_handoff()`'s fold and did not carry the advance; it is
+retired, and every hit carries `chip_phase` from the one C helper
+([#1257](https://github.com/doppler-dsp/doppler/issues/1257)).
 
 ______________________________________________________________________
 

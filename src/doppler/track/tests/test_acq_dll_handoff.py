@@ -4,7 +4,7 @@ Unlike ``test_dll.py`` (a genie-seeded ``Dll``, no ``Acquisition`` involved)
 and ``test_async_dsss_receiver.py`` (a genie-seeded ``Dll`` feeding
 ``Costas``/``SymbolSync``), this drives the actual hand-off: a real
 ``Acquisition`` search over a continuous, asynchronous-data-modulated,
-carrier-present signal, converted via ``dll_init_chip_from_acq`` into a
+carrier-present signal, converted via the hit's ``chip_phase`` into a
 real ``Dll`` seed, then verifies that seed is exact and that tracking
 holds up over an extended run. This is a fast, always-run regression
 check on the acquisition-to-DLL hand-off.
@@ -16,7 +16,6 @@ import numpy as np
 import pytest
 
 from doppler.acquire import Acquisition
-from doppler.dsss.handoff import dll_init_chip_from_acq
 from doppler.track import Dll
 from doppler.wfm import Gold
 
@@ -80,16 +79,15 @@ def _acquire(x):
 
 
 def test_acquisition_hit_seeds_dll_exactly():
-    """dll_init_chip_from_acq's seed matches the true instantaneous code
+    """the hit's chip_phase seed matches the true instantaneous code
     phase at hand-off exactly (well within the phase-inversion formula's
     intrinsic half-chip resolution -- a wrong sign inversion would miss by
     roughly half a code period instead)."""
     x = _make_signal(cn0_dbhz=75.0, n_sym=1500, seed=6)
     hit, hitpos, acq = _acquire(x)
     assert hit is not None, "acquisition failed to find the continuous code"
-    _dop_bin, code_phase, _pk, _n, _ts, _c, *_rest = hit
 
-    chip_phase = dll_init_chip_from_acq(code_phase, SPC, SF)
+    chip_phase = hit[7]
     s0 = hitpos + acq.code_bins * acq.doppler_bins
     ridx0 = s0 - int(PRE_SILENCE)
     true_phase0 = (ridx0 / SPC) % SF
@@ -109,9 +107,8 @@ def test_dll_tracks_after_handoff(segments):
     x = _make_signal(cn0_dbhz=80.0, n_sym=900, seed=6)
     hit, hitpos, acq = _acquire(x)
     assert hit is not None
-    _dop_bin, code_phase, _pk, _n, _ts, _c, *_rest = hit
 
-    chip_phase = dll_init_chip_from_acq(code_phase, SPC, SF)
+    chip_phase = hit[7]
     s0 = hitpos + acq.code_bins * acq.doppler_bins
 
     dll = Dll(CODE, SPC, chip_phase, 0.002, 0.707, 0.5, segments=segments)

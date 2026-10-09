@@ -398,7 +398,7 @@ class Acquisition:
     def push(
         self,
         x: complex,
-    ) -> list[tuple[int, int, float, float, float, float, int]]:
+    ) -> list[tuple[int, int, float, float, float, float, int, float]]:
         """Stream raw samples; emit one event per CFAR dump above threshold.
 
         Buffers x, then for every complete frame applies the slow-time Doppler
@@ -416,7 +416,7 @@ class Acquisition:
 
         Returns
         -------
-        list[tuple[int, int, float, float, float, float, int]]
+        list[tuple[int, int, float, float, float, float, int, float]]
             Number of events written (0 … max_results).
 
         Examples

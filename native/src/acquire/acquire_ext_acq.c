@@ -169,7 +169,7 @@ AcquisitionObj_push (AcquisitionObject *self, PyObject *args)
   for (size_t i = 0; i < n_out; i++)
     {
       PyObject *tup = Py_BuildValue (
-          "(NNNNNNN)",
+          "(NNNNNNNN)",
           PyLong_FromUnsignedLongLong (
               (unsigned long long)results[i].doppler_bin),
           PyLong_FromUnsignedLongLong (
@@ -179,7 +179,8 @@ AcquisitionObj_push (AcquisitionObject *self, PyObject *args)
           PyFloat_FromDouble ((double)results[i].test_stat),
           PyFloat_FromDouble ((double)results[i].cn0_dbhz_est),
           PyLong_FromUnsignedLongLong (
-              (unsigned long long)results[i].samples_consumed));
+              (unsigned long long)results[i].samples_consumed),
+          PyFloat_FromDouble (results[i].chip_phase));
       if (!tup)
         {
           Py_DECREF (lst);

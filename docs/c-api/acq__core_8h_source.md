@@ -40,6 +40,7 @@ extern "C"
     float  test_stat;  
     float cn0_dbhz_est;        
     uint64_t samples_consumed; 
+    double chip_phase; 
   } acq_result_t;
 
   typedef struct

@@ -92,7 +92,7 @@ on it. The half of that nothing states is the **modulo**.
 The consequence is structural. Place the search window one whole code period
 early and the reported `code_phase` **does not move** — a repeated preamble
 is periodic, so the lag cannot distinguish the repetitions, and neither can
-the chip phase derived from it (`dll_init_chip_from_acq` returned the
+the chip phase derived from it (the hit's `chip_phase` returned the
 identical value for windows a full period apart).
 
 > **A phase seed resolves alignment WITHIN a code period and never WHICH

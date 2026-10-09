@@ -363,6 +363,13 @@ fails immediately if any probed file disagrees with the tag or with the others:
 
 If it fails, bump the missed file manually, push a fixup commit on main, then re-tag.
 
+**A container build that dies on `toomanyrequests: Rate exceeded` at a
+`FROM`** (ECR Public's anonymous per-IP limit): re-run the failed jobs, and
+cite [#1982](https://github.com/doppler-dsp/doppler/issues/1982) where you
+report it. `publish-container` builds on buildx's container driver, where
+`scripts/stock-pull.sh`'s retry cannot reach (#1979), so a rate limit there is
+not retried yet.
+
 ______________________________________________________________________
 
 ## 8. Verify the release

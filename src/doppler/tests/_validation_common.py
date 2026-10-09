@@ -31,8 +31,10 @@ through it in one afternoon and were caught by hand.
 
 from __future__ import annotations
 
+import csv
 import difflib
 import re
+import subprocess
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -151,6 +153,76 @@ EXIT_STALE = 3
 #: without a wall of output when a generator changed shape. `n=0` context,
 #: so every line shown is a changed one.
 _DIFF_LINES = 40
+
+
+def harness_blocks(
+    harness: Path, label: str, root: Path
+) -> dict[str, list[dict[str, float | str]]]:
+    """Run a C measurement harness with ``--emit`` and parse its CSV blocks.
+
+    The one reading of the protocol every no-binding certification shares
+    (`docs/dev/contributing/validation.md`, "Certifying a component with no
+    binding"): the harness prints blocks of ``# name`` then a header line then
+    rows, and the validator renders and asserts what they hold.
+
+    A missing binary is a hard failure rather than a skip. A skipped
+    measurement is indistinguishable from a passing one in a log, and the
+    report's whole content comes from that binary -- `make build` builds it,
+    and CI builds before it runs any Python.
+
+    A non-numeric field is kept as a string (a code NAME is an independent
+    variable, and an index would make the report unreadable), and rows are
+    read with the `csv` module so a quoted field may contain a comma.
+
+    Parameters
+    ----------
+    harness : Path
+        The built harness executable.
+    label : str
+        The object's name, for the error message.
+    root : Path
+        The repository root, so the message names a path a person can type.
+
+    Returns
+    -------
+    dict
+        Block name to its rows, each row a dict keyed by the block's header.
+    """
+    if not harness.exists():
+        raise SystemExit(
+            f"{label}: {harness.relative_to(root)} is not built -- run "
+            f"`make build` first. This report has no measurement of its "
+            f"own; the C harness is where every number in it comes from."
+        )
+    out = subprocess.run(
+        [str(harness), "--emit"], capture_output=True, text=True, check=True
+    ).stdout
+
+    def _val(text: str) -> float | str:
+        try:
+            return float(text)
+        except ValueError:
+            return text
+
+    blocks: dict[str, list[dict[str, float | str]]] = {}
+    name, rows, header = "", [], []
+    for line in out.splitlines():
+        line = line.strip()
+        if line.startswith("#"):
+            if name:
+                blocks[name] = rows
+            name, rows, header = line[1:].strip(), [], []
+        elif not line:
+            continue
+        else:
+            fields = next(csv.reader([line]))
+            if not header:
+                header = fields
+            else:
+                rows.append(dict(zip(header, (_val(f) for f in fields))))
+    if name:
+        blocks[name] = rows
+    return blocks
 
 
 def clamp_evm_db(evm: float) -> float:

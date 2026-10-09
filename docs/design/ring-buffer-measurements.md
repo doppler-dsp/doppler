@@ -153,3 +153,36 @@ The unmap was the one place this could go wrong in silence — sized from
 `capacity` it frees about half of a non-power-of-two ring and nothing fails —
 so the C test cycles a 65,537-sample ring 200 times and checks the process did
 not grow. That sabotage was invisible to every other test.
+
+## 9. The framed face costs what the hand loop costs (2026-10-08)
+
+*Question.* The framer is the drain loop every consumer used to write, written
+once. Owning the loop must not make the stream slower (design goal G6 of
+the spectrogram program, #1894).
+
+*Method.* `bench_buffer_core`, the two pairs of rows added beside the
+streaming row. Both members of a pair run in the same round, back to back, on
+the same ring: the hand-written loop (`write_some`, then `peek` a frame and
+`consume` the hop while one is there) and the framer (`framer_feed`, then
+`framer_next`). Input arrives in 3000-sample chunks, the frame is 1024 samples,
+and each frame is summed so the read is not optimised away. The numbers are the
+minimum over the rounds, as the benchmark reports.
+
+| frame | hop               | hand-written loop | framer          | ratio |
+| ----- | ----------------- | ----------------- | --------------- | ----- |
+| 1024  | 1024 (no overlap) | 0.356 ns/sample   | 0.356 ns/sample | 1.00x |
+| 1024  | 256 (75% overlap) | 1.190 ns/sample   | 1.190 ns/sample | 1.00x |
+
+At 75% overlap each sample is read four times, so the absolute cost rises;
+the point is that the pair does not move. Five further paired runs at the
+second hop gave ratios of 1.00x to 1.01x.
+
+*Caveats.* Unpinned to a core, a Release build without `-march=native`, and
+the machine was not quiet: load average 6.1 during the last runs. The ratio of
+two members of one round is what survives that; the absolute figures do not,
+and are not the claim. The first measurement of this entry (hop = frame only)
+was taken at load 2.8 and read 0.355 against 0.356.
+
+*What it does not say.* Nothing about `nfft` other than 1024, nor about
+chunks smaller than the frame, where the carry rather than the loop dominates
+(the spectrogram's U1 and U2 are about exactly that).

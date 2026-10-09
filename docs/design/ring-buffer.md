@@ -237,6 +237,12 @@ history (`burst_capture`) uses the ring directly.
 --8<-- "native/examples/ring_framer_demo.c"
 ```
 
-It costs what the loop it replaces costs: **0.355** against 0.356 ns/sample at
-a 1024-sample frame with 3000-sample chunks
-(`framer_feed_next` against `write_some_peek_consume` in `bench_buffer_core`).
+It costs what the loop it replaces costs: the same 0.356 ns/sample at a
+1024-sample frame with no overlap, and the same 1.190 at 75% overlap
+([measurements §9](ring-buffer-measurements.md#9-the-framed-face-costs-what-the-hand-loop-costs-2026-10-08)).
+
+Its claims are certified like the ring's, in C, because it has no Python face:
+`native/validation/framer_certify.c` measures and
+`src/doppler/tests/validation/framer/results.md` is the generated report, with
+the header's eighteen claims inventoried against their pins and the sabotage
+that turned each red.

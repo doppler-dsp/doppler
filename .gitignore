@@ -98,6 +98,11 @@ native/tests/jm_test.h
 # LLVM coverage artifacts
 *.profraw
 *.profdata
+# coverage.py's data file: `make coverage` writes it at the root (#1297).
+/.coverage
+# A BLUE capture swept in by 6f7ddd9ab. No file in the tree names it, so it
+# is not a fixture (#1510).
+/stream.blue
 # CMakePresets.json builds under out/build/<preset> (an IDE configure, never
 # make's build/); a developer's own presets go in CMakeUserPresets.json.
 out/

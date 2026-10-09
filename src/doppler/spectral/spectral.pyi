@@ -227,6 +227,15 @@ class FFT:
     def execute_ci16(self, iq: NDArray[np.int16]) -> NDArray[np.complex64]:
         """Out-of-place 1-D FFT directly on interleaved int16 I/Q (CF32 out). The int16->float convert (v/32768, full-scale +/-1.0) is fused into the transform, so it is faster than i16_to_f32 then execute_cf32.
 
+        Raises
+        ------
+        ValueError
+            If ``iq`` does not hold exactly ``2 * FFT.n`` values, two to a
+            complex sample; an odd count is not whole I/Q pairs and is
+            refused too (#1933). The message names the length it got,
+            ``execute_ci16 takes exactly one frame: 2 * FFT.n = <2n>
+            interleaved I/Q values, got <len>``.
+
         Examples
         --------
         >>> import numpy as np
@@ -240,6 +249,15 @@ class FFT:
 
     def execute_ci8(self, iq: NDArray[np.int8]) -> NDArray[np.complex64]:
         """Out-of-place 1-D FFT directly on interleaved int8 I/Q (CF32 out). As execute_ci16 but int8 input (v/128, full-scale +/-1.0).
+
+        Raises
+        ------
+        ValueError
+            If ``iq`` does not hold exactly ``2 * FFT.n`` values, two to a
+            complex sample; an odd count is not whole I/Q pairs and is
+            refused too (#1933). The message names the length it got,
+            ``execute_ci8 takes exactly one frame: 2 * FFT.n = <2n>
+            interleaved I/Q values, got <len>``.
 
         Examples
         --------

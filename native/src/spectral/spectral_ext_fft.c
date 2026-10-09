@@ -329,6 +329,20 @@ FFTObj_execute_cf32 (FFTObject *self, PyObject *args, PyObject *kwds)
   return arr0;
 }
 
+/* The one refusal message for the interleaved-integer path, whichever check
+ * caught it.  It counts in the caller's unit -- int values, two to a complex
+ * sample -- because "not FFT.n" is wrong by a factor of two for an array
+ * that must hold 2 * FFT.n of them. */
+static PyObject *
+fft_int_length_error (FFTObject *self, int is8, Py_ssize_t n_vals)
+{
+  PyErr_Format (PyExc_ValueError,
+                "execute_%s takes exactly one frame: 2 * FFT.n = %zu "
+                "interleaved I/Q values, got %zd",
+                is8 ? "ci8" : "ci16", 2 * self->handle->n, n_vals);
+  return NULL;
+}
+
 /* Integer-IQ executes (ci16/ci8): interleaved int16/int8 I/Q in, CF32 out.
  * The int->float convert is folded into the FFT input read (no separate cvt
  * pass).  Hand-written: not manifest-declared (jm has no params shape for a
@@ -352,8 +366,17 @@ FFTObj_execute_int (FFTObject *self, PyObject *args, int is8)
       in_obj, is8 ? NPY_INT8 : NPY_INT16, NPY_ARRAY_C_CONTIGUOUS);
   if (!in_arr)
     return NULL;
-  /* interleaved I/Q: 2 ints per complex sample */
-  Py_ssize_t n     = PyArray_SIZE (in_arr) / 2;
+  /* interleaved I/Q: 2 ints per complex sample.  An odd count is not
+   * whole pairs, and halving it would round 2n+1 down to a valid frame and
+   * silently drop the last value (#1933).  The kernel counts complex
+   * samples, so it cannot see this; the binding refuses it here. */
+  Py_ssize_t n_vals = PyArray_SIZE (in_arr);
+  if (n_vals % 2)
+    {
+      Py_DECREF (in_arr);
+      return fft_int_length_error (self, is8, n_vals);
+    }
+  Py_ssize_t n     = n_vals / 2;
   size_t     _need = (size_t)n;
   size_t     _cap  = dp_fft_execute_cf32_max_out (self->handle);
   if (!_cap || _cap < _need)
@@ -378,10 +401,7 @@ FFTObj_execute_int (FFTObject *self, PyObject *args, int is8)
       /* n_in != n: the kernel refused (#1925), nothing was written. */
       Py_DECREF (arr0);
       Py_DECREF (in_arr);
-      PyErr_SetString (PyExc_ValueError,
-                       "input length is not the plan length (FFT.n); execute "
-                       "takes exactly one frame");
-      return NULL;
+      return fft_int_length_error (self, is8, n_vals);
     }
   Py_DECREF (in_arr);
   if ((size_t)n_out == _cap)
@@ -828,24 +848,46 @@ static PyMethodDef FFTObj_methods[] = {
     "The int16->float convert (v/32768, full-scale +/-1.0) is fused into\n"
     "the transform, so it is faster than i16_to_f32 then execute_cf32.\n"
     "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import FFT\n"
-    "    >>> obj = FFT(1024, -1, 1)\n"
-    "    >>> y = obj.execute_ci16(np.zeros(2048, dtype=np.int16))\n"
-    "    >>> y.dtype\n"
-    "    dtype('complex64')\n" },
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If ``iq`` does not hold exactly ``2 * FFT.n`` values, two to a\n"
+    "    complex sample; an odd count is not whole I/Q pairs and is\n"
+    "    refused too (#1933). The message names the length it got,\n"
+    "    ``execute_ci16 takes exactly one frame: 2 * FFT.n = <2n>\n"
+    "    interleaved I/Q values, got <len>``.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.spectral import FFT\n"
+    ">>> obj = FFT(1024, -1, 1)\n"
+    ">>> y = obj.execute_ci16(np.zeros(2048, dtype=np.int16))\n"
+    ">>> y.dtype\n"
+    "dtype('complex64')\n" },
   { "execute_ci8", (PyCFunction)FFTObj_execute_ci8, METH_VARARGS,
     "execute_ci8(iq) -> ndarray\n"
     "\n"
     "Out-of-place 1-D FFT directly on interleaved int8 I/Q (CF32 out).\n"
     "As execute_ci16 but int8 input (v/128, full-scale +/-1.0).\n"
     "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import FFT\n"
-    "    >>> obj = FFT(1024, -1, 1)\n"
-    "    >>> y = obj.execute_ci8(np.zeros(2048, dtype=np.int8))\n"
-    "    >>> y.dtype\n"
-    "    dtype('complex64')\n" },
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If ``iq`` does not hold exactly ``2 * FFT.n`` values, two to a\n"
+    "    complex sample; an odd count is not whole I/Q pairs and is\n"
+    "    refused too (#1933). The message names the length it got,\n"
+    "    ``execute_ci8 takes exactly one frame: 2 * FFT.n = <2n>\n"
+    "    interleaved I/Q values, got <len>``.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.spectral import FFT\n"
+    ">>> obj = FFT(1024, -1, 1)\n"
+    ">>> y = obj.execute_ci8(np.zeros(2048, dtype=np.int8))\n"
+    ">>> y.dtype\n"
+    "dtype('complex64')\n" },
   { "execute_inplace_cf64", (PyCFunction)(void *)FFTObj_execute_inplace_cf64,
     METH_VARARGS | METH_KEYWORDS,
     "execute_inplace_cf64(x, out) -> ndarray\n"

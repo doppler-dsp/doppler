@@ -11,7 +11,9 @@ variants transformed a buffer whose tail was never written.
 The C kernels now refuse (SIZE_MAX, nothing read, written or counted) and the
 bindings raise ``ValueError``. The cases below pin every entry point, on the
 default path and on the ``out=`` path, plus the two things a refusal must not
-do: advance a dwell, and leak a reference to the caller's array. The matching
+do: advance a dwell, and leak a reference to the caller's array.
+``execute_ci16``/``ci8`` count int values, two to a complex sample, so an odd
+count is refused by the binding before the kernel sees it (#1933). The matching
 C tests (``test_{fft,fft2d,corr,corr2d}_core.c``) hand the kernel
 exact-size heap arrays so ASan sees an over-read.
 """
@@ -107,6 +109,52 @@ def test_a_refusal_does_not_leak_the_callers_array(case):
     _, make, method, dt, per_frame = case
     obj = make()
     x = np.ones(per_frame // 2, dt)
+    before = sys.getrefcount(x)
+    for _ in range(200):
+        with pytest.raises(ValueError):
+            getattr(obj, method)(x)
+    assert sys.getrefcount(x) == before
+
+
+#: the interleaved-integer entry points, which count int values, two to a
+#: complex sample
+INT_CASES = [("execute_ci16", np.int16), ("execute_ci8", np.int8)]
+INT_IDS = ["ci16", "ci8"]
+
+
+@pytest.mark.parametrize("method, dt", INT_CASES, ids=INT_IDS)
+@pytest.mark.parametrize(
+    "length",
+    [2 * N + 1, 2 * N - 1, 2 * N + 2],
+    ids=["2n+1", "2n-1", "2n+2"],
+)
+def test_an_interleaved_length_is_refused_in_the_callers_unit(
+    method, dt, length
+):
+    """#1933: halving the element count rounded ``2n+1`` down to a valid
+    frame, so the stray last value was accepted and ignored.
+
+    ``2n+1`` is the case that was silently accepted. ``2n-1`` was already
+    refused, by the kernel's frame check, with a message that counted in
+    complex samples (``FFT.n``) for an array of ints; it is odd, so the
+    binding now refuses it first. ``2n+2`` is even, so the kernel still
+    refuses it. All three must read the same message, in the caller's unit,
+    naming the length that was passed.
+    """
+    msg = (
+        rf"^{method} takes exactly one frame: 2 \* FFT\.n = {2 * N} "
+        rf"interleaved I/Q values, got {length}$"
+    )
+    with pytest.raises(ValueError, match=msg):
+        getattr(FFT(N), method)(np.ones(length, dt))
+
+
+@pytest.mark.parametrize("method, dt", INT_CASES, ids=INT_IDS)
+def test_an_odd_refusal_does_not_leak_the_callers_array(method, dt):
+    """The odd-count refusal returns before the kernel, on its own path, so
+    it owes its own release of the converted input."""
+    obj = FFT(N)
+    x = np.ones(2 * N + 1, dt)
     before = sys.getrefcount(x)
     for _ in range(200):
         with pytest.raises(ValueError):

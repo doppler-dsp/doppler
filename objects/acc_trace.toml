@@ -64,7 +64,10 @@ field = true
 name = "alpha"
 type = "double"
 writable = true
-field = true
+# Not `field = true`: a field setter assigns whatever it is given, and in exp
+# mode alpha must stay in (0, 1].  Without `field` jm calls
+# dp_acc_trace_set_alpha, which applies create()'s rule (#1911 (c)).
+expr = "self->handle->alpha"
 
 [[acc_trace.properties]]
 name = "count"

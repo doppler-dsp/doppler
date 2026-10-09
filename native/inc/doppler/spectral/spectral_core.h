@@ -212,6 +212,34 @@ void dp_magnitude_db_cf64(const double _Complex *x, size_t x_len, float *out, do
    */
 size_t dp_find_peaks_f32(const float *db, size_t db_len, size_t n_peaks, float min_db, dp_peak_t *result);
 
+  /**
+   * @brief Occupied bandwidth: the width of the central interval holding
+   * @p frac of the total power, with (1 - frac)/2 excluded at each end.
+   *
+   * A cumulative walk over a DC-centred linear-power spectrum; the span is
+   * whole bins, inclusive, times fs / @p pwr_len.  Any constant per-bin
+   * scale cancels, so the power need not be referenced.
+   *
+   * @param pwr      Linear power, DC-centred, non-negative.
+   * @param pwr_len  Number of bins in @p pwr.
+   * @param fs       Sample rate, Hz.
+   * @param frac     Power fraction in the OPEN interval (0, 1), e.g. 0.99.
+   *                 1 is excluded: all of the power in floating point is
+   *                 every bin rounding residue reached, which has no stable
+   *                 answer.
+   * @return Occupied bandwidth in Hz; 0 for no bins or no power; NaN when
+   *         @p frac is outside (0, 1), whatever the data.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.spectral import obw_from_power
+   * >>> pwr = np.zeros(64)
+   * >>> pwr[32] = 1.0                    # one bin holds all the power
+   * >>> obw_from_power(pwr, 64.0, 0.99)  # one bin wide, fs / 64
+   * 1.0
+   * >>> obw_from_power(pwr, 64.0, 1.0)   # outside (0, 1)
+   * nan
+   * @endcode
+   */
 double dp_obw_from_power(const double *pwr, size_t pwr_len, double fs, double frac);
 double dp_noise_floor_db(const float *db, size_t db_len);
 #ifdef __cplusplus

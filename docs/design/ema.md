@@ -176,6 +176,10 @@ folds away entirely when `alpha` is a compile-time constant, so the
 common path pays nothing for it.
 
 **`alpha = 0` freezes the state**, exactly, and both forms deliver that.
+That is `ema_step`'s contract and it keeps it; a consumer may still
+refuse 0 under its own, and [`AccTrace`](../api/python-accumulator.md)'s
+`exp` mode does, with anything outside (0, 1\]: a trace that never leaves
+its first frame is not an average.
 
 **`alpha > 1` saturates to pass-through.** A coefficient above 1 is a
 caller error, but the answer must stay bounded: the bare recursion would

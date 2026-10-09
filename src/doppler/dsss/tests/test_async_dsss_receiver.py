@@ -548,6 +548,44 @@ def test_give_up_cap_never_stalls():
     assert rx.tracking == 1
 
 
+@pytest.mark.parametrize("refine_n_fft", [1, 2])
+def test_a_refine_block_below_three_does_not_abort(refine_n_fft):
+    """refine_n_fft is the carrier estimator's block. At 1 or 2 it floored
+    at 2, whose symmetric Hann window is all zeros: PSD refuses that window,
+    the estimator's create returned NULL, and this receiver -- which builds
+    the estimator under dp_xnn at its first refine -- aborted the process
+    (#1959). The block is floored at 3 now, so the refine runs; capped at a
+    few blocks it gives up into tracking with a finite carrier estimate."""
+    cn0_dbhz = 70.0
+    x, _data = _make_ramp_signal(cn0_dbhz, seed=9)
+    rx = _new_receiver(
+        cn0_dbhz, refine_n_fft=refine_n_fft, refine_max_n_blocks=64
+    )
+    saw_refine = False
+    for pos in range(0, len(x) - TE, TE):
+        rx.steps(x[pos : pos + TE])
+        saw_refine |= bool(rx.refining)
+    assert saw_refine  # the estimator was built, mid-stream
+    assert (rx.refining, rx.tracking) == (0, 1)
+    assert np.isfinite(rx.doppler_hz)
+
+
+@pytest.mark.parametrize("rate", [float("nan"), float("inf")])
+def test_a_non_finite_symbol_rate_is_refused(rate):
+    """The symbol rate becomes the carrier estimator's sample rate, which
+    PSD refuses unless finite; the estimator is built under dp_xnn, where a
+    NULL aborts, so the receiver refuses it at create instead (#1959)."""
+    for cls in (AsyncDsssReceiver, CellAsyncDsssReceiver):
+        with pytest.raises((ValueError, MemoryError)):
+            cls(
+                CODE,
+                chip_rate=CHIP_RATE,
+                symbol_rate=rate,
+                spc=SPC,
+                cn0_dbhz=70.0,
+            )
+
+
 def test_reset_returns_to_searching():
     x, _data = _make_ramp_signal(70.0, seed=21)
     rx = _new_receiver(70.0)

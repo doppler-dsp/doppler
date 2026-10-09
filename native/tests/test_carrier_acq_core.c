@@ -217,6 +217,47 @@ main (void)
                                    0.9, 2.0, true, MAX_N_BLOCKS)
             == NULL);
 
+  /* ── a coarse resolution still builds: the block is floored at 3 ──
+   * fs/resolution of 2.22, 1 and 0.25 asked for blocks of 2, 1 and 0.  The
+   * floor was 2, whose symmetric Hann (the default) is all zeros: PSD
+   * refuses that window, so create returned NULL, and AsyncDsssReceiver,
+   * which wraps this create in dp_xnn with refine_n_fft as the block,
+   * aborted (#1959).  At 3 every window has gain, and the averaged
+   * spectrum is a real estimate -- finite, above the -200 dB floor. */
+  {
+    const double res_hz[]
+        = { 0.45 * SAMPLE_RATE_HZ, SAMPLE_RATE_HZ, 4.0 * SAMPLE_RATE_HZ };
+    size_t          n;
+    float _Complex *x
+        = _make_signal (64, SPS, SAMPLE_RATE_HZ, TONE_HZ, 777u, &n);
+    for (size_t r = 0; r < sizeof res_hz / sizeof res_hz[0]; r++)
+      for (int win = 0; win <= 2; win++)
+        {
+          dp_carrier_acq_state_t *ca = dp_carrier_acq_create (
+              SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, res_hz[r], 4, win, 6.0f, NULL, 0,
+              1e-3, 0.9, 2.0, false, 16);
+          DP_CHECK (ca != NULL);
+          if (!ca)
+            continue;
+          DP_CHECK (ca->psd->n == 3);
+          dp_carrier_acq_steps (ca, x, n);
+          float        db[16];
+          const size_t got
+              = dp_psd_psd_db (ca->psd, ca->psd->nfft, db, ca->psd->nfft);
+          DP_CHECK (got == ca->psd->nfft);
+          float peak = -1e30f;
+          for (size_t i = 0; i < got; i++)
+            {
+              DP_CHECK (isfinite (db[i]));
+              if (db[i] > peak)
+                peak = db[i];
+            }
+          DP_CHECK (peak > -150.0f);
+          dp_carrier_acq_destroy (ca);
+        }
+    free (x);
+  }
+
   /* ── state roundtrip + envelope reject; resumed instance continues
      bit-for-bit identically to the un-interrupted one ── */
   {

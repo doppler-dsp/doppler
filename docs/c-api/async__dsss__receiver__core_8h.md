@@ -416,7 +416,7 @@ Only `code`/`chip_rate`/`symbol_rate` describe the signal itself. `refine_*` par
 * `code` Spreading code, one 0/1 chip per element (0 -&gt; +1, 1 -&gt; -1 BPSK; only the low bit is used, so pass 0/1, not +/-1). 
 * `code_len` Chips in `code`. 
 * `chip_rate` Chip rate, Hz. Required. 
-* `symbol_rate` Data-symbol rate, Hz. Required. 
+* `symbol_rate` Data-symbol rate, Hz: finite, &gt; 0. 
 * `spc` Samples/chip; default 2. 
 * `m` PSK order, 2/4/8; default 2 (BPSK). 
 * `cn0_dbhz` Design C/N0, dB-Hz; default 55.0  feeds BOTH the embedded Acquisition's own sizing AND (derated by `refine_design_margin_db`) CarrierAcquisition's `design_snr`. 
@@ -526,7 +526,7 @@ The searcher-timed tracker of docs/design/async-dsss-receiver.md section 12.22-1
 * `code` Spreading code, 0/1 chips. 
 * `code_len` Chips per period. 
 * `chip_rate` Chips per second. 
-* `symbol_rate` Data symbols per second. 
+* `symbol_rate` Data symbols per second: finite, &gt; 0. 
 * `spc` Samples per chip. 
 * `m` PSK order (2, 4 or 8). 
 * `cn0_dbhz` Design C/N0, dB-Hz  sizes the Dll's lock detector as the searching flavor's. 

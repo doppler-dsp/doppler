@@ -1336,7 +1336,7 @@ static PyTypeObject CellAsyncDsssReceiverObjType = {
     "chip_rate : float, default 1000000.0\n"
     "    Chips per second.\n"
     "symbol_rate : float, default 1000.0\n"
-    "    Data symbols per second.\n"
+    "    Data symbols per second: finite, > 0.\n"
     "spc : int, default 2\n"
     "    Samples per chip.\n"
     "m : int, default 2\n"

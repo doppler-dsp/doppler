@@ -452,7 +452,7 @@ extern "C"
    *                                   +/-1).
    * @param code_len                   Chips in `code`.
    * @param chip_rate                  Chip rate, Hz. Required.
-   * @param symbol_rate                Data-symbol rate, Hz. Required.
+   * @param symbol_rate                Data-symbol rate, Hz: finite, > 0.
    * @param spc                        Samples/chip; default 2.
    * @param m                          PSK order, 2/4/8; default 2 (BPSK).
    * @param cn0_dbhz                   Design C/N0, dB-Hz; default 55.0 --
@@ -632,7 +632,7 @@ extern "C"
    * @param code            Spreading code, 0/1 chips.
    * @param code_len        Chips per period.
    * @param chip_rate       Chips per second.
-   * @param symbol_rate     Data symbols per second.
+   * @param symbol_rate     Data symbols per second: finite, > 0.
    * @param spc             Samples per chip.
    * @param m               PSK order (2, 4 or 8).
    * @param cn0_dbhz        Design C/N0, dB-Hz -- sizes the Dll's lock

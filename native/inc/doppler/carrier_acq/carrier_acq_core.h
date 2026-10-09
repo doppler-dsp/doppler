@@ -118,12 +118,15 @@ typedef struct {
  *                        (required).
  * @param resolution_hz   Desired FFT frequency resolution, Hz. <= 0.0 is
  *                         a sentinel meaning "auto": symbol_rate_hz/10.0.
+ *                         The block is round(sample_rate_hz/resolution_hz)
+ *                         samples, floored at 3 -- the shortest whose
+ *                         default Hann window has any gain.
  * @param zero_pad        PSD zero-pad factor (>= 1); see psd_core.h.
  * @param window          Enum index; 0=hann, 1=kaiser, 2=blackman-harris.
  * @param beta            Kaiser beta (ignored for hann/blackman-harris).
  * @param psd_template     Known PSD-shape template override, length
- *                        must equal nfft = next_pow_two(round(sample_rate_hz
- *                        /resolution_hz) * zero_pad); NULL/length-0 means
+ *                        must equal nfft = next_pow_two(block * zero_pad),
+ *                        block as above; NULL/length-0 means
  *                        "not supplied" -- the default rectangular-pulse
  *                        sinc^2 template (from symbol_rate_hz) is used.
  * @param psd_template_len Length of @p psd_template (0 if not supplied).

@@ -2161,7 +2161,7 @@ class AsyncDsssReceiver:
     chip_rate : float, default 1000000.0
         Chip rate, Hz. Required.
     symbol_rate : float, default 1000.0
-        Data-symbol rate, Hz. Required.
+        Data-symbol rate, Hz: finite, > 0.
     spc : int, default 2
         Samples/chip; default 2.
     m : int, default 2
@@ -2962,7 +2962,7 @@ class CellAsyncDsssReceiver:
     chip_rate : float, default 1000000.0
         Chips per second.
     symbol_rate : float, default 1000.0
-        Data symbols per second.
+        Data symbols per second: finite, > 0.
     spc : int, default 2
         Samples per chip.
     m : int, default 2

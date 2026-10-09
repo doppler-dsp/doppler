@@ -66,7 +66,7 @@ _Spectral module — public C API._ [More...](#detailed-description)
 |  void | [**dp\_magnitude\_db\_cf32**](#function-dp_magnitude_db_cf32) (const float \_Complex \* x, size\_t x\_len, float \* out, float lin\_floor, float offset\_db) <br>_Convert a CF32 complex spectrum to F32 dB magnitudes. Computes out(k) = 20\*log10(max(\|x(k)\|, lin\_floor)) + offset\_db for each bin. The_ `lin_floor` _guard prevents log10(0); a value of 1e-12 corresponds to a -240 dB noise floor._`offset_db` _shifts the entire output for calibration (e.g., normalise to 0 dBFS)._ |
 |  void | [**dp\_magnitude\_db\_cf64**](#function-dp_magnitude_db_cf64) (const double \_Complex \* x, size\_t x\_len, float \* out, double lin\_floor, float offset\_db) <br>_Convert a CF64 complex spectrum to F32 dB magnitudes. Double-precision variant of_ [_**dp\_magnitude\_db\_cf32()**_](spectral__core_8h.md#function-dp_magnitude_db_cf32) _. Accepts a CF64 input array and a double_`lin_floor` _; output is still F32 because downstream display code typically works in single precision. The formula and_`offset_db` _semantics are identical._ |
 |  double | [**dp\_noise\_floor\_db**](#function-dp_noise_floor_db) (const float \* db, size\_t db\_len) <br> |
-|  double | [**dp\_obw\_from\_power**](#function-dp_obw_from_power) (const double \* pwr, size\_t pwr\_len, double fs, double frac) <br> |
+|  double | [**dp\_obw\_from\_power**](#function-dp_obw_from_power) (const double \* pwr, size\_t pwr\_len, double fs, double frac) <br>_Occupied bandwidth: the width of the central interval holding_ `frac` _of the total power, with (1 - frac)/2 excluded at each end._ |
 
 
 
@@ -479,6 +479,7 @@ double dp_noise_floor_db (
 
 ### function dp\_obw\_from\_power 
 
+_Occupied bandwidth: the width of the central interval holding_ `frac` _of the total power, with (1 - frac)/2 excluded at each end._
 ```C++
 double dp_obw_from_power (
     const double * pwr,
@@ -490,6 +491,41 @@ double dp_obw_from_power (
 
 
 
+A cumulative walk over a DC-centred linear-power spectrum; the span is whole bins, inclusive, times fs / `pwr_len`. Any constant per-bin scale cancels, so the power need not be referenced.
+
+
+
+
+**Parameters:**
+
+
+* `pwr` Linear power, DC-centred, non-negative. 
+* `pwr_len` Number of bins in `pwr`. 
+* `fs` Sample rate, Hz. 
+* `frac` Power fraction in the OPEN interval (0, 1), e.g. 0.99. 1 is excluded: all of the power in floating point is every bin rounding residue reached, which has no stable answer. 
+
+
+
+**Returns:**
+
+Occupied bandwidth in Hz; 0 for no bins or no power; NaN when `frac` is outside (0, 1), whatever the data. 
+```C++
+>>> import numpy as np
+>>> from doppler.spectral import obw_from_power
+>>> pwr = np.zeros(64)
+>>> pwr[32] = 1.0                    # one bin holds all the power
+>>> obw_from_power(pwr, 64.0, 0.99)  # one bin wide, fs / 64
+1.0
+>>> obw_from_power(pwr, 64.0, 1.0)   # outside (0, 1)
+nan
+```
+ 
+
+
+
+
+
+        
 
 <hr>
 

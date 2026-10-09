@@ -741,7 +741,11 @@ class AccTrace:
     mode : Literal["mean", "exp", "maxhold", "minhold"], default "mean"
         Reduction mode index (0=mean, 1=exp, 2=maxhold, 3=minhold).
     alpha : float, default 0.1
-        EMA smoothing factor used only by exp mode (0 < alpha <= 1).
+        EMA smoothing factor, read only by exp mode, where it must lie in (0,
+        1]. Outside it the trace is not an average: 0 never leaves the first
+        frame, a negative alpha extrapolates away from the data (a power trace
+        goes negative), and above 1 the EMA step saturates to pass-through. A
+        NaN is refused too. Ignored, and so not checked, in the other modes.
 
     Examples
     --------

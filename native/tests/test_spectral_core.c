@@ -254,6 +254,22 @@ main (void)
     for (int i = 0; i < 100; i++)
       pwr[i] = 0.0;
     DP_CHECK (dp_obw_from_power (pwr, 100, fs, 0.99) == 0.0);
+
+    /* The domain is the OPEN interval (0, 1): outside it there is no such
+       bandwidth, and the answer is NaN whatever the data -- power, none,
+       or no bins at all (#1911 (h)).  1 is outside: a one-bin tone read
+       13 or 53 bins at 1, by where float residue landed. */
+    pwr[50]            = 1.0;
+    const double bad[] = { 0.0, -1.0, 1.0, 1.5, NAN };
+    for (size_t k = 0; k < sizeof bad / sizeof bad[0]; k++)
+      {
+        DP_CHECK (isnan (dp_obw_from_power (pwr, 100, fs, bad[k])));
+        DP_CHECK (isnan (dp_obw_from_power (pwr, 0, fs, bad[k])));
+      }
+    /* Precondition: the nearest values inside still answer -- the one-bin
+       tone is one bin wide just below 1 and just above 0. */
+    DP_CHECK (dp_obw_from_power (pwr, 100, fs, 0.999999) == fs / 100.0);
+    DP_CHECK (dp_obw_from_power (pwr, 100, fs, 1e-9) == fs / 100.0);
   }
 
   DP_TEST_END ("test_spectral_core");

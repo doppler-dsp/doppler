@@ -15,9 +15,15 @@ Why, Performance, Try it, Docs, Licensing -- through end of
 file), rewrites it for GitHub rendering, and writes the result into
 README.md between marker comments -- same idiom as
 ``gen_related_pages.py``'s ``<!-- related-pages:start -->``/``:end``
-block. Only the wordmark + badge header above the markers stays
-hand-owned in each file (the two heads genuinely differ: image sizing,
-glightbox classes, absolute-vs-relative badge targets).
+block. The badge header is generated too, from the block between
+``<!-- badges:start -->`` and ``<!-- badges:end -->`` in docs/index.md:
+two hand-kept copies of one badge list drift (the README's Python range
+was a literal the docs copy had to repeat). The two faces differ in only
+two mechanical ways, both rewritten here -- the site's ``off-glb`` class
+(which keeps glightbox from turning a badge into a lightbox) is dropped,
+and a site-relative target (``install/docker/``) becomes the absolute site
+URL, since on GitHub it would resolve against the repo. Only the wordmark
+above stays hand-owned in each file (its sizing genuinely differs).
 
 Rewrites applied:
     - any mkdocs ``!!! type ["Title"]`` admonition, with its 4-space
@@ -53,6 +59,12 @@ END_MARKER = "<!-- readme-sync:end -->"
 # Everything in docs/index.md after this marker (which sits right after
 # the badge header) is the synced region -- through end of file.
 SOURCE_MARKER = "<!-- readme-sync:source-start -->"
+
+BADGE_START = "<!-- badges:start -->"
+BADGE_END = "<!-- badges:end -->"
+SITE = "https://doppler-dsp.github.io/doppler/"
+# A badge's href that is not already absolute: a site-relative page.
+BADGE_REL_HREF_RE = re.compile(r'href="(?!https?://|#)([^"]+)"')
 
 # !!! type ["Title"]  -- the type is a bare word; the title, if present,
 # must be double-quoted (mkdocs/pymdownx requires this for a multi-word
@@ -198,29 +210,54 @@ def render_readme_block(section: str) -> str:
     return f"{START_MARKER}\n\n{body}\n\n{END_MARKER}\n"
 
 
-def apply(write: bool) -> bool:
-    """Regenerate README.md's marked block. Returns True if already
-    up to date (no drift)."""
-    new_block = render_readme_block(extract_section())
-
-    with open(README_MD, encoding="utf-8") as f:
-        readme = f.read()
-    pattern = re.compile(
-        re.escape(START_MARKER) + r".*?" + re.escape(END_MARKER) + r"\n?",
-        re.DOTALL,
+def _marked(start: str, end: str) -> re.Pattern[str]:
+    return re.compile(
+        re.escape(start) + r".*?" + re.escape(end) + r"\n?", re.DOTALL
     )
+
+
+def render_badges() -> str:
+    """README's badge block, rendered from docs/index.md's."""
+    with open(INDEX_MD, encoding="utf-8") as f:
+        m = _marked(BADGE_START, BADGE_END).search(f.read())
+    if not m:
+        raise SystemExit(
+            f"gen_readme: no {BADGE_START} .. {BADGE_END} block in "
+            "docs/index.md -- the badge list lives there."
+        )
+    block = m.group(0).replace(' class="off-glb"', "")
+    block = BADGE_REL_HREF_RE.sub(
+        lambda h: f'href="{SITE}{h.group(1)}"', block
+    )
+    return block.rstrip("\n") + "\n"
+
+
+def _replace(readme: str, start: str, end: str, block: str) -> str:
+    pattern = _marked(start, end)
     if not pattern.search(readme):
         raise SystemExit(
-            f"gen_readme: no {START_MARKER} .. {END_MARKER} "
-            "block found in README.md -- add the marker pair after the "
-            "badge header once, then re-run."
+            f"gen_readme: no {start} .. {end} block found in README.md "
+            "-- add the marker pair once, then re-run."
         )
-
-    # A function replacement, not a string one -- new_block can contain
+    # A function replacement, not a string one -- block can contain
     # literal backslash sequences (e.g. a C snippet's "\n"), and
     # re.Pattern.sub() interprets backslash escapes in a string
     # replacement (\n, \1, \g<name>, ...), corrupting them silently.
-    updated = pattern.sub(lambda _: new_block, readme, count=1)
+    return pattern.sub(lambda _: block, readme, count=1)
+
+
+def apply(write: bool) -> bool:
+    """Regenerate README.md's badge header and synced body. Returns True
+    if already up to date (no drift)."""
+    with open(README_MD, encoding="utf-8") as f:
+        readme = f.read()
+    updated = _replace(readme, BADGE_START, BADGE_END, render_badges())
+    updated = _replace(
+        updated,
+        START_MARKER,
+        END_MARKER,
+        render_readme_block(extract_section()),
+    )
     if updated == readme:
         return True
     if write:
@@ -246,13 +283,13 @@ def main() -> int:
     if not up_to_date:
         if args.check:
             print(
-                "README.md's synced body is out of sync with "
+                "README.md's badge header or synced body is out of sync with "
                 "docs/index.md -- run: "
                 "python scripts/gen_readme.py --write",
                 file=sys.stderr,
             )
             return 1
-        print("README.md's body regenerated from docs/index.md")
+        print("README.md's badges and body regenerated from docs/index.md")
     return 0
 
 

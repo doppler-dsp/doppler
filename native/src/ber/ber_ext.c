@@ -260,7 +260,11 @@ static PyMethodDef ber_module_methods[] = {
     "implementation loss is quoted honestly: convert the MEASURED rate to the "
     "Es/N0 theory would need to produce it, and subtract. A loss in dB is "
     "comparable across M and across operating points; a ratio of rates is "
-    "not.\n"
+    "not. Returns NAN when no Es/N0 from -10 to 40 dB produces the rate: ser "
+    "<= 0, ser above the bound at -10 dB, or ser below the bound at 40 dB. "
+    "Those are NOT clamped to -10 or 40 dB, so test with isnan() and write "
+    "gates as !(loss <= limit), since a loss > limit comparison is false for "
+    "NaN.\n"
     "\n"
     "How an implementation loss is quoted honestly: convert the MEASURED\n"
     "rate to the Es/N0 theory would need to produce it, and subtract. A loss\n"
@@ -268,9 +272,8 @@ static PyMethodDef ber_module_methods[] = {
     "rates is not.\n"
     "\n"
     "Bisects dp_ber_theory_ser(), which is monotone decreasing, over -10 to\n"
-    "40 dB and clamps to that range: 40.0 for a rate below the bound at 40\n"
-    "dB, -10.0 for one at or above the bound at -10 dB. A rate that is not\n"
-    "positive also returns -10.0.\n"
+    "40 dB. The endpoints are in-bracket: a rate equal to the bound at\n"
+    "either end returns that end.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -282,7 +285,16 @@ static PyMethodDef ber_module_methods[] = {
     "Returns\n"
     "-------\n"
     "float\n"
-    "    Output.\n" },
+    "    The Es/N0 in dB, or NAN when no Es/N0 from -10 to 40 dB produces\n"
+    "    the rate: `ser <= 0` (a zero SER is a perfect link, which no finite\n"
+    "    Es/N0 yields), `ser` above the bound at -10 dB (a rate the link\n"
+    "    cannot reach even at -10 dB), and `ser` below the bound at 40 dB.\n"
+    "    Those are NOT clamped to -10 or 40: a bracket value reads like a\n"
+    "    measurement, so an out-of-range rate would fabricate an answer.\n"
+    "    Test for it with isnan(), and write gates as `!(loss <= limit)`: a\n"
+    "    `loss > limit` comparison is false for NaN and passes silently.\n"
+    "    `dp_ber_esn0_db_for_ser (2, 0.0)` is NAN; `dp_ber_esn0_db_for_ser\n"
+    "    (2, 1e-3)` is 6.79 dB, the BPSK SER=1e-3 anchor.\n" },
   { "ber_evm_scatter_floor_db",
     (PyCFunction)(void *)_bind_ber_evm_scatter_floor_db,
     METH_VARARGS | METH_KEYWORDS,

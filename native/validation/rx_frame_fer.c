@@ -563,7 +563,8 @@ rx_frame_check (const rx_frame_cfg_t *c, const rx_frame_result_t *r,
               r->rep.ser.errors, RX_FRAME_TARGET_ERRORS, r->bursts);
       return 1;
     }
-  if (loss_lo > RX_FRAME_LOSS_DB)
+  /* !(<=) not (>): a NaN loss (rate outside the bracket) must FAIL. */
+  if (!(loss_lo <= RX_FRAME_LOSS_DB))
     {
       printf ("  %s FAIL: loss %.2f dB (99%% lower limit) > %.1f dB\n", nm,
               loss_lo, RX_FRAME_LOSS_DB);

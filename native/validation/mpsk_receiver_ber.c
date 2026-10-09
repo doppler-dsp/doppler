@@ -141,7 +141,8 @@ main (int argc, char **argv)
                   r.rep.ser.errors, TARGET_ERRORS, r.bursts);
           rc = 1;
         }
-      else if (loss_lo > LOSS_DB)
+      /* !(<=) not (>): a NaN loss (rate outside the bracket) must FAIL. */
+      else if (!(loss_lo <= LOSS_DB))
         {
           printf ("  M=%d FAIL: loss %.2f dB (99%% lower limit) > %.1f dB\n",
                   c.m, loss_lo, LOSS_DB);

@@ -85,6 +85,24 @@ test_theory (void)
         double s = dp_ber_theory_ser (m, pow (10.0, db / 10.0));
         DP_CHECK_NEAR (dp_ber_esn0_db_for_ser (m, s), db, 0.01);
       }
+
+  /* Outside the bracket there is no answer: NaN, never a bracket end. A
+     zero SER used to return -10 dB ("very noisy"), and a rate above the
+     bound at -10 dB returned -10 too, so a gate on the result read a
+     fabricated Es/N0 as a measurement. */
+  for (int m = 2; m <= 8; m *= 2)
+    {
+      DP_CHECK (isnan (dp_ber_esn0_db_for_ser (m, 0.0)));
+      DP_CHECK (isnan (dp_ber_esn0_db_for_ser (m, -1.0e-3)));
+      DP_CHECK (isnan (dp_ber_esn0_db_for_ser (m, 0.9)));
+      DP_CHECK (isnan (dp_ber_esn0_db_for_ser (m, 1.0)));
+    }
+
+  /* The endpoints are in-bracket: a rate equal to the bound at -10 dB is
+     -10 dB, not NaN, and the bisection lands on it. */
+  DP_CHECK_NEAR (
+      dp_ber_esn0_db_for_ser (2, dp_ber_theory_ser (2, pow (10.0, -1.0))),
+      -10.0, 1e-9);
 }
 
 /* --- 2. the confidence interval ------------------------------------------ */

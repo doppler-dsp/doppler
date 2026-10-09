@@ -583,7 +583,8 @@ the root `CMakeLists.txt` beside `bench_util_core`:
 
 ```cmake
 add_executable(bench_mycomp_core native/benchmarks/bench_mycomp_core.c)
-target_link_libraries(bench_mycomp_core PRIVATE mycomp_core m)
+target_link_libraries(bench_mycomp_core PRIVATE mycomp_core
+                      ${DP_MATH_LIBRARY})
 target_include_directories(bench_mycomp_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 ```

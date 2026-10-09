@@ -136,13 +136,13 @@ void dp_psd_accumulate(dp_psd_state_t *state, const float _Complex *x,
  * @brief One frame's DC-centred two-sided power: window, zero-pad, FFT, |X|^2.
  *
  * The per-frame kernel dp_psd_accumulate() folds into its average, exposed
- * without the average: exactly the power spectrum that would be accumulated
- * for this frame, un-normalised (divide by the window coherent gain squared
- * for a power that reads a tone at its true level, as dp_psd_frame_db() does).
- * A streaming spectrogram is this call once per frame; because accumulate runs
- * the same code, a spectrogram row and a one-frame PSD cannot disagree.
- * Uses the estimator's scratch, so it is not thread-safe on one state and it
- * does not touch the running average.
+ * without the average. The result is the UN-NORMALISED power the averager
+ * folds: no division by the window coherent gain squared, so a tone does not
+ * read at its true level (dp_psd_frame_db() applies that division). Do not
+ * compare this raw output with dp_psd_power_twosided(), which divides by
+ * cg^2 on the double path. A streaming spectrogram is this call once per
+ * frame. Uses the estimator's scratch, so it is not thread-safe on one state
+ * and it does not touch the running average.
  *
  * @param state  Must be non-NULL.
  * @param x      Exactly @c state->n complex samples (cf32).
@@ -156,9 +156,10 @@ void dp_psd_frame_power(dp_psd_state_t *state, const float _Complex *x,
  * @brief One frame in dBFS, against the estimator's own reference.
  *
  * dp_psd_frame_power() divided by the window coherent gain squared and the
- * full-scale reference, as 10*log10 with the -200 dB floor: the conversion
- * dp_psd_psd_db() applies to the averaged trace, so a full-scale tone on a bin
- * reads 0 dB whatever the window. Does not touch the running average.
+ * full-scale reference, as 10*log10 with the -200 dB floor, so a full-scale
+ * tone on a bin reads 0 dB whatever the window. The result equals
+ * dp_psd_psd_db() after accumulating that one frame, bit for bit (pinned by
+ * test_psd_core.c). Does not touch the running average.
  *
  * @param state  Must be non-NULL.
  * @param x      Exactly @c state->n complex samples (cf32).

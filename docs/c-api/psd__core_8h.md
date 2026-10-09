@@ -402,7 +402,7 @@ void dp_psd_frame_db (
 
 
 
-[**dp\_psd\_frame\_power()**](psd__core_8h.md#function-dp_psd_frame_power) divided by the window coherent gain squared and the full-scale reference, as 10\*log10 with the -200 dB floor: the conversion [**dp\_psd\_psd\_db()**](psd__core_8h.md#function-dp_psd_psd_db) applies to the averaged trace, so a full-scale tone on a bin reads 0 dB whatever the window. Does not touch the running average.
+[**dp\_psd\_frame\_power()**](psd__core_8h.md#function-dp_psd_frame_power) divided by the window coherent gain squared and the full-scale reference, as 10\*log10 with the -200 dB floor, so a full-scale tone on a bin reads 0 dB whatever the window. The result equals [**dp\_psd\_psd\_db()**](psd__core_8h.md#function-dp_psd_psd_db) after accumulating that one frame, bit for bit (pinned by test\_psd\_core.c). Does not touch the running average.
 
 
 
@@ -448,7 +448,7 @@ void dp_psd_frame_power (
 
 
 
-The per-frame kernel [**dp\_psd\_accumulate()**](psd__core_8h.md#function-dp_psd_accumulate) folds into its average, exposed without the average: exactly the power spectrum that would be accumulated for this frame, un-normalised (divide by the window coherent gain squared for a power that reads a tone at its true level, as [**dp\_psd\_frame\_db()**](psd__core_8h.md#function-dp_psd_frame_db) does). A streaming spectrogram is this call once per frame; because accumulate runs the same code, a spectrogram row and a one-frame PSD cannot disagree. Uses the estimator's scratch, so it is not thread-safe on one state and it does not touch the running average.
+The per-frame kernel [**dp\_psd\_accumulate()**](psd__core_8h.md#function-dp_psd_accumulate) folds into its average, exposed without the average. The result is the UN-NORMALISED power the averager folds: no division by the window coherent gain squared, so a tone does not read at its true level ([**dp\_psd\_frame\_db()**](psd__core_8h.md#function-dp_psd_frame_db) applies that division). Do not compare this raw output with [**dp\_psd\_power\_twosided()**](psd__core_8h.md#function-dp_psd_power_twosided), which divides by cg^2 on the double path. A streaming spectrogram is this call once per frame. Uses the estimator's scratch, so it is not thread-safe on one state and it does not touch the running average.
 
 
 

@@ -1,8 +1,10 @@
+/* jm:generated wfm_ext_wfm_synth.c */
 /*
- * wfm_ext_wfm_synth.c — _SynthEngine type for the wfmgen module.
+ * wfm_ext_wfm_synth.c — _SynthEngine type for the wfm module.
  *
  * Included by wfm_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in wfm_ext_wfm_synth_extra.c.
  * Do NOT compile this file directly — only wfm_ext.c is compiled.
  */
 /* ======================================================== */
@@ -27,6 +29,9 @@ _SynthEngine_dealloc (_SynthEngineObject *self)
 static PyObject *
 _SynthEngine_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   _SynthEngineObject *self = (_SynthEngineObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -37,22 +42,22 @@ static int
 _SynthEngine_init (_SynthEngineObject *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[]
-      = { "type", "snr_mode",  "fs",      "freq", "snr",   "seed",
-          "sps",  "pn_length", "pn_poly", "lfsr", "f_end", NULL };
+      = { "type", "fs",        "freq",    "snr",  "snr_mode", "seed",
+          "sps",  "pn_length", "pn_poly", "lfsr", "f_end",    NULL };
   const char        *type_str     = "tone";
-  const char        *snr_mode_str = "auto";
   double             fs           = 1000000.0;
   double             freq         = 0.0;
   double             snr          = 100.0;
-  unsigned long      seed_raw     = 0UL;
+  const char        *snr_mode_str = "auto";
+  unsigned long      seed_raw     = 1;
   int                sps          = 8;
   int                pn_length    = 7;
-  unsigned long long pn_poly_raw  = 0ULL;
+  unsigned long long pn_poly_raw  = 0;
   const char        *lfsr_str     = "galois";
   double             f_end        = 0.0;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|ssdddkiiKsd", kwlist,
-                                    &type_str, &snr_mode_str, &fs, &freq, &snr,
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|sdddskiiKsd", kwlist,
+                                    &type_str, &fs, &freq, &snr, &snr_mode_str,
                                     &seed_raw, &sps, &pn_length, &pn_poly_raw,
                                     &lfsr_str, &f_end))
     return -1;
@@ -77,11 +82,11 @@ _SynthEngine_init (_SynthEngineObject *self, PyObject *args, PyObject *kwds)
     type = 8;
   else
     {
-      PyErr_Format (PyExc_ValueError,
-                    "type must be one of \"tone\", \"noise\", \"pn\", "
-                    "\"bpsk\", \"qpsk\", \"chirp\", \"bits\", \"symbols\", "
-                    "\"dsss\", got '%s'",
-                    type_str);
+      PyErr_Format (
+          PyExc_ValueError,
+          "type must be one of \"tone\", \"noise\", \"pn\", \"bpsk\", "
+          "\"qpsk\", \"chirp\", \"bits\", \"symbols\", \"dsss\", got '%s'",
+          type_str);
       return -1;
     }
   int snr_mode = 0;
@@ -101,7 +106,9 @@ _SynthEngine_init (_SynthEngineObject *self, PyObject *args, PyObject *kwds)
                     snr_mode_str);
       return -1;
     }
-  int lfsr = 0;
+  uint32_t seed    = (uint32_t)seed_raw;
+  uint64_t pn_poly = (uint64_t)pn_poly_raw;
+  int      lfsr    = 0;
   if (strcmp (lfsr_str, "galois") == 0)
     lfsr = 0;
   else if (strcmp (lfsr_str, "fibonacci") == 0)
@@ -109,12 +116,10 @@ _SynthEngine_init (_SynthEngineObject *self, PyObject *args, PyObject *kwds)
   else
     {
       PyErr_Format (PyExc_ValueError,
-                    "lfsr must be \"galois\" or \"fibonacci\", got '%s'",
+                    "lfsr must be one of \"galois\", \"fibonacci\", got '%s'",
                     lfsr_str);
       return -1;
     }
-  uint32_t seed    = (uint32_t)seed_raw;
-  uint64_t pn_poly = (uint64_t)pn_poly_raw;
   self->handle = dp_wfm_synth_create (type, fs, freq, snr, snr_mode, seed, sps,
                                       pn_length, pn_poly, lfsr, f_end);
   if (!self->handle)
@@ -150,15 +155,16 @@ _SynthEngine_step (_SynthEngineObject *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyObject *
-_SynthEngine_steps (_SynthEngineObject *self, PyObject *args)
+_SynthEngine_steps (_SynthEngineObject *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  Py_ssize_t n = 1;
-  if (!PyArg_ParseTuple (args, "|n", &n))
+  static char *kwlist[] = { "n", NULL };
+  Py_ssize_t   n        = 1;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|n", kwlist, &n))
     return NULL;
 
   npy_intp  dims[]  = { n };
@@ -171,240 +177,6 @@ _SynthEngine_steps (_SynthEngineObject *self, PyObject *args)
       (size_t)n);
 
   return out_arr;
-}
-
-/* set_rrc(taps) — enable RRC pulse shaping with the given real FIR taps
- * (e.g. doppler.wfm.rrc_taps(beta, sps, span)); no-op for non-modulated. */
-static PyObject *
-_SynthEngine_set_rrc (_SynthEngineObject *self, PyObject *args)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  PyObject *taps_obj = NULL;
-  if (!PyArg_ParseTuple (args, "O", &taps_obj))
-    return NULL;
-  PyArrayObject *taps = (PyArrayObject *)PyArray_FROM_OTF (
-      taps_obj, NPY_FLOAT32, NPY_ARRAY_C_CONTIGUOUS);
-  if (!taps)
-    return NULL;
-  size_t n  = (size_t)PyArray_SIZE (taps);
-  int    rc = dp_wfm_synth_set_rrc (self->handle,
-                                    (const float *)PyArray_DATA (taps), n);
-  Py_DECREF (taps);
-  if (rc != 0)
-    {
-      PyErr_SetString (PyExc_ValueError,
-                       "set_rrc: empty taps or alloc failed");
-      return NULL;
-    }
-  Py_RETURN_NONE;
-}
-
-/* set_bits(pattern, modulation=1) — attach a user bit pattern to a type=bits
- * synth. pattern is any array-like of 0/1 (coerced to uint8); modulation is
- * 0=none, 1=bpsk, 2=qpsk. */
-static PyObject *
-_SynthEngine_set_bits (_SynthEngineObject *self, PyObject *args)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  PyObject *pat_obj    = NULL;
-  int       modulation = 1;
-  if (!PyArg_ParseTuple (args, "O|i", &pat_obj, &modulation))
-    return NULL;
-  PyArrayObject *arr = (PyArrayObject *)PyArray_FROM_OTF (
-      pat_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
-  if (!arr)
-    return NULL;
-  size_t n  = (size_t)PyArray_SIZE (arr);
-  int    rc = dp_wfm_synth_set_bits (
-      self->handle, (const uint8_t *)PyArray_DATA (arr), n, modulation);
-  Py_DECREF (arr);
-  if (rc != 0)
-    {
-      PyErr_SetString (PyExc_ValueError,
-                       "set_bits: empty pattern, modulation not in 0..2, or "
-                       "not a bits synth");
-      return NULL;
-    }
-  Py_RETURN_NONE;
-}
-
-/* set_dsss_chips(chips) — attach an ALREADY-ASSEMBLED DSSS burst to a
- * type=dsss synth: one chip per element, 0/1, BPSK-mapped by the synth.
- *
- * The burst is assembled from a frame DESCRIPTION -- a `Frame`'s bits, spread
- * by the data code behind the unspread preamble -- and not here: there is no
- * four-field form of a frame left to bind (docs/design/frame-description.md
- * section R). Any array-like of 0/1, coerced to uint8; the chips are copied.
- */
-static PyObject *
-_SynthEngine_set_dsss_chips (_SynthEngineObject *self, PyObject *arg)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  PyArrayObject *arr = (PyArrayObject *)PyArray_FROM_OTF (
-      arg, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
-  if (!arr)
-    return NULL;
-  int rc = dp_wfm_synth_set_dsss_chips (self->handle,
-                                        (const uint8_t *)PyArray_DATA (arr),
-                                        (size_t)PyArray_SIZE (arr));
-  Py_DECREF (arr);
-  if (rc != 0)
-    {
-      PyErr_SetString (PyExc_ValueError,
-                       "set_dsss_chips: the burst must be non-empty");
-      return NULL;
-    }
-  Py_RETURN_NONE;
-}
-
-/* set_dsss_cont(code, chips_per_symbol, data="prbs", payload=None) — configure
- * a type=dsss synth for CONTINUOUS asynchronous generation: the spreading
- * `code` repeats endlessly, data rides on it at chips_per_symbol chips/symbol
- * (non-integer). `data` selects the source: "none" (code only), "prbs" (the
- * synth's seeded PN, regenerable via doppler.wfm.PN), or "bits" (the payload
- * array, sent once). A payload forces "bits". */
-static PyObject *
-_SynthEngine_set_dsss_cont (_SynthEngineObject *self, PyObject *args,
-                            PyObject *kwds)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  static char *kwlist[]
-      = { "code", "chips_per_symbol", "data", "payload", NULL };
-  PyObject   *code_obj = Py_None, *pay_obj = Py_None;
-  double      cps      = 0.0;
-  const char *data_str = "prbs";
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Od|sO", kwlist, &code_obj,
-                                    &cps, &data_str, &pay_obj))
-    return NULL;
-
-  int mode;
-  if (pay_obj != Py_None || strcmp (data_str, "bits") == 0)
-    mode = WFM_DSSS_DATA_BITS;
-  else if (strcmp (data_str, "none") == 0)
-    mode = WFM_DSSS_DATA_NONE;
-  else if (strcmp (data_str, "prbs") == 0)
-    mode = WFM_DSSS_DATA_PRBS;
-  else
-    {
-      PyErr_SetString (
-          PyExc_ValueError,
-          "set_dsss_cont: data must be 'none', 'prbs', or 'bits'");
-      return NULL;
-    }
-
-  PyArrayObject *code_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
-  if (!code_arr)
-    return NULL;
-  PyArrayObject *pay_arr = NULL;
-  if (pay_obj != Py_None)
-    {
-      pay_arr = (PyArrayObject *)PyArray_FROM_OTF (pay_obj, NPY_UINT8,
-                                                   NPY_ARRAY_C_CONTIGUOUS);
-      if (!pay_arr)
-        {
-          Py_DECREF (code_arr);
-          return NULL;
-        }
-    }
-  int rc = dp_wfm_synth_set_dsss_cont (
-      self->handle, (const uint8_t *)PyArray_DATA (code_arr),
-      (size_t)PyArray_SIZE (code_arr), cps, mode,
-      pay_arr ? (const uint8_t *)PyArray_DATA (pay_arr) : NULL,
-      pay_arr ? (size_t)PyArray_SIZE (pay_arr) : 0);
-  Py_XDECREF (pay_arr);
-  Py_DECREF (code_arr);
-  if (rc != 0)
-    {
-      PyErr_SetString (
-          PyExc_ValueError,
-          "set_dsss_cont: invalid geometry (need a code, chips_per_symbol >= "
-          "1, "
-          "a payload for data='bits', a valid pn_length for data='prbs'), or "
-          "not a dsss synth");
-      return NULL;
-    }
-  Py_RETURN_NONE;
-}
-
-/* set_dsss_window(code_only_symbols, frame_symbols) — give the continuous
- * stream a frame on the data clock: the first code_only_symbols symbols of
- * every frame_symbols carry the pure code, the rest the data.
- * frame_symbols=0 is no window at all. */
-static PyObject *
-_SynthEngine_set_dsss_window (_SynthEngineObject *self, PyObject *args,
-                              PyObject *kwds)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  static char *kwlist[] = { "code_only_symbols", "frame_symbols", NULL };
-  Py_ssize_t   w = 0, f = 0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "nn", kwlist, &w, &f))
-    return NULL;
-  if (w < 0 || f < 0)
-    {
-      PyErr_SetString (PyExc_ValueError,
-                       "set_dsss_window: symbol counts must be >= 0");
-      return NULL;
-    }
-  if (dp_wfm_synth_set_dsss_window (self->handle, (size_t)w, (size_t)f) != 0)
-    {
-      PyErr_SetString (PyExc_ValueError,
-                       "set_dsss_window: code_only_symbols must not exceed a "
-                       "non-zero frame_symbols");
-      return NULL;
-    }
-  Py_RETURN_NONE;
-}
-
-/* set_symbols(symbols) — attach a user complex-symbol stream to a
- * type=symbols synth. symbols is any array-like coerced to complex64; each
- * element is the constellation point itself (no bit->symbol mapping). */
-static PyObject *
-_SynthEngine_set_symbols (_SynthEngineObject *self, PyObject *args)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  PyObject *sym_obj = NULL;
-  if (!PyArg_ParseTuple (args, "O", &sym_obj))
-    return NULL;
-  PyArrayObject *arr = (PyArrayObject *)PyArray_FROM_OTF (
-      sym_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_FORCECAST);
-  if (!arr)
-    return NULL;
-  size_t n  = (size_t)PyArray_SIZE (arr);
-  int    rc = dp_wfm_synth_set_symbols (
-      self->handle, (const float _Complex *)PyArray_DATA (arr), n);
-  Py_DECREF (arr);
-  if (rc != 0)
-    {
-      PyErr_SetString (PyExc_ValueError,
-                       "set_symbols: empty stream or not a symbols synth");
-      return NULL;
-    }
-  Py_RETURN_NONE;
 }
 
 static PyObject *
@@ -540,34 +312,21 @@ _SynthEngine_set_cur_im (_SynthEngineObject *self, PyObject *args)
   dp_wfm_synth_set_cur_im (self->handle, v);
   Py_RETURN_NONE;
 }
-
 static PyObject *
-_SynthEngine_destroy (_SynthEngineObject *self, PyObject *Py_UNUSED (ignored))
+_SynthEngine_set_chirp_span (_SynthEngineObject *self, PyObject *args,
+                             PyObject *kwds)
 {
-  if (self->handle)
+  if (!self->handle)
     {
-      dp_wfm_synth_destroy (self->handle);
-      self->handle = NULL;
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
     }
-  Py_RETURN_NONE;
-}
-
-static PyObject *
-_SynthEngine_enter (_SynthEngineObject *self, PyObject *Py_UNUSED (ignored))
-{
-  Py_INCREF (self);
-  return (PyObject *)self;
-}
-
-static PyObject *
-_SynthEngine_exit (_SynthEngineObject *self, PyObject *args)
-{
-  (void)args;
-  if (self->handle)
-    {
-      dp_wfm_synth_destroy (self->handle);
-      self->handle = NULL;
-    }
+  static char       *_kwlist[] = { "span", NULL };
+  unsigned long long span_raw  = 0ULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &span_raw))
+    return NULL;
+  size_t span = (size_t)span_raw;
+  dp_wfm_synth_set_chirp_span (self->handle, span);
   Py_RETURN_NONE;
 }
 
@@ -628,20 +387,32 @@ _SynthEngine_set_state (_SynthEngineObject *self, PyObject *arg)
 }
 
 static PyObject *
-_SynthEngine_set_chirp_span (_SynthEngineObject *self, PyObject *args,
-                             PyObject *kwds)
+_SynthEngine_destroy (_SynthEngineObject *self, PyObject *Py_UNUSED (ignored))
 {
-  if (!self->handle)
+  if (self->handle)
     {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
+      dp_wfm_synth_destroy (self->handle);
+      self->handle = NULL;
     }
-  static char       *_kwlist[] = { "span", NULL };
-  unsigned long long span_raw  = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &span_raw))
-    return NULL;
-  size_t span = (size_t)span_raw;
-  dp_wfm_synth_set_chirp_span (self->handle, span);
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+_SynthEngine_enter (_SynthEngineObject *self, PyObject *Py_UNUSED (ignored))
+{
+  Py_INCREF (self);
+  return (PyObject *)self;
+}
+
+static PyObject *
+_SynthEngine_exit (_SynthEngineObject *self, PyObject *args)
+{
+  (void)args;
+  if (self->handle)
+    {
+      dp_wfm_synth_destroy (self->handle);
+      self->handle = NULL;
+    }
   Py_RETURN_NONE;
 }
 
@@ -663,10 +434,10 @@ static PyMethodDef _SynthEngine_methods[] = {
   { "step", (PyCFunction)_SynthEngine_step, METH_NOARGS,
     "step() -> float _Complex\n"
     "\n"
-    "Generate one output sample from internal state. Advances the PN LFSR "
-    "(modulated types only, on symbol boundaries), the LO phase accumulator, "
-    "and the AWGN engine, then returns the mixed result: ``sym * carrier + "
-    "noise``.  Inlined and hot-path annotated so tight per-sample loops pay "
+    "Generate one output sample from internal state. Advances the PN LFSR\n"
+    "(modulated types only, on symbol boundaries), the LO phase accumulator,\n"
+    "and the AWGN engine, then returns the mixed result: ``sym * carrier +\n"
+    "noise``. Inlined and hot-path annotated so tight per-sample loops pay\n"
     "no call overhead.\n"
     "\n"
     "Returns\n"
@@ -681,7 +452,8 @@ static PyMethodDef _SynthEngine_methods[] = {
     ">>> s.step()\n"
     "(1+0j)\n"
     "\n" },
-  { "steps", (PyCFunction)_SynthEngine_steps, METH_VARARGS,
+  { "steps", (PyCFunction)(void *)_SynthEngine_steps,
+    METH_VARARGS | METH_KEYWORDS,
     "steps(n=1) -> ndarray\n"
     "\n"
     "Generate a block of output samples. Calls dp_wfm_synth_step() in a\n"
@@ -711,55 +483,6 @@ static PyMethodDef _SynthEngine_methods[] = {
     "[(1+0j), (1+0j), (1+0j), (1+0j)]\n"
     "\n" },
 
-  { "set_rrc", (PyCFunction)_SynthEngine_set_rrc, METH_VARARGS,
-    "set_rrc(taps) -> None\n"
-    "\n"
-    "Enable RRC pulse shaping with real FIR taps "
-    "(pn/bpsk/qpsk/bits/symbols).\n" },
-  { "set_symbols", (PyCFunction)_SynthEngine_set_symbols, METH_VARARGS,
-    "set_symbols(symbols) -> None\n"
-    "\n"
-    "Attach a complex-symbol stream (array of complex64) to a "
-    "type='symbols' synth.\n"
-    "Each element is the constellation point itself (no bit mapping), "
-    "oversampled by sps, cycled, and RRC-shaped when set_rrc is active.\n" },
-  { "set_dsss_chips", (PyCFunction)_SynthEngine_set_dsss_chips, METH_O,
-    "set_dsss_chips(chips) -> None\n"
-    "\n"
-    "Attach an already-assembled DSSS burst to a type=dsss synth: one chip\n"
-    "per element, 0/1 (coerced to uint8), BPSK-mapped by the synth and\n"
-    "sent once, then silence. Assemble it from a frame description -- the\n"
-    "unspread preamble, then every bit of a Frame's bits() spread by the\n"
-    "data code. A no-op on any other waveform type.\n" },
-  { "set_dsss_cont", (PyCFunction)_SynthEngine_set_dsss_cont,
-    METH_VARARGS | METH_KEYWORDS,
-    "set_dsss_cont(code, chips_per_symbol, data='prbs', payload=None) -> "
-    "None\n"
-    "\n"
-    "Configure a type=dsss synth for CONTINUOUS asynchronous generation: the\n"
-    "spreading `code` repeats endlessly and data rides on it at\n"
-    "chips_per_symbol chips/symbol (non-integer -- the asynchronicity).\n"
-    "data selects the symbol source: 'none' (code only, pure +code), 'prbs'\n"
-    "(the synth's seeded PN, reproducible via doppler.wfm.PN), or 'bits'\n"
-    "(the payload array, one bit a data symbol, sent once). Supplying\n"
-    "payload forces 'bits'.\n" },
-  { "set_dsss_window", (PyCFunction)_SynthEngine_set_dsss_window,
-    METH_VARARGS | METH_KEYWORDS,
-    "set_dsss_window(code_only_symbols, frame_symbols) -> None\n"
-    "\n"
-    "Give the continuous DSSS stream a frame on the data clock: of every\n"
-    "frame_symbols symbols, the first code_only_symbols carry the pure code\n"
-    "and no data, the rest the payload, running on across frames. The\n"
-    "symbol clock free-runs through the window -- the chip and data clocks\n"
-    "have no fixed relation, and a frame edge falls at no particular chip\n"
-    "phase. frame_symbols=0 is no window at all -- the stream exactly as\n"
-    "before. code_only_symbols may not exceed a non-zero frame_symbols\n"
-    "(ValueError).\n" },
-  { "set_bits", (PyCFunction)_SynthEngine_set_bits, METH_VARARGS,
-    "set_bits(pattern, modulation=1) -> None\n"
-    "\n"
-    "Attach a user bit pattern (array of 0/1) to a type='bits' synth.\n"
-    "modulation: 0=none (0/1), 1=bpsk (+-1), 2=qpsk (2 bits/symbol).\n" },
   { "get_wtype", (PyCFunction)_SynthEngine_get_wtype, METH_NOARGS,
     "Return the active waveform type discriminant. Maps to the WFM_SYNTH_* "
     "enum: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk. Use this to inspect which "
@@ -800,42 +523,40 @@ static PyMethodDef _SynthEngine_methods[] = {
   { "set_cur_im", (PyCFunction)_SynthEngine_set_cur_im, METH_VARARGS,
     "Override the held-symbol imaginary (Q) component in-place. Takes effect "
     "on the next dp_wfm_synth_step() within the current symbol hold.\n" },
-  { "destroy", (PyCFunction)_SynthEngine_destroy, METH_NOARGS,
-    "Release the underlying C resources immediately.\n"
+  { "set_chirp_span", (PyCFunction)(void *)_SynthEngine_set_chirp_span,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_chirp_span(span) -> None\n"
     "\n"
-    "Ordinarily unnecessary: the resources are freed when the object is\n"
-    "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
-    "exit.\n"
+    "Pin a chirp's sweep to `span` samples (no-op for non-chirp). Only the "
+    "first non-zero pin takes effect; until then a chirp holds its start "
+    "frequency on step() and steps() alike.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
-  { "__enter__", (PyCFunction)_SynthEngine_enter, METH_NOARGS,
-    "Enter a context manager, returning this object.\n"
+    "A linear chirp's slope is `(f_end − f_start) / span`, so the span — the\n"
+    "number of samples the sweep occupies — must be known before generation.\n"
+    "The composer calls this with the source's declared span or the segment\n"
+    "length. A synth that is never pinned does not sweep: it holds the start\n"
+    "frequency on dp_wfm_synth_step() and dp_wfm_synth_steps() alike, so the\n"
+    "waveform never depends on how reads are chunked. Only the first pin\n"
+    "(while the span is still 0) takes effect, so it is safe to call\n"
+    "unconditionally after dp_wfm_synth_create(); span 0 is a no-op.\n"
     "\n"
-    "Lets a _SynthEngine be used in a `with` statement so its C resources\n"
-    "are released deterministically on exit rather than at collection time.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "_SynthEngine\n"
-    "    This same object, not a copy.\n" },
-  { "__exit__", (PyCFunction)_SynthEngine_exit, METH_VARARGS,
-    "Exit a context manager, releasing the _SynthEngine.\n"
-    "\n"
-    "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
-    "raised inside the `with` body propagates normally; this never\n"
-    "suppresses one.\n"
+    "The span is configuration, not running state: dp_wfm_synth_get_state()\n"
+    "does not carry it, so pin a resumed instance exactly as the original\n"
+    "was pinned.\n"
     "\n"
     "Parameters\n"
     "----------\n"
-    "exc_type : object | None\n"
-    "    Exception class, or None. Ignored.\n"
-    "exc : object | None\n"
-    "    Exception instance, or None. Ignored.\n"
-    "tb : object | None\n"
-    "    Traceback object, or None. Ignored.\n" },
+    "span : int\n"
+    "    Sweep length in samples (> 0).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler.wfm import _SynthEngine\n"
+    "    >>> obj = _SynthEngine(type=\"tone\", fs=1000000.0, freq=0.0, "
+    "snr=100.0, snr_mode=\"auto\", seed=1, sps=8, pn_length=7, pn_poly=0, "
+    "lfsr=\"galois\", f_end=0.0)\n"
+    "    >>> obj.set_chirp_span(0)\n" },
   { "state_bytes", (PyCFunction)_SynthEngine_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"
     "\n"
@@ -871,9 +592,9 @@ static PyMethodDef _SynthEngine_methods[] = {
     "Restore mutable state from a `get_state()` blob.\n"
     "\n"
     "Overwrites the live state in place; the object keeps the parameters it\n"
-    "was constructed with. Length is validated against `state_bytes()` "
-    "before\n"
-    "the blob is handed to the C core, and the core may reject it as well.\n"
+    "was constructed with. Length is validated against `state_bytes()`\n"
+    "before the blob is handed to the C core, and the core may reject it as\n"
+    "well.\n"
     "\n"
     "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
     "length differs from `state_bytes()` or the core rejects it, and\n"
@@ -884,59 +605,248 @@ static PyMethodDef _SynthEngine_methods[] = {
     "blob : bytes\n"
     "    A `get_state()` blob from this type, exactly `state_bytes()` "
     "long.\n" },
-  { "set_chirp_span", (PyCFunction)(void *)_SynthEngine_set_chirp_span,
-    METH_VARARGS | METH_KEYWORDS,
-    "set_chirp_span(span) -> None\n"
+  { "set_rrc", (PyCFunction)(void (*) (void))_SynthEngine_set_rrc,
+    METH_VARARGS,
+    "Shape the symbols with a root-raised-cosine pulse.\n"
     "\n"
-    "Pin a chirp's sweep to `span` samples (no-op for non-chirp). Only\n"
-    "the first non-zero pin takes effect; until then a chirp holds its start\n"
-    "frequency on step() and steps() alike.\n"
-    "\n"
-    "A linear chirp's slope is `(f_end − f_start) / span`, so the span — the\n"
-    "number of samples the sweep occupies — must be known before generation.\n"
-    "The composer calls this with the source's declared span or the segment\n"
-    "length. A synth that is never pinned does not sweep: it holds the start\n"
-    "frequency on dp_wfm_synth_step() and dp_wfm_synth_steps() alike, so the\n"
-    "waveform never depends on how reads are chunked. Only the first pin\n"
-    "(while the span is still 0) takes effect, so it is safe to call\n"
-    "unconditionally after dp_wfm_synth_create(); span 0 is a no-op.\n"
-    "\n"
-    "The span is configuration, not running state: dp_wfm_synth_get_state()\n"
-    "does not carry it, so pin a resumed instance exactly as the original\n"
-    "was pinned.\n"
+    "Replaces the default rectangular hold: the symbol-rate impulse train\n"
+    "is filtered by ``taps``, a real FIR, typically\n"
+    "``rrc_taps(beta, sps, span)``. The taps are scaled by ``sqrt(sps)``\n"
+    "inside, for unit transmit power, so pass them raw. Applies to the\n"
+    "types with a symbol stream (``pn``, ``bpsk``, ``qpsk``, ``bits``,\n"
+    "``symbols``, ``dsss``) and is a no-op for ``tone``, ``noise`` and\n"
+    "``chirp``. Replaces any earlier shaper and clears its delay line.\n"
     "\n"
     "Parameters\n"
     "----------\n"
-    "span : int\n"
-    "    Sweep length in samples (> 0).\n"
+    "taps : array_like\n"
+    "    Real FIR taps, coerced to float32 and copied.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If ``taps`` is empty.\n"
     "\n"
     "Examples\n"
     "--------\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler.wfm import _SynthEngine\n"
-    "    >>> obj = _SynthEngine(type=\"tone\", fs=1000000.0, freq=0.0, "
-    "snr=100.0, snr_mode=\"auto\", seed=1, sps=8, pn_length=7, pn_poly=0, "
-    "lfsr=\"galois\", f_end=0.0)\n"
-    "    >>> obj.set_chirp_span(0)\n" },
-  { NULL }
+    ">>> import numpy as np\n"
+    ">>> from doppler.wfm import _SynthEngine, rrc_taps\n"
+    ">>> s = _SynthEngine(type='bpsk', sps=4, seed=1, snr=100.0)\n"
+    ">>> s.set_rrc(rrc_taps(0.35, 4, 4))\n"
+    ">>> y = s.steps(8192)\n"
+    ">>> round(float(np.mean(np.abs(y) ** 2)), 1)  # unit power\n"
+    "1.0\n" },
+  { "set_bits", (PyCFunction)(void (*) (void))_SynthEngine_set_bits,
+    METH_VARARGS,
+    "Attach a bit pattern to a ``type='bits'`` synth.\n"
+    "\n"
+    "The pattern is mapped to symbols by ``modulation``, held for ``sps``\n"
+    "samples each, and sent ONCE: one pass is ``len(pattern) * sps``\n"
+    "samples (half that for qpsk), and the output is silent after it.\n"
+    "Replaces any earlier pattern and resets the read position. A no-op\n"
+    "on any other type.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "pattern : array_like\n"
+    "    Bits, 0/1, coerced to uint8 and copied.\n"
+    "modulation : int, default 1\n"
+    "    0 = none (0/1 amplitude), 1 = bpsk (0 -> +1, 1 -> -1),\n"
+    "    2 = qpsk (Gray-coded +-1/sqrt(2), two bits a symbol).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If ``pattern`` is empty or ``modulation`` is not 0, 1 or 2.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.wfm import _SynthEngine\n"
+    ">>> s = _SynthEngine(type='bits', sps=1, snr=100.0)\n"
+    ">>> s.set_bits([0, 1, 1, 0])\n"
+    ">>> s.steps(6).real.tolist()\n"
+    "[1.0, -1.0, -1.0, 1.0, 0.0, 0.0]\n" },
+  { "set_symbols", (PyCFunction)(void (*) (void))_SynthEngine_set_symbols,
+    METH_VARARGS,
+    "Attach a complex-symbol stream to a ``type='symbols'`` synth.\n"
+    "\n"
+    "Each element is the constellation point itself, with no bit mapping,\n"
+    "so any modulation is \"compute the symbols, pass them in\". The stream\n"
+    "is held for ``sps`` samples a symbol and cycled for as long as\n"
+    "``steps()`` asks, and is RRC-shaped once ``set_rrc()`` is active.\n"
+    "Replaces any earlier stream and resets the read position. A no-op on\n"
+    "any other type.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "symbols : array_like\n"
+    "    Complex symbols, coerced to complex64 and copied.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If ``symbols`` is empty.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.wfm import _SynthEngine\n"
+    ">>> s = _SynthEngine(type='symbols', sps=2, snr=100.0)\n"
+    ">>> s.set_symbols([1 + 1j, -1 - 1j])\n"
+    ">>> s.steps(6).tolist()\n"
+    "[(1+1j), (1+1j), (-1-1j), (-1-1j), (1+1j), (1+1j)]\n" },
+  { "set_dsss_chips",
+    (PyCFunction)(void (*) (void))_SynthEngine_set_dsss_chips, METH_O,
+    "Attach an already-assembled DSSS burst to a ``type='dsss'`` synth.\n"
+    "\n"
+    "One chip per element, BPSK-mapped (0 -> +1, 1 -> -1), held for\n"
+    "``sps`` samples a chip and sent once, then silence. Assemble the\n"
+    "burst from a frame description: the unspread preamble, then every\n"
+    "bit of a ``Frame``'s ``bits()`` spread by the data code. Replaces\n"
+    "any earlier burst and resets the read position. A no-op on any other\n"
+    "type.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "chips : array_like\n"
+    "    Chips, 0/1, coerced to uint8 and copied.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If ``chips`` is empty.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.wfm import _SynthEngine\n"
+    ">>> s = _SynthEngine(type='dsss', sps=2, snr=100.0)\n"
+    ">>> s.set_dsss_chips([0, 1, 1])\n"
+    ">>> s.steps(8).real.tolist()\n"
+    "[1.0, 1.0, -1.0, -1.0, -1.0, -1.0, 0.0, 0.0]\n" },
+  { "set_dsss_cont", (PyCFunction)(void (*) (void))_SynthEngine_set_dsss_cont,
+    METH_VARARGS | METH_KEYWORDS,
+    "Switch a ``type='dsss'`` synth to continuous asynchronous output.\n"
+    "\n"
+    "The spreading ``code`` repeats endlessly and the data rides on it at\n"
+    "``chips_per_symbol`` chips a symbol; a non-integer value is the\n"
+    "normal, asynchronous case. Chips are generated per sample, so the\n"
+    "stream has no length to pick. A no-op on any other type.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "code : array_like\n"
+    "    Spreading-code chips, 0/1, coerced to uint8 and copied.\n"
+    "chips_per_symbol : float\n"
+    "    ``chip_rate / symbol_rate``; at least 1.\n"
+    "data : {'none', 'prbs', 'bits'}, default 'prbs'\n"
+    "    The symbol source: ``'none'`` sends the pure code, ``'prbs'``\n"
+    "    the synth's seeded PN (a receiver regenerates it with\n"
+    "    ``doppler.wfm.PN``), ``'bits'`` the ``payload``, one bit a\n"
+    "    symbol, sent once and then silence.\n"
+    "payload : array_like, optional\n"
+    "    Payload bits, 0/1. Supplying it selects ``'bits'``.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If ``data`` is not one of the three, or the geometry is invalid:\n"
+    "    an empty code, ``chips_per_symbol < 1``, ``'bits'`` with no\n"
+    "    payload, or ``'prbs'`` with an invalid ``pn_length``.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.wfm import _SynthEngine\n"
+    ">>> s = _SynthEngine(type='dsss', sps=1, snr=100.0)\n"
+    ">>> s.set_dsss_cont([0, 1, 1], 3.0, data='bits', payload=[1, 0])\n"
+    ">>> s.steps(8).real.tolist()\n"
+    "[-1.0, 1.0, 1.0, 1.0, -1.0, -1.0, 0.0, 0.0]\n" },
+  { "set_dsss_window",
+    (PyCFunction)(void (*) (void))_SynthEngine_set_dsss_window,
+    METH_VARARGS | METH_KEYWORDS,
+    "Give the continuous DSSS stream a frame with a pure-code window.\n"
+    "\n"
+    "The frame is on the data clock: of every ``frame_symbols`` symbols,\n"
+    "the first ``code_only_symbols`` carry the pure code and no data, and\n"
+    "the rest carry the payload, running on across frames. The symbol\n"
+    "clock free-runs through the window, so a frame edge lands at no\n"
+    "particular chip phase. Configuration, not running state: ``reset()``\n"
+    "keeps it. The order against ``set_dsss_cont()`` does not matter. A\n"
+    "no-op on any other type.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "code_only_symbols : int\n"
+    "    Pure-code symbols opening each frame, at most ``frame_symbols``.\n"
+    "frame_symbols : int\n"
+    "    Frame length in symbols; 0 is no window at all.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If either count is negative, or ``code_only_symbols`` exceeds a\n"
+    "    non-zero ``frame_symbols``.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.wfm import _SynthEngine\n"
+    ">>> s = _SynthEngine(type='dsss', sps=1, snr=100.0)\n"
+    ">>> s.set_dsss_cont([0, 1, 1], 3.0, data='bits', payload=[1, 1])\n"
+    ">>> s.set_dsss_window(1, 2)\n"
+    ">>> s.steps(12).real.tolist()\n"
+    "[1.0, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, -1.0, -1.0, -1.0, 1.0, 1.0]\n" },
+  { "destroy", (PyCFunction)_SynthEngine_destroy, METH_NOARGS,
+    "Release the underlying C resources immediately.\n"
+    "\n"
+    "Ordinarily unnecessary: the resources are freed when the object is\n"
+    "garbage-collected. Call this to release them at a definite point\n"
+    "instead, or use the object as a context manager, which calls it on\n"
+    "exit.\n"
+    "\n"
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
+  { "__enter__", (PyCFunction)_SynthEngine_enter, METH_NOARGS,
+    "Enter a context manager, returning this object.\n"
+    "\n"
+    "Lets a _SynthEngine be used in a `with` statement so its C resources\n"
+    "are released deterministically on exit rather than at collection time.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "_SynthEngine\n"
+    "    This same object, not a copy.\n" },
+  { "__exit__", (PyCFunction)_SynthEngine_exit, METH_VARARGS,
+    "Exit a context manager, releasing the _SynthEngine.\n"
+    "\n"
+    "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
+    "raised inside the `with` body propagates normally; this never\n"
+    "suppresses one.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "exc_type : object | None\n"
+    "    Exception class, or None. Ignored.\n"
+    "exc : object | None\n"
+    "    Exception instance, or None. Ignored.\n"
+    "tb : object | None\n"
+    "    Traceback object, or None. Ignored.\n" },
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject _SynthEngineType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "wfmgen._SynthEngine",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.wfm._SynthEngine",
   .tp_basicsize                           = sizeof (_SynthEngineObject),
   .tp_dealloc                             = (destructor)_SynthEngine_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
   .tp_doc
   = "Allocate and configure a waveform synthesiser. The synthesiser combines\n"
     "a local oscillator (LO), optional AWGN, and an optional PN LFSR into a\n"
-    "single streaming source. One call to dp_wfm_synth_step() or "
-    "dp_wfm_synth_steps()\n"
-    "advances all sub-components in lock-step. SNR >= WFM_SYNTH_SNR_CLEAN "
-    "(100\n"
-    "dB) skips AWGN entirely — clean waveforms pay no noise overhead. When\n"
-    "``snr_mode`` is \"auto\" the library picks the natural reference: Es/No "
-    "for\n"
-    "modulated types (BPSK, QPSK), fs-band SNR for tone/noise/PN.\n"
+    "single streaming source. One call to dp_wfm_synth_step() or\n"
+    "dp_wfm_synth_steps() advances all sub-components in lock-step. SNR >=\n"
+    "WFM_SYNTH_SNR_CLEAN (100 dB) skips AWGN entirely — clean waveforms pay "
+    "no\n"
+    "noise overhead. When ``snr_mode`` is \"auto\" the library picks the "
+    "natural\n"
+    "reference: Es/No for modulated types (BPSK, QPSK), fs-band SNR for\n"
+    "tone/noise/PN.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -991,11 +901,12 @@ static PyTypeObject _SynthEngineType = {
     "With\n"
     "    ``freq`` as the start, the instantaneous frequency sweeps linearly "
     "from\n"
-    "    ``freq`` to ``f_end`` over the span set by "
-    "dp_wfm_synth_set_chirp_span(),\n"
-    "    then holds at ``f_end``. Until a span is pinned the slope is 0 (a "
-    "CW\n"
-    "    tone at ``freq``). ``f_end < freq`` is a down-chirp. Default 0.0.\n"
+    "    ``freq`` to ``f_end`` over the span set by\n"
+    "    dp_wfm_synth_set_chirp_span(), then holds at ``f_end``. Until a span "
+    "is\n"
+    "    pinned the slope is 0 (a CW tone at ``freq``). ``f_end < freq`` is "
+    "a\n"
+    "    down-chirp. Default 0.0.\n"
     "\n"
     "Examples\n"
     "--------\n"

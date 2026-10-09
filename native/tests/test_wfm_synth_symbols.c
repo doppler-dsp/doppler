@@ -23,14 +23,9 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_wfm_synth[] = {
+    (jm_any_fn)void,
     (jm_any_fn)dp_wfm_synth_create,
     (jm_any_fn)dp_wfm_synth_set_chirp_span,
-    (jm_any_fn)dp_wfm_synth_set_bits,
-    (jm_any_fn)dp_wfm_synth_set_dsss_chips,
-    (jm_any_fn)dp_wfm_synth_set_dsss_cont,
-    (jm_any_fn)dp_wfm_synth_set_dsss_window,
-    (jm_any_fn)dp_wfm_synth_set_symbols,
-    (jm_any_fn)dp_wfm_synth_set_rrc,
     (jm_any_fn)dp_wfm_synth_destroy,
     (jm_any_fn)dp_wfm_synth_reset,
     (jm_any_fn)dp_wfm_synth_steps,

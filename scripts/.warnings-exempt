@@ -22,4 +22,3 @@ native/src/stream/stream_ext.c
 native/src/telemetry/telemetry_ext_capture.c
 native/src/telemetry/telemetry_ext_dp_tlm.c
 native/src/telemetry/telemetry_ext_dp_tlm_capture.c
-native/src/wfm/wfm_ext_wfm_synth.c

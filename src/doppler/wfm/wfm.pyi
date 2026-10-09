@@ -508,6 +508,209 @@ class _SynthEngine:
         blob : bytes
             A `get_state()` blob from this type, exactly `state_bytes()` long.
         """
+
+    def set_rrc(self, taps: npt.ArrayLike, /) -> None:
+        """Shape the symbols with a root-raised-cosine pulse.
+
+        Replaces the default rectangular hold: the symbol-rate impulse train
+        is filtered by ``taps``, a real FIR, typically
+        ``rrc_taps(beta, sps, span)``. The taps are scaled by ``sqrt(sps)``
+        inside, for unit transmit power, so pass them raw. Applies to the
+        types with a symbol stream (``pn``, ``bpsk``, ``qpsk``, ``bits``,
+        ``symbols``, ``dsss``) and is a no-op for ``tone``, ``noise`` and
+        ``chirp``. Replaces any earlier shaper and clears its delay line.
+
+        Parameters
+        ----------
+        taps : array_like
+            Real FIR taps, coerced to float32 and copied.
+
+        Raises
+        ------
+        ValueError
+            If ``taps`` is empty.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import _SynthEngine, rrc_taps
+        >>> s = _SynthEngine(type='bpsk', sps=4, seed=1, snr=100.0)
+        >>> s.set_rrc(rrc_taps(0.35, 4, 4))
+        >>> y = s.steps(8192)
+        >>> round(float(np.mean(np.abs(y) ** 2)), 1)  # unit power
+        1.0
+        """
+
+    def set_bits(self, pattern: npt.ArrayLike, modulation: int = 1, /) -> None:
+        """Attach a bit pattern to a ``type='bits'`` synth.
+
+        The pattern is mapped to symbols by ``modulation``, held for ``sps``
+        samples each, and sent ONCE: one pass is ``len(pattern) * sps``
+        samples (half that for qpsk), and the output is silent after it.
+        Replaces any earlier pattern and resets the read position. A no-op
+        on any other type.
+
+        Parameters
+        ----------
+        pattern : array_like
+            Bits, 0/1, coerced to uint8 and copied.
+        modulation : int, default 1
+            0 = none (0/1 amplitude), 1 = bpsk (0 -> +1, 1 -> -1),
+            2 = qpsk (Gray-coded +-1/sqrt(2), two bits a symbol).
+
+        Raises
+        ------
+        ValueError
+            If ``pattern`` is empty or ``modulation`` is not 0, 1 or 2.
+
+        Examples
+        --------
+        >>> from doppler.wfm import _SynthEngine
+        >>> s = _SynthEngine(type='bits', sps=1, snr=100.0)
+        >>> s.set_bits([0, 1, 1, 0])
+        >>> s.steps(6).real.tolist()
+        [1.0, -1.0, -1.0, 1.0, 0.0, 0.0]
+        """
+
+    def set_symbols(self, symbols: npt.ArrayLike, /) -> None:
+        """Attach a complex-symbol stream to a ``type='symbols'`` synth.
+
+        Each element is the constellation point itself, with no bit mapping,
+        so any modulation is "compute the symbols, pass them in". The stream
+        is held for ``sps`` samples a symbol and cycled for as long as
+        ``steps()`` asks, and is RRC-shaped once ``set_rrc()`` is active.
+        Replaces any earlier stream and resets the read position. A no-op on
+        any other type.
+
+        Parameters
+        ----------
+        symbols : array_like
+            Complex symbols, coerced to complex64 and copied.
+
+        Raises
+        ------
+        ValueError
+            If ``symbols`` is empty.
+
+        Examples
+        --------
+        >>> from doppler.wfm import _SynthEngine
+        >>> s = _SynthEngine(type='symbols', sps=2, snr=100.0)
+        >>> s.set_symbols([1 + 1j, -1 - 1j])
+        >>> s.steps(6).tolist()
+        [(1+1j), (1+1j), (-1-1j), (-1-1j), (1+1j), (1+1j)]
+        """
+
+    def set_dsss_chips(self, chips: npt.ArrayLike, /) -> None:
+        """Attach an already-assembled DSSS burst to a ``type='dsss'`` synth.
+
+        One chip per element, BPSK-mapped (0 -> +1, 1 -> -1), held for
+        ``sps`` samples a chip and sent once, then silence. Assemble the
+        burst from a frame description: the unspread preamble, then every
+        bit of a ``Frame``'s ``bits()`` spread by the data code. Replaces
+        any earlier burst and resets the read position. A no-op on any other
+        type.
+
+        Parameters
+        ----------
+        chips : array_like
+            Chips, 0/1, coerced to uint8 and copied.
+
+        Raises
+        ------
+        ValueError
+            If ``chips`` is empty.
+
+        Examples
+        --------
+        >>> from doppler.wfm import _SynthEngine
+        >>> s = _SynthEngine(type='dsss', sps=2, snr=100.0)
+        >>> s.set_dsss_chips([0, 1, 1])
+        >>> s.steps(8).real.tolist()
+        [1.0, 1.0, -1.0, -1.0, -1.0, -1.0, 0.0, 0.0]
+        """
+
+    def set_dsss_cont(
+        self,
+        code: npt.ArrayLike,
+        chips_per_symbol: float,
+        data: Literal['none', 'prbs', 'bits'] = 'prbs',
+        payload: npt.ArrayLike | None = None,
+    ) -> None:
+        """Switch a ``type='dsss'`` synth to continuous asynchronous output.
+
+        The spreading ``code`` repeats endlessly and the data rides on it at
+        ``chips_per_symbol`` chips a symbol; a non-integer value is the
+        normal, asynchronous case. Chips are generated per sample, so the
+        stream has no length to pick. A no-op on any other type.
+
+        Parameters
+        ----------
+        code : array_like
+            Spreading-code chips, 0/1, coerced to uint8 and copied.
+        chips_per_symbol : float
+            ``chip_rate / symbol_rate``; at least 1.
+        data : {'none', 'prbs', 'bits'}, default 'prbs'
+            The symbol source: ``'none'`` sends the pure code, ``'prbs'``
+            the synth's seeded PN (a receiver regenerates it with
+            ``doppler.wfm.PN``), ``'bits'`` the ``payload``, one bit a
+            symbol, sent once and then silence.
+        payload : array_like, optional
+            Payload bits, 0/1. Supplying it selects ``'bits'``.
+
+        Raises
+        ------
+        ValueError
+            If ``data`` is not one of the three, or the geometry is invalid:
+            an empty code, ``chips_per_symbol < 1``, ``'bits'`` with no
+            payload, or ``'prbs'`` with an invalid ``pn_length``.
+
+        Examples
+        --------
+        >>> from doppler.wfm import _SynthEngine
+        >>> s = _SynthEngine(type='dsss', sps=1, snr=100.0)
+        >>> s.set_dsss_cont([0, 1, 1], 3.0, data='bits', payload=[1, 0])
+        >>> s.steps(8).real.tolist()
+        [-1.0, 1.0, 1.0, 1.0, -1.0, -1.0, 0.0, 0.0]
+        """
+
+    def set_dsss_window(
+        self,
+        code_only_symbols: int,
+        frame_symbols: int,
+    ) -> None:
+        """Give the continuous DSSS stream a frame with a pure-code window.
+
+        The frame is on the data clock: of every ``frame_symbols`` symbols,
+        the first ``code_only_symbols`` carry the pure code and no data, and
+        the rest carry the payload, running on across frames. The symbol
+        clock free-runs through the window, so a frame edge lands at no
+        particular chip phase. Configuration, not running state: ``reset()``
+        keeps it. The order against ``set_dsss_cont()`` does not matter. A
+        no-op on any other type.
+
+        Parameters
+        ----------
+        code_only_symbols : int
+            Pure-code symbols opening each frame, at most ``frame_symbols``.
+        frame_symbols : int
+            Frame length in symbols; 0 is no window at all.
+
+        Raises
+        ------
+        ValueError
+            If either count is negative, or ``code_only_symbols`` exceeds a
+            non-zero ``frame_symbols``.
+
+        Examples
+        --------
+        >>> from doppler.wfm import _SynthEngine
+        >>> s = _SynthEngine(type='dsss', sps=1, snr=100.0)
+        >>> s.set_dsss_cont([0, 1, 1], 3.0, data='bits', payload=[1, 1])
+        >>> s.set_dsss_window(1, 2)
+        >>> s.steps(12).real.tolist()
+        [1.0, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, -1.0, -1.0, -1.0, 1.0, 1.0]
+        """
     def get_wtype(self) -> int:
         """Return the active waveform type discriminant. Maps to the
         WFM_SYNTH_* enum: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk. Use this to

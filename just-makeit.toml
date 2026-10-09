@@ -3428,7 +3428,7 @@ type = "double"
 
 [[module.ber.functions]]
 name = "ber_esn0_db_for_ser"
-doc = "Es/N0 (dB) at which the coherent bound equals `ser`. How an implementation loss is quoted honestly: convert the MEASURED rate to the Es/N0 theory would need to produce it, and subtract. A loss in dB is comparable across M and across operating points; a ratio of rates is not."
+doc = "Es/N0 (dB) at which the coherent bound equals `ser`. How an implementation loss is quoted honestly: convert the MEASURED rate to the Es/N0 theory would need to produce it, and subtract. A loss in dB is comparable across M and across operating points; a ratio of rates is not. Returns NAN when no Es/N0 from -10 to 40 dB produces the rate: ser <= 0, ser above the bound at -10 dB, or ser below the bound at 40 dB. Those are NOT clamped to -10 or 40 dB, so test with isnan() and write gates as !(loss <= limit), since a loss > limit comparison is false for NaN."
 return_type = "double"
 
 [[module.ber.functions.params]]

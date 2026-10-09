@@ -15,10 +15,12 @@ double
 dp_ber_esn0_db_for_ser (int m, double ser)
 {
   double lo = -10.0, hi = 40.0;
-  if (!(ser > 0.0) || ser >= dp_ber_theory_ser (m, pow (10.0, lo / 10.0)))
-    return lo;
-  if (ser <= dp_ber_theory_ser (m, pow (10.0, hi / 10.0)))
-    return hi;
+  /* Outside the bracket there is no Es/N0 in [-10, 40] dB that produces the
+     rate, so there is no answer to clamp to: NaN, never a bracket end. The
+     endpoints themselves are in-bracket and go through the bisection. */
+  if (!(ser > 0.0) || ser > dp_ber_theory_ser (m, pow (10.0, lo / 10.0))
+      || ser < dp_ber_theory_ser (m, pow (10.0, hi / 10.0)))
+    return NAN;
   for (int i = 0; i < 200; i++)
     {
       double mid = 0.5 * (lo + hi);

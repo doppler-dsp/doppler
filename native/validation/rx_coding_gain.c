@@ -761,7 +761,9 @@ main (int argc, char **argv)
 
            The 4.0 dB here is still the receiver's real bound at this
            geometry, which is what this gate defends. */
-        if (r->gain_db < 4.0)
+        /* !(>=) not (<): a NaN gain (payload BER upper bound of 1, outside
+           the bracket) must FAIL, not pass. */
+        if (!(r->gain_db >= 4.0))
           {
             printf ("rx_coding_gain: FAIL — gain bound %.1f dB < 4.0 dB\n",
                     r->gain_db);

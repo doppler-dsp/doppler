@@ -189,7 +189,17 @@ double dp_ber_esn0_db_for_ser (
 How an implementation loss is quoted honestly: convert the MEASURED rate to the Es/N0 theory would need to produce it, and subtract. A loss in dB is comparable across M and across operating points; a ratio of rates is not.
 
 
-Bisects [**dp\_ber\_theory\_ser()**](ber__core_8h.md#function-dp_ber_theory_ser), which is monotone decreasing, over -10 to 40 dB and clamps to that range: 40.0 for a rate below the bound at 40 dB, -10.0 for one at or above the bound at -10 dB. A rate that is not positive also returns -10.0. 
+Bisects [**dp\_ber\_theory\_ser()**](ber__core_8h.md#function-dp_ber_theory_ser), which is monotone decreasing, over -10 to 40 dB. The endpoints are in-bracket: a rate equal to the bound at either end returns that end.
+
+
+
+
+**Returns:**
+
+The Es/N0 in dB, or NAN when no Es/N0 from -10 to 40 dB produces the rate: `ser <= 0` (a zero SER is a perfect link, which no finite Es/N0 yields), `ser` above the bound at -10 dB (a rate the link cannot reach even at -10 dB), and `ser` below the bound at 40 dB. Those are NOT clamped to -10 or 40: a bracket value reads like a measurement, so an out-of-range rate would fabricate an answer. Test for it with isnan(), and write gates as `!(loss <= limit)`: a `loss > limit` comparison is false for NaN and passes silently.
+
+
+`dp_ber_esn0_db_for_ser (2, 0.0)` is NAN; `dp_ber_esn0_db_for_ser (2, 1e-3)` is 6.79 dB, the BPSK SER=1e-3 anchor. 
 
 
         

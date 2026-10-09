@@ -12,6 +12,7 @@
 - [Tracking a Population of DSSS Emitters](async-dsss-pool.md) — `AsyncDsssPool`: one searcher, a pool of cell receivers on its timing, the assigned table and the event log behind one `push()`
 - [Lock Detection Across doppler.track](lock-detection.md) — which `configure_lock` to call, and why, for every tracking loop
 - [Power Spectra & Measurements](spectral-psd.md) — PSD estimation, tone and NPR measurement
+- [Streaming Spectrograms](spectrogram.md) — any-size chunks in, every row of a waterfall out, the same rows however the stream is cut (C)
 - [Real-Time Pacing & Timestamping](timing.md) — sample-accurate playback timing
 - [Fixed-Point Arithmetic](fixed-point.md) — Q15 / UQ15 types and quantization
 - [Checkpoint & Resume](state-serialization.md) — bit-exact `get_state`/`set_state`, composed receivers, and elastic pod hand-off

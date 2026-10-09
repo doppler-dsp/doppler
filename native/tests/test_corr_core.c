@@ -3,7 +3,9 @@
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define TOL 1e-4f /* CF32 round-trip tolerance */
@@ -242,6 +244,43 @@ main (void)
     DP_CHECK (b->count == a->count && b->accum[0] == a->accum[0]);
     dp_corr_destroy (a);
     dp_corr_destroy (b);
+  }
+
+  /* ── n_in must equal n: any other length is REFUSED (#1925) ──────────
+   * The forward FFT reads state->n samples whatever n_in was: a shorter
+   * array was a heap over-read (ASan sees it here, each array is exactly
+   * the wrong length), a longer one was silently truncated. A refusal also
+   * must not count toward the dwell -- with dwell 2, refused calls between
+   * two good frames must leave the dump on the second good frame. */
+  {
+    float _Complex ref[16];
+    for (size_t i = 0; i < N; i++)
+      ref[i] = (i == 0) ? 1.0f : 0.0f;
+    dp_corr_state_t *obj = dp_corr_create (ref, N, 2, 1, 0);
+    DP_CHECK (obj != NULL);
+    float _Complex good[16], out[16];
+    for (size_t i = 0; i < N; i++)
+      good[i] = 1.0f;
+    for (size_t i = 0; i < N; i++)
+      out[i] = CMPLXF (-7.0f, -7.0f);
+
+    DP_CHECK (dp_corr_execute (obj, good, N, out, N) == 0); /* frame 1 */
+    const size_t bad[] = { 0, 1, N - 1, N + 1, 2 * N };
+    for (size_t k = 0; k < sizeof bad / sizeof *bad; k++)
+      {
+        float _Complex *x
+            = (float _Complex *)calloc (bad[k] ? bad[k] : 1, sizeof *x);
+        DP_CHECK (dp_corr_execute (obj, x, bad[k], out, N) == SIZE_MAX);
+        DP_CHECK (obj->count == 1); /* not counted */
+        free (x);
+      }
+    int untouched = 1;
+    for (size_t i = 0; i < N; i++)
+      untouched &= crealf (out[i]) == -7.0f;
+    DP_CHECK (untouched);
+    DP_CHECK (dp_corr_execute (obj, good, N, out, N) == N); /* frame 2 dumps */
+    DP_CHECK (dp_nearf (crealf (out[0]), 2.0f, 1e-5f));
+    dp_corr_destroy (obj);
   }
 
   DP_TEST_END ("test_corr_core");

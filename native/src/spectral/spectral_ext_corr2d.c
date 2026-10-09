@@ -165,6 +165,14 @@ Corr2DObj_execute (Corr2DObject *self, PyObject *args, PyObject *kwds)
           self->handle, (const float _Complex *)PyArray_DATA (in_arr),
           (size_t)n, (float _Complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
+      if (n_out == (SIZE_MAX))
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_ValueError,
+                           "input length is not ny*nx; execute takes exactly "
+                           "one frame");
+          return NULL;
+        }
       if ((size_t)(n_out) > (size_t)(_cap))
         {
           Py_DECREF (out_arr);
@@ -221,6 +229,14 @@ Corr2DObj_execute (Corr2DObject *self, PyObject *args, PyObject *kwds)
       self->handle, (const float _Complex *)PyArray_DATA (in_arr), (size_t)n,
       _d0, _cap);
   Py_DECREF (in_arr);
+  if (n_out == (SIZE_MAX))
+    {
+      Py_DECREF (arr0);
+      PyErr_SetString (PyExc_ValueError,
+                       "input length is not ny*nx; execute takes exactly one "
+                       "frame");
+      return NULL;
+    }
   if ((size_t)(n_out) > (size_t)(_cap))
     {
       Py_DECREF (arr0);
@@ -476,8 +492,17 @@ static PyMethodDef Corr2DObj_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[np.complex64]\n"
-    "    ny*nx on a dump (or max_out if smaller), 0 otherwise (None in\n"
+    "    ny*nx on a dump (or max_out if smaller), 0 otherwise If n_in is not\n"
+    "    the required length the call is REFUSED with nothing read, written\n"
+    "    or counted: SIZE_MAX in C, ValueError in Python (#1925). (None in\n"
     "    Python).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns ``SIZE_MAX``, its refusal value, in place of\n"
+    "    a count. The exception message is ``input length is not ny*nx;\n"
+    "    execute takes exactly one frame``.\n"
     "\n"
     "Examples\n"
     "--------\n"

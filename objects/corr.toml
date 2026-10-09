@@ -41,6 +41,11 @@ variable_output = true
 # max_out truncates the emission instead of overrunning `out`.
 pass_capacity = true
 none_on_empty = true
+# n_in must equal the frame length; the C kernel REFUSES any other
+# with SIZE_MAX (nothing read, written or counted) and jm raises (#1925).
+error_sentinel = "SIZE_MAX"
+error = "ValueError"
+error_message = "input length is not the frame length (Corr.n); execute takes exactly one frame"
 
 [[corr.properties]]
 name = "n"

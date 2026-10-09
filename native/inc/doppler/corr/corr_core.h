@@ -155,12 +155,15 @@ size_t dp_corr_execute_max_out(dp_corr_state_t *state);
  *
  * @param state  Allocated correlator (non-NULL).
  * @param in     Input frame, CF32, length state->n.
- * @param n_in   Number of input samples; must equal state->n.
+ * @param n_in   Number of input samples; must equal state->n; else REFUSED.
  * @param out    Output buffer for the correlation map (CF32, length n_out);
  *               written only on a dump call.
  * @param max_out Capacity of @p out in elements. Emission stops there, so the
  *               return value is the number actually written.
  * @return n_out on a dump call (or max_out if smaller), 0 otherwise
+ *          If @p n_in is not the required length the call is REFUSED with
+ *          nothing read, written or counted: SIZE_MAX in C, ValueError
+ *          in Python (#1925).
  *         (None in Python).
  * @code
  * >>> from doppler.spectral import Corr

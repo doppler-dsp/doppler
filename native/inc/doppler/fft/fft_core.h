@@ -82,12 +82,15 @@ extern "C"
    *
    * @param state  Allocated FFT engine (non-NULL).
    * @param in     Input buffer of length state->n (CF64, row-major).
-   * @param n_in   Number of input samples; must equal state->n.
+   * @param n_in   Number of input samples; must equal state->n; else REFUSED.
    * @param out    Output buffer of length >= state->n (CF64, caller-allocated).
    * @param max_out Capacity of @p out in samples.  Normally state->n; if it
    *                is smaller the first max_out bins are written and the
    *                rest of the transform is discarded.
    * @return min(state->n, max_out) bins.
+   *          If @p n_in is not the required length the call is REFUSED with
+   *          nothing read, written or counted: SIZE_MAX in C, ValueError
+   *          in Python (#1925).
    * @code
    * >>> from doppler.spectral import FFT
    * >>> import numpy as np
@@ -111,12 +114,15 @@ extern "C"
    *
    * @param state  Allocated FFT engine (non-NULL).
    * @param in     Input buffer of length state->n (CF32, row-major).
-   * @param n_in   Number of input samples; must equal state->n.
+   * @param n_in   Number of input samples; must equal state->n; else REFUSED.
    * @param out    Output buffer of length >= state->n (CF32, caller-allocated).
    * @param max_out Capacity of @p out in samples.  Normally state->n; if it
    *                is smaller the first max_out bins are written and the
    *                rest of the transform is discarded.
    * @return min(state->n, max_out) bins.
+   *          If @p n_in is not the required length the call is REFUSED with
+   *          nothing read, written or counted: SIZE_MAX in C, ValueError
+   *          in Python (#1925).
    * @code
    * >>> from doppler.spectral import FFT
    * >>> import numpy as np
@@ -141,12 +147,15 @@ extern "C"
    *
    * @param state  Allocated FFT engine (non-NULL).
    * @param in     Source buffer, state->n CF64 samples; not modified.
-   * @param n_in   Number of input samples; must equal state->n.
+   * @param n_in   Number of input samples; must equal state->n; else REFUSED.
    * @param out    Destination buffer, length >= state->n; must not alias in.
    * @param max_out Capacity of @p out in samples.  Normally state->n; if it
    *                is smaller the copy-and-transform happens in scratch and
    *                only the first max_out bins reach @p out.
    * @return min(state->n, max_out) bins.
+   *          If @p n_in is not the required length the call is REFUSED with
+   *          nothing read, written or counted: SIZE_MAX in C, ValueError
+   *          in Python (#1925).
    * @code
    * >>> from doppler.spectral import FFT
    * >>> import numpy as np
@@ -171,12 +180,15 @@ extern "C"
    *
    * @param state  Allocated FFT engine (non-NULL).
    * @param in     Source buffer, state->n CF32 samples; not modified.
-   * @param n_in   Number of input samples; must equal state->n.
+   * @param n_in   Number of input samples; must equal state->n; else REFUSED.
    * @param out    Destination buffer, length >= state->n; must not alias in.
    * @param max_out Capacity of @p out in samples.  Normally state->n; if it
    *                is smaller the copy-and-transform happens in scratch and
    *                only the first max_out bins reach @p out.
    * @return min(state->n, max_out) bins.
+   *          If @p n_in is not the required length the call is REFUSED with
+   *          nothing read, written or counted: SIZE_MAX in C, ValueError
+   *          in Python (#1925).
    * @code
    * >>> from doppler.spectral import FFT
    * >>> import numpy as np
@@ -204,9 +216,12 @@ extern "C"
    *
    * @param state  Allocated FFT engine (non-NULL).
    * @param in     Interleaved int16 I/Q, 2*state->n samples.
-   * @param n_in   Number of complex samples; must equal state->n.
+   * @param n_in   Number of complex samples; must equal state->n; else REFUSED.
    * @param out    Output buffer of length >= state->n (CF32, caller-allocated).
    * @return n (number of complex samples written).
+   *          If @p n_in is not the required length the call is REFUSED with
+   *          nothing read, written or counted: SIZE_MAX in C, ValueError
+   *          in Python (#1925).
    * @code
    * >>> import numpy as np
    * >>> from doppler.spectral import FFT
@@ -228,9 +243,12 @@ extern "C"
    *
    * @param state  Allocated FFT engine (non-NULL).
    * @param in     Interleaved int8 I/Q, 2*state->n samples.
-   * @param n_in   Number of complex samples; must equal state->n.
+   * @param n_in   Number of complex samples; must equal state->n; else REFUSED.
    * @param out    Output buffer of length >= state->n (CF32, caller-allocated).
    * @return n (number of complex samples written).
+   *          If @p n_in is not the required length the call is REFUSED with
+   *          nothing read, written or counted: SIZE_MAX in C, ValueError
+   *          in Python (#1925).
    * @code
    * >>> import numpy as np
    * >>> from doppler.spectral import FFT

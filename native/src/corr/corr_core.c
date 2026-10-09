@@ -1,6 +1,7 @@
 #include "doppler/corr/corr_core.h"
 
 #include "doppler/clib_common.h"
+#include <stdint.h>
 #include <string.h>
 
 /* 1-D spectral zero-pad: q (length m >= n) is the band-limited (Dirichlet)
@@ -150,7 +151,13 @@ size_t
 dp_corr_execute (dp_corr_state_t *state, const float _Complex *in, size_t n_in,
                  float _Complex *out, size_t max_out)
 {
-  (void)n_in; /* must equal state->n; caller's responsibility */
+  /* n_in must equal state->n, and it is the only thing that says how long
+   * the caller's array is: the forward FFT reads state->n samples whatever
+   * n_in was. A shorter array was a heap over-read, a longer one was
+   * silently truncated (#1925). Refuse before touching the accumulator, so a
+   * refused call is not counted toward the dwell. */
+  if (n_in != state->n)
+    return SIZE_MAX;
 
   /* Frequency-domain coherent accumulation: accumulate the per-frame cross-
    * spectrum  P_k = FFT(x_k) · conj(FFT(ref))  and invert once on dump,

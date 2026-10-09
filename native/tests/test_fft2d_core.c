@@ -2,7 +2,9 @@
 #include "doppler/fft2d/fft2d_core.h"
 #include "dp_test.h"
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define TOL64 1e-9
@@ -176,6 +178,44 @@ main (void)
     for (size_t k = 0; k < N; k++)
       DP_CHECK (ceq64 (part[k], CANARY));
 
+    dp_fft2d_destroy (obj);
+  }
+
+  /* ── n_in must equal ny*nx: any other length is REFUSED (#1925) ──────
+   * Heap arrays of exactly the wrong length (ASan sees a regression) and a
+   * canary-filled out that a refusal must not touch; see test_fft_core.c. */
+  {
+    const size_t      bad[] = { 0, 1, N - 1, N + 1, 2 * N };
+    dp_fft2d_state_t *obj   = dp_fft2d_create (NY, NX, -1, 1);
+    DP_CHECK (obj != NULL);
+    for (size_t k = 0; k < sizeof bad / sizeof *bad; k++)
+      {
+        const size_t     m  = bad[k];
+        float _Complex  *in = (float _Complex *)calloc (m ? m : 1, sizeof *in);
+        double _Complex *in64
+            = (double _Complex *)calloc (m ? m : 1, sizeof *in64);
+        float _Complex out[2 * 64 + 1];
+        double _Complex out64[2 * 64 + 1];
+        for (size_t i = 0; i < 2 * N + 1; i++)
+          out[i] = out64[i] = CMPLXF (-7.0f, -7.0f);
+        DP_CHECK (dp_fft2d_execute_cf32 (obj, in, m, out, N) == SIZE_MAX);
+        DP_CHECK (dp_fft2d_execute_cf64 (obj, in64, m, out64, N) == SIZE_MAX);
+        DP_CHECK (dp_fft2d_execute_inplace_cf32 (obj, in, m, out, N)
+                  == SIZE_MAX);
+        DP_CHECK (dp_fft2d_execute_inplace_cf64 (obj, in64, m, out64, N)
+                  == SIZE_MAX);
+        int untouched = 1;
+        for (size_t i = 0; i < 2 * N + 1; i++)
+          untouched &= crealf (out[i]) == -7.0f && creal (out64[i]) == -7.0;
+        DP_CHECK (untouched);
+        free (in);
+        free (in64);
+      }
+    float _Complex x[64], y[64];
+    for (size_t i = 0; i < N; i++)
+      x[i] = (i == 0) ? 1.0f : 0.0f;
+    DP_CHECK (dp_fft2d_execute_cf32 (obj, x, N, y, N) == N);
+    DP_CHECK (dp_nearf (crealf (y[5]), 1.0f, 1e-6f));
     dp_fft2d_destroy (obj);
   }
 

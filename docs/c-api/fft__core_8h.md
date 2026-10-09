@@ -221,7 +221,7 @@ size_t dp_fft_execute_cf32 (
 
 * `state` Allocated FFT engine (non-NULL). 
 * `in` Input buffer of length state-&gt;n (CF32, row-major). 
-* `n_in` Number of input samples; must equal state-&gt;n. 
+* `n_in` Number of input samples; must equal state-&gt;n; else REFUSED. 
 * `out` Output buffer of length &gt;= state-&gt;n (CF32, caller-allocated). 
 * `max_out` Capacity of `out` in samples. Normally state-&gt;n; if it is smaller the first max\_out bins are written and the rest of the transform is discarded. 
 
@@ -229,7 +229,7 @@ size_t dp_fft_execute_cf32 (
 
 **Returns:**
 
-min(state-&gt;n, max\_out) bins. 
+min(state-&gt;n, max\_out) bins. If `n_in` is not the required length the call is REFUSED with nothing read, written or counted: SIZE\_MAX in C, ValueError in Python (#1925). 
 ```C++
 >>> from doppler.spectral import FFT
 >>> import numpy as np
@@ -288,7 +288,7 @@ size_t dp_fft_execute_cf64 (
 
 * `state` Allocated FFT engine (non-NULL). 
 * `in` Input buffer of length state-&gt;n (CF64, row-major). 
-* `n_in` Number of input samples; must equal state-&gt;n. 
+* `n_in` Number of input samples; must equal state-&gt;n; else REFUSED. 
 * `out` Output buffer of length &gt;= state-&gt;n (CF64, caller-allocated). 
 * `max_out` Capacity of `out` in samples. Normally state-&gt;n; if it is smaller the first max\_out bins are written and the rest of the transform is discarded. 
 
@@ -296,7 +296,7 @@ size_t dp_fft_execute_cf64 (
 
 **Returns:**
 
-min(state-&gt;n, max\_out) bins. 
+min(state-&gt;n, max\_out) bins. If `n_in` is not the required length the call is REFUSED with nothing read, written or counted: SIZE\_MAX in C, ValueError in Python (#1925). 
 ```C++
 >>> from doppler.spectral import FFT
 >>> import numpy as np
@@ -354,14 +354,14 @@ size_t dp_fft_execute_ci16 (
 
 * `state` Allocated FFT engine (non-NULL). 
 * `in` Interleaved int16 I/Q, 2\*state-&gt;n samples. 
-* `n_in` Number of complex samples; must equal state-&gt;n. 
+* `n_in` Number of complex samples; must equal state-&gt;n; else REFUSED. 
 * `out` Output buffer of length &gt;= state-&gt;n (CF32, caller-allocated). 
 
 
 
 **Returns:**
 
-n (number of complex samples written). 
+n (number of complex samples written). If `n_in` is not the required length the call is REFUSED with nothing read, written or counted: SIZE\_MAX in C, ValueError in Python (#1925). 
 ```C++
 >>> import numpy as np
 >>> from doppler.spectral import FFT
@@ -419,14 +419,14 @@ size_t dp_fft_execute_ci8 (
 
 * `state` Allocated FFT engine (non-NULL). 
 * `in` Interleaved int8 I/Q, 2\*state-&gt;n samples. 
-* `n_in` Number of complex samples; must equal state-&gt;n. 
+* `n_in` Number of complex samples; must equal state-&gt;n; else REFUSED. 
 * `out` Output buffer of length &gt;= state-&gt;n (CF32, caller-allocated). 
 
 
 
 **Returns:**
 
-n (number of complex samples written). 
+n (number of complex samples written). If `n_in` is not the required length the call is REFUSED with nothing read, written or counted: SIZE\_MAX in C, ValueError in Python (#1925). 
 ```C++
 >>> import numpy as np
 >>> from doppler.spectral import FFT
@@ -485,7 +485,7 @@ size_t dp_fft_execute_inplace_cf32 (
 
 * `state` Allocated FFT engine (non-NULL). 
 * `in` Source buffer, state-&gt;n CF32 samples; not modified. 
-* `n_in` Number of input samples; must equal state-&gt;n. 
+* `n_in` Number of input samples; must equal state-&gt;n; else REFUSED. 
 * `out` Destination buffer, length &gt;= state-&gt;n; must not alias in. 
 * `max_out` Capacity of `out` in samples. Normally state-&gt;n; if it is smaller the copy-and-transform happens in scratch and only the first max\_out bins reach `out`. 
 
@@ -493,7 +493,7 @@ size_t dp_fft_execute_inplace_cf32 (
 
 **Returns:**
 
-min(state-&gt;n, max\_out) bins. 
+min(state-&gt;n, max\_out) bins. If `n_in` is not the required length the call is REFUSED with nothing read, written or counted: SIZE\_MAX in C, ValueError in Python (#1925). 
 ```C++
 >>> from doppler.spectral import FFT
 >>> import numpy as np
@@ -552,7 +552,7 @@ size_t dp_fft_execute_inplace_cf64 (
 
 * `state` Allocated FFT engine (non-NULL). 
 * `in` Source buffer, state-&gt;n CF64 samples; not modified. 
-* `n_in` Number of input samples; must equal state-&gt;n. 
+* `n_in` Number of input samples; must equal state-&gt;n; else REFUSED. 
 * `out` Destination buffer, length &gt;= state-&gt;n; must not alias in. 
 * `max_out` Capacity of `out` in samples. Normally state-&gt;n; if it is smaller the copy-and-transform happens in scratch and only the first max\_out bins reach `out`. 
 
@@ -560,7 +560,7 @@ size_t dp_fft_execute_inplace_cf64 (
 
 **Returns:**
 
-min(state-&gt;n, max\_out) bins. 
+min(state-&gt;n, max\_out) bins. If `n_in` is not the required length the call is REFUSED with nothing read, written or counted: SIZE\_MAX in C, ValueError in Python (#1925). 
 ```C++
 >>> from doppler.spectral import FFT
 >>> import numpy as np

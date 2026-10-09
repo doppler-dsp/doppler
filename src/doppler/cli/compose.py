@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import secrets
+import shutil
 import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -135,30 +137,19 @@ def up(compose_file: Path) -> ChainState:
     sink_doc = doc["sink"]
     sink_type = sink_doc.pop("type")
 
-    block_states: list[BlockState] = []
-    _CHAINS_DIR.mkdir(parents=True, exist_ok=True)
+    # Build every block's command before touching the disk. A block whose
+    # executable is missing must refuse the whole chain with no log opened
+    # and no chains directory made, so the commands are a plan first and
+    # the spawns come after the check.
+    plan: list[tuple[str, list[str], dict]] = []
 
-    def _spawn(name: str, cmd: list[str]) -> tuple[subprocess.Popen, str]:
-        log_path = _CHAINS_DIR / f"{chain_id}-{name}.log"
-        log_fh = open(log_path, "w")  # noqa: SIM115
-        proc = subprocess.Popen(cmd, stdout=log_fh, stderr=log_fh)
-        return proc, str(log_path)
-
-    # --- spawn source ---
+    # --- plan source ---
     src_cls = block_registry.get(source_type)
     src_cfg = src_cls.Config(**source_doc)
     src_cmd = src_cls().command(src_cfg, None, source_addr)
-    src_proc, src_log = _spawn(source_type, src_cmd)
-    block_states.append(
-        BlockState(
-            name=source_type,
-            pid=src_proc.pid,
-            bind_port=source_port,
-            log_file=src_log,
-        )
-    )
+    plan.append((source_type, src_cmd, {"bind_port": source_port}))
 
-    # --- spawn chain blocks ---
+    # --- plan chain blocks ---
     prev_addr = source_addr
     for entry in chain_docs:
         (name, cfg_dict) = next(iter(entry.items()))
@@ -169,32 +160,46 @@ def up(compose_file: Path) -> ChainState:
         blk_cls = block_registry.get(name)
         blk_cfg = blk_cls.Config(**cfg_dict)
         blk_cmd = blk_cls().command(blk_cfg, prev_addr, out_addr)
-        blk_proc, blk_log = _spawn(name, blk_cmd)
-        block_states.append(
-            BlockState(
-                name=name,
-                pid=blk_proc.pid,
-                connect_port=in_port,
-                bind_port=out_port,
-                log_file=blk_log,
-            )
+        plan.append(
+            (name, blk_cmd, {"connect_port": in_port, "bind_port": out_port})
         )
         prev_addr = out_addr
 
-    # --- spawn sink ---
+    # --- plan sink ---
     sink_in_port = _port_from_addr(prev_addr)
     snk_cls = block_registry.get(sink_type)
     snk_cfg = snk_cls.Config(**sink_doc)
     snk_cmd = snk_cls().command(snk_cfg, prev_addr, None)
-    snk_proc, snk_log = _spawn(sink_type, snk_cmd)
-    block_states.append(
-        BlockState(
-            name=sink_type,
-            pid=snk_proc.pid,
-            log_file=snk_log,
-            connect_port=sink_in_port,
+    plan.append((sink_type, snk_cmd, {"connect_port": sink_in_port}))
+
+    # One line per block whose executable PATH cannot resolve, then refuse.
+    missing = [
+        (name, cmd[0]) for name, cmd, _ in plan if shutil.which(cmd[0]) is None
+    ]
+    if missing:
+        for name, exe in missing:
+            print(
+                f"doppler compose up: block '{name}' needs '{exe}', "
+                "which is not on PATH",
+                file=sys.stderr,
+            )
+        sys.exit(1)
+
+    _CHAINS_DIR.mkdir(parents=True, exist_ok=True)
+
+    def _spawn(name: str, cmd: list[str]) -> tuple[subprocess.Popen, str]:
+        log_path = _CHAINS_DIR / f"{chain_id}-{name}.log"
+        log_fh = open(log_path, "w")  # noqa: SIM115
+        proc = subprocess.Popen(cmd, stdout=log_fh, stderr=log_fh)
+        return proc, str(log_path)
+
+    # --- spawn every planned block, source first, sink last ---
+    block_states: list[BlockState] = []
+    for name, cmd, links in plan:
+        proc, log = _spawn(name, cmd)
+        block_states.append(
+            BlockState(name=name, pid=proc.pid, log_file=log, **links)
         )
-    )
 
     state = ChainState(
         id=chain_id,

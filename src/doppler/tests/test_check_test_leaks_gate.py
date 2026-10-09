@@ -259,6 +259,10 @@ def test_outside_a_git_checkout_a_clean_run_passes(tmp_path: Path) -> None:
     r = _gate(root, "pass")
     assert r.returncode == 0, r.stderr
     assert "Traceback" not in r.stderr
+    # The fallback must say so: the output is otherwise the same as the git
+    # path's, and a packager cannot tell which mode ran (gh-1562).
+    assert "no git work tree at" in r.stderr
+    assert "walking it instead" in r.stderr
 
 
 def test_outside_a_git_checkout_a_new_file_is_a_leak(tmp_path: Path) -> None:

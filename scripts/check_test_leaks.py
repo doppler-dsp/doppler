@@ -273,7 +273,16 @@ def main(argv: list[str] | None = None) -> int:
     # No git to report what the run touched, so the root itself is walked:
     # a file the run writes or rewrites under it is a leak. ``roots`` stays
     # the ctest set, which is also what ``leaks`` skips.
-    walk_roots = roots if _in_git(root) else [*roots, str(root)]
+    in_git = _in_git(root)
+    walk_roots = roots if in_git else [*roots, str(root)]
+    if not in_git:
+        # Same output with or without git otherwise, so a packager cannot
+        # tell which mode ran (gh-1562).
+        print(
+            f"check-test-leaks: no git work tree at {root};"
+            " walking it instead",
+            file=sys.stderr,
+        )
     before_git = _git_entries(root)
     before_walk: dict[str, int] = {}
     for r in walk_roots:

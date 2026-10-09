@@ -67,8 +67,28 @@ def _is_cache(rel: str) -> bool:
     return name == "coverage.xml" or name.startswith(".coverage")
 
 
+def _in_git(root: Path) -> bool:
+    """Whether *root* sits inside a git work tree (False for an sdist, say).
+
+    Outside one there is no index to ask, so the gate falls back to walking
+    the root (see :func:`main`) rather than dying in ``git status``.
+    """
+    return (
+        subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "--is-inside-work-tree"],
+            capture_output=True,
+        ).returncode
+        == 0
+    )
+
+
 def _git_entries(root: Path) -> dict[str, str]:
-    """``{path: status}`` for every untracked, ignored or modified path."""
+    """``{path: status}`` for every untracked, ignored or modified path.
+
+    Empty outside a git work tree: :func:`leaks` then sees only the walk.
+    """
+    if not _in_git(root):
+        return {}
     out = subprocess.run(
         [
             "git",
@@ -100,6 +120,8 @@ def _git_entries(root: Path) -> dict[str, str]:
 
 def _tracked_written(root: Path, start_ns: int) -> list[str]:
     """Tracked files written during the run, identical bytes or not."""
+    if not _in_git(root):
+        return []
     out = subprocess.run(
         ["git", "-C", str(root), "ls-files", "-z"],
         check=True,
@@ -248,9 +270,13 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
     roots = _roots(dirs)
+    # No git to report what the run touched, so the root itself is walked:
+    # a file the run writes or rewrites under it is a leak. ``roots`` stays
+    # the ctest set, which is also what ``leaks`` skips.
+    walk_roots = roots if _in_git(root) else [*roots, str(root)]
     before_git = _git_entries(root)
     before_walk: dict[str, int] = {}
-    for r in roots:
+    for r in walk_roots:
         before_walk.update(_walk(Path(r)))
 
     start_ns = time.time_ns()
@@ -259,7 +285,7 @@ def main(argv: list[str] | None = None) -> int:
         return rc
 
     after_walk: dict[str, int] = {}
-    for r in roots:
+    for r in walk_roots:
         after_walk.update(_walk(Path(r)))
     left = leaks(
         root,

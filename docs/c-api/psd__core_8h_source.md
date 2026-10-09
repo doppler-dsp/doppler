@@ -53,6 +53,9 @@ void dp_psd_accumulate(dp_psd_state_t *state, const float _Complex *x,
 void dp_psd_frame_power(dp_psd_state_t *state, const float _Complex *x,
                         float *pwr);
 
+void dp_psd_frame_linear(dp_psd_state_t *state, const float _Complex *x,
+                         float *out);
+
 void dp_psd_frame_db(dp_psd_state_t *state, const float _Complex *x,
                      float *out);
 

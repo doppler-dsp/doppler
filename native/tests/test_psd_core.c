@@ -1314,6 +1314,130 @@ main (void)
           }
   }
 
+  /* ── dp_psd_frame_linear: the kernel against the reference, linear ──────
+   * The Spectrogram's mode = power (#1894) averages frames itself, so it
+   * needs a frame in full-scale^2 units; the raw dp_psd_frame_power() sits
+   * 20*log10(sum(w)) above that.  frame_linear and frame_db read one double
+   * quotient, so:
+   *  (i)   10*log10(linear) is frame_db wherever frame_db is above the floor.
+   *        Tolerance: the linear value's float rounding moves its log by
+   *        10/ln(10) * 2^-24 = 2.6e-7 dB, and the dB output's own float
+   *        spacing is <= 200 * 2^-24 = 1.2e-5 dB: 2e-5 dB covers both.
+   *  (ii)  a full-scale tone on a bin reads 1.0 whatever the window, padded
+   *        or not, against full_scale and bits alike.  Tolerance: the float
+   *        FFT's relative power error ~2 c log2(nfft) 2^-24 (c = 5), 8e-6 at
+   *        nfft = 128; 2e-5.  A slip in the reference (cg vs n, a missing
+   *        full_scale) moves it by a factor, not a ulp.
+   *  (iii) the raw power is linear * cg^2 * full_scale^2, to 4 roundings.
+   *  (iv)  the running average is untouched. */
+  {
+    uint32_t seed = 1911u * 3u;
+    for (int win = 0; win <= 3; win++)
+      for (size_t pad = 1; pad <= 2; pad++)
+        {
+          dp_psd_state_t *w
+              = dp_psd_create (N, 1.0, win, 8.0f, pad, 1.0, 0, 0, 0.0);
+          DP_REQUIRE (w != NULL);
+          const size_t nfft = w->nfft;
+          float _Complex x[64];
+          for (size_t i = 0; i < N; i++)
+            x[i] = dp_cgauss (&seed);
+          float *lin = malloc (nfft * sizeof *lin);
+          float *db  = malloc (nfft * sizeof *db);
+          float *raw = malloc (nfft * sizeof *raw);
+          DP_REQUIRE (lin && db && raw);
+          dp_psd_frame_linear (w, x, lin);
+          dp_psd_frame_db (w, x, db);
+          dp_psd_frame_power (w, x, raw);
+          const double ref   = w->cg * w->cg;
+          int          as_db = 1, as_raw = 1;
+          for (size_t i = 0; i < nfft; i++)
+            {
+              if (db[i] > -199.0f
+                  && fabs (10.0 * log10 ((double)lin[i]) - (double)db[i])
+                         > 2e-5)
+                as_db = 0;
+              if (fabs ((double)lin[i] * ref - (double)raw[i])
+                  > 4.0 * ldexp (1.0, -24) * (double)raw[i])
+                as_raw = 0;
+            }
+          DP_CHECK (as_db);  /* (i) */
+          DP_CHECK (as_raw); /* (iii) */
+
+          /* (ii): a unit tone on bin 5 reads 1.0 at nfft/2 + 5*nfft/n */
+          float _Complex t[64];
+          fill_tone (t, N, 5);
+          dp_psd_frame_linear (w, t, lin);
+          DP_CHECK (fabs ((double)lin[nfft / 2 + 5 * (nfft / N)] - 1.0)
+                    < 2e-5);
+          DP_CHECK (w->avg->count == 0); /* (iv) */
+          free (lin);
+          free (db);
+          free (raw);
+          dp_psd_destroy (w);
+        }
+
+    /* (ii) against the reference: an amplitude-2^11 tone reads 1.0 with
+     * full_scale = 2^11, and bits = 12 gives the same bytes. */
+    dp_psd_state_t *wf = dp_psd_create (N, 1.0, 0, 0.0f, 1, 2048.0, 0, 0, 0.0);
+    dp_psd_state_t *wb = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 12, 0, 0.0);
+    DP_REQUIRE (wf && wb);
+    float _Complex t[64];
+    fill_tone (t, N, 5);
+    for (size_t i = 0; i < N; i++)
+      t[i] *= 2048.0f;
+    float lf[64], lb[64];
+    dp_psd_frame_linear (wf, t, lf);
+    dp_psd_frame_linear (wb, t, lb);
+    DP_CHECK (fabs ((double)lf[N / 2 + 5] - 1.0) < 2e-5);
+    DP_CHECK (memcmp (lf, lb, sizeof lf) == 0);
+    dp_psd_destroy (wf);
+    dp_psd_destroy (wb);
+
+    /* (v) frame_db, bit for bit, from the DOCUMENTED reference, computed
+     * here rather than by the library.  Every other frame_db check compares
+     * it with something that goes through the same reader (psd_db,
+     * frame_linear), so a wrong reference moves both and they still agree.
+     * This one takes only the raw |X|^2 from frame_power and applies the
+     * header's definition itself: 10*log10 of raw / (cg^2 * full_scale^2),
+     * formed in double, floored at 1e-20 (-200 dB), rounded once to float.
+     * full_scale 2048 is a power of two, so the product is exact in any
+     * order; zeros reach the floor. */
+    static const double fss[] = { 1.0, 2048.0 };
+    for (int win = 0; win <= 3; win++)
+      for (size_t pad = 1; pad <= 2; pad++)
+        for (size_t f = 0; f < 2; f++)
+          for (int zero = 0; zero <= 1; zero++)
+            {
+              dp_psd_state_t *v
+                  = dp_psd_create (N, 1.0, win, 8.0f, pad, fss[f], 0, 0, 0.0);
+              DP_REQUIRE (v != NULL);
+              const size_t nfft = v->nfft;
+              float _Complex xv[64];
+              for (size_t i = 0; i < N; i++)
+                xv[i] = zero ? 0.0f : (float)fss[f] * dp_cgauss (&seed);
+              float *raw = malloc (nfft * sizeof *raw);
+              float *db  = malloc (nfft * sizeof *db);
+              DP_REQUIRE (raw && db);
+              dp_psd_frame_power (v, xv, raw);
+              dp_psd_frame_db (v, xv, db);
+              const double ref = (v->cg * v->cg) * (fss[f] * fss[f]);
+              int          bit = 1;
+              for (size_t i = 0; i < nfft; i++)
+                {
+                  const float want
+                      = (float)(10.0
+                                * log10 (fmax ((double)raw[i] / ref, 1e-20)));
+                  if (memcmp (&want, &db[i], sizeof want) != 0)
+                    bit = 0;
+                }
+              DP_CHECK (bit);
+              free (raw);
+              free (db);
+              dp_psd_destroy (v);
+            }
+  }
+
   /* ── rectangular window (index 3): no taper, and the index is bounded ─── */
   {
     enum

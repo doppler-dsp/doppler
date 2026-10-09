@@ -1335,6 +1335,7 @@
 * **dp\_psd\_create** ([**psd\_core.h**](psd__core_8h.md))
 * **dp\_psd\_destroy** ([**psd\_core.h**](psd__core_8h.md))
 * **dp\_psd\_frame\_db** ([**psd\_core.h**](psd__core_8h.md))
+* **dp\_psd\_frame\_linear** ([**psd\_core.h**](psd__core_8h.md))
 * **dp\_psd\_frame\_power** ([**psd\_core.h**](psd__core_8h.md))
 * **dp\_psd\_get\_state** ([**psd\_core.h**](psd__core_8h.md))
 * **dp\_psd\_noise\_floor** ([**psd\_core.h**](psd__core_8h.md))

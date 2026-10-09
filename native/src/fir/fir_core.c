@@ -182,10 +182,18 @@ dp_fir_execute_max_out (dp_fir_state_t *state)
 
 /* ── Scratch management ─────────────────────────────────────────────────── */
 
+/*
+ * Zeroed complex samples after the input in scratch. The last, partial group
+ * of outputs runs through the SAME vector body as every full group (see
+ * inner_real_cf32), and that body reads a whole group of inputs: up to
+ * FIR_PAD - 1 past the end. 8 = the widest group (AVX-512: 16 floats).
+ */
+#define FIR_PAD 8
+
 static int
 ensure_scratch (dp_fir_state_t *f, size_t num_samples)
 {
-  size_t needed = (f->num_taps - 1) + num_samples;
+  size_t needed = (f->num_taps - 1) + num_samples + FIR_PAD;
   if (needed <= f->scratch_cap)
     return 0;
   float _Complex *tmp = (float _Complex *)realloc (
@@ -205,6 +213,27 @@ ensure_scratch (dp_fir_state_t *f, size_t num_samples)
 static const float fir_sign[16] __attribute__ ((aligned (64)))
 = { -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1 };
 
+/* Eight complex outputs from buf[i .. i+8+M-2]. One body, used for every
+ * group including the last (see inner_cf32): an output's rounding is then a
+ * property of the output, not of where the caller split the stream. */
+static inline __m512
+cf32_group (const float _Complex *JM_RESTRICT buf,
+            const float _Complex *JM_RESTRICT h, size_t M, size_t i)
+{
+  const __m512 SIGN = _mm512_load_ps (fir_sign);
+  __m512       acc  = _mm512_setzero_ps ();
+  for (size_t k = 0; k < M; k++)
+    {
+      __m512 vx  = _mm512_loadu_ps ((const float *)&buf[i + M - 1 - k]);
+      __m512 vxs = _mm512_permute_ps (vx, 0xB1);
+      __m512 vhr = _mm512_set1_ps (crealf (h[k]));
+      __m512 vhi = _mm512_set1_ps (cimagf (h[k]));
+      acc        = _mm512_fmadd_ps (vhr, vx, acc);
+      acc        = _mm512_fmadd_ps (vhi, _mm512_mul_ps (vxs, SIGN), acc);
+    }
+  return acc;
+}
+
 #if defined(__GNUC__) && !defined(__clang__)
 __attribute__ ((optimize ("no-aggressive-loop-optimizations")))
 #endif
@@ -213,34 +242,19 @@ inner_cf32 (const float _Complex *JM_RESTRICT buf,
             const float _Complex *JM_RESTRICT h, size_t M,
             float _Complex *JM_RESTRICT out, size_t N)
 {
-  const __m512 SIGN = _mm512_load_ps (fir_sign);
-  size_t       i    = 0;
+  size_t i = 0;
   for (; i + 8 <= N; i += 8)
+    _mm512_storeu_ps ((float *)&out[i], cf32_group (buf, h, M, i));
+  if (i < N)
     {
-      __m512 acc = _mm512_setzero_ps ();
-      for (size_t k = 0; k < M; k++)
-        {
-          __m512 vx  = _mm512_loadu_ps ((const float *)&buf[i + M - 1 - k]);
-          __m512 vxs = _mm512_permute_ps (vx, 0xB1);
-          __m512 vhr = _mm512_set1_ps (crealf (h[k]));
-          __m512 vhi = _mm512_set1_ps (cimagf (h[k]));
-          acc        = _mm512_fmadd_ps (vhr, vx, acc);
-          acc        = _mm512_fmadd_ps (vhi, _mm512_mul_ps (vxs, SIGN), acc);
-        }
-      _mm512_storeu_ps ((float *)&out[i], acc);
-    }
-  for (ptrdiff_t ii = (ptrdiff_t)i; (size_t)ii < N; ii++)
-    {
-      float     re = 0.0f, im = 0.0f;
-      ptrdiff_t base = ii + (ptrdiff_t)(M - 1);
-      for (ptrdiff_t k = 0; k < (ptrdiff_t)M; k++)
-        {
-          float xr = crealf (buf[base - k]);
-          float xi = cimagf (buf[base - k]);
-          re += crealf (h[k]) * xr - cimagf (h[k]) * xi;
-          im += crealf (h[k]) * xi + cimagf (h[k]) * xr;
-        }
-      out[ii] = CMPLXF (re, im);
+      /* A scalar tail would round differently from the fused body above
+       * (a separate multiply and add, or, under -ffast-math, a reassociated
+       * sum over the taps), so the last output of a call would differ from
+       * the same output inside a longer call (#1893). Run the body once more
+       * over the zero pad and keep the lanes that exist. */
+      float _Complex tmp[8];
+      _mm512_storeu_ps ((float *)tmp, cf32_group (buf, h, M, i));
+      memcpy (&out[i], tmp, (N - i) * sizeof (float _Complex));
     }
 }
 
@@ -304,16 +318,19 @@ inner_real_cf32 (const float _Complex *JM_RESTRICT buf,
         JM_MAC_F32 (acc, (const float *)&buf[i + M - 1 - k], h[k]);
       JM_STORE_F32 ((float *)&out[i], acc);
     }
-  for (ptrdiff_t ii = (ptrdiff_t)i; (size_t)ii < N; ii++)
+  if (i < N)
     {
-      float     re = 0.0f, im = 0.0f;
-      ptrdiff_t base = ii + (ptrdiff_t)(M - 1);
-      for (ptrdiff_t k = 0; k < (ptrdiff_t)M; k++)
-        {
-          re += h[k] * crealf (buf[base - k]);
-          im += h[k] * cimagf (buf[base - k]);
-        }
-      out[ii] = CMPLXF (re, im);
+      /* The same body once more over the zero pad, keeping the lanes that
+       * exist. A scalar tail rounds differently from the fused body (a
+       * separate multiply and add, or, under -ffast-math, a reassociated sum
+       * over the taps), which made an output's last bit depend on where the
+       * caller split the stream (#1893). */
+      JM_VEC_F32 acc = JM_ZERO_F32 ();
+      for (size_t k = 0; k < M; k++)
+        JM_MAC_F32 (acc, (const float *)&buf[i + M - 1 - k], h[k]);
+      float _Complex tmp[JM_SIMD_WIDTH_F32 / 2];
+      JM_STORE_F32 ((float *)tmp, acc);
+      memcpy (&out[i], tmp, (N - i) * sizeof (float _Complex));
     }
 }
 
@@ -358,6 +375,7 @@ dp_fir_execute (dp_fir_state_t *state, const float _Complex *in, size_t n_in,
   if (dly)
     memcpy (state->scratch, state->delay, dly * sizeof (float _Complex));
   memcpy (state->scratch + dly, in, n_in * sizeof (float _Complex));
+  memset (state->scratch + dly + n_in, 0, FIR_PAD * sizeof (float _Complex));
 
   if (state->rtaps)
     inner_real_cf32 (state->scratch, state->rtaps, state->num_taps, out, n_in);

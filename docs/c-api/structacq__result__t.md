@@ -101,7 +101,7 @@ double acq_result_t::chip_phase;
 
 
 
-The code's own instantaneous phase at the hand-off instant, in chips, Dll's convention  the seed a code loop wants for this hit. The same value [**dp\_acq\_build\_handoff()**](acq__core_8h.md#function-dp_acq_build_handoff) reports as [**acq\_handoff\_t::chip\_phase**](structacq__handoff__t.md#variable-chip_phase): the inverted lag advanced by the dwell's dilation when a carrier is set ([**dp\_acq\_set\_carrier\_freq\_hz()**](acq__core_8h.md#function-dp_acq_set_carrier_freq_hz)). Appended last so positional initialisers do not shift. 
+The code's own instantaneous phase at the hand-off instant, in chips, Dll's convention  the seed a code loop wants for this hit. The same value [**dp\_acq\_build\_handoff()**](acq__core_8h.md#function-dp_acq_build_handoff) reports as [**acq\_handoff\_t::chip\_phase**](structacq__handoff__t.md#variable-chip_phase): the inverted lag advanced by the dwell's dilation when a carrier is set ([**dp\_acq\_set\_carrier\_freq\_hz()**](acq__core_8h.md#function-dp_acq_set_carrier_freq_hz)). For an engine built by [**dp\_acq\_create\_burst()**](acq__core_8h.md#function-dp_acq_create_burst), one chip is one template sample, so chip\_phase is in template samples over code\_bins: a caller at s samples per chip divides by s. The [**dp\_burst\_acq\_create()**](burst__acq__core_8h.md#function-dp_burst_acq_create) wrapper forwards no carrier setter, so its hits carry no dwell advance. Appended last so positional initialisers do not shift. 
 
 
         

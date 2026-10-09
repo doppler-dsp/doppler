@@ -66,8 +66,11 @@ if command -v nats-server >/dev/null 2>&1; then
   echo $! >"$PIDFILE"
   how="nats-server $(nats-server --version | awk '{print $NF}') (binary)"
 elif command -v docker >/dev/null 2>&1; then
-  docker run -d --name nats -p 4222:4222 -p 8222:8222 nats:2.10 -js -m 8222
-  how="nats:2.10 (docker)"
+  # The stock image through doppler's anonymous mirror, never Docker Hub by
+  # bare name (doppler#1950); `make nats-up` passes the Makefile's value.
+  image="${STOCK_REGISTRY:?run this through make nats-up}/nats:2.10"
+  docker run -d --name nats -p 4222:4222 -p 8222:8222 "$image" -js -m 8222
+  how="$image (docker)"
 else
   echo "start-nats: neither nats-server nor docker is available, so no" >&2
   echo "  broker can be started. The nats:// tests would self-skip, which" >&2

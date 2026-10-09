@@ -1,4 +1,8 @@
-# syntax=docker/dockerfile:1
+# check=skip=InvalidDefaultArgInFrom
+# ^ ARG STOCK_REGISTRY has no default on purpose: the Makefile passes it, and
+#   a forgotten build-arg must fail the FROM, not fall back to Docker Hub
+#   (doppler#1950). BuildKit would otherwise warn on every build.
+#
 # deploy/docker/Dockerfile.cli — the runtime "try doppler" image, published
 # every release as ghcr.io/doppler-dsp/doppler:X.Y.Z (+ :latest),
 # linux/amd64 + linux/arm64.
@@ -27,7 +31,8 @@
 #   docker run --rm ghcr.io/doppler-dsp/doppler:latest python awgn_demo.py
 #   docker run --rm ghcr.io/doppler-dsp/doppler:latest doppler --help
 #   docker run --rm ghcr.io/doppler-dsp/doppler:latest wfmgen --help
-FROM python:3.12-slim
+ARG STOCK_REGISTRY
+FROM ${STOCK_REGISTRY}/python:3.12-slim
 ARG DOPPLER_VERSION
 
 # The install retries with backoff: release.yml's "wait for PyPI" guard

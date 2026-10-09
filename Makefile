@@ -78,6 +78,15 @@ DOCKER_IMAGE ?= doppler
 DOCKER_TAG          ?= dev
 DOCKER_VERSION      ?= $(shell grep -m1 '^version' pyproject.toml | cut -d'"' -f2)
 JM_VERSION          ?= $(shell grep -m1 '^jm_version' just-makeit.toml | cut -d'"' -f2)
+# Where every STOCK image (a Docker Official Image: debian, ubuntu, python,
+# almalinux, fedora, nats) is pulled from -- the one home for it. Docker Hub
+# by bare name is anonymous in CI, and with several PRs in flight its 429 rate
+# limit failed the Docker, glibc and package legs of unrelated PRs (#1950).
+# AWS's ECR Public mirror of the official images needs no credentials and
+# serves the same digests (checked for every tag doppler pulls). Dockerfiles
+# take it as `ARG STOCK_REGISTRY` with no default; `make lint-stock-images`
+# refuses a stock image named any other way.
+STOCK_REGISTRY      ?= public.ecr.aws/docker/library
 EXAMPLES_DOCKERFILE := deploy/docker/Dockerfile.examples
 NPROC       ?= $(shell nproc 2>/dev/null || \
                        sysctl -n hw.logicalcpu 2>/dev/null || echo 4)
@@ -162,7 +171,7 @@ LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format \
                bench-timer bare-libm gnu-flags workflow-tag-triggers \
                version-literals text-encoding cmake-script-policy \
                why-param doc-claims public-symbols curl-fail \
-               warnings-exempt
+               warnings-exempt stock-images
 FORMAT_TOOLS = ruff-format ruff mdformat clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -439,6 +448,15 @@ LINT_workflow-tag-triggers = $(UV) run python scripts/check_workflow_tag_trigger
 # deploy/docker/ and .github/ must say --fail.
 LINT_curl-fail = $(UV) run python scripts/check_curl_fail.py
 
+# A stock image named by its bare Docker Hub name is an anonymous pull, and
+# with several PRs in flight Docker Hub's 429 rate limit failed the Docker,
+# glibc and package legs of PRs that changed nothing near them (#1950). Every
+# stock image comes through STOCK_REGISTRY; the repo's own images (named for
+# DOCKER_IMAGE) and other registries' are fine by rule. Vendored files are
+# canonical's to fix, so their findings are listed, not failed.
+LINT_stock-images = $(UV) run python scripts/check_stock_images.py \
+    --own-prefix $(DOCKER_IMAGE) --vendored "$(VENDORED_FILES) standard.mk"
+
 # ffi/rust/ is the one binding jm does not generate, so `jm status --check`
 # has nothing to say about it and an `extern "C"` block is a promise no
 # compiler, linker or runtime ever checks. doppler#911 is what that cost: a
@@ -590,7 +608,7 @@ TEST_ALL_DEPS = test test-examples test-python test-examples-python
 # a fresh runner, wrong for a dev box running it twice.
 nats-up: ## Start the NATS JetStream broker the nats:// stream tests need
 	@docker rm -f nats >/dev/null 2>&1 || true
-	@bash scripts/start-nats.sh
+	@STOCK_REGISTRY=$(STOCK_REGISTRY) bash scripts/start-nats.sh
 	@$(NATS_STREAMS) --check
 
 # The remedy `nats-up` names. Deleting is prefix-guarded to DP_WORK_*, so a
@@ -1482,7 +1500,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 complex-helpers-check sdist release-notes \
                 release-pr release-notes-body-check \
                 release-freshness-check \
-                print-jm-version nats-up nats-down nats-purge \
+                print-jm-version print-stock-registry nats-up nats-down nats-purge \
                 docs-relink docs-drift-check drift-check changelog-check \
                 release-notes-size-check workflow-syntax-check \
                 ci-aggregator-check python-versions-check \
@@ -2583,7 +2601,10 @@ package-linux: ## Build the .deb and .rpm packages inside the manylinux_2_28 ima
 # the consumer's toolchain, which the image already carries. So the leg loses
 # nothing and stops reaching a mirror that 404s mid-sync. The other three
 # stay stock: we have no image for them, and there the archive is the point.
-PKG_SMOKE_DISTROS ?= debian:stable $(CI_IMAGE_2404) almalinux:8 fedora:latest
+# Stock, but pulled through STOCK_REGISTRY (#1950): the same images, not
+# Docker Hub's anonymous quota.
+PKG_SMOKE_DISTROS ?= $(STOCK_REGISTRY)/debian:stable $(CI_IMAGE_2404) \
+                     $(STOCK_REGISTRY)/almalinux:8 $(STOCK_REGISTRY)/fedora:latest
 
 # $(call PKG_SMOKE_RUN,<target>,<packages dir, relative to the checkout>) --
 # the distro loop both package smokes run, so the packages CI just built and
@@ -2818,6 +2839,10 @@ sdist: ## Build a source distribution into dist/
 # from whichever one the caller happened to use. This is the one that counts.
 print-jm-version: ## Print the just-makeit pin (release.yml reads it from here)
 	@echo "$(JM_VERSION)"
+
+# The stock-image registry, for the builds release.yml runs itself (#1950).
+print-stock-registry: ## Print the registry stock images are pulled through
+	@echo "$(STOCK_REGISTRY)"
 
 # The ONE definition of the GitHub Release body — release.yml's github-release
 # job pipes this into `body_path` rather than carrying its own copy of the
@@ -3881,7 +3906,9 @@ GLIBC_DOCKERFILE := deploy/docker/Dockerfile.glibc228
 # free to drift — the exact thing Dockerfile.glibc228's own header says moving
 # it out of ci.yml was meant to stop.
 glibc-image: ## Build the glibc $(GLIBC_MAX) toolchain image (shared: glibc-gate, docker-stream)
-	docker build -f $(GLIBC_DOCKERFILE) -t $(GLIBC_IMAGE) deploy/docker
+	docker build -f $(GLIBC_DOCKERFILE) \
+	    --build-arg STOCK_REGISTRY=$(STOCK_REGISTRY) \
+	    -t $(GLIBC_IMAGE) deploy/docker
 
 glibc-gate: glibc-image ## Build in a glibc $(GLIBC_MAX) container, then run glibc-check on it
 # Run as the caller, not root: the build tree lands in the bind-mounted
@@ -4377,12 +4404,16 @@ bench-report: ## Portable-build trend across releases
 
 docker-runtime: ## Build+smoke the runtime "try it" image (needs the wheel on PyPI)
 	docker build -f deploy/docker/Dockerfile.cli \
+	    --build-arg STOCK_REGISTRY=$(STOCK_REGISTRY) \
+	    --build-arg STOCK_REGISTRY=$(STOCK_REGISTRY) \
 	    --build-arg DOPPLER_VERSION=$(DOCKER_VERSION) \
 	    -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
 	bash scripts/smoke-image.sh runtime $(DOCKER_IMAGE):$(DOCKER_TAG)
 
 docker-sdk: ## Build+smoke the SDK / develop image (doppler-sdk)
 	docker build -f $(EXAMPLES_DOCKERFILE) --target sdk \
+	    --build-arg STOCK_REGISTRY=$(STOCK_REGISTRY) \
+	    --build-arg STOCK_REGISTRY=$(STOCK_REGISTRY) \
 	    --build-arg BUILD_BASE=$(CI_IMAGE_2404) \
 	    --build-arg JM_VERSION=$(JM_VERSION) \
 	    -t $(DOCKER_IMAGE)-sdk:$(DOCKER_TAG) .
@@ -4392,6 +4423,8 @@ docker-downstream: ## Build+smoke the iqtools showcase image (doppler-downstream
 # The build itself runs `make test` inside the image, so a green build IS the
 # smoke; the run only confirms the shipped, pre-built package imports.
 	docker build -f $(EXAMPLES_DOCKERFILE) --target downstream-jm \
+	    --build-arg STOCK_REGISTRY=$(STOCK_REGISTRY) \
+	    --build-arg STOCK_REGISTRY=$(STOCK_REGISTRY) \
 	    --build-arg BUILD_BASE=$(CI_IMAGE_2404) \
 	    --build-arg JM_VERSION=$(JM_VERSION) \
 	    -t $(DOCKER_IMAGE)-downstream-jm:$(DOCKER_TAG) .
@@ -4406,6 +4439,8 @@ docker-downstream: ## Build+smoke the iqtools showcase image (doppler-downstream
 # docker-compose.yml says so at the top.
 docker-stream: glibc-image ## Build+smoke the lean compose streaming-services image
 	docker build -f $(EXAMPLES_DOCKERFILE) --target stream-services \
+	    --build-arg STOCK_REGISTRY=$(STOCK_REGISTRY) \
+	    --build-arg STOCK_REGISTRY=$(STOCK_REGISTRY) \
 	    --build-arg GLIBC_BASE=$(GLIBC_IMAGE) \
 	    -t $(DOCKER_IMAGE)-stream-services:$(DOCKER_TAG) .
 	bash scripts/smoke-image.sh stream \

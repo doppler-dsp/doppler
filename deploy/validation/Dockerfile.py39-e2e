@@ -1,4 +1,7 @@
-# syntax=docker/dockerfile:1
+# check=skip=InvalidDefaultArgInFrom
+# ^ ARG STOCK_REGISTRY has no default on purpose: the Makefile passes it, and
+#   a forgotten build-arg must fail the FROM, not fall back to Docker Hub
+#   (doppler#1950). BuildKit would otherwise warn on every build.
 #
 # End-to-end validation of the *published* doppler-dsp wheel on Python 3.9.
 #
@@ -6,10 +9,11 @@
 # no repo checkout — so a successful run proves the cp39 manylinux wheel (and
 # its bundled `wfmgen` C binary) is self-contained and works on a clean 3.9.
 #
-#   docker build -f Dockerfile.py39-e2e -t doppler-wfm-py39-e2e .
+#   bash deploy/validation/run-py39-e2e.sh   # passes the build-args below
 #   docker run --rm doppler-wfm-py39-e2e
 #
-FROM python:3.9-slim
+ARG STOCK_REGISTRY
+FROM ${STOCK_REGISTRY}/python:3.9-slim
 
 # pip pulls doppler_dsp-<ver>-cp39-cp39-manylinux_2_28_x86_64.whl + its numpy
 # pin. python:3.9-slim (Debian, glibc >= 2.31) satisfies manylinux_2_28.

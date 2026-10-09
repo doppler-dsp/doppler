@@ -1,4 +1,7 @@
-# syntax=docker/dockerfile:1
+# check=skip=InvalidDefaultArgInFrom
+# ^ ARG STOCK_REGISTRY has no default on purpose: the Makefile passes it, and
+#   a forgotten build-arg must fail the FROM, not fall back to Docker Hub
+#   (doppler#1950). BuildKit would otherwise warn on every build.
 #
 # deploy/docker/Dockerfile.examples — the "build ON doppler" images.
 #
@@ -8,11 +11,12 @@
 #   make docker-downstream      # → the iqtools showcase image
 #   make docker-stream          # → the lean compose streaming-services image
 #
-# The raw equivalents (what those targets run) are:
+# The raw equivalents (what those targets run, less their other build-args)
+# are, with S="--build-arg STOCK_REGISTRY=$(make -s print-stock-registry)":
 #
-#   docker build -f deploy/docker/Dockerfile.examples --target sdk           -t doppler-sdk .
-#   docker build -f deploy/docker/Dockerfile.examples --target downstream-jm -t doppler-downstream-jm .
-#   docker build -f deploy/docker/Dockerfile.examples --target stream-services -t doppler-stream-services .
+#   docker build $S -f deploy/docker/Dockerfile.examples --target sdk           -t doppler-sdk .
+#   docker build $S -f deploy/docker/Dockerfile.examples --target downstream-jm -t doppler-downstream-jm .
+#   docker build $S -f deploy/docker/Dockerfile.examples --target stream-services -t doppler-stream-services .
 #
 # One shared builder (`doppler-build`) compiles and *installs* THIS checkout's
 # doppler exactly once; every image below copies from it, so all three are
@@ -32,6 +36,11 @@
 #                     that docker-compose.yml runs. No toolchain, no Python.
 # ---------------------------------------------------------------------------
 
+# Stock images come through doppler's one anonymous mirror, never Docker Hub
+# by bare name: CI's anonymous pulls hit its 429 rate limit (doppler#1950).
+# No default -- one would be a second copy of the Makefile's STOCK_REGISTRY,
+# and a forgotten build-arg must fail here, not quietly pull from Docker Hub.
+ARG STOCK_REGISTRY
 # The glibc-floor toolchain, by tag. Declared before the first FROM so it is
 # a global build ARG usable in a later FROM. It is NOT pulled from a registry:
 # `make docker-stream` builds it from deploy/docker/Dockerfile.glibc228 first,
@@ -43,8 +52,8 @@ ARG GLIBC_BASE=doppler-glibc228:dev
 # CI image (.github/ci-images.env, doppler#1524): it is Ubuntu 24.04 with
 # the toolchain baked, so the builder installs nothing and never reaches a
 # live mirror. Only /opt/doppler leaves that stage, so the images people
-# pull are unchanged. The default keeps a raw `docker build` working.
-ARG BUILD_BASE=ubuntu:24.04
+# pull are unchanged. The default is stock Ubuntu 24.04, through the mirror.
+ARG BUILD_BASE=${STOCK_REGISTRY}/ubuntu:24.04
 
 # ── Stage 1: build + install doppler from this checkout ────────────────────
 # BUILD_PYTHON=OFF: none of these images need doppler's own Python extension
@@ -83,7 +92,7 @@ RUN cmake -B build -S . -DBUILD_PYTHON=OFF -DCMAKE_BUILD_TYPE=Release \
 # window, when the source is briefly ahead of PyPI. numpy + pytest ride in as
 # doppler-dsp's deps / a one-liner; PEP-668 is waived with --break-system-packages
 # since this is a single-purpose image, not a distro.
-FROM ubuntu:24.04 AS dev-base
+FROM ${STOCK_REGISTRY}/ubuntu:24.04 AS dev-base
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential cmake pkg-config git ca-certificates curl \
         python3 python3-dev python3-pip \
@@ -166,7 +175,7 @@ RUN cmake -B build-stream -S . -DBUILD_PYTHON=OFF -DCMAKE_BUILD_TYPE=Release \
 # now enforces the builder half across every example binary, not just
 # libdoppler.so. Binaries land on PATH; docker-compose.yml invokes them by
 # bare name.
-FROM debian:bookworm-slim AS stream-services
+FROM ${STOCK_REGISTRY}/debian:bookworm-slim AS stream-services
 COPY --from=stream-build \
         /src/build-stream/native/examples/transmitter \
         /src/build-stream/native/examples/receiver \

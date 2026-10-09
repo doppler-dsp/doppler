@@ -5,6 +5,7 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "FFT"
+fragment = "generated"
 
 [[fft.init_params]]
 name = "n"
@@ -26,36 +27,48 @@ name = "execute_cf64"
 arg_type = "double _Complex"
 return_type = "double _Complex"
 variable_output = true
-# The pocketfft plan is fixed-size, so a short buffer is served from
-# scratch and truncated (jm gh-138) rather than overrunning `out`.
 pass_capacity = true
+# n_in must equal the plan length; the C kernel REFUSES any other
+# with SIZE_MAX (nothing read, written or counted) and jm raises (#1925).
+error_sentinel = "SIZE_MAX"
+error = "ValueError"
+error_message = "input length is not the plan length (FFT.n); execute takes exactly one frame"
 
 [[fft.methods]]
 name = "execute_cf32"
 arg_type = "float _Complex"
 return_type = "float _Complex"
 variable_output = true
-# The pocketfft plan is fixed-size, so a short buffer is served from
-# scratch and truncated (jm gh-138) rather than overrunning `out`.
 pass_capacity = true
+# n_in must equal the plan length; the C kernel REFUSES any other
+# with SIZE_MAX (nothing read, written or counted) and jm raises (#1925).
+error_sentinel = "SIZE_MAX"
+error = "ValueError"
+error_message = "input length is not the plan length (FFT.n); execute takes exactly one frame"
 
 [[fft.methods]]
 name = "execute_inplace_cf64"
 arg_type = "double _Complex"
 return_type = "double _Complex"
 variable_output = true
-# The pocketfft plan is fixed-size, so a short buffer is served from
-# scratch and truncated (jm gh-138) rather than overrunning `out`.
 pass_capacity = true
+# n_in must equal the plan length; the C kernel REFUSES any other
+# with SIZE_MAX (nothing read, written or counted) and jm raises (#1925).
+error_sentinel = "SIZE_MAX"
+error = "ValueError"
+error_message = "input length is not the plan length (FFT.n); execute takes exactly one frame"
 
 [[fft.methods]]
 name = "execute_inplace_cf32"
 arg_type = "float _Complex"
 return_type = "float _Complex"
 variable_output = true
-# The pocketfft plan is fixed-size, so a short buffer is served from
-# scratch and truncated (jm gh-138) rather than overrunning `out`.
 pass_capacity = true
+# n_in must equal the plan length; the C kernel REFUSES any other
+# with SIZE_MAX (nothing read, written or counted) and jm raises (#1925).
+error_sentinel = "SIZE_MAX"
+error = "ValueError"
+error_message = "input length is not the plan length (FFT.n); execute takes exactly one frame"
 
 [[fft.properties]]
 name = "n"
@@ -67,14 +80,69 @@ name = "sign"
 type = "int"
 field = true
 
-# gh-428 manual_stub: execute_ci16/execute_ci8 are hand-written CPython
-# overloads living in the sacred fragment with no manifest-expressible
-# shape (int16/int8 input casts); manifest presence preserves their
-# hand-written .pyi stubs across regen and satisfies the DROPPED gate.
-[[fft.methods]]
+# execute_ci16/execute_ci8 are hand-written CPython in
+# native/src/spectral/spectral_ext_fft_extra.c: the int->float convert is
+# fused into the FFT's input read, a shape jm's method rows do not render.
+# Each row gives jm the PyMethodDef entry, the forward prototype and the
+# stub, so the fragment can be jm's while the function stays ours
+# (doppler#1886). The `doc` is the whole docstring on both faces.
+[[fft.extra_methods]]
 name = "execute_ci16"
-manual_stub = true
+fn = "FFTObj_execute_ci16"
+flags = "METH_VARARGS"
+args = "iq: NDArray[np.int16], /"
+returns = "NDArray[np.complex64]"
+doc = """
+Out-of-place 1-D FFT directly on interleaved int16 I/Q (CF32 out).
 
-[[fft.methods]]
+The int16->float convert (v/32768, full-scale +/-1.0) is fused into the
+transform, so it is faster than i16_to_f32 then execute_cf32.
+
+Raises
+------
+ValueError
+    If ``iq`` does not hold exactly ``2 * FFT.n`` values, two to a
+    complex sample; an odd count is not whole I/Q pairs and is
+    refused too (#1933). The message names the length it got,
+    ``execute_ci16 takes exactly one frame: 2 * FFT.n = <2n>
+    interleaved I/Q values, got <len>``.
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.spectral import FFT
+>>> obj = FFT(1024, -1, 1)
+>>> y = obj.execute_ci16(np.zeros(2048, dtype=np.int16))
+>>> y.dtype
+dtype('complex64')
+"""
+
+[[fft.extra_methods]]
 name = "execute_ci8"
-manual_stub = true
+fn = "FFTObj_execute_ci8"
+flags = "METH_VARARGS"
+args = "iq: NDArray[np.int8], /"
+returns = "NDArray[np.complex64]"
+doc = """
+Out-of-place 1-D FFT directly on interleaved int8 I/Q (CF32 out).
+
+As execute_ci16 but int8 input (v/128, full-scale +/-1.0).
+
+Raises
+------
+ValueError
+    If ``iq`` does not hold exactly ``2 * FFT.n`` values, two to a
+    complex sample; an odd count is not whole I/Q pairs and is
+    refused too (#1933). The message names the length it got,
+    ``execute_ci8 takes exactly one frame: 2 * FFT.n = <2n>
+    interleaved I/Q values, got <len>``.
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.spectral import FFT
+>>> obj = FFT(1024, -1, 1)
+>>> y = obj.execute_ci8(np.zeros(2048, dtype=np.int8))
+>>> y.dtype
+dtype('complex64')
+"""

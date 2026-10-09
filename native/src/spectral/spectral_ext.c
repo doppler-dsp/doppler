@@ -72,12 +72,17 @@ jm_array_arg (PyObject *obj, int typenum, int requirements, const char *name)
 }
 #endif /* JM_ARRAY_ARG_DEFINED */
 
+/* extra_methods (gh-1190): defined in the hand-written _extra.c,
+ * included after the types; declared here for the method tables. */
+static PyObject *FFTObj_execute_ci16 (PyObject *, PyObject *);
+static PyObject *FFTObj_execute_ci8 (PyObject *, PyObject *);
 #include "spectral_ext_corr.c"
 #include "spectral_ext_corr2d.c"
 #include "spectral_ext_detector.c"
 #include "spectral_ext_detector2d.c"
 #include "spectral_ext_fft.c"
 #include "spectral_ext_fft2d.c"
+#include "spectral_ext_fft_extra.c" /* hand-written — jm never modifies */
 #include "spectral_ext_psd.c"
 
 static PyObject *

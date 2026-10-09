@@ -70,6 +70,13 @@ class FFT:
             call is REFUSED with nothing read, written or counted: SIZE_MAX in
             C, ValueError in Python (#1925).
 
+        Raises
+        ------
+        ValueError
+            If the C call returns ``SIZE_MAX``, its refusal value, in place of
+            a count. The exception message is ``input length is not the plan
+            length (FFT.n); execute takes exactly one frame``.
+
         Examples
         --------
         >>> from doppler.spectral import FFT
@@ -114,6 +121,13 @@ class FFT:
             min(state->n, max_out) bins. If n_in is not the required length the
             call is REFUSED with nothing read, written or counted: SIZE_MAX in
             C, ValueError in Python (#1925).
+
+        Raises
+        ------
+        ValueError
+            If the C call returns ``SIZE_MAX``, its refusal value, in place of
+            a count. The exception message is ``input length is not the plan
+            length (FFT.n); execute takes exactly one frame``.
 
         Examples
         --------
@@ -160,6 +174,13 @@ class FFT:
             call is REFUSED with nothing read, written or counted: SIZE_MAX in
             C, ValueError in Python (#1925).
 
+        Raises
+        ------
+        ValueError
+            If the C call returns ``SIZE_MAX``, its refusal value, in place of
+            a count. The exception message is ``input length is not the plan
+            length (FFT.n); execute takes exactly one frame``.
+
         Examples
         --------
         >>> from doppler.spectral import FFT
@@ -204,6 +225,13 @@ class FFT:
             call is REFUSED with nothing read, written or counted: SIZE_MAX in
             C, ValueError in Python (#1925).
 
+        Raises
+        ------
+        ValueError
+            If the C call returns ``SIZE_MAX``, its refusal value, in place of
+            a count. The exception message is ``input length is not the plan
+            length (FFT.n); execute takes exactly one frame``.
+
         Examples
         --------
         >>> from doppler.spectral import FFT
@@ -224,8 +252,11 @@ class FFT:
             Output.
         """
 
-    def execute_ci16(self, iq: NDArray[np.int16]) -> NDArray[np.complex64]:
-        """Out-of-place 1-D FFT directly on interleaved int16 I/Q (CF32 out). The int16->float convert (v/32768, full-scale +/-1.0) is fused into the transform, so it is faster than i16_to_f32 then execute_cf32.
+    def execute_ci16(self, iq: NDArray[np.int16], /) -> NDArray[np.complex64]:
+        """Out-of-place 1-D FFT directly on interleaved int16 I/Q (CF32 out).
+
+        The int16->float convert (v/32768, full-scale +/-1.0) is fused into the
+        transform, so it is faster than i16_to_f32 then execute_cf32.
 
         Raises
         ------
@@ -244,11 +275,12 @@ class FFT:
         >>> y = obj.execute_ci16(np.zeros(2048, dtype=np.int16))
         >>> y.dtype
         dtype('complex64')
-
         """
 
-    def execute_ci8(self, iq: NDArray[np.int8]) -> NDArray[np.complex64]:
-        """Out-of-place 1-D FFT directly on interleaved int8 I/Q (CF32 out). As execute_ci16 but int8 input (v/128, full-scale +/-1.0).
+    def execute_ci8(self, iq: NDArray[np.int8], /) -> NDArray[np.complex64]:
+        """Out-of-place 1-D FFT directly on interleaved int8 I/Q (CF32 out).
+
+        As execute_ci16 but int8 input (v/128, full-scale +/-1.0).
 
         Raises
         ------
@@ -267,7 +299,6 @@ class FFT:
         >>> y = obj.execute_ci8(np.zeros(2048, dtype=np.int8))
         >>> y.dtype
         dtype('complex64')
-
         """
 
     @property

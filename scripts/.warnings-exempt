@@ -17,7 +17,6 @@
 #
 # Format: one repo-relative path per line.
 native/src/resample/resample_ext_extra.c
-native/src/spectral/spectral_ext_fft.c
 native/src/stream/stream_ext.c
 native/src/telemetry/telemetry_ext_capture.c
 native/src/telemetry/telemetry_ext_dp_tlm.c

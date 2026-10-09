@@ -687,6 +687,88 @@ main (void)
     dp_f32_destroy (r2);
   }
   {
+    /* frames_in(n) is EXACTLY what a caller that LOOPS gets: feed what fits,
+       drain, feed the rest, until all n are in. The ring is as small as the
+       framer allows (capacity == N, and a little over), so one feed cannot
+       take the input and frames_for() would undercount; frames_in() must not.
+       From every fill, with and without a hop still owed. */
+    static const shape_t shp[]   = { { 8, 4 }, { 8, 8 }, { 5, 1 }, { 1, 1 } };
+    static const size_t  extra[] = { 0, 1, 7 };
+    int                  exact   = 1;
+    for (size_t k = 0; k < sizeof shp / sizeof *shp; k++)
+      for (size_t e = 0; e < sizeof extra / sizeof *extra; e++)
+        for (size_t pre = 0; pre < 2 * shp[k].N; pre++)
+          for (size_t n = 0; n < 6 * shp[k].N + 3; n += 1 + n / 9)
+            for (int owe = 0; owe < 2; owe++)
+              {
+                dp_f32_t       *r = dp_f32_create (shp[k].N + extra[e]);
+                dp_f32_framer_t fr;
+                DP_REQUIRE (r != NULL);
+                DP_REQUIRE (dp_f32_framer_init (&fr, r, shp[k].N, shp[k].H)
+                            == DP_OK);
+                /* the fill: all `pre` samples in, through the loop */
+                size_t off = 0, got = 0;
+                while (off < pre)
+                  {
+                    off += dp_f32_framer_feed_view (&fr, x + off, pre - off,
+                                                    SIZE_MAX);
+                    if (off < pre)
+                      while (dp_f32_framer_next_view (&fr))
+                        ;
+                  }
+                if (owe)
+                  {
+                    /* hand out ONE frame and stop: its hop is owed, and the
+                       frames still buffered behind it count toward n */
+                    if (!dp_f32_framer_next_view (&fr))
+                      {
+                        dp_f32_destroy (r);
+                        continue; /* fewer than a frame: no hop to owe */
+                      }
+                    DP_REQUIRE (fr.owed == shp[k].H);
+                  }
+                size_t predicted = dp_f32_framer_frames_in (&fr, n);
+                while (dp_f32_framer_next_view (&fr))
+                  got++; /* frames the fill already holds */
+                off = 0;
+                while (off < n)
+                  {
+                    size_t took = dp_f32_framer_feed_view (&fr, x + pre + off,
+                                                           n - off, SIZE_MAX);
+                    off += took;
+                    while (dp_f32_framer_next_view (&fr))
+                      got++;
+                    if (!took && off < n)
+                      break; /* no progress: the prediction must still hold */
+                  }
+                if (got != predicted || off != n)
+                  exact = 0;
+                dp_f32_destroy (r);
+              }
+    DP_CHECK (exact);
+
+    /* the case frames_for() caps: capacity 8, frame 8, hop 4. One feed takes
+       8 samples, so frames_for(100) is 1; a loop over all 100 takes
+       (100 - 8) / 4 + 1 = 24 frames, and frames_in(100) says so. */
+    dp_f32_t       *r = dp_f32_create (8);
+    dp_f32_framer_t fr;
+    DP_REQUIRE (r != NULL && r->capacity == 8);
+    DP_REQUIRE (dp_f32_framer_init (&fr, r, 8, 4) == DP_OK);
+    DP_CHECK (dp_f32_framer_frames_for (&fr, 100) == 1);
+    DP_CHECK (dp_f32_framer_frames_in (&fr, 100) == 24);
+    DP_CHECK (dp_f32_framer_frames_in (&fr, 7) == 0);
+    DP_CHECK (dp_f32_framer_frames_in (&fr, 8) == 1);
+
+    /* n near SIZE_MAX saturates rather than wraps, empty or holding carry */
+    const size_t sat = (SIZE_MAX - 8) / 4 + 1;
+    DP_CHECK (dp_f32_framer_frames_in (&fr, SIZE_MAX) == sat);
+    DP_CHECK (dp_f32_framer_feed_view (&fr, x, 5, SIZE_MAX) == 5);
+    DP_CHECK (dp_f32_framer_frames_in (&fr, SIZE_MAX) == sat);
+    DP_CHECK (dp_f32_framer_frames_in (&fr, SIZE_MAX - 3) == sat);
+    DP_CHECK (dp_f32_framer_frames_in (&fr, 3) == 1);
+    dp_f32_destroy (r);
+  }
+  {
     /* a snapshot of another SHAPE is refused: the size differs */
     dp_f32_t       *ra = dp_f32_create (64), *rb = dp_f32_create (64);
     dp_f32_framer_t a, b;

@@ -1554,7 +1554,8 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 complex-helpers-check sdist release-notes \
                 release-pr release-notes-body-check \
                 release-freshness-check \
-                print-jm-version print-stock-registry print-uv-version lock \
+                print-jm-version print-stock-registry print-uv-version \
+                print-python-matrix lock \
                 nats-up nats-down nats-purge \
                 docs-relink docs-drift-check drift-check changelog-check \
                 release-notes-size-check workflow-syntax-check \
@@ -2915,6 +2916,14 @@ print-stock-registry: ## Print the registry stock images are pulled through
 print-uv-version: ## Print the uv pin (release.yml reads it from here)
 	@echo "$(UV_VERSION)"
 
+# The supported Pythons as a JSON list, from pyproject.toml's classifiers --
+# the list ci.yml's matrix is built from -- for release.yml's post-release
+# PyPI smoke, which installs one wheel per Python on each platform
+# (doppler#1817). `python3` rather than the venv: verify-version reads it
+# before anything installs uv, and the script runs on any Python >= 3.9.
+print-python-matrix: ## Print the supported Pythons as JSON (release.yml reads it from here)
+	@python3 scripts/python_versions.py --matrix
+
 lock: ## Re-lock uv.lock with the pinned uv (LOCK_CMD, the one spelling)
 	$(LOCK_CMD)
 
@@ -3695,11 +3704,18 @@ endif
 # metadata endpoint, which says a version is LISTED, not that it installs.
 # Rehearsable against any released version, which is what makes it testable
 # before a tag exists: `make release-smoke-pypi VERSION=0.49.0`.
-release-smoke-pypi: ## Smoke-test the PUBLISHED wheel from PyPI (VERSION=x.y.z)
+#
+# SMOKE_PYTHON=3.N installs into a venv on that Python, so the wheel pip picks
+# is that Python's (doppler#1817: the cp313/cp314 win_amd64 wheels shipped
+# uninstallable while the smoke only ever ran cp312). Empty, the venv takes
+# whatever Python uv finds, as before.
+SMOKE_PYTHON ?=
+release-smoke-pypi: ## Smoke-test the PUBLISHED wheel from PyPI (VERSION=x.y.z [SMOKE_PYTHON=3.N])
 ifndef VERSION
-	@echo "usage: make release-smoke-pypi VERSION=<x.y.z>"; exit 1
+	@echo "usage: make release-smoke-pypi VERSION=<x.y.z> [SMOKE_PYTHON=3.N]"; exit 1
 endif
-	bash tests/install/wheel-smoke.sh --pypi "$(VERSION)"
+	bash tests/install/wheel-smoke.sh --pypi "$(VERSION)" \
+	    $(if $(SMOKE_PYTHON),--python "$(SMOKE_PYTHON)")
 
 # Every wheel's filename must be one pip would install (doppler#1817): parsed
 # by packaging's parse_wheel_filename, and at least one of its tags among

@@ -189,6 +189,42 @@ def _tail_log(block, n: int = 4000) -> str:
     return text[-n:]
 
 
+class TestComposeUpMissingExecutable:
+    """A block whose executable is not on PATH refuses the whole chain.
+
+    The check runs before the chains directory exists and before any log
+    is opened, so a refused `compose up` leaves nothing on disk.
+    """
+
+    def test_one_line_per_missing_block_and_exit_1(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        path, _ = _init(tmp_path, monkeypatch, ["tone", "fir", "specan"])
+        chains = tmp_path / "chains"
+        monkeypatch.setattr(compose_mod, "_CHAINS_DIR", chains)
+        absent = {"doppler-fir", "doppler-specan"}
+        real_which = compose_mod.shutil.which
+        monkeypatch.setattr(
+            compose_mod.shutil,
+            "which",
+            lambda exe, *a, **k: None if exe in absent else real_which(exe),
+        )
+
+        with pytest.raises(SystemExit) as exc:
+            compose_mod.up(path)
+
+        assert exc.value.code == 1
+        assert capsys.readouterr().err.splitlines() == [
+            "doppler compose up: block 'fir' needs 'doppler-fir', "
+            "which is not on PATH",
+            "doppler compose up: block 'specan' needs 'doppler-specan', "
+            "which is not on PATH",
+        ]
+        # Refused before any side effect: no chains dir, no log, no state.
+        assert not chains.exists()
+        assert not list(tmp_path.glob("**/*.log"))
+
+
 @_requires_nats
 class TestComposeUpLive:
     def test_three_block_chain_spawns_and_moves_data(

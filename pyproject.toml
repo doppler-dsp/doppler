@@ -102,6 +102,18 @@ testpaths = ["src"]
 # the repo root. Nothing here reads it (`jm bench` keeps its own history via
 # --benchmark-json), so it goes under build/ with the other generated state.
 addopts = ["--benchmark-storage=file://build/.benchmarks"]
+# A benchmark test that REQUESTS the fixture and never calls it times
+# nothing, passes, and still reads as measured (#1010). pytest-benchmark
+# already knows -- it warns at fixture teardown, disabled or not -- so the
+# gate is its own warning promoted to an error, on every test that takes the
+# fixture, with no list to register in. Matched on the message, not the
+# class: the class also carries pytest-benchmark's advisories, which are not
+# defects. It cannot see a bench_*.py with no test at all (no fixture is ever
+# built), which is what rule 5 of scripts/check_bench_coverage.py is for.
+# Sabotage-proven by src/doppler/tests/test_bench_fixture_used_gate.py.
+filterwarnings = [
+    "error:Benchmark fixture was not used at all:pytest_benchmark.logger.PytestBenchmarkWarning",
+]
 markers = [
     "docs_snippets: doc-example drift gate (runs the ```python fences in docs/); CI runs it once on 3.12, excluded from the version matrix via -m 'not docs_snippets'",
     "examples_serial: an example whose own assertion is a TIMING, so it cannot share the machine. Applied from src/doppler/examples/.examples-serial, never by hand. The example gate runs its bulk under xdist with `-m 'examples and not examples_serial'` and then gives these a second SERIAL pass -- the same split `test-python` applies to the benchmark directories. Found the hard way: ddc_fn_scaling.py asserts a 2-thread speedup > 1.25x to prove execute() releases the GIL, and under 8 xdist workers it measured 1.15x and reported the contention as 'execute appears GIL-bound'.",

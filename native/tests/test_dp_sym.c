@@ -151,11 +151,9 @@ main (void)
   DP_CHECK_NEAR (dp_test_evm_scatter_floor_db (4), -7.0, 0.05);
   DP_CHECK_NEAR (dp_test_evm_scatter_floor_db (8), -12.9, 0.05);
 
-  /* `< 2 is treated as 2`, stated on every function that takes m. */
-  DP_CHECK_NEAR (dp_test_evm_scatter_floor_db (0),
-                 dp_test_evm_scatter_floor_db (2), 1e-12);
-  DP_CHECK_NEAR (dp_test_evm_scatter_floor_db (1),
-                 dp_test_evm_scatter_floor_db (2), 1e-12);
+  /* M < 2 names no constellation: NaN, never another M's floor (#1913). */
+  DP_CHECK (isnan (dp_test_evm_scatter_floor_db (0)));
+  DP_CHECK (isnan (dp_test_evm_scatter_floor_db (1)));
 
   /* The floor gets DEEPER with M, which is the whole reason a fixed threshold
      is unsafe: the same number means "broken" at BPSK and "healthy" at 8PSK.

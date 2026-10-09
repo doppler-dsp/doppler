@@ -506,6 +506,12 @@ main (void)
         DP_REQUIRE (b != NULL);
         if (dp_spectrogram_state_bytes (b) != bytes)
           fixed_size = 0; /* a function of the shape, not of the fill */
+        /* b is not pristine: a stray carry and a nonzero consumed, so the
+           restore has to REPLACE the carry and reset the count, not merely
+           find them already right */
+        float scratch[32];
+        dp_spectrogram_push (b, x + 700, 3, scratch, nfft);
+        DP_REQUIRE (dp_spectrogram_consumed (b) == 3);
         DP_REQUIRE (dp_spectrogram_set_state (b, blob) == DP_OK);
         DP_CHECK (dp_spectrogram_consumed (b) == 0);
         made += dp_spectrogram_push (b, x + split, NX - split, got + made,

@@ -50,6 +50,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "doppler/dp_state.h" /* the framer's snapshot envelope */
 #include "doppler/jm_perf.h" /* JM_FORCEINLINE */
 #include "doppler/util/util_core.h" /* next_pow_two */
 
@@ -710,6 +711,260 @@ typedef enum
       dp_##name##_t *ab, const elem *src, size_t n)                           \
   {                                                                           \
     return dp_##name##_write_some (ab, (const type *)src, n);                 \
+  }
+
+/* -------------------------------------------------------------------------
+ * The framed face
+ * ---------------------------------------------------------------------- */
+
+#define DP_FRAMER_STATE_MAGIC DP_FOURCC ('F', 'R', 'M', 'R')
+
+#define DP_FRAMER_STATE_WRITTEN_OFFSET(sample_t, frame_n)                     \
+  (sizeof (dp_state_hdr_t) + 2 * sizeof (uint64_t)                            \
+   + ((frame_n) - 1) * 2 * sizeof (sample_t))
+
+/* A stamped face is DEFINED in the includer's translation unit. clang warns
+ * about any unused static function defined in the MAIN file -- inline or not
+ * -- so a program that stamps the framed face in a .c file and calls some of
+ * it would be warned about the rest. The typed headers stamp it in a header,
+ * where no compiler warns; this keeps a .c that stamps it quiet too. */
+#if defined(__GNUC__) || defined(__clang__)
+#define DP_BUFFER_UNUSED __attribute__ ((unused))
+#else
+#define DP_BUFFER_UNUSED
+#endif
+
+/* An initialiser that can refuse leaves its target unwritten, so a caller
+ * that ignores the status goes on to use a framer nothing initialised. The
+ * compiler enforces the check: dropping the status is a -Wall warning at
+ * every call site, not only at the ones someone remembered to review. A void
+ * cast does NOT silence gcc here; a refused init has to be handled. */
+#if defined(__GNUC__) || defined(__clang__)
+#define DP_BUFFER_MUST_CHECK __attribute__ ((warn_unused_result))
+#else
+#define DP_BUFFER_MUST_CHECK
+#endif
+
+#define DECLARE_DP_BUFFER_FRAMES(name, type, elem)                            \
+  DP_ASSERT_2X (name##_frames, elem, type);                                   \
+                                                                              \
+                  \
+  typedef struct                                                              \
+  {                                                                           \
+    dp_##name##_t *ring;   \
+    size_t frame_n;                                 \
+    size_t hop;                          \
+    size_t owed;          \
+    uint64_t written;              \
+    uint64_t frames;         \
+  } dp_##name##_framer_t;                                                     \
+                                                                              \
+                                                                         \
+  static inline DP_BUFFER_UNUSED DP_BUFFER_MUST_CHECK int                     \
+  dp_##name##_framer_init (dp_##name##_framer_t *fr, dp_##name##_t *ring,     \
+                           size_t frame_n, size_t hop)                        \
+  {                                                                           \
+    if (!fr || !ring || hop == 0 || hop > frame_n || frame_n > ring->capacity \
+        || dp_##name##_available (ring) != 0)                                 \
+      return DP_ERR_INVALID;                                                  \
+    fr->ring = ring;                                                          \
+    fr->frame_n = frame_n;                                                    \
+    fr->hop = hop;                                                            \
+    fr->owed = 0;                                                             \
+    fr->written = 0;                                                          \
+    fr->frames = 0;                                                           \
+    return DP_OK;                                                             \
+  }                                                                           \
+                                                                              \
+      \
+  static inline DP_BUFFER_UNUSED size_t                                       \
+  dp_##name##_framer_frames_in_ (const dp_##name##_framer_t *fr, size_t avail) \
+  {                                                                           \
+    return avail >= fr->frame_n ? (avail - fr->frame_n) / fr->hop + 1 : 0;    \
+  }                                                                           \
+                                                                              \
+                                                                         \
+  static inline DP_BUFFER_UNUSED void                                         \
+  dp_##name##_framer_settle (dp_##name##_framer_t *fr)                        \
+  {                                                                           \
+    if (fr->owed)                                                             \
+      {                                                                       \
+        dp_##name##_consume (fr->ring, fr->owed);                             \
+        fr->owed = 0;                                                         \
+      }                                                                       \
+  }                                                                           \
+                                                                              \
+                                                                         \
+  static inline DP_BUFFER_UNUSED type *                                       \
+  dp_##name##_framer_next (dp_##name##_framer_t *fr)                          \
+  {                                                                           \
+    dp_##name##_framer_settle (fr);                                           \
+    type *p = dp_##name##_peek (fr->ring, fr->frame_n);                       \
+    if (p)                                                                    \
+      {                                                                       \
+        fr->owed = fr->hop;                                                   \
+        fr->frames++;                                                         \
+      }                                                                       \
+    return p;                                                                 \
+  }                                                                           \
+                                                                              \
+                                                                         \
+  static inline DP_BUFFER_UNUSED size_t                                       \
+  dp_##name##_framer_feed (dp_##name##_framer_t *fr, const type *in, size_t n, \
+                           size_t max_frames)                                 \
+  {                                                                           \
+    dp_##name##_framer_settle (fr);                                           \
+    size_t avail = dp_##name##_available (fr->ring);                          \
+    size_t room = n;                                                          \
+    if (max_frames <= (SIZE_MAX - fr->frame_n) / fr->hop)                     \
+      {                                                                       \
+        /* Largest buffered total that still yields <= max_frames frames. */  \
+        size_t a_max = fr->frame_n - 1 + max_frames * fr->hop;                \
+        room = a_max > avail ? a_max - avail : 0;                             \
+      }                                                                       \
+    if (n > room)                                                             \
+      n = room;                                                               \
+    n = dp_##name##_write_some (fr->ring, in, n);                             \
+    fr->written += n;                                                         \
+    return n;                                                                 \
+  }                                                                           \
+                                                                              \
+                                                                         \
+  static inline DP_BUFFER_UNUSED size_t                                       \
+  dp_##name##_framer_frames_for (const dp_##name##_framer_t *fr, size_t n)    \
+  {                                                                           \
+    size_t held = dp_##name##_available (fr->ring) - fr->owed;                \
+    size_t room = fr->ring->capacity - held;                                  \
+    return dp_##name##_framer_frames_in_ (fr, held + (n < room ? n : room));  \
+  }                                                                           \
+                                                                              \
+         \
+  static inline DP_BUFFER_UNUSED size_t                                       \
+  dp_##name##_framer_pending (const dp_##name##_framer_t *fr)                 \
+  {                                                                           \
+    uint64_t covered                                                          \
+        = fr->frames ? (fr->frames - 1) * fr->hop + fr->frame_n : 0;          \
+    return (size_t)(fr->written - covered);                                   \
+  }                                                                           \
+                                                                              \
+                                                                         \
+  static inline DP_BUFFER_UNUSED int                                          \
+  dp_##name##_framer_drained (const dp_##name##_framer_t *fr)                 \
+  {                                                                           \
+    return dp_##name##_available (fr->ring) - fr->owed < fr->frame_n;         \
+  }                                                                           \
+                                                                              \
+    \
+  static inline DP_BUFFER_UNUSED void                                         \
+  dp_##name##_framer_reset (dp_##name##_framer_t *fr)                         \
+  {                                                                           \
+    dp_##name##_reset (fr->ring);                                             \
+    fr->owed = 0;                                                             \
+    fr->written = 0;                                                          \
+    fr->frames = 0;                                                           \
+  }                                                                           \
+                                                                              \
+                                                                         \
+  static inline DP_BUFFER_UNUSED int                                          \
+  dp_##name##_framer_flush (dp_##name##_framer_t *fr, type *row)              \
+  {                                                                           \
+    dp_##name##_framer_settle (fr);                                           \
+    if (!dp_##name##_framer_drained (fr))                                     \
+      return DP_ERR_INVALID;                                                  \
+    int emit = dp_##name##_framer_pending (fr) != 0;                          \
+    if (emit)                                                                 \
+      {                                                                       \
+        size_t live = dp_##name##_available (fr->ring);                       \
+        memcpy (row, dp_##name##_peek (fr->ring, live),                       \
+                live * 2 * sizeof (type));                                    \
+        memset (row + live * 2, 0, (fr->frame_n - live) * 2 * sizeof (type)); \
+      }                                                                       \
+    dp_##name##_framer_reset (fr);                                            \
+    return emit;                                                              \
+  }                                                                           \
+                                                                              \
+                                                                              \
+                                                                         \
+  static inline DP_BUFFER_UNUSED size_t                                       \
+  dp_##name##_framer_state_bytes (const dp_##name##_framer_t *fr)             \
+  {                                                                           \
+    return sizeof (dp_state_hdr_t) + 2 * sizeof (uint64_t)                    \
+           + (fr->frame_n - 1) * 2 * sizeof (type) + 3 * sizeof (uint64_t);   \
+  }                                                                           \
+                                                                              \
+                                                                         \
+  static inline DP_BUFFER_UNUSED void                                         \
+  dp_##name##_framer_get_state (const dp_##name##_framer_t *fr, void *blob)   \
+  {                                                                           \
+    size_t total = dp_##name##_framer_state_bytes (fr);                       \
+    if (!dp_##name##_framer_drained (fr))                                     \
+      {                                                                       \
+        memset (blob, 0, total);                                              \
+        return;                                                               \
+      }                                                                       \
+    DP_GET_OPEN (DP_FRAMER_STATE_MAGIC, 1u, total);                           \
+    size_t t = DP_LOAD_RLX (&fr->ring->tail) + fr->owed;                      \
+    size_t live = dp_##name##_available (fr->ring) - fr->owed;                \
+    dp_w_u64 (&_w, live);                                                     \
+    dp_w_u64 (&_w, sizeof (type));                                            \
+    dp_w_bytes (&_w, &fr->ring->data[(t & fr->ring->mask) * 2],               \
+                live * 2 * sizeof (type));                                    \
+    /* The unused slots are written, as zeros: a byte get_state leaves alone is \
+       a byte of the caller's heap shipped in the blob (doppler#1471). */     \
+    size_t pad_bytes = (fr->frame_n - 1 - live) * 2 * sizeof (type);          \
+    void *pad = dp_w_reserve (&_w, pad_bytes);                                \
+    if (pad)                                                                  \
+      memset (pad, 0, pad_bytes);                                             \
+    dp_w_u64 (&_w, fr->written);                                              \
+    dp_w_u64 (&_w, fr->frames);                                               \
+    dp_w_u64 (&_w, fr->hop);                                                  \
+  }                                                                           \
+                                                                              \
+                                                                         \
+  static inline DP_BUFFER_UNUSED int                                          \
+  dp_##name##_framer_set_state (dp_##name##_framer_t *fr, const void *blob)   \
+  {                                                                           \
+    size_t want = dp_##name##_framer_state_bytes (fr);                        \
+    DP_SET_OPEN (DP_FRAMER_STATE_MAGIC, 1u, want);                            \
+    uint64_t live = dp_r_u64 (&_r);                                           \
+    uint64_t elem_bytes = dp_r_u64 (&_r);                                     \
+    const void *src                                                           \
+        = dp_r_reserve (&_r, (fr->frame_n - 1) * 2 * sizeof (type));          \
+    uint64_t written = dp_r_u64 (&_r);                                        \
+    uint64_t frames = dp_r_u64 (&_r);                                         \
+    uint64_t hop = dp_r_u64 (&_r);                                            \
+    /* Frames retired exactly frames*hop samples, so what remains is written  \
+       minus that. Anything else is a corrupt blob, not a snapshot. */        \
+    if (_r.err || elem_bytes != sizeof (type) || hop != fr->hop               \
+        || live > fr->frame_n - 1                                             \
+        || frames > UINT64_MAX / fr->hop                                      \
+        || written < frames * fr->hop || written - frames * fr->hop != live)  \
+      return DP_ERR_INVALID;                                                  \
+    dp_##name##_framer_reset (fr);                                            \
+    dp_##name##_write_some (fr->ring, (const type *)src, (size_t)live);       \
+    fr->written = written;                                                    \
+    fr->frames = frames;                                                      \
+    return DP_OK;                                                             \
+  }                                                                           \
+                                                                              \
+  /* The element face: one ELEMENT per sample, as the VIEW macro does. */     \
+  static inline DP_BUFFER_UNUSED elem *                                       \
+  dp_##name##_framer_next_view (dp_##name##_framer_t *fr)                     \
+  {                                                                           \
+    return (elem *)dp_##name##_framer_next (fr);                              \
+  }                                                                           \
+                                                                              \
+  static inline DP_BUFFER_UNUSED size_t                                       \
+  dp_##name##_framer_feed_view (dp_##name##_framer_t *fr, const elem *in,     \
+                                size_t n, size_t max_frames)                  \
+  {                                                                           \
+    return dp_##name##_framer_feed (fr, (const type *)in, n, max_frames);     \
+  }                                                                           \
+                                                                              \
+  static inline DP_BUFFER_UNUSED int                                          \
+  dp_##name##_framer_flush_view (dp_##name##_framer_t *fr, elem *row)         \
+  {                                                                           \
+    return dp_##name##_framer_flush (fr, (type *)row);                        \
   }
 
 /* --- Type instantiations --- */

@@ -1,0 +1,67 @@
+# Ratchet for scripts/check_tests_ssot.py's chunk-invariance rule.
+#
+# One serializable streaming object per line (its `<p>_set_state` prefix),
+# each with a reason, whose output has no test that it does not depend on how
+# the input was split into calls (native/tests/dp_chunk_inv.h).
+#
+# THIS LIST MAY ONLY SHRINK. Give the object a test (a dozen lines against the
+# harness) and delete its line. A new streaming object gets the test; it does
+# not go on this list. An entry that has the test now, or is no longer a
+# serializable streaming object, is a FAILURE (stale), and an entry ADDED
+# since the merge base is a failure too.
+#
+# `dp_resamp` is tested, but its call-relative positions (eq_ctrl_pos in
+# test_resamp_core.c) obey a different law -- chunking MOVES the number by
+# exactly the input count -- and stay a bespoke test.
+#
+# Burn-down: doppler#1896.   Derived, not curated:
+#   python scripts/check_tests_ssot.py   # names every uncovered object
+dp_HalfbandDecimator | no chunk-invariance test yet (#1896)
+dp_RateConverter | no chunk-invariance test yet (#1896)
+dp_Resampler | no chunk-invariance test yet (#1896)
+dp_acc_cf64 | no chunk-invariance test yet (#1896)
+dp_acc_f32 | no chunk-invariance test yet (#1896)
+dp_acc_q15 | no chunk-invariance test yet (#1896)
+dp_acc_q8 | no chunk-invariance test yet (#1896)
+dp_acq | no chunk-invariance test yet (#1896)
+dp_adc | no chunk-invariance test yet (#1896)
+dp_agc | no chunk-invariance test yet (#1896)
+dp_async_dsss_pool | no chunk-invariance test yet (#1896)
+dp_async_dsss_receiver | no chunk-invariance test yet (#1896)
+dp_boxcar | no chunk-invariance test yet (#1896)
+dp_burst_acq | no chunk-invariance test yet (#1896)
+dp_burst_capture | no chunk-invariance test yet (#1896)
+dp_burst_despreader | no chunk-invariance test yet (#1896)
+dp_carrier_acq | no chunk-invariance test yet (#1896)
+dp_carrier_mpsk | no chunk-invariance test yet (#1896)
+dp_carrier_nda | no chunk-invariance test yet (#1896)
+dp_corr | no chunk-invariance test yet (#1896)
+dp_corr2d | no chunk-invariance test yet (#1896)
+dp_costas | no chunk-invariance test yet (#1896)
+dp_ddc | no chunk-invariance test yet (#1896)
+dp_ddcr | no chunk-invariance test yet (#1896)
+dp_delay | no chunk-invariance test yet (#1896)
+dp_despreader | no chunk-invariance test yet (#1896)
+dp_detector | no chunk-invariance test yet (#1896)
+dp_detector2d | no chunk-invariance test yet (#1896)
+dp_dll | no chunk-invariance test yet (#1896)
+dp_dsss_burst_receiver | no chunk-invariance test yet (#1896)
+dp_dsss_receiver | no chunk-invariance test yet (#1896)
+dp_f32_to_i16 | no chunk-invariance test yet (#1896)
+dp_f32_to_i16u32 | no chunk-invariance test yet (#1896)
+dp_f32_to_i16u64 | no chunk-invariance test yet (#1896)
+dp_f32_to_i32 | no chunk-invariance test yet (#1896)
+dp_f32_to_i8 | no chunk-invariance test yet (#1896)
+dp_f32_to_uq15 | no chunk-invariance test yet (#1896)
+dp_fir | no chunk-invariance test yet (#1896)
+dp_hbdecim | no chunk-invariance test yet (#1896)
+dp_hbdecim_q15 | no chunk-invariance test yet (#1896)
+dp_hbdecim_r2c | no chunk-invariance test yet (#1896)
+dp_lo | no chunk-invariance test yet (#1896)
+dp_lockdet | no chunk-invariance test yet (#1896)
+dp_loop_filter | no chunk-invariance test yet (#1896)
+dp_mpsk_receiver | no chunk-invariance test yet (#1896)
+dp_nco | no chunk-invariance test yet (#1896)
+dp_ratesync | no chunk-invariance test yet (#1896)
+dp_specan | no chunk-invariance test yet (#1896)
+dp_symsync | no chunk-invariance test yet (#1896)

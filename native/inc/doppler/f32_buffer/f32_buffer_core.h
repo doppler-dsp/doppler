@@ -492,6 +492,7 @@ dp_f32_buffer_get_closed (const dp_f32_buffer_state_t *state)
 }
 
 DECLARE_DP_BUFFER_VIEW (f32, float, float _Complex)
+DECLARE_DP_BUFFER_FRAMES (f32, float, float _Complex)
 
 #ifdef __cplusplus
 }

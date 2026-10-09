@@ -35,6 +35,10 @@
  * whoever adds one.
  */
 #include "doppler/buffer/buffer.h"
+
+/* The typed headers stamp the framed face beside their VIEW; this benchmark
+   builds from buffer.h alone, like test_buffer_core, so it stamps its own. */
+DECLARE_DP_BUFFER_FRAMES (f32, float, float _Complex)
 #include "doppler/dp_thread.h"
 #include "dp_bench.h"
 #include <stdio.h>
@@ -77,6 +81,7 @@ static const char *kind_name[N_KIND] = { "f32", "f64" };
    and the ratio printed below is expected to read ~1.08, not 1.00. */
 #define STREAM_CHUNK 3000
 #define STREAM_FRAME 1024
+#define STREAM_HOP 256 /* 75% overlap: hop < frame */
 
 /* Read the batch so the contiguity of the returned pointer is load-bearing
    rather than decorative. The sum is returned to keep it alive. */
@@ -130,7 +135,10 @@ main (void)
   jm_bench_t    _bench = { 0 };
   uint64_t      t0, t1;
   static double t[N_CFG][ITERATIONS];
-  static double t_stream[ITERATIONS];       /* write_some + peek, f32   */
+  static double t_stream[ITERATIONS];  /* write_some + peek, f32   */
+  static double t_framer[ITERATIONS];  /* the framed face, same job */
+  static double t_hand4[ITERATIONS];   /* hand loop, hop = frame / 4 */
+  static double t_framer4[ITERATIONS]; /* the framed face, hop = frame / 4 */
   static double t_i16[N_CHUNK][ITERATIONS]; /* write/wait/consume, i16 */
   dp_f32_t     *b32   = dp_f32_create (CAPACITY);
   dp_f64_t     *b64   = dp_f64_create (CAPACITY);
@@ -235,6 +243,95 @@ main (void)
             t1          = jm_bench_now_ns ();
             t_stream[r] = jm_bench_elapsed_sec (t0, t1);
             dp_f32_reset (b32); /* leave no remainder for the next row */
+
+            /* The same job through the framed face (hop == frame, so the
+               work per sample is identical): what does owning the loop cost?
+             */
+            {
+              dp_f32_framer_t fr;
+              size_t          fed2 = 0;
+              if (dp_f32_framer_init (&fr, b32, STREAM_FRAME, STREAM_FRAME)
+                  != DP_OK)
+                {
+                  fprintf (stderr, "framer init refused\n");
+                  return 1;
+                }
+              t0 = jm_bench_now_ns ();
+              while (fed2 < TOTAL)
+                {
+                  size_t off = 0;
+                  while (off < STREAM_CHUNK)
+                    {
+                      const float *f;
+                      off += dp_f32_framer_feed (&fr, srcs + 2 * off,
+                                                 STREAM_CHUNK - off, SIZE_MAX);
+                      while ((f = dp_f32_framer_next (&fr)) != NULL)
+                        for (size_t k = 0; k < (size_t)STREAM_FRAME * 2; k++)
+                          acc += (double)f[k];
+                    }
+                  fed2 += STREAM_CHUNK;
+                }
+              t1          = jm_bench_now_ns ();
+              t_framer[r] = jm_bench_elapsed_sec (t0, t1);
+              dp_f32_framer_reset (&fr);
+            }
+
+            /* Overlapped frames (hop = frame / 4): the case the framer
+               exists for. The work per sample is four times as much, so the
+               pair is what compares, in the same round. */
+            {
+              size_t fed3 = 0;
+              dp_f32_reset (b32);
+              t0 = jm_bench_now_ns ();
+              while (fed3 < TOTAL)
+                {
+                  size_t off = 0;
+                  while (off < STREAM_CHUNK)
+                    {
+                      const float *f;
+                      off += dp_f32_write_some (b32, srcs + 2 * off,
+                                                STREAM_CHUNK - off);
+                      while ((f = dp_f32_peek (b32, STREAM_FRAME)) != NULL)
+                        {
+                          for (size_t k = 0; k < (size_t)STREAM_FRAME * 2; k++)
+                            acc += (double)f[k];
+                          dp_f32_consume (b32, STREAM_HOP);
+                        }
+                    }
+                  fed3 += STREAM_CHUNK;
+                }
+              t1         = jm_bench_now_ns ();
+              t_hand4[r] = jm_bench_elapsed_sec (t0, t1);
+              dp_f32_reset (b32);
+            }
+            {
+              dp_f32_framer_t fr;
+              size_t          fed4 = 0;
+              if (dp_f32_framer_init (&fr, b32, STREAM_FRAME, STREAM_HOP)
+                  != DP_OK)
+                {
+                  fprintf (stderr, "framer init refused\n");
+                  return 1;
+                }
+              t0 = jm_bench_now_ns ();
+              while (fed4 < TOTAL)
+                {
+                  size_t off = 0;
+                  while (off < STREAM_CHUNK)
+                    {
+                      const float *f;
+                      off += dp_f32_framer_feed (&fr, srcs + 2 * off,
+                                                 STREAM_CHUNK - off, SIZE_MAX);
+                      while ((f = dp_f32_framer_next (&fr)) != NULL)
+                        for (size_t k = 0; k < (size_t)STREAM_FRAME * 2; k++)
+                          acc += (double)f[k];
+                    }
+                  fed4 += STREAM_CHUNK;
+                }
+              t1           = jm_bench_now_ns ();
+              t_framer4[r] = jm_bench_elapsed_sec (t0, t1);
+              dp_f32_framer_reset (&fr);
+            }
           }
       }
 
@@ -260,6 +357,25 @@ main (void)
                    (TOTAL + STREAM_CHUNK - 1) / STREAM_CHUNK * STREAM_CHUNK,
                    "sample");
 
+  (void)snprintf (name, sizeof name, "framer_feed_next[f32,in=%d,frame=%d]",
+                  STREAM_CHUNK, STREAM_FRAME);
+  dp_bench_record (&_bench, name, t_framer, ITERATIONS,
+                   (TOTAL + STREAM_CHUNK - 1) / STREAM_CHUNK * STREAM_CHUNK,
+                   "sample");
+
+  (void)snprintf (name, sizeof name,
+                  "write_some_peek_consume[f32,in=%d,frame=%d,hop=%d]",
+                  STREAM_CHUNK, STREAM_FRAME, STREAM_HOP);
+  dp_bench_record (&_bench, name, t_hand4, ITERATIONS,
+                   (TOTAL + STREAM_CHUNK - 1) / STREAM_CHUNK * STREAM_CHUNK,
+                   "sample");
+  (void)snprintf (name, sizeof name,
+                  "framer_feed_next[f32,in=%d,frame=%d,hop=%d]", STREAM_CHUNK,
+                  STREAM_FRAME, STREAM_HOP);
+  dp_bench_record (&_bench, name, t_framer4, ITERATIONS,
+                   (TOTAL + STREAM_CHUNK - 1) / STREAM_CHUNK * STREAM_CHUNK,
+                   "sample");
+
   printf (
       "\n  the streaming loop (write_some + peek), against write + wait:\n");
   printf (
@@ -269,6 +385,15 @@ main (void)
        / (double)((TOTAL + STREAM_CHUNK - 1) / STREAM_CHUNK * STREAM_CHUNK))
           / (dp_bench_min (t[REF_IDX * N_KIND + KIND_F32], ITERATIONS)
              / (double)TOTAL));
+
+  printf ("\n  the framed face, against the hand-written loop it replaces:\n"
+          "    framer_feed_next over write_some_peek_consume   %.2fx\n",
+          dp_bench_min (t_framer, ITERATIONS)
+              / dp_bench_min (t_stream, ITERATIONS));
+
+  printf ("    ...and at hop = frame / 4 (75%% overlap)       %.2fx\n",
+          dp_bench_min (t_framer4, ITERATIONS)
+              / dp_bench_min (t_hand4, ITERATIONS));
 
   printf ("\n  straddling the wrap, against never straddling it:\n");
   for (int k = 0; k < N_KIND; k++)

@@ -297,6 +297,20 @@ target_include_directories(validate_rs_certify
 target_link_libraries(validate_rs_certify PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 dp_gnu_compile_options(validate_rs_certify PRIVATE -O3 -funroll-loops)
 
+# framer_certify is the fourth, and the first for a FACE of an object that is
+# certified elsewhere: the framed face of the ring (buffer.h) has no Python
+# binding, so its claims are measured here and rendered and asserted by
+# src/doppler/tests/validation/framer/. No `--check`, no CTest, for the reason
+# conv_certify gives; it reaches native/tests for dp_rng_test.h, whose seeded
+# generator draws the random partitions.
+add_executable(validate_framer_certify
+               ${CMAKE_CURRENT_SOURCE_DIR}/framer_certify.c)
+target_include_directories(validate_framer_certify
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_framer_certify PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
+dp_gnu_compile_options(validate_framer_certify PRIVATE -O3 -funroll-loops)
+
 # ccsds_tm_certify is the third of the C-only certifications, and measures the
 # three things this component adds ON TOP of the code it configures: the
 # interleaver's burst tolerance, the sync marker as a detector, and the

@@ -82,6 +82,7 @@ dp_i16_buffer_get_closed (const dp_i16_buffer_state_t *state)
 }
 
 DECLARE_DP_BUFFER_VIEW (i16, int16_t, dp_iq16_t)
+DECLARE_DP_BUFFER_FRAMES (i16, int16_t, dp_iq16_t)
 
 #ifdef __cplusplus
 }

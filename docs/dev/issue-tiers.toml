@@ -1122,3 +1122,21 @@ tier = 5
 title = "scripts/.warnings-exempt floors at 2: stream_ext.c and resample_ext_extra.c are not jm-adoptable"
 status = "open"
 why = "The -Wall -Wextra ratchet cannot reach 0 while two files jm will never own still warn"
+
+[issue.1894]
+tier = 4
+title = "Streaming spectrogram: a Spectrogram object over the ring's framed face (PSD per frame, no averaging)"
+status = "open"
+why = "No spectrogram exists: the library cannot turn a chunked stream into spectrum rows without the caller writing the re-blocking loop"
+
+[issue.1895]
+tier = 5
+title = "Move detector, detector2d and acq onto the ring framer; stop touching ->head/->tail/->mask"
+status = "open"
+why = "Three hand-written ring drain loops and ring snapshots remain beside the framer that replaces them"
+
+[issue.1896]
+tier = 2
+title = "Chunk-invariance: burn down the ratchet (49 stateful streaming objects have no test)"
+status = "open"
+why = "49 streaming objects claim output independent of call boundaries and nothing measures it"

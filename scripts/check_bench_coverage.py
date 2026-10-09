@@ -221,14 +221,7 @@ PUBLISHED = ROOT / "benchmarks" / "published"
 #: only shrink, and the gate fails on an entry whose published figure is back
 #: under it, so the first snapshot measured after the benchmark was fixed
 #: removes the line. Keyed `bench_<file>.py::<test>`.
-IMPLAUSIBLE_ALLOW: dict[str, str] = {
-    "bench_corr.py::test_bench_execute_64k": (
-        "v0.64.0 published 206 GSa/s portable / 262 GSa/s native for a "
-        "benchmark that gave a 64-point kernel 65 536 samples and credited "
-        "it with all of them (#1918). The benchmark is fixed; the number "
-        "stays until a representative-machine `make bench-interleaved`."
-    ),
-}
+IMPLAUSIBLE_ALLOW: dict[str, str] = {}
 
 
 def _version_key(name: str) -> tuple[int, ...] | None:

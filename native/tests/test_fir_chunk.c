@@ -72,10 +72,76 @@ run (void *o, const void *in, size_t n, void *out, size_t cap)
                          (float _Complex *)out);
 }
 
+/*
+ * Does this CPU run the extension the kernel under test was compiled for?
+ *
+ * No CPU-feature primitive exists elsewhere in the tree (jm_simd.h selects an
+ * ISA at COMPILE time and never asks the CPU). Promote this to a
+ * dp_cpu_test.h, with the self-test the family owes, the day a second kernel
+ * needs a per-ISA test.
+ *
+ * __builtin_cpu_supports is gcc/clang's answer, but it reads __cpu_model from
+ * compiler-rt/libgcc, which clang-cl does not link: the test then fails to
+ * LINK (`lld-link: undefined symbol: __cpu_model`), and a test that is Not Run
+ * is a failure. So under _MSC_VER (cl and clang-cl) ask the CPU directly --
+ * CPUID for the feature bits, XGETBV for whether the OS saves the wider
+ * registers (a CPU that has AVX-512 under an OS that does not enable ZMM
+ * state would fault on the first instruction).
+ */
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(__x86_64__))
+#include <intrin.h>
+
+static unsigned long long
+xcr0 (void)
+{
+#if defined(__clang__)
+  /* clang-cl exposes _xgetbv only under -mxsave, which the test does not
+   * (and must not) be built with: it would let the compiler use the very
+   * instructions being probed for. */
+  unsigned int lo, hi;
+  __asm__ volatile ("xgetbv" : "=a"(lo), "=d"(hi) : "c"(0));
+  return ((unsigned long long)hi << 32) | lo;
+#else
+  return _xgetbv (0);
+#endif
+}
+
+static int
+cpu_has (int avx512)
+{
+  int r[4];
+  __cpuid (r, 0);
+  const int max_leaf = r[0];
+  if (max_leaf < 7)
+    return 0;
+  __cpuid (r, 1);
+  const unsigned ecx1 = (unsigned)r[2];
+  const int      fma = (ecx1 >> 12) & 1, osxsave = (ecx1 >> 27) & 1,
+                 avx = (ecx1 >> 28) & 1;
+  if (!(fma && osxsave && avx))
+    return 0;
+  const unsigned long long x = xcr0 ();
+  if ((x & 0x6) != 0x6) /* XMM + YMM state enabled by the OS */
+    return 0;
+  __cpuidex (r, 7, 0);
+  const unsigned ebx7 = (unsigned)r[1];
+  if (!avx512)
+    return (ebx7 >> 5) & 1; /* AVX2 */
+  /* AVX-512F (bit 16) and DQ (bit 17), plus opmask and ZMM state in XCR0 */
+  return ((ebx7 >> 16) & 1) && ((ebx7 >> 17) & 1) && (x & 0xE0) == 0xE0;
+}
+#endif
+
 static int
 supported (void)
 {
-#if defined(__x86_64__) && (defined(__GNUC__) || defined(__clang__))
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(__x86_64__))
+#if defined(FIR_REQUIRE_AVX512)
+  return cpu_has (1);
+#elif defined(FIR_REQUIRE_AVX2)
+  return cpu_has (0);
+#endif
+#elif defined(__x86_64__) && (defined(__GNUC__) || defined(__clang__))
 #if defined(FIR_REQUIRE_AVX512)
   return __builtin_cpu_supports ("avx512f")
          && __builtin_cpu_supports ("avx512dq")

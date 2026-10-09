@@ -4,20 +4,32 @@
 
 <p align="center"><strong>Practical, portable, performant digital signal processing.</strong></p>
 
+<!-- badges:start -->
+
 <p align="center">
-  <a href="https://github.com/doppler-dsp/doppler/actions/workflows/ci.yml"><img src="https://github.com/doppler-dsp/doppler/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://doppler-dsp.github.io/doppler/"><img src="https://img.shields.io/badge/docs-doppler--dsp.github.io-blue" alt="Docs"></a>
-  <a href="https://pypi.org/project/doppler-dsp/"><img src="https://img.shields.io/pypi/v/doppler-dsp" alt="PyPI"></a>
-  <a href="https://pypi.org/project/doppler-dsp/"><img src="https://img.shields.io/badge/python-3.9%20%E2%80%93%203.14-blue" alt="Python"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT"></a>
+  <a href="https://github.com/doppler-dsp/doppler/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/doppler-dsp/doppler/ci.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=CI" alt="CI"></a>
+  <a href="https://doppler-dsp.github.io/doppler/"><img src="https://img.shields.io/badge/docs-doppler--dsp.github.io-0A7BBB?style=flat-square&logo=materialformkdocs&logoColor=white" alt="Docs"></a>
+  <a href="https://github.com/doppler-dsp/doppler/releases/latest"><img src="https://img.shields.io/github/v/release/doppler-dsp/doppler?style=flat-square&logo=github&label=release" alt="Latest release"></a>
+  <a href="https://github.com/doppler-dsp/doppler/blob/main/LICENSE"><img src="https://img.shields.io/github/license/doppler-dsp/doppler?style=flat-square&logo=opensourceinitiative&logoColor=white" alt="License"></a>
 </p>
 
 <p align="center">
-  <a href="https://en.wikipedia.org/wiki/C99"><img src="https://img.shields.io/badge/C-C99-blue" alt="C99"></a>
-  <a href="https://doppler-dsp.github.io/doppler/install/rust/"><img src="https://img.shields.io/badge/Rust-FFI-CE4A00?logo=rust&logoColor=white" alt="Rust"></a>
-  <a href="https://github.com/astral-sh/uv"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json" alt="uv"></a>
-  <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff"></a>
+  <a href="https://pypi.org/project/doppler-dsp/"><img src="https://img.shields.io/pypi/v/doppler-dsp?style=flat-square&logo=pypi&logoColor=white" alt="PyPI"></a>
+  <a href="https://pypi.org/project/doppler-dsp/"><img src="https://img.shields.io/pypi/pyversions/doppler-dsp?style=flat-square&logo=python&logoColor=white" alt="Python versions"></a>
+  <a href="https://doppler-dsp.github.io/doppler/install/python/"><img src="https://img.shields.io/badge/wheels-Linux%20%7C%20macOS%20%7C%20Windows-3776AB?style=flat-square&logo=python&logoColor=white" alt="Wheels: Linux, macOS, Windows"></a>
+  <a href="https://doppler-dsp.github.io/doppler/install/c/#system-packages-deb-rpm"><img src="https://img.shields.io/badge/.deb-amd64%20%7C%20arm64-A81D33?style=flat-square&logo=debian&logoColor=white" alt=".deb packages"></a>
+  <a href="https://doppler-dsp.github.io/doppler/install/c/#system-packages-deb-rpm"><img src="https://img.shields.io/badge/.rpm-x86__64%20%7C%20aarch64-EE0000?style=flat-square&logo=redhat&logoColor=white" alt=".rpm packages"></a>
+  <a href="https://doppler-dsp.github.io/doppler/install/docker/"><img src="https://img.shields.io/badge/ghcr.io-runtime%20%7C%20sdk-2496ED?style=flat-square&logo=docker&logoColor=white" alt="Docker images on ghcr.io"></a>
 </p>
+
+<p align="center">
+  <a href="https://doppler-dsp.github.io/doppler/quickstart-c/"><img src="https://img.shields.io/badge/C99-core-00599C?style=flat-square&logo=c&logoColor=white" alt="C99 core"></a>
+  <a href="https://doppler-dsp.github.io/doppler/install/rust/"><img src="https://img.shields.io/badge/Rust-FFI-CE4A00?style=flat-square&logo=rust&logoColor=white" alt="Rust FFI"></a>
+  <a href="https://github.com/astral-sh/uv"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json&style=flat-square" alt="uv"></a>
+  <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json&style=flat-square" alt="Ruff"></a>
+</p>
+
+<!-- badges:end -->
 
 <!-- readme-sync:start -->
 

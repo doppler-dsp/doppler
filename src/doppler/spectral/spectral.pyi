@@ -66,7 +66,9 @@ class FFT:
         Returns
         -------
         NDArray[np.complex128]
-            min(state->n, max_out) bins.
+            min(state->n, max_out) bins. If n_in is not the required length the
+            call is REFUSED with nothing read, written or counted: SIZE_MAX in
+            C, ValueError in Python (#1925).
 
         Examples
         --------
@@ -109,7 +111,9 @@ class FFT:
         Returns
         -------
         NDArray[np.complex64]
-            min(state->n, max_out) bins.
+            min(state->n, max_out) bins. If n_in is not the required length the
+            call is REFUSED with nothing read, written or counted: SIZE_MAX in
+            C, ValueError in Python (#1925).
 
         Examples
         --------
@@ -152,7 +156,9 @@ class FFT:
         Returns
         -------
         NDArray[np.complex128]
-            min(state->n, max_out) bins.
+            min(state->n, max_out) bins. If n_in is not the required length the
+            call is REFUSED with nothing read, written or counted: SIZE_MAX in
+            C, ValueError in Python (#1925).
 
         Examples
         --------
@@ -194,7 +200,9 @@ class FFT:
         Returns
         -------
         NDArray[np.complex64]
-            min(state->n, max_out) bins.
+            min(state->n, max_out) bins. If n_in is not the required length the
+            call is REFUSED with nothing read, written or counted: SIZE_MAX in
+            C, ValueError in Python (#1925).
 
         Examples
         --------
@@ -364,7 +372,16 @@ class FFT2D:
         Returns
         -------
         NDArray[np.complex128]
-            min(ny*nx, max_out) samples.
+            min(ny*nx, max_out) samples. If n_in is not the required length the
+            call is REFUSED with nothing read, written or counted: SIZE_MAX in
+            C, ValueError in Python (#1925).
+
+        Raises
+        ------
+        ValueError
+            If the C call returns ``SIZE_MAX``, its refusal value, in place of
+            a count. The exception message is ``input length is not ny*nx; the
+            plan takes exactly one frame``.
 
         Examples
         --------
@@ -409,7 +426,16 @@ class FFT2D:
         Returns
         -------
         NDArray[np.complex64]
-            min(ny*nx, max_out) samples.
+            min(ny*nx, max_out) samples. If n_in is not the required length the
+            call is REFUSED with nothing read, written or counted: SIZE_MAX in
+            C, ValueError in Python (#1925).
+
+        Raises
+        ------
+        ValueError
+            If the C call returns ``SIZE_MAX``, its refusal value, in place of
+            a count. The exception message is ``input length is not ny*nx; the
+            plan takes exactly one frame``.
 
         Examples
         --------
@@ -454,7 +480,16 @@ class FFT2D:
         Returns
         -------
         NDArray[np.complex128]
-            min(ny*nx, max_out) samples.
+            min(ny*nx, max_out) samples. If n_in is not the required length the
+            call is REFUSED with nothing read, written or counted: SIZE_MAX in
+            C, ValueError in Python (#1925).
+
+        Raises
+        ------
+        ValueError
+            If the C call returns ``SIZE_MAX``, its refusal value, in place of
+            a count. The exception message is ``input length is not ny*nx; the
+            plan takes exactly one frame``.
 
         Examples
         --------
@@ -496,7 +531,16 @@ class FFT2D:
         Returns
         -------
         NDArray[np.complex64]
-            min(ny*nx, max_out) samples.
+            min(ny*nx, max_out) samples. If n_in is not the required length the
+            call is REFUSED with nothing read, written or counted: SIZE_MAX in
+            C, ValueError in Python (#1925).
+
+        Raises
+        ------
+        ValueError
+            If the C call returns ``SIZE_MAX``, its refusal value, in place of
+            a count. The exception message is ``input length is not ny*nx; the
+            plan takes exactly one frame``.
 
         Examples
         --------
@@ -667,8 +711,17 @@ class Corr:
         Returns
         -------
         NDArray[np.complex64]
-            n_out on a dump call (or max_out if smaller), 0 otherwise (None in
-            Python).
+            n_out on a dump call (or max_out if smaller), 0 otherwise If n_in
+            is not the required length the call is REFUSED with nothing read,
+            written or counted: SIZE_MAX in C, ValueError in Python (#1925).
+            (None in Python).
+
+        Raises
+        ------
+        ValueError
+            If the C call returns ``SIZE_MAX``, its refusal value, in place of
+            a count. The exception message is ``input length is not the frame
+            length (Corr.n); execute takes exactly one frame``.
 
         Examples
         --------
@@ -912,8 +965,17 @@ class Corr2D:
         Returns
         -------
         NDArray[np.complex64]
-            ny*nx on a dump (or max_out if smaller), 0 otherwise (None in
+            ny*nx on a dump (or max_out if smaller), 0 otherwise If n_in is not
+            the required length the call is REFUSED with nothing read, written
+            or counted: SIZE_MAX in C, ValueError in Python (#1925). (None in
             Python).
+
+        Raises
+        ------
+        ValueError
+            If the C call returns ``SIZE_MAX``, its refusal value, in place of
+            a count. The exception message is ``input length is not ny*nx;
+            execute takes exactly one frame``.
 
         Examples
         --------

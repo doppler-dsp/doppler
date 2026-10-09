@@ -36,6 +36,11 @@ variable_output = true
 # The pocketfft plan is fixed-size, so a short buffer is served from
 # scratch and truncated (jm gh-138) rather than overrunning `out`.
 pass_capacity = true
+# n_in must equal the frame length; the C kernel REFUSES any other
+# with SIZE_MAX (nothing read, written or counted) and jm raises (#1925).
+error_sentinel = "SIZE_MAX"
+error = "ValueError"
+error_message = "input length is not ny*nx; the plan takes exactly one frame"
 
 [[fft2d.methods]]
 name = "execute_cf32"
@@ -45,6 +50,11 @@ variable_output = true
 # The pocketfft plan is fixed-size, so a short buffer is served from
 # scratch and truncated (jm gh-138) rather than overrunning `out`.
 pass_capacity = true
+# n_in must equal the frame length; the C kernel REFUSES any other
+# with SIZE_MAX (nothing read, written or counted) and jm raises (#1925).
+error_sentinel = "SIZE_MAX"
+error = "ValueError"
+error_message = "input length is not ny*nx; the plan takes exactly one frame"
 
 [[fft2d.methods]]
 name = "execute_inplace_cf64"
@@ -54,6 +64,11 @@ variable_output = true
 # The pocketfft plan is fixed-size, so a short buffer is served from
 # scratch and truncated (jm gh-138) rather than overrunning `out`.
 pass_capacity = true
+# n_in must equal the frame length; the C kernel REFUSES any other
+# with SIZE_MAX (nothing read, written or counted) and jm raises (#1925).
+error_sentinel = "SIZE_MAX"
+error = "ValueError"
+error_message = "input length is not ny*nx; the plan takes exactly one frame"
 
 [[fft2d.methods]]
 name = "execute_inplace_cf32"
@@ -63,6 +78,11 @@ variable_output = true
 # The pocketfft plan is fixed-size, so a short buffer is served from
 # scratch and truncated (jm gh-138) rather than overrunning `out`.
 pass_capacity = true
+# n_in must equal the frame length; the C kernel REFUSES any other
+# with SIZE_MAX (nothing read, written or counted) and jm raises (#1925).
+error_sentinel = "SIZE_MAX"
+error = "ValueError"
+error_message = "input length is not ny*nx; the plan takes exactly one frame"
 
 [[fft2d.properties]]
 name = "ny"

@@ -133,6 +133,16 @@ FFTObj_execute_cf64 (FFTObject *self, PyObject *args, PyObject *kwds)
       size_t n_out = dp_fft_execute_cf64 (
           self->handle, (const double _Complex *)PyArray_DATA (in_arr),
           (size_t)n, (double _Complex *)PyArray_DATA (out_arr), _cap);
+      if (n_out == SIZE_MAX)
+        {
+          /* n_in != n: the kernel refused (#1925), nothing was written. */
+          Py_DECREF (out_arr);
+          Py_DECREF (in_arr);
+          PyErr_SetString (PyExc_ValueError,
+                           "input length is not the plan length (FFT.n); "
+                           "execute takes exactly one frame");
+          return NULL;
+        }
       Py_DECREF (in_arr);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX128,
@@ -161,6 +171,16 @@ FFTObj_execute_cf64 (FFTObject *self, PyObject *args, PyObject *kwds)
   size_t n_out = dp_fft_execute_cf64 (
       self->handle, (const double _Complex *)PyArray_DATA (in_arr), (size_t)n,
       _d0, _cap);
+  if (n_out == SIZE_MAX)
+    {
+      /* n_in != n: the kernel refused (#1925), nothing was written. */
+      Py_DECREF (arr0);
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_ValueError,
+                       "input length is not the plan length (FFT.n); execute "
+                       "takes exactly one frame");
+      return NULL;
+    }
   Py_DECREF (in_arr);
   if ((size_t)n_out == _cap)
     {
@@ -245,6 +265,16 @@ FFTObj_execute_cf32 (FFTObject *self, PyObject *args, PyObject *kwds)
       size_t n_out = dp_fft_execute_cf32 (
           self->handle, (const float _Complex *)PyArray_DATA (in_arr),
           (size_t)n, (float _Complex *)PyArray_DATA (out_arr), _cap);
+      if (n_out == SIZE_MAX)
+        {
+          /* n_in != n: the kernel refused (#1925), nothing was written. */
+          Py_DECREF (out_arr);
+          Py_DECREF (in_arr);
+          PyErr_SetString (PyExc_ValueError,
+                           "input length is not the plan length (FFT.n); "
+                           "execute takes exactly one frame");
+          return NULL;
+        }
       Py_DECREF (in_arr);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
@@ -272,6 +302,16 @@ FFTObj_execute_cf32 (FFTObject *self, PyObject *args, PyObject *kwds)
   size_t          n_out = dp_fft_execute_cf32 (
       self->handle, (const float _Complex *)PyArray_DATA (in_arr), (size_t)n,
       _d0, _cap);
+  if (n_out == SIZE_MAX)
+    {
+      /* n_in != n: the kernel refused (#1925), nothing was written. */
+      Py_DECREF (arr0);
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_ValueError,
+                       "input length is not the plan length (FFT.n); execute "
+                       "takes exactly one frame");
+      return NULL;
+    }
   Py_DECREF (in_arr);
   if ((size_t)n_out == _cap)
     {
@@ -333,6 +373,16 @@ FFTObj_execute_int (FFTObject *self, PyObject *args, int is8)
             : dp_fft_execute_ci16 (self->handle,
                                    (const int16_t *)PyArray_DATA (in_arr),
                                    (size_t)n, _d0);
+  if (n_out == SIZE_MAX)
+    {
+      /* n_in != n: the kernel refused (#1925), nothing was written. */
+      Py_DECREF (arr0);
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_ValueError,
+                       "input length is not the plan length (FFT.n); execute "
+                       "takes exactly one frame");
+      return NULL;
+    }
   Py_DECREF (in_arr);
   if ((size_t)n_out == _cap)
     return arr0;
@@ -429,6 +479,16 @@ FFTObj_execute_inplace_cf64 (FFTObject *self, PyObject *args, PyObject *kwds)
       size_t n_out = dp_fft_execute_inplace_cf64 (
           self->handle, (const double _Complex *)PyArray_DATA (in_arr),
           (size_t)n, (double _Complex *)PyArray_DATA (out_arr), _cap);
+      if (n_out == SIZE_MAX)
+        {
+          /* n_in != n: the kernel refused (#1925), nothing was written. */
+          Py_DECREF (out_arr);
+          Py_DECREF (in_arr);
+          PyErr_SetString (PyExc_ValueError,
+                           "input length is not the plan length (FFT.n); "
+                           "execute takes exactly one frame");
+          return NULL;
+        }
       Py_DECREF (in_arr);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX128,
@@ -457,6 +517,16 @@ FFTObj_execute_inplace_cf64 (FFTObject *self, PyObject *args, PyObject *kwds)
   size_t n_out = dp_fft_execute_inplace_cf64 (
       self->handle, (const double _Complex *)PyArray_DATA (in_arr), (size_t)n,
       _d0, _cap);
+  if (n_out == SIZE_MAX)
+    {
+      /* n_in != n: the kernel refused (#1925), nothing was written. */
+      Py_DECREF (arr0);
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_ValueError,
+                       "input length is not the plan length (FFT.n); execute "
+                       "takes exactly one frame");
+      return NULL;
+    }
   Py_DECREF (in_arr);
   if ((size_t)n_out == _cap)
     {
@@ -543,6 +613,16 @@ FFTObj_execute_inplace_cf32 (FFTObject *self, PyObject *args, PyObject *kwds)
       size_t n_out = dp_fft_execute_inplace_cf32 (
           self->handle, (const float _Complex *)PyArray_DATA (in_arr),
           (size_t)n, (float _Complex *)PyArray_DATA (out_arr), _cap);
+      if (n_out == SIZE_MAX)
+        {
+          /* n_in != n: the kernel refused (#1925), nothing was written. */
+          Py_DECREF (out_arr);
+          Py_DECREF (in_arr);
+          PyErr_SetString (PyExc_ValueError,
+                           "input length is not the plan length (FFT.n); "
+                           "execute takes exactly one frame");
+          return NULL;
+        }
       Py_DECREF (in_arr);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
@@ -570,6 +650,16 @@ FFTObj_execute_inplace_cf32 (FFTObject *self, PyObject *args, PyObject *kwds)
   size_t          n_out = dp_fft_execute_inplace_cf32 (
       self->handle, (const float _Complex *)PyArray_DATA (in_arr), (size_t)n,
       _d0, _cap);
+  if (n_out == SIZE_MAX)
+    {
+      /* n_in != n: the kernel refused (#1925), nothing was written. */
+      Py_DECREF (arr0);
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_ValueError,
+                       "input length is not the plan length (FFT.n); execute "
+                       "takes exactly one frame");
+      return NULL;
+    }
   Py_DECREF (in_arr);
   if ((size_t)n_out == _cap)
     {
@@ -667,7 +757,9 @@ static PyMethodDef FFTObj_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[np.complex128]\n"
-    "    min(state->n, max_out) bins.\n"
+    "    min(state->n, max_out) bins. If n_in is not the required length the\n"
+    "    call is REFUSED with nothing read, written or counted: SIZE_MAX in\n"
+    "    C, ValueError in Python (#1925).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -707,7 +799,9 @@ static PyMethodDef FFTObj_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[np.complex64]\n"
-    "    min(state->n, max_out) bins.\n"
+    "    min(state->n, max_out) bins. If n_in is not the required length the\n"
+    "    call is REFUSED with nothing read, written or counted: SIZE_MAX in\n"
+    "    C, ValueError in Python (#1925).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -772,7 +866,9 @@ static PyMethodDef FFTObj_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[np.complex128]\n"
-    "    min(state->n, max_out) bins.\n"
+    "    min(state->n, max_out) bins. If n_in is not the required length the\n"
+    "    call is REFUSED with nothing read, written or counted: SIZE_MAX in\n"
+    "    C, ValueError in Python (#1925).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -811,7 +907,9 @@ static PyMethodDef FFTObj_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[np.complex64]\n"
-    "    min(state->n, max_out) bins.\n"
+    "    min(state->n, max_out) bins. If n_in is not the required length the\n"
+    "    call is REFUSED with nothing read, written or counted: SIZE_MAX in\n"
+    "    C, ValueError in Python (#1925).\n"
     "\n"
     "Examples\n"
     "--------\n"

@@ -1,4 +1,5 @@
 #include "doppler/fft/fft_core.h"
+#include <stdint.h>
 #include <string.h>
 
 /* A pocketfft plan is fixed at state->n and writes every one of those n
@@ -67,7 +68,12 @@ size_t
 dp_fft_execute_cf64 (dp_fft_state_t *state, const double _Complex *in,
                      size_t n_in, double _Complex *out, size_t max_out)
 {
-  (void)n_in;
+  /* n_in is documented "must equal state->n" and is the only thing that
+   * says how long the caller's array is: the plan reads state->n samples
+   * whatever n_in was, so a shorter array is a heap over-read and a longer
+   * one is silently truncated. Refuse before touching anything (#1925). */
+  if (n_in != state->n)
+    return SIZE_MAX;
   if (max_out >= state->n)
     {
       dp_pocketfft_execute_1d (state->plan_f64, in, out);
@@ -89,7 +95,12 @@ size_t
 dp_fft_execute_cf32 (dp_fft_state_t *state, const float _Complex *in,
                      size_t n_in, float _Complex *out, size_t max_out)
 {
-  (void)n_in;
+  /* n_in is documented "must equal state->n" and is the only thing that
+   * says how long the caller's array is: the plan reads state->n samples
+   * whatever n_in was, so a shorter array is a heap over-read and a longer
+   * one is silently truncated. Refuse before touching anything (#1925). */
+  if (n_in != state->n)
+    return SIZE_MAX;
   if (max_out >= state->n)
     {
       dp_pocketfft_execute_1d_cf32 (state->plan_f32, in, out);
@@ -113,9 +124,11 @@ dp_fft_execute_inplace_cf64 (dp_fft_state_t *state, const double _Complex *in,
 {
   /* Copy in→out so the plan can transform the buffer in place.
    * Avoids a scratch allocation inside pocketfft at the cost of
-   * one memcpy per call.  n_in is documented as state->n; clamp so a
-   * longer input cannot walk off the end of a correctly sized out. */
-  const size_t n = n_in < state->n ? n_in : state->n;
+   * one memcpy per call.  n_in must equal state->n (#1925): a shorter
+   * input used to transform a buffer whose tail was never written. */
+  if (n_in != state->n)
+    return SIZE_MAX;
+  const size_t n = state->n;
   if (max_out >= state->n)
     {
       memcpy (out, in, n * sizeof (*out));
@@ -139,7 +152,9 @@ size_t
 dp_fft_execute_inplace_cf32 (dp_fft_state_t *state, const float _Complex *in,
                              size_t n_in, float _Complex *out, size_t max_out)
 {
-  const size_t n = n_in < state->n ? n_in : state->n;
+  if (n_in != state->n)
+    return SIZE_MAX;
+  const size_t n = state->n;
   if (max_out >= state->n)
     {
       memcpy (out, in, n * sizeof (*out));
@@ -163,7 +178,12 @@ size_t
 dp_fft_execute_ci16 (dp_fft_state_t *state, const int16_t *in, size_t n_in,
                      float _Complex *out)
 {
-  (void)n_in;
+  /* n_in is documented "must equal state->n" and is the only thing that
+   * says how long the caller's array is: the plan reads state->n samples
+   * whatever n_in was, so a shorter array is a heap over-read and a longer
+   * one is silently truncated. Refuse before touching anything (#1925). */
+  if (n_in != state->n)
+    return SIZE_MAX;
   dp_pocketfft_execute_1d_ci16 (state->plan_f32, in, out);
   return state->n;
 }
@@ -178,7 +198,12 @@ size_t
 dp_fft_execute_ci8 (dp_fft_state_t *state, const int8_t *in, size_t n_in,
                     float _Complex *out)
 {
-  (void)n_in;
+  /* n_in is documented "must equal state->n" and is the only thing that
+   * says how long the caller's array is: the plan reads state->n samples
+   * whatever n_in was, so a shorter array is a heap over-read and a longer
+   * one is silently truncated. Refuse before touching anything (#1925). */
+  if (n_in != state->n)
+    return SIZE_MAX;
   dp_pocketfft_execute_1d_ci8 (state->plan_f32, in, out);
   return state->n;
 }

@@ -153,6 +153,14 @@ CorrObj_execute (CorrObject *self, PyObject *args, PyObject *kwds)
           self->handle, (const float _Complex *)PyArray_DATA (in_arr),
           (size_t)n, (float _Complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
+      if (n_out == (SIZE_MAX))
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_ValueError,
+                           "input length is not the frame length (Corr.n); "
+                           "execute takes exactly one frame");
+          return NULL;
+        }
       if ((size_t)(n_out) > (size_t)(_cap))
         {
           Py_DECREF (out_arr);
@@ -209,6 +217,14 @@ CorrObj_execute (CorrObject *self, PyObject *args, PyObject *kwds)
       self->handle, (const float _Complex *)PyArray_DATA (in_arr), (size_t)n,
       _d0, _cap);
   Py_DECREF (in_arr);
+  if (n_out == (SIZE_MAX))
+    {
+      Py_DECREF (arr0);
+      PyErr_SetString (PyExc_ValueError,
+                       "input length is not the frame length (Corr.n); "
+                       "execute takes exactly one frame");
+      return NULL;
+    }
   if ((size_t)(n_out) > (size_t)(_cap))
     {
       Py_DECREF (arr0);
@@ -418,8 +434,17 @@ static PyMethodDef CorrObj_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[np.complex64]\n"
-    "    n_out on a dump call (or max_out if smaller), 0 otherwise (None in\n"
-    "    Python).\n"
+    "    n_out on a dump call (or max_out if smaller), 0 otherwise If n_in\n"
+    "    is not the required length the call is REFUSED with nothing read,\n"
+    "    written or counted: SIZE_MAX in C, ValueError in Python (#1925).\n"
+    "    (None in Python).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns ``SIZE_MAX``, its refusal value, in place of\n"
+    "    a count. The exception message is ``input length is not the frame\n"
+    "    length (Corr.n); execute takes exactly one frame``.\n"
     "\n"
     "Examples\n"
     "--------\n"

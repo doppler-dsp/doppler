@@ -144,6 +144,14 @@ FFT2DObj_execute_cf64 (FFT2DObject *self, PyObject *args, PyObject *kwds)
           self->handle, (const double _Complex *)PyArray_DATA (in_arr),
           (size_t)n, (double _Complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
+      if (n_out == (SIZE_MAX))
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_ValueError,
+                           "input length is not ny*nx; the plan takes "
+                           "exactly one frame");
+          return NULL;
+        }
       if ((size_t)(n_out) > (size_t)(_cap))
         {
           Py_DECREF (out_arr);
@@ -196,6 +204,14 @@ FFT2DObj_execute_cf64 (FFT2DObject *self, PyObject *args, PyObject *kwds)
       self->handle, (const double _Complex *)PyArray_DATA (in_arr), (size_t)n,
       _d0, _cap);
   Py_DECREF (in_arr);
+  if (n_out == (SIZE_MAX))
+    {
+      Py_DECREF (arr0);
+      PyErr_SetString (PyExc_ValueError,
+                       "input length is not ny*nx; the plan takes exactly "
+                       "one frame");
+      return NULL;
+    }
   if ((size_t)(n_out) > (size_t)(_cap))
     {
       Py_DECREF (arr0);
@@ -292,6 +308,14 @@ FFT2DObj_execute_cf32 (FFT2DObject *self, PyObject *args, PyObject *kwds)
           self->handle, (const float _Complex *)PyArray_DATA (in_arr),
           (size_t)n, (float _Complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
+      if (n_out == (SIZE_MAX))
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_ValueError,
+                           "input length is not ny*nx; the plan takes "
+                           "exactly one frame");
+          return NULL;
+        }
       if ((size_t)(n_out) > (size_t)(_cap))
         {
           Py_DECREF (out_arr);
@@ -343,6 +367,14 @@ FFT2DObj_execute_cf32 (FFT2DObject *self, PyObject *args, PyObject *kwds)
       self->handle, (const float _Complex *)PyArray_DATA (in_arr), (size_t)n,
       _d0, _cap);
   Py_DECREF (in_arr);
+  if (n_out == (SIZE_MAX))
+    {
+      Py_DECREF (arr0);
+      PyErr_SetString (PyExc_ValueError,
+                       "input length is not ny*nx; the plan takes exactly "
+                       "one frame");
+      return NULL;
+    }
   if ((size_t)(n_out) > (size_t)(_cap))
     {
       Py_DECREF (arr0);
@@ -441,6 +473,14 @@ FFT2DObj_execute_inplace_cf64 (FFT2DObject *self, PyObject *args,
           self->handle, (const double _Complex *)PyArray_DATA (in_arr),
           (size_t)n, (double _Complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
+      if (n_out == (SIZE_MAX))
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_ValueError,
+                           "input length is not ny*nx; the plan takes "
+                           "exactly one frame");
+          return NULL;
+        }
       if ((size_t)(n_out) > (size_t)(_cap))
         {
           Py_DECREF (out_arr);
@@ -494,6 +534,14 @@ FFT2DObj_execute_inplace_cf64 (FFT2DObject *self, PyObject *args,
       self->handle, (const double _Complex *)PyArray_DATA (in_arr), (size_t)n,
       _d0, _cap);
   Py_DECREF (in_arr);
+  if (n_out == (SIZE_MAX))
+    {
+      Py_DECREF (arr0);
+      PyErr_SetString (PyExc_ValueError,
+                       "input length is not ny*nx; the plan takes exactly "
+                       "one frame");
+      return NULL;
+    }
   if ((size_t)(n_out) > (size_t)(_cap))
     {
       Py_DECREF (arr0);
@@ -592,6 +640,14 @@ FFT2DObj_execute_inplace_cf32 (FFT2DObject *self, PyObject *args,
           self->handle, (const float _Complex *)PyArray_DATA (in_arr),
           (size_t)n, (float _Complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
+      if (n_out == (SIZE_MAX))
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_ValueError,
+                           "input length is not ny*nx; the plan takes "
+                           "exactly one frame");
+          return NULL;
+        }
       if ((size_t)(n_out) > (size_t)(_cap))
         {
           Py_DECREF (out_arr);
@@ -644,6 +700,14 @@ FFT2DObj_execute_inplace_cf32 (FFT2DObject *self, PyObject *args,
       self->handle, (const float _Complex *)PyArray_DATA (in_arr), (size_t)n,
       _d0, _cap);
   Py_DECREF (in_arr);
+  if (n_out == (SIZE_MAX))
+    {
+      Py_DECREF (arr0);
+      PyErr_SetString (PyExc_ValueError,
+                       "input length is not ny*nx; the plan takes exactly "
+                       "one frame");
+      return NULL;
+    }
   if ((size_t)(n_out) > (size_t)(_cap))
     {
       Py_DECREF (arr0);
@@ -759,7 +823,16 @@ static PyMethodDef FFT2DObj_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[np.complex128]\n"
-    "    min(ny*nx, max_out) samples.\n"
+    "    min(ny*nx, max_out) samples. If n_in is not the required length the\n"
+    "    call is REFUSED with nothing read, written or counted: SIZE_MAX in\n"
+    "    C, ValueError in Python (#1925).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns ``SIZE_MAX``, its refusal value, in place of\n"
+    "    a count. The exception message is ``input length is not ny*nx; the\n"
+    "    plan takes exactly one frame``.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -801,7 +874,16 @@ static PyMethodDef FFT2DObj_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[np.complex64]\n"
-    "    min(ny*nx, max_out) samples.\n"
+    "    min(ny*nx, max_out) samples. If n_in is not the required length the\n"
+    "    call is REFUSED with nothing read, written or counted: SIZE_MAX in\n"
+    "    C, ValueError in Python (#1925).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns ``SIZE_MAX``, its refusal value, in place of\n"
+    "    a count. The exception message is ``input length is not ny*nx; the\n"
+    "    plan takes exactly one frame``.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -843,7 +925,16 @@ static PyMethodDef FFT2DObj_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[np.complex128]\n"
-    "    min(ny*nx, max_out) samples.\n"
+    "    min(ny*nx, max_out) samples. If n_in is not the required length the\n"
+    "    call is REFUSED with nothing read, written or counted: SIZE_MAX in\n"
+    "    C, ValueError in Python (#1925).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns ``SIZE_MAX``, its refusal value, in place of\n"
+    "    a count. The exception message is ``input length is not ny*nx; the\n"
+    "    plan takes exactly one frame``.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -882,7 +973,16 @@ static PyMethodDef FFT2DObj_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[np.complex64]\n"
-    "    min(ny*nx, max_out) samples.\n"
+    "    min(ny*nx, max_out) samples. If n_in is not the required length the\n"
+    "    call is REFUSED with nothing read, written or counted: SIZE_MAX in\n"
+    "    C, ValueError in Python (#1925).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns ``SIZE_MAX``, its refusal value, in place of\n"
+    "    a count. The exception message is ``input length is not ny*nx; the\n"
+    "    plan takes exactly one frame``.\n"
     "\n"
     "Examples\n"
     "--------\n"

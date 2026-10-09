@@ -818,5 +818,38 @@ main (void)
     dp_corr2d_destroy (b);
   }
 
+  /* ── n_in must equal ny*nx: any other length is REFUSED (#1925) ──────
+   * As test_corr_core.c: exact-size heap arrays (ASan), a canary-filled out,
+   * and a refusal that does not count toward the dwell. */
+  {
+    float _Complex ref[16];
+    for (size_t i = 0; i < N; i++)
+      ref[i] = (i == 0) ? 1.0f : 0.0f;
+    dp_corr2d_state_t *obj = dp_corr2d_create (ref, NY, NX, 2, 1, 0, 0, -1);
+    DP_CHECK (obj != NULL);
+    float _Complex good[16], out[16];
+    for (size_t i = 0; i < N; i++)
+      {
+        good[i] = 1.0f;
+        out[i]  = CMPLXF (-7.0f, -7.0f);
+      }
+    DP_CHECK (dp_corr2d_execute (obj, good, N, out, N) == 0); /* frame 1 */
+    const size_t bad[] = { 0, 1, N - 1, N + 1, 2 * N };
+    for (size_t k = 0; k < sizeof bad / sizeof *bad; k++)
+      {
+        float _Complex *x
+            = (float _Complex *)calloc (bad[k] ? bad[k] : 1, sizeof *x);
+        DP_CHECK (dp_corr2d_execute (obj, x, bad[k], out, N) == SIZE_MAX);
+        DP_CHECK (obj->count == 1); /* not counted */
+        free (x);
+      }
+    int untouched = 1;
+    for (size_t i = 0; i < N; i++)
+      untouched &= crealf (out[i]) == -7.0f;
+    DP_CHECK (untouched);
+    DP_CHECK (dp_corr2d_execute (obj, good, N, out, N) == N); /* dumps */
+    dp_corr2d_destroy (obj);
+  }
+
   DP_TEST_END ("test_corr2d_core");
 }

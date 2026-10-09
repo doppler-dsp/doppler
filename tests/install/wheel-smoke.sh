@@ -29,7 +29,13 @@
 #
 # Usage:
 #   tests/install/wheel-smoke.sh --wheel-dir dist
-#   tests/install/wheel-smoke.sh --pypi 0.49.0
+#   tests/install/wheel-smoke.sh --pypi 0.49.0 [--python 3.13]
+#
+# --python 3.N builds the venv on that Python, so the wheel PyPI serves is that
+# Python's: release.yml's smoke-pypi runs one leg per supported Python on each
+# platform (doppler#1817 shipped uninstallable cp313/cp314 win_amd64 wheels
+# while the smoke only ever installed cp312). The venv is checked to BE that
+# Python, so a resolver that quietly picked another one cannot pass for it.
 #
 # Needs: uv (the --pypi readiness wait resolves through uv itself).
 set -euo pipefail
@@ -37,11 +43,18 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 PKG="doppler-dsp"
 E2E="$ROOT/deploy/validation/wfm_e2e.py"
+USAGE="usage: wheel-smoke.sh --wheel-dir DIR | --pypi VERSION [--python 3.N]"
 
 case "${1:-}" in
-    --wheel-dir) MODE="wheel"; ARG="${2:?usage: wheel-smoke.sh --wheel-dir DIR}" ;;
-    --pypi)      MODE="pypi";  ARG="${2:?usage: wheel-smoke.sh --pypi VERSION}" ;;
-    *) echo "usage: wheel-smoke.sh --wheel-dir DIR | --pypi VERSION" >&2; exit 2 ;;
+    --wheel-dir) MODE="wheel"; ARG="${2:?$USAGE}" ;;
+    --pypi)      MODE="pypi";  ARG="${2:?$USAGE}" ;;
+    *) echo "$USAGE" >&2; exit 2 ;;
+esac
+PYVER=""
+case "${3:-}" in
+    "") ;;
+    --python) PYVER="${4:?$USAGE}" ;;
+    *) echo "$USAGE" >&2; exit 2 ;;
 esac
 
 work="$(mktemp -d)"
@@ -49,13 +62,19 @@ trap 'rc=$?; rm -rf "$work"; \
       [ "$rc" -eq 0 ] || echo "wheel-smoke: FAILED (exit $rc)" >&2; \
       exit "$rc"' EXIT
 
-uv venv --quiet "$work/venv"
+uv venv --quiet ${PYVER:+--python "$PYVER"} "$work/venv"
 # A Windows venv keeps its interpreter and console scripts in Scripts/, a POSIX
 # one in bin/. Derived from what uv just made, not from the OS name, so it is
 # right under any bash on Windows (Git Bash, MSYS2) without a second list.
 bindir="$work/venv/bin"
 [ -d "$bindir" ] || bindir="$work/venv/Scripts"
 py="$bindir/python"
+if [ -n "$PYVER" ]; then
+    have="$("$py" -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
+    [ "$have" = "$PYVER" ] \
+        || { echo "wheel-smoke: venv is Python $have, asked for $PYVER" >&2; exit 1; }
+    echo ">> Python $have"
+fi
 
 # ── obtain and install the artifact ──────────────────────────────────────────
 if [ "$MODE" = "wheel" ]; then
@@ -85,14 +104,28 @@ else
     done
     [ "$ok" = 1 ] \
         || { echo "wheel-smoke: uv cannot resolve $PKG==$ARG after 3 min" >&2; exit 1; }
-    echo ">> installing $PKG==$ARG from PyPI"
-    VIRTUAL_ENV="$work/venv" uv pip install --quiet --refresh "$PKG==$ARG"
+    echo ">> installing $PKG==$ARG from PyPI (a wheel, never the sdist)"
+    # --only-binary: with no installable wheel for this Python and platform,
+    # the resolver falls back to the sdist and builds it, so the smoke would
+    # pass on exactly the defect it is here to catch -- doppler#1817's
+    # `cp313-cpwin_amd64` wheels, which pip skipped for the sdist.
+    VIRTUAL_ENV="$work/venv" uv pip install --quiet --refresh \
+        --only-binary "$PKG" "$PKG==$ARG" \
+        || { echo "wheel-smoke: no installable $PKG==$ARG wheel for this" \
+                  "Python and platform (uv's error above); the sdist is" \
+                  "refused" >&2; exit 1; }
 fi
 
 # ── prove it ─────────────────────────────────────────────────────────────────
 echo ">> import check (clean cwd)"
 got="$(cd "$work" && "$py" -c 'import doppler; print(doppler.__version__)')"
 echo "   doppler $got"
+# Which wheel this leg tested, from the installed WHEEL metadata: the line a
+# reader of a per-Python leg's log needs, and the evidence it was that
+# Python's wheel (cp313-cp313-...) and not some other file.
+( cd "$work" && "$py" -c 'import importlib.metadata as m
+w = m.distribution("doppler-dsp").read_text("WHEEL") or ""
+print("\n".join("   wheel " + t[4:].strip() for t in w.splitlines() if t.startswith("Tag:")))' )
 
 # Only meaningful for --pypi: the resolver picks the version, so assert it
 # picked the one being released. In --wheel mode the file IS the artifact.

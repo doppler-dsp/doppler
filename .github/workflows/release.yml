@@ -34,6 +34,7 @@ jobs:
       jm_version: ${{ steps.get.outputs.jm_version }}
       stock_registry: ${{ steps.get.outputs.stock_registry }}
       uv_version: ${{ steps.get.outputs.uv_version }}
+      pythons: ${{ steps.get.outputs.pythons }}
       # The commit under release, read from the checkout above -- on a
       # dispatch, github.sha is main's head, not the tag's commit.
       sha: ${{ steps.get.outputs.sha }}
@@ -69,6 +70,9 @@ jobs:
           # The uv pin the same image bakes in, asked of the Makefile the same
           # way (pyproject.toml's [tool.uv] required-version, doppler#1940).
           echo "uv_version=$(make -s print-uv-version)" >> "$GITHUB_OUTPUT"
+          # Every supported Python, from pyproject.toml's classifiers (the
+          # list ci.yml's matrix is built from), for smoke-pypi's matrix.
+          echo "pythons=$(make -s print-python-matrix)" >> "$GITHUB_OUTPUT"
 
       # `make version-check` is the SSOT for "the manifests agree": it probes
       # pyproject.toml, CMakeLists.txt and ffi/rust/Cargo.toml, and fails if any
@@ -1043,9 +1047,17 @@ jobs:
   # It cannot gate the publish (PyPI is immutable and already written by
   # now) — it gates the RELEASE, failing the run so a human sees that what
   # users can install is not what was tested.
+  #
+  # One leg per supported Python on each platform (doppler#1817): v0.55.0 to
+  # v0.61.0 shipped `cp313-cpwin_amd64` wheels that pip would not install, and
+  # this smoke never saw them because it ran cp312 alone. Every Python, not
+  # the oldest and newest: that defect hit two versions and not the rest, so a
+  # version-specific one can sit anywhere in the range. The list is read from
+  # pyproject.toml (verify-version's `pythons`), so a new Python is smoked
+  # without an edit here.
   # ------------------------------------------------------------------
   smoke-pypi:
-    name: Post-release PyPI smoke (${{ matrix.arch.tag }})
+    name: Post-release PyPI smoke (${{ matrix.arch.tag }}, py${{ matrix.python }})
     needs:
       - verify-version
       - publish-python
@@ -1056,6 +1068,7 @@ jobs:
           - { tag: x86_64, runner: ubuntu-latest }
           - { tag: aarch64, runner: ubuntu-24.04-arm }
           - { tag: win_amd64, runner: windows-latest }
+        python: ${{ fromJSON(needs.verify-version.outputs.pythons) }}
     runs-on: ${{ matrix.arch.runner }}
     timeout-minutes: 45
     defaults:
@@ -1067,13 +1080,18 @@ jobs:
           # The tag under release: pushed, or named by a dispatch.
           ref: ${{ inputs.tag || github.ref }}
 
+      # The leg's own Python, from python.org's builds as a user installs it;
+      # SMOKE_PYTHON below makes the throwaway venv use it and checks it did.
       - uses: actions/setup-python@v7
         with:
-          python-version: '3.12'
+          python-version: ${{ matrix.python }}
 
       # `make release-smoke-pypi` builds the throwaway venv with uv, so uv
       # must be on PATH — setup-python alone is not enough.
       - uses: ./.github/actions/setup-uv
 
       - name: Install from PyPI and run the e2e
-        run: make release-smoke-pypi VERSION="${{ needs.verify-version.outputs.version }}"
+        run: >-
+          make release-smoke-pypi
+          VERSION="${{ needs.verify-version.outputs.version }}"
+          SMOKE_PYTHON="${{ matrix.python }}"

@@ -99,6 +99,7 @@ sudo cpupower frequency-set -g performance   # peak, repeatable; quiesce other l
 
 make bench-interleaved VERSION=X.Y.Z   # builds portable + native, runs them
                                        # alternately, keeps the per-bench best
+make bench-restamp VERSION=X.Y.Z       # only if the measured commit is not on main (#1322)
 make bench-docs                        # render docs/benchmarks.md (two columns)
 git add benchmarks/published docs/benchmarks.md
 git commit -m "docs: publish benchmarks for vX.Y.Z (<cpu>)"

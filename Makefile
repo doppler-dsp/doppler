@@ -1579,14 +1579,14 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 ccsds-isolation-check instrumented-sweep-check mem-guard-check \
                 container-mount-check \
                 cargo-lock-check design-pages-check wfmgen-flag-matrix \
-                gallery-scripts-check \
+                gallery-scripts-check bench-commits-check \
                 ci-run ci-gates ccache-stats \
                 wheel-check wheel-smoke release-smoke release-smoke-pypi \
                 check-wheel-tags release-wheel-tags \
                 release-smoke-packages \
                 bench-python \
                 bench-interleaved bench-publish bench-docs bench-stream \
-                bench-report \
+                bench-report bench-restamp \
                 docker-runtime docker-sdk docker-downstream docker-stream \
                 docker-examples smoke-image
 
@@ -1682,7 +1682,8 @@ lint: tests-ssot characterization-check validation-report-check changelog-check 
       bench-coverage-check kwarg-parity-check doc-sections-check \
       ccsds-isolation-check container-mount-check cargo-lock-check \
       instrumented-sweep-check mem-guard-check \
-      design-pages-check gallery-scripts-check drift-check doxygen-check
+      design-pages-check gallery-scripts-check bench-commits-check \
+      drift-check doxygen-check
 
 # The base the assertion ratchet compares against, same shape as COV_BASE:
 # no test file may end up with FEWER assertions than the base ref has. A
@@ -1699,6 +1700,17 @@ tests-ssot: ## Verify no C test re-defines dp_test.h's macros or loses assertion
 # checked -- a tested component with no benchmark, and a benchmark no runner
 # can reach -- because this repo has now had both, and the second one looks
 # fixed from every angle except the snapshot it never appears in.
+# A published benchmark set stamps doppler_meta.commit as its provenance, and
+# a reader must be able to check that commit out. A set measured on a release
+# branch, then squash- or rebase-merged, names a commit main never receives;
+# v0.48.0 and v0.65.0 were restamped by hand, and four sets were not (#1322).
+# Needs full history: CI's lint job checks out with fetch-depth: 0, and a
+# shallow clone fails naming the depth. Sets that can never be fixed are in
+# scripts/.bench-commit-exempt, which only shrinks.
+BENCH_COMMIT_BASE ?= origin/main
+bench-commits-check: ## Fail when a published benchmark names a commit main cannot reach
+	@uv run python scripts/check_bench_commits.py --base $(BENCH_COMMIT_BASE)
+
 bench-coverage-check: ## Verify every tested component has a benchmark that runs
 	@uv run python scripts/check_bench_coverage.py
 
@@ -4434,6 +4446,18 @@ endif
 
 bench-docs: ## Render docs/benchmarks.md from the published numbers
 	uv run python scripts/bench_report.py --page --out docs/benchmarks.md
+
+# A set measured on a branch that was then squash- or rebase-merged names a
+# commit main never receives, which bench-commits-check refuses (#1322).
+# This restamps doppler_meta.commit to the ONE commit on main with the
+# identical tree, leaves commit_info.id (the literal checkout) alone, and
+# re-renders the page; bench-docs is a no-op for a set it does not show.
+bench-restamp: ## Restamp a published set onto main's tree-identical commit (VERSION=)
+ifndef VERSION
+	@echo "usage: make bench-restamp VERSION=X.Y.Z"; exit 1
+endif
+	uv run python scripts/bench_restamp.py $(VERSION) --base $(BENCH_COMMIT_BASE)
+	@$(MAKE) --no-print-directory bench-docs
 
 # Transport (P0) bench: NATS firehose throughput + status-plane RTT via the
 # bench_stream C harness. Self-contained — starts a JetStream broker on an

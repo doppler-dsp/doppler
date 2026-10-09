@@ -207,14 +207,15 @@ in every consumer of fixed, possibly overlapping frames, and its order is easy
 to get wrong. `DECLARE_DP_BUFFER_FRAMES` stamps it once, beside the
 element-typed face, as a **framer** that owns the ring:
 
-| call                                 | what it does                                                                                                                                           |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `dp_<t>_framer_init(fr, ring, N, H)` | frames of `N` samples, `H` apart; frame *k* covers stream samples `[k·H, k·H + N)`                                                                     |
-| `dp_<t>_framer_feed(fr, in, n, max)` | takes input — **only as far as the frames it yields fit `max`** — and returns how many it took                                                         |
-| `dp_<t>_framer_next(fr)`             | the next frame, zero-copy, or `NULL`; the pointer holds until the next framer call                                                                     |
-| `dp_<t>_framer_flush(fr, row)`       | ends the stream: the one zero-padded row it still owes, **on the hop grid** (1), or none (0); refused (negative) while whole frames are still buffered |
-| `dp_<t>_framer_drained(fr)`          | true once `next()` would return `NULL`: the precondition of `flush` and of a snapshot                                                                  |
-| `dp_<t>_framer_state_bytes/get/set`  | the carry as a standard state blob, fixed-size for a given `N`                                                                                         |
+| call                                 | what it does                                                                                                                                                                                              |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dp_<t>_framer_init(fr, ring, N, H)` | frames of `N` samples, `H` apart; frame *k* covers stream samples `[k·H, k·H + N)`                                                                                                                        |
+| `dp_<t>_framer_feed(fr, in, n, max)` | takes input — **only as far as the frames it yields fit `max`** — and returns how many it took                                                                                                            |
+| `dp_<t>_framer_next(fr)`             | the next frame, zero-copy, or `NULL`; the pointer holds until the next framer call                                                                                                                        |
+| `dp_<t>_framer_flush(fr, row)`       | ends the stream: the one zero-padded row it still owes, **on the hop grid** (1), or none (0); refused (negative) while whole frames are still buffered                                                    |
+| `dp_<t>_framer_drained(fr)`          | true once `next()` would return `NULL`: the precondition of `flush` and of a snapshot                                                                                                                     |
+| `dp_<t>_framer_frames_in(fr, n)`     | frames the stream yields once `n` more samples are in, however many feed-and-drain rounds that takes: the bound a consumer sizes its output by (`frames_for` is the same count capped by one feed's room) |
+| `dp_<t>_framer_state_bytes/get/set`  | the carry as a standard state blob, fixed-size for a given `N`                                                                                                                                            |
 
 Three properties are the point, and each is tested rather than hoped for:
 

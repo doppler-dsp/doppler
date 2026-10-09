@@ -437,7 +437,7 @@ jobs:
       run: scripts/msvc-env.sh x64
 
     - name: Install uv + Python 3.12
-      uses: astral-sh/setup-uv@v7
+      uses: ./.github/actions/setup-uv
       with:
         python-version: '3.12'
 

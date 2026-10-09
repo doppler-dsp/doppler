@@ -203,6 +203,23 @@ repos:
         pass_filenames: false
         files: (^|/)(Dockerfile[^/]*|[^/]*\.[Dd]ockerfile|Makefile|[^/]*\.mk|[^/]*\.sh)$|^\.github/
 
+      # uv.lock's bytes depend on the uv that writes it, so uv is pinned once
+      # in pyproject.toml and every installer reads that pin (doppler#1940).
+      # No `files:` filter: an installer can appear in any tracked file.
+      - id: uv-pin
+        name: every uv installer reads the one pin
+        entry: make -s lint-uv-pin
+        language: system
+        pass_filenames: false
+
+      # ...and the committed uv.lock is exactly what the pinned uv writes.
+      - id: uv-lock
+        name: uv.lock is the pinned uv's own output
+        entry: make -s lint-uv-lock
+        language: system
+        pass_filenames: false
+        files: ^(pyproject\.toml|uv\.lock)$
+
       # A wire format's full scale is dp_format_full_scale() and the
       # arithmetic around it is the cvt converters'; four private copies had
       # already drifted into truncating at the wrong constant (#1117).

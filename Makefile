@@ -87,6 +87,10 @@ JM_VERSION          ?= $(shell grep -m1 '^jm_version' just-makeit.toml | cut -d'
 # take it as `ARG STOCK_REGISTRY` with no default; `make lint-stock-images`
 # refuses a stock image named any other way.
 STOCK_REGISTRY      ?= public.ecr.aws/docker/library
+
+# The uv pin, read from pyproject.toml's [tool.uv] required-version by the
+# script that gates it -- one parser for one declaration (doppler#1940).
+UV_VERSION          ?= $(shell python3 scripts/check_uv_pin.py --print-version)
 EXAMPLES_DOCKERFILE := deploy/docker/Dockerfile.examples
 NPROC       ?= $(shell nproc 2>/dev/null || \
                        sysctl -n hw.logicalcpu 2>/dev/null || echo 4)
@@ -158,6 +162,17 @@ MDFORMAT   = $(DEV_RUN) mdformat
 PRE_COMMIT = $(DEV_RUN) pre-commit
 SYNC_CMD   = $(UV) sync
 
+# The ONE spelling of a lock write; `release-pr`'s bump and `jm-pin` both use
+# it. A plain `uv lock` keeps any lock that still resolves, whoever wrote it,
+# so a foreign uv's marker spelling survives until the next real change and
+# then lands in that commit (308 lines in v0.65.0's release, doppler#1940).
+# Naming this project in `--upgrade-package` moves no other package (measured:
+# 0 version changes) but makes uv re-serialize the whole file, so the
+# committed lock is always exactly what the pinned uv writes. lint-uv-lock
+# runs the same command `--locked` to prove it.
+PY_PROJECT = $(shell grep -m1 '^name = ' pyproject.toml | cut -d'"' -f2)
+LOCK_CMD   = $(UV) lock --upgrade-package $(PY_PROJECT)
+
 # ── lint-<tool> dispatch ─────────────────────────────────────────────────────
 # LINT_TOOLS stamps out one `lint-<tool>` target each; .pre-commit-config.yaml
 # calls `make -s lint-<tool>`, so a hook cannot run a tool differently from the
@@ -171,7 +186,7 @@ LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format \
                bench-timer bare-libm gnu-flags workflow-tag-triggers \
                version-literals text-encoding cmake-script-policy \
                why-param doc-claims public-symbols curl-fail \
-               warnings-exempt stock-images
+               warnings-exempt stock-images uv-pin uv-lock
 FORMAT_TOOLS = ruff-format ruff mdformat clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -456,6 +471,34 @@ LINT_curl-fail = $(UV) run python scripts/check_curl_fail.py
 # canonical's to fix, so their findings are listed, not failed.
 LINT_stock-images = $(UV) run python scripts/check_stock_images.py \
     --own-prefix $(DOCKER_IMAGE) --vendored "$(VENDORED_FILES) standard.mk"
+
+# uv.lock's bytes depend on the uv that writes it (doppler#1940), so uv is
+# pinned once, in pyproject.toml's [tool.uv] required-version, and uv refuses
+# every project command on any other version. This holds the INSTALLERS to
+# it: setup-uv only through the composite action with `version-file`, every
+# other installer through UV_VERSION.
+LINT_uv-pin = $(UV) run python scripts/check_uv_pin.py
+
+# The artifact half: the committed uv.lock is exactly what the pinned uv
+# writes. Checking the pin cannot establish that -- a textual merge or a hand
+# edit produces a lock no uv wrote -- and `uv lock --check` cannot either: it
+# passed on a lock in another uv's marker spelling, because uv keeps any lock
+# that still resolves. LOCK_CMD forces the re-serialization; `--locked`
+# makes it a read-only assertion that nothing would change. uv exits 1 for
+# exactly that and 2 for its own errors -- an off-pin uv among them, which
+# has already said why -- so only a 1 is explained as a stale lock.
+define LINT_uv-lock
+@if $(LOCK_CMD) --locked -q; then \
+    echo "lint-uv-lock: OK -- uv.lock is exactly what uv $(UV_VERSION) writes"; \
+else \
+    rc=$$?; \
+    if [ $$rc -eq 1 ]; then \
+        echo "lint-uv-lock: uv.lock is not what uv $(UV_VERSION) writes."; \
+        echo "  Re-lock with the pinned uv and commit the result: make lock"; \
+    fi; \
+    exit $$rc; \
+fi
+endef
 
 # ffi/rust/ is the one binding jm does not generate, so `jm status --check`
 # has nothing to say about it and an `extern "C"` block is a promise no
@@ -1422,7 +1465,7 @@ VERSION_PROBES := $(foreach L,$(VERSION_SITE_LABELS),$(VERSION_PROBE_NEWLINE)$(L
 # silent direction of the old two-list arrangement cannot recur.
 define BUMP_VERSION_CMD
 $(VERSION_SITES_CMD) --write $(VERSION)
-uv lock
+$(LOCK_CMD)
 cd ffi/rust && cargo metadata --offline --format-version 1 >/dev/null
 @$(MAKE) --no-print-directory docs-relink
 endef
@@ -1500,7 +1543,8 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 complex-helpers-check sdist release-notes \
                 release-pr release-notes-body-check \
                 release-freshness-check \
-                print-jm-version print-stock-registry nats-up nats-down nats-purge \
+                print-jm-version print-stock-registry print-uv-version lock \
+                nats-up nats-down nats-purge \
                 docs-relink docs-drift-check drift-check changelog-check \
                 release-notes-size-check workflow-syntax-check \
                 ci-aggregator-check python-versions-check \
@@ -2844,6 +2888,13 @@ print-jm-version: ## Print the just-makeit pin (release.yml reads it from here)
 print-stock-registry: ## Print the registry stock images are pulled through
 	@echo "$(STOCK_REGISTRY)"
 
+# The same arrangement for the uv pin, which the SDK image bakes in.
+print-uv-version: ## Print the uv pin (release.yml reads it from here)
+	@echo "$(UV_VERSION)"
+
+lock: ## Re-lock uv.lock with the pinned uv (LOCK_CMD, the one spelling)
+	$(LOCK_CMD)
+
 # The ONE definition of the GitHub Release body — release.yml's github-release
 # job pipes this into `body_path` rather than carrying its own copy of the
 # Install template. Run it locally to see exactly what a tag will publish,
@@ -3131,7 +3182,7 @@ endif
 	    exit 1; }
 	@sed -i 's/^jm_version = ".*"/jm_version = "$(JM)"/' just-makeit.toml
 	@$(MAKE) --no-print-directory docs-relink
-	@uv lock
+	@$(LOCK_CMD)
 	@echo "jm-pin: pinned $(JM). Next: make jm-apply, then make drift-check."
 
 # `jm upgrade` is the migration step a jm release can ask for (0.75.0: the
@@ -4416,6 +4467,7 @@ docker-sdk: ## Build+smoke the SDK / develop image (doppler-sdk)
 	    --build-arg STOCK_REGISTRY=$(STOCK_REGISTRY) \
 	    --build-arg BUILD_BASE=$(CI_IMAGE_2404) \
 	    --build-arg JM_VERSION=$(JM_VERSION) \
+	    --build-arg UV_VERSION=$(UV_VERSION) \
 	    -t $(DOCKER_IMAGE)-sdk:$(DOCKER_TAG) .
 	bash scripts/smoke-image.sh sdk $(DOCKER_IMAGE)-sdk:$(DOCKER_TAG)
 
@@ -4427,6 +4479,7 @@ docker-downstream: ## Build+smoke the iqtools showcase image (doppler-downstream
 	    --build-arg STOCK_REGISTRY=$(STOCK_REGISTRY) \
 	    --build-arg BUILD_BASE=$(CI_IMAGE_2404) \
 	    --build-arg JM_VERSION=$(JM_VERSION) \
+	    --build-arg UV_VERSION=$(UV_VERSION) \
 	    -t $(DOCKER_IMAGE)-downstream-jm:$(DOCKER_TAG) .
 	bash scripts/smoke-image.sh downstream \
 	    $(DOCKER_IMAGE)-downstream-jm:$(DOCKER_TAG)

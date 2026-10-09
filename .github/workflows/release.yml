@@ -33,6 +33,7 @@ jobs:
       version: ${{ steps.get.outputs.version }}
       jm_version: ${{ steps.get.outputs.jm_version }}
       stock_registry: ${{ steps.get.outputs.stock_registry }}
+      uv_version: ${{ steps.get.outputs.uv_version }}
       # The commit under release, read from the checkout above -- on a
       # dispatch, github.sha is main's head, not the tag's commit.
       sha: ${{ steps.get.outputs.sha }}
@@ -65,6 +66,9 @@ jobs:
           # Where the images below pull their stock bases from: the
           # Makefile's anonymous mirror, not Docker Hub's quota (#1950).
           echo "stock_registry=$(make -s print-stock-registry)" >> "$GITHUB_OUTPUT"
+          # The uv pin the same image bakes in, asked of the Makefile the same
+          # way (pyproject.toml's [tool.uv] required-version, doppler#1940).
+          echo "uv_version=$(make -s print-uv-version)" >> "$GITHUB_OUTPUT"
 
       # `make version-check` is the SSOT for "the manifests agree": it probes
       # pyproject.toml, CMakeLists.txt and ffi/rust/Cargo.toml, and fails if any
@@ -178,16 +182,22 @@ jobs:
         # (/opt/python/<cpXYZ>) and is built --no-isolation against pre-installed
         # deps for speed, which the generic target cannot express. Same backend
         # (just-buildit) either way; only the interpreter pinning differs.
+        #
+        # uv is here for the backend's repair step, `uvx auditwheel repair`.
+        # It is the pinned one (doppler#1940): a `uv tool run` does not
+        # enforce [tool.uv] required-version, so nothing else would notice
+        # an unpinned uv repairing the wheel we ship.
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/project" \
             -w /project \
+            -e UV_VERSION="${{ needs.verify-version.outputs.uv_version }}" \
             quay.io/pypa/manylinux_2_28_${{ matrix.arch.tag }} \
             bash -euxc "
               dnf install -y cmake pkg-config
               PYTHON=/opt/python/${{ matrix.python }}-${{ matrix.python }}/bin/python
               export PATH=\"\$(dirname \$PYTHON):\$PATH\"
-              \$PYTHON -m pip install --quiet numpy uv build just-buildit
+              \$PYTHON -m pip install --quiet numpy build just-buildit uv==\${UV_VERSION:?}
               mkdir -p dist
               \$PYTHON -m build --no-isolation --wheel --outdir dist/
             "
@@ -244,7 +254,7 @@ jobs:
           ref: ${{ inputs.tag || github.ref }}
 
       - name: Install uv + Python ${{ matrix.python }}
-        uses: astral-sh/setup-uv@v7
+        uses: ./.github/actions/setup-uv
         with:
           python-version: ${{ matrix.python }}
 
@@ -305,7 +315,7 @@ jobs:
         run: scripts/msvc-env.sh x64
 
       - name: Install uv + Python ${{ matrix.python }}
-        uses: astral-sh/setup-uv@v7
+        uses: ./.github/actions/setup-uv
         with:
           python-version: ${{ matrix.python }}
 
@@ -333,7 +343,7 @@ jobs:
           ref: ${{ inputs.tag || github.ref }}
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: ./.github/actions/setup-uv
 
       - name: Build sdist
         # `make sdist` = `uv build --sdist`, whose isolated PEP 517 build pulls
@@ -541,7 +551,7 @@ jobs:
       # `make wheel-smoke` builds the throwaway venv with uv (a make target,
       # not the old inline step), so uv must be on PATH — setup-python alone is
       # not enough.
-      - uses: astral-sh/setup-uv@v7
+      - uses: ./.github/actions/setup-uv
 
       - name: Download the cp312 wheel
         uses: actions/download-artifact@v8
@@ -577,7 +587,7 @@ jobs:
           ref: ${{ inputs.tag || github.ref }}
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: ./.github/actions/setup-uv
 
       - name: Download the wheels
         uses: actions/download-artifact@v8
@@ -723,6 +733,7 @@ jobs:
           build-args: |
             STOCK_REGISTRY=${{ needs.verify-version.outputs.stock_registry }}
             JM_VERSION=${{ needs.verify-version.outputs.jm_version }}
+            UV_VERSION=${{ needs.verify-version.outputs.uv_version }}
           outputs: type=image,name=ghcr.io/${{ github.repository }}-sdk,push-by-digest=true,name-canonical=true,push=true
 
       # The iqtools showcase (ghcr.io/doppler-dsp/doppler-downstream-jm) — the
@@ -740,6 +751,7 @@ jobs:
           build-args: |
             STOCK_REGISTRY=${{ needs.verify-version.outputs.stock_registry }}
             JM_VERSION=${{ needs.verify-version.outputs.jm_version }}
+            UV_VERSION=${{ needs.verify-version.outputs.uv_version }}
           outputs: type=image,name=ghcr.io/${{ github.repository }}-downstream-jm,push-by-digest=true,name-canonical=true,push=true
 
       # One file per image per arch. The merge job globs them, so adding a
@@ -1061,7 +1073,7 @@ jobs:
 
       # `make release-smoke-pypi` builds the throwaway venv with uv, so uv
       # must be on PATH — setup-python alone is not enough.
-      - uses: astral-sh/setup-uv@v7
+      - uses: ./.github/actions/setup-uv
 
       - name: Install from PyPI and run the e2e
         run: make release-smoke-pypi VERSION="${{ needs.verify-version.outputs.version }}"

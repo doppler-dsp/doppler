@@ -214,8 +214,15 @@ extern "C"
                             same value dp_acq_build_handoff() reports as
                             acq_handoff_t::chip_phase: the inverted lag
                             advanced by the dwell's dilation when a carrier
-                            is set (dp_acq_set_carrier_freq_hz()). Appended
-                            last so positional initialisers do not shift. */
+                            is set (dp_acq_set_carrier_freq_hz()). For an
+                            engine built by dp_acq_create_burst(), one chip
+                            is one template sample, so chip_phase is in
+                            template samples over code_bins: a caller at s
+                            samples per chip divides by s. The
+                            dp_burst_acq_create() wrapper forwards no
+                            carrier setter, so its hits carry no dwell
+                            advance. Appended last so positional
+                            initialisers do not shift. */
   } acq_result_t;
 
   /**

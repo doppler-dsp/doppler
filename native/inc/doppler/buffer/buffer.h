@@ -1243,10 +1243,28 @@ typedef enum
     return DP_OK;                                                             \
   }                                                                           \
                                                                               \
-  /** @brief Frames a stream of @p avail unretired samples can yield. */      \
+  /**                                                                         \
+   * @brief Frames a drain yields in all once @p n more samples are fed,      \
+   *        however many feed/drain rounds that takes.                        \
+   *                                                                          \
+   * The stream-level count: the carry already buffered plus @p n new         \
+   * samples, cut into frames of frame_n at the hop. Unlike                   \
+   * dp_##name##_framer_frames_for it is NOT capped by the ring's room,       \
+   * because a caller that loops -- feed what fits, drain, feed the rest      \
+   * -- is not limited by one feed, and the frames are a function of the      \
+   * stream, not of how it was cut. This is the bound a consumer sizes        \
+   * its output by (the spectrogram's rows_for). An @p n near SIZE_MAX        \
+   * saturates rather than wraps.                                             \
+   *                                                                          \
+   * @param fr  Framer.                                                       \
+   * @param n   Samples about to be offered.                                  \
+   * @return Frames the stream yields once all @p n have been fed.            \
+   */                                                                         \
   static inline DP_BUFFER_UNUSED size_t                                       \
-  dp_##name##_framer_frames_in_ (const dp_##name##_framer_t *fr, size_t avail) \
+  dp_##name##_framer_frames_in (const dp_##name##_framer_t *fr, size_t n)     \
   {                                                                           \
+    size_t held = dp_##name##_available (fr->ring) - fr->owed;                \
+    size_t avail = n > SIZE_MAX - held ? SIZE_MAX : held + n;                 \
     return avail >= fr->frame_n ? (avail - fr->frame_n) / fr->hop + 1 : 0;    \
   }                                                                           \
                                                                               \
@@ -1340,7 +1358,7 @@ typedef enum
   {                                                                           \
     size_t held = dp_##name##_available (fr->ring) - fr->owed;                \
     size_t room = fr->ring->capacity - held;                                  \
-    return dp_##name##_framer_frames_in_ (fr, held + (n < room ? n : room));  \
+    return dp_##name##_framer_frames_in (fr, n < room ? n : room);            \
   }                                                                           \
                                                                               \
   /** @brief Samples fed that no handed-out frame has covered yet. */         \

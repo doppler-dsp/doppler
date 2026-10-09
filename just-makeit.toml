@@ -48,7 +48,9 @@ perf = "true"
 pytest = "true"
 pytest_benchmark = "true"
 schema = "8"
-c_deps = ["hbdecim", "resamp", "wfmcompose", "ccsds_tm", "conv", "rs"]
+# spectrogram is a c_dep only until its Python face exists (#1894 slice 3b,
+# waiting on just-makeit#2152's `out_cols`); then it moves to an object.
+c_deps = ["hbdecim", "resamp", "wfmcompose", "ccsds_tm", "conv", "rs", "spectrogram"]
 # dsss.pyi came OFF this list in jm 0.28.3 (gh-428): its ten hand-maintained
 # has_params-single-array-param members (despreader.steps/bits,
 # burst_despreader.steps/bits, burst_demod.demod, + each *_max_out()) are now

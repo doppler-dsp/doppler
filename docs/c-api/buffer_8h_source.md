@@ -776,10 +776,12 @@ typedef enum
     return DP_OK;                                                             \
   }                                                                           \
                                                                               \
-      \
+                                                                         \
   static inline DP_BUFFER_UNUSED size_t                                       \
-  dp_##name##_framer_frames_in_ (const dp_##name##_framer_t *fr, size_t avail) \
+  dp_##name##_framer_frames_in (const dp_##name##_framer_t *fr, size_t n)     \
   {                                                                           \
+    size_t held = dp_##name##_available (fr->ring) - fr->owed;                \
+    size_t avail = n > SIZE_MAX - held ? SIZE_MAX : held + n;                 \
     return avail >= fr->frame_n ? (avail - fr->frame_n) / fr->hop + 1 : 0;    \
   }                                                                           \
                                                                               \
@@ -835,7 +837,7 @@ typedef enum
   {                                                                           \
     size_t held = dp_##name##_available (fr->ring) - fr->owed;                \
     size_t room = fr->ring->capacity - held;                                  \
-    return dp_##name##_framer_frames_in_ (fr, held + (n < room ? n : room));  \
+    return dp_##name##_framer_frames_in (fr, n < room ? n : room);            \
   }                                                                           \
                                                                               \
          \

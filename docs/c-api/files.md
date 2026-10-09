@@ -243,6 +243,8 @@ Here is a list of all files with brief descriptions:
                 * **file** [**specan\_core.h**](specan__core_8h.md) _Specan — natural-parameter spectrum analyzer (DDC + averaging PSD)._     
             * **dir** [**spectral**](dir_bb80cb4693a043f62f72e53e1f90a405.md)     
                 * **file** [**spectral\_core.h**](spectral__core_8h.md) _Spectral module — public C API._     
+            * **dir** [**spectrogram**](dir_0e14824f67e83f19566ffb7fc1ca7a06.md)     
+                * **file** [**spectrogram\_core.h**](spectrogram__core_8h.md) _Streaming spectrogram: a stream of any-size chunks in, rows of nfft-bin spectra out, one row every hop samples._     
             * **dir** [**stream**](dir_2fbcc177cba4f14addc502f26acbb8f7.md)     
                 * **file** [**stream.h**](stream_8h.md) _Streaming API for doppler — PUB/SUB, PUSH/PULL, REQ/REP._     
                 * **file** [**tlm\_sink.h**](tlm__sink_8h.md) _NATS PUB sink for telemetry records._     

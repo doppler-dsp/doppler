@@ -42,3 +42,10 @@ def test_nan_fails_a_loss_gate_written_as_not_less_equal():
     # The gate idiom the validation harnesses use: a NaN loss must fail.
     loss = 8.0 - ber_esn0_db_for_ser(2, 0.0)
     assert not (loss <= 0.5)
+
+
+@pytest.mark.parametrize("m", [0, 1, 3, 5, 16])
+def test_unsupported_m_is_nan_not_another_m(m):
+    # gh-1913: 16 read as 8-PSK and 0/1 as BPSK. No closed form, no answer.
+    assert math.isnan(ber_theory_ser(m, 10.0))
+    assert math.isnan(ber_esn0_db_for_ser(m, 1e-3))

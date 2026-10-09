@@ -15,8 +15,10 @@ double
 dp_ber_evm_scatter_floor_db (int m)
 {
   double t;
+  /* The floor is general in M, but M < 2 is no constellation: NaN rather
+     than quietly answering for BPSK (#1913). */
   if (m < 2)
-    m = 2;
+    return NAN;
   t = M_PI / (double)m;
   return 10.0 * log10 (2.0 - 2.0 * sin (t) / t);
 }

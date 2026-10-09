@@ -153,12 +153,17 @@ extern "C"
    * wrong (measured 1.88-2.11 across M and both receiver paths). Pairing a
    * differential measurement with this curve invents a factor of two of
    * "implementation loss".
+   *
+   * @return The rate, or NAN for an M outside {2, 4, 8}: there is no closed
+   *         form for it here, and another M's rate would be a fabricated
+   *         answer.
    */
   double dp_ber_theory_ser (int m, double esn0);
 
   /** @brief Coherent GRAY-coded M-PSK bit error rate at Es/N0 (LINEAR).
    *  BPSK and Gray QPSK are exactly `Q(sqrt(2 Eb/N0))`; 8PSK uses `SER/log2 M`,
-   *  exact in the high-Es/N0 limit where an error lands on a neighbour. */
+   *  exact in the high-Es/N0 limit where an error lands on a neighbour.
+   *  NAN for an M outside {2, 4, 8}. */
   double dp_ber_theory_ber (int m, double esn0);
 
   /**
@@ -176,7 +181,7 @@ extern "C"
    *         the rate: `ser <= 0` (a zero SER is a perfect link, which no
    *         finite Es/N0 yields), `ser` above the bound at -10 dB (a rate
    *         the link cannot reach even at -10 dB), and `ser` below the bound
-   *         at 40 dB. Those are NOT clamped to -10 or 40: a bracket value
+   *         at 40 dB, and an M outside {2, 4, 8}. Those are NOT clamped to -10 or 40: a bracket value
    *         reads like a measurement, so an out-of-range rate would
    *         fabricate an answer. Test for it with isnan(), and write gates
    *         as `!(loss <= limit)`: a `loss > limit` comparison is false for
@@ -204,6 +209,8 @@ extern "C"
    * 2026-07-27. The room between "on the bound at the SER=1e-3 anchor" and
    * "completely broken" collapses as M grows: 5.4 dB at BPSK, 3.3 at QPSK,
    * 2.8 at 8PSK, so at high M the EVM cannot carry a verdict by itself.
+   *
+   * @return The floor in dB, or NAN for M < 2, which is no constellation.
    */
   double dp_ber_evm_scatter_floor_db (int m);
 
@@ -259,7 +266,8 @@ extern "C"
    * than the error rate did, and the two eventually disagree in a way that
    * reads as a receiver defect rather than the harness bug it is.
    *
-   * @return EVM in dB, or 0.0 ("no lock") for a window under 20 symbols.
+   * @return EVM in dB, 0.0 ("no lock") for a window under 20 symbols, or
+   *         NAN for M < 2, which is no constellation.
    */
   double dp_ber_evm_db (const float _Complex *rx, size_t rx_len, size_t lo,
                      size_t hi, int m);

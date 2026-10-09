@@ -1,0 +1,1 @@
+- `ber_theory_ser`, `ber_theory_ber` and `ber_esn0_db_for_ser` return NaN for an M outside {2, 4, 8} instead of silently using another M's formula (16 read as 8-PSK, 0 and 1 as BPSK), and the two EVM functions return NaN for M < 2 instead of answering for BPSK (#1913).

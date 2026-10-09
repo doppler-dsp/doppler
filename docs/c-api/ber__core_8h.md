@@ -69,7 +69,7 @@ _Error-rate measurement: settled windows, detected alignment, and an exact confi
 |  double | [**dp\_ber\_qfunc**](#function-dp_ber_qfunc) (double x) <br>_Gaussian tail_ `Q(x) = P(N(0,1) > x)` _._ |
 |  size\_t | [**dp\_ber\_settle\_from**](#function-dp_ber_settle_from) (size\_t budget, int timing\_lock, int carrier\_lock) <br>_Combine an analytic settling budget with measured lock instants._  |
 |  size\_t | [**dp\_ber\_settle\_syms**](#function-dp_ber_settle_syms) (double bn\_timing, double bn\_carrier) <br>_Symbols to discard before a steady-state measurement means anything._  |
-|  double | [**dp\_ber\_theory\_ber**](#function-dp_ber_theory_ber) (int m, double esn0) <br>_Coherent GRAY-coded M-PSK bit error rate at Es/N0 (LINEAR). BPSK and Gray QPSK are exactly_ `Q(sqrt(2 Eb/N0))` _; 8PSK uses_`SER/log2 M` _, exact in the high-Es/N0 limit where an error lands on a neighbour._ |
+|  double | [**dp\_ber\_theory\_ber**](#function-dp_ber_theory_ber) (int m, double esn0) <br>_Coherent GRAY-coded M-PSK bit error rate at Es/N0 (LINEAR). BPSK and Gray QPSK are exactly_ `Q(sqrt(2 Eb/N0))` _; 8PSK uses_`SER/log2 M` _, exact in the high-Es/N0 limit where an error lands on a neighbour. NAN for an M outside {2, 4, 8}._ |
 |  double | [**dp\_ber\_theory\_ser**](#function-dp_ber_theory_ser) (int m, double esn0) <br>_Coherent M-PSK symbol error rate at matched-filter Es/N0 (LINEAR)._  |
 
 
@@ -196,7 +196,7 @@ Bisects [**dp\_ber\_theory\_ser()**](ber__core_8h.md#function-dp_ber_theory_ser)
 
 **Returns:**
 
-The Es/N0 in dB, or NAN when no Es/N0 from -10 to 40 dB produces the rate: `ser <= 0` (a zero SER is a perfect link, which no finite Es/N0 yields), `ser` above the bound at -10 dB (a rate the link cannot reach even at -10 dB), and `ser` below the bound at 40 dB. Those are NOT clamped to -10 or 40: a bracket value reads like a measurement, so an out-of-range rate would fabricate an answer. Test for it with isnan(), and write gates as `!(loss <= limit)`: a `loss > limit` comparison is false for NaN and passes silently.
+The Es/N0 in dB, or NAN when no Es/N0 from -10 to 40 dB produces the rate: `ser <= 0` (a zero SER is a perfect link, which no finite Es/N0 yields), `ser` above the bound at -10 dB (a rate the link cannot reach even at -10 dB), and `ser` below the bound at 40 dB, and an M outside {2, 4, 8}. Those are NOT clamped to -10 or 40: a bracket value reads like a measurement, so an out-of-range rate would fabricate an answer. Test for it with isnan(), and write gates as `!(loss <= limit)`: a `loss > limit` comparison is false for NaN and passes silently.
 
 
 `dp_ber_esn0_db_for_ser (2, 0.0)` is NAN; `dp_ber_esn0_db_for_ser (2, 1e-3)` is 6.79 dB, the BPSK SER=1e-3 anchor. 
@@ -236,7 +236,7 @@ The window is EXPLICIT because BER and EVM must be measured on the SAME one. A c
 
 **Returns:**
 
-EVM in dB, or 0.0 ("no lock") for a window under 20 symbols. 
+EVM in dB, 0.0 ("no lock") for a window under 20 symbols, or NAN for M &lt; 2, which is no constellation. 
 
 
 
@@ -262,7 +262,17 @@ double dp_ber_evm_scatter_floor_db (
 The FLOOR of a self-referenced EVM: what a completely destroyed constant-modulus constellation reads. Slicing a unit-modulus point at a uniformly random phase to its nearest of M neighbours leaves `E|e|^2 = 2 - 2 sin(pi/M)/(pi/M)`: **-1.4 dB at BPSK, -7.0 at QPSK, -12.9 at 8PSK**.
 
 
-**Any fixed EVM threshold must be stated against this, never against 0 dB.** "Scattered reads ~0 dB" is the BPSK limit only. At 8PSK a stream with no carrier recovery at all reads -12.9 dB — which is also what a perfectly healthy 13 dB link reads — so a `< -12.0` assertion is satisfied by pure noise. That was live in this repo's own receiver tests until 2026-07-27. The room between "on the bound at the SER=1e-3 anchor" and "completely broken" collapses as M grows: 5.4 dB at BPSK, 3.3 at QPSK, 2.8 at 8PSK, so at high M the EVM cannot carry a verdict by itself. 
+**Any fixed EVM threshold must be stated against this, never against 0 dB.** "Scattered reads ~0 dB" is the BPSK limit only. At 8PSK a stream with no carrier recovery at all reads -12.9 dB — which is also what a perfectly healthy 13 dB link reads — so a `< -12.0` assertion is satisfied by pure noise. That was live in this repo's own receiver tests until 2026-07-27. The room between "on the bound at the SER=1e-3 anchor" and "completely broken" collapses as M grows: 5.4 dB at BPSK, 3.3 at QPSK, 2.8 at 8PSK, so at high M the EVM cannot carry a verdict by itself.
+
+
+
+
+**Returns:**
+
+The floor in dB, or NAN for M &lt; 2, which is no constellation. 
+
+
+
 
 
         
@@ -393,7 +403,7 @@ This is a floor, not the answer — take the max of it and every lock indicator 
 
 ### function dp\_ber\_theory\_ber 
 
-_Coherent GRAY-coded M-PSK bit error rate at Es/N0 (LINEAR). BPSK and Gray QPSK are exactly_ `Q(sqrt(2 Eb/N0))` _; 8PSK uses_`SER/log2 M` _, exact in the high-Es/N0 limit where an error lands on a neighbour._
+_Coherent GRAY-coded M-PSK bit error rate at Es/N0 (LINEAR). BPSK and Gray QPSK are exactly_ `Q(sqrt(2 Eb/N0))` _; 8PSK uses_`SER/log2 M` _, exact in the high-Es/N0 limit where an error lands on a neighbour. NAN for an M outside {2, 4, 8}._
 ```C++
 double dp_ber_theory_ber (
     int m,
@@ -423,7 +433,17 @@ double dp_ber_theory_ser (
 `BPSK: Q(sqrt(2 Es/N0))`, `QPSK: 2 Q(sqrt(Es/N0))`, `8PSK: 2 Q(sqrt(2 Es/N0) sin(pi/8))` — the nearest-neighbour union bound, tight to well under a percent at any Es/N0 worth testing at.
 
 
-**This is a COHERENT bound.** A differentially-decoded rate is ~2x it, because a differential decision fails when either of its two symbols is wrong (measured 1.88-2.11 across M and both receiver paths). Pairing a differential measurement with this curve invents a factor of two of "implementation loss". 
+**This is a COHERENT bound.** A differentially-decoded rate is ~2x it, because a differential decision fails when either of its two symbols is wrong (measured 1.88-2.11 across M and both receiver paths). Pairing a differential measurement with this curve invents a factor of two of "implementation loss".
+
+
+
+
+**Returns:**
+
+The rate, or NAN for an M outside {2, 4, 8}: there is no closed form for it here, and another M's rate would be a fabricated answer. 
+
+
+
 
 
         

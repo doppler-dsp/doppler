@@ -15,8 +15,9 @@ double
 dp_ber_theory_ber (int m, double esn0)
 {
   int bps = mpsk_bps (m);
-  if (bps < 1)
-    bps = 1;
+  /* No closed form for this M: NaN, never another M's rate (#1913). */
+  if (bps == 0)
+    return NAN;
   if (m <= 4)
     return dp_ber_qfunc (sqrt (2.0 * esn0 / (double)bps));
   return dp_ber_theory_ser (m, esn0) / (double)bps;

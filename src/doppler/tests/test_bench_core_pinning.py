@@ -146,3 +146,71 @@ def test_each_wrong_state_refuses_the_run(
     )
     assert len(problems) == 1 and names in problems[0], problems
     assert ":" in problems[0]  # "<what is wrong>: <the fix>"
+
+
+# ── bench-publish publishes a WHOLE run, or nothing ─────────────────────────
+#
+# `make bench BENCH_ARGS="..."` filters the C side only, so a run with a
+# component filter leaves a full Python snapshot beside a partial C one, and
+# `bench-publish` used to copy the newest pair unchecked: a release's numbers
+# could ship with most of the C components silently gone (#1975's review).
+
+
+def _publish_tree(root, c_rows, *, with_c=True, sources=("fir", "rs")):
+    """A repo-shaped tmp tree: bench sources, and one local snapshot pair."""
+    bench = root / "native" / "benchmarks"
+    bench.mkdir(parents=True)
+    for x in sources:
+        (bench / f"bench_{x}_core.c").write_text("")
+    hist = root / "benchmarks" / "history"
+    hist.mkdir(parents=True)
+    (hist / "T1.json").write_text('{"benchmarks": []}')
+    if with_c:
+        rows = ", ".join(f'{{"name": "{r}"}}' for r in c_rows)
+        (hist / "T1-c.json").write_text(f'{{"benchmarks": [{rows}]}}')
+
+
+def _quiet_publish(report, monkeypatch):
+    """Stub the parts of cmd_publish that probe this machine and repo."""
+    monkeypatch.setattr(report, "_build_info", lambda: ("cc 1.0", "-O2"))
+    monkeypatch.setattr(report, "_git_short_sha", lambda: "abc1234")
+    monkeypatch.setattr(report, "collect_meta", lambda *a, **k: {})
+
+
+def test_publish_refuses_a_c_snapshot_short_of_the_tree(
+    tmp_path, monkeypatch, capsys
+):
+    """A C half holding `fir` but not `rs`, the shape a BENCH_ARGS run
+    leaves, is refused, the missing component is named, and nothing is
+    written."""
+    report = _load("bench_report")
+    _publish_tree(tmp_path, ["fir::step"])
+    monkeypatch.chdir(tmp_path)
+    _quiet_publish(report, monkeypatch)
+    assert report.cmd_publish("9.9.9", "portable") == 1
+    assert "rs" in capsys.readouterr().out
+    assert not (tmp_path / "benchmarks" / "published").exists()
+
+
+def test_publish_refuses_a_run_with_no_c_half(tmp_path, monkeypatch):
+    """A Python-only snapshot (--python-only, `make bench-save`) is half a
+    release."""
+    report = _load("bench_report")
+    _publish_tree(tmp_path, [], with_c=False)
+    monkeypatch.chdir(tmp_path)
+    _quiet_publish(report, monkeypatch)
+    assert report.cmd_publish("9.9.9", "portable") == 1
+    assert not (tmp_path / "benchmarks" / "published").exists()
+
+
+def test_publish_accepts_a_whole_run(tmp_path, monkeypatch):
+    """The precondition: every component present publishes both halves, so
+    the refusals above are the check and not a publish that never works."""
+    report = _load("bench_report")
+    _publish_tree(tmp_path, ["fir::step", "rs::decode", "rs::encode"])
+    monkeypatch.chdir(tmp_path)
+    _quiet_publish(report, monkeypatch)
+    assert report.cmd_publish("9.9.9", "portable") == 0
+    out = tmp_path / "benchmarks" / "published" / "v9.9.9"
+    assert (out / "portable.json").exists()
+    assert (out / "portable-c.json").exists()

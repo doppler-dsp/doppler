@@ -13,15 +13,12 @@ and nothing in the tree timed it. `snr` and `detection` had been in the same
 state since July.
 
 **2. Measured but never run.** The reciprocal, and the worse one, because it
-looks fixed. `jm bench` walks jm's COMPONENT list -- the objects in
-`objects/*.toml`. `util`, `timing`, `hbdecim` and `resamp` are not objects
-(one module of free functions, three `c_deps`), so their benchmarks were
-built by every CMake run and executed by nothing. Four files, reviewed and
-committed, appearing in no published snapshot, for months. The proof is one
-command:
-
-    $ .venv/bin/just-makeit bench util
-    error: unknown component(s): util
+looked fixed. `jm bench` used to walk only jm's COMPONENT list -- the
+objects in `objects/*.toml` -- and `util`, `timing`, `hbdecim` and `resamp`
+are not objects (one module of free functions, three `c_deps`), so their
+benchmarks were built by every CMake run and executed by nothing: four
+files, reviewed and committed, appearing in no published snapshot, for
+months. `jm bench util` answered `unknown component(s): util`.
 
 **jm fixed that half, not this gate, deliberately.** Making jm run them was
 just-buildit/just-makeit#1023, and a local runner here would have duplicated

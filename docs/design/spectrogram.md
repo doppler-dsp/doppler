@@ -135,7 +135,7 @@ prototype's number (§3), not on taste.
 ### 4.3 The object
 
 ```text
-dp_spectrogram_create (nfft, hop, window, beta, mode, shift);
+dp_spectrogram_create (nfft, hop, window, beta, mode);
 size_t dp_spectrogram_push (s, const cf32 *in, size_t n_in,
                             float *out, size_t max_out);  /* floats written */
 size_t dp_spectrogram_push_max_out (s, size_t n_in);  /* rows_for * nfft  */
@@ -160,9 +160,13 @@ samples would not give (separating the two is
 [#1966](https://github.com/doppler-dsp/doppler/issues/1966)). Rows are dBFS;
 `mode = power` is reserved and refused until PSD's normalised per-frame
 power is on main, so the two modes share one reference
-([#1968](https://github.com/doppler-dsp/doppler/issues/1968)). The state is the spectrogram's envelope around the
-framer's snapshot and nothing else, because the window, the plan and the
-scratch are configuration.
+([#1968](https://github.com/doppler-dsp/doppler/issues/1968)). Every row is
+DC-centred exactly as PSD's kernel emits it, bin *k* at index `nfft/2 + k`:
+bin order has one home, and an FFT-order option, if one is ever wanted,
+belongs to that kernel
+([#1988](https://github.com/doppler-dsp/doppler/issues/1988)). The state is
+the spectrogram's envelope around the framer's snapshot and nothing else,
+because the window, the plan and the scratch are configuration.
 
 The Python face is **declarative or absent**. A `push` that returns
 `(rows, nfft)` needs jm to express a two-dimensional result

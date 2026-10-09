@@ -40,13 +40,12 @@ typedef struct
   int window;           
   float beta;           
   int mode;             
-  int shift;            
   size_t consumed;      
 } dp_spectrogram_state_t;
 
 dp_spectrogram_state_t *dp_spectrogram_create (size_t nfft, size_t hop,
                                                int window, float beta,
-                                               int mode, int shift);
+                                               int mode);
 
 void dp_spectrogram_destroy (dp_spectrogram_state_t *s);
 

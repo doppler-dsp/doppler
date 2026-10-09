@@ -769,6 +769,67 @@ main (void)
     dp_f32_destroy (r);
   }
   {
+    /* An impossible carry is refused. A drained framer that has handed out a
+       frame holds at least N - hop samples: the frame covered N and only its
+       hop was retired. A blob saying written = 10, frames = 1, live = 0 at
+       N 32 / hop 10 agrees with written - frames * hop == live, so the
+       counters alone pass; restored, pending() wrapped to ~1.8e19 and flush
+       emitted a row of nothing (the #1975 review's adversary). */
+    enum
+    {
+      IN = 32,
+      IH = 10
+    };
+    dp_f32_t       *ra = dp_f32_create (64), *rb = dp_f32_create (64);
+    dp_f32_framer_t a, b;
+    DP_REQUIRE (ra != NULL && rb != NULL);
+    DP_REQUIRE (dp_f32_framer_init (&a, ra, IN, IH) == DP_OK);
+    DP_REQUIRE (dp_f32_framer_init (&b, rb, IN, IH) == DP_OK);
+    size_t blob_n = dp_f32_framer_state_bytes (&a);
+    void  *blob   = malloc (blob_n);
+    DP_REQUIRE (blob != NULL);
+
+    /* fresh a: live 0, written 0, frames 0 -- then claim one frame out */
+    dp_f32_framer_get_state (&a, blob);
+    const uint64_t written = 10, frames = 1;
+    char *at = (char *)blob + DP_FRAMER_STATE_WRITTEN_OFFSET (float, IN);
+    memcpy (at, &written, sizeof written);
+    memcpy (at + sizeof written, &frames, sizeof frames);
+    DP_CHECK (dp_f32_framer_feed_view (&b, x, 3, 0) == 3);
+    DP_CHECK (dp_f32_framer_set_state (&b, blob) == DP_ERR_INVALID);
+    DP_CHECK (b.written == 3 && dp_f32_framer_pending (&b) == 3); /* as was */
+
+    /* ...while the tightest REAL carry, N - hop after one frame, restores:
+       the refusal is the bound, not every blob with a frame out */
+    DP_CHECK (dp_f32_framer_feed_view (&a, x, IN, 1) == IN);
+    DP_REQUIRE (dp_f32_framer_next_view (&a) != NULL);
+    DP_REQUIRE (dp_f32_framer_next_view (&a) == NULL); /* drained, settled */
+    DP_REQUIRE (dp_f32_available (ra) == IN - IH);
+    dp_f32_framer_get_state (&a, blob);
+    DP_CHECK (dp_f32_framer_set_state (&b, blob) == DP_OK);
+    DP_CHECK (dp_f32_framer_pending (&b) == 0);
+
+    /* hop == N: an empty carry after a frame is real, and restores */
+    dp_f32_t       *rc = dp_f32_create (64), *rd = dp_f32_create (64);
+    dp_f32_framer_t c, d;
+    DP_REQUIRE (rc != NULL && rd != NULL);
+    DP_REQUIRE (dp_f32_framer_init (&c, rc, 8, 8) == DP_OK);
+    DP_REQUIRE (dp_f32_framer_init (&d, rd, 8, 8) == DP_OK);
+    DP_CHECK (dp_f32_framer_feed_view (&c, x, 8, 1) == 8);
+    DP_REQUIRE (dp_f32_framer_next_view (&c) != NULL);
+    DP_REQUIRE (dp_f32_framer_next_view (&c) == NULL);
+    void *blob8 = malloc (dp_f32_framer_state_bytes (&c));
+    DP_REQUIRE (blob8 != NULL);
+    dp_f32_framer_get_state (&c, blob8);
+    DP_CHECK (dp_f32_framer_set_state (&d, blob8) == DP_OK);
+    free (blob8);
+    free (blob);
+    dp_f32_destroy (ra);
+    dp_f32_destroy (rb);
+    dp_f32_destroy (rc);
+    dp_f32_destroy (rd);
+  }
+  {
     /* a snapshot of another SHAPE is refused: the size differs */
     dp_f32_t       *ra = dp_f32_create (64), *rb = dp_f32_create (64);
     dp_f32_framer_t a, b;

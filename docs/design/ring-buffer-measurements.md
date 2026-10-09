@@ -186,3 +186,33 @@ was taken at load 2.8 and read 0.355 against 0.356.
 *What it does not say.* Nothing about `nfft` other than 1024, nor about
 chunks smaller than the frame, where the carry rather than the loop dominates
 (the spectrogram's U1 and U2 are about exactly that).
+
+## 10. A harness that could not see the bound it certifies (2026-10-08)
+
+*What happened.* The framer's certification measures at scale what
+`test_framer_core.c` pins at a readable size. It was proved the way every pin
+is, by breaking the code under it and requiring a count to move. Six of the
+sabotages moved one. The seventh did not: with `feed`'s bound off by one
+(`a_max = n + max_frames * hop` instead of `n - 1 + ...`) **every number the
+report asserts stayed zero**, and the certification would have passed a
+framer that the unit test, in the same run, failed.
+
+*Why.* The claim is "`feed` admits input only as far as the frames it yields
+fit the room it was given". The harness drained with `while (next)`, which
+takes every frame that is available whatever the room. Frames, order, carry
+after the drain and samples accepted were all still correct; only a comparison
+of the frames *one feed made available* with the room *that feed was given*
+could tell, and nothing in the harness made it. The unit test did
+(`got <= 1`), which is the only reason the hole was findable by comparison.
+
+*The fix.* The harness counts, per feed, the frames drained against the room
+offered (`over_room`), the report prints it, and the report has a limit for it.
+The same sabotage now reads 636 feeds over room, and ignoring the room
+entirely reads 298.
+
+*What the next validator author should take from it.* A sweep that drains
+unconditionally is blind to every claim about *when* something is admitted. A
+harness is an instrument, and an instrument is proved the same way a test is:
+sabotage the code and require the number to move. Do it for every limit, not
+for a sample of them, and expect the first one that stays at zero to be about a
+promise the instrument's own loop keeps on the code's behalf.

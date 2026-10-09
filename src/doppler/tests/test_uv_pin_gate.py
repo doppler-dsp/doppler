@@ -20,6 +20,7 @@ import os
 import shutil
 import subprocess
 import sys
+from pathlib import PurePath
 from typing import TYPE_CHECKING
 
 import pytest
@@ -260,15 +261,12 @@ def _lock_gate(tmp_path: Path, edit: tuple[str, str] | None = None):
     # and under the pin no other uv could have run it. PATH is the fallback.
     uv = os.environ.get("UV") or shutil.which("uv")
     assert uv, "no uv found; run this through make"
+    # POSIX spellings: the recipe runs under make's shell, where a Windows
+    # path's backslashes would be eaten as escapes (ci.yml runs this suite
+    # on windows-latest too).
+    uv_cmd = f"{PurePath(uv).as_posix()} --directory {tmp_path.as_posix()}"
     return subprocess.run(
-        [
-            "make",
-            "-s",
-            "-C",
-            str(REPO),
-            "lint-uv-lock",
-            f"UV={uv} --directory {tmp_path}",
-        ],
+        ["make", "-s", "-C", str(REPO), "lint-uv-lock", f"UV={uv_cmd}"],
         capture_output=True,
         text=True,
     )

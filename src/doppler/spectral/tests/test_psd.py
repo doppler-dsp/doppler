@@ -1,3 +1,5 @@
+import re
+
 import numpy as np
 import pytest
 
@@ -59,7 +61,22 @@ def test_band_power_partition():
     assert abs(10 * np.log10(lin) - total) < 1e-2
 
 
-@pytest.mark.parametrize("window", ["hann", "kaiser", "blackman-harris"])
+def _windows():
+    """Every window PSD accepts, read from the refusal that names them.
+
+    The binding lists its windows in the error it raises for an unknown one,
+    and jm renders that list from the same `string_enum` that builds the
+    constructor, so this cannot lag the enum: a window added there reaches
+    the invariance test below without anyone editing a copy of the list.
+    """
+    with pytest.raises(ValueError, match="window must be one of") as err:
+        PSD(n=8, fs=1.0, window="no-such-window", mode="mean")
+    names = re.findall(r'"([^"]+)"', str(err.value))
+    assert len(names) >= 4 and "rect" in names, names
+    return names
+
+
+@pytest.mark.parametrize("window", _windows())
 @pytest.mark.parametrize("pad", [1, 4])
 def test_band_power_absolute_is_window_and_pad_invariant(window, pad):
     """Integrated band power must equal the TRUE power, independent of the

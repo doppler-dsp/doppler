@@ -249,3 +249,44 @@ def test_an_unreadable_base_fails_closed(seed: Seed) -> None:
     mod = seed()
     with pytest.raises(LookupError):
         mod.ratchet_added(mod.CHUNK_RATCHET, "no-such-ref")
+
+
+#: Two objects whose names nest: `dp_hbdecim_q15_` begins with `dp_hbdecim_`.
+NESTED_HEADER = """\
+int dp_hbdecim_set_state (void *s, const void *blob);
+size_t dp_hbdecim_execute (void *s, const void *in, size_t n, void *out);
+int dp_hbdecim_q15_set_state (void *s, const void *blob);
+size_t dp_hbdecim_q15_execute (void *s, const void *in, size_t n, void *out);
+"""
+
+
+def _wired_to(symbol: str) -> str:
+    return WIRED.replace("dp_foo_create", symbol + "_create").replace(
+        "dp_foo_execute", symbol + "_execute"
+    )
+
+
+def test_a_nested_name_is_credited_to_its_own_object_only(seed: Seed) -> None:
+    """A test wiring only `dp_hbdecim_q15_*` covers `dp_hbdecim_q15` and
+    NOT `dp_hbdecim`, whose name it begins with. Credited to both, the gate
+    would tell the maintainer `dp_hbdecim` "has the test now, delete the
+    line", and the ratchet would then keep it off the list for good without
+    that object ever being partitioned."""
+    mod = seed(
+        {"test_q15_core.c": _wired_to("dp_hbdecim_q15")},
+        header=NESTED_HEADER,
+        ratchet="dp_hbdecim | no test yet\n",
+    )
+    assert mod.chunk_tested() == {"dp_hbdecim_q15"}
+    # The entry for `dp_hbdecim` is still earned: nothing tests it.
+    assert mod.chunk_invariance() == []
+
+
+def test_the_shorter_name_is_still_credited_when_it_is_wired(
+    seed: Seed,
+) -> None:
+    mod = seed(
+        {"test_hbdecim_core.c": _wired_to("dp_hbdecim")},
+        header=NESTED_HEADER,
+    )
+    assert mod.chunk_tested() == {"dp_hbdecim"}

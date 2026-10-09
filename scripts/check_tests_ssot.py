@@ -727,9 +727,14 @@ def chunk_tested() -> set[str]:
         wired = "\n".join(
             function_body(text, f) for f in set(CHUNK_WIRED.findall(text))
         )
-        found.update(
-            p for p in have if re.search(rf"\b{re.escape(p)}_", wired)
-        )
+        # Credit each identifier to the LONGEST prefix it begins with, never
+        # to every prefix it begins with: `dp_hbdecim_q15_execute` starts with
+        # `dp_hbdecim_` too, and a test wiring only the q15 object must not
+        # take `dp_hbdecim` off the ratchet without ever partitioning it.
+        for ident in set(re.findall(r"\b[A-Za-z_]\w*", wired)):
+            owners = [p for p in have if ident.startswith(p + "_")]
+            if owners:
+                found.add(max(owners, key=len))
     return found
 
 

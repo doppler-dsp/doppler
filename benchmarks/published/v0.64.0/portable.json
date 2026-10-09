@@ -8108,7 +8108,7 @@
  "version": "5.2.3",
  "doppler_meta": {
   "measured_at": "2026-10-07T08:15:48.461127+00:00",
-  "commit": "83b76b24b",
+  "commit": "d85674bfc",
   "compiler": "cc (GCC) 16.2.1 20260810",
   "flags": "-O3 -march=x86-64-v2 -ffast-math",
   "cpu": "AMD Ryzen AI 9 465 w/ Radeon 880M",

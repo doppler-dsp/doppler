@@ -1,0 +1,9 @@
+# Published benchmark sets whose doppler_meta.commit can never be put on main.
+# Read by scripts/check_bench_commits.py (make bench-commits-check, #1322).
+#
+# One release directory per line, then why it cannot be fixed. This list may
+# only SHRINK: the gate fails on an entry whose set now passes or whose
+# directory is gone. A new set never goes here -- measure on main, or
+# `make bench-restamp VERSION=...` it onto main's tree-identical commit.
+v0.56.0 c9dbcf8da is gone from GitHub (fetch answers "not our ref"), so its tree cannot be matched to a main commit
+v0.57.0 5b444f08f was measured on a tree that no commit on main has, so there is no identical commit to restamp to

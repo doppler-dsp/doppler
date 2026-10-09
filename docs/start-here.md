@@ -11,6 +11,7 @@ answers it.
 | Understand why it's built this way | [Design](design/index.md) — architecture decisions and algorithm rationale                                                        |
 | Add an algorithm or contribute     | [Adding an Algorithm](dev/contributing/adding-algorithms.md) — the lifecycle from design doc to certified, and who owns each step |
 | Build a C program against doppler  | [C Quick Start](quickstart-c.md) — get the library + the three CI-verified build faces (cc/CMake/pkg-config)                      |
+| Start a project that depends on it | [Example Projects](example-projects/index.md) — four working projects to copy, each built and run in CI                           |
 | Look up a raw C signature          | [C API](c-api/index.md) — machine-generated from the C headers                                                                    |
 | Compose and stream a waveform      | [Waveform Generator](guide/wfmgen/index.md) — wfmgen's own top-level nav section                                                  |
 

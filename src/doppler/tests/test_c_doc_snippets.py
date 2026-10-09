@@ -51,7 +51,7 @@ import sys
 
 import pytest
 
-from doppler.tests._docs_snippet_common import DOCS, REPO
+from doppler.tests._docs_snippet_common import DOCS, REPO, read_page
 from doppler.tests._docs_snippet_common import iter_fences as _iter_fences_raw
 from doppler.tests._docs_snippet_common import (
     resolve_snippets as _resolve_snippets,
@@ -88,10 +88,7 @@ def _iter_fences(text):
 
 def _has_fences(path):
     try:
-        return (
-            next(_iter_fences(path.read_text(encoding="utf-8")), None)
-            is not None
-        )
+        return next(_iter_fences(read_page(path)), None) is not None
     except OSError:
         return False
 
@@ -126,9 +123,7 @@ GATED_PAGES = sorted(set(ALL_PAGES) - IGNORED)
 
 
 def _page_fence_count(page):
-    return sum(
-        1 for _ in _iter_fences((DOCS / page).read_text(encoding="utf-8"))
-    )
+    return sum(1 for _ in _iter_fences(read_page(DOCS / page)))
 
 
 # One parametrized case per (page, block index) — a page with N fences is N
@@ -296,7 +291,7 @@ def _run_one(blockid, marker, code, tmp_path):
 )
 def test_c_doc_page_snippet(page, index, tmp_path):
     """Compile + run one C fence; fail naming the exact block."""
-    text = (DOCS / page).read_text(encoding="utf-8")
+    text = read_page(DOCS / page)
     marker, code = list(_iter_fences(text))[index]
     _run_one(f"{page}#block{index}", marker, code, tmp_path)
 
@@ -331,7 +326,7 @@ def test_ignored_pages_have_no_inline_markers():
     the ignore list instead."""
     offenders = []
     for page in sorted(IGNORED & set(ALL_PAGES)):
-        text = (DOCS / page).read_text(encoding="utf-8")
+        text = read_page(DOCS / page)
         if any(marker is not None for marker, _ in _iter_fences(text)):
             offenders.append(page)
     assert not offenders, (

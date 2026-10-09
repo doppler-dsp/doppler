@@ -33,6 +33,10 @@ Against a doppler build tree — no install needed:
 make DOPPLER_BUILD_DIR=../../build run
 ```
 
+`../../build` is relative to this directory, so it works where the project
+sits in the doppler repository. Once you copy the project out, pass the
+build tree's absolute path instead.
+
 Add `LINK=shared` for the shared library instead of the static one. Against
 an installed doppler:
 

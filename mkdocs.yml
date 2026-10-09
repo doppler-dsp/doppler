@@ -211,6 +211,12 @@ nav:
           - FFT: examples/python-fft.md
           - Ring Buffers: examples/python-buffers.md
           - C Examples: examples/c.md
+      - Example Projects:
+          - Example Projects: example-projects/index.md
+          - "consumer: Link doppler from Your Build": example-projects/consumer.md
+          - "standalone: One Call, C and Python": example-projects/standalone.md
+          - "burst-pipeline: A Burst Waveform End to End": example-projects/burst-pipeline.md
+          - "uno-q: An RTL-SDR Front End on an Arduino": example-projects/uno-q.md
   - API Reference:
       - API Reference: api/index.md
       - C API: c-api/index.md

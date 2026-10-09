@@ -180,6 +180,8 @@ sudo apt install build-essential cmake ninja-build
 **Install doppler** from a clone of this repository, then build this project
 against it:
 
+<!-- docs-snippet: cwd=. -->
+
 ```sh
 make package-c PREFIX=$HOME/.local                 # from doppler's root
 make -C example-projects/uno-q PREFIX=$HOME/.local run
@@ -191,7 +193,9 @@ Cortex-A53 scheduling model is what helps, because the core is in-order.
 Across 63 of doppler's C benchmarks, measured alternately against a portable
 build, a `-mcpu=cortex-a53` build was slower on none by more than the ±5%
 run-to-run noise, and faster on 13, by up to 32% on multiply-accumulate loops
-(real FIR +25–32%). To build doppler that way:
+(real FIR +25–32%). To build doppler that way, from its root:
+
+<!-- docs-snippet: cwd=. -->
 
 ```sh
 make package-c PREFIX=$HOME/.local CMAKE_ARGS=-DCMAKE_C_FLAGS=-mcpu=cortex-a53
@@ -211,7 +215,7 @@ default build; "A53" adds `-mcpu=cortex-a53` (see Tuning).
 
 The last column is doppler's published portable build for that release on an AMD
 Ryzen AI 9 465 (governor `performance`, boost on, pinned to the fastest
-cores; [`benchmarks/published/`](../../benchmarks/published/)),
+cores; [`benchmarks/published/`](https://github.com/doppler-dsp/doppler/tree/main/benchmarks/published)),
 from the library's own benchmarks rather than `bench.c`.
 
 | algorithm                         | case                      | UNO Q portable | UNO Q A53   | Ryzen AI 9 465 |

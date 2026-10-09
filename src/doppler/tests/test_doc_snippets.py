@@ -45,7 +45,7 @@ from contextlib import contextmanager
 
 import pytest
 
-from doppler.tests._docs_snippet_common import DOCS, iter_fences
+from doppler.tests._docs_snippet_common import DOCS, iter_fences, read_page
 from doppler.tests._docs_snippet_common import (
     resolve_snippets as _resolve_snippets,
 )
@@ -72,10 +72,7 @@ def _iter_fences(text):
 
 def _has_fences(path):
     try:
-        return (
-            next(_iter_fences(path.read_text(encoding="utf-8")), None)
-            is not None
-        )
+        return next(_iter_fences(read_page(path)), None) is not None
     except OSError:
         return False
 
@@ -239,7 +236,7 @@ def _run_one(blockid, marker, code, ns):
 @pytest.mark.parametrize("page", GATED_PAGES)
 def test_doc_page_snippets(page, tmp_path):
     """Run a page's fences as one notebook; fail naming the exact block."""
-    text = (DOCS / page).read_text(encoding="utf-8")
+    text = read_page(DOCS / page)
     ns = {}
     try:
         import numpy
@@ -297,7 +294,7 @@ def test_ignored_pages_have_no_inline_markers():
     page off the ignore list instead."""
     offenders = []
     for page in sorted(IGNORED & set(ALL_PAGES)):
-        text = (DOCS / page).read_text(encoding="utf-8")
+        text = read_page(DOCS / page)
         if any(marker is not None for marker, _ in _iter_fences(text)):
             offenders.append(page)
     assert not offenders, (

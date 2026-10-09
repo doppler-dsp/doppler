@@ -10,4 +10,5 @@ raw building blocks, C programs, and the streaming demo.
 - [FFT](python-fft.md) — per-instance 1-D and 2-D FFT with plan reuse.
 - [Ring Buffers](python-buffers.md) — double-mapped lock-free ring buffers for producer/consumer pipelines.
 - [C examples](c.md) — minimal C99 programs calling the library directly.
+- [Example projects](../example-projects/index.md) — four downstream projects with their own build, consuming an installed doppler: copy one to start yours.
 - [Streaming](streaming.md) — NATS-based signal streaming end-to-end.

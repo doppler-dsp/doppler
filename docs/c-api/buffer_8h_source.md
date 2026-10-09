@@ -936,9 +936,13 @@ typedef enum
     uint64_t frames = dp_r_u64 (&_r);                                         \
     uint64_t hop = dp_r_u64 (&_r);                                            \
     /* Frames retired exactly frames*hop samples, so what remains is written  \
-       minus that. Anything else is a corrupt blob, not a snapshot. */        \
+       minus that, and a drained framer holds fewer than a frame. Once a      \
+       frame has been handed out it also holds at least frame_n - hop: the    \
+       last frame covered frame_n samples and only its hop was retired.       \
+       Anything else is a corrupt blob, not a snapshot. */                    \
     if (_r.err || elem_bytes != sizeof (type) || hop != fr->hop               \
         || live > fr->frame_n - 1                                             \
+        || (frames && live < fr->frame_n - fr->hop)                           \
         || frames > UINT64_MAX / fr->hop                                      \
         || written < frames * fr->hop || written - frames * fr->hop != live)  \
       return DP_ERR_INVALID;                                                  \

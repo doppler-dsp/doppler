@@ -62,7 +62,7 @@ _Streaming spectrogram: a stream of any-size chunks in, rows of nfft-bin spectra
 | Type | Name |
 | ---: | :--- |
 |  size\_t | [**dp\_spectrogram\_consumed**](#function-dp_spectrogram_consumed) (const [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s) <br>_Input samples the last_ [_**dp\_spectrogram\_push()**_](spectrogram__core_8h.md#function-dp_spectrogram_push) _took._ |
-|  [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* | [**dp\_spectrogram\_create**](#function-dp_spectrogram_create) (size\_t nfft, size\_t hop, int window, float beta, int mode, int shift) <br>_Create a streaming spectrogram._  |
+|  [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* | [**dp\_spectrogram\_create**](#function-dp_spectrogram_create) (size\_t nfft, size\_t hop, int window, float beta, int mode) <br>_Create a streaming spectrogram._  |
 |  void | [**dp\_spectrogram\_destroy**](#function-dp_spectrogram_destroy) ([**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s) <br>_Release a spectrogram and everything it owns._  |
 |  size\_t | [**dp\_spectrogram\_flush**](#function-dp_spectrogram_flush) ([**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s, float \* row) <br>_End the stream: write the one zero-padded row it still owes, if any._  |
 |  void | [**dp\_spectrogram\_get\_state**](#function-dp_spectrogram_get_state) (const [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s, void \* blob) <br>_Serialize the stream position into_ `blob` _._ |
@@ -141,7 +141,7 @@ size_t dp_spectrogram_consumed (
 
 
 
-Equal to its `n_in` unless `out` ran out of room; then the caller resumes at in + consumed. 0 after create, reset and set\_state.
+Equal to its `n_in` unless `out` ran out of room; then the caller resumes at in + consumed. 0 after create, reset, flush and set\_state.
 
 
 
@@ -169,8 +169,7 @@ dp_spectrogram_state_t * dp_spectrogram_create (
     size_t hop,
     int window,
     float beta,
-    int mode,
-    int shift
+    int mode
 ) 
 ```
 
@@ -181,21 +180,20 @@ dp_spectrogram_state_t * dp_spectrogram_create (
 **Parameters:**
 
 
-* `nfft` Samples per frame and bins per row: a power of two &gt;= 2. (A frame length that is not a power of two would be zero-padded by the PSD to more bins than samples, so it is refused rather than given rows wider than its frames.) 
+* `nfft` Samples per frame and bins per row, which must be the same number: an nfft the PSD would zero-pad to a longer transform (anything but a power of two &gt;= 2) is refused rather than given rows wider than its frames. 
 * `hop` Samples between row starts, 1 &lt;= hop &lt;= nfft. hop == nfft tiles the stream; hop &lt; nfft overlaps the frames. 
 * `window` 0 = Hann, 1 = Kaiser, 2 = Blackman-Harris, 3 = rectangular, as [**dp\_psd\_create()**](psd__core_8h.md#function-dp_psd_create). 
 * `beta` Kaiser beta (ignored for the other windows). 
 * `mode` DP\_SPECTROGRAM\_DB. DP\_SPECTROGRAM\_POWER is refused for now. 
-* `shift` Nonzero: each row DC-centred, bin k at index nfft/2 + k (negative frequencies first), as PSD reports. Zero: FFT order, bin k at index k (mod nfft). 
 
 
 
 **Returns:**
 
-Heap-allocated state, or NULL on an invalid argument. 
+Heap-allocated state, or NULL on an invalid argument.
 
 
-
+Every row is DC-centred exactly as PSD's kernel emits it: bin k at index nfft/2 + k, negative frequencies first. 
 
 **Note:**
 
@@ -377,8 +375,8 @@ Floats written: a multiple of nfft, at most dp\_spectrogram\_push\_max\_out(s, n
 
 
 ```C++
-// nfft 8, hop 4, rectangular, dB, DC-centred: a unit tone on bin 2
-dp_spectrogram_state_t *s = dp_spectrogram_create (8, 4, 3, 0.0f, 0, 1);
+// nfft 8, hop 4, rectangular, dB: a unit tone on bin 2
+dp_spectrogram_state_t *s = dp_spectrogram_create (8, 4, 3, 0.0f, 0);
 float _Complex x[16];
 for (int i = 0; i < 16; i++)
   x[i] = cexpf (I * 2.0f * 3.14159265f * 2.0f * (float)i / 8.0f);
@@ -541,7 +539,7 @@ size_t dp_spectrogram_state_bytes (
 
 
 
-The blob is the carry (the framer's snapshot) inside the spectrogram's own envelope. The window, mode and shift are configuration: a blob restores into a fresh spectrogram created with the same arguments.
+The blob is the carry (the framer's snapshot) inside the spectrogram's own envelope. The window and mode are configuration: a blob restores into a fresh spectrogram created with the same arguments.
 
 
 

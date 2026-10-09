@@ -20,50 +20,38 @@
  * sample; how much more than that is worth is the design's U1, unmeasured. */
 #define SPECTROGRAM_RING_FRAMES 2u
 
-static int
-is_pow_two (size_t v)
-{
-  return v >= 2 && (v & (v - 1)) == 0;
-}
-
-/* One frame -> one row, through the one kernel. For shift == 0 the
- * DC-centred row is rotated back to FFT order in place: nfft is a power of
- * two, so the fftshift is a swap of the two halves and is its own inverse. */
+/* One frame -> one row, through the one kernel, DC-centred as it emits it. */
 static void
 spectrogram_row (dp_spectrogram_state_t *s, const float _Complex *frame,
                  float *row)
 {
   dp_psd_frame_db (s->psd, frame, row);
-  if (!s->shift)
-    {
-      const size_t half = s->nfft / 2;
-      for (size_t i = 0; i < half; i++)
-        {
-          float t       = row[i];
-          row[i]        = row[i + half];
-          row[i + half] = t;
-        }
-    }
 }
 
 dp_spectrogram_state_t *
 dp_spectrogram_create (size_t nfft, size_t hop, int window, float beta,
-                       int mode, int shift)
+                       int mode)
 {
   /* window is validated by dp_psd_create, the one owner of the index. */
-  if (!is_pow_two (nfft) || hop == 0 || hop > nfft
-      || mode != DP_SPECTROGRAM_DB)
+  if (hop == 0 || hop > nfft || mode != DP_SPECTROGRAM_DB)
     return NULL;
   if (nfft > SIZE_MAX / SPECTROGRAM_RING_FRAMES)
     return NULL;
 
-  /* n = nfft and pad = 1, so the PSD's transform is exactly one frame long
-   * (nfft is a power of two): no zero-pad, and a row has nfft bins. fs and
-   * full scale are 1: rows are dBFS of a unit-amplitude cf32 stream. */
+  /* n = nfft and pad = 1. fs and full scale are 1: rows are dBFS of a
+   * unit-amplitude cf32 stream. A row has the PSD's transform length of
+   * bins, so that has to BE nfft: the PSD owns the transform length (it
+   * zero-pads n to its own choice), and an nfft it would pad is refused
+   * here rather than given rows wider than its frames. */
   dp_psd_state_t *psd
       = dp_psd_create (nfft, 1.0, window, beta, 1, 1.0, 0, 0, 0.0);
   if (!psd)
     return NULL;
+  if (psd->nfft != nfft)
+    {
+      dp_psd_destroy (psd);
+      return NULL;
+    }
 
   dp_spectrogram_state_t *s
       = (dp_spectrogram_state_t *)dp_xcalloc (1, sizeof *s);
@@ -76,7 +64,6 @@ dp_spectrogram_create (size_t nfft, size_t hop, int window, float beta,
   s->window = window;
   s->beta   = beta;
   s->mode   = mode;
-  s->shift  = shift;
   /* Cannot refuse: the ring is new (so empty), its capacity is past nfft,
    * and 1 <= hop <= nfft was checked above. The status is still read, as
    * the framer requires. */
@@ -182,8 +169,8 @@ dp_spectrogram_pending (const dp_spectrogram_state_t *s)
 }
 
 /* Serializable state: the carry, which is the framer's snapshot, nested in
- * the spectrogram's own envelope. The kernel's window, plan and scratch, the
- * mode and the shift are configuration, restored by create(). */
+ * the spectrogram's own envelope. The kernel's window, plan and scratch and
+ * the mode are configuration, restored by create(). */
 size_t
 dp_spectrogram_state_bytes (const dp_spectrogram_state_t *s)
 {

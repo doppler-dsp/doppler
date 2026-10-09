@@ -186,28 +186,11 @@ HOLLOW_ALLOW: set[str] = set()
 #: It may only SHRINK -- a NEW bench_*.py must call `benchmark(...)`, and
 #: an entry whose file starts recording must lose its line (checked below,
 #: because the C ratchets learned the hard way that an unchecked promise of
-#: that shape is prose). How many are left is PRINTED on every green run
-#: rather than tallied here, where the number would be true once. Emptying
-#: it is tracked by gh-1010.
-PY_HOLLOW_ALLOW: set[str] = {
-    "accumulator/benchmarks/bench_acc_trace.py",
-    "acquire/benchmarks/bench_carrier_acq.py",
-    "analyzer/benchmarks/bench_specan.py",
-    "ber/benchmarks/bench_ber_meter.py",
-    "ber/benchmarks/bench_frame_meter.py",
-    "dsss/benchmarks/bench_async_dsss_receiver.py",
-    "dsss/benchmarks/bench_dsss_receiver.py",
-    "interp/benchmarks/bench_interp_table.py",
-    "measure/benchmarks/bench_imdmeas.py",
-    "measure/benchmarks/bench_nprmeas.py",
-    "measure/benchmarks/bench_tonemeas.py",
-    "spectral/benchmarks/bench_psd.py",
-    "telemetry/benchmarks/bench_dp_tlm.py",
-    "track/benchmarks/bench_carrier_mpsk.py",
-    "wfm/benchmarks/bench_frame.py",
-    "wfm/benchmarks/bench_gold.py",
-    "wfm/benchmarks/bench_pn.py",
-}
+#: that shape is prose). It reached EMPTY in gh-1010, and stays the place
+#: a new hollow file would have to be argued into. Its per-TEST twin -- a
+#: test that takes the fixture and never calls it -- is pytest's own
+#: `filterwarnings` in pyproject.toml, which this file cannot see.
+PY_HOLLOW_ALLOW: set[str] = set()
 
 #: Rule 6. 100 GSa/s of 8-byte complex samples is 800 GB/s through one call:
 #: more than one core moves out of any cache level. The highest figure a real

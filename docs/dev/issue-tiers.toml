@@ -790,12 +790,6 @@ title = "Two library copies of the chip \u2192 \u00b11 rule: wfm.bpsk_map and cv
 status = "open"
 why = "Two public primitives for one 0 -> +1, 1 -> -1 convention, and only one is gated against the constellation"
 
-[issue.1507]
-tier = 5
-title = "ilammy/msvc-dev-cmd is node20 with no newer release: adopt canonical scripts/msvc-env.sh (and the vendored dependabot.yml)"
-status = "open"
-why = "A node20 action with no newer release; the same deprecation as #630, with nothing to bump to"
-
 [issue.1510]
 tier = 5
 title = "CI image repin bot commits a parentless snapshot; .coverage and stream.blue are tracked"
@@ -1041,9 +1035,10 @@ title = "ci-changes: a release's waiver file counts as source, so the release co
 status = "open"
 
 [issue.1817]
-tier = 0
+tier = 1
 title = "Windows wheels for Python 3.13/3.14 carry ABI tag 'cpwin_amd64' \u2014 pip cannot install them (since v0.60.0 at least)"
 status = "open"
+why = "Wheel tags are fixed and gated (#1820); the PyPI smoke still installs only cp312 on win_amd64"
 
 [issue.1826]
 tier = 5
@@ -1106,12 +1101,6 @@ title = "scripts/.warnings-exempt floors at 2: stream_ext.c and resample_ext_ext
 status = "open"
 why = "The -Wall -Wextra ratchet cannot reach 0 while two files jm will never own still warn"
 
-[issue.1893]
-tier = 0
-title = "test_fir_core fails on main: FIR state resume is not bit-exact (test_fir_core.c:86)"
-status = "in review ([#1923](https://github.com/doppler-dsp/doppler/pull/1923))"
-why = "make test is red on two dev hosts: FIR output depends on where the caller splits the stream (fix in #1923)"
-
 [issue.1894]
 tier = 4
 title = "Streaming spectrogram: a Spectrogram object over the ring's framed face (PSD per frame, no averaging)"
@@ -1166,24 +1155,6 @@ title = "Two manifests restate acq_result_t's fields by hand, and drifted the fi
 status = "open"
 why = "Two manifests restate acq_result_t by hand; no gate checks result_fields against the C struct"
 
-[issue.1916]
-tier = 5
-title = "Docs scan: 2 code-or-doc decisions and 4 unsettled claims"
-status = "open"
-why = "Decisions made; closes when #1917 merges"
-
-[issue.1918]
-tier = 2
-title = "Corr benchmark reports 206 GSa/s: about 0.32 \u00b5s per 64k-sample execute, so it likely measures an early return"
-status = "open"
-why = "Published corr throughput is 1000x wrong; benchmark fixed in #1926, republish outstanding"
-
-[issue.1919]
-tier = 0
-title = "Dopplerfile compose up: a missing executable raises an uncaught OSError after its log file is opened"
-status = "in review ([#1927](https://github.com/doppler-dsp/doppler/pull/1927))"
-why = "compose up crashes with a traceback on a missing executable instead of the documented clear error"
-
 [issue.1920]
 tier = 1
 title = "tests-ssot: the macro-stamped framer is outside the serializable/streaming gates"
@@ -1196,20 +1167,56 @@ title = "docs: assert the printed-output text fences the snippet gate does not c
 status = "open"
 why = "Five pages print output that nothing checks"
 
-[issue.1922]
-tier = 5
-title = "Leak gate: say when it falls back to a filesystem walk outside a git checkout (#1562 follow-up)"
-status = "in review ([#1924](https://github.com/doppler-dsp/doppler/pull/1924))"
-why = "The leak gate's no-git fallback runs silently; #1562 asked it to say so"
-
-[issue.1925]
-tier = 0
-title = "Corr.execute does not check n_in: a short input is a read overrun, a long one is silently truncated"
-status = "open"
-why = "Corr.execute ignores n_in: a short input is a heap over-read"
-
 [issue.1928]
 tier = 2
 title = "Audit: SIMD kernels whose scalar tail rounds differently from the vector body (the #1893 pattern)"
 status = "open"
 why = "Other SIMD kernels may round their scalar tail differently from the body, as FIR did"
+
+[issue.1932]
+tier = 3
+title = "FIR: a lone partial vector group is latency-bound after #1923 (1-sample calls 2.4-6x slower on AVX-512)"
+status = "open"
+why = "#1923's split-invariance made 1-7 sample FIR calls 2.4-6x slower on AVX-512; parked by decision"
+
+[issue.1933]
+tier = 0
+title = "FFT.execute_ci16/ci8 accept an odd-length input and ignore the stray last value"
+status = "open"
+why = "FFT.execute_ci16/ci8 silently ignore a stray last value in an odd-length input"
+
+[issue.1936]
+tier = 5
+title = "build: a compiler change makes the vendored nats.c configure drop our -D options and fail once on protobuf-c"
+status = "open"
+why = "A stale vendored nats.c build tree fails configure once after a compiler change"
+
+[issue.1937]
+tier = 3
+title = "bench: wfm Reader Python cells moved +11% / +21% in v0.65.0, one cell per build; not the binding, cause unmeasured"
+status = "open"
+why = "wfm Reader Python bench cells moved +11%/+21% in v0.65.0 with no measured cause"
+
+[issue.1940]
+tier = 5
+title = "build: nothing pins uv, so uv.lock's marker spelling flips with whoever re-locks it (308 lines in the v0.65.0 release commit)"
+status = "open"
+why = "Nothing pins uv, so a re-lock rewrites uv.lock's marker spelling"
+
+[issue.1941]
+tier = 5
+title = "v0.66.0 plan: the C Spectrogram (#1894 slice 3a) and an issue burndown"
+status = "open"
+why = "Release tracking issue for v0.66.0: the C Spectrogram and the burndown"
+
+[issue.1943]
+tier = 1
+title = "check_version_strings misses a version at the end of a sentence: the guard against 0.65.01 also rejects the full stop"
+status = "open"
+why = "The current-version gate passes a version that ends a sentence"
+
+[issue.1944]
+tier = 2
+title = "Telemetry: test the overlong-prefix refusal at every set_telemetry face, and gate the one-place probe-name join (#1898 follow-up)"
+status = "open"
+why = "8 of 10 set_telemetry sites have no overlong-prefix test, and the one-place join has no gate"

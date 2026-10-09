@@ -1163,6 +1163,7 @@ mkdir -p $(COV_DIR)/pkg/doppler/wfm/_bin
 install -m 755 $(COV_DIR)/native/src/wfmcompose/wfmgen \
     $(COV_DIR)/pkg/doppler/wfm/_bin/wfmgen
 rm -rf $(COV_DIR)/prof && mkdir -p $(COV_DIR)/prof
+rm -f $(COV_DIR)/ctest-junit.xml $(COV_DIR)/ctest-tests.json
 # -j, because this suite is the single biggest block of the coverage job:
 # 682s serial in CI against 135 tests. Source-based coverage is per-PROCESS
 # (LLVM_PROFILE_FILE's %p), so concurrent tests each write their own .profraw
@@ -1189,9 +1190,17 @@ rm -rf $(COV_DIR)/prof && mkdir -p $(COV_DIR)/prof
 # two changes ship together on purpose: either alone reads as a collapse.
 #
 # COV_SWEEP=1 puts them back, as SAN_SWEEP=1 does for the sanitizers.
+#
+# --output-junit and the --show-only listing are the record of which tests
+# SKIPPED and which executable each one is: scripts/cov_skipped_objects.py
+# reads both to leave a skipped binary out of the report below. The listing
+# takes $(COV_EXCLUDE_SWEEP) too, so it names exactly the set that ran.
 cd $(COV_DIR) && LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/c-%p-%m.profraw" \
     $(CURDIR)/$(COV_GUARD) $(CTEST) --output-on-failure -j $(NPROC) \
+        --output-junit $(CURDIR)/$(COV_DIR)/ctest-junit.xml \
         $(COV_EXCLUDE_SWEEP)
+cd $(COV_DIR) && $(CTEST) --show-only=json-v1 $(COV_EXCLUDE_SWEEP) \
+    > ctest-tests.json
 # -n auto for the same reason as ctest above: 486s serial in CI, 102s here.
 #
 # `not validation_limits` for the reason the ctest leg drops `sweep`, one
@@ -1299,11 +1308,25 @@ set +e; \
 # was therefore half applied -- dp_isotime.h read 70.4% where its own test
 # proves 80.5%, and #1360's patch gate failed at 89% on lines a test ran.
 # pkg/ is pruned: it holds the Python package, whose .so are listed above.
-@objs="$(COV_DIR)/libdoppler.so $$(ls $(COV_DIR)/pkg/doppler/*/*.so \
-    2>/dev/null | sed 's/^/-object /' | tr '\n' ' ') \
-    $$(find $(COV_DIR) -path $(COV_DIR)/pkg -prune -o -type f -perm -u+x \
+#
+# A test that SKIPPED is left out (scripts/cov_skipped_objects.py, which says
+# so on stderr). It ran nothing, and an instruction-set tier binary is the
+# only object mapping its tier's code: test_fir_chunk_avx512 is the one place
+# fir_core.c's AVX-512 body is compiled, so on a runner without AVX-512 it
+# skipped and those lines reported DA:0 -- the patch gate failed at 67% on
+# doppler#1934 against source and a test that #1923's run, on an AVX-512
+# runner, had covered. The verdict was the runner's CPU, not the code.
+# The filter runs in its own statement, not inside the `$$(...)` below: a
+# substitution's exit status is discarded, and a filter that failed there
+# would hand llvm-cov an empty test list instead of stopping the recipe.
+@tests=$$(find $(COV_DIR) -path $(COV_DIR)/pkg -prune -o -type f -perm -u+x \
          \( -name 'test_*' -o -name 'validate_*' \) -print \
-       | sed 's/^/-object /' | tr '\n' ' ')"; \
+       | $(PYTHON_EXECUTABLE) scripts/cov_skipped_objects.py \
+           --junit $(COV_DIR)/ctest-junit.xml \
+           --tests $(COV_DIR)/ctest-tests.json) || exit 1; \
+objs="$(COV_DIR)/libdoppler.so $$(ls $(COV_DIR)/pkg/doppler/*/*.so \
+    2>/dev/null | sed 's/^/-object /' | tr '\n' ' ') \
+    $$(printf '%s\n' $$tests | sed 's/^/-object /' | tr '\n' ' ')"; \
 $(COV_ENV) $(LLVM_PROFDATA) merge -sparse -failure-mode=all $(COV_DIR)/prof/*.profraw \
     -o $(COV_DIR)/doppler.profdata; \
 $(COV_ENV) $(LLVM_COV) report $$objs -instr-profile=$(COV_DIR)/doppler.profdata \

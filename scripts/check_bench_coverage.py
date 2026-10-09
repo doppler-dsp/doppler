@@ -99,7 +99,16 @@ Rules
    `bench_X_core.json`; pass the wrong X and the binary runs, prints its
    table, and its results are never opened by anything.
 
-Both allowlists are RATCHETS and may only shrink. An entry needs a reason,
+6. PLAUSIBILITY -- the newest snapshot under `benchmarks/published/` records
+   no Python throughput above `CEILING_MSA_S`. A benchmark that credits a
+   call with samples it did not process publishes a number nothing can
+   reach: the corr benchmark passed 65 536 samples to a kernel that reads
+   `Corr.n` = 64, and the page said 206 GSa/s (#1918). Rules 1-5 see the
+   file, the target, the row and the name; none sees the value. The honest
+   maximum in the snapshot is a memory-bound converter at ~34 GSa/s, so the
+   ceiling is the bandwidth no single core has, not a tuned threshold.
+
+All the allowlists are RATCHETS and may only shrink. An entry needs a reason,
 and "it is only a few flops" is not one -- `bench_util_core.c` exists
 precisely to measure three flops, because the question was whether a shared
 inline cost anything, not whether an EMA is fast. The gate also fails on a
@@ -112,6 +121,7 @@ Exit 0 when every tested component is benchmarked and every benchmark runs.
 from __future__ import annotations
 
 import ast
+import json
 import re
 import sys
 from pathlib import Path
@@ -198,6 +208,62 @@ PY_HOLLOW_ALLOW: set[str] = {
     "wfm/benchmarks/bench_gold.py",
     "wfm/benchmarks/bench_pn.py",
 }
+
+#: Rule 6. 100 GSa/s of 8-byte complex samples is 800 GB/s through one call:
+#: more than one core moves out of any cache level. The highest figure a real
+#: kernel reaches in the published snapshot is ~34 GSa/s (an int16->float
+#: converter), so this is three times the honest maximum.
+CEILING_MSA_S = 100_000.0
+
+PUBLISHED = ROOT / "benchmarks" / "published"
+
+#: benchmark -> why its PUBLISHED figure is above the ceiling. RATCHET: may
+#: only shrink, and the gate fails on an entry whose published figure is back
+#: under it, so the first snapshot measured after the benchmark was fixed
+#: removes the line. Keyed `bench_<file>.py::<test>`.
+IMPLAUSIBLE_ALLOW: dict[str, str] = {
+    "bench_corr.py::test_bench_execute_64k": (
+        "v0.64.0 published 206 GSa/s portable / 262 GSa/s native for a "
+        "benchmark that gave a 64-point kernel 65 536 samples and credited "
+        "it with all of them (#1918). The benchmark is fixed; the number "
+        "stays until a representative-machine `make bench-interleaved`."
+    ),
+}
+
+
+def _version_key(name: str) -> tuple[int, ...] | None:
+    m = re.fullmatch(r"v(\d+)\.(\d+)\.(\d+)", name)
+    return tuple(int(g) for g in m.groups()) if m else None
+
+
+def implausible(published: Path = PUBLISHED) -> dict[str, float]:
+    """``{bench_<file>.py::<test>: highest MSa/s}`` over the newest snapshot.
+
+    Only benchmarks above CEILING_MSA_S are returned. Reads every
+    ``*.json`` of the newest ``v<X.Y.Z>`` directory that carries
+    ``extra_info["MSa_s"]`` (the Python suite's throughput; the C suite's
+    rows have no such key), taking the larger figure when the portable and
+    native builds both publish one.
+    """
+    versions = [
+        d
+        for d in published.iterdir()
+        if d.is_dir() and _version_key(d.name) is not None
+    ]
+    if not versions:
+        return {}
+    newest = max(versions, key=lambda d: _version_key(d.name) or ())
+    out: dict[str, float] = {}
+    for f in sorted(newest.glob("*.json")):
+        for b in json.loads(f.read_text(encoding="utf-8")).get(
+            "benchmarks", []
+        ):
+            v = (b.get("extra_info") or {}).get("MSa_s")
+            if v is None or v <= CEILING_MSA_S:
+                continue
+            key = (b.get("fullname") or b.get("name", "?")).rsplit("/", 1)[-1]
+            out[key] = max(out.get(key, 0.0), float(v))
+    return out
 
 
 def _py_records(path: Path) -> bool:
@@ -495,6 +561,26 @@ def main() -> int:
                 "fixture. Delete its line — the ratchet may only shrink."
             )
 
+    # Rule 6 -- a published throughput is one a kernel can reach.
+    over = implausible()
+    for key, v in sorted(over.items()):
+        if key in IMPLAUSIBLE_ALLOW:
+            continue
+        failures.append(
+            f"{key}: the newest published snapshot records {v / 1e3:.1f} "
+            f"GSa/s, above the {CEILING_MSA_S / 1e3:.0f} GSa/s ceiling. "
+            "Almost always the benchmark credits a call with samples it did "
+            "not process (#1918). Check what one call really consumes and "
+            "assert it did the work; only then re-publish."
+        )
+    for key in sorted(IMPLAUSIBLE_ALLOW):
+        if key not in over:
+            failures.append(
+                f"{key}: is in IMPLAUSIBLE_ALLOW but the newest published "
+                "snapshot no longer records it above the ceiling. Delete "
+                "its line — the ratchet may only shrink."
+            )
+
     if failures:
         print("check_bench_coverage: FAIL\n", file=sys.stderr)
         for f in failures:
@@ -519,7 +605,8 @@ def main() -> int:
     print(
         f"check_bench_coverage: ratchets — {len(ALLOW)} unmeasurable, "
         f"{len(HOLLOW_ALLOW)} hollow C, {len(PY_HOLLOW_ALLOW)} hollow "
-        "Python (doppler#1010)"
+        f"Python (doppler#1010), {len(IMPLAUSIBLE_ALLOW)} implausible "
+        "published (#1918)"
     )
     return 0
 

@@ -11,8 +11,10 @@ reproducible only by whoever measured them.
 It is not hypothetical. A set measured on a release branch and then
 squash- or rebase-merged names a commit that main never receives. v0.48.0
 (#1319) and v0.65.0 were caught by eye and restamped by hand. v0.56.0,
-v0.57.0, v0.58.0 and v0.64.0 were not caught, and they are why the
-exemption list below exists (#1322).
+v0.57.0, v0.58.0 and v0.64.0 were not caught (#1322). The last two were
+restamped onto their tree-identical commits on main with
+`make bench-restamp`. The first two cannot be, and they are the exemption
+list below.
 
 **What it checks.** Every `doppler_meta.commit` under
 `benchmarks/published/*/*.json`, found by globbing, is an ancestor of
@@ -25,8 +27,10 @@ because a shallow clone cannot tell "not on main" from "not fetched". CI's
 lint job checks out with `fetch-depth: 0`.
 
 **Existing breakage** is in `scripts/.bench-commit-exempt`, one release
-directory per line with its reason. The list may only shrink: an entry
-whose set now passes, or whose directory is gone, fails as stale.
+directory per line with its reason. The list may only shrink. An entry
+ADDED since the merge base with `--base` fails, read through
+`_gitbase.show_at_base` as `check_warnings.py` reads its own ratchet. So
+does an entry whose set now passes or whose directory is gone.
 
 Usage:  python3 scripts/check_bench_commits.py [--base REF] [--root DIR]
 Exit 0 when every published set names a commit main can reach.
@@ -41,15 +45,24 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
+from _gitbase import BaseUnreadableError, in_git_repo, show_at_base
+
 ROOT = Path(__file__).resolve().parent.parent
 PUBLISHED = "benchmarks/published"
 EXEMPT = "scripts/.bench-commit-exempt"
 
 
-def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
+def git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    """Run git in ``root``; shared with ``bench_restamp.py``."""
     return subprocess.run(
         ["git", "-C", str(root), *args], capture_output=True, text=True
     )
+
+
+def resolve(root: Path, ref: str) -> str | None:
+    """The full SHA ``ref`` names as a commit, or None."""
+    r = git(root, "rev-parse", "--verify", "-q", f"{ref}^{{commit}}")
+    return r.stdout.strip() if r.returncode == 0 else None
 
 
 def _stamps(root: Path) -> dict[tuple[str, str], list[str]]:
@@ -64,14 +77,11 @@ def _stamps(root: Path) -> dict[tuple[str, str], list[str]]:
     return found
 
 
-def _exemptions(root: Path) -> tuple[dict[str, str], list[str]]:
+def _exemptions(text: str) -> tuple[dict[str, str], list[str]]:
     """Release dir -> reason, plus any malformed lines."""
     exempt: dict[str, str] = {}
     bad: list[str] = []
-    path = root / EXEMPT
-    if not path.exists():
-        return exempt, bad
-    for n, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+    for n, raw in enumerate(text.splitlines(), 1):
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
@@ -82,20 +92,41 @@ def _exemptions(root: Path) -> tuple[dict[str, str], list[str]]:
     return exempt, bad
 
 
-def _verdict(root: Path, commit: str, base: str) -> str | None:
-    """None when ``commit`` is an ancestor of ``base``, else why not."""
-    resolved = _git(
-        root, "rev-parse", "--verify", "-q", f"{commit}^{{commit}}"
-    )
-    if resolved.returncode != 0:
+def verdict(root: Path, commit: str, base: str) -> str | None:
+    """None when ``commit`` is an ancestor of ``base``, else why not.
+
+    Shared with ``bench_restamp.py``, which leaves a stamp alone when this
+    says None.
+    """
+    sha = resolve(root, commit)
+    if sha is None:
         return "not in this repository's history"
-    sha = resolved.stdout.strip()
-    rc = _git(root, "merge-base", "--is-ancestor", sha, base).returncode
+    rc = git(root, "merge-base", "--is-ancestor", sha, base).returncode
     if rc == 0:
         return None
-    if rc == 1:
-        return f"not an ancestor of {base}"
-    return f"git merge-base failed (exit {rc})"
+    if rc != 1:
+        return f"git merge-base failed (exit {rc})"
+    # In this checkout but not on base: either it never reached main, or
+    # the local base is behind. Say which to try first.
+    if git(root, "merge-base", "--is-ancestor", sha, "HEAD").returncode == 0:
+        return (
+            f"not an ancestor of {base}, though this checkout has it -- "
+            f"if {base} is behind, fetch it first"
+        )
+    return f"not an ancestor of {base}"
+
+
+def _added(root: Path, base: str, exempt: dict[str, str]) -> list[str]:
+    """Exempt entries the merge base with ``base`` did not have."""
+    then = show_at_base(root, base, EXEMPT)
+    if then is None:  # the list is new on this branch: nothing to grow from
+        return []
+    before = set(_exemptions(then)[0])
+    return [
+        f"{EXEMPT}: {r} was ADDED -- the list may only shrink"
+        for r in sorted(exempt)
+        if r not in before
+    ]
 
 
 def main() -> int:
@@ -107,30 +138,50 @@ def main() -> int:
     args = ap.parse_args()
     root, base = args.root, args.base
 
-    if _git(root, "rev-parse", "--is-shallow-repository").stdout.strip() == (
-        "true"
-    ):
+    if not in_git_repo(root):
         print(
-            "bench-commits: this clone is SHALLOW, so whether a stamped "
-            "commit is on\n"
-            f"  {base} cannot be decided -- a missing object is indistinct "
-            "from an\n"
-            "  unfetched one. Fetch full history (`git fetch --unshallow`; "
-            "in CI,\n"
-            "  `fetch-depth: 0` on the job that runs `make lint`)."
+            f"bench-commits: {root} is not a git checkout, so no stamped "
+            "commit can be\n  checked against main. Run it in a clone."
         )
         return 1
-    if _git(root, "rev-parse", "--verify", "-q", base).returncode != 0:
+    if git(root, "rev-parse", "--is-shallow-repository").stdout.strip() == (
+        "true"
+    ):
+        depth = git(root, "rev-list", "--count", "HEAD").stdout.strip()
+        print(
+            f"bench-commits: this clone is SHALLOW ({depth} commit(s) of "
+            "history), so\n"
+            f"  whether a stamped commit is on {base} cannot be decided -- "
+            "a missing\n"
+            "  object is indistinct from an unfetched one. Fetch full "
+            "history\n"
+            "  (`git fetch --unshallow`; in CI, `fetch-depth: 0` on the job "
+            "that runs\n"
+            "  `make lint`)."
+        )
+        return 1
+    if resolve(root, base) is None:
         print(
             f"bench-commits: base ref {base} not found -- fetch it, or set "
             "BENCH_COMMIT_BASE."
         )
         return 1
 
-    exempt, problems = _exemptions(root)
+    path = root / EXEMPT
+    text = path.read_text(encoding="utf-8") if path.exists() else ""
+    exempt, problems = _exemptions(text)
+    try:
+        problems += _added(root, base, exempt)
+    except BaseUnreadableError:
+        print(
+            f"bench-commits: cannot read {EXEMPT} at the merge base with "
+            f"{base},\n  so an ADDED exemption cannot be told from an old "
+            "one. Fetch the base."
+        )
+        return 1
     failing: dict[str, list[str]] = defaultdict(list)
     for (release, commit), files in sorted(_stamps(root).items()):
-        why = _verdict(root, commit, base)
+        why = verdict(root, commit, base)
         if why is not None:
             failing[release].append(
                 f"{PUBLISHED}/{release}: doppler_meta.commit {commit} is "
@@ -165,12 +216,18 @@ def main() -> int:
         print(f"  {line}")
     if new:
         print(
-            "  A reader must be able to check the stamped commit out.\n"
-            "  Measure from a commit already on main, or run\n"
-            "  `make bench-restamp VERSION=X.Y.Z` to move the stamp onto\n"
-            "  main's commit with the IDENTICAL tree (commit_info.id, the\n"
-            "  literal checkout, stays). Never add a new exemption: the list\n"
-            "  holds sets that can no longer be fixed, and it only shrinks."
+            "  A reader must be able to check the stamped commit out. In\n"
+            "  this order:\n"
+            f"  1. `git fetch origin` -- a stale {base} reports a merged\n"
+            "     commit as missing.\n"
+            "  2. `make bench-restamp VERSION=X.Y.Z` -- moves the stamp onto\n"
+            "     main's commit with the IDENTICAL tree. Only possible when\n"
+            "     the measured tree landed unchanged (a rebase-merge of it,\n"
+            "     never a squash); commit_info.id, the checkout, stays.\n"
+            "  3. Otherwise re-measure from a commit on main\n"
+            "     (docs/dev/release.md section 2b).\n"
+            "  Never add an exemption: the list holds sets that can no\n"
+            "  longer be fixed, and it only shrinks."
         )
     return 1
 

@@ -36,46 +36,37 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import subprocess
 import sys
 from pathlib import Path
 
+# The gate's own reads: what a commit resolves to and whether main has it.
+# One home, so the restamp cannot disagree with the gate it exists to pass.
+from check_bench_commits import PUBLISHED, git, resolve, verdict
+
 ROOT = Path(__file__).resolve().parent.parent
-PUBLISHED = "benchmarks/published"
 
 
 class RestampError(Exception):
     """A file in the set cannot be restamped; nothing is written."""
 
 
-def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", "-C", str(root), *args], capture_output=True, text=True
-    )
-
-
-def _resolve(root: Path, ref: str) -> str | None:
-    r = _git(root, "rev-parse", "--verify", "-q", f"{ref}^{{commit}}")
-    return r.stdout.strip() if r.returncode == 0 else None
-
-
 def _target(root: Path, name: str, data: dict, base: str) -> str | None:
     """The abbreviated commit to stamp, or None when already on base."""
     old = data["doppler_meta"]["commit"]
-    sha = _resolve(root, old)
+    sha = resolve(root, old)
     full = data.get("commit_info", {}).get("id", "")
     if sha is None and full.startswith(old):
-        _git(root, "fetch", "-q", "origin", full)
-        sha = _resolve(root, old)
+        git(root, "fetch", "-q", "origin", full)
+        sha = resolve(root, old)
     if sha is None:
         raise RestampError(
             f"{name}: {old} is not in this repository and could not be "
             f"fetched (commit_info.id {full or 'absent'})"
         )
-    if _git(root, "merge-base", "--is-ancestor", sha, base).returncode == 0:
+    if verdict(root, sha, base) is None:
         return None
-    tree = _git(root, "rev-parse", f"{sha}^{{tree}}").stdout.strip()
-    log = _git(root, "log", "--format=%H %T", base).stdout.split("\n")
+    tree = git(root, "rev-parse", f"{sha}^{{tree}}").stdout.strip()
+    log = git(root, "log", "--format=%H %T", base).stdout.split("\n")
     matches = [h for h, _, t in (ln.partition(" ") for ln in log) if t == tree]
     if len(matches) != 1:
         found = ", ".join(m[:12] for m in matches) or "none"
@@ -85,7 +76,7 @@ def _target(root: Path, name: str, data: dict, base: str) -> str | None:
             f"exactly one"
         )
     new = matches[0][: len(old)]
-    if _resolve(root, new) != matches[0]:
+    if resolve(root, new) != matches[0]:
         raise RestampError(
             f"{name}: {new} is ambiguous at {len(old)} characters"
         )
@@ -120,6 +111,12 @@ def main() -> int:
     ap.add_argument("--root", type=Path, default=ROOT)
     args = ap.parse_args()
     root = args.root
+    if resolve(root, args.base) is None:
+        print(
+            f"bench-restamp: base ref {args.base} not found -- fetch it "
+            "(`git fetch origin`) before restamping onto it"
+        )
+        return 1
     d = root / PUBLISHED / f"v{args.version.removeprefix('v')}"
     files = sorted(d.glob("*.json"))
     if not files:

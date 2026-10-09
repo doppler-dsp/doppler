@@ -252,22 +252,25 @@ ______________________________________________________________________
 
 `push` accepts any-length cf32 blocks, buffers them in a ring, and emits one
 detection per coherent **frame** (or, on the non-coherent path, per `n_noncoh`
-accumulated frames) whose statistic clears the gate. Each hit is a 7-tuple:
+accumulated frames) whose statistic clears the gate. Each hit is an 8-tuple:
 
 ```python
-for dop, phase, peak, noise, stat, cn0, samples_consumed in acq.push(chunk):
+for dop, phase, peak, noise, stat, cn0, samples_consumed, chip_phase in acq.push(
+    chunk
+):
     ...
 ```
 
-| field              | meaning                                                                            |
-| ------------------ | ---------------------------------------------------------------------------------- |
-| `doppler_bin`      | peak row — slow-time Doppler bin (`0 … doppler_bins-1`)                            |
-| `code_phase`       | peak column — integer-sample code phase (`0 … code_bins-1`)                        |
-| `peak_mag`         | peak correlation magnitude over the surface                                        |
-| `noise_est`        | CFAR noise estimate                                                                |
-| `test_stat`        | `peak_mag / noise_est` (compared against `threshold`)                              |
-| `cn0_dbhz_est`     | estimated carrier-to-noise density (dB-Hz), comparable to `cn0_dbhz`               |
-| `samples_consumed` | raw sample offset (since this engine's own stream start) this hit's epoch ended at |
+| field              | meaning                                                                                               |
+| ------------------ | ----------------------------------------------------------------------------------------------------- |
+| `doppler_bin`      | peak row — slow-time Doppler bin (`0 … doppler_bins-1`)                                               |
+| `code_phase`       | peak column — integer-sample code phase (`0 … code_bins-1`)                                           |
+| `peak_mag`         | peak correlation magnitude over the surface                                                           |
+| `noise_est`        | CFAR noise estimate                                                                                   |
+| `test_stat`        | `peak_mag / noise_est` (compared against `threshold`)                                                 |
+| `cn0_dbhz_est`     | estimated carrier-to-noise density (dB-Hz), comparable to `cn0_dbhz`                                  |
+| `samples_consumed` | raw sample offset (since this engine's own stream start) this hit's epoch ended at                    |
+| `chip_phase`       | the `Dll` seed in chips: the code phase inverted, advanced by the dwell's drift when a carrier is set |
 
 Map the integer bins back to physical units:
 

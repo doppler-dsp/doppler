@@ -153,7 +153,7 @@ ______________________________________________________________________
 ## Detections: `BurstAcquisition`
 
 `BurstAcquisition` is the search on its own. Each call to `push` returns the
-detections completed in that block, as 7-tuples:
+detections completed in that block, as 8-tuples:
 
 ```python
 from doppler.acquire import BurstAcquisition, bin_to_signed
@@ -163,21 +163,23 @@ hits = []
 for block in np.array_split(x, 7):              # any block size
     hits += acq.push(block)
 
-dop, delay, peak, noise, stat, cn0_est, consumed = hits[0]
+dop, delay, peak, noise, stat, cn0_est, consumed, chip_phase = hits[0]
 doppler_hz = bin_to_signed(dop, acq.doppler_bins) * acq.doppler_res_hz
 assert delay == 300 % 127                       # the delay WITHIN a period
 assert abs(doppler_hz - 1500.0) <= acq.doppler_res_hz / 2
+assert chip_phase == (127 - delay) % 127        # the lag, inverted
 ```
 
-| field              | meaning                                                           |
-| ------------------ | ----------------------------------------------------------------- |
-| `doppler_bin`      | Doppler bin, `0 … doppler_bins-1`; `bin_to_signed` folds it       |
-| `code_phase`       | delay into one preamble period, in samples (`0 … N-1`)            |
-| `peak_mag`         | the peak's correlation magnitude                                  |
-| `noise_est`        | the CFAR reference it was divided by                              |
-| `test_stat`        | `peak_mag / noise_est`, compared against `threshold`              |
-| `cn0_dbhz_est`     | estimated C/N0 (dB-Hz), comparable to the `cn0_dbhz` you designed |
-| `samples_consumed` | the stream position (from this engine's start) the dwell ended at |
+| field              | meaning                                                                                                      |
+| ------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `doppler_bin`      | Doppler bin, `0 … doppler_bins-1`; `bin_to_signed` folds it                                                  |
+| `code_phase`       | delay into one preamble period, in samples (`0 … N-1`)                                                       |
+| `peak_mag`         | the peak's correlation magnitude                                                                             |
+| `noise_est`        | the CFAR reference it was divided by                                                                         |
+| `test_stat`        | `peak_mag / noise_est`, compared against `threshold`                                                         |
+| `cn0_dbhz_est`     | estimated C/N0 (dB-Hz), comparable to the `cn0_dbhz` you designed                                            |
+| `samples_consumed` | the stream position (from this engine's start) the dwell ended at                                            |
+| `chip_phase`       | the code loop's seed: the lag inverted, in preamble samples (`[0, N)`); divide by samples per chip for chips |
 
 Two things a detection does **not** tell you:
 

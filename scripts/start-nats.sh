@@ -69,7 +69,11 @@ elif command -v docker >/dev/null 2>&1; then
   # The stock image through doppler's anonymous mirror, never Docker Hub by
   # bare name (doppler#1950); `make nats-up` passes the Makefile's value.
   image="${STOCK_REGISTRY:?run this through make nats-up}/nats:2.10"
-  docker run -d --name nats -p 4222:4222 -p 8222:8222 "$image" -js -m 8222
+  # Through the one pull helper, which retries the mirror's rate limit
+  # (doppler#1979); the run then never pulls on its own.
+  bash "$(dirname "$0")/stock-pull.sh" "$image"
+  docker run -d --pull=never --name nats -p 4222:4222 -p 8222:8222 \
+      "$image" -js -m 8222
   how="$image (docker)"
 else
   echo "start-nats: neither nats-server nor docker is available, so no" >&2

@@ -19,6 +19,10 @@ version="${DOPPLER_VERSION:-0.17.0}"
 registry="${STOCK_REGISTRY:-$(make -s -C "${here}/../.." print-stock-registry)}"
 
 echo ">> building ${image} (doppler-dsp==${version}, python:3.9-slim)"
+# The FROM through the one pull helper, which retries the mirror's rate limit;
+# BuildKit then finds it locally and does not pull it again (doppler#1979).
+STOCK_REGISTRY="${registry}" bash "${here}/../../scripts/stock-pull.sh" \
+  --dockerfile "${here}/Dockerfile.py39-e2e"
 docker build \
   --build-arg "STOCK_REGISTRY=${registry}" \
   --build-arg "DOPPLER_VERSION=${version}" \

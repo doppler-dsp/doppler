@@ -38,6 +38,29 @@ an earlier build stage. Anything else -- ``debian:stable``,
 ``library/nats``, ``docker.io/library/ubuntu:24.04`` -- is a Docker Hub
 pull and fails.
 
+**And every stock PULL goes through scripts/stock-pull.sh (doppler#1979).**
+ECR Public, where STOCK_REGISTRY points, rate-limits anonymous pulls per IP
+too, and runners share IPs: ``toomanyrequests: Rate exceeded`` failed a
+package leg before the code was reached. The helper retries a rate limit
+with backoff; nothing else does. So, for a stock image:
+
+- ``docker pull`` of one appears only in the helper;
+- ``docker run|create`` of one says ``--pull=never``: the helper pulled it,
+  and the run must not pull again, once and unretried;
+- ``docker build`` with ``--build-arg STOCK_REGISTRY=`` is preceded by
+  ``stock-pull.sh --dockerfile <the same -f file>``: in the same make
+  recipe, or earlier in the same script, because BuildKit does not retry a
+  FROM it has to pull;
+- a workflow build on buildx's container driver (a job that runs
+  setup-buildx-action) pulls inside BuildKit's own container, where no
+  pre-pull reaches. Each is named in scripts/.stock-pull-exempt, which may
+  only shrink: an unlisted one fails, and so does a listed one that is gone
+  (doppler#1982).
+
+The helper's ``--dockerfile`` reads a Dockerfile's pulls through this file's
+``stock_froms`` (``--stock-froms FILE --registry R``), the same reader the
+FROM rule uses, so the pre-pull and the gate cannot disagree on a FROM.
+
 Files ``--vendored`` names (standard.mk and its VENDORED_FILES) are held
 verbatim to canonical, so a fix there belongs upstream; their references are
 listed but do not fail. Not parsed: an inline Dockerfile piped to
@@ -89,8 +112,22 @@ _PURE_VAR = re.compile(
 )
 _MAKE_REF = re.compile(r"\$[({]([A-Za-z_][A-Za-z0-9_.-]*)[)}]")
 _DOCKER = re.compile(
-    r"\bdocker\s+(?:container\s+|image\s+)?(?:run|create|pull)\b(.*)"
+    r"\bdocker\s+(?:container\s+|image\s+)?(run|create|pull)\b(.*)"
 )
+#: A `docker build` / `docker buildx build`, and its Dockerfile argument.
+_BUILD = re.compile(r"\bdocker\s+(?:buildx\s+)?build\b(.*)")
+_FILE_ARG = re.compile(r"(?:^|\s)(?:-f|--file)(?:\s+|=)(\S+)")
+_TARGET_ARG = re.compile(r"(?:^|\s)--target(?:\s+|=)(\S+)")
+#: The one pull helper (doppler#1979), called with its Dockerfile mode.
+HELPER = "scripts/stock-pull.sh"
+_PREPULL = re.compile(
+    r"(?:stock-pull\.sh['\"]?|\$\(STOCK_PULL\))\s+--dockerfile\s+(.*)"
+)
+#: A workflow step that builds with buildx's action.
+_BUILD_PUSH = re.compile(r"\buses:\s*['\"]?docker/build-push-action@")
+_SETUP_BUILDX = "docker/setup-buildx-action"
+#: Container-driver builds no pre-pull can reach; shrink-only (#1979).
+EXEMPT = "scripts/.stock-pull-exempt"
 _USES_DOCKER = re.compile(r"\buses:\s*['\"]?docker://([^\s'\"]+)")
 _FOR = re.compile(r"\bfor\s+([A-Za-z_]\w*)\s+in\s+(.*?)\s*;\s*do\b")
 _DIRECTIVE = re.compile(r"^#\s*([A-Za-z]+)\s*=\s*(\S+)\s*$")
@@ -111,6 +148,7 @@ _VALUE_OPTS = frozenset(
         "--publish",
         "--network",
         "--net",
+        "--pull",
         "--platform",
         "--entrypoint",
         "--mount",
@@ -360,6 +398,69 @@ def _image_candidates(
     return None
 
 
+def _dockerfile_refs(text: str) -> list[tuple[int, str, str]]:
+    """Every image a Dockerfile pulls: ``(line, op, ref)``.
+
+    Each ``FROM`` that is not an earlier stage (``FROM ${ARG}`` read as the
+    ARG's default, a build-arg overriding it being the caller's business),
+    and each ``COPY --from=`` that is not a stage. The one reader of a
+    Dockerfile's pulls: the gate below and stock-pull.sh's pre-pull
+    (`--stock-froms`) both go through it (doppler#1979).
+    """
+    out: list[tuple[int, str, str]] = []
+    args: dict[str, str] = {}
+    stages: set[str] = set()
+    for n, line in _logical(text):
+        words = line.split()
+        if not words:
+            continue
+        op = words[0].upper()
+        if op == "ARG" and len(words) > 1:
+            name, _, default = words[1].partition("=")
+            args[name] = default.strip("'\"")
+            continue
+        if op == "FROM":
+            rest = [w for w in words[1:] if not w.startswith("--")]
+            if not rest:
+                continue
+            ref = rest[0]
+            pv = _PURE_VAR.match(ref)
+            if ref.lower() in stages:
+                pass  # an earlier build stage, not a pull
+            elif pv and not _READS_VAR.match(ref):
+                name = pv.group(1) or pv.group(2) or pv.group(3)
+                if args.get(name):
+                    out.append((n, op, args[name]))
+            else:
+                out.append((n, op, ref))
+            if len(rest) >= 3 and rest[1].upper() == "AS":
+                stages.add(rest[2].lower())
+        elif op == "COPY":
+            for w in words[1:]:
+                if w.startswith("--from="):
+                    src = w.split("=", 1)[1]
+                    if src.lower() not in stages and not src.isdigit():
+                        out.append((n, op, src))
+    return out
+
+
+def stock_froms(text: str, registry: str) -> list[str]:
+    """The stock images a Dockerfile pulls, with ``registry`` substituted
+    for STOCK_REGISTRY, each once, in order: what `stock-pull.sh
+    --dockerfile` pulls before a build, because BuildKit does not retry a
+    rate limit on a FROM (doppler#1979)."""
+    whole = re.compile(
+        r"^\$(?:\(" + VAR + r"\)|\{" + VAR + r"\}|" + VAR + r"\b)"
+    )
+    out: list[str] = []
+    for _, _, ref in _dockerfile_refs(text):
+        if whole.match(ref):
+            ref = whole.sub(lambda _: registry, ref)
+            if ref not in out:
+                out.append(ref)
+    return out
+
+
 def _check_dockerfile(rel: str, text: str, own: str) -> tuple[list[str], int]:
     bad: list[str] = []
     seen = 0
@@ -375,48 +476,72 @@ def _check_dockerfile(rel: str, text: str, own: str) -> tuple[list[str], int]:
                     "that frontend from Docker Hub; the built-in one needs "
                     "no directive"
                 )
-    args: dict[str, str] = {}
-    stages: set[str] = set()
-    for n, line in _logical(text):
-        words = line.split()
-        if not words:
-            continue
-        op = words[0].upper()
-        if op == "ARG" and len(words) > 1:
-            name, _, default = words[1].partition("=")
-            args[name] = default.strip("'\"")
-            continue
-        refs: list[str] = []
-        if op == "FROM":
-            rest = [w for w in words[1:] if not w.startswith("--")]
-            if not rest:
-                continue
-            ref = rest[0]
-            pv = _PURE_VAR.match(ref)
-            if ref.lower() in stages:
-                pass  # an earlier build stage, not a pull
-            elif pv and not _READS_VAR.match(ref):
-                # `FROM ${BUILD_BASE}`: what it pulls is the ARG's default
-                # (a build-arg overriding it is the caller's business).
-                name = pv.group(1) or pv.group(2) or pv.group(3)
-                if args.get(name):
-                    refs.append(args[name])
-            else:
-                refs.append(ref)
-            if len(rest) >= 3 and rest[1].upper() == "AS":
-                stages.add(rest[2].lower())
-        elif op == "COPY":
-            for w in words[1:]:
-                if w.startswith("--from="):
-                    src = w.split("=", 1)[1]
-                    if src.lower() not in stages and not src.isdigit():
-                        refs.append(src)
-        for ref in refs:
-            seen += 1
-            why = _verdict(ref, own)
-            if why:
-                bad.append(f"{rel}:{n}: {op} {ref} -- {why}")
+    for n, op, ref in _dockerfile_refs(text):
+        seen += 1
+        why = _verdict(ref, own)
+        if why:
+            bad.append(f"{rel}:{n}: {op} {ref} -- {why}")
     return bad, seen
+
+
+def _pull_rule(rel: str, n: int, verb: str, args: str, ref: str) -> list[str]:
+    """A stock image pulled any way but through the helper (doppler#1979).
+
+    ``docker pull`` of one is the helper's job alone. ``docker run`` /
+    ``create`` pulls a missing image itself, once and without retry, so it
+    must say ``--pull=never``: the image is already there because the helper
+    put it there, or the run fails loudly instead of meeting a 429 bare.
+    """
+    if verb == "pull":
+        if rel == HELPER:
+            return []
+        return [
+            f"{rel}:{n}: docker pull {ref} -- a stock pull outside {HELPER}, "
+            "which retries a rate limit (#1979)"
+        ]
+    toks = _tokens(args)
+    never = "--pull=never" in toks or any(
+        t == "--pull" and nxt == "never" for t, nxt in zip(toks, toks[1:])
+    )
+    if never:
+        return []
+    return [
+        f"{rel}:{n}: docker {verb} {ref} -- pulls the stock image itself "
+        f"with no retry: pull it with {HELPER} first and pass --pull=never "
+        "(#1979)"
+    ]
+
+
+def _site_key(rel: str, dockerfile: str, target: str) -> str:
+    return f"{rel} {dockerfile}" + (f":{target}" if target else "")
+
+
+def _build_push_site(lines: list[str], i: int) -> tuple[str, str]:
+    """``(file, target)`` of the build-push-action step whose ``uses:`` is
+    line ``i``, read up to the next list item (the next step)."""
+    file = target = ""
+    for raw in lines[i + 1 :]:
+        s = raw.strip()
+        if s.startswith("- "):
+            break
+        if s.startswith("file:"):
+            file = s.split(":", 1)[1].strip().strip("'\"")
+        elif s.startswith("target:"):
+            target = s.split(":", 1)[1].strip().strip("'\"")
+    return file, target
+
+
+def _exemptions(root: Path) -> dict[str, int]:
+    """``{site key: line}`` from the shrink-only exemption list."""
+    path = root / EXEMPT
+    if not path.exists():
+        return {}
+    out: dict[str, int] = {}
+    for n, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        words = raw.split()
+        if len(words) >= 2 and not words[0].startswith("#"):
+            out[f"{words[0]} {words[1]}"] = n
+    return out
 
 
 def offenders(
@@ -427,6 +552,8 @@ def offenders(
     mk = MakeVars(root, files)
     bad: list[str] = []
     seen = 0
+    #: buildx container-driver builds: {site key: "rel:line"} (#1979).
+    sites: dict[str, str] = {}
     for rel in files:
         try:
             text = (root / rel).read_text(encoding="utf-8")
@@ -438,14 +565,23 @@ def offenders(
             found, n_refs = _check_dockerfile(rel, text, own)
             seen += n_refs
         else:
+            expand = mk.expand if kind == "make" else (lambda s: s)
+            container = kind == "workflow" and _SETUP_BUILDX in text
+            raw_lines = text.splitlines()
+            # What a pre-pull must precede: the make recipe a line is in, or
+            # everything before it in a script or workflow.
+            scope: list[str] = []
             for n, line in _logical(text):
+                if kind == "make" and not line.startswith("\t"):
+                    scope = []
                 for m in _USES_DOCKER.finditer(line):
                     seen += 1
                     if _verdict(m.group(1), own):
                         found.append(f"{rel}:{n}: uses docker://{m.group(1)}")
                 for m in _DOCKER.finditer(line):
+                    verb, args = m.group(1), m.group(2)
                     cands = _image_candidates(
-                        m.group(1), line, text, mk if kind == "make" else None
+                        args, line, text, mk if kind == "make" else None
                     )
                     for ref in cands or []:
                         seen += 1
@@ -454,7 +590,58 @@ def offenders(
                             found.append(
                                 f"{rel}:{n}: docker image {ref} -- {why}"
                             )
+                        elif _READS_VAR.match(ref):
+                            found += _pull_rule(rel, n, verb, args, ref)
+                for m in _BUILD.finditer(line):
+                    args = expand(m.group(1))
+                    fm, tm = _FILE_ARG.search(args), _TARGET_ARG.search(args)
+                    dockerfile = (
+                        fm.group(1).strip("'\"") if fm else "Dockerfile"
+                    )
+                    if container:
+                        key = _site_key(
+                            rel, dockerfile, tm.group(1) if tm else ""
+                        )
+                        sites[key] = f"{rel}:{n}"
+                        continue
+                    if VAR not in m.group(1):
+                        continue
+                    seen += 1
+                    prepulled = any(
+                        dockerfile in _tokens(p.group(1))
+                        for prior in scope
+                        for p in [_PREPULL.search(expand(prior))]
+                        if p
+                    )
+                    if not prepulled:
+                        found.append(
+                            f"{rel}:{n}: docker build of {dockerfile} with "
+                            "stock FROMs and no pre-pull -- BuildKit does not "
+                            "retry a rate limit; run `$(STOCK_PULL) "
+                            f"--dockerfile {dockerfile}` before it (#1979)"
+                        )
+                if kind == "workflow" and _BUILD_PUSH.search(line):
+                    i = n - 1
+                    file, target = _build_push_site(raw_lines, i)
+                    sites[_site_key(rel, file, target)] = f"{rel}:{n}"
+                scope.append(line)
         bad += [f"[vendored] {f}" if rel in vendored else f for f in found]
+    exempt = _exemptions(root)
+    for key, where in sorted(sites.items()):
+        seen += 1
+        if key not in exempt:
+            bad.append(
+                f"{where}: buildx container-driver build of "
+                f"{key.split(' ', 1)[1]} -- BuildKit pulls its FROMs in its "
+                "own container, so no pre-pull reaches it and a 429 is not "
+                f"retried; list it in {EXEMPT} (#1982) or build on the daemon"
+            )
+    for key, n in sorted(exempt.items(), key=lambda kv: kv[1]):
+        if key not in sites:
+            bad.append(
+                f"{EXEMPT}:{n}: '{key}' names no container-driver build any "
+                "more -- delete the line; the list only shrinks (#1982)"
+            )
     real = [b for b in bad if not b.startswith("[vendored] ")]
     upstream = [b for b in bad if b.startswith("[vendored] ")]
     return real, upstream, seen, len(files)
@@ -465,7 +652,22 @@ def main() -> int:
     ap.add_argument("--root", type=Path, default=ROOT)
     ap.add_argument("--own-prefix", default="doppler")
     ap.add_argument("--vendored", default="")
+    ap.add_argument(
+        "--stock-froms",
+        metavar="DOCKERFILE",
+        help="print the stock images DOCKERFILE pulls, one per line, with "
+        "--registry for STOCK_REGISTRY (what stock-pull.sh --dockerfile "
+        "pre-pulls), and exit",
+    )
+    ap.add_argument("--registry", default="")
     a = ap.parse_args()
+    if a.stock_froms:
+        if not a.registry:
+            ap.error("--stock-froms needs --registry")
+        text = Path(a.stock_froms).read_text(encoding="utf-8")
+        for ref in stock_froms(text, a.registry):
+            print(ref)
+        return 0
     root = a.root.resolve()
     real, upstream, seen, n_files = offenders(
         root, a.own_prefix, set(a.vendored.split())
@@ -481,15 +683,19 @@ def main() -> int:
         print(f"check_stock_images: {b}")
     if real:
         print(
-            "\n  Pull a stock image through the Makefile's STOCK_REGISTRY "
+            "\n  Name a stock image through the Makefile's STOCK_REGISTRY "
             "(doppler#1950):\n  `$(STOCK_REGISTRY)/debian:stable` in make, "
             "`${STOCK_REGISTRY}/debian:stable`\n  in a Dockerfile (`ARG "
-            "STOCK_REGISTRY`, no default) or a script."
+            "STOCK_REGISTRY`, no default) or a script. PULL it only\n  "
+            f"through {HELPER} (doppler#1979): `$(STOCK_PULL) IMAGE` then\n"
+            "  `docker run --pull=never`, or `$(STOCK_PULL) --dockerfile F` "
+            "before `docker build -f F`."
         )
         return 1
     print(
         f"check_stock_images: OK -- {seen} image reference(s) in {n_files} "
-        f"file(s), every stock image through {VAR}"
+        f"file(s), every stock image through {VAR} and every stock pull "
+        f"through {HELPER}"
         + (
             f"; {len(upstream)} in vendored files, for canonical"
             if upstream

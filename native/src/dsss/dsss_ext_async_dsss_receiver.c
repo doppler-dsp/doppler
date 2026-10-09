@@ -1502,7 +1502,7 @@ static PyTypeObject AsyncDsssReceiverObjType = {
     "chip_rate : float, default 1000000.0\n"
     "    Chip rate, Hz. Required.\n"
     "symbol_rate : float, default 1000.0\n"
-    "    Data-symbol rate, Hz. Required.\n"
+    "    Data-symbol rate, Hz: finite, > 0.\n"
     "spc : int, default 2\n"
     "    Samples/chip; default 2.\n"
     "m : int, default 2\n"

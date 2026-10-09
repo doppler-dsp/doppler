@@ -795,6 +795,11 @@ PSDObj_band_power (PSDObject *self, PyObject *args, PyObject *kwds)
               (size_t)(n_out), (size_t)(_cap));
           return NULL;
         }
+      if (!n_out)
+        {
+          Py_DECREF (out_arr);
+          Py_RETURN_NONE;
+        }
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_FLOAT,
                                                     PyArray_DATA (out_arr));
@@ -844,6 +849,11 @@ PSDObj_band_power (PSDObject *self, PyObject *args, PyObject *kwds)
                     "PSD.band_power: wrote %zu elements into a buffer of %zu",
                     (size_t)(n_out), (size_t)(_cap));
       return NULL;
+    }
+  if (!n_out)
+    {
+      Py_DECREF (arr0);
+      Py_RETURN_NONE;
     }
   if ((size_t)n_out == _cap)
     {
@@ -1215,12 +1225,12 @@ static PyMethodDef PSDObj_methods[] = {
     "    an `out=` buffer with the matching `_max_out()` when you need the\n"
     "    worst case.\n"
     "out : npt.NDArray[np.float32] | None\n"
-    "    Destination, at least n float32 elements.\n"
+    "    Destination, at least nfft float32 elements.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "NDArray[np.float32]\n"
-    "    min(n, max_out), or 0 if empty.\n"
+    "    min(nfft, max_out), or 0 if empty.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1274,7 +1284,7 @@ static PyMethodDef PSDObj_methods[] = {
   { "psd_dbhz_max_out", (PyCFunction)PSDObj_psd_dbhz_max_out, METH_NOARGS,
     "psd_dbhz_max_out() -> int\n"
     "\n"
-    "Output capacity hint for psd_dbhz(); equals n.\n"
+    "Output capacity hint for psd_dbhz(); equals nfft.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -1364,7 +1374,9 @@ static PyMethodDef PSDObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "band_power(bands, out) -> ndarray\n"
     "\n"
-    "Integrated power per band in dB; bands = [lo0,hi0,lo1,hi1,...] Hz.\n"
+    "Integrated power per band in dB; bands = [lo0,hi0,lo1,hi1,...] Hz. None "
+    "when there is nothing to report: before any accumulate, or no complete "
+    "lo/hi pair.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1376,7 +1388,8 @@ static PyMethodDef PSDObj_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[np.float32]\n"
-    "    min(n_bands, max_out), or 0 if empty.\n"
+    "    The number of bands written, min(n_bands, max_out); 0 (Python None)\n"
+    "    when there is nothing to report.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1426,24 +1439,33 @@ static PyMethodDef PSDObj_methods[] = {
     "\n"
     "Occupied bandwidth in Hz holding the given fraction of total power.\n"
     "\n"
+    "Calls obw_from_power on the averaged spectrum, so the search and its\n"
+    "domain are that function's and the two cannot disagree.\n"
+    "\n"
     "Parameters\n"
     "----------\n"
     "fraction : float\n"
-    "    Power fraction in (0, 1], e.g. 0.99.\n"
+    "    Power fraction in the OPEN interval (0, 1), e.g. 0.99. 1 is\n"
+    "    excluded: all of the power in float is every bin that rounding\n"
+    "    residue reached, which has no stable answer.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "float\n"
-    "    Occupied bandwidth in Hz (0 if empty or no power).\n"
+    "    Occupied bandwidth in Hz (0 if empty or no power); NaN when\n"
+    "    fraction is outside (0, 1), before any frame too, rather than a\n"
+    "    silently clamped answer.\n"
     "\n"
     "Examples\n"
     "--------\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler.spectral import PSD\n"
-    "    >>> obj = PSD(n=1024, fs=1.0, window=\"hann\", beta=0.0, pad=1, "
-    "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1)\n"
-    "    >>> obj.occupied_bw(0.0)\n"
-    "    0.0\n" },
+    ">>> import numpy as np\n"
+    ">>> from doppler.spectral import PSD\n"
+    ">>> w = PSD(n=64, fs=64.0, window=\"rect\")\n"
+    ">>> w.accumulate(np.ones(64, dtype=np.complex64))  # all power at DC\n"
+    ">>> w.occupied_bw(0.99)                            # one bin, fs / 64\n"
+    "1.0\n"
+    ">>> w.occupied_bw(1.0)                             # outside (0, 1)\n"
+    "nan\n" },
   { "noise_floor", (PyCFunction)PSDObj_noise_floor, METH_NOARGS,
     "noise_floor() -> float\n"
     "\n"
@@ -1608,27 +1630,37 @@ static PyTypeObject PSDObjType = {
     "n : int, default 1024\n"
     "    Window / frame length in samples. Must be >= 2.\n"
     "fs : float, default 1.0\n"
-    "    Sample rate in Hz (used for dB/Hz and band frequencies).\n"
+    "    Sample rate in Hz (used for dB/Hz and band frequencies); finite and "
+    ">\n"
+    "    0.\n"
     "window : Literal[\"hann\", \"kaiser\", \"blackman-harris\", \"rect\"], "
     "default \"hann\"\n"
     "    Window index: 0 = Hann, 1 = Kaiser, 2 = Blackman-Harris, 3 =\n"
     "    rectangular (no taper: best resolution, worst leakage).\n"
     "beta : float, default 0.0\n"
-    "    Kaiser beta (ignored for Hann/Blackman-Harris).\n"
+    "    Kaiser beta (ignored by every other window). One that makes the "
+    "window\n"
+    "    non-finite -- NaN, or large enough to overflow it -- is refused.\n"
     "pad : int, default 1\n"
-    "    Zero-pad factor (>= 1); nfft = next_pow_two(n * pad).\n"
+    "    Zero-pad factor (>= 1; 0 is refused); nfft = next_pow_two(n * pad).\n"
     "full_scale : float, default 1.0\n"
-    "    Amplitude that reads 0 dBFS in the dB getters (> 0). Ignored when "
-    "bits\n"
-    "    > 0.\n"
+    "    Amplitude that reads 0 dBFS in the dB getters; finite and > 0. "
+    "Ignored\n"
+    "    when bits > 0.\n"
     "bits : int, default 0\n"
     "    ADC depth: when > 0, sets full_scale = 2^(bits-1) (the single\n"
-    "    definition of the dBFS reference); 0 = use full_scale directly.\n"
+    "    definition of the dBFS reference); 0 = use full_scale directly. At "
+    "most\n"
+    "    64.\n"
     "mode : Literal[\"mean\", \"exp\", \"maxhold\", \"minhold\"], default "
     "\"mean\"\n"
     "    Averaging mode index (0=mean, 1=exp, 2=maxhold, 3=minhold).\n"
     "alpha : float, default 0.1\n"
-    "    EMA smoothing factor (exp mode only).\n"
+    "    EMA smoothing factor, exp mode only, where it must lie in (0, 1]: "
+    "the\n"
+    "    rule is the AccTrace averager's, whose create refuses anything else, "
+    "so\n"
+    "    this does too. Ignored, and so not checked, in the other modes.\n"
     "\n"
     "Examples\n"
     "--------\n"

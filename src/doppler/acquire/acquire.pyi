@@ -17,7 +17,9 @@ class CarrierAcquisition:
         Symbol rate, Hz -- builds the default template (required).
     resolution_hz : float, default 0.0
         Desired FFT frequency resolution, Hz. <= 0.0 is a sentinel meaning
-        "auto": symbol_rate_hz/10.0.
+        "auto": symbol_rate_hz/10.0. The block is
+        round(sample_rate_hz/resolution_hz) samples, floored at 3 -- the
+        shortest whose default Hann window has any gain.
     zero_pad : int, default 4
         PSD zero-pad factor (>= 1); see psd_core.h.
     window : Literal["hann", "kaiser", "blackman-harris"], default "hann"
@@ -26,9 +28,9 @@ class CarrierAcquisition:
         Kaiser beta (ignored for hann/blackman-harris).
     psd_template : NDArray[np.float32], default ...
         Known PSD-shape template override, length must equal nfft =
-        next_pow_two(round(sample_rate_hz /resolution_hz) * zero_pad);
-        NULL/length-0 means "not supplied" -- the default rectangular-pulse
-        sinc^2 template (from symbol_rate_hz) is used.
+        next_pow_two(block * zero_pad), block as above; NULL/length-0 means
+        "not supplied" -- the default rectangular-pulse sinc^2 template (from
+        symbol_rate_hz) is used.
     pfa : float, default 1e-3
         Target per-test false-alarm probability.
     pd : float, default 0.9

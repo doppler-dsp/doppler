@@ -631,7 +631,41 @@ static PyMethodDef spectral_module_methods[] = {
     ">>> peaks\n"
     "[(-0.25, -10.0)]\n" },
   { "obw_from_power", (PyCFunction)(void *)_bind_obw_from_power,
-    METH_VARARGS | METH_KEYWORDS, "Obw from power.\n" },
+    METH_VARARGS | METH_KEYWORDS,
+    "Occupied bandwidth: the width of the central interval holding frac\n"
+    "of the total power, with (1 - frac)/2 excluded at each end.\n"
+    "\n"
+    "A cumulative walk over a DC-centred linear-power spectrum; the span is\n"
+    "whole bins, inclusive, times fs / pwr_len. Any constant per-bin scale\n"
+    "cancels, so the power need not be referenced.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "pwr : npt.NDArray[np.float64]\n"
+    "    Linear power, DC-centred, non-negative.\n"
+    "fs : float\n"
+    "    Sample rate, Hz.\n"
+    "frac : float\n"
+    "    Power fraction in the OPEN interval (0, 1), e.g. 0.99. 1 is\n"
+    "    excluded: all of the power in floating point is every bin rounding\n"
+    "    residue reached, which has no stable answer.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "float\n"
+    "    Occupied bandwidth in Hz; 0 for no bins or no power; NaN when frac\n"
+    "    is outside (0, 1), whatever the data.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.spectral import obw_from_power\n"
+    ">>> pwr = np.zeros(64)\n"
+    ">>> pwr[32] = 1.0                    # one bin holds all the power\n"
+    ">>> obw_from_power(pwr, 64.0, 0.99)  # one bin wide, fs / 64\n"
+    "1.0\n"
+    ">>> obw_from_power(pwr, 64.0, 1.0)   # outside (0, 1)\n"
+    "nan\n" },
   { "noise_floor_db", (PyCFunction)(void *)_bind_noise_floor_db,
     METH_VARARGS | METH_KEYWORDS, "Noise floor db.\n" },
   { NULL, NULL, 0, NULL }

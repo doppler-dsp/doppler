@@ -36,6 +36,8 @@ typedef struct {
 
 dp_acc_trace_state_t *dp_acc_trace_create(size_t n, int mode, double alpha);
 
+int dp_acc_trace_set_alpha(dp_acc_trace_state_t *state, double alpha);
+
 void dp_acc_trace_destroy(dp_acc_trace_state_t *state);
 
 void dp_acc_trace_reset(dp_acc_trace_state_t *state);

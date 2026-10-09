@@ -1634,24 +1634,29 @@ class PSD:
     n : int, default 1024
         Window / frame length in samples. Must be >= 2.
     fs : float, default 1.0
-        Sample rate in Hz (used for dB/Hz and band frequencies).
+        Sample rate in Hz (used for dB/Hz and band frequencies); finite and >
+        0.
     window : Literal["hann", "kaiser", "blackman-harris", "rect"], default "hann"
         Window index: 0 = Hann, 1 = Kaiser, 2 = Blackman-Harris, 3 =
         rectangular (no taper: best resolution, worst leakage).
     beta : float, default 0.0
-        Kaiser beta (ignored for Hann/Blackman-Harris).
+        Kaiser beta (ignored by every other window). One that makes the window
+        non-finite -- NaN, or large enough to overflow it -- is refused.
     pad : int, default 1
-        Zero-pad factor (>= 1); nfft = next_pow_two(n * pad).
+        Zero-pad factor (>= 1; 0 is refused); nfft = next_pow_two(n * pad).
     full_scale : float, default 1.0
-        Amplitude that reads 0 dBFS in the dB getters (> 0). Ignored when bits
-        > 0.
+        Amplitude that reads 0 dBFS in the dB getters; finite and > 0. Ignored
+        when bits > 0.
     bits : int, default 0
         ADC depth: when > 0, sets full_scale = 2^(bits-1) (the single
-        definition of the dBFS reference); 0 = use full_scale directly.
+        definition of the dBFS reference); 0 = use full_scale directly. At most
+        64.
     mode : Literal["mean", "exp", "maxhold", "minhold"], default "mean"
         Averaging mode index (0=mean, 1=exp, 2=maxhold, 3=minhold).
     alpha : float, default 0.1
-        EMA smoothing factor (exp mode only).
+        EMA smoothing factor, exp mode only, where it must lie in (0, 1]: the
+        rule is the AccTrace averager's, whose create refuses anything else, so
+        this does too. Ignored, and so not checked, in the other modes.
 
     Examples
     --------
@@ -1732,12 +1737,12 @@ class PSD:
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
         out : npt.NDArray[np.float32] | None
-            Destination, at least n float32 elements.
+            Destination, at least nfft float32 elements.
 
         Returns
         -------
         NDArray[np.float32]
-            min(n, max_out), or 0 if empty.
+            min(nfft, max_out), or 0 if empty.
         """
 
     def psd_db_max_out(self) -> int:
@@ -1786,7 +1791,7 @@ class PSD:
         """
 
     def psd_dbhz_max_out(self) -> int:
-        """Output capacity hint for psd_dbhz(); equals n.
+        """Output capacity hint for psd_dbhz(); equals nfft.
 
         Returns
         -------
@@ -1864,6 +1869,8 @@ class PSD:
         out: npt.NDArray[np.float32] | None = None,
     ) -> NDArray[np.float32]:
         """Integrated power per band in dB; bands = [lo0,hi0,lo1,hi1,...] Hz.
+        None when there is nothing to report: before any accumulate, or no
+        complete lo/hi pair.
 
         Parameters
         ----------
@@ -1875,7 +1882,8 @@ class PSD:
         Returns
         -------
         NDArray[np.float32]
-            min(n_bands, max_out), or 0 if empty.
+            The number of bands written, min(n_bands, max_out); 0 (Python None)
+            when there is nothing to report.
 
         Examples
         --------
@@ -1915,15 +1923,34 @@ class PSD:
     def occupied_bw(self, fraction: float) -> float:
         """Occupied bandwidth in Hz holding the given fraction of total power.
 
+        Calls obw_from_power on the averaged spectrum, so the search and its
+        domain are that function's and the two cannot disagree.
+
         Parameters
         ----------
         fraction : float
-            Power fraction in (0, 1], e.g. 0.99.
+            Power fraction in the OPEN interval (0, 1), e.g. 0.99. 1 is
+            excluded: all of the power in float is every bin that rounding
+            residue reached, which has no stable answer.
 
         Returns
         -------
         float
-            Occupied bandwidth in Hz (0 if empty or no power).
+            Occupied bandwidth in Hz (0 if empty or no power); NaN when
+            fraction is outside (0, 1), before any frame too, rather than a
+            silently clamped answer.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.spectral import PSD
+        >>> w = PSD(n=64, fs=64.0, window="rect")
+        >>> w.accumulate(np.ones(64, dtype=np.complex64))  # all power at DC
+        >>> w.occupied_bw(0.99)                            # one bin, fs / 64
+        1.0
+        >>> w.occupied_bw(1.0)                             # outside (0, 1)
+        nan
+
         """
 
     def noise_floor(self) -> float:
@@ -2351,7 +2378,42 @@ def obw_from_power(
     fs: float,
     frac: float,
 ) -> float:
-    """Obw from power."""
+    """Occupied bandwidth: the width of the central interval holding frac
+    of the total power, with (1 - frac)/2 excluded at each end.
+
+    A cumulative walk over a DC-centred linear-power spectrum; the span is
+    whole bins, inclusive, times fs / pwr_len. Any constant per-bin scale
+    cancels, so the power need not be referenced.
+
+    Parameters
+    ----------
+    pwr : npt.NDArray[np.float64]
+        Linear power, DC-centred, non-negative.
+    fs : float
+        Sample rate, Hz.
+    frac : float
+        Power fraction in the OPEN interval (0, 1), e.g. 0.99. 1 is
+        excluded: all of the power in floating point is every bin rounding
+        residue reached, which has no stable answer.
+
+    Returns
+    -------
+    float
+        Occupied bandwidth in Hz; 0 for no bins or no power; NaN when frac
+        is outside (0, 1), whatever the data.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.spectral import obw_from_power
+    >>> pwr = np.zeros(64)
+    >>> pwr[32] = 1.0                    # one bin holds all the power
+    >>> obw_from_power(pwr, 64.0, 0.99)  # one bin wide, fs / 64
+    1.0
+    >>> obw_from_power(pwr, 64.0, 1.0)   # outside (0, 1)
+    nan
+
+    """
 
 def noise_floor_db(db: npt.NDArray[np.float32]) -> float:
     """Noise floor db."""

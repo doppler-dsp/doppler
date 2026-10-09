@@ -92,6 +92,174 @@ main (void)
     dp_psd_destroy (w);
   }
 
+  /* ── refusals the certification found missing (#1911 (b), (c), (f)) ────
+   * Each beside its precondition -- the nearest valid value is accepted --
+   * so a create that refused everything could not pass. */
+  {
+    /* (b) pad 0 was silently treated as 1; it is refused like n < 2. */
+    DP_CHECK (dp_psd_create (N, 1.0, 0, 0.0f, 0, 1.0, 0, 0, 0.1) == NULL);
+    dp_psd_state_t *p1 = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
+    DP_CHECK (p1 != NULL);
+    dp_psd_destroy (p1);
+
+    /* (c) exp mode needs alpha in (0, 1].  The rule is the averager's:
+     * dp_acc_trace_create refuses, and PSD returns its NULL.  Outside it
+     * the EMA is not an average -- 0 never left the first frame, -0.5 read
+     * negative power, 1.5 saturates to pass-through (dp_ema_step), NaN
+     * poisoned every bin.  The other three modes never read alpha, so each
+     * still accepts it. */
+    const double bad[] = { 0.0, -0.5, 1.5, NAN };
+    const int    no_read[]
+        = { ACC_TRACE_MEAN, ACC_TRACE_MAXHOLD, ACC_TRACE_MINHOLD };
+    for (size_t i = 0; i < sizeof bad / sizeof bad[0]; i++)
+      {
+        DP_CHECK (
+            dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, ACC_TRACE_EXP, bad[i])
+            == NULL);
+        for (size_t k = 0; k < sizeof no_read / sizeof no_read[0]; k++)
+          {
+            dp_psd_state_t *m = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0,
+                                               no_read[k], bad[i]);
+            DP_CHECK (m != NULL);
+            dp_psd_destroy (m);
+          }
+      }
+    const double good[] = { 1.0, 0.25, 1e-9 };
+    for (size_t i = 0; i < sizeof good / sizeof good[0]; i++)
+      {
+        dp_psd_state_t *e = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0,
+                                           ACC_TRACE_EXP, good[i]);
+        DP_CHECK (e != NULL);
+        dp_psd_destroy (e);
+      }
+
+    /* (f) a window with zero coherent gain: the symmetric Hann at n = 2 is
+     * [0, 0], and every reading divides by sum(w)^2.  It read -200 dB from
+     * psd_db and NaN from psd_dbhz for any input.  Blackman-Harris at n = 2
+     * sums to 1.2e-4 and Hann at n = 3 to 1: tiny or small, not zero. */
+    DP_CHECK (dp_psd_create (2, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1) == NULL);
+    dp_psd_state_t *bh2 = dp_psd_create (2, 1.0, 2, 0.0f, 1, 1.0, 0, 0, 0.1);
+    dp_psd_state_t *h3  = dp_psd_create (3, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
+    DP_CHECK (bh2 != NULL && bh2->cg > 0.0);
+    DP_CHECK (h3 != NULL && h3->cg > 0.0);
+    dp_psd_destroy (bh2);
+    dp_psd_destroy (h3);
+
+    /* A size no buffer can hold is refused, not wrapped.  n = 2^62 asked
+     * malloc for n * 4 = 0 bytes, got a pointer, and the window fill ran off
+     * it.  n = 2, pad = 2^63 wrapped n * pad to 0, read nfft = 1, and was
+     * accepted with a frame longer than its buffer.  n = 3, pad = 2^62 has
+     * no power of two above it.  Rect, so no window refuses first.  Each is
+     * refused before any allocation, which the sanitizer legs require: ASan
+     * and TSan report an overflowing calloc as an error, not a NULL. */
+    const size_t big = (size_t)1 << 62;
+    DP_CHECK (dp_psd_create (big, 1.0, 3, 0.0f, 1, 1.0, 0, 0, 0.1) == NULL);
+    DP_CHECK (dp_psd_create (2, 1.0, 3, 0.0f, 2 * big, 1.0, 0, 0, 0.1)
+              == NULL);
+    DP_CHECK (dp_psd_create (3, 1.0, 3, 0.0f, big, 1.0, 0, 0, 0.1) == NULL);
+    /* precondition: n = 2 under rect, at an ordinary pad, still builds */
+    dp_psd_state_t *r2 = dp_psd_create (2, 1.0, 3, 0.0f, 4, 1.0, 0, 0, 0.1);
+    DP_CHECK (r2 != NULL && r2->nfft == 8);
+    dp_psd_destroy (r2);
+
+    /* What every reading divides by must be a finite positive number.  A
+     * NaN passed a plain `<= 0.0` and built an estimator reading NaN or
+     * -200 dB: fs and full_scale NaN or inf; a Kaiser beta of NaN, or from
+     * about 2.3e5 up, where I0 overflows and every tap is NaN; and bits
+     * past 64, whose reference outgrows any sample format (and whose
+     * (int)bits - 1 was undefined past INT_MAX).  Each beside its nearest
+     * accepted value. */
+    const double nonfinite[] = { NAN, INFINITY };
+    for (size_t i = 0; i < 2; i++)
+      {
+        DP_CHECK (dp_psd_create (N, nonfinite[i], 0, 0.0f, 1, 1.0, 0, 0, 0.1)
+                  == NULL);
+        DP_CHECK (dp_psd_create (N, 1.0, 0, 0.0f, 1, nonfinite[i], 0, 0, 0.1)
+                  == NULL);
+      }
+    const float bad_beta[] = { NAN, INFINITY, 2.3e5f };
+    for (size_t i = 0; i < 3; i++)
+      {
+        DP_CHECK (dp_psd_create (N, 1.0, 1, bad_beta[i], 1, 1.0, 0, 0, 0.1)
+                  == NULL);
+        /* beta is Kaiser's alone: Hann ignores it */
+        dp_psd_state_t *h
+            = dp_psd_create (N, 1.0, 0, bad_beta[i], 1, 1.0, 0, 0, 0.1);
+        DP_CHECK (h != NULL);
+        dp_psd_destroy (h);
+      }
+    DP_CHECK (dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 65, 0, 0.1) == NULL);
+    DP_CHECK (dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, (size_t)1 << 31, 0, 0.1)
+              == NULL);
+    dp_psd_state_t *k22 = dp_psd_create (N, 1.0, 1, 2.2e5f, 1, 1.0, 0, 0, 0.1);
+    dp_psd_state_t *b64 = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 64, 0, 0.1);
+    DP_CHECK (k22 != NULL && isfinite (k22->cg));
+    DP_CHECK (b64 != NULL && b64->full_scale == ldexp (1.0, 63));
+    dp_psd_destroy (k22);
+    dp_psd_destroy (b64);
+  }
+
+  /* ── occupied_bw outside (0, 1) is NaN (#1911 (c), (h)) ─────────────────
+   * It clamped: 0 and -1 read one bin, 1.5 the full span.  NaN is the
+   * convention #1901 set for an argument outside a function's domain.  1 is
+   * outside too: at f = 1 the band chased float residue, so a one-bin tone
+   * read 13 or 53 bins by position (h).  The rule is dp_obw_from_power's,
+   * pinned in test_spectral_core.c; this pins that PSD reaches it. */
+  {
+    dp_psd_state_t *w = dp_psd_create (N, 1.0, 3, 0.0f, 1, 1.0, 0, 0, 0.1);
+    DP_REQUIRE (w != NULL);
+    const double out_of_domain[] = { 0.0, -1.0, 1.0, 1.5, NAN };
+    const size_t n_ood = sizeof out_of_domain / sizeof out_of_domain[0];
+    /* Before any frame too: the domain is checked before the data, and a
+     * good fraction there still reads 0. */
+    for (size_t i = 0; i < n_ood; i++)
+      DP_CHECK (isnan (dp_psd_occupied_bw (w, out_of_domain[i])));
+    DP_CHECK (dp_psd_occupied_bw (w, 0.99) == 0.0);
+    float _Complex x[64];
+    fill_tone (x, N, 4);
+    dp_psd_accumulate (w, x, N);
+    for (size_t i = 0; i < n_ood; i++)
+      DP_CHECK (isnan (dp_psd_occupied_bw (w, out_of_domain[i])));
+    /* precondition: inside the domain, right up to its edge, a one-bin tone
+     * reads one bin */
+    DP_CHECK (dp_psd_occupied_bw (w, 0.99) == 1.0 / N);
+    DP_CHECK (dp_psd_occupied_bw (w, 0.999999) == 1.0 / N);
+    dp_psd_destroy (w);
+
+    /* An edge exactly on a bin boundary resolves exactly.  An impulse at
+     * sample 0 has the same power, w[0]^2, in every bin, so at f = 0.5 over
+     * nfft = 256 bins the excluded quarter at each end is exactly 64 bins:
+     * the walk reaches it at bin 63 and the upper three quarters at bin 191,
+     * 129 bins inclusive (fs = 256, so one bin is 1 Hz).  Equal bins sum
+     * exactly, in any order, so this holds under -ffast-math too.
+     *
+     * Dividing each bin by cg^2 first, as the private copy did, rounds the
+     * sums off the tie.  Where it lands depends on the build, because
+     * -ffast-math may turn the division into a reciprocal multiply: rect at
+     * n = 100 reads 130 only at -O3, while Kaiser at n = 64 reads 128 at
+     * beta 6 and 130 at beta 1 at -O0, -O2 and -O3 alike -- measured with
+     * that division put back.  All three are pinned. */
+    struct
+    {
+      size_t n, pad;
+      int    window;
+      float  beta;
+    } const ties[]
+        = { { 100, 2, 3, 0.0f }, { 64, 4, 1, 6.0f }, { 64, 4, 1, 1.0f } };
+    for (size_t k = 0; k < sizeof ties / sizeof ties[0]; k++)
+      {
+        dp_psd_state_t *r
+            = dp_psd_create (ties[k].n, 256.0, ties[k].window, ties[k].beta,
+                             ties[k].pad, 1.0, 0, 0, 0.1);
+        DP_REQUIRE (r != NULL && r->nfft == 256);
+        float _Complex imp[100] = { 0 };
+        imp[0]                  = 1.0f;
+        dp_psd_accumulate (r, imp, ties[k].n);
+        DP_CHECK (dp_psd_occupied_bw (r, 0.5) == 129.0);
+        dp_psd_destroy (r);
+      }
+  }
+
   /* ── DC tone lands at the centre bin after fftshift ─────────────────── */
   {
     dp_psd_state_t *w = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);

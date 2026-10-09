@@ -145,6 +145,7 @@ dp_acc_trace_create function
 dp_acc_trace_destroy function
 dp_acc_trace_get_state function
 dp_acc_trace_reset function
+dp_acc_trace_set_alpha function
 dp_acc_trace_set_state function
 dp_acc_trace_state_bytes function
 dp_acc_trace_value function

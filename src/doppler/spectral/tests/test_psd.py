@@ -230,3 +230,98 @@ def test_bits_is_the_single_dbfs_reference():
     wb.accumulate(x)
     wf.accumulate(x)
     assert np.allclose(wb.psd_db(), wf.psd_db())
+
+
+# ── #1911's fixes, on the Python face ─────────────────────────────────────
+
+
+def test_band_power_is_none_before_any_frame():
+    """The same empty shape as its four sibling readouts (#1911 (g)).
+
+    It returned an empty array while psd_db and the power readouts returned
+    None, so a caller could not write one `is None` check for "nothing yet".
+    Both routes: the allocating one and the caller's `out=` buffer.
+    """
+    w = PSD(n=64, fs=1.0, window="hann")
+    bands = np.array([-0.25, 0.25])
+    assert w.band_power(bands) is None
+    assert w.band_power(bands, out=np.zeros(2, dtype=np.float32)) is None
+    assert w.psd_db() is None  # the shape it now shares
+    w.accumulate(_tone(64, 3))
+    assert w.band_power(bands).shape == (1,)
+
+
+@pytest.mark.parametrize(
+    "no_band", [np.array([], dtype=np.float64), np.array([-0.25])]
+)
+def test_band_power_is_none_for_no_complete_band(no_band):
+    """After frames too, None is "nothing to report": a band list with no
+    complete lo/hi pair has no band to integrate. Both routes."""
+    w = PSD(n=64, fs=1.0, window="hann")
+    w.accumulate(_tone(64, 3))
+    assert w.band_power(no_band) is None
+    assert w.band_power(no_band, out=np.zeros(2, dtype=np.float32)) is None
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"pad": 0},  # was silently pad = 1 (#1911 (b))
+        # (c): refused by the AccTrace averager, whose NULL PSD returns.
+        {"mode": "exp", "alpha": 0.0},  # never left the first frame
+        {"mode": "exp", "alpha": -0.5},  # read negative power
+        {"mode": "exp", "alpha": 1.5},  # saturates to pass-through
+        {"mode": "exp", "alpha": float("nan")},  # poisoned every bin
+        {"n": 2, "window": "hann"},  # [0, 0]: zero coherent gain (f)
+        # a NaN passed `<= 0.0`, and every reading divides by these
+        {"fs": float("nan")},
+        {"fs": float("inf")},
+        {"full_scale": float("nan")},
+        {"window": "kaiser", "beta": float("nan")},  # every tap NaN
+        {"window": "kaiser", "beta": 2.3e5},  # I0 overflows
+        {"bits": 65},  # a reference past any sample format
+    ],
+)
+def test_create_refuses_what_it_used_to_accept(kwargs):
+    """A NULL create raises MemoryError, the binding's convention for every
+    refused argument (docs/dev/contributing/error-convention.md)."""
+    with pytest.raises(MemoryError):
+        PSD(**{"n": 64, "fs": 1.0, **kwargs})
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"pad": 1},
+        {"mode": "exp", "alpha": 1.0},
+        # alpha is never read outside exp, so no other mode refuses it
+        {"mode": "mean", "alpha": -0.5},
+        {"mode": "maxhold", "alpha": -0.5},
+        {"mode": "minhold", "alpha": float("nan")},
+        {"n": 2, "window": "blackman-harris"},  # tiny gain, not zero
+        {"window": "kaiser", "beta": 2.2e5},  # large, still finite
+        {"window": "hann", "beta": float("nan")},  # beta is Kaiser's alone
+        {"bits": 64},
+    ],
+)
+def test_create_accepts_the_neighbouring_values(kwargs):
+    """The precondition for the refusals above: their nearest valid value
+    still builds, so a create that refused everything would fail here."""
+    PSD(**{"n": 64, "fs": 1.0, **kwargs})
+
+
+def test_occupied_bw_is_nan_outside_the_open_unit_interval():
+    """(0, 1) is the domain; outside it the answer is NaN, not a clamp.
+
+    1 is outside too: "all of the power" is every bin float residue reached,
+    and a one-bin tone read 13 or 53 bins by position (#1911 (h)).
+    """
+    w = PSD(n=64, fs=1.0, window="rect")
+    bad = (0.0, -1.0, 1.0, 1.5, float("nan"))
+    for f in bad:  # before any frame too: the domain is checked first
+        assert np.isnan(w.occupied_bw(f)), f
+    assert w.occupied_bw(0.99) == 0.0
+    w.accumulate(_tone(64, 4))
+    for f in bad:
+        assert np.isnan(w.occupied_bw(f)), f
+    assert w.occupied_bw(0.99) == 1.0 / 64

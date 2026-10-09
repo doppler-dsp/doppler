@@ -56,8 +56,14 @@ typedef struct {
  *
  * @param n      Trace length in bins.  Must be > 0; returns NULL otherwise.
  * @param mode   Reduction mode index (0=mean, 1=exp, 2=maxhold, 3=minhold).
- * @param alpha  EMA smoothing factor used only by @c exp mode (0 < alpha <= 1).
- * @return Heap-allocated state, or NULL on invalid argument or OOM.
+ * @param alpha  EMA smoothing factor, read only by @c exp mode, where it must
+ *               lie in (0, 1].  Outside it the trace is not an average: 0
+ *               never leaves the first frame, a negative alpha extrapolates
+ *               away from the data (a power trace goes negative), and above
+ *               1 the EMA step saturates to pass-through.  A NaN is refused
+ *               too.  Ignored, and so not checked, in the other modes.
+ * @return Heap-allocated state, or NULL on invalid argument (including an
+ *         exp-mode @p alpha outside (0, 1]) or OOM.
  * @note Caller must call dp_acc_trace_destroy() when done.
  *
  * @code
@@ -68,6 +74,19 @@ typedef struct {
  * @endcode
  */
 dp_acc_trace_state_t *dp_acc_trace_create(size_t n, int mode, double alpha);
+
+/**
+ * @brief Set the EMA smoothing factor, under dp_acc_trace_create()'s rule.
+ *
+ * In @c exp mode an @p alpha outside (0, 1], or a NaN, is refused and the
+ * trace keeps the alpha it had; the other modes never read it and accept any
+ * value, as create() does.  The running trace is not touched either way.
+ *
+ * @param state  Must be non-NULL.
+ * @param alpha  New smoothing factor.
+ * @return DP_OK, or DP_ERR_INVALID when refused (state unchanged).
+ */
+int dp_acc_trace_set_alpha(dp_acc_trace_state_t *state, double alpha);
 
 /**
  * @brief Destroy an AccTrace instance and release all memory.

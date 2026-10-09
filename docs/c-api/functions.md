@@ -229,6 +229,7 @@
 * **dp\_acc\_trace\_destroy** ([**acc\_trace\_core.h**](acc__trace__core_8h.md))
 * **dp\_acc\_trace\_get\_state** ([**acc\_trace\_core.h**](acc__trace__core_8h.md))
 * **dp\_acc\_trace\_reset** ([**acc\_trace\_core.h**](acc__trace__core_8h.md))
+* **dp\_acc\_trace\_set\_alpha** ([**acc\_trace\_core.h**](acc__trace__core_8h.md))
 * **dp\_acc\_trace\_set\_state** ([**acc\_trace\_core.h**](acc__trace__core_8h.md))
 * **dp\_acc\_trace\_state\_bytes** ([**acc\_trace\_core.h**](acc__trace__core_8h.md))
 * **dp\_acc\_trace\_value** ([**acc\_trace\_core.h**](acc__trace__core_8h.md))

@@ -773,8 +773,13 @@ adr_new (const uint8_t *code, size_t code_len, double chip_rate,
          double lost_confirm_s, bool cell, size_t correct_periods, double gain,
          size_t pullin_intervals)
 {
-  if (!code || code_len < 1 || chip_rate <= 0.0 || symbol_rate <= 0.0
-      || spc < 1 || (m != 2 && m != 4 && m != 8) || segments < 1 || sps < 1
+  /* symbol_rate becomes the carrier estimator's sample rate, which PSD
+     refuses unless finite: refused here, at create, because that estimator
+     is built under dp_xnn mid-stream (adr_new_carrier_acq), where a NULL
+     aborts.  The negated form also refuses a NaN. */
+  if (!code || code_len < 1 || chip_rate <= 0.0
+      || !(symbol_rate > 0.0 && isfinite (symbol_rate)) || spc < 1
+      || (m != 2 && m != 4 && m != 8) || segments < 1 || sps < 1
       || refine_samples_per_symbol < 1 || refine_n_fft < 1
       || refine_zero_pad < 1 || carrier_freq_hz < 0.0
       || !(lost_confirm_s >= 0.0))

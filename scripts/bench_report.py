@@ -51,6 +51,8 @@ import subprocess
 
 PUBLISHED = "benchmarks/published"
 LOCAL = "benchmarks/history"
+#: Where the C benchmarks live: each ``bench_<x>_core.c`` is component ``x``.
+BENCH_SRC = "native/benchmarks"
 BUILDS = ("portable", "native")
 SUITES = ("python", "c")
 SUITE_LABEL = {"c": "C (jm_bench)", "python": "Python (pytest-benchmark)"}
@@ -383,8 +385,43 @@ def _git_short_sha():
     return r.stdout.strip() if r.returncode == 0 else ""
 
 
+def missing_components(c_report: dict, bench_dir: str = BENCH_SRC) -> list:
+    """The tree's C benchmarks a C snapshot did not record, sorted.
+
+    The full set is derived, never written down: every
+    ``native/benchmarks/bench_<x>_core.c`` is component ``x``, and jm names
+    each row it records ``x::<entry>``. (v0.65.0's published C snapshot held
+    every one of them, so nothing in the tree is legitimately absent.) A
+    snapshot short of that set came from a filtered or broken run -- ``make
+    bench BENCH_ARGS="..."`` filters the C side, and a benchmark that
+    crashed records nothing -- and publishing it would ship a release's
+    numbers with components silently gone.
+
+    >>> import os, tempfile
+    >>> d = tempfile.mkdtemp()
+    >>> for x in ("fir", "rs"):
+    ...     open(os.path.join(d, f"bench_{x}_core.c"), "w").close()
+    >>> missing_components({"benchmarks": [{"name": "fir::step"}]}, d)
+    ['rs']
+    >>> rows = [{"name": "fir::step"}, {"name": "rs::decode"}]
+    >>> missing_components({"benchmarks": rows}, d)
+    []
+    """
+    want = {
+        os.path.basename(p)[len("bench_") : -len("_core.c")]
+        for p in glob.glob(os.path.join(bench_dir, "bench_*_core.c"))
+    }
+    have = {b["name"].split("::")[0] for b in c_report.get("benchmarks", [])}
+    return sorted(want - have)
+
+
 def cmd_publish(version, build) -> int:
-    """Stamp this machine's ``make bench`` output into published/v<ver>/."""
+    """Stamp this machine's ``make bench`` output into published/v<ver>/.
+
+    Refuses, publishing nothing, unless the run is whole: the newest snapshot
+    must have its C half, and that half must hold every component the tree
+    benchmarks (see :func:`missing_components`).
+    """
     if build not in BUILDS:
         print(f"--build must be one of {BUILDS}")
         return 1
@@ -402,6 +439,24 @@ def cmd_publish(version, build) -> int:
         return 1
     latest = py[-1]
     tag = os.path.basename(latest)[: -len(".json")]
+    c_src = os.path.join(LOCAL, f"{tag}-c.json")
+    if not os.path.exists(c_src):
+        print(
+            f"refusing to publish: snapshot {tag} has no C half"
+            f" ({tag}-c.json). A Python-only run (--python-only,"
+            " `make bench-save`) is half a release; run a full `make bench`."
+        )
+        return 1
+    with open(c_src) as fh:
+        missing = missing_components(json.load(fh))
+    if missing:
+        print(
+            f"refusing to publish: {tag}-c.json is missing {len(missing)} of"
+            f" the tree's C benchmarks: {', '.join(missing)}. A `make bench"
+            ' BENCH_ARGS="..."` run, or a benchmark that failed, records only'
+            " part of the set; publish a full `make bench`."
+        )
+        return 1
     compiler, flags = _build_info()
     dst = os.path.join(PUBLISHED, ver)
     os.makedirs(dst, exist_ok=True)

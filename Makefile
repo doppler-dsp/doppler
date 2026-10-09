@@ -1049,14 +1049,19 @@ BENCH_ALLOW ?= test_bench_execute_decim_64k
 # `c_deps` entry (conv, rs, spectrogram) or a function-only module (mpsk,
 # ber, snr, util, detection) has a bench target and no manifest object, and
 # since just-makeit#1023 jm discovers those by scanning the built targets.
-# Observed 2026-10-09 on the pinned 0.100.1: `make bench BENCH_ARGS="--c-only
-# conv rs spectrogram mpsk ber snr util detection"` ran each and wrote its JSON.
+# Observed 2026-10-09 on the pinned 0.100.1: `make bench BENCH_ARGS=
+# "--c-only conv rs spectrogram mpsk ber snr util detection"` ran each and
+# wrote its JSON.
 #
 # scripts/check_bench_coverage.py holds the rest -- every one of them has a
 # CMake target, records a measurement, and writes its JSON under the name a
 # collector opens. See docs/dev/contributing/benchmarking.md.
-# BENCH_ARGS names components to run instead of all of them, e.g.
-# `make bench BENCH_ARGS="spectrogram conv"` (jm takes them as positionals).
+# BENCH_ARGS is passed to `jm bench`: component names filter the C side
+# ONLY -- the whole Python suite still runs and is saved beside the partial
+# C snapshot -- so add --c-only when naming components, e.g.
+# `make bench BENCH_ARGS="--c-only spectrogram conv"`. bench-publish refuses
+# a C snapshot short of the tree's benchmarks, so a filtered run cannot be
+# published by mistake.
 BENCH_ARGS        ?=
 BENCH_CMD         = uv run just-makeit bench $(BENCH_ARGS)
 BENCH_SAVE_CMD    = uv run just-makeit bench --python-only --tag base

@@ -132,43 +132,37 @@ disk. `just-makeit bench` builds every **component's**
 `bench_<component>_core` executable, runs each one, collects the JSON it
 writes, and merges them into one combined `-c.json` snapshot.
 
-Read that word "component" strictly — it means an object declared in
-`objects/*.toml`, and everything else in the tree is invisible to it. See
-[Benchmarks jm cannot see](#benchmarks-jm-cannot-see) directly below,
-which is not a footnote: it is how four of doppler's benchmarks came to
-be compiled by every build and run by nothing.
+"Component" here means every `bench_<x>_core` target CMake builds,
+whether or not `objects/*.toml` declares it — see
+[Benchmarks that are not jm components](#benchmarks-that-are-not-jm-components)
+directly below.
 
-### Benchmarks jm cannot see
+### Benchmarks that are not jm components
 
-`jm bench` derives its work list from jm's component list, so a benchmark
-for anything that is **not an object** is never built and never run:
+Two kinds of benchmark have no manifest object behind them, so jm
+generates no bench target and theirs is registered by hand in a
+CMakeLists:
 
 - a **`c_deps` entry** — hand-owned C a module links (`conv`, `rs`,
-    `ccsds_tm`, `hbdecim`, `resamp`, `timing`);
+    `ccsds_tm`, `resamp`, `timing`, `spectrogram`);
 - a **function-only module** — one whose surface is free functions, with
     no object of its own (`mpsk`, `ber`, `snr`, `util`, `detection`).
 
-This is silent in every direction. The `.c` file exists, CMake builds the
-target, `jm status --check` is clean (benchmarks are not manifest-owned),
-and a snapshot missing a component looks exactly like one that includes
-it. Four benchmarks — `util`, `timing`, `hbdecim`, `resamp` — sat in that
-state for months, appearing in no published snapshot. Proof, in one
-command:
-
-```console
-$ just-makeit bench util
-error: unknown component(s): util
-```
-
-**jm runs them now, and doppler carries no runner of its own.** Making
-`jm bench` run a non-component benchmark was
-[just-makeit#1023](https://github.com/just-buildit/just-makeit/issues/1023),
-and it shipped: `jm bench` discovers every built bench target by scan. Name
-the ones you want with `BENCH_ARGS`:
+`jm bench` runs them anyway: since
+[just-makeit#1023](https://github.com/just-buildit/just-makeit/issues/1023)
+it discovers every built bench target by scan, and doppler carries no
+runner of its own. Before that shipped, four of them — `util`, `timing`,
+`hbdecim`, `resamp` — were compiled by every build and run by nothing for
+months, appearing in no published snapshot. Name the ones you want with
+`BENCH_ARGS`, and add `--c-only`: component names filter the C side only,
+and the whole Python suite would otherwise run beside them.
 
 ```sh
 make bench BENCH_ARGS="--c-only conv rs"
 ```
+
+A filtered run is never a release's numbers: `make bench-publish` refuses
+a C snapshot that lacks any of the tree's `native/benchmarks/bench_*_core.c`.
 
 **How many are not jm components is printed by the gate, not written here.**
 `make bench-coverage-check` counts them from the tree on every run and says
@@ -176,7 +170,7 @@ so in its OK line; a tally copied into this page would go stale the first
 time a benchmark is added, which is exactly how the numbers in the section
 below came to be wrong.
 
-What `scripts/check_bench_coverage.py` (on `make lint`) holds meanwhile is
+What `scripts/check_bench_coverage.py` (on `make lint`) holds is
 everything checkable without running them: each has a CMake target, records
 a measurement, and writes its JSON under the name a collector opens. That
 last one is not a formality — see below.

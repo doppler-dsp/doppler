@@ -10,7 +10,8 @@ burst still decodes to the same frame. Run non-paced (realtime=False) so the
 writer races and the reader drains it fast. Skips when the CLI isn't built.
 """
 
-import numpy as np
+import json
+
 import pytest
 
 from doppler.examples import dsss_realtime_file_demod as demo
@@ -24,20 +25,25 @@ pytestmark = [
 
 
 def test_tailing_pipeline_decodes_every_burst():
-    results = demo.run_streaming(4, realtime=False)
+    demo.check(demo.run_streaming(4, realtime=False), 4)
 
-    assert len(results) == 4
-    for r in results:
-        assert r["detected"], f"burst {r['burst']} not detected"
-        assert r["frame_valid"], f"burst {r['burst']} CRC failed"
-        assert np.array_equal(r["bits"], demo._PAYLOAD_BITS)
-        # Doppler is drawn per burst; the recovered estimate lands in the band.
-        assert (
-            demo.DOPPLER_LO - 200.0
-            <= r["est_freq_hz"]
-            <= demo.DOPPLER_HI + 200.0
-        ), f"burst {r['burst']} Doppler {r['est_freq_hz']:.0f} out of band"
-        assert 0 <= r["code_phase"] <= demo.JITTER_MAX + demo.SPC
+
+def test_a_refused_scene_raises_with_the_writers_reason(tmp_path):
+    """#1797: a writer that refuses its scene used to leave an empty results
+    list, and the example exited 0 having demonstrated nothing."""
+    scene = demo.write_scene(tmp_path / "scene.json")
+    spec = json.loads(scene.read_text(encoding="utf-8"))
+    spec["segments"][0]["sync"] = demo._bitstr(demo.SYNC)  # retired flat key
+    scene.write_text(json.dumps(spec), encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match=r'status 2 .*"sync" is retired'):
+        demo.run_streaming(2, realtime=False, scene_path=scene)
+
+
+def test_check_refuses_a_short_run():
+    """The example's own exit path: fewer bursts than asked for fails."""
+    with pytest.raises(AssertionError, match="0 of 6 bursts arrived"):
+        demo.check([], 6)
 
 
 def test_ranged_fields_vary_burst_to_burst():

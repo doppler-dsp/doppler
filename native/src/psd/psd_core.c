@@ -274,17 +274,26 @@ psd_db_ref (const dp_psd_state_t *s)
   return s->cg * s->cg * s->full_scale * s->full_scale;
 }
 
-/* pwr[0..n) as dBFS against the estimator's reference: the one conversion
- * both the averaged readouts and the single-frame readout go through. */
+/* pwr[0..n) read against the estimator's reference -- the one conversion
+ * every averaged readout and both single-frame readouts go through.  Linear
+ * (full-scale^2 units, into `lin`) and dBFS with the -200 dB floor (into
+ * `db`) come from the SAME double quotient, so the dB reading is exactly
+ * 10*log10 of the linear one before either is rounded to float.  Taking the
+ * log of the float-rounded linear value instead would move dB by up to an
+ * ulp, and frame_db is pinned byte-for-byte (#1894's kernel promotion).
+ * Either output may be NULL. */
 static void
-psd_power_to_db (const dp_psd_state_t *s, const float *pwr, float *out,
-                 size_t n)
+psd_read_power (const dp_psd_state_t *s, const float *pwr, float *lin,
+                float *db, size_t n)
 {
   const double ref = psd_db_ref (s);
   for (size_t i = 0; i < n; i++)
     {
-      double p = (double)pwr[i] / ref;
-      out[i]   = (float)(10.0 * log10 (fmax (p, PSD_FLOOR)));
+      const double p = (double)pwr[i] / ref;
+      if (lin)
+        lin[i] = (float)p;
+      if (db)
+        db[i] = (float)(10.0 * log10 (fmax (p, PSD_FLOOR)));
     }
 }
 
@@ -298,7 +307,7 @@ psd_fill_db (dp_psd_state_t *s, float *out, size_t max_out)
   if (!psd_pull_power (s))
     return 0;
   const size_t n_out = s->nfft < max_out ? s->nfft : max_out;
-  psd_power_to_db (s, s->pwr, out, n_out);
+  psd_read_power (s, s->pwr, NULL, out, n_out);
   return n_out;
 }
 
@@ -312,10 +321,18 @@ dp_psd_frame_power (dp_psd_state_t *state, const float _Complex *x, float *pwr)
 }
 
 void
+dp_psd_frame_linear (dp_psd_state_t *state, const float _Complex *x,
+                     float *out)
+{
+  dp_psd_frame_power (state, x, state->pwr);
+  psd_read_power (state, state->pwr, out, NULL, state->nfft);
+}
+
+void
 dp_psd_frame_db (dp_psd_state_t *state, const float _Complex *x, float *out)
 {
   dp_psd_frame_power (state, x, state->pwr);
-  psd_power_to_db (state, state->pwr, out, state->nfft);
+  psd_read_power (state, state->pwr, NULL, out, state->nfft);
 }
 
 /* ── linear-power accessors (raw spectral estimate for measurement) ────── */

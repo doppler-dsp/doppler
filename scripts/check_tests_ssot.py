@@ -122,6 +122,7 @@ import re
 import subprocess
 import sys
 
+from _c_source import strip_comments
 from _gitbase import BaseUnreadableError, resolve_base, show_at
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -342,56 +343,6 @@ RNG_HOME = "dp_rng_test.h"
 #: Pre-existing private generators, one per line, each with a reason.
 #: A RATCHET: it may only shrink. See the file's own header.
 RNG_RATCHET = ROOT / "scripts" / ".private-rng-ratchet"
-
-
-def strip_comments(text: str) -> str:
-    """Blank out C comments, preserving line numbering.
-
-    Required, not tidiness: `dp_rng_test.h` documents the broken generator it
-    replaced by QUOTING it, and `test_costas_core.c` explains in prose what it
-    no longer does. A scanner that reads comments would fire on the
-    documentation of the very rule it enforces — the failure mode where
-    describing a detector's target blinds or trips the detector.
-
-    String- and char-literal aware, which the first version was not. A regex
-    split treats the `/*` inside `"a/*b"` as opening a comment and blanks
-    everything up to the next `*/` in any later literal — taking real code
-    with it and reporting zero violations for the span. A false NEGATIVE, in
-    a gate whose entire value is being absolute, triggered by a test gaining
-    a URL or a format string. Found by review, not by the sabotage battery,
-    which only ever fed it well-formed code.
-    """
-    out, i, n = [], 0, len(text)
-    while i < n:
-        c = text[i]
-        if c == '"' or c == "'":  # literal: copied out verbatim
-            quote, j = c, i + 1
-            while j < n:
-                if text[j] == "\\":
-                    j += 2
-                    continue
-                if text[j] == quote:
-                    j += 1
-                    break
-                if text[j] == "\n":  # unterminated; do not run away
-                    break
-                j += 1
-            out.append(text[i:j])
-            i = j
-        elif text.startswith("/*", i):
-            j = text.find("*/", i + 2)
-            j = n if j < 0 else j + 2
-            out.append("".join(ch if ch == "\n" else " " for ch in text[i:j]))
-            i = j
-        elif text.startswith("//", i):
-            j = text.find("\n", i)
-            j = n if j < 0 else j
-            out.append(" " * (j - i))
-            i = j
-        else:
-            out.append(c)
-            i += 1
-    return "".join(out)
 
 
 #: A draw call from `dp_rng_test.h`, with the state it advances.

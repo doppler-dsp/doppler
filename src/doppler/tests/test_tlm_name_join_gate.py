@@ -24,6 +24,8 @@ import subprocess
 import sys
 from typing import TYPE_CHECKING
 
+import pytest
+
 from doppler.tests._repo import repo_root
 
 if TYPE_CHECKING:
@@ -104,6 +106,64 @@ dp_x_set_telemetry (dp_x_state_t *s, dp_tlm_t *tlm, const char *prefix)
 """
 
 
+# The review's miss (#1944): an apostrophe in an `#if 0` block opened a
+# character literal in the gate's private stripper, which ran on past the
+# join below it. _c_source.py stops a literal at the end of its line.
+IF0_APOSTROPHE = """\
+#if 0
+it's the old spelling
+#endif
+int
+dp_x_set_telemetry (dp_x_state_t *s, dp_tlm_t *tlm, const char *prefix)
+{
+  char name[DP_TLM_NAME_MAX];
+  snprintf (name, sizeof name, "%s.%s", prefix, "e");
+  return dp_tlm_probe (tlm, name, 1);
+}
+"""
+
+
+def _attach_with(fmt: str) -> str:
+    """A probe attach whose name is formatted from ``fmt`` (C source)."""
+    return (
+        "int\n"
+        "dp_x_set_telemetry (dp_x_state_t *s, dp_tlm_t *tlm, const char *p)\n"
+        "{\n"
+        "  char name[DP_TLM_NAME_MAX];\n"
+        f'  snprintf (name, sizeof name, {fmt}, p, "e");\n'
+        "  return dp_tlm_probe (tlm, name, 1);\n"
+        "}\n"
+    )
+
+
+# A set_telemetry that names a record FILE, not a probe prefix: no dp_tlm_t
+# in its signature, so its "%s.tlm" is a path and out of scope.
+PATH_SET_TELEMETRY = """\
+int
+dp_event_log_set_telemetry (dp_event_log_t *log, const char *path)
+{
+  snprintf (log->tlm_path, sizeof log->tlm_path, "%s.tlm", path);
+  return 0;
+}
+"""
+
+# The attach is DECLARED in a header; the .c only calls it. The call puts
+# the .c in scope even though the .c names no dp_tlm_t.
+ATTACH_DECL = """\
+int dp_child_set_telemetry (dp_child_t *c, dp_tlm_t *tlm, const char *p,
+                            uint32_t decim);
+"""
+CALLS_ATTACH = """\
+void
+attach_child (dp_child_t *c, void *ctx, const char *p)
+{
+  char child[64];
+  snprintf (child, sizeof child, "%s.car", p);
+  dp_child_set_telemetry (c, ctx, child, 1);
+}
+"""
+
+
 def _seed(tmp_path: Path, files: dict[str, str]) -> Path:
     """A minimal tree shaped like native/."""
     for rel, body in files.items():
@@ -172,3 +232,46 @@ def test_one_offender_among_many_is_still_found(tmp_path: Path) -> None:
     r = _run(_seed(tmp_path, files))
     assert r.returncode == 1, r.stdout + r.stderr
     assert "native/tests/test_z_core.c" in r.stdout
+
+
+def test_an_apostrophe_in_if0_does_not_hide_a_join(tmp_path: Path) -> None:
+    r = _run(_seed(tmp_path, {"src/x/x_core.c": IF0_APOSTROPHE}))
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "x_core.c:8" in r.stdout
+
+
+@pytest.mark.parametrize(
+    "fmt",
+    ['"%s" ".%s"', '"%.*s.%s"', '"%1$s.%2$s"', '"%-8s.%s"'],
+    ids=["joined-pieces", "precision", "positional", "flags-width"],
+)
+def test_every_spelling_of_the_join_fails(tmp_path: Path, fmt: str) -> None:
+    r = _run(_seed(tmp_path, {"src/x/x_core.c": _attach_with(fmt)}))
+    assert r.returncode == 1, r.stdout + r.stderr
+
+
+@pytest.mark.parametrize(
+    "fmt",
+    ['"%%s.%s"', '"tlm_capture_%s.tlm"'],
+    ids=["literal-percent", "file-name"],
+)
+def test_what_is_not_a_join_passes(tmp_path: Path, fmt: str) -> None:
+    r = _run(_seed(tmp_path, {"src/x/x_core.c": _attach_with(fmt)}))
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_a_path_taking_set_telemetry_is_out_of_scope(tmp_path: Path) -> None:
+    r = _run(_seed(tmp_path, {"src/log/log_core.c": PATH_SET_TELEMETRY}))
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_a_call_to_a_header_declared_attach_is_in_scope(
+    tmp_path: Path,
+) -> None:
+    files = {
+        "inc/child/child_core.h": ATTACH_DECL,
+        "src/parent/parent_core.c": CALLS_ATTACH,
+    }
+    r = _run(_seed(tmp_path, files))
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert '"%s.car"' in r.stdout

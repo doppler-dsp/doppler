@@ -146,7 +146,8 @@ agc_tlm_t tlm; /* live attachment; zeroed in blobs */
 ```
 
 **2. Attach function** — registers the object's probes under a caller prefix
-(setup path, in `agc_core.c`):
+(setup path, in `agc_core.c`). Names are joined by `dp_tlm_name_join()` and
+nowhere else, which `make lint-tlm-name-join` enforces:
 
 <!-- docs-snippet: skip=illustrative excerpt from agc_core.c, not standalone (needs the full dp_agc_state_t/agc_core.h context) -->
 
@@ -160,8 +161,12 @@ dp_agc_set_telemetry (dp_agc_state_t *s, dp_tlm_t *t, const char *prefix,
       s->tlm.ctx = NULL;
       return DP_OK;
     }
+  /* Every name is joined BEFORE the first registration, and only by
+     dp_tlm_name_join(): it refuses a prefix that would not fit, where a
+     bare snprintf truncates it and aliases two probes onto one entry. */
   char name[DP_TLM_NAME_MAX];
-  (void) snprintf (name, sizeof (name), "%s.gain_db", prefix);
+  if (dp_tlm_name_join (name, prefix, "gain_db") != DP_OK)
+    return DP_ERR_INVALID; /* overlong prefix: nothing registered */
   int id = dp_tlm_probe (t, name, decim);
   if (id < 0)
     return id; /* full table / bad name: attach fails whole */

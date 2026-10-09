@@ -25,6 +25,14 @@ are not links. A bare `m` in a jm-GENERATED file means the manifest declares
 it (`extra_link_libs = ["m"]`) -- fix it there, not in the file, because
 `jm apply` re-renders the file from the manifest.
 
+The contributor pages under `docs/dev/` are read too: every ```cmake
+fence on them is doppler's own CMake, so it is held to the same rule. A
+contributor copies that snippet into a real CMakeLists, and a page that
+teaches the bare `m` reintroduces the regression this gate exists to stop
+(`adding-a-module.md` did, for every hand-registered benchmark). Other docs
+show a CONSUMER project's CMake, where `${DP_MATH_LIBRARY}` does not exist,
+so they are left alone -- the same reason a separate project is.
+
 Usage:  python3 scripts/check_bare_libm.py [--root DIR] [--fix]
 Exit 0 when no link line names a bare `m`.
 """
@@ -83,6 +91,33 @@ def _files(root: Path) -> list[Path]:
     return out
 
 
+# Contributor pages, whose ```cmake fences show doppler's own tree.
+DOC_DIR = "docs/dev"
+FENCE = re.compile(r"^```cmake[^\n]*\n(.*?)^```", re.MULTILINE | re.DOTALL)
+
+
+def _doc_pages(root: Path) -> list[Path]:
+    """Every markdown page under DOC_DIR, archive pages excluded (frozen)."""
+    base = root / DOC_DIR
+    if not base.is_dir():
+        return []
+    return [
+        p
+        for p in sorted(base.rglob("*.md"))
+        if "archive" not in p.relative_to(base).parts
+    ]
+
+
+def _scan_fences(text: str) -> list[tuple[int, int]]:
+    """(line_index, column) of each bare `m`, in page coordinates, found in
+    the page's ```cmake fences."""
+    hits: list[tuple[int, int]] = []
+    for f in FENCE.finditer(text):
+        first = text.count("\n", 0, f.start(1))
+        hits += [(first + i, col) for i, col in _scan(f.group(1))]
+    return hits
+
+
 def _scan(
     text: str, call: re.Pattern[str] = CALL, item: re.Pattern[str] = BARE_M
 ) -> list[tuple[int, int]]:
@@ -129,9 +164,11 @@ def main() -> int:
 
     found: list[tuple[str, int, str]] = []
     fixed = 0
-    for path in _files(root):
+    pages = [(p, _scan) for p in _files(root)]
+    pages += [(p, _scan_fences) for p in _doc_pages(root)]
+    for path, scan in pages:
         text = path.read_text(errors="replace")
-        hits = _scan(text)
+        hits = scan(text)
         if not hits:
             continue
         rel = path.relative_to(root).as_posix()

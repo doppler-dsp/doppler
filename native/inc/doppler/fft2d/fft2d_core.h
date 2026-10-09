@@ -87,12 +87,15 @@ extern "C"
    *
    * @param state  Allocated FFT2D engine (non-NULL).
    * @param in     Flat row-major CF64 input, length ny*nx.
-   * @param n_in   Number of input samples; must equal ny*nx.
+   * @param n_in   Number of input samples; must equal ny*nx; else REFUSED.
    * @param out    Flat row-major CF64 output, length >= ny*nx (caller-allocated).
    * @param max_out Capacity of @p out in samples.  Normally ny*nx; if it is
    *                smaller the first max_out samples of the transform are
    *                written and the rest is discarded.
    * @return min(ny*nx, max_out) samples.
+   *          If @p n_in is not the required length the call is REFUSED with
+   *          nothing read, written or counted: SIZE_MAX in C, ValueError
+   *          in Python (#1925).
    * @code
    * >>> from doppler.spectral import FFT2D
    * >>> import numpy as np
@@ -120,12 +123,15 @@ extern "C"
    *
    * @param state  Allocated FFT2D engine (non-NULL).
    * @param in     Flat row-major CF32 input, length ny*nx.
-   * @param n_in   Number of input samples; must equal ny*nx.
+   * @param n_in   Number of input samples; must equal ny*nx; else REFUSED.
    * @param out    Flat row-major CF32 output, length >= ny*nx (caller-allocated).
    * @param max_out Capacity of @p out in samples.  Normally ny*nx; if it is
    *                smaller the first max_out samples of the transform are
    *                written and the rest is discarded.
    * @return min(ny*nx, max_out) samples.
+   *          If @p n_in is not the required length the call is REFUSED with
+   *          nothing read, written or counted: SIZE_MAX in C, ValueError
+   *          in Python (#1925).
    * @code
    * >>> from doppler.spectral import FFT2D
    * >>> import numpy as np
@@ -153,12 +159,15 @@ extern "C"
    *
    * @param state  Allocated FFT2D engine (non-NULL).
    * @param in     Source, ny*nx CF64 flat row-major; not modified.
-   * @param n_in   Number of input samples; must equal ny*nx.
+   * @param n_in   Number of input samples; must equal ny*nx; else REFUSED.
    * @param out    Destination, length >= ny*nx; must not alias in.
    * @param max_out Capacity of @p out in samples.  Normally ny*nx; if it is
    *                smaller the copy-and-transform happens in scratch and
    *                only the first max_out samples reach @p out.
    * @return min(ny*nx, max_out) samples.
+   *          If @p n_in is not the required length the call is REFUSED with
+   *          nothing read, written or counted: SIZE_MAX in C, ValueError
+   *          in Python (#1925).
    * @code
    * >>> from doppler.spectral import FFT2D
    * >>> import numpy as np
@@ -183,12 +192,15 @@ extern "C"
    *
    * @param state  Allocated FFT2D engine (non-NULL).
    * @param in     Source, ny*nx CF32 flat row-major; not modified.
-   * @param n_in   Number of input samples; must equal ny*nx.
+   * @param n_in   Number of input samples; must equal ny*nx; else REFUSED.
    * @param out    Destination, length >= ny*nx; must not alias in.
    * @param max_out Capacity of @p out in samples.  Normally ny*nx; if it is
    *                smaller the copy-and-transform happens in scratch and
    *                only the first max_out samples reach @p out.
    * @return min(ny*nx, max_out) samples.
+   *          If @p n_in is not the required length the call is REFUSED with
+   *          nothing read, written or counted: SIZE_MAX in C, ValueError
+   *          in Python (#1925).
    * @code
    * >>> from doppler.spectral import FFT2D
    * >>> import numpy as np

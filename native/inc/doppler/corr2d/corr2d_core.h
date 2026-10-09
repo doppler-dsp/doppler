@@ -225,12 +225,15 @@ size_t dp_corr2d_execute_max_out(dp_corr2d_state_t *state);
  *
  * @param state  Allocated 2-D correlator (non-NULL).
  * @param in     Input frame, flat row-major CF32, length ny*nx.
- * @param n_in   Number of input samples; must equal ny*nx.
+ * @param n_in   Number of input samples; must equal ny*nx; else REFUSED.
  * @param out    Output buffer for the correlation map (CF32, length ny*nx);
  *               written only on a dump call.
  * @param max_out Capacity of @p out in elements. Emission stops there, so the
  *               return value is the number actually written.
  * @return ny*nx on a dump (or max_out if smaller), 0 otherwise
+ *          If @p n_in is not the required length the call is REFUSED with
+ *          nothing read, written or counted: SIZE_MAX in C, ValueError
+ *          in Python (#1925).
  *         (None in Python).
  * @code
  * >>> from doppler.spectral import Corr2D

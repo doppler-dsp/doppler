@@ -3,6 +3,7 @@
 #include "doppler/clib_common.h"
 #include "doppler/dp_complex.h"
 #include <math.h>
+#include <stdint.h>
 #include <string.h>
 
 /* 1-D spectral zero-pad: q (length m >= n) is the band-limited (Dirichlet)
@@ -386,7 +387,11 @@ size_t
 dp_corr2d_execute (dp_corr2d_state_t *state, const float _Complex *in,
                    size_t n_in, float _Complex *out, size_t max_out)
 {
-  (void)n_in;
+  /* n_in must equal ny*nx; refuse before touching the accumulator, so a
+   * refused call is not counted toward the dwell (#1925, as dp_corr_execute).
+   */
+  if (n_in != state->n)
+    return SIZE_MAX;
 
   /* Emission stops at the caller's capacity (jm gh-138). Neither path can
    * serve a short buffer by writing less -- the 2-D inverse plan is fixed at

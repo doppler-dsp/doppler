@@ -379,10 +379,10 @@ specific tap set.
 wfmgen --type pn --pn-length 7   --sps 1 --count 127   # one full period (2⁷−1)
 wfmgen --type pn --pn-length 11  --sps 4               # length-11 MLS, 4× oversampled
 wfmgen --type pn --pn-length 7   --lfsr fibonacci      # Fibonacci realization
-# Force a specific tap set instead of the auto-selected one. 0x60 is the
+# Force a specific tap set instead of the auto-selected one. 0x41 is the
 # table's own entry for length 7 (x⁷+x⁶+1), so this is byte-identical to
 # --pn-poly 0 above -- which is how you check a polynomial you were handed.
-wfmgen --type pn --pn-length 7 --pn-poly 0x60 --sps 1 --count 127 -o pn7.cf32
+wfmgen --type pn --pn-length 7 --pn-poly 0x41 --sps 1 --count 127 -o pn7.cf32
 ```
 
 `--lfsr` selects the LFSR realization: **`galois`** (default, internal XOR

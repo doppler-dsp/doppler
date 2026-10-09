@@ -311,7 +311,7 @@ rx.sps      # 8.0 — computed from the two rates
 rx.m_out    # 8   — derived, not chosen
 ```
 
-Two required arguments against `MpskReceiver`'s seventeen. `m` is carried by
+Two required arguments against `MpskReceiver`'s fifteen. `m` is carried by
 the class name; `sps`, `m_out`, `num_phases` and `bn_agc_ratio` are
 internal choices the object makes for itself; and `carrier_freq_hz` defaults to
 0 for complex baseband. Everything a caller has a real reason to pin — the

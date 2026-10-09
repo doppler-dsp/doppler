@@ -47,7 +47,8 @@ single-FFT estimate) and a **severe LEO chirp** (`> 0`, the coherent rate
 search). It is one-shot per burst — seed it from acquisition and call `demod`.
 
 The frame is `[sync header][payload][CRC-16 trailer]` in BPSK symbols (no FEC).
-`demod(x)` returns the payload bits; the read-back properties report
+`demod(x)` returns the whole frame's bits, sync header first, then payload, then
+the CRC trailer (the example below slices all three); the read-back properties report
 `frame_valid` (CRC), `est_freq_hz`, `est_rate_hz`, `frame_offset`, and
 `n_symbols`.
 

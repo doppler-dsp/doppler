@@ -16,7 +16,7 @@ All published images are multi-arch (`linux/amd64` + `linux/arm64`) and tagged
 ## Runtime — try it
 
 The published pull-and-run image: the full Python package with the `cli` and
-`specan-web` extras, numpy/scipy/matplotlib, and the ~70 example scripts under
+`specan-web` extras, numpy/scipy/matplotlib, and the example scripts (the `src/doppler/examples` directory) under
 `/examples`. `doppler`, `doppler-fir`, `doppler-source`, `doppler-specan`, and
 `wfmgen` are all on `PATH`.
 

@@ -35,7 +35,7 @@ import numpy as np
 
 f = FFT(1024)
 
-# CF32 — single precision (~2× faster)
+# CF32 — single precision (1.6× faster at N = 1024, see the table above)
 x32 = (np.random.randn(1024) + 1j * np.random.randn(1024)).astype(np.complex64)
 X32 = f.execute_cf32(x32)
 assert X32.dtype == np.complex64

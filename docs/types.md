@@ -73,7 +73,7 @@ ______________________________________________________________________
 | `nco`                    | —                                   | `uint32_t`             |
 | `fir`                    | `float _Complex`                    | `float _Complex`       |
 | `fft`, `fft2d`           | `float _Complex`, `double _Complex` | same                   |
-| `corr`, `corr2d`         | `float _Complex`                    | `double _Complex`      |
+| `corr`, `corr2d`         | `float _Complex`                    | `float _Complex`       |
 | `detector`, `detector2d` | `float _Complex`                    | detections             |
 | `ddc` (complex)          | `float _Complex`                    | `float _Complex`       |
 | `ddc` (real)             | `float`                             | `float _Complex`       |
@@ -128,7 +128,7 @@ ______________________________________________________________________
 
 ## Reading interleaved I/Q in Python
 
-`wavegen` / `wfmgen` write **interleaved** I/Q (`I Q I Q …`) in the chosen
+`wfmgen` writes **interleaved** I/Q (`I Q I Q …`) in the chosen
 `--sample-type`. A naive `np.fromfile` gets the layout wrong — and for the
 integer types, the scale too — so it's worth knowing what each type costs:
 

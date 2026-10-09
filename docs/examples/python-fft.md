@@ -23,7 +23,7 @@ print(f"Parseval error: {err:.3e}")
 
 ```text
 complex64
-Parseval error: 2.441e-04
+Parseval error: 4.883e-04
 ```
 
 CF64 input auto-selects the double-precision path:

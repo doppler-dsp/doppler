@@ -283,17 +283,19 @@ component), and a Python producer publishes `read()` output directly.
 Either way, `Subscriber.recv()` decodes the frame back into the exact
 `read()` dtype:
 
-<!-- docs-snippet: skip=illustrative multi-process fragment (names span two pipelines; not runnable in one namespace) -->
+<!-- docs-snippet: broker=publishes and receives one TLM16 frame over NATS; needs a broker on :4222 -->
 
 ```python
+import time
 from doppler.stream import Publisher, Subscriber, TLM16
 
 pub = Publisher("nats://127.0.0.1:4222/tlm", TLM16)
 sub = Subscriber("nats://127.0.0.1:4222/tlm")
+time.sleep(0.5)  # core NATS drops a frame sent before the subscription lands
 
-pub.send(tlm.read())  # the structured array, verbatim
+pub.send(recs)  # the structured array read above, verbatim (read() drains)
 recs, hdr = sub.recv(timeout_ms=2000)
-assert hdr["sample_type"] == TLM16
+assert hdr["kind"] == TLM16  # telemetry is a frame kind; format stays 0
 assert recs.dtype.names == ("n", "value", "probe", "flags")
 ```
 

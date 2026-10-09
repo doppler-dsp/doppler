@@ -110,7 +110,7 @@ params = [{ name = "f0_coarse", type = "double" }, { name = "start", type = "siz
 
 [[burst_demod.methods]]
 name = "demod"
-doc = "Demodulate a burst (preamble + frame); return the payload bits. Read-back properties report the estimates + CRC validity."
+doc = "Demodulate a burst (preamble + frame); return the frame's bits: sync header, payload, then CRC-16 trailer. Read-back properties report the estimates + CRC validity."
 arg_type = "void"
 return_type = "uint8_t"
 variable_output = true

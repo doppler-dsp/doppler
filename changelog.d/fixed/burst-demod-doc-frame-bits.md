@@ -1,0 +1,1 @@
+- **`BurstDemod.demod` documents what it returns: the frame's bits.** The docstring said "the payload bits", but the call returns the sync header, the payload and the CRC-16 trailer, in that order, as sent. The runtime `__doc__` and the stub now say so.

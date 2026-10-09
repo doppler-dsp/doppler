@@ -200,8 +200,14 @@ def wfmgen_available():
         return None
 
 
-def start_writer(capture_path, scene_path, *, realtime=True):
-    """Launch wfmgen streaming the scene to disk in the background."""
+def start_writer(capture_path, scene_path, *, realtime=True, log=None):
+    """Launch wfmgen streaming the scene to disk in the background.
+
+    ``log`` is an open binary file that receives the writer's stderr, so a
+    refused scene can say why; it is discarded when ``log`` is None. A file
+    rather than a pipe: a ``--continuous`` writer runs until it is
+    terminated, and nothing drains a pipe while the reader is busy.
+    """
     exe = wfmgen_available()
     if exe is None:
         raise FileNotFoundError("wfmgen CLI not found (build wfmgen_cli)")
@@ -216,7 +222,9 @@ def start_writer(capture_path, scene_path, *, realtime=True):
     if realtime:
         cmd.append("--realtime")
     return subprocess.Popen(
-        cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        cmd,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL if log is None else log,
     )
 
 
@@ -337,17 +345,63 @@ def tail_decode(capture_path, n_bursts, *, proc=None, on_decode=None):
 def run_streaming(
     n_bursts=6, *, realtime=True, scene_path=None, on_decode=None
 ):
-    """Stream the scene with wfmgen and follow-decode `n_bursts` live."""
+    """Stream the scene with wfmgen and follow-decode `n_bursts` live.
+
+    Raises ``RuntimeError`` carrying the writer's exit status and stderr if
+    the writer stops on its own. It runs ``--continuous``, so it never ends
+    by itself; one that has exited refused the scene or died, and the
+    bursts decoded before that are not the run that was asked for.
+    """
     with tempfile.TemporaryDirectory() as tmp:
         scene = scene_path or write_scene(Path(tmp) / "scene.json")
         cap = Path(tmp) / "capture.cf32"
-        proc = start_writer(cap, scene, realtime=realtime)
-        try:
-            return tail_decode(cap, n_bursts, proc=proc, on_decode=on_decode)
-        finally:
-            if proc.poll() is None:
-                proc.terminate()
-            proc.wait()
+        log_path = Path(tmp) / "writer.log"
+        with open(log_path, "wb") as log:
+            proc = start_writer(cap, scene, realtime=realtime, log=log)
+            try:
+                results = tail_decode(
+                    cap, n_bursts, proc=proc, on_decode=on_decode
+                )
+                status = proc.poll()  # None: still streaming, as it should
+            finally:
+                if proc.poll() is None:
+                    proc.terminate()
+                proc.wait()
+        if status is not None:
+            why = log_path.read_text(encoding="utf-8", errors="replace")
+            why = why.strip()
+            raise RuntimeError(
+                f"wfmgen writer exited with status {status} after "
+                f"{len(results)} of {n_bursts} bursts: "
+                f"{why or '(nothing on stderr)'}"
+            )
+        return results
+
+
+def check(results, n_bursts):
+    """Assert the run demonstrated what it claims, against the scene's truth.
+
+    Every burst arrived, was detected, passed its CRC carrying the payload
+    the scene sent, recovered a Doppler inside the drawn band, and placed
+    its code phase inside the drawn arrival jitter. Shared by ``main()``
+    and the module's test, so the example and its test cannot disagree
+    about what success is.
+    """
+    assert len(results) == n_bursts, (
+        f"{len(results)} of {n_bursts} bursts arrived"
+    )
+    for r in results:
+        k = r["burst"]
+        assert r["detected"], f"burst {k} not detected"
+        assert r["frame_valid"], f"burst {k} CRC failed"
+        assert np.array_equal(r["bits"], _PAYLOAD_BITS), f"burst {k} bits"
+        # Doppler is drawn per burst; the recovered estimate lands in band.
+        assert DOPPLER_LO - 200.0 <= r["est_freq_hz"] <= DOPPLER_HI + 200.0, (
+            f"burst {k} Doppler {r['est_freq_hz']:.0f} Hz out of band"
+        )
+        assert 0 <= r["code_phase"] <= JITTER_MAX + SPC, (
+            f"burst {k} code phase {r['code_phase']} outside the jitter"
+        )
 
 
 def main():
@@ -399,7 +453,8 @@ def main():
             tag = "no-det" if not r["detected"] else "FAIL"
             print(f"  {dt:5.1f} {k:<5} {tag:<4}")
 
-    results = run_streaming(6, realtime=True, on_decode=report)
+    n_bursts = 6
+    results = run_streaming(n_bursts, realtime=True, on_decode=report)
     decoded = [r for r in results if r["frame_valid"]]
     if decoded:
         bit_errs = sum(
@@ -414,6 +469,7 @@ def main():
             f"mean SNR {sum(snrs) / len(snrs):.1f} dB"
         )
     print()
+    check(results, n_bursts)
 
 
 if __name__ == "__main__":

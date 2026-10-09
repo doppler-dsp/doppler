@@ -212,6 +212,8 @@
 * **DSSS\_RECEIVER\_STATE\_VERSION** ([**dsss\_receiver\_core.h**](dsss__receiver__core_8h.md))
 * **DSSS\_RX\_BN\_CARRIER** ([**dsss\_receiver\_core.h**](dsss__receiver__core_8h.md))
 * **DSSS\_RX\_BN\_FLL** ([**dsss\_receiver\_core.h**](dsss__receiver__core_8h.md))
+* **DP\_SPECTROGRAM\_DB** ([**spectrogram\_core.h**](spectrogram__core_8h.md))
+* **DP\_SPECTROGRAM\_POWER** ([**spectrogram\_core.h**](spectrogram__core_8h.md))
 * **DP\_WFM\_PLAN\_WHY\_NO\_NOISE** ([**wfm\_plan.h**](wfm__plan_8h.md))
 
 
@@ -385,6 +387,8 @@
 
 * **SPECAN\_STATE\_MAGIC** ([**specan\_core.h**](specan__core_8h.md))
 * **SPECAN\_STATE\_VERSION** ([**specan\_core.h**](specan__core_8h.md))
+* **SPECTROGRAM\_STATE\_MAGIC** ([**spectrogram\_core.h**](spectrogram__core_8h.md))
+* **SPECTROGRAM\_STATE\_VERSION** ([**spectrogram\_core.h**](spectrogram__core_8h.md))
 * **SYMSYNC\_LOCK\_EPS** ([**symsync\_core.h**](symsync__core_8h.md))
 * **SYMSYNC\_STATE\_MAGIC** ([**symsync\_core.h**](symsync__core_8h.md))
 * **SYMSYNC\_STATE\_VERSION** ([**symsync\_core.h**](symsync__core_8h.md))

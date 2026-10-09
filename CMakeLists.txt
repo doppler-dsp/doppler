@@ -523,6 +523,7 @@ add_subdirectory(native/src/wfmcompose)
 add_subdirectory(native/src/ccsds_tm)
 add_subdirectory(native/src/conv)
 add_subdirectory(native/src/rs)
+add_subdirectory(native/src/spectrogram)
 add_subdirectory(native/src/frame_meter)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:frame_meter_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:frame_meter_core>)
@@ -925,6 +926,13 @@ target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:conv_core>)
 # ccsds_tm_rs_* resolve inside the archive and the field operations do not.
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:rs_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:rs_core>)
+
+# spectrogram_core, a hand-owned c_dep until its Python face moves it to a jm
+# object (#1894 slice 3b): native/inc/doppler/spectrogram is an installed
+# header whose every function is out-of-line, and nothing depends on it with
+# link=true, so jm wires it nowhere and reports it UNWIRED without this line.
+target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:spectrogram_core>)
+target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:spectrogram_core>)
 
 # The capture's block bound is claimed from a code audit of every emit site.
 # This drives a REAL object -- carrier_nda, the only unconditional per-input

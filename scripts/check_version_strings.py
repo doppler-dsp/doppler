@@ -9,10 +9,11 @@ belong in the places releases actually bump (`pyproject.toml`,
 and let the reader's installer resolve it.
 
 This gate greps every hand-owned markdown page (README.md + docs/,
-excluding the generated `c-api/`+`benchmarks.md` and the frozen
-`archive/`) for the literal version currently in `pyproject.toml`. It
-fires at introduction time: the PR that hand-types today's version fails
-CI today, instead of the page silently going stale at the next bump.
+excluding the generated `c-api/`, `benchmarks.md` and `dev/issues.md`,
+and the frozen `archive/`) for the literal version currently in
+`pyproject.toml`. It fires at introduction time: the PR that hand-types
+today's version fails CI today, instead of the page silently going stale
+at the next bump.
 *Old* version strings (an illustrative `--version 0.33.1` pin, a
 historical decision record) don't match the current version and pass --
 they are history, not claims about the present.
@@ -32,7 +33,11 @@ ROOT = Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
 
 EXCLUDED_PARTS = {"c-api", "archive"}
-EXCLUDED_RELPATHS = {"benchmarks.md"}
+# dev/issues.md is rendered from the live issue titles by `make issues`. A
+# title saying a regression shipped "in v0.65.0" is dated history, still true
+# after the next release, and the page's own drift gate
+# (gen_issue_tracker --check) already owns its text.
+EXCLUDED_RELPATHS = {"benchmarks.md", "dev/issues.md"}
 
 # just-makeit's own version numbers are quoted all over the docs, and doppler's
 # version climbs into the same range (0.58.0 is both a doppler release and a jm

@@ -528,10 +528,11 @@ def build(write: bool = True) -> Report:
             ],
             [
                 "C9",
-                "`frames_for(n)` is what `feed(n)` then a drain yields, "
-                "with or without a hop owed",
+                "`frames_for(n)` is what `feed(n, SIZE_MAX)` then a drain "
+                "yields, with or without a hop owed and where the ring, not "
+                "the input, is the limit",
                 "§10 (NEW)",
-                "off by one; ignores the owed hop",
+                "off by one; ignores the owed hop; ignores the ring's room",
                 "—",
             ],
             [
@@ -573,10 +574,11 @@ def build(write: bool = True) -> Report:
             ],
             [
                 "C15",
-                "a snapshot of another shape, hop or with corrupt counters is "
-                "refused",
+                "a snapshot of another shape, hop, sample type or with "
+                "corrupt counters is refused",
                 "§6, §9, §10",
-                "hop check removed; counter check removed",
+                "hop check removed; counter check removed; sample-type "
+                "check removed",
                 "§2.4",
             ],
             [

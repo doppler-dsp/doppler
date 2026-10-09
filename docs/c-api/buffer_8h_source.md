@@ -719,6 +719,10 @@ typedef enum
 
 #define DP_FRAMER_STATE_MAGIC DP_FOURCC ('F', 'R', 'M', 'R')
 
+#define DP_FRAMER_STATE_WRITTEN_OFFSET(sample_t, frame_n)                     \
+  (sizeof (dp_state_hdr_t) + 2 * sizeof (uint64_t)                            \
+   + ((frame_n) - 1) * 2 * sizeof (sample_t))
+
 /* A stamped face is DEFINED in the includer's translation unit. clang warns
  * about any unused static function defined in the MAIN file -- inline or not
  * -- so a program that stamps the framed face in a .c file and calls some of
@@ -884,7 +888,7 @@ typedef enum
   static inline DP_BUFFER_UNUSED size_t                                       \
   dp_##name##_framer_state_bytes (const dp_##name##_framer_t *fr)             \
   {                                                                           \
-    return sizeof (dp_state_hdr_t) + sizeof (uint64_t)                        \
+    return sizeof (dp_state_hdr_t) + 2 * sizeof (uint64_t)                    \
            + (fr->frame_n - 1) * 2 * sizeof (type) + 3 * sizeof (uint64_t);   \
   }                                                                           \
                                                                               \
@@ -902,6 +906,7 @@ typedef enum
     size_t t = DP_LOAD_RLX (&fr->ring->tail) + fr->owed;                      \
     size_t live = dp_##name##_available (fr->ring) - fr->owed;                \
     dp_w_u64 (&_w, live);                                                     \
+    dp_w_u64 (&_w, sizeof (type));                                            \
     dp_w_bytes (&_w, &fr->ring->data[(t & fr->ring->mask) * 2],               \
                 live * 2 * sizeof (type));                                    \
     /* The unused slots are written, as zeros: a byte get_state leaves alone is \
@@ -922,6 +927,7 @@ typedef enum
     size_t want = dp_##name##_framer_state_bytes (fr);                        \
     DP_SET_OPEN (DP_FRAMER_STATE_MAGIC, 1u, want);                            \
     uint64_t live = dp_r_u64 (&_r);                                           \
+    uint64_t elem_bytes = dp_r_u64 (&_r);                                     \
     const void *src                                                           \
         = dp_r_reserve (&_r, (fr->frame_n - 1) * 2 * sizeof (type));          \
     uint64_t written = dp_r_u64 (&_r);                                        \
@@ -929,7 +935,8 @@ typedef enum
     uint64_t hop = dp_r_u64 (&_r);                                            \
     /* Frames retired exactly frames*hop samples, so what remains is written  \
        minus that. Anything else is a corrupt blob, not a snapshot. */        \
-    if (_r.err || hop != fr->hop || live > fr->frame_n - 1                    \
+    if (_r.err || elem_bytes != sizeof (type) || hop != fr->hop               \
+        || live > fr->frame_n - 1                                             \
         || frames > UINT64_MAX / fr->hop                                      \
         || written < frames * fr->hop || written - frames * fr->hop != live)  \
       return DP_ERR_INVALID;                                                  \

@@ -43,13 +43,13 @@ The campaign's order is header first. *Pin* is the C section that asserts the cl
 | C6 | `next` is zero-copy and its pointer holds until the next call | §10 (NEW) | a pointer into the mirror alias | — |
 | C7 | `settle` retires exactly the owed hop, once | §10 (NEW) | hop - 1; owed not cleared | — |
 | C8 | `drained` is exactly "`next` would return NULL" | §10 (NEW), §8 | `<=` for `<` | — |
-| C9 | `frames_for(n)` is what `feed(n)` then a drain yields, with or without a hop owed | §10 (NEW) | off by one; ignores the owed hop | — |
+| C9 | `frames_for(n)` is what `feed(n, SIZE_MAX)` then a drain yields, with or without a hop owed and where the ring, not the input, is the limit | §10 (NEW) | off by one; ignores the owed hop; ignores the ring's room | — |
 | C10 | `flush` emits the grid row iff it holds an uncovered sample, once, and restarts | §5 | off the grid; second flush; no restart | §2.3 |
 | C11 | `flush` is refused, changing nothing, while frames are buffered | §8 | guard removed (ASan stack overflow) | §2.5 |
 | C12 | `reset` restarts at sample 0 | §10 (NEW) | `written` not cleared | — |
 | C13 | the snapshot size depends on the shape alone | §6, §10 | sized by fill; ignoring n | §2.4 |
 | C14 | a snapshot resumes bit-for-bit in a fresh framer, anywhere | §6 | `frames` not stored | §2.4 |
-| C15 | a snapshot of another shape, hop or with corrupt counters is refused | §6, §9, §10 | hop check removed; counter check removed | §2.4 |
+| C15 | a snapshot of another shape, hop, sample type or with corrupt counters is refused | §6, §9, §10 | hop check removed; counter check removed; sample-type check removed | §2.4 |
 | C16 | an undrained `get_state` writes zeros, never a truncated blob | §8 | guard removed | §2.5 |
 | C17 | the element views are casts of the scalar face | §7 (by use) | — | — |
 | C18 | the framer owns its ring exclusively | — | a contract; not testable (F5) | — |

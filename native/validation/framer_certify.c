@@ -384,8 +384,8 @@ sweep_snapshot (int emit)
           const size_t want = (total - n) / hop + 1;
           resume_bad += (bad != 0 || rows != want || rows_at_cut > want);
           /* a snapshot whose written counter is wrong is refused */
-          ((uint64_t *)((char *)blob + sizeof (dp_state_hdr_t)
-                        + sizeof (uint64_t) + (n - 1) * 2 * sizeof (float)))[0]
+          ((uint64_t *)((char *)blob
+                        + DP_FRAMER_STATE_WRITTEN_OFFSET (float, n)))[0]
               ^= 0x5555u;
           tried++;
           refused += dp_f32_framer_set_state (&b, blob) == DP_ERR_INVALID;

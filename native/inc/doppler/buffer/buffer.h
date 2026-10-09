@@ -1117,6 +1117,22 @@ typedef enum
 /** @brief FourCC of a framer snapshot (see dp_<name>_framer_state_bytes). */
 #define DP_FRAMER_STATE_MAGIC DP_FOURCC ('F', 'R', 'M', 'R')
 
+/**
+ * @brief Byte offset of the @c written counter in a framer snapshot.
+ *
+ * The layout is `[hdr][live][sizeof sample][frame_n - 1 samples]`
+ * then the counters `written`, `frames`, `hop` (see
+ * dp_<name>_framer_state_bytes). A test that corrupts a counter on purpose
+ * names the offset here rather than restating the arithmetic, so the layout
+ * has one declaration.
+ *
+ * @param sample_t  Scalar sample type (@c float, @c double, @c int16_t).
+ * @param frame_n   Samples per frame.
+ */
+#define DP_FRAMER_STATE_WRITTEN_OFFSET(sample_t, frame_n)                     \
+  (sizeof (dp_state_hdr_t) + 2 * sizeof (uint64_t)                            \
+   + ((frame_n) - 1) * 2 * sizeof (sample_t))
+
 /* A stamped face is DEFINED in the includer's translation unit. clang warns
  * about any unused static function defined in the MAIN file -- inline or not
  * -- so a program that stamps the framed face in a .c file and calls some of
@@ -1398,8 +1414,8 @@ typedef enum
   /**                                                                         \
    * @brief Bytes of a framer snapshot -- a function of the SHAPE alone.      \
    *                                                                          \
-   * `[hdr][u64 live][(frame_n - 1) samples][u64 written][u64 frames][u64 hop]`. \
-   * The                                                                      \
+   * `[hdr][u64 live][u64 sizeof(type)][(frame_n - 1) samples]`               \
+   * `[u64 written][u64 frames][u64 hop]`. The                                 \
    * sample region is always frame_n - 1 slots, whatever is buffered, because \
    * dp_state_validate() requires the blob's size to equal the RECEIVER's     \
    * state_bytes: a blob sized by current fill would be refused by a fresh    \
@@ -1407,12 +1423,18 @@ typedef enum
    * once drained. No ring positions are stored, so the snapshot is independent \
    * of how the ring happens to be mapped. The hop is stored because the size \
    * does not carry it: a framer of the same frame_n and a different hop would \
-   * otherwise accept a snapshot whose counters mean something else.          \
+   * otherwise accept a snapshot whose counters mean something else. The same \
+   * goes for the sample type: the magic is shared by every instantiation, so \
+   * the size alone cannot tell them apart (f64 at frame 5, f32 at frame 9    \
+   * and i16 at frame 17 are all the same number of bytes), and a double blob \
+   * would restore into an f32 framer as reinterpreted samples. The element   \
+   * size is therefore stored and checked (frame_n needs no field: for one   \
+   * type the size fixes it).                                                \
    */                                                                         \
   static inline DP_BUFFER_UNUSED size_t                                       \
   dp_##name##_framer_state_bytes (const dp_##name##_framer_t *fr)             \
   {                                                                           \
-    return sizeof (dp_state_hdr_t) + sizeof (uint64_t)                        \
+    return sizeof (dp_state_hdr_t) + 2 * sizeof (uint64_t)                    \
            + (fr->frame_n - 1) * 2 * sizeof (type) + 3 * sizeof (uint64_t);   \
   }                                                                           \
                                                                               \
@@ -1439,6 +1461,7 @@ typedef enum
     size_t t = DP_LOAD_RLX (&fr->ring->tail) + fr->owed;                      \
     size_t live = dp_##name##_available (fr->ring) - fr->owed;                \
     dp_w_u64 (&_w, live);                                                     \
+    dp_w_u64 (&_w, sizeof (type));                                            \
     dp_w_bytes (&_w, &fr->ring->data[(t & fr->ring->mask) * 2],               \
                 live * 2 * sizeof (type));                                    \
     /* The unused slots are written, as zeros: a byte get_state leaves alone is \
@@ -1454,8 +1477,9 @@ typedef enum
                                                                               \
   /**                                                                         \
    * @brief Restore a snapshot into a framer of the same shape.               \
-   * @return DP_OK, or DP_ERR_INVALID: wrong shape or magic, or counters that \
-   *         disagree with the buffered samples. Nothing is changed on failure. \
+   * @return DP_OK, or DP_ERR_INVALID: wrong shape, sample type or magic, or  \
+   *         counters that disagree with the buffered samples. Nothing is     \
+   *         changed on failure.                                              \
    */                                                                         \
   static inline DP_BUFFER_UNUSED int                                          \
   dp_##name##_framer_set_state (dp_##name##_framer_t *fr, const void *blob)   \
@@ -1463,6 +1487,7 @@ typedef enum
     size_t want = dp_##name##_framer_state_bytes (fr);                        \
     DP_SET_OPEN (DP_FRAMER_STATE_MAGIC, 1u, want);                            \
     uint64_t live = dp_r_u64 (&_r);                                           \
+    uint64_t elem_bytes = dp_r_u64 (&_r);                                     \
     const void *src                                                           \
         = dp_r_reserve (&_r, (fr->frame_n - 1) * 2 * sizeof (type));          \
     uint64_t written = dp_r_u64 (&_r);                                        \
@@ -1470,7 +1495,8 @@ typedef enum
     uint64_t hop = dp_r_u64 (&_r);                                            \
     /* Frames retired exactly frames*hop samples, so what remains is written  \
        minus that. Anything else is a corrupt blob, not a snapshot. */        \
-    if (_r.err || hop != fr->hop || live > fr->frame_n - 1                    \
+    if (_r.err || elem_bytes != sizeof (type) || hop != fr->hop               \
+        || live > fr->frame_n - 1                                             \
         || frames > UINT64_MAX / fr->hop                                      \
         || written < frames * fr->hop || written - frames * fr->hop != live)  \
       return DP_ERR_INVALID;                                                  \

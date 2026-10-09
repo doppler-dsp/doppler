@@ -31,6 +31,14 @@
 DECLARE_DP_BUFFER_FRAMES (f32, float, float _Complex)
 DECLARE_DP_BUFFER_FRAMES (f64, double, double _Complex)
 
+/* The i16 instantiation, stamped here for the same reason: i16_buffer_core.h
+   declares the same thing beside its VIEW. */
+typedef struct
+{
+  int16_t re, im;
+} iq16_t;
+DECLARE_DP_BUFFER_FRAMES (i16, int16_t, iq16_t)
+
 typedef struct
 {
   size_t N, H;
@@ -405,9 +413,8 @@ main (void)
         DP_REQUIRE (dp_f32_framer_init (&c, rc, N, H) == DP_OK);
         dp_f32_framer_get_state (&a, blob);
         uint64_t bad = 0xFFFFFFFFull;
-        memcpy ((char *)blob + sizeof (dp_state_hdr_t) + sizeof (uint64_t)
-                    + (N - 1) * 2 * sizeof (float),
-                &bad, sizeof bad);
+        memcpy ((char *)blob + DP_FRAMER_STATE_WRITTEN_OFFSET (float, N), &bad,
+                sizeof bad);
         DP_CHECK (dp_f32_framer_set_state (&c, blob) == DP_ERR_INVALID);
         DP_CHECK (dp_f32_available (rc) == 0 && c.written == 0);
         dp_f32_destroy (rc);
@@ -694,6 +701,110 @@ main (void)
     free (blob);
     dp_f32_destroy (ra);
     dp_f32_destroy (rb);
+  }
+
+  {
+    /* A snapshot of another SAMPLE TYPE is refused. The magic is shared by
+       every instantiation and the size depends on (frame_n, sizeof sample),
+       so f64 at N=5, f32 at N=9 and i16 at N=17 are the SAME number of bytes:
+       with the hop equal too, only the stored sample size can tell them
+       apart. Each blob restores into its own type (the control), and into
+       neither of the others. */
+    dp_f64_t       *r64 = dp_f64_create (64);
+    dp_f32_t       *r32 = dp_f32_create (64);
+    dp_i16_t       *r16 = dp_i16_create (64);
+    dp_f64_framer_t f64f;
+    dp_f32_framer_t f32f;
+    dp_i16_framer_t i16f;
+    DP_REQUIRE (r64 && r32 && r16);
+    DP_REQUIRE (dp_f64_framer_init (&f64f, r64, 5, 2) == DP_OK);
+    DP_REQUIRE (dp_f32_framer_init (&f32f, r32, 9, 2) == DP_OK);
+    DP_REQUIRE (dp_i16_framer_init (&i16f, r16, 17, 2) == DP_OK);
+    const double _Complex v64[3] = { 1.0, 2.0 + I, 3.0 };
+    const float _Complex v32[3]  = { 1.0f, 2.0f + I, 3.0f };
+    const iq16_t v16[3]          = { { 1, 2 }, { 3, 4 }, { 5, 6 } };
+    DP_REQUIRE (dp_f64_framer_feed_view (&f64f, v64, 3, 8) == 3);
+    DP_REQUIRE (dp_f32_framer_feed_view (&f32f, v32, 3, 8) == 3);
+    DP_REQUIRE (dp_i16_framer_feed_view (&i16f, v16, 3, 8) == 3);
+
+    const size_t bytes = dp_f64_framer_state_bytes (&f64f);
+    DP_REQUIRE (dp_f32_framer_state_bytes (&f32f) == bytes);
+    DP_REQUIRE (dp_i16_framer_state_bytes (&i16f) == bytes); /* the premise */
+    void *b64 = malloc (bytes), *b32 = malloc (bytes), *b16 = malloc (bytes);
+    DP_REQUIRE (b64 && b32 && b16);
+    dp_f64_framer_get_state (&f64f, b64);
+    dp_f32_framer_get_state (&f32f, b32);
+    dp_i16_framer_get_state (&i16f, b16);
+
+    DP_CHECK (dp_f64_framer_set_state (&f64f, b64) == DP_OK);
+    DP_CHECK (dp_f32_framer_set_state (&f32f, b32) == DP_OK);
+    DP_CHECK (dp_i16_framer_set_state (&i16f, b16) == DP_OK);
+
+    DP_CHECK (dp_f32_framer_set_state (&f32f, b64) == DP_ERR_INVALID);
+    DP_CHECK (dp_i16_framer_set_state (&i16f, b64) == DP_ERR_INVALID);
+    DP_CHECK (dp_f64_framer_set_state (&f64f, b32) == DP_ERR_INVALID);
+    DP_CHECK (dp_i16_framer_set_state (&i16f, b32) == DP_ERR_INVALID);
+    DP_CHECK (dp_f64_framer_set_state (&f64f, b16) == DP_ERR_INVALID);
+    DP_CHECK (dp_f32_framer_set_state (&f32f, b16) == DP_ERR_INVALID);
+    /* a refusal changes nothing */
+    DP_CHECK (f32f.written == 3 && f32f.frames == 0);
+
+    free (b64);
+    free (b32);
+    free (b16);
+    dp_f64_destroy (r64);
+    dp_f32_destroy (r32);
+    dp_i16_destroy (r16);
+  }
+  {
+    /* The smallest case: at frame_n == 1 the carry is empty, so every type's
+       blob is the same size whatever the type. Only the stored sample size
+       tells them apart. */
+    dp_f64_t       *r64 = dp_f64_create (8);
+    dp_f32_t       *r32 = dp_f32_create (8);
+    dp_f64_framer_t f64f;
+    dp_f32_framer_t f32f;
+    DP_REQUIRE (r64 && r32);
+    DP_REQUIRE (dp_f64_framer_init (&f64f, r64, 1, 1) == DP_OK);
+    DP_REQUIRE (dp_f32_framer_init (&f32f, r32, 1, 1) == DP_OK);
+    const size_t bytes = dp_f64_framer_state_bytes (&f64f);
+    DP_REQUIRE (dp_f32_framer_state_bytes (&f32f) == bytes);
+    void *b64 = malloc (bytes), *b32 = malloc (bytes);
+    DP_REQUIRE (b64 && b32);
+    dp_f64_framer_get_state (&f64f, b64);
+    dp_f32_framer_get_state (&f32f, b32);
+    DP_CHECK (dp_f64_framer_set_state (&f64f, b64) == DP_OK);
+    DP_CHECK (dp_f32_framer_set_state (&f32f, b32) == DP_OK);
+    DP_CHECK (dp_f32_framer_set_state (&f32f, b64) == DP_ERR_INVALID);
+    DP_CHECK (dp_f64_framer_set_state (&f64f, b32) == DP_ERR_INVALID);
+    free (b64);
+    free (b32);
+    dp_f64_destroy (r64);
+    dp_f32_destroy (r32);
+  }
+  {
+    /* The i16 instantiation, end to end (C17 was pinned for f32 and f64): the
+       element view is a cast of the scalar face, so frames come out as the
+       samples that went in. */
+    dp_i16_t       *r = dp_i16_create (16);
+    dp_i16_framer_t fr;
+    DP_REQUIRE (r != NULL);
+    DP_REQUIRE (dp_i16_framer_init (&fr, r, 4, 2) == DP_OK);
+    iq16_t v[10];
+    for (int i = 0; i < 10; i++)
+      v[i] = (iq16_t){ (int16_t)i, (int16_t)(-i) };
+    DP_CHECK (dp_i16_framer_feed_view (&fr, v, 10, 8) == 10);
+    int           rows = 0, ok = 1;
+    const iq16_t *f;
+    while ((f = dp_i16_framer_next_view (&fr)))
+      {
+        for (int j = 0; j < 4; j++)
+          ok &= f[j].re == 2 * rows + j && f[j].im == -(2 * rows + j);
+        rows++;
+      }
+    DP_CHECK (rows == 4); /* frames at 0, 2, 4, 6 */
+    DP_CHECK (ok);
+    dp_i16_destroy (r);
   }
 
   free (x);

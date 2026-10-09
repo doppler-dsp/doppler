@@ -116,6 +116,7 @@ _High-performance x86-64 Circular Buffer for RF Streaming._ [More...](#detailed-
 | define  | [**DP\_BUFFER\_UNUSED**](buffer_8h.md#define-dp_buffer_unused)  <br> |
 | define  | [**DP\_CACHELINE**](buffer_8h.md#define-dp_cacheline)  `64`<br>_Standard x86-64 cache-line size (64 bytes)._  |
 | define  | [**DP\_FRAMER\_STATE\_MAGIC**](buffer_8h.md#define-dp_framer_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('F', 'R', 'M', 'R')`<br>_FourCC of a framer snapshot (see dp\_&lt;name&gt;\_framer\_state\_bytes)._  |
+| define  | [**DP\_FRAMER\_STATE\_WRITTEN\_OFFSET**](buffer_8h.md#define-dp_framer_state_written_offset) (sample\_t, frame\_n) `/* multi line expression */`<br>_Byte offset of the_ `written` _counter in a framer snapshot._ |
 | define  | [**DP\_SPIN\_HINT**](buffer_8h.md#define-dp_spin_hint) () `((void)0)`<br> |
 
 ## Detailed Description
@@ -594,6 +595,38 @@ _FourCC of a framer snapshot (see dp\_&lt;name&gt;\_framer\_state\_bytes)._
 
 
 
+
+<hr>
+
+
+
+### define DP\_FRAMER\_STATE\_WRITTEN\_OFFSET 
+
+_Byte offset of the_ `written` _counter in a framer snapshot._
+```C++
+#define DP_FRAMER_STATE_WRITTEN_OFFSET (
+    sample_t,
+    frame_n
+) `/* multi line expression */`
+```
+
+
+
+The layout is `[hdr][live][sizeof sample][frame_n - 1 samples]` then the counters `written`, `frames`, `hop` (see dp\_&lt;name&gt;\_framer\_state\_bytes). A test that corrupts a counter on purpose names the offset here rather than restating the arithmetic, so the layout has one declaration.
+
+
+
+
+**Parameters:**
+
+
+* `sample_t` Scalar sample type (`float`, `double`, `int16_t`). 
+* `frame_n` Samples per frame. 
+
+
+
+
+        
 
 <hr>
 

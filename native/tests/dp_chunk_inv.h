@@ -140,9 +140,14 @@ dp_ci_run_ (const dp_ci_spec_t *s, const void *in, size_t n,
  * @brief Check that every partition of @p in (@p n elements) reproduces the
  *        one-shot output.
  *
- * @return Number of partitions that disagreed (0 = invariant). Each failure
- *         prints the object, the partition and the first differing element, so
- *         the sabotage that broke it is readable from the log.
+ * Nothing to compare is a failure, not a pass: @p n == 0, or a one-shot run
+ * that produces no output, returns nonzero. A harness that certifies an object
+ * which emits nothing certifies every object that is broken that way.
+ *
+ * @return Number of partitions that disagreed (0 = invariant), or 1 when
+ *         there was no output to compare. Each failure prints the object, the
+ *         partition and the first differing element, so the sabotage that
+ *         broke it is readable from the log.
  */
 static int
 dp_chunk_invariance (const dp_ci_spec_t *s, const void *in, size_t n)
@@ -162,6 +167,19 @@ dp_chunk_invariance (const dp_ci_spec_t *s, const void *in, size_t n)
   if (!ok)
     {
       printf ("FAIL %s: the one-shot run overflowed out_cap\n", s->name);
+      free (ref);
+      free (got);
+      return 1;
+    }
+  /* An absent output is not a pass. Every partition of nothing is equal to
+     the one-shot, so an object that emits nothing, or an input of no
+     elements, would be certified without a single element compared. */
+  if (n == 0 || n_ref == 0)
+    {
+      if (!s->quiet)
+        printf ("FAIL %s: %s, so no output was compared\n", s->name,
+                n == 0 ? "the input has no elements"
+                       : "the one-shot run produced no output");
       free (ref);
       free (got);
       return 1;

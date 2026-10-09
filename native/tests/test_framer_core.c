@@ -155,6 +155,20 @@ leaky_process (void *o, const void *in, size_t n, void *out, size_t out_cap)
   return n - 1;
 }
 
+/* A SECOND negative control: an object that emits nothing at all. Every
+   partition of "no output" equals the one-shot "no output", so a harness that
+   only compares what was produced passes it. */
+static size_t
+silent_process (void *o, const void *in, size_t n, void *out, size_t out_cap)
+{
+  (void)o;
+  (void)in;
+  (void)n;
+  (void)out;
+  (void)out_cap;
+  return 0;
+}
+
 static const shape_t SHAPES[] = {
   { 8, 8 }, { 8, 3 }, { 8, 1 }, { 1, 1 }, { 16, 5 }, { 7, 7 }, { 64, 16 },
 };
@@ -200,6 +214,26 @@ main (void)
                            .out_cap  = L,
                            .quiet    = 1 };
     DP_CHECK (dp_chunk_invariance (&leaky, x, L) > 0);
+
+    /* An object that produces nothing is not "invariant". */
+    dp_ci_spec_t silent = leaky;
+    silent.name         = "silent (negative control)";
+    silent.process      = silent_process;
+    DP_CHECK (dp_chunk_invariance (&silent, x, L) > 0);
+
+    /* Nor is the real framer over an input of no elements. */
+    shape_t      shape0 = SHAPES[0];
+    dp_ci_spec_t empty  = { .name     = "framer, empty input (control)",
+                            .create   = fx_create,
+                            .destroy  = fx_destroy,
+                            .process  = fx_process,
+                            .arg      = &shape0,
+                            .in_size  = sizeof (float _Complex),
+                            .out_size = sizeof (float _Complex),
+                            .out_cap  = 4 * shape0.N,
+                            .frame_n  = shape0.N,
+                            .quiet    = 1 };
+    DP_CHECK (dp_chunk_invariance (&empty, x, 0) > 0);
   }
 
   for (size_t s = 0; s < N_SHAPES; s++)

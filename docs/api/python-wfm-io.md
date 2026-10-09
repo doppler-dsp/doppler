@@ -61,7 +61,7 @@ ______________________________________________________________________
 
 ## `Writer`
 
-`Writer(path, file_type="raw", sample_type="cf32", endian="le", fs=1e6, fc=0.0, total=0, headroom=0.0)`
+`Writer(path, fs, file_type="raw", sample_type="cf32", endian="le", fc=0.0, total=0, headroom=0.0, t0=0.0, sidecar=True)`
 
 The file type decides how much metadata the result can carry. `raw` and `csv`
 are headerless — `fs`, `fc` and the sample type are written nowhere, so a reader
@@ -134,7 +134,7 @@ ______________________________________________________________________
 
 ## `Reader`
 
-`Reader(path, sample_type="cf32", endian="le")`
+`Reader(path, sample_type="auto", endian="le")`
 
 The constructor arguments are **hints, used only for a headerless file type**.
 The actual file type comes from the file's content — BLUE magic at byte 0, a

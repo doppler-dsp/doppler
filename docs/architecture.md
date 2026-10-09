@@ -11,7 +11,7 @@ running multi-process signal pipeline in a handful of commands.
   <div style="border: 2px solid currentColor; background: var(--md-primary-fg-color); color: var(--md-primary-bg-color);">
     <div style="padding: 0.6em 1em; text-align: center; border-bottom: 1px dashed var(--md-primary-bg-color);">DSP Library — C99 core, dozens of modules (NCO, FIR, FFT, DDC, Resampler, AGC, DSSS, tracking loops, and more)</div>
     <div style="display: flex;">
-      <div style="flex: 1; padding: 0.6em 1em; text-align: center; border-right: 1px dashed var(--md-primary-bg-color);">Python (thin ctypes)</div>
+      <div style="flex: 1; padding: 0.6em 1em; text-align: center; border-right: 1px dashed var(--md-primary-bg-color);">Python (CPython extension)</div>
       <div style="flex: 1; padding: 0.6em 1em; text-align: center;">Rust FFI (safe wrap)</div>
     </div>
   </div>
@@ -76,7 +76,7 @@ doppler compose down demo
 ```
 
 Custom blocks are defined in a **Dopplerfile** — a small YAML file
-that names an entry-point function and its dependencies. No C
+that names the executable to run (a script or a binary). No C
 required; any Python (or compiled binary) that pulls frames from an
 upstream NATS subject and pushes them to a downstream one qualifies
 as a block.

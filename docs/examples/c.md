@@ -158,9 +158,9 @@ int main(void) {
     for (int i = 0; i < 8; i++)
         printf("out[%d]: %.3f + %.3fi\n", i, crealf(out[i]), cimagf(out[i]));
     // out[0]:  1.000 + 0.000i
-    // out[1]:  0.000 + 1.000i
-    // out[2]: -1.000 + 0.000i
-    // out[3]:  0.000 - 1.000i
+    // out[1]: -0.000 + 1.000i   (the 16-bit LUT leaves ~1e-8 residue)
+    // out[2]: -1.000 + -0.000i
+    // out[3]:  0.000 + -1.000i
     // out[4]:  1.000 + 0.000i  (repeats every 4 samples)
     // ...
 
@@ -203,7 +203,7 @@ ______________________________________________________________________
 
 int main(void) {
     float complex out[1024];
-    dp_awgn(0, 1.0f, 1024, out);   /* seed=0, amplitude=1.0 — 0 on success, -1 on failure */
+    dp_awgn(0, 1.0f, 1024, out);   /* seed=0, amplitude=1.0 — DP_OK (0) on success, DP_ERR_MEMORY (-6) on failure */
     return 0;
 }
 ```

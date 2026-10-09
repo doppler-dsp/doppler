@@ -25,7 +25,7 @@ ______________________________________________________________________
 ## `Synth` — the nine-type waveform engine
 
 One declarative engine produces every waveform type, selected by the string
-`type` (`tone`, `noise`, `pn`, `bpsk`, `qpsk`, `chirp`, `bits`, `symbols`).
+`type` (`tone`, `noise`, `pn`, `bpsk`, `qpsk`, `chirp`, `bits`, `symbols`, `dsss`).
 Construction takes keyword arguments mirroring the generator flags; sensible
 defaults mean a bare `Synth()` is a clean, unit-power baseband tone.
 

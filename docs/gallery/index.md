@@ -44,7 +44,7 @@ Those live on the [Examples](../examples/index.md) page instead.
 
 ## Filters & Resampling
 
-- [CIC Decimation](cic.md) — wideband IQ → CIC → narrowband slice; ~90 dB alias rejection.
+- [CIC Decimation](cic.md) — wideband IQ → CIC → narrowband slice; 84 dB measured alias rejection (R=8, N=4).
 - [RateConverter](rate-converter.md) — automatic CIC / halfband / polyphase cascade for any rate ratio.
 - [Farrow Interpolator](farrow.md) — fractional-delay resampling.
 - [HalfbandDecimatorQ15](hbdecim_q15.md) — fixed-point Q15 halfband 2:1 decimator for interleaved IQ int16.

@@ -15,13 +15,15 @@ anything outside will fold back into the passband.
 
 **Middle panel — UQ16 quantized input.** The same signal after the
 CF32 → offset-binary UQ16 → CF32 roundtrip that the CIC applies
-internally. The quantization noise floor is ~−92 dBFS (Q15 SNR),
-indistinguishable from the top panel at this scale.
+internally. The quantization noise is visually indistinguishable from the top
+panel at this scale.
 
 **Bottom panel — decimated output.** After R=16 decimation, the wanted
 tone at 15 kHz survives near full amplitude. The jammer at 208 kHz
 falls in the alias zone and folds to −48 kHz in the output, attenuated
-by ~90 dB by the CIC filter.
+by the CIC filter. The demo's measured alias rejection is 84.1 dB at R=8,
+N=4 (the theoretical figure is 102.4 dB); this panel's R=16 run is not
+separately measured.
 
 ## How it works
 

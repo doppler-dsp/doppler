@@ -379,21 +379,20 @@ ntaps = kaiser_num_taps(4096, 60.0, 0.4, 0.6)  # taps for a 0.4/0.6 transition
 ______________________________________________________________________
 
 ::: doppler.resample
-
-options:
-members:
-\- RateConverter
-\- rate_convert
-\- Resampler
-\- HalfbandDecimator
-\- HalfbandDecimatorQ15
-\- HalfbandDecimatorDp
-\- HalfbandDecimatorR2C
-\- CIC
-\- ciccompmf
-\- Farrow
-\- kaiser_beta
-\- kaiser_num_taps
+    options:
+      members:
+        - RateConverter
+        - rate_convert
+        - Resampler
+        - HalfbandDecimator
+        - HalfbandDecimatorQ15
+        - HalfbandDecimatorDp
+        - HalfbandDecimatorR2C
+        - CIC
+        - ciccompmf
+        - Farrow
+        - kaiser_beta
+        - kaiser_num_taps
 
 ## Related pages
 

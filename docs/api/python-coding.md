@@ -115,7 +115,7 @@ convertible.
     pass `codeword_ok`: silently wrong. That is a property of any
     bounded-distance code, not of this implementation, and the chance of it
     is about `sum(C(n, i)(q-1)**i for i <= E) / q**(n-k)` — **2e-05** for
-    RS(255,223) and **0.36** for RS(15,11). Parity is what buys the silence;
+    RS(255,239) and **0.36** for RS(15,11). Parity is what buys the silence;
     frame-level accounting is what catches the rest. Measured in
     [the gallery](../gallery/coding.md).
 

@@ -189,14 +189,14 @@ ______________________________________________________________________
 Displays the spectrum of the incoming IQ stream. Connects to the
 `doppler-specan` terminal or web UI.
 
-| Field      | Default      | Description                                   |
-| ---------- | ------------ | --------------------------------------------- |
-| `mode`     | `"terminal"` | `"terminal"` or `"web"`                       |
-| `center`   | `0.0`        | Center frequency (Hz)                         |
-| `span`     | `null`       | Display span (Hz); defaults to full bandwidth |
-| `rbw`      | `null`       | Resolution bandwidth (Hz)                     |
-| `level`    | `null`       | Reference level, top of display (dBm)         |
-| `web_port` | `8080`       | HTTP port for web mode                        |
+| Field      | Default | Description                                   |
+| ---------- | ------- | --------------------------------------------- |
+| `mode`     | `"web"` | `"terminal"` or `"web"`                       |
+| `center`   | `0.0`   | Center frequency (Hz)                         |
+| `span`     | `null`  | Display span (Hz); defaults to full bandwidth |
+| `rbw`      | `null`  | Resolution bandwidth (Hz)                     |
+| `level`    | `null`  | Reference level, top of display (dBm)         |
+| `web_port` | `8080`  | HTTP port for web mode                        |
 
 ______________________________________________________________________
 
@@ -273,8 +273,8 @@ Here is a minimal example — a `noise` source that emits pure AWGN:
 <!-- docs-snippet: skip=custom CLI block module; requires the cli extra -->
 
 ```python
-# python/cli/doppler_cli/blocks/noise.py
-from doppler_cli.blocks import Block, BlockConfig, register
+# my_blocks/noise.py  (your own package; the block API is doppler.cli.blocks)
+from doppler.cli.blocks import Block, BlockConfig, register
 
 
 class NoiseConfig(BlockConfig):
@@ -303,14 +303,14 @@ class NoiseBlock(Block):
 <!-- docs-snippet: skip=custom CLI block module; requires the cli extra -->
 
 ```python
-import doppler_cli.blocks.noise  # noqa: F401
+import my_blocks.noise  # noqa: F401
 ```
 
 **3. Entry point** — add a `doppler-noise` script in `pyproject.toml`:
 
 ```toml
 [project.scripts]
-doppler-noise = "doppler_cli.noise_source:main"
+doppler-noise = "my_blocks.noise_source:main"
 ```
 
 **4. Startup log** — every block entry point must print a health line
@@ -345,12 +345,7 @@ ______________________________________________________________________
 ## Port allocation
 
 Ports are auto-assigned from the range `5600–5700` by scanning
-existing state files for in-use ports. The base port is configurable:
-
-```yaml
-# ~/.doppler/config.yml
-base_port: 5700
-```
+existing state files for in-use ports.
 
 To pin ports explicitly, set `port:` on the `source` and each `chain`
 block in the compose file. Pinned ports are used as-is; no allocation

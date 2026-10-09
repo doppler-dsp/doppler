@@ -291,18 +291,19 @@ Q15 multiply, round-half-up:
 Truncation is faster but introduces a systematic downward bias on all results.
 For a FIR filter this shifts the DC gain by ~−0.5 LSB per output sample.
 
-```python
-from doppler.arith import shr_q15
-
-# Truncation (floor): 3/4 is exactly between two Q15 values → floor gives 0.5
-a = np.array([24576], dtype=np.int16)  # 0.75 in Q15
-
-# shr_q15 uses round-half-up: (3/4) >> 1 → (24576 + 16384) >> 1 = 20480
-print(shr_q15(a, 1)[0])                # 20480 / 32768 = 0.625  (= 0.75/2, rounded)
-
-# Manual truncation (C right-shift behaviour):
-print(np.int16(np.int32(24576) >> 1))  # 12288 / 32768 = 0.375  (biased low)
+```pycon
+>>> import numpy as np
+>>> from doppler.arith import shr_q15
+>>> a = np.array([24576, 3], dtype=np.int16)   # 0.75, then 3 LSB, in Q15
+>>> shr_q15(a, 1).tolist()     # halved, rounded to nearest: adds 1 << (n-1)
+[12288, 2]
+>>> (a >> 1).tolist()          # a plain right shift truncates
+[12288, 1]
 ```
+
+The shift adds the rounding bias `1 << (n-1)` before it shifts, so for a
+one-bit shift the bias is 1 LSB. The `3` above is where it shows: `3/2 = 1.5`
+rounds up to `2` and truncates to `1`.
 
 ______________________________________________________________________
 

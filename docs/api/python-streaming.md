@@ -64,20 +64,26 @@ subscriber drops frames rather than back-pressuring the sender. Core NATS
 has no backlog, so a subscriber must already be listening before the
 publish — start the `Subscriber` first (or add a brief warm-up sleep).
 
-<!-- docs-snippet: skip=blocking two-endpoint NATS recv; see stream tests -->
+<!-- docs-snippet: broker=publishes and receives one CF64 burst over NATS; needs a broker on :4222 -->
 
 ```python
+import time
 import numpy as np
 from doppler.stream import Publisher, Subscriber, CF64
 
-# transmitter
-with Publisher("nats://127.0.0.1:4222/iq", CF64) as pub:
-    iq = np.exp(2j * np.pi * 1e3 * np.arange(1000) / 1e6)   # complex128
-    pub.send(iq, sample_rate=1e6, center_freq=2.4e9)
-
-# receiver — in another process, started before the publish above
+# receiver: subscribe first. Core NATS drops a frame sent before the
+# subscription reaches the broker, so give it a moment.
 with Subscriber("nats://127.0.0.1:4222/iq") as sub:
+    time.sleep(0.5)
+
+    # transmitter
+    with Publisher("nats://127.0.0.1:4222/iq", CF64) as pub:
+        iq = np.exp(2j * np.pi * 1e3 * np.arange(1000) / 1e6)   # complex128
+        pub.send(iq, sample_rate=1e6, center_freq=2.4e9)
+
     samples, header = sub.recv(timeout_ms=1000)
+    assert len(samples) == 1000
+    assert header["sample_rate"] == 1e6
     print(header["sample_rate"], header["sequence"], len(samples))
 ```
 

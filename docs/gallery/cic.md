@@ -15,8 +15,8 @@ anything outside will fold back into the passband.
 
 **Middle panel — UQ16 quantized input.** The same signal after the
 CF32 → offset-binary UQ16 → CF32 roundtrip that the CIC applies
-internally. The quantization noise floor is ~−92 dBFS (Q15 SNR),
-indistinguishable from the top panel at this scale.
+internally. The quantization noise is visually indistinguishable from the top
+panel at this scale.
 
 **Bottom panel — decimated output.** After R=16 decimation, the wanted
 tone at 15 kHz survives near full amplitude. The jammer at 208 kHz

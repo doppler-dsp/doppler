@@ -345,12 +345,7 @@ ______________________________________________________________________
 ## Port allocation
 
 Ports are auto-assigned from the range `5600–5700` by scanning
-existing state files for in-use ports. The base port is configurable:
-
-```yaml
-# ~/.doppler/config.yml
-base_port: 5700
-```
+existing state files for in-use ports.
 
 To pin ports explicitly, set `port:` on the `source` and each `chain`
 block in the compose file. Pinned ports are used as-is; no allocation

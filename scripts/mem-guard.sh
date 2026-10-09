@@ -69,10 +69,18 @@ systemd-run --user --scope -q -- true 2>/dev/null \
 # command's. It runs under a SLICE ceiling, its own, because a slice ceiling
 # is what the command will be held to: proving a per-scope one would prove a
 # mechanism this script no longer uses.
+#
+# OOMPolicy=continue keeps the expected kill from being reported as a failure:
+# the kernel still kills the probe (exit 137, which is the proof), but systemd
+# logs "killed some processes in this unit" instead of marking the scope
+# `Failed with result 'oom-kill'`. Without it a desktop session raises a
+# "terminated because the system is low on memory" popup for EVERY guarded
+# command -- 60 of them on one box, none a real shortage.
 probe() {
   systemctl --user set-property --runtime doppler-guard-probe.slice \
     MemoryMax=32M MemorySwapMax=0 || return 1
-  systemd-run --user --scope -q --slice=doppler-guard-probe.slice -- \
+  systemd-run --user --scope -q --slice=doppler-guard-probe.slice \
+    -p OOMPolicy=continue -- \
     "$py" -c "bytearray(b'x') * (64 << 20)"
 }
 rc=0

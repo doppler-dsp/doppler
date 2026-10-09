@@ -32,14 +32,14 @@ CN0_DBHZ = 55.0  # powered for both classes at this grid: burst D=6 (0.935),
 # fill (doppler#1181); coherently it predicts 0.47 at reps=8.
 
 
-def _burst_acq(**kw):
+def _burst_acq(spc=SPC, **kw):
     kw.setdefault("reps", 8)
-    kw.setdefault("fs", CHIP_RATE * SPC)
+    kw.setdefault("fs", CHIP_RATE * spc)
     kw.setdefault("cn0_dbhz", CN0_DBHZ)
     kw.setdefault("doppler_uncertainty", 0.0)
     kw.setdefault("pfa", PFA)
     kw.setdefault("pd", PD)
-    return BurstAcquisition(code_preamble(CODE, SPC), **kw)
+    return BurstAcquisition(code_preamble(CODE, spc), **kw)
 
 
 def test_create():
@@ -157,6 +157,42 @@ def test_same_config_diverges_by_design():
     # Different mechanisms buy sensitivity differently -> different
     # non-coherent look counts for the same target pd at the same cn0.
     assert cont.n_noncoh != burst.n_noncoh
+
+
+@pytest.mark.parametrize("spc", [1, SPC])
+def test_hit_chip_phase_matches_acquisition(spc):
+    """A BurstAcquisition hit carries the same Dll seed as an Acquisition
+    hit on the same capture: ``hit[7]``, ``chip_phase`` (doppler#1257).
+
+    Both classes run ``dp_acq_push`` -> ``acq_report_peaks`` on one engine,
+    so the C hit is the same; this pins that both Python faces return it.
+    The units differ by construction: a burst engine is built from a
+    sampled template, "one chip = one sample" (``dp_acq_create_burst``),
+    so its ``chip_phase`` counts template samples over a period of
+    ``code_bins``, while Acquisition counts code chips over ``SF``. At one
+    sample per chip the two are equal; at ``spc`` the burst value is
+    ``spc`` times the chip value. Neither class is coupled to a carrier
+    here, so ``chip_phase`` is the inverted lag alone.
+    """
+    rng = np.random.default_rng(7)
+    period = np.asarray(code_preamble(CODE, spc))
+    lag = 5 * spc + 1  # off the chip grid when spc > 1
+    sig = np.tile(np.roll(period, lag), 64)
+    noise = 0.05 * (
+        rng.standard_normal(len(sig)) + 1j * rng.standard_normal(len(sig))
+    )
+    x = (sig + noise).astype(np.complex64)
+
+    burst = _burst_acq(spc=spc, cn0_dbhz=90.0).push(x)
+    cont = _continuous_acq(spc=spc, cn0_dbhz=90.0).push(x)
+    assert burst and cont, "both classes must detect the strong code"
+    b, c = burst[0], cont[0]
+
+    assert len(b) == len(c) == 8
+    assert b[1] == c[1], "the two front doors disagree on the lag"
+    n = SF * spc
+    assert b[7] == pytest.approx((n - b[1]) % n, abs=1e-9)
+    assert b[7] == pytest.approx(spc * c[7], abs=1e-9)
 
 
 def test_cross_class_state_rejection():

@@ -1398,7 +1398,7 @@ class BurstAcquisition:
     def push(
         self,
         x: complex,
-    ) -> list[tuple[int, int, float, float, float, float, int]]:
+    ) -> list[tuple[int, int, float, float, float, float, int, float]]:
         """Stream raw samples; emit one event per CFAR dump above threshold.
 
         Forwards to dp_acq_push() on the embedded engine (see its doc comment
@@ -1413,7 +1413,7 @@ class BurstAcquisition:
 
         Returns
         -------
-        list[tuple[int, int, float, float, float, float, int]]
+        list[tuple[int, int, float, float, float, float, int, float]]
             Number of events written (0 … max_results).
 
         Examples

@@ -478,6 +478,128 @@ main (void)
     dp_f64_destroy (r);
   }
 
+  /* ---- 10. the claims the inventory found with no pin ------------------ */
+  /* The claim inventory (src/doppler/tests/validation/framer/validate.py §1)
+     read the header against this file: framer_frames_for and framer_reset had
+     ZERO mentions, framer_drained had two, and "zero-copy" was prose. */
+  {
+    dp_f32_t       *r = dp_f32_create (64);
+    dp_f32_framer_t fr;
+    DP_REQUIRE (dp_f32_framer_init (&fr, r, 8, 3) == DP_OK);
+
+    /* zero-copy: the frame IS the ring's own memory, not a copy of it */
+    DP_CHECK (dp_f32_framer_feed_view (&fr, x, 20, 1000) == 20);
+    const float _Complex *f0 = dp_f32_framer_next_view (&fr);
+    DP_REQUIRE (f0 != NULL);
+    DP_CHECK ((const float *)f0 == &r->data[(r->tail & r->mask) * 2]);
+    DP_CHECK (f0[0] == x[0] && f0[7] == x[7]);
+
+    /* the hop is owed, not yet retired: the pointer holds until the next
+       framer call, so the ring still reads as holding the whole frame */
+    DP_CHECK (dp_f32_available (r) == 20);
+    dp_f32_framer_settle (&fr);
+    DP_CHECK (dp_f32_available (r) == 17); /* exactly one hop retired */
+    dp_f32_framer_settle (&fr); /* and settling twice retires none */
+    DP_CHECK (dp_f32_available (r) == 17);
+
+    /* drained is exactly "next() would return NULL" */
+    for (int i = 0; i < 40; i++)
+      {
+        int                   would_yield = dp_f32_framer_drained (&fr) == 0;
+        const float _Complex *f           = dp_f32_framer_next_view (&fr);
+        DP_CHECK (would_yield == (f != NULL));
+        if (!f)
+          break;
+      }
+    DP_CHECK (dp_f32_framer_drained (&fr));
+
+    /* reset: empty, restarted at sample 0, nothing pending */
+    dp_f32_framer_reset (&fr);
+    DP_CHECK (dp_f32_available (r) == 0);
+    DP_CHECK (dp_f32_framer_pending (&fr) == 0);
+    DP_CHECK (fr.written == 0 && fr.frames == 0 && fr.owed == 0);
+    DP_CHECK (dp_f32_framer_feed_view (&fr, x + 5, 8, 1) == 8);
+    const float _Complex *g = dp_f32_framer_next_view (&fr);
+    DP_REQUIRE (g != NULL);
+    DP_CHECK (g[0] == x[5]); /* row 0 starts at the NEW sample 0 */
+    dp_f32_destroy (r);
+  }
+  {
+    /* max_frames == 0 admits at most frame_n - 1 samples and never a frame */
+    dp_f32_t       *r = dp_f32_create (64);
+    dp_f32_framer_t fr;
+    DP_REQUIRE (dp_f32_framer_init (&fr, r, 8, 3) == DP_OK);
+    DP_CHECK (dp_f32_framer_feed_view (&fr, x, 100, 0) == 7);
+    DP_CHECK (dp_f32_framer_next_view (&fr) == NULL);
+    DP_CHECK (dp_f32_framer_feed_view (&fr, x, 100, 0)
+              == 0); /* full of carry */
+    dp_f32_destroy (r);
+  }
+  {
+    /* frames_for(n) is EXACTLY what feeding n more then draining yields,
+       from every fill, at every size, for several shapes */
+    static const shape_t shp[] = { { 8, 3 }, { 8, 8 }, { 5, 1 }, { 1, 1 } };
+    int                  exact = 1;
+    for (size_t k = 0; k < sizeof shp / sizeof *shp; k++)
+      for (size_t pre = 0; pre < 2 * shp[k].N; pre++)
+        for (size_t n = 0; n < 4 * shp[k].N + 3; n++)
+          {
+            dp_f32_t       *r = dp_f32_create (16 * shp[k].N + 64);
+            dp_f32_framer_t fr;
+            DP_REQUIRE (dp_f32_framer_init (&fr, r, shp[k].N, shp[k].H)
+                        == DP_OK);
+            /* build the fill `pre` by feeding and draining (so owed is 0) */
+            dp_f32_framer_feed_view (&fr, x, pre, 1000);
+            while (dp_f32_framer_next_view (&fr))
+              ;
+            dp_f32_framer_settle (&fr);
+            size_t predicted = dp_f32_framer_frames_for (&fr, n);
+            dp_f32_framer_feed_view (&fr, x + pre, n, 1000);
+            size_t got = 0;
+            while (dp_f32_framer_next_view (&fr))
+              got++;
+            if (got != predicted)
+              exact = 0;
+            dp_f32_destroy (r);
+
+            /* ...and with a frame handed out and its hop still OWED: the
+               prediction must discount the hop the next call will retire. */
+            if (pre >= shp[k].N)
+              {
+                r = dp_f32_create (16 * shp[k].N + 64);
+                DP_REQUIRE (dp_f32_framer_init (&fr, r, shp[k].N, shp[k].H)
+                            == DP_OK);
+                dp_f32_framer_feed_view (&fr, x, pre, 1000);
+                DP_REQUIRE (dp_f32_framer_next_view (&fr) != NULL); /* owed */
+                predicted = dp_f32_framer_frames_for (&fr, n);
+                dp_f32_framer_feed_view (&fr, x + pre, n, 1000);
+                got = 0;
+                while (dp_f32_framer_next_view (&fr))
+                  got++;
+                if (got != predicted)
+                  exact = 0;
+                dp_f32_destroy (r);
+              }
+          }
+    DP_CHECK (exact);
+  }
+  {
+    /* a snapshot of another SHAPE is refused: the size differs */
+    dp_f32_t       *ra = dp_f32_create (64), *rb = dp_f32_create (64);
+    dp_f32_framer_t a, b;
+    DP_REQUIRE (dp_f32_framer_init (&a, ra, 8, 4) == DP_OK);
+    DP_REQUIRE (dp_f32_framer_init (&b, rb, 9, 4) == DP_OK);
+    void *blob = malloc (dp_f32_framer_state_bytes (&a));
+    DP_REQUIRE (blob != NULL);
+    dp_f32_framer_get_state (&a, blob);
+    DP_CHECK (dp_f32_framer_state_bytes (&a)
+              != dp_f32_framer_state_bytes (&b));
+    DP_CHECK (dp_f32_framer_set_state (&b, blob) == DP_ERR_INVALID);
+    free (blob);
+    dp_f32_destroy (ra);
+    dp_f32_destroy (rb);
+  }
+
   free (x);
   DP_TEST_END ("test_framer_core");
 }

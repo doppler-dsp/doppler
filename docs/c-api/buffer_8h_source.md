@@ -719,6 +719,17 @@ typedef enum
 
 #define DP_FRAMER_STATE_MAGIC DP_FOURCC ('F', 'R', 'M', 'R')
 
+/* A stamped face is DEFINED in the includer's translation unit. clang warns
+ * about any unused static function defined in the MAIN file -- inline or not
+ * -- so a program that stamps the framed face in a .c file and calls some of
+ * it would be warned about the rest. The typed headers stamp it in a header,
+ * where no compiler warns; this keeps a .c that stamps it quiet too. */
+#if defined(__GNUC__) || defined(__clang__)
+#define DP_BUFFER_UNUSED __attribute__ ((unused))
+#else
+#define DP_BUFFER_UNUSED
+#endif
+
 #define DECLARE_DP_BUFFER_FRAMES(name, type, elem)                            \
   DP_ASSERT_2X (name##_frames, elem, type);                                   \
                                                                               \
@@ -734,7 +745,7 @@ typedef enum
   } dp_##name##_framer_t;                                                     \
                                                                               \
                                                                          \
-  static inline int                                                           \
+  static inline DP_BUFFER_UNUSED int                                          \
   dp_##name##_framer_init (dp_##name##_framer_t *fr, dp_##name##_t *ring,     \
                            size_t frame_n, size_t hop)                        \
   {                                                                           \
@@ -751,14 +762,14 @@ typedef enum
   }                                                                           \
                                                                               \
       \
-  static inline size_t                                                        \
-  dp_##name##_framer_frames_in_ (const dp_##name##_framer_t *fr, size_t avail)\
+  static inline DP_BUFFER_UNUSED size_t                                       \
+  dp_##name##_framer_frames_in_ (const dp_##name##_framer_t *fr, size_t avail) \
   {                                                                           \
     return avail >= fr->frame_n ? (avail - fr->frame_n) / fr->hop + 1 : 0;    \
   }                                                                           \
                                                                               \
                                                                          \
-  static inline void                                                          \
+  static inline DP_BUFFER_UNUSED void                                         \
   dp_##name##_framer_settle (dp_##name##_framer_t *fr)                        \
   {                                                                           \
     if (fr->owed)                                                             \
@@ -769,7 +780,7 @@ typedef enum
   }                                                                           \
                                                                               \
                                                                          \
-  static inline type *                                                        \
+  static inline DP_BUFFER_UNUSED type *                                       \
   dp_##name##_framer_next (dp_##name##_framer_t *fr)                          \
   {                                                                           \
     dp_##name##_framer_settle (fr);                                           \
@@ -783,8 +794,8 @@ typedef enum
   }                                                                           \
                                                                               \
                                                                          \
-  static inline size_t                                                        \
-  dp_##name##_framer_feed (dp_##name##_framer_t *fr, const type *in, size_t n,\
+  static inline DP_BUFFER_UNUSED size_t                                       \
+  dp_##name##_framer_feed (dp_##name##_framer_t *fr, const type *in, size_t n, \
                            size_t max_frames)                                 \
   {                                                                           \
     dp_##name##_framer_settle (fr);                                           \
@@ -804,7 +815,7 @@ typedef enum
   }                                                                           \
                                                                               \
                \
-  static inline size_t                                                        \
+  static inline DP_BUFFER_UNUSED size_t                                       \
   dp_##name##_framer_frames_for (const dp_##name##_framer_t *fr, size_t n)    \
   {                                                                           \
     return dp_##name##_framer_frames_in_ (                                    \
@@ -812,7 +823,7 @@ typedef enum
   }                                                                           \
                                                                               \
          \
-  static inline size_t                                                        \
+  static inline DP_BUFFER_UNUSED size_t                                       \
   dp_##name##_framer_pending (const dp_##name##_framer_t *fr)                 \
   {                                                                           \
     uint64_t covered                                                          \
@@ -821,14 +832,14 @@ typedef enum
   }                                                                           \
                                                                               \
                                                                          \
-  static inline int                                                           \
+  static inline DP_BUFFER_UNUSED int                                          \
   dp_##name##_framer_drained (const dp_##name##_framer_t *fr)                 \
   {                                                                           \
     return dp_##name##_available (fr->ring) - fr->owed < fr->frame_n;         \
   }                                                                           \
                                                                               \
     \
-  static inline void                                                          \
+  static inline DP_BUFFER_UNUSED void                                         \
   dp_##name##_framer_reset (dp_##name##_framer_t *fr)                         \
   {                                                                           \
     dp_##name##_reset (fr->ring);                                             \
@@ -838,7 +849,7 @@ typedef enum
   }                                                                           \
                                                                               \
                                                                          \
-  static inline int                                                           \
+  static inline DP_BUFFER_UNUSED int                                          \
   dp_##name##_framer_flush (dp_##name##_framer_t *fr, type *row)              \
   {                                                                           \
     dp_##name##_framer_settle (fr);                                           \
@@ -858,7 +869,7 @@ typedef enum
                                                                               \
                                                                               \
                                                                          \
-  static inline size_t                                                        \
+  static inline DP_BUFFER_UNUSED size_t                                       \
   dp_##name##_framer_state_bytes (const dp_##name##_framer_t *fr)             \
   {                                                                           \
     return sizeof (dp_state_hdr_t) + sizeof (uint64_t)                        \
@@ -866,7 +877,7 @@ typedef enum
   }                                                                           \
                                                                               \
                                                                          \
-  static inline void                                                          \
+  static inline DP_BUFFER_UNUSED void                                         \
   dp_##name##_framer_get_state (const dp_##name##_framer_t *fr, void *blob)   \
   {                                                                           \
     size_t total = dp_##name##_framer_state_bytes (fr);                       \
@@ -881,7 +892,7 @@ typedef enum
     dp_w_u64 (&_w, live);                                                     \
     dp_w_bytes (&_w, &fr->ring->data[(t & fr->ring->mask) * 2],               \
                 live * 2 * sizeof (type));                                    \
-    /* The unused slots are written, as zeros: a byte get_state leaves alone is\
+    /* The unused slots are written, as zeros: a byte get_state leaves alone is \
        a byte of the caller's heap shipped in the blob (doppler#1471). */     \
     size_t pad_bytes = (fr->frame_n - 1 - live) * 2 * sizeof (type);          \
     void *pad = dp_w_reserve (&_w, pad_bytes);                                \
@@ -893,7 +904,7 @@ typedef enum
   }                                                                           \
                                                                               \
                                                                          \
-  static inline int                                                           \
+  static inline DP_BUFFER_UNUSED int                                          \
   dp_##name##_framer_set_state (dp_##name##_framer_t *fr, const void *blob)   \
   {                                                                           \
     size_t want = dp_##name##_framer_state_bytes (fr);                        \
@@ -918,20 +929,20 @@ typedef enum
   }                                                                           \
                                                                               \
   /* The element face: one ELEMENT per sample, as the VIEW macro does. */     \
-  static inline elem *                                                        \
+  static inline DP_BUFFER_UNUSED elem *                                       \
   dp_##name##_framer_next_view (dp_##name##_framer_t *fr)                     \
   {                                                                           \
     return (elem *)dp_##name##_framer_next (fr);                              \
   }                                                                           \
                                                                               \
-  static inline size_t                                                        \
+  static inline DP_BUFFER_UNUSED size_t                                       \
   dp_##name##_framer_feed_view (dp_##name##_framer_t *fr, const elem *in,     \
                                 size_t n, size_t max_frames)                  \
   {                                                                           \
     return dp_##name##_framer_feed (fr, (const type *)in, n, max_frames);     \
   }                                                                           \
                                                                               \
-  static inline int                                                           \
+  static inline DP_BUFFER_UNUSED int                                          \
   dp_##name##_framer_flush_view (dp_##name##_framer_t *fr, elem *row)         \
   {                                                                           \
     return dp_##name##_framer_flush (fr, (type *)row);                        \

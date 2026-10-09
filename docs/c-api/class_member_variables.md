@@ -914,7 +914,7 @@
 * **sample\_rate\_hz** ([**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md))
 * **sequential** ([**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md))
 * **seed\_norm\_freq** ([**dp\_carrier\_mpsk\_state\_t**](structdp__carrier__mpsk__state__t.md), [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md), [**dp\_costas\_state\_t**](structdp__costas__state__t.md))
-* **shift** ([**dp\_cic\_state\_t**](structdp__cic__state__t.md), [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md))
+* **shift** ([**dp\_cic\_state\_t**](structdp__cic__state__t.md))
 * **seg\_chips** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))
 * **seg\_idx** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))
 * **seg\_norm** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))

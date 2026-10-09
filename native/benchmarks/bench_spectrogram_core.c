@@ -80,7 +80,7 @@ main (void)
           c->hop      = h ? nffts[k] / 4 : nffts[k];
           c->chunk    = ch ? CHUNK : 0;
           /* Hann, dB, DC-centred: the shape a waterfall asks for */
-          c->s = dp_spectrogram_create (c->nfft, c->hop, 0, 0.0f, 0, 1);
+          c->s = dp_spectrogram_create (c->nfft, c->hop, 0, 0.0f, 0);
           if (!c->s)
             {
               (void)fprintf (stderr, "bench_spectrogram: create NULL\n");

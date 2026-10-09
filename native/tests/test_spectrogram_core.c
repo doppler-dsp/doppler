@@ -13,7 +13,7 @@
  *      a tiny out takes exactly the input that completes no row
  *   7. flush on the hop grid, iff a sample is uncovered, then restart (G2)
  *   8. reset and pending
- *   9. shift = 0 is FFT order
+ *   9. rows are DC-centred: bin k at index nfft/2 + k, as PSD emits them
  *  10. the state blob: round trip, a mid-frame split resumed in a FRESH
  *      object bit for bit, fixed size, wrong hop refused (G4)
  *  11. the Python face's sizing: chunks shorter than a frame, each out sized
@@ -51,11 +51,10 @@ ref_psd (size_t nfft, int window, float beta)
  * Floats written; a failed create counts as a failure and writes 0, which
  * the caller's size check then refuses too. */
 static size_t
-oneshot (size_t nfft, size_t hop, int window, int shift, size_t n, float *out,
-         size_t cap)
+oneshot (size_t nfft, size_t hop, int window, size_t n, float *out, size_t cap)
 {
-  dp_spectrogram_state_t *s = dp_spectrogram_create (nfft, hop, window, 7.5f,
-                                                     DP_SPECTROGRAM_DB, shift);
+  dp_spectrogram_state_t *s
+      = dp_spectrogram_create (nfft, hop, window, 7.5f, DP_SPECTROGRAM_DB);
   DP_CHECK (s != NULL);
   if (!s)
     return 0;
@@ -63,6 +62,38 @@ oneshot (size_t nfft, size_t hop, int window, int shift, size_t n, float *out,
   DP_CHECK (dp_spectrogram_consumed (s) == n);
   dp_spectrogram_destroy (s);
   return got;
+}
+
+/* Fill a reused output buffer with NaN first, so a short write cannot be
+ * passed by what the last iteration left there (NaN equals nothing). */
+static void
+fill_nan (float *p, size_t n)
+{
+  for (size_t i = 0; i < n; i++)
+    p[i] = NAN;
+}
+
+/* The truth a stream's rows are held to WITHOUT the framer: `total` samples
+ * make (total - nfft) / hop + 1 rows, and row r is PSD's dBFS of its own
+ * slice x[r*hop .. r*hop + nfft). A one-shot reference shares the framer
+ * with the object under test, so a framer defect common to both would pass
+ * a comparison with it; it cannot pass this. 1 if `made` floats of `got`
+ * are exactly those rows. */
+static int
+rows_are_the_psd (dp_psd_state_t *p, size_t nfft, size_t hop, size_t total,
+                  const float *got, size_t made)
+{
+  float        ref[64];
+  const size_t want = total >= nfft ? (total - nfft) / hop + 1 : 0;
+  if (nfft > 64 || made != want * nfft)
+    return 0;
+  for (size_t r = 0; r < want; r++)
+    {
+      dp_psd_frame_db (p, x + r * hop, ref);
+      if (memcmp (got + r * nfft, ref, nfft * sizeof *ref) != 0)
+        return 0;
+    }
+  return 1;
 }
 
 /* ---- dp_chunk_inv.h wiring: .create / .process call the object itself ----
@@ -79,7 +110,7 @@ ci_create (void *arg)
 {
   const ci_cfg_t *c = (const ci_cfg_t *)arg;
   return dp_spectrogram_create (c->nfft, c->hop, c->window, 7.5f,
-                                DP_SPECTROGRAM_DB, 1);
+                                DP_SPECTROGRAM_DB);
 }
 
 static void
@@ -109,21 +140,20 @@ main (void)
   {
     static const size_t bad_nfft[] = { 0, 1, 3, 6, 12, 100, 1000 };
     for (size_t i = 0; i < sizeof bad_nfft / sizeof *bad_nfft; i++)
-      DP_CHECK (dp_spectrogram_create (bad_nfft[i], 1, 0, 0.0f, 0, 1) == NULL);
-    DP_CHECK (dp_spectrogram_create (8, 0, 0, 0.0f, 0, 1) == NULL); /* hop 0 */
-    DP_CHECK (dp_spectrogram_create (8, 9, 0, 0.0f, 0, 1)
-              == NULL); /* > nfft */
-    DP_CHECK (dp_spectrogram_create (8, 4, -1, 0.0f, 0, 1) == NULL);
-    DP_CHECK (dp_spectrogram_create (8, 4, 4, 0.0f, 0, 1) == NULL);
-    DP_CHECK (dp_spectrogram_create (8, 4, 0, 0.0f, DP_SPECTROGRAM_POWER, 1)
+      DP_CHECK (dp_spectrogram_create (bad_nfft[i], 1, 0, 0.0f, 0) == NULL);
+    DP_CHECK (dp_spectrogram_create (8, 0, 0, 0.0f, 0) == NULL); /* hop 0 */
+    DP_CHECK (dp_spectrogram_create (8, 9, 0, 0.0f, 0) == NULL); /* > nfft */
+    DP_CHECK (dp_spectrogram_create (8, 4, -1, 0.0f, 0) == NULL);
+    DP_CHECK (dp_spectrogram_create (8, 4, 4, 0.0f, 0) == NULL);
+    DP_CHECK (dp_spectrogram_create (8, 4, 0, 0.0f, DP_SPECTROGRAM_POWER)
               == NULL);
-    DP_CHECK (dp_spectrogram_create (8, 4, 0, 0.0f, 2, 1) == NULL);
+    DP_CHECK (dp_spectrogram_create (8, 4, 0, 0.0f, 2) == NULL);
     /* ...and accepts the edges: the smallest nfft, hop == 1, hop == nfft */
     static const size_t ok[][2] = { { 2, 1 }, { 2, 2 }, { 8, 1 }, { 8, 8 } };
     for (size_t i = 0; i < sizeof ok / sizeof *ok; i++)
       {
         dp_spectrogram_state_t *s
-            = dp_spectrogram_create (ok[i][0], ok[i][1], 0, 0.0f, 0, 1);
+            = dp_spectrogram_create (ok[i][0], ok[i][1], 0, 0.0f, 0);
         DP_CHECK (s != NULL);
         dp_spectrogram_destroy (s);
       }
@@ -136,7 +166,7 @@ main (void)
       {
         const size_t            nfft = 64, hop = 24;
         dp_spectrogram_state_t *s
-            = dp_spectrogram_create (nfft, hop, w, 7.5f, 0, 1);
+            = dp_spectrogram_create (nfft, hop, w, 7.5f, 0);
         dp_psd_state_t *p = ref_psd (nfft, w, 7.5f);
         DP_REQUIRE (s != NULL && p != NULL);
         size_t rows = dp_spectrogram_rows_for (s, NX);
@@ -168,7 +198,7 @@ main (void)
     for (int w = 0; w < 4; w++)
       {
         dp_spectrogram_state_t *s
-            = dp_spectrogram_create (nfft, nfft, w, 7.5f, 0, 1);
+            = dp_spectrogram_create (nfft, nfft, w, 7.5f, 0);
         float row[256];
         DP_REQUIRE (s != NULL);
         DP_REQUIRE (dp_spectrogram_push (s, tone, nfft, row, nfft) == nfft);
@@ -190,21 +220,25 @@ main (void)
        pushing the rest after it loses no row. Both against the one-shot. */
     static float        want[128 * 16], got[128 * 16];
     static const size_t nffts[] = { 8, 16 };
-    int                 exact = 1, bounded = 1, one_less = 1, n_one_less = 0;
+    int exact = 1, bounded = 1, one_less = 1, n_one_less = 0, truth = 1;
     for (size_t f = 0; f < sizeof nffts / sizeof *nffts; f++)
       {
-        const size_t nfft    = nffts[f];
-        const size_t hops[4] = { 1, 3, nfft / 2, nfft };
+        const size_t    nfft    = nffts[f];
+        const size_t    hops[4] = { 1, 3, nfft / 2, nfft };
+        dp_psd_state_t *p       = ref_psd (nfft, 0, 7.5f);
+        DP_REQUIRE (p != NULL);
         for (size_t h = 0; h < 4; h++)
           for (size_t pre = 0; pre < 2 * nfft; pre += 1 + pre / 3)
             for (size_t n = 0; n <= 4 * nfft + 3; n++)
               {
                 const size_t hop = hops[h], total = pre + n;
-                size_t       want_n
-                    = oneshot (nfft, hop, 0, 1, total, want, sizeof want / 4);
+                fill_nan (want, sizeof want / sizeof *want);
+                fill_nan (got, sizeof got / sizeof *got);
+                size_t want_n
+                    = oneshot (nfft, hop, 0, total, want, sizeof want / 4);
                 /* room = push_max_out(n) */
                 dp_spectrogram_state_t *s
-                    = dp_spectrogram_create (nfft, hop, 0, 7.5f, 0, 1);
+                    = dp_spectrogram_create (nfft, hop, 0, 7.5f, 0);
                 DP_REQUIRE (s != NULL);
                 size_t made
                     = dp_spectrogram_push (s, x, pre, got, sizeof got / 4);
@@ -219,13 +253,16 @@ main (void)
                 made += w;
                 if (made != want_n || memcmp (got, want, made * 4) != 0)
                   bounded = 0;
+                if (!rows_are_the_psd (p, nfft, hop, total, got, made))
+                  truth = 0;
                 dp_spectrogram_destroy (s);
 
                 /* room = push_max_out(n) - nfft: short by exactly one row */
                 if (cap < nfft)
                   continue;
                 n_one_less++;
-                s = dp_spectrogram_create (nfft, hop, 0, 7.5f, 0, 1);
+                fill_nan (got, sizeof got / sizeof *got);
+                s = dp_spectrogram_create (nfft, hop, 0, 7.5f, 0);
                 DP_REQUIRE (s != NULL);
                 made = dp_spectrogram_push (s, x, pre, got, sizeof got / 4);
                 w    = dp_spectrogram_push (s, x + pre, n, got + made,
@@ -240,16 +277,20 @@ main (void)
                 if (dp_spectrogram_consumed (s) != n - took || made != want_n
                     || memcmp (got, want, made * 4) != 0)
                   one_less = 0;
+                if (!rows_are_the_psd (p, nfft, hop, total, got, made))
+                  truth = 0;
                 dp_spectrogram_destroy (s);
               }
+        dp_psd_destroy (p);
       }
     DP_CHECK (exact);
     DP_CHECK (bounded);
     DP_CHECK (one_less);
     DP_CHECK (n_one_less > 0); /* the short-room half really ran */
+    DP_CHECK (truth);
 
     /* an n near SIZE_MAX saturates rather than wraps */
-    dp_spectrogram_state_t *s = dp_spectrogram_create (8, 2, 0, 0.0f, 0, 1);
+    dp_spectrogram_state_t *s = dp_spectrogram_create (8, 2, 0, 0.0f, 0);
     DP_REQUIRE (s != NULL);
     DP_CHECK (dp_spectrogram_rows_for (s, SIZE_MAX) == (SIZE_MAX - 8) / 2 + 1);
     DP_CHECK (dp_spectrogram_push_max_out (s, SIZE_MAX) == SIZE_MAX);
@@ -286,12 +327,10 @@ main (void)
     float       *want = (float *)malloc (rows * nfft * sizeof *want);
     float       *got  = (float *)malloc (rows * nfft * sizeof *got);
     DP_REQUIRE (want != NULL && got != NULL);
-    DP_REQUIRE (oneshot (nfft, hop, 1, 1, NX, want, rows * nfft)
-                == rows * nfft);
+    DP_REQUIRE (oneshot (nfft, hop, 1, NX, want, rows * nfft) == rows * nfft);
 
     /* arbitrary chunks, each re-offered from consumed() until it is in */
-    dp_spectrogram_state_t *s
-        = dp_spectrogram_create (nfft, hop, 1, 7.5f, 0, 1);
+    dp_spectrogram_state_t *s = dp_spectrogram_create (nfft, hop, 1, 7.5f, 0);
     DP_REQUIRE (s != NULL);
     uint32_t r   = 0xBAC4u;
     size_t   off = 0, made = 0, short_calls = 0;
@@ -308,7 +347,7 @@ main (void)
             size_t w = dp_spectrogram_push (s, x + off + done, chunk - done,
                                             row, nfft + 5);
             DP_CHECK (w == 0 || w == nfft);
-            DP_CHECK (dp_spectrogram_pending (s) < nfft + hop);
+            DP_CHECK (dp_spectrogram_pending (s) < nfft);
             if (w && made < rows)
               memcpy (got + made * nfft, row, nfft * sizeof *row);
             made += w / nfft;
@@ -331,30 +370,28 @@ main (void)
       for (size_t n = 0; n < 2 * nfft; n += 3)
         {
           dp_spectrogram_state_t *t
-              = dp_spectrogram_create (nfft, hop, 1, 7.5f, 0, 1);
+              = dp_spectrogram_create (nfft, hop, 1, 7.5f, 0);
           float big[8 * 32], tiny[31];
           DP_REQUIRE (t != NULL);
           dp_spectrogram_push (t, x, pre, big, sizeof big / sizeof *big);
           DP_CHECK (dp_spectrogram_push (t, x + pre, n, tiny, nfft - 1) == 0);
           size_t took = dp_spectrogram_consumed (t);
           DP_CHECK (took <= n);
-          /* the carry it made completes no row... */
-          DP_CHECK (dp_spectrogram_rows_for (t, 0) == 0);
           dp_spectrogram_destroy (t);
-          /* ...and one more sample would have: replay to the same point */
-          t = dp_spectrogram_create (nfft, hop, 1, 7.5f, 0, 1);
+          /* replay to the same point: the samples it took complete no row,
+             and -- unless it took them all -- one more would have */
+          t = dp_spectrogram_create (nfft, hop, 1, 7.5f, 0);
           DP_REQUIRE (t != NULL);
           dp_spectrogram_push (t, x, pre, big, sizeof big / sizeof *big);
+          DP_CHECK (dp_spectrogram_rows_for (t, took) == 0);
           if (took < n)
             DP_CHECK (dp_spectrogram_rows_for (t, took + 1) == 1);
-          else
-            DP_CHECK (dp_spectrogram_rows_for (t, n) == 0);
           dp_spectrogram_destroy (t);
         }
     /* with out NULL and max_out 0, input that completes no row is taken */
     {
       dp_spectrogram_state_t *t
-          = dp_spectrogram_create (nfft, hop, 1, 7.5f, 0, 1);
+          = dp_spectrogram_create (nfft, hop, 1, 7.5f, 0);
       DP_REQUIRE (t != NULL);
       DP_CHECK (dp_spectrogram_push (t, x, nfft - 1, NULL, 0) == 0);
       DP_CHECK (dp_spectrogram_consumed (t) == nfft - 1);
@@ -374,7 +411,7 @@ main (void)
     for (size_t n = 0; n < 4 * nfft; n++)
       {
         dp_spectrogram_state_t *s
-            = dp_spectrogram_create (nfft, hop, 0, 0.0f, 0, 1);
+            = dp_spectrogram_create (nfft, hop, 0, 0.0f, 0);
         float buf[64 * 16], row[16], want[64 * 16];
         DP_REQUIRE (s != NULL);
         size_t rows
@@ -391,7 +428,7 @@ main (void)
             memcpy (padded, x, n * sizeof *x);
             size_t                  end = rows * hop + nfft;
             dp_spectrogram_state_t *o
-                = dp_spectrogram_create (nfft, hop, 0, 0.0f, 0, 1);
+                = dp_spectrogram_create (nfft, hop, 0, 0.0f, 0);
             DP_REQUIRE (o != NULL);
             size_t all
                 = dp_spectrogram_push (o, padded, end, want, sizeof want / 4);
@@ -408,9 +445,9 @@ main (void)
         float           first[16], ref[16];
         dp_psd_state_t *p = ref_psd (nfft, 0, 0.0f);
         DP_REQUIRE (p != NULL);
-        dp_spectrogram_push (s, x + 3, nfft, first, nfft);
         dp_psd_frame_db (p, x + 3, ref);
-        if (memcmp (first, ref, sizeof ref) != 0)
+        if (dp_spectrogram_push (s, x + 3, nfft, first, nfft) != nfft
+            || memcmp (first, ref, sizeof ref) != 0)
           restart = 0;
         dp_psd_destroy (p);
         dp_spectrogram_destroy (s);
@@ -423,9 +460,8 @@ main (void)
   /* ---- 8. reset and pending ------------------------------------------- */
   {
     const size_t            nfft = 16, hop = 4;
-    dp_spectrogram_state_t *s
-        = dp_spectrogram_create (nfft, hop, 0, 0.0f, 0, 1);
-    float buf[16 * 16];
+    dp_spectrogram_state_t *s = dp_spectrogram_create (nfft, hop, 0, 0.0f, 0);
+    float                   buf[16 * 16];
     DP_REQUIRE (s != NULL);
     DP_CHECK (dp_spectrogram_pending (s) == 0);
     DP_CHECK (dp_spectrogram_consumed (s) == 0);
@@ -453,26 +489,32 @@ main (void)
     dp_spectrogram_destroy (s);
   }
 
-  /* ---- 9. shift = 0 is FFT order: bin k at index k -------------------- */
+  /* ---- 9. rows are DC-centred, as PSD's kernel emits them ------------ */
+  /* bin k at index nfft/2 + k: a tone above the carrier lands right of the
+     centre, one below it left of it, and DC at the centre itself */
   {
-    const size_t nfft = 64, bin = 5;
-    float _Complex tone[64];
-    for (size_t i = 0; i < nfft; i++)
-      tone[i] = cexp (I * 2.0 * M_PI * (double)(bin * i) / (double)nfft);
-    float                   ctr[64], nat[64];
-    dp_spectrogram_state_t *a = dp_spectrogram_create (nfft, nfft, 3, 0, 0, 1);
-    dp_spectrogram_state_t *b = dp_spectrogram_create (nfft, nfft, 3, 0, 0, 0);
-    DP_REQUIRE (a != NULL && b != NULL);
-    DP_REQUIRE (dp_spectrogram_push (a, tone, nfft, ctr, nfft) == nfft);
-    DP_REQUIRE (dp_spectrogram_push (b, tone, nfft, nat, nfft) == nfft);
-    DP_CHECK_NEAR (nat[bin], 0.0, 1e-4); /* the tone is at its own index */
-    DP_CHECK_NEAR (ctr[nfft / 2 + bin], 0.0, 1e-4);
-    int rotated = 1;
-    for (size_t k = 0; k < nfft; k++)
-      rotated &= nat[k] == ctr[(k + nfft / 2) % nfft];
-    DP_CHECK (rotated);
-    dp_spectrogram_destroy (a);
-    dp_spectrogram_destroy (b);
+    const size_t     nfft   = 64;
+    static const int bins[] = { 5, -5, 0, 31, -32 };
+    for (size_t b = 0; b < sizeof bins / sizeof *bins; b++)
+      {
+        float _Complex tone[64];
+        for (size_t i = 0; i < nfft; i++)
+          tone[i] = cexp (I * 2.0 * M_PI * (double)bins[b] * (double)i
+                          / (double)nfft);
+        float                   row[64];
+        dp_spectrogram_state_t *a
+            = dp_spectrogram_create (nfft, nfft, 3, 0, 0);
+        DP_REQUIRE (a != NULL);
+        DP_REQUIRE (dp_spectrogram_push (a, tone, nfft, row, nfft) == nfft);
+        size_t want = (size_t)((long)nfft / 2 + bins[b]);
+        size_t peak = 0;
+        for (size_t i = 1; i < nfft; i++)
+          if (row[i] > row[peak])
+            peak = i;
+        DP_CHECK (peak == want);
+        DP_CHECK_NEAR (row[want], 0.0, 1e-4);
+        dp_spectrogram_destroy (a);
+      }
   }
 
   /* ---- 10. the state blob (G4) ---------------------------------------- */
@@ -482,17 +524,18 @@ main (void)
     float       *want = (float *)malloc (rows * nfft * sizeof *want);
     float       *got  = (float *)malloc (rows * nfft * sizeof *got);
     DP_REQUIRE (want != NULL && got != NULL);
-    DP_REQUIRE (oneshot (nfft, hop, 2, 1, NX, want, rows * nfft)
-                == rows * nfft);
+    DP_REQUIRE (oneshot (nfft, hop, 2, NX, want, rows * nfft) == rows * nfft);
 
-    /* a mid-frame split at every offset of a frame: serialize, destroy,
-       resume in a FRESH object, and the rows are the one-shot's */
+    /* a mid-frame split at a spread of offsets across three frames (the
+       stride widens, so not every one): serialize, destroy, resume in a
+       FRESH object, and the rows are the one-shot's */
     int resumed = 1, fixed_size = 1;
     for (size_t cut = 0; cut < 3 * nfft; cut += 1 + cut / 4)
       {
-        size_t                  split = 200 + cut;
+        size_t split = 200 + cut;
+        fill_nan (got, rows * nfft);
         dp_spectrogram_state_t *a
-            = dp_spectrogram_create (nfft, hop, 2, 0.0f, 0, 1);
+            = dp_spectrogram_create (nfft, hop, 2, 0.0f, 0);
         DP_REQUIRE (a != NULL);
         size_t made  = dp_spectrogram_push (a, x, split, got, rows * nfft);
         size_t bytes = dp_spectrogram_state_bytes (a);
@@ -502,7 +545,7 @@ main (void)
         dp_spectrogram_destroy (a);
 
         dp_spectrogram_state_t *b
-            = dp_spectrogram_create (nfft, hop, 2, 0.0f, 0, 1);
+            = dp_spectrogram_create (nfft, hop, 2, 0.0f, 0);
         DP_REQUIRE (b != NULL);
         if (dp_spectrogram_state_bytes (b) != bytes)
           fixed_size = 0; /* a function of the shape, not of the fill */
@@ -526,18 +569,17 @@ main (void)
     DP_CHECK (fixed_size);
 
     /* the uniform round trip: determinism, fidelity, envelope reject */
-    dp_spectrogram_state_t *a
-        = dp_spectrogram_create (nfft, hop, 2, 0.0f, 0, 1);
-    dp_spectrogram_state_t *b
-        = dp_spectrogram_create (nfft, hop, 2, 0.0f, 0, 1);
+    dp_spectrogram_state_t *a = dp_spectrogram_create (nfft, hop, 2, 0.0f, 0);
+    dp_spectrogram_state_t *b = dp_spectrogram_create (nfft, hop, 2, 0.0f, 0);
     DP_REQUIRE (a != NULL && b != NULL);
-    dp_spectrogram_push (a, x, 217, got, rows * nfft); /* a carry of 7 */
+    /* 217 samples: 19 rows, 27 held for the next, 5 of them pending */
+    dp_spectrogram_push (a, x, 217, got, rows * nfft);
     DP_CHECK (dp_spectrogram_pending (a) != 0);
     DP_STATE_ROUNDTRIP_TEST (dp_spectrogram, a, b);
 
     /* a blob of another hop is refused, and the refusal changes nothing */
     dp_spectrogram_state_t *c
-        = dp_spectrogram_create (nfft, hop + 1, 2, 0.0f, 0, 1);
+        = dp_spectrogram_create (nfft, hop + 1, 2, 0.0f, 0);
     DP_REQUIRE (c != NULL);
     void *blob = malloc (dp_spectrogram_state_bytes (a));
     DP_REQUIRE (blob != NULL);
@@ -568,10 +610,10 @@ main (void)
         float       *want = (float *)malloc (rows * nfft * sizeof *want);
         float       *got  = (float *)malloc (rows * nfft * sizeof *got);
         DP_REQUIRE (want != NULL && got != NULL);
-        DP_REQUIRE (oneshot (nfft, hop, 0, 1, NX, want, rows * nfft)
+        DP_REQUIRE (oneshot (nfft, hop, 0, NX, want, rows * nfft)
                     == rows * nfft);
         dp_spectrogram_state_t *s
-            = dp_spectrogram_create (nfft, hop, 0, 7.5f, 0, 1);
+            = dp_spectrogram_create (nfft, hop, 0, 7.5f, 0);
         DP_REQUIRE (s != NULL);
         uint32_t r   = 0x50C3u + (uint32_t)k;
         size_t   off = 0, made = 0, zero_room = 0;

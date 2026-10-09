@@ -15,7 +15,8 @@
 
 add_library(spectrogram_core OBJECT
     ${CMAKE_SOURCE_DIR}/native/src/spectrogram/spectrogram_core.c)
-target_include_directories(spectrogram_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
+target_include_directories(spectrogram_core
+    PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 target_link_libraries(spectrogram_core PUBLIC
     psd_core fft_core spectral_core acc_trace_core
     f32_buffer_core dp_interrupt_guard_core)

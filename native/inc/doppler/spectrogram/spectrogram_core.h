@@ -70,32 +70,31 @@ typedef struct
   int window;           /**< PSD window index (see dp_psd_create()).    */
   float beta;           /**< Kaiser beta (window 1 only).               */
   int mode;             /**< DP_SPECTROGRAM_DB.                         */
-  int shift;            /**< Nonzero: DC at nfft/2. Zero: FFT order.    */
   size_t consumed;      /**< Input samples the last push took.          */
 } dp_spectrogram_state_t;
 
 /**
  * @brief Create a streaming spectrogram.
  *
- * @param nfft    Samples per frame and bins per row: a power of two >= 2.
- *                (A frame length that is not a power of two would be
- *                zero-padded by the PSD to more bins than samples, so it is
- *                refused rather than given rows wider than its frames.)
+ * @param nfft    Samples per frame and bins per row, which must be the
+ *                same number: an nfft the PSD would zero-pad to a longer
+ *                transform (anything but a power of two >= 2) is refused
+ *                rather than given rows wider than its frames.
  * @param hop     Samples between row starts, 1 <= hop <= nfft. hop == nfft
  *                tiles the stream; hop < nfft overlaps the frames.
  * @param window  0 = Hann, 1 = Kaiser, 2 = Blackman-Harris, 3 = rectangular,
  *                as dp_psd_create().
  * @param beta    Kaiser beta (ignored for the other windows).
  * @param mode    DP_SPECTROGRAM_DB. DP_SPECTROGRAM_POWER is refused for now.
- * @param shift   Nonzero: each row DC-centred, bin k at index nfft/2 + k
- *                (negative frequencies first), as PSD reports. Zero: FFT
- *                order, bin k at index k (mod nfft).
  * @return Heap-allocated state, or NULL on an invalid argument.
+ *
+ * Every row is DC-centred exactly as PSD's kernel emits it: bin k at index
+ * nfft/2 + k, negative frequencies first.
  * @note Call dp_spectrogram_destroy() when done.
  */
 dp_spectrogram_state_t *dp_spectrogram_create (size_t nfft, size_t hop,
                                                int window, float beta,
-                                               int mode, int shift);
+                                               int mode);
 
 /**
  * @brief Release a spectrogram and everything it owns.
@@ -126,10 +125,10 @@ void dp_spectrogram_reset (dp_spectrogram_state_t *s);
  * A short @p out never loses input. A sample is taken unless taking it would
  * complete a row @p out has no room for: the framer's feed contract
  * (DECLARE_DP_BUFFER_FRAMES) applied to rows. dp_spectrogram_consumed()
- * reports how many were taken, and the caller offers the rest again. Taken input that does
- * not yet complete a row is the carry, held inside: fewer than nfft samples
- * once this returns. So input that completes no row is always taken whole,
- * even with @p max_out 0.
+ * reports how many were taken, and the caller offers the rest again. Taken
+ * input that does not yet complete a row is the carry, held inside: fewer
+ * than nfft samples once this returns. So input that completes no row is
+ * always taken whole, even with @p max_out 0.
  *
  * @param s        Must be non-NULL.
  * @param in       Complex baseband samples (cf32).
@@ -140,8 +139,8 @@ void dp_spectrogram_reset (dp_spectrogram_state_t *s);
  *         dp_spectrogram_push_max_out(s, n_in).
  *
  * @code
- * // nfft 8, hop 4, rectangular, dB, DC-centred: a unit tone on bin 2
- * dp_spectrogram_state_t *s = dp_spectrogram_create (8, 4, 3, 0.0f, 0, 1);
+ * // nfft 8, hop 4, rectangular, dB: a unit tone on bin 2
+ * dp_spectrogram_state_t *s = dp_spectrogram_create (8, 4, 3, 0.0f, 0);
  * float _Complex x[16];
  * for (int i = 0; i < 16; i++)
  *   x[i] = cexpf (I * 2.0f * 3.14159265f * 2.0f * (float)i / 8.0f);
@@ -176,7 +175,7 @@ size_t dp_spectrogram_push_max_out (const dp_spectrogram_state_t *s,
  * @brief Input samples the last dp_spectrogram_push() took.
  *
  * Equal to its @p n_in unless @p out ran out of room; then the caller
- * resumes at in + consumed. 0 after create, reset and set_state.
+ * resumes at in + consumed. 0 after create, reset, flush and set_state.
  *
  * @param s  Must be non-NULL.
  */
@@ -226,7 +225,7 @@ size_t dp_spectrogram_pending (const dp_spectrogram_state_t *s);
  * @brief Bytes of the state blob, a function of nfft alone.
  *
  * The blob is the carry (the framer's snapshot) inside the spectrogram's own
- * envelope. The window, mode and shift are configuration: a blob restores
+ * envelope. The window and mode are configuration: a blob restores
  * into a fresh spectrogram created with the same arguments.
  *
  * @param s  Must be non-NULL.

@@ -45,7 +45,6 @@ _Spectrogram state. Allocate with_ [_**dp\_spectrogram\_create()**_](spectrogram
 |  size\_t | [**nfft**](#variable-nfft)  <br> |
 |  [**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* | [**psd**](#variable-psd)  <br> |
 |  dp\_f32\_t \* | [**ring**](#variable-ring)  <br> |
-|  int | [**shift**](#variable-shift)  <br> |
 |  int | [**window**](#variable-window)  <br> |
 
 
@@ -254,24 +253,6 @@ dp_f32_t* dp_spectrogram_state_t::ring;
 
 
 The carry's storage, owned by `fr` alone. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable shift 
-
-```C++
-int dp_spectrogram_state_t::shift;
-```
-
-
-
-Nonzero: DC at nfft/2. Zero: FFT order. 
  
 
 

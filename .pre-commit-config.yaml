@@ -193,6 +193,16 @@ repos:
         pass_filenames: false
         files: ^(deploy/docker/|\.github/)
 
+      # A stock image pulled from Docker Hub by bare name hit its anonymous
+      # 429 limit and failed unrelated PRs (doppler#1950); it comes through
+      # the Makefile's STOCK_REGISTRY instead.
+      - id: stock-images
+        name: stock images come through STOCK_REGISTRY
+        entry: make -s lint-stock-images
+        language: system
+        pass_filenames: false
+        files: (^|/)(Dockerfile[^/]*|[^/]*\.[Dd]ockerfile|Makefile|[^/]*\.mk|[^/]*\.sh)$|^\.github/
+
       # A wire format's full scale is dp_format_full_scale() and the
       # arithmetic around it is the cvt converters'; four private copies had
       # already drifted into truncating at the wrong constant (#1117).

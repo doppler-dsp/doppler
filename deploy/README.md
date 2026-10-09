@@ -86,14 +86,21 @@ ______________________________________________________________________
 and the stream tier (`libdoppler_stream.a`, vendored `nats.c` folded in). The
 whole build is pure C, so the runtime image needs only libc.
 
+The base images come through doppler's anonymous mirror rather than Docker
+Hub by name ([#1950](https://github.com/doppler-dsp/doppler/issues/1950)), so
+the build takes that registry as a build-arg, from the Makefile:
+
 ```sh
 # Host docker (needs docker-buildx for BuildKit):
-docker build -t doppler-stream:dev -f deploy/docker/Dockerfile .
+docker build --build-arg STOCK_REGISTRY="$(make -s print-stock-registry)" \
+    -t doppler-stream:dev -f deploy/docker/Dockerfile .
 
 # For minikube, load it into the cluster's daemon:
 minikube image load doppler-stream:dev
 # …or build straight into minikube (no host buildx needed):
-minikube image build -t doppler-stream:dev -f deploy/docker/Dockerfile .
+minikube image build \
+    --build-opt=build-arg=STOCK_REGISTRY="$(make -s print-stock-registry)" \
+    -t doppler-stream:dev -f deploy/docker/Dockerfile .
 ```
 
 The root `.dockerignore` keeps the host `build/` out of the context (otherwise

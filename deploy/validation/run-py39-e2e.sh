@@ -15,8 +15,12 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 image="doppler-wfm-py39-e2e"
 version="${DOPPLER_VERSION:-0.17.0}"
 
+# The base image's registry, from the Makefile's one home (doppler#1950).
+registry="${STOCK_REGISTRY:-$(make -s -C "${here}/../.." print-stock-registry)}"
+
 echo ">> building ${image} (doppler-dsp==${version}, python:3.9-slim)"
 docker build \
+  --build-arg "STOCK_REGISTRY=${registry}" \
   --build-arg "DOPPLER_VERSION=${version}" \
   -f "${here}/Dockerfile.py39-e2e" \
   -t "${image}" \

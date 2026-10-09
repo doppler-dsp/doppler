@@ -140,9 +140,12 @@ void dp_psd_accumulate(dp_psd_state_t *state, const float _Complex *x,
  * folds: no division by the window coherent gain squared, so a tone does not
  * read at its true level (dp_psd_frame_db() applies that division). Do not
  * compare this raw output with dp_psd_power_twosided(), which divides by
- * cg^2 on the double path. A streaming spectrogram is this call once per
- * frame. Uses the estimator's scratch, so it is not thread-safe on one state
- * and it does not touch the running average.
+ * cg^2 on the double path. It stays the raw |X|^2 because that is what the
+ * averager folds; a consumer that wants a frame against the dBFS reference
+ * -- in linear units to average itself, or in dB -- takes
+ * dp_psd_frame_linear() or dp_psd_frame_db(). Uses the estimator's scratch,
+ * so it is not thread-safe on one state and it does not touch the running
+ * average.
  *
  * @param state  Must be non-NULL.
  * @param x      Exactly @c state->n complex samples (cf32).
@@ -151,6 +154,40 @@ void dp_psd_accumulate(dp_psd_state_t *state, const float _Complex *x,
  */
 void dp_psd_frame_power(dp_psd_state_t *state, const float _Complex *x,
                         float *pwr);
+
+/**
+ * @brief One frame in linear full-scale^2 units, against the estimator's own
+ * reference.
+ *
+ * dp_psd_frame_power() divided by the window coherent gain squared and the
+ * full-scale reference squared, cg^2 * full_scale^2: a full-scale tone on a
+ * bin reads 1.0 whatever the window. dp_psd_frame_db() is 10*log10 of the same
+ * quotient, with the -200 dB floor -- the two are read from one double, so
+ * they cannot disagree about the reference. This is the frame a consumer that
+ * averages for itself should take: the raw dp_psd_frame_power() sits
+ * 20*log10(sum(w)) above it, 54.18 dB for Hann at 1024 points
+ * (docs/design/spectrogram-measurements.md section 5.3). Does not touch the
+ * running average; not thread-safe on one state.
+ *
+ * @param state  Must be non-NULL.
+ * @param x      Exactly @c state->n complex samples (cf32).
+ * @param out    Output, @c state->nfft floats, DC-centred.
+ *
+ * @code
+ * dp_psd_state_t *p = dp_psd_create (8, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
+ * float _Complex x[8];
+ * float lin[8];
+ * for (int i = 0; i < 8; i++)
+ *   x[i] = cexpf (I * 2.0f * 3.14159265f * 2.0f * (float)i / 8.0f);
+ * dp_psd_frame_linear (p, x, lin);   // unit tone on bin 2, Hann
+ * const int bad = fabsf (lin[4 + 2] - 1.0f) > 1e-4f; // bin 2 at nfft/2 + 2
+ * dp_psd_destroy (p);                // freed on either path
+ * if (bad)
+ *   return 1;
+ * @endcode
+ */
+void dp_psd_frame_linear(dp_psd_state_t *state, const float _Complex *x,
+                         float *out);
 
 /**
  * @brief One frame in dBFS, against the estimator's own reference.
@@ -172,9 +209,10 @@ void dp_psd_frame_power(dp_psd_state_t *state, const float _Complex *x,
  * for (int i = 0; i < 8; i++)
  *   x[i] = cexpf (I * 2.0f * 3.14159265f * 2.0f * (float)i / 8.0f);
  * dp_psd_frame_db (p, x, db);        // unit tone on bin 2, rectangular
- * if (fabsf (db[4 + 2]) > 1e-4f)     // DC-centred: bin 2 is at nfft/2 + 2
+ * const int bad = fabsf (db[4 + 2]) > 1e-4f; // bin 2 is at nfft/2 + 2
+ * dp_psd_destroy (p);                // freed on either path
+ * if (bad)
  *   return 1;
- * dp_psd_destroy (p);
  * @endcode
  */
 void dp_psd_frame_db(dp_psd_state_t *state, const float _Complex *x,

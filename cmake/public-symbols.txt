@@ -1205,6 +1205,7 @@ dp_psd_band_power_max_out function
 dp_psd_create function
 dp_psd_destroy function
 dp_psd_frame_db function
+dp_psd_frame_linear function
 dp_psd_frame_power function
 dp_psd_get_state function
 dp_psd_noise_floor function

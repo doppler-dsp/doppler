@@ -13,6 +13,11 @@
 
 #include "doppler/fft/fft_core.h"
 
+/* What execute_ci16/ci8 say instead when handed a str (jm_array_arg_hint):
+ * text is refused rather than read by numpy as a number, as a manifest
+ * str_hint does for a generated binding (gh-1824). */
+#define FFT_IQ_HINT "pass interleaved I/Q as an array of integers"
+
 /* The one refusal message for the interleaved-integer path, whichever check
  * caught it.  It counts in the caller's unit -- int values, two to a complex
  * sample -- because "not FFT.n" is wrong by a factor of two for an array
@@ -46,8 +51,9 @@ FFTObj_execute_int (FFTObject *self, PyObject *args, int is8)
   PyObject *in_obj = NULL;
   if (!PyArg_ParseTuple (args, "O", &in_obj))
     return NULL;
-  PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      in_obj, is8 ? NPY_INT8 : NPY_INT16, NPY_ARRAY_C_CONTIGUOUS);
+  PyArrayObject *in_arr
+      = jm_array_arg_hint (in_obj, is8 ? NPY_INT8 : NPY_INT16,
+                           NPY_ARRAY_C_CONTIGUOUS, "iq", FFT_IQ_HINT);
   if (!in_arr)
     return NULL;
   /* interleaved I/Q: 2 ints per complex sample.  An odd count is not

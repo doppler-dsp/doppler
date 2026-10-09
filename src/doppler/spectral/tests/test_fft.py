@@ -307,3 +307,16 @@ def test_execute_inplace_cf64_out_writes_into_callers_buffer():
     )
     y = obj.execute_inplace_cf64(x, out=out)
     assert np.shares_memory(y, out)
+
+
+# A str is refused, not parsed by numpy into an int16/int8 array: "1234"
+# would have been the one-sample frame [1234] (#1654). The integer executes
+# are hand-written (spectral_ext_fft_extra.c) and convert through
+# jm_array_arg_hint, which says what to pass instead.
+@pytest.mark.parametrize("method", ["execute_ci16", "execute_ci8"])
+def test_an_integer_execute_refuses_a_str(method):
+    obj = FFT(8, -1, 1)
+    with pytest.raises(
+        TypeError, match=r"^iq must be an array of numbers, not str: pass "
+    ):
+        getattr(obj, method)("1234")

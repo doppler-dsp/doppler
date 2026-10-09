@@ -41,6 +41,13 @@ instead.)
 - [The Ring Buffer — measurements](ring-buffer-measurements.md) — the
     dated record: what the ring costs per sample, what the non-blocking
     surface adds, and the three premises that were wrong.
+- [The Spectrogram](spectrogram.md) — chunks in, rows out: the use cases, the
+    seven guarantees and the six things not yet known, why a spectrogram is
+    PSD per frame rather than a second kernel, and the order the program is
+    built in
+- [The Spectrogram — measurements](spectrogram-measurements.md) — the dated
+    record: PSD's kernel promoted byte-for-byte, a timing that turned out
+    bimodal, and the prototype that found a bug in its own test
 - [The Doppler Channel](doppler-channel.md) — one parameter drives the
     dilation and the carrier: why a Doppler shift is not a frequency offset,
     the scalar and the profile forms, how the carrier is read off the

@@ -74,7 +74,7 @@ jobs:
       tag: ${{ steps.cfg.outputs.tag }}
       owed: ${{ steps.owed.outputs.owed }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7.0.1
 
       # A branch push builds only when the pin is OWED: when this tree's image
       # sources no longer match it. A release bump edits bootstrap.toml's
@@ -135,7 +135,7 @@ jobs:
       fail-fast: true
       matrix: ${{ fromJSON(needs.resolve.outputs.matrix) }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7.0.1
 
       - uses: actions/download-artifact@v8
         with:
@@ -199,7 +199,7 @@ jobs:
       pull-requests: write
       actions: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7.0.1
 
       - uses: actions/download-artifact@v8
         with:

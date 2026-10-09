@@ -275,6 +275,8 @@ nav:
       - Ending a Wait: design/io-termination.md
       - The Ring Buffer: design/ring-buffer.md
       - The Ring Buffer — Measurements: design/ring-buffer-measurements.md
+      - The Spectrogram: design/spectrogram.md
+      - The Spectrogram — Measurements: design/spectrogram-measurements.md
       - The Doppler Channel: design/doppler-channel.md
       - The Doppler Channel — Measurements: design/doppler-channel-measurements.md
       - Capture Files: design/capture-files.md

@@ -244,7 +244,7 @@ ______________________________________________________________________
 
 **Gallery** — [type="symbols" — Bring Your Own Constellation](../gallery/symbols.md), [Composing a Scene — `.sum()`, `.add()`, and Headroom](../gallery/wfm-composition.md), [Waveform I/O — One Capture, Four File Types](../gallery/wfm-io.md), [wfmgen — One Engine, Every Waveform](../gallery/wfmgen.md)
 **Guides** — [Capture I/O](../guide/wfm-io/index.md), [Reading captures](../guide/wfm-io/reading.md), [Writing captures — output & file types](../guide/wfm-io/writing.md), [Waveforms — what you can generate](../guide/wfmgen/waveforms.md)
-**Design** — [Capture files — one reader, one writer, four containers](../design/capture-files.md), [Design](../design/index.md), [Telemetry — zero-cost scalar taps for running pipelines](../design/telemetry.md), [wfmgen — the waveform generator](../design/wfmgen.md)
+**Design** — [Capture files — one reader, one writer, four containers](../design/capture-files.md), [Design](../design/index.md), [The Spectrogram — chunks in, rows out](../design/spectrogram.md), [Telemetry — zero-cost scalar taps for running pipelines](../design/telemetry.md), [wfmgen — the waveform generator](../design/wfmgen.md)
 **Contributing** — [Validation log](../dev/contributing/validation-log.md), [Release Checklist](../dev/release.md)
 
 <!-- related-pages:end -->

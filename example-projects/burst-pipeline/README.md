@@ -85,8 +85,8 @@ convention to drift from the one doppler ships.
 `dp_syncword_max_errors_for` answers "how many bit errors may I accept?" and it
 needs to know **how much stream you are searching**, because the search
 returns the *first* acceptable offset — every offset ahead of the real one is
-its own chance to hit first. Over this scene's 1361-bit window a 31-bit marker
-is refused outright: even demanding an exact match leaves a false-frame
+its own chance to hit first. Over this scene's search window, one burst
+period (4433 bits; the run prints it), a 31-bit marker is refused outright: even demanding an exact match leaves a false-frame
 probability above 1e-6. A 63-bit marker takes that from 2⁻³¹ to 2⁻⁶³ and
 leaves room for 7 bit errors at Pfa 1.4e-10.
 

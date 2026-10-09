@@ -14,15 +14,19 @@ on purpose, including the ones a release has not produced yet.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import subprocess
 import sys
 from typing import TYPE_CHECKING
 
+import pytest
+
 from doppler.tests._repo import repo_root
 
 if TYPE_CHECKING:
     from pathlib import Path
+    from types import ModuleType
 
 REPO = repo_root(__file__)
 GATE = REPO / "scripts" / "check_bench_commits.py"
@@ -186,7 +190,7 @@ def test_a_shallow_clone_names_the_depth(tmp_path: Path) -> None:
     _git(tmp_path, "clone", "-q", "--depth", "1", f"file://{repo}", "shallow")
     r = _gate(shallow, base="origin/main")
     assert r.returncode == 1, r.stdout + r.stderr
-    assert "SHALLOW" in r.stdout
+    assert "SHALLOW (1 commit(s) of history)" in r.stdout
     assert "fetch-depth: 0" in r.stdout
 
 
@@ -271,3 +275,156 @@ def test_restamp_writes_nothing_if_any_file_is_refused(
         a.read_text(encoding="utf-8"),
         b.read_text(encoding="utf-8"),
     ) == texts
+
+
+def test_an_added_exemption_fails(tmp_path: Path) -> None:
+    """The list may only shrink: an entry the merge base lacks is refused."""
+    repo, _ = _repo(tmp_path)
+    _stamp(repo, _off_main(repo, "int old;\n"))
+    _exempt(repo, "v1.0.0 measured on a tree main never had\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "the old, honest exemption")
+    _git(repo, "checkout", "-q", "-b", "feature")
+    new = repo / "benchmarks/published/v2.0.0/native.json"
+    new.parent.mkdir(parents=True)
+    new.write_text(
+        (repo / SET / "native.json").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    _exempt(
+        repo,
+        "v1.0.0 measured on a tree main never had\n"
+        "v2.0.0 a new set, quietly excused\n",
+    )
+    r = _gate(repo)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "v2.0.0 was ADDED -- the list may only shrink" in r.stdout
+    assert "v1.0.0 was ADDED" not in r.stdout
+
+
+def test_a_checkout_that_has_the_commit_is_told_to_fetch(
+    tmp_path: Path,
+) -> None:
+    """In HEAD but not on base: a stale base is the first suspect."""
+    repo, _ = _repo(tmp_path)
+    side = _off_main(repo, "int b;\n")
+    _git(repo, "checkout", "-q", "side")
+    _stamp(repo, side)
+    r = _gate(repo)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "if main is behind, fetch it first" in r.stdout
+    assert r.stdout.index("git fetch origin") < r.stdout.index("bench-restamp")
+
+
+def test_not_a_git_checkout_says_so(tmp_path: Path) -> None:
+    plain = tmp_path / "plain"
+    (plain / SET).mkdir(parents=True)
+    r = _gate(plain)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "is not a git checkout" in r.stdout
+
+
+def test_a_missing_base_ref_fails_both_scripts(tmp_path: Path) -> None:
+    repo, base = _repo(tmp_path)
+    _stamp(repo, base)
+    r = _gate(repo, base="no-such-branch")
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "base ref no-such-branch not found" in r.stdout
+    r = subprocess.run(
+        [
+            sys.executable,
+            str(RESTAMP),
+            "1.0.0",
+            "--root",
+            str(repo),
+            "--base",
+            "no-such-branch",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "base ref no-such-branch not found" in r.stdout
+
+
+def test_restamp_fetches_a_stamp_it_does_not_have(tmp_path: Path) -> None:
+    """The measured commit lives only on origin: fetched by commit_info.id."""
+    origin, _ = _repo(tmp_path)
+    _git(origin, "config", "uploadpack.allowAnySHA1InWant", "true")
+    _git(tmp_path, "clone", "-q", f"file://{origin}", "clone")
+    clone = tmp_path / "clone"
+    side = _off_main(origin, "int measured;\n")  # made after the clone
+    landed = _commit(clone, "int measured;\n", "the squash-merge")
+    path = _stamp(clone, side)
+    missing = subprocess.run(
+        ["git", "-C", str(clone), "cat-file", "-e", f"{side}^{{commit}}"],
+        capture_output=True,
+    )
+    assert missing.returncode != 0  # not local before the restamp
+
+    r = _restamp(clone)
+    assert r.returncode == 0, r.stdout + r.stderr
+    after = json.loads(path.read_text(encoding="utf-8"))
+    assert after["doppler_meta"]["commit"] == landed[:9]
+
+
+# ── bench_restamp's guards, in-process ───────────────────────────────────
+
+
+@pytest.fixture
+def restamp(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
+    """bench_restamp as a module, its sibling imports resolvable."""
+    monkeypatch.syspath_prepend(str(REPO / "scripts"))
+    spec = importlib.util.spec_from_file_location("_t_restamp", RESTAMP)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_the_rewrite_needs_exactly_one_match(restamp: ModuleType) -> None:
+    text = json.dumps(
+        {
+            "other": {"commit": "abc123456"},
+            "doppler_meta": {"commit": "abc123456"},
+        }
+    )
+    with pytest.raises(restamp.RestampError, match="appears 2 times"):
+        restamp._rewrite("x.json", text, "abc123456", "def987654")
+
+
+def test_the_rewrite_is_parsed_back(restamp: ModuleType) -> None:
+    """One textual match that is NOT doppler_meta.commit is refused.
+
+    Here doppler_meta's value is spelled with a JSON escape, so the only
+    plain-text match is another key's, and the parse-back catches the edit.
+    """
+    text = (
+        '{"machine_info": {"commit": "abc123456"}, '
+        '"doppler_meta": {"commit": "\\u0061bc123456"}}'
+    )
+    assert json.loads(text)["doppler_meta"]["commit"] == "abc123456"
+    with pytest.raises(restamp.RestampError, match="changed more than"):
+        restamp._rewrite("x.json", text, "abc123456", "def987654")
+
+
+def test_an_ambiguous_abbreviation_is_refused(
+    tmp_path: Path, restamp: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """If the new stamp at the old length names some OTHER commit, refuse.
+
+    A real collision at nine hex digits cannot be built on demand, so the
+    abbreviation's lookup is made to resolve elsewhere.
+    """
+    repo, _ = _repo(tmp_path)
+    side = _off_main(repo, "int measured;\n")
+    landed = _commit(repo, "int measured;\n", "the squash-merge")
+    real = restamp.resolve
+
+    def resolve(root: Path, ref: str) -> str | None:
+        return "f" * 40 if ref == landed[:9] else real(root, ref)
+
+    monkeypatch.setattr(restamp, "resolve", resolve)
+    data = {"commit_info": {"id": side}, "doppler_meta": {"commit": side[:9]}}
+    with pytest.raises(restamp.RestampError, match="ambiguous at 9"):
+        restamp._target(repo, "x.json", data, "main")

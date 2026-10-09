@@ -37,10 +37,16 @@ If any gallery example scripts in `src/doppler/examples/` changed since the
 last release, regenerate the plots:
 
 ```sh
+git switch -c gallery/vX.Y.Z
 make gallery
 git add docs/assets/
 git commit -m "docs: update gallery plots for vX.Y.Z"
 ```
+
+Land it through its own PR **before §2b**. §2b measures a commit main
+already has; a plots commit left on local `main` is exactly the commit it
+must not measure (v0.57.0's set was stamped with one, and that tree never
+reached main).
 
 If you added a new plot-generating script, add it to `GALLERY_SCRIPTS`
 in the Makefile before running `make gallery`.
@@ -94,16 +100,30 @@ First put the CPU
 in a peak, repeatable state — the published `doppler_meta` records the governor
 either way, but `powersave` understates the numbers:
 
+**Measure a commit that is already on `origin/main`.** The set stamps it as
+`doppler_meta.commit`, a reader checks it out to reproduce the numbers, and
+`make bench-commits-check` refuses one main cannot reach (#1322).
+`bench-interleaved` says which commit it measures, and whether origin/main
+has it, before and after the run.
+
 ```sh
 sudo cpupower frequency-set -g performance   # peak, repeatable; quiesce other load
 
+git fetch origin && git checkout --detach origin/main   # measure what main has
 make bench-interleaved VERSION=X.Y.Z   # builds portable + native, runs them
                                        # alternately, keeps the per-bench best
-make bench-restamp VERSION=X.Y.Z       # only if the measured commit is not on main (#1322)
 make bench-docs                        # render docs/benchmarks.md (two columns)
+git switch -c bench/vX.Y.Z
 git add benchmarks/published docs/benchmarks.md
 git commit -m "docs: publish benchmarks for vX.Y.Z (<cpu>)"
 ```
+
+If a set was measured on a branch head instead, it can be restamped after
+the merge with `make bench-restamp VERSION=X.Y.Z`, but **only if that exact
+tree landed on main unchanged** (the branch rebase-merged, so the measured
+commit lands as a commit of its own). A squash-merge folds it into one
+commit with everything after it, leaves no tree-identical commit, and the
+restamp refuses.
 
 `bench-interleaved` builds both flavours in throwaway git worktrees, runs the
 suite alternately K times (default 5; `K=N` to override), and keeps each

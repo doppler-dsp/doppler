@@ -618,6 +618,68 @@ main (void)
     DP_CHECK (exact);
   }
   {
+    /* ...and the claim holds where the RING is the limit: capacity == N and
+       a little over, n far past the room, and every max_frames. frames_for()
+       is feed(n, SIZE_MAX) then a drain, and feed(n, m) yields the lesser of
+       m and that. The roomy ring above cannot see either. */
+    static const shape_t shp[]   = { { 8, 4 }, { 8, 8 }, { 5, 1 }, { 1, 1 } };
+    static const size_t  extra[] = { 0, 1, 7 };
+    int                  exact = 1, capped = 1;
+    for (size_t k = 0; k < sizeof shp / sizeof *shp; k++)
+      for (size_t e = 0; e < sizeof extra / sizeof *extra; e++)
+        for (size_t pre = 0; pre < shp[k].N; pre++)
+          for (size_t n = 0; n < 4 * shp[k].N + 3; n += 1 + n / 7)
+            for (size_t m = 0; m < 4; m++)
+              {
+                dp_f32_t       *r = dp_f32_create (shp[k].N + extra[e]);
+                dp_f32_framer_t fr;
+                DP_REQUIRE (r != NULL);
+                DP_REQUIRE (dp_f32_framer_init (&fr, r, shp[k].N, shp[k].H)
+                            == DP_OK);
+                dp_f32_framer_feed_view (&fr, x, pre, 0);
+                size_t predicted = dp_f32_framer_frames_for (&fr, n);
+                dp_f32_framer_feed_view (&fr, x + pre, n, m);
+                size_t got = 0;
+                while (dp_f32_framer_next_view (&fr))
+                  got++;
+                if (got != (m < predicted ? m : predicted))
+                  capped = 0;
+                dp_f32_destroy (r);
+
+                r = dp_f32_create (shp[k].N + extra[e]);
+                DP_REQUIRE (dp_f32_framer_init (&fr, r, shp[k].N, shp[k].H)
+                            == DP_OK);
+                dp_f32_framer_feed_view (&fr, x, pre, 0);
+                dp_f32_framer_feed_view (&fr, x + pre, n, SIZE_MAX);
+                got = 0;
+                while (dp_f32_framer_next_view (&fr))
+                  got++;
+                if (got != predicted)
+                  exact = 0;
+                dp_f32_destroy (r);
+              }
+    DP_CHECK (exact);
+    DP_CHECK (capped);
+
+    /* the reviewer's literal case, and n near SIZE_MAX must not wrap */
+    dp_f32_t       *r = dp_f32_create (8);
+    dp_f32_framer_t fr;
+    DP_REQUIRE (r != NULL && r->capacity == 8);
+    DP_REQUIRE (dp_f32_framer_init (&fr, r, 8, 4) == DP_OK);
+    DP_CHECK (dp_f32_framer_frames_for (&fr, 100) == 1);
+    DP_CHECK (dp_f32_framer_feed_view (&fr, x, 100, SIZE_MAX) == 8);
+    /* ring full, one frame buffered and undrained: more input adds nothing */
+    DP_CHECK (dp_f32_framer_frames_for (&fr, SIZE_MAX) == 1);
+    DP_CHECK (dp_f32_framer_next_view (&fr) != NULL);
+    dp_f32_framer_t fresh;
+    dp_f32_t       *r2 = dp_f32_create (8);
+    DP_REQUIRE (dp_f32_framer_init (&fresh, r2, 8, 4) == DP_OK);
+    DP_CHECK (dp_f32_framer_frames_for (&fresh, SIZE_MAX) == 1);
+    DP_CHECK (dp_f32_framer_frames_for (&fresh, SIZE_MAX - 3) == 1);
+    dp_f32_destroy (r);
+    dp_f32_destroy (r2);
+  }
+  {
     /* a snapshot of another SHAPE is refused: the size differs */
     dp_f32_t       *ra = dp_f32_create (64), *rb = dp_f32_create (64);
     dp_f32_framer_t a, b;

@@ -825,12 +825,13 @@ typedef enum
     return n;                                                                 \
   }                                                                           \
                                                                               \
-               \
+                                                                         \
   static inline DP_BUFFER_UNUSED size_t                                       \
   dp_##name##_framer_frames_for (const dp_##name##_framer_t *fr, size_t n)    \
   {                                                                           \
-    return dp_##name##_framer_frames_in_ (                                    \
-        fr, dp_##name##_available (fr->ring) - fr->owed + n);                 \
+    size_t held = dp_##name##_available (fr->ring) - fr->owed;                \
+    size_t room = fr->ring->capacity - held;                                  \
+    return dp_##name##_framer_frames_in_ (fr, held + (n < room ? n : room));  \
   }                                                                           \
                                                                               \
          \

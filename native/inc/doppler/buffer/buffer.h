@@ -1303,12 +1303,22 @@ typedef enum
     return n;                                                                 \
   }                                                                           \
                                                                               \
-  /** @brief Frames feed() of @p n more samples would yield. */               \
+  /**                                                                         \
+   * @brief Frames feed(@p n, SIZE_MAX) followed by a drain would yield.      \
+   *                                                                          \
+   * Exact, including the limit the ring puts on the write: feed() takes only \
+   * what fits once the owed hop is retired, so an @p n larger than that room \
+   * counts only the samples that would be accepted (ring capacity 8, frame 8, \
+   * hop 4: frames_for(100) is 1, not 24), and an @p n near SIZE_MAX cannot   \
+   * wrap. With a smaller @c max_frames, feed() yields the lesser of that and \
+   * this.                                                                    \
+   */                                                                         \
   static inline DP_BUFFER_UNUSED size_t                                       \
   dp_##name##_framer_frames_for (const dp_##name##_framer_t *fr, size_t n)    \
   {                                                                           \
-    return dp_##name##_framer_frames_in_ (                                    \
-        fr, dp_##name##_available (fr->ring) - fr->owed + n);                 \
+    size_t held = dp_##name##_available (fr->ring) - fr->owed;                \
+    size_t room = fr->ring->capacity - held;                                  \
+    return dp_##name##_framer_frames_in_ (fr, held + (n < room ? n : room));  \
   }                                                                           \
                                                                               \
   /** @brief Samples fed that no handed-out frame has covered yet. */         \

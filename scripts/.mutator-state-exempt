@@ -1,0 +1,116 @@
+# Mutators whose value #2022's gate cannot show travels in the state blob.
+#
+# Read by src/doppler/tests/test_mutator_state.py: every serializable
+# object's post-create mutators, found from objects/*.toml and the C headers,
+# probed by behaviour. A mutator that does not pass (TRAVELS or KEYED) must be
+# listed here with EXACTLY the verdict it reads and a reason, or the gate is
+# red. A listed mutator that now passes, names nothing, or reads another
+# verdict is red too: this list only shrinks. The rule is
+# docs/design/state-serialization.md, "A mutator's value is state".
+#
+#   LOST              its value does not travel: a fix deletes the line
+#   NONDETERMINISTIC  two identical builds differ, so no restore can be judged
+#   UNPROBED          no two values the probe can find differ (reason: why)
+#   EXEMPT            a handle to the outside world, not state
+#   C_ONLY            no Python face to probe: verified by a C twin, #2077
+#   NO_RECIPE         its class has no CASES row to probe with, #2078
+#
+# Each family's fix PR deletes its own lines (#2079..#2084, LO/NCO first).
+#
+# key                                                    verdict           reason
+
+# -- LOST (15)
+DDC.norm_freq                                           LOST              family 1, the LO/NCO root: norm_freq is not in the leaf blob (#2079)
+Ddcr.norm_freq                                          LOST              family 1, the LO/NCO root: norm_freq is not in the leaf blob (#2079)
+LO.norm_freq                                            LOST              family 1, the LO/NCO root: norm_freq is not in the leaf blob (#2079)
+MatchedDDC.norm_freq                                    LOST              family 1, the LO/NCO root: norm_freq is not in the leaf blob (#2079)
+MpskReceiver.norm_freq                                  LOST              family 1, the LO/NCO root: norm_freq is not in the leaf blob (#2079)
+MpskReceiverR.norm_freq                                 LOST              family 1, the LO/NCO root: norm_freq is not in the leaf blob (#2079)
+NCO.norm_freq                                           LOST              family 1, the LO/NCO root: norm_freq is not in the leaf blob (#2079)
+Specan.retune                                           LOST              family 1, the LO/NCO root: norm_freq is not in the leaf blob (#2079)
+CIC.reconfigure                                         LOST              family 2: the rate is neither packed nor a reject key (#2080)
+MatchedRateConverter.rate                               LOST              family 2: the rate is neither packed nor a reject key (#2080)
+RateConverter.rate                                      LOST              family 2: the rate is neither packed nor a reject key (#2080)
+Resampler.rate                                          LOST              family 2: the rate is neither packed nor a reject key (#2080)
+RateSync.bn                                             LOST              family 5: the receivers' loop/lock setters (#2083)
+RateSync.configure_lock_raw                             LOST              family 5: the receivers' loop/lock setters (#2083)
+AWGN.amplitude                                          LOST              family 6: the amplitude is not packed (#2084)
+
+# -- NONDETERMINISTIC (1)
+CarrierAcquisition.steps                                NONDETERMINISTIC  get_state writes the carry buffer's uninitialised tail (#2076)
+
+# -- UNPROBED (2)
+BurstCapture.release                                    UNPROBED          releases a captured burst by index, and the matrix feed captures none, so no index is valid
+_SynthEngine.set_chirp_span                             UNPROBED          the matrix engine is not in chirp mode, so the span changes nothing it does (family 4, #2082)
+
+# -- EXEMPT (9)
+AGC.set_telemetry                                       EXEMPT            a telemetry sink: a handle to the outside world, not state
+CarrierNda.set_telemetry                                EXEMPT            a telemetry sink: a handle to the outside world, not state
+Costas.set_telemetry                                    EXEMPT            a telemetry sink: a handle to the outside world, not state
+Despreader.set_telemetry                                EXEMPT            a telemetry sink: a handle to the outside world, not state
+Dll.set_telemetry                                       EXEMPT            a telemetry sink: a handle to the outside world, not state
+MpskReceiver.set_telemetry                              EXEMPT            a telemetry sink: a handle to the outside world, not state
+MpskReceiverR.set_telemetry                             EXEMPT            a telemetry sink: a handle to the outside world, not state
+RateSync.set_telemetry                                  EXEMPT            a telemetry sink: a handle to the outside world, not state
+SymbolSync.set_telemetry                                EXEMPT            a telemetry sink: a handle to the outside world, not state
+
+# -- C_ONLY (31)
+AccCf64.dp_acc_cf64_set_acc                             C_ONLY            seeds the accumulator, which is running state; C twin #2077
+AccF32.dp_acc_f32_set_acc                               C_ONLY            seeds the accumulator, which is running state; C twin #2077
+AccQ15.dp_acc_q15_set_acc                               C_ONLY            seeds the accumulator, which is running state; C twin #2077
+AccQ8.dp_acc_q8_set_acc                                 C_ONLY            seeds the accumulator, which is running state; C twin #2077
+Acquisition.dp_acq_set_surface_sink                     C_ONLY            a sink; confirm EXEMPT through the C twin (#2077)
+BerMeter.dp_ber_meter_set_align                         C_ONLY            family 5 (#2083); C twin #2077
+Corr.dp_corr_set_ref                                    C_ONLY            family 3 (#2081); C twin #2077
+Corr2D.dp_corr2d_set_ref                                C_ONLY            family 3 (#2081); C twin #2077
+CorrDetector.dp_detector_set_ref                        C_ONLY            family 3 (#2081); C twin #2077
+CorrDetector.dp_detector_set_threshold                  C_ONLY            family 3 (#2081); C twin #2077
+CorrDetector2D.dp_detector2d_set_ref                    C_ONLY            family 3 (#2081); C twin #2077
+CorrDetector2D.dp_detector2d_set_threshold              C_ONLY            family 3 (#2081); C twin #2077
+DDC.dp_ddc_set_telemetry                                C_ONLY            a sink; confirm EXEMPT through the C twin (#2077)
+Ddcr.dp_ddcr_set_telemetry                              C_ONLY            a sink; confirm EXEMPT through the C twin (#2077)
+Dll.dp_dll_set_coast                                    C_ONLY            no Python face; C twin #2077
+RateConverter.dp_RateConverter_enable_agc               C_ONLY            family 2 (#2080); C twin #2077
+RateConverter.dp_RateConverter_set_telemetry            C_ONLY            a sink; confirm EXEMPT through the C twin (#2077)
+_SynthEngine.dp_wfm_synth_reseed_noise                  C_ONLY            family 4 (#2082); C twin #2077
+_SynthEngine.dp_wfm_synth_set_bits                      C_ONLY            family 4 (#2082); C twin #2077
+_SynthEngine.dp_wfm_synth_set_cur_im                    C_ONLY            family 4 (#2082); C twin #2077
+_SynthEngine.dp_wfm_synth_set_cur_re                    C_ONLY            family 4 (#2082); C twin #2077
+_SynthEngine.dp_wfm_synth_set_dsss_chips                C_ONLY            family 4 (#2082); C twin #2077
+_SynthEngine.dp_wfm_synth_set_dsss_cont                 C_ONLY            family 4 (#2082); C twin #2077
+_SynthEngine.dp_wfm_synth_set_dsss_window               C_ONLY            family 4 (#2082); C twin #2077
+_SynthEngine.dp_wfm_synth_set_nsps                      C_ONLY            family 4 (#2082); C twin #2077
+_SynthEngine.dp_wfm_synth_set_refill                    C_ONLY            a sink; confirm EXEMPT through the C twin (#2077)
+_SynthEngine.dp_wfm_synth_set_refill_state              C_ONLY            family 3 (#2081); C twin #2077
+_SynthEngine.dp_wfm_synth_set_rrc                       C_ONLY            family 4 (#2082); C twin #2077
+_SynthEngine.dp_wfm_synth_set_sym_pos                   C_ONLY            family 4 (#2082); C twin #2077
+_SynthEngine.dp_wfm_synth_set_symbols                   C_ONLY            family 4 (#2082); C twin #2077
+_SynthEngine.dp_wfm_synth_set_wtype                     C_ONLY            family 4 (#2082); C twin #2077
+
+# -- NO_RECIPE (26)
+Acquisition.configure_search_raw                        NO_RECIPE         Acquisition has no test_state_serialization CASES row (#2078)
+Acquisition.keep_surface                                NO_RECIPE         Acquisition has no test_state_serialization CASES row (#2078)
+Acquisition.set_carrier_freq_hz                         NO_RECIPE         Acquisition has no test_state_serialization CASES row (#2078); family 5 (#2083)
+Acquisition.set_max_peaks                               NO_RECIPE         Acquisition has no test_state_serialization CASES row (#2078)
+Acquisition.set_telemetry                               NO_RECIPE         Acquisition has no test_state_serialization CASES row (#2078)
+Acquisition.set_threads                                 NO_RECIPE         Acquisition has no test_state_serialization CASES row (#2078)
+AsyncDsssPool.set_event_log                             NO_RECIPE         AsyncDsssPool has no test_state_serialization CASES row (#2078)
+AsyncDsssReceiver.configure_chain_raw                   NO_RECIPE         AsyncDsssReceiver has no test_state_serialization CASES row (#2078)
+AsyncDsssReceiver.configure_lock_raw                    NO_RECIPE         AsyncDsssReceiver has no test_state_serialization CASES row (#2078); family 5 (#2083)
+AsyncDsssReceiver.configure_search_raw                  NO_RECIPE         AsyncDsssReceiver has no test_state_serialization CASES row (#2078)
+AsyncDsssReceiver.seed                                  NO_RECIPE         AsyncDsssReceiver has no test_state_serialization CASES row (#2078)
+AsyncDsssReceiver.set_refine_min_blocks                 NO_RECIPE         AsyncDsssReceiver has no test_state_serialization CASES row (#2078); family 5 (#2083)
+BerMeter.set_truth                                      NO_RECIPE         BerMeter has no test_state_serialization CASES row (#2078); family 5 (#2083)
+BpskReceiver.norm_freq                                  NO_RECIPE         BpskReceiver has no test_state_serialization CASES row (#2078); family 1 (#2079)
+BpskReceiver.set_telemetry                              NO_RECIPE         BpskReceiver has no test_state_serialization CASES row (#2078)
+CellAsyncDsssReceiver.configure_chain_raw               NO_RECIPE         CellAsyncDsssReceiver has no test_state_serialization CASES row (#2078)
+CellAsyncDsssReceiver.configure_lock_raw                NO_RECIPE         CellAsyncDsssReceiver has no test_state_serialization CASES row (#2078)
+CellAsyncDsssReceiver.seed                              NO_RECIPE         CellAsyncDsssReceiver has no test_state_serialization CASES row (#2078)
+DsssBurstReceiver.configure_search_raw                  NO_RECIPE         DsssBurstReceiver has no test_state_serialization CASES row (#2078)
+DsssReceiver.configure_chain_raw                        NO_RECIPE         DsssReceiver has no test_state_serialization CASES row (#2078)
+DsssReceiver.configure_lock_raw                         NO_RECIPE         DsssReceiver has no test_state_serialization CASES row (#2078); family 5 (#2083)
+DsssReceiver.configure_search_raw                       NO_RECIPE         DsssReceiver has no test_state_serialization CASES row (#2078)
+FrameMeter.add                                          NO_RECIPE         FrameMeter has no test_state_serialization CASES row (#2078)
+MatchedDdcr.norm_freq                                   NO_RECIPE         MatchedDdcr has no test_state_serialization CASES row (#2078); family 1 (#2079)
+PersistentBurstCapture.configure_search_raw             NO_RECIPE         PersistentBurstCapture has no test_state_serialization CASES row (#2078)
+PersistentBurstCapture.release                          NO_RECIPE         PersistentBurstCapture has no test_state_serialization CASES row (#2078)

@@ -380,6 +380,21 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
         ),
         _track_feed,
     ),
+    # Segmented: the partial-correlation path, and the one where
+    # set_symbol_period's rate aid exists (it refuses every period at
+    # segments = 1), so #2022's mutator gate can probe it.
+    "Dll (segmented)": (
+        lambda: Dll(
+            code=_CODE,
+            sps=2,
+            init_chip=0.0,
+            bn=0.02,
+            zeta=0.707,
+            spacing=0.5,
+            segments=4,
+        ),
+        _track_feed,
+    ),
     "SymbolSync": (
         lambda: SymbolSync(sps=8, bn=0.01, zeta=0.707, order="cubic"),
         _track_feed,

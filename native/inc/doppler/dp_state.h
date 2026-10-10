@@ -340,8 +340,10 @@ dp_state_validate (const void *blob, size_t expect_bytes, uint32_t magic,
   }
 
 /* ── field-wise scaffolding ──────────────────────────────────────────────────
- * For a hand-written triplet that packs a subset of fields (running state only;
- * config restored by create()).  Use inside `<obj>_get_state(s, blob)` /
+ * For a hand-written triplet that packs a subset of fields: the running state
+ * and every mutator's value, while create() restores the config no mutator
+ * reaches (docs/design/state-serialization.md, "What goes in the blob",
+ * #2022).  Use inside `<obj>_get_state(s, blob)` /
  * `<obj>_set_state(s, blob)` (those exact param names): open, then pack/unpack
  * the running fields via `&_w` / `&_r`, and `return DP_OK;` from set.
  *

@@ -263,34 +263,43 @@ def test_band_power_is_none_for_no_complete_band(no_band):
     assert w.band_power(no_band, out=np.zeros(2, dtype=np.float32)) is None
 
 
+_ALPHA = "in exp mode 0 < alpha <= 1"
+_WINDOW = "a window whose taps sum to a finite nonzero value"
+_FS = "finite fs > 0"
+_FULL = "a finite full_scale > 0 when bits = 0"
+
+
 @pytest.mark.parametrize(
-    "kwargs",
+    ("kwargs", "clause"),
     [
-        {"pad": 0},  # was silently pad = 1 (#1911 (b))
-        {"n": 1},
-        {"pad": 2**62},  # n * pad past the largest FFT a size_t can size
-        {"fs": 0.0},
-        {"full_scale": -1.0},
+        ({"pad": 0}, "pad >= 1"),  # was silently pad = 1 (#1911 (b))
+        ({"n": 1}, "n >= 2"),
+        # n * pad past the largest FFT a size_t can size
+        ({"pad": 2**62}, "n * pad within the largest FFT"),
+        ({"fs": 0.0}, _FS),
+        ({"full_scale": -1.0}, _FULL),
         # (c): refused by the AccTrace averager, whose NULL PSD returns.
-        {"mode": "exp", "alpha": 0.0},  # never left the first frame
-        {"mode": "exp", "alpha": -0.5},  # read negative power
-        {"mode": "exp", "alpha": 1.5},  # saturates to pass-through
-        {"mode": "exp", "alpha": float("nan")},  # poisoned every bin
-        {"n": 2, "window": "hann"},  # [0, 0]: zero coherent gain (f)
+        ({"mode": "exp", "alpha": 0.0}, _ALPHA),  # never left frame one
+        ({"mode": "exp", "alpha": -0.5}, _ALPHA),  # read negative power
+        ({"mode": "exp", "alpha": 1.5}, _ALPHA),  # pass-through
+        ({"mode": "exp", "alpha": float("nan")}, _ALPHA),  # poisoned bins
+        ({"n": 2, "window": "hann"}, _WINDOW),  # [0, 0]: zero gain (f)
         # a NaN passed `<= 0.0`, and every reading divides by these
-        {"fs": float("nan")},
-        {"fs": float("inf")},
-        {"full_scale": float("nan")},
-        {"window": "kaiser", "beta": float("nan")},  # every tap NaN
-        {"window": "kaiser", "beta": 2.3e5},  # I0 overflows
-        {"bits": 65},  # a reference past any sample format
+        ({"fs": float("nan")}, _FS),
+        ({"fs": float("inf")}, _FS),
+        ({"full_scale": float("nan")}, _FULL),
+        ({"window": "kaiser", "beta": float("nan")}, _WINDOW),  # NaN taps
+        ({"window": "kaiser", "beta": 2.3e5}, _WINDOW),  # I0 overflows
+        ({"bits": 65}, "bits <= 64"),  # past any sample format
     ],
 )
-def test_create_refuses_what_it_used_to_accept(kwargs):
+def test_create_refuses_what_it_used_to_accept(kwargs, clause):
     """A refused argument raises ValueError naming the rules (#1986): the
     declared ``create_error``, where a bare NULL used to read as an
-    out-of-memory MemoryError -- ``alpha=-0.5`` said "out of memory"."""
-    with pytest.raises(ValueError, match="PSD: invalid parameter"):
+    out-of-memory MemoryError -- ``alpha=-0.5`` said "out of memory".
+    Each case matches its OWN rule's clause, so a message that misstates a
+    rule cannot pass."""
+    with pytest.raises(ValueError, match=re.escape(clause)):
         PSD(**{"n": 64, "fs": 1.0, **kwargs})
 
 

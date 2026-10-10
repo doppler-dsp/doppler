@@ -9,6 +9,7 @@
  */
 #include "doppler/acc_trace/acc_trace_core.h"
 #include "doppler/util/util_core.h"
+#include <stdint.h>
 
 /* The one alpha rule, for create() and the setter alike.  Only the EMA reads
  * alpha, and there it must be a smoothing factor in (0, 1]: 0 never leaves
@@ -25,7 +26,11 @@ acc_trace_alpha_ok (int mode, double alpha)
 dp_acc_trace_state_t *
 dp_acc_trace_create (size_t n, int mode, double alpha)
 {
-  if (n == 0 || mode < ACC_TRACE_MEAN || mode > ACC_TRACE_MINHOLD)
+  /* n doubles must have a byte count a size_t holds: refused here, not
+     left to calloc's own overflow check, which ASan and TSan report as an
+     error rather than a NULL. */
+  if (n == 0 || n > SIZE_MAX / sizeof (double) || mode < ACC_TRACE_MEAN
+      || mode > ACC_TRACE_MINHOLD)
     return NULL;
   if (!acc_trace_alpha_ok (mode, alpha))
     return NULL;

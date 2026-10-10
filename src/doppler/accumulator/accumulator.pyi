@@ -737,7 +737,8 @@ class AccTrace:
     Parameters
     ----------
     n : int, default 1024
-        Trace length in bins. Must be > 0; returns NULL otherwise.
+        Trace length in bins. Must be > 0, with n doubles a byte count a size_t
+        holds; returns NULL otherwise.
     mode : Literal["mean", "exp", "maxhold", "minhold"], default "mean"
         Reduction mode index (0=mean, 1=exp, 2=maxhold, 3=minhold).
     alpha : float, default 0.1
@@ -751,7 +752,8 @@ class AccTrace:
     ------
     ValueError
         If construction fails. The exception message is ``AccTrace: invalid
-        parameter (need n >= 1, and in exp mode 0 < alpha <= 1)``.
+        parameter (need n >= 1 with n * 8 bytes addressable, and in exp mode 0
+        < alpha <= 1)``.
 
     Examples
     --------

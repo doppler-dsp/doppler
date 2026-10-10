@@ -100,11 +100,11 @@ PSDObj_init (PSDObject *self, PyObject *args, PyObject *kwds)
     {
       PyErr_SetString (PyExc_ValueError,
                        "PSD: invalid parameter (need n >= 2, pad >= 1 with n "
-                       "* pad within the largest FFT, finite fs > 0, finite "
-                       "full_scale > 0 or bits <= 64, a window whose taps "
-                       "sum to a finite nonzero value (not hann at n = 2, "
-                       "nor a NaN or overflowing kaiser beta), and in exp "
-                       "mode 0 < alpha <= 1)");
+                       "* pad within the largest FFT, finite fs > 0, bits <= "
+                       "64, a finite full_scale > 0 when bits = 0, a window "
+                       "whose taps sum to a finite nonzero value (not hann "
+                       "at n = 2, nor a NaN or overflowing kaiser beta), and "
+                       "in exp mode 0 < alpha <= 1)");
       return -1;
     }
   return 0;
@@ -1674,10 +1674,11 @@ static PyTypeObject PSDObjType = {
     "    If construction fails. The exception message is ``PSD: invalid\n"
     "    parameter (need n >= 2, pad >= 1 with n * pad within the largest "
     "FFT,\n"
-    "    finite fs > 0, finite full_scale > 0 or bits <= 64, a window whose "
-    "taps\n"
-    "    sum to a finite nonzero value (not hann at n = 2, nor a NaN or\n"
-    "    overflowing kaiser beta), and in exp mode 0 < alpha <= 1)``.\n"
+    "    finite fs > 0, bits <= 64, a finite full_scale > 0 when bits = 0, a\n"
+    "    window whose taps sum to a finite nonzero value (not hann at n = 2, "
+    "nor\n"
+    "    a NaN or overflowing kaiser beta), and in exp mode 0 < alpha <= "
+    "1)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

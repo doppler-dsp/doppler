@@ -1705,9 +1705,9 @@ class PSD:
     ValueError
         If construction fails. The exception message is ``PSD: invalid
         parameter (need n >= 2, pad >= 1 with n * pad within the largest FFT,
-        finite fs > 0, finite full_scale > 0 or bits <= 64, a window whose taps
-        sum to a finite nonzero value (not hann at n = 2, nor a NaN or
-        overflowing kaiser beta), and in exp mode 0 < alpha <= 1)``.
+        finite fs > 0, bits <= 64, a finite full_scale > 0 when bits = 0, a
+        window whose taps sum to a finite nonzero value (not hann at n = 2, nor
+        a NaN or overflowing kaiser beta), and in exp mode 0 < alpha <= 1)``.
 
     Examples
     --------

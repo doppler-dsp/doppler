@@ -610,7 +610,10 @@ TEST_FAST_CMD = $(LEAK_CHECK) --ctest -- \
 # and a text-mode .pyi shares ONE doctest namespace across the whole file, so
 # any future finer-than-file split would break name bindings that earlier
 # examples in the same file establish.
-PYTEST_ARGS     ?=
+# Plain `=`, not `?=`: the command line still sets these, but an exported
+# PYTEST_ARGS or TEST_PATHS left in a shell can no longer silently narrow
+# the full suite, or the coverage step that passes PYTEST_ARGS itself.
+PYTEST_ARGS     =
 PYTEST_SELECT   = -m "not docs_snippets and not examples"
 # Every src/doppler/<mod>/benchmarks directory, derived not listed.
 PYTEST_BENCH_DIRS = $(wildcard src/doppler/*/benchmarks)
@@ -646,7 +649,7 @@ PYTEST_BENCH_DIRS = $(wildcard src/doppler/*/benchmarks)
 # Not offered on `coverage`: it runs a copied package, and its number is a
 # whole-tree number the coverage gates compare, which a narrowed run would
 # quietly redefine.
-TEST_PATHS      ?= src/
+TEST_PATHS      = src/
 TEST_PYTHON_CMD = $(MEM_GUARD_CMD) $(LEAK_CHECK) -- uv run pytest $(TEST_PATHS) -v \
                       $(PYTEST_SELECT) --benchmark-disable -n auto $(PYTEST_ARGS)
 # The standard target's own description is generic; this line wins in

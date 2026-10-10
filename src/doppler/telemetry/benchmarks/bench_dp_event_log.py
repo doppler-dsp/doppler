@@ -8,8 +8,7 @@ samples?
 
 Run::
 
-    pytest src/doppler/telemetry/benchmarks/bench_dp_event_log.py \\
-        --benchmark-only
+    make bench-python PYTEST_ARGS="-k bench_dp_event_log --benchmark-only"
 """
 
 import pytest

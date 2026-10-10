@@ -212,9 +212,9 @@ converters, FFT plans, by-value analyzers) are exempt. See
 ### Step 5 — build and test
 
 ```sh
-cmake --build build --target <module>   # rebuild just this .so
-pytest src/doppler/<module>/tests/      # Python integration tests
-ctest --test-dir build -R <obj>         # C-level tests
+make build BUILD_TARGET=<module>                          # rebuild just this .so
+make test-python TEST_PATHS=src/doppler/<module>/tests/   # Python integration tests
+make test                                                 # C-level tests (ctest)
 ```
 
 For a **serializable** object the round-trip must be tested on **both** sides
@@ -1092,11 +1092,13 @@ cmake -B build -DBUILD_PYTHON=ON
 cmake --build build
 
 # Rebuild a single module:
-cmake --build build --target filter
+make build BUILD_TARGET=filter
 
-# Full test suite:
-pytest src/doppler/
-ctest --test-dir build
+# Tests -- through make, never a raw pytest/ctest (the make-SSOT hook stops
+# those, and the bypass skips mem-guard and the leak check):
+make test-python TEST_PATHS=src/doppler/filter/tests/   # one module
+make test-python                                        # the full Python suite
+make test                                               # the C suite (ctest)
 ```
 
 ______________________________________________________________________
@@ -1105,7 +1107,7 @@ ______________________________________________________________________
 
 Every fenced code block under `docs/` is checked in CI — **discovered,
 not registered**, so a new page is gated the moment it exists. Three
-fence gates (all `uv run pytest -m docs_snippets`, in
+fence gates (all `make test-snippets`, in
 `src/doppler/tests/`): **python/pycon** (`test_doc_snippets.py` —
 exec'd or `>>>`-output-checked, page = one shared-namespace notebook),
 **c** (`test_c_doc_snippets.py` — compiled `-Werror` against

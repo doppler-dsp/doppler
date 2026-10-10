@@ -57,7 +57,8 @@ gates (reason mandatory).
 
 Run locally
 -----------
-    uv run pytest -m docs_snippets src/doppler/tests/test_sh_doc_snippets.py
+    make test-snippets                   # all three fence gates
+    make test-snippets PAGE=<docs path>  # one page
 """
 
 from __future__ import annotations

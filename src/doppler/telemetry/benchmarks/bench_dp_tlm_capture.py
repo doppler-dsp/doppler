@@ -8,8 +8,7 @@ end to end, through the binding?
 
 Run::
 
-    pytest src/doppler/telemetry/benchmarks/bench_dp_tlm_capture.py \\
-        --benchmark-only
+    make bench-python PYTEST_ARGS="-k bench_dp_tlm_capture --benchmark-only"
 """
 
 import numpy as np

@@ -11,8 +11,8 @@ and marker-parsing logic via `src/doppler/tests/_docs_snippet_common.py`);
 run any of them locally with:
 
 ```sh
-uv run pytest -m docs_snippets                            # all gates
-uv run pytest -m docs_snippets test_c_doc_snippets.py      # C only
+make test-snippets                                   # all three gates
+make test-snippets PAGE=guide/wfmgen/coding.md       # one page, all three
 ```
 
 The shell gate covers the third fence class — documented CLI invocations

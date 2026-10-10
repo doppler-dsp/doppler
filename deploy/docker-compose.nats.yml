@@ -2,7 +2,7 @@
 # cluster, for running the stream suite's nats:// tests on a laptop:
 #
 #   docker compose -f deploy/docker-compose.nats.yml up -d
-#   pytest src/doppler/stream/         # nats:// tests now run (not skipped)
+#   make test-python TEST_PATHS=src/doppler/stream/  # nats:// tests now run
 #   docker compose -f deploy/docker-compose.nats.yml down
 #
 # Single node => no R=3; it proves protocol + at-least-once redelivery, not

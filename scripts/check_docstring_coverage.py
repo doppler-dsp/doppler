@@ -154,8 +154,8 @@ FULL, PARTIAL, STUB = "FULL", "PARTIAL", "STUB"
 UNSEEN = "?"
 
 # Raw Doxygen tags that must never survive into a rendered docstring. jm is
-# meant to strip inline tags and drop block tags; when it fails (plan item F1)
-# the literal tag leaks. Zero tolerance — any hit fails the gate.
+# meant to strip inline tags and drop block tags; when it fails the literal
+# tag leaks. Zero tolerance — any hit fails the gate.
 _TAG_LEAK_RE = re.compile(
     r"@(?:c|p|a|e|b|ref|note|see|warning|retval|sa|li)\b"
 )

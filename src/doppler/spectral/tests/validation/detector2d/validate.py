@@ -13,7 +13,7 @@ The noise estimate is the part worth measuring hardest — it is the denominator
 of every decision the library makes downstream, so a mode that selects the
 wrong statistic moves every `test_stat` in the tree without changing a single
 peak. Three of its four modes were exercised by nothing at all before this
-certification (§3 F1).
+certification (§3 `noise_modes_unexercised`).
 
 `Corr2D`'s own envelope is certified separately and not re-derived here; see
 `src/doppler/spectral/tests/validation/corr2d/results.md`.
@@ -610,7 +610,7 @@ def review(d: Data) -> None:
     R.md("## 3. Review — findings")
     R.md()
     R.find(
-        "F1",
+        "noise_modes_unexercised",
         "FIXED",
         "**Three of the four noise modes were exercised by nothing.** "
         "`DET_NOISE_MEDIAN`, `DET_NOISE_MIN` and `DET_NOISE_MAX` had zero "
@@ -625,7 +625,7 @@ def review(d: Data) -> None:
         "`DET_NOISE_MEAN` regardless of the configured mode takes it red.",
     )
     R.find(
-        "F2",
+        "set_ref_no_coverage_either",
         "FIXED",
         "`set_ref` had no coverage in either language, and writing one "
         "found that the interesting branch is the refusal. An impulse "
@@ -637,7 +637,7 @@ def review(d: Data) -> None:
         "leaves the object working on its previous reference.",
     )
     R.find(
-        "F3",
+        "last_dump_comment_wrong",
         "FIXED",
         'The struct comment promises the last-dump fields are *"updated on '
         'every dump regardless of threshold"* — what lets a caller raise '
@@ -653,20 +653,22 @@ def review(d: Data) -> None:
         "it red.",
     )
     R.find(
-        "F4",
+        "entry_points_no_python_face",
         "C-ONLY",
         "Two entry points have no Python face and are certified in "
-        "`native/tests/test_detector2d_core.c`: `dp_detector2d_set_ref` (F2 "
+        "`native/tests/test_detector2d_core.c`: `dp_detector2d_set_ref` "
+        f"({R.ref('set_ref_no_coverage_either')} "
         "above) and `dp_detector2d_set_threshold` — the `threshold` property "
         "is read-only from Python, so a caller who wants to re-gate a "
         "running detector must rebuild it or drop to C. The last-dump "
         "scalars (`peak_row`, `peak_col`, `peak_mag`, `noise_est`, "
         "`test_stat`) are likewise C-only as scalars, though `last_corr` "
         "exposes the surface they are derived from, which is what §2.5 "
-        "uses to reach F3's claim from Python.",
+        f"uses to reach {R.ref('last_dump_comment_wrong')}'s claim from "
+        "Python.",
     )
     R.find(
-        "F5",
+        "dwell_zero_memoryerror",
         "BY DESIGN",
         "`dwell = 0` is refused as `MemoryError` rather than `ValueError`. "
         "That reads wrong until you find the convention: "
@@ -782,7 +784,8 @@ def build(write: bool = True) -> Report:
             "every decision, and three of its four modes were exercised by "
             "nothing before this certification — a mode selecting the wrong "
             "statistic moves every `test_stat` in the library without "
-            "changing a single peak position (§2.1, F1).",
+            "changing a single peak position "
+            f"(§2.1, {R.ref('noise_modes_unexercised')}).",
             "**The chunk size is not part of the answer.** Six slicings of "
             "one stream, down to a single sample per `push`, produce the "
             "same event sequence — which is what makes the ring worth "
@@ -792,11 +795,12 @@ def build(write: bool = True) -> Report:
             "always-fire case rather than a very low threshold (§2.5).",
             "**Raising the gate does not blind you.** `last_corr` still "
             "follows the surface when nothing is emitted, so a caller can "
-            "tighten the decision and keep the diagnostic (§2.5, F3).",
+            "tighten the decision and keep the diagnostic "
+            f"(§2.5, {R.ref('last_dump_comment_wrong')}).",
             "**Re-gating a running detector needs C.** `threshold` is "
             "read-only from Python and `set_threshold` has no binding, so "
             "an adaptive-threshold caller rebuilds the object or drops to "
-            "the C API (F4).",
+            f"the C API ({R.ref('entry_points_no_python_face')}).",
         ],
     )
     R.summary("\n- Raw sweep: `data/noise_modes.csv`")

@@ -229,7 +229,8 @@ def section_object() -> None:
         "whether a C assertion pins it, and only then measure it through "
         "the binding. `NEW` marks a C section this certification added — "
         "four of them, because the object's own direction was unpinned "
-        "(§3 F1) and its receive face was untested (§3 F2)."
+        f"(§3 {R.ref('object_own_permutation_unpinned')}) and its receive "
+        f"face was untested (§3 {R.ref('receive_face_zero_coverage')})."
     )
     R.md()
     R.table(
@@ -334,7 +335,8 @@ def section_object() -> None:
         "too small, while the binding allocates the output itself from "
         "`interleave_max_out`, so that branch is unreachable from Python by "
         "construction. It is certified in C "
-        "(`a_partial_block_is_refused`) and recorded as §3 F6."
+        "(`a_partial_block_is_refused`) and recorded as "
+        f"§3 {R.ref('max_out_refusal_c_only')}."
     )
     R.md()
 
@@ -350,7 +352,7 @@ def measure_permutation(d: Data) -> None:
         "with the other entry point. The `discriminates` column is the "
         "precondition: it asserts the transposed geometry is a DIFFERENT "
         "answer, without which agreeing with the truth would prove nothing "
-        "about the direction (§3 F1)."
+        f"about the direction (§3 {R.ref('object_own_permutation_unpinned')})."
     )
     R.md()
     rows: list[list[object]] = []
@@ -738,7 +740,8 @@ def measure_soft(d: Data) -> None:
     )
     R.md(
         "There is no `interleave_soft`, and its absence is the design "
-        "rather than a gap: a transmitter has bits, not LLRs (§3 F5)."
+        "rather than a gap: a transmitter has bits, not LLRs "
+        f"(§3 {R.ref('no_interleave_soft_no_state')})."
     )
     R.md()
     d.soft_exact = exact
@@ -904,7 +907,7 @@ def measure_view(d: Data) -> None:
         "is nothing on the wire that could. A receiver with the wrong "
         "geometry de-interleaves into a different permutation and hands "
         "the decoder plausible garbage, silently, at the same length "
-        "(§3 F3)."
+        f"(§3 {R.ref('geometry_mismatch_silent')})."
     )
     R.md()
     rows: list[list[object]] = []
@@ -979,7 +982,7 @@ def review(d: Data) -> None:
     R.md("## 3. Review — findings, with verdicts")
     R.md()
     R.find(
-        "F1",
+        "object_own_permutation_unpinned",
         "FIXED",
         "**The object's own permutation was unpinned in C.** Transposing "
         "its three calls into `dp_interleave.h` — `state->cols, "
@@ -996,7 +999,7 @@ def review(d: Data) -> None:
         "its life without carrying it.",
     )
     R.find(
-        "F2",
+        "receive_face_zero_coverage",
         "FIXED",
         "**The receive face had zero C coverage.** "
         "`dp_interleaver_create_rx` — the whole reason `Deinterleaver` is a "
@@ -1010,7 +1013,7 @@ def review(d: Data) -> None:
         "to forget them (§2.8).",
     )
     R.find(
-        "F3",
+        "geometry_mismatch_silent",
         "BY DESIGN",
         f"**A geometry mismatch is silent, and expensive.** A receiver "
         f"holding different numbers returns an array of the right length "
@@ -1023,7 +1026,7 @@ def review(d: Data) -> None:
         f"this failure automatically.",
     )
     R.find(
-        "F4",
+        "partial_block_refused",
         "BY DESIGN",
         "**A partial block is refused rather than padded or truncated.** "
         "Padding changes the length and a receiver de-interleaving the "
@@ -1034,7 +1037,7 @@ def review(d: Data) -> None:
         "(§2.7).",
     )
     R.find(
-        "F5",
+        "no_interleave_soft_no_state",
         "BY DESIGN",
         "**There is no `interleave_soft`, and no state to serialize.** A "
         "transmitter has bits, not LLRs, so the soft face is receive-only "
@@ -1048,7 +1051,7 @@ def review(d: Data) -> None:
         "claim has.",
     )
     R.find(
-        "F6",
+        "max_out_refusal_c_only",
         "C-ONLY",
         "**The `max_out` refusal cannot be reached from Python.** The C "
         "entry points take the caller's buffer and return 0 when it has no "
@@ -1067,7 +1070,7 @@ def review(d: Data) -> None:
             "RECEIVE face. "
         )
     R.find(
-        "F7",
+        "half_closed_makeit_half_remains",
         "GAP",
         "**Half of this closed in just-makeit 0.70.1, and the half that "
         "remains is the runtime one.** jm derives a class docstring from "
@@ -1086,7 +1089,7 @@ def review(d: Data) -> None:
         "class docstring. Retire it when the runtime face derives too.",
     )
     R.find(
-        "F8",
+        "refusals_ten_hand_written_raise",
         "GAP",
         "**The refusals are ten hand-written raise sites.** A kernel "
         "refusal is a 0 return, and jm has no declarative hook for it: "
@@ -1297,7 +1300,7 @@ def build(write: bool = True) -> Report:
             "and nothing checks it.** A mismatched receiver raises "
             "nothing and returns the right length with up to "
             f"{d.mismatch_worst_wrong * 100:.0f}% of positions wrong "
-            "(§2.8, F3).",
+            f"(§2.8, {R.ref('geometry_mismatch_silent')}).",
             "**De-interleave the LLRs, not the bits.** The soft path is "
             "the same permutation and moves values bit-for-bit, so an "
             "outer decoder can have its confidence intact; slicing first "
@@ -1305,7 +1308,9 @@ def build(write: bool = True) -> Report:
             "**The evidence is younger than the object.** The object's own "
             "permutation direction and its entire receive face were "
             "unpinned in C until this certification — a transposed "
-            "geometry passed all 155 C tests (F1, F2).",
+            "geometry passed all 155 C tests "
+            f"({R.ref('object_own_permutation_unpinned')}, "
+            f"{R.ref('receive_face_zero_coverage')}).",
         ],
     )
     if write:

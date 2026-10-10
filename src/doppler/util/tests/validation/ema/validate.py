@@ -41,8 +41,8 @@ ROOT = repo_root(__file__)
 
 R = Report()
 
-# ── Findings F1 and F2 are claims about OTHER files, so they are read ──
-# rather than asserted.
+# ── Findings `primitive_exists` and `dp_agc_steps_forms_detector` are ──
+# claims about OTHER files, so they are read rather than asserted.
 #
 # Both were written as fixed prose ("NOTHING USES IT", "`dp_agc_steps` forms
 # its detector pole by repeated multiplication") and both became false the
@@ -239,7 +239,7 @@ def section_object() -> None:
                 "C8",
                 "NOT total in `x`: a non-finite observation poisons the state",
                 "—",
-                "§3 F3, by design",
+                f"§3 {R.ref('ema_step_not_total')}, by design",
             ],
             ["C9", "`ema_alpha_decim` returns `1-(1-alpha)^d`", "§7", "§2.4"],
             ["C10", "at `d == 1` it returns alpha EXACTLY", "§6", "§2.3"],
@@ -269,7 +269,8 @@ def section_object() -> None:
         "**What Python cannot reach.** Nothing, unusually — both "
         "functions are module-level and fully exposed. The one "
         "C-only property is structural rather than behavioural and is "
-        "recorded as §3 F6: every C caller inlines the header definition "
+        f"recorded as §3 {R.ref('callers_inline_header')}: every C caller "
+        "inlines the header definition "
         "while this report exercises the single out-of-line copy the "
         "`extern inline` translation unit emits, and it is the C99 idiom "
         "rather than a test that makes those the same source."
@@ -446,11 +447,11 @@ def characterise() -> Data:
         + (
             "`dp_agc_steps` now forms its detector pole with "
             "`ema_alpha_decim` and therefore sits in the right-hand "
-            "column — §3 F2, fixed."
+            f"column — §3 {R.ref('dp_agc_steps_forms_detector')}, fixed."
             if agc_pole_is_compounded()
             else "`dp_agc_steps` forms its detector pole by repeated "
             "multiplication and therefore sits in the left-hand column "
-            "today — recorded as §3 F2."
+            f"today — recorded as §3 {R.ref('dp_agc_steps_forms_detector')}."
         )
     )
     R.md()
@@ -598,12 +599,13 @@ def review(d: Data) -> None:
     R.md()
     R.md("Findings, with verdicts. Limits are section 4.")
     R.md()
-    # F1 and F2 are read off the tree, not asserted — see SITES above.
+    # `primitive_exists` and `dp_agc_steps_forms_detector` are read off the
+    # tree, not asserted — see SITES above.
     who = adopters()
     holdouts = sorted(n for n, ok in who.items() if not ok)
     if holdouts:
         R.find(
-            "F1",
+            "primitive_exists",
             "CONFIRMED",
             "The primitive exists and "
             + (
@@ -625,7 +627,7 @@ def review(d: Data) -> None:
         )
     else:
         R.find(
-            "F1",
+            "primitive_exists",
             "FIXED",
             "Every historical call site now calls the shared primitive: "
             + ", ".join(f"`{n}`" for n in sorted(who))
@@ -641,7 +643,7 @@ def review(d: Data) -> None:
     worst = int(d.decim_ulps_direct.max())
     if not agc_pole_is_compounded():
         R.find(
-            "F2",
+            "dp_agc_steps_forms_detector",
             "CONFIRMED",
             f"`dp_agc_steps` forms its detector pole as `1 - a1^d` by "
             f"repeated multiplication, which at d == 1 is "
@@ -651,11 +653,11 @@ def review(d: Data) -> None:
             "recursion, which is the property that would let its "
             "decimated and per-sample paths be compared at all. "
             "`ema_alpha_decim` is the fix and is not yet adopted "
-            "there; see F1.",
+            f"there; see {R.ref('primitive_exists')}.",
         )
     else:
         R.find(
-            "F2",
+            "dp_agc_steps_forms_detector",
             "FIXED",
             "`dp_agc_steps` forms its detector pole with "
             "`ema_alpha_decim`, so `decim = 1` is now bit-for-bit the "
@@ -669,7 +671,7 @@ def review(d: Data) -> None:
             "cause. Verdict READ from `agc_core.c`.",
         )
     R.find(
-        "F3",
+        "ema_step_not_total",
         "BY DESIGN",
         "`ema_step` is not total in `x`: a non-finite observation "
         "poisons the state permanently, and there is no guard. That is "
@@ -684,7 +686,7 @@ def review(d: Data) -> None:
         "not a defensive recursion.",
     )
     R.find(
-        "F4",
+        "coeff_above_one_passes",
         "BY DESIGN",
         "A coefficient above 1 saturates to pass-through rather than "
         "applying the bare recursion, which would fly past the "
@@ -693,7 +695,7 @@ def review(d: Data) -> None:
         "wrong but stable, instead of a diverging estimator.",
     )
     R.find(
-        "F5",
+        "product_form_expectations",
         "BY DESIGN",
         "Two expectations about the two-product form did not survive "
         "measurement, and are recorded because the reasoning that "
@@ -705,7 +707,7 @@ def review(d: Data) -> None:
         "margin and the `alpha = 1` row.",
     )
     R.find(
-        "F6",
+        "callers_inline_header",
         "C-ONLY",
         "Every C caller inlines the header definition, while this report "
         "exercises the single out-of-line copy emitted by "
@@ -875,19 +877,23 @@ def build(write: bool = True) -> Report:
         "EMA",
         [
             "**`ema_step` is not total in `x`.** One non-finite observation "
-            "poisons the state permanently and there is no guard (F3) — guard "
+            "poisons the state permanently and there is no guard "
+            f"({R.ref('ema_step_not_total')}) — guard "
             "at the boundary where an input first becomes persistent state, "
             "which is what the AGC now does.",
             "**Use `ema_alpha_decim` whenever you decimate the update.** A "
             "pole scaled linearly with the chunk is not the same filter as "
             "one compounded over it; `decim = 1` is bit-for-bit the "
-            "undecimated recursion (§2.3, F2).",
+            "undecimated recursion "
+            f"(§2.3, {R.ref('dp_agc_steps_forms_detector')}).",
             "**A coefficient above 1 saturates to pass-through** rather than "
             "applying the bare recursion, which would fly past the "
-            "observation (F4). That is a deliberate clamp, not an accident of "
+            f"observation ({R.ref('coeff_above_one_passes')}). That is a "
+            "deliberate clamp, not an accident of "
             "the arithmetic.",
             "**Every C caller inlines the header definition** while this "
-            "report exercises the single out-of-line copy (F6), so the "
+            "report exercises the single out-of-line copy "
+            f"({R.ref('callers_inline_header')}), so the "
             "evidence covers the definition rather than each inlined "
             "instance.",
         ],

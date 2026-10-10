@@ -193,7 +193,8 @@ LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format \
                version-literals text-encoding cmake-script-policy \
                why-param doc-claims public-symbols curl-fail \
                warnings-exempt stock-images uv-pin uv-lock tlm-name-join \
-               ring-internals spectrogram-mode db-conversion
+               ring-internals spectrogram-mode db-conversion \
+               finding-citations
 FORMAT_TOOLS = ruff-format ruff mdformat clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -448,6 +449,14 @@ LINT_header-example-arity = \
 # value is power, and a numbered call would have changed meaning without a
 # diff. Registration-free (git ls-files). Plain python3: stdlib only.
 LINT_spectrogram-mode = python3 scripts/check_spectrogram_mode.py
+
+# A validation finding is cited by its key or its claim, never by its number
+# (#2059). A report numbers findings by position, and resolves `R.ref(key)`
+# at render, refusing a typed number there; a C test, header, page or example
+# has no render step, so a number in it re-points silently when a finding
+# before it is dropped -- #2056 left five such citations. Registration-free
+# (git ls-files). Plain python3: stdlib only.
+LINT_finding-citations = python3 scripts/check_finding_citations.py
 
 # A refusal names its cause through `const char **why` -- a static sentence,
 # written only on refusal, NULL allowed, never freed. Every public refusal API

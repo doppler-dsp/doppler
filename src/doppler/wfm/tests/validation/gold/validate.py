@@ -178,7 +178,8 @@ def measure_family(d: Data) -> None:
         f"**{d.n_seeds} seeds produce {d.n_distinct} distinct codes**. "
         "The header's *\"walks the whole Gold-code family (2^length "
         'members)"* was wrong in both directions at once, and this '
-        "certification corrected it (F1):"
+        "certification corrected it "
+        f"({R.ref('header_family_size_wrong_both')}):"
     )
     R.md()
     R.table(
@@ -327,7 +328,8 @@ def measure_conformance(d: Data) -> None:
         "The document itself is not in the repository's standards "
         "library, so this report certifies the implementation against "
         "the published vector rather than against the prose. That is a "
-        "limit of the evidence and it is recorded as such (F4)."
+        "limit of the evidence and it is recorded as such "
+        f"({R.ref('constants_vs_published')})."
     )
     R.md()
 
@@ -375,7 +377,7 @@ def review(d: Data) -> None:
     R.md("## 3. Review -- findings, with verdicts")
     R.md()
     R.find(
-        "F1",
+        "header_family_size_wrong_both",
         "FIXED",
         "**The header's family size was wrong in both directions at "
         'once.** It said varying `seed_a` *"walks the whole Gold-code '
@@ -394,7 +396,7 @@ def review(d: Data) -> None:
         "number.",
     )
     R.find(
-        "F2",
+        "three_contract_claims_no_behind",
         "FIXED",
         "**Three contract claims had nothing behind them.** `max_out` "
         "was never exercised: every existing call passed `max_out == n`, "
@@ -407,7 +409,7 @@ def review(d: Data) -> None:
         "zero capacity to advance neither LFSR.",
     )
     R.find(
-        "F3",
+        "preferred_pair_family",
         "FIXED",
         '**"Preferred pair" is a claim about the family, and one pair '
         "was checked.** The C test cross-correlated exactly two members, "
@@ -420,7 +422,7 @@ def review(d: Data) -> None:
         "and neither gate pays for it.",
     )
     R.find(
-        "F4",
+        "constants_vs_published",
         "GAP",
         "**The constants are certified against the published vector, not "
         "against the document.** CCSDS 415.0-G-1 is not in the "
@@ -550,7 +552,8 @@ def build(write: bool = True) -> Report:
             "said 1024, which was neither the reachable count (2^n - 1, "
             f"since a zero seed is refused) nor the family size (2^n + 1 "
             f"= {P + 2}). Corrected and pinned; allocate against "
-            f"{d.n_distinct} (§2.1, F1).",
+            f"{d.n_distinct} "
+            f"(§2.1, {R.ref('header_family_size_wrong_both')}).",
             f"**Design the receiver to a {d.gold_worst}-chip sidelobe.** "
             f"Peak {d.gold_peak} against worst sidelobe {d.gold_worst} is "
             f"{d.margin_db:.1f} dB, and every correlation value in the "
@@ -565,11 +568,13 @@ def build(write: bool = True) -> Report:
             "**The default configuration is the CCSDS worked example.** "
             "`Gold()` reproduces PN Code Library #365 chip for chip, "
             "which is the conformance anchor for taps that are otherwise "
-            "unverifiable from inside this repository (§2.3, F4).",
+            "unverifiable from inside this repository "
+            f"(§2.3, {R.ref('constants_vs_published')}).",
             "**The preferred-pair property is sampled, not exhaustive.** "
             f"{d.n_pairs} pairs here and 15 in C, out of "
             f"{P * (P - 1) // 2:,}. No gate pays for the full set, and "
-            "the report says so rather than implying otherwise (F3).",
+            "the report says so rather than implying otherwise "
+            f"({R.ref('preferred_pair_family')}).",
         ],
     )
     R.summary()

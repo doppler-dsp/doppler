@@ -836,7 +836,7 @@ def _sec_decoy(d: Data) -> None:
         "`refine_span` proximity and settled by keeping the stronger peak) "
         "and *is this a burst's own payload* (answerable only once a burst "
         "has DECODED, which is now the only thing that arms the long "
-        "window). See F9 and doppler#1004."
+        f"window). See {R.ref('spurious_ahead_discards')} and doppler#1004."
     )
     R.md()
 
@@ -941,8 +941,9 @@ def _sec_blocks(d: Data) -> None:
         "on the example capture. `push()` now returns EVERY burst it "
         "completed, with `events()` giving each its own record, which is "
         "what makes consuming the whole input possible: draining fully is "
-        "also what bounds retention. See F11 and doppler#1008; since "
-        "doppler#2015 `push()` never refuses input at all."
+        "also what bounds retention. "
+        f"See {R.ref('push_discarded_rest_input_once')} and doppler#1008; "
+        "since doppler#2015 `push()` never refuses input at all."
     )
     R.md()
 
@@ -954,7 +955,7 @@ def review(d: Data) -> None:
     R.md("## 3. Review — findings")
     R.md()
     R.find(
-        "F1",
+        "bin_frequency_fold_restated_four",
         "FIXED",
         "**One bin-to-frequency fold was restated in four Python call "
         "sites, three ways** — one of them the exact form `acq_core.h` "
@@ -967,7 +968,7 @@ def review(d: Data) -> None:
         "it.",
     )
     R.find(
-        "F2",
+        "coherent_refine_fails_residual",
         "FIXED",
         "**Refine was designed to correlate the whole preamble coherently, "
         "and that does not survive the residual acquisition leaves.** The "
@@ -981,7 +982,7 @@ def review(d: Data) -> None:
         "by swapping the combine back.",
     )
     R.find(
-        "F3",
+        "partial_refine_discarded",
         "FIXED",
         "**A detection whose refine window had not fully arrived was "
         "discarded**, and the burst then went to whatever spurious "
@@ -991,7 +992,7 @@ def review(d: Data) -> None:
         "unit test of refine would have reached it.",
     )
     R.find(
-        "F4",
+        "refine_clamp_lost_phase",
         "FIXED",
         "**Refine's clamp for the start of the stream destroyed the code "
         "phase.** Candidates are `anchor + k*P` precisely because "
@@ -1005,7 +1006,7 @@ def review(d: Data) -> None:
         "row is the regression test.",
     )
     R.find(
-        "F5",
+        "state_bytes_not_pure_function",
         "FIXED",
         "**`state_bytes()` was not a pure function of configuration.** It "
         "tracked the retained look-back, so a receiver could be restored "
@@ -1016,7 +1017,7 @@ def review(d: Data) -> None:
         "prefix. Caught by a mid-stream resume test, not by review.",
     )
     R.find(
-        "F6",
+        "code_dominates_loss",
         "FIXED",
         "**The acquisition CODE dominates burst loss, not the "
         "non-overlapping framing** — and the opposite was nearly filed as "
@@ -1028,7 +1029,7 @@ def review(d: Data) -> None:
         "a code no caller would choose measures the wrong thing.",
     )
     R.find(
-        "F7",
+        "refine_margin_removed",
         "FIXED",
         "**`refine_margin` was removed.** It reported the runner-up code "
         "period over the winner, and nothing in the library ever branched "
@@ -1046,7 +1047,7 @@ def review(d: Data) -> None:
         "calibration it was waiting for.",
     )
     R.find(
-        "F8",
+        "doppler_on_acq_grid",
         "BY DESIGN",
         "**The reported Doppler stays on acquisition's native grid.** The "
         "half-bin scalloping null that made a burst undetectable at any "
@@ -1059,7 +1060,7 @@ def review(d: Data) -> None:
         "of Pd.",
     )
     R.find(
-        "F11",
+        "push_discarded_rest_input_once",
         "FIXED",
         "**`push()` discarded the rest of its input once a burst was "
         "ready**, so a block carrying several bursts lost all but the "
@@ -1079,7 +1080,7 @@ def review(d: Data) -> None:
         "`push()` never refuses input at all.",
     )
     R.find(
-        "F9",
+        "spurious_ahead_discards",
         "FIXED",
         "**A spurious detection ahead of a real burst discarded it.** The "
         "dedup rule armed `suppress_until = epoch + burst_len` on EVERY "
@@ -1300,7 +1301,8 @@ def build(write: bool = True) -> Report:
             "Doppler bin, with the true position 639x below the peak it "
             "chose. The slow-time transform covers that residual by "
             "construction, and buys 21-26 points of correct-repetition "
-            "rate at reps 10-16 against the non-coherent form (F2, "
+            "rate at reps 10-16 against the non-coherent form "
+            f"({R.ref('coherent_refine_fails_residual')}, "
             "doppler#1312).",
             f"**Level does not matter, only C/N0 does.** Decoding and the "
             f"start are unchanged across {d.amp_span_db:.0f} dB of burst "
@@ -1313,12 +1315,12 @@ def build(write: bool = True) -> Report:
             f"bursts than a structured code of the same length "
             f"({d.poor_code_pts:.2f}). A 42% loss was first read as the "
             f"non-overlapping framing needing fixing; it was the code "
-            f"(§2.6, F6).",
+            f"(§2.6, {R.ref('code_dominates_loss')}).",
             "**Checkpoint between bursts.** `state_bytes()` is a pure "
             "function of configuration — jm's binding depends on that — and "
             "a blob taken inside the preamble carries the retained "
             "look-back, so it resumes into a fresh instance and still "
-            "decodes (§2.8, F5).",
+            f"decodes (§2.8, {R.ref('state_bytes_not_pure_function')}).",
         ],
     )
     R.summary(

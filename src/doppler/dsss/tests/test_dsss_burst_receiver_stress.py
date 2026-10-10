@@ -54,7 +54,9 @@ def test_geometry_is_the_declared_one() -> None:
 
 
 def test_the_codes_are_what_the_finding_rests_on() -> None:
-    """The good/poor code contrast is the sweep's headline finding (F6).
+    """The good/poor code contrast is the sweep's headline finding.
+
+    It is the certification's `code_dominates_loss`.
 
     If the two codes ever stopped differing in autocorrelation the panel
     would still plot, and would show nothing.

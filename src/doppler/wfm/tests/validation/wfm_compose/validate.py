@@ -566,7 +566,7 @@ def review(d: Data) -> None:
     R.md("## 3. Review -- findings, with verdicts")
     R.md()
     R.find(
-        "F1",
+        "face_agreement_unasserted",
         "FIXED",
         "**The functions whose only job is that the faces agree had "
         "nothing asserting the agreement.** `dp_wfm_source_create_snr` -- "
@@ -583,7 +583,7 @@ def review(d: Data) -> None:
         "sabotages red on the helper; a fifth on the bridge.",
     )
     R.find(
-        "F2",
+        "face_agreement_test_blind_unless",
         "FIXED",
         "**A face-agreement test is blind unless it uses the shape the "
         "shared code actually changes.** The first version of §2.1 covered "
@@ -598,7 +598,7 @@ def review(d: Data) -> None:
         "as the RIGHT case.",
     )
     R.find(
-        "F3",
+        "summing_not_normalise",
         "BY DESIGN",
         "**Summing does not normalise.** Two unit-power sources in one "
         "segment give about 2.0, not 1.0 -- the composer adds and leaves "
@@ -609,7 +609,7 @@ def review(d: Data) -> None:
         "Headroom is `Writer`'s knob and is certified there.",
     )
     R.find(
-        "F4",
+        "build_render_not_on_python",
         "C-ONLY",
         "**`dp_wfm_compose_build_render` and `dp_wfm_compose_from_file` are "
         "not "
@@ -730,11 +730,12 @@ def build(write: bool = True) -> Report:
             "same declaration built as a `Synth` or as a one-source "
             "`Segment` is bit-identical across six types -- which four "
             "functions in the header exist to guarantee and which nothing "
-            "compared until now (§2.1, F1).",
+            "compared until now "
+            f"(§2.1, {R.ref('face_agreement_unasserted')}).",
             "**Summing does not normalise.** Two unit-power sources give "
             "about 2.0; the composer adds and the level stays yours. Set "
             "headroom at the writer, not by expecting the composer to "
-            "scale (§2.2, F3).",
+            f"scale (§2.2, {R.ref('summing_not_normalise')}).",
             "**A gap is silence in the signal, not a hole in the noise.** A "
             f"noisy source's off-time carries its own floor to "
             f"{abs(d.gap_ratio - 1) * 100:.0f}%, and a clean source's gap "
@@ -747,7 +748,8 @@ def build(write: bool = True) -> Report:
             "not differ.** Five of the six types here would have passed a "
             "bridge that skipped the shared SNR helper entirely. Only the "
             "dsss case reaches it, and 'more cases' would not have found "
-            "that -- the right case did (F2).",
+            "that -- the right case did "
+            f"({R.ref('face_agreement_test_blind_unless')}).",
         ],
     )
     R.summary()

@@ -282,7 +282,8 @@ def characterise(d) -> None:
         "nearly an arbitrary point of the space; whether it lands in some "
         "codeword's sphere is a question about the spheres, not about how "
         "far it travelled to get there. **So a link cannot escape a silent "
-        "failure by being much worse than `E`** — see F3."
+        "failure by being much worse than `E`** — "
+        f"see {R.ref('miscorrection_rate_flat')}."
     )
     R.md()
     R.md(
@@ -314,7 +315,7 @@ def characterise(d) -> None:
         f"and `15/16` at `J = 4`. RS(15,11) measures {meas:.3f} against a "
         f"model of {model:.3f} and a textbook {rule:.2f}: "
         f"{100 * err:.0f} % high at an `E` where the first axis costs only "
-        f"{100 * small_e:.0f} % (F4)."
+        f"{100 * small_e:.0f} % ({R.ref('test_rs_core_refusal_gate')})."
     )
     R.md()
     R.md(
@@ -608,7 +609,7 @@ def review(d) -> None:
     R.md()
 
     R.find(
-        "F1",
+        "rs_core_offered_rs_configuration",
         "FIXED",
         "`rs_core.h` offered RS(204,188) as a configuration to point the "
         "file at — *point this at RS(204,188) for DVB* — and it cannot be "
@@ -624,7 +625,7 @@ def review(d) -> None:
         "amount of testing the code would have found it.",
     )
     R.find(
-        "F2",
+        "claims_c_only_no_binding",
         "C-ONLY",
         "Every claim in §1's table is verified in C and none of it is "
         "reachable from Python, because `rs` has no binding. That is the "
@@ -635,7 +636,7 @@ def review(d) -> None:
         "a curve.",
     )
     R.find(
-        "F3",
+        "miscorrection_rate_flat",
         "BY DESIGN",
         "The miscorrection rate does not fall as the damage grows (§2.2): "
         "at `4E+1` errors it is within a quarter of its value at `E+1`, "
@@ -652,7 +653,7 @@ def review(d) -> None:
     codes = _by_code(d)
     ccsds = _rule_error(codes["RS(255,223) E=16"][0])
     R.find(
-        "F4",
+        "test_rs_core_refusal_gate",
         "FIXED",
         f"`test_rs_core.c`'s refusal gate carried its rationale as *with "
         f"probability ~1/E! for random errors ... at E = 2 it is a coin "
@@ -849,7 +850,7 @@ def build(write: bool = True) -> Report:
                 "C2",
                 "point it at any code a caller brings — DVB, RS(15,11)",
                 "§1b",
-                "F1",
+                R.ref("rs_core_offered_rs_configuration"),
             ],
             [
                 "C3",
@@ -949,7 +950,7 @@ def build(write: bool = True) -> Report:
                 "C20",
                 "a refusal is not the claim 'more than E'; it can miscorrect",
                 "§4",
-                "§2.2, F3",
+                f"§2.2, {R.ref('miscorrection_rate_flat')}",
             ],
             ["C21", "a refused word is left untouched", "§5", "—"],
             [
@@ -997,13 +998,14 @@ def build(write: bool = True) -> Report:
             f"the damage is.** At `E = 1` almost every uncorrectable word is "
             f"miscorrected ({worst_e:.2f}); at `E = 16` it is "
             f"{_p(best_e)}. Choose the parity count for the detection you "
-            f"need, not only for the correction (§2.2, F3).",
+            "need, not only for the correction "
+            f"(§2.2, {R.ref('miscorrection_rate_flat')}).",
             f"**Do not read `1/E!` off a textbook — use `V(E)/q^(n-k)`.** "
             f"The rule is high by {100 * sm_err:.0f} % on a small field "
             f"(RS(15,11), exact value {sm_model:.3f}) and by "
             f"{100 * _rule_error(codes['RS(255,223) E=16'][0]):.0f} % at "
             f"CCSDS's `E = 16`, which is the configuration this tree ships "
-            f"(§2.2, F4).",
+            f"(§2.2, {R.ref('test_rs_core_refusal_gate')}).",
             "**Below the knee the outer code's product is detection, not "
             "repair.** At Es/N0 = 4.0 dB RS(255,223) fixes about 2 % of the "
             "broken symbols, delivers a worse symbol error rate than no "
@@ -1018,7 +1020,8 @@ def build(write: bool = True) -> Report:
             "measurement behind `rs` and `ccsds_tm` being separate files "
             "(§2.3).",
             "**The evidence is C, and that is the design.** `rs` has no "
-            "Python face and should not grow one to be certified (F2).",
+            "Python face and should not grow one to be certified "
+            f"({R.ref('claims_c_only_no_binding')}).",
         ],
     )
     R.summary("\n- Raw sweeps: `data/sphere.csv`, `data/channel.csv`")

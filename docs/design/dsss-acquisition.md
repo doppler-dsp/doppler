@@ -735,7 +735,7 @@ this failure direction. The correction wanted is `N_eff(L) / N_eff(1)`, which
 is bounded above by `L` and, as measured, close to it here but not equal.
 
 **Where this is enforced.** The certification measures the realized rate
-against the configured target (§2.5), records the gap as finding **F7**, and
+against the configured target (§2.5), records the gap as finding **`pfa_over_delivered`**, and
 holds it with a ratchet that may only shrink — closing
 [#1064](https://github.com/doppler-dsp/doppler/issues/1064) is what earns
 `1.0`. The characterization predicts its sweep counts from the *delivered*

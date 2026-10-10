@@ -670,7 +670,8 @@ def measure_capacity(d: Data) -> None:
         ],
     )
     R.md(
-        "Recorded as **F1**. The C API is not at fault -- it returns the "
+        f"Recorded as **{R.ref('ranged_gap_length_varies')}**. The C API is "
+        "not at fault -- it returns the "
         "actual draw and documents `len()` as a capacity, and the C tests "
         "now pin that the tail past the returned length is zeroed. The gap "
         "is on the Python face, where the actual length arrives only as "
@@ -726,7 +727,8 @@ def measure_persistence(d: Data) -> None:
     R.md(
         "A truncated blob and an all-zero blob of the right length are "
         "both refused rather than reinterpreted. The endian byte and the "
-        "fingerprint-mismatch rebuild are C-ONLY (F3)."
+        "fingerprint-mismatch rebuild are C-ONLY "
+        f"({R.ref('three_claims_python_face_cannot')})."
     )
     R.md()
 
@@ -809,7 +811,7 @@ def review(d: Data) -> None:
     R.md("## 3. Review -- findings, with verdicts")
     R.md()
     R.find(
-        "F1",
+        "ranged_gap_length_varies",
         "CONFIRMED",
         "**A ranged-gap Plan returns a different length for every seed, "
         "and `render()`'s documented Returns section says it does not.** "
@@ -829,7 +831,7 @@ def review(d: Data) -> None:
         "[gh-1128](https://github.com/doppler-dsp/doppler/issues/1128).",
     )
     R.find(
-        "F2",
+        "no_tell_restore_fast_path",
         "GAP",
         "**Nothing can tell you the restore fast path still works.** "
         "`dp_wfm_plan_restore` loads the cached buffers when the DSP "
@@ -847,7 +849,7 @@ def review(d: Data) -> None:
         "a one-bit accessor would make it gateable.",
     )
     R.find(
-        "F3",
+        "three_claims_python_face_cannot",
         "C-ONLY",
         "**Three claims the Python face cannot reach**, now pinned in "
         "`native/tests/test_wfm_plan.c` and certified there. (1) The "
@@ -863,7 +865,7 @@ def review(d: Data) -> None:
         "three proven by sabotage.",
     )
     R.find(
-        "F4",
+        "doppler_source_served_exactly",
         "FIXED",
         "**A Doppler source is served, and exactly.** It used to be "
         "refused, because a channel is a stateful resampler that runs "
@@ -1014,13 +1016,15 @@ def build(write: bool = True) -> Report:
             f"each seed draws something shorter -- {d.n_distinct} "
             f"distinct lengths over {len(GAP_SEEDS)} seeds here. Both "
             "rectangular Monte-Carlo idioms raise on such a scene, and "
-            "the docstring promises they will not (§2.4, F1).",
+            "the docstring promises they will not "
+            f"(§2.4, {R.ref('ranged_gap_length_varies')}).",
             "**A Doppler source is served, bit-identically.** The cache "
             "holds the signal before the channel and the channel runs at "
             "render time over it, so the gap ring-out, the delay, the "
             "noise inside the channel and `persist` all match "
             "`compose()` exactly. Only a BACKGROUND source with Doppler "
-            "is refused (§2.3, §2.3b, F4).",
+            "is refused (§2.3, "
+            f"§2.3b, {R.ref('doppler_source_served_exactly')}).",
             "**Persist the spec, not the blob, unless the DSP cost says "
             f"otherwise.** A {N}-sample two-source scene serializes to "
             f"{d.blob_bytes / 1024:.0f} KB, {d.buffer_fraction:.0%} of it "
@@ -1029,7 +1033,8 @@ def build(write: bool = True) -> Report:
             "**Nothing gates that the restore fast path is still fast.** "
             "A fingerprint mismatch rebuilds transparently and returns "
             "identical samples, so a restore that silently stopped using "
-            "its cache would pass every test in both suites (F2).",
+            "its cache would pass every test in both suites "
+            f"({R.ref('no_tell_restore_fast_path')}).",
         ],
     )
     R.summary()

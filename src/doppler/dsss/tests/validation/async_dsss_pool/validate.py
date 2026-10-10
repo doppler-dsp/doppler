@@ -239,7 +239,8 @@ def section_object() -> None:
             [
                 "nothing allocates per push once a block size has been seen",
                 "the soak's heap watch (§2.4)",
-                "pinned by the harness; see F5",
+                "pinned by the harness; "
+                f"see {R.ref('track_chain_built_on_seed')}",
             ],
             [
                 "the pool is created only on a searcher a cell receiver can "
@@ -421,7 +422,7 @@ def review(d: Data) -> None:
     R.md()
     t45 = d.totals.get(45.0, {})
     R.find(
-        "F1",
+        "exclusion_zone_code_axis_alone",
         "FIXED",
         "The exclusion zone is the code axis alone: a hit within one chip "
         "of a live row's code phase is that emitter's own at any Doppler. "
@@ -432,7 +433,7 @@ def review(d: Data) -> None:
         "until the first leaves.",
     )
     R.find(
-        "F2",
+        "dll_symbol_aided_looks_no",
         "FIXED",
         "The Dll's symbol-aided looks no longer overlap, so a decision "
         "reads each stretch of noise once: the code flag's returns on "
@@ -442,7 +443,7 @@ def review(d: Data) -> None:
         f"{t45.get('duration_s', 0):.0f} s.",
     )
     R.find(
-        "F3",
+        "refine_dwell_floored_refine_min",
         "FIXED",
         "The refine's dwell was floored at `refine_min_blocks` (seven): sized "
         "for detection alone it shrank to two blocks at 45 dB-Hz, where "
@@ -452,7 +453,7 @@ def review(d: Data) -> None:
         "(section 12.28, #1283).",
     )
     R.find(
-        "F4",
+        "false_alarms_in_lifecycle",
         "BY DESIGN",
         "The searcher's false alarms are part of the lifecycle: at pfa 1e-3 "
         "a noise peak seeds a free slot, refines to nothing, reports "
@@ -466,7 +467,7 @@ def review(d: Data) -> None:
         "carries the headroom.",
     )
     R.find(
-        "F5",
+        "track_chain_built_on_seed",
         "CONFIRMED",
         "Each receiver builds its track chain on its first seed and frees it "
         "on reset (#1269) — a per-transition allocation, not a leak: the "
@@ -476,7 +477,7 @@ def review(d: Data) -> None:
         "(section 12.28, #1283).",
     )
     R.find(
-        "F6",
+        "code_flag_returns_noise_about",
         "BY DESIGN",
         "The code flag still returns on noise at about 0.004 per second, "
         "and one return inside the interval restarts the release clock "
@@ -484,7 +485,7 @@ def review(d: Data) -> None:
         "in a hundred; two returns inside one interval is a 1e-4 event.",
     )
     R.find(
-        "F7",
+        "tile_edge_emitter",
         "FIXED",
         "An emitter on the edge between two searcher tiles read the same in "
         "both to 0.03 dB and was seeded a whole tile off half the time on "
@@ -493,7 +494,7 @@ def review(d: Data) -> None:
         "The ten-minute soak scores no stint missed at either C/N0.",
     )
     R.find(
-        "F8",
+        "departed_receiver_on_noise",
         "FIXED",
         "A departed emitter's receiver ran its loops on noise, swept its "
         "code phase through every live emitter's and followed one 3.8 kHz "
@@ -503,7 +504,7 @@ def review(d: Data) -> None:
         "soak's release is 2.04 s mean with one restart in 183 departures.",
     )
     R.find(
-        "F9",
+        "off_seed_tracks_own_frequency",
         "CONFIRMED",
         "At 40 dB-Hz a data-block seed 650–800 Hz off reports tracking at "
         "the seed's own frequency and never pulls the carrier in, holding "
@@ -512,7 +513,7 @@ def review(d: Data) -> None:
         "(#1273).",
     )
     R.find(
-        "F10",
+        "neighbour_crossing_departed",
         "GAP",
         "A neighbour within about a kilohertz crossing a departed "
         "receiver's code phase at a chip or two a second is, to that "
@@ -634,7 +635,9 @@ def build(write: bool = True) -> Report:
         [
             "**Never read the pool by a count of assigned slots.** The "
             "searcher's false alarms take a free slot for one release "
-            "interval each, by design (F4), so a count says nothing. The "
+            "interval each, by design "
+            f"({R.ref('false_alarms_in_lifecycle')}), so a count says "
+            "nothing. The "
             "pool occupies a slot by the **seed code phase** and nothing "
             "else — that is why the exclusion zone spans every Doppler — "
             "while an observer holding the truth confirms whose slot it is "
@@ -642,17 +645,22 @@ def build(write: bool = True) -> Report:
             "**Expect the seed from the emitter's own data blocks at "
             "45 dB-Hz** — hundreds of Hz off, in the first block or two — "
             "and from its window at 40, within a frame. Both pull in; the "
-            "refine's dwell is floored at seven blocks for that (F3).",
+            "refine's dwell is floored at seven blocks for that "
+            f"({R.ref('refine_dwell_floored_refine_min')}).",
             "**The release comes at the interval, with one rare exception.** "
             "A code-flag return on noise at 0.004 per second restarts the "
-            "clock once, so bound on two intervals, not one (F6). While the "
+            "clock once, so bound on two intervals, not one "
+            f"({R.ref('code_flag_returns_noise_about')}). While the "
             "clock runs the receiver's loops hold, so a departed emitter's "
-            "receiver does not wander onto a neighbour (F8).",
+            "receiver does not wander onto a neighbour "
+            f"({R.ref('departed_receiver_on_noise')}).",
             "**Nothing grows with time, once every slot has been used.** "
-            "The receivers' first use allocates their chains (F5, #1269); "
+            "The receivers' first use allocates their chains "
+            f"({R.ref('track_chain_built_on_seed')}, #1269); "
             "after that the heap is flat to a page over the run.",
             "**Two emitters within a chip of each other are one** while the "
-            "first is live (F1) — the price of a zone that survives the "
+            f"first is live ({R.ref('exclusion_zone_code_axis_alone')}) — the "
+            "price of a zone that survives the "
             "emitter's own smeared copies at every Doppler.",
         ],
     )

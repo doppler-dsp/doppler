@@ -223,7 +223,8 @@ def section_object() -> None:
                 "the Pd model is unreliable past a few hundred looks "
                 "(`acq_core.h`)",
                 "nowhere",
-                "§2.3 — **contradicted**, F5",
+                "§2.3 — "
+                f"**contradicted**, {R.ref('acq_core_states_twice_lines')}",
             ],
         ],
     )
@@ -450,7 +451,8 @@ def _sec_noncoherent(d: Data) -> None:
     R.md(
         "First non-monotonic look count: **none**. The characterization "
         "subject takes the accuracy half to Monte-Carlo and finds agreement "
-        "within 0.2-0.6 sigma out to 512 looks. Recorded as F5; the ceiling "
+        "within 0.2-0.6 sigma out to 512 looks. Recorded "
+        f"as {R.ref('acq_core_states_twice_lines')}; the ceiling "
         "belongs to `acq`, so moving it is not this report's call."
     )
     R.md()
@@ -812,7 +814,7 @@ def _sec_marcum(d: Data) -> None:
         f"the fixed ~60 the header used to claim: the window half-width is "
         f"`12*sqrt(a^2/2 + 1) + 60`, so it is ~60 terms at `a = 0` and ~187 "
         f"at `a = 15` — corrected in the header as part of this "
-        f"certification (F4)."
+        f"certification ({R.ref('marcum_convergence_claim')})."
     )
     R.md()
 
@@ -1052,7 +1054,7 @@ def review(d: Data) -> None:
     R.md("## 3. Review — findings")
     R.md()
     R.find(
-        "F1",
+        "non_coherent_trio",
         "FIXED",
         "The non-coherent trio — `det_threshold_noncoherent`, "
         "`det_pd_noncoherent`, `det_n_noncoh` — had **zero** mentions in "
@@ -1068,7 +1070,7 @@ def review(d: Data) -> None:
         "of look count takes it red.",
     )
     R.find(
-        "F2",
+        "threshold_f_explained",
         "FIXED",
         f"`detection_core.h` explains why `det_threshold_f` exists with "
         f"one number — the chi-square gate realizing 41x the priced pfa at "
@@ -1089,7 +1091,7 @@ def review(d: Data) -> None:
         f"only, which exactly two assertions catch, both new.",
     )
     R.find(
-        "F3",
+        "det_dwell_power_declared_twice",
         "FIXED",
         "`det_dwell_power` was declared **twice** in the header — once with "
         "its full doc comment at the end of the power section, once bare on "
@@ -1099,7 +1101,7 @@ def review(d: Data) -> None:
         "The bare duplicate is removed.",
     )
     R.find(
-        "F4",
+        "marcum_convergence_claim",
         "FIXED",
         'The `marcum_q` doc claimed the series *"converges in ~60 terms '
         "for practical a, b <= 15\"*. The implementation's window "
@@ -1112,7 +1114,7 @@ def review(d: Data) -> None:
         "the envelope is now measured (§2.6) instead of asserted.",
     )
     R.find(
-        "F5",
+        "acq_core_states_twice_lines",
         "CONFIRMED",
         "`acq_core.h` states twice (lines 75 and 307) that this module's "
         'non-coherent Pd model is *"non-monotonic and unreliable past a '
@@ -1128,7 +1130,7 @@ def review(d: Data) -> None:
         "[#997](https://github.com/doppler-dsp/doppler/issues/997).",
     )
     R.find(
-        "F6",
+        "det_threshold_det_inv_both",
         "BY DESIGN",
         "`det_threshold` and `det_q_inv` both take a probability and return "
         "a small number near 5, and at `pfa = 5e-6` they return 4.9409 and "
@@ -1294,7 +1296,7 @@ def build(write: bool = True) -> Report:
             "thresholding, never by the nearest function.** At pfa = 5e-6 "
             "`det_threshold` returns 4.9409 and `det_q_inv` returns 4.4172 "
             "— both plausible, only one a sigma count, and nothing catches "
-            "the swap (§2.1, F6).",
+            f"the swap (§2.1, {R.ref('det_threshold_det_inv_both')}).",
             "**Coherent depth is free at the gate; non-coherent looks are "
             "not.** The non-coherent threshold grows with the look count, "
             "so `det_n_noncoh` re-derives it every iteration — sizing "
@@ -1311,7 +1313,7 @@ def build(write: bool = True) -> Report:
             "it does.** It is monotone to 1024 looks and within 0.6 sigma "
             "of Monte-Carlo at 512, while `acq` bounds its search at 256 "
             "citing unreliability. Sensitivity may be sitting on the table "
-            "(§2.3, F5 / #997).",
+            f"(§2.3, {R.ref('acq_core_states_twice_lines')} / #997).",
             "**These are design-time helpers and they fail closed** — `NaN` "
             "or `-1` for a probability out of range, `-1` for unachievable, "
             "`INT_MAX` for a look that can never compound, all in bounded "

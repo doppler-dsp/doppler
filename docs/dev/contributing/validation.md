@@ -200,17 +200,18 @@ executive summary's status line and
 a positive result — "the header's figure is confirmed correct" — reports a
 clean object as carrying open defects, which is the same
 finished-work-in-the-backlog problem `issue-link-check` exists to stop. The
-mpsk report shipped that way for one commit; RateSync's F7 (a lock
-indicator that cannot distinguish an under-driven loop, left open as
-gh-661) is the shape `CONFIRMED` is actually for.
+mpsk report shipped that way for one commit; RateSync's
+`locked_not_separate_scaling` (a lock indicator that cannot distinguish an
+under-driven loop, left open as gh-661) is the shape `CONFIRMED` is actually
+for.
 
-**An open finding must cite the issue tracking it** — `gh-N` or `#N`, in
-the finding's own text. This is the repo's carve-out rule applied where
-carve-outs are actually recorded: a gap that lives only inside a report is
-invisible to everyone not reading that report. agc's F6 (59.9 dB applied to
-a noise floor) and RateSync's F17 (the DTTL's low-SNR claim, unmeasurable
-by a validator that adds no noise) both sat that way until gh-750 and
-gh-751.
+**An open finding must cite the issue tracking it** — `gh-N` or `#N`, in the
+finding's own text. This is the repo's carve-out rule applied where carve-outs
+are actually recorded: a gap that lives only inside a report is invisible to
+everyone not reading that report. agc's `object_no_notion_signal_presence`
+(59.9 dB applied to a noise floor) and RateSync's
+`dttl_low_snr_claim_unmeasurable` (the DTTL's low-SNR claim, unmeasurable by a
+validator that adds no noise) both sat that way until gh-750 and gh-751.
 
 It also happens to be the test for the misuse above: **a result that holds
 has no issue to cite, because there is nothing to fix.** If you cannot name
@@ -430,6 +431,24 @@ becomes a silent no-op. Full rationale:
     verdict, and the report is where it belongs. Truncating to a first
     sentence (`txt.split(".")[0]`) both hides the reasoning and cuts any
     sentence containing a decimal mid-reference.
+- **Cite a finding by its key, never its number.** `R.find(key, verdict, text)`
+    numbers findings by position, so a number typed into prose re-points the
+    moment a finding before it is dropped: #2056 dropped one and left five
+    citations pointing at the wrong finding, none caught (#2059). Prose, a
+    table cell, another finding's text and the takeaways write `R.ref(key)`,
+    which `render()` resolves to the current number, and `render()` refuses a
+    typed number and a key no `find()` records. A figure title is drawn into a
+    PNG that `render()` never sees, so it takes `R.number(key)`, called after
+    `review()`. A key says what the finding is (`pfa_over_delivered`), in
+    snake_case, once per report.
+- **Outside a report, cite the key or the claim.** A C test's comment, a
+    header, a design page or an example has no render step, so it names the
+    finding's key (the certification's `filter_on_cn0_not_margin`) or says
+    the claim in words. That includes another report's finding: a key
+    resolves only within its own report. `make lint-finding-citations`
+    (`scripts/check_finding_citations.py`) refuses a typed number in every
+    tracked source and page; generated files, released history and GitHub's
+    issue titles are its only skips.
 - **Emit `![...](plot.png)` from the section, never from `plots()`.**
     `plots()` runs only when `write=True`, so markdown emitted there is
     absent from the `--check` render — and `make validate-check` is then

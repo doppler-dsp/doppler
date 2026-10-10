@@ -452,8 +452,9 @@ def test_a_capturing_bank_reports_both_faces_per_channel():
     assert all(d.channel == centre and d.doppler_hz == 0.0 for d in strongest)
     win, ev = got[centre]
     # At least the two transmitted bursts; a spurious window is EXPECTED at
-    # pfa=1e-3 over a scene this long (the object's validation report, F2),
-    # and the two real ones are the two the search rated highest.
+    # pfa=1e-3 over a scene this long (BurstCapture's validation report,
+    # `filter_on_cn0_not_margin`), and the two real ones are the two the
+    # search rated highest.
     assert len(ev) >= 2 and win.size == len(ev) * burst_len
     real = sorted(ev, key=lambda e: -float(e["cn0_dbhz_est"]))[:2]
     starts = sorted(int(e["preamble_start"]) for e in real)

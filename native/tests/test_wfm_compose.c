@@ -1750,7 +1750,7 @@ names_hash (const char *why, uint64_t h)
   return why && strstr (why, t) != NULL;
 }
 
-/* F7 (payload-data-source.md 4.8): the record carries what each data
+/* #1619 (payload-data-source.md 4.8): the record carries what each data
    source SENT -- frames, fill, idle frames, the bits read and a file's
    hash -- and a replay identifies a file by that content. A changed file,
    same length or not, is refused naming both hashes; a record of stdin

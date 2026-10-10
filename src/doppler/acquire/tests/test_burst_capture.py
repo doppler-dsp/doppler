@@ -387,7 +387,7 @@ def test_an_impossible_pd_says_so_rather_than_failing_quietly():
     Both faces are asserted: a warning for the caller who is not looking, and
     a value for the one who would rather ask than catch. A declared
     diagnostic that nothing exercises is how one stops working invisibly —
-    which is `BurstAcquisition`'s own F3.
+    which is `BurstAcquisition`'s own `underpowered_warning_untested`.
     """
     with pytest.warns(UserWarning, match="cannot meet the requested pd"):
         cap = BurstCapture(

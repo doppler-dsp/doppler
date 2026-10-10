@@ -84,9 +84,10 @@ if TYPE_CHECKING:
 #: so they reach depths a deployed link never would, and the floor has to
 #: respect that rather than link-realistic intuition.
 #:
-#: This is the mirror of the sentinel trap F4 records at the other end,
-#: where `ber_evm_db`'s 0.0 dB "no lock" answer read as data in a table.
-#: Both ends of the scale need saying in words rather than digits.
+#: This is the mirror of the sentinel trap RateSync's `bn_identical_claim`
+#: records at the other end, where `ber_evm_db`'s 0.0 dB "no lock" answer read
+#: as data in a table. Both ends of the scale need saying in words rather than
+#: digits.
 EVM_FLOOR_DB = -150.0
 
 #: The review phase's whole vocabulary, and which verdicts count as OPEN.
@@ -119,10 +120,30 @@ OPEN_VERDICTS = ("GAP", "CONFIRMED")
 #: section or a re-pointed citation through the gate silently.
 _PROTECTED = (
     re.compile(r"§\d+(?:\.\d+)?"),
+    # A finding's number is structure too: `find()` assigns it by position,
+    # so a dropped or reordered finding renumbers the ones after it. Masked,
+    # `F3` and `F4` both read `F«n»` and a renumbered report passed as up
+    # to date (#2059).
+    re.compile(r"\bF\d+\b"),
     re.compile(r"gh-\d+"),
     re.compile(r"#\d+"),
     re.compile(r"issues/\d+"),
 )
+
+#: How prose cites a finding. `Report.ref(key)` returns this token and
+#: `render()` replaces it with the finding's number, which `find()` assigns
+#: by position. A number typed by hand re-points the moment a finding is
+#: dropped or inserted before it: #2056 dropped one and left five citations
+#: pointing at the wrong finding, none caught (#2059). A key does not move.
+_REF = "[[F:{}]]"
+_REF_RE = re.compile(r"\[\[F:([^\]]*)\]\]")
+
+#: A finding number written into the text rather than resolved from a key.
+#: Before `render()` resolves the references, every match is one.
+_TYPED_F = re.compile(r"\bF[1-9]\d*\b")
+
+#: Every protected form as one alternation, matched in a single pass.
+_PROTECTED_ANY = re.compile("|".join(p.pattern for p in _PROTECTED))
 
 #: A numeric literal, as a report prints one: `8`, `-0.35`, `.5`, `1.29e-02`.
 _NUMBER = re.compile(r"[-+]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][-+]?\d+)?")
@@ -357,8 +378,13 @@ def _structural(text: str) -> str:
             # consuming the list in the same order.
             return _HOLD
 
-        for pat in _PROTECTED:
-            line = pat.sub(_hold, line)
+        # ONE pass over every protected form, so the spans are held in
+        # the order they appear. A pass per form held them grouped by form
+        # and restored them left to right, so a finding line reading
+        # "F6 ... §2.9" printed "§2.9 ... F6" in the STALE diff. The
+        # comparison was unaffected (both sides scrambled alike); the diff
+        # a reader is shown was wrong.
+        line = _PROTECTED_ANY.sub(_hold, line)
         line = _NUMBER.sub(_MASK, line)
         if held:
             it = iter(held)
@@ -421,7 +447,11 @@ class Report:
     findings : list of (tag, verdict, text)
         Phase 2's judgements. `verdict` is one of BY DESIGN, GAP,
         CONFIRMED, FIXED or C-ONLY; the first two counts in the summary
-        treat GAP and CONFIRMED as open.
+        treat GAP and CONFIRMED as open. `tag` is the finding's reference
+        token (see `ref`), which renders as its number.
+    keys : dict of str to str
+        Each finding's key and the number `find()` assigned it, ``F1`` for
+        the first recorded, in recording order.
     limits : list of (ok, claim)
         Phase 3's envelope. Every one of these is asserted by a pytest
         case, so a False here fails CI rather than only reading badly.
@@ -438,6 +468,7 @@ class Report:
 
     lines: list[str] = field(default_factory=list)
     findings: list[tuple[str, str, str]] = field(default_factory=list)
+    keys: dict[str, str] = field(default_factory=dict)
     limits: list[tuple[bool, str]] = field(default_factory=list)
     write: bool = True
     head: list[str] = field(default_factory=list)
@@ -470,8 +501,16 @@ class Report:
         self.md()
 
     # ── phases 2 and 3 ───────────────────────────────────────────────
-    def find(self, tag: str, verdict: str, text: str) -> None:
+    def find(self, key: str, verdict: str, text: str) -> None:
         """Record one review finding, render it, and echo it.
+
+        `key` names the finding (``"pad_zero_was_one"``); its number is
+        assigned here, by position, ``F1`` for the first one recorded.
+        Anything that cites it -- prose, a table cell, another finding,
+        the executive summary -- writes ``R.ref(key)``, and `render()`
+        resolves every citation to the number at once, so dropping or
+        reordering a finding cannot leave a citation pointing at another
+        (#2059). A number typed into the text is refused there.
 
         All three from one call, deliberately. Recording and rendering used
         to be separate, and only recording was ever wired up: every report
@@ -490,10 +529,58 @@ class Report:
         after the section 3 heading, so appending here lands in the right
         place with no ordering rule for authors to remember.
         """
+        if not re.fullmatch(r"[a-z][a-z0-9_]*", key):
+            raise ValueError(
+                f"finding key {key!r} is not a snake_case name: a finding "
+                f"is keyed by what it is, and find() assigns its number"
+            )
+        if key in self.keys:
+            raise ValueError(f"finding key {key!r} is recorded twice")
+        self.keys[key] = f"F{len(self.findings) + 1}"
+        tag = self.ref(key)
         self.findings.append((tag, verdict, text))
         self.md(f"- **{tag} · {verdict}** — {text}")
         self.md()
-        print(f"  [{verdict:^10}] {tag}: {text[:96]}")
+        print(f"  [{verdict:^10}] {self.keys[key]}: {text[:96]}")
+
+    def ref(self, key: str) -> str:
+        """Cite a finding by key; `render()` writes its number.
+
+        A citation may come before the finding it names -- the claim
+        inventory in section 1 cites section 3's findings -- because
+        nothing is resolved until the whole report exists. A key no
+        `find()` records is refused at `render()`.
+
+        Examples
+        --------
+        >>> r = Report(write=False)
+        >>> r.md(f"see {r.ref('pad_zero_was_one')}")
+        >>> r.find("pad_zero_was_one", "FIXED", "pad = 0 is refused")
+          [  FIXED   ] F1: pad = 0 is refused
+        >>> r.render().splitlines()[0]
+        'see F1'
+        """
+        return _REF.format(key)
+
+    def number(self, key: str) -> str:
+        """A recorded finding's number, for text `render()` never sees.
+
+        A figure's title is drawn into a PNG, so a `ref` token there would
+        be printed as it stands. Call this after the finding is recorded
+        (figures are drawn after `review()`); before, it raises rather
+        than guess.
+
+        Raises
+        ------
+        KeyError
+            If no `find()` has recorded `key` yet.
+        """
+        if key not in self.keys:
+            raise KeyError(
+                f"finding {key!r} is not recorded yet: draw the figure "
+                f"after review(), or cite it with ref() in the report"
+            )
+        return self.keys[key]
 
     def limit(self, ok: bool, claim: str) -> bool:
         """Record one envelope claim and whether it holds."""
@@ -670,6 +757,22 @@ class Report:
         """
         problems: list[str] = []
 
+        # A finding is cited by key and numbered at render (#2059), so
+        # before resolution no finding number is in the text at all: one
+        # here was typed, and goes stale the moment a finding before it is
+        # dropped. Both directions: nothing typed, and every key cited is
+        # one some find() recorded.
+        for typed in sorted(set(_TYPED_F.findall(text))):
+            problems.append(
+                f"{typed} is typed into the report — cite the finding as "
+                f"R.ref(key), which render() resolves to its number"
+            )
+        for key in sorted(set(_REF_RE.findall(text))):
+            if key not in self.keys:
+                problems.append(
+                    f"R.ref({key!r}) cites a finding no find() records"
+                )
+
         # A verdict outside the vocabulary is not a typo the reader can
         # see: `open_findings` matches exact strings, so anything else is
         # counted as CLOSED. It fails in the direction that hides work.
@@ -764,7 +867,7 @@ class Report:
                 "the report is internally inconsistent:\n  - "
                 + "\n  - ".join(problems)
             )
-        return text
+        return _REF_RE.sub(lambda m: self.keys[m.group(1)], text)
 
     def emit(self, path: Path) -> None:
         """Write the report, unless this run is measurement-only."""

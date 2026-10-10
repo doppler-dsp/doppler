@@ -792,7 +792,7 @@ Divide a raw TED output by this and the result has unit slope per symbol of timi
 **Note:**
 
 This comment used to claim the opposite — "the shipped
-normalisation's slope varies 10.6x between beta 0.1 and 0.9" — and that claim is **withdrawn**. It came from a measurement that differentiated the S-curve about a fixed offset of zero, which through that cascade is the UNSTABLE T/2 equilibrium rather than the eye centre. DTTL's S-curve is not sinusoidal, so its two zeros carry very different slopes and the error surfaced as a spurious roll-off dependence; Gardner's is, so its two agree to 0.001 and nothing looked wrong on the default detector. Recorded because the sentence outlived its evidence and was cited, in good faith, as independent confirmation of the report finding it came from. See the RateSync validation report, F15, and gh-669.
+normalisation's slope varies 10.6x between beta 0.1 and 0.9" — and that claim is **withdrawn**. It came from a measurement that differentiated the S-curve about a fixed offset of zero, which through that cascade is the UNSTABLE T/2 equilibrium rather than the eye centre. DTTL's S-curve is not sinusoidal, so its two zeros carry very different slopes and the error surfaced as a spurious roll-off dependence; Gardner's is, so its two agree to 0.001 and nothing looked wrong on the default detector. Recorded because the sentence outlived its evidence and was cited, in good faith, as independent confirmation of the report finding it came from. See the RateSync validation report's `normalised_slope_unity` finding, and gh-669.
 
 
 Caller multiplies by the reciprocal — see [**ratesync\_loop\_t::ted\_scale**](structratesync__loop__t.md#variable-ted_scale). Never call this on a hot path; it is a construct-time quantity.

@@ -576,7 +576,7 @@ def review(d: Data) -> None:
     R.md("## 3. Review — findings")
     R.md()
     R.find(
-        "F1",
+        "negative_verdict_too_short",
         "FIXED",
         "**The frame verdict's negative case was the too-short path "
         "only.** It was asserted 1 on a clean burst and 0 on an 8-sample "
@@ -595,7 +595,7 @@ def review(d: Data) -> None:
         "reaches whoever checks.",
     )
     R.find(
-        "F2",
+        "frame_offset_ever_observed",
         "FIXED",
         "**`frame_offset` was only ever observed as 0** — its degenerate "
         "value, and exactly what a read-back hardwired to zero reports. Now "
@@ -608,17 +608,18 @@ def review(d: Data) -> None:
         "that cannot fail.",
     )
     R.find(
-        "F3",
+        "n_symbols_unmentioned",
         "FIXED",
         "**`n_symbols` had no mention in either language**, and it does not "
         "mean what its neighbours might suggest: it counts the whole "
         "despread data section — filler, sync, payload and trailer — not "
         "the payload. That distinction is invisible until the sync is not "
-        "at offset zero, which is why it needed the same stimulus as F2. "
+        "at offset zero, which is why it needed the same stimulus "
+        f"as {R.ref('frame_offset_ever_observed')}. "
         "Sabotage-proven by reporting the frame length instead.",
     )
     R.find(
-        "F4",
+        "reset_called_no_either_language",
         "FIXED",
         "**`reset()` was called by nothing in either language.** The "
         "read-backs are this object's whole output surface, so a reset that "
@@ -630,13 +631,14 @@ def review(d: Data) -> None:
         "return immediately.",
     )
     R.find(
-        "F5",
+        "no_state_triplet_no_serializable",
         "BY DESIGN",
         "There is no state triplet and no `serializable` flag, correctly: "
         "the object is per-burst and feedforward, so there is no "
         "mid-stream position to checkpoint — a burst either completes "
         "within one `demod()` call or is lost. That is the same reasoning "
-        "as `ppe`'s, one level up, and it is why `reset()` (F4) carries the "
+        "as `ppe`'s, one level up, and it is why `reset()` "
+        f"({R.ref('reset_called_no_either_language')}) carries the "
         "whole burden of separating one burst from the next.",
     )
 
@@ -747,14 +749,17 @@ def build(write: bool = True) -> Report:
             "It was pinned at 1 on a clean burst and at 0 on an 8-sample "
             "input — the *no frame at all* path — so a version that ignored "
             "the CRC entirely would have passed both. It is now measured on "
-            "frames that arrive and fail (§2.1, F1).",
+            "frames that arrive and fail "
+            f"(§2.1, {R.ref('negative_verdict_too_short')}).",
             "**`n_symbols` is not the payload count.** It counts the whole "
             "despread data section — filler, sync, payload and trailer — "
             "which is what a caller slicing soft symbols needs, and it was "
-            "mentioned in neither language before this (§2.2, F3).",
+            "mentioned in neither language before this "
+            f"(§2.2, {R.ref('n_symbols_unmentioned')}).",
             "**Call `reset()` between bursts.** The read-backs persist "
             "otherwise, and a silently repaired bit is the failure "
-            "direction that matters. Nothing had ever called it (§2.3, F4).",
+            "direction that matters. Nothing had ever called it "
+            f"(§2.3, {R.ref('reset_called_no_either_language')}).",
             "**`est_freq_hz` is in Hz**, not cycles per sample — the "
             "conversion a caller would otherwise have to guess from a "
             "field name (§2.4).",
@@ -762,7 +767,7 @@ def build(write: bool = True) -> Report:
             "completes within one `demod()` call or is lost, so there is no "
             "mid-stream position to checkpoint — which is why `reset()` "
             "carries the whole burden of separating one burst from the "
-            "next (F5).",
+            f"next ({R.ref('no_state_triplet_no_serializable')}).",
         ],
     )
     R.summary(

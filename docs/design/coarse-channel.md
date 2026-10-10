@@ -104,7 +104,8 @@ Two things the table does not settle and §5 measures:
     phase.
 - **what a channel's own claims are.** If the header ends up saying only
     "forwards to the DDC and the capture", shape B's report is a delivery
-    report (`burst_acq`'s F1) and the cost of B is mostly ceremony. If it says
+    report (as `burst_acq`'s is, by its own `no_detection_performance`
+    finding) and the cost of B is mostly ceremony. If it says
     things the bank cannot — the absolute-Doppler translation, the fold at
     the band edge, the detector/capture choice, the ring's name — B is
     certifying real behaviour.

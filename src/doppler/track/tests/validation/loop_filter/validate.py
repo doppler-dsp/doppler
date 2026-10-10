@@ -584,7 +584,8 @@ def characterise() -> Data:
         "continuation). The blob is a whole-struct snapshot, so restoring "
         "into a differently-configured instance carries the source's "
         "configuration with it and silently retunes the target — measured, "
-        "and recorded as F8 rather than assumed."
+        f"and recorded as {R.ref('restore_carries_config')} rather than "
+        "assumed."
     )
     R.md()
 
@@ -624,7 +625,7 @@ def review(d: Data) -> None:
     R.md()
 
     R.find(
-        "F1",
+        "bn_loop_noise_bandwidth_claim",
         "BY DESIGN",
         "**`bn` is the loop's noise bandwidth, and the claim now has "
         f"evidence.** Two independent routes agree to {d.gain_max_rel:.0e} "
@@ -633,7 +634,7 @@ def review(d: Data) -> None:
         "before; every consumer sizes settling and jitter off it (§2.2).",
     )
     R.find(
-        "F2",
+        "bandwidth_error_is_law",
         "BY DESIGN",
         "**The bandwidth error is a law, not a tolerance.** "
         "`Bn/(bn·t) − 1 ≈ 16·zeta²/(4·zeta²+1)² · (bn·t)`, reproducing the "
@@ -643,7 +644,7 @@ def review(d: Data) -> None:
         "(§2.3, §2.4).",
     )
     R.find(
-        "F3",
+        "t_drops_out_of_error",
         "BY DESIGN",
         "**`t` drops out of the error entirely** — only the product `bn·t` "
         f"matters, verified to {d.collapse_max_rel:.0e} across a 16x spread "
@@ -653,7 +654,7 @@ def review(d: Data) -> None:
 
     converges = header_says_control_converges()
     R.find(
-        "F4",
+        "dp_loop_filter_step_doxygen",
         "GAP" if converges else "FIXED",
         "**`dp_loop_filter_step`'s doxygen says the control 'converges to the "
         "steady-state estimate' on a constant error. Open-loop it ramps** — "
@@ -668,7 +669,7 @@ def review(d: Data) -> None:
     vec = header_says_vectorized()
     scalar = steps_is_a_scalar_loop()
     R.find(
-        "F5",
+        "dp_loop_filter_steps_calls",
         "GAP" if (vec and scalar) else "FIXED",
         "**`dp_loop_filter_steps` calls itself 'the vectorized path' and is a "
         "plain scalar `for` loop** over `dp_loop_filter_step`. Harmless as "
@@ -680,7 +681,7 @@ def review(d: Data) -> None:
 
     validates = create_validates_domain()
     R.find(
-        "F6",
+        "domain_at_boundary",
         "FIXED" if validates else "GAP",
         "**The declared domain is enforced at the untrusted boundary, and "
         "deliberately nowhere else** "
@@ -703,7 +704,7 @@ def review(d: Data) -> None:
     )
 
     R.find(
-        "F7",
+        "init_leaves_integrator",
         "BY DESIGN",
         "**`dp_loop_filter_init` does not touch the integrator, and two "
         "consumers depend on that positively.** `costas` and `carrier_mpsk` "
@@ -716,7 +717,7 @@ def review(d: Data) -> None:
     )
 
     R.find(
-        "F8",
+        "restore_carries_config",
         "BY DESIGN",
         "**A restore carries configuration, not just memory.** The state "
         "blob is a whole-struct POD snapshot, so `set_state` into a "
@@ -727,7 +728,7 @@ def review(d: Data) -> None:
     )
 
     R.find(
-        "F9",
+        "init_unreachable_from_python",
         "C-ONLY",
         "**`dp_loop_filter_init` itself is unreachable from Python.** The "
         "binding exposes `configure`, which is the same operation on a "
@@ -739,7 +740,7 @@ def review(d: Data) -> None:
     )
 
     R.find(
-        "F10",
+        "no_anti_windup_no_output",
         "BY DESIGN",
         "**There is no anti-windup and no output bound.** The integrator "
         "accumulates without limit (§2.6), so a loop driven by a saturated "
@@ -891,30 +892,32 @@ def build(write: bool = True) -> Report:
             "**`bn` is the loop's noise bandwidth — now measured, for the "
             "first time.** Two routes sharing no arithmetic agree to six "
             "figures. Seven objects size their settling and jitter off this "
-            "promise and nothing had checked it (§2.2, F1).",
+            "promise and nothing had checked it "
+            f"(§2.2, {R.ref('bn_loop_noise_bandwidth_claim')}).",
             "**The error is a law with a closed form**, not a tolerance: "
             "the delivered bandwidth is always slightly WIDE by "
             "`16·zeta²/(4·zeta²+1)²·(bn·t)`. Keep `bn·t ≤ 0.0112` at "
             "zeta 0.707 for 1%; every shipped configuration is already "
-            "inside that (§2.3, §2.4, F2).",
+            f"inside that (§2.3, §2.4, {R.ref('bandwidth_error_is_law')}).",
             "**Only the product `bn·t` matters** — change a loop's update "
             "rate and its bandwidth per sample is unchanged, which is what "
             "makes one `bn_carrier` mean the same loop at every tap "
-            "(§2.3, F3).",
+            f"(§2.3, {R.ref('t_drops_out_of_error')}).",
             "**The header describes a convergence the object does not "
             "have.** Open-loop on a constant error the control ramps "
             "without bound; convergence belongs to the closed loop "
-            "(§2.6, F4).",
+            f"(§2.6, {R.ref('dp_loop_filter_step_doxygen')}).",
             "**The domain is enforced at the constructor and deliberately "
             "nowhere else.** `LoopFilter(t=0)` used to build a silently dead "
             "loop and `LoopFilter(t=inf)` one whose every output was NaN "
             "forever; both now raise `ValueError`. `dp_loop_filter_init` "
             "stays "
             "unguarded on purpose — it is the by-value path and its seven "
-            "embedders validate upstream (§2.8, F6, gh-740).",
+            "embedders validate upstream "
+            f"(§2.8, {R.ref('domain_at_boundary')}, gh-740).",
             "**A state restore carries configuration, not just memory**, so "
             "restoring into a differently-built instance retunes it "
-            "(§2.9, F8).",
+            f"(§2.9, {R.ref('restore_carries_config')}).",
         ],
     )
     if write:

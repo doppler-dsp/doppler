@@ -166,7 +166,7 @@ def section_object() -> None:
             [
                 "...and also when the quadrature sum is exactly zero",
                 "**undocumented until this certification**",
-                "§2.3, F2",
+                f"§2.3, {R.ref('lock_stat_zero_means_two')}",
             ],
             [
                 "`snr_est` is the EFFECTIVE post-loop SNR, converging to "
@@ -355,7 +355,7 @@ def _sec_sentinel(d: Data) -> None:
         "clean burst produces, and it is the same value returned before any "
         "data has arrived. `stat_n` is the discriminator, and the header "
         "documented only the first of the two cases until this "
-        "certification (F2)."
+        f"certification ({R.ref('lock_stat_zero_means_two')})."
     )
     R.md()
 
@@ -467,7 +467,7 @@ def review(d: Data) -> None:
     R.md("## 3. Review — findings")
     R.md()
     R.find(
-        "F1",
+        "header_example_false_ungated",
         "FIXED",
         "**The header's own example asserted a false result, and no gate "
         "ran it.** `lock_stat`'s `@code` block fed a perfectly noiseless "
@@ -484,7 +484,7 @@ def review(d: Data) -> None:
         "[#1000](https://github.com/doppler-dsp/doppler/issues/1000).",
     )
     R.find(
-        "F2",
+        "lock_stat_zero_means_two",
         "FIXED",
         "**`lock_stat == 0` was documented as meaning one thing and means "
         'two.** The header said *"returns 0 before any payload prompt has '
@@ -494,12 +494,13 @@ def review(d: Data) -> None:
         "reading of the statistic is what a **perfect** synthetic burst "
         "produces, and a caller gating `lock_stat > eta` sees a noiseless "
         "signal as unlocked. It never happens on the air and happens "
-        "constantly in tests — which is exactly where F1's example lived. "
+        "constantly in tests — which is exactly "
+        f"where {R.ref('header_example_false_ungated')}'s example lived. "
         "Documented, and both cases plus the discriminator (`stat_n`) are "
         "now pinned in C.",
     )
     R.find(
-        "F3",
+        "lock_gate_pfa_never_measured",
         "FIXED",
         f"**The lock gate's realized false-alarm rate was never measured.** "
         f"The header states the null law exactly and names the gate "
@@ -512,19 +513,20 @@ def review(d: Data) -> None:
         f"assumed distribution.",
     )
     R.find(
-        "F4",
+        "set_acq_unasserted",
         "FIXED",
         "**`set_acq` was called twice in the C test with no assertions**, "
         "so the claim it exists to support — that only payload prompts fold "
         'into the statistics, *"so the H0 law and the SNR calibration '
         'hold"* — was pinned by nothing. A preamble prompt integrates a '
         "different code length and sits in the pull-in transient, so "
-        "including it would break the very law F3 measures. Now checked as "
-        "an inequality against the same stream fed without the preamble "
+        "including it would break the very "
+        f"law {R.ref('lock_gate_pfa_never_measured')} measures. Now checked "
+        "as an inequality against the same stream fed without the preamble "
         "declared, and sabotage-proven by dropping the exclusion.",
     )
     R.find(
-        "F5",
+        "locked_end_lock_metric_pinned",
         "FIXED",
         f"**Only the locked end of `lock_metric` was pinned**, at `> 0.9`. "
         f"The header documents both ends and the unlocked one is 2/pi = "
@@ -645,15 +647,17 @@ def build(write: bool = True) -> Report:
             f"`lock_stat` with `det_threshold_f` delivers the priced "
             f"false-alarm rate to within {d.gate_worst_ratio * 100:.0f}% on "
             f"{d.gate_trials} real noise-only bursts. Use that expression, "
-            f"not a chi-square threshold (§2.1, F3).",
+            "not a chi-square threshold "
+            f"(§2.1, {R.ref('lock_gate_pfa_never_measured')}).",
             "**`lock_stat == 0` means two different things** — no payload "
             "yet, *and* a quadrature sum of exactly zero. So the worst "
             "reading of the statistic is what a perfect synthetic burst "
-            "produces. Separate them with `stat_n` (§2.3, F2).",
+            "produces. Separate them with `stat_n` "
+            f"(§2.3, {R.ref('lock_stat_zero_means_two')}).",
             "**Declare the preamble with `set_acq`.** Undeclared, its "
             "prompts fold into the burst statistics against a different "
             "code length, which breaks the null law the gate above is "
-            "priced with (§2.5, F4).",
+            f"priced with (§2.5, {R.ref('set_acq_unasserted')}).",
             "**`snr_est` already contains your loop.** It is the effective "
             "post-loop SNR, below the AWGN value by the jitter term and "
             "converging as `bn_carrier` narrows — the number that predicts "

@@ -41,7 +41,8 @@
  * averaged because what is left is still a draw. A TED's S-curve amplitude
  * carries the transition density of the stream driving it, and the design
  * assigns that to nobody because it is data -- an m-sequence moves Gardner's
- * slope 15% against i.i.d. symbols (F12). Every table below therefore prints
+ * slope 15% against i.i.d. symbols (the RateSync report's
+ * `slope_depends_on_data`). Every table below therefore prints
  * `sd/mean` across realizations beside the value, and both gates refuse to
  * run when the mean's standard error is not comfortably inside the tolerance
  * they are about to apply. A tolerance tighter than the measurement's own
@@ -57,12 +58,13 @@
  * direct-form synthesis loop had been written three times", and its symbol
  * source is the library's own PRBS (`pn_core` via `wfm_synth_mls_poly`).
  *
- * @par What it found: F15 was the harness, not the detector
+ * @par What it found: normalised_slope_unity was the harness, not the detector
  * BOTH detectors' measured slopes match `dp_symsync_ted_slope()` across the
  * whole roll-off range, to better than 2% -- cascade-free AND through the
  * cascade. The second half of that is new, and it retires gh-669.
  *
- * The RateSync report carried F15: a normalised through-cascade slope of
+ * The RateSync report's `normalised_slope_unity` finding once read: a
+ * normalised through-cascade slope of
  * ~1.00 for Gardner but 1.23 rising to 10.75 for DTTL across beta 0.1..0.9,
  * with the construct-time normaliser exonerated cascade-free and the cause
  * left explicitly open. The cause was the measurement's own assumption. It
@@ -74,7 +76,8 @@
  * Two things kept it hidden for so long, and both are worth knowing:
  * Gardner's S-curve is near enough sinusoidal that its two zeros carry the
  * same |slope|, so the default detector read ~0.99 at the wrong equilibrium
- * and looked healthy; and DTTL's is NOT sinusoidal (F14), so only it
+ * and looked healthy; and DTTL's is NOT sinusoidal
+ * (`slope_from_peak_assumes_sine`), so only it
  * exposed the error -- as a roll-off dependence, which is what sent the
  * investigation after the pulse and the normaliser instead of the offset.
  * The `unstable` column reproduces the retired figures to three digits, so
@@ -107,7 +110,8 @@
 #define NSYM 20000
 /* Independent symbol sequences averaged per point. One realization is a
    sample of a data-dependent quantity -- the S-curve amplitude carries the
-   transition density, which is data (F12) -- so a single seed states a
+   transition density, which is data (`slope_depends_on_data`) -- so a
+   single seed states a
    number the next seed will not reproduce. */
 #define NSEED 8
 /* Central-difference half-step, in symbols. Small enough to sit inside every
@@ -130,8 +134,9 @@
    CASC_NSEED — the search runs at every scan point and the slope does not. */
 #define CASC_LOCK_NSEED 3
 /* Terminal outputs per symbol. 2 is the minimum the geometry allows and was
-   hard-coded at every call site until the m axis opened; F5's `m >= 4 with
-   IANDD` rule and DTTL's own transition gate both live on it. */
+   hard-coded at every call site until the m axis opened; the `m >= 4 with
+   IANDD` rule (`iandd_rule_right_stated_evidence`) and DTTL's own
+   transition gate both live on it. */
 #define CASC_M 2
 /* Set from measurement, not chosen: see the printed table. Worst observed
    at the stable zero is gardner 0.9447 at beta 0.1 (the roll-off whose tails
@@ -228,7 +233,8 @@ slope_one (int ted, double beta, uint32_t seed)
  *
  * The spread is not decoration. A TED's S-curve amplitude carries the
  * transition density of the stream driving it, and the design assigns that
- * to nobody because it is data (F12 in the RateSync report: an m-sequence
+ * to nobody because it is data (`slope_depends_on_data` in the RateSync
+ * report: an m-sequence
  * moves Gardner's slope 15% against i.i.d. symbols). So a slope from one
  * seed is a draw, not a constant, and any ratio built on it inherits that.
  * Quoting the spread is what makes the scaling factor below a measurement
@@ -599,7 +605,8 @@ main (int argc, char **argv)
   const size_t nbeta   = sizeof betas / sizeof *betas;
   /* Regression subset: the DEFAULT roll-off only. One beta cannot separate a
      skipped normalisation from a wrong one -- that is why the full sweep
-     exists, and why F15 needed it -- but it does catch the normaliser, the
+     exists, and why `normalised_slope_unity` needed it -- but it does
+     catch the normaliser, the
      equilibrium selection and the eye discrimination all coming undone,
      which is what a regression here would look like. */
   const size_t b_lo    = full ? 0 : 2;
@@ -750,9 +757,10 @@ main (int argc, char **argv)
              pre-fix harness differentiated at tau = 0 whatever sat there, and
              this column is what it was actually reading. Gardner's S-curve is
              near-sinusoidal so the two zeros carry nearly the same |slope|
-             and it looked healthy either way; DTTL's is not (F14), so the
-             unstable zero reads several times its declared slope and that is
-             the whole of F15. */
+             and it looked healthy either way; DTTL's is not
+             (`slope_from_peak_assumes_sine`), so the unstable zero reads
+             several times its declared slope and that is the whole of
+             `normalised_slope_unity`. */
           double usd = 0.0, ut0 = 0.0;
           int    ufound = 0;
           double umeas  = cascade_slope_at (teds[t], RATESYNC_PULSE_RRC,
@@ -828,7 +836,8 @@ main (int argc, char **argv)
      away (`tau0` reads -0.5 on every row above). Gardner's S-curve is near
      enough sinusoidal that both zeros carry the same |slope| and it read
      ~0.99 either way, which is precisely why nothing caught this for so
-     long; DTTL's is not sinusoidal (F14), so the wrong zero reads up to
+     long; DTTL's is not sinusoidal (`slope_from_peak_assumes_sine`), so
+     the wrong zero reads up to
      10.7x its declared slope. The `unstable` column reproduces the retired
      numbers to three digits, which is the evidence that this is the same
      measurement corrected rather than a different one substituted. */
@@ -1038,7 +1047,8 @@ main (int argc, char **argv)
    * Everything above runs `m = 2`, the minimum the geometry allows, because
    * that was hard-coded at every call site. It is also the one axis with a
    * standing rule attached: the header requires `m >= 4 with IANDD`, and
-   * F5 in the RateSync report certifies that rule on the LOCK STATISTIC —
+   * the RateSync report's `iandd_rule_right_stated_evidence` certifies
+   * that rule on the LOCK STATISTIC —
    * m = 2 does not clear the declare threshold on an NRZ stream and m = 4
    * clears it comfortably. Nothing had ever checked what m does to the TED
    * SLOPE, which is a different question about the same number.
@@ -1112,7 +1122,8 @@ main (int argc, char **argv)
      without editing this gate. It is m that gets them there: on the
      rectangle at m = 2 the same measurement reads 1.19 (gardner) and 1.27
      (dttl), which is what the header's `m >= 4 with IANDD` rule has been
-     asserting on the lock statistic (F5) without anything checking the TED
+     asserting on the lock statistic (`iandd_rule_right_stated_evidence`)
+     without anything checking the TED
      slope it also governs. Gardner on the rectangle is the slowest to
      converge and sets this number. */
   printf ("  worst |scale - 1| at m = 8, over every ted x pulse: %.4f "

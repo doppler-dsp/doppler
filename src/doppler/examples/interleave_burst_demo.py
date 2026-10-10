@@ -143,8 +143,8 @@ def main():
     #    on the wire carries it and nothing checks it: a receiver holding
     #    different numbers returns an array of exactly the right length,
     #    raises nothing, and hands the decoder a different permutation.
-    #    That is F3 of the validation report beside this file, and it is
-    #    why the object refuses to infer `cols` from the input length.
+    #    That is the Interleaver report's `geometry_mismatch_silent`, and
+    #    it is why the object refuses to infer `cols` from the input length.
     rng = np.random.default_rng(7)
     info = rng.integers(0, 256, size=(N_CW, rs.k), dtype=np.uint8)
     clean = _bits(np.stack([rs.encode(row) for row in info]).reshape(-1))

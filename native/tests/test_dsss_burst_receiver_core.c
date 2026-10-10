@@ -1140,7 +1140,8 @@ test_push_max_out_scales_with_input (void)
 
 /* reset() clears every read-back, and the PRECONDITION is asserted first --
  * otherwise the check passes against state that was already zero, which is
- * the vacuous-reset shape this campaign keeps finding (burst_demod F4).
+ * the vacuous-reset shape this campaign keeps finding (burst_demod's
+ * `reset_called_no_either_language`).
  * The lifetime counters deliberately survive. */
 static int
 test_reset_clears_the_event_but_not_the_counters (void)

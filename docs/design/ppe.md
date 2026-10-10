@@ -91,7 +91,7 @@ noiseless, at every one of eight offsets.
 > **The 4× is a memory decision too, and it was mis-documented.** `nfft` sizes
 > three buffers, so the footprint is four times what "next pow2" suggests. The
 > header said next-pow2 for as long as the object existed; a caller budgeting
-> from it was out by 4×. Corrected during certification (finding F2) — and the
+> from it was out by 4×. Corrected during certification (finding `nfft_field_comment_wrong`) — and the
 > reason it is called out here rather than quietly fixed is that the same 4× is
 > what buys §3's accuracy. It is a trade, not an implementation detail.
 

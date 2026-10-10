@@ -243,8 +243,9 @@ The validation report faces a question the object does not. It measures
 **open-loop** (`bn = 0`), so nothing pulls the strobe anywhere: it has to
 name the equilibrium it is differentiating before it can check that the
 normalised slope there is unity (§6.1). Getting that wrong is not
-hypothetical — it produced the retired **F15**, an apparent 8.7x roll-off
-dependence in DTTL's normaliser that was the T/2 zero all along.
+hypothetical — it produced the first version of the report's
+**`normalised_slope_unity`** finding, an apparent 8.7x roll-off dependence in
+DTTL's normaliser that was the T/2 zero all along.
 
 It cannot name it by the sign of the slope. A sign is only meaningful
 relative to a timing axis, and the two harnesses run theirs in opposite

@@ -32,8 +32,9 @@ claim in the header, which of the three carries it.
 One surface deliberately does NOT appear here: ``carrier_nda_disc()`` is
 ``JM_FORCEINLINE`` with no binding at all, so every claim about the
 discriminator itself is reported **C-ONLY** with the C section that covers it
-(see §2.1's note and F10). Measuring the loop and calling it the detector is
-exactly the substitution `docs/dev/contributing/validation.md` warns about.
+(see §2.1's note and `disc_forceinline_no_binding`). Measuring the loop and
+calling it the detector is exactly the substitution
+`docs/dev/contributing/validation.md` warns about.
 
 Run:  make validate
 """
@@ -96,9 +97,10 @@ ANALYTIC_SD = sqrt(0.5 * ALPHA / (2.0 - ALPHA))
 
 #: The shipped decision rule, read back off a constructed object where it
 #: matters. `CARRIER_NDA_LOCK_DEFAULT_UP` is private to `carrier_nda_core.c`,
-#: which is F2: the header's own derivation cited a symbol its reader cannot
-#: reach. The Python face cannot read it either, so this report exercises the
-#: rule through `configure_lock` instead of asserting the constant.
+#: which is `threshold_cited_wrong_macro`: the header's own derivation cited a
+#: symbol its reader cannot reach. The Python face cannot read it either, so
+#: this report exercises the rule through `configure_lock` instead of asserting
+#: the constant.
 UP_THRESH = 0.5
 N_UP = 64
 
@@ -185,7 +187,7 @@ def psk(
     arm-window claim is written about — a sample-and-hold symbol stream is
     what "the arm averages across data transitions" describes. `pulse="rrc"`
     is measured once, in §2.1, because it is a materially different regime
-    (§2.2 and F12 give what it costs).
+    (§2.2 and `track_vs_declare_envelopes` give what it costs).
     """
     points = mpsk_map(labels(m, nsym, seed=seed + 1), m)
     return np.asarray(
@@ -483,7 +485,8 @@ CLAIM_MAP: list[tuple[str, str, str]] = [
         "C4",
         "`phase_error` = `Im((z/|z|)^M)` scaled 1, 1/2, 1/4 so the S-curve "
         "slope at lock is 2 for every M",
-        "**C-ONLY** — C §3 + `carrier_nda_scurve.c`; see F10",
+        "**C-ONLY** — C §3 + `carrier_nda_scurve.c`; "
+        f"see {R.ref('disc_forceinline_no_binding')}",
     ),
     (
         "C5",
@@ -495,7 +498,8 @@ CLAIM_MAP: list[tuple[str, str, str]] = [
         "C6",
         "under H0 the per-look variance is 1/2 for EVERY M, so one "
         "`lock_thresh` is one Pfa at every order",
-        "C §15 NEW + §2.7 — holds per-look; **NOT** through the arm, see F8",
+        "C §15 NEW + §2.7 — holds per-look; **NOT** through the arm, "
+        f"see {R.ref('h0_variance_exact_look_not')}",
     ),
     (
         "C7",
@@ -507,7 +511,8 @@ CLAIM_MAP: list[tuple[str, str, str]] = [
         "C8",
         "the verify count is NOT sized by that Pfa and must not be; n_up = 8 "
         "false-locked 4 trials in 30, 64 was clean over 300",
-        "§2.8 — reproduced, and localised to a geometry, see F8",
+        "§2.8 — reproduced, and localised to a geometry, "
+        f"see {R.ref('h0_variance_exact_look_not')}",
     ),
     (
         "C9",
@@ -524,13 +529,15 @@ CLAIM_MAP: list[tuple[str, str, str]] = [
         "C11",
         "acquisition bound 1: loop capture, roughly `k*bn/M`, where pull-in "
         "is prompt — violating it is LOUD",
-        "§2.3 §2.4 §2.5 — LOUD confirmed; `k*bn/M` bounds TIME, see F6",
+        "§2.3 §2.4 §2.5 — LOUD confirmed; `k*bn/M` bounds TIME, "
+        f"see {R.ref('first_bound_right')}",
     ),
     (
         "C12",
         "acquisition bound 2: the aliasing ceiling `1/(2M)` cyc/sample, with "
         "stable false locks spaced `1/M` apart — violating it is SILENT",
-        "§2.3 — spacing exact; the ceiling is never what binds, see F6",
+        "§2.3 — spacing exact; the ceiling is never what binds, "
+        f"see {R.ref('first_bound_right')}",
     ),
     (
         "C13",
@@ -542,7 +549,8 @@ CLAIM_MAP: list[tuple[str, str, str]] = [
         "C14",
         "nothing else in the loop depends on the update rate, so it is free "
         "margin for whoever picks it",
-        "§2.4 — the ARM also moves the ceiling, see F6",
+        "§2.4 — the ARM also moves the ceiling, "
+        f"see {R.ref('first_bound_right')}",
     ),
     (
         "C15",
@@ -554,7 +562,8 @@ CLAIM_MAP: list[tuple[str, str, str]] = [
         "C16",
         "for the half-symbol arm the gain is `1/2 + 1/(M+1)` — 5/6, 7/10, "
         "11/18 — against unity for constant modulus",
-        "§2.6 — unity confirmed; the closed form does **not** reproduce, F7",
+        "§2.6 — unity confirmed; the closed form does **not** "
+        f"reproduce, {R.ref('half_symbol_closed_form_wrong')}",
     ),
     (
         "C17",
@@ -566,7 +575,8 @@ CLAIM_MAP: list[tuple[str, str, str]] = [
         "C18",
         "the tracked carrier is the NCO centre plus the loop integrator; the "
         "instantaneous command is `get_nco_freq`",
-        "**C-ONLY** — unreachable from Python, see F9",
+        "**C-ONLY** — unreachable from Python, "
+        f"see {R.ref('get_nco_freq_readout')}",
     ),
     (
         "C19",
@@ -602,7 +612,8 @@ CLAIM_MAP: list[tuple[str, str, str]] = [
         "C24",
         "the M-fold ambiguity is resolved downstream; the loop resolves to "
         "one of m carrier phases",
-        "§2.1 §2.3 — and the unstable equilibrium it implies, F11",
+        "§2.1 §2.3 — and the unstable equilibrium it "
+        f"implies, {R.ref('fold_ambiguity_sharp_edge_worth')}",
     ),
 ]
 
@@ -692,7 +703,7 @@ def section_summary() -> None:
         "implementation and watching it go red before it was trusted. "
         "**C-ONLY** marks a claim no binding can reach — chiefly everything "
         "about `carrier_nda_disc` itself, which is `JM_FORCEINLINE` and has "
-        "no Python face (**F10**)."
+        f"no Python face (**{R.ref('disc_forceinline_no_binding')}**)."
     )
     R.md()
     R.table(
@@ -831,7 +842,8 @@ def characterise() -> Data:
     R.md(
         "The discriminator's own claims — the `{1, 1/2, 1/4}` scaling, the "
         "S-curve slope of 2, the `+-1` bound, the exact zero on a "
-        "degenerate sample — are **C-ONLY** (**F10**). `carrier_nda_disc` "
+        "degenerate sample — are **C-ONLY** "
+        f"(**{R.ref('disc_forceinline_no_binding')}**). `carrier_nda_disc` "
         "is `JM_FORCEINLINE` and no binding reaches it, so measuring the "
         "loop and reporting it as the detector would be measuring whatever "
         "the binding happens to expose. `test_carrier_nda_core.c` sections "
@@ -895,7 +907,8 @@ def characterise() -> Data:
         f"loop, which integrates, gives up. `docs/design/mpsk.md` already "
         f"rules that `lock`/`locked` are **telemetry and user reassurance, "
         f"never control**; this table is the measurement that rule needs to "
-        f"be more than an assertion (**F12**)."
+        "be more than an assertion "
+        f"(**{R.ref('track_vs_declare_envelopes')}**)."
     )
     R.md()
 
@@ -1050,7 +1063,8 @@ def characterise() -> Data:
         f"ceiling is {0.5 / 4 / d.edges[2][1]:.1f}x tighter than the "
         f"`1/(2M)` aliasing ceiling, which is why the aliasing bound is "
         f"never what a caller hits by pulling in — they hit it only by "
-        f"being SEEDED near an alias, as §2.3 does deliberately (**F6**)."
+        "being SEEDED near an alias, as §2.3 does deliberately "
+        f"(**{R.ref('first_bound_right')}**)."
     )
     R.md()
 
@@ -1267,7 +1281,7 @@ def characterise() -> Data:
         f"all — the slow beat-note grind that a perfect integrator makes "
         f"possible in principle is exactly the part of acquisition noise "
         f"disrupts, and its duration is not predictable from the offset "
-        f"alone (**F6**)."
+        f"alone (**{R.ref('first_bound_right')}**)."
     )
     R.md()
 
@@ -1346,7 +1360,8 @@ def characterise() -> Data:
         f"The only windows that lose anything are the ones straddling a "
         f"transition near the midpoint, where the average passes through "
         f"zero — a small, discrete loss rather than `1/2 + 1/(M+1)` = 0.833 "
-        f'(**F7**). The measured table above is the answer to *"what does '
+        f"(**{R.ref('half_symbol_closed_form_wrong')}**). The measured table "
+        'above is the answer to *"what does '
         f'this `n` cost me"*; the closed form is not.'
     )
     R.md()
@@ -1433,7 +1448,8 @@ def characterise() -> Data:
         f"between neighbouring looks by M, so a high order decorrelates the "
         f"overlap away and a low one does not. The per-look law the header "
         f"derives is exactly right; what it omits is that the object never "
-        f"presents the detector with independent looks (**F8**)."
+        "presents the detector with independent looks "
+        f"(**{R.ref('h0_variance_exact_look_not')}**)."
     )
     R.md()
     R.md(
@@ -1489,7 +1505,8 @@ def characterise() -> Data:
         f"both orders. So the shipped `n_up = 64` is not over-provisioned: "
         f"it is what makes one verify count safe across the whole `n` axis "
         f"the constructor accepts, rather than only at the default. Raise "
-        f"it rather than lower it, as the header says (**F8**)."
+        "it rather than lower it, as the header says "
+        f"(**{R.ref('h0_variance_exact_look_not')}**)."
     )
     R.md()
 
@@ -1679,7 +1696,7 @@ def characterise() -> Data:
         'dynamics"* — has no Python face and no telemetry probe of its '
         "own: `car.freq` emits the integrator estimate, the same quantity "
         "`norm_freq` reads. So the one readout that rides a frequency ramp "
-        "with no lag is C-only (**F9**)."
+        f"with no lag is C-only (**{R.ref('get_nco_freq_readout')}**)."
     )
     R.md()
     return d
@@ -1698,7 +1715,7 @@ def review(d: Data) -> None:
     R.md()
 
     R.find(
-        "F1",
+        "scale_invariance_quote",
         "FIXED",
         "The header quoted the discriminator's scale invariance as 5e-7 "
         "relative while `test_carrier_nda_core.c` section 9, which is what "
@@ -1709,7 +1726,7 @@ def review(d: Data) -> None:
         "dependence.",
     )
     R.find(
-        "F2",
+        "threshold_cited_wrong_macro",
         "FIXED",
         "The threshold derivation cited `CARRIER_NDA_LOCK_DEFAULT_UP`, which "
         "is defined in `carrier_nda_core.c` and is invisible from the header "
@@ -1719,7 +1736,7 @@ def review(d: Data) -> None:
         "CONSTRUCTED object and checks it against the analytic sd.",
     )
     R.find(
-        "F3",
+        "lock_default_docstring",
         "FIXED",
         "`configure_lock`'s docstring published `8 up` as the default — the "
         "value the same paragraph reports as false-locking 4 trials in 30 — "
@@ -1729,7 +1746,7 @@ def review(d: Data) -> None:
         "corrected as its own edit.",
     )
     R.find(
-        "F4",
+        "lock_detection_guide_stale",
         "GAP",
         "`docs/guide/lock-detection.md` is stale on this object in two "
         'ways: it classes CarrierNda as having "no closed-form (pfa, pd) '
@@ -1740,20 +1757,21 @@ def review(d: Data) -> None:
         "longer exists is worse than no guide. Filed as gh-736.",
     )
     R.find(
-        "F5",
+        "face_parity_checks_two_sections",
         "GAP",
         "`scripts/check_doc_face_parity.py` compares only "
         '`SECTIONS = ("Examples", "Raises")`, so a divergence in '
         "DESCRIPTION prose between the `.pyi` and the runtime docstring is "
         'invisible to it. It reported "0 divergent" for the entire time '
-        "F3 was live, which is precisely the divergence it exists to catch. "
+        f"{R.ref('lock_default_docstring')} was live, which is precisely the "
+        "divergence it exists to catch. "
         "Filed as gh-736.",
     )
 
     _ceil = d.edges[SPS // N_ARM][1]
     _u2 = [v[0] for v in d.useed.values()]
     R.find(
-        "F6",
+        "first_bound_right",
         "GAP",
         f"The acquisition contract's first bound is RIGHT and now has a "
         f"measured constant; what the contract omits is a third bound in "
@@ -1781,7 +1799,7 @@ def review(d: Data) -> None:
     )
     _hm = {m: d.arm_cost[m][NS.index(2)] for m in MS}
     R.find(
-        "F7",
+        "half_symbol_closed_form_wrong",
         "GAP",
         f"The header's closed form for the half-symbol arm, "
         f"`1/2 + 1/(M+1)`, does not reproduce: measured "
@@ -1796,7 +1814,7 @@ def review(d: Data) -> None:
     )
     _w = d.h0[8]
     R.find(
-        "F8",
+        "h0_variance_exact_look_not",
         "GAP",
         f'"Its H0 variance is 1/2 for EVERY M" is exact per look and does '
         f"not survive the arm. At a 1-sample arm the post-EMA spread is "
@@ -1815,7 +1833,7 @@ def review(d: Data) -> None:
         f"as gh-734.",
     )
     R.find(
-        "F9",
+        "get_nco_freq_readout",
         "GAP",
         "`dp_carrier_nda_get_nco_freq` — the instantaneous NCO command, which "
         "the header calls the right readout for observing loop dynamics "
@@ -1828,7 +1846,7 @@ def review(d: Data) -> None:
         "skipped. Filed as gh-735.",
     )
     R.find(
-        "F10",
+        "disc_forceinline_no_binding",
         "C-ONLY",
         "`carrier_nda_disc` is `JM_FORCEINLINE` and has no binding, so "
         "every claim about the discriminator itself — the `{1, 1/2, 1/4}` "
@@ -1841,7 +1859,7 @@ def review(d: Data) -> None:
         "wherever it does.",
     )
     R.find(
-        "F11",
+        "fold_ambiguity_sharp_edge_worth",
         "BY DESIGN",
         "The M-fold ambiguity has a sharp edge worth stating: the loop's "
         "stable phases are the 0-grid, so a pi/4-offset QPSK constellation "
@@ -1857,7 +1875,7 @@ def review(d: Data) -> None:
         "from the other side.",
     )
     R.find(
-        "F12",
+        "track_vs_declare_envelopes",
         "BY DESIGN",
         f"Tracking and declaring are different envelopes, and the gap is "
         f"wide: of {len(d.esno)} points in §2.2, "
@@ -1915,7 +1933,7 @@ def limits(d: Data) -> None:
         f"steady-state accuracy, still leaves the residual inside the same "
         f"5e-4 tolerance the frequency is held to (worst "
         f"{max(abs(r[7]) for r in d.cold):.1e}) — usable output does not "
-        f"depend on the lock decision (F12)",
+        f"depend on the lock decision ({R.ref('track_vs_declare_envelopes')})",
     )
     R.limit(
         all(r[5] > 0.8 and r[6] for r in d.cold if "RRC" not in r[1]),
@@ -1931,7 +1949,7 @@ def limits(d: Data) -> None:
         f"({len(_track)} of {len(d.esno)} Es/N0 points track, "
         f"{len([r for r in d.esno if r[4]])} declare) — `locked` is a "
         f"telemetry statement about the M-th power, not a statement about "
-        f"whether the loop is working (F12)",
+        f"whether the loop is working ({R.ref('track_vs_declare_envelopes')})",
     )
     R.limit(
         all(r[2] < 5e-4 for r in d.esno if r[1] >= 15.0),
@@ -1954,7 +1972,7 @@ def limits(d: Data) -> None:
         all(b < a for a, b in zip(_arms, _arms[1:])),
         f"and it tightens monotonically as the arm window widens "
         f"({' > '.join(f'{v:.4f}' for v in _arms)} cyc/sample, M = 4) — the "
-        f"arm is not sensitivity-only (F6)",
+        f"arm is not sensitivity-only ({R.ref('first_bound_right')})",
     )
     R.limit(
         all(
@@ -2136,7 +2154,8 @@ def limits(d: Data) -> None:
         f"the half-symbol arm still clears the shipped declare threshold at "
         f"every M (worst {min(d.arm_cost[m][NS.index(2)] for m in MS):.4f} "
         f"against {UP_THRESH:g}) — a caller may choose it, and §2.6's table "
-        f"rather than the header's closed form is what it costs (F7)",
+        "rather than the header's closed form is what it costs "
+        f"({R.ref('half_symbol_closed_form_wrong')})",
     )
 
     # --- the lock statistic's H0 law --------------------------------------
@@ -2167,7 +2186,7 @@ def limits(d: Data) -> None:
         f"{d.h0[8][0][1]:.4f} at M = 2 with an 8-sample arm, "
         f"{d.h0[8][0][1] / ANALYTIC_SD:.2f}x the derived value, so the "
         f"shipped 0.5 is only {UP_THRESH / d.h0[8][0][1]:.2f} sigma there "
-        f"(F8)",
+        f"({R.ref('h0_variance_exact_look_not')})",
     )
 
     # --- the verify count, asserted in BOTH directions --------------------
@@ -2346,7 +2365,10 @@ def plots(d: Data) -> None:
     a2.invert_xaxis()
     a2.set_xlabel("Es/N0 (dB)")
     a2.set_ylabel("lock statistic")
-    a2.set_title("Declaring is the narrower envelope (F12)")
+    a2.set_title(
+        "Declaring is the narrower envelope "
+        f"({R.number('track_vs_declare_envelopes')})"
+    )
     a2.grid(True, alpha=0.3)
     a2.legend(fontsize=8)
     fig.tight_layout()
@@ -2424,7 +2446,10 @@ def plots(d: Data) -> None:
     a1.set_xticklabels([str(a) for a in arms])
     a1.set_xlabel("arm length (samples)")
     a1.set_ylabel("pull-in ceiling (cyc/sample)")
-    a1.set_title("The ceiling is 1/M, and the ARM moves it (F6)")
+    a1.set_title(
+        "The ceiling is 1/M, and the ARM moves it "
+        f"({R.number('first_bound_right')})"
+    )
     a1.grid(True, which="both", alpha=0.3)
     a1.legend(fontsize=7, ncol=2)
     # Every (M, bn) on ONE axis in normalised coordinates: the argument IS
@@ -2488,7 +2513,10 @@ def plots(d: Data) -> None:
     ax.set_xticklabels([str(a) for a in arms])
     ax.set_xlabel("arm length (samples)")
     ax.set_ylabel("coherent gain = settled lock statistic")
-    ax.set_title("What the arm window costs, and what it does not (F7)")
+    ax.set_title(
+        "What the arm window costs, and what it does not "
+        f"({R.number('half_symbol_closed_form_wrong')})"
+    )
     ax.grid(True, which="both", alpha=0.3)
     ax.legend(fontsize=7, ncol=2)
     fig.tight_layout()
@@ -2518,7 +2546,10 @@ def plots(d: Data) -> None:
     a1.set_xticklabels([str(a) for a in arms])
     a1.set_xlabel("arm length (samples)")
     a1.set_ylabel("H0 standard deviation of the lock EMA")
-    a1.set_title("One threshold is one Pfa only at a 1-sample arm (F8)")
+    a1.set_title(
+        "One threshold is one Pfa only at a 1-sample arm "
+        f"({R.number('h0_variance_exact_look_not')})"
+    )
     a1.grid(True, which="both", alpha=0.3)
     a1.legend(fontsize=8)
     ups = (8, 16, 32, 64)

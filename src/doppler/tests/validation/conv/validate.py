@@ -318,7 +318,7 @@ def review(d) -> None:
     floor = min(dep.values())
     over35 = 100.0 * (dep[35] / floor - 1.0)
     R.find(
-        "F1",
+        "viterbi_depth_quote_wrong",
         "FIXED",
         f"`docs/design/viterbi.md` §4 quoted `5*K = 35` at **33 % above the "
         f"BER floor (0.04178 vs 0.03137)**, from an uncommitted prototype. "
@@ -331,7 +331,7 @@ def review(d) -> None:
         f"is short of the floor, 60 is on it.",
     )
     R.find(
-        "F2",
+        "claims_c_only_no_binding",
         "C-ONLY",
         "Every claim in §1's table is verified in C and NONE of it is "
         "reachable from Python, because `conv` has no binding. That is the "
@@ -342,7 +342,7 @@ def review(d) -> None:
         "by it.",
     )
     R.find(
-        "F4",
+        "node_sync_margin_022",
         "BY DESIGN",
         "The wrong node-sync hypothesis scores ~0.22 of symbols, not ~0.5 "
         "(§2.4). A maximum-likelihood search returns the codeword that "
@@ -480,7 +480,7 @@ def build(write: bool = True) -> Report:
                 "C1",
                 "`dp_conv_outputs` is the one expression both directions read",
                 "§2b",
-                "F2",
+                R.ref("claims_c_only_no_binding"),
             ],
             [
                 "C2",
@@ -547,7 +547,12 @@ def build(write: bool = True) -> Report:
                 "viterbi §7",
                 "—",
             ],
-            ["C14", "`d_free = 10` for the CCSDS code", "viterbi §6d", "F1"],
+            [
+                "C14",
+                "`d_free = 10` for the CCSDS code",
+                "viterbi §6d",
+                R.ref("viterbi_depth_quote_wrong"),
+            ],
             [
                 "C15",
                 "traceback depth 60 is measured, not a rule of thumb",
@@ -605,16 +610,18 @@ def build(write: bool = True) -> Report:
             "**Ship traceback depth 60, not the textbook `5*K = 35`** — 35 "
             "sits measurably above the achievable floor at the operating "
             "point where depth still matters, and 60 is within a few "
-            "percent of it (§2.3, F1). The design page's *magnitude* for "
+            f"percent of it (§2.3, {R.ref('viterbi_depth_quote_wrong')}). The "
+            "design page's *magnitude* for "
             "that gap does not reproduce; its decision does.",
             "**Feed the decoder soft decisions or do not code at all.** "
             "Below Eb/N0 ~3.5 dB a hard-decision Viterbi is worse than an "
             "uncoded link, because the rate costs 3.01 dB of Eb that a "
-            "two-level input does not buy back (§2.2, F3).",
+            "two-level input does not buy back (§2.2).",
             "**Node sync decides on a margin near 0.22, not 0.5.** A "
             "maximum-likelihood search decodes a misaligned stream to the "
             "nearest codeword rather than to noise, so a threshold placed "
-            "at half the symbols never fires (§2.4, F4).",
+            "at half the symbols never fires "
+            f"(§2.4, {R.ref('node_sync_margin_022')}).",
             "**Size the node-sync window for the job.** The phase decision "
             "holds at 250 bits; the in-sync statistic only becomes a channel "
             "estimate — the property that lets it also serve lock detection "
@@ -623,7 +630,7 @@ def build(write: bool = True) -> Report:
             "**The evidence is C, and that is the design.** `conv` has no "
             "Python face and should not grow one to be certified; this "
             "report renders a C harness rather than exercising a binding "
-            "(F2).",
+            f"({R.ref('claims_c_only_no_binding')}).",
         ],
     )
     R.summary(

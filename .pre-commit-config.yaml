@@ -276,6 +276,15 @@ repos:
         pass_filenames: false
         types_or: [c, markdown]
 
+      # A finding is cited by key or claim, never by number (#2059): the
+      # number is assigned by position and re-points when one is dropped.
+      - id: finding-citations
+        name: findings are cited by key, not number
+        entry: make -s lint-finding-citations
+        language: system
+        pass_filenames: false
+        types_or: [c, c++, python, markdown, toml, cmake, rust]
+
       # A refusal reason has one shape, `const char **why`, and jm binds
       # exactly that one. Fires on any C change: a new refusal API can land
       # in any header.

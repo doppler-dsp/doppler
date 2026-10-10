@@ -167,7 +167,8 @@ extern "C"
    * two agree to 0.001 and nothing looked wrong on the default detector.
    * Recorded because the sentence outlived its evidence and was cited, in
    * good faith, as independent confirmation of the report finding it came
-   * from. See the RateSync validation report, F15, and gh-669.
+   * from. See the RateSync validation report's `normalised_slope_unity`
+   * finding, and gh-669.
    *
    * Caller multiplies by the reciprocal — see ratesync_loop_t::ted_scale.
    * Never call this on a hot path; it is a construct-time quantity.

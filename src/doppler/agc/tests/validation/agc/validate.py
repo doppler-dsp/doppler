@@ -465,11 +465,11 @@ def characterise() -> Data:
 def _inside_rule(d: Data) -> float:
     """Worst decim spread at the settings the rule permits, either way.
 
-    This is the caller-facing PROMISE, and deliberately not the thing F3's
-    verdict keys on: the rising direction dominates it, and rising barely
-    moves when the loop gain is un-compounded (0.197 -> 0.232 measured),
-    because it is set by the first-order hold and the detector's power-law
-    asymmetry rather than by the coefficient.
+    This is the caller-facing PROMISE, and deliberately not the thing
+    `decim_preserved_steady_state_not`'s verdict keys on: the rising direction
+    dominates it, and rising barely moves when the loop gain is un-compounded
+    (0.197 -> 0.232 measured), because it is set by the first-order hold and
+    the detector's power-law asymmetry rather than by the coefficient.
     """
     return max(w for g, _, w in d.decim_rows if g <= 0.05)
 
@@ -477,11 +477,11 @@ def _inside_rule(d: Data) -> float:
 def _inside_rule_falling(d: Data) -> float:
     """The same, restricted to the falling-gain direction.
 
-    THIS is what F3's verdict reads, because it is the half that actually
-    responds to the fix: 0.059 dB compounded against 0.146 un-compounded,
-    a 2.5x separation, verified by reverting the compounding and watching
-    this flip. A verdict keyed to a number that cannot move is a verdict
-    that cannot be wrong, which is the same as not checking.
+    THIS is what `decim_preserved_steady_state_not`'s verdict reads, because it
+    is the half that actually responds to the fix: 0.059 dB compounded against
+    0.146 un-compounded, a 2.5x separation, verified by reverting the
+    compounding and watching this flip. A verdict keyed to a number that cannot
+    move is a verdict that cannot be wrong, which is the same as not checking.
     """
     return max(
         w for g, lab, w in d.decim_rows if g <= 0.05 and lab == "falling"
@@ -496,7 +496,7 @@ def review(d: Data) -> None:
     R.md()
 
     R.find(
-        "F1",
+        "settling_level_dependent",
         "BY DESIGN",
         "Settling is level-dependent: §2.1 measures "
         f"{d.tau_slow.max() / d.tau_slow.min():.1f}x between a +40 dB and "
@@ -508,7 +508,7 @@ def review(d: Data) -> None:
         "1/(4*loop_bw) alone is optimistic by up to 3x on a weak signal.",
     )
     R.find(
-        "F2",
+        "inputs_destroyed_loop",
         "FIXED",
         "Two input sequences used to destroy the loop permanently: one "
         "non-finite sample, and ~800 samples of silence. Both are closed "
@@ -517,7 +517,7 @@ def review(d: Data) -> None:
         "repaired behaviour through the binding; C §13-§17 certify it.",
     )
     R.find(
-        "F3",
+        "decim_preserved_steady_state_not",
         "FIXED" if _inside_rule_falling(d) < 0.1 else "CONFIRMED",
         "decim preserved the steady state but NOT the transient — 2.53 dB "
         "apart at a common sample index, larger decim converging faster, "
@@ -535,7 +535,7 @@ def review(d: Data) -> None:
         "recording the divergence. Verdict READ from §2.9's measurement.",
     )
     R.find(
-        "F4",
+        "long_prefix_truncated",
         "GAP",
         "An over-long telemetry prefix is truncated rather than rejected, "
         "so an object's two probes can collapse onto one id while the "
@@ -545,7 +545,7 @@ def review(d: Data) -> None:
         "doppler#676; C §24 tests the table-full reject instead.",
     )
     R.find(
-        "F5",
+        "detector_state_avg_no_python",
         "C-ONLY",
         "The detector state p_avg has no Python property, so the loop's "
         "input is reachable only through the level_db probe (§2.7). The "
@@ -553,7 +553,7 @@ def review(d: Data) -> None:
         "are internal and certified in C §15, §16 and §18.",
     )
     R.find(
-        "F6",
+        "object_no_notion_signal_presence",
         "GAP",
         "The object has no notion of signal PRESENCE, so left on a noise "
         "floor it amplifies the noise to the reference and the next burst "
@@ -774,10 +774,11 @@ def build(write: bool = True) -> Report:
             "**It has no notion of signal PRESENCE.** Left on a noise floor "
             "it amplifies the noise to the reference, so the next burst "
             "arrives far over-driven. Gate it upstream if your signal is "
-            "bursty (F6).",
+            f"bursty ({R.ref('object_no_notion_signal_presence')}).",
             "**One non-finite sample no longer destroys it**, and neither "
             "does a long silence: both are closed by a single saturate at the "
-            "point where an input first becomes persistent state (F2). That "
+            "point where an input first becomes persistent state "
+            f"({R.ref('inputs_destroyed_loop')}). That "
             "guard is the object’s only defence against its own integrator.",
         ],
     )

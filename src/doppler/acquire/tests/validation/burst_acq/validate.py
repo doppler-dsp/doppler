@@ -499,8 +499,10 @@ def _sec_identities(d: Data) -> None:
 
 
 def _both(d: Data) -> str:
-    """Wording for F2, so the finding reads the measurement rather than
-    asserting it."""
+    """Wording for `argument_delivery_thin`, read off the measurement.
+
+    So the finding reads the measurement rather than asserting it.
+    """
     return (
         "both hold"
         if d.every_param_moves and d.all_signatures_distinct
@@ -515,7 +517,7 @@ def review(d: Data) -> None:
     R.md("## 3. Review — findings")
     R.md()
     R.find(
-        "F1",
+        "no_detection_performance",
         "BY DESIGN",
         "**This report does not measure detection performance, and that is "
         "the point.** `burst_acq_core.c` forwards every call into "
@@ -527,7 +529,7 @@ def review(d: Data) -> None:
         "argument and every call arrives, and arrives in the right place.",
     )
     R.find(
-        "F2",
+        "argument_delivery_thin",
         "FIXED",
         f"**Argument delivery was pinned only by a single successful "
         f"construction.** The C test builds one object and detects with it, "
@@ -542,7 +544,7 @@ def review(d: Data) -> None:
         f"moves only the look count.",
     )
     R.find(
-        "F3",
+        "underpowered_warning_untested",
         "FIXED",
         "**The under-powered warning was declared and never tested.** It is "
         "a manifest-driven post-construction diagnostic gated on the "
@@ -555,7 +557,7 @@ def review(d: Data) -> None:
         "and only the pair separates them.",
     )
     R.find(
-        "F4",
+        "forwarding_dp_burst_acq_destroy",
         "C-ONLY",
         "The forwarding of `dp_burst_acq_destroy(NULL)` and the rejection "
         "of a "
@@ -669,12 +671,14 @@ def build(write: bool = True) -> Report:
             "**The detection envelope is [`acq`'s](../acq/results.md), not "
             "this object's.** Every call forwards into the shared engine, "
             "so re-measuring the statistics here would certify the same "
-            "code twice and call the second run independent (F1).",
+            "code twice and call the second run independent "
+            f"({R.ref('no_detection_performance')}).",
             "**What a forwarder can get wrong is delivery, and that is what "
             "is certified.** Each of the seven constructor arguments moves "
             "a distinct set of derived quantities, so a transposition — two "
             "same-typed parameters swapped, the object still constructing "
-            "and still detecting — cannot hide (§2.1, F2).",
+            "and still detecting — cannot hide "
+            f"(§2.1, {R.ref('argument_delivery_thin')}).",
             "**`pfa` and `pd` are the pair to watch.** Both are doubles in "
             "(0,1) and nothing in the type system separates them; they are "
             "distinguishable only because `pfa` moves the threshold and the "
@@ -682,7 +686,8 @@ def build(write: bool = True) -> Report:
             "**The under-powered warning is tested in both directions** — "
             "it fires when the link cannot meet the requested `pd` and "
             "stays quiet when it can. It had no test at all, which is how a "
-            "declared diagnostic stops working invisibly (§2.3, F3).",
+            "declared diagnostic stops working invisibly "
+            f"(§2.3, {R.ref('underpowered_warning_untested')}).",
             "**The serialized bytes are the engine's own state**, with no "
             "wrapper format layered on, so a blob taken here restores the "
             "whole search (§2.2).",

@@ -385,13 +385,13 @@ def section_object() -> None:
                 "for bit",
                 "kernel block, 4 windows x n {64, 100} x pad {1, 2}",
                 P,
-                "C-ONLY (F3)",
+                f"C-ONLY ({R.ref('frame_kernel_c_only')})",
             ],
             [
                 "the kernel does not touch the running average",
                 "T1",
                 P,
-                "C-ONLY (F3)",
+                f"C-ONLY ({R.ref('frame_kernel_c_only')})",
             ],
             [
                 "`frame_db` is `dp_power_to_db_f32` of `frame_linear`, "
@@ -399,7 +399,7 @@ def section_object() -> None:
                 "window, padded or not, against `full_scale` and `bits`",
                 "`dp_psd_frame_linear` block (#1963)",
                 P,
-                "C-ONLY (F3)",
+                f"C-ONLY ({R.ref('frame_kernel_c_only')})",
             ],
             [
                 "a full-scale tone on a bin reads 0 dBFS whatever the "
@@ -639,7 +639,8 @@ def _sec_enbw(d: Data) -> None:
         f"Table 1 rounds to 2.00, at every N > 6. Worst {worst:.1e}. Rect "
         f"is exactly 1.0: {'yes' if rect_one else 'NO'}; `rbw = enbw * fs / "
         f"n`: {'yes' if rbw_ok else 'NO'}. The symmetric window PSD used "
-        f"before #2053 read 2.036 for Blackman-Harris at `n = 64` (F16)."
+        "before #2053 read 2.036 for Blackman-Harris at `n = 64` "
+        f"({R.ref('windows_were_symmetric')})."
     )
     R.md()
     d.enbw_rows, d.enbw_worst = rows, worst
@@ -999,8 +1000,9 @@ def _sec_contracts(d: Data) -> None:
     ]
     R.table(["reader, before any frame", "returns"], seen)
     vals = [s[1] for s in seen]
-    # band_power answered an EMPTY array here, unlike its four siblings;
-    # #1959 made it None like them -- (g) in §2.10, F9 in §3.
+    # band_power answered an EMPTY array here, unlike its four siblings; #1959
+    # made it None like them -- (g) in §2.10, `band_power_returned_empty_array`
+    # in §3.
     d.empty_ok = (
         all(v == "None" for v in vals[:5])
         and abs(float(vals[5]) + 200.0) < 1e-4
@@ -1356,7 +1358,7 @@ def review(d: Data) -> None:
     R.md("## 3. Review — findings")
     R.md()
     R.find(
-        "F1",
+        "kernel_claims_mostly_unpinned",
         "FIXED",
         "**The kernel's claims were mostly unpinned.** `frame_db`'s 0 dBFS "
         "'whatever the window' was asserted for the rectangular window only, "
@@ -1369,7 +1371,7 @@ def review(d: Data) -> None:
         "there. Only T2, over the tapered windows, goes red.",
     )
     R.find(
-        "F2",
+        "three_existing_checks_vacuous",
         "FIXED",
         "**Three existing checks were vacuous.** Reset re-fed identical "
         "frames in mean mode, where Welford's count = 1 step re-seeds "
@@ -1380,7 +1382,7 @@ def review(d: Data) -> None:
         "§2.4 and §2.5.",
     )
     R.find(
-        "F3",
+        "frame_kernel_c_only",
         "C-ONLY",
         "`dp_psd_frame_power`, `dp_psd_frame_db` and `dp_psd_frame_linear` "
         "(#1963), the per-frame kernel the Spectrogram composes, have no "
@@ -1396,7 +1398,7 @@ def review(d: Data) -> None:
         "same transform through `accumulate`.",
     )
     R.find(
-        "F4",
+        "header_described_code_uses_nfft",
         "FIXED",
         "**The header described `n` where the code uses `nfft`.** `psd_db` "
         f"writes `nfft` values ({d.a_len_padded} at `n = 64, pad = 2`), "
@@ -1407,13 +1409,13 @@ def review(d: Data) -> None:
         "§2.10 (a)).",
     )
     R.find(
-        "F5",
+        "pad_zero_was_one",
         "FIXED",
         "**`pad = 0` was silently 1**, though the header documents "
         "`pad (>= 1)`. Refused now, like `n < 2` (#1959, §2.10 (b)).",
     )
     R.find(
-        "F6",
+        "exp_mode_alpha_outside_accepted",
         "FIXED",
         "**An exp-mode `alpha` outside `(0, 1]` was accepted and read "
         "wrong:** 0 never leaves the first frame, a negative alpha "
@@ -1428,7 +1430,7 @@ def review(d: Data) -> None:
         "`test_acc_trace.py`).",
     )
     R.find(
-        "F7",
+        "occupied_bw_any_fraction",
         "FIXED",
         "**`occupied_bw` accepted any fraction, through a private copy of "
         "the search,** and at `fraction = 1` read a one-bin tone as 13 or 53 "
@@ -1442,14 +1444,15 @@ def review(d: Data) -> None:
         "division at -O0, -O2 and -O3 (#1959).",
     )
     R.find(
-        "F8",
+        "window_no_gain_built_estimator",
         "FIXED",
         "**A window with no gain built an estimator that read NaN or the "
         "floor.** Hann at `n = 2` was `[0, 0]` under the symmetric form; a "
         "Kaiser `beta` of NaN, or from about 2.25e5 up, makes taps NaN, or "
         "at an odd `n` just past I0's overflow every tap 0; a NaN `fs` or "
         "`full_scale` passed `<= 0.0`; `bits` above 64 overflows the "
-        "reference. Each is refused at create (#1959). Since #2053 (F16) "
+        "reference. Each is refused at create (#1959). Since #2053 "
+        f"({R.ref('windows_were_symmetric')}) "
         "Hann at `n = 2` is the periodic `[0, 1]`, which has gain and is "
         "accepted, so §2.10 (f) measures it read and the zero-sum Kaiser "
         "(`n = 3`, `beta = 2.3e5`) refused; the NaN-beta, non-finite `fs` "
@@ -1460,14 +1463,14 @@ def review(d: Data) -> None:
         "Hann had gain; it stays 3.",
     )
     R.find(
-        "F9",
+        "band_power_returned_empty_array",
         "FIXED",
         "**`band_power` returned an empty array where its four siblings "
         "return `None`.** It returns `None` before a frame, or without a "
         "complete lo/hi pair (#1959, §2.10 (g)).",
     )
     R.find(
-        "F10",
+        "create_size_wrapped",
         "FIXED",
         "**`dp_psd_create(1 << 62, ...)` crashed:** `n * pad` and the byte "
         "counts wrapped. Refused before any allocation now, not left to "
@@ -1477,7 +1480,7 @@ def review(d: Data) -> None:
     rect = d.e_rows[0]
     d.e_excess = float(rect[3]) - float(rect[1])
     R.find(
-        "F11",
+        "scalar_readout_means_both_no",
         "GAP",
         "**A scalar readout's 0.0 means both 'no measurement' and a real "
         "0 dB.** A floor scaled to 0 dB reads "
@@ -1487,7 +1490,7 @@ def review(d: Data) -> None:
         "sentinel is an API decision: #1957.",
     )
     R.find(
-        "F12",
+        "adjacent_bands_both_count_bin",
         "GAP",
         "**Adjacent bands both count the bin they share**, so a partition "
         "overstates the whole: a DC tone read as `[-fs/2, 0]` plus "
@@ -1496,7 +1499,7 @@ def review(d: Data) -> None:
         "is an API decision: #1958.",
     )
     R.find(
-        "F13",
+        "refusals_were_memoryerror",
         "FIXED",
         "**Every refusal above reached Python as a `MemoryError` with no "
         "reason.** PSD and AccTrace now declare `create_error` (gh-482), "
@@ -1504,14 +1507,14 @@ def review(d: Data) -> None:
         "show (#1986).",
     )
     R.find(
-        "F14",
+        "stubs_not_say_readers_return",
         "GAP",
         "**The stubs do not say these readers can return `None`.** A "
         "`none_on_empty` readout's `.pyi` signature omits `| None` until "
         "just-makeit#2183 ships: #2001.",
     )
     R.find(
-        "F15",
+        "linear_faces_differ",
         "BY DESIGN",
         "**The linear faces use different references.** `frame_linear` is "
         "in full-scale^2 units (it divides by `cg^2 * full_scale^2`), while "
@@ -1526,13 +1529,14 @@ def review(d: Data) -> None:
         "in linear units it holds after dividing by `full_scale^2`.",
     )
     R.find(
-        "F16",
+        "windows_were_symmetric",
         "FIXED",
         "**The windows were the symmetric (N-1) form, not the periodic form "
         "spectral estimation conventionally uses.** `spectral_core.h` "
         "defines Hann, Kaiser and Blackman-Harris over `N-1`, the "
         "filter-design convention, and PSD inherited it, with three "
-        "symptoms: Hann at `n = 2` was `[0, 0]` (F8); a bin-centred Hann "
+        "symptoms: Hann at `n = 2` was `[0, 0]` "
+        f"({R.ref('window_no_gain_built_estimator')}); a bin-centred Hann "
         "tone leaked -82.4 dBc into bin 20 from bin 6, where a DFT-even "
         "window leaves nothing; and Blackman-Harris's ENBW was 2.036 bins "
         "at `n = 64`, against Harris's 2.004. PSD now builds the periodic "
@@ -1700,14 +1704,16 @@ def build(write: bool = True) -> Report:
             "**A row is that frame's PSD, in dB.** The per-frame kernel "
             "equals accumulate-then-read bit for bit and reads a full-scale "
             "tone at 0 dBFS under every window and both references, "
-            "certified in C (F3, §2.1). The averaged linear readouts carry "
-            "no `full_scale` (F15).",
+            f"certified in C ({R.ref('frame_kernel_c_only')}, §2.1). The "
+            "averaged linear readouts carry "
+            f"no `full_scale` ({R.ref('linear_faces_differ')}).",
             "**The windows are periodic (DFT-even), the spectral-estimation "
             "form.** A bin-centred Hann tone reads nothing beyond its two "
             f"neighbours ({d.hann_leak_worst:.0f} dBc at most, float "
             "rounding), Blackman-Harris's ENBW is Harris's "
             f"{d.bh_periodic:.3f}, and Hann at `n = 2` has gain; the window "
-            "functions themselves stay symmetric for filter design (F16).",
+            "functions themselves stay symmetric for filter design "
+            f"({R.ref('windows_were_symmetric')}).",
             "**The levels are absolute.** dB/Hz reads `var/fs` for every "
             "window at pad 1 and 2, within 5 sd of the estimator's own "
             "spread; whole-span band power is the same statistic (§2.5).",
@@ -1717,17 +1723,23 @@ def build(write: bool = True) -> Report:
             f"{d.nf_mean_shift:+.1f} dB (§2.6).",
             "**Three of the old tests could not fail.** Reset, max >= min "
             "and the band partition passed whatever the code did; each now "
-            "has an external truth (F2).",
+            "has an external truth "
+            f"({R.ref('three_existing_checks_vacuous')}).",
             "**Two readouts can mislead, and are open.** A scalar readout's "
             "0.0 is both 'no measurement' and a real 0 dB (#1957), and "
             "adjacent bands both count the bin they share, "
             f"{d.e_excess:+.1f} dB on a DC tone (#1958). Check for a frame "
             "first, and do not sum a "
-            "partition (F11, F12).",
+            f"partition ({R.ref('scalar_readout_means_both_no')}, "
+            f"{R.ref('adjacent_bands_both_count_bin')}).",
             "**create refuses what would read wrong** (pad 0, an exp alpha "
             "outside (0, 1], a gainless window, an overflowing size), and "
-            "Python gets a `ValueError` naming the rules (F5, F6, F8, F10, "
-            "F13).",
+            "Python gets a `ValueError` naming the rules "
+            f"({R.ref('pad_zero_was_one')}, "
+            f"{R.ref('exp_mode_alpha_outside_accepted')}, "
+            f"{R.ref('window_no_gain_built_estimator')}, "
+            f"{R.ref('create_size_wrapped')}, "
+            f"{R.ref('refusals_were_memoryerror')}).",
         ],
     )
     R.summary("\n- Raw sweeps: `data/fft_vs_numpy.csv`, `data/density.csv`")

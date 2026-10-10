@@ -21,6 +21,7 @@
 #include <doppler/stream/stream.h>
 
 #include "doppler/dp_complex.h"
+#include "receiver_seq.h"
 #include <math.h>
 #include <signal.h>
 #include <stdio.h>
@@ -173,8 +174,10 @@ main (int argc, char *argv[])
       if (lat_ms > lat_max_ms)
         lat_max_ms = lat_ms;
 
-      if (packet_count > 1 && hdr.sequence != last_seq + 1)
-        dropped += hdr.sequence - last_seq - 1;
+      /* Forward gaps only: a restarted publisher's sequence goes back to
+         0, which is not a drop (receiver_seq.h). */
+      if (packet_count > 1)
+        dropped += receiver_frames_missing (last_seq, hdr.sequence);
       last_seq = hdr.sequence;
 
       /* One call, whatever the wire carried: dp_msg_mean_power normalises

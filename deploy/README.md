@@ -175,14 +175,19 @@ drives an HPA off **that** (not CPU). Under load the consumer Deployment scales
 kubectl get hpa,deploy/doppler-consumer -n doppler -w   # watch it climb on lag
 ```
 
-### No dropped/corrupted bits (PN self-verification)
+### No corrupted bits (PN self-verification)
 
 `stream_tool`'s producer fills each frame with an MLS/PN sequence (doppler `pn`
 object) seeded by the frame index, which it assigns as the wire
-`header.sequence`. The consumer regenerates the PN from that sequence and
-bit-compares — so a dropped, duplicated, or corrupted frame is *caught*, not
-just counted. Under the 2→50 scale test, all 50 consumers reported
-`0 PN mismatch`.
+`header.sequence`. The consumer regenerates the PN from each frame's own
+`sequence` and bit-compares, so a payload corrupted in flight, or a header
+that no longer matches its payload, is *caught*. Under the 2→50 scale test,
+all 50 consumers reported `0 PN mismatch`.
+
+**What it does not check: a missing or repeated frame.** Each frame is
+checked only against its own `sequence`, so a frame that never arrives, or
+one delivered twice, still verifies and produces no mismatch. `stream_tool`
+counts neither (#2017).
 
 ______________________________________________________________________
 

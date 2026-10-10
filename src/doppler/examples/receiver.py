@@ -49,6 +49,38 @@ def _format_ts(ts_ns: int) -> str:
     return f"{tm.tm_hour:02d}:{tm.tm_min:02d}:{tm.tm_sec:02d}.{ms:03d}"
 
 
+def frames_missing(last_seq: int, seq: int) -> int:
+    """Frames skipped between two consecutive frames' ``sequence`` numbers.
+
+    The header's ``sequence`` counts frames per publisher from 0, so a jump
+    forward from ``last_seq`` to ``seq`` skipped ``seq - last_seq - 1``
+    frames. A sequence that repeats or goes BACKWARDS skipped none: a
+    restarted publisher counts from 0 again, and a redelivery repeats a
+    number. Subtracting regardless added a negative to the dropped count
+    on every restart (#2017).
+
+    Parameters
+    ----------
+    last_seq : int
+        The previous frame's ``sequence``.
+    seq : int
+        This frame's ``sequence``.
+
+    Returns
+    -------
+    int
+        The frames skipped, never negative.
+
+    Examples
+    --------
+    >>> frames_missing(4, 7)
+    2
+    >>> frames_missing(1000, 0)  # a restarted publisher, not a drop
+    0
+    """
+    return seq - last_seq - 1 if seq > last_seq else 0
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=__doc__,
@@ -110,8 +142,8 @@ def main() -> None:
                 t_first_ns = now
 
             seq = hdr.get("sequence", 0)
-            if last_seq is not None and seq != last_seq + 1:
-                dropped += seq - last_seq - 1
+            if last_seq is not None:
+                dropped += frames_missing(last_seq, seq)
             last_seq = seq
 
             sent = int(hdr.get("timestamp_ns", 0))

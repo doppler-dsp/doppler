@@ -1064,13 +1064,13 @@ int dp_burst_capture_set_state (
 DP\_OK or DP\_ERR\_INVALID.
 
 
-A refusal changes nothing: every check runs before anything is written, so the capture's next get\_state() is byte-identical to its last and its next push() is the one it would have made.
+A refusal writes nothing of the capture: every check runs before any of it is written. The acquisition child is restored to check where it stands, and on a mismatch handed its own blob back, which resets the acq read-backs no blob carries (`dwells`, `surface_at`). So the capture's next get\_state() is byte-identical to its last, and its next push() is the one it would have made.
 
 
 A wrong-object, wrong-version, wrong-size or foreign-endian blob is refused, never reinterpreted; so is a blob from the other flavour (a backed and an in-RAM capture have different `state_bytes()`). A backed capture restores POSITIONS only  the samples are the file's  so it also refuses a blob whose retained span the file cannot hold: a file create() made fresh that this capture has not written that far into, or a span the ring has since wrapped past (more than the ring's capacity pushed since the checkpoint). A capture restoring a checkpoint it took itself is the normal case and is accepted (doppler#1190): `set_state(blob) -> push(chunk) -> get_state()` per call is a service shape this object supports, on both flavours.
 
 
-The blob holds all the look-back the ring held, so a capture resumes with every burst it would have emitted. A blob is checked rather than trusted: the queue's phases within their array, its anchors in order and none past the stream position, a refined start one refine could have chosen, a look-back no longer than the stream, and an acquisition child standing at the same stream position as the capture. A queued entry its look-back cannot reach is dropped  counted in `dropped` if it was a burst, uncounted if it was shadowed  as a forged blob can name one. 
+The blob holds all the look-back the ring held, so a capture resumes with every burst it would have emitted. A blob is checked rather than trusted: a stream position below 2^63 and a suppression span that ends by it; the queue's phases within their array, its readings finite, its anchors in order and none past the stream position, and a refined start within the range refine chooses from; a look-back no longer than the stream; and an acquisition child that fits its region and stands at the same stream position as the capture. A queued entry its look-back cannot reach is dropped  counted in `dropped` if it was a burst, uncounted if it was shadowed  as a forged blob can name one. 
 
 
         

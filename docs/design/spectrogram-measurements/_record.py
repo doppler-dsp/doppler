@@ -41,11 +41,23 @@ Pass = dict[str, float]
 Runs = dict[str, list[Pass]]
 
 
-def load(data: Path, build: str) -> list[Pass]:
-    """Each pass of one build: row name to cost per unit, in ns."""
+def load(data: Path, build: str, commit: str) -> list[Pass]:
+    """Each pass of one build: row name to cost per unit, in ns.
+
+    Every snapshot must have been measured at ``commit`` on a clean tree
+    (its ``commit_info``), so a pass from another run cannot be dropped in
+    and still render: the table would be the right shape and the wrong run.
+    """
     passes = []
     for f in sorted((data / build).glob("*-c.json")):
-        rows = json.loads(f.read_text(encoding="utf-8"))["benchmarks"]
+        snap = json.loads(f.read_text(encoding="utf-8"))
+        info = snap["commit_info"]
+        if not info["id"].startswith(commit) or info["dirty"]:
+            raise SystemExit(
+                f"{f.name}: measured at {info['id'][:9]} "
+                f"(dirty={info['dirty']}), not a clean {commit}"
+            )
+        rows = snap["benchmarks"]
         passes.append(
             {
                 r["name"]: r["stats"]["min"] / r["stats"]["iterations"] * 1e9
@@ -92,9 +104,29 @@ def _cells(text: str) -> list[list[str]]:
     return rows
 
 
+def runs(data: Path, commit: str) -> Runs:
+    """Every pass of both builds of one run, held to its commit and count.
+
+    When the run's merged ``doppler_meta`` is committed beside its passes
+    (``meta.json``, one block per build), each block must name the same
+    commit: that file is what the record's machine and governor claims cite.
+    """
+    P = {b: load(data, b, commit) for b in BUILDS}
+    if any(len(P[b]) != PASSES for b in BUILDS):
+        raise SystemExit(f"expected {PASSES} passes per build in {data}")
+    meta = data / "meta.json"
+    if meta.exists():
+        m = json.loads(meta.read_text(encoding="utf-8"))
+        bad = [b for b in BUILDS if m[b]["commit"] != commit]
+        if bad:
+            raise SystemExit(f"{meta}: {bad} not measured at {commit}")
+    return P
+
+
 def main(
     run: str,
     data: Path,
+    commit: str,
     blocks: dict[str, Callable[[Runs], str]],
     doc: str,
 ) -> int:
@@ -104,11 +136,7 @@ def main(
     mode.add_argument("--write", action="store_true")
     mode.add_argument("--check", action="store_true")
     a = ap.parse_args()
-    P = {b: load(data, b) for b in BUILDS}
-    if any(len(P[b]) != PASSES for b in BUILDS):
-        raise SystemExit(
-            f"{run}: expected {PASSES} passes per build in {data}"
-        )
+    P = runs(data, commit)
     rendered = {name: f(P) for name, f in blocks.items()}
     if not (a.write or a.check):
         for name, body in rendered.items():

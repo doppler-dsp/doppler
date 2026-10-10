@@ -7,12 +7,16 @@ cachyos-x8664-ai465: main with #2113's bench rows and none of #2094's
 changes (#2105's fold, the fused passes, #2117's dB conversion), so it is
 the BEFORE of all three. Its ten per-pass snapshots are committed beside
 this file in ``b2094/<build>/``, filtered to the ``psd::``,
-``acc_trace::`` and ``spectrogram::`` rows.
+``acc_trace::`` and ``spectrogram::`` rows, with the run's merged
+``doppler_meta`` (machine, governor, flags) in ``b2094/meta.json``.
 
 Every table cell in those entries is this file's output, between
 ``<!-- spectrogram-b2094:<name>:start -->`` and ``:end`` markers in the
-record. How a cell is computed, and the ``--write``/``--check`` machinery,
-are ``_record.py``'s, shared with ``u1u4.py``.
+record. How a cell is computed, the provenance checks (every pass at
+c36a042e0, clean) and the ``--write``/``--check`` machinery are
+``_record.py``'s, shared with ``u1u4.py``. A derived column (a difference
+or a ratio of two rows) is the median over the passes of that pass's
+difference or ratio, not the difference of the two medians beside it.
 
 Usage::
 
@@ -25,16 +29,31 @@ Usage::
 
 from __future__ import annotations
 
+import statistics
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from _record import Pass, Runs, both, main, med, spread, table
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import u1u4
+from _record import (
+    BUILDS,
+    Pass,
+    Runs,
+    both,
+    main,
+    med,
+    runs,
+    spread,
+    table,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
 DATA = Path(__file__).resolve().parent / "b2094"
+#: The commit every pass was measured at (``_record.load`` asserts it).
+COMMIT = "c36a042e0"
 SIZES = (256, 1024, 4096, 16384, 65536)
 #: The sizes #2113 gave a frame_linear row, so the split is measured there.
 SPLIT = (256, 1024, 65536)
@@ -51,6 +70,10 @@ def _cell(P: Runs, g: Callable[[Pass], float], fmt: str) -> str:
     return both(P, lambda q: med(q, g), fmt)
 
 
+def _spread(P: Runs, g: Callable[[Pass], float]) -> str:
+    return both(P, lambda q: spread(q, g), ".1%")
+
+
 def frame(P: Runs) -> str:
     """Where one accumulated frame's time goes, against the FFT alone."""
     rows = []
@@ -65,11 +88,12 @@ def frame(P: Runs) -> str:
                 _cell(P, lambda p, fp=fp: p[fp] / 1e3, ".3f"),
                 _cell(P, lambda p, af=af: p[af] / 1e3, ".3f"),
                 _cell(P, lambda p, af=af, f=f: p[af] / p[f], ".2f"),
-                _cell(P, lambda p, fp=fp, f=f, n=n: (p[fp] - p[f]) / n, ".2f"),
+                _cell(P, lambda p, fp=fp, f=f: p[fp] / p[f], ".2f"),
+                _cell(P, lambda p, fp=fp, f=f, n=n: (p[fp] - p[f]) / n, ".3f"),
                 _cell(
-                    P, lambda p, af=af, fp=fp, n=n: (p[af] - p[fp]) / n, ".2f"
+                    P, lambda p, af=af, fp=fp, n=n: (p[af] - p[fp]) / n, ".3f"
                 ),
-                both(P, lambda q, af=af: spread(q, lambda p: p[af]), ".1%"),
+                _spread(P, lambda p, af=af: p[af]),
             ]
         )
     return table(
@@ -79,6 +103,7 @@ def frame(P: Runs) -> str:
             "frame_power, µs",
             "accumulate_frame, µs",
             "accumulate / fft",
+            "frame_power / fft",
             "window + power, ns/bin",
             "fold, ns/bin",
             "accumulate spread",
@@ -100,15 +125,15 @@ def split(P: Runs) -> str:
                 _cell(P, lambda p, fl=fl: p[fl] / 1e3, ".3f"),
                 _cell(P, lambda p, fd=fd: p[fd] / 1e3, ".3f"),
                 _cell(
-                    P, lambda p, fl=fl, fp=fp, n=n: (p[fl] - p[fp]) / n, ".2f"
+                    P, lambda p, fl=fl, fp=fp, n=n: (p[fl] - p[fp]) / n, ".3f"
                 ),
                 _cell(
-                    P, lambda p, fd=fd, fl=fl, n=n: (p[fd] - p[fl]) / n, ".2f"
+                    P, lambda p, fd=fd, fl=fl, n=n: (p[fd] - p[fl]) / n, ".3f"
                 ),
                 _cell(
                     P, lambda p, fd=fd, fl=fl: (p[fd] - p[fl]) / p[fd], ".1%"
                 ),
-                both(P, lambda q, fd=fd: spread(q, lambda p: p[fd]), ".1%"),
+                _spread(P, lambda p, fd=fd: p[fd]),
             ]
         )
     return table(
@@ -117,7 +142,7 @@ def split(P: Runs) -> str:
             "frame_linear, µs",
             "frame_db, µs",
             "normalisation, ns/bin",
-            "dB, ns/bin",
+            "dB (frame_db − frame_linear), ns/bin",
             "dB, share of frame_db",
             "frame_db spread",
         ],
@@ -126,7 +151,7 @@ def split(P: Runs) -> str:
 
 
 def fold(P: Runs) -> str:
-    """The fold on its own, per bin, beside the fold inside PSD's frame."""
+    """AccTrace's fold on its own, per bin, every mode and size."""
     rows = []
     for m in MODES:
         rows.append(
@@ -137,29 +162,46 @@ def fold(P: Runs) -> str:
                     lambda p, k=f"acc_trace::fold[{m},nfft={n}]", n=n: (
                         p[k] / n
                     ),
-                    ".2f",
+                    ".3f",
                 )
                 for n in SIZES
             ]
         )
-    rows.append(
-        ["in PSD's frame (`mean`)"]
-        + [
-            _cell(
-                P,
-                lambda p, n=n: (
-                    (
-                        p[_psd("accumulate_frame", n)]
-                        - p[_psd("frame_power", n)]
-                    )
-                    / n
-                ),
-                ".2f",
-            )
-            for n in SIZES
-        ]
-    )
     return table(["mode, ns/bin"] + [f"{n:,}" for n in SIZES], rows)
+
+
+def mean(P: Runs) -> str:
+    """The isolated `mean` fold beside the derived in-frame difference."""
+    rows = []
+    for n in SIZES:
+        k = f"acc_trace::fold[mean,nfft={n}]"
+
+        def iso(p: Pass, k: str = k, n: int = n) -> float:
+            return p[k] / n
+
+        def derived(p: Pass, n: int = n) -> float:
+            af, fp = _psd("accumulate_frame", n), _psd("frame_power", n)
+            return (p[af] - p[fp]) / n
+
+        rows.append(
+            [
+                f"{n:,}",
+                _cell(P, iso, ".3f"),
+                _spread(P, iso),
+                _cell(P, derived, ".3f"),
+                _spread(P, derived),
+            ]
+        )
+    return table(
+        [
+            "nfft",
+            "`fold[mean]`, ns/bin",
+            "its spread",
+            "`accumulate_frame − frame_power`, ns/bin",
+            "its spread",
+        ],
+        rows,
+    )
 
 
 def rows(P: Runs) -> str:
@@ -173,10 +215,11 @@ def rows(P: Runs) -> str:
                 f"{n:,}",
                 f"{h:,}",
                 _cell(P, lambda p, db=db: p[db], ".3f"),
+                _spread(P, lambda p, db=db: p[db]),
                 _cell(P, lambda p, pw=pw: p[pw], ".3f"),
+                _spread(P, lambda p, pw=pw: p[pw]),
                 _cell(P, lambda p, db=db, pw=pw: p[db] / p[pw], ".2f"),
                 _cell(P, lambda p, pw=pw: 1e3 / p[pw], ".0f"),
-                both(P, lambda q, pw=pw: spread(q, lambda p: p[pw]), ".1%"),
             ]
         )
     return table(
@@ -184,17 +227,75 @@ def rows(P: Runs) -> str:
             "nfft",
             "hop",
             "dB row, ns/sample",
+            "dB spread",
             "power row, ns/sample",
+            "power spread",
             "dB / power",
             "power, MSa/s",
-            "power spread",
         ],
         out,
     )
 
 
-BLOCKS = {"frame": frame, "split": split, "fold": fold, "rows": rows}
+def cross(P: Runs) -> str:
+    """Every row this run shares with 5.6's run, by group: how far it moved.
+
+    A row's move is its median here over its median in the a4 run, minus
+    one. The groups #2113 changed the timing context of (PSD's kernel rows,
+    whose rotation gained two rows, and the three dB pushes that gained a
+    power row beside them) are kept apart from the rest.
+    """
+    A = runs(u1u4.DATA, u1u4.COMMIT)
+    shared = sorted(set(A["portable"][0]) & set(P["portable"][0]))
+    moved = {f"spectrogram::push[nfft={n},hop={h}]" for n, h in ROWS}
+
+    def group(k: str) -> str:
+        g = k.split("[")[0]
+        if g in ("psd::fft", "psd::frame_power", "psd::frame_db"):
+            return f"`{g}` (rotation changed, #2113)"
+        if k in moved:
+            return "`spectrogram::push`, dB beside a new power row (#2113)"
+        return f"`{g}`"
+
+    groups: dict[str, list[str]] = {}
+    for k in shared:
+        groups.setdefault(group(k), []).append(k)
+
+    def delta(b: str, k: str) -> float:
+        now = statistics.median(p[k] for p in P[b])
+        then = statistics.median(p[k] for p in A[b])
+        return now / then - 1.0
+
+    out = []
+    for g in sorted(groups):
+        ks = groups[g]
+        out.append(
+            [
+                g,
+                str(len(ks)),
+                " / ".join(
+                    format(statistics.median(delta(b, k) for k in ks), "+.2%")
+                    for b in BUILDS
+                ),
+                " / ".join(
+                    format(max((delta(b, k) for k in ks), key=abs), "+.2%")
+                    for b in BUILDS
+                ),
+            ]
+        )
+    out.append(["all shared rows", str(len(shared)), "", ""])
+    return table(["rows", "count", "median move", "largest move"], out)
+
+
+BLOCKS = {
+    "frame": frame,
+    "split": split,
+    "fold": fold,
+    "mean": mean,
+    "rows": rows,
+    "cross": cross,
+}
 
 
 if __name__ == "__main__":
-    sys.exit(main("b2094", DATA, BLOCKS, __doc__))
+    sys.exit(main("b2094", DATA, COMMIT, BLOCKS, __doc__))

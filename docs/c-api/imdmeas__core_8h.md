@@ -278,7 +278,7 @@ size_t dp_imdmeas_spectrum_dbfs (
 
 
 
-The same windowed, zero-padded PSD the IMD metrics are read off, laid out DC-centred (fftshifted) and normalised to dBFS for an analyzer-display backdrop. Use it to see the two fundamentals and the intermodulation products that analyze() integrates.
+The same windowed, zero-padded PSD the IMD metrics are read off, laid out DC-centred (fftshifted) and normalised to dBFS for an analyzer-display backdrop. Use it to see the two fundamentals and the intermodulation products that analyze() integrates. It is the composed PSD's psd\_db: PSD's dBFS reference, its -200 dB floor and the library's one dB conversion, dp\_power\_to\_db\_f32.
 
 
 

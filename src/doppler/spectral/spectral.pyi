@@ -2468,3 +2468,47 @@ def obw_from_power(
 
 def noise_floor_db(db: npt.NDArray[np.float32]) -> float:
     """Noise floor db."""
+
+def power_to_db_f32(lin: npt.NDArray[np.float32]) -> NDArray[np.float32]:
+    """Linear power to dB: 10·log10, with PSD's floor, fast.
+
+    Each value of out is 10·log10 of the matching value of lin when that is
+    at or above 1e-20, and exactly -200 below it: 0, a subnormal and a
+    negative value all read -200. That is PSD's floor, the one definition,
+    so there is no floor argument. A power of two converts exactly, to the
+    correctly rounded value (1.0 reads exactly 0 dB), and every other value
+    lies within 0.01 dB of double-precision 10·log10. The bound is MEASURED
+    over every positive finite float32
+    (native/validation/power_to_db_sweep.c, in `make test-sweep`); the
+    achieved worst, 3.25e-4 dB, is in the measurement record
+    (docs/design/spectrogram-measurements.md, "The fast dB conversion").
+
+    It is the library's dB conversion for power: every dB reading PSD takes
+    goes through it, so a PSD or Spectrogram dB value is this function of
+    the matching linear value, bit for bit, and a display that converts
+    only the power bins it draws gets exactly the dB rows. Branchless, so
+    it vectorizes. NaN and Inf in give an unspecified value (PSD produces
+    neither from finite input). lin_len 0 writes nothing.
+
+    Parameters
+    ----------
+    lin : npt.NDArray[np.float32]
+        Linear power (a power ratio), float32.
+
+    Returns
+    -------
+    NDArray[np.float32]
+        Output.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.spectral import power_to_db_f32
+    >>> x = np.array([1.0, 2.0, 0.5, 0.0, 1e-30], dtype=np.float32)
+    >>> power_to_db_f32(x).tolist()     # 2^k exactly; the floor below 1e-20
+    [0.0, 3.0102999210357666, -3.0102999210357666, -200.0, -200.0]
+    >>> d = power_to_db_f32(np.array([100.0], dtype=np.float32))[0]
+    >>> bool(abs(d - 20.0) < 0.01)     # off a power of two: within 0.01 dB
+    True
+
+    """

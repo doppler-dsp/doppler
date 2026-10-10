@@ -175,9 +175,11 @@ void dp_psd_frame_power(dp_psd_state_t *state, const float _Complex *x,
  *
  * dp_psd_frame_power() divided by the window coherent gain squared and the
  * full-scale reference squared, cg^2 * full_scale^2: a full-scale tone on a
- * bin reads 1.0 whatever the window. dp_psd_frame_db() is 10*log10 of the same
- * quotient, with the -200 dB floor -- the two are read from one double, so
- * they cannot disagree about the reference. This is the frame a consumer that
+ * bin reads 1.0 whatever the window. dp_psd_frame_db() is exactly
+ * dp_power_to_db_f32() of this, bit for bit: the quotient is rounded to
+ * float once and both readings are taken from it, so they cannot disagree
+ * about the reference, and a consumer that converts these values to dB
+ * itself gets exactly PSD's dB. This is the frame a consumer that
  * averages for itself should take: the raw dp_psd_frame_power() sits
  * 20*log10(sum(w)) above it, 54.18 dB for Hann at 1024 points
  * (docs/design/spectrogram-measurements.md section 5.3). Does not touch the
@@ -206,9 +208,10 @@ void dp_psd_frame_linear(dp_psd_state_t *state, const float _Complex *x,
 /**
  * @brief One frame in dBFS, against the estimator's own reference.
  *
- * dp_psd_frame_power() divided by the window coherent gain squared and the
- * full-scale reference, as 10*log10 with the -200 dB floor, so a full-scale
- * tone on a bin reads 0 dB whatever the window. The result equals
+ * dp_psd_frame_linear() converted by dp_power_to_db_f32(), bit for bit:
+ * 10*log10 within 0.01 dB, exact at every power of two, with the -200 dB
+ * floor, so a full-scale tone on a bin reads 0 dB whatever the window. The
+ * result equals
  * dp_psd_psd_db() after accumulating that one frame, bit for bit (pinned by
  * test_psd_core.c). Does not touch the running average.
  *

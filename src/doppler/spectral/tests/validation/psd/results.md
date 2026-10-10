@@ -42,7 +42,7 @@ Step 1 of `docs/dev/contributing/validation.md`: every claim of `psd_core.h` at 
 | accumulate folds floor(x_len / n) frames; a trailing partial frame is ignored | accumulate block (3 frames + a partial) | pinned only at literals | C-ONLY |
 | one frame through the kernel = accumulate-then-read, bit for bit | kernel block, 4 windows x n {64, 100} x pad {1, 2} | pinned | C-ONLY (F3) |
 | the kernel does not touch the running average | T1 | pinned | C-ONLY (F3) |
-| `frame_linear`: 10·log10 of it is `frame_db` above the floor; a full-scale bin tone reads 1.0 whatever the window, padded or not, against `full_scale` and `bits` | `dp_psd_frame_linear` block (#1963) | pinned | C-ONLY (F3) |
+| `frame_db` is `dp_power_to_db_f32` of `frame_linear`, bit for bit; a full-scale bin tone reads 1.0 whatever the window, padded or not, against `full_scale` and `bits` | `dp_psd_frame_linear` block (#1963) | pinned | C-ONLY (F3) |
 | a full-scale tone on a bin reads 0 dBFS whatever the window; `bits > 0` sets `full_scale = 2^(bits-1)` | T2 | pinned | §2.1 |
 | DC-centred: bin k at `nfft/2 + k*nfft/n` | T4 | pinned | §2.1 |
 | `nfft = next_pow_two(n * pad)` | T18 | pinned | §2.1, §2.2 |
@@ -72,20 +72,20 @@ Measured through the binding, against numpy's FFT and the closed forms. No verdi
 
 | window | pad | nfft | worst bin-tone level, dB |
 |---|---|---|---|
-| hann | 1 | 64 | 5.34e-07 |
-| hann | 2 | 128 | 5.34e-07 |
-| hann | 4 | 256 | 5.34e-07 |
-| kaiser | 1 | 64 | 3.17e-07 |
-| kaiser | 2 | 128 | 3.17e-07 |
-| kaiser | 4 | 256 | 3.17e-07 |
-| blackman-harris | 1 | 64 | 4.86e-07 |
-| blackman-harris | 2 | 128 | 4.86e-07 |
-| blackman-harris | 4 | 256 | 4.86e-07 |
+| hann | 1 | 64 | 5.17e-07 |
+| hann | 2 | 128 | 5.17e-07 |
+| hann | 4 | 256 | 5.17e-07 |
+| kaiser | 1 | 64 | 2.59e-07 |
+| kaiser | 2 | 128 | 2.59e-07 |
+| kaiser | 4 | 256 | 2.59e-07 |
+| blackman-harris | 1 | 64 | 5.17e-07 |
+| blackman-harris | 2 | 128 | 5.17e-07 |
+| blackman-harris | 4 | 256 | 5.17e-07 |
 | rect | 1 | 64 | 0.00e+00 |
 | rect | 2 | 128 | 0.00e+00 |
 | rect | 4 | 256 | 0.00e+00 |
 
-Bin-centred unit tones at k in {-7, 0, 5}: every peak lands at `nfft/2 + k*nfft/n` and `nfft` is `next_pow_two(n*pad)` in all 36 cases (yes); the worst level is 5.34e-07 dB from 0 dBFS. A tone of amplitude 2^11 reads -5.34e-07 dB against `full_scale = 2^11`, and `bits = 12` (with `full_scale = 999` passed and ignored) gives the same bytes: yes.
+Bin-centred unit tones at k in {-7, 0, 5}: every peak lands at `nfft/2 + k*nfft/n` and `nfft` is `next_pow_two(n*pad)` in all 36 cases (yes); the worst level is 5.17e-07 dB from 0 dBFS. A tone of amplitude 2^11 reads -5.17e-07 dB against `full_scale = 2^11`, and `bits = 12` (with `full_scale = 999` passed and ignored) gives the same bytes: yes.
 
 ### 2.2 One frame against numpy's FFT (C: the kernel block, T18)
 
@@ -146,8 +146,8 @@ Complex white noise of variance `var` at `fs`. By Parseval the mean over bins of
 
 | window | pad | dB/Hz - var/fs, dB | band - var, dB | tol (5 sd), dB | z (one statistic: dB/Hz, band) |
 |---|---|---|---|---|---|
-| hann | 1 | -0.014 | -0.014 | 0.118 | -0.59 / -0.59 |
-| hann | 2 | -0.002 | -0.002 | 0.118 | -0.07 / -0.07 |
+| hann | 1 | -0.014 | -0.014 | 0.118 | -0.60 / -0.59 |
+| hann | 2 | -0.002 | -0.002 | 0.118 | -0.08 / -0.07 |
 | kaiser | 1 | +0.048 | +0.048 | 0.127 | +1.89 / +1.89 |
 | kaiser | 2 | +0.018 | +0.018 | 0.127 | +0.70 / +0.70 |
 | blackman-harris | 1 | -0.000 | -0.000 | 0.140 | -0.01 / -0.01 |
@@ -155,7 +155,7 @@ Complex white noise of variance `var` at `fs`. By Parseval the mean over bins of
 | rect | 1 | -0.037 | -0.037 | 0.084 | -2.20 / -2.20 |
 | rect | 2 | +0.009 | +0.009 | 0.084 | +0.52 / +0.52 |
 
-K = 1024, n = 64. Worst |z| 2.89; dB/Hz and whole-span band power are one statistic, agreeing to 4.9e-06 in z. The dB/Hz - dB offset matches `10 log10(cg^2 / (fs s2))` to 8.9e-08 dB in every bin.
+K = 1024, n = 64. Worst |z| 2.89; dB/Hz and whole-span band power are one statistic, agreeing to 2.4e-04 dB, inside the dB conversion's 5e-04. The dB/Hz - dB offset matches `10 log10(cg^2 / (fs s2))` to 8.9e-08 dB in every bin.
 
 ### 2.6 Occupied bandwidth, noise floor, SNR, SFDR (C T13-T16, T14b)
 
@@ -165,11 +165,11 @@ K = 1024, n = 64. Worst |z| 2.89; dB/Hz and whole-span band power are one statis
 | OBW(0.99), flat noise | rect, nfft 1024, K 256 | 1014 bins | [1014, 1016] (derived at z = 5 from the search rule; flat grid 1014) |
 | noise floor | rect, n 256, K 256 | +0.0297 dB | 0.105 dB (5 sd of a median of Gamma(K)) |
 | noise floor, 32 tones on 1/8 of the bins | the same | -0.0052 dB | 0.113 dB; a mean of dB moves +3.0 dB |
-| SNR | unit tone + var 1 | -0.0686 dB | 0.157 dB (floor sd + tone x noise cross term) |
-| SFDR | 0 and -20 dB tones, N/2 apart, Hann | 19.999998 dB | 20 dB within 3.1e-05 (the float FFT's bound on each of the two bins) |
+| SNR | unit tone + var 1 | -0.0685 dB | 0.157 dB (floor sd + tone x noise cross term) |
+| SFDR | 0 and -20 dB tones, N/2 apart, Hann | 19.999846 dB | 20 dB within 1.0e-03 (the float FFT's bound and the dB conversion's on each of the two bins) |
 | SFDR, one tone | the carrier alone | 0.0 | exactly 0 (fewer than two peaks) |
 
-The SFDR tones sit half the transform apart on purpose. A symmetric-Hann tone at bin 6 leaks -82.4 dBc into bin 20, and a -20 dB spur placed there reads -5.1e-03 dB off. N/2 apart, each tone's leakage is symmetric about the other, and the bias is -1.9e-06 dB.
+The SFDR tones sit half the transform apart on purpose. A symmetric-Hann tone at bin 6 leaks -82.4 dBc into bin 20, and a -20 dB spur placed there reads -5.2e-03 dB off. N/2 apart, each tone's leakage is symmetric about the other, and the bias is -1.5e-04 dB.
 
 ### 2.7 Real input and the one-sided fold (C T8)
 
@@ -224,7 +224,7 @@ Six things the inventory flagged as possibly wrong, (a)-(f), two found measuring
 | -1 | nan |
 | 1.5 | nan |
 
-**(d)** Noise scaled so its floor is 0 dB reads `noise_floor() = -0.0686` — next to the empty state's `0.0`. `snr` over a band entirely outside the span returns 0.0, undocumented, and the same as 'no SNR'. The floor's offset from the median's expected bias is -3.0 sd of a 256-bin median's spread (0.021 dB); it is independent of §2.6's SNR deviation, which happens to render the same to four places.
+**(d)** Noise scaled so its floor is 0 dB reads `noise_floor() = -0.0685` — next to the empty state's `0.0`. `snr` over a band entirely outside the span returns 0.0, undocumented, and the same as 'no SNR'. The floor's offset from the median's expected bias is -3.0 sd of a 256-bin median's spread (0.021 dB); it is independent of §2.6's SNR deviation, which happens to render the same to four places.
 
 **(e)** A DC tone, read whole and as the two halves `[-fs/2, 0]` and `[0, fs/2]`, which share the DC bin:
 
@@ -256,7 +256,7 @@ Six things the inventory flagged as possibly wrong, (a)-(f), two found measuring
 
 - **F2 · FIXED** — **Three existing checks were vacuous.** Reset re-fed identical frames in mean mode, where Welford's count = 1 step re-seeds whatever reset did; `max >= min` per bin passes with two MEAN states; and the band partition compared `total_band_power` with the sum of the same per-band values. Each is replaced by an external truth in C (T9, T10, T12; #1956) and measured again in §2.4 and §2.5.
 
-- **F3 · C-ONLY** — `dp_psd_frame_power`, `dp_psd_frame_db` and `dp_psd_frame_linear` (#1963), the per-frame kernel the Spectrogram composes, have no Python binding. They are certified in `native/tests/test_psd_core.c`: one frame equals accumulate-then-read bit for bit (4 windows x n {64, 100} x pad {1, 2}), the average is untouched (T1), 0 dBFS under every window and both references (T2), the floor (T3) and the layout (T4); `frame_linear` in its own block: 10·log10 of it is `frame_db` above the floor, and a full-scale bin tone reads 1.0 under every window, padded or not, against `full_scale` and `bits`. §2.1-§2.2 reach the same transform through `accumulate`.
+- **F3 · C-ONLY** — `dp_psd_frame_power`, `dp_psd_frame_db` and `dp_psd_frame_linear` (#1963), the per-frame kernel the Spectrogram composes, have no Python binding. They are certified in `native/tests/test_psd_core.c`: one frame equals accumulate-then-read bit for bit (4 windows x n {64, 100} x pad {1, 2}), the average is untouched (T1), 0 dBFS under every window and both references (T2), the floor (T3) and the layout (T4); `frame_linear` in its own block: `frame_db` is `dp_power_to_db_f32` of it, bit for bit, and a full-scale bin tone reads 1.0 under every window, padded or not, against `full_scale` and `bits`. §2.1-§2.2 reach the same transform through `accumulate`.
 
 - **F4 · FIXED** — **The header described `n` where the code uses `nfft`.** `psd_db` writes `nfft` values (128 at `n = 64, pad = 2`), `psd_dbhz_max_out` is `nfft`, and the bin-to-frequency map runs over `nfft`; the file comment named two windows of four, and `beta` was 'ignored' for two of the three other windows. Prose, which jm carried to both faces; corrected in the header (#1959, §2.10 (a)).
 
@@ -272,7 +272,7 @@ Six things the inventory flagged as possibly wrong, (a)-(f), two found measuring
 
 - **F10 · FIXED** — **`dp_psd_create(1 << 62, ...)` crashed:** `n * pad` and the byte counts wrapped. Refused before any allocation now, not left to calloc, which ASan and TSan report as an error rather than a NULL (#1959, §2.10 (i)).
 
-- **F11 · GAP** — **A scalar readout's 0.0 means both 'no measurement' and a real 0 dB.** A floor scaled to 0 dB reads `noise_floor() = -0.0686`, next to the empty state's `0.0`, and `snr` over a band outside the span returns 0.0, the same as 'no SNR' (§2.10 (d)). Which sentinel is an API decision: #1957.
+- **F11 · GAP** — **A scalar readout's 0.0 means both 'no measurement' and a real 0 dB.** A floor scaled to 0 dB reads `noise_floor() = -0.0685`, next to the empty state's `0.0`, and `snr` over a band outside the span returns 0.0, the same as 'no SNR' (§2.10 (d)). Which sentinel is an API decision: #1957.
 
 - **F12 · GAP** — **Adjacent bands both count the bin they share**, so a partition overstates the whole: a DC tone read as `[-fs/2, 0]` plus `[0, fs/2]` sums +3.01 dB above the whole span under the rectangular window (§2.10 (e)). Which band owns a shared bin is an API decision: #1958.
 
@@ -292,7 +292,7 @@ Claims a caller may rely on. A failure here is a regression, not a new finding. 
 | verdict | claim |
 |---|---|
 | PASS | a bin-centred tone at k lands at nfft/2 + k*nfft/n, k in {-7, 0, 5}, every window, pad {1, 2, 4}; nfft = next_pow_two(n*pad) |
-| PASS | ...and reads 0 dBFS whatever the window (worst 5.3e-07 dB) |
+| PASS | ...and reads 0 dBFS whatever the window (worst 5.2e-07 dB) |
 | PASS | an amplitude-FS tone reads 0 dBFS against full_scale = FS; bits = B is full_scale = 2^(B-1), bit for bit |
 | PASS | every bin of one frame matches numpy's FFT within 2 c log2(nfft) u of the total power, every window, n {64, 100}, pad {1, 2} |
 | PASS | rect ENBW is exactly 1.0 |
@@ -300,12 +300,12 @@ Claims a caller may rely on. A failure here is a regression, not a new finding. 
 | PASS | rbw = enbw * fs / n |
 | PASS | mean, exp, maxhold and minhold each match their defining rule on numpy's per-frame powers, over frames where all four differ |
 | PASS | reset re-seeds: after a loud frame and a reset, a quiet frame reads exactly as a fresh state (maxhold, exp) |
-| PASS | dB/Hz reads var/fs, every window, pad {1, 2}, within 5 sd (worst \|z\| 2.89); whole-span band power, the same statistic, agrees |
+| PASS | dB/Hz reads var/fs, every window, pad {1, 2}, within 5 sd (worst \|z\| 2.89); whole-span band power, the same statistic, agrees within the dB conversion's bound (worst 2.4e-04 dB) |
 | PASS | psd_dbhz - psd_db = 10 log10(cg^2/(fs s2)) in every bin |
 | PASS | OBW: one bin for a bin-centred tone; 0.99 of flat noise within the z = 5 bound the search rule gives (1014 of [1014, 1016] bins) |
 | PASS | the noise floor is the median of the dB spectrum, within 5 sd — with and without tones on 1/8 of the bins |
 | PASS | SNR of tone plus noise, within 5 sd |
-| PASS | SFDR is carrier minus strongest spur (20 dB within 3.1e-05, the float FFT's bound), and 0 with one peak |
+| PASS | SFDR is carrier minus strongest spur (20 dB within 1.0e-03, the float FFT's and the dB conversion's bounds), and 0 with one peak |
 | PASS | real input is Hermitian; the one-sided fold keeps DC and Nyquist and sums +k and -k, on real and complex input |
 | PASS | before any frame every reader returns None or 0 and total band power the -200 dB floor; an all-zero frame reads -200 dB |
 | PASS | the linear readouts do not apply full_scale; the dB ones do |

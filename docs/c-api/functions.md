@@ -1457,6 +1457,7 @@
 * **dp\_magnitude\_db\_cf64** ([**spectral\_core.h**](spectral__core_8h.md))
 * **dp\_noise\_floor\_db** ([**spectral\_core.h**](spectral__core_8h.md))
 * **dp\_obw\_from\_power** ([**spectral\_core.h**](spectral__core_8h.md))
+* **dp\_power\_to\_db\_f32** ([**spectral\_core.h**](spectral__core_8h.md))
 * **dp\_spectrogram\_consumed** ([**spectrogram\_core.h**](spectrogram__core_8h.md))
 * **dp\_spectrogram\_create** ([**spectrogram\_core.h**](spectrogram__core_8h.md))
 * **dp\_spectrogram\_destroy** ([**spectrogram\_core.h**](spectrogram__core_8h.md))

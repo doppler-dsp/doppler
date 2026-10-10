@@ -37,6 +37,7 @@ What is checked
   -- never a version literal, which silently matches no leg once that version
   leaves the classifiers (doppler#1714). The job the selectors name
   (``LEG_SOURCE``, read from them) must declare the output and derive it with
+  ``make -s print-python-primary``, whose recipe must run
   ``scripts/python_versions.py --primary``, and a selecting job must need it.
   It was ``changes`` until that became the vendored workflow (#1809), which
   knows nothing of doppler's Python matrix;
@@ -95,6 +96,10 @@ RETIRED_OUTPUTS = ("full", "heavy", "primary_full")
 #: A version literal anywhere in a selector, e.g. ``'3.12'``.
 _LITERAL = re.compile(r"""['"]\d+\.\d+['"]""")
 #: The markers around docs/dev/ci.md's table of single-leg steps.
+#: The one spelling of the primary leg in a workflow: this make target,
+#: whose recipe runs ``scripts/python_versions.py --primary`` (checked).
+PRIMARY_TARGET = "print-python-primary"
+
 DOC_START = "<!-- python-legs:start -->"
 DOC_END = "<!-- python-legs:end -->"
 
@@ -357,13 +362,36 @@ def _check_legs(
         text = " ".join(
             str(s.get("run", "")) for s in source.get("steps") or []
         )
-        if "python_versions.py --primary" not in text:
+        if f"make -s {PRIMARY_TARGET}" not in text:
             problems.append(
                 f"{path}: `{LEG_SOURCE}` does not derive the primary leg "
-                "with `scripts/python_versions.py --primary`, so the leg is "
-                "written down here instead of read from the classifiers"
+                f"with `make -s {PRIMARY_TARGET}`, so the leg is written "
+                "down here, or spelled a second way, instead of read from "
+                "the classifiers through the one target"
             )
+        problems += _primary_target_problems(ROOT / "Makefile")
     return problems, rows
+
+
+def _primary_target_problems(makefile: pathlib.Path) -> list[str]:
+    """The target a workflow derives the primary leg through must run the
+    script that reads the classifiers, or the one spelling is a literal
+    with extra steps."""
+    lines = makefile.read_text(encoding="utf-8").splitlines()
+    for i, line in enumerate(lines):
+        if line.startswith(f"{PRIMARY_TARGET}:"):
+            recipe = []
+            for r in lines[i + 1 :]:
+                if not r.startswith("\t"):
+                    break
+                recipe.append(r)
+            if any("python_versions.py --primary" in r for r in recipe):
+                return []
+            return [
+                f"{makefile.name}: `{PRIMARY_TARGET}` does not run "
+                "`scripts/python_versions.py --primary`"
+            ]
+    return [f"{makefile.name}: no `{PRIMARY_TARGET}` target"]
 
 
 def _doc_rows(doc: pathlib.Path) -> list[tuple[str, str, str]] | None:

@@ -104,15 +104,15 @@ _Streaming spectrogram: a stream of any-size chunks in, rows of nfft-bin spectra
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**DP\_SPECTROGRAM\_DB**](spectrogram__core_8h.md#define-dp_spectrogram_db)  `0`<br>_Row units: dBFS, against the PSD's full-scale reference._  |
-| define  | [**DP\_SPECTROGRAM\_POWER**](spectrogram__core_8h.md#define-dp_spectrogram_power)  `1`<br>_Row units: linear power. RESERVED:_ [_**dp\_spectrogram\_create()**_](spectrogram__core_8h.md#function-dp_spectrogram_create) _refuses it until it is wired to_[_**dp\_psd\_frame\_linear()**_](psd__core_8h.md#function-dp_psd_frame_linear) _, so that a power row and a dB row share one reference (#1968)._ |
+| define  | [**DP\_SPECTROGRAM\_DB**](spectrogram__core_8h.md#define-dp_spectrogram_db)  `0`<br>_Row units: dBFS, against the same reference. Asked for by name._  |
+| define  | [**DP\_SPECTROGRAM\_POWER**](spectrogram__core_8h.md#define-dp_spectrogram_power)  `1`<br>_Row units: linear power against the PSD's full-scale reference. The DEFAULT: what every example, guide and binding uses unless it asks for dB by name._  |
 | define  | [**SPECTROGRAM\_STATE\_MAGIC**](spectrogram__core_8h.md#define-spectrogram_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('S', 'P', 'G', 'M')`<br>_State-blob magic ('SPGM') and layout version._  |
 | define  | [**SPECTROGRAM\_STATE\_VERSION**](spectrogram__core_8h.md#define-spectrogram_state_version)  `1u`<br> |
 
 ## Detailed Description
 
 
-A row is the PSD of one frame, and nothing else: row k is [**dp\_psd\_frame\_db()**](psd__core_8h.md#function-dp_psd_frame_db) of stream samples [k\*hop, k\*hop + nfft), so the window, the FFT and the dBFS reference are PSD's own and a full-scale tone on a bin reads 0 dB. The rows are a function of the INPUT STREAM, not of how it was split into calls: pushing it in one call, a sample at a time, or in any other partition gives the same rows, bit for bit.
+A row is the PSD of one frame, and nothing else: row k is PSD's per-frame kernel applied to stream samples [k\*hop, k\*hop + nfft)  [**dp\_psd\_frame\_linear()**](psd__core_8h.md#function-dp_psd_frame_linear) for power rows, the default, or [**dp\_psd\_frame\_db()**](psd__core_8h.md#function-dp_psd_frame_db) for dB rows, which a caller asks for by name. So the window, the FFT and the full-scale reference are PSD's own, and a full-scale tone on a bin reads 1.0 in power, 0 dB in dB. The rows are a function of the INPUT STREAM, not of how it was split into calls: pushing it in one call, a sample at a time, or in any other partition gives the same rows, bit for bit.
 
 
 The object composes and re-implements none of its parts. The carry between calls is the ring's framed face (DECLARE\_DP\_BUFFER\_FRAMES): fewer than nfft samples are held once a push returns, so the state blob has a size that depends on nfft alone. The spectrum is PSD's per-frame kernel. It does not average rows (fold them with AccTrace), detect, display or decimate.
@@ -153,7 +153,8 @@ Equal to its `n_in` unless `out` ran out of room; then the caller resumes at in 
 
 
 ```C++
-dp_spectrogram_state_t *s = dp_spectrogram_create (8, 8, 3, 0.0f, 0);
+dp_spectrogram_state_t *s
+    = dp_spectrogram_create (8, 8, 3, 0.0f, DP_SPECTROGRAM_POWER);
 float _Complex x[32] = { 0 };
 float row[8];
 // 32 samples make 4 rows, but out has room for 1: the push takes the 8
@@ -201,7 +202,7 @@ dp_spectrogram_state_t * dp_spectrogram_create (
 * `hop` Samples between row starts, 1 &lt;= hop &lt;= nfft. hop == nfft tiles the stream; hop &lt; nfft overlaps the frames. 
 * `window` 0 = Hann, 1 = Kaiser, 2 = Blackman-Harris, 3 = rectangular, as [**dp\_psd\_create()**](psd__core_8h.md#function-dp_psd_create), which also refuses a window that sums to zero at this nfft (the symmetric Hann at nfft = 2). 
 * `beta` Kaiser beta (ignored for the other windows). 
-* `mode` DP\_SPECTROGRAM\_DB. DP\_SPECTROGRAM\_POWER is refused for now. 
+* `mode` DP\_SPECTROGRAM\_POWER (linear rows, the default) or DP\_SPECTROGRAM\_DB (dBFS rows); any other value is refused. 
 
 
 
@@ -220,15 +221,21 @@ Call [**dp\_spectrogram\_destroy()**](spectrogram__core_8h.md#function-dp_spectr
 
 ```C++
 // nfft 1024, a row every 256 samples (75% overlap), Blackman-Harris,
-// dB rows, DC-centred
+// power rows (the default), DC-centred
 dp_spectrogram_state_t *s
+    = dp_spectrogram_create (1024, 256, 2, 0.0f, DP_SPECTROGRAM_POWER);
+// the same rows in dBFS, asked for by name
+dp_spectrogram_state_t *d
     = dp_spectrogram_create (1024, 256, 2, 0.0f, DP_SPECTROGRAM_DB);
-if (!s)
+if (!s || !d)
   return 1;
-// refused: 1000 is not a power of two, and a hop may not exceed nfft
-if (dp_spectrogram_create (1000, 256, 2, 0.0f, DP_SPECTROGRAM_DB)
-    || dp_spectrogram_create (1024, 2048, 2, 0.0f, DP_SPECTROGRAM_DB))
+// refused: 1000 is not a power of two, a hop may not exceed nfft, and
+// a mode is one of the two
+if (dp_spectrogram_create (1000, 256, 2, 0.0f, DP_SPECTROGRAM_POWER)
+    || dp_spectrogram_create (1024, 2048, 2, 0.0f, DP_SPECTROGRAM_POWER)
+    || dp_spectrogram_create (1024, 256, 2, 0.0f, 2))
   return 1;
+dp_spectrogram_destroy (d);
 dp_spectrogram_destroy (s);
 ```
  
@@ -260,7 +267,8 @@ void dp_spectrogram_destroy (
 
 
 ```C++
-dp_spectrogram_state_t *s = dp_spectrogram_create (8, 4, 3, 0.0f, 0);
+dp_spectrogram_state_t *s
+    = dp_spectrogram_create (8, 4, 3, 0.0f, DP_SPECTROGRAM_POWER);
 if (!s)
   return 1;
 dp_spectrogram_destroy (s);    // its PSD, its ring and its carry go too
@@ -307,8 +315,10 @@ Floats written: nfft, or 0 if no row was owed.
 
 
 ```C++
-dp_spectrogram_state_t *s = dp_spectrogram_create (8, 4, 3, 0.0f, 0);
-dp_spectrogram_state_t *t = dp_spectrogram_create (8, 4, 3, 0.0f, 0);
+dp_spectrogram_state_t *s
+    = dp_spectrogram_create (8, 4, 3, 0.0f, DP_SPECTROGRAM_POWER);
+dp_spectrogram_state_t *t
+    = dp_spectrogram_create (8, 4, 3, 0.0f, DP_SPECTROGRAM_POWER);
 if (!s || !t)
   return 1;
 float _Complex x[10], tail[8] = { 0 };
@@ -365,7 +375,8 @@ void dp_spectrogram_get_state (
 // every byte is written: two differently pre-filled blobs come out equal
 // (a union, so each blob is aligned for the dp_state_hdr_t it opens with)
 union { dp_state_hdr_t h; unsigned char b[256]; } b1, b2;
-dp_spectrogram_state_t *s = dp_spectrogram_create (8, 4, 3, 0.0f, 0);
+dp_spectrogram_state_t *s
+    = dp_spectrogram_create (8, 4, 3, 0.0f, DP_SPECTROGRAM_POWER);
 if (!s || dp_spectrogram_state_bytes (s) > sizeof b1.b)
   return 1;
 size_t n = dp_spectrogram_state_bytes (s);
@@ -412,7 +423,8 @@ What [**dp\_spectrogram\_flush()**](spectrogram__core_8h.md#function-dp_spectrog
 
 
 ```C++
-dp_spectrogram_state_t *s = dp_spectrogram_create (8, 4, 3, 0.0f, 0);
+dp_spectrogram_state_t *s
+    = dp_spectrogram_create (8, 4, 3, 0.0f, DP_SPECTROGRAM_POWER);
 float _Complex x[12] = { 0 };
 float out[2 * 8];
 dp_spectrogram_push (s, x, 12, out, 2 * 8);
@@ -473,8 +485,9 @@ Floats written: a multiple of nfft, at most dp\_spectrogram\_push\_max\_out(s, n
 
 
 ```C++
-// nfft 8, hop 4, rectangular, dB: a unit tone on bin 2
-dp_spectrogram_state_t *s = dp_spectrogram_create (8, 4, 3, 0.0f, 0);
+// nfft 8, hop 4, rectangular, power: a unit tone on bin 2
+dp_spectrogram_state_t *s
+    = dp_spectrogram_create (8, 4, 3, 0.0f, DP_SPECTROGRAM_POWER);
 float _Complex x[16];
 for (int i = 0; i < 16; i++)
   x[i] = cexpf (I * 2.0f * 3.14159265f * 2.0f * (float)i / 8.0f);
@@ -483,7 +496,7 @@ size_t got = dp_spectrogram_push (s, x, 16, rows, 3 * 8);
 // 16 samples at hop 4 complete the rows starting at 0, 4 and 8
 if (got != 3 * 8 || dp_spectrogram_consumed (s) != 16)
   return 1;
-if (fabsf (rows[4 + 2]) > 1e-4f)   // bin 2 reads 0 dBFS, at nfft/2 + 2
+if (fabsf (rows[4 + 2] - 1.0f) > 1e-4f) // bin 2 reads 1.0, at nfft/2 + 2
   return 1;
 dp_spectrogram_destroy (s);
 ```
@@ -521,7 +534,8 @@ The capacity that makes a push take ALL of its input. Saturates at SIZE\_MAX rat
 
 
 ```C++
-dp_spectrogram_state_t *s = dp_spectrogram_create (8, 4, 3, 0.0f, 0);
+dp_spectrogram_state_t *s
+    = dp_spectrogram_create (8, 4, 3, 0.0f, DP_SPECTROGRAM_POWER);
 float _Complex x[16] = { 0 };
 float out[2 * 8];
 // 3 samples complete no row: no room is needed, and they are taken
@@ -569,7 +583,8 @@ The next row covers samples [0, nfft) of whatever is pushed next. [**dp\_spectro
 
 
 ```C++
-dp_spectrogram_state_t *s = dp_spectrogram_create (8, 8, 3, 0.0f, 0);
+dp_spectrogram_state_t *s
+    = dp_spectrogram_create (8, 8, 3, 0.0f, DP_SPECTROGRAM_POWER);
 float _Complex x[5] = { 0 };
 float row[8];
 dp_spectrogram_push (s, x, 5, row, 8);   // 5 samples of carry, no row
@@ -614,7 +629,8 @@ The carry plus `n_in` samples, cut into frames of nfft at the hop. A push with r
 
 
 ```C++
-dp_spectrogram_state_t *s = dp_spectrogram_create (8, 2, 3, 0.0f, 0);
+dp_spectrogram_state_t *s
+    = dp_spectrogram_create (8, 2, 3, 0.0f, DP_SPECTROGRAM_POWER);
 if (dp_spectrogram_rows_for (s, 7) != 0      // less than a frame
     || dp_spectrogram_rows_for (s, 8) != 1
     || dp_spectrogram_rows_for (s, 100) != 47) // (100 - 8) / 2 + 1
@@ -642,7 +658,7 @@ int dp_spectrogram_set_state (
 
 
 
-Precondition, the caller's to keep because the blob does not carry it: `s` was created with the same arguments (nfft, hop, window, beta, mode) as the spectrogram the blob came from. A different nfft or hop is refused (the size and the framer's stored hop tell); a different window or beta is NOT, and the rows that follow are that window's, not the original's.
+Precondition, the caller's to keep because the blob does not carry it: `s` was created with the same arguments (nfft, hop, window, beta, mode) as the spectrogram the blob came from. A different nfft or hop is refused (the size and the framer's stored hop tell); a different window, beta or mode is NOT, and the rows that follow are the restoring object's, not the original's.
 
 
 
@@ -663,8 +679,10 @@ DP\_OK, or DP\_ERR\_INVALID (wrong magic, version, size or hop, or a corrupt car
 
 ```C++
 // one stream, cut mid-frame, resumed in a FRESH object, rows unchanged
-dp_spectrogram_state_t *a = dp_spectrogram_create (8, 4, 3, 0.0f, 0);
-dp_spectrogram_state_t *b = dp_spectrogram_create (8, 4, 3, 0.0f, 0);
+dp_spectrogram_state_t *a
+    = dp_spectrogram_create (8, 4, 3, 0.0f, DP_SPECTROGRAM_POWER);
+dp_spectrogram_state_t *b
+    = dp_spectrogram_create (8, 4, 3, 0.0f, DP_SPECTROGRAM_POWER);
 float _Complex x[20];
 for (int i = 0; i < 20; i++)
   x[i] = (float)i;
@@ -677,7 +695,7 @@ if (dp_spectrogram_state_bytes (b) > sizeof blob.b)
   return 1;
 dp_spectrogram_get_state (b, blob.b);
 dp_spectrogram_destroy (b);
-b = dp_spectrogram_create (8, 4, 3, 0.0f, 0);
+b = dp_spectrogram_create (8, 4, 3, 0.0f, DP_SPECTROGRAM_POWER);
 if (dp_spectrogram_set_state (b, blob.b) != DP_OK)
   return 1;
 nb += dp_spectrogram_push (b, x + 11, 9, rb + nb, 4 * 8 - nb);
@@ -706,7 +724,7 @@ size_t dp_spectrogram_state_bytes (
 
 
 
-The blob is the stream position  the framer's snapshot: the carry (fewer than nfft samples, padded to nfft - 1), its element size, the stream counts, and the hop that frames them  inside the spectrogram's own envelope. It does not carry consumed(), the PSD's window or beta, or the spectrogram's own mode. So nfft and hop are checked on restore (the size and the stored hop), and window and beta are the caller's to keep the same  see [**dp\_spectrogram\_set\_state()**](spectrogram__core_8h.md#function-dp_spectrogram_set_state).
+The blob is the stream position  the framer's snapshot: the carry (fewer than nfft samples, padded to nfft - 1), its element size, the stream counts, and the hop that frames them  inside the spectrogram's own envelope. It does not carry consumed(), the PSD's window or beta, or the spectrogram's own mode. So nfft and hop are checked on restore (the size and the stored hop), and window, beta and mode are the caller's to keep the same  see [**dp\_spectrogram\_set\_state()**](spectrogram__core_8h.md#function-dp_spectrogram_set_state).
 
 
 
@@ -719,9 +737,12 @@ The blob is the stream position  the framer's snapshot: the carry (fewer than nf
 
 ```C++
 // the same nfft, the same size, whatever the hop, window or beta
-dp_spectrogram_state_t *a = dp_spectrogram_create (16, 4, 0, 0.0f, 0);
-dp_spectrogram_state_t *b = dp_spectrogram_create (16, 16, 1, 8.0f, 0);
-dp_spectrogram_state_t *c = dp_spectrogram_create (32, 4, 0, 0.0f, 0);
+dp_spectrogram_state_t *a
+    = dp_spectrogram_create (16, 4, 0, 0.0f, DP_SPECTROGRAM_POWER);
+dp_spectrogram_state_t *b
+    = dp_spectrogram_create (16, 16, 1, 8.0f, DP_SPECTROGRAM_POWER);
+dp_spectrogram_state_t *c
+    = dp_spectrogram_create (32, 4, 0, 0.0f, DP_SPECTROGRAM_POWER);
 if (!a || !b || !c)
   return 1;
 if (dp_spectrogram_state_bytes (a) != dp_spectrogram_state_bytes (b))
@@ -747,14 +768,14 @@ dp_spectrogram_destroy (a);
 
 ### define DP\_SPECTROGRAM\_DB 
 
-_Row units: dBFS, against the PSD's full-scale reference._ 
+_Row units: dBFS, against the same reference. Asked for by name._ 
 ```C++
 #define DP_SPECTROGRAM_DB `0`
 ```
 
 
 
-A bin reads no lower than -200 dB: PSD clamps power at 1e-20 before the log, so an all-zero frame and a frame below the floor write the same row. 
+Row k is [**dp\_psd\_frame\_db()**](psd__core_8h.md#function-dp_psd_frame_db) of its frame: 10\*log10 of the quotient a power row holds, so a full-scale tone on a bin reads 0 dB. A bin reads no lower than -200 dB: PSD clamps power at 1e-20 before the log, so an all-zero frame and a frame below the floor write the same row. 
 
 
         
@@ -765,13 +786,17 @@ A bin reads no lower than -200 dB: PSD clamps power at 1e-20 before the log, so 
 
 ### define DP\_SPECTROGRAM\_POWER 
 
-_Row units: linear power. RESERVED:_ [_**dp\_spectrogram\_create()**_](spectrogram__core_8h.md#function-dp_spectrogram_create) _refuses it until it is wired to_[_**dp\_psd\_frame\_linear()**_](psd__core_8h.md#function-dp_psd_frame_linear) _, so that a power row and a dB row share one reference (#1968)._
+_Row units: linear power against the PSD's full-scale reference. The DEFAULT: what every example, guide and binding uses unless it asks for dB by name._ 
 ```C++
 #define DP_SPECTROGRAM_POWER `1`
 ```
 
 
 
+Row k is [**dp\_psd\_frame\_linear()**](psd__core_8h.md#function-dp_psd_frame_linear) of its frame, so a full-scale tone on a bin reads 1.0 whatever the window, and an all-zero frame reads 0: the only floor is float32's. A power row is what an averaging consumer folds with AccTrace (the mean of dB rows is not the dB of the mean), and what a display converts to dB for only the bins it draws. It is the default because that conversion is most of a dB row's cost: 70-83% of it at nfft 256 to 65536 (docs/design/spectrogram-measurements.md section 5.8). 
+
+
+        
 
 <hr>
 

@@ -24,7 +24,9 @@ The program below makes a tone that hops between four frequencies with the
 library's LO, delivers it in chunks of 1, 37, 700 and 5 samples, and builds
 the waterfall two ways, which must agree bit for bit. Every row that lies
 inside one frequency segment is checked: its peak is that segment's tone, at
-0 dBFS. It is the tested example (`make test-examples-c`), included whole.
+full scale. The rows are linear power, so it converts only that one bin to
+dB, the way a display converts only what it draws. It is the tested example
+(`make test-examples-c`), included whole.
 
 ```c
 --8<-- "native/examples/spectrogram_demo.c"
@@ -37,20 +39,33 @@ the rows tile the stream; with `hop < nfft` they overlap, and `nfft / hop`
 rows are computed per `nfft` samples. Each costs one FFT, so a quarter hop
 costs about four times as much per input sample.
 
-A row is `nfft` floats in **dBFS**, PSD's own convention: a full-scale tone
-on a bin reads 0 dB whatever the window. Rows are DC-centred exactly as PSD
+A row is `nfft` floats of **linear power** by default
+(`DP_SPECTROGRAM_POWER`), against PSD's full-scale reference: a full-scale
+tone on a bin reads 1.0 whatever the window. **dB rows are asked for by
+name**, `DP_SPECTROGRAM_DB`, and read 0 dBFS for the same tone; both are
+PSD's readings of one power, so they cannot disagree about the reference.
+
+Power is the default because converting every bin to dB is most of a dB
+row's cost, 70–83% of it
+([entry 5.8](../design/spectrogram-measurements.md#58-where-a-rows-time-goes-2026-10-10-u3)).
+A display converts only the bins it draws, at display precision, and a
+consumer that averages rows folds power rows with `AccTrace`: the mean of
+dB rows is not the dB of the mean.
+
+Rows are DC-centred exactly as PSD
 emits them, bin *k* at index `nfft/2 + k` with negative frequencies first;
 bin order has one home, PSD's kernel, so there is no option to reorder it
 here ([#1988](https://github.com/doppler-dsp/doppler/issues/1988)). The
 window is PSD's index: 0 Hann, 1 Kaiser (with `beta`), 2 Blackman-Harris,
 3 rectangular.
 
-A bin reads no lower than **−200 dB**: PSD clamps power before the logarithm,
-so an all-zero frame and a signal under the floor give the same row. Noise
-reaches it about `10·log10(nfft)` sooner than a tone (at `nfft` 1024, a total
-of −180 dBFS leaves on average a handful of the 1024 bins above it). To tell
-digital zero from a very
-quiet signal, read the samples
+In a dB row, a bin reads no lower than **−200 dB**: PSD clamps power before
+the logarithm, so an all-zero frame and a signal under the floor give the
+same row. Noise reaches it about `10·log10(nfft)` sooner than a tone (at
+`nfft` 1024, a total of −180 dBFS leaves on average a handful of the 1024
+bins above it). A power row has no floor but float32's, and an all-zero
+frame reads exactly 0 there, so to tell digital zero from a very quiet
+signal, take power rows
 ([the measurement](../design/spectrogram-measurements.md#54-the-db-floor-measured-2026-10-10-u5)).
 
 `nfft` must be the PSD's transform length for that frame, which is to say a
@@ -58,9 +73,8 @@ power of two of at least 2, and `1 <= hop <= nfft`. The window must have gain
 at that length: `nfft = 2` with Hann is refused, because the symmetric
 two-point Hann is `[0, 0]`. A frame length that is
 not a power of two would be zero-padded by the PSD to more bins than samples
-([#1966](https://github.com/doppler-dsp/doppler/issues/1966)), and linear
-power rows are reserved until PSD's normalised per-frame power lands
-([#1968](https://github.com/doppler-dsp/doppler/issues/1968)).
+([#1966](https://github.com/doppler-dsp/doppler/issues/1966)). The mode is
+one of the two; any other value is refused.
 
 ## Sizing the output
 
@@ -110,10 +124,10 @@ move it as a standard state blob of a size that depends on `nfft` alone.
 Restore it into a fresh spectrogram created with the same arguments, and the
 next push continues the stream bit for bit, even mid-frame.
 
-A different `nfft` or `hop` is refused on restore. A different window or
-`beta` is **not**: the blob does not carry them, so the rows that follow are
-the restoring object's window, not the original's. Keeping them the same is
-the caller's job. See [Checkpoint & Resume](state-serialization.md).
+A different `nfft` or `hop` is refused on restore. A different window,
+`beta` or mode is **not**: the blob does not carry them, so the rows that
+follow are the restoring object's, not the original's. Keeping them the same
+is the caller's job. See [Checkpoint & Resume](state-serialization.md).
 
 ## What it is not
 
@@ -122,9 +136,12 @@ the caller's job. See [Checkpoint & Resume](state-serialization.md).
 - **Not a detector.** It stops at the row.
 - **Not a transport.** It never learns where its samples came from.
 
-The design, its goals and what it costs (about 36 MSa/s on one core at
-`nfft` 1024 and `hop` 256, three quarters of it the dB conversion) are on
-[the design page](../design/spectrogram.md); the carry is the
+The design, its goals and what it costs are on
+[the design page](../design/spectrogram.md): dB rows run about 36 MSa/s on
+one core at `nfft` 1024 and `hop` 256, three quarters of it the dB
+conversion that power rows skip. What power rows cost is not yet measured
+on its own ([#2094](https://github.com/doppler-dsp/doppler/issues/2094)).
+The carry is the
 [ring buffer's framed face](../design/ring-buffer.md); every function's
 contract, with an example, is the
 [C API](../c-api/spectrogram__core_8h.md).

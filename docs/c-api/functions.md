@@ -761,6 +761,7 @@
 * **dp\_detector\_set\_state** ([**detector\_core.h**](detector__core_8h.md))
 * **dp\_detector\_set\_threshold** ([**detector\_core.h**](detector__core_8h.md))
 * **dp\_detector\_state\_bytes** ([**detector\_core.h**](detector__core_8h.md))
+* **dp\_detector2d\_consumed** ([**detector2d\_core.h**](detector2d__core_8h.md))
 * **dp\_detector2d\_create** ([**detector2d\_core.h**](detector2d__core_8h.md))
 * **dp\_detector2d\_destroy** ([**detector2d\_core.h**](detector2d__core_8h.md))
 * **dp\_detector2d\_get\_state** ([**detector2d\_core.h**](detector2d__core_8h.md))

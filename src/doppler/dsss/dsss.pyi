@@ -269,6 +269,14 @@ class Despreader:
     periods_per_bit : int, default 1
         Code periods per data bit (1 = one bit per period).
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``Despreader: invalid
+        parameter (need a non-empty code; for the code loop a finite init_chip,
+        bn_code >= 0 and zeta > 0 both finite, and 0 < spacing <
+        len(code)/2)``.
+
     Examples
     --------
     >>> import numpy as np
@@ -1715,10 +1723,10 @@ class DsssReceiver:
     ------
     ValueError
         If construction fails. The exception message is ``DsssReceiver: invalid
-        parameter (need a non-empty code, chip_rate > 0, symbol_rate > 0, spc
-        >= 1, m in {2,4,8}, segments >= 1, sps >= 2 -- sps = 1 cannot carry an
-        m_out, whose smallest legal value is 2 and which MpskReceiver requires
-        sps to reach)``.
+        parameter (need a code of at least 2 chips, chip_rate > 0, symbol_rate
+        > 0, spc >= 1, m in {2,4,8}, segments >= 1, sps >= 2 -- sps = 1 cannot
+        carry an m_out, whose smallest legal value is 2 and which MpskReceiver
+        requires sps to reach)``.
 
     Examples
     --------
@@ -2233,6 +2241,14 @@ class AsyncDsssReceiver:
         that never locks within the interval is released the same way as an
         emitter that leaves. Default 0.0 = never -- the searching flavor's exit
         is reset(), as before.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``AsyncDsssReceiver:
+        invalid parameter (need a code of at least 2 chips, chip_rate > 0, a
+        finite symbol_rate > 0, spc >= 1, m in {2,4,8}, segments >= 1, sps >=
+        1, carrier_freq_hz >= 0, lost_confirm_s >= 0)``.
 
     Examples
     --------
@@ -3002,6 +3018,14 @@ class CellAsyncDsssReceiver:
     pullin_intervals : int, default 4
         Intervals at gain 1 before `gain` applies.
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``AsyncDsssReceiver:
+        invalid parameter (need a code of at least 2 chips, chip_rate > 0, a
+        finite symbol_rate > 0, spc >= 1, m in {2,4,8}, segments >= 1, sps >=
+        1, carrier_freq_hz >= 0, lost_confirm_s >= 0)``.
+
     Examples
     --------
     >>> import numpy as np
@@ -3670,10 +3694,10 @@ class AsyncDsssPool:
     ValueError
         If construction fails. The exception message is ``AsyncDsssPool:
         invalid parameter, or a searcher a cell receiver cannot take (need a
-        non-empty code, chip_rate > 0, symbol_rate > 0, spc >= 1, n_slots >= 1,
-        max_peaks >= 1, carrier_freq_hz >= 0, lost_confirm_s >= 0,
-        max_emitter_on_time_secs >= 0, 0 < gain <= 1; a searcher depth D > 1 --
-        code_only_epochs > 1 -- whose Doppler row is at most four times the
+        code of at least 2 chips, chip_rate > 0, symbol_rate > 0, spc >= 1,
+        n_slots >= 1, max_peaks >= 1, carrier_freq_hz >= 0, lost_confirm_s >=
+        0, max_emitter_on_time_secs >= 0, 0 < gain <= 1; a searcher depth D > 1
+        -- code_only_epochs > 1 -- whose Doppler row is at most four times the
         carrier loop's pull-in bound, doppler_res_hz <= 2 * 0.04 * chip_rate /
         code_len)``.
 

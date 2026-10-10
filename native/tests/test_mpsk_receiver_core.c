@@ -305,6 +305,16 @@ main (void)
      construction. At sps = 8 with an inclusive bound the rule reaches its
      cap. */
   {
+    /* The loop filter's own domain, once per loop: the private check this
+       replaced took an infinite bandwidth (doppler#2103). */
+    DP_CHECK (dp_mpsk_receiver_create (4, SPS, 0u, MPSK_RX_PULSE_IANDD, 0.35,
+                                       8, INFINITY, 0.0, 0.01, 0.0, 0.0, 0, 0u,
+                                       1, 0.0)
+              == NULL);
+    DP_CHECK (dp_mpsk_receiver_create (4, SPS, 0u, MPSK_RX_PULSE_IANDD, 0.35,
+                                       8, 0.01, 0.0, INFINITY, 0.0, 0.0, 0, 0u,
+                                       1, 0.0)
+              == NULL);
     dp_mpsk_receiver_state_t *d
         = dp_mpsk_receiver_create (4, SPS, 0u, MPSK_RX_PULSE_IANDD, 0.35, 8,
                                    0.01, 0.0, 0.01, 0.0, 0.0, 0, 0u, 1, 0.0);

@@ -472,3 +472,27 @@ def test_set_symbol_period_refuses_a_period_it_cannot_size():
         with pytest.raises(ValueError):
             d.set_symbol_period(p)
         assert d.symbol_window == window
+
+
+def test_configure_refuses_a_bad_loop_parameter():
+    """configure() hands (bn, zeta) to the loop filter, whose gains a NaN
+    poisons for good and a negative bn with zeta >= 1 divides by zero
+    (doppler#2103). It refuses them, changing nothing."""
+    d = Dll(code=_code(), sps=2, bn=0.01)
+    for bn, zeta in (
+        (float("nan"), 0.707),
+        (-1.25, 1.0),
+        (0.01, float("inf")),
+    ):
+        with pytest.raises(ValueError):
+            d.configure(bn, zeta)
+        assert d.bn == 0.01
+
+
+def test_a_nan_bandwidth_changes_nothing():
+    """The C setter refuses a NaN bandwidth. A jm writable property cannot
+    yet raise what its setter returns (just-buildit/just-makeit#2182), so the
+    refusal shows as the value staying put rather than a ValueError."""
+    d = Dll(code=_code(), sps=2, bn=0.01)
+    d.bn = float("nan")
+    assert d.bn == 0.01

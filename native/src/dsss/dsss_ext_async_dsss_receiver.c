@@ -120,8 +120,12 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
   Py_DECREF (code_arr);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError,
-                       "dp_async_dsss_receiver_create returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "AsyncDsssReceiver: invalid parameter (need a code of "
+                       "at least 2 chips, chip_rate > 0, a finite "
+                       "symbol_rate > 0, spc >= 1, m in {2,4,8}, segments >= "
+                       "1, sps >= 1, carrier_freq_hz >= 0, lost_confirm_s >= "
+                       "0)");
       return -1;
     }
   return 0;
@@ -1581,6 +1585,17 @@ static PyTypeObject AsyncDsssReceiverObjType = {
     "    emitter that leaves. Default 0.0 = never -- the searching flavor's "
     "exit\n"
     "    is reset(), as before.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is "
+    "``AsyncDsssReceiver:\n"
+    "    invalid parameter (need a code of at least 2 chips, chip_rate > 0, "
+    "a\n"
+    "    finite symbol_rate > 0, spc >= 1, m in {2,4,8}, segments >= 1, sps "
+    ">=\n"
+    "    1, carrier_freq_hz >= 0, lost_confirm_s >= 0)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

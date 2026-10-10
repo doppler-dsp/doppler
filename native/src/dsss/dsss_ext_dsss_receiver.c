@@ -82,11 +82,11 @@ DsssReceiverObj_init (DsssReceiverObject *self, PyObject *args, PyObject *kwds)
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
-                       "DsssReceiver: invalid parameter (need a non-empty "
-                       "code, chip_rate > 0, symbol_rate > 0, spc >= 1, m in "
-                       "{2,4,8}, segments >= 1, sps >= 2 -- sps = 1 cannot "
-                       "carry an m_out, whose smallest legal value is 2 and "
-                       "which MpskReceiver requires sps to reach)");
+                       "DsssReceiver: invalid parameter (need a code of at "
+                       "least 2 chips, chip_rate > 0, symbol_rate > 0, spc "
+                       ">= 1, m in {2,4,8}, segments >= 1, sps >= 2 -- sps = "
+                       "1 cannot carry an m_out, whose smallest legal value "
+                       "is 2 and which MpskReceiver requires sps to reach)");
       return -1;
     }
   return 0;
@@ -957,13 +957,13 @@ static PyTypeObject DsssReceiverObjType = {
     "ValueError\n"
     "    If construction fails. The exception message is ``DsssReceiver: "
     "invalid\n"
-    "    parameter (need a non-empty code, chip_rate > 0, symbol_rate > 0, "
-    "spc\n"
-    "    >= 1, m in {2,4,8}, segments >= 1, sps >= 2 -- sps = 1 cannot carry "
-    "an\n"
-    "    m_out, whose smallest legal value is 2 and which MpskReceiver "
-    "requires\n"
-    "    sps to reach)``.\n"
+    "    parameter (need a code of at least 2 chips, chip_rate > 0, "
+    "symbol_rate\n"
+    "    > 0, spc >= 1, m in {2,4,8}, segments >= 1, sps >= 2 -- sps = 1 "
+    "cannot\n"
+    "    carry an m_out, whose smallest legal value is 2 and which "
+    "MpskReceiver\n"
+    "    requires sps to reach)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

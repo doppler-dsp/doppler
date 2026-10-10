@@ -2184,8 +2184,16 @@ plot-rx-dynamics: build ## Render docs/assets/rx-dynamics.png from the C harness
 # committed under docs/assets/ but which nothing re-renders, because it was
 # never added to GALLERY_SCRIPTS. Passed IN, like release-freshness-check.
 # No waiver list: the 19 orphans it once held were drained in #1647.
+#
+# The second call holds the narrowing (#2058): `make -n gallery` narrowed to
+# one script must name no plot but that script's, while the default run still
+# renders every characterization. One script stands for all of them, because
+# the recipe treats them alike; the first is derived rather than named.
 gallery-scripts-check: ## Verify every committed gallery plot has a script `make gallery` runs
 	@$(UV) run python scripts/check_gallery_scripts.py $(GALLERY_SCRIPTS)
+	@$(UV) run python scripts/check_gallery_scripts.py \
+	     --narrow $(firstword $(GALLERY_SCRIPTS)) \
+	     --characterizations $(GALLERY_CHARACTERIZATIONS)
 
 # EXAMPLES_SKIP is the same list src/doppler/tests/test_examples.py reads, and
 # it is read here rather than restated: a script the smoke gate deliberately
@@ -2219,10 +2227,19 @@ gallery: ## Run the plot examples and copy their PNGs to docs/assets/
 	# which is how an artifact gets committed by accident.
 	@rm -f burst.blue probe.ci16 probe.ci16.sigmf-meta \
 	       scene.cf32 scene.cf32.sigmf-meta
+# A narrowed run renders only what it names (#2058). The characterization is
+# no named script's output, and it ran on every narrowed run anyway: on #2056,
+# `GALLERY_SCRIPTS=<one demo>` also rewrote dsss_acq_characterization.png,
+# an unrelated diff that is easy to commit by accident. So the step runs only
+# when GALLERY_SCRIPTS is the Makefile's own list, and a directive rather than
+# a shell `if`: the step is then absent from `make -n` too, which is what
+# gallery-scripts-check reads.
+ifeq ($(origin GALLERY_SCRIPTS),file)
 	@printf "  %-45s" "$(GALLERY_CHARACTERIZATIONS)"
 	@uv run python $(GALLERY_CHARACTERIZATIONS) \
 	     docs/assets/dsss_acq_characterization.png > /dev/null 2>&1 \
 	     && echo "OK" || { echo "FAIL"; exit 1; }
+endif
 	@echo "Gallery plots written to docs/assets/."
 
 # ── Undefined behaviour ──────────────────────────────────────────────────────

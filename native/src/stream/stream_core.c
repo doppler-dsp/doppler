@@ -474,9 +474,15 @@ dp_frame_parse (const void *buf, size_t len, dp_header_t *hdr,
     }
   else
     {
+      /* By division, never `num_samples * elem`: num_samples is the
+         sender's claim, and the product wraps in 64 bits. A CF32 frame
+         claiming 2^61 + 512 samples over a 4096-byte payload multiplies
+         back to exactly 4096, and dp_msg_num_samples() would then report
+         a count no buffer holds. avail is bounded by the transport, so
+         dividing it cannot overflow. */
       size_t elem = dp_element_size ((dp_frame_kind_t)hdr->kind,
                                      (dp_sample_type_t)hdr->format);
-      if (elem == 0 || hdr->num_samples * elem != avail)
+      if (elem == 0 || avail % elem != 0 || hdr->num_samples != avail / elem)
         return DP_ERR_INVALID;
     }
 
@@ -636,10 +642,13 @@ send_signal (struct dp_ctx *ctx, const void *samples, size_t num_samples,
   if (elem == 0)
     return DP_ERR_INVALID;
 
+  /* payload_bytes is 32-bit by design: a frame this large cannot cross any
+     broker anyway. The bound is checked BEFORE multiplying, because a
+     num_samples near SIZE_MAX wraps the product under it and would put a
+     header on the wire whose num_samples its payload does not carry. */
+  if (num_samples > UINT32_MAX / elem)
+    return DP_ERR_TOO_LARGE;
   size_t data_size = num_samples * elem;
-  if (data_size > UINT32_MAX)
-    return DP_ERR_TOO_LARGE; /* payload_bytes is 32-bit by design: a frame
-                                this large cannot cross any broker anyway */
 
   dp_header_t header = { 0 };
   header.magic       = DP_STREAM_MAGIC;

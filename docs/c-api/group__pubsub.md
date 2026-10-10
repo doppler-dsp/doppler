@@ -286,7 +286,7 @@ int dp_pub_send_cf32 (
 
 **Returns:**
 
-DP\_OK (0) on success, negative error code on failure.   
+DP\_OK (0) on success, negative error code on failure; DP\_ERR\_TOO\_LARGE when the payload, num\_samples times the element size, would not fit the header's 32-bit payload\_bytes. The limit is checked before multiplying, so a count whose byte size wraps is refused, not sent.   
 
 
 
@@ -328,7 +328,7 @@ int dp_pub_send_cf64 (
 
 **Returns:**
 
-DP\_OK (0) on success, negative error code on failure.   
+DP\_OK (0) on success, negative error code on failure; DP\_ERR\_TOO\_LARGE when the payload, num\_samples times the element size, would not fit the header's 32-bit payload\_bytes. The limit is checked before multiplying, so a count whose byte size wraps is refused, not sent.   
 
 
 
@@ -370,7 +370,7 @@ int dp_pub_send_ci16 (
 
 **Returns:**
 
-DP\_OK (0) on success, negative error code on failure.   
+DP\_OK (0) on success, negative error code on failure; DP\_ERR\_TOO\_LARGE when the payload, num\_samples times the element size, would not fit the header's 32-bit payload\_bytes. The limit is checked before multiplying, so a count whose byte size wraps is refused, not sent.   
 
 
 
@@ -412,7 +412,7 @@ int dp_pub_send_ci32 (
 
 **Returns:**
 
-DP\_OK (0) on success, negative error code on failure. 
+DP\_OK (0) on success, negative error code on failure; DP\_ERR\_TOO\_LARGE when the payload, num\_samples times the element size, would not fit the header's 32-bit payload\_bytes. The limit is checked before multiplying, so a count whose byte size wraps is refused, not sent. 
 
 
 
@@ -454,7 +454,7 @@ int dp_pub_send_ci8 (
 
 **Returns:**
 
-DP\_OK (0) on success, negative error code on failure.   
+DP\_OK (0) on success, negative error code on failure; DP\_ERR\_TOO\_LARGE when the payload, num\_samples times the element size, would not fit the header's 32-bit payload\_bytes. The limit is checked before multiplying, so a count whose byte size wraps is refused, not sent.   
 
 
 

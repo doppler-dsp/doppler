@@ -1169,6 +1169,13 @@ test_configure_semantics (void)
       DP_CHECK (dp_ratesync_get_bn (s) == 0.002);
       dp_ratesync_configure (s, 0.002, 0.0);
       DP_CHECK (dp_ratesync_get_bn (s) == 0.002);
+      /* So is an infinite bn or zeta, which the private check this call
+         used to keep took (doppler#2103): nothing is written. */
+      const double kp = s->loop.lf.kp, ki = s->loop.lf.ki;
+      dp_ratesync_configure (s, INFINITY, 0.707);
+      dp_ratesync_configure (s, 0.002, INFINITY);
+      DP_CHECK (dp_ratesync_get_bn (s) == 0.002 && s->loop.zeta == 0.707);
+      DP_CHECK (s->loop.lf.kp == kp && s->loop.lf.ki == ki);
 
       /* set_bn is the property face of the same call. */
       dp_ratesync_set_bn (s, 0.004);

@@ -41,7 +41,7 @@ extern "C"
 
   void dp_loop_filter_destroy(dp_loop_filter_state_t *state);
 
-  void dp_loop_filter_configure(dp_loop_filter_state_t *state, double bn, double zeta,
+  int dp_loop_filter_configure(dp_loop_filter_state_t *state, double bn, double zeta,
                              double t);
 
   void dp_loop_filter_reset(dp_loop_filter_state_t *state);

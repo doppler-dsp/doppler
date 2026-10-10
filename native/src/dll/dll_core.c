@@ -727,13 +727,13 @@ dp_dll_symbol_period_ok (size_t segments, double partials_per_symbol)
 int
 dp_dll_configure (dp_dll_state_t *state, double bn, double zeta)
 {
-  /* The loop filter's own domain, refused before anything is written: a NaN
-     gave gains that never recover (doppler#2103). */
-  if (!dp_loop_filter_params_ok (bn, zeta, state->lf.t))
+  /* The loop filter refuses outside its own domain before writing
+     anything, so the Dll's copies are written only after it took them: a
+     NaN gave gains that never recover (doppler#2103). */
+  if (dp_loop_filter_configure (&state->lf, bn, zeta, state->lf.t) != DP_OK)
     return DP_ERR_INVALID;
   state->bn   = bn;
   state->zeta = zeta;
-  dp_loop_filter_configure (&state->lf, bn, zeta, state->lf.t);
   return DP_OK;
 }
 

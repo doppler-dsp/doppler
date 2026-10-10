@@ -8,11 +8,15 @@ next ``*/``. The second is what is a string: a format the compiler joins
 from ``"%s" ".e"`` is one literal, and an apostrophe in an ``#if 0`` block
 must not open a character literal that swallows the code after it.
 
-Both answers live here once. :func:`strip_comments` came from
-``check_tests_ssot.py``, where review found the literal-blind version's
-false negative, and ``check_tlm_name_join.py`` had grown a second copy
-without the guard against an unterminated literal. That copy missed a bare
-join below an ``#if 0`` block that contained "it's" (#1944 review).
+This module is where those answers live for the gates that use it,
+``check_tests_ssot.py`` and ``check_tlm_name_join.py``.
+:func:`strip_comments` came from ``check_tests_ssot.py``, where review
+found the literal-blind version's false negative.
+``check_tlm_name_join.py`` had grown a second copy without the guard
+against an unterminated literal, and that copy missed a bare join below an
+``#if 0`` block that contained "it's" (#1944 review). Other scripts here
+still strip comments with a regex of their own, which knows nothing of
+literals; #1984 moves them onto this module.
 
 >>> strip_comments("int a; /* x */ int b; // y\nint c;")
 'int a;         int b;     \nint c;'

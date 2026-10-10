@@ -46,6 +46,14 @@ def test_a_comment_opener_inside_a_string_is_not_a_comment() -> None:
     assert "real" not in code
 
 
+def test_strip_comments_stops_an_unterminated_literal_at_its_line() -> None:
+    """Its own guard: without it the `'` runs to the end of the file and
+    the comment after it is copied as if it were string text."""
+    code = C.strip_comments("it's\n/* gone */ x;\n")
+    assert "gone" not in code
+    assert code.endswith(" x;\n")
+
+
 def test_an_unterminated_char_literal_stops_at_its_line() -> None:
     """The #1944 review's miss: "it's" in an #if 0 block."""
     code = C.strip_comments('#if 0\nit\'s\n#endif\nf ("%s.%s");\n')

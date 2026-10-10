@@ -183,6 +183,12 @@ dp_fftfreq (size_t bin, size_t n, double fs)
  * C99 6.7.4 forbids such a function from referencing one with internal
  * linkage -- the compiler said so.
  *
+ * A negative remainder within half an ulp of zero rounds `r + m` up to
+ * exactly @p m, outside the range; it folds to 0, its equal on the circle.
+ * The DLL's replica tap indexes the code with this result, and read
+ * `code[sf]`, one past the copy, at a spacing just off a phase-grid point
+ * (doppler#2110).
+ *
  * @param x  Any real value.
  * @param m  The period (> 0).
  * @return @p x modulo @p m, in `[0, m)`.
@@ -191,7 +197,10 @@ JM_FORCEINLINE double
 dp_fmod_pos (double x, double m)
 {
   double r = fmod (x, m);
-  return r < 0.0 ? r + m : r;
+  if (r >= 0.0)
+    return r;
+  double y = r + m;
+  return y < m ? y : 0.0;
 }
 
 /**

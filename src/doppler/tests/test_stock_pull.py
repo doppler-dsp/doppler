@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from doppler.tests._platform import skip_without_posix_shell
 from doppler.tests._repo import repo_root
 
 if TYPE_CHECKING:
@@ -51,6 +52,9 @@ MISSING = (
 
 
 def _helper(tmp_path: Path, plan: list[str], *args: str, attempts: int = 5):
+    # The helper's home is Linux CI, where the stock images are pulled; on
+    # Windows a bare `bash` is System32's WSL launcher.
+    skip_without_posix_shell("scripts/stock-pull.sh")
     fake = tmp_path / "docker"
     fake.write_text(_FAKE, encoding="utf-8")
     fake.chmod(0o755)

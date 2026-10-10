@@ -88,6 +88,13 @@ A path in `PYTEST_ARGS` does **not** narrow: it is collected in addition to
 Never run `pytest` directly: the make-SSOT hook stops it, and the bypass
 skips the guard and the leak check.
 
+For one file, add `PYTEST_ARGS="-n 0"`: xdist otherwise starts a worker per
+core to run a handful of tests. Doc-fence and example tests are not
+`test-python`'s: it deselects their markers, so pointing `TEST_PATHS` at
+one exits 5 (nothing collected). They run through `make test-snippets`
+(`PAGE=<path>` to narrow) and `make test-examples-python`
+(`PYTEST_ARGS="-k <name>"`).
+
 Then push, and let CI run the rest.
 
 **`make gates` exists only to debug a CI failure. Never run it before CI.**

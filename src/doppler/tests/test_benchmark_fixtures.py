@@ -31,7 +31,7 @@ the ordinary suite.
 
 Run locally
 -----------
-    uv run pytest src/doppler/tests/test_benchmark_fixtures.py
+    make test-python TEST_PATHS=src/doppler/tests/test_benchmark_fixtures.py
 """
 
 from __future__ import annotations

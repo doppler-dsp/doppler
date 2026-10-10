@@ -36,19 +36,28 @@ def _clean_env() -> dict[str, str]:
     return {k: v for k, v in os.environ.items() if k not in drop}
 
 
-def _pytest_argv(*make_args: str) -> list[str]:
-    """The words after `pytest` in the command `make test-python` runs."""
+def _pytest_line(*make_args: str, **env: str) -> str:
+    """The one command line `make test-python` would run that calls pytest.
+
+    ``env`` is added to the cleaned environment, to test what an EXPORTED
+    variable does, as opposed to one on make's command line.
+    """
     r = subprocess.run(
         ["make", "-n", "--no-print-directory", "test-python", *make_args],
         capture_output=True,
         text=True,
         cwd=REPO,
-        env=_clean_env(),
+        env=_clean_env() | env,
     )
     assert r.returncode == 0, r.stderr
     lines = [ln for ln in r.stdout.splitlines() if " pytest " in ln]
     assert len(lines) == 1, r.stdout
-    words = shlex.split(lines[0])
+    return lines[0]
+
+
+def _pytest_argv(*make_args: str, **env: str) -> list[str]:
+    """The words after `pytest` in the command `make test-python` runs."""
+    words = shlex.split(_pytest_line(*make_args, **env))
     return words[words.index("pytest") + 1 :]
 
 
@@ -72,21 +81,18 @@ def test_several_paths_reach_pytest_as_separate_words() -> None:
     assert "src/" not in argv
 
 
+def test_an_exported_variable_cannot_narrow_the_full_suite() -> None:
+    """TEST_PATHS and PYTEST_ARGS are plain `=`: a value left exported in a
+    shell is ignored, so `make test-python` stays the full suite."""
+    argv = _pytest_argv(
+        TEST_PATHS="src/doppler/agc/tests", PYTEST_ARGS="-k nothing"
+    )
+    assert argv[0] == "src/"
+    assert "nothing" not in argv
+
+
 def test_the_guard_and_the_leak_check_still_wrap_a_narrowed_run() -> None:
     """Narrowing must not drop what made the bypass dangerous."""
-    r = subprocess.run(
-        [
-            "make",
-            "-n",
-            "--no-print-directory",
-            "test-python",
-            "TEST_PATHS=src/doppler/agc/tests",
-        ],
-        capture_output=True,
-        text=True,
-        cwd=REPO,
-        env=_clean_env(),
-    )
-    line = next(ln for ln in r.stdout.splitlines() if " pytest " in ln)
+    line = _pytest_line("TEST_PATHS=src/doppler/agc/tests")
     assert line.startswith("scripts/mem-guard.sh ")
     assert "check_test_leaks.py --" in line

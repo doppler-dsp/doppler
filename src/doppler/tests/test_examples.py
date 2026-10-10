@@ -40,7 +40,8 @@ is most likely to copy.
 
 Run locally
 -----------
-    uv run pytest -m examples src/doppler/tests/test_examples.py
+    make test-examples-python                          # every example
+    make test-examples-python PYTEST_ARGS="-k <name>"  # one example
 """
 
 from __future__ import annotations

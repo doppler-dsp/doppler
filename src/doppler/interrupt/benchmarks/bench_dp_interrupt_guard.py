@@ -11,7 +11,8 @@ is the per-block work, not the C figure.
 
 Run::
 
-    pytest src/doppler/interrupt/benchmarks/ --benchmark-only
+    make bench-python \
+        PYTEST_ARGS="-k bench_dp_interrupt_guard --benchmark-only"
 """
 
 import numpy as np

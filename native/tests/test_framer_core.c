@@ -799,6 +799,25 @@ main (void)
     DP_CHECK (dp_f32_framer_set_state (&b, blob) == DP_ERR_INVALID);
     DP_CHECK (b.written == 3 && dp_f32_framer_pending (&b) == 3); /* as was */
 
+    /* ...and the NEAR end of the bound, one sample short of N - hop: a real
+       carry of 21 samples whose counters claim one frame out (written 31,
+       frames 1) agrees with written - frames * hop == live, and no drained
+       framer can hold it. An off-by-one in the bound (live + 1 < N - hop)
+       would accept this blob while still refusing live = 0 above. */
+    dp_f32_t       *rg = dp_f32_create (64);
+    dp_f32_framer_t g;
+    DP_REQUIRE (rg != NULL);
+    DP_REQUIRE (dp_f32_framer_init (&g, rg, CARRY_N, CARRY_HOP) == DP_OK);
+    DP_CHECK (dp_f32_framer_feed_view (&g, x, CARRY_N - CARRY_HOP - 1, 0)
+              == CARRY_N - CARRY_HOP - 1);
+    dp_f32_framer_get_state (&g, blob); /* live 21, written 21, frames 0 */
+    const uint64_t near_written = CARRY_HOP + CARRY_N - CARRY_HOP - 1;
+    memcpy (at, &near_written, sizeof near_written);
+    memcpy (at + sizeof near_written, &frames, sizeof frames);
+    DP_CHECK (dp_f32_framer_set_state (&b, blob) == DP_ERR_INVALID);
+    DP_CHECK (b.written == 3 && dp_f32_framer_pending (&b) == 3);
+    dp_f32_destroy (rg);
+
     /* ...while the tightest REAL carry, N - hop after one frame, restores:
        the refusal is the bound, not every blob with a frame out */
     DP_CHECK (dp_f32_framer_feed_view (&a, x, CARRY_N, 1) == CARRY_N);

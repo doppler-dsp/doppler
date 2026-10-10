@@ -191,7 +191,12 @@ def characterise(d) -> None:
         "snapshotted, restored into a **fresh** framer, and finished there in "
         "pieces of 5. *Sizes* counts distinct snapshot sizes across all the "
         "cuts: one, because the size is a function of the shape alone. A "
-        "snapshot whose `written` counter is then corrupted must be refused."
+        "snapshot whose `written` counter is then corrupted must be refused. "
+        "So must one claiming a carry no drained framer can hold: once a "
+        "frame is out the framer keeps at least `n` - `hop` samples, so the "
+        "same blob saying `n` - `hop` - 1 with counters made to agree is "
+        "*carry*, tried at every cut with a frame out (a shape with `hop` = "
+        "`n` has no impossible carry to try)."
     )
     R.md()
     R.table(
@@ -203,6 +208,8 @@ def characterise(d) -> None:
             "bad resumes",
             "corrupt: tried",
             "corrupt: refused",
+            "carry: tried",
+            "carry: refused",
         ],
         [
             [
@@ -213,6 +220,8 @@ def characterise(d) -> None:
                 f"{_int(r, 'resume_bad')}",
                 f"{_int(r, 'corrupt_tried')}",
                 f"{_int(r, 'corrupt_refused')}",
+                f"{_int(r, 'carry_tried')}",
+                f"{_int(r, 'carry_refused')}",
             ]
             for r in d["snapshot"]
         ],
@@ -407,6 +416,16 @@ def limits(d) -> None:
         ),
         "a snapshot with a corrupted counter is always refused",
     )
+    carry_tried = sum(_int(r, "carry_tried") for r in sn)
+    R.limit(
+        carry_tried > 0
+        and all(
+            _int(r, "carry_refused") == _int(r, "carry_tried") for r in sn
+        ),
+        f"a snapshot claiming a carry no drained framer can hold (fewer than "
+        f"n - hop samples with a frame out) is always refused, "
+        f"{carry_tried} tried",
+    )
 
     rf = d["refusal"]
     R.limit(
@@ -574,11 +593,12 @@ def build(write: bool = True) -> Report:
             ],
             [
                 "C15",
-                "a snapshot of another shape, hop, sample type or with "
-                "corrupt counters is refused",
+                "a snapshot of another shape, hop, sample type, with "
+                "corrupt counters or with a carry no stream can produce is "
+                "refused",
                 "§6, §9, §10",
                 "hop check removed; counter check removed; sample-type "
-                "check removed",
+                "check removed; carry bound removed or off by one",
                 "§2.4",
             ],
             [

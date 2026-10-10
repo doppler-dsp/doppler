@@ -19,9 +19,16 @@ buffer.h's f32, f64 and i16, and any a consumer declares for itself
 in the file being read, or a struct member declared that way in any
 header. `X->head`, `X->tail` or `X->mask` on one is a site.
 
-Scope: library C and its examples (native/inc, native/src,
-native/examples), less buffer.h itself. Tests are not scanned: the
+Scope: library C, its examples, its validation harnesses and its
+benchmarks (native/inc, native/src, native/examples, native/validation,
+native/benchmarks), less buffer.h itself. Tests are not scanned: the
 buffer's own tests are oracles of its internals.
+
+**Read as the compiler reads it.** Comments are blanked first, with
+_c_source.strip_comments, so documentation that quotes a forbidden access
+is not one (#1984's class), and an access is matched over the whole file,
+not line by line: clang-format breaks a long chain before its `->`, and
+`s->hist` on one line with `->head` on the next is one access.
 
 **The baseline is a RATCHET that only shrinks.** It holds lines of the
 form `<path> <count>  # reason`. A file may touch a ring's internals no
@@ -44,12 +51,19 @@ import re
 import sys
 from pathlib import Path
 
+from _c_source import strip_comments
 from _gitbase import BaseUnreadableError, added_since_base, in_git_repo
 
 ROOT = Path(__file__).resolve().parent.parent
 OWNER = "native/inc/doppler/buffer/buffer.h"
 BASELINE = "scripts/.ring-internals-ratchet"
-SCAN_DIRS = ("native/inc", "native/src", "native/examples")
+SCAN_DIRS = (
+    "native/inc",
+    "native/src",
+    "native/examples",
+    "native/validation",
+    "native/benchmarks",
+)
 
 #: A ring type: one instantiation of buffer.h's macro.
 _INSTANCE = re.compile(r"^\s*DECLARE_DP_BUFFER\s*\(\s*(\w+)\s*,", re.M)
@@ -82,7 +96,9 @@ def sites(root: Path) -> dict[str, list[tuple[int, str]]]:
     """``{path: [(line, text)]}`` of every ring-internal access."""
     files = _sources(root)
     texts = {
-        rel: (root / rel).read_text(encoding="utf-8", errors="replace")
+        rel: strip_comments(
+            (root / rel).read_text(encoding="utf-8", errors="replace")
+        )
         for rel in files
     }
     owner = (root / OWNER).read_text(encoding="utf-8", errors="replace")
@@ -106,9 +122,12 @@ def sites(root: Path) -> dict[str, list[tuple[int, str]]]:
             r"\b(?:" + "|".join(sorted(map(re.escape, names))) + r")"
             r"\s*->\s*(?:head|tail|mask)\b"
         )
-        for n, line in enumerate(text.splitlines(), 1):
-            for _ in access.finditer(line):
-                found.setdefault(rel, []).append((n, line.strip()))
+        # The whole text, so `->` may follow a line break; a site is
+        # reported at the line its `->` is on.
+        lines = text.splitlines()
+        for m in access.finditer(text):
+            at = text.count("\n", 0, m.start(0) + m.group(0).index("->"))
+            found.setdefault(rel, []).append((at + 1, lines[at].strip()))
     return found
 
 

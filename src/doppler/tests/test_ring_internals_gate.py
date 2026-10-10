@@ -83,6 +83,27 @@ def _run(root: Path, files: dict[str, str], *args: str):
         ),
         # An example is a consumer too.
         ({"native/examples/demo.c": _BY_HAND}, "native/examples/demo.c: 2"),
+        # So are a validation harness and a benchmark.
+        (
+            {"native/validation/v.c": _BY_HAND},
+            "native/validation/v.c: 2",
+        ),
+        (
+            {"native/benchmarks/bench_b.c": _BY_HAND},
+            "native/benchmarks/bench_b.c: 2",
+        ),
+        # clang-format breaks a long chain before its `->`: still one access
+        # (burst_capture_core.c's shape).
+        (
+            {
+                "native/inc/doppler/w/w_core.h": "typedef struct\n{\n"
+                "  dp_f32_t *hist;\n} w_t;\n",
+                "native/src/w/w_core.c": "void g (w_t *s)\n{\n"
+                "  DP_STORE_REL (&s->hist\n                    ->head, 0u);\n"
+                "}\n",
+            },
+            "native/src/w/w_core.c: 1",
+        ),
     ],
 )
 def test_a_ring_internal_access_is_named(
@@ -111,6 +132,14 @@ def test_a_ring_internal_access_is_named(
         },
         # The buffer's own tests are oracles of its internals.
         {"native/tests/test_x.c": _BY_HAND},
+        # Documentation that QUOTES an access is not one: comments are
+        # blanked before matching, block and line alike.
+        {
+            "native/src/c/c_core.c": "void c (dp_f32_t *ring)\n{\n"
+            "  /* never ring->tail & ring->mask by hand */\n"
+            "  // nor ring->head\n"
+            "  dp_f32_consume (ring, 8);\n}\n"
+        },
         # And buffer.h is the owner.
         {BUFFER_H: _OWNER + "#define X(r) ((r)->tail & (r)->mask)\n"},
         # The ring's API is the point.

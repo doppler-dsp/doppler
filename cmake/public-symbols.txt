@@ -161,6 +161,7 @@ dp_acq_create_burst function
 dp_acq_create_continuous function
 dp_acq_destroy function
 dp_acq_get_state function
+dp_acq_position function
 dp_acq_psl_db function
 dp_acq_push function
 dp_acq_reset function

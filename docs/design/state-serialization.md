@@ -200,10 +200,17 @@ int dp_delay_set_state(dp_delay_state_t *s, const void *blob)
 > resume means "the exact same next *sample*," not "the exact same wall-clock
 > reading" — a restored object re-observes or re-derives timing fresh, the same
 > way a borrowed pointer is re-established by `create()` rather than carried in
-> the blob. `DsssReceiver`'s own `samples_fed` (a plain cross-call sample
-> counter, tracked only to diff against a child's post-hit offset) is already
-> deliberately excluded from `dp_dsss_receiver_get_state`/`set_state` on exactly
-> this basis — follow that precedent rather than inventing a new one.
+> the blob.
+>
+> **That rule does not reach a counter that is compared with a child's.** A
+> parent count that is diffed against a child's serialized position is in the
+> child's timebase whether it is serialized or not. `DsssReceiver` kept such a
+> count, `samples_fed`, and subtracted it from its acquisition's hit offset. It
+> was left out of the blob as runtime state, and `configure_search_raw()` reset
+> the child but not the count, so after a restore or a reconfigure the two
+> timebases parted and the hand-off read outside its input (#2042). Read the
+> child's own position instead (`dp_acq_position()`), and keep no parallel
+> counter.
 
 ### Composition — `DP_W_CHILD` / `DP_R_CHILD`
 

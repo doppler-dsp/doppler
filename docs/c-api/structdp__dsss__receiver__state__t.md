@@ -52,7 +52,6 @@ _Composed receiver state._ [More...](#detailed-description)
 |  int | [**n**](#variable-n)  <br> |
 |  [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* | [**rc**](#variable-rc)  <br> |
 |  [**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) \* | [**rx**](#variable-rx)  <br> |
-|  uint64\_t | [**samples\_fed**](#variable-samples_fed)  <br> |
 |  size\_t | [**segments**](#variable-segments)  <br> |
 |  size\_t | [**spc**](#variable-spc)  <br> |
 |  size\_t | [**sps**](#variable-sps)  <br> |
@@ -331,24 +330,6 @@ dp_mpsk_receiver_state_t* dp_dsss_receiver_state_t::rx;
 
 
 
-
-<hr>
-
-
-
-### variable samples\_fed 
-
-```C++
-uint64_t dp_dsss_receiver_state_t::samples_fed;
-```
-
-
-
-Running total handed to [**dp\_acq\_push()**](acq__core_8h.md#function-dp_acq_push) so far — the hit's samples\_consumed less this call's start is where the call's tail, handed to tracking, begins. 
- 
-
-
-        
 
 <hr>
 

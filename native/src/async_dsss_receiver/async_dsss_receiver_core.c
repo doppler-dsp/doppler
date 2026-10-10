@@ -875,7 +875,6 @@ adr_new (const uint8_t *code, size_t code_len, double chip_rate,
   obj->seed_doppler_hz_est = 0.0;
   obj->doppler_hz_est      = 0.0;
   obj->cn0_dbhz_est        = 0.0;
-  obj->samples_fed         = 0;
 
   /* Symbol-lock detector config (running state reset per track-chain build,
    * adr_reset_lock()). */
@@ -982,7 +981,6 @@ dp_async_dsss_receiver_reset (dp_async_dsss_receiver_state_t *state)
   state->seed_doppler_hz_est = 0.0;
   state->doppler_hz_est      = 0.0;
   state->cn0_dbhz_est        = 0.0;
-  state->samples_fed         = 0;
 }
 
 size_t
@@ -1075,19 +1073,19 @@ dp_async_dsss_receiver_steps (dp_async_dsss_receiver_state_t *state,
 
   if (state->state == ASYNC_DSSS_RX_SEARCHING)
     {
-      uint64_t     before = state->samples_fed;
-      acq_result_t hit;
-      state->samples_fed += x_len;
-      size_t n_hits = dp_acq_push (state->acq, x, x_len, &hit, 1);
+      /* The engine's own position and the hit's, one timebase, and the
+       * same fail-closed bound -- the rule and why are at
+       * dsss_receiver_core.c's steps(), which hands off the same way. */
+      const uint64_t before = dp_acq_position (state->acq);
+      acq_result_t   hit;
+      size_t         n_hits = dp_acq_push (state->acq, x, x_len, &hit, 1);
       if (n_hits == 0)
         return 0;
-
-      /* Tracking resumes where the HIT's frame ended, not at the engine's
-       * live counter -- the rule and why are at dsss_receiver_core.c's
-       * steps(), which hands off the same way. */
-      const size_t          at       = (size_t)(hit.samples_consumed - before);
+      const uint64_t at = hit.samples_consumed - before;
+      if (at == 0 || at > (uint64_t)x_len)
+        return 0;
       const float _Complex *tail     = x + at;
-      const size_t          tail_len = x_len - at;
+      const size_t          tail_len = x_len - (size_t)at;
 
       /* A hit is a seed the object made for itself -- the same path an
        * outside detection takes. dp_acq_build_handoff() folds the phase into

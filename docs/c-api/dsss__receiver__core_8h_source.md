@@ -82,7 +82,6 @@ extern "C"
     int      tracking; 
     double   doppler_hz_est; 
     double   cn0_dbhz_est;   
-    uint64_t samples_fed;    
   } dp_dsss_receiver_state_t;
 
   /* SPEC-derived defaults for the pre-despread carrier loop (bn<=0.01

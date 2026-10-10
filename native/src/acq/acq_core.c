@@ -2305,12 +2305,13 @@ dp_acq_push (dp_acq_state_t *st, const float _Complex *x, size_t n_in,
      are left, a frame that ends no dwell needs none and is taken; one that
      does is taken only while `need` slots are left. A FULL result takes
      nothing more -- the detectors' rule (#2018), and the contract every
-     room-limited caller relies on: a push at room 1 stops at its hit, so
-     dp_acq_consumed() is where the hit's frame ended. At the first frame
-     it does not take, the push takes the rest of its input only if the
-     rest completes no frame (it is then the carry) and otherwise stops on
-     the frame boundary: the rest is the caller's, at x +
-     dp_acq_consumed(). */
+     room-limited caller relies on: a push at room 1 frames nothing past
+     its hit. At the first frame it does not take, the push takes the rest
+     of its input only if the rest completes no frame (it is then the
+     carry) and otherwise stops on the frame boundary: the rest is the
+     caller's, at x + dp_acq_consumed(). So consumed() is where the hit's
+     frame ended unless a carry was taken after it; a hand-off reads the
+     hit's own samples_consumed (dp_acq_position()). */
   for (;;)
     {
       const size_t rest = n_in - off;
@@ -2449,6 +2450,12 @@ size_t
 dp_acq_consumed (const dp_acq_state_t *state)
 {
   return state->consumed;
+}
+
+uint64_t
+dp_acq_position (const dp_acq_state_t *state)
+{
+  return state->samples_consumed + dp_f32_framer_pending (&state->framer);
 }
 
 int
@@ -2777,6 +2784,18 @@ dp_acq_set_state (dp_acq_state_t *st, const void *blob)
       || frames * st->frame_n != ex.samples_consumed)
     return DP_ERR_INVALID;
 
+  /* The dwell's place follows from the same count, so it is held to it
+     too: a tiled engine dumps once per block of D frames and every other
+     once per frame, the block's epoch is the frames into the block, and
+     the non-coherent looks are the dumps into the dwell. */
+  const uint64_t D     = st->window_bins > 1 && st->coherent_bins > 1
+                             ? (uint64_t)st->coherent_bins
+                             : 1;
+  const uint64_t dumps = frames / D;
+  if (ex.blk_epoch != frames % D
+      || ex.nc_count != (st->n_noncoh > 1 ? dumps % st->n_noncoh : 0))
+    return DP_ERR_INVALID;
+
   /* Every check has passed; from here the blob is applied. The framer
      cannot refuse it now: state_frames ran set_state's own check. */
   (void)dp_f32_framer_set_state (&st->framer, acq_state_carry ((void *)blob));
@@ -2824,8 +2843,14 @@ dp_acq_run (dp_acq_state_t *st, const void *state_in, void *state_out,
 {
   if (state_in)
     {
+      /* Refused: nothing ran, so nothing was taken -- a resume loop adds
+         dp_acq_consumed() to its offset, and the previous call's count
+         would skip input. */
       if (dp_acq_set_state (st, state_in) != 0)
-        return 0;
+        {
+          st->consumed = 0;
+          return 0;
+        }
     }
   else
     dp_acq_reset (st);

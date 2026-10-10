@@ -1663,6 +1663,19 @@ _acq_resume_check (void)
         DP_CHECK (len - hit.samples_consumed >= frame_n);
         DP_CHECK (dp_acq_consumed (d) == hit.samples_consumed);
         dp_acq_destroy (d);
+
+        /* ...but a rest that completes no frame IS taken, as the carry,
+           after the hit: consumed() is then past the hit's frame, and the
+           hit's own position is what a hand-off reads. */
+        dp_acq_state_t *e = ci_acq_create ((void *)&cfg);
+        DP_REQUIRE (e != NULL);
+        acq_result_t h2;
+        const size_t upto = (size_t)hit.samples_consumed + 3;
+        DP_CHECK (dp_acq_push (e, x, upto, &h2, 1) == 1);
+        DP_CHECK (h2.samples_consumed == hit.samples_consumed);
+        DP_CHECK (dp_acq_consumed (e) == upto);
+        DP_CHECK (dp_acq_position (e) == upto);
+        dp_acq_destroy (e);
       }
 
       /* dp_acq_run stops where a push does, and resumes the same way:
@@ -1686,6 +1699,12 @@ _acq_resume_check (void)
         DP_CHECK (dp_acq_consumed (d) == len - took);
         DP_CHECK (n_ref > 0 && n1 + n2 == n_ref
                   && memcmp (got, ref, n_ref * sizeof *ref) == 0);
+        /* A refused state_in runs nothing, so it took nothing: a resume
+           loop adding consumed() must not add the previous call's. */
+        DP_CHECK (dp_acq_consumed (d) > 0);
+        ((unsigned char *)blob)[0] ^= 0xFF;
+        DP_CHECK (dp_acq_run (d, blob, NULL, x, len, got, all) == 0);
+        DP_CHECK (dp_acq_consumed (d) == 0);
         free (ref);
         free (blob);
         dp_acq_destroy (d);
@@ -1725,6 +1744,24 @@ _acq_resume_check (void)
             dp_acq_get_state (twin, bw);
             DP_CHECK (memcmp (bt, bw, sb) == 0);
           }
+        /* ...and the block's epoch and the dwell's looks, which follow
+           from the same frame count: each one off, either way, refused. */
+        static const size_t fields[] = { offsetof (acq_extra_t, blk_epoch),
+                                         offsetof (acq_extra_t, nc_count) };
+        for (size_t fk = 0; fk < 2; fk++)
+          for (int sgn = -1; sgn <= 1; sgn += 2)
+            {
+              uint32_t     v;
+              const size_t at = sizeof (dp_state_hdr_t) + fields[fk];
+              memcpy (bad, blob, sb);
+              memcpy (&v, bad + at, sizeof v);
+              v += (uint32_t)sgn;
+              memcpy (bad + at, &v, sizeof v);
+              DP_CHECK (dp_acq_set_state (t, bad) == DP_ERR_INVALID);
+              dp_acq_get_state (t, bt);
+              dp_acq_get_state (twin, bw);
+              DP_CHECK (memcmp (bt, bw, sb) == 0);
+            }
         DP_CHECK (dp_acq_set_state (t, blob) == DP_OK); /* the control */
         free (blob);
         free (bad);
@@ -1748,6 +1785,13 @@ _acq_resume_check (void)
         const size_t   sb = dp_acq_state_bytes (p);
         unsigned char *bp = malloc (sb), *bq = malloc (sb);
         DP_REQUIRE (bp && bq);
+        /* Different HISTORIES, the same stream from here: p framed another
+           part of the input first and was reset, so its block holds that
+           stream's epochs; q is fresh, and a fresh allocation may well be
+           zero pages, which would let a whole-block copy pass. */
+        (void)dp_acq_push (p, x + len / 2, 2 * p->coherent_bins * frame_n, got,
+                           all);
+        dp_acq_reset (p);
         int same = 1;
         for (size_t f = 1; f <= 2 * p->coherent_bins + 1; f++)
           {

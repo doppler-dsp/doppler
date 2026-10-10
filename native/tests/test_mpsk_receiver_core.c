@@ -1009,6 +1009,59 @@ main (void)
     free (sidx);
   }
 
+  /* 10c. A refused loops blob changes nothing (doppler#2104). The loops
+   * wrote their own fields before their children could refuse, and so did
+   * the timing loop inside them. A blob from an earlier point, with the
+   * timing loop's own loop-filter envelope clobbered -- the last part of the
+   * FIRST child, so the refusal comes before any child has restored -- is
+   * refused by the SAME loops after they have advanced, and they then give
+   * the advanced blob back byte for byte. The premise, that the advance
+   * moved the loops' own fields, is asserted. */
+  {
+    float _Complex *stx  = malloc (NSAMP * sizeof (*stx));
+    int            *sidx = malloc (NSYM * sizeof (int));
+    make_mpsk (stx, sidx, 4, 0.0, 30.0, 11u);
+    dp_mpsk_receiver_state_t *a
+        = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 0.5, 0.0);
+    DP_CHECK (stx && sidx && a);
+    if (stx && sidx && a)
+      {
+        mpsk_rx_loops_t *l  = &a->l;
+        const size_t     cb = dp_mpsk_rx_loops_state_bytes (l);
+        const size_t     tb = dp_ratesync_loop_state_bytes (&l->timing);
+        const size_t own = cb - tb - dp_loop_filter_state_bytes (&l->car_lf);
+        const size_t tlf
+            = own + tb - dp_loop_filter_state_bytes (&l->timing.lf);
+        unsigned char *old = malloc (cb), *cur = malloc (cb),
+                      *now = malloc (cb);
+        float _Complex y[512];
+        const size_t half = (size_t)SPS * 200u;
+        DP_CHECK (old && cur && now);
+        if (old && cur && now)
+          {
+            (void)dp_mpsk_receiver_steps (a, stx, half, y, 512);
+            dp_mpsk_rx_loops_get_state (l, old);
+            (void)dp_mpsk_receiver_steps (a, stx + half, half, y, 512);
+            dp_mpsk_rx_loops_get_state (l, cur);
+            DP_CHECK (memcmp (old + sizeof (dp_state_hdr_t),
+                              cur + sizeof (dp_state_hdr_t),
+                              own - sizeof (dp_state_hdr_t))
+                      != 0);
+
+            old[tlf] ^= 0xFFu; /* the timing loop's loop-filter magic */
+            DP_CHECK (dp_mpsk_rx_loops_set_state (l, old) == DP_ERR_INVALID);
+            dp_mpsk_rx_loops_get_state (l, now);
+            DP_CHECK (memcmp (now, cur, cb) == 0);
+          }
+        free (old);
+        free (cur);
+        free (now);
+      }
+    dp_mpsk_receiver_destroy (a);
+    free (stx);
+    free (sidx);
+  }
+
   /* 11. The receiver is LEVEL-INVARIANT with the AGC on, and demonstrably
    * not without it. This is the whole point of the change, so it is asserted
    * on the thing a user cares about (does it acquire) rather than on a gain.

@@ -278,23 +278,35 @@ dp_ratesync_loop_set_state (ratesync_loop_t *l, const void *blob)
   if (rc != DP_OK)
     return rc;
 
-  dp_reader_t r = dp_reader_init (blob, total);
-  r.off         = sizeof (dp_state_hdr_t);
-  l->ctrl       = dp_r_f64 (&r);
-  l->last_error = dp_r_f64 (&r);
-  l->rate_est   = dp_r_f64 (&r);
-  l->lock_sum   = dp_r_f64 (&r);
-  l->lock_stat  = dp_r_f64 (&r);
-  l->have_prev  = (dp_r_u64 (&r) & 1u) ? 1 : 0;
-  l->prime_left = (size_t)dp_r_u64 (&r);
-  l->out_count  = (size_t)dp_r_u64 (&r);
-  l->ring_n     = (size_t)dp_r_u64 (&r);
-  l->lock_count = (size_t)dp_r_u64 (&r);
-  dp_r_bytes (&r, l->ring, sizeof (l->ring));
-  dp_r_bytes (&r, &l->prev_on, sizeof (l->prev_on));
-  l->lock.cnt    = dp_r_u32 (&r);
-  l->lock.locked = (int)dp_r_u32 (&r);
-  return dp_loop_filter_set_state (&l->lf, (const char *)blob + r.off);
+  /* DECODE the loop's own fields into a copy, restore the CHILD, then
+     COMMIT: the fields are written only once the loop filter has accepted
+     its sub-blob, so a refusal changes nothing (doppler#2104). They used to
+     be written first, and a refused child left them holding the blob's
+     values. The copy keeps every field the blob does not carry (the
+     configuration), and the loop filter's own slot is restored in place. */
+  ratesync_loop_t n = *l;
+  dp_reader_t     r = dp_reader_init (blob, total);
+  r.off             = sizeof (dp_state_hdr_t);
+  n.ctrl            = dp_r_f64 (&r);
+  n.last_error      = dp_r_f64 (&r);
+  n.rate_est        = dp_r_f64 (&r);
+  n.lock_sum        = dp_r_f64 (&r);
+  n.lock_stat       = dp_r_f64 (&r);
+  n.have_prev       = (dp_r_u64 (&r) & 1u) ? 1 : 0;
+  n.prime_left      = (size_t)dp_r_u64 (&r);
+  n.out_count       = (size_t)dp_r_u64 (&r);
+  n.ring_n          = (size_t)dp_r_u64 (&r);
+  n.lock_count      = (size_t)dp_r_u64 (&r);
+  dp_r_bytes (&r, n.ring, sizeof (n.ring));
+  dp_r_bytes (&r, &n.prev_on, sizeof (n.prev_on));
+  n.lock.cnt    = dp_r_u32 (&r);
+  n.lock.locked = (int)dp_r_u32 (&r);
+  rc = dp_loop_filter_set_state (&l->lf, (const char *)blob + r.off);
+  if (rc != DP_OK)
+    return rc;
+  n.lf = l->lf;
+  *l   = n;
+  return DP_OK;
 }
 
 /* ------------------------------------------------------------------

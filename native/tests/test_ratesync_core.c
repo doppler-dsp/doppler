@@ -401,6 +401,52 @@ test_reset (void)
   free (b);
 }
 
+/* A refused loop blob changes nothing (doppler#2104). The loop wrote its own
+ * fields before its loop-filter child could refuse, so a refused restore
+ * left them holding the blob's values. A blob from an earlier point, with
+ * the loop filter's envelope clobbered, is refused by the SAME loop after it
+ * has advanced, and the loop then gives the advanced blob back byte for
+ * byte. The premise, that the advance moved the loop's own fields, is
+ * asserted. */
+static void
+test_loop_refused_blob_changes_nothing (void)
+{
+  size_t               n = 0;
+  float _Complex      *x = _tx (17.333333333, 0.2, &n);
+  float _Complex      *y = calloc (n, sizeof *y);
+  dp_ratesync_state_t *s
+      = dp_ratesync_create (17.333333333, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2,
+                            1024, 0.01, 0.707, RATESYNC_TED_GARDNER);
+  const size_t   cb  = s ? dp_ratesync_loop_state_bytes (&s->loop) : 0;
+  unsigned char *old = malloc (cb), *cur = malloc (cb), *now = malloc (cb);
+  DP_CHECK (x && y && s && old && cur && now);
+  if (x && y && s && old && cur && now)
+    {
+      const size_t lfb   = dp_loop_filter_state_bytes (&s->loop.lf);
+      const size_t own   = cb - lfb; /* envelope + the loop's own fields */
+      const size_t third = n / 3;
+      (void)dp_ratesync_steps (s, x, third, y, n);
+      dp_ratesync_loop_get_state (&s->loop, old);
+      (void)dp_ratesync_steps (s, x + third, third, y, n);
+      dp_ratesync_loop_get_state (&s->loop, cur);
+      DP_CHECK (memcmp (old + sizeof (dp_state_hdr_t),
+                        cur + sizeof (dp_state_hdr_t),
+                        own - sizeof (dp_state_hdr_t))
+                != 0);
+
+      old[own] ^= 0xFFu; /* the loop filter's envelope magic */
+      DP_CHECK (dp_ratesync_loop_set_state (&s->loop, old) == DP_ERR_INVALID);
+      dp_ratesync_loop_get_state (&s->loop, now);
+      DP_CHECK (memcmp (now, cur, cb) == 0);
+    }
+  dp_ratesync_destroy (s);
+  free (old);
+  free (cur);
+  free (now);
+  free (x);
+  free (y);
+}
+
 static void
 test_state_roundtrip (void)
 {
@@ -1345,6 +1391,7 @@ main (void)
   test_step_equals_steps ();
   test_reset ();
   test_state_roundtrip ();
+  test_loop_refused_blob_changes_nothing ();
   test_prime_geometry ();
   test_two_outputs_per_input ();
   test_dttl_detector ();

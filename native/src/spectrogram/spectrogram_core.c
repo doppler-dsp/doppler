@@ -3,8 +3,9 @@
  * feeding PSD's per-frame kernel, and nothing of its own between them.
  *
  * The contract is the header's; the design is docs/design/spectrogram.md.
- * Everything that makes a frame a spectrum is dp_psd_frame_db(), and
- * everything that makes a stream frames is the framer. What is here is the
+ * Everything that makes a frame a spectrum is PSD's per-frame kernel --
+ * dp_psd_frame_linear() for power rows, dp_psd_frame_db() for dB rows --
+ * and everything that makes a stream frames is the framer. What is here is the
  * loop that joins them and the room check that keeps a short output buffer
  * from losing input. Rows are DC-centred exactly as the kernel emits them.
  */
@@ -22,12 +23,18 @@
  * docs/design/spectrogram-measurements.md §5.6). */
 #define SPECTROGRAM_RING_FRAMES 2u
 
-/* One frame -> one row, through the one kernel, DC-centred as it emits it. */
+/* One frame -> one row, through the one kernel, DC-centred as it emits it.
+ * The two modes are the kernel's two readings of one normalised power, so
+ * they share the window, the FFT and the dBFS reference: a power row is the
+ * quotient, a dB row its 10*log10 with the -200 dB floor. */
 static void
 spectrogram_row (dp_spectrogram_state_t *s, const float _Complex *frame,
                  float *row)
 {
-  dp_psd_frame_db (s->psd, frame, row);
+  if (s->mode == DP_SPECTROGRAM_POWER)
+    dp_psd_frame_linear (s->psd, frame, row);
+  else
+    dp_psd_frame_db (s->psd, frame, row);
 }
 
 dp_spectrogram_state_t *
@@ -35,16 +42,18 @@ dp_spectrogram_create (size_t nfft, size_t hop, int window, float beta,
                        int mode)
 {
   /* window is validated by dp_psd_create, the one owner of the index. */
-  if (hop == 0 || hop > nfft || mode != DP_SPECTROGRAM_DB)
+  if (hop == 0 || hop > nfft)
+    return NULL;
+  if (mode != DP_SPECTROGRAM_POWER && mode != DP_SPECTROGRAM_DB)
     return NULL;
   if (nfft > SIZE_MAX / SPECTROGRAM_RING_FRAMES)
     return NULL;
 
-  /* n = nfft and pad = 1. fs and full scale are 1: rows are dBFS of a
-   * unit-amplitude cf32 stream. A row has the PSD's transform length of
-   * bins, so that has to BE nfft: the PSD owns the transform length (it
-   * zero-pads n to its own choice), and an nfft it would pad is refused
-   * here rather than given rows wider than its frames. */
+  /* n = nfft and pad = 1. fs and full scale are 1: rows are against the
+   * full scale of a unit-amplitude cf32 stream (1.0 linear, 0 dBFS). A row has
+   * the PSD's transform length of bins, so that has to BE nfft: the PSD owns
+   * the transform length (it zero-pads n to its own choice), and an nfft it
+   * would pad is refused here rather than given rows wider than its frames. */
   dp_psd_state_t *psd
       = dp_psd_create (nfft, 1.0, window, beta, 1, 1.0, 0, 0, 0.0);
   if (!psd)

@@ -37,7 +37,11 @@
 # while the smoke only ever installed cp312). The venv is checked to BE that
 # Python, so a resolver that quietly picked another one cannot pass for it.
 #
-# Needs: uv (the --pypi readiness wait resolves through uv itself).
+# --pypi retries the install itself while the index catches up with the
+# publish: WHEEL_SMOKE_ATTEMPTS (default 12) tries, WHEEL_SMOKE_DELAY seconds
+# apart (default 15), so 3 minutes before it fails with uv's own error.
+#
+# Needs: uv.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -83,37 +87,41 @@ if [ "$MODE" = "wheel" ]; then
     echo ">> installing the built wheel from $ARG/"
     VIRTUAL_ENV="$work/venv" uv pip install --quiet "$ARG"/*.whl
 else
-    # The index lags the publish job, and the lag is per ENDPOINT. This used
-    # to wait on the per-version JSON API and then install through uv, which
-    # reads the /simple/ index behind PyPI's CDN. They disagree for seconds
-    # after a publish: on v0.51.0 the JSON said "0.51.0" 0.1 s into the wait,
-    # uv answered "there is no version of doppler-dsp==0.51.0", and the
-    # aarch64 job running the same steps two seconds later passed. So the wait
-    # asks the question the install needs, through the tool that will answer
-    # it: can uv resolve this exact version from the live index yet?
-    # (--refresh because uv caches index metadata; a cached index is how a
-    # post-publish check silently tests the PREVIOUS release.)
-    echo ">> waiting for uv to resolve $PKG==$ARG from PyPI"
-    ok=0
-    for _ in $(seq 1 12); do
-        if VIRTUAL_ENV="$work/venv" uv pip install --quiet --dry-run \
-               --refresh "$PKG==$ARG" >/dev/null 2>&1; then
-            ok=1; break
-        fi
-        sleep 15
-    done
-    [ "$ok" = 1 ] \
-        || { echo "wheel-smoke: uv cannot resolve $PKG==$ARG after 3 min" >&2; exit 1; }
-    echo ">> installing $PKG==$ARG from PyPI (a wheel, never the sdist)"
+    # The index lags the publish job, and the lag is per REQUEST: PyPI's CDN
+    # serves /simple/ from many edges, and two requests a fraction of a second
+    # apart can see different indexes. v0.51.1 is the proof (doppler#1394): a
+    # `--dry-run` resolve here succeeded and the real install 0.2 s later got
+    # an index without the release. So there is no separate wait any more --
+    # the install IS the readiness check, retried until it succeeds or runs
+    # out of attempts, and the request that sees the release is the one that
+    # installs it. (--refresh because uv caches index metadata; a cached index
+    # is how a post-publish check silently tests the PREVIOUS release.)
+    #
     # --only-binary: with no installable wheel for this Python and platform,
     # the resolver falls back to the sdist and builds it, so the smoke would
     # pass on exactly the defect it is here to catch -- doppler#1817's
     # `cp313-cpwin_amd64` wheels, which pip skipped for the sdist.
-    VIRTUAL_ENV="$work/venv" uv pip install --quiet --refresh \
-        --only-binary "$PKG" "$PKG==$ARG" \
-        || { echo "wheel-smoke: no installable $PKG==$ARG wheel for this" \
-                  "Python and platform (uv's error above); the sdist is" \
-                  "refused" >&2; exit 1; }
+    attempts="${WHEEL_SMOKE_ATTEMPTS:-12}"
+    delay="${WHEEL_SMOKE_DELAY:-15}"
+    echo ">> installing $PKG==$ARG from PyPI (a wheel, never the sdist)"
+    ok=0
+    for i in $(seq 1 "$attempts"); do
+        if VIRTUAL_ENV="$work/venv" uv pip install --quiet --refresh \
+               --only-binary "$PKG" "$PKG==$ARG" 2>"$work/uv.err"; then
+            ok=1; break
+        fi
+        echo "   attempt $i/$attempts: not installable yet"
+        [ "$i" -lt "$attempts" ] && sleep "$delay"
+    done
+    if [ "$ok" != 1 ]; then
+        # Both causes look the same from here -- a release the index does
+        # not serve yet, and one with no wheel this Python and platform can
+        # install -- so say neither; uv's own words say which.
+        echo "wheel-smoke: uv could not install $PKG==$ARG (a wheel only) in" \
+             "$attempts attempt(s); its last error:" >&2
+        cat "$work/uv.err" >&2
+        exit 1
+    fi
 fi
 
 # ── prove it ─────────────────────────────────────────────────────────────────

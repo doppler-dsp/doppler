@@ -310,9 +310,14 @@ dll_replica(const dp_dll_state_t *s, double c)
  * dp_dll_state_t initialises it here and retains ownership of @p code (it is not
  * copied or freed). @p code must hold @p code_len chips for the loop's lifetime.
  *
+ * Unguarded, as the by-value path: the caller checks its arguments with
+ * dp_dll_params_ok() (one segment) first. Outside it the loop's gains go NaN
+ * or its taps read past the code (doppler#2103).
+ *
  * @param s          State to initialise.  Must be non-NULL.
  * @param code       Spreading code (0/1 chips), one period; borrowed.
- * @param code_len   Code length (chips per period); must be >= 1.
+ * @param code_len   Code length (chips per period); with the floats, inside
+ *                   dp_dll_params_ok().
  * @param sps        Samples per chip.
  * @param init_chip  Seed code phase, chips.
  * @param bn         Loop noise bandwidth, normalised to the code-period rate.
@@ -571,10 +576,11 @@ dll_update(dp_dll_state_t *s)
  *                   data-symbol clock). segments/epoch ~ samples/symbol at a
  *                   downstream SymbolSync when the symbol rate is near the code
  *                   rate, so choose >= 2 for symbol-timing recovery.
- * @return Heap-allocated state, or NULL on allocation failure or a refused
- *         argument: an empty code, `segments` 0, a non-finite `init_chip`,
- *         `bn` and `zeta` outside dp_loop_filter_params_ok(), or a `spacing`
- *         outside (0, `code_len`/2) (doppler#2103).
+ * @return Heap-allocated state, or NULL on allocation failure or an
+ *         argument outside dp_dll_params_ok(): an empty code, `segments` 0,
+ *         a non-finite `init_chip`, `bn` and `zeta` outside
+ *         dp_loop_filter_params_ok(), or a `spacing` outside
+ *         (0, `code_len`/2) (doppler#2103).
  * @note Caller must call dp_dll_destroy() when done.
  * @code
  * >>> import numpy as np

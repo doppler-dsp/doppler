@@ -59,7 +59,7 @@ _Second-order proportional-integral loop filter — the shared engine of every t
 
 | Type | Name |
 | ---: | :--- |
-|  void | [**dp\_loop\_filter\_configure**](#function-dp_loop_filter_configure) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, double bn, double zeta, double t) <br>_Retune the loop gains_ `kp` _/_`ki` _for a new (bn, zeta, t) without disturbing the integrator._ |
+|  int | [**dp\_loop\_filter\_configure**](#function-dp_loop_filter_configure) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, double bn, double zeta, double t) <br>_Retune the loop gains_ `kp` _/_`ki` _for a new (bn, zeta, t) without disturbing the integrator._ |
 |  [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* | [**dp\_loop\_filter\_create**](#function-dp_loop_filter_create) (double bn, double zeta, double t) <br>_Create a loop\_filter instance, validating its arguments._  |
 |  void | [**dp\_loop\_filter\_destroy**](#function-dp_loop_filter_destroy) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state) <br>_Destroy a loop\_filter instance and release all memory._  |
 |  void | [**dp\_loop\_filter\_get\_state**](#function-dp_loop_filter_get_state) (const [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, void \* blob) <br>_Serialize the loop state into_ `blob` _._ |
@@ -150,7 +150,7 @@ dp_loop_filter_destroy(lf);
 
 _Retune the loop gains_ `kp` _/_`ki` _for a new (bn, zeta, t) without disturbing the integrator._
 ```C++
-void dp_loop_filter_configure (
+int dp_loop_filter_configure (
     dp_loop_filter_state_t * state,
     double bn,
     double zeta,
@@ -163,6 +163,9 @@ void dp_loop_filter_configure (
 Recomputes the proportional and integral gains from the standard 2nd-order form but leaves `integ` untouched, so a loop can be widened for fast acquisition and then narrowed for steady-state tracking while holding its accumulated frequency/rate estimate — the retune preserves lock.
 
 
+A (bn, zeta, t) outside [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok) is refused and changes nothing: a NaN gave gains that never recover, and a negative bn could zero the denominator (doppler#2103).
+
+
 
 
 **Parameters:**
@@ -171,7 +174,14 @@ Recomputes the proportional and integral gains from the standard 2nd-order form 
 * `state` Must be non-NULL. 
 * `bn` Loop noise bandwidth, normalized cycles/sample (&gt;= 0). 
 * `zeta` Damping factor (typically 0.707). 
-* `t` Update period in samples (&gt; 0).
+* `t` Update period in samples (&gt; 0). 
+
+
+
+**Returns:**
+
+`DP_OK`, or `DP_ERR_INVALID` outside [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok).
+
 
 
 ```C++

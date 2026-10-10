@@ -287,19 +287,22 @@ def test_acq_handoff_verify_reject():
 
 
 @pytest.mark.parametrize(
-    "kw",
+    "kw, names",
     [
-        {"spacing": float("nan")},
-        {"init_chip": float("nan")},
-        {"bn_code": float("nan")},
+        ({"spacing": float("nan")}, "0 < spacing < len"),
+        ({"init_chip": float("nan")}, "a finite init_chip"),
+        ({"bn_code": float("nan")}, "bn_code >= 0 and zeta > 0 both finite"),
     ],
 )
-def test_create_refuses_a_bad_code_loop_parameter(kw):
+def test_create_refuses_a_bad_code_loop_parameter(kw, names):
     """The code loop is a Dll embedded by value, which trusts its arguments:
     Despreader(code, spacing=nan).steps(x) read code[2^62] on x86-64
     (doppler#2103). The Despreader checks them against the Dll's own domain
     at create."""
-    with pytest.raises(ValueError, match="Despreader: invalid parameter"):
+    Despreader(_code(), SPS)  # the control: this argument is the refused one
+    with pytest.raises(
+        ValueError, match=f"Despreader: invalid parameter.*{names}"
+    ):
         Despreader(_code(), SPS, **kw)
 
 

@@ -180,10 +180,15 @@ extern "C"
    * acquisition and then narrowed for steady-state tracking while holding its
    * accumulated frequency/rate estimate — the retune preserves lock.
    *
+   * A (bn, zeta, t) outside dp_loop_filter_params_ok() is refused and
+   * changes nothing: a NaN gave gains that never recover, and a negative
+   * bn could zero the denominator (doppler#2103).
+   *
    * @param state  Must be non-NULL.
    * @param bn     Loop noise bandwidth, normalized cycles/sample (>= 0).
    * @param zeta   Damping factor (typically 0.707).
    * @param t      Update period in samples (> 0).
+   * @return `DP_OK`, or `DP_ERR_INVALID` outside dp_loop_filter_params_ok().
    *
    * @code
    * >>> from doppler.track import LoopFilter
@@ -198,7 +203,7 @@ extern "C"
    *
    * @endcode
    */
-  void dp_loop_filter_configure(dp_loop_filter_state_t *state, double bn, double zeta,
+  int dp_loop_filter_configure(dp_loop_filter_state_t *state, double bn, double zeta,
                              double t);
 
   /**

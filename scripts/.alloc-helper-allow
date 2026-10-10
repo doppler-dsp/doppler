@@ -100,7 +100,8 @@ native/src/rs_codec/rs_codec_core.c 1
 native/src/specan/specan_core.c 5
 native/src/spectral/find_peaks_f32.c 1
 native/src/spectral/noise_floor_db.c 1
-native/src/stream/stream_nats.c 7
+native/src/stream/stream_core.c 2  # wire-sized: a chunk's total_bytes and count come from the sender, so a forged frame must get DP_ERR_MEMORY, not abort (moved from stream_nats.c, which drops 7 -> 5)
+native/src/stream/stream_nats.c 5
 native/src/stream/tlm_sink.c 1
 native/src/symsync/symsync_core.c 1
 native/src/syncword/syncword_core.c 2

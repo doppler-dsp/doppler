@@ -750,6 +750,23 @@ Subscriber_recv (SubscriberObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+Subscriber_reasm_stats (SubscriberObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (self->closed || !self->ctx)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "subscriber is closed");
+      return NULL;
+    }
+  dp_reasm_stats_t st;
+  /* DP_OK: the only refusal is a NULL argument, and neither is. */
+  (void)dp_sub_reasm_stats (self->ctx, &st);
+  return Py_BuildValue ("{s:K,s:K,s:K}", "abandoned",
+                        (unsigned long long)st.abandoned, "rejected",
+                        (unsigned long long)st.rejected, "mid_frame_timeouts",
+                        (unsigned long long)st.mid_frame_timeouts);
+}
+
+static PyObject *
 Subscriber_close (SubscriberObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->closed && self->ctx)
@@ -777,6 +794,41 @@ Subscriber_exit (SubscriberObject *self, PyObject *Py_UNUSED (args))
 static PyMethodDef Subscriber_methods[] = {
   { "recv", (PyCFunction)Subscriber_recv, METH_VARARGS | METH_KEYWORDS,
     "recv(timeout_ms=-1) -> (samples, header) — zero-copy recv" },
+  { "reasm_stats", (PyCFunction)Subscriber_reasm_stats, METH_NOARGS,
+    "reasm_stats() -> dict\n"
+    "\n"
+    "What reassembling chunked frames has lost on this subscriber.\n"
+    "\n"
+    "A frame above the server's max_payload (1 MiB by default) arrives as\n"
+    "chunks, and recv() rebuilds one frame at a time. A frame it can no\n"
+    "longer complete is given up and counted here rather than hidden: the\n"
+    "next frame still arrives intact. A frame recv() DOES return is\n"
+    "complete and exact. The counts run from the subscriber's creation and\n"
+    "are never reset.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "dict\n"
+    "    ``abandoned``: frames given up part-assembled because a chunk of\n"
+    "    a different frame arrived first (a lost chunk, a subscriber that\n"
+    "    joined mid-frame, or a second publisher on the subject).\n"
+    "    ``rejected``: chunks no frame could hold, dropped (off the chunk\n"
+    "    grid, out of range, or overlapping). ``mid_frame_timeouts``:\n"
+    "    receives that timed out with a frame part-assembled; the frame is\n"
+    "    kept, and the next recv() resumes it.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "RuntimeError\n"
+    "    If the subscriber is closed.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.stream import Subscriber\n"
+    ">>> sub = Subscriber(\"nats://127.0.0.1:4222/t19124\")\n"
+    ">>> sub.reasm_stats()\n"
+    "{'abandoned': 0, 'rejected': 0, 'mid_frame_timeouts': 0}\n"
+    ">>> sub.close()\n" },
   { "close", (PyCFunction)Subscriber_close, METH_NOARGS, NULL },
   { "__enter__", (PyCFunction)Subscriber_enter, METH_NOARGS, NULL },
   { "__exit__", (PyCFunction)Subscriber_exit, METH_VARARGS, NULL },

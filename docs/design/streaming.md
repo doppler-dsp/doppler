@@ -213,23 +213,42 @@ and chunk block, rounded down to a whole number of elements — so no
 sample straddles two messages.
 
 Reassembly accepts a chunk only if it passes every check in §3, carries
-`DP_FLAG_CHUNKED`, has the `sequence` of the frame being assembled, and
-agrees on `count`. A repeat of an index already seen is a no-op, so
-redelivery is harmless. When the last chunk lands, the receiver is handed
-**one clean logical frame**: doppler-owned buffer, `num_samples` and
-`payload_bytes` set to the totals, `DP_FLAG_CHUNKED` cleared. A
-subscriber never sees a chunk, which is why nothing in the Python API
-mentions them.
+`DP_FLAG_CHUNKED`, and sits on the sender's chunk grid: chunk `i` covers
+`[i·S, min((i+1)·S, total))`, where `S` is fixed by the frame's first
+chunk. Distinct indices therefore cover disjoint bytes, and a frame with
+every index seen has every byte written. A chunk belongs to the frame in
+progress when its whole header (`sequence`, `timestamp_ns`, rate,
+centre frequency, format; not the per-chunk `payload_bytes` and
+`num_samples`), its `count` and its `total_bytes` all agree. A repeat of
+an index already seen is a no-op, so redelivery is harmless. When the
+last chunk lands, the receiver is handed **one clean logical frame**:
+doppler-owned buffer, `num_samples` and `payload_bytes` set to the
+totals, `DP_FLAG_CHUNKED` cleared. A subscriber never sees a chunk.
 
-Two consequences worth stating plainly:
+The rule lives in the core, not the transport: `dp_reasm_feed`
+(`stream_core.c`) works over parsed chunks, as `dp_frame_parse` does over
+a buffer, so `test_stream_wire.c` scripts lost chunks, late joins,
+mid-frame timeouts and interleaved publishers against it directly.
 
-- **One publisher per subject, if frames may chunk.** Reassembly reads
-    the next messages on the subscription until the frame completes; a
-    message from a *different* publisher arriving mid-frame fails the
-    sequence check and the whole frame is dropped with `DP_ERR_INVALID`.
-- **A lost chunk loses its frame**, not just its own bytes. Core NATS is
-    at-most-once, so a slow subscriber that drops one chunk of a 4-chunk
-    frame gets nothing for that frame.
+Consequences worth stating plainly:
+
+- **A lost chunk loses its frame, and only its frame.** Core NATS is
+    at-most-once, so a slow subscriber can drop one chunk of a 4-chunk
+    frame. When a chunk of a *different* frame arrives, the frame in
+    progress is abandoned, and that chunk starts the next frame rather
+    than going down with it. The next frame arrives intact. A late
+    joiner loses only the frame it joined in the middle of.
+- **A timeout mid-frame keeps the frame.** The reassembly state lives
+    as long as the socket, so the next `recv` resumes it.
+- **Losses are counted, not hidden.** `dp_sub_reasm_stats` (Python:
+    `Subscriber.reasm_stats()`) reports frames `abandoned`, chunks
+    `rejected` (off the grid, out of range, overlapping) and
+    `mid_frame_timeouts`, from the socket's creation.
+- **One publisher per subject, if frames may chunk.** Two publishers are
+    never merged into one frame, even with coincident sequences, because
+    the whole header is the key. But reassembly holds one frame at a
+    time, so two publishers interleaving chunked frames on one subject
+    abandon each other's frames (#2031).
 
 ______________________________________________________________________
 

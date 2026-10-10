@@ -1193,6 +1193,59 @@ extern "C"
    */
   int dp_ctx_delete_stream (dp_pub_t *ctx);
 
+  /**
+   * @brief What reassembling chunked frames has lost on a receiving context.
+   *
+   * A PUB frame above the server's max_payload arrives as chunks (@ref
+   * dp_chunk_t). The receiver rebuilds one frame at a time and gives up a
+   * frame it can no longer complete instead of hiding the loss: these are
+   * the counts, from the context's creation, never reset.
+   */
+  typedef struct
+  {
+    uint64_t abandoned; /**< Frames given up part-assembled because a chunk
+                             of a DIFFERENT frame arrived first: a lost
+                             chunk, a subscriber that joined mid-frame, or a
+                             second publisher interleaving on the subject.
+                             That chunk starts the next frame; it is never
+                             discarded with the old one. */
+    uint64_t rejected;  /**< Chunks no frame could hold, dropped: off the
+                             chunk grid, out of range, or overlapping. */
+    uint64_t mid_frame_timeouts; /**< Receives that timed out with a frame
+                                      part-assembled. The frame is kept,
+                                      and the next receive resumes it. */
+  } dp_reasm_stats_t;
+
+  /**
+   * @brief Read @p ctx's chunk-reassembly losses into @p out.
+   *
+   * Every receiving role keeps them; a context that never received a
+   * chunked frame reads all zeros. A frame that IS returned is complete and
+   * exact: chunks of two frames are never merged, because a frame is
+   * identified by its whole header (sequence, timestamp, rate, centre
+   * frequency, format) and its chunk geometry, not by its sequence alone.
+   *
+   * @param ctx  Any receiving context (SUB, PULL, REQ, REP).
+   * @param out  Filled on success.
+   * @return DP_OK, or DP_ERR_INVALID for a NULL argument.
+   *
+   * @code
+   * // header-code: no-run=needs a NATS broker on 127.0.0.1:4222
+   * dp_sub_t *sub = dp_sub_create ("nats://127.0.0.1:4222/iq");
+   * dp_sub_set_timeout (sub, 1000);
+   * dp_msg_t   *msg = NULL;
+   * dp_header_t hdr;
+   * if (sub && dp_sub_recv (sub, &msg, &hdr) == DP_OK)
+   *   dp_msg_free (msg);
+   * dp_reasm_stats_t st;
+   * if (dp_sub_reasm_stats (sub, &st) == DP_OK && st.abandoned > 0)
+   *   printf ("%llu chunked frames lost\n",
+   *           (unsigned long long)st.abandoned);
+   * dp_sub_destroy (sub);
+   * @endcode
+   */
+  int dp_sub_reasm_stats (const dp_sub_t *ctx, dp_reasm_stats_t *out);
+
   /** @} */ /* end group utils */
 
 #ifdef __cplusplus

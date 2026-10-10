@@ -37,6 +37,7 @@ _Streaming API for doppler — PUB/SUB, PUSH/PULL, REQ/REP._ [More...](#detailed
 | ---: | :--- |
 | struct | [**dp\_chunk\_t**](structdp__chunk__t.md) <br>_Reassembly geometry, present only when_ [_**DP\_FLAG\_CHUNKED**_](group__wire.md#define-dp_flag_chunked) _._ |
 | struct | [**dp\_header\_t**](structdp__header__t.md) <br>_Frame metadata carried in every stream message._  |
+| struct | [**dp\_reasm\_stats\_t**](structdp__reasm__stats__t.md) <br>_What reassembling chunked frames has lost on a receiving context._  |
 
 
 

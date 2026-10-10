@@ -124,6 +124,7 @@
 * [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md)
 * [**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md)
 * [**dp\_reader\_t**](structdp__reader__t.md)
+* [**dp\_reasm\_stats\_t**](structdp__reasm__stats__t.md)
 * [**dp\_rs\_codec\_state\_t**](structdp__rs__codec__state__t.md)
 * [**dp\_sample\_clock\_t**](structdp__sample__clock__t.md)
 * [**dp\_specan\_state\_t**](structdp__specan__state__t.md)

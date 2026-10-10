@@ -1397,6 +1397,7 @@ dp_sub_create function
 dp_sub_destroy function
 dp_sub_q15 function
 dp_sub_q8 function
+dp_sub_reasm_stats function
 dp_sub_recv function
 dp_sub_set_timeout function
 dp_symsync_configure function

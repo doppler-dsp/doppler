@@ -115,7 +115,7 @@ _Streaming spectrogram: a stream of any-size chunks in, rows of nfft-bin spectra
 A row is the PSD of one frame, and nothing else: row k is [**dp\_psd\_frame\_db()**](psd__core_8h.md#function-dp_psd_frame_db) of stream samples [k\*hop, k\*hop + nfft), so the window, the FFT and the dBFS reference are PSD's own and a full-scale tone on a bin reads 0 dB. The rows are a function of the INPUT STREAM, not of how it was split into calls: pushing it in one call, a sample at a time, or in any other partition gives the same rows, bit for bit.
 
 
-The object composes and re-implements none of its parts. The carry between calls is the ring's framed face (DECLARE\_DP\_BUFFER\_FRAMES): fewer than nfft samples are held once a push returns, so the state blob has a fixed size for a given shape. The spectrum is PSD's per-frame kernel. It does not average rows (fold them with AccTrace), detect, display or decimate.
+The object composes and re-implements none of its parts. The carry between calls is the ring's framed face (DECLARE\_DP\_BUFFER\_FRAMES): fewer than nfft samples are held once a push returns, so the state blob has a size that depends on nfft alone. The spectrum is PSD's per-frame kernel. It does not average rows (fold them with AccTrace), detect, display or decimate.
 
 
 Lifecycle: [**dp\_spectrogram\_create()**](spectrogram__core_8h.md#function-dp_spectrogram_create), then any number of [**dp\_spectrogram\_push()**](spectrogram__core_8h.md#function-dp_spectrogram_push) calls, then [**dp\_spectrogram\_flush()**](spectrogram__core_8h.md#function-dp_spectrogram_flush) once to end the stream, then [**dp\_spectrogram\_destroy()**](spectrogram__core_8h.md#function-dp_spectrogram_destroy). A short output buffer never loses input: push stops at a whole row and [**dp\_spectrogram\_consumed()**](spectrogram__core_8h.md#function-dp_spectrogram_consumed) says where to resume.
@@ -504,12 +504,15 @@ int dp_spectrogram_set_state (
 
 
 
+Precondition, the caller's to keep because the blob does not carry it: `s` was created with the same arguments (nfft, hop, window, beta, mode) as the spectrogram the blob came from. A different nfft or hop is refused (the size and the framer's stored hop tell); a different window or beta is NOT, and the rows that follow are that window's, not the original's.
+
+
 
 
 **Parameters:**
 
 
-* `s` A spectrogram of the same nfft and hop. 
+* `s` A spectrogram created with the same arguments. 
 * `blob` From [**dp\_spectrogram\_get\_state()**](spectrogram__core_8h.md#function-dp_spectrogram_get_state). 
 
 
@@ -539,7 +542,7 @@ size_t dp_spectrogram_state_bytes (
 
 
 
-The blob is the carry (the framer's snapshot) inside the spectrogram's own envelope. The window and mode are configuration: a blob restores into a fresh spectrogram created with the same arguments.
+The blob is the stream position (the framer's snapshot of the carry) inside the spectrogram's own envelope, and nothing else: not consumed(), and not the configuration. So a blob restores into a spectrogram created with the SAME arguments as the one it came from, and keeping them the same is the caller's  see [**dp\_spectrogram\_set\_state()**](spectrogram__core_8h.md#function-dp_spectrogram_set_state).
 
 
 

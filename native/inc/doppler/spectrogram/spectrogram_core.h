@@ -12,8 +12,8 @@
  *
  * The object composes and re-implements none of its parts. The carry between
  * calls is the ring's framed face (DECLARE_DP_BUFFER_FRAMES): fewer than nfft
- * samples are held once a push returns, so the state blob has a fixed size
- * for a given shape. The spectrum is PSD's per-frame kernel. It does not
+ * samples are held once a push returns, so the state blob has a size that
+ * depends on nfft alone. The spectrum is PSD's per-frame kernel. It does not
  * average rows (fold them with AccTrace), detect, display or decimate.
  *
  * Lifecycle: dp_spectrogram_create(), then any number of
@@ -224,9 +224,11 @@ size_t dp_spectrogram_pending (const dp_spectrogram_state_t *s);
 /**
  * @brief Bytes of the state blob, a function of nfft alone.
  *
- * The blob is the carry (the framer's snapshot) inside the spectrogram's own
- * envelope. The window and mode are configuration: a blob restores
- * into a fresh spectrogram created with the same arguments.
+ * The blob is the stream position (the framer's snapshot of the carry)
+ * inside the spectrogram's own envelope, and nothing else: not consumed(),
+ * and not the configuration. So a blob restores into a spectrogram created
+ * with the SAME arguments as the one it came from, and keeping them the same
+ * is the caller's -- see dp_spectrogram_set_state().
  *
  * @param s  Must be non-NULL.
  */
@@ -241,7 +243,14 @@ void dp_spectrogram_get_state (const dp_spectrogram_state_t *s, void *blob);
 
 /**
  * @brief Restore a stream position, so the next push continues it bit for bit.
- * @param s     A spectrogram of the same nfft and hop.
+ *
+ * Precondition, the caller's to keep because the blob does not carry it:
+ * @p s was created with the same arguments (nfft, hop, window, beta, mode)
+ * as the spectrogram the blob came from. A different nfft or hop is refused
+ * (the size and the framer's stored hop tell); a different window or beta is
+ * NOT, and the rows that follow are that window's, not the original's.
+ *
+ * @param s     A spectrogram created with the same arguments.
  * @param blob  From dp_spectrogram_get_state().
  * @return DP_OK, or DP_ERR_INVALID (wrong magic, version, size or hop, or a
  *         corrupt carry), with @p s unchanged.

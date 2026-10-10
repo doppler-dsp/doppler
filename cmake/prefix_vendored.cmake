@@ -82,8 +82,21 @@ foreach(_l IN LISTS _syms)
         continue()
     endif()
     set(_member "${CMAKE_MATCH_1}")
+    set(_type "${CMAKE_MATCH_2}")
     set(_sym "${CMAKE_MATCH_3}")
     if(NOT _member IN_LIST _vendor OR _sym MATCHES "^${PREFIX}")
+        continue()
+    endif()
+    # The vendored library's own names only. A common (`C`) symbol, `__*` or
+    # `_[A-Z]*` belongs to the compiler or the implementation and appears in
+    # EVERY instrumented member, so respelling it here respells it
+    # archive-wide: clang's ASan emits `___asan_globals_registered` as a
+    # common in each object, and once the archive's copy was
+    # `dp__v____asan_globals_registered`, a test linking its own object
+    # beside libdoppler.a held two flags and registered every global twice --
+    # the same-size ODR reports in validate_rx_dynamics (#2130). The same
+    # holds for __odr_asan_*, __covrec_* and __llvm_profile_*.
+    if(_type STREQUAL "C" OR _sym MATCHES "^(__|_[A-Z])")
         continue()
     endif()
     string(APPEND _map "${_sym} ${PREFIX}${_sym}\n")

@@ -604,18 +604,57 @@ dp_dll_set_state (dp_dll_state_t *s, const void *blob)
   dp_r_bytes (&_r, &t, sizeof t);
 
   /* Config that sizes or indexes THIS instance's buffers is a reject key:
-     the code length (it indexes `code`), samples per chip, and the symbol
-     aid's geometry -- its rings and hypotheses are sized by this instance's
-     period, and the best hypothesis indexes `aid_power`. `segments` needs no
-     check of its own: state_bytes() counts its buffers, so once the aid
-     geometry agrees, the size check DP_SET_OPEN made fixes it. */
-  if (t.sf != s->sf || t.sps != s->sps)
+     the code length (it indexes `code`), samples per chip, the segment count
+     (it sizes the chunk and look-back buffers), and the symbol aid's
+     geometry -- its rings and hypotheses are sized by this instance's
+     period. The size check DP_SET_OPEN made is no guard for any of these:
+     it compares the header with THIS instance's size and never reads the
+     blob's fields, so a blob with one field forged passes it. */
+  if (t.sf != s->sf || t.sps != s->sps || t.segments != s->segments)
     return DP_ERR_INVALID;
   if ((t.sym_period > 0.0) != (s->sym_period > 0.0)
       || (t.sym_period > 0.0
           && (t.aid_ring != s->aid_ring || t.aid_nhyp != s->aid_nhyp)))
     return DP_ERR_INVALID;
-  if (t.sym_period > 0.0 && t.aid_best >= t.aid_nhyp)
+
+  /* Running fields that index or are cast to an index, held to what a live
+     instance can carry -- get_state never writes anything outside these:
+     the chunk being filled is one of the segments; the noise look's offset
+     is a code phase, finite and inside the code (`dll_replica` casts it to
+     size_t); the noise guard is a finite, non-negative distance in chips;
+     and an aided instance's period is finite and positive, its window
+     shorter than its ring, its best hypothesis one of its hypotheses (it
+     indexes aid_power), and its last look's end no later than the partials
+     it has counted. */
+  if (t.seg_idx >= t.segments)
+    return DP_ERR_INVALID;
+  if (!(t.off_chips >= 0.0 && t.off_chips < (double)t.sf))
+    return DP_ERR_INVALID;
+  if (!(isfinite (t.noise_guard) && t.noise_guard >= 0.0))
+    return DP_ERR_INVALID;
+  if (s->sym_period > 0.0
+      && (!isfinite (t.sym_period) || t.aid_len >= t.aid_ring
+          || t.aid_best >= t.aid_nhyp || t.aid_last_end > t.aid_count))
+    return DP_ERR_INVALID;
+
+  /* The packed buffers, located before anything is written: with the keys
+     above they are exactly what this instance holds, and a reader that ran
+     past the blob refuses here rather than after a partial commit. */
+  const size_t n_seg = s->segments > 1 ? s->segments : 0;
+  const size_t n_aid = s->sym_period > 0.0 ? s->aid_ring : 0;
+  const size_t n_hyp = s->sym_period > 0.0 ? s->aid_nhyp : 0;
+  const void  *seg_p = dp_r_reserve (&_r, n_seg * sizeof (*s->chunk_p));
+  const void  *seg_e = dp_r_reserve (&_r, n_seg * sizeof (*s->chunk_e));
+  const void  *seg_l = dp_r_reserve (&_r, n_seg * sizeof (*s->chunk_l));
+  const void *lst_p = dp_r_reserve (&_r, n_seg * sizeof (*s->last_backward_p));
+  const void *lst_e = dp_r_reserve (&_r, n_seg * sizeof (*s->last_e));
+  const void *lst_l = dp_r_reserve (&_r, n_seg * sizeof (*s->last_l));
+  const void *aid_p = dp_r_reserve (&_r, n_aid * sizeof (*s->aid_ring_p));
+  const void *aid_o = dp_r_reserve (&_r, n_aid * sizeof (*s->aid_ring_o));
+  const void *aid_e = dp_r_reserve (&_r, n_aid * sizeof (*s->aid_ring_e));
+  const void *aid_l = dp_r_reserve (&_r, n_aid * sizeof (*s->aid_ring_l));
+  const void *aid_w = dp_r_reserve (&_r, n_hyp * sizeof (*s->aid_power));
+  if (_r.err)
     return DP_ERR_INVALID;
 
   /* COMMIT. The blob carries NULLs where this instance's code, buffers and
@@ -639,23 +678,22 @@ dp_dll_set_state (dp_dll_state_t *s, const void *blob)
   t.aid_ring_l      = s->aid_ring_l;
   t.aid_power       = s->aid_power;
   *s                = t;
-  if (s->segments > 1)
+  if (n_seg)
     {
-      size_t n = s->segments;
-      dp_r_bytes (&_r, s->chunk_p, n * sizeof (*s->chunk_p));
-      dp_r_bytes (&_r, s->chunk_e, n * sizeof (*s->chunk_e));
-      dp_r_bytes (&_r, s->chunk_l, n * sizeof (*s->chunk_l));
-      dp_r_bytes (&_r, s->last_backward_p, n * sizeof (*s->last_backward_p));
-      dp_r_bytes (&_r, s->last_e, n * sizeof (*s->last_e));
-      dp_r_bytes (&_r, s->last_l, n * sizeof (*s->last_l));
+      memcpy (s->chunk_p, seg_p, n_seg * sizeof (*s->chunk_p));
+      memcpy (s->chunk_e, seg_e, n_seg * sizeof (*s->chunk_e));
+      memcpy (s->chunk_l, seg_l, n_seg * sizeof (*s->chunk_l));
+      memcpy (s->last_backward_p, lst_p, n_seg * sizeof (*s->last_backward_p));
+      memcpy (s->last_e, lst_e, n_seg * sizeof (*s->last_e));
+      memcpy (s->last_l, lst_l, n_seg * sizeof (*s->last_l));
     }
-  if (s->sym_period > 0.0)
+  if (n_aid)
     {
-      dp_r_bytes (&_r, s->aid_ring_p, s->aid_ring * sizeof (*s->aid_ring_p));
-      dp_r_bytes (&_r, s->aid_ring_o, s->aid_ring * sizeof (*s->aid_ring_o));
-      dp_r_bytes (&_r, s->aid_ring_e, s->aid_ring * sizeof (*s->aid_ring_e));
-      dp_r_bytes (&_r, s->aid_ring_l, s->aid_ring * sizeof (*s->aid_ring_l));
-      dp_r_bytes (&_r, s->aid_power, s->aid_nhyp * sizeof (*s->aid_power));
+      memcpy (s->aid_ring_p, aid_p, n_aid * sizeof (*s->aid_ring_p));
+      memcpy (s->aid_ring_o, aid_o, n_aid * sizeof (*s->aid_ring_o));
+      memcpy (s->aid_ring_e, aid_e, n_aid * sizeof (*s->aid_ring_e));
+      memcpy (s->aid_ring_l, aid_l, n_aid * sizeof (*s->aid_ring_l));
+      memcpy (s->aid_power, aid_w, n_hyp * sizeof (*s->aid_power));
     }
   return DP_OK;
 }

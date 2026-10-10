@@ -1298,7 +1298,7 @@ int dp_dll_set_state (
 DP\_OK or DP\_ERR\_INVALID.
 
 
-The blob is decoded and checked whole before any of `state` is written, so a refusal changes nothing (doppler#2092). Refused: a wrong-object, wrong-version, wrong-size or foreign-endian envelope, and a blob whose code length, samples per chip or symbol-aid geometry  on or off, its ring and hypotheses, and a best hypothesis among them  is not this instance's. The code and the buffers stay this instance's. 
+The blob is decoded and checked whole before any of `state` is written, so a refusal changes nothing (doppler#2092). Refused: a wrong-object, wrong-version, wrong-size or foreign-endian envelope; a blob whose code length, samples per chip, segment count or symbol-aid geometry (on or off, its ring and hypotheses) is not this instance's; and running fields no live instance carries  a chunk index past the segments, a noise offset outside the code, a non-finite or negative noise guard, and on an aided instance a non-finite period, a window as long as its ring, a best hypothesis past its hypotheses or a last look past the partials counted. The code, the buffers and the telemetry attachment stay this instance's. 
 
 
         

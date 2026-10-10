@@ -22,8 +22,9 @@
  *  13. an all-zero row reads exactly the kernel's -200 dB floor
  *  14. the blob: its size is a function of nfft alone, its envelope is
  *      'SPGM' version 1, it carries the stream position and nothing else,
- *      and set_state refuses a wrong magic, version, envelope size, nfft,
- *      hop or an impossible carry, leaving the object as it was (G4)
+ *      get_state writes every byte, and set_state refuses a wrong magic,
+ *      version, envelope size, nfft, hop or an impossible carry, leaving
+ *      the object as it was (G4)
  * 14b. a different window or beta is NOT refused on restore: the rows that
  *      follow are the restoring object's window, not the blob's source's
  *  15. a row arrives with the push that delivers its last sample: zero
@@ -868,6 +869,24 @@ main (void)
       DP_CHECK (memcmp (ob, blob, bytes) == 0);
       free (ob);
       dp_spectrogram_destroy (other);
+    }
+
+    /* every byte of the blob is written: two buffers filled with different
+       bytes before get_state come back identical. With 30 samples held of
+       the 31 the carry is padded to, the padding and the envelope's own
+       bytes are both in play; a byte get_state skipped would ship the
+       caller's heap (doppler#1471's class) */
+    {
+      unsigned char *f1 = (unsigned char *)malloc (bytes);
+      unsigned char *f2 = (unsigned char *)malloc (bytes);
+      DP_REQUIRE (f1 != NULL && f2 != NULL);
+      memset (f1, 0xAA, bytes);
+      memset (f2, 0x55, bytes);
+      dp_spectrogram_get_state (a, f1);
+      dp_spectrogram_get_state (a, f2);
+      DP_CHECK (memcmp (f1, f2, bytes) == 0);
+      free (f1);
+      free (f2);
     }
 
     /* the target holds a stream of its own, and a TWIN holds the same one

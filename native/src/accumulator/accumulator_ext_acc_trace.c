@@ -71,8 +71,8 @@ AccTraceObj_init (AccTraceObject *self, PyObject *args, PyObject *kwds)
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
-                       "AccTrace: invalid parameter (need n >= 1, and in exp "
-                       "mode 0 < alpha <= 1)");
+                       "AccTrace: invalid parameter (need n >= 1 with n * 8 "
+                       "bytes addressable, and in exp mode 0 < alpha <= 1)");
       return -1;
     }
   return 0;
@@ -575,7 +575,9 @@ static PyTypeObject AccTraceObjType = {
     "Parameters\n"
     "----------\n"
     "n : int, default 1024\n"
-    "    Trace length in bins. Must be > 0; returns NULL otherwise.\n"
+    "    Trace length in bins. Must be > 0, with n doubles a byte count a "
+    "size_t\n"
+    "    holds; returns NULL otherwise.\n"
     "mode : Literal[\"mean\", \"exp\", \"maxhold\", \"minhold\"], default "
     "\"mean\"\n"
     "    Reduction mode index (0=mean, 1=exp, 2=maxhold, 3=minhold).\n"
@@ -595,7 +597,9 @@ static PyTypeObject AccTraceObjType = {
     "------\n"
     "ValueError\n"
     "    If construction fails. The exception message is ``AccTrace: invalid\n"
-    "    parameter (need n >= 1, and in exp mode 0 < alpha <= 1)``.\n"
+    "    parameter (need n >= 1 with n * 8 bytes addressable, and in exp mode "
+    "0\n"
+    "    < alpha <= 1)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

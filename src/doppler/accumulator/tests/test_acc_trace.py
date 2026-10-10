@@ -65,13 +65,14 @@ def test_exp_refuses_alpha_outside_unit_interval(alpha):
     # frame, -0.5 reads negative power, 1.5 saturates to pass-through, NaN
     # poisons every bin. create() refuses, and the declared create_error
     # says why (#1986) -- a bare NULL used to read as MemoryError.
-    with pytest.raises(ValueError, match="AccTrace: invalid parameter"):
+    with pytest.raises(ValueError, match="in exp mode 0 < alpha <= 1"):
         AccTrace(n=4, mode="exp", alpha=alpha)
 
 
-def test_create_refuses_an_empty_trace():
-    with pytest.raises(ValueError, match="AccTrace: invalid parameter"):
-        AccTrace(n=0)
+@pytest.mark.parametrize("n", [0, 2**62])  # empty; n doubles past a size_t
+def test_create_refuses_a_trace_it_cannot_size(n):
+    with pytest.raises(ValueError, match=r"n >= 1 with n \* 8 bytes"):
+        AccTrace(n=n)
 
 
 @pytest.mark.parametrize("alpha", [1.0, 0.25, 1e-9])

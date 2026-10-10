@@ -2,6 +2,7 @@
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -13,7 +14,11 @@ main (void)
 
   /* ── lifecycle + invalid args ───────────────────────────────────────── */
   {
-    DP_CHECK (dp_acc_trace_create (0, 0, 0.1) == NULL);  /* n == 0 */
+    DP_CHECK (dp_acc_trace_create (0, 0, 0.1) == NULL); /* n == 0 */
+    /* n doubles past what a size_t can count in bytes: refused before
+       calloc, whose overflow ASan and TSan report as an error. */
+    DP_CHECK (dp_acc_trace_create (SIZE_MAX / sizeof (double) + 1, 0, 0.1)
+              == NULL);
     DP_CHECK (dp_acc_trace_create (8, -1, 0.1) == NULL); /* bad mode */
     DP_CHECK (dp_acc_trace_create (8, 4, 0.1) == NULL);  /* bad mode */
     dp_acc_trace_destroy (NULL);                         /* must not crash */

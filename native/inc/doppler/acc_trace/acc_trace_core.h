@@ -54,7 +54,8 @@ typedef struct {
 /**
  * @brief Create a length-@p n trace accumulator.
  *
- * @param n      Trace length in bins.  Must be > 0; returns NULL otherwise.
+ * @param n      Trace length in bins.  Must be > 0, with n doubles a
+ *               byte count a size_t holds; returns NULL otherwise.
  * @param mode   Reduction mode index (0=mean, 1=exp, 2=maxhold, 3=minhold).
  * @param alpha  EMA smoothing factor, read only by @c exp mode, where it must
  *               lie in (0, 1].  Outside it the trace is not an average: 0

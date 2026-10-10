@@ -159,8 +159,9 @@ It never reads or modifies `_core.c` after the initial stub.
     covers an invalid argument as well as an allocation failure. An object
     whose refusals are mostly invalid arguments declares `create_error` and
     `create_error_message` in its manifest (jm gh-482), and the check raises
-    that exception with the rules instead: `PSD` and `AccTrace` raise
-    `ValueError` (#1986), as `ddc`, `RateConverter` and `burst_acq` do.
+    that exception with the rules instead -- `PSD` and `AccTrace`, for
+    example, raise `ValueError` (#1986). `git grep create_error objects/`
+    lists every object that does.
 - **`execute()` calls** in `_ext.c`: jm generates no error check — correct
     because execute cannot fail post-create.
 - **One-shot pure functions** (`dp_awgn()`, `dp_RateConverter_convert()`): always

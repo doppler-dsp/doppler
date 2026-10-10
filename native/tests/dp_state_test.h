@@ -34,9 +34,10 @@
  *
  * Re-serializing `b` and comparing to `a`'s blob is the generic form of that
  * check, and it needs no knowledge of the object. The standard is what makes
- * it well defined: a blob carries only the RUNNING fields (config is restored
- * by `create()`), and `b` is required to be a fresh object of the SAME config,
- * so two objects in the same state must serialize identically.
+ * it well defined: a blob carries the running fields and every mutator's
+ * value (only config no mutator reaches is restored by `create()`, #2022), and
+ * `b` is required to be a fresh object of the SAME config, so two objects in
+ * the same state must serialize identically.
  */
 /*
  * The DETERMINISM half was missing too (doppler#1471).

@@ -99,6 +99,79 @@ full leaf/sub blob with its own envelope.
 
 ______________________________________________________________________
 
+## What goes in the blob — a mutator's value is state
+
+A blob holds everything the next sample depends on that `create()` cannot
+rebuild from its own arguments. Three rules decide each field (#2022):
+
+1. **Running state is packed:** a phase, a delay line, an accumulator, an
+    RNG, a loop's integrator.
+1. **A mutator's value is state.** A value any post-create mutator can change
+    travels in the blob. A mutator is a setter, a writable property,
+    `configure*`, `retune`, `reconfigure` or `reseed`. `set_state` checks the
+    value with that mutator's own predicate, one helper both call. Only the
+    config no mutator reaches is restored by `create()`.
+1. **Create-time config that sizes the blob, or changes what it means, is a
+    reject key:** `sf`, `sps`, a mode, a rate. `set_state` refuses a blob whose
+    key differs from the target's. It decodes into a temporary, checks it
+    whole, then commits, so a refused blob changes nothing.
+
+A mutator whose value **sizes the blob** makes the blob target-sized: it
+restores only into a target the same mutator gave the same size.
+`BurstDespreader.set_acq()` is the precedent (#2041). Its acq code travels,
+and a blob taken with a 127-chip acq code restores only into a despreader
+whose acq code is also 127 chips; any other target refuses it before reading
+anything.
+
+Never in a blob:
+
+- **Handles to the outside world:** telemetry sinks, event logs, thread
+    counts, refill callbacks.
+- **Addresses:** a pointer `create()` re-establishes.
+- **The wall clock.**
+
+**A blob is a function of the object.** Two objects built and fed the same
+give byte-identical blobs: no uninitialised padding, and no unused buffer
+tail. A blob that varies cannot be judged by a restore (#2052, #2076).
+
+### The gate
+
+`src/doppler/tests/test_mutator_state.py` holds every serializable object to
+these rules, with nothing to register.
+
+**What it finds:**
+
+- every writable property, from the manifests;
+- every method that writes the object and returns neither a stream nor a
+    value;
+- every C setter Python cannot call, from the headers.
+
+**How it probes each mutator.** It takes an instance and a feed from this
+page's Python matrix (`test_state_serialization.CASES`). It picks values the
+mutator accepts and that change what the object does. It then restores one
+value's blob into a default target, a target at the same value, and targets
+at other values, including the values beside it. Every target that accepts
+the blob must then reproduce the source: its readback, its continuation
+output and its blob. That gives five verdicts:
+
+| verdict            | meaning                                                                           |
+| ------------------ | --------------------------------------------------------------------------------- |
+| `TRAVELS`          | passes: the default target takes the blob and matches                             |
+| `KEYED`            | passes: the default target refuses it, and a same-key target takes it and matches |
+| `LOST`             | fails: a target took the blob and then differed                                   |
+| `UNPROBED`         | fails: no two values it could find changed anything                               |
+| `NONDETERMINISTIC` | fails: two identical builds differed                                              |
+
+**The list.** Anything that does not pass is listed in
+`scripts/.mutator-state-exempt`, with exactly its verdict and a reason. That
+list only shrinks: an entry that now passes, names no mutator, or carries
+another verdict is red. Two more verdicts appear only there. `C_ONLY` marks
+a setter with no Python face (a C-side twin is #2077). `NO_RECIPE` marks a
+class with no matrix row (#2078). Each family of known violations has its
+issue (#2079–#2084), and its fix deletes its own lines.
+
+______________________________________________________________________
+
 ## Cursors
 
 Hand-packing is a few bounds-checked calls on a writer/reader cursor, not raw
@@ -158,8 +231,9 @@ DP_DEFINE_POD_STATE(dp_loop_filter, dp_loop_filter_state_t,
 
 ### Field-wise — `DP_GET_OPEN` / `DP_SET_OPEN`
 
-When the struct owns heap buffers, pack only the *running* fields and let
-`create()` re-derive the buffers/config. `DP_GET_OPEN(MAGIC, VER, BYTES)` stamps
+When the struct owns heap buffers, pack the running fields and every
+mutator's value ([What goes in the blob](#what-goes-in-the-blob-a-mutators-value-is-state)),
+and let `create()` re-derive the buffers and the config no mutator reaches. `DP_GET_OPEN(MAGIC, VER, BYTES)` stamps
 the envelope and opens a writer `_w`; `DP_SET_OPEN(MAGIC, VER, BYTES)` validates
 and opens a reader `_r` positioned past the header (early-returns
 `DP_ERR_INVALID` on a bad blob). The body is just `dp_w_*`/`dp_r_*` calls. The
@@ -345,7 +419,9 @@ converters, FFT plans, by-value analyzers) are exempt.
 
 1. **Write the C triplet** beside `reset` in `<obj>_core.c`, with a per-object
     `<OBJ>_STATE_MAGIC`/`_VERSION` in the header (`#include "doppler/dp_state.h"`).
-    Serialize only the *running* state — config is restored by `create()`. Pick
+    Serialize the running state and every mutator's value; `create()` restores
+    only the config no mutator reaches, and a key that sizes the blob is checked
+    ([What goes in the blob](#what-goes-in-the-blob-a-mutators-value-is-state)). Pick
     the macro for the shape (see [Helper macros](#helper-macros-the-three-serializer-shapes)):
 
     - **pointer-free POD** → `DP_DEFINE_POD_STATE(...)` (one line).
@@ -370,7 +446,8 @@ converters, FFT plans, by-value analyzers) are exempt.
     matrix `src/doppler/tests/test_state_serialization.py`. The matrix `feed`
     returns an array the continuation compare checks bit-for-bit; for an
     output-less object, return `np.frombuffer(o.get_state(), np.uint8)` so the
-    post-block **state blob itself** is the resume observable.
+    post-block **state blob itself** is the resume observable. That row is also
+    what [the mutator gate](#the-gate) probes your object's mutators with.
 
 1. **Drop it from the burn-down** — remove `<obj>` from
     `scripts/.serializable-ignore`.
@@ -391,6 +468,9 @@ rollout burn-down list `scripts/.serializable-ignore`, which shrinks to empty as
 objects are completed. A stale ignore entry (now resolved) also fails, keeping
 the list honest. Net effect: a new stateful object cannot ship without making a
 conscious, reviewed choice.
+
+That gate decides **whether** an object has a blob. What goes **in** it is
+held by the mutator gate: [The gate](#the-gate), under "What goes in the blob".
 
 ______________________________________________________________________
 

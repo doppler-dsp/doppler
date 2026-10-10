@@ -117,8 +117,9 @@ BurstDespreaderObj_init (BurstDespreaderObject *self, PyObject *args,
     {
       PyErr_SetString (PyExc_ValueError,
                        "BurstDespreader: invalid parameter (need a code of "
-                       "at least sf chips, sf >= 1, sps >= 2, and a finite "
-                       "init_norm_freq and init_chip_phase)");
+                       "at least sf chips, sf >= 1, sps >= 2, a finite "
+                       "init_norm_freq and init_chip_phase, and finite "
+                       "bn_carrier and bn_code >= 0)");
       return -1;
     }
   return 0;
@@ -1110,7 +1111,9 @@ static PyTypeObject BurstDespreaderObjType = {
     "    If construction fails. The exception message is ``BurstDespreader:\n"
     "    invalid parameter (need a code of at least sf chips, sf >= 1, sps >= "
     "2,\n"
-    "    and a finite init_norm_freq and init_chip_phase)``.\n"
+    "    a finite init_norm_freq and init_chip_phase, and finite bn_carrier "
+    "and\n"
+    "    bn_code >= 0)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

@@ -70,10 +70,15 @@ def _target(root: Path, name: str, data: dict, base: str) -> str | None:
     matches = [h for h, _, t in (ln.partition(" ") for ln in log) if t == tree]
     if len(matches) != 1:
         found = ", ".join(m[:12] for m in matches) or "none"
+        stale = (
+            f"; if {base} is behind, fetch it first (`git fetch origin`)"
+            if not matches
+            else ""
+        )
         raise RestampError(
             f"{name}: {old} has tree {tree[:12]}, and {len(matches)} "
             f"commit(s) on {base} have it ({found}); restamping needs "
-            f"exactly one"
+            f"exactly one{stale}"
         )
     new = matches[0][: len(old)]
     if resolve(root, new) != matches[0]:

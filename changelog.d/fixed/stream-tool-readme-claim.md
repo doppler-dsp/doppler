@@ -1,4 +1,5 @@
-- **`deploy/README.md` no longer says `stream_tool` catches a dropped or
-    duplicated frame.** It verifies each frame's PN payload against that
-    frame's own `sequence`, so it catches corruption, not a missing or
-    repeated frame, and the README now states that limit (#2017).
+- **`stream_tool` compares Q as well as I, and it and `deploy/README.md`
+    say what it catches.** It verifies each frame's PN payload, seeded by
+    `sequence % 127`, against that frame's own `sequence`, so it catches a
+    corrupted payload, not a missing, repeated or transport-rejected frame
+    (#2017).

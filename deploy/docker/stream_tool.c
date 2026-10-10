@@ -1,12 +1,17 @@
 /*
  * stream_tool — a long-running doppler producer/consumer for the Kubernetes
  * pipeline (deploy/pipeline).  It carries *self-verifying* I/Q: each frame's
- * payload is an MLS/PN sequence (doppler pn object) seeded by the frame index,
- * which the producer assigns as the wire header.sequence.  The consumer reads
- * that sequence, regenerates the same PN, and bit-compares — so a dropped,
- * duplicated, or corrupted frame is caught, not just counted.  The point is to
- * exercise the resilient NATS work-queue tier under KEDA autoscaling and prove
- * no bits are lost.
+ * payload is an MLS/PN sequence (doppler pn object) seeded by the frame index
+ * modulo the PN period, 127, and the producer assigns that index as the wire
+ * header.sequence.  The consumer regenerates the PN from each frame's own
+ * sequence and compares I and Q bit for bit, so a payload corrupted in flight
+ * is caught, and so is a header whose sequence no longer matches its payload,
+ * unless it is off by a multiple of 127.  It does NOT catch a missing or
+ * repeated frame: each frame is checked only against itself, and a frame the
+ * transport rejects (a bad magic, version or payload_bytes, or a truncated
+ * frame) never reaches the check and is not counted (deploy/README.md,
+ * #2017).  The point is to exercise the resilient NATS work-queue tier under
+ * KEDA autoscaling.
  *
  *   stream_tool produce    # PN -> BPSK CF32 blocks, PUSH at RATE_HZ frames/s
  *   stream_tool consume    # PULL, regenerate PN, verify, ack; WORK_MS/frame
@@ -115,7 +120,8 @@ run_consume (void)
       dp_pn_destroy (pn);
       int bad = 0;
       for (size_t j = 0; j < n; j++)
-        if (crealf (got[j]) != (float)(2 * chips[j] - 1))
+        if (crealf (got[j]) != (float)(2 * chips[j] - 1)
+            || cimagf (got[j]) != 0.0f) /* the producer writes Q = 0 */
           {
             bad = 1;
             break;

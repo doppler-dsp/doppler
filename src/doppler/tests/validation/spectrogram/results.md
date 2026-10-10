@@ -370,7 +370,7 @@ Claims a caller may rely on, asserted by this run.
 | PASS | a full-scale tone on a bin reads 1.0 in a power row within 2.3e-05 (1e-4 dB) under every window (largest 3.0e-07) |
 | PASS | a full-scale tone on a bin reads 0 dBFS in a dB row within 1e-04 dB under every window (largest 1.3e-06 dB) |
 | PASS | an all-zero frame reads exactly -200 dB in every bin of a dB row, every window |
-| PASS | an on-bin tone reads its level in its bin within the dB conversion's bound, 5e-4 dB (dp_power_to_db_f32; 3.25e-4 over every float32), down to -200 dBFS under every window (largest 0.0003 dB) |
+| PASS | an on-bin tone reads its level in its bin within the dB conversion's bound, 5e-04 dB (dp_power_to_db_f32; 3.25e-4 over every float32), down to -200 dBFS under every window (largest 3.0e-04 dB) |
 | PASS | below -200 dBFS the tone's bin reads exactly -200 dB, the clamp, under every window (16 cases) |
 | PASS | the bins a -120 dBFS tone raises off the floor are exactly those its window's leakage puts above the clamp, under every window |
 | PASS | noise's median bin, averaged over frames, sits within 0.1 dB of L + 10 log10(ENBW/n) + 10 log10(ln 2), with ENBW from each window's definition, wherever no frame's median is clamped (largest 0.018 dB, 9 cases) |

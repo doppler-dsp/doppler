@@ -31,6 +31,17 @@ typedef struct
 
 #define DP_P2DB_BLOCK 4096u
 
+/** @brief The conversion's bound in dB, as `make test` pins it.
+ *
+ * The contract is 0.01 dB (spectral_core.h). This is what the polynomial
+ * achieves (3.25e-4 measured over every float32), pinned so a degraded one
+ * is caught long before the contract is. It is the one declaration: every
+ * tolerance that admits the conversion's error derives from it, in C
+ * (test_spectral_core.c, test_psd_core.c) and in the PSD and Spectrogram
+ * certifications, which read this line (`p2db_pin_db`). Loosening it
+ * loosens them with it. */
+#define DP_P2DB_PIN_DB 5e-4
+
 /** @brief Judge one block of float bit patterns already converted. */
 static inline void
 dp_p2db_judge (const float *x, const float *db, size_t n, dp_p2db_scan_t *s)

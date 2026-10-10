@@ -1,6 +1,7 @@
 #include "doppler/dp_complex.h"
 #include "doppler/psd/psd_core.h"
 #include "doppler/spectral/spectral_core.h"
+#include "dp_power_to_db_test.h"
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
@@ -1326,7 +1327,7 @@ main (void)
    * quotient, so:
    *  (i)   10*log10(linear) is frame_db wherever frame_db is above the floor,
    *        to the dB conversion's own bound (#2094): dp_power_to_db_f32 is
-   *        within 5e-4 dB of 10*log10 (its sampled tier pins that, its
+   *        within DP_P2DB_PIN_DB of 10*log10 (its sampled tier pins that, its
    *        exhaustive sweep measured 3.25e-4), and frame_db IS that function
    *        of frame_linear, bit for bit (pinned at the end of this file).
    *  (ii)  a full-scale tone on a bin reads 1.0 whatever the window, padded
@@ -1365,7 +1366,7 @@ main (void)
                          && isfinite (raw[i]);
               if (db[i] > -199.0f
                   && fabs (10.0 * log10 ((double)lin[i]) - (double)db[i])
-                         > 5e-4)
+                         > DP_P2DB_PIN_DB)
                 as_db = 0;
               if (fabs ((double)lin[i] * ref - (double)raw[i])
                   > 4.0 * ldexp (1.0, -24) * (double)raw[i])

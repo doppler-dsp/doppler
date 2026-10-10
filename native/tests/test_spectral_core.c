@@ -293,7 +293,7 @@ main (void)
        degraded one is caught long before the contract is */
     DP_CHECK (s.measured > 1000000u && s.floored > 0u);
     DP_CHECK_NEAR (s.worst, 0.0, 0.01);
-    DP_CHECK_NEAR (s.worst, 0.0, 5e-4);
+    DP_CHECK_NEAR (s.worst, 0.0, DP_P2DB_PIN_DB);
     DP_CHECK (s.floor_wrong == 0u);
 
     /* every power of two converts exactly: the correctly rounded value,

@@ -29,7 +29,7 @@ from pathlib import Path
 import numpy as np
 
 from doppler.spectral import PSD
-from doppler.tests._validation_common import Report, cli
+from doppler.tests._validation_common import Report, cli, p2db_pin_db
 
 HERE = Path(__file__).resolve().parent
 R = Report()
@@ -41,10 +41,11 @@ MODES = ("mean", "exp", "maxhold", "minhold")
 U = 2.0**-24  # float32 unit roundoff
 FFT_C = 5.0  # radix-2 FFT error constant (Higham, sec. 24.1)
 # Every dB reading is dp_power_to_db_f32 of the linear one (#2094): within
-# this of 10*log10, as test_spectral_core pins it (3.25e-4 measured over
-# every float32). It is exact at every power of two, 1.0 included, and its
-# error shrinks to 0 toward one, so the 0 dBFS limits keep their 1e-4.
-DB_CONV = 5e-4
+# this of 10*log10, read from the pin test_spectral_core asserts (3.25e-4
+# measured over every float32). It is exact at every power of two, 1.0
+# included, and its error shrinks to 0 toward one, so the 0 dBFS limits keep
+# their 1e-4.
+DB_CONV = p2db_pin_db()
 # Blackman-Harris, 4-term minimum, published (Harris 1978, Table 1).
 BH = (0.35875, 0.48829, 0.14128, 0.01168)
 

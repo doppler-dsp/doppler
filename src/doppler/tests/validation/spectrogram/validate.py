@@ -30,7 +30,12 @@ import sys
 from pathlib import Path
 
 from doppler.tests._repo import build_dir, exe, repo_root
-from doppler.tests._validation_common import Report, cli, harness_blocks
+from doppler.tests._validation_common import (
+    Report,
+    cli,
+    harness_blocks,
+    p2db_pin_db,
+)
 
 HERE = Path(__file__).resolve().parent
 ROOT = repo_root(__file__)
@@ -1040,16 +1045,18 @@ def limits(d) -> None:
         (abs(_f(r, "tone_bin_db") - _f(r, "level_dbfs")) for r in above),
         default=0.0,
     )
+    # the reading is one conversion of the power row: its bound, as pinned
+    pin = p2db_pin_db()
     R.limit(
         bool(above)
         and all(
-            abs(_f(r, "tone_bin_db") - _f(r, "level_dbfs")) < 5e-4
+            abs(_f(r, "tone_bin_db") - _f(r, "level_dbfs")) < pin
             for r in above
         ),
         "an on-bin tone reads its level in its bin within the dB "
-        "conversion's bound, 5e-4 dB (dp_power_to_db_f32; 3.25e-4 over "
-        "every float32), down to -200 dBFS under every window (largest "
-        f"{tone_worst:.4f} dB)",
+        f"conversion's bound, {pin:.0e} dB (dp_power_to_db_f32; 3.25e-4 "
+        "over every float32), down to -200 dBFS under every window "
+        f"(largest {tone_worst:.1e} dB)",
     )
     R.limit(
         bool(below) and all(_i(r, "tone_bin_is_floor") == 1 for r in below),

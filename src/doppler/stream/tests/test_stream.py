@@ -1180,15 +1180,25 @@ def test_ack_after_the_pull_is_collected_raises_value_error():
 
 def test_ack_on_a_subscriber_frame_is_a_noop():
     """Only a work-queue frame is acked; on any other, ack() is the no-op
-    stream.h promises. It used to reach nats.c's JetStream ack and fail."""
+    stream.h promises, before and after its Subscriber is closed. It used
+    to reach nats.c's JetStream ack and fail, and then, once acks after a
+    close were refused, to refuse this one too."""
     ep = _unique_endpoint("acksub")
+    qep = _unique_endpoint("acksub_queue")
     pub = Publisher(ep, CF64)
     sub = Subscriber(ep)
-    _ready_fanout(pub, sub, np.zeros(1, dtype=np.complex128))
-    pub.send(np.ones(2, dtype=np.complex128), sample_rate=int(1e6))
-    samples, _ = sub.recv(timeout_ms=2000)
-    pull = Pull(_unique_endpoint("acksub_pull"))
-    assert pull.ack(samples) is None
-    pull.close()
-    pub.__exit__(None, None, None)
-    sub.__exit__(None, None, None)
+    qpush = Push(qep, CF64)  # the Pull's queue, so it can be deleted
+    pull = Pull(qep)
+    try:
+        _ready_fanout(pub, sub, np.zeros(1, dtype=np.complex128))
+        pub.send(np.ones(2, dtype=np.complex128), sample_rate=int(1e6))
+        samples, _ = sub.recv(timeout_ms=2000)
+        assert pull.ack(samples) is None
+        sub.close()
+        assert pull.ack(samples) is None
+    finally:
+        _delete_stream_if_present(qpush)
+        pull.close()
+        qpush.__exit__(None, None, None)
+        pub.__exit__(None, None, None)
+        sub.__exit__(None, None, None)

@@ -520,14 +520,17 @@ test_ack_after_close_is_refused (void)
   dp_pub_destroy (push);
 }
 
-/* Only a PULL message is a JetStream message. On any other, nats.c's ack
-   either refuses (SUB: no reply subject) or reads a subscription with no
-   JetStream context (REP: a request HAS a reply subject) and faults. The
-   header promises a no-op for both. */
+/* Only a PULL message is a JetStream message, and the header promises a
+   no-op ack for every other. nats.c's own ack is wrong for both: a SUB
+   message has no reply subject, so it is refused (NATS_ILLEGAL_STATE); a
+   REP request has one, so nats.c reads its subscription's NULL JetStream
+   context -- undefined, and in a Release build "+ACK" published to the
+   requester's inbox, which the requester then reads as its reply. */
 static void
 test_ack_on_core_nats_is_a_noop (void)
 {
-  printf ("\n-- an ack on a SUB or REP message is a no-op --\n");
+  printf ("\n-- an ack on a SUB or REP message is a no-op, before and after "
+          "close --\n");
   const char *ep = dp_nats_endpoint ("acknoop");
 
   dp_sub_t *sub = dp_sub_create (ep);
@@ -536,20 +539,27 @@ test_ack_on_core_nats_is_a_noop (void)
   dp_pub_t *pub = dp_pub_create (ep, CF64);
   DP_CHECK (pub != NULL);
   dp_nats_settle ();
+  dp_msg_t *msg = NULL;
   if (sub && pub)
     {
       double _Complex tx[2] = { 1, 2 };
       DP_CHECK (dp_pub_send_cf64 (pub, tx, 2, 1.0, 0.0) == DP_OK);
-      dp_msg_t   *msg = NULL;
       dp_header_t hdr;
       dp_sub_set_timeout (sub, 3000);
       DP_CHECK (dp_sub_recv (sub, &msg, &hdr) == DP_OK);
       DP_CHECK (msg && dp_msg_ack (msg) == DP_OK);
-      if (msg)
-        dp_msg_free (msg);
     }
   dp_pub_destroy (pub);
   dp_sub_destroy (sub);
+  /* Its context gone, a SUB message still has nothing to acknowledge:
+     DP_OK, as a reassembled frame from the same context answers, never the
+     Pull's DP_ERR_CLOSED. */
+  if (msg)
+    {
+      DP_CHECK_MSG (dp_msg_ack (msg) == DP_OK,
+                    "a SUB ack after its context is destroyed is a no-op");
+      dp_msg_free (msg);
+    }
 
   const char *rep_ep = dp_nats_endpoint ("acknooprep");
   dp_rep_t   *rep    = dp_rep_create (rep_ep);
@@ -557,16 +567,14 @@ test_ack_on_core_nats_is_a_noop (void)
   dp_nats_settle ();
   dp_req_t *req = dp_req_create (rep_ep);
   DP_CHECK (req != NULL);
+  dp_msg_t *rq = NULL;
   if (rep && req)
     {
       DP_CHECK (dp_req_send (req, "ping", 5) == DP_OK);
-      dp_msg_t *rq      = NULL;
-      size_t    rq_size = 0;
+      size_t rq_size = 0;
       dp_rep_set_timeout (rep, 3000);
       DP_CHECK (dp_rep_recv (rep, &rq, &rq_size) == DP_OK);
       DP_CHECK (rq && dp_msg_ack (rq) == DP_OK);
-      if (rq)
-        dp_msg_free (rq);
       /* The no-op is what the requester sees, too. nats.c's JetStream ack
          on a request reads a NULL JetStream context (undefined: a fault,
          or in an optimised build the dead load dropped) and publishes
@@ -585,6 +593,12 @@ test_ack_on_core_nats_is_a_noop (void)
     }
   dp_req_destroy (req);
   dp_rep_destroy (rep);
+  if (rq)
+    {
+      DP_CHECK_MSG (dp_msg_ack (rq) == DP_OK,
+                    "a REP ack after its context is destroyed is a no-op");
+      dp_msg_free (rq);
+    }
 }
 
 enum

@@ -369,18 +369,20 @@ extern "C"
    *
    * A no-op (returns DP_OK) for transports without acks — NATS core
    * PUB/SUB, REQ/REP and reassembled chunked frames — so callers can ack
-   * unconditionally.
+   * unconditionally, before or after the receiving context is destroyed.
    *
-   * **Ack before you close.** Once the context that received @p msg is
-   * destroyed, an ack is refused with DP_ERR_CLOSED and nothing is sent, so
-   * the broker redelivers the message to the next consumer. The message
-   * itself stays valid: dp_msg_free() is still the caller's, whenever.
-   * An ack racing the destroy on another thread is safe either way: it
-   * completes before the context is torn down, or it is refused.
+   * **Ack a Pull message before you close.** Once the Pull context that
+   * received @p msg is destroyed, its ack is refused with DP_ERR_CLOSED and
+   * nothing is sent, so the broker redelivers the message to the next
+   * consumer. The message itself stays valid: dp_msg_free() is still the
+   * caller's, whenever. An ack racing the destroy on another thread is safe
+   * either way: it completes before the context is torn down, or it is
+   * refused.
    *
    * @param msg Message handle returned by a recv function.
-   * @return DP_OK on success; DP_ERR_CLOSED after its context is
-   *         destroyed; DP_ERR_SEND if the broker could not be told.
+   * @return DP_OK on success, and always for a message with nothing to
+   *         acknowledge; DP_ERR_CLOSED for a Pull message after its context
+   *         is destroyed; DP_ERR_SEND if the broker could not be told.
    */
   int dp_msg_ack (dp_msg_t *msg);
 

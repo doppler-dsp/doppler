@@ -48,17 +48,27 @@ alongside** the OO API, never a replacement.
 ## State blobs (flat, versioned POD)
 
 - **`acq_fn` state** (`dp_acq_state_bytes` / `dp_acq_get_state` in
-    `native/src/acq/acq_core.c`, version 5): the carry, as the ring framer's
-    own snapshot, a child blob (the partial frame, at most `frame_n - 1`
-    samples, zero-filled past them, plus the framer's written and frame
-    counts) + the running sample offset (the code-phase anchor, carried so a
-    resumed pod keeps a continuous phase reference) + `nc_surface[n_surf]`
-    and `nc_count`
-    when `n_noncoh > 1` + the peak list's twin rows/columns (`2·max_peaks`) + the
-    block-coherent accumulator and the block's raw epochs. The header stamps
-    `magic`/`version`/`n`/`n_noncoh`, and `set_state` also checks `max_peaks`,
-    `n_twins` and the block epoch; a mismatch is rejected, never
-    reinterpreted.
+    `native/src/acq/acq_core.c`, version 5), in the order it is written:
+
+    1. the envelope, then `acq_extra_t`: `n`, `n_noncoh`, `max_peaks`, the
+        running sample offset `samples_consumed` (the code-phase anchor,
+        carried so a resumed pod keeps a continuous phase reference),
+        `nc_count`, `n_twins` and the block epoch;
+    1. the carry, as the ring framer's own snapshot, a child blob: the partial
+        frame (at most `frame_n - 1` samples, zero-filled past them) and the
+        framer's written and frame counts;
+    1. `nc_surface[n_surf]` when `n_noncoh > 1`;
+    1. the last dwell's twin rows/columns (`2·max_peaks`, zero past `n_twins`);
+    1. a tiled engine's block-coherent accumulator and the block's raw epochs,
+        only the epochs this block has written, zero past them (#2052).
+
+    `set_state` refuses, writing nothing, a blob whose envelope or
+    `n`/`n_noncoh`/`max_peaks` differ from the engine; whose carry the framer
+    refuses; or whose counters disagree with one another: the stream position
+    must be the framer's frames times `frame_n`, and the block epoch and the
+    non-coherent look count must be where that many frames leave them (#2042).
+    A mismatch is rejected, never reinterpreted.
+
 - **`ddc_fn` state:** NCO phase + every filter's delay line (FIR history, CIC
     integrator/comb, halfband, resampler fractional phase). Heterogeneous — the
     harder serialization.

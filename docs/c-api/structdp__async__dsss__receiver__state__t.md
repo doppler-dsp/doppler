@@ -93,7 +93,6 @@ _Composed receiver state._ [More...](#detailed-description)
 |  bool | [**refine\_sequential**](#variable-refine_sequential)  <br> |
 |  size\_t | [**refine\_zero\_pad**](#variable-refine_zero_pad)  <br> |
 |  [**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) \* | [**rx**](#variable-rx)  <br> |
-|  uint64\_t | [**samples\_fed**](#variable-samples_fed)  <br> |
 |  double | [**seed\_chip\_phase**](#variable-seed_chip_phase)  <br> |
 |  double | [**seed\_doppler\_hz\_est**](#variable-seed_doppler_hz_est)  <br> |
 |  size\_t | [**segments**](#variable-segments)  <br> |
@@ -1025,24 +1024,6 @@ dp_mpsk_receiver_state_t* dp_async_dsss_receiver_state_t::rx;
 
 
 
-
-<hr>
-
-
-
-### variable samples\_fed 
-
-```C++
-uint64_t dp_async_dsss_receiver_state_t::samples_fed;
-```
-
-
-
-Running total handed to [**dp\_acq\_push()**](acq__core_8h.md#function-dp_acq_push) so far  the hit's samples\_consumed less this call's start is where the call's tail, handed to tracking, begins, as in DsssReceiver. 
- 
-
-
-        
 
 <hr>
 

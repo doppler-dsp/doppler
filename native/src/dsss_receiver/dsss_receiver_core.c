@@ -372,7 +372,6 @@ dp_dsss_receiver_reset (dp_dsss_receiver_state_t *state)
   state->tracking       = 0;
   state->doppler_hz_est = 0.0;
   state->cn0_dbhz_est   = 0.0;
-  state->samples_fed    = 0;
 }
 
 size_t
@@ -393,24 +392,30 @@ dp_dsss_receiver_steps (dp_dsss_receiver_state_t *state,
 
   if (!state->tracking)
     {
-      uint64_t     before = state->samples_fed;
-      acq_result_t hit;
-      state->samples_fed += x_len;
-      size_t n_hits = dp_acq_push (state->acq, x, x_len, &hit, 1);
+      /* The engine's own position, in the timebase its hits are counted
+       * in -- not a count of what this receiver fed, which
+       * configure_search_raw() (an engine reset) and set_state() (an
+       * engine restore) would leave behind, so the two timebases parted
+       * and the tail below read outside x (#2042). */
+      const uint64_t before = dp_acq_position (state->acq);
+      acq_result_t   hit;
+      size_t         n_hits = dp_acq_push (state->acq, x, x_len, &hit, 1);
       if (n_hits == 0)
         return 0;
 
-      /* Tracking resumes where the HIT's frame ended -- hit.samples_consumed,
-       * the engine's framed offset at that dump -- never at the engine's
-       * live counter: with n_noncoh > 1 (or a wideband block, D > 1) the
-       * push keeps framing the non-deciding frames after the hit, and
-       * resuming from where it stopped would skip them. The hit's frame
-       * ended inside THIS call (it was completed by this call's samples,
-       * the carry before it being shorter than a frame), so the tail is a
-       * suffix of x, never a previous call's buffer. */
-      const size_t          at       = (size_t)(hit.samples_consumed - before);
+      /* Tracking resumes where the HIT's frame ended, hit.samples_consumed
+       * in that same timebase. A push at room 1 stops at its hit, unless
+       * the rest of x completes no frame and is taken as the carry, so the
+       * hit's position, not where the push stopped, is the hand-off. The
+       * hit's frame was completed by this call's samples, so 0 < at <=
+       * x_len by construction. This is a memory-safety boundary, so a hit
+       * outside it is refused, never clamped: the receiver keeps
+       * searching. */
+      const uint64_t at = hit.samples_consumed - before;
+      if (at == 0 || at > (uint64_t)x_len)
+        return 0;
       const float _Complex *tail     = x + at;
-      const size_t          tail_len = x_len - at;
+      const size_t          tail_len = x_len - (size_t)at;
 
       /* This receiver's embedded engine is always built via
        * dp_acq_create_continuous() -- coherent_bins is pinned at 1,

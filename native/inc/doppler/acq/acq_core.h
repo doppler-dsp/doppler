@@ -1411,15 +1411,15 @@ extern "C"
    *
    * Python's push() has room for 1024 events a call, so a push that ends at
    * most 1024 / max_peaks dwells, counting the carry, loses nothing.  Once
-   * fewer than max_peaks slots are left, the call stops before the next
-   * frame that would end a dwell -- and once all 1024 are used, before the
-   * next frame of any kind -- and the rest of its input is lost, unless the
-   * rest completes no frame, counting the carry already held: that is kept
-   * as the carry.  The next push stays on the frame grid only when what was
-   * lost is a whole number of frames.  Before v0.66 the room was 64, and a push past it kept up to
-   * ring_cap/frame_n - 1 frames for the next call, dropped the rest, and
-   * could cut a dwell's list short.  #1992 and just-buildit/just-makeit#2184
-   * track sizing the list to the call.
+   * fewer than max_peaks slots are left, the call stops before the next frame
+   * that would end a dwell -- and once all 1024 are used, before the next
+   * frame of any kind -- and the rest of its input is lost, unless the rest
+   * completes no frame, counting the carry already held: that is kept as the
+   * carry.  The next push stays on the frame grid only when what was lost is a
+   * whole number of frames.  Before v0.66 the room was 64, and a push past it
+   * kept up to ring_cap/frame_n - 1 frames for the next call, dropped the
+   * rest, and could cut a dwell's list short.  #1992 and
+   * just-buildit/just-makeit#2184 track sizing the list to the call.
    *
    * @param state        Allocated engine (non-NULL).
    * @param x            Raw input, interleaved CF32, @p n_in complex samples.
@@ -1431,8 +1431,9 @@ extern "C"
    *                     at least min(max_peaks, max_results) slots are left
    *                     (at least one); a frame that ends none needs no
    *                     room while any slot is left.  A FULL @p result
-   *                     takes nothing more, so at room 1 a push stops at
-   *                     its hit.  At the first frame it does not take, the
+   *                     takes nothing more, so at room 1 a push frames
+   *                     nothing past its hit.  At the first frame it does
+   *                     not take, the
    *                     push takes the rest of its input only if the rest
    *                     completes no frame, counting the carry (it is then
    *                     the carry), and otherwise stops on that frame's
@@ -1475,16 +1476,33 @@ extern "C"
   /**
    * @brief Input samples the last dp_acq_push() took.
    *
-   * Per call: equal to its @p n_in unless the push stopped -- @p result
-   * full, or too few slots left for the next frame that ends a dwell --
-   * and then the caller resumes at x + consumed.  Not acq_result_t::samples_consumed,
-   * which is CUMULATIVE and counts only framed samples -- the stream position
-   * a hit's epoch ended at -- so resuming from it would re-feed the carry and
+   * Per call: equal to its @p n_in unless the push stopped -- @p result full,
+   * or too few slots left for the next frame that ends a dwell -- and then the
+   * caller resumes at x + consumed.  Not acq_result_t::samples_consumed, which
+   * is CUMULATIVE and counts only framed samples -- the stream position a
+   * hit's epoch ended at -- so resuming from it would re-feed the carry and
    * double-feed the stream.  0 after create, reset, a regrid and set_state.
    *
    * @param state  Must be non-NULL.
    */
   size_t dp_acq_consumed (const dp_acq_state_t *state);
+
+  /**
+   * @brief The engine's stream position: every sample its pushes have
+   *        taken, framed ones and the carry, since create, reset, a regrid
+   *        or set_state's restore.
+   *
+   * The timebase acq_result_t::samples_consumed is counted in. Read at the
+   * start of a push, it is where that push's input begins, so a hit from
+   * that push ended at x + (hit.samples_consumed - position): the hand-off
+   * a tracker resumes from. A caller's own count of what it has fed is a
+   * different timebase -- configure_search_raw() and set_state() reset or
+   * restore the engine and not the caller's count -- and subtracting the
+   * two reads outside x.
+   *
+   * @param state  Must be non-NULL.
+   */
+  uint64_t dp_acq_position (const dp_acq_state_t *state);
 
   /**
    * @brief Wire-ready hand-off record built from one acq_result_t hit.

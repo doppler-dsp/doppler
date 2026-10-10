@@ -244,7 +244,6 @@ extern "C"
     double   seed_doppler_hz_est; 
     double   doppler_hz_est;      
     double   cn0_dbhz_est;        
-    uint64_t samples_fed;         
     /* Symbol-lock detector running state (see the ASYNC_DSSS_RX_LOCK_*
      * defines). lock_num/lock_den are the power-weighted EMAs of I^2-Q^2 and
      * I^2+Q^2; lock_metric = lock_num/lock_den = cos(2*phi); sym_lockdet is

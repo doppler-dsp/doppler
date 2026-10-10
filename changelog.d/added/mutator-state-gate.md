@@ -7,4 +7,4 @@
     The 119 that don't yet pass are
     listed by exact verdict in `scripts/.mutator-state-exempt`, which only
     shrinks. The rule is in `docs/design/state-serialization.md`; the
-    known violations are filed as #2079–#2084.
+    known violations are filed as #2079–#2084 and #2087.

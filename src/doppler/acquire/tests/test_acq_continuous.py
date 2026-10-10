@@ -318,3 +318,26 @@ def test_the_roll_per_thread_is_bit_identical():
     assert s.threads == 1
     s.set_threads(4)
     assert s.threads == 1
+
+
+def test_carrier_and_prior_refusals_are_raised():
+    """The carrier rule and the finite prior (doppler#2103), from Python.
+    set_carrier_freq_hz refuses a carrier at or below half the sample rate
+    (here 1e-305, which overflowed doppler / carrier) and keeps the one set.
+    A non-finite doppler_uncertainty is refused at create; Acquisition has
+    no create_error yet, so it surfaces as MemoryError (doppler#2112 item 7
+    turns it into a ValueError naming the condition)."""
+    from doppler.acquire import Acquisition
+    from doppler.wfm import Gold
+
+    code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+    kw = {"spc": 2, "chip_rate": 5e6, "symbol_rate": 2700.0, "cn0_dbhz": 45.0}
+    a = Acquisition(code, doppler_uncertainty=50e3, **kw)
+    a.set_carrier_freq_hz(2.5e9)
+    with pytest.raises(ValueError, match="set_carrier_freq_hz failed"):
+        a.set_carrier_freq_hz(1e-305)
+    with pytest.raises(ValueError, match="set_carrier_freq_hz failed"):
+        a.set_carrier_freq_hz(5e6)  # exactly fs / 2
+    assert a.carrier_freq_hz == 2.5e9
+    with pytest.raises(MemoryError, match="returned NULL"):
+        Acquisition(code, doppler_uncertainty=float("nan"), **kw)

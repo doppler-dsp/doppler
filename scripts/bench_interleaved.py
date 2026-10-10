@@ -40,11 +40,18 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from bench_report import collect_meta, fastest_cpus, machine_not_ready
+from bench_report import (
+    collect_meta,
+    fastest_cpus,
+    machine_not_ready,
+    missing_components,
+)
 from check_bench_commits import verdict
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 PUBLISHED = os.path.join(REPO, "benchmarks", "published")
+#: The tree's C benchmarks, the set a published C snapshot must cover.
+BENCH_SRC = os.path.join(REPO, "native", "benchmarks")
 BUILD_ARGS = {"portable": [], "native": ["-DDOPPLER_NATIVE=ON"]}
 FLAG_RE = re.compile(
     r"-O\S+|-march=\S+|-mtune=\S+|-mprefer-vector-width=\S+|-ffast-math|-funsafe-math\S*"
@@ -53,6 +60,41 @@ FLAG_RE = re.compile(
 
 def _run(cmd, cwd, **kw):
     return subprocess.run(cmd, cwd=cwd, text=True, **kw)
+
+
+def bench_args_set(environ=None) -> str:
+    """The BENCH_ARGS a release measurement would inherit, or "" if none.
+
+    Every inner ``make bench`` this script runs reads MAKEFLAGS, and
+    ``make bench-interleaved VERSION=X BENCH_ARGS="--c-only conv"`` puts
+    the variable there -- so the release would be measured over a filtered
+    set and published as if it were the whole suite (#1975's review). An
+    exported BENCH_ARGS reaches it through the environment the same way.
+    An empty value is harmless and reads as unset.
+
+    >>> bench_args_set({"MAKEFLAGS": " -- VERSION=1 BENCH_ARGS=--c-only"})
+    '--c-only'
+    >>> bench_args_set({"MAKEFLAGS": " -- VERSION=1 BENCH_ARGS="})
+    ''
+    >>> bench_args_set({"BENCH_ARGS": "rs"})
+    'rs'
+    >>> bench_args_set({})
+    ''
+    """
+    env = os.environ if environ is None else environ
+    if env.get("BENCH_ARGS", "").strip():
+        return env["BENCH_ARGS"].strip()
+    m = re.search(r"(?:^|\s)BENCH_ARGS=(\S*)", env.get("MAKEFLAGS", ""))
+    return m.group(1) if m else ""
+
+
+def _remove_worktrees(wts):
+    for wt in wts.values():
+        _run(
+            ["git", "worktree", "remove", "--force", wt],
+            REPO,
+            capture_output=True,
+        )
 
 
 def _build_info(worktree):
@@ -173,6 +215,17 @@ def main() -> int:
     a = ap.parse_args()
     ver = "v" + a.version.lstrip("v")
 
+    # A release is measured over the WHOLE suite: refuse a filter before any
+    # building, rather than publish a partial set as if it were complete.
+    leaked = bench_args_set()
+    if leaked:
+        print(
+            f"bench-interleaved: BENCH_ARGS={leaked} is set and every inner "
+            "`make bench` would inherit it; a release is measured over the "
+            "whole suite. Run it without BENCH_ARGS."
+        )
+        return 2
+
     # Refuse BEFORE the hour of building and measuring, not after: a snapshot
     # taken in the wrong state publishes numbers no later release can be
     # compared against, and the page would not say so.
@@ -208,6 +261,24 @@ def main() -> int:
             samples[b]["py"].append(py)
             samples[b]["c"].append(c)
 
+    # Every C benchmark the tree has must be in each build's merged set: a
+    # bench that crashed in every pass wrote no JSON, and jm skips a binary
+    # with none, so the snapshot would be short without saying so.
+    short = {
+        b: missing_components(_merge_best(samples[b]["c"]), BENCH_SRC)
+        for b in BUILD_ARGS
+    }
+    short = {b: m for b, m in short.items() if m}
+    if short:
+        for b, m in short.items():
+            print(
+                f"bench-interleaved: refusing to publish -- the {b} passes "
+                f"never recorded {len(m)} of the tree's C benchmarks: "
+                f"{', '.join(m)}"
+            )
+        _remove_worktrees(wts)
+        return 1
+
     dst = os.path.join(PUBLISHED, ver)
     os.makedirs(dst, exist_ok=True)
     for b in BUILD_ARGS:
@@ -227,12 +298,7 @@ def main() -> int:
                 fh.write("\n")
         print(f"published {ver}/{b}  [{compiler}; {flags}]")
 
-    for wt in wts.values():
-        _run(
-            ["git", "worktree", "remove", "--force", wt],
-            REPO,
-            capture_output=True,
-        )
+    _remove_worktrees(wts)
     print(f"done — {a.passes} interleaved passes per build")
     print(_provenance(commit, a.base))
     return 0

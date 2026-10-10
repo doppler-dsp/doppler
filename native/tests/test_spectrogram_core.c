@@ -64,8 +64,10 @@ oneshot (size_t nfft, size_t hop, int window, size_t n, float *out, size_t cap)
   return got;
 }
 
-/* Fill a reused output buffer with NaN first, so a short write cannot be
- * passed by what the last iteration left there (NaN equals nothing). */
+/* Fill a reused output buffer with NaN first, so a short write leaves NaN
+ * where a row should be rather than the last iteration's row. memcmp alone
+ * would still pass two identical NaN patterns; what refuses a short write is
+ * the comparison with rows_are_the_psd's freshly computed, finite rows. */
 static void
 fill_nan (float *p, size_t n)
 {

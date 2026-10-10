@@ -20,13 +20,24 @@
  *   fold[<mode>,nfft=N]
  *                      per FRAME, at the five frame sizes PSD's per-frame
  *                      kernel is measured at (bench_psd_core.c): the fold
- *                      PSD's accumulate runs on every frame, so
- *                      accumulate_frame ~ frame_power + fold[mean] there
- *                      (#2094's first step, the baseline the SIMD fold is
- *                      measured against). Each round resets the trace and
- *                      seeds it untimed, so every timed call is a fold and
- *                      never the seeding copy; the four modes and five
- *                      sizes are interleaved, the modes rotating per round.
+ *                      on its OWN, the cost #2094's SIMD fold is measured
+ *                      against. It is not PSD's accumulate_frame minus its
+ *                      frame_power, and is not meant to be: those are two
+ *                      cache regimes. Here the trace is seeded just before
+ *                      the timer, so it is hot; in PSD's pipeline the
+ *                      window, FFT and power passes run first, evicting the
+ *                      trace while the power row is hot. #2094's measure
+ *                      is accumulate_frame / fft; this row is the fold's
+ *                      own cost. Each round resets the trace and seeds it
+ *                      untimed, so every timed call is a fold and never the
+ *                      seeding copy; the four modes and five sizes are
+ *                      interleaved, the modes rotating per round. Its
+ *                      frames come from splitmix64, whose period dwarfs the
+ *                      17 x 65536 values the largest size draws, so every
+ *                      frame is independent and the hold modes update at
+ *                      the rate of the data, not of a generator that wraps.
+ *                      (The older rows above keep their 16-bit LFSR, so
+ *                      their history stays comparable.)
  *
  * Timing is MIN over rounds, not mean -- benchmark noise is one-sided.
  */
@@ -44,6 +55,17 @@
 #define ITERATIONS 100
 #define FROUNDS 30 /* the fold section's rounds */
 #define NFOLD 5    /* its frame sizes, PSD's kernel sizes */
+
+/* splitmix64 (Steele, Lea and Flood): period 2^64, one 64-bit output per
+   step, so the fold section's 17 frames of 65536 bins are all distinct. */
+static uint64_t
+splitmix64 (uint64_t *s)
+{
+  uint64_t z = (*s += 0x9E3779B97F4A7C15ull);
+  z          = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ull;
+  z          = (z ^ (z >> 27)) * 0x94D049BB133111EBull;
+  return z ^ (z >> 31);
+}
 
 /* One size of the fold section: a trace per mode, FRAMES + 1 distinct
    frames (the first seeds), and per-round timings per mode. */
@@ -180,6 +202,7 @@ main (void)
     static const size_t fsz[NFOLD]  = { 256, 1024, 4096, 16384, 65536 };
     static const char  *fmode[4]    = { "mean", "exp", "maxhold", "minhold" };
     fold_t              fold[NFOLD] = { 0 };
+    uint64_t            sm          = 0x2094u; /* the fold section's seed */
     for (int s = 0; s < NFOLD; s++)
       {
         fold_t *f = &fold[s];
@@ -187,13 +210,12 @@ main (void)
         f->frames = malloc ((size_t)(FRAMES + 1) * f->n * sizeof *f->frames);
         if (!f->frames)
           return 1;
-        /* independent draws, as above, so the hold modes update at a
-           realistic rate rather than never */
+        /* independent draws, so the hold modes update at the data's rate:
+           splitmix64, not the 16-bit LFSR above, whose period (65535)
+           would wrap inside one size's frames from 4096 bins up */
         for (size_t i = 0; i < (size_t)(FRAMES + 1) * f->n; i++)
-          {
-            lfsr = (lfsr >> 1) ^ (uint32_t)(-(int32_t)(lfsr & 1u) & 0xB400u);
-            f->frames[i] = (float)((lfsr & 0xFFFFu) / 65535.0);
-          }
+          f->frames[i] = (float)((double)(splitmix64 (&sm) >> 11)
+                                 * (1.0 / 9007199254740992.0));
         for (int m = 0; m < 4; m++)
           if (!(f->a[m] = dp_acc_trace_create (f->n, modes[m], 0.1)))
             return 1;
@@ -225,8 +247,9 @@ main (void)
   /* Every row RECORDS, or nothing is written: jm_bench.h drops entries past
      JM_BENCH_MAX_ENTRIES without a word (just-buildit/just-makeit#2188), so
      the count is checked against the one the sections above derive (#2062):
-     4 modes and value(), then 4 modes at NFOLD sizes. */
-  const int want = 4 + 1 + 4 * NFOLD;
+     each mode and value(), then each mode at NFOLD sizes. */
+  const int nm   = (int)(sizeof modes / sizeof *modes);
+  const int want = nm + 1 + nm * NFOLD;
   if (_bench.count != want)
     {
       (void)fprintf (stderr,

@@ -188,9 +188,14 @@ converters, FFT plans, by-value analyzers) are exempt. See
     ```
 
     Implement them in `<obj>_core.c` (sibling to `<obj>_reset`) with the cursor
-    helpers: `dp_w_hdr` then pack the **running** fields (config is restored by
-    `create()`); `set_state` opens with `dp_state_validate(...)` and returns its
-    result. A pointer-free POD struct can snapshot whole (`dp_w_bytes(&w, s,  sizeof *s)`); a struct with pointers packs field-wise and skips them; a
+    helpers: `dp_w_hdr` then pack the running fields **and every mutator's
+    value** -- a setter's, a writable property's, a `configure`/`retune`'s
+    (#2022). `create()` restores only the config no mutator reaches, and one
+    that sizes the blob or changes its meaning (`sf`, a mode, a rate) is a
+    reject key. The rule lives in `docs/design/state-serialization.md`, "What
+    goes in the blob"; `src/doppler/tests/test_mutator_state.py` enforces it.
+    `set_state` opens with `dp_state_validate(...)`, decodes into a temporary,
+    checks it whole, then commits. A pointer-free POD struct can snapshot whole (`dp_w_bytes(&w, s,  sizeof *s)`); a struct with pointers packs field-wise and skips them; a
     composition delegates to its children's `*_state_bytes`/`get`/`set`. Add
     `DP_DEFINE_RUN(<obj>, <obj>_state_t, IN_T, OUT_T)` for a single-`execute`
     object to get the pure `<obj>_run(state_in, state_out, …)` transducer.
@@ -1060,22 +1065,33 @@ bytes interface is not.** The universal layer lives once in
 `native/inc/doppler/dp_state.h`; each module packs only its own fields. See
 `docs/design/state-serialization.md` for the full design.
 
+- **What goes in the blob** (#2022): running state, and **every mutator's
+    value** (a setter, a writable property, `configure`/`retune`/`reseed`),
+    checked by that mutator's own predicate. `create()` restores only the
+    config no mutator reaches; config that sizes the blob or changes its
+    meaning is a reject key. The rule's one home is the design page's "What
+    goes in the blob"; the gate is `src/doppler/tests/test_mutator_state.py`
+    with its shrink-only list `scripts/.mutator-state-exempt`.
+
 - **ABI triplet** (sibling to `reset`, hand-written in `<obj>_core.c`):
     `size_t <obj>_state_bytes(const T*)`, `void <obj>_get_state(const T*, void*)`,
     `int <obj>_set_state(T*, const void*)` → `DP_OK` / `DP_ERR_INVALID`. Optional
     `DP_DEFINE_RUN(pfx, STATE_T, IN_T, OUT_T)` emits the pure-transducer
     `<obj>_run` (frame/push shapes like `acq` keep a hand-written `run`).
+
 - **Envelope**: every blob is `[dp_state_hdr_t][payload]`; compositions nest
     self-validating child sub-blobs (`[hdr][extra?][child]…`, `state_bytes = hdr + extra + Σ child_state_bytes`). Pack via the `dp_writer_t`/`dp_reader_t`
     cursors; **every `set_state` opens with `dp_state_validate`** (magic / version
     / endian / size) so a wrong blob is rejected, never reinterpreted. Per-object
     `<OBJ>_STATE_MAGIC = DP_FOURCC(...)` + `<OBJ>_STATE_VERSION`.
+
 - **Python**: set `serializable = "true"` in `objects/<obj>.toml` → `jm apply`
     generates the `state_bytes`/`get_state`/`set_state` binding + `.pyi`. For a
     **sacred** `_ext_<obj>.c` fragment (DDC, RateConverter) the flag still
     generates the `.pyi`, but hand-add the three methods to match jm's form (jm
     #404 will transplant them). `kind="handle"` modules (`Ddcr`) can't auto-bind
     yet — jm #403.
+
 - **Tests**: C uses `DP_STATE_ROUNDTRIP_TEST` (`native/tests/dp_state_test.h`);
     Python uses the parametrized matrix `src/doppler/tests/test_state_serialization.py`.
     Both assert bit-exact resume + envelope rejects. Add new types to both.

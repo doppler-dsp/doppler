@@ -664,8 +664,9 @@ class Subscriber:
             ``abandoned``: partial assemblies given up -- a count of
             assemblies, not of frames lost (a late joiner abandons a frame it
             never had). Given up when a chunk of a different frame arrives, or
-            an unchunked frame or end-of-stream, which under one publisher per
-            subject proves the frame in progress lost a chunk. ``rejected``:
+            an unchunked frame of the same stream, or an end-of-stream, which
+            under one publisher per subject prove the frame in progress lost a
+            chunk. ``rejected``:
             chunks no frame could hold, dropped (off the chunk grid, out of
             range, or overlapping). ``mid_frame_timeouts``: receives that timed
             out with a frame part-assembled; the frame is kept, and the next

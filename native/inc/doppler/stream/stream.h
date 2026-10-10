@@ -633,6 +633,14 @@ extern "C"
 
   /**
    * @brief Set receive timeout for a Subscriber socket.
+   *
+   * One dp_sub_recv() has ONE deadline, however many messages it reads: a
+   * chunked frame takes several, and the timeout bounds them all. Once the
+   * deadline has passed, a message already queued is not taken -- it waits
+   * for the next call. The clock is the NATS client's own (nats_Now(): the
+   * wall clock, in milliseconds), the one its waits are timed with. A
+   * timeout of 0 still looks once, for 1 ms.
+   *
    * @param ctx        Subscriber context.
    * @param timeout_ms Timeout in milliseconds (-1 = infinite, 0 =
    * non-blocking).
@@ -1210,9 +1218,12 @@ extern "C"
                              each other's. Given up when a chunk of a
                              DIFFERENT frame arrives (that chunk starts the
                              next frame; it is never discarded with the old
-                             one), or an unchunked frame or end-of-stream,
-                             which under one publisher per subject proves
-                             the frame in progress lost a chunk. */
+                             one), or an unchunked frame of the SAME
+                             stream (kind and format: its subject), or an
+                             end-of-stream, which under one publisher per
+                             subject prove the frame in progress lost a
+                             chunk. Another type's frame on the base leaves
+                             it alone. */
     uint64_t rejected;  /**< Chunks no frame could hold, dropped: off the
                              chunk grid, out of range, or overlapping. */
     uint64_t mid_frame_timeouts; /**< Receives that timed out with a frame

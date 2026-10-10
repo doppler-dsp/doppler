@@ -773,7 +773,9 @@ static PyMethodDef _SynthEngine_methods[] = {
     "synthesis path is active at runtime.\n" },
   { "set_wtype", (PyCFunction)_SynthEngine_set_wtype, METH_VARARGS,
     "Override the waveform type discriminant in-place. Changing wtype does "
-    "not reinitialise sub-objects; use with care.\n" },
+    "not reinitialise sub-objects, so a type whose generator create() did not "
+    "build is refused: PN, BPSK and QPSK need the PN source an engine created "
+    "as one of them (or as dsss) has.\n" },
   { "get_nsps", (PyCFunction)_SynthEngine_get_nsps, METH_NOARGS,
     "Return the samples-per-symbol count. For modulated types (BPSK, QPSK, "
     "PN) each symbol is held for nsps consecutive output samples.  For "

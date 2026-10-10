@@ -521,7 +521,9 @@ class _SynthEngine:
 
     def set_wtype(self, value: int) -> None:
         """Override the waveform type discriminant in-place. Changing wtype
-        does not reinitialise sub-objects; use with care.
+        does not reinitialise sub-objects, so a type whose generator create()
+        did not build is refused: PN, BPSK and QPSK need the PN source an
+        engine created as one of them (or as dsss) has.
 
         Parameters
         ----------

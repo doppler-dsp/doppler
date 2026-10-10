@@ -24,7 +24,50 @@ REPO = repo_root(__file__)
 SCRIPT = REPO / "scripts" / "python_versions.py"
 
 
-def _run(tmp_path: Path, requires: str, versions: list[str], *args: str):
+def _release(built: list[str]) -> str:
+    """A release.yml with the three build-list shapes release.yml has: one
+    in cp tags, one in quoted versions, and the derived smoke matrix (an
+    expression, which the gate must skip)."""
+    cp = ", ".join("cp" + v.replace(".", "") for v in built)
+    dotted = ", ".join(f'"{v}"' for v in built)
+    return textwrap.dedent(
+        f"""\
+        jobs:
+          build-python:
+            strategy:
+              matrix:
+                python: [{cp}]
+          build-macos:
+            strategy:
+              matrix:
+                python: [{dotted}]
+          smoke-pypi:
+            strategy:
+              matrix:
+                python: ${{{{ fromJSON(needs.v.outputs.pythons) }}}}
+        """
+    )
+
+
+def _run(
+    tmp_path: Path,
+    requires: str,
+    versions: list[str],
+    *args: str,
+    release: str | None = None,
+):
+    """Run the script on a seeded pyproject and release.yml. By default the
+    release builds exactly the classifier set, so a case about the pyproject
+    is not also a case about the release."""
+    rel = tmp_path / "release.yml"
+    rel.write_text(
+        release
+        if release is not None
+        else _release(
+            sorted(versions, key=lambda v: tuple(map(int, v.split("."))))
+        ),
+        encoding="utf-8",
+    )
     classifiers = "\n".join(
         f'    "Programming Language :: Python :: {v}",' for v in versions
     )
@@ -44,7 +87,15 @@ def _run(tmp_path: Path, requires: str, versions: list[str], *args: str):
         encoding="utf-8",
     )
     return subprocess.run(
-        [sys.executable, str(SCRIPT), "--pyproject", str(f), *args],
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--pyproject",
+            str(f),
+            "--release",
+            str(rel),
+            *args,
+        ],
         capture_output=True,
         text=True,
     )
@@ -103,3 +154,40 @@ def test_the_primary_follows_the_classifiers(tmp_path: Path) -> None:
     r = _run(tmp_path, ">=3.13", ["3.13", "3.14"], "--primary")
     assert r.returncode == 0, r.stderr
     assert r.stdout == "3.13\n"
+
+
+# ── release.yml's build lists, both directions (doppler#1964) ───────────────
+
+
+def test_a_classifier_with_no_build_entry_fails(tmp_path: Path) -> None:
+    """3.11 declared and smoked, but no job builds its wheel."""
+    r = _run(
+        tmp_path,
+        ">=3.9",
+        ["3.9", "3.10", "3.11"],
+        release=_release(["3.9", "3.10"]),
+    )
+    assert r.returncode == 1
+    assert "builds no cp311 wheel" in r.stderr
+    assert r.stderr.count("builds no cp311") == 2  # both literal lists
+
+
+def test_a_build_entry_with_no_classifier_fails(tmp_path: Path) -> None:
+    """A cp311 wheel built and shipped that no smoke leg installs."""
+    r = _run(
+        tmp_path,
+        ">=3.9",
+        ["3.9", "3.10"],
+        release=_release(["3.9", "3.10", "3.11"]),
+    )
+    assert r.returncode == 1
+    assert "builds cp311, which no classifier declares" in r.stderr
+
+
+def test_a_release_with_no_literal_build_list_fails(tmp_path: Path) -> None:
+    """Nothing to compare is not a pass: a renamed key would hide the gate."""
+    r = _run(
+        tmp_path, ">=3.9", ["3.9"], release="jobs:\n  x:\n    runs-on: y\n"
+    )
+    assert r.returncode == 1
+    assert "found no literal" in r.stderr

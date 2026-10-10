@@ -61,16 +61,16 @@ _Additive White Gaussian Noise generator._ [More...](#detailed-description)
 | ---: | :--- |
 |  int | [**dp\_awgn**](#function-dp_awgn) (uint64\_t seed, float amplitude, size\_t n, float \_Complex \* out) <br>_One-shot AWGN generation — no persistent state required._  |
 |  float | [**dp\_awgn\_amplitude\_for\_snr**](#function-dp_awgn_amplitude_for_snr) (float snr\_db, float signal\_power) <br>_The_ `amplitude` _that puts a signal at a target SNR._ |
-|  [**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* | [**dp\_awgn\_create**](#function-dp_awgn_create) (uint64\_t seed, float amplitude) <br>_Create an AWGN generator. Allocates state, seeds the xoshiro256++ RNG via SplitMix64, and sets up both the scalar and the AVX2 parallel streams. The initial seed is stored so_ [_**dp\_awgn\_reset()**_](awgn__core_8h.md#function-dp_awgn_reset) _can reproduce the exact same stream._ |
+|  [**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* | [**dp\_awgn\_create**](#function-dp_awgn_create) (uint64\_t seed, float amplitude) <br>_Create an AWGN generator. Allocates state and seeds the xoshiro256++ RNG via SplitMix64. The initial seed is stored so_ [_**dp\_awgn\_reset()**_](awgn__core_8h.md#function-dp_awgn_reset) _can reproduce the exact same stream._ |
 |  void | [**dp\_awgn\_destroy**](#function-dp_awgn_destroy) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state) <br> |
 |  size\_t | [**dp\_awgn\_generate**](#function-dp_awgn_generate) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state, size\_t n, float \_Complex \* out, size\_t max\_out) <br>_Generate n complex CF32 AWGN samples. Uses Box-Muller with xoshiro256++ to fill_ `out` _with independent complex Gaussians: Re and Im each have zero mean and standard deviation_`amplitude` _. Total complex power = 2 × amplitude². The AVX2 path processes 8 samples in parallel when available._ |
 |  size\_t | [**dp\_awgn\_generate\_max\_out**](#function-dp_awgn_generate_max_out) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state) <br>_Conservative upper bound on generate() output size._  |
 |  float | [**dp\_awgn\_get\_amplitude**](#function-dp_awgn_get_amplitude) (const [**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state) <br>_Return the current amplitude (per-component std dev)._  |
-|  void | [**dp\_awgn\_get\_state**](#function-dp_awgn_get_state) (const [**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state, void \* blob) <br>_Serialize the RNG state (scalar + AVX2 streams) into_ `blob` _._ |
+|  void | [**dp\_awgn\_get\_state**](#function-dp_awgn_get_state) (const [**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state, void \* blob) <br>_Serialize the RNG state, seed and amplitude into_ `blob` _._ |
 |  void | [**dp\_awgn\_reseed**](#function-dp_awgn_reseed) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state, uint64\_t seed) <br>_Reseed the RNG and reset all xoshiro256++ state. Equivalent to calling_ [_**dp\_awgn\_destroy()**_](awgn__core_8h.md#function-dp_awgn_destroy) _and dp\_awgn\_create(seed, amplitude) but reuses the existing allocation. amplitude is unchanged._ |
 |  void | [**dp\_awgn\_reset**](#function-dp_awgn_reset) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state) <br>_Reset RNG to the seed supplied at create time. Re-runs the SplitMix64 seeding procedure with the original seed so the next_ [_**dp\_awgn\_generate()**_](awgn__core_8h.md#function-dp_awgn_generate) _call produces exactly the same samples as the first call after_[_**dp\_awgn\_create()**_](awgn__core_8h.md#function-dp_awgn_create) _. amplitude is not changed._ |
 |  void | [**dp\_awgn\_set\_amplitude**](#function-dp_awgn_set_amplitude) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state, float val) <br> |
-|  int | [**dp\_awgn\_set\_state**](#function-dp_awgn_set_state) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state, const void \* blob) <br>_Restore RNG state; DP\_OK, or DP\_ERR\_INVALID if rejected._  |
+|  int | [**dp\_awgn\_set\_state**](#function-dp_awgn_set_state) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state, const void \* blob) <br>_Restore the RNG state, seed and amplitude; DP\_OK, or DP\_ERR\_INVALID if rejected (and nothing changes)._  |
 |  size\_t | [**dp\_awgn\_state\_bytes**](#function-dp_awgn_state_bytes) (const [**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state) <br>_Serialized-state byte size._  |
 
 
@@ -244,7 +244,7 @@ Per-component sigma for one I or Q rail.
 
 ### function dp\_awgn\_create 
 
-_Create an AWGN generator. Allocates state, seeds the xoshiro256++ RNG via SplitMix64, and sets up both the scalar and the AVX2 parallel streams. The initial seed is stored so_ [_**dp\_awgn\_reset()**_](awgn__core_8h.md#function-dp_awgn_reset) _can reproduce the exact same stream._
+_Create an AWGN generator. Allocates state and seeds the xoshiro256++ RNG via SplitMix64. The initial seed is stored so_ [_**dp\_awgn\_reset()**_](awgn__core_8h.md#function-dp_awgn_reset) _can reproduce the exact same stream._
 ```C++
 dp_awgn_state_t * dp_awgn_create (
     uint64_t seed,
@@ -411,7 +411,7 @@ float dp_awgn_get_amplitude (
 
 ### function dp\_awgn\_get\_state 
 
-_Serialize the RNG state (scalar + AVX2 streams) into_ `blob` _._
+_Serialize the RNG state, seed and amplitude into_ `blob` _._
 ```C++
 void dp_awgn_get_state (
     const dp_awgn_state_t * state,
@@ -520,7 +520,7 @@ Set amplitude without disturbing RNG state.
 
 ### function dp\_awgn\_set\_state 
 
-_Restore RNG state; DP\_OK, or DP\_ERR\_INVALID if rejected._ 
+_Restore the RNG state, seed and amplitude; DP\_OK, or DP\_ERR\_INVALID if rejected (and nothing changes)._ 
 ```C++
 int dp_awgn_set_state (
     dp_awgn_state_t * state,

@@ -19,6 +19,7 @@
 #include "doppler/detector/det_private.h"
 #include "doppler/dp_complex.h"
 #include "doppler/dp_tlm/dp_tlm_core.h"
+#include "dp_chunk_inv.h"
 #include "dp_preamble_test.h"
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
@@ -32,6 +33,12 @@
 
 /* A length-7 maximal-length sequence (one period). */
 static const uint8_t CODE7[7] = { 1, 1, 1, 0, 1, 0, 0 };
+
+/* A length-31 maximal-length sequence (one period): PN(mls_poly(5),
+ * seed=1). */
+static const uint8_t CODE31[31]
+    = { 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1,
+        1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0 };
 
 /* A burst engine from a PN code: the preamble is the code's samples, mapped
  * by dp_bin_to_nrz() and held `spc` a chip (dp_preamble_test.h), at
@@ -151,9 +158,6 @@ _acq_run_roundtrip (const float _Complex *s0d, size_t nx, size_t spc,
 static int
 _acq_cn0_calibration (void)
 {
-  static const uint8_t CODE31[31]
-      = { 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1,
-          1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0 };
   const size_t spc      = 4;
   const double crate    = 1.0e6;
   const double fs       = crate * (double)spc;
@@ -764,9 +768,6 @@ _acq_wideband_coverage_check (void)
 static int
 _acq_continuous_check (void)
 {
-  static const uint8_t CODE31[31]
-      = { 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1,
-          1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0 };
   const size_t spc      = 4;
   const double crate    = 1.0e6;
   const double sf       = 31.0;
@@ -907,12 +908,8 @@ _acq_template_check (void)
      ideal rectangular pulse's triangle puts there too -- the zone is the
      one term of the shape the two models agree on. 31 chips, not CODE7: a
      7-chip code's floor (1/7) already equals its sampled triangle at lag 3,
-     so its first null is honestly 3 (see acq_shape_of_template).
-     PN(mls_poly(5), seed=1). */
+     so its first null is honestly 3 (see acq_shape_of_template). */
   {
-    static const uint8_t CODE31[31]
-        = { 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1,
-            1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0 };
     const size_t    spc = 4;
     dp_acq_state_t *cp  = burst_from_code (
         CODE31, 31, reps, spc, fs / 4.0, ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0, 0.0);
@@ -1364,6 +1361,118 @@ _acq_cell_corr_grid_check (void)
   return 0;
 }
 
+/* ── chunk invariance (dp_chunk_inv.h) ──────────────────────────────────── */
+
+/** One engine, handed to the harness as its `arg`: @c kind 0 is a burst
+ *  engine on its auto-sized grid, 1 the same pinned to 2 Doppler bins x 3
+ *  non-coherent looks, 2 a continuous engine at its native span, 3 one
+ *  window-tiled (wideband). */
+typedef struct
+{
+  int                   kind;
+  const float _Complex *tmpl; /* the burst preamble, 64 samples x 4 reps */
+} ci_acq_cfg_t;
+
+static void *
+ci_acq_create (void *arg)
+{
+  const ci_acq_cfg_t *c    = (const ci_acq_cfg_t *)arg;
+  const double        span = 1.0e6 / (2.0 * 31.0);
+  dp_acq_state_t     *a
+      = c->kind < 2
+            ? dp_acq_create_burst (c->tmpl, 64, 4, 1.0e6, 50.0, 0.0, 1e-3, 0.9,
+                                   0, 0.0)
+            : dp_acq_create_continuous (CODE31, 31, 4, 1.0e6, 2700.0, 55.0,
+                                        c->kind == 3 ? 3.5 * span : 0.0, 1e-3,
+                                        0.9, 0, 1, 0.0);
+  if (a
+      && ((c->kind == 1 && dp_acq_configure_search_raw (a, 2, 3) != 0)
+          || dp_acq_set_max_peaks (a, 4) != 0))
+    {
+      dp_acq_destroy (a);
+      return NULL;
+    }
+  return a;
+}
+
+static void
+ci_acq_destroy (void *obj)
+{
+  dp_acq_destroy ((dp_acq_state_t *)obj);
+}
+
+/* out_cap is the result cap: sized so no call can fill it (max_peaks per
+   frame at most), so every frame of every partition is drained. */
+static size_t
+ci_acq_push (void *obj, const void *in, size_t n, void *out, size_t out_cap)
+{
+  return dp_acq_push ((dp_acq_state_t *)obj, (const float _Complex *)in, n,
+                      (acq_result_t *)out, out_cap);
+}
+
+/* The hits are a function of the input stream, not of how push() calls cut
+ * it: a partial frame, a dwell's coherent sum, its non-coherent looks and
+ * the stream position every hit is stamped with (samples_consumed) are all
+ * carried between calls. acq_result_t has no padding, so the harness's
+ * default memcmp is the exact comparison. */
+static int
+_acq_chunk_invariance_check (void)
+{
+  uint32_t st = 0x1895u;
+  float _Complex tmpl[64];
+  for (size_t i = 0; i < 64; i++)
+    {
+      const float re = (float)dp_bit (&st);
+      const float im = (float)dp_bit (&st);
+      tmpl[i]        = re + I * im;
+    }
+  for (int kind = 0; kind < 4; kind++)
+    {
+      const ci_acq_cfg_t cfg   = { kind, tmpl };
+      dp_acq_state_t    *probe = ci_acq_create ((void *)&cfg);
+      DP_CHECK (probe != NULL);
+      if (!probe)
+        continue;
+      const size_t frame_n = probe->frame_n;
+      dp_acq_destroy (probe);
+
+      /* The burst sits at irregular offsets in noise; the continuous code
+         runs throughout, at a code phase that is not a frame boundary. */
+      const size_t    len = 37 * frame_n + frame_n / 3;
+      float _Complex *x   = malloc (len * sizeof *x);
+      DP_CHECK (x != NULL);
+      if (!x)
+        return 1;
+      for (size_t i = 0; i < len; i++)
+        x[i] = 0.4f * dp_cgauss (&st);
+      if (kind < 2)
+        for (size_t at = 41; at + 256 <= len; at += 3 * 256 + 97)
+          for (size_t i = 0; i < 256; i++)
+            x[at + i] += tmpl[i % 64];
+      else
+        for (size_t i = 0; i < len; i++)
+          x[i] += CODE31[((i + 23) / 4) % 31] ? -1.0f : 1.0f;
+
+      static const char *names[]
+          = { "acq push, burst", "acq push, burst 2 x 3 looks",
+              "acq push, continuous", "acq push, continuous wideband" };
+      dp_ci_spec_t spec = {
+        .name     = names[kind],
+        .create   = ci_acq_create,
+        .destroy  = ci_acq_destroy,
+        .process  = ci_acq_push,
+        .arg      = (void *)&cfg,
+        .in_size  = sizeof (float _Complex),
+        .out_size = sizeof (acq_result_t),
+        .out_cap  = 4 * (len / frame_n + 1),
+        .frame_n  = frame_n,
+      };
+      DP_CHECK (dp_chunk_invariance (&spec, x, len) == 0);
+      free (x);
+    }
+  return 0;
+}
+
 int
 main (void)
 {
@@ -1710,6 +1819,7 @@ main (void)
   (void)_acq_wideband_check ();
   (void)_acq_hit_chip_phase_check ();
   (void)_acq_wideband_coverage_check ();
+  (void)_acq_chunk_invariance_check ();
   (void)_acq_continuous_check ();
 
   /* ── samples_consumed: a per-hit anchor, not a per-call one ───────────

@@ -143,6 +143,7 @@ dp_hbdecim_reset (hbdecim_state_t *r)
   r->even_head   = 0;
   r->odd_head    = 0;
   r->has_pending = 0;
+  r->pending = 0; /* in the blob: a held sample is state, a stale one not */
   memset (r->even_buf, 0, 2 * r->even_cap * sizeof (float _Complex));
   memset (r->odd_buf, 0, 2 * r->even_cap * sizeof (float _Complex));
 }
@@ -242,6 +243,7 @@ dp_hbdecim_execute (hbdecim_state_t *r, const float _Complex *in,
       dl_push_odd (r, in[xi++]);
       out[oi++]      = compute_output (r);
       r->has_pending = 0;
+      r->pending     = 0; /* consumed: the blob carries no stale sample */
     }
 
   /* Process complete (even, odd) pairs */

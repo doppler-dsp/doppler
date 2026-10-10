@@ -107,10 +107,13 @@ CellAsyncDsssReceiverObj_init (CellAsyncDsssReceiverObject *self,
     {
       PyErr_SetString (PyExc_ValueError,
                        "CellAsyncDsssReceiver: invalid parameter (need a "
-                       "code of at least 2 chips, chip_rate > 0, a finite "
-                       "symbol_rate > 0, spc >= 1, m in {2,4,8}, segments >= "
-                       "1, sps >= 1, carrier_freq_hz >= 0, lost_confirm_s >= "
-                       "0)");
+                       "code of at least 2 chips, a finite chip_rate > 0, a "
+                       "finite symbol_rate > 0, spc >= 1, m in {2,4,8}, "
+                       "segments >= 1, sps >= 2, carrier_freq_hz 0 or finite "
+                       "and above chip_rate * spc / 2, lost_confirm_s >= 0, "
+                       "correct_periods >= 1, 0 < gain <= 1, and a symbol of "
+                       "at most 2^20 Dll partials, segments * chip_rate / "
+                       "(code_len * symbol_rate) <= 1048576)");
       return -1;
     }
   return 0;
@@ -1184,15 +1187,27 @@ static PyMethodDef CellAsyncDsssReceiverObj_methods[] = {
     "\n"
     "Pin the live-tracking despread/resample/demod grid directly, bypassing "
     "the create-time segments/sps defaults. Only meaningful once tracking; "
-    "rebuilds the chain with every replacement allocated first, so a failed "
-    "pin leaves the receiver on its prior grid.\n"
+    "rebuilds the chain with every replacement allocated first. Raises "
+    "ValueError, leaving the receiver on its prior grid, for a grid the chain "
+    "cannot be built on: n >= 1 dividing sps, sps >= 2, and a symbol of at "
+    "most 2^20 Dll partials at the new segments, segments * chip_rate / "
+    "(code_len * symbol_rate) <= 1048576. An n MpskReceiver refuses (odd, or "
+    "over 8) still aborts (doppler#2112).\n"
+    "\n"
+    "The new grid is checked as create() checked the first, before anything\n"
+    "is rebuilt, and refused with the receiver left on its prior grid: the\n"
+    "Dll's domain at segments, sps >= 2, and a symbol period of at most 2^20\n"
+    "Dll partials, which the Dll's aid would otherwise refuse mid-build\n"
+    "(doppler#2103). Not yet refused, and still an abort: an n that\n"
+    "MpskReceiver refuses (odd, or over 8), and an allocation failure in the\n"
+    "rebuild (doppler#2112).\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "segments : int\n"
     "    Live-tracking Dll segments per code period.\n"
     "sps : int\n"
-    "    MpskReceiver samples per symbol (the resample target).\n"
+    "    MpskReceiver samples per symbol (the resample target), >= 2.\n"
     "n : int\n"
     "    MpskReceiver's carrier-arm count; must divide sps.\n"
     "\n"

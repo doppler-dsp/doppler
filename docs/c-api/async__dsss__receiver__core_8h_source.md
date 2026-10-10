@@ -106,6 +106,12 @@ extern "C"
    * the channel's resampled pulse, 12.22). */
 #define ASYNC_DSSS_RX_DLL_SPACING 0.5
 #define ASYNC_DSSS_RX_DLL_DISC_SLOPE (2.0 - ASYNC_DSSS_RX_DLL_SPACING)
+  /* The damping of both Dlls this receiver builds, the tracker and the
+   * refine collector, and the collector's early-late spacing, chips. Named
+   * once because create() checks the very arguments each build site passes
+   * (dp_dll_params_ok(), doppler#2103). */
+#define ASYNC_DSSS_RX_DLL_ZETA 0.707
+#define ASYNC_DSSS_RX_REFINE_DLL_SPACING 0.5
 
   /* Symbol-lock detector on the emitted symbols. The lock signal is the
    * BPSK phase-lock statistic (I^2 - Q^2)/(I^2 + Q^2) = cos(2*phi) per

@@ -726,6 +726,9 @@ void dp_sub_set_timeout (
 
 
 
+One [**dp\_sub\_recv()**](group__pubsub.md#function-dp_sub_recv) has ONE deadline, however many messages it reads: a chunked frame takes several, and the timeout bounds them all. Once the deadline has passed, a message already queued is not taken  it waits for the next call. The clock is the NATS client's own (nats\_Now(): the wall clock, in milliseconds), the one its waits are timed with. A timeout of 0 still looks once, for 1 ms.
+
+
 
 
 **Parameters:**

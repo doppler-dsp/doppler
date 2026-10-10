@@ -19,6 +19,7 @@
 
 #include "doppler/dp_complex.h"
 #include "dp_nats_test.h"
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -847,10 +848,14 @@ done:
  * 100 ms timeout. With a fresh timeout per message, the receive never
  * returned while they kept coming.
  * ------------------------------------------------------------------ */
+/* `stop` is atomic, not volatile: the flood thread reads it while the main
+   thread writes it, and `make test-tsan` runs this binary against a
+   broker with halt_on_error -- a harness that trips the tool cannot be
+   evidence about the thing it is watching (test_ccsds_tm_rs_race.c). */
 typedef struct
 {
-  const char  *subj;
-  volatile int stop;
+  const char *subj;
+  atomic_int  stop;
 } raw_flood_t;
 
 DP_THREAD_FN (raw_flood, arg)
@@ -860,7 +865,8 @@ DP_THREAD_FN (raw_flood, arg)
   if (natsConnection_ConnectTo (&nc, DP_NATS_URL) == NATS_OK)
     {
       uint64_t until = dp_mono_ns () + 2000000000ull; /* 2 s at most */
-      for (uint64_t seq = 1000; !f->stop && dp_mono_ns () < until; seq++)
+      for (uint64_t seq = 1000;
+           !atomic_load (&f->stop) && dp_mono_ns () < until; seq++)
         {
           (void)raw_chunk (nc, f->subj, seq, 0);
           dp_thread_sleep_us (10000);
@@ -885,7 +891,9 @@ test_recv_deadline_holds_while_chunks_keep_coming (void)
   dp_nats_settle ();
   dp_sub_set_timeout (sub, 100);
 
-  raw_flood_t flood = { subj, 0 };
+  raw_flood_t flood;
+  flood.subj = subj;
+  atomic_init (&flood.stop, 0);
   dp_thread_t th;
   DP_CHECK (dp_thread_create (&th, raw_flood, &flood) == 0);
   dp_thread_sleep_us (100000); /* the flood is under way */
@@ -899,8 +907,11 @@ test_recv_deadline_holds_while_chunks_keep_coming (void)
   DP_CHECK (rc == DP_ERR_TIMEOUT);
   DP_CHECK_MSG (ms < 600.0, "one 100 ms deadline, not one per chunk");
   DP_CHECK (reasm_stats (sub).mid_frame_timeouts >= 1);
+  /* And the flood was arriving all the while: each chunk starts a frame
+     that the next one abandons. */
+  DP_CHECK (reasm_stats (sub).abandoned >= 5);
 
-  flood.stop = 1;
+  atomic_store (&flood.stop, 1);
   dp_thread_join (th);
   dp_sub_destroy (sub);
 }

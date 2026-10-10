@@ -237,8 +237,12 @@ Consequences worth stating plainly:
     frame. When a chunk of a *different* frame arrives, and passes the
     grid check as a frame of its own, the frame in progress is
     abandoned, and that chunk starts the next frame rather than going
-    down with it. An unchunked frame or an end-of-stream abandons it
+    down with it. An unchunked frame of the same stream (the same kind
+    and format, so the same subject), or an end-of-stream, abandons it
     too: with one publisher per subject, either proves it lost a chunk.
+    A frame of another type on the base leaves it alone. An
+    end-of-stream names no stream, so any publisher's EOS on the base
+    ends the receive, and the frame with it (#2039).
     The next frame arrives intact. A late joiner loses only the frame it
     joined in the middle of. A chunk no frame could hold is rejected and
     costs the frame in progress nothing.

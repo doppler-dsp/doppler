@@ -1217,6 +1217,15 @@ target_include_directories(test_dp_state
 target_compile_options(test_dp_state PRIVATE -O2)
 add_test(NAME test_dp_state COMMAND test_dp_state)
 
+# dp_test.h's own output: a FAIL lands in order, at a line start, in a
+# `> log 2>&1` capture (#2050). The test redirects itself, so it needs no
+# shell and runs the same under ctest on every leg.
+add_executable(test_dp_test_fail_order native/tests/test_dp_test_fail_order.c)
+target_include_directories(test_dp_test_fail_order
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+add_test(NAME test_dp_test_fail_order COMMAND test_dp_test_fail_order)
+
 # native/tests/dp_tx_test.h is the harness STIMULUS SSOT, and docs/design/
 # rx-test.md section 5.4 records it as the ONE place the stimulus rule cannot
 # reach: check_stimulus_sources.py requires every test, validator and example

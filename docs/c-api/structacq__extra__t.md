@@ -43,7 +43,6 @@ _Per-object extra header for an engine's cross-call state._ [More...](#detailed-
 |  uint64\_t | [**n**](#variable-n)  <br> |
 |  uint32\_t | [**n\_noncoh**](#variable-n_noncoh)  <br> |
 |  uint32\_t | [**n\_twins**](#variable-n_twins)  <br> |
-|  uint32\_t | [**n\_unconsumed**](#variable-n_unconsumed)  <br> |
 |  uint32\_t | [**nc\_count**](#variable-nc_count)  <br> |
 |  uint64\_t | [**samples\_consumed**](#variable-samples_consumed)  <br> |
 
@@ -96,7 +95,7 @@ _Per-object extra header for an engine's cross-call state._ [More...](#detailed-
 The state blob is the _only_ thing a fresh engine needs to continue a stream from `(descriptor, state, input)` — it makes the engine a pure transducer for the elastic fan-out (thread / process / pod). Standard bytes interface (see [**dp\_state.h**](dp__state_8h.md)); layout, contiguous and flat:
 
 
-`[  dp_state_hdr_t ] [ acq_extra_t ]` `[ float _Complex unconsumed[n_unconsumed] ]` (partial frame, &lt; n samples) `[ float nc_surface[n] ]` (only when n\_noncoh &gt; 1) `[ uint32_t twins[2 * max_peaks] ]` (held row, col pairs)
+`[  dp_state_hdr_t ] [ acq_extra_t ]` `[ the framer's snapshot ]` (the carry, fewer than frame\_n samples; its own self-validating child blob) `[ float nc_surface[n] ]` (only when n\_noncoh &gt; 1) `[ uint32_t twins[2 * max_peaks] ]` (held row, col pairs)
 
 
 Build the byte buffer with [**dp\_acq\_state\_bytes()**](acq__core_8h.md#function-dp_acq_state_bytes); set\_state validates the envelope (magic/version/size) plus n / n\_noncoh below, rejecting a mismatch rather than reinterpreting it. 
@@ -219,24 +218,6 @@ uint32_t acq_extra_t::n_twins;
 
 
 Last dwell's picks that follow. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable n\_unconsumed 
-
-```C++
-uint32_t acq_extra_t::n_unconsumed;
-```
-
-
-
-Partial-frame samples that follow (&lt; n). 
  
 
 

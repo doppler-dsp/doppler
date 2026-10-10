@@ -145,7 +145,7 @@ BurstAcquisitionObj_push (BurstAcquisitionObject *self, PyObject *args)
       return NULL;
     }
   size_t       n_in = (size_t)PyArray_SIZE (in_arr);
-  acq_result_t results[64];
+  acq_result_t results[1024];
   /* nogil: GIL released across the pure-C kernel — sound only when
    * this object is not shared across threads concurrently (one
    * object per stream); the kernel touches only this object's
@@ -153,15 +153,15 @@ BurstAcquisitionObj_push (BurstAcquisitionObject *self, PyObject *args)
   const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (in_arr);
   size_t                n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = dp_burst_acq_push (self->handle, _ng0, n_in, results, 64);
+    n_out = dp_burst_acq_push (self->handle, _ng0, n_in, results, 1024);
   Py_END_ALLOW_THREADS
   Py_DECREF (in_arr);
-  if ((size_t)(n_out) > (size_t)(64))
+  if ((size_t)(n_out) > (size_t)(1024))
     {
       PyErr_Format (
           PyExc_RuntimeError,
           "BurstAcquisition.push: wrote %zu elements into a buffer of %zu",
-          (size_t)(n_out), (size_t)(64));
+          (size_t)(n_out), (size_t)(1024));
       return NULL;
     }
   PyObject *lst = PyList_New ((Py_ssize_t)n_out);
@@ -721,6 +721,9 @@ static PyMethodDef BurstAcquisitionObj_methods[] = {
     "in acq_core.h for the framing/CFAR mechanics). Each event carries the\n"
     "peak's Doppler bin and code phase (the two search axes), its CFAR\n"
     "statistic, and an estimated C/N0 — see acq_result_t.\n"
+    "\n"
+    "Python's push() has room for 1024 events a call, with dp_acq_push()'s\n"
+    "rule for what a push that fills it loses.\n"
     "\n"
     "Parameters\n"
     "----------\n"

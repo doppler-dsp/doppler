@@ -1489,7 +1489,14 @@ test_backed_finds_the_same_burst_with_a_smaller_blob (void)
   const size_t at = 9000u;
   build_capture (cap, sizeof cap / sizeof *cap, &at, 1u, 0.02, 7u);
 
-  dp_burst_capture_state_t *ram = make ();
+  /* The same configuration on both sides, so the backing is the ONE
+     difference: make()'s cn0 design differs, which picks a different
+     acquisition grid and so a different acq blob. That used to hide under
+     the ring's power-of-two capacity; the framer's snapshot is sized by the
+     frame itself, so it no longer does. */
+  dp_burst_capture_state_t *ram
+      = capture_from_code (acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6,
+                           55.0, 0.0, 1e-3, 0.9, 0, 0.0);
   dp_burst_capture_state_t *dsk
       = capture_from_code_backed (path, acq_code (), ACQ_SF, BURST_LEN, REPS,
                                   SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0, 0.0);

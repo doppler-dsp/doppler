@@ -49,6 +49,7 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  size\_t | [**coherent\_bins**](#variable-coherent_bins)  <br> |
 |  float \_Complex \* | [**colbuf**](#variable-colbuf)  <br> |
 |  float \_Complex \* | [**colout**](#variable-colout)  <br> |
+|  size\_t | [**consumed**](#variable-consumed)  <br> |
 |  [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* | [**corr**](#variable-corr)  <br> |
 |  double | [**doppler\_rate**](#variable-doppler_rate)  <br> |
 |  double | [**doppler\_res\_hz**](#variable-doppler_res_hz)  <br> |
@@ -59,6 +60,7 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  float | [**eta**](#variable-eta)  <br> |
 |  float | [**eta\_nc**](#variable-eta_nc)  <br> |
 |  size\_t | [**frame\_n**](#variable-frame_n)  <br> |
+|  dp\_f32\_framer\_t | [**framer**](#variable-framer)  <br> |
 |  double | [**fs**](#variable-fs)  <br> |
 |  size\_t | [**interp**](#variable-interp)  <br> |
 |  int | [**keep\_surface**](#variable-keep_surface)  <br> |
@@ -415,6 +417,24 @@ FFT'd column scratch (coherent\_bins).
 
 
 
+### variable consumed 
+
+```C++
+size_t dp_acq_state_t::consumed;
+```
+
+
+
+Input samples the last push took. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable corr 
 
 ```C++
@@ -584,6 +604,24 @@ size_t dp_acq_state_t::frame_n;
 
 
 Raw samples consumed from the ring per iteration: == n natively; == code\_bins in wideband mode (one epoch's worth — window\_bins hypotheses come from ONE shared epoch, not from consuming more input). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable framer 
+
+```C++
+dp_f32_framer_t dp_acq_state_t::framer;
+```
+
+
+
+Any chunk in, frame\_n-sample frames out. 
  
 
 
@@ -1186,7 +1224,7 @@ dp_f32_t* dp_acq_state_t::ring;
 
 
 
-Raw cf32 input ring (the only ring). 
+The carry's storage: bound to `framer`, freed by destroy. 
  
 
 

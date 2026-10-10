@@ -315,7 +315,7 @@ _FAST_SEL = "matrix.python-version == needs.pythons.outputs.primary"
 def _legs(
     sel: str = _FAST_SEL,
     outputs: str = "primary: x",
-    derive: str = "p=$(python3 scripts/python_versions.py --primary)",
+    derive: str = "p=$(make -s print-python-primary)",
 ) -> str:
     return (
         _LEGS.replace("SELECTOR", sel)
@@ -365,6 +365,19 @@ def test_a_primary_written_down_is_refused(tmp_path: Path) -> None:
     r = _check(tmp_path, _legs(derive="echo primary=3.9"))
     assert r.returncode == 1
     assert "does not derive the primary leg" in r.stdout
+
+
+def test_the_script_called_directly_is_a_second_spelling(
+    tmp_path: Path,
+) -> None:
+    """The primary goes through the make target, as the matrix does, so a
+    workflow spells it one way."""
+    r = _check(
+        tmp_path,
+        _legs(derive="p=$(python3 scripts/python_versions.py --primary)"),
+    )
+    assert r.returncode == 1
+    assert "make -s print-python-primary" in r.stdout
 
 
 def test_a_selecting_job_must_need_pythons(tmp_path: Path) -> None:

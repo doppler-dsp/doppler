@@ -261,8 +261,9 @@ could not be trusted either way. The jm pin therefore lives in `ci.yml` alone
 (plus `just-makeit.toml`'s `jm_version` and `pyproject.toml`'s dev-group pin).
 
 Benchmarking did not go away: `make bench-interleaved` is the sound
-comparison (alternating repeats across two worktrees), and `bench-baseline` /
-`bench-check` remain. See `docs/dev/contributing/benchmarking.md`.
+comparison (alternating repeats across two worktrees), and `make bench-save` /
+`make bench-compare` remain for the Python microbenchmarks. See
+`docs/dev/contributing/benchmarking.md`.
 
 ______________________________________________________________________
 

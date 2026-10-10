@@ -105,7 +105,7 @@ _Streaming spectrogram: a stream of any-size chunks in, rows of nfft-bin spectra
 | Type | Name |
 | ---: | :--- |
 | define  | [**DP\_SPECTROGRAM\_DB**](spectrogram__core_8h.md#define-dp_spectrogram_db)  `0`<br>_Row units: dBFS, against the PSD's full-scale reference._  |
-| define  | [**DP\_SPECTROGRAM\_POWER**](spectrogram__core_8h.md#define-dp_spectrogram_power)  `1`<br>_Row units: linear power. RESERVED:_ [_**dp\_spectrogram\_create()**_](spectrogram__core_8h.md#function-dp_spectrogram_create) _refuses it until PSD's normalised per-frame power is on main, so that a power row and a dB row share one reference._ |
+| define  | [**DP\_SPECTROGRAM\_POWER**](spectrogram__core_8h.md#define-dp_spectrogram_power)  `1`<br>_Row units: linear power. RESERVED:_ [_**dp\_spectrogram\_create()**_](spectrogram__core_8h.md#function-dp_spectrogram_create) _refuses it until it is wired to_[_**dp\_psd\_frame\_linear()**_](psd__core_8h.md#function-dp_psd_frame_linear) _, so that a power row and a dB row share one reference (#1968)._ |
 | define  | [**SPECTROGRAM\_STATE\_MAGIC**](spectrogram__core_8h.md#define-spectrogram_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('S', 'P', 'G', 'M')`<br>_State-blob magic ('SPGM') and layout version._  |
 | define  | [**SPECTROGRAM\_STATE\_VERSION**](spectrogram__core_8h.md#define-spectrogram_state_version)  `1u`<br> |
 
@@ -765,7 +765,7 @@ A bin reads no lower than -200 dB: PSD clamps power at 1e-20 before the log, so 
 
 ### define DP\_SPECTROGRAM\_POWER 
 
-_Row units: linear power. RESERVED:_ [_**dp\_spectrogram\_create()**_](spectrogram__core_8h.md#function-dp_spectrogram_create) _refuses it until PSD's normalised per-frame power is on main, so that a power row and a dB row share one reference._
+_Row units: linear power. RESERVED:_ [_**dp\_spectrogram\_create()**_](spectrogram__core_8h.md#function-dp_spectrogram_create) _refuses it until it is wired to_[_**dp\_psd\_frame\_linear()**_](psd__core_8h.md#function-dp_psd_frame_linear) _, so that a power row and a dB row share one reference (#1968)._
 ```C++
 #define DP_SPECTROGRAM_POWER `1`
 ```

@@ -5,8 +5,9 @@
  *
  * The Spectrogram has no Python binding until #1894's slice 3b, so its
  * evidence follows `docs/dev/contributing/validation.md` "Certifying a
- * component with no binding": **this file measures; a validator renders and
- * asserts.** Nothing here decides whether a number is acceptable.
+ * component with no binding": **this file measures; the certification's
+ * validator (#1941's A4, step 5, still to come) renders and asserts.**
+ * Nothing here decides whether a number is acceptable.
  *
  * Run with no arguments for a readable run (`make validate-c`), or with
  * `--emit` for the CSV blocks a validator parses.
@@ -22,11 +23,12 @@
  * - `floor_zero`: an all-zero frame, the digital silence a caller might want
  *   to tell apart.
  * - `floor_noise`: complex Gaussian noise of total power L dBFS (E|z|^2 = 1
- *   from dp_rng_test.h, scaled). One frame's bin power is exponential with
- *   mean P * ENBW / n against PSD's tone reference, so its median sits at
- *   L + 10 log10(ENBW / n) + 10 log10(ln 2): the expected column, computed
- *   from the window's own ENBW, against which the measured median and the
- *   share of bins at the floor are read.
+ *   from dp_rng_test.h, scaled), NOISE_FRAMES frames per window and level.
+ *   A bin's power is exponential with mean mu = P * ENBW / n against PSD's
+ *   tone reference, so its median sits at L + 10 log10(ENBW / n)
+ *   + 10 log10(ln 2), and a bin reads the floor with probability
+ *   1 - exp(-1e-20 / mu). Both expectations are computed from the window's
+ *   own ENBW and printed beside the frames' mean median and mean count.
  *
  * Samples this small are ordinary floats (float32's smallest normal is about
  * 1.2e-38, an amplitude of -759 dBFS), and in-tree sources make them: a wfm
@@ -45,6 +47,9 @@
 
 #define NFFT 1024
 #define TONE 37 /* the tone's bin: on the grid, away from DC */
+/* noise frames averaged per window and level: one frame's median scatters
+   by about 0.2 dB, more than the gap between two windows' ENBW */
+#define NOISE_FRAMES 256
 
 static const char *const WINDOW[4]
     = { "hann", "kaiser", "blackman-harris", "rect" };
@@ -140,29 +145,43 @@ floor_noise (int emit)
   const size_t        nl      = sizeof level / sizeof level[0];
   float _Complex x[NFFT];
   float row[NFFT], sorted[NFFT];
-  printf (emit ? "# floor_noise\nwindow,level_dbfs,expected_median_db,"
-                 "median_db,bins_at_floor\n"
-               : "\nfloor_noise: complex noise of total power L dBFS, one "
-                 "frame\n");
+  printf (emit ? "# floor_noise\nwindow,level_dbfs,frames,expected_median_db,"
+                 "mean_median_db,expected_at_floor,mean_at_floor,"
+                 "max_at_floor\n"
+               : "\nfloor_noise: complex noise of total power L dBFS, the "
+                 "mean over frames\n");
   for (int w = 0; w < 4; w++)
     for (size_t j = 0; j < nl; j++)
       {
         uint32_t     seed = 1894u + (uint32_t)(100 * w + j);
         const double g    = pow (10.0, level[j] / 20.0);
-        for (size_t i = 0; i < NFFT; i++)
-          x[i] = (float _Complex) (g * dp_cgauss (&seed));
-        double enbw = 0.0;
-        if (row_of (w, x, row, &enbw))
-          return 1;
-        memcpy (sorted, row, sizeof row);
-        qsort (sorted, NFFT, sizeof *sorted, cmp_float);
-        const double median = 0.5 * (sorted[NFFT / 2 - 1] + sorted[NFFT / 2]);
-        const double want
-            = level[j] + 10.0 * log10 (enbw / NFFT) + 10.0 * log10 (log (2.0));
-        printf (emit ? "%s,%.0f,%.4f,%.4f,%zu\n"
-                     : "  %-16s L %6.0f  expected %10.4f  median %10.4f  "
-                       "at floor %zu\n",
-                WINDOW[w], level[j], want, median, at_floor (row));
+        double       enbw = 0.0, med_sum = 0.0, floor_sum = 0.0;
+        size_t       floor_max = 0;
+        for (int f = 0; f < NOISE_FRAMES; f++)
+          {
+            for (size_t i = 0; i < NFFT; i++)
+              x[i] = (float _Complex) (g * dp_cgauss (&seed));
+            if (row_of (w, x, row, &enbw))
+              return 1;
+            memcpy (sorted, row, sizeof row);
+            qsort (sorted, NFFT, sizeof *sorted, cmp_float);
+            med_sum += 0.5 * (sorted[NFFT / 2 - 1] + sorted[NFFT / 2]);
+            const size_t k = at_floor (row);
+            floor_sum += (double)k;
+            floor_max = k > floor_max ? k : floor_max;
+          }
+        /* each bin's power is exponential with mean mu against the tone
+           reference, so P(bin <= floor) = 1 - exp(-floor / mu) */
+        const double mu         = pow (10.0, level[j] / 10.0) * enbw / NFFT;
+        const double want_med   = 10.0 * log10 (mu) + 10.0 * log10 (log (2.0));
+        const double want_floor = NFFT * -expm1 (-1e-20 / mu);
+        printf (emit ? "%s,%.0f,%d,%.4f,%.4f,%.4f,%.4f,%zu\n"
+                     : "  %-16s L %6.0f  frames %d  median: expected %9.4f "
+                       "mean %9.4f  at floor: expected %8.3f mean %8.3f "
+                       "max %zu\n",
+                WINDOW[w], level[j], NOISE_FRAMES, want_med,
+                med_sum / NOISE_FRAMES, want_floor, floor_sum / NOISE_FRAMES,
+                floor_max);
       }
   return 0;
 }

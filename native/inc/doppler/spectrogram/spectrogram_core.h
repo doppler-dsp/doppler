@@ -53,8 +53,8 @@ extern "C"
 #define DP_SPECTROGRAM_DB 0
 /**
  * @brief Row units: linear power. RESERVED: dp_spectrogram_create() refuses
- *        it until PSD's normalised per-frame power is on main, so that a
- *        power row and a dB row share one reference.
+ *        it until it is wired to dp_psd_frame_linear(), so that a power row
+ *        and a dB row share one reference (#1968).
  */
 #define DP_SPECTROGRAM_POWER 1
 

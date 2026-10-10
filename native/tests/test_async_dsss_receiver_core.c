@@ -119,6 +119,23 @@ _test_arg_validation (void)
                                            0.9, 100.0, 4, 8, 0, 0.5, 4, 14.0,
                                            64, 8, false, 100000, 0.0, 0.0)
             == NULL);
+  /* A 1-chip code: refused, both flavours, where the Dll built under dp_xnn
+     used to abort the process once it refused the code (doppler#2103). */
+  DP_CHECK (dp_async_dsss_receiver_create (
+                CODE7, 1, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5,
+                4, 14.0, 64, 8, false, 100000, 0.0, 0.0)
+            == NULL);
+  DP_CHECK (dp_async_dsss_receiver_create_cell (CODE7, 1, 1e6, 1e3, 2, 2, 55.0,
+                                                1e-3, 0.9, 4, 8, 0, 0.0, 1.0,
+                                                100, 0.125, 4)
+            == NULL);
+  /* A symbol period the Dll's aid would refuse -- here 4 * 1e6 / (7 * 0.1)
+     partials, past 2^20 -- is refused at create: the tracker sets it
+     mid-stream, where a refusal used to drop the aid silently (#2103). */
+  DP_CHECK (dp_async_dsss_receiver_create_cell (CODE7, 7, 1e6, 0.1, 2, 2, 55.0,
+                                                1e-3, 0.9, 4, 8, 0, 0.0, 1.0,
+                                                100, 0.125, 4)
+            == NULL);
   DP_CHECK (dp_async_dsss_receiver_create (
                 CODE7, 7, 0.0, 1e3, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5,
                 4, 14.0, 64, 8, false, 100000, 0.0, 0.0)

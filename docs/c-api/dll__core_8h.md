@@ -75,7 +75,7 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float | [**dll\_replica**](#function-dll_replica) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s, double c) <br>_Sub-chip code replica at fractional code phase_ `c` _(one tap)._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dll\_steer**](#function-dll_steer) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s, double ep, double lp, double pp) <br>_The code discriminator, its filter and the NCO steer_  _the ONE steer both correlation paths call (doppler#1280)._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dll\_update**](#function-dll_update) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s) <br>_Per-period code discriminator + loop update + NCO steer on the dumped accumulators (the coherent full-epoch path)._  |
-|  void | [**dp\_dll\_configure**](#function-dp_dll_configure) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, double bn, double zeta) <br>_Recompute the loop gains for a new (bn, zeta); keep the code state._  |
+|  int | [**dp\_dll\_configure**](#function-dp_dll_configure) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, double bn, double zeta) <br>_Recompute the loop gains for a new (bn, zeta); keep the code state._  |
 |  int | [**dp\_dll\_configure\_lock**](#function-dp_dll_configure_lock) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, double pfa, size\_t n\_looks, double ref\_snr\_db) <br>_Tune the always-on code-lock detector to a target (pfa, n\_looks)._  |
 |  void | [**dp\_dll\_configure\_lock\_raw**](#function-dp_dll_configure_lock_raw) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, double up\_thresh, double down\_thresh, size\_t n\_looks, double alpha, uint32\_t n\_up, uint32\_t n\_down) <br>_Set the lock detector's raw geometry directly._  |
 |  [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* | [**dp\_dll\_create**](#function-dp_dll_create) (const uint8\_t \* code, size\_t code\_len, size\_t sps, double init\_chip, double bn, double zeta, double spacing, size\_t segments) <br>_Create a code/timing delay-locked loop over a spreading code._  |
@@ -95,8 +95,9 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 |  void | [**dp\_dll\_lock\_epoch**](#function-dp_dll_lock_epoch) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s) <br>_Per-epoch lock-detector housekeeping: re-draw the noise offset._  |
 |  void | [**dp\_dll\_lock\_look**](#function-dp_dll_lock_look) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s, double norm) <br>_Fold one look into the lock detector; clear the offset tap._  |
 |  size\_t | [**dp\_dll\_lookback\_segments**](#function-dp_dll_lookback_segments) (size\_t tsamps, double max\_error\_db) <br>_Derive a principled_ `segments` _count from a max tolerable async-lookback correlation-power loss, instead of hand-picking one._ |
+|  int | [**dp\_dll\_params\_ok**](#function-dp_dll_params_ok) (size\_t code\_len, double init\_chip, double bn, double zeta, double spacing, size\_t segments) <br>_The DLL's one domain predicate: the arguments_ [_**dp\_dll\_create()**_](dll__core_8h.md#function-dp_dll_create) _builds a loop from._ |
 |  void | [**dp\_dll\_reset**](#function-dp_dll_reset) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Re-seed the loop to its create-time code phase; keep config._  |
-|  void | [**dp\_dll\_set\_bn**](#function-dp_dll_set_bn) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, double val) <br> |
+|  int | [**dp\_dll\_set\_bn**](#function-dp_dll_set_bn) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, double val) <br>_Set the loop bandwidth, keeping zeta._  |
 |  void | [**dp\_dll\_set\_coast**](#function-dp_dll_set_coast) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, int coast) <br>_Hold the loop (1) or run it (0, the default)._  |
 |  void | [**dp\_dll\_set\_code\_phase**](#function-dp_dll_set_code_phase) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, double chips) <br>_Set the prompt code phase, in chips: the correction a holder applies to a coasting loop._  |
 |  int | [**dp\_dll\_set\_lock\_verify**](#function-dp_dll_set_lock_verify) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, uint32\_t n\_up, uint32\_t n\_down) <br>_Set the lock detector's verify counts, keeping its thresholds._  |
@@ -107,6 +108,7 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 |  size\_t | [**dp\_dll\_state\_bytes**](#function-dp_dll_state_bytes) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br> |
 |  size\_t | [**dp\_dll\_steps**](#function-dp_dll_steps) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Correlate a carrier-wiped block against the local code and steer the code NCO once per code period._  |
 |  size\_t | [**dp\_dll\_steps\_max\_out**](#function-dp_dll_steps_max_out) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br> |
+|  int | [**dp\_dll\_symbol\_period\_ok**](#function-dp_dll_symbol_period_ok) (size\_t segments, double partials\_per\_symbol) <br>_Whether_ [_**dp\_dll\_set\_symbol\_period()**_](dll__core_8h.md#function-dp_dll_set_symbol_period) _takes_`partials_per_symbol` _as a period to turn the symbol aid ON._ |
 |  size\_t | [**dp\_dll\_take\_error**](#function-dp_dll_take_error) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, double \* sum) <br>_Take the discriminator's running sum: the steers since the last take, their sum, both zeroed._  |
 |  double | [**dp\_dll\_take\_error\_mean**](#function-dp_dll_take_error_mean) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>[_**dp\_dll\_take\_error()**_](dll__core_8h.md#function-dp_dll_take_error) _as one number: the mean of the steers taken, or NaN when none were_ _the Python face of the primitive._ |
 |  void | [**dp\_dll\_tlm\_flush**](#function-dp_dll_tlm_flush) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s) <br>_Emit the code loop's telemetry records for the epoch just closed._  |
@@ -418,7 +420,7 @@ Takes the powers of `acc_e`/`acc_l`/`acc_p` and hands them to [**dll\_steer()**]
 
 _Recompute the loop gains for a new (bn, zeta); keep the code state._ 
 ```C++
-void dp_dll_configure (
+int dp_dll_configure (
     dp_dll_state_t * state,
     double bn,
     double zeta
@@ -438,6 +440,12 @@ Re-derives the 2nd-order loop filter's proportional and integral gains for a new
 * `state` DLL state. Must be non-NULL. 
 * `bn` Loop noise bandwidth, normalised to the code-period rate. 
 * `zeta` Damping factor (0.707 = critically damped). 
+
+
+
+**Returns:**
+
+DP\_OK; DP\_ERR\_INVALID, changing nothing, when (bn, zeta) is outside [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok)  a NaN gave gains that never recover, and a negative bn with zeta &gt;= 1 a zero denominator (doppler#2103). 
 ```C++
 >>> import numpy as np
 >>> from doppler.track import Dll
@@ -449,6 +457,7 @@ Re-derives the 2nd-order loop filter's proportional and integral gains for a new
 0.02
 ```
  
+
 
 
 
@@ -1035,6 +1044,44 @@ Segment count in `[1, tsamps]` that evenly divides `tsamps` (1 if `tsamps` == 0)
 
 
 
+### function dp\_dll\_params\_ok 
+
+_The DLL's one domain predicate: the arguments_ [_**dp\_dll\_create()**_](dll__core_8h.md#function-dp_dll_create) _builds a loop from._
+```C++
+int dp_dll_params_ok (
+    size_t code_len,
+    double init_chip,
+    double bn,
+    double zeta,
+    double spacing,
+    size_t segments
+) 
+```
+
+
+
+`code_len >= 1` and `segments >= 1`; a finite `init_chip` (it is folded, so any finite value is a phase); `bn` and `zeta` inside [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok); and `0 < spacing < code_len/2`, where the early and late taps are distinct  at 0 they coincide, at half the code they meet round the wrap, and a NaN made dll\_replica read 2^62 chips past the end of the code.
+
+
+[**dp\_dll\_create()**](dll__core_8h.md#function-dp_dll_create) refuses outside it. A composer that builds its DLL through an abort-on-NULL wrapper, or embeds one by value through [**dp\_dll\_init()**](dll__core_8h.md#function-dp_dll_init), calls it first and refuses with its own error (doppler#2103).
+
+
+
+
+**Returns:**
+
+1 inside the domain, 0 outside it (a NaN is outside). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_dll\_reset 
 
 _Re-seed the loop to its create-time code phase; keep config._ 
@@ -1084,8 +1131,9 @@ True
 
 ### function dp\_dll\_set\_bn 
 
+_Set the loop bandwidth, keeping zeta._ 
 ```C++
-void dp_dll_set_bn (
+int dp_dll_set_bn (
     dp_dll_state_t * state,
     double val
 ) 
@@ -1093,6 +1141,17 @@ void dp_dll_set_bn (
 
 
 
+
+
+**Returns:**
+
+As [**dp\_dll\_configure()**](dll__core_8h.md#function-dp_dll_configure): DP\_ERR\_INVALID, changing nothing, outside the loop filter's domain. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -1325,7 +1384,7 @@ The code loop steers once per symbol, on the early/prompt/late sums over the win
 
 **Returns:**
 
-DP\_OK; DP\_ERR\_INVALID when `segments <= 1`, or the period is not finite, is in (0, 2) or is past 2^20 partials  the rings are sized by the period, and past that they are refused, not allocated (doppler#2103). 
+DP\_OK; DP\_ERR\_INVALID when `segments <= 1`, or the period is not finite, is in (0, 2) or is past 2^20 partials  the rings are sized by the period, and past that they are refused, not allocated (doppler#2103). Any finite period &lt;= 0 turns the aid off; `-inf` used to as well, and is refused now, as every non-finite period is. 
 ```C++
 >>> import numpy as np
 >>> from doppler.track import Dll
@@ -1494,6 +1553,37 @@ size_t dp_dll_steps_max_out (
 
 
 
+
+<hr>
+
+
+
+### function dp\_dll\_symbol\_period\_ok 
+
+_Whether_ [_**dp\_dll\_set\_symbol\_period()**_](dll__core_8h.md#function-dp_dll_set_symbol_period) _takes_`partials_per_symbol` _as a period to turn the symbol aid ON._
+```C++
+int dp_dll_symbol_period_ok (
+    size_t segments,
+    double partials_per_symbol
+) 
+```
+
+
+
+`segments > 1`, and a finite period from 2 up to 2^20 partials: the rings and hypotheses are allocated per period, and past 2^20 they are refused rather than sized. A composer that derives a period from its configuration checks it here at create, so the period it sets mid-stream is never refused (doppler#2103).
+
+
+
+
+**Returns:**
+
+1 if the period turns the aid on, 0 otherwise. 
+
+
+
+
+
+        
 
 <hr>
 

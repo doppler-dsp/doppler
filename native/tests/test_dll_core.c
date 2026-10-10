@@ -182,6 +182,37 @@ bad_floats_are_refused (void)
           fails++;
         }
     }
+  /* The cap, pinned at its edge: 2^20 partials taken, one more refused. */
+  if (dp_dll_set_symbol_period (d, 1048576.0) != DP_OK)
+    {
+      fprintf (stderr, "  the period cap itself (2^20) was refused\n");
+      fails++;
+    }
+  if (dp_dll_set_symbol_period (d, 1048576.0 + 1.0) != DP_ERR_INVALID
+      || d->sym_period != 1048576.0)
+    {
+      fprintf (stderr, "  a period one past the cap was taken\n");
+      fails++;
+    }
+
+  /* configure() and the bn setter refuse what create refuses, and change
+     nothing doing it: a NaN, and a negative bn with zeta >= 1 (a zero
+     denominator in the gains). */
+  const double kp = d->lf.kp, ki = d->lf.ki, bn0 = d->bn, z0 = d->zeta;
+  if (dp_dll_configure (d, NAN, 0.707) != DP_ERR_INVALID
+      || dp_dll_configure (d, -1.25, 1.0) != DP_ERR_INVALID
+      || dp_dll_configure (d, 0.01, INFINITY) != DP_ERR_INVALID
+      || dp_dll_set_bn (d, NAN) != DP_ERR_INVALID || d->lf.kp != kp
+      || d->lf.ki != ki || d->bn != bn0 || d->zeta != z0)
+    {
+      fprintf (stderr, "  configure or set_bn took a bad loop parameter\n");
+      fails++;
+    }
+  if (dp_dll_configure (d, 0.02, 0.707) != DP_OK || d->bn != 0.02)
+    {
+      fprintf (stderr, "  configure refused a good loop parameter\n");
+      fails++;
+    }
   dp_dll_destroy (d);
   return fails;
 }

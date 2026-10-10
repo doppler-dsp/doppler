@@ -267,6 +267,10 @@ dll_update(dp_dll_state_t *s)
 
 dp_dll_state_t *dp_dll_create(const uint8_t *code, size_t code_len, size_t sps, double init_chip, double bn, double zeta, double spacing, size_t segments);
 
+int dp_dll_params_ok(size_t code_len, double init_chip, double bn, double zeta, double spacing, size_t segments);
+
+int dp_dll_symbol_period_ok(size_t segments, double partials_per_symbol);
+
 size_t dp_dll_lookback_segments(size_t tsamps, double max_error_db);
 
 void dp_dll_destroy(dp_dll_state_t *state);
@@ -277,9 +281,9 @@ size_t dp_dll_steps_max_out(dp_dll_state_t *state);
 
 size_t dp_dll_steps(dp_dll_state_t *state, const float _Complex *x, size_t x_len, float _Complex *out, size_t max_out);
 
-void dp_dll_configure(dp_dll_state_t *state, double bn, double zeta);
+int dp_dll_configure(dp_dll_state_t *state, double bn, double zeta);
 double dp_dll_get_bn(const dp_dll_state_t *state);
-void dp_dll_set_bn(dp_dll_state_t *state, double val);
+int dp_dll_set_bn(dp_dll_state_t *state, double val);
 
 void dp_dll_set_rate_aid(dp_dll_state_t *state, double rate_aid);
 

@@ -294,8 +294,12 @@ dp_dsss_receiver_create (const uint8_t *code, size_t code_len,
                          double doppler_uncertainty, size_t segments,
                          size_t sps, int differential)
 {
-  if (!code || code_len < 1 || chip_rate <= 0.0 || symbol_rate <= 0.0
-      || spc < 1 || (m != 2 && m != 4 && m != 8)
+  /* The Dll this receiver builds under dp_xnn meets the Dll's own domain
+     here, so a configuration it refuses (a 1-chip code) is refused rather
+     than aborting the process (doppler#2103). */
+  if (!code || !dp_dll_params_ok (code_len, 0.0, 0.002, 0.707, 0.5, segments)
+      || chip_rate <= 0.0 || symbol_rate <= 0.0 || spc < 1
+      || (m != 2 && m != 4 && m != 8)
       || segments < 1
       /* sps < 2 cannot carry an m_out at all: the smallest legal terminal
          count is 2 and MpskReceiver requires sps >= m_out, so sps = 1 has

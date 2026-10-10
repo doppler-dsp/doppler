@@ -34,6 +34,11 @@ _test_arg_validation (void)
   DP_CHECK (dp_dsss_receiver_create (NULL, 0, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9,
                                      100.0, 4, 8, 0)
             == NULL);
+  /* A 1-chip code: refused, where the Dll built under dp_xnn used to abort
+     the process once it refused the code (doppler#2103). */
+  DP_CHECK (dp_dsss_receiver_create (CODE7, 1, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9,
+                                     100.0, 4, 8, 0)
+            == NULL);
   DP_CHECK (dp_dsss_receiver_create (CODE7, 7, 0.0, 1e3, 2, 2, 55.0, 1e-3, 0.9,
                                      100.0, 4, 8, 0)
             == NULL); /* chip_rate <= 0 */

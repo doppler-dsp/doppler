@@ -338,7 +338,7 @@ int dp_loop_filter_params_ok (
 
 
 
-The ONE predicate. [**dp\_loop\_filter\_create()**](loop__filter__core_8h.md#function-dp_loop_filter_create) refuses outside it, and so does every embedder that takes these numbers from a caller and hands them to the unguarded [**dp\_loop\_filter\_init()**](loop__filter__core_8h.md#function-dp_loop_filter_init): a non-finite argument there yields NaN gains that never recover, and a negative `bn` with `zeta >= 1` can drive the gains' denominator through zero.
+The ONE predicate. [**dp\_loop\_filter\_create()**](loop__filter__core_8h.md#function-dp_loop_filter_create) refuses outside it, and an embedder that takes these numbers from a caller should call it before the unguarded [**dp\_loop\_filter\_init()**](loop__filter__core_8h.md#function-dp_loop_filter_init): a non-finite argument there yields NaN gains that never recover, and a negative `bn` with `zeta >= 1` can drive the gains' denominator through zero. The Dll, the Despreader's code loop, ratesync and the MPSK receiver do; the embedders that do not yet are doppler#2112.
 
 
 

@@ -83,7 +83,8 @@ typedef struct
  * @param hop     Samples between row starts, 1 <= hop <= nfft. hop == nfft
  *                tiles the stream; hop < nfft overlaps the frames.
  * @param window  0 = Hann, 1 = Kaiser, 2 = Blackman-Harris, 3 = rectangular,
- *                as dp_psd_create().
+ *                as dp_psd_create(), which also refuses a window that sums
+ *                to zero at this nfft (the symmetric Hann at nfft = 2).
  * @param beta    Kaiser beta (ignored for the other windows).
  * @param mode    DP_SPECTROGRAM_DB. DP_SPECTROGRAM_POWER is refused for now.
  * @return Heap-allocated state, or NULL on an invalid argument.

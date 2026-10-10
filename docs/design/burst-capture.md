@@ -411,20 +411,22 @@ Measured 2026-10-10 at `ACQ_SF=511`, `REPS=5`, `DATA_SF=63`, `spc=4`:
 
 | frame    | `retain_span` | in-RAM blob | backed blob | ring file |
 | -------- | ------------- | ----------- | ----------- | --------- |
-| 61 sym   | 80 780        | 2.23 MB     | 131.8 kB    | 2.10 MB   |
-| 1029 sym | 324 716       | 8.52 MB     | 132.4 kB    | 8.39 MB   |
-| 8029 sym | 2 088 716     | 33.69 MB    | 137.0 kB    | 33.55 MB  |
+| 61 sym   | 80 780        | 2.18 MB     | 82.5 kB     | 2.10 MB   |
+| 1029 sym | 324 716       | 8.47 MB     | 83.1 kB     | 8.39 MB   |
+| 8029 sym | 2 088 716     | 33.64 MB    | 87.7 kB     | 33.55 MB  |
 
-A checkpoint at the long geometry drops from 33.69 MB to 137 kB — **246×** —
+A checkpoint at the long geometry drops from 33.64 MB to 88 kB — **383×** —
 and what is left is the acquisition child plus the detection queue. The
-in-RAM blob is the ring file plus exactly that, because it carries the WHOLE
-ring, not `retain_span` of it: a live capture can hold history past
+in-RAM blob is the ring's capacity in bytes plus exactly that (here also the
+file's size, which rounds up to a page), because it carries the WHOLE ring,
+not `retain_span` of it: a live capture can hold history past
 `retain_span` for a burst `release()` handed back, and a resume that dropped
 it would not be one (§11.4). The ring is twice the retained span rounded up
 to a power of two; the file is written once and reused, not accumulated.
-(Re-measured for #2015. The 2026-09-01 table read 0.61 / 2.57 / 16.68 MB
-in RAM, when the blob carried only `retain_span`; `retain_span` itself and
-the backed blob have moved with other changes since.)
+(Re-measured 2026-10-10 for #2015, on main after #2042's framer-snapshot
+acq blob. The 2026-09-01 table read 0.61 / 2.57 / 16.68 MB in RAM, when the
+blob carried only `retain_span`; `retain_span` itself and the backed blob
+have moved with other changes since.)
 
 The second thing it buys is that the history **outlives the process**. Point a
 new capture at the same path and the samples are already there; restore the
@@ -615,8 +617,8 @@ it. Ignoring the horizon turns five refine tests red, because bursts were
 emitted before their later phases were scored. Holding history for held
 detections stops the receiver's saturation test: it used to refuse a
 chunk, and since `push()` never refuses input (#2015) the held entries pin
-the ring until no detection is left to abandon, and `push()` aborts rather
-than spin.
+the ring until it has no room after trim, and `push()` aborts rather than
+spin.
 
 ### 11.4 Input is never refused (#2015, #2028)
 
@@ -634,18 +636,30 @@ The queue now stays in anchor order, and a detection is judged dead by its
 REACH -- refined, its window's first sample; not yet, the lowest position
 refine will read across its phases. One whose reach is behind the ring's
 tail can never be emitted, and is swept at every trim, wherever it sits;
-`dropped` counts the part of its span that is gone. Sweep, drain, trim, in
-that order, is what bounds the ring: the head is never more than
-`max(burst_len, reps·P) + (2·k_lo + k_hi + 2)·P` past the tail, below
-`2·retain_span ≤ capacity`, so a write always has room. It is not within
-`retain_span + P`: an entry refined at its earliest candidate behind one with
-the same anchor refined at its latest pins `(k_lo + 2 − reps)·P` beyond it.
+`dropped` counts the part of its span that is gone if it was a burst, and
+nothing for a shadowed one. On a live stream no burst dies this way, so
+`dropped` stays 0: a moved anchor is a later one, and a re-armed refine
+reads no further back than the tail an unarrived entry at or ahead of it
+kept. A resume with less look-back, or a forged blob, is what the sweep is
+for. Sweep, drain, trim, in that order, is what bounds the ring: the head
+is never more than `max(burst_len, reps·P) + (2·k_lo + k_hi + 2)·P` past the
+tail, below `2·retain_span ≤ capacity`, so a write always has room. It is
+not within `retain_span + P`: an entry refined at its earliest candidate
+behind one with the same anchor refined at its latest pins
+`max(burst_len, reps·P) − burst_len + (k_lo + 1 − reps)·P` beyond it, which
+is `(k_lo + 1 − reps)·P` when `burst_len ≥ reps·P` and
+`(k_lo + 1)·P − burst_len` otherwise.
 
 A checkpoint carries everything the ring holds -- up to its capacity, a
 pure function of configuration -- so a resume emits what the live capture
 would have; carrying only `retain_span` lost a burst `release()` had handed
-back. A blob's queue is checked, not trusted: phases within their array,
-anchors in order, a refined start one refine could have chosen.
+back. A blob is checked whole before anything is written, so a refused one
+leaves the capture byte-identical: the queue's phases within their array,
+anchors in order and none past the stream position, a refined start one
+refine could have chosen, a look-back no longer than the stream, and an
+acquisition child standing at the capture's stream position. Each of those
+would otherwise make `push()` abort, read out of bounds, or shift every
+later epoch.
 
 ## 10. See also
 

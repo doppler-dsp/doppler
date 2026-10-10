@@ -1310,10 +1310,13 @@ static PyGetSetDef PersistentBurstCapture_getset[] = {
   { "dropped", (getter)PersistentBurstCapture_getprop_dropped, NULL,
     "Samples of look-back discarded while a queued detection still needed "
     "them, lifetime: the part of a dead detection's span -- one whose history "
-    "is gone, so it can never be emitted -- behind the ring's tail. push() "
-    "never refuses input, and a resume carries all the look-back, so on a "
-    "live stream this stays 0. A LOST BURST each, not a statistic -- it "
-    "survives reset().\n",
+    "is gone, so it can never be emitted -- behind the ring's tail. A "
+    "shadowed detection is not counted. On a live stream this stays 0: push() "
+    "never refuses input, a moved anchor is a later one, and a re-armed "
+    "refine reads no further back than the history kept for an unarrived "
+    "detection at or ahead of it. A resume carries all the look-back, so what "
+    "makes it non-zero is a blob that names history it does not hold. A LOST "
+    "BURST each, not a statistic -- it survives reset().\n",
     NULL },
   { "n_bursts", (getter)PersistentBurstCapture_getprop_n_bursts, NULL,
     "Windows emitted, lifetime.\n", NULL },
@@ -1383,10 +1386,11 @@ static PyMethodDef PersistentBurstCaptureObj_methods[] = {
     "It aborts the process in two places, both a defect in this object and\n"
     "neither reachable from any input or from any blob set_state() accepts:\n"
     "a history ring with no room after trim (the bound in the\n"
-    "implementation's trim proves room), and an acquisition call that\n"
-    "neither wrote, framed nor reported a hit (its ring always holds a\n"
-    "frame). Each stops rather than spinning forever -- and in a Python host\n"
-    "it ends the interpreter.\n"
+    "implementation's trim proves room), and an acquisition call that took\n"
+    "nothing while input was left (each call starts with its result empty,\n"
+    "and a push with its result empty takes at least the next frame, or the\n"
+    "rest as carry). Each stops rather than spinning forever -- and in a\n"
+    "Python host it ends the interpreter.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1828,10 +1832,13 @@ static PyTypeObject PersistentBurstCaptureObjType = {
     "...                             reps=4, fs=2e6)\n"
     ">>> ram = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)\n"
     ">>> _ = cap.push(np.zeros(4096, dtype=np.complex64))\n"
-    ">>> # the look-back is in the file, so the blob stops carrying it\n"
-    ">>> ram.state_bytes() - cap.state_bytes() == os.path.getsize(path)\n"
+    ">>> # the look-back is in the file, so the blob stops carrying the\n"
+    ">>> # ring: twice retain_span rounded up to a power of two, 8 B a "
+    "sample\n"
+    ">>> ring = 1 << (2 * ram.retain_span - 1).bit_length()\n"
+    ">>> ram.state_bytes() - cap.state_bytes() == ring * 8\n"
     "True\n"
-    ">>> os.path.getsize(path) > 0\n"
+    ">>> os.path.getsize(path) >= ring * 8   # rounded up to a page\n"
     "True\n",
   .tp_methods = PersistentBurstCaptureObj_methods,
   .tp_getset  = PersistentBurstCapture_getset,

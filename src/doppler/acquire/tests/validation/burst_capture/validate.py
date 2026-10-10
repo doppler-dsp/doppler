@@ -121,6 +121,7 @@ class Data:
     blob_ram: int = 0
     blob_disk: int = 0
     ring_file: int = 0
+    ring_bytes: int = 0
     resume_ok: bool = False
     cross_reject: bool = False
     pd_meta: list = field(default_factory=list)
@@ -385,6 +386,10 @@ def characterise() -> Data:
         d.blob_ram = int(ram.state_bytes())
         d.blob_disk = int(dsk.state_bytes())
         d.ring_file = int(path.stat().st_size)
+        # The ring the in-RAM blob carries: twice retain_span rounded up to
+        # a power of two, 8 B a sample. The file holds it rounded up to a
+        # whole page, so on a large-page system the file is the bigger one.
+        d.ring_bytes = (1 << (2 * int(ram.retain_span) - 1).bit_length()) * 8
 
         # Resume across a mid-preamble split, into a fresh instance.
         at0 = 60_000
@@ -419,9 +424,11 @@ def characterise() -> Data:
     R.md()
     R.md(
         f"The difference is {d.blob_ram - d.blob_disk:,} B, which is exactly "
-        f"the ring file ({d.ring_file:,} B): the whole history ring, which "
-        "is what a live capture can be holding for a burst it will still "
-        "emit, and nothing else."
+        f"the ring's capacity in bytes ({d.ring_bytes:,} B: twice "
+        "`retain_span` rounded up to a power of two, 8 B a sample) -- the "
+        "whole history ring, which is what a live capture can be holding for "
+        "a burst it will still emit, and nothing else. The file holds that "
+        f"ring rounded up to a whole page ({d.ring_file:,} B here)."
     )
     R.md()
 
@@ -856,9 +863,10 @@ def limits(d: Data) -> None:
         "the burst it was holding — the retained look-back travels (§2.6)",
     )
     R.limit(
-        d.blob_ram - d.blob_disk == d.ring_file,
-        f"the persistent flavour's blob is smaller by exactly its ring "
-        f"file ({d.blob_ram - d.blob_disk:,} B) (§2.6)",
+        d.blob_ram - d.blob_disk == d.ring_bytes <= d.ring_file,
+        f"the persistent flavour's blob is smaller by exactly its ring's "
+        f"capacity in bytes ({d.blob_ram - d.blob_disk:,} B), which its file "
+        f"holds (§2.6)",
     )
     R.limit(
         d.cross_reject,
@@ -989,7 +997,7 @@ def build(write: bool = True) -> Report:
             "samples to a push larger than the ring, the windows are "
             "bit-identical and nothing is dropped (§2.3).",
             "**The persistent flavour costs nothing and saves the "
-            f"checkpoint.** Its blob is smaller by exactly the retained span "
+            f"checkpoint.** Its blob is smaller by exactly the history ring "
             f"({d.blob_ram - d.blob_disk:,} B here), the ring's pages ARE "
             "the file's, and the measured throughput is within noise of the "
             "anonymous ring (§2.6).",

@@ -918,6 +918,139 @@ test_a_forged_blob_is_checked (void)
 }
 
 /**
+ * A refused blob changes nothing (doppler#2033 review).
+ *
+ * set_state() checks a blob whole before it writes anything, so a refusal
+ * leaves the SAME instance as it was: its next get_state() is
+ * byte-identical, and push() goes on from where it stood -- no abort, the
+ * later burst exact, nothing dropped. Each forgery edits a copy of the
+ * capture's own blob, so all but the forged field is a blob it accepts:
+ *   (A) a queue the trim bound cannot rest on: phases past their array, and
+ *       anchors out of order;
+ *   (B) a look-back longer than the stream, which would wrap the tail;
+ *   (C) an anchor past the stream position;
+ *   (D) an acquisition child taken at another stream position, which acq
+ *       itself accepts -- refused after it is restored, and put back.
+ * Every case restores into the one instance; none starts from a fresh one.
+ */
+static int
+test_a_refused_blob_changes_nothing (void)
+{
+  static float _Complex cap[40000];
+  const size_t n_cap = sizeof cap / sizeof *cap, LEAD = 6000u;
+  const size_t AT = 26000u;
+  build_capture (cap, n_cap, &AT, 1u, 0.02, 2033u);
+
+  dp_burst_capture_state_t *a = make ();
+  dp_burst_capture_state_t *b = make ();
+  DP_REQUIRE (a != NULL && b != NULL);
+  (void)dp_burst_capture_push (a, cap, LEAD, NULL, 0);
+  (void)dp_burst_capture_push (b, cap, LEAD + 1000u, NULL, 0);
+  DP_REQUIRE (!a->backed && a->samples_fed == LEAD);
+
+  const size_t   cb    = dp_burst_capture_state_bytes (a);
+  unsigned char *blob  = malloc (cb);
+  unsigned char *other = malloc (cb);
+  unsigned char *bad   = malloc (cb);
+  unsigned char *now   = malloc (cb);
+  DP_REQUIRE (blob && other && bad && now);
+  dp_burst_capture_get_state (a, blob);
+  dp_burst_capture_get_state (b, other);
+
+  /* The blob's layout, as get_state writes it; the last line proves it. */
+  const size_t E      = sizeof (burst_capture_pending_t);
+  const size_t o_pend = sizeof (dp_state_hdr_t) + 8u * 8u;
+  const size_t o_q    = o_pend + 2u * sizeof (uint32_t);
+  const size_t o_n    = o_q + a->q_cap * E;
+  const size_t o_an
+      = o_n + sizeof (uint32_t) + a->hist->capacity * sizeof (float _Complex);
+  DP_REQUIRE (o_an + sizeof (uint32_t) + a->acq_blob_max == cb);
+  uint32_t q_head;
+  memcpy (&q_head, blob + o_pend + sizeof (uint32_t), sizeof q_head);
+  DP_REQUIRE (q_head < a->q_cap);
+  DP_REQUIRE ((uint64_t)LEAD + 1u <= a->hist->capacity);
+
+  const uint64_t          P = a->code_period;
+  burst_capture_pending_t live;
+  memset (&live, 0, sizeof live);
+  live.anchor   = LEAD - 100u;
+  live.n_phase  = 1u;
+  live.phase[0] = (uint32_t)(live.anchor % P);
+
+  static const char *const what[5]
+      = { "(A) phases past their array", "(A) anchors out of order",
+          "(B) look-back longer than the stream",
+          "(C) anchor past the stream position",
+          "(D) acquisition child at another position" };
+  for (size_t c = 0; c < 5u; c++)
+    {
+      memcpy (bad, blob, cb);
+      burst_capture_pending_t e0 = live, e1 = live;
+      uint32_t                pending = 1u;
+      switch (c)
+        {
+        case 0:
+          e0.n_phase = BURST_CAPTURE_MAX_PHASES + 1u;
+          break;
+        case 1:
+          e1.anchor -= 1u;
+          e1.phase[0] = (uint32_t)(e1.anchor % P);
+          pending     = 2u;
+          break;
+        case 2:
+          {
+            const uint32_t n = (uint32_t)LEAD + 1u;
+            memcpy (bad + o_n, &n, sizeof n);
+            pending = 0u;
+          }
+          break;
+        case 3:
+          e0.anchor   = LEAD + 1u;
+          e0.phase[0] = (uint32_t)(e0.anchor % P);
+          break;
+        default:
+          memcpy (bad + o_an, other + o_an,
+                  sizeof (uint32_t) + a->acq_blob_max);
+          pending = 0u;
+          break;
+        }
+      if (pending)
+        {
+          memcpy (bad + o_pend, &pending, sizeof pending);
+          memcpy (bad + o_q + q_head * E, &e0, E);
+          if (pending > 1u)
+            memcpy (bad + o_q + ((q_head + 1u) % a->q_cap) * E, &e1, E);
+        }
+      const int rc = dp_burst_capture_set_state (a, bad);
+      dp_burst_capture_get_state (a, now);
+      if (rc != DP_ERR_INVALID || memcmp (now, blob, cb) != 0)
+        fprintf (stderr, "  refused blob: %s\n", what[c]);
+      DP_CHECK (rc == DP_ERR_INVALID);
+      DP_CHECK (memcmp (now, blob, cb) == 0);
+    }
+
+  /* And the stream goes on from where it stood. */
+  size_t found = 0;
+  for (size_t off = LEAD; off < n_cap; off += 8192u)
+    {
+      size_t blk = n_cap - off < 8192u ? n_cap - off : 8192u;
+      (void)dp_burst_capture_push (a, cap + off, blk, NULL, 0);
+      for (size_t i = 0; i < dp_burst_capture_ready (a); i++)
+        found += dp_burst_capture_event_at (a, i)->preamble_start == AT;
+    }
+  DP_CHECK (found == 1u);
+  DP_CHECK (a->samples_fed == n_cap);
+  DP_CHECK (a->dropped == 0u);
+  free (blob);
+  free (other);
+  free (bad);
+  free (now);
+  dp_burst_capture_destroy (a);
+  dp_burst_capture_destroy (b);
+  return 0;
+}
+
+/**
  * The history ring always has room after trim, so push() never stops on a
  * full one -- at the worst case the geometry allows.
  *
@@ -1005,36 +1138,6 @@ test_the_ring_always_has_room (void)
 }
 
 /**
- * A full acquisition ring is progress, never a stop (doppler#2015 review).
- *
- * dp_acq_push() writes only into room its ring has, and returns after one
- * framing pass when the ring started full -- no sample taken, perhaps no
- * hit. A live acq that stopped on a full result array leaves it that way,
- * and so does a blob restored with its ring full. burst_capture used to
- * read "no sample, no hit" as a call that could do nothing, and abort. The
- * ring is filled directly here; a push must then take every sample, with
- * the history ring's head on the stream position.
- */
-static int
-test_a_full_acq_ring_makes_progress (void)
-{
-  static float _Complex z[16384];
-  dp_burst_capture_state_t *s = make ();
-  DP_REQUIRE (s != NULL);
-  (void)dp_burst_capture_push (s, z, 5000u, NULL, 0);
-  dp_f32_t    *ring = s->acq->engine->ring;
-  const size_t room = dp_f32_space (ring);
-  DP_REQUIRE (room > 0u && room <= sizeof z / sizeof *z);
-  DP_REQUIRE (dp_f32_write (ring, (const float *)z, room));
-  DP_REQUIRE (dp_f32_space (ring) == 0u);
-  (void)dp_burst_capture_push (s, z, 8192u, NULL, 0);
-  DP_CHECK (s->samples_fed == 5000u + 8192u);
-  DP_CHECK ((uint64_t)s->hist->head == s->samples_fed);
-  dp_burst_capture_destroy (s);
-  return 0;
-}
-
-/**
  * A resume into a FULL ring makes room on the first push (doppler#2015
  * review).
  *
@@ -1064,6 +1167,17 @@ test_a_full_ring_restored_makes_room (void)
   DP_REQUIRE (dp_f32_write (a->hist, (const float *)z, room));
   a->samples_fed += room;
   DP_REQUIRE (dp_f32_space (a->hist) == 0u);
+  /* acq takes the same samples, as push() would have it: set_state refuses
+     a child that stands anywhere but the capture's stream position. */
+  for (size_t took = 0; took < room;)
+    {
+      acq_result_t hits[BURST_CAPTURE_HITS];
+      (void)dp_burst_acq_push (a->acq, z + took, room - took, hits,
+                               BURST_CAPTURE_HITS);
+      DP_REQUIRE (dp_burst_acq_consumed (a->acq) > 0u);
+      took += dp_burst_acq_consumed (a->acq);
+    }
+  DP_REQUIRE (dp_acq_position (a->acq->engine) == a->samples_fed);
 
   const uint64_t           P    = a->code_period;
   const uint64_t           tail = a->hist->tail;
@@ -2929,9 +3043,9 @@ main (void)
     return 1;
   if (test_a_forged_blob_is_checked ())
     return 1;
-  if (test_the_ring_always_has_room ())
+  if (test_a_refused_blob_changes_nothing ())
     return 1;
-  if (test_a_full_acq_ring_makes_progress ())
+  if (test_the_ring_always_has_room ())
     return 1;
   if (test_a_full_ring_restored_makes_room ())
     return 1;

@@ -143,23 +143,25 @@ burst_capture_create_impl (const char *path, const float _Complex *preamble,
       {
         s->hist = dp_xnn (dp_f32_create (cap));
       }
-    /* One code period of headroom. The retention bound below lands EXACTLY
-       on retain_span, and a merge can move an anchor forward inside the
-       window, so leave a period rather than sit on the equality. */
+    /* The largest slice push() hands the ring and acq in one pass, so the
+       drain and trim run at least that often. It is not a promise of room:
+       after trim the ring can hold more than retain_span + P (the bound is
+       burst_capture_trim's), so a write takes what fits and the loop goes
+       round again. */
     s->chunk_max = s->hist->capacity - s->retain_span - s->code_period;
   }
 
   /* ── The detection queue, sized from the geometry ────────────────────
-   * An unshadowed entry is queued until its window arrives, so its base
-   * lies within `retain_span` of the head -- give or take what a release()
-   * hands back between pushes, which the next push's first drain emits.
-   * The CLAIM rule merges anchors closer than `refine_span`, so distinct
-   * entries are about that far apart (a merge can move an anchor nearer its
-   * successor). The count is therefore about retain_span/refine_span, and it
-   * is NOT a constant: about 1 at a short-burst test geometry and 5.5x that
-   * at a real link. A fixed cap silently dropped the hit and the rest of its
-   * batch on any geometry but the one the tests happened to use; a FULL
-   * queue still drops the hit uncounted (doppler#2038). */
+   * Every queued entry lies inside the history trim keeps, whose length
+   * burst_capture_trim bounds: max(burst_len, reps*P) + (2*k_lo + k_hi +
+   * 2)*P, under burst_len + 3*refine_span. The CLAIM rule merges anchors
+   * closer than `refine_span`, so distinct entries are about that far apart
+   * (a merge can move an anchor nearer its successor). The count is
+   * therefore under burst_len/refine_span + 3, and it is NOT a constant: about
+   * 1 at a short-burst test geometry and 5.5x that at a real link. A fixed cap
+   * silently dropped the hit and the rest of its batch on any geometry but the
+   * one the tests happened to use; a FULL queue still drops the hit uncounted
+   * (doppler#2038). */
   {
     size_t per = s->burst_len / s->refine_span + 1u;
     s->q_cap   = 2u * (3u + per);
@@ -523,7 +525,11 @@ burst_capture_note_phase (const dp_burst_capture_state_t *s,
 /** @brief The anchor phase @p i of @p e is refined at: the anchor's grid
  *         shifted by the phase's offset folded into [-P/2, P/2). Returns 0
  *         when that falls before the stream's first sample, and the phase is
- *         not scored. */
+ *         not scored.
+ *
+ * Only the OFFSET is signed, and both its terms are residues held in 32
+ * bits. The position stays unsigned, so the result is defined for every
+ * anchor a queue can hold, a restored one included. */
 static int
 burst_capture_phase_anchor (const dp_burst_capture_state_t *s,
                             const burst_capture_pending_t *e, uint32_t i,
@@ -533,9 +539,9 @@ burst_capture_phase_anchor (const dp_burst_capture_state_t *s,
   const int64_t base = (int64_t)(e->anchor % (uint64_t)P);
   int64_t       d    = e->n_phase ? (int64_t)e->phase[i] - base : 0;
   d -= P * (int64_t)floor ((double)d / (double)P + 0.5);
-  if ((int64_t)e->anchor + d < 0)
+  if (d < 0 && e->anchor < (uint64_t)-d)
     return 0;
-  *a = (uint64_t)((int64_t)e->anchor + d);
+  *a = d < 0 ? e->anchor - (uint64_t)-d : e->anchor + (uint64_t)d;
   return 1;
 }
 
@@ -587,13 +593,23 @@ burst_capture_refine_phases (dp_burst_capture_state_t *s,
  * declaration of what an entry pins; trim keeps the lowest unshadowed one.
  *
  * It is a margin, not the test of whether an entry is alive --
- * burst_capture_span() is -- and an entry's need can fall behind the tail
- * after trim kept for it: a later hit carrying a new phase re-arms refine,
- * which reads from the anchor again, and a stronger hit moves the anchor.
- * While a refined entry is unarrived trim keeps no more than the head less
- * retain_span, and re-arm reads no earlier than that, so in a live stream a
- * re-arm cannot strand it; whatever does strand an entry is swept and
- * counted, never left to pin the ring.
+ * burst_capture_span() is. A later hit can move what an entry reads after
+ * trim kept for it: one carrying a new phase re-arms refine, which reads
+ * from the anchor again, and a stronger one moves the anchor. In a live
+ * stream neither strands an unshadowed entry. A moved anchor is a LATER
+ * one, so its reach moves forward. A re-arm reads no further back than
+ * anchor - (k_lo + 1/2)*P. An entry queued since the last trim is anchored
+ * past the head that trim saw, at least retain_span ahead of the tail. One
+ * queued before it was, after that trim's drain, unarrived or queued behind
+ * an unarrived X at an earlier anchor (X may be the entry itself). So the
+ * head was short of X's arrival, and trim left the tail at or below both
+ * need(X) and head - retain_span. Unrefined, need(X) is anchor(X) -
+ * (k_lo + 1)*P. Refined, X arrives before anchor(X) + (k_hi + 1/2)*P +
+ * burst_len, so head - retain_span is below anchor(X) - (k_lo + reps -
+ * 1/2)*P. Either way the tail is below anchor(X) - (k_lo + 1/2)*P, which is
+ * no later than anything a re-arm reads. What does strand an entry -- a
+ * resume with less look-back, a forged blob, the trim passing a shadowed
+ * one -- is swept, never left to pin the ring.
  */
 static uint64_t
 burst_capture_need (const dp_burst_capture_state_t *s,
@@ -669,11 +685,12 @@ burst_capture_q_remove (dp_burst_capture_state_t *s, size_t j)
  * detection still needed it. A shadowed one was waiting on a consumer's
  * verdict, and goes uncounted, exactly as the next push would drop it.
  *
- * Where a dead entry comes from: a stronger hit merged into a queued one
- * moves its anchor, and the new reach can sit below what trim kept for the
- * old one; a resume restores no more look-back than the blob carries; a
- * forged blob can name anything. The sweep is what makes all three a counted
- * loss instead of an entry that pins the tail until the ring is full.
+ * Where a dead entry comes from: a resume restores no more look-back than
+ * the blob carries; a forged blob can name anything; and trim does not keep
+ * history for a shadowed entry. On a live stream no unshadowed entry dies
+ * (burst_capture_need says why), so `dropped` stays 0 there. The sweep is
+ * what makes a dead burst a counted loss instead of an entry that pins the
+ * tail until the ring is full.
  */
 static void
 burst_capture_sweep (dp_burst_capture_state_t *s)
@@ -727,9 +744,11 @@ burst_capture_sweep (dp_burst_capture_state_t *s)
  * and burst_len >= 1, both of which create() requires. So a write always
  * has room; dp_f32_write_some() takes what fits.
  *
- * The room is NOT always chunk_max: the bound exceeds retain_span + P by up
- * to (k_lo + 2 - reps)*P, when an entry refined at its earliest candidate
- * sits behind one with the same anchor refined at its latest.
+ * The room is NOT always chunk_max. The bound exceeds retain_span + P by
+ * max(burst_len, reps*P) - burst_len + (k_lo + 1 - reps)*P: that is
+ * (k_lo + 1 - reps)*P when burst_len >= reps*P, and (k_lo + 1)*P -
+ * burst_len otherwise. It is reached when an entry refined at its earliest
+ * candidate sits behind one with the same anchor refined at its latest;
  * test_the_ring_always_has_room builds that case and reaches the bound.
  */
 static void
@@ -886,12 +905,13 @@ burst_capture_emit (dp_burst_capture_state_t *s)
 }
 
 /**
- * @brief Emit every detection whose burst window has arrived.
+ * @brief Emit, in anchor order, every unshadowed detection whose burst
+ *        window has arrived, up to the first that has not.
  *
- * Draining FULLY, rather than once per push, is what bounds retention: every
- * entry left in `q` afterwards has a window that has not arrived, so its
- * base lies within burst_len + k_lo*P of the head and burst_capture_trim can
- * always release down to retain_span.
+ * Draining FULLY, rather than once per push, is half of what bounds
+ * retention (burst_capture_trim): afterwards every unshadowed entry is
+ * unarrived or queued behind one that is. A complete burst behind an
+ * unarrived one waits, so the order the bound rests on holds.
  */
 static void
 burst_capture_drain (dp_burst_capture_state_t *s)
@@ -946,9 +966,9 @@ dp_burst_capture_push (dp_burst_capture_state_t *state,
   state->suppress_base = state->suppress_until;
 
   /* Drain anything already complete FIRST -- it is returned by this call,
-     not held back. In practice this finds nothing, and that is the point:
-     because the loop below drains FULLY, a push leaves behind only
-     detections whose window has not arrived. */
+     not held back. Between pushes no sample arrives, so what this can find
+     is what release() made emittable since the last one. A complete burst
+     queued behind one that has not arrived stays queued until it does. */
   burst_capture_drain (state);
 
   const dp_acq_state_t *e   = state->acq->engine;
@@ -1544,50 +1564,69 @@ dp_burst_capture_set_state (dp_burst_capture_state_t *s, const void *blob)
   DP_SET_OPEN (BURST_CAPTURE_STATE_MAGIC, BURST_CAPTURE_STATE_VERSION,
                dp_burst_capture_state_bytes (s));
 
-  s->samples_fed    = dp_r_u64 (&_r);
-  s->n_bursts       = dp_r_u64 (&_r);
-  s->dropped        = dp_r_u64 (&_r);
-  s->preamble_start = dp_r_u64 (&_r);
-  s->doppler_hz_est = dp_r_f64 (&_r);
-  s->doppler_res_hz = dp_r_f64 (&_r);
-  s->cn0_dbhz_est   = dp_r_f64 (&_r);
-  s->suppress_until = dp_r_u64 (&_r);
-  s->suppress_base  = s->suppress_until;
+  /* DECODE, VALIDATE, restore the CHILD, then COMMIT. Nothing writes this
+     object until every check below has passed and the acquisition child
+     holds its blob, so a refused blob leaves the capture as it was: its
+     next get_state() is byte-identical, and its next push() is the one it
+     would have made. What the checks guard is what push() rests on -- the
+     trim bound (burst_capture_trim) and the one stream position the ring,
+     the queue and acq share. A blob that breaks either makes push() abort
+     or read where it should not. */
+  const uint64_t       fed            = dp_r_u64 (&_r);
+  const uint64_t       n_bursts       = dp_r_u64 (&_r);
+  const uint64_t       dropped        = dp_r_u64 (&_r);
+  const uint64_t       preamble_start = dp_r_u64 (&_r);
+  const double         doppler_hz_est = dp_r_f64 (&_r);
+  const double         doppler_res_hz = dp_r_f64 (&_r);
+  const double         cn0_dbhz_est   = dp_r_f64 (&_r);
+  const uint64_t       suppress_until = dp_r_u64 (&_r);
+  const uint32_t       pending        = dp_r_u32 (&_r);
+  const uint32_t       q_head         = dp_r_u32 (&_r);
+  const unsigned char *q
+      = dp_r_reserve (&_r, s->q_cap * sizeof (burst_capture_pending_t));
+  const uint32_t n = dp_r_u32 (&_r);
+  const void    *ring
+      = s->backed
+            ? NULL
+            : dp_r_reserve (&_r, s->hist->capacity * sizeof (float _Complex));
+  const uint32_t an  = dp_r_u32 (&_r);
+  const void    *acq = dp_r_reserve (&_r, s->acq_blob_max);
+  if (!q || (!s->backed && !ring) || !acq || (size_t)an > s->acq_blob_max)
+    return DP_ERR_INVALID;
 
-  uint32_t pending = dp_r_u32 (&_r);
-  uint32_t q_head  = dp_r_u32 (&_r);
+  /* The queue, checked on what the blob claims rather than trusted: phases
+     within their array, anchors in order and none past the stream position
+     (a detection is made from samples acq has taken), and a refined start
+     one that refine itself could have chosen -- between the first
+     candidate of its earliest phase and the last of its latest. */
   if (pending > s->q_cap || q_head >= s->q_cap)
     return DP_ERR_INVALID;
-  s->pending = pending;
-  s->q_head  = q_head;
-  dp_r_bytes (&_r, s->q, s->q_cap * sizeof *s->q);
-  /* What the ring bound rests on (burst_capture_trim), checked on what a
-     blob claims rather than trusted, so a forged queue cannot make push()
-     stop: phases within their array, anchors in order, and a refined start
-     one that refine itself could have chosen -- between the first candidate
-     of its earliest phase and the last of its latest. */
-  for (size_t j = 0; j < s->pending; j++)
+  uint64_t prev = 0;
+  for (size_t j = 0; j < pending; j++)
     {
-      const burst_capture_pending_t *o = &s->q[(s->q_head + j) % s->q_cap];
-      if (o->n_phase > BURST_CAPTURE_MAX_PHASES)
+      burst_capture_pending_t o;
+      memcpy (&o, q + ((q_head + j) % s->q_cap) * sizeof o, sizeof o);
+      if (o.n_phase > BURST_CAPTURE_MAX_PHASES)
         return DP_ERR_INVALID;
-      if (j && o->anchor < s->q[(s->q_head + j - 1u) % s->q_cap].anchor)
+      if (o.anchor > fed || (j && o.anchor < prev))
         return DP_ERR_INVALID;
-      if (o->refined)
+      prev = o.anchor;
+      if (o.refined)
         {
-          burst_capture_pending_t u = *o;
+          burst_capture_pending_t u = o;
           uint64_t                lo, hi;
           u.refined = 0;
           burst_capture_span (s, &u, &lo, &hi);
           const uint64_t rp   = (uint64_t)(s->reps * s->code_period);
           const uint64_t last = hi > rp ? hi - rp : 0;
-          if (o->start < lo || o->start > last)
+          if (o.start < lo || o.start > last)
             return DP_ERR_INVALID;
         }
     }
 
-  uint32_t n = dp_r_u32 (&_r);
-  if ((size_t)n > s->hist->capacity)
+  /* The look-back ends at the stream position, so it cannot be longer than
+     the stream: `fed - n` is where the restored tail goes. */
+  if ((size_t)n > s->hist->capacity || (uint64_t)n > fed)
     return DP_ERR_INVALID;
   if (s->backed)
     {
@@ -1597,7 +1636,7 @@ dp_burst_capture_set_state (dp_burst_capture_state_t *s, const void *blob)
          it, in the very bytes it wrote.
 
          Unless the file does not hold them. The file holds the span the blob
-         names, `[head - n, head)`, in two cases: create() adopted a ring of
+         names, `[fed - n, fed)`, in two cases: create() adopted a ring of
          this exact geometry with history in it (`recovered`), or THIS object
          wrote it -- its ring head is its own stream position, so a span
          ending at or before it is in the file in the very bytes it put
@@ -1610,42 +1649,65 @@ dp_burst_capture_set_state (dp_burst_capture_state_t *s, const void *blob)
          cannot hold is a resume into silence -- the positions would be
          right and the samples zeros or someone else's, so every later burst
          would simply not be found. Refuse it. */
-      uint64_t head = s->samples_fed;
-      {
-        const uint64_t from = head - (uint64_t)n;
-        const uint64_t mine = DP_LOAD_ACQ (&s->hist->head);
-        const int      have = s->recovered || mine >= head;
-        const int      overwritten
-            = mine > from && mine - from > (uint64_t)s->hist->capacity;
-        if (n && (!have || overwritten))
-          return DP_ERR_INVALID;
-      }
-      DP_STORE_REL (&s->hist->tail, (size_t)(head - (uint64_t)n));
-      DP_STORE_REL (&s->hist->head, (size_t)head);
-    }
-  else
-    {
-      const void *region
-          = dp_r_reserve (&_r, s->hist->capacity * sizeof (float _Complex));
-      if (!region)
-        return DP_ERR_INVALID;
-      /* Rewind the ring to the saved stream position, so a look-back read at
-         an absolute sample index lands where the saving capture had it. */
-      uint64_t head = s->samples_fed;
-      DP_STORE_REL (&s->hist->head, (size_t)(head - (uint64_t)n));
-      DP_STORE_REL (&s->hist->tail, (size_t)(head - (uint64_t)n));
-      if (n && !dp_f32_write (s->hist, (const float *)region, n))
+      const uint64_t from = fed - (uint64_t)n;
+      const uint64_t mine = DP_LOAD_ACQ (&s->hist->head);
+      const int      have = s->recovered || mine >= fed;
+      const int      overwritten
+          = mine > from && mine - from > (uint64_t)s->hist->capacity;
+      if (n && (!have || overwritten))
         return DP_ERR_INVALID;
     }
 
-  uint32_t an = dp_r_u32 (&_r);
-  {
-    const void *region = dp_r_reserve (&_r, s->acq_blob_max);
-    if (!region || (size_t)an > s->acq_blob_max)
+  /* The acquisition child, before anything of the parent is committed: acq
+     validates its blob whole before applying it, so a refusal there leaves
+     both untouched. Accepted, it must stand where the parent says the
+     stream is -- a hit's epoch is acq's position and the ring's head is the
+     parent's, and a child from another stream position would shift every
+     epoch after the resume, silently (doppler#2015). On a mismatch the child
+     gets its own state back, so the refusal still leaves nothing changed. */
+  void *undo = dp_xmalloc (s->acq_blob_max);
+  dp_acq_get_state (s->acq->engine, undo);
+  if (dp_acq_set_state (s->acq->engine, acq) != DP_OK)
+    {
+      free (undo);
       return DP_ERR_INVALID;
-    if (dp_acq_set_state (s->acq->engine, region) != DP_OK)
+    }
+  if (dp_acq_position (s->acq->engine) != fed)
+    {
+      (void)dp_acq_set_state (s->acq->engine, undo);
+      free (undo);
       return DP_ERR_INVALID;
-  }
+    }
+  free (undo);
+
+  /* COMMIT. Every check has passed; nothing below can fail. */
+  s->samples_fed    = fed;
+  s->n_bursts       = n_bursts;
+  s->dropped        = dropped;
+  s->preamble_start = preamble_start;
+  s->doppler_hz_est = doppler_hz_est;
+  s->doppler_res_hz = doppler_res_hz;
+  s->cn0_dbhz_est   = cn0_dbhz_est;
+  s->suppress_until = suppress_until;
+  s->suppress_base  = suppress_until;
+  s->pending        = pending;
+  s->q_head         = q_head;
+  memcpy (s->q, q, s->q_cap * sizeof *s->q);
+  if (s->backed)
+    {
+      DP_STORE_REL (&s->hist->tail, (size_t)(fed - (uint64_t)n));
+      DP_STORE_REL (&s->hist->head, (size_t)fed);
+    }
+  else
+    {
+      /* Rewind the ring to the saved stream position, so a look-back read at
+         an absolute sample index lands where the saving capture had it. The
+         ring is empty and n is within its capacity, so the write takes all
+         of it. */
+      DP_STORE_REL (&s->hist->head, (size_t)(fed - (uint64_t)n));
+      DP_STORE_REL (&s->hist->tail, (size_t)(fed - (uint64_t)n));
+      (void)dp_f32_write (s->hist, (const float *)ring, n);
+    }
 
   /* The blob carries everything the live ring held, so a capture resumes
      with every burst it would have emitted. A restored entry whose span the

@@ -1537,27 +1537,25 @@ dp_burst_capture_get_state (const dp_burst_capture_state_t *s, void *blob)
     }
   else
     {
-      void *region
-          = dp_w_reserve (&_w, s->hist->capacity * sizeof (float _Complex));
-      if (region)
-        {
-          memset (region, 0, s->hist->capacity * sizeof (float _Complex));
-          uint64_t from = s->hist->head - (uint64_t)n;
-          memcpy (region, burst_capture_at (s, from),
-                  n * sizeof (float _Complex));
-        }
+      uint64_t from = s->hist->head - (uint64_t)n;
+      dp_w_cf32 (&_w, burst_capture_at (s, from), n);
+      dp_w_zeros (&_w, (s->hist->capacity - n) * sizeof (float _Complex));
     }
 
   size_t an = dp_acq_state_bytes (s->acq->engine);
   dp_w_u32 (&_w, (uint32_t)an);
-  {
-    void *region = dp_w_reserve (&_w, s->acq_blob_max);
-    if (region && an <= s->acq_blob_max)
-      {
-        memset (region, 0, s->acq_blob_max);
+  /* The engine's blob, then zeros to the fixed acq_blob_max. A blob larger
+     than the bound (which state_bytes promises cannot happen) is written as
+     zeros whole, never left as whatever the region held. */
+  if (an <= s->acq_blob_max)
+    {
+      void *region = dp_w_reserve (&_w, an);
+      if (region)
         dp_acq_get_state (s->acq->engine, region);
-      }
-  }
+      dp_w_zeros (&_w, s->acq_blob_max - an);
+    }
+  else
+    dp_w_zeros (&_w, s->acq_blob_max);
 }
 
 int

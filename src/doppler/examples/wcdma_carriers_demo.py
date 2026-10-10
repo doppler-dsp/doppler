@@ -100,7 +100,9 @@ edges = np.array(  # [lo0, hi0, lo1, hi1, ...] channel edges, Hz
     [-10e6, -5e6, -5e6, 0, 0, 5e6, 5e6, 10e6], dtype=np.float64
 )
 band_db = np.array(w.band_power(edges))  # per-channel power, dB
-total_db = w.total_band_power(edges)  # whole occupied span, dB
+# The whole occupied span as ONE band: the channels share their -5/0/+5
+# MHz edges, so totalling them would count each shared bin twice (#1958).
+total_db = w.total_band_power(np.array([-10e6, 10e6]))  # dB
 nf = w.noise_floor()  # median dB level
 snr0 = w.snr(-10e6, -5e6)  # in-channel SNR of carrier 0
 # --8<-- [end:scene]

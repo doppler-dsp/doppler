@@ -373,9 +373,10 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     ),
     # Compositions — children nested as self-validating sub-blobs.
     # DopplerChannel nests the resampler that realises the time dilation; its
-    # own payload is just the two sample clocks (input-side for the resampler
-    # ctrl, output-side for the carrier phase), so a resume that restored only
-    # one of them would drift the carrier against the code rate.
+    # own payload is the two sample clocks (input-side for the resampler
+    # ctrl, output-side for the carrier phase) and the profile's last d with
+    # its flag. A resume that restored only one clock would drift the carrier
+    # against the code rate.
     "DopplerChannel": (
         lambda: DopplerChannel(
             fs=6.138e6,

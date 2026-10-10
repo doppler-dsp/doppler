@@ -182,10 +182,6 @@ def characterise(d) -> None:
     R.table(
         [
             "mode",
-            "mode",
-            "mode",
-            "mode",
-            "mode",
             "nfft",
             "hop",
             "window",
@@ -203,10 +199,6 @@ def characterise(d) -> None:
         ],
         [
             [
-                _mode(r),
-                _mode(r),
-                _mode(r),
-                _mode(r),
                 _mode(r),
                 f"{_i(r, 'nfft'):,}",
                 f"{_i(r, 'hop'):,}",
@@ -252,6 +244,7 @@ def characterise(d) -> None:
     R.md()
     R.table(
         [
+            "mode",
             "chunk",
             "room (rows)",
             "offered",
@@ -267,6 +260,7 @@ def characterise(d) -> None:
         ],
         [
             [
+                _mode(r),
                 f"{_i(r, 'chunk'):,}",
                 f"{_i(r, 'room_rows')}",
                 f"{_i(r, 'offered'):,}",
@@ -323,6 +317,7 @@ def characterise(d) -> None:
     R.md()
     R.table(
         [
+            "mode",
             "nfft",
             "hop",
             "positions",
@@ -335,6 +330,7 @@ def characterise(d) -> None:
         ],
         [
             [
+                _mode(r),
                 f"{_i(r, 'nfft'):,}",
                 f"{_i(r, 'hop'):,}",
                 f"{_i(r, 'positions'):,}",
@@ -366,6 +362,7 @@ def characterise(d) -> None:
     R.md()
     R.table(
         [
+            "mode",
             "nfft",
             "hop",
             "window",
@@ -380,6 +377,7 @@ def characterise(d) -> None:
         ],
         [
             [
+                _mode(r),
                 f"{_i(r, 'nfft')}",
                 f"{_i(r, 'hop')}",
                 str(r["window"]),
@@ -436,6 +434,7 @@ def characterise(d) -> None:
     R.md()
     R.table(
         [
+            "mode",
             "nfft",
             "hop",
             "window",
@@ -457,6 +456,7 @@ def characterise(d) -> None:
         ],
         [
             [
+                _mode(r),
                 f"{_i(r, 'nfft'):,}",
                 f"{_i(r, 'hop')}",
                 str(r["window"]),
@@ -690,7 +690,10 @@ def review(d) -> None:
         "configuration, so keeping the create arguments the same is the "
         "caller's precondition, and the header states it. `nfft` and `hop` "
         "are the exceptions, refused because they change what the position "
-        "means.",
+        "means. The mode is accepted by #2022's own criterion: a setting is "
+        'packed as a reject key when it "changes what the blob means (a '
+        "mode, a rate)\", and the Spectrogram's blob is the carry, the same "
+        "samples whichever units the rows are read in.",
     )
     R.find(
         "F5",
@@ -940,7 +943,8 @@ def limits(d) -> None:
             and _i(r, "resume_bad") == 0
             for r in st
         ),
-        f"a blob taken at any of {_total(st, 'cuts'):,} cut points restores "
+        f"a blob taken at any of {_total(_in(st, 'power'), 'cuts'):,} cut "
+        f"points, in each mode, restores "
         f"into a new object, replacing its carry and resetting consumed, "
         f"and resumes bit for bit",
     )
@@ -1264,7 +1268,7 @@ def build(write: bool = True) -> Report:
                 "§13",
                 "#2043: the floor moved to -300 dB (K3). #1968: dB rows "
                 "always (power reads -200)",
-                "§2.7",
+                "§2.7, dB only; the power half is C §13 only",
             ],
             [
                 "C17",

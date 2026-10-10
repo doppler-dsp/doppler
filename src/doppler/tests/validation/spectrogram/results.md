@@ -54,7 +54,7 @@ The campaign's order is header first. *Pin* is the section of the C test that as
 | C13 | rows are DC-centred: bin *k* at index `nfft/2 + k` | §9 | #1975 D1 | §2.6 |
 | C14 | a full-scale tone on a bin reads 1.0 in power and 0 dB in dB, whatever the window | §3 | #1975 D1, S3. #1968: dB rows always (power reads 0 dB, not 1.0), linear rows always | §2.6 |
 | C15 | `beta` is ignored outside the Kaiser window | §12 | #2043: beta used by every window (K2) | — |
-| C16 | in dB, a bin reads no lower than -200 dB, so an all-zero frame and one below the floor write the same row; in power, an all-zero frame reads 0 | §13 | #2043: the floor moved to -300 dB (K3). #1968: dB rows always (power reads -200) | §2.7 |
+| C16 | in dB, a bin reads no lower than -200 dB, so an all-zero frame and one below the floor write the same row; in power, an all-zero frame reads 0 | §13 | #2043: the floor moved to -300 dB (K3). #1968: dB rows always (power reads -200) | §2.7, dB only; the power half is C §13 only |
 | C17 | the blob's size is a function of `nfft` alone | §10, §14 | #2043: the size depends on the window (K4) | §2.5 |
 | C18 | the blob is 'SPGM' version 1 and carries the stream position only: not `consumed`, the window, beta or mode | §14 | #2043: the blob carries `consumed` (M6); version 2 (M8) | — |
 | C19 | `get_state` writes every byte of the blob | §14 (NEW) | this report: an unwritten tail; the framer's pad left unwritten (F1) | §2.5 |
@@ -76,26 +76,26 @@ Every number below comes from `native/validation/spectrogram_certify.c`, run thr
 
 Each shape streams a seeded complex Gaussian through every distinct one of: chunks of 1, 7, `nfft`-1, `nfft`, `nfft`+1 and 3`nfft`+5, the whole stream at once, and 64 seeded random splits of 1 to 2`nfft`+1 (a chunk size that repeats, as `nfft`-1 does at `nfft` 8 and 2, runs once). The output is NaN-filled before every partition, so a row a push counts but does not write cannot pass as the previous partition's. Every push is sized by `push_max_out`, which must equal the rows the stream's arithmetic says it completes (*room wrong*), and must take its whole chunk (*consumed short*). After each push, fewer than `nfft` samples may be held, by arithmetic rather than the object's own count: *r* rows retire *r*·`hop` samples, and what is left must be fewer than `nfft` (*carry over*). `pending` must be the samples no written row covers (*pending wrong*). In the one-sample partitions a row must come back with the push that delivers its last sample (*late*). A partition is *bad* if any count is non-zero or any row differs from the oracle by a bit.
 
-| mode | mode | mode | mode | mode | nfft | hop | window | stream | partitions | rows each | pushes | bad partitions | bad rows | room wrong | consumed short | carry over | pending wrong | late |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| power | power | power | power | power | 2 | 1 | rect | 4,099 | 70 | 4,098 | 96,048 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| power | power | power | power | power | 8 | 8 | hann | 10,007 | 70 | 1,250 | 85,356 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| power | power | power | power | power | 8 | 3 | kaiser | 10,007 | 70 | 3,334 | 85,356 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| power | power | power | power | power | 8 | 1 | blackman-harris | 6,007 | 70 | 6,000 | 51,274 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| power | power | power | power | power | 64 | 16 | rect | 30,011 | 71 | 1,872 | 65,586 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| power | power | power | power | power | 256 | 64 | hann | 65,537 | 71 | 1,021 | 92,210 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| power | power | power | power | power | 1,024 | 256 | kaiser | 131,101 | 71 | 509 | 158,565 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| power | power | power | power | power | 1,024 | 1,024 | blackman-harris | 131,101 | 71 | 128 | 158,565 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| power | power | power | power | power | 4,096 | 1,365 | rect | 131,101 | 71 | 94 | 152,027 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| dB | dB | dB | dB | dB | 2 | 1 | rect | 4,099 | 70 | 4,098 | 96,048 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| dB | dB | dB | dB | dB | 8 | 8 | hann | 10,007 | 70 | 1,250 | 85,356 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| dB | dB | dB | dB | dB | 8 | 3 | kaiser | 10,007 | 70 | 3,334 | 85,356 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| dB | dB | dB | dB | dB | 8 | 1 | blackman-harris | 6,007 | 70 | 6,000 | 51,274 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| dB | dB | dB | dB | dB | 64 | 16 | rect | 30,011 | 71 | 1,872 | 65,586 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| dB | dB | dB | dB | dB | 256 | 64 | hann | 65,537 | 71 | 1,021 | 92,210 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| dB | dB | dB | dB | dB | 1,024 | 256 | kaiser | 131,101 | 71 | 509 | 158,565 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| dB | dB | dB | dB | dB | 1,024 | 1,024 | blackman-harris | 131,101 | 71 | 128 | 158,565 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| dB | dB | dB | dB | dB | 4,096 | 1,365 | rect | 131,101 | 71 | 94 | 152,027 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| mode | nfft | hop | window | stream | partitions | rows each | pushes | bad partitions | bad rows | room wrong | consumed short | carry over | pending wrong | late |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| power | 2 | 1 | rect | 4,099 | 70 | 4,098 | 96,048 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| power | 8 | 8 | hann | 10,007 | 70 | 1,250 | 85,356 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| power | 8 | 3 | kaiser | 10,007 | 70 | 3,334 | 85,356 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| power | 8 | 1 | blackman-harris | 6,007 | 70 | 6,000 | 51,274 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| power | 64 | 16 | rect | 30,011 | 71 | 1,872 | 65,586 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| power | 256 | 64 | hann | 65,537 | 71 | 1,021 | 92,210 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| power | 1,024 | 256 | kaiser | 131,101 | 71 | 509 | 158,565 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| power | 1,024 | 1,024 | blackman-harris | 131,101 | 71 | 128 | 158,565 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| power | 4,096 | 1,365 | rect | 131,101 | 71 | 94 | 152,027 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| dB | 2 | 1 | rect | 4,099 | 70 | 4,098 | 96,048 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| dB | 8 | 8 | hann | 10,007 | 70 | 1,250 | 85,356 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| dB | 8 | 3 | kaiser | 10,007 | 70 | 3,334 | 85,356 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| dB | 8 | 1 | blackman-harris | 6,007 | 70 | 6,000 | 51,274 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| dB | 64 | 16 | rect | 30,011 | 71 | 1,872 | 65,586 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| dB | 256 | 64 | hann | 65,537 | 71 | 1,021 | 92,210 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| dB | 1,024 | 256 | kaiser | 131,101 | 71 | 509 | 158,565 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| dB | 1,024 | 1,024 | blackman-harris | 131,101 | 71 | 128 | 158,565 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| dB | 4,096 | 1,365 | rect | 131,101 | 71 | 94 | 152,027 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 
 
 *Bad rows* also counts a partition whose row count differs from `(len - nfft) / hop + 1`.
@@ -104,38 +104,38 @@ Each shape streams a seeded complex Gaussian through every distinct one of: chun
 
 `nfft` 256, `hop` 64, Hann, 100,003 samples. The output holds *room* rows plus 13 floats, so a push may use only whole rows of it, and the caller re-offers what a push did not take. *Offered* counts every offer, re-offers included; *stalls* are the pushes that took less than offered. A stall is right only when the room is full and the next sample would complete a row, which the harness decides from the samples taken so far, not from the object (*not maximal* counts any other). *Over room* counts writes past the whole rows; *partial* counts writes that were not whole rows; *tail touched* counts pushes that changed a float past what they wrote (the buffer is NaN-filled first).
 
-| chunk | room (rows) | offered | taken | stalls | rows | bad rows | over room | partial | tail touched | not maximal | carry over |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| 1 | 1 | 100,003 | 100,003 | 0 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 1 | 2 | 100,003 | 100,003 | 0 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 1 | 7 | 100,003 | 100,003 | 0 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 37 | 1 | 100,003 | 100,003 | 0 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 37 | 2 | 100,003 | 100,003 | 0 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 37 | 7 | 100,003 | 100,003 | 0 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 700 | 1 | 548,363 | 100,003 | 1,416 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 700 | 2 | 301,411 | 100,003 | 704 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 700 | 7 | 131,060 | 100,003 | 142 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 5,000 | 1 | 3,882,910 | 100,003 | 1,539 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 5,000 | 2 | 1,966,836 | 100,003 | 761 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 5,000 | 7 | 598,310 | 100,003 | 219 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 100,003 | 1 | 77,781,883 | 100,003 | 1,558 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 100,003 | 2 | 38,916,015 | 100,003 | 779 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 100,003 | 7 | 11,154,715 | 100,003 | 222 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 1 | 1 | 100,003 | 100,003 | 0 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 1 | 2 | 100,003 | 100,003 | 0 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 1 | 7 | 100,003 | 100,003 | 0 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 37 | 1 | 100,003 | 100,003 | 0 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 37 | 2 | 100,003 | 100,003 | 0 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 37 | 7 | 100,003 | 100,003 | 0 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 700 | 1 | 548,363 | 100,003 | 1,416 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 700 | 2 | 301,411 | 100,003 | 704 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 700 | 7 | 131,060 | 100,003 | 142 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 5,000 | 1 | 3,882,910 | 100,003 | 1,539 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 5,000 | 2 | 1,966,836 | 100,003 | 761 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 5,000 | 7 | 598,310 | 100,003 | 219 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 100,003 | 1 | 77,781,883 | 100,003 | 1,558 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 100,003 | 2 | 38,916,015 | 100,003 | 779 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 100,003 | 7 | 11,154,715 | 100,003 | 222 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
+| mode | chunk | room (rows) | offered | taken | stalls | rows | bad rows | over room | partial | tail touched | not maximal | carry over |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| power | 1 | 1 | 100,003 | 100,003 | 0 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
+| power | 1 | 2 | 100,003 | 100,003 | 0 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
+| power | 1 | 7 | 100,003 | 100,003 | 0 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
+| power | 37 | 1 | 100,003 | 100,003 | 0 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
+| power | 37 | 2 | 100,003 | 100,003 | 0 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
+| power | 37 | 7 | 100,003 | 100,003 | 0 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
+| power | 700 | 1 | 548,363 | 100,003 | 1,416 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
+| power | 700 | 2 | 301,411 | 100,003 | 704 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
+| power | 700 | 7 | 131,060 | 100,003 | 142 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
+| power | 5,000 | 1 | 3,882,910 | 100,003 | 1,539 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
+| power | 5,000 | 2 | 1,966,836 | 100,003 | 761 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
+| power | 5,000 | 7 | 598,310 | 100,003 | 219 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
+| power | 100,003 | 1 | 77,781,883 | 100,003 | 1,558 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
+| power | 100,003 | 2 | 38,916,015 | 100,003 | 779 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
+| power | 100,003 | 7 | 11,154,715 | 100,003 | 222 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
+| dB | 1 | 1 | 100,003 | 100,003 | 0 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
+| dB | 1 | 2 | 100,003 | 100,003 | 0 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
+| dB | 1 | 7 | 100,003 | 100,003 | 0 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
+| dB | 37 | 1 | 100,003 | 100,003 | 0 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
+| dB | 37 | 2 | 100,003 | 100,003 | 0 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
+| dB | 37 | 7 | 100,003 | 100,003 | 0 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
+| dB | 700 | 1 | 548,363 | 100,003 | 1,416 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
+| dB | 700 | 2 | 301,411 | 100,003 | 704 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
+| dB | 700 | 7 | 131,060 | 100,003 | 142 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
+| dB | 5,000 | 1 | 3,882,910 | 100,003 | 1,539 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
+| dB | 5,000 | 2 | 1,966,836 | 100,003 | 761 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
+| dB | 5,000 | 7 | 598,310 | 100,003 | 219 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
+| dB | 100,003 | 1 | 77,781,883 | 100,003 | 1,558 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
+| dB | 100,003 | 2 | 38,916,015 | 100,003 | 779 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
+| dB | 100,003 | 7 | 11,154,715 | 100,003 | 222 | 1,559 | 0 | 0 | 0 | 0 | 0 | 0 |
 
 
 Chunks of 1, 37 never stall at these rooms. A chunk shorter than the hop completes at most one row, which every room holds. The others stall up to 1,558 times, so the path is exercised.
@@ -144,36 +144,36 @@ Chunks of 1, 37 never stall at these rooms. A chunk shorter than the hop complet
 
 For every stream position `p` from 0 to `nfft` + `hop` - 1, which reaches every carry state the shape has, the state is restored into a work object and each of nine offers is tried: 0, 1, `hop`-1, `hop`, `hop`+1, `nfft`-1, `nfft`, `nfft`+1 and 3`nfft`+5. The truth is the stream's arithmetic, `R(p + n) - R(p)` rows with `R(m) = (m - nfft) / hop + 1`. `rows_for` must equal it, `push_max_out` must be it times `nfft`, a push with exactly that room must write it and take all `n`, and a push with one row less must write one row fewer and take less. *Saturates* is whether `push_max_out(SIZE_MAX)` reads `SIZE_MAX` where the row count times `nfft` would wrap.
 
-| nfft | hop | positions | trials | rows_for wrong | push_max_out wrong | push wrong | one row less wrong | saturates |
-|---|---|---|---|---|---|---|---|---|
-| 8 | 3 | 11 | 99 | 0 | 0 | 0 | 0 | yes |
-| 64 | 16 | 80 | 720 | 0 | 0 | 0 | 0 | yes |
-| 256 | 256 | 512 | 4,608 | 0 | 0 | 0 | 0 | yes |
-| 1,024 | 256 | 1,280 | 11,520 | 0 | 0 | 0 | 0 | yes |
-| 8 | 3 | 11 | 99 | 0 | 0 | 0 | 0 | yes |
-| 64 | 16 | 80 | 720 | 0 | 0 | 0 | 0 | yes |
-| 256 | 256 | 512 | 4,608 | 0 | 0 | 0 | 0 | yes |
-| 1,024 | 256 | 1,280 | 11,520 | 0 | 0 | 0 | 0 | yes |
+| mode | nfft | hop | positions | trials | rows_for wrong | push_max_out wrong | push wrong | one row less wrong | saturates |
+|---|---|---|---|---|---|---|---|---|---|
+| power | 8 | 3 | 11 | 99 | 0 | 0 | 0 | 0 | yes |
+| power | 64 | 16 | 80 | 720 | 0 | 0 | 0 | 0 | yes |
+| power | 256 | 256 | 512 | 4,608 | 0 | 0 | 0 | 0 | yes |
+| power | 1,024 | 256 | 1,280 | 11,520 | 0 | 0 | 0 | 0 | yes |
+| dB | 8 | 3 | 11 | 99 | 0 | 0 | 0 | 0 | yes |
+| dB | 64 | 16 | 80 | 720 | 0 | 0 | 0 | 0 | yes |
+| dB | 256 | 256 | 512 | 4,608 | 0 | 0 | 0 | 0 | yes |
+| dB | 1,024 | 256 | 1,280 | 11,520 | 0 | 0 | 0 | 0 | yes |
 
 
 ### 2.4 Flush: on the hop grid, once, only if owed (C §7, §8)
 
 For every stream length from 0 to 4`nfft`+3: push it, flush, flush again, then push `nfft` more. `pending` must be the samples no written row covers (*pending wrong*). The flush must write a row exactly when that is non-zero (*wrong decision*), and the row must be PSD's reading of the zero-padded slice at the next row start `k*hop`, not at the first uncovered sample (*off grid*). A second flush must write nothing, `consumed` and `pending` must read 0 after it (*after flush*), and the next `nfft` samples must be row 0 of a new stream (*bad restart*).
 
-| nfft | hop | window | lengths | rows flushed | pending wrong | wrong decision | off grid | second flush | after flush | bad restart |
-|---|---|---|---|---|---|---|---|---|---|---|
-| 2 | 1 | rect | 12 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 8 | 8 | hann | 36 | 31 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 8 | 3 | kaiser | 36 | 25 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 8 | 1 | blackman-harris | 36 | 7 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 64 | 16 | rect | 260 | 246 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 256 | 64 | hann | 1,028 | 1,014 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 2 | 1 | rect | 12 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 8 | 8 | hann | 36 | 31 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 8 | 3 | kaiser | 36 | 25 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 8 | 1 | blackman-harris | 36 | 7 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 64 | 16 | rect | 260 | 246 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 256 | 64 | hann | 1,028 | 1,014 | 0 | 0 | 0 | 0 | 0 | 0 |
+| mode | nfft | hop | window | lengths | rows flushed | pending wrong | wrong decision | off grid | second flush | after flush | bad restart |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| power | 2 | 1 | rect | 12 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
+| power | 8 | 8 | hann | 36 | 31 | 0 | 0 | 0 | 0 | 0 | 0 |
+| power | 8 | 3 | kaiser | 36 | 25 | 0 | 0 | 0 | 0 | 0 | 0 |
+| power | 8 | 1 | blackman-harris | 36 | 7 | 0 | 0 | 0 | 0 | 0 | 0 |
+| power | 64 | 16 | rect | 260 | 246 | 0 | 0 | 0 | 0 | 0 | 0 |
+| power | 256 | 64 | hann | 1,028 | 1,014 | 0 | 0 | 0 | 0 | 0 | 0 |
+| dB | 2 | 1 | rect | 12 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
+| dB | 8 | 8 | hann | 36 | 31 | 0 | 0 | 0 | 0 | 0 | 0 |
+| dB | 8 | 3 | kaiser | 36 | 25 | 0 | 0 | 0 | 0 | 0 | 0 |
+| dB | 8 | 1 | blackman-harris | 36 | 7 | 0 | 0 | 0 | 0 | 0 | 0 |
+| dB | 64 | 16 | rect | 260 | 246 | 0 | 0 | 0 | 0 | 0 | 0 |
+| dB | 256 | 64 | hann | 1,028 | 1,014 | 0 | 0 | 0 | 0 | 0 | 0 |
 
 
 `nfft` 2 at `hop` 1 flushes 1 row(s) over its 12 lengths. From 2 samples on, every sample is already in a row, so only a 1-sample stream owes one.
@@ -182,16 +182,16 @@ For every stream length from 0 to 4`nfft`+3: push it, flush, flush again, then p
 
 At every cut point from 0 to 3`nfft`+3 (every 13th at `nfft` 1024), a stream is pushed to the cut and serialized into two buffers pre-filled with different bytes (*unwritten* counts cuts where they differ). The blob is restored into a **new** object that already holds a stray 3-sample carry, so the restore must replace the carry and reset the count rather than find them right. It must then read `consumed` 0 and the source's `pending` (*after restore*), and finish the stream in pieces of 5 to the oracle's rows bit for bit (*resume bad*). The size must be one number per `nfft` across cuts, windows, betas and hops (*sizes*, *varies*). A refusal target holding its own stream is offered the blob with a corrupt magic, version or size, the blob of the same `nfft` at another hop, and the blob of half the `nfft` zero-padded to this size; each must be refused, and the target must be unchanged in `pending`, `consumed` and, at the end, in the rows its next push makes against an untouched twin (*changed*). Last, the blob is restored into an object of **another window**, and into one of **the other mode**, which the header says are NOT refused: the rows must continue as that window's own (*window wrong*), and in that mode's units (*mode wrong*).
 
-| nfft | hop | window | cuts | bytes | sizes | varies | unwritten | after restore | resume bad | envelope refused | hop refused | nfft refused | changed | window refused | window wrong | mode refused | mode wrong |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 8 | 3 | hann | 28 | 128 | 1 | 0 | 0 | 0 | 0 | 84 of 84 | 28 of 28 | 28 of 28 | 0 | 0 | 0 | 0 | 0 |
-| 64 | 16 | kaiser | 196 | 576 | 1 | 0 | 0 | 0 | 0 | 588 of 588 | 196 of 196 | 196 of 196 | 0 | 0 | 0 | 0 | 0 |
-| 256 | 64 | blackman-harris | 772 | 2,112 | 1 | 0 | 0 | 0 | 0 | 2316 of 2316 | 772 of 772 | 772 of 772 | 0 | 0 | 0 | 0 | 0 |
-| 1,024 | 256 | rect | 237 | 8,256 | 1 | 0 | 0 | 0 | 0 | 711 of 711 | 237 of 237 | 237 of 237 | 0 | 0 | 0 | 0 | 0 |
-| 8 | 3 | hann | 28 | 128 | 1 | 0 | 0 | 0 | 0 | 84 of 84 | 28 of 28 | 28 of 28 | 0 | 0 | 0 | 0 | 0 |
-| 64 | 16 | kaiser | 196 | 576 | 1 | 0 | 0 | 0 | 0 | 588 of 588 | 196 of 196 | 196 of 196 | 0 | 0 | 0 | 0 | 0 |
-| 256 | 64 | blackman-harris | 772 | 2,112 | 1 | 0 | 0 | 0 | 0 | 2316 of 2316 | 772 of 772 | 772 of 772 | 0 | 0 | 0 | 0 | 0 |
-| 1,024 | 256 | rect | 237 | 8,256 | 1 | 0 | 0 | 0 | 0 | 711 of 711 | 237 of 237 | 237 of 237 | 0 | 0 | 0 | 0 | 0 |
+| mode | nfft | hop | window | cuts | bytes | sizes | varies | unwritten | after restore | resume bad | envelope refused | hop refused | nfft refused | changed | window refused | window wrong | mode refused | mode wrong |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| power | 8 | 3 | hann | 28 | 128 | 1 | 0 | 0 | 0 | 0 | 84 of 84 | 28 of 28 | 28 of 28 | 0 | 0 | 0 | 0 | 0 |
+| power | 64 | 16 | kaiser | 196 | 576 | 1 | 0 | 0 | 0 | 0 | 588 of 588 | 196 of 196 | 196 of 196 | 0 | 0 | 0 | 0 | 0 |
+| power | 256 | 64 | blackman-harris | 772 | 2,112 | 1 | 0 | 0 | 0 | 0 | 2316 of 2316 | 772 of 772 | 772 of 772 | 0 | 0 | 0 | 0 | 0 |
+| power | 1,024 | 256 | rect | 237 | 8,256 | 1 | 0 | 0 | 0 | 0 | 711 of 711 | 237 of 237 | 237 of 237 | 0 | 0 | 0 | 0 | 0 |
+| dB | 8 | 3 | hann | 28 | 128 | 1 | 0 | 0 | 0 | 0 | 84 of 84 | 28 of 28 | 28 of 28 | 0 | 0 | 0 | 0 | 0 |
+| dB | 64 | 16 | kaiser | 196 | 576 | 1 | 0 | 0 | 0 | 0 | 588 of 588 | 196 of 196 | 196 of 196 | 0 | 0 | 0 | 0 | 0 |
+| dB | 256 | 64 | blackman-harris | 772 | 2,112 | 1 | 0 | 0 | 0 | 0 | 2316 of 2316 | 772 of 772 | 772 of 772 | 0 | 0 | 0 | 0 | 0 |
+| dB | 1,024 | 256 | rect | 237 | 8,256 | 1 | 0 | 0 | 0 | 0 | 711 of 711 | 237 of 237 | 237 of 237 | 0 | 0 | 0 | 0 | 0 |
 
 
 The impossible-carry refusal (a drained carry fewer than `nfft` - `hop` with a row out) needs the framer's blob layout, so it is pinned in C (§14) and certified at scale in the framer's own report rather than here.
@@ -315,7 +315,7 @@ At -190, -210 dBFS every frame of every window is all floor, 1,024 of 1,024 bins
 
 - **F3 · BY DESIGN** — A bin reads no lower than -200 dB, so a tone under the floor and digital silence give the same row (§2.7), and noise reaches it about `10·log10(nfft)` sooner. A logarithm has to stop somewhere; the header and the guide now say where. It is the dB mode's floor: a caller that must tell zero from tiny takes power rows, the default since #1968 (F6), whose only floor is float32's and where an all-zero frame reads exactly 0.
 
-- **F4 · BY DESIGN** — A blob restores into an object of another window, beta or mode without complaint, and the rows that follow are that object's (§2.5). The blob carries the stream position and no configuration, so keeping the create arguments the same is the caller's precondition, and the header states it. `nfft` and `hop` are the exceptions, refused because they change what the position means.
+- **F4 · BY DESIGN** — A blob restores into an object of another window, beta or mode without complaint, and the rows that follow are that object's (§2.5). The blob carries the stream position and no configuration, so keeping the create arguments the same is the caller's precondition, and the header states it. `nfft` and `hop` are the exceptions, refused because they change what the position means. The mode is accepted by #2022's own criterion: a setting is packed as a reject key when it "changes what the blob means (a mode, a rate)", and the Spectrogram's blob is the carry, the same samples whichever units the rows are read in.
 
 - **F5 · BY DESIGN** — One object is not thread-safe: the kernel uses the object's own scratch. That is a contract, not something a test can prove. Threads each own an object, and the state blob is how a stream moves between them.
 
@@ -358,7 +358,7 @@ Claims a caller may rely on, asserted by this run.
 | PASS | flushes were exercised (2,648 rows) |
 | PASS | the blob's size is a function of nfft alone: one size across cut points, windows, betas and hops |
 | PASS | get_state writes every byte of the blob, at every cut |
-| PASS | a blob taken at any of 2,466 cut points restores into a new object, replacing its carry and resetting consumed, and resumes bit for bit |
+| PASS | a blob taken at any of 1,233 cut points, in each mode, restores into a new object, replacing its carry and resetting consumed, and resumes bit for bit |
 | PASS | a blob with a corrupt magic, version or size, from another hop, or from another nfft is always refused |
 | PASS | a refused blob changes nothing: pending, consumed and the next rows are the untouched twin's |
 | PASS | a blob restores into an object of another window, and the rows that follow are that window's own |

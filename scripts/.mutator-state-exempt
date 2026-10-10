@@ -3,16 +3,17 @@
 # Read by src/doppler/tests/test_mutator_state.py: every public member of
 # every serializable class, as Python gets it, and every C setter the class
 # does not bind, probed by behaviour. A member that does not pass (TRAVELS,
-# KEYED or READS) must be listed here once, with EXACTLY the verdict it reads
-# and a reason, or the gate is red. A listed member that now passes, names
-# nothing, or reads another verdict is red too, and `make tests-ssot` refuses
-# a key the merge base did not hold: this list only shrinks. The rule is
+# KEYED, READS or HANDLE) must be listed here once, with EXACTLY the verdict
+# it reads and a reason, or the gate is red. A listed member that now passes,
+# names nothing, or reads another verdict is red too, and `make tests-ssot`
+# refuses a key the merge base did not hold, or a key that moved into LOST,
+# NONDETERMINISTIC or CRASHES: this list only shrinks. The rule is
 # docs/design/state-serialization.md, "What goes in the blob".
 #
 #   LOST              its value does not travel: a fix deletes the line
 #   NONDETERMINISTIC  two identical builds differ, so no restore can be judged
 #   UNPROBED          the probe cannot show it either way (reason: why)
-#   CRASHES           its probe kills the process, so a child confirms it
+#   CRASHES           its probe dies by a crash signal, confirmed in a child
 #   C_ONLY            no Python face to probe: verified by a C twin, #2077
 #   NO_RECIPE         its class has no CASES row to probe with, #2078
 #
@@ -42,20 +43,13 @@ AWGN.amplitude                                          LOST              family
 # -- NONDETERMINISTIC (1)
 CarrierAcquisition.steps                                NONDETERMINISTIC  get_state writes the carry buffer's uninitialised tail (#2076)
 
-# -- UNPROBED (20)
-ADC.step                                                UNPROBED          a stream call: every sample advances it alike and none is kept, so it has no value of its own to show
-AGC.set_telemetry                                       UNPROBED          a telemetry sink: a handle to the outside world, not state, and no probe can make one
+# -- UNPROBED (13)
 BurstCapture.release                                    UNPROBED          releases a captured burst by index, and the matrix feed captures none, so no index is valid; a feed that captures one is #2078
-CarrierNda.set_telemetry                                UNPROBED          a telemetry sink: a handle to the outside world, not state, and no probe can make one
-Corr.execute                                            UNPROBED          a stream call: it counts frames and keeps nothing of one, so it has no value of its own to show
-Corr2D.execute                                          UNPROBED          a stream call: it counts frames and keeps nothing of one, so it has no value of its own to show
-Costas.set_telemetry                                    UNPROBED          a telemetry sink: a handle to the outside world, not state, and no probe can make one
-Despreader.set_telemetry                                UNPROBED          a telemetry sink: a handle to the outside world, not state, and no probe can make one
-Dll.set_telemetry                                       UNPROBED          a telemetry sink: a handle to the outside world, not state, and no probe can make one
-MpskReceiver.set_telemetry                              UNPROBED          a telemetry sink: a handle to the outside world, not state, and no probe can make one
-MpskReceiverR.set_telemetry                             UNPROBED          a telemetry sink: a handle to the outside world, not state, and no probe can make one
-RateSync.set_telemetry                                  UNPROBED          a telemetry sink: a handle to the outside world, not state, and no probe can make one
-SymbolSync.set_telemetry                                UNPROBED          a telemetry sink: a handle to the outside world, not state, and no probe can make one
+PSD.band_power                                          UNPROBED          a query taking a value: inert, and nothing exact says it only reads (its C takes a non-const state); C constness would classify it (#2093)
+PSD.occupied_bw                                         UNPROBED          a query taking a value: inert, and nothing exact says it only reads (its C takes a non-const state); C constness would classify it (#2093)
+PSD.sfdr                                                UNPROBED          a query taking a value: inert, and nothing exact says it only reads (its C takes a non-const state); C constness would classify it (#2093)
+PSD.snr                                                 UNPROBED          a query taking a value: inert, and nothing exact says it only reads (its C takes a non-const state); C constness would classify it (#2093)
+PSD.total_band_power                                    UNPROBED          a query taking a value: inert, and nothing exact says it only reads (its C takes a non-const state); C constness would classify it (#2093)
 _SynthEngine.set_bits                                   UNPROBED          hand-bound, with no stub signature to make a value from; family 4 (#2082)
 _SynthEngine.set_chirp_span                             UNPROBED          the matrix engine is not in chirp mode, so the span changes nothing it does (family 4, #2082)
 _SynthEngine.set_dsss_chips                             UNPROBED          hand-bound, with no stub signature to make a value from; family 4 (#2082)
@@ -85,7 +79,7 @@ _SynthEngine.dp_wfm_synth_reseed_noise                  C_ONLY            family
 _SynthEngine.dp_wfm_synth_set_refill                    C_ONLY            a sink; confirm EXEMPT through the C twin (#2077)
 _SynthEngine.dp_wfm_synth_set_refill_state              C_ONLY            family 4 (#2082); C twin #2077
 
-# -- NO_RECIPE (74)
+# -- NO_RECIPE (71)
 Acquisition.block_prompt                                NO_RECIPE         Acquisition has no test_state_serialization CASES row (#2078)
 Acquisition.block_raw                                   NO_RECIPE         Acquisition has no test_state_serialization CASES row (#2078)
 Acquisition.configure_search_raw                        NO_RECIPE         Acquisition has no test_state_serialization CASES row (#2078)
@@ -93,14 +87,12 @@ Acquisition.keep_surface                                NO_RECIPE         Acquis
 Acquisition.push                                        NO_RECIPE         Acquisition has no test_state_serialization CASES row (#2078)
 Acquisition.set_carrier_freq_hz                         NO_RECIPE         Acquisition has no test_state_serialization CASES row (#2078); family 5 (#2083)
 Acquisition.set_max_peaks                               NO_RECIPE         Acquisition has no test_state_serialization CASES row (#2078)
-Acquisition.set_telemetry                               NO_RECIPE         Acquisition has no test_state_serialization CASES row (#2078)
 Acquisition.set_threads                                 NO_RECIPE         Acquisition has no test_state_serialization CASES row (#2078)
 Acquisition.surface                                     NO_RECIPE         Acquisition has no test_state_serialization CASES row (#2078)
 Acquisition.surface_chip_phase                          NO_RECIPE         Acquisition has no test_state_serialization CASES row (#2078)
 Acquisition.surface_complex                             NO_RECIPE         Acquisition has no test_state_serialization CASES row (#2078)
 Acquisition.surface_doppler_hz                          NO_RECIPE         Acquisition has no test_state_serialization CASES row (#2078)
 AsyncDsssPool.push                                      NO_RECIPE         AsyncDsssPool has no test_state_serialization CASES row (#2078)
-AsyncDsssPool.set_event_log                             NO_RECIPE         AsyncDsssPool has no test_state_serialization CASES row (#2078)
 AsyncDsssPool.status                                    NO_RECIPE         AsyncDsssPool has no test_state_serialization CASES row (#2078)
 AsyncDsssPool.symbols                                   NO_RECIPE         AsyncDsssPool has no test_state_serialization CASES row (#2078)
 AsyncDsssPool.symbols_max_out                           NO_RECIPE         AsyncDsssPool has no test_state_serialization CASES row (#2078)
@@ -121,7 +113,6 @@ BerMeter.set_truth                                      NO_RECIPE         BerMet
 BpskReceiver.bits                                       NO_RECIPE         BpskReceiver has no test_state_serialization CASES row (#2078)
 BpskReceiver.bits_max_out                               NO_RECIPE         BpskReceiver has no test_state_serialization CASES row (#2078)
 BpskReceiver.norm_freq                                  NO_RECIPE         BpskReceiver has no test_state_serialization CASES row (#2078); family 1 (#2079)
-BpskReceiver.set_telemetry                              NO_RECIPE         BpskReceiver has no test_state_serialization CASES row (#2078)
 BpskReceiver.steps                                      NO_RECIPE         BpskReceiver has no test_state_serialization CASES row (#2078)
 BpskReceiver.steps_max_out                              NO_RECIPE         BpskReceiver has no test_state_serialization CASES row (#2078)
 CellAsyncDsssReceiver.configure_chain_raw               NO_RECIPE         CellAsyncDsssReceiver has no test_state_serialization CASES row (#2078)

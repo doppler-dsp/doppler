@@ -930,8 +930,9 @@ def det_verify_count(p_look: float, p_target: float) -> int:
     Returns
     -------
     int
-        Smallest verify count n with p_look^n <= p_target; -1 for a
-        probability outside its range.
+        Smallest verify count n with p_look^n <= p_target, saturating at
+        INT_MAX when n exceeds an int (when 1 - p_look < -ln(p_target) /
+        INT_MAX); -1 for a probability outside its range.
 
     Examples
     --------

@@ -1195,7 +1195,7 @@ One function serves both sides of a lock detector ([**lockdet\_core.h**](lockdet
 
 **Returns:**
 
-Smallest verify count n with p\_look^n &lt;= p\_target; -1 for a probability outside its range.
+Smallest verify count n with p\_look^n &lt;= p\_target, saturating at INT\_MAX when n exceeds an int (when 1 - p\_look &lt; -ln(p\_target) / INT\_MAX); -1 for a probability outside its range.
 
 
 

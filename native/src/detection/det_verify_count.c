@@ -26,5 +26,12 @@ dp_det_verify_count (double p_look, double p_target)
    * p_look = 1e-3, p_target = 1e-9 -> exactly 3) is not pushed to n+1 by
    * a last-ulp excess in the log quotient. */
   double n = ceil (log (p_target) / log (p_look) - 1e-9);
+  /* When 1 - p_look < -ln(p_target) / INT_MAX (3.2e-9 at a 1e-3 budget),
+   * n ~ -ln p_target / (1 - p_look) needs more looks than an int holds,
+   * and converting such a double to int is undefined: INT_MIN on x86,
+   * saturated on arm64 (#2112). Clamp to INT_MAX, the answer the certain
+   * look above already gives. */
+  if (n >= (double)INT_MAX)
+    return INT_MAX;
   return n < 1.0 ? 1 : (int)n;
 }

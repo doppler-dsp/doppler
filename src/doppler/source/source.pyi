@@ -798,10 +798,9 @@ class LO:
 
 @final
 class AWGN:
-    """Create an AWGN generator. Allocates state, seeds the xoshiro256++ RNG
-    via SplitMix64, and sets up both the scalar and the AVX2 parallel streams.
-    The initial seed is stored so dp_awgn_reset() can reproduce the exact same
-    stream.
+    """Create an AWGN generator. Allocates state and seeds the xoshiro256++ RNG
+    via SplitMix64. The initial seed is stored so dp_awgn_reset() can reproduce
+    the exact same stream.
 
     Parameters
     ----------

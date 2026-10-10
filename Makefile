@@ -635,8 +635,23 @@ PYTEST_BENCH_DIRS = $(wildcard src/doppler/*/benchmarks)
 # 268s step, on all SIX Python versions, ~14 minutes a run spent timing code
 # on a shared runner and discarding the numbers. Timing on a shared runner is
 # also the thing doppler#543 already deleted perf-regression.yml over.
-TEST_PYTHON_CMD = $(MEM_GUARD_CMD) $(LEAK_CHECK) -- uv run pytest src/ -v $(PYTEST_SELECT) \
-                      --benchmark-disable -n auto $(PYTEST_ARGS)
+#
+# TEST_PATHS is WHAT pytest collects, and the only knob that narrows it:
+# `make test-python TEST_PATHS=src/doppler/spectral/tests/test_psd.py`
+# runs that file under the same mem-guard, leak check and flags as the full
+# suite. Space-separated files or directories. A path given in PYTEST_ARGS
+# instead is collected IN ADDITION to src/, so the whole suite runs (#1998),
+# which is why sessions reached for a raw `pytest <file>` that skipped the
+# guard and the leak check. `-k` still selects by name within TEST_PATHS.
+# Not offered on `coverage`: it runs a copied package, and its number is a
+# whole-tree number the coverage gates compare, which a narrowed run would
+# quietly redefine.
+TEST_PATHS      ?= src/
+TEST_PYTHON_CMD = $(MEM_GUARD_CMD) $(LEAK_CHECK) -- uv run pytest $(TEST_PATHS) -v \
+                      $(PYTEST_SELECT) --benchmark-disable -n auto $(PYTEST_ARGS)
+# The standard target's own description is generic; this line wins in
+# `make help` (it is read before standard.mk) and names the knob.
+test-python: ## Run the Python test suite (TEST_PATHS=<files/dirs> to narrow)
 TEST_RUST_CMD   = cargo test --manifest-path $(RUST_DIR)/Cargo.toml
 
 # Fail-closed: every src/doppler/examples/*.py (plus the standalone example) is

@@ -375,8 +375,10 @@ double dp_det_ema_alpha(double snr_in_db, double snr_out_db);
  *
  * @param p_look    Per-look probability (pfa or 1 - pd), in &#91;0, 1&#93;.
  * @param p_target  Compound probability budget, in (0, 1).
- * @return          Smallest verify count n with p_look^n <= p_target; -1
- *                  for a probability outside its range.
+ * @return          Smallest verify count n with p_look^n <= p_target,
+ *                  saturating at INT_MAX when n exceeds an int (when
+ *                  1 - p_look < -ln(p_target) / INT_MAX); -1 for a
+ *                  probability outside its range.
  *
  * @code
  * >>> from doppler.detection import det_verify_count

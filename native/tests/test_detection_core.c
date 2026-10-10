@@ -223,6 +223,10 @@ main (void)
     DP_CHECK (dp_det_verify_count (1e-3, 0.5) == 1); /* budget already met  */
     DP_CHECK (dp_det_verify_count (0.0, 1e-6) == 1); /* impossible look     */
     DP_CHECK (dp_det_verify_count (1.0, 0.5) == INT_MAX); /* unreachable     */
+    /* A look just short of certain needs ~1.4e13 looks, past an int: the
+     * count saturates like the certain look's, never wraps (#2112). */
+    DP_CHECK (dp_det_verify_count (1.0 - 1e-12, 1e-6) == INT_MAX);
+    DP_CHECK (dp_det_verify_count (0.9999999999999999, 0.5) == INT_MAX);
 
     /* Run waiting time: classic 2-straight-heads = 6 tosses; the p -> 1
      * limit is exactly n; p = 0 never completes. */

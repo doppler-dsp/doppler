@@ -341,5 +341,27 @@ main (void)
     free (x);
   }
 
+  /* ── a version-2 AccTrace blob, nested in its PSD, is refused (#2094) ──
+     The trace's mean is a sum in version 3, so a version-2 blob is refused
+     through the PSD, and atomically: the PSD is the first thing restored and
+     the acquisition's own fields come last, so the refusal leaves it exactly
+     as advanced. It is judged before the first block completes (once
+     `ready`, steps ignores its input), so the advance is the carry. */
+  {
+    size_t          n;
+    float _Complex *x
+        = _make_signal (N_SYMBOLS, SPS, SAMPLE_RATE_HZ, TONE_HZ, 2094u, &n);
+    dp_carrier_acq_state_t *ca = dp_carrier_acq_create (
+        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9,
+        2.0, /*sequential=*/false, MAX_N_BLOCKS);
+    DP_REQUIRE (ca != NULL && x != NULL);
+    dp_carrier_acq_steps (ca, x, 5);
+    DP_STATE_NESTED_VERSION_TEST (dp_carrier_acq, ca,
+                                  dp_carrier_acq_steps (ca, x + 5, 7),
+                                  ACC_TRACE_STATE_MAGIC, 2u, 1, 1);
+    dp_carrier_acq_destroy (ca);
+    free (x);
+  }
+
   DP_TEST_END ("test_carrier_acq_core");
 }

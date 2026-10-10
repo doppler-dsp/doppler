@@ -12,7 +12,7 @@
  * running mean numerically stable over long captures.
  *
  * The first frame seeds the trace in every mode; subsequent frames update it:
- *   - mean    : ``acc += (p - acc) / count``      (Welford running mean)
+ *   - mean    : ``acc += p``, a per-bin sum; value() divides by count
  *   - exp     : ``acc  = alpha*p + (1-alpha)*acc`` (EMA)
  *   - maxhold : ``acc  = max(acc, p)``  per bin
  *   - minhold : ``acc  = min(acc, p)``  per bin
@@ -44,7 +44,8 @@ typedef enum {
  * @brief AccTrace state.  Allocate with dp_acc_trace_create().
  */
 typedef struct {
-    double *acc;            /**< Running trace, length n (double). */
+    double *acc;            /**< Running trace, length n (double); in
+                                 mean mode the per-bin SUM, not the mean. */
     size_t n;               /**< Trace length (bins).             */
     acc_trace_mode_t mode;  /**< Reduction mode.                  */
     double alpha;           /**< EMA smoothing factor (exp mode). */
@@ -141,7 +142,9 @@ size_t dp_acc_trace_value_max_out(dp_acc_trace_state_t *state);
 
 /**
  * @brief Return the current reduced trace, one value per bin.
- * Copies the full length-n trace out to the caller and returns the number of
+ * Writes the length-n reading out to the caller (in mean mode the per-bin
+ * sum divided by the count, in double, then rounded; otherwise the trace
+ * itself) and returns the number of
  * samples written; the Python wrapper turns that into a fresh float32 array of
  * the reduced trace (the running mean, EMA, max-hold, or min-hold, per the
  * construction @c mode).  Before any frame has been accumulated the trace is
@@ -175,10 +178,16 @@ size_t dp_acc_trace_value(dp_acc_trace_state_t *state, size_t n, float *out,
  * by create.  mode is a reject key: a blob from a trace in another mode is
  * refused.  alpha travels because dp_acc_trace_set_alpha() can change it after
  * create (version 2; version 1 blobs, without mode or alpha, are refused).
- * set_state refuses an alpha the setter would refuse; either refusal leaves
- * the state untouched. */
+ * Version 3: a mean trace holds the per-bin sum, not the mean, so version 2
+ * blobs are refused too, and so is any blob that nests one (PSD's, and
+ * through it Specan's, CarrierAcquisition's and the AsyncDsss receivers').
+ * set_state refuses an alpha the setter would refuse, and a count of 0 with
+ * a trace that is not all +0.0 bits (which reset() would have left); any
+ * refusal leaves the state untouched.  What accumulate can reach is never
+ * refused: a non-finite frame makes a non-finite trace, which a blob
+ * carries and restores. */
 #define ACC_TRACE_STATE_MAGIC DP_FOURCC ('A','T','R','C')
-#define ACC_TRACE_STATE_VERSION 2u
+#define ACC_TRACE_STATE_VERSION 3u
 size_t dp_acc_trace_state_bytes (const dp_acc_trace_state_t *state);
 void dp_acc_trace_get_state (const dp_acc_trace_state_t *state, void *blob);
 int dp_acc_trace_set_state (dp_acc_trace_state_t *state, const void *blob);

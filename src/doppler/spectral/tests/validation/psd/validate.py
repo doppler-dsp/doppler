@@ -257,9 +257,11 @@ def section_object() -> None:
         "`nfft = next_pow_two(n * pad)`, transforms it, and folds `|X|^2` "
         "into a per-bin average (mean, EMA, max-hold or min-hold), stored "
         "DC-centred. It reads the average back as a spectrum and as the "
-        "measurements a spectrum analyser makes. Its per-frame kernel, "
-        "`dp_psd_frame_power` / `dp_psd_frame_db`, is what the Spectrogram "
-        "composes."
+        "measurements a spectrum analyser makes. Its per-frame readings are "
+        "what the Spectrogram composes: `dp_psd_frame_linear` for power "
+        "rows, the Spectrogram's default, and `dp_psd_frame_db` for dB rows, "
+        "both reading `dp_psd_frame_power`'s raw `|X|^2` against one "
+        "reference."
     )
     R.md()
     R.table(
@@ -1418,9 +1420,12 @@ def review(d: Data) -> None:
         "(callers that want a dBFS reference divide by full_scale^2)'): the "
         "averaged linear readouts are the raw estimate the measurements "
         "integrate, the dB getters carry the dBFS reference, and "
-        "`frame_linear` (#1963) is the per-frame dBFS face the Spectrogram's "
-        "power rows need. So 'a row is that frame's PSD' is a claim in dB; "
-        "in linear units it holds after dividing by `full_scale^2`.",
+        "`frame_linear` (#1963) carries the dBFS reference in linear units. "
+        "It is what a Spectrogram power row is, and power rows are the "
+        "Spectrogram's default (#1968). So 'a row is that frame's PSD' holds "
+        "in both of its modes: a power row is `frame_linear`'s quotient and "
+        "a dB row is its 10·log10, both against the dBFS reference. Only the "
+        "averaged `power_twosided` leaves `full_scale` out.",
     )
     R.find(
         "F16",

@@ -83,6 +83,6 @@ ______________________________________________________________________
 <!-- related-pages:start -->
 
 **Guides** — [Power Spectra & Measurements](../guide/spectral-psd.md)
-**Design** — [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [Spectrum Analyzer](../design/specan.md), [Spectral & Measurement API Map](../design/spectral-api-map.md)
+**Design** — [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [Spectrum Analyzer](../design/specan.md), [Spectral & Measurement API Map](../design/spectral-api-map.md), [The Spectrogram — the measurement record](../design/spectrogram-measurements.md)
 
 <!-- related-pages:end -->

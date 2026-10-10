@@ -2216,6 +2216,44 @@ _test_handoff_survives_reconfigure_and_restore (void)
   return 0;
 }
 
+/* ── a version-2 AccTrace blob, nested in the receiver, is refused ──────
+ * receiver -> CarrierAcquisition -> PSD -> AccTrace (#2094): a version-2
+ * trace held the mean, which version 3 reads as a sum, so both flavors
+ * refuse it. NOT atomic: the receiver restores its earlier children before
+ * the CarrierAcquisition's trace refuses, so a refusal leaves those
+ * replaced (#2104). The refusal and the positive control are asserted;
+ * #2104's fix flips the last argument to 1, and this then holds it. */
+static int
+_test_nested_trace_version_refused (void)
+{
+  const size_t    n   = 4096;
+  float _Complex *x   = malloc (n * sizeof *x);
+  float _Complex *sym = malloc (n * sizeof *sym);
+  uint32_t        rng = 0x2094u;
+  DP_REQUIRE (x != NULL && sym != NULL);
+  for (size_t i = 0; i < n; i++)
+    x[i] = 0.1f * dp_cgauss (&rng);
+  dp_async_dsss_receiver_state_t *rx[2] = {
+    dp_async_dsss_receiver_create (CODE7, 7, 1.0e6, 35714.29, 4, 2, 55.0, 1e-2,
+                                   0.9, 500.0, 4, 8, 0, 0.5, 4, 14.0, 32, 8,
+                                   false, 100000, 0.0, 0.0),
+    _seeded_rx (55.0, 0.0), /* the cell flavor */
+  };
+  DP_REQUIRE (rx[0] != NULL && rx[1] != NULL);
+  for (int k = 0; k < 2; k++)
+    {
+      (void)dp_async_dsss_receiver_steps (rx[k], x, n / 2, sym, n);
+      DP_STATE_NESTED_VERSION_TEST (
+          dp_async_dsss_receiver, rx[k],
+          (void)dp_async_dsss_receiver_steps (rx[k], x + n / 2, n / 2, sym, n),
+          ACC_TRACE_STATE_MAGIC, 2u, 1, 0);
+      dp_async_dsss_receiver_destroy (rx[k]);
+    }
+  free (sym);
+  free (x);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -2243,6 +2281,7 @@ main (void)
   (void)_test_cell_ramp ();
   (void)_test_cell_ramp_at_spec ();
   (void)_test_cell_state_roundtrip ();
+  (void)_test_nested_trace_version_refused ();
 
   DP_TEST_END ("test_async_dsss_receiver_core");
 }

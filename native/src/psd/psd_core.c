@@ -534,10 +534,12 @@ dp_psd_occupied_bw (dp_psd_state_t *state, double fraction)
    * averager already holds DC-centred and in double (avg->acc), so there is
    * nothing to copy or widen.  Before any frame it is handed no bins, so it
    * still answers NaN for a bad fraction and 0 for a good one.  The power is
-   * not divided by cg^2: OBW is a ratio of power sums, so the scale cancels
-   * -- and without the division equal bins sum exactly, so an edge landing
-   * exactly on a bin boundary resolves exactly.  The private copy this
-   * replaced divided, and missed such a tie by one bin. */
+   * not divided by cg^2, and in mean mode not by the count either (avg->acc
+   * is the per-bin SUM, #2094): OBW is a ratio of power sums, so any
+   * constant scale cancels -- and without a division equal bins sum
+   * exactly, so an edge landing exactly on a bin boundary resolves exactly.
+   * The private copy this replaced divided, and missed such a tie by one
+   * bin.  test_psd_core.c pins it equal to OBW over the mean. */
   const size_t n = state->avg->count ? state->nfft : 0;
   return dp_obw_from_power (state->avg->acc, n, state->fs, fraction);
 }

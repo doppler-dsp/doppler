@@ -123,7 +123,7 @@ ______________________________________________________________________
 
 **Gallery** — [Gallery](../gallery/index.md), [Four WCDMA Carriers — `PSD`, `band_power`, `AccTrace`](../gallery/wcdma-carriers.md)
 **Guides** — [Streaming Spectrograms](../guide/spectrogram.md), [Checkpoint & Resume](../guide/state-serialization.md)
-**Design** — [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [The Exponential Moving Average](../design/ema.md), [The Spectrogram — chunks in, rows out](../design/spectrogram.md), [State Serialization — the standard bytes interface](../design/state-serialization.md)
+**Design** — [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [The Exponential Moving Average](../design/ema.md), [The Spectrogram — the measurement record](../design/spectrogram-measurements.md), [The Spectrogram — chunks in, rows out](../design/spectrogram.md), [State Serialization — the standard bytes interface](../design/state-serialization.md)
 **Contributing** — [C Return-Code Convention](../dev/contributing/error-convention.md)
 
 <!-- related-pages:end -->

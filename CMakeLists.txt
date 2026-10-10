@@ -1208,6 +1208,18 @@ target_include_directories(test_dp_state
 target_compile_options(test_dp_state PRIVATE -O2)
 add_test(NAME test_dp_state COMMAND test_dp_state)
 
+# The floating-point policy's canary: red when -fno-finite-math-only is gone
+# (see the ENABLE_SIMD block above). Built at -O2 whatever the build type,
+# because clang does not fold NaN tests away at -O0 and the canary would pass
+# vacuously in a Debug build.
+add_executable(test_fp_policy native/tests/test_fp_policy.c)
+target_include_directories(test_fp_policy
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(test_fp_policy PRIVATE ${DP_MATH_LIBRARY})
+dp_gnu_compile_options(test_fp_policy PRIVATE -O2)
+add_test(NAME test_fp_policy COMMAND test_fp_policy)
+
 # native/tests/dp_tx_test.h is the harness STIMULUS SSOT, and docs/design/
 # rx-test.md section 5.4 records it as the ONE place the stimulus rule cannot
 # reach: check_stimulus_sources.py requires every test, validator and example

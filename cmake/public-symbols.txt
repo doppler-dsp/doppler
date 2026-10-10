@@ -657,6 +657,7 @@ dp_detector2d_set_ref function
 dp_detector2d_set_state function
 dp_detector2d_set_threshold function
 dp_detector2d_state_bytes function
+dp_detector_consumed function
 dp_detector_create function
 dp_detector_destroy function
 dp_detector_get_state function

@@ -784,8 +784,9 @@ static PyMethodDef _SynthEngine_methods[] = {
     "tone/noise this field is present but unused by the synthesis path.\n" },
   { "set_nsps", (PyCFunction)_SynthEngine_set_nsps, METH_VARARGS,
     "Override the samples-per-symbol count in-place. Does not flush the "
-    "symbol-position counter (sym_pos); set sym_pos=0 as well when changing "
-    "sps mid-stream.\n" },
+    "symbol-position counter (sym_pos). A hold that shrinks below the current "
+    "sym_pos is refused, so when changing sps mid-stream set sym_pos=0 first, "
+    "then this.\n" },
   { "get_sym_pos", (PyCFunction)_SynthEngine_get_sym_pos, METH_NOARGS,
     "Return the current position within the current symbol (0..nsps-1). "
     "Reaches nsps and wraps to 0 each time a new symbol is consumed from the "

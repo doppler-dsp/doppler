@@ -778,5 +778,20 @@ main (void)
     dp_carrier_nda_destroy (s);
   }
 
+  /* #2148 r3: a freshly created carrier_nda, never driven, round-trips
+   * bit-for-bit into a second instance. This is the only zero-state round
+   * trip for carrier_nda; the state it holds here is what create() set. */
+  {
+    dp_carrier_nda_state_t *a
+        = dp_carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 4);
+    dp_carrier_nda_state_t *b
+        = dp_carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 4);
+    DP_CHECK (a != NULL && b != NULL);
+    if (a && b)
+      DP_STATE_ROUNDTRIP_TEST (dp_carrier_nda, a, b);
+    dp_carrier_nda_destroy (a);
+    dp_carrier_nda_destroy (b);
+  }
+
   DP_TEST_END ("test_carrier_nda_core");
 }

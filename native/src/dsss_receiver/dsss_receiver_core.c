@@ -11,6 +11,32 @@
 #define DSSS_RX_DLL_ZETA 0.707
 #define DSSS_RX_DLL_SPACING 0.5
 
+/* The chain resampler's ratio: `sps` samples a symbol out of `segments`
+   partials a code period. One expression for the build and the check, so
+   the check vouches for the very rate the build passes. */
+static double
+dsss_rx_chain_ratio (double chip_rate, double symbol_rate, size_t code_len,
+                     size_t segments, size_t sps)
+{
+  double partial_rate = chip_rate * (double)segments / (double)code_len;
+  double target_rate  = (double)sps * symbol_rate;
+  return target_rate / partial_rate;
+}
+
+/* Whether a chain at `segments`/`sps` can be built. The symbol is no faster
+   than a chip: a huge symbol rate sized the resampler's scratch at ~4e12
+   samples and aborted in steps(). And the ratio is a normal double: a tiny
+   symbol rate underflowed it to 0, which the resampler refuses under
+   dp_xnn (doppler#2103). create() and configure_chain_raw() both check it. */
+static int
+dsss_rx_chain_ok (double chip_rate, double symbol_rate, size_t code_len,
+                  size_t segments, size_t sps)
+{
+  return symbol_rate <= chip_rate
+         && isnormal (dsss_rx_chain_ratio (chip_rate, symbol_rate, code_len,
+                                           segments, sps));
+}
+
 /* MpskReceiver's terminal outputs per symbol (`m_out`) comes from
  * `mpsk_rx_derive_m_out()` in mpsk_rx_loops.h -- the rule's one home since
  * gh-644. This file used to carry a second implementation of it, and the
@@ -41,15 +67,13 @@ dsss_rx_build_chain (double chip_rate, double symbol_rate, const uint8_t *code,
                      dp_RateConverter_state_t **rc_out,
                      dp_mpsk_receiver_state_t **rx_out)
 {
-  double partial_rate = chip_rate * (double)segments / (double)code_len;
-  double target_rate  = (double)sps * symbol_rate;
-
   dp_dll_state_t *dll = dp_xnn (
       dp_dll_create (code, code_len, spc, chip_phase, DSSS_RX_DLL_BN,
                      DSSS_RX_DLL_ZETA, DSSS_RX_DLL_SPACING, segments));
 
-  dp_RateConverter_state_t *rc
-      = dp_xnn (dp_RateConverter_create (target_rate / partial_rate, 0));
+  dp_RateConverter_state_t *rc = dp_xnn (dp_RateConverter_create (
+      dsss_rx_chain_ratio (chip_rate, symbol_rate, code_len, segments, sps),
+      0));
 
   /* MpskReceiver's own carrier loop is seeded at 0, NOT doppler_hz_est --
    * the pre-despread Costas loop below (FLL-assisted, seeded correctly at
@@ -313,7 +337,6 @@ dp_dsss_receiver_create (const uint8_t *code, size_t code_len,
       || !(chip_rate > 0.0 && isfinite (chip_rate))
       || !(symbol_rate > 0.0 && isfinite (symbol_rate)) || spc < 1
       || (m != 2 && m != 4 && m != 8)
-      || segments < 1
       /* sps < 2 cannot carry an m_out at all: the smallest legal terminal
          count is 2 and MpskReceiver requires sps >= m_out, so sps = 1 has
          no receiver to build. It used to pass this guard and reach
@@ -321,7 +344,8 @@ dp_dsss_receiver_create (const uint8_t *code, size_t code_len,
          through dp_xnn() and ABORTED the interpreter with no exception and
          no message (gh-782). Refusing here is the honest answer, and it is
          the range mpsk_rx_derive_m_out() already documents. */
-      || sps < 2)
+      || sps < 2
+      || !dsss_rx_chain_ok (chip_rate, symbol_rate, code_len, segments, sps))
     return NULL;
 
   dp_dsss_receiver_state_t *obj = dp_xcalloc (1, sizeof (*obj));
@@ -484,7 +508,9 @@ int
 dp_dsss_receiver_configure_chain_raw (dp_dsss_receiver_state_t *state,
                                       size_t segments, size_t sps, int n)
 {
-  if (segments < 1 || sps < 2 || n < 1 || (int)(sps % (size_t)n) != 0)
+  if (segments < 1 || sps < 2 || n < 1 || (int)(sps % (size_t)n) != 0
+      || !dsss_rx_chain_ok (state->chip_rate, state->symbol_rate,
+                            state->code_len, segments, sps))
     return -1;
 
   double chip_phase      = dp_dll_get_code_phase (state->dll);

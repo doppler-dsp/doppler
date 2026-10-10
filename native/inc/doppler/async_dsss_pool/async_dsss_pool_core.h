@@ -278,7 +278,8 @@ extern "C"
  *                 1).
  * @param carrier_freq_hz  RF carrier the Doppler is physically coupled to,
  *                         Hz, told to the searcher and every receiver; 0.0
- *                         = uncoupled (default: 0.0).
+ *                         = uncoupled (default: 0.0). Coupled, it is above
+ *                         half the sample rate (dp_acq_carrier_freq_ok()).
  * @param lost_confirm_s  The release rule's interval, seconds (section
  *                        10) (default: 2.0).
  * @param max_emitter_on_time_secs  Maximum on-air time of one emitter,

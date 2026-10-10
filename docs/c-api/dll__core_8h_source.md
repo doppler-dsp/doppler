@@ -269,6 +269,8 @@ dp_dll_state_t *dp_dll_create(const uint8_t *code, size_t code_len, size_t sps, 
 
 int dp_dll_params_ok(size_t code_len, double init_chip, double bn, double zeta, double spacing, size_t segments);
 
+#define DLL_AID_MAX_PERIOD 1048576.0
+
 int dp_dll_symbol_period_ok(size_t segments, double partials_per_symbol);
 
 size_t dp_dll_lookback_segments(size_t tsamps, double max_error_db);

@@ -44,8 +44,9 @@
   (-8) /**< A blocking call returned because dp_stream_interrupt() was     \
             called -- a request to stop, not a failure. */
 #define DP_ERR_CLOSED                                                         \
-  (-9) /**< The context is draining or closed and accepts no more sends -- \
-            a state, not a transport failure. */
+  (-9) /**< The context is draining or closed: it accepts no more sends,   \
+            and a message it handed out can no longer be acked. A state,   \
+            not a transport failure. */
 #define DP_ERR_EOF                                                            \
   (-10) /**< The producer has finished: no more data is coming, ever. A     \
              state, not a failure, and distinct from DP_ERR_TIMEOUT, which  \

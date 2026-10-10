@@ -91,6 +91,15 @@ void dp_reasm_unchunked (dp_reasm_t *r, const dp_header_t *hdr);
 
 /* NATS-backed context.  Opaque nats.c handles are held as void* so this
  * header stays nats.h-free; stream_nats.c casts them back. */
+/* The tie between a context and the messages it handed out (#2016). A
+   natsMsg does not keep its subscription alive, and nats.c's ack reads the
+   subscription, its JetStream context and its connection (js.c's _ackMsg),
+   so an ack after the context is destroyed read freed memory. The context
+   and every DP_MSG_NATS message it hands out each hold a reference; the
+   last to let go frees it. Opaque here: it carries a mutex, which only the
+   NATS backend links, and stream_core.c never needs to see one. */
+typedef struct dp_msg_link dp_msg_link_t;
+
 struct dp_nats_state
 {
   void      *conn;            /* natsConnection *                            */
@@ -103,6 +112,7 @@ struct dp_nats_state
   int        recv_timeout_ms; /* <0 = block                                  */
   int64_t    max_payload; /* server max message size (bytes); chunk above */
   dp_reasm_t reasm;       /* the chunked frame in progress, if any       */
+  dp_msg_link_t *link;    /* shared with every message this hands out    */
 };
 
 struct dp_ctx
@@ -136,6 +146,7 @@ struct dp_msg
   dp_sample_type_t format; /* BLUE code; 0 when kind is not DP_KIND_IQ */
   size_t           num_samples;
   size_t           data_offset; /* bytes to skip at the front (NATS header). */
+  dp_msg_link_t   *link; /* DP_MSG_NATS: its context's; NULL when OWNED  */
   union
   {
     void *nats; /* natsMsg *                       */

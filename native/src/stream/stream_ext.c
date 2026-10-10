@@ -1054,11 +1054,30 @@ typedef struct
   int                      closed;
 } PullObject;
 
+/* The destroy behind close() and dealloc alike: marked closed BEFORE the
+   GIL is let go, so a second close on another thread finds nothing to do,
+   and run without the GIL, because it waits on the context's message link
+   while an ack in flight publishes -- a publish that can block on a full
+   socket (#2016). */
+static void
+Pull_destroy_ctx (PullObject *self)
+{
+  dp_pull_t *ctx = self->ctx;
+  if (self->closed || !ctx)
+    return;
+  self->ctx    = NULL;
+  self->closed = 1;
+  Py_BEGIN_ALLOW_THREADS
+    dp_pull_destroy (ctx);
+  Py_END_ALLOW_THREADS
+}
+
 static void
 Pull_dealloc (PullObject *self)
 {
-  if (!self->closed && self->ctx)
-    dp_pull_destroy (self->ctx);
+  /* The same path as close(): an array from this Pull that outlives it then
+     acks to DP_ERR_CLOSED (a ValueError), never into freed memory. */
+  Pull_destroy_ctx (self);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -1115,11 +1134,23 @@ Pull_ack (PullObject *Py_UNUSED (self), PyObject *arr)
                        "array is not an un-freed recv() result");
       return NULL;
     }
+  /* Whether the Pull that received it is closed is the MESSAGE's question,
+     not self's: this method accepts another Pull's array, and the message's
+     own link knows its context's state (#2016). Hand-owned until stream's
+     migration (#900), which must carry this mapping. */
   dp_msg_t *msg = ((dpMsgObject *)base)->msg;
   int       rc;
   Py_BEGIN_ALLOW_THREADS
     rc = dp_msg_ack (msg);
   Py_END_ALLOW_THREADS
+  if (rc == DP_ERR_CLOSED)
+    {
+      PyErr_SetString (
+          PyExc_ValueError,
+          "ack() after the Pull that received this frame was "
+          "closed: the broker redelivers it, so ack before close");
+      return NULL;
+    }
   if (rc != DP_OK)
     {
       PyErr_Format (PyExc_RuntimeError, "ack failed: %s", dp_strerror (rc));
@@ -1131,12 +1162,7 @@ Pull_ack (PullObject *Py_UNUSED (self), PyObject *arr)
 static PyObject *
 Pull_close (PullObject *self, PyObject *Py_UNUSED (ignored))
 {
-  if (!self->closed && self->ctx)
-    {
-      dp_pull_destroy (self->ctx);
-      self->ctx    = NULL;
-      self->closed = 1;
-    }
+  Pull_destroy_ctx (self);
   Py_RETURN_NONE;
 }
 

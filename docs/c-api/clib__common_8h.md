@@ -398,7 +398,7 @@ A grow-on-demand scratch buffer is the shape that wants it: the new size scales 
 
 
 
-The context is draining or closed and accepts no more sends  \ a state, not a transport failure. 
+The context is draining or closed: it accepts no more sends, \ and a message it handed out can no longer be acked. A state, \ not a transport failure. 
 
 
         

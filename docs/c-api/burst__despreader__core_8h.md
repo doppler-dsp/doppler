@@ -254,8 +254,8 @@ dp_burst_despreader_state_t * dp_burst_despreader_create (
 * `code_len` Length of `code` in chips (&gt;= sf). 
 * `sf` Spreading factor: chips integrated per prompt symbol (default: 1). 
 * `sps` Samples per chip (default: 2). 
-* `init_norm_freq` Seed carrier frequency, cycles/sample — the acquisition estimate (default: 0.0). 
-* `init_chip_phase` Seed code phase, chips (default: 0.0). 
+* `init_norm_freq` Seed carrier frequency, cycles/sample — the acquisition estimate; finite (default: 0.0). 
+* `init_chip_phase` Seed code phase, chips; finite (default: 0.0). 
 * `bn_carrier` Carrier (Costas) loop noise bandwidth, normalized to the symbol rate (default: 0.05). 
 * `bn_code` Code (DLL) loop noise bandwidth, normalized to the symbol rate (default: 0.01). 
 
@@ -263,7 +263,7 @@ dp_burst_despreader_state_t * dp_burst_despreader_create (
 
 **Returns:**
 
-Heap-allocated state, or NULL on allocation failure. 
+Heap-allocated state, or NULL on allocation failure or an invalid argument: no code, code\_len &lt; sf, sf == 0, sps &lt; 2, or a non-finite seed. 
 
 
 

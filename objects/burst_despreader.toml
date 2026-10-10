@@ -8,6 +8,8 @@ class_name = "BurstDespreader"
 depends_on = [{ name = "loop_filter", link = true }]
 serializable = "true"
 fragment = "generated"
+create_error = "ValueError"
+create_error_message = "BurstDespreader: invalid parameter (need a code of at least sf chips, sf >= 1, sps >= 2, and a finite init_norm_freq and init_chip_phase)"
 
 [[burst_despreader.init_params]]
 name = "code"

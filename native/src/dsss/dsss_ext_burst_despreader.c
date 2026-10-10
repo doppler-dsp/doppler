@@ -73,8 +73,10 @@ BurstDespreaderObj_init (BurstDespreaderObject *self, PyObject *args,
   Py_DECREF (code_arr);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError,
-                       "dp_burst_despreader_create returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "BurstDespreader: invalid parameter (need a code of "
+                       "at least sf chips, sf >= 1, sps >= 2, and a finite "
+                       "init_norm_freq and init_chip_phase)");
       return -1;
     }
   return 0;
@@ -1012,10 +1014,10 @@ static PyTypeObject BurstDespreaderObjType = {
     "sps : int, default 2\n"
     "    Samples per chip (default: 2).\n"
     "init_norm_freq : float, default 0.0\n"
-    "    Seed carrier frequency, cycles/sample — the acquisition estimate\n"
-    "    (default: 0.0).\n"
+    "    Seed carrier frequency, cycles/sample — the acquisition estimate;\n"
+    "    finite (default: 0.0).\n"
     "init_chip_phase : float, default 0.0\n"
-    "    Seed code phase, chips (default: 0.0).\n"
+    "    Seed code phase, chips; finite (default: 0.0).\n"
     "bn_carrier : float, default 0.05\n"
     "    Carrier (Costas) loop noise bandwidth, normalized to the symbol "
     "rate\n"
@@ -1023,6 +1025,14 @@ static PyTypeObject BurstDespreaderObjType = {
     "bn_code : float, default 0.01\n"
     "    Code (DLL) loop noise bandwidth, normalized to the symbol rate\n"
     "    (default: 0.01).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is ``BurstDespreader:\n"
+    "    invalid parameter (need a code of at least sf chips, sf >= 1, sps >= "
+    "2,\n"
+    "    and a finite init_norm_freq and init_chip_phase)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

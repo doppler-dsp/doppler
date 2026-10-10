@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -209,6 +210,42 @@ main (void)
           }
         free (x);
         free (tmpl);
+      }
+  }
+
+  /* ── the blob is a function of the object (#2076): only carry_len of the
+     carry buffer's psd->n samples are state, so get_state writes zeros
+     after them, whatever an earlier block left in the buffer. A carry of
+     n - 1 samples, then two more (one closes the block, one starts a new
+     carry), leaves n - 2 real samples in the tail to leak: proven by
+     sabotage, writing the whole buffer again turns this red. ── */
+  {
+    dp_carrier_acq_state_t *ca = dp_carrier_acq_create (
+        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9,
+        2.0, true, MAX_N_BLOCKS);
+    DP_CHECK (ca != NULL);
+    if (ca)
+      {
+        const size_t    n     = ca->psd->n;
+        float _Complex *noise = _make_noise (n + 1, 2076u);
+        dp_carrier_acq_steps (ca, noise, n - 1);
+        dp_carrier_acq_steps (ca, noise + (n - 1), 2);
+        DP_CHECK (ca->carry_len == 1);
+        const size_t   bytes = dp_carrier_acq_state_bytes (ca);
+        unsigned char *blob  = malloc (bytes);
+        dp_carrier_acq_get_state (ca, blob);
+        /* The carry region is the blob's last n samples. */
+        const unsigned char *carry
+            = blob + bytes - n * sizeof (float _Complex);
+        DP_CHECK (memcmp (carry, ca->carry_buf, sizeof (float _Complex)) == 0);
+        size_t nonzero = 0;
+        for (size_t i = sizeof (float _Complex);
+             i < n * sizeof (float _Complex); i++)
+          nonzero += carry[i] != 0;
+        DP_CHECK (nonzero == 0);
+        free (blob);
+        free (noise);
+        dp_carrier_acq_destroy (ca);
       }
   }
 

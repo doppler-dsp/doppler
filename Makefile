@@ -193,7 +193,7 @@ LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format \
                version-literals text-encoding cmake-script-policy \
                why-param doc-claims public-symbols curl-fail \
                warnings-exempt stock-images uv-pin uv-lock tlm-name-join \
-               ring-internals
+               ring-internals spectrogram-mode
 FORMAT_TOOLS = ruff-format ruff mdformat clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -431,6 +431,14 @@ LINT_cmake-script-policy = python3 scripts/check_cmake_script_policy.py
 # Ratcheted: the 11 that predate it may only shrink.
 LINT_header-example-arity = \
     $(UV) run python scripts/check_header_example_arity.py
+
+# dB rows are asked for by name (#1968): no dp_spectrogram_create call in a
+# tracked .c, .h or .md passes its mode as an integer literal. The constructor
+# takes a plain int, so the compiler cannot refuse `0` or `1`, and a number
+# hides which mode was meant -- #2097 swapped the values so that the zero
+# value is power, and a numbered call would have changed meaning without a
+# diff. Registration-free (git ls-files). Plain python3: stdlib only.
+LINT_spectrogram-mode = python3 scripts/check_spectrogram_mode.py
 
 # A refusal names its cause through `const char **why` -- a static sentence,
 # written only on refusal, NULL allowed, never freed. Every public refusal API

@@ -47,6 +47,7 @@ dp_costas_init (dp_costas_state_t *s, double bn, double zeta,
    * gets this for free, a caller-owned struct would otherwise carry a
    * garbage telemetry pointer into the emit gates. */
   memset (&s->tlm, 0, sizeof s->tlm);
+  s->_pad = 0; /* the struct is the blob: no byte of it left undefined */
   dp_loop_filter_init (&s->lf, bn, zeta, 1.0); /* updates once per symbol */
   dp_lockdet_init (&s->lock, COSTAS_LOCK_DEFAULT_UP, COSTAS_LOCK_DEFAULT_DOWN,
                    COSTAS_LOCK_DEFAULT_N_UP, COSTAS_LOCK_DEFAULT_N_DOWN);

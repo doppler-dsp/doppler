@@ -187,7 +187,7 @@ peaks = find_peaks_f32(db, n_peaks=5, min_db=-60.0)
 <!-- related-pages:start -->
 
 **Gallery** — [CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md), [Correlation and Detection](../gallery/corr.md), [2-D Acquisition Grid](../gallery/detection2d.md), [Gallery](../gallery/index.md), [Four WCDMA Carriers — `PSD`, `band_power`, `AccTrace`](../gallery/wcdma-carriers.md)
-**Guides** — [DSSS Burst Acquisition](../guide/dsss-acquisition.md), [Power Spectra & Measurements](../guide/spectral-psd.md)
+**Guides** — [DSSS Burst Acquisition](../guide/dsss-acquisition.md), [Power Spectra & Measurements](../guide/spectral-psd.md), [Streaming Spectrograms](../guide/spectrogram.md)
 **Design** — [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [Corr2D: decoupled (interpolated) inverse length](../design/corr2d-interpolated-inverse.md), [DSSS acquisition: stateless, parallel, dynamics-capable](../design/dsss-acquisition.md), [`DsssBurstReceiver`: the burst chain, composed in C](../design/dsss-burst-receiver.md), [Design](../design/index.md), [Measurement Suite — single-tone ADC / spectral metrics](../design/measurement-suite.md), [Spectral & Measurement API Map](../design/spectral-api-map.md), [The Spectrogram — the measurement record](../design/spectrogram-measurements.md), [The Spectrogram — chunks in, rows out](../design/spectrogram.md)
 **Contributing** — [DSSS Primary Use Cases for Code Acquisition Design](../dev/contributing/dsss-use-cases.md), [Validation log](../dev/contributing/validation-log.md), [Code coverage](../dev/coverage.md)
 

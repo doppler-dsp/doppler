@@ -381,6 +381,94 @@ bad_floats_are_refused (void)
   return fails;
 }
 
+/* A refused retune changes nothing, and a forged config is refused
+ * (doppler#2103).
+ *
+ * set_symbol_period() scaled the integrator before the loop filter refused
+ * the new interval, then returned DP_OK anyway, so a refused period left
+ * integ multiplied while the gains kept the old interval. The Dll now checks
+ * the interval before anything is freed or sized. set_state() restored
+ * spacing, bn and zeta unchecked, and a forged NaN spacing indexed the code
+ * out of bounds. Asserted, against the whole state's blob rather than one
+ * field: each refused period leaves the object byte-identical, and each
+ * forged config field is refused with the object unchanged. Returns the
+ * number of failed checks. */
+static int
+refused_retune_changes_nothing (void)
+{
+  int     fails = 0;
+  uint8_t code[31];
+  make_code (code, 31, 2103u);
+
+  /* The two repros: a bandwidth valid at the create's interval whose gains
+     overflow at the symbol's. Each period divided by the segments is
+     refused by the loop filter. */
+  struct
+  {
+    size_t      sps;
+    double      bn;
+    size_t      segments;
+    double      period;
+    const char *what;
+  } retune[] = {
+    { 1, 1.0e153, 4, 40.0, "bn 1e153, segments 4, period 40" },
+    { 2, 1.0e150, 4, 1048576.0, "bn 1e150, segments 4, period 2^20" },
+  };
+  for (size_t k = 0; k < sizeof retune / sizeof *retune; k++)
+    {
+      dp_dll_state_t *d
+          = dp_dll_create (code, 31, retune[k].sps, 0.0, retune[k].bn, 0.707,
+                           0.5, retune[k].segments);
+      if (!d)
+        {
+          fprintf (stderr, "  create refused: %s\n", retune[k].what);
+          fails++;
+          continue;
+        }
+      /* A nonzero integrator, so a scale that ran would show. */
+      d->lf.integ           = 3.0;
+      const size_t   cb     = dp_dll_state_bytes (d);
+      unsigned char *before = malloc (cb), *now = malloc (cb);
+      dp_dll_get_state (d, before);
+      if (dp_dll_set_symbol_period (d, retune[k].period) != DP_ERR_INVALID)
+        {
+          fprintf (stderr, "  refused retune returned DP_OK: %s\n",
+                   retune[k].what);
+          fails++;
+        }
+      dp_dll_get_state (d, now);
+      if (memcmp (now, before, cb) != 0)
+        {
+          fprintf (stderr, "  refused retune changed state: %s\n",
+                   retune[k].what);
+          fails++;
+        }
+      free (before);
+      free (now);
+      dp_dll_destroy (d);
+    }
+
+  /* Forged config in a live blob: spacing, bn and zeta, at their edges. */
+  dp_dll_state_t *d = dp_dll_create (code, 31, 2, 0.0, 0.01, 0.707, 0.5, 4);
+  if (!d)
+    return fails + 1;
+  const double nan = NAN, inf = INFINITY, zero = 0.0, half = 15.5;
+  fails += forged_is_refused (d, offsetof (dp_dll_state_t, spacing), &nan,
+                              sizeof nan, "a NaN spacing");
+  fails += forged_is_refused (d, offsetof (dp_dll_state_t, spacing), &inf,
+                              sizeof inf, "an infinite spacing");
+  fails += forged_is_refused (d, offsetof (dp_dll_state_t, spacing), &zero,
+                              sizeof zero, "a zero spacing");
+  fails += forged_is_refused (d, offsetof (dp_dll_state_t, spacing), &half,
+                              sizeof half, "a spacing of half the code");
+  fails += forged_is_refused (d, offsetof (dp_dll_state_t, bn), &nan,
+                              sizeof nan, "a NaN bn");
+  fails += forged_is_refused (d, offsetof (dp_dll_state_t, zeta), &zero,
+                              sizeof zero, "a zero zeta");
+  dp_dll_destroy (d);
+  return fails;
+}
+
 int
 main (void)
 {
@@ -1499,6 +1587,9 @@ main (void)
 
   /* A bad float is refused, never run (doppler#2103). */
   DP_CHECK (bad_floats_are_refused () == 0);
+
+  /* A refused retune changes nothing; a forged config is refused (#2103). */
+  DP_CHECK (refused_retune_changes_nothing () == 0);
 
   DP_TEST_END ("test_dll_core");
 }

@@ -437,8 +437,11 @@ main (void)
     DP_CHECK (c != NULL);
     if (c)
       {
-        const dp_loop_filter_state_t lf = c->lf;
-        const double                 bn = c->bn, zeta = c->zeta;
+        /* The whole object, not its loop filter: a refusal changes no byte. */
+        const size_t   cb     = dp_symsync_state_bytes (c);
+        unsigned char *before = malloc (cb), *after = malloc (cb);
+        dp_symsync_get_state (c, before);
+        const double bn = c->bn, zeta = c->zeta;
         DP_CHECK (dp_symsync_configure (c, NAN, 0.707) == DP_ERR_INVALID);
         DP_CHECK (dp_symsync_configure (c, 0.05, INFINITY) == DP_ERR_INVALID);
         DP_CHECK (dp_symsync_configure (c, 1e200, 0.707) == DP_ERR_INVALID);
@@ -446,7 +449,10 @@ main (void)
            unchanged gains by 1/2pi on each). */
         DP_CHECK (dp_symsync_set_bn (c, NAN) == DP_ERR_INVALID);
         DP_CHECK (dp_symsync_set_bn (c, NAN) == DP_ERR_INVALID);
-        DP_CHECK (memcmp (&c->lf, &lf, sizeof lf) == 0);
+        dp_symsync_get_state (c, after);
+        DP_CHECK (memcmp (after, before, cb) == 0);
+        free (before);
+        free (after);
         DP_CHECK (c->bn == bn && c->zeta == zeta);
         /* The control: a good retune is taken. */
         DP_CHECK (dp_symsync_configure (c, 0.02, 1.0) == DP_OK && c->bn == 0.02

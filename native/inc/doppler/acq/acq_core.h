@@ -989,8 +989,13 @@ extern "C"
    *
    * Every coupled stage divides a Doppler by the carrier: the hand-off's
    * dilation, a coherent block's epoch alignment, a code loop's rate aid.
-   * Every Doppler a receiver can report is below half its sample rate, so
-   * a carrier above that keeps |doppler / carrier| < 1, the physical v/c,
+   * A seed a receiver accepts has a Doppler below half its sample rate
+   * (dp_async_dsss_receiver_seed_ok()), so a carrier above that keeps
+   * |doppler / carrier| < 1, the physical v/c, when the hand-off is taken
+   * from a seed. The acquisition search itself does not yet bound the
+   * Doppler it reports to that range (doppler#2112 item 7); a hit past it
+   * is refused as a seed rather than used, so the bound holds at the
+   * receiver even where the search does not enforce it.
    * and the product finite. A tiny carrier sent it to inf, so the seed
    * phase came out NaN, and the receiver aborted building its code loop
    * from it (doppler#2103). The one rule for every site that takes the

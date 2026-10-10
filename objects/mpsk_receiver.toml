@@ -46,7 +46,7 @@ serializable = "true"
 # just-makeit#1017; the view's declaration stays, and takes over the moment
 # the replay carries it.
 create_error = "ValueError"
-create_error_message = "MpskReceiver: invalid parameter (need m in {2,4,8}, sps >= m_out -- sps > 2*m_out on the real-input MpskReceiverR, whose cascade runs behind a 2:1 halfband, m_out even in [2, 8], 0 <= rrc_beta <= 1, rrc_span >= 1, num_phases a power of two >= 2, bn >= 0 and zeta > 0 both finite, 0 < bn_agc_ratio < 1)"
+create_error_message = "MpskReceiver: invalid parameter (need m in {2,4,8}, sps >= m_out -- sps > 2*m_out on the real-input MpskReceiverR, whose cascade runs behind a 2:1 halfband, m_out even in [2, 8], 0 <= rrc_beta <= 1, rrc_span >= 1, num_phases a power of two >= 2, bn >= 0 and zeta > 0 both finite, whose loop gains come out finite, 0 < bn_agc_ratio < 1)"
 fragment = "generated"
 
 [[mpsk_receiver.init_params]]
@@ -315,7 +315,7 @@ class_name = "MpskReceiverR"
 create_fn = "dp_mpsk_receiver_create_real"
 doc = "Create the M-PSK receiver behind an R2C halfband: a real IF in. The same object as MpskReceiver -- same loops, same demapper, same state -- reached through a matched DDCR instead of a matched DDC, so `steps()` and `bits()` take float32 and everything else is shared verbatim. A real-valued IF is the usual output of a single-ended ADC, so this is the face that takes a digitiser's samples directly. Three things follow from the halfband and nothing else differs: the LO runs at HALF the input rate (handled internally -- every frequency on this class stays in cycles/sample at the real input rate), `sps` must exceed `2 * m_out` strictly rather than merely reaching `m_out`, and `init_norm_freq` is the real IF CENTRE rather than a baseband residual."
 create_error = "ValueError"
-create_error_message = "MpskReceiverR: invalid parameter (need m in {2,4,8}, sps > 2*m_out, m_out even in [2, 8], 0 <= rrc_beta <= 1, rrc_span >= 1, num_phases a power of two >= 2, bn >= 0 and zeta > 0 both finite, 0 < bn_agc_ratio < 1)"
+create_error_message = "MpskReceiverR: invalid parameter (need m in {2,4,8}, sps > 2*m_out, m_out even in [2, 8], 0 <= rrc_beta <= 1, rrc_span >= 1, num_phases a power of two >= 2, bn >= 0 and zeta > 0 both finite, whose loop gains come out finite, 0 < bn_agc_ratio < 1)"
 init_params = [
   { name = "m", type = "int", default = "4" },
   { name = "sps", type = "double", default = "32.0", doc = "Samples per symbol. Any double **strictly greater than `2 * m_out`** (the cascade behind the R2C halfband runs at twice the overall rate, and Ddcr needs that below 0.5) -- 33.33389 is as valid as 32, because the front end plans its own cascade and the terminal stage's accumulator is a double. That is the real-world case whenever the ADC clock is free-running against the symbol clock. The default is 32 rather than the complex face's 8 purely to clear that bound: `m_out` derives to 8 here, so anything at or below 16 cannot construct." },

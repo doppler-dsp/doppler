@@ -471,3 +471,143 @@ given exact room. So a step on unchanged row names at the next release can
 be the method, not the code. This run's merged set
 (`benchmarks/published/v0.66.0-a4/`) stays on the measuring machine. It is a
 characterization, not a release's published numbers.
+
+### 5.12 Where a PSD frame's time goes (2026-10-10) — the #2094 baseline
+
+**Method, shared by 5.12 to 5.14.** One run of
+`make bench-interleaved VERSION=0.66.0-b2094 K=5` at **c36a042e0**, a commit
+on main carrying #2113's rows and none of #2094's changes: no SIMD fold
+(#2105), no fused passes, and #2117's dB conversion not yet in. It is the
+BEFORE of all three, and runs once.
+
+- **The machine:** cachyos-x8664-ai465, AMD Ryzen AI 9 465, kernel
+    7.2.9-2-cachyos, governor `performance`, boost on, platform profile
+    `performance`, GCC 16.2.1. Each was read from sysfs before the launch
+    and is in the run's `doppler_meta`.
+- **Pinning:** every measurement on **cpus 0–3 and 10–13**, as in 5.6. The
+    builds ran unpinned.
+- **Two Release builds,** portable and native, five alternating passes each,
+    with the same flags as 5.6. Every pair of cells is portable / native.
+- **When:** 2026-10-10, 16:46 to 17:56 UTC, under `systemd-inhibit   --what=idle`, in a detached worktree at exactly that commit. No other
+    job ran on the machine. Each pass's snapshot was copied out as it was
+    written, by a 1 s loop pinned to cpu 19, outside the measured class, and
+    niced.
+- **The data and the arithmetic are committed,** as for 5.6:
+    `docs/design/spectrogram-measurements/b2094/`, filtered to the `psd::`,
+    `acc_trace::` and `spectrogram::` rows. Every table here is the output
+    of `b2094.py`, whose `--check` is in `make docs-invariants`. A cell is
+    the median over the five passes of each pass's minimum per unit, and a
+    spread is (max − min) / median. Both are `_record.py`'s, shared with
+    `u1u4.py`.
+
+**Not like-for-like with 5.8.** `accumulate_frame` and `frame_linear` joined
+`bench_psd_core`'s rotation (#2113), which changes what runs before `fft`,
+`frame_power` and `frame_db` in each round. #2117's before is this run's
+rows, not 5.8's. The one unchanged row the two runs share agrees: the dB push
+at 1024/256 reads 27.770 / 26.510 ns per sample here, against 27.787 / 26.391
+in 5.6.
+
+`accumulate_frame` is one frame of `dp_psd_accumulate`: window, FFT, power,
+and the fold into the running mean. `frame_power` is the same without the
+fold. So the window and power pass is `frame_power − fft`, and the fold
+inside the frame is `accumulate_frame − frame_power`, each per bin.
+
+<!-- spectrogram-b2094:frame:start -->
+
+| nfft   | fft, µs          | frame_power, µs   | accumulate_frame, µs | accumulate / fft | window + power, ns/bin | fold, ns/bin | accumulate spread |
+| ------ | ---------------- | ----------------- | -------------------- | ---------------- | ---------------------- | ------------ | ----------------- |
+| 256    | 0.245 / 0.202    | 0.354 / 0.294     | 0.408 / 0.322        | 1.66 / 1.60      | 0.43 / 0.36            | 0.21 / 0.11  | 1.4% / 3.0%       |
+| 1,024  | 1.180 / 0.920    | 1.616 / 1.300     | 1.828 / 1.395        | 1.55 / 1.51      | 0.42 / 0.37            | 0.21 / 0.09  | 0.9% / 0.9%       |
+| 4,096  | 5.585 / 4.352    | 7.233 / 5.782     | 8.072 / 6.123        | 1.45 / 1.40      | 0.40 / 0.35            | 0.21 / 0.08  | 0.6% / 0.7%       |
+| 16,384 | 25.896 / 20.238  | 32.719 / 26.435   | 35.414 / 27.276      | 1.36 / 1.35      | 0.41 / 0.38            | 0.16 / 0.05  | 0.7% / 0.5%       |
+| 65,536 | 119.147 / 95.756 | 149.955 / 122.737 | 163.072 / 129.554    | 1.36 / 1.36      | 0.47 / 0.42            | 0.20 / 0.10  | 0.9% / 6.3%       |
+
+<!-- spectrogram-b2094:frame:end -->
+
+**#2094's measure is accumulate / fft: 1.36–1.66 portable, 1.35–1.60
+native.** The FFT is 60–74% of an accumulated frame. The rest splits unevenly.
+The window and power pass is 0.35–0.47 ns per bin in both builds. The fold
+is 0.16–0.21 portable, but only 0.05–0.11 native. That is consistent with
+the compiler vectorizing the scalar Welford loop under `-march=native`, which
+was not checked in the binary. So the window and power pass is the
+larger share of the overhead in both builds: about two thirds portable, and
+about four fifths native.
+
+That bounds what each of #2094's changes can buy. A fold that cost nothing
+would leave `frame_power / fft`: at 1024, 1.37 portable and 1.41 native,
+against today's 1.55 and 1.51. Anything below that has to come out of the
+window and power pass, which is PR-c's (fusion). The target #2094 asks for
+is set from these numbers in the PRs that change them, not here.
+
+The native 65,536 row's 6.3% spread is not one outlier: its five passes run
+from 124.8 to 133.0 µs, so that one cell carries about ±3%.
+
+**A reading's two steps after the power,** at the three sizes #2113 gave a
+`frame_linear` row. Normalisation is `frame_linear − frame_power`, and the
+dB conversion and floor are `frame_db − frame_linear`, each per bin.
+
+<!-- spectrogram-b2094:split:start -->
+
+| nfft   | frame_linear, µs  | frame_db, µs      | normalisation, ns/bin | dB, ns/bin  | dB, share of frame_db | frame_db spread |
+| ------ | ----------------- | ----------------- | --------------------- | ----------- | --------------------- | --------------- |
+| 256    | 0.394 / 0.316     | 1.708 / 1.684     | 0.16 / 0.08           | 5.13 / 5.33 | 76.9% / 81.2%         | 3.4% / 3.3%     |
+| 1,024  | 1.777 / 1.393     | 6.991 / 6.865     | 0.16 / 0.09           | 5.09 / 5.34 | 74.6% / 79.7%         | 2.8% / 2.8%     |
+| 65,536 | 158.897 / 128.963 | 491.389 / 475.657 | 0.14 / 0.09           | 5.07 / 5.31 | 67.6% / 73.0%         | 3.1% / 4.1%     |
+
+<!-- spectrogram-b2094:split:end -->
+
+**The dB conversion is 5.1–5.3 ns per bin, two thirds to four fifths of a dB
+frame,** and the native build does not help it: the scalar double `log10`
+gains nothing from `-march=native`. Normalisation is under 0.2 ns per bin. This table is #2117's
+before.
+
+### 5.13 The fold on its own (2026-10-10) — the #2094 baseline
+
+The method is 5.12's. `acc_trace::fold` is `dp_acc_trace_accumulate` alone,
+over splitmix64 frames, in each of the four modes. The last row is the fold
+inside PSD's frame from 5.12, for comparison.
+
+<!-- spectrogram-b2094:fold:start -->
+
+| mode, ns/bin            | 256         | 1,024       | 4,096       | 16,384      | 65,536      |
+| ----------------------- | ----------- | ----------- | ----------- | ----------- | ----------- |
+| `mean`                  | 0.21 / 0.08 | 0.21 / 0.08 | 0.20 / 0.08 | 0.20 / 0.08 | 0.20 / 0.09 |
+| `exp`                   | 0.16 / 0.11 | 0.16 / 0.10 | 0.15 / 0.10 | 0.15 / 0.10 | 0.15 / 0.10 |
+| `maxhold`               | 1.49 / 0.80 | 1.45 / 0.77 | 1.48 / 0.77 | 1.46 / 0.74 | 1.47 / 0.74 |
+| `minhold`               | 1.47 / 0.77 | 1.44 / 0.76 | 1.46 / 0.76 | 1.46 / 0.76 | 1.45 / 0.74 |
+| in PSD's frame (`mean`) | 0.21 / 0.11 | 0.21 / 0.09 | 0.21 / 0.08 | 0.16 / 0.05 | 0.20 / 0.10 |
+
+<!-- spectrogram-b2094:fold:end -->
+
+**`maxhold` and `minhold` are the slow folds: about 1.46 ns per bin portable
+and 0.76 native, seven and nine times `mean`.** `mean` and `exp` are flat
+across sizes. The fold inside PSD's frame matches the fold on its own within
+0.03 ns per bin, except at 16,384, where it reads lower in both builds. That is
+the two cache regimes #2113's bench header describes, not a defect. These are
+#2105's before.
+
+### 5.14 Power rows against dB rows (2026-10-10) — the #2094 baseline
+
+The method is 5.12's. Each power row (`mode=power`, the default since #1968)
+is timed in its dB row's group, in an order rotated every round. This is the
+U4-for-power entry moved here from #1968.
+
+<!-- spectrogram-b2094:rows:start -->
+
+| nfft   | hop    | dB row, ns/sample | power row, ns/sample | dB / power  | power, MSa/s | power spread |
+| ------ | ------ | ----------------- | -------------------- | ----------- | ------------ | ------------ |
+| 256    | 64     | 27.204 / 26.233   | 6.584 / 5.491        | 4.13 / 4.83 | 152 / 182    | 2.4% / 7.3%  |
+| 1,024  | 256    | 27.770 / 26.510   | 7.531 / 6.044        | 3.68 / 4.39 | 133 / 165    | 1.0% / 0.9%  |
+| 65,536 | 16,384 | 28.198 / 26.605   | 9.357 / 7.696        | 3.01 / 3.48 | 107 / 130    | 5.3% / 1.0%  |
+
+<!-- spectrogram-b2094:rows:end -->
+
+**A power row is three to five times cheaper than a dB row: 107–152 MSa/s on
+one core portable, 130–182 native, against 35–38 for dB.** The gap is
+5.12's dB conversion, done once per bin per row at a quarter hop. A display
+that reads power rows, or converts only the bins it draws, keeps that
+difference. #2117 narrows it from the dB side.
+
+This run's merged set (`benchmarks/published/v0.66.0-b2094/`) stays on the
+measuring machine. It is a characterization, not a release's published
+numbers.

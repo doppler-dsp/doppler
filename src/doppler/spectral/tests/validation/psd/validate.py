@@ -77,6 +77,7 @@ class Data:
     sfdr: float = 0.0
     sfdr_one_tone: float = -1.0
     hann_leak_dbc: float = 0.0
+    e_excess: float = 0.0
     sfdr_bias_near: float = 0.0
     enbw_bh64: float = 0.0
     bh_periodic: float = 0.0
@@ -1325,7 +1326,7 @@ def review(d: Data) -> None:
         "(#1959, §2.10 (i)).",
     )
     rect = d.e_rows[0]
-    e_excess = float(rect[3]) - float(rect[1])
+    d.e_excess = float(rect[3]) - float(rect[1])
     R.find(
         "F11",
         "GAP",
@@ -1341,7 +1342,7 @@ def review(d: Data) -> None:
         "GAP",
         "**Adjacent bands both count the bin they share**, so a partition "
         "overstates the whole: a DC tone read as `[-fs/2, 0]` plus "
-        f"`[0, fs/2]` sums {e_excess:+.2f} dB above the whole span under "
+        f"`[0, fs/2]` sums {d.e_excess:+.2f} dB above the whole span under "
         "the rectangular window (§2.10 (e)). Which band owns a shared bin "
         "is an API decision: #1958.",
     )
@@ -1535,8 +1536,9 @@ def build(write: bool = True) -> Report:
             "has an external truth (F2).",
             "**Two readouts can mislead, and are open.** A scalar readout's "
             "0.0 is both 'no measurement' and a real 0 dB (#1957), and "
-            "adjacent bands both count the bin they share, +3 dB on a DC "
-            "tone (#1958). Check for a frame first, and do not sum a "
+            "adjacent bands both count the bin they share, "
+            f"{d.e_excess:+.1f} dB on a DC tone (#1958). Check for a frame "
+            "first, and do not sum a "
             "partition (F11, F12).",
             "**create refuses what would read wrong** (pad 0, an exp alpha "
             "outside (0, 1], a gainless window, an overflowing size), but "

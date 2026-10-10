@@ -68,10 +68,13 @@ extern "C"
 /**
  * @brief Row units: dBFS, against the same reference. Asked for by name.
  *
- * Row k is dp_psd_frame_db() of its frame: 10*log10 of the quotient a power
- * row holds, so a full-scale tone on a bin reads 0 dB. A bin reads no lower
- * than -200 dB: PSD clamps power at 1e-20 before the log, so an all-zero
- * frame and a frame below the floor write the same row.
+ * Row k is dp_psd_frame_db() of its frame, which is dp_power_to_db_f32() of
+ * the power row, bit for bit: 10*log10 within 0.01 dB (3.25e-4 measured over
+ * every float32), exact at every power of two. So a full-scale tone on a bin
+ * reads 0 dB, and a display that converts only the power bins it draws gets
+ * exactly the dB row's values. A bin reads no lower than -200 dB: the
+ * conversion's floor is 1e-20, so an all-zero frame and a frame below the
+ * floor write the same row.
  */
 #define DP_SPECTROGRAM_DB 1
 

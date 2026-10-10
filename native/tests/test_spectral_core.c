@@ -18,6 +18,7 @@
  */
 #include "doppler/dp_complex.h"
 #include "doppler/spectral/spectral_core.h"
+#include "dp_power_to_db_test.h"
 #include "dp_test.h"
 #include <math.h>
 #include <stdio.h>
@@ -270,6 +271,60 @@ main (void)
        tone is one bin wide just below 1 and just above 0. */
     DP_CHECK (dp_obw_from_power (pwr, 100, fs, 0.999999) == fs / 100.0);
     DP_CHECK (dp_obw_from_power (pwr, 100, fs, 1e-9) == fs / 100.0);
+  }
+
+  /* ── power_to_db_f32: the library's one fast dB conversion (#2094) ──
+   * The sampled tier of its bound; the exhaustive one, every positive
+   * finite float32, is native/validation/power_to_db_sweep.c in
+   * `make test-sweep`. Both measure through dp_power_to_db_test.h. */
+  {
+    /* every exponent, its four extreme mantissas, and 2^16 more each */
+    dp_p2db_scan_t s = { 0 };
+    for (uint32_t e = 0; e <= 254; e++)
+      {
+        const uint32_t base = e << 23;
+        const uint32_t ends[4]
+            = { base, base + 1u, base + 0x7FFFFEu, base + 0x7FFFFFu };
+        for (int k = 0; k < 4; k++)
+          dp_p2db_scan (ends[k], ends[k], 1, &s);
+        dp_p2db_scan (base, base + 0x7FFFFFu, 1u << 7, &s);
+      }
+    /* the contract (0.01 dB), and what this polynomial achieves, so a
+       degraded one is caught long before the contract is */
+    DP_CHECK (s.measured > 1000000u && s.floored > 0u);
+    DP_CHECK_NEAR (s.worst, 0.0, 0.01);
+    DP_CHECK_NEAR (s.worst, 0.0, DP_P2DB_PIN_DB);
+    DP_CHECK (s.floor_wrong == 0u);
+
+    /* every power of two converts exactly: the correctly rounded value,
+       because log2(1) is exactly 0 in the polynomial; 1.0 is exactly 0 */
+    int exact = 1;
+    for (int k = -66; k <= 127; k++)
+      {
+        const float x = ldexpf (1.0f, k);
+        float       d;
+        dp_power_to_db_f32 (&x, 1, &d);
+        exact &= d == (float)(10.0 * log10 (ldexp (1.0, k)));
+      }
+    DP_CHECK (exact);
+    const float one = 1.0f;
+    float       zero_db;
+    dp_power_to_db_f32 (&one, 1, &zero_db);
+    DP_CHECK (zero_db == 0.0f && !signbit (zero_db));
+
+    /* the floor, exactly: below 1e-20, zero, -0, a subnormal, negative */
+    const float low[6] = { 9.99e-21f, 0.0f, -0.0f, 1e-40f, -1.0f, -1e30f };
+    float       low_db[6];
+    dp_power_to_db_f32 (low, 6, low_db);
+    int floored = 1;
+    for (int k = 0; k < 6; k++)
+      floored &= low_db[k] == -200.0f;
+    DP_CHECK (floored);
+
+    /* lin_len 0 writes nothing */
+    float untouched = 42.0f;
+    dp_power_to_db_f32 (&one, 0, &untouched);
+    DP_CHECK (untouched == 42.0f);
   }
 
   DP_TEST_END ("test_spectral_core");

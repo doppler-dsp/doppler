@@ -326,6 +326,20 @@ target_include_directories(validate_spectrogram_certify
 target_link_libraries(validate_spectrogram_certify PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 dp_gnu_compile_options(validate_spectrogram_certify PRIVATE -O3 -funroll-loops)
 
+# power_to_db_sweep is dp_power_to_db_f32's exhaustive bound (#2094): every
+# positive finite float32 against double 10*log10, and every negative one
+# against the floor. Its sampled tier is in test_spectral_core.c, in
+# `make test`; this whole set is a CTest so the label loop below makes it a
+# `sweep`, which `make test-sweep` runs and `make test` leaves out. It reaches
+# native/tests for dp_power_to_db_test.h, the measurement both tiers share.
+add_executable(validate_power_to_db_sweep
+               ${CMAKE_CURRENT_SOURCE_DIR}/power_to_db_sweep.c)
+target_include_directories(validate_power_to_db_sweep
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_power_to_db_sweep PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
+add_test(NAME validate_power_to_db_sweep COMMAND validate_power_to_db_sweep)
+
 # ccsds_tm_certify is the third of the C-only certifications, and measures the
 # three things this component adds ON TOP of the code it configures: the
 # interleaver's burst tolerance, the sync marker as a detector, and the

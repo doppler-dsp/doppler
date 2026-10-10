@@ -4,6 +4,7 @@
    sorter would put it first; its own block keeps the order. */
 #include "doppler/detector/det_private.h"
 
+#include "dp_chunk_inv.h"
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
@@ -14,6 +15,58 @@
 #define NY 8
 #define NX 8
 #define N (NY * NX) /* 64 */
+
+/* ── chunk invariance (dp_chunk_inv.h) ──────────────────────────────────── */
+
+/** One detector2d configuration, handed to the harness as its `arg`. */
+typedef struct
+{
+  const float _Complex *ref;
+  size_t                dwell, noise_lo, noise_hi;
+  det_noise_mode_t      noise_mode;
+  float                 threshold;
+} ci_d2_cfg_t;
+
+static void *
+ci_d2_create (void *arg)
+{
+  const ci_d2_cfg_t *c = (const ci_d2_cfg_t *)arg;
+  return dp_detector2d_create (c->ref, NY, NX, c->dwell, c->noise_lo,
+                               c->noise_hi, c->noise_mode, c->threshold, 1);
+}
+
+static void
+ci_d2_destroy (void *obj)
+{
+  dp_detector2d_destroy ((dp_detector2d_state_t *)obj);
+}
+
+/* out_cap is the result cap: sized so no call can fill it (one result per
+   frame at most), so every frame of every partition is drained. */
+static size_t
+ci_d2_push (void *obj, const void *in, size_t n, void *out, size_t out_cap)
+{
+  return dp_detector2d_push ((dp_detector2d_state_t *)obj,
+                             (const float _Complex *)in, n,
+                             (det_result2d_t *)out, out_cap);
+}
+
+/* Exact, field by field: det_result2d_t has padding after its two size_t
+   and three floats, and the harness's default memcmp would compare that
+   too. Each float is compared by its bytes, so -0.0 and +0.0 still differ. */
+static int
+ci_d2_equal (const void *a, const void *b, size_t n)
+{
+  const det_result2d_t *x = (const det_result2d_t *)a;
+  const det_result2d_t *y = (const det_result2d_t *)b;
+  for (size_t i = 0; i < n; i++)
+    if (x[i].row != y[i].row || x[i].col != y[i].col
+        || memcmp (&x[i].peak_mag, &y[i].peak_mag, sizeof (float)) != 0
+        || memcmp (&x[i].noise_est, &y[i].noise_est, sizeof (float)) != 0
+        || memcmp (&x[i].test_stat, &y[i].test_stat, sizeof (float)) != 0)
+      return 0;
+  return 1;
+}
 
 /* An independent aggregate over the noise window, computed from the
  * correlation surface the detector reports rather than from the detector's
@@ -486,6 +539,55 @@ main (void)
     /* One bin is its own aggregate in every mode. */
     for (int m = 0; m < 4; m++)
       DP_CHECK (det_noise_estimate (v, 3, 3, scratch, modes[m]) == v[3]);
+  }
+
+  /* chunk invariance: the detections are a function of the input stream,
+   * not of how push() calls cut it. A partial NY x NX frame is carried
+   * between calls, and so is a dwell's coherent sum, so both are exercised:
+   * every frame firing (dwell 1, threshold 0), and a gated dwell of 2 under
+   * the median estimator. The reference sits at irregular offsets in noise,
+   * so the peak cells and statistics differ from frame to frame. */
+  {
+    enum
+    {
+      LEN = 37 * N + 21
+    };
+    uint32_t st = 0x1895u;
+    float _Complex ref[N];
+    static float _Complex x[LEN];
+    for (size_t i = 0; i < N; i++)
+      {
+        const float re = (float)dp_bit (&st);
+        const float im = (float)dp_bit (&st);
+        ref[i]         = re + I * im;
+      }
+    for (size_t i = 0; i < LEN; i++)
+      x[i] = 0.4f * dp_cgauss (&st);
+    for (size_t at = 17; at + N <= LEN; at += 3 * N + 29)
+      for (size_t i = 0; i < N; i++)
+        x[at + i] += ref[i];
+
+    const ci_d2_cfg_t cfgs[] = {
+      { ref, 1, 0, N - 1, DET_NOISE_MEAN, 0.0f },
+      { ref, 2, 1, N - 2, DET_NOISE_MEDIAN, 2.0f },
+    };
+    for (size_t c = 0; c < sizeof cfgs / sizeof *cfgs; c++)
+      {
+        dp_ci_spec_t spec = {
+          .name     = c == 0 ? "detector2d push, dwell 1"
+                             : "detector2d push, dwell 2, median",
+          .create   = ci_d2_create,
+          .destroy  = ci_d2_destroy,
+          .process  = ci_d2_push,
+          .arg      = (void *)&cfgs[c],
+          .in_size  = sizeof (float _Complex),
+          .out_size = sizeof (det_result2d_t),
+          .out_cap  = LEN / N + 1,
+          .equal    = ci_d2_equal,
+          .frame_n  = N,
+        };
+        DP_CHECK (dp_chunk_invariance (&spec, x, LEN) == 0);
+      }
   }
 
   DP_TEST_END ("test_detector2d_core");

@@ -82,21 +82,22 @@ foreach(_l IN LISTS _syms)
         continue()
     endif()
     set(_member "${CMAKE_MATCH_1}")
-    set(_type "${CMAKE_MATCH_2}")
     set(_sym "${CMAKE_MATCH_3}")
     if(NOT _member IN_LIST _vendor OR _sym MATCHES "^${PREFIX}")
         continue()
     endif()
-    # The vendored library's own names only. A common (`C`) symbol, `__*` or
-    # `_[A-Z]*` belongs to the compiler or the implementation and appears in
-    # EVERY instrumented member, so respelling it here respells it
-    # archive-wide: clang's ASan emits `___asan_globals_registered` as a
-    # common in each object, and once the archive's copy was
-    # `dp__v____asan_globals_registered`, a test linking its own object
-    # beside libdoppler.a held two flags and registered every global twice --
-    # the same-size ODR reports in validate_rx_dynamics (#2130). The same
-    # holds for __odr_asan_*, __covrec_* and __llvm_profile_*.
-    if(_type STREQUAL "C" OR _sym MATCHES "^(__|_[A-Z])")
+    # The vendored library's own names only. `__*` and `_[A-Z]*` are reserved
+    # to the implementation (C11 7.1.3): the compiler emits them into EVERY
+    # instrumented member, so respelling one here respells it archive-wide.
+    # clang's ASan emits `___asan_globals_registered` in each object; once
+    # the archive's copy was `dp__v____asan_globals_registered`, a test
+    # linking its own object beside libdoppler.a held two flags and
+    # registered every global twice -- the same-size ODR reports in
+    # validate_rx_dynamics (#2130). The same holds for __odr_asan_*,
+    # __covrec_* and __llvm_profile_*. A common symbol is NOT skipped for
+    # being one: under -fcommon (gcc <= 9, e.g. the glibc228 image's 8.3)
+    # nats.c's tentative `threadsToJoin` is a common, and it is nats.c's.
+    if(_sym MATCHES "^(__|_[A-Z])")
         continue()
     endif()
     string(APPEND _map "${_sym} ${PREFIX}${_sym}\n")

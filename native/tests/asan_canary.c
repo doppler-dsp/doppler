@@ -5,11 +5,12 @@
  * Reads one float _Complex element past the end of a heap buffer, through
  * crealf(), which is how doppler's kernels read samples (dot_cf32's
  * crealf(w[j])). GCC's AddressSanitizer does not instrument complex-typed
- * accesses: measured on 2026-10-10 with gcc 13.3 (CI's image) and 15.2, this
- * read, a cimagf() read, a whole-complex load and a complex store each go
- * unreported, while the same bytes read through a float * are caught, and
- * clang reports all four. A test-asan built with gcc therefore passed while
- * resamp read 19 samples past its delay line.
+ * accesses. Measured on 2026-10-10 (#2130's table): gcc 15.2 reports neither
+ * this read, a cimagf() read nor a whole-complex load, and gcc 13.3 (CI's
+ * image) misses this read and the whole load; a complex store goes
+ * unreported too. The same bytes read through a float * are caught, and
+ * clang reports all three complex reads. A test-asan built with gcc
+ * therefore passed while resamp read 19 samples past its delay line.
  *
  * Not a ctest test: run as one in a plain build it would read garbage and
  * exit 0. test-asan builds it with the suite's own compiler and flags, runs

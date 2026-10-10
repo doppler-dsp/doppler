@@ -1,19 +1,21 @@
 """Certification evidence for the streaming Spectrogram.
 
 The Spectrogram is `native/inc/doppler/spectrogram/spectrogram_core.h`: a
-stream of any-size chunks in, rows of `nfft`-bin dBFS spectra out, one row
-every `hop` samples. Its Python face is #1894's slice 3b and does not exist
-yet, so this follows `docs/dev/contributing/validation.md`, "Certifying a
-component with no binding": **the C harness
+stream of any-size chunks in, rows of `nfft`-bin spectra out, one row every
+`hop` samples -- linear power by default, dBFS when asked for by name. Its
+Python face is #1894's slice 3b and does not exist yet, so this follows
+`docs/dev/contributing/validation.md`, "Certifying a component with no
+binding": **the C harness
 `native/validation/spectrogram_certify.c` measures; this file renders and
 asserts.** Nothing there decides what is acceptable; every threshold lives in
 `limits()` below.
 
 The oracle is the header's own definition, built without the object: row *k*
-of a stream is `dp_psd_frame_db()` of samples `[k*hop, k*hop + nfft)`, and
-the flushed row is the same of that slice zero-padded. PSD's kernel is the
-one part the oracle shares with the object, and it is certified on its own
-(`src/doppler/spectral/tests/validation/psd/`).
+of a stream is `dp_psd_frame_linear()` (power mode) or `dp_psd_frame_db()`
+(dB mode) of samples `[k*hop, k*hop + nfft)`, and the flushed row is the same
+of that slice zero-padded. Every certification block runs in both modes.
+PSD's kernel is the one part the oracle shares with the object, and it is
+certified on its own (`src/doppler/spectral/tests/validation/psd/`).
 
 Run it directly to regenerate `results.md`:
 
@@ -56,6 +58,25 @@ def _f(row: dict, key: str) -> float:
 
 def _total(rows: list[dict], key: str) -> int:
     return sum(_i(r, key) for r in rows)
+
+
+#: The harness's mode names, the default first, and how the report says them.
+MODES = {"power": "power", "db": "dB"}
+
+
+def _mode(row: dict) -> str:
+    """A row's mode, as the report writes it."""
+    return MODES[str(row["mode"])]
+
+
+def _both(rows: list[dict]) -> bool:
+    """Whether a block ran in both modes, and in no other."""
+    return {str(r["mode"]) for r in rows} == set(MODES)
+
+
+def _in(rows: list[dict], mode: str) -> list[dict]:
+    """A block's rows in one mode."""
+    return [r for r in rows if str(r["mode"]) == mode]
 
 
 def _clear(rows: list[dict]) -> list[dict]:
@@ -125,13 +146,16 @@ def characterise(d) -> None:
         "Every number below comes from `native/validation/"
         "spectrogram_certify.c`, run through the Spectrogram's own C "
         "interface against the oracle above. Unless a column says "
-        "otherwise, a pass is a count of zero."
+        "otherwise, a pass is a count of zero. Sections 2.1 to 2.6 run in "
+        "both modes, power (the default) first, and each table leads with "
+        "the mode; the oracle reads each mode's rows with that mode's call. "
+        "Section 2.7 is the dB floor, so it is dB only."
     )
     R.md()
 
     R.md(
-        "### 2.1 Rows are PSD's dBFS of their slice, however the stream is "
-        "cut (C §2, §5, §15)"
+        "### 2.1 Rows are PSD's reading of their slice, however the stream "
+        "is cut (C §2, §5, §15)"
     )
     R.md()
     R.md(
@@ -157,6 +181,11 @@ def characterise(d) -> None:
     R.md()
     R.table(
         [
+            "mode",
+            "mode",
+            "mode",
+            "mode",
+            "mode",
             "nfft",
             "hop",
             "window",
@@ -174,6 +203,11 @@ def characterise(d) -> None:
         ],
         [
             [
+                _mode(r),
+                _mode(r),
+                _mode(r),
+                _mode(r),
+                _mode(r),
                 f"{_i(r, 'nfft'):,}",
                 f"{_i(r, 'hop'):,}",
                 str(r["window"]),
@@ -323,7 +357,7 @@ def characterise(d) -> None:
         "flush again, then push `nfft` more. `pending` must be the samples "
         "no written row covers (*pending wrong*). The flush must write a "
         "row exactly when that is non-zero (*wrong decision*), and the row "
-        "must be PSD's dBFS of the zero-padded slice at the next row start "
+        "must be PSD's reading of the zero-padded slice at the next row start "
         "`k*hop`, not at the first uncovered sample (*off grid*). A second "
         "flush must write nothing, `consumed` and `pending` must read 0 "
         "after it (*after flush*), and the next `nfft` samples must be row "
@@ -394,8 +428,10 @@ def characterise(d) -> None:
         "target must be unchanged in `pending`, `consumed` and, at the "
         "end, in the rows its next push makes against an untouched twin "
         "(*changed*). Last, the blob is restored into an object of "
-        "**another window**, which the header says is NOT refused: its "
-        "rows must continue as that window's own (*window wrong*)."
+        "**another window**, and into one of **the other mode**, which the "
+        "header says are NOT refused: the rows must continue as that "
+        "window's own (*window wrong*), and in that mode's units (*mode "
+        "wrong*)."
     )
     R.md()
     R.table(
@@ -416,6 +452,8 @@ def characterise(d) -> None:
             "changed",
             "window refused",
             "window wrong",
+            "mode refused",
+            "mode wrong",
         ],
         [
             [
@@ -435,6 +473,8 @@ def characterise(d) -> None:
                 f"{_i(r, 'target_changed')}",
                 f"{_i(r, 'window_refused')}",
                 f"{_i(r, 'window_wrong')}",
+                f"{_i(r, 'mode_refused')}",
+                f"{_i(r, 'mode_wrong')}",
             ]
             for r in d["state"]
         ],
@@ -449,25 +489,29 @@ def characterise(d) -> None:
     R.md()
 
     R.md(
-        "### 2.6 A full-scale tone reads 0 dBFS, in bin nfft/2 + k (C §3, §9)"
+        "### 2.6 A full-scale tone reads 1.0, or 0 dBFS, in bin nfft/2 + k "
+        "(C §3, §9)"
     )
     R.md()
     R.md(
         "A unit complex tone on bin *k*, for every bin *k* from "
         "-`nfft`/2 to `nfft`/2 - 1, one row each. *Peak wrong* counts rows "
-        "whose largest bin is not at index `nfft`/2 + *k*; the level is "
-        "that bin's distance from 0 dB."
+        "whose largest bin is not at index `nfft`/2 + *k*. The error is "
+        "that bin's distance from full scale in the row's own units: from "
+        "1.0 for a power row, from 0 dB for a dB row."
     )
     R.md()
     R.table(
-        ["window", "nfft", "bins", "peak wrong", "largest |level|, dB"],
+        ["mode", "window", "nfft", "bins", "peak wrong", "largest |error|"],
         [
             [
+                _mode(r),
                 str(r["window"]),
                 f"{_i(r, 'nfft'):,}",
                 f"{_i(r, 'bins'):,}",
                 f"{_i(r, 'peak_wrong')}",
-                f"{_f(r, 'max_abs_err_db'):.1e}",
+                f"{_f(r, 'max_abs_err'):.1e}"
+                + (" dB" if str(r["mode"]) == "db" else ""),
             ]
             for r in d["level"]
         ],
@@ -477,8 +521,10 @@ def characterise(d) -> None:
     R.md("### 2.7 The dB floor (C §13)")
     R.md()
     R.md(
-        "PSD's dB conversion clamps power at 1e-20 before the logarithm, so "
-        "no bin reads below -200 dB. The measurement record's entry 5.4 "
+        "This section is the dB mode's alone: a power row has no floor but "
+        "float32's, and an all-zero frame reads 0 there (C §13). PSD's dB "
+        "conversion clamps power at 1e-20 before the logarithm, so no bin "
+        "of a dB row reads below -200 dB. The measurement record's entry 5.4 "
         "(`docs/design/spectrogram-measurements.md`) is the long form; "
         "these are its numbers, at `nfft` 1024. An all-zero frame:"
     )
@@ -630,15 +676,16 @@ def review(d) -> None:
         "A bin reads no lower than -200 dB, so a tone under the floor and "
         "digital silence give the same row (§2.7), and noise reaches it "
         "about `10·log10(nfft)` sooner. A logarithm has to stop somewhere; "
-        "the header and the guide now say where. A caller that must tell "
-        "zero from tiny reads the samples, or the linear row once power "
-        "mode exists (F6), whose only floor is float32's.",
+        "the header and the guide now say where. It is the dB mode's "
+        "floor: a caller that must tell zero from tiny takes power rows, "
+        "the default since #1968 (F6), whose only floor is float32's and "
+        "where an all-zero frame reads exactly 0.",
     )
     R.find(
         "F4",
         "BY DESIGN",
-        "A blob restores into an object of another window or beta without "
-        "complaint, and the rows that follow are that object's window "
+        "A blob restores into an object of another window, beta or mode "
+        "without complaint, and the rows that follow are that object's "
         "(§2.5). The blob carries the stream position and no "
         "configuration, so keeping the create arguments the same is the "
         "caller's precondition, and the header states it. `nfft` and `hop` "
@@ -653,12 +700,19 @@ def review(d) -> None:
         "Threads each own an object, and the state blob is how a stream "
         "moves between them.",
     )
+    lv = d["level"]
+    pw = max((_f(r, "max_abs_err") for r in _in(lv, "power")), default=0.0)
     R.find(
         "F6",
-        "GAP",
-        "`mode = power` is reserved and refused. PSD's normalised per-frame "
-        "linear power, `dp_psd_frame_linear`, is on main, and wiring the "
-        "Spectrogram to it is #1968.",
+        "FIXED",
+        "`mode = power` was reserved and refused. #1968 wired it to PSD's "
+        "normalised per-frame power, `dp_psd_frame_linear`, and made it "
+        "the default, since the dB conversion is most of a dB row's cost "
+        "(the measurement record's entry 5.8); dB rows are asked for by "
+        "name. Every certification block now runs in both modes: a power "
+        "row is `dp_psd_frame_linear` of its slice bit for bit (§2.1), and "
+        f"a full-scale tone reads 1.0 to within {pw:.1e} under every window "
+        "(§2.6).",
     )
     hann2 = next(p for k, p, _ in _leak(d, "hann") if k == 2)
     R.find(
@@ -693,8 +747,10 @@ def review(d) -> None:
         "Speed is not in this report, which certifies what a caller may "
         "rely on. What a row costs and how many rows one core sustains are "
         "the design's U1 to U4, measured on a pinned machine and recorded "
-        "in the measurement record's entries 5.6 to 5.9. The one decision "
-        "they raised, the cost of the dB conversion, is #2074.",
+        "in the measurement record's entries 5.6 to 5.9. The decision they "
+        "raised, the cost of the dB conversion, made power rows the default "
+        "(#1968, F6) and gives dB rows a faster `log10` (#2074, through "
+        "#2094).",
     )
     R.find(
         "F11",
@@ -718,6 +774,12 @@ def limits(d) -> None:
 
     # Every limit below is over a block's rows, and all() over an empty
     # block is True: each one also requires its block to have run.
+    blocks = ("rows", "backpressure", "sizing", "flush", "state", "level")
+    R.limit(
+        all(_both(d[b]) for b in blocks),
+        "every certification block below ran in both modes, power and dB, "
+        "so each limit that follows holds in both",
+    )
     rows = d["rows"]
     parts = _total(rows, "partitions")
     R.limit(
@@ -726,9 +788,11 @@ def limits(d) -> None:
         and all(
             _i(r, "bad_rows") == 0 and _i(r, "count_wrong") == 0 for r in rows
         ),
-        f"every row is PSD's dBFS of its slice, bit for bit, and the row "
-        f"count is (len - nfft)/hop + 1, under all {parts} distinct "
-        f"partitions of {len(rows)} shapes (nfft 2 to 4,096, every window)",
+        f"every row is PSD's reading of its slice in the row's mode, "
+        f"dp_psd_frame_linear or dp_psd_frame_db, bit for bit, and the row "
+        f"count is (len - nfft)/hop + 1, under all {parts // 2} distinct "
+        f"partitions of {len(_in(rows, 'power'))} shapes (nfft 2 to 4,096, "
+        f"every window), in each mode",
     )
     R.limit(
         bool(rows)
@@ -834,7 +898,7 @@ def limits(d) -> None:
     )
     R.limit(
         bool(fl) and all(_i(r, "off_grid") == 0 for r in fl),
-        "the flushed row sits on the hop grid: PSD's dBFS of the "
+        "the flushed row sits on the hop grid: PSD's reading of the "
         "zero-padded slice at the next row start",
     )
     R.limit(
@@ -906,24 +970,44 @@ def limits(d) -> None:
         "that follow are that window's own",
     )
 
+    R.limit(
+        bool(st)
+        and all(
+            _i(r, "mode_refused") == 0 and _i(r, "mode_wrong") == 0 for r in st
+        ),
+        "a blob restores into an object of the other mode, and the rows "
+        "that follow are in that mode's units",
+    )
+
     lv = d["level"]
     R.limit(
         bool(lv) and all(_i(r, "peak_wrong") == 0 for r in lv),
         "a tone on bin k peaks at index nfft/2 + k, for every bin of nfft "
         "8, 64 and 1,024 under every window",
     )
+    # 1e-4 dB in dB rows, and the same bound as a ratio in power rows
+    db_tol = 1e-4
+    lin_tol = 10 ** (db_tol / 10) - 1
+    lp, ld = _in(lv, "power"), _in(lv, "db")
     R.limit(
-        bool(lv) and all(_f(r, "max_abs_err_db") < 1e-4 for r in lv),
-        f"a full-scale tone on a bin reads 0 dBFS within 1e-4 dB under "
-        f"every window (largest "
-        f"{max((_f(r, 'max_abs_err_db') for r in lv), default=0.0):.1e} dB)",
+        bool(lp) and all(_f(r, "max_abs_err") < lin_tol for r in lp),
+        f"a full-scale tone on a bin reads 1.0 in a power row within "
+        f"{lin_tol:.1e} (1e-4 dB) under every window (largest "
+        f"{max((_f(r, 'max_abs_err') for r in lp), default=0.0):.1e})",
+    )
+    R.limit(
+        bool(ld) and all(_f(r, "max_abs_err") < db_tol for r in ld),
+        f"a full-scale tone on a bin reads 0 dBFS in a dB row within "
+        f"{db_tol:.0e} dB under every window (largest "
+        f"{max((_f(r, 'max_abs_err') for r in ld), default=0.0):.1e} dB)",
     )
 
     zero = d["floor_zero"]
     R.limit(
         bool(zero)
         and all(_i(r, "bins_at_floor") == _i(r, "bins") for r in zero),
-        "an all-zero frame reads exactly -200 dB in every bin, every window",
+        "an all-zero frame reads exactly -200 dB in every bin of a dB row, "
+        "every window",
     )
     tone = d["floor_tone"]
     above = [r for r in tone if _f(r, "level_dbfs") >= FLOOR_DB]
@@ -998,9 +1082,11 @@ def build(write: bool = True) -> Report:
     R.md("## 1. The object")
     R.md()
     R.md(
-        "A stream of any-size chunks in, rows of `nfft`-bin dBFS spectra "
-        "out, one row every `hop` samples. Row *k* is PSD's dBFS of stream "
-        "samples `[k*hop, k*hop + nfft)`, whatever the chunking. The carry "
+        "A stream of any-size chunks in, rows of `nfft`-bin spectra out, "
+        "one row every `hop` samples: linear power by default, dBFS when "
+        "the caller asks for it by name. Row *k* is PSD's reading of "
+        "stream samples `[k*hop, k*hop + nfft)` in the row's mode, "
+        "whatever the chunking. The carry "
         "between calls is the ring's framer, the spectrum is PSD's "
         "per-frame kernel, and the object composes both and re-implements "
         "neither. `flush` ends the stream with the one zero-padded row it "
@@ -1045,20 +1131,22 @@ def build(write: bool = True) -> Report:
                 "C1",
                 "`create` refuses an `nfft` that is not a power of two of "
                 "at least 2, a hop outside 1..`nfft`, a bad window index or "
-                "one with no gain at `nfft` (Hann at 2), power mode, and any "
-                "other mode",
+                "one with no gain at `nfft` (Hann at 2), in either mode, "
+                "and any mode but power and dB; it accepts both modes",
                 "§1",
                 "#1975: the `nfft` check removed (N1), and its validation "
-                "cases",
+                "cases. #1968: power refused again; any mode accepted",
                 "—",
             ],
             [
                 "C2",
-                "row *k* is `dp_psd_frame_db` of samples `[k*hop, k*hop + "
-                "nfft)`",
+                "row *k* is `dp_psd_frame_linear` (power, the default) or "
+                "`dp_psd_frame_db` (dB) of samples `[k*hop, k*hop + nfft)`",
                 "§2, §4",
                 "#1975: a rotation in the row (D1); raw power as a second "
-                "kernel (S3); a framer defect both paths share (T1)",
+                "kernel (S3); a framer defect both paths share (T1). "
+                "#1968: dB rows always, linear rows always, the modes "
+                "swapped",
                 "§2.1",
             ],
             [
@@ -1154,9 +1242,11 @@ def build(write: bool = True) -> Report:
             ],
             [
                 "C14",
-                "a full-scale tone on a bin reads 0 dB, whatever the window",
+                "a full-scale tone on a bin reads 1.0 in power and 0 dB in "
+                "dB, whatever the window",
                 "§3",
-                "#1975 D1, S3",
+                "#1975 D1, S3. #1968: dB rows always (power reads 0 dB, "
+                "not 1.0), linear rows always",
                 "§2.6",
             ],
             [
@@ -1168,10 +1258,12 @@ def build(write: bool = True) -> Report:
             ],
             [
                 "C16",
-                "a bin reads no lower than -200 dB, so an all-zero frame "
-                "and one below the floor write the same row",
+                "in dB, a bin reads no lower than -200 dB, so an all-zero "
+                "frame and one below the floor write the same row; in "
+                "power, an all-zero frame reads 0",
                 "§13",
-                "#2043: the floor moved to -300 dB (K3)",
+                "#2043: the floor moved to -300 dB (K3). #1968: dB rows "
+                "always (power reads -200)",
                 "§2.7",
             ],
             [
@@ -1218,11 +1310,12 @@ def build(write: bool = True) -> Report:
             ],
             [
                 "C22",
-                "another window or beta is NOT refused on restore, and the "
-                "rows that follow are that window's",
+                "another window, beta or mode is NOT refused on restore, "
+                "and the rows that follow are the restoring object's",
                 "§14b",
                 "#2043: the restore takes the source's window back (S14b) "
-                "or its beta (S14b-β)",
+                "or its beta (S14b-β). #1968: the modes made one, which "
+                "the mode case's precondition refuses",
                 "§2.5",
             ],
             [
@@ -1246,8 +1339,9 @@ def build(write: bool = True) -> Report:
                 "kernel",
                 "— (by construction)",
                 "`spectrogram_core.c` calls `dp_f32_framer_*` for the carry "
-                "and `dp_psd_frame_db` for every row, and holds no window, "
-                "FFT or carry code of its own",
+                "and `dp_psd_frame_linear` or `dp_psd_frame_db` for every "
+                "row, and holds no window, FFT, conversion or carry code of "
+                "its own",
                 "§2.1",
             ],
             [
@@ -1285,11 +1379,16 @@ def build(write: bool = True) -> Report:
             "model, named where it is used. Re-run to regenerate."
         ),
         takeaways=[
+            "**Power rows are the default, dB rows are asked for by name, "
+            "and every claim below holds in both.** A power row is "
+            "`dp_psd_frame_linear` of its frame, so a full-scale tone reads "
+            "1.0 under every window (§2.6, F6).",
             "**Any split of the stream gives the same rows, and every row "
-            "is PSD's dBFS of its own slice, bit for bit.** "
-            f"{_total(shapes, 'partitions')} distinct partitions over "
-            f"{len(shapes)} shapes, from single samples to the whole stream "
-            "at once, agree with an oracle built without the object (§2.1).",
+            "is PSD's reading of its own slice, bit for bit.** "
+            f"{_total(_in(shapes, 'power'), 'partitions')} distinct "
+            f"partitions over {len(_in(shapes, 'power'))} shapes, from single "
+            "samples to the whole stream at once, agree with an oracle built "
+            "without the object, in each mode (§2.1).",
             "**A short output slows the stream and loses nothing**, and "
             "`push_max_out` is exactly the room that takes a whole chunk, "
             "from every carry state the shape has (§2.2, §2.3).",
@@ -1299,21 +1398,21 @@ def build(write: bool = True) -> Report:
             "F9).",
             "**The blob is a fixed size per `nfft`, every byte written, "
             "and resumes bit for bit from any cut.** It carries no "
-            "configuration: another window restores without complaint and "
-            "continues as itself, so keeping the create arguments is the "
-            "caller's job (§2.5, F4).",
-            "**A bin reads no lower than -200 dB.** A tone under the floor "
+            "configuration: another window or mode restores without "
+            "complaint and continues as itself, so keeping the create "
+            "arguments is the caller's job (§2.5, F4).",
+            "**A dB row reads no lower than -200 dB.** A tone under the floor "
             "and digital silence give the same row, and wideband noise "
             "reaches it about `10·log10(nfft)` sooner; at `nfft` 1,024 a "
             "total of -190 dBFS is all floor, every bin of every frame "
             "under every window (§2.7, F3).",
             "**The evidence shares one part with the object: PSD's "
-            "kernel.** Every row is checked against `dp_psd_frame_db` of "
-            "its slice, so a defect inside that kernel would pass every row "
-            "check here. Only the physical checks would see it: a "
-            "full-scale tone reading 0 dBFS in its own bin (§2.6) and the "
-            "floor (§2.7). The kernel is certified on its own, in PSD's "
-            "report.",
+            "kernel.** Every row is checked against `dp_psd_frame_linear` "
+            "or `dp_psd_frame_db` of its slice, so a defect inside that "
+            "kernel would pass every row check here. Only the physical "
+            "checks would see it: a full-scale tone reading 1.0, or 0 dBFS, "
+            "in its own bin (§2.6) and the floor (§2.7). The kernel is "
+            "certified on its own, in PSD's report.",
         ],
     )
     R.summary(

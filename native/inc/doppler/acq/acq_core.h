@@ -1500,6 +1500,24 @@ extern "C"
    * restore the engine and not the caller's count -- and subtracting the
    * two reads outside x.
    *
+   * @code
+   * float _Complex pre[124];               // a 31-chip code at 4x
+   * for (size_t i = 0; i < 124; i++)
+   *   pre[i] = (i / 4) % 3 ? 1.0f : -1.0f;
+   * dp_acq_state_t *a = dp_acq_create_burst (pre, 124, 16, 4.0e6, 45.0,
+   *                                          0.0, 1e-3, 0.9, 0, 0.0);
+   * float _Complex x[300] = { 0 };
+   * uint64_t       before = dp_acq_position (a);           // 0
+   * acq_result_t   hit;
+   * if (dp_acq_push (a, x, 300, &hit, 1) == 1)
+   *   printf ("hit ended at x + %llu\n",
+   *           (unsigned long long)(hit.samples_consumed - before));
+   * uint64_t after = dp_acq_position (a); // 300: framed and carried
+   * dp_acq_destroy (a);
+   * if (before != 0 || after != 300)
+   *   return 1;
+   * @endcode
+   *
    * @param state  Must be non-NULL.
    */
   uint64_t dp_acq_position (const dp_acq_state_t *state);

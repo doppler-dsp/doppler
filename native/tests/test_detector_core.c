@@ -67,9 +67,9 @@ ci_det_stream (float _Complex ref[N], float _Complex x[CI_LEN])
 /* Push x through d in seeded random chunks of 1..max_chunk samples with room
    for `cap` detections a call, each chunk re-offered from
    dp_detector_consumed() until it is used up, and return the detections in
-   got[]. Counts the calls that stopped short, the stops anywhere but one
-   sample short of a frame (frames tile the stream from sample 0, and a full
-   push still takes the carry), and any call that wrote past its room --
+   got[]. Counts the calls that stopped short, the stops anywhere but on a
+   frame boundary (frames tile the stream from sample 0, and a full push
+   takes nothing past its last frame), and any call that wrote past its room --
    literally: the slot just past the room holds a byte pattern during the
    call, and a call that changed it, or reports more than its room, counts.
    got[] has room for got_len results. */
@@ -107,7 +107,7 @@ ci_det_resume (dp_detector_state_t *d, const float _Complex *x, size_t len,
           if (took < offered)
             {
               (*stops)++;
-              if (off % N != N - 1)
+              if (off % N != 0)
                 (*wrong_stop)++;
             }
           if (took == 0)  /* cannot happen with room for one: stop the loop */
@@ -340,27 +340,31 @@ main (void)
 
   /* serializable state — corr child + ring residual + result fields. */
   {
-    float _Complex ref[16], in[24];
+    float _Complex ref[16], in[72];
     det_result_t res[16];
     for (int i = 0; i < 16; i++)
       ref[i] = (float)(i % 4) + 0.5f * I;
-    for (int i = 0; i < 24; i++)
+    for (int i = 0; i < 72; i++)
       in[i] = (float)(i % 3) - 1.0f + 0.2f * I;
     dp_detector_state_t *a
         = dp_detector_create (ref, 16, 3, 1, 15, DET_NOISE_MEAN, 0.0f, 1);
     dp_detector_state_t *b
         = dp_detector_create (ref, 16, 3, 1, 15, DET_NOISE_MEAN, 0.0f, 1);
     DP_CHECK (a != NULL && b != NULL);
-    (void)dp_detector_push (a, in, 24, res, 16);
+    (void)dp_detector_push (a, in, 72, res, 16);
     DP_STATE_ROUNDTRIP_TEST (dp_detector, a, b);
     DP_CHECK (b->corr->count == a->corr->count); /* corr child resumed */
-    /* the carry: 24 samples at n = 16 is one frame and 8 left over */
+    /* 72 samples at n = 16: four frames, so a dump at the third and
+       one frame toward the next, and a carry of 8 */
+    DP_CHECK (a->corr->count == 1);
     DP_CHECK (dp_f32_framer_pending (&a->framer) == 8);
     DP_CHECK (dp_f32_framer_pending (&b->framer)
               == dp_f32_framer_pending (&a->framer));
-    DP_CHECK (dp_detector_consumed (a) == 24); /* the push took all of in */
+    DP_CHECK (dp_detector_consumed (a) == 72); /* the push took all of in */
     DP_CHECK (dp_detector_consumed (b) == 0);  /* set_state: no last push */
-    DP_CHECK (b->_last_corr_valid == a->_last_corr_valid);
+    /* the last surface is not state: a's push dumped, b has no view */
+    DP_CHECK (a->_last_corr_valid == 1);
+    DP_CHECK (b->_last_corr_valid == 0);
     dp_detector_destroy (a);
     dp_detector_destroy (b);
   }
@@ -434,13 +438,13 @@ main (void)
     dp_detector_reset (d);
     DP_CHECK (dp_detector_consumed (d) == 0); /* after reset */
 
-    /* Room for none: input that completes no frame is still taken whole --
-     * it is the carry -- and the sample that would complete frame 0 is not.
-     * Resumed with room for one, that frame's hit is the one-shot's first. */
+    /* Room for none takes NOTHING, not even a partial frame. Room for one
+     * takes frame 0 and stops on its boundary -- no carry past a full
+     * push -- and that frame's hit is the one-shot's first. */
     DP_CHECK (dp_detector_push (d, x, 3 * N, got, 0) == 0);
-    DP_CHECK (dp_detector_consumed (d) == N - 1);
-    DP_CHECK (dp_detector_push (d, x + N - 1, 2 * N, got, 1) == 1);
-    DP_CHECK (dp_detector_consumed (d) == N); /* frame 0, then the carry */
+    DP_CHECK (dp_detector_consumed (d) == 0);
+    DP_CHECK (dp_detector_push (d, x, 3 * N, got, 1) == 1);
+    DP_CHECK (dp_detector_consumed (d) == N); /* frame 0, not a sample more */
     DP_CHECK (ci_det_equal (got, want, 1));
     dp_detector_destroy (one);
     dp_detector_destroy (d);
@@ -454,7 +458,7 @@ main (void)
    * in chunks of up to the whole stream, so several dumps land in one call
    * (a dump every 4 frames needs over 12 to fill room for 3). Each must
    * give exactly the one-shot's detections, never
-   * write past its room, and stop one sample short of a frame. */
+   * write past its room, and stop on a frame boundary. */
   {
     float _Complex ref[N];
     static float _Complex x[CI_LEN];

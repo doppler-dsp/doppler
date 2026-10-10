@@ -95,3 +95,40 @@ def test_dwell_defaults_to_one():
     obj = CorrDetector2D(ref, threshold=0.0)
     assert obj.dwell == 1
     assert obj.push(ref) is not None
+
+
+def test_overflowed_push_leaves_the_stream_frame_aligned():
+    # Python's push() has room for 1024 detections, and at threshold 0
+    # every frame fires, so a frame-aligned chunk of 1030 frames fills it.
+    # The frames past the room are lost WHOLE: once full, push takes
+    # nothing more, so no partial frame waits in the carry and the next
+    # push starts on a frame boundary.  A probe frame with its impulse at
+    # (1, 2) must then report (1, 2).  Were the next frame's head carried
+    # (the pre-#2018 feed), the probe's first sample would complete that
+    # carried frame and the push would report its (0, 0) instead.
+    ny, nx = 2, 4
+    ref = np.zeros((ny, nx), dtype=np.complex64)
+    ref[0, 0] = 1
+    obj = CorrDetector2D(ref, threshold=0.0)
+    frames = np.zeros((1030, ny, nx), dtype=np.complex64)
+    frames[:, 0, 0] = 1
+    assert len(obj.push(frames.ravel())) == 1024
+    probe = np.zeros((ny, nx), dtype=np.complex64)
+    probe[1, 2] = 1
+    assert [(r, c) for r, c, *_ in obj.push(probe.ravel())] == [(1, 2)]
+
+
+def test_last_corr_none_after_set_state():
+    # The correlation surface is not part of the serialized state, so a
+    # detector restored from a blob has no last surface to view -- not a
+    # view of a buffer it never filled.
+    ref = np.ones((2, 2), dtype=np.complex64)
+    a = CorrDetector2D(ref, threshold=0.0)
+    a.push(ref.ravel())
+    assert a.last_corr is not None
+    b = CorrDetector2D(ref, threshold=0.0)
+    b.set_state(a.get_state())
+    assert b.last_corr is None
+    a.push(ref.ravel())
+    b.push(ref.ravel())
+    np.testing.assert_array_equal(b.last_corr, a.last_corr)

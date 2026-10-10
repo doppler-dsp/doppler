@@ -1230,9 +1230,10 @@ class CorrDetector:
 
         Python's push() has room for 1024 detections a call. Once a push fills
         it, every later frame of that call is lost, whether or not it would
-        have made a detection: keep a chunk under 1024 frames. Before v0.66 the
-        room was 64, and a push past it kept up to ring_cap/n - 1 of those
-        frames for the next call and dropped the rest. #1992 and
+        have made a detection; the stream stays frame-aligned, so the next push
+        starts on a frame boundary. Keep a chunk under 1024 frames. Before
+        v0.66 the room was 64, and a push past it kept up to ring_cap/n - 1 of
+        those frames for the next call and dropped the rest. #1992 and
         just-buildit/just-makeit#2184 track sizing the list to the call.
 
         Parameters
@@ -1347,10 +1348,11 @@ class CorrDetector:
     @property
     def last_corr(self) -> NDArray[np.complex64]:
         """The correlation vector from the most recent push() that produced a
-        result (None before that). This is a zero-copy view into a buffer owned
-        by the detector and reused every push() -- the next push() (even one
-        that doesn't produce a result) overwrites it in place. Copy the array
-        before the next push() if you need to retain it.
+        result (None before that, and after reset() or set_state(): the vector
+        is not part of the serialized state). This is a zero-copy view into a
+        buffer owned by the detector and reused every push() -- the next push()
+        (even one that doesn't produce a result) overwrites it in place. Copy
+        the array before the next push() if you need to retain it.
         """
 
     def destroy(self) -> None:
@@ -1477,10 +1479,12 @@ class CorrDetector2D:
 
         Python's push() has room for 1024 detections a call. Once a push fills
         it, every later frame of that call is lost, whether or not it would
-        have made a detection: keep a chunk under 1024 frames. Before v0.66 the
-        room was 64, and a push past it kept up to ring_cap/n - 1 of those
-        frames for the next call and dropped the rest. #1992 and
-        just-buildit/just-makeit#2184 track sizing the list to the call.
+        have made a detection; the stream stays frame-aligned, so the next push
+        starts on a frame boundary and its peaks keep their (row, col). Keep a
+        chunk under 1024 frames. Before v0.66 the room was 64, and a push past
+        it kept up to ring_cap/n - 1 of those frames for the next call and
+        dropped the rest. #1992 and just-buildit/just-makeit#2184 track sizing
+        the list to the call.
 
         Parameters
         ----------
@@ -1604,10 +1608,11 @@ class CorrDetector2D:
     @property
     def last_corr(self) -> NDArray[np.complex64]:
         """The correlation vector from the most recent push() that produced a
-        result (None before that). This is a zero-copy view into a buffer owned
-        by the detector and reused every push() -- the next push() (even one
-        that doesn't produce a result) overwrites it in place. Copy the array
-        before the next push() if you need to retain it.
+        result (None before that, and after reset() or set_state(): the vector
+        is not part of the serialized state). This is a zero-copy view into a
+        buffer owned by the detector and reused every push() -- the next push()
+        (even one that doesn't produce a result) overwrites it in place. Copy
+        the array before the next push() if you need to retain it.
         """
 
     def destroy(self) -> None:

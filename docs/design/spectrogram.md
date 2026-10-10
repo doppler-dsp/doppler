@@ -105,7 +105,8 @@ asked the three questions the design rests on before any C existed:
     the PSD's convention (divide by the window's coherent gain squared)?
 
 The answers are in [§5.3](spectrogram-measurements.md#53-the-prototype-2026-10-08):
-yes, yes, and by **20·log10(Σw)** — 54.18 dB for a 1024-point Hann window — so
+yes, yes, and by **20·log10(Σw)** — 54.19 dB for PSD's 1024-point Hann
+window, which is periodic, 54.18 for the symmetric one §5.3 measured — so
 a second kernel is not a small inconsistency but a wrong level. That is why
 the design promotes PSD's kernel instead of writing one. The prototype also
 mis-reported its own contract on the first run, through a comparison bug of its
@@ -246,7 +247,7 @@ is recorded with it in [the ring's measurements](ring-buffer-measurements.md).
 Its header's claims are certified in C, because it has no Python face yet:
 `native/validation/spectrogram_certify.c` measures and
 `src/doppler/tests/validation/spectrogram/results.md` is the generated report,
-with the header's twenty-seven claims inventoried against their pins and the
+with the header's twenty-eight claims inventoried against their pins and the
 sabotage that turned each red.
 
 ## 6. The order of work

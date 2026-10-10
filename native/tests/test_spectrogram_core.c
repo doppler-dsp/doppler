@@ -35,6 +35,7 @@
  *      that follow are the restoring object's, not the blob's source's
  *  15. a row arrives with the push that delivers its last sample: zero
  *      latency in samples
+ *  16. a dB row IS dp_power_to_db_f32 of the power row, bit for bit
  *
  * Sections 2 to 15 run once per mode, power (the default) first: every
  * claim but a row's units is the same in both, and a row's units are pinned
@@ -47,6 +48,7 @@
  * The rule push follows is the framer's feed contract: a sample is taken
  * unless it would complete a row out has no room for.
  */
+#include "doppler/spectral/spectral_core.h"
 #include "doppler/spectrogram/spectrogram_core.h"
 
 #include "dp_chunk_inv.h"
@@ -1226,17 +1228,23 @@ main (void)
       DP_CHECK (dp_spectrogram_create (8, 4, -1, 0.0f, mode) == NULL);
       DP_CHECK (dp_spectrogram_create (8, 4, 4, 0.0f, mode) == NULL);
       /* The window is dp_psd_create's to refuse, and it refuses one that
-         sums to zero: the symmetric Hann at nfft 2 is [0, 0], so every row
-         would read NaN (#1911 (f)). */
-      DP_CHECK (dp_spectrogram_create (2, 1, 0, 0.0f, mode) == NULL);
-      /* ...and accepts the edges: the smallest nfft (with a window that has
-         energy there), hop == 1, hop == nfft. Columns: nfft, hop, window. */
+         is not finite: a Kaiser beta of NaN, or 2.3e5, past I0's overflow,
+         where a power-of-two nfft has a centre tap of inf / inf. Every row
+         would read NaN (#1911 (f)). That case was once the symmetric Hann
+         at nfft 2, [0, 0]; PSD's Hann is periodic now, [0, 1] there, so it
+         has gain and is accepted below (#2053). */
+      DP_CHECK (dp_spectrogram_create (8, 4, 1, NAN, mode) == NULL);
+      DP_CHECK (dp_spectrogram_create (8, 4, 1, 2.3e5f, mode) == NULL);
+      /* ...and accepts the edges: the smallest nfft under every window,
+         hop == 1, hop == nfft, and Kaiser at an ordinary beta beside the
+         refused ones. Columns: nfft, hop, window. */
       static const size_t ok[][3]
-          = { { 2, 1, 3 }, { 2, 2, 3 }, { 8, 1, 0 }, { 8, 8, 0 } };
+          = { { 2, 1, 0 }, { 2, 2, 0 }, { 2, 1, 1 }, { 2, 1, 2 }, { 2, 1, 3 },
+              { 2, 2, 3 }, { 8, 1, 0 }, { 8, 8, 0 }, { 8, 4, 1 } };
       for (size_t i = 0; i < sizeof ok / sizeof *ok; i++)
         {
           dp_spectrogram_state_t *s = dp_spectrogram_create (
-              ok[i][0], ok[i][1], (int)ok[i][2], 0.0f, mode);
+              ok[i][0], ok[i][1], (int)ok[i][2], 8.0f, mode);
           DP_CHECK (s != NULL);
           dp_spectrogram_destroy (s);
         }
@@ -1276,6 +1284,41 @@ main (void)
     dp_psd_destroy (p);
     dp_spectrogram_destroy (s);
     free (cfg);
+  }
+
+  /* ---- 16. a dB row IS dp_power_to_db_f32 of the power row (#2094) ---- */
+  /* The header's claim, across modes: the same stream into a power and a dB
+     spectrogram, and every dB row equals the library's one dB conversion of
+     the matching power row, bit for bit, so converting power rows is
+     exactly the dB mode. Every window, an overlapping hop. */
+  {
+    const size_t nfft = 64, hop = 24;
+    const size_t rows = (NX - nfft) / hop + 1;
+    float       *pw   = (float *)malloc (rows * nfft * sizeof *pw);
+    float       *db   = (float *)malloc (rows * nfft * sizeof *db);
+    float       *want = (float *)malloc (rows * nfft * sizeof *want);
+    DP_REQUIRE (pw && db && want);
+    int same = 1;
+    for (int w = 0; w < 4; w++)
+      {
+        dp_spectrogram_state_t *a
+            = dp_spectrogram_create (nfft, hop, w, 7.5f, DP_SPECTROGRAM_POWER);
+        dp_spectrogram_state_t *b
+            = dp_spectrogram_create (nfft, hop, w, 7.5f, DP_SPECTROGRAM_DB);
+        DP_REQUIRE (a && b);
+        DP_REQUIRE (dp_spectrogram_push (a, x, NX, pw, rows * nfft)
+                    == rows * nfft);
+        DP_REQUIRE (dp_spectrogram_push (b, x, NX, db, rows * nfft)
+                    == rows * nfft);
+        dp_power_to_db_f32 (pw, rows * nfft, want);
+        same &= memcmp (db, want, rows * nfft * sizeof *db) == 0;
+        dp_spectrogram_destroy (a);
+        dp_spectrogram_destroy (b);
+      }
+    DP_CHECK (same);
+    free (pw);
+    free (db);
+    free (want);
   }
 
   /* Every section after 1, in each mode. A failure's file:line is the same

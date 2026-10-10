@@ -24,7 +24,34 @@
 /* Power floor (~ -200 dB) guarding log10 of empty / zero bins. */
 #define PSD_FLOOR 1e-20
 
-/* Smallest power of two >= x. */
+/* ── the window ────────────────────────────────────────────────────────── */
+
+/* The PERIODIC (DFT-even) window: the symmetric window of n + 1 points
+ * with its last sample dropped, which is Harris 1978's DFT-even form and
+ * scipy's get_window(..., fftbins=True).  The window functions build the
+ * symmetric form, the one filter design wants, so each is filled at n + 1
+ * here and only w[0..n) is ever read: its cosines then complete whole
+ * periods over the frame, so a bin-centred tone under Hann reads zero
+ * beyond its two neighbours and the ENBW is the published one (#2053).
+ * Rect has no taper, and no n + 1 to drop.  The one place the periodic
+ * form is built: dp_psd_create windows with it, and a planner that sizes
+ * a capture for PSD's window (dp_measure_min_samples) reads it here. */
+int
+dp_psd_window (float *w, size_t n, int window, float beta)
+{
+  if (window == 0)
+    dp_hann_window (w, n + 1);
+  else if (window == 1)
+    dp_kaiser_window (w, n + 1, beta);
+  else if (window == 2)
+    dp_blackman_harris_window (w, n + 1);
+  else if (window == 3)
+    for (size_t i = 0; i < n; i++) /* rectangular: no spectral library entry */
+      w[i] = 1.0f;
+  else
+    return DP_ERR_INVALID;
+  return DP_OK;
+}
 
 /* ── lifecycle ─────────────────────────────────────────────────────────── */
 
@@ -43,8 +70,9 @@ dp_psd_create (size_t n, double fs, int window, float beta, size_t pad,
   /* fs and full_scale divide every reading, so each must be a finite
    * positive number; the negated form also refuses a NaN, which passed a
    * plain `<= 0.0` and built an estimator that read NaN. */
-  if (n < 2 || pad < 1 || !(fs > 0.0 && isfinite (fs)) || window < 0
-      || window > 3 || !(full_scale > 0.0 && isfinite (full_scale)))
+  /* The window index is dp_psd_window's to refuse, below. */
+  if (n < 2 || pad < 1 || !(fs > 0.0 && isfinite (fs))
+      || !(full_scale > 0.0 && isfinite (full_scale)))
     return NULL;
   if (mode < ACC_TRACE_MEAN || mode > ACC_TRACE_MINHOLD)
     return NULL;
@@ -68,14 +96,17 @@ dp_psd_create (size_t n, double fs, int window, float beta, size_t pad,
     return NULL;
 
   /* Caller-sized, so each can still fail, and does return NULL: not
-   * dp_xmalloc, which is for trusted sizes and would abort instead. */
+   * dp_xmalloc, which is for trusted sizes and would abort instead.  The
+   * window holds n + 1 points (dp_psd_window); n + 1 cannot wrap and
+   * its byte count fits, since the refusal above holds n <= n * pad <=
+   * top_pow2, 2^60 on a 64-bit size_t. */
   const size_t nfft = dp_next_pow_two (n * pad);
   s->n              = n;
   s->nfft           = nfft;
   s->fs             = fs;
   s->full_scale     = full_scale;
   s->bits           = bits;
-  s->w              = (float *)malloc (n * sizeof (float));
+  s->w              = (float *)malloc ((n + 1) * sizeof (float));
   s->frame = (float _Complex *)malloc (nfft * sizeof (float _Complex));
   s->spec  = (float _Complex *)malloc (nfft * sizeof (float _Complex));
   s->pwr   = (float *)malloc (nfft * sizeof (float));
@@ -86,15 +117,12 @@ dp_psd_create (size_t n, double fs, int window, float beta, size_t pad,
       return NULL;
     }
 
-  if (window == 1)
-    dp_kaiser_window (s->w, n, beta);
-  else if (window == 2)
-    dp_blackman_harris_window (s->w, n);
-  else if (window == 3)
-    for (size_t i = 0; i < n; i++) /* rectangular: no spectral library entry */
-      s->w[i] = 1.0f;
-  else
-    dp_hann_window (s->w, n);
+  /* The periodic window, w[0..n) of the n + 1 allocated above. */
+  if (dp_psd_window (s->w, n, window, beta) != DP_OK)
+    {
+      dp_psd_destroy (s);
+      return NULL;
+    }
 
   double cg = 0.0, s2 = 0.0;
   for (size_t i = 0; i < n; i++)
@@ -102,12 +130,14 @@ dp_psd_create (size_t n, double fs, int window, float beta, size_t pad,
       cg += (double)s->w[i];
       s2 += (double)s->w[i] * (double)s->w[i];
     }
-  /* Every reading divides by cg^2 (or s2): a window that sums to zero --
-   * the symmetric Hann at n = 2 is [0, 0] -- would read NaN, or the -200 dB
-   * floor for any input, so it is refused here (#1911 (f)).  So is one that
-   * is not a finite number: a Kaiser beta of NaN, or one large enough that
-   * I0 overflows, makes every tap NaN.  Not a threshold on the size:
-   * Blackman-Harris at n = 2 sums to 1.2e-4, tiny but valid. */
+  /* Every reading divides by cg^2 (or s2): a window that sums to zero
+   * would read NaN, or the -200 dB floor for any input, so it is refused
+   * here (#1911 (f)).  No periodic window sums to zero -- Hann at n = 2
+   * is [0, 1] -- except a Kaiser past I0's overflow, where every finite
+   * tap divided by I0(beta) = inf is 0, as at n = 3, beta = 2.3e5.  So is
+   * one that is not a finite number: a Kaiser beta of NaN, or an overflow
+   * that reaches a tap as inf / inf, makes taps NaN.  Not a threshold on
+   * a tap: Blackman-Harris at n = 2 is [6e-5, 1], tiny but valid. */
   if (!(cg > 0.0 && isfinite (cg)))
     {
       dp_psd_destroy (s);
@@ -275,26 +305,28 @@ psd_db_ref (const dp_psd_state_t *s)
 }
 
 /* pwr[0..n) read against the estimator's reference -- the one conversion
- * every averaged readout and both single-frame readouts go through.  Linear
- * (full-scale^2 units, into `lin`) and dBFS with the -200 dB floor (into
- * `db`) come from the SAME double quotient, so the dB reading is exactly
- * 10*log10 of the linear one before either is rounded to float.  Taking the
- * log of the float-rounded linear value instead would move dB by up to an
- * ulp, and frame_db is pinned byte-for-byte (#1894's kernel promotion).
- * Either output may be NULL. */
+ * every averaged readout and both single-frame readouts go through.  The
+ * quotient pwr / (cg^2 * full_scale^2) is taken in double and rounded to
+ * float once.  A linear reading (full-scale^2 units) is that float, and a
+ * dB reading is dp_power_to_db_f32 of it, the library's one dB conversion
+ * (#2094), whose floor is PSD's -200 dB.  So a dB reading is that function
+ * of the linear one, bit for bit, and a caller who converts linear readings
+ * gets exactly PSD's dB.  pwr is the estimator's own scratch: a dB reading
+ * leaves the quotient in it.  Exactly one of lin and db is non-NULL. */
 static void
-psd_read_power (const dp_psd_state_t *s, const float *pwr, float *lin,
-                float *db, size_t n)
+psd_read_power (const dp_psd_state_t *s, float *pwr, float *lin, float *db,
+                size_t n)
 {
   const double ref = psd_db_ref (s);
-  for (size_t i = 0; i < n; i++)
+  if (lin)
     {
-      const double p = (double)pwr[i] / ref;
-      if (lin)
-        lin[i] = (float)p;
-      if (db)
-        db[i] = (float)(10.0 * log10 (fmax (p, PSD_FLOOR)));
+      for (size_t i = 0; i < n; i++)
+        lin[i] = (float)((double)pwr[i] / ref);
+      return;
     }
+  for (size_t i = 0; i < n; i++)
+    pwr[i] = (float)((double)pwr[i] / ref);
+  dp_power_to_db_f32 (pwr, n, db);
 }
 
 /* Fill out[0..n-1] with the averaged power spectrum in dBFS, where n is

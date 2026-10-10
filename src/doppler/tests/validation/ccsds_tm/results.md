@@ -138,7 +138,7 @@ The measurement is the worst case `ccsds_tm.h` already names: randomise a run of
 | randomiser | period (bits) | strongest line (dB over floor) | at 1/255 (dB) |
 |---|---|---|---|
 | `dp_CCSDS_TM_RAND` | 131071 | 1.9 | 1.2 |
-| `dp_CCSDS_TM_RAND_LEGACY` | 255 | 91.0 | 90.9 |
+| `dp_CCSDS_TM_RAND_LEGACY` | 255 | 91.0 | 91.0 |
 
 
 **The standard's rationale is measurable and it is enormous.** The legacy sequence puts a line 91 dB above its own noise floor, and it is at 1/255 — the two numbers agree to 0.01 dB, so the strongest thing in the spectrum is the harmonic B-6 names and not something else. The 131071-bit sequence over the same analysis length has no line at all: its strongest bin is 1.9 dB over the floor, which is the ordinary fluctuation of an averaged periodogram.

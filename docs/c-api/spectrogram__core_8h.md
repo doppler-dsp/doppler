@@ -200,7 +200,7 @@ dp_spectrogram_state_t * dp_spectrogram_create (
 
 * `nfft` Samples per frame and bins per row, which must be the same number: an nfft the PSD would zero-pad to a longer transform (anything but a power of two &gt;= 2) is refused rather than given rows wider than its frames. 
 * `hop` Samples between row starts, 1 &lt;= hop &lt;= nfft. hop == nfft tiles the stream; hop &lt; nfft overlaps the frames. 
-* `window` 0 = Hann, 1 = Kaiser, 2 = Blackman-Harris, 3 = rectangular, as [**dp\_psd\_create()**](psd__core_8h.md#function-dp_psd_create), which also refuses a window that sums to zero at this nfft (the symmetric Hann at nfft = 2). 
+* `window` 0 = Hann, 1 = Kaiser, 2 = Blackman-Harris, 3 = rectangular, as [**dp\_psd\_create()**](psd__core_8h.md#function-dp_psd_create), in its periodic form, and refused as it refuses: a window that is not finite (a NaN Kaiser beta, or one past I0's overflow). Every window has gain at every nfft: Hann at nfft = 2 is `[0, 1]`. 
 * `beta` Kaiser beta (ignored for the other windows). 
 * `mode` DP\_SPECTROGRAM\_POWER (linear rows, the default, 0) or DP\_SPECTROGRAM\_DB (dBFS rows, 1); any other value is refused. Pass it by name: `make lint` refuses an integer literal here. 
 
@@ -776,7 +776,7 @@ _Row units: dBFS, against the same reference. Asked for by name._
 
 
 
-Row k is [**dp\_psd\_frame\_db()**](psd__core_8h.md#function-dp_psd_frame_db) of its frame: 10\*log10 of the quotient a power row holds, so a full-scale tone on a bin reads 0 dB. A bin reads no lower than -200 dB: PSD clamps power at 1e-20 before the log, so an all-zero frame and a frame below the floor write the same row. 
+Row k is [**dp\_psd\_frame\_db()**](psd__core_8h.md#function-dp_psd_frame_db) of its frame, which is [**dp\_power\_to\_db\_f32()**](spectral__core_8h.md#function-dp_power_to_db_f32) of the power row, bit for bit: 10\*log10 within 0.01 dB (3.25e-4 measured over every float32), exact at every power of two. So a full-scale tone on a bin reads 0 dB, and a display that converts only the power bins it draws gets exactly the dB row's values. A bin reads no lower than -200 dB: the conversion's floor is 1e-20, so an all-zero frame and a frame below the floor write the same row. 
 
 
         

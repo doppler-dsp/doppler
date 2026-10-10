@@ -479,7 +479,9 @@ class ToneMeasure:
         The windowed, zero-padded magnitude spectrum behind the metrics, laid
         out DC-centred (fftshifted) and normalised to dBFS so it drops straight
         under an analyzer trace. Use it to eyeball where the fundamental,
-        harmonics and spurs that analyze() quantifies actually sit.
+        harmonics and spurs that analyze() quantifies actually sit. It is the
+        composed PSD's psd_db: PSD's dBFS reference, its -200 dB floor and the
+        library's one dB conversion, dp_power_to_db_f32.
 
         Parameters
         ----------
@@ -725,7 +727,9 @@ class NPRMeasure:
         The same windowed, zero-padded PSD the NPR metrics are read off, laid
         out DC-centred (fftshifted) and normalised to dBFS for an
         analyzer-display backdrop. Use it to see the notch and the active band
-        that analyze() integrates over.
+        that analyze() integrates over. It is the composed PSD's psd_db: PSD's
+        dBFS reference, its -200 dB floor and the library's one dB conversion,
+        dp_power_to_db_f32.
 
         Parameters
         ----------
@@ -925,7 +929,9 @@ class IMDMeasure:
         The same windowed, zero-padded PSD the IMD metrics are read off, laid
         out DC-centred (fftshifted) and normalised to dBFS for an
         analyzer-display backdrop. Use it to see the two fundamentals and the
-        intermodulation products that analyze() integrates.
+        intermodulation products that analyze() integrates. It is the composed
+        PSD's psd_db: PSD's dBFS reference, its -200 dB floor and the library's
+        one dB conversion, dp_power_to_db_f32.
 
         Parameters
         ----------
@@ -1033,8 +1039,11 @@ def measure_min_samples(
 
     Plans a capture for the same auto-Kaiser window the measurement objects
     use: the dynamic-range target (from dynamic_range_db, else bits)
-    selects the Kaiser beta, whose ENBW (measured via kaiser_enbw) sets the
-    bins-per-RBW. RBW = ENBW * fs / n, so n = ceil(ENBW * fs / target_rbw).
+    selects the Kaiser beta, and the ENBW of that beta's window, built by
+    dp_psd_window() exactly as the objects' composed PSD builds it (the
+    periodic form), sets the bins-per-RBW. RBW = ENBW * fs / n, so n =
+    ceil(ENBW * fs / target_rbw): the smallest capture whose realised RBW
+    meets the target.
 
     Parameters
     ----------

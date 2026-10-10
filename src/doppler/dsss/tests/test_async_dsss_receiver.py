@@ -551,11 +551,12 @@ def test_give_up_cap_never_stalls():
 @pytest.mark.parametrize("refine_n_fft", [1, 2])
 def test_a_refine_block_below_three_does_not_abort(refine_n_fft):
     """refine_n_fft is the carrier estimator's block. At 1 or 2 it floored
-    at 2, whose symmetric Hann window is all zeros: PSD refuses that window,
-    the estimator's create returned NULL, and this receiver -- which builds
-    the estimator under dp_xnn at its first refine -- aborted the process
-    (#1959). The block is floored at 3 now, so the refine runs; capped at a
-    few blocks it gives up into tracking with a finite carrier estimate."""
+    at 2, whose Hann window was then the symmetric [0, 0]: PSD refused that
+    window, the estimator's create returned NULL, and this receiver -- which
+    builds the estimator under dp_xnn at its first refine -- aborted the
+    process (#1959). The block is floored at 3 now (and PSD's periodic Hann
+    is [0, 1] at 2, #2053), so the refine runs; capped at a few blocks it
+    gives up into tracking with a finite carrier estimate."""
     cn0_dbhz = 70.0
     x, _data = _make_ramp_signal(cn0_dbhz, seed=9)
     rx = _new_receiver(

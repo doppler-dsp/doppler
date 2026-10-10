@@ -283,7 +283,10 @@ _FULL = "a finite full_scale > 0 when bits = 0"
         ({"mode": "exp", "alpha": -0.5}, _ALPHA),  # read negative power
         ({"mode": "exp", "alpha": 1.5}, _ALPHA),  # pass-through
         ({"mode": "exp", "alpha": float("nan")}, _ALPHA),  # poisoned bins
-        ({"n": 2, "window": "hann"}, _WINDOW),  # [0, 0]: zero gain (f)
+        # (f) zero gain: Kaiser past I0's overflow at an odd n, where every
+        # tap is finite / inf = 0. Hann at n = 2 was the case before #2053,
+        # as the symmetric [0, 0]; the periodic Hann is [0, 1].
+        ({"n": 3, "window": "kaiser", "beta": 2.3e5}, _WINDOW),
         # a NaN passed `<= 0.0`, and every reading divides by these
         ({"fs": float("nan")}, _FS),
         ({"fs": float("inf")}, _FS),
@@ -312,7 +315,9 @@ def test_create_refuses_what_it_used_to_accept(kwargs, clause):
         {"mode": "mean", "alpha": -0.5},
         {"mode": "maxhold", "alpha": -0.5},
         {"mode": "minhold", "alpha": float("nan")},
-        {"n": 2, "window": "blackman-harris"},  # tiny gain, not zero
+        {"n": 2, "window": "hann"},  # periodic [0, 1]: gain 1 (#2053)
+        {"n": 2, "window": "blackman-harris"},  # [6e-5, 1]: gain 1.00006
+        {"n": 3, "window": "kaiser", "beta": 2.2e5},  # below the overflow
         {"window": "kaiser", "beta": 2.2e5},  # large, still finite
         {"window": "hann", "beta": float("nan")},  # beta is Kaiser's alone
         {"bits": 64},

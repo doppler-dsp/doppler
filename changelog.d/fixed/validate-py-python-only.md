@@ -1,0 +1,1 @@
+- **`make validate-py VALIDATORS=<validate.py>` regenerates one Python-only object and exits 0 (#2048).** The only spelling used to be `make validate VALIDATORS=<it> VALIDATORS_C=`, which the C half's empty-glob guard refused, so the correct use exited 2. `make validate` keeps the guard. `make lint` runs both spellings with a stub validator to hold both.

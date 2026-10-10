@@ -207,13 +207,16 @@ void dp_detector_set_threshold (dp_detector_state_t *state, float threshold);
  * the Python return list as (lag, peak_mag, noise_est, test_stat) tuples.
  * In Python the result is always a list, even when empty.
  *
- * Python's push() has room for 1024 detections a call.  Once a push fills
- * it, every later frame of that call is lost, whether or not it would have
- * made a detection; the stream stays frame-aligned, so the next push starts
- * on a frame boundary.  Keep a chunk under 1024 frames.  Before v0.66 the
- * room was 64, and a push past it kept up to ring_cap/n - 1 of those frames
- * for the next call and dropped the rest.  #1992 and
- * just-buildit/just-makeit#2184 track sizing the list to the call.
+ * Python's push() has room for 1024 detections a call, so a push that
+ * completes at most 1024 frames, counting the carry, loses nothing.  One
+ * that fills the room loses the rest of its input, every later frame
+ * whether or not it would have made a detection, unless the rest is
+ * shorter than a frame: that is kept as the carry.  The next push stays on
+ * the frame grid only when what was lost is a whole number of frames;
+ * otherwise its lags are off by the remainder.  Before v0.66 the room was
+ * 64, and a push past it kept up to ring_cap/n - 1 of those frames for the
+ * next call and dropped the rest.  #1992 and just-buildit/just-makeit#2184
+ * track sizing the list to the call.
  *
  * @param state        Allocated detector (non-NULL).
  * @param in           CF32 input chunk of arbitrary length.
@@ -223,14 +226,16 @@ void dp_detector_set_threshold (dp_detector_state_t *state, float threshold);
  * @param max_results  Capacity of @p result (maximum detections to emit).
  *                     A full @p result never loses input: a frame yields at
  *                     most one detection, and once @p result is full the
- *                     push takes nothing more, so it stops on the boundary
- *                     of its last frame.  dp_detector_consumed() says how
- *                     many samples it took, and the caller offers the rest
+ *                     push takes the rest of its input only if the rest
+ *                     completes no frame (it is then the carry); otherwise
+ *                     it takes nothing more, stopping on the boundary of
+ *                     its last frame.  dp_detector_consumed() says how many
+ *                     samples it took, and the caller offers the rest
  *                     again.  Input that runs out mid-frame is the carry,
- *                     held inside (fewer than n samples).  A push with room
- *                     0 takes nothing, so a resume loop needs room for at
- *                     least one; with that, a push of any input takes at
- *                     least one sample.
+ *                     held inside (fewer than n samples).  With room 0 the
+ *                     push is full from the start, so a resume loop needs
+ *                     room for at least one; with that, a push of any
+ *                     input takes at least one sample.
  * @return Number of det_result_t entries written to @p result.
  * @code
  * >>> from doppler.spectral import CorrDetector
@@ -262,8 +267,10 @@ size_t dp_detector_consumed (const dp_detector_state_t *state);
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * corr child + the framer's carry (its own child blob, fewer than n samples)
  * + the last-dump result fields; scratch is config (rebuilt by create).
- * Version 2: the carry was the ring's raw contents, zero-padded to
- * ring_cap. */
+ * Version 2 is: the corr child, the framer child, peak_lag (u64), then
+ * peak_mag, noise_est and test_stat (f32).  Version 1 carried the ring's
+ * raw contents zero-padded to ring_cap and a last_corr flag; out_buf was
+ * never in the blob, so last_corr is None after set_state. */
 #define DETECTOR_STATE_MAGIC DP_FOURCC ('D','E','T','1')
 #define DETECTOR_STATE_VERSION 2u
 size_t dp_detector_state_bytes (const dp_detector_state_t *state);

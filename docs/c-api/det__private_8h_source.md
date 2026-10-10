@@ -226,6 +226,11 @@ det_framed_push (dp_f32_framer_t *fr, size_t n, const float _Complex *in,
       if (!drained)
         break; /* the input is used up: the rest of a frame is the carry */
     }
+  /* Full: the rest is the carry if it completes no frame. Fed with room
+     for none, the framer takes exactly that, and frames_for() says whether
+     it is all of the rest -- else the push stops on the boundary. */
+  if (ndet == max_results && dp_f32_framer_frames_for (fr, n_in - off) == 0)
+    off += dp_f32_framer_feed_view (fr, in + off, n_in - off, 0);
   *consumed = off;
   return ndet;
 }

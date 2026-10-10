@@ -95,8 +95,10 @@ size_t dp_detector_consumed (const dp_detector_state_t *state);
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * corr child + the framer's carry (its own child blob, fewer than n samples)
  * + the last-dump result fields; scratch is config (rebuilt by create).
- * Version 2: the carry was the ring's raw contents, zero-padded to
- * ring_cap. */
+ * Version 2 is: the corr child, the framer child, peak_lag (u64), then
+ * peak_mag, noise_est and test_stat (f32).  Version 1 carried the ring's
+ * raw contents zero-padded to ring_cap and a last_corr flag; out_buf was
+ * never in the blob, so last_corr is None after set_state. */
 #define DETECTOR_STATE_MAGIC DP_FOURCC ('D','E','T','1')
 #define DETECTOR_STATE_VERSION 2u
 size_t dp_detector_state_bytes (const dp_detector_state_t *state);

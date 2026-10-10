@@ -15,9 +15,12 @@
  * ## The certification -- the header's claims at scale
  *
  * Every row is held to an oracle built without the object: row k of a
- * stream is dp_psd_frame_db() of samples [k*hop, k*hop + nfft), and the
- * flushed row is the same of that slice zero-padded. PSD's kernel is the
- * one part the two share, and it is certified on its own.
+ * stream is PSD's per-frame reading of samples [k*hop, k*hop + nfft) --
+ * dp_psd_frame_linear() in power mode, dp_psd_frame_db() in dB mode -- and
+ * the flushed row is the same of that slice zero-padded. PSD's kernel is the
+ * one part the two share, and it is certified on its own. Every block below
+ * runs in both modes, power (the default) first, and leads with a `mode`
+ * column.
  *
  * - `rows`: 71 partitions per shape (fixed chunks and seeded random
  *   splits), every row against the oracle, every push sized by
@@ -30,8 +33,10 @@
  * - `flush`: every length 0..4*nfft+3, the grid row iff owed, once, then a
  *   restart.
  * - `state`: every cut point, two fills, a restore into a new object that
- *   holds a stray carry, the refusals, and another window's continuation.
- * - `level`: a full-scale tone on every bin, its peak index and level.
+ *   holds a stray carry, the refusals, and another window's and another
+ *   mode's continuation.
+ * - `level`: a full-scale tone on every bin, its peak index and level: 1.0
+ *   in power, 0 dB in dB, the error in the row's own units.
  *
  * ## U5 -- the dB floor (docs/design/spectrogram-measurements.md §5.4)
  *
@@ -291,8 +296,9 @@ floor_noise (int emit)
  *
  * Every row below is held to an oracle that shares no code with the object
  * beyond PSD's kernel, which is certified on its own: row k of a stream is
- * dp_psd_frame_db() of X[k*hop .. k*hop + nfft), and the flushed row is the
- * same of that slice zero-padded. A pass is a count of zero. */
+ * the kernel's reading of X[k*hop .. k*hop + nfft) in the row's mode, and
+ * the flushed row is the same of that slice zero-padded. A pass is a count
+ * of zero. */
 
 typedef float _Complex cf;
 
@@ -316,11 +322,23 @@ beta_of (int window)
   return window == 1 ? 8.0f : 0.0f;
 }
 
-static dp_spectrogram_state_t *
-make (size_t nfft, size_t hop, int window)
+/* The two modes, the default first, and their names in the CSV. */
+#define NMODES 2
+static const int MODES[NMODES] = { DP_SPECTROGRAM_POWER, DP_SPECTROGRAM_DB };
+static const char *const MODE_NAME[NMODES] = { "power", "db" };
+
+/** @brief The other mode, for the restore that crosses modes. */
+static int
+other_mode (int mode)
 {
-  return dp_spectrogram_create (nfft, hop, window, beta_of (window),
-                                DP_SPECTROGRAM_DB);
+  return mode == DP_SPECTROGRAM_POWER ? DP_SPECTROGRAM_DB
+                                      : DP_SPECTROGRAM_POWER;
+}
+
+static dp_spectrogram_state_t *
+make (int mode, size_t nfft, size_t hop, int window)
+{
+  return dp_spectrogram_create (nfft, hop, window, beta_of (window), mode);
 }
 
 /** @brief The header's composition, built separately: the oracle's PSD. */
@@ -331,6 +349,17 @@ ref_psd (size_t nfft, int window)
                         0.0);
 }
 
+/** @brief The header's statement of a row of `mode`, built separately:
+ *  dp_psd_frame_linear() for power, dp_psd_frame_db() for dB. */
+static void
+ref_row (dp_psd_state_t *p, int mode, const cf *frame, float *out)
+{
+  if (mode == DP_SPECTROGRAM_POWER)
+    dp_psd_frame_linear (p, frame, out);
+  else
+    dp_psd_frame_db (p, frame, out);
+}
+
 /** @brief Rows `len` samples make: (len - nfft) / hop + 1, or 0. */
 static size_t
 nrows (size_t len, size_t nfft, size_t hop)
@@ -338,9 +367,10 @@ nrows (size_t len, size_t nfft, size_t hop)
   return len >= nfft ? (len - nfft) / hop + 1 : 0;
 }
 
-/** @brief Rows 0..R-1 of X[0..len), each PSD's dBFS of its own slice. */
+/** @brief Rows 0..R-1 of X[0..len), each PSD's reading of its own slice. */
 static float *
-oracle (size_t nfft, size_t hop, int window, size_t len, size_t *rows)
+oracle (int mode, size_t nfft, size_t hop, int window, size_t len,
+        size_t *rows)
 {
   const size_t    r_n  = nrows (len, nfft, hop);
   float          *want = malloc ((r_n + 1) * nfft * sizeof *want);
@@ -353,7 +383,7 @@ oracle (size_t nfft, size_t hop, int window, size_t len, size_t *rows)
       return NULL;
     }
   for (size_t r = 0; r < r_n; r++)
-    dp_psd_frame_db (p, X + r * hop, want + r * nfft);
+    ref_row (p, mode, X + r * hop, want + r * nfft);
   dp_psd_destroy (p);
   *rows = r_n;
   return want;
@@ -397,10 +427,11 @@ typedef struct
  * sample.
  */
 static int
-partition (size_t nfft, size_t hop, int window, size_t len, size_t chunk,
-           uint32_t seed, const float *want, size_t r_n, float *got, part_t *t)
+partition (int mode, size_t nfft, size_t hop, int window, size_t len,
+           size_t chunk, uint32_t seed, const float *want, size_t r_n,
+           float *got, part_t *t)
 {
-  dp_spectrogram_state_t *s = make (nfft, hop, window);
+  dp_spectrogram_state_t *s = make (mode, nfft, hop, window);
   if (!s)
     return -1;
   memset (t, 0, sizeof *t);
@@ -458,59 +489,63 @@ sweep_rows (int emit)
     { 4096, 1365, 3, MAXLEN },
   };
   block (emit, "rows",
-         "every row against PSD's dBFS of its slice, under fixed and "
+         "every row against PSD's reading of its slice, under fixed and "
          "random partitions",
-         "nfft,hop,window,length,partitions,rows,pushes,bad_partitions,"
+         "mode,nfft,hop,window,length,partitions,rows,pushes,bad_partitions,"
          "bad_rows,count_wrong,room_wrong,consumed_short,carry_over,"
          "pending_wrong,late_rows");
-  for (size_t i = 0; i < sizeof shape / sizeof *shape; i++)
-    {
-      const size_t nfft = shape[i][0], hop = shape[i][1], len = shape[i][3];
-      const int    w = (int)shape[i][2];
-      size_t       r_n;
-      float       *want = oracle (nfft, hop, w, len, &r_n);
-      float       *got  = malloc ((r_n + 1) * nfft * sizeof *got);
-      if (!want || !got)
-        return 1;
-      /* distinct chunk sizes only: nfft - 1 is 7 at nfft 8 and 1 at 2 */
-      const size_t cand[]
-          = { 1, 7, nfft - 1, nfft, nfft + 1, 3 * nfft + 5, len };
-      size_t fixed[sizeof cand / sizeof *cand], nfixed = 0;
-      for (size_t a = 0; a < sizeof cand / sizeof *cand; a++)
-        {
-          int dup = 0;
-          for (size_t b = 0; b < nfixed; b++)
-            dup |= fixed[b] == cand[a];
-          if (!dup)
-            fixed[nfixed++] = cand[a];
-        }
-      part_t sum       = { 0 }, t;
-      size_t bad_parts = 0, late = 0;
-      for (size_t k = 0; k < nfixed + NRAND; k++)
-        {
-          const size_t chunk = k < nfixed ? fixed[k] : 0;
-          if (partition (nfft, hop, w, len, chunk, 1894u + (uint32_t)k, want,
-                         r_n, got, &t))
-            return 1;
-          bad_parts += t.bad_rows || t.count_wrong || t.room_wrong
-                       || t.consumed_short || t.carry_over || t.pending_wrong
-                       || t.late;
-          sum.pushes += t.pushes;
-          sum.bad_rows += t.bad_rows;
-          sum.count_wrong += t.count_wrong;
-          sum.room_wrong += t.room_wrong;
-          sum.consumed_short += t.consumed_short;
-          sum.carry_over += t.carry_over;
-          sum.pending_wrong += t.pending_wrong;
-          late += t.late;
-        }
-      printf ("%zu,%zu,%s,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu\n",
-              nfft, hop, WINDOW[w], len, nfixed + NRAND, r_n, sum.pushes,
-              bad_parts, sum.bad_rows, sum.count_wrong, sum.room_wrong,
-              sum.consumed_short, sum.carry_over, sum.pending_wrong, late);
-      free (want);
-      free (got);
-    }
+  for (size_t m = 0; m < NMODES; m++)
+    for (size_t i = 0; i < sizeof shape / sizeof *shape; i++)
+      {
+        const int    mode = MODES[m];
+        const size_t nfft = shape[i][0], hop = shape[i][1], len = shape[i][3];
+        const int    w = (int)shape[i][2];
+        size_t       r_n;
+        float       *want = oracle (mode, nfft, hop, w, len, &r_n);
+        float       *got  = malloc ((r_n + 1) * nfft * sizeof *got);
+        if (!want || !got)
+          return 1;
+        /* distinct chunk sizes only: nfft - 1 is 7 at nfft 8 and 1 at 2 */
+        const size_t cand[]
+            = { 1, 7, nfft - 1, nfft, nfft + 1, 3 * nfft + 5, len };
+        size_t fixed[sizeof cand / sizeof *cand], nfixed = 0;
+        for (size_t a = 0; a < sizeof cand / sizeof *cand; a++)
+          {
+            int dup = 0;
+            for (size_t b = 0; b < nfixed; b++)
+              dup |= fixed[b] == cand[a];
+            if (!dup)
+              fixed[nfixed++] = cand[a];
+          }
+        part_t sum       = { 0 }, t;
+        size_t bad_parts = 0, late = 0;
+        for (size_t k = 0; k < nfixed + NRAND; k++)
+          {
+            const size_t chunk = k < nfixed ? fixed[k] : 0;
+            if (partition (mode, nfft, hop, w, len, chunk, 1894u + (uint32_t)k,
+                           want, r_n, got, &t))
+              return 1;
+            bad_parts += t.bad_rows || t.count_wrong || t.room_wrong
+                         || t.consumed_short || t.carry_over || t.pending_wrong
+                         || t.late;
+            sum.pushes += t.pushes;
+            sum.bad_rows += t.bad_rows;
+            sum.count_wrong += t.count_wrong;
+            sum.room_wrong += t.room_wrong;
+            sum.consumed_short += t.consumed_short;
+            sum.carry_over += t.carry_over;
+            sum.pending_wrong += t.pending_wrong;
+            late += t.late;
+          }
+        printf ("%s,%zu,%zu,%s,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,"
+                "%zu\n",
+                MODE_NAME[m], nfft, hop, WINDOW[w], len, nfixed + NRAND, r_n,
+                sum.pushes, bad_parts, sum.bad_rows, sum.count_wrong,
+                sum.room_wrong, sum.consumed_short, sum.carry_over,
+                sum.pending_wrong, late);
+        free (want);
+        free (got);
+      }
   return 0;
 }
 
@@ -522,86 +557,93 @@ sweep_backpressure (int emit)
   const size_t        nfft = 256, hop = 64, len = 100003;
   static const size_t chunk[] = { 1, 37, 700, 5000, 100003 };
   static const size_t rooms[] = { 1, 2, 7 };
-  size_t              r_n;
-  float              *want = oracle (nfft, hop, 0, len, &r_n);
-  float              *got  = malloc ((r_n + 8) * nfft * sizeof *got);
-  float              *buf  = malloc ((7 * nfft + 13) * sizeof *buf);
-  if (!want || !got || !buf)
-    return 1;
   block (emit, "backpressure",
          "nfft 256, hop 64, Hann: an out of `room_rows` rows plus 13 floats, "
          "re-offered until taken",
-         "chunk,room_rows,room_floats,offered,taken,stalls,rows,bad_rows,"
+         "mode,chunk,room_rows,room_floats,offered,taken,stalls,rows,bad_rows,"
          "count_wrong,over_room,partial_writes,tail_touched,not_maximal,"
          "carry_over,no_progress");
-  for (size_t c = 0; c < sizeof chunk / sizeof *chunk; c++)
-    for (size_t q = 0; q < sizeof rooms / sizeof *rooms; q++)
-      {
-        dp_spectrogram_state_t *s = make (nfft, hop, 0);
-        if (!s)
-          return 1;
-        const size_t full = rooms[q] * nfft, cap = full + 13;
-        size_t       offered = 0, taken = 0, stalls = 0, made = 0, off = 0;
-        size_t       over = 0, partial = 0, touched = 0, not_max = 0;
-        size_t       carry = 0, stuck = 0;
-        while (off < len && !stuck)
+  for (size_t m = 0; m < NMODES; m++)
+    {
+      const int mode = MODES[m];
+      size_t    r_n;
+      float    *want = oracle (mode, nfft, hop, 0, len, &r_n);
+      float    *got  = malloc ((r_n + 8) * nfft * sizeof *got);
+      float    *buf  = malloc ((7 * nfft + 13) * sizeof *buf);
+      if (!want || !got || !buf)
+        return 1;
+      for (size_t c = 0; c < sizeof chunk / sizeof *chunk; c++)
+        for (size_t q = 0; q < sizeof rooms / sizeof *rooms; q++)
           {
-            const size_t n    = chunk[c] < len - off ? chunk[c] : len - off;
-            size_t       done = 0;
-            while (done < n)
+            dp_spectrogram_state_t *s = make (mode, nfft, hop, 0);
+            if (!s)
+              return 1;
+            const size_t full = rooms[q] * nfft, cap = full + 13;
+            size_t       offered = 0, taken = 0, stalls = 0, made = 0, off = 0;
+            size_t       over = 0, partial = 0, touched = 0, not_max = 0;
+            size_t       carry = 0, stuck = 0;
+            while (off < len && !stuck)
               {
-                for (size_t i = 0; i < cap; i++)
-                  buf[i] = NAN;
-                const size_t w    = dp_spectrogram_push (s, X + off + done,
-                                                         n - done, buf, cap);
-                const size_t took = dp_spectrogram_consumed (s);
-                offered += n - done;
-                taken += took;
-                over += w > full;
-                partial += w % nfft != 0;
-                for (size_t i = w < cap ? w : cap; i < cap; i++)
-                  if (!isnan (buf[i]))
-                    {
-                      touched++;
-                      break;
-                    }
-                /* stopping short is right only when the room is full AND
-                   the next sample would complete a row: by arithmetic on
-                   the samples taken so far, not the object's rows_for */
-                const size_t so_far = off + done + took;
-                if (took < n - done)
+                const size_t n = chunk[c] < len - off ? chunk[c] : len - off;
+                size_t       done = 0;
+                while (done < n)
                   {
-                    stalls++;
-                    not_max += w != full
-                               || nrows (so_far + 1, nfft, hop)
-                                      == nrows (so_far, nfft, hop);
+                    for (size_t i = 0; i < cap; i++)
+                      buf[i] = NAN;
+                    const size_t w = dp_spectrogram_push (s, X + off + done,
+                                                          n - done, buf, cap);
+                    const size_t took = dp_spectrogram_consumed (s);
+                    offered += n - done;
+                    taken += took;
+                    over += w > full;
+                    partial += w % nfft != 0;
+                    for (size_t i = w < cap ? w : cap; i < cap; i++)
+                      if (!isnan (buf[i]))
+                        {
+                          touched++;
+                          break;
+                        }
+                    /* stopping short is right only when the room is full AND
+                       the next sample would complete a row: by arithmetic on
+                       the samples taken so far, not the object's rows_for */
+                    const size_t so_far = off + done + took;
+                    if (took < n - done)
+                      {
+                        stalls++;
+                        not_max += w != full
+                                   || nrows (so_far + 1, nfft, hop)
+                                          == nrows (so_far, nfft, hop);
+                      }
+                    const size_t keep = w < full ? w : full;
+                    if (made + keep <= (r_n + 8) * nfft)
+                      memcpy (got + made, buf, keep * sizeof *buf);
+                    made += keep;
+                    const size_t r = made / nfft;
+                    carry += r * hop > so_far || so_far - r * hop >= nfft;
+                    if (!took && !w)
+                      {
+                        stuck = 1; /* no progress: a defect, not a stall */
+                        break;
+                      }
+                    done += took;
                   }
-                const size_t keep = w < full ? w : full;
-                if (made + keep <= (r_n + 8) * nfft)
-                  memcpy (got + made, buf, keep * sizeof *buf);
-                made += keep;
-                const size_t r = made / nfft;
-                carry += r * hop > so_far || so_far - r * hop >= nfft;
-                if (!took && !w)
-                  {
-                    stuck = 1; /* no progress: a defect, not a stall */
-                    break;
-                  }
-                done += took;
+                off += n;
               }
-            off += n;
-          }
-        const size_t rows = made / nfft;
-        printf ("%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%d,%zu,%zu,%zu,%zu,%zu,%zu\n",
-                chunk[c], rooms[q], cap, offered, taken, stalls, rows,
+            const size_t rows = made / nfft;
+            printf (
+                "%s,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%d,%zu,%zu,%zu,%zu,%zu,"
+                "%zu\n",
+                MODE_NAME[m], chunk[c], rooms[q], cap, offered, taken, stalls,
+                rows,
                 rows_differing (got, want, rows < r_n ? rows : r_n, nfft),
                 made != r_n * nfft, over, partial, touched, not_max, carry,
                 stuck);
-        dp_spectrogram_destroy (s);
-      }
-  free (want);
-  free (got);
-  free (buf);
+            dp_spectrogram_destroy (s);
+          }
+      free (want);
+      free (got);
+      free (buf);
+    }
   return 0;
 }
 
@@ -615,65 +657,70 @@ sweep_sizing (int emit)
   block (emit, "sizing",
          "from every carry state (p samples pushed, 0 <= p < nfft + hop), "
          "rows_for / push_max_out / a push against the stream's arithmetic",
-         "nfft,hop,positions,trials,restore_refused,rows_for_wrong,"
+         "mode,nfft,hop,positions,trials,restore_refused,rows_for_wrong,"
          "max_out_wrong,push_wrong,one_less_wrong,saturates");
-  for (size_t i = 0; i < sizeof shape / sizeof *shape; i++)
-    {
-      const size_t nfft = shape[i][0], hop = shape[i][1];
-      const size_t ns[] = { 0,        1,    hop - 1,  hop,         hop + 1,
-                            nfft - 1, nfft, nfft + 1, 3 * nfft + 5 };
-      const size_t cap  = ((4 * nfft + 5) / hop + 2) * nfft;
-      dp_spectrogram_state_t *base = make (nfft, hop, 3);
-      dp_spectrogram_state_t *t    = make (nfft, hop, 3);
-      float                  *out  = malloc (cap * sizeof *out);
-      unsigned char          *blob
-          = base ? malloc (dp_spectrogram_state_bytes (base)) : NULL;
-      if (!base || !t || !out || !blob)
-        return 1;
-      size_t trials = 0, refused = 0, rf = 0, mo = 0, pw = 0, ol = 0;
-      for (size_t p = 0; p < nfft + hop; p++)
-        {
-          dp_spectrogram_get_state (base, blob);
-          for (size_t j = 0; j < sizeof ns / sizeof *ns; j++)
-            {
-              const size_t n = ns[j];
-              const size_t r = nrows (p + n, nfft, hop) - nrows (p, nfft, hop);
-              trials++;
-              if (dp_spectrogram_set_state (t, blob) != DP_OK)
-                {
-                  refused++;
-                  continue;
-                }
-              rf += dp_spectrogram_rows_for (t, n) != r;
-              mo += dp_spectrogram_push_max_out (t, n) != r * nfft;
-              pw += dp_spectrogram_push (t, X + p, n, out, r * nfft)
-                        != r * nfft
-                    || dp_spectrogram_consumed (t) != n;
-              if (r > 0) /* one row less: fewer taken, one row fewer */
-                {
-                  refused += dp_spectrogram_set_state (t, blob) != DP_OK;
-                  ol += dp_spectrogram_push (t, X + p, n, out, (r - 1) * nfft)
-                            != (r - 1) * nfft
-                        || dp_spectrogram_consumed (t) >= n;
-                }
-            }
-          dp_spectrogram_push (base, X + p, 1, out,
-                               dp_spectrogram_push_max_out (base, 1));
-        }
-      /* saturation: from a fresh state, rows for SIZE_MAX samples times
-         nfft overflows, and must read SIZE_MAX, never a wrapped count */
-      dp_spectrogram_reset (t);
-      const size_t big      = dp_spectrogram_rows_for (t, SIZE_MAX);
-      const size_t sat_want = big > SIZE_MAX / nfft ? SIZE_MAX : big * nfft;
-      const int sat = big == nrows (SIZE_MAX, nfft, hop)
-                      && dp_spectrogram_push_max_out (t, SIZE_MAX) == sat_want;
-      printf ("%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%d\n", nfft, hop,
-              nfft + hop, trials, refused, rf, mo, pw, ol, sat);
-      free (blob);
-      free (out);
-      dp_spectrogram_destroy (t);
-      dp_spectrogram_destroy (base);
-    }
+  for (size_t m = 0; m < NMODES; m++)
+    for (size_t i = 0; i < sizeof shape / sizeof *shape; i++)
+      {
+        const int    mode = MODES[m];
+        const size_t nfft = shape[i][0], hop = shape[i][1];
+        const size_t ns[] = { 0,        1,    hop - 1,  hop,         hop + 1,
+                              nfft - 1, nfft, nfft + 1, 3 * nfft + 5 };
+        const size_t cap  = ((4 * nfft + 5) / hop + 2) * nfft;
+        dp_spectrogram_state_t *base = make (mode, nfft, hop, 3);
+        dp_spectrogram_state_t *t    = make (mode, nfft, hop, 3);
+        float                  *out  = malloc (cap * sizeof *out);
+        unsigned char          *blob
+            = base ? malloc (dp_spectrogram_state_bytes (base)) : NULL;
+        if (!base || !t || !out || !blob)
+          return 1;
+        size_t trials = 0, refused = 0, rf = 0, mo = 0, pw = 0, ol = 0;
+        for (size_t p = 0; p < nfft + hop; p++)
+          {
+            dp_spectrogram_get_state (base, blob);
+            for (size_t j = 0; j < sizeof ns / sizeof *ns; j++)
+              {
+                const size_t n = ns[j];
+                const size_t r
+                    = nrows (p + n, nfft, hop) - nrows (p, nfft, hop);
+                trials++;
+                if (dp_spectrogram_set_state (t, blob) != DP_OK)
+                  {
+                    refused++;
+                    continue;
+                  }
+                rf += dp_spectrogram_rows_for (t, n) != r;
+                mo += dp_spectrogram_push_max_out (t, n) != r * nfft;
+                pw += dp_spectrogram_push (t, X + p, n, out, r * nfft)
+                          != r * nfft
+                      || dp_spectrogram_consumed (t) != n;
+                if (r > 0) /* one row less: fewer taken, one row fewer */
+                  {
+                    refused += dp_spectrogram_set_state (t, blob) != DP_OK;
+                    ol += dp_spectrogram_push (t, X + p, n, out,
+                                               (r - 1) * nfft)
+                              != (r - 1) * nfft
+                          || dp_spectrogram_consumed (t) >= n;
+                  }
+              }
+            dp_spectrogram_push (base, X + p, 1, out,
+                                 dp_spectrogram_push_max_out (base, 1));
+          }
+        /* saturation: from a fresh state, rows for SIZE_MAX samples times
+           nfft overflows, and must read SIZE_MAX, never a wrapped count */
+        dp_spectrogram_reset (t);
+        const size_t big      = dp_spectrogram_rows_for (t, SIZE_MAX);
+        const size_t sat_want = big > SIZE_MAX / nfft ? SIZE_MAX : big * nfft;
+        const int    sat
+            = big == nrows (SIZE_MAX, nfft, hop)
+              && dp_spectrogram_push_max_out (t, SIZE_MAX) == sat_want;
+        printf ("%s,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%d\n", MODE_NAME[m],
+                nfft, hop, nfft + hop, trials, refused, rf, mo, pw, ol, sat);
+        free (blob);
+        free (out);
+        dp_spectrogram_destroy (t);
+        dp_spectrogram_destroy (base);
+      }
   return 0;
 }
 
@@ -687,64 +734,69 @@ sweep_flush (int emit)
           { 8, 1, 2 }, { 64, 16, 3 }, { 256, 64, 0 } };
   block (emit, "flush",
          "every stream length 0..4*nfft+3: push, flush, flush again, restart",
-         "nfft,hop,window,lengths,emitted,wrong_pending,wrong_decision,"
+         "mode,nfft,hop,window,lengths,emitted,wrong_pending,wrong_decision,"
          "off_grid,second_nonzero,after_flush_wrong,bad_restart");
-  for (size_t i = 0; i < sizeof shape / sizeof *shape; i++)
-    {
-      const size_t nfft = shape[i][0], hop = shape[i][1];
-      const int    w    = (int)shape[i][2];
-      const size_t lens = 4 * nfft + 4;
-      float *out = malloc ((nrows (lens, nfft, hop) + 1) * nfft * sizeof *out);
-      float *row = malloc (nfft * sizeof *row);
-      float *want       = malloc (nfft * sizeof *want);
-      cf    *frame      = malloc (nfft * sizeof *frame);
-      dp_psd_state_t *p = ref_psd (nfft, w);
-      if (!out || !row || !want || !frame || !p)
-        return 1;
-      size_t emitted = 0, wp = 0, wd = 0, og = 0, sn = 0, af = 0, br = 0;
-      for (size_t len = 0; len < lens; len++)
-        {
-          dp_spectrogram_state_t *s = make (nfft, hop, w);
-          if (!s)
-            return 1;
-          const size_t made = dp_spectrogram_push (
-              s, X, len, out, dp_spectrogram_push_max_out (s, len));
-          const size_t r = made / nfft, covered = r ? (r - 1) * hop + nfft : 0;
-          const size_t owed = len > covered ? len - covered : 0;
-          wp += dp_spectrogram_pending (s) != owed;
-          for (size_t j = 0; j < nfft; j++)
-            row[j] = NAN;
-          const size_t wf = dp_spectrogram_flush (s, row);
-          wd += (wf != 0 && wf != nfft) || (wf == nfft) != (owed > 0);
-          if (wf == nfft)
-            {
-              emitted++;
-              /* the next row start, k*hop, zero-padded past the end */
-              const size_t start = r * hop;
-              for (size_t j = 0; j < nfft; j++)
-                frame[j] = start + j < len ? X[start + j] : (cf)0.0f;
-              dp_psd_frame_db (p, frame, want);
-              og += memcmp (row, want, nfft * sizeof *row) != 0;
-            }
-          sn += dp_spectrogram_flush (s, row) != 0;
-          af += dp_spectrogram_consumed (s) != 0
-                || dp_spectrogram_pending (s) != 0;
-          /* restarted at sample 0: the next nfft samples are row 0 */
-          dp_psd_frame_db (p, X, want);
-          for (size_t j = 0; j < nfft; j++)
-            row[j] = NAN;
-          br += dp_spectrogram_push (s, X, nfft, row, nfft) != nfft
-                || memcmp (row, want, nfft * sizeof *row) != 0;
-          dp_spectrogram_destroy (s);
-        }
-      printf ("%zu,%zu,%s,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu\n", nfft, hop,
-              WINDOW[w], lens, emitted, wp, wd, og, sn, af, br);
-      dp_psd_destroy (p);
-      free (frame);
-      free (want);
-      free (row);
-      free (out);
-    }
+  for (size_t m = 0; m < NMODES; m++)
+    for (size_t i = 0; i < sizeof shape / sizeof *shape; i++)
+      {
+        const int    mode = MODES[m];
+        const size_t nfft = shape[i][0], hop = shape[i][1];
+        const int    w    = (int)shape[i][2];
+        const size_t lens = 4 * nfft + 4;
+        float       *out
+            = malloc ((nrows (lens, nfft, hop) + 1) * nfft * sizeof *out);
+        float          *row   = malloc (nfft * sizeof *row);
+        float          *want  = malloc (nfft * sizeof *want);
+        cf             *frame = malloc (nfft * sizeof *frame);
+        dp_psd_state_t *p     = ref_psd (nfft, w);
+        if (!out || !row || !want || !frame || !p)
+          return 1;
+        size_t emitted = 0, wp = 0, wd = 0, og = 0, sn = 0, af = 0, br = 0;
+        for (size_t len = 0; len < lens; len++)
+          {
+            dp_spectrogram_state_t *s = make (mode, nfft, hop, w);
+            if (!s)
+              return 1;
+            const size_t made = dp_spectrogram_push (
+                s, X, len, out, dp_spectrogram_push_max_out (s, len));
+            const size_t r       = made / nfft,
+                         covered = r ? (r - 1) * hop + nfft : 0;
+            const size_t owed    = len > covered ? len - covered : 0;
+            wp += dp_spectrogram_pending (s) != owed;
+            for (size_t j = 0; j < nfft; j++)
+              row[j] = NAN;
+            const size_t wf = dp_spectrogram_flush (s, row);
+            wd += (wf != 0 && wf != nfft) || (wf == nfft) != (owed > 0);
+            if (wf == nfft)
+              {
+                emitted++;
+                /* the next row start, k*hop, zero-padded past the end */
+                const size_t start = r * hop;
+                for (size_t j = 0; j < nfft; j++)
+                  frame[j] = start + j < len ? X[start + j] : (cf)0.0f;
+                ref_row (p, mode, frame, want);
+                og += memcmp (row, want, nfft * sizeof *row) != 0;
+              }
+            sn += dp_spectrogram_flush (s, row) != 0;
+            af += dp_spectrogram_consumed (s) != 0
+                  || dp_spectrogram_pending (s) != 0;
+            /* restarted at sample 0: the next nfft samples are row 0 */
+            ref_row (p, mode, X, want);
+            for (size_t j = 0; j < nfft; j++)
+              row[j] = NAN;
+            br += dp_spectrogram_push (s, X, nfft, row, nfft) != nfft
+                  || memcmp (row, want, nfft * sizeof *row) != 0;
+            dp_spectrogram_destroy (s);
+          }
+        printf ("%s,%zu,%zu,%s,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu\n",
+                MODE_NAME[m], nfft, hop, WINDOW[w], lens, emitted, wp, wd, og,
+                sn, af, br);
+        dp_psd_destroy (p);
+        free (frame);
+        free (want);
+        free (row);
+        free (out);
+      }
   return 0;
 }
 
@@ -771,208 +823,237 @@ sweep_state (int emit)
   static const size_t shape[][4] = {
     { 8, 3, 0, 1 }, { 64, 16, 1, 1 }, { 256, 64, 2, 1 }, { 1024, 256, 3, 13 }
   };
-  block (emit, "state",
-         "a cut at every point 0..3*nfft+3 (every 13th at nfft 1024): "
-         "serialize, restore into a new object holding a stray carry, "
-         "finish in pieces of 5",
-         "nfft,hop,window,cuts,bytes,distinct_sizes,size_varies,unwritten,"
-         "restore_refused,after_restore_wrong,resume_bad,corrupt_tried,"
-         "corrupt_refused,target_changed,hop_tried,hop_refused,nfft_tried,"
-         "nfft_refused,window_refused,window_wrong");
-  for (size_t i = 0; i < sizeof shape / sizeof *shape; i++)
-    {
-      const size_t            nfft = shape[i][0], hop = shape[i][1];
-      const size_t            stride = shape[i][3], len = 4 * nfft + hop + 37;
-      const int               w = (int)shape[i][2], w2 = (w + 1) % 4;
-      const size_t            hop2 = hop < nfft ? hop + 1 : hop - 1;
-      size_t                  r_n, r_d;
-      float                  *want   = oracle (nfft, hop, w, len, &r_n);
-      float                  *wd     = oracle (nfft, hop, w2, len, &r_d);
-      float                  *got    = malloc ((r_n + 2) * nfft * sizeof *got);
-      dp_spectrogram_state_t *target = make (nfft, hop, w);
-      dp_spectrogram_state_t *twin   = make (nfft, hop, w);
-      if (!want || !wd || !got || !target || !twin)
-        return 1;
-      const size_t   bytes = dp_spectrogram_state_bytes (target);
-      unsigned char *b1    = malloc (bytes);
-      unsigned char *b2    = malloc (bytes);
-      unsigned char *lie   = malloc (bytes);
-      if (!b1 || !b2 || !lie)
-        return 1;
+  block (
+      emit, "state",
+      "a cut at every point 0..3*nfft+3 (every 13th at nfft 1024): "
+      "serialize, restore into a new object holding a stray carry, "
+      "finish in pieces of 5",
+      "mode,nfft,hop,window,cuts,bytes,distinct_sizes,size_varies,unwritten,"
+      "restore_refused,after_restore_wrong,resume_bad,corrupt_tried,"
+      "corrupt_refused,target_changed,hop_tried,hop_refused,nfft_tried,"
+      "nfft_refused,window_refused,window_wrong,mode_refused,"
+      "mode_wrong");
+  for (size_t m = 0; m < NMODES; m++)
+    for (size_t i = 0; i < sizeof shape / sizeof *shape; i++)
+      {
+        const int    mode = MODES[m], mode2 = other_mode (mode);
+        const size_t nfft = shape[i][0], hop = shape[i][1];
+        const size_t stride = shape[i][3], len = 4 * nfft + hop + 37;
+        const int    w = (int)shape[i][2], w2 = (w + 1) % 4;
+        const size_t hop2 = hop < nfft ? hop + 1 : hop - 1;
+        size_t       r_n, r_d, r_m;
+        float       *want = oracle (mode, nfft, hop, w, len, &r_n);
+        float       *wd   = oracle (mode, nfft, hop, w2, len, &r_d);
+        float       *wm   = oracle (mode2, nfft, hop, w, len, &r_m);
+        float       *got  = malloc ((r_n + 2) * nfft * sizeof *got);
+        dp_spectrogram_state_t *target = make (mode, nfft, hop, w);
+        dp_spectrogram_state_t *twin   = make (mode, nfft, hop, w);
+        if (!want || !wd || !wm || !got || !target || !twin)
+          return 1;
+        const size_t   bytes = dp_spectrogram_state_bytes (target);
+        unsigned char *b1    = malloc (bytes);
+        unsigned char *b2    = malloc (bytes);
+        unsigned char *lie   = malloc (bytes);
+        if (!b1 || !b2 || !lie)
+          return 1;
 
-      /* the size is a function of nfft alone */
-      size_t                  varies = 0;
-      dp_spectrogram_state_t *o[3]
-          = { make (nfft, 1, 0), make (nfft, nfft, 3), make (nfft, hop2, 1) };
-      for (int k = 0; k < 3; k++)
-        {
-          if (!o[k])
-            return 1;
-          varies += dp_spectrogram_state_bytes (o[k]) != bytes;
-          dp_spectrogram_destroy (o[k]);
-        }
+        /* the size is a function of nfft alone */
+        size_t                  varies = 0;
+        dp_spectrogram_state_t *o[3]
+            = { make (mode, nfft, 1, 0), make (mode, nfft, nfft, 3),
+                make (mode, nfft, hop2, 1) };
+        for (int k = 0; k < 3; k++)
+          {
+            if (!o[k])
+              return 1;
+            varies += dp_spectrogram_state_bytes (o[k]) != bytes;
+            dp_spectrogram_destroy (o[k]);
+          }
 
-      /* the refusal target holds a stream of its own; its twin is never
-         offered a bad blob */
-      float scratch[8];
-      dp_spectrogram_push (target, X + 7, 5, scratch, 0);
-      dp_spectrogram_push (twin, X + 7, 5, scratch, 0);
+        /* the refusal target holds a stream of its own; its twin is never
+           offered a bad blob */
+        float scratch[8];
+        dp_spectrogram_push (target, X + 7, 5, scratch, 0);
+        dp_spectrogram_push (twin, X + 7, 5, scratch, 0);
 
-      size_t cuts = 0, sizes = 0, unwritten = 0, refused = 0, after = 0;
-      size_t resume = 0, ctried = 0, crefused = 0, changed = 0;
-      size_t htried = 0, hrefused = 0, ntried = 0, nrefused = 0;
-      size_t wrefused = 0, wwrong = 0;
-      for (size_t cut = 0; cut <= 3 * nfft + 3; cut += stride)
-        {
-          cuts++;
-          /* poisoned per cut: a row counted but not written reads NaN */
-          for (size_t k = 0; k < (r_n + 2) * nfft; k++)
-            got[k] = NAN;
-          dp_spectrogram_state_t *b = make (nfft, hop, w);
-          dp_spectrogram_state_t *c = make (nfft, hop, w);
-          dp_spectrogram_state_t *v = make (nfft, hop, w2);
-          if (!b || !c || !v)
-            return 1;
-          const size_t rb
-              = dp_spectrogram_push (b, X, cut, got,
-                                     dp_spectrogram_push_max_out (b, cut))
-                / nfft;
-          sizes += dp_spectrogram_state_bytes (b) != bytes;
-          memset (b1, 0xAA, bytes);
-          memset (b2, 0x55, bytes);
-          dp_spectrogram_get_state (b, b1);
-          dp_spectrogram_get_state (b, b2);
-          unwritten += memcmp (b1, b2, bytes) != 0;
+        size_t cuts = 0, sizes = 0, unwritten = 0, refused = 0, after = 0;
+        size_t resume = 0, ctried = 0, crefused = 0, changed = 0;
+        size_t htried = 0, hrefused = 0, ntried = 0, nrefused = 0;
+        size_t wrefused = 0, wwrong = 0, mrefused = 0, mwrong = 0;
+        for (size_t cut = 0; cut <= 3 * nfft + 3; cut += stride)
+          {
+            cuts++;
+            /* poisoned per cut: a row counted but not written reads NaN */
+            for (size_t k = 0; k < (r_n + 2) * nfft; k++)
+              got[k] = NAN;
+            dp_spectrogram_state_t *b = make (mode, nfft, hop, w);
+            dp_spectrogram_state_t *c = make (mode, nfft, hop, w);
+            dp_spectrogram_state_t *v = make (mode, nfft, hop, w2);
+            dp_spectrogram_state_t *u = make (mode2, nfft, hop, w);
+            if (!b || !c || !v || !u)
+              return 1;
+            const size_t rb
+                = dp_spectrogram_push (b, X, cut, got,
+                                       dp_spectrogram_push_max_out (b, cut))
+                  / nfft;
+            sizes += dp_spectrogram_state_bytes (b) != bytes;
+            memset (b1, 0xAA, bytes);
+            memset (b2, 0x55, bytes);
+            dp_spectrogram_get_state (b, b1);
+            dp_spectrogram_get_state (b, b2);
+            unwritten += memcmp (b1, b2, bytes) != 0;
 
-          /* resume in a new object, bit for bit. It is not pristine: a
-             stray 3-sample carry and a consumed of 3, so the restore has
-             to REPLACE the carry and reset the count, not find them
-             already right */
-          dp_spectrogram_push (c, X + 700, 3, scratch, 0);
-          dp_spectrogram_push (v, X + 700, 3, scratch, 0);
-          if (dp_spectrogram_set_state (c, b1) != DP_OK)
-            refused++;
-          after += dp_spectrogram_consumed (c) != 0
+            /* resume in a new object, bit for bit. It is not pristine: a
+               stray 3-sample carry and a consumed of 3, so the restore has
+               to REPLACE the carry and reset the count, not find them
+               already right */
+            dp_spectrogram_push (c, X + 700, 3, scratch, 0);
+            dp_spectrogram_push (v, X + 700, 3, scratch, 0);
+            dp_spectrogram_push (u, X + 700, 3, scratch, 0);
+            if (dp_spectrogram_set_state (c, b1) != DP_OK)
+              refused++;
+            after
+                += dp_spectrogram_consumed (c) != 0
                    || dp_spectrogram_pending (c) != dp_spectrogram_pending (b);
-          const size_t rc
-              = push_in_fives (c, cut, len, got + rb * nfft) / nfft;
-          resume
-              += rb + rc != r_n || rows_differing (got, want, r_n, nfft) != 0;
+            const size_t rc
+                = push_in_fives (c, cut, len, got + rb * nfft) / nfft;
+            resume += rb + rc != r_n
+                      || rows_differing (got, want, r_n, nfft) != 0;
 
-          /* another window is NOT refused; the rows that follow are its */
-          for (size_t k = rb * nfft; k < (r_n + 2) * nfft; k++)
-            got[k] = NAN;
-          if (dp_spectrogram_set_state (v, b1) != DP_OK)
-            wrefused++;
-          else
-            {
-              const size_t rv
-                  = push_in_fives (v, cut, len, got + rb * nfft) / nfft;
-              wwrong += rb + rv != r_d
-                        || rows_differing (got + rb * nfft, wd + rb * nfft, rv,
-                                           nfft)
-                               != 0;
-            }
+            /* another window is NOT refused; the rows that follow are its */
+            for (size_t k = rb * nfft; k < (r_n + 2) * nfft; k++)
+              got[k] = NAN;
+            if (dp_spectrogram_set_state (v, b1) != DP_OK)
+              wrefused++;
+            else
+              {
+                const size_t rv
+                    = push_in_fives (v, cut, len, got + rb * nfft) / nfft;
+                wwrong += rb + rv != r_d
+                          || rows_differing (got + rb * nfft, wd + rb * nfft,
+                                             rv, nfft)
+                                 != 0;
+              }
 
-          /* corrupt envelopes: magic, version, size */
-          const size_t pend = dp_spectrogram_pending (target);
-          const size_t cons = dp_spectrogram_consumed (target);
-          for (int k = 0; k < 3; k++)
+            /* nor is another mode; the rows that follow are its units */
+            for (size_t k = rb * nfft; k < (r_n + 2) * nfft; k++)
+              got[k] = NAN;
+            if (dp_spectrogram_set_state (u, b1) != DP_OK)
+              mrefused++;
+            else
+              {
+                const size_t ru
+                    = push_in_fives (u, cut, len, got + rb * nfft) / nfft;
+                mwrong += rb + ru != r_m
+                          || rows_differing (got + rb * nfft, wm + rb * nfft,
+                                             ru, nfft)
+                                 != 0;
+              }
+
+            /* corrupt envelopes: magic, version, size */
+            const size_t pend = dp_spectrogram_pending (target);
+            const size_t cons = dp_spectrogram_consumed (target);
+            for (int k = 0; k < 3; k++)
+              {
+                memcpy (lie, b1, bytes);
+                dp_state_hdr_t h;
+                memcpy (&h, lie, sizeof h);
+                if (k == 0)
+                  h.magic ^= 0xFFu;
+                else if (k == 1)
+                  h.version++;
+                else
+                  h.bytes += 8;
+                memcpy (lie, &h, sizeof h);
+                ctried++;
+                crefused += dp_spectrogram_set_state (target, lie)
+                            == DP_ERR_INVALID;
+                changed += dp_spectrogram_pending (target) != pend
+                           || dp_spectrogram_consumed (target) != cons;
+              }
+
+            /* the same nfft at another hop: the size cannot tell */
             {
-              memcpy (lie, b1, bytes);
-              dp_state_hdr_t h;
-              memcpy (&h, lie, sizeof h);
-              if (k == 0)
-                h.magic ^= 0xFFu;
-              else if (k == 1)
-                h.version++;
-              else
-                h.bytes += 8;
-              memcpy (lie, &h, sizeof h);
-              ctried++;
-              crefused
+              dp_spectrogram_state_t *h = make (mode, nfft, hop2, w);
+              if (!h || dp_spectrogram_state_bytes (h) != bytes)
+                return 1;
+              dp_spectrogram_push (h, X, cut, got,
+                                   dp_spectrogram_push_max_out (h, cut));
+              dp_spectrogram_get_state (h, lie);
+              htried++;
+              hrefused
                   += dp_spectrogram_set_state (target, lie) == DP_ERR_INVALID;
               changed += dp_spectrogram_pending (target) != pend
                          || dp_spectrogram_consumed (target) != cons;
+              dp_spectrogram_destroy (h);
             }
 
-          /* the same nfft at another hop: the size cannot tell */
-          {
-            dp_spectrogram_state_t *h = make (nfft, hop2, w);
-            if (!h || dp_spectrogram_state_bytes (h) != bytes)
-              return 1;
-            dp_spectrogram_push (h, X, cut, got,
-                                 dp_spectrogram_push_max_out (h, cut));
-            dp_spectrogram_get_state (h, lie);
-            htried++;
-            hrefused
-                += dp_spectrogram_set_state (target, lie) == DP_ERR_INVALID;
-            changed += dp_spectrogram_pending (target) != pend
-                       || dp_spectrogram_consumed (target) != cons;
-            dp_spectrogram_destroy (h);
+            /* half the nfft: a shorter blob, zero-padded to this size */
+            {
+              const size_t            hn = nfft / 2;
+              dp_spectrogram_state_t *h
+                  = make (mode, hn, hop < hn ? hop : hn, w);
+              if (!h || dp_spectrogram_state_bytes (h) >= bytes)
+                return 1;
+              dp_spectrogram_push (h, X, cut, got,
+                                   dp_spectrogram_push_max_out (h, cut));
+              memset (lie, 0, bytes);
+              dp_spectrogram_get_state (h, lie);
+              ntried++;
+              nrefused
+                  += dp_spectrogram_set_state (target, lie) == DP_ERR_INVALID;
+              changed += dp_spectrogram_pending (target) != pend
+                         || dp_spectrogram_consumed (target) != cons;
+              dp_spectrogram_destroy (h);
+            }
+            dp_spectrogram_destroy (u);
+            dp_spectrogram_destroy (v);
+            dp_spectrogram_destroy (c);
+            dp_spectrogram_destroy (b);
           }
 
-          /* half the nfft: a shorter blob, zero-padded to this size */
-          {
-            const size_t            hn = nfft / 2;
-            dp_spectrogram_state_t *h  = make (hn, hop < hn ? hop : hn, w);
-            if (!h || dp_spectrogram_state_bytes (h) >= bytes)
-              return 1;
-            dp_spectrogram_push (h, X, cut, got,
-                                 dp_spectrogram_push_max_out (h, cut));
-            memset (lie, 0, bytes);
-            dp_spectrogram_get_state (h, lie);
-            ntried++;
-            nrefused
-                += dp_spectrogram_set_state (target, lie) == DP_ERR_INVALID;
-            changed += dp_spectrogram_pending (target) != pend
-                       || dp_spectrogram_consumed (target) != cons;
-            dp_spectrogram_destroy (h);
-          }
-          dp_spectrogram_destroy (v);
-          dp_spectrogram_destroy (c);
-          dp_spectrogram_destroy (b);
+        /* after every refusal the target is still its twin, in the rows its
+           next push makes too */
+        {
+          const size_t n  = 3 * nfft;
+          float       *rt = malloc ((n / hop + 2) * nfft * sizeof *rt);
+          float       *rw = malloc ((n / hop + 2) * nfft * sizeof *rw);
+          if (!rt || !rw)
+            return 1;
+          /* both poisoned alike, so only a refusal's side effect can make
+             them differ, never a stale or uninitialized byte */
+          for (size_t k = 0; k < (n / hop + 2) * nfft; k++)
+            rt[k] = rw[k] = NAN;
+          const size_t wt = dp_spectrogram_push (
+              target, X + 12, n, rt, dp_spectrogram_push_max_out (target, n));
+          const size_t ww = dp_spectrogram_push (
+              twin, X + 12, n, rw, dp_spectrogram_push_max_out (twin, n));
+          changed
+              += wt != ww || wt == 0 || memcmp (rt, rw, wt * sizeof *rt) != 0;
+          free (rw);
+          free (rt);
         }
-
-      /* after every refusal the target is still its twin, in the rows its
-         next push makes too */
-      {
-        const size_t n  = 3 * nfft;
-        float       *rt = malloc ((n / hop + 2) * nfft * sizeof *rt);
-        float       *rw = malloc ((n / hop + 2) * nfft * sizeof *rw);
-        if (!rt || !rw)
-          return 1;
-        /* both poisoned alike, so only a refusal's side effect can make
-           them differ, never a stale or uninitialized byte */
-        for (size_t k = 0; k < (n / hop + 2) * nfft; k++)
-          rt[k] = rw[k] = NAN;
-        const size_t wt = dp_spectrogram_push (
-            target, X + 12, n, rt, dp_spectrogram_push_max_out (target, n));
-        const size_t ww = dp_spectrogram_push (
-            twin, X + 12, n, rw, dp_spectrogram_push_max_out (twin, n));
-        changed
-            += wt != ww || wt == 0 || memcmp (rt, rw, wt * sizeof *rt) != 0;
-        free (rw);
-        free (rt);
+        printf (
+            "%s,%zu,%zu,%s,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,"
+            "%zu,%zu,%zu,%zu,%zu,%zu,%zu\n",
+            MODE_NAME[m], nfft, hop, WINDOW[w], cuts, bytes, sizes + 1, varies,
+            unwritten, refused, after, resume, ctried, crefused, changed,
+            htried, hrefused, ntried, nrefused, wrefused, wwrong, mrefused,
+            mwrong);
+        free (lie);
+        free (b2);
+        free (b1);
+        dp_spectrogram_destroy (twin);
+        dp_spectrogram_destroy (target);
+        free (got);
+        free (wm);
+        free (wd);
+        free (want);
       }
-      printf ("%zu,%zu,%s,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,"
-              "%zu,%zu,%zu,%zu\n",
-              nfft, hop, WINDOW[w], cuts, bytes, sizes + 1, varies, unwritten,
-              refused, after, resume, ctried, crefused, changed, htried,
-              hrefused, ntried, nrefused, wrefused, wwrong);
-      free (lie);
-      free (b2);
-      free (b1);
-      dp_spectrogram_destroy (twin);
-      dp_spectrogram_destroy (target);
-      free (got);
-      free (wd);
-      free (want);
-    }
   return 0;
 }
 
-/* ── level: a full-scale tone on every bin reads 0 dBFS, at nfft/2 + k ──── */
+/* ── level: a full-scale tone on every bin reads 1.0 / 0 dB, at nfft/2 + k */
 
 static int
 sweep_level (int emit)
@@ -980,43 +1061,48 @@ sweep_level (int emit)
   static const size_t sizes[] = { 8, 64, 1024 };
   block (emit, "level",
          "a full-scale complex tone on each bin k: the row's peak index and "
-         "its level",
-         "window,nfft,bins,peak_wrong,max_abs_err_db");
-  for (int w = 0; w < 4; w++)
-    for (size_t i = 0; i < sizeof sizes / sizeof *sizes; i++)
-      {
-        const size_t            nfft = sizes[i];
-        dp_spectrogram_state_t *s    = make (nfft, nfft, w);
-        cf                     *x    = malloc (nfft * sizeof *x);
-        float                  *row  = malloc (nfft * sizeof *row);
-        if (!s || !x || !row)
-          return 1;
-        size_t wrong = 0;
-        double err   = 0.0;
-        for (long k = -(long)nfft / 2; k < (long)nfft / 2; k++)
-          {
-            for (size_t j = 0; j < nfft; j++)
-              {
-                const double ph
-                    = 2.0 * M_PI * (double)k * (double)j / (double)nfft;
-                x[j] = (float)cos (ph) + (float)sin (ph) * I;
-              }
-            for (size_t j = 0; j < nfft; j++)
-              row[j] = NAN;
-            if (dp_spectrogram_push (s, x, nfft, row, nfft) != nfft)
-              return 1;
-            size_t pk = 0;
-            for (size_t j = 1; j < nfft; j++)
-              pk = row[j] > row[pk] ? j : pk;
-            wrong += pk != (size_t)((long)nfft / 2 + k);
-            const double e = fabs ((double)row[pk]);
-            err            = e > err ? e : err;
-          }
-        printf ("%s,%zu,%zu,%zu,%.3e\n", WINDOW[w], nfft, nfft, wrong, err);
-        free (row);
-        free (x);
-        dp_spectrogram_destroy (s);
-      }
+         "its level's error in the row's units (from 1.0 in power, 0 dB in "
+         "dB)",
+         "mode,window,nfft,bins,peak_wrong,max_abs_err");
+  for (size_t m = 0; m < NMODES; m++)
+    for (int w = 0; w < 4; w++)
+      for (size_t i = 0; i < sizeof sizes / sizeof *sizes; i++)
+        {
+          const int    mode         = MODES[m];
+          const double full         = mode == DP_SPECTROGRAM_POWER ? 1.0 : 0.0;
+          const size_t nfft         = sizes[i];
+          dp_spectrogram_state_t *s = make (mode, nfft, nfft, w);
+          cf                     *x = malloc (nfft * sizeof *x);
+          float                  *row = malloc (nfft * sizeof *row);
+          if (!s || !x || !row)
+            return 1;
+          size_t wrong = 0;
+          double err   = 0.0;
+          for (long k = -(long)nfft / 2; k < (long)nfft / 2; k++)
+            {
+              for (size_t j = 0; j < nfft; j++)
+                {
+                  const double ph
+                      = 2.0 * M_PI * (double)k * (double)j / (double)nfft;
+                  x[j] = (float)cos (ph) + (float)sin (ph) * I;
+                }
+              for (size_t j = 0; j < nfft; j++)
+                row[j] = NAN;
+              if (dp_spectrogram_push (s, x, nfft, row, nfft) != nfft)
+                return 1;
+              size_t pk = 0;
+              for (size_t j = 1; j < nfft; j++)
+                pk = row[j] > row[pk] ? j : pk;
+              wrong += pk != (size_t)((long)nfft / 2 + k);
+              const double e = fabs ((double)row[pk] - full);
+              err            = e > err ? e : err;
+            }
+          printf ("%s,%s,%zu,%zu,%zu,%.3e\n", MODE_NAME[m], WINDOW[w], nfft,
+                  nfft, wrong, err);
+          free (row);
+          free (x);
+          dp_spectrogram_destroy (s);
+        }
   return 0;
 }
 

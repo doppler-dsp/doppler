@@ -1691,6 +1691,56 @@ _acq_resume_check (void)
         dp_acq_destroy (d);
       }
 
+      /* A blob is a function of the stream (#2052): two identical engines
+         fed the same input give the same bytes, mid-block and on a block
+         boundary. The tiled engine's block was copied whole, so the
+         epochs not yet written shipped heap. And the whole block a
+         completed dwell leaves -- what dp_acq_block_raw hands out --
+         survives a round trip. */
+      {
+        dp_acq_state_t *p = ci_acq_create ((void *)&cfg);
+        dp_acq_state_t *q = ci_acq_create ((void *)&cfg);
+        DP_REQUIRE (p && q);
+        const size_t   sb = dp_acq_state_bytes (p);
+        unsigned char *bp = malloc (sb), *bq = malloc (sb);
+        DP_REQUIRE (bp && bq);
+        int same = 1;
+        for (size_t f = 1; f <= 2 * p->coherent_bins + 1; f++)
+          {
+            (void)dp_acq_push (p, x + (f - 1) * frame_n, frame_n, got, all);
+            (void)dp_acq_push (q, x + (f - 1) * frame_n, frame_n, got, all);
+            dp_acq_get_state (p, bp);
+            dp_acq_get_state (q, bq);
+            if (memcmp (bp, bq, sb) != 0)
+              same = 0;
+          }
+        DP_CHECK (same);
+        if (p->blk_raw)
+          {
+            /* Step to a block boundary, then compare the block it hands
+               out before and after a round trip into a fresh engine. */
+            while (p->blk_epoch != 0)
+              (void)dp_acq_push (p, x, frame_n, got, all);
+            const size_t    nb = p->coherent_bins * p->code_bins;
+            float _Complex *b1 = malloc (nb * sizeof *b1);
+            float _Complex *b2 = malloc (nb * sizeof *b2);
+            dp_acq_state_t *r  = ci_acq_create ((void *)&cfg);
+            DP_REQUIRE (b1 && b2 && r);
+            DP_CHECK (dp_acq_block_raw (p, b1, nb) == nb);
+            dp_acq_get_state (p, bp);
+            DP_CHECK (dp_acq_set_state (r, bp) == DP_OK);
+            DP_CHECK (dp_acq_block_raw (r, b2, nb) == nb
+                      && memcmp (b1, b2, nb * sizeof *b1) == 0);
+            free (b1);
+            free (b2);
+            dp_acq_destroy (r);
+          }
+        free (bp);
+        free (bq);
+        dp_acq_destroy (p);
+        dp_acq_destroy (q);
+      }
+
       /* No room: full from the start. Nothing that completes a frame is
          taken -- not even the frames that end no dwell -- and a rest that
          completes no frame is the carry; one that would, not. */

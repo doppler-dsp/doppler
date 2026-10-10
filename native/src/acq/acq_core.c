@@ -2720,12 +2720,35 @@ dp_acq_get_state (const dp_acq_state_t *st, void *blob)
       tw[2 * k]     = st->twin_row[k];
       tw[2 * k + 1] = st->twin_col[k];
     }
+  /* A tiled block is written one epoch at a time, so only its first
+     blk_epoch epochs are this block's -- or all D once a block has completed
+     and blk_epoch has wrapped to 0: that whole block is what
+     dp_acq_block_prompt and dp_acq_block_raw hand out. The rest are the
+     previous block's, or were never written (dp_xmalloc), and are zeros
+     here: a blob is a function of the stream, not of the heap (#2052, the
+     block's share of #1471). Nothing reads them before they are rewritten,
+     so a restored engine's zeros change no output. */
+  const size_t D = st->coherent_bins, nx = st->code_bins;
+  const size_t live = st->blk_epoch          ? st->blk_epoch
+                      : st->samples_consumed ? D
+                                             : 0;
   if (st->blk)
-    memcpy (acq_state_blk (blob, st), st->blk,
-            acq_blk_cells (st) * sizeof (float _Complex));
+    {
+      float _Complex *dst = acq_state_blk (blob, st);
+      for (size_t r = 0; r < st->window_bins; r++)
+        {
+          memcpy (dst + r * D * nx, st->blk + r * D * nx,
+                  live * nx * sizeof (float _Complex));
+          memset (dst + (r * D + live) * nx, 0,
+                  (D - live) * nx * sizeof (float _Complex));
+        }
+    }
   if (st->blk_raw)
-    memcpy (acq_state_blk_raw (blob, st), st->blk_raw,
-            acq_blk_raw_cells (st) * sizeof (float _Complex));
+    {
+      float _Complex *dst = acq_state_blk_raw (blob, st);
+      memcpy (dst, st->blk_raw, live * nx * sizeof (float _Complex));
+      memset (dst + live * nx, 0, (D - live) * nx * sizeof (float _Complex));
+    }
 }
 
 int

@@ -536,8 +536,9 @@ dp_dsss_receiver_state_bytes (const dp_dsss_receiver_state_t *s)
    * state_bytes() before the blob's own car_carry_len is even read, so
    * sizing on a per-call-varying count would spuriously reject valid
    * blobs saved at a different carry depth than the live instance's
-   * current one. Always pack the full tsamps-capacity buffer; only the
-   * first car_carry_len samples are meaningful (see the struct doc). */
+   * current one. Always pack the full tsamps-capacity region: the first
+   * car_carry_len samples, then zeros, since the rest of the buffer is an
+   * earlier period's or dp_xmalloc's and not state (#2076's sibling). */
   return sizeof (dp_state_hdr_t) + sizeof (dsss_receiver_extra_t)
          + dp_acq_state_bytes (s->acq) + dp_costas_state_bytes (&s->car)
          + dp_dll_state_bytes (s->dll) + dp_RateConverter_state_bytes (s->rc)
@@ -565,7 +566,8 @@ dp_dsss_receiver_get_state (const dp_dsss_receiver_state_t *s, void *blob)
   DP_W_CHILD (&_w, dp_dll, s->dll);
   DP_W_CHILD (&_w, dp_RateConverter, s->rc);
   DP_W_CHILD (&_w, dp_mpsk_receiver, s->rx);
-  dp_w_cf32 (&_w, s->car_carry_buf, s->tsamps);
+  dp_w_cf32 (&_w, s->car_carry_buf, s->car_carry_len);
+  dp_w_zeros (&_w, (s->tsamps - s->car_carry_len) * sizeof (float _Complex));
 }
 
 int
@@ -581,12 +583,12 @@ dp_dsss_receiver_set_state (dp_dsss_receiver_state_t *s, const void *blob)
    * freshly-created (searching) engine can restore a tracking blob and
    * vice versa, since all five children always exist either way.
    * car_carry_len is bounds-checked against this instance's own tsamps
-   * capacity before it's used to size the cf32 read below -- a corrupt
-   * or hostile blob claiming an oversized carry must be rejected, not
-   * overrun the fixed-capacity car_carry_buf. */
+   * capacity: a live carry is 0..tsamps-1 samples (steps processes a full
+   * period at once), so a blob claiming tsamps or more is one get_state
+   * never wrote, and is refused rather than restored. */
   if (extra.segments != (uint64_t)s->segments || extra.sps != (uint64_t)s->sps
       || extra.n != (uint64_t)s->n
-      || extra.car_carry_len > (uint64_t)s->tsamps)
+      || extra.car_carry_len >= (uint64_t)s->tsamps)
     return DP_ERR_INVALID;
   DP_R_CHILD (&_r, dp_acq, s->acq);
   DP_R_CHILD (&_r, dp_costas, &s->car);

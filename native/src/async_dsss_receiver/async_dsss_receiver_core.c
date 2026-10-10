@@ -1513,7 +1513,10 @@ dp_async_dsss_receiver_get_state (const dp_async_dsss_receiver_state_t *s,
   DP_W_CHILD (&_w, dp_dll, s->dll);
   DP_W_CHILD (&_w, dp_RateConverter, s->rc);
   DP_W_CHILD (&_w, dp_mpsk_receiver, s->rx);
-  dp_w_cf32 (&_w, s->car_carry_buf, s->tsamps);
+  /* The carry's live samples, then zeros: the rest of the buffer is an
+     earlier period's or dp_xmalloc's, not state (#2076's sibling). */
+  dp_w_cf32 (&_w, s->car_carry_buf, s->car_carry_len);
+  dp_w_zeros (&_w, (s->tsamps - s->car_carry_len) * sizeof (float _Complex));
 }
 
 int
@@ -1528,7 +1531,7 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
   if (extra.segments != (uint64_t)s->segments || extra.sps != (uint64_t)s->sps
       || extra.n != (uint64_t)s->n
       || extra.refine_segments != (uint64_t)s->refine_segments
-      || extra.car_carry_len > (uint64_t)s->tsamps
+      || extra.car_carry_len >= (uint64_t)s->tsamps
       || extra.cell != (uint8_t)(s->cell != 0)
       || extra.state > ASYNC_DSSS_RX_LOST)
     return DP_ERR_INVALID;

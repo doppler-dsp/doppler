@@ -36,6 +36,7 @@ _Costas loop state._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
+|  int32\_t | [**\_pad**](#variable-_pad)  <br> |
 |  float \_Complex | [**acc**](#variable-acc)  <br> |
 |  size\_t | [**acc\_n**](#variable-acc_n)  <br> |
 |  double | [**bn**](#variable-bn)  <br> |
@@ -105,6 +106,23 @@ Allocate with [**dp\_costas\_create()**](costas__core_8h.md#function-dp_costas_c
     
 ## Public Attributes Documentation
 
+
+
+
+### variable \_pad 
+
+```C++
+int32_t dp_costas_state_t::_pad;
+```
+
+
+
+The 4 bytes the compiler would put before the double, named so dp\_costas\_init zeroes them: the blob is the struct whole, and a stack-built loop copied into a receiver otherwise carried 4 stack bytes into its blob. The layout and size are unchanged. 
+
+
+        
+
+<hr>
 
 
 

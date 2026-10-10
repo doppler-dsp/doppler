@@ -446,5 +446,28 @@ main (void)
     dp_tlm_destroy (tlm);
   }
 
+  /* ── every byte of the blob is determined: the state is serialized
+     whole, and a loop built in place on the stack (as the DSSS receivers'
+     hand-offs do) used to carry the 4-byte hole after have_prev, which
+     dp_costas_init never wrote. Two states poisoned differently and
+     initialised the same must give the same blob. ── */
+  {
+    dp_costas_state_t a, b;
+    memset (&a, 0xA5, sizeof a);
+    memset (&b, 0x5A, sizeof b);
+    dp_costas_init (&a, 0.01, 0.707, 0.01, 8, 0.0);
+    dp_costas_init (&b, 0.01, 0.707, 0.01, 8, 0.0);
+    const size_t   sb = dp_costas_state_bytes (&a);
+    unsigned char *ba = malloc (sb), *bb = malloc (sb);
+    DP_REQUIRE (ba != NULL && bb != NULL);
+    memset (ba, 0xA5, sb);
+    memset (bb, 0x5A, sb);
+    dp_costas_get_state (&a, ba);
+    dp_costas_get_state (&b, bb);
+    DP_CHECK (memcmp (ba, bb, sb) == 0);
+    free (ba);
+    free (bb);
+  }
+
   DP_TEST_END ("test_costas_core");
 }

@@ -93,6 +93,7 @@
 * **dp\_w\_reserve** ([**dp\_state.h**](dp__state_8h.md))
 * **dp\_w\_u32** ([**dp\_state.h**](dp__state_8h.md))
 * **dp\_w\_u64** ([**dp\_state.h**](dp__state_8h.md))
+* **dp\_w\_zeros** ([**dp\_state.h**](dp__state_8h.md))
 * **dp\_writer\_init** ([**dp\_state.h**](dp__state_8h.md))
 * **dp\_syncword\_max\_errors** ([**dp\_syncword.h**](dp__syncword_8h.md))
 * **dp\_syncword\_search** ([**dp\_syncword.h**](dp__syncword_8h.md))

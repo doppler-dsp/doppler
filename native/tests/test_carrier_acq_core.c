@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -339,6 +340,43 @@ main (void)
         dp_carrier_acq_destroy (ca);
       }
     free (x);
+  }
+
+  /* ── a carry is 0..n-1 samples, so set_state refuses a blob claiming
+     carry_len == n: steps never leaves one, and get_state never writes it.
+     The field is the extra header's last (nfft, dwell_target, max_n_blocks,
+     n_blocks, ready + 7 pad, residual_hz, carry_len), and its offset is
+     checked against the live value before the blob is patched. ── */
+  {
+    dp_carrier_acq_state_t *ca = dp_carrier_acq_create (
+        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9,
+        2.0, true, MAX_N_BLOCKS);
+    dp_carrier_acq_state_t *cr = dp_carrier_acq_create (
+        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9,
+        2.0, true, MAX_N_BLOCKS);
+    DP_CHECK (ca != NULL && cr != NULL);
+    if (ca && cr)
+      {
+        const size_t    n     = ca->psd->n;
+        float _Complex *noise = _make_noise (n, 2077u);
+        dp_carrier_acq_steps (ca, noise, n - 1);
+        DP_CHECK (ca->carry_len == n - 1);
+        const size_t   bytes = dp_carrier_acq_state_bytes (ca);
+        unsigned char *blob  = malloc (bytes);
+        dp_carrier_acq_get_state (ca, blob);
+        const size_t at = sizeof (dp_state_hdr_t) + 6 * sizeof (uint64_t);
+        uint64_t     v;
+        memcpy (&v, blob + at, sizeof v);
+        DP_CHECK (v == n - 1);
+        DP_CHECK (dp_carrier_acq_set_state (cr, blob) == DP_OK);
+        v = n;
+        memcpy (blob + at, &v, sizeof v);
+        DP_CHECK (dp_carrier_acq_set_state (cr, blob) == DP_ERR_INVALID);
+        free (blob);
+        free (noise);
+      }
+    dp_carrier_acq_destroy (ca);
+    dp_carrier_acq_destroy (cr);
   }
 
   DP_TEST_END ("test_carrier_acq_core");

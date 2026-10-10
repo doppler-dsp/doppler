@@ -2718,13 +2718,16 @@ dp_acq_get_state (const dp_acq_state_t *st, void *blob)
   if (ex.has_nc)
     memcpy (acq_state_nc (blob, st), st->nc_surface,
             st->n_surf * sizeof (float));
-  uint32_t *tw = acq_state_twins (blob, st);
-  memset (tw, 0, 2 * st->max_peaks * sizeof (uint32_t));
+  /* The twin pairs, then zeros to max_peaks: each region has a writer of
+     its own, so its pad is dp_w_zeros like every other blob's. */
+  dp_writer_t tw = dp_writer_init (acq_state_twins (blob, st),
+                                   2 * st->max_peaks * sizeof (uint32_t));
   for (size_t k = 0; k < st->n_twins; k++)
     {
-      tw[2 * k]     = st->twin_row[k];
-      tw[2 * k + 1] = st->twin_col[k];
+      dp_w_u32 (&tw, (uint32_t)st->twin_row[k]);
+      dp_w_u32 (&tw, (uint32_t)st->twin_col[k]);
     }
+  dp_w_zeros (&tw, 2 * (st->max_peaks - st->n_twins) * sizeof (uint32_t));
   /* A tiled block is written one epoch at a time, so only its first
      blk_epoch epochs are this block's -- or all D once a block has completed
      and blk_epoch has wrapped to 0: that whole block is what
@@ -2739,20 +2742,22 @@ dp_acq_get_state (const dp_acq_state_t *st, void *blob)
                                              : 0;
   if (st->blk)
     {
-      float _Complex *dst = acq_state_blk (blob, st);
+      dp_writer_t bw
+          = dp_writer_init (acq_state_blk (blob, st),
+                            acq_blk_cells (st) * sizeof (float _Complex));
       for (size_t r = 0; r < st->window_bins; r++)
         {
-          memcpy (dst + r * D * nx, st->blk + r * D * nx,
-                  live * nx * sizeof (float _Complex));
-          memset (dst + (r * D + live) * nx, 0,
-                  (D - live) * nx * sizeof (float _Complex));
+          dp_w_cf32 (&bw, st->blk + r * D * nx, live * nx);
+          dp_w_zeros (&bw, (D - live) * nx * sizeof (float _Complex));
         }
     }
   if (st->blk_raw)
     {
-      float _Complex *dst = acq_state_blk_raw (blob, st);
-      memcpy (dst, st->blk_raw, live * nx * sizeof (float _Complex));
-      memset (dst + live * nx, 0, (D - live) * nx * sizeof (float _Complex));
+      dp_writer_t rw
+          = dp_writer_init (acq_state_blk_raw (blob, st),
+                            acq_blk_raw_cells (st) * sizeof (float _Complex));
+      dp_w_cf32 (&rw, st->blk_raw, live * nx);
+      dp_w_zeros (&rw, (D - live) * nx * sizeof (float _Complex));
     }
 }
 

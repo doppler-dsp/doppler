@@ -2317,16 +2317,14 @@ dp_acq_push (dp_acq_state_t *st, const float _Complex *x, size_t n_in,
       if (ndet == max_results
           || (acq_next_frame_decides (st) && max_results - ndet < need))
         {
-          if (dp_f32_framer_frames_for (&st->framer, rest) == 0)
-            off += dp_f32_framer_feed_view (&st->framer, x + off, rest, 0);
+          off += dp_f32_framer_feed_carry_view (&st->framer, x + off, rest);
           break;
         }
       /* Only what completes THIS frame, never a part of the next: whether
-         that one fits is not known until this one is done. */
-      const size_t gap = frame_n - dp_f32_framer_pending (&st->framer);
-      if (rest)
-        off += dp_f32_framer_feed_view (&st->framer, x + off,
-                                        rest < gap ? rest : gap, 1);
+         that one fits is not known until this one is done. The rules are
+         the framer's (feed_frames, feed_carry), shared with the detectors'
+         drain. */
+      off += dp_f32_framer_feed_frames_view (&st->framer, x + off, rest, 1);
       /* Zero-copy: a pointer into the ring, contiguous across its wrap,
          valid until the next framer call. */
       const float _Complex *frame = dp_f32_framer_next_view (&st->framer);

@@ -476,8 +476,10 @@ ______________________________________________________________________
 
 ### 5.11 The fast dB conversion (2026-10-10) — #2094, #2074
 
-**Question.** U3 (§5.8) found the dB conversion was 70–83% of a dB row: a
-divide, a clamp, a double `log10` and a cast per bin. The owner's decision on
+**Question.** The #2094 baseline (5.12) measures the dB conversion,
+`frame_db − frame_linear`, at 5.1–5.3 ns per bin, 67–81% of a dB frame: a
+divide, a clamp, a double `log10` and a cast per bin. 5.12 is this entry's
+before; U3 (§5.8) found the same share before #2113's rows existed. The owner's decision on
 #2074 is a faster `log10` by default, 0.01 dB its budget, exact precision
 opt-in only if a caller ever needs it. This entry is the conversion that
 replaced it, `dp_power_to_db_f32`, and what it achieves.
@@ -510,9 +512,15 @@ machine. A sampled tier in `make test` covers every exponent, its extremes and
 caught long before the contract is. With the polynomial's last term dropped,
 both tiers fail at 0.029 dB.
 
-**Speed** (unpinned, WSL2, portable build, ns per frame; the pinned before
-and after are #2094's bench run). The dB conversion, `frame_db` −
-`frame_power`, before → after:
+**Speed, indicative** (unpinned, WSL2, portable build, ns per frame). **What
+this change is judged by is `frame_db − frame_linear`**, 5.12's split column,
+measured pinned on main after it lands against 5.12's before. This branch
+predates #2113's `frame_linear` row, so the table below measured
+`frame_db − frame_power`. That is the conversion plus the normalisation
+(about 0.16 ns per bin in 5.12): about 3% of the conversion before, and
+about 17% of it after, so it overstates the after.
+
+Conversion and normalisation, `frame_db − frame_power`, before → after:
 
 | nfft  | conversion before | after  | ratio | `frame_db` before | after   |
 | ----- | ----------------- | ------ | ----- | ----------------- | ------- |
@@ -522,7 +530,8 @@ and after are #2094's bench run). The dB conversion, `frame_db` −
 | 16384 | 94,463            | 16,215 | 5.8×  | 132,515           | 53,928  |
 | 65536 | 398,008           | 66,758 | 6.0×  | 583,708           | 248,342 |
 
-At `nfft` 1024 the conversion falls from 78% of a `frame_db` to 36%.
+At `nfft` 1024 the conversion and normalisation fall from 78% of a
+`frame_db` to 36%.
 
 **What it moved.** Every PSD dB reading, `frame_db` and the Spectrogram's dB
 rows, is now `dp_power_to_db_f32` of the matching linear value, bit for bit

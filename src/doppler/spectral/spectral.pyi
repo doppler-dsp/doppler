@@ -1201,10 +1201,10 @@ class CorrDetector:
         nthreads: int = 1,
     ) -> None: ...
     def reset(self) -> None:
-        """Reset the correlator, ring buffer, and last-corr flag. Discards any
-        partial frame buffered in the ring and zeroes the coherent accumulator.
-        Equivalent to starting fresh from the same reference without rebuilding
-        any internal object.
+        """Reset the correlator, the carry, and last-corr flag. Discards any
+        partial frame carried between pushes and zeroes the coherent
+        accumulator; dp_detector_consumed() reads 0. Equivalent to starting
+        fresh from the same reference without rebuilding any internal object.
 
         Examples
         --------
@@ -1222,12 +1222,22 @@ class CorrDetector:
 
     def push(self, x: complex) -> list[tuple[int, float, float, float]]:
         """Stream an arbitrary-length CF32 chunk through the detector pipeline.
-        Writes samples into the ring buffer, drains complete n-sample frames
-        through the correlator, and on every int-dump computes the test
-        statistic peak_mag / noise_est. Detections that pass the threshold are
-        appended to the Python return list as (lag, peak_mag, noise_est,
-        test_stat) tuples. In Python the result is always a list, even when
-        empty.
+        Takes the input in order, runs each complete n-sample frame through the
+        correlator, and on every int-dump computes the test statistic peak_mag
+        / noise_est. Detections that pass the threshold are appended to the
+        Python return list as (lag, peak_mag, noise_est, test_stat) tuples. In
+        Python the result is always a list, even when empty.
+
+        In C a full result never loses input. A frame yields at most one
+        detection, so a sample is taken unless it would complete a frame when
+        result has no room left: the push stops there, dp_detector_consumed()
+        reports how many samples it took, and the caller offers the rest again.
+        Taken input that completes no frame is the carry, held inside (fewer
+        than n samples), so input that completes no frame is taken whole even
+        with max_results 0, and with max_results >= 1 a push of any input takes
+        at least one sample. Python's push() makes one call with room for 64
+        detections and does not offer the rest again, so input past the 64th
+        detection is lost (#1992): keep a Python chunk under 64 frames.
 
         Parameters
         ----------

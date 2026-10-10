@@ -3,9 +3,11 @@
  * @brief 1-D streaming signal detector with FFT-based correlation,
  *        integrate-and-dump, and configurable noise-referenced threshold.
  *
- * Wraps a dp_corr_state_t (FFT correlator + coherent int-dump) behind a
- * double-mapped ring buffer so that arbitrary-length sample streams can be
- * fed in any chunk size.  After every int-dump a test statistic is computed:
+ * Wraps a dp_corr_state_t (FFT correlator + coherent int-dump) behind the
+ * ring's framed face (DECLARE_DP_BUFFER_FRAMES) so that arbitrary-length
+ * sample streams can be fed in any chunk size: the detections are a function
+ * of the input stream, not of how it was split into calls.  After every
+ * int-dump a test statistic is computed:
  *
  *   test_stat = peak_mag / noise_est
  *
@@ -23,11 +25,16 @@
  * dp_detector_state_t *det = dp_detector_create(ref, N, 1,
  *     1, N-1, DET_NOISE_MEAN, 0.0f, 1);
  * det_result_t results[64];
- * // stream loop
+ * // stream loop: a full results[] stops a push, and the input it did not
+ * // take is offered again -- dp_detector_consumed(det) says where it stopped
  * while (recv(chunk, CHUNK_SZ)) {
- *     size_t n = dp_detector_push(det, chunk, CHUNK_SZ, results, 64);
- *     for (size_t i = 0; i < n; i++)
- *         printf("lag=%zu stat=%.2f\n", results[i].lag, results[i].test_stat);
+ *     for (size_t off = 0; off < CHUNK_SZ; off += dp_detector_consumed(det)) {
+ *         size_t n = dp_detector_push(det, chunk + off, CHUNK_SZ - off,
+ *                                     results, 64);
+ *         for (size_t i = 0; i < n; i++)
+ *             printf("lag=%zu stat=%.2f\n", results[i].lag,
+ *                    results[i].test_stat);
+ *     }
  * }
  * dp_detector_destroy(det);
  * @endcode
@@ -35,9 +42,9 @@
 #ifndef DP_DETECTOR_CORE_H
 #define DP_DETECTOR_CORE_H
 
-#include "doppler/buffer/buffer.h"
 #include "doppler/corr/corr_core.h"
 #include "doppler/dp_state.h"
+#include "doppler/f32_buffer/f32_buffer_core.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -88,7 +95,8 @@ typedef struct
 typedef struct
 {
   dp_corr_state_t *corr;       /**< FFT correlator + int-dump engine.         */
-  dp_f32_t *ring;             /**< Double-mapped ring buffer (auto-sized).    */
+  dp_f32_t *ring;             /**< The carry's storage, owned by @c framer.  */
+  dp_f32_framer_t framer;     /**< Any chunk in, n-sample frames out.        */
   float _Complex *out_buf;   /**< Corr output buffer (n complex samples).    */
   float *mag_buf;           /**< |out_buf&#91;k&#93;|, n floats.                   */
   float *noise_scratch;     /**< Scratch for median sort.                   */
@@ -104,6 +112,7 @@ typedef struct
   float noise_est;
   float test_stat;
   int _last_corr_valid;     /**< 1 after the first dump, else 0.           */
+  size_t consumed;          /**< Input samples the last push took.          */
 } dp_detector_state_t;
 
 /* ── Lifecycle ──────────────────────────────────────────────────────────── */
@@ -148,10 +157,10 @@ dp_detector_state_t *dp_detector_create (const float _Complex *ref,
 void dp_detector_destroy (dp_detector_state_t *state);
 
 /**
- * @brief Reset the correlator, ring buffer, and last-corr flag.
- * Discards any partial frame buffered in the ring and zeroes the coherent
- * accumulator.  Equivalent to starting fresh from the same reference without
- * rebuilding any internal object.
+ * @brief Reset the correlator, the carry, and last-corr flag.
+ * Discards any partial frame carried between pushes and zeroes the coherent
+ * accumulator; dp_detector_consumed() reads 0.  Equivalent to starting fresh
+ * from the same reference without rebuilding any internal object.
  *
  * @code
  * >>> from doppler.spectral import CorrDetector
@@ -190,11 +199,22 @@ void dp_detector_set_threshold (dp_detector_state_t *state, float threshold);
 
 /**
  * @brief Stream an arbitrary-length CF32 chunk through the detector pipeline.
- * Writes samples into the ring buffer, drains complete n-sample frames
- * through the correlator, and on every int-dump computes the test statistic
+ * Takes the input in order, runs each complete n-sample frame through the
+ * correlator, and on every int-dump computes the test statistic
  * peak_mag / noise_est.  Detections that pass the threshold are appended to
  * the Python return list as (lag, peak_mag, noise_est, test_stat) tuples.
  * In Python the result is always a list, even when empty.
+ *
+ * In C a full @p result never loses input.  A frame yields at most one
+ * detection, so a sample is taken unless it would complete a frame when
+ * @p result has no room left: the push stops there, dp_detector_consumed()
+ * reports how many samples it took, and the caller offers the rest again.
+ * Taken input that completes no frame is the carry, held inside (fewer than
+ * n samples), so input that completes no frame is taken whole even with
+ * @p max_results 0, and with @p max_results >= 1 a push of any input takes
+ * at least one sample.  Python's push() makes one call with room for 64
+ * detections and does not offer the rest again, so input past the 64th
+ * detection is lost (#1992): keep a Python chunk under 64 frames.
  *
  * @param state        Allocated detector (non-NULL).
  * @param in           CF32 input chunk of arbitrary length.
@@ -220,11 +240,23 @@ void dp_detector_set_threshold (dp_detector_state_t *state, float threshold);
 size_t dp_detector_push (dp_detector_state_t *state, const float _Complex *in,
                       size_t n_in, det_result_t *result, size_t max_results);
 
+/**
+ * @brief Input samples the last dp_detector_push() took.
+ *
+ * Equal to its @p n_in unless @p result filled up; then the caller resumes
+ * at in + consumed. 0 after create, reset and set_state.
+ *
+ * @param state  Must be non-NULL.
+ */
+size_t dp_detector_consumed (const dp_detector_state_t *state);
+
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
- * corr child + the input ring's unconsumed samples (zero-padded to ring_cap)
- * + the last-dump result fields; scratch is config (rebuilt by create). */
+ * corr child + the framer's carry (its own child blob, fewer than n samples)
+ * + the last-dump result fields; scratch is config (rebuilt by create).
+ * Version 2: the carry was the ring's raw contents, zero-padded to
+ * ring_cap. */
 #define DETECTOR_STATE_MAGIC DP_FOURCC ('D','E','T','1')
-#define DETECTOR_STATE_VERSION 1u
+#define DETECTOR_STATE_VERSION 2u
 size_t dp_detector_state_bytes (const dp_detector_state_t *state);
 void dp_detector_get_state (const dp_detector_state_t *state, void *blob);
 int dp_detector_set_state (dp_detector_state_t *state, const void *blob);

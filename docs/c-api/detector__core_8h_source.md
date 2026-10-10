@@ -12,9 +12,9 @@
 #ifndef DP_DETECTOR_CORE_H
 #define DP_DETECTOR_CORE_H
 
-#include "doppler/buffer/buffer.h"
 #include "doppler/corr/corr_core.h"
 #include "doppler/dp_state.h"
+#include "doppler/f32_buffer/f32_buffer_core.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -49,6 +49,7 @@ typedef struct
 {
   dp_corr_state_t *corr;       
   dp_f32_t *ring;             
+  dp_f32_framer_t framer;     
   float _Complex *out_buf;   
   float *mag_buf;           
   float *noise_scratch;     
@@ -64,6 +65,7 @@ typedef struct
   float noise_est;
   float test_stat;
   int _last_corr_valid;     
+  size_t consumed;          
 } dp_detector_state_t;
 
 /* ── Lifecycle ──────────────────────────────────────────────────────────── */
@@ -88,11 +90,15 @@ void dp_detector_set_threshold (dp_detector_state_t *state, float threshold);
 size_t dp_detector_push (dp_detector_state_t *state, const float _Complex *in,
                       size_t n_in, det_result_t *result, size_t max_results);
 
+size_t dp_detector_consumed (const dp_detector_state_t *state);
+
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
- * corr child + the input ring's unconsumed samples (zero-padded to ring_cap)
- * + the last-dump result fields; scratch is config (rebuilt by create). */
+ * corr child + the framer's carry (its own child blob, fewer than n samples)
+ * + the last-dump result fields; scratch is config (rebuilt by create).
+ * Version 2: the carry was the ring's raw contents, zero-padded to
+ * ring_cap. */
 #define DETECTOR_STATE_MAGIC DP_FOURCC ('D','E','T','1')
-#define DETECTOR_STATE_VERSION 1u
+#define DETECTOR_STATE_VERSION 2u
 size_t dp_detector_state_bytes (const dp_detector_state_t *state);
 void dp_detector_get_state (const dp_detector_state_t *state, void *blob);
 int dp_detector_set_state (dp_detector_state_t *state, const void *blob);

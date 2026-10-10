@@ -750,6 +750,7 @@
 * **det\_peak\_scan** ([**det\_private.h**](det__private_8h.md))
 * **det\_peak\_zone** ([**det\_private.h**](det__private_8h.md))
 * **det\_ring\_create** ([**det\_private.h**](det__private_8h.md))
+* **dp\_detector\_consumed** ([**detector\_core.h**](detector__core_8h.md))
 * **dp\_detector\_create** ([**detector\_core.h**](detector__core_8h.md))
 * **dp\_detector\_destroy** ([**detector\_core.h**](detector__core_8h.md))
 * **dp\_detector\_get\_state** ([**detector\_core.h**](detector__core_8h.md))

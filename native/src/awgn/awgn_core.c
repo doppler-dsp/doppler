@@ -160,9 +160,19 @@ seed_state (uint64_t s[4], uint64_t seed)
 /* Lifecycle                                                           */
 /* ================================================================== */
 
+int
+dp_awgn_amplitude_ok (float amplitude)
+{
+  /* A NaN fails the comparison, and an infinity is no sigma, so both are
+     outside. A negative sigma has no meaning and would invert the noise. */
+  return amplitude >= 0.0f && isfinite (amplitude);
+}
+
 dp_awgn_state_t *
 dp_awgn_create (uint64_t seed, float amplitude)
 {
+  if (!dp_awgn_amplitude_ok (amplitude))
+    return NULL;
   lut_init ();
   dp_awgn_state_t *s = malloc (sizeof *s);
   if (!s)
@@ -224,9 +234,15 @@ dp_awgn_set_state (dp_awgn_state_t *state, const void *blob)
   const uint64_t seed = dp_r_u64 (&r);
   float          amplitude;
   dp_r_f32 (&r, &amplitude, 1);
-  /* Commit. The amplitude goes through its own setter, and first, so a
-     check that setter gains reaches the restore before anything else is
-     written (one helper both call). Today it takes any float. */
+  /* Refused before anything is written. The amplitude must be one create
+     accepts (the same predicate), and an all-zero RNG state is xoshiro256++'s
+     fixed point: it emits zeros forever, which no seeded generator reaches
+     (seed_state never produces one). A forged blob with either is no state
+     the object could hold. */
+  if (!dp_awgn_amplitude_ok (amplitude) || (s[0] | s[1] | s[2] | s[3]) == 0)
+    return DP_ERR_INVALID;
+  /* Commit. The amplitude goes through its setter, which takes it because it
+     was checked just above. */
   dp_awgn_set_amplitude (state, amplitude);
   memcpy (state->s, s, sizeof s);
   state->seed = seed;
@@ -246,6 +262,10 @@ dp_awgn_get_amplitude (const dp_awgn_state_t *state)
 void
 dp_awgn_set_amplitude (dp_awgn_state_t *state, float val)
 {
+  /* Ignored outside the domain: the setter returns nothing, so the refusal
+     is silent here (the header says so). */
+  if (!dp_awgn_amplitude_ok (val))
+    return;
   state->amplitude = val;
 }
 

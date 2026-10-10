@@ -44,21 +44,23 @@ extern "C"
   typedef struct
   {
     uint64_t s[4];      /* xoshiro256++ scalar state             */
-    uint64_t seed;      /* initial seed stored for dp_awgn_reset()  */
+    uint64_t seed;      /* the seed dp_awgn_reset() replays: create's,
+                           or the last reseed's or restored blob's     */
     float    amplitude;
   } dp_awgn_state_t;
 
   /**
    * @brief Create an AWGN generator.
    * Allocates state and seeds the xoshiro256++ RNG via SplitMix64.  The
-   * initial seed is stored so dp_awgn_reset() can reproduce the exact same
-   * stream.
+   * seed is stored so dp_awgn_reset() can reproduce the exact same stream.
    *
    * @param seed       64-bit RNG seed.  Two generators with different seeds
    *                   produce statistically independent noise streams.
    * @param amplitude  Per-component (Re, Im) standard deviation.  Must be
-   *                   ≥ 0; total complex power = 2 × amplitude².
-   * @return Heap-allocated state, or NULL on allocation failure.
+   *                   finite and ≥ 0 (dp_awgn_amplitude_ok()); total complex
+   *                   power = 2 × amplitude².
+   * @return Heap-allocated state, or NULL on allocation failure or an
+   *         amplitude outside dp_awgn_amplitude_ok().
    * @code
    * >>> from doppler.source import AWGN
    * >>> gen = AWGN(seed=0, amplitude=1.0)
@@ -72,10 +74,11 @@ extern "C"
   void dp_awgn_destroy (dp_awgn_state_t *state);
 
   /**
-   * @brief Reset RNG to the seed supplied at create time.
-   * Re-runs the SplitMix64 seeding procedure with the original seed so
-   * the next dp_awgn_generate() call produces exactly the same samples as
-   * the first call after dp_awgn_create().  amplitude is not changed.
+   * @brief Reset RNG to the current seed.
+   * The current seed is the one create took, or the last one dp_awgn_reseed()
+   * or a restored blob set. Re-runs the SplitMix64 seeding procedure with it,
+   * so the next dp_awgn_generate() call produces exactly the same samples as
+   * the first call after that seed was set.  amplitude is not changed.
    *
    * @code
    * >>> import numpy as np
@@ -146,7 +149,27 @@ extern "C"
    */
   float dp_awgn_amplitude_for_snr (float snr_db, float signal_power);
 
-  /** Set amplitude without disturbing RNG state. */
+  /**
+   * @brief The amplitude domain: finite and ≥ 0.
+   *
+   * The one predicate. dp_awgn_create() refuses outside it, dp_awgn_set_state()
+   * refuses a blob outside it before it writes anything, and
+   * dp_awgn_set_amplitude() ignores such a value. A NaN fails both
+   * comparisons, so it is outside.
+   *
+   * @param amplitude  Per-component standard deviation.
+   * @return 1 inside the domain, 0 outside it.
+   */
+  int dp_awgn_amplitude_ok (float amplitude);
+
+  /**
+   * @brief Set amplitude without disturbing RNG state.
+   *
+   * An @p val outside dp_awgn_amplitude_ok() is ignored and the amplitude
+   * stays as it was. The setter returns nothing, so the refusal is silent at
+   * this layer; the Python property cannot raise it yet (just-buildit/
+   * just-makeit#1987).
+   */
   void dp_awgn_set_amplitude (dp_awgn_state_t *state, float val);
 
   /**
@@ -183,7 +206,6 @@ extern "C"
    * Uses Box-Muller with xoshiro256++ to fill `out` with independent
    * complex Gaussians: Re and Im each have zero mean and standard
    * deviation `amplitude`.  Total complex power = 2 × amplitude².
-   * The AVX2 path processes 8 samples in parallel when available.
    *
    * @param state  Generator state returned by dp_awgn_create().
    * @param n      Number of samples to generate.

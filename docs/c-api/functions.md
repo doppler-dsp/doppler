@@ -345,6 +345,7 @@
 * **dp\_async\_dsss\_receiver\_steps\_max\_out** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **dp\_awgn** ([**awgn\_core.h**](awgn__core_8h.md))
 * **dp\_awgn\_amplitude\_for\_snr** ([**awgn\_core.h**](awgn__core_8h.md))
+* **dp\_awgn\_amplitude\_ok** ([**awgn\_core.h**](awgn__core_8h.md))
 * **dp\_awgn\_create** ([**awgn\_core.h**](awgn__core_8h.md))
 * **dp\_awgn\_destroy** ([**awgn\_core.h**](awgn__core_8h.md))
 * **dp\_awgn\_generate** ([**awgn\_core.h**](awgn__core_8h.md))

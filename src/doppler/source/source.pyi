@@ -799,8 +799,8 @@ class LO:
 @final
 class AWGN:
     """Create an AWGN generator. Allocates state and seeds the xoshiro256++ RNG
-    via SplitMix64. The initial seed is stored so dp_awgn_reset() can reproduce
-    the exact same stream.
+    via SplitMix64. The seed is stored so dp_awgn_reset() can reproduce the
+    exact same stream.
 
     Parameters
     ----------
@@ -808,8 +808,14 @@ class AWGN:
         64-bit RNG seed. Two generators with different seeds produce
         statistically independent noise streams.
     amplitude : float, default 1.0
-        Per-component (Re, Im) standard deviation. Must be ≥ 0; total complex
-        power = 2 × amplitude².
+        Per-component (Re, Im) standard deviation. Must be finite and ≥ 0
+        (dp_awgn_amplitude_ok()); total complex power = 2 × amplitude².
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``AWGN: invalid
+        parameter (need amplitude finite and >= 0)``.
 
     Examples
     --------
@@ -822,10 +828,11 @@ class AWGN:
 
     def __init__(self, seed: int = 0, amplitude: float = 1.0) -> None: ...
     def reset(self) -> None:
-        """Reset RNG to the seed supplied at create time. Re-runs the
-        SplitMix64 seeding procedure with the original seed so the next
+        """Reset RNG to the current seed. The current seed is the one create
+        took, or the last one dp_awgn_reseed() or a restored blob set. Re-runs
+        the SplitMix64 seeding procedure with it, so the next
         dp_awgn_generate() call produces exactly the same samples as the first
-        call after dp_awgn_create(). amplitude is not changed.
+        call after that seed was set. amplitude is not changed.
 
         Examples
         --------
@@ -848,8 +855,7 @@ class AWGN:
         """Generate n complex CF32 AWGN samples. Uses Box-Muller with
         xoshiro256++ to fill `out` with independent complex Gaussians: Re and
         Im each have zero mean and standard deviation `amplitude`. Total
-        complex power = 2 × amplitude². The AVX2 path processes 8 samples in
-        parallel when available.
+        complex power = 2 × amplitude².
 
         Parameters
         ----------

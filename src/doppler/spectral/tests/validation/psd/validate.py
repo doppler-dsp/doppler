@@ -340,7 +340,7 @@ def section_object() -> None:
             ],
             [
                 "every window is the periodic (DFT-even) form; Hann at n = 2 "
-                "is [0, 1], which has gain",
+                "is `[0, 1]`, which has gain",
                 "#1911 refusals block (f)",
                 P,
                 "§2.10 (f)",
@@ -1655,8 +1655,8 @@ def limits(d: Data) -> None:
     )
     R.limit(
         d.f_created and d.f_hann2_reads,
-        "the periodic Hann at n = 2 is [0, 1]: it is accepted, and a unit DC "
-        "frame reads 0 dB, power 1.0, in both bins",
+        "the periodic Hann at n = 2 is `[0, 1]`: it is accepted, and a unit "
+        "DC frame reads 0 dB, power 1.0, in both bins",
     )
     R.limit(
         d.hann_leak_worst <= d.hann_leak_bound,

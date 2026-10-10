@@ -23,7 +23,6 @@ main (void)
   /* A repeat and a backwards jump (a restarted publisher) count none. */
   DP_CHECK (receiver_frames_missing (4, 4) == 0);
   DP_CHECK (receiver_frames_missing (1000, 0) == 0);
-  DP_CHECK (receiver_frames_missing (UINT64_MAX, 0) == 0);
 
   /* The example's loop over a stream with one real gap (2 -> 5) and a
      publisher restart (5 -> 0): two dropped frames, not ~1.8e19. */

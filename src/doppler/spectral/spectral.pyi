@@ -1228,12 +1228,15 @@ class CorrDetector:
         Python return list as (lag, peak_mag, noise_est, test_stat) tuples. In
         Python the result is always a list, even when empty.
 
-        Python's push() has room for 1024 detections a call. Once a push fills
-        it, every later frame of that call is lost, whether or not it would
-        have made a detection; the stream stays frame-aligned, so the next push
-        starts on a frame boundary. Keep a chunk under 1024 frames. Before
-        v0.66 the room was 64, and a push past it kept up to ring_cap/n - 1 of
-        those frames for the next call and dropped the rest. #1992 and
+        Python's push() has room for 1024 detections a call, so a push that
+        completes at most 1024 frames, counting the carry, loses nothing. One
+        that fills the room loses the rest of its input, every later frame
+        whether or not it would have made a detection, unless the rest is
+        shorter than a frame: that is kept as the carry. The next push stays on
+        the frame grid only when what was lost is a whole number of frames;
+        otherwise its lags are off by the remainder. Before v0.66 the room was
+        64, and a push past it kept up to ring_cap/n - 1 of those frames for
+        the next call and dropped the rest. #1992 and
         just-buildit/just-makeit#2184 track sizing the list to the call.
 
         Parameters
@@ -1477,14 +1480,17 @@ class CorrDetector2D:
         peak location instead of a single lag index. In Python the result is
         always a list of (row, col, peak_mag, noise_est, test_stat) tuples.
 
-        Python's push() has room for 1024 detections a call. Once a push fills
-        it, every later frame of that call is lost, whether or not it would
-        have made a detection; the stream stays frame-aligned, so the next push
-        starts on a frame boundary and its peaks keep their (row, col). Keep a
-        chunk under 1024 frames. Before v0.66 the room was 64, and a push past
-        it kept up to ring_cap/n - 1 of those frames for the next call and
-        dropped the rest. #1992 and just-buildit/just-makeit#2184 track sizing
-        the list to the call.
+        Python's push() has room for 1024 detections a call, so a push that
+        completes at most 1024 frames, counting the carry, loses nothing. One
+        that fills the room loses the rest of its input, every later frame
+        whether or not it would have made a detection, unless the rest is
+        shorter than a frame: that is kept as the carry. The next push stays on
+        the frame grid, its peaks at their own (row, col), only when what was
+        lost is a whole number of frames; otherwise they are off by the
+        remainder. Before v0.66 the room was 64, and a push past it kept up to
+        ring_cap/n - 1 of those frames for the next call and dropped the rest.
+        #1992 and just-buildit/just-makeit#2184 track sizing the list to the
+        call.
 
         Parameters
         ----------

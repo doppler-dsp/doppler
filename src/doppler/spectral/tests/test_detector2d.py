@@ -132,3 +132,26 @@ def test_last_corr_none_after_set_state():
     a.push(ref.ravel())
     b.push(ref.ravel())
     np.testing.assert_array_equal(b.last_corr, a.last_corr)
+
+
+def test_a_full_push_keeps_a_remainder_shorter_than_a_frame():
+    # Chunks of 8191 samples at 2 x 4, every frame firing.  The first push
+    # completes 1023 frames and carries 7; the second completes 1024
+    # (7 + 8191 = 1024 * 8 + 6) and fills the room on the last, leaving 6
+    # samples that complete no frame.  Those are kept as the carry, so
+    # nothing is lost: the stream's last 2 samples finish that frame, and a
+    # probe frame with its impulse at (1, 2) reports (1, 2).  Were the 6
+    # dropped, the probe would arrive 6 samples early and split across two
+    # frames, and (1, 2) would never be reported.
+    ny, nx = 2, 4
+    ref = np.zeros((ny, nx), dtype=np.complex64)
+    ref[0, 0] = 1
+    obj = CorrDetector2D(ref, threshold=0.0)
+    stream = np.zeros(2048 * ny * nx, dtype=np.complex64)
+    stream[:: ny * nx] = 1
+    assert len(obj.push(stream[:8191])) == 1023
+    assert len(obj.push(stream[8191:16382])) == 1024
+    probe = np.zeros((ny, nx), dtype=np.complex64)
+    probe[1, 2] = 1
+    hits = obj.push(np.concatenate([stream[16382:], probe.ravel()]))
+    assert [(r, c) for r, c, *_ in hits] == [(0, 0), (1, 2)]

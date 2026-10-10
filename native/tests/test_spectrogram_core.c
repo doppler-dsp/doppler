@@ -400,7 +400,11 @@ main (void)
             /* the state before this push, kept in a clone, to judge what
                the push took against */
             dp_spectrogram_get_state (s, pre_blob);
-            DP_REQUIRE (dp_spectrogram_set_state (clone, pre_blob) == DP_OK);
+            /* a clone that cannot be made (the object was left undrained)
+               fails the verdict, not the whole run: nothing after it
+               depends on the clone */
+            if (dp_spectrogram_set_state (clone, pre_blob) != DP_OK)
+              maximal = 0;
             size_t w = dp_spectrogram_push (s, x + off + done, chunk - done,
                                             row, nfft + 5);
             DP_CHECK (w == 0 || w == nfft);

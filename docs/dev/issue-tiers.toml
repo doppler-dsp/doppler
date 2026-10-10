@@ -8,7 +8,7 @@
 # tier 2 a claim nothing measures   5 convergence and hygiene
 
 [meta]
-generated = "2026-10-09"
+generated = "2026-10-10"
 
 [issue.502]
 tier = 3
@@ -30,11 +30,6 @@ tier = 5
 title = "GitHub Actions: every pin is stale (up to 5 majors), and the Node 20 forcing we rely on is temporary"
 status = "open"
 
-[issue.635]
-tier = 4
-title = "Resampler's bank= is a working, undocumented constructor parameter"
-status = "in review ([#1951](https://github.com/doppler-dsp/doppler/pull/1951))"
-
 [issue.639]
 tier = 5
 title = "CI is make-SSOT for every gate \u2014 the drift is all in the plumbing layer"
@@ -48,11 +43,6 @@ status = "open"
 [issue.646]
 tier = 2
 title = "The resamp double-emit fix is pinned at RateSync level only \u2014 MpskReceiver, where it was observed, has no regression test"
-status = "open"
-
-[issue.648]
-tier = 5
-title = "resamp_execute_ctrl_push is ULP-sensitive: gcc 13 and gcc 15 disagree on the converged lock metric by 0.031"
 status = "open"
 
 [issue.651]
@@ -118,11 +108,6 @@ status = "open"
 [issue.696]
 tier = 1
 title = "docs-check and docs-drift-check keep two copies of the generator --check list, and CI only runs one"
-status = "open"
-
-[issue.701]
-tier = 1
-title = "make bench skips function-only modules: bench_util_core builds and is never run"
 status = "open"
 
 [issue.711]
@@ -355,11 +340,6 @@ tier = 2
 title = "The 100 ms interrupt bound is published as a guarantee and measured only at idle (io-termination \u00a75)"
 status = "open"
 
-[issue.979]
-tier = 0
-title = "One unparseable message wedges a JetStream work queue forever \u2014 recv neither acks nor terms it, and no API can skip it"
-status = "open"
-
 [issue.981]
 tier = 4
 title = "Composer cannot SET seed_advance from Python \u2014 the object face and the JSON face disagree"
@@ -405,21 +385,10 @@ tier = 1
 title = "19 Python benchmarks take the `benchmark` fixture and never call it"
 status = "in review ([#1972](https://github.com/doppler-dsp/doppler/pull/1972))"
 
-[issue.1013]
-tier = 1
-title = "Nothing enforces the phase-9 rule that an object owes BOTH example faces"
-status = "open"
-
 [issue.1028]
 tier = 1
 title = "Nothing enforces the UBSan alignment ratchet \u2014 it grew 821 \u2192 853 unnoticed"
 status = "open"
-
-[issue.1034]
-tier = 5
-title = "TestComposeUpLive::test_three_block_chain_spawns_and_moves_data fails locally: recv failed: Invalid argument"
-status = "open"
-why = "An undiagnosed load-dependent flake in a test, not a reproduced defect; re-tier 0 if the cause is compose up's own startup race"
 
 [issue.1035]
 tier = 4
@@ -434,11 +403,6 @@ status = "open"
 [issue.1060]
 tier = 0
 title = "settle_floor()'s 5/Bn budget does not cover slewing out a clock offset \u2014 measured 12.7x too short, and it makes a working receiver read as chance"
-status = "open"
-
-[issue.1063]
-tier = 2
-title = "burst_acquisition characterization predicts false alarms from a dwell count, which cannot describe the interpolated surface (detector is sound)"
 status = "open"
 
 [issue.1064]
@@ -536,11 +500,6 @@ tier = 3
 title = "acq: bound the block depth D to a smooth slow-time length -- 308 = 4\u00b77\u00b711 at the operating point, and the transforms are now the searcher's cost"
 status = "open"
 
-[issue.1257]
-tier = 5
-title = "dsss.handoff.dll_init_chip_from_acq restates acq_build_handoff()'s fold and will not carry the dwell advance"
-status = "in review ([#1903](https://github.com/doppler-dsp/doppler/pull/1903))"
-
 [issue.1269]
 tier = 3
 title = "AsyncDsssReceiver builds its refine and track chains on every seed and hand-over \u2014 the pool's \"sized once at create\" holds for the pool, not its receivers"
@@ -565,11 +524,6 @@ status = "open"
 tier = 4
 title = "wfm: the compose Synth and the Plan's DSSS source have no per-frame code-only window; only _SynthEngine.set_dsss_window has it"
 status = "open"
-
-[issue.1297]
-tier = 5
-title = "A coverage.py database is tracked at the repo root: .coverage, committed in #537, and .gitignore has no rule for it"
-status = "in review ([#1951](https://github.com/doppler-dsp/doppler/pull/1951))"
 
 [issue.1299]
 tier = 5
@@ -616,11 +570,6 @@ status = "open"
 tier = 3
 title = "wfm_writer raw cf32 write is ~7% slower than v0.47.0 with byte-identical source"
 status = "open"
-
-[issue.1322]
-tier = 1
-title = "Nothing gates that a published benchmark snapshot names a commit reachable from main"
-status = "in review ([#1976](https://github.com/doppler-dsp/doppler/pull/1976))"
 
 [issue.1328]
 tier = 1
@@ -685,12 +634,6 @@ title = "Sanitizer jobs skip all 23 validators \u2014 a heap overflow in validat
 status = "open"
 why = "The sanitizer jobs skip every validator, and a heap overflow in one shipped through them"
 
-[issue.1394]
-tier = 1
-title = "wheel-smoke --pypi: a successful dry-run resolve does not make the real install see the release"
-status = "open"
-why = "The PyPI wait proves one request saw the release, not the install that follows it"
-
 [issue.1396]
 tier = 5
 title = "test-snippets: the PAGE= usage example names a page that no longer exists"
@@ -714,12 +657,6 @@ tier = 5
 title = "ring buffer: does burst_capture's position-addressed history belong in the ring? (at / pos / restore)"
 status = "open"
 why = "An open API question: burst_capture reaches into the ring's struct for position-addressed history"
-
-[issue.1426]
-tier = 5
-title = "ring buffer: move acq / detector / detector2d / burst_capture onto the ring's own API, and lint struct access"
-status = "open"
-why = "Four consumers rebuild the ring's API from its struct by hand; move them onto it and lint the struct access"
 
 [issue.1431]
 tier = 4
@@ -774,12 +711,6 @@ tier = 5
 title = "Two library copies of the chip \u2192 \u00b11 rule: wfm.bpsk_map and cvt.bin_to_nrz"
 status = "open"
 why = "Two public primitives for one 0 -> +1, 1 -> -1 convention, and only one is gated against the constellation"
-
-[issue.1510]
-tier = 5
-title = "CI image repin bot commits a parentless snapshot; .coverage and stream.blue are tracked"
-status = "in review ([#1951](https://github.com/doppler-dsp/doppler/pull/1951))"
-why = "The repin bot's commit has no parent and two generated files are tracked; landed by hand meanwhile"
 
 [issue.1530]
 tier = 2
@@ -849,7 +780,7 @@ why = "A ratchet of 78 header @code examples that do not compile or run; burn it
 
 [issue.1654]
 tier = 0
-title = "Sacred fragments miss jm 0.94's binding fixes: 55 lack the #1710 size guard, ~40 still convert a str silently (#1700)"
+title = "Array parameters without a str_hint still let numpy parse a str (279 calls); the size-guard half is done"
 status = "open"
 why = "About 40 fragments still convert a str silently into a number while their stubs say bytes; 55 lack the size guard"
 
@@ -984,16 +915,6 @@ tier = 4
 title = "wfm: no Python face serializes a synth pulling from a data source"
 status = "open"
 
-[issue.1787]
-tier = 1
-title = "docs: the sh fence gate silently skips executing a fence with a non-allowlisted command (cmp)"
-status = "in review ([#1973](https://github.com/doppler-dsp/doppler/pull/1973))"
-
-[issue.1797]
-tier = 1
-title = "examples: dsss_realtime_file_demod.py exits 0 with an empty results table when its wfmgen writer refuses the scene"
-status = "in review ([#1965](https://github.com/doppler-dsp/doppler/pull/1965))"
-
 [issue.1800]
 tier = 5
 title = "rx: object constructors lose dp_wfm_frame_desc_rx's reason; needs an object-level create_why in jm"
@@ -1018,12 +939,6 @@ status = "open"
 tier = 3
 title = "ci-changes: a release's waiver file counts as source, so the release commit runs the full matrix"
 status = "open"
-
-[issue.1817]
-tier = 1
-title = "Windows wheels for Python 3.13/3.14 carry ABI tag 'cpwin_amd64' \u2014 pip cannot install them (since v0.60.0 at least)"
-status = "in review ([#1964](https://github.com/doppler-dsp/doppler/pull/1964))"
-why = "Wheel tags are fixed and gated (#1820); the PyPI smoke still installs only cp312 on win_amd64"
 
 [issue.1826]
 tier = 5
@@ -1092,12 +1007,6 @@ title = "Streaming spectrogram: a Spectrogram object over the ring's framed face
 status = "open"
 why = "No spectrogram exists: the library cannot turn a chunked stream into spectrum rows without the caller writing the re-blocking loop"
 
-[issue.1895]
-tier = 5
-title = "Move detector, detector2d and acq onto the ring framer; stop touching ->head/->tail/->mask"
-status = "open"
-why = "Three hand-written ring drain loops and ring snapshots remain beside the framer that replaces them"
-
 [issue.1896]
 tier = 2
 title = "Chunk-invariance: burn down the ratchet (49 stateful streaming objects have no test)"
@@ -1121,12 +1030,6 @@ tier = 5
 title = "Refresh prose that still says the interrupt flag is volatile sig_atomic_t (follow-up to #1027)"
 status = "open"
 why = "Stale prose: the flag is now a C11 atomic"
-
-[issue.1911]
-tier = 2
-title = "Certify PSD (validation.md): the new frame_power / frame_db kernel and the rect window are in scope"
-status = "open"
-why = "New PSD frame kernel and rect window are stated in the design page and certified by nothing"
 
 [issue.1912]
 tier = 5
@@ -1158,18 +1061,6 @@ title = "Audit: SIMD kernels whose scalar tail rounds differently from the vecto
 status = "open"
 why = "Other SIMD kernels may round their scalar tail differently from the body, as FIR did"
 
-[issue.1932]
-tier = 3
-title = "FIR: a lone partial vector group is latency-bound after #1923 (1-sample calls 2.4-6x slower on AVX-512)"
-status = "open"
-why = "#1923's split-invariance made 1-7 sample FIR calls 2.4-6x slower on AVX-512; parked by decision"
-
-[issue.1936]
-tier = 5
-title = "build: a compiler change makes the vendored nats.c configure drop our -D options and fail once on protobuf-c"
-status = "in review ([#1981](https://github.com/doppler-dsp/doppler/pull/1981))"
-why = "A stale vendored nats.c build tree fails configure once after a compiler change"
-
 [issue.1937]
 tier = 3
 title = "bench: wfm Reader Python cells moved +11% / +21% in v0.65.0, one cell per build; not the binding, cause unmeasured"
@@ -1181,24 +1072,6 @@ tier = 5
 title = "v0.66.0 plan: the C Spectrogram (#1894 slice 3a) and an issue burndown"
 status = "open"
 why = "Release tracking issue for v0.66.0: the C Spectrogram and the burndown"
-
-[issue.1943]
-tier = 1
-title = "check_version_strings misses a version at the end of a sentence: the guard against 0.65.01 also rejects the full stop"
-status = "in review ([#1954](https://github.com/doppler-dsp/doppler/pull/1954))"
-why = "The current-version gate passes a version that ends a sentence"
-
-[issue.1944]
-tier = 2
-title = "Telemetry: test the overlong-prefix refusal at every set_telemetry face, and gate the one-place probe-name join (#1898 follow-up)"
-status = "in review ([#1962](https://github.com/doppler-dsp/doppler/pull/1962))"
-why = "8 of 10 set_telemetry sites have no overlong-prefix test, and the one-place join has no gate"
-
-[issue.1952]
-tier = 5
-title = "deploy: the compose files pull nats:2.10 from Docker Hub by name, left stock by decision in #1950"
-status = "open"
-why = "Compose files pull nats by its Docker Hub name, left stock by decision for users"
 
 [issue.1957]
 tier = 5
@@ -1212,18 +1085,6 @@ title = "psd: adjacent bands both count the bin they share, so a partition overs
 status = "open"
 why = "Adjacent PSD bands double-count their shared bin: a partition reads up to +3 dB high"
 
-[issue.1960]
-tier = 5
-title = "MEM_GUARD_MAX sets the SHARED guard slice's ceiling, so any caller lowers every session's budget"
-status = "open"
-why = "Any MEM_GUARD_MAX caller lowers every session's shared guard ceiling"
-
-[issue.1961]
-tier = 2
-title = "The mem-guard probe's deliberate OOM kill is logged against doppler-guard.slice, so the journal cannot show a real one"
-status = "open"
-why = "The mem-guard probe's kill reads as a real OOM in the journal, so a real one cannot be shown"
-
 [issue.1966]
 tier = 4
 title = "Spectrogram: separate the frame length from the transform length (non-power-of-two nfft)"
@@ -1235,12 +1096,6 @@ tier = 2
 title = "bench(carrier_acq): the C benchmark credits 65536 samples to a search that stops after one block"
 status = "open"
 why = "carrier_acq's C benchmark credits 65536 samples to a search that stops after one block"
-
-[issue.1968]
-tier = 4
-title = "Spectrogram: turn on mode = power once dp_psd_frame_linear lands"
-status = "open"
-why = "Spectrogram power mode is refused until dp_psd_frame_linear lands"
 
 [issue.1969]
 tier = 2
@@ -1260,12 +1115,6 @@ title = "bench(pn): the C benchmark's polynomials are not maximal-length in dp_p
 status = "open"
 why = "pn's C benchmark uses polynomials that are not maximal-length in dp_pn's convention"
 
-[issue.1974]
-tier = 1
-title = "docs gate: the sh fence allowlist checks only a line's first command; anything after |, && or ; runs unchecked"
-status = "in review ([#1973](https://github.com/doppler-dsp/doppler/pull/1973))"
-why = "The sh fence allowlist checks only a line's first command"
-
 [issue.1977]
 tier = 1
 title = "make bench exits 0 when its Python half fails to collect (upstream: just-makeit#2180)"
@@ -1277,12 +1126,6 @@ tier = 3
 title = "acc_f32/acc_cf64: add2d and madd2d are private copies of steps and madd, and miss the SIMD path (4.4x)"
 status = "open"
 why = "acc_f32/acc_cf64 add2d and madd2d are private copies that miss the SIMD path (4.4x)"
-
-[issue.1979]
-tier = 1
-title = "ci: ECR Public's anonymous rate limit ('toomanyrequests: Rate exceeded') still fails package/Docker legs; stock pulls need one retrying helper"
-status = "in review ([#1989](https://github.com/doppler-dsp/doppler/pull/1989))"
-why = "ECR Public's anonymous rate limit fails package and Docker legs for reasons that aren't the code"
 
 [issue.1982]
 tier = 1
@@ -1302,26 +1145,328 @@ title = "scripts: seven gates strip C comments with a /\\*.*?\\*/ regex that doe
 status = "open"
 why = "Seven gates strip C comments with a regex that does not know about string literals"
 
-[issue.1985]
-tier = 4
-title = "carrier_acq: resolution_hz above fs/2.5 floors n_fft at 2, which the default Hann window cannot use"
-status = "open"
-why = "carrier_acq cannot construct above fs/2.5 resolution with its default Hann window"
-
-[issue.1986]
-tier = 5
-title = "PSD and AccTrace refusals reach Python as a reasonless MemoryError: declare create_error (gh-482)"
-status = "open"
-why = "PSD and AccTrace refusals reach Python as a reasonless MemoryError"
-
 [issue.1987]
 tier = 4
 title = "AccTrace.alpha: the setter refuses silently in Python until just-makeit#2182 ships"
 status = "open"
 why = "AccTrace.alpha's setter refuses silently in Python until just-makeit#2182 ships"
 
-[issue.1988]
+[issue.1990]
 tier = 5
-title = "PSD per-frame kernel: an FFT-order row option, if any caller wants one"
+title = "examples/downstream-jm's two sacred capture fragments miss jm's binding fixes (the last jm-apply binding warnings)"
 status = "open"
-why = "An FFT-order row option for PSD's per-frame kernel, if a caller wants one"
+
+[issue.1991]
+tier = 2
+title = "bench: stamp the measured TREE in doppler_meta, so bench-commits-check verifies provenance offline, not just reachability"
+status = "open"
+
+[issue.1992]
+tier = 0
+title = "detector/detector2d/acq push silently drop the rest of the input once results fill (Python defaults lose 488 of 1000 samples)"
+status = "open"
+
+[issue.1993]
+tier = 5
+title = "docs gate: the sh fence's src/ -> <repo>/src/ rewrite also rewrites redirect targets, so a fence writing to src/ writes into the real checkout"
+status = "open"
+
+[issue.1994]
+tier = 1
+title = "ratchets: check_warnings and check_alloc_helpers switch off when their list is absent at the base; move both onto _gitbase.added_since_base"
+status = "open"
+
+[issue.1997]
+tier = 1
+title = "docs sh gate: the holes an executed fence still has (exit-status-only refusals, substitutions, pipefail 141, shadowing, the wfmgen/cat trigger)"
+status = "open"
+
+[issue.1999]
+tier = 1
+title = "release: the pre-publish smoke-wheel installs only cp312, so a per-Python wheel defect is found after PyPI is written"
+status = "open"
+
+[issue.2001]
+tier = 2
+title = "Stubs: none_on_empty readouts lack | None until just-makeit#2183 ships"
+status = "open"
+
+[issue.2004]
+tier = 1
+title = "build: a parent compiler change drops make build's and make pyext's -D options; pyext then exits 0 having built no extensions (likely #1996)"
+status = "open"
+
+[issue.2005]
+tier = 5
+title = "build: the vendored nats.c custom command has no DEPENDS (a vendor bump never rebuilds) and does not forward the ccache launcher"
+status = "open"
+
+[issue.2006]
+tier = 3
+title = "acc_f32/acc_cf64: madd (and so madd2d) is a serial scalar reduction; give it steps' SIMD path"
+status = "open"
+
+[issue.2011]
+tier = 0
+title = "stream: producers ignore send failures (wfmgen exits 0 after dropping blocks; StreamSink.send returns an int) and close() loses the tail"
+status = "open"
+
+[issue.2012]
+tier = 1
+title = "stream: core NATS subscribers lose frames across disconnect/reconnect with no signal; no error/disconnect callbacks, and the docs describe a slow-consumer drop that cannot happen"
+status = "open"
+
+[issue.2013]
+tier = 1
+title = "stream: the 'durable' JetStream tier deletes backlog older than 1 h (MaxAge) for a lagging consumer, while stream.h and stream.pyi say it cannot / keeps frames forever"
+status = "open"
+
+[issue.2014]
+tier = 0
+title = "buffer: F32Buffer.consume(0) releases the outstanding borrow instead of nothing (jm releases codegen treats 0 as omitted)"
+status = "open"
+
+[issue.2023]
+tier = 5
+title = "dp_chunk_inv.h: a stop-and-resume mode, so the detectors' ci_*_resume twins (and acq's) are one harness"
+status = "open"
+
+[issue.2024]
+tier = 4
+title = "framer: no Python face, so the framed face shipped without the Python example and bench that phase 9 owes"
+status = "open"
+
+[issue.2027]
+tier = 5
+title = "stock-pull.sh --dockerfile pulls every stock FROM, whatever stage the build targets"
+status = "open"
+
+[issue.2029]
+tier = 0
+title = "specan PullSource: one seq_account in the library, redeliveries keyed on num_delivered, and the fail-open holes #2020 left"
+status = "open"
+
+[issue.2030]
+tier = 5
+title = "lint: a make target a uv-less CI job runs may not call uv (nats-vendor-fresh-check failed train #2026)"
+status = "open"
+
+[issue.2031]
+tier = 4
+title = "stream: reassemble more than one chunked frame at a time, so two publishers on a subject do not abandon each other's frames"
+status = "open"
+
+[issue.2032]
+tier = 5
+title = "stock-images gate: a shell build-arg value is never resolved, and a workflow pre-pull's scope spans jobs"
+status = "open"
+
+[issue.2037]
+tier = 5
+title = "dp_tlm: read the telemetry ring through its API, not head/tail/mask (#1426 baseline)"
+status = "open"
+
+[issue.2038]
+tier = 0
+title = "burst_capture: a full detection queue drops hits uncounted, and set_state writes before its checks"
+status = "open"
+
+[issue.2039]
+tier = 2
+title = "stream: an end-of-stream names no stream, so any publisher's EOS on a base ends every subscriber there"
+status = "open"
+
+[issue.2040]
+tier = 0
+title = "wfm: StreamSink.send should raise on a refused block, not return an int (blocked on jm)"
+status = "open"
+
+[issue.2045]
+tier = 5
+title = "Makefile:1674 says gen-c-api-check runs via docs-invariants; it runs only as its own pre-commit hook"
+status = "open"
+
+[issue.2048]
+tier = 5
+title = "make validate: no Python-only spelling -- VALIDATORS_C= (empty) exits 2 as 'no harness sources found'"
+status = "in review ([#2124](https://github.com/doppler-dsp/doppler/pull/2124))"
+
+[issue.2050]
+tier = 5
+title = "dp_test: a FAIL written to stderr lands mid-line in a redirected log (stdout is not flushed first)"
+status = "in review ([#2133](https://github.com/doppler-dsp/doppler/pull/2133))"
+
+[issue.2053]
+tier = 2
+title = "psd: windows are symmetric (N-1), not the periodic form spectral estimation uses -- Hann n=2 is zero, -82 dBc leakage, BH ENBW 2.036"
+status = "in review ([#2140](https://github.com/doppler-dsp/doppler/pull/2140))"
+
+[issue.2054]
+tier = 5
+title = "ring gate blind spots, burst_capture's plain resets, and one acq drain helper (#2042 leftovers)"
+status = "open"
+
+[issue.2057]
+tier = 0
+title = "adopt just-makeit#2187: a buffer's destroy() must not unmap under its live views (#2016 item 4)"
+status = "open"
+
+[issue.2058]
+tier = 5
+title = "make gallery GALLERY_SCRIPTS=<one> still rewrites docs/assets/dsss_acq_characterization.png (the characterization step is unscoped)"
+status = "in review ([#2125](https://github.com/doppler-dsp/doppler/pull/2125))"
+
+[issue.2059]
+tier = 1
+title = "validation reports: _self_check resolves \u00a7N.M but never F<n> -- a renumbered finding silently re-points every citation"
+status = "in review ([#2147](https://github.com/doppler-dsp/doppler/pull/2147))"
+
+[issue.2062]
+tier = 1
+title = "adopt just-makeit#2188 (jm_bench.h drops entries past 32 silently); restore U1's hop nfft/2 bench rows; guard the cap meanwhile"
+status = "open"
+
+[issue.2063]
+tier = 0
+title = "stream: Pull.close() during a GIL-free recv() tears down the context under the fetch (#2016's class, receive path)"
+status = "open"
+
+[issue.2066]
+tier = 5
+title = "package-linux: the builder image's dnf failure is discarded (docker build -q >/dev/null), and dnf has no retry"
+status = "open"
+
+[issue.2069]
+tier = 2
+title = "stream: dp_req_send/dp_rep_send truncate a payload of 2^32 bytes or more (send_raw casts size to int)"
+status = "in review ([#2144](https://github.com/doppler-dsp/doppler/pull/2144))"
+
+[issue.2071]
+tier = 2
+title = "burst_despreader: create() and set_bn_* pass an unvalidated bn to dp_loop_filter_init, which trusts its embedders to validate"
+status = "in review ([#2139](https://github.com/doppler-dsp/doppler/pull/2139))"
+
+[issue.2074]
+tier = 3
+title = "PSD's dB conversion is 70-83% of a frame: decide on a cheaper conversion or a power-first default (Spectrogram U3)"
+status = "in review ([#2117](https://github.com/doppler-dsp/doppler/pull/2117))"
+
+[issue.2077]
+tier = 1
+title = "state: verify #2022's C-only setters with a C-side twin of the mutator gate"
+status = "open"
+
+[issue.2078]
+tier = 1
+title = "state: 11 serializable classes have no test_state_serialization CASES row, so #2022's gate cannot probe their mutators"
+status = "open"
+
+[issue.2079]
+tier = 2
+title = "state (#2022 family 1): LO/NCO norm_freq is not in the blob, and every tuned composition inherits it"
+status = "open"
+
+[issue.2080]
+tier = 2
+title = "state (#2022 family 2): a rate is state and a reject key -- RateConverter, Resampler, CIC restore into another rate"
+status = "open"
+
+[issue.2081]
+tier = 2
+title = "state (#2022 family 3): correlator and detector set_ref / set_threshold values are not serialized"
+status = "open"
+
+[issue.2082]
+tier = 2
+title = "state (#2022 family 4): wfm_synth's setters are not serialized"
+status = "open"
+
+[issue.2083]
+tier = 2
+title = "state (#2022 family 5): receivers' and meters' setters -- RateSync bn and lock, BerMeter truth/align, acq carrier, DSSS lock_raw"
+status = "open"
+
+[issue.2084]
+tier = 2
+title = "state (#2022 family 6): AWGN amplitude is not serialized"
+status = "in review ([#2136](https://github.com/doppler-dsp/doppler/pull/2136))"
+
+[issue.2087]
+tier = 2
+title = "burst_capture: configure_search_raw() mid-stream resets acq position but not samples_fed, so every later epoch is early"
+status = "open"
+
+[issue.2089]
+tier = 4
+title = "stream: the wire header gains a sender/epoch id (owner decision on #2017)"
+status = "open"
+
+[issue.2093]
+tier = 1
+title = "state gate (#2022): what #2085's review leaves -- refused-restore probe, NONDETERMINISTIC masking, C-only discovery"
+status = "open"
+
+[issue.2094]
+tier = 3
+title = "PSD must blaze: the per-frame fold on the SIMD accumulate path, measured against the FFT"
+status = "open"
+
+[issue.2095]
+tier = 0
+title = "_SynthEngine.set_wtype(PN|BPSK|QPSK) on an engine created otherwise segfaults on the next step"
+status = "in review ([#2132](https://github.com/doppler-dsp/doppler/pull/2132))"
+
+[issue.2102]
+tier = 2
+title = "spectrogram: refuse a checkpoint from the other mode? (owner decision)"
+status = "open"
+
+[issue.2103]
+tier = 0
+title = "dll: a NaN spacing or symbol period crashes (x86-64 OOB read) or aborts (calloc of 2^63)"
+status = "in review ([#2128](https://github.com/doppler-dsp/doppler/pull/2128))"
+
+[issue.2104]
+tier = 2
+title = "state: composite set_state restores children in sequence, so a refused later child leaves the parent half-restored"
+status = "open"
+
+[issue.2108]
+tier = 5
+title = "One dB conversion: every remaining log10 site switches to dp_power_to_db_f32 or says why it keeps double"
+status = "in review ([#2126](https://github.com/doppler-dsp/doppler/pull/2126))"
+
+[issue.2110]
+tier = 0
+title = "clib: dp_fmod_pos can return m (outside [0,m)), so dll_replica reads code[sf], one past the copy"
+status = "in review ([#2141](https://github.com/doppler-dsp/doppler/pull/2141))"
+
+[issue.2111]
+tier = 0
+title = "resamp: set_state trusts a forged delay_head, and the next output reads past delay_buf"
+status = "in review ([#2134](https://github.com/doppler-dsp/doppler/pull/2134))"
+
+[issue.2112]
+tier = 0
+title = "float-domain holes from #2109's review: loop embedders without the bn/zeta predicate, det_verify_count int overflow, Dll lock geometry"
+status = "open"
+
+[issue.2114]
+tier = 2
+title = "specan PullSource: a read returned 10 of 1200 frames and timed out (intermittent, CI Python 3.10)"
+status = "open"
+
+[issue.2130]
+tier = 1
+title = "test-asan is blind to out-of-bounds access through float _Complex (gcc ASan does not instrument complex types)"
+status = "in review ([#2145](https://github.com/doppler-dsp/doppler/pull/2145))"
+
+[issue.2142]
+tier = 0
+title = "set_state trusts index fields from the blob: MovingAverage writes out of bounds; delay, wfm_synth read out of bounds"
+status = "open"
+
+[issue.2143]
+tier = 2
+title = "bench(psd): power_onesided is timed one call per round, so its 1,024 cell moves in 7% clock steps"
+status = "in review ([#2146](https://github.com/doppler-dsp/doppler/pull/2146))"

@@ -1029,7 +1029,8 @@ dp_burst_capture_push (dp_burst_capture_state_t *state,
              its ring capacity forbids (it writes into whatever room framing
              frees). Breaking there instead would leave the rest of the
              chunk in the history ring with acq never having seen it, and
-             the two positions would part for good. */
+             the two positions would part for good. No public path forces
+             the zero-take case, so it is not gated here: doppler#1992. */
           uint64_t took64 = burst_capture_acq_absorbed (state) - before;
           size_t   took   = took64 > (uint64_t)(chunk - fed) ? (chunk - fed)
                                                              : (size_t)took64;

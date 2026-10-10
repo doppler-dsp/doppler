@@ -1079,15 +1079,15 @@ static PyGetSetDef DsssBurstReceiver_getset[] = {
     "while\n"
     "this is non-zero is discarding a burst that would have decoded, and "
     "nothing\n"
-    "else distinguishes that from an empty capture: `dropped` counts samples "
-    "the\n"
-    "ring refused, `n_bursts` counts what was demodulated, and a truncated "
-    "burst\n"
-    "is neither.\n",
+    "else distinguishes that from an empty capture: `dropped` counts "
+    "look-back\n"
+    "abandoned with a burst, `n_bursts` counts what was demodulated, and a\n"
+    "truncated burst is neither.\n",
     NULL },
   { "dropped", (getter)DsssBurstReceiver_getprop_dropped, NULL,
-    "Samples the capture ring refused. Each is a LOST BURST, not a statistic "
-    "-- a lifetime count that survives reset().\n",
+    "Samples of look-back the capture discarded while a queued burst still "
+    "needed them -- never refused input, which push() does not do. A LOST "
+    "BURST, not a statistic -- a lifetime count that survives reset().\n",
     NULL },
   { "n_bursts", (getter)DsssBurstReceiver_getprop_n_bursts, NULL,
     "Bursts DEMODULATED, lifetime. Distinct from the capture's own count, "

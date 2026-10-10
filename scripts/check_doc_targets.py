@@ -20,10 +20,43 @@ actually breaks a reader: a renamed target turns a documented command into
 
 What counts as a reference
 --------------------------
-Only a **backticked** ``make <target>`` or a line inside a fenced block
-that starts with ``make <target>``. Ordinary English -- "make changes",
-"make sure", "standard make targets" -- is left alone on purpose: a
-checker that flags prose is a checker that gets switched off.
+A **backticked** ``make <target>``, a line inside a fenced block that
+starts with ``make <target>``, and a bare name (below). Ordinary English
+-- "make changes", "make sure", "standard make targets" -- is left alone
+on purpose: a checker that flags prose is a checker that gets switched
+off.
+
+A bare name
+-----------
+A target is also named without ``make``: "`bench-save` / `bench-compare`
+remain". That form slipped past the first version three times, all of them
+renames this gate's own history records as fixed (#2116):
+``bench-baseline`` and ``bench-check`` in CLAUDE.md, ``bench-check`` in
+benchmarking.md, and ``test-example-tarball`` in the downstream-jm README,
+whose ``make`` forms 6fb7aff51 renamed to ``test-starter-tarball``.
+
+So a backticked hyphenated name whose first segment starts a real target
+(``bench-``, ``test-``, ``lint-``...) must name SOMETHING this repo
+declares: a target, a CI job, a workflow ``name:`` (an artifact or an
+environment), a pre-commit hook, or one of the outside names in
+``EXTERNAL``. The family filter keeps file stems and flags out, and the
+declared names keep CI jobs (``ci-passed``) and hooks (``gen-c-api-drift``)
+in, since those share a family with a target. Measured over every tracked
+page when it was written, it found four stale names (the three above and
+a ``python-tests`` CI job that is ``python``), and its only other hits
+were the outside names now in ``EXTERNAL``.
+
+What it cannot see, so a rename still needs its own row: a rename that
+changes the FIRST segment (``bump-version`` -> ``version-bump`` leaves no
+``bump-`` family to hold the old name to), and a name that coincides with
+one in another namespace (a hook id equal to a retired target). The
+renaming commit's row in ``scripts/.retired-names`` covers both, in every
+file, so that is where a rename is recorded. ``make -C dir`` and
+``make -s`` forms are not parsed either.
+
+The page set is every tracked ``.md`` file, not a list, so a new page is
+held the day it exists. ``CHANGELOG.md`` and ``changelog.d/`` are records:
+they name retired targets by design.
 
 Targets are read from make's own database (``make -rpn``), not scraped
 from the Makefile, so the ``lint-<tool>`` rules that ``standard.mk``
@@ -33,6 +66,7 @@ no file at all.
 Usage
 -----
     python scripts/check_doc_targets.py    # exit 1 on any missing target
+    python scripts/check_doc_targets.py PAGE...   # only these pages
 """
 
 from __future__ import annotations
@@ -47,6 +81,8 @@ ROOT = Path(__file__).resolve().parent.parent
 
 # Generated or vendored trees: their contents are owned elsewhere.
 SKIP_PARTS = {"c-api", "archive", "build", "site", ".venv", "vendor"}
+# Release records: they name retired targets on purpose, as history.
+RECORDS = {"CHANGELOG.md", "changelog.d"}
 
 # A documented invocation may carry variable assignments before the target --
 # `make PREFIX=~/.local run` is the form every example-projects README uses.
@@ -68,6 +104,21 @@ FENCE_LINE = re.compile(
     r"^\s*(?:\$ )?make " + _ASSIGN + r"([a-z][a-z0-9-]*)", re.M
 )
 FENCE = re.compile(r"^```.*?^```", re.M | re.S)
+# A whole backtick span that is one hyphenated lowercase name: `bench-save`.
+BARE = re.compile(r"`([a-z][a-z0-9]*(?:-[a-z0-9]+)+)`")
+
+# Names the docs use that share a family with a target and that nothing in
+# this repo declares. Each one names a thing outside it.
+EXTERNAL = {
+    "nats-server": "the NATS broker's binary, which the streaming pages run",
+    "nats-jetstream": "NATS's persistence layer, as deploy/README.md names it",
+    "docker-buildx": "Docker's build plugin, which the image recipes need",
+    "docker-compose": "Docker's multi-container tool, in the deploy docs",
+    "just-makeit": "the codegen tool, pinned in pyproject.toml's dev group",
+    "just-bashit": "a sibling just-buildit project (shell helpers)",
+    "just-buildit": "the sibling build tool and its GitHub org",
+    "release-process": "an mcp-store skill the release page cites",
+}
 
 
 @functools.cache
@@ -78,6 +129,7 @@ def real_targets(cwd: Path) -> set[str]:
         cwd=cwd,
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
     # A Makefile that fails to parse yields an empty database, and then
     # every documented target reads as missing -- true, but it names the
@@ -181,20 +233,105 @@ def targets_for(page: Path) -> set[str]:
     return out
 
 
+@functools.cache
+def declared_names() -> frozenset[str]:
+    """Every hyphenated name the repo declares outside its makefiles.
+
+    Read from the declarations themselves, so a renamed CI job or hook
+    reddens the page that still names the old one: workflow job ids,
+    one-word ``name:`` scalars (artifacts and environments), pre-commit
+    hook ids, and ``EXTERNAL``.
+    """
+    out = set(EXTERNAL)
+    for wf in sorted((ROOT / ".github" / "workflows").glob("*.y*ml")):
+        text = wf.read_text(encoding="utf-8")
+        out |= set(re.findall(r"^  ([a-z][a-z0-9-]*):\s*$", text, re.M))
+        out |= set(
+            re.findall(r"^\s+name:\s*([a-z][a-z0-9-]*)\s*$", text, re.M)
+        )
+    hooks = ROOT / ".pre-commit-config.yaml"
+    if hooks.is_file():
+        out |= set(
+            re.findall(
+                r"^\s+- id:\s*([a-z0-9-]+)",
+                hooks.read_text(encoding="utf-8"),
+                re.M,
+            )
+        )
+    return frozenset(out)
+
+
+def bare_misses(text: str, real: set[str]) -> list[tuple[str, int]]:
+    """Bare backticked names in a target family that name nothing declared.
+
+    >>> real = {"bench-save", "bench-compare", "test"}
+    >>> bare_misses("`bench-save` and `bench-check` remain", real)
+    [('bench-check', 1)]
+    >>> bare_misses("the `report-v2` file and `--bench-check` flag", real)
+    []
+    """
+    families = {t.split("-", 1)[0] for t in real if "-" in t}
+    out = []
+    for m in BARE.finditer(text):
+        name = m.group(1)
+        if name in real or name.split("-", 1)[0] not in families:
+            continue
+        if name in declared_names():
+            continue
+        out.append((name, text.count("\n", 0, m.start()) + 1))
+    return out
+
+
 def pages() -> list[Path]:
-    out = [ROOT / "README.md", ROOT / "CONTRIBUTING.md"]
-    for root in ("docs", "examples", "example-projects"):
-        for page in sorted((ROOT / root).rglob("*.md")):
-            if SKIP_PARTS.intersection(page.relative_to(ROOT).parts):
-                continue
-            out.append(page)
+    """Every tracked Markdown page, less generated trees and records.
+
+    Derived, not listed: the hand list this replaced left out CLAUDE.md,
+    which names more targets than any other page (#2116), and
+    deploy/docker/README.md. Tracked files only, so a local scratch page
+    never decides the verdict.
+    """
+    proc = subprocess.run(
+        ["git", "ls-files", "-z", "--", "*.md"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    if proc.returncode != 0:
+        raise SystemExit(
+            "check_doc_targets: `git ls-files` failed, so there is no page "
+            "list to check:\n" + (proc.stderr or "(no stderr)")
+        )
+    out = []
+    for rel in sorted(filter(None, proc.stdout.split("\0"))):
+        parts = Path(rel).parts
+        if SKIP_PARTS.intersection(parts) or parts[0] in RECORDS:
+            continue
+        out.append(ROOT / rel)
     return [p for p in out if p.is_file()]
 
 
-def main() -> int:
-    hits: list[str] = []
+def _rel(page: Path) -> str:
+    try:
+        return str(page.relative_to(ROOT))
+    except ValueError:
+        return str(page)
 
-    for page in pages():
+
+def main(argv: list[str]) -> int:
+    hits: list[str] = []
+    # Explicit pages are how test_doc_targets_gate.py proves each rule red
+    # on a page written for it; with none, the gate reads the repo's set.
+    todo = [Path(a).resolve() for a in argv] if argv else pages()
+    missing = [p for p in todo if not p.is_file()]
+    if not todo or missing:
+        print(
+            f"check_doc_targets: no page to check: {missing or 'none found'}",
+            file=sys.stderr,
+        )
+        return 2
+
+    for page in todo:
         real = targets_for(page)
         text = page.read_text(encoding="utf-8")
         seen: set[tuple[str, int]] = set()
@@ -215,26 +352,33 @@ def main() -> int:
                 if (name, line) in seen:
                     continue
                 seen.add((name, line))
-                rel = page.relative_to(ROOT)
-                hits.append(f"  {rel}:{line}: make {name}")
+                hits.append(f"  {_rel(page)}:{line}: make {name}")
+
+        for name, line in bare_misses(text, real):
+            hits.append(f"  {_rel(page)}:{line}: `{name}` (bare)")
 
     if hits:
         print(
             "check_doc_targets: these docs name a `make` target that does "
             "not exist -- it was renamed or removed and the prose did not "
-            "move with it. Run `make help` for the real list:",
+            "move with it. Run `make help` for the real list. A (bare) "
+            "name is in a target's family but is no target, CI job or "
+            "hook: if it is a renamed one, use the new name (and give the "
+            "old one a row in scripts/.retired-names); if it names a thing "
+            "outside this repo, add it to EXTERNAL in "
+            "scripts/check_doc_targets.py with its reason:",
             file=sys.stderr,
         )
         print("\n".join(sorted(hits)), file=sys.stderr)
         return 1
 
-    n_makefiles = len({owning_makefile_dir(p) for p in pages()})
+    n_makefiles = len({owning_makefile_dir(p) for p in todo})
     print(
         f"check_doc_targets: OK — every documented target exists "
-        f"({len(pages())} pages against {n_makefiles} makefile(s))"
+        f"({len(todo)} pages against {n_makefiles} makefile(s))"
     )
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))

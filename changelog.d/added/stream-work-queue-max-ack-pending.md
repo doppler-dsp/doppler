@@ -1,1 +1,0 @@
-- **`doppler.stream.WORK_QUEUE_MAX_ACK_PENDING`** (C: `DP_WORK_QUEUE_MAX_ACK_PENDING`) names how many unacked frames a `Pull` may hold before the server sends it only redeliveries. It was a bare `1000` in the transport.

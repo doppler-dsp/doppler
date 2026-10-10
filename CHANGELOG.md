@@ -13,6 +13,396 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.66.0] - 2026-10-10
+
+### Breaking
+
+- **`doppler.dsss.handoff.dll_init_chip_from_acq` is removed; read the hit's
+    eighth element, `hit[7]`.** Every `Acquisition` and `BurstAcquisition`
+    hit is now an 8-tuple ending in `chip_phase`, the Dll seed, computed once
+    in C with the dwell advance applied when a carrier is set (the Python
+    copy did not carry it: 0.9 chip late at 20 ppm on the 40 dB-Hz floor).
+    Replace `dll_init_chip_from_acq(hit[1], spc, sf)` with `hit[7]`. A
+    `BurstAcquisition` is built from a sampled template, one chip per
+    sample, so its `hit[7]` is in template samples: divide by your samples
+    per chip for chips. See
+    [#1257](https://github.com/doppler-dsp/doppler/issues/1257).
+
+### Added
+
+- **A published benchmark set must name a commit main can reach (#1322).** `make bench-commits-check`, part of `make lint`, refuses a `doppler_meta.commit` that is not an ancestor of `origin/main`, and fails on a shallow clone, naming the depth as the cause. `make bench-restamp VERSION=X.Y.Z` moves a set measured on a since-merged branch onto the one commit on main with the identical tree; v0.58.0 and v0.64.0 were restamped this way. v0.56.0 and v0.57.0 can never pass and are exempt in a list that may only shrink.
+
+- **`dp_<t>_framer_frames_in(fr, n)`, the ring framer's stream-level frame
+    count.** The frames a stream yields once `n` more samples are in, however
+    many feed-and-drain rounds that takes, so it is the bound a consumer sizes
+    its output by. `frames_for` is the same count capped by one feed's room
+    (`docs/design/ring-buffer.md`).
+
+- **A mutator's value is state, and a gate holds every serializable object to
+    it (#2022).** A value a setter, writable property or
+    `configure`/`retune`/`reseed` can change must travel in the state blob.
+    Config that sizes the blob is a reject key. `test_mutator_state.py`
+    finds every public member of each class Python gets, and every C setter
+    it doesn't bind, and probes each by restoring into other-valued targets.
+    The 119 that don't yet pass are
+    listed by exact verdict in `scripts/.mutator-state-exempt`, which only
+    shrinks. The rule is in `docs/design/state-serialization.md`; the
+    known violations are filed as #2079–#2084 and #2087.
+
+- **PSD is certified**: a generated validation report,
+    [`results.md`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/spectral/tests/validation/psd/results.md),
+    holds every limit it measures through the binding against an external
+    truth, and records the findings: #1959's fixes, and the gaps still open
+    (#1957, #1958, #1986, #2001, #2053). Its executive summary carries the
+    counts. Part c of #1911.
+
+- **The rest of PSD's header claims are pinned in C**: every reader's empty
+    contract, linear power without `full_scale`, the real-input fold, the
+    four averaging modes against their defining rules, reset, dB/Hz and band
+    power as absolutes, occupied bandwidth, and the noise floor as a median,
+    SNR and SFDR. Statistical tolerances come from the estimator's own
+    spread. Test-only; part b of #1911.
+
+- **`dp_psd_frame_linear`: one frame in full-scale² units, against PSD's
+    own reference.** The linear twin of `dp_psd_frame_db`, read from the same
+    quotient, so a consumer that averages frames itself (the Spectrogram's
+    power mode, #1894) gets a full-scale tone at 1.0 under every window
+    instead of the raw power, which sits 20·log10(Σw) above it (54.18 dB for
+    Hann at 1024 points). `frame_db` is byte-identical to before.
+
+- **PSD's per-frame kernel has its header claims pinned in C**, the base the
+    Spectrogram's "a row is that frame's PSD" stands on: the average is left
+    untouched, 0 dBFS under every window and both references, the -200 dB
+    floor, negative and padded bins, ENBW against published coefficients, and
+    the transform length. Test-only; part a of #1911.
+
+- **Bench rows that name where a PSD frame's time goes, and what power rows
+    cost** (#2094's first step). In `psd`, `accumulate_frame[nfft=N]` and
+    `frame_linear[nfft=N]` are timed beside `fft`, `frame_power` and
+    `frame_db`, splitting the normalisation from log10 and the floor.
+    `acc_trace::fold[<mode>,nfft=N]` is the fold on its own.
+    `spectrogram::push[nfft=N,hop=N/4,mode=power]` times the default power
+    rows beside their dB twins (U4 for power, moved from #1968). Together
+    they are the baseline #2094 is measured against.
+
+- **Bench rows for the Spectrogram's open questions** (#1894, A4): the
+    carry against a hand-written bypass (`direct[nfft,hop]`, a measuring stick
+    that must match `push` bit for bit), chunked pushes for row latency, and
+    PSD's per-frame `fft` / `frame_power` / `frame_db` for where a row's time
+    goes. Rows only; the numbers land in the design's measurement record.
+
+- **The Spectrogram is certified** (#1894 slice 3a, #1941's A4): its
+    header's 27 claims inventoried against their C pins, measured at scale
+    by `native/validation/spectrogram_certify.c` against an oracle built
+    without the object, and asserted as limits in
+    `src/doppler/tests/validation/spectrogram/results.md`. The inventory
+    pinned two claims the C test held only by luck: `get_state` writing
+    every byte (heap contents), and the refusal of another hop's blob
+    before its first row (masked by the counter check).
+
+- **The Spectrogram's header claims are pinned in C**: the carry bound, the
+    room rule judged as maximal, flush's truth on the hop grid, beta ignored
+    outside Kaiser, the -200 dB floor, the state blob's size and contents,
+    every set_state refusal leaving the object as it was, a different window
+    restoring as that window or beta, and zero latency in samples. Tests, plus
+    the header's prose on the state blob and its c-api page; step A4 of #1941
+    (#1894 slice 3a).
+
+- **What the Spectrogram costs, measured** (#1894's U1–U4). On one pinned
+    core of an AMD Ryzen AI 9 465, it sustains about 36 MSa/s at `nfft` 1024
+    and `hop` 256, about 141,000 rows per second. The carry's copy is at
+    most 3.3% of that, so it gets no bypass. The dB conversion is 70–83% of
+    every dB row, so power rows are the default (#1968). Record and data:
+    `spectrogram-measurements.md` §5.6–5.9.
+
+- **The Spectrogram's dB floor and end of stream, characterized** (#1894's
+    U5 and U6). A bin reads no lower than −200 dB, so an all-zero frame and a
+    signal under the floor give the same row, and noise reaches the floor
+    about `10·log10(nfft)` sooner than a tone does. `flush` stays explicit.
+    The header and guide now state the floor; the numbers come from the new
+    `validate_spectrogram_certify` harness and are recorded in
+    `spectrogram-measurements.md` §5.4–5.5.
+
+- **A guide and a C example for the streaming spectrogram.**
+    `docs/guide/spectrogram.md` explains rows, sizing the output, the
+    room rule and flush, around `native/examples/spectrogram_demo.c`: a
+    hopping tone in chunks of 1/37/700/5 samples, built into a waterfall two
+    ways that agree bit for bit. Every public `dp_spectrogram_*` function now
+    has a C `@code` example, compiled and run by `make test-snippets`.
+
+- **A streaming spectrogram in C, `dp_spectrogram_*`.** Any-size chunks of
+    cf32 in, rows of `nfft`-bin spectra out, one every `hop` samples, and
+    the same rows however the stream is cut. Rows are linear power by
+    default, `dp_psd_frame_linear` of each frame, so a full-scale tone reads
+    1.0; `DP_SPECTROGRAM_DB` asks for dBFS rows by name (#1968). A
+    short output buffer never loses input: `push` stops at a whole row and
+    `dp_spectrogram_consumed()` says where to resume. It has no Python face
+    yet; that follows the jm release with `out_cols` (#1894,
+    `docs/design/spectrogram.md`).
+
+- **`Subscriber.reasm_stats()`** (C: `dp_sub_reasm_stats`) counts what chunked-frame reassembly has lost: frames `abandoned`, chunks `rejected`, and `mid_frame_timeouts`.
+
+- **`doppler.stream.WORK_QUEUE_MAX_ACK_PENDING`** (C: `DP_WORK_QUEUE_MAX_ACK_PENDING`) names how many unacked frames a `Pull` may hold before the server sends it only redeliveries. It was a bare `1000` in the transport.
+
+- **`make test-python TEST_PATHS=<files/dirs>` runs only those tests (#1998).** It uses the same mem-guard, leak check and flags as the full suite. A path in `PYTEST_ARGS` was collected in addition to `src/`, so the whole suite ran: 4867 tests for a 24-test file. That pushed sessions to raw `pytest`, which skips the guard. `make help` and the workflow page name the knob.
+
+- **Every `set_telemetry` face is now tested for refusing an overlong prefix (#1944).** A test that finds its cases by walking the public modules checks all 11 Python faces. It confirms a prefix one byte too long raises and registers nothing truncated, and that the longest prefix that fits attaches in full. The four composites that leave dead probe slots behind are strict xfails tracked by #1897. `make lint-tlm-name-join` refuses a hand-written `"%s.` probe-name join anywhere outside `dp_tlm_name_join()`.
+
+### Changed
+
+- **AccTrace's state blob carries `alpha`, and refuses another mode's
+    blob** (#2000). A resume after a runtime `alpha` change used to continue
+    with the alpha from `create`, and a mean trace's blob restored into an
+    exp instance went on as an EMA. `set_state` refuses an `alpha` the setter
+    would refuse and a blob from another mode, and version-1 blobs are no
+    longer accepted -- including those nested in `PSD`'s, `CarrierAcquisition`'s
+    and `Specan`'s state.
+
+- **A full result buffer stops `dp_acq_push()` where the input can
+    resume** (`dp_acq_consumed()`, and `dp_burst_acq_consumed()` for
+    `BurstAcquisition`): it takes nothing more, keeping only a rest that
+    completes no frame, counting the carry, as the carry. A frame that ends
+    a dwell is taken only while its whole list fits; under `max_peaks` the
+    list is cut to its strongest picks. `dp_acq_run()` stops and resumes the
+    same way. Python's `push()` has room for 1024 results (was 64). State
+    blob v5 (#1895, #1992).
+
+- **CarrierAcquisition's block is at least 3 samples** (#1959). A
+    `resolution_hz` above `fs / 2.5` used to get a 2-sample block. Under
+    the default Hann window that read NaN, and AsyncDsssReceiver aborted
+    on it once PSD refused the window. `AsyncDsssReceiver` also refuses a
+    non-finite `symbol_rate`.
+
+- **A full result buffer stops `dp_detector_push()` where the input can
+    resume** (`dp_detector_consumed()`), keeping a rest shorter than a frame
+    as the carry. Python's `push()` has room for 1024 detections (was 64): a
+    push that completes at most 1024 frames, counting the carry, loses
+    nothing. Past that its later frames are lost, and the next push stays
+    on the frame grid only when what was lost is a whole number of frames
+    (#1992, just-buildit/just-makeit#2184). State blob v2, without
+    `last_corr` (#1895).
+
+- **A full result buffer stops `dp_detector2d_push()` where the input can
+    resume** (`dp_detector2d_consumed()`), keeping a rest shorter than a
+    frame as the carry. `CorrDetector2D.push()` has room for 1024 detections
+    (was 64): a push that completes at most 1024 frames, counting the carry,
+    loses nothing. Past that its later frames are lost, and the next push
+    stays on the frame grid only when what was lost is a whole number of
+    frames (#1992, just-buildit/just-makeit#2184). State blob v2, without
+    `last_corr` (#1895).
+
+- **`samples_fed` is removed from the `DsssReceiver` and
+    `AsyncDsssReceiver` C state structs.** It was a count kept in parallel
+    with the embedded engine's, so it went wrong after
+    `configure_search_raw()` or `set_state()`. A C caller that read it reads
+    `dp_acq_position (state->acq)` instead: the engine's own position, in
+    the timebase its hits are counted in (#2042).
+
+- **`PSD` and `AccTrace` refuse an invalid argument with a `ValueError` that
+    names the rules, instead of a reasonless `MemoryError`.** An exp-mode
+    `alpha=-0.5` used to report running out of memory. Code catching
+    `MemoryError` around either constructor must catch `ValueError` now; a
+    genuine allocation failure reads as `ValueError` too (#1986).
+
+- **PSD, AccTrace and `obw_from_power` refuse what read wrong** (#1911): a
+    zero-gain or non-finite window, a non-finite `fs`/`full_scale`, `pad = 0`,
+    `bits > 64`, an oversized `n * pad`, an exp `alpha` outside
+    `0 < alpha <= 1`. OBW is NaN outside `0 < frac < 1` and exact at a
+    bin-boundary tie (one bin wider); `band_power()` may return `None`.
+
+### Fixed
+
+- **`AsyncDsssPool` searches every dwell of a long block.** It pushed each
+    block into its searcher once, with room for one dwell's list
+    (`max_peaks`), so once a block made more than `max_peaks` hits the rest
+    of it went unsearched and the emitters in it were missed. It now resumes
+    from `dp_acq_consumed()` until the block is taken (#2019).
+
+- **`BurstCapture` never refuses input, and every epoch is the burst's
+    stream position.** At 8192-sample blocks with `release()` on every
+    window, one refused history write was permanent: 73728 samples dropped,
+    4 of 15 bursts captured, and every later `preamble_start` early by what
+    was refused. `push()` now writes what fits and loops, a dead burst is
+    swept and counted in `dropped` (a shadowed entry is not), and a
+    checkpoint carries the whole ring. `set_state()` checks a blob whole
+    before writing any of the capture, so a refused one leaves it as it
+    was. State blobs move to version 5 (#2015, #2028).
+
+- **A tiled `BurstCapture` anchors each detection at its own frame.** With
+    `doppler_uncertainty` past the native span, each detection was anchored
+    (W − 1) code periods early. A burst came back at the wrong start whenever
+    reps + m < W − 1 (m: whole periods its deciding frame sat past the
+    start), so every burst did once 2·reps < W − 1. A burst in the first
+    (W − 1) periods came back with a garbage start, and one that closely
+    followed a window was silently dropped (#2090). State blobs stay at
+    version 5: a tiled checkpoint taken before the fix refines its queued
+    anchors wrong once, which is acceptable while the format is unreleased.
+
+- **`BurstDespreader.set_state()` refuses a blob from a differently
+    configured despreader instead of crashing the next `steps()`.** It copied
+    every field from the blob but kept its own code buffers, so a blob taken
+    with `set_acq()` active, restored into a despreader without it, left a
+    NULL acq code to read. The acq code and the loops' `bn` now travel; a
+    blob restores only into a despreader with the same `sf`, `sps`, seeds
+    and acq-code length, and a refused one, or one holding a NaN, changes
+    nothing. An invalid constructor argument, now including a non-finite
+    seed, raises `ValueError` instead of `MemoryError` (#2041).
+
+- **`CarrierAcquisition`'s state blob is a function of the object.**
+    `get_state` wrote the whole carry buffer, though only its first
+    `carry_len` samples are state, so two identical objects gave different
+    blobs from whatever the buffer held before. It now writes zeros past
+    the carry; the blob's size and `set_state` are unchanged (#2076).
+
+- **`dp_det_verify_count` saturates at `INT_MAX` instead of overflowing.**
+    A per-look probability with `1 - p_look < -ln(p_target) / INT_MAX`
+    (3.2e-9 at a 1e-3 budget) needs more looks than an `int` holds, and the cast to `int` was undefined (`INT_MIN` on
+    x86, reached from `Dll.configure_lock(0.9999999999999999, 1)`). It
+    now returns `INT_MAX`, as a certain look already did (#2112, item 2).
+
+- **A `Dll` that refuses a state blob is left as it was.** `set_state()`
+    read the whole blob into the object before checking it, so a refused
+    blob of the right size (a 4-segment, symbol-aided Dll's, restored into a
+    49-segment one) left NULL code and buffer pointers behind, and the next
+    call crashed. It now checks the blob whole first. It also refuses a blob
+    whose code length, samples per chip or aid hypotheses do not fit this
+    instance (#2092).
+
+- **`check_doc_targets` holds a bare target name, on every tracked page.**
+    It saw only `make <target>` on a hand list of pages that left out
+    CLAUDE.md, so "`bench-check` remains" there, `test-example-tarball` in
+    the downstream-jm README and a `python-tests` CI job in
+    docs-conventions.md all outlived their renames. A backticked name in a
+    target's family must now name a target, CI job or hook, and the page
+    set is every tracked `.md` file but the changelog. The three are
+    fixed (#2116).
+
+- **The contributor guide no longer teaches a Windows link failure.**
+    `adding-a-module.md` registered benchmarks against a bare `m`, the libm
+    spelling the `bare-libm` gate refuses in real CMake. The snippet now links
+    `${DP_MATH_LIBRARY}`, and the gate reads the `docs/dev/` cmake fences too.
+
+- **`FFT.execute_ci16` / `execute_ci8` refuse an odd element count.** An
+    input of `2n + 1` int values passed the exact-length check and its last
+    value was silently ignored; it now raises `ValueError`. Every wrong length
+    on these two methods now reads one message, counted in int values and
+    naming the length passed, e.g.
+    `execute_ci16 takes exactly one frame: 2 * FFT.n = 128 interleaved I/Q values, got 129`
+    (#1933).
+
+- **The ring framer's `set_state` refuses a carry no stream can produce.**
+    A snapshot whose counters agreed (`written - frames * hop == live`) but
+    claimed fewer than `frame_n - hop` live samples with a frame already out
+    was accepted. After that, `pending()` wrapped to about 1.8e19 and `flush()`
+    emitted a row of nothing. Once a frame has been handed out, a drained
+    framer always holds at least `frame_n - hop` samples, so such a blob is
+    now `DP_ERR_INVALID`. This tightens the framed face shipped in v0.65.0;
+    the framer's certification adds it as a limit.
+
+- **One session's `MEM_GUARD_MAX` no longer lowers every other session's memory ceiling (#1960).** The shared `doppler-guard.slice` took its limit from whichever guarded command started last. The slice now always holds 3/4 of RAM, and `MEM_GUARD_MAX` caps only the caller's own scope. A cap systemd refuses (`4GB`) is dropped with a warning, and the command still runs under the shared ceiling.
+
+- **The mem-guard probe's deliberate kill no longer appears in the journal as a kill in the guard slice (#1961).** The probe ran in a child of `doppler-guard.slice`, so every guarded start logged an OOM kill there. It now runs in the sibling `doppler-mgprobe.slice`. A `doppler-guard.slice` OOM line now means a guarded command really was killed.
+
+- **The first build after a compiler change no longer fails on protobuf-c (#1936).** When a build tree's vendored nats.c cache named a different C compiler, CMake deleted that cache and re-ran configure without doppler's `-D` options. NATS Streaming then defaulted to ON and asked for protobuf-c. The vendor is now configured from an empty directory each time it is built.
+
+- **`dsss_realtime_file_demod.py` no longer exits 0 when its writer refuses the scene (#1797).** It used to print an empty results table and pass. `run_streaming()` now raises with wfmgen's exit status and stderr when the `--continuous` writer stops on its own. The example also asserts its own result through a `check()` it shares with its test: every burst arrives, decodes and passes its CRC, and lands in band.
+
+- **The receiver examples no longer count a publisher restart as dropped
+    frames.** `native/examples/receiver.c` and `src/doppler/examples/receiver.py` took
+    `seq - last - 1` unconditionally, so a sequence reset to 0 wrapped the C
+    counter to about 1.8e19 and added a negative in Python. Only a forward
+    jump counts now; a repeat or a backwards jump adds nothing (#2017).
+
+- **The stream receiver examples ride out an end-of-stream and a one-off
+    receive failure.** `receiver.py` caught only Ctrl+C, so the
+    `EOFError` of a graceful publisher restart, or the `RuntimeError` of
+    the broker's slow-consumer signal, ended the dashboard. Both receivers
+    now print the end-of-stream and keep receiving, skip a failed receive
+    (the lost frames count as the next gap), and stop after three
+    failures with no frame between. `streaming.md`'s "Dropped" causes lose
+    "slow joiner", which a first-frame anchor cannot count (#2096).
+
+- **The shell doc-fence gate no longer passes a fence it did not run (#1787).** A fence the gate would execute but for a command outside its allowlist used to be parse-validated only, and passed. It now fails and names the command. A multi-line `python3 -c "…"` is read as one command, and `cmp` and `grep` are allowlisted. Four fences went from silently skipped to executed, including the `cmp` on the wfmgen Data page that checks the page's own claim.
+
+- **The post-release PyPI smoke installs every supported Python's wheel on
+    every published platform, macOS arm64 included, and never the sdist.**
+    It ran cp312 alone, so v0.55.0–v0.61.0's uninstallable cp313/cp314
+    win_amd64 wheels went unseen (#1817). Its install now retries itself
+    while PyPI's index catches up with the publish (#1394).
+
+- **The specan `PullSource` acks every frame it reads (#2009).** It never acked, so the `doppler compose … specan` sink got every frame redelivered after AckWait. After 1000 pending frames it received only redeliveries, which it read as new data, and the frames stayed queued for the next run. A timeout now returns the buffered samples rather than raising: the bindings raise `TimeoutError`, while the old code checked for a `None` return. `pipeline_recv.py` acks too. `PullSource` skips a redelivered frame instead of reading it twice, and counts what it saw in `duplicates`, `gaps`, `restarts` (a new producer) and `undecodable`. Samples that arrive with no sample rate are now an error rather than an endless "Waiting for signal...".
+
+- **CI's Docker, glibc and package legs no longer fail on Docker Hub's rate
+    limit.** They pulled stock images by bare Docker Hub name, anonymously,
+    and with several PRs in flight the 429 failed unrelated PRs. Every stock
+    image now comes through the Makefile's `STOCK_REGISTRY` (ECR Public's
+    mirror of the official images: same digests, no credentials), the
+    Dockerfiles drop the `# syntax=` frontend pull, and
+    `make lint-stock-images` refuses a bare one (#1950).
+
+- **Stock images are pulled through one helper that retries ECR Public's
+    rate limit** (#1979). `scripts/stock-pull.sh` backs off on
+    `toomanyrequests` and transient errors and fails at once on anything
+    else. `make lint-stock-images` refuses a stock pull that bypasses it.
+    The buildx container-driver builds are exempt pending #1982.
+
+- **An ack after its `Pull` is closed is refused, not a use-after-free.**
+    `dp_msg_ack()` after the context that received the message was
+    destroyed read the freed subscription; it now returns `DP_ERR_CLOSED`
+    and the broker redelivers the frame. Python's `Pull.ack()` raises
+    `ValueError` then, also after the `Pull` is garbage-collected, and
+    `Pull.close()` no longer holds the GIL while it waits (#2016).
+
+- **One lost chunk no longer loses every later chunked PUB/SUB frame (#2010).** A frame above max_payload (1 MiB) arrives as chunks. On a mismatch, the subscriber threw away the chunk that started the NEXT frame, so after one lost chunk, a late join or a mid-frame timeout, every later frame started mid-frame and failed. Now the lost frame alone is given up and counted, and the next arrives intact. A timeout mid-frame keeps the frame for the next `recv`. Two publishers with coincident sequences are no longer merged into one frame, unless their headers are bit-identical (the same explicit timestamp too, #2017). One `recv(timeout_ms)` has one deadline, however many chunks it reads.
+
+- **A frame whose sample count wraps is refused at both ends.** A receiver
+    checked `num_samples * elem_size` against the payload in 64 bits, so a
+    forged count that wrapped onto the payload size was believed and
+    `dp_msg_num_samples()` reported a count no buffer held; it now checks
+    by division. A sender whose count wrapped under the 32-bit payload
+    limit sent such a frame; it now returns `DP_ERR_TOO_LARGE` (#2016).
+
+- **Acking a request no longer sends the requester `+ACK`.** `dp_msg_ack()`
+    on a REP request ran a JetStream ack on a plain subscription, which
+    published `+ACK` to the requester's inbox, so a replier that acked
+    unconditionally gave its requester `+ACK` as the first reply instead
+    of its own. An ack on REP and SUB messages is now the no-op `stream.h`
+    documents; on SUB it had returned an error (#2016).
+
+- **`deploy/docker/stream_tool.c` builds with the library**, so a change
+    that breaks it fails `make build` and CI. Its only recipe was the
+    Dockerfile, which nothing builds, and it went ten weeks without
+    compiling. It is a `stream_tool` target wherever the stream layer
+    builds, except Windows, linked against the same `libdoppler_stream.a`
+    archive the image ships (#2100).
+
+- **`stream_tool` compares Q as well as I, and it and `deploy/README.md`
+    say what it catches.** It verifies each frame's PN payload, seeded by
+    `sequence % 127`, against that frame's own `sequence`, so it catches a
+    corrupted payload, not a missing, repeated or transport-rejected frame
+    (#2017).
+
+- **Telemetry probe names are no longer truncated silently (#676).** A long `set_telemetry` prefix used to be cut into the 32-byte probe name, so two probes could register under one alias while the attach reported success. Every instrumented object now refuses an overlong prefix with `DP_ERR_INVALID` before registering anything, via the shared `dp_tlm_name_join()`.
+
+- **uv is pinned, so a re-lock no longer rewrites `uv.lock`'s markers.** The
+    lock's bytes depended on whichever uv wrote it: v0.65.0's version bump
+    changed 308 lines. `pyproject.toml`'s `[tool.uv] required-version`
+    (0.12.24) is now the one pin, every CI install reads it, and
+    `make lint-uv-pin`/`lint-uv-lock` gate both (#1940). Developers need that
+    uv: `uv self update "$(make -s print-uv-version)"`.
+
+- **The hand-typed-version docs gate lets a pre-release label through.**
+    `check_version_strings` matched doppler's version as a prefix, so a page
+    recording the label a measurement ran under (`VERSION=0.66.0-a4`) read as
+    the release version hand-typed and blocked `make release-pr`. A SemVer
+    pre-release suffix (`-a4`, `-rc1`) now ends the match; a hyphenated word
+    such as `0.66.0-based` is still refused.
+
+- **The hand-typed-version gate now sees a version that ends a sentence.**
+    Its guard against a longer number (`X.Y.Z1`) refused every following
+    dot, so "The current release is X.Y.Z." passed — the very claim it
+    exists to stop. It now refuses only a dot a digit follows (#1943).
+
 ## [0.65.0] - 2026-10-09
 
 ### Breaking
@@ -16116,7 +16506,8 @@ ______________________________________________________________________
 [0.63.0]: https://github.com/doppler-dsp/doppler/compare/v0.62.0...v0.63.0
 [0.64.0]: https://github.com/doppler-dsp/doppler/compare/v0.63.0...v0.64.0
 [0.65.0]: https://github.com/doppler-dsp/doppler/compare/v0.64.0...v0.65.0
+[0.66.0]: https://github.com/doppler-dsp/doppler/compare/v0.65.0...v0.66.0
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.65.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.66.0...HEAD

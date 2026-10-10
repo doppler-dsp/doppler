@@ -1331,13 +1331,56 @@ main (void)
       dp_wfm_synth_state_t *tone = dp_wfm_synth_create (
           WFM_SYNTH_TONE, 1e6, 1e3, 100.0, 1, 5, 4, 7, 0, 0, 0.0);
       DP_REQUIRE_MSG (tone != NULL, "accessors: tone create");
+      float _Complex out[16];
       for (int t = WFM_SYNTH_PN; t <= WFM_SYNTH_QPSK; t++)
         DP_CHECK (dp_wfm_synth_set_wtype (tone, t) == DP_ERR_INVALID);
       DP_CHECK (dp_wfm_synth_get_wtype (tone) == WFM_SYNTH_TONE);
+      dp_wfm_synth_steps (tone, out, 16); /* right after the refusals */
+      /* The accepted side, pinned: every type that reads no PN source. */
+      for (int t = WFM_SYNTH_CHIRP; t <= WFM_SYNTH_DSSS; t++)
+        DP_CHECK (dp_wfm_synth_set_wtype (tone, t) == DP_OK);
       DP_CHECK (dp_wfm_synth_set_wtype (tone, WFM_SYNTH_NOISE) == DP_OK);
-      float _Complex out[16];
+      DP_CHECK (dp_wfm_synth_set_wtype (tone, WFM_SYNTH_TONE) == DP_OK);
+      dp_wfm_synth_steps (tone, out, 16);
+
+      /* With a shaper attached, every type but symbols/bits/dsss reads the
+         PN source too (wfm_synth_next_symbol), so a shaped engine without
+         one refuses tone, noise and chirp as well. Two ways to get there:
+         a tone engine switched to bits, then set_rrc; and an engine created
+         as symbols, then set_rrc. Both segfaulted on the next step. */
+      const float taps[1] = { 1.0f };
+      DP_CHECK (dp_wfm_synth_set_wtype (tone, WFM_SYNTH_BITS) == DP_OK);
+      DP_CHECK (dp_wfm_synth_set_rrc (tone, taps, 1) == DP_OK);
+      DP_CHECK (tone->shaper != NULL); /* the path under test exists */
+      DP_CHECK (dp_wfm_synth_set_wtype (tone, WFM_SYNTH_TONE)
+                == DP_ERR_INVALID);
+      DP_CHECK (dp_wfm_synth_get_wtype (tone) == WFM_SYNTH_BITS);
       dp_wfm_synth_steps (tone, out, 16);
       dp_wfm_synth_destroy (tone);
+
+      dp_wfm_synth_state_t *sy = dp_wfm_synth_create (
+          WFM_SYNTH_SYMBOLS, 1e6, 1e3, 100.0, 1, 5, 4, 7, 0, 0, 0.0);
+      DP_REQUIRE_MSG (sy != NULL, "accessors: symbols create");
+      DP_CHECK (dp_wfm_synth_set_rrc (sy, taps, 1) == DP_OK);
+      DP_CHECK (sy->shaper != NULL);
+      DP_CHECK (dp_wfm_synth_set_wtype (sy, WFM_SYNTH_TONE) == DP_ERR_INVALID);
+      DP_CHECK (dp_wfm_synth_set_wtype (sy, WFM_SYNTH_NOISE)
+                == DP_ERR_INVALID);
+      DP_CHECK (dp_wfm_synth_set_wtype (sy, WFM_SYNTH_CHIRP)
+                == DP_ERR_INVALID);
+      DP_CHECK (dp_wfm_synth_set_wtype (sy, WFM_SYNTH_DSSS) == DP_OK);
+      dp_wfm_synth_steps (sy, out, 16);
+      dp_wfm_synth_destroy (sy);
+
+      /* A dsss engine whose length has an MLS polynomial has a PN source,
+         so PN is accepted there. */
+      dp_wfm_synth_state_t *ds = dp_wfm_synth_create (
+          WFM_SYNTH_DSSS, 1e6, 1e3, 100.0, 1, 5, 4, 7, 0, 0, 0.0);
+      DP_REQUIRE_MSG (ds != NULL, "accessors: dsss create");
+      DP_CHECK (ds->pn != NULL);
+      DP_CHECK (dp_wfm_synth_set_wtype (ds, WFM_SYNTH_PN) == DP_OK);
+      dp_wfm_synth_steps (ds, out, 16);
+      dp_wfm_synth_destroy (ds);
     }
     DP_CHECK (dp_wfm_synth_get_nsps (ac) == 4);
     DP_CHECK (dp_wfm_synth_set_wtype (ac, WFM_SYNTH_BPSK) == DP_OK);
@@ -1347,9 +1390,13 @@ main (void)
     DP_CHECK (dp_wfm_synth_set_wtype (ac, 99) == DP_ERR_INVALID);
     DP_CHECK (dp_wfm_synth_set_wtype (ac, -1) == DP_ERR_INVALID);
     DP_CHECK (dp_wfm_synth_get_wtype (ac) == WFM_SYNTH_QPSK);
-    dp_wfm_synth_set_nsps (ac, 2);
+    DP_CHECK (dp_wfm_synth_set_nsps (ac, 2) == DP_OK);
     DP_CHECK (dp_wfm_synth_get_nsps (ac) == 2);
-    dp_wfm_synth_set_nsps (ac, 4);
+    /* The modulated step divides by nsps: 0 and below are refused. */
+    DP_CHECK (dp_wfm_synth_set_nsps (ac, 0) == DP_ERR_INVALID);
+    DP_CHECK (dp_wfm_synth_set_nsps (ac, -1) == DP_ERR_INVALID);
+    DP_CHECK (dp_wfm_synth_get_nsps (ac) == 2);
+    DP_CHECK (dp_wfm_synth_set_nsps (ac, 4) == DP_OK);
     /* sym_pos runs 0..nsps−1 and wraps: after k steps from a fresh reset it
        reads k mod nsps, and sym_pos == 0 means the NEXT sample starts a
        fresh symbol — which is what the doc comment offers for framing. */

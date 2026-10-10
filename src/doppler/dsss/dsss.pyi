@@ -724,7 +724,8 @@ class BurstDespreader:
     ValueError
         If construction fails. The exception message is ``BurstDespreader:
         invalid parameter (need a code of at least sf chips, sf >= 1, sps >= 2,
-        and a finite init_norm_freq and init_chip_phase)``.
+        a finite init_norm_freq and init_chip_phase, and finite bn_carrier and
+        bn_code >= 0)``.
 
     Examples
     --------

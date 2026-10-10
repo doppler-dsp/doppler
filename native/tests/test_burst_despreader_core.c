@@ -131,6 +131,39 @@ main (void)
   for (size_t i = 0; i < sf; i++)
     code[i] = (uint8_t)((i * 2246822519u) >> 31) & 1u;
 
+  /* A bandwidth outside the loop filter's domain (finite, >= 0) is refused
+     at create and by both setters, which keep the loop's bandwidth: a NaN
+     or infinite bn gave NaN gains from the first symbol (#2071). */
+  {
+    const double bad[] = { NAN, INFINITY, -0.01 };
+    for (size_t i = 0; i < 3; i++)
+      {
+        DP_CHECK (dp_burst_despreader_create (code, sf, sf, sps, 0.0, 0.0,
+                                              bad[i], 0.01)
+                  == NULL);
+        DP_CHECK (dp_burst_despreader_create (code, sf, sf, sps, 0.0, 0.0,
+                                              0.05, bad[i])
+                  == NULL);
+      }
+    dp_burst_despreader_state_t *d
+        = dp_burst_despreader_create (code, sf, sf, sps, 0.0, 0.0, 0.05, 0.01);
+    DP_REQUIRE (d != NULL);
+    for (size_t i = 0; i < 3; i++)
+      {
+        DP_CHECK (dp_burst_despreader_set_bn_carrier (d, bad[i])
+                  == DP_ERR_INVALID);
+        DP_CHECK (dp_burst_despreader_set_bn_code (d, bad[i])
+                  == DP_ERR_INVALID);
+      }
+    DP_CHECK (dp_burst_despreader_get_bn_carrier (d) == 0.05);
+    DP_CHECK (dp_burst_despreader_get_bn_code (d) == 0.01);
+    /* The accepted side: 0 (a frozen loop) and an ordinary value. */
+    DP_CHECK (dp_burst_despreader_set_bn_carrier (d, 0.0) == DP_OK);
+    DP_CHECK (dp_burst_despreader_set_bn_code (d, 0.02) == DP_OK);
+    DP_CHECK (dp_burst_despreader_get_bn_code (d) == 0.02);
+    dp_burst_despreader_destroy (d);
+  }
+
   uint8_t *tx = malloc (nsym), *rx = malloc (nsym);
   size_t   blen = 0;
 

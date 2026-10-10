@@ -42,6 +42,46 @@ def test_create_validates():
         BurstDespreader(np.zeros(2, np.uint8), sf=8, sps=2)
 
 
+_BAD_BN = [float("nan"), float("inf"), -0.01]
+
+
+@pytest.mark.parametrize("bad", _BAD_BN)
+@pytest.mark.parametrize("which", ["bn_carrier", "bn_code"])
+def test_create_refuses_a_bandwidth_outside_the_loop_filter_domain(
+    which: str, bad: float
+) -> None:
+    """A NaN, infinite or negative bandwidth gave NaN loop gains from the
+    first symbol (#2071): refused, by the loop filter's own predicate."""
+    code = np.ones(31, np.uint8)
+    with pytest.raises(ValueError, match="bn_carrier and bn_code >= 0"):
+        BurstDespreader(code, sf=31, sps=SPS, **{which: bad})
+
+
+@pytest.mark.parametrize("bad", _BAD_BN)
+@pytest.mark.parametrize("which", ["bn_carrier", "bn_code"])
+def test_a_refused_bandwidth_leaves_the_loop_as_it_was(
+    which: str, bad: float
+) -> None:
+    """The setter refuses in C and the loop keeps its bandwidth. From
+    Python the refusal is silent until just-makeit#2182 lets a writable
+    property raise; the strict xfail below turns red when it can."""
+    d = BurstDespreader(np.ones(31, np.uint8), sf=31, sps=SPS)
+    before = getattr(d, which)
+    setattr(d, which, bad)
+    assert getattr(d, which) == before
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="just-makeit#2182: a writable property's setter discards the "
+    "C status, so a refused bandwidth cannot raise yet",
+)
+def test_a_refused_bandwidth_raises() -> None:
+    d = BurstDespreader(np.ones(31, np.uint8), sf=31, sps=SPS)
+    with pytest.raises(ValueError):
+        d.bn_carrier = float("nan")
+
+
 def test_genie_payload_zero_offset():
     rng = np.random.default_rng(0)
     code, syms, tx = _burst(rng, 31, 60)

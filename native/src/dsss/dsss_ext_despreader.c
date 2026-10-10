@@ -77,8 +77,11 @@ DespreaderObj_init (DespreaderObject *self, PyObject *args, PyObject *kwds)
   Py_DECREF (code_arr);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError,
-                       "dp_despreader_create returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "Despreader: invalid parameter (need a non-empty "
+                       "code; for the code loop a finite init_chip, bn_code "
+                       ">= 0 and zeta > 0 both finite, and 0 < spacing < "
+                       "len(code)/2)");
       return -1;
     }
   return 0;
@@ -1199,6 +1202,16 @@ static PyTypeObject DespreaderObjType = {
     "    DLL early/late correlator tap offset, chips.\n"
     "periods_per_bit : int, default 1\n"
     "    Code periods per data bit (1 = one bit per period).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is ``Despreader: "
+    "invalid\n"
+    "    parameter (need a non-empty code; for the code loop a finite "
+    "init_chip,\n"
+    "    bn_code >= 0 and zeta > 0 both finite, and 0 < spacing <\n"
+    "    len(code)/2)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

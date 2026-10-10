@@ -116,13 +116,18 @@ class LoopFilter:
 
     def configure(self, bn: float, zeta: float, t: float) -> None:
         """Recompute the loop gains for a new (bn, zeta, t); preserves the
-        integrator.
+        integrator. Raises ValueError, changing nothing, when (bn, zeta, t) is
+        outside the loop's domain: bn >= 0, zeta > 0 and t > 0, all finite.
 
         Recomputes the proportional and integral gains from the standard
         2nd-order form but leaves integ untouched, so a loop can be widened for
         fast acquisition and then narrowed for steady-state tracking while
         holding its accumulated frequency/rate estimate — the retune preserves
         lock.
+
+        A (bn, zeta, t) outside dp_loop_filter_params_ok() is refused and
+        changes nothing: a NaN gave gains that never recover, and a negative bn
+        could zero the denominator (doppler#2103).
 
         Parameters
         ----------
@@ -132,6 +137,12 @@ class LoopFilter:
             Damping factor (typically 0.707).
         t : float
             Update period in samples (> 0).
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``configure failed``, with the return code appended (gh-869).
 
         Examples
         --------
@@ -716,6 +727,13 @@ class Dll:
         at a downstream SymbolSync when the symbol rate is near the code rate,
         so choose >= 2 for symbol-timing recovery.
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``Dll: invalid
+        parameter (need a non-empty code, segments >= 1, a finite init_chip, bn
+        >= 0 and zeta > 0 both finite, and 0 < spacing < len(code)/2)``.
+
     Examples
     --------
     >>> import numpy as np
@@ -879,7 +897,8 @@ class Dll:
 
     def configure(self, bn: float, zeta: float) -> None:
         """Recompute the loop gains for a new (bn, zeta); preserves the code
-        phase/rate.
+        phase/rate. Raises ValueError, changing nothing, when (bn, zeta) is
+        outside the loop filter's domain: bn >= 0 and zeta > 0, both finite.
 
         Re-derives the 2nd-order loop filter's proportional and integral gains
         for a new noise bandwidth and damping, leaving the tracked code phase,
@@ -893,6 +912,12 @@ class Dll:
             Loop noise bandwidth, normalised to the code-period rate.
         zeta : float
             Damping factor (0.707 = critically damped).
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``configure failed``, with the return code appended (gh-869).
 
         Examples
         --------
@@ -1048,7 +1073,9 @@ class Dll:
         detection.det_n_noncoh over L * (sf * sps / segments) samples. Only the
         detector's looks change: the discriminator keeps its per-epoch window
         and the emitted partial stream is untouched. Raises ValueError when
-        segments <= 1 or the period is in (0, 2).
+        segments <= 1, or the period is not finite, is in (0, 2) or is past
+        2^20 partials. Any finite period <= 0 turns the aid off (-inf used to
+        as well, and is refused now).
 
         In `segments > 1` mode every partial is a look for the code-lock
         detector (dp_dll_configure_lock()) and the discriminator sees one epoch
@@ -2020,7 +2047,7 @@ class RateSync:
     ValueError
         If construction fails. The exception message is ``RateSync: invalid
         parameter (need sps >= m, 0 <= beta <= 1, span >= 1, m even in [2, 8],
-        num_phases a power of two >= 2, bn >= 0, zeta > 0)``.
+        num_phases a power of two >= 2, bn >= 0 and zeta > 0 both finite)``.
 
     Examples
     --------
@@ -3248,7 +3275,8 @@ class MpskReceiver:
         parameter (need m in {2,4,8}, sps >= m_out -- sps > 2*m_out on the
         real-input MpskReceiverR, whose cascade runs behind a 2:1 halfband,
         m_out even in [2, 8], 0 <= rrc_beta <= 1, rrc_span >= 1, num_phases a
-        power of two >= 2, bn >= 0, zeta > 0, 0 < bn_agc_ratio < 1)``.
+        power of two >= 2, bn >= 0 and zeta > 0 both finite, 0 < bn_agc_ratio <
+        1)``.
 
     Examples
     --------
@@ -3841,7 +3869,8 @@ class BpskReceiver:
         parameter (need m in {2,4,8}, sps >= m_out -- sps > 2*m_out on the
         real-input MpskReceiverR, whose cascade runs behind a 2:1 halfband,
         m_out even in [2, 8], 0 <= rrc_beta <= 1, rrc_span >= 1, num_phases a
-        power of two >= 2, bn >= 0, zeta > 0, 0 < bn_agc_ratio < 1)``.
+        power of two >= 2, bn >= 0 and zeta > 0 both finite, 0 < bn_agc_ratio <
+        1)``.
 
     Examples
     --------
@@ -4485,7 +4514,8 @@ class MpskReceiverR:
         parameter (need m in {2,4,8}, sps >= m_out -- sps > 2*m_out on the
         real-input MpskReceiverR, whose cascade runs behind a 2:1 halfband,
         m_out even in [2, 8], 0 <= rrc_beta <= 1, rrc_span >= 1, num_phases a
-        power of two >= 2, bn >= 0, zeta > 0, 0 < bn_agc_ratio < 1)``.
+        power of two >= 2, bn >= 0 and zeta > 0 both finite, 0 < bn_agc_ratio <
+        1)``.
 
     Examples
     --------

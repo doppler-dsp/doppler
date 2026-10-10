@@ -11,6 +11,43 @@ static dp_carrier_acq_state_t *
 adr_new_carrier_acq (const dp_async_dsss_receiver_state_t *s,
                      double                                target_rate);
 
+/* The tracker's symbol period in Dll partials: `segments` partials a code
+   period, chip_rate / code_len periods a second, symbol_rate symbols. One
+   formula for the build site that sets the period and the checks that
+   vouch for it. */
+static double
+adr_partials_per_symbol (size_t segments, double chip_rate, size_t code_len,
+                         double symbol_rate)
+{
+  return (double)segments * chip_rate / ((double)code_len * symbol_rate);
+}
+
+/* Whether a tracker chain at `segments` partials and `sps` samples a symbol
+   can be built. Its Dll's arguments are inside dp_dll_params_ok(). sps >= 2,
+   since sps = 1 carries no m_out (dsss_receiver_core.c, gh-782). The symbol
+   is no faster than a chip, and at most 2^20 partials long at ANY segments:
+   that keeps the chain's resampling ratio, sps over the partials, in
+   [sps / 2^20, sps * code_len / segments], where a tiny symbol rate had
+   underflowed it to 0 and a huge one sized the scratch at ~4e12 samples, both
+   aborting. Under 2 partials the tracker keeps per-partial looks; any longer
+   period the Dll's aid takes. create() and configure_chain_raw() both refuse
+   outside it, so the chain built mid-stream under dp_xnn never meets a
+   refusal (doppler#2103). */
+static int
+adr_track_chain_ok (size_t code_len, double chip_rate, double symbol_rate,
+                    size_t segments, size_t sps)
+{
+  const double partials
+      = adr_partials_per_symbol (segments, chip_rate, code_len, symbol_rate);
+  return sps >= 2
+         && dp_dll_params_ok (code_len, 0.0, ASYNC_DSSS_RX_DLL_BN,
+                              ASYNC_DSSS_RX_DLL_ZETA,
+                              ASYNC_DSSS_RX_DLL_SPACING, segments)
+         && symbol_rate <= chip_rate && partials <= DLL_AID_MAX_PERIOD
+         && (segments < 2 || partials < 2.0
+             || dp_dll_symbol_period_ok (segments, partials));
+}
+
 /* MpskReceiver's terminal outputs per symbol (`m_out`), mirroring
  * dsss_receiver_core.c's own adr_derive_m_out() -- see the full rationale
  * there. Short version: this slot used to hold the retired `n` (the NDA
@@ -84,7 +121,8 @@ adr_build_refine_chain (
 
   dp_dll_state_t *refine_dll = dp_xnn (
       dp_dll_create (s->code, s->code_len, s->spc, chip_phase,
-                     ASYNC_DSSS_RX_DLL_BN, 0.707, 0.5, s->refine_segments));
+                     ASYNC_DSSS_RX_DLL_BN, ASYNC_DSSS_RX_DLL_ZETA,
+                     ASYNC_DSSS_RX_REFINE_DLL_SPACING, s->refine_segments));
 
   /* Carrier->code aiding on the collection Dll too: without it the coupled
      code-rate Doppler drifts the code phase over the frozen refine prefix
@@ -193,8 +231,8 @@ adr_build_track_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
   double target_rate  = (double)sps * s->symbol_rate;
 
   dp_dll_state_t *dll = dp_xnn (dp_dll_create (
-      s->code, s->code_len, s->spc, chip_phase, ASYNC_DSSS_RX_DLL_BN, 0.707,
-      ASYNC_DSSS_RX_DLL_SPACING, segments));
+      s->code, s->code_len, s->spc, chip_phase, ASYNC_DSSS_RX_DLL_BN,
+      ASYNC_DSSS_RX_DLL_ZETA, ASYNC_DSSS_RX_DLL_SPACING, segments));
   /* The lock detector's looks, sized for THIS operating point rather than
      left at the DLL's default 20 partials: the symbol period in partials is
      known from configuration, so the detector's looks are the symbol-scale
@@ -206,9 +244,15 @@ adr_build_track_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
      very fast data clock) keeps per-partial looks and only sizes them. */
   if (segments > 1)
     {
-      double partials_per_symbol = (double)segments * s->chip_rate
-                                   / ((double)s->code_len * s->symbol_rate);
-      (void)dp_dll_set_symbol_period (dll, partials_per_symbol);
+      double partials_per_symbol = adr_partials_per_symbol (
+          segments, s->chip_rate, s->code_len, s->symbol_rate);
+      /* Under 2 partials the tracker keeps per-partial looks; any longer
+         period adr_track_chain_ok() vouched for, at create() and in
+         configure_chain_raw(), so a refusal here is a defect, not a
+         configuration. */
+      if (partials_per_symbol >= 2.0
+          && dp_dll_set_symbol_period (dll, partials_per_symbol) != DP_OK)
+        abort ();
       size_t win  = dp_dll_get_symbol_window (dll);
       size_t look = (win ? win : 1) * (s->tsamps / segments);
       double amp
@@ -777,17 +821,42 @@ adr_new (const uint8_t *code, size_t code_len, double chip_rate,
      refuses unless finite: refused here, at create, because that estimator
      is built under dp_xnn mid-stream (adr_new_carrier_acq), where a NULL
      aborts.  The negated form also refuses a NaN. */
-  if (!code || code_len < 1 || chip_rate <= 0.0
+  /* A carrier the code is coupled to is 0 (none) or above half the sample
+     rate: the searcher's hand-off and both chains divide a Doppler by it,
+     and a tiny one sent that to inf and a seed phase to NaN, which aborted
+     under dp_xnn (doppler#2103). */
+  if (!code || code_len < 1 || !(chip_rate > 0.0 && isfinite (chip_rate))
       || !(symbol_rate > 0.0 && isfinite (symbol_rate)) || spc < 1
-      || (m != 2 && m != 4 && m != 8) || segments < 1 || sps < 1
-      || refine_samples_per_symbol < 1 || refine_n_fft < 1
-      || refine_zero_pad < 1 || carrier_freq_hz < 0.0
+      || (m != 2 && m != 4 && m != 8) || refine_samples_per_symbol < 1
+      || refine_n_fft < 1 || refine_zero_pad < 1
+      || !dp_acq_carrier_freq_ok (carrier_freq_hz, chip_rate * (double)spc)
       || !(lost_confirm_s >= 0.0))
+    return NULL;
+  /* The carrier estimator both flavours build mid-stream under dp_xnn
+     (adr_new_carrier_acq) refuses a pfa or pd outside (0, 1), and the cell
+     flavour has no searcher to refuse them first (doppler#2103). */
+  if (!(pfa > 0.0 && pfa < 1.0) || !(pd > 0.0 && pd < 1.0))
     return NULL;
   /* The cell mode's own: an interval of at least one period, a gain in
      (0, 1] (1 puts the phase at the read). */
   if (cell && (correct_periods < 1 || !(gain > 0.0 && gain <= 1.0)))
     return NULL;
+  /* Each Dll this receiver builds -- the refine collector and the tracker,
+     both created mid-stream under dp_xnn -- meets the Dll's own domain now,
+     so a configuration the Dll refuses (a 1-chip code, whose early and late
+     taps would coincide) is refused here rather than aborting the process
+     mid-stream, and so is a symbol period its aid would refuse
+     (adr_track_chain_ok(), doppler#2103). */
+  {
+    const size_t refine_segments
+        = dp_dll_lookback_segments (code_len * spc, refine_max_error_db);
+    if (!dp_dll_params_ok (code_len, 0.0, ASYNC_DSSS_RX_DLL_BN,
+                           ASYNC_DSSS_RX_DLL_ZETA,
+                           ASYNC_DSSS_RX_REFINE_DLL_SPACING, refine_segments)
+        || !adr_track_chain_ok (code_len, chip_rate, symbol_rate, segments,
+                                sps))
+      return NULL;
+  }
 
   dp_async_dsss_receiver_state_t *obj = dp_xcalloc (1, sizeof (*obj));
 
@@ -795,11 +864,20 @@ adr_new (const uint8_t *code, size_t code_len, double chip_rate,
   memcpy (obj->code, code, code_len);
   obj->code_len = code_len;
 
-  obj->acq = !cell ? dp_xnn (dp_acq_create_continuous (
-                         obj->code, code_len, spc, chip_rate, symbol_rate,
-                         cn0_dbhz, doppler_uncertainty, pfa, pd,
-                         0 /* noise_mode=mean */, 1, 0.0))
-                   : NULL;
+  /* The searcher checks its own domain (pfa, pd, C/N0 ...), so its refusal
+     is this create's, not an abort under dp_xnn (doppler#2103). */
+  if (!cell)
+    {
+      obj->acq = dp_acq_create_continuous (
+          obj->code, code_len, spc, chip_rate, symbol_rate, cn0_dbhz,
+          doppler_uncertainty, pfa, pd, 0 /* noise_mode=mean */, 1, 0.0);
+      if (!obj->acq)
+        {
+          free (obj->code);
+          free (obj);
+          return NULL;
+        }
+    }
   /* A physically-coupled carrier moves the code too: the searcher's
      hand-off advances its hit's phase by the drift over half its dwell
      (#1254), and a coherent block aligns its epochs (#1256). The same
@@ -1003,8 +1081,13 @@ dp_async_dsss_receiver_seed (dp_async_dsss_receiver_state_t *state,
   if (state->state != ASYNC_DSSS_RX_IDLE
       && state->state != ASYNC_DSSS_RX_SEARCHING)
     return DP_ERR_INVALID;
-  if (!isfinite (chip_phase) || !isfinite (doppler_hz_est) || chip_phase < 0.0
-      || chip_phase >= (double)state->code_len)
+  /* A Doppler is reportable only below half the sample rate, which is what
+     dp_acq_carrier_freq_ok() relies on to keep doppler / carrier finite; a
+     seed near 1e308 sent the hand-off's phase to NaN (doppler#2103). */
+  if (!isfinite (chip_phase) || chip_phase < 0.0
+      || chip_phase >= (double)state->code_len
+      || !(fabs (doppler_hz_est)
+           < 0.5 * state->chip_rate * (double)state->spc))
     return DP_ERR_INVALID;
 
   if (state->cell)
@@ -1258,7 +1341,13 @@ int
 dp_async_dsss_receiver_configure_chain_raw (
     dp_async_dsss_receiver_state_t *state, size_t segments, size_t sps, int n)
 {
-  if (segments < 1 || sps < 1 || n < 1 || (int)(sps % (size_t)n) != 0)
+  /* The new grid's chain is checked as create() checked the first, before
+     anything is rebuilt: a period past what the Dll's aid takes would abort
+     the rebuild (doppler#2103). */
+  if (n < 1
+      || !adr_track_chain_ok (state->code_len, state->chip_rate,
+                              state->symbol_rate, segments, sps)
+      || (int)(sps % (size_t)n) != 0)
     return -1;
 
   double chip_phase      = dp_dll_get_code_phase (state->dll);

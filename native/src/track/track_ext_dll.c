@@ -70,7 +70,10 @@ DllObj_init (DllObject *self, PyObject *args, PyObject *kwds)
   Py_DECREF (code_arr);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "dp_dll_create returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "Dll: invalid parameter (need a non-empty code, "
+                       "segments >= 1, a finite init_chip, bn >= 0 and zeta "
+                       "> 0 both finite, and 0 < spacing < len(code)/2)");
       return -1;
     }
   return 0;
@@ -292,7 +295,13 @@ DllObj_configure (DllObject *self, PyObject *args, PyObject *kwds)
   double       zeta      = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "dd", _kwlist, &bn, &zeta))
     return NULL;
-  dp_dll_configure (self->handle, bn, zeta);
+  int _rc = dp_dll_configure (self->handle, bn, zeta);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "configure failed",
+                    (long long)_rc);
+      return NULL;
+    }
   Py_RETURN_NONE;
 }
 
@@ -813,7 +822,8 @@ static PyMethodDef DllObj_methods[] = {
     "configure(bn, zeta) -> None\n"
     "\n"
     "Recompute the loop gains for a new (bn, zeta); preserves the code "
-    "phase/rate.\n"
+    "phase/rate. Raises ValueError, changing nothing, when (bn, zeta) is "
+    "outside the loop filter's domain: bn >= 0 and zeta > 0, both finite.\n"
     "\n"
     "Re-derives the 2nd-order loop filter's proportional and integral gains\n"
     "for a new noise bandwidth and damping, leaving the tracked code phase,\n"
@@ -827,6 +837,12 @@ static PyMethodDef DllObj_methods[] = {
     "    Loop noise bandwidth, normalised to the code-period rate.\n"
     "zeta : float\n"
     "    Damping factor (0.707 = critically damped).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``configure failed``, with the return code appended (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -981,8 +997,9 @@ static PyMethodDef DllObj_methods[] = {
     "never across a transition. Size n_looks with detection.det_n_noncoh over "
     "L * (sf * sps / segments) samples. Only the detector's looks change: the "
     "discriminator keeps its per-epoch window and the emitted partial stream "
-    "is untouched. Raises ValueError when segments <= 1 or the period is in "
-    "(0, 2).\n"
+    "is untouched. Raises ValueError when segments <= 1, or the period is not "
+    "finite, is in (0, 2) or is past 2^20 partials. Any finite period <= 0 "
+    "turns the aid off (-inf used to as well, and is refused now).\n"
     "\n"
     "In `segments > 1` mode every partial is a look for the code-lock\n"
     "detector (dp_dll_configure_lock()) and the discriminator sees one epoch\n"
@@ -1400,6 +1417,14 @@ static PyTypeObject DllObjType = {
     "    at a downstream SymbolSync when the symbol rate is near the code "
     "rate,\n"
     "    so choose >= 2 for symbol-timing recovery.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is ``Dll: invalid\n"
+    "    parameter (need a non-empty code, segments >= 1, a finite init_chip, "
+    "bn\n"
+    "    >= 0 and zeta > 0 both finite, and 0 < spacing < len(code)/2)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

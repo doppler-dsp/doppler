@@ -30,9 +30,10 @@ default = "1.0"
 
 [[loop_filter.methods]]
 name = "configure"
-doc = "Recompute the loop gains for a new (bn, zeta, t); preserves the integrator."
+doc = "Recompute the loop gains for a new (bn, zeta, t); preserves the integrator. Raises ValueError, changing nothing, when (bn, zeta, t) is outside the loop's domain: bn >= 0, zeta > 0 and t > 0, all finite."
 arg_type = "void"
-return_type = "void"
+return_type = "int"
+status_return = true
 params = [{ name = "bn", type = "double" }, { name = "zeta", type = "double" }, { name = "t", type = "double" }]
 
 [[loop_filter.methods]]

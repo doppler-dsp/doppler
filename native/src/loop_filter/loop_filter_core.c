@@ -38,25 +38,33 @@ dp_loop_filter_init (dp_loop_filter_state_t *state, double bn, double zeta,
   state->ki   = (4.0 * th * th) / den;
 }
 
+int
+dp_loop_filter_params_ok (double bn, double zeta, double t)
+{
+  return bn >= 0.0 && zeta > 0.0 && t > 0.0 && isfinite (bn) && isfinite (zeta)
+         && isfinite (t); /* NaN fails every comparison */
+}
+
 dp_loop_filter_state_t *
 dp_loop_filter_create (double bn, double zeta, double t)
 {
-  /* This is the UNTRUSTED boundary and the only one: `LoopFilter(...)` hands
-     a Python caller's arbitrary doubles straight here, where t = 0 used to
-     yield kp = ki = 0 — a dead loop indistinguishable from the legitimate
-     frozen bn = 0 — and t = inf or a NaN argument yielded NaN gains, which
-     poison every subsequent update permanently. dp_loop_filter_init() is
-     deliberately NOT guarded: it is the by-value path, its seven embedders
-     all validate upstream, and guarding an internal guarantee is the error
-     handling this project does not write (gh-740).
+  /* This is the untrusted boundary for a standalone loop: `LoopFilter(...)`
+     hands a Python caller's arbitrary doubles straight here, where t = 0
+     used to yield kp = ki = 0 — a dead loop indistinguishable from the
+     legitimate frozen bn = 0 — and t = inf or a NaN argument yielded NaN
+     gains, which poison every subsequent update permanently.
+     dp_loop_filter_init() is deliberately NOT guarded: it is the by-value
+     path, and an embedder that takes these numbers from a caller checks them
+     with dp_loop_filter_params_ok() first. Not every embedder does yet: the
+     Dll did not, which is how a NaN reached its gains (doppler#2103), and
+     the ones still to do are doppler#2112.
 
      Validating here also makes the arithmetic TOTAL. With bn >= 0 and
      zeta > 0 the intermediate th is non-negative, so
      den = 4 + 4*zeta*th + th^2 >= 4 and can no longer pass through zero —
      which it can for zeta >= 1 with a sufficiently negative bn. */
-  if (!(bn >= 0.0) || !(zeta > 0.0) || !(t > 0.0) || !isfinite (bn)
-      || !isfinite (zeta) || !isfinite (t))
-    return NULL; /* NaN fails every comparison above, by construction */
+  if (!dp_loop_filter_params_ok (bn, zeta, t))
+    return NULL;
 
   dp_loop_filter_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
@@ -71,11 +79,16 @@ dp_loop_filter_destroy (dp_loop_filter_state_t *state)
   free (state);
 }
 
-void
+int
 dp_loop_filter_configure (dp_loop_filter_state_t *state, double bn,
                           double zeta, double t)
 {
+  /* A retune is as untrusted as create(): `LoopFilter.configure` hands a
+     Python caller's doubles straight here (doppler#2103). */
+  if (!dp_loop_filter_params_ok (bn, zeta, t))
+    return DP_ERR_INVALID;
   dp_loop_filter_init (state, bn, zeta, t); /* recompute gains, keep integ */
+  return DP_OK;
 }
 
 void

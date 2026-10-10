@@ -127,6 +127,25 @@ extern "C"
   double dp_loop_filter_wn(double bn, double zeta);
 
   /**
+   * @brief The domain the loop's gains are defined on: `bn >= 0`,
+   *        `zeta > 0`, `t > 0`, all three finite.
+   *
+   * The ONE predicate. dp_loop_filter_create() refuses outside it, and an
+   * embedder that takes these numbers from a caller should call it before
+   * the unguarded dp_loop_filter_init(): a non-finite argument there yields
+   * NaN gains that never recover, and a negative `bn` with `zeta >= 1` can
+   * drive the gains' denominator through zero. The Dll, the Despreader's
+   * code loop, ratesync and the MPSK receiver do; the embedders that do not
+   * yet are doppler#2112.
+   *
+   * @param bn    Loop noise bandwidth, normalized.
+   * @param zeta  Damping factor.
+   * @param t     Update period, in samples.
+   * @return      1 inside the domain, 0 outside it (a NaN is outside).
+   */
+  int dp_loop_filter_params_ok(double bn, double zeta, double t);
+
+  /**
    * @brief Create a loop_filter instance, validating its arguments.
    *
    * This is the untrusted boundary — the Python constructor passes a
@@ -161,10 +180,15 @@ extern "C"
    * acquisition and then narrowed for steady-state tracking while holding its
    * accumulated frequency/rate estimate — the retune preserves lock.
    *
+   * A (bn, zeta, t) outside dp_loop_filter_params_ok() is refused and
+   * changes nothing: a NaN gave gains that never recover, and a negative
+   * bn could zero the denominator (doppler#2103).
+   *
    * @param state  Must be non-NULL.
    * @param bn     Loop noise bandwidth, normalized cycles/sample (>= 0).
    * @param zeta   Damping factor (typically 0.707).
    * @param t      Update period in samples (> 0).
+   * @return `DP_OK`, or `DP_ERR_INVALID` outside dp_loop_filter_params_ok().
    *
    * @code
    * >>> from doppler.track import LoopFilter
@@ -179,7 +203,7 @@ extern "C"
    *
    * @endcode
    */
-  void dp_loop_filter_configure(dp_loop_filter_state_t *state, double bn, double zeta,
+  int dp_loop_filter_configure(dp_loop_filter_state_t *state, double bn, double zeta,
                              double t);
 
   /**

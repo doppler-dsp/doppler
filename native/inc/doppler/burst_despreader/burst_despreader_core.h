@@ -292,12 +292,18 @@ size_t dp_burst_despreader_bits (dp_burst_despreader_state_t *state, const float
 
 /** @brief Carrier (Costas) loop noise bandwidth, normalized to the symbol rate. */
 double dp_burst_despreader_get_bn_carrier (const dp_burst_despreader_state_t *state);
-/** @brief Set the carrier loop bandwidth (recomputes the loop gains). */
-void dp_burst_despreader_set_bn_carrier (dp_burst_despreader_state_t *state, double val);
+/** @brief Set the carrier loop bandwidth (recomputes the loop gains).
+ *  @return DP_OK, or DP_ERR_INVALID with the bandwidth unchanged when @p val
+ *          is outside the loop filter's domain (finite and >= 0;
+ *          dp_loop_filter_params_ok). */
+int dp_burst_despreader_set_bn_carrier (dp_burst_despreader_state_t *state, double val);
 /** @brief Code (DLL) loop noise bandwidth, normalized to the symbol rate. */
 double dp_burst_despreader_get_bn_code (const dp_burst_despreader_state_t *state);
-/** @brief Set the code loop bandwidth (recomputes the loop gains). */
-void dp_burst_despreader_set_bn_code (dp_burst_despreader_state_t *state, double val);
+/** @brief Set the code loop bandwidth (recomputes the loop gains).
+ *  @return DP_OK, or DP_ERR_INVALID with the bandwidth unchanged when @p val
+ *          is outside the loop filter's domain (finite and >= 0;
+ *          dp_loop_filter_params_ok). */
+int dp_burst_despreader_set_bn_code (dp_burst_despreader_state_t *state, double val);
 /** @brief Current carrier frequency estimate, cycles/sample. */
 double dp_burst_despreader_get_norm_freq (const dp_burst_despreader_state_t *state);
 /** @brief Override the carrier frequency estimate, cycles/sample (re-seed). */

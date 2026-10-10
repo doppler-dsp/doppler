@@ -83,9 +83,9 @@ size_t dp_burst_despreader_bits (dp_burst_despreader_state_t *state, const float
                         size_t x_len, uint8_t *out, size_t max_out);
 
 double dp_burst_despreader_get_bn_carrier (const dp_burst_despreader_state_t *state);
-void dp_burst_despreader_set_bn_carrier (dp_burst_despreader_state_t *state, double val);
+int dp_burst_despreader_set_bn_carrier (dp_burst_despreader_state_t *state, double val);
 double dp_burst_despreader_get_bn_code (const dp_burst_despreader_state_t *state);
-void dp_burst_despreader_set_bn_code (dp_burst_despreader_state_t *state, double val);
+int dp_burst_despreader_set_bn_code (dp_burst_despreader_state_t *state, double val);
 double dp_burst_despreader_get_norm_freq (const dp_burst_despreader_state_t *state);
 void dp_burst_despreader_set_norm_freq (dp_burst_despreader_state_t *state, double val);
 double dp_burst_despreader_get_code_phase (const dp_burst_despreader_state_t *state);

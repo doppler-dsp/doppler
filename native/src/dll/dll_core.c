@@ -416,7 +416,9 @@ dp_dll_create (const uint8_t *code, size_t code_len, size_t sps,
                double init_chip, double bn, double zeta, double spacing,
                size_t segments)
 {
-  if (!code || code_len == 0 || segments == 0)
+  /* Every argument checked before anything is allocated (doppler#2103). */
+  if (!code
+      || !dp_dll_params_ok (code_len, init_chip, bn, zeta, spacing, segments))
     return NULL;
   dp_dll_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
@@ -698,12 +700,34 @@ dp_dll_set_state (dp_dll_state_t *s, const void *blob)
   return DP_OK;
 }
 
-void
+int
+dp_dll_params_ok (size_t code_len, double init_chip, double bn, double zeta,
+                  double spacing, size_t segments)
+{
+  return code_len >= 1 && segments >= 1 && isfinite (init_chip)
+         && dp_loop_filter_params_ok (bn, zeta, 1.0) && spacing > 0.0
+         && spacing < 0.5 * (double)code_len; /* NaN fails the comparisons */
+}
+
+int
+dp_dll_symbol_period_ok (size_t segments, double partials_per_symbol)
+{
+  return segments > 1 && isfinite (partials_per_symbol)
+         && partials_per_symbol >= 2.0
+         && partials_per_symbol <= DLL_AID_MAX_PERIOD;
+}
+
+int
 dp_dll_configure (dp_dll_state_t *state, double bn, double zeta)
 {
+  /* The loop filter refuses outside its own domain before writing
+     anything, so the Dll's copies are written only after it took them: a
+     NaN gave gains that never recover (doppler#2103). */
+  if (dp_loop_filter_configure (&state->lf, bn, zeta, state->lf.t) != DP_OK)
+    return DP_ERR_INVALID;
   state->bn   = bn;
   state->zeta = zeta;
-  dp_loop_filter_configure (&state->lf, bn, zeta, state->lf.t);
+  return DP_OK;
 }
 
 /* Output bound: emitted symbols <= x_len; the binding sizes the buffer to the
@@ -1018,10 +1042,10 @@ dp_dll_get_bn (const dp_dll_state_t *state)
   return state->bn;
 }
 
-void
+int
 dp_dll_set_bn (dp_dll_state_t *state, double val)
 {
-  dp_dll_configure (state, val, state->zeta);
+  return dp_dll_configure (state, val, state->zeta);
 }
 
 void
@@ -1147,6 +1171,10 @@ set_update_period (dp_dll_state_t *s, double t)
 int
 dp_dll_set_symbol_period (dp_dll_state_t *state, double partials_per_symbol)
 {
+  /* A NaN passed both guards below and reached the ring sizing as
+     ceil(NaN) = 2^63 (doppler#2103); an infinity is no period either. */
+  if (!isfinite (partials_per_symbol))
+    return DP_ERR_INVALID;
   if (partials_per_symbol <= 0.0)
     {
       free_aid_buffers (state);
@@ -1154,7 +1182,7 @@ dp_dll_set_symbol_period (dp_dll_state_t *state, double partials_per_symbol)
       set_update_period (state, 1.0);
       return DP_OK;
     }
-  if (state->segments <= 1 || partials_per_symbol < 2.0)
+  if (!dp_dll_symbol_period_ok (state->segments, partials_per_symbol))
     return DP_ERR_INVALID;
   size_t L   = (size_t)floor (partials_per_symbol) - 1;
   size_t cap = DLL_AID_MAX_EPOCHS * state->segments;

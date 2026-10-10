@@ -1850,6 +1850,61 @@ _acq_resume_check (void)
   return 0;
 }
 
+/* A coupled carrier is 0 or above half the sample rate, and the Doppler
+ * prior is finite (doppler#2103). A tiny carrier sent doppler / carrier to
+ * inf and the hand-off's seed phase to NaN, which a receiver then aborted
+ * on; a NaN or infinite prior reached a float-to-size conversion in the bin
+ * and window counts. Pinned at the edges: half the sample rate refused, the
+ * next double above it taken. Returns the number of failed checks. */
+static int
+carrier_and_prior_domain (void)
+{
+  int          fails = 0;
+  const double fs    = 2.0e6; /* 1 Mchip/s at 2 samples a chip */
+  struct
+  {
+    double hz;
+    int    ok;
+  } cases[] = {
+    { 0.0, 1 },      { 2.5e9, 1 },    { nextafter (0.5 * fs, INFINITY), 1 },
+    { 0.5 * fs, 0 }, { 1e-305, 0 },   { 5e-324, 0 },
+    { -1.0, 0 },     { INFINITY, 0 }, { NAN, 0 },
+  };
+  for (size_t k = 0; k < sizeof cases / sizeof *cases; k++)
+    if (dp_acq_carrier_freq_ok (cases[k].hz, fs) != cases[k].ok)
+      {
+        fprintf (stderr, "  carrier %g Hz: ok=%d\n", cases[k].hz,
+                 !cases[k].ok);
+        fails++;
+      }
+
+  dp_acq_state_t *c = dp_acq_create_continuous (CODE7, 7, 2, 1.0e6, 0.0, 60.0,
+                                                200.0e3, 1e-2, 0.9, 0, 1, 0.0);
+  if (!c)
+    return fails + 1;
+  /* The setter takes the predicate at the engine's own rate, and a refusal
+     keeps the carrier already set. */
+  fails += dp_acq_set_carrier_freq_hz (c, 2.5e9) != DP_OK;
+  fails += dp_acq_set_carrier_freq_hz (c, 1e-305) != DP_ERR_INVALID;
+  fails += dp_acq_set_carrier_freq_hz (c, 0.5 * fs) != DP_ERR_INVALID;
+  fails += c->carrier_freq_hz != 2.5e9;
+  dp_acq_destroy (c);
+
+  const double priors[] = { NAN, INFINITY };
+  for (size_t k = 0; k < 2; k++)
+    {
+      dp_acq_state_t *bad = dp_acq_create_continuous (
+          CODE7, 7, 2, 1.0e6, 0.0, 60.0, priors[k], 1e-2, 0.9, 0, 1, 0.0);
+      if (bad)
+        {
+          fprintf (stderr, "  doppler_uncertainty %g taken\n", priors[k]);
+          fails++;
+          dp_acq_destroy (bad);
+        }
+    }
+  return fails;
+}
+
 int
 main (void)
 {
@@ -3113,6 +3168,9 @@ main (void)
     DP_CHECK (isinf (got[1])); /* perfect: none */
     DP_CHECK (isfinite (got[2]) && got[2] < 0.0 && got[2] > -40.0);
   }
+
+  /* A coupled carrier and the Doppler prior (doppler#2103). */
+  DP_CHECK (carrier_and_prior_domain () == 0);
 
   DP_TEST_END ("test_acq_core");
 }

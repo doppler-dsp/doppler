@@ -162,7 +162,7 @@ doc = "The peak list's capacity per dwell (1 = the classic gated maximum); set w
 
 [[acq.methods]]
 name = "set_carrier_freq_hz"
-doc = "Couple the code clock to the carrier: the chip rate dilates by doppler_hz / carrier_freq_hz, and the engine accounts for it -- every window tile's epochs are shifted along the code axis by the drift the tile's own frequency implies before the slow-time transform (inside a coherent block of D epochs), and the hand-off advances the hit's code phase by the drift over half the dwell (design section 12.11, 12.12). Config, not running state: not in the state blob, so a resumed engine wants it set again. 0.0 (the default) = uncoupled, the engine as it ran without it. Raises ValueError for a negative or non-finite value."
+doc = "Couple the code clock to the carrier: the chip rate dilates by doppler_hz / carrier_freq_hz, and the engine accounts for it -- every window tile's epochs are shifted along the code axis by the drift the tile's own frequency implies before the slow-time transform (inside a coherent block of D epochs), and the hand-off advances the hit's code phase by the drift over half the dwell (design section 12.11, 12.12). Config, not running state: not in the state blob, so a resumed engine wants it set again. 0.0 (the default) = uncoupled, the engine as it ran without it. Raises ValueError for a carrier that is neither 0 nor finite and above half the sample rate (fs / 2): every Doppler the engine can report is below fs / 2, so above it |doppler / carrier| < 1 and the dilation stays finite."
 arg_type = "void"
 return_type = "int"
 status_return = true

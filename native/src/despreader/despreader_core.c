@@ -45,7 +45,11 @@ dp_despreader_create (const uint8_t *code, size_t code_len, size_t sps,
                       double bn_carrier, double bn_code, double bn_fll,
                       double zeta, double spacing, size_t periods_per_bit)
 {
-  if (!code || code_len == 0)
+  /* The code loop is a Dll embedded by value through dp_dll_init(), which
+     trusts its arguments, so they meet the Dll's own domain here: a NaN
+     spacing read code[2^62] on the first sample (doppler#2103). */
+  if (!code
+      || !dp_dll_params_ok (code_len, init_chip, bn_code, zeta, spacing, 1))
     return NULL;
   dp_despreader_state_t *ch = calloc (1, sizeof (*ch));
   if (!ch)
@@ -397,8 +401,8 @@ dp_despreader_get_bn_code (const dp_despreader_state_t *state)
   return state->code.bn;
 }
 
-void
+int
 dp_despreader_set_bn_code (dp_despreader_state_t *state, double val)
 {
-  dp_dll_set_bn (&state->code, val);
+  return dp_dll_set_bn (&state->code, val);
 }

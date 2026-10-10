@@ -97,8 +97,8 @@ dp_async_dsss_pool_create (
 {
   if (!code || code_len == 0 || !(chip_rate > 0.0) || !(symbol_rate > 0.0)
       || spc == 0 || n_slots == 0 || max_peaks == 0
-      || !(carrier_freq_hz >= 0.0) || !(lost_confirm_s >= 0.0)
-      || !(max_emitter_on_time_secs >= 0.0))
+      || !dp_acq_carrier_freq_ok (carrier_freq_hz, chip_rate * (double)spc)
+      || !(lost_confirm_s >= 0.0) || !(max_emitter_on_time_secs >= 0.0))
     return NULL;
   /* Fixed sizes from validated arguments: abort-on-OOM, no unwind path. */
   dp_async_dsss_pool_state_t *s = dp_xcalloc (1, sizeof *s);

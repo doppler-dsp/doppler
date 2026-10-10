@@ -35,11 +35,13 @@ extern "C"
 
   double dp_loop_filter_wn(double bn, double zeta);
 
+  int dp_loop_filter_params_ok(double bn, double zeta, double t);
+
   dp_loop_filter_state_t *dp_loop_filter_create(double bn, double zeta, double t);
 
   void dp_loop_filter_destroy(dp_loop_filter_state_t *state);
 
-  void dp_loop_filter_configure(dp_loop_filter_state_t *state, double bn, double zeta,
+  int dp_loop_filter_configure(dp_loop_filter_state_t *state, double bn, double zeta,
                              double t);
 
   void dp_loop_filter_reset(dp_loop_filter_state_t *state);

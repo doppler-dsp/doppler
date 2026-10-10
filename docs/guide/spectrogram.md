@@ -45,6 +45,13 @@ here ([#1988](https://github.com/doppler-dsp/doppler/issues/1988)). The
 window is PSD's index: 0 Hann, 1 Kaiser (with `beta`), 2 Blackman-Harris,
 3 rectangular.
 
+A bin reads no lower than **−200 dB**: PSD clamps power before the logarithm,
+so an all-zero frame and a signal under the floor give the same row. Noise
+reaches it about `10·log10(nfft)` sooner than a tone (a total of −180 dBFS
+leaves at most 9 of 1024 bins above it). To tell digital zero from a very
+quiet signal, read the samples
+([the measurement](../design/spectrogram-measurements.md#54-the-db-floor-measured-2026-10-10-u5)).
+
 `nfft` must be the PSD's transform length for that frame, which is to say a
 power of two of at least 2, and `1 <= hop <= nfft`. The window must have gain
 at that length: `nfft = 2` with Hann is refused, because the symmetric

@@ -2324,11 +2324,12 @@ ASAN_FLAGS  = -fsanitize=address -fno-omit-frame-pointer -g
 # instrument an access through a float _Complex lvalue -- crealf(b[i]),
 # cimagf(b[i]), a whole-complex load or store -- which is how every DSP
 # kernel here reads its samples, so a gcc-built test-asan passed while
-# resamp read 19 samples past its delay line. clang instruments all four.
-# The image carries clang's sanitizer runtime (the sanitizers job takes it
-# from there). native/tests/asan_canary.c holds this: built with the
-# compiler and flags the suite was built with, it must draw an ASan report,
-# so `ASAN_CC=gcc` is red.
+# resamp read 19 samples past its delay line. clang reports them. clang's
+# ASan runtime ships apart from clang on Ubuntu/Debian 24.04+
+# (libclang-rt-<major>-dev); CI's image installs it (docker/ci-extra.sh), and
+# the probe at the top of test-asan says so locally. native/tests/asan_canary.c
+# holds the choice: built as the suite was, it must draw an ASan report, so
+# `ASAN_CC=gcc` is red.
 ASAN_CC    ?= clang
 # One tree per compiler, so `ASAN_CC=gcc` (the canary's sabotage) neither
 # reconfigures nor rebuilds the clang tree on the way back.
@@ -2340,6 +2341,17 @@ ASAN_DIR   ?= build-asan-$(notdir $(ASAN_CC))
 ASAN_OPTS   = halt_on_error=1:abort_on_error=1:detect_leaks=1
 
 test-asan: ## Run the C suite under ASan+LSan; any bad access or leak fails
+# Can $(ASAN_CC) link an ASan program at all? Without the runtime, CMake's
+# compiler check fails first, with a message about the compiler and not
+# about the missing package.
+	@mkdir -p $(ASAN_DIR); \
+	 $(ASAN_CC) $(ASAN_FLAGS) native/tests/asan_canary.c \
+	   -o $(ASAN_DIR)/asan_probe > $(ASAN_DIR)/asan_probe.log 2>&1 \
+	 || { echo "test-asan: $(ASAN_CC) cannot link -fsanitize=address:"; \
+	      sed 's/^/    /' $(ASAN_DIR)/asan_probe.log; \
+	      echo "  clang's ASan runtime ships apart from clang on Ubuntu/Debian"; \
+	      echo "  24.04+ as libclang-rt-<major>-dev; the profile-runtime package"; \
+	      echo "  make coverage names for each distro holds it too."; exit 1; }
 	$(CMAKE) -B $(ASAN_DIR) -S . \
 		-DCMAKE_BUILD_TYPE=Debug \
 		-DCMAKE_C_COMPILER=$(ASAN_CC) \
@@ -2351,13 +2363,17 @@ test-asan: ## Run the C suite under ASan+LSan; any bad access or leak fails
 	$(CMAKE) --build $(ASAN_DIR) --parallel $(NPROC)
 # The canary first: a compiler that cannot see a complex out-of-bounds read
 # makes every pass below say nothing about one (#2130). It is built with the
-# compiler and C flags CMake RECORDED, not $(ASAN_CC) and $(ASAN_FLAGS): a
-# `CMAKE_ARGS` that names another compiler, or other flags, wins over the -D
-# lines above, and a canary built the way this target asked would then vouch
-# for a suite built some other way.
+# CMAKE_C_COMPILER, CMAKE_C_FLAGS and CMAKE_C_FLAGS_<build type> CMake
+# RECORDED, not $(ASAN_CC) and $(ASAN_FLAGS): a `CMAKE_ARGS` naming another
+# compiler or flags wins over the -D lines above, and a canary built the way
+# this target asked would then vouch for a suite built some other way. A
+# target's own options are not read; the scan below catches an object built
+# without ASan.
 	@cache=$(ASAN_DIR)/CMakeCache.txt; \
 	 cc=$$(sed -n 's/^CMAKE_C_COMPILER:[A-Z]*=//p' $$cache); \
-	 cflags=$$(sed -n 's/^CMAKE_C_FLAGS:[A-Z]*=//p' $$cache); \
+	 bt=$$(sed -n 's/^CMAKE_BUILD_TYPE:[A-Z]*=//p' $$cache | tr a-z A-Z); \
+	 cflags="$$(sed -n 's/^CMAKE_C_FLAGS:[A-Z]*=//p' $$cache) \
+	   $$(sed -n "s/^CMAKE_C_FLAGS_$$bt:[A-Z]*=//p" $$cache)"; \
 	 if [ -z "$$cc" ]; then \
 	   echo "test-asan: no CMAKE_C_COMPILER in $$cache,"; \
 	   echo "  so the canary cannot be built by the suite's compiler."; exit 1; \
@@ -2373,23 +2389,38 @@ test-asan: ## Run the C suite under ASan+LSan; any bad access or leak fails
 	   sed 's/^/    /' $(ASAN_DIR)/asan_canary.log; exit 1; \
 	 fi; \
 	 echo "test-asan: the canary's complex read was reported -- $$cc sees them"
-# One ASan registration flag per binary. clang emits ___asan_globals_registered
-# as a common in every instrumented object, and the ELF's globals are
-# registered once per flag; when cmake/prefix_vendored.cmake respelled the
-# archive's copy, a test linking its own object beside libdoppler.a held two
-# and registered every global twice -- ASan's same-size ODR reports (#2130).
-# validate_rx_dynamics is one such binary and was one that reported.
-	@b=$(ASAN_DIR)/native/validation/validate_rx_dynamics; \
-	 syms=$$(nm "$$b") || { echo "test-asan: nm $$b failed"; exit 1; }; \
-	 flags=$$(printf '%s\n' "$$syms" \
-	   | awk '$$NF ~ /asan_globals_registered$$/ {print $$NF}'); \
-	 n=$$(printf '%s' "$$flags" | grep -c .); \
-	 if [ "$$n" != 1 ]; then \
-	   echo "test-asan: $$b holds $$n ASan registration flag(s), not 1:"; \
-	   printf '%s\n' "$$flags" | sed 's/^/    /'; \
-	   echo "  each one registers every global again (#2130)"; exit 1; \
+# One ASan registration flag in every test binary. clang emits
+# ___asan_globals_registered in each instrumented object, and an ELF's
+# globals are registered once per flag; when cmake/prefix_vendored.cmake
+# respelled the archive's copy, a test linking its own object beside
+# libdoppler.a held two and registered every global twice -- ASan's same-size
+# ODR reports, which surfaced in only two of the binaries holding two flags
+# (#2130). Zero flags is a binary built without ASan. The set is ctest's own,
+# the ones that are executables in this tree, and an empty set fails.
+	@bins=$$($(CTEST) --test-dir $(ASAN_DIR) $(SAN_EXCLUDE_SWEEP) -N -V \
+	   | sed -n 's/^[0-9]*: Test command: \([^ ]*\).*/\1/p' | sort -u); \
+	 checked=0; bad=0; \
+	 for b in $$bins; do \
+	   case "$$b" in $(abspath $(ASAN_DIR))/*) ;; *) continue ;; esac; \
+	   [ -x "$$b" ] || continue; \
+	   syms=$$(nm "$$b") || { echo "test-asan: nm $$b failed"; exit 1; }; \
+	   n=$$(printf '%s\n' "$$syms" \
+	     | awk '$$NF ~ /asan_globals_registered$$/' | grep -c .); \
+	   checked=$$((checked + 1)); \
+	   if [ "$$n" = 0 ]; then \
+	     echo "test-asan: $$b holds no ASan registration flag --"; \
+	     echo "  it was not built with ASan"; bad=1; \
+	   elif [ "$$n" != 1 ]; then \
+	     echo "test-asan: $$b holds $$n ASan registration flags --"; \
+	     echo "  each one registers every global again (#2130)"; bad=1; \
+	   fi; \
+	 done; \
+	 if [ "$$checked" = 0 ]; then \
+	   echo "test-asan: found no test executable to check for its ASan"; \
+	   echo "  registration flag, so that check has not passed."; exit 1; \
 	 fi; \
-	 echo "test-asan: one ASan registration flag in validate_rx_dynamics"
+	 [ "$$bad" = 0 ] || exit 1; \
+	 echo "test-asan: one ASan registration flag in each of $$checked test binaries"
 # An empty result set is not a pass -- the same trap test-tsan guards, and it
 # bites harder here because this target takes no pattern: a configure that
 # registered no tests would run zero of them and exit 0, reporting a clean

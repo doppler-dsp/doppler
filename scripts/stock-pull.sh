@@ -15,6 +15,11 @@
 # with docker's own message, the registry's words, which is what the reader
 # needs.
 #
+# An image already in the local store is not pulled at all: that is what
+# `docker run` and BuildKit did before this helper existed, so a box that is
+# offline, or behind a proxy, keeps working from its cache, and the mirror
+# that rate-limits us is not asked about an image we already hold.
+#
 # --dockerfile pulls every stock image FILE's FROMs name, read by
 # check_stock_images.py, the one Dockerfile reader, with STOCK_REGISTRY
 # filled in. Run it before `docker build`: BuildKit resolves a FROM it finds
@@ -63,13 +68,19 @@ if [ "$1" = --dockerfile ]; then
 fi
 
 # What a retry can fix. Word-bounded codes, so a digest's hex is not a 429.
+# Go's own timeout wordings too: an HTTP client deadline, a cancelled
+# context, a cancelled request.
 transient() {
-    grep -Eiq 'toomanyrequests|too many requests|rate exceeded|\b(429|500|502|503|504)\b|tls handshake timeout|i/o timeout|timed out|connection reset|connection refused|unexpected eof|temporarily unavailable' \
+    grep -Eiq 'toomanyrequests|too many requests|rate exceeded|\b(429|500|502|503|504)\b|tls handshake timeout|i/o timeout|timed out|client\.timeout exceeded|context deadline exceeded|request canceled|connection reset|connection refused|unexpected eof|temporarily unavailable' \
         <<<"$1"
 }
 
 pull() {
     local img=$1 n=1 wait=$delay out
+    if "$docker" image inspect "$img" >/dev/null 2>&1; then
+        echo "stock-pull: $img (already present)"
+        return 0
+    fi
     while :; do
         if out="$("$docker" pull --quiet "$img" 2>&1)"; then
             if [ "$n" -gt 1 ]; then

@@ -12,11 +12,19 @@
  *                               what a socket or a pull source delivers
  *   push[nfft=N,hop=H,mode=power]
  *                               one push, POWER rows: the default since
- *                               #1968, which skips the dB conversion. U4 for
- *                               power (#2094) at nfft 256, 1024 (U4's own
- *                               point, hop 256) and 65536, each at hop
- *                               nfft/4, so the ratio to the dB row beside it
- *                               is the conversion's share at that size
+ *                               #1968. U4 for power (#2094) at nfft 256,
+ *                               1024 (U4's own point, hop 256) and 65536,
+ *                               each at hop nfft/4. A power row still does
+ *                               PSD's per-bin normalisation, so its gap to
+ *                               the dB row beside it is the log10 and the
+ *                               floor only, not U3's whole "dB conversion"
+ *                               (bench_psd's frame_linear rows split the
+ *                               two)
+ *
+ * The names are a contract: every consumer joins on them. A bare
+ * push[nfft=N,hop=H] is a dB row, as it was for U1-U4, and a power row
+ * carries ",mode=power". Do not rename either to make them symmetric: the
+ * before/after join of #2094 would lose its rows.
  *   direct[nfft=N,hop=H]        the same rows from a hand-written loop that
  *                               calls dp_psd_frame_db on x + k*hop: no ring,
  *                               no carry, no copy. A MEASURING STICK for the
@@ -62,6 +70,7 @@ typedef struct
   int                     direct;           /* the hand-written loop */
   int                     mode;             /* a DP_SPECTROGRAM_* name */
   int                     mate;             /* a push's direct twin, or -1 */
+  int                     twin;             /* a dB push's power twin, or -1 */
   size_t                  block, cap;
   dp_spectrogram_state_t *s;
   dp_psd_state_t         *p;
@@ -102,6 +111,7 @@ add (config_t *cfg, int *nc, size_t nfft, size_t hop, size_t chunk, int direct,
 {
   config_t *c = &cfg[(*nc)++];
   c->mate     = -1;
+  c->twin     = -1;
   c->nfft     = nfft;
   c->hop      = hop;
   c->chunk    = chunk;
@@ -181,10 +191,33 @@ main (void)
      of the same shape, at the two ends of the range and U4's own 1024 */
   static const size_t u4p[] = { 256, 1024, 65536 };
   for (int i = 0; i < 3; i++)
-    if (!add (cfg, &nc, u4p[i], u4p[i] / 4, 0, 0,
-              u4p[i] <= 4096 ? BLOCK : block_for (u4p[i]),
-              DP_SPECTROGRAM_POWER))
-      return 1;
+    {
+      if (!add (cfg, &nc, u4p[i], u4p[i] / 4, 0, 0,
+                u4p[i] <= 4096 ? BLOCK : block_for (u4p[i]),
+                DP_SPECTROGRAM_POWER))
+        return 1;
+      /* its dB twin: the one push of the same shape, timed beside it. A
+         power row with no twin would never be timed, so exactly one */
+      int twins = 0;
+      for (int j = 0; j < nc - 1; j++)
+        if (!cfg[j].direct && !cfg[j].chunk && cfg[j].nfft == u4p[i]
+            && cfg[j].hop == u4p[i] / 4 && cfg[j].mode == DP_SPECTROGRAM_DB)
+          {
+            cfg[j].twin = nc - 1;
+            twins++;
+          }
+      if (twins != 1)
+        {
+          (void)fprintf (stderr,
+                         "bench_spectrogram: power row nfft %zu has %d dB "
+                         "twins, not 1\n",
+                         u4p[i], twins);
+          return 1;
+        }
+      /* pre-run: the first pass page-faults `out` (7.6 MB at 65536), and
+         bench_interleaved picks a pass by its mean, so round 0 matters */
+      sink += run (&cfg[nc - 1], x);
+    }
 
   printf ("=== spectrogram benchmark ===\n");
   printf ("block = %d samples (8 nfft where longer), %d rounds\n\n", BLOCK,
@@ -194,20 +227,22 @@ main (void)
   for (int r = 0; r < ROUNDS; r++)
     for (int i = 0; i < nc; i++)
       {
-        if (cfg[i].direct)
-          continue; /* timed beside its push, below */
-        /* a push and its direct twin, adjacent, the pair's order swapped
-           every round: U1 is their ratio, and a fixed order would always
-           run the same one second, warm */
-        int first = i, second = cfg[i].mate;
-        if (second >= 0 && r % 2)
-          first = cfg[i].mate, second = i;
-        for (int pass = 0; pass < 2; pass++)
+        if (cfg[i].direct || cfg[i].mode == DP_SPECTROGRAM_POWER)
+          continue; /* timed in its dB push's group, below */
+        /* a dB push, its direct twin (U1) and its power twin (U4 for
+           power), adjacent, their order rotated every round: each is read
+           as a ratio to the push, and a fixed order would always run the
+           same one last, warm. A pair rotates as it always swapped. */
+        int g[3], ng = 0;
+        g[ng++] = i;
+        if (cfg[i].mate >= 0)
+          g[ng++] = cfg[i].mate;
+        if (cfg[i].twin >= 0)
+          g[ng++] = cfg[i].twin;
+        for (int pass = 0; pass < ng; pass++)
           {
-            const int j = pass ? second : first;
-            if (j < 0)
-              break;
-            uint64_t t0 = jm_bench_now_ns ();
+            const int j  = g[(pass + r) % ng];
+            uint64_t  t0 = jm_bench_now_ns ();
             sink += run (&cfg[j], x);
             uint64_t t1 = jm_bench_now_ns ();
             cfg[j].t[r] = jm_bench_elapsed_sec (t0, t1);

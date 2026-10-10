@@ -747,6 +747,12 @@ class AccTrace:
         goes negative), and above 1 the EMA step saturates to pass-through. A
         NaN is refused too. Ignored, and so not checked, in the other modes.
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``AccTrace: invalid
+        parameter (need n >= 1, and in exp mode 0 < alpha <= 1)``.
+
     Examples
     --------
     >>> from doppler.accumulator import AccTrace

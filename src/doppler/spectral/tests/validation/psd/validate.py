@@ -1029,7 +1029,7 @@ def _sec_candidates(d: Data) -> None:
         p0 = _psd(n=64, pad=0)
         d.b_pad0_nfft = p0.nfft
         d.b_pad0_refused = False
-    except (ValueError, MemoryError):
+    except ValueError:
         d.b_pad0_refused = True
     R.md(
         "**(b)** `pad = 0`: "
@@ -1061,7 +1061,7 @@ def _sec_candidates(d: Data) -> None:
                     f"{float(np.mean(_two(w))) / p1:+.3g}",
                 ]
             )
-        except (ValueError, MemoryError) as e:
+        except ValueError as e:
             rows.append([f"{alpha:g}", f"refused ({type(e).__name__})", "—"])
     d.c_alpha_rows = rows
     by_alpha = {row[0]: row for row in rows}
@@ -1180,13 +1180,13 @@ def _sec_candidates(d: Data) -> None:
             ]
         )
         rows.append(["noise_floor()", repr(w.noise_floor()), ""])
-    except (ValueError, MemoryError) as e:
+    except ValueError as e:
         rows.append(["create", f"refused ({type(e).__name__})", ""])
     d.f_rows = rows
     try:
         _psd(n=2, window="rect")
         d.f_rect2_ok = True
-    except (ValueError, MemoryError):
+    except ValueError:
         d.f_rect2_ok = False
     R.md(
         "**(f)** `n = 2` with Hann: the symmetric 2-point Hann is `[0, 0]`, "
@@ -1230,7 +1230,7 @@ def _sec_candidates(d: Data) -> None:
     try:
         _psd(n=1 << 62, pad=1)
         d.i_overflow_refused = False
-    except (ValueError, MemoryError, OverflowError):
+    except (ValueError, OverflowError):
         d.i_overflow_refused = True
     R.md(
         "**(i)** `n = 2^62`, found by the Spectrogram's review: "
@@ -1388,11 +1388,11 @@ def review(d: Data) -> None:
     )
     R.find(
         "F13",
-        "GAP",
-        "**Every refusal above reaches Python as a `MemoryError` with no "
-        "reason.** jm can raise the reason a component means "
-        "(`create_error`, gh-482), and neither PSD nor AccTrace declares "
-        "it yet: #1986.",
+        "FIXED",
+        "**Every refusal above reached Python as a `MemoryError` with no "
+        "reason.** PSD and AccTrace now declare `create_error` (gh-482), "
+        "so each raises `ValueError` naming the rules, as the tables above "
+        "show (#1986).",
     )
     R.find(
         "F14",
@@ -1582,8 +1582,8 @@ def build(write: bool = True) -> Report:
             "first, and do not sum a "
             "partition (F11, F12).",
             "**create refuses what would read wrong** (pad 0, an exp alpha "
-            "outside (0, 1], a gainless window, an overflowing size), but "
-            "Python sees a bare `MemoryError` until #1986 (F5, F6, F8, F10; "
+            "outside (0, 1], a gainless window, an overflowing size), and "
+            "Python gets a `ValueError` naming the rules (F5, F6, F8, F10, "
             "F13).",
         ],
     )

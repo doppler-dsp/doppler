@@ -82,7 +82,9 @@ SymbolSyncObj_init (SymbolSyncObject *self, PyObject *args, PyObject *kwds)
   self->handle = dp_symsync_create (sps, bn, zeta, order, ted);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "dp_symsync_create returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "SymbolSync: invalid parameter (need bn >= 0 and zeta "
+                       "> 0, both finite, whose loop gains come out finite)");
       return -1;
     }
   return 0;
@@ -309,7 +311,13 @@ SymbolSyncObj_configure (SymbolSyncObject *self, PyObject *args,
   double       zeta      = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "dd", _kwlist, &bn, &zeta))
     return NULL;
-  dp_symsync_configure (self->handle, bn, zeta);
+  int _rc = dp_symsync_configure (self->handle, bn, zeta);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "configure failed",
+                    (long long)_rc);
+      return NULL;
+    }
   Py_RETURN_NONE;
 }
 
@@ -669,7 +677,9 @@ static PyMethodDef SymbolSyncObj_methods[] = {
     "configure(bn, zeta) -> None\n"
     "\n"
     "Recompute the loop gains for a new (bn, zeta); preserve the timing "
-    "estimate.\n"
+    "estimate. Raises ValueError, changing nothing, when (bn, zeta) is "
+    "outside the loop filter's domain: bn >= 0 and zeta > 0, both finite, "
+    "with finite gains.\n"
     "\n"
     "Retunes the PI timing loop in place: the proportional/integral gains\n"
     "are recomputed from the new noise bandwidth and damping, while the NCO\n"
@@ -683,6 +693,12 @@ static PyMethodDef SymbolSyncObj_methods[] = {
     "    Loop noise bandwidth, normalised to the symbol rate (>= 0).\n"
     "zeta : float\n"
     "    Damping factor (0.707 = critically damped).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``configure failed``, with the return code appended (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -922,9 +938,51 @@ static PyTypeObject SymbolSyncObjType = {
   .tp_basicsize                           = sizeof (SymbolSyncObject),
   .tp_dealloc                             = (destructor)SymbolSyncObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc                                 = "SymbolSync type.\n",
-  .tp_methods                             = SymbolSyncObj_methods,
-  .tp_getset                              = SymbolSync_getset,
-  .tp_new                                 = SymbolSyncObj_new,
-  .tp_init                                = (initproc)SymbolSyncObj_init,
+  .tp_doc
+  = "SymbolSync component.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "sps : int, default 4\n"
+    "    sps constructor parameter.\n"
+    "bn : float, default 0.01\n"
+    "    bn constructor parameter.\n"
+    "zeta : float, default 0.707\n"
+    "    zeta constructor parameter.\n"
+    "order : Literal[\"linear\", \"parabolic\", \"cubic\"], default "
+    "\"cubic\"\n"
+    "    order constructor parameter.\n"
+    "ted : Literal[\"gardner\", \"dttl\"], default \"gardner\"\n"
+    "    Timing-error detector: \"gardner\" (blind, works for any "
+    "constellation)\n"
+    "    or \"dttl\" (decision-directed sign-sign Data Transition Tracking "
+    "Loop;\n"
+    "    lower self-noise near lock but degrades faster at low SNR. "
+    "BPSK/QPSK\n"
+    "    only -- invalid for 8PSK/QAM).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is ``SymbolSync: "
+    "invalid\n"
+    "    parameter (need bn >= 0 and zeta > 0, both finite, whose loop gains\n"
+    "    come out finite)``.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    "Create with defaults:\n"
+    "\n"
+    ">>> from doppler.track import SymbolSync\n"
+    ">>> obj = SymbolSync(\n"
+    "...     sps=4,\n"
+    "...     bn=0.01,\n"
+    "...     zeta=0.707,\n"
+    "...     order=\"cubic\",\n"
+    "...     ted=\"gardner\",\n"
+    "... )\n",
+  .tp_methods = SymbolSyncObj_methods,
+  .tp_getset  = SymbolSync_getset,
+  .tp_new     = SymbolSyncObj_new,
+  .tp_init    = (initproc)SymbolSyncObj_init,
 };

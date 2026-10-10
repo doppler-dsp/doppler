@@ -643,6 +643,12 @@ int dp_dll_params_ok(size_t code_len, double init_chip, double bn, double zeta, 
  * checks it here at create, so the period it sets mid-stream is never
  * refused (doppler#2103).
  *
+ * This predicate covers the period alone. dp_dll_set_symbol_period() also
+ * refuses a bandwidth whose loop gains overflow at the period's interval
+ * (the bandwidth domain, checked at that interval and at t = 1), so a
+ * composer that must never see a mid-stream refusal checks the gains with
+ * dp_loop_filter_params_ok() at `partials_per_symbol / segments` as well.
+ *
  * @return 1 if the period turns the aid on, 0 otherwise.
  */
 int dp_dll_symbol_period_ok(size_t segments, double partials_per_symbol);
@@ -913,7 +919,9 @@ void dp_dll_hold_here(dp_dll_state_t *state);
  *                            `segments * chip_rate / (sf * symbol_rate)`;
  *                            >= 2. 0 disables (per-partial looks again).
  * @return DP_OK; DP_ERR_INVALID when `segments <= 1`, or the period is not
- *         finite, is in (0, 2) or is past 2^20 partials -- the rings are
+ *         finite, is in (0, 2) or is past 2^20 partials, or when the loop's
+ *         bandwidth is outside the domain at the period's interval or at
+ *         t = 1 (the gains would overflow) -- the rings are
  *         sized by the period, and past that they are refused, not
  *         allocated (doppler#2103). Any finite period <= 0 turns the aid off;
  *         `-inf` used to as well, and is refused now, as every non-finite

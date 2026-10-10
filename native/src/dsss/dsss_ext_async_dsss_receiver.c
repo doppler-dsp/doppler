@@ -356,6 +356,9 @@ static PyStructSequence_Field AsyncDsssReceiverObj_status_fields[] = {
   { "both_down_samples",
     "Input samples both flags have been down without a break (the release "
     "clock); in lost it keeps counting -- samples since the flags dropped." },
+  { "refused_hits",
+    "Searching hits refused as seeds by the seed domain (a Doppler at or past "
+    "fs/2), since create or reset. The search went on over each one's tail." },
   { NULL, NULL },
 };
 static PyStructSequence_Desc AsyncDsssReceiverObj_status_desc
@@ -363,7 +366,7 @@ static PyStructSequence_Desc AsyncDsssReceiverObj_status_desc
         "AsyncDsssReceiver's status record: state (0 searching, 1 refining, 2 "
         "tracking, 3 idle, 4 lost), the live estimates, both lock flags, and "
         "the two clocks in input samples.",
-        AsyncDsssReceiverObj_status_fields, 13 };
+        AsyncDsssReceiverObj_status_fields, 14 };
 static PyTypeObject *AsyncDsssReceiverObj_status_type = NULL;
 
 static PyObject *
@@ -404,6 +407,9 @@ AsyncDsssReceiverObj_status (AsyncDsssReceiverObject *self,
   PyStructSequence_SET_ITEM (
       _o, 12,
       PyLong_FromUnsignedLongLong ((unsigned long long)_r.both_down_samples));
+  PyStructSequence_SET_ITEM (
+      _o, 13,
+      PyLong_FromUnsignedLongLong ((unsigned long long)_r.refused_hits));
   return _o;
 }
 
@@ -1186,7 +1192,7 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "status() -> ReceiverStatus record (state, doppler_hz, chip_phase, "
     "code_rate, cn0_dbhz_est, code_locked, locked, lock_metric, "
     "lock_threshold, car_last_error, mpsk_last_error, state_samples, "
-    "both_down_samples)\n"
+    "both_down_samples, refused_hits)\n"
     "\n"
     "One consistent picture of the receiver, by value (design section 11.3): "
     "state, where the emitter is now (the whole carrier estimate -- loop 1's "

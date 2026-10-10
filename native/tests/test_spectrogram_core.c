@@ -787,7 +787,8 @@ main (void)
   /* PSD clamps power at 1e-20 before the log, so a frame of zeros reads
      -200 dB in every bin, exactly, whatever the window. The clamp makes ANY
      frame below about -200 dBFS read the same, so -200 does not tell "no
-     signal" from a signal under the floor; design U5 leaves that open */
+     signal" from a signal under the floor. By design: U5, measured in
+     spectrogram-measurements.md §5.4 */
   {
     const size_t nfft       = 32;
     float _Complex zero[32] = { 0 };

@@ -44,7 +44,12 @@ extern "C"
 #define SPECTROGRAM_STATE_MAGIC DP_FOURCC ('S', 'P', 'G', 'M')
 #define SPECTROGRAM_STATE_VERSION 1u
 
-/** @brief Row units: dBFS, against the PSD's full-scale reference. */
+/**
+ * @brief Row units: dBFS, against the PSD's full-scale reference.
+ *
+ * A bin reads no lower than -200 dB: PSD clamps power at 1e-20 before the
+ * log, so an all-zero frame and a frame below the floor write the same row.
+ */
 #define DP_SPECTROGRAM_DB 0
 /**
  * @brief Row units: linear power. RESERVED: dp_spectrogram_create() refuses

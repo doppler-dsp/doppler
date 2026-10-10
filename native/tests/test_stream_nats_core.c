@@ -567,6 +567,21 @@ test_ack_on_core_nats_is_a_noop (void)
       DP_CHECK (rq && dp_msg_ack (rq) == DP_OK);
       if (rq)
         dp_msg_free (rq);
+      /* The no-op is what the requester sees, too. nats.c's JetStream ack
+         on a request reads a NULL JetStream context (undefined: a fault,
+         or in an optimised build the dead load dropped) and publishes
+         "+ACK" to the request's reply subject, the requester's inbox, so
+         its first reply was "+ACK", not the replier's. */
+      DP_CHECK (dp_rep_send (rep, "pong", 5) == DP_OK);
+      dp_msg_t *rp      = NULL;
+      size_t    rp_size = 0;
+      dp_req_set_timeout (req, 3000);
+      DP_CHECK (dp_req_recv (req, &rp, &rp_size) == DP_OK);
+      DP_CHECK_MSG (rp && rp_size == 5
+                        && memcmp (dp_msg_data (rp), "pong", 5) == 0,
+                    "the requester's first reply is the replier's");
+      if (rp)
+        dp_msg_free (rp);
     }
   dp_req_destroy (req);
   dp_rep_destroy (rep);

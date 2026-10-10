@@ -211,7 +211,7 @@ def _refuse(face: str) -> tuple[Telemetry, str, set[str]]:
     """
     make = FACES[face]
     suffixes = _suffixes(make)
-    prefix = "q" * (_name_max() - max(len(s) for s in suffixes))
+    prefix = "q" * (_fits(suffixes) + 1)  # longest name: one byte over
     tlm = _fresh()
     with pytest.raises(ValueError, match="set_telemetry failed"):
         make().set_telemetry(tlm, prefix)
@@ -253,7 +253,7 @@ def test_a_refusal_leaves_the_registry_untouched(face: str) -> None:
 def test_the_longest_prefix_that_fits_attaches_in_full(face: str) -> None:
     make = FACES[face]
     suffixes = _suffixes(make)
-    prefix = "q" * (_name_max() - 1 - max(len(s) for s in suffixes))
+    prefix = "q" * _fits(suffixes)
 
     tlm = _fresh()
     make().set_telemetry(tlm, prefix)

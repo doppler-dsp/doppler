@@ -42,6 +42,9 @@ No allowlist: every site was converted when the gate landed.
   macro (`"%s" SEP "e"`), because the literal is not whole where it is used;
 - the separator passed as an argument (`"%s%s%s", p, ".", s`);
 - a join that does not start its literal (`"rx.%s.e"`);
+- a literal split by a backslash-newline between `%s` and the dot;
+- the percent or the dot spelled as an escape (`"\x25s."`, `"\045s."`);
+- a precision with no digits (`"%.s."`);
 - a join in a helper file that neither registers nor attaches a probe.
 
 The runtime half covers these: `test_tlm_prefix_refusal.py` drives every

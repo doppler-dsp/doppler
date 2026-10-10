@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from collections import defaultdict
@@ -54,6 +55,9 @@ ROOT = Path(__file__).resolve().parent.parent
 PUBLISHED = "benchmarks/published"
 EXEMPT = "scripts/.bench-commit-exempt"
 SELF = "scripts/check_bench_commits.py"  # the ratchet starts when this lands
+# A stamp is a commit SHA. A ref name (`main`, a tag) resolves too, but it
+# MOVES, so the page would print a different commit tomorrow as provenance.
+SHA = re.compile(r"[0-9a-f]{7,40}")
 
 
 def git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -104,6 +108,8 @@ def verdict(root: Path, commit: str, base: str) -> str | None:
     Shared with ``bench_restamp.py``, which leaves a stamp alone when this
     says None.
     """
+    if not SHA.fullmatch(commit):
+        return "not a commit SHA -- a ref name moves, so it is no provenance"
     if resolve(root, base) is None:
         return f"not checkable: {base} is not here -- fetch it"
     sha = resolve(root, commit)

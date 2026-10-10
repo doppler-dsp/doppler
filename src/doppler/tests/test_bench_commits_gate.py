@@ -527,3 +527,47 @@ def test_an_ambiguous_abbreviation_is_refused(
     data = {"commit_info": {"id": side}, "doppler_meta": {"commit": side[:9]}}
     with pytest.raises(restamp.RestampError, match="ambiguous at 9"):
         restamp._target(repo, "x.json", data, "main")
+
+
+def test_renaming_the_gate_does_not_switch_the_ratchet_off(
+    tmp_path: Path,
+) -> None:
+    """The rename attack: at the base the gate lived under another name, so
+    `SELF` is absent there, but the exemption list is not. Comparing
+    against it must still refuse the added pair."""
+    repo, _ = _repo(tmp_path)
+    old = _off_main(repo, "int old;\n")
+    _stamp(repo, old)
+    (repo / "scripts").mkdir(exist_ok=True)
+    (repo / "scripts" / "old_gate_name.py").write_text("# the gate\n")
+    _exempt(repo, f"v1.0.0 {old[:9]} measured on a tree main never had\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "the gate, under its old name")
+    _git(repo, "checkout", "-q", "-b", "feature")
+    _git(repo, "checkout", "-q", "side")
+    other = _commit(repo, "int c;\n", "more off-main work")
+    _git(repo, "checkout", "-q", "feature")
+    _stamp(repo, other, "new.json")
+    _exempt(
+        repo,
+        f"v1.0.0 {old[:9]} measured on a tree main never had\n"
+        f"v1.0.0 {other[:9]} slipped in beside a rename\n",
+    )
+    r = _gate(repo)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert f"v1.0.0 {other[:9]} was ADDED" in r.stdout
+
+
+def test_a_ref_name_is_not_a_stamp(tmp_path: Path) -> None:
+    """`main` resolves, but it moves: it is refused by both scripts."""
+    repo, _ = _repo(tmp_path)
+    path = _stamp(repo, "0" * 40)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["doppler_meta"]["commit"] = "main"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    r = _gate(repo)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "commit main is not a commit SHA" in r.stdout
+    r = _restamp(repo)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "'main' is not a commit SHA" in r.stdout

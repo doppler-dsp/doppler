@@ -1048,7 +1048,12 @@ class Pull:
         Delivery is at-least-once: a frame stays pending until acked
         and is redelivered to another worker if this one dies first.
         Pass the array returned by :meth:`recv` once it has been fully
-        processed, then drop the array.
+        processed, then drop the array. Ack before :meth:`close`: once
+        the Pull that received the frame is closed, nothing can be sent.
+
+        A frame that did not come from a Pull -- a :class:`Subscriber`'s,
+        say -- has nothing to acknowledge: its ack is a no-op that never
+        raises, whether or not its receiver is closed.
 
         Parameters
         ----------
@@ -1059,9 +1064,11 @@ class Pull:
         Raises
         ------
         ValueError
-            If ``samples`` is not an un-freed :meth:`recv` result.
+            If ``samples`` is not an un-freed :meth:`recv` result, or if
+            the Pull that received it is closed. Nothing is sent then,
+            and the broker redelivers the frame.
         RuntimeError
-            If the acknowledgement fails.
+            If the broker could not be told.
 
         Examples
         --------

@@ -596,8 +596,9 @@ def _built(
 
 
 def _accepted_values(mut: Mutator, make, feed) -> tuple[list[Any], bool]:
-    """Values M takes without raising, readback distinct for a property;
-    and whether every call handed back a value."""
+    """Values M takes without raising, readback distinct for a property
+    and from the one it holds; and whether every call handed back a
+    value."""
     probe = _warm(make, feed)
     if mut.kind == "property":
         current = getattr(probe, mut.name)
@@ -611,7 +612,13 @@ def _accepted_values(mut: Mutator, make, feed) -> tuple[list[Any], bool]:
         cands = _method_args(mut, probe)
     vals: list[Any] = []
     returned = True
+    # Seeded with the value the object already holds: a setter that refuses
+    # silently (#1987) leaves the readback where it was, and that value is
+    # no other value -- a target "at" it would be the default by another
+    # name, and pass TRAVELS for it.
     seen: set[bytes] = set()
+    if mut.kind == "property":
+        seen.add(_as_bytes(getattr(probe, mut.name)) or b"")
     for v in itertools.islice(cands, 40):
         o = _warm(make, feed)
         try:

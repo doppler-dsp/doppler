@@ -20,6 +20,7 @@
 #include "doppler/dp_complex.h"
 #include "doppler/dp_thread.h"
 #include "dp_nats_test.h"
+#include <limits.h>
 #include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -455,6 +456,71 @@ test_send_refuses_a_count_that_wraps (void)
 
   dp_pub_destroy (pub);
   dp_sub_destroy (sub);
+}
+
+/* ------------------------------------------------------------------
+ * test_raw_send_refuses_a_size_past_int_max (doppler#2069)
+ *
+ * dp_req_send and dp_rep_send handed their size_t to nats.c as an int,
+ * and every probe below returned DP_OK: a claimed 2^32 + 5 bytes sent
+ * the first 5, and a size that narrowed negative sent an empty message.
+ * Each probe gives an 8-byte buffer a size past INT_MAX: refused before
+ * a byte is read, so the first message either side receives is the
+ * honest one.
+ * ------------------------------------------------------------------ */
+static void
+test_raw_send_refuses_a_size_past_int_max (void)
+{
+  printf ("\n-- a raw size past INT_MAX is refused, not truncated --\n");
+  const char *ep = dp_nats_endpoint ("rawsize");
+
+  dp_rep_t *rep = dp_rep_create (ep);
+  DP_CHECK (rep != NULL);
+  dp_nats_settle ();
+  dp_req_t *req = dp_req_create (ep);
+  DP_CHECK (req != NULL);
+  if (!req || !rep)
+    {
+      dp_req_destroy (req);
+      dp_rep_destroy (rep);
+      return;
+    }
+
+  const char   tx[8]    = "abcdefg";
+  const size_t forged[] = {
+    ((size_t)1 << 32) + 5, /* narrowed to 5: 5 bytes sent */
+    (size_t)UINT32_MAX,    /* narrowed to -1: sent empty */
+    (size_t)INT_MAX + 1,   /* narrowed to INT_MIN: sent empty */
+  };
+  const size_t n_forged = sizeof forged / sizeof *forged;
+
+  for (size_t i = 0; i < n_forged; i++)
+    DP_CHECK (dp_req_send (req, tx, forged[i]) == DP_ERR_TOO_LARGE);
+  DP_CHECK (dp_req_send (req, tx, sizeof tx) == DP_OK);
+
+  dp_msg_t *msg  = NULL;
+  size_t    size = 0;
+  dp_rep_set_timeout (rep, 3000);
+  DP_CHECK (dp_rep_recv (rep, &msg, &size) == DP_OK);
+  DP_CHECK (msg != NULL && size == sizeof tx);
+  if (msg)
+    dp_msg_free (msg);
+
+  /* The reply side narrows through the same call. */
+  for (size_t i = 0; i < n_forged; i++)
+    DP_CHECK (dp_rep_send (rep, tx, forged[i]) == DP_ERR_TOO_LARGE);
+  DP_CHECK (dp_rep_send (rep, tx, sizeof tx) == DP_OK);
+
+  msg  = NULL;
+  size = 0;
+  dp_req_set_timeout (req, 3000);
+  DP_CHECK (dp_req_recv (req, &msg, &size) == DP_OK);
+  DP_CHECK (msg != NULL && size == sizeof tx);
+  if (msg)
+    dp_msg_free (msg);
+
+  dp_req_destroy (req);
+  dp_rep_destroy (rep);
 }
 
 /* ------------------------------------------------------------------
@@ -1142,6 +1208,7 @@ main (void)
   test_interrupt_unblocks_recv ();
   test_flush_after_send ();
   test_send_refuses_a_count_that_wraps ();
+  test_raw_send_refuses_a_size_past_int_max ();
   test_ack_after_close_is_refused ();
   test_ack_on_core_nats_is_a_noop ();
   test_drain_then_send ();

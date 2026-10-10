@@ -276,7 +276,7 @@ int dp_rep_send (
 
 **Returns:**
 
-DP\_OK on success. 
+DP\_OK on success, negative error code on failure; DP\_ERR\_TOO\_LARGE, with nothing sent, when `size` is above INT\_MAX, the most one NATS message can carry. It is refused before narrowing to nats.c's int length, which sent a truncated or empty message with DP\_OK. 
 
 
 
@@ -580,7 +580,7 @@ int dp_req_send (
 
 **Returns:**
 
-DP\_OK on success. 
+DP\_OK on success, negative error code on failure; DP\_ERR\_TOO\_LARGE, with nothing sent, when `size` is above INT\_MAX, the most one NATS message can carry. It is refused before narrowing to nats.c's int length, which sent a truncated or empty message with DP\_OK. 
 
 
 

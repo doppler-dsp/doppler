@@ -107,8 +107,8 @@ and it comes out whole, bit-exact, wherever the split fell.
 am holding one". **Read it before you stop feeding a stream**: closing a
 file or a socket while it is non-zero discards a burst that would have
 decoded, and no other read-back distinguishes that case from an empty
-capture — `dropped` counts samples the ring refused, `n_bursts` counts what
-was demodulated, and a truncated burst is neither.
+capture — `dropped` counts look-back abandoned with a burst, `n_bursts`
+counts what was demodulated, and a truncated burst is neither.
 
 ### 3. Leave `min_gap` between bursts
 

@@ -199,7 +199,7 @@ main (void)
    * discarding a burst that would have been captured, and every other
    * read-back looks identical to "nothing was ever there". */
   printf ("\n  captured %zu window(s); %zu detection(s) still awaiting "
-          "samples; %llu sample(s) dropped\n",
+          "samples; %llu sample(s) of look-back abandoned\n",
           n_found, cap->pending,
           (unsigned long long)dp_burst_capture_get_dropped (cap));
   printf (

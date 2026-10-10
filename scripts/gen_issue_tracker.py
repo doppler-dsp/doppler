@@ -58,6 +58,7 @@ import datetime
 import json
 import os
 import pathlib
+import re
 import subprocess
 import sys
 
@@ -270,6 +271,43 @@ def _mdformat(text: str) -> str:
     return proc.stdout
 
 
+def _cell(title: str) -> str:
+    r"""Render an issue title as one cell of a Markdown table.
+
+    A title is free text that GitHub never renders as Markdown, so it can
+    carry anything. Two things change its meaning in a table:
+
+    - ``|`` ends the cell early, so it is escaped;
+    - a bracket pair forms a link reference. ``reads code[sf]`` renders
+      ``[sf]`` as an unresolved reference, which the strict docs build
+      refuses (#2110's title did exactly that).
+
+    Escaping the brackets cannot work. mdformat, which formats this page and
+    judges it in ``make lint``, follows CommonMark: an undefined ``[sf]`` is
+    plain text there, so it strips ``\[``, ``&#91;`` and every other
+    spelling back to ``[sf]``. The docs build disagrees and warns. What both
+    parsers leave alone is a code span, and a bracketed index is code anyway.
+    So every word holding a ``[...]`` pair, outside an existing code span,
+    is wrapped in one. A lone ``[`` (as in ``[0,m)``) opens no reference and
+    is left as text.
+
+    >>> _cell("dp_fmod_pos returns m (outside [0,m)), so reads code[sf], one")
+    'dp_fmod_pos returns m (outside [0,m)), so reads `code[sf]`, one'
+    >>> _cell("[RFC] a | b, and `x[i]` stays")
+    '`[RFC]` a \\| b, and `x[i]` stays'
+    """
+    parts = title.split("`")
+    for i in range(0, len(parts), 2):  # even parts lie outside code spans
+        parts[i] = _BRACKET_WORD.sub(r"`\g<0>`", parts[i])
+    return "`".join(parts).replace("|", "\\|")
+
+
+#: A word holding one complete ``[...]`` pair: an identifier-ish prefix, the
+#: pair, and any trailing word characters: ``code[sf]``, ``[RFC]``,
+#: ``a[i].b``.
+_BRACKET_WORD = re.compile(r"[\w.>-]*\[[^\[\]`|]*\][\w.()>-]*")
+
+
 def render(data: dict) -> str:
     issues = data["issue"]
     meta = data.get("meta", {})
@@ -337,7 +375,7 @@ def render(data: dict) -> str:
         L.append("| Issue | Summary | Status |")
         L.append("| ----- | ------- | ------ |")
         for num, rec in rows:
-            title = rec["title"].replace("|", "\\|")
+            title = _cell(rec["title"])
             L.append(
                 f"| [#{num}]({ISSUE_URL}/{num}) | {title} "
                 f"| {rec.get('status', 'open')} |"

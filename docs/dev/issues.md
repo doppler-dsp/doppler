@@ -15,7 +15,7 @@ Derived 2026-10-10 by `make issues`, which reads the live issue list; titles and
 | [4](#tier-4-cannot-be-reached)         | Cannot be reached         | 42   |
 | [5](#tier-5-convergence-and-hygiene)   | Convergence and hygiene   | 85   |
 
-18 of them have a pull request open against them; the **Status** column says which.
+19 of them have a pull request open against them; the **Status** column says which.
 
 ## Tier 0 — Breaks for a user
 
@@ -41,10 +41,10 @@ Reproducible through an interface someone actually uses — a crash, a race, a l
 | [#2063](https://github.com/doppler-dsp/doppler/issues/2063) | stream: Pull.close() during a GIL-free recv() tears down the context under the fetch (#2016's class, receive path)                                                  | open                                                                  |
 | [#2095](https://github.com/doppler-dsp/doppler/issues/2095) | \_SynthEngine.set_wtype(PN\|BPSK\|QPSK) on an engine created otherwise segfaults on the next step                                                                   | in review ([#2132](https://github.com/doppler-dsp/doppler/pull/2132)) |
 | [#2103](https://github.com/doppler-dsp/doppler/issues/2103) | dll: a NaN spacing or symbol period crashes (x86-64 OOB read) or aborts (calloc of 2^63)                                                                            | in review ([#2128](https://github.com/doppler-dsp/doppler/pull/2128)) |
-| [#2110](https://github.com/doppler-dsp/doppler/issues/2110) | clib: dp_fmod_pos can return m (outside \[0,m)), so dll_replica reads code[sf], one past the copy                                                                   | in review ([#2141](https://github.com/doppler-dsp/doppler/pull/2141)) |
+| [#2110](https://github.com/doppler-dsp/doppler/issues/2110) | clib: dp_fmod_pos can return m (outside \[0,m)), so dll_replica reads `code[sf]`, one past the copy                                                                 | in review ([#2141](https://github.com/doppler-dsp/doppler/pull/2141)) |
 | [#2111](https://github.com/doppler-dsp/doppler/issues/2111) | resamp: set_state trusts a forged delay_head, and the next output reads past delay_buf                                                                              | in review ([#2134](https://github.com/doppler-dsp/doppler/pull/2134)) |
 | [#2112](https://github.com/doppler-dsp/doppler/issues/2112) | float-domain holes from #2109's review: loop embedders without the bn/zeta predicate, det_verify_count int overflow, Dll lock geometry                              | open                                                                  |
-| [#2142](https://github.com/doppler-dsp/doppler/issues/2142) | set_state trusts index fields from the blob: MovingAverage writes out of bounds; delay, wfm_synth read out of bounds                                                | open                                                                  |
+| [#2142](https://github.com/doppler-dsp/doppler/issues/2142) | set_state trusts index fields from the blob: MovingAverage writes out of bounds; delay, wfm_synth read out of bounds                                                | in review ([#2148](https://github.com/doppler-dsp/doppler/pull/2148)) |
 
 ## Tier 1 — A gate that does not gate
 

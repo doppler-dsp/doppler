@@ -1464,7 +1464,7 @@ status = "in review ([#2145](https://github.com/doppler-dsp/doppler/pull/2145))"
 [issue.2142]
 tier = 0
 title = "set_state trusts index fields from the blob: MovingAverage writes out of bounds; delay, wfm_synth read out of bounds"
-status = "open"
+status = "in review ([#2148](https://github.com/doppler-dsp/doppler/pull/2148))"
 
 [issue.2143]
 tier = 2

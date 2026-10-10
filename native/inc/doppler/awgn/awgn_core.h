@@ -115,6 +115,9 @@ extern "C"
 
   /**
    * @brief Return the current amplitude (per-component std dev).
+   *
+   * Assigning an invalid value (NaN, infinite or negative) is ignored: the
+   * amplitude keeps its old value, and the property does not raise.
    * @code
    * >>> from doppler.source import AWGN
    * >>> gen = AWGN(seed=0, amplitude=1.0)
@@ -154,8 +157,13 @@ extern "C"
    *
    * The one predicate. dp_awgn_create() refuses outside it, dp_awgn_set_state()
    * refuses a blob outside it before it writes anything, and
-   * dp_awgn_set_amplitude() ignores such a value. A NaN fails both
+   * dp_awgn_set_amplitude() refuses such a value. A NaN fails both
    * comparisons, so it is outside.
+   *
+   * The domain admits a finite amplitude above about 5.9e37 (FLT_MAX / 5.77),
+   * and such an amplitude still produces +/-inf samples: the Box-Muller radius
+   * tops out near 5.77 sigma, so the product overflows. It is not a realistic
+   * input and the predicate does not refuse it.
    *
    * @param amplitude  Per-component standard deviation.
    * @return 1 inside the domain, 0 outside it.
@@ -165,12 +173,16 @@ extern "C"
   /**
    * @brief Set amplitude without disturbing RNG state.
    *
-   * An @p val outside dp_awgn_amplitude_ok() is ignored and the amplitude
-   * stays as it was. The setter returns nothing, so the refusal is silent at
-   * this layer; the Python property cannot raise it yet (just-buildit/
-   * just-makeit#1987).
+   * An @p val outside dp_awgn_amplitude_ok() is refused and the amplitude
+   * stays as it was, so a caller that drops the return keeps a valid sigma
+   * rather than gaining a bad one. The Python property cannot raise the
+   * refusal yet (doppler#1987, waiting on just-makeit#2182), so there it is
+   * silent.
+   *
+   * @return DP_OK, or DP_ERR_INVALID for a value outside the domain (nothing
+   *         changes).
    */
-  void dp_awgn_set_amplitude (dp_awgn_state_t *state, float val);
+  int dp_awgn_set_amplitude (dp_awgn_state_t *state, float val);
 
   /**
    * @brief Reseed the RNG and reset all xoshiro256++ state.
@@ -246,7 +258,9 @@ extern "C"
    * @param amplitude  Per-component (Re, Im) standard deviation.
    * @param n          Number of samples to generate.
    * @param out        Output buffer, capacity ≥ n.
-   * @return DP_OK on success, DP_ERR_MEMORY on allocation failure.
+   * @return DP_OK on success; DP_ERR_INVALID for an amplitude outside
+   *         dp_awgn_amplitude_ok(), checked before any allocation;
+   *         DP_ERR_MEMORY on allocation failure.
    */
   int dp_awgn (uint64_t seed, float amplitude, size_t n, float _Complex *out);
 

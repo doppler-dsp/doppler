@@ -1,0 +1,15 @@
+# Ratchet for scripts/check_ring_internals.py (make lint-ring-internals).
+#
+# Files that still read or write a ring's head, tail or mask outside
+# native/inc/doppler/buffer/buffer.h (doppler#1426), with how many times and
+# why. Use the ring's own operations instead: dp_<t>_space, _write_some,
+# _peek, _consume, _reset, or the framer for fixed frames.
+#
+# THIS LIST MAY ONLY SHRINK. A file not listed may not touch them at all, a
+# count left above what its file now does is stale and fails, and nothing
+# may be added or raised against the merge base with origin/main.
+#
+# Format:  <path> <count>  # why
+native/src/burst_capture/burst_capture_core.c 16  # its history is addressed by absolute stream position, which the ring's API cannot name (#1425)
+native/src/dp_tlm/dp_tlm_core.c 5  # the telemetry reader predates the ring's non-blocking API (#2037)
+native/examples/ring_chunking_demo.c 2  # counts the frames that wrap the ring's end, to show the double mapping: needs a read position (#1425)

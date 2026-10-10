@@ -1599,7 +1599,7 @@ endef
 
 # ── Clean ────────────────────────────────────────────────────────────────────
 CLEAN_PATHS = $(BUILD_DIR) $(PY_BUILD_DIR) $(UBSAN_DIR) $(TSAN_DIR) \
-              $(ASAN_DIR) \
+              $(ASAN_DIR) build-asan-* \
               $(GLIBC_BUILD_DIR) $(COV_DIR) $(NATS_FRESH_DIR) \
               docs/doxygen/ site/ \
               *.png bench_*.json zensical.toml __pycache__
@@ -2319,8 +2319,20 @@ test-ubsan: ## Run the C suite under UBSan; any undefined behaviour fails
 # and fixed in the same change, so this target has never had a ratchet and
 # should not acquire its first one quietly. Adding `detect_leaks=0` or a
 # suppressions file is a change in what this gate promises; fix the code.
-ASAN_DIR   ?= build-asan
 ASAN_FLAGS  = -fsanitize=address -fno-omit-frame-pointer -g
+# clang, not the default compiler (#2130). GCC's AddressSanitizer does not
+# instrument an access through a float _Complex lvalue -- crealf(b[i]),
+# cimagf(b[i]), a whole-complex load or store -- which is how every DSP
+# kernel here reads its samples, so a gcc-built test-asan passed while
+# resamp read 19 samples past its delay line. clang instruments all four.
+# The image carries clang's sanitizer runtime (the sanitizers job takes it
+# from there). native/tests/asan_canary.c holds this: built with the
+# compiler and flags the suite was built with, it must draw an ASan report,
+# so `ASAN_CC=gcc` is red.
+ASAN_CC    ?= clang
+# One tree per compiler, so `ASAN_CC=gcc` (the canary's sabotage) neither
+# reconfigures nor rebuilds the clang tree on the way back.
+ASAN_DIR   ?= build-asan-$(notdir $(ASAN_CC))
 # halt_on_error, for the reason UBSAN_OPTS gives above. `detect_leaks` is
 # spelled out rather than left to the platform default: it is ON by default on
 # Linux and OFF on macOS, so relying on the default would mean the gate
@@ -2330,12 +2342,54 @@ ASAN_OPTS   = halt_on_error=1:abort_on_error=1:detect_leaks=1
 test-asan: ## Run the C suite under ASan+LSan; any bad access or leak fails
 	$(CMAKE) -B $(ASAN_DIR) -S . \
 		-DCMAKE_BUILD_TYPE=Debug \
+		-DCMAKE_C_COMPILER=$(ASAN_CC) \
 		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
 		"-DCMAKE_C_FLAGS=$(ASAN_FLAGS)" \
 		"-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address" \
 		"-DCMAKE_SHARED_LINKER_FLAGS=-fsanitize=address" \
 		$(CMAKE_ARGS)
 	$(CMAKE) --build $(ASAN_DIR) --parallel $(NPROC)
+# The canary first: a compiler that cannot see a complex out-of-bounds read
+# makes every pass below say nothing about one (#2130). It is built with the
+# compiler and C flags CMake RECORDED, not $(ASAN_CC) and $(ASAN_FLAGS): a
+# `CMAKE_ARGS` that names another compiler, or other flags, wins over the -D
+# lines above, and a canary built the way this target asked would then vouch
+# for a suite built some other way.
+	@cache=$(ASAN_DIR)/CMakeCache.txt; \
+	 cc=$$(sed -n 's/^CMAKE_C_COMPILER:[A-Z]*=//p' $$cache); \
+	 cflags=$$(sed -n 's/^CMAKE_C_FLAGS:[A-Z]*=//p' $$cache); \
+	 if [ -z "$$cc" ]; then \
+	   echo "test-asan: no CMAKE_C_COMPILER in $$cache,"; \
+	   echo "  so the canary cannot be built by the suite's compiler."; exit 1; \
+	 fi; \
+	 $$cc $$cflags native/tests/asan_canary.c -o $(ASAN_DIR)/asan_canary \
+	   || exit 1; \
+	 if ASAN_OPTIONS=$(ASAN_OPTS) $(ASAN_DIR)/asan_canary \
+	      > $(ASAN_DIR)/asan_canary.log 2>&1 \
+	    || ! grep -q 'heap-buffer-overflow' $(ASAN_DIR)/asan_canary.log; then \
+	   echo "test-asan: the canary's out-of-bounds float _Complex read went"; \
+	   echo "  unreported, so $$cc's ASan cannot see the kernels' bad"; \
+	   echo "  sample reads and this gate has not passed (#2130):"; \
+	   sed 's/^/    /' $(ASAN_DIR)/asan_canary.log; exit 1; \
+	 fi; \
+	 echo "test-asan: the canary's complex read was reported -- $$cc sees them"
+# One ASan registration flag per binary. clang emits ___asan_globals_registered
+# as a common in every instrumented object, and the ELF's globals are
+# registered once per flag; when cmake/prefix_vendored.cmake respelled the
+# archive's copy, a test linking its own object beside libdoppler.a held two
+# and registered every global twice -- ASan's same-size ODR reports (#2130).
+# validate_rx_dynamics is one such binary and was one that reported.
+	@b=$(ASAN_DIR)/native/validation/validate_rx_dynamics; \
+	 syms=$$(nm "$$b") || { echo "test-asan: nm $$b failed"; exit 1; }; \
+	 flags=$$(printf '%s\n' "$$syms" \
+	   | awk '$$NF ~ /asan_globals_registered$$/ {print $$NF}'); \
+	 n=$$(printf '%s' "$$flags" | grep -c .); \
+	 if [ "$$n" != 1 ]; then \
+	   echo "test-asan: $$b holds $$n ASan registration flag(s), not 1:"; \
+	   printf '%s\n' "$$flags" | sed 's/^/    /'; \
+	   echo "  each one registers every global again (#2130)"; exit 1; \
+	 fi; \
+	 echo "test-asan: one ASan registration flag in validate_rx_dynamics"
 # An empty result set is not a pass -- the same trap test-tsan guards, and it
 # bites harder here because this target takes no pattern: a configure that
 # registered no tests would run zero of them and exit 0, reporting a clean

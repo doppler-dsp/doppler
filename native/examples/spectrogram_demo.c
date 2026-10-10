@@ -21,9 +21,11 @@
  * 1.0. A display converts to dB only the bins it draws, and so does this
  * program: every row that lies inside one frequency segment is checked
  * physically, its peak on the bin of that segment's tone at 0 dBFS, and
- * that one bin is the only one it converts. Converting every bin of every
- * row is most of a dB row's cost (docs/design/spectrogram-measurements.md,
- * entry 5.8), which is why dB rows are asked for by name. Then
+ * that one bin is the only one it converts, with dp_power_to_db_f32(), the
+ * library's one dB conversion, which a dB row is made with too. Converting
+ * every bin of every row was most of a dB row's cost
+ * (docs/design/spectrogram-measurements.md, entry 5.8), which is why dB rows
+ * are asked for by name. Then
  * dp_spectrogram_flush() ends the stream with the one zero-padded row the
  * last samples still owe.
  *
@@ -32,6 +34,7 @@
  *   ./build/native/examples/spectrogram_demo
  */
 #include "doppler/lo/lo_core.h"
+#include "doppler/spectral/spectral_core.h"
 #include "doppler/spectrogram/spectrogram_core.h"
 #include <math.h>
 #include <stdio.h>
@@ -66,13 +69,6 @@ static const int BIN[NSEG] = { 20, -50, 90, 5 };
 /* The chunk sizes the "socket" delivers, cycled. */
 static const size_t CHUNK[] = { 1, 37, 700, 5 };
 #define NCHUNK (sizeof CHUNK / sizeof *CHUNK)
-
-/* A power bin in dBFS: the conversion a display makes for what it draws. */
-static float
-to_db (float power)
-{
-  return 10.0f * log10f (power);
-}
 
 /* Peak index of one row (power and its dB rank the bins alike). */
 static size_t
@@ -172,7 +168,11 @@ main (void)
       const float *row = fall_a + r * NFFT;
       size_t       p   = peak (row);
       CHECK (p == (size_t)(NFFT / 2 + BIN[first / SEG]));
-      CHECK (fabsf (to_db (row[p])) < 0.01f); /* 0 dBFS */
+      /* the one bin this check reads, converted as a display would: the
+         library's dB conversion, which a dB row is made with too */
+      float peak_db;
+      dp_power_to_db_f32 (&row[p], 1, &peak_db);
+      CHECK (fabsf (peak_db) < 0.01f); /* 0 dBFS */
       checked++;
     }
   CHECK (checked > rows / 2);
@@ -192,7 +192,9 @@ main (void)
   CHECK (rows * HOP >= (NSEG - 1) * SEG);
   size_t lp = peak (last_a);
   CHECK (lp == (size_t)(NFFT / 2 + BIN[NSEG - 1]));
-  CHECK (to_db (last_a[lp]) <= 0.0f && to_db (last_a[lp]) > -0.5f);
+  float last_db;
+  dp_power_to_db_f32 (&last_a[lp], 1, &last_db);
+  CHECK (last_db <= 0.0f && last_db > -0.5f);
   CHECK (dp_spectrogram_flush (a, last_a) == 0); /* the stream is over */
 
   printf ("spectrogram: %d samples in chunks of 1/37/700/5 -> %zu rows of "

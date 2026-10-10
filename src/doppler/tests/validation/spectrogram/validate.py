@@ -523,7 +523,8 @@ def characterise(d) -> None:
     R.md(
         "This section is the dB mode's alone: a power row has no floor but "
         "float32's, and an all-zero frame reads 0 there (C §13). PSD's dB "
-        "conversion clamps power at 1e-20 before the logarithm, so no bin "
+        "conversion (`dp_power_to_db_f32`, F12) reads 1e-20 and below as "
+        "exactly -200, so no bin "
         "of a dB row reads below -200 dB. The measurement record's entry 5.4 "
         "(`docs/design/spectrogram-measurements.md`) is the long form; "
         "these are its numbers, at `nfft` 1024. An all-zero frame:"
@@ -766,6 +767,25 @@ def review(d) -> None:
         "hop refuses. §14 now pins that case, which the same sabotage turns "
         "red; §2.5's every-cut sweep already caught it at the cuts before "
         "the first row.",
+    )
+    tone = d["floor_tone"]
+    above = [r for r in tone if _f(r, "level_dbfs") >= FLOOR_DB]
+    moved = max(
+        (abs(_f(r, "tone_bin_db") - _f(r, "level_dbfs")) for r in above),
+        default=0.0,
+    )
+    R.find(
+        "F12",
+        "BY DESIGN",
+        "**A dB row is the fast conversion of the power row** (#2094, the "
+        "owner's decision on #2074). Every dB value is "
+        "`dp_power_to_db_f32` of the matching power value, bit for bit "
+        "(C §16): 10·log10 within 0.01 dB, 3.25e-4 dB measured over every "
+        "float32, exact at every power of two. So a dB reading off a power "
+        "of two moves from the exact logarithm by at most that. In this "
+        f"report an on-bin tone's level moved by up to {moved:.4f} dB "
+        "(§2.7), the full-scale level is still within 1e-4 dB (§2.6), and "
+        "the -200 dB floor is exact.",
     )
 
 
@@ -1016,14 +1036,20 @@ def limits(d) -> None:
     tone = d["floor_tone"]
     above = [r for r in tone if _f(r, "level_dbfs") >= FLOOR_DB]
     below = [r for r in tone if _f(r, "level_dbfs") < FLOOR_DB]
+    tone_worst = max(
+        (abs(_f(r, "tone_bin_db") - _f(r, "level_dbfs")) for r in above),
+        default=0.0,
+    )
     R.limit(
         bool(above)
         and all(
-            abs(_f(r, "tone_bin_db") - _f(r, "level_dbfs")) < 1e-4
+            abs(_f(r, "tone_bin_db") - _f(r, "level_dbfs")) < 5e-4
             for r in above
         ),
-        "an on-bin tone reads its level in its bin, to 1e-4 dB, down to "
-        "-200 dBFS under every window",
+        "an on-bin tone reads its level in its bin within the dB "
+        "conversion's bound, 5e-4 dB (dp_power_to_db_f32; 3.25e-4 over "
+        "every float32), down to -200 dBFS under every window (largest "
+        f"{tone_worst:.4f} dB)",
     )
     R.limit(
         bool(below) and all(_i(r, "tone_bin_is_floor") == 1 for r in below),
@@ -1363,6 +1389,15 @@ def build(write: bool = True) -> Report:
                 "#1975: stop at `rows == room` (S2). #2043: the tail left "
                 "untaken (M2)",
                 "§2.2",
+            ],
+            [
+                "C28",
+                "a dB row is dp_power_to_db_f32 of the power row, bit for "
+                "bit, so converting power rows is exactly the dB mode",
+                "§16",
+                "#2094: PSD's dB path given its own 10·log10 back (and "
+                "PSD's own pin, test_psd_core.c)",
+                "§2.7 (F12)",
             ],
         ],
     )

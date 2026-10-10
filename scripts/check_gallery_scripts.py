@@ -25,13 +25,26 @@ This script is now the one reader of both directions:
     wrote down.
 
 ``--narrow SCRIPT --characterizations SUBJECT...`` (also on ``make lint``)
-    Fail when ``make -n gallery GALLERY_SCRIPTS=SCRIPT`` names a PNG that is
-    not one of SCRIPT's plots or runs a Python file other than SCRIPT and
-    this one, and when the default ``make -n gallery`` no longer runs every
-    characterization subject. A narrowed run used to re-render
-    ``dsss_acq_characterization.png`` too, an unrelated diff that is easy to
-    commit by accident (#2058). Read from the dry run, so nothing executes.
-    The second half keeps the fix from being a deleted step.
+    Hold ``make gallery GALLERY_SCRIPTS=SCRIPT`` to SCRIPT alone (#2058). A
+    narrowed run used to re-render ``dsss_acq_characterization.png`` too, an
+    unrelated diff that is easy to commit by accident. Read from two dry
+    runs, so nothing executes:
+
+    - the narrowed run may MENTION no PNG but SCRIPT's plots and no Python
+      file but SCRIPT and this one, and it must INVOKE SCRIPT;
+    - the default run must INVOKE every characterization subject, and at
+      least one must be given, so deleting the step from every run, or
+      emptying the list, is not a pass;
+    - ``make -n release-freshness-check`` must be handed every subject. A
+      full ``make gallery`` is now the only run that renders one, so the
+      tag-time gate is what notices a changed subject left unrendered.
+
+    "Mention" is any path in a command; "invoke" is ``python <path>``, with
+    a shell loop's ``$var`` resolved to the words it iterates over. The
+    asymmetry is deliberate: what must not happen is caught by a mere
+    mention, while what must happen needs the command itself, because a
+    ``printf`` label or a ``for`` list also names the path. A recipe comment
+    that ``make -n`` echoes is not a command and is skipped.
 
 A script's plot is every quoted ``"<name>.png"`` literal in its source --
 ``savefig("x.png")``, ``out_path="x.png"``, ``main(out="x.png")`` all
@@ -68,8 +81,19 @@ PNG_RE = re.compile(r"""["']([A-Za-z0-9][A-Za-z0-9_.-]*\.png)["']""")
 DRY_PNG = re.compile(r"[\w./-]+\.png\b")
 DRY_PY = re.compile(r"[\w./-]+\.py\b")
 
+#: A shell loop in a dry run: its variable, and the words it iterates over.
+LOOP = re.compile(r"\bfor\s+(\w+)\s+in\s+([^;]*);")
+#: What a dry run hands to python: a path, or a loop variable.
+RUN = re.compile(r"\bpython3?\s+(\S+)")
+#: A loop variable as a word: `$v`, `${v}`, either one quoted.
+VAR = re.compile(r'"?\$\{?(\w+)\}?"?')
+
 #: This script, which `make gallery` runs to derive its move list.
 HELPER = f"scripts/{pathlib.Path(__file__).name}"
+
+#: The tag-time gate that refuses a changed gallery script whose plot was
+#: not re-rendered; a characterization subject must reach it too.
+FRESHNESS = "release-freshness-check"
 
 
 def plots(path: pathlib.Path) -> list[str]:
@@ -123,27 +147,71 @@ def check(repo: pathlib.Path, listed: list[str]) -> int:
     return rc
 
 
-def dry_run(repo: pathlib.Path, *make_args: str) -> str:
-    """The recipe ``make gallery`` would run, executing nothing.
+def dry_run(repo: pathlib.Path, target: str, *make_args: str) -> list[str]:
+    """The commands ``make <target>`` would run, executing nothing.
 
-    Make's own variables are dropped from the environment first: run under
+    Parameters
+    ----------
+    repo : pathlib.Path
+        The tree whose Makefile is read.
+    target : str
+        ``gallery``, or ``release-freshness-check``.
+    *make_args : str
+        Added to make's command line, e.g. ``GALLERY_SCRIPTS=<one>``.
+
+    Returns
+    -------
+    list of str
+        One entry per command. ``make -n`` prints a line continued with a
+        backslash as several lines, so those are joined first; it also
+        echoes a tab-indented ``# ...`` recipe comment, which is dropped,
+        so a path a comment names is neither a destination nor a run.
+
+    Notes
+    -----
+    Make's own variables are dropped from the environment: run under
     ``make lint``, make passes its command line to children in MAKEFLAGS,
     and a GALLERY_SCRIPTS there would narrow the run read as the default.
     """
     drop = {"MAKEFLAGS", "MFLAGS", "MAKELEVEL"}
     r = subprocess.run(
-        ["make", "-n", "--no-print-directory", "gallery", *make_args],
+        ["make", "-n", "--no-print-directory", target, *make_args],
         cwd=repo,
         env={k: v for k, v in os.environ.items() if k not in drop},
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
     if r.returncode != 0:
         raise SystemExit(
-            f"gallery-scripts: `make -n gallery` failed\n{r.stderr}"
+            f"gallery-scripts: `make -n {target}` failed\n{r.stderr}"
         )
-    return r.stdout
+    joined = r.stdout.replace("\\\n", " ")
+    return [
+        ln
+        for ln in joined.splitlines()
+        if ln.strip() and not ln.lstrip().startswith("#")
+    ]
+
+
+def invoked(commands: list[str]) -> set[str]:
+    """Every path *commands* hand to python, loop variables resolved.
+
+    ``for script in a.py b.py; do uv run python $script; done`` invokes
+    ``a.py`` and ``b.py``: the argument is a variable, so it is replaced by
+    the words its loop iterates over. A variable no loop sets resolves to
+    nothing, which can only make a required run look absent, never present.
+    """
+    text = "\n".join(commands)
+    loops: dict[str, list[str]] = {}
+    for var, words in LOOP.findall(text):
+        loops.setdefault(var, []).extend(words.split())
+    out: set[str] = set()
+    for arg in RUN.findall(text):
+        m = VAR.fullmatch(arg)
+        out.update(loops.get(m.group(1), []) if m else [arg])
+    return out
 
 
 def check_narrow(
@@ -151,20 +219,34 @@ def check_narrow(
 ) -> int:
     """Hold ``make gallery GALLERY_SCRIPTS=<script>`` to that script alone.
 
-    Two dry runs. The narrowed one may name a PNG only if *script* writes
-    it, and run no Python file but *script* and this helper; it must also
-    run *script*, so a narrowed run that does nothing is not a pass. The
-    default one must still run every characterization subject, so a fix
-    that deletes the step from every run is not a pass either.
+    Two dry runs. The narrowed one may mention a PNG only if *script*
+    writes it, and a Python file only if it is *script* or this helper, and
+    it must invoke *script*, so a narrowed run that does nothing is not a
+    pass. The default one must invoke every characterization subject, and
+    an empty list is refused, so a fix that deletes the step from every run
+    is not a pass either. Each subject must also reach
+    ``release-freshness-check``, the only gate that sees it go stale.
+
+    Returns
+    -------
+    int
+        0 when every condition holds, 1 otherwise; each failure is printed.
     """
+    if not characterizations:
+        print(
+            "gallery-scripts: --narrow got no characterization subjects, so "
+            "the default run would be checked for nothing. Pass "
+            "GALLERY_CHARACTERIZATIONS (is it empty, or renamed?)."
+        )
+        return 1
+
     rc = 0
-    narrowed = dry_run(repo, f"GALLERY_SCRIPTS={script}")
+    narrowed = dry_run(repo, "gallery", f"GALLERY_SCRIPTS={script}")
+    text = "\n".join(narrowed)
     own = set(plots(repo / script))
-    pngs = set(DRY_PNG.findall(narrowed))
-    pys = set(DRY_PY.findall(narrowed))
     stray = sorted(
-        {p for p in pngs if pathlib.Path(p).name not in own}
-        | (pys - {script, HELPER})
+        {p for p in DRY_PNG.findall(text) if pathlib.Path(p).name not in own}
+        | (set(DRY_PY.findall(text)) - {script, HELPER})
     )
     if stray:
         rc = 1
@@ -178,24 +260,31 @@ def check_narrow(
             "  A narrowed run must render only what it names, or it leaves\n"
             "  an unrelated plot changed in the tree (#2058)."
         )
-    if script not in pys:
+    if script not in invoked(narrowed):
         rc = 1
         print(f"gallery-scripts: a narrowed run does not run {script}")
 
-    full = dry_run(repo)
+    runs = invoked(dry_run(repo, "gallery"))
+    # Only the full run renders a characterization now, so the tag-time
+    # freshness gate is what notices a changed subject with its plot left
+    # unrendered. It must be handed every subject to notice it.
+    fresh = " ".join(dry_run(repo, FRESHNESS, "VERSION=0.0.0")).split()
     for c in characterizations:
-        if c not in full:
+        if c not in runs:
             rc = 1
             print(
                 f"gallery-scripts: the default `make gallery` no longer "
                 f"runs {c}"
             )
+        if c not in fresh:
+            rc = 1
+            print(f"gallery-scripts: `make {FRESHNESS}` is not given {c}")
 
     if rc == 0:
         print(
             f"gallery-scripts: OK -- GALLERY_SCRIPTS={script} names only its "
             f"own plots; the default run renders {len(characterizations)} "
-            "characterization(s)"
+            f"characterization(s), and {FRESHNESS} reads them"
         )
     return rc
 

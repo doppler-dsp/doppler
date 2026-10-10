@@ -137,6 +137,9 @@ C's `fmod()` keeps the dividend's sign, so a negative `x` comes back in `(-m, 0]
 External inline (JM\_FORCEINLINE), not `static inline` like its neighbours: the DLL's replica tap is an external inline in a header, and C99 6.7.4 forbids such a function from referencing one with internal linkage  the compiler said so.
 
 
+A negative remainder within half an ulp of zero rounds `r + m` up to exactly `m`, outside the range; it folds to 0, its equal on the circle. The DLL's replica tap indexes the code with this result, and read `code[sf]`, one past the copy, at a spacing just off a phase-grid point (doppler#2110).
+
+
 
 
 **Parameters:**

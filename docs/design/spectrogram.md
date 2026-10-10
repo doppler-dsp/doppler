@@ -55,7 +55,7 @@ The goals, each of which is a thing a test can fail:
 | G7  | **Backpressure loses nothing.** A short output buffer slows the stream down; it never drops input.                                                                    |
 
 What is **not known**, and is therefore what the characterization measures
-rather than confirms (all six are now answered, each in the record under its §5 number):
+rather than confirms (all six are now answered, in the record's §5.4 to §5.9):
 
 - **U1 — the carry's copy against a bypass. ANSWERED (§5.6): no bypass.**
     Every sample goes through the ring, and that copy costs 0.06–0.24 ns per

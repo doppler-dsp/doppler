@@ -65,10 +65,10 @@
  * genuinely separated seeds — SplitMix64 run forward per stream, or
  * xoshiro256++'s own `jump()`.
  *
- * `vs[4][8]` is still seeded and serialized. Dropping it would change
- * `dp_awgn_state_bytes`, which `dp_wfm_synth_state_bytes` includes, churning
- * the state protocol of two objects to save 256 bytes. `test_awgn_core.c` pins
- * the sequence, so a future vectorisation has to reproduce it.
+ * `vs[4][8]` outlived the path, seeded and serialized but never read. It
+ * went with the v2 blob (#2084), which changed the state protocol anyway.
+ * `test_awgn_core.c` pins the sequence, so a future vectorisation has to
+ * reproduce it.
  *
  * ### Sin/cos LUT
  *
@@ -89,6 +89,7 @@
 #include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 
 /* ------------------------------------------------------------------ */
 /* Sin/cos LUT — 2^16 entries, same layout as lo_core.               */
@@ -159,9 +160,19 @@ seed_state (uint64_t s[4], uint64_t seed)
 /* Lifecycle                                                           */
 /* ================================================================== */
 
+int
+dp_awgn_amplitude_ok (float amplitude)
+{
+  /* A NaN fails the comparison, and an infinity is no sigma, so both are
+     outside. A negative sigma has no meaning and would invert the noise. */
+  return amplitude >= 0.0f && isfinite (amplitude);
+}
+
 dp_awgn_state_t *
 dp_awgn_create (uint64_t seed, float amplitude)
 {
+  if (!dp_awgn_amplitude_ok (amplitude))
+    return NULL;
   lut_init ();
   dp_awgn_state_t *s = malloc (sizeof *s);
   if (!s)
@@ -169,18 +180,6 @@ dp_awgn_create (uint64_t seed, float amplitude)
   s->seed      = seed;
   s->amplitude = amplitude;
   seed_state (s->s, seed);
-  /* Initialise 8 independent AVX streams via offset seeds.
-   * vs is transposed: vs[word][stream], so words for stream j are at
-   * vs[0][j], vs[1][j], vs[2][j], vs[3][j] — not contiguous. */
-  for (int j = 0; j < 8; j++)
-    {
-      uint64_t stream_seed = seed + (uint64_t)j * 0x9e3779b97f4a7c15ULL;
-      uint64_t sm          = stream_seed;
-      s->vs[0][j]          = splitmix64 (&sm);
-      s->vs[1][j]          = splitmix64 (&sm);
-      s->vs[2][j]          = splitmix64 (&sm);
-      s->vs[3][j]          = splitmix64 (&sm);
-    }
   return s;
 }
 
@@ -194,27 +193,20 @@ void
 dp_awgn_reset (dp_awgn_state_t *state)
 {
   seed_state (state->s, state->seed);
-  for (int j = 0; j < 8; j++)
-    {
-      uint64_t stream_seed = state->seed + (uint64_t)j * 0x9e3779b97f4a7c15ULL;
-      uint64_t sm          = stream_seed;
-      state->vs[0][j]      = splitmix64 (&sm);
-      state->vs[1][j]      = splitmix64 (&sm);
-      state->vs[2][j]      = splitmix64 (&sm);
-      state->vs[3][j]      = splitmix64 (&sm);
-    }
 }
 
 /* ── Serializable state — standard envelope (see dp_state.h) ────────────────
- * The running RNG state only: scalar s[4] + the 8 AVX2 stream words vs[4][8].
- * seed / amplitude are config restored by create(). */
+ * The RNG state s[4], plus the two values a mutator can change after create
+ * (#2022): the seed, which reseed() writes and reset() reseeds from, and the
+ * amplitude, which set_amplitude() writes. Nothing else is left to
+ * create(). */
 
 size_t
 dp_awgn_state_bytes (const dp_awgn_state_t *state)
 {
   (void)state;
-  return sizeof (dp_state_hdr_t) + sizeof (uint64_t) * 4
-         + sizeof (uint64_t) * 4 * 8;
+  return sizeof (dp_state_hdr_t) + sizeof (uint64_t) * 4 + sizeof (uint64_t)
+         + sizeof (float);
 }
 
 void
@@ -224,7 +216,8 @@ dp_awgn_get_state (const dp_awgn_state_t *state, void *blob)
   dp_w_hdr (&w, AWGN_STATE_MAGIC, AWGN_STATE_VERSION,
             dp_awgn_state_bytes (state));
   dp_w_bytes (&w, state->s, sizeof state->s);
-  dp_w_bytes (&w, state->vs, sizeof state->vs);
+  dp_w_u64 (&w, state->seed);
+  dp_w_f32 (&w, &state->amplitude, 1);
 }
 
 int
@@ -236,8 +229,23 @@ dp_awgn_set_state (dp_awgn_state_t *state, const void *blob)
     return rc;
   dp_reader_t r = dp_reader_init (blob, dp_awgn_state_bytes (state));
   r.off         = sizeof (dp_state_hdr_t);
-  dp_r_bytes (&r, state->s, sizeof state->s);
-  dp_r_bytes (&r, state->vs, sizeof state->vs);
+  uint64_t s[4];
+  dp_r_bytes (&r, s, sizeof s);
+  const uint64_t seed = dp_r_u64 (&r);
+  float          amplitude;
+  dp_r_f32 (&r, &amplitude, 1);
+  /* Refused before anything is written. The amplitude must be one create
+     accepts (the same predicate), and an all-zero RNG state is xoshiro256++'s
+     fixed point: it emits zeros forever, which no seeded generator reaches
+     (seed_state never produces one). A forged blob with either is no state
+     the object could hold. */
+  if (!dp_awgn_amplitude_ok (amplitude) || (s[0] | s[1] | s[2] | s[3]) == 0)
+    return DP_ERR_INVALID;
+  /* Commit. The amplitude goes through its setter, which takes it because it
+     was checked just above. */
+  dp_awgn_set_amplitude (state, amplitude);
+  memcpy (state->s, s, sizeof s);
+  state->seed = seed;
   return DP_OK;
 }
 
@@ -251,10 +259,15 @@ dp_awgn_get_amplitude (const dp_awgn_state_t *state)
   return state->amplitude;
 }
 
-void
+int
 dp_awgn_set_amplitude (dp_awgn_state_t *state, float val)
 {
+  /* Refused outside the domain, and the old amplitude stays: a dropped return
+     keeps a valid sigma. */
+  if (!dp_awgn_amplitude_ok (val))
+    return DP_ERR_INVALID;
   state->amplitude = val;
+  return DP_OK;
 }
 
 void
@@ -311,6 +324,10 @@ dp_awgn_generate (dp_awgn_state_t *state, size_t n, float _Complex *out,
 int
 dp_awgn (uint64_t seed, float amplitude, size_t n, float _Complex *out)
 {
+  /* An amplitude outside the domain is an invalid argument, not a memory
+     failure, so it is checked before the create that would also refuse it. */
+  if (!dp_awgn_amplitude_ok (amplitude))
+    return DP_ERR_INVALID;
   dp_awgn_state_t *g = dp_awgn_create (seed, amplitude);
   if (!g)
     return DP_ERR_MEMORY;

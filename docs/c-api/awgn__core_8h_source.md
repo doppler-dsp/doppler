@@ -24,11 +24,9 @@ extern "C"
   typedef struct
   {
     uint64_t s[4];      /* xoshiro256++ scalar state             */
-    uint64_t seed;      /* initial seed stored for dp_awgn_reset()  */
+    uint64_t seed;      /* the seed dp_awgn_reset() replays: create's,
+                           or the last reseed's or restored blob's     */
     float    amplitude;
-    /* 8 independent xoshiro256++ streams for the AVX2 path.
-     * vs[word][stream]: word ∈ {0,1,2,3}, stream ∈ {0..7}. */
-    uint64_t vs[4][8];
   } dp_awgn_state_t;
 
   dp_awgn_state_t *dp_awgn_create (uint64_t seed, float amplitude);
@@ -38,12 +36,16 @@ extern "C"
   void dp_awgn_reset (dp_awgn_state_t *state);
 
   /* ── Serializable state (standard bytes interface; see dp_state.h) ────────
-   * Serializes the running RNG state — the scalar xoshiro256++ state s[4] and
-   * the 8 AVX2 stream states vs[4][8] — so a resumed generator continues the
-   * exact same noise sequence.  seed / amplitude are config (constructor).
-   * Envelope: [dp_state_hdr_t][u64 s[4]][u64 vs[4][8]]. */
+   * Serializes the running xoshiro256++ state s[4], so a resumed generator
+   * continues the exact same noise sequence, and the two values a mutator
+   * can change after create (a mutator's value is state, #2022): the seed,
+   * which dp_awgn_reseed writes and dp_awgn_reset reseeds from, and the
+   * amplitude, which dp_awgn_set_amplitude writes.
+   * Envelope: [dp_state_hdr_t][u64 s[4]][u64 seed][f32 amplitude].
+   * v2 (#2084): the seed and amplitude; the unread AVX2 stream words
+   * vs[4][8] are gone. */
 #define AWGN_STATE_MAGIC DP_FOURCC ('A', 'W', 'G', 'N')
-#define AWGN_STATE_VERSION 1u
+#define AWGN_STATE_VERSION 2u
 
   size_t dp_awgn_state_bytes (const dp_awgn_state_t *state);
   void dp_awgn_get_state (const dp_awgn_state_t *state, void *blob);
@@ -53,7 +55,9 @@ extern "C"
 
   float dp_awgn_amplitude_for_snr (float snr_db, float signal_power);
 
-  void dp_awgn_set_amplitude (dp_awgn_state_t *state, float val);
+  int dp_awgn_amplitude_ok (float amplitude);
+
+  int dp_awgn_set_amplitude (dp_awgn_state_t *state, float val);
 
   void dp_awgn_reseed (dp_awgn_state_t *state, uint64_t seed);
 

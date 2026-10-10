@@ -61,16 +61,17 @@ _Additive White Gaussian Noise generator._ [More...](#detailed-description)
 | ---: | :--- |
 |  int | [**dp\_awgn**](#function-dp_awgn) (uint64\_t seed, float amplitude, size\_t n, float \_Complex \* out) <br>_One-shot AWGN generation — no persistent state required._  |
 |  float | [**dp\_awgn\_amplitude\_for\_snr**](#function-dp_awgn_amplitude_for_snr) (float snr\_db, float signal\_power) <br>_The_ `amplitude` _that puts a signal at a target SNR._ |
-|  [**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* | [**dp\_awgn\_create**](#function-dp_awgn_create) (uint64\_t seed, float amplitude) <br>_Create an AWGN generator. Allocates state, seeds the xoshiro256++ RNG via SplitMix64, and sets up both the scalar and the AVX2 parallel streams. The initial seed is stored so_ [_**dp\_awgn\_reset()**_](awgn__core_8h.md#function-dp_awgn_reset) _can reproduce the exact same stream._ |
+|  int | [**dp\_awgn\_amplitude\_ok**](#function-dp_awgn_amplitude_ok) (float amplitude) <br>_The amplitude domain: finite and ≥ 0._  |
+|  [**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* | [**dp\_awgn\_create**](#function-dp_awgn_create) (uint64\_t seed, float amplitude) <br>_Create an AWGN generator. Allocates state and seeds the xoshiro256++ RNG via SplitMix64. The seed is stored so_ [_**dp\_awgn\_reset()**_](awgn__core_8h.md#function-dp_awgn_reset) _can reproduce the exact same stream._ |
 |  void | [**dp\_awgn\_destroy**](#function-dp_awgn_destroy) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state) <br> |
-|  size\_t | [**dp\_awgn\_generate**](#function-dp_awgn_generate) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state, size\_t n, float \_Complex \* out, size\_t max\_out) <br>_Generate n complex CF32 AWGN samples. Uses Box-Muller with xoshiro256++ to fill_ `out` _with independent complex Gaussians: Re and Im each have zero mean and standard deviation_`amplitude` _. Total complex power = 2 × amplitude². The AVX2 path processes 8 samples in parallel when available._ |
+|  size\_t | [**dp\_awgn\_generate**](#function-dp_awgn_generate) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state, size\_t n, float \_Complex \* out, size\_t max\_out) <br>_Generate n complex CF32 AWGN samples. Uses Box-Muller with xoshiro256++ to fill_ `out` _with independent complex Gaussians: Re and Im each have zero mean and standard deviation_`amplitude` _. Total complex power = 2 × amplitude²._ |
 |  size\_t | [**dp\_awgn\_generate\_max\_out**](#function-dp_awgn_generate_max_out) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state) <br>_Conservative upper bound on generate() output size._  |
 |  float | [**dp\_awgn\_get\_amplitude**](#function-dp_awgn_get_amplitude) (const [**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state) <br>_Return the current amplitude (per-component std dev)._  |
-|  void | [**dp\_awgn\_get\_state**](#function-dp_awgn_get_state) (const [**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state, void \* blob) <br>_Serialize the RNG state (scalar + AVX2 streams) into_ `blob` _._ |
+|  void | [**dp\_awgn\_get\_state**](#function-dp_awgn_get_state) (const [**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state, void \* blob) <br>_Serialize the RNG state, seed and amplitude into_ `blob` _._ |
 |  void | [**dp\_awgn\_reseed**](#function-dp_awgn_reseed) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state, uint64\_t seed) <br>_Reseed the RNG and reset all xoshiro256++ state. Equivalent to calling_ [_**dp\_awgn\_destroy()**_](awgn__core_8h.md#function-dp_awgn_destroy) _and dp\_awgn\_create(seed, amplitude) but reuses the existing allocation. amplitude is unchanged._ |
-|  void | [**dp\_awgn\_reset**](#function-dp_awgn_reset) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state) <br>_Reset RNG to the seed supplied at create time. Re-runs the SplitMix64 seeding procedure with the original seed so the next_ [_**dp\_awgn\_generate()**_](awgn__core_8h.md#function-dp_awgn_generate) _call produces exactly the same samples as the first call after_[_**dp\_awgn\_create()**_](awgn__core_8h.md#function-dp_awgn_create) _. amplitude is not changed._ |
-|  void | [**dp\_awgn\_set\_amplitude**](#function-dp_awgn_set_amplitude) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state, float val) <br> |
-|  int | [**dp\_awgn\_set\_state**](#function-dp_awgn_set_state) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state, const void \* blob) <br>_Restore RNG state; DP\_OK, or DP\_ERR\_INVALID if rejected._  |
+|  void | [**dp\_awgn\_reset**](#function-dp_awgn_reset) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state) <br>_Reset RNG to the current seed. The current seed is the one create took, or the last one_ [_**dp\_awgn\_reseed()**_](awgn__core_8h.md#function-dp_awgn_reseed) _or a restored blob set. Re-runs the SplitMix64 seeding procedure with it, so the next_[_**dp\_awgn\_generate()**_](awgn__core_8h.md#function-dp_awgn_generate) _call produces exactly the same samples as the first call after that seed was set. amplitude is not changed._ |
+|  int | [**dp\_awgn\_set\_amplitude**](#function-dp_awgn_set_amplitude) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state, float val) <br>_Set amplitude without disturbing RNG state._  |
+|  int | [**dp\_awgn\_set\_state**](#function-dp_awgn_set_state) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state, const void \* blob) <br>_Restore the RNG state, seed and amplitude; DP\_OK, or DP\_ERR\_INVALID if rejected (and nothing changes)._  |
 |  size\_t | [**dp\_awgn\_state\_bytes**](#function-dp_awgn_state_bytes) (const [**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state) <br>_Serialized-state byte size._  |
 
 
@@ -104,7 +105,7 @@ _Additive White Gaussian Noise generator._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 | define  | [**AWGN\_STATE\_MAGIC**](awgn__core_8h.md#define-awgn_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'W', 'G', 'N')`<br> |
-| define  | [**AWGN\_STATE\_VERSION**](awgn__core_8h.md#define-awgn_state_version)  `1u`<br> |
+| define  | [**AWGN\_STATE\_VERSION**](awgn__core_8h.md#define-awgn_state_version)  `2u`<br> |
 
 ## Detailed Description
 
@@ -184,7 +185,7 @@ dp_awgn_destroy(g);
 
 **Returns:**
 
-DP\_OK on success, DP\_ERR\_MEMORY on allocation failure. 
+DP\_OK on success; DP\_ERR\_INVALID for an amplitude outside [**dp\_awgn\_amplitude\_ok()**](awgn__core_8h.md#function-dp_awgn_amplitude_ok), checked before any allocation; DP\_ERR\_MEMORY on allocation failure. 
 
 
 
@@ -242,9 +243,49 @@ Per-component sigma for one I or Q rail.
 
 
 
+### function dp\_awgn\_amplitude\_ok 
+
+_The amplitude domain: finite and ≥ 0._ 
+```C++
+int dp_awgn_amplitude_ok (
+    float amplitude
+) 
+```
+
+
+
+The one predicate. [**dp\_awgn\_create()**](awgn__core_8h.md#function-dp_awgn_create) refuses outside it, [**dp\_awgn\_set\_state()**](awgn__core_8h.md#function-dp_awgn_set_state) refuses a blob outside it before it writes anything, and [**dp\_awgn\_set\_amplitude()**](awgn__core_8h.md#function-dp_awgn_set_amplitude) refuses such a value. A NaN fails both comparisons, so it is outside.
+
+
+The domain admits a finite amplitude above about 5.9e37 (FLT\_MAX / 5.77), and such an amplitude still produces +/-inf samples: the Box-Muller radius tops out near 5.77 sigma, so the product overflows. It is not a realistic input and the predicate does not refuse it.
+
+
+
+
+**Parameters:**
+
+
+* `amplitude` Per-component standard deviation. 
+
+
+
+**Returns:**
+
+1 inside the domain, 0 outside it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_awgn\_create 
 
-_Create an AWGN generator. Allocates state, seeds the xoshiro256++ RNG via SplitMix64, and sets up both the scalar and the AVX2 parallel streams. The initial seed is stored so_ [_**dp\_awgn\_reset()**_](awgn__core_8h.md#function-dp_awgn_reset) _can reproduce the exact same stream._
+_Create an AWGN generator. Allocates state and seeds the xoshiro256++ RNG via SplitMix64. The seed is stored so_ [_**dp\_awgn\_reset()**_](awgn__core_8h.md#function-dp_awgn_reset) _can reproduce the exact same stream._
 ```C++
 dp_awgn_state_t * dp_awgn_create (
     uint64_t seed,
@@ -260,13 +301,13 @@ dp_awgn_state_t * dp_awgn_create (
 
 
 * `seed` 64-bit RNG seed. Two generators with different seeds produce statistically independent noise streams. 
-* `amplitude` Per-component (Re, Im) standard deviation. Must be ≥ 0; total complex power = 2 × amplitude². 
+* `amplitude` Per-component (Re, Im) standard deviation. Must be finite and ≥ 0 ([**dp\_awgn\_amplitude\_ok()**](awgn__core_8h.md#function-dp_awgn_amplitude_ok)); total complex power = 2 × amplitude². 
 
 
 
 **Returns:**
 
-Heap-allocated state, or NULL on allocation failure. 
+Heap-allocated state, or NULL on allocation failure or an amplitude outside [**dp\_awgn\_amplitude\_ok()**](awgn__core_8h.md#function-dp_awgn_amplitude_ok). 
 ```C++
 >>> from doppler.source import AWGN
 >>> gen = AWGN(seed=0, amplitude=1.0)
@@ -306,7 +347,7 @@ Free all resources. NULL is a no-op.
 
 ### function dp\_awgn\_generate 
 
-_Generate n complex CF32 AWGN samples. Uses Box-Muller with xoshiro256++ to fill_ `out` _with independent complex Gaussians: Re and Im each have zero mean and standard deviation_`amplitude` _. Total complex power = 2 × amplitude². The AVX2 path processes 8 samples in parallel when available._
+_Generate n complex CF32 AWGN samples. Uses Box-Muller with xoshiro256++ to fill_ `out` _with independent complex Gaussians: Re and Im each have zero mean and standard deviation_`amplitude` _. Total complex power = 2 × amplitude²._
 ```C++
 size_t dp_awgn_generate (
     dp_awgn_state_t * state,
@@ -390,7 +431,7 @@ float dp_awgn_get_amplitude (
 
 
 
-
+Assigning an invalid value (NaN, infinite or negative) is ignored: the amplitude keeps its old value, and the property does not raise. 
 ```C++
 >>> from doppler.source import AWGN
 >>> gen = AWGN(seed=0, amplitude=1.0)
@@ -411,7 +452,7 @@ float dp_awgn_get_amplitude (
 
 ### function dp\_awgn\_get\_state 
 
-_Serialize the RNG state (scalar + AVX2 streams) into_ `blob` _._
+_Serialize the RNG state, seed and amplitude into_ `blob` _._
 ```C++
 void dp_awgn_get_state (
     const dp_awgn_state_t * state,
@@ -469,7 +510,7 @@ True
 
 ### function dp\_awgn\_reset 
 
-_Reset RNG to the seed supplied at create time. Re-runs the SplitMix64 seeding procedure with the original seed so the next_ [_**dp\_awgn\_generate()**_](awgn__core_8h.md#function-dp_awgn_generate) _call produces exactly the same samples as the first call after_[_**dp\_awgn\_create()**_](awgn__core_8h.md#function-dp_awgn_create) _. amplitude is not changed._
+_Reset RNG to the current seed. The current seed is the one create took, or the last one_ [_**dp\_awgn\_reseed()**_](awgn__core_8h.md#function-dp_awgn_reseed) _or a restored blob set. Re-runs the SplitMix64 seeding procedure with it, so the next_[_**dp\_awgn\_generate()**_](awgn__core_8h.md#function-dp_awgn_generate) _call produces exactly the same samples as the first call after that seed was set. amplitude is not changed._
 ```C++
 void dp_awgn_reset (
     dp_awgn_state_t * state
@@ -500,8 +541,9 @@ True
 
 ### function dp\_awgn\_set\_amplitude 
 
+_Set amplitude without disturbing RNG state._ 
 ```C++
-void dp_awgn_set_amplitude (
+int dp_awgn_set_amplitude (
     dp_awgn_state_t * state,
     float val
 ) 
@@ -509,7 +551,17 @@ void dp_awgn_set_amplitude (
 
 
 
-Set amplitude without disturbing RNG state. 
+An `val` outside [**dp\_awgn\_amplitude\_ok()**](awgn__core_8h.md#function-dp_awgn_amplitude_ok) is refused and the amplitude stays as it was, so a caller that drops the return keeps a valid sigma rather than gaining a bad one. The Python property cannot raise the refusal yet (doppler#1987, waiting on just-makeit#2182), so there it is silent.
+
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID for a value outside the domain (nothing changes). 
+
+
+
 
 
         
@@ -520,7 +572,7 @@ Set amplitude without disturbing RNG state.
 
 ### function dp\_awgn\_set\_state 
 
-_Restore RNG state; DP\_OK, or DP\_ERR\_INVALID if rejected._ 
+_Restore the RNG state, seed and amplitude; DP\_OK, or DP\_ERR\_INVALID if rejected (and nothing changes)._ 
 ```C++
 int dp_awgn_set_state (
     dp_awgn_state_t * state,
@@ -570,7 +622,7 @@ size_t dp_awgn_state_bytes (
 ### define AWGN\_STATE\_VERSION 
 
 ```C++
-#define AWGN_STATE_VERSION `1u`
+#define AWGN_STATE_VERSION `2u`
 ```
 
 

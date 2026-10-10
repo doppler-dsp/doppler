@@ -52,7 +52,9 @@ AWGNObj_init (AWGNObject *self, PyObject *args, PyObject *kwds)
   self->handle  = dp_awgn_create (seed, amplitude);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "dp_awgn_create returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "AWGN: invalid parameter (need amplitude finite and "
+                       ">= 0)");
       return -1;
     }
   return 0;
@@ -332,10 +334,11 @@ AWGNObj_exit (AWGNObject *self, PyObject *args)
 
 static PyMethodDef AWGNObj_methods[] = {
   { "reset", (PyCFunction)AWGNObj_reset, METH_NOARGS,
-    "Reset RNG to the seed supplied at create time. Re-runs the\n"
-    "SplitMix64 seeding procedure with the original seed so the next\n"
+    "Reset RNG to the current seed. The current seed is the one create\n"
+    "took, or the last one dp_awgn_reseed() or a restored blob set. Re-runs\n"
+    "the SplitMix64 seeding procedure with it, so the next\n"
     "dp_awgn_generate() call produces exactly the same samples as the first\n"
-    "call after dp_awgn_create(). amplitude is not changed.\n"
+    "call after that seed was set. amplitude is not changed.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -355,8 +358,7 @@ static PyMethodDef AWGNObj_methods[] = {
     "Generate n complex CF32 AWGN samples. Uses Box-Muller with\n"
     "xoshiro256++ to fill `out` with independent complex Gaussians: Re and\n"
     "Im each have zero mean and standard deviation `amplitude`. Total\n"
-    "complex power = 2 × amplitude². The AVX2 path processes 8 samples in\n"
-    "parallel when available.\n"
+    "complex power = 2 × amplitude².\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -514,12 +516,10 @@ static PyTypeObject AWGNObjType = {
   .tp_dealloc                             = (destructor)AWGNObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
   .tp_doc
-  = "Create an AWGN generator. Allocates state, seeds the xoshiro256++ RNG\n"
-    "via SplitMix64, and sets up both the scalar and the AVX2 parallel "
-    "streams.\n"
-    "The initial seed is stored so dp_awgn_reset() can reproduce the exact "
-    "same\n"
-    "stream.\n"
+  = "Create an AWGN generator. Allocates state and seeds the xoshiro256++ "
+    "RNG\n"
+    "via SplitMix64. The seed is stored so dp_awgn_reset() can reproduce the\n"
+    "exact same stream.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -527,9 +527,14 @@ static PyTypeObject AWGNObjType = {
     "    64-bit RNG seed. Two generators with different seeds produce\n"
     "    statistically independent noise streams.\n"
     "amplitude : float, default 1.0\n"
-    "    Per-component (Re, Im) standard deviation. Must be ≥ 0; total "
-    "complex\n"
-    "    power = 2 × amplitude².\n"
+    "    Per-component (Re, Im) standard deviation. Must be finite and ≥ 0\n"
+    "    (dp_awgn_amplitude_ok()); total complex power = 2 × amplitude².\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is ``AWGN: invalid\n"
+    "    parameter (need amplitude finite and >= 0)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

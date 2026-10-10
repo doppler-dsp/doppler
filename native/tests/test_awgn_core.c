@@ -186,6 +186,11 @@ test_oneshot (void)
   float _Complex out[N_SMALL];
   DP_CHECK (dp_awgn (42, 0.7f, N_SMALL, out) == 0);
   DP_CHECK (memcmp (ref, out, N_SMALL * sizeof *out) == 0);
+  /* An amplitude outside the domain is an invalid argument, not a memory
+     failure, and nothing is generated for it. */
+  DP_CHECK (dp_awgn (42, NAN, N_SMALL, out) == DP_ERR_INVALID);
+  DP_CHECK (dp_awgn (42, -1.0f, N_SMALL, out) == DP_ERR_INVALID);
+  DP_CHECK (dp_awgn (42, INFINITY, N_SMALL, out) == DP_ERR_INVALID);
 }
 
 /* Advance the RNG, serialize, restore into a fresh generator, and the noise
@@ -217,6 +222,138 @@ test_state_roundtrip (void)
   dp_awgn_destroy (a);
   dp_awgn_destroy (b);
   free (blob);
+
+  /* The amplitude travels (#2084): set after create, it is a mutator's value
+     and so state. A target created at another amplitude resumes at the
+     source's, and continues with the same output. */
+  dp_awgn_state_t *src = dp_awgn_create (7, 1.0f);
+  dp_awgn_state_t *dst = dp_awgn_create (7, 1.0f);
+  dp_awgn_generate (src, M, ref, M);
+  dp_awgn_set_amplitude (src, 2.5f);
+  dp_awgn_set_amplitude (dst, 0.25f); /* another value: must not survive */
+  void *b2 = malloc (dp_awgn_state_bytes (src));
+  dp_awgn_get_state (src, b2);
+  DP_CHECK (dp_awgn_set_state (dst, b2) == DP_OK);
+  DP_CHECK (dp_awgn_get_amplitude (dst) == 2.5f);
+  dp_awgn_generate (src, M, ref, M);
+  dp_awgn_generate (dst, M, got, M);
+  DP_CHECK (memcmp (ref, got, sizeof ref) == 0);
+  dp_awgn_destroy (src);
+  dp_awgn_destroy (dst);
+  free (b2);
+
+  /* The seed travels too (#2084): reseed() writes it and reset() reseeds
+     from it, so it is a mutator's value. Restored, then reset, the target
+     restarts the source's stream, not its own constructor seed's. */
+  src = dp_awgn_create (0, 1.0f);
+  dst = dp_awgn_create (0, 1.0f);
+  dp_awgn_reseed (src, 9);
+  dp_awgn_generate (src, M, ref, M);
+  void *b3 = malloc (dp_awgn_state_bytes (src));
+  dp_awgn_get_state (src, b3);
+  DP_CHECK (dp_awgn_set_state (dst, b3) == DP_OK);
+  dp_awgn_reset (src);
+  dp_awgn_reset (dst);
+  dp_awgn_generate (src, M, ref, M);
+  dp_awgn_generate (dst, M, got, M);
+  DP_CHECK (memcmp (ref, got, sizeof ref) == 0);
+
+  /* The version is checked on its own. A v1 blob is also a different size,
+     so the size check refused it first and pinned nothing: a blob of
+     today's size that claims version 1 must be refused too. */
+  dp_state_hdr_t hdr;
+  memcpy (&hdr, b3, sizeof hdr);
+  hdr.version = 1;
+  memcpy (b3, &hdr, sizeof hdr);
+  DP_CHECK (dp_awgn_set_state (dst, b3) == DP_ERR_INVALID);
+  dp_awgn_destroy (src);
+  dp_awgn_destroy (dst);
+  free (b3);
+}
+
+/* ------------------------------------------------------------------
+ * test_forged_state_refused: a bad amplitude or an all-zero RNG state in a
+ * live blob is refused, and the target is left byte-identical (#2084).
+ *
+ * set_state() restored the amplitude with no check, so a NaN or negative
+ * sigma came back as the generator's amplitude, and an all-zero s[4] is
+ * xoshiro256++'s fixed point, which emits zeros forever. The create and the
+ * setter take the same amplitude predicate: create refuses it, and the setter
+ * ignores it. The blob layout is [hdr][u64 s[4]][u64 seed][f32 amplitude];
+ * each case forges one field and compares the whole state, not one value.
+ * ------------------------------------------------------------------ */
+static void
+test_forged_state_refused (void)
+{
+  printf ("\n-- Forged state refused --\n");
+  const float    nanf = NAN, negf = -1.0f, inff = INFINITY;
+  const uint64_t zero4[4] = { 0, 0, 0, 0 };
+
+  /* The create and the setter take the same predicate. */
+  DP_CHECK (dp_awgn_create (1, nanf) == NULL);
+  DP_CHECK (dp_awgn_create (1, inff) == NULL);
+  DP_CHECK (dp_awgn_create (1, negf) == NULL);
+  dp_awgn_state_t *g = dp_awgn_create (1, 2.0f);
+  DP_CHECK (g != NULL);
+  if (!g)
+    return;
+  DP_CHECK (dp_awgn_set_amplitude (g, nanf) == DP_ERR_INVALID);
+  DP_CHECK (dp_awgn_set_amplitude (g, inff) == DP_ERR_INVALID);
+  DP_CHECK (dp_awgn_set_amplitude (g, negf) == DP_ERR_INVALID);
+  DP_CHECK (dp_awgn_get_amplitude (g) == 2.0f); /* refused, not taken */
+
+  /* The target differs from the blob in every field: another seed, another
+     amplitude, and a generate that moves its RNG words. Otherwise a partial
+     write (a seed or RNG copy done before the check) lands on values the
+     target already holds and goes unseen. */
+  dp_awgn_state_t *src = dp_awgn_create (5, 1.0f);
+  dp_awgn_state_t *dst = dp_awgn_create (6, 0.5f);
+  float _Complex scratch[8];
+  dp_awgn_generate (dst, 8, scratch, 8);
+  const size_t   sb     = dp_awgn_state_bytes (src);
+  unsigned char *blob   = malloc (sb);
+  unsigned char *before = malloc (sb);
+  unsigned char *after  = malloc (sb);
+  dp_awgn_get_state (src, blob);
+  const size_t base = sizeof (dp_state_hdr_t);
+  const size_t amp  = base + 4 * sizeof (uint64_t) + sizeof (uint64_t);
+
+  struct
+  {
+    size_t      off, len;
+    const void *val;
+    const char *what;
+  } forge[] = {
+    { amp, sizeof nanf, &nanf, "a NaN amplitude" },
+    { amp, sizeof inff, &inff, "an infinite amplitude" },
+    { amp, sizeof negf, &negf, "a negative amplitude" },
+    { base, sizeof zero4, zero4, "an all-zero RNG state" },
+  };
+  for (size_t k = 0; k < sizeof forge / sizeof *forge; k++)
+    {
+      dp_awgn_get_state (dst, before);
+      unsigned char *bad = malloc (sb);
+      memcpy (bad, blob, sb);
+      memcpy (bad + forge[k].off, forge[k].val, forge[k].len);
+      const int rc = dp_awgn_set_state (dst, bad);
+      dp_awgn_get_state (dst, after);
+      if (rc != DP_ERR_INVALID)
+        fprintf (stderr, "  forged blob accepted: %s\n", forge[k].what);
+      DP_CHECK (rc == DP_ERR_INVALID);
+      DP_CHECK (memcmp (after, before, sb) == 0);
+      free (bad);
+    }
+
+  /* The unforged blob still restores, so the refusals are not the whole
+     path failing. */
+  DP_CHECK (dp_awgn_set_state (dst, blob) == DP_OK);
+
+  dp_awgn_destroy (g);
+  dp_awgn_destroy (src);
+  dp_awgn_destroy (dst);
+  free (blob);
+  free (before);
+  free (after);
 }
 
 /* ------------------------------------------------------------------
@@ -294,6 +431,7 @@ main (void)
   test_split_block ();
   test_oneshot ();
   test_state_roundtrip ();
+  test_forged_state_refused ();
 
   printf ("\n");
   DP_TEST_END ("test_awgn_core");

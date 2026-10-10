@@ -1029,7 +1029,6 @@
 ## v
 
 * **value** ([**det\_peak\_t**](structdet__peak__t.md), [**dp\_tlm\_rec\_t**](structdp__tlm__rec__t.md), [**wfm\_keyword\_t**](structwfm__keyword__t.md))
-* **vs** ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md))
 * **version** ([**dp\_header\_t**](structdp__header__t.md), [**dp\_state\_hdr\_t**](structdp__state__hdr__t.md))
 
 

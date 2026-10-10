@@ -305,9 +305,10 @@ design.
     ```
 
     Implement them in `<component>_core.c` (sibling to `<component>_reset`)
-    with the cursor helpers: `dp_w_hdr` then pack the **running** fields
-    (config is restored by `create()`); `set_state` opens with
-    `dp_state_validate(...)` and returns its result.
+    with the cursor helpers: `dp_w_hdr` then pack the running fields and every
+    mutator's value; `create()` restores only the config no mutator reaches
+    ([What goes in the blob](../../design/state-serialization.md#what-goes-in-the-blob-a-mutators-value-is-state)).
+    `set_state` opens with `dp_state_validate(...)` and returns its result.
 
 1. **Declare it** — set `serializable = "true"` in
     `objects/<component>.toml` (or pass `--serializable` to `jm object` in

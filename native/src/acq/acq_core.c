@@ -2763,11 +2763,23 @@ dp_acq_set_state (dp_acq_state_t *st, const void *blob)
       || ex.blk_epoch >= (uint32_t)st->coherent_bins)
     return DP_ERR_INVALID;
 
-  /* The carry first: the framer validates its own child blob and changes
-     nothing if it refuses, so a bad carry leaves the engine as it was. */
-  if (dp_f32_framer_set_state (&st->framer, acq_state_carry ((void *)blob))
-      != DP_OK)
+  /* The carry and the engine's position must name ONE stream point: the
+     engine counts frame_n per frame it framed, and the carry's snapshot
+     records the frames its framer handed out. A blob in which the two
+     disagree would shift every later hit's epoch by the difference, without
+     a word (#2015's class), so it is refused -- and, like every check here,
+     before anything is written. */
+  uint64_t frames;
+  if (dp_f32_framer_state_frames (&st->framer, acq_state_carry ((void *)blob),
+                                  &frames)
+          != DP_OK
+      || frames > UINT64_MAX / st->frame_n
+      || frames * st->frame_n != ex.samples_consumed)
     return DP_ERR_INVALID;
+
+  /* Every check has passed; from here the blob is applied. The framer
+     cannot refuse it now: state_frames ran set_state's own check. */
+  (void)dp_f32_framer_set_state (&st->framer, acq_state_carry ((void *)blob));
 
   /* Then the rest of the live state. */
   dp_corr2d_reset (st->corr);

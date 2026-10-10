@@ -1114,7 +1114,7 @@ int dp_acq_set_state (
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID if the blob's envelope or its n/n\_noncoh/max\_peaks disagree with `state` (rebuild the engine from the matching descriptor first), or its carry is not one a run could have left. A refused blob changes nothing. 
+DP\_OK, or DP\_ERR\_INVALID if the blob's envelope or its n/n\_noncoh/max\_peaks disagree with `state` (rebuild the engine from the matching descriptor first), or its carry is not one a run could have left, or the carry's frames and the stream position disagree. A refused blob changes nothing. 
 
 
 

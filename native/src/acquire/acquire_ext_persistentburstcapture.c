@@ -1309,10 +1309,11 @@ static PyGetSetDef PersistentBurstCapture_getset[] = {
     NULL },
   { "dropped", (getter)PersistentBurstCapture_getprop_dropped, NULL,
     "Samples of look-back discarded while a queued detection still needed "
-    "them, lifetime. push() never refuses input: this moves only when a "
-    "detection that can never be emitted is let go so the ring can take the "
-    "stream, or when set_state() restores one its blob's look-back cannot "
-    "reach. A LOST BURST each, not a statistic -- it survives reset().\n",
+    "them, lifetime: the part of a dead detection's span -- one whose history "
+    "is gone, so it can never be emitted -- behind the ring's tail. push() "
+    "never refuses input, and a resume carries all the look-back, so on a "
+    "live stream this stays 0. A LOST BURST each, not a statistic -- it "
+    "survives reset().\n",
     NULL },
   { "n_bursts", (getter)PersistentBurstCapture_getprop_n_bursts, NULL,
     "Windows emitted, lifetime.\n", NULL },
@@ -1378,6 +1379,14 @@ static PyMethodDef PersistentBurstCaptureObj_methods[] = {
     "starting at `i*burst_len`, and events() returns the matching record for\n"
     "each. Every sample of x is consumed. An empty return is normal -- it\n"
     "means no burst completed in this call.\n"
+    "\n"
+    "It aborts the process in two places, both a defect in this object and\n"
+    "neither reachable from any input or from any blob set_state() accepts:\n"
+    "a history ring with no room after trim (the bound in the\n"
+    "implementation's trim proves room), and an acquisition call that\n"
+    "neither wrote, framed nor reported a hit (its ring always holds a\n"
+    "frame). Each stops rather than spinning forever -- and in a Python host\n"
+    "it ends the interpreter.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1820,7 +1829,7 @@ static PyTypeObject PersistentBurstCaptureObjType = {
     ">>> ram = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)\n"
     ">>> _ = cap.push(np.zeros(4096, dtype=np.complex64))\n"
     ">>> # the look-back is in the file, so the blob stops carrying it\n"
-    ">>> ram.state_bytes() - cap.state_bytes() == ram.retain_span * 8\n"
+    ">>> ram.state_bytes() - cap.state_bytes() == os.path.getsize(path)\n"
     "True\n"
     ">>> os.path.getsize(path) > 0\n"
     "True\n",

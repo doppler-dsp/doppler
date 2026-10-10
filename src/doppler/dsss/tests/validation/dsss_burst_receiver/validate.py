@@ -900,7 +900,14 @@ def _sec_blocks(d: Data) -> None:
     d.block_invariant = all(f == sets[0] for f in sets) and len(
         sets[0]
     ) == len(starts)
-    d.block_no_drops = all(x == 0 for x in drops)
+    # push() never refuses input (doppler#2015), so the stream position is
+    # the input's by construction -- and the observable form of that is
+    # every burst at its EXACT start at every block size: a skipped or
+    # refused sample would move every later position. `dropped` is the
+    # other half: no look-back abandoned with a dead detection.
+    d.block_no_drops = all(x == 0 for x in drops) and all(
+        f == set(starts) for f in sets
+    )
 
     # One call carrying the whole capture must return all three, from THAT
     # call -- not one per call with the rest of the input abandoned.
@@ -919,8 +926,9 @@ def _sec_blocks(d: Data) -> None:
     R.table(["block size (samples)", "bursts decoded", "dropped"], rows)
     R.md()
     R.md(
-        f"Identical at every block size (**{d.block_invariant}**), and no "
-        f"sample refused at any of them (**{d.block_no_drops}**). A single "
+        f"Identical at every block size (**{d.block_invariant}**), with "
+        f"every burst at its exact stream position and no look-back "
+        f"abandoned at any of them (**{d.block_no_drops}**). A single "
         f"push of the whole capture returns all "
         f"{len(starts)} payloads at once (**{d.block_multi_in_one}**)."
     )
@@ -933,8 +941,8 @@ def _sec_blocks(d: Data) -> None:
         "on the example capture. `push()` now returns EVERY burst it "
         "completed, with `events()` giving each its own record, which is "
         "what makes consuming the whole input possible: draining fully is "
-        "also what bounds retention, so `dropped` is 0 by construction "
-        "rather than by luck. See F11 and doppler#1008."
+        "also what bounds retention. See F11 and doppler#1008; since "
+        "doppler#2015 `push()` never refuses input at all."
     )
     R.md()
 
@@ -1067,8 +1075,8 @@ def review(d: Data) -> None:
         "was noise, so the loss was unobservable, and this report's own "
         "`any_block_size` limit had the same blind spot. §2.10 is that gate. "
         "Draining every arrived detection rather than one per chunk is also "
-        "what bounds retention, so `dropped` is now 0 by construction. See "
-        "doppler#1008.",
+        "what bounds retention. See doppler#1008; since doppler#2015 "
+        "`push()` never refuses input at all.",
     )
     R.find(
         "F9",
@@ -1186,8 +1194,9 @@ def limits(d: Data) -> None:
     )
     R.limit(
         d.block_no_drops,
-        "no sample is refused at any block size -- draining every arrived "
-        "detection is what keeps retention inside the ring",
+        "every burst at its exact stream position at every block size, "
+        "and no look-back abandoned -- a skipped sample would move every "
+        "later position",
     )
     R.limit(
         d.block_multi_in_one,

@@ -381,7 +381,7 @@ Heap state, or NULL if a parameter is out of range or the file could not be open
 >>> ram = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
 >>> _ = cap.push(np.zeros(4096, dtype=np.complex64))
 >>> # the look-back is in the file, so the blob stops carrying it
->>> ram.state_bytes() - cap.state_bytes() == ram.retain_span * 8
+>>> ram.state_bytes() - cap.state_bytes() == os.path.getsize(path)
 True
 >>> os.path.getsize(path) > 0
 True
@@ -873,6 +873,9 @@ size_t dp_burst_capture_push (
 Windows are concatenated: burst `i` occupies `burst_len` samples starting at `i*burst_len`, and events() returns the matching record for each. Every sample of `x` is consumed. An empty return is normal  it means no burst completed in this call.
 
 
+It aborts the process in two places, both a defect in this object and neither reachable from any input or from any blob set\_state() accepts: a history ring with no room after trim (the bound in the implementation's trim proves room), and an acquisition call that neither wrote, framed nor reported a hit (its ring always holds a frame). Each stops rather than spinning forever  and in a Python host it ends the interpreter.
+
+
 
 
 **Parameters:**
@@ -1062,7 +1065,7 @@ DP\_OK or DP\_ERR\_INVALID.
 A wrong-object, wrong-version, wrong-size or foreign-endian blob is refused, never reinterpreted; so is a blob from the other flavour (a backed and an in-RAM capture have different `state_bytes()`). A backed capture restores POSITIONS only  the samples are the file's  so it also refuses a blob whose retained span the file cannot hold: a file create() made fresh that this capture has not written that far into, or a span the ring has since wrapped past (more than the ring's capacity pushed since the checkpoint). A capture restoring a checkpoint it took itself is the normal case and is accepted (doppler#1190): `set_state(blob) -> push(chunk) -> get_state()` per call is a service shape this object supports, on both flavours.
 
 
-The blob holds at most `retain_span` of look-back, so a detection that needed more  one release() gave back after its push, emitted only at the next one  is dropped on restore and counted in `dropped`. 
+The blob holds all the look-back the ring held, so a capture resumes with every burst it would have emitted. A blob's queue is checked rather than trusted  phases within their array, anchors in order, a refined start one refine could have chosen  and an entry its look-back cannot reach is dropped and counted in `dropped`, as a forged blob can name one. 
 
 
         

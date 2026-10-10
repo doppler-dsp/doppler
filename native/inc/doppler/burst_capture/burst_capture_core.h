@@ -317,10 +317,12 @@ typedef struct
                             (doppler#1181).                                 */
 
   /* ── Detections in flight ────────────────────────────────────────────
-   * Only detections whose burst window has NOT yet arrived live here: every
-   * one whose window HAS arrived is emitted before push() returns, which is
+   * In ANCHOR ORDER, which set_state() checks. An unshadowed detection whose
+   * window has arrived is emitted before push() returns, except one a
+   * release() gave back after it, which the next push emits first; a
+   * detection whose history is gone is swept, counted in `dropped`. That is
    * what bounds retention (see the trim rule in the implementation). */
-  burst_capture_pending_t *q; /**< Detections, oldest first; `q_cap` long.  */
+  burst_capture_pending_t *q; /**< Detections, anchor order; `q_cap` long.  */
   size_t q_cap;   /**< DERIVED, not a constant. Entries sit at least
                        `refine_span` apart within `retain_span` of the head,
                        so the count scales with burst_len/refine_span --
@@ -425,12 +427,11 @@ typedef struct
 
   /* ── Bookkeeping ────────────────────────────────────────────────────── */
   uint64_t dropped;  /**< Samples of look-back discarded while a queued
-                          detection still needed them. push() never refuses
-                          input; this moves only when a detection that can
-                          never be emitted is abandoned so the ring can take
-                          the stream, or when set_state() restores one the
-                          blob's look-back cannot reach. A LOST BURST each,
-                          not a statistic -- lifetime, survives reset().  */
+                          detection still needed them -- the part of a dead
+                          detection's span (one whose history is gone, so it
+                          can never be emitted) behind the ring's tail.
+                          push() never refuses input. A LOST BURST each, not
+                          a statistic -- lifetime, survives reset().      */
   uint64_t n_bursts; /**< Windows emitted, lifetime.                       */
 /*<<property_struct_fields>>*/
 } dp_burst_capture_state_t;
@@ -560,7 +561,7 @@ dp_burst_capture_state_t *dp_burst_capture_create (
  * >>> ram = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
  * >>> _ = cap.push(np.zeros(4096, dtype=np.complex64))
  * >>> # the look-back is in the file, so the blob stops carrying it
- * >>> ram.state_bytes() - cap.state_bytes() == ram.retain_span * 8
+ * >>> ram.state_bytes() - cap.state_bytes() == os.path.getsize(path)
  * True
  * >>> os.path.getsize(path) > 0
  * True
@@ -614,6 +615,13 @@ size_t dp_burst_capture_push_max_out (dp_burst_capture_state_t *state,
  * at `i*burst_len`, and events() returns the matching record for each. Every
  * sample of @p x is consumed. An empty return is normal -- it means no burst
  * completed in this call.
+ *
+ * It aborts the process in two places, both a defect in this object and
+ * neither reachable from any input or from any blob set_state() accepts: a
+ * history ring with no room after trim (the bound in the implementation's
+ * trim proves room), and an acquisition call that neither wrote, framed nor
+ * reported a hit (its ring always holds a frame). Each stops rather than
+ * spinning forever -- and in a Python host it ends the interpreter.
  *
  * @param state    Capture.
  * @param x        Input samples, @p x_len long.
@@ -851,9 +859,11 @@ void dp_burst_capture_get_state (const dp_burst_capture_state_t *state, void *bl
  * `set_state(blob) -> push(chunk) -> get_state()` per call is a service
  * shape this object supports, on both flavours.
  *
- * The blob holds at most `retain_span` of look-back, so a detection that
- * needed more -- one release() gave back after its push, emitted only at the
- * next one -- is dropped on restore and counted in `dropped`.
+ * The blob holds all the look-back the ring held, so a capture resumes with
+ * every burst it would have emitted. A blob's queue is checked rather than
+ * trusted -- phases within their array, anchors in order, a refined start one
+ * refine could have chosen -- and an entry its look-back cannot reach is
+ * dropped and counted in `dropped`, as a forged blob can name one.
  */
 int dp_burst_capture_set_state (dp_burst_capture_state_t *state, const void *blob);
 

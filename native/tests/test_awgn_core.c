@@ -236,6 +236,34 @@ test_state_roundtrip (void)
   dp_awgn_destroy (src);
   dp_awgn_destroy (dst);
   free (b2);
+
+  /* The seed travels too (#2084): reseed() writes it and reset() reseeds
+     from it, so it is a mutator's value. Restored, then reset, the target
+     restarts the source's stream, not its own constructor seed's. */
+  src = dp_awgn_create (0, 1.0f);
+  dst = dp_awgn_create (0, 1.0f);
+  dp_awgn_reseed (src, 9);
+  dp_awgn_generate (src, M, ref, M);
+  void *b3 = malloc (dp_awgn_state_bytes (src));
+  dp_awgn_get_state (src, b3);
+  DP_CHECK (dp_awgn_set_state (dst, b3) == DP_OK);
+  dp_awgn_reset (src);
+  dp_awgn_reset (dst);
+  dp_awgn_generate (src, M, ref, M);
+  dp_awgn_generate (dst, M, got, M);
+  DP_CHECK (memcmp (ref, got, sizeof ref) == 0);
+
+  /* The version is checked on its own. A v1 blob is also a different size,
+     so the size check refused it first and pinned nothing: a blob of
+     today's size that claims version 1 must be refused too. */
+  dp_state_hdr_t hdr;
+  memcpy (&hdr, b3, sizeof hdr);
+  hdr.version = 1;
+  memcpy (b3, &hdr, sizeof hdr);
+  DP_CHECK (dp_awgn_set_state (dst, b3) == DP_ERR_INVALID);
+  dp_awgn_destroy (src);
+  dp_awgn_destroy (dst);
+  free (b3);
 }
 
 /* ------------------------------------------------------------------

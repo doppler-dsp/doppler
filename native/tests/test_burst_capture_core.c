@@ -804,7 +804,8 @@ test_a_resume_is_exact (void)
  * samples behind the tail, which left in place would pin the ring for
  * ever -- is swept and counted, and the stream goes on: the later burst is
  * exact. What the bound rests on is refused: phases past their array,
- * anchors out of order, a refined start no refine could have chosen.
+ * anchors out of order, a refined start outside the range refine chooses
+ * from.
  * Refine's own first and last candidates are accepted, so the check is not
  * too tight.
  */
@@ -918,7 +919,7 @@ test_a_forged_blob_is_checked (void)
 }
 
 /**
- * A refused blob changes nothing (doppler#2033 review).
+ * A refused blob changes nothing a checkpoint holds (doppler#2033 review).
  *
  * set_state() checks a blob whole before it writes anything, so a refusal
  * leaves the SAME instance as it was: its next get_state() is
@@ -930,8 +931,15 @@ test_a_forged_blob_is_checked (void)
  *   (B) a look-back longer than the stream, which would wrap the tail;
  *   (C) an anchor past the stream position;
  *   (D) an acquisition child taken at another stream position, which acq
- *       itself accepts -- refused after it is restored, and put back.
- * Every case restores into the one instance; none starts from a fresh one.
+ *       itself accepts -- refused after it is restored, and put back;
+ *   (1) a stream position at 2^63 or past it, with an acquisition child
+ *       that stands there too, so nothing else refuses it;
+ *   (2) a suppression span that ends past the stream position;
+ *   (3) a queued entry with a non-finite Doppler, C/N0 or peak;
+ *   (4) an engine whose state no longer fits the blob's child region (a C
+ *       caller raised max_peaks after create) -- on its own instance, since
+ *       raising max_peaks clears the engine's peaks.
+ * Every case restores into the instance it compares; none starts afresh.
  */
 static int
 test_a_refused_blob_changes_nothing (void)
@@ -953,12 +961,33 @@ test_a_refused_blob_changes_nothing (void)
   unsigned char *other = malloc (cb);
   unsigned char *bad   = malloc (cb);
   unsigned char *now   = malloc (cb);
-  DP_REQUIRE (blob && other && bad && now);
+  unsigned char *huge  = malloc (cb);
+  DP_REQUIRE (blob && other && bad && now && huge);
   dp_burst_capture_get_state (a, blob);
   dp_burst_capture_get_state (b, other);
 
+  /* An acquisition child past 2^63 that acq itself accepts: b's engine moved
+     on by a whole number of dwells -- its position, its framer's frame count
+     and written count together -- so the carry, the block epoch and the
+     look count all still agree with the position. */
+  uint64_t huge_fed;
+  {
+    dp_acq_state_t *e   = b->acq->engine;
+    const uint64_t  per = (uint64_t)e->coherent_bins * e->n_noncoh;
+    const uint64_t  k
+        = ((UINT64_C (1) << 63) / (per * e->frame_n) + 1u) * per * e->frame_n;
+    e->samples_consumed += k;
+    e->framer.frames += k / e->frame_n;
+    e->framer.written += k;
+    huge_fed = dp_acq_position (e);
+    DP_REQUIRE (huge_fed >= (UINT64_C (1) << 63));
+    dp_burst_capture_get_state (b, huge);
+  }
+
   /* The blob's layout, as get_state writes it; the last line proves it. */
   const size_t E      = sizeof (burst_capture_pending_t);
+  const size_t o_fed  = sizeof (dp_state_hdr_t);
+  const size_t o_sup  = o_fed + 7u * 8u;
   const size_t o_pend = sizeof (dp_state_hdr_t) + 8u * 8u;
   const size_t o_q    = o_pend + 2u * sizeof (uint32_t);
   const size_t o_n    = o_q + a->q_cap * E;
@@ -977,12 +1006,18 @@ test_a_refused_blob_changes_nothing (void)
   live.n_phase  = 1u;
   live.phase[0] = (uint32_t)(live.anchor % P);
 
-  static const char *const what[5]
-      = { "(A) phases past their array", "(A) anchors out of order",
+  static const char *const what[10]
+      = { "(A) phases past their array",
+          "(A) anchors out of order",
           "(B) look-back longer than the stream",
           "(C) anchor past the stream position",
-          "(D) acquisition child at another position" };
-  for (size_t c = 0; c < 5u; c++)
+          "(D) acquisition child at another position",
+          "(1) stream position past 2^63, child there too",
+          "(2) suppression past the stream position",
+          "(3) NaN Doppler",
+          "(3) infinite C/N0",
+          "(3) NaN peak" };
+  for (size_t c = 0; c < 10u; c++)
     {
       memcpy (bad, blob, cb);
       burst_capture_pending_t e0 = live, e1 = live;
@@ -1008,10 +1043,32 @@ test_a_refused_blob_changes_nothing (void)
           e0.anchor   = LEAD + 1u;
           e0.phase[0] = (uint32_t)(e0.anchor % P);
           break;
-        default:
+        case 4:
           memcpy (bad + o_an, other + o_an,
                   sizeof (uint32_t) + a->acq_blob_max);
           pending = 0u;
+          break;
+        case 5:
+          memcpy (bad + o_an, huge + o_an,
+                  sizeof (uint32_t) + a->acq_blob_max);
+          memcpy (bad + o_fed, &huge_fed, sizeof huge_fed);
+          pending = 0u;
+          break;
+        case 6:
+          {
+            const uint64_t sup = LEAD + 1u;
+            memcpy (bad + o_sup, &sup, sizeof sup);
+            pending = 0u;
+          }
+          break;
+        case 7:
+          e0.doppler_hz = NAN;
+          break;
+        case 8:
+          e0.cn0_dbhz = INFINITY;
+          break;
+        default:
+          e0.peak_mag = NAN;
           break;
         }
       if (pending)
@@ -1041,10 +1098,37 @@ test_a_refused_blob_changes_nothing (void)
   DP_CHECK (found == 1u);
   DP_CHECK (a->samples_fed == n_cap);
   DP_CHECK (a->dropped == 0u);
+
+  /* (4) The engine outgrew the child region: refused before the undo
+     snapshot or acq's restore could run past it. get_state() leaves a child
+     it cannot fit unwritten, so both reads start from zeroed buffers. */
+  {
+    dp_burst_capture_state_t *d = make ();
+    DP_REQUIRE (d != NULL);
+    (void)dp_burst_capture_push (d, cap, LEAD, NULL, 0);
+    DP_REQUIRE (dp_burst_acq_set_max_peaks (d->acq, ACQ_MAX_PEAKS) == 0);
+    DP_REQUIRE (dp_acq_state_bytes (d->acq->engine) > d->acq_blob_max);
+    memset (now, 0, cb);
+    memset (bad, 0, cb);
+    dp_burst_capture_get_state (d, now);
+    const int rc = dp_burst_capture_set_state (d, blob);
+    dp_burst_capture_get_state (d, bad);
+    if (rc != DP_ERR_INVALID || memcmp (now, bad, cb) != 0)
+      fprintf (stderr, "  refused blob: (4) engine outgrew its region\n");
+    DP_CHECK (rc == DP_ERR_INVALID);
+    DP_CHECK (memcmp (now, bad, cb) == 0);
+    for (size_t off = LEAD; off < n_cap; off += 8192u)
+      (void)dp_burst_capture_push (
+          d, cap + off, n_cap - off < 8192u ? n_cap - off : 8192u, NULL, 0);
+    DP_CHECK (d->samples_fed == n_cap);
+    dp_burst_capture_destroy (d);
+  }
+
   free (blob);
   free (other);
   free (bad);
   free (now);
+  free (huge);
   dp_burst_capture_destroy (a);
   dp_burst_capture_destroy (b);
   return 0;

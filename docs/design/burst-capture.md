@@ -653,13 +653,17 @@ is `(k_lo + 1 − reps)·P` when `burst_len ≥ reps·P` and
 A checkpoint carries everything the ring holds -- up to its capacity, a
 pure function of configuration -- so a resume emits what the live capture
 would have; carrying only `retain_span` lost a burst `release()` had handed
-back. A blob is checked whole before anything is written, so a refused one
-leaves the capture byte-identical: the queue's phases within their array,
-anchors in order and none past the stream position, a refined start one
-refine could have chosen, a look-back no longer than the stream, and an
-acquisition child standing at the capture's stream position. Each of those
-would otherwise make `push()` abort, read out of bounds, or shift every
-later epoch.
+back. A blob is checked whole before any of the capture is written, so a
+refused one leaves its next `get_state()` byte-identical. The checks are: a
+stream position below 2^63 and a suppression span that ends by it; the
+queue's phases within their array, its readings finite, its anchors in order
+and none past the stream position, and a refined start within the range
+refine chooses from; a look-back no longer than the stream; and an
+acquisition child that fits its region and stands at the capture's stream
+position. The child is restored to check that, and handed its own blob back
+on a mismatch, which resets acq's unserialized `dwells` and `surface_at`.
+Each check stands between a forged blob and a `push()` that aborts, reads
+out of bounds, shifts every later epoch, or silently stops capturing.
 
 ## 10. See also
 

@@ -1594,10 +1594,28 @@ dp_burst_capture_set_state (dp_burst_capture_state_t *s, const void *blob)
   if (!q || (!s->backed && !ring) || !acq || (size_t)an > s->acq_blob_max)
     return DP_ERR_INVALID;
 
+  /* Stream positions. 2^63 samples is centuries at any rate, and a position
+     that near the top of uint64_t wraps the ring's head within a push, after
+     which trim never releases. The suppression span ends at a window this
+     capture emitted, which it emits only once arrived, so it is never past
+     the stream position; one past it would shadow, and so lose, every later
+     hit without counting one. */
+  if (fed >= (UINT64_C (1) << 63))
+    return DP_ERR_INVALID;
+  if (suppress_until > fed)
+    return DP_ERR_INVALID;
+  /* The acquisition child region is acq_blob_max long. A C caller that
+     raised the engine's max_peaks after create made its state larger than
+     that, and then neither the undo snapshot below nor acq's own restore may
+     run: both would go past the region (get_state skips the child for the
+     same reason). */
+  if (dp_acq_state_bytes (s->acq->engine) > s->acq_blob_max)
+    return DP_ERR_INVALID;
+
   /* The queue, checked on what the blob claims rather than trusted: phases
-     within their array, anchors in order and none past the stream position
-     (a detection is made from samples acq has taken), and a refined start
-     one that refine itself could have chosen -- between the first
+     within their array, finite readings, anchors in order and none past the
+     stream position (a detection is made from samples acq has taken), and a
+     refined start within the range refine chooses from -- between the first
      candidate of its earliest phase and the last of its latest. */
   if (pending > s->q_cap || q_head >= s->q_cap)
     return DP_ERR_INVALID;
@@ -1607,6 +1625,11 @@ dp_burst_capture_set_state (dp_burst_capture_state_t *s, const void *blob)
       burst_capture_pending_t o;
       memcpy (&o, q + ((q_head + j) % s->q_cap) * sizeof o, sizeof o);
       if (o.n_phase > BURST_CAPTURE_MAX_PHASES)
+        return DP_ERR_INVALID;
+      /* Acquisition gives every hit finite values; a NaN Doppler would reach
+         refine's (size_t)ceil() over the cell grid. */
+      if (!isfinite (o.doppler_hz) || !isfinite (o.cn0_dbhz)
+          || !isfinite (o.peak_mag))
         return DP_ERR_INVALID;
       if (o.anchor > fed || (j && o.anchor < prev))
         return DP_ERR_INVALID;

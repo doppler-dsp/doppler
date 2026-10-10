@@ -887,8 +887,23 @@ def test_nats_chunked_pub_sub():
     got, hdr = sub.recv(timeout_ms=5000)
     assert np.array_equal(got, big)
     assert hdr["num_samples"] == 100_000
+    # A clean stream loses nothing (#2010). The faults themselves -- a lost
+    # chunk, a late join, a mid-frame timeout -- are scripted against the
+    # reassembler in test_stream_wire.c; a broker cannot drop on cue.
+    assert sub.reasm_stats() == {
+        "abandoned": 0,
+        "rejected": 0,
+        "mid_frame_timeouts": 0,
+    }
     pub.close()
     sub.close()
+
+
+def test_reasm_stats_refuses_a_closed_subscriber():
+    sub = Subscriber(_unique_endpoint("reasm"))
+    sub.close()
+    with pytest.raises(RuntimeError, match="subscriber is closed"):
+        sub.reasm_stats()
 
 
 def test_nats_push_frame_too_large():

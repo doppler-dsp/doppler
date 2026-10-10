@@ -112,6 +112,7 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**dp\_psd\_state\_t**](structdp__psd__state__t.md) _PSD state. Allocate with_ [_**dp\_psd\_create()**_](psd__core_8h.md#function-dp_psd_create) _._
 * **struct** [**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) _RateSync state: a matched-filter cascade and the timing loop._ 
 * **struct** [**dp\_reader\_t**](structdp__reader__t.md) 
+* **struct** [**dp\_reasm\_stats\_t**](structdp__reasm__stats__t.md) _What reassembling chunked frames has lost on a receiving context._ 
 * **struct** [**dp\_rs\_codec\_state\_t**](structdp__rs__codec__state__t.md) _A code and the tables derived from it._ 
 * **struct** [**dp\_sample\_clock\_t**](structdp__sample__clock__t.md) 
 * **struct** [**dp\_specan\_state\_t**](structdp__specan__state__t.md) _Specan state. Allocate with_ [_**dp\_specan\_create()**_](specan__core_8h.md#function-dp_specan_create) _._

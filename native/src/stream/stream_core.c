@@ -256,6 +256,132 @@ dp_msg_mean_power (dp_msg_t *msg)
                         dp_msg_num_samples (msg));
 }
 
+/* A chunk's frame identity: its header without the per-chunk fields. */
+static dp_header_t
+reasm_key (const dp_header_t *hdr)
+{
+  dp_header_t key   = *hdr;
+  key.payload_bytes = 0;
+  key.num_samples   = 0;
+  return key;
+}
+
+void
+dp_reasm_reset (dp_reasm_t *r)
+{
+  if (!r)
+    return;
+  free (r->buf);
+  free (r->seen);
+  r->buf      = NULL;
+  r->seen     = NULL;
+  r->received = 0;
+}
+
+int
+dp_reasm_feed (dp_reasm_t *r, const dp_header_t *hdr, const dp_chunk_t *chunk,
+               const void *body, size_t body_len, int *complete, char **frame,
+               dp_header_t *frame_hdr)
+{
+  if (!r || !hdr || !chunk || !complete || !frame || !frame_hdr
+      || (body_len && !body))
+    return DP_ERR_INVALID;
+  *complete = 0;
+
+  /* A chunk that no frame could hold is dropped by itself: it says nothing
+     about the frame in progress, which stays as it was. Every bound by
+     subtraction or division, never a sum that can wrap (#2016). */
+  size_t elem = dp_element_size ((dp_frame_kind_t)hdr->kind,
+                                 (dp_sample_type_t)hdr->format);
+  if (elem == 0 || chunk->count == 0 || chunk->index >= chunk->count
+      || chunk->total_bytes % elem != 0 || chunk->offset > chunk->total_bytes
+      || body_len > chunk->total_bytes - chunk->offset
+      || chunk->total_bytes > (uint64_t)SIZE_MAX)
+    {
+      r->stats.rejected++;
+      return DP_ERR_INVALID;
+    }
+
+  /* A different frame: the one in progress can no longer complete from
+     this stream of chunks, so it is abandoned -- and THIS chunk starts the
+     next frame instead of going down with it (#2010). */
+  dp_header_t key = reasm_key (hdr);
+  if (r->buf
+      && (memcmp (&key, &r->key, sizeof key) != 0
+          || chunk->count != r->shape.count
+          || chunk->total_bytes != r->shape.total_bytes))
+    {
+      dp_reasm_reset (r);
+      r->stats.abandoned++;
+    }
+
+  /* The grid. A frame's first chunk fixes the stride: every chunk but the
+     last is exactly S bytes, the last is what remains, and chunk i starts
+     at i*S. Checked by division, so a forged offset cannot wrap. */
+  uint64_t stride = 0;
+  if (r->buf)
+    stride = r->stride;
+  else if (chunk->index + 1 < chunk->count)
+    stride = (uint64_t)body_len; /* a full chunk */
+  else if (chunk->index > 0 && chunk->offset % chunk->index == 0)
+    stride = chunk->offset / chunk->index; /* the last: offset = i*S */
+  else
+    stride = chunk->total_bytes; /* the only chunk */
+  int last = (chunk->index + 1 == chunk->count);
+  int fits
+      = stride > 0
+        && (chunk->total_bytes + stride - 1) / stride == chunk->count
+        && (chunk->index == 0 ? chunk->offset == 0
+                              : (chunk->offset % stride == 0
+                                 && chunk->offset / stride == chunk->index))
+        && (last ? (uint64_t)body_len == chunk->total_bytes - chunk->offset
+                 : (uint64_t)body_len == stride);
+  if (!fits)
+    {
+      r->stats.rejected++;
+      return DP_ERR_INVALID;
+    }
+
+  if (!r->buf)
+    {
+      size_t total = (size_t)chunk->total_bytes;
+      r->buf       = (char *)malloc (total ? total : 1);
+      r->seen      = (unsigned char *)calloc ((size_t)chunk->count, 1);
+      if (!r->buf || !r->seen)
+        {
+          dp_reasm_reset (r);
+          return DP_ERR_MEMORY;
+        }
+      r->key          = key;
+      r->shape        = *chunk;
+      r->shape.index  = 0;
+      r->shape.offset = 0;
+      r->stride       = stride;
+      r->received     = 0;
+    }
+
+  if (!r->seen[chunk->index]) /* a redelivered chunk is a no-op */
+    {
+      if (body_len)
+        memcpy (r->buf + chunk->offset, body, body_len);
+      r->seen[chunk->index] = 1;
+      r->received++;
+    }
+  if (r->received < r->shape.count)
+    return DP_OK;
+
+  /* Complete: hand the buffer over with a clean, unchunked header. */
+  *frame     = r->buf;
+  *frame_hdr = r->key;
+  frame_hdr->flags &= (uint16_t)~DP_FLAG_CHUNKED;
+  frame_hdr->num_samples   = r->shape.total_bytes / elem;
+  frame_hdr->payload_bytes = (uint32_t)r->shape.total_bytes;
+  r->buf                   = NULL; /* now the caller's */
+  dp_reasm_reset (r);
+  *complete = 1;
+  return DP_OK;
+}
+
 /* Every check a receiver makes on an arriving frame, over a plain buffer.
  *
  * In the core rather than beside the transport because none of it is about
@@ -390,6 +516,15 @@ const char *
 dp_ctx_last_error (const dp_pub_t *ctx)
 {
   return (ctx && ctx->last_error[0]) ? ctx->last_error : "";
+}
+
+int
+dp_sub_reasm_stats (const dp_sub_t *ctx, dp_reasm_stats_t *out)
+{
+  if (!ctx || !out)
+    return DP_ERR_INVALID;
+  *out = ctx->nats.reasm.stats;
+  return DP_OK;
 }
 
 int

@@ -31,19 +31,63 @@ typedef enum
   DP_ROLE_REP
 } dp_role_t;
 
+/* Reassembly of a chunked frame from its chunks, over parsed chunks rather
+ * than a transport -- the receive side's other rule, beside
+ * dp_frame_parse(), and testable the same way (test_stream_wire.c).
+ *
+ * ONE frame is in progress at a time. A frame is identified by its whole
+ * header except the two per-chunk fields (payload_bytes, num_samples),
+ * plus its chunk count and total size: so the sequence AND the timestamp,
+ * rate and centre frequency, which is what keeps two publishers that
+ * share a subject and a sequence from being merged. A chunk of a DIFFERENT
+ * frame abandons the one in progress (counted) and STARTS the new one: it
+ * is never discarded with it, which is what made one lost chunk lose every
+ * later chunked frame (#2010). The state lives as long as the socket, so a
+ * receive that times out mid-frame resumes it.
+ *
+ * Chunks must sit on the sender's grid: chunk i covers
+ * [i*S, min((i+1)*S, total)), S being the bytes of every chunk but the
+ * last, taken from the frame's first chunk. So distinct indices cover
+ * disjoint ranges, and "every index seen" means every byte written: no
+ * uninitialised byte is ever handed out, and no offset arithmetic can wrap
+ * (#2016). The sender (dp__nats_send_signal) always chunks this way. */
+typedef struct
+{
+  dp_header_t      key;    /* the frame in progress, per-chunk fields zeroed */
+  dp_chunk_t       shape;  /* its count and total_bytes                 */
+  uint64_t         stride; /* bytes per chunk but the last (the grid)   */
+  char            *buf;    /* NULL when no frame is in progress         */
+  unsigned char   *seen;   /* one flag per chunk index                  */
+  uint32_t         received; /* distinct chunks placed                    */
+  dp_reasm_stats_t stats;    /* what was lost, and how                    */
+} dp_reasm_t;
+
+/* Place one parsed chunk. Sets *complete when it finishes a frame: then
+ * *frame is the reassembled payload (malloc'd; the caller frees it) and
+ * *frame_hdr its logical, unchunked header. A redelivered chunk is a
+ * no-op. Returns DP_ERR_INVALID for a chunk no frame could hold (counted
+ * in `rejected`; the frame in progress is untouched), DP_ERR_MEMORY, or
+ * DP_OK. */
+int dp_reasm_feed (dp_reasm_t *r, const dp_header_t *hdr,
+                   const dp_chunk_t *chunk, const void *body, size_t body_len,
+                   int *complete, char **frame, dp_header_t *frame_hdr);
+/* Free the frame in progress, if any; the counters are kept. */
+void dp_reasm_reset (dp_reasm_t *r);
+
 /* NATS-backed context.  Opaque nats.c handles are held as void* so this
  * header stays nats.h-free; stream_nats.c casts them back. */
 struct dp_nats_state
 {
-  void     *conn;            /* natsConnection *                            */
-  void     *sub;             /* natsSubscription * (SUB/REP/REQ-inbox/PULL) */
-  void     *js;              /* jsCtx * (JetStream ctx for PUSH/PULL)       */
-  dp_role_t role;            /* drives subject choice in send/recv          */
-  char     *base;            /* subject base parsed from the endpoint path  */
-  char     *inbox;           /* REQ: reply-to inbox subject                 */
-  char     *last_reply;      /* REP: reply subject of the last request      */
-  int       recv_timeout_ms; /* <0 = block                                  */
-  int64_t   max_payload;     /* server max message size (bytes); chunk above */
+  void      *conn;            /* natsConnection *                            */
+  void      *sub;             /* natsSubscription * (SUB/REP/REQ-inbox/PULL) */
+  void      *js;              /* jsCtx * (JetStream ctx for PUSH/PULL)       */
+  dp_role_t  role;            /* drives subject choice in send/recv          */
+  char      *base;            /* subject base parsed from the endpoint path  */
+  char      *inbox;           /* REQ: reply-to inbox subject                 */
+  char      *last_reply;      /* REP: reply subject of the last request      */
+  int        recv_timeout_ms; /* <0 = block                                  */
+  int64_t    max_payload; /* server max message size (bytes); chunk above */
+  dp_reasm_t reasm;       /* the chunked frame in progress, if any       */
 };
 
 struct dp_ctx

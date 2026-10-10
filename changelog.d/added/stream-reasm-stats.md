@@ -1,0 +1,1 @@
+- **`Subscriber.reasm_stats()`** (C: `dp_sub_reasm_stats`) counts what chunked-frame reassembly has lost: frames `abandoned`, chunks `rejected`, and `mid_frame_timeouts`.

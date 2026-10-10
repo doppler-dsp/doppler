@@ -666,6 +666,43 @@ class Subscriber:
         """
         ...
 
+    def reasm_stats(self) -> dict[str, int]:
+        """What reassembling chunked frames has lost on this subscriber.
+
+        A frame above the server's max_payload (1 MiB by default) arrives as
+        chunks, and recv() rebuilds one frame at a time. A frame it can no
+        longer complete is given up and counted here rather than hidden: the
+        next frame still arrives intact. A frame recv() DOES return is
+        complete and exact. The counts run from the subscriber's creation and
+        are never reset.
+
+        Returns
+        -------
+        dict
+            ``abandoned``: frames given up part-assembled because a chunk of
+            a different frame arrived first (a lost chunk, a subscriber that
+            joined mid-frame, or a second publisher on the subject).
+            ``rejected``: chunks no frame could hold, dropped (off the chunk
+            grid, out of range, or overlapping). ``mid_frame_timeouts``:
+            receives that timed out with a frame part-assembled; the frame is
+            kept, and the next recv() resumes it.
+
+        Raises
+        ------
+        RuntimeError
+            If the subscriber is closed.
+
+        Examples
+        --------
+        >>> from doppler.stream import Subscriber
+        >>> sub = Subscriber("nats://127.0.0.1:4222/t19124")
+        >>> sub.reasm_stats()
+        {'abandoned': 0, 'rejected': 0, 'mid_frame_timeouts': 0}
+        >>> sub.close()
+
+        """
+        ...
+
     def close(self) -> None:
         """Destroy the underlying NATS handle and release all resources.
 

@@ -514,12 +514,11 @@ static PyTypeObject AWGNObjType = {
   .tp_dealloc                             = (destructor)AWGNObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
   .tp_doc
-  = "Create an AWGN generator. Allocates state, seeds the xoshiro256++ RNG\n"
-    "via SplitMix64, and sets up both the scalar and the AVX2 parallel "
-    "streams.\n"
-    "The initial seed is stored so dp_awgn_reset() can reproduce the exact "
-    "same\n"
-    "stream.\n"
+  = "Create an AWGN generator. Allocates state and seeds the xoshiro256++ "
+    "RNG\n"
+    "via SplitMix64. The initial seed is stored so dp_awgn_reset() can "
+    "reproduce\n"
+    "the exact same stream.\n"
     "\n"
     "Parameters\n"
     "----------\n"

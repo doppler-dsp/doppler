@@ -70,7 +70,7 @@ _1-D streaming signal detector with FFT-based correlation, integrate-and-dump, a
 |  void | [**dp\_detector\_destroy**](#function-dp_detector_destroy) ([**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state) <br>_Destroy and free a detector instance._  |
 |  void | [**dp\_detector\_get\_state**](#function-dp_detector_get_state) (const [**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state, void \* blob) <br> |
 |  size\_t | [**dp\_detector\_push**](#function-dp_detector_push) ([**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, [**det\_result\_t**](structdet__result__t.md) \* result, size\_t max\_results) <br>_Stream an arbitrary-length CF32 chunk through the detector pipeline. Takes the input in order, runs each complete n-sample frame through the correlator, and on every int-dump computes the test statistic peak\_mag / noise\_est. Detections that pass the threshold are appended to the Python return list as (lag, peak\_mag, noise\_est, test\_stat) tuples. In Python the result is always a list, even when empty._  |
-|  void | [**dp\_detector\_reset**](#function-dp_detector_reset) ([**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state) <br>_Reset the correlator, the carry, and last-corr flag. Discards any partial frame carried between pushes and zeroes the coherent accumulator;_ [_**dp\_detector\_consumed()**_](detector__core_8h.md#function-dp_detector_consumed) _reads 0. Equivalent to starting fresh from the same reference without rebuilding any internal object._ |
+|  void | [**dp\_detector\_reset**](#function-dp_detector_reset) ([**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state) <br>_Reset the correlator, the carry, and last-corr flag. Discards any partial frame carried between pushes and zeroes the coherent accumulator. Equivalent to starting fresh from the same reference without rebuilding any internal object._  |
 |  void | [**dp\_detector\_set\_ref**](#function-dp_detector_set_ref) ([**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state, const float \_Complex \* ref) <br>_Replace the reference signal and recompute conj(FFT(ref))._  |
 |  int | [**dp\_detector\_set\_state**](#function-dp_detector_set_state) ([**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state, const void \* blob) <br> |
 |  void | [**dp\_detector\_set\_threshold**](#function-dp_detector_set_threshold) ([**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state, float threshold) <br>_Change the threshold without rebuilding the object._  |
@@ -319,7 +319,7 @@ size_t dp_detector_push (
 
 
 
-In C a full `result` never loses input. A frame yields at most one detection, so a sample is taken unless it would complete a frame when `result` has no room left: the push stops there, [**dp\_detector\_consumed()**](detector__core_8h.md#function-dp_detector_consumed) reports how many samples it took, and the caller offers the rest again. Taken input that completes no frame is the carry, held inside (fewer than n samples), so input that completes no frame is taken whole even with `max_results` 0, and with `max_results` &gt;= 1 a push of any input takes at least one sample. Python's push() makes one call with room for 64 detections and does not offer the rest again, so input past the 64th detection is lost (#1992): keep a Python chunk under 64 frames.
+Python's push() has room for 1024 detections a call. A push that would make more loses the detections past the 1024th, and the input that would have made them: keep a chunk under 1024 frames. Before v0.66 a push past its room (64 then) kept the whole frames it had already buffered and reported them on the next call; #1992 tracks sizing the list to the call.
 
 
 
@@ -331,7 +331,7 @@ In C a full `result` never loses input. A frame yields at most one detection, so
 * `in` CF32 input chunk of arbitrary length. 
 * `n_in` Number of input samples in `in`. 
 * `result` Caller-supplied array of at least `max_results` [**det\_result\_t**](structdet__result__t.md) structs; filled on return. 
-* `max_results` Capacity of `result` (maximum detections to emit). 
+* `max_results` Capacity of `result` (maximum detections to emit). A full `result` never loses input: a frame yields at most one detection, so a sample is taken unless it would complete a frame when `result` has no room left. The push stops there, [**dp\_detector\_consumed()**](detector__core_8h.md#function-dp_detector_consumed) says how many samples it took, and the caller offers the rest again. Taken input that completes no frame is the carry, held inside (fewer than n samples), so it is taken whole even at 0, and at &gt;= 1 a push of any input takes at least one sample. 
 
 
 
@@ -365,7 +365,7 @@ Number of [**det\_result\_t**](structdet__result__t.md) entries written to `resu
 
 ### function dp\_detector\_reset 
 
-_Reset the correlator, the carry, and last-corr flag. Discards any partial frame carried between pushes and zeroes the coherent accumulator;_ [_**dp\_detector\_consumed()**_](detector__core_8h.md#function-dp_detector_consumed) _reads 0. Equivalent to starting fresh from the same reference without rebuilding any internal object._
+_Reset the correlator, the carry, and last-corr flag. Discards any partial frame carried between pushes and zeroes the coherent accumulator. Equivalent to starting fresh from the same reference without rebuilding any internal object._ 
 ```C++
 void dp_detector_reset (
     dp_detector_state_t * state

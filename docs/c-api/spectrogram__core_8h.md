@@ -121,7 +121,7 @@ The object composes and re-implements none of its parts. The carry between calls
 Lifecycle: [**dp\_spectrogram\_create()**](spectrogram__core_8h.md#function-dp_spectrogram_create), then any number of [**dp\_spectrogram\_push()**](spectrogram__core_8h.md#function-dp_spectrogram_push) calls, then [**dp\_spectrogram\_flush()**](spectrogram__core_8h.md#function-dp_spectrogram_flush) once to end the stream, then [**dp\_spectrogram\_destroy()**](spectrogram__core_8h.md#function-dp_spectrogram_destroy). A short output buffer never loses input: push stops at a whole row and [**dp\_spectrogram\_consumed()**](spectrogram__core_8h.md#function-dp_spectrogram_consumed) says where to resume.
 
 
-Not thread-safe on one object (the kernel uses the object's scratch). Complex float32 input only. The design, its goals and what is still unmeasured are docs/design/spectrogram.md. 
+Not thread-safe on one object (the kernel uses the object's scratch). Complex float32 input only. The design, its goals and what it costs are docs/design/spectrogram.md. 
 
 
     

@@ -689,13 +689,12 @@ def review(d) -> None:
     )
     R.find(
         "F10",
-        "GAP",
-        "Speed is not in this report, and it is not yet measured anywhere. "
-        "What a row costs and how many rows one core sustains are the "
-        "design's U1 to U4, measured under #1941's A4 on a pinned, quiet "
-        "machine and recorded in the measurement record. Until that lands "
-        "they are unknowns; once it does, this report still certifies only "
-        "what a caller may rely on, and the cost lives in the record.",
+        "BY DESIGN",
+        "Speed is not in this report, which certifies what a caller may "
+        "rely on. What a row costs and how many rows one core sustains are "
+        "the design's U1 to U4, measured on a pinned machine and recorded "
+        "in the measurement record's entries 5.6 to 5.9. The one decision "
+        "they raised, the cost of the dB conversion, is #2074.",
     )
     R.find(
         "F11",

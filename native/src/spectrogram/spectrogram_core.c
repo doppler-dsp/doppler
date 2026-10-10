@@ -17,7 +17,9 @@
 /* The ring holds the carry (< nfft samples once a push returns) plus what one
  * feed admits. Twice a frame lets a feed take at least one whole frame's worth
  * past the carry, so a push loops once per few rows rather than once per
- * sample; how much more than that is worth is the design's U1, unmeasured. */
+ * sample. A larger ring can win little: the whole carry, its copy included,
+ * costs 0.2-3.3% of a sample against a loop with none (the design's U1,
+ * docs/design/spectrogram-measurements.md §5.6). */
 #define SPECTROGRAM_RING_FRAMES 2u
 
 /* One frame -> one row, through the one kernel, DC-centred as it emits it. */

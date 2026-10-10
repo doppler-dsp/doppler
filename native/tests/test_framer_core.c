@@ -775,16 +775,16 @@ main (void)
        N 32 / hop 10 agrees with written - frames * hop == live, so the
        counters alone pass; restored, pending() wrapped to ~1.8e19 and flush
        emitted a row of nothing (the #1975 review's adversary). */
-    enum
+    enum /* not IN / OUT: Windows' headers define those as macros */
     {
-      IN = 32,
-      IH = 10
+      CARRY_N   = 32,
+      CARRY_HOP = 10
     };
     dp_f32_t       *ra = dp_f32_create (64), *rb = dp_f32_create (64);
     dp_f32_framer_t a, b;
     DP_REQUIRE (ra != NULL && rb != NULL);
-    DP_REQUIRE (dp_f32_framer_init (&a, ra, IN, IH) == DP_OK);
-    DP_REQUIRE (dp_f32_framer_init (&b, rb, IN, IH) == DP_OK);
+    DP_REQUIRE (dp_f32_framer_init (&a, ra, CARRY_N, CARRY_HOP) == DP_OK);
+    DP_REQUIRE (dp_f32_framer_init (&b, rb, CARRY_N, CARRY_HOP) == DP_OK);
     size_t blob_n = dp_f32_framer_state_bytes (&a);
     void  *blob   = malloc (blob_n);
     DP_REQUIRE (blob != NULL);
@@ -792,7 +792,7 @@ main (void)
     /* fresh a: live 0, written 0, frames 0 -- then claim one frame out */
     dp_f32_framer_get_state (&a, blob);
     const uint64_t written = 10, frames = 1;
-    char *at = (char *)blob + DP_FRAMER_STATE_WRITTEN_OFFSET (float, IN);
+    char *at = (char *)blob + DP_FRAMER_STATE_WRITTEN_OFFSET (float, CARRY_N);
     memcpy (at, &written, sizeof written);
     memcpy (at + sizeof written, &frames, sizeof frames);
     DP_CHECK (dp_f32_framer_feed_view (&b, x, 3, 0) == 3);
@@ -801,10 +801,10 @@ main (void)
 
     /* ...while the tightest REAL carry, N - hop after one frame, restores:
        the refusal is the bound, not every blob with a frame out */
-    DP_CHECK (dp_f32_framer_feed_view (&a, x, IN, 1) == IN);
+    DP_CHECK (dp_f32_framer_feed_view (&a, x, CARRY_N, 1) == CARRY_N);
     DP_REQUIRE (dp_f32_framer_next_view (&a) != NULL);
     DP_REQUIRE (dp_f32_framer_next_view (&a) == NULL); /* drained, settled */
-    DP_REQUIRE (dp_f32_available (ra) == IN - IH);
+    DP_REQUIRE (dp_f32_available (ra) == CARRY_N - CARRY_HOP);
     dp_f32_framer_get_state (&a, blob);
     DP_CHECK (dp_f32_framer_set_state (&b, blob) == DP_OK);
     DP_CHECK (dp_f32_framer_pending (&b) == 0);

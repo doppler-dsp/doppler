@@ -100,12 +100,13 @@ def test_dwell_defaults_to_one():
 def test_overflowed_push_leaves_the_stream_frame_aligned():
     # Python's push() has room for 1024 detections, and at threshold 0
     # every frame fires, so a frame-aligned chunk of 1030 frames fills it.
-    # The frames past the room are lost WHOLE: once full, push takes
-    # nothing more, so no partial frame waits in the carry and the next
-    # push starts on a frame boundary.  A probe frame with its impulse at
-    # sample 5 must then report lag 5.  Were the next frame's head carried
-    # (the pre-#2018 feed), the probe's first sample would complete that
-    # carried frame and the push would report its lag 0 instead.
+    # The 6 frames past the room are lost WHOLE: once full, a push takes
+    # the rest only when it completes no frame, and 48 samples do, so it
+    # takes nothing more and the next push starts on a frame boundary.
+    # A probe frame with its impulse at sample 5 must then report lag 5.
+    # Were the next frame's head carried (the pre-#2018 feed), the probe's
+    # first sample would complete that carried frame and the push would
+    # report its lag 0 instead.
     n = 8
     ref = np.zeros(n, dtype=np.complex64)
     ref[0] = 1

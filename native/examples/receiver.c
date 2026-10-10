@@ -132,6 +132,8 @@ main (int argc, char *argv[])
   double lat_min_ms = 1e300;
   double lat_max_ms = 0.0;
 
+  int failed_in_a_row = 0; /* receives that failed since the last frame */
+
   /* No timeout: this recv BLOCKS, which is what a dashboard wants -- it
      has nothing to do between frames. That is only safe because the
      handler calls dp_stream_interrupt(), which is what brings us back
@@ -147,8 +149,27 @@ main (int argc, char *argv[])
       int rc = dp_sub_recv (ctx, &msg, &hdr);
       if (rc == DP_ERR_INTERRUPTED)
         break; /* Ctrl+C: keep_running is already 0 */
+      if (rc == DP_ERR_EOF)
+        {
+          /* The publisher finished (or is restarting): wait for whoever
+             publishes next. A restart's sequence goes back to 0, which
+             receiver_seq_feed reads as a restart, not a drop. */
+          printf ("\n  End of stream from the publisher; waiting.\n");
+          fflush (stdout);
+          continue;
+        }
       if (rc != DP_OK)
-        continue;
+        {
+          /* One failed receive -- the broker's slow-consumer signal, say:
+             frames were lost and the next forward gap counts them, so
+             carry on. Three with no frame between is a dead connection,
+             and spinning on it helps nobody. receiver.py does the same. */
+          fprintf (stderr, "  Receive failed (%d).\n", rc);
+          if (++failed_in_a_row >= 3)
+            break;
+          continue;
+        }
+      failed_in_a_row = 0;
 
       uint64_t         now  = dp_get_timestamp_ns ();
       size_t           n    = dp_msg_num_samples (msg);

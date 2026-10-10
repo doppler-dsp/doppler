@@ -354,11 +354,17 @@ ______________________________________________________________________
 
 **Symptom:** Dashboard shows "Dropped: N" packets.
 
+The count is the forward gaps in the header's `sequence`. A late join and
+a publisher restart add nothing: both receivers anchor on the first frame
+they see, and a sequence that goes back is a restart, not a loss.
+
 **Causes & solutions:**
 
-- **Slow joiner problem:** Receiver started after transmitter began sending
+- **Two publishers on one subject:** each numbers its own frames, so their
+    interleaved sequences read as forward gaps
 
-    - Solution: Start receiver first, or wait for transmitter's 1-second startup delay
+    - Solution: one publisher per subject (a frame carries no sender id yet,
+        [#2089](https://github.com/doppler-dsp/doppler/issues/2089))
 
 - **Network congestion:** Too much data for the link
 

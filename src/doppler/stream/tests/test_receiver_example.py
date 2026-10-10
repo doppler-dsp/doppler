@@ -17,6 +17,10 @@ restart).
 from __future__ import annotations
 
 import doctest
+import sys
+
+import numpy as np
+import pytest
 
 import doppler.examples.receiver as receiver
 from doppler.examples.receiver import SequenceCount, frames_missing
@@ -67,3 +71,105 @@ def test_the_examples_in_its_docstrings_run() -> None:
     result = doctest.testmod(receiver)
     assert result.attempted >= 4
     assert result.failed == 0
+
+
+def _scripted(script: list[int | BaseException]) -> type:
+    """A stand-in for ``Subscriber`` that replays *script*.
+
+    Each item is a sequence number (a frame) or an exception to raise from
+    ``recv()``. A ``KeyboardInterrupt`` ends the run, as Ctrl+C does under
+    the example's ``Interrupt`` guard.
+    """
+
+    class _Subscriber:
+        def __init__(self, endpoint: str) -> None:
+            self.items = iter(script)
+
+        def __enter__(self) -> _Subscriber:
+            return self
+
+        def __exit__(self, *exc: object) -> None:
+            return None
+
+        def recv(self) -> tuple[np.ndarray, dict[str, int]]:
+            item = next(self.items)
+            if isinstance(item, BaseException):
+                raise item
+            samples = np.ones(4, dtype=np.complex64)
+            return samples, {"sequence": item, "num_samples": 4}
+
+    return _Subscriber
+
+
+class _Interrupt:
+    def __init__(self, signals: object) -> None:
+        pass
+
+    def __enter__(self) -> None:
+        return None
+
+    def __exit__(self, *exc: object) -> None:
+        return None
+
+
+def test_an_end_of_stream_is_waited_out(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A publisher's EOS, then its restart from 0: the receiver keeps going.
+
+    ``Subscriber.recv`` raises ``EOFError`` on an end-of-stream. The example
+    caught only ``KeyboardInterrupt``, so a graceful publisher restart killed
+    the dashboard, while ``receiver.c`` carried on (#2096). Red if the
+    ``except EOFError`` is deleted: the error escapes ``main()``.
+    """
+    script: list[int | BaseException] = [
+        5,
+        6,
+        EOFError("end of stream: the sender finished"),
+        0,
+        1,
+        KeyboardInterrupt(),
+    ]
+    _run(script, monkeypatch)
+    out = capsys.readouterr().out
+    assert "End of stream from the publisher" in out
+    last = out.rsplit("\033[2J", 1)[-1]
+    assert "Packets:      4" in last
+    assert "sequence:     1" in last
+    # The restart from 0 is not a drop.
+    assert "Dropped:      0" in last
+
+
+def _run(
+    script: list[int | BaseException],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(receiver, "Subscriber", _scripted(script))
+    monkeypatch.setattr(receiver, "Interrupt", _Interrupt)
+    monkeypatch.setattr(sys, "argv", ["receiver.py"])
+    receiver.main()
+
+
+def test_a_one_off_receive_failure_is_skipped(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The broker's slow-consumer signal surfaces as one RuntimeError; the
+    lost frames are the next forward gap. The dashboard carries on, as
+    receiver.c does, and counts them: 3 -> 6 drops 4 and 5."""
+    failed = RuntimeError("receive failed")
+    _run([1, 2, 3, failed, 6, failed, 7, KeyboardInterrupt()], monkeypatch)
+    out = capsys.readouterr()
+    last = out.out.rsplit("\033[2J", 1)[-1]
+    assert "Packets:      5" in last
+    assert "Dropped:      2" in last
+    assert out.err.count("Receive failed") == 2
+
+
+def test_three_failures_in_a_row_end_the_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With no frame between them, three failures are a dead connection:
+    the third is raised rather than spun on."""
+    failed = RuntimeError("receive failed")
+    with pytest.raises(RuntimeError):
+        _run([1, failed, failed, failed, 2], monkeypatch)

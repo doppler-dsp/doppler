@@ -59,7 +59,7 @@ The whole object in one claim: stream a capture in arbitrary blocks, get the tra
 | bits equal the transmitted payload | True |
 | frame checks out | True |
 | preamble_start | 5000 (true 5000) |
-| samples dropped by the history ring | 0 |
+| look-back abandoned (`dropped`) | 0 |
 
 Exact bits and an exact start (**True**, **True**), in 777-sample blocks — a size chosen to divide nothing, so no boundary lines up with a frame, a code period or the burst.
 
@@ -239,7 +239,7 @@ Claims a caller may rely on. A failure here is a regression, not a new finding. 
 | PASS | silence decodes nothing and reports no burst |
 | PASS | one burst is claimed exactly once even on a grid where several frames of its preamble fire |
 | PASS | a single push larger than the history ring is sliced, not refused |
-| PASS | no sample is dropped by the history ring on a normal stream |
+| PASS | no look-back is abandoned on a normal stream |
 | PASS | state_bytes() is identical for a fresh receiver and one holding a partial burst — the contract jm's binding depends on |
 | PASS | a blob taken INSIDE the preamble resumes into a fresh instance and still decodes, so the retained look-back travels with it |
 | PASS | a clobbered envelope is rejected rather than reinterpreted |

@@ -373,7 +373,7 @@ def _sec_end_to_end(d: Data) -> None:
             ["bits equal the transmitted payload", str(d.bits_exact)],
             ["frame checks out", str(hits[0]["valid"])],
             ["preamble_start", f"{hits[0]['start']} (true 5000)"],
-            ["samples dropped by the history ring", str(rx.dropped)],
+            ["look-back abandoned (`dropped`)", str(rx.dropped)],
         ],
     )
     R.md(
@@ -1206,7 +1206,7 @@ def limits(d: Data) -> None:
     )
     R.limit(
         d.dropped_zero,
-        "no sample is dropped by the history ring on a normal stream",
+        "no look-back is abandoned on a normal stream",
     )
     R.limit(
         d.state_pure,

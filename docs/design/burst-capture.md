@@ -604,10 +604,28 @@ down from 388. `min_gap` stays sufficient and now looks conservative
 (#1530).
 
 Proven by three sabotages. Removing the drain before a claim turns the
-below-`min_gap` block-size test red. Ignoring the horizon turns five refine
-tests red, because bursts were emitted before their later phases were
-scored. Holding history for held detections turns the receiver's
-saturation test red, with a chunk refused.
+below-`min_gap` block-size test red, and the chunk-invariance test with
+it. Ignoring the horizon turns five refine tests red, because bursts were
+emitted before their later phases were scored. Holding history for held
+detections stops the receiver's saturation test: it used to refuse a
+chunk, and since `push()` never refuses input (#2015) the held entries pin
+the ring until no detection is left to abandon, and `push()` aborts rather
+than spin.
+
+### 11.4 Input is never refused (#2015, #2028)
+
+`push()` writes what the history ring has room for and loops, so the
+ring's head, what acquisition has absorbed and `samples_fed` are one
+stream position, and every epoch is stream-absolute. An all-or-nothing
+write refused whole chunks instead: acquisition never saw them, and every
+later epoch came out early by exactly what was refused. At a constant
+block size the first refusal was also permanent. emit() swapped the next
+entry to the queue head, release() then gave back older ones behind a
+newer, unarrived head, and a complete burst pinned the ring: 73728 samples
+and 11 of 15 bursts at 8192-sample blocks. The queue now stays in stream
+order. A detection whose history is gone, which the order makes
+unreachable, is abandoned when the ring is full after trim, and `dropped`
+counts the look-back released with it.
 
 ## 10. See also
 

@@ -827,7 +827,7 @@ def limits(d: Data) -> None:
     )
     R.limit(
         all(v[2] == 0 for v in d.block_sizes.values()),
-        "no sample is dropped by the history ring at any block size (§2.3)",
+        "no look-back is abandoned at any block size (§2.3)",
     )
     R.limit(
         d.min_gap == d.refine_span + REPS * ACQ_SF * SPC - BURST_LEN,

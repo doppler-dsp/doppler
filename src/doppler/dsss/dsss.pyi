@@ -4607,15 +4607,17 @@ class DsssBurstReceiver:
 
         Read it at the END of a stream. A caller closing a file or a socket while
         this is non-zero is discarding a burst that would have decoded, and nothing
-        else distinguishes that from an empty capture: `dropped` counts samples the
-        ring refused, `n_bursts` counts what was demodulated, and a truncated burst
-        is neither.
+        else distinguishes that from an empty capture: `dropped` counts look-back
+        abandoned with a burst, `n_bursts` counts what was demodulated, and a
+        truncated burst is neither.
         """
 
     @property
     def dropped(self) -> int:
-        """Samples the capture ring refused. Each is a LOST BURST, not a
-        statistic -- a lifetime count that survives reset().
+        """Samples of look-back the capture discarded while a queued burst
+        still needed them -- never refused input, which push() does not do. A
+        LOST BURST, not a statistic -- a lifetime count that survives
+        reset().
         """
 
     @property

@@ -24,6 +24,7 @@
 #include "doppler/detection/detection_core.h"
 #include "doppler/dll/dll_core.h"
 #include "doppler/dp_complex.h"
+#include "doppler/dp_tlm/dp_tlm_core.h"
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
@@ -103,20 +104,65 @@ make_signal (float _Complex *rx, const uint8_t *code, size_t sf, size_t sps,
   return k;
 }
 
+/* Forge one field of @p x's own blob, at @p off within the struct, and
+ * require set_state() to refuse it and leave @p x giving the same blob.
+ * Returns 1 if it did not. */
+static int
+forged_is_refused (dp_dll_state_t *x, size_t off, const void *val, size_t len,
+                   const char *what)
+{
+  const size_t   cb     = dp_dll_state_bytes (x);
+  unsigned char *before = malloc (cb), *bad = malloc (cb), *now = malloc (cb);
+  if (!before || !bad || !now)
+    return 1;
+  dp_dll_get_state (x, before);
+  memcpy (bad, before, cb);
+  memcpy (bad + sizeof (dp_state_hdr_t) + off, val, len);
+  const int rc = dp_dll_set_state (x, bad);
+  dp_dll_get_state (x, now);
+  const int failed = rc != DP_ERR_INVALID || memcmp (now, before, cb) != 0;
+  if (failed)
+    fprintf (stderr, "  refused blob: %s\n", what);
+  free (before);
+  free (bad);
+  free (now);
+  return failed;
+}
+
+/* The field's type is spelled out, and held to the field's size, so the
+   forged bytes are exactly the field's. */
+#define DLL_FORGE(x, field, type, value, what)                                \
+  do                                                                          \
+    {                                                                         \
+      type v_ = (value);                                                      \
+      if (sizeof v_ != sizeof (((dp_dll_state_t *)0)->field))                 \
+        fails++;                                                              \
+      else                                                                    \
+        fails += forged_is_refused ((x), offsetof (dp_dll_state_t, field),    \
+                                    &v_, sizeof v_, (what));                  \
+    }                                                                         \
+  while (0)
+
 /* A refused blob changes nothing (doppler#2092).
  *
  * set_state() used to read the whole struct from the blob into the object
  * and check the symbol aid's geometry after. A refusal put back only the aid
  * rings, so the instance kept the blob's NULLs for its code and buffers --
  * the next push dereferenced NULL -- and leaked its own. The size check is no
- * guard: a 4-segment Dll with the aid at 13.5 partials and a 49-segment one
- * without it have the same state_bytes() (48*45 = 32*64 + 8*14). Each blob
- * below is refused by the SAME instance, which then gives the same blob it
- * gave before, tracks on and destroys cleanly (under ASan, the old order is
- * a NULL dereference and a leak). Also refused at an equal size: a code
- * length or samples-per-chip this instance's buffers were not built for, and
- * a best hypothesis past the aid's hypotheses (it indexes aid_power). Returns
- * the number of failed checks, for main's tally. */
+ * guard: it compares the header with THIS instance's size and never reads the
+ * blob's fields. A 4-segment Dll with the aid at 13.5 partials and a
+ * 49-segment one without it have the same state_bytes() (48*45 = 32*64 +
+ * 8*14), and any one field forged keeps the size. Each blob below is refused
+ * by the SAME instance, which then gives the same blob it gave before, keeps
+ * its telemetry, tracks on and destroys cleanly. Refused: the collision;
+ * another code length or samples per chip; a forged segment count (into 49
+ * segments it overran the chunk buffers, into 1 it left chunk_p NULL); a
+ * chunk index past the segments; a non-finite or out-of-code noise offset; a
+ * non-finite or negative noise guard; the aid switched on for an unaided
+ * instance, or its ring or hypotheses forged; and on an aided instance an
+ * infinite period, a window as long as its ring, a best hypothesis past its
+ * hypotheses, and a last look ending past the partials counted. Returns the
+ * number of failed checks, for main's tally. */
 static int
 refused_blob_changes_nothing (void)
 {
@@ -131,6 +177,7 @@ refused_blob_changes_nothing (void)
   float _Complex rx[40 * SF * SPS];
   size_t nrx = make_signal (rx, code, SF, SPS, 0.0, 40, 2092u, 0);
   float _Complex out[64];
+  dp_tlm_rec_t recs[512];
 
   dp_dll_state_t *b
       = dp_dll_create (code, SF, SPS, 0.0, 0.002, 0.707, 0.5, 49);
@@ -139,14 +186,17 @@ refused_blob_changes_nothing (void)
       = dp_dll_create (code, 63, SPS, 0.0, 0.002, 0.707, 0.5, 49);
   dp_dll_state_t *g = dp_dll_create (code, SF, 3, 0.0, 0.002, 0.707, 0.5, 49);
   dp_dll_state_t *c = dp_dll_create (code, SF, SPS, 0.0, 0.002, 0.707, 0.5, 4);
-  if (!a || !b || !c || !f || !g || dp_dll_set_symbol_period (a, 13.5) != DP_OK
+  dp_dll_state_t *h = dp_dll_create (code, SF, SPS, 0.0, 0.002, 0.707, 0.5, 1);
+  dp_tlm_t       *tlm = dp_tlm_create (4096);
+  if (!a || !b || !c || !f || !g || !h || !tlm
+      || dp_dll_set_symbol_period (a, 13.5) != DP_OK
       || dp_dll_set_symbol_period (c, 13.5) != DP_OK)
     return 1;
-  (void)dp_dll_steps (a, rx, nrx / 2, out, 64);
-  (void)dp_dll_steps (b, rx, nrx / 2, out, 64);
-  (void)dp_dll_steps (c, rx, nrx / 2, out, 64);
-  (void)dp_dll_steps (f, rx, nrx / 2, out, 64);
-  (void)dp_dll_steps (g, rx, nrx / 2, out, 64);
+  dp_dll_state_t *all[6] = { a, b, c, f, g, h };
+  for (size_t k = 0; k < 6u; k++)
+    (void)dp_dll_steps (all[k], rx, nrx / 2, out, 64);
+  if (dp_dll_set_telemetry (b, tlm, "b", 1) != DP_OK)
+    return 1;
 
   const size_t cb = dp_dll_state_bytes (b);
   if (dp_dll_state_bytes (a) != cb || dp_dll_state_bytes (f) != cb
@@ -156,6 +206,7 @@ refused_blob_changes_nothing (void)
   if (!before || !blob || !now)
     return 1;
 
+  /* Blobs of the same size from other configurations. */
   dp_dll_get_state (b, before);
   dp_dll_state_t *from[3] = { a, f, g };
   const char *what[3] = { "the 4-segment aided collision",
@@ -172,31 +223,34 @@ refused_blob_changes_nothing (void)
         }
     }
 
-  /* A forged best hypothesis, past the aid's hypotheses, into c. */
-  const size_t   cc      = dp_dll_state_bytes (c);
-  unsigned char *cbefore = malloc (cc), *cbad = malloc (cc),
-                *cnow = malloc (cc);
-  if (!cbefore || !cbad || !cnow)
-    return 1;
-  dp_dll_get_state (c, cbefore);
-  memcpy (cbad, cbefore, cc);
-  {
-    const size_t past = c->aid_nhyp;
-    memcpy (cbad + sizeof (dp_state_hdr_t)
-                + offsetof (dp_dll_state_t, aid_best),
-            &past, sizeof past);
-  }
-  const int crc = dp_dll_set_state (c, cbad);
-  dp_dll_get_state (c, cnow);
-  if (crc != DP_ERR_INVALID || memcmp (cnow, cbefore, cc) != 0)
+  /* One field forged in the instance's own blob. */
+  DLL_FORGE (b, segments, size_t, 50, "a forged segment count, into 49");
+  DLL_FORGE (h, segments, size_t, 2, "a forged segment count, into 1");
+  DLL_FORGE (b, seg_idx, size_t, 49, "a chunk index past the segments");
+  DLL_FORGE (b, off_chips, double, NAN, "a NaN noise offset");
+  DLL_FORGE (b, off_chips, double, SF, "a noise offset past the code");
+  DLL_FORGE (b, noise_guard, double, NAN, "a NaN noise guard");
+  DLL_FORGE (b, noise_guard, double, -1.0, "a negative noise guard");
+  DLL_FORGE (b, sym_period, double, 13.5,
+             "the aid switched on for an unaided instance");
+  DLL_FORGE (c, aid_ring, size_t, 2u * c->aid_ring, "a forged aid ring");
+  DLL_FORGE (c, aid_nhyp, size_t, c->aid_nhyp + 1u, "forged aid hypotheses");
+  DLL_FORGE (c, sym_period, double, INFINITY, "an infinite symbol period");
+  DLL_FORGE (c, aid_len, size_t, c->aid_ring, "a window as long as the ring");
+  DLL_FORGE (c, aid_best, size_t, c->aid_nhyp,
+             "a best hypothesis past the aid's");
+  DLL_FORGE (c, aid_last_end, uint64_t, c->aid_count + 1u,
+             "a last look past the partials counted");
+
+  /* And they track on -- b still telling its telemetry -- then go cleanly. */
+  (void)dp_tlm_read (tlm, 512, recs, 512);
+  for (size_t k = 0; k < 6u; k++)
+    (void)dp_dll_steps (all[k], rx + nrx / 2, nrx - nrx / 2, out, 64);
+  if (dp_tlm_read (tlm, 512, recs, 512) == 0)
     {
-      fprintf (stderr, "  refused blob: a best hypothesis past the aid's\n");
+      fprintf (stderr, "  refused blob: the refusing instance went silent\n");
       fails++;
     }
-
-  /* And both track on, then go cleanly. */
-  (void)dp_dll_steps (b, rx + nrx / 2, nrx - nrx / 2, out, 64);
-  (void)dp_dll_steps (c, rx + nrx / 2, nrx - nrx / 2, out, 64);
   if (fabs (dp_dll_get_code_rate (b) - 1.0) > 1e-2
       || fabs (dp_dll_get_code_rate (c) - 1.0) > 1e-2)
     {
@@ -206,14 +260,9 @@ refused_blob_changes_nothing (void)
   free (before);
   free (blob);
   free (now);
-  free (cbefore);
-  free (cbad);
-  free (cnow);
-  dp_dll_destroy (a);
-  dp_dll_destroy (b);
-  dp_dll_destroy (c);
-  dp_dll_destroy (f);
-  dp_dll_destroy (g);
+  for (size_t k = 0; k < 6u; k++)
+    dp_dll_destroy (all[k]);
+  dp_tlm_destroy (tlm);
   return fails;
 }
 

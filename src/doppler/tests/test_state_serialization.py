@@ -192,6 +192,23 @@ def _track_feed(o: Any, seg: NDArray[np.complex64]) -> NDArray[Any]:
     return np.frombuffer(o.get_state(), dtype=np.uint8)
 
 
+def _make_aided_dll() -> Any:
+    """A partial-correlation Dll with the symbol aid on: its chunk and
+    look-back buffers and the aid's rings ride the blob field-wise, which the
+    segments=1 entry never reaches."""
+    d = Dll(
+        code=_CODE,
+        sps=2,
+        init_chip=0.0,
+        bn=0.02,
+        zeta=0.707,
+        spacing=0.5,
+        segments=4,
+    )
+    d.set_symbol_period(13.5)
+    return d
+
+
 def _make_symbols_engine() -> Any:
     """A type=symbols synth with a fixed complex constellation attached. The
     stream is config (restored by set_symbols, not the blob), so make()
@@ -378,6 +395,10 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
             spacing=0.5,
             segments=1,
         ),
+        _track_feed,
+    ),
+    "Dll (4 segments, symbol aid)": (
+        lambda: _make_aided_dll(),
         _track_feed,
     ),
     "SymbolSync": (

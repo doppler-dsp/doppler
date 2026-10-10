@@ -1038,7 +1038,7 @@ uint64_t dp_async_dsss_receiver_state_t::samples_fed;
 
 
 
-Running total handed to [**dp\_acq\_push()**](acq__core_8h.md#function-dp_acq_push) so far  diffed against acq-&gt;samples\_consumed right after a hit, same technique DsssReceiver's own steps() uses. 
+Running total handed to [**dp\_acq\_push()**](acq__core_8h.md#function-dp_acq_push) so far  the hit's samples\_consumed less this call's start is where the call's tail, handed to tracking, begins, as in DsssReceiver. 
  
 
 

@@ -48,10 +48,12 @@ alongside** the OO API, never a replacement.
 ## State blobs (flat, versioned POD)
 
 - **`acq_fn` state** (`dp_acq_state_bytes` / `dp_acq_get_state` in
-    `native/src/acq/acq_core.c`): the unconsumed ring samples (the partial
-    frame; the region is sized for the whole ring and zero-filled past them) +
-    the running sample offset (the code-phase anchor, carried so a resumed pod
-    keeps a continuous phase reference) + `nc_surface[n_surf]` and `nc_count`
+    `native/src/acq/acq_core.c`, version 5): the carry, as the ring framer's
+    own snapshot, a child blob (the partial frame, at most `frame_n - 1`
+    samples, zero-filled past them, plus the framer's written and frame
+    counts) + the running sample offset (the code-phase anchor, carried so a
+    resumed pod keeps a continuous phase reference) + `nc_surface[n_surf]`
+    and `nc_count`
     when `n_noncoh > 1` + the peak list's twin rows/columns (`2·max_peaks`) + the
     block-coherent accumulator and the block's raw epochs. The header stamps
     `magic`/`version`/`n`/`n_noncoh`, and `set_state` also checks `max_peaks`,
@@ -130,7 +132,8 @@ main (void)
 
 1. **(done — PR #259)** physics sizing API; the foundation.
 1. **(done — PR #260)** `acq_fn` serializable state + `dp_acq_run` — flat-POD state
-    (unconsumed ring samples + nc surface + counters) on the existing
+    (then the unconsumed ring samples + nc surface + counters; since version
+    5 the carry is the framer's snapshot) on the existing
     `dp_acq_state_t`; `dp_acq_state_bytes`/`get_state`/`set_state` + `dp_acq_run`.
     **Bit-exact vs an uninterrupted run + state round-trip**, verified in
     `test_acq_core.c`. (`serializable = true` on `acq.toml` for the

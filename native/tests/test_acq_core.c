@@ -1567,11 +1567,13 @@ ci_acq_resume (dp_acq_state_t *a, const float _Complex *x, size_t len,
  *   whose max_peaks is 1 (cutting the list cuts what the next dwell's twin
  *   rule sees too, so the one-shot run's first picks are not the
  *   reference -- an engine that lists one is);
- * - with no room, a push takes the frames that end no dwell and stops
- *   before the first that does: none on the burst engine, two looks of
- *   three on the 2 x 3 one, every epoch but the last of a dwell's blocks
- *   and looks on a tiled one; and it takes a rest that completes no frame,
- *   but not one that would. */
+ * - a FULL push takes nothing more: at room 1 it stops at its hit, so
+ *   dp_acq_consumed() is where the hit's frame ended -- on the engines
+ *   with looks or blocks too, whose next frames decide nothing and were
+ *   taken anyway before #2042's round 1, so a receiver handed the rest
+ *   started tracking frames late;
+ * - with no room the push is full from the start: it takes nothing that
+ *   completes a frame, and a rest that completes no frame. */
 static int
 _acq_resume_check (void)
 {
@@ -1641,11 +1643,11 @@ _acq_resume_check (void)
         dp_acq_destroy (d);
       }
 
-      /* No room: the frames that end no dwell, then a stop on a boundary.
-         A dwell is D epochs per look (D > 1 only when tiled) times its
-         looks, read from the engine's grid; the counts the kinds were
-         built for are pinned too: none on the burst engine, two of the
-         2 x 3 one's three looks. */
+      /* Full stops the push at its hit. The kinds were built so that it
+         matters: a dwell is D epochs per look (D > 1 only when tiled)
+         times its looks, and the frames after a hit up to the next dwell's
+         end decide nothing -- two of the 2 x 3 engine's three looks, every
+         epoch but a dwell's last on a tiled one. */
       {
         dp_acq_state_t *d = ci_acq_create ((void *)&cfg);
         DP_REQUIRE (d != NULL);
@@ -1655,13 +1657,51 @@ _acq_resume_check (void)
         DP_CHECK (kind != 0 || looks == 0);
         DP_CHECK (kind != 1 || looks == 2);
         DP_CHECK (kind != 4 || looks >= 3);
-        DP_CHECK (dp_acq_push (d, x, (looks + 2) * frame_n, got, 0) == 0);
-        DP_CHECK (dp_acq_consumed (d) == looks * frame_n);
-        /* A rest that completes no frame is taken; one that would, not. */
-        const size_t at = looks * frame_n;
-        DP_CHECK (dp_acq_push (d, x + at, frame_n - 3, got, 0) == 0);
+        acq_result_t hit;
+        DP_CHECK (dp_acq_push (d, x, len, &hit, 1) == 1);
+        /* The rest completes frames, so none of it is the carry. */
+        DP_CHECK (len - hit.samples_consumed >= frame_n);
+        DP_CHECK (dp_acq_consumed (d) == hit.samples_consumed);
+        dp_acq_destroy (d);
+      }
+
+      /* dp_acq_run stops where a push does, and resumes the same way:
+         from dp_acq_consumed(), with the state it handed out as the next
+         call's state in. Room max_peaks keeps every list whole, so two
+         runs must equal one run with room for all. The reference is its
+         own: the truncation check above reuses `want`. */
+      {
+        dp_acq_state_t *d    = ci_acq_create ((void *)&cfg);
+        acq_result_t   *ref  = malloc (all * sizeof *ref);
+        void           *blob = d ? malloc (dp_acq_state_bytes (d)) : NULL;
+        DP_REQUIRE (d != NULL && ref != NULL && blob != NULL);
+        const size_t n_ref = dp_acq_run (d, NULL, NULL, x, len, ref, all);
+        DP_CHECK (dp_acq_consumed (d) == len);
+        const size_t n1
+            = dp_acq_run (d, NULL, blob, x, len, got, d->max_peaks);
+        const size_t took = dp_acq_consumed (d);
+        DP_CHECK (took < len); /* the premise: the first run stopped */
+        const size_t n2 = dp_acq_run (d, blob, blob, x + took, len - took,
+                                      got + n1, all + 16 - n1);
+        DP_CHECK (dp_acq_consumed (d) == len - took);
+        DP_CHECK (n_ref > 0 && n1 + n2 == n_ref
+                  && memcmp (got, ref, n_ref * sizeof *ref) == 0);
+        free (ref);
+        free (blob);
+        dp_acq_destroy (d);
+      }
+
+      /* No room: full from the start. Nothing that completes a frame is
+         taken -- not even the frames that end no dwell -- and a rest that
+         completes no frame is the carry; one that would, not. */
+      {
+        dp_acq_state_t *d = ci_acq_create ((void *)&cfg);
+        DP_REQUIRE (d != NULL);
+        DP_CHECK (dp_acq_push (d, x, 2 * frame_n, got, 0) == 0);
+        DP_CHECK (dp_acq_consumed (d) == 0);
+        DP_CHECK (dp_acq_push (d, x, frame_n - 3, got, 0) == 0);
         DP_CHECK (dp_acq_consumed (d) == frame_n - 3);
-        DP_CHECK (dp_acq_push (d, x + at + frame_n - 3, 3, got, 0) == 0);
+        DP_CHECK (dp_acq_push (d, x + frame_n - 3, 3, got, 0) == 0);
         DP_CHECK (dp_acq_consumed (d) == 0);
         dp_acq_destroy (d);
       }

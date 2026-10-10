@@ -400,19 +400,17 @@ dp_dsss_receiver_steps (dp_dsss_receiver_state_t *state,
       if (n_hits == 0)
         return 0;
 
-      /* Everything dp_acq_push has framed so far
-       * (state->acq->samples_consumed) minus everything DsssReceiver has ever
-       * fed it (before + x_len) is still ring-resident, unprocessed -- and,
-       * since every PRIOR call always drained the ring below one frame before
-       * returning (it never short-circuits on max_results until this hit),
-       * that remainder is guaranteed to be a suffix of THIS call's own x,
-       * never a previous call's (already-freed) buffer. */
-      uint64_t total_after = before + (uint64_t)x_len;
-      uint64_t consumed    = state->acq->samples_consumed;
-      uint64_t tail64
-          = (total_after > consumed) ? (total_after - consumed) : 0;
-      size_t tail_len = (tail64 > (uint64_t)x_len) ? x_len : (size_t)tail64;
-      const float _Complex *tail = x + (x_len - tail_len);
+      /* Tracking resumes where the HIT's frame ended -- hit.samples_consumed,
+       * the engine's framed offset at that dump -- never at the engine's
+       * live counter: with n_noncoh > 1 (or a wideband block, D > 1) the
+       * push keeps framing the non-deciding frames after the hit, and
+       * resuming from where it stopped would skip them. The hit's frame
+       * ended inside THIS call (it was completed by this call's samples,
+       * the carry before it being shorter than a frame), so the tail is a
+       * suffix of x, never a previous call's buffer. */
+      const size_t          at       = (size_t)(hit.samples_consumed - before);
+      const float _Complex *tail     = x + at;
+      const size_t          tail_len = x_len - at;
 
       /* This receiver's embedded engine is always built via
        * dp_acq_create_continuous() -- coherent_bins is pinned at 1,

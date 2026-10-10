@@ -692,7 +692,7 @@ size_t dp_dsss_receiver_steps (
 
 
 
-While searching, samples feed the embedded Acquisition and nothing is emitted (0 return is normal, not an error). The moment a hit fires, `Dll`/`RateConverter`/`MpskReceiver` are built and seeded from it, and the unconsumed tail of THIS call — computed exactly from `acq->samples_consumed`, no samples dropped or double-fed — is handed straight to them in the same call. While tracking, samples feed `Dll -> RateConverter -> MpskReceiver` in sequence. Accepts any block size; state carries across calls (`Acquisition`/`Dll`/ `RateConverter`/`MpskReceiver` are all already block-size invariant, so this object needs no ring-buffering of its own).
+While searching, samples feed the embedded Acquisition and nothing is emitted (0 return is normal, not an error). The moment a hit fires, `Dll`/`RateConverter`/`MpskReceiver` are built and seeded from it, and the rest of THIS call from where the hit's frame ended — the hit's own `samples_consumed`, so no samples are dropped or double-fed — is handed straight to them in the same call. While tracking, samples feed `Dll -> RateConverter -> MpskReceiver` in sequence. Accepts any block size; state carries across calls (`Acquisition`/`Dll`/ `RateConverter`/`MpskReceiver` are all already block-size invariant, so this object needs no ring-buffering of its own).
 
 
 

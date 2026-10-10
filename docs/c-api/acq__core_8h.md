@@ -100,7 +100,7 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 |  void | [**dp\_acq\_set\_surface\_sink**](#function-dp_acq_set_surface_sink) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, [**acq\_surface\_sink\_fn**](acq__core_8h.md#typedef-acq_surface_sink_fn) fn, void \* ctx, uint32\_t decim) <br>_Attach (or detach) a C surface sink: every_ `decim-th` _decided dwell's surface, in test-statistic units, handed to_`fn` _on the pushing thread (design §2.4)._ |
 |  int | [**dp\_acq\_set\_telemetry**](#function-dp_acq_set_telemetry) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the engine's probes on it (design §2.4)._  |
 |  int | [**dp\_acq\_set\_threads**](#function-dp_acq_set_threads) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, int n) <br>_Set how many threads the searcher fans its tiles across (design §2.3: a roll per thread on persistent workers)._  |
-|  size\_t | [**dp\_acq\_state\_bytes**](#function-dp_acq_state_bytes) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state) <br>_Byte size of_ `state's` _blob (header + unconsumed + nc)._ |
+|  size\_t | [**dp\_acq\_state\_bytes**](#function-dp_acq_state_bytes) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state) <br>_Byte size of_ `state's` _blob: the envelope and the engine's position, the framer's snapshot of the carry, the non-coherent sum (n\_noncoh &gt; 1), the last dwell's twins, and a tiled block's epochs._ |
 |  size\_t | [**dp\_acq\_surface**](#function-dp_acq_surface) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, float \* out, size\_t n\_out) <br>_The last decided dwell's surface, in the gate's own units._  |
 |  size\_t | [**dp\_acq\_surface\_chip\_phase**](#function-dp_acq_surface_chip_phase) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, double \* out, size\_t n\_out) <br>_The surface's code-phase axis: the chip phase of each column._  |
 |  size\_t | [**dp\_acq\_surface\_complex**](#function-dp_acq_surface_complex) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, float \_Complex \* out, size\_t n\_out) <br>_The last decided dwell's surface, complex: amplitude and carrier phase per cell, before the magnitude the gate reads._  |
@@ -566,7 +566,7 @@ size_t dp_acq_consumed (
 
 
 
-Per call: equal to its `n_in` unless `result` filled up, and then the caller resumes at x + consumed. Not [**acq\_result\_t::samples\_consumed**](structacq__result__t.md#variable-samples_consumed), which is CUMULATIVE and counts only framed samples  the stream position a hit's epoch ended at  so resuming from it would re-feed the carry and double-feed the stream. 0 after create, reset, a regrid and set\_state.
+Per call: equal to its `n_in` unless the push stopped  `result` full, or too few slots left for the next frame that ends a dwell  and then the caller resumes at x + consumed. Not [**acq\_result\_t::samples\_consumed**](structacq__result__t.md#variable-samples_consumed), which is CUMULATIVE and counts only framed samples  the stream position a hit's epoch ended at  so resuming from it would re-feed the carry and double-feed the stream. 0 after create, reset, a regrid and set\_state.
 
 
 
@@ -858,7 +858,7 @@ size_t dp_acq_push (
 Buffers `x`, then for every complete frame applies the slow-time Doppler FFT, correlates against the PN reference, dumps the coherent surface (or, when n\_noncoh &gt; 1, accumulates \|·\|² over n\_noncoh looks first), gates the peak on the auto-configured threshold, and appends an [**acq\_result\_t**](structacq__result__t.md). Each event carries the peak's Doppler bin and code phase (the two search axes), its CFAR statistic, and an estimated C/N0 — see [**acq\_result\_t**](structacq__result__t.md).
 
 
-Python's push() has room for 1024 events a call, so a push that ends at most 1024 / max\_peaks dwells, counting the carry, loses nothing. Once fewer than max\_peaks slots are left, the call stops before the next frame that would end a dwell, and the rest of its input is lost, unless the rest is shorter than a frame: that is kept as the carry. The next push stays on the frame grid only when what was lost is a whole number of frames. Before v0.66 the room was 64, and a push past it kept up to ring\_cap/frame\_n - 1 frames for the next call, dropped the rest, and could cut a dwell's list short. #1992 and just-buildit/just-makeit#2184 track sizing the list to the call.
+Python's push() has room for 1024 events a call, so a push that ends at most 1024 / max\_peaks dwells, counting the carry, loses nothing. Once fewer than max\_peaks slots are left, the call stops before the next frame that would end a dwell  and once all 1024 are used, before the next frame of any kind  and the rest of its input is lost, unless the rest completes no frame, counting the carry already held: that is kept as the carry. The next push stays on the frame grid only when what was lost is a whole number of frames. Before v0.66 the room was 64, and a push past it kept up to ring\_cap/frame\_n - 1 frames for the next call, dropped the rest, and could cut a dwell's list short. #1992 and just-buildit/just-makeit#2184 track sizing the list to the call.
 
 
 
@@ -870,7 +870,7 @@ Python's push() has room for 1024 events a call, so a push that ends at most 102
 * `x` Raw input, interleaved CF32, `n_in` complex samples. 
 * `n_in` Number of complex input samples. 
 * `result` Output array for detection events. 
-* `max_results` Capacity of `result`. A full `result` never loses input. A frame that ends a dwell may report up to max\_peaks events, so it is taken only while at least min(max\_peaks, max\_results) slots are left (at least one); a frame that ends none needs no room. At the first frame it cannot take, the push takes the rest of its input only if the rest completes no frame (it is then the carry), and otherwise stops on that frame's boundary. [**dp\_acq\_consumed()**](acq__core_8h.md#function-dp_acq_consumed) says how many samples it took, and the caller offers the rest again. A `max_results` under max\_peaks cannot hold a whole dwell: a push with `result` empty still takes the dwell and keeps its strongest max\_results picks. That loses RESULTS  the dwell's weaker picks  never input; size `max_results` &gt;= max\_peaks to lose none. At 0 a push takes only the frames that end no dwell, and a rest that completes no frame; a resume loop needs room for at least one. 
+* `max_results` Capacity of `result`. A full `result` never loses input. A frame that ends a dwell may report up to max\_peaks events, so it is taken only while at least min(max\_peaks, max\_results) slots are left (at least one); a frame that ends none needs no room while any slot is left. A FULL `result` takes nothing more, so at room 1 a push stops at its hit. At the first frame it does not take, the push takes the rest of its input only if the rest completes no frame, counting the carry (it is then the carry), and otherwise stops on that frame's boundary. [**dp\_acq\_consumed()**](acq__core_8h.md#function-dp_acq_consumed) says how many samples it took, and the caller offers the rest again. A `max_results` under max\_peaks cannot hold a whole dwell: a push with `result` empty still takes the dwell and keeps its strongest max\_results picks. That loses RESULTS  the dwell's weaker picks  never input; size `max_results` &gt;= max\_peaks to lose none. At 0 `result` is full from the start: a push takes only a rest that completes no frame, so a resume loop needs room for at least one. 
 
 
 
@@ -970,7 +970,7 @@ size_t dp_acq_run (
 
 
 
-
+The run is one [**dp\_acq\_push()**](acq__core_8h.md#function-dp_acq_push), so it stops where a push stops: once `result` is full, or before a frame that ends a dwell when fewer than min(max\_peaks, `max_results`) slots are left. It may then leave part of `in` untaken. dp\_acq\_consumed(`state`) says how much it took; the caller calls again with `state_out` as the next `state_in` and the rest, in + consumed, and the two runs together equal one over the whole input. 
 
 **Returns:**
 
@@ -1114,7 +1114,7 @@ int dp_acq_set_state (
 
 **Returns:**
 
-0 on success, -1 if the blob's magic/version/n/n\_noncoh disagree with `state` (rebuild the engine from the matching descriptor first). 
+DP\_OK, or DP\_ERR\_INVALID if the blob's envelope or its n/n\_noncoh/max\_peaks disagree with `state` (rebuild the engine from the matching descriptor first), or its carry is not one a run could have left. A refused blob changes nothing. 
 
 
 
@@ -1279,7 +1279,7 @@ True
 
 ### function dp\_acq\_state\_bytes 
 
-_Byte size of_ `state's` _blob (header + unconsumed + nc)._
+_Byte size of_ `state's` _blob: the envelope and the engine's position, the framer's snapshot of the carry, the non-coherent sum (n\_noncoh &gt; 1), the last dwell's twins, and a tiled block's epochs._
 ```C++
 size_t dp_acq_state_bytes (
     const dp_acq_state_t * state

@@ -28,6 +28,7 @@
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include <math.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -100,6 +101,120 @@ make_signal (float _Complex *rx, const uint8_t *code, size_t sf, size_t sps,
         }
     }
   return k;
+}
+
+/* A refused blob changes nothing (doppler#2092).
+ *
+ * set_state() used to read the whole struct from the blob into the object
+ * and check the symbol aid's geometry after. A refusal put back only the aid
+ * rings, so the instance kept the blob's NULLs for its code and buffers --
+ * the next push dereferenced NULL -- and leaked its own. The size check is no
+ * guard: a 4-segment Dll with the aid at 13.5 partials and a 49-segment one
+ * without it have the same state_bytes() (48*45 = 32*64 + 8*14). Each blob
+ * below is refused by the SAME instance, which then gives the same blob it
+ * gave before, tracks on and destroys cleanly (under ASan, the old order is
+ * a NULL dereference and a leak). Also refused at an equal size: a code
+ * length or samples-per-chip this instance's buffers were not built for, and
+ * a best hypothesis past the aid's hypotheses (it indexes aid_power). Returns
+ * the number of failed checks, for main's tally. */
+static int
+refused_blob_changes_nothing (void)
+{
+  int fails = 0;
+  enum
+  {
+    SF  = 127,
+    SPS = 2
+  };
+  uint8_t code[SF];
+  make_code (code, SF, 2092u);
+  float _Complex rx[40 * SF * SPS];
+  size_t nrx = make_signal (rx, code, SF, SPS, 0.0, 40, 2092u, 0);
+  float _Complex out[64];
+
+  dp_dll_state_t *b
+      = dp_dll_create (code, SF, SPS, 0.0, 0.002, 0.707, 0.5, 49);
+  dp_dll_state_t *a = dp_dll_create (code, SF, SPS, 0.0, 0.002, 0.707, 0.5, 4);
+  dp_dll_state_t *f
+      = dp_dll_create (code, 63, SPS, 0.0, 0.002, 0.707, 0.5, 49);
+  dp_dll_state_t *g = dp_dll_create (code, SF, 3, 0.0, 0.002, 0.707, 0.5, 49);
+  dp_dll_state_t *c = dp_dll_create (code, SF, SPS, 0.0, 0.002, 0.707, 0.5, 4);
+  if (!a || !b || !c || !f || !g || dp_dll_set_symbol_period (a, 13.5) != DP_OK
+      || dp_dll_set_symbol_period (c, 13.5) != DP_OK)
+    return 1;
+  (void)dp_dll_steps (a, rx, nrx / 2, out, 64);
+  (void)dp_dll_steps (b, rx, nrx / 2, out, 64);
+  (void)dp_dll_steps (c, rx, nrx / 2, out, 64);
+  (void)dp_dll_steps (f, rx, nrx / 2, out, 64);
+  (void)dp_dll_steps (g, rx, nrx / 2, out, 64);
+
+  const size_t cb = dp_dll_state_bytes (b);
+  if (dp_dll_state_bytes (a) != cb || dp_dll_state_bytes (f) != cb
+      || dp_dll_state_bytes (g) != cb) /* the premise: equal sizes */
+    return 1;
+  unsigned char *before = malloc (cb), *blob = malloc (cb), *now = malloc (cb);
+  if (!before || !blob || !now)
+    return 1;
+
+  dp_dll_get_state (b, before);
+  dp_dll_state_t *from[3] = { a, f, g };
+  const char *what[3] = { "the 4-segment aided collision",
+                          "another code length", "another samples per chip" };
+  for (size_t k = 0; k < 3u; k++)
+    {
+      dp_dll_get_state (from[k], blob);
+      const int rc = dp_dll_set_state (b, blob);
+      dp_dll_get_state (b, now);
+      if (rc != DP_ERR_INVALID || memcmp (now, before, cb) != 0)
+        {
+          fprintf (stderr, "  refused blob: %s\n", what[k]);
+          fails++;
+        }
+    }
+
+  /* A forged best hypothesis, past the aid's hypotheses, into c. */
+  const size_t   cc      = dp_dll_state_bytes (c);
+  unsigned char *cbefore = malloc (cc), *cbad = malloc (cc),
+                *cnow = malloc (cc);
+  if (!cbefore || !cbad || !cnow)
+    return 1;
+  dp_dll_get_state (c, cbefore);
+  memcpy (cbad, cbefore, cc);
+  {
+    const size_t past = c->aid_nhyp;
+    memcpy (cbad + sizeof (dp_state_hdr_t)
+                + offsetof (dp_dll_state_t, aid_best),
+            &past, sizeof past);
+  }
+  const int crc = dp_dll_set_state (c, cbad);
+  dp_dll_get_state (c, cnow);
+  if (crc != DP_ERR_INVALID || memcmp (cnow, cbefore, cc) != 0)
+    {
+      fprintf (stderr, "  refused blob: a best hypothesis past the aid's\n");
+      fails++;
+    }
+
+  /* And both track on, then go cleanly. */
+  (void)dp_dll_steps (b, rx + nrx / 2, nrx - nrx / 2, out, 64);
+  (void)dp_dll_steps (c, rx + nrx / 2, nrx - nrx / 2, out, 64);
+  if (fabs (dp_dll_get_code_rate (b) - 1.0) > 1e-2
+      || fabs (dp_dll_get_code_rate (c) - 1.0) > 1e-2)
+    {
+      fprintf (stderr, "  refused blob: a refusal moved the loop\n");
+      fails++;
+    }
+  free (before);
+  free (blob);
+  free (now);
+  free (cbefore);
+  free (cbad);
+  free (cnow);
+  dp_dll_destroy (a);
+  dp_dll_destroy (b);
+  dp_dll_destroy (c);
+  dp_dll_destroy (f);
+  dp_dll_destroy (g);
+  return fails;
 }
 
 int
@@ -1214,6 +1329,9 @@ main (void)
     free (rx);
     free (code);
   }
+
+  /* A refused blob changes nothing (doppler#2092). */
+  DP_CHECK (refused_blob_changes_nothing () == 0);
 
   DP_TEST_END ("test_dll_core");
 }

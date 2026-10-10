@@ -594,53 +594,51 @@ int
 dp_dll_set_state (dp_dll_state_t *s, const void *blob)
 {
   DP_SET_OPEN (DLL_STATE_MAGIC, DLL_STATE_VERSION, dp_dll_state_bytes (s));
-  const uint8_t *code
-      = s->code; /* this instance's code + ownership (config) */
-  int       owns = s->owns_code;
-  dll_tlm_t tlm  = s->tlm; /* live attachment survives a state hand-off */
-  /* This instance's own buffers (sized by ITS segments, fixed at create) —
-   * never trust a size from the blob for allocation. `sums` is preserved
-   * the same way though never packed/restored from the blob body (pure
-   * epoch-local scratch, rebuilt from chunk_p at the next epoch boundary
-   * regardless of whatever was in it before this call). */
-  float _Complex *chunk_p = s->chunk_p, *chunk_e = s->chunk_e,
-                 *chunk_l = s->chunk_l, *sums = s->sums;
-  float _Complex *last_backward_p = s->last_backward_p, *last_e = s->last_e,
-                 *last_l = s->last_l;
-  /* The aid rings are this instance's too, sized by ITS period: a blob from
-     a differently-configured instance is rejected, not resized from. */
-  float _Complex *aid_ring_p = s->aid_ring_p, *aid_ring_o = s->aid_ring_o;
-  float _Complex *aid_ring_e = s->aid_ring_e, *aid_ring_l = s->aid_ring_l;
-  double         *aid_power = s->aid_power;
-  const double    my_period = s->sym_period;
-  const size_t    my_ring = s->aid_ring, my_nhyp = s->aid_nhyp;
-  dp_r_bytes (&_r, s, sizeof *s);
-  if ((s->sym_period > 0.0) != (my_period > 0.0)
-      || (s->sym_period > 0.0
-          && (s->aid_ring != my_ring || s->aid_nhyp != my_nhyp)))
-    {
-      s->aid_ring_p = aid_ring_p;
-      s->aid_ring_o = aid_ring_o;
-      s->aid_ring_e = aid_ring_e;
-      s->aid_ring_l = aid_ring_l;
-      s->aid_power  = aid_power;
-      return DP_ERR_INVALID;
-    }
-  s->aid_ring_p      = aid_ring_p;
-  s->aid_ring_o      = aid_ring_o;
-  s->aid_ring_e      = aid_ring_e;
-  s->aid_ring_l      = aid_ring_l;
-  s->aid_power       = aid_power;
-  s->code            = code;
-  s->owns_code       = owns;
-  s->tlm             = tlm;
-  s->chunk_p         = chunk_p;
-  s->chunk_e         = chunk_e;
-  s->chunk_l         = chunk_l;
-  s->sums            = sums;
-  s->last_backward_p = last_backward_p;
-  s->last_e          = last_e;
-  s->last_l          = last_l;
+  /* DECODE into a temporary, CHECK it whole, then COMMIT: nothing of `s`,
+     pointer or value, is written before the last check that can refuse
+     (doppler#2092). It used to read the struct straight into `s` and check
+     after, so a refused blob left the instance holding the blob's NULLs in
+     place of its code and buffers -- the next push dereferenced them and
+     its own buffers leaked. */
+  dp_dll_state_t t;
+  dp_r_bytes (&_r, &t, sizeof t);
+
+  /* Config that sizes or indexes THIS instance's buffers is a reject key:
+     the code length (it indexes `code`), samples per chip, and the symbol
+     aid's geometry -- its rings and hypotheses are sized by this instance's
+     period, and the best hypothesis indexes `aid_power`. `segments` needs no
+     check of its own: state_bytes() counts its buffers, so once the aid
+     geometry agrees, the size check DP_SET_OPEN made fixes it. */
+  if (t.sf != s->sf || t.sps != s->sps)
+    return DP_ERR_INVALID;
+  if ((t.sym_period > 0.0) != (s->sym_period > 0.0)
+      || (t.sym_period > 0.0
+          && (t.aid_ring != s->aid_ring || t.aid_nhyp != s->aid_nhyp)))
+    return DP_ERR_INVALID;
+  if (t.sym_period > 0.0 && t.aid_best >= t.aid_nhyp)
+    return DP_ERR_INVALID;
+
+  /* COMMIT. The blob carries NULLs where this instance's code, buffers and
+     telemetry attachment are; those stay this instance's (sized by ITS
+     create(), never by a blob). `sums` is preserved the same way, though
+     never packed: it is epoch-local scratch, rebuilt from chunk_p at the
+     next epoch boundary. */
+  t.code            = s->code;
+  t.owns_code       = s->owns_code;
+  t.tlm             = s->tlm;
+  t.chunk_p         = s->chunk_p;
+  t.chunk_e         = s->chunk_e;
+  t.chunk_l         = s->chunk_l;
+  t.sums            = s->sums;
+  t.last_backward_p = s->last_backward_p;
+  t.last_e          = s->last_e;
+  t.last_l          = s->last_l;
+  t.aid_ring_p      = s->aid_ring_p;
+  t.aid_ring_o      = s->aid_ring_o;
+  t.aid_ring_e      = s->aid_ring_e;
+  t.aid_ring_l      = s->aid_ring_l;
+  t.aid_power       = s->aid_power;
+  *s                = t;
   if (s->segments > 1)
     {
       size_t n = s->segments;

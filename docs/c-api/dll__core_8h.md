@@ -1400,7 +1400,7 @@ The code loop steers once per symbol, on the early/prompt/late sums over the win
 
 **Returns:**
 
-DP\_OK; DP\_ERR\_INVALID when `segments <= 1`, or the period is not finite, is in (0, 2) or is past 2^20 partials  the rings are sized by the period, and past that they are refused, not allocated (doppler#2103). Any finite period &lt;= 0 turns the aid off; `-inf` used to as well, and is refused now, as every non-finite period is. 
+DP\_OK; DP\_ERR\_INVALID when `segments <= 1`, or the period is not finite, is in (0, 2) or is past 2^20 partials, or when the loop's bandwidth is outside the domain at the period's interval or at t = 1 (the gains would overflow)  the rings are sized by the period, and past that they are refused, not allocated (doppler#2103). Any finite period &lt;= 0 turns the aid off; `-inf` used to as well, and is refused now, as every non-finite period is. 
 ```C++
 >>> import numpy as np
 >>> from doppler.track import Dll
@@ -1587,6 +1587,9 @@ int dp_dll_symbol_period_ok (
 
 
 `segments > 1`, and a finite period from 2 up to 2^20 partials: the rings and hypotheses are allocated per period, and past 2^20 they are refused rather than sized. A composer that derives a period from its configuration checks it here at create, so the period it sets mid-stream is never refused (doppler#2103).
+
+
+This predicate covers the period alone. [**dp\_dll\_set\_symbol\_period()**](dll__core_8h.md#function-dp_dll_set_symbol_period) also refuses a bandwidth whose loop gains overflow at the period's interval (the bandwidth domain, checked at that interval and at t = 1), so a composer that must never see a mid-stream refusal checks the gains with [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok) at `partials_per_symbol / segments` as well.
 
 
 

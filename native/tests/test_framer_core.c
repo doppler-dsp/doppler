@@ -969,6 +969,164 @@ main (void)
     dp_i16_destroy (r);
   }
 
+  /* ---- 11. whole frames, the carry, a snapshot's frames (#2042) ------- */
+  {
+    /* feed_frames: what completes at most k frames and nothing of the
+       next. From every drained fill, at every size and k: k 0 takes
+       nothing; a take short of n, and not empty, stops ON a frame
+       boundary having completed exactly k frames; a take of all of n yields
+       what feed() would. feed() itself takes more whenever it can, so the cap
+       is what is pinned, not the frame count alone. */
+    static const shape_t shp[] = { { 8, 3 }, { 8, 8 }, { 5, 1 }, { 1, 1 } };
+    int                  zero = 1, boundary = 1, same = 1, past = 0;
+    for (size_t s = 0; s < sizeof shp / sizeof *shp; s++)
+      for (size_t pre = 0; pre < 2 * shp[s].N; pre++)
+        for (size_t n = 0; n < 4 * shp[s].N + 3; n++)
+          for (size_t k = 0; k < 5; k++)
+            {
+              const size_t    N = shp[s].N, H = shp[s].H;
+              dp_f32_t       *r = dp_f32_create (16 * N + 64);
+              dp_f32_t       *q = dp_f32_create (16 * N + 64);
+              dp_f32_framer_t fr, twin;
+              DP_REQUIRE (r && q);
+              DP_REQUIRE (dp_f32_framer_init (&fr, r, N, H) == DP_OK);
+              DP_REQUIRE (dp_f32_framer_init (&twin, q, N, H) == DP_OK);
+              dp_f32_framer_feed_view (&fr, x, pre, 1000);
+              dp_f32_framer_feed_view (&twin, x, pre, 1000);
+              while (dp_f32_framer_next_view (&fr))
+                ;
+              while (dp_f32_framer_next_view (&twin))
+                ;
+              const size_t took
+                  = dp_f32_framer_feed_frames_view (&fr, x + pre, n, k);
+              const size_t plain
+                  = dp_f32_framer_feed_view (&twin, x + pre, n, k);
+              size_t got = 0, got_plain = 0;
+              while (dp_f32_framer_next_view (&fr))
+                got++;
+              while (dp_f32_framer_next_view (&twin))
+                got_plain++;
+              if (k == 0 && took != 0)
+                zero = 0;
+              /* Short of n, and taking something: it ends on a frame
+                 boundary, k frames done. (k 0 takes nothing, above.) */
+              if (took < n && took > 0
+                  && (got != k || dp_f32_framer_pending (&fr) != 0))
+                boundary = 0;
+              if (took == n && got != got_plain)
+                same = 0;
+              if (plain > took)
+                past = 1; /* the premise: feed() alone takes more */
+              dp_f32_destroy (r);
+              dp_f32_destroy (q);
+            }
+    DP_CHECK (zero);
+    DP_CHECK (boundary);
+    DP_CHECK (same);
+    DP_CHECK (past);
+
+    /* An undrained framer already holding k frames takes nothing more, and
+       a k whose sample count would overflow is uncapped: feed(). */
+    dp_f32_t       *r = dp_f32_create (64), *q = dp_f32_create (64);
+    dp_f32_framer_t fr, twin;
+    DP_REQUIRE (r && q);
+    DP_REQUIRE (dp_f32_framer_init (&fr, r, 8, 3) == DP_OK);
+    DP_REQUIRE (dp_f32_framer_init (&twin, q, 8, 3) == DP_OK);
+    DP_CHECK (dp_f32_framer_feed_view (&fr, x, 11, 1000) == 11); /* 2 */
+    DP_CHECK (dp_f32_framer_feed_frames_view (&fr, x + 11, 9, 2) == 0);
+    dp_f32_framer_reset (&fr);
+    DP_CHECK (dp_f32_framer_feed_frames_view (&fr, x, 20, SIZE_MAX)
+              == dp_f32_framer_feed_view (&twin, x, 20, SIZE_MAX));
+    dp_f32_framer_reset (&fr);
+    dp_f32_framer_reset (&twin);
+    const size_t big = (SIZE_MAX - 8) / 3 + 2; /* (big-1)*3 + 8 overflows */
+    DP_CHECK (dp_f32_framer_feed_frames_view (&fr, x, 20, big)
+              == dp_f32_framer_feed_view (&twin, x, 20, big));
+    dp_f32_destroy (r);
+    dp_f32_destroy (q);
+  }
+  {
+    /* feed_carry: all of n if it completes no frame, counting the carry
+       held, else none -- and a refusal leaves the framer as it was. */
+    static const shape_t shp[] = { { 8, 3 }, { 8, 8 }, { 5, 1 }, { 1, 1 } };
+    int                  exact = 1, untouched = 1;
+    for (size_t s = 0; s < sizeof shp / sizeof *shp; s++)
+      for (size_t pre = 0; pre < 2 * shp[s].N; pre++)
+        for (size_t n = 0; n < 2 * shp[s].N + 3; n++)
+          {
+            dp_f32_t       *r = dp_f32_create (16 * shp[s].N + 64);
+            dp_f32_framer_t fr;
+            DP_REQUIRE (r != NULL);
+            DP_REQUIRE (dp_f32_framer_init (&fr, r, shp[s].N, shp[s].H)
+                        == DP_OK);
+            dp_f32_framer_feed_view (&fr, x, pre, 1000);
+            while (dp_f32_framer_next_view (&fr))
+              ;
+            const size_t   frames  = dp_f32_framer_frames_for (&fr, n);
+            const uint64_t written = fr.written;
+            const size_t   took    = dp_f32_framer_feed_carry_view (&fr, x, n);
+            if (took != (frames == 0 ? n : 0))
+              exact = 0;
+            if (took == 0 && fr.written != written)
+              untouched = 0;
+            if (dp_f32_framer_next_view (&fr) != NULL)
+              exact = 0; /* carry never completes a frame */
+            dp_f32_destroy (r);
+          }
+    DP_CHECK (exact);
+    DP_CHECK (untouched);
+  }
+  {
+    /* state_frames reads a blob through set_state's own check: for every
+       single-byte corruption of a real snapshot (and the snapshot itself),
+       it accepts exactly when set_state does, reports the frames set_state
+       restores, and on a refusal leaves `frames` alone. */
+    dp_f32_t       *ra = dp_f32_create (64), *rb = dp_f32_create (64);
+    dp_f32_framer_t a, b;
+    DP_REQUIRE (ra && rb);
+    DP_REQUIRE (dp_f32_framer_init (&a, ra, 8, 3) == DP_OK);
+    DP_REQUIRE (dp_f32_framer_init (&b, rb, 8, 3) == DP_OK);
+    dp_f32_framer_feed_view (&a, x, 20, 1000);
+    while (dp_f32_framer_next_view (&a))
+      ;
+    DP_REQUIRE (a.frames == 5); /* (20 - 8) / 3 + 1 */
+    const size_t   bytes = dp_f32_framer_state_bytes (&a);
+    unsigned char *blob = malloc (bytes), *bad = malloc (bytes);
+    DP_REQUIRE (blob && bad);
+    dp_f32_framer_get_state (&a, blob);
+    int agree = 1, reports = 1, kept = 1, refused = 0;
+    for (size_t i = 0; i <= 2 * bytes; i++)
+      {
+        memcpy (bad, blob, bytes);
+        if (i < 2 * bytes) /* the last pass is the snapshot itself */
+          bad[i / 2] ^= (unsigned char)(i % 2 ? 0x80 : 0x01);
+        uint64_t f = 0xD0D0D0D0u;
+        dp_f32_framer_reset (&b);
+        const int seen = dp_f32_framer_state_frames (&b, bad, &f);
+        const int took = dp_f32_framer_set_state (&b, bad);
+        if ((seen == DP_OK) != (took == DP_OK))
+          agree = 0;
+        if (seen == DP_OK && f != b.frames)
+          reports = 0;
+        if (seen != DP_OK)
+          {
+            refused++;
+            if (f != 0xD0D0D0D0u)
+              kept = 0;
+          }
+      }
+    DP_CHECK (agree);
+    DP_CHECK (reports);
+    DP_CHECK (kept);
+    DP_CHECK (refused > 0); /* the premise: corruptions are refused */
+    uint64_t f = 0;
+    DP_CHECK (dp_f32_framer_state_frames (&b, blob, &f) == DP_OK && f == 5);
+    free (blob);
+    free (bad);
+    dp_f32_destroy (ra);
+    dp_f32_destroy (rb);
+  }
+
   free (x);
   DP_TEST_END ("test_framer_core");
 }

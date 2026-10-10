@@ -106,6 +106,13 @@ dp_w_f32 (dp_writer_t *w, const float *p, size_t n)
 {
   dp_w_bytes (w, p, n * sizeof (float));
 }
+static inline void
+dp_w_zeros (dp_writer_t *w, size_t n)
+{
+  void *p = dp_w_reserve (w, n);
+  if (p)
+    memset (p, 0, n);
+}
 
 static inline void
 dp_w_hdr (dp_writer_t *w, uint32_t magic, uint16_t version, size_t total)

@@ -135,6 +135,18 @@ dp_w_f32 (dp_writer_t *w, const float *p, size_t n)
 {
   dp_w_bytes (w, p, n * sizeof (float));
 }
+/** Write @p n zero bytes: the part of a fixed-size region no live value
+ *  fills. A byte get_state leaves alone is a byte of the caller's heap
+ *  shipped in the blob (doppler#1471), and one copied from a buffer's unused
+ *  tail is whatever that buffer held before -- either way the blob stops
+ *  being a function of the object (#2076). */
+static inline void
+dp_w_zeros (dp_writer_t *w, size_t n)
+{
+  void *p = dp_w_reserve (w, n);
+  if (p)
+    memset (p, 0, n);
+}
 
 /** Stamp the standard envelope. @p total must equal obj_state_bytes(). */
 static inline void

@@ -128,6 +128,7 @@ from _gitbase import (
     added_since_base,
     resolve_base,
     show_at,
+    show_at_base,
 )
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -792,35 +793,70 @@ def parse_mutator_list(text: str) -> list[tuple[str, str, str]]:
     return out
 
 
-def mutator_list_added(base: str) -> list[str]:
-    """Mutators the list names that the merge base with `base` did not.
+#: Verdicts a listed key may not move INTO: each says a value is lost or
+#: cannot be judged, and relabelling an entry to one is forgiving a new
+#: failure by an edit. A key moving OUT of these two never ran a probe
+#: before, so where it lands is news, not growth.
+MUTATOR_FAILING = frozenset({"LOST", "NONDETERMINISTIC", "CRASHES"})
+MUTATOR_UNPROBED_BEFORE = frozenset({"NO_RECIPE", "C_ONLY"})
 
-    The gate's stale checks make the list shrink; this stops it growing, so
-    a PR that breaks a mutator cannot forgive it with a new line (#2085
-    review). Asked through _gitbase.added_since_base, the one ratchet read:
-    a list absent at the base holds nothing, unless the gate is new too.
-    An entry is its KEY: a verdict that changes is the gate's to judge.
+
+def mutator_list_added(base: str) -> list[str]:
+    """What the mutator-state list GAINED since the merge base with `base`.
+
+    The gate's stale checks make the list shrink; this stops it growing,
+    so a PR that breaks a mutator cannot forgive it with an edit (#2085
+    review). An entry is its (key, verdict), so two things are growth: a
+    key the base did not hold, and a key that moved INTO a failing verdict
+    (`UNPROBED` -> `LOST` after a regression is round 1's blocker done by
+    relabelling). A move out of `NO_RECIPE` or `C_ONLY` is free: the probe
+    newly ran. Asked through _gitbase.added_since_base, the one ratchet
+    read: a list absent at the base holds nothing, unless the gate is new
+    too. A list absent at HEAD is an error, not an empty list, or moving it
+    would disarm this.
     """
 
-    def keys(text: str) -> list[str]:
-        return [k for k, _, _ in parse_mutator_list(text)]
+    def pairs(text: str) -> list[tuple[str, str]]:
+        return [(k, v) for k, v, _ in parse_mutator_list(text)]
 
     rel = MUTATOR_LIST.relative_to(ROOT).as_posix()
-    now = MUTATOR_LIST.read_text() if MUTATOR_LIST.exists() else ""
+    if not MUTATOR_LIST.exists():
+        raise LookupError(
+            f"{rel} is missing at HEAD; {MUTATOR_GATE} reads it from this "
+            "path (MUTATOR_LIST), so a ratchet over nothing has not passed."
+        )
     try:
         added = added_since_base(
-            ROOT, base, rel, keys(now), keys, since=MUTATOR_GATE
+            ROOT,
+            base,
+            rel,
+            pairs(MUTATOR_LIST.read_text()),
+            pairs,
+            since=MUTATOR_GATE,
         )
+        was = dict(pairs(show_at_base(ROOT, base, rel) or "")) if added else {}
     except BaseUnreadableError:
         raise LookupError(
             f"base ref {base!r} does not resolve.\n"
             "  A ratchet that cannot read its baseline has not passed."
         ) from None
-    return [
-        f"{rel}: '{k}' ADDED -- the list may only shrink; make the blob "
-        "carry the value instead of forgiving it"
-        for k in sorted(set(added))
-    ]
+    bad = []
+    for key, verdict in sorted(set(added)):
+        before = was.get(key)
+        if before is None:
+            bad.append(
+                f"{rel}: '{key}' ADDED -- the list may only shrink; make "
+                "the blob carry the value instead of forgiving it"
+            )
+        elif (
+            verdict in MUTATOR_FAILING
+            and before not in MUTATOR_UNPROBED_BEFORE
+        ):
+            bad.append(
+                f"{rel}: '{key}' moved {before} -> {verdict} -- a move into "
+                "a failing verdict is growth; fix the cause"
+            )
+    return bad
 
 
 IGNORE = TESTS / ".assertion-ratchet-ignore"

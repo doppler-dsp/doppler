@@ -19,12 +19,13 @@ ______________________________________________________________________
 
 ## Who uses it, and how
 
-| caller                                         | threads | how it reads                                                                     |
-| ---------------------------------------------- | ------- | -------------------------------------------------------------------------------- |
-| `acq`                                          | one     | writes into free space it computes, reads fixed frames off `data`, `consume()`s  |
-| `detector`, `detector2d`                       | one     | chunks in through `write_some()`, fixed frames out through `peek()`              |
-| `burst_capture`                                | one     | a **history**: samples addressed by absolute stream position; may be file-backed |
-| Python `F32Buffer` / `F64Buffer` / `I16Buffer` | two     | a producer thread `write()`s, a consumer thread `wait()`s                        |
+| caller                                         | threads | how it reads                                                                       |
+| ---------------------------------------------- | ------- | ---------------------------------------------------------------------------------- |
+| `acq`                                          | one     | writes into free space it computes, reads fixed frames off `data`, `consume()`s    |
+| `detector`                                     | one     | the framed face: chunks in through `framer_feed`, frames out through `framer_next` |
+| `detector2d`                                   | one     | chunks in through `write_some()`, fixed frames out through `peek()` (#1895)        |
+| `burst_capture`                                | one     | a **history**: samples addressed by absolute stream position; may be file-backed   |
+| Python `F32Buffer` / `F64Buffer` / `I16Buffer` | two     | a producer thread `write()`s, a consumer thread `wait()`s                          |
 
 So the ring has two audiences with opposite needs: a single-threaded DSP
 object that must **never** block, and a threaded pipeline stage that wants

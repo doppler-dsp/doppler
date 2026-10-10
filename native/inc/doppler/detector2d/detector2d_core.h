@@ -199,10 +199,15 @@ void dp_detector2d_set_threshold (dp_detector2d_state_t *state, float threshold)
 
 /**
  * @brief Stream an arbitrary-length CF32 chunk through the 2-D detector.
- * Identical to dp_detector_push() except frames are ny*nx complex samples and
- * each detection event carries (row, col) for the peak location instead of a
- * single lag index.  In Python the result is always a list of
- * (row, col, peak_mag, noise_est, test_stat) tuples.
+ * The same pipeline as dp_detector_push(), except that frames are ny*nx
+ * complex samples and each detection event carries (row, col) for the peak
+ * location instead of a single lag index.  In Python the result is always a
+ * list of (row, col, peak_mag, noise_est, test_stat) tuples.
+ *
+ * Unlike dp_detector_push(), a push that fills @p result stops taking input:
+ * it keeps the whole frames it has already buffered for the next call and
+ * drops the rest of its input, which nothing reports (#1895 moves it onto
+ * the ring's framer, as the detector's push now is).
  *
  * @param state        Allocated 2-D detector (non-NULL).
  * @param in           CF32 input chunk of arbitrary length.

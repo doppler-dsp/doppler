@@ -64,6 +64,48 @@ ci_det_stream (float _Complex ref[N], float _Complex x[CI_LEN])
       x[at + i] += ref[i];
 }
 
+/* Push x through d in seeded random chunks of 1..max_chunk samples with room
+   for `cap` detections a call, each chunk re-offered from
+   dp_detector_consumed() until it is used up, and return the detections in
+   got[]. Counts the calls that stopped short, the stops anywhere but one
+   sample short of a frame (frames tile the stream from sample 0, and a full
+   push still takes the carry), and any call that wrote past its room. */
+static size_t
+ci_det_resume (dp_detector_state_t *d, const float _Complex *x, size_t len,
+               size_t cap, size_t max_chunk, det_result_t *got, size_t *stops,
+               size_t *wrong_stop, size_t *overfull)
+{
+  size_t   n_got = 0, off = 0;
+  uint32_t r = 0x1895u;
+  *stops = *wrong_stop = *overfull = 0;
+  while (off < len)
+    {
+      size_t m = 1 + dp_xs32 (&r) % max_chunk;
+      if (m > len - off)
+        m = len - off;
+      for (size_t end = off + m; off < end;)
+        {
+          const size_t offered = end - off;
+          const size_t k
+              = dp_detector_push (d, x + off, offered, got + n_got, cap);
+          const size_t took = dp_detector_consumed (d);
+          if (k > cap)
+            (*overfull)++;
+          n_got += k;
+          off += took;
+          if (took < offered)
+            {
+              (*stops)++;
+              if (off % N != N - 1)
+                (*wrong_stop)++;
+            }
+          if (took == 0)  /* cannot happen with room for one: stop the loop */
+            return n_got; /* rather than spin, and let the caller fail     */
+        }
+    }
+  return n_got;
+}
+
 /* Exact, field by field: det_result_t has padding after its size_t and
    three floats, and the harness's default memcmp would compare that too.
    Each float is compared by its bytes, so -0.0 and +0.0 still differ. */
@@ -369,36 +411,12 @@ main (void)
     DP_CHECK (n_want == CI_LEN / N);                 /* every frame fired */
     DP_CHECK (dp_detector_consumed (one) == CI_LEN); /* room: took all */
 
-    size_t   n_got = 0, off = 0, stops = 0, wrong_stop = 0;
-    uint32_t r = 0x1895u;
-    while (off < CI_LEN)
-      {
-        size_t m = 1 + dp_xs32 (&r) % (3 * N);
-        if (m > CI_LEN - off)
-          m = CI_LEN - off;
-        for (size_t end = off + m; off < end;)
-          {
-            const size_t offered = end - off;
-            const size_t k
-                = dp_detector_push (d, x + off, offered, got + n_got, 1);
-            const size_t took = dp_detector_consumed (d);
-            n_got += k;
-            off += took;
-            if (took < offered)
-              {
-                stops++;
-                if (off % N != N - 1)
-                  wrong_stop++;
-              }
-            if (took == 0) /* cannot happen with room for one: stop the */
-              {            /* loop rather than spin, and fail below    */
-                off = CI_LEN;
-                break;
-              }
-          }
-      }
+    size_t       stops, wrong_stop, overfull;
+    const size_t n_got = ci_det_resume (d, x, CI_LEN, 1, 3 * N, got, &stops,
+                                        &wrong_stop, &overfull);
     DP_CHECK (stops > 0); /* the cap actually stopped some calls */
     DP_CHECK (wrong_stop == 0);
+    DP_CHECK (overfull == 0);
     DP_CHECK (n_got == n_want);
     DP_CHECK (n_got == n_want && ci_det_equal (got, want, n_want));
     dp_detector_reset (d);
@@ -414,6 +432,46 @@ main (void)
     DP_CHECK (ci_det_equal (got, want, 1));
     dp_detector_destroy (one);
     dp_detector_destroy (d);
+  }
+
+  /* stop and resume with room for 2 and 3: room for one cannot tell the
+   * batched feed (as many frames as there are free slots) from one frame
+   * at a time, because there one slot is one frame. With more room, a
+   * batch that over-feeds writes past result, and one that under-drains
+   * strands frames; so both configurations run, the gated dwell of 4 too,
+   * in chunks of up to the whole stream, so several dumps land in one call
+   * (a dump every 4 frames needs over 12 to fill room for 3). Each must
+   * give exactly the one-shot's detections, never
+   * write past its room, and stop one sample short of a frame. */
+  {
+    float _Complex ref[N];
+    static float _Complex x[CI_LEN];
+    ci_det_stream (ref, x);
+    const ci_det_cfg_t cfgs[] = {
+      { ref, 1, 0, N - 1, DET_NOISE_MEAN, 0.0f },
+      { ref, 4, 2, N - 4, DET_NOISE_MEDIAN, 3.0f },
+    };
+    for (size_t c = 0; c < sizeof cfgs / sizeof *cfgs; c++)
+      for (size_t cap = 2; cap <= 3; cap++)
+        {
+          det_result_t         want[CI_LEN / N + 1], got[CI_LEN / N + 1];
+          dp_detector_state_t *one = ci_det_create ((void *)&cfgs[c]);
+          dp_detector_state_t *d   = ci_det_create ((void *)&cfgs[c]);
+          DP_CHECK (one != NULL && d != NULL);
+          if (!one || !d)
+            continue;
+          const size_t n_want
+              = dp_detector_push (one, x, CI_LEN, want, CI_LEN / N + 1);
+          size_t       stops, wrong_stop, overfull;
+          const size_t n_got = ci_det_resume (d, x, CI_LEN, cap, CI_LEN, got,
+                                              &stops, &wrong_stop, &overfull);
+          DP_CHECK (stops > 0); /* the room actually stopped calls */
+          DP_CHECK (wrong_stop == 0);
+          DP_CHECK (overfull == 0);
+          DP_CHECK (n_got == n_want && ci_det_equal (got, want, n_want));
+          dp_detector_destroy (one);
+          dp_detector_destroy (d);
+        }
   }
 
   DP_TEST_END ("test_detector_core");

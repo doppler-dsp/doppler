@@ -63,16 +63,31 @@ add_test(NAME test_stream_wire COMMAND test_stream_wire)
   add_test(NAME test_stream_nats_core COMMAND test_stream_nats_core)
   set_tests_properties(test_stream_nats_core PROPERTIES
       SKIP_RETURN_CODE 77)
-  # GNU ld and lld route doppler's call to natsMsg_Ack through the test's
-  # __wrap_natsMsg_Ack, which holds one ack in flight so the race test can
-  # see a teardown that does not wait for it (#2016). Linux only: ld64 and
-  # link.exe have no --wrap, and there the test runs without the hold.
+
+  # An ack racing its Pull's destroy (#2016). GNU ld and lld route
+  # doppler's call to natsMsg_Ack through the test's __wrap_natsMsg_Ack,
+  # which holds one ack in flight so the test can see a teardown that does
+  # not wait for it. ld64 and link.exe have no --wrap: there the binary
+  # still builds, and SKIPS (77), because without the hold it cannot fail.
+  add_executable(test_stream_nats_ackrace
+      ${CMAKE_SOURCE_DIR}/native/tests/test_stream_nats_ackrace.c)
+  target_link_libraries(test_stream_nats_ackrace PRIVATE
+      $<TARGET_OBJECTS:stream_core_obj> $<TARGET_OBJECTS:dp_interrupt_obj>
+      dp_tlm_core timing_core
+      nats_vendor_static
+      ${DP_MATH_LIBRARY} Threads::Threads)
+  target_include_directories(test_stream_nats_ackrace PRIVATE
+      ${CMAKE_SOURCE_DIR}/native/inc
+      ${CMAKE_SOURCE_DIR}/vendor/nats.c/src)
   if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    target_link_options(test_stream_nats_core PRIVATE
+    target_link_options(test_stream_nats_ackrace PRIVATE
         "LINKER:--wrap=natsMsg_Ack")
-    target_compile_definitions(test_stream_nats_core PRIVATE
+    target_compile_definitions(test_stream_nats_ackrace PRIVATE
         DP_TEST_HOLD_NATS_ACK=1)
   endif()
+  add_test(NAME test_stream_nats_ackrace COMMAND test_stream_nats_ackrace)
+  set_tests_properties(test_stream_nats_ackrace PROPERTIES
+      SKIP_RETURN_CODE 77)
 
   # Telemetry-ring -> NATS round-trip (skips without a live broker, like
   # test_stream_nats_core).

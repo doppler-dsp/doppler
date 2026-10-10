@@ -96,7 +96,9 @@ dp_async_dsss_pool_create (
     size_t sps, int differential, double gain, size_t pullin_intervals)
 {
   /* `> 0` alone passes +inf, which the message promises is refused: both
-     rates must be finite as well as positive. */
+     rates must be finite as well as positive. create_cell refuses an
+     infinite rate too; this check stays so the pool refuses before any
+     acquisition engine is built on inf (doppler#2103). */
   if (!code || code_len == 0 || !(chip_rate > 0.0) || !isfinite (chip_rate)
       || !(symbol_rate > 0.0) || !isfinite (symbol_rate) || spc == 0
       || n_slots == 0 || max_peaks == 0

@@ -47,6 +47,7 @@ _One consistent picture of what the receiver is doing, by value._ [More...](#det
 |  double | [**lock\_threshold**](#variable-lock_threshold)  <br> |
 |  int | [**locked**](#variable-locked)  <br> |
 |  double | [**mpsk\_last\_error**](#variable-mpsk_last_error)  <br> |
+|  uint64\_t | [**refused\_hits**](#variable-refused_hits)  <br> |
 |  int | [**state**](#variable-state)  <br> |
 |  uint64\_t | [**state\_samples**](#variable-state_samples)  <br> |
 
@@ -293,6 +294,24 @@ double async_dsss_receiver_status_t::mpsk_last_error;
 
 
 Post-despread carrier residual, rad. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable refused\_hits 
+
+```C++
+uint64_t async_dsss_receiver_status_t::refused_hits;
+```
+
+
+
+Searching hits refused as seeds by the seed domain (a Doppler at or past fs/2), since create or reset. The search went on over each one's tail. 
  
 
 

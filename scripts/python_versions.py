@@ -29,12 +29,16 @@ Modes
 
     It also holds ``release.yml``'s wheel BUILD lists to the classifiers,
     both ways. The post-release smoke reads the classifiers (doppler#1817),
-    but the three build jobs still carry literal ``python: [...]`` lists, so
+    but the three build jobs still carry literal ``python`` matrix lists, so
     a classifier with no build entry would be smoked against a wheel that was
     never built, and a build entry with no classifier would ship a wheel
-    nothing smokes. Each literal list must name exactly the classifier set,
-    as ``cp39`` tags or as ``"3.9"`` strings; finding none is a failure, not
-    a pass. This is checked on every ``make lint``, not first at release.
+    nothing smokes. The workflow is parsed as YAML, so every job's matrix
+    ``python`` list is checked however it is spelled (flow or block); each
+    must name exactly the classifier set, as ``cp39`` tags or ``"3.9"``
+    strings. A ``python`` that is neither a list nor a ``${{ }}`` expression
+    fails, and finding no list is a failure, not a pass. This runs on every
+    ``make lint``, not first at release, under ``uv run`` -- the gate alone
+    imports PyYAML; ``--matrix`` and ``--primary`` stay stdlib-only.
 
 The primary leg
 ---------------
@@ -80,13 +84,8 @@ _CLASSIFIER = re.compile(r"^Programming Language :: Python :: (\d+\.\d+)$")
 #: One ``requires-python`` clause: an operator and a dotted version.
 _CLAUSE = re.compile(r"^\s*(>=|<=|==|!=|>|<)\s*(\d+(?:\.\d+)*)\s*$")
 
-#: A literal build matrix in release.yml: ``python: [cp39, cp310]`` or
-#: ``python: ["3.9", "3.10"]``. A ``${{ … }}`` expression is not a literal
-#: list and does not match -- that is the derived smoke matrix.
-_BUILD_LIST = re.compile(r"^\s*python:\s*\[([^\]]*)\]\s*(?:#.*)?$")
-
-#: One build-list entry, either spelling.
-_BUILD_ITEM = re.compile(r"""^["']?(?:cp(\d)(\d+)|(\d+)\.(\d+))["']?$""")
+#: One build-list entry, either spelling: ``cp39`` or ``"3.9"``.
+_BUILD_ITEM = re.compile(r"^(?:cp(\d)(\d+)|(\d+)\.(\d+))$")
 
 RELEASE_YML = ROOT / ".github" / "workflows" / "release.yml"
 
@@ -192,73 +191,106 @@ def _cp(version: str) -> str:
     return "cp" + version.replace(".", "")
 
 
-def release_build_lists(text: str) -> list[tuple[int, list[str]]]:
-    """Every literal ``python: [...]`` list in a workflow, as dotted versions.
+def _matrix_pythons(text: str) -> dict[str, object]:
+    """``jobs.<id>.strategy.matrix.python`` of every job that has one."""
+    # Only the gate reads YAML: --matrix and --primary run on a runner's bare
+    # python3, which need not have PyYAML.
+    import yaml
 
-    Returns ``(line number, versions)`` per list; an entry in neither
-    spelling is kept verbatim, so the comparison reports it.
+    doc = yaml.safe_load(text) or {}
+    found = {}
+    for job_id, job in (doc.get("jobs") or {}).items():
+        strategy = job.get("strategy") if isinstance(job, dict) else None
+        matrix = strategy.get("matrix") if isinstance(strategy, dict) else None
+        if isinstance(matrix, dict) and "python" in matrix:
+            found[str(job_id)] = matrix["python"]
+    return found
+
+
+def release_build_lists(text: str) -> list[tuple[str, list[str]]]:
+    """Every job's matrix ``python`` LIST in a workflow, as dotted versions.
+
+    Read from the parsed YAML, so a block list (``- cp39`` lines) is found
+    as surely as a flow one (``[cp39, "3.10"]``): a text scan for one
+    spelling passed a build job rewritten in the other. A ``${{ … }}``
+    expression is not a list -- that is the derived smoke matrix -- and is
+    skipped. An entry in neither spelling, including an unquoted ``3.10``
+    that YAML reads as the float 3.1, is kept marked so the comparison
+    reports it.
 
     Examples
     --------
-    >>> release_build_lists('  matrix:\\n    python: [cp39, "3.10"]\\n')
-    [(2, ['3.9', '3.10'])]
-    >>> release_build_lists("python: ${{ fromJSON(x) }}\\n")
-    []
+    >>> wf = (
+    ...     "jobs:\\n  b:\\n    strategy:\\n      matrix:\\n"
+    ...     "        python:\\n          - cp39\\n          - '3.10'\\n"
+    ... )
+    >>> release_build_lists(wf)
+    [('b', ['3.9', '3.10'])]
     """
     found = []
-    for n, line in enumerate(text.splitlines(), start=1):
-        m = _BUILD_LIST.match(line)
-        if not m:
+    for job_id, py in _matrix_pythons(text).items():
+        if not isinstance(py, list):
             continue
         versions = []
-        for item in (i.strip() for i in m.group(1).split(",") if i.strip()):
-            v = _BUILD_ITEM.match(item)
-            if not v:
-                versions.append(item)
-            elif v.group(1):
-                versions.append(f"{v.group(1)}.{v.group(2)}")
+        for item in py:
+            m = _BUILD_ITEM.match(item) if isinstance(item, str) else None
+            if not m:
+                versions.append(f"<{item!r}, neither cp3N nor quoted 3.N>")
+            elif m.group(1):
+                versions.append(f"{m.group(1)}.{m.group(2)}")
             else:
-                versions.append(f"{v.group(3)}.{v.group(4)}")
-        found.append((n, versions))
+                versions.append(f"{m.group(3)}.{m.group(4)}")
+        found.append((job_id, versions))
     return found
 
 
 def check_release(versions: list[str], text: str, name: str) -> list[str]:
-    """Every way ``name``'s literal build lists disagree with ``versions``.
+    """Every way ``name``'s build lists disagree with ``versions``.
 
     Examples
     --------
-    >>> check_release(["3.9", "3.10"], "python: [cp39, cp310]\\n", "r.yml")
+    >>> wf = "jobs:\\n  b:\\n    strategy:\\n      matrix:\\n        python: "
+    >>> check_release(["3.9", "3.10"], wf + "[cp39, cp310]\\n", "r.yml")
     []
-    >>> check_release(["3.9"], "python: [cp39, cp310]\\n", "r.yml")[0]
-    'r.yml:1: builds cp310, which no classifier declares'
+    >>> check_release(["3.9"], wf + "[cp39, cp310]\\n", "r.yml")[0]
+    'r.yml job b: builds cp310, which no classifier declares'
     """
+    errors = []
+    for job, py in _matrix_pythons(text).items():
+        if not isinstance(py, list) and not (
+            isinstance(py, str) and py.strip().startswith("${{")
+        ):
+            errors.append(
+                f"{name} job {job}: matrix python is {py!r}, neither a list "
+                "nor a ${{ }} expression, so nothing can be checked"
+            )
     lists = release_build_lists(text)
     if not lists:
         return [
-            f"{name}: found no literal `python: [...]` build list -- the "
-            "scan did not run, so it has not passed"
+            *errors,
+            f"{name}: found no job whose matrix python is a list -- the "
+            "check did not run, so it has not passed",
         ]
     want = set(versions)
-    errors = []
-    for line, built in lists:
+    for job, built in lists:
         missing = [v for v in versions if v not in built]
         extra = [v for v in built if v not in want]
         dups = sorted({v for v in built if built.count(v) > 1})
         if missing:
             errors.append(
-                f"{name}:{line}: builds no {', '.join(map(_cp, missing))} "
-                "wheel, but a classifier declares it (and the smoke will "
-                "install it)"
+                f"{name} job {job}: builds no "
+                f"{', '.join(map(_cp, missing))} wheel, but a classifier "
+                "declares it (and the smoke will install it)"
             )
         for v in extra:
-            shown = _cp(v) if re.fullmatch(r"\d+\.\d+", v) else repr(v)
+            shown = _cp(v) if re.fullmatch(r"\d+\.\d+", v) else v
             errors.append(
-                f"{name}:{line}: builds {shown}, which no classifier declares"
+                f"{name} job {job}: builds {shown}, which no classifier "
+                "declares"
             )
         if dups:
             errors.append(
-                f"{name}:{line}: lists {', '.join(map(_cp, dups))} twice"
+                f"{name} job {job}: lists {', '.join(map(_cp, dups))} twice"
             )
     return errors
 
@@ -300,8 +332,8 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"python-versions-check: OK -- {len(versions)} classifier(s), "
         f"{versions[0]}..{versions[-1]}, floor matches requires-python, "
-        f"primary leg {primary(project)}, "
-        f"{len(release_build_lists(release))} release build list(s) match"
+        f"primary leg {primary(project)}, release build lists match in "
+        + ", ".join(job for job, _ in release_build_lists(release))
     )
     return 0
 

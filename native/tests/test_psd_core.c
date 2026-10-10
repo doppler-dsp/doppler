@@ -1697,5 +1697,86 @@ main (void)
       }
   }
 
+  /* T19: every reader and every *_max_out is sized by nfft, not n (#1911
+   * (a), F5).  At pad = 1, nfft == n, so a reader or a hint that used n
+   * passed every test above; here n = 64 and pad = 2 give nfft = 128.  Each
+   * hint must equal its reader's documented length, and each reader, given
+   * room for twice that, must write exactly that many finite floats and
+   * leave the rest of a NaN-filled buffer untouched.  band_power's hint is
+   * 0: the binding sizes its output from the bands. */
+  {
+    const size_t    n = 64, nfft = 128, half = nfft / 2;
+    dp_psd_state_t *w = dp_psd_create (n, 1.0, 0, 0.0f, 2, 1.0, 0, 0, 0.0);
+    DP_REQUIRE (w != NULL && w->nfft == nfft);
+    float _Complex x[64];
+    fill_tone (x, n, 5);
+    dp_psd_accumulate (w, x, n);
+    DP_CHECK (dp_psd_power_twosided_max_out (w) == nfft);
+    DP_CHECK (dp_psd_power_onesided_max_out (w) == half + 1);
+    DP_CHECK (dp_psd_psd_db_max_out (w) == nfft);
+    DP_CHECK (dp_psd_psd_dbhz_max_out (w) == nfft);
+    DP_CHECK (dp_psd_band_power_max_out (w) == 0);
+    struct
+    {
+      const char *name;
+      size_t      want;
+    } r[] = { { "power_twosided", nfft },
+              { "power_onesided", half + 1 },
+              { "psd_db", nfft },
+              { "psd_dbhz", nfft } };
+    for (size_t j = 0; j < sizeof r / sizeof r[0]; j++)
+      {
+        float  buf[2 * 128];
+        size_t got = 0;
+        for (size_t i = 0; i < 2 * nfft; i++)
+          buf[i] = NAN;
+        if (j == 0)
+          got = dp_psd_power_twosided (w, 2 * nfft, buf, 2 * nfft);
+        else if (j == 1)
+          got = dp_psd_power_onesided (w, 2 * nfft, buf, 2 * nfft);
+        else if (j == 2)
+          got = dp_psd_psd_db (w, 2 * nfft, buf, 2 * nfft);
+        else
+          got = dp_psd_psd_dbhz (w, 2 * nfft, buf, 2 * nfft);
+        int written = 1, untouched = 1;
+        for (size_t i = 0; i < r[j].want; i++)
+          written &= isfinite (buf[i]) != 0;
+        for (size_t i = r[j].want; i < 2 * nfft; i++)
+          untouched &= isnan (buf[i]) != 0;
+        if (got != r[j].want || !written || !untouched)
+          printf ("T19 %s: returned %zu (want %zu), written %d, "
+                  "untouched %d\n",
+                  r[j].name, got, r[j].want, written, untouched);
+        DP_CHECK (got == r[j].want);
+        DP_CHECK (written);
+        DP_CHECK (untouched);
+      }
+    dp_psd_destroy (w);
+  }
+
+  /* T20: band_power with no complete lo/hi pair reports nothing, after a
+   * frame too (psd_core.h, band_power: "0 when @p bands holds no complete
+   * lo/hi pair").  Zero edges and one edge each return 0 and write nothing;
+   * the precondition is that a complete pair on the same estimator does
+   * write one band. */
+  {
+    dp_psd_state_t *w = dp_psd_create (64, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
+    DP_REQUIRE (w != NULL);
+    float _Complex x[64];
+    fill_tone (x, 64, 3);
+    dp_psd_accumulate (w, x, 64);
+    const double edges[2] = { -0.25, 0.25 };
+    for (size_t len = 0; len < 2; len++)
+      {
+        float out[2] = { NAN, NAN };
+        DP_CHECK (dp_psd_band_power (w, edges, len, out, 2) == 0);
+        DP_CHECK (isnan (out[0]) && isnan (out[1]));
+      }
+    float one[2] = { NAN, NAN };
+    DP_CHECK (dp_psd_band_power (w, edges, 2, one, 2) == 1);
+    DP_CHECK (isfinite (one[0]) && isnan (one[1]));
+    dp_psd_destroy (w);
+  }
+
   DP_TEST_END ("test_psd_core");
 }

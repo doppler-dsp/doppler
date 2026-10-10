@@ -48,14 +48,16 @@ dp_loop_filter_params_ok (double bn, double zeta, double t)
 dp_loop_filter_state_t *
 dp_loop_filter_create (double bn, double zeta, double t)
 {
-  /* This is the UNTRUSTED boundary and the only one: `LoopFilter(...)` hands
-     a Python caller's arbitrary doubles straight here, where t = 0 used to
-     yield kp = ki = 0 — a dead loop indistinguishable from the legitimate
-     frozen bn = 0 — and t = inf or a NaN argument yielded NaN gains, which
-     poison every subsequent update permanently. dp_loop_filter_init() is
-     deliberately NOT guarded: it is the by-value path, its seven embedders
-     all validate upstream, and guarding an internal guarantee is the error
-     handling this project does not write (gh-740).
+  /* This is the untrusted boundary for a standalone loop: `LoopFilter(...)`
+     hands a Python caller's arbitrary doubles straight here, where t = 0
+     used to yield kp = ki = 0 — a dead loop indistinguishable from the
+     legitimate frozen bn = 0 — and t = inf or a NaN argument yielded NaN
+     gains, which poison every subsequent update permanently.
+     dp_loop_filter_init() is deliberately NOT guarded: it is the by-value
+     path, and an embedder that takes these numbers from a caller checks them
+     with dp_loop_filter_params_ok() first. Not every embedder does yet: the
+     Dll did not, which is how a NaN reached its gains (doppler#2103), and
+     the ones still to do are doppler#2112.
 
      Validating here also makes the arithmetic TOTAL. With bn >= 0 and
      zeta > 0 the intermediate th is non-negative, so

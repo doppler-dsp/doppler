@@ -8,14 +8,18 @@ import numpy as np
 import pytest
 
 from doppler.dsss import AsyncDsssReceiver
+from doppler.wfm import Gold
 
 BLOCK_64K = 65_536
 
 
 @pytest.fixture
 def obj():
+    # A real 1023-chip Gold code, as the pool's benchmark uses. This fixture
+    # used a 1-chip code, which spreads nothing and which the receiver now
+    # refuses: its Dll's early and late taps would coincide (doppler#2103).
     return AsyncDsssReceiver(
-        np.zeros(1, dtype=np.uint8),
+        np.asarray(Gold().generate(1023)).astype(np.uint8),
         1000000.0,
         1000.0,
         2,

@@ -23,6 +23,8 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "AsyncDsssReceiver"
+create_error = "ValueError"
+create_error_message = "AsyncDsssReceiver: invalid parameter (need a code of at least 2 chips, chip_rate > 0, a finite symbol_rate > 0, spc >= 1, m in {2,4,8}, segments >= 1, sps >= 1, carrier_freq_hz >= 0, lost_confirm_s >= 0)"
 serializable = "true"
 depends_on = [
     { name = "ber" }, # dp_sym_test.h delegates here
@@ -450,6 +452,8 @@ doc = "Binary code-lock flag from the live tracking Dll's own verify-counted (pf
 [[async_dsss_receiver.views]]
 class_name = "CellAsyncDsssReceiver"
 create_fn = "dp_async_dsss_receiver_create_cell"
+create_error = "ValueError"
+create_error_message = "CellAsyncDsssReceiver: invalid parameter (need a code of at least 2 chips, chip_rate > 0, a finite symbol_rate > 0, spc >= 1, m in {2,4,8}, segments >= 1, sps >= 1, carrier_freq_hz >= 0, lost_confirm_s >= 0)"
 exclude_methods = ["configure_search_raw", "set_refine_min_blocks"]
 exclude_properties = ["refine_min_blocks"]
 init_params = [

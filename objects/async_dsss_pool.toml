@@ -24,7 +24,7 @@ serializable = "true"
 # A NULL create is an argument out of range, or a searcher a cell receiver
 # cannot take (gh-482), not memory.
 create_error = "ValueError"
-create_error_message = "AsyncDsssPool: invalid parameter, or a searcher a cell receiver cannot take (need a non-empty code, chip_rate > 0, symbol_rate > 0, spc >= 1, n_slots >= 1, max_peaks >= 1, carrier_freq_hz >= 0, lost_confirm_s >= 0, max_emitter_on_time_secs >= 0, 0 < gain <= 1; a searcher depth D > 1 -- code_only_epochs > 1 -- whose Doppler row is at most four times the carrier loop's pull-in bound, doppler_res_hz <= 2 * 0.04 * chip_rate / code_len)"
+create_error_message = "AsyncDsssPool: invalid parameter, or a searcher a cell receiver cannot take (need a code of at least 2 chips, chip_rate > 0, symbol_rate > 0, spc >= 1, n_slots >= 1, max_peaks >= 1, carrier_freq_hz >= 0, lost_confirm_s >= 0, max_emitter_on_time_secs >= 0, 0 < gain <= 1; a searcher depth D > 1 -- code_only_epochs > 1 -- whose Doppler row is at most four times the carrier loop's pull-in bound, doppler_res_hz <= 2 * 0.04 * chip_rate / code_len)"
 # dp_parallel.h's persistent pool is pthreads (the receivers across threads).
 extra_link_libs = ["Threads::Threads"]
 depends_on = [

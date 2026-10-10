@@ -142,8 +142,8 @@ def _merge_best(snaps):
     return merged
 
 
-def _provenance(commit: str) -> str:
-    """Which commit is measured, and whether origin/main has it (#1322).
+def _provenance(commit: str, base: str) -> str:
+    """Which commit is measured, and whether ``base`` has it (#1322).
 
     `doppler_meta.commit` is the provenance a reader checks out, and
     `make bench-commits-check` refuses one main cannot reach. Said before
@@ -151,16 +151,16 @@ def _provenance(commit: str) -> str:
     miss it is to measure a local commit (section 2's gallery plots,
     committed but not landed) and find out at the publishing PR.
     """
-    why = verdict(Path(REPO), commit, "origin/main")
+    why = verdict(Path(REPO), commit, base)
     if why is None:
-        return f"measuring doppler {commit}, which origin/main has"
+        return f"measuring doppler {commit}, which {base} has"
     return (
         f"!! measuring doppler {commit}, which is {why}.\n"
         "!! bench-commits-check will refuse this set. bench-restamp can\n"
         "!! fix it after the merge ONLY if this exact tree lands on main\n"
         "!! unchanged (a rebase-merge of it, never a squash). To measure\n"
         "!! what main has instead:\n"
-        "!!   git fetch origin && git checkout --detach origin/main"
+        f"!!   git fetch origin && git checkout --detach {base}"
     )
 
 
@@ -168,6 +168,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("version")
     ap.add_argument("-k", "--passes", type=int, default=5)
+    # The ref bench-commits-check holds a stamp to (BENCH_COMMIT_BASE).
+    ap.add_argument("--base", default="origin/main")
     a = ap.parse_args()
     ver = "v" + a.version.lstrip("v")
 
@@ -186,7 +188,7 @@ def main() -> int:
     commit = _run(
         ["git", "rev-parse", "--short", "HEAD"], REPO, capture_output=True
     ).stdout.strip()
-    print(_provenance(commit), flush=True)
+    print(_provenance(commit, a.base), flush=True)
 
     wts = {b: setup_worktree(b, commit) for b in BUILD_ARGS}
     info = {b: _build_info(wts[b]) for b in BUILD_ARGS}
@@ -232,7 +234,7 @@ def main() -> int:
             capture_output=True,
         )
     print(f"done — {a.passes} interleaved passes per build")
-    print(_provenance(commit))
+    print(_provenance(commit, a.base))
     return 0
 
 

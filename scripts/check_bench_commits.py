@@ -26,11 +26,14 @@ clone fails here with a message that names the depth, not the snapshot,
 because a shallow clone cannot tell "not on main" from "not fetched". CI's
 lint job checks out with `fetch-depth: 0`.
 
-**Existing breakage** is in `scripts/.bench-commit-exempt`, one release
-directory per line with its reason. The list may only shrink. An entry
-ADDED since the merge base with `--base` fails, read through
-`_gitbase.show_at_base` as `check_warnings.py` reads its own ratchet. So
-does an entry whose set now passes or whose directory is gone.
+**Existing breakage** is in `scripts/.bench-commit-exempt`, one line per
+exempt (set, commit) PAIR with its reason: `v0.56.0 c9dbcf8da <why>`. The
+pair, not the directory, so a new file dropped into an exempt set with
+some other off-main stamp still fails, and so does re-stamping an exempt
+file. The list may only shrink. An entry ADDED since the merge base with
+`--base` fails (`_gitbase.added_since_base`, where a list absent at the
+base held nothing). So does an entry whose pair no longer fails or whose
+directory is gone.
 
 Usage:  python3 scripts/check_bench_commits.py [--base REF] [--root DIR]
 Exit 0 when every published set names a commit main can reach.
@@ -45,11 +48,12 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-from _gitbase import BaseUnreadableError, in_git_repo, show_at_base
+from _gitbase import BaseUnreadableError, added_since_base, in_git_repo
 
 ROOT = Path(__file__).resolve().parent.parent
 PUBLISHED = "benchmarks/published"
 EXEMPT = "scripts/.bench-commit-exempt"
+SELF = "scripts/check_bench_commits.py"  # the ratchet starts when this lands
 
 
 def git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -77,18 +81,20 @@ def _stamps(root: Path) -> dict[tuple[str, str], list[str]]:
     return found
 
 
-def _exemptions(text: str) -> tuple[dict[str, str], list[str]]:
-    """Release dir -> reason, plus any malformed lines."""
-    exempt: dict[str, str] = {}
+def _exemptions(text: str) -> tuple[dict[tuple[str, str], str], list[str]]:
+    """(release dir, stamped commit) -> reason, plus any malformed lines."""
+    exempt: dict[tuple[str, str], str] = {}
     bad: list[str] = []
     for n, raw in enumerate(text.splitlines(), 1):
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
-        release, _, reason = line.partition(" ")
-        if not reason.strip():
-            bad.append(f"{EXEMPT}:{n}: {release} has no reason")
-        exempt[release] = reason.strip()
+        release, commit, reason = ([*line.split(None, 2), "", ""])[:3]
+        if not reason:
+            bad.append(
+                f"{EXEMPT}:{n}: needs `<release> <commit> <reason>`: {line}"
+            )
+        exempt[(release, commit)] = reason
     return exempt, bad
 
 
@@ -98,6 +104,8 @@ def verdict(root: Path, commit: str, base: str) -> str | None:
     Shared with ``bench_restamp.py``, which leaves a stamp alone when this
     says None.
     """
+    if resolve(root, base) is None:
+        return f"not checkable: {base} is not here -- fetch it"
     sha = resolve(root, commit)
     if sha is None:
         return "not in this repository's history"
@@ -105,27 +113,37 @@ def verdict(root: Path, commit: str, base: str) -> str | None:
     if rc == 0:
         return None
     if rc != 1:
-        return f"git merge-base failed (exit {rc})"
-    # In this checkout but not on base: either it never reached main, or
-    # the local base is behind. Say which to try first.
-    if git(root, "merge-base", "--is-ancestor", sha, "HEAD").returncode == 0:
+        return f"not checkable: git merge-base exited {rc}"
+    # In this checkout but not on base. Which advice comes first depends on
+    # where else the commit is: on no remote branch, it was never pushed,
+    # and no fetch will find it on main.
+    remote = git(root, "branch", "-r", "--contains", sha).stdout.split()
+    if not remote:
         return (
-            f"not an ancestor of {base}, though this checkout has it -- "
-            f"if {base} is behind, fetch it first"
+            f"not on {base}, and on no remote branch: it was never pushed. "
+            f"Land it, or measure a commit {base} has"
         )
-    return f"not an ancestor of {base}"
+    return (
+        f"not on {base}, though {', '.join(remote[:2])} has it -- if it "
+        f"has merged since, fetch {base} first"
+    )
 
 
-def _added(root: Path, base: str, exempt: dict[str, str]) -> list[str]:
-    """Exempt entries the merge base with ``base`` did not have."""
-    then = show_at_base(root, base, EXEMPT)
-    if then is None:  # the list is new on this branch: nothing to grow from
-        return []
-    before = set(_exemptions(then)[0])
+def _added(
+    root: Path, base: str, exempt: dict[tuple[str, str], str]
+) -> list[str]:
+    """Exempt pairs the merge base with ``base`` did not have."""
+    added = added_since_base(
+        root,
+        base,
+        EXEMPT,
+        sorted(exempt),
+        lambda text: _exemptions(text)[0],
+        since=SELF,
+    )
     return [
-        f"{EXEMPT}: {r} was ADDED -- the list may only shrink"
-        for r in sorted(exempt)
-        if r not in before
+        f"{EXEMPT}: {r} {c} was ADDED -- the list may only shrink"
+        for r, c in added
     ]
 
 
@@ -179,30 +197,25 @@ def main() -> int:
             "one. Fetch the base."
         )
         return 1
-    failing: dict[str, list[str]] = defaultdict(list)
+    failing: dict[tuple[str, str], str] = {}
     for (release, commit), files in sorted(_stamps(root).items()):
         why = verdict(root, commit, base)
         if why is not None:
-            failing[release].append(
+            failing[(release, commit)] = (
                 f"{PUBLISHED}/{release}: doppler_meta.commit {commit} is "
                 f"{why} ({', '.join(files)})"
             )
 
-    new = [
-        line
-        for r, lines in failing.items()
-        if r not in exempt
-        for line in lines
-    ]
+    new = [line for pair, line in failing.items() if pair not in exempt]
     stale = [
-        f"{EXEMPT}: {r} is exempt but "
+        f"{EXEMPT}: {r} {c} is exempt but "
         + (
             "its directory is gone"
             if not (root / PUBLISHED / r).is_dir()
-            else "now passes -- delete the line"
+            else "no file there fails with that stamp -- delete the line"
         )
-        for r in sorted(exempt)
-        if r not in failing
+        for r, c in sorted(exempt)
+        if (r, c) not in failing
     ]
     problems += new + stale
     if not problems:
@@ -215,10 +228,17 @@ def main() -> int:
     for line in problems:
         print(f"  {line}")
     if new:
+        unpushed = any("never pushed" in line for line in new)
+        fetch = (
+            '  1. A commit marked "never pushed" is only in this checkout:\n'
+            "     land it first, or measure a commit main has. For the rest,\n"
+            if unpushed
+            else "  1. "
+        )
         print(
             "  A reader must be able to check the stamped commit out. In\n"
             "  this order:\n"
-            f"  1. `git fetch origin` -- a stale {base} reports a merged\n"
+            f"{fetch}`git fetch origin` -- a stale {base} reports a merged\n"
             "     commit as missing.\n"
             "  2. `make bench-restamp VERSION=X.Y.Z` -- moves the stamp onto\n"
             "     main's commit with the IDENTICAL tree. Only possible when\n"

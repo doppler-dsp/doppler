@@ -221,8 +221,12 @@ def test_cell_starts_idle_with_no_search_and_no_refine():
         _new_cell(70.0, refine_n_fft=64)
     # The correction's own: an interval of at least one period, a gain in
     # (0, 1], a non-negative fold threshold.
-    for bad in ({"correct_periods": 0}, {"gain": 0.0}, {"gain": 1.5}):
-        with pytest.raises((ValueError, MemoryError)):
+    for bad, names in (
+        ({"correct_periods": 0}, "correct_periods >= 1"),
+        ({"gain": 0.0}, "0 < gain <= 1"),
+        ({"gain": 1.5}, "0 < gain <= 1"),
+    ):
+        with pytest.raises(ValueError, match=names):
             _new_cell(70.0, **bad)
 
 
@@ -576,7 +580,7 @@ def test_a_non_finite_symbol_rate_is_refused(rate):
     PSD refuses unless finite; the estimator is built under dp_xnn, where a
     NULL aborts, so the receiver refuses it at create instead (#1959)."""
     for cls in (AsyncDsssReceiver, CellAsyncDsssReceiver):
-        with pytest.raises((ValueError, MemoryError)):
+        with pytest.raises(ValueError, match="a finite symbol_rate > 0"):
             cls(
                 CODE,
                 chip_rate=CHIP_RATE,

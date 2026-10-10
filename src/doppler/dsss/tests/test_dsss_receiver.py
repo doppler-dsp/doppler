@@ -250,8 +250,11 @@ _REFUSALS = [
     (_ALL, {"chip_rate": _NAN}, "a finite chip_rate > 0"),
     (_ALL, {"symbol_rate": _NAN}, "a finite symbol_rate > 0"),
     (_ALL, {"sps": 1}, "sps >= 2"),
-    (_SEARCHING, {"pfa": 2.0}, "0 < pfa < 1"),
-    (_SEARCHING, {"pd": 1.5}, "0 < pd < 1"),
+    # The cell flavour has no searcher, but its carrier estimator refuses
+    # these under dp_xnn, so it must refuse them itself.
+    (_ALL, {"pfa": 2.0}, "0 < pfa < 1"),
+    (_ALL, {"pfa": 0.0}, "0 < pfa < 1"),
+    (_ALL, {"pd": 1.5}, "0 < pd < 1"),
     (_SEARCHING, {"cn0_dbhz": _NAN}, "a finite cn0_dbhz"),
     (
         _SEARCHING,
@@ -261,6 +264,14 @@ _REFUSALS = [
     (_ASYNC, {"carrier_freq_hz": 1e-305}, "above chip_rate \\* spc / 2"),
     (_ASYNC, {"carrier_freq_hz": 5e-324}, "above chip_rate \\* spc / 2"),
     (_ASYNC, {"symbol_rate": 1e-6}, "at most 2\\^20 Dll partials"),
+    # The cap holds at one segment too, where the aid is off but the
+    # chain's resampling ratio still depends on it.
+    (_ASYNC, {"symbol_rate": 1e-6, "segments": 1}, "at most 2\\^20"),
+    # A tiny rate underflowed the chain's ratio to 0, and a rate past the
+    # chip rate sized its scratch at ~4e12 samples: both aborted.
+    (_ASYNC, {"symbol_rate": 5e-324}, "at most 2\\^20 Dll partials"),
+    (("DsssReceiver",), {"symbol_rate": 5e-324}, "a normal double"),
+    (_ALL, {"symbol_rate": 1e15}, "symbol_rate > 0 and <= chip_rate"),
     (
         ("AsyncDsssReceiver",),
         {"refine_n_fft": 0},
@@ -289,10 +300,17 @@ _REFUSALS = [
 ]
 
 
+def _change_id(change):
+    return "-".join(
+        f"{k}=len{len(v)}" if isinstance(v, np.ndarray) else f"{k}={v}"
+        for k, v in change.items()
+    )
+
+
 @pytest.mark.parametrize(
     "cls, change, names",
     [
-        pytest.param(cls, change, names, id=f"{cls}-{next(iter(change))}")
+        pytest.param(cls, change, names, id=f"{cls}-{_change_id(change)}")
         for classes, change, names in _REFUSALS
         for cls in classes
     ],
@@ -310,6 +328,23 @@ def test_create_refuses_and_names_the_condition(cls, change, names):
     make(**kw)
     with pytest.raises(ValueError, match=names):
         make(**dict(kw, **change))
+
+
+@pytest.mark.parametrize("cls", ["AsyncDsssReceiver", "CellAsyncDsssReceiver"])
+def test_seed_refuses_a_doppler_past_half_the_sample_rate(cls):
+    """A Doppler is reportable only below half the sample rate, which the
+    carrier rule relies on to keep doppler / carrier finite. A seed near
+    1e308 sent the hand-off's phase to NaN and aborted building the code
+    loop (doppler#2103); seed() refuses it, and takes one just inside."""
+    import doppler.dsss as dsss
+
+    rx = getattr(dsss, cls)(CODE, chip_rate=1.023e6, symbol_rate=1e3)
+    fs = 1.023e6 * 2  # the default spc
+    with pytest.raises(ValueError, match="doppler_hz_est is not finite"):
+        rx.seed(0.0, 0.5 * fs, 45.0)
+    with pytest.raises(ValueError, match="doppler_hz_est is not finite"):
+        rx.seed(0.0, -1e308, 45.0)
+    rx.seed(0.0, 0.25 * fs, 45.0)
 
 
 @pytest.mark.parametrize("cls", ["AsyncDsssReceiver", "CellAsyncDsssReceiver"])

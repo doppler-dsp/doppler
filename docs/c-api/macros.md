@@ -190,6 +190,7 @@
 * **DET\_NOISE\_MODE\_T\_DEFINED** ([**detector\_core.h**](detector__core_8h.md), [**detector2d\_core.h**](detector2d__core_8h.md))
 * **DETECTOR2D\_STATE\_MAGIC** ([**detector2d\_core.h**](detector2d__core_8h.md))
 * **DETECTOR2D\_STATE\_VERSION** ([**detector2d\_core.h**](detector2d__core_8h.md))
+* **DLL\_AID\_MAX\_PERIOD** ([**dll\_core.h**](dll__core_8h.md))
 * **DLL\_DISC\_CLAMP** ([**dll\_core.h**](dll__core_8h.md))
 * **DLL\_EPS** ([**dll\_core.h**](dll__core_8h.md))
 * **DLL\_STATE\_MAGIC** ([**dll\_core.h**](dll__core_8h.md))

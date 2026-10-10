@@ -542,7 +542,7 @@ size_t dp_spectrogram_state_bytes (
 
 
 
-The blob is the stream position  the framer's snapshot: the carry (fewer than nfft samples, padded to nfft - 1), its element size, the stream counts, and the hop that frames them  inside the spectrogram's own envelope. It does not carry consumed() or the PSD's configuration (window, beta, mode). So nfft and hop are checked on restore (the size and the stored hop), and window and beta are the caller's to keep the same  see [**dp\_spectrogram\_set\_state()**](spectrogram__core_8h.md#function-dp_spectrogram_set_state).
+The blob is the stream position  the framer's snapshot: the carry (fewer than nfft samples, padded to nfft - 1), its element size, the stream counts, and the hop that frames them  inside the spectrogram's own envelope. It does not carry consumed(), the PSD's window or beta, or the spectrogram's own mode. So nfft and hop are checked on restore (the size and the stored hop), and window and beta are the caller's to keep the same  see [**dp\_spectrogram\_set\_state()**](spectrogram__core_8h.md#function-dp_spectrogram_set_state).
 
 
 

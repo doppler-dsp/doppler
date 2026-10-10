@@ -1015,6 +1015,46 @@ main (void)
     dp_spectrogram_destroy (b);
     dp_spectrogram_destroy (a);
   }
+  /* ...and "or beta": a Kaiser beta 6 blob restores into a Kaiser beta 9
+     object, whose continuation is beta 9's (a beta 9 object fed the whole
+     stream); the precondition is that beta 6's own continuation differs. */
+  {
+    const size_t            nfft = 16, hop = 6, split = 77, total = 400;
+    dp_spectrogram_state_t *a = dp_spectrogram_create (nfft, hop, 1, 6.0f, 0);
+    dp_spectrogram_state_t *b = dp_spectrogram_create (nfft, hop, 1, 9.0f, 0);
+    dp_spectrogram_state_t *ref
+        = dp_spectrogram_create (nfft, hop, 1, 9.0f, 0);
+    DP_REQUIRE (a && b && ref);
+    float *out_a = malloc (total * nfft * sizeof *out_a);
+    float *out_b = malloc (total * nfft * sizeof *out_b);
+    float *out_r = malloc (total * nfft * sizeof *out_r);
+    void  *blob  = malloc (dp_spectrogram_state_bytes (a));
+    DP_REQUIRE (out_a && out_b && out_r && blob);
+    size_t ka = dp_spectrogram_push (a, x, split, out_a, total * nfft) / nfft;
+    dp_spectrogram_get_state (a, blob);
+    DP_CHECK (dp_spectrogram_set_state (b, blob) == DP_OK); /* not refused */
+    size_t kb = dp_spectrogram_push (b, x + split, total - split, out_b,
+                                     total * nfft)
+                / nfft;
+    size_t kr
+        = dp_spectrogram_push (ref, x, total, out_r, total * nfft) / nfft;
+    DP_CHECK (ka + kb == kr);
+    DP_CHECK (kb > 0
+              && memcmp (out_b, out_r + ka * nfft, kb * nfft * sizeof *out_b)
+                     == 0);
+    size_t k6 = dp_spectrogram_push (a, x + split, total - split, out_a,
+                                     total * nfft)
+                / nfft;
+    DP_CHECK (k6 == kb
+              && memcmp (out_a, out_b, kb * nfft * sizeof *out_a) != 0);
+    free (blob);
+    free (out_r);
+    free (out_b);
+    free (out_a);
+    dp_spectrogram_destroy (ref);
+    dp_spectrogram_destroy (b);
+    dp_spectrogram_destroy (a);
+  }
 
   /* ---- 15. a row arrives with the push that delivers its last sample -- */
   /* zero latency in samples: fed one sample per push, the push carrying

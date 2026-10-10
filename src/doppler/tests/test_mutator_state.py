@@ -21,6 +21,17 @@ Registration-free
   face (jm renders it from the manifests, and it carries the ``# jm:hand``
   members). A member the stub does not declare has nothing to make values
   from, and reads ``UNPROBED``.
+- **Two exact rules, from the manifest:**
+  - a **handle** -- a method taking a telemetry sink or event log (its
+    ``capsule`` is one of ``_HANDLES``), whose other required parameters
+    are ``const char *`` labels -- reads ``HANDLE`` and passes: the design
+    page's rule is that a handle to the outside world is never in a blob. A
+    defaulted parameter configures the attachment (a sink's ``decim``);
+  - a **stream call** -- a method whose own ``arg_type`` is not ``void``, or
+    jm's built-in ``step``/``steps`` over the component's ``arg_type`` --
+    takes the object's input, not a value to keep, so its arguments are
+    varied but never required to differ: its effect is measured against the
+    uncalled twin, as a call with no value is.
 - **C-only setters:** functions in an object's own header, on a non-const
   ``*_state_t *``, named as a mutator (``set_``, ``configure``, ``retune``,
   ``reconfigure``, ``reseed``, ``enable_``), that the type does not bind.
@@ -36,29 +47,46 @@ Candidate values come from the stub's annotation (a scalar, a ``Literal``, an
 array's dtype), the current value, and the object's own lengths; there is no
 per-mutator table. A parameter no probe can make (a handle, a path, a string,
 an untyped array) reads ``UNPROBED``: "no value could be made" is not "not
-state".
+state". A method's required parameters are one dimension; each DEFAULTED
+parameter is another, varied alone and passed by keyword with the rest at
+their defaults, because a new defaulted keyword is how a setter is usually
+extended -- and a value it stores and the blob does not carry must read
+``LOST``, not pass at its default. A defaulted dimension can only fail the
+member: one the probe cannot see (an ``out=`` buffer) is no evidence.
 
 - **Observable:** what an object does is its readback -- a property
   mutator's own, and then EVERY readable property after the continuation,
   since a method has no readback of its own -- its continuation output and
-  its blob. Twins built as make, warm-up feed,
-  M(v) and make, warm-up feed, M(v2) must differ in one of those: measured
-  between two VALUES, not against "M not called", so a mutator that only
-  resets a counter as a side effect cannot read as observable. A call with
-  no value to vary (no required parameter) is measured against the uncalled
+  its blob. Twins built as make, warm-up feed, M(v) and make, warm-up feed,
+  M(v2) must differ in one of those: measured between two VALUES, not
+  against "M not called", so a mutator that only resets a counter as a side
+  effect cannot read as observable. A call with no value to vary (no
+  required parameter, or a stream call) is measured against the uncalled
   twin instead, since that is the only other value it has.
+- **Values are deduplicated by what the probe observes,** and a property's
+  by its readback starting from a FRESH object's: a setter that refuses
+  silently (#1987) leaves the readback where it was, and that value is the
+  default by another name.
 - **Inert:** every value M takes leaves the object exactly as the uncalled
-  twin. With a value handed back that is a reader, ``READS``; with none it
-  is a setter whose effect the recipe cannot see, ``UNPROBED``.
+  twin. A call that hands back a value is a reader, ``READS``, if it is
+  inert in every row and takes no value of its own to keep: no required
+  parameter, a stream call (a pure transform of its input), or jm's
+  capacity query ``<m>_max_out`` for a method the manifest declares
+  ``variable_output``. Anything else inert -- a setter, or a call taking a
+  value it does not visibly keep -- is ``UNPROBED``.
 - The blob of the v twin is restored into a default target, a target with
   M(v) applied (the same key), targets at the other values M took, and
   targets at values beside v: a scalar a hair either side, an array of the
-  same length with other content. The neighbours are the likeliest to share
-  v's key (a blob size, a ring, a plan) while differing from it. **Every
-  target that accepts the blob must then match the v twin** in readback,
-  continuation output and blob, or the verdict is ``LOST``. A restore that
-  writes M's value only when the target still holds the default, or that
-  keeps the target's own value, fails on a target at another value.
+  same length with other content, each argument and keyword moved in turn.
+  The neighbours are the likeliest to share v's key (a blob size, a ring, a
+  plan) while differing from it. **Every target that accepts the blob must
+  then match the v twin** in readback, continuation output and blob, or the
+  verdict is ``LOST``. A restore that writes M's value only when the target
+  still holds the default, or that keeps the target's own value, fails on a
+  target at another value.
+- A target counts as at ANOTHER value only if its value differs from v's
+  (by value, not identity) and it observes differently from a fresh default
+  target: a value M silently ignored is no other value.
 - ``TRAVELS`` -- the default target accepts the blob and matches, and so
   does a target at another value. The default alone is no evidence: it
   cannot tell a restore that writes v from one that writes it only into a
@@ -76,14 +104,18 @@ carries bytes that are not state (uninitialised padding, a buffer's unused
 tail), so no restore can be judged until it is a function of the object.
 
 ``CRASHES`` -- the probe takes the interpreter down (#2095). A member listed
-so is probed in a child process instead of the gate's own, where a death
-reads CRASHES and an answer reads as itself, so a fix turns the entry stale.
+so is probed in a child process instead of the gate's own. Only a death by a
+crash signal (SIGSEGV, SIGBUS, SIGILL, SIGFPE, SIGABRT; an error-class
+NTSTATUS on Windows) after the child's ``PROBING`` sentinel reads CRASHES;
+any other exit is an error that fails with the end of the child's stderr,
+and an answer reads as itself, so a fix turns the entry stale.
 
-``TRAVELS``, ``KEYED`` and ``READS`` pass. Every other verdict must be
-listed, once, with exactly that verdict and a reason, and an entry that now
-passes, names no mutator, or carries the wrong verdict fails as stale. The
-list may not grow either: ``make tests-ssot`` refuses an entry the merge
-base did not hold (``check_tests_ssot.mutator_list_added``).
+``TRAVELS``, ``KEYED``, ``READS`` and ``HANDLE`` pass. Every other verdict
+must be listed, once, with exactly that verdict and a reason, and an entry
+that now passes, names no mutator, or carries the wrong verdict fails as
+stale. The list may not grow either: ``make tests-ssot`` refuses a key the
+merge base did not hold, and a move into LOST, NONDETERMINISTIC or CRASHES
+(``check_tests_ssot.mutator_list_added``).
 """
 
 from __future__ import annotations
@@ -95,10 +127,11 @@ import importlib.util
 import itertools
 import os
 import re
+import signal
 import subprocess
 import sys
 import warnings
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -120,10 +153,9 @@ else:
 # Walked up, not counted: the coverage job runs this from a copy two levels
 # deeper (build-cov/pkg/doppler), where parents[3] found no objects/ at all.
 ROOT = repo_root(__file__)
-LIST = ROOT / "scripts" / ".mutator-state-exempt"
 STUBS = ROOT / "src" / "doppler"
 
-PASSING = ("TRAVELS", "KEYED", "READS")
+PASSING = ("TRAVELS", "KEYED", "READS", "HANDLE")
 LISTABLE = ("LOST", "NONDETERMINISTIC", "UNPROBED", "CRASHES", "C_ONLY")
 LISTABLE += ("NO_RECIPE",)
 
@@ -132,6 +164,11 @@ _LIFECYCLE |= {"state_bytes"}
 _C_MUTATOR = re.compile(
     r"_(set_\w+|configure\w*|retune|reconfigure|reseed\w*|enable_\w+)$"
 )
+# The handles the design page names as never in a blob, by the capsule type
+# a manifest parameter declares: telemetry sinks and event logs.
+_HANDLES = frozenset(
+    {"doppler.telemetry.dp_tlm", "doppler.telemetry.dp_event_log"}
+)
 
 WARM = _matrix._stream(1024, seed=11)
 CONT = _matrix._stream(1024, seed=12)
@@ -139,7 +176,8 @@ CONT = _matrix._stream(1024, seed=12)
 
 @functools.cache
 def _ssot() -> ModuleType:
-    """scripts/check_tests_ssot.py: the one reader of the list's format."""
+    """scripts/check_tests_ssot.py: the one reader of the list's format,
+    and the one declaration of its path."""
     path = ROOT / "scripts" / "check_tests_ssot.py"
     sys.path.insert(0, str(path.parent))
     try:
@@ -150,6 +188,9 @@ def _ssot() -> ModuleType:
     finally:
         sys.path.remove(str(path.parent))
     return mod
+
+
+LIST: Path = _ssot().MUTATOR_LIST
 
 
 # ── discovery ───────────────────────────────────────────────────────────────
@@ -171,6 +212,10 @@ class Mutator:
     # signature, so there is nothing to make a value from.
     params: tuple[Param, ...] | None = ()
     ann: str = ""  # a property's annotation
+    optional: tuple[Param, ...] = ()  # defaulted: each varied by keyword
+    stream: bool = False  # its input is the object's stream
+    handle: bool = False  # it attaches a handle to the outside world
+    accessor: bool = False  # jm's capacity query for a variable_output call
 
     @property
     def key(self) -> str:
@@ -182,17 +227,36 @@ def _camel(comp: str) -> str:
     return "".join(p[:1].upper() + p[1:] for p in comp.split("_"))
 
 
-def _serializable() -> Iterator[tuple[str, str, bool]]:
-    """(class, component, is a view) for every serializable class."""
+@dataclass(frozen=True)
+class Declared:
+    """A serializable class, and the manifest tables that declare it."""
+
+    cls: str
+    comp: str
+    cfg: dict[str, Any]
+    view: dict[str, Any] | None  # its [[X.views]] entry, if it is a view
+
+    def method(self, name: str) -> dict[str, Any] | None:
+        own = (self.view or {}).get("methods", [])
+        for m in [*own, *self.cfg.get("methods", [])]:
+            if m["name"] == name:
+                return dict(m)
+        return None
+
+
+def _serializable() -> Iterator[Declared]:
+    """Every serializable class, views included."""
     for path in sorted((ROOT / "objects").glob("*.toml")):
         for comp, cfg in tomllib.loads(path.read_text("utf-8")).items():
             if not isinstance(cfg, dict):
                 continue
             if str(cfg.get("serializable", "")).lower() != "true":
                 continue
-            yield cfg.get("class_name") or _camel(comp), comp, False
+            yield Declared(
+                cfg.get("class_name") or _camel(comp), comp, cfg, None
+            )
             for view in cfg.get("views", []):
-                yield view["class_name"], comp, True
+                yield Declared(view["class_name"], comp, cfg, view)
 
 
 @dataclass(frozen=True)
@@ -200,7 +264,8 @@ class Stub:
     """One class as its ``.pyi`` declares it."""
 
     module: str
-    methods: dict[str, tuple[Param, ...]]
+    # method -> (required parameters, defaulted parameters)
+    methods: dict[str, tuple[tuple[Param, ...], tuple[Param, ...]]]
     getters: dict[str, str]  # property -> its annotation
     setters: frozenset[str]
 
@@ -215,6 +280,10 @@ def _decorated(f: ast.FunctionDef, name: str) -> bool:
     return any(ast.unparse(d) == name for d in f.decorator_list)
 
 
+def _params(args: Iterable[ast.arg]) -> tuple[Param, ...]:
+    return tuple(Param(p.arg, ast.unparse(p.annotation or "")) for p in args)
+
+
 @functools.cache
 def _stubs() -> dict[str, Stub]:
     out: dict[str, Stub] = {}
@@ -222,7 +291,8 @@ def _stubs() -> dict[str, Stub]:
         for node in ast.parse(path.read_text("utf-8")).body:
             if not isinstance(node, ast.ClassDef):
                 continue
-            methods: dict[str, tuple[Param, ...]] = {}
+            methods: dict[str, tuple[tuple[Param, ...], tuple[Param, ...]]]
+            methods = {}
             getters: dict[str, str] = {}
             setters: set[str] = set()
             for f in node.body:
@@ -234,17 +304,18 @@ def _stubs() -> dict[str, Stub]:
                     setters.add(f.name)
                 elif f.name not in methods:
                     a = f.args
-                    # Required parameters only: a defaulted one (an ``out=``
-                    # buffer, an optional mode) keeps its default.
-                    pos = a.args[1 : len(a.args) - len(a.defaults)]
-                    kw = [
-                        k
-                        for k, d in zip(a.kwonlyargs, a.kw_defaults)
-                        if d is None
-                    ]
-                    methods[f.name] = tuple(
-                        Param(p.arg, ast.unparse(p.annotation or ""))
-                        for p in [*pos, *kw]
+                    cut = len(a.args) - len(a.defaults)  # self never defaults
+                    kw = list(zip(a.kwonlyargs, a.kw_defaults))
+                    methods[f.name] = (
+                        _params(
+                            [*a.args[1:cut], *(k for k, d in kw if d is None)]
+                        ),
+                        _params(
+                            [
+                                *a.args[cut:],
+                                *(k for k, d in kw if d is not None),
+                            ]
+                        ),
                     )
             assert node.name not in out, f"{node.name} is in two stubs"
             out[node.name] = Stub(
@@ -306,6 +377,52 @@ def _writable(cls: str, props: list[str]) -> list[str]:
         ]
 
 
+def _is_stream(d: Declared, name: str) -> bool:
+    """A call whose input is the object's stream, by the manifest exactly:
+    its own non-void ``arg_type``, or jm's built-in step/steps over the
+    component's."""
+    entry = d.method(name)
+    if entry is not None:
+        return str(entry.get("arg_type", "void")) != "void"
+    built_in = str(d.cfg.get("no_step", "false")).lower() != "true"
+    return (
+        name in ("step", "steps")
+        and built_in
+        and str(d.cfg.get("arg_type", "void")) != "void"
+    )
+
+
+def _is_handle(d: Declared, name: str) -> bool:
+    """A call that attaches a handle, by the manifest exactly: at least one
+    parameter whose capsule is in _HANDLES, and every other REQUIRED one a
+    ``const char *`` label. A defaulted one configures the attachment (a
+    telemetry sink's ``decim``), which set_state keeps on the target with
+    the handle itself."""
+    entry = d.method(name) or {}
+    ps = entry.get("params") or entry.get("args") or []
+    handles = [p for p in ps if p.get("capsule") in _HANDLES]
+    rest = [
+        p
+        for p in ps
+        if p not in handles
+        and "default" not in p
+        and str(p.get("type")) != "const char *"
+    ]
+    return bool(handles) and not rest
+
+
+def _is_accessor(d: Declared, name: str) -> bool:
+    """jm's capacity query, by the manifest exactly: ``<m>_max_out`` for a
+    method ``m`` declared ``variable_output``, which reports how much ``m``
+    would write and writes nothing itself."""
+    base = (
+        d.method(name[: -len("_max_out")])
+        if name.endswith("_max_out")
+        else None
+    )
+    return bool(base and base.get("variable_output"))
+
+
 def _c_only(cls: str, comp: str, bound: set[str]) -> list[Mutator]:
     header = ROOT / "native" / "inc" / "doppler" / comp / f"{comp}_core.h"
     if not header.exists():
@@ -327,24 +444,38 @@ def _c_only(cls: str, comp: str, bound: set[str]) -> list[Mutator]:
 
 def discover() -> list[Mutator]:
     found: list[Mutator] = []
-    for cls, comp, is_view in _serializable():
-        stub = _stubs()[cls]
-        props, methods = _members(python_type(cls))
-        writable = _writable(cls, props)
+    for d in _serializable():
+        stub = _stubs()[d.cls]
+        props, methods = _members(python_type(d.cls))
+        writable = _writable(d.cls, props)
         for p in writable:
             found.append(
-                Mutator(cls, comp, p, "property", ann=stub.getters.get(p, ""))
+                Mutator(
+                    d.cls, d.comp, p, "property", ann=stub.getters.get(p, "")
+                )
             )
         for m in methods:
-            if m not in _LIFECYCLE:
-                found.append(
-                    Mutator(cls, comp, m, "method", stub.methods.get(m))
+            if m in _LIFECYCLE:
+                continue
+            sig = stub.methods.get(m)
+            found.append(
+                Mutator(
+                    d.cls,
+                    d.comp,
+                    m,
+                    "method",
+                    sig[0] if sig else None,
+                    optional=sig[1] if sig else (),
+                    stream=_is_stream(d, m),
+                    handle=_is_handle(d, m),
+                    accessor=_is_accessor(d, m),
                 )
-        if not is_view:  # a view shares its parent's core and its header
+            )
+        if d.view is None:  # a view shares its parent's core and its header
             # What the type binds, as the C suffix it would carry: a
             # method's own name, and set_<p> for a writable property.
             bound = set(methods) | {f"set_{p}" for p in writable}
-            found += _c_only(cls, comp, bound)
+            found += _c_only(d.cls, d.comp, bound)
     return found
 
 
@@ -368,6 +499,27 @@ def _recipes() -> dict[str, list[Recipe]]:
 # ── probe values: from the stub, the current value and the object ───────────
 
 _ARRAY = re.compile(r"NDArray\[(?:np\.)?(\w+)\]")
+
+
+@dataclass(frozen=True, eq=False)
+class Call:
+    """One call's arguments: the required ones positionally, and at most one
+    defaulted one by keyword. Compared by _key, never by ``==`` (arrays)."""
+
+    args: tuple[Any, ...]
+    kw: tuple[tuple[str, Any], ...] = ()
+
+
+def _key(v: Any) -> tuple:
+    """A value as something comparable by VALUE: an equal call built twice,
+    or an array with the same bytes, is the same value."""
+    if isinstance(v, Call):
+        return ("call", _key(v.args), tuple((k, _key(x)) for k, x in v.kw))
+    if isinstance(v, tuple):
+        return ("tuple", *(_key(x) for x in v))
+    if isinstance(v, np.ndarray):
+        return ("array", v.dtype.str, v.shape, v.tobytes())
+    return ("scalar", type(v).__name__, repr(v))
 
 
 def _bare(ann: str) -> str:
@@ -459,23 +611,28 @@ def _int_props(obj: Any) -> list[int]:
     return out
 
 
+def _lengths(obj: Any) -> list[int]:
+    return list(dict.fromkeys([*_int_props(obj), 4, 8, 16, 31, 64, 127]))
+
+
 _NEAR_SEED = 7919  # an array beside another: same length, other content
+_KW_SEED = 97  # a defaulted array's own content, apart from the required
 
 
-def _method_args(mut: Mutator, obj: Any) -> Iterator[tuple[Any, ...]]:
-    """Candidate argument tuples, for a method whose params can be made."""
+def _values(ann: str, lengths: list[int], seed: int) -> list[Any]:
+    a = _bare(ann)
+    dt = _dtype(a)
+    if dt is not None:
+        return [_array(dt, n, seed=seed + n) for n in lengths]
+    return _scalar_candidates(a)
+
+
+def _calls(mut: Mutator, obj: Any) -> Iterator[Call]:
+    """Candidate calls over the required parameters."""
     assert mut.params is not None
-    per: list[list[Any]] = []
-    lengths = list(dict.fromkeys([*_int_props(obj), 4, 8, 16, 31, 64, 127]))
-    for i, p in enumerate(mut.params):
-        a = _bare(p.ann)
-        dt = _dtype(a)
-        if dt is not None:
-            per.append([_array(dt, n, seed=i + n) for n in lengths])
-        else:
-            per.append(_scalar_candidates(a))
+    per = [_values(p.ann, _lengths(obj), i) for i, p in enumerate(mut.params)]
     if not per:
-        return iter([()])
+        return iter([Call(())])
     # Each param starts at its own offset, so two params of one type are
     # never handed the same value (a pd that must exceed its pfa).
     width = max(len(c) for c in per)
@@ -485,7 +642,13 @@ def _method_args(mut: Mutator, obj: Any) -> Iterator[tuple[Any, ...]]:
     )
     # ...then combinations, for params that constrain each other (pfa < pd).
     combos = itertools.product(*(c[:4] for c in per))
-    return itertools.chain(staggered, combos)
+    return (Call(args) for args in itertools.chain(staggered, combos))
+
+
+def _kw_calls(base: Call, p: Param, obj: Any) -> list[Call]:
+    """One defaulted parameter varied, by keyword, over a base call."""
+    xs = _values(p.ann, _lengths(obj), _KW_SEED)
+    return [Call(base.args, ((p.name, x),)) for x in xs[:8]]
 
 
 def _near_scalar(v: Any) -> list[Any]:
@@ -501,9 +664,16 @@ def _near(v: Any) -> list[Any]:
     a plan) while differing from it, which is the target a restore that
     keeps the target's own value fails on. A scalar a hair either side; an
     array of the same length with other content; for a call, each argument
-    moved in turn with the rest held."""
+    and its keyword moved in turn with the rest held."""
     if isinstance(v, np.ndarray):
         return [_array(v.dtype, v.size, seed=_NEAR_SEED + v.size)]
+    if isinstance(v, Call):
+        out = [Call(a, v.kw) for a in _near(v.args)]
+        for i, (k, x) in enumerate(v.kw):
+            for y in _near(x):
+                kw = (*v.kw[:i], (k, y), *v.kw[i + 1 :])
+                out.append(Call(v.args, kw))
+        return out
     if not isinstance(v, tuple):
         return _near_scalar(v)
     out = []
@@ -526,7 +696,7 @@ def _apply(obj: Any, mut: Mutator, value: Any) -> Any:
     if mut.kind == "property":
         setattr(obj, mut.name, value)
         return None
-    return getattr(obj, mut.name)(*value)
+    return getattr(obj, mut.name)(*value.args, **dict(value.kw))
 
 
 def _as_bytes(v: Any) -> bytes | None:
@@ -568,14 +738,21 @@ def _readback(obj: Any) -> tuple[tuple[str, bytes], ...]:
     return tuple(out)
 
 
+def _snap(obj: Any) -> tuple:
+    """What a built object shows without being run: readback and blob."""
+    return _readback(obj), obj.get_state()
+
+
+def _own(obj: Any, mut: Mutator) -> bytes:
+    return _as_bytes(getattr(obj, mut.name)) or b""
+
+
 def _observe(obj: Any, mut: Mutator, feed: Callable[..., Any]) -> tuple:
     """Everything a resumed object must reproduce: a property mutator's own
     readback, the blob, the continuation's output, the blob after it, and
     then every property's readback. Bytes, so -0.0 and NaN compare as what
     they are."""
-    own = b""
-    if mut.kind == "property":
-        own = _as_bytes(getattr(obj, mut.name)) or b""
+    own = _own(obj, mut) if mut.kind == "property" else b""
     before = obj.get_state()
     out = np.asarray(feed(obj, CONT)).tobytes()
     return own, before, out, obj.get_state(), _readback(obj)
@@ -595,30 +772,20 @@ def _built(
     return obj
 
 
-def _accepted_values(mut: Mutator, make, feed) -> tuple[list[Any], bool]:
-    """Values M takes without raising, readback distinct for a property
-    and from the one it holds; and whether every call handed back a
-    value."""
-    probe = _warm(make, feed)
-    if mut.kind == "property":
-        current = getattr(probe, mut.name)
-        cands: Any = _scalar_candidates(_bare(mut.ann), current)
-        if not cands:  # the stub is silent or vague: type the value itself
-            for kind in (bool, int, float, complex):
-                if isinstance(current, kind):
-                    cands = _scalar_candidates(kind.__name__, current)
-                    break
-    else:
-        cands = _method_args(mut, probe)
+def _accepted(
+    mut: Mutator, make, feed, cands: Iterable[Any]
+) -> tuple[list[Any], list[tuple], bool]:
+    """Values M takes without raising, deduplicated by what the probe
+    observes, with their observations; and whether every call handed back
+    a value. A property's are deduplicated by readback too, starting from a
+    FRESH object's: a setter that refuses silently (#1987) leaves the
+    readback where it was, and that value is no other value."""
     vals: list[Any] = []
+    refs: list[tuple] = []
     returned = True
-    # Seeded with the value the object already holds: a setter that refuses
-    # silently (#1987) leaves the readback where it was, and that value is
-    # no other value -- a target "at" it would be the default by another
-    # name, and pass TRAVELS for it.
-    seen: set[bytes] = set()
+    seen_rb: set[bytes] = set()
     if mut.kind == "property":
-        seen.add(_as_bytes(getattr(probe, mut.name)) or b"")
+        seen_rb.add(_own(make(), mut))
     for v in itertools.islice(cands, 40):
         o = _warm(make, feed)
         try:
@@ -626,13 +793,17 @@ def _accepted_values(mut: Mutator, make, feed) -> tuple[list[Any], bool]:
         except Exception:  # the mutator refused this value: try the next
             continue
         if mut.kind == "property":
-            rb = _as_bytes(getattr(o, mut.name)) or b""
-            if rb in seen:
+            rb = _own(o, mut)
+            if rb in seen_rb:
                 continue
-            seen.add(rb)
+            seen_rb.add(rb)
+        ref = _observe(o, mut, feed)
+        if mut.kind == "method" and ref in refs:
+            continue  # observes as a value already taken
         returned = returned and got is not None
         vals.append(v)
-    return vals, returned and mut.kind == "method"
+        refs.append(ref)
+    return vals, refs, returned and mut.kind == "method"
 
 
 def _restore_into(target: Any, blob: bytes) -> bool:
@@ -645,6 +816,10 @@ def _restore_into(target: Any, blob: bytes) -> bool:
 
 def _show(v: Any) -> str:
     """A value as a failure message can carry it: an array by its shape."""
+    if isinstance(v, Call):
+        parts = [_show(x) for x in v.args]
+        parts += [f"{k}={_show(x)}" for k, x in v.kw]
+        return "(" + ", ".join(parts) + ")"
     if isinstance(v, tuple):
         return "(" + ", ".join(_show(x) for x in v) + ")"
     if isinstance(v, np.ndarray):
@@ -653,27 +828,36 @@ def _show(v: Any) -> str:
 
 
 def _restore_check(
-    mut: Mutator, make, feed, v: Any, others: list[Any]
+    mut: Mutator, make, feed, v: Any, others: list[Any], valued: bool
 ) -> Verdict:
     """Restore the v twin's blob into every target and judge the result."""
     ref_v = _observe(_built(make, feed, mut, v), mut, feed)
     blob = _built(make, feed, mut, v).get_state()
+    fresh = _snap(make())
     # Every target that ACCEPTS the blob must then be the v twin: a default
     # one, one already at v (the same key), one at each other value M
     # takes, and one at each value beside v, which share its key and differ.
     targets: list[tuple[str, Any]] = [("default", make())]
     # Ten other values are plenty to find one that shares v's key; past that
     # an expensive object (an acquirer) only pays for repetition.
-    others = [c for c in others if c is not v][:10]
-    candidates = [("same", v)]
-    candidates += [(f"M{_show(c)}", c) for c in others]
-    candidates += [(f"M{_show(c)}, beside v", c) for c in _near(v)]
-    for label, val in candidates:
+    keys = {_key(v)}
+    cands: list[tuple[str, Any]] = [("same", v)]
+    for c in [*others[:10], *_near(v)]:
+        if _key(c) not in keys:  # by value: an equal call is no other
+            keys.add(_key(c))
+            cands.append((f"M{_show(c)}", c))
+    other: list[str] = []
+    for label, val in cands:
         t = make()
         try:
             _apply(t, mut, val)
         except Exception:  # a value M refuses is no target
             continue
+        # A target M left looking like a fresh default -- a value it
+        # silently ignored -- is the default by another name: held to the
+        # match below, but no evidence of another value.
+        if label != "same" and _snap(t) != fresh:
+            other.append(label)
         targets.append((label, t))
     accepted = {label: _restore_into(t, blob) for label, t in targets}
     for label, t in targets:
@@ -687,17 +871,14 @@ def _restore_check(
     # with a target at ANOTHER value beside it: the default alone cannot
     # tell a restore that writes v from one that writes it only into a
     # target still at the default (sabotage d), and a mutator every other
-    # target refused to take would pass on it alone. With no value to vary,
-    # the uncalled default is that other value.
-    other = [
-        lab
-        for lab in accepted
-        if accepted[lab] and lab not in ("default", "same")
-    ]
-    if v == () and mut.kind == "method":
-        other.append("default")
+    # target refused to take would pass on it alone. With no value to vary
+    # (no required parameter, or a stream call's input), the uncalled
+    # default is that other value.
+    evidence = [lab for lab in other if accepted[lab]]
+    if not valued:
+        evidence.append("default")
     if accepted["default"]:
-        if other:
+        if evidence:
             return Verdict("TRAVELS")
         return Verdict(
             "UNPROBED",
@@ -714,15 +895,19 @@ def _restore_check(
     )
 
 
-def probe(mut: Mutator, make, feed) -> Verdict:
-    why = _unmakeable(mut)
-    if why:
-        return Verdict("UNPROBED", why)
-    vals, returned = _accepted_values(mut, make, feed)
+def _judge(
+    mut: Mutator,
+    make,
+    feed,
+    cands: Iterable[Any],
+    *,
+    valued: bool,
+    may_read: bool,
+) -> tuple[Verdict, list[Any]]:
+    """One dimension's verdict, and the values it accepted."""
+    vals, refs, returned = _accepted(mut, make, feed, cands)
     if not vals:
-        return Verdict("UNPROBED", "no value the mutator accepts")
-    uncalled = _observe(_warm(make, feed), mut, feed)
-    refs = [_observe(_built(make, feed, mut, c), mut, feed) for c in vals]
+        return Verdict("UNPROBED", "no value the mutator accepts"), vals
     # Two builds of the same object, fed the same, must observe the same: a
     # blob that differs between them carries bytes that are not state
     # (uninitialised padding or buffer tails), and no restore can be judged.
@@ -731,31 +916,78 @@ def probe(mut: Mutator, make, feed) -> Verdict:
             "NONDETERMINISTIC",
             "two identical builds differ: the blob carries bytes that are "
             "not state",
-        )
+        ), vals
+    uncalled = _observe(_warm(make, feed), mut, feed)
     if all(r == uncalled for r in refs):
-        if returned:
-            return Verdict("READS")
+        if returned and may_read:
+            return Verdict("READS"), vals
         return Verdict(
             "UNPROBED",
             "no value it accepts changes anything the probe can see",
-        )
-    valued = mut.kind == "property" or bool(mut.params)
+        ), vals
     if valued and len(set(refs)) < 2:
         return Verdict(
             "UNPROBED",
             "no two accepted values differ in readback, output or blob",
-        )
+        ), vals
     # Each of the first values takes a turn as v: whether a restore keeps
     # the target's own value can depend on v (a rate whose plan, and so blob
     # size, only some neighbours share), so one v is not enough.
-    seen = [_restore_check(mut, make, feed, v, vals) for v in vals[:4]]
+    seen = [_restore_check(mut, make, feed, v, vals, valued) for v in vals[:4]]
     for verdict in seen:
         if verdict.name == "LOST":
-            return verdict
+            return verdict, vals
     for name in ("KEYED", "TRAVELS"):
         if any(verdict.name == name for verdict in seen):
-            return Verdict(name)
-    return seen[0]
+            return Verdict(name), vals
+    return seen[0], vals
+
+
+def probe(mut: Mutator, make, feed) -> Verdict:
+    why = _unmakeable(mut)
+    if why:
+        return Verdict("UNPROBED", why)
+    if mut.kind == "property":
+        current = getattr(_warm(make, feed), mut.name)
+        cands: list[Any] = _scalar_candidates(_bare(mut.ann), current)
+        if not cands:  # the stub is silent or vague: type the value itself
+            for kind in (bool, int, float, complex):
+                if isinstance(current, kind):
+                    cands = _scalar_candidates(kind.__name__, current)
+                    break
+        return _judge(mut, make, feed, cands, valued=True, may_read=False)[0]
+    obj = _warm(make, feed)
+    verdict, vals = _judge(
+        mut,
+        make,
+        feed,
+        _calls(mut, obj),
+        valued=bool(mut.params) and not mut.stream,
+        # An inert call taking a value it does not visibly keep is no
+        # reader: it may be a setter the recipe cannot see. Only a call
+        # with no value, a stream call (a pure transform of its input), or
+        # jm's declared capacity query reads.
+        may_read=not mut.params or mut.stream or mut.accessor,
+    )
+    if not vals:
+        return verdict
+    # Each defaulted parameter, alone, over the first accepted call. Only a
+    # failure counts: a keyword the probe cannot see change anything (an
+    # out= buffer) shows nothing either way.
+    for p in mut.optional:
+        if not _makeable(p.ann):
+            continue
+        kw, _ = _judge(
+            mut,
+            make,
+            feed,
+            _kw_calls(vals[0], p, obj),
+            valued=True,
+            may_read=False,
+        )
+        if kw.name in ("LOST", "NONDETERMINISTIC"):
+            return Verdict(kw.name, f"{p.name}=: {kw.detail}")
+    return verdict
 
 
 # ── the list ────────────────────────────────────────────────────────────────
@@ -773,43 +1005,70 @@ _RECIPES = _recipes()
 _MUTATORS = discover()
 
 
+def _aggregate(seen: list[Verdict]) -> Verdict:
+    """One verdict from every row's. A failure in any row is the verdict,
+    and a pass needs a row that probed. READS needs EVERY row inert: a call
+    one row sees write is no reader for being inert in another."""
+    for name in ("NONDETERMINISTIC", "LOST"):
+        for verdict in seen:
+            if verdict.name == name:
+                return verdict
+    for name in ("KEYED", "TRAVELS"):
+        if any(v.name == name for v in seen):
+            return Verdict(name)
+    if all(v.name == "READS" for v in seen):
+        return Verdict("READS")
+    return next(v for v in seen if v.name != "READS")
+
+
 def _verdict(mut: Mutator) -> Verdict:
     if mut.kind == "c":
         return Verdict("C_ONLY", "no Python face to probe")
+    if mut.handle:
+        return Verdict("HANDLE")
     recipes = _RECIPES.get(mut.cls)
     if not recipes:
         return Verdict("NO_RECIPE", "no row in test_state_serialization.CASES")
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        seen = [probe(mut, make, feed) for make, feed in recipes]
-    # Any row's failure is the verdict; a pass needs a row that probed.
-    for name in ("NONDETERMINISTIC", "LOST"):
-        for verdict in seen:
-            if verdict.name == name:
-                return verdict
-    for name in PASSING:
-        if any(v.name == name for v in seen):
-            return Verdict(name)
-    return seen[0]
+        return _aggregate([probe(mut, make, feed) for make, feed in recipes])
 
 
 _CHILD = """\
 import sys, warnings
 warnings.simplefilter("ignore")
 from doppler.tests import test_mutator_state as g
-v = g._verdict(next(m for m in g._MUTATORS if m.key == sys.argv[1]))
-print(v.name)
-print(v.detail)
+m = next(m for m in g._MUTATORS if m.key == sys.argv[1])
+print("PROBING", flush=True)
+v = g._verdict(m)
+print("VERDICT", v.name, flush=True)
+print(v.detail, flush=True)
 """
+
+# A death the PROBE caused: a fault in the C it called, or an abort from a
+# check inside it. Not SIGKILL or SIGTERM, which come from outside (an OOM
+# kill, a timeout), and not an exit status, which is Python failing.
+_CRASH_SIGNALS = frozenset(
+    getattr(signal, s)
+    for s in ("SIGSEGV", "SIGBUS", "SIGILL", "SIGFPE", "SIGABRT")
+    if hasattr(signal, s)
+)
+
+
+def _died_of_a_crash(returncode: int) -> bool:
+    if os.name == "nt":  # an error-class NTSTATUS: 0xC0000005 and kin
+        return returncode >= 0xC0000000
+    return returncode < 0 and -returncode in _CRASH_SIGNALS
 
 
 def _verdict_in_a_child(mut: Mutator) -> Verdict:
     """The verdict of a mutator listed CRASHES, from a process of its own.
 
     Its probe takes the interpreter down with it (#2095), so it cannot run
-    in the gate's process; asked in a child, a death is CRASHES and an
-    answer is whatever the probe now reads, which makes a fixed entry stale
-    like any other."""
+    in the gate's process. Asked in a child, a crash-signal death after the
+    ``PROBING`` sentinel is CRASHES; any other failure is an error carrying
+    the END of the child's stderr; and an answer is whatever the probe now
+    reads, which makes a fixed entry stale like any other."""
     import doppler
 
     env = dict(os.environ)
@@ -826,11 +1085,18 @@ def _verdict_in_a_child(mut: Mutator) -> Verdict:
         env=env,
         timeout=600,
     )
-    if run.returncode != 0:
-        tail = (run.stderr.strip().splitlines() or [""])[0]
-        return Verdict("CRASHES", f"exit {run.returncode}: {tail}")
-    name, detail = [*run.stdout.splitlines(), "", ""][:2]
-    return Verdict(name, detail)
+    out = run.stdout.splitlines()
+    if "PROBING" in out and _died_of_a_crash(run.returncode):
+        return Verdict("CRASHES", f"died by exit {run.returncode}")
+    if run.returncode != 0 or not any(x.startswith("VERDICT ") for x in out):
+        tail = " | ".join(run.stderr.strip().splitlines()[-3:])
+        return Verdict(
+            "ERROR",
+            f"the child exited {run.returncode} without a crash signal: "
+            f"{tail}",
+        )
+    at = next(i for i, x in enumerate(out) if x.startswith("VERDICT "))
+    return Verdict(out[at].split(" ", 1)[1], "".join(out[at + 1 : at + 2]))
 
 
 @pytest.mark.parametrize("mut", _MUTATORS, ids=lambda m: m.key)
@@ -862,7 +1128,7 @@ def test_discovery_sees_every_matrix_class() -> None:
     discovery found. A root that misses objects/ finds no classes, and the
     parametrized gate above then has nothing to check -- a pass by absence,
     which is what the coverage job's copied tree produced."""
-    found = {cls for cls, *_ in _serializable()}
+    found = {d.cls for d in _serializable()}
     assert found, f"no serializable class found under {ROOT / 'objects'}"
     missing = sorted(c for c in _RECIPES if c not in found)
     assert not missing, f"matrix classes discovery missed: {missing}"
@@ -873,11 +1139,11 @@ def test_every_serializable_class_resolves_to_its_type_and_stub() -> None:
     """Discovery reads the type Python gets and the stub that declares it;
     a class missing either would contribute no mutators at all."""
     unresolved = []
-    for cls, *_ in _serializable():
+    for d in _serializable():
         try:
-            assert isinstance(python_type(cls), type)
+            assert isinstance(python_type(d.cls), type)
         except (KeyError, AttributeError, ImportError) as e:
-            unresolved.append(f"{cls}: {e!r}")
+            unresolved.append(f"{d.cls}: {e!r}")
     assert not unresolved, unresolved
 
 
@@ -898,3 +1164,23 @@ def test_the_list_names_each_mutator_once() -> None:
 def test_the_list_only_holds_listable_verdicts() -> None:
     bad = {k: v for k, (v, _) in _listed().items() if v not in LISTABLE}
     assert not bad, f"verdicts a list may not hold: {bad}"
+
+
+@pytest.mark.parametrize(
+    ("returncode", "crash"),
+    [
+        (-int(signal.SIGSEGV), True),
+        (-int(signal.SIGABRT), True),
+        (-int(signal.SIGKILL) if hasattr(signal, "SIGKILL") else -9, False),
+        (1, False),  # an uncaught Python exception
+        (0, False),
+    ],
+)
+def test_only_a_crash_signal_reads_crashes(
+    returncode: int, crash: bool
+) -> None:
+    """An OOM kill (SIGKILL) and a Python failure (exit 1) are not the
+    probe crashing, so neither may read as the listed CRASHES."""
+    if os.name == "nt":
+        pytest.skip("POSIX signal numbers")
+    assert _died_of_a_crash(returncode) is crash

@@ -20,6 +20,7 @@ with a concurrent run on the same broker.
 
 from __future__ import annotations
 
+import gc
 import random
 import socket
 import time
@@ -1130,3 +1131,64 @@ def test_cleanup_delete_swallows_only_the_brokers_absence_reply():
     )
     _delete_stream_if_present(already_gone)
     assert already_gone.calls == 1
+
+
+# ------------------------------------------------------------------ #
+# ack() after its Pull is gone (#2016 item 5)                          #
+# ------------------------------------------------------------------ #
+
+
+def test_ack_after_close_raises_value_error():
+    """An ack whose Pull is closed is refused, not a use-after-free.
+
+    nats.c's ack reads the message's subscription, and a message does not
+    keep it alive: acking after close() read freed memory. The message
+    shares a link with its Pull's context, so the refusal is clean, and the
+    array stays readable.
+    """
+    ep = _unique_endpoint("ackclose")
+    push = Push(ep, CF64)
+    pull = Pull(ep)
+    _ready_queue(push, pull, np.zeros(1, dtype=np.complex128), ep)
+    push.send(np.full(2, 3 + 4j, dtype=np.complex128))
+    samples, _ = pull.recv(timeout_ms=2000)
+    pull.close()
+    with pytest.raises(ValueError, match="closed"):
+        pull.ack(samples)
+    np.testing.assert_array_equal(samples, np.full(2, 3 + 4j))
+    push.__exit__(None, None, None)
+
+
+def test_ack_after_the_pull_is_collected_raises_value_error():
+    """A garbage-collected Pull takes close()'s path, and the closed check
+    is the MESSAGE's: ack() accepts another Pull's array, so it is acked
+    through a second Pull here, and still refused."""
+    ep = _unique_endpoint("ackgc")
+    push = Push(ep, CF64)
+    pull = Pull(ep)
+    _ready_queue(push, pull, np.zeros(1, dtype=np.complex128), ep)
+    push.send(np.ones(2, dtype=np.complex128))
+    samples, _ = pull.recv(timeout_ms=2000)
+    del pull
+    gc.collect()
+    other = Pull(_unique_endpoint("ackgc_other"))
+    with pytest.raises(ValueError, match="closed"):
+        other.ack(samples)
+    other.close()
+    push.__exit__(None, None, None)
+
+
+def test_ack_on_a_subscriber_frame_is_a_noop():
+    """Only a work-queue frame is acked; on any other, ack() is the no-op
+    stream.h promises. It used to reach nats.c's JetStream ack and fail."""
+    ep = _unique_endpoint("acksub")
+    pub = Publisher(ep, CF64)
+    sub = Subscriber(ep)
+    _ready_fanout(pub, sub, np.zeros(1, dtype=np.complex128))
+    pub.send(np.ones(2, dtype=np.complex128), sample_rate=int(1e6))
+    samples, _ = sub.recv(timeout_ms=2000)
+    pull = Pull(_unique_endpoint("acksub_pull"))
+    assert pull.ack(samples) is None
+    pull.close()
+    pub.__exit__(None, None, None)
+    sub.__exit__(None, None, None)

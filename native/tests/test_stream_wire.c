@@ -682,7 +682,8 @@ test_reasm_mid_frame_gap (void)
 static void
 test_reasm_same_sequence_never_merges (void)
 {
-  printf ("-- two publishers on one sequence are never merged\n");
+  printf ("-- two publishers on one sequence, clocks differing, are not "
+          "merged\n");
   dp_reasm_t r = { 0 };
   for (uint32_t i = 0; i < RA_COUNT; i++) /* A0 B0 A1 B1 A2 B2 */
     {
@@ -750,6 +751,77 @@ test_reasm_redelivery_and_forgery (void)
   dp_reasm_reset (&r);
 }
 
+static void
+test_reasm_forged_chunk_spares_the_frame (void)
+{
+  printf ("-- a forged chunk of ANOTHER frame costs the frame nothing\n");
+  dp_reasm_t  r  = { 0 };
+  ra_chunk_t  c0 = ra_chunk (0, 0, 0), c1 = ra_chunk (0, 0, 1);
+  ra_chunk_t  c2 = ra_chunk (0, 0, 2);
+  int         done;
+  char       *frame;
+  dp_header_t fh;
+  DP_CHECK (ra_feed (&r, &c0, 0) == -1);
+  DP_CHECK (ra_feed (&r, &c1, 0) == -1);
+
+  /* A different frame (another sequence), and off its own grid: chunk 1
+     must start at 1*S, and this one starts 8 bytes late. No frame could
+     hold it, so it is rejected BEFORE anything is given up for it --
+     abandoning first would destroy frame 0 for a chunk that is then
+     refused, and frame 0's last chunk would start a phantom frame. */
+  ra_chunk_t forged = ra_chunk (7, 0, 1);
+  forged.ch.offset += 8;
+  DP_CHECK (dp_reasm_feed (&r, &forged.hdr, &forged.ch, forged.body,
+                           forged.len, &done, &frame, &fh)
+            == DP_ERR_INVALID);
+  DP_CHECK (r.stats.rejected == 1);
+  DP_CHECK (r.stats.abandoned == 0);
+  DP_CHECK (ra_feed (&r, &c2, 0) == 0); /* frame 0 completes, exact */
+  DP_CHECK (r.stats.abandoned == 0);
+  dp_reasm_reset (&r);
+}
+
+static void
+test_reasm_total_above_uint32_is_refused (void)
+{
+  printf ("-- a total above UINT32_MAX is refused, not allocated\n");
+  dp_reasm_t  r = { 0 };
+  int         done;
+  char       *frame;
+  dp_header_t fh;
+  /* On the grid in every other respect: 64-byte chunks of a frame just
+     over 4 GiB. The sender refuses such a frame (DP_ERR_TOO_LARGE), and
+     payload_bytes could not describe it, so the only sender is a forger --
+     who must not get a 4 GiB malloc for one 64-byte message. */
+  ra_chunk_t big     = ra_chunk (0, 0, 0);
+  big.ch.total_bytes = (uint64_t)UINT32_MAX + 1 + 8; /* whole CF32 samples */
+  big.ch.count = (uint32_t)((big.ch.total_bytes + RA_STRIDE - 1) / RA_STRIDE);
+  DP_CHECK (dp_reasm_feed (&r, &big.hdr, &big.ch, big.body, big.len, &done,
+                           &frame, &fh)
+            == DP_ERR_INVALID);
+  DP_CHECK (r.stats.rejected == 1);
+  DP_CHECK (r.buf == NULL);
+  dp_reasm_reset (&r);
+}
+
+static void
+test_reasm_abandon_counts_only_a_frame_in_progress (void)
+{
+  printf ("-- an unchunked frame or EOS abandons a frame in progress\n");
+  dp_reasm_t r = { 0 };
+  dp_reasm_abandon (&r); /* nothing in progress: nothing to count */
+  DP_CHECK (r.stats.abandoned == 0);
+  ra_chunk_t c0 = ra_chunk (0, 0, 0);
+  DP_CHECK (ra_feed (&r, &c0, 0) == -1);
+  dp_reasm_abandon (&r); /* the transport saw an unchunked frame */
+  DP_CHECK (r.stats.abandoned == 1);
+  DP_CHECK (r.buf == NULL); /* the buffer is not held for ever */
+  dp_reasm_abandon (&r);
+  DP_CHECK (r.stats.abandoned == 1);
+  DP_CHECK (ra_frames (&r, 1, 2, 0) == 2);
+  dp_reasm_reset (&r);
+}
+
 int
 main (void)
 {
@@ -769,6 +841,9 @@ main (void)
   test_reasm_same_sequence_never_merges ();
   test_reasm_two_interleaved_publishers ();
   test_reasm_redelivery_and_forgery ();
+  test_reasm_forged_chunk_spares_the_frame ();
+  test_reasm_total_above_uint32_is_refused ();
+  test_reasm_abandon_counts_only_a_frame_in_progress ();
 
   printf ("\n");
   DP_TEST_END ("test_stream_wire");

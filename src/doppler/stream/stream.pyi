@@ -667,25 +667,28 @@ class Subscriber:
         ...
 
     def reasm_stats(self) -> dict[str, int]:
-        """What reassembling chunked frames has lost on this subscriber.
+        """What reassembling chunked frames has given up on this subscriber.
 
         A frame above the server's max_payload (1 MiB by default) arrives as
         chunks, and recv() rebuilds one frame at a time. A frame it can no
         longer complete is given up and counted here rather than hidden: the
         next frame still arrives intact. A frame recv() DOES return is
         complete and exact. The counts run from the subscriber's creation and
-        are never reset.
+        are never reset. Read them from the thread that calls recv(): a recv()
+        on another thread releases the GIL and updates them without a lock.
 
         Returns
         -------
         dict
-            ``abandoned``: frames given up part-assembled because a chunk of
-            a different frame arrived first (a lost chunk, a subscriber that
-            joined mid-frame, or a second publisher on the subject).
-            ``rejected``: chunks no frame could hold, dropped (off the chunk
-            grid, out of range, or overlapping). ``mid_frame_timeouts``:
-            receives that timed out with a frame part-assembled; the frame is
-            kept, and the next recv() resumes it.
+            ``abandoned``: partial assemblies given up -- a count of
+            assemblies, not of frames lost (a late joiner abandons a frame it
+            never had). Given up when a chunk of a different frame arrives, or
+            an unchunked frame or end-of-stream, which under one publisher per
+            subject proves the frame in progress lost a chunk. ``rejected``:
+            chunks no frame could hold, dropped (off the chunk grid, out of
+            range, or overlapping). ``mid_frame_timeouts``: receives that timed
+            out with a frame part-assembled; the frame is kept, and the next
+            recv() resumes it.
 
         Raises
         ------

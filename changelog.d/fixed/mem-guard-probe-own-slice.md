@@ -1,1 +1,0 @@
-- **The mem-guard probe's deliberate kill no longer appears in the journal as a kill in the guard slice (#1961).** The probe ran in a child of `doppler-guard.slice`, so every guarded start logged an OOM kill there. It now runs in the sibling `doppler-mgprobe.slice`. A `doppler-guard.slice` OOM line now means a guarded command really was killed.

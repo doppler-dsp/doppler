@@ -1,1 +1,0 @@
-- **Telemetry probe names are no longer truncated silently (#676).** A long `set_telemetry` prefix used to be cut into the 32-byte probe name, so two probes could register under one alias while the attach reported success. Every instrumented object now refuses an overlong prefix with `DP_ERR_INVALID` before registering anything, via the shared `dp_tlm_name_join()`.

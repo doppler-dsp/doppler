@@ -220,9 +220,9 @@ main (void)
    * alpha can change after create (dp_acc_trace_set_alpha), so a resume that
    * took it from create() went on averaging with the old one: one frame
    * later the uninterrupted trace read 2.0 and the resumed one 1.2.  The
-   * blob carries it now, behind the 16-byte header and the u64 count, and
-   * set_state applies the setter's own rule to it: an alpha the setter would
-   * refuse is refused, and the state is left as it was. */
+   * blob carries it now, behind the header, the u32 mode and the u64 count,
+   * and set_state applies the setter's own rule to it: an alpha the setter
+   * would refuse is refused, and the state is left as it was. */
   {
     const float           f1[4] = { 1.0f, 2.0f, 3.0f, 4.0f };
     const float           f2[4] = { 9.0f, 7.0f, 5.0f, 3.0f };
@@ -246,7 +246,8 @@ main (void)
      * first, so its count differs from the blob's and a count written before
      * the check would show. */
     dp_acc_trace_accumulate (b, f1, 4);
-    const size_t   at     = sizeof (dp_state_hdr_t) + sizeof (uint64_t);
+    const size_t at
+        = sizeof (dp_state_hdr_t) + sizeof (uint32_t) + sizeof (uint64_t);
     unsigned char *before = malloc (nb), *after = malloc (nb);
     DP_REQUIRE (before && after);
     const double bad[] = { 0.0, -0.5, 1.5, NAN };
@@ -275,6 +276,74 @@ main (void)
     dp_acc_trace_destroy (a);
     dp_acc_trace_destroy (b);
     dp_acc_trace_destroy (m);
+  }
+
+  /* ── mode is a reject key ─────────────────────────────────────────────────
+   * A blob from a trace in another mode is another configuration.  A mean
+   * trace's blob restored into an exp instance came back OK, with an alpha
+   * mean mode never checked, and the mean trace went on as an EMA.  Every
+   * pair of modes that differ is refused, with the target left as it was;
+   * every pair that agrees restores. */
+  {
+    const float f1[4]    = { 1.0f, 2.0f, 3.0f, 4.0f };
+    const float f2[4]    = { 9.0f, 7.0f, 5.0f, 3.0f };
+    const int   modes[4] = { ACC_TRACE_MEAN, ACC_TRACE_EXP, ACC_TRACE_MAXHOLD,
+                             ACC_TRACE_MINHOLD };
+    for (size_t i = 0; i < 4; i++)
+      for (size_t j = 0; j < 4; j++)
+        {
+          dp_acc_trace_state_t *src = dp_acc_trace_create (4, modes[i], 0.25);
+          dp_acc_trace_state_t *dst = dp_acc_trace_create (4, modes[j], 0.5);
+          DP_REQUIRE (src && dst);
+          dp_acc_trace_accumulate (src, f1, 4);
+          dp_acc_trace_accumulate (dst, f2, 4);
+          const size_t   nb     = dp_acc_trace_state_bytes (src);
+          unsigned char *blob   = malloc (nb);
+          unsigned char *before = malloc (nb), *after = malloc (nb);
+          DP_REQUIRE (blob && before && after);
+          dp_acc_trace_get_state (src, blob);
+          dp_acc_trace_get_state (dst, before);
+          const int rc = dp_acc_trace_set_state (dst, blob);
+          if (i == j)
+            DP_CHECK (rc == DP_OK);
+          else
+            {
+              DP_CHECK (rc == DP_ERR_INVALID);
+              dp_acc_trace_get_state (dst, after);
+              DP_CHECK (memcmp (before, after, nb) == 0);
+            }
+          free (blob);
+          free (before);
+          free (after);
+          dp_acc_trace_destroy (src);
+          dp_acc_trace_destroy (dst);
+        }
+  }
+
+  /* ── a blob of another layout version is refused ─────────────────────────
+   * Rewriting only the header's version leaves every other byte valid, so
+   * this fails if and only if the version is consulted.  Version 1 is the
+   * layout v0.65.0 shipped, without mode or alpha -- named, not derived
+   * from ACC_TRACE_STATE_VERSION, so putting the constant back to 1 turns
+   * this red.  The next version is refused too, so the check is not >=. */
+  {
+    dp_acc_trace_state_t *t = dp_acc_trace_create (4, ACC_TRACE_EXP, 0.25);
+    DP_REQUIRE (t != NULL);
+    const size_t   nb   = dp_acc_trace_state_bytes (t);
+    unsigned char *blob = malloc (nb);
+    DP_REQUIRE (blob != NULL);
+    dp_acc_trace_get_state (t, blob);
+    DP_CHECK (dp_acc_trace_set_state (t, blob) == DP_OK);
+    dp_state_hdr_t hdr;
+    memcpy (&hdr, blob, sizeof hdr);
+    hdr.version = 1u;
+    memcpy (blob, &hdr, sizeof hdr);
+    DP_CHECK (dp_acc_trace_set_state (t, blob) == DP_ERR_INVALID);
+    hdr.version = (uint16_t)(ACC_TRACE_STATE_VERSION + 1u);
+    memcpy (blob, &hdr, sizeof hdr);
+    DP_CHECK (dp_acc_trace_set_state (t, blob) == DP_ERR_INVALID);
+    free (blob);
+    dp_acc_trace_destroy (t);
   }
 
   DP_TEST_END ("test_acc_trace_core");

@@ -73,16 +73,19 @@ dp_acc_trace_reset (dp_acc_trace_state_t *state)
   state->count = 0;
 }
 
-/* Serializable state — fold count, alpha, running trace.  n and mode are
- * config, restored by create(); alpha is too, but it can be changed after
- * create (dp_acc_trace_set_alpha), so it travels with the trace: a resume
- * that took alpha from create() would go on averaging with the old one
- * (#2000). */
+/* Serializable state — mode, fold count, alpha, running trace.  n is config,
+ * restored by create() and checked by the blob's size.  mode is config too,
+ * and travels only as a REJECT key, the way DDC packs its rate: a mean
+ * trace's blob restored into an exp instance would otherwise come back OK and
+ * go on as an EMA.  alpha travels with the trace because a setter's value is
+ * STATE: anything a setter can change after create() is packed, and restored
+ * only past that setter's own predicate (#2022).  A resume that took alpha
+ * from create() went on averaging with the old one (#2000). */
 size_t
 dp_acc_trace_state_bytes (const dp_acc_trace_state_t *s)
 {
-  return sizeof (dp_state_hdr_t) + sizeof (uint64_t) + sizeof (double)
-         + s->n * sizeof (double);
+  return sizeof (dp_state_hdr_t) + sizeof (uint32_t) + sizeof (uint64_t)
+         + sizeof (double) + s->n * sizeof (double);
 }
 
 void
@@ -90,6 +93,7 @@ dp_acc_trace_get_state (const dp_acc_trace_state_t *s, void *blob)
 {
   DP_GET_OPEN (ACC_TRACE_STATE_MAGIC, ACC_TRACE_STATE_VERSION,
                dp_acc_trace_state_bytes (s));
+  dp_w_u32 (&_w, (uint32_t)s->mode);
   dp_w_u64 (&_w, s->count);
   dp_w_f64 (&_w, s->alpha);
   dp_w_bytes (&_w, s->acc, s->n * sizeof (double));
@@ -100,11 +104,15 @@ dp_acc_trace_set_state (dp_acc_trace_state_t *s, const void *blob)
 {
   DP_SET_OPEN (ACC_TRACE_STATE_MAGIC, ACC_TRACE_STATE_VERSION,
                dp_acc_trace_state_bytes (s));
+  const uint32_t mode  = dp_r_u32 (&_r);
   const uint64_t count = dp_r_u64 (&_r);
   const double   alpha = dp_r_f64 (&_r);
-  /* The setter's rule, before anything is written: a blob cannot install an
-   * alpha that dp_acc_trace_set_alpha would refuse, and a refused blob
-   * leaves the state as it was. */
+  /* Both checks before anything is written, so a refused blob leaves the
+   * state as it was: a blob from another mode is another configuration, and
+   * a blob cannot install an alpha that dp_acc_trace_set_alpha would refuse.
+   */
+  if (mode != (uint32_t)s->mode)
+    return DP_ERR_INVALID;
   if (!acc_trace_alpha_ok ((int)s->mode, alpha))
     return DP_ERR_INVALID;
   s->count = count;

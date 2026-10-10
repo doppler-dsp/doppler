@@ -1,5 +1,6 @@
 #include "doppler/dp_complex.h"
 #include "doppler/psd/psd_core.h"
+#include "doppler/spectral/spectral_core.h"
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
@@ -1321,12 +1322,13 @@ main (void)
   /* ── dp_psd_frame_linear: the kernel against the reference, linear ──────
    * The Spectrogram's mode = power (#1894) averages frames itself, so it
    * needs a frame in full-scale^2 units; the raw dp_psd_frame_power() sits
-   * 20*log10(sum(w)) above that.  frame_linear and frame_db read one double
+   * 20*log10(sum(w)) above that.  frame_linear and frame_db read one float
    * quotient, so:
-   *  (i)   10*log10(linear) is frame_db wherever frame_db is above the floor.
-   *        Tolerance: the linear value's float rounding moves its log by
-   *        10/ln(10) * 2^-24 = 2.6e-7 dB, and the dB output's own float
-   *        spacing is <= 200 * 2^-24 = 1.2e-5 dB: 2e-5 dB covers both.
+   *  (i)   10*log10(linear) is frame_db wherever frame_db is above the floor,
+   *        to the dB conversion's own bound (#2094): dp_power_to_db_f32 is
+   *        within 5e-4 dB of 10*log10 (its sampled tier pins that, its
+   *        exhaustive sweep measured 3.25e-4), and frame_db IS that function
+   *        of frame_linear, bit for bit (pinned at the end of this file).
    *  (ii)  a full-scale tone on a bin reads 1.0 whatever the window, padded
    *        or not, against full_scale and bits alike.  Tolerance: the float
    *        FFT's relative power error ~2 c log2(nfft) 2^-24 (c = 5), 8e-6 at
@@ -1363,7 +1365,7 @@ main (void)
                          && isfinite (raw[i]);
               if (db[i] > -199.0f
                   && fabs (10.0 * log10 ((double)lin[i]) - (double)db[i])
-                         > 2e-5)
+                         > 5e-4)
                 as_db = 0;
               if (fabs ((double)lin[i] * ref - (double)raw[i])
                   > 4.0 * ldexp (1.0, -24) * (double)raw[i])
@@ -1408,10 +1410,12 @@ main (void)
      * it with something that goes through the same reader (psd_db,
      * frame_linear), so a wrong reference moves both and they still agree.
      * This one takes only the raw |X|^2 from frame_power and applies the
-     * header's definition itself: 10*log10 of raw / (cg^2 * full_scale^2),
-     * formed in double, floored at 1e-20 (-200 dB), rounded once to float.
-     * full_scale 2048 is a power of two, so the product is exact in any
-     * order; zeros reach the floor. */
+     * header's definition itself: raw / (cg^2 * full_scale^2), formed in
+     * double and rounded once to float, then the library's one dB
+     * conversion (#2094), whose floor is -200 dB. full_scale 2048 is a
+     * power of two, so the product is exact in any order; zeros reach the
+     * floor. The conversion is pinned on its own (test_spectral_core.c);
+     * what this pins is the reference in front of it. */
     static const double fss[] = { 1.0, 2048.0 };
     for (int win = 0; win <= 3; win++)
       for (size_t pad = 1; pad <= 2; pad++)
@@ -1436,9 +1440,9 @@ main (void)
               int          bit = 1;
               for (size_t i = 0; i < nfft; i++)
                 {
-                  const float want
-                      = (float)(10.0
-                                * log10 (fmax ((double)raw[i] / ref, 1e-20)));
+                  const float q = (float)((double)raw[i] / ref);
+                  float       want;
+                  dp_power_to_db_f32 (&q, 1, &want);
                   if (memcmp (&want, &db[i], sizeof want) != 0)
                     bit = 0;
                 }
@@ -1787,6 +1791,36 @@ main (void)
     DP_CHECK (dp_psd_band_power (w, edges, 2, one, 2) == 1);
     DP_CHECK (isfinite (one[0]) && isnan (one[1]));
     dp_psd_destroy (w);
+  }
+
+  /* ── a dB reading IS dp_power_to_db_f32 of the linear one (#2094) ──────
+   * PSD rounds the quotient to float once and converts it with the library's
+   * one dB conversion, so frame_db is that function of frame_linear, bit for
+   * bit: a caller converting linear values gets exactly PSD's dB. Every
+   * window, a power of two and not, padded and not. */
+  {
+    static const size_t ns[]   = { 64, 100 };
+    static const size_t pads[] = { 1, 2 };
+    uint32_t            rng    = 0xDB10u;
+    int                 same   = 1;
+    for (int w = 0; w < 4; w++)
+      for (size_t a = 0; a < 2; a++)
+        for (size_t b = 0; b < 2; b++)
+          {
+            dp_psd_state_t *p
+                = dp_psd_create (ns[a], 1.0, w, 7.5f, pads[b], 1.0, 0, 0, 0.0);
+            DP_REQUIRE (p != NULL);
+            float _Complex x[100];
+            float lin[256], db[256], want[256];
+            for (size_t i = 0; i < ns[a]; i++)
+              x[i] = dp_cgauss (&rng);
+            dp_psd_frame_linear (p, x, lin);
+            dp_psd_frame_db (p, x, db);
+            dp_power_to_db_f32 (lin, p->nfft, want);
+            same &= memcmp (db, want, p->nfft * sizeof *db) == 0;
+            dp_psd_destroy (p);
+          }
+    DP_CHECK (same);
   }
 
   DP_TEST_END ("test_psd_core");

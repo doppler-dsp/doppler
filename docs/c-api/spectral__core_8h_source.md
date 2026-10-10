@@ -43,6 +43,7 @@ size_t dp_find_peaks_f32(const float *db, size_t db_len, size_t n_peaks, float m
 
 double dp_obw_from_power(const double *pwr, size_t pwr_len, double fs, double frac);
 double dp_noise_floor_db(const float *db, size_t db_len);
+void dp_power_to_db_f32(const float *lin, size_t lin_len, float *out);
 #ifdef __cplusplus
 }
 #endif

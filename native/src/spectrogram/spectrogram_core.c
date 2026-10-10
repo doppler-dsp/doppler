@@ -5,8 +5,8 @@
  * The contract is the header's; the design is docs/design/spectrogram.md.
  * Everything that makes a frame a spectrum is dp_psd_frame_db(), and
  * everything that makes a stream frames is the framer. What is here is the
- * loop that joins them, the room check that keeps a short output buffer from
- * losing input, and the optional rotation back to FFT order.
+ * loop that joins them and the room check that keeps a short output buffer
+ * from losing input. Rows are DC-centred exactly as the kernel emits them.
  */
 #include "doppler/spectrogram/spectrogram_core.h"
 

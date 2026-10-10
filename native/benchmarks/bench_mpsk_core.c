@@ -3,11 +3,11 @@
  * These are the library's bits<->symbol kernels: one `mpsk_map` per
  * transmitted symbol, one `mpsk_demap` or `mpsk_soft_demap` per received
  * one. They are small, they are unavoidable, and until this file existed
- * nothing timed them -- the `mpsk` component is a module of free functions
- * rather than a jm object, so `jm bench` cannot see it even now that one is
- * written. Run it by hand until just-makeit#1023 ships:
+ * nothing timed them. The `mpsk` component is a module of free functions
+ * rather than a jm object, so its target is registered by hand, and
+ * `jm bench` runs it by discovering the built target (just-makeit#1023):
  *
- *   cmake --build build --target bench_mpsk_core && ./build/bench_mpsk_core
+ *   make bench BENCH_ARGS="--c-only mpsk"
  *
  * What the numbers are for:
  *

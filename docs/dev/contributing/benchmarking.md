@@ -161,8 +161,12 @@ and the whole Python suite would otherwise run beside them.
 make bench BENCH_ARGS="--c-only conv rs"
 ```
 
-A filtered run is never a release's numbers: `make bench-publish` refuses
-a C snapshot that lacks any of the tree's `native/benchmarks/bench_*_core.c`.
+A filtered run cannot become a release's numbers by either publish path.
+`make bench-publish` and `make bench-interleaved` both refuse a C snapshot
+that lacks any of the tree's `native/benchmarks/bench_*_core.c` (a bench
+that crashed records nothing, so this catches that too), and
+`make bench-interleaved` refuses a set `BENCH_ARGS` before it builds,
+because its inner `make bench` runs would inherit it.
 
 **How many are not jm components is printed by the gate, not written here.**
 `make bench-coverage-check` counts them from the tree on every run and says

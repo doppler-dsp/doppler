@@ -220,6 +220,12 @@ dp_detector_push (dp_detector_state_t *state, const float _Complex *in,
    * blob has a fixed size. */
   for (;;)
     {
+      /* max_frames = the slots left is EXACT only because (a) a frame emits
+       * at most one det_result_t -- one dump, one result, below -- and (b)
+       * the inner loop drains every frame fed before feeding again. Break
+       * either and this overfills result or strands whole frames in the
+       * framer. acq's dump reports several peaks, so (a) fails there: feed
+       * it one frame at a time, never this. */
       if (off < n_in)
         off += dp_f32_framer_feed_view (&state->framer, in + off, n_in - off,
                                         max_results - ndet);

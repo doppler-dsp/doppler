@@ -536,8 +536,9 @@ dp_dsss_receiver_state_bytes (const dp_dsss_receiver_state_t *s)
    * state_bytes() before the blob's own car_carry_len is even read, so
    * sizing on a per-call-varying count would spuriously reject valid
    * blobs saved at a different carry depth than the live instance's
-   * current one. Always pack the full tsamps-capacity buffer; only the
-   * first car_carry_len samples are meaningful (see the struct doc). */
+   * current one. Always pack the full tsamps-capacity region: the first
+   * car_carry_len samples, then zeros, since the rest of the buffer is an
+   * earlier period's or dp_xmalloc's and not state (#2076's sibling). */
   return sizeof (dp_state_hdr_t) + sizeof (dsss_receiver_extra_t)
          + dp_acq_state_bytes (s->acq) + dp_costas_state_bytes (&s->car)
          + dp_dll_state_bytes (s->dll) + dp_RateConverter_state_bytes (s->rc)
@@ -565,7 +566,8 @@ dp_dsss_receiver_get_state (const dp_dsss_receiver_state_t *s, void *blob)
   DP_W_CHILD (&_w, dp_dll, s->dll);
   DP_W_CHILD (&_w, dp_RateConverter, s->rc);
   DP_W_CHILD (&_w, dp_mpsk_receiver, s->rx);
-  dp_w_cf32 (&_w, s->car_carry_buf, s->tsamps);
+  dp_w_cf32 (&_w, s->car_carry_buf, s->car_carry_len);
+  dp_w_zeros (&_w, (s->tsamps - s->car_carry_len) * sizeof (float _Complex));
 }
 
 int

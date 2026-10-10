@@ -509,7 +509,22 @@ _test_carry_buffer_state_roundtrip (void)
 
   size_t cb   = dp_dsss_receiver_state_bytes (rx);
   void  *blob = malloc (cb);
+  memset (blob, 0xA5, cb); /* poisoned: a byte get_state skips shows */
   dp_dsss_receiver_get_state (rx, blob);
+
+  /* The carry region is the blob's last tsamps samples: the live carry,
+     then zeros, never the earlier periods still in the buffer's tail
+     (#2076's sibling). Writing the whole buffer again turns this red. */
+  {
+    const size_t         fc = sizeof (float _Complex);
+    const unsigned char *carry
+        = (const unsigned char *)blob + cb - rx->tsamps * fc;
+    DP_CHECK (memcmp (carry, rx->car_carry_buf, rx->car_carry_len * fc) == 0);
+    size_t nonzero = 0;
+    for (size_t i = rx->car_carry_len * fc; i < rx->tsamps * fc; i++)
+      nonzero += carry[i] != 0;
+    DP_CHECK (nonzero == 0);
+  }
 
   dp_dsss_receiver_state_t *rx2 = dp_dsss_receiver_create (
       CODE7, sf, 1.0e6, sym_rate, spc, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0);

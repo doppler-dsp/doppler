@@ -1580,10 +1580,7 @@ typedef enum
                 live * 2 * sizeof (type));                                    \
     /* The unused slots are written, as zeros: a byte get_state leaves alone is \
        a byte of the caller's heap shipped in the blob (doppler#1471). */     \
-    size_t pad_bytes = (fr->frame_n - 1 - live) * 2 * sizeof (type);          \
-    void *pad = dp_w_reserve (&_w, pad_bytes);                                \
-    if (pad)                                                                  \
-      memset (pad, 0, pad_bytes);                                             \
+    dp_w_zeros (&_w, (fr->frame_n - 1 - live) * 2 * sizeof (type));           \
     dp_w_u64 (&_w, fr->written);                                              \
     dp_w_u64 (&_w, fr->frames);                                               \
     dp_w_u64 (&_w, fr->hop);                                                  \

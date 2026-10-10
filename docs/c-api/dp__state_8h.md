@@ -78,6 +78,7 @@
 |  void \* | [**dp\_w\_reserve**](#function-dp_w_reserve) ([**dp\_writer\_t**](structdp__writer__t.md) \* w, size\_t n) <br> |
 |  void | [**dp\_w\_u32**](#function-dp_w_u32) ([**dp\_writer\_t**](structdp__writer__t.md) \* w, uint32\_t v) <br> |
 |  void | [**dp\_w\_u64**](#function-dp_w_u64) ([**dp\_writer\_t**](structdp__writer__t.md) \* w, uint64\_t v) <br> |
+|  void | [**dp\_w\_zeros**](#function-dp_w_zeros) ([**dp\_writer\_t**](structdp__writer__t.md) \* w, size\_t n) <br> |
 |  [**dp\_writer\_t**](structdp__writer__t.md) | [**dp\_writer\_init**](#function-dp_writer_init) (void \* blob, size\_t cap) <br> |
 
 
@@ -424,6 +425,26 @@ static inline void dp_w_u64 (
 
 
 
+
+<hr>
+
+
+
+### function dp\_w\_zeros 
+
+```C++
+static inline void dp_w_zeros (
+    dp_writer_t * w,
+    size_t n
+) 
+```
+
+
+
+Write `n` zero bytes: the part of a fixed-size region no live value fills. A byte get\_state leaves alone is a byte of the caller's heap shipped in the blob (doppler#1471), and one copied from a buffer's unused tail is whatever that buffer held before  either way the blob stops being a function of the object (#2076). 
+
+
+        
 
 <hr>
 

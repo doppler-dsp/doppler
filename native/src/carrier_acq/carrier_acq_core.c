@@ -386,7 +386,10 @@ dp_carrier_acq_set_state (dp_carrier_acq_state_t *s, const void *blob)
   if (extra.nfft != (uint64_t)s->nfft
       || extra.dwell_target != (uint64_t)s->dwell_target
       || extra.max_n_blocks != (uint64_t)s->max_n_blocks
-      || extra.carry_len > (uint64_t)s->psd->n)
+      /* A carry is 0..n-1 samples: steps processes a full one at once, so
+         get_state never writes n, and a blob that claims it is refused
+         rather than restored into a state steps cannot reach. */
+      || extra.carry_len >= (uint64_t)s->psd->n)
     return DP_ERR_INVALID;
   DP_R_CHILD (&_r, dp_psd, s->psd);
   DP_R_CHILD (&_r, dp_detector, s->det);

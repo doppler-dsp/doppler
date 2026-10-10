@@ -509,6 +509,7 @@ if (dp_pull_recv(rx, &msg, &rhdr) == DP_OK) {
     size_t n = dp_msg_num_samples(msg);
     const double _Complex *cf64 = dp_msg_data(msg);
     /* ... use cf64[0..n) ... */
+    dp_msg_ack(msg);  /* processed: otherwise redelivered, and kept queued */
     dp_msg_free(msg);
 }
 dp_pull_destroy(rx);

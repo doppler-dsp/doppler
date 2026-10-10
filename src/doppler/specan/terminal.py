@@ -312,8 +312,8 @@ class TerminalDisplay:
     def run(self) -> None:
         """Start DSP thread and enter the Rich live-display loop."""
         self._running = True
-        dsp_thread = threading.Thread(target=self._dsp_loop, daemon=True)
-        dsp_thread.start()
+        self._dsp_thread = threading.Thread(target=self._dsp_loop, daemon=True)
+        self._dsp_thread.start()
 
         console = Console()
         placeholder = Panel(
@@ -362,3 +362,8 @@ class TerminalDisplay:
                 pass
             finally:
                 self._running = False
+                # Before the caller closes the source: a DSP loop still in
+                # read() would recv or ack on a closed Pull (#2016). A read
+                # returns within its receive timeout, so this is bounded.
+                timeout_s = getattr(self._source, "_timeout_ms", 2000) / 1e3
+                self._dsp_thread.join(timeout=2 * timeout_s + 1.0)

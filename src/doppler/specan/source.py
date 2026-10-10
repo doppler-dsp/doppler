@@ -478,6 +478,21 @@ class PullSource(Source):
         e.g. ``"nats://127.0.0.1:4222/iq"``.
     timeout_ms : int
         Receive timeout in milliseconds.
+
+    Attributes
+    ----------
+    duplicates : int
+        Frames skipped because their sequence was already taken: a
+        redelivery after an ack was lost (acks are fire-and-forget).
+    gaps : int
+        Sequence numbers never seen: frames lost upstream.
+    undecodable : int
+        Frames that could not be read as samples, acked and skipped
+        rather than redelivered every AckWait forever.
+
+    Sequence numbers are per producer, so the de-duplication assumes one
+    producer per subject, which is how ``doppler compose`` wires a work
+    queue (as the uno-q receiver's ``seq_account`` does).
     """
 
     def __init__(
@@ -488,6 +503,10 @@ class PullSource(Source):
         self._address = address
         self._timeout_ms = timeout_ms
         self._pull = None
+        self._next_seq: int | None = None
+        self.duplicates = 0
+        self.gaps = 0
+        self.undecodable = 0
         self._fs: float = 0.0
         self._cf: float = 0.0
         self._buf = np.empty(0, dtype=np.complex64)
@@ -508,18 +527,29 @@ class PullSource(Source):
                 frame, hdr = pull.recv(timeout_ms=self._timeout_ms)
             except (TimeoutError, EOFError):
                 break  # nothing more for now, or ever -- see SocketSource
-            data = to_complex64(frame)
-            self._fs = float(hdr["sample_rate"])
-            self._cf = float(hdr["center_freq"])
-            self._buf = np.concatenate([self._buf, data.ravel()])
-            # Consumed: the samples are copied into the buffer, so ack the
-            # array recv returned (its buffer still alive). Pull is an
-            # explicit-ack work queue: an unacked frame is redelivered
-            # after AckWait and stays queued for the next run, and after
-            # MaxAckPending (1000) unacked frames the server sends ONLY
-            # redeliveries, which this loop would concatenate as new data
-            # (#2009). The end-of-stream frame is acked inside recv.
-            pull.ack(frame)
+            # Acked in `finally`, whatever happens: Pull is an explicit-ack
+            # work queue, and an unacked frame is redelivered every AckWait
+            # and stays queued for the next run. After MaxAckPending (1000)
+            # unacked frames the server sends ONLY redeliveries, which this
+            # loop would concatenate as new data (#2009). That holds for a
+            # frame this display cannot decode, too. The end-of-stream
+            # frame is acked inside recv.
+            try:
+                seq = int(hdr["sequence"])
+                if self._next_seq is not None and seq < self._next_seq:
+                    self.duplicates += 1  # its ack was lost; already taken
+                    continue
+                if self._next_seq is not None:
+                    self.gaps += seq - self._next_seq
+                self._next_seq = seq + 1
+                data = to_complex64(frame)
+                self._fs = float(hdr["sample_rate"])
+                self._cf = float(hdr["center_freq"])
+                self._buf = np.concatenate([self._buf, data.ravel()])
+            except (KeyError, TypeError, ValueError):
+                self.undecodable += 1
+            finally:
+                pull.ack(frame)
 
         out = self._buf[:n].copy()
         self._buf = self._buf[n:]

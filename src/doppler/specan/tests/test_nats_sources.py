@@ -25,7 +25,7 @@ import pytest
 import doppler.stream
 from doppler.specan.source import PullSource, SocketSource
 from doppler.stream import CF32, Push
-from doppler.tests._nats import nats_available
+from doppler.tests._nats import delete_stream_if_present, nats_available
 
 FS, FC = 2.4e6, 100e6
 HDR = {"sample_rate": FS, "center_freq": FC}
@@ -67,7 +67,14 @@ class _FakePull(_FakeTransport):
     every still-pending frame is delivered again, as AckWait would, so a
     reader that does not ack sees its frames twice. `seen` and `acked` are
     the sequence numbers delivered and acked, in order.
+
+    A frame delivered more than `MAX_DELIVERIES` times fails the test. The
+    broker spaces redeliveries an AckWait apart; this fake has no clock, so
+    a reader that never acks a frame would spin on it forever, and a hang
+    is not a red.
     """
+
+    MAX_DELIVERIES: ClassVar[int] = 3
 
     def __init__(self, address):
         super().__init__(address)
@@ -84,6 +91,11 @@ class _FakePull(_FakeTransport):
         out = data.copy()
         self._pending[id(out)] = (out, item)
         self.seen.append(hdr["sequence"])
+        if self.seen.count(hdr["sequence"]) > self.MAX_DELIVERIES:
+            raise AssertionError(
+                f"frame {hdr['sequence']} delivered "
+                f"{self.MAX_DELIVERIES + 1} times: never acked"
+            )
         return out, dict(hdr)
 
     def ack(self, samples):
@@ -214,6 +226,62 @@ def test_pull_source_reads_past_max_ack_pending_without_a_repeat():
         finally:
             src.close()
     finally:
+        delete_stream_if_present(push)  # a work queue outlives the test
         push.close()
     assert (fs, cf) == (FS, FC)
     assert got.real.astype(int).tolist() == list(range(n))
+
+
+def _pull_fake(monkeypatch, frames):
+    monkeypatch.setattr(
+        doppler.stream, "Pull", type("Fake", (_FakePull,), {"frames": frames})
+    )
+    return PullSource("nats://127.0.0.1:1/test", timeout_ms=10)
+
+
+def test_an_undecodable_frame_is_acked_once_and_skipped(monkeypatch):
+    """Unacked, a frame no decoder reads came back every AckWait forever
+    and stayed in the queue for the next run."""
+    bad = (np.array([1, 2], np.uint16), {**HDR, "sequence": 0})  # no decoder
+    good = (np.array([64, 0], np.int8), {**HDR, "sequence": 1})
+    src = _pull_fake(monkeypatch, [bad, good])
+    got, _, _ = src.read(16)
+    assert len(got) == 1
+    assert src.undecodable == 1
+    assert src._pull.acked == [0, 1]
+    assert src._pull.seen == [0, 1]  # never redelivered
+
+
+def test_a_repeated_sequence_is_taken_once(monkeypatch):
+    """An ack is fire-and-forget; a lost one means a redelivery, which must
+    not be read as new samples. It is still acked: it has been handled."""
+    frames = _sequenced(3)
+    frames.insert(2, frames[1])  # 0, 1, 1 again, 2
+    src = _pull_fake(monkeypatch, frames)
+    got, _, _ = src.read(16)
+    assert (got.real * 128).round().astype(int).tolist() == [0, 1, 2]
+    assert src.duplicates == 1
+    assert src._pull.acked == [0, 1, 1, 2]
+
+
+def test_a_skipped_sequence_is_counted(monkeypatch):
+    frames = [f for f in _sequenced(4) if f[1]["sequence"] != 2]
+    src = _pull_fake(monkeypatch, frames)
+    src.read(16)
+    assert src.gaps == 1
+
+
+def test_a_timeout_before_the_first_frame_is_not_an_error(monkeypatch):
+    """The sink starts before the producer in `doppler compose`: read()
+    times out empty with rate 0.0, and process() must wait, not fail."""
+    from doppler.specan.config import SpecanConfig
+    from doppler.specan.engine import SpecanEngine
+
+    src = _pull_fake(monkeypatch, [])
+    iq, fs, cf = src.read(4096)
+    assert iq.size == 0 and (fs, cf) == (0.0, 0.0)
+    engine = SpecanEngine(SpecanConfig())
+    try:
+        assert engine.process(iq, fs, cf) is None
+    finally:
+        engine.close()

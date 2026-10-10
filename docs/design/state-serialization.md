@@ -147,8 +147,16 @@ these rules, with nothing to register.
     writable property, and every method but the lifecycle (`reset`, `close`,
     `destroy`, the state triplet). Nothing is called a reader for its return
     type: a reader is a call the probe sees change nothing;
-- each member's signature, from the class's `.pyi` stub;
+- each member's signature, from the class's `.pyi` stub. Each defaulted
+    parameter is varied on its own, by keyword, since a new defaulted
+    keyword is how a setter usually grows;
 - every C setter Python cannot call, from the headers.
+
+Two exact rules come from the manifest. A **handle** call (a telemetry sink
+or event log, plus labels) passes as `HANDLE`, because a handle is never in a
+blob. A **stream call** (a non-void `arg_type`, or jm's built-in
+`step`/`steps`) takes the object's input, not a value to keep, so its effect
+is judged against the uncalled object.
 
 **How it probes each member.** It takes an instance and a feed from this
 page's Python matrix (`test_state_serialization.CASES`). It picks values the
@@ -159,21 +167,22 @@ of the same length with other content. Every target that accepts the blob
 must then reproduce the source: its readback (every property), its
 continuation output and its blob. That gives these verdicts:
 
-| verdict            | meaning                                                                               |
-| ------------------ | ------------------------------------------------------------------------------------- |
-| `TRAVELS`          | passes: the default target and one at another value take the blob and match           |
-| `KEYED`            | passes: the default target refuses it, and the same-value target takes it and matches |
-| `READS`            | passes: a call that hands back a value and changes nothing                            |
-| `LOST`             | fails: a target took the blob and then differed                                       |
-| `UNPROBED`         | fails: the probe could not show it either way, and the list says why                  |
-| `NONDETERMINISTIC` | fails: two identical builds differed                                                  |
-| `CRASHES`          | fails: the probe kills the process, so a child process confirms it                    |
+| verdict            | meaning                                                                                                                                  |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `TRAVELS`          | passes: the default target and one at another value take the blob and match                                                              |
+| `KEYED`            | passes: the default target refuses it, and the same-value target takes it and matches                                                    |
+| `READS`            | passes: hands back a value, changes nothing in any row, and keeps no value (no required parameter, a stream call, or jm's `<m>_max_out`) |
+| `HANDLE`           | passes: attaches a telemetry sink or event log                                                                                           |
+| `LOST`             | fails: a target took the blob and then differed                                                                                          |
+| `UNPROBED`         | fails: the probe could not show it either way, and the list says why                                                                     |
+| `NONDETERMINISTIC` | fails: two identical builds differed                                                                                                     |
+| `CRASHES`          | fails: the probe dies by a crash signal, confirmed in a child process                                                                    |
 
 **The list.** Anything that does not pass is listed once in
 `scripts/.mutator-state-exempt`, with exactly its verdict and a reason. That
 list only shrinks. An entry that now passes, names no mutator, or carries
-another verdict is red, and `make tests-ssot` refuses a key the merge base
-did not hold. Two more verdicts appear only there. `C_ONLY` marks a setter
+another verdict is red. `make tests-ssot` refuses a key the merge base did
+not hold, and a key that moved into `LOST`, `NONDETERMINISTIC` or `CRASHES`. Two more verdicts appear only there. `C_ONLY` marks a setter
 with no Python face (a C-side twin is #2077). `NO_RECIPE` marks a class with
 no matrix row (#2078). Each family of known violations has its issue
 (#2079–#2084), and its fix deletes its own lines.

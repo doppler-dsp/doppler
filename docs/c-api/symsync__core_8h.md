@@ -544,9 +544,9 @@ The by-value counterpart to [**dp\_symsync\_create()**](symsync__core_8h.md#func
 * `bn` Loop noise bandwidth (normalised to the symbol rate). 
 * `zeta` Damping factor (0.707 = critically damped). 
 * `order` Farrow interpolator order (0=linear, 1=parabolic, 2=cubic). 
-* `ted` Timing-error detector: SYMSYNC\_TED\_GARDNER (0, blind) or SYMSYNC\_TED\_DTTL (1, decision-directed; BPSK/QPSK only). 
+* `ted` Timing-error detector: SYMSYNC\_TED\_GARDNER (0, blind) or SYMSYNC\_TED\_DTTL (1, decision-directed; BPSK/QPSK only).
 
-
+Unguarded, as the by-value path: the caller checks (bn, zeta) with [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok) first. Outside it the loop's gains go NaN (doppler#2103). 
 
 
         

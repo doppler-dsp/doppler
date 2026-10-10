@@ -293,6 +293,10 @@ extern "C"
                                 double chip_phase, double doppler_hz_est,
                                 double cn0_dbhz_est);
 
+  int dp_async_dsss_receiver_seed_ok (const dp_async_dsss_receiver_state_t *state,
+                                      double chip_phase,
+                                      double doppler_hz_est);
+
   typedef struct
   {
     int state; 

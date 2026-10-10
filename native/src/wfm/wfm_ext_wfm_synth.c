@@ -456,7 +456,13 @@ _SynthEngine_set_nsps (_SynthEngineObject *self, PyObject *args)
   int v = 0;
   if (!PyArg_ParseTuple (args, "i", &v))
     return NULL;
-  dp_wfm_synth_set_nsps (self->handle, v);
+  if (dp_wfm_synth_set_nsps (self->handle, v) != DP_OK)
+    {
+      PyErr_SetString (PyExc_ValueError,
+                       "nsps must be >= 1 and above the current sym_pos "
+                       "(set sym_pos to 0 first)");
+      return NULL;
+    }
   Py_RETURN_NONE;
 }
 
@@ -483,7 +489,12 @@ _SynthEngine_set_sym_pos (_SynthEngineObject *self, PyObject *args)
   int v = 0;
   if (!PyArg_ParseTuple (args, "i", &v))
     return NULL;
-  dp_wfm_synth_set_sym_pos (self->handle, v);
+  if (dp_wfm_synth_set_sym_pos (self->handle, v) != DP_OK)
+    {
+      PyErr_SetString (PyExc_ValueError,
+                       "sym_pos must satisfy 0 <= sym_pos < nsps");
+      return NULL;
+    }
   Py_RETURN_NONE;
 }
 

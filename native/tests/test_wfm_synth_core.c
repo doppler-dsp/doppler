@@ -1477,8 +1477,6 @@ main (void)
     dp_wfm_synth_destroy (s1);
   }
 
-  /* the serialization sections above also count via CHECK — fail if any
-   * tripped (the early _fails gate only covered the pre-state sections). */
   /* ---------------------------------------------------------------- *
    * #2142: a forged symbol index is refused, the object untouched          *
    * ---------------------------------------------------------------- */
@@ -1502,6 +1500,61 @@ main (void)
           DP_STATE_FORGE_TEST (dp_wfm_synth, s, WFM_SYNTH_STATE_MAGIC,
                                WFM_SYNTH_STATE_VERSION, off, &bad[i],
                                sizeof bad[i]);
+        dp_wfm_synth_destroy (s);
+      }
+  }
+
+  /* #2142 (#2148 r3): sym_pos indexes the one-symbol chip buffer, so a
+   * blob or a setter may only place it in [0, nsps), and nsps may not be 0.
+   * A refusal leaves the synth byte-identical (DP_STATE_FORGE_TEST proves
+   * that for the blob; the setters are checked by their return and state). */
+  {
+    dp_wfm_synth_state_t *s = dp_wfm_synth_create (
+        WFM_SYNTH_SYMBOLS, 1000000.0, 0.0, 100.0, 0, 1, 8, 7, 0, 0, 0.0);
+    DP_CHECK (s != NULL);
+    if (s)
+      {
+        const int      nsps = dp_wfm_synth_get_nsps (s);
+        const size_t   off  = sizeof (dp_state_hdr_t); /* sym_pos leads */
+        const uint32_t bad[]
+            = { (uint32_t)nsps, (uint32_t)-1u, 0x7FFFFFFFu, 0x80000000u };
+        for (size_t i = 0; i < sizeof bad / sizeof *bad; i++)
+          DP_STATE_FORGE_TEST (dp_wfm_synth, s, WFM_SYNTH_STATE_MAGIC,
+                               WFM_SYNTH_STATE_VERSION, off, &bad[i],
+                               sizeof bad[i]);
+
+        /* the child-presence byte pres[0] (the FIR flag) must agree with the
+         * config. Blob: [hdr][sym_pos 4][cur_re 4][cur_im 4][bit_idx 8]
+         * [sym_read_idx 8][chirp_ph 8][chirp_n 8][chip_n 8][sym_idx 8]
+         * [cur_data 1][primed 1][data_ended 1][pres 6]. A forged flag must
+         * refuse with the object untouched, so it can only be refused before
+         * the scalars commit (#2148 r3, item 2). */
+        {
+          const size_t  pres_off = sizeof (dp_state_hdr_t) + 4 + 4 + 4 + 8 + 8
+                                   + 8 + 8 + 8 + 8 + 1 + 1 + 1;
+          const uint8_t flip     = s->fir ? 0 : 1;
+          DP_STATE_FORGE_TEST (dp_wfm_synth, s, WFM_SYNTH_STATE_MAGIC,
+                               WFM_SYNTH_STATE_VERSION, pres_off, &flip,
+                               sizeof flip);
+        }
+
+        /* the setters: refused values change nothing */
+        DP_CHECK (dp_wfm_synth_set_sym_pos (s, 3) == DP_OK);
+        DP_CHECK (dp_wfm_synth_set_sym_pos (s, nsps) == DP_ERR_INVALID);
+        DP_CHECK (dp_wfm_synth_set_sym_pos (s, -1) == DP_ERR_INVALID);
+        DP_CHECK (dp_wfm_synth_get_sym_pos (s) == 3);
+        DP_CHECK (dp_wfm_synth_set_sym_pos (s, nsps - 1) == DP_OK);
+        DP_CHECK (dp_wfm_synth_get_sym_pos (s) == nsps - 1);
+
+        /* nsps may not be 0 (divide by zero in the kernel), nor drop to
+         * or below the current sym_pos */
+        DP_CHECK (dp_wfm_synth_set_nsps (s, 0) == DP_ERR_INVALID);
+        DP_CHECK (dp_wfm_synth_set_nsps (s, -4) == DP_ERR_INVALID);
+        DP_CHECK (dp_wfm_synth_get_nsps (s) == nsps);
+        DP_CHECK (dp_wfm_synth_set_nsps (s, nsps - 1) == DP_ERR_INVALID);
+        DP_CHECK (dp_wfm_synth_set_sym_pos (s, 0) == DP_OK);
+        DP_CHECK (dp_wfm_synth_set_nsps (s, 2) == DP_OK);
+        DP_CHECK (dp_wfm_synth_get_nsps (s) == 2);
         dp_wfm_synth_destroy (s);
       }
   }

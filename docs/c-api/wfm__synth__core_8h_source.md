@@ -466,11 +466,11 @@ void dp_wfm_synth_set_wtype(dp_wfm_synth_state_t *state, int val);
 
 int dp_wfm_synth_get_nsps(const dp_wfm_synth_state_t *state);
 
-void dp_wfm_synth_set_nsps(dp_wfm_synth_state_t *state, int val);
+int dp_wfm_synth_set_nsps(dp_wfm_synth_state_t *state, int val);
 
 int dp_wfm_synth_get_sym_pos(const dp_wfm_synth_state_t *state);
 
-void dp_wfm_synth_set_sym_pos(dp_wfm_synth_state_t *state, int val);
+int dp_wfm_synth_set_sym_pos(dp_wfm_synth_state_t *state, int val);
 
 float dp_wfm_synth_get_cur_re(const dp_wfm_synth_state_t *state);
 

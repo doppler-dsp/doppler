@@ -1082,13 +1082,15 @@ int dp_wfm_synth_get_nsps(const dp_wfm_synth_state_t *state);
 
 /**
  * @brief Override the samples-per-symbol count in-place.
- * Does not flush the symbol-position counter (sym_pos); set sym_pos=0
- * as well when changing sps mid-stream.
+ * Does not flush the symbol-position counter (sym_pos). A hold that shrinks
+ * below the current sym_pos is refused, so when changing sps mid-stream set
+ * sym_pos=0 first, then this.
  *
  * @param state  Must be non-NULL.
- * @param val    New nsps value (>= 1).
+ * @param val    New nsps value (>= 1, and > the current sym_pos).
+ * @return DP_OK, or DP_ERR_INVALID with @p state unchanged.
  */
-void dp_wfm_synth_set_nsps(dp_wfm_synth_state_t *state, int val);
+int dp_wfm_synth_set_nsps(dp_wfm_synth_state_t *state, int val);
 
 /**
  * @brief Return the current position within the current symbol (0..nsps-1).
@@ -1108,8 +1110,9 @@ int dp_wfm_synth_get_sym_pos(const dp_wfm_synth_state_t *state);
  *
  * @param state  Must be non-NULL.
  * @param val    New sym_pos value (0 <= val < nsps).
+ * @return DP_OK, or DP_ERR_INVALID with @p state unchanged.
  */
-void dp_wfm_synth_set_sym_pos(dp_wfm_synth_state_t *state, int val);
+int dp_wfm_synth_set_sym_pos(dp_wfm_synth_state_t *state, int val);
 
 /**
  * @brief Return the real part of the current held symbol.

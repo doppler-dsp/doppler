@@ -285,6 +285,18 @@ dp_wfm_synth_set_refill_state (dp_wfm_synth_state_t           *state,
   return 0;
 }
 
+/* The symbol-position counter indexes the one-symbol chip buffer the kernel
+   fills a hold at a time, so it must lie in [0, nsps) and nsps must be at
+   least 1: a value past the buffer reads uninitialised chips, and nsps == 0
+   divides by zero in `first`/`nb`. set_state, set_sym_pos and set_nsps all
+   test this one predicate, so no path can reach the kernel with a value the
+   others refuse (#2142). */
+static int
+dp_wfm_synth_sym_pos_ok (int sym_pos, int nsps)
+{
+  return nsps >= 1 && sym_pos >= 0 && sym_pos < nsps;
+}
+
 const char *
 dp_wfm_synth_state_refusal (const dp_wfm_synth_state_t *state)
 {
@@ -586,39 +598,34 @@ dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
     return DP_ERR_INVALID;
   DP_SET_OPEN (WFM_SYNTH_STATE_MAGIC, WFM_SYNTH_STATE_VERSION,
                dp_wfm_synth_state_bytes (s));
-  /* The leading scalars are decoded into locals and committed only once the
-     symbol index is known to fit: the kernel reads symbols[sym_read_idx]
-     BEFORE it wraps it, so a forged one read past the array, and the
-     envelope reads no payload field (#2142). With no symbols set it is 0. */
+  /* Every field is decoded into a local and checked before the first write,
+     so a refusal leaves the synth as it was (#2142). The kernel reads
+     symbols[sym_read_idx] BEFORE it wraps it; sym_pos indexes the chip
+     buffer; and the child-presence bytes read only blob bytes and config,
+     so they belong in the check too, not after the commit (#2148). */
   const int sym_pos = (int)dp_r_u32 (&_r);
   float     cur_re, cur_im;
   dp_r_f32 (&_r, &cur_re, 1);
   dp_r_f32 (&_r, &cur_im, 1);
-  const size_t bit_idx      = (size_t)dp_r_u64 (&_r);
-  const size_t sym_read_idx = (size_t)dp_r_u64 (&_r);
-  if (sym_read_idx >= (s->n_symbols ? s->n_symbols : 1))
-    return DP_ERR_INVALID;
-  s->sym_pos      = sym_pos;
-  s->cur_re       = cur_re;
-  s->cur_im       = cur_im;
-  s->bit_idx      = bit_idx;
-  s->sym_read_idx = sym_read_idx;
-  s->chirp_ph     = dp_r_f64 (&_r);
-  s->chirp_n      = (size_t)dp_r_u64 (&_r);
-  s->chip_n       = dp_r_u64 (&_r);
-  s->sym_idx      = dp_r_u64 (&_r);
-  dp_r_bytes (&_r, &s->cur_data, 1);
-  /* Derived, so not in the blob: the next symbol's edge, from the one
-     symbol clock (chip 0 recomputes it in the kernel). */
-  if (s->chips_per_symbol > 0.0 && s->chip_n)
-    s->next_edge
-        = dp_wfm_dsss_cont_edge (s->sym_idx + 1u, s->chips_per_symbol);
-  dp_r_bytes (&_r, &s->primed, 1);
+  const size_t   bit_idx      = (size_t)dp_r_u64 (&_r);
+  const size_t   sym_read_idx = (size_t)dp_r_u64 (&_r);
+  const double   chirp_ph     = dp_r_f64 (&_r);
+  const size_t   chirp_n      = (size_t)dp_r_u64 (&_r);
+  const uint64_t chip_n       = dp_r_u64 (&_r);
+  const uint64_t sym_idx      = dp_r_u64 (&_r);
+  uint8_t        cur_data     = 0;
+  dp_r_bytes (&_r, &cur_data, 1);
+  uint8_t primed = 0;
+  dp_r_bytes (&_r, &primed, 1);
   /* In the blob since v3: a refill's end is its source's, which the
      sub-blob below restores, so it is carried rather than re-derived. */
-  dp_r_bytes (&_r, &s->data_ended, 1);
+  uint8_t data_ended = 0;
+  dp_r_bytes (&_r, &data_ended, 1);
   uint8_t pres[6] = { 0 }; /* dp_r_bytes writes nothing on an errored reader */
   dp_r_bytes (&_r, pres, 6);
+  if (sym_read_idx >= (s->n_symbols ? s->n_symbols : 1)
+      || !dp_wfm_synth_sym_pos_ok (sym_pos, s->nsps))
+    return DP_ERR_INVALID;
   /* the blob's child set must match this instance's config (same wtype,
      and a frame source if and only if this synth pulls from one). */
   if ((pres[0] != 0) != (s->fir != NULL)
@@ -628,6 +635,23 @@ dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
       || (pres[4] != 0) != (s->pn != NULL)
       || (pres[5] != 0) != (s->refill != NULL))
     return DP_ERR_INVALID;
+  s->sym_pos      = sym_pos;
+  s->cur_re       = cur_re;
+  s->cur_im       = cur_im;
+  s->bit_idx      = bit_idx;
+  s->sym_read_idx = sym_read_idx;
+  s->chirp_ph     = chirp_ph;
+  s->chirp_n      = chirp_n;
+  s->chip_n       = chip_n;
+  s->sym_idx      = sym_idx;
+  s->cur_data     = cur_data;
+  s->primed       = primed;
+  s->data_ended   = data_ended;
+  /* Derived, so not in the blob: the next symbol's edge, from the one
+     symbol clock (chip 0 recomputes it in the kernel). */
+  if (s->chips_per_symbol > 0.0 && s->chip_n)
+    s->next_edge
+        = dp_wfm_dsss_cont_edge (s->sym_idx + 1u, s->chips_per_symbol);
   if (s->fir)
     DP_R_CHILD (&_r, dp_fir, s->fir);
   if (s->shaper)
@@ -1057,10 +1081,15 @@ dp_wfm_synth_get_nsps (const dp_wfm_synth_state_t *state)
   return state->nsps;
 }
 
-void
+int
 dp_wfm_synth_set_nsps (dp_wfm_synth_state_t *state, int val)
 {
+  /* Refused when the current sym_pos would sit outside the new hold: the
+     caller sets sym_pos to 0 first, then the hold, as the header says. */
+  if (!dp_wfm_synth_sym_pos_ok (state->sym_pos, val))
+    return DP_ERR_INVALID;
   state->nsps = val;
+  return DP_OK;
 }
 
 int
@@ -1069,10 +1098,13 @@ dp_wfm_synth_get_sym_pos (const dp_wfm_synth_state_t *state)
   return state->sym_pos;
 }
 
-void
+int
 dp_wfm_synth_set_sym_pos (dp_wfm_synth_state_t *state, int val)
 {
+  if (!dp_wfm_synth_sym_pos_ok (val, state->nsps))
+    return DP_ERR_INVALID;
   state->sym_pos = val;
+  return DP_OK;
 }
 
 float

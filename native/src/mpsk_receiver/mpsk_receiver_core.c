@@ -366,9 +366,11 @@ mpsk_rx_create_impl (int real, int m, double sps, size_t m_out, int pulse,
   const int sps_ok
       = real ? (sps > 2.0 * (double)m_out) : (sps >= (double)m_out);
   if (m_out < 2u || m_out > (size_t)RATESYNC_MAX_M || (m_out & 1u) != 0u
-      || !sps_ok || !(rrc_beta >= 0.0) || !(rrc_beta <= 1.0) || rrc_span < 1
-      || !(bn_carrier >= 0.0) || !(bn_timing >= 0.0) || !(zeta > 0.0)
-      || num_phases < 2u
+      || !sps_ok || !(rrc_beta >= 0.0) || !(rrc_beta <= 1.0)
+      || rrc_span < 1
+      /* The loop filter's own domain, once per loop (doppler#2103). */
+      || !dp_loop_filter_params_ok (bn_carrier, zeta, 1.0)
+      || !dp_loop_filter_params_ok (bn_timing, zeta, 1.0) || num_phases < 2u
       || (num_phases & (num_phases - 1u)) != 0u
       /* An AGC at or above the bandwidth of a loop it feeds corrects the
          excursions that loop is producing; the two then integrate against

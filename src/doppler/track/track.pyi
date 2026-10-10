@@ -886,7 +886,8 @@ class Dll:
 
     def configure(self, bn: float, zeta: float) -> None:
         """Recompute the loop gains for a new (bn, zeta); preserves the code
-        phase/rate.
+        phase/rate. Raises ValueError, changing nothing, when (bn, zeta) is
+        outside the loop filter's domain: bn >= 0 and zeta > 0, both finite.
 
         Re-derives the 2nd-order loop filter's proportional and integral gains
         for a new noise bandwidth and damping, leaving the tracked code phase,
@@ -900,6 +901,12 @@ class Dll:
             Loop noise bandwidth, normalised to the code-period rate.
         zeta : float
             Damping factor (0.707 = critically damped).
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``configure failed``, with the return code appended (gh-869).
 
         Examples
         --------
@@ -1056,7 +1063,8 @@ class Dll:
         detector's looks change: the discriminator keeps its per-epoch window
         and the emitted partial stream is untouched. Raises ValueError when
         segments <= 1, or the period is not finite, is in (0, 2) or is past
-        2^20 partials.
+        2^20 partials. Any finite period <= 0 turns the aid off (-inf used to
+        as well, and is refused now).
 
         In `segments > 1` mode every partial is a look for the code-lock
         detector (dp_dll_configure_lock()) and the discriminator sees one epoch

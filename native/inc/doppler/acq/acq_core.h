@@ -1412,10 +1412,11 @@ extern "C"
    * Python's push() has room for 1024 events a call, so a push that ends at
    * most 1024 / max_peaks dwells, counting the carry, loses nothing.  Once
    * fewer than max_peaks slots are left, the call stops before the next
-   * frame that would end a dwell, and the rest of its input is lost, unless
-   * the rest is shorter than a frame: that is kept as the carry.  The next
-   * push stays on the frame grid only when what was lost is a whole number
-   * of frames.  Before v0.66 the room was 64, and a push past it kept up to
+   * frame that would end a dwell -- and once all 1024 are used, before the
+   * next frame of any kind -- and the rest of its input is lost, unless the
+   * rest completes no frame, counting the carry already held: that is kept
+   * as the carry.  The next push stays on the frame grid only when what was
+   * lost is a whole number of frames.  Before v0.66 the room was 64, and a push past it kept up to
    * ring_cap/frame_n - 1 frames for the next call, dropped the rest, and
    * could cut a dwell's list short.  #1992 and just-buildit/just-makeit#2184
    * track sizing the list to the call.
@@ -1429,10 +1430,13 @@ extern "C"
    *                     up to max_peaks events, so it is taken only while
    *                     at least min(max_peaks, max_results) slots are left
    *                     (at least one); a frame that ends none needs no
-   *                     room.  At the first frame it cannot take, the push
-   *                     takes the rest of its input only if the rest
-   *                     completes no frame (it is then the carry), and
-   *                     otherwise stops on that frame's boundary.
+   *                     room while any slot is left.  A FULL @p result
+   *                     takes nothing more, so at room 1 a push stops at
+   *                     its hit.  At the first frame it does not take, the
+   *                     push takes the rest of its input only if the rest
+   *                     completes no frame, counting the carry (it is then
+   *                     the carry), and otherwise stops on that frame's
+   *                     boundary.
    *                     dp_acq_consumed() says how many samples it took,
    *                     and the caller offers the rest again.  A
    *                     @p max_results under max_peaks cannot hold a whole
@@ -1440,9 +1444,10 @@ extern "C"
    *                     dwell and keeps its strongest max_results picks.
    *                     That loses RESULTS -- the dwell's weaker picks --
    *                     never input; size @p max_results >= max_peaks to
-   *                     lose none.  At 0 a push takes only the frames that
-   *                     end no dwell, and a rest that completes no frame;
-   *                     a resume loop needs room for at least one.
+   *                     lose none.  At 0 @p result is full from the
+   *                     start: a push takes only a rest that completes no
+   *                     frame, so a resume loop needs room for at least
+   *                     one.
    * @return Number of events written (0 … max_results).
    * @code
    * >>> import numpy as np
@@ -1470,8 +1475,9 @@ extern "C"
   /**
    * @brief Input samples the last dp_acq_push() took.
    *
-   * Per call: equal to its @p n_in unless @p result filled up, and then the
-   * caller resumes at x + consumed.  Not acq_result_t::samples_consumed,
+   * Per call: equal to its @p n_in unless the push stopped -- @p result
+   * full, or too few slots left for the next frame that ends a dwell --
+   * and then the caller resumes at x + consumed.  Not acq_result_t::samples_consumed,
    * which is CUMULATIVE and counts only framed samples -- the stream position
    * a hit's epoch ended at -- so resuming from it would re-feed the carry and
    * double-feed the stream.  0 after create, reset, a regrid and set_state.
@@ -1639,7 +1645,10 @@ extern "C"
    * uninterrupted run.
    */
 
-  /** @brief Byte size of @p state's blob (header + unconsumed + nc). */
+  /** @brief Byte size of @p state's blob: the envelope and the engine's
+   *         position, the framer's snapshot of the carry, the non-coherent
+   *         sum (n_noncoh > 1), the last dwell's twins, and a tiled
+   *         block's epochs. */
   size_t dp_acq_state_bytes (const dp_acq_state_t *state);
 
   /**
@@ -1651,9 +1660,10 @@ extern "C"
 
   /**
    * @brief Restore cross-call state from @p blob into @p state (replacing it).
-   * @return 0 on success, -1 if the blob's magic/version/n/n_noncoh disagree
-   *         with @p state (rebuild the engine from the matching descriptor
-   * first).
+   * @return DP_OK, or DP_ERR_INVALID if the blob's envelope or its
+   *         n/n_noncoh/max_peaks disagree with @p state (rebuild the engine
+   *         from the matching descriptor first), or its carry is not
+   *         one a run could have left. A refused blob changes nothing.
    */
   int dp_acq_set_state (dp_acq_state_t *state, const void *blob);
 
@@ -1663,6 +1673,14 @@ extern "C"
    *        engine treated as immutable config + scratch.  @p state_in / @p
    *        state_out may alias.  Either may be NULL (NULL in = fresh;
    *        NULL out = discard).
+   *
+   * The run is one dp_acq_push(), so it stops where a push stops: once
+   * @p result is full, or before a frame that ends a dwell when fewer than
+   * min(max_peaks, @p max_results) slots are left.  It may then leave part
+   * of @p in untaken.  dp_acq_consumed(@p state) says how much it took;
+   * the caller calls again with @p state_out as the next @p state_in and
+   * the rest, in + consumed, and the two runs together equal one over the
+   * whole input.
    * @return Number of events written (0 … max_results).
    */
   size_t dp_acq_run (dp_acq_state_t *state, const void *state_in, void *state_out,

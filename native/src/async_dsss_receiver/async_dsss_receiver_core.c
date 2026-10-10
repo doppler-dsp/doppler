@@ -1077,14 +1077,12 @@ dp_async_dsss_receiver_steps (dp_async_dsss_receiver_state_t *state,
       if (n_hits == 0)
         return 0;
 
-      /* Same "exact unconsumed tail of THIS call" technique
-       * dsss_receiver_core.c's own steps() uses. */
-      uint64_t total_after = before + (uint64_t)x_len;
-      uint64_t consumed    = state->acq->samples_consumed;
-      uint64_t tail64
-          = (total_after > consumed) ? (total_after - consumed) : 0;
-      size_t tail_len = (tail64 > (uint64_t)x_len) ? x_len : (size_t)tail64;
-      const float _Complex *tail = x + (x_len - tail_len);
+      /* Tracking resumes where the HIT's frame ended, not at the engine's
+       * live counter -- the rule and why are at dsss_receiver_core.c's
+       * steps(), which hands off the same way. */
+      const size_t          at       = (size_t)(hit.samples_consumed - before);
+      const float _Complex *tail     = x + at;
+      const size_t          tail_len = x_len - at;
 
       /* A hit is a seed the object made for itself -- the same path an
        * outside detection takes. dp_acq_build_handoff() folds the phase into

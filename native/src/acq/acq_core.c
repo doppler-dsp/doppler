@@ -2301,16 +2301,21 @@ dp_acq_push (dp_acq_state_t *st, const float _Complex *x, size_t n_in,
   /* ONE frame at a time, never a batch: whether the next frame ends a dwell
      depends on where the dwell stands, which only the frame before it
      settles, and a dump can report several results -- the detectors'
-     batched feed (det_private.h) would overfill result here. A frame that
-     ends no dwell needs no room, so it is always taken; one that does is
-     taken only while `need` slots are left. At the first that is not, the
-     push takes the rest of its input only if the rest completes no frame
-     (it is then the carry) and otherwise stops on the frame boundary: the
-     rest is the caller's, at x + dp_acq_consumed(). */
+     batched feed (det_private.h) would overfill result here. While slots
+     are left, a frame that ends no dwell needs none and is taken; one that
+     does is taken only while `need` slots are left. A FULL result takes
+     nothing more -- the detectors' rule (#2018), and the contract every
+     room-limited caller relies on: a push at room 1 stops at its hit, so
+     dp_acq_consumed() is where the hit's frame ended. At the first frame
+     it does not take, the push takes the rest of its input only if the
+     rest completes no frame (it is then the carry) and otherwise stops on
+     the frame boundary: the rest is the caller's, at x +
+     dp_acq_consumed(). */
   for (;;)
     {
       const size_t rest = n_in - off;
-      if (acq_next_frame_decides (st) && max_results - ndet < need)
+      if (ndet == max_results
+          || (acq_next_frame_decides (st) && max_results - ndet < need))
         {
           if (dp_f32_framer_frames_for (&st->framer, rest) == 0)
             off += dp_f32_framer_feed_view (&st->framer, x + off, rest, 0);

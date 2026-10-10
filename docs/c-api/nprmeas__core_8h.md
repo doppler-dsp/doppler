@@ -300,7 +300,7 @@ size_t dp_nprmeas_spectrum_dbfs (
 
 
 
-The same windowed, zero-padded PSD the NPR metrics are read off, laid out DC-centred (fftshifted) and normalised to dBFS for an analyzer-display backdrop. Use it to see the notch and the active band that analyze() integrates over.
+The same windowed, zero-padded PSD the NPR metrics are read off, laid out DC-centred (fftshifted) and normalised to dBFS for an analyzer-display backdrop. Use it to see the notch and the active band that analyze() integrates over. It is the composed PSD's psd\_db: PSD's dBFS reference, its -200 dB floor and the library's one dB conversion, dp\_power\_to\_db\_f32.
 
 
 

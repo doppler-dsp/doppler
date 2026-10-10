@@ -631,8 +631,8 @@ ______________________________________________________________________
 ## Step 11 — Rebuild, reconcile, and verify
 
 ```sh
-make build BUILD_TARGET=<module>                          # rebuild just this .so
-make test-python TEST_PATHS=src/doppler/<module>/tests/   # just this module
+make build BUILD_TARGET=mymodule                          # rebuild just this .so
+make test-python TEST_PATHS=src/doppler/mymodule/tests/   # just this module
 ```
 
 That is the tests the change can reach; CI runs the full suite

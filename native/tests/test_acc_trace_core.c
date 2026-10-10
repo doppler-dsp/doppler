@@ -470,7 +470,10 @@ main (void)
    * One frame, then value(), returns that frame bit for bit in every mode.
    * Then a frame with a NaN in bin 1: maxhold and minhold keep what bin 1
    * held (the compare is false, so the select keeps the trace), and the
-   * other bins still move. */
+   * other bins still move. The NaN half rests on the declared
+   * -fno-finite-math-only (CMakeLists.txt:146). It cannot see that flag
+   * removed itself (GCC's blend keeps the trace either way, measured on
+   * #2105), so test_fp_policy.c is the canary that does. */
   {
     static const int modes[4] = { ACC_TRACE_MEAN, ACC_TRACE_EXP,
                                   ACC_TRACE_MAXHOLD, ACC_TRACE_MINHOLD };

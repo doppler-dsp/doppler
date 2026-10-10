@@ -175,8 +175,9 @@ dp_acc_trace_accumulate (dp_acc_trace_state_t *state, const float *p,
       }
     /* A select and an unconditional store, so both vectorize (a packed
        max/min). A NaN in the frame never replaces the trace: the compare is
-       false, so the bin keeps what it held (-fno-finite-math-only keeps that
-       true under the library's -ffast-math). */
+       false, so the bin keeps what it held. That rests on the library's
+       declared -fno-finite-math-only beside its -ffast-math
+       (CMakeLists.txt:146), which test_fp_policy.c holds. */
     case ACC_TRACE_MAXHOLD:
       for (size_t i = 0; i < n; i++)
         {

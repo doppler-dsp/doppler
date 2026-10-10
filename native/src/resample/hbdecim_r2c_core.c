@@ -208,11 +208,27 @@ dp_hbdecim_r2c_set_state (hbdecim_r2c_state_t *r, const void *blob)
     return rc;
   dp_reader_t rd = dp_reader_init (blob, dp_hbdecim_r2c_state_bytes (r));
   rd.off         = sizeof (dp_state_hdr_t);
-  dp_r_bytes (&rd, &r->even_head, sizeof (size_t));
-  dp_r_bytes (&rd, &r->odd_head, sizeof (size_t));
-  dp_r_bytes (&rd, &r->has_pending, sizeof (int));
-  dp_r_f32 (&rd, &r->pending, 1);
-  dp_r_bytes (&rd, &r->parity, sizeof (int));
+  /* Decoded and checked before anything is written: the envelope reads no
+     payload field. A head is a ring index; `parity` is toggled with ^= 1,
+     so a 2 would never alternate and the fs/4 flip would stop (#2142). */
+  size_t even_head, odd_head;
+  int    has_pending, parity;
+  float  pending;
+  dp_r_bytes (&rd, &even_head, sizeof (size_t));
+  dp_r_bytes (&rd, &odd_head, sizeof (size_t));
+  dp_r_bytes (&rd, &has_pending, sizeof (int));
+  dp_r_f32 (&rd, &pending, 1);
+  dp_r_bytes (&rd, &parity, sizeof (int));
+  if (!dp_ring_head_ok (even_head, r->even_cap)
+      || !dp_ring_head_ok (odd_head, r->even_cap)
+      || (has_pending != 0 && has_pending != 1)
+      || (parity != 0 && parity != 1))
+    return DP_ERR_INVALID;
+  r->even_head   = even_head;
+  r->odd_head    = odd_head;
+  r->has_pending = has_pending;
+  r->pending     = pending;
+  r->parity      = parity;
   dp_r_f32 (&rd, r->even_buf, 2 * r->even_cap);
   dp_r_f32 (&rd, r->odd_buf, 2 * r->even_cap);
   return DP_OK;

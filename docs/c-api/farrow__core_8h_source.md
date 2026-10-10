@@ -42,6 +42,12 @@ farrow_init (dp_farrow_state_t *s, int order)
     s->order = order;
 }
 
+JM_FORCEINLINE int
+dp_farrow_state_ok (const dp_farrow_state_t *s)
+{
+    return s->order >= FARROW_LINEAR && s->order <= FARROW_CUBIC;
+}
+
 JM_FORCEINLINE JM_HOT void
 farrow_push (dp_farrow_state_t *s, float _Complex x)
 {

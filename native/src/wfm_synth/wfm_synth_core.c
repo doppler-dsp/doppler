@@ -586,11 +586,23 @@ dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
     return DP_ERR_INVALID;
   DP_SET_OPEN (WFM_SYNTH_STATE_MAGIC, WFM_SYNTH_STATE_VERSION,
                dp_wfm_synth_state_bytes (s));
-  s->sym_pos = (int)dp_r_u32 (&_r);
-  dp_r_f32 (&_r, &s->cur_re, 1);
-  dp_r_f32 (&_r, &s->cur_im, 1);
-  s->bit_idx      = (size_t)dp_r_u64 (&_r);
-  s->sym_read_idx = (size_t)dp_r_u64 (&_r);
+  /* The leading scalars are decoded into locals and committed only once the
+     symbol index is known to fit: the kernel reads symbols[sym_read_idx]
+     BEFORE it wraps it, so a forged one read past the array, and the
+     envelope reads no payload field (#2142). With no symbols set it is 0. */
+  const int sym_pos = (int)dp_r_u32 (&_r);
+  float     cur_re, cur_im;
+  dp_r_f32 (&_r, &cur_re, 1);
+  dp_r_f32 (&_r, &cur_im, 1);
+  const size_t bit_idx      = (size_t)dp_r_u64 (&_r);
+  const size_t sym_read_idx = (size_t)dp_r_u64 (&_r);
+  if (sym_read_idx >= (s->n_symbols ? s->n_symbols : 1))
+    return DP_ERR_INVALID;
+  s->sym_pos      = sym_pos;
+  s->cur_re       = cur_re;
+  s->cur_im       = cur_im;
+  s->bit_idx      = bit_idx;
+  s->sym_read_idx = sym_read_idx;
   s->chirp_ph     = dp_r_f64 (&_r);
   s->chirp_n      = (size_t)dp_r_u64 (&_r);
   s->chip_n       = dp_r_u64 (&_r);

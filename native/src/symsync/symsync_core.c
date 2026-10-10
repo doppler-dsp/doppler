@@ -224,6 +224,8 @@ dp_symsync_init (dp_symsync_state_t *s, size_t sps, double bn, double zeta,
 dp_symsync_state_t *
 dp_symsync_create (size_t sps, double bn, double zeta, int order, int ted)
 {
+  if (order < FARROW_LINEAR || order > FARROW_CUBIC)
+    return NULL; /* as dp_farrow_create: no other order interpolates */
   dp_symsync_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
     return NULL;
@@ -292,9 +294,20 @@ dp_symsync_tlm_flush (const dp_symsync_state_t *s)
 /* Serializable state — pointer-free composition (nco + farrow + loop_filter
  * embedded by value, all POD) + scalar timing state: a whole-struct snapshot,
  * with the telemetry attachment zeroed in blobs and kept live across restore
- * (see DP_DEFINE_POD_STATE_TLM in dp_state.h). */
-DP_DEFINE_POD_STATE_TLM (dp_symsync, dp_symsync_state_t, SYMSYNC_STATE_MAGIC,
-                         SYMSYNC_STATE_VERSION, tlm)
+ * (see DP_DEFINE_POD_STATE_TLM_CHECKED in dp_state.h). A snapshot
+ * symsync_state_ok() rejects is refused untouched. */
+static int
+symsync_state_ok (const dp_symsync_state_t *s)
+{
+  /* The embedded Farrow and detector are checked by their own predicates
+     (#2142). `avgs` is not: an embedding holds the all-zero state until its
+     init runs, and that round-trips. */
+  return dp_farrow_state_ok (&s->farrow) && dp_lockdet_state_ok (&s->lock);
+}
+
+DP_DEFINE_POD_STATE_TLM_CHECKED (dp_symsync, dp_symsync_state_t,
+                                 SYMSYNC_STATE_MAGIC, SYMSYNC_STATE_VERSION,
+                                 tlm, symsync_state_ok)
 
 void
 dp_symsync_configure (dp_symsync_state_t *state, double bn, double zeta)

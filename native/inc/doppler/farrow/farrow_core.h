@@ -71,6 +71,22 @@ farrow_init (dp_farrow_state_t *s, int order)
     s->order = order;
 }
 
+/**
+ * @brief A Farrow state a blob may carry: one of the three orders.
+ *
+ * dp_farrow_create() refuses any other order, so a blob carrying one is
+ * forged, not a state (#2142). farrow_eval() would read it as cubic. Every
+ * set_state that carries a Farrow, by itself or embedded, refuses it.
+ *
+ * @param s  Decoded Farrow state. Must be non-NULL.
+ * @return Non-zero when `order` is FARROW_LINEAR, _PARABOLIC or _CUBIC.
+ */
+JM_FORCEINLINE int
+dp_farrow_state_ok (const dp_farrow_state_t *s)
+{
+    return s->order >= FARROW_LINEAR && s->order <= FARROW_CUBIC;
+}
+
 /** @brief Push one input sample into the delay line (oldest drops out). */
 JM_FORCEINLINE JM_HOT void
 farrow_push (dp_farrow_state_t *s, float _Complex x)
@@ -117,7 +133,8 @@ farrow_eval (const dp_farrow_state_t *s, float mu)
 /**
  * @brief Create a Farrow interpolator.
  * @param order  0 = linear, 1 = parabolic, 2 = cubic.
- * @return Heap-allocated state, or NULL on allocation failure.
+ * @return Heap-allocated state, or NULL for an order outside 0..2 or on
+ *         allocation failure.
  * @note Caller must call dp_farrow_destroy() when done.
  */
 dp_farrow_state_t *dp_farrow_create(int order);

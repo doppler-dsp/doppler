@@ -214,7 +214,15 @@ dp_state_validate (const void *blob, size_t expect_bytes, uint32_t magic,
     return _n_out;                                                           \
   }
 
-#define DP_DEFINE_POD_STATE(pfx, STATE_T, MAGIC, VERSION)                     \
+static inline int
+dp_ring_head_ok (size_t head, size_t cap)
+{
+  return head < cap;
+}
+
+#define DP_POD_ANY_OK(p) ((void)(p), 1)
+
+#define DP_DEFINE_POD_STATE_CHECKED(pfx, STATE_T, MAGIC, VERSION, OK)        \
   size_t pfx##_state_bytes (const STATE_T *s)                                 \
   {                                                                           \
     (void)s;                                                                  \
@@ -232,13 +240,21 @@ dp_state_validate (const void *blob, size_t expect_bytes, uint32_t magic,
                                  (VERSION));                                  \
     if (_rc != DP_OK)                                                         \
       return _rc;                                                             \
+    STATE_T     _c;                                                           \
     dp_reader_t _r = dp_reader_init (blob, pfx##_state_bytes (s));            \
     _r.off         = sizeof (dp_state_hdr_t);                                 \
-    dp_r_bytes (&_r, s, sizeof *s);                                           \
+    dp_r_bytes (&_r, &_c, sizeof _c);                                         \
+    if (!OK (&_c))                                                            \
+      return DP_ERR_INVALID;                                                  \
+    *s = _c;                                                                  \
     return DP_OK;                                                             \
   }
 
-#define DP_DEFINE_POD_STATE_TLM(pfx, STATE_T, MAGIC, VERSION, MEMBER)         \
+#define DP_DEFINE_POD_STATE(pfx, STATE_T, MAGIC, VERSION)                     \
+  DP_DEFINE_POD_STATE_CHECKED (pfx, STATE_T, MAGIC, VERSION, DP_POD_ANY_OK)
+
+#define DP_DEFINE_POD_STATE_TLM_CHECKED(pfx, STATE_T, MAGIC, VERSION, MEMBER, \
+                                        OK)                                   \
   size_t pfx##_state_bytes (const STATE_T *s)                                 \
   {                                                                           \
     (void)s;                                                                  \
@@ -258,14 +274,20 @@ dp_state_validate (const void *blob, size_t expect_bytes, uint32_t magic,
                                  (VERSION));                                  \
     if (_rc != DP_OK)                                                         \
       return _rc;                                                             \
-    STATE_T _c;                                                               \
+    STATE_T     _c;                                                           \
     dp_reader_t _r = dp_reader_init (blob, pfx##_state_bytes (s));            \
     _r.off         = sizeof (dp_state_hdr_t);                                 \
     dp_r_bytes (&_r, &_c, sizeof _c);                                         \
+    if (!OK (&_c))                                                            \
+      return DP_ERR_INVALID;                                                  \
     _c.MEMBER = s->MEMBER; /* keep the live attachment */                     \
     *s = _c;                                                                  \
     return DP_OK;                                                             \
   }
+
+#define DP_DEFINE_POD_STATE_TLM(pfx, STATE_T, MAGIC, VERSION, MEMBER)         \
+  DP_DEFINE_POD_STATE_TLM_CHECKED (pfx, STATE_T, MAGIC, VERSION, MEMBER,      \
+                                   DP_POD_ANY_OK)
 
 /* ── field-wise scaffolding ──────────────────────────────────────────────────
  * For a hand-written triplet that packs a subset of fields: the running state

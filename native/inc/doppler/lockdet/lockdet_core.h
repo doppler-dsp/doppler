@@ -86,6 +86,26 @@ extern "C"
   } dp_lockdet_state_t;
 
   /**
+   * @brief A lock-detector state a blob may carry: a decision that is 0
+   *        or 1.
+   *
+   * step() only ever stores 0 or 1, so a decision of 7 is a forged blob,
+   * not a state: it surfaced as `locked` and read back through every
+   * embedder (#2142). set_state, and every composition embedding a detector
+   * by value, refuses a snapshot this rejects. The counts are not checked:
+   * init() clamps them to >= 1, but an embedding holds the all-zero state
+   * until its init runs, and that round-trips (a count of 0 steps as 1).
+   *
+   * @param s  Decoded detector state. Must be non-NULL.
+   * @return Non-zero when `locked` is 0 or 1.
+   */
+  JM_FORCEINLINE int
+  dp_lockdet_state_ok (const dp_lockdet_state_t *s)
+  {
+    return s->locked == 0 || s->locked == 1;
+  }
+
+  /**
    * @brief Initialise a lock detector in place (no allocation).
    *
    * Stores the thresholds and verify counts (each count clamped to >= 1; a

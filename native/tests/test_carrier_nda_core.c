@@ -27,8 +27,11 @@
 #include "doppler/dp_complex.h"
 #include "doppler/mpsk/mpsk_core.h"
 #include "dp_rng_test.h"
+#include "dp_state_test.h"
 #include "dp_test.h"
 #include <math.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -747,6 +750,32 @@ main (void)
       DP_CHECK (fabs ((double)s_edge[mi] - (double)s_edge[0])
                 <= 0.25 * (double)s_edge[0]);
     free (rx);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * #2142: a forged arm or verdict is refused, the object untouched          *
+   * ---------------------------------------------------------------- */
+  {
+    /* The boxcar arm is embedded by value, so its forged pos wrote past the
+       struct exactly as a standalone boxcar's did; the lock verdict is 0/1. */
+    dp_carrier_nda_state_t *s
+        = dp_carrier_nda_create (0.01, 0.707, 0.01, 8, 4, 4);
+    DP_CHECK (s != NULL);
+    const size_t pos_off  = sizeof (dp_state_hdr_t)
+                            + offsetof (dp_carrier_nda_state_t, arm)
+                            + offsetof (dp_boxcar_state_t, pos);
+    const size_t lock_off = sizeof (dp_state_hdr_t)
+                            + offsetof (dp_carrier_nda_state_t, lockdet)
+                            + offsetof (dp_lockdet_state_t, locked);
+    const size_t past     = BOXCAR_MAX_LEN;
+    const int    seven    = 7;
+    DP_STATE_FORGE_TEST (dp_carrier_nda, s, CARRIER_NDA_STATE_MAGIC,
+                         CARRIER_NDA_STATE_VERSION, pos_off, &past,
+                         sizeof past);
+    DP_STATE_FORGE_TEST (dp_carrier_nda, s, CARRIER_NDA_STATE_MAGIC,
+                         CARRIER_NDA_STATE_VERSION, lock_off, &seven,
+                         sizeof seven);
+    dp_carrier_nda_destroy (s);
   }
 
   DP_TEST_END ("test_carrier_nda_core");

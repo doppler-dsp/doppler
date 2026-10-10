@@ -338,9 +338,17 @@ dp_hbdecim_q15_set_state (dp_hbdecim_q15_state_t *s, const void *blob)
 {
   DP_SET_OPEN (HBDECIM_Q15_STATE_MAGIC, HBDECIM_Q15_STATE_VERSION,
                dp_hbdecim_q15_state_bytes (s));
-  s->even_head   = (size_t)dp_r_u64 (&_r);
-  s->odd_head    = (size_t)dp_r_u64 (&_r);
-  s->has_pending = (int)dp_r_u32 (&_r);
+  /* Decoded and checked before anything is written: the envelope reads no
+     payload field, and a head is a ring index (#2142). */
+  const size_t   even_head   = (size_t)dp_r_u64 (&_r);
+  const size_t   odd_head    = (size_t)dp_r_u64 (&_r);
+  const uint32_t has_pending = dp_r_u32 (&_r);
+  if (!dp_ring_head_ok (even_head, s->cap)
+      || !dp_ring_head_ok (odd_head, s->cap) || has_pending > 1)
+    return DP_ERR_INVALID;
+  s->even_head   = even_head;
+  s->odd_head    = odd_head;
+  s->has_pending = (int)has_pending;
   dp_r_bytes (&_r, &s->pending_I, sizeof s->pending_I);
   dp_r_bytes (&_r, &s->pending_Q, sizeof s->pending_Q);
   const size_t rb = 2 * s->cap * sizeof (int16_t);

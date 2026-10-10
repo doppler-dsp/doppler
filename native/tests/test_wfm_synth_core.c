@@ -6,6 +6,8 @@
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include <math.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1477,5 +1479,32 @@ main (void)
 
   /* the serialization sections above also count via CHECK — fail if any
    * tripped (the early _fails gate only covered the pre-state sections). */
+  /* ---------------------------------------------------------------- *
+   * #2142: a forged symbol index is refused, the object untouched          *
+   * ---------------------------------------------------------------- */
+  {
+    /* The kernel reads symbols[sym_read_idx] BEFORE it wraps it. Blob:
+       [hdr][sym_pos u32][cur_re f32][cur_im f32][bit_idx u64]
+       [sym_read_idx u64]... With no symbols set the index is 0. */
+    dp_wfm_synth_state_t *s = dp_wfm_synth_create (
+        WFM_SYNTH_SYMBOLS, 1000000.0, 0.0, 100.0, 0, 1, 8, 7, 0, 0, 0.0);
+    DP_CHECK (s != NULL);
+    if (s)
+      {
+        const size_t   off = sizeof (dp_state_hdr_t) + 4 + 4 + 4 + 8;
+        const uint64_t one = 1;
+        DP_STATE_FORGE_TEST (dp_wfm_synth, s, WFM_SYNTH_STATE_MAGIC,
+                             WFM_SYNTH_STATE_VERSION, off, &one, sizeof one);
+        const float _Complex syms[3] = { 1.0f, -1.0f, 1.0f };
+        DP_CHECK (dp_wfm_synth_set_symbols (s, syms, 3) == 0);
+        const uint64_t bad[] = { 3, UINT64_MAX };
+        for (size_t i = 0; i < sizeof bad / sizeof *bad; i++)
+          DP_STATE_FORGE_TEST (dp_wfm_synth, s, WFM_SYNTH_STATE_MAGIC,
+                               WFM_SYNTH_STATE_VERSION, off, &bad[i],
+                               sizeof bad[i]);
+        dp_wfm_synth_destroy (s);
+      }
+  }
+
   DP_TEST_END ("test_wfm_synth_core");
 }

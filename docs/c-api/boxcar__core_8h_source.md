@@ -46,6 +46,12 @@ extern "C"
     return s->acc * s->scale;
   }
 
+  JM_FORCEINLINE int
+  dp_boxcar_state_ok (const dp_boxcar_state_t *s)
+  {
+    return s->len <= BOXCAR_MAX_LEN && s->pos < (s->len ? s->len : 1);
+  }
+
   JM_FORCEINLINE void
   dp_boxcar_set_gain (dp_boxcar_state_t *s, double gain)
   {

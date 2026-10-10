@@ -375,7 +375,7 @@ def characterise() -> Data:
         "flag: restoring at `cnt = 1 of 3` declares on schedule two looks "
         "later. The blob is a whole-struct snapshot, so restoring into a "
         "differently-tuned detector carries the source's thresholds and "
-        "counts with it (F4)."
+        f"counts with it ({R.ref('restore_carries_config')})."
     )
     R.md()
 
@@ -396,7 +396,7 @@ def review(d: Data) -> None:
     R.md()
 
     R.find(
-        "F1",
+        "compounding_holds",
         "BY DESIGN",
         "**The compounding claim holds through the binding.** Nine "
         f"(p, n_up) cells agree with `p^n_up·(1−p)/(1−p^n_up)` to "
@@ -406,7 +406,7 @@ def review(d: Data) -> None:
         "from a false-alarm budget gets the budget they asked for.",
     )
     R.find(
-        "F2",
+        "nan_look_used_hold_lock",
         "FIXED",
         "**A NaN look used to hold the lock forever.** `NaN < down_thresh` "
         "is false, so while locked a non-finite metric counted as a hit, "
@@ -417,7 +417,7 @@ def review(d: Data) -> None:
     )
     shared = nan_policy_is_shared()
     R.find(
-        "F3",
+        "non_finite_policy_shared",
         "BY DESIGN" if shared else "GAP",
         "**The non-finite policy is the shared primitive's, not this "
         "object's.** `dp_lockdet_step` routes its look through "
@@ -431,17 +431,18 @@ def review(d: Data) -> None:
         "re-inlining it flips this finding.",
     )
     R.find(
-        "F4",
+        "restore_carries_config",
         "BY DESIGN",
         "**A restore carries configuration, not just the decision.** The "
         "state blob is a whole-struct POD snapshot, so `set_state` into a "
         "differently-tuned detector silently re-tunes it to the source's "
         "thresholds and verify counts (§2.6). Correct for the documented "
         "use — an identically-built instance — and worth knowing for any "
-        "other. The same consequence LoopFilter records as its F8.",
+        "other. LoopFilter's report records the same consequence for its "
+        "own restore.",
     )
     R.find(
-        "F5",
+        "inverted_band_not_refused",
         "BY DESIGN",
         "**An inverted band is not refused.** `down_thresh > up_thresh` is "
         "documented only as advice, and produces the opposite of "
@@ -452,7 +453,7 @@ def review(d: Data) -> None:
         "and silent chatter is worth being able to recognise.",
     )
     R.find(
-        "F6",
+        "value_embedding_path_no_python",
         "C-ONLY",
         "**The by-value embedding path has no Python face.** Seven objects "
         "embed a `dp_lockdet_state_t` directly and drive it with "
@@ -543,21 +544,23 @@ def build(write: bool = True) -> Report:
             "binding.** Nine (p, n_up) cells match "
             "`p^n_up·(1−p)/(1−p^n_up)` and the latency matches "
             "`det_verify_delay`, so an `n_up` picked from a false-alarm "
-            "budget delivers that budget (§2.1, F1).",
+            "budget delivers that budget "
+            f"(§2.1, {R.ref('compounding_holds')}).",
             "**A NaN look no longer holds the lock forever.** It used to "
             "count as a hit while locked and keep the lamp lit on a dead "
             "statistic; it now drops after `n_down` like any other miss "
-            "(§2.4, F2).",
+            f"(§2.4, {R.ref('nan_look_used_hold_lock')}).",
             "**That policy lives in `saturate()`, not here** — the shared "
             "primitive whose documentation named a lock statistic as its "
-            "caller and had none. Re-inlining it flips F3 back to a gap.",
+            "caller and had none. Re-inlining it "
+            f"flips {R.ref('non_finite_policy_shared')} back to a gap.",
             "**Level hysteresis is worth the second number**: across a "
             "wobbling metric a single threshold flips the flag "
             f"{d.single_transitions} times against {d.band_transitions} "
             "for a declare/drop pair (§2.2).",
             "**A restore re-tunes the target**, because the blob is a "
             "whole-struct snapshot — configuration travels with the "
-            "decision (§2.6, F4).",
+            f"decision (§2.6, {R.ref('restore_carries_config')}).",
         ],
     )
     R.summary("\n- Raw sweep: `data/verify_rate.csv`")

@@ -16,6 +16,7 @@
  * returns the documented 0 rather than a plausible-looking value.
  */
 #include "doppler/measure/measure_core.h"
+#include "doppler/tonemeas/tonemeas_core.h"
 #include "dp_test.h"
 #include <math.h>
 #include <stdio.h>
@@ -75,6 +76,42 @@ main (void)
     /* Bad args return 0, per the docstring -- not a plausible length. */
     DP_CHECK (dp_measure_min_samples (0.0, 1000.0, 12, 0.0, 1) == 0);
     DP_CHECK (dp_measure_min_samples (-1.0, 1000.0, 12, 0.0, 1) == 0);
+  }
+
+  /* ── measure_min_samples plans for the window the analyser uses ──────
+   * A plan is the smallest capture whose realised RBW meets the target,
+   * n = ceil(ENBW * fs / rbw), with the ENBW of the window a measurement
+   * object's composed PSD builds: the periodic Kaiser since #2053.  So
+   * against n* = enbw * fs / rbw, the enbw read back from a ToneMeasure
+   * created at the planned n with the same bits, the plan lies in
+   * [n*, n* + 1).  Tolerance: the planner reads its ENBW from a 1024-point
+   * reference, the analyser from n points, and the periodic Kaiser's ENBW
+   * moves by at most 5.9e-8 relative between them over these cases
+   * (measured), so n* is held to 1e-6 relative, 17x that and a fiftieth of
+   * a sample at the largest n here.  A planner reading the symmetric
+   * window, n - 1 intervals, gets an ENBW 1024/1023 high (9.8e-4) and
+   * plans 1.1 to 20.7 samples past n* + 1 over these cases: red at every
+   * one. */
+  {
+    static const size_t bits[] = { 8, 12, 16 };
+    static const double rbw[]  = { 1000.0, 250.0, 100.0 };
+    for (size_t b = 0; b < sizeof bits / sizeof bits[0]; b++)
+      for (size_t r = 0; r < sizeof rbw / sizeof rbw[0]; r++)
+        {
+          const size_t n
+              = dp_measure_min_samples (FS, rbw[r], bits[b], 0.0, 1);
+          dp_tonemeas_state_t *t
+              = dp_tonemeas_create (n, FS, 8, 1.0, bits[b], 0.0, 0);
+          DP_REQUIRE (t != NULL);
+          const double nstar = t->enbw * FS / rbw[r];
+          const double tol   = 1e-6 * nstar;
+          if (!((double)n >= nstar - tol && (double)n < nstar + 1.0 + tol))
+            printf ("bits %zu, rbw %.0f: planned %zu, the analyser's "
+                    "window needs %.3f\n",
+                    bits[b], rbw[r], n, nstar);
+          DP_CHECK ((double)n >= nstar - tol && (double)n < nstar + 1.0 + tol);
+          dp_tonemeas_destroy (t);
+        }
   }
 
   /* ── measure_rec_nfft: next_pow_two(n * max(pad, 1)) ───────────────── */

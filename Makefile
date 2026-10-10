@@ -193,7 +193,8 @@ LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format \
                version-literals text-encoding cmake-script-policy \
                why-param doc-claims public-symbols curl-fail \
                warnings-exempt stock-images uv-pin uv-lock tlm-name-join \
-               ring-internals spectrogram-mode
+               ring-internals spectrogram-mode db-conversion \
+               finding-citations
 FORMAT_TOOLS = ruff-format ruff mdformat clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -376,6 +377,15 @@ LINT_bare-libm = $(UV) run python scripts/check_bare_libm.py
 # clang-cl; dp_gnu_compile_options() spells it for either driver (#1360).
 LINT_gnu-flags = $(UV) run python scripts/check_gnu_flags.py
 
+# A dB spectrum has one converter, dp_power_to_db_f32 (#2094): PSD and the
+# Spectrogram read every dB through it. Three measurement spectra and the
+# analyzer's display each carried a private 10*log10 over the same PSD they
+# composed, rounded twice and floored differently (#2108). This flags any
+# indexed log10 assignment in library C; a scalar measurement keeps double
+# and is out of scope by construction. Two converters keep their own, held
+# to an exact count per file, so the allowance may only shrink.
+LINT_db-conversion = $(UV) run python scripts/check_db_conversion_sites.py
+
 # lgamma() writes the global signgam, so two threads race on it -- found by
 # TSan the first time a pool of receivers rebuilt their chains across
 # threads (#1260). dp_lgamma() in clib_common.h wraps lgamma_r() once; a
@@ -439,6 +449,14 @@ LINT_header-example-arity = \
 # value is power, and a numbered call would have changed meaning without a
 # diff. Registration-free (git ls-files). Plain python3: stdlib only.
 LINT_spectrogram-mode = python3 scripts/check_spectrogram_mode.py
+
+# A validation finding is cited by its key or its claim, never by its number
+# (#2059). A report numbers findings by position, and resolves `R.ref(key)`
+# at render, refusing a typed number there; a C test, header, page or example
+# has no render step, so a number in it re-points silently when a finding
+# before it is dropped -- #2056 left five such citations. Registration-free
+# (git ls-files). Plain python3: stdlib only.
+LINT_finding-citations = python3 scripts/check_finding_citations.py
 
 # A refusal names its cause through `const char **why` -- a static sentence,
 # written only on refusal, NULL allowed, never freed. Every public refusal API

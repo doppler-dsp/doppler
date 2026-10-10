@@ -306,7 +306,8 @@ def measure_sequences(d: Data) -> None:
         "A field's bits come from a literal or from a generator, and "
         "`field_bits` -- the Field text form's door -- reaches all four "
         'kinds. `dp_wfm_seq_bits` -- "the one place a `wfm_seq_t` becomes '
-        'bits" -- had no C coverage at all before this certification (F1); '
+        'bits" -- had no C coverage at all before this certification '
+        f"({R.ref('seq_to_bits_untested')}); "
         "these are the same properties, asked through the binding."
     )
     R.md()
@@ -371,7 +372,10 @@ def measure_sequences(d: Data) -> None:
 
 
 def measure_extension(d: Data) -> None:
-    R.md("### 2.5 Where the openness stops: the kernel is C-only (F2)")
+    R.md(
+        "### 2.5 Where the openness stops: the kernel is C-only "
+        f"({R.ref('openness_design_staked')})"
+    )
     R.md()
     R.md(
         "The claim's mechanism is that a caller allocates a kind from "
@@ -462,7 +466,7 @@ def review(d: Data) -> None:
     R.md("## 3. Review -- findings, with verdicts")
     R.md()
     R.find(
-        "F1",
+        "seq_to_bits_untested",
         "FIXED",
         '**"The one place a `wfm_seq_t` becomes bits" was tested by '
         "nothing.** `dp_wfm_seq_bits` had zero mentions in any C test in the "
@@ -480,7 +484,7 @@ def review(d: Data) -> None:
         "`poly` and `seed` straight through.",
     )
     R.find(
-        "F2",
+        "openness_design_staked",
         "GAP",
         "**The openness the design is staked on is C-only** (gh-1125). "
         "The header's argument is that an open `uint32_t` kind makes \"a "
@@ -495,7 +499,7 @@ def review(d: Data) -> None:
         "Python -- the fixed menu the header argues against.",
     )
     R.find(
-        "F3",
+        "frame_carries_no_check_answers",
         "BY DESIGN",
         "**A frame that carries no check answers -1, not 0.** Three "
         "distinct values -- 1 pass, 0 fail, -1 no check -- and the "
@@ -506,7 +510,7 @@ def review(d: Data) -> None:
         "in every test where a CRC happens to be present.",
     )
     R.find(
-        "F4",
+        "dsss_nchips_via_synth",
         "C-ONLY",
         "**`dp_wfm_frame_dsss_nchips` belongs to this layer and was tested "
         "only through the synthesiser.** The chip count a DSSS burst "
@@ -643,18 +647,19 @@ def build(write: bool = True) -> Report:
             "**The check needs no truth, so it works on a real capture.** "
             "A single flipped bit fails at every position tried, and a "
             "frame with no check answers -1 rather than 0 -- so an FER "
-            "does not count unprotected frames as errors (§2.3, F3).",
+            "does not count unprotected frames as errors "
+            f"(§2.3, {R.ref('frame_carries_no_check_answers')}).",
             "**A custom stage needs C.** A caller's kind is accepted by "
             "the description and refused at build time from Python, "
             "because the kernel table has no Python parameter. The "
             "representation is open; the extension point is not, on this "
-            "face (§2.5, F2, gh-1125).",
+            f"face (§2.5, {R.ref('openness_design_staked')}, gh-1125).",
             "**Ask a generated field for `poly = 0`, not a literal 0.** "
             'Zero means "the maximal-length polynomial for this '
             'register"; a literal zero reaching the LFSR is a register '
             "with no feedback that emits a constant field still shaped "
             "like a field. Nothing tested that until this certification "
-            "(§2.4, F1).",
+            f"(§2.4, {R.ref('seq_to_bits_untested')}).",
         ],
     )
     R.summary()

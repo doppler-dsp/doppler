@@ -569,7 +569,7 @@ def measure_lifecycle(d: Data) -> None:
         "C-level behaviour is **C-ONLY** -- the binding's constructor, "
         "`dp_pn_create_mls`, resolves it before `dp_pn_create` sees it, so "
         "Python cannot reach the zeros; both are pinned in "
-        "`test_pn_core.c` (F3)."
+        f"`test_pn_core.c` ({R.ref('three_claims_python_face_cannot')})."
     )
     R.md()
     R.md(
@@ -597,7 +597,7 @@ def review(d: Data) -> None:
     R.md("## 3. Review -- findings, with verdicts")
     R.md()
     R.find(
-        "F1",
+        "table_said_verified_six_sixty",
         "FIXED",
         '**The table said "verified" and six of sixty-three were.** '
         '`pn_mls_poly()` is documented as *"Generated from verified '
@@ -615,7 +615,7 @@ def review(d: Data) -> None:
         "here (§2.1).",
     )
     R.find(
-        "F2",
+        "claim_pinned_own_complement",
         "FIXED",
         "**A claim was pinned by its own complement.** The header says "
         'the two realizations "differ only in chip ordering/phase"; '
@@ -630,7 +630,7 @@ def review(d: Data) -> None:
         "the new one red (§2.3).",
     )
     R.find(
-        "F3",
+        "three_claims_python_face_cannot",
         "C-ONLY",
         "**Three claims the Python face cannot reach**, now pinned in "
         "`native/tests/test_pn_core.c`. (1) `poly = 0` emitting zeros "
@@ -646,7 +646,7 @@ def review(d: Data) -> None:
         "honestly; a `volatile` read cannot be elided and goes red.",
     )
     R.find(
-        "F4",
+        "dp_pn_reset_called_no",
         "FIXED",
         "**`dp_pn_reset` was called with nothing asserted after it.** The C "
         "test invoked it between other work and checked no consequence, "
@@ -773,7 +773,7 @@ def build(write: bool = True) -> Report:
             "primitive**, at every width from 2 to 64 and in both "
             "realizations. Six of them had anything running that claim "
             "before this; the rest were asserted only to be nonzero "
-            "(§2.1, F1).",
+            f"(§2.1, {R.ref('table_said_verified_six_sixty')}).",
             "**The autocorrelation is two-valued and exact** -- P at zero "
             f"lag, exactly -1 at every other lag, deviation "
             f"{d.worst_sidelobe} across everything measured. That, not "
@@ -788,7 +788,8 @@ def build(write: bool = True) -> Report:
             "the seed out and emits zeros forever, which looks like a "
             "field. Resolution is the caller's job and all three "
             "production call sites do it; the Python face is safe by "
-            "construction (§2.4, F3).",
+            "construction "
+            f"(§2.4, {R.ref('three_claims_python_face_cannot')}).",
             "**Widths above 24 are certified algebraically, not walked.** "
             "n=64 is 1.8e19 states. The order test settles them, its "
             "transition matrix is probed out of the shipped library "

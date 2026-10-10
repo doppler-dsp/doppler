@@ -15,10 +15,11 @@ a measured envelope had **nowhere to be an answer**, so it became a constant.
 
 The M-PSK carrier loop's acquisition bound was measured in 2026-08, written
 into three docstrings as dated prose, and re-derived by nothing. Two findings
-in `MpskReceiver`'s validation report (F4 and F5) were then filed against the
-receiver for behaviour that was really the test seeding past that bound —
-because the bound existed as a sentence rather than as a curve anybody could
-re-run. Both were retracted in doppler#843.
+in `MpskReceiver`'s validation report (`rate_recovered_not_demodulable` and
+`psk8_loss_unmeasurable`) were then filed against the receiver for behaviour
+that was really the test seeding past that bound — because the bound existed as
+a sentence rather than as a curve anybody could re-run. Both were retracted in
+doppler#843.
 
 So the rule this module exists to serve is the repository's own: **a claim
 nothing runs is prose.** A number a validator relies on has to be re-derivable,

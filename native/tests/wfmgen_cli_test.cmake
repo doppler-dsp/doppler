@@ -336,7 +336,7 @@ endif()
 run(--from-file wg_mixed.json -o wg_mixed.cf32)
 expect_size(wg_mixed.cf32 8000)
 
-# 22. F7 (#1619, payload-data-source.md 4.8): a record carries what each
+# 22. #1619 (payload-data-source.md 4.8): a record carries what each
 #     data source SENT -- frames, fill, idle frames, the bits read and a
 #     file's hash -- and a replay identifies a file by that content. A file
 #     edited in place (same length) is refused, naming both hashes; a

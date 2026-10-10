@@ -353,7 +353,8 @@ def characterise() -> Data:
         f"Measured, the pair is not reliably captured until "
         f"**{first_full} samples** of dead air — "
         f"{first_full / max(claimed, 1):.0f}x that, and about "
-        f"{first_full / (ACQ_SF * SPC):.1f} code periods. Recorded as F1."
+        f"{first_full / (ACQ_SF * SPC):.1f} code periods. Recorded "
+        f"as {R.ref('required_gap_short')}."
     )
     R.md()
 
@@ -389,7 +390,9 @@ def characterise() -> Data:
         "alternative and separated the two populations by a few hundredths "
         "against this one's dB — a window on noise has no code period to "
         "resolve, so it scored much like one that resolved it. It was "
-        "removed outright in doppler#1312; F2 is kept as the record of why "
+        "removed outright in "
+        f"doppler#1312; {R.ref('filter_on_cn0_not_margin')} is kept as the "
+        "record of why "
         "it was the wrong filter."
     )
     R.md()
@@ -500,7 +503,8 @@ def characterise() -> Data:
         and c2.push(x[short : short + 1]).size == BURST_LEN
     )
 
-    # reset() returns to searching AND keeps working (F3's regression).
+    # reset() returns to searching AND keeps working
+    # (`reset_left_ring_behind_stream`'s regression).
     c3 = cap()
     c3.push(x)
     before = int(c3.n_bursts)
@@ -742,7 +746,7 @@ def _sec_delivered_pd(d: Data) -> None:
         f"wrong-repetition rate ({_wrong(hi):.1%} pooled) and nothing else. "
         "Before doppler#1519 it was also losing windows 51 samples off -- "
         "u⁻¹ mod 127, the Zadoff-Chu delay-Doppler ridge -- and fell up to "
-        "0.026 short (F7)."
+        f"0.026 short ({R.ref('design_point_capture_fell_short')})."
     )
     R.md()
 
@@ -753,7 +757,7 @@ def review(d: Data) -> None:
     claimed = max(0, d.refine_span - BURST_LEN)
     next((g for g, f in zip(d.gaps, d.found) if f >= 1.0), None)
     R.find(
-        "F1",
+        "required_gap_short",
         "FIXED",
         f"**The documented required gap was short by the whole detection-lag "
         f"term, and the first measurement of it was under-powered.** The "
@@ -764,10 +768,11 @@ def review(d: Data) -> None:
         "code_period`, and this report's own first answer (256) came from a "
         "12-trial sweep reading 100% where 60 trials read 88.8%. The "
         "derivation is checked on four geometries, each predicting a "
-        "different value. [gh-1172](https://github.com/doppler-dsp/doppler/issues/1172).",
+        "different value. "
+        "[gh-1172](https://github.com/doppler-dsp/doppler/issues/1172).",
     )
     R.find(
-        "F2",
+        "filter_on_cn0_not_margin",
         "BY DESIGN",
         "**`refine_margin` was not the statistic to filter on; "
         "`cn0_dbhz_est` is** — and the margin has since been removed "
@@ -782,7 +787,7 @@ def review(d: Data) -> None:
         "`cn0_dbhz_est` was always the answer.",
     )
     R.find(
-        "F3",
+        "reset_left_ring_behind_stream",
         "FIXED",
         "**`reset()` left the ring behind the stream.** `head`/`tail` are "
         "monotonic ABSOLUTE counters, so emptying the ring by consuming "
@@ -795,7 +800,7 @@ def review(d: Data) -> None:
         "[gh-1169](https://github.com/doppler-dsp/doppler/issues/1169).",
     )
     R.find(
-        "F4",
+        "search_raw_undocumented_code",
         "FIXED",
         "**`configure_search_raw` returned a code its header did not "
         "document.** The composed child forwards `acq`'s own `-1`, which is "
@@ -805,7 +810,7 @@ def review(d: Data) -> None:
         "Translated at this boundary rather than weakening the doc to match.",
     )
     R.find(
-        "F5",
+        "zero_copy_consumer_face_not",
         "C-ONLY",
         "**The zero-copy consumer face is not reachable from Python.** "
         "`dp_burst_capture_ready`/`window`/`event_at` let a composing C "
@@ -816,7 +821,7 @@ def review(d: Data) -> None:
         "so the borrow is certified in C §7 and §3 instead.",
     )
     R.find(
-        "F6",
+        "burst_window_copy_measured_short",
         "GAP",
         "**The per-burst window copy is measured only at a short-burst "
         "geometry.** `bench_burst_capture_core` puts it at 34 µs for four "
@@ -827,7 +832,7 @@ def review(d: Data) -> None:
         "[gh-1173](https://github.com/doppler-dsp/doppler/issues/1173).",
     )
     R.find(
-        "F7",
+        "design_point_capture_fell_short",
         "FIXED",
         "**At the 0.9 design point the capture fell short of `pd_burst`.** "
         "At 0.6 the engine runs 0.03-0.12 above its model and that margin "
@@ -934,7 +939,7 @@ def limits(d: Data) -> None:
         d.reset_reworks,
         "`reset()` returns to the searching state AND the same stream is "
         "found again afterwards — the assertion the code this was moved from "
-        "never made (§2.7, F3)",
+        f"never made (§2.7, {R.ref('reset_left_ring_behind_stream')})",
     )
     R.limit(
         d.lifetime_counts,
@@ -1026,16 +1031,19 @@ def build(write: bool = True) -> Report:
             "**Leave more dead air than the header's formula says.** It "
             "gives `max(0, refine_span - burst_len)`; measured, a pair needs "
             f"{next((g for g, f in zip(d.gaps, d.found) if f >= 1.0), 0)} "
-            "samples before both bursts are reliably captured (§2.4, F1).",
+            "samples before both bursts are reliably captured "
+            f"(§2.4, {R.ref('required_gap_short')}).",
             "**Filter on `cn0_dbhz_est`.** A spurious window is expected "
             "at `pfa = 1e-3` and this object will not gate on quality; "
             "C/N0 separates the two populations by "
             f"{d.sep.get('cn0_real', 0) - d.sep.get('cn0_spurious', 0):.1f} "
-            "dB, and it is the only read-back that does (§2.5, F2).",
+            "dB, and it is the only read-back that does "
+            f"(§2.5, {R.ref('filter_on_cn0_not_margin')}).",
             "**Design to `pd_burst`; the capture delivers it.** At the 0.6 "
             "design point and at the default 0.9, on a Zadoff-Chu preamble "
             "at every depth. Its only loss against the engine is refine "
-            "naming the wrong repetition, about 2% of trials (§2.8, F7).",
+            "naming the wrong repetition, about 2% of trials "
+            f"(§2.8, {R.ref('design_point_capture_fell_short')}).",
             "**Block size is not a parameter of the answer.** From 333 "
             "samples to a push larger than the ring, the windows are "
             "bit-identical and nothing is dropped (§2.3).",

@@ -138,7 +138,10 @@ is seeded complex Gaussian noise of total power L dBFS, **256 frames** per
 window and level, because one frame's median scatters by about 0.2 dB. The
 run is seeded and untimed, so a re-run of the same build reads the same
 values. Intel Core Ultra 7 355 under WSL2, GCC 15.2.0, on main 1ea1cca0b plus
-this entry's commits. The harness measures and decides nothing; until the
+this entry's commits; re-run the same way on the #2053 branch once PSD's
+windows became periodic, which is the run the leakage paragraph and the table
+below report (the floor itself did not move). The harness measures and
+decides nothing; until the
 certification (#1941's A4, step 5) turns these numbers into limits, nothing
 asserts them.
 
@@ -149,16 +152,20 @@ reads L to four decimals under every window, from −120 to −200. At −201,
 −200 dBFS and digital silence make the same row, bit for bit.
 
 **What else a tone row shows is the window's leakage.** PSD's windows are
-symmetric (length N − 1 in the cosine), so they are not orthogonal on the
-N-point grid ([#2053](https://github.com/doppler-dsp/doppler/issues/2053)): an
-on-bin tone under Hann leaks −6.0 dBc into bins ±1, then −69.7, −78.2 and
-−83.7 dBc into ±2, ±3 and ±4. At −120 dBFS the first three pairs are above
-the clamp and ±4 is under it, so exactly 7 bins of 1024 rise off the floor
-(1017 at −200). Blackman-Harris's main lobe spans ±3 bins, so it raises the
-same 7, and Kaiser β 8's sidelobes on the grid raise 25: both counts are
-what a symmetric window's DFT predicts above −80 dBc. Only the rectangular
-window is orthogonal on the grid, and only its tone bin rises (1023 at
-−200).
+periodic (DFT-even, length N in the cosine,
+[#2053](https://github.com/doppler-dsp/doppler/issues/2053)). Hann and
+Blackman-Harris are sums of cosines that complete whole periods over the
+frame, so an on-bin tone under Hann reads −6.0 dBc in bins ±1 and nothing
+further out but float rounding (−155.7 dBc at most, out to ±20), and under
+Blackman-Harris −3.3, −14.1 and −35.8 dBc in ±1, ±2 and ±3, then rounding
+(−153.7 at most). At −120 dBFS that lifts exactly 3 bins of 1024 off the floor
+under Hann (1021 at −200) and 7 under Blackman-Harris (1017). Kaiser β 8 is
+not a sum of cosines and leaks into every bin, −4.9, −22.3 and −59.7 dBc at
+±1 to ±3 and below −80 dBc only from ±13, so it lifts 25. The rectangular
+window's transform is one bin, and only its tone bin rises (1023 at −200).
+Each count is what the leakage puts above −80 dBc. Under the symmetric
+windows PSD used before, Hann leaked −69.7, −78.2 and −83.7 dBc into ±2 to
+±4 and lifted 7.
 
 **Wideband noise reaches the floor sooner, by about `10·log10(nfft)`.** A
 frame of complex noise spreads its power over the bins. Against PSD's tone
@@ -175,10 +182,10 @@ everywhere:
 
 | L, dBFS | Hann            | Kaiser β 8      | Blackman-Harris | rect            |
 | ------- | --------------- | --------------- | --------------- | --------------- |
-| −150    | 7.2 (7.0)       | 6.4 (6.3)       | 5.0 (5.2)       | 10.8 (10.4)     |
-| −160    | 67.1 (67.5)     | 60.7 (61.0)     | 51.0 (51.0)     | 99.8 (99.7)     |
-| −170    | 505.9 (506.3)   | 470.9 (469.9)   | 411.1 (409.3)   | 658.5 (656.2)   |
-| −175    | 905.3 (905.5)   | 876.1 (877.2)   | 821.1 (820.1)   | 983.4 (983.8)   |
+| −150    | 7.2 (7.0)       | 6.5 (6.3)       | 5.0 (5.2)       | 10.8 (10.4)     |
+| −160    | 67.2 (67.6)     | 60.7 (61.1)     | 51.0 (51.0)     | 99.8 (99.7)     |
+| −170    | 506.2 (506.6)   | 471.2 (470.2)   | 411.4 (409.6)   | 658.5 (656.2)   |
+| −175    | 905.5 (905.8)   | 876.3 (877.4)   | 821.5 (820.5)   | 983.4 (983.8)   |
 | −180    | 1022.8 (1022.9) | 1021.9 (1021.8) | 1017.8 (1017.8) | 1024.0 (1024.0) |
 
 *Bins of 1024 reading exactly −200 dB: the mean of 256 frames, and the
@@ -188,7 +195,7 @@ So noise of total power −180 dBFS leaves, on average, about 1 bin of 1024
 above the floor under Hann, 2 under Kaiser, 6 under Blackman-Harris and none
 under rect, and at −190 none under any window. These are averages, not
 bounds: one frame scatters around them (up to 15 bins at the clamp at
-−150, where the mean is 7). The offset is `10·log10(ENBW/n)`, so the level at
+−150 under Kaiser, where the mean is 6.5). The offset is `10·log10(ENBW/n)`, so the level at
 which noise vanishes rises 3 dB with each doubling of `nfft`. That follows
 from the formula; this entry does not measure other sizes.
 
@@ -471,3 +478,63 @@ given exact room. So a step on unchanged row names at the next release can
 be the method, not the code. This run's merged set
 (`benchmarks/published/v0.66.0-a4/`) stays on the measuring machine. It is a
 characterization, not a release's published numbers.
+
+______________________________________________________________________
+
+### 5.11 The fast dB conversion (2026-10-10) — #2094, #2074
+
+**Question.** U3 (§5.8) found the dB conversion was 70–83% of a dB row: a
+divide, a clamp, a double `log10` and a cast per bin. The owner's decision on
+#2074 is a faster `log10` by default, 0.01 dB its budget, exact precision
+opt-in only if a caller ever needs it. This entry is the conversion that
+replaced it, `dp_power_to_db_f32`, and what it achieves.
+
+**How.** log2 of a float is its exponent plus log2 of its mantissa. The
+mantissa is reduced to \[√½, √2), and log2(1 + t) there is t·q(t), with q a
+cubic fitted by iteratively reweighted least squares, close to minimax. The
+t·q(t) form makes log2(1) exactly 0, so every power of two converts exactly.
+The last step, (e + log2 m)·10·log10 2, is a double product rounded once. A
+float split constant would make k·10·log10 2 exact as well, but the library's
+`-ffast-math` re-associated it and 14 powers of two missed by an ulp. One
+select reads exactly −200 below 1e-20, PSD's floor.
+
+| fit degree | max \|log2 error\| | max error, dB |
+| ---------- | ------------------ | ------------- |
+| 2          | 8.6e-4             | 2.6e-3        |
+| **3**      | 1.0e-4             | 3.1e-4        |
+| 4          | 1.5e-5             | 4.5e-5        |
+
+Degree 3 is inside the 0.01 dB budget by a factor of thirty; degree 2 by
+four.
+
+**Achieved bound, exhaustive.** `validate_power_to_db_sweep` converts every
+positive finite float32 through the vectorized call: 1.63 × 10⁹ values at or
+above the floor, 5.1 × 10⁸ below it. **The worst error is 3.25e-4 dB**, at
+1.79 × 10³⁰. Every value below the floor reads exactly −200, and so do all
+2.14 × 10⁹ negative floats. It runs in `make test-sweep`, 28.9 s on this
+machine. A sampled tier in `make test` covers every exponent, its extremes and
+2¹⁶ mantissas each, and also asserts 5e-4 dB, so a degraded polynomial is
+caught long before the contract is. With the polynomial's last term dropped,
+both tiers fail at 0.029 dB.
+
+**Speed** (unpinned, WSL2, portable build, ns per frame; the pinned before
+and after are #2094's bench run). The dB conversion, `frame_db` −
+`frame_power`, before → after:
+
+| nfft  | conversion before | after  | ratio | `frame_db` before | after   |
+| ----- | ----------------- | ------ | ----- | ----------------- | ------- |
+| 256   | 1,535             | 235    | 6.5×  | 1,921             | 620     |
+| 1024  | 6,011             | 964    | 6.2×  | 7,714             | 2,646   |
+| 4096  | 23,782            | 3,889  | 6.1×  | 32,141            | 12,218  |
+| 16384 | 94,463            | 16,215 | 5.8×  | 132,515           | 53,928  |
+| 65536 | 398,008           | 66,758 | 6.0×  | 583,708           | 248,342 |
+
+At `nfft` 1024 the conversion falls from 78% of a `frame_db` to 36%.
+
+**What it moved.** Every PSD dB reading, `frame_db` and the Spectrogram's dB
+rows, is now `dp_power_to_db_f32` of the matching linear value, bit for bit
+(pinned in `test_psd_core.c`). So a display that converts only the power bins
+it draws gets exactly the dB rows. A dB reading off a power of two moves by
+up to 3.25e-4 dB. The exact `log10` path is removed, not kept. The other dB
+converters in the library are #2108, to switch or to say why they keep
+double.

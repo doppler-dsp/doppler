@@ -48,9 +48,10 @@ PSD's readings of one power, so they cannot disagree about the reference.
 Power is the default because converting every bin to dB is most of a dB
 row's cost, 70–83% of it
 ([entry 5.8](../design/spectrogram-measurements.md#58-where-a-rows-time-goes-2026-10-10-u3)).
-A display converts only the bins it draws, at display precision, and a
-consumer that averages rows folds power rows with `AccTrace`: the mean of
-dB rows is not the dB of the mean.
+A display converts only the bins it draws, with `dp_power_to_db_f32`: dB
+rows are made with that same conversion, so its values are exactly the dB
+rows' values. A consumer that averages rows folds power rows with
+`AccTrace`: the mean of dB rows is not the dB of the mean.
 
 Rows are DC-centred exactly as PSD
 emits them, bin *k* at index `nfft/2 + k` with negative frequencies first;
@@ -69,9 +70,10 @@ signal, take power rows
 ([the measurement](../design/spectrogram-measurements.md#54-the-db-floor-measured-2026-10-10-u5)).
 
 `nfft` must be the PSD's transform length for that frame, which is to say a
-power of two of at least 2, and `1 <= hop <= nfft`. The window must have gain
-at that length: `nfft = 2` with Hann is refused, because the symmetric
-two-point Hann is `[0, 0]`. A frame length that is
+power of two of at least 2, and `1 <= hop <= nfft`. The window must be
+finite: a Kaiser `beta` of NaN, or one past I0's overflow (about 2.25e5), is
+refused. PSD's windows are periodic, so every window has gain at every
+`nfft`, even 2, where Hann is `[0, 1]`. A frame length that is
 not a power of two would be zero-padded by the PSD to more bins than samples
 ([#1966](https://github.com/doppler-dsp/doppler/issues/1966)). The mode is
 one of the two; any other value is refused.

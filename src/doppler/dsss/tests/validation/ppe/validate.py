@@ -165,7 +165,7 @@ def section_object() -> None:
             [
                 "`nfft` is the zero-padded transform length",
                 "**the header said next-pow2; it is 4x that**",
-                "§2.3, F2",
+                f"§2.3, {R.ref('nfft_field_comment_wrong')}",
             ],
             [
                 "`snr_db` is the winning-row peak-to-mean",
@@ -252,7 +252,8 @@ def _sec_subbin(d: Data) -> None:
         f"Worst **{worst:.2e} bins** across the bin, noiseless. The C test "
         f"tolerated 2.6 bins, which is four orders of magnitude looser than "
         f"the object achieves and wide enough to pass with the refinement "
-        f"deleted — that is F1. Raw sweep: `data/subbin.csv`."
+        f"deleted — that is {R.ref('sub_bin_pin_too_wide')}. Raw sweep: "
+        "`data/subbin.csv`."
     )
     R.md()
 
@@ -311,7 +312,7 @@ def _sec_nfft(d: Data) -> None:
         "is four times that, and the difference is not cosmetic: `nfft` "
         "sizes three buffers, so a caller budgeting memory from the header "
         "was out by 4x — and the same 4x is what makes §2.1 as accurate as "
-        "it is. Corrected and pinned (F2)."
+        f"it is. Corrected and pinned ({R.ref('nfft_field_comment_wrong')})."
     )
     R.md()
 
@@ -577,7 +578,7 @@ def review(d: Data) -> None:
     R.md("## 3. Review — findings")
     R.md()
     R.find(
-        "F1",
+        "sub_bin_pin_too_wide",
         "FIXED",
         f"**The sub-bin refinement was pinned at a tolerance 2.6 BINS "
         f"wide.** The header claims the peak is refined sub-bin by "
@@ -592,7 +593,7 @@ def review(d: Data) -> None:
         f"pre-existing assertion green.",
     )
     R.find(
-        "F2",
+        "nfft_field_comment_wrong",
         "FIXED",
         "**The `nfft` field comment was wrong by 4x.** It documented the "
         'transform length as *"next pow2 of max_len"*; the implementation '
@@ -605,7 +606,7 @@ def review(d: Data) -> None:
         "pinned in C so the two cannot drift apart again.",
     )
     R.find(
-        "F3",
+        "snr_db_measured_no",
         "FIXED",
         f"**`snr_db` was measured by nothing**, in either language, and it "
         f"is not an input-referred SNR. It is a peak-to-mean taken after "
@@ -619,7 +620,7 @@ def review(d: Data) -> None:
         f"as the estimator.",
     )
     R.find(
-        "F4",
+        "sub_bin_refinement_not_here",
         "BY DESIGN",
         "The frequency axis's sub-bin refinement is **not in this object**: "
         "`dp_ppe_estimate` delegates to `find_peaks_f32` from `spectral_core` "
@@ -634,7 +635,7 @@ def review(d: Data) -> None:
         "`find_peaks_f32` shows up as a ppe accuracy failure.",
     )
     R.find(
-        "F5",
+        "no_state_triplet_no_serializable",
         "BY DESIGN",
         "There is no state triplet and no `serializable` flag, and that is "
         "correct rather than an omission: the object is a by-value analyzer "
@@ -756,17 +757,20 @@ def build(write: bool = True) -> Report:
             f"coherent integration, so it carries the processing gain — "
             f"quadrupling the segment adds {d.snr_gain_db:.1f} dB on "
             f"identical input. A confidence threshold set from it moves "
-            f"whenever the segment length does (§2.4, F3).",
+            "whenever the segment length does "
+            f"(§2.4, {R.ref('snr_db_measured_no')}).",
             "**`nfft` is 4x next_pow_two(max_len), not next_pow_two.** The "
             "header "
             "said otherwise, and three buffers scale with it — so memory "
-            "budgeted from the old comment was out by four (§2.3, F2).",
+            "budgeted from the old comment was out by four "
+            f"(§2.3, {R.ref('nfft_field_comment_wrong')}).",
             "**`max_rate = 0` returns rate exactly 0.0**, not a small "
             "number, so the pure-Doppler case is testable by equality "
             "(§2.2).",
             "**Nothing here is stateful.** No triplet, no resume, and "
             "`reset()` is asserted to be the no-op it claims to be — which "
-            "is what stops it quietly acquiring behaviour (§2.7, F5).",
+            "is what stops it quietly acquiring behaviour "
+            f"(§2.7, {R.ref('no_state_triplet_no_serializable')}).",
         ],
     )
     R.summary(

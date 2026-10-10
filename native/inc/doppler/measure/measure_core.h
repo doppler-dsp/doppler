@@ -158,8 +158,10 @@ typedef struct {
  *
  * Plans a capture for the same auto-Kaiser window the measurement objects use:
  * the dynamic-range target (from @p dynamic_range_db, else @p bits) selects the
- * Kaiser beta, whose ENBW (measured via kaiser_enbw) sets the bins-per-RBW.
- * RBW = ENBW * fs / n, so n = ceil(ENBW * fs / target_rbw).
+ * Kaiser beta, and the ENBW of that beta's window, built by dp_psd_window()
+ * exactly as the objects' composed PSD builds it (the periodic form), sets the
+ * bins-per-RBW. RBW = ENBW * fs / n, so n = ceil(ENBW * fs / target_rbw): the
+ * smallest capture whose realised RBW meets the target.
  *
  * @param fs                Sample rate (Hz, > 0).
  * @param target_rbw        Desired resolution bandwidth (Hz).  When <= 0 it

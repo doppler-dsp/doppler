@@ -450,7 +450,8 @@ def measure_maps(d: Data, tmp: Path) -> None:
         "`keywords` and `header` are built by ITERATING -- "
         "`num_keywords`/`keyword_tag` and "
         "`num_header_fields`/`header_tag`/`header_field`. Those four had no "
-        "C coverage at all before this certification (F1); the C suite "
+        "C coverage at all before this certification "
+        f"({R.ref('surface_python_binding_calls_no')}); the C suite "
         "reached the same data through the `find_*` lookups instead."
     )
     R.md()
@@ -699,7 +700,10 @@ def measure_seek(d: Data, tmp: Path) -> None:
 
 
 def measure_hint(d: Data, tmp: Path) -> None:
-    R.md("### 2.7 The headerless hint, from the reader's side (F3)")
+    R.md(
+        "### 2.7 The headerless hint, from the reader's side "
+        f"({R.ref('headerless_type_unread')})"
+    )
     R.md()
     R.md(
         "A raw or CSV capture carries no type, so `Reader` takes one as a "
@@ -813,7 +817,7 @@ def review(d: Data) -> None:
     R.md("## 3. Review -- findings, with verdicts")
     R.md()
     R.find(
-        "F1",
+        "surface_python_binding_calls_no",
         "FIXED",
         "**The surface the Python binding calls is the one nothing "
         "tested.** Fifteen entry points had zero mentions in any C test in "
@@ -834,7 +838,7 @@ def review(d: Data) -> None:
         "the two follow knobs aliased onto one field -- all now red.",
     )
     R.find(
-        "F2",
+        "header_tag_unchecked",
         "GAP",
         "**`dp_wfm_reader_header_tag` neither bounds-checks nor documents "
         "that it must not be** (gh-1123). Of the four enumerators, three "
@@ -853,7 +857,7 @@ def review(d: Data) -> None:
         "wrong, not the code, which is how the asymmetry surfaced.",
     )
     R.find(
-        "F3",
+        "headerless_type_unread",
         "CONFIRMED",
         "**A headerless capture's type is written down and not read back** "
         "(gh-1120). `Writer` records `core:datatype` and "
@@ -872,7 +876,7 @@ def review(d: Data) -> None:
         "is silent.",
     )
     R.find(
-        "F4",
+        "fs_fc_answers_not_failures",
         "BY DESIGN",
         "**`fs = 0.0` and `fc = 0.0` are answers, not failures -- and the "
         "source tag is what says which.** A raw capture reports "
@@ -1033,13 +1037,15 @@ def build(write: bool = True) -> Report:
                 "`Reader` does not read, and a wrong hint is silent in "
                 f"{d.hint_silent} of {d.hint_total} cases -- never "
                 "detectable at all for ci32, which is byte-for-byte the "
-                "same size as the cf32 default (§2.6, F3, gh-1120).",
+                "same size as the cf32 default "
+                f"(§2.6, {R.ref('headerless_type_unread')}, gh-1120).",
                 "**Read the source tag, not just the value.** `fs = 0.0` "
                 "from a raw capture and a rate a BLUE header stated are "
                 "different facts, and only `fs_source` separates them. The "
                 "sharp case: an unset BLUE timecode is `t0_source = none`, "
                 "and a reader that took the 0 at face value would date "
-                "every doppler-written capture to 1950 (§2.3, F4).",
+                "every doppler-written capture to 1950 "
+                f"(§2.3, {R.ref('fs_fc_answers_not_failures')}).",
                 "**The decode is exact.** Every wire type matches an "
                 "independent numpy decode of the same bytes, and the only "
                 "residual against the original samples is the writer's "
@@ -1052,7 +1058,8 @@ def build(write: bool = True) -> Report:
                 "entry points -- almost exactly the set the Python binding "
                 "calls -- had no C coverage until this certification, "
                 "because the C suite reached the same state through a "
-                "different function each time (F1).",
+                "different function each time "
+                f"({R.ref('surface_python_binding_calls_no')}).",
             ],
         )
     R.summary()

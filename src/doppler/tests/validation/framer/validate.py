@@ -268,7 +268,7 @@ def review(d) -> None:
     R.md("## 3. Review")
     R.md()
     R.find(
-        "F1",
+        "header_read_against_tests",
         "FIXED",
         "Reading the header against `test_framer_core.c` (the inventory in "
         "§1) found `framer_frames_for` and `framer_reset` with **zero** "
@@ -278,7 +278,7 @@ def review(d) -> None:
         "passed until the test also computed it while a hop was outstanding.",
     )
     R.find(
-        "F2",
+        "flush_overran_buffer",
         "FIXED",
         "`flush` on an undrained framer copied `live >= n` samples into an "
         "`n`-sample row: a heap overflow on a natural end-of-stream call "
@@ -288,7 +288,7 @@ def review(d) -> None:
         "Found in review, not by a test.",
     )
     R.find(
-        "F3",
+        "first_snapshot_not_store_hop",
         "FIXED",
         "The first snapshot did not store the hop, so a framer of the same "
         "`n` and a different hop accepted a `frames = 0` snapshot whose "
@@ -297,7 +297,7 @@ def review(d) -> None:
         "writes zeros, which no framer accepts (§2.5).",
     )
     R.find(
-        "F4",
+        "claims_c_only_no_binding",
         "C-ONLY",
         "Every claim here is verified in C and none is reachable from "
         "Python, because the framer has no binding. That is the design: its "
@@ -306,7 +306,7 @@ def review(d) -> None:
         "separately and is the jm toolchain's to generate.",
     )
     R.find(
-        "F5",
+        "framer_owns_ring_exclusively",
         "BY DESIGN",
         "The framer owns its ring **exclusively**: `feed` is the only write "
         "path, and the carry bound holds only because nothing else writes. "
@@ -317,7 +317,7 @@ def review(d) -> None:
         "framer.",
     )
     R.find(
-        "F6",
+        "drain_cost_not_measured",
         "BY DESIGN",
         "The cost against the hand-written drain loop is not in this "
         "report: it is a speed claim about the ring, measured with the "
@@ -481,7 +481,9 @@ def build(write: bool = True) -> Report:
         "The campaign's order is header first. *Pin* is the C section that "
         "asserts the claim; *red under* names a sabotage of the code that "
         "turned it red; *here* is the section of this report that measures "
-        "it at scale. This inventory is what found F1 and F2."
+        "it at scale. This inventory is what "
+        f"found {R.ref('header_read_against_tests')} "
+        f"and {R.ref('flush_overran_buffer')}."
     )
     R.md()
     R.table(
@@ -620,7 +622,8 @@ def build(write: bool = True) -> Report:
                 "C18",
                 "the framer owns its ring exclusively",
                 "—",
-                "a contract; not testable (F5)",
+                "a contract; not testable "
+                f"({R.ref('framer_owns_ring_exclusively')})",
                 "—",
             ],
             [
@@ -675,10 +678,12 @@ def build(write: bool = True) -> Report:
             "**`flush` lands on the hop grid, once, only if a sample is "
             "owed**, and the framer restarts afterwards. It is refused, "
             "changing nothing, while whole frames are still buffered. That "
-            "was a heap overflow before review found it (F2).",
+            "was a heap overflow before review found it "
+            f"({R.ref('flush_overran_buffer')}).",
             "**The evidence is C, and that is the design.** The framer has "
-            "no Python face (F4), and its ring-exclusivity contract cannot "
-            "be tested (F5).",
+            f"no Python face ({R.ref('claims_c_only_no_binding')}), and its "
+            "ring-exclusivity contract cannot "
+            f"be tested ({R.ref('framer_owns_ring_exclusively')}).",
         ],
     )
     R.summary(

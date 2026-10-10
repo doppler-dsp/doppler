@@ -251,7 +251,8 @@ def measure_quantisation(d: Data, tmp: Path) -> None:
         "spends. doppler's canonical converters say they round to the "
         "nearest integer; this report used to record that the writer did "
         "not call them, and truncated toward zero instead, for a measured "
-        "6.22 dB (F1, filed as gh-1117 along with the sibling copies in "
+        f"6.22 dB ({R.ref('quantiser_truncated')}, filed as gh-1117 along "
+        "with the sibling copies in "
         "`wfm_sink` and `wfm_reader`)."
     )
     R.md()
@@ -367,7 +368,8 @@ def measure_peak(d: Data, tmp: Path) -> None:
         "this capture survive its own level? `peak_dbfs` is "
         "`20*log10(peak)` over the largest axis written, and it is "
         "reported for float captures too, which is where this object and "
-        "`StreamSink` deliberately differ (F3)."
+        "`StreamSink` deliberately differ "
+        f"({R.ref('float_capture_reports_peak_not')})."
     )
     R.md()
     exact = True
@@ -576,7 +578,10 @@ def measure_headroom(d: Data, tmp: Path) -> None:
 
 
 def measure_reader(d: Data, tmp: Path) -> None:
-    R.md("### 2.5 Reading it back, and the sidecar nobody reads (F5)")
+    R.md(
+        "### 2.5 Reading it back, and the sidecar nobody reads "
+        f"({R.ref('sample_type_sidecar_unread')})"
+    )
     R.md()
     R.md(
         "Everything above scored the writer against numpy. This asks the "
@@ -625,7 +630,7 @@ def measure_reader(d: Data, tmp: Path) -> None:
     R.md(
         "BLUE and SigMF carry their own type, so they need nothing. Raw "
         "and CSV are headerless, and the last row had to be TOLD -- which "
-        "is the whole of F5."
+        f"is the whole of {R.ref('sample_type_sidecar_unread')}."
     )
     R.md()
 
@@ -761,7 +766,7 @@ def review(d: Data) -> None:
     R.md("## 3. Review -- findings, with verdicts")
     R.md()
     R.find(
-        "F1",
+        "quantiser_truncated",
         "FIXED",
         "**The quantiser truncated where the library's own converter "
         f"rounds, and it cost {d.penalty_db:.1f} dB** (gh-1117, fixed). "
@@ -785,7 +790,7 @@ def review(d: Data) -> None:
         "written codes ARE the converters' output.",
     )
     R.find(
-        "F2",
+        "python_properties_untested",
         "FIXED",
         "**The three properties the Python face exposes were untested in "
         "C.** `dp_wfm_writer_get_peak_dbfs`, `dp_wfm_writer_get_clipped` and "
@@ -802,7 +807,7 @@ def review(d: Data) -> None:
         "always returning success -- all now red.",
     )
     R.find(
-        "F3",
+        "float_capture_reports_peak_not",
         "BY DESIGN",
         "**A float capture reports a peak here and does not through "
         "`StreamSink`, and the sink says it mirrors this object.** "
@@ -819,7 +824,7 @@ def review(d: Data) -> None:
         "compare.",
     )
     R.find(
-        "F4",
+        "four_header_entry_points_not",
         "C-ONLY",
         "**Four header entry points are not on the Python face** (§2.6), "
         "and one of them is worth naming: `dp_wfm_writer_set_gain` is "
@@ -830,7 +835,7 @@ def review(d: Data) -> None:
         "the linear-gain path is exercised in C alone.",
     )
     R.find(
-        "F5",
+        "sample_type_sidecar_unread",
         "FIXED",
         "**The writer recorded the sample type in a sidecar the reader did "
         "not read** (gh-1120, fixed). Every raw capture gets a "
@@ -1016,7 +1021,8 @@ def build(write: bool = True) -> Report:
                 f"which is worth {d.penalty_db:.1f} dB over the truncating "
                 "quantiser it used to carry. It mattered most at 8 bits: "
                 f"{d.ci8_floor_rounded:.1f} dBFS where it was "
-                f"{d.ci8_floor:.1f} (§2.2, F1, gh-1117, fixed).",
+                f"{d.ci8_floor:.1f} (§2.2, {R.ref('quantiser_truncated')}, "
+                "gh-1117, fixed).",
                 "**Set headroom from the peak you measured, and the rule "
                 "is exact.** `ceil(20*log10(peak))` dB clears the clip at "
                 "every level measured, and one dB less does not -- so it "
@@ -1030,7 +1036,8 @@ def build(write: bool = True) -> Report:
                 "same 1.5 that saturates ci16 is merely loud in cf32, and "
                 "a float capture still reports a peak -- which "
                 "`StreamSink`, whose own comment says it mirrors this "
-                "object, does not (§2.3, F3).",
+                "object, does not "
+                f"(§2.3, {R.ref('float_capture_reports_peak_not')}).",
                 "**A raw capture now says what it is -- through its "
                 "sidecar.** The writer records the type and rate in a "
                 "`.sigmf-meta` beside the file and `Reader` reads it, so "
@@ -1038,7 +1045,8 @@ def build(write: bool = True) -> Report:
                 "anyway to override a stale sidecar; it wins. Keep the "
                 "sidecar with the capture, though: it is a second file, "
                 "and BLUE or SigMF is still the answer when the metadata "
-                "has to travel INSIDE the artifact (§2.5, F5).",
+                "has to travel INSIDE the artifact "
+                f"(§2.5, {R.ref('sample_type_sidecar_unread')}).",
                 "**Turn the clip counter on before you need it.** The peak "
                 "is always tracked and free; the per-component fraction is "
                 "opt-in, and off by default a fully saturated capture "
@@ -1047,7 +1055,7 @@ def build(write: bool = True) -> Report:
                 "property the Python face exposes -- peak_dbfs, clipped, "
                 "clip_fraction -- and the destructor whose status makes "
                 "`close()` raise were tested by nothing in C until this "
-                "certification (F2).",
+                f"certification ({R.ref('python_properties_untested')}).",
             ],
         )
         if write:

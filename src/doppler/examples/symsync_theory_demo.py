@@ -11,7 +11,7 @@ Two theoretical-correctness checks for :class:`doppler.track.SymbolSync`:
     absolute slope sign: a sign only means something relative to a timing
     axis, and naming one without saying which way the axis runs is how the
     RateSync report came to check its TED normaliser at the T/2 zero for as
-    long as it did (that report's F15).
+    long as it did (that report's `normalised_slope_unity`).
 
   * **Timing-error variance vs SNR** — at the lock point, `var(e)` is a
     data-pattern **self-noise floor** (present at infinite SNR — a defining

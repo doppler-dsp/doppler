@@ -542,7 +542,7 @@ reachable set is therefore the built-ins plus whatever table the C entry point
 wires in — which today is CCSDS's three. The certification report records this
 as a gap rather than a feature; see
 [`validation/wfm_frame/results.md`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_frame/results.md)
-finding F2. A page that claimed the Python face was open would be describing
+finding `openness_design_staked`. A page that claimed the Python face was open would be describing
 the C header, not the object.
 
 ______________________________________________________________________

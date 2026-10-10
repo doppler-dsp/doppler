@@ -11,9 +11,10 @@ and none of which any existing gate could see:
    the empty section ("recorded as §3 F6").
 3. **Every figure it embeds exists, and every artifact beside it is
    cited.** RateSync's report grew two measurements -- the roll-off sweep
-   that localised F15 and the amplitude law behind F13 -- with no figure and
-   no CSV at all, while two of its existing figures quietly drew one
-   detector under two-detector tables.
+   that localised `normalised_slope_unity` and the amplitude law behind
+   `amplitude_laws_differ` -- with no figure and no CSV at all, while two of
+   its existing figures quietly drew one detector under two-detector
+   tables.
 
 All three are checked against the RENDERED file, which is the point: they
 are properties of the artifact a reader opens, not of the code that wrote

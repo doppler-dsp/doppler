@@ -259,10 +259,11 @@ main (void)
 
   /* ── a coarse resolution still builds: the block is floored at 3 ──
    * fs/resolution of 2.22, 1 and 0.25 asked for blocks of 2, 1 and 0.  The
-   * floor was 2, whose symmetric Hann (the default) is all zeros: PSD
-   * refuses that window, so create returned NULL, and AsyncDsssReceiver,
-   * which wraps this create in dp_xnn with refine_n_fft as the block,
-   * aborted (#1959).  At 3 every window has gain, and the averaged
+   * floor was 2, whose Hann (the default) was then the symmetric [0, 0]:
+   * PSD refused that window, so create returned NULL, and
+   * AsyncDsssReceiver, which wraps this create in dp_xnn with refine_n_fft
+   * as the block, aborted (#1959).  PSD's Hann is periodic now, [0, 1] at
+   * 2 (#2053); at the floor of 3 every window has gain, and the averaged
    * spectrum is a real estimate -- finite, above the -200 dB floor. */
   {
     const double res_hz[]

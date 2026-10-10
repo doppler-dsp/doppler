@@ -243,5 +243,25 @@ main (void)
     dp_tonemeas_destroy (m);
   }
 
+  {
+    /* The spectrum IS the composed PSD's psd_db (#2108), so an all-zero
+     * capture reads PSD's floor, exactly -200 dB, in every bin. The private
+     * 10*log10(p/ref + 1e-30) it replaced read about -300 dB there. */
+    dp_tonemeas_state_t *m
+        = dp_tonemeas_create (NCAP, 1.0, 8, 1.0, 0, 90.0, 0);
+    size_t cap = dp_tonemeas_spectrum_dbfs_max_out (m);
+    float *xs  = (float *)calloc (NCAP, sizeof (float));
+    float *o   = (float *)malloc (cap * sizeof (float));
+    DP_CHECK (m && xs && o);
+    DP_CHECK (dp_tonemeas_spectrum_dbfs (m, xs, NCAP, o, cap) == cap);
+    int at_floor = 1;
+    for (size_t i = 0; i < cap; i++)
+      at_floor &= o[i] == -200.0f;
+    DP_CHECK (at_floor);
+    free (xs);
+    free (o);
+    dp_tonemeas_destroy (m);
+  }
+
   DP_TEST_END ("test_tonemeas_core");
 }

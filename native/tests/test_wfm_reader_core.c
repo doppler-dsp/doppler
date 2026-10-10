@@ -2252,7 +2252,8 @@ test_the_enumerators (void)
      jm's dict loop only ever calls it for [0, num_keywords), so the bound is
      the caller's. Asserted as the contract reads rather than as one might
      wish it read -- calling the tag form out of range here would be the test
-     performing the undefined behaviour it is meant to be describing. See F2.
+     performing the undefined behaviour it is meant to be describing. See
+     the certification's `header_tag_unchecked`.
    */
   DP_REQUIRE_MSG (dp_wfm_reader_keyword (r, nk) == NULL,
                   "keyword past the end is NULL, as documented");

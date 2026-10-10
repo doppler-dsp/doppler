@@ -43,6 +43,8 @@ dp_psd_state_t *dp_psd_create(size_t n, double fs, int window, float beta,
                             size_t pad, double full_scale, size_t bits,
                             int mode, double alpha);
 
+int dp_psd_window(float *w, size_t n, int window, float beta);
+
 void dp_psd_destroy(dp_psd_state_t *state);
 
 void dp_psd_reset(dp_psd_state_t *state);

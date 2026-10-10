@@ -358,7 +358,7 @@ float* dp_psd_state_t::w;
 
 
 
-Window, length n. 
+Periodic window: w[0..n) of n + 1. 
  
 
 

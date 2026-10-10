@@ -468,7 +468,7 @@ def review(d) -> None:
     R.md()
 
     R.find(
-        "F1",
+        "dp_ccsds_tm_randomise_docblock",
         "FIXED",
         "**`dp_ccsds_tm_randomise`'s docblock described the wrong "
         "generator.** "
@@ -489,7 +489,7 @@ def review(d) -> None:
         "for a defect a certification finds and repairs.",
     )
     R.find(
-        "F2",
+        "threshold_cost_depends_lead_no",
         "GAP",
         "**The threshold's cost depends on the lead-in, and no interface "
         "says so.** `asm_find`'s header explains that it reports the FIRST "
@@ -503,7 +503,7 @@ def review(d) -> None:
         "search window. Tracked as gh-897.",
     )
     R.find(
-        "F3",
+        "interleaver_edge_exact",
         "BY DESIGN",
         "**The interleaver's edge is deterministic, and that is why this "
         "report has no burst-tolerance curve.** §2.1's transition is 200/200 "
@@ -513,7 +513,7 @@ def review(d) -> None:
         "that plotted a sigmoid here would be plotting its own trial count.",
     )
     R.find(
-        "F4",
+        "identity_claim_certified_not",
         "C-ONLY",
         "**Every identity claim is certified in C, not here.** The ASM "
         "pattern (`test_ccsds_tm_asm.c`, against figure 9-1), the generator "
@@ -526,7 +526,7 @@ def review(d) -> None:
         "reason this report measures behaviour the standard does not print.",
     )
     R.find(
-        "F5",
+        "coverage_table_c_only",
         "C-ONLY",
         "**The coverage table is pinned in C and cannot be measured here.** "
         "That the outer code and the randomiser stop after the marker while "
@@ -716,8 +716,10 @@ def build(write: bool = True) -> Report:
     R.md(
         "It produced something else instead. Reading the header against the "
         "code turned up one claim that is not merely unpinned but **false** "
-        "(F1), and one that is true but incomplete in a way a caller acts on "
-        "(F2). Both are prose, which is exactly the class no gate in this "
+        f"({R.ref('dp_ccsds_tm_randomise_docblock')}), and one that is true "
+        "but incomplete in a way a caller acts on "
+        f"({R.ref('threshold_cost_depends_lead_no')}). Both are prose, which "
+        "is exactly the class no gate in this "
         "repository can see."
     )
     R.md()
@@ -791,7 +793,7 @@ def build(write: bool = True) -> Report:
                 "`dp_ccsds_tm_randomise` applies an 8-stage generator, period "
                 "255",
                 "—",
-                "**F1 — false**",
+                f"**{R.ref('dp_ccsds_tm_randomise_docblock')} — false**",
             ],
             [
                 "C13",
@@ -849,7 +851,7 @@ def build(write: bool = True) -> Report:
                 "the outer code and the randomiser stop at the marker; the "
                 "inner code reaches over it",
                 "frame §1, §2, §3, §4",
-                "F5",
+                R.ref("coverage_table_c_only"),
             ],
             [
                 "C23",
@@ -907,24 +909,28 @@ def build(write: bool = True) -> Report:
             f"its right offset only {t8[1] / t8[0]:.2f} of the time with NO "
             f"channel errors, because 96 bits of preceding stream win the "
             f"race first. `t = 4` is the setting that survives both tails; "
-            f"`t = 6` if the link is bad (§2.2, §2.3, F2).",
+            "`t = 6` if the link is bad (§2.2, "
+            f"§2.3, {R.ref('threshold_cost_depends_lead_no')}).",
             "**Choose `max_errors` from the search window, not the marker "
             "length.** The false-alarm rate is per bit searched, so the "
             "detection ceiling moves with how much stream precedes the "
             "marker — a property of the caller's synchroniser that no "
-            "interface here exposes (F2).",
+            "interface here exposes "
+            f"({R.ref('threshold_cost_depends_lead_no')}).",
             "**A docblock claimed the wrong randomiser, in three separate "
             "facts, and no gate in this repository could see it.** The code "
             "was "
             "right and the file's own summary was right; one docblock was "
             "left behind by the B-6 adoption, and reading the header against "
             "the "
-            "code is the only thing that finds that class. Fixed here (F1).",
+            "code is the only thing that finds that class. Fixed here "
+            f"({R.ref('dp_ccsds_tm_randomise_docblock')}).",
             "**The identity claims are all in C, and that is the design.** "
             "Every published value this component configures — the marker, "
             "Annex G, both dual-basis matrices, both randomiser prefixes — "
             "is a C assertion that fails, not a report row that reads "
-            "(F4, F5).",
+            f"({R.ref('identity_claim_certified_not')}, "
+            f"{R.ref('coverage_table_c_only')}).",
         ],
     )
     _write_csv(d, write)

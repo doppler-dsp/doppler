@@ -67,6 +67,7 @@ _Spectral module — public C API._ [More...](#detailed-description)
 |  void | [**dp\_magnitude\_db\_cf64**](#function-dp_magnitude_db_cf64) (const double \_Complex \* x, size\_t x\_len, float \* out, double lin\_floor, float offset\_db) <br>_Convert a CF64 complex spectrum to F32 dB magnitudes. Double-precision variant of_ [_**dp\_magnitude\_db\_cf32()**_](spectral__core_8h.md#function-dp_magnitude_db_cf32) _. Accepts a CF64 input array and a double_`lin_floor` _; output is still F32 because downstream display code typically works in single precision. The formula and_`offset_db` _semantics are identical._ |
 |  double | [**dp\_noise\_floor\_db**](#function-dp_noise_floor_db) (const float \* db, size\_t db\_len) <br> |
 |  double | [**dp\_obw\_from\_power**](#function-dp_obw_from_power) (const double \* pwr, size\_t pwr\_len, double fs, double frac) <br>_Occupied bandwidth: the width of the central interval holding_ `frac` _of the total power, with (1 - frac)/2 excluded at each end._ |
+|  void | [**dp\_power\_to\_db\_f32**](#function-dp_power_to_db_f32) (const float \* lin, size\_t lin\_len, float \* out) <br>_Linear power to dB: 10·log10, with PSD's floor, fast._  |
 
 
 
@@ -98,7 +99,10 @@ _Spectral module — public C API._ [More...](#detailed-description)
 ## Detailed Description
 
 
-Provides windowing (Kaiser, Hann, Blackman-Harris), ENBW computation, magnitude conversion, and peak finding. These are pure functions with no persistent state. 
+Provides windowing (Kaiser, Hann, Blackman-Harris), ENBW computation, magnitude conversion, and peak finding. These are pure functions with no persistent state.
+
+
+The windows are the symmetric form (over N-1), the filter-design convention; PSD builds the periodic (DFT-even) form from them, as the first n points of the n + 1 point window ([**psd\_core.h**](psd__core_8h.md), #2053). 
 
 
     
@@ -521,6 +525,55 @@ nan
 ```
  
 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_power\_to\_db\_f32 
+
+_Linear power to dB: 10·log10, with PSD's floor, fast._ 
+```C++
+void dp_power_to_db_f32 (
+    const float * lin,
+    size_t lin_len,
+    float * out
+) 
+```
+
+
+
+Each value of `out` is 10·log10 of the matching value of `lin` when that is at or above 1e-20, and exactly -200 below it: 0, a subnormal and a negative value all read -200. That is PSD's floor, the one definition, so there is no floor argument. A power of two converts exactly, to the correctly rounded value (1.0 reads exactly 0 dB), and every other value lies within 0.01 dB of double-precision 10·log10. The bound is MEASURED over every positive finite float32 (native/validation/power\_to\_db\_sweep.c, in `make test-sweep`); the achieved worst, 3.25e-4 dB, is in the measurement record (docs/design/spectrogram-measurements.md, "The fast
+dB conversion").
+
+
+It is the library's dB conversion for power: every dB reading PSD takes goes through it, so a PSD or Spectrogram dB value is this function of the matching linear value, bit for bit, and a display that converts only the power bins it draws gets exactly the dB rows. Branchless, so it vectorizes. NaN and Inf in give an unspecified value (PSD produces neither from finite input). `lin_len` 0 writes nothing.
+
+
+
+
+**Parameters:**
+
+
+* `lin` Linear power (a power ratio), float32. 
+* `lin_len` Values in `lin`, and in `out`. 
+* `out` `lin_len` float32 values, in dB. 
+```C++
+>>> import numpy as np
+>>> from doppler.spectral import power_to_db_f32
+>>> x = np.array([1.0, 2.0, 0.5, 0.0, 1e-30], dtype=np.float32)
+>>> power_to_db_f32(x).tolist()     # 2^k exactly; the floor below 1e-20
+[0.0, 3.0102999210357666, -3.0102999210357666, -200.0, -200.0]
+>>> d = power_to_db_f32(np.array([100.0], dtype=np.float32))[0]
+>>> bool(abs(d - 20.0) < 0.01)     # off a power of two: within 0.01 dB
+True
+```
+ 
 
 
 

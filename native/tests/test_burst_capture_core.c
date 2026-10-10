@@ -188,8 +188,9 @@ make (void)
  *
  * The seed-11 scene most tests here share carries one false alarm under the
  * one-look grid (at 21298, ~50 dB-Hz against ~67 for the real ones) -- the
- * design pfa at work, and the object's certification (F2) says a caller
- * filters those on `cn0_dbhz_est`. So "the bursts came back" is asked by
+ * design pfa at work, and the object's certification
+ * (`filter_on_cn0_not_margin`) says a caller filters those on
+ * `cn0_dbhz_est`. So "the bursts came back" is asked by
  * POSITION, and a count is compared against `dp_burst_capture_ready()` rather
  * than against the number transmitted.
  */
@@ -391,7 +392,8 @@ test_every_burst_is_emitted_once (void)
   /* Every transmitted burst comes back EXACTLY once. Windows beyond those
      are the design pfa doing what it says -- this scene carries one, at
      21298 (cn0 50.5 against ~67 for the real ones) -- and the object's own
-     certification (F2) says a caller tells them apart by `cn0_dbhz_est`,
+     certification (`filter_on_cn0_not_margin`) says a caller tells them
+     apart by `cn0_dbhz_est`,
      which is pinned here rather than assumed away: an extra window may not
      out-score a real one. The old assertion was "exactly three", and it
      held only because a second non-coherent look the burst could not fill
@@ -2776,7 +2778,8 @@ make_zc (double doppler_rate)
 {
   float _Complex zc[ZC_N];
   zadoff_chu (zc);
-  /* pfa 1e-6: at 1e-3 the engine's known ~1.5x over-delivery (acq F7)
+  /* pfa 1e-6: at 1e-3 the engine's known ~1.5x over-delivery (acq's
+     `pfa_over_delivered`)
      puts a false capture in ~6% of these 39-frame streams, measured over
      200 seeds -- a property of the configured rate, not of the preamble. */
   return dp_burst_capture_create (zc, ZC_N, ZC_BURST, ZC_REPS, 1.0,

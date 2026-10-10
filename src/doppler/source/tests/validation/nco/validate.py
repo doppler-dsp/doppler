@@ -292,7 +292,9 @@ def section_summary() -> None:
         "> **Note on provenance.** The three residuals stranded in PR #647 "
         "have now all landed here off main rather than by rebasing it: "
         "the signed carry/borrow rule and test sections §14–16 (see "
-        "**F7**), `nco_steer_scale` (**F8**), and `docs/design/nco.md`, "
+        f"**{R.ref('ctrl_event_composite_sign')}**), `nco_steer_scale` "
+        f"(**{R.ref('nco_steer_scale_exists_no')}**), and "
+        "`docs/design/nco.md`, "
         "which was rewritten rather than cherry-picked — a later commit "
         "reshaped the same function, `resamp` has since adopted the "
         "interpolating rule that changed how it lands the conversion, and "
@@ -506,7 +508,8 @@ def characterise() -> Data:
         f"`{0.1:.17g}` quantized the request before the fold ever saw it "
         f"and the two paths differed by 7 phase words. The port is now "
         f"`double`, the width the conversion works in and the one every "
-        f"scalar steer site already used (**F2**)."
+        "scalar steer site already used "
+        f"(**{R.ref('ctrl_port_was_float32')}**)."
     )
     R.md()
     R.md(f"![ctrl law]({'ctrl_law.png'})")
@@ -545,7 +548,8 @@ def characterise() -> Data:
         f"controls — one LSB, which is the floor: below one LSB the "
         f"conversion truncates to zero whatever the port's precision. On "
         f"the float32 port this plateau was 22.4 ppb, 96x wider, and that "
-        f"excess was the port's and not the accumulator's (**F3**)."
+        "excess was the port's and not the accumulator's "
+        f"(**{R.ref('ctrl_cancelling_phase_inc_stops')}**)."
     )
     R.md()
     R.md(f"![dead zone]({'ctrl_dead_zone.png'})")
@@ -647,7 +651,8 @@ def characterise() -> Data:
     R.md(
         f"Every face returns the whole request, {big_n - 65536} samples "
         f"past the advertised maximum, and the last one is exact. The "
-        f"header said the opposite until this audit — see **F9**."
+        "header said the opposite until this audit — see "
+        f"**{R.ref('nco_core_claimed_steps_u32')}**."
     )
     R.md()
 
@@ -688,7 +693,7 @@ def review(d: Data) -> None:
     R.md()
 
     R.find(
-        "F1",
+        "freq_error_one_sided",
         "BY DESIGN",
         f"the frequency error is one-sided and tracks the 1/phase_inc "
         f"envelope. Correct — but the consequence is unstated: "
@@ -698,7 +703,7 @@ def review(d: Data) -> None:
         f"NCO lives at the expensive end.",
     )
     R.find(
-        "F2",
+        "ctrl_port_was_float32",
         "FIXED",
         f"the ctrl port was float32 while the configured rate was double, "
         f"so one requested 0.1 landed on two different phase words (delta "
@@ -717,7 +722,7 @@ def review(d: Data) -> None:
         f"casting, so no caller breaks.",
     )
     R.find(
-        "F3",
+        "ctrl_cancelling_phase_inc_stops",
         "BY DESIGN",
         f"a ctrl cancelling phase_inc stops the NCO over a plateau rather "
         f"than at a knife edge, and it always will: below one phase-word "
@@ -725,13 +730,14 @@ def review(d: Data) -> None:
         f"wide is the quantization floor, not a defect. What WAS a defect "
         f"is how wide it used to be — 22.4 ppb, one float32 quantum, set "
         f"by the port rather than by the accumulator. With the port "
-        f"widened (F2) it measures {d.plateau * 1e9:.3f} ppb against an LSB "
+        f"widened ({R.ref('ctrl_port_was_float32')}) it "
+        f"measures {d.plateau * 1e9:.3f} ppb against an LSB "
         f"of {LSB * 1e9:.3f} ppb: 96x narrower and now at the floor. A loop "
         f"settling near -phase_inc still parks, but within one LSB of the "
         f"rate it was asked for.",
     )
     R.find(
-        "F4",
+        "filed_faces_diverge_infinity",
         "BY DESIGN",
         f"filed as 'the two faces diverge at infinity': nco_phase_units "
         f"(+inf) saturates to 4294967295 while NCO(inf).phase_inc is "
@@ -745,7 +751,8 @@ def review(d: Data) -> None:
         f"part, so no phase word represents it and 0 is the honest answer. "
         f"Nor is infinity special: 1.0, 2^32 and 1e300 all give 0 by the "
         f"same rule. It is 'only the fractional part matters' at the top "
-        f"of the range, exactly as F5's sub-LSB case is that rule at the "
+        f"of the range, exactly as {R.ref('requests_stop_oscillator')}'s "
+        "sub-LSB case is that rule at the "
         f"bottom. What WAS real is that only the cast's side was asserted "
         f"— test_nco_core.c §C29 now pins the fold across the non-finite "
         f"and huge-finite range, pins the two named faces to each other "
@@ -760,7 +767,7 @@ def review(d: Data) -> None:
     }
     bad = [k for k, v in surprising.items() if NCO(v, 0).phase_inc == 0]
     R.find(
-        "F5",
+        "requests_stop_oscillator",
         "BY DESIGN",
         f"{len(bad)} frequency requests ({', '.join(bad)}) produce a stopped "
         f"oscillator, and this was originally filed as a gap on the grounds "
@@ -778,7 +785,7 @@ def review(d: Data) -> None:
         f"behaviour.",
     )
     R.find(
-        "F6",
+        "carry_flag_not_counter",
         "BY DESIGN",
         "the carry is a flag, not a counter: at 1.30 cycles/sample it "
         "reports 16/16 and cannot say 'two wraps'. Correct for a strobe, "
@@ -786,7 +793,7 @@ def review(d: Data) -> None:
     )
     worst = max(d.carry_neg, key=lambda t: t[1] / t[2])
     R.find(
-        "F7",
+        "ctrl_event_composite_sign",
         "FIXED",
         f"the control port's event is now signed by the COMPOSITE rate, "
         f"formed as `norm_freq + ctrl` in cycles before either term is "
@@ -803,7 +810,7 @@ def review(d: Data) -> None:
         f"produces 279 failures.",
     )
     R.find(
-        "F8",
+        "nco_steer_scale_exists_no",
         "C-ONLY",
         "nco_steer_scale exists but has NO PRODUCTION CALLER — it is the "
         "header inline plus test_nco_core.c §16, and symsync, the object "
@@ -827,7 +834,7 @@ def review(d: Data) -> None:
         "that never strobes again).",
     )
     R.find(
-        "F9",
+        "nco_core_claimed_steps_u32",
         "FIXED",
         "nco_core.h claimed steps_u32_max_out() was the 'maximum samples "
         "per call' and that 'requesting more samples per call is undefined "
@@ -1070,16 +1077,21 @@ def build(write: bool = True) -> Report:
         [
             "**The frequency error is one-sided and tracks a `1/phase_inc` "
             "envelope** — up to 194700 ppm at the bottom of the range (§2.1, "
-            "F1). That is quantisation, not drift, and it is why a slow NCO "
+            f"{R.ref('freq_error_one_sided')}). That is quantisation, not "
+            "drift, and it is why a slow NCO "
             "is the wrong place to read a frequency.",
             "**Four frequency requests produce a STOPPED oscillator** — NaN, "
-            "±inf and any sub-LSB rate (F5). `create()` reports success for "
+            "±inf and any sub-LSB rate "
+            f"({R.ref('requests_stop_oscillator')}). `create()` reports "
+            "success for "
             "all of them, so validate the rate you asked for rather than the "
             "handle you got back.",
             "**The carry is a flag, not a counter**: above one cycle per "
-            'sample it cannot say "two wraps" (F6). Correct for a strobe, and '
+            'sample it cannot say "two wraps" '
+            f"({R.ref('carry_flag_not_counter')}). Correct for a strobe, and "
             "the reason a resampler must not drive it past unity.",
-            "**`nco_steer_scale` has no production caller** (F8). It is the "
+            "**`nco_steer_scale` has no production caller** "
+            f"({R.ref('nco_steer_scale_exists_no')}). It is the "
             "header inline plus one C section; symsync — the object it was "
             "written for — still steers unbounded, so do not read its "
             "existence as a bound that is being applied.",

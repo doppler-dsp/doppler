@@ -638,7 +638,7 @@ def review(d: Data) -> None:
     R.md("## 3. Findings, with verdicts")
     R.md()
     R.find(
-        "F1",
+        "consume_unbounded_face_crash",
         "FIXED",
         "`consume()` was unbounded, and from this face that was a crash: "
         "`buf.consume(1_000_000)` followed by a large `write()` killed the "
@@ -653,7 +653,7 @@ def review(d: Data) -> None:
         "§consume).",
     )
     R.find(
-        "F2",
+        "backed_ring_resize_not_zeroed",
         "FIXED",
         "A file-backed ring recreated at a different size was **not** "
         "zeroed, though `create_backed()` says it is: on POSIX the resize "
@@ -664,7 +664,7 @@ def review(d: Data) -> None:
         "path always did (C §B).",
     )
     R.find(
-        "F3",
+        "header_claims_stale",
         "FIXED",
         "Two header claims were stale: `wait()` told callers to size a "
         "block from `dp_<t>_capacity`, a function that does not exist "
@@ -676,7 +676,7 @@ def review(d: Data) -> None:
         "counts too, with the ring's contents never inspected (C §A, §C).",
     )
     R.find(
-        "F4",
+        "space_available_never_go_stale",
         "C-ONLY",
         '`space()` and `available()` "never go stale in the unsafe '
         'direction" — the guarantee that lets a caller size a block from '
@@ -687,7 +687,7 @@ def review(d: Data) -> None:
         "either count taking it red (C §D).",
     )
     R.find(
-        "F5",
+        "file_backed_ring_create_backed",
         "C-ONLY",
         "The file-backed ring (`create_backed`, `existed`, `sync`), "
         "`wait_status()` and its precedence, and the element-typed `_view` "
@@ -696,7 +696,7 @@ def review(d: Data) -> None:
         "§wait_status, and `test_<w>_buffer_core.c`.",
     )
     R.find(
-        "F6",
+        "dropped_counts_refusals",
         "BY DESIGN",
         "`dropped` counts samples in **refused** writes, not samples lost: "
         "a refusal copies nothing and the caller still holds the block "
@@ -705,7 +705,7 @@ def review(d: Data) -> None:
         "docstrings say so.",
     )
     R.find(
-        "F7",
+        "wait_no_timeout_spins",
         "BY DESIGN",
         "`wait()` has no timeout and spins. It is for a consumer with a "
         "core to spend, ended by `close()` or an interrupt (§2.8, §2.9); a "
@@ -713,7 +713,7 @@ def review(d: Data) -> None:
         "blocks.",
     )
     R.find(
-        "F8",
+        "re_attached_file_backed_ring",
         "GAP",
         "A re-attached file-backed ring starts empty over its old samples: "
         "the read and write positions live in the struct, not in the file, "
@@ -842,16 +842,19 @@ def build(write: bool = True) -> Report:
             "**Certifying it found a crash.** An unbounded `consume()` let "
             "two lines of Python take the interpreter down; it is bounded "
             "now, at no measured cost, and the write path no longer trusts "
-            "the indices with a `memcpy` (F1, §2.6).",
+            "the indices with a `memcpy` "
+            f"({R.ref('consume_unbounded_face_crash')}, §2.6).",
             "**A refusal is not a loss.** `write()` refuses whole and "
             "touches nothing, `dropped` counts what was refused, and the "
             "caller still holds it; `write_some()` is the one that takes a "
-            "part (§2.3, §2.4, F6).",
+            f"part (§2.3, §2.4, {R.ref('dropped_counts_refusals')}).",
             "**The hardest claims are C-only, and this report says so.** "
             "The two-thread index guarantee cannot be tested through the "
             "GIL, and the file-backed ring has no Python face; both are "
             "certified in C, where one of them turned out to be wrong "
-            "(F2, F4, F5).",
+            f"({R.ref('backed_ring_resize_not_zeroed')}, "
+            f"{R.ref('space_available_never_go_stale')}, "
+            f"{R.ref('file_backed_ring_create_backed')}).",
         ],
     )
     R.summary("\n- Raw capacities: `data/capacity.csv`")

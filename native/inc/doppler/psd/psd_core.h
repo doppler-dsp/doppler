@@ -11,6 +11,19 @@
  * and the spectral free functions (::dp_magnitude_db_cf32, ::dp_find_peaks_f32,
  * ::dp_obw_from_power, ::dp_noise_floor_db) for the derived measurements.
  *
+ * Every window is the PERIODIC (DFT-even) form, its cosines taken at
+ * 2 pi k/n for k = 0..n-1, not 2 pi k/(n-1): the symmetric window of n + 1
+ * points with its last sample dropped (Harris 1978;
+ * scipy.signal.get_window(..., fftbins=True)).  That is the
+ * spectral-estimation convention.  The spectral library's window functions
+ * are symmetric, for filter design, and dp_psd_window() builds the periodic
+ * form from them as the first n of n + 1 points.  On the n-point grid its
+ * cosines complete whole periods, so a bin-centred tone under Hann reads
+ * exactly zero beyond its two neighbouring bins (to float rounding), Hann's
+ * ENBW is exactly 1.5 bins for n >= 3, Blackman-Harris's is Harris's
+ * published 2.004 for n >= 7, and Hann at n = 2 is `[0, 1]`, which has gain
+ * (#2053).
+ *
  * Feed complex baseband frames with dp_psd_accumulate(); each length-n frame is
  * windowed, FFT'd, converted to power, fftshifted to DC-centred order and
  * folded into the running average.  Then read:
@@ -46,7 +59,7 @@ extern "C" {
 typedef struct {
     dp_fft_state_t *fft;          /**< Forward cf32 plan, size nfft.         */
     dp_acc_trace_state_t *avg;    /**< Per-bin power averager, length nfft.  */
-    float *w;                  /**< Window, length n.                     */
+    float *w;                  /**< Periodic window: w[0..n) of n + 1.    */
     float _Complex *frame;      /**< Windowed + zero-padded, length nfft.  */
     float _Complex *spec;       /**< FFT output scratch, length nfft.      */
     float *pwr;                /**< DC-centred power scratch, length nfft.*/
@@ -69,9 +82,10 @@ typedef struct {
  *                    finite and > 0.
  * @param window      Window index: 0 = Hann, 1 = Kaiser, 2 = Blackman-Harris,
  *                    3 = rectangular (no taper: best resolution, worst leakage).
- * @param beta        Kaiser beta (ignored by every other window). One that
- *                    makes the window non-finite -- NaN, or large enough to
- *                    overflow it -- is refused.
+ *                    Each tapered one in its periodic (DFT-even) form.
+ * @param beta        Kaiser beta (ignored by every other window). NaN, or
+ *                    one large enough to overflow I0 (about 2.25e5), is
+ *                    refused: its taps are NaN, or all 0.
  * @param pad         Zero-pad factor (>= 1; 0 is refused);
  *                    nfft = next_pow_two(n * pad).
  * @param full_scale  Amplitude that reads 0 dBFS in the dB getters; finite
@@ -86,10 +100,13 @@ typedef struct {
  *                    create refuses anything else, so this does too.
  *                    Ignored, and so not checked, in the other modes.
  * @return Heap-allocated state, or NULL on invalid argument or OOM. A window
- *         whose coherent gain sum(w) is 0 -- Hann at n = 2, whose symmetric
- *         form is all zeros -- is refused too: every reading divides by it.
- *         So is an @p n or @p n * @p pad too large for its buffers to be
- *         sized, rather than wrapped to a small one.
+ *         whose coherent gain sum(w) is 0 or not finite is refused too:
+ *         every reading divides by it. No window sums to 0 below I0's
+ *         overflow (Hann at n = 2 is `[0, 1]`); a Kaiser @p beta past it,
+ *         about 2.25e5, makes taps NaN -- or, at an odd n just past it,
+ *         every tap 0 (n = 3, beta = 2.3e5). So is
+ *         an @p n or @p n * @p pad too large for its buffers to be sized,
+ *         rather than wrapped to a small one.
  * @note Caller must call dp_psd_destroy() when done.
  *
  * @code
@@ -104,6 +121,37 @@ typedef struct {
 dp_psd_state_t *dp_psd_create(size_t n, double fs, int window, float beta,
                             size_t pad, double full_scale, size_t bits,
                             int mode, double alpha);
+
+/**
+ * @brief Fill @p w with PSD's window: the periodic (DFT-even) form.
+ *
+ * The window dp_psd_create() builds, and the one place it is built: the
+ * symmetric window of @p n + 1 points from the spectral library's window
+ * functions, whose first @p n points are the periodic window (see the file
+ * comment). A caller that plans around the window a PSD will use --
+ * dp_measure_min_samples() sizes a capture from its ENBW -- reads it here
+ * rather than rebuilding it, so the two cannot disagree.
+ *
+ * @param w       Output, room for @p n + 1 floats: `w[0..n)` is the
+ *                window and `w[n]` the dropped end sample (rect leaves it
+ *                unset).
+ * @param n       Window length in samples, >= 1.
+ * @param window  0 = Hann, 1 = Kaiser, 2 = Blackman-Harris,
+ *                3 = rectangular, as dp_psd_create().
+ * @param beta    Kaiser beta (ignored by every other window).
+ * @return DP_OK, or DP_ERR_INVALID for a window index outside 0..3, with
+ *         @p w untouched.
+ *
+ * @code
+ * float w[5];                                  // n + 1 for n = 4
+ * if (dp_psd_window (w, 4, 0, 0.0f) != DP_OK)  // periodic Hann
+ *   return 1;
+ * // 0, 0.5, 1, 0.5: its sum is n / 2 = 2
+ * if (fabsf (w[0] + w[1] + w[2] + w[3] - 2.0f) > 1e-6f)
+ *   return 1;
+ * @endcode
+ */
+int dp_psd_window(float *w, size_t n, int window, float beta);
 
 /**
  * @brief Destroy a PSD instance and release all memory.
@@ -175,12 +223,15 @@ void dp_psd_frame_power(dp_psd_state_t *state, const float _Complex *x,
  *
  * dp_psd_frame_power() divided by the window coherent gain squared and the
  * full-scale reference squared, cg^2 * full_scale^2: a full-scale tone on a
- * bin reads 1.0 whatever the window. dp_psd_frame_db() is 10*log10 of the same
- * quotient, with the -200 dB floor -- the two are read from one double, so
- * they cannot disagree about the reference. This is the frame a consumer that
+ * bin reads 1.0 whatever the window. dp_psd_frame_db() is exactly
+ * dp_power_to_db_f32() of this, bit for bit: the quotient is rounded to
+ * float once and both readings are taken from it, so they cannot disagree
+ * about the reference, and a consumer that converts these values to dB
+ * itself gets exactly PSD's dB. This is the frame a consumer that
  * averages for itself should take: the raw dp_psd_frame_power() sits
- * 20*log10(sum(w)) above it, 54.18 dB for Hann at 1024 points
- * (docs/design/spectrogram-measurements.md section 5.3). Does not touch the
+ * 20*log10(sum(w)) above it, 54.19 dB for Hann at 1024 points, whose
+ * periodic taps sum to 512 (docs/design/spectrogram-measurements.md section
+ * 5.3 measured 54.18 under the symmetric window). Does not touch the
  * running average; not thread-safe on one state.
  *
  * @param state  Must be non-NULL.
@@ -206,9 +257,10 @@ void dp_psd_frame_linear(dp_psd_state_t *state, const float _Complex *x,
 /**
  * @brief One frame in dBFS, against the estimator's own reference.
  *
- * dp_psd_frame_power() divided by the window coherent gain squared and the
- * full-scale reference, as 10*log10 with the -200 dB floor, so a full-scale
- * tone on a bin reads 0 dB whatever the window. The result equals
+ * dp_psd_frame_linear() converted by dp_power_to_db_f32(), bit for bit:
+ * 10*log10 within 0.01 dB, exact at every power of two, with the -200 dB
+ * floor, so a full-scale tone on a bin reads 0 dB whatever the window. The
+ * result equals
  * dp_psd_psd_db() after accumulating that one frame, bit for bit (pinned by
  * test_psd_core.c). Does not touch the running average.
  *

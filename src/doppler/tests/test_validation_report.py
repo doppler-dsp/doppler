@@ -16,7 +16,9 @@ Each case below corresponds to a mistake that actually shipped:
 - a positive result filed under an open verdict (mpsk, one commit);
 - an open finding with no issue behind it (agc F6, until gh-750, and
   RateSync F17 until gh-751);
-- a `§x.y` pointing at a section the report does not have.
+- a `§x.y` pointing at a section the report does not have;
+- a finding number typed into prose, which re-pointed when a finding
+  before it was dropped (#2056: five citations, none caught; #2059).
 
 The verdict-vocabulary cases have no shipped instance, and are the reason
 this file exists at all — `find()` took any string, `open_findings`
@@ -30,6 +32,7 @@ from __future__ import annotations
 import pytest
 
 from doppler.tests._validation_common import (
+    _REF,
     OPEN_VERDICTS,
     VERDICTS,
     Report,
@@ -39,14 +42,14 @@ from doppler.tests._validation_common import (
 
 
 def _report(*findings: tuple[str, str, str]) -> Report:
-    """A minimal renderable report carrying `findings`."""
+    """A minimal renderable report carrying `findings`, each keyed."""
     r = Report(write=False)
     r.md("# t")
     r.md()
     r.md("## 1. The object")
     r.md()
-    for tag, verdict, body in findings:
-        r.find(tag, verdict, body)
+    for key, verdict, body in findings:
+        r.find(key, verdict, body)
     return r
 
 
@@ -71,7 +74,7 @@ def test_every_documented_verdict_renders(verdict):
     the citation rule too.
     """
     body = "detail, gh-1" if verdict in OPEN_VERDICTS else "detail"
-    assert _problems(_report(("F1", verdict, body))) == ""
+    assert _problems(_report(("first", verdict, body))) == ""
 
 
 @pytest.mark.parametrize("bogus", ["Gap", "gap", "GAP ", "OPEN", "PASS", ""])
@@ -83,7 +86,7 @@ def test_a_verdict_outside_the_vocabulary_is_rejected(bogus):
     invisible in the executive summary and in the validation log's
     `still open` column at once, by a typo.
     """
-    out = _problems(_report(("F1", bogus, "real defect, gh-1")))
+    out = _problems(_report(("first", bogus, "real defect, gh-1")))
     assert "not one of" in out
     assert repr(bogus) in out
 
@@ -99,7 +102,7 @@ def test_open_verdicts_are_a_subset_of_the_vocabulary():
 @pytest.mark.parametrize("verdict", OPEN_VERDICTS)
 @pytest.mark.parametrize("cite", ["gh-750", "#747", "issues/751"])
 def test_an_open_finding_may_cite_an_issue_three_ways(verdict, cite):
-    assert _problems(_report(("F1", verdict, f"broken — {cite}"))) == ""
+    assert _problems(_report(("first", verdict, f"broken — {cite}"))) == ""
 
 
 @pytest.mark.parametrize("verdict", OPEN_VERDICTS)
@@ -111,7 +114,9 @@ def test_an_open_finding_with_no_issue_is_rejected(verdict):
     not reading that report.
     """
     out = _problems(
-        _report(("F1", verdict, "no presence detection, see the design doc"))
+        _report(
+            ("first", verdict, "no presence detection, see the design doc")
+        )
     )
     assert "must cite the issue" in out
 
@@ -128,7 +133,7 @@ def test_a_positive_result_under_an_open_verdict_is_rejected():
     out = _problems(
         _report(
             (
-                "F1",
+                "first",
                 "CONFIRMED",
                 "The header's ~2x figure is confirmed correct.",
             )
@@ -147,7 +152,8 @@ def test_a_closed_verdict_needs_no_issue(verdict):
     comment warns about, a gate that argues with its author.
     """
     assert (
-        _problems(_report(("F1", verdict, "explained in full, no link"))) == ""
+        _problems(_report(("first", verdict, "explained in full, no link")))
+        == ""
     )
 
 
@@ -161,7 +167,7 @@ def test_a_section_reference_that_does_not_resolve_is_rejected():
     report `§x.y` means that report's own section, and the render was
     refused until the reference named the document instead.
     """
-    r = _report(("F1", "FIXED", "corrected"))
+    r = _report(("first", "FIXED", "corrected"))
     r.md("see §9.5 for the derivation")
     assert "§9.5 is referenced" in _problems(r)
 
@@ -169,8 +175,8 @@ def test_a_section_reference_that_does_not_resolve_is_rejected():
 def test_a_coherent_report_renders():
     """Vacuity guard: the cases above must fail for their own reason."""
     r = _report(
-        ("F1", "GAP", "unfixed, gh-747"),
-        ("F2", "BY DESIGN", "intended"),
+        ("first", "GAP", "unfixed, gh-747"),
+        ("second", "BY DESIGN", "intended"),
     )
     r.summary()
     assert _problems(r) == ""
@@ -189,7 +195,7 @@ def test_summary_renders_one_row_per_limit():
     never reads the report, and `make validate-check` re-renders and
     compares bytes, so an empty section agrees with itself perfectly.
     """
-    r = _report(("F1", "BY DESIGN", "intended"))
+    r = _report(("first", "BY DESIGN", "intended"))
     r.limit(True, "a claim that holds")
     r.limit(False, "one that does not")
     r.summary()
@@ -206,7 +212,7 @@ def test_recorded_limits_that_reach_no_table_are_rejected():
     Built by hand rather than through `summary()`, because `summary()` is
     the fix — this is what every report looked like before it.
     """
-    r = _report(("F1", "BY DESIGN", "intended"))
+    r = _report(("first", "BY DESIGN", "intended"))
     r.limit(True, "a claim nobody can read")
     r.md()
     r.md("## 5. Summary")
@@ -222,7 +228,7 @@ def test_a_report_asserting_no_limits_needs_no_table():
     already calls it NOT CERTIFIED — and it must not be reported as a
     missing table.
     """
-    r = _report(("F1", "GAP", "unfixed, gh-747"))
+    r = _report(("first", "GAP", "unfixed, gh-747"))
     r.summary()
     assert _problems(r) == ""
 
@@ -238,7 +244,7 @@ def _rep(body: str) -> str:
     case fails for the wrong reason, which is how the section-reference
     case first failed.
     """
-    r = _report(("F1", "GAP", "unfixed, gh-747"))
+    r = _report(("first", "GAP", "unfixed, gh-747"))
     r.md("## 2. Characterisation")
     r.md("### 2.1 One")
     r.md("### 2.2 Two")
@@ -290,11 +296,11 @@ def test_structural_change_is_staleness(name, before, after):
 
 def test_a_dropped_limit_is_staleness():
     """The claim TEXT is code, even though it embeds measured numbers."""
-    keep = _report(("F1", "GAP", "unfixed, gh-747"))
+    keep = _report(("first", "GAP", "unfixed, gh-747"))
     keep.limit(True, "the first claim")
     keep.limit(True, "the second claim")
     keep.summary()
-    drop = _report(("F1", "GAP", "unfixed, gh-747"))
+    drop = _report(("first", "GAP", "unfixed, gh-747"))
     drop.limit(True, "the first claim")
     drop.summary()
     assert _structural(keep.render()) != _structural(drop.render())
@@ -302,8 +308,110 @@ def test_a_dropped_limit_is_staleness():
 
 def test_a_changed_verdict_is_staleness():
     """A verdict is a judgement, so it is never measurement noise."""
-    gap = _report(("F1", "GAP", "unfixed, gh-747"))
+    gap = _report(("first", "GAP", "unfixed, gh-747"))
     gap.summary()
-    fixed = _report(("F1", "FIXED", "repaired here"))
+    fixed = _report(("first", "FIXED", "repaired here"))
     fixed.summary()
     assert _structural(gap.render()) != _structural(fixed.render())
+
+
+def test_a_renumbered_finding_is_staleness():
+    """A finding's number is structure, not a measurement (#2059).
+
+    Masked as a number, `F3` and `F4` both read `F«n»`, so a report whose
+    findings were renumbered compared as up to date.
+    """
+    assert _structural("- **F3 · FIXED** — x") != _structural(
+        "- **F4 · FIXED** — x"
+    )
+
+
+def test_protected_spans_keep_their_places():
+    """Masking keeps every protected span where it stood, in line order.
+
+    A finding line carries its number before the sections and issues it
+    cites. Held one form at a time, they came back grouped by form, so a
+    STALE diff printed `§2.1` where the finding's number was.
+    """
+    line = "- **F3 · GAP** — see §2.1 and gh-750, then #12 (issues/13)"
+    assert _structural(line) == line
+
+
+# ── a finding is cited by key and numbered at render (#2059) ──────────
+
+
+def _cite(key: str) -> str:
+    """What `Report.ref(key)` returns, for a body built before the report."""
+    return _REF.format(key)
+
+
+def _three(*keys: str) -> Report:
+    """A report citing `last` before it, then recording `keys` in order."""
+    r = Report(write=False)
+    r.md("# t")
+    r.md()
+    r.md(f"the inventory cites {r.ref('last')}")
+    for k in keys:
+        r.find(k, "FIXED", f"{k}, which cites {_cite('last')}")
+    return r
+
+
+def test_a_citation_resolves_to_the_number_find_assigned():
+    text = _three("a", "b", "last").render()
+    assert "the inventory cites F3" in text
+    assert "- **F3 · FIXED** — last, which cites F3" in text
+    assert "[[" not in text
+
+
+def test_dropping_a_finding_renumbers_every_citation_with_it():
+    """#2056's shape: a finding before the cited one is dropped.
+
+    With typed numbers the inventory went on saying F3 about what was now
+    F2. With keys it cannot: every citation follows its finding.
+    """
+    text = _three("a", "last").render()
+    assert "the inventory cites F2" in text
+    assert "- **F2 · FIXED** — last, which cites F2" in text
+
+
+@pytest.mark.parametrize("where", ["prose", "finding", "limit"])
+def test_a_typed_number_is_rejected(where):
+    r = _report(("first", "FIXED", "see F1" if where == "finding" else "ok"))
+    if where == "prose":
+        r.md("as F1 records")
+    if where == "limit":
+        r.limit(True, "the bound F1 sets holds")
+        r.summary()
+    assert "F1 is typed into the report" in _problems(r)
+
+
+def test_a_citation_of_an_unrecorded_key_is_rejected():
+    r = _report(("first", "FIXED", "ok"))
+    r.md(f"see {r.ref('dropped')}")
+    assert "R.ref('dropped') cites a finding no find() records" in _problems(r)
+
+
+@pytest.mark.parametrize("key", ["F3", "Has Space", "1st", "", "camelCase"])
+def test_a_key_is_a_snake_case_name(key):
+    with pytest.raises(ValueError, match="not a snake_case name"):
+        Report(write=False).find(key, "FIXED", "x")
+
+
+def test_a_key_is_recorded_once():
+    r = Report(write=False)
+    r.find("same", "FIXED", "x")
+    with pytest.raises(ValueError, match="recorded twice"):
+        r.find("same", "BY DESIGN", "y")
+
+
+def test_number_is_for_text_render_never_sees():
+    """A figure title is drawn into a PNG, so it takes the number itself.
+
+    Before the finding exists there is no number to give, and guessing
+    would be a typed number by another route.
+    """
+    r = Report(write=False)
+    with pytest.raises(KeyError, match="not recorded yet"):
+        r.number("later")
+    r.find("later", "FIXED", "x")
+    assert r.number("later") == "F1"

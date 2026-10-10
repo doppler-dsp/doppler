@@ -346,7 +346,7 @@ def review(d: Data) -> None:
     # A verdict is a judgement about a PROBLEM; the review phase has no
     # vocabulary for "this works", deliberately.
     R.find(
-        "F1",
+        "diff_penalty_asymptote",
         "FIXED",
         f"The header's `~2x` differential penalty is an ASYMPTOTE, not a "
         f"constant: measured {lo:.2f}x to {hi:.2f}x across this grid, "
@@ -358,7 +358,7 @@ def review(d: Data) -> None:
         "the case furthest from it.",
     )
     R.find(
-        "F2",
+        "decision_ahat_inline_helpers_no",
         "C-ONLY",
         "The decision `ahat` and the inline helpers have no Python face, "
         "so the decision-directed carrier error `Im(y·conj(ahat))` — the "
@@ -368,7 +368,7 @@ def review(d: Data) -> None:
         "in it.",
     )
     R.find(
-        "F3",
+        "mpsk_core_folded_no_library",
         "GAP",
         "`mpsk_core` is folded into no library: `mpsk_map`/`mpsk_demap` "
         "are absent from `libdoppler.a` and `.so`, so a C caller cannot "
@@ -378,7 +378,7 @@ def review(d: Data) -> None:
         "fix wants its own gate and is out of scope here.",
     )
     R.find(
-        "F4",
+        "rotated_diff_symbol_zero",
         "BY DESIGN",
         "A rotated differential stream decodes symbol 0 wrongly. It "
         "references the implicit zero-phase start, so there is nothing "
@@ -387,7 +387,7 @@ def review(d: Data) -> None:
         "label.",
     )
     R.find(
-        "F5",
+        "test_private_correlation_search",
         "FIXED",
         "`test_carrier_mpsk_core.c` carried a private O(M) correlation "
         "search instead of calling `mpsk_slice`, so the carrier-loop test "
@@ -497,21 +497,24 @@ def build(write: bool = True) -> Report:
             "not merely self-consistent.** Coherent SER tracks "
             "closed-form theory across every cell, so the slicer every "
             "M-PSK consumer decides through is anchored rather than "
-            "assumed (§2.4, F1).",
+            f"assumed (§2.4, {R.ref('diff_penalty_asymptote')}).",
             "**`~2x` for differential mode is an asymptote, not a "
             f"constant** — measured {lo:.2f}x to {hi:.2f}x. It is an "
             "upper bound reached where a receiver operates, and the "
-            "caller is charged less at low Es/N0 (§2.4, F1).",
+            "caller is charged less at low Es/N0 "
+            f"(§2.4, {R.ref('diff_penalty_asymptote')}).",
             "**Differential mode survives ANY constant carrier phase**, "
             "not just the M constellation rotations — the stronger claim, "
             "and the one that makes it worth its penalty (§2.5).",
             "**The most important surface has no Python face.** The "
             "decision `ahat` and the inline helpers are C-only; this "
             "report says what it cannot reach rather than reporting a "
-            "clean bill of health for the rest (F2).",
+            "clean bill of health for the rest "
+            f"({R.ref('decision_ahat_inline_helpers_no')}).",
             "**`mpsk_core` is in no library** — the C face of this module "
             "cannot be linked at all, which every Python gate is blind to "
-            "(F3, [#747](https://github.com/doppler-dsp/doppler/issues/747)).",
+            f"({R.ref('mpsk_core_folded_no_library')}, "
+            "[#747](https://github.com/doppler-dsp/doppler/issues/747)).",
         ],
     )
     R.summary("\n- Raw sweep: `data/ser.csv`")

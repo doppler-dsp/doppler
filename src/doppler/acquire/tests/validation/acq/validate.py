@@ -391,7 +391,8 @@ def _sec_templates(d: Data) -> None:
         "slides along its delay-Doppler ridge (~0.3 samples) instead of "
         "shrinking, so the zero-delay rotation loss the model charges "
         "overstates it. The shaped QPSK was OPTIMISTIC by 0.02-0.03 until "
-        "the model priced the CFAR reference the gate divides by (F8, "
+        "the model priced the CFAR reference the gate divides by "
+        f"({R.ref('shaped_pd_optimistic')}, "
         "doppler#1483, doppler#1501). "
         "Zadoff-Chu's delay error is whole samples at 0.9 because its "
         "Doppler sensitivity moves the peak: the capture's refine, not the "
@@ -558,10 +559,11 @@ def _sec_span(d: Data) -> None:
             cn0_dbhz=60.0,
             doppler_uncertainty=unc,
         )
-        # The searched reach is doppler_bins * doppler_res_hz / 2, and it
-        # has no accessor. doppler_span_hz is the NATIVE span -- a constant
-        # of the geometry that does not move when tiling engages, which is
-        # documented and still easy to read as coverage. See F6.
+        # The searched reach is doppler_bins * doppler_res_hz / 2, and it has
+        # no accessor. doppler_span_hz is the NATIVE span -- a constant of the
+        # geometry that does not move when tiling engages, which is documented
+        # and still easy to read as coverage. See
+        # `searched_doppler_unreported`.
         reach = a.doppler_bins * a.doppler_res_hz / 2.0
         ok &= reach >= unc - 1e-6
         rows.append(
@@ -807,7 +809,8 @@ def _sec_measured_pd(d: Data) -> None:
     R.md()
     R.md(
         f"The model is conservative by {d.pd_measured - d.pd_model:+.3f}. "
-        "What remains is the H1 face of F7: the detector takes the maximum "
+        f"What remains is the H1 face of {R.ref('pfa_over_delivered')}: the "
+        "detector takes the maximum "
         "over an interpolated surface, and the Marcum form credits the "
         "on-grid cell only. That is the right side to err on for sizing, "
         "and it is the same mechanism doppler#1064 tracks on H0."
@@ -1043,7 +1046,8 @@ def _sec_realized_pfa(d: Data) -> None:
         f"sized from the NATIVE cell count while the peak search runs on the "
         f"Doppler-interpolated surface, and a maximum over a finer sampling "
         f"of the same band-limited process is stochastically larger -- the "
-        f"scalloping-loss win of #1002, applied to H0. See F7 and "
+        "scalloping-loss win of #1002, applied to H0. "
+        f"See {R.ref('pfa_over_delivered')} and "
         f"doppler#1064; ratcheted at {PFA_RATIO_RATCHET}x below."
     )
     R.md()
@@ -1056,7 +1060,7 @@ def review(d: Data) -> None:
     R.md("## 3. Review — findings")
     R.md()
     R.find(
-        "F1",
+        "samples_consumed_unpinned",
         "FIXED",
         "**`samples_consumed` was pinned by nothing, in either language.** "
         "It is documented as a per-HIT anchor precisely so a caller does "
@@ -1069,7 +1073,7 @@ def review(d: Data) -> None:
         "Sabotage-proven by stamping a constant, which takes it red.",
     )
     R.find(
-        "F2",
+        "noise_mode_zero_mentions_test",
         "FIXED",
         "**`noise_mode` had zero mentions in `test_acq_core.c` and zero in "
         "`test_acq.py`** — only the default was ever exercised, on an "
@@ -1083,7 +1087,7 @@ def review(d: Data) -> None:
         "construction.",
     )
     R.find(
-        "F3",
+        "auto_sizer_short_push_empty",
         "CONFIRMED",
         "**The auto-sizer's `n_noncoh` makes a short push silently produce "
         "nothing**, and it cost an hour here. At `cn0_dbhz = 55` with a "
@@ -1100,7 +1104,7 @@ def review(d: Data) -> None:
         "[#999](https://github.com/doppler-dsp/doppler/issues/999).",
     )
     R.find(
-        "F6",
+        "searched_doppler_unreported",
         "GAP",
         "**No property reports the SEARCHED Doppler reach, and "
         "`doppler_span_hz` reads as though it does.** That field is the "
@@ -1119,7 +1123,7 @@ def review(d: Data) -> None:
         "[#998](https://github.com/doppler-dsp/doppler/issues/998).",
     )
     R.find(
-        "F4",
+        "separate_burst_constructor",
         "BY DESIGN",
         "`BurstAcquisition` and `Acquisition` are separate constructors "
         "rather than a mode flag, and the report measures the consequence "
@@ -1133,7 +1137,7 @@ def review(d: Data) -> None:
         "dsss-acquisition.md` carries the argument.",
     )
     R.find(
-        "F5",
+        "cn0_dbhz_est_saturates_once",
         "BY DESIGN",
         "`cn0_dbhz_est` saturates once the true C/N0 exceeds what the code "
         "and geometry can resolve, because the CFAR reference cells then "
@@ -1145,7 +1149,7 @@ def review(d: Data) -> None:
     )
 
     R.find(
-        "F7",
+        "pfa_over_delivered",
         "CONFIRMED",
         "**The detector delivers ~1.8x the false-alarm rate it is "
         "configured for.** `acq_commit_thresholds()` sizes `pfa_cell` from "
@@ -1188,7 +1192,7 @@ def review(d: Data) -> None:
 
     # ── 4. limits ─────────────────────────────────────────────────────────
     R.find(
-        "F8",
+        "shaped_pd_optimistic",
         "FIXED",
         "**A shaped template's `pd_predicted` was optimistic.** QPSK "
         "through a 5-tap low-pass delivered 0.02-0.03 less Pd than it "
@@ -1204,7 +1208,7 @@ def review(d: Data) -> None:
         "same bound every template keeps (doppler#1483).",
     )
     R.find(
-        "F9",
+        "burst_sizer_ignored_doppler_rate",
         "FIXED",
         "**The burst sizer ignored a Doppler rate.** It picked the "
         "coherent depth up to `reps` whatever the platform was doing, so "
@@ -1265,7 +1269,8 @@ def limits(d: Data) -> None:
         d.pfa_within_ratchet,
         "the realized false-alarm rate stays inside its ratchet against "
         "the configured target -- a RATCHET, not a bound: it sits at "
-        "~1.8x today (F7, doppler#1064) and may only shrink",
+        f"~1.8x today ({R.ref('pfa_over_delivered')}, doppler#1064) and may "
+        "only shrink",
     )
     R.limit(
         d.pd_model_conservative and d.pd_model_close,
@@ -1347,7 +1352,8 @@ def limits(d: Data) -> None:
         and all(ok and gap <= 0.15 for ok, gap in map(_pd_verdict, shaped)),
         "a shaped QPSK preamble keeps the same bounds: never optimistic (2 "
         "sigma), never more than 0.15 pessimistic -- it was a ratchet at "
-        "0.05 optimistic until the model priced the CFAR reference (F8, "
+        "0.05 optimistic until the model priced the CFAR reference "
+        f"({R.ref('shaped_pd_optimistic')}, "
         "doppler#1483, doppler#1501)",
     )
     by = {r["row"]: r for r in d.drift_rows}
@@ -1383,11 +1389,13 @@ def build(write: bool = True) -> Report:
             "several epochs emits several detections, each with its own "
             "`samples_consumed` — reusing one message-level timestamp for "
             "all of them is the mistake the field exists to prevent, and it "
-            "was pinned by nothing until now (§2.3, F1).",
+            "was pinned by nothing until now "
+            f"(§2.3, {R.ref('samples_consumed_unpinned')}).",
             "**The CFAR reference is a real choice, worth ~15 dB.** `min` "
             "is the optimistic extreme and `max` can suppress detection "
             "entirely at a given signal level. Only the default was ever "
-            "exercised before this certification (§2.8, F2).",
+            "exercised before this certification "
+            f"(§2.8, {R.ref('noise_mode_zero_mentions_test')}).",
             "**A tighter Doppler prior buys sensitivity, not just "
             "runtime**: fewer searched cells means a lower per-cell "
             "threshold. If the uncertainty can be bounded, bound it "
@@ -1396,18 +1404,20 @@ def build(write: bool = True) -> Report:
             "auto-sizer routinely picks a look count above 1, so one dump "
             "needs several frames and a short push returns nothing at all — "
             "which reads as a broken detector rather than an incomplete "
-            "dwell (F3, #999).",
+            f"dwell ({R.ref('auto_sizer_short_push_empty')}, #999).",
             "**Continuous mode never uses coherent depth, deliberately.** "
             "Even with no uncertainty prior it reports `doppler_bins = 1`; "
             "a multi-epoch coherent axis aliases a data-modulated stream's "
-            "transitions across the whole Doppler axis (§2.1, F4).",
+            "transitions across the whole Doppler axis "
+            f"(§2.1, {R.ref('separate_burst_constructor')}).",
             "**Any repeated preamble works; give a long one its Doppler "
             "rate.** The code, Zadoff-Chu, chirp, QPSK and a shaped QPSK "
             "all meet `pd_predicted` at 0.3, 0.6 and the default 0.9. The "
-            "margin is thinnest at 0.9, +0.03 for the code (§2.10, F8). "
+            "margin is thinnest at 0.9, +0.03 for the code "
+            f"(§2.10, {R.ref('shaped_pd_optimistic')}). "
             "Without `doppler_rate` a long preamble is sized at a depth the "
             "drift takes away, 0.91 promised and 0.84 delivered (§2.11, "
-            "F9).",
+            f"{R.ref('burst_sizer_ignored_doppler_rate')}).",
         ],
     )
     R.summary(

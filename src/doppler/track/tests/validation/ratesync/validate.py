@@ -341,13 +341,13 @@ def _cascade_slope(beta: float, ted: str, seed: int = 7) -> float:
     roll-off, and only two offsets of it, so it builds its own rather than
     widening a cache every other section pays for.
 
-    Two offsets, not a full curve: the quantity is a derivative at one
-    point, and a paired difference either side of the lock point is the
-    whole of it — provided the pair straddles the LOCK point and not the
-    other equilibrium. It used to straddle `0`, which on this validator's
-    axis is the T/2 crossing, and that is the whole of the retired F15: the
-    normaliser was being checked at the zero it was never meant to describe.
-    The centre now comes from `_eye_centre_fine`, by amplitude.
+    Two offsets, not a full curve: the quantity is a derivative at one point,
+    and a paired difference either side of the lock point is the whole of it —
+    provided the pair straddles the LOCK point and not the other equilibrium.
+    It used to straddle `0`, which on this validator's axis is the T/2
+    crossing, and that is the whole of the retired `normalised_slope_unity`:
+    the normaliser was being checked at the zero it was never meant to
+    describe. The centre now comes from `_eye_centre_fine`, by amplitude.
     """
     nsym, sps, fine = 3000, 4, FINE
     c = _eye_centre_fine(sps, ted)
@@ -397,12 +397,12 @@ def _cascade_slope_avg(beta: float, ted: str) -> tuple[float, float]:
     """Mean normalised slope over independent symbol sequences, and its sd.
 
     One realization is a draw, not a constant: a TED's S-curve amplitude
-    carries the transition density of the stream driving it, and the
-    design assigns that to nobody because it is data (F12). Averaging is
-    what makes the scale factor below a measurement with an uncertainty
-    rather than a number the next seed contradicts -- measured, Gardner's
-    through-cascade agreement at beta 0.1 reads 0.93 on one seed and 0.94
-    over several, and the C harness saw the same effect move it by 0.05.
+    carries the transition density of the stream driving it, and the design
+    assigns that to nobody because it is data (`slope_depends_on_data`).
+    Averaging is what makes the scale factor below a measurement with an
+    uncertainty rather than a number the next seed contradicts -- measured,
+    Gardner's through-cascade agreement at beta 0.1 reads 0.93 on one seed and
+    0.94 over several, and the C harness saw the same effect move it by 0.05.
     """
     v = [abs(_cascade_slope(beta, ted, seed=s_)) for s_ in _CASC_SEEDS]
     mean = float(np.mean(v))
@@ -444,7 +444,8 @@ CLAIM_MAP: list[tuple[str, str, str]] = [
         "C5",
         "the error path carries a construct-time ted_scale, not a running "
         "normaliser; |on|^2 + |mid|^2 normalises the LOCK statistic",
-        "§10 NEW — was **STALE** as written; corrected, see F1",
+        "§10 NEW — was **STALE** as written; corrected, see "
+        f"{R.ref('header_headline_design_note')}",
     ),
     (
         "C6",
@@ -463,19 +464,21 @@ CLAIM_MAP: list[tuple[str, str, str]] = [
         "C10",
         "every initial offset acquires on all three planned cascades "
         "(the header no longer quotes EVM literals)",
-        "§3 + §2.4 — see F3",
+        f"§3 + §2.4 — see {R.ref('measured_table_irreproducible')}",
     ),
     (
         "C11",
         "bn means the same thing on every planned cascade, within ~1 dB at "
         "the recommended settings; the spread widens as bn narrows",
-        "§2.5 — was stated as a universal; now a range, see F4",
+        "§2.5 — was stated as a universal; now a range, see "
+        f"{R.ref('bn_identical_claim')}",
     ),
     (
         "C12",
         "bn = 0.005 is the best of the recommended settings; 0.01 the "
         "safe default",
-        "§2.5 — the choice, which holds; the literals are gone (F3)",
+        "§2.5 — the choice, which holds; the literals are gone "
+        f"({R.ref('measured_table_irreproducible')})",
     ),
     ("C13", "lifecycle: create -> (step/steps/reset)* -> destroy", "§1 §7"),
     ("C14", "m even, 2 <= m <= RATESYNC_MAX_M", "§1"),
@@ -506,7 +509,8 @@ CLAIM_MAP: list[tuple[str, str, str]] = [
     (
         "C25",
         "`rate = m/sps <= 1` bounds an input at TWO terminal outputs",
-        "§9 — was **FALSE** as written; corrected, see F2",
+        "§9 — was **FALSE** as written; corrected, see "
+        f"{R.ref('step_ted_doc_contradicted')}",
     ),
     (
         "C26",
@@ -516,17 +520,20 @@ CLAIM_MAP: list[tuple[str, str, str]] = [
     (
         "C26a",
         "DTTL has lower self-noise near lock than Gardner",
-        "§2.4 (this report) — 6.4x, see F16",
+        "§2.4 (this report) — 6.4x, see "
+        f"{R.ref('header_lower_self_noise_near')}",
     ),
     (
         "C26b",
         "DTTL degrades faster than Gardner at low SNR",
-        "**UNMEASURED** — nothing in this report adds noise, see F17",
+        "**UNMEASURED** — nothing in this report adds noise, see "
+        f"{R.ref('dttl_low_snr_claim_unmeasurable')}",
     ),
     (
         "C26c",
         "Gardner's raw error carries A^2, DTTL's carries A^1",
-        "C §20 NEW (exact, both) + §2.6b (this report) — see F13",
+        "C §20 NEW (exact, both) + §2.6b (this report) — see "
+        f"{R.ref('amplitude_laws_differ')}",
     ),
     (
         "C26d",
@@ -534,25 +541,29 @@ CLAIM_MAP: list[tuple[str, str, str]] = [
         "bandwidth",
         "C `validate_ratesync_scurve` phases 1-3 + C §20 NEW — formula, "
         "wiring and through-cascade, all three; all three now agree, and "
-        "the through-cascade one is measured at the stable zero (F15)",
+        "the through-cascade one is measured at the stable zero "
+        f"({R.ref('normalised_slope_unity')})",
     ),
     (
         "C27",
         "the caller owns the input level; present unit-amplitude symbols, "
         "and the axis is two-sided and non-monotone",
-        "§2.6 (this report) — second clause added, see F6",
+        "§2.6 (this report) — second clause added, see "
+        f"{R.ref('input_level_axis_not_monotone')}",
     ),
     (
         "C28",
         "over-drive is reported by get_clipped() ONLY on plans containing a "
         "CIC; there is no under-drive twin on any plan (gh-661)",
-        "§13 NEW + §2.6 — qualifier added, see F11",
+        "§13 NEW + §2.6 — qualifier added, see "
+        f"{R.ref('get_clipped_overclaimed')}",
     ),
     ("C29", "get_clipped() is always 0 when the plan has no CIC", "§13 NEW"),
     (
         "C30",
         "use m >= 4 with IANDD: m = 2 does not clear the declare threshold",
-        "§14 NEW — rule holds; stale literals retired, see F5",
+        "§14 NEW — rule holds; stale literals retired, see "
+        f"{R.ref('iandd_rule_right_stated_evidence')}",
     ),
     ("C31", "reset() reproduces the first run bit for bit", "§6"),
     (
@@ -782,13 +793,16 @@ def characterise() -> Data:
         "A terminal rate of exactly 1.0 on every row is also the case §9 "
         "exists for: it is where one input can complete TWO output periods, "
         "so the buffer `ratesync_step_ted` drains into is load-bearing "
-        "(**F2**). The fractional-terminal-rate plan (`sps = 17.333` -> "
+        f"(**{R.ref('step_ted_doc_contradicted')}**). The "
+        "fractional-terminal-rate plan (`sps = 17.333` -> "
         "`CIC(8) + Resampler(0.923, rrc)`), where it cannot happen, is "
-        "reachable only from C — see **F10**."
+        "reachable only from C — see "
+        f"**{R.ref('analytic_rrc_pulse_wfm_rrc')}**."
     )
     R.md()
     R.md(
-        "`RateSync` itself does not forward any of this to Python (**F9**): "
+        "`RateSync` itself does not forward any of this to Python "
+        f"(**{R.ref('planner_output_unbound')}**): "
         "it publishes the loop's observables, not the planner's, so the "
         "table above is read from an identically-constructed "
         "`MatchedRateConverter` rather than from the object under test. The "
@@ -848,15 +862,15 @@ def characterise() -> Data:
                 # report grew a second detector.
                 zs.append((float(t0), float((b - a) / dt)))
         pk = float(np.abs(sc_a).max())
-        # Which zero is the eye centre, by AMPLITUDE rather than by the sign
-        # of its slope. The sign test that stood here read `s <= 0` and was
-        # inverted: this validator's tau is a decimation phase, whose sense
-        # is opposite to the C harness's transmitter offset, so the rule
-        # selected the T/2 equilibrium and reported its slope as the check
-        # on the construct-time normaliser. Gardner's two zeros carry the
-        # same |slope| (1.0036 against 1.0044) so it read correct either
-        # way; DTTL's do not, and the 2.5995 that became F15 was the
-        # unstable one. See `eye_at`.
+        # Which zero is the eye centre, by AMPLITUDE rather than by the sign of
+        # its slope. The sign test that stood here read `s <= 0` and was
+        # inverted: this validator's tau is a decimation phase, whose sense is
+        # opposite to the C harness's transmitter offset, so the rule selected
+        # the T/2 equilibrium and reported its slope as the check on the
+        # construct-time normaliser. Gardner's two zeros carry the same |slope|
+        # (1.0036 against 1.0044) so it read correct either way; DTTL's do not,
+        # and the 2.5995 that became `normalised_slope_unity` was the unstable
+        # one. See `eye_at`.
         eyes = [eye_at(sps, round(t0 * fine), ted) for t0, _ in zs]
         i_st = int(np.argmax(eyes)) if eyes else 0
         stable_t, stable_s = zs[i_st] if zs else (0.0, 0.0)
@@ -924,7 +938,7 @@ def characterise() -> Data:
         "the default. The slope column is the LOCAL derivative at the "
         "stable zero, per symbol of timing error, not `2*pi*peak`: that "
         "identity assumes a sinusoidal S-curve, which is Gardner's shape "
-        "and not DTTL's (**F14**)."
+        f"and not DTTL's (**{R.ref('slope_from_peak_assumes_sine')}**)."
     )
     R.md()
     _dslope = d.scurve_by_ted["dttl"]["slope"]
@@ -952,7 +966,8 @@ def characterise() -> Data:
         "slope as the check on the normaliser. Gardner's two zeros carry "
         "the same |slope| — 1.0036 against 1.0044 — so the default detector "
         "read correct either way and nothing flagged it; DTTL's do not, and "
-        "the 2.5995 that stood here became **F15**. Both harnesses now "
+        "the 2.5995 that stood here became "
+        f"**{R.ref('normalised_slope_unity')}**. Both harnesses now "
         "select by EYE OPENING instead, which has no sign convention: the "
         "eye measures 1.000 at the stable zero against 0.53-0.79 at T/2 "
         "depending on roll-off (`eye_at`)."
@@ -995,7 +1010,8 @@ def characterise() -> Data:
         f"with the seed-to-seed scatter beside each value. One realization "
         f"is a draw rather than a constant — the S-curve's amplitude "
         f"carries the stream's transition density, which the design assigns "
-        f"to nobody because it is data (**F12**) — so a scale factor quoted "
+        f"to nobody because it is data (**{R.ref('slope_depends_on_data')}**) "
+        "— so a scale factor quoted "
         f"from a single seed states a number the next seed does not "
         f"reproduce."
     )
@@ -1011,7 +1027,8 @@ def characterise() -> Data:
     R.md()
     R.md(
         "This table used to read 1.23 to 10.66 for DTTL, a factor of 8.7, "
-        "and was the evidence for **F15** and for gh-669. It was measured "
+        f"and was the evidence for **{R.ref('normalised_slope_unity')}** and "
+        "for gh-669. It was measured "
         "about offset `0`, which on this axis is the T/2 crossing and not "
         "the lock point; centring the pair on the eye (`_eye_centre_fine`) "
         "is the whole of the change, and the retired figures are still "
@@ -1044,7 +1061,7 @@ def characterise() -> Data:
         "density, and the design assigns that to nobody — it is data. "
         "Measured on the same object and the same pulse, an m-sequence in "
         "place of i.i.d. symbols moves the slope to `0.8632`, a 15% shift "
-        "(§3 F12)."
+        f"(§3 {R.ref('slope_depends_on_data')})."
     )
     R.md()
     R.md("![S-curve](scurve.png)")
@@ -1165,10 +1182,13 @@ def characterise() -> Data:
         f"DTTL rests **{_gj / _dj:.1f}x** closer to the eye centre than "
         f"Gardner on the same stream. That is the header's *\"lower "
         f'self-noise near lock"* — a claim nothing in this report measured '
-        f"until the `ted` axis was swept (**F16**) — and it is the reason "
+        "until the `ted` axis was swept "
+        f"(**{R.ref('header_lower_self_noise_near')}**) — and it is the "
+        "reason "
         f"to reach for the decision-directed detector at all: Gardner pays "
         f"a self-noise cost on every non-transition symbol, and DTTL gates "
-        f"those out by construction. Read it against **F17**: this stream "
+        "those out by construction. Read it against "
+        f"**{R.ref('dttl_low_snr_claim_unmeasurable')}**: this stream "
         f"is noiseless, the regime that flatters DTTL most, and the "
         f"header's opposing claim — that it gives the advantage back at "
         f"low SNR — is measured nowhere in this report."
@@ -1224,13 +1244,15 @@ def characterise() -> Data:
     _gsp = [max(v) - min(v) for _, v in d.bn_rows_by_ted["gardner"]]
     _dsp = [max(v) - min(v) for _, v in d.bn_rows_by_ted["dttl"]]
     R.md(
-        f"The cross-cascade spread that F4 is about behaves the same way on "
+        f"The cross-cascade spread that {R.ref('bn_identical_claim')} is "
+        "about behaves the same way on "
         f"both detectors — widening monotonically as `bn` narrows, from "
         f"{_gsp[0]:.1f} / {_dsp[0]:.1f} dB (gardner / dttl) at "
         f"`bn = {d.bn_grid[0]:g}` to {_gsp[-1]:.1f} / {_dsp[-1]:.1f} dB at "
         f"`bn = {d.bn_grid[-1]:g}`. So referencing `ctrl` to the terminal "
         "rate buys the same cascade-independence for either detector, and "
-        "the range F4 asks the header to state covers both."
+        f"the range {R.ref('bn_identical_claim')} asks the header to state "
+        "covers both."
     )
     R.md()
     R.md(
@@ -1239,7 +1261,7 @@ def characterise() -> Data:
         "`bn = 0.02` leaves no settled window at all at `bn = 0.002`. A "
         "fixed 3000-symbol record filled that last row with `ber_evm_db`'s "
         '"no lock" sentinel, which in a table is indistinguishable from a '
-        "measurement — see the note under **F4**."
+        f"measurement — see the note under **{R.ref('bn_identical_claim')}**."
     )
     R.md()
     _csv(
@@ -1318,7 +1340,7 @@ def characterise() -> Data:
         "out, so the level multiplies the loop gain — a loop above its "
         "designed bandwidth tracks noisily while one below it is too slow "
         "to have settled. `bn` is the axis the level really acts on "
-        "(**F6**)."
+        f"(**{R.ref('input_level_axis_not_monotone')}**)."
     )
     R.md()
     R.md(
@@ -1337,7 +1359,8 @@ def characterise() -> Data:
         f"the over-driven one that lost {_best[1] - _hot[1]:.0f} dB. The "
         f"plan at `sps = 8` contains no CIC, and `clipped` is a CIC "
         f"quantiser flag — so on this cascade neither end of the level axis "
-        f"is reported at all (**F11**). Under-drive has no flag on ANY "
+        f"is reported at all (**{R.ref('get_clipped_overclaimed')}**). "
+        "Under-drive has no flag on ANY "
         f"plan, which is "
         "[gh-661](https://github.com/doppler-dsp/doppler/issues/661)."
     )
@@ -1419,7 +1442,7 @@ def characterise() -> Data:
         "present unit amplitude — but the cost of missing it is squared for "
         "the default detector and linear for the other, so the two are not "
         "interchangeable in a design that cannot guarantee its input level "
-        "(**F13**)."
+        f"(**{R.ref('amplitude_laws_differ')}**)."
     )
     R.md()
     _csv(
@@ -1582,8 +1605,8 @@ def characterise() -> Data:
 
 
 # ═════════════════════════════════════════════════ 3. REVIEW
-def _f15_beta(d) -> str:
-    """F15's roll-off paragraph, built where the arithmetic has room.
+def _slope_unity_beta(d) -> str:
+    """The roll-off paragraph of `normalised_slope_unity`, built with room.
 
     Kept out of the finding's f-string because the ratio expressions run
     past the line limit inline, and a finding's text is prose a reader has
@@ -1604,7 +1627,8 @@ def _f15_beta(d) -> str:
         f"**T/2 equilibrium**, not the eye centre — so the check on the "
         f"construct-time normaliser was being applied at the one zero it "
         f"was never meant to describe. DTTL's S-curve is not sinusoidal "
-        f"(F14), so its two zeros carry very different slopes and the "
+        f"({R.ref('slope_from_peak_assumes_sine')}), so its two zeros carry "
+        "very different slopes and the "
         f"error showed; Gardner's is, so its two agree to 0.001 and it "
         f"read correct throughout, which is why this survived a dedicated "
         f"C harness, a cascade-free exoneration and a roll-off sweep "
@@ -1618,7 +1642,7 @@ def review(d: Data) -> None:
     R.md()
 
     R.find(
-        "F1",
+        "header_headline_design_note",
         "FIXED",
         "the header's headline design note — \"**1. The TED normaliser is "
         '`|on|^2 + |mid|^2`, never `|on|^2`**" — described a design the '
@@ -1640,7 +1664,7 @@ def review(d: Data) -> None:
         "staying inside a few hundredths from the worst offset.",
     )
     R.find(
-        "F2",
+        "step_ted_doc_contradicted",
         "FIXED",
         "`ratesync_step_ted`'s doxygen contradicted its own body, and the "
         "doxygen is the half that becomes the Python docstring. The brief "
@@ -1660,7 +1684,7 @@ def review(d: Data) -> None:
         "twelve checks red.",
     )
     R.find(
-        "F3",
+        "measured_table_irreproducible",
         "FIXED",
         f"the header's **Measured** table did not reproduce under its own "
         f"stated methodology (eight initial offsets, `bn = 0.01`, worst "
@@ -1685,7 +1709,7 @@ def review(d: Data) -> None:
         f"{b:g} -> {s:.1f} dB" for (b, _), s in zip(d.bn_rows, spread)
     )
     R.find(
-        "F4",
+        "bn_identical_claim",
         "FIXED",
         f'"`bn` behaves identically across all three (within ~2 dB at every '
         f'setting)" held at the recommended settings and failed below them. '
@@ -1713,7 +1737,7 @@ def review(d: Data) -> None:
     m2 = next((r for r in d.m_rows if r[0] == 2), None)
     m4 = next((r for r in d.m_rows if r[0] == 4), None)
     R.find(
-        "F5",
+        "iandd_rule_right_stated_evidence",
         "FIXED",
         f"the `m >= 4 with IANDD` rule is right and its stated evidence was "
         f'stale. The header cited "lock_stat -0.34 at m = 2 against +0.95 '
@@ -1735,7 +1759,7 @@ def review(d: Data) -> None:
     unit = next(r for r in d.amp_rows if r[0] == 1.0)
     over = [r for r in d.amp_rows if r[0] > 1.0]
     R.find(
-        "F6",
+        "input_level_axis_not_monotone",
         "FIXED",
         f"the input-level axis is not monotone, and the header's "
         f'single-point statement implied it is. It said "Under-driving '
@@ -1758,7 +1782,7 @@ def review(d: Data) -> None:
         f"this finding is why EVM cannot substitute for one.",
     )
     R.find(
-        "F7",
+        "locked_not_separate_scaling",
         "CONFIRMED",
         "`locked` does not separate a correctly-scaled loop from a 32x "
         "under-driven one. §12 binds the cascade rate where the terminal "
@@ -1776,7 +1800,7 @@ def review(d: Data) -> None:
         "that a caller does not read `locked` as a commissioning check.",
     )
     R.find(
-        "F8",
+        "scurve_zeros_per_symbol",
         "BY DESIGN",
         f"the S-curve carries exactly {len(d.zeros)} zeros per symbol with "
         f"alternating slope — one stable at the eye centre, one unstable at "
@@ -1789,7 +1813,7 @@ def review(d: Data) -> None:
         f"{abs(d.slope_meas - 1.0) * 100:.0f}%.",
     )
     R.find(
-        "F9",
+        "planner_output_unbound",
         "C-ONLY",
         "the planner's output is not observable from Python. `RateSync` "
         "publishes the loop's signals (`ctrl`, `rate`, `lock_stat`, "
@@ -1803,7 +1827,7 @@ def review(d: Data) -> None:
         "down; RateSync simply does not forward it.",
     )
     R.find(
-        "F10",
+        "analytic_rrc_pulse_wfm_rrc",
         "C-ONLY",
         "the analytic RRC pulse (`wfm_rrc_h`, evaluated at any real `t`) is "
         "C-only, so a Python validator cannot construct an RRC stimulus at "
@@ -1821,7 +1845,7 @@ def review(d: Data) -> None:
     )
     cic = [c for c in d.clip_rows if c[0] == 64]
     R.find(
-        "F12",
+        "slope_depends_on_data",
         "BY DESIGN",
         "The normalised slope at lock is a property of the detector AND of "
         "the symbol stream, and this report used to present it as the "
@@ -1845,7 +1869,7 @@ def review(d: Data) -> None:
     )
     R.md()
     R.find(
-        "F11",
+        "get_clipped_overclaimed",
         "FIXED",
         f"`dp_ratesync_get_clipped()` was documented as THE over-drive "
         f"report — "
@@ -1873,7 +1897,7 @@ def review(d: Data) -> None:
     )
     R.md()
     R.find(
-        "F13",
+        "amplitude_laws_differ",
         "BY DESIGN",
         f"the two detectors do not share an amplitude law, and until this "
         f"pass nothing measured either of them. `symsync_core.h` states "
@@ -1890,7 +1914,8 @@ def review(d: Data) -> None:
         f"1/16th against 1/4. The level contract is identical either way, "
         f"but the penalty for missing it is squared for one and linear for "
         f"the other, so a design that cannot guarantee its input level is "
-        f"not indifferent between them. This is also why F6's level axis "
+        "not indifferent between them. This is also why "
+        f"{R.ref('input_level_axis_not_monotone')}'s level axis "
         f"had to be swept per detector rather than extrapolated from the "
         f"default. Pinned in C as well as measured here: "
         f"`test_ratesync_core.c` §20 asserts both exponents exactly — two "
@@ -1899,7 +1924,7 @@ def review(d: Data) -> None:
         f"by a report someone has to read.",
     )
     R.find(
-        "F14",
+        "slope_from_peak_assumes_sine",
         "FIXED",
         f"§2.2 inferred the S-curve's slope at lock from its PEAK, as "
         f"`2*pi*peak`. That identity assumes a sinusoidal S-curve; it is a "
@@ -1915,7 +1940,7 @@ def review(d: Data) -> None:
         f"model, and closer to the ideal 1.0 than the estimate was.",
     )
     R.find(
-        "F15",
+        "normalised_slope_unity",
         "FIXED",
         f"the normalised S-curve slope at lock is "
         f"`{d.slope_meas:.4f}` for Gardner and "
@@ -1929,9 +1954,10 @@ def review(d: Data) -> None:
         f"not the eye centre. The check on the construct-time normaliser "
         f"was therefore being applied at the one zero it was never meant "
         f"to describe. "
-        f"{_f15_beta(d)} **What made it invisible for so long is worth "
-        f"more than the fix.** The stable/unstable labelling came from a "
-        f"hard-coded `slope <= 0` test, which is meaningful only against a "
+        f"{_slope_unity_beta(d)} **What made it invisible for so long is "
+        "worth more than the fix.** The stable/unstable labelling came "
+        "from a hard-coded `slope <= 0` test, which is meaningful only "
+        "against a "
         f"tau axis; this validator's tau is a decimation phase and the C "
         f"harness's is a transmitter offset, so the axes run in opposite "
         f"senses, every slope sign is negated between them, and the two "
@@ -1956,7 +1982,7 @@ def review(d: Data) -> None:
     _gj16 = d.resid_by_ted["gardner"] / d.scurve_by_ted["gardner"]["slope"]
     _dj16 = d.resid_by_ted["dttl"] / d.scurve_by_ted["dttl"]["slope"]
     R.find(
-        "F16",
+        "header_lower_self_noise_near",
         "BY DESIGN",
         f'the header\'s *"lower self-noise near lock"* holds, and is now '
         f"measured rather than asserted. At rest the normalised error "
@@ -1972,15 +1998,17 @@ def review(d: Data) -> None:
         f"ordering shows in §2.5's EVM, where DTTL is 5 to 8 dB better on "
         f"every cascade at every recommended `bn` — on a NOISELESS stream, "
         f"which is the condition that flatters a decision-directed "
-        f"detector most and is precisely why F17 matters.",
+        "detector most and is precisely why "
+        f"{R.ref('dttl_low_snr_claim_unmeasurable')} matters.",
     )
     R.find(
-        "F17",
+        "dttl_low_snr_claim_unmeasurable",
         "GAP",
         "the header's other DTTL claim — that it *\"degrades faster at low "
         'SNR"* — is unmeasured, and cannot be measured by this report as '
         "it stands: **nothing in it adds noise**. Every stimulus here is "
-        "noiseless, so every comparison between the detectors (F16's "
+        "noiseless, so every comparison between the detectors "
+        f"({R.ref('header_lower_self_noise_near')}'s "
         "self-noise, §2.5's EVM) is taken in exactly the regime that "
         "favours the decision-directed one, and the crossover the header "
         "warns about is invisible. That is not a defect in the object and "
@@ -2033,7 +2061,8 @@ def limits(d: Data) -> None:
         0.8 < d.slope_meas < 1.3,
         f"the normalised S-curve slope at lock is unity to within 30% "
         f"({d.slope_meas:.4f}) — the construct-time ted_scale is correct, "
-        f"and as of F15's resolution this now holds for dttl as well",
+        f"and as of {R.ref('normalised_slope_unity')}'s resolution this now "
+        "holds for dttl as well",
     )
     _gb = [abs(v) for _, v, _s in d.beta_slope["gardner"]]
     _db = [abs(v) for _, v, _s in d.beta_slope["dttl"]]
@@ -2046,14 +2075,16 @@ def limits(d: Data) -> None:
         f"range ({min(_gb):.2f} to {max(_gb):.2f}) — `bn` names one "
         f"bandwidth at every beta, which is the header's claim",
     )
-    # Was a RATCHET on an 8.7x spread while F15 was open. F15 was the
-    # measurement differentiating the T/2 equilibrium, so there is no
-    # breakage left to ratchet and this is now the same real gate Gardner
-    # gets. A ratchet may only shrink; this one shrank to nothing.
+    # Was a RATCHET on an 8.7x spread while `normalised_slope_unity` was open.
+    # `normalised_slope_unity` was the measurement differentiating the T/2
+    # equilibrium, so there is no breakage left to ratchet and this is now the
+    # same real gate Gardner gets. A ratchet may only shrink; this one shrank
+    # to nothing.
     R.limit(
         max(_db) / min(_db) < 1.2,
         f"dttl's normalised slope holds unity too ({min(_db):.2f} to "
-        f"{max(_db):.2f}) — the 8.7x that stood here was F15, and it was "
+        f"{max(_db):.2f}) — the 8.7x that stood here was "
+        f"{R.ref('normalised_slope_unity')}, and it was "
         f"the wrong zero rather than the wrong detector",
     )
     R.limit(
@@ -2067,7 +2098,7 @@ def limits(d: Data) -> None:
         "the zero this report calls stable carries a decisively wider eye "
         "than the other — the discrimination that replaced a hard-coded "
         "slope-sign test, and the one that does not depend on which way "
-        "the tau axis runs (F15)",
+        f"the tau axis runs ({R.ref('normalised_slope_unity')})",
     )
     R.limit(
         all(len(v["zeros"]) == 2 for v in d.scurve_by_ted.values()),
@@ -2164,7 +2195,7 @@ def limits(d: Data) -> None:
         f"and the WORST of the three cascades improves monotonically as "
         f"`bn` narrows ({' -> '.join(f'{w:.1f}' for w in worst)} dB) — "
         f"narrowing the loop never costs a caller EVM, whichever cascade "
-        f"the planner built (F4)",
+        f"the planner built ({R.ref('bn_identical_claim')})",
     )
     R.limit(
         spreads == sorted(spreads),
@@ -2203,8 +2234,9 @@ def limits(d: Data) -> None:
         "under-drive is NOT reported by any published flag (gh-661): the "
         "worst-driven case still reads clipped = 0",
     )
-    # The other half of the same blind spot, and the reason F11 exists: on a
-    # CIC-free plan, over-drive costs EVM with the flag still reading clean.
+    # The other half of the same blind spot, and the reason
+    # `get_clipped_overclaimed` exists: on a CIC-free plan, over-drive costs
+    # EVM with the flag still reading clean.
     over8 = [r for r in d.amp_rows if r[0] > 1.0]
     unit8 = next(r for r in d.amp_rows if r[0] == 1.0)
     R.limit(
@@ -2225,14 +2257,14 @@ def limits(d: Data) -> None:
     # The m >= 4 rule is asserted on what it COSTS, not on the lock flag.
     #
     # This used to read `m2[3] < 0.311 <= m4[3]` — m = 2 must not clear the
-    # declare threshold. That worked only while the number happened to sit
-    # at +0.180, and it stopped being true the moment the resamp ctrl fix
-    # improved the rate-1.0 cascades: m = 2 now reads +0.525 and DOES clear
-    # the threshold, while still demodulating at -8.7 dB against m = 4's
-    # -18.1 dB. So the flag flipped and the guidance did not — the rule is
-    # as right as it ever was, and `lock_stat` was never the quantity that
-    # discriminates. That is F7, applied: the lock detector answers "is the
-    # eye open", not "is this configuration usable".
+    # declare threshold. That worked only while the number happened to sit at
+    # +0.180, and it stopped being true the moment the resamp ctrl fix improved
+    # the rate-1.0 cascades: m = 2 now reads +0.525 and DOES clear the
+    # threshold, while still demodulating at -8.7 dB against m = 4's -18.1 dB.
+    # So the flag flipped and the guidance did not — the rule is as right as it
+    # ever was, and `lock_stat` was never the quantity that discriminates. That
+    # is `locked_not_separate_scaling`, applied: the lock detector answers "is
+    # the eye open", not "is this configuration usable".
     R.limit(
         m4[5] < m2[5] - 6.0,
         f"with the rectangle, m = 4 demodulates {m2[5] - m4[5]:.1f} dB "
@@ -2290,11 +2322,12 @@ def plots(d: Data) -> None:
     import matplotlib.pyplot as plt
 
     fig, ax = plt.subplots(figsize=(9, 5))
-    # Both detectors on one axis: the shapes are the argument. They share
-    # the zeros (so the parity claim covers both) and they do NOT share the
-    # slope through them (F15) or the curve's form — DTTL's is visibly not
-    # a sinusoid, which is what made `2*pi*peak` the wrong estimator once
-    # this report grew a second detector (F14).
+    # Both detectors on one axis: the shapes are the argument. They share the
+    # zeros (so the parity claim covers both) and they do NOT share the slope
+    # through them (`normalised_slope_unity`) or the curve's form — DTTL's is
+    # visibly not a sinusoid, which is what made `2*pi*peak` the wrong
+    # estimator once this report grew a second detector
+    # (`slope_from_peak_assumes_sine`).
     for ted, style in zip(TEDS, ("-", "--")):
         v = d.scurve_by_ted[ted]
         ax.plot(
@@ -2316,7 +2349,9 @@ def plots(d: Data) -> None:
     ax.set_xlabel("timing offset (symbols)")
     ax.set_ylabel("normalised TED error")
     ax.set_title(
-        "Both detectors: same zeros, different slope through them (F14/F15)"
+        "Both detectors: same zeros, different slope through them "
+        f"({R.number('slope_from_peak_assumes_sine')}/"
+        f"{R.number('normalised_slope_unity')})"
     )
     ax.grid(True, alpha=0.3)
     ax.legend(fontsize=9)
@@ -2367,7 +2402,10 @@ def plots(d: Data) -> None:
     )
     a1.set_xlabel("symbol amplitude")
     a1.set_ylabel("EVM (dB)")
-    a1.set_title("The level axis is two-sided on BOTH detectors (F6)")
+    a1.set_title(
+        "The level axis is two-sided on BOTH detectors "
+        f"({R.number('input_level_axis_not_monotone')})"
+    )
     a1.grid(True, which="both", alpha=0.3)
     a1.legend(fontsize=8)
     a2.semilogx(
@@ -2413,7 +2451,10 @@ def plots(d: Data) -> None:
     ax.set_xlabel("RRC roll-off beta")
     ax.set_ylabel("normalised slope at lock")
     ax.set_yscale("log")
-    ax.set_title("`bn` names one bandwidth only where this is flat at 1 (F15)")
+    ax.set_title(
+        "`bn` names one bandwidth only where this is flat at 1 "
+        f"({R.number('normalised_slope_unity')})"
+    )
     ax.grid(True, alpha=0.3, which="both")
     ax.legend(fontsize=9)
     fig.tight_layout()
@@ -2435,7 +2476,7 @@ def plots(d: Data) -> None:
     ax.set_ylabel("|mean detector output| at a fixed offset")
     ax.set_title(
         "Gardner carries A^2, DTTL carries A^1 — the level-error "
-        "budget is not shared (F13)"
+        f"budget is not shared ({R.number('amplitude_laws_differ')})"
     )
     ax.grid(True, alpha=0.3, which="both")
     ax.legend(fontsize=9)
@@ -2482,21 +2523,25 @@ def build(write: bool = True) -> Report:
         [
             '**`lock_stat` answers "is the eye open", not "is this '
             'configuration usable"** — it does not separate a '
-            "correctly-scaled loop from a 32x under-driven one (F7). Judge "
+            "correctly-scaled loop from a 32x under-driven one "
+            f"({R.ref('locked_not_separate_scaling')}). Judge "
             "a "
             "configuration on EVM, and reserve `locked` for telemetry.",
             "**The caller owns the input level, and the axis is two-sided.** "
             "Over-drive is reported by `clipped` ONLY on a plan containing a "
-            "CIC, and there is no under-drive twin on any plan (§2.6, F11) — "
+            "CIC, and there is no under-drive twin on any plan (§2.6, "
+            f"{R.ref('get_clipped_overclaimed')}) — "
             "so the level contract is unenforced in both directions.",
             "**The T/2 ambiguity resolves itself.** Each parity’s S-curve "
             "carries one stable zero at the eye centre and one unstable at "
             "T/2, on BOTH detectors (§2.2), which is why no eye-sign detector "
             "is needed.",
-            "**Gardner carries A^2 and DTTL carries A^1** (§2.6b, F13): the "
+            "**Gardner carries A^2 and DTTL carries A^1** (§2.6b, "
+            f"{R.ref('amplitude_laws_differ')}): the "
             "two detectors do not share a level-error budget, so a gain error "
             "that is benign on one is four times worse on the other.",
-            "**DTTL’s low-SNR behaviour is unmeasured here** (F17). Nothing "
+            "**DTTL’s low-SNR behaviour is unmeasured here** "
+            f"({R.ref('dttl_low_snr_claim_unmeasurable')}). Nothing "
             "in this report adds noise, so its lower self-noise near lock is "
             "evidence for the noiseless case only.",
         ],

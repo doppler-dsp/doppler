@@ -64,7 +64,7 @@ There is no list here to update.
 
 | object                                                                                                                                 | module       | limits | findings | still open                 |
 | -------------------------------------------------------------------------------------------------------------------------------------- | ------------ | ------ | -------- | -------------------------- |
-| [acq](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/acquire/tests/validation/acq/results.md)                            | `acquire`    | 22/22  | 9        | 3 — F3, F6, F7             |
+| [acq](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/acquire/tests/validation/acq/results.md)                            | `acquire`    | 22/22  | 9        | 3 — F3, F4, F7             |
 | [BurstAcquisition](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/acquire/tests/validation/burst_acq/results.md)         | `acquire`    | 16/16  | 4        | none                       |
 | [BurstCapture](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/acquire/tests/validation/burst_capture/results.md)         | `acquire`    | 27/27  | 7        | 1 — F6                     |
 | [AGC](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/agc/tests/validation/agc/results.md)                                | `agc`        | 18/18  | 6        | 2 — F4, F6                 |
@@ -83,10 +83,10 @@ There is no list here to update.
 | [NCO](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/tests/validation/nco/results.md)                             | `source`     | 18/18  | 9        | none                       |
 | [Corr2D](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/spectral/tests/validation/corr2d/results.md)                     | `spectral`   | 18/18  | 6        | none                       |
 | [CorrDetector2D](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/spectral/tests/validation/detector2d/results.md)         | `spectral`   | 15/15  | 5        | none                       |
-| [PSD](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/spectral/tests/validation/psd/results.md)                           | `spectral`   | 22/22  | 16       | 4 — F11, F12, F14, F16     |
+| [PSD](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/spectral/tests/validation/psd/results.md)                           | `spectral`   | 24/24  | 16       | 3 — F11, F12, F14          |
 | [CarrierNda](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/carrier_nda/results.md)               | `track`      | 43/43  | 12       | 6 — F4, F5, F6, F7, F8, F9 |
 | [LoopFilter](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/loop_filter/results.md)               | `track`      | 26/26  | 10       | none                       |
-| [MpskReceiver](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/mpsk_receiver/results.md)           | `track`      | 63/63  | 8        | 2 — F6, F7                 |
+| [MpskReceiver](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/mpsk_receiver/results.md)           | `track`      | 63/63  | 8        | 2 — F5, F6                 |
 | [RateSync](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/ratesync/results.md)                    | `track`      | 36/36  | 17       | 2 — F7, F17                |
 | [EMA](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/util/tests/validation/ema/results.md)                               | `util`       | 15/15  | 6        | none                       |
 | [Gold](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/gold/results.md)                              | `wfm`        | 17/17  | 4        | 1 — F4                     |
@@ -101,7 +101,7 @@ There is no list here to update.
 | [conv](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/conv/results.md)                                  | `— (C only)` | 7/7    | 3        | none                       |
 | [The ring's framer](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/framer/results.md)                   | `— (C only)` | 19/19  | 6        | none                       |
 | [rs](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/rs/results.md)                                      | `— (C only)` | 11/11  | 4        | none                       |
-| [The Spectrogram](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/spectrogram/results.md)                | `— (C only)` | 35/35  | 11       | 1 — F7                     |
+| [The Spectrogram](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/spectrogram/results.md)                | `— (C only)` | 35/35  | 12       | none                       |
 | [wfmgen](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/wfmgen/results.md)                              | `— (C only)` | 18/18  | 9        | none                       |
 
 <!-- validation-log:end -->

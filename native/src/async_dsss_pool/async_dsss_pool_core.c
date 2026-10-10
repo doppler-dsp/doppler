@@ -227,10 +227,7 @@ dp_async_dsss_pool_push (dp_async_dsss_pool_state_t *s,
       s->sym_cap = need;
     }
 
-  /* 1. The searcher. */
-  size_t nh = dp_acq_push (s->acq, x, x_len, s->hits, s->max_peaks);
-
-  /* 2. The table: a tracking receiver's live coordinates -- each only
+  /* 1. The table: a tracking receiver's live coordinates -- each only
      while its own lock flag says the loop holds them: the carrier's
      Doppler under `locked`, the Dll's phase under `code_locked`. An
      unlocked loop free-runs (loop 1 wandered 800 Hz in a second on a
@@ -266,64 +263,76 @@ dp_async_dsss_pool_push (dp_async_dsss_pool_state_t *s,
         }
     }
 
-  /* 3. The hits: a live row's own -- at its code phase, whatever the
-     Doppler -- are dropped silently; the rest seed a free slot or are
-     counted dropped. A hit's phase is at its dwell's end,
-     inside this block; referred to the block's start, since the receiver
-     is fed the whole block. */
-  for (size_t h = 0; h < nh; h++)
+  /* 2. The searcher, and its hits. A push takes a frame that ends a dwell
+     only while that dwell's whole list (max_peaks) fits, so one call can
+     stop short of the block; it is offered the rest from dp_acq_consumed()
+     until it has taken all of it, so every dwell of the block is searched,
+     whatever the ones before it reported (#2019). With room for a whole
+     list, every call takes at least a frame. Each call's hits carry their
+     own stream position, so they are handled as they come: a live row's
+     own -- at its code phase, whatever the Doppler -- are dropped silently;
+     the rest seed a free slot or are counted dropped. A hit's phase is at
+     its dwell's end, inside this block; referred to the block's start,
+     since the receiver is fed the whole block. */
+  for (size_t off = 0; off < x_len;)
     {
-      acq_handoff_t ho;
-      dp_acq_build_handoff (s->acq, &s->hits[h], s->code_len, s->spc, &ho);
-      double offset = (double)(s->hits[h].samples_consumed - start);
-      double phase
-          = advanced_phase (s, ho.chip_phase, ho.doppler_hz_est, -offset);
-      int own = 0;
-      for (size_t i = 0; i < s->n_slots && !own; i++)
-        own = s->rows[i].assigned && in_zone (s, &s->rows[i], phase);
-      if (own)
-        continue;
-      size_t free_slot = s->n_slots;
-      for (size_t i = 0; i < s->n_slots; i++)
-        if (!s->rows[i].assigned
-            && dp_async_dsss_receiver_seed (s->rx[i], phase, ho.doppler_hz_est,
-                                            ho.cn0_dbhz_est)
-                   == DP_OK)
-          {
-            free_slot = i;
-            break;
-          }
-      if (free_slot == s->n_slots)
+      const size_t nh
+          = dp_acq_push (s->acq, x + off, x_len - off, s->hits, s->max_peaks);
+      off += dp_acq_consumed (s->acq);
+      for (size_t h = 0; h < nh; h++)
         {
-          s->dropped++;
-          emit (s, s->hits[h].samples_consumed, "dropped", s->n_slots,
-                ASYNC_DSSS_RX_IDLE, ho.doppler_hz_est, phase, ho.cn0_dbhz_est,
-                NULL);
-          continue;
+          acq_handoff_t ho;
+          dp_acq_build_handoff (s->acq, &s->hits[h], s->code_len, s->spc, &ho);
+          double offset = (double)(s->hits[h].samples_consumed - start);
+          double phase
+              = advanced_phase (s, ho.chip_phase, ho.doppler_hz_est, -offset);
+          int own = 0;
+          for (size_t i = 0; i < s->n_slots && !own; i++)
+            own = s->rows[i].assigned && in_zone (s, &s->rows[i], phase);
+          if (own)
+            continue;
+          size_t free_slot = s->n_slots;
+          for (size_t i = 0; i < s->n_slots; i++)
+            if (!s->rows[i].assigned
+                && dp_async_dsss_receiver_seed (
+                       s->rx[i], phase, ho.doppler_hz_est, ho.cn0_dbhz_est)
+                       == DP_OK)
+              {
+                free_slot = i;
+                break;
+              }
+          if (free_slot == s->n_slots)
+            {
+              s->dropped++;
+              emit (s, s->hits[h].samples_consumed, "dropped", s->n_slots,
+                    ASYNC_DSSS_RX_IDLE, ho.doppler_hz_est, phase,
+                    ho.cn0_dbhz_est, NULL);
+              continue;
+            }
+          async_dsss_pool_row_t *row = &s->rows[free_slot];
+          row->assigned              = 1;
+          row->seed_sample           = start;
+          row->seed_chip_phase       = phase;
+          row->seed_doppler_hz       = ho.doppler_hz_est;
+          row->seed_cn0_dbhz         = ho.cn0_dbhz_est;
+          row->doppler_hz            = ho.doppler_hz_est;
+          row->chip_phase            = phase;
+          row->prev_state            = ASYNC_DSSS_RX_REFINING;
+          row->prev_code = row->prev_sym = 0;
+          s->n_assigned++;
+          emit (s, s->hits[h].samples_consumed, "seeded", free_slot,
+                ASYNC_DSSS_RX_REFINING, ho.doppler_hz_est, phase,
+                ho.cn0_dbhz_est, NULL);
         }
-      async_dsss_pool_row_t *row = &s->rows[free_slot];
-      row->assigned              = 1;
-      row->seed_sample           = start;
-      row->seed_chip_phase       = phase;
-      row->seed_doppler_hz       = ho.doppler_hz_est;
-      row->seed_cn0_dbhz         = ho.cn0_dbhz_est;
-      row->doppler_hz            = ho.doppler_hz_est;
-      row->chip_phase            = phase;
-      row->prev_state            = ASYNC_DSSS_RX_REFINING;
-      row->prev_code = row->prev_sym = 0;
-      s->n_assigned++;
-      emit (s, s->hits[h].samples_consumed, "seeded", free_slot,
-            ASYNC_DSSS_RX_REFINING, ho.doppler_hz_est, phase, ho.cn0_dbhz_est,
-            NULL);
     }
 
-  /* 4. Every receiver, across the threads. */
+  /* 3. Every receiver, across the threads. */
   s->feed_x = x;
   s->feed_n = x_len;
   dp_pool_run (s->pool, s->n_slots, feed_one, s);
   s->samples_consumed = end;
 
-  /* 5. The transitions, and the releases. */
+  /* 4. The transitions, and the releases. */
   for (size_t i = 0; i < s->n_slots; i++)
     {
       async_dsss_pool_row_t *row = &s->rows[i];

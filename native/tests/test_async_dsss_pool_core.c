@@ -86,13 +86,19 @@ typedef struct
 } cap_t;
 
 static cap_t
-emitter (double doppler_hz, size_t delay, uint32_t seed)
+emitter_sym (double doppler_hz, size_t delay, uint32_t seed, size_t n_sym)
 {
   cap_t c;
-  dp_dsss_windowed_capture (g_code, SF, SPC, FS, TSYM, doppler_hz, CN0, N_SYM,
+  dp_dsss_windowed_capture (g_code, SF, SPC, FS, TSYM, doppler_hz, CN0, n_sym,
                             PRE_SILENCE + delay, seed, CELL_W_SYM, CELL_F_SYM,
                             &c.x, &c.n, &c.data);
   return c;
+}
+
+static cap_t
+emitter (double doppler_hz, size_t delay, uint32_t seed)
+{
+  return emitter_sym (doppler_hz, delay, seed, N_SYM);
 }
 
 /* The sum of two captures (the second's tail past the first's end is
@@ -597,6 +603,95 @@ _test_refusals (void)
   return 0;
 }
 
+/* A block of several dwells is searched WHOLE (doppler#2019). The searcher
+   takes a frame that ends a dwell only while that dwell's whole list fits
+   the pool's room for one (max_peaks), so a single push into it stops after
+   the first dwell that lists anything; the pool offers it the rest from
+   dp_acq_consumed() until it has taken all of it. With an emitter on the
+   air, nearly every dwell lists something, so:
+   - pushed in seeded random blocks of up to eight dwells, after EVERY push
+     the searcher's stream position -- the samples of the frames it has
+     taken, plus its carry -- is the pool's;
+   - pushed as ONE block, the emitter that switches on 0.3 s in is seeded in
+     that push: a "seeded" event in its row. Without the resume the search
+     ends at the first emitter's first dwell, and the second is never seen.
+   0.6 s of air, not the fixture's second: six code-only windows each side
+   of the switch-on are plenty, and the pool runs it twice.
+   Sabotage: one dp_acq_push per block -> both red. */
+static int
+_test_a_block_of_several_dwells_is_searched_whole (void)
+{
+  const size_t late  = (size_t)(0.3 * FS);
+  const size_t n_sym = (size_t)(0.6 * SYM_RATE);
+  cap_t        a     = emitter_sym (1500.0, 40, 301u, n_sym);
+  cap_t        b     = emitter_sym (-3500.0, late, 302u, n_sym);
+  cap_t        s     = sum2 (&a, &b);
+
+  dp_async_dsss_pool_state_t *p = make_pool (4, 1);
+  DP_REQUIRE (p != NULL);
+  const dp_acq_state_t *q = p->acq;
+  const size_t dwell = q->frame_n * (q->window_bins > 1 ? q->coherent_bins : 1)
+                       * (q->n_noncoh > 1 ? q->n_noncoh : 1);
+  uint32_t     r     = 2019u;
+  size_t       pushes = 0, behind = 0;
+  for (size_t pos = 0; pos < s.n; pushes++)
+    {
+      size_t m = 1 + dp_xs32 (&r) % (8 * dwell);
+      if (m > s.n - pos)
+        m = s.n - pos;
+      (void)dp_async_dsss_pool_push (p, s.x + pos, m);
+      pos += m;
+      if (q->samples_consumed + dp_f32_framer_pending (&q->framer)
+          != p->samples_consumed)
+        behind++;
+    }
+  DP_CHECK (pushes > 1);
+  DP_CHECK_MSG (behind == 0, "the searcher takes every block whole");
+  dp_async_dsss_pool_destroy (p);
+
+  char path[256];
+  (void)snprintf (path, sizeof path, "%s/dp_pool_whole_%d.events",
+                  dp_test_tmpdir (), (int)getpid ());
+  dp_event_log_t *log = dp_event_log_open (path, 0.0);
+  DP_REQUIRE (log != NULL);
+  dp_async_dsss_pool_state_t *w = make_pool (4, 1);
+  DP_REQUIRE (w != NULL);
+  DP_CHECK (dp_async_dsss_pool_set_event_log (w, log) == DP_OK);
+  (void)dp_async_dsss_pool_push (w, s.x, s.n);
+  DP_CHECK (w->acq->samples_consumed + dp_f32_framer_pending (&w->acq->framer)
+            == s.n);
+  const double res = w->acq->doppler_res_hz;
+  DP_CHECK (dp_async_dsss_pool_set_event_log (w, NULL) == DP_OK);
+  DP_CHECK (dp_event_log_close (log) == DP_OK);
+  FILE *f = fopen (path, "r");
+  DP_REQUIRE (f != NULL);
+  char   line[DP_EVENT_LOG_LINE_MAX];
+  size_t first = 0, second = 0;
+  while (fgets (line, sizeof line, f))
+    {
+      /* The pool's fields carry its namespace: "doppler:doppler_hz". */
+      static const char key[] = "doppler_hz\":";
+      const char       *d     = strstr (line, key);
+      if (!strstr (line, "\"seeded\"") || !d)
+        continue;
+      const double hz = strtod (d + strlen (key), NULL);
+      first += fabs (hz - 1500.0) <= res;
+      second += fabs (hz + 3500.0) <= res;
+    }
+  fclose (f);
+  DP_CHECK_MSG (first >= 1, "the emitter on from the start is seeded");
+  DP_CHECK_MSG (second >= 1, "and so is the one that switches on mid-block");
+  dp_event_log_destroy (log);
+  remove (path);
+  dp_async_dsss_pool_destroy (w);
+  free (s.x);
+  free (a.x);
+  free (a.data);
+  free (b.x);
+  free (b.data);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -604,6 +699,7 @@ main (void)
   (void)_test_arg_validation ();
   (void)_test_one_emitter_lifecycle ();
   (void)_test_two_emitters_and_a_full_pool ();
+  (void)_test_a_block_of_several_dwells_is_searched_whole ();
   (void)_test_event_log ();
   (void)_test_on_time_release_and_reset ();
   (void)_test_state_roundtrip ();

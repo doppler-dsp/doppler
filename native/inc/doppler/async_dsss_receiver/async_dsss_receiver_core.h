@@ -372,6 +372,10 @@ extern "C"
     uint64_t lost_confirm_samples; /**< lost_confirm_s at the input rate. */
     uint64_t state_samples;        /**< Running: samples fed since the
                                         current state was entered.       */
+    uint64_t refused_hits;         /**< Observational: searching hits the seed
+                                        domain refused as seeds, since create
+                                        or reset. Not in the blob: a restored
+                                        receiver counts from zero.       */
     uint64_t both_down_samples;    /**< Running: consecutive samples fed
                                         while tracking with BOTH lock
                                         flags down -- the release clock;
@@ -915,6 +919,10 @@ extern "C"
                                      without a break (the release clock);
                                      in lost it keeps counting -- samples
                                      since the flags dropped.             */
+    uint64_t refused_hits;      /**< Searching hits refused as seeds by the
+                                     seed domain (a Doppler at or past fs/2),
+                                     since create or reset. The search went on
+                                     over each one's tail.                */
   } async_dsss_receiver_status_t;
 
   /**

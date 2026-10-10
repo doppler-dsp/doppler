@@ -36,7 +36,7 @@
  * `released`. `seed()`'s own refusal on a receiver that is not idle is
  * the second guard behind the table, so a bookkeeping error cannot become
  * a double assignment. The transitions -- `seeded`, `tracking`, `degrade`,
- * `lost`, `released`, `dropped` -- are the log's annotations, at the
+ * `lost`, `released`, `dropped`, `refused` -- are the log's annotations, at the
  * sample they happened, with the slot, the receiver's state, the
  * Doppler, the chip phase and the C/N0 staged as `doppler:<name>` fields
  * beside the label (`core:label`).

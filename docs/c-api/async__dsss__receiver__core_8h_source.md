@@ -228,6 +228,7 @@ extern "C"
     double   lost_confirm_s;       
     uint64_t lost_confirm_samples; 
     uint64_t state_samples;        
+    uint64_t refused_hits;         
     uint64_t both_down_samples;    
     int      had_lock;             
     int      car_coasting;         
@@ -312,6 +313,7 @@ extern "C"
     double mpsk_last_error; 
     uint64_t state_samples; 
     uint64_t both_down_samples; 
+    uint64_t refused_hits;      
   } async_dsss_receiver_status_t;
 
   async_dsss_receiver_status_t dp_async_dsss_receiver_status (

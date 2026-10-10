@@ -45,7 +45,13 @@ adr_track_chain_ok (size_t code_len, double chip_rate, double symbol_rate,
                               ASYNC_DSSS_RX_DLL_SPACING, segments)
          && symbol_rate <= chip_rate && partials <= DLL_AID_MAX_PERIOD
          && (segments < 2 || partials < 2.0
-             || dp_dll_symbol_period_ok (segments, partials));
+             || (dp_dll_symbol_period_ok (segments, partials)
+                 /* set_symbol_period() also refuses a bandwidth whose gains
+                    overflow at the period's interval: the same check here,
+                    so the hand-off's set can never be refused (#2103). */
+                 && dp_loop_filter_params_ok (ASYNC_DSSS_RX_DLL_BN,
+                                              ASYNC_DSSS_RX_DLL_ZETA,
+                                              partials / (double)segments)));
 }
 
 /* MpskReceiver's terminal outputs per symbol (`m_out`), mirroring
@@ -1059,6 +1065,7 @@ dp_async_dsss_receiver_reset (dp_async_dsss_receiver_state_t *state)
   state->seed_doppler_hz_est = 0.0;
   state->doppler_hz_est      = 0.0;
   state->cn0_dbhz_est        = 0.0;
+  state->refused_hits        = 0;
 }
 
 size_t
@@ -1180,20 +1187,31 @@ dp_async_dsss_receiver_steps (dp_async_dsss_receiver_state_t *state,
 
       /* A hit is a seed the object made for itself -- the same path an
        * outside detection takes. dp_acq_build_handoff() folds the phase into
-       * [0, code_len), but not the Doppler: a hit at or past fs/2 is refused
-       * by the seed domain. Such a hit is no seed; the search goes on over
-       * the tail, exactly as it would after no hit. The refusal is handled
-       * here, not discarded, and nothing else needs it: the pool counts its
-       * own refused hits, and this receiver has no event log to count into. */
+       * [0, code_len), but not the Doppler: a hit at or past fs/2 is outside
+       * the seed domain. Such a hit is refused as a seed and counted in
+       * refused_hits; the search goes on over its tail, as it would after no
+       * hit. The pool logs its own refusals as "refused" events. */
       acq_handoff_t ho;
       dp_acq_build_handoff (state->acq, &hit, state->code_len, state->spc,
                             &ho);
-      if (dp_async_dsss_receiver_seed (state, ho.chip_phase, ho.doppler_hz_est,
-                                       ho.cn0_dbhz_est)
-          != DP_OK)
-        return dp_async_dsss_receiver_steps (state, tail, tail_len, out,
-                                             max_out);
-
+      if (!dp_async_dsss_receiver_seed_ok (state, ho.chip_phase,
+                                           ho.doppler_hz_est))
+        {
+          /* Refused: no seed, the receiver stays searching, and the refusal
+             is counted. This call already counted all of x, the tail
+             included, and the recursion below counts the tail again: take
+             the tail back out, so each input sample is counted once. (The
+             accepted branch needs no such step: seed() restarts the count
+             on entry to the refining state.) */
+          state->refused_hits++;
+          state->state_samples -= tail_len;
+          return dp_async_dsss_receiver_steps (state, tail, tail_len, out,
+                                               max_out);
+        }
+      /* Accepted: the domain was just checked, and the receiver is searching,
+         so the seed cannot refuse for either reason. */
+      (void)dp_async_dsss_receiver_seed (state, ho.chip_phase,
+                                         ho.doppler_hz_est, ho.cn0_dbhz_est);
       return dp_async_dsss_receiver_steps (state, tail, tail_len, out,
                                            max_out);
     }
@@ -1231,6 +1249,15 @@ dp_async_dsss_receiver_steps (dp_async_dsss_receiver_state_t *state,
       double refined_doppler_hz_est
           = state->seed_doppler_hz_est
             + (ca->ready ? ca->residual_hz : 0.0); /* give-up: unrefined */
+      /* The refined value is checked against the seed domain before the live
+         chain is built from it. A refusal is handled as a failed refine: the
+         hand-off keeps the seed's own Doppler, which the seed already passed.
+         Nothing is built under dp_xnn from an unchecked number, whatever
+         wrote it (the residual, a forged blob or a numeric overflow;
+         doppler#2103). */
+      if (!dp_async_dsss_receiver_seed_ok (state, state->seed_chip_phase,
+                                           refined_doppler_hz_est))
+        refined_doppler_hz_est = state->seed_doppler_hz_est;
 
       /* samples_consumed_refine: freq_refine.refine_seed_carrier_acq()'s
        * own elapsed-time formula, ported verbatim -- a resampled chain
@@ -1430,6 +1457,7 @@ dp_async_dsss_receiver_status (const dp_async_dsss_receiver_state_t *s)
     .mpsk_last_error   = dp_async_dsss_receiver_get_mpsk_last_error (s),
     .state_samples     = s->state_samples,
     .both_down_samples = s->both_down_samples,
+    .refused_hits      = s->refused_hits,
   };
   return r;
 }
@@ -1635,6 +1663,11 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
       || extra.car_carry_len > (uint64_t)s->tsamps
       || extra.cell != (uint8_t)(s->cell != 0)
       || extra.state > ASYNC_DSSS_RX_LOST)
+    return DP_ERR_INVALID;
+  /* A searching receiver has an acquisition engine to search with; a cell
+     receiver has none (acq is NULL), so the state is no state it can be in.
+     steps() would dereference that NULL. Refused before any write. */
+  if (extra.state == ASYNC_DSSS_RX_SEARCHING && !s->acq)
     return DP_ERR_INVALID;
   /* The seed fields are only ever what seed() accepted (or the zeros reset
      leaves), so a blob outside the seed domain is forged. Refused here,

@@ -276,6 +276,7 @@ result_fields = [
     { name = "mpsk_last_error", type = "double" },
     { name = "state_samples", type = "uint64_t" },
     { name = "both_down_samples", type = "uint64_t" },
+    { name = "refused_hits", type = "uint64_t" },
 ]
 single = true
 record_name = "ReceiverStatus"

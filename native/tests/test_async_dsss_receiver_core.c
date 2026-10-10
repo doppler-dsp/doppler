@@ -32,6 +32,7 @@
  * lost, not before, never at 0) and the flavor-keyed state round trip.
  */
 #include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
+#include "doppler/carrier_acq/carrier_acq_core.h" /* its blob magic, for forging */
 #include "doppler/doppler_channel/doppler_channel_core.h"
 #include "doppler/gold/gold_core.h" /* SPEC Gold-1023 for the Es/N0-floor sweep   */
 #include "dp_dsss_test.h"
@@ -2357,16 +2358,16 @@ _test_forged_seed_is_refused (void)
       unsigned char *blob = malloc (cb);
       dp_async_dsss_receiver_get_state (src, blob);
 
-      /* Locate the first occurrence of the value to forge, by its bytes. */
-      const double find = k == 0 ? forge[k].seed_phase : forge[k].seed_doppler;
-      unsigned char pat[sizeof (double)];
-      memcpy (pat, &find, sizeof pat);
-      size_t at = cb;
-      for (size_t i = 0; i + sizeof pat <= cb && at == cb; i++)
-        if (memcmp (blob + i, pat, sizeof pat) == 0)
-          at = i;
-      DP_CHECK (at < cb);
-      if (at < cb)
+      /* The seed field, by offset: the extra record follows the blob's header
+         (async_dsss_receiver_extra_t, in the public header), and the seed's
+         two doubles are named fields of it. */
+      const size_t at
+          = sizeof (dp_state_hdr_t)
+            + (k == 0 ? offsetof (async_dsss_receiver_extra_t, seed_chip_phase)
+                      : offsetof (async_dsss_receiver_extra_t,
+                                  seed_doppler_hz_est));
+      DP_CHECK (at + sizeof (double) <= cb);
+      if (at + sizeof (double) <= cb)
         {
           const double forged
               = k == 0 ? forge[k].forge_at_phase : forge[k].forge_at_doppler;
@@ -2393,6 +2394,62 @@ _test_forged_seed_is_refused (void)
       dp_async_dsss_receiver_destroy (src);
       dp_async_dsss_receiver_destroy (dst);
     }
+  return fails;
+}
+
+/* The hand-off's refined Doppler is checked against the seed domain before
+ * the live chain is built from it (doppler#2103). A seed and a residual can
+ * each be in range and sum past half the sample rate: here the seed is 4.998
+ * MHz (in range at fs = 10 MHz) and the estimator's residual is 5 kHz (in
+ * range at its own 10.8 kHz rate), so the sum is 5.003 MHz. The hand-off must
+ * keep the seed's own Doppler, not the sum. The estimator is forced ready by
+ * the blob, so the next steps() is the hand-off. Returns the number of failed
+ * checks. */
+static int
+_test_handoff_keeps_seed_doppler_in_domain (void)
+{
+  uint8_t  code[1023];
+  uint32_t cst = 13;
+  for (size_t i = 0; i < 1023; i++)
+    code[i] = (uint8_t)(dp_bit (&cst) > 0 ? 0u : 1u);
+  dp_async_dsss_receiver_state_t *src = dp_async_dsss_receiver_create (
+      code, 1023, 5.0e6, 2700.0, 2, 2, 45.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5, 4,
+      14.0, 64, 8, false, 100000, 2.5e9, 2.0);
+  dp_async_dsss_receiver_state_t *dst = dp_async_dsss_receiver_create (
+      code, 1023, 5.0e6, 2700.0, 2, 2, 45.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5, 4,
+      14.0, 64, 8, false, 100000, 2.5e9, 2.0);
+  DP_REQUIRE (src != NULL && dst != NULL);
+  const double seed_hz = 4.998e6, residual_hz = 5.0e3;
+  int          fails = 0;
+  DP_REQUIRE (dp_async_dsss_receiver_seed (src, 0.0, seed_hz, 45.0) == DP_OK);
+  const size_t   cb   = dp_async_dsss_receiver_state_bytes (src);
+  unsigned char *blob = malloc (cb);
+  dp_async_dsss_receiver_get_state (src, blob);
+  uint32_t magic = CARRIER_ACQ_STATE_MAGIC;
+  size_t   at    = cb;
+  for (size_t i = 0; i + sizeof magic <= cb && at == cb; i++)
+    if (memcmp (blob + i, &magic, sizeof magic) == 0)
+      at = i;
+  DP_CHECK (at < cb);
+  if (at < cb)
+    {
+      const size_t rec = at + sizeof (dp_state_hdr_t);
+      blob[rec + 32]   = 1; /* ready: the carrier_acq extra's ready byte */
+      memcpy (blob + rec + 40, &residual_hz, sizeof residual_hz);
+      DP_CHECK (dp_async_dsss_receiver_set_state (dst, blob) == DP_OK);
+      float _Complex x[1024] = { 0 }, out[1024];
+      (void)dp_async_dsss_receiver_steps (dst, x, 1024, out, 1024);
+      /* The seed's own Doppler, not seed + residual (past fs/2). */
+      if (dp_async_dsss_receiver_get_doppler_hz (dst) != seed_hz)
+        {
+          fprintf (stderr, "  hand-off Doppler %g, not the seed %g\n",
+                   dp_async_dsss_receiver_get_doppler_hz (dst), seed_hz);
+          fails++;
+        }
+    }
+  free (blob);
+  dp_async_dsss_receiver_destroy (src);
+  dp_async_dsss_receiver_destroy (dst);
   return fails;
 }
 
@@ -2447,11 +2504,108 @@ _test_seed_domain (void)
   return fails;
 }
 
+/* A forged carrier residual in an async blob is refused (doppler#2103). The
+ * carrier estimator's record sits inside the async blob under its own magic,
+ * and its residual is at a fixed offset in its extra record: four uint64
+ * fields, the ready byte and seven padding bytes, so byte 40 (the layout in
+ * carrier_acq_core.c's carrier_acq_extra_t). A residual of NaN, or one past
+ * half the sample rate, was restored unchecked and reached the hand-off's Dll
+ * build under dp_xnn. Asserted: each forged blob is refused. Returns the
+ * number of failed checks. */
+static int
+_test_forged_residual_refused (void)
+{
+  uint8_t  code[1023];
+  uint32_t cst = 13;
+  for (size_t i = 0; i < 1023; i++)
+    code[i] = (uint8_t)(dp_bit (&cst) > 0 ? 0u : 1u);
+  dp_async_dsss_receiver_state_t *src = dp_async_dsss_receiver_create (
+      code, 1023, 5.0e6, 2700.0, 2, 2, 45.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5, 4,
+      14.0, 64, 8, false, 100000, 2.5e9, 2.0);
+  DP_REQUIRE (src != NULL);
+  const size_t   cb   = dp_async_dsss_receiver_state_bytes (src);
+  unsigned char *blob = malloc (cb);
+  dp_async_dsss_receiver_get_state (src, blob);
+
+  /* Find the carrier estimator's record by its magic. */
+  uint32_t magic = CARRIER_ACQ_STATE_MAGIC;
+  size_t   at    = cb;
+  for (size_t i = 0; i + sizeof magic <= cb && at == cb; i++)
+    if (memcmp (blob + i, &magic, sizeof magic) == 0)
+      at = i;
+  int fails = 0;
+  DP_CHECK (at < cb);
+  const size_t residual = at + sizeof (dp_state_hdr_t) + 40;
+  const double nan = NAN, huge = 1.0e298;
+  const double forged[] = { nan, huge };
+  for (size_t k = 0; at < cb && k < 2; k++)
+    {
+      dp_async_dsss_receiver_state_t *dst = dp_async_dsss_receiver_create (
+          code, 1023, 5.0e6, 2700.0, 2, 2, 45.0, 1e-3, 0.9, 100.0, 4, 8, 0,
+          0.5, 4, 14.0, 64, 8, false, 100000, 2.5e9, 2.0);
+      DP_REQUIRE (dst != NULL);
+      unsigned char *bad = malloc (cb);
+      memcpy (bad, blob, cb);
+      memcpy (bad + residual, &forged[k], sizeof forged[k]);
+      if (dp_async_dsss_receiver_set_state (dst, bad) != DP_ERR_INVALID)
+        {
+          fprintf (stderr, "  forged residual accepted: %s\n",
+                   k == 0 ? "a NaN residual" : "a residual past fs/2");
+          fails++;
+        }
+      free (bad);
+      dp_async_dsss_receiver_destroy (dst);
+    }
+  free (blob);
+  dp_async_dsss_receiver_destroy (src);
+  return fails;
+}
+
+/* A cell receiver has no acquisition engine, so a blob that puts it in
+ * SEARCHING is refused (doppler#2103). The state byte is the first byte of
+ * the extra record (async_dsss_receiver_extra_t): forging it to SEARCHING
+ * gave a cell receiver a steps() that dereferenced a NULL acq. Asserted: the
+ * forged blob is refused, and the honest one still restores. Returns the
+ * number of failed checks. */
+static int
+_test_forged_cell_searching_refused (void)
+{
+  dp_async_dsss_receiver_state_t *src = dp_async_dsss_receiver_create_cell (
+      CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9, 4, 8, 0, 2.5e9, 1.0, 100,
+      0.125, 4);
+  dp_async_dsss_receiver_state_t *dst = dp_async_dsss_receiver_create_cell (
+      CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9, 4, 8, 0, 2.5e9, 1.0, 100,
+      0.125, 4);
+  DP_REQUIRE (src != NULL && dst != NULL);
+  const size_t   cb   = dp_async_dsss_receiver_state_bytes (src);
+  unsigned char *blob = malloc (cb);
+  dp_async_dsss_receiver_get_state (src, blob);
+  int fails = 0;
+  if (dp_async_dsss_receiver_set_state (dst, blob) != DP_OK)
+    {
+      fprintf (stderr, "  honest cell blob refused\n");
+      fails++;
+    }
+  blob[sizeof (dp_state_hdr_t)] = (unsigned char)ASYNC_DSSS_RX_SEARCHING;
+  if (dp_async_dsss_receiver_set_state (dst, blob) != DP_ERR_INVALID)
+    {
+      fprintf (stderr, "  forged cell SEARCHING blob accepted\n");
+      fails++;
+    }
+  free (blob);
+  dp_async_dsss_receiver_destroy (src);
+  dp_async_dsss_receiver_destroy (dst);
+  return fails;
+}
+
 int
 main (void)
 {
   (void)_test_arg_validation ();
+  DP_CHECK (_test_forged_cell_searching_refused () == 0);
   DP_CHECK (_test_seed_domain () == 0);
+  DP_CHECK (_test_forged_residual_refused () == 0);
+  DP_CHECK (_test_handoff_keeps_seed_doppler_in_domain () == 0);
   DP_CHECK (_test_forged_seed_is_refused () == 0);
   (void)_test_acquire_and_decode ();
   (void)_test_handoff_resumes_at_the_hit ();

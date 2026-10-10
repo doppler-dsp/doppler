@@ -670,7 +670,7 @@ void dp_carrier_nda_init (
 * `n` MA window divisor: window = sps/n samples (sps % n == 0, sps/n &lt;= BOXCAR\_MAX\_LEN). 
 * `m` Constellation order M (2, 4, 8).
 
-Unguarded, as the by-value path: the caller checks (bn, zeta) with [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok) first. Outside it the loop filter is not written at all  config\_loop refuses and changes nothing  so an in-place init leaves the gains unset (doppler#2103). 
+Unguarded, as the by-value path: the caller checks (bn, zeta) with [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok) first. Outside it the loop filter is not written at all  config\_loop refuses and changes nothing  so an in-place init leaves the gains and bn/zeta unset, since seed() zeroes integ (doppler#2103). 
 
 
         

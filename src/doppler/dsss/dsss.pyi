@@ -32,7 +32,7 @@ class PolynomialPhaseEstimate(tuple[float, float, float]):
         """winning-row peak-to-mean (rough confidence)."""
 
 @final
-class ReceiverStatus(tuple[int, float, float, float, float, int, int, float, float, float, float, int, int]):
+class ReceiverStatus(tuple[int, float, float, float, float, int, int, float, float, float, float, int, int, int]):
     """AsyncDsssReceiver's status record: state (0 searching, 1 refining, 2
     tracking, 3 idle, 4 lost), the live estimates, both lock flags, and the two
     clocks in input samples.
@@ -65,6 +65,8 @@ class ReceiverStatus(tuple[int, float, float, float, float, int, int, float, flo
         Input samples since `state` was entered.
     both_down_samples : int
         Input samples both flags have been down without a break (the release clock); in lost it keeps counting -- samples since the flags dropped.
+    refused_hits : int
+        Searching hits refused as seeds by the seed domain (a Doppler at or past fs/2), since create or reset. The search went on over each one's tail.
     """
 
     @property
@@ -124,6 +126,13 @@ class ReceiverStatus(tuple[int, float, float, float, float, int, int, float, flo
         """Input samples both flags have been down without a break (the release
         clock); in lost it keeps counting -- samples since the flags
         dropped.
+        """
+
+    @property
+    def refused_hits(self) -> int:
+        """Searching hits refused as seeds by the seed domain (a Doppler at or
+        past fs/2), since create or reset. The search went on over each one's
+        tail.
         """
 
 @final
@@ -276,7 +285,7 @@ class Despreader:
         parameter (need a non-empty code; for the code loop a finite init_chip,
         bn_code >= 0 and zeta > 0 both finite, whose loop gains come out
         finite, and 0 < spacing < len(code)/2; for the carrier loop bn_carrier
-        >= 0, finite; and finite loop gains for both)``.
+        >= 0, finite)``.
 
     Examples
     --------

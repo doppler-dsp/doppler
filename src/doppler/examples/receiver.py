@@ -168,6 +168,8 @@ def main() -> None:
     lat_min_ms = float("inf")
     lat_max_ms = 0.0
 
+    failed_in_a_row = 0  # receives that failed since the last frame
+
     # No timeout on recv(): it BLOCKS, which is what a dashboard wants --
     # it has nothing to do between frames. That is only safe because the
     # Interrupt guard is holding a C-level handler that unblocks the wait;
@@ -183,6 +185,27 @@ def main() -> None:
                 samples, hdr = sub.recv()
             except KeyboardInterrupt:
                 break
+            except EOFError:
+                # The publisher sent end-of-stream before stopping (wfmgen,
+                # uno-q's pub.c): it is done or restarting, and a dashboard
+                # waits for whoever publishes next, as receiver.c does
+                # (#2096). A restart's sequence goes back to 0, which
+                # SequenceCount does not count as a drop.
+                print("\n  End of stream from the publisher; waiting.")
+                sys.stdout.flush()
+                continue
+            except RuntimeError as exc:
+                # One failed receive -- the broker's slow-consumer signal,
+                # say: frames were lost and the next forward gap counts
+                # them, so carry on. Three with no frame between is a dead
+                # connection, and spinning on it helps nobody, so the third
+                # ends the run. receiver.c does the same.
+                failed_in_a_row += 1
+                print(f"  Receive failed ({exc}).", file=sys.stderr)
+                if failed_in_a_row >= 3:
+                    raise
+                continue
+            failed_in_a_row = 0
 
             now = get_timestamp_ns()
             n = int(hdr.get("num_samples", len(samples)))

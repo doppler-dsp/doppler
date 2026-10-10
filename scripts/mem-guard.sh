@@ -37,7 +37,9 @@
 # stderr. Either way the command runs; the guard never blocks the work.
 #
 #   MEM_GUARD_MAX     a lower ceiling for THIS command's own scope (e.g.
-#                     4G); the shared slice stays at 3/4 of MemTotal
+#                     4G); the shared slice stays at 3/4 of MemTotal. A
+#                     value systemd-run refuses (4GB) is dropped with a
+#                     warning, and the shared ceiling alone applies
 #   MEM_GUARD_PYTHON  interpreter for the probe; default python3
 #   MEM_GUARD=0       skip the guard entirely
 set -euo pipefail
@@ -75,9 +77,11 @@ systemd-run --user --scope -q -- true 2>/dev/null \
 # would arm a guard on a broken probe. `bytearray(b'x') * n` copies, so
 # every page is written and counted. Through a function with its stderr
 # redirected, so the kill is not announced by this shell as if it were the
-# command's. It runs under a SLICE ceiling, its own, because a slice ceiling
-# is what the command will be held to: proving a per-scope one would prove a
-# mechanism this script no longer uses.
+# command's. It runs under a SLICE ceiling, its own, because the shared slice
+# ceiling is what every guarded command is held to. A caller's MEM_GUARD_MAX
+# adds a per-scope ceiling nested under that slice, and the probe does not
+# prove that one separately: it can only lower a ceiling that is proved, so
+# where it is inert the shared ceiling still holds.
 #
 # OOMPolicy=continue keeps the expected kill from being reported as a failure:
 # the kernel still kills the probe (exit 137, which is the proof), but systemd
@@ -107,11 +111,23 @@ slice=doppler-guard.slice
 systemctl --user set-property --runtime "$slice" \
   MemoryMax="$max" MemorySwapMax=0 \
   || unguarded "could not set the ceiling on $slice" "$@"
+# A cap systemd-run cannot take (MEM_GUARD_MAX=4GB, any typo) fails the
+# exec below, and then the command never runs. So it is tried on `true`
+# first, and a refused one is dropped for the shared ceiling alone. That is
+# still a guarded run: `unguarded` here would throw away a ceiling that has
+# just been proved, over a bad request to go lower.
+if [ -n "$cap" ] \
+  && ! systemd-run --user --scope -q --slice="$slice" \
+    -p MemoryMax="$cap" -p MemorySwapMax=0 -- true >/dev/null; then
+  echo "mem-guard: systemd-run would not run under MemoryMax=$cap" \
+    "(MEM_GUARD_MAX); falling back to the shared ceiling alone" >&2
+  cap=
+fi
 if [ -n "$cap" ]; then
   # Nested: the scope can never exceed the slice, so a cap above the shared
   # ceiling simply leaves the shared ceiling in force.
   echo "mem-guard: ceiling $max, shared across $slice; this command" \
-    "capped at $cap" >&2
+    "capped at the lower of $cap and $max" >&2
   exec systemd-run --user --scope -q --slice="$slice" \
     -p MemoryMax="$cap" -p MemorySwapMax=0 -- "$@"
 fi

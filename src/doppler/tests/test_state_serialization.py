@@ -587,3 +587,46 @@ def test_state_blob_is_self_validating(name: str) -> None:
         obj.set_state(bytes([blob[0] ^ 0xFF]) + blob[1:])
     with pytest.raises(TypeError):  # not bytes
         obj.set_state(42)
+
+
+def test_dll_refused_blob_changes_nothing() -> None:
+    """A refused blob changes nothing on the instance that refused it
+    (doppler#2092).
+
+    A 4-segment Dll with the symbol aid on and a 49-segment one without it
+    have blobs of the same size (48*45 = 32*64 + 8*14 bytes), so the
+    binding's length check passes and the C restore is what refuses. It used
+    to read the whole struct in first and check after, leaving the refusing
+    instance with the blob's NULLs for its code and buffers. Asserted on the
+    SAME instance: refused, the same blob after as before, and it tracks on
+    exactly as an untouched twin does.
+    """
+    code = (np.arange(127, dtype=np.uint8) * 5 % 7 < 3).astype(np.uint8)
+
+    def make(segments: int) -> Any:
+        return Dll(
+            code=code,
+            sps=2,
+            init_chip=0.0,
+            bn=0.002,
+            zeta=0.707,
+            spacing=0.5,
+            segments=segments,
+        )
+
+    aided = make(4)
+    aided.set_symbol_period(13.5)
+    b, twin = make(49), make(49)
+    x = _stream(4 * 127 * 2, seed=3)
+    for o in (aided, b, twin):
+        o.steps(x)
+
+    blob = aided.get_state()
+    assert len(blob) == b.state_bytes()  # the collision the size check misses
+    before = b.get_state()
+    with pytest.raises(ValueError):
+        b.set_state(blob)
+    assert b.get_state() == before
+
+    y = _stream(4 * 127 * 2, seed=4)
+    assert np.array_equal(_track_feed(b, y), _track_feed(twin, y))

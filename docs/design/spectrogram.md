@@ -196,7 +196,9 @@ The Python face is **declarative or absent**. A `push` that returns
 is its only jm dependency: jm already sizes a `variable_output` method from
 its input through a two-argument `_max_out (state, n_in)`, which is
 `push_max_out`. Its `mode` defaults to `"power"`, and `"db"` is asked for by
-name, as in C. Until that release, the Spectrogram is a hand-owned C
+name, as in C. jm maps a string enum to the C value by position, so the face
+lists them in the constants' order: `power` (0, the zero value), then `db`
+(1). Until that release, the Spectrogram is a hand-owned C
 component (`[project].c_deps`); no hand-written binding stands in.
 
 ### 4.4 What it composes, and what it does not re-implement

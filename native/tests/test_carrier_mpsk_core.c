@@ -21,6 +21,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 /* Continuous M-PSK-at-symbol-rate signal with carrier residual f0
  * (cycles/sample), optional per-sample frequency ramp, and optional AWGN
@@ -331,6 +332,39 @@ main (void)
     free (rx);
     free (outA);
     free (outB);
+  }
+
+  /* A bad loop parameter is refused at create and by every setter, and a
+     refused retune changes nothing -- bn, zeta and the gains -- so the
+     getter never reports a bandwidth the loop is not running. A finite bn
+     of 1e200 overflows the gains to NaN, which the predicate now refuses
+     (doppler#2112). */
+  {
+    DP_CHECK (dp_carrier_mpsk_create (NAN, 0.707, 0.01, 16, 0.0, 4) == NULL);
+    DP_CHECK (dp_carrier_mpsk_create (1e200, 0.707, 0.01, 16, 0.0, 4) == NULL);
+    dp_carrier_mpsk_state_t *c
+        = dp_carrier_mpsk_create (0.05, 0.707, 0.01, 16, 0.0, 4);
+    DP_CHECK (c != NULL);
+    if (c)
+      {
+        const dp_loop_filter_state_t lf = c->lf;
+        const double                 bn = c->bn, zeta = c->zeta;
+        DP_CHECK (dp_carrier_mpsk_configure (c, NAN, 0.707) == DP_ERR_INVALID);
+        DP_CHECK (dp_carrier_mpsk_configure (c, 0.05, INFINITY)
+                  == DP_ERR_INVALID);
+        DP_CHECK (dp_carrier_mpsk_configure (c, 1e200, 0.707)
+                  == DP_ERR_INVALID);
+        /* Twice: a refusal must not compound (CarrierNda rescaled its
+           unchanged gains by 1/2pi on each). */
+        DP_CHECK (dp_carrier_mpsk_set_bn (c, NAN) == DP_ERR_INVALID);
+        DP_CHECK (dp_carrier_mpsk_set_bn (c, NAN) == DP_ERR_INVALID);
+        DP_CHECK (memcmp (&c->lf, &lf, sizeof lf) == 0);
+        DP_CHECK (c->bn == bn && c->zeta == zeta);
+        /* The control: a good retune is taken. */
+        DP_CHECK (dp_carrier_mpsk_configure (c, 0.02, 1.0) == DP_OK
+                  && c->bn == 0.02 && c->zeta == 1.0);
+        dp_carrier_mpsk_destroy (c);
+      }
   }
 
   DP_TEST_END ("test_carrier_mpsk_core");

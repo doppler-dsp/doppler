@@ -89,7 +89,9 @@ extern "C"
    * arguments with dp_dll_params_ok() (@p code_len, @p init_chip,
    * @p bn_code, @p zeta, @p spacing, one segment) first, as
    * dp_despreader_create() does. Outside it the code loop reads past the
-   * code (doppler#2103). The carrier loop's own check is doppler#2112.
+   * code (doppler#2103). Likewise the carrier loop's (@p bn_carrier,
+   * @p zeta) with dp_loop_filter_params_ok() at one update a symbol, or its
+   * gains go NaN (doppler#2112).
    *
    * @param ch              State to initialise.  Must be non-NULL.
    * @param code            Spreading code (0/1 chips), one period; borrowed.
@@ -363,7 +365,9 @@ extern "C"
 
   size_t dp_despreader_get_bit_phase (const dp_despreader_state_t *state);
   double dp_despreader_get_bn_carrier (const dp_despreader_state_t *state);
-  void   dp_despreader_set_bn_carrier (dp_despreader_state_t *state, double val);
+  /** @return DP_OK; DP_ERR_INVALID, changing nothing, outside the carrier
+   *          loop's domain (dp_costas_configure()). */
+  int    dp_despreader_set_bn_carrier (dp_despreader_state_t *state, double val);
   double dp_despreader_get_bn_code (const dp_despreader_state_t *state);
   /** @return DP_OK; DP_ERR_INVALID, changing nothing, outside the code
    *          loop's domain (dp_dll_configure()). */

@@ -273,6 +273,15 @@ main (void)
             == DP_ERR_INVALID);
       DP_CHECK (memcmp (lf, &held, sizeof held) == 0);
     }
+    /* The predicate is total: a finite bn whose gains overflow (th^2 = inf,
+       ki = inf/inf) is outside it, and a large one whose gains stay finite
+       is inside it, so it refuses exactly what would run NaN
+       (doppler#2128). */
+    DP_CHECK (!dp_loop_filter_params_ok (1e200, 0.707, 1.0));
+    DP_CHECK (dp_loop_filter_create (1e200, 0.707, 1.0) == NULL);
+    DP_CHECK (dp_loop_filter_configure (lf, 1e200, 0.707, 1.0)
+              == DP_ERR_INVALID);
+    DP_CHECK (dp_loop_filter_params_ok (1e100, 0.707, 1.0));
 
     /* configure and init are the same operation; a caller with an embedded
        state uses init and must get the identical result. */

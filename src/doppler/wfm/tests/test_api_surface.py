@@ -217,14 +217,14 @@ class TestSynthEngineLifecycle:
             assert e.steps(16).shape == (16,)
 
     @pytest.mark.parametrize("wtype", [2, 3, 4])  # PN, BPSK, QPSK
-    def test_set_wtype_refuses_a_generator_create_did_not_build(
+    def test_set_wtype_refuses_a_pn_type_without_a_pn_source(
         self, wtype: int
     ) -> None:
         """A tone engine has no PN source; switching it to a PN type used to
         segfault on the next step (#2095). It is refused instead, and the
         engine keeps its type and still runs."""
         e = w._SynthEngine(type="tone", fs=1e6, freq=1e3, snr=100.0)
-        with pytest.raises(ValueError, match="no generator"):
+        with pytest.raises(ValueError, match="PN source"):
             e.set_wtype(wtype)
         assert e.get_wtype() == 0
         assert e.steps(64).shape == (64,)
@@ -237,8 +237,51 @@ class TestSynthEngineLifecycle:
         with pytest.raises(ValueError, match="not a waveform type"):
             e.set_wtype(wtype)
         assert e.get_wtype() == 4
-        e.set_wtype(3)  # BPSK shares the PN source a QPSK engine built
-        assert e.get_wtype() == 3
+
+    @pytest.mark.parametrize("wtype", [0, 1, 5, 6, 7, 8])
+    def test_set_wtype_accepts_every_type_that_reads_no_pn(
+        self, wtype: int
+    ) -> None:
+        """The accepted side, pinned: a refusal that spread past the PN
+        types would turn these red."""
+        e = w._SynthEngine(type="tone", fs=1e6, freq=1e3, snr=100.0)
+        e.set_wtype(wtype)
+        assert e.get_wtype() == wtype
+
+    def test_set_wtype_accepts_pn_on_a_dsss_engine_with_a_pn_source(
+        self,
+    ) -> None:
+        e = w._SynthEngine(type="dsss", fs=1e6, snr=100.0)
+        e.set_wtype(2)
+        assert e.get_wtype() == 2
+        assert e.steps(64).shape == (64,)
+
+    @pytest.mark.parametrize("start", ["tone", "symbols"])
+    @pytest.mark.parametrize("wtype", [0, 1, 5])
+    def test_set_wtype_refuses_a_type_the_shaper_reads_as_pn(
+        self, start: str, wtype: int
+    ) -> None:
+        """Once set_rrc attaches a shaper, every type but symbols, bits and
+        dsss is shaped from the PN source: a tone engine switched to bits,
+        or one created as symbols, then shaped, used to segfault after
+        switching to tone, noise or chirp."""
+        e = w._SynthEngine(type=start, fs=1e6, freq=1e3, snr=100.0, sps=4)
+        if start == "tone":
+            e.set_wtype(6)  # bits: a symbol carrier the shaper takes
+        before = e.get_wtype()
+        e.set_rrc(np.array([1.0], dtype=np.float32))
+        with pytest.raises(ValueError, match="PN source"):
+            e.set_wtype(wtype)
+        assert e.get_wtype() == before
+        assert e.steps(64).shape == (64,)
+
+    @pytest.mark.parametrize("nsps", [0, -1])
+    def test_set_nsps_refuses_below_one(self, nsps: int) -> None:
+        """The modulated step divides by nsps: 0 was a division by zero."""
+        e = w._SynthEngine(type="qpsk", sps=4, snr=100.0)
+        with pytest.raises(ValueError, match=">= 1"):
+            e.set_nsps(nsps)
+        assert e.get_nsps() == 4
 
 
 class TestSynthLifecycle:

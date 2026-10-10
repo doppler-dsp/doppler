@@ -194,6 +194,13 @@ _SynthEngine_set_rrc (_SynthEngineObject *self, PyObject *args)
   int    rc = dp_wfm_synth_set_rrc (self->handle,
                                     (const float *)PyArray_DATA (taps), n);
   Py_DECREF (taps);
+  if (rc == DP_ERR_INVALID)
+    {
+      PyErr_SetString (PyExc_ValueError,
+                       "set_rrc: the shaper would read a PN source this "
+                       "engine has none of");
+      return NULL;
+    }
   if (rc != 0)
     {
       PyErr_SetString (PyExc_ValueError,
@@ -430,11 +437,20 @@ _SynthEngine_set_wtype (_SynthEngineObject *self, PyObject *args)
   int v = 0;
   if (!PyArg_ParseTuple (args, "i", &v))
     return NULL;
+  /* The range is the header's enum; the C call decides the rest. */
+  if (v < WFM_SYNTH_TONE || v > WFM_SYNTH_DSSS)
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "set_wtype(%d): not a waveform type (%d..%d)", v,
+                    WFM_SYNTH_TONE, WFM_SYNTH_DSSS);
+      return NULL;
+    }
   if (dp_wfm_synth_set_wtype (self->handle, v) != DP_OK)
     {
       PyErr_Format (PyExc_ValueError,
-                    "set_wtype(%d): not a waveform type, or one this "
-                    "engine's create() built no generator for",
+                    "set_wtype(%d): it would read a PN source this engine "
+                    "has none of (create() builds one for pn/bpsk/qpsk, and "
+                    "a shaper reads it for every type but symbols/bits/dsss)",
                     v);
       return NULL;
     }
@@ -463,7 +479,12 @@ _SynthEngine_set_nsps (_SynthEngineObject *self, PyObject *args)
   int v = 0;
   if (!PyArg_ParseTuple (args, "i", &v))
     return NULL;
-  dp_wfm_synth_set_nsps (self->handle, v);
+  if (dp_wfm_synth_set_nsps (self->handle, v) != DP_OK)
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "set_nsps(%d): samples per symbol must be >= 1", v);
+      return NULL;
+    }
   Py_RETURN_NONE;
 }
 
@@ -773,9 +794,12 @@ static PyMethodDef _SynthEngine_methods[] = {
     "synthesis path is active at runtime.\n" },
   { "set_wtype", (PyCFunction)_SynthEngine_set_wtype, METH_VARARGS,
     "Override the waveform type discriminant in-place. Changing wtype does "
-    "not reinitialise sub-objects, so a type whose generator create() did not "
-    "build is refused: PN, BPSK and QPSK need the PN source an engine created "
-    "as one of them (or as dsss) has.\n" },
+    "not reinitialise sub-objects, so a type that would read a PN source this "
+    "engine lacks is refused: PN, BPSK and QPSK read it, and so does every "
+    "type but symbols, bits and dsss once set_rrc has attached a shaper. "
+    "create() builds the source only for PN, BPSK and QPSK, and for dsss when "
+    "its length has an MLS polynomial. Raises ValueError from Python, naming "
+    "which of the two refusals it is.\n" },
   { "get_nsps", (PyCFunction)_SynthEngine_get_nsps, METH_NOARGS,
     "Return the samples-per-symbol count. For modulated types (BPSK, QPSK, "
     "PN) each symbol is held for nsps consecutive output samples.  For "

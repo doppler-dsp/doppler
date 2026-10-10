@@ -205,11 +205,12 @@ void dp_detector_set_threshold (dp_detector_state_t *state, float threshold);
  * the Python return list as (lag, peak_mag, noise_est, test_stat) tuples.
  * In Python the result is always a list, even when empty.
  *
- * Python's push() has room for 1024 detections a call.  A push that would
- * make more loses the detections past the 1024th, and the input that would
- * have made them: keep a chunk under 1024 frames.  Before v0.66 a push past
- * its room (64 then) kept the whole frames it had already buffered and
- * reported them on the next call; #1992 tracks sizing the list to the call.
+ * Python's push() has room for 1024 detections a call.  Once a push fills
+ * it, every later frame of that call is lost, whether or not it would have
+ * made a detection: keep a chunk under 1024 frames.  Before v0.66 the room
+ * was 64, and a push past it kept up to ring_cap/n - 1 of those frames for
+ * the next call and dropped the rest.  #1992 and
+ * just-buildit/just-makeit#2184 track sizing the list to the call.
  *
  * @param state        Allocated detector (non-NULL).
  * @param in           CF32 input chunk of arbitrary length.

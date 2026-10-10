@@ -69,14 +69,19 @@ ci_det_stream (float _Complex ref[N], float _Complex x[CI_LEN])
    dp_detector_consumed() until it is used up, and return the detections in
    got[]. Counts the calls that stopped short, the stops anywhere but one
    sample short of a frame (frames tile the stream from sample 0, and a full
-   push still takes the carry), and any call that wrote past its room. */
+   push still takes the carry), and any call that wrote past its room --
+   literally: the slot just past the room holds a byte pattern during the
+   call, and a call that changed it, or reports more than its room, counts.
+   got[] has room for got_len results. */
 static size_t
 ci_det_resume (dp_detector_state_t *d, const float _Complex *x, size_t len,
-               size_t cap, size_t max_chunk, det_result_t *got, size_t *stops,
-               size_t *wrong_stop, size_t *overfull)
+               size_t cap, size_t max_chunk, det_result_t *got, size_t got_len,
+               size_t *stops, size_t *wrong_stop, size_t *overfull)
 {
-  size_t   n_got = 0, off = 0;
-  uint32_t r = 0x1895u;
+  size_t       n_got = 0, off = 0;
+  uint32_t     r = 0x1895u;
+  det_result_t sentinel;
+  memset (&sentinel, 0xA5, sizeof sentinel);
   *stops = *wrong_stop = *overfull = 0;
   while (off < len)
     {
@@ -86,10 +91,16 @@ ci_det_resume (dp_detector_state_t *d, const float _Complex *x, size_t len,
       for (size_t end = off + m; off < end;)
         {
           const size_t offered = end - off;
+          const int    guard   = n_got + cap < got_len;
+          if (guard)
+            got[n_got + cap] = sentinel;
           const size_t k
               = dp_detector_push (d, x + off, offered, got + n_got, cap);
           const size_t took = dp_detector_consumed (d);
-          if (k > cap)
+          if (k > cap
+              || (guard
+                  && memcmp (&got[n_got + cap], &sentinel, sizeof sentinel)
+                         != 0))
             (*overfull)++;
           n_got += k;
           off += took;
@@ -400,7 +411,7 @@ main (void)
     static float _Complex x[CI_LEN];
     ci_det_stream (ref, x);
     const ci_det_cfg_t cfg = { ref, 1, 0, N - 1, DET_NOISE_MEAN, 0.0f };
-    det_result_t       want[CI_LEN / N + 1], got[CI_LEN / N + 1];
+    det_result_t       want[CI_LEN / N + 1], got[CI_LEN / N + 4];
 
     dp_detector_state_t *one = ci_det_create ((void *)&cfg);
     dp_detector_state_t *d   = ci_det_create ((void *)&cfg);
@@ -412,8 +423,9 @@ main (void)
     DP_CHECK (dp_detector_consumed (one) == CI_LEN); /* room: took all */
 
     size_t       stops, wrong_stop, overfull;
-    const size_t n_got = ci_det_resume (d, x, CI_LEN, 1, 3 * N, got, &stops,
-                                        &wrong_stop, &overfull);
+    const size_t n_got
+        = ci_det_resume (d, x, CI_LEN, 1, 3 * N, got, CI_LEN / N + 4, &stops,
+                         &wrong_stop, &overfull);
     DP_CHECK (stops > 0); /* the cap actually stopped some calls */
     DP_CHECK (wrong_stop == 0);
     DP_CHECK (overfull == 0);
@@ -454,7 +466,7 @@ main (void)
     for (size_t c = 0; c < sizeof cfgs / sizeof *cfgs; c++)
       for (size_t cap = 2; cap <= 3; cap++)
         {
-          det_result_t         want[CI_LEN / N + 1], got[CI_LEN / N + 1];
+          det_result_t         want[CI_LEN / N + 1], got[CI_LEN / N + 4];
           dp_detector_state_t *one = ci_det_create ((void *)&cfgs[c]);
           dp_detector_state_t *d   = ci_det_create ((void *)&cfgs[c]);
           DP_CHECK (one != NULL && d != NULL);
@@ -463,8 +475,9 @@ main (void)
           const size_t n_want
               = dp_detector_push (one, x, CI_LEN, want, CI_LEN / N + 1);
           size_t       stops, wrong_stop, overfull;
-          const size_t n_got = ci_det_resume (d, x, CI_LEN, cap, CI_LEN, got,
-                                              &stops, &wrong_stop, &overfull);
+          const size_t n_got
+              = ci_det_resume (d, x, CI_LEN, cap, CI_LEN, got, CI_LEN / N + 4,
+                               &stops, &wrong_stop, &overfull);
           DP_CHECK (stops > 0); /* the room actually stopped calls */
           DP_CHECK (wrong_stop == 0);
           DP_CHECK (overfull == 0);

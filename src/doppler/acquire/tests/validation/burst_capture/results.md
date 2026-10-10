@@ -183,7 +183,7 @@ Claims a caller may rely on. A failure here is a regression, not a new finding.
 | PASS | `retain_span` == `refine_span` + `burst_len` (5176 = 2728 + 2448) |
 | PASS | `preamble_start` is EXACT at every tested offset, including ones that are not a multiple of the code period (§2.2) |
 | PASS | the windows are bit-identical across block sizes from 333 samples to a push 1.6x the ring's capacity (§2.3) |
-| PASS | no sample is dropped by the history ring at any block size (§2.3) |
+| PASS | no look-back is abandoned at any block size (§2.3) |
 | PASS | `min_gap` is DERIVED — `refine_span + reps*code_period - burst_len` = 776 — rather than a constant that fits this geometry (§2.4) |
 | PASS | the sweep reaches 100% at 194 samples, at or below the derived `min_gap` of 776 — so the bound the object publishes is sufficient, not merely plausible (§2.4) |
 | PASS | `cn0_dbhz_est` separates a real window from a spurious one by more than 3 dB, so it is usable as the filter (§2.5) |

@@ -523,8 +523,9 @@ double dp_dsss_burst_receiver_get_est_rate_hz(const dp_dsss_burst_receiver_state
 double dp_dsss_burst_receiver_get_demod_cn0_dbhz(const dp_dsss_burst_receiver_state_t *state);
 double dp_dsss_burst_receiver_get_demod_timing_chips(const dp_dsss_burst_receiver_state_t *state);
 size_t dp_dsss_burst_receiver_get_pending(const dp_dsss_burst_receiver_state_t *state);
-/** @brief Samples the capture ring refused. Each is a LOST BURST, not a
- *  statistic -- a lifetime count that survives reset(). */
+/** @brief Samples of look-back the capture discarded while a queued burst
+ *  still needed them -- never refused input, which push() does not do. A
+ *  LOST BURST, not a statistic -- a lifetime count that survives reset(). */
 uint64_t dp_dsss_burst_receiver_get_dropped(const dp_dsss_burst_receiver_state_t *state);
 uint64_t dp_dsss_burst_receiver_get_n_bursts(const dp_dsss_burst_receiver_state_t *state);
 

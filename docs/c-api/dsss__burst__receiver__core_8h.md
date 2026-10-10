@@ -92,7 +92,7 @@ _DsssBurstReceiver — the burst chain composed in C._ [More...](#detailed-descr
 |  double | [**dp\_dsss\_burst\_receiver\_get\_demod\_timing\_chips**](#function-dp_dsss_burst_receiver_get_demod_timing_chips) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br> |
 |  double | [**dp\_dsss\_burst\_receiver\_get\_doppler\_hz\_est**](#function-dp_dsss_burst_receiver_get_doppler_hz_est) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br> |
 |  double | [**dp\_dsss\_burst\_receiver\_get\_doppler\_res\_hz**](#function-dp_dsss_burst_receiver_get_doppler_res_hz) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br> |
-|  uint64\_t | [**dp\_dsss\_burst\_receiver\_get\_dropped**](#function-dp_dsss_burst_receiver_get_dropped) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br>_Samples the capture ring refused. Each is a LOST BURST, not a statistic_  _a lifetime count that survives reset()._ |
+|  uint64\_t | [**dp\_dsss\_burst\_receiver\_get\_dropped**](#function-dp_dsss_burst_receiver_get_dropped) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br>_Samples of look-back the capture discarded while a queued burst still needed them_  _never refused input, which push() does not do. A LOST BURST, not a statistic_ _a lifetime count that survives reset()._ |
 |  double | [**dp\_dsss\_burst\_receiver\_get\_est\_freq\_hz**](#function-dp_dsss_burst_receiver_get_est_freq_hz) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br> |
 |  double | [**dp\_dsss\_burst\_receiver\_get\_est\_rate\_hz**](#function-dp_dsss_burst_receiver_get_est_rate_hz) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br> |
 |  bool | [**dp\_dsss\_burst\_receiver\_get\_frame\_valid**](#function-dp_dsss_burst_receiver_get_frame_valid) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br> |
@@ -598,7 +598,7 @@ double dp_dsss_burst_receiver_get_doppler_res_hz (
 
 ### function dp\_dsss\_burst\_receiver\_get\_dropped 
 
-_Samples the capture ring refused. Each is a LOST BURST, not a statistic_  _a lifetime count that survives reset()._
+_Samples of look-back the capture discarded while a queued burst still needed them_  _never refused input, which push() does not do. A LOST BURST, not a statistic_ _a lifetime count that survives reset()._
 ```C++
 uint64_t dp_dsss_burst_receiver_get_dropped (
     const dp_dsss_burst_receiver_state_t * state

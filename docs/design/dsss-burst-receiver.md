@@ -424,8 +424,10 @@ ______________________________________________________________________
 
 1. **Retain, do not re-derive.** Every stage reaches backwards from an end
     anchor, so the receiver owns a bounded history and reuses the existing
-    double-mapped ring rather than growing a new buffer type (§7.1). A
-    dropped sample is a lost burst, so an overrun must be loud.
+    double-mapped ring rather than growing a new buffer type (§7.1). Input
+    is never refused -- the ring takes what fits and the capture loops -- so
+    what can be lost is look-back a detection still needed. That is a lost
+    burst, so it must be loud: counted in `dropped`.
 
 ### 5.1 Non-goals
 
@@ -694,14 +696,24 @@ than mechanism (the primitive should not grow them):
 - **Addressing.** The ring is indexed by its own head/tail; the receiver
     works in stream-absolute sample positions. One conversion, in one place,
     is what keeps `preamble_start` meaning the same thing everywhere.
-- **Retention.** Nothing may be consumed while an in-flight burst or a
-    pending refine still needs it. This is the receiver's bookkeeping, and it
-    is what the sizing formula above has to be checked against.
-- **A loud overrun.** `dp_f32_write()` returns `false` and bumps a `dropped`
-    counter on overrun. For a streaming FIFO that is a statistic; here a
-    dropped sample is a **lost burst**, so it has to surface as an error a
-    caller sees, not a counter nobody reads. Same reasoning as
-    `Report.capture`'s refusal to file a capture with a hole.
+- **Retention.** Nothing is consumed while an in-flight burst or a pending
+    refine still needs it. This is the receiver's bookkeeping, and it is what
+    the sizing formula above has to be checked against. The one exception is
+    a detection that can never be emitted because its history is already
+    gone: it would pin the ring until the stream stopped, so it is
+    abandoned, and the look-back it held is counted as lost. Trim is still
+    the only place history is released.
+- **No overrun; a loud loss.** `dp_f32_write()` is all-or-nothing, right for
+    a frame and wrong for a stream: a refused chunk was skipped by history
+    AND by acquisition, so every later epoch came out early by exactly what
+    was refused, silently (#2015), and an emit order that let a complete
+    burst pin the ring made the first refusal permanent (#2028). The capture
+    writes what fits (`dp_f32_write_some()`) and loops, so the ring head,
+    what acquisition has absorbed and the stream position are one number. A
+    partial write is not a loss. Loud means an abandoned detection, counted
+    in `dropped` -- a **lost burst**, an error a caller sees rather than a
+    statistic. Same reasoning as `Report.capture`'s refusal to file a
+    capture with a hole.
 
 The cost is one `memcpy` of the stream into the receiver's ring, on top of
 acq's own. Whether that is worth eliminating — by giving `acq` a retention

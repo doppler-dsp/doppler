@@ -1308,8 +1308,11 @@ static PyGetSetDef PersistentBurstCapture_getset[] = {
     "identical to \"nothing was ever there\".\n",
     NULL },
   { "dropped", (getter)PersistentBurstCapture_getprop_dropped, NULL,
-    "Samples the history ring refused, lifetime. A LOST BURST each, not a "
-    "statistic -- it survives reset().\n",
+    "Samples of look-back discarded while a queued detection still needed "
+    "them, lifetime. push() never refuses input: this moves only when a "
+    "detection that can never be emitted is let go so the ring can take the "
+    "stream, or when set_state() restores one its blob's look-back cannot "
+    "reach. A LOST BURST each, not a statistic -- it survives reset().\n",
     NULL },
   { "n_bursts", (getter)PersistentBurstCapture_getprop_n_bursts, NULL,
     "Windows emitted, lifetime.\n", NULL },

@@ -43,6 +43,27 @@ ci_det_push (void *obj, const void *in, size_t n, void *out, size_t out_cap)
                            out_cap);
 }
 
+/* The stream both stream tests read: a random QPSK reference at irregular
+   offsets in noise, so the lags and statistics differ from frame to frame.
+   CI_LEN is 37 frames and a partial one. */
+#define CI_LEN (37 * N + 21)
+static void
+ci_det_stream (float _Complex ref[N], float _Complex x[CI_LEN])
+{
+  uint32_t st = 0x1895u;
+  for (size_t i = 0; i < N; i++)
+    {
+      const float re = (float)dp_bit (&st);
+      const float im = (float)dp_bit (&st);
+      ref[i]         = re + I * im;
+    }
+  for (size_t i = 0; i < CI_LEN; i++)
+    x[i] = 0.4f * dp_cgauss (&st);
+  for (size_t at = 17; at + N <= CI_LEN; at += 3 * N + 29)
+    for (size_t i = 0; i < N; i++)
+      x[at + i] += ref[i];
+}
+
 /* Exact, field by field: det_result_t has padding after its size_t and
    three floats, and the harness's default memcmp would compare that too.
    Each float is compared by its bytes, so -0.0 and +0.0 still differ. */
@@ -280,9 +301,12 @@ main (void)
     (void)dp_detector_push (a, in, 24, res, 16);
     DP_STATE_ROUNDTRIP_TEST (dp_detector, a, b);
     DP_CHECK (b->corr->count == a->corr->count); /* corr child resumed */
-    DP_CHECK ((DP_LOAD_ACQ (&b->ring->head) - DP_LOAD_RLX (&b->ring->tail))
-              == (DP_LOAD_ACQ (&a->ring->head)
-                  - DP_LOAD_RLX (&a->ring->tail))); /* ring residual */
+    /* the carry: 24 samples at n = 16 is one frame and 8 left over */
+    DP_CHECK (dp_f32_framer_pending (&a->framer) == 8);
+    DP_CHECK (dp_f32_framer_pending (&b->framer)
+              == dp_f32_framer_pending (&a->framer));
+    DP_CHECK (dp_detector_consumed (a) == 24); /* the push took all of in */
+    DP_CHECK (dp_detector_consumed (b) == 0);  /* set_state: no last push */
     DP_CHECK (b->_last_corr_valid == a->_last_corr_valid);
     dp_detector_destroy (a);
     dp_detector_destroy (b);
@@ -292,27 +316,11 @@ main (void)
    * not of how push() calls cut it. A partial frame is carried between
    * calls, and so is a dwell's coherent sum, so both are exercised: every
    * frame firing (dwell 1, threshold 0), and a gated dwell of 4 under the
-   * median estimator. The reference sits at irregular offsets in noise, so
-   * the lags and statistics differ from frame to frame. */
+   * median estimator. */
   {
-    enum
-    {
-      LEN = 37 * N + 21
-    };
-    uint32_t st = 0x1895u;
     float _Complex ref[N];
-    static float _Complex x[LEN];
-    for (size_t i = 0; i < N; i++)
-      {
-        const float re = (float)dp_bit (&st);
-        const float im = (float)dp_bit (&st);
-        ref[i]         = re + I * im;
-      }
-    for (size_t i = 0; i < LEN; i++)
-      x[i] = 0.4f * dp_cgauss (&st);
-    for (size_t at = 17; at + N <= LEN; at += 3 * N + 29)
-      for (size_t i = 0; i < N; i++)
-        x[at + i] += ref[i];
+    static float _Complex x[CI_LEN];
+    ci_det_stream (ref, x);
 
     const ci_det_cfg_t cfgs[] = {
       { ref, 1, 0, N - 1, DET_NOISE_MEAN, 0.0f },
@@ -329,12 +337,83 @@ main (void)
           .arg      = (void *)&cfgs[c],
           .in_size  = sizeof (float _Complex),
           .out_size = sizeof (det_result_t),
-          .out_cap  = LEN / N + 1,
+          .out_cap  = CI_LEN / N + 1,
           .equal    = ci_det_equal,
           .frame_n  = N,
         };
-        DP_CHECK (dp_chunk_invariance (&spec, x, LEN) == 0);
+        DP_CHECK (dp_chunk_invariance (&spec, x, CI_LEN) == 0);
       }
+  }
+
+  /* stop and resume: a full result[] stops a push and never loses input.
+   * Every frame fires (dwell 1, threshold 0), so room for ONE detection
+   * fills on every frame. Offering the stream in seeded random chunks, each
+   * re-offered from dp_detector_consumed() until it is used up, must give
+   * exactly the detections of one push with room for all of them. And each
+   * stopped call must have taken everything before the sample that would
+   * complete a frame it had no room for: the frames tile the stream from
+   * sample 0, so it stops with the stream position one short of a frame. */
+  {
+    float _Complex ref[N];
+    static float _Complex x[CI_LEN];
+    ci_det_stream (ref, x);
+    const ci_det_cfg_t cfg = { ref, 1, 0, N - 1, DET_NOISE_MEAN, 0.0f };
+    det_result_t       want[CI_LEN / N + 1], got[CI_LEN / N + 1];
+
+    dp_detector_state_t *one = ci_det_create ((void *)&cfg);
+    dp_detector_state_t *d   = ci_det_create ((void *)&cfg);
+    DP_CHECK (one != NULL && d != NULL);
+    DP_CHECK (d != NULL && dp_detector_consumed (d) == 0); /* after create */
+    const size_t n_want
+        = dp_detector_push (one, x, CI_LEN, want, CI_LEN / N + 1);
+    DP_CHECK (n_want == CI_LEN / N);                 /* every frame fired */
+    DP_CHECK (dp_detector_consumed (one) == CI_LEN); /* room: took all */
+
+    size_t   n_got = 0, off = 0, stops = 0, wrong_stop = 0;
+    uint32_t r = 0x1895u;
+    while (off < CI_LEN)
+      {
+        size_t m = 1 + dp_xs32 (&r) % (3 * N);
+        if (m > CI_LEN - off)
+          m = CI_LEN - off;
+        for (size_t end = off + m; off < end;)
+          {
+            const size_t offered = end - off;
+            const size_t k
+                = dp_detector_push (d, x + off, offered, got + n_got, 1);
+            const size_t took = dp_detector_consumed (d);
+            n_got += k;
+            off += took;
+            if (took < offered)
+              {
+                stops++;
+                if (off % N != N - 1)
+                  wrong_stop++;
+              }
+            if (took == 0) /* cannot happen with room for one: stop the */
+              {            /* loop rather than spin, and fail below    */
+                off = CI_LEN;
+                break;
+              }
+          }
+      }
+    DP_CHECK (stops > 0); /* the cap actually stopped some calls */
+    DP_CHECK (wrong_stop == 0);
+    DP_CHECK (n_got == n_want);
+    DP_CHECK (n_got == n_want && ci_det_equal (got, want, n_want));
+    dp_detector_reset (d);
+    DP_CHECK (dp_detector_consumed (d) == 0); /* after reset */
+
+    /* Room for none: input that completes no frame is still taken whole --
+     * it is the carry -- and the sample that would complete frame 0 is not.
+     * Resumed with room for one, that frame's hit is the one-shot's first. */
+    DP_CHECK (dp_detector_push (d, x, 3 * N, got, 0) == 0);
+    DP_CHECK (dp_detector_consumed (d) == N - 1);
+    DP_CHECK (dp_detector_push (d, x + N - 1, 2 * N, got, 1) == 1);
+    DP_CHECK (dp_detector_consumed (d) == N); /* frame 0, then the carry */
+    DP_CHECK (ci_det_equal (got, want, 1));
+    dp_detector_destroy (one);
+    dp_detector_destroy (d);
   }
 
   DP_TEST_END ("test_detector_core");

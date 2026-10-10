@@ -3,7 +3,7 @@
  * @brief 1-D signal detector implementation.
  *
  * The core data path is:
- *   push(x[M]) → ring buffer → non-blocking drain →
+ *   push(x[M]) → the ring's framer, one n-sample frame at a time →
  *   dp_corr_execute (FFT correlator + int-dump) →
  *   |·|² + argmax → noise estimate → threshold gate → det_result_t[]
  *
@@ -92,6 +92,9 @@ dp_detector_create (const float _Complex *ref, size_t n, size_t dwell,
   if (!state->ring)
     goto fail;
   state->ring_cap = state->ring->capacity;
+  /* Frames of n at hop n: the correlator's frames tile the stream. */
+  if (dp_f32_framer_init (&state->framer, state->ring, n, n) != DP_OK)
+    goto fail;
 
   state->corr = dp_corr_create (ref, n, dwell, nthreads, 0);
   if (!state->corr)
@@ -135,22 +138,21 @@ dp_detector_destroy (dp_detector_state_t *state)
 void
 dp_detector_reset (dp_detector_state_t *state)
 {
-  /* Drain the ring by resetting head/tail via atomic stores. */
-  DP_STORE_REL (&state->ring->head, 0);
-  DP_STORE_REL (&state->ring->tail, 0);
+  dp_f32_framer_reset (&state->framer);
   dp_corr_reset (state->corr);
   state->_last_corr_valid = 0;
+  state->consumed         = 0;
 }
 
-/* Serializable state — the corr child (restored, not reset) + the input
- * ring's unconsumed samples (zero-padded to ring_cap so the blob is canonical)
- * + the last-dump result fields. Mirrors acq's ring serialization. */
+/* Serializable state — the corr child (restored, not reset) + the framer's
+ * carry as its own child blob (fixed-size for a given n, and self-validating)
+ * + the last-dump result fields. consumed is per-call output, not state. */
 size_t
 dp_detector_state_bytes (const dp_detector_state_t *s)
 {
   return sizeof (dp_state_hdr_t) + dp_corr_state_bytes (s->corr)
-         + sizeof (uint64_t) + s->ring_cap * sizeof (float _Complex)
-         + sizeof (uint64_t) + 3 * sizeof (float) + sizeof (uint32_t);
+         + dp_f32_framer_state_bytes (&s->framer) + sizeof (uint64_t)
+         + 3 * sizeof (float) + sizeof (uint32_t);
 }
 
 void
@@ -159,19 +161,7 @@ dp_detector_get_state (const dp_detector_state_t *s, void *blob)
   DP_GET_OPEN (DETECTOR_STATE_MAGIC, DETECTOR_STATE_VERSION,
                dp_detector_state_bytes (s));
   DP_W_CHILD (&_w, dp_corr, s->corr);
-  size_t h   = DP_LOAD_ACQ (&s->ring->head);
-  size_t t   = DP_LOAD_RLX (&s->ring->tail);
-  size_t nun = h - t;
-  dp_w_u64 (&_w, nun);
-  for (size_t i = 0; i < nun; i++)
-    {
-      size_t idx = (t + i) & s->ring->mask;
-      float _Complex v
-          = s->ring->data[idx * 2] + I * s->ring->data[idx * 2 + 1];
-      dp_w_cf32 (&_w, &v, 1);
-    }
-  for (size_t i = nun; i < s->ring_cap; i++)
-    dp_w_u64 (&_w, 0); /* zero-pad the unused ring region */
+  DP_W_CHILD (&_w, dp_f32_framer, &s->framer);
   dp_w_u64 (&_w, s->peak_lag);
   dp_w_f32 (&_w, &s->peak_mag, 1);
   dp_w_f32 (&_w, &s->noise_est, 1);
@@ -185,20 +175,13 @@ dp_detector_set_state (dp_detector_state_t *s, const void *blob)
   DP_SET_OPEN (DETECTOR_STATE_MAGIC, DETECTOR_STATE_VERSION,
                dp_detector_state_bytes (s));
   DP_R_CHILD (&_r, dp_corr, s->corr);
-  size_t nun = (size_t)dp_r_u64 (&_r);
-  if (nun > s->ring_cap)
-    return DP_ERR_INVALID;
-  DP_STORE_REL (&s->ring->head, 0);
-  DP_STORE_REL (&s->ring->tail, 0);
-  const float _Complex *src = (const float _Complex *)(_r.buf + _r.off);
-  if (nun)
-    dp_f32_write (s->ring, (const float *)src, nun);
-  _r.off += s->ring_cap * sizeof (float _Complex); /* skip ring + pad */
+  DP_R_CHILD (&_r, dp_f32_framer, &s->framer);
   s->peak_lag = (size_t)dp_r_u64 (&_r);
   dp_r_f32 (&_r, &s->peak_mag, 1);
   dp_r_f32 (&_r, &s->noise_est, 1);
   dp_r_f32 (&_r, &s->test_stat, 1);
   s->_last_corr_valid = (int)dp_r_u32 (&_r);
+  s->consumed         = 0;
   return DP_OK;
 }
 
@@ -222,43 +205,31 @@ dp_detector_push (dp_detector_state_t *state, const float _Complex *in,
                   size_t n_in, det_result_t *result, size_t max_results)
 {
   size_t ndet = 0;
-  size_t off  = 0; /* samples consumed from in[] */
+  size_t off  = 0; /* samples taken from in[] */
 
-  while (off < n_in && ndet < max_results)
+  /* A frame yields at most one detection, so the framer is fed only what
+   * completes as many frames as result still has room for -- and once it
+   * is full, only what completes none: the carry. A sample is therefore
+   * taken unless it would complete a frame result has no room for; that
+   * sample and every one after it are left for the caller, who resumes at
+   * in + dp_detector_consumed(). Feeding the whole room at once rather than
+   * a frame at a time stops at the same sample (each fed frame can take at
+   * most one slot) with one copy per batch instead of one per frame. Every
+   * frame fed is drained before the next feed, so the framer is drained
+   * whenever this returns: the carry is fewer than n samples and the state
+   * blob has a fixed size. */
+  for (;;)
     {
-      /* ── Write a chunk into the ring ──────────────────────────────── */
-      size_t head     = DP_LOAD_RLX (&state->ring->head);
-      size_t tail     = DP_LOAD_ACQ (&state->ring->tail);
-      size_t space    = state->ring->capacity - (head - tail);
-      size_t to_write = n_in - off;
-      if (to_write > space)
-        to_write = space;
-
-      if (to_write > 0)
+      if (off < n_in)
+        off += dp_f32_framer_feed_view (&state->framer, in + off, n_in - off,
+                                        max_results - ndet);
+      size_t                drained = 0;
+      const float _Complex *frame; /* into the ring, contiguous across wrap */
+      while ((frame = dp_f32_framer_next_view (&state->framer)) != NULL)
         {
-          /* dp_f32_t treats each "sample" as one complex (2 floats);
-           * casting to float* satisfies the API. */
-          dp_f32_write (state->ring, (const float *)(in + off), to_write);
-          off += to_write;
-        }
-
-      /* ── Drain complete frames ────────────────────────────────────── */
-      while (ndet < max_results)
-        {
-          size_t h = DP_LOAD_ACQ (&state->ring->head);
-          size_t t = DP_LOAD_RLX (&state->ring->tail);
-          if (h - t < state->n)
-            break; /* not enough for a frame */
-
-          /* Zero-copy frame pointer: double-mapping guarantees contiguity
-           * even when the frame wraps around the buffer boundary. */
-          float _Complex *frame
-              = (float _Complex *)(state->ring->data
-                                   + (t & state->ring->mask) * 2);
+          drained++;
           size_t n_out = dp_corr_execute (state->corr, frame, state->n,
                                           state->out_buf, state->n);
-          dp_f32_consume (state->ring, state->n);
-
           if (n_out == 0)
             continue; /* still accumulating — no dump yet */
 
@@ -272,14 +243,16 @@ dp_detector_push (dp_detector_state_t *state, const float _Complex *in,
                                     state->noise_est, state->test_stat };
             }
         }
-
-      /* Safety: if we wrote nothing and drained nothing we'd spin forever.
-       * In practice: space==0 only when ring is full, which implies at
-       * least one complete frame (ring_cap >= n), so the drain loop always
-       * makes progress.  This break handles pathological cases. */
-      if (to_write == 0)
-        break;
+      if (!drained)
+        break; /* the input is used up, or the next frame has no room */
     }
 
+  state->consumed = off;
   return ndet;
+}
+
+size_t
+dp_detector_consumed (const dp_detector_state_t *state)
+{
+  return state->consumed;
 }

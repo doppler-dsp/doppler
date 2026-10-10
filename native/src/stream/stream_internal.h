@@ -89,8 +89,6 @@ void dp_reasm_abandon (dp_reasm_t *r);
  * no stream (#2039) and ends the receive, so it ends the frame too. */
 void dp_reasm_unchunked (dp_reasm_t *r, const dp_header_t *hdr);
 
-/* NATS-backed context.  Opaque nats.c handles are held as void* so this
- * header stays nats.h-free; stream_nats.c casts them back. */
 /* The tie between a context and the messages it handed out (#2016). A
    natsMsg does not keep its subscription alive, and nats.c's ack reads the
    subscription, its JetStream context and its connection (js.c's _ackMsg),
@@ -100,6 +98,8 @@ void dp_reasm_unchunked (dp_reasm_t *r, const dp_header_t *hdr);
    NATS backend links, and stream_core.c never needs to see one. */
 typedef struct dp_msg_link dp_msg_link_t;
 
+/* NATS-backed context.  Opaque nats.c handles are held as void* so this
+ * header stays nats.h-free; stream_nats.c casts them back. */
 struct dp_nats_state
 {
   void      *conn;            /* natsConnection *                            */

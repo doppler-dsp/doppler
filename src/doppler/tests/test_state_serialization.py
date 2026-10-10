@@ -339,6 +339,12 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
         lambda: AccTrace(n=8, mode="mean", alpha=0.1),
         _acctrace_feed,
     ),
+    # A mode that READS alpha: mean ignores it, so only exp shows a blob
+    # that resumes with the wrong smoothing (#2000).
+    "AccTraceExp": (
+        lambda: AccTrace(n=8, mode="exp", alpha=0.25),
+        _acctrace_feed,
+    ),
     "HalfbandDecimatorQ15": (
         lambda: HalfbandDecimatorQ15(_HB_TAPS),
         lambda o, seg: np.array(

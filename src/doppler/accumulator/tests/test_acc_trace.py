@@ -1,3 +1,5 @@
+import struct
+
 import numpy as np
 import pytest
 
@@ -94,6 +96,56 @@ def test_exp_setter_keeps_alpha_on_refusal(alpha):
     a.accumulate(np.array([10.0, 20.0], dtype=np.float32))
     a.accumulate(np.array([2.0, 4.0], dtype=np.float32))
     np.testing.assert_allclose(a.value(), [6.0, 12.0])
+
+
+# The blob: a 16-byte dp_state_hdr_t, the u64 fold count, then alpha.
+_ALPHA_AT = 16 + 8
+
+
+def test_state_carries_a_runtime_alpha():
+    # alpha can change after create, so it travels in the blob (#2000). A
+    # resume into an instance built with the ORIGINAL alpha -- the documented
+    # path, create with the same config then set_state -- used to go on
+    # averaging with that one: 2.0 against 1.2 after one more frame.
+    first = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float32)
+    after = np.array([9.0, 7.0, 5.0, 3.0], dtype=np.float32)
+    a = AccTrace(n=4, mode="exp", alpha=0.1)
+    a.accumulate(first)
+    a.alpha = 0.5
+    b = AccTrace(n=4, mode="exp", alpha=0.1)
+    b.set_state(a.get_state())
+    assert b.alpha == 0.5
+    a.accumulate(after)
+    b.accumulate(after)
+    assert np.array_equal(a.value(), b.value())
+
+
+@pytest.mark.parametrize("alpha", BAD_ALPHAS)
+def test_state_refuses_an_alpha_the_setter_would(alpha):
+    # A blob cannot install what dp_acc_trace_set_alpha refuses, and a
+    # refused blob leaves the state as it was.
+    a = AccTrace(n=4, mode="exp", alpha=0.1)
+    a.accumulate(np.ones(4, dtype=np.float32))
+    blob = bytearray(a.get_state())
+    struct.pack_into("=d", blob, _ALPHA_AT, alpha)
+    b = AccTrace(n=4, mode="exp", alpha=0.3)
+    b.accumulate(np.full(4, 2.0, dtype=np.float32))
+    b.accumulate(np.full(4, 3.0, dtype=np.float32))  # a count unlike a's
+    before = b.get_state()
+    with pytest.raises(ValueError):
+        b.set_state(bytes(blob))
+    assert b.get_state() == before
+
+
+def test_state_in_a_mode_that_never_reads_alpha_accepts_any():
+    # The setter's rule, not a stricter one: mean ignores alpha.
+    a = AccTrace(n=4, mode="mean", alpha=0.1)
+    a.accumulate(np.ones(4, dtype=np.float32))
+    blob = bytearray(a.get_state())
+    struct.pack_into("=d", blob, _ALPHA_AT, -0.5)
+    b = AccTrace(n=4, mode="mean", alpha=0.1)
+    b.set_state(bytes(blob))
+    assert b.alpha == -0.5
 
 
 def test_bad_mode_raises():

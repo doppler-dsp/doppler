@@ -50,9 +50,12 @@ size_t dp_acc_trace_value_max_out(dp_acc_trace_state_t *state);
 size_t dp_acc_trace_value(dp_acc_trace_state_t *state, size_t n, float *out,
                        size_t max_out);
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
- * Field-wise: pack running trace + fold count; n/mode/alpha restored by create. */
+ * Field-wise: fold count, alpha, running trace; n and mode restored by create.
+ * alpha travels because dp_acc_trace_set_alpha() can change it after create
+ * (version 2; version 1 blobs, without it, are refused).  set_state refuses an
+ * alpha the setter would refuse, and then leaves the state untouched. */
 #define ACC_TRACE_STATE_MAGIC DP_FOURCC ('A','T','R','C')
-#define ACC_TRACE_STATE_VERSION 1u
+#define ACC_TRACE_STATE_VERSION 2u
 size_t dp_acc_trace_state_bytes (const dp_acc_trace_state_t *state);
 void dp_acc_trace_get_state (const dp_acc_trace_state_t *state, void *blob);
 int dp_acc_trace_set_state (dp_acc_trace_state_t *state, const void *blob);

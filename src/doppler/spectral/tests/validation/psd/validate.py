@@ -78,6 +78,9 @@ class Data:
     sfdr_one_tone: float = -1.0
     hann_leak_dbc: float = 0.0
     e_excess: float = 0.0
+    d_zero_sd: float = 0.0
+    d_zero_sd_db: float = 0.0
+    sfdr_tol: float = 0.0
     sfdr_bias_near: float = 0.0
     enbw_bh64: float = 0.0
     bh_periodic: float = 0.0
@@ -307,6 +310,26 @@ def section_object() -> None:
                 P,
                 "§2.10 (b) (c) (f) (i); the rest C-ONLY",
             ],
+            [
+                "a Kaiser `beta` that makes the window non-finite (NaN, or "
+                "about 2.3e5 and up) is refused",
+                "#1911 refusals block",
+                P,
+                "C-ONLY",
+            ],
+            [
+                "`alpha` is read and checked in exp mode only; mean, "
+                "max-hold and min-hold accept any",
+                "#1911 refusals block",
+                P,
+                "C-ONLY",
+            ],
+            [
+                "a mode index outside the four is refused",
+                "lifecycle block",
+                P,
+                "C-ONLY",
+            ],
             ["destroy(NULL) is a no-op", "lifecycle block", P, "C-ONLY"],
             [
                 "accumulate folds floor(x_len / n) frames; a trailing "
@@ -320,13 +343,13 @@ def section_object() -> None:
                 "for bit",
                 "kernel block, 4 windows x n {64, 100} x pad {1, 2}",
                 P,
-                "C-ONLY (F4)",
+                "C-ONLY (F3)",
             ],
             [
                 "the kernel does not touch the running average",
                 "T1",
                 P,
-                "C-ONLY (F4)",
+                "C-ONLY (F3)",
             ],
             [
                 "`frame_linear`: 10·log10 of it is `frame_db` above the "
@@ -334,7 +357,7 @@ def section_object() -> None:
                 "window, padded or not, against `full_scale` and `bits`",
                 "`dp_psd_frame_linear` block (#1963)",
                 P,
-                "C-ONLY (F4)",
+                "C-ONLY (F3)",
             ],
             [
                 "a full-scale tone on a bin reads 0 dBFS whatever the "
@@ -358,7 +381,14 @@ def section_object() -> None:
                 P,
                 "C-ONLY",
             ],
-            ["ENBW and rbw", "T5", P, "§2.3"],
+            ["ENBW against the window's definition", "T5", P, "§2.3"],
+            [
+                "`rbw = enbw * fs / n` (the binding's property, claimed by "
+                "the header's create doctest)",
+                "no C face; the doctest",
+                L,
+                "§2.3",
+            ],
             ["`beta` shapes only Kaiser", "T17", P, "C-ONLY"],
             [
                 "the four averaging modes, each against its rule",
@@ -373,14 +403,15 @@ def section_object() -> None:
                 "span; a band outside the span reads the floor",
                 "T12; the band block",
                 P,
-                "§2.5",
+                "§2.5 (whole-span power); the clamp and out-of-span C-ONLY",
             ],
             [
                 "`band_power` reports nothing (Python `None`) before a "
                 "frame or without a complete lo/hi pair",
                 "T6; T20",
                 P,
-                "§2.8, §2.10 (g)",
+                "§2.8, §2.10 (g) (before a frame); no complete pair C-ONLY "
+                "(T20)",
             ],
             [
                 "`occupied_bw` over the open interval (0, 1), NaN outside "
@@ -755,6 +786,7 @@ def _sec_measurements(d: Data) -> None:
     w = _psd(n=64, window="hann")
     w.accumulate((_tone(64, -16) + 0.1 * _tone(64, 16)).astype(np.complex64))
     d.sfdr = w.sfdr(-30.0)
+    d.sfdr_tol = 2.0 * 10.0 * math.log10(1.0 + _fft_bound(64))
     o = _psd(n=64, window="hann")
     o.accumulate(_tone(64, -16))
     d.sfdr_one_tone = o.sfdr(-30.0)
@@ -808,7 +840,8 @@ def _sec_measurements(d: Data) -> None:
                 "SFDR",
                 "0 and -20 dB tones, N/2 apart, Hann",
                 f"{d.sfdr:.6f} dB",
-                "20 +- 0.002",
+                f"20 dB within {d.sfdr_tol:.1e} (the float FFT's bound "
+                "on each of the two bins)",
             ],
             [
                 "SFDR, one tone",
@@ -868,7 +901,7 @@ def _sec_real(d: Data) -> None:
         f"{'yes' if d.fold_exact else 'NO'}. On a complex frame, where the "
         f"halves differ, the fold still sums them: "
         f"{'yes' if d.fold_complex_ok else 'NO'} — the case a real frame "
-        f"cannot test (§3 F3)."
+        f"cannot test."
     )
     R.md()
 
@@ -895,7 +928,7 @@ def _sec_contracts(d: Data) -> None:
     R.table(["reader, before any frame", "returns"], seen)
     vals = [s[1] for s in seen]
     # band_power answered an EMPTY array here, unlike its four siblings;
-    # #1959 made it None like them -- (g) in §2.10, F10 in §3.
+    # #1959 made it None like them -- (g) in §2.10, F9 in §3.
     d.empty_ok = (
         all(v == "None" for v in vals[:5])
         and abs(float(vals[5]) + 200.0) < 1e-4
@@ -920,7 +953,8 @@ def _sec_contracts(d: Data) -> None:
     R.md(
         f"An all-zero frame reads the -200 dB floor in every bin: "
         f"{'yes' if floor_ok else 'NO'}. The linear readouts are identical at "
-        f"`full_scale` 1 and 4 while `psd_db` moves by exactly 12.04 dB: "
+        f"`full_scale` 1 and 4 while `psd_db` moves by exactly "
+        f"{20.0 * math.log10(4.0):.2f} dB (20 log10 4): "
         f"{'yes' if d.linear_ignores_fs else 'NO'}. Note what the scalars "
         f"return when empty — `0.0`, a value they can also return measured "
         f"(§2.10 (d))."
@@ -965,9 +999,10 @@ def _sec_candidates(d: Data) -> None:
     )
     R.md()
     R.md(
-        "Six things the inventory flagged as possibly wrong, (a)-(f), one "
-        "found measuring them, (g), and one the Spectrogram's review found, "
-        "(i). They were first measured before anything was fixed; #1959 then "
+        "Six things the inventory flagged as possibly wrong, (a)-(f), two "
+        "found measuring them, (g) and (h), and one the Spectrogram's review "
+        "found, (i). They were first measured before anything was fixed; "
+        "#1959 then "
         "fixed, at the primitive that owns each rule, what §3 marks FIXED. "
         "These rows measure this tree. Characterisation fixes nothing; §3 "
         "judges."
@@ -1078,6 +1113,10 @@ def _sec_candidates(d: Data) -> None:
     for _ in range(256):
         w.accumulate(_cnoise(r, n, float(n)))  # var/n = 1: floor at 0 dB
     d.d_zero_floor = w.noise_floor()
+    med_bias = 10.0 * math.log10(1.0 - 1.0 / (3.0 * 256))
+    floor_sd = math.sqrt(math.pi / 2.0) / math.sqrt(256 * 256)
+    d.d_zero_sd_db = 10.0 * math.log10(1.0 + floor_sd)
+    d.d_zero_sd = (d.d_zero_floor - med_bias) / d.d_zero_sd_db
     d.d_snr_outside = w.snr(10.0, 11.0)
     R.md(
         f"**(d)** Noise scaled so its floor is 0 dB reads "
@@ -1085,8 +1124,9 @@ def _sec_candidates(d: Data) -> None:
         f"state's `0.0`. `snr` over a band entirely outside the span returns "
         f"{d.d_snr_outside!r}, undocumented, and the same as 'no SNR'."
         + (
-            " The floor's offset from 0 is the median's own spread over 256 "
-            "bins (about 0.02 dB); it is independent of §2.6's SNR "
+            " The floor's offset from the median's expected bias is "
+            f"{d.d_zero_sd:+.1f} sd of a 256-bin median's spread "
+            f"({d.d_zero_sd_db:.3f} dB); it is independent of §2.6's SNR "
             "deviation, which happens to render the same to four places."
             if f"{d.d_zero_floor:+.4f}" == f"{d.snr_dev:+.4f}"
             else ""
@@ -1466,8 +1506,9 @@ def limits(d: Data) -> None:
     )
     R.limit(abs(d.snr_dev) < d.snr_tol, "SNR of tone plus noise, within 5 sd")
     R.limit(
-        abs(d.sfdr - 20.0) < 2e-3 and d.sfdr_one_tone == 0.0,
-        "SFDR is carrier minus strongest spur (20 dB to 2e-3), and 0 with "
+        abs(d.sfdr - 20.0) < d.sfdr_tol and d.sfdr_one_tone == 0.0,
+        f"SFDR is carrier minus strongest spur (20 dB within "
+        f"{d.sfdr_tol:.1e}, the float FFT's bound), and 0 with "
         "one peak",
     )
     R.limit(

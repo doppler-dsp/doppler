@@ -65,7 +65,7 @@ import re
 import sys
 import warnings
 from collections.abc import Callable, Iterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -295,7 +295,7 @@ def _int_props(obj: Any) -> list[int]:
             continue
         try:
             v = getattr(obj, name)
-        except Exception:
+        except Exception:  # a property that refuses to read: not a length
             continue
         if isinstance(v, int) and not isinstance(v, bool) and 0 < v <= 1 << 16:
             out.append(v)
@@ -341,7 +341,6 @@ def _method_args(mut: Mutator, obj: Any) -> Iterator[tuple[Any, ...]] | None:
 class Verdict:
     name: str
     detail: str = ""
-    notes: list[str] = field(default_factory=list)
 
 
 def _apply(obj: Any, mut: Mutator, value: Any) -> None:
@@ -393,7 +392,7 @@ def _accepted_values(mut: Mutator, make, feed) -> Iterator[Any]:
     for v in itertools.islice(cands, 40):
         try:
             o = _built(make, feed, mut, v)
-        except Exception:
+        except Exception:  # the mutator refused this value: try the next
             continue
         rb = _readback(o, mut)
         if mut.kind == "property" and rb in seen:
@@ -450,7 +449,7 @@ def _restore_check(
         t = make()
         try:
             _apply(t, mut, val)
-        except Exception:
+        except Exception:  # a value M refuses is no target
             continue
         targets.append((label, t))
     accepted = {label: _restore_into(t, blob) for label, t in targets}

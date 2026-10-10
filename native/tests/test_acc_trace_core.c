@@ -216,5 +216,66 @@ main (void)
     dp_acc_trace_destroy (b);
   }
 
+  /* ── a runtime alpha travels in the blob (#2000) ─────────────────────────
+   * alpha can change after create (dp_acc_trace_set_alpha), so a resume that
+   * took it from create() went on averaging with the old one: one frame
+   * later the uninterrupted trace read 2.0 and the resumed one 1.2.  The
+   * blob carries it now, behind the 16-byte header and the u64 count, and
+   * set_state applies the setter's own rule to it: an alpha the setter would
+   * refuse is refused, and the state is left as it was. */
+  {
+    const float           f1[4] = { 1.0f, 2.0f, 3.0f, 4.0f };
+    const float           f2[4] = { 9.0f, 7.0f, 5.0f, 3.0f };
+    dp_acc_trace_state_t *a     = dp_acc_trace_create (4, ACC_TRACE_EXP, 0.1);
+    dp_acc_trace_state_t *b     = dp_acc_trace_create (4, ACC_TRACE_EXP, 0.1);
+    DP_REQUIRE (a && b);
+    dp_acc_trace_accumulate (a, f1, 4);
+    DP_CHECK (dp_acc_trace_set_alpha (a, 0.5) == DP_OK);
+    const size_t   nb   = dp_acc_trace_state_bytes (a);
+    unsigned char *blob = malloc (nb);
+    DP_REQUIRE (blob != NULL);
+    dp_acc_trace_get_state (a, blob);
+    DP_CHECK (dp_acc_trace_set_state (b, blob) == DP_OK);
+    DP_CHECK (b->alpha == 0.5);
+    dp_acc_trace_accumulate (a, f2, 4);
+    dp_acc_trace_accumulate (b, f2, 4);
+    DP_CHECK (memcmp (b->acc, a->acc, a->n * sizeof (double)) == 0);
+
+    /* The setter's rule, at the blob: each value it refuses is refused here,
+     * and a refused blob leaves the state untouched.  b folds one more frame
+     * first, so its count differs from the blob's and a count written before
+     * the check would show. */
+    dp_acc_trace_accumulate (b, f1, 4);
+    const size_t   at     = sizeof (dp_state_hdr_t) + sizeof (uint64_t);
+    unsigned char *before = malloc (nb), *after = malloc (nb);
+    DP_REQUIRE (before && after);
+    const double bad[] = { 0.0, -0.5, 1.5, NAN };
+    for (size_t i = 0; i < sizeof bad / sizeof bad[0]; i++)
+      {
+        dp_acc_trace_get_state (a, blob);
+        memcpy (blob + at, &bad[i], sizeof bad[i]);
+        dp_acc_trace_get_state (b, before);
+        DP_CHECK (dp_acc_trace_set_state (b, blob) == DP_ERR_INVALID);
+        dp_acc_trace_get_state (b, after);
+        DP_CHECK (memcmp (before, after, nb) == 0);
+      }
+
+    /* Precondition: mean never reads alpha, so as at the setter, any value
+     * restores there. */
+    dp_acc_trace_state_t *m = dp_acc_trace_create (4, ACC_TRACE_MEAN, 0.1);
+    DP_REQUIRE (m != NULL);
+    dp_acc_trace_get_state (m, blob);
+    memcpy (blob + at, &bad[1], sizeof bad[1]);
+    DP_CHECK (dp_acc_trace_set_state (m, blob) == DP_OK);
+    DP_CHECK (m->alpha == -0.5);
+
+    free (blob);
+    free (before);
+    free (after);
+    dp_acc_trace_destroy (a);
+    dp_acc_trace_destroy (b);
+    dp_acc_trace_destroy (m);
+  }
+
   DP_TEST_END ("test_acc_trace_core");
 }

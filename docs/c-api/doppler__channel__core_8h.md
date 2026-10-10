@@ -70,7 +70,7 @@ _Clock Doppler as a propagation impairment: dilate the time base and shift the c
 |  double | [**dp\_doppler\_channel\_get\_delay\_samples**](#function-dp_doppler_channel_get_delay_samples) (const [**dp\_doppler\_channel\_state\_t**](structdp__doppler__channel__state__t.md) \* state) <br>_The resampler's group delay, in samples (10.5 for the built-in bank)._  |
 |  double | [**dp\_doppler\_channel\_get\_elapsed\_s**](#function-dp_doppler_channel_get_elapsed_s) (const [**dp\_doppler\_channel\_state\_t**](structdp__doppler__channel__state__t.md) \* state) <br>_Receive time in seconds produced so far (_ `n_out/fs` _)._ |
 |  double | [**dp\_doppler\_channel\_get\_offset\_hz**](#function-dp_doppler_channel_get_offset_hz) (const [**dp\_doppler\_channel\_state\_t**](structdp__doppler__channel__state__t.md) \* state) <br>_Instantaneous carrier offset_ `fc*d(t)` _in Hz at_`elapsed_s` _._ |
-|  void | [**dp\_doppler\_channel\_get\_state**](#function-dp_doppler_channel_get_state) (const [**dp\_doppler\_channel\_state\_t**](structdp__doppler__channel__state__t.md) \* state, void \* blob) <br>_Serialize the running state (both clocks + the resampler's)._  |
+|  void | [**dp\_doppler\_channel\_get\_state**](#function-dp_doppler_channel_get_state) (const [**dp\_doppler\_channel\_state\_t**](structdp__doppler__channel__state__t.md) \* state, void \* blob) <br>_Serialize the running state: both sample clocks, the profile's last_ `d` _and whether a profile has driven the stream, then the resampler's._ |
 |  void | [**dp\_doppler\_channel\_reset**](#function-dp_doppler_channel_reset) ([**dp\_doppler\_channel\_state\_t**](structdp__doppler__channel__state__t.md) \* state) <br>_Reset DopplerChannel to its post-create state._  |
 |  int | [**dp\_doppler\_channel\_set\_state**](#function-dp_doppler_channel_set_state) ([**dp\_doppler\_channel\_state\_t**](structdp__doppler__channel__state__t.md) \* state, const void \* blob) <br>_Restore a blob written by_ [_**dp\_doppler\_channel\_get\_state()**_](doppler__channel__core_8h.md#function-dp_doppler_channel_get_state) _._ |
 |  size\_t | [**dp\_doppler\_channel\_state\_bytes**](#function-dp_doppler_channel_state_bytes) (const [**dp\_doppler\_channel\_state\_t**](structdp__doppler__channel__state__t.md) \* state) <br>_Bytes_ [_**dp\_doppler\_channel\_get\_state()**_](doppler__channel__core_8h.md#function-dp_doppler_channel_get_state) _writes (envelope + payload)._ |
@@ -507,7 +507,7 @@ double dp_doppler_channel_get_offset_hz (
 
 ### function dp\_doppler\_channel\_get\_state 
 
-_Serialize the running state (both clocks + the resampler's)._ 
+_Serialize the running state: both sample clocks, the profile's last_ `d` _and whether a profile has driven the stream, then the resampler's._
 ```C++
 void dp_doppler_channel_get_state (
     const dp_doppler_channel_state_t * state,
@@ -576,7 +576,7 @@ int dp_doppler_channel_set_state (
 
 
 
-
+A refused blob leaves the channel unchanged: the channel's own fields are decoded first and written only once the resampler has accepted its part (doppler#2104). 
 
 **Returns:**
 

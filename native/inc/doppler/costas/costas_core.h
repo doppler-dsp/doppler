@@ -87,6 +87,11 @@ typedef struct {
     size_t acc_n;            /**< samples accumulated into `acc`.          */
     float _Complex prev;      /**< previous symbol's prompt (FLL cross).    */
     int have_prev;           /**< prev valid (skip FLL on the 1st symbol). */
+    /** The 4 bytes the compiler would put before the double, named so
+     *  dp_costas_init zeroes them: the blob is the struct whole, and a
+     *  stack-built loop copied into a receiver otherwise carried 4 stack
+     *  bytes into its blob. The layout and size are unchanged. */
+    int32_t _pad;
     double lock_metric;      /**< EMA of |Re P|/|P| (1 = locked).          */
     dp_lockdet_state_t lock;    /**< decision rule on lock_metric: thresholds
                                   + verify counters, stepped per symbol.   */

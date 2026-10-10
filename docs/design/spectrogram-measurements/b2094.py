@@ -60,6 +60,12 @@ SPLIT = (256, 1024, 65536)
 MODES = ("mean", "exp", "maxhold", "minhold")
 #: (nfft, hop) of the power rows, each timed beside its dB row.
 ROWS = ((256, 64), (1024, 256), (65536, 16384))
+#: The sizes of power_onesided, the read-out timed one call per round.
+ONESIDED = (1024, 4096, 16384)
+#: The clock step those single-call passes sit on, and how far off a whole
+#: number of steps two of a row's passes may be; ``onesided`` refuses a row
+#: whose passes break it, so the step is checked against the data.
+STEP_NS, STEP_TOL_NS = 10, 1
 
 
 def _psd(k: str, n: int) -> str:
@@ -287,6 +293,67 @@ def cross(P: Runs) -> str:
     return table(["rows", "count", "median move", "largest move"], out)
 
 
+def onesided(P: Runs) -> str:
+    """power_onesided's passes in both runs, in steps of the clock.
+
+    The row times ONE call per round, so a pass's minimum is a single
+    interval between two clock reads, and a row's passes take only a few
+    values, ``STEP_NS`` apart. Every pair of a row's passes, across both
+    runs, must differ by a whole number of steps within ``STEP_TOL_NS``, or
+    this refuses: the step is a claim the data is checked against. A move
+    is the median's change here over 5.6's, also in steps.
+    """
+    A = runs(u1u4.DATA, u1u4.COMMIT)
+    out = []
+    for n in ONESIDED:
+        k = _psd("power_onesided", n)
+        for b in BUILDS:
+            then = [p[k] for p in A[b]]
+            now = [p[k] for p in P[b]]
+            # the clock reads whole ns, so a pass is an integer up to the
+            # 1e-9 scaling's rounding
+            ns = [round(x) for x in then + now]
+            off = max(
+                abs(x - y - STEP_NS * round((x - y) / STEP_NS))
+                for x in ns
+                for y in ns
+            )
+            if off > STEP_TOL_NS:
+                raise SystemExit(
+                    f"{k} ({b}): two passes are {off:.1f} ns off a whole "
+                    f"number of {STEP_NS} ns steps"
+                )
+            m0, m1 = statistics.median(then), statistics.median(now)
+            out.append(
+                [
+                    f"{n:,}",
+                    b,
+                    ", ".join(f"{x:.0f}" for x in then),
+                    ", ".join(f"{x:.0f}" for x in now),
+                    format(m1 / m0 - 1.0, "+.2%"),
+                    format((m1 - m0) / STEP_NS, "+.0f"),
+                    format(STEP_NS / m1, ".1%"),
+                    " / ".join(
+                        format(spread(q, lambda p, k=k: p[k]), ".1%")
+                        for q in (A[b], P[b])
+                    ),
+                ]
+            )
+    return table(
+        [
+            "nfft",
+            "build",
+            "5.6's passes, ns",
+            "these passes, ns",
+            "median move",
+            "in steps",
+            "one step / median",
+            "spread, 5.6 / here",
+        ],
+        out,
+    )
+
+
 BLOCKS = {
     "frame": frame,
     "split": split,
@@ -294,6 +361,7 @@ BLOCKS = {
     "mean": mean,
     "rows": rows,
     "cross": cross,
+    "onesided": onesided,
 }
 
 

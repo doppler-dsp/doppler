@@ -588,6 +588,33 @@ Every shared row reproduces within 0.81%, except two. `frame_power` at
 65,536 native moves −1.3%. `power_onesided`, a short reader outside #2094's
 rows, moves up to +7.1% native.
 
+**`power_onesided`'s +7.1% is one step of the clock: not a changed context,
+and not a real shift.** Its context did not change. `dp_psd_power_onesided`
+and its bench loop are the same at c1ae84190 and c36a042e0, and #2113's
+rotation is the per-frame block that runs after it. The row times one call
+per round, so each pass's minimum is a single interval between two clock
+reads, and a row's passes differ by whole multiples of a 10 ns step, within
+1 ns (the table refuses a row where they do not). At 1,024 bins native a
+call takes 140 or 150 ns, so one step is 6.7% of it. In 5.6's run one pass
+of five read 150; here three did. That moves the median from 140 to 150 ns,
+which is the +7.14%. Portable 4,096's −2.98% is two steps. At 16,384 a step
+is 0.4%, and the +1.3–1.5% moves sit inside each run's own 4–7% spread. The
+row cannot resolve a move smaller than one step at its size, so it is no
+evidence about #2094 either way.
+
+<!-- spectrogram-b2094:onesided:start -->
+
+| nfft   | build    | 5.6's passes, ns             | these passes, ns             | median move | in steps | one step / median | spread, 5.6 / here |
+| ------ | -------- | ---------------------------- | ---------------------------- | ----------- | -------- | ----------------- | ------------------ |
+| 1,024  | portable | 190, 200, 170, 181, 200      | 170, 190, 170, 200, 200      | +0.00%      | +0       | 5.3%              | 15.8% / 15.8%      |
+| 1,024  | native   | 140, 150, 140, 140, 140      | 150, 140, 150, 140, 150      | +7.14%      | +1       | 6.7%              | 7.1% / 6.7%        |
+| 4,096  | portable | 651, 722, 671, 661, 681      | 651, 661, 662, 651, 651      | -2.98%      | -2       | 1.5%              | 10.6% / 1.7%       |
+| 4,096  | native   | 561, 561, 561, 561, 561      | 561, 561, 561, 551, 561      | +0.00%      | +0       | 1.8%              | 0.0% / 1.8%        |
+| 16,384 | portable | 2645, 2585, 2564, 2755, 2725 | 2695, 2605, 2685, 2725, 2675 | +1.51%      | +4       | 0.4%              | 7.2% / 4.5%        |
+| 16,384 | native   | 2254, 2364, 2334, 2284, 2244 | 2254, 2354, 2354, 2254, 2314 | +1.31%      | +3       | 0.4%              | 5.3% / 4.3%        |
+
+<!-- spectrogram-b2094:onesided:end -->
+
 ### 5.13 The fold on its own (2026-10-10) — the #2094 baseline
 
 The method is 5.12's. `acc_trace::fold` is `dp_acc_trace_accumulate` alone,

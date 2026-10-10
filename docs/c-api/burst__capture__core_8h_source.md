@@ -34,7 +34,7 @@
 #define BURST_CAPTURE_EDGE_TWINS 4u
 
 #define BURST_CAPTURE_STATE_MAGIC DP_FOURCC ('B', 'C', 'A', 'P')
-#define BURST_CAPTURE_STATE_VERSION 4u
+#define BURST_CAPTURE_STATE_VERSION 5u
 
 #ifdef __cplusplus
 extern "C" {

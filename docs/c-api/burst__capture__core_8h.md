@@ -144,7 +144,7 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 | define  | [**BURST\_CAPTURE\_MAX\_PHASES**](burst__capture__core_8h.md#define-burst_capture_max_phases)  `4u`<br> |
 | define  | [**BURST\_CAPTURE\_REFINE\_INTERP**](burst__capture__core_8h.md#define-burst_capture_refine_interp)  `4u`<br> |
 | define  | [**BURST\_CAPTURE\_STATE\_MAGIC**](burst__capture__core_8h.md#define-burst_capture_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('B', 'C', 'A', 'P')`<br>_State blob magic — a wrong blob is rejected, not reinterpreted._  |
-| define  | [**BURST\_CAPTURE\_STATE\_VERSION**](burst__capture__core_8h.md#define-burst_capture_state_version)  `4u`<br>_State blob layout version._  |
+| define  | [**BURST\_CAPTURE\_STATE\_VERSION**](burst__capture__core_8h.md#define-burst_capture_state_version)  `5u`<br>_State blob layout version. 5:_ `dropped` _counts abandoned look-back, not refused input (doppler#2015), so a v4 blob's count means something else and is refused rather than carried over._ |
 
 ## Detailed Description
 
@@ -1059,7 +1059,10 @@ int dp_burst_capture_set_state (
 DP\_OK or DP\_ERR\_INVALID.
 
 
-A wrong-object, wrong-version, wrong-size or foreign-endian blob is refused, never reinterpreted; so is a blob from the other flavour (a backed and an in-RAM capture have different `state_bytes()`). A backed capture restores POSITIONS only  the samples are the file's  so it also refuses a blob whose retained span the file cannot hold: a file create() made fresh that this capture has not written that far into, or a span the ring has since wrapped past (more than the ring's capacity pushed since the checkpoint). A capture restoring a checkpoint it took itself is the normal case and is accepted (doppler#1190): `set_state(blob) -> push(chunk) -> get_state()` per call is a service shape this object supports, on both flavours. 
+A wrong-object, wrong-version, wrong-size or foreign-endian blob is refused, never reinterpreted; so is a blob from the other flavour (a backed and an in-RAM capture have different `state_bytes()`). A backed capture restores POSITIONS only  the samples are the file's  so it also refuses a blob whose retained span the file cannot hold: a file create() made fresh that this capture has not written that far into, or a span the ring has since wrapped past (more than the ring's capacity pushed since the checkpoint). A capture restoring a checkpoint it took itself is the normal case and is accepted (doppler#1190): `set_state(blob) -> push(chunk) -> get_state()` per call is a service shape this object supports, on both flavours.
+
+
+The blob holds at most `retain_span` of look-back, so a detection that needed more  one release() gave back after its push, emitted only at the next one  is dropped on restore and counted in `dropped`. 
 
 
         
@@ -1193,9 +1196,9 @@ _State blob magic — a wrong blob is rejected, not reinterpreted._
 
 ### define BURST\_CAPTURE\_STATE\_VERSION 
 
-_State blob layout version._ 
+_State blob layout version. 5:_ `dropped` _counts abandoned look-back, not refused input (doppler#2015), so a v4 blob's count means something else and is refused rather than carried over._
 ```C++
-#define BURST_CAPTURE_STATE_VERSION `4u`
+#define BURST_CAPTURE_STATE_VERSION `5u`
 ```
 
 

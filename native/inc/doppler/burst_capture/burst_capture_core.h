@@ -93,8 +93,10 @@
 
 /** @brief State blob magic — a wrong blob is rejected, not reinterpreted. */
 #define BURST_CAPTURE_STATE_MAGIC DP_FOURCC ('B', 'C', 'A', 'P')
-/** @brief State blob layout version. */
-#define BURST_CAPTURE_STATE_VERSION 4u
+/** @brief State blob layout version. 5: `dropped` counts abandoned look-back,
+ *  not refused input (doppler#2015), so a v4 blob's count means something
+ *  else and is refused rather than carried over. */
+#define BURST_CAPTURE_STATE_VERSION 5u
 
 #ifdef __cplusplus
 extern "C" {
@@ -422,8 +424,13 @@ typedef struct
                          never captured rather than an error.             */
 
   /* ── Bookkeeping ────────────────────────────────────────────────────── */
-  uint64_t dropped;  /**< Samples the ring refused. A LOST BURST each, not
-                          a statistic -- lifetime, survives reset().       */
+  uint64_t dropped;  /**< Samples of look-back discarded while a queued
+                          detection still needed them. push() never refuses
+                          input; this moves only when a detection that can
+                          never be emitted is abandoned so the ring can take
+                          the stream, or when set_state() restores one the
+                          blob's look-back cannot reach. A LOST BURST each,
+                          not a statistic -- lifetime, survives reset().  */
   uint64_t n_bursts; /**< Windows emitted, lifetime.                       */
 /*<<property_struct_fields>>*/
 } dp_burst_capture_state_t;
@@ -843,6 +850,10 @@ void dp_burst_capture_get_state (const dp_burst_capture_state_t *state, void *bl
  * it took itself is the normal case and is accepted (doppler#1190):
  * `set_state(blob) -> push(chunk) -> get_state()` per call is a service
  * shape this object supports, on both flavours.
+ *
+ * The blob holds at most `retain_span` of look-back, so a detection that
+ * needed more -- one release() gave back after its push, emitted only at the
+ * next one -- is dropped on restore and counted in `dropped`.
  */
 int dp_burst_capture_set_state (dp_burst_capture_state_t *state, const void *blob);
 

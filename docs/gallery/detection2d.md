@@ -57,8 +57,9 @@ for *_, stat in det.push(signal_block):
 `CorrDetector2D.push()` returns one tuple per dwell,
 `(row, col, peak_mag, noise_est, test_stat)`; compare `test_stat` against
 `theta` to declare acquisition. A block may be any length, since a partial
-frame waits for the next push, but one push reports at most 1024 dwells: keep
-a block under 1024 dwells (`1024 * M` frames), or the later ones are lost.
+frame waits for the next push, but one push reports at most 1024 detections:
+a block that completes at most 1024 frames, counting that carry, loses
+nothing.
 
 ## Coherent integration is accumulated in the frequency domain
 

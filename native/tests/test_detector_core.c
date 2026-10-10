@@ -69,7 +69,7 @@ ci_det_stream (float _Complex ref[N], float _Complex x[CI_LEN])
    dp_detector_consumed() until it is used up, and return the detections in
    got[]. Counts the calls that stopped short, the stops anywhere but on a
    frame boundary (frames tile the stream from sample 0, and a full push
-   takes nothing past its last frame), and any call that wrote past its room --
+   that stops short stops on one), and any call that wrote past its room --
    literally: the slot just past the room holds a byte pattern during the
    call, and a call that changed it, or reports more than its room, counts.
    got[] has room for got_len results. */
@@ -438,14 +438,32 @@ main (void)
     dp_detector_reset (d);
     DP_CHECK (dp_detector_consumed (d) == 0); /* after reset */
 
-    /* Room for none takes NOTHING, not even a partial frame. Room for one
-     * takes frame 0 and stops on its boundary -- no carry past a full
-     * push -- and that frame's hit is the one-shot's first. */
+    /* Room for none takes nothing of a rest that completes a frame. Room
+     * for one takes frame 0 and stops on its boundary, the rest being two
+     * frames, and that frame's hit is the one-shot's first. */
     DP_CHECK (dp_detector_push (d, x, 3 * N, got, 0) == 0);
     DP_CHECK (dp_detector_consumed (d) == 0);
     DP_CHECK (dp_detector_push (d, x, 3 * N, got, 1) == 1);
     DP_CHECK (dp_detector_consumed (d) == N); /* frame 0, not a sample more */
     DP_CHECK (ci_det_equal (got, want, 1));
+
+    /* A full push keeps a rest that completes no frame, as the carry, and
+     * takes nothing of one that would. Continuing the stream at frame 1:
+     * room 1 on N + 3 takes frame 1 and the 3 after it; room 0 is full from
+     * the start, so it takes N - 4 more (the carry reaches N - 1, still no
+     * frame) and then not the sample that would complete frame 2; room 1
+     * takes that sample and reports frame 2. */
+    DP_CHECK (dp_detector_push (d, x + N, N + 3, got, 1) == 1);
+    DP_CHECK (dp_detector_consumed (d) == N + 3);
+    DP_CHECK (dp_f32_framer_pending (&d->framer) == 3);
+    DP_CHECK (ci_det_equal (got, want + 1, 1));
+    DP_CHECK (dp_detector_push (d, x + 2 * N + 3, N - 4, got, 0) == 0);
+    DP_CHECK (dp_detector_consumed (d) == N - 4);
+    DP_CHECK (dp_detector_push (d, x + 3 * N - 1, 1, got, 0) == 0);
+    DP_CHECK (dp_detector_consumed (d) == 0);
+    DP_CHECK (dp_detector_push (d, x + 3 * N - 1, 1, got, 1) == 1);
+    DP_CHECK (dp_detector_consumed (d) == 1);
+    DP_CHECK (ci_det_equal (got, want + 2, 1));
     dp_detector_destroy (one);
     dp_detector_destroy (d);
   }

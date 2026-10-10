@@ -8,6 +8,31 @@
 #define BENCH_N 65536
 #define ITERATIONS 200
 
+typedef float T;
+typedef float W; /* the weights are real in both accumulators */
+#define ONE 1.0f
+#define COMPONENT "acc_f32"
+#define RESET(o) dp_acc_f32_reset (o)
+#define GET_RE(o) ((double)dp_acc_f32_get (o))
+
+/* One call of block kernel @p k over @p n samples. */
+static void
+run_kernel (int k, dp_acc_f32_state_t *obj, const T *x, const W *h, size_t n)
+{
+  switch (k)
+    {
+    case 0:
+      dp_acc_f32_madd (obj, x, n, h, n);
+      break;
+    case 1:
+      dp_acc_f32_add2d (obj, x, n);
+      break;
+    default:
+      dp_acc_f32_madd2d (obj, x, n, h, n);
+      break;
+    }
+}
+
 int
 main (void)
 {
@@ -117,73 +142,91 @@ main (void)
     }
   }
 
-  /* bench: madd() */
+  /* madd / add2d / madd2d -- the block kernels, given a real block.
+   *
+   * These rows used to call each kernel BENCH_N times with (NULL, 0): the
+   * kernel returned at once, so the timer saw call overhead, ~0.8 ns, and
+   * code alignment moved it 20% (doppler#1366). Now each round is ONE call
+   * over BENCH_N samples, credited with BENCH_N, and the result is checked
+   * before anything is recorded -- a kernel that stops doing the work makes
+   * this binary exit non-zero instead of publishing a faster number. (Under
+   * `jm bench` that exit is currently dropped and the component just goes
+   * missing from the snapshot: just-makeit#2181.)
+   *
+   * The sweep below the rows is the evidence the work is real: time per
+   * call grows with n while time per sample stays put. It prints, and is
+   * not recorded, so the published rows stay one per kernel. */
   {
-    double _times_madd[ITERATIONS];
-    for (int i = 0; i < 16; i++)
-      dp_acc_f32_madd (obj, NULL, 0, NULL, 0);
-    for (int r = 0; r < ITERATIONS; r++)
+    T *x = malloc (BENCH_N * sizeof *x);
+    W *h = malloc (BENCH_N * sizeof *h);
+    if (!x || !h)
       {
-        t0 = jm_bench_now_ns ();
-        for (int i = 0; i < BENCH_N; i++)
-          dp_acc_f32_madd (obj, NULL, 0, NULL, 0);
-        t1             = jm_bench_now_ns ();
-        _times_madd[r] = jm_bench_elapsed_sec (t0, t1);
+        fprintf (stderr, "OOM\n");
+        return 1;
       }
-    jm_bench_add (&_bench, "madd", _times_madd, ITERATIONS, BENCH_N);
-    {
-      double _s = 0.0;
-      for (int r = 0; r < ITERATIONS; r++)
-        _s += _times_madd[r];
-      printf ("  madd()  %8.1f MSa/s\n",
-              (double)BENCH_N / (_s / ITERATIONS) / 1e6);
-    }
-  }
+    /* x = 1, h = 1/2: every partial sum is exact in T up to 2^24 terms, so
+       the expected totals below are equalities, not tolerances. */
+    for (int i = 0; i < BENCH_N; i++)
+      {
+        x[i] = ONE;
+        h[i] = 0.5f;
+      }
 
-  /* bench: add2d() */
-  {
-    double _times_add2d[ITERATIONS];
-    for (int i = 0; i < 16; i++)
-      dp_acc_f32_add2d (obj, NULL, 0);
-    for (int r = 0; r < ITERATIONS; r++)
-      {
-        t0 = jm_bench_now_ns ();
-        for (int i = 0; i < BENCH_N; i++)
-          dp_acc_f32_add2d (obj, NULL, 0);
-        t1              = jm_bench_now_ns ();
-        _times_add2d[r] = jm_bench_elapsed_sec (t0, t1);
-      }
-    jm_bench_add (&_bench, "add2d", _times_add2d, ITERATIONS, BENCH_N);
-    {
-      double _s = 0.0;
-      for (int r = 0; r < ITERATIONS; r++)
-        _s += _times_add2d[r];
-      printf ("  add2d()  %8.1f MSa/s\n",
-              (double)BENCH_N / (_s / ITERATIONS) / 1e6);
-    }
-  }
+    static const char *const names[3] = { "madd", "add2d", "madd2d" };
+    /* madd/madd2d fold sum(x*h) = n/2; add2d folds sum(x) = n. */
+    static const double per_sample[3] = { 0.5, 1.0, 0.5 };
 
-  /* bench: madd2d() */
-  {
-    double _times_madd2d[ITERATIONS];
-    for (int i = 0; i < 16; i++)
-      dp_acc_f32_madd2d (obj, NULL, 0, NULL, 0);
-    for (int r = 0; r < ITERATIONS; r++)
+    for (int k = 0; k < 3; k++)
       {
-        t0 = jm_bench_now_ns ();
-        for (int i = 0; i < BENCH_N; i++)
-          dp_acc_f32_madd2d (obj, NULL, 0, NULL, 0);
-        t1               = jm_bench_now_ns ();
-        _times_madd2d[r] = jm_bench_elapsed_sec (t0, t1);
+        double t[ITERATIONS];
+        for (int r = 0; r < ITERATIONS; r++)
+          {
+            RESET (obj);
+            t0 = jm_bench_now_ns ();
+            run_kernel (k, obj, x, h, BENCH_N);
+            t1   = jm_bench_now_ns ();
+            t[r] = jm_bench_elapsed_sec (t0, t1);
+          }
+        const double want = per_sample[k] * (double)BENCH_N;
+        if (!(GET_RE (obj) == want))
+          {
+            (void)fprintf (stderr,
+                           "bench_%s: %s over %d samples gave %g, not %g -- "
+                           "the row would time a kernel that did not run\n",
+                           COMPONENT, names[k], BENCH_N, GET_RE (obj), want);
+            return 1;
+          }
+        jm_bench_add (&_bench, names[k], t, ITERATIONS, BENCH_N);
+        double best = t[0];
+        for (int r = 1; r < ITERATIONS; r++)
+          if (t[r] < best)
+            best = t[r];
+        printf ("  %s()  %8.1f MSa/s\n", names[k],
+                (double)BENCH_N / best / 1e6);
       }
-    jm_bench_add (&_bench, "madd2d", _times_madd2d, ITERATIONS, BENCH_N);
-    {
-      double _s = 0.0;
-      for (int r = 0; r < ITERATIONS; r++)
-        _s += _times_madd2d[r];
-      printf ("  madd2d()  %8.1f MSa/s\n",
-              (double)BENCH_N / (_s / ITERATIONS) / 1e6);
-    }
+
+    printf ("\n  scaling (min over %d rounds; not recorded)\n", ITERATIONS);
+    printf ("  %-7s %8s %12s %12s\n", "kernel", "n", "ns/call", "ns/sample");
+    static const int ns[4] = { 1024, 4096, 16384, BENCH_N };
+    for (int k = 0; k < 3; k++)
+      for (int j = 0; j < 4; j++)
+        {
+          double best = 0.0;
+          for (int r = 0; r < ITERATIONS; r++)
+            {
+              RESET (obj);
+              t0 = jm_bench_now_ns ();
+              run_kernel (k, obj, x, h, (size_t)ns[j]);
+              t1             = jm_bench_now_ns ();
+              const double s = jm_bench_elapsed_sec (t0, t1);
+              if (r == 0 || s < best)
+                best = s;
+            }
+          printf ("  %-7s %8d %12.1f %12.3f\n", names[k], ns[j], best * 1e9,
+                  best * 1e9 / ns[j]);
+        }
+    free (x);
+    free (h);
   }
   jm_bench_write_json (&_bench, "acc_f32");
   dp_acc_f32_destroy (obj);

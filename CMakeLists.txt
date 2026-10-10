@@ -1372,37 +1372,53 @@ set(_NATS_BLD "${CMAKE_CURRENT_BINARY_DIR}/libnats-vendor")
 # CMake's own static-library spelling: libnats_static.a on POSIX,
 # nats_static.lib under clang-cl/MSVC (#1575).
 set(_NATS_LIB "${_NATS_BLD}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}nats_static${CMAKE_STATIC_LIBRARY_SUFFIX}")
-# Configured from an EMPTY directory every time (#1936). The -D options below
+# The vendor's configure arguments, in ONE list: the custom command passes
+# them, and the stamp below records them.
+set(_NATS_CONFIGURE_ARGS
+    # The PARENT's generator and compiler: CMake's default generator on
+    # Windows is Visual Studio (multi-config, lib/Release/, MSVC), not the
+    # Ninja + clang-cl doppler builds with (#1575).
+    -G "${CMAKE_GENERATOR}"
+    -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+    -DCMAKE_BUILD_TYPE=Release
+    -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+    -DNATS_BUILD_WITH_TLS=OFF
+    -DNATS_BUILD_STREAMING=OFF
+    -DNATS_BUILD_LIB_SHARED=OFF
+    -DNATS_BUILD_LIB_STATIC=ON
+    -DNATS_BUILD_EXAMPLES=OFF
+    -DNATS_BUILD_USE_SODIUM=OFF
+    -DBUILD_TESTING=OFF)
+# A stamp whose content is those arguments, which the command DEPENDS on.
+# configure_file rewrites it only when the content changes, so a changed
+# argument (or compiler) re-runs the command, explicitly, under every
+# generator and CMake version. Without it the re-run rests on the generator:
+# add_custom_command's docs promise command-text tracking only for Ninja (a
+# command with no DEPENDS otherwise re-runs when its OUTPUT is missing).
+# Measured 2026-10-09: CMake 3.31.6 with Unix Makefiles re-ran it anyway;
+# CI's 3.22 and 3.28 were not measured, and a tree built before a fix must
+# not keep the library the old command made.
+string(REPLACE ";" "\n" _NATS_ARGS_TEXT "${_NATS_CONFIGURE_ARGS}")
+configure_file(cmake/nats-vendor-args.in
+               "${CMAKE_CURRENT_BINARY_DIR}/libnats-vendor.args" @ONLY)
+# Configured from an EMPTY directory every time (#1936). The -D options
 # override a cache, except when the cache names a different compiler: then
 # CMake deletes it and re-runs configure with none of them, so
 # NATS_BUILD_STREAMING falls back to ON, wants protobuf-c, and the first
 # build after a compiler change fails while the second passes. The command
-# runs when the library is missing or when this command's own text changes
-# (so a change here, this one included, rebuilds nats.c once in every
-# existing tree); either way nats.c is being configured anew, so wiping the
-# directory costs a recompile it would mostly do anyway. remove_directory,
-# not `-E rm` (3.17) or `--fresh` (3.24): the floor is 3.16. A fresh CI tree
-# never exercises this, so `make nats-vendor-fresh-check` seeds the stale
-# state on purpose.
+# runs when the library is missing or the arguments stamp changed, and
+# either way nats.c is being configured anew, so wiping the directory costs
+# a recompile it would mostly do anyway. remove_directory, not `-E rm`
+# (3.17) or `--fresh` (3.24): the floor is 3.16. A fresh CI tree never
+# exercises this, so `make nats-vendor-fresh-check` seeds the stale state on
+# purpose.
 add_custom_command(OUTPUT "${_NATS_LIB}"
     COMMAND ${CMAKE_COMMAND} -E remove_directory "${_NATS_BLD}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${_NATS_BLD}"
     COMMAND ${CMAKE_COMMAND} -B "${_NATS_BLD}" -S "${_NATS_SRC}"
-            # The PARENT's generator and compiler: CMake's default generator
-            # on Windows is Visual Studio (multi-config, lib/Release/, MSVC),
-            # not the Ninja + clang-cl doppler builds with (#1575).
-            -G "${CMAKE_GENERATOR}"
-            -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
-            -DCMAKE_BUILD_TYPE=Release
-            -DCMAKE_POSITION_INDEPENDENT_CODE=ON
-            -DNATS_BUILD_WITH_TLS=OFF
-            -DNATS_BUILD_STREAMING=OFF
-            -DNATS_BUILD_LIB_SHARED=OFF
-            -DNATS_BUILD_LIB_STATIC=ON
-            -DNATS_BUILD_EXAMPLES=OFF
-            -DNATS_BUILD_USE_SODIUM=OFF
-            -DBUILD_TESTING=OFF
+            ${_NATS_CONFIGURE_ARGS}
     COMMAND ${CMAKE_COMMAND} --build "${_NATS_BLD}" --parallel
+    DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/libnats-vendor.args"
     COMMENT "Building vendored nats.c (static, PIC; TLS/STAN off)" VERBATIM)
 add_custom_target(libnats_vendor DEPENDS "${_NATS_LIB}")
 add_library(nats_vendor_static STATIC IMPORTED GLOBAL)

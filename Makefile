@@ -818,10 +818,17 @@ GATES_CI_EXTRA = issues-check
 # option the custom command passes. The cache, not the exit code: with
 # protobuf-c and OpenSSL installed the old bug builds green. Its own build
 # dir, so it means the same on a dev box as in CI.
-NATS_FRESH_DIR ?= build-nats-fresh
+#
+# The script DELETES that dir, so: plain `=` (an exported NATS_FRESH_DIR
+# from the environment cannot aim it), the main tree is passed as
+# --protect, and the script refuses anything outside the checkout, the
+# checkout itself, or an existing dir it did not make. And the recipe does
+# not name $(MAKE): GNU make runs any recipe that does even under `make -n`
+# (standard.mk documents the hazard), so the script runs make itself.
+NATS_FRESH_DIR = build-nats-fresh
 nats-vendor-fresh-check: ## Prove the vendored nats.c keeps its options after a compiler change
 	@uv run python scripts/check_nats_vendor_fresh.py \
-	    --build-dir $(NATS_FRESH_DIR) --make "$(MAKE)" --cmake "$(CMAKE)"
+	    --build-dir $(NATS_FRESH_DIR) --protect $(BUILD_DIR) --cmake "$(CMAKE)"
 
 # Compile through ccache when it is installed, and silently not when it is
 # not: bootstrap.toml lists it, but a checkout predating that, or a box
@@ -1532,7 +1539,7 @@ endef
 # ── Clean ────────────────────────────────────────────────────────────────────
 CLEAN_PATHS = $(BUILD_DIR) $(PY_BUILD_DIR) $(UBSAN_DIR) $(TSAN_DIR) \
               $(ASAN_DIR) \
-              $(GLIBC_BUILD_DIR) \
+              $(GLIBC_BUILD_DIR) $(COV_DIR) $(NATS_FRESH_DIR) \
               docs/doxygen/ site/ \
               *.png bench_*.json zensical.toml __pycache__
 

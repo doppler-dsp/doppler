@@ -1,8 +1,8 @@
 /* bench_spectrogram_core.c — the streaming spectrogram, per input sample.
  *
  * What a caller has to know before putting it on a live stream: what one
- * input sample costs, at the transform sizes a display uses, at the two hops
- * that bracket the useful range (hop = nfft tiles the stream; hop = nfft/4
+ * input sample costs, at the transform sizes a display uses, at the hops that
+ * bracket the useful range (hop = nfft tiles the stream; hop = nfft/4
  * computes four rows per nfft samples, so it should cost about four times
  * as much per sample), and whether pushing the stream in small chunks costs
  * more than pushing it in one block.
@@ -10,48 +10,101 @@
  *   push[nfft=N,hop=H]          one push of the whole block
  *   push[nfft=N,hop=H,chunk=C]  the same block in C-sample pushes, which is
  *                               what a socket or a pull source delivers
+ *   direct[nfft=N,hop=H]        the same rows from a hand-written loop that
+ *                               calls dp_psd_frame_db on x + k*hop: no ring,
+ *                               no carry, no copy. A MEASURING STICK for the
+ *                               design's U1 (the carry's copy against a
+ *                               bypass), never a library path; setup refuses
+ *                               to run if its rows differ from push's by a
+ *                               single bit.
  *
  * The chunked rows are the same rows (the object is chunk-invariant, pinned
- * by test_spectrogram_core.c); only the cost can differ, and the design's U1
- * and U2 (docs/design/spectrogram.md) are the questions this starts to
- * answer. It is not those answers: they are measured on purpose, against the
- * hand-written loop, in the design's measurement record.
+ * by test_spectrogram_core.c); only the cost can differ. U1 is push/direct
+ * over nfft 256..65536 at hop nfft/4 and nfft; U2 (latency in time) is the
+ * chunk rows at nfft 1024, hop 256, chunk 1, hop, nfft and 16 nfft. The
+ * answers live in the design's measurement record, not here
+ * (docs/design/spectrogram-measurements.md).
  *
- * Settled once per process, rounds on the outside and configurations on the
- * inside, MIN over rounds -- dp_bench.h says why each.
+ * The block is 65536 samples, or 8 nfft where that is longer, so the largest
+ * transform still makes several rows a pass; push and direct always share a
+ * block. Settled once per process, rounds on the outside and configurations
+ * on the inside, MIN over rounds -- dp_bench.h says why each.
+ *
+ * 29 rows: jm_bench.h keeps at most JM_BENCH_MAX_ENTRIES (32) and drops the
+ * rest WITHOUT A WORD (just-buildit/just-makeit#2188), so a row added past
+ * 32 runs, prints and never reaches the JSON. Re-vendor after that ships.
  */
+#include "doppler/psd/psd_core.h"
 #include "doppler/spectrogram/spectrogram_core.h"
 #include "dp_bench.h"
 #include "jm_bench.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define BLOCK 65536
 #define CHUNK 256
 #define ROUNDS 30
+#define NCFG 64
 
 typedef struct
 {
   size_t                  nfft, hop, chunk; /* chunk 0: one push */
+  int                     direct;           /* the hand-written loop */
+  size_t                  block, cap;
   dp_spectrogram_state_t *s;
+  dp_psd_state_t         *p;
   float                  *out;
   double                  t[ROUNDS];
 } config_t;
+
+static size_t
+block_for (size_t nfft)
+{
+  return 8 * nfft > BLOCK ? 8 * nfft : BLOCK;
+}
 
 /* One timed pass: the whole block, from a fresh stream position. */
 static size_t
 run (config_t *c, const float _Complex *x)
 {
+  if (c->direct)
+    {
+      size_t k = 0;
+      for (; k * c->hop + c->nfft <= c->block; k++)
+        dp_psd_frame_db (c->p, x + k * c->hop, c->out + k * c->nfft);
+      return k * c->nfft;
+    }
   dp_spectrogram_reset (c->s);
   if (!c->chunk)
-    return dp_spectrogram_push (c->s, x, BLOCK, c->out,
-                                dp_spectrogram_push_max_out (c->s, BLOCK));
+    return dp_spectrogram_push (c->s, x, c->block, c->out, c->cap);
   size_t made = 0;
-  for (size_t off = 0; off < BLOCK; off += c->chunk)
+  for (size_t off = 0; off < c->block; off += c->chunk)
     made += dp_spectrogram_push (c->s, x + off, c->chunk, c->out + made,
-                                 BLOCK * 4 - made);
+                                 c->cap - made);
   return made;
+}
+
+static config_t *
+add (config_t *cfg, int *nc, size_t nfft, size_t hop, size_t chunk, int direct,
+     size_t block)
+{
+  config_t *c = &cfg[(*nc)++];
+  c->nfft     = nfft;
+  c->hop      = hop;
+  c->chunk    = chunk;
+  c->direct   = direct;
+  c->block    = block;
+  /* Hann, dB, DC-centred: the shape a waterfall asks for, and the PSD the
+     Spectrogram builds for itself */
+  c->s = dp_spectrogram_create (nfft, hop, 0, 0.0f, 0);
+  c->p = direct ? dp_psd_create (nfft, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.0) : NULL;
+  if (!c->s || (direct && !c->p))
+    return NULL;
+  c->cap = dp_spectrogram_push_max_out (c->s, block);
+  c->out = malloc (c->cap * sizeof *c->out);
+  return c->out ? c : NULL;
 }
 
 int
@@ -59,42 +112,66 @@ main (void)
 {
   jm_bench_t      _bench = { 0 };
   volatile size_t sink   = 0;
-  float _Complex *x      = malloc (BLOCK * sizeof *x);
+  const size_t    xlen   = block_for (65536);
+  float _Complex *x      = malloc (xlen * sizeof *x);
   if (!x)
     return 1;
-  for (int i = 0; i < BLOCK; i++)
+  for (size_t i = 0; i < xlen; i++)
     {
-      double p = 0.01 * i;
+      double p = 0.01 * (double)i;
       x[i]     = (float)cos (p) + (float)sin (p * 1.7) * I;
     }
 
+  config_t cfg[NCFG] = { 0 };
+  int      nc        = 0;
+  /* the original rows, unchanged: nfft 256/1024/4096, hop nfft and nfft/4,
+     one push and CHUNK-sample pushes */
   static const size_t nffts[] = { 256, 1024, 4096 };
-  config_t            cfg[12];
-  int                 nc = 0;
   for (int k = 0; k < 3; k++)
     for (int h = 0; h < 2; h++)
       for (int ch = 0; ch < 2; ch++)
-        {
-          config_t *c = &cfg[nc++];
-          c->nfft     = nffts[k];
-          c->hop      = h ? nffts[k] / 4 : nffts[k];
-          c->chunk    = ch ? CHUNK : 0;
-          /* Hann, dB, DC-centred: the shape a waterfall asks for */
-          c->s = dp_spectrogram_create (c->nfft, c->hop, 0, 0.0f, 0);
-          if (!c->s)
-            {
-              (void)fprintf (stderr, "bench_spectrogram: create NULL\n");
-              return 1;
-            }
-          /* the one-shot's room covers every chunking: same rows */
-          c->out = malloc (BLOCK * 4 * sizeof *c->out);
-          if (!c->out || dp_spectrogram_push_max_out (c->s, BLOCK) > BLOCK * 4)
+        if (!add (cfg, &nc, nffts[k], h ? nffts[k] / 4 : nffts[k],
+                  ch ? CHUNK : 0, 0, BLOCK))
+          return 1;
+  /* U1: push and direct over nfft 256..65536 x hop nfft/4 and nfft (the
+     midpoint nfft/2 would pass jm_bench.h's 32-row cap; see the top) */
+  static const size_t u1[] = { 256, 1024, 4096, 16384, 65536 };
+  for (int k = 0; k < 5; k++)
+    for (size_t div = 1; div <= 4; div *= 4)
+      {
+        const size_t n = u1[k], hop = n / div;
+        const int    have = n <= 4096; /* an original row */
+        config_t    *pc   = NULL;
+        for (int i = 0; i < nc; i++)
+          if (cfg[i].nfft == n && cfg[i].hop == hop && !cfg[i].chunk
+              && !cfg[i].direct)
+            pc = &cfg[i];
+        if (!have && !(pc = add (cfg, &nc, n, hop, 0, 0, block_for (n))))
+          return 1;
+        config_t *dc = add (cfg, &nc, n, hop, 0, 1, pc->block);
+        if (!dc)
+          return 1;
+        /* the measuring stick must be the same computation, bit for bit */
+        size_t wp = run (pc, x), wd = run (dc, x);
+        if (wp != wd || memcmp (pc->out, dc->out, wp * sizeof *pc->out))
+          {
+            (void)fprintf (stderr,
+                           "bench_spectrogram: direct differs from push at "
+                           "nfft %zu hop %zu\n",
+                           n, hop);
             return 1;
-        }
+          }
+      }
+  /* U2: chunk 1, nfft and 16 nfft at nfft 1024, hop 256 (CHUNK = 256 = hop
+     is an original row) */
+  static const size_t u2[] = { 1, 1024, 16384 };
+  for (int i = 0; i < 3; i++)
+    if (!add (cfg, &nc, 1024, 256, u2[i], 0, BLOCK))
+      return 1;
 
   printf ("=== spectrogram benchmark ===\n");
-  printf ("block = %d samples, %d rounds, chunk = %d\n\n", BLOCK, ROUNDS,
-          CHUNK);
+  printf ("block = %d samples (8 nfft where longer), %d rounds\n\n", BLOCK,
+          ROUNDS);
 
   DP_BENCH_SETTLE (sink += run (&cfg[0], x));
   for (int r = 0; r < ROUNDS; r++)
@@ -109,14 +186,19 @@ main (void)
   for (int i = 0; i < nc; i++)
     {
       char name[64];
-      if (cfg[i].chunk)
+      if (cfg[i].direct)
+        (void)snprintf (name, sizeof name, "direct[nfft=%zu,hop=%zu]",
+                        cfg[i].nfft, cfg[i].hop);
+      else if (cfg[i].chunk)
         (void)snprintf (name, sizeof name, "push[nfft=%zu,hop=%zu,chunk=%zu]",
                         cfg[i].nfft, cfg[i].hop, cfg[i].chunk);
       else
         (void)snprintf (name, sizeof name, "push[nfft=%zu,hop=%zu]",
                         cfg[i].nfft, cfg[i].hop);
-      dp_bench_record (&_bench, name, cfg[i].t, ROUNDS, BLOCK, "sample");
+      dp_bench_record (&_bench, name, cfg[i].t, ROUNDS, cfg[i].block,
+                       "sample");
       dp_spectrogram_destroy (cfg[i].s);
+      dp_psd_destroy (cfg[i].p);
       free (cfg[i].out);
     }
   printf ("\n(sink %zu)\n", (size_t)sink);

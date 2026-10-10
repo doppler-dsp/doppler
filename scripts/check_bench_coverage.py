@@ -324,7 +324,12 @@ _WRITE_CALL = re.compile(
 
 
 def jm_components() -> set[str]:
-    """The component names `jm bench` iterates -- objects, nothing else."""
+    """The manifest's components: the objects jm generates a bench target for.
+
+    `jm bench` also runs every OTHER built bench target, by discovery
+    (just-makeit#1023), so this is not the set it runs; it is the set whose
+    targets jm writes, and rule 2 holds the rest to having one by hand.
+    """
     from just_makeit import _config as jm_config
 
     return set(jm_config.components(jm_config.load(ROOT)))

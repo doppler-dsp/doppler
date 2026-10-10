@@ -112,8 +112,8 @@ add_test(NAME test_ccsds_tm_frame COMMAND test_ccsds_tm_frame)
 
 # ── benchmark ───────────────────────────────────────────────────────────────
 # Hand-registered for the same reason the tests above are: ccsds_tm is a
-# c_dep, not one of jm's components, so `jm apply` writes no target and
-# `jm bench` cannot run it (just-makeit#1023 -- run it by hand meanwhile).
+# c_dep, not one of jm's components, so `jm apply` writes no target; once
+# built, `jm bench` runs it by discovering the target (just-makeit#1023).
 # scripts/check_bench_coverage.py fails `make lint` if the target, the
 # measurement, or the JSON name it writes under goes wrong.
 add_executable(bench_ccsds_tm_core

@@ -126,14 +126,14 @@ Amplitude error is at the float32 floor (`1.19e-07` is one ulp at 1.0), four ord
 
 | case | SFDR (dBc) |
 |---|---|
-| 400 random frequencies in [0.02, 0.48] — min / median / max | 96.32 / 96.33 / 96.33 |
+| 400 random frequencies in [0.02, 0.48] — min / median / max | 96.31 / 96.33 / 96.33 |
 | worst frequency found: `phase_inc & 0xFFFF` = 65536 x 1/2 = 32768 | **92.41** |
 | phase-truncation theory, worst case (6.02 x 16 - 3.92) | 92.40 |
 | phase-truncation theory, generic (6.02 x 16) | 96.32 |
-| `phase_inc & 0xFFFF == 0` — no phase truncation at all | 146.36 |
-| measurement floor (an ideal float64 phasor cast to cf32) | 147.44 |
+| `phase_inc & 0xFFFF == 0` — no phase truncation at all | 147.68 |
+| measurement floor (an ideal float64 phasor cast to cf32) | 145.59 |
 
-The generic case is flat and matches the claim: 400 random frequencies give 96.32–96.33 dBc, a spread of 0.02 dB. The worst case does not: at a half-bin fractional increment (`phase_inc & 0xFFFF == 0x8000`) the error sequence has period 2 and all its energy lands in one spur, giving **92.41 dBc** — the classical phase-truncation bound `6.02 B - 3.92` to 0.01 dB. At the other extreme, an increment that is a whole number of LUT bins truncates nothing and is spur-free to the measurement floor.
+The generic case is flat and matches the claim: 400 random frequencies give 96.31–96.33 dBc, a spread of 0.02 dB. The worst case does not: at a half-bin fractional increment (`phase_inc & 0xFFFF == 0x8000`) the error sequence has period 2 and all its energy lands in one spur, giving **92.41 dBc** — the classical phase-truncation bound `6.02 B - 3.92` to 0.01 dB. At the other extreme, an increment that is a whole number of LUT bins truncates nothing and is spur-free to the measurement floor.
 
 The ten worst increments found, all small-denominator:
 
@@ -142,8 +142,8 @@ The ten worst increments found, all small-denominator:
 | 32768 | 1/2 | 92.41 |
 | 21845 | 1/3 | 94.68 |
 | 43690 | 2/3 | 95.19 |
-| 16384 | 1/4 | 95.41 |
 | 49152 | 3/4 | 95.41 |
+| 16384 | 1/4 | 95.41 |
 | 13107 | 1/5 | 95.75 |
 | 39321 | 3/5 | 95.79 |
 | 26214 | 2/5 | 95.97 |
@@ -255,7 +255,7 @@ The bindings expose `steps`/`steps_ctrl` and the properties, but the **entire in
 
 ## 3. Review — findings
 
-- **F1 · FIXED** — the '~96 dBc SFDR' claim was the TYPICAL value stated as though it were a bound. Measured: 96.32-96.33 dBc over 400 random frequencies, but 92.41 dBc at a half-bin fractional increment (phase_inc & 0xFFFF == 32768), which is the classical 6.02B-3.92 = 92.40 dBc phase-truncation bound — 3.6 dB below the figure a caller would have budgeted from, and the worst set is not exotic: every increment congruent to 0x8000 mod 2^16 is in it. In the other direction the claim was equally silent about 146 dBc when the increment is a whole number of LUT bins. FIXED: lo_core.h now documents all three regimes and states the real guarantee, **SFDR >= 90 dBc at any frequency** (2.41 dB of margin on the measured worst case). The bound is gated, not just documented: test_lo.py::test_sfdr_worst_case_meets_the_documented_bound measures the 0x8000 remainder in the Python suite and pins it to the theory bound, and a sabotage that drops the phase index to 14 bits takes it to 84.06 dBc and turns the gate red.
+- **F1 · FIXED** — the '~96 dBc SFDR' claim was the TYPICAL value stated as though it were a bound. Measured: 96.31-96.33 dBc over 400 random frequencies, but 92.41 dBc at a half-bin fractional increment (phase_inc & 0xFFFF == 32768), which is the classical 6.02B-3.92 = 92.40 dBc phase-truncation bound — 3.6 dB below the figure a caller would have budgeted from, and the worst set is not exotic: every increment congruent to 0x8000 mod 2^16 is in it. In the other direction the claim was equally silent about 148 dBc when the increment is a whole number of LUT bins. FIXED: lo_core.h now documents all three regimes and states the real guarantee, **SFDR >= 90 dBc at any frequency** (2.41 dB of margin on the measured worst case). The bound is gated, not just documented: test_lo.py::test_sfdr_worst_case_meets_the_documented_bound measures the 0x8000 remainder in the Python suite and pins it to the theory bound, and a sabotage that drops the phase index to 14 bits takes it to 84.06 dBc and turns the gate red.
 
 - **F2 · FIXED** — the comment beside lo_step_ctrl said nco_norm_freq_to_inc 'rounds, not truncates'. It truncates, deliberately, and nco_core.h spends four paragraphs on why (a rounding form contracts to an FMA on arm64 and x86-64-v3 but not on the x86-64-v2 baseline doppler ships, so the increment would differ by host). test_lo_core.c §15 already measured truncation on the configure path; the new §21 pins it on the control path too, so the comment is now contradicted by a test rather than by reading. Stale prose left behind when the private copy was consolidated away — the sentence described what the deleted copy did. The comment now states truncation and points at nco_core.h for why; §21 is what stops it drifting again.
 
@@ -276,7 +276,7 @@ The bindings expose `steps`/`steps_ctrl` and the properties, but the **entire in
 
 | finding | verdict | detail |
 |---|---|---|
-| F1 | FIXED | the '~96 dBc SFDR' claim was the TYPICAL value stated as though it were a bound. Measured: 96.32-96.33 dBc over 400 random frequencies, but 92.41 dBc at a half-bin fractional increment (phase_inc & 0xFFFF == 32768), which is the classical 6.02B-3.92 = 92.40 dBc phase-truncation bound — 3.6 dB below the figure a caller would have budgeted from, and the worst set is not exotic: every increment congruent to 0x8000 mod 2^16 is in it. In the other direction the claim was equally silent about 146 dBc when the increment is a whole number of LUT bins. FIXED: lo_core.h now documents all three regimes and states the real guarantee, **SFDR >= 90 dBc at any frequency** (2.41 dB of margin on the measured worst case). The bound is gated, not just documented: test_lo.py::test_sfdr_worst_case_meets_the_documented_bound measures the 0x8000 remainder in the Python suite and pins it to the theory bound, and a sabotage that drops the phase index to 14 bits takes it to 84.06 dBc and turns the gate red. |
+| F1 | FIXED | the '~96 dBc SFDR' claim was the TYPICAL value stated as though it were a bound. Measured: 96.31-96.33 dBc over 400 random frequencies, but 92.41 dBc at a half-bin fractional increment (phase_inc & 0xFFFF == 32768), which is the classical 6.02B-3.92 = 92.40 dBc phase-truncation bound — 3.6 dB below the figure a caller would have budgeted from, and the worst set is not exotic: every increment congruent to 0x8000 mod 2^16 is in it. In the other direction the claim was equally silent about 148 dBc when the increment is a whole number of LUT bins. FIXED: lo_core.h now documents all three regimes and states the real guarantee, **SFDR >= 90 dBc at any frequency** (2.41 dB of margin on the measured worst case). The bound is gated, not just documented: test_lo.py::test_sfdr_worst_case_meets_the_documented_bound measures the 0x8000 remainder in the Python suite and pins it to the theory bound, and a sabotage that drops the phase index to 14 bits takes it to 84.06 dBc and turns the gate red. |
 | F2 | FIXED | the comment beside lo_step_ctrl said nco_norm_freq_to_inc 'rounds, not truncates'. It truncates, deliberately, and nco_core.h spends four paragraphs on why (a rounding form contracts to an FMA on arm64 and x86-64-v3 but not on the x86-64-v2 baseline doppler ships, so the increment would differ by host). test_lo_core.c §15 already measured truncation on the configure path; the new §21 pins it on the control path too, so the comment is now contradicted by a test rather than by reading. Stale prose left behind when the private copy was consolidated away — the sentence described what the deleted copy did. The comment now states truncation and points at nco_core.h for why; §21 is what stops it drifting again. |
 | F3 | FIXED | lo_core.c's two `#ifdef __AVX512F__` blocks were dead in every configuration doppler ships, and divergent where they are not. CMakeLists.txt targets -march=x86-64-v2 by default, so __AVX512F__ is undefined and the scalar fallbacks are what every wheel, every CI job and this report exercise; the vector path becomes live only under DOPPLER_NATIVE=ON on an AVX-512 host. There it computes round(frac x 2^32) in float32 via _mm512_cvtps_epu32 while the compiled scalar truncates in double — the same object, two phase increments, chosen by CPU. Already recorded as a KNOWN VIOLATION in scripts/.phase-conversion-allow; this report added that it was also unreachable, so no gate could ever catch the divergence. Both blocks are now DELETED and the scalar fallbacks — the only code any shipped build ever ran — are the implementation. That retires the allowlist entry too, so the ratchet shrank from 8 occurrences to 7. |
 | F4 | FIXED | both max_out doc lines were stale. lo_core.h called steps_max_out() 'maximum samples per call' and lo_core.c said 'calling with n > 65536 overflows the buffer and is undefined behaviour'. Measured: steps(70000) returns 70000 correct samples and steps_ctrl the same — pass_capacity (jm gh-138) made the caller's capacity the bound and the Python binding grows its buffer, so 65536 is a pre-allocation hint and both sentences described the pre-gh-138 contract. FIXED in both files — and checking the sibling found the IDENTICAL pair in nco_core.{h,c}, four copies of one false claim, all four now corrected (see the NCO report's F9, and its new §17 pinning the behaviour on each of the three NCO output mappings). |
@@ -298,8 +298,8 @@ Claims a caller may rely on. A failure here is a regression, not a new finding.
 | PASS | every emitted sample is a unit-magnitude phasor (max \|1-\|x\|\| = 5.53e-08) |
 | PASS | SFDR is >= 90 dBc at ANY frequency — the bound lo_core.h now states (worst measured 92.41 dBc, 2.41 dB of margin) |
 | PASS | the worst case IS the phase-truncation bound 6.02B-3.92 = 92.40 dBc, not something else (92.41 measured) — so the margin above is the real margin, not an artefact of where the sweep happened to look |
-| PASS | at a generic frequency SFDR meets the typical ~96 dBc (96.32 dBc worst of 400 random rates) |
-| PASS | the spur floor is PHASE truncation, not amplitude: an increment of whole LUT bins is spur-free to 146 dBc |
+| PASS | at a generic frequency SFDR meets the typical ~96 dBc (96.31 dBc worst of 400 random rates) |
+| PASS | the spur floor is PHASE truncation, not amplitude: an increment of whole LUT bins is spur-free to 148 dBc |
 | PASS | the LO's accumulator is the NCO's, bit-for-bit — configured, free-running and control-driven |
 | PASS | frequency error is never HIGH, at any requested rate |
 | PASS | frequency error never escapes the 1e6/phase_inc ppm envelope |

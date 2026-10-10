@@ -395,8 +395,9 @@ below 1.0 looks like a finding.
 benchmarks still time their configurations one after another with no settle
 at all — [#896](https://github.com/doppler-dsp/doppler/issues/896) has the
 counts and argues the loop belongs in `jm_bench.h` rather than in 38 hand
-edits. Version-over-version comparison (`bench-check`, `bench-interleaved`)
-is largely unaffected, since a consistent first-config penalty cancels
+edits. Version-over-version comparison (`bench-interleaved`, and
+`bench-save` / `bench-compare` for the Python microbenchmarks) is largely
+unaffected, since a consistent first-config penalty cancels
 between snapshots; what it corrupts is the comparison between rows inside
 one snapshot.
 

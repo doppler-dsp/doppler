@@ -1090,16 +1090,21 @@ jobs:
           # The tag under release: pushed, or named by a dispatch.
           ref: ${{ inputs.tag || github.ref }}
 
-      # The leg's own Python, from python.org's builds as a user installs it;
+      # The leg's own Python, from setup-python's builds (python.org's
+      # installers on Windows, actions/python-versions' builds on Linux);
       # SMOKE_PYTHON below makes the throwaway venv use it and checks it did.
-      # macOS arm64 takes uv's managed build instead, as build-macos does:
-      # setup-python has shipped no arm64 build of the oldest Pythons for
-      # macos-14 (actions/setup-python#825), and a leg that cannot get its
-      # Python would read as a broken wheel.
       - if: matrix.arch.tag != 'macos_arm64'
         uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python }}
+
+      # macOS arm64 takes uv's managed build of the leg's Python, the one
+      # build-macos builds the wheels with, and ONLY a managed one: setup-uv's
+      # python-version sets UV_PYTHON, and uv prefers an interpreter already
+      # on the machine, so `--python 3.9` on macos-14 could resolve to
+      # Xcode's 3.9.6 instead and the leg would depend on the runner image.
+      - if: matrix.arch.tag == 'macos_arm64'
+        run: echo "UV_PYTHON_PREFERENCE=only-managed" >> "$GITHUB_ENV"
 
       # `make release-smoke-pypi` builds the throwaway venv with uv, so uv
       # must be on PATH — setup-python alone is not enough.

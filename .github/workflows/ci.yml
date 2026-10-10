@@ -104,7 +104,7 @@ jobs:
       env:
         CODE: ${{ needs.changes.outputs.code }}
       run: |
-        primary=$(python3 scripts/python_versions.py --primary)
+        primary=$(make -s print-python-primary)
         if [ "$CODE" = false ]; then
           pythons="[\"$primary\"]"
         else

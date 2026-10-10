@@ -1,6 +1,6 @@
 """`scripts/mem-guard.sh`: whose ceiling is whose, and where the probe dies.
 
-A defect about WHERE a limit lands:
+Two defects, both about WHERE a limit lands:
 
 - #1960: the shared `doppler-guard.slice` took its ceiling from whichever
   guarded command started last, so one caller's `MEM_GUARD_MAX=1G` held
@@ -8,12 +8,16 @@ A defect about WHERE a limit lands:
   always 3/4 of MemTotal, and a caller's `MEM_GUARD_MAX` is a `MemoryMax`
   on its OWN scope. A cap systemd-run refuses is dropped for the shared
   ceiling, so a typo cannot stop the command running.
+- #1961: the probe ran in `doppler-guard-probe.slice`, a CHILD of the
+  guard (systemd nests slices by dash), so every guarded start logged an
+  OOM kill against `doppler-guard.slice`. The probe now runs in
+  `doppler-mgprobe.slice`, a sibling under `doppler.slice`.
 
 The real behaviour needs a systemd user session, which CI runners do not
 have; it was measured on a box (see the PR). These tests run the script
 against stand-in `systemctl` and `systemd-run` commands that record every
 call, so they pin the CONTRACT everywhere: which unit gets which
-MemoryMax.
+MemoryMax, and which slice the probe uses.
 """
 
 from __future__ import annotations
@@ -170,3 +174,13 @@ def test_a_refused_cap_falls_back_to_the_shared_ceiling(
     assert f"MemoryMax={BAD_CAP}" in fallback, stderr
     assert "MemoryMax" not in _command_run(calls)  # in the guard, uncapped
     assert _guard_slice_ceiling(calls) == f"MemoryMax={_machine_ceiling()}"
+
+
+def test_the_probe_dies_outside_the_guard_slice(tmp_path: Path) -> None:
+    """#1961: a probe slice named doppler-guard-* is the guard's CHILD, and
+    its kill is logged against doppler-guard.slice."""
+    calls, _ = _run(tmp_path)
+    probe = [c for c in calls if "probe" in c]
+    assert probe, calls
+    assert all("doppler-mgprobe.slice" in c for c in probe), probe
+    assert not any("doppler-guard-" in c for c in calls), calls

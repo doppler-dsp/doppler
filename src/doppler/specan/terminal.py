@@ -191,6 +191,7 @@ class TerminalDisplay:
         self._frame: SpectrumFrame | None = None
         self._lock = threading.Lock()
         self._running = False
+        self._dsp_thread: threading.Thread | None = None
         self._top_dbm = cfg.level if cfg.level != 0 else 10.0
         self._bottom_dbm = self._top_dbm - _DISPLAY_ROWS * 10
 
@@ -363,7 +364,21 @@ class TerminalDisplay:
             finally:
                 self._running = False
                 # Before the caller closes the source: a DSP loop still in
-                # read() would recv or ack on a closed Pull (#2016). A read
-                # returns within its receive timeout, so this is bounded.
-                timeout_s = getattr(self._source, "_timeout_ms", 2000) / 1e3
-                self._dsp_thread.join(timeout=2 * timeout_s + 1.0)
+                # read() would recv or ack on a closed Pull (#2016). The
+                # grace covers one receive, not a read(), which loops until
+                # it has a whole block (forever with --timeout -1); so the
+                # caller checks `dsp_stopped` and closes nothing while the
+                # loop lives. Ending the read itself, with a stop flag or
+                # an interruptible recv, is #2016.
+                grace_s = 2 * max(self._cfg.timeout, 0) / 1e3 + 1.0
+                self._dsp_thread.join(timeout=grace_s)
+
+    @property
+    def dsp_stopped(self) -> bool:
+        """Whether the DSP thread has finished, or never started.
+
+        Only then may the caller close the source and the engine: while
+        the thread lives it may be inside ``source.read()``, and will call
+        ``engine.process()`` when that returns.
+        """
+        return self._dsp_thread is None or not self._dsp_thread.is_alive()

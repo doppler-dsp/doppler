@@ -154,20 +154,33 @@ class SpecanEngine:
         Returns
         -------
         SpectrumFrame or None
-            ``None`` if the block is too short to fill an FFT frame yet.
+            ``None`` if the block is empty (a source that timed out) or
+            too short to fill an FFT frame yet.
+
+        Raises
+        ------
+        ValueError
+            If a non-empty block has ``fs_in <= 0``: the producer sent
+            samples without a sample rate.
         """
         from doppler.spectral import find_peaks_f32
 
-        # Nothing to show yet: an empty block (a source that timed out
-        # before its first frame, the normal `doppler compose` start-up
-        # with the sink up before the producer) arrives with a rate of 0.0,
-        # which equals the initial one, so no chain is built below.
+        # Nothing to show yet: an empty block is a source that timed out,
+        # as it does before its first frame in `doppler compose`, where the
+        # sink starts before the producer. It carries a rate of 0.0 then,
+        # and must not reach the chain: rebuilding for 0 Hz would tear down
+        # a working one.
         if iq.size == 0:
             return None
+        # Samples with no rate are the producer's mistake, Push.send's
+        # defaults: say so, rather than wait for a signal forever.
+        if fs_in <= 0:
+            raise ValueError(
+                f"{iq.size} samples arrived with a sample rate of {fs_in} "
+                "Hz: the producer set none (Push.send defaults it to 0)"
+            )
         if fs_in != self._fs_in or center_freq != self._center_freq:
             self._init_chain(fs_in, center_freq)
-        if self._specan is None:
-            return None
 
         # Mix, decimate, window, FFT, average, crop, dB — all in C.
         db = self._specan.execute(iq.astype(np.complex64))

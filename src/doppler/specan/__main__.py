@@ -245,8 +245,18 @@ def _run_terminal(cfg: SpecanConfig) -> None:
     try:
         display.run()
     finally:
-        source.close()
-        engine.close()
+        if display.dsp_stopped:
+            source.close()
+            engine.close()
+        else:
+            # Closing under a live read is the use-after-free of #2016;
+            # the process is exiting, so leave both to it.
+            print(
+                "doppler-specan: the DSP thread is still reading; leaving"
+                " the source and engine open rather than closing them"
+                " under it (#2016)",
+                file=sys.stderr,
+            )
 
 
 def _run_web(cfg: SpecanConfig) -> None:

@@ -236,6 +236,58 @@ def test_an_entry_added_since_the_base_fails_on_either_ratchet(
     assert mod.ratchet_added(path, "HEAD") == []
 
 
+def _mutator_list(
+    mod: ModuleType, monkeypatch: pytest.MonkeyPatch, text: str
+) -> Path:
+    """Commit the mutator-state list and its gate, so the base holds both."""
+    root = mod.ROOT
+    lst = root / "scripts" / ".mutator-state-exempt"
+    gate = root / mod.MUTATOR_GATE
+    gate.parent.mkdir(parents=True)
+    gate.write_text("")
+    lst.write_text(text)
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "the mutator list")
+    monkeypatch.setattr(mod, "MUTATOR_LIST", lst)
+    return lst
+
+
+def test_a_mutator_entry_added_since_the_base_fails(
+    seed: Seed, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The mutator-state list only shrinks (#2085 review): a PR that breaks
+    a mutator cannot forgive it with a new line."""
+    mod = seed()
+    lst = _mutator_list(mod, monkeypatch, "A.b  LOST  held at the base\n")
+    assert mod.mutator_list_added("HEAD") == []
+    lst.write_text("A.b  LOST  held at the base\nA.c  LOST  forgive me\n")
+    bad = mod.mutator_list_added("HEAD")
+    assert len(bad) == 1
+    assert "'A.c' ADDED" in bad[0]
+
+
+def test_a_mutator_entry_is_its_key_not_its_verdict(
+    seed: Seed, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A verdict that changes is the gate's to judge against the probe; only
+    a key the base did not hold is growth."""
+    mod = seed()
+    lst = _mutator_list(mod, monkeypatch, "A.b  LOST  held at the base\n")
+    lst.write_text("A.b  UNPROBED  reads otherwise now\n")
+    assert mod.mutator_list_added("HEAD") == []
+
+
+def test_the_change_that_brings_the_mutator_gate_brings_its_list(
+    seed: Seed, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Gate and list both absent at the base: nothing has grown yet."""
+    mod = seed()
+    lst = mod.ROOT / "scripts" / ".mutator-state-exempt"
+    lst.write_text("A.b  LOST  the first list\n")
+    monkeypatch.setattr(mod, "MUTATOR_LIST", lst)
+    assert mod.mutator_list_added("HEAD") == []
+
+
 def test_a_new_ratchet_file_has_no_earlier_list_to_have_grown_from(
     seed: Seed,
 ) -> None:

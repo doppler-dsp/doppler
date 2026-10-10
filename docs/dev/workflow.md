@@ -73,6 +73,21 @@ Beyond the hook, run only what proves *this* change:
 1. a sabotage, in a copy, that turns that test red again;
 1. the tests the change can reach.
 
+Run those through the target, narrowed with `TEST_PATHS`, a space-separated
+list of files or directories. It is the same mem-guard, leak check and flags
+as the full suite, and `-k` still narrows by name within it:
+
+```sh
+make test-python TEST_PATHS=src/doppler/spectral/tests/test_psd.py
+make test-python TEST_PATHS="src/doppler/agc/tests src/doppler/track/tests"
+make test-python TEST_PATHS=src/doppler/track/tests PYTEST_ARGS="-k costas"
+```
+
+A path in `PYTEST_ARGS` does **not** narrow: it is collected in addition to
+`src/`, and the whole suite runs ([#1998](https://github.com/doppler-dsp/doppler/issues/1998)).
+Never run `pytest` directly: the make-SSOT hook stops it, and the bypass
+skips the guard and the leak check.
+
 Then push, and let CI run the rest.
 
 **`make gates` exists only to debug a CI failure. Never run it before CI.**

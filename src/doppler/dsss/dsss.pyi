@@ -274,8 +274,9 @@ class Despreader:
     ValueError
         If construction fails. The exception message is ``Despreader: invalid
         parameter (need a non-empty code; for the code loop a finite init_chip,
-        bn_code >= 0 and zeta > 0 both finite, and 0 < spacing <
-        len(code)/2)``.
+        bn_code >= 0 and zeta > 0 both finite, and 0 < spacing < len(code)/2;
+        for the carrier loop bn_carrier >= 0, finite; and finite loop gains for
+        both)``.
 
     Examples
     --------

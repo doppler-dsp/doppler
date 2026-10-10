@@ -98,8 +98,9 @@ def test_exp_setter_keeps_alpha_on_refusal(alpha):
     np.testing.assert_allclose(a.value(), [6.0, 12.0])
 
 
-# The blob: a 16-byte dp_state_hdr_t, the u64 fold count, then alpha.
-_ALPHA_AT = 16 + 8
+# The blob: a 16-byte dp_state_hdr_t, the u32 mode, the u64 fold count, then
+# alpha.
+_ALPHA_AT = 16 + 4 + 8
 
 
 def test_state_carries_a_runtime_alpha():
@@ -135,6 +136,21 @@ def test_state_refuses_an_alpha_the_setter_would(alpha):
     with pytest.raises(ValueError):
         b.set_state(bytes(blob))
     assert b.get_state() == before
+
+
+def test_state_from_another_mode_is_refused():
+    # mode is a reject key: a mean trace's blob restored into an exp instance
+    # used to come back OK, with an alpha mean never checked, and the mean
+    # trace went on as an EMA. Refused now, and the target is left as it was.
+    src = AccTrace(n=4, mode="mean")
+    src.accumulate(np.ones(4, dtype=np.float32))
+    dst = AccTrace(n=4, mode="exp", alpha=0.5)
+    dst.accumulate(np.full(4, 2.0, dtype=np.float32))
+    before = dst.get_state()
+    with pytest.raises(ValueError):
+        dst.set_state(src.get_state())
+    assert dst.get_state() == before
+    assert dst.alpha == 0.5
 
 
 def test_state_in_a_mode_that_never_reads_alpha_accepts_any():

@@ -306,12 +306,16 @@ typedef int (*det_frame_step_fn) (void *obj, const float _Complex *frame,
  * or strands frames; acq breaks the first (a dump reports several peaks),
  * which is why it has its own drain.
  *
- * Once @p result is full the push takes NOTHING more, not even a partial
- * frame of carry, so a push that stopped full stops on a frame boundary:
- * a caller that cannot resume (Python's one call per push) stays frame-
- * aligned instead of shifted by the carry it never sees. A push with no
- * room takes nothing at all, so a resume loop needs room for at least one.
- * Input that runs out mid-frame is the carry, held for the next call.
+ * Once @p result is full -- and with no room it is full from the start --
+ * the push takes the rest of its input only if the rest completes no
+ * frame: that rest is then the carry, taken without loss. Otherwise it
+ * takes nothing more, so a push that stops short of its input stops on a
+ * frame boundary, never part-way into a frame it cannot report. A caller
+ * that cannot resume (Python: one call per push) loses only what a push
+ * leaves, and stays frame-aligned when that is a whole number of frames.
+ * A resume loop needs room for at least one: with none, a push takes
+ * nothing that completes a frame. Input that runs out mid-frame is the
+ * carry, held for the next call.
  *
  * @param fr           The object's framer, bound at frame and hop @p n.
  * @param n            Samples per frame.
@@ -354,6 +358,11 @@ det_framed_push (dp_f32_framer_t *fr, size_t n, const float _Complex *in,
       if (!drained)
         break; /* the input is used up: the rest of a frame is the carry */
     }
+  /* Full: the rest is the carry if it completes no frame. Fed with room
+     for none, the framer takes exactly that, and frames_for() says whether
+     it is all of the rest -- else the push stops on the boundary. */
+  if (ndet == max_results && dp_f32_framer_frames_for (fr, n_in - off) == 0)
+    off += dp_f32_framer_feed_view (fr, in + off, n_in - off, 0);
   *consumed = off;
   return ndet;
 }

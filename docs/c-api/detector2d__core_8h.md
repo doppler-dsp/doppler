@@ -318,7 +318,7 @@ size_t dp_detector2d_push (
 
 
 
-Python's push() has room for 1024 detections a call. Once a push fills it, every later frame of that call is lost, whether or not it would have made a detection; the stream stays frame-aligned, so the next push starts on a frame boundary and its peaks keep their (row, col). Keep a chunk under 1024 frames. Before v0.66 the room was 64, and a push past it kept up to ring\_cap/n - 1 of those frames for the next call and dropped the rest. #1992 and just-buildit/just-makeit#2184 track sizing the list to the call.
+Python's push() has room for 1024 detections a call, so a push that completes at most 1024 frames, counting the carry, loses nothing. One that fills the room loses the rest of its input, every later frame whether or not it would have made a detection, unless the rest is shorter than a frame: that is kept as the carry. The next push stays on the frame grid, its peaks at their own (row, col), only when what was lost is a whole number of frames; otherwise they are off by the remainder. Before v0.66 the room was 64, and a push past it kept up to ring\_cap/n - 1 of those frames for the next call and dropped the rest. #1992 and just-buildit/just-makeit#2184 track sizing the list to the call.
 
 
 
@@ -330,7 +330,7 @@ Python's push() has room for 1024 detections a call. Once a push fills it, every
 * `in` CF32 input chunk of arbitrary length. 
 * `n_in` Number of input samples in `in`. 
 * `result` Caller-supplied array of at least `max_results` [**det\_result2d\_t**](structdet__result2d__t.md) structs; filled on return. 
-* `max_results` Capacity of `result` (maximum detections to emit). A full `result` never loses input: a frame yields at most one detection, and once `result` is full the push takes nothing more, so it stops on the boundary of its last frame. [**dp\_detector2d\_consumed()**](detector2d__core_8h.md#function-dp_detector2d_consumed) says how many samples it took, and the caller offers the rest again. Input that runs out mid-frame is the carry, held inside (fewer than ny\*nx samples). A push with room 0 takes nothing, so a resume loop needs room for at least one; with that, a push of any input takes at least one sample. 
+* `max_results` Capacity of `result` (maximum detections to emit). A full `result` never loses input: a frame yields at most one detection, and once `result` is full the push takes the rest of its input only if the rest completes no frame (it is then the carry); otherwise it takes nothing more, stopping on the boundary of its last frame. [**dp\_detector2d\_consumed()**](detector2d__core_8h.md#function-dp_detector2d_consumed) says how many samples it took, and the caller offers the rest again. Input that runs out mid-frame is the carry, held inside (fewer than ny\*nx samples). With room 0 the push is full from the start, so a resume loop needs room for at least one; with that, a push of any input takes at least one sample. 
 
 
 

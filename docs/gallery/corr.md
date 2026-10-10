@@ -44,9 +44,12 @@ see the [2-D Acquisition gallery](detection2d.md) for the details.
 
 ### `CorrDetector` — streaming CFAR
 
-`push(block)` accepts arbitrary-length blocks and yields
-`(lag, peak_mag, noise_est, test_stat)` for each dwell that fires above the
-threshold; the noise estimate is taken from lags `[noise_lo, noise_hi]`:
+`push(block)` yields `(lag, peak_mag, noise_est, test_stat)` for each dwell
+that fires above the threshold; the noise estimate is taken from lags
+`[noise_lo, noise_hi]`. A block may be any length, since a partial frame
+waits for the next push, but one push reports at most 1024 detections: a
+block that completes at most 1024 frames, counting that carry, loses
+nothing.
 
 ```python
 # One coherent-dwell block of the same shifted-PN + noise frames.

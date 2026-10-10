@@ -50,9 +50,11 @@ peak-to-noise test statistic against `threshold` and emits a detection result
 when it passes (`threshold = 0.0` fires on every dump). The ring capacity is
 `next_pow_two(max(n, 512))` complex samples.
 
-One `push()` has room for **1024 detections**. Once a push fills it, every
-later frame of that call is lost, whether or not it would have made a
-detection, so keep a chunk under 1024 frames
+One `push()` has room for **1024 detections**, so a push that completes at
+most 1024 frames, counting the carry, loses nothing. One that fills the room
+loses the rest of its input, every later frame whether or not it would have
+made a detection, unless the rest is shorter than a frame; the next push
+stays on the frame grid only when what was lost is a whole number of frames
 ([#1992](https://github.com/doppler-dsp/doppler/issues/1992)).
 
 ```python
@@ -69,14 +71,14 @@ def stream_chunks():                              # a real CF32 source
                + 1j * np.random.randn(1024)).astype(np.complex64)
 
 
-for chunk in stream_chunks():                     # any size under 1024 frames
+for chunk in stream_chunks():                     # at most 1024 frames each
     for hit in det.push(chunk.astype(np.complex64)):
         print("detection:", hit)                  # (lag, peak, noise, stat)
 ```
 
 `CorrDetector2D` is the 2-D streaming detector over a grid, with the same
-room: 1024 detections per `push()`, and every later frame of a push that
-fills it is lost.
+room: 1024 detections per `push()`, the same bound of 1024 frames counting
+the carry, and the same loss past it.
 
 ::: doppler.spectral.CorrDetector
 

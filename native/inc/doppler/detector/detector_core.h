@@ -95,7 +95,8 @@ typedef struct
 typedef struct
 {
   dp_corr_state_t *corr;       /**< FFT correlator + int-dump engine.         */
-  dp_f32_t *ring;             /**< The carry's storage, owned by @c framer.  */
+  dp_f32_t *ring;             /**< The carry's storage: bound to @c framer,
+                                   freed by destroy.                        */
   dp_f32_framer_t framer;     /**< Any chunk in, n-sample frames out.        */
   float _Complex *out_buf;   /**< Corr output buffer (n complex samples).    */
   float *mag_buf;           /**< |out_buf&#91;k&#93;|, n floats.                   */
@@ -111,7 +112,8 @@ typedef struct
   float peak_mag;
   float noise_est;
   float test_stat;
-  int _last_corr_valid;     /**< 1 after the first dump, else 0.           */
+  int _last_corr_valid;     /**< 1 once a dump has filled out_buf; 0
+                                 after create, reset and set_state.     */
   size_t consumed;          /**< Input samples the last push took.          */
 } dp_detector_state_t;
 
@@ -207,9 +209,10 @@ void dp_detector_set_threshold (dp_detector_state_t *state, float threshold);
  *
  * Python's push() has room for 1024 detections a call.  Once a push fills
  * it, every later frame of that call is lost, whether or not it would have
- * made a detection: keep a chunk under 1024 frames.  Before v0.66 the room
- * was 64, and a push past it kept up to ring_cap/n - 1 of those frames for
- * the next call and dropped the rest.  #1992 and
+ * made a detection; the stream stays frame-aligned, so the next push starts
+ * on a frame boundary.  Keep a chunk under 1024 frames.  Before v0.66 the
+ * room was 64, and a push past it kept up to ring_cap/n - 1 of those frames
+ * for the next call and dropped the rest.  #1992 and
  * just-buildit/just-makeit#2184 track sizing the list to the call.
  *
  * @param state        Allocated detector (non-NULL).
@@ -219,14 +222,15 @@ void dp_detector_set_threshold (dp_detector_state_t *state, float threshold);
  *                     det_result_t structs; filled on return.
  * @param max_results  Capacity of @p result (maximum detections to emit).
  *                     A full @p result never loses input: a frame yields at
- *                     most one detection, so a sample is taken unless it
- *                     would complete a frame when @p result has no room
- *                     left.  The push stops there, dp_detector_consumed()
- *                     says how many samples it took, and the caller offers
- *                     the rest again.  Taken input that completes no frame
- *                     is the carry, held inside (fewer than n samples), so
- *                     it is taken whole even at 0, and at >= 1 a push of
- *                     any input takes at least one sample.
+ *                     most one detection, and once @p result is full the
+ *                     push takes nothing more, so it stops on the boundary
+ *                     of its last frame.  dp_detector_consumed() says how
+ *                     many samples it took, and the caller offers the rest
+ *                     again.  Input that runs out mid-frame is the carry,
+ *                     held inside (fewer than n samples).  A push with room
+ *                     0 takes nothing, so a resume loop needs room for at
+ *                     least one; with that, a push of any input takes at
+ *                     least one sample.
  * @return Number of det_result_t entries written to @p result.
  * @code
  * >>> from doppler.spectral import CorrDetector

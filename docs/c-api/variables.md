@@ -36,6 +36,7 @@
 * **dp\_bitorder\_t** ([**cvt\_core.h**](cvt__core_8h.md))
 * **dp\_ddc\_state\_t** ([**ddc\_core.h**](ddc__core_8h.md))
 * **dp\_ddcr\_state\_t** ([**ddcr\_core.h**](ddcr__core_8h.md))
+* **det\_frame\_step\_fn** ([**det\_private.h**](det__private_8h.md))
 * **det\_noise\_mode\_t** ([**detector\_core.h**](detector__core_8h.md), [**detector2d\_core.h**](detector2d__core_8h.md))
 * **dp\_event\_log\_state\_t** ([**dp\_event\_log\_core.h**](dp__event__log__core_8h.md))
 * **dp\_event\_log\_t** ([**dp\_event\_log\_core.h**](dp__event__log__core_8h.md))

@@ -17,6 +17,7 @@
 #include <string.h>
 
 /* det_noise_mode_t must be visible before this header is included. */
+#include "doppler/f32_buffer/f32_buffer_core.h"
 #include "doppler/util/util_core.h"
 
 #ifndef DET_NOISE_MODE_T_DEFINED
@@ -188,6 +189,45 @@ det_peak_list (const float *surf, size_t ny, size_t nx, float gate,
       det_peak_zone (mask, ny, nx, r, c, excl_rows, excl_cols);
     }
   return count;
+}
+
+/* ── The framed drain, once ────────────────────────────────────────────── */
+
+typedef int (*det_frame_step_fn) (void *obj, const float _Complex *frame,
+                                  void *result, size_t slot);
+
+static inline size_t
+det_framed_push (dp_f32_framer_t *fr, size_t n, const float _Complex *in,
+                 size_t n_in, void *result, size_t max_results,
+                 det_frame_step_fn step, void *obj, size_t *consumed)
+{
+  size_t ndet = 0, off = 0;
+  while (ndet < max_results)
+    {
+      const size_t room = max_results - ndet;
+      size_t       take = n_in - off;
+      /* No more than completes `room` whole frames: frames tile the stream
+         at hop n, so the carry is the framer's pending count. */
+      if (room <= SIZE_MAX / n)
+        {
+          const size_t upto = room * n - dp_f32_framer_pending (fr);
+          if (take > upto)
+            take = upto;
+        }
+      if (take)
+        off += dp_f32_framer_feed_view (fr, in + off, take, room);
+      size_t                drained = 0;
+      const float _Complex *frame; /* into the ring, contiguous across wrap */
+      while ((frame = dp_f32_framer_next_view (fr)) != NULL)
+        {
+          drained++;
+          ndet += (size_t)step (obj, frame, result, ndet);
+        }
+      if (!drained)
+        break; /* the input is used up: the rest of a frame is the carry */
+    }
+  *consumed = off;
+  return ndet;
 }
 
 #endif /* DET_PRIVATE_H */

@@ -328,31 +328,33 @@ CorrDetector_getprop_last_corr (CorrDetectorObject *self,
   return arr;
 }
 
-static PyGetSetDef CorrDetector_getset[]
-    = { { "n", (getter)CorrDetector_getprop_n, NULL,
-          "Frame / FFT length in complex samples.\n", NULL },
-        { "dwell", (getter)CorrDetector_getprop_dwell, NULL,
-          "Integration depth: a detection statistic is dumped every `dwell` "
-          "frames.\n",
-          NULL },
-        { "count", (getter)CorrDetector_getprop_count, NULL,
-          "Frames accumulated toward the next dump (0 ... dwell-1).\n", NULL },
-        { "ring_cap", (getter)CorrDetector_getprop_ring_cap, NULL,
-          "Ring buffer capacity in complex samples.\n", NULL },
-        { "noise_lo", (getter)CorrDetector_getprop_noise_lo, NULL,
-          "Noise bin range lower bound (inclusive).\n", NULL },
-        { "noise_hi", (getter)CorrDetector_getprop_noise_hi, NULL,
-          "Noise bin range upper bound (inclusive).\n", NULL },
-        { "threshold", (getter)CorrDetector_getprop_threshold, NULL,
-          "0 = always fire; >0 = gate on test_stat.\n", NULL },
-        { "last_corr", (getter)CorrDetector_getprop_last_corr, NULL,
-          "The correlation vector from the most recent push() that produced a "
-          "result (None before that). This is a zero-copy view into a buffer "
-          "owned by the detector and reused every push() -- the next push() "
-          "(even one that doesn't produce a result) overwrites it in place. "
-          "Copy the array before the next push() if you need to retain it.\n",
-          NULL },
-        { NULL, NULL, NULL, NULL, NULL } };
+static PyGetSetDef CorrDetector_getset[] = {
+  { "n", (getter)CorrDetector_getprop_n, NULL,
+    "Frame / FFT length in complex samples.\n", NULL },
+  { "dwell", (getter)CorrDetector_getprop_dwell, NULL,
+    "Integration depth: a detection statistic is dumped every `dwell` "
+    "frames.\n",
+    NULL },
+  { "count", (getter)CorrDetector_getprop_count, NULL,
+    "Frames accumulated toward the next dump (0 ... dwell-1).\n", NULL },
+  { "ring_cap", (getter)CorrDetector_getprop_ring_cap, NULL,
+    "Ring buffer capacity in complex samples.\n", NULL },
+  { "noise_lo", (getter)CorrDetector_getprop_noise_lo, NULL,
+    "Noise bin range lower bound (inclusive).\n", NULL },
+  { "noise_hi", (getter)CorrDetector_getprop_noise_hi, NULL,
+    "Noise bin range upper bound (inclusive).\n", NULL },
+  { "threshold", (getter)CorrDetector_getprop_threshold, NULL,
+    "0 = always fire; >0 = gate on test_stat.\n", NULL },
+  { "last_corr", (getter)CorrDetector_getprop_last_corr, NULL,
+    "The correlation vector from the most recent push() that produced a "
+    "result (None before that, and after reset() or set_state(): the vector "
+    "is not part of the serialized state). This is a zero-copy view into a "
+    "buffer owned by the detector and reused every push() -- the next push() "
+    "(even one that doesn't produce a result) overwrites it in place. Copy "
+    "the array before the next push() if you need to retain it.\n",
+    NULL },
+  { NULL, NULL, NULL, NULL, NULL }
+};
 
 static PyObject *
 CorrDetectorObj_destroy (CorrDetectorObject *self,
@@ -416,9 +418,10 @@ static PyMethodDef CorrDetectorObj_methods[] = {
     "\n"
     "Python's push() has room for 1024 detections a call. Once a push fills\n"
     "it, every later frame of that call is lost, whether or not it would\n"
-    "have made a detection: keep a chunk under 1024 frames. Before v0.66 the\n"
-    "room was 64, and a push past it kept up to ring_cap/n - 1 of those\n"
-    "frames for the next call and dropped the rest. #1992 and\n"
+    "have made a detection; the stream stays frame-aligned, so the next push\n"
+    "starts on a frame boundary. Keep a chunk under 1024 frames. Before\n"
+    "v0.66 the room was 64, and a push past it kept up to ring_cap/n - 1 of\n"
+    "those frames for the next call and dropped the rest. #1992 and\n"
     "just-buildit/just-makeit#2184 track sizing the list to the call.\n"
     "\n"
     "Parameters\n"

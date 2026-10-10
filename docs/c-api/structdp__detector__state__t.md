@@ -118,7 +118,7 @@ int dp_detector_state_t::_last_corr_valid;
 
 
 
-1 after the first dump, else 0. 
+1 once a dump has filled out\_buf; 0 after create, reset and set\_state. 
  
 
 
@@ -350,7 +350,7 @@ dp_f32_t* dp_detector_state_t::ring;
 
 
 
-The carry's storage, owned by `framer`. 
+The carry's storage: bound to `framer`, freed by destroy. 
  
 
 

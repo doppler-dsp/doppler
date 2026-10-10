@@ -4,6 +4,8 @@
  *
  *   1. create refuses what the header says it refuses, and accepts both
  *      modes
+ *  1b. the zero value is power: a calloc'd configuration's mode gives
+ *      dp_psd_frame_linear rows, never dB ones
  *   2. a row IS the kernel's reading of its frame, bit for bit (G3):
  *      dp_psd_frame_linear in power mode, dp_psd_frame_db in dB mode
  *   3. a full-scale tone on a bin reads 1.0 in power, 0 dBFS in dB, every
@@ -1244,6 +1246,37 @@ main (void)
   for (size_t i = 0; i < sizeof bad_mode / sizeof *bad_mode; i++)
     DP_CHECK (dp_spectrogram_create (8, 4, 0, 0.0f, bad_mode[i]) == NULL);
   dp_spectrogram_destroy (NULL); /* a no-op, not a crash */
+
+  /* ---- 1b. the zero value is power, the default ------------------------ */
+  /* A configuration that was zeroed and never given a mode -- calloc'd,
+     static, `= { 0 }` -- selects power: dB is only ever asked for. A
+     binding maps mode names to values by position, so the values are the
+     contract, and the rows prove which kernel the zero value reaches. */
+  {
+    typedef struct
+    {
+      size_t nfft, hop;
+      int    window;
+      float  beta;
+      int    mode;
+    } cfg_t;
+    cfg_t *cfg = (cfg_t *)calloc (1, sizeof *cfg);
+    DP_REQUIRE (cfg != NULL);
+    cfg->nfft = 64;
+    cfg->hop  = 64; /* window, beta and mode stay as calloc left them */
+    DP_CHECK (DP_SPECTROGRAM_POWER == 0 && DP_SPECTROGRAM_DB == 1);
+    dp_spectrogram_state_t *s = dp_spectrogram_create (
+        cfg->nfft, cfg->hop, cfg->window, cfg->beta, cfg->mode);
+    dp_psd_state_t *p = ref_psd (cfg->nfft, cfg->window, cfg->beta);
+    DP_REQUIRE (s != NULL && p != NULL);
+    float row[64], want[64];
+    DP_REQUIRE (dp_spectrogram_push (s, x, 64, row, 64) == 64);
+    dp_psd_frame_linear (p, x, want);
+    DP_CHECK (memcmp (row, want, sizeof row) == 0);
+    dp_psd_destroy (p);
+    dp_spectrogram_destroy (s);
+    free (cfg);
+  }
 
   /* Every section after 1, in each mode. A failure's file:line is the same
      line in both, so the mode it failed in is said after it. */

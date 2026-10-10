@@ -26,15 +26,16 @@
 /* One frame -> one row, through the one kernel, DC-centred as it emits it.
  * The two modes are the kernel's two readings of one normalised power, so
  * they share the window, the FFT and the dBFS reference: a power row is the
- * quotient, a dB row its 10*log10 with the -200 dB floor. */
+ * quotient, a dB row its 10*log10 with the -200 dB floor. dB is the case
+ * tested for, because it is the one a caller has to ask for. */
 static void
 spectrogram_row (dp_spectrogram_state_t *s, const float _Complex *frame,
                  float *row)
 {
-  if (s->mode == DP_SPECTROGRAM_POWER)
-    dp_psd_frame_linear (s->psd, frame, row);
-  else
+  if (s->mode == DP_SPECTROGRAM_DB)
     dp_psd_frame_db (s->psd, frame, row);
+  else
+    dp_psd_frame_linear (s->psd, frame, row);
 }
 
 dp_spectrogram_state_t *

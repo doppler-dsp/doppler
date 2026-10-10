@@ -35,6 +35,8 @@
 #define PN_POLY 96u
 #define PN_LEN 7u
 #define PN_PERIOD 127u
+/* The consumer's chip buffer: at least any BLOCK the producer sends. */
+#define CHIP_CAP ((size_t)1 << 20)
 
 static const char *
 endpoint (void)
@@ -56,7 +58,7 @@ pn_frame (uint64_t idx, size_t n, uint8_t *chips, float complex *iq)
 {
   dp_pn_state_t *pn = dp_pn_create (PN_POLY, (uint64_t)(idx % PN_PERIOD) + 1,
                                     PN_LEN, PN_GALOIS);
-  dp_pn_generate (pn, n, chips);
+  dp_pn_generate (pn, n, chips, n);
   dp_pn_destroy (pn);
   for (size_t j = 0; j < n; j++)
     iq[j] = (float)(2 * chips[j] - 1) + 0.0f * I;
@@ -93,7 +95,7 @@ static int
 run_consume (void)
 {
   long       work_ms = env_long ("WORK_MS", 20);
-  uint8_t   *chips   = malloc (1 << 20); /* >= any BLOCK */
+  uint8_t   *chips   = malloc (CHIP_CAP);
   dp_pull_t *pl      = dp_pull_create (endpoint ());
   if (!chips || !pl)
     {
@@ -116,10 +118,10 @@ run_consume (void)
       size_t               n   = dp_msg_num_samples (m);
       dp_pn_state_t       *pn  = dp_pn_create (
           PN_POLY, (uint64_t)(h.sequence % PN_PERIOD) + 1, PN_LEN, PN_GALOIS);
-      dp_pn_generate (pn, n, chips);
+      /* A frame longer than the buffer cannot be checked: a mismatch. */
+      int bad = dp_pn_generate (pn, n, chips, CHIP_CAP) < n;
       dp_pn_destroy (pn);
-      int bad = 0;
-      for (size_t j = 0; j < n; j++)
+      for (size_t j = 0; !bad && j < n; j++)
         if (crealf (got[j]) != (float)(2 * chips[j] - 1)
             || cimagf (got[j]) != 0.0f) /* the producer writes Q = 0 */
           {

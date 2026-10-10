@@ -53,6 +53,9 @@ The campaign's order is header first. *Pin* is the C section that asserts the cl
 | C16 | an undrained `get_state` writes zeros, never a truncated blob | §8 | guard removed | §2.5 |
 | C17 | the element views are casts of the scalar face | §7 (by use) | — | — |
 | C18 | the framer owns its ring exclusively | — | a contract; not testable (F5) | — |
+| C19 | `feed_frames(n, k)` takes what completes at most `k` frames and nothing of the next: `k` 0 takes nothing, a short take ends on a frame boundary, and a `k` whose count overflows is plain `feed` | §11 (NEW, #2042) | plain `feed` (part of the next frame admitted) | — |
+| C20 | `feed_carry(n)` takes all of `n` if it completes no frame, counting the carry, or none of it | §11 (NEW, #2042) | takes the no-frame prefix (`feed` with no room) | — |
+| C21 | `state_frames` accepts exactly the blobs `set_state` accepts and reports the frames it would restore, writing nothing on a refusal | §11 (NEW, #2042) | a check of its own that skips the counter rule | — |
 
 
 ## 2. Characterisation

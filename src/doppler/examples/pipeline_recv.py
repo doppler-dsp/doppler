@@ -101,6 +101,11 @@ def main() -> None:
                 f"Press Ctrl+C to stop."
             )
             sys.stdout.flush()
+            # Processed: ack the array recv returned. An unacked frame is
+            # redelivered after AckWait and stays in the work queue for the
+            # next worker, and after 1000 unacked frames the server sends
+            # only redeliveries (#2009).
+            pull.ack(samples)
 
 
 if __name__ == "__main__":

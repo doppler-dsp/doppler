@@ -150,8 +150,8 @@ Silence decodes nothing (**True**) — the control that stops every other row pa
 
 | what | value |
 |---|---|
-| state_bytes, fresh receiver | 46336 |
-| state_bytes, mid-preamble | 46336 |
+| state_bytes, fresh receiver | 136000 |
+| state_bytes, mid-preamble | 136000 |
 | resumed into a fresh instance, decoded | True |
 | clobbered envelope rejected | True |
 
@@ -185,9 +185,9 @@ Every other section here streams ONE burst. That is the shape of every test this
 | whole capture | 3/3 | 0 |
 
 
-Identical at every block size (**True**), and no sample refused at any of them (**True**). A single push of the whole capture returns all 3 payloads at once (**True**).
+Identical at every block size (**True**), with every burst at its exact stream position and no look-back abandoned at any of them (**True**). A single push of the whole capture returns all 3 payloads at once (**True**).
 
-It used to depend on the block size entirely. `push()` returned at most one burst per call and abandoned the rest of its input to do it, so a block carrying several bursts lost all but the first -- 6/6 decoded with 333-sample blocks against 1/6 with one large one on the example capture. `push()` now returns EVERY burst it completed, with `events()` giving each its own record, which is what makes consuming the whole input possible: draining fully is also what bounds retention, so `dropped` is 0 by construction rather than by luck. See F11 and doppler#1008.
+It used to depend on the block size entirely. `push()` returned at most one burst per call and abandoned the rest of its input to do it, so a block carrying several bursts lost all but the first -- 6/6 decoded with 333-sample blocks against 1/6 with one large one on the example capture. `push()` now returns EVERY burst it completed, with `events()` giving each its own record, which is what makes consuming the whole input possible: draining fully is also what bounds retention. See F11 and doppler#1008; since doppler#2015 `push()` never refuses input at all.
 
 ## 3. Review — findings
 
@@ -207,7 +207,7 @@ It used to depend on the block size entirely. `push()` returned at most one burs
 
 - **F8 · BY DESIGN** — **The reported Doppler stays on acquisition's native grid.** The half-bin scalloping null that made a burst undetectable at any C/N0 was fixed in `acq` (gh-1002) by lengthening its slow-time transform, and it would have been easy to pass the finer grid through. It is not passed through: every consumer scales `doppler_bin` by `doppler_res_hz`, and interpolation buys DETECTION rather than a finer reported estimate. Rounding a half-bin row to its nearer neighbour was tried and cost ~5 points of Pd.
 
-- **F11 · FIXED** — **`push()` discarded the rest of its input once a burst was ready**, so a block carrying several bursts lost all but the first -- 6/6 decoded with 333-sample blocks against 1/6 with one large one. Three separate sites: an early return that never looked at `x` at all, a `break` that left the remainder unwritten, and a single `dp_acq_push` per chunk, which stops once its result array is full and abandons its own input suffix. All three are gone: the loop runs to the end of `x`, acq is re-fed until it has absorbed the chunk, and `push()` returns EVERY burst it completed. **Nothing caught this because no test anywhere put two bursts in one stream** -- with a single burst, everything discarded after it was noise, so the loss was unobservable, and this report's own `any_block_size` limit had the same blind spot. §2.10 is that gate. Draining every arrived detection rather than one per chunk is also what bounds retention, so `dropped` is now 0 by construction. See doppler#1008.
+- **F11 · FIXED** — **`push()` discarded the rest of its input once a burst was ready**, so a block carrying several bursts lost all but the first -- 6/6 decoded with 333-sample blocks against 1/6 with one large one. Three separate sites: an early return that never looked at `x` at all, a `break` that left the remainder unwritten, and a single `dp_acq_push` per chunk, which stops once its result array is full and abandons its own input suffix. All three are gone: the loop runs to the end of `x`, acq is re-fed until it has absorbed the chunk, and `push()` returns EVERY burst it completed. **Nothing caught this because no test anywhere put two bursts in one stream** -- with a single burst, everything discarded after it was noise, so the loss was unobservable, and this report's own `any_block_size` limit had the same blind spot. §2.10 is that gate. Draining every arrived detection rather than one per chunk is also what bounds retention. See doppler#1008; since doppler#2015 `push()` never refuses input at all.
 
 - **F9 · FIXED** — **A spurious detection ahead of a real burst discarded it.** The dedup rule armed `suppress_until = epoch + burst_len` on EVERY detection, unconditionally and at detection time, and took the FIRST hit in that window — so a crossing from noise, or from a neighbouring burst's payload firing against the acquisition code, blinded the search for a whole burst length. On the 5-burst example capture that cost 2 of 5 bursts; it now finds 5/5, each at its exact sample. Two jobs were conflated and are now separate: identity (`refine_span` proximity, settled by the stronger PEAK) and payload exclusion (armed only by a burst that actually DECODED). The tie-break is on `peak_mag` and deliberately not `test_stat` — the latter is peak over a noise estimate averaged across the surface, so a BARE preamble, raising no floor, outscores a real burst whose payload does. §2.9 pins it. Note this report could not have caught it at its own geometry: with this payload `burst_len` (2448) is UNDER `refine_span` (2480), so the window cannot reach past the burst it belongs to. The defect needs `burst_len > refine_span`, which is every realistic link. See doppler#1004.
 
@@ -234,7 +234,7 @@ Claims a caller may rely on. A failure here is a regression, not a new finding. 
 | PASS | a bare 0.35-amplitude preamble crosses the gate on its own and is reported invalid -- without which the decoy limits below are vacuous |
 | PASS | a weaker detection arriving ahead of a real burst does not cost it: the burst decodes at its exact sample at every lead from 400 to 2100 samples (doppler#1004) |
 | PASS | the same 3-burst capture decodes identically at every block size from 777 samples to the whole capture in one call (doppler#1008) |
-| PASS | no sample is refused at any block size -- draining every arrived detection is what keeps retention inside the ring |
+| PASS | every burst at its exact stream position at every block size, and no look-back abandoned -- a skipped sample would move every later position |
 | PASS | one push carrying three bursts returns all three payloads from that call, not one with the rest of the input abandoned |
 | PASS | silence decodes nothing and reports no burst |
 | PASS | one burst is claimed exactly once even on a grid where several frames of its preamble fire |

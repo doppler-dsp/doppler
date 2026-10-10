@@ -503,6 +503,125 @@ main (void)
       }
   }
 
+  /* ── the restore checks what the sum rests on (#2094) ──────────────────
+   * The count divides every mean reading, so a forged blob that pairs a
+   * count of 0 with a trace is refused, in every mode: reset() leaves a
+   * trace of +0.0 bits, so a stray value and a -0.0 are both forged. The
+   * refusal leaves the trace as it was. The positive control: a fresh
+   * trace's own blob (count 0, all +0.0) restores. And nothing accumulate
+   * can reach is refused: an Inf or NaN trace's blob restores as taken. */
+  {
+    static const int modes[4] = { ACC_TRACE_MEAN, ACC_TRACE_EXP,
+                                  ACC_TRACE_MAXHOLD, ACC_TRACE_MINHOLD };
+    for (int m = 0; m < 4; m++)
+      {
+        dp_acc_trace_state_t *a = dp_acc_trace_create (4, modes[m], 0.5);
+        dp_acc_trace_state_t *b = dp_acc_trace_create (4, modes[m], 0.5);
+        DP_REQUIRE (a && b);
+        const size_t   nb    = dp_acc_trace_state_bytes (a);
+        unsigned char *fresh = malloc (nb), *lie = malloc (nb);
+        unsigned char *held = malloc (nb), *after = malloc (nb);
+        DP_REQUIRE (fresh && lie && held && after);
+        dp_acc_trace_get_state (a, fresh); /* count 0, trace +0.0 */
+        DP_CHECK (dp_acc_trace_set_state (b, fresh) == DP_OK);
+        const float f[4] = { 1.0f, 2.0f, 3.0f, 4.0f };
+        dp_acc_trace_accumulate (b, f, 4); /* b holds a trace to keep */
+        dp_acc_trace_get_state (b, held);
+        const size_t        at = sizeof (dp_state_hdr_t) + sizeof (uint32_t)
+                                 + sizeof (uint64_t) + sizeof (double);
+        static const double forged[] = { 1.0, -0.0, 1e-300 };
+        for (size_t k = 0; k < 3; k++)
+          {
+            memcpy (lie, fresh, nb);
+            memcpy (lie + at + 2 * sizeof (double), &forged[k],
+                    sizeof (double));
+            DP_CHECK (dp_acc_trace_set_state (b, lie) == DP_ERR_INVALID);
+            dp_acc_trace_get_state (b, after);
+            DP_CHECK (memcmp (after, held, nb) == 0);
+          }
+        free (fresh);
+        free (lie);
+        free (held);
+        free (after);
+        dp_acc_trace_destroy (a);
+        dp_acc_trace_destroy (b);
+      }
+
+    /* reachable non-finite traces round-trip: +Inf, and Inf - Inf = NaN */
+    dp_acc_trace_state_t *a = dp_acc_trace_create (2, ACC_TRACE_MEAN, 0.1);
+    dp_acc_trace_state_t *b = dp_acc_trace_create (2, ACC_TRACE_MEAN, 0.1);
+    DP_REQUIRE (a && b);
+    const float inf2[2] = { INFINITY, INFINITY };
+    const float mix[2]  = { 1.0f, -INFINITY };
+    dp_acc_trace_accumulate (a, inf2, 2);
+    dp_acc_trace_accumulate (a, mix, 2); /* bin 0 +Inf, bin 1 NaN */
+    DP_CHECK (isinf (a->acc[0]) && a->acc[0] > 0 && isnan (a->acc[1]));
+    DP_STATE_ROUNDTRIP_TEST (dp_acc_trace, a, b);
+    dp_acc_trace_destroy (a);
+    dp_acc_trace_destroy (b);
+  }
+
+  /* ── an Inf frame stays +Inf in a mean trace (#2094) ────────────────────
+   * The sum of +Inf and a finite frame is +Inf, so the mean reads +Inf.
+   * The Welford update it replaced read NaN (Inf - Inf in its correction).
+   * Stated in the changelog as a behaviour change. */
+  {
+    dp_acc_trace_state_t *a = dp_acc_trace_create (1, ACC_TRACE_MEAN, 0.1);
+    DP_REQUIRE (a != NULL);
+    const float inf = INFINITY, one = 1.0f;
+    float       out;
+    dp_acc_trace_accumulate (a, &inf, 1);
+    dp_acc_trace_accumulate (a, &one, 1);
+    dp_acc_trace_accumulate (a, &one, 1);
+    DP_CHECK (dp_acc_trace_value (a, 1, &out, 1) == 1);
+    DP_CHECK (isinf (out) && out > 0.0f);
+    dp_acc_trace_destroy (a);
+  }
+
+  /* ── a NaN never replaces a hold, on the packed path too (#2094) ───────
+   * n = 67 runs the vectorized body and its remainder in every shipped
+   * build (widths 2, 4, 8 doubles), so NaNs go in the first lane, lanes on
+   * both sides of a vector boundary, and the last bin. Each keeps what it
+   * held; every other bin still moves. This rests on the declared
+   * -fno-finite-math-only (CMakeLists.txt:146), held by test_fp_policy.c. */
+  {
+    enum
+    {
+      N = 67
+    };
+    static const size_t at[] = { 0, 1, 7, 8, 15, 16, 31, 32, 63, 64, 66 };
+    for (int mode = ACC_TRACE_MAXHOLD; mode <= ACC_TRACE_MINHOLD; mode++)
+      {
+        dp_acc_trace_state_t *a = dp_acc_trace_create (N, mode, 0.5);
+        DP_REQUIRE (a != NULL);
+        float seed[N], nan_frame[N], out[N];
+        for (int i = 0; i < N; i++)
+          {
+            seed[i]      = (float)i;
+            nan_frame[i] = mode == ACC_TRACE_MAXHOLD ? 1000.0f : -1000.0f;
+          }
+        for (size_t k = 0; k < sizeof at / sizeof *at; k++)
+          nan_frame[at[k]] = NAN;
+        dp_acc_trace_accumulate (a, seed, N);
+        dp_acc_trace_accumulate (a, nan_frame, N);
+        DP_REQUIRE (dp_acc_trace_value (a, N, out, N) == N);
+        int kept = 1, moved = 1;
+        for (int i = 0; i < N; i++)
+          {
+            int is_nan_bin = 0;
+            for (size_t k = 0; k < sizeof at / sizeof *at; k++)
+              is_nan_bin |= (size_t)i == at[k];
+            if (is_nan_bin)
+              kept &= out[i] == seed[i];
+            else
+              moved &= out[i] == nan_frame[i];
+          }
+        DP_CHECK (kept);
+        DP_CHECK (moved);
+        dp_acc_trace_destroy (a);
+      }
+  }
+
   /* ── a blob of another layout version is refused ─────────────────────────
    * Rewriting only the header's version leaves every other byte valid, so
    * this fails if and only if the version is consulted.  Version 1 is the

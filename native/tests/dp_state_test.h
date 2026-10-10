@@ -85,27 +85,40 @@
  *
  * A composition nests each child's self-validating sub-blob, so a child's
  * version bump needs no bump in the parent: the child's own envelope check
- * runs inside the parent's set_state. This proves it rather than assuming it.
- * Serialize @p obj, find the one nested envelope whose magic is
- * @p child_magic, stamp it with @p old_version (every other byte stays
- * valid, so only the version can refuse it), and require the parent to
- * refuse the blob AND to be unchanged by the refusal: it re-serializes to
- * the original blob byte for byte. Exactly one nested envelope of that magic
- * must exist, so a renamed or flattened child turns this red rather than
- * passing vacuously.
+ * runs inside the parent's set_state. This proves it rather than assuming it,
+ * in five steps:
+ *
+ *   1. serialize @p obj, and restore that blob: the positive control, so a
+ *      set_state that refuses everything cannot pass;
+ *   2. count the nested envelopes whose magic is @p child_magic: exactly
+ *      @p hits (a pool nests one per slot), so a renamed or flattened child
+ *      turns this red rather than passing vacuously;
+ *   3. run @p advance, a statement that moves @p obj on, and require its
+ *      blob to differ from step 1's: restoring an object's OWN current state
+ *      rewrites identical bytes, so "unchanged" would be true of a partial
+ *      restore too, and the comparison below could never fail;
+ *   4. stamp the first such envelope in step 1's blob with @p old_version
+ *      (every other byte stays valid, so only the version can refuse it) and
+ *      require the parent to refuse it;
+ *   5. if @p atomic, require the object to be exactly the advanced state:
+ *      the refusal changed nothing. A parent that restores some children
+ *      before a later child refuses is NOT atomic (#2104); it passes 0 here
+ *      and names #2104 at the call site, and the fix flips it to 1.
  */
-#define DP_STATE_NESTED_VERSION_TEST(pfx, obj, child_magic, old_version)      \
+#define DP_STATE_NESTED_VERSION_TEST(pfx, obj, advance, child_magic,          \
+                                     old_version, hits, atomic)               \
   do                                                                          \
     {                                                                         \
       const size_t   _nb = pfx##_state_bytes (obj);                           \
       unsigned char *_g  = (unsigned char *)malloc (_nb);                     \
       unsigned char *_l  = (unsigned char *)malloc (_nb);                     \
       unsigned char *_a  = (unsigned char *)malloc (_nb);                     \
-      DP_CHECK (_g != NULL && _l != NULL && _a != NULL);                      \
-      if (_g && _l && _a)                                                     \
+      unsigned char *_r  = (unsigned char *)malloc (_nb);                     \
+      DP_CHECK (_g != NULL && _l != NULL && _a != NULL && _r != NULL);        \
+      if (_g && _l && _a && _r)                                               \
         {                                                                     \
           pfx##_get_state ((obj), _g);                                        \
-          memcpy (_l, _g, _nb);                                               \
+          DP_CHECK (pfx##_set_state ((obj), _g) == DP_OK);                    \
           size_t _at = 0, _hits = 0;                                          \
           for (size_t _i = sizeof (dp_state_hdr_t);                           \
                _i + sizeof (dp_state_hdr_t) <= _nb; _i++)                     \
@@ -113,23 +126,36 @@
               dp_state_hdr_t _h;                                              \
               memcpy (&_h, _g + _i, sizeof _h);                               \
               if (_h.magic == (uint32_t)(child_magic))                        \
-                _at = _i, _hits++;                                            \
+                {                                                             \
+                  if (_hits == 0)                                             \
+                    _at = _i;                                                 \
+                  _hits++;                                                    \
+                }                                                             \
             }                                                                 \
-          DP_CHECK (_hits == 1);                                              \
-          if (_hits == 1)                                                     \
+          DP_CHECK (_hits == (size_t)(hits));                                 \
+          advance;                                                            \
+          DP_CHECK (pfx##_state_bytes (obj) == _nb);                          \
+          pfx##_get_state ((obj), _a);                                        \
+          DP_CHECK (memcmp (_a, _g, _nb) != 0);                               \
+          if (_hits > 0)                                                      \
             {                                                                 \
               dp_state_hdr_t _h;                                              \
+              memcpy (_l, _g, _nb);                                           \
               memcpy (&_h, _l + _at, sizeof _h);                              \
               _h.version = (uint16_t)(old_version);                           \
               memcpy (_l + _at, &_h, sizeof _h);                              \
               DP_CHECK (pfx##_set_state ((obj), _l) == DP_ERR_INVALID);       \
-              pfx##_get_state ((obj), _a);                                    \
-              DP_CHECK (memcmp (_a, _g, _nb) == 0);                           \
+              if (atomic)                                                     \
+                {                                                             \
+                  pfx##_get_state ((obj), _r);                                \
+                  DP_CHECK (memcmp (_r, _a, _nb) == 0);                       \
+                }                                                             \
             }                                                                 \
         }                                                                     \
       free (_g);                                                              \
       free (_l);                                                              \
       free (_a);                                                              \
+      free (_r);                                                              \
     }                                                                         \
   while (0)
 

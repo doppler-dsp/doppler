@@ -20,6 +20,7 @@
 #include "doppler/acc_trace/acc_trace_core.h"
 #include "doppler/util/util_core.h"
 #include <stdint.h>
+#include <string.h>
 
 /* The one alpha rule, for create() and the setter alike.  Only the EMA reads
  * alpha, and there it must be a smoothing factor in (0, 1]: 0 never leaves
@@ -132,9 +133,23 @@ dp_acc_trace_set_state (dp_acc_trace_state_t *s, const void *blob)
     return DP_ERR_INVALID;
   if (!acc_trace_alpha_ok ((int)s->mode, alpha))
     return DP_ERR_INVALID;
+  /* The trace is borrowed in place and checked before it is copied in.
+   * The count divides every mean reading now, so a blob may not pair a
+   * count of 0 with a trace: reset() memsets it, so a trace with no frame
+   * is +0.0 in every bin, all-zero BITS (a -0.0 is forged too). What
+   * accumulate can reach is never refused: a non-finite frame makes a
+   * non-finite trace, and its blob restores as it was taken. */
+  const size_t   tb    = s->n * sizeof (double);
+  const uint8_t *trace = (const uint8_t *)dp_r_reserve (&_r, tb);
+  if (!trace)
+    return DP_ERR_INVALID;
+  if (count == 0)
+    for (size_t i = 0; i < tb; i++)
+      if (trace[i] != 0)
+        return DP_ERR_INVALID;
   s->count = count;
   s->alpha = alpha;
-  dp_r_bytes (&_r, s->acc, s->n * sizeof (double));
+  memcpy (s->acc, trace, tb);
   return DP_OK;
 }
 
@@ -174,9 +189,11 @@ dp_acc_trace_accumulate (dp_acc_trace_state_t *state, const float *p,
         break;
       }
     /* A select and an unconditional store, so both vectorize (a packed
-       max/min). A NaN in the frame never replaces the trace: the compare is
-       false, so the bin keeps what it held. That rests on the library's
-       declared -fno-finite-math-only beside its -ffast-math
+       max/min). A NaN in a later frame never replaces the trace: the
+       compare is false, so the bin keeps what it held. A NaN in the FIRST
+       frame seeds the bin, and then no compare against it is true, so that
+       bin reads NaN for good -- as it did before the select. That rests on
+       the library's declared -fno-finite-math-only beside its -ffast-math
        (CMakeLists.txt:146), which test_fp_policy.c holds. */
     case ACC_TRACE_MAXHOLD:
       for (size_t i = 0; i < n; i++)

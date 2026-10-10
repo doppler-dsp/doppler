@@ -755,9 +755,9 @@ main (void)
    *   exp:     y1 = P1, then y += alpha (P - y)   (alpha = 0.25)
    *   maxhold: the per-bin maximum -- exact, a float copied and returned
    *   minhold: the per-bin minimum -- exact
-   * mean and exp are computed in double here and by Welford / the EMA step
-   * there; both then pass two float roundings (the trace value and the
-   * /cg^2), so they agree to 4 u relative.  The exp mode is deterministic:
+   * mean and exp are computed in double here and by the per-bin sum / the
+   * EMA step there; both then pass two float roundings (the trace value and
+   * the /cg^2), so they agree to 4 u relative.  The exp mode is deterministic:
    * its claim is the recursion, which noise would only re-derive. */
   {
     static const float scales[4] = { 1.0f, 3.0f, 0.5f, 2.0f };
@@ -1798,7 +1798,8 @@ main (void)
    *     read the same as OBW over the mean, over many frames;
    *   - the blob, whose nested AccTrace envelope is version 3, so a
    *     version-2 one (which held the mean) is refused through PSD, and the
-   *     refusal changes nothing. */
+   *     refusal changes nothing, judged against a PSD advanced past the
+   *     blob so that a partial restore would show. */
   {
     const size_t    nfft = 256;
     dp_psd_state_t *p
@@ -1836,7 +1837,9 @@ main (void)
     DP_CHECK (dp_psd_occupied_bw (q, 0.5) == 129.0);
     dp_psd_destroy (q);
 
-    DP_STATE_NESTED_VERSION_TEST (dp_psd, p, ACC_TRACE_STATE_MAGIC, 2u);
+    /* atomic: PSD's only child is the trace, so a refusal changes nothing */
+    DP_STATE_NESTED_VERSION_TEST (dp_psd, p, dp_psd_accumulate (p, x, nfft),
+                                  ACC_TRACE_STATE_MAGIC, 2u, 1, 1);
     dp_psd_destroy (p);
   }
 

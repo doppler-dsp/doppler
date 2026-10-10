@@ -508,12 +508,21 @@ is the result, not the absolute).
 | native               | 0.078       | 0.071              |
 
 **Decision: the double sum.** It is ten times more accurate than the Welford
-update it replaces, and seven orders more accurate than float with
+update it replaces, and six orders more accurate than float with
 compensation. That compensation is also not safe in this library: it is
 built with `-ffast-math`, and under it the compiler is free to delete the
 compensation term, which would leave the plain float sum, 1% off at 10⁷
 frames. Float with compensation is about 10% faster in isolation. Both move
 the same 8 bytes per bin.
+
+**Where the sum stops being exact.** The table is noisy data, whose rounding
+errors random-walk, so the error grows like the square root of the frame
+count. A bin with the same value in every frame is the other extreme. Its
+sum is exact through 2²⁹ frames, because a float has 24 significant bits
+and a double 53. Past that, every add rounds. Measured with a constant
+0.1, 0.7 and ⅓, the worst relative error is 5.6e-8 by 2³² frames, inside a
+worst-case bound of about 4.8e-7. That is near one float32 ulp of the
+reading, after 2³² frames.
 
 **Pinned.** `test_acc_trace_core.c` folds 10⁶ frames in the library's own
 build (x86-64-v2, `-ffast-math`) against a Kahan reference held in volatile
@@ -524,18 +533,32 @@ bit, and `value()` returns `(float)(acc / count)`.
 **What a reading moves by.** A float32 mean reading is the double mean
 rounded, and the two folds round differently, so a reading can move. The
 third program below reads 4096 bins after every one of 10⁴ frames,
-4.1 × 10⁷ readings. 147 moved by one float32 ULP and none by more. `PSD`'s
-certification report, regenerated, shows no change at its printed
-precision.
+4.1 × 10⁷ readings. 147 moved by one float32 ULP and none by more. It exits
+non-zero if any moves by more than one, so `make test-snippets` holds that
+bound. `PSD`'s certification report, regenerated, shows no change at its
+printed precision.
 
 **What it moved.** A mean trace's state blob now holds the sum, so
 `ACC_TRACE_STATE_VERSION` is 3. A version-2 blob is refused, by `AccTrace` and
-through every parent that nests one (`PSD`, `Specan`, `CarrierAcquisition`).
+through every parent that nests one: `PSD`, `CarrierAcquisition`, `Specan`,
+`AsyncDsssReceiver` (both flavors) and `AsyncDsssPool`. The first two refuse
+atomically: the refused restore changes nothing. The last three restore
+earlier children before the nested trace refuses, so a refusal leaves those
+replaced. That is #2104, and their tests assert the refusal only until it
+is fixed. A restore also refuses a zero count paired with a trace that is
+not all +0.0 bits, a state only a forged blob can hold. It never refuses
+what `accumulate` can reach: a non-finite frame makes a non-finite trace,
+and its blob restores as taken. An Inf frame now leaves a mean at +Inf,
+where the Welford update read NaN.
 `PSD`'s `occupied_bw` reads the trace directly. It is a ratio of power sums,
 so it is unchanged: it is pinned equal to OBW over the mean after 3,000
-frames. The hold modes became a select with an unconditional store, so every
-shipped build now vectorizes all four folds: GCC x86-64-v2, and clang for
-aarch64 Linux and macOS. Unpinned and on this machine, at 4096 bins, the
+frames. The hold modes became a select with an unconditional store. The
+toolchains checked vectorize all four folds: GCC 15 at x86-64-v2 (the
+library's own object), and clang 21 for aarch64 Linux and arm64 macOS (the
+fold compiled in isolation). The shipped builds are manylinux's gcc-toolset
+on both Linux architectures, Apple clang on macOS 14, and clang-cl at the
+SSE2 baseline on Windows. Vectorization only affects speed, and it was not
+checked on those. Unpinned and on this machine, at 4096 bins, the
 holds went from 1.2–1.7 to 0.17 ns per bin in the portable build. The
 pinned before and after are #2094's bench run.
 
@@ -737,6 +760,6 @@ main (void)
       }
   printf ("worst %lld ulp; 0 ulp %ld, 1 ulp %ld, 2 ulp %ld, more %ld\n",
           (long long)worst, hist[0], hist[1], hist[2], hist[3]);
-  return 0;
+  return worst > 1; /* the record's bound: one ULP, or this fails */
 }
 ```

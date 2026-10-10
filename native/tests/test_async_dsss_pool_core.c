@@ -21,6 +21,7 @@
 #include "doppler/dp_complex.h"
 #include "dp_dsss_test.h"
 #include "dp_rng_test.h"
+#include "dp_state_test.h"
 #include "dp_test.h"
 #include <math.h>
 #include <stdio.h>
@@ -692,6 +693,29 @@ _test_a_block_of_several_dwells_is_searched_whole (void)
   return 0;
 }
 
+/* A version-2 AccTrace blob, nested once per slot (pool -> receiver ->
+   CarrierAcquisition -> PSD -> AccTrace), is refused (#2094): a version-2
+   trace held the mean, which version 3 reads as a sum. NOT atomic: the pool
+   restores its searcher and earlier slots before the first slot's trace
+   refuses, so a refusal leaves those replaced (#2104). The refusal and the
+   positive control are asserted; #2104's fix flips the last argument to 1. */
+static int
+_test_nested_trace_version_refused (void)
+{
+  cap_t                       e = emitter (1500.0, 40, 2094u);
+  dp_async_dsss_pool_state_t *p = make_pool (2, 1);
+  DP_REQUIRE (p != NULL);
+  const size_t half = (e.n / TE / 2) * TE;
+  (void)feed (p, e.x, half);
+  DP_STATE_NESTED_VERSION_TEST (
+      dp_async_dsss_pool, p, (void)dp_async_dsss_pool_push (p, e.x + half, TE),
+      ACC_TRACE_STATE_MAGIC, 2u, 2, 0);
+  dp_async_dsss_pool_destroy (p);
+  free (e.x);
+  free (e.data);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -704,5 +728,6 @@ main (void)
   (void)_test_on_time_release_and_reset ();
   (void)_test_state_roundtrip ();
   (void)_test_refusals ();
+  (void)_test_nested_trace_version_refused ();
   DP_TEST_END ("test_async_dsss_pool_core");
 }

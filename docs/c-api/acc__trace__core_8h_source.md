@@ -55,9 +55,13 @@ size_t dp_acc_trace_value(dp_acc_trace_state_t *state, size_t n, float *out,
  * refused.  alpha travels because dp_acc_trace_set_alpha() can change it after
  * create (version 2; version 1 blobs, without mode or alpha, are refused).
  * Version 3: a mean trace holds the per-bin sum, not the mean, so version 2
- * blobs are refused too, and so is any blob that nests one (PSD's). 
- * set_state refuses an alpha the setter would refuse; either refusal leaves
- * the state untouched. */
+ * blobs are refused too, and so is any blob that nests one (PSD's, and
+ * through it Specan's, CarrierAcquisition's and the AsyncDsss receivers').
+ * set_state refuses an alpha the setter would refuse, and a count of 0 with
+ * a trace that is not all +0.0 bits (which reset() would have left); any
+ * refusal leaves the state untouched.  What accumulate can reach is never
+ * refused: a non-finite frame makes a non-finite trace, which a blob
+ * carries and restores. */
 #define ACC_TRACE_STATE_MAGIC DP_FOURCC ('A','T','R','C')
 #define ACC_TRACE_STATE_VERSION 3u
 size_t dp_acc_trace_state_bytes (const dp_acc_trace_state_t *state);

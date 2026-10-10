@@ -20,6 +20,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* ------------------------------------------------------------------
@@ -536,6 +537,219 @@ test_interrupt_flag (void)
   DP_CHECK (DP_ERR_INTERRUPTED != DP_ERR_RECV);
 }
 
+/* ------------------------------------------------------------------
+ * dp_reasm_feed: chunked-frame reassembly, scripted (#2010, #2016).
+ *
+ * The transport used to destroy the chunk that did not match the frame in
+ * progress -- and that chunk was the NEXT frame's first, so one lost chunk
+ * lost every later chunked frame. Each case below scripts what a subscriber
+ * can actually be handed and requires every frame after the fault to come
+ * out byte for byte, and the fault to be counted.
+ * ------------------------------------------------------------------ */
+enum
+{
+  RA_COUNT  = 3,  /* chunks per frame               */
+  RA_STRIDE = 64, /* bytes in every chunk but the last */
+  RA_TOTAL  = 160 /* 64 + 64 + 32: CF32, 20 samples  */
+};
+
+typedef struct
+{
+  dp_header_t   hdr;
+  dp_chunk_t    ch;
+  unsigned char body[RA_STRIDE];
+  size_t        len;
+} ra_chunk_t;
+
+/* The payload of frame `seq` from publisher `pub`, byte i. */
+static unsigned char
+ra_byte (uint64_t seq, unsigned pub, size_t i)
+{
+  return (unsigned char)(seq * 31u + pub * 101u + i);
+}
+
+/* Chunk `idx` of frame `seq` from publisher `pub` (whose clock differs). */
+static ra_chunk_t
+ra_chunk (uint64_t seq, unsigned pub, uint32_t idx)
+{
+  ra_chunk_t c;
+  memset (&c, 0, sizeof c);
+  c.hdr.magic = DP_STREAM_MAGIC;
+  memcpy (c.hdr.data_rep, dp_host_rep (), 4);
+  c.hdr.format       = (uint16_t)CF32;
+  c.hdr.kind         = (uint16_t)DP_KIND_IQ;
+  c.hdr.version      = DP_WIRE_VERSION;
+  c.hdr.flags        = DP_FLAG_CHUNKED;
+  c.hdr.sequence     = seq;
+  c.hdr.timestamp_ns = 1700000000000000000ull + seq * 1000u + pub;
+  c.hdr.sample_rate  = 1e6;
+  uint64_t off       = (uint64_t)idx * RA_STRIDE;
+  c.len = (idx + 1 < RA_COUNT) ? RA_STRIDE : (size_t)(RA_TOTAL - off);
+  c.hdr.payload_bytes = (uint32_t)c.len;
+  c.hdr.num_samples   = c.len / 8;
+  c.ch.index          = idx;
+  c.ch.count          = RA_COUNT;
+  c.ch.total_bytes    = RA_TOTAL;
+  c.ch.offset         = off;
+  for (size_t i = 0; i < c.len; i++)
+    c.body[i] = ra_byte (seq, pub, (size_t)off + i);
+  return c;
+}
+
+/* Feed one chunk. Returns the sequence of a frame it completed, after
+   checking that frame byte for byte against publisher `pub`, or -1. */
+static long
+ra_feed (dp_reasm_t *r, const ra_chunk_t *c, unsigned pub)
+{
+  int         done  = 0;
+  char       *frame = NULL;
+  dp_header_t fh;
+  int rc = dp_reasm_feed (r, &c->hdr, &c->ch, c->body, c->len, &done, &frame,
+                          &fh);
+  DP_CHECK (rc == DP_OK);
+  if (!done)
+    return -1;
+  DP_CHECK (fh.payload_bytes == RA_TOTAL);
+  DP_CHECK (fh.num_samples == RA_TOTAL / 8);
+  DP_CHECK ((fh.flags & DP_FLAG_CHUNKED) == 0);
+  int exact = 1;
+  for (size_t i = 0; i < RA_TOTAL; i++)
+    exact &= (unsigned char)frame[i] == ra_byte (fh.sequence, pub, i);
+  DP_CHECK (exact); /* never a byte of another frame or publisher */
+  free (frame);
+  return (long)fh.sequence;
+}
+
+/* Frames first..last from publisher `pub`, every chunk, in order; returns
+   how many completed. */
+static int
+ra_frames (dp_reasm_t *r, uint64_t first, uint64_t last, unsigned pub)
+{
+  int done = 0;
+  for (uint64_t s = first; s <= last; s++)
+    for (uint32_t i = 0; i < RA_COUNT; i++)
+      {
+        ra_chunk_t c = ra_chunk (s, pub, i);
+        done += ra_feed (r, &c, pub) == (long)s;
+      }
+  return done;
+}
+
+static void
+test_reasm_lost_chunk (void)
+{
+  printf ("-- a lost chunk loses its frame, and only its frame\n");
+  dp_reasm_t r = { 0 };
+  DP_CHECK (ra_frames (&r, 0, 0, 0) == 1);
+  ra_chunk_t c0 = ra_chunk (1, 0, 0), c2 = ra_chunk (1, 0, 2); /* no 1 */
+  DP_CHECK (ra_feed (&r, &c0, 0) == -1);
+  DP_CHECK (ra_feed (&r, &c2, 0) == -1);
+  DP_CHECK (ra_frames (&r, 2, 9, 0) == 8); /* every later frame intact */
+  DP_CHECK (r.stats.abandoned == 1);
+  DP_CHECK (r.stats.rejected == 0);
+  dp_reasm_reset (&r);
+}
+
+static void
+test_reasm_late_join (void)
+{
+  printf ("-- a subscriber that joins mid-frame loses only that frame\n");
+  dp_reasm_t r  = { 0 };
+  ra_chunk_t c1 = ra_chunk (0, 0, 1), c2 = ra_chunk (0, 0, 2);
+  DP_CHECK (ra_feed (&r, &c1, 0) == -1);
+  DP_CHECK (ra_feed (&r, &c2, 0) == -1);
+  DP_CHECK (ra_frames (&r, 1, 9, 0) == 9);
+  DP_CHECK (r.stats.abandoned == 1);
+  dp_reasm_reset (&r);
+}
+
+static void
+test_reasm_mid_frame_gap (void)
+{
+  printf ("-- a gap mid-frame (a receive timing out) resumes the frame\n");
+  dp_reasm_t r  = { 0 };
+  ra_chunk_t c0 = ra_chunk (0, 0, 0), c1 = ra_chunk (0, 0, 1);
+  ra_chunk_t c2 = ra_chunk (0, 0, 2);
+  DP_CHECK (ra_feed (&r, &c0, 0) == -1);
+  DP_CHECK (ra_feed (&r, &c1, 0) == -1);
+  DP_CHECK (r.buf != NULL); /* kept across the gap, not freed */
+  DP_CHECK (ra_feed (&r, &c2, 0) == 0);
+  DP_CHECK (r.stats.abandoned == 0);
+  DP_CHECK (ra_frames (&r, 1, 3, 0) == 3);
+  dp_reasm_reset (&r);
+}
+
+static void
+test_reasm_same_sequence_never_merges (void)
+{
+  printf ("-- two publishers on one sequence are never merged\n");
+  dp_reasm_t r = { 0 };
+  for (uint32_t i = 0; i < RA_COUNT; i++) /* A0 B0 A1 B1 A2 B2 */
+    {
+      ra_chunk_t a = ra_chunk (0, 0, i), b = ra_chunk (0, 1, i);
+      DP_CHECK (ra_feed (&r, &a, 0) == -1); /* ra_feed checks the bytes */
+      DP_CHECK (ra_feed (&r, &b, 1) == -1);
+    }
+  DP_CHECK (r.stats.abandoned == 2 * RA_COUNT - 1);
+  dp_reasm_reset (&r);
+  DP_CHECK (ra_frames (&r, 1, 4, 0) == 4); /* later frames intact */
+  dp_reasm_reset (&r);
+}
+
+static void
+test_reasm_two_interleaved_publishers (void)
+{
+  printf ("-- two interleaved publishers: lost while they interleave\n");
+  dp_reasm_t r = { 0 };
+  for (uint64_t s = 0; s < 3; s++)
+    for (uint32_t i = 0; i < RA_COUNT; i++)
+      {
+        ra_chunk_t a = ra_chunk (s, 0, i), b = ra_chunk (s + 100, 1, i);
+        DP_CHECK (ra_feed (&r, &a, 0) == -1);
+        DP_CHECK (ra_feed (&r, &b, 1) == -1);
+      }
+  uint64_t lost = r.stats.abandoned;
+  DP_CHECK (lost == 3 * 2 * RA_COUNT - 1);  /* every one counted */
+  DP_CHECK (ra_frames (&r, 3, 6, 0) == 4);  /* one publisher again: intact */
+  DP_CHECK (r.stats.abandoned == lost + 1); /* the last B frame */
+  dp_reasm_reset (&r);
+}
+
+static void
+test_reasm_redelivery_and_forgery (void)
+{
+  printf ("-- a redelivered chunk is a no-op; a forged one is refused\n");
+  dp_reasm_t  r  = { 0 };
+  ra_chunk_t  c0 = ra_chunk (0, 0, 0), c1 = ra_chunk (0, 0, 1);
+  ra_chunk_t  c2 = ra_chunk (0, 0, 2);
+  int         done;
+  char       *frame;
+  dp_header_t fh;
+  DP_CHECK (ra_feed (&r, &c0, 0) == -1);
+  DP_CHECK (ra_feed (&r, &c0, 0) == -1); /* redelivered: no-op */
+  DP_CHECK (ra_feed (&r, &c1, 0) == -1);
+
+  /* #2016: an offset that wraps when the length is added -- 512 bytes
+     before the buffer under the old `offset + cbytes` check. */
+  ra_chunk_t wrap = c2;
+  wrap.ch.offset  = UINT64_MAX - 3;
+  DP_CHECK (dp_reasm_feed (&r, &wrap.hdr, &wrap.ch, wrap.body, wrap.len, &done,
+                           &frame, &fh)
+            == DP_ERR_INVALID);
+  /* #2016: off the grid (overlapping chunk 1), which would leave bytes of
+     the frame never written and hand them out uninitialised. */
+  ra_chunk_t lap = c2;
+  lap.ch.offset  = RA_STRIDE + 8;
+  lap.len        = (size_t)(RA_TOTAL - lap.ch.offset);
+  DP_CHECK (dp_reasm_feed (&r, &lap.hdr, &lap.ch, lap.body, lap.len, &done,
+                           &frame, &fh)
+            == DP_ERR_INVALID);
+  DP_CHECK (r.stats.rejected == 2);
+  DP_CHECK (ra_feed (&r, &c2, 0) == 0); /* the frame in progress survived */
+  DP_CHECK (r.stats.abandoned == 0);
+  dp_reasm_reset (&r);
+}
+
 int
 main (void)
 {
@@ -549,6 +763,12 @@ main (void)
   test_frame_parse ();
   test_argument_guards ();
   test_interrupt_flag ();
+  test_reasm_lost_chunk ();
+  test_reasm_late_join ();
+  test_reasm_mid_frame_gap ();
+  test_reasm_same_sequence_never_merges ();
+  test_reasm_two_interleaved_publishers ();
+  test_reasm_redelivery_and_forgery ();
 
   printf ("\n");
   DP_TEST_END ("test_stream_wire");

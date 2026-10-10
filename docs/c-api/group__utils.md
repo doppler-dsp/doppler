@@ -30,6 +30,11 @@
 
 
 
+## Classes
+
+| Type | Name |
+| ---: | :--- |
+| struct | [**dp\_reasm\_stats\_t**](structdp__reasm__stats__t.md) <br>_What reassembling chunked frames has lost on a receiving context._  |
 
 
 
@@ -66,6 +71,7 @@
 |  int | [**dp\_sample\_type\_is\_valid**](#function-dp_sample_type_is_valid) ([**dp\_sample\_type\_t**](dp__format_8h.md#enum-dp_sample_type_t) type) <br>_True when_ `type` _is a sample type this build knows._ |
 |  const char \* | [**dp\_sample\_type\_str**](#function-dp_sample_type_str) ([**dp\_sample\_type\_t**](dp__format_8h.md#enum-dp_sample_type_t) type) <br>_Return a short string name for_ `type` _("CI8", "CI16", "CI32", "CF32", "CF64")._ |
 |  const char \* | [**dp\_strerror**](#function-dp_strerror) (int err) <br>_Return a human-readable description of an error code._  |
+|  int | [**dp\_sub\_reasm\_stats**](#function-dp_sub_reasm_stats) (const [**dp\_sub\_t**](group__types.md#typedef-dp_sub_t) \* ctx, [**dp\_reasm\_stats\_t**](structdp__reasm__stats__t.md) \* out) <br>_Read_ `ctx's` _chunk-reassembly losses into_`out` _._ |
 
 
 
@@ -434,6 +440,60 @@ Statically allocated, null-terminated string.
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_sub\_reasm\_stats 
+
+_Read_ `ctx's` _chunk-reassembly losses into_`out` _._
+```
+int dp_sub_reasm_stats (
+    const dp_sub_t * ctx,
+    dp_reasm_stats_t * out
+) 
+```
+
+
+
+Every receiving role keeps them; a context that never received a chunked frame reads all zeros. A frame that IS returned is complete and exact: chunks of two frames are never merged, because a frame is identified by its whole header (sequence, timestamp, rate, centre frequency, format) and its chunk geometry, not by its sequence alone.
+
+
+
+
+**Parameters:**
+
+
+* `ctx` Any receiving context (SUB, PULL, REQ, REP). 
+* `out` Filled on success. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID for a NULL argument.
+
+
+
+```
+// header-code: no-run=needs a NATS broker on 127.0.0.1:4222
+dp_sub_t *sub = dp_sub_create ("nats://127.0.0.1:4222/iq");
+dp_sub_set_timeout (sub, 1000);
+dp_msg_t   *msg = NULL;
+dp_header_t hdr;
+if (sub && dp_sub_recv (sub, &msg, &hdr) == DP_OK)
+  dp_msg_free (msg);
+dp_reasm_stats_t st;
+if (dp_sub_reasm_stats (sub, &st) == DP_OK && st.abandoned > 0)
+  printf ("%llu chunked frames lost\n",
+          (unsigned long long)st.abandoned);
+dp_sub_destroy (sub);
+```
+ 
 
 
         

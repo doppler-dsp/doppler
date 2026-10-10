@@ -320,6 +320,15 @@ extern "C"
 
   int dp_ctx_delete_stream (dp_pub_t *ctx);
 
+  typedef struct
+  {
+    uint64_t abandoned; 
+    uint64_t rejected;  
+    uint64_t mid_frame_timeouts; 
+  } dp_reasm_stats_t;
+
+  int dp_sub_reasm_stats (const dp_sub_t *ctx, dp_reasm_stats_t *out);
+
 
 #ifdef __cplusplus
 }

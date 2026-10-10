@@ -116,13 +116,18 @@ class LoopFilter:
 
     def configure(self, bn: float, zeta: float, t: float) -> None:
         """Recompute the loop gains for a new (bn, zeta, t); preserves the
-        integrator.
+        integrator. Raises ValueError, changing nothing, when (bn, zeta, t) is
+        outside the loop's domain: bn >= 0, zeta > 0 and t > 0, all finite.
 
         Recomputes the proportional and integral gains from the standard
         2nd-order form but leaves integ untouched, so a loop can be widened for
         fast acquisition and then narrowed for steady-state tracking while
         holding its accumulated frequency/rate estimate — the retune preserves
         lock.
+
+        A (bn, zeta, t) outside dp_loop_filter_params_ok() is refused and
+        changes nothing: a NaN gave gains that never recover, and a negative bn
+        could zero the denominator (doppler#2103).
 
         Parameters
         ----------
@@ -132,6 +137,12 @@ class LoopFilter:
             Damping factor (typically 0.707).
         t : float
             Update period in samples (> 0).
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``configure failed``, with the return code appended (gh-869).
 
         Examples
         --------

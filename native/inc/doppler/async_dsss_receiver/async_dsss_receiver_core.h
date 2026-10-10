@@ -211,6 +211,12 @@ extern "C"
    * the channel's resampled pulse, 12.22). */
 #define ASYNC_DSSS_RX_DLL_SPACING 0.5
 #define ASYNC_DSSS_RX_DLL_DISC_SLOPE (2.0 - ASYNC_DSSS_RX_DLL_SPACING)
+  /* The damping of both Dlls this receiver builds, the tracker and the
+   * refine collector, and the collector's early-late spacing, chips. Named
+   * once because create() checks the very arguments each build site passes
+   * (dp_dll_params_ok(), doppler#2103). */
+#define ASYNC_DSSS_RX_DLL_ZETA 0.707
+#define ASYNC_DSSS_RX_REFINE_DLL_SPACING 0.5
 
   /* Symbol-lock detector on the emitted symbols. The lock signal is the
    * BPSK phase-lock statistic (I^2 - Q^2)/(I^2 + Q^2) = cos(2*phi) per
@@ -1038,15 +1044,22 @@ extern "C"
    * still bridged by a freshly-sized `RateConverter` and never coupled to
    * each other. While searching/refining it re-pins the grid used to build
    * the next tracking chain; once tracking it rebuilds `dll`/`rc`/`rx` in
-   * place, allocating every replacement before adopting it so a failed pin
-   * leaves the receiver usable on its prior grid.
+   * place, allocating every replacement before adopting it.
+   *
+   * The new grid is checked as create() checked the first, before anything
+   * is rebuilt, and refused with the receiver left on its prior grid: the
+   * Dll's domain at @p segments, @p sps >= 2, and a symbol period of at most
+   * 2^20 Dll partials, which the Dll's aid would otherwise refuse mid-build
+   * (doppler#2103). Not yet refused, and still an abort: an @p n that
+   * MpskReceiver refuses (odd, or over 8), and an allocation failure in the
+   * rebuild (doppler#2112).
    *
    * @param state     Must be non-NULL.
    * @param segments  Live-tracking Dll segments per code period.
-   * @param sps       MpskReceiver samples per symbol (the resample target).
+   * @param sps       MpskReceiver samples per symbol (the resample target),
+   *                  >= 2.
    * @param n         MpskReceiver's carrier-arm count; must divide @p sps.
-   * @return 0 on success, -1 on invalid grid or an allocation failure
-   *         (the receiver is left usable at its prior grid on failure).
+   * @return 0 on success, -1 on a grid refused as above.
    * @code
    * >>> import numpy as np
    * >>> from doppler.dsss import AsyncDsssReceiver

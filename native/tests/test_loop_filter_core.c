@@ -251,11 +251,28 @@ main (void)
     (void)dp_loop_filter_step (lf, 2.0);
 
     double integ_before = lf->integ, kp_before = lf->kp;
-    dp_loop_filter_configure (lf, 0.05, zeta, t);
+    DP_CHECK (dp_loop_filter_configure (lf, 0.05, zeta, t) == DP_OK);
 
     DP_CHECK (lf->integ == integ_before); /* the estimate survives */
     DP_CHECK (lf->bn == 0.05);
     DP_CHECK (lf->kp != kp_before);
+
+    /* A retune outside dp_loop_filter_params_ok() is refused and writes
+       nothing: a NaN poisoned the gains for good, and a negative bn with
+       zeta >= 1 zeroed the denominator (doppler#2103). */
+    {
+      const dp_loop_filter_state_t held     = *lf;
+      const double                 bad[][3] = { { NAN, zeta, t },
+                                                { -1.25, 1.0, t },
+                                                { 0.05, INFINITY, t },
+                                                { 0.05, zeta, 0.0 },
+                                                { 0.05, 0.0, t } };
+      for (size_t k = 0; k < sizeof bad / sizeof *bad; k++)
+        DP_CHECK (
+            dp_loop_filter_configure (lf, bad[k][0], bad[k][1], bad[k][2])
+            == DP_ERR_INVALID);
+      DP_CHECK (memcmp (lf, &held, sizeof held) == 0);
+    }
 
     /* configure and init are the same operation; a caller with an embedded
        state uses init and must get the identical result. */

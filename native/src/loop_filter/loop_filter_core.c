@@ -79,11 +79,16 @@ dp_loop_filter_destroy (dp_loop_filter_state_t *state)
   free (state);
 }
 
-void
+int
 dp_loop_filter_configure (dp_loop_filter_state_t *state, double bn,
                           double zeta, double t)
 {
+  /* A retune is as untrusted as create(): `LoopFilter.configure` hands a
+     Python caller's doubles straight here (doppler#2103). */
+  if (!dp_loop_filter_params_ok (bn, zeta, t))
+    return DP_ERR_INVALID;
   dp_loop_filter_init (state, bn, zeta, t); /* recompute gains, keep integ */
+  return DP_OK;
 }
 
 void

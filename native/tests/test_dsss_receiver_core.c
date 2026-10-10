@@ -34,6 +34,22 @@ _test_arg_validation (void)
   DP_CHECK (dp_dsss_receiver_create (NULL, 0, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9,
                                      100.0, 4, 8, 0)
             == NULL);
+  /* Refused by create itself, where each reached a dp_xnn build and
+     aborted the process (doppler#2103): the searcher's own domain (a pfa of
+     2), and a NaN rate, whose ratio sizes the chain's resampler. The
+     control is the same receiver at good values. */
+  {
+    dp_dsss_receiver_state_t *ok = dp_dsss_receiver_create (
+        CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0);
+    DP_CHECK (ok != NULL);
+    dp_dsss_receiver_destroy (ok);
+  }
+  DP_CHECK (dp_dsss_receiver_create (CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 2.0, 0.9,
+                                     100.0, 4, 8, 0)
+            == NULL); /* pfa */
+  DP_CHECK (dp_dsss_receiver_create (CODE7, 7, 1e6, NAN, 2, 2, 55.0, 1e-3, 0.9,
+                                     100.0, 4, 8, 0)
+            == NULL); /* symbol_rate */
   /* A 1-chip code: refused, where the Dll built under dp_xnn used to abort
      the process once it refused the code (doppler#2103). */
   DP_CHECK (dp_dsss_receiver_create (CODE7, 1, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9,

@@ -85,9 +85,15 @@ extern "C"
    * estimate). The carrier loop's update period is one code period
    * (`code_len * sps` samples).
    *
+   * Unguarded, as the by-value path: the caller checks the code loop's
+   * arguments with dp_dll_params_ok() (@p code_len, @p init_chip,
+   * @p bn_code, @p zeta, @p spacing, one segment) first, as
+   * dp_despreader_create() does. Outside it the code loop reads past the
+   * code (doppler#2103). The carrier loop's own check is doppler#2112.
+   *
    * @param ch              State to initialise.  Must be non-NULL.
    * @param code            Spreading code (0/1 chips), one period; borrowed.
-   * @param code_len        Code length (chips per period); >= 1.
+   * @param code_len        Code length (chips per period); see above.
    * @param sps             Samples per chip.
    * @param init_norm_freq  Seed carrier frequency, cycles/sample.
    * @param init_chip       Seed code phase, chips.
@@ -117,7 +123,9 @@ extern "C"
    * @p periods_per_bit code periods).
    *
    * @param code             Spreading code (0/1 chips), one period; copied.
-   * @param code_len         Code length (chips per period); >= 1.
+   * @param code_len         Code length (chips per period); with the code
+   *                         loop's floats, inside dp_dll_params_ok(), or
+   *                         create refuses.
    * @param sps              Samples per chip.
    * @param init_norm_freq   Seed carrier frequency, cycles/sample (the
    *                         acquisition estimate).

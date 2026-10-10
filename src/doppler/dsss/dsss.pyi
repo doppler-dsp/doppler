@@ -1723,10 +1723,12 @@ class DsssReceiver:
     ------
     ValueError
         If construction fails. The exception message is ``DsssReceiver: invalid
-        parameter (need a code of at least 2 chips, chip_rate > 0, symbol_rate
-        > 0, spc >= 1, m in {2,4,8}, segments >= 1, sps >= 2 -- sps = 1 cannot
-        carry an m_out, whose smallest legal value is 2 and which MpskReceiver
-        requires sps to reach)``.
+        parameter (need a code of at least 2 chips, a finite chip_rate > 0, a
+        finite symbol_rate > 0, spc >= 1, m in {2,4,8}, segments >= 1, sps >= 2
+        -- sps = 1 cannot carry an m_out, whose smallest legal value is 2 and
+        which MpskReceiver requires sps to reach; and for the searcher a finite
+        cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >=
+        0)``.
 
     Examples
     --------
@@ -2246,9 +2248,14 @@ class AsyncDsssReceiver:
     ------
     ValueError
         If construction fails. The exception message is ``AsyncDsssReceiver:
-        invalid parameter (need a code of at least 2 chips, chip_rate > 0, a
-        finite symbol_rate > 0, spc >= 1, m in {2,4,8}, segments >= 1, sps >=
-        1, carrier_freq_hz >= 0, lost_confirm_s >= 0)``.
+        invalid parameter (need a code of at least 2 chips, a finite chip_rate
+        > 0, a finite symbol_rate > 0, spc >= 1, m in {2,4,8}, segments >= 1,
+        sps >= 2, carrier_freq_hz 0 or finite and above chip_rate * spc / 2,
+        lost_confirm_s >= 0, refine_samples_per_symbol >= 1, refine_n_fft >= 1,
+        refine_zero_pad >= 1, a symbol of at most 2^20 Dll partials, segments *
+        chip_rate / (code_len * symbol_rate) <= 1048576; and for the searcher a
+        finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty
+        >= 0)``.
 
     Examples
     --------
@@ -2680,15 +2687,27 @@ class AsyncDsssReceiver:
     def configure_chain_raw(self, segments: int, sps: int, n: int) -> None:
         """Pin the live-tracking despread/resample/demod grid directly,
         bypassing the create-time segments/sps defaults. Only meaningful once
-        tracking; rebuilds the chain with every replacement allocated first, so
-        a failed pin leaves the receiver on its prior grid.
+        tracking; rebuilds the chain with every replacement allocated first.
+        Raises ValueError, leaving the receiver on its prior grid, for a grid
+        the chain cannot be built on: n >= 1 dividing sps, sps >= 2, and a
+        symbol of at most 2^20 Dll partials at the new segments, segments *
+        chip_rate / (code_len * symbol_rate) <= 1048576. An n MpskReceiver
+        refuses (odd, or over 8) still aborts (doppler#2112).
+
+        The new grid is checked as create() checked the first, before anything
+        is rebuilt, and refused with the receiver left on its prior grid: the
+        Dll's domain at segments, sps >= 2, and a symbol period of at most 2^20
+        Dll partials, which the Dll's aid would otherwise refuse mid-build
+        (doppler#2103). Not yet refused, and still an abort: an n that
+        MpskReceiver refuses (odd, or over 8), and an allocation failure in the
+        rebuild (doppler#2112).
 
         Parameters
         ----------
         segments : int
             Live-tracking Dll segments per code period.
         sps : int
-            MpskReceiver samples per symbol (the resample target).
+            MpskReceiver samples per symbol (the resample target), >= 2.
         n : int
             MpskReceiver's carrier-arm count; must divide sps.
 
@@ -3022,9 +3041,14 @@ class CellAsyncDsssReceiver:
     ------
     ValueError
         If construction fails. The exception message is ``AsyncDsssReceiver:
-        invalid parameter (need a code of at least 2 chips, chip_rate > 0, a
-        finite symbol_rate > 0, spc >= 1, m in {2,4,8}, segments >= 1, sps >=
-        1, carrier_freq_hz >= 0, lost_confirm_s >= 0)``.
+        invalid parameter (need a code of at least 2 chips, a finite chip_rate
+        > 0, a finite symbol_rate > 0, spc >= 1, m in {2,4,8}, segments >= 1,
+        sps >= 2, carrier_freq_hz 0 or finite and above chip_rate * spc / 2,
+        lost_confirm_s >= 0, refine_samples_per_symbol >= 1, refine_n_fft >= 1,
+        refine_zero_pad >= 1, a symbol of at most 2^20 Dll partials, segments *
+        chip_rate / (code_len * symbol_rate) <= 1048576; and for the searcher a
+        finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty
+        >= 0)``.
 
     Examples
     --------
@@ -3342,15 +3366,27 @@ class CellAsyncDsssReceiver:
     def configure_chain_raw(self, segments: int, sps: int, n: int) -> None:
         """Pin the live-tracking despread/resample/demod grid directly,
         bypassing the create-time segments/sps defaults. Only meaningful once
-        tracking; rebuilds the chain with every replacement allocated first, so
-        a failed pin leaves the receiver on its prior grid.
+        tracking; rebuilds the chain with every replacement allocated first.
+        Raises ValueError, leaving the receiver on its prior grid, for a grid
+        the chain cannot be built on: n >= 1 dividing sps, sps >= 2, and a
+        symbol of at most 2^20 Dll partials at the new segments, segments *
+        chip_rate / (code_len * symbol_rate) <= 1048576. An n MpskReceiver
+        refuses (odd, or over 8) still aborts (doppler#2112).
+
+        The new grid is checked as create() checked the first, before anything
+        is rebuilt, and refused with the receiver left on its prior grid: the
+        Dll's domain at segments, sps >= 2, and a symbol period of at most 2^20
+        Dll partials, which the Dll's aid would otherwise refuse mid-build
+        (doppler#2103). Not yet refused, and still an abort: an n that
+        MpskReceiver refuses (odd, or over 8), and an allocation failure in the
+        rebuild (doppler#2112).
 
         Parameters
         ----------
         segments : int
             Live-tracking Dll segments per code period.
         sps : int
-            MpskReceiver samples per symbol (the resample target).
+            MpskReceiver samples per symbol (the resample target), >= 2.
         n : int
             MpskReceiver's carrier-arm count; must divide sps.
 
@@ -3694,12 +3730,16 @@ class AsyncDsssPool:
     ValueError
         If construction fails. The exception message is ``AsyncDsssPool:
         invalid parameter, or a searcher a cell receiver cannot take (need a
-        code of at least 2 chips, chip_rate > 0, symbol_rate > 0, spc >= 1,
-        n_slots >= 1, max_peaks >= 1, carrier_freq_hz >= 0, lost_confirm_s >=
-        0, max_emitter_on_time_secs >= 0, 0 < gain <= 1; a searcher depth D > 1
-        -- code_only_epochs > 1 -- whose Doppler row is at most four times the
-        carrier loop's pull-in bound, doppler_res_hz <= 2 * 0.04 * chip_rate /
-        code_len)``.
+        code of at least 2 chips, a finite chip_rate > 0, a finite symbol_rate
+        > 0, spc >= 1, m in {2,4,8}, segments >= 1, sps >= 2, carrier_freq_hz 0
+        or finite and above chip_rate * spc / 2, lost_confirm_s >= 0, 0 < gain
+        <= 1, n_slots >= 1, 1 <= max_peaks <= 64, max_emitter_on_time_secs >=
+        0, a symbol of at most 2^20 Dll partials, segments * chip_rate /
+        (code_len * symbol_rate) <= 1048576; and a searcher with a finite
+        cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >= 0, a
+        finite doppler_rate >= 0, and a depth D > 1 -- code_only_epochs > 1 --
+        whose Doppler row is at most four times the carrier loop's pull-in
+        bound, doppler_res_hz <= 2 * 0.04 * chip_rate / code_len)``.
 
     Examples
     --------

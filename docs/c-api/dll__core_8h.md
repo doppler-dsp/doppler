@@ -640,7 +640,7 @@ A non-coherent early/prompt/late DLL that tracks the code phase of a repeating s
 
 **Returns:**
 
-Heap-allocated state, or NULL on allocation failure or a refused argument: an empty code, `segments` 0, a non-finite `init_chip`, `bn` and `zeta` outside [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok), or a `spacing` outside (0, `code_len`/2) (doppler#2103). 
+Heap-allocated state, or NULL on allocation failure or an argument outside [**dp\_dll\_params\_ok()**](dll__core_8h.md#function-dp_dll_params_ok): an empty code, `segments` 0, a non-finite `init_chip`, `bn` and `zeta` outside [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok), or a `spacing` outside (0, `code_len`/2) (doppler#2103). 
 
 
 
@@ -920,6 +920,9 @@ void dp_dll_init (
 The by-value counterpart to [**dp\_dll\_create()**](dll__core_8h.md#function-dp_dll_create): a tracking channel that embeds a [**dp\_dll\_state\_t**](structdp__dll__state__t.md) initialises it here and retains ownership of `code` (it is not copied or freed). `code` must hold `code_len` chips for the loop's lifetime.
 
 
+Unguarded, as the by-value path: the caller checks its arguments with [**dp\_dll\_params\_ok()**](dll__core_8h.md#function-dp_dll_params_ok) (one segment) first. Outside it the loop's gains go NaN or its taps read past the code (doppler#2103).
+
+
 
 
 **Parameters:**
@@ -927,7 +930,7 @@ The by-value counterpart to [**dp\_dll\_create()**](dll__core_8h.md#function-dp_
 
 * `s` State to initialise. Must be non-NULL. 
 * `code` Spreading code (0/1 chips), one period; borrowed. 
-* `code_len` Code length (chips per period); must be &gt;= 1. 
+* `code_len` Code length (chips per period); with the floats, inside [**dp\_dll\_params\_ok()**](dll__core_8h.md#function-dp_dll_params_ok). 
 * `sps` Samples per chip. 
 * `init_chip` Seed code phase, chips. 
 * `bn` Loop noise bandwidth, normalised to the code-period rate. 

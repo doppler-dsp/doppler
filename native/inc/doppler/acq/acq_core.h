@@ -963,8 +963,8 @@ extern "C"
    *
    * @param state           Must be non-NULL.
    * @param carrier_freq_hz RF carrier, Hz; 0.0 = uncoupled.
-   * @return `DP_OK`, or `DP_ERR_INVALID` for a negative or non-finite
-   *         value.
+   * @return `DP_OK`, or `DP_ERR_INVALID` for a carrier outside
+   *         dp_acq_carrier_freq_ok() at this engine's sample rate.
    * @code
    * >>> import numpy as np
    * >>> from doppler.acquire import Acquisition
@@ -981,6 +981,24 @@ extern "C"
    * @endcode
    */
   int dp_acq_set_carrier_freq_hz (dp_acq_state_t *state, double carrier_freq_hz);
+
+  /**
+   * @brief Whether @p carrier_freq_hz is a carrier the code can be coupled
+   *        to at @p sample_rate_hz: 0 (uncoupled), or finite and above half
+   *        the sample rate.
+   *
+   * Every coupled stage divides a Doppler by the carrier: the hand-off's
+   * dilation, a coherent block's epoch alignment, a code loop's rate aid.
+   * Every Doppler a receiver can report is below half its sample rate, so
+   * a carrier above that keeps |doppler / carrier| < 1, the physical v/c,
+   * and the product finite. A tiny carrier sent it to inf, so the seed
+   * phase came out NaN, and the receiver aborted building its code loop
+   * from it (doppler#2103). The one rule for every site that takes the
+   * divisor: dp_acq_set_carrier_freq_hz() and the DSSS receivers' creates.
+   *
+   * @return 1 if the carrier is taken, 0 otherwise (a NaN is not).
+   */
+  int dp_acq_carrier_freq_ok (double carrier_freq_hz, double sample_rate_hz);
 
   /**
    * @brief Set how many threads the searcher fans its tiles across

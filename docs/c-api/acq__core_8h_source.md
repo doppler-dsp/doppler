@@ -260,6 +260,8 @@ extern "C"
 
   int dp_acq_set_carrier_freq_hz (dp_acq_state_t *state, double carrier_freq_hz);
 
+  int dp_acq_carrier_freq_ok (double carrier_freq_hz, double sample_rate_hz);
+
   int dp_acq_set_threads (dp_acq_state_t *state, int n);
   int dp_acq_set_telemetry (dp_acq_state_t *state, dp_tlm_t *tlm,
                          const char *prefix, uint32_t decim);

@@ -1,9 +1,8 @@
-- **`Dll`, `Despreader` and the DSSS receivers refuse a bad argument instead
-    of crashing.** A NaN `spacing` read out of bounds on the first sample, a
-    NaN loop bandwidth gave a loop that never recovered, and
-    `set_symbol_period(nan)` aborted the process allocating 2^63. They now
-    raise `ValueError`, and `Dll.configure` refuses a bad `(bn, zeta)`. A
-    1-chip code is refused, not aborted on. `set_symbol_period` refuses a
-    period past 2^20 partials, and `AsyncDsssReceiver` refuses at create a
-    symbol rate whose period would pass it; real links (1e3-6e4 baud) sit
-    about five orders of magnitude below (#2103).
+- **`Dll`, `Despreader`, `LoopFilter` and the DSSS receivers raise a
+    `ValueError` naming a bad argument, instead of crashing or aborting the
+    interpreter** (a NaN spacing or rate, `sps=1`, a `pfa` of 2, a tiny
+    carrier). Changed: `MemoryError` becomes `ValueError`;
+    `set_symbol_period(-inf)` and a period past 2^20 partials are refused; a
+    coupled `carrier_freq_hz` must be 0 or above half the sample rate; the
+    `Dll.bn` and `Despreader.bn_code` setters refuse without raising until
+    just-buildit/just-makeit#2182 (#2103).

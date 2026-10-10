@@ -129,6 +129,43 @@ _test_arg_validation (void)
                                                 1e-3, 0.9, 4, 8, 0, 0.0, 1.0,
                                                 100, 0.125, 4)
             == NULL);
+  /* Refused by create itself, where each reached a dp_xnn build and
+     aborted the process (doppler#2103): the searcher's own domain (a pfa of
+     2), sps = 1, which carries no m_out, and a carrier so small that
+     doppler / carrier overflows. The control is the same receiver at good
+     values, so it is the one argument that is refused. */
+  {
+    dp_async_dsss_receiver_state_t *ok = dp_async_dsss_receiver_create (
+        CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5, 4,
+        14.0, 64, 8, false, 100000, 2.5e9, 0.0);
+    DP_CHECK (ok != NULL);
+    dp_async_dsss_receiver_destroy (ok);
+    dp_async_dsss_receiver_state_t *cell = dp_async_dsss_receiver_create_cell (
+        CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9, 4, 8, 0, 2.5e9, 1.0, 100,
+        0.125, 4);
+    DP_CHECK (cell != NULL);
+    dp_async_dsss_receiver_destroy (cell);
+  }
+  DP_CHECK (dp_async_dsss_receiver_create (CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 2.0,
+                                           0.9, 100.0, 4, 8, 0, 0.5, 4, 14.0,
+                                           64, 8, false, 100000, 2.5e9, 0.0)
+            == NULL); /* pfa */
+  DP_CHECK (dp_async_dsss_receiver_create (
+                CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 1, 0, 0.5,
+                4, 14.0, 64, 8, false, 100000, 2.5e9, 0.0)
+            == NULL); /* sps */
+  DP_CHECK (dp_async_dsss_receiver_create (
+                CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5,
+                4, 14.0, 64, 8, false, 100000, 1e-305, 0.0)
+            == NULL); /* carrier */
+  DP_CHECK (dp_async_dsss_receiver_create_cell (CODE7, 7, 1e6, 1e3, 2, 2, 55.0,
+                                                1e-3, 0.9, 4, 1, 0, 2.5e9, 1.0,
+                                                100, 0.125, 4)
+            == NULL); /* sps */
+  DP_CHECK (dp_async_dsss_receiver_create_cell (CODE7, 7, 1e6, 1e3, 2, 2, 55.0,
+                                                1e-3, 0.9, 4, 8, 0, 1e-305,
+                                                1.0, 100, 0.125, 4)
+            == NULL); /* carrier */
   /* A symbol period the Dll's aid would refuse -- here 4 * 1e6 / (7 * 0.1)
      partials, past 2^20 -- is refused at create: the tracker sets it
      mid-stream, where a refusal used to drop the aid silently (#2103). */
@@ -1471,6 +1508,15 @@ _test_accessor_coverage (void)
   DP_CHECK (dp_async_dsss_receiver_configure_chain_raw (rx, 4, 8, 4) == 0);
   DP_CHECK (dp_async_dsss_receiver_configure_chain_raw (rx, 0, 8, 4) == -1);
   DP_CHECK (dp_async_dsss_receiver_configure_chain_raw (rx, 4, 8, 3) == -1);
+  /* The new grid meets what create() checked, before anything is rebuilt
+     (doppler#2103). This code's symbol is 4 code periods, so 262145
+     segments is 4 partials past the 2^20 the Dll's aid takes, where the
+     rebuild aborted; and sps = 1 carries no m_out, where MpskReceiver's
+     NULL aborted. Each refusal leaves the receiver on its grid. */
+  DP_CHECK (dp_async_dsss_receiver_configure_chain_raw (rx, 262145, 8, 4)
+            == -1);
+  DP_CHECK (dp_async_dsss_receiver_configure_chain_raw (rx, 4, 1, 1) == -1);
+  DP_CHECK (rx->segments == 4 && rx->sps == 8 && rx->n == 4);
 
   dp_async_dsss_receiver_destroy (rx);
   return 0;

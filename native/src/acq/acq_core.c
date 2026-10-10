@@ -1889,12 +1889,15 @@ acq_acq_create_impl (const float _Complex *replica, size_t sf,
   const double span = (sf > 0) ? chip_rate / (2.0 * (double)sf) : 0.0;
   /* doppler_uncertainty > span is not rejected: it engages wideband mode
    * (see the file doc comment's "Wideband window-tiling mode" section)
-   * instead of being an out-of-range error. */
+   * instead of being an out-of-range error. It must be finite, though: a
+   * NaN or an infinity reached the searched-bin and window counts through
+   * a float-to-size conversion (doppler#2103). */
   if (!replica || sf < 1 || spc < 1 || reps < 1 || !(chip_rate > 0.0)
       || !(isfinite (cn0_dbhz) || (!continuous && isnan (cn0_dbhz)))
       || !(pfa > 0.0 && pfa < 1.0) || !(pd > 0.0 && pd < 1.0)
-      || doppler_uncertainty < 0.0 || code_only_epochs < 1
-      || !(doppler_rate >= 0.0) || !isfinite (doppler_rate))
+      || !(doppler_uncertainty >= 0.0 && isfinite (doppler_uncertainty))
+      || code_only_epochs < 1 || !(doppler_rate >= 0.0)
+      || !isfinite (doppler_rate))
     return NULL;
 
   dp_acq_state_t *st = (dp_acq_state_t *)calloc (1, sizeof (*st));
@@ -2461,10 +2464,18 @@ dp_acq_position (const dp_acq_state_t *state)
 int
 dp_acq_set_carrier_freq_hz (dp_acq_state_t *state, double carrier_freq_hz)
 {
-  if (!(carrier_freq_hz >= 0.0) || !isfinite (carrier_freq_hz))
+  if (!dp_acq_carrier_freq_ok (carrier_freq_hz, state->fs))
     return DP_ERR_INVALID;
   state->carrier_freq_hz = carrier_freq_hz;
   return DP_OK;
+}
+
+int
+dp_acq_carrier_freq_ok (double carrier_freq_hz, double sample_rate_hz)
+{
+  return carrier_freq_hz == 0.0
+         || (isfinite (carrier_freq_hz)
+             && carrier_freq_hz > 0.5 * sample_rate_hz);
 }
 
 double

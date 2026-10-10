@@ -153,6 +153,7 @@ dp_acc_trace_value_max_out function
 dp_acq_block_prompt function
 dp_acq_block_raw function
 dp_acq_build_handoff function
+dp_acq_carrier_freq_ok function
 dp_acq_cell_corr function
 dp_acq_cell_corr_grid function
 dp_acq_configure_search_raw function

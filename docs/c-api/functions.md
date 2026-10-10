@@ -237,6 +237,7 @@
 * **dp\_acq\_block\_prompt** ([**acq\_core.h**](acq__core_8h.md))
 * **dp\_acq\_block\_raw** ([**acq\_core.h**](acq__core_8h.md))
 * **dp\_acq\_build\_handoff** ([**acq\_core.h**](acq__core_8h.md))
+* **dp\_acq\_carrier\_freq\_ok** ([**acq\_core.h**](acq__core_8h.md))
 * **dp\_acq\_cell\_corr** ([**acq\_core.h**](acq__core_8h.md))
 * **dp\_acq\_cell\_corr\_grid** ([**acq\_core.h**](acq__core_8h.md))
 * **dp\_acq\_configure\_search\_raw** ([**acq\_core.h**](acq__core_8h.md))

@@ -3,6 +3,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* The code loop's arguments, named once: create() checks the very values
+   dsss_rx_build_chain() passes to dp_dll_create() (dp_dll_params_ok(),
+   doppler#2103). The bandwidth is the validated stable one for the
+   one-update-per-partial geometry, which AsyncDsssReceiver's Dll shares. */
+#define DSSS_RX_DLL_BN 0.002
+#define DSSS_RX_DLL_ZETA 0.707
+#define DSSS_RX_DLL_SPACING 0.5
+
 /* MpskReceiver's terminal outputs per symbol (`m_out`) comes from
  * `mpsk_rx_derive_m_out()` in mpsk_rx_loops.h -- the rule's one home since
  * gh-644. This file used to carry a second implementation of it, and the
@@ -36,8 +44,9 @@ dsss_rx_build_chain (double chip_rate, double symbol_rate, const uint8_t *code,
   double partial_rate = chip_rate * (double)segments / (double)code_len;
   double target_rate  = (double)sps * symbol_rate;
 
-  dp_dll_state_t *dll = dp_xnn (dp_dll_create (code, code_len, spc, chip_phase,
-                                               0.002, 0.707, 0.5, segments));
+  dp_dll_state_t *dll = dp_xnn (
+      dp_dll_create (code, code_len, spc, chip_phase, DSSS_RX_DLL_BN,
+                     DSSS_RX_DLL_ZETA, DSSS_RX_DLL_SPACING, segments));
 
   dp_RateConverter_state_t *rc
       = dp_xnn (dp_RateConverter_create (target_rate / partial_rate, 0));
@@ -296,9 +305,13 @@ dp_dsss_receiver_create (const uint8_t *code, size_t code_len,
 {
   /* The Dll this receiver builds under dp_xnn meets the Dll's own domain
      here, so a configuration it refuses (a 1-chip code) is refused rather
-     than aborting the process (doppler#2103). */
-  if (!code || !dp_dll_params_ok (code_len, 0.0, 0.002, 0.707, 0.5, segments)
-      || chip_rate <= 0.0 || symbol_rate <= 0.0 || spc < 1
+     than aborting the process. So is a non-finite rate: the chain's
+     resampler is built from their ratio, also under dp_xnn (doppler#2103). */
+  if (!code
+      || !dp_dll_params_ok (code_len, 0.0, DSSS_RX_DLL_BN, DSSS_RX_DLL_ZETA,
+                            DSSS_RX_DLL_SPACING, segments)
+      || !(chip_rate > 0.0 && isfinite (chip_rate))
+      || !(symbol_rate > 0.0 && isfinite (symbol_rate)) || spc < 1
       || (m != 2 && m != 4 && m != 8)
       || segments < 1
       /* sps < 2 cannot carry an m_out at all: the smallest legal terminal
@@ -317,9 +330,17 @@ dp_dsss_receiver_create (const uint8_t *code, size_t code_len,
   memcpy (obj->code, code, code_len);
   obj->code_len = code_len;
 
-  obj->acq = dp_xnn (dp_acq_create_continuous (
+  /* The searcher checks its own domain (pfa, pd, C/N0 ...), so its refusal
+     is this create's, not an abort under dp_xnn (doppler#2103). */
+  obj->acq = dp_acq_create_continuous (
       obj->code, code_len, spc, chip_rate, symbol_rate, cn0_dbhz,
-      doppler_uncertainty, pfa, pd, 0 /* noise_mode=mean */, 1, 0.0));
+      doppler_uncertainty, pfa, pd, 0 /* noise_mode=mean */, 1, 0.0);
+  if (!obj->acq)
+    {
+      free (obj->code);
+      free (obj);
+      return NULL;
+    }
 
   obj->spc          = spc;
   obj->m            = m;

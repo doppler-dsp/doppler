@@ -1033,10 +1033,20 @@ dp_wfm_synth_get_wtype (const dp_wfm_synth_state_t *state)
   return state->wtype;
 }
 
-void
+int
 dp_wfm_synth_set_wtype (dp_wfm_synth_state_t *state, int val)
 {
+  /* A type no step path knows, or one whose generator create() did not
+     build: the PN/BPSK/QPSK steps read state->pn, which exists only on an
+     engine created as one of those (or as dsss), so switching a tone
+     engine to PN dereferenced NULL on the next step (#2095). Refused, with
+     the state unchanged. */
+  if (val < WFM_SYNTH_TONE || val > WFM_SYNTH_DSSS)
+    return DP_ERR_INVALID;
+  if (val >= WFM_SYNTH_PN && val <= WFM_SYNTH_QPSK && !state->pn)
+    return DP_ERR_INVALID;
   state->wtype = val;
+  return DP_OK;
 }
 
 int

@@ -216,6 +216,30 @@ class TestSynthEngineLifecycle:
         with w._SynthEngine(type="qpsk", sps=4, snr=100.0) as e:
             assert e.steps(16).shape == (16,)
 
+    @pytest.mark.parametrize("wtype", [2, 3, 4])  # PN, BPSK, QPSK
+    def test_set_wtype_refuses_a_generator_create_did_not_build(
+        self, wtype: int
+    ) -> None:
+        """A tone engine has no PN source; switching it to a PN type used to
+        segfault on the next step (#2095). It is refused instead, and the
+        engine keeps its type and still runs."""
+        e = w._SynthEngine(type="tone", fs=1e6, freq=1e3, snr=100.0)
+        with pytest.raises(ValueError, match="no generator"):
+            e.set_wtype(wtype)
+        assert e.get_wtype() == 0
+        assert e.steps(64).shape == (64,)
+
+    @pytest.mark.parametrize("wtype", [-1, 9, 99])
+    def test_set_wtype_refuses_what_is_not_a_waveform_type(
+        self, wtype: int
+    ) -> None:
+        e = w._SynthEngine(type="qpsk", sps=4, snr=100.0)
+        with pytest.raises(ValueError, match="not a waveform type"):
+            e.set_wtype(wtype)
+        assert e.get_wtype() == 4
+        e.set_wtype(3)  # BPSK shares the PN source a QPSK engine built
+        assert e.get_wtype() == 3
+
 
 class TestSynthLifecycle:
     @pytest.mark.parametrize("wtype", ENUMS["type"])

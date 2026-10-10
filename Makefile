@@ -484,8 +484,13 @@ LINT_curl-fail = $(UV) run python scripts/check_curl_fail.py
 # stock image comes through STOCK_REGISTRY; the repo's own images (named for
 # DOCKER_IMAGE) and other registries' are fine by rule. Vendored files are
 # canonical's to fix, so their findings are listed, not failed.
+# scripts/.stock-pull-exempt may only shrink from its state at the merge base
+# with STOCK_IMAGES_BASE; the pre-commit job checks out at fetch-depth 0, so
+# origin/main is there to read (#1979).
+STOCK_IMAGES_BASE ?= origin/main
 LINT_stock-images = $(UV) run python scripts/check_stock_images.py \
-    --own-prefix $(DOCKER_IMAGE) --vendored "$(VENDORED_FILES) standard.mk"
+    --own-prefix $(DOCKER_IMAGE) --vendored "$(VENDORED_FILES) standard.mk" \
+    --base $(STOCK_IMAGES_BASE)
 
 # uv.lock's bytes depend on the uv that writes it (doppler#1940), so uv is
 # pinned once, in pyproject.toml's [tool.uv] required-version, and uv refuses

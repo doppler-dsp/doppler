@@ -31,7 +31,11 @@ Where it looks (registration-free: every tracked file of these kinds):
   stepped over like the option it is.
 
 A reference is fine when it starts with the ``STOCK_REGISTRY`` variable,
-names a registry host other than Docker Hub's (ghcr.io pins, quay.io's
+spelled whole (``$(STOCK_REGISTRY)``, ``${STOCK_REGISTRY}``,
+``${STOCK_REGISTRY:?msg}`` or ``$STOCK_REGISTRY``: the one form the
+pre-pull reads too, so a spelling with a fallback, ``${STOCK_REGISTRY:-...}``
+say, is refused), names a
+registry host other than Docker Hub's (ghcr.io pins, quay.io's
 manylinux, public.ecr.aws), names the repo's OWN image (its first path
 component starts with ``--own-prefix``, the Makefile's DOCKER_IMAGE), or is
 an earlier build stage. Anything else -- ``debian:stable``,
@@ -45,21 +49,31 @@ package leg before the code was reached. The helper retries a rate limit
 with backoff; nothing else does. So, for a stock image:
 
 - ``docker pull`` of one appears only in the helper;
-- ``docker run|create`` of one says ``--pull=never``: the helper pulled it,
-  and the run must not pull again, once and unretried;
+- ``docker run|create`` of one says ``--pull=never`` before the image: the
+  helper pulled it, and the run must not pull again, once and unretried;
 - ``docker build`` with ``--build-arg STOCK_REGISTRY=`` is preceded by
   ``stock-pull.sh --dockerfile <the same -f file>``: in the same make
   recipe, or earlier in the same script, because BuildKit does not retry a
-  FROM it has to pull;
+  FROM it has to pull. A stock image handed in as any OTHER build-arg
+  (``--build-arg BASE=$(STOCK_REGISTRY)/...``) is refused: the pre-pull
+  reads only the ARG's default, so BuildKit would pull it unretried;
 - a workflow build on buildx's container driver (a job that runs
   setup-buildx-action) pulls inside BuildKit's own container, where no
   pre-pull reaches. Each is named in scripts/.stock-pull-exempt, which may
-  only shrink: an unlisted one fails, and so does a listed one that is gone
-  (doppler#1982).
+  only shrink: an unlisted one fails, so does a listed one that is gone,
+  and so does a listed one the list at the merge base with ``--base``
+  (origin/main) did not have (doppler#1982).
+
+Every docker command on a line is checked, not only the first: a command's
+arguments end where it does (``;``, ``&&``, ``||``, ``|``). A Makefile line
+is read as make runs it, its variables expanded, so a macro that holds a
+docker command (``CI_DOCKER_RUN = docker run ...``) is checked wherever it
+is used.
 
 The helper's ``--dockerfile`` reads a Dockerfile's pulls through this file's
 ``stock_froms`` (``--stock-froms FILE --registry R``), the same reader the
-FROM rule uses, so the pre-pull and the gate cannot disagree on a FROM.
+FROM rule uses, and both take the one ``_READS_VAR`` form, so the pre-pull
+and the gate cannot disagree on a FROM.
 
 Files ``--vendored`` names (standard.mk and its VENDORED_FILES) are held
 verbatim to canonical, so a fix there belongs upstream; their references are
@@ -67,7 +81,7 @@ listed but do not fail. Not parsed: an inline Dockerfile piped to
 ``docker build -`` (the one in the tree takes ``$(PKG_IMAGE)``, quay.io).
 
 Usage:  python3 scripts/check_stock_images.py [--root DIR]
-            [--own-prefix NAME] [--vendored "FILE ..."]
+            [--own-prefix NAME] [--vendored "FILE ..."] [--base REF]
 Exit 0 when every stock image in scope comes through the registry variable.
 """
 
@@ -78,6 +92,8 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+
+from _gitbase import BaseUnreadableError, in_git_repo, show_at_base
 
 ROOT = Path(__file__).resolve().parent.parent
 VAR = "STOCK_REGISTRY"
@@ -104,18 +120,27 @@ _IMAGE = re.compile(
     r"[a-z0-9]+(?:[._-][a-z0-9]+)*(?:/[a-z0-9]+(?:[._-][a-z0-9]+)*)*"
     r"(?::[A-Za-z0-9_][A-Za-z0-9_.-]{0,127})?(?:@sha256:[0-9a-f]{64})?"
 )
+#: The ONE spelling of a stock reference: the variable whole, then the
+#: image. The FROM rule accepts it and stock_froms() substitutes it, so the
+#: gate and the pre-pull cannot disagree. ``${STOCK_REGISTRY:?msg}`` is the
+#: variable whole too: it fails when unset and never falls back. A spelling
+#: WITH a fallback (``:-``, ``-``, ``:=``, ``:+``) is refused by _verdict(),
+#: since its fallback is a registry nobody chose.
 _READS_VAR = re.compile(
-    r"^\$(?:\(" + VAR + r"\)|\{" + VAR + r"\b|" + VAR + r"\b)"
+    r"^\$(?:\(" + VAR + r"\)|\{" + VAR + r"(?::\?[^}]*)?\}|" + VAR + r"\b)"
 )
 _PURE_VAR = re.compile(
     r"^\$(?:\$?)(?:\{([A-Za-z_]\w*)\}|\(([A-Za-z_]\w*)\)|([A-Za-z_]\w*))$"
 )
 _MAKE_REF = re.compile(r"\$[({]([A-Za-z_][A-Za-z0-9_.-]*)[)}]")
+#: The head of a `docker run|create|pull` and of a `docker [buildx] build`.
+#: Only the head: a command's arguments are the _tokens() after it, which
+#: stop where the command does, so a second docker command on the same
+#: logical line is a match of its own rather than part of the first's.
 _DOCKER = re.compile(
-    r"\bdocker\s+(?:container\s+|image\s+)?(run|create|pull)\b(.*)"
+    r"\bdocker\s+(?:container\s+|image\s+)?(run|create|pull)\b"
 )
-#: A `docker build` / `docker buildx build`, and its Dockerfile argument.
-_BUILD = re.compile(r"\bdocker\s+(?:buildx\s+)?build\b(.*)")
+_BUILD = re.compile(r"\bdocker\s+(?:buildx\s+)?build\b")
 _FILE_ARG = re.compile(r"(?:^|\s)(?:-f|--file)(?:\s+|=)(\S+)")
 _TARGET_ARG = re.compile(r"(?:^|\s)--target(?:\s+|=)(\S+)")
 #: The one pull helper (doppler#1979), called with its Dockerfile mode.
@@ -335,6 +360,11 @@ def _verdict(ref: str, own: str) -> str | None:
     """Why ``ref`` is a Docker Hub pull, or None when it is fine."""
     if _READS_VAR.match(ref):
         return None
+    if VAR in ref:
+        return (
+            f"names {VAR} with a fallback, which {HELPER} does not read: "
+            f"write ${{{VAR}}}/IMAGE, or $({VAR})/IMAGE in make"
+        )
     if "$" in ref:
         return None  # still a variable after resolution: opaque
     if not _IMAGE.fullmatch(ref):
@@ -360,15 +390,16 @@ def _shell_assignments(text: str, name: str) -> list[str]:
     return [m.group(1).strip("'\"") for m in pat.finditer(text)]
 
 
-def _image_candidates(
-    args: str, line: str, text: str, mk: MakeVars | None
-) -> list[str] | None:
-    """The value(s) the image slot of one ``docker run`` can take.
+def _image_slot(
+    toks: list[str], line: str, text: str, mk: MakeVars | None
+) -> tuple[list[str] | None, int]:
+    """The value(s) the image slot of one ``docker run`` can take, and the
+    slot's index in ``toks`` (the options before it end there).
 
-    None when the slot is opaque (a variable nothing here resolves).
+    The values are None when the slot is opaque (a variable nothing here
+    resolves); the index is ``len(toks)`` when there is no slot.
     """
     loops = {m.group(1): m.group(2) for m in _FOR.finditer(line)}
-    toks = _tokens(args)
     i = 0
     while i < len(toks):
         tok = toks[i]
@@ -387,15 +418,15 @@ def _image_candidates(
                 words = loops[name]
                 if mk is not None:
                     words = mk.expand(words)
-                return words.split()
+                return words.split(), i
             values = _shell_assignments(text, name)
             if values and all(v == "" or v.startswith("-") for v in values):
                 i += 1  # an option held in a variable
                 continue
             images = [v for v in values if v and not v.startswith("-")]
-            return images or None
-        return [tok]
-    return None
+            return (images or None), i
+        return [tok], i
+    return None, len(toks)
 
 
 def _dockerfile_refs(text: str) -> list[tuple[int, str, str]]:
@@ -449,13 +480,10 @@ def stock_froms(text: str, registry: str) -> list[str]:
     for STOCK_REGISTRY, each once, in order: what `stock-pull.sh
     --dockerfile` pulls before a build, because BuildKit does not retry a
     rate limit on a FROM (doppler#1979)."""
-    whole = re.compile(
-        r"^\$(?:\(" + VAR + r"\)|\{" + VAR + r"\}|" + VAR + r"\b)"
-    )
     out: list[str] = []
     for _, _, ref in _dockerfile_refs(text):
-        if whole.match(ref):
-            ref = whole.sub(lambda _: registry, ref)
+        if _READS_VAR.match(ref):
+            ref = _READS_VAR.sub(lambda _: registry, ref, count=1)
             if ref not in out:
                 out.append(ref)
     return out
@@ -484,13 +512,17 @@ def _check_dockerfile(rel: str, text: str, own: str) -> tuple[list[str], int]:
     return bad, seen
 
 
-def _pull_rule(rel: str, n: int, verb: str, args: str, ref: str) -> list[str]:
+def _pull_rule(
+    rel: str, n: int, verb: str, opts: list[str], ref: str
+) -> list[str]:
     """A stock image pulled any way but through the helper (doppler#1979).
 
     ``docker pull`` of one is the helper's job alone. ``docker run`` /
     ``create`` pulls a missing image itself, once and without retry, so it
     must say ``--pull=never``: the image is already there because the helper
     put it there, or the run fails loudly instead of meeting a 429 bare.
+    ``opts`` are the tokens BEFORE the image: after it, ``--pull=never`` is
+    an argument to the container's command, and docker never sees it.
     """
     if verb == "pull":
         if rel == HELPER:
@@ -499,17 +531,35 @@ def _pull_rule(rel: str, n: int, verb: str, args: str, ref: str) -> list[str]:
             f"{rel}:{n}: docker pull {ref} -- a stock pull outside {HELPER}, "
             "which retries a rate limit (#1979)"
         ]
-    toks = _tokens(args)
-    never = "--pull=never" in toks or any(
-        t == "--pull" and nxt == "never" for t, nxt in zip(toks, toks[1:])
+    never = "--pull=never" in opts or any(
+        t == "--pull" and nxt == "never" for t, nxt in zip(opts, opts[1:])
     )
     if never:
         return []
     return [
         f"{rel}:{n}: docker {verb} {ref} -- pulls the stock image itself "
         f"with no retry: pull it with {HELPER} first and pass --pull=never "
-        "(#1979)"
+        "before the image (#1979)"
     ]
+
+
+def _stock_build_args(toks: list[str]) -> list[str]:
+    """``NAME=VALUE`` build-args, other than STOCK_REGISTRY itself, whose
+    value names a stock image. BuildKit pulls it, unretried, and the
+    pre-pull cannot: stock_froms() reads a ``FROM ${NAME}`` as the ARG's
+    default, not as what a caller overrides it with (doppler#1979)."""
+    out: list[str] = []
+    for i, tok in enumerate(toks):
+        if tok == "--build-arg" and i + 1 < len(toks):
+            kv = toks[i + 1]
+        elif tok.startswith("--build-arg="):
+            kv = tok.split("=", 1)[1]
+        else:
+            continue
+        name, _, value = kv.partition("=")
+        if name != VAR and VAR in value:
+            out.append(kv)
+    return out
 
 
 def _site_key(rel: str, dockerfile: str, target: str) -> str:
@@ -531,21 +581,61 @@ def _build_push_site(lines: list[str], i: int) -> tuple[str, str]:
     return file, target
 
 
-def _exemptions(root: Path) -> dict[str, int]:
-    """``{site key: line}`` from the shrink-only exemption list."""
-    path = root / EXEMPT
-    if not path.exists():
-        return {}
+def _exemption_keys(text: str) -> dict[str, int]:
+    """``{site key: line}`` from the text of the exemption list: the one
+    reader, for the list as it is and as the merge base had it."""
     out: dict[str, int] = {}
-    for n, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+    for n, raw in enumerate(text.splitlines(), 1):
         words = raw.split()
         if len(words) >= 2 and not words[0].startswith("#"):
             out[f"{words[0]} {words[1]}"] = n
     return out
 
 
+def _exemptions(root: Path) -> dict[str, int]:
+    """``{site key: line}`` from the shrink-only exemption list."""
+    path = root / EXEMPT
+    if not path.exists():
+        return {}
+    return _exemption_keys(path.read_text(encoding="utf-8"))
+
+
+def _added_exemptions(
+    root: Path, base: str, exempt: dict[str, int]
+) -> list[str]:
+    """Entries the list at the merge base with ``base`` did not have.
+
+    The list may only SHRINK, so a key absent there is refused even when it
+    names a real container-driver build: that build is the thing to fix. A
+    tree that is not a checkout (a test's seeded tree) has no base; a base
+    without the list is the PR that introduces it; a base git cannot read
+    fails closed, since a ratchet that cannot read its baseline has not
+    been checked (scripts/_gitbase.py).
+    """
+    if not in_git_repo(root):
+        return []
+    try:
+        then = show_at_base(root, base, EXEMPT)
+    except BaseUnreadableError:
+        return [
+            f"{EXEMPT}: cannot resolve {base}, so an ADDED entry cannot be "
+            "told from an old one. Fetch it: git fetch --no-tags --depth=1 "
+            "origin +refs/heads/main:refs/remotes/origin/main"
+        ]
+    if then is None:
+        return []
+    before = _exemption_keys(then)
+    return [
+        f"{EXEMPT}:{n}: '{key}' is not in the list at the merge base with "
+        f"{base} -- the list only shrinks; build on the daemon and pre-pull "
+        "instead (#1982)"
+        for key, n in sorted(exempt.items(), key=lambda kv: kv[1])
+        if key not in before
+    ]
+
+
 def offenders(
-    root: Path, own: str, vendored: set[str]
+    root: Path, own: str, vendored: set[str], base: str = "origin/main"
 ) -> tuple[list[str], list[str], int, int]:
     """(failures, vendored findings, references checked, files read)."""
     files = [f for f in _files(root) if _kind(f)]
@@ -574,14 +664,16 @@ def offenders(
             for n, line in _logical(text):
                 if kind == "make" and not line.startswith("\t"):
                     scope = []
-                for m in _USES_DOCKER.finditer(line):
+                # As make runs it: a macro holding a docker command is one.
+                cmd = expand(line)
+                for m in _USES_DOCKER.finditer(cmd):
                     seen += 1
                     if _verdict(m.group(1), own):
                         found.append(f"{rel}:{n}: uses docker://{m.group(1)}")
-                for m in _DOCKER.finditer(line):
-                    verb, args = m.group(1), m.group(2)
-                    cands = _image_candidates(
-                        args, line, text, mk if kind == "make" else None
+                for m in _DOCKER.finditer(cmd):
+                    verb, toks = m.group(1), _tokens(cmd[m.end() :])
+                    cands, slot = _image_slot(
+                        toks, cmd, text, mk if kind == "make" else None
                     )
                     for ref in cands or []:
                         seen += 1
@@ -591,9 +683,10 @@ def offenders(
                                 f"{rel}:{n}: docker image {ref} -- {why}"
                             )
                         elif _READS_VAR.match(ref):
-                            found += _pull_rule(rel, n, verb, args, ref)
-                for m in _BUILD.finditer(line):
-                    args = expand(m.group(1))
+                            found += _pull_rule(rel, n, verb, toks[:slot], ref)
+                for m in _BUILD.finditer(cmd):
+                    toks = _tokens(cmd[m.end() :])
+                    args = " ".join(toks)
                     fm, tm = _FILE_ARG.search(args), _TARGET_ARG.search(args)
                     dockerfile = (
                         fm.group(1).strip("'\"") if fm else "Dockerfile"
@@ -604,7 +697,16 @@ def offenders(
                         )
                         sites[key] = f"{rel}:{n}"
                         continue
-                    if VAR not in m.group(1):
+                    for kv in _stock_build_args(toks):
+                        seen += 1
+                        found.append(
+                            f"{rel}:{n}: docker build of {dockerfile} with "
+                            f"--build-arg {kv} -- BuildKit pulls that stock "
+                            f"image unretried and {HELPER} --dockerfile "
+                            "reads only the ARG's default; name it in the "
+                            f"Dockerfile as ${{{VAR}}}/IMAGE (#1979)"
+                        )
+                    if VAR not in args:
                         continue
                     seen += 1
                     prepulled = any(
@@ -627,6 +729,7 @@ def offenders(
                 scope.append(line)
         bad += [f"[vendored] {f}" if rel in vendored else f for f in found]
     exempt = _exemptions(root)
+    bad += _added_exemptions(root, base, exempt)
     for key, where in sorted(sites.items()):
         seen += 1
         if key not in exempt:
@@ -660,6 +763,12 @@ def main() -> int:
         "pre-pulls), and exit",
     )
     ap.add_argument("--registry", default="")
+    ap.add_argument(
+        "--base",
+        default="origin/main",
+        help="ref whose merge base holds the exemption list this one may "
+        "only shrink from",
+    )
     a = ap.parse_args()
     if a.stock_froms:
         if not a.registry:
@@ -670,7 +779,7 @@ def main() -> int:
         return 0
     root = a.root.resolve()
     real, upstream, seen, n_files = offenders(
-        root, a.own_prefix, set(a.vendored.split())
+        root, a.own_prefix, set(a.vendored.split()), a.base
     )
     if seen == 0:
         print(

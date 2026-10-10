@@ -227,6 +227,63 @@ _BUILDX = (
             },
             "names no container-driver build any more",
         ),
+        (  # a FROM with a fallback: the pre-pull reads only the whole form,
+            # so this one would be BuildKit's to pull, unretried
+            {
+                "d/Dockerfile": "ARG STOCK_REGISTRY\nFROM ${STOCK_REGISTRY:-"
+                "public.ecr.aws/docker/library}/debian:stable\n"
+            },
+            "names STOCK_REGISTRY with a fallback",
+        ),
+        (  # a stock image handed in as another build-arg: the pre-pull
+            # reads the ARG's default, not the override
+            {
+                "Makefile": _MK
+                + "x:\n\t$(STOCK_PULL) --dockerfile d/Dockerfile\n"
+                "\tdocker build -f d/Dockerfile "
+                "--build-arg STOCK_REGISTRY=$(STOCK_REGISTRY) "
+                "--build-arg BASE=$(STOCK_REGISTRY)/debian:stable .\n"
+            },
+            "--build-arg BASE=$(STOCK_REGISTRY)/debian:stable",
+        ),
+        (  # STOCK_REGISTRY reaches the build through a make variable
+            {
+                "Makefile": _MK
+                + "STOCK_ARGS = --build-arg STOCK_REGISTRY=$(STOCK_REGISTRY)\n"
+                "x:\n\tdocker build $(STOCK_ARGS) -f d/Dockerfile .\n"
+            },
+            "no pre-pull",
+        ),
+        (  # `docker run` reaches the recipe through a make variable
+            {
+                "Makefile": _MK + "CI_RUN = docker run --rm\n"
+                "x:\n\t$(CI_RUN) $(STOCK_REGISTRY)/debian:stable true\n"
+            },
+            "pulls the stock image itself",
+        ),
+        (  # the SECOND docker command on a line
+            {
+                "scripts/a.sh": "docker run --rm --pull=never "
+                "${STOCK_REGISTRY}/a:1 true && docker run --rm "
+                "${STOCK_REGISTRY}/b:1 true\n"
+            },
+            "${STOCK_REGISTRY}/b:1 -- pulls the stock image itself",
+        ),
+        (  # ... and in a continued make macro, one logical line
+            {
+                "Makefile": _MK + "RUN = docker run --rm --pull=never "
+                "$(STOCK_REGISTRY)/a:1 true; \\\n"
+                "\tdocker run --rm $(STOCK_REGISTRY)/b:1 true\n"
+            },
+            "$(STOCK_REGISTRY)/b:1 -- pulls the stock image itself",
+        ),
+        (  # --pull=never AFTER the image is the container's argument
+            {
+                "scripts/a.sh": "docker run --rm ${STOCK_REGISTRY}/a:1 "
+                "cmd --pull=never\n"
+            },
+            "pulls the stock image itself",
+        ),
     ],
 )
 def test_a_stock_pull_that_bypasses_the_helper_is_named(
@@ -249,6 +306,11 @@ def test_a_stock_pull_that_bypasses_the_helper_is_named(
         {
             "scripts/a.sh": 'bash scripts/stock-pull.sh "$i"\n'
             "docker run --rm --pull never ${STOCK_REGISTRY}/nats:2.10\n"
+        },
+        # `:?` is the variable whole: it fails when unset, never falls back.
+        {
+            "scripts/a.sh": "docker run --rm --pull=never "
+            "${STOCK_REGISTRY:?run it through make}/nats:2.10\n"
         },
         # The helper is the one place a stock image is pulled.
         {"scripts/stock-pull.sh": "docker pull ${STOCK_REGISTRY}/nats:2.10\n"},
@@ -275,6 +337,7 @@ def test_stock_froms_lists_what_a_build_pulls(tmp_path: Path) -> None:
         "ARG STOCK_REGISTRY\nARG BASE=${STOCK_REGISTRY}/ubuntu:24.04\n"
         "FROM ${BASE} AS a\nFROM ${STOCK_REGISTRY}/ubuntu:24.04 AS b\n"
         "FROM ${STOCK_REGISTRY}/debian:bookworm-slim\nFROM a\n"
+        "FROM ${STOCK_REGISTRY:?unset}/alpine:3\n"
         f"FROM ghcr.io/x/ci@{DIGEST}\n",
         encoding="utf-8",
     )
@@ -294,7 +357,67 @@ def test_stock_froms_lists_what_a_build_pulls(tmp_path: Path) -> None:
     assert r.stdout.split() == [
         "r.io/lib/ubuntu:24.04",
         "r.io/lib/debian:bookworm-slim",
+        "r.io/lib/alpine:3",
     ]
+
+
+def _git(root: Path, *args: str) -> None:
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", *args],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _exempt_repo(root: Path) -> None:
+    """A checkout whose main lists one container-driver build."""
+    files = {
+        "base/Dockerfile": f"FROM ghcr.io/x/ci@{DIGEST}\n",
+        ".github/workflows/r.yml": _BUILDX,
+        "scripts/.stock-pull-exempt": ".github/workflows/r.yml "
+        "d/Dockerfile:sdk listed\n",
+    }
+    for rel, text in files.items():
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (root / rel).write_text(text, encoding="utf-8")
+    _git(root, "init", "-q", "-b", "main")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-q", "-m", "base")
+
+
+def test_an_exemption_the_base_did_not_have_is_refused(
+    tmp_path: Path,
+) -> None:
+    """The list only SHRINKS: a new container-driver build that arrives with
+    its own exemption is refused, read against the merge base (#1982)."""
+    _exempt_repo(tmp_path)
+    assert _run(tmp_path, {}, "--base", "main").returncode == 0
+    _git(tmp_path, "checkout", "-q", "-b", "feature")
+    # The gate reads tracked files, so the new build is staged, not left
+    # untracked where it would not be seen at all.
+    (tmp_path / ".github/workflows/r2.yml").write_text(
+        _BUILDX.replace("d/Dockerfile", "e/Dockerfile"), encoding="utf-8"
+    )
+    with (tmp_path / "scripts/.stock-pull-exempt").open(
+        "a", encoding="utf-8"
+    ) as f:
+        f.write(".github/workflows/r2.yml e/Dockerfile:sdk new\n")
+    _git(tmp_path, "add", "-A")
+    r = _run(tmp_path, {}, "--base", "main")
+    assert r.returncode == 1, r.stdout
+    added = "'.github/workflows/r2.yml e/Dockerfile:sdk' is not in the list"
+    assert added in r.stdout
+    assert "r.yml d/Dockerfile:sdk' is not" not in r.stdout
+
+
+def test_a_base_that_will_not_resolve_has_not_passed(tmp_path: Path) -> None:
+    """A ratchet that cannot read its baseline fails closed."""
+    _exempt_repo(tmp_path)
+    r = _run(tmp_path, {}, "--base", "no-such-ref")
+    assert r.returncode == 1, r.stdout
+    assert "cannot resolve no-such-ref" in r.stdout
 
 
 def test_a_vendored_file_is_listed_not_failed(tmp_path: Path) -> None:
@@ -314,9 +437,23 @@ def test_a_scan_that_finds_no_image_has_not_passed(tmp_path: Path) -> None:
 
 
 def test_the_live_tree_passes_through_make() -> None:
-    """The real target, so the vendored list is the Makefile's own."""
+    """The real target, so the vendored list is the Makefile's own.
+
+    ``STOCK_IMAGES_BASE=HEAD`` neuters only the exemption ratchet, whose
+    execution home is ``make lint-stock-images`` at its default
+    ``origin/main`` in the pre-commit job (fetch-depth 0). This test runs in
+    the Python job, whose shallow checkout has no origin/main: left at the
+    default it would test the fetch depth, not the tree.
+    """
     r = subprocess.run(
-        ["make", "-s", "-C", str(REPO), "lint-stock-images"],
+        [
+            "make",
+            "-s",
+            "-C",
+            str(REPO),
+            "lint-stock-images",
+            "STOCK_IMAGES_BASE=HEAD",
+        ],
         capture_output=True,
         text=True,
     )

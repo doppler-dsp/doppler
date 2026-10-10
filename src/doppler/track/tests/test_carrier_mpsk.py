@@ -84,8 +84,9 @@ def test_valid_orders(m):
 
 @pytest.mark.parametrize("m", [0, 1, 3, 5, 16])
 def test_invalid_order_raises(m):
-    # dp_carrier_mpsk_create rejects M not in {2,4,8} -> NULL -> MemoryError
-    with pytest.raises(MemoryError):
+    # dp_carrier_mpsk_create rejects M not in {2,4,8} -> NULL -> ValueError
+    # (create_error_message in objects/carrier_mpsk.toml, not MemoryError)
+    with pytest.raises(ValueError, match="CarrierMpsk: invalid parameter"):
         CarrierMpsk(m=m)
 
 

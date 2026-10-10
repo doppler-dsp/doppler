@@ -5,6 +5,8 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "SymbolSync"
+create_error = "ValueError"
+create_error_message = "SymbolSync: invalid parameter (need bn >= 0 and zeta > 0, both finite, whose loop gains come out finite)"
 depends_on = [
   { name = "nco", link = true },
   { name = "farrow", link = true },
@@ -70,9 +72,10 @@ params = [
 
 [[symsync.methods]]
 name = "configure"
-doc = "Recompute the loop gains for a new (bn, zeta); preserve the timing estimate."
+doc = "Recompute the loop gains for a new (bn, zeta); preserve the timing estimate. Raises ValueError, changing nothing, when (bn, zeta) is outside the loop filter's domain: bn >= 0 and zeta > 0, both finite, with finite gains."
 arg_type = "void"
-return_type = "void"
+return_type = "int"
+status_return = true
 params = [{ name = "bn", type = "double" }, { name = "zeta", type = "double" }]
 
 [[symsync.methods]]

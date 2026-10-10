@@ -56,7 +56,9 @@ CostasObj_init (CostasObject *self, PyObject *args, PyObject *kwds)
   self->handle  = dp_costas_create (bn, zeta, init_norm_freq, tsamps, bn_fll);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "dp_costas_create returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "Costas: invalid parameter (need bn >= 0 and zeta > "
+                       "0, both finite, whose loop gains come out finite)");
       return -1;
     }
   return 0;
@@ -279,7 +281,13 @@ CostasObj_configure (CostasObject *self, PyObject *args, PyObject *kwds)
   double       zeta      = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "dd", _kwlist, &bn, &zeta))
     return NULL;
-  dp_costas_configure (self->handle, bn, zeta);
+  int _rc = dp_costas_configure (self->handle, bn, zeta);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "configure failed",
+                    (long long)_rc);
+      return NULL;
+    }
   Py_RETURN_NONE;
 }
 
@@ -650,7 +658,9 @@ static PyMethodDef CostasObj_methods[] = {
     "configure(bn, zeta) -> None\n"
     "\n"
     "Recompute the loop gains for a new (bn, zeta); preserves the "
-    "frequency/phase estimate.\n"
+    "frequency/phase estimate. Raises ValueError, changing nothing, when (bn, "
+    "zeta) is outside the loop filter's domain: bn >= 0 and zeta > 0, both "
+    "finite, with finite gains.\n"
     "\n"
     "Re-derives the PI coefficients from the loop bandwidth and damping and\n"
     "installs them live. The NCO frequency, phase and loop integrator are\n"
@@ -664,6 +674,12 @@ static PyMethodDef CostasObj_methods[] = {
     "    Loop noise bandwidth, normalised to the symbol rate.\n"
     "zeta : float\n"
     "    Damping factor (0.707 = critically damped).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``configure failed``, with the return code appended (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -840,9 +856,43 @@ static PyTypeObject CostasObjType = {
   .tp_basicsize                           = sizeof (CostasObject),
   .tp_dealloc                             = (destructor)CostasObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc                                 = "Costas type.\n",
-  .tp_methods                             = CostasObj_methods,
-  .tp_getset                              = Costas_getset,
-  .tp_new                                 = CostasObj_new,
-  .tp_init                                = (initproc)CostasObj_init,
+  .tp_doc
+  = "Costas component.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "bn : float, default 0.05\n"
+    "    bn constructor parameter.\n"
+    "zeta : float, default 0.707\n"
+    "    zeta constructor parameter.\n"
+    "init_norm_freq : float, default 0.0\n"
+    "    init_norm_freq constructor parameter.\n"
+    "tsamps : int, default 64\n"
+    "    tsamps constructor parameter.\n"
+    "bn_fll : float, default 0.0\n"
+    "    bn_fll constructor parameter.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is ``Costas: invalid\n"
+    "    parameter (need bn >= 0 and zeta > 0, both finite, whose loop gains\n"
+    "    come out finite)``.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    "Create with defaults:\n"
+    "\n"
+    ">>> from doppler.track import Costas\n"
+    ">>> obj = Costas(\n"
+    "...     bn=0.05,\n"
+    "...     zeta=0.707,\n"
+    "...     init_norm_freq=0.0,\n"
+    "...     tsamps=64,\n"
+    "...     bn_fll=0.0,\n"
+    "... )\n",
+  .tp_methods = CostasObj_methods,
+  .tp_getset  = Costas_getset,
+  .tp_new     = CostasObj_new,
+  .tp_init    = (initproc)CostasObj_init,
 };

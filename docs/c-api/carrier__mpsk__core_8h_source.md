@@ -114,9 +114,9 @@ size_t dp_carrier_mpsk_steps_max_out(dp_carrier_mpsk_state_t *state);
 
 size_t dp_carrier_mpsk_steps(dp_carrier_mpsk_state_t *state, const float _Complex *x, size_t x_len, float _Complex *out, size_t max_out);
 
-void dp_carrier_mpsk_configure(dp_carrier_mpsk_state_t *state, double bn, double zeta);
+int dp_carrier_mpsk_configure(dp_carrier_mpsk_state_t *state, double bn, double zeta);
 double dp_carrier_mpsk_get_bn(const dp_carrier_mpsk_state_t *state);
-void dp_carrier_mpsk_set_bn(dp_carrier_mpsk_state_t *state, double val);
+int dp_carrier_mpsk_set_bn(dp_carrier_mpsk_state_t *state, double val);
 double dp_carrier_mpsk_get_norm_freq(const dp_carrier_mpsk_state_t *state);
 void dp_carrier_mpsk_set_norm_freq(dp_carrier_mpsk_state_t *state, double val);
 double dp_carrier_mpsk_get_lock_metric(const dp_carrier_mpsk_state_t *state);

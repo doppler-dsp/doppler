@@ -294,7 +294,7 @@ extern "C"
   double dp_carrier_nda_get_lock (const dp_carrier_nda_state_t *state);
   double dp_carrier_nda_get_last_error (const dp_carrier_nda_state_t *state);
   double dp_carrier_nda_get_bn (const dp_carrier_nda_state_t *state);
-  void   dp_carrier_nda_set_bn (dp_carrier_nda_state_t *state, double val);
+  int    dp_carrier_nda_set_bn (dp_carrier_nda_state_t *state, double val);
   int    dp_carrier_nda_get_m (const dp_carrier_nda_state_t *state);
   int    dp_carrier_nda_get_n (const dp_carrier_nda_state_t *state);
   size_t dp_carrier_nda_get_sps (const dp_carrier_nda_state_t *state);

@@ -90,7 +90,7 @@ extern "C"
 
   size_t dp_despreader_get_bit_phase (const dp_despreader_state_t *state);
   double dp_despreader_get_bn_carrier (const dp_despreader_state_t *state);
-  void   dp_despreader_set_bn_carrier (dp_despreader_state_t *state, double val);
+  int    dp_despreader_set_bn_carrier (dp_despreader_state_t *state, double val);
   double dp_despreader_get_bn_code (const dp_despreader_state_t *state);
   int    dp_despreader_set_bn_code (dp_despreader_state_t *state, double val);
 

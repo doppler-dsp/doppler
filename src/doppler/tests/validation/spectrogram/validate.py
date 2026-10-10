@@ -38,9 +38,12 @@ HARNESS = exe(
 
 R = Report()
 
-#: The noise rows the model is held to: those whose expected median sits
-#: clear of the -200 dB clamp, where a clamped median cannot bias the mean.
-CLEAR_DB = -199.5
+#: Bins per row in the harness's floor blocks.
+NFFT = 1024
+
+#: The quiet tone level the leakage count is read at, and the clamp.
+QUIET_DBFS = -120.0
+FLOOR_DB = -200.0
 
 
 def _i(row: dict, key: str) -> int:
@@ -56,8 +59,63 @@ def _total(rows: list[dict], key: str) -> int:
 
 
 def _clear(rows: list[dict]) -> list[dict]:
-    """Noise rows whose expected median is clear of the clamp."""
-    return [r for r in rows if _f(r, "expected_median_db") > CLEAR_DB]
+    """Noise rows where no frame's median was clamped.
+
+    A frame's median is clamped exactly when half its bins or more read
+    the floor, so a row whose worst frame has fewer than NFFT/2 there has
+    every median unclamped, and the clamp cannot bias their mean.
+    """
+    return [r for r in rows if _i(r, "max_at_floor") < NFFT // 2]
+
+
+def _leak(d, window: str) -> list[tuple[int, float, float]]:
+    """A window's leakage: (offset, +k dBc, -k dBc), from the run."""
+    return [
+        (_i(r, "offset"), _f(r, "plus_dbc"), _f(r, "minus_dbc"))
+        for r in d["leakage"]
+        if str(r["window"]) == window
+    ]
+
+
+def _raised(d, window: str) -> tuple[int, int]:
+    """Bins a quiet tone raises off the floor: (from its leakage, measured).
+
+    A tone at QUIET_DBFS lifts every bin whose leakage puts it above the
+    clamp, so the count is predicted from the full-scale leakage alone.
+    """
+    predicted = 1 + sum(
+        (QUIET_DBFS + p > FLOOR_DB) + (QUIET_DBFS + m > FLOOR_DB)
+        for _, p, m in _leak(d, window)
+    )
+    row = next(
+        r
+        for r in d["floor_tone"]
+        if str(r["window"]) == window and _f(r, "level_dbfs") == QUIET_DBFS
+    )
+    return predicted, NFFT - _i(row, "bins_at_floor")
+
+
+def _leak_all(d) -> list[tuple[int, float, float]]:
+    """Every leakage row, all windows."""
+    return [
+        (_i(r, "offset"), _f(r, "plus_dbc"), _f(r, "minus_dbc"))
+        for r in d["leakage"]
+    ]
+
+
+def _all_floor_levels(d) -> list[float]:
+    """Noise levels at which every frame of every window is all floor."""
+    rows = d["floor_noise"]
+    levels = sorted({_f(r, "level_dbfs") for r in rows}, reverse=True)
+    return [
+        lv
+        for lv in levels
+        if all(
+            _i(r, "min_at_floor") == NFFT
+            for r in rows
+            if _f(r, "level_dbfs") == lv
+        )
+    ]
 
 
 def characterise(d) -> None:
@@ -77,14 +135,20 @@ def characterise(d) -> None:
     )
     R.md()
     R.md(
-        "Each shape streams a seeded complex Gaussian through 71 "
-        "partitions: chunks of 1, 7, `nfft`-1, `nfft`, `nfft`+1 and "
+        "Each shape streams a seeded complex Gaussian through every "
+        "distinct one of: chunks of 1, 7, `nfft`-1, `nfft`, `nfft`+1 and "
         "3`nfft`+5, the whole stream at once, and 64 seeded random splits "
-        "of 1 to 2`nfft`+1. Every push is sized by `push_max_out`, which "
+        "of 1 to 2`nfft`+1 (a chunk size that repeats, as `nfft`-1 does at "
+        "`nfft` 8 and 2, runs once). The output is NaN-filled before every "
+        "partition, so a row a push counts but does not write cannot pass "
+        "as the previous partition's. Every push is sized by "
+        "`push_max_out`, which "
         "must equal the rows the stream's arithmetic says it completes "
         "(*room wrong*), and must take its whole chunk (*consumed short*). "
-        "After each push, fewer than `nfft` samples may be held, which is "
-        "`rows_for(s, 0) == 0` (*carry over*), and `pending` must be the "
+        "After each push, fewer than `nfft` samples may be held, by "
+        "arithmetic rather than the object's own count: *r* rows retire "
+        "*r*·`hop` samples, and what is left must be fewer than `nfft` "
+        "(*carry over*). `pending` must be the "
         "samples no written row covers (*pending wrong*). In the "
         "one-sample partitions a row must come back with the push that "
         "delivers its last sample (*late*). A partition is *bad* if any "
@@ -143,8 +207,10 @@ def characterise(d) -> None:
         "it, and the caller re-offers what a push did not take. *Offered* "
         "counts every offer, re-offers included; *stalls* are the pushes "
         "that took less than offered. A stall is right only when the room "
-        "is full and the next sample would complete a row "
-        "(*not maximal* counts any other). *Over room* counts writes past "
+        "is full and the next sample would complete a row, which the "
+        "harness decides from the samples taken so far, not from the "
+        "object (*not maximal* counts any other). *Over room* counts "
+        "writes past "
         "the whole rows; *partial* counts writes that were not whole rows; "
         "*tail touched* counts pushes that changed a float past what they "
         "wrote (the buffer is NaN-filled first)."
@@ -184,11 +250,24 @@ def characterise(d) -> None:
         ],
     )
     R.md()
+    bp = d["backpressure"]
+    chunks = list(dict.fromkeys(_i(r, "chunk") for r in bp))
+    calm = [
+        c
+        for c in chunks
+        if all(_i(r, "stalls") == 0 for r in bp if _i(r, "chunk") == c)
+    ]
+    why = (
+        " A chunk shorter than the hop completes at most one row, which "
+        "every room holds."
+        if calm and all(c < 64 for c in calm)
+        else ""
+    )
     R.md(
-        "Chunks of 1 and 37 never stall at these rooms, because no such "
-        "chunk completes more than one row at hop 64. The larger chunks "
-        f"stall up to {max(_i(r, 'stalls') for r in d['backpressure']):,} "
-        "times, so the path is exercised."
+        f"Chunks of {', '.join(f'{c:,}' for c in calm) or 'none'} never "
+        f"stall at these rooms.{why} The others stall up to "
+        f"{max(_i(r, 'stalls') for r in bp):,} times, so the path is "
+        "exercised."
     )
     R.md()
 
@@ -283,10 +362,16 @@ def characterise(d) -> None:
         ],
     )
     R.md()
-    R.md(
-        "`nfft` 2 at `hop` 1 flushes a row at only one length, 1, "
-        "correctly: from 2 samples on, every sample is already in a row."
+    two = next(
+        (r for r in d["flush"] if _i(r, "nfft") == 2 and _i(r, "hop") == 1),
+        None,
     )
+    if two is not None:
+        R.md(
+            f"`nfft` 2 at `hop` 1 flushes {_i(two, 'emitted')} row(s) over "
+            f"its {_i(two, 'lengths')} lengths. From 2 samples on, every "
+            "sample is already in a row, so only a 1-sample stream owes one."
+        )
     R.md()
 
     R.md("### 2.5 The state blob (C §10, §14, §14b)")
@@ -441,9 +526,33 @@ def characterise(d) -> None:
     R.md()
     R.md(
         "*The tone's bin in dB, and in brackets the bins of 1,024 above "
-        "the floor. At -120 dBFS, Hann's +-1, +-2 and +-3 (-6.0, -69.7 and "
-        "-78.2 dBc) are above it and +-4 (-83.7 dBc) is not, which is the "
-        "7; Blackman-Harris's main lobe is the same 7 bins wide.*"
+        "the floor.*"
+    )
+    R.md()
+    R.md(
+        "Those other bins are the window's leakage on the grid. A "
+        "full-scale on-bin tone puts this much into the bins beside it "
+        "(dBc, the +k side; the -k side agrees to within rounding):"
+    )
+    R.md()
+    R.table(
+        ["window", *[f"+-{k}" for k in range(1, 5)]],
+        [
+            [w, *[f"{p:.1f}" for k, p, _ in _leak(d, w) if k <= 4]]
+            for w in windows
+        ],
+    )
+    R.md()
+    R.md(
+        f"A tone at {QUIET_DBFS:.0f} dBFS lifts exactly the bins whose "
+        f"leakage puts them above the clamp, so the count it leaves above "
+        f"the floor is predicted from the leakage of every offset the "
+        f"harness reads (up to +-{max(k for k, _, _ in _leak_all(d))}):"
+    )
+    R.md()
+    R.table(
+        ["window", "predicted from leakage", "measured"],
+        [[w, *map(str, _raised(d, w))] for w in windows],
     )
     R.md()
     R.md(
@@ -464,7 +573,8 @@ def characterise(d) -> None:
             "median: mean",
             "at floor: model",
             "at floor: mean",
-            "at floor: worst frame",
+            "at floor: fewest",
+            "at floor: most",
         ],
         [
             [
@@ -474,18 +584,22 @@ def characterise(d) -> None:
                 f"{_f(r, 'mean_median_db'):.3f}",
                 f"{_f(r, 'expected_at_floor'):.1f}",
                 f"{_f(r, 'mean_at_floor'):.1f}",
+                f"{_i(r, 'min_at_floor'):,}",
                 f"{_i(r, 'max_at_floor'):,}",
             ]
             for r in d["floor_noise"]
-            if _f(r, "level_dbfs") >= -180
+            if _f(r, "level_dbfs") not in _all_floor_levels(d)
         ],
     )
     R.md()
-    R.md(
-        "Below -180 dBFS every frame of every window is all floor, and the "
-        "table stops there."
-    )
-    R.md()
+    gone = _all_floor_levels(d)
+    if gone:
+        R.md(
+            f"At {', '.join(f'{lv:.0f}' for lv in gone)} dBFS every frame "
+            f"of every window is all floor, {NFFT:,} of {NFFT:,} bins, so "
+            "the table leaves those levels out."
+        )
+        R.md()
 
 
 def review(d) -> None:
@@ -546,12 +660,13 @@ def review(d) -> None:
         "linear power, `dp_psd_frame_linear`, is on main, and wiring the "
         "Spectrogram to it is #1968.",
     )
+    hann2 = next(p for k, p, _ in _leak(d, "hann") if k == 2)
     R.find(
         "F7",
         "GAP",
         "Rows inherit PSD's symmetric windows, which are not orthogonal on "
-        "the N-point grid, so an on-bin tone under Hann leaks -69.7 dBc "
-        "into bins +-2 where a periodic window would leave nothing (§2.7). "
+        f"the N-point grid, so an on-bin tone under Hann leaks {hann2:.1f} "
+        "dBc into bins +-2, where a periodic window would put none (§2.7). "
         "It is PSD's convention, open there as #2053, and the Spectrogram "
         "follows whatever PSD decides.",
     )
@@ -574,10 +689,25 @@ def review(d) -> None:
     )
     R.find(
         "F10",
-        "BY DESIGN",
-        "Speed is not in this report. What a row costs and how many one "
-        "core sustains are the measurement record's U1 to U4, measured on "
-        "a quiet machine; this report certifies what a caller may rely on.",
+        "GAP",
+        "Speed is not in this report, and it is not yet measured anywhere. "
+        "What a row costs and how many rows one core sustains are the "
+        "design's U1 to U4, measured under #1941's A4 on a pinned, quiet "
+        "machine and recorded in the measurement record. Until that lands "
+        "they are unknowns; once it does, this report still certifies only "
+        "what a caller may rely on, and the cost lives in the record.",
+    )
+    R.find(
+        "F11",
+        "FIXED",
+        "Sabotaging the header's refusals (C21) found the hop refusal "
+        "masked in C. With the framer's stored-hop check removed, §14 "
+        "stayed green: its other-hop blob had rows out, so it also failed "
+        "the counter check (written - frames·hop is not the carry). With "
+        "no row out the counters agree under any hop, and only the stored "
+        "hop refuses. §14 now pins that case, which the same sabotage turns "
+        "red; §2.5's every-cut sweep already caught it at the cuts before "
+        "the first row.",
     )
 
 
@@ -587,18 +717,23 @@ def limits(d) -> None:
     R.md("Claims a caller may rely on, asserted by this run.")
     R.md()
 
+    # Every limit below is over a block's rows, and all() over an empty
+    # block is True: each one also requires its block to have run.
     rows = d["rows"]
     parts = _total(rows, "partitions")
     R.limit(
-        all(
+        bool(rows)
+        and all(_i(r, "rows") > 0 for r in rows)
+        and all(
             _i(r, "bad_rows") == 0 and _i(r, "count_wrong") == 0 for r in rows
         ),
         f"every row is PSD's dBFS of its slice, bit for bit, and the row "
-        f"count is (len - nfft)/hop + 1, under all {parts} partitions of "
-        f"{len(rows)} shapes (nfft 2 to 4,096, every window)",
+        f"count is (len - nfft)/hop + 1, under all {parts} distinct "
+        f"partitions of {len(rows)} shapes (nfft 2 to 4,096, every window)",
     )
     R.limit(
-        all(
+        bool(rows)
+        and all(
             _i(r, "room_wrong") == 0 and _i(r, "consumed_short") == 0
             for r in rows
         ),
@@ -607,37 +742,39 @@ def limits(d) -> None:
         f"{_total(rows, 'pushes'):,} pushes",
     )
     R.limit(
-        all(_i(r, "carry_over") == 0 for r in rows),
+        bool(rows) and all(_i(r, "carry_over") == 0 for r in rows),
         "after every push, fewer than nfft samples are held",
     )
     R.limit(
-        all(_i(r, "pending_wrong") == 0 for r in rows),
+        bool(rows) and all(_i(r, "pending_wrong") == 0 for r in rows),
         "after every push, pending is the samples no written row covers",
     )
     R.limit(
-        all(_i(r, "late_rows") == 0 for r in rows)
+        bool(rows)
+        and all(_i(r, "late_rows") == 0 for r in rows)
         and all(_i(r, "pushes") > _i(r, "length") for r in rows),
         "fed one sample at a time, a row comes back with the push that "
         "delivers its last sample: zero latency in samples",
     )
-    R.limit(
-        all(_i(r, "rows") > 0 for r in rows),
-        "every shape made rows, so the zeros above are not an empty run",
-    )
 
     bp = d["backpressure"]
     R.limit(
-        all(_i(r, "taken") == 100003 for r in bp)
+        bool(bp)
+        and all(_i(r, "taken") == 100003 for r in bp)
         and all(_i(r, "no_progress") == 0 for r in bp),
         "a short output loses nothing: all 100,003 samples are taken at "
         "every chunk size and every room",
     )
     R.limit(
-        all(_i(r, "bad_rows") == 0 and _i(r, "count_wrong") == 0 for r in bp),
+        bool(bp)
+        and all(
+            _i(r, "bad_rows") == 0 and _i(r, "count_wrong") == 0 for r in bp
+        ),
         "every row is still the oracle's under backpressure",
     )
     R.limit(
-        all(
+        bool(bp)
+        and all(
             _i(r, "over_room") == 0
             and _i(r, "partial_writes") == 0
             and _i(r, "tail_touched") == 0
@@ -647,24 +784,25 @@ def limits(d) -> None:
         "rest of the output untouched",
     )
     R.limit(
-        all(_i(r, "not_maximal") == 0 for r in bp),
+        bool(bp) and all(_i(r, "not_maximal") == 0 for r in bp),
         "a push stops short only when its room is full and the next sample "
         "would complete a row",
     )
     R.limit(
-        all(_i(r, "carry_over") == 0 for r in bp),
+        bool(bp) and all(_i(r, "carry_over") == 0 for r in bp),
         "under backpressure, fewer than nfft samples are still held after "
         "every push",
     )
     R.limit(
         any(_i(r, "stalls") > 0 for r in bp),
         f"backpressure is exercised (up to "
-        f"{max(_i(r, 'stalls') for r in bp):,} stalled pushes)",
+        f"{max((_i(r, 'stalls') for r in bp), default=0):,} stalled pushes)",
     )
 
     sz = d["sizing"]
     R.limit(
-        all(
+        bool(sz)
+        and all(
             _i(r, k) == 0
             for r in sz
             for k in (
@@ -680,13 +818,14 @@ def limits(d) -> None:
         f"and one row less takes less ({_total(sz, 'trials'):,} trials)",
     )
     R.limit(
-        all(_i(r, "saturates") == 1 for r in sz),
+        bool(sz) and all(_i(r, "saturates") == 1 for r in sz),
         "push_max_out saturates at SIZE_MAX rather than wrapping",
     )
 
     fl = d["flush"]
     R.limit(
-        all(
+        bool(fl)
+        and all(
             _i(r, "wrong_pending") == 0 and _i(r, "wrong_decision") == 0
             for r in fl
         ),
@@ -695,12 +834,13 @@ def limits(d) -> None:
         "4nfft+3",
     )
     R.limit(
-        all(_i(r, "off_grid") == 0 for r in fl),
+        bool(fl) and all(_i(r, "off_grid") == 0 for r in fl),
         "the flushed row sits on the hop grid: PSD's dBFS of the "
         "zero-padded slice at the next row start",
     )
     R.limit(
-        all(
+        bool(fl)
+        and all(
             _i(r, "second_nonzero") == 0
             and _i(r, "after_flush_wrong") == 0
             and _i(r, "bad_restart") == 0
@@ -716,7 +856,8 @@ def limits(d) -> None:
 
     st = d["state"]
     R.limit(
-        all(
+        bool(st)
+        and all(
             _i(r, "distinct_sizes") == 1 and _i(r, "size_varies") == 0
             for r in st
         ),
@@ -724,11 +865,13 @@ def limits(d) -> None:
         "points, windows, betas and hops",
     )
     R.limit(
-        all(_i(r, "unwritten") == 0 for r in st),
+        bool(st) and all(_i(r, "unwritten") == 0 for r in st),
         "get_state writes every byte of the blob, at every cut",
     )
     R.limit(
-        all(
+        bool(st)
+        and all(_i(r, "cuts") > 0 for r in st)
+        and all(
             _i(r, "restore_refused") == 0
             and _i(r, "after_restore_wrong") == 0
             and _i(r, "resume_bad") == 0
@@ -739,7 +882,8 @@ def limits(d) -> None:
         f"and resumes bit for bit",
     )
     R.limit(
-        all(
+        bool(st)
+        and all(
             _i(r, "corrupt_refused") == _i(r, "corrupt_tried")
             and _i(r, "hop_refused") == _i(r, "hop_tried")
             and _i(r, "nfft_refused") == _i(r, "nfft_tried")
@@ -749,12 +893,13 @@ def limits(d) -> None:
         "from another nfft is always refused",
     )
     R.limit(
-        all(_i(r, "target_changed") == 0 for r in st),
+        bool(st) and all(_i(r, "target_changed") == 0 for r in st),
         "a refused blob changes nothing: pending, consumed and the next "
         "rows are the untouched twin's",
     )
     R.limit(
-        all(
+        bool(st)
+        and all(
             _i(r, "window_refused") == 0 and _i(r, "window_wrong") == 0
             for r in st
         ),
@@ -764,55 +909,85 @@ def limits(d) -> None:
 
     lv = d["level"]
     R.limit(
-        all(_i(r, "peak_wrong") == 0 for r in lv),
+        bool(lv) and all(_i(r, "peak_wrong") == 0 for r in lv),
         "a tone on bin k peaks at index nfft/2 + k, for every bin of nfft "
         "8, 64 and 1,024 under every window",
     )
     R.limit(
-        all(_f(r, "max_abs_err_db") < 1e-4 for r in lv),
+        bool(lv) and all(_f(r, "max_abs_err_db") < 1e-4 for r in lv),
         f"a full-scale tone on a bin reads 0 dBFS within 1e-4 dB under "
         f"every window (largest "
-        f"{max(_f(r, 'max_abs_err_db') for r in lv):.1e} dB)",
+        f"{max((_f(r, 'max_abs_err_db') for r in lv), default=0.0):.1e} dB)",
     )
 
+    zero = d["floor_zero"]
     R.limit(
-        all(
-            _i(r, "bins_at_floor") == _i(r, "bins")
-            and _f(r, "min_db") == -200.0
-            and _f(r, "max_db") == -200.0
-            for r in d["floor_zero"]
-        ),
+        bool(zero)
+        and all(_i(r, "bins_at_floor") == _i(r, "bins") for r in zero),
         "an all-zero frame reads exactly -200 dB in every bin, every window",
     )
     tone = d["floor_tone"]
+    above = [r for r in tone if _f(r, "level_dbfs") >= FLOOR_DB]
+    below = [r for r in tone if _f(r, "level_dbfs") < FLOOR_DB]
     R.limit(
-        all(
-            abs(_f(r, "tone_bin_db") - max(_f(r, "level_dbfs"), -200.0)) < 1e-4
-            for r in tone
+        bool(above)
+        and all(
+            abs(_f(r, "tone_bin_db") - _f(r, "level_dbfs")) < 1e-4
+            for r in above
         ),
-        "an on-bin tone reads its level in its bin down to -200 dBFS, and "
-        "exactly -200 dB below it, under every window",
+        "an on-bin tone reads its level in its bin, to 1e-4 dB, down to "
+        "-200 dBFS under every window",
     )
-    clear = _clear(d["floor_noise"])
+    R.limit(
+        bool(below) and all(_i(r, "tone_bin_is_floor") == 1 for r in below),
+        f"below -200 dBFS the tone's bin reads exactly -200 dB, the clamp, "
+        f"under every window ({len(below)} cases)",
+    )
+    windows = list(dict.fromkeys(str(r["window"]) for r in tone))
+    R.limit(
+        bool(windows)
+        and all(_raised(d, w)[0] == _raised(d, w)[1] for w in windows),
+        f"the bins a {QUIET_DBFS:.0f} dBFS tone raises off the floor are "
+        f"exactly those its window's leakage puts above the clamp, under "
+        f"every window",
+    )
+
+    noise = d["floor_noise"]
+    clear = _clear(noise)
     worst = max(
-        abs(_f(r, "mean_median_db") - _f(r, "expected_median_db"))
-        for r in clear
+        (
+            abs(_f(r, "mean_median_db") - _f(r, "expected_median_db"))
+            for r in clear
+        ),
+        default=float("inf"),
     )
     R.limit(
         len(clear) >= 8 and worst < 0.1,
         f"noise's median bin, averaged over frames, sits within 0.1 dB of "
-        f"L + 10 log10(ENBW/n) + 10 log10(ln 2) wherever it is clear of "
-        f"the floor (largest {worst:.3f} dB, {len(clear)} cases)",
+        f"L + 10 log10(ENBW/n) + 10 log10(ln 2), with ENBW from each "
+        f"window's definition, wherever no frame's median is clamped "
+        f"(largest {worst:.3f} dB, {len(clear)} cases)",
     )
     gap = max(
-        abs(_f(r, "mean_at_floor") - _f(r, "expected_at_floor"))
-        for r in d["floor_noise"]
+        (
+            abs(_f(r, "mean_at_floor") - _f(r, "expected_at_floor"))
+            for r in noise
+        ),
+        default=float("inf"),
     )
     R.limit(
-        gap < 5.0,
+        bool(noise) and gap < 5.0,
         f"the exponential-bin model predicts the mean count of bins at the "
         f"floor within 5 of 1,024, at every level and window (largest "
         f"{gap:.1f})",
+    )
+    deep = [r for r in noise if _f(r, "level_dbfs") <= -190]
+    R.limit(
+        bool(deep) and all(_i(r, "min_at_floor") == NFFT for r in deep),
+        f"noise of total power -190 dBFS or less is all floor, every bin of "
+        f"every frame under every window "
+        f"({len(deep)} cases of {_i(noise[0], 'frames') if noise else 0} "
+        f"frames)",
     )
 
 
@@ -855,12 +1030,13 @@ def build(write: bool = True) -> Report:
     R.md()
     R.md(
         "The campaign's order is header first. *Pin* is the section of the "
-        "C test that asserts the claim. *Red under* names the sabotage of "
+        "C test that asserts the claim. *Red under* names a sabotage of "
         "the code that turned that pin red, and the pull request whose "
         "record it is (#1975 built the object, #2043 pinned what the "
         "first inventory found unpinned, and this certification adds the "
-        "rest). *Here* is the section of this report that measures it at "
-        "scale."
+        "rest). A claim that holds by construction cites the code instead, "
+        "and a contract has no pin. *Here* is the section of this report "
+        "that measures it at scale."
     )
     R.md()
     R.table(
@@ -966,7 +1142,8 @@ def build(write: bool = True) -> Report:
                 "C12",
                 "`destroy(NULL)` is a no-op",
                 "§1",
-                "— (a crash is the failure)",
+                "this report: the NULL check removed (the test crashes, "
+                "exit 139)",
                 "—",
             ],
             [
@@ -1035,7 +1212,9 @@ def build(write: bool = True) -> Report:
                 "hop or an impossible carry, changing nothing",
                 "§14",
                 "#2043: any version (K5), any size (K6), an impossible "
-                "carry (K7), mutate before validating (M7)",
+                "carry (K7), mutate before validating (M7). This report: "
+                "the magic check removed; the stored-hop check removed, "
+                "which stayed green until §14 gained a no-row case (F11)",
                 "§2.5 (not the carry)",
             ],
             [
@@ -1057,9 +1236,36 @@ def build(write: bool = True) -> Report:
             [
                 "C24",
                 "one object is not thread-safe",
+                "— (a contract)",
+                "— (not testable, F5)",
                 "—",
-                "a contract; not testable (F5)",
+            ],
+            [
+                "C25",
+                "the object composes its parts and re-implements none: the "
+                "carry is the ring's framer, the spectrum PSD's per-frame "
+                "kernel",
+                "— (by construction)",
+                "`spectrogram_core.c` calls `dp_f32_framer_*` for the carry "
+                "and `dp_psd_frame_db` for every row, and holds no window, "
+                "FFT or carry code of its own",
+                "§2.1",
+            ],
+            [
+                "C26",
+                "complex float32 input only",
+                "— (by construction)",
+                "the signature takes `const float _Complex *`",
                 "—",
+            ],
+            [
+                "C27",
+                "a sample is taken unless taking it would complete a row "
+                "the output has no room for: the framer's feed contract",
+                "§4, §6",
+                "#1975: stop at `rows == room` (S2). #2043: the tail left "
+                "untaken (M2)",
+                "§2.2",
             ],
         ],
     )
@@ -1069,12 +1275,21 @@ def build(write: bool = True) -> Report:
     review(d)
     limits(d)
 
+    shapes = d["rows"]
     R.executive(
         "The Spectrogram",
-        [
+        source=(
+            "Generated by `validate.py` in this folder. The Spectrogram has "
+            "no Python binding yet, so every number is measured by "
+            "`native/validation/spectrogram_certify.c` and rendered here. "
+            "§2.7 also sets the measured floor beside an exponential-bin "
+            "model, named where it is used. Re-run to regenerate."
+        ),
+        takeaways=[
             "**Any split of the stream gives the same rows, and every row "
-            "is PSD's dBFS of its own slice, bit for bit.** 71 partitions "
-            "of each of 9 shapes, from single samples to the whole stream "
+            "is PSD's dBFS of its own slice, bit for bit.** "
+            f"{_total(shapes, 'partitions')} distinct partitions over "
+            f"{len(shapes)} shapes, from single samples to the whole stream "
             "at once, agree with an oracle built without the object (§2.1).",
             "**A short output slows the stream and loses nothing**, and "
             "`push_max_out` is exactly the room that takes a whole chunk, "
@@ -1091,8 +1306,15 @@ def build(write: bool = True) -> Report:
             "**A bin reads no lower than -200 dB.** A tone under the floor "
             "and digital silence give the same row, and wideband noise "
             "reaches it about `10·log10(nfft)` sooner; at `nfft` 1,024 a "
-            "total of -190 dBFS is all floor under every window (§2.7, "
-            "F3).",
+            "total of -190 dBFS is all floor, every bin of every frame "
+            "under every window (§2.7, F3).",
+            "**The evidence shares one part with the object: PSD's "
+            "kernel.** Every row is checked against `dp_psd_frame_db` of "
+            "its slice, so a defect inside that kernel would pass every row "
+            "check here. Only the physical checks would see it: a "
+            "full-scale tone reading 0 dBFS in its own bin (§2.6) and the "
+            "floor (§2.7). The kernel is certified on its own, in PSD's "
+            "report.",
         ],
     )
     R.summary(

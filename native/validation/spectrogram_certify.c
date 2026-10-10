@@ -78,7 +78,7 @@ static const char *const WINDOW[4]
 
 /** @brief One row of the first NFFT samples of @p x, under @p window. */
 static int
-row_of (int window, const float _Complex *x, float *row, double *enbw)
+row_of (int window, const float _Complex *x, float *row)
 {
   /* Kaiser at beta 8, a display's usual choice; beta is ignored otherwise */
   dp_spectrogram_state_t *s = dp_spectrogram_create (
@@ -86,10 +86,51 @@ row_of (int window, const float _Complex *x, float *row, double *enbw)
   if (!s)
     return -1;
   size_t w = dp_spectrogram_push (s, x, NFFT, row, NFFT);
-  if (enbw)
-    *enbw = s->psd->enbw;
   dp_spectrogram_destroy (s);
   return w == NFFT ? 0 : -1;
+}
+
+/** @brief The modified Bessel function I0, by its power series. */
+static double
+bessel_i0 (double x)
+{
+  double sum = 1.0, term = 1.0;
+  for (int k = 1; k < 64; k++)
+    {
+      term *= (x / (2.0 * k)) * (x / (2.0 * k));
+      sum += term;
+    }
+  return sum;
+}
+
+/**
+ * @brief ENBW in bins, n * sum(w^2) / sum(w)^2, from each window's
+ * textbook definition in double -- not read back from the object, so the
+ * noise model below is independent of the code it checks. PSD's windows are
+ * the symmetric forms (n - 1 in the cosine; see #2053).
+ */
+static double
+enbw_of (int window, size_t n)
+{
+  double s1 = 0.0, s2 = 0.0;
+  for (size_t i = 0; i < n; i++)
+    {
+      const double x = 2.0 * M_PI * (double)i / (double)(n - 1);
+      double       w = 1.0; /* rect */
+      if (window == 0)
+        w = 0.5 - 0.5 * cos (x);
+      else if (window == 1)
+        {
+          const double r = 2.0 * (double)i / (double)(n - 1) - 1.0;
+          w = bessel_i0 (8.0 * sqrt (1.0 - r * r)) / bessel_i0 (8.0);
+        }
+      else if (window == 2)
+        w = 0.35875 - 0.48829 * cos (x) + 0.14128 * cos (2.0 * x)
+            - 0.01168 * cos (3.0 * x);
+      s1 += w;
+      s2 += w * w;
+    }
+  return (double)n * s2 / (s1 * s1);
 }
 
 static size_t
@@ -108,6 +149,15 @@ cmp_float (const void *a, const void *b)
   return (x > y) - (x < y);
 }
 
+/** @brief An on-bin tone at bin TONE, of amplitude @p a. */
+static void
+tone (double a, float _Complex *x)
+{
+  for (size_t i = 0; i < NFFT; i++)
+    x[i] = (float)(a * cos (2.0 * M_PI * TONE * (double)i / NFFT))
+           + (float)(a * sin (2.0 * M_PI * TONE * (double)i / NFFT)) * I;
+}
+
 static int
 floor_tone (int emit)
 {
@@ -117,22 +167,49 @@ floor_tone (int emit)
   float _Complex x[NFFT];
   float row[NFFT];
   printf (emit ? "# floor_tone\nwindow,level_dbfs,tone_bin_db,"
-                 "tone_bin_minus_level_db,bins_at_floor\n"
+                 "tone_bin_minus_level_db,tone_bin_is_floor,bins_at_floor\n"
                : "\nfloor_tone: an on-bin tone of power L dBFS, its bin\n");
   for (int w = 0; w < 4; w++)
     for (size_t j = 0; j < nl; j++)
       {
-        const double a = pow (10.0, level[j] / 20.0);
-        for (size_t i = 0; i < NFFT; i++)
-          x[i] = (float)(a * cos (2.0 * M_PI * TONE * (double)i / NFFT))
-                 + (float)(a * sin (2.0 * M_PI * TONE * (double)i / NFFT)) * I;
-        if (row_of (w, x, row, NULL))
+        tone (pow (10.0, level[j] / 20.0), x);
+        if (row_of (w, x, row))
           return 1;
         const float b = row[NFFT / 2 + TONE];
-        printf (emit ? "%s,%.0f,%.4f,%.4f,%zu\n"
-                     : "  %-16s L %6.0f  bin %10.4f  (%+.4f)  at floor %zu\n",
-                WINDOW[w], level[j], b, b - level[j], at_floor (row));
+        /* exactly the clamp, not a value that prints as it */
+        printf (emit ? "%s,%.0f,%.4f,%.4f,%d,%zu\n"
+                     : "  %-16s L %6.0f  bin %10.4f  (%+.4f)  exact floor %d"
+                       "  at floor %zu\n",
+                WINDOW[w], level[j], b, b - level[j], b == -200.0f,
+                at_floor (row));
       }
+  return 0;
+}
+
+/* The window's leakage on the grid: a full-scale on-bin tone, and the bins
+   k away from it in dBc. The bins a quiet tone raises off the floor are
+   these, so the report derives that count from here, not from prose. */
+#define LEAK_OFFSETS 20
+
+static int
+leakage (int emit)
+{
+  float _Complex x[NFFT];
+  float row[NFFT];
+  printf (emit ? "# leakage\nwindow,offset,plus_dbc,minus_dbc\n"
+               : "\nleakage: a full-scale on-bin tone, bins k away, dBc\n");
+  tone (1.0, x);
+  for (int w = 0; w < 4; w++)
+    {
+      if (row_of (w, x, row))
+        return 1;
+      const double peak = row[NFFT / 2 + TONE];
+      for (int k = 1; k <= LEAK_OFFSETS; k++)
+        printf (emit ? "%s,%d,%.4f,%.4f\n"
+                     : "  %-16s +-%-2d  %10.4f  %10.4f\n",
+                WINDOW[w], k, row[NFFT / 2 + TONE + k] - peak,
+                row[NFFT / 2 + TONE - k] - peak);
+    }
   return 0;
 }
 
@@ -145,7 +222,7 @@ floor_zero (int emit)
                : "\nfloor_zero: an all-zero frame\n");
   for (int w = 0; w < 4; w++)
     {
-      if (row_of (w, x, row, NULL))
+      if (row_of (w, x, row))
         return 1;
       float lo = row[0], hi = row[0];
       for (size_t i = 1; i < NFFT; i++)
@@ -167,43 +244,45 @@ floor_noise (int emit)
   const size_t        nl      = sizeof level / sizeof level[0];
   float _Complex x[NFFT];
   float row[NFFT], sorted[NFFT];
-  printf (emit ? "# floor_noise\nwindow,level_dbfs,frames,expected_median_db,"
-                 "mean_median_db,expected_at_floor,mean_at_floor,"
-                 "max_at_floor\n"
+  printf (emit ? "# floor_noise\nwindow,level_dbfs,frames,enbw_bins,"
+                 "expected_median_db,mean_median_db,expected_at_floor,"
+                 "mean_at_floor,min_at_floor,max_at_floor\n"
                : "\nfloor_noise: complex noise of total power L dBFS, the "
                  "mean over frames\n");
   for (int w = 0; w < 4; w++)
     for (size_t j = 0; j < nl; j++)
       {
-        uint32_t     seed = 1894u + (uint32_t)(100 * w + j);
-        const double g    = pow (10.0, level[j] / 20.0);
-        double       enbw = 0.0, med_sum = 0.0, floor_sum = 0.0;
-        size_t       floor_max = 0;
+        uint32_t     seed    = 1894u + (uint32_t)(100 * w + j);
+        const double g       = pow (10.0, level[j] / 20.0);
+        double       med_sum = 0.0, floor_sum = 0.0;
+        size_t       floor_min = NFFT, floor_max = 0;
         for (int f = 0; f < NOISE_FRAMES; f++)
           {
             for (size_t i = 0; i < NFFT; i++)
               x[i] = (float _Complex) (g * dp_cgauss (&seed));
-            if (row_of (w, x, row, &enbw))
+            if (row_of (w, x, row))
               return 1;
             memcpy (sorted, row, sizeof row);
             qsort (sorted, NFFT, sizeof *sorted, cmp_float);
             med_sum += 0.5 * (sorted[NFFT / 2 - 1] + sorted[NFFT / 2]);
             const size_t k = at_floor (row);
             floor_sum += (double)k;
+            floor_min = k < floor_min ? k : floor_min;
             floor_max = k > floor_max ? k : floor_max;
           }
         /* each bin's power is exponential with mean mu against the tone
            reference, so P(bin <= floor) = 1 - exp(-floor / mu) */
+        const double enbw       = enbw_of (w, NFFT);
         const double mu         = pow (10.0, level[j] / 10.0) * enbw / NFFT;
         const double want_med   = 10.0 * log10 (mu) + 10.0 * log10 (log (2.0));
         const double want_floor = NFFT * -expm1 (-1e-20 / mu);
-        printf (emit ? "%s,%.0f,%d,%.4f,%.4f,%.4f,%.4f,%zu\n"
-                     : "  %-16s L %6.0f  frames %d  median: expected %9.4f "
-                       "mean %9.4f  at floor: expected %8.3f mean %8.3f "
-                       "max %zu\n",
-                WINDOW[w], level[j], NOISE_FRAMES, want_med,
+        printf (emit ? "%s,%.0f,%d,%.6f,%.4f,%.4f,%.4f,%.4f,%zu,%zu\n"
+                     : "  %-16s L %6.0f  frames %d  enbw %.4f  median: "
+                       "expected %9.4f mean %9.4f  at floor: expected "
+                       "%8.3f mean %8.3f min %zu max %zu\n",
+                WINDOW[w], level[j], NOISE_FRAMES, enbw, want_med,
                 med_sum / NOISE_FRAMES, want_floor, floor_sum / NOISE_FRAMES,
-                floor_max);
+                floor_min, floor_max);
       }
   return 0;
 }
@@ -325,6 +404,10 @@ partition (size_t nfft, size_t hop, int window, size_t len, size_t chunk,
   if (!s)
     return -1;
   memset (t, 0, sizeof *t);
+  /* poisoned per partition: a row the push counts but does not write must
+     read NaN, never the last partition's correct row */
+  for (size_t i = 0; i < (r_n + 1) * nfft; i++)
+    got[i] = NAN;
   size_t made = 0, off = 0;
   while (off < len)
     {
@@ -348,8 +431,10 @@ partition (size_t nfft, size_t hop, int window, size_t len, size_t chunk,
         }
       made += w;
       off += n;
-      t->carry_over += dp_spectrogram_rows_for (s, 0) != 0;
+      /* the carry, by arithmetic: r rows retired r * hop samples, and what
+         is left must be fewer than nfft */
       const size_t r = made / nfft, covered = r ? (r - 1) * hop + nfft : 0;
+      t->carry_over += r * hop > off || off - r * hop >= nfft;
       t->pending_wrong
           += covered > off || dp_spectrogram_pending (s) != off - covered;
     }
@@ -387,11 +472,20 @@ sweep_rows (int emit)
       float       *got  = malloc ((r_n + 1) * nfft * sizeof *got);
       if (!want || !got)
         return 1;
-      const size_t fixed[]
+      /* distinct chunk sizes only: nfft - 1 is 7 at nfft 8 and 1 at 2 */
+      const size_t cand[]
           = { 1, 7, nfft - 1, nfft, nfft + 1, 3 * nfft + 5, len };
-      const size_t nfixed    = sizeof fixed / sizeof *fixed;
-      part_t       sum       = { 0 }, t;
-      size_t       bad_parts = 0, late = 0;
+      size_t fixed[sizeof cand / sizeof *cand], nfixed = 0;
+      for (size_t a = 0; a < sizeof cand / sizeof *cand; a++)
+        {
+          int dup = 0;
+          for (size_t b = 0; b < nfixed; b++)
+            dup |= fixed[b] == cand[a];
+          if (!dup)
+            fixed[nfixed++] = cand[a];
+        }
+      part_t sum       = { 0 }, t;
+      size_t bad_parts = 0, late = 0;
       for (size_t k = 0; k < nfixed + NRAND; k++)
         {
           const size_t chunk = k < nfixed ? fixed[k] : 0;
@@ -472,18 +566,22 @@ sweep_backpressure (int emit)
                       break;
                     }
                 /* stopping short is right only when the room is full AND
-                   the next sample would complete a row */
+                   the next sample would complete a row: by arithmetic on
+                   the samples taken so far, not the object's rows_for */
+                const size_t so_far = off + done + took;
                 if (took < n - done)
                   {
                     stalls++;
-                    not_max
-                        += w != full || dp_spectrogram_rows_for (s, 1) == 0;
+                    not_max += w != full
+                               || nrows (so_far + 1, nfft, hop)
+                                      == nrows (so_far, nfft, hop);
                   }
-                carry += dp_spectrogram_rows_for (s, 0) != 0;
                 const size_t keep = w < full ? w : full;
                 if (made + keep <= (r_n + 8) * nfft)
                   memcpy (got + made, buf, keep * sizeof *buf);
                 made += keep;
+                const size_t r = made / nfft;
+                carry += r * hop > so_far || so_far - r * hop >= nfft;
                 if (!took && !w)
                   {
                     stuck = 1; /* no progress: a defect, not a stall */
@@ -633,6 +731,8 @@ sweep_flush (int emit)
                 || dp_spectrogram_pending (s) != 0;
           /* restarted at sample 0: the next nfft samples are row 0 */
           dp_psd_frame_db (p, X, want);
+          for (size_t j = 0; j < nfft; j++)
+            row[j] = NAN;
           br += dp_spectrogram_push (s, X, nfft, row, nfft) != nfft
                 || memcmp (row, want, nfft * sizeof *row) != 0;
           dp_spectrogram_destroy (s);
@@ -725,6 +825,9 @@ sweep_state (int emit)
       for (size_t cut = 0; cut <= 3 * nfft + 3; cut += stride)
         {
           cuts++;
+          /* poisoned per cut: a row counted but not written reads NaN */
+          for (size_t k = 0; k < (r_n + 2) * nfft; k++)
+            got[k] = NAN;
           dp_spectrogram_state_t *b = make (nfft, hop, w);
           dp_spectrogram_state_t *c = make (nfft, hop, w);
           dp_spectrogram_state_t *v = make (nfft, hop, w2);
@@ -757,6 +860,8 @@ sweep_state (int emit)
               += rb + rc != r_n || rows_differing (got, want, r_n, nfft) != 0;
 
           /* another window is NOT refused; the rows that follow are its */
+          for (size_t k = rb * nfft; k < (r_n + 2) * nfft; k++)
+            got[k] = NAN;
           if (dp_spectrogram_set_state (v, b1) != DP_OK)
             wrefused++;
           else
@@ -837,6 +942,10 @@ sweep_state (int emit)
         float       *rw = malloc ((n / hop + 2) * nfft * sizeof *rw);
         if (!rt || !rw)
           return 1;
+        /* both poisoned alike, so only a refusal's side effect can make
+           them differ, never a stale or uninitialized byte */
+        for (size_t k = 0; k < (n / hop + 2) * nfft; k++)
+          rt[k] = rw[k] = NAN;
         const size_t wt = dp_spectrogram_push (
             target, X + 12, n, rt, dp_spectrogram_push_max_out (target, n));
         const size_t ww = dp_spectrogram_push (
@@ -892,6 +1001,8 @@ sweep_level (int emit)
                     = 2.0 * M_PI * (double)k * (double)j / (double)nfft;
                 x[j] = (float)cos (ph) + (float)sin (ph) * I;
               }
+            for (size_t j = 0; j < nfft; j++)
+              row[j] = NAN;
             if (dp_spectrogram_push (s, x, nfft, row, nfft) != nfft)
               return 1;
             size_t pk = 0;
@@ -918,9 +1029,9 @@ main (int argc, char **argv)
   stream_init ();
   /* the blocks in the order the validator renders them */
   static int (*const run[]) (int)
-      = { sweep_rows,  sweep_backpressure, sweep_sizing,
-          sweep_flush, sweep_state,        sweep_level,
-          floor_tone,  floor_zero,         floor_noise };
+      = { sweep_rows,  sweep_backpressure, sweep_sizing, sweep_flush,
+          sweep_state, sweep_level,        floor_tone,   leakage,
+          floor_zero,  floor_noise };
   for (size_t i = 0; i < sizeof run / sizeof *run; i++)
     if (run[i](emit))
       {

@@ -101,6 +101,8 @@ class Data:
     q_cap_large: int = 0
     min_gap: int = 0
     start_err: list[int] = field(default_factory=list)
+    tiled_w: int = 0
+    tiled_err: list[int] = field(default_factory=list)
     block_sizes: dict = field(default_factory=dict)
     gaps: list = field(default_factory=list)
     found: list = field(default_factory=list)
@@ -231,6 +233,40 @@ def characterise() -> Data:
         "Zero at every offset, including ones that are not multiples of the "
         "code period — which is what distinguishes a resolved epoch from a "
         "phase seed that happened to land."
+    )
+    R.md()
+    # Tiled Doppler search: past the native span the engine tiles W
+    # frequency hypotheses over ONE code period, so a hit's frame is a period
+    # long while the engine's `n` is W periods. The anchor backed off `n`
+    # until doppler#2090 -- (W - 1) periods early -- and refine (k_hi = reps
+    # periods ahead) could not reach the start whenever reps + m < W - 1.
+    # The uncertainty is chosen so W - 1 > reps + 1: a regression to the old
+    # anchor misses every row, the one inside the first (W - 1)*P included.
+    P = ACQ_SF * SPC
+    tiled_at = [200, 9000, 23_117, 41_000]
+    for seed, at in enumerate(tiled_at, start=1):
+        x = scene([at], at + 6 * BURST_LEN, seed=seed)
+        cc = cap(doppler_uncertainty=4.0 * CHIP_RATE * SPC / P)
+        d.tiled_w = int(cc.doppler_bins)
+        cc.push(x)
+        ev = cc.events()
+        ok = len(ev) == 1
+        got = int(ev["preamble_start"][0]) if ok else -1
+        d.tiled_err.append(got - at if got >= 0 else 10**9)
+    R.md(
+        f"Tiled Doppler search too: an uncertainty four tiles wide makes the "
+        f"engine search W = {d.tiled_w} frequency hypotheses over one code "
+        f"period, with reps = {REPS}. The first burst sits inside the "
+        f"stream's first (W − 1)·P = {(d.tiled_w - 1) * P} samples, where an "
+        "anchor (W − 1) periods early used to wrap (doppler#2090)."
+    )
+    R.md()
+    R.table(
+        ["burst placed at (tiled)", "reported `preamble_start`", "error"],
+        [
+            [str(a), str(a + e) if abs(e) < 10**8 else "not found", str(e)]
+            for a, e in zip(tiled_at, d.tiled_err)
+        ],
     )
     R.md()
 
@@ -831,6 +867,12 @@ def limits(d: Data) -> None:
         "that are not a multiple of the code period (§2.2)",
     )
     R.limit(
+        d.tiled_w - 1 > REPS + 1 and all(e == 0 for e in d.tiled_err),
+        f"tiled Doppler search (W = {d.tiled_w}, so reps + 1 < W - 1): each "
+        "burst comes back once with `preamble_start` EXACT, one inside the "
+        "stream's first (W - 1)*P samples included (§2.2)",
+    )
+    R.limit(
         all(v[1] for v in d.block_sizes.values()),
         "the windows are bit-identical across block sizes from 333 samples "
         "to a push 1.6x the ring's capacity (§2.3)",
@@ -979,7 +1021,8 @@ def build(write: bool = True) -> Report:
             "exist.** Acquisition's `code_phase` is a lag modulo one code "
             "period and an epoch error is a cliff rather than a gradient; "
             "the reported start is correct to the sample at every offset "
-            "tested, including ones off the code-period grid (§2.2).",
+            "tested, including ones off the code-period grid, in native and "
+            "in tiled Doppler search (§2.2).",
             "**Leave more dead air than the header's formula says.** It "
             "gives `max(0, refine_span - burst_len)`; measured, a pair needs "
             f"{next((g for g, f in zip(d.gaps, d.found) if f >= 1.0), 0)} "

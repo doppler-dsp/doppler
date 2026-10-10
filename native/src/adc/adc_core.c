@@ -44,10 +44,20 @@ dp_adc_reset (dp_adc_state_t *state)
   state->rng     = ADC_RNG_SEED;
 }
 
-/* Serializable state — whole-struct POD snapshot, pointer-free (see
- * DP_DEFINE_POD_STATE in dp_state.h). */
-DP_DEFINE_POD_STATE (dp_adc, dp_adc_state_t, ADC_STATE_MAGIC,
-                     ADC_STATE_VERSION)
+/* A blob's rng must be nonzero. create and reset seed it nonzero, and
+ * xorshift32 never reaches 0 from a nonzero state; a 0 would stop the dither
+ * silently, so the checked form refuses it (#2142). */
+static int
+adc_state_ok (const dp_adc_state_t *s)
+{
+  return s->rng != 0;
+}
+
+/* Serializable state — whole-struct POD snapshot, pointer-free, refusing a
+ * snapshot adc_state_ok() rejects (see DP_DEFINE_POD_STATE_CHECKED in
+ * dp_state.h). */
+DP_DEFINE_POD_STATE_CHECKED (dp_adc, dp_adc_state_t, ADC_STATE_MAGIC,
+                             ADC_STATE_VERSION, adc_state_ok)
 
 JM_HOT void
 dp_adc_steps (dp_adc_state_t *state, const float *input, int64_t *output,

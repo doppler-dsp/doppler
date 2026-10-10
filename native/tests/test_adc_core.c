@@ -3,6 +3,8 @@
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include <math.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 
 /* Floating-point helpers — use inline functions, not macros, so arguments
@@ -32,6 +34,13 @@ main (void)
     DP_STATE_ROUNDTRIP_TEST (dp_adc, a, b);
     DP_CHECK (b->rng == a->rng && b->clipped == a->clipped);
     DP_CHECK (dp_adc_step (b, 0.3f) == dp_adc_step (a, 0.3f));
+    /* rng = 0 is unreachable (xorshift32 never reaches it) and would stop
+       the dither silently, so a blob carrying it is refused (#2148 r3). */
+    const size_t rng_off
+        = sizeof (dp_state_hdr_t) + offsetof (dp_adc_state_t, rng);
+    const uint32_t zero = 0;
+    DP_STATE_FORGE_TEST (dp_adc, a, ADC_STATE_MAGIC, ADC_STATE_VERSION,
+                         rng_off, &zero, sizeof zero);
     dp_adc_destroy (a);
     dp_adc_destroy (b);
   }

@@ -39,7 +39,9 @@ JM_FORCEINLINE void
 farrow_init (dp_farrow_state_t *s, int order)
 {
     s->d[0] = s->d[1] = s->d[2] = s->d[3] = 0.0f;
-    s->order = order;
+    s->order = (order == FARROW_LINEAR || order == FARROW_PARABOLIC)
+                   ? order
+                   : FARROW_CUBIC;
 }
 
 JM_FORCEINLINE int

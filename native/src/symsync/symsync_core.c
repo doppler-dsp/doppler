@@ -225,7 +225,7 @@ dp_symsync_state_t *
 dp_symsync_create (size_t sps, double bn, double zeta, int order, int ted)
 {
   if (order < FARROW_LINEAR || order > FARROW_CUBIC)
-    return NULL; /* as dp_farrow_create: no other order interpolates */
+    return NULL; /* as dp_farrow_create: refused, not read as cubic */
   dp_symsync_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
     return NULL;
@@ -300,9 +300,11 @@ static int
 symsync_state_ok (const dp_symsync_state_t *s)
 {
   /* The embedded Farrow and detector are checked by their own predicates
-     (#2142). `avgs` is not: an embedding holds the all-zero state until its
-     init runs, and that round-trips. */
-  return dp_farrow_state_ok (&s->farrow) && dp_lockdet_state_ok (&s->lock);
+     (#2142). `avgs` must be at least 1: init always runs configure_lock_raw,
+     which sets it to 1 or more, so 0 is unreachable. Left at 0, lock_sum/avgs
+     is inf, which passes dp_saturate and declares lock on noise. */
+  return s->avgs >= 1 && dp_farrow_state_ok (&s->farrow)
+         && dp_lockdet_state_ok (&s->lock);
 }
 
 DP_DEFINE_POD_STATE_TLM_CHECKED (dp_symsync, dp_symsync_state_t,

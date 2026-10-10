@@ -12,8 +12,8 @@ The stand-ins keep the REAL contract (#2009). The first fake returned
 had no `ack`: so the dead `data is None` branches looked live, and a
 PullSource that never acked looked fine. A Pull consumer is explicit-ack:
 an unacked frame comes back after AckWait and stays queued for the next
-run, and after MaxAckPending (1000) unacked frames the server sends only
-redeliveries, which PullSource concatenated as new data.
+run, and after `WORK_QUEUE_MAX_ACK_PENDING` unacked frames the server
+sends only redeliveries, which PullSource concatenated as new data.
 """
 
 import time
@@ -24,7 +24,7 @@ import pytest
 
 import doppler.stream
 from doppler.specan.source import PullSource, SocketSource
-from doppler.stream import CF32, Push
+from doppler.stream import CF32, WORK_QUEUE_MAX_ACK_PENDING, Push
 from doppler.tests._nats import delete_stream_if_present, nats_available
 
 FS, FC = 2.4e6, 100e6
@@ -107,10 +107,23 @@ class _FakePull(_FakeTransport):
 
 def _sequenced(n):
     """n one-sample CI8 frames, sample k = k, header sequence k."""
+    return _with_sequences(range(n))
+
+
+def _with_sequences(seqs):
+    """One one-sample CI8 frame per header sequence, its sample the
+    sequence mod 128. An exception in `seqs` is queued as it is."""
     return [
-        (np.array([k % 128, 0], np.int8), {**HDR, "sequence": k})
-        for k in range(n)
+        k
+        if isinstance(k, BaseException)
+        else (np.array([k % 128, 0], np.int8), {**HDR, "sequence": k})
+        for k in seqs
     ]
+
+
+def _taken(iq):
+    """The sequences (mod 128) of the one-sample frames read."""
+    return (iq.real * 128).round().astype(int).tolist()
 
 
 def _frames():
@@ -207,14 +220,15 @@ def test_pull_source_acks_every_frame_exactly_once(monkeypatch):
     not nats_available(), reason="no NATS broker on 127.0.0.1:4222"
 )
 def test_pull_source_reads_past_max_ack_pending_without_a_repeat():
-    """#2009 against a real broker: more frames than MaxAckPending (1000).
+    """#2009 against a real broker: more frames than MaxAckPending.
 
-    Without acks the server stops handing out NEW frames at 1000 pending
-    and, after AckWait, sends only redeliveries: the read either times out
-    short or returns repeats. Each frame carries its index as its one
-    sample, so every frame must arrive exactly once, in order.
+    Without acks the server stops handing out NEW frames once
+    `WORK_QUEUE_MAX_ACK_PENDING` are pending and, after AckWait, sends
+    only redeliveries: the read either times out short or returns
+    repeats. Each frame carries its index as its one sample, so every
+    frame must arrive exactly once, in order.
     """
-    n = 1200
+    n = WORK_QUEUE_MAX_ACK_PENDING + 200
     endpoint = f"nats://127.0.0.1:4222/specan-pull-{int(time.time() * 1e6)}"
     push = Push(endpoint, CF32)  # provisions the work queue
     try:
@@ -259,9 +273,36 @@ def test_a_repeated_sequence_is_taken_once(monkeypatch):
     frames.insert(2, frames[1])  # 0, 1, 1 again, 2
     src = _pull_fake(monkeypatch, frames)
     got, _, _ = src.read(16)
-    assert (got.real * 128).round().astype(int).tolist() == [0, 1, 2]
+    assert _taken(got) == [0, 1, 2]
     assert src.duplicates == 1
     assert src._pull.acked == [0, 1, 1, 2]
+
+
+def test_a_producer_after_an_end_of_stream_counts_from_zero(monkeypatch):
+    """A new sender's sequence starts again at 0. Read as redeliveries of
+    the old one's 5..7, its frames were acked away, and the display froze
+    until it passed the old high-water mark."""
+    src = _pull_fake(
+        monkeypatch, _with_sequences([5, 6, 7, EOFError("eos"), 0, 1, 2])
+    )
+    first, _, _ = src.read(16)  # up to the end-of-stream
+    second, _, _ = src.read(16)  # specan keeps reading
+    assert _taken(first) == [5, 6, 7]
+    assert _taken(second) == [0, 1, 2]
+    assert src.duplicates == 0
+
+
+def test_a_backwards_jump_past_max_ack_pending_is_a_new_producer(
+    monkeypatch,
+):
+    """No end-of-stream: the queue's backlog from a previous run ends at a
+    high sequence, and the new run starts at 0. A redelivery can only be
+    so far behind; a bigger jump is a restart, and its frames are taken."""
+    src = _pull_fake(monkeypatch, _with_sequences([10**6, 0, 1, 2]))
+    got, _, _ = src.read(16)
+    assert _taken(got) == [10**6 % 128, 0, 1, 2]
+    assert src.duplicates == 0
+    assert src.restarts == 1
 
 
 def test_a_skipped_sequence_is_counted(monkeypatch):
@@ -283,5 +324,38 @@ def test_a_timeout_before_the_first_frame_is_not_an_error(monkeypatch):
     engine = SpecanEngine(SpecanConfig())
     try:
         assert engine.process(iq, fs, cf) is None
+    finally:
+        engine.close()
+
+
+def _engine():
+    from doppler.specan.config import SpecanConfig
+    from doppler.specan.engine import SpecanEngine
+
+    return SpecanEngine(SpecanConfig())
+
+
+def test_samples_without_a_rate_are_an_error_not_a_wait():
+    """Push.send defaults sample_rate to 0. Such a stream used to sit on
+    "Waiting for signal..." for ever, acking every frame away."""
+    engine = _engine()
+    try:
+        with pytest.raises(ValueError, match=r"sample rate of 0\.0 Hz"):
+            engine.process(np.ones(4096, np.complex64), 0.0, 0.0)
+    finally:
+        engine.close()
+
+
+def test_an_empty_block_after_a_chain_leaves_it_working():
+    """A timeout mid-stream is an empty block too. Rebuilding the chain for
+    its 0 Hz would tear the working one down."""
+    x = (np.random.default_rng(0).standard_normal(8192) * 0.1).astype(
+        np.complex64
+    )
+    engine = _engine()
+    try:
+        assert engine.process(x, FS, FC) is not None
+        assert engine.process(np.empty(0, np.complex64), 0.0, 0.0) is None
+        assert engine.process(x, FS, FC) is not None  # still the same chain
     finally:
         engine.close()

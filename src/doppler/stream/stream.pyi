@@ -113,6 +113,25 @@ Examples
 
 """
 
+WORK_QUEUE_MAX_ACK_PENDING: int
+"""Unacked frames a :class:`Pull` may hold before the server stops.
+
+Past this many frames delivered and not yet acked (:meth:`Pull.ack`), the
+server hands out no NEW frames to the consumer, only redeliveries of the
+pending ones, each an AckWait after the last. A consumer that never acks
+therefore stalls at exactly this count.
+
+``DP_WORK_QUEUE_MAX_ACK_PENDING`` in ``stream.h`` is the one declaration;
+this is the same value.
+
+Examples
+--------
+>>> from doppler.stream import WORK_QUEUE_MAX_ACK_PENDING
+>>> WORK_QUEUE_MAX_ACK_PENDING
+1000
+
+"""
+
 
 def mean_power(samples: NDArray[Any]) -> float:
     """Mean power of a complex sample block, normalised to full scale.

@@ -97,6 +97,7 @@
 
 | Type | Name |
 | ---: | :--- |
+| define  | [**DP\_WORK\_QUEUE\_MAX\_ACK\_PENDING**](group__utils.md#define-dp_work_queue_max_ack_pending)  `1000`<br>_Unacked frames a Pull consumer may hold before the server stops._  |
 | define  | [**DP\_WORK\_QUEUE\_MAX\_AGE\_NS**](group__utils.md#define-dp_work_queue_max_age_ns)  `(3600LL \* 1000000000LL)`<br>_Retention bound doppler gives a work queue it creates itself._  |
 
 ## Public Functions Documentation
@@ -441,6 +442,27 @@ Statically allocated, null-terminated string.
 ## Macro Definition Documentation
 
 
+
+
+
+### define DP\_WORK\_QUEUE\_MAX\_ACK\_PENDING 
+
+_Unacked frames a Pull consumer may hold before the server stops._ 
+```
+#define DP_WORK_QUEUE_MAX_ACK_PENDING `1000`
+```
+
+
+
+A Pull is an explicit-ack consumer: past this many frames delivered and not yet acked ([**dp\_msg\_ack()**](group__msg.md#function-dp_msg_ack)), the server hands out no NEW frames, only redeliveries of the pending ones, each an AckWait after the last. That is the backpressure a work queue applies to a slow consumer, and the reason a consumer that never acks stalls at exactly this count.
+
+
+Python reads it as `doppler.stream.WORK_QUEUE_MAX_ACK_PENDING`, so a consumer that reasons about redeliveries names this value rather than restating it. 
+
+
+        
+
+<hr>
 
 
 

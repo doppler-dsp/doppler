@@ -1382,5 +1382,19 @@ main (void)
   /* A refused blob changes nothing (doppler#2092). */
   DP_CHECK (refused_blob_changes_nothing () == 0);
 
+  /* dp_fmod_pos stays in [0, m) (doppler#2110). A negative remainder within
+     half an ulp of zero rounded r + m up to exactly m, and dll_replica, which
+     indexes the code with the fold of 2c - 0.5 over 2*sf, then read
+     code[sf], one past the copy. The issue's worked case is sf = 31: the
+     early tap at a spacing of 0.25 - 2^-55 from a dwell centre at chip 0
+     gives -2^-54. The fold of such a sliver is 0, its equal on the circle;
+     the ordinary negative fold and an exact multiple are unchanged. */
+  DP_CHECK (dp_fmod_pos (-0x1p-54, 62.0) < 62.0);
+  DP_CHECK (dp_fmod_pos (-0x1p-54, 62.0) == 0.0);
+  DP_CHECK (dp_fmod_pos (2.0 * (0.25 - 0x1p-55) - 0.5, 62.0) < 62.0);
+  DP_CHECK (dp_fmod_pos (-1.0, 62.0) == 61.0);
+  DP_CHECK (dp_fmod_pos (-62.0, 62.0) == 0.0);
+  DP_CHECK (dp_fmod_pos (124.5, 62.0) == 0.5);
+
   DP_TEST_END ("test_dll_core");
 }

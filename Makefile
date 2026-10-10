@@ -2233,7 +2233,11 @@ gallery: ## Run the plot examples and copy their PNGs to docs/assets/
 # an unrelated diff that is easy to commit by accident. So the step runs only
 # when GALLERY_SCRIPTS is the Makefile's own list, and a directive rather than
 # a shell `if`: the step is then absent from `make -n` too, which is what
-# gallery-scripts-check reads.
+# gallery-scripts-check reads. Any GALLERY_SCRIPTS on the command line counts
+# as narrowed, the full list included. A plain `make gallery` is therefore
+# the only run that refreshes the characterization; release-freshness-check
+# reads GALLERY_CHARACTERIZATIONS so that a changed subject cannot be tagged
+# with its plot unrendered.
 ifeq ($(origin GALLERY_SCRIPTS),file)
 	@printf "  %-45s" "$(GALLERY_CHARACTERIZATIONS)"
 	@uv run python $(GALLERY_CHARACTERIZATIONS) \
@@ -3492,13 +3496,16 @@ tag-release: changelog-assembled-check
 # flap -- and a flapping gate gets disabled, taking the real signal with it.
 #
 # GALLERY_SCRIPTS is passed IN rather than restated in the script: a second
-# list is one that can disagree with the first.
+# list is one that can disagree with the first. GALLERY_CHARACTERIZATIONS goes
+# with it: its plot lands in docs/assets/ like the scripts' do, and only a
+# full `make gallery` renders it (#2058), so a changed subject is a stale plot
+# by the same test.
 release-freshness-check: ## VERSION=x.y.z — refuse a tag with stale plots or benchmarks
 ifndef VERSION
 	@echo "usage: make release-freshness-check VERSION=<x.y.z>"; exit 1
 endif
 	@$(UV) run python scripts/check_release_freshness.py \
-	    --version $(VERSION) $(GALLERY_SCRIPTS)
+	    --version $(VERSION) $(GALLERY_SCRIPTS) $(GALLERY_CHARACTERIZATIONS)
 
 tag-release: release-freshness-check
 

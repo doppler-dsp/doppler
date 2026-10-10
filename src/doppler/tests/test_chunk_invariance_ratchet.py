@@ -266,15 +266,47 @@ def test_a_mutator_entry_added_since_the_base_fails(
     assert "'A.c' ADDED" in bad[0]
 
 
-def test_a_mutator_entry_is_its_key_not_its_verdict(
+def test_a_move_into_a_failing_verdict_is_growth(
     seed: Seed, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A verdict that changes is the gate's to judge against the probe; only
-    a key the base did not hold is growth."""
+    """Relabelling an entry UNPROBED -> LOST after a regression forgives a
+    new loss by an edit: the ratchet is on (key, verdict)."""
+    mod = seed()
+    lst = _mutator_list(mod, monkeypatch, "A.b  UNPROBED  held at the base\n")
+    lst.write_text("A.b  LOST  a regression, relabelled\n")
+    bad = mod.mutator_list_added("HEAD")
+    assert len(bad) == 1
+    assert "'A.b' moved UNPROBED -> LOST" in bad[0]
+
+
+@pytest.mark.parametrize(
+    ("before", "after"),
+    [
+        ("NO_RECIPE", "LOST"),  # a CASES row lets the probe run at last
+        ("C_ONLY", "CRASHES"),  # a binding lets it run at all
+        ("LOST", "UNPROBED"),  # out of a failing verdict
+        ("UNPROBED", "C_ONLY"),
+    ],
+)
+def test_a_move_that_is_not_into_a_failing_verdict_is_free(
+    seed: Seed, monkeypatch: pytest.MonkeyPatch, before: str, after: str
+) -> None:
+    mod = seed()
+    lst = _mutator_list(mod, monkeypatch, f"A.b  {before}  at the base\n")
+    lst.write_text(f"A.b  {after}  now\n")
+    assert mod.mutator_list_added("HEAD") == []
+
+
+def test_a_mutator_list_missing_at_head_is_an_error(
+    seed: Seed, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Moving the list and updating only one reader would otherwise read
+    as an empty list that has not grown."""
     mod = seed()
     lst = _mutator_list(mod, monkeypatch, "A.b  LOST  held at the base\n")
-    lst.write_text("A.b  UNPROBED  reads otherwise now\n")
-    assert mod.mutator_list_added("HEAD") == []
+    lst.unlink()
+    with pytest.raises(LookupError, match="missing at HEAD"):
+        mod.mutator_list_added("HEAD")
 
 
 def test_the_change_that_brings_the_mutator_gate_brings_its_list(

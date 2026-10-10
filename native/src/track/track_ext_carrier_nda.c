@@ -57,8 +57,11 @@ CarrierNdaObj_init (CarrierNdaObject *self, PyObject *args, PyObject *kwds)
   self->handle = dp_carrier_nda_create (bn, zeta, init_norm_freq, sps, n, m);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError,
-                       "dp_carrier_nda_create returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "CarrierNda: invalid parameter (need m in {2,4,8}, "
+                       "sps a whole multiple of n with sps / n <= 64, and bn "
+                       ">= 0 and zeta > 0, both finite, whose loop gains "
+                       "come out finite)");
       return -1;
     }
   return 0;
@@ -842,6 +845,17 @@ static PyTypeObject CarrierNdaObjType = {
                 "    MA window divisor: window = sps/n (default 4; sps%n==0).\n"
                 "m : int, default 4\n"
                 "    Constellation order M, 2/4/8 (default 4 = QPSK).\n"
+                "\n"
+                "Raises\n"
+                "------\n"
+                "ValueError\n"
+                "    If construction fails. The exception message is "
+                "``CarrierNda: invalid\n"
+                "    parameter (need m in {2,4,8}, sps a whole multiple of n with "
+                "sps / n <=\n"
+                "    64, and bn >= 0 and zeta > 0, both finite, whose loop gains "
+                "come out\n"
+                "    finite)``.\n"
                 "\n"
                 "Examples\n"
                 "--------\n"

@@ -73,7 +73,7 @@ _SymbolSync component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  void | [**dp\_symsync\_configure**](#function-dp_symsync_configure) ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state, double bn, double zeta) <br>_Recompute the loop gains for a new (bn, zeta); preserve the timing estimate._  |
+|  int | [**dp\_symsync\_configure**](#function-dp_symsync_configure) ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state, double bn, double zeta) <br>_Recompute the loop gains for a new (bn, zeta); preserve the timing estimate._  |
 |  int | [**dp\_symsync\_configure\_lock**](#function-dp_symsync_configure_lock) ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state, double rolloff, double esno\_min\_db, double pfa, double pd) <br>_Tune the always-on timing-lock detector to a target (pfa, pd) at a given link operating point._  |
 |  void | [**dp\_symsync\_configure\_lock\_raw**](#function-dp_symsync_configure_lock_raw) ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state, size\_t avgs, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Set the lock detector's raw geometry directly._  |
 |  [**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* | [**dp\_symsync\_create**](#function-dp_symsync_create) (size\_t sps, double bn, double zeta, int order, int ted) <br>_Create a symsync instance._  |
@@ -86,7 +86,7 @@ _SymbolSync component API._ [More...](#detailed-description)
 |  double | [**dp\_symsync\_get\_timing\_error**](#function-dp_symsync_get_timing_error) (const [**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state) <br> |
 |  void | [**dp\_symsync\_init**](#function-dp_symsync_init) ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* s, size\_t sps, double bn, double zeta, int order, int ted) <br>_Initialise a SymbolSync in place (no allocation)._  |
 |  void | [**dp\_symsync\_reset**](#function-dp_symsync_reset) ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state) <br>_Re-seed the timing loop to its nominal rate and zero phase._  |
-|  void | [**dp\_symsync\_set\_bn**](#function-dp_symsync_set_bn) ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state, double val) <br> |
+|  int | [**dp\_symsync\_set\_bn**](#function-dp_symsync_set_bn) ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state, double val) <br>_Retune bn, keeping zeta:_ [_**dp\_symsync\_configure()**_](symsync__core_8h.md#function-dp_symsync_configure) _'s refusal and status. As a writable property it refuses without raising until just-buildit/just-makeit#2182: the value stays put._ |
 |  int | [**dp\_symsync\_set\_state**](#function-dp_symsync_set_state) ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state, const void \* blob) <br> |
 |  int | [**dp\_symsync\_set\_telemetry**](#function-dp_symsync_set_telemetry) ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the timing loop's probes on it. Registers five probes, emitted once per recovered symbol and further thinned by decim: "&lt;prefix&gt;.e" (the normalised TED error — the loop stress), "&lt;prefix&gt;.freq" (the loop-filter control steering the timing NCO, fractional rate offset), "&lt;prefix&gt;.rate" (the smoothed tracked samples/symbol), "&lt;prefix&gt;.lock" (the last block-averaged lock\_signal, held between avgs-look updates) and "&lt;prefix&gt;.locked" (the verify-counted lockdet decision, 0/1). Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_ [_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._ |
 |  size\_t | [**dp\_symsync\_state\_bytes**](#function-dp_symsync_state_bytes) (const [**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state) <br> |
@@ -194,7 +194,7 @@ enum symsync__core_8h_1abed82baf7f470b522273a3e37c24c600 {
 
 _Recompute the loop gains for a new (bn, zeta); preserve the timing estimate._ 
 ```C++
-void dp_symsync_configure (
+int dp_symsync_configure (
     dp_symsync_state_t * state,
     double bn,
     double zeta
@@ -222,6 +222,13 @@ Retunes the PI timing loop in place: the proportional/integral gains are recompu
 0.05
 ```
  
+
+
+
+**Returns:**
+
+`DP_OK`, or `DP_ERR_INVALID` for a (bn, zeta) outside [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok); a refusal changes nothing, so the bandwidth the getter reports is always the one the loop runs (doppler#2112). 
+
 
 
 
@@ -592,8 +599,9 @@ Restores the object to its post-create state: the timing NCO is zeroed to the no
 
 ### function dp\_symsync\_set\_bn 
 
+_Retune bn, keeping zeta:_ [_**dp\_symsync\_configure()**_](symsync__core_8h.md#function-dp_symsync_configure) _'s refusal and status. As a writable property it refuses without raising until just-buildit/just-makeit#2182: the value stays put._
 ```C++
-void dp_symsync_set_bn (
+int dp_symsync_set_bn (
     dp_symsync_state_t * state,
     double val
 ) 

@@ -68,7 +68,7 @@ _Costas carrier-tracking loop (integer-NCO de-rotation + PI loop)._ [More...](#d
 | ---: | :--- |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**costas\_update**](#function-costas_update) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* s, float \_Complex P) <br>_Per-symbol carrier update: discriminator -&gt; loop filter -&gt; steer NCO._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**costas\_wipeoff**](#function-costas_wipeoff) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* s, float \_Complex x) <br>_Per-sample carrier wipe-off: de-rotate_ `x` _by the NCO, advance it._ |
-|  void | [**dp\_costas\_configure**](#function-dp_costas_configure) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, double bn, double zeta) <br>_Recompute the loop-filter gains for a new (_ `bn` _,_`zeta` _) without disturbing the frequency/phase estimate._ |
+|  int | [**dp\_costas\_configure**](#function-dp_costas_configure) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, double bn, double zeta) <br>_Recompute the loop-filter gains for a new (_ `bn` _,_`zeta` _) without disturbing the frequency/phase estimate._ |
 |  void | [**dp\_costas\_configure\_lock**](#function-dp_costas_configure_lock) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Re-tune the carrier lock detector's thresholds and verify counts._  |
 |  [**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* | [**dp\_costas\_create**](#function-dp_costas_create) (double bn, double zeta, double init\_norm\_freq, size\_t tsamps, double bn\_fll) <br>_Create a Costas instance._  |
 |  void | [**dp\_costas\_destroy**](#function-dp_costas_destroy) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state) <br>_Destroy a Costas instance and release all memory._  |
@@ -82,7 +82,7 @@ _Costas carrier-tracking loop (integer-NCO de-rotation + PI loop)._ [More...](#d
 |  void | [**dp\_costas\_get\_state**](#function-dp_costas_get_state) (const [**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, void \* blob) <br>_Serialize the full loop state into_ `blob` _._ |
 |  void | [**dp\_costas\_init**](#function-dp_costas_init) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* s, double bn, double zeta, double init\_norm\_freq, size\_t tsamps, double bn\_fll) <br>_Initialise a Costas loop in place (no allocation)._  |
 |  void | [**dp\_costas\_reset**](#function-dp_costas_reset) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state) <br>_Re-seed the loop to its create-time frequency/phase; keep config._  |
-|  void | [**dp\_costas\_set\_bn**](#function-dp_costas_set_bn) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, double val) <br> |
+|  int | [**dp\_costas\_set\_bn**](#function-dp_costas_set_bn) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, double val) <br>_Retune bn, keeping zeta:_ [_**dp\_costas\_configure()**_](costas__core_8h.md#function-dp_costas_configure) _'s refusal and status. As a writable property it refuses without raising until just-buildit/just-makeit#2182: the value stays put._ |
 |  void | [**dp\_costas\_set\_bn\_fll**](#function-dp_costas_set_bn_fll) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, double val) <br> |
 |  void | [**dp\_costas\_set\_norm\_freq**](#function-dp_costas_set_norm_freq) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, double val) <br> |
 |  int | [**dp\_costas\_set\_state**](#function-dp_costas_set_state) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, const void \* blob) <br>_Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects._  |
@@ -234,7 +234,7 @@ The de-rotated sample to feed the integrator.
 
 _Recompute the loop-filter gains for a new (_ `bn` _,_`zeta` _) without disturbing the frequency/phase estimate._
 ```C++
-void dp_costas_configure (
+int dp_costas_configure (
     dp_costas_state_t * state,
     double bn,
     double zeta
@@ -262,6 +262,13 @@ Re-derives the PI coefficients from the loop bandwidth and damping and installs 
 (0.02, 0.01)
 ```
  
+
+
+
+**Returns:**
+
+`DP_OK`, or `DP_ERR_INVALID` for a (bn, zeta) outside [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok); a refusal changes nothing, so the bandwidth the getter reports is always the one the loop runs (doppler#2112). 
+
 
 
 
@@ -610,8 +617,9 @@ True
 
 ### function dp\_costas\_set\_bn 
 
+_Retune bn, keeping zeta:_ [_**dp\_costas\_configure()**_](costas__core_8h.md#function-dp_costas_configure) _'s refusal and status. As a writable property it refuses without raising until just-buildit/just-makeit#2182: the value stays put._
 ```C++
-void dp_costas_set_bn (
+int dp_costas_set_bn (
     dp_costas_state_t * state,
     double val
 ) 

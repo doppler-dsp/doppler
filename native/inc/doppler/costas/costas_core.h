@@ -330,10 +330,17 @@ size_t dp_costas_steps(dp_costas_state_t *state, const float _Complex *x, size_t
  * (0.02, 0.01)
  *
  * @endcode
+ * @return `DP_OK`, or `DP_ERR_INVALID` for a (bn, zeta) outside
+ *         dp_loop_filter_params_ok(); a refusal changes nothing, so the
+ *         bandwidth the getter reports is always the one the loop runs
+ *         (doppler#2112).
  */
-void dp_costas_configure(dp_costas_state_t *state, double bn, double zeta);
+int dp_costas_configure(dp_costas_state_t *state, double bn, double zeta);
 double dp_costas_get_bn(const dp_costas_state_t *state);
-void dp_costas_set_bn(dp_costas_state_t *state, double val);
+/** @brief Retune bn, keeping zeta: dp_costas_configure()'s refusal and status.
+ *  As a writable property it refuses without raising until
+ *  just-buildit/just-makeit#2182: the value stays put. */
+int dp_costas_set_bn(dp_costas_state_t *state, double val);
 double dp_costas_get_norm_freq(const dp_costas_state_t *state);
 /** @brief Effective NCO frequency command (loop-filter output = integrator +
  * proportional), cycles/sample. Mean rides a ramp with no lag, unlike the

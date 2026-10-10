@@ -292,6 +292,10 @@ def test_acq_handoff_verify_reject():
         ({"spacing": float("nan")}, "0 < spacing < len"),
         ({"init_chip": float("nan")}, "a finite init_chip"),
         ({"bn_code": float("nan")}, "bn_code >= 0 and zeta > 0 both finite"),
+        # The carrier loop's, embedded through an unguarded Costas init
+        # (doppler#2112).
+        ({"bn_carrier": float("nan")}, "bn_carrier >= 0, finite"),
+        ({"bn_carrier": 1e200}, "finite loop gains for both"),
     ],
 )
 def test_create_refuses_a_bad_code_loop_parameter(kw, names):

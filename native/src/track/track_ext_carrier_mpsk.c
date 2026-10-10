@@ -58,8 +58,10 @@ CarrierMpskObj_init (CarrierMpskObject *self, PyObject *args, PyObject *kwds)
       = dp_carrier_mpsk_create (bn, zeta, init_norm_freq, tsamps, bn_fll, m);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError,
-                       "dp_carrier_mpsk_create returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "CarrierMpsk: invalid parameter (need m in {2,4,8}, "
+                       "and bn >= 0 and zeta > 0, both finite, whose loop "
+                       "gains come out finite)");
       return -1;
     }
   return 0;
@@ -241,7 +243,13 @@ CarrierMpskObj_configure (CarrierMpskObject *self, PyObject *args,
   double       zeta      = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "dd", _kwlist, &bn, &zeta))
     return NULL;
-  dp_carrier_mpsk_configure (self->handle, bn, zeta);
+  int _rc = dp_carrier_mpsk_configure (self->handle, bn, zeta);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "configure failed",
+                    (long long)_rc);
+      return NULL;
+    }
   Py_RETURN_NONE;
 }
 
@@ -557,7 +565,9 @@ static PyMethodDef CarrierMpskObj_methods[] = {
     "configure(bn, zeta) -> None\n"
     "\n"
     "Recompute the loop gains for a new (bn, zeta); preserves the "
-    "frequency/phase estimate.\n"
+    "frequency/phase estimate. Raises ValueError, changing nothing, when (bn, "
+    "zeta) is outside the loop filter's domain: bn >= 0 and zeta > 0, both "
+    "finite, with finite gains.\n"
     "\n"
     "Re-derives the proportional/integral gains of the embedded 2nd-order\n"
     "loop filter for the new noise bandwidth and damping, leaving the\n"
@@ -572,6 +582,12 @@ static PyMethodDef CarrierMpskObj_methods[] = {
     "    Loop noise bandwidth, normalised to the symbol rate.\n"
     "zeta : float\n"
     "    Damping factor (0.707 = critically damped).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``configure failed``, with the return code appended (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -724,6 +740,15 @@ static PyTypeObject CarrierMpskObjType = {
                 "    FLL-assist bandwidth (default 0.0 = pure PLL).\n"
                 "m : int, default 4\n"
                 "    Constellation order M, 2/4/8 (default 4 = QPSK).\n"
+                "\n"
+                "Raises\n"
+                "------\n"
+                "ValueError\n"
+                "    If construction fails. The exception message is "
+                "``CarrierMpsk: invalid\n"
+                "    parameter (need m in {2,4,8}, and bn >= 0 and zeta > 0, both "
+                "finite,\n"
+                "    whose loop gains come out finite)``.\n"
                 "\n"
                 "Examples\n"
                 "--------\n"

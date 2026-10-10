@@ -5,6 +5,8 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "Costas"
+create_error = "ValueError"
+create_error_message = "Costas: invalid parameter (need bn >= 0 and zeta > 0, both finite, whose loop gains come out finite)"
 serializable = "true"
 depends_on = [
   { name = "lo", link = true },
@@ -67,9 +69,10 @@ params = [
 
 [[costas.methods]]
 name = "configure"
-doc = "Recompute the loop gains for a new (bn, zeta); preserves the frequency/phase estimate."
+doc = "Recompute the loop gains for a new (bn, zeta); preserves the frequency/phase estimate. Raises ValueError, changing nothing, when (bn, zeta) is outside the loop filter's domain: bn >= 0 and zeta > 0, both finite, with finite gains."
 arg_type = "void"
-return_type = "void"
+return_type = "int"
+status_return = true
 params = [{ name = "bn", type = "double" }, { name = "zeta", type = "double" }]
 
 [[costas.methods]]

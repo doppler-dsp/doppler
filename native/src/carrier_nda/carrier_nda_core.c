@@ -66,12 +66,21 @@ seed (dp_carrier_nda_state_t *s, double init_norm_freq)
  * t = 1); n only sets the window length, so the gains are n-invariant. Folding
  * the radian->cycle constant into the gains leaves the open-loop product (disc
  * slope x gains x NCO gain) unchanged, so the dynamics are identical. */
-static void
-config_loop (dp_carrier_nda_state_t *s)
+static int
+config_loop (dp_carrier_nda_state_t *s, double bn, double zeta)
 {
-  dp_loop_filter_configure (&s->lf, s->bn, s->zeta, 1.0);
+  /* Scaled, and bn/zeta stored, only once the loop filter took them: it
+     refuses outside its domain and writes nothing, and scaling its
+     unchanged gains anyway divided the live loop by 2 pi again on every
+     refused retune while the getter reported the refused value
+     (doppler#2112). */
+  if (dp_loop_filter_configure (&s->lf, bn, zeta, 1.0) != DP_OK)
+    return DP_ERR_INVALID;
   s->lf.kp *= CARRIER_NDA_INV_2PI;
   s->lf.ki *= CARRIER_NDA_INV_2PI;
+  s->bn   = bn;
+  s->zeta = zeta;
+  return DP_OK;
 }
 
 void
@@ -84,15 +93,15 @@ dp_carrier_nda_init (dp_carrier_nda_state_t *s, double bn, double zeta,
   s->arm_len = s->sps / (size_t)s->n;
   if (s->arm_len == 0)
     s->arm_len = 1;
-  s->bn             = bn;
-  s->zeta           = zeta;
   s->seed_norm_freq = init_norm_freq;
   /* In-place (stack/by-value-embedded) init: start detached. seed() is the
    * reset path and deliberately never touches `tlm`, so a reset keeps a live
    * attachment; that leaves init responsible for the initial zero.
    * dp_carrier_nda_create's calloc gets this for free. */
   memset (&s->tlm, 0, sizeof s->tlm);
-  config_loop (s);
+  /* By-value init is unguarded: the caller checks (bn, zeta) with
+     dp_loop_filter_params_ok() first, as dp_carrier_nda_create() does. */
+  (void)config_loop (s, bn, zeta);
   dp_lockdet_init (
       &s->lockdet, CARRIER_NDA_LOCK_DEFAULT_UP, CARRIER_NDA_LOCK_DEFAULT_DOWN,
       CARRIER_NDA_LOCK_DEFAULT_N_UP, CARRIER_NDA_LOCK_DEFAULT_N_DOWN);
@@ -109,6 +118,10 @@ dp_carrier_nda_create (double bn, double zeta, double init_norm_freq,
     return NULL; /* arm length must be a whole number of samples */
   if (sps / (size_t)n > BOXCAR_MAX_LEN)
     return NULL; /* boxcar arm window is a fixed in-struct ring */
+  /* The loop filter's own domain, refused before allocating: a NaN or an
+     overflowing bandwidth gave gains that never recover (doppler#2112). */
+  if (!dp_loop_filter_params_ok (bn, zeta, 1.0))
+    return NULL;
   dp_carrier_nda_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
     return NULL;
@@ -315,11 +328,10 @@ dp_carrier_nda_get_bn (const dp_carrier_nda_state_t *state)
   return state->bn;
 }
 
-void
+int
 dp_carrier_nda_set_bn (dp_carrier_nda_state_t *state, double val)
 {
-  state->bn = val;
-  config_loop (state);
+  return config_loop (state, val, state->zeta);
 }
 
 int

@@ -321,6 +321,13 @@ class Costas:
     bn_fll : float, default 0.0
         bn_fll constructor parameter.
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``Costas: invalid
+        parameter (need bn >= 0 and zeta > 0, both finite, whose loop gains
+        come out finite)``.
+
     Examples
     --------
     Create with defaults:
@@ -462,7 +469,9 @@ class Costas:
 
     def configure(self, bn: float, zeta: float) -> None:
         """Recompute the loop gains for a new (bn, zeta); preserves the
-        frequency/phase estimate.
+        frequency/phase estimate. Raises ValueError, changing nothing, when
+        (bn, zeta) is outside the loop filter's domain: bn >= 0 and zeta > 0,
+        both finite, with finite gains.
 
         Re-derives the PI coefficients from the loop bandwidth and damping and
         installs them live. The NCO frequency, phase and loop integrator are
@@ -476,6 +485,12 @@ class Costas:
             Loop noise bandwidth, normalised to the symbol rate.
         zeta : float
             Damping factor (0.707 = critically damped).
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``configure failed``, with the return code appended (gh-869).
 
         Examples
         --------
@@ -1553,6 +1568,13 @@ class SymbolSync:
         lower self-noise near lock but degrades faster at low SNR. BPSK/QPSK
         only -- invalid for 8PSK/QAM).
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``SymbolSync: invalid
+        parameter (need bn >= 0 and zeta > 0, both finite, whose loop gains
+        come out finite)``.
+
     Examples
     --------
     Create with defaults:
@@ -1691,7 +1713,9 @@ class SymbolSync:
 
     def configure(self, bn: float, zeta: float) -> None:
         """Recompute the loop gains for a new (bn, zeta); preserve the timing
-        estimate.
+        estimate. Raises ValueError, changing nothing, when (bn, zeta) is
+        outside the loop filter's domain: bn >= 0 and zeta > 0, both finite,
+        with finite gains.
 
         Retunes the PI timing loop in place: the proportional/integral gains
         are recomputed from the new noise bandwidth and damping, while the NCO
@@ -1705,6 +1729,12 @@ class SymbolSync:
             Loop noise bandwidth, normalised to the symbol rate (>= 0).
         zeta : float
             Damping factor (0.707 = critically damped).
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``configure failed``, with the return code appended (gh-869).
 
         Examples
         --------
@@ -2473,6 +2503,13 @@ class CarrierMpsk:
     m : int, default 4
         Constellation order M, 2/4/8 (default 4 = QPSK).
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``CarrierMpsk: invalid
+        parameter (need m in {2,4,8}, and bn >= 0 and zeta > 0, both finite,
+        whose loop gains come out finite)``.
+
     Examples
     --------
     Create with defaults:
@@ -2580,7 +2617,9 @@ class CarrierMpsk:
 
     def configure(self, bn: float, zeta: float) -> None:
         """Recompute the loop gains for a new (bn, zeta); preserves the
-        frequency/phase estimate.
+        frequency/phase estimate. Raises ValueError, changing nothing, when
+        (bn, zeta) is outside the loop filter's domain: bn >= 0 and zeta > 0,
+        both finite, with finite gains.
 
         Re-derives the proportional/integral gains of the embedded 2nd-order
         loop filter for the new noise bandwidth and damping, leaving the
@@ -2595,6 +2634,12 @@ class CarrierMpsk:
             Loop noise bandwidth, normalised to the symbol rate.
         zeta : float
             Damping factor (0.707 = critically damped).
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``configure failed``, with the return code appended (gh-869).
 
         Examples
         --------
@@ -2789,6 +2834,14 @@ class CarrierNda:
         MA window divisor: window = sps/n (default 4; sps%n==0).
     m : int, default 4
         Constellation order M, 2/4/8 (default 4 = QPSK).
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``CarrierNda: invalid
+        parameter (need m in {2,4,8}, sps a whole multiple of n with sps / n <=
+        64, and bn >= 0 and zeta > 0, both finite, whose loop gains come out
+        finite)``.
 
     Examples
     --------

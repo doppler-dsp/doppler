@@ -45,11 +45,14 @@ dp_despreader_create (const uint8_t *code, size_t code_len, size_t sps,
                       double bn_carrier, double bn_code, double bn_fll,
                       double zeta, double spacing, size_t periods_per_bit)
 {
-  /* The code loop is a Dll embedded by value through dp_dll_init(), which
-     trusts its arguments, so they meet the Dll's own domain here: a NaN
-     spacing read code[2^62] on the first sample (doppler#2103). */
+  /* Both loops are embedded by value through unguarded inits, so their
+     arguments meet each one's own domain here (doppler#2103): the code
+     loop's Dll (a NaN spacing read code[2^62] on the first sample), and the
+     carrier loop's filter, which Costas runs at one update a symbol (a NaN
+     bn_carrier gave NaN gains). */
   if (!code
-      || !dp_dll_params_ok (code_len, init_chip, bn_code, zeta, spacing, 1))
+      || !dp_dll_params_ok (code_len, init_chip, bn_code, zeta, spacing, 1)
+      || !dp_loop_filter_params_ok (bn_carrier, zeta, 1.0))
     return NULL;
   dp_despreader_state_t *ch = calloc (1, sizeof (*ch));
   if (!ch)
@@ -389,10 +392,10 @@ dp_despreader_get_bn_carrier (const dp_despreader_state_t *state)
   return state->car.bn;
 }
 
-void
+int
 dp_despreader_set_bn_carrier (dp_despreader_state_t *state, double val)
 {
-  dp_costas_set_bn (&state->car, val);
+  return dp_costas_set_bn (&state->car, val);
 }
 
 double

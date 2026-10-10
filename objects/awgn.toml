@@ -5,6 +5,8 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "AWGN"
+create_error = "ValueError"
+create_error_message = "AWGN: invalid parameter (need amplitude finite and >= 0)"
 serializable = "true"
 fragment = "generated"
 

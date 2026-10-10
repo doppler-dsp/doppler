@@ -267,6 +267,85 @@ test_state_roundtrip (void)
 }
 
 /* ------------------------------------------------------------------
+ * test_forged_state_refused: a bad amplitude or an all-zero RNG state in a
+ * live blob is refused, and the target is left byte-identical (#2084).
+ *
+ * set_state() restored the amplitude with no check, so a NaN or negative
+ * sigma came back as the generator's amplitude, and an all-zero s[4] is
+ * xoshiro256++'s fixed point, which emits zeros forever. The create and the
+ * setter take the same amplitude predicate: create refuses it, and the setter
+ * ignores it. The blob layout is [hdr][u64 s[4]][u64 seed][f32 amplitude];
+ * each case forges one field and compares the whole state, not one value.
+ * ------------------------------------------------------------------ */
+static void
+test_forged_state_refused (void)
+{
+  printf ("\n-- Forged state refused --\n");
+  const float    nanf = NAN, negf = -1.0f, inff = INFINITY;
+  const uint64_t zero4[4] = { 0, 0, 0, 0 };
+
+  /* The create and the setter take the same predicate. */
+  DP_CHECK (dp_awgn_create (1, nanf) == NULL);
+  DP_CHECK (dp_awgn_create (1, inff) == NULL);
+  DP_CHECK (dp_awgn_create (1, negf) == NULL);
+  dp_awgn_state_t *g = dp_awgn_create (1, 2.0f);
+  DP_CHECK (g != NULL);
+  if (!g)
+    return;
+  dp_awgn_set_amplitude (g, nanf);
+  dp_awgn_set_amplitude (g, inff);
+  dp_awgn_set_amplitude (g, negf);
+  DP_CHECK (dp_awgn_get_amplitude (g) == 2.0f); /* ignored, not taken */
+
+  dp_awgn_state_t *src    = dp_awgn_create (5, 1.0f);
+  dp_awgn_state_t *dst    = dp_awgn_create (5, 1.0f);
+  const size_t     sb     = dp_awgn_state_bytes (src);
+  unsigned char   *blob   = malloc (sb);
+  unsigned char   *before = malloc (sb);
+  unsigned char   *after  = malloc (sb);
+  dp_awgn_get_state (src, blob);
+  const size_t base = sizeof (dp_state_hdr_t);
+  const size_t amp  = base + 4 * sizeof (uint64_t) + sizeof (uint64_t);
+
+  struct
+  {
+    size_t      off, len;
+    const void *val;
+    const char *what;
+  } forge[] = {
+    { amp, sizeof nanf, &nanf, "a NaN amplitude" },
+    { amp, sizeof inff, &inff, "an infinite amplitude" },
+    { amp, sizeof negf, &negf, "a negative amplitude" },
+    { base, sizeof zero4, zero4, "an all-zero RNG state" },
+  };
+  for (size_t k = 0; k < sizeof forge / sizeof *forge; k++)
+    {
+      dp_awgn_get_state (dst, before);
+      unsigned char *bad = malloc (sb);
+      memcpy (bad, blob, sb);
+      memcpy (bad + forge[k].off, forge[k].val, forge[k].len);
+      const int rc = dp_awgn_set_state (dst, bad);
+      dp_awgn_get_state (dst, after);
+      if (rc != DP_ERR_INVALID)
+        fprintf (stderr, "  forged blob accepted: %s\n", forge[k].what);
+      DP_CHECK (rc == DP_ERR_INVALID);
+      DP_CHECK (memcmp (after, before, sb) == 0);
+      free (bad);
+    }
+
+  /* The unforged blob still restores, so the refusals are not the whole
+     path failing. */
+  DP_CHECK (dp_awgn_set_state (dst, blob) == DP_OK);
+
+  dp_awgn_destroy (g);
+  dp_awgn_destroy (src);
+  dp_awgn_destroy (dst);
+  free (blob);
+  free (before);
+  free (after);
+}
+
+/* ------------------------------------------------------------------
  * test_stream_pinned: the sequence is PINNED, not merely self-consistent.
  *
  * gh-690: this generator shipped with two implementations selected at run
@@ -341,6 +420,7 @@ main (void)
   test_split_block ();
   test_oneshot ();
   test_state_roundtrip ();
+  test_forged_state_refused ();
 
   printf ("\n");
   DP_TEST_END ("test_awgn_core");

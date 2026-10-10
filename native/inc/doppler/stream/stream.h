@@ -415,7 +415,11 @@ extern "C"
    * @param num_samples Number of complex samples.
    * @param sample_rate Sample rate in Hz.
    * @param center_freq Centre frequency in Hz.
-   * @return DP_OK (0) on success, negative error code on failure.
+   * @return DP_OK (0) on success, negative error code on failure;
+   *         DP_ERR_TOO_LARGE when the payload, num_samples times the
+   *         element size, would not fit the header's 32-bit
+   *         payload_bytes. The limit is checked before multiplying, so
+   *         a count whose byte size wraps is refused, not sent.
    */
   int dp_pub_send_ci32 (dp_pub_t *ctx, const int32_t *samples,
                         size_t num_samples, double sample_rate,

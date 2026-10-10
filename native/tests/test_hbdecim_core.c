@@ -291,6 +291,62 @@ test_state_roundtrip (void)
   DP_CHECK_MSG (ok, "resume from serialized state is bit-exact");
 }
 
+/* The blob is a function of the object: a held even sample is state, but
+ * once consumed, or after reset, `pending` used to keep the stale sample
+ * while has_pending was 0, so it rode into every composition's blob
+ * (RateConverter's halfband stages). Feeding the same input in one call or
+ * split at an odd cut leaves the same state, so the blobs must match, each
+ * written into a differently poisoned buffer. */
+static void
+test_blob_carries_no_stale_pending (void)
+{
+  const size_t L = 400;
+  float _Complex in[400], out[200];
+  tone (in, L, 0.07);
+
+  hbdecim_state_t *whole = dp_hbdecim_create (N_TAPS, H4_FIR);
+  hbdecim_state_t *split = dp_hbdecim_create (N_TAPS, H4_FIR);
+  hbdecim_state_t *reset = dp_hbdecim_create (N_TAPS, H4_FIR);
+  hbdecim_state_t *fresh = dp_hbdecim_create (N_TAPS, H4_FIR);
+  DP_CHECK (whole && split && reset && fresh);
+  if (!(whole && split && reset && fresh))
+    return;
+  dp_hbdecim_execute (whole, in, L, out, 200);
+  size_t got = dp_hbdecim_execute (split, in, 157, out, 200);
+  DP_CHECK (split->has_pending == 1); /* the odd cut really held one */
+  dp_hbdecim_execute (split, in + 157, L - 157, out + got, 200 - got);
+  dp_hbdecim_execute (reset, in, 157, out, 200);
+  DP_CHECK (reset->has_pending == 1);
+  dp_hbdecim_reset (reset);
+
+  const size_t   sb = dp_hbdecim_state_bytes (whole);
+  unsigned char *bw = malloc (sb), *bs = malloc (sb);
+  unsigned char *br = malloc (sb), *bf = malloc (sb);
+  DP_CHECK (bw && bs && br && bf);
+  if (!(bw && bs && br && bf))
+    return;
+  memset (bw, 0xA5, sb);
+  memset (bs, 0x5A, sb);
+  memset (br, 0xA5, sb);
+  memset (bf, 0x5A, sb);
+  dp_hbdecim_get_state (whole, bw);
+  dp_hbdecim_get_state (split, bs);
+  dp_hbdecim_get_state (reset, br);
+  dp_hbdecim_get_state (fresh, bf);
+  DP_CHECK_MSG (memcmp (bw, bs, sb) == 0,
+                "a consumed pending sample leaves no trace in the blob");
+  DP_CHECK_MSG (memcmp (br, bf, sb) == 0,
+                "reset leaves no stale pending sample in the blob");
+  free (bw);
+  free (bs);
+  free (br);
+  free (bf);
+  dp_hbdecim_destroy (whole);
+  dp_hbdecim_destroy (split);
+  dp_hbdecim_destroy (reset);
+  dp_hbdecim_destroy (fresh);
+}
+
 /* ================================================================== */
 /* main                                                                */
 /* ================================================================== */
@@ -307,6 +363,7 @@ main (void)
   test_dc_passthrough ();
   test_alias_rejection ();
   test_state_roundtrip ();
+  test_blob_carries_no_stale_pending ();
 
   DP_TEST_END ("test_hbdecim_core");
 }

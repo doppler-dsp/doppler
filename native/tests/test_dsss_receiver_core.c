@@ -20,6 +20,7 @@
 #include "dp_sym_test.h"
 #include "dp_test.h"
 #include <math.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -514,9 +515,16 @@ _test_carry_buffer_state_roundtrip (void)
 
   /* The carry region is the blob's last tsamps samples: the live carry,
      then zeros, never the earlier periods still in the buffer's tail
-     (#2076's sibling). Writing the whole buffer again turns this red. */
+     (#2076's sibling). Writing the whole buffer again turns this red. The
+     source's own tail is checked non-zero first, so the test cannot pass
+     on a buffer that happened to hold zeros there. */
   {
-    const size_t         fc = sizeof (float _Complex);
+    const size_t         fc    = sizeof (float _Complex);
+    const unsigned char *src   = (const unsigned char *)rx->car_carry_buf;
+    size_t               dirty = 0;
+    for (size_t i = rx->car_carry_len * fc; i < rx->tsamps * fc; i++)
+      dirty += src[i] != 0;
+    DP_CHECK (dirty > 0);
     const unsigned char *carry
         = (const unsigned char *)blob + cb - rx->tsamps * fc;
     DP_CHECK (memcmp (carry, rx->car_carry_buf, rx->car_carry_len * fc) == 0);
@@ -531,6 +539,27 @@ _test_carry_buffer_state_roundtrip (void)
   DP_CHECK (rx2 != NULL);
   if (rx2)
     {
+      /* A live carry is 0..tsamps-1 samples, so a blob claiming tsamps is
+         refused: steps never leaves one, and get_state never writes it.
+         The field is found by offsetof on the public extra, and checked
+         against the live value before it is patched. */
+      {
+        unsigned char *cp = malloc (cb);
+        DP_REQUIRE (cp != NULL);
+        memcpy (cp, blob, cb);
+        const size_t at = sizeof (dp_state_hdr_t)
+                          + offsetof (dsss_receiver_extra_t, car_carry_len);
+        uint64_t     v;
+        memcpy (&v, cp + at, sizeof v);
+        DP_CHECK (v == rx->car_carry_len);
+        v = rx->tsamps - 1;
+        memcpy (cp + at, &v, sizeof v);
+        DP_CHECK (dp_dsss_receiver_set_state (rx2, cp) == DP_OK);
+        v = rx->tsamps;
+        memcpy (cp + at, &v, sizeof v);
+        DP_CHECK (dp_dsss_receiver_set_state (rx2, cp) == DP_ERR_INVALID);
+        free (cp);
+      }
       DP_CHECK (dp_dsss_receiver_set_state (rx2, blob) == DP_OK);
       DP_CHECK (rx2->car_carry_len == rx->car_carry_len);
 

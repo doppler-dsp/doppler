@@ -1531,7 +1531,7 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
   if (extra.segments != (uint64_t)s->segments || extra.sps != (uint64_t)s->sps
       || extra.n != (uint64_t)s->n
       || extra.refine_segments != (uint64_t)s->refine_segments
-      || extra.car_carry_len > (uint64_t)s->tsamps
+      || extra.car_carry_len >= (uint64_t)s->tsamps
       || extra.cell != (uint8_t)(s->cell != 0)
       || extra.state > ASYNC_DSSS_RX_LOST)
     return DP_ERR_INVALID;

@@ -583,12 +583,12 @@ dp_dsss_receiver_set_state (dp_dsss_receiver_state_t *s, const void *blob)
    * freshly-created (searching) engine can restore a tracking blob and
    * vice versa, since all five children always exist either way.
    * car_carry_len is bounds-checked against this instance's own tsamps
-   * capacity before it's used to size the cf32 read below -- a corrupt
-   * or hostile blob claiming an oversized carry must be rejected, not
-   * overrun the fixed-capacity car_carry_buf. */
+   * capacity: a live carry is 0..tsamps-1 samples (steps processes a full
+   * period at once), so a blob claiming tsamps or more is one get_state
+   * never wrote, and is refused rather than restored. */
   if (extra.segments != (uint64_t)s->segments || extra.sps != (uint64_t)s->sps
       || extra.n != (uint64_t)s->n
-      || extra.car_carry_len > (uint64_t)s->tsamps)
+      || extra.car_carry_len >= (uint64_t)s->tsamps)
     return DP_ERR_INVALID;
   DP_R_CHILD (&_r, dp_acq, s->acq);
   DP_R_CHILD (&_r, dp_costas, &s->car);

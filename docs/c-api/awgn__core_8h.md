@@ -70,7 +70,7 @@ _Additive White Gaussian Noise generator._ [More...](#detailed-description)
 |  void | [**dp\_awgn\_get\_state**](#function-dp_awgn_get_state) (const [**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state, void \* blob) <br>_Serialize the RNG state, seed and amplitude into_ `blob` _._ |
 |  void | [**dp\_awgn\_reseed**](#function-dp_awgn_reseed) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state, uint64\_t seed) <br>_Reseed the RNG and reset all xoshiro256++ state. Equivalent to calling_ [_**dp\_awgn\_destroy()**_](awgn__core_8h.md#function-dp_awgn_destroy) _and dp\_awgn\_create(seed, amplitude) but reuses the existing allocation. amplitude is unchanged._ |
 |  void | [**dp\_awgn\_reset**](#function-dp_awgn_reset) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state) <br>_Reset RNG to the current seed. The current seed is the one create took, or the last one_ [_**dp\_awgn\_reseed()**_](awgn__core_8h.md#function-dp_awgn_reseed) _or a restored blob set. Re-runs the SplitMix64 seeding procedure with it, so the next_[_**dp\_awgn\_generate()**_](awgn__core_8h.md#function-dp_awgn_generate) _call produces exactly the same samples as the first call after that seed was set. amplitude is not changed._ |
-|  void | [**dp\_awgn\_set\_amplitude**](#function-dp_awgn_set_amplitude) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state, float val) <br>_Set amplitude without disturbing RNG state._  |
+|  int | [**dp\_awgn\_set\_amplitude**](#function-dp_awgn_set_amplitude) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state, float val) <br>_Set amplitude without disturbing RNG state._  |
 |  int | [**dp\_awgn\_set\_state**](#function-dp_awgn_set_state) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state, const void \* blob) <br>_Restore the RNG state, seed and amplitude; DP\_OK, or DP\_ERR\_INVALID if rejected (and nothing changes)._  |
 |  size\_t | [**dp\_awgn\_state\_bytes**](#function-dp_awgn_state_bytes) (const [**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state) <br>_Serialized-state byte size._  |
 
@@ -185,7 +185,7 @@ dp_awgn_destroy(g);
 
 **Returns:**
 
-DP\_OK on success, DP\_ERR\_MEMORY on allocation failure. 
+DP\_OK on success; DP\_ERR\_INVALID for an amplitude outside [**dp\_awgn\_amplitude\_ok()**](awgn__core_8h.md#function-dp_awgn_amplitude_ok), checked before any allocation; DP\_ERR\_MEMORY on allocation failure. 
 
 
 
@@ -254,7 +254,10 @@ int dp_awgn_amplitude_ok (
 
 
 
-The one predicate. [**dp\_awgn\_create()**](awgn__core_8h.md#function-dp_awgn_create) refuses outside it, [**dp\_awgn\_set\_state()**](awgn__core_8h.md#function-dp_awgn_set_state) refuses a blob outside it before it writes anything, and [**dp\_awgn\_set\_amplitude()**](awgn__core_8h.md#function-dp_awgn_set_amplitude) ignores such a value. A NaN fails both comparisons, so it is outside.
+The one predicate. [**dp\_awgn\_create()**](awgn__core_8h.md#function-dp_awgn_create) refuses outside it, [**dp\_awgn\_set\_state()**](awgn__core_8h.md#function-dp_awgn_set_state) refuses a blob outside it before it writes anything, and [**dp\_awgn\_set\_amplitude()**](awgn__core_8h.md#function-dp_awgn_set_amplitude) refuses such a value. A NaN fails both comparisons, so it is outside.
+
+
+The domain admits a finite amplitude above about 5.9e37 (FLT\_MAX / 5.77), and such an amplitude still produces +/-inf samples: the Box-Muller radius tops out near 5.77 sigma, so the product overflows. It is not a realistic input and the predicate does not refuse it.
 
 
 
@@ -428,7 +431,7 @@ float dp_awgn_get_amplitude (
 
 
 
-
+Assigning an invalid value (NaN, infinite or negative) is ignored: the amplitude keeps its old value, and the property does not raise. 
 ```C++
 >>> from doppler.source import AWGN
 >>> gen = AWGN(seed=0, amplitude=1.0)
@@ -540,7 +543,7 @@ True
 
 _Set amplitude without disturbing RNG state._ 
 ```C++
-void dp_awgn_set_amplitude (
+int dp_awgn_set_amplitude (
     dp_awgn_state_t * state,
     float val
 ) 
@@ -548,7 +551,17 @@ void dp_awgn_set_amplitude (
 
 
 
-An `val` outside [**dp\_awgn\_amplitude\_ok()**](awgn__core_8h.md#function-dp_awgn_amplitude_ok) is ignored and the amplitude stays as it was. The setter returns nothing, so the refusal is silent at this layer; the Python property cannot raise it yet (just-buildit/ just-makeit#1987). 
+An `val` outside [**dp\_awgn\_amplitude\_ok()**](awgn__core_8h.md#function-dp_awgn_amplitude_ok) is refused and the amplitude stays as it was, so a caller that drops the return keeps a valid sigma rather than gaining a bad one. The Python property cannot raise the refusal yet (doppler#1987, waiting on just-makeit#2182), so there it is silent.
+
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID for a value outside the domain (nothing changes). 
+
+
+
 
 
         

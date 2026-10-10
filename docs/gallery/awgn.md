@@ -63,12 +63,13 @@ g = AWGN(seed=42, amplitude=1.0)             # stateful stream
 ```
 
 `amplitude` is the per-component standard deviation and retunes in place
-without disturbing the RNG state; `reset()` rewinds to construction and
-`reseed(s)` replaces the seed and resets:
+without disturbing the RNG state (an invalid value is ignored); `reset()`
+replays the current seed, the one construction or the last `reseed(s)` set,
+and `reseed(s)` replaces the seed and resets:
 
 ```python
 g.amplitude = 0.1        # retune in-place, RNG continues
-g.reset()                # replay from construction
+g.reset()                # replay the current seed
 g.reseed(999)            # new seed + reset
 ```
 

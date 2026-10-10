@@ -441,7 +441,7 @@ static inline void dp_w_zeros (
 
 
 
-Write `n` zero bytes: the part of a fixed-size region no live value fills. A byte get\_state leaves alone is a byte of the caller's heap shipped in the blob (doppler#1471), and one copied from a buffer's unused tail is whatever that buffer held before  either way the blob stops being a function of the object (#2076). 
+Write `n` zero bytes: the part of a fixed-size region no live value fills. A byte get\_state leaves alone is a byte of the caller's heap shipped in the blob (doppler#1471), and one copied from a buffer's unused tail is whatever that buffer held before  either way the blob stops being a function of the object (#2076). Like dp\_w\_reserve, an overrun writes nothing and sets the writer's sticky error. 
 
 
         

@@ -139,7 +139,8 @@ dp_w_f32 (dp_writer_t *w, const float *p, size_t n)
  *  fills. A byte get_state leaves alone is a byte of the caller's heap
  *  shipped in the blob (doppler#1471), and one copied from a buffer's unused
  *  tail is whatever that buffer held before -- either way the blob stops
- *  being a function of the object (#2076). */
+ *  being a function of the object (#2076). Like dp_w_reserve, an overrun
+ *  writes nothing and sets the writer's sticky error. */
 static inline void
 dp_w_zeros (dp_writer_t *w, size_t n)
 {

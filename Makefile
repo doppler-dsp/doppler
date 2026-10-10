@@ -186,7 +186,8 @@ LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format \
                bench-timer bare-libm gnu-flags workflow-tag-triggers \
                version-literals text-encoding cmake-script-policy \
                why-param doc-claims public-symbols curl-fail \
-               warnings-exempt stock-images uv-pin uv-lock tlm-name-join
+               warnings-exempt stock-images uv-pin uv-lock tlm-name-join \
+               ring-internals
 FORMAT_TOOLS = ruff-format ruff mdformat clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -309,6 +310,16 @@ LINT_version-literals = python3 scripts/version_sites.py --check-literals
 # hand-over phase) before #1249 gave it one. No allowlist -- every copy was
 # converted when the gate landed.
 LINT_fmod-fold = $(UV) run python scripts/check_fmod_fold_sites.py
+
+# A ring's head, tail and mask are buffer.h's alone. acq, detector and
+# detector2d each rebuilt the ring's operations from the struct (free space,
+# a frame pointer, a reset by two stores) until #1895 moved them onto its
+# API; this holds them there. What is left is a ratchet that only shrinks:
+# scripts/.ring-internals-ratchet, against the merge base with
+# RING_INTERNALS_BASE (#1426).
+RING_INTERNALS_BASE ?= origin/main
+LINT_ring-internals = $(UV) run python scripts/check_ring_internals.py \
+    --base $(RING_INTERNALS_BASE)
 
 # A wire format's full scale has one home, dp_format_full_scale(). doppler
 # had FOUR private copies of the constant plus the arithmetic around it

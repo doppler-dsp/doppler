@@ -16,6 +16,8 @@
 
 #include "doppler/RateConverter/RateConverter_core.h"
 #include "doppler/cic/cic_core.h"
+#include "doppler/fir/fir_core.h"
+#include "doppler/hbdecim/hbdecim_core.h"
 #include "dp_test.h"
 
 #include "doppler/resamp/resamp_core.h"
@@ -375,6 +377,48 @@ test_state_roundtrip (void)
   free (in);
   free (outA);
   free (outB);
+}
+
+/* A stage that refuses its part of the blob is reported (doppler#2104).
+ * set_state discarded every stage's return, so a refused stage reported a
+ * restore. Each stage's part is found by its own envelope magic, and the
+ * `nth` occurrence (0 = first, -1 = last) is clobbered: set_state must say
+ * DP_ERR_INVALID. The unclobbered blob is accepted, the control. Returns 1
+ * on success. */
+static int
+stage_refusal_is_returned (double rate, int compensate, uint32_t magic,
+                           int nth)
+{
+  dp_RateConverter_state_t *s    = dp_RateConverter_create (rate, compensate);
+  const size_t              cb   = s ? dp_RateConverter_state_bytes (s) : 0;
+  unsigned char            *blob = malloc (cb ? cb : 1);
+  int                       ok   = s && blob;
+  if (ok)
+    {
+      dp_RateConverter_get_state (s, blob);
+      ok = dp_RateConverter_set_state (s, blob) == DP_OK;
+      /* The stage parts start after the RateConverter's own envelope. */
+      size_t at = 0, found = 0;
+      for (size_t i = sizeof (dp_state_hdr_t); i + 4 <= cb; i++)
+        if (memcmp (blob + i, &magic, sizeof magic) == 0)
+          {
+            if (nth < 0 || found == (size_t)nth)
+              at = i;
+            found++;
+          }
+      ok = ok && at > 0;
+      if (ok)
+        {
+          blob[at] ^= 0xFFu;
+          ok = dp_RateConverter_set_state (s, blob) == DP_ERR_INVALID;
+        }
+      if (!ok)
+        fprintf (stderr, "  rate %g: a refused stage part was not reported\n",
+                 rate);
+    }
+  free (blob);
+  dp_RateConverter_destroy (s);
+  return ok;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1581,6 +1625,12 @@ main (void)
   test_execute_max_out ();
   test_convert ();
   test_state_roundtrip ();
+  /* Each stage type's refusal is returned, first and last of a cascade. */
+  DP_CHECK (stage_refusal_is_returned (0.25, 0, HBDECIM_STATE_MAGIC, 0));
+  DP_CHECK (stage_refusal_is_returned (0.25, 0, HBDECIM_STATE_MAGIC, -1));
+  DP_CHECK (stage_refusal_is_returned (0.125, 1, CIC_STATE_MAGIC, 0));
+  DP_CHECK (stage_refusal_is_returned (0.125, 1, FIR_STATE_MAGIC, -1));
+  DP_CHECK (stage_refusal_is_returned (0.37, 0, RESAMP_STATE_MAGIC, -1));
   test_execute_ctrl ();
   test_matched_invalid_params ();
   test_matched_always_has_terminal_stage ();

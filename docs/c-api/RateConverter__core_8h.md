@@ -1116,7 +1116,7 @@ int dp_RateConverter_set_state (
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID if the blob's envelope rejects. 
+DP\_OK, or DP\_ERR\_INVALID if the blob's envelope or any stage's (or the AGC's) part rejects. Stages restore in order, so a later stage's refusal leaves the earlier ones restored until doppler#2104's transaction lands; each stage itself changes nothing it refuses. 
 
 
 

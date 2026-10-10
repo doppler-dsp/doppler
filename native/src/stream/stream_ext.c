@@ -33,10 +33,16 @@ typedef struct
 static void
 dpMsg_dealloc (dpMsgObject *self)
 {
-  if (self->msg)
+  /* Without the GIL: freeing a NATS message releases its context link,
+     whose mutex a Pull ack on another thread holds while it publishes,
+     and the interpreter must not stall behind it (#2016). */
+  dp_msg_t *msg = self->msg;
+  self->msg     = NULL;
+  if (msg)
     {
-      dp_msg_free (self->msg);
-      self->msg = NULL;
+      Py_BEGIN_ALLOW_THREADS
+        dp_msg_free (msg);
+      Py_END_ALLOW_THREADS
     }
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }

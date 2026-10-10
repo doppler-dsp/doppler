@@ -197,25 +197,15 @@ typedef int (*det_frame_step_fn) (void *obj, const float _Complex *frame,
                                   void *result, size_t slot);
 
 static inline size_t
-det_framed_push (dp_f32_framer_t *fr, size_t n, const float _Complex *in,
-                 size_t n_in, void *result, size_t max_results,
-                 det_frame_step_fn step, void *obj, size_t *consumed)
+det_framed_push (dp_f32_framer_t *fr, const float _Complex *in, size_t n_in,
+                 void *result, size_t max_results, det_frame_step_fn step,
+                 void *obj, size_t *consumed)
 {
   size_t ndet = 0, off = 0;
   while (ndet < max_results)
     {
-      const size_t room = max_results - ndet;
-      size_t       take = n_in - off;
-      /* No more than completes `room` whole frames: frames tile the stream
-         at hop n, so the carry is the framer's pending count. */
-      if (room <= SIZE_MAX / n)
-        {
-          const size_t upto = room * n - dp_f32_framer_pending (fr);
-          if (take > upto)
-            take = upto;
-        }
-      if (take)
-        off += dp_f32_framer_feed_view (fr, in + off, take, room);
+      off += dp_f32_framer_feed_frames_view (fr, in + off, n_in - off,
+                                             max_results - ndet);
       size_t                drained = 0;
       const float _Complex *frame; /* into the ring, contiguous across wrap */
       while ((frame = dp_f32_framer_next_view (fr)) != NULL)
@@ -226,11 +216,10 @@ det_framed_push (dp_f32_framer_t *fr, size_t n, const float _Complex *in,
       if (!drained)
         break; /* the input is used up: the rest of a frame is the carry */
     }
-  /* Full: the rest is the carry if it completes no frame. Fed with room
-     for none, the framer takes exactly that, and frames_for() says whether
-     it is all of the rest -- else the push stops on the boundary. */
-  if (ndet == max_results && dp_f32_framer_frames_for (fr, n_in - off) == 0)
-    off += dp_f32_framer_feed_view (fr, in + off, n_in - off, 0);
+  /* Full: the rest is the carry if it completes no frame, else the push
+     stops on the boundary. */
+  if (ndet == max_results)
+    off += dp_f32_framer_feed_carry_view (fr, in + off, n_in - off);
   *consumed = off;
   return ndet;
 }

@@ -93,7 +93,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from _gitbase import BaseUnreadableError, in_git_repo, show_at_base
+from _gitbase import BaseUnreadableError, added_since_base, in_git_repo
 
 ROOT = Path(__file__).resolve().parent.parent
 VAR = "STOCK_REGISTRY"
@@ -507,6 +507,18 @@ def _check_dockerfile(rel: str, text: str, own: str) -> tuple[list[str], int]:
     for n, op, ref in _dockerfile_refs(text):
         seen += 1
         why = _verdict(ref, own)
+        if not why and "$" in ref and not _READS_VAR.match(ref):
+            # Opaque to _verdict, and to stock_froms too, which pre-pulls
+            # only the one form: through another variable (``ARG
+            # MIRROR=${STOCK_REGISTRY}``, ``FROM ${MIRROR}/debian:12``) a
+            # stock image would be BuildKit's to pull, unretried. One rule,
+            # not a resolver: after the ARG lookup it reads as the variable
+            # whole, or as a name.
+            why = (
+                f"names its image through a variable that is not {VAR}: "
+                f"{HELPER} --dockerfile cannot pre-pull it; write "
+                f"${{{VAR}}}/IMAGE, or the image's own name (#1979)"
+            )
         if why:
             bad.append(f"{rel}:{n}: {op} {ref} -- {why}")
     return bad, seen
@@ -606,31 +618,31 @@ def _added_exemptions(
     """Entries the list at the merge base with ``base`` did not have.
 
     The list may only SHRINK, so a key absent there is refused even when it
-    names a real container-driver build: that build is the thing to fix. A
+    names a real container-driver build: that build is the thing to fix.
+    The question is _gitbase.added_since_base's, the one ratchet read: a
+    list missing at the base held nothing, unless the helper is missing
+    there too (the change that brings the gate brings its first list). A
     tree that is not a checkout (a test's seeded tree) has no base; a base
-    without the list is the PR that introduces it; a base git cannot read
-    fails closed, since a ratchet that cannot read its baseline has not
-    been checked (scripts/_gitbase.py).
+    git cannot read fails closed, since a ratchet that cannot read its
+    baseline has not been checked.
     """
     if not in_git_repo(root):
         return []
     try:
-        then = show_at_base(root, base, EXEMPT)
+        added = added_since_base(
+            root, base, EXEMPT, exempt, _exemption_keys, since=HELPER
+        )
     except BaseUnreadableError:
         return [
             f"{EXEMPT}: cannot resolve {base}, so an ADDED entry cannot be "
             "told from an old one. Fetch it: git fetch --no-tags --depth=1 "
             "origin +refs/heads/main:refs/remotes/origin/main"
         ]
-    if then is None:
-        return []
-    before = _exemption_keys(then)
     return [
-        f"{EXEMPT}:{n}: '{key}' is not in the list at the merge base with "
-        f"{base} -- the list only shrinks; build on the daemon and pre-pull "
-        "instead (#1982)"
-        for key, n in sorted(exempt.items(), key=lambda kv: kv[1])
-        if key not in before
+        f"{EXEMPT}:{exempt[key]}: '{key}' is not in the list at the merge "
+        f"base with {base} -- the list only shrinks; build on the daemon and "
+        "pre-pull instead (#1982)"
+        for key in sorted(added, key=exempt.__getitem__)
     ]
 
 

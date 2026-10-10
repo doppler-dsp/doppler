@@ -235,6 +235,18 @@ _BUILDX = (
             },
             "names STOCK_REGISTRY with a fallback",
         ),
+        (  # a stock FROM through another variable: opaque to the gate and
+            # to the pre-pull alike, so BuildKit would pull it unretried
+            {
+                "d/Dockerfile": "ARG STOCK_REGISTRY\n"
+                "ARG MIRROR=${STOCK_REGISTRY}\nFROM ${MIRROR}/debian:12\n"
+            },
+            "FROM ${MIRROR}/debian:12 -- names its image through a variable",
+        ),
+        (  # ... or an ARG whose default is another ARG
+            {"d/Dockerfile": "ARG B=${BUILD_BASE}\nFROM ${B}\n"},
+            "FROM ${BUILD_BASE} -- names its image through a variable",
+        ),
         (  # a stock image handed in as another build-arg: the pre-pull
             # reads the ARG's default, not the override
             {
@@ -307,6 +319,9 @@ def test_a_stock_pull_that_bypasses_the_helper_is_named(
             "scripts/a.sh": 'bash scripts/stock-pull.sh "$i"\n'
             "docker run --rm --pull never ${STOCK_REGISTRY}/nats:2.10\n"
         },
+        # An ARG with no default: the build-arg names the image, and the
+        # build-arg rule judges that (docker/ci.Dockerfile's FROM ${BASE}).
+        {"d/Dockerfile": "ARG BASE\nFROM ${BASE}\n"},
         # `:?` is the variable whole: it fails when unset, never falls back.
         {
             "scripts/a.sh": "docker run --rm --pull=never "
@@ -410,6 +425,48 @@ def test_an_exemption_the_base_did_not_have_is_refused(
     added = "'.github/workflows/r2.yml e/Dockerfile:sdk' is not in the list"
     assert added in r.stdout
     assert "r.yml d/Dockerfile:sdk' is not" not in r.stdout
+
+
+@pytest.mark.parametrize(
+    ("helper_at_base", "refused"),
+    [
+        # The helper was there and the list was not: the list held nothing,
+        # so its entry is ADDED. A list moved or deleted on the way to the
+        # base must not switch the ratchet off (_gitbase.added_since_base).
+        (True, True),
+        # Neither was there: this is the change that brings the gate, and
+        # it brings its first list (#1979).
+        (False, False),
+    ],
+)
+def test_a_list_missing_at_the_base_is_empty_unless_the_gate_is_too(
+    tmp_path: Path, helper_at_base: bool, refused: bool
+) -> None:
+    base = {
+        "base/Dockerfile": f"FROM ghcr.io/x/ci@{DIGEST}\n",
+        ".github/workflows/r.yml": _BUILDX,
+    }
+    if helper_at_base:
+        base["scripts/stock-pull.sh"] = "# the helper\n"
+    for rel, text in base.items():
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_text(text, encoding="utf-8")
+    _git(tmp_path, "init", "-q", "-b", "main")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-q", "-m", "base")
+    _git(tmp_path, "checkout", "-q", "-b", "feature")
+    branch = {
+        "scripts/stock-pull.sh": "# the helper\n",
+        "scripts/.stock-pull-exempt": ".github/workflows/r.yml "
+        "d/Dockerfile:sdk listed\n",
+    }
+    for rel, text in branch.items():
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_text(text, encoding="utf-8")
+    _git(tmp_path, "add", "-A")
+    r = _run(tmp_path, {}, "--base", "main")
+    assert (r.returncode == 1) == refused, r.stdout
+    assert ("is not in the list at the merge base" in r.stdout) == refused
 
 
 def test_a_base_that_will_not_resolve_has_not_passed(tmp_path: Path) -> None:

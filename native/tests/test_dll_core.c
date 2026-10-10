@@ -266,6 +266,90 @@ refused_blob_changes_nothing (void)
   return fails;
 }
 
+/* A bad float is refused, never run (doppler#2103).
+ *
+ * create() took every float unchecked: a NaN spacing made dll_replica index
+ * code[2^62] on x86-64, and a NaN or out-of-domain bn/zeta gave NaN gains
+ * that never recover. set_symbol_period() let a NaN past both its guards to
+ * ceil(NaN) = 2^63 in the ring sizing, and dp_xcalloc aborted the process.
+ * Asserted: each bad argument refused, the edges inside the domain accepted
+ * (a spacing just under half the code, a frozen bn = 0, a long but sane
+ * period), and a refused period leaving the one already set in place.
+ * Returns the number of failed checks, for main's tally. */
+static int
+bad_floats_are_refused (void)
+{
+  int     fails = 0;
+  uint8_t code[31];
+  make_code (code, 31, 2103u);
+  const double half = 0.5 * 31.0;
+  struct
+  {
+    double      init_chip, bn, zeta, spacing;
+    const char *what;
+  } bad[] = {
+    { 0.0, 0.01, 0.707, NAN, "a NaN spacing" },
+    { 0.0, 0.01, 0.707, INFINITY, "an infinite spacing" },
+    { 0.0, 0.01, 0.707, 0.0, "a zero spacing" },
+    { 0.0, 0.01, 0.707, -0.5, "a negative spacing" },
+    { 0.0, 0.01, 0.707, half, "a spacing of half the code" },
+    { NAN, 0.01, 0.707, 0.5, "a NaN seed phase" },
+    { INFINITY, 0.01, 0.707, 0.5, "an infinite seed phase" },
+    { 0.0, NAN, 0.707, 0.5, "a NaN bn" },
+    { 0.0, -0.01, 0.707, 0.5, "a negative bn" },
+    { 0.0, INFINITY, 0.707, 0.5, "an infinite bn" },
+    { 0.0, 0.01, 0.0, 0.5, "a zero zeta" },
+    { 0.0, 0.01, NAN, 0.5, "a NaN zeta" },
+  };
+  for (size_t k = 0; k < sizeof bad / sizeof *bad; k++)
+    {
+      dp_dll_state_t *d
+          = dp_dll_create (code, 31, 2, bad[k].init_chip, bad[k].bn,
+                           bad[k].zeta, bad[k].spacing, 4);
+      if (d)
+        {
+          fprintf (stderr, "  bad float accepted by create: %s\n",
+                   bad[k].what);
+          fails++;
+          dp_dll_destroy (d);
+        }
+    }
+  /* The edges inside the domain are taken. */
+  dp_dll_state_t *e
+      = dp_dll_create (code, 31, 2, 7.25, 0.0, 0.707, half - 0.1, 4);
+  if (!e)
+    {
+      fprintf (stderr, "  create refused an argument inside the domain\n");
+      return fails + 1;
+    }
+  dp_dll_destroy (e);
+
+  dp_dll_state_t *d = dp_dll_create (code, 31, 2, 0.0, 0.01, 0.707, 0.5, 4);
+  if (!d)
+    return fails + 1;
+  const double periods[] = { NAN, INFINITY, -INFINITY, 1048576.0 + 1.0 };
+  for (int pass = 0; pass < 2; pass++)
+    {
+      const double held = d->sym_period;
+      for (size_t k = 0; k < sizeof periods / sizeof *periods; k++)
+        if (dp_dll_set_symbol_period (d, periods[k]) != DP_ERR_INVALID
+            || d->sym_period != held)
+          {
+            fprintf (stderr, "  bad period %g accepted (pass %d)\n",
+                     periods[k], pass);
+            fails++;
+          }
+      /* A long but sane period is taken, then held through the refusals. */
+      if (pass == 0 && dp_dll_set_symbol_period (d, 1.0e5) != DP_OK)
+        {
+          fprintf (stderr, "  a period of 1e5 partials was refused\n");
+          fails++;
+        }
+    }
+  dp_dll_destroy (d);
+  return fails;
+}
+
 int
 main (void)
 {
@@ -1381,6 +1465,9 @@ main (void)
 
   /* A refused blob changes nothing (doppler#2092). */
   DP_CHECK (refused_blob_changes_nothing () == 0);
+
+  /* A bad float is refused, never run (doppler#2103). */
+  DP_CHECK (bad_floats_are_refused () == 0);
 
   DP_TEST_END ("test_dll_core");
 }

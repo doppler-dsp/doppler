@@ -57,8 +57,9 @@ exists, with no opt-in list to remember.
 | Strict build             | `zensical build --strict`                 | Zero build warnings (bad refs, includes)                |
 | Init-param optionality   | `scripts/check_init_param_optionality.py` | A published constructor signature is callable           |
 
-(The three fence gates and the example gate live in the `python-tests`
-job — see [Doc Examples](doc-examples.md) for the whole testing story.)
+(The three fence gates and the example gate live in the `python` job,
+"Python 3.x" in the checks list — see [Doc Examples](doc-examples.md)
+for the whole testing story.)
 
 ## Init-param optionality (`check_init_param_optionality.py`)
 

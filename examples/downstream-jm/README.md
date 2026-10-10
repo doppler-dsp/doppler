@@ -372,7 +372,7 @@ The C half is deliberately Python-free so the question that matters most —
 *can a downstream project link `libdoppler.a`?* — is answered on three
 platforms including an ancient glibc, not just where NumPy happens to exist.
 
-`test-example-tarball` answers a different question, which is why it is not a
+`test-starter-tarball` answers a different question, which is why it is not a
 duplicate: **does the thing people download work?** It builds nothing from
 this source tree — it unpacks the shipped archive somewhere unrelated and runs
 the README's own commands, so a packaging mistake (a bundle missing its

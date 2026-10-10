@@ -1050,19 +1050,22 @@ def _sec_candidates(d: Data) -> None:
     p1 = float(np.mean(_two(first)))
     rows = []
     for alpha in (0.25, 0.0, -0.5, 1.0, 1.5):
+        # Only the constructor is in the try: a reader's ValueError must
+        # not read as a refused create.
         try:
             w = _psd(n=64, mode="exp", alpha=alpha)
-            for f in frames:
-                w.accumulate(f)
-            rows.append(
-                [
-                    f"{alpha:g}",
-                    "accepted",
-                    f"{float(np.mean(_two(w))) / p1:+.3g}",
-                ]
-            )
         except ValueError as e:
             rows.append([f"{alpha:g}", f"refused ({type(e).__name__})", "—"])
+            continue
+        for f in frames:
+            w.accumulate(f)
+        rows.append(
+            [
+                f"{alpha:g}",
+                "accepted",
+                f"{float(np.mean(_two(w))) / p1:+.3g}",
+            ]
+        )
     d.c_alpha_rows = rows
     by_alpha = {row[0]: row for row in rows}
     d.c_ema = by_alpha["0.25"][2].lstrip("+")
@@ -1162,8 +1165,13 @@ def _sec_candidates(d: Data) -> None:
 
     # (f) n = 2 Hann: a window with zero coherent gain
     rows = []
+    # Only the constructor is in the try: a reader's ValueError must not
+    # read as a refused create.
     try:
         w = _psd(n=2, window="hann")
+    except ValueError as e:
+        rows.append(["create", f"refused ({type(e).__name__})", ""])
+    else:
         d.f_created = True
         rows.append(["create", "accepted", f"enbw = {w.enbw!r}"])
         w.accumulate(np.array([1.0, 1.0], np.complex64))
@@ -1180,8 +1188,6 @@ def _sec_candidates(d: Data) -> None:
             ]
         )
         rows.append(["noise_floor()", repr(w.noise_floor()), ""])
-    except ValueError as e:
-        rows.append(["create", f"refused ({type(e).__name__})", ""])
     d.f_rows = rows
     try:
         _psd(n=2, window="rect")

@@ -212,7 +212,7 @@ dp_acc_trace_state_t * dp_acc_trace_create (
 **Parameters:**
 
 
-* `n` Trace length in bins. Must be &gt; 0; returns NULL otherwise. 
+* `n` Trace length in bins. Must be &gt; 0, with n doubles a byte count a size\_t holds; returns NULL otherwise. 
 * `mode` Reduction mode index (0=mean, 1=exp, 2=maxhold, 3=minhold). 
 * `alpha` EMA smoothing factor, read only by `exp` mode, where it must lie in (0, 1]. Outside it the trace is not an average: 0 never leaves the first frame, a negative alpha extrapolates away from the data (a power trace goes negative), and above 1 the EMA step saturates to pass-through. A NaN is refused too. Ignored, and so not checked, in the other modes. 
 

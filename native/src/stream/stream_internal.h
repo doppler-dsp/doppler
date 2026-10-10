@@ -38,12 +38,17 @@ typedef enum
  * ONE frame is in progress at a time. A frame is identified by its whole
  * header except the two per-chunk fields (payload_bytes, num_samples),
  * plus its chunk count and total size: so the sequence AND the timestamp,
- * rate and centre frequency, which is what keeps two publishers that
- * share a subject and a sequence from being merged. A chunk of a DIFFERENT
- * frame abandons the one in progress (counted) and STARTS the new one: it
- * is never discarded with it, which is what made one lost chunk lose every
- * later chunked frame (#2010). The state lives as long as the socket, so a
- * receive that times out mid-frame resumes it.
+ * rate and centre frequency. Two publishers that share a subject and a
+ * sequence are therefore not merged -- unless their headers are
+ * bit-identical, which the same explicit timestamp_ns (a shared clock, or
+ * 0) can make them; only a sender id would close that (#2017). A chunk of
+ * a DIFFERENT frame that passes the grid check as a frame of its own
+ * abandons the one in progress (counted) and STARTS the new one: it is
+ * never discarded with it, which is what made one lost chunk lose every
+ * later chunked frame (#2010). A chunk that fails the check is rejected
+ * and costs the frame in progress nothing. An unchunked frame or an
+ * end-of-stream abandons it too (dp_reasm_abandon). The state lives as
+ * long as the socket, so a receive that times out mid-frame resumes it.
  *
  * Chunks must sit on the sender's grid: chunk i covers
  * [i*S, min((i+1)*S, total)), S being the bytes of every chunk but the
@@ -73,6 +78,11 @@ int dp_reasm_feed (dp_reasm_t *r, const dp_header_t *hdr,
                    int *complete, char **frame, dp_header_t *frame_hdr);
 /* Free the frame in progress, if any; the counters are kept. */
 void dp_reasm_reset (dp_reasm_t *r);
+/* Give up the frame in progress, if any, and count it in `abandoned`. The
+ * transport calls this when an unchunked frame or an end-of-stream arrives
+ * on the subject: with one publisher per subject, either proves the frame
+ * in progress lost a chunk and can never complete. */
+void dp_reasm_abandon (dp_reasm_t *r);
 
 /* NATS-backed context.  Opaque nats.c handles are held as void* so this
  * header stays nats.h-free; stream_nats.c casts them back. */

@@ -234,21 +234,31 @@ Consequences worth stating plainly:
 
 - **A lost chunk loses its frame, and only its frame.** Core NATS is
     at-most-once, so a slow subscriber can drop one chunk of a 4-chunk
-    frame. When a chunk of a *different* frame arrives, the frame in
-    progress is abandoned, and that chunk starts the next frame rather
-    than going down with it. The next frame arrives intact. A late
-    joiner loses only the frame it joined in the middle of.
+    frame. When a chunk of a *different* frame arrives, and passes the
+    grid check as a frame of its own, the frame in progress is
+    abandoned, and that chunk starts the next frame rather than going
+    down with it. An unchunked frame or an end-of-stream abandons it
+    too: with one publisher per subject, either proves it lost a chunk.
+    The next frame arrives intact. A late joiner loses only the frame it
+    joined in the middle of. A chunk no frame could hold is rejected and
+    costs the frame in progress nothing.
 - **A timeout mid-frame keeps the frame.** The reassembly state lives
-    as long as the socket, so the next `recv` resumes it.
+    as long as the socket, so the next `recv` resumes it. One receive
+    has one deadline however many chunks it reads, so `recv(timeout_ms)`
+    returns on time even while chunks that never complete a frame keep
+    arriving.
 - **Losses are counted, not hidden.** `dp_sub_reasm_stats` (Python:
-    `Subscriber.reasm_stats()`) reports frames `abandoned`, chunks
-    `rejected` (off the grid, out of range, overlapping) and
+    `Subscriber.reasm_stats()`) reports partial assemblies `abandoned`,
+    chunks `rejected` (off the grid, out of range, overlapping) and
     `mid_frame_timeouts`, from the socket's creation.
 - **One publisher per subject, if frames may chunk.** Two publishers are
-    never merged into one frame, even with coincident sequences, because
-    the whole header is the key. But reassembly holds one frame at a
-    time, so two publishers interleaving chunked frames on one subject
-    abandon each other's frames (#2031).
+    not merged into one frame, even with coincident sequences, because
+    the whole header is the key -- unless their headers are
+    bit-identical, which the same explicit `timestamp_ns` (a shared
+    clock, or 0) can make them; only a sender id would close that
+    (#2017). And reassembly holds one frame at a time, so two publishers
+    interleaving chunked frames on one subject abandon each other's
+    frames (#2031).
 
 ______________________________________________________________________
 

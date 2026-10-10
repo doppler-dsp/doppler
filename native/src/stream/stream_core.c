@@ -278,6 +278,15 @@ dp_reasm_reset (dp_reasm_t *r)
   r->received = 0;
 }
 
+void
+dp_reasm_abandon (dp_reasm_t *r)
+{
+  if (!r || !r->buf)
+    return;
+  dp_reasm_reset (r);
+  r->stats.abandoned++;
+}
+
 int
 dp_reasm_feed (dp_reasm_t *r, const dp_header_t *hdr, const dp_chunk_t *chunk,
                const void *body, size_t body_len, int *complete, char **frame,
@@ -290,36 +299,36 @@ dp_reasm_feed (dp_reasm_t *r, const dp_header_t *hdr, const dp_chunk_t *chunk,
 
   /* A chunk that no frame could hold is dropped by itself: it says nothing
      about the frame in progress, which stays as it was. Every bound by
-     subtraction or division, never a sum that can wrap (#2016). */
+     subtraction or division, never a sum that can wrap (#2016). The total
+     is capped where the sender caps it: payload_bytes is 32-bit, and a
+     frame above UINT32_MAX is refused with DP_ERR_TOO_LARGE before it is
+     ever chunked. So a forged total can neither ask malloc for an
+     arbitrary size nor outgrow the header that describes it. */
   size_t elem = dp_element_size ((dp_frame_kind_t)hdr->kind,
                                  (dp_sample_type_t)hdr->format);
   if (elem == 0 || chunk->count == 0 || chunk->index >= chunk->count
-      || chunk->total_bytes % elem != 0 || chunk->offset > chunk->total_bytes
-      || body_len > chunk->total_bytes - chunk->offset
-      || chunk->total_bytes > (uint64_t)SIZE_MAX)
+      || chunk->total_bytes > UINT32_MAX || chunk->total_bytes % elem != 0
+      || chunk->offset > chunk->total_bytes
+      || body_len > chunk->total_bytes - chunk->offset)
     {
       r->stats.rejected++;
       return DP_ERR_INVALID;
     }
 
-  /* A different frame: the one in progress can no longer complete from
-     this stream of chunks, so it is abandoned -- and THIS chunk starts the
-     next frame instead of going down with it (#2010). */
-  dp_header_t key = reasm_key (hdr);
-  if (r->buf
-      && (memcmp (&key, &r->key, sizeof key) != 0
-          || chunk->count != r->shape.count
-          || chunk->total_bytes != r->shape.total_bytes))
-    {
-      dp_reasm_reset (r);
-      r->stats.abandoned++;
-    }
+  /* Whose chunk is it? The frame in progress, or a different one. A
+     different one is only taken -- and the frame in progress abandoned for
+     it -- once it has passed the grid check below as a frame of its own:
+     a chunk no frame could hold must not cost a good frame (#2010). */
+  dp_header_t key  = reasm_key (hdr);
+  int         same = r->buf && memcmp (&key, &r->key, sizeof key) == 0
+                     && chunk->count == r->shape.count
+                     && chunk->total_bytes == r->shape.total_bytes;
 
   /* The grid. A frame's first chunk fixes the stride: every chunk but the
      last is exactly S bytes, the last is what remains, and chunk i starts
      at i*S. Checked by division, so a forged offset cannot wrap. */
   uint64_t stride = 0;
-  if (r->buf)
+  if (same)
     stride = r->stride;
   else if (chunk->index + 1 < chunk->count)
     stride = (uint64_t)body_len; /* a full chunk */
@@ -341,6 +350,12 @@ dp_reasm_feed (dp_reasm_t *r, const dp_header_t *hdr, const dp_chunk_t *chunk,
       r->stats.rejected++;
       return DP_ERR_INVALID;
     }
+
+  /* A different frame that could be whole: the one in progress can no
+     longer complete from this stream of chunks, so it is abandoned -- and
+     THIS chunk starts the next frame instead of going down with it. */
+  if (!same)
+    dp_reasm_abandon (r);
 
   if (!r->buf)
     {

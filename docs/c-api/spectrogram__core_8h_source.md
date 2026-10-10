@@ -26,8 +26,8 @@ extern "C"
 #define SPECTROGRAM_STATE_MAGIC DP_FOURCC ('S', 'P', 'G', 'M')
 #define SPECTROGRAM_STATE_VERSION 1u
 
-#define DP_SPECTROGRAM_POWER 1
-#define DP_SPECTROGRAM_DB 0
+#define DP_SPECTROGRAM_POWER 0
+#define DP_SPECTROGRAM_DB 1
 
 typedef struct
 {

@@ -217,6 +217,12 @@ method and its caveats are in the record under the same number.
 The framer's cost against the hand-written loop is a property of the ring, and
 is recorded with it in [the ring's measurements](ring-buffer-measurements.md).
 
+Its header's claims are certified in C, because it has no Python face yet:
+`native/validation/spectrogram_certify.c` measures and
+`src/doppler/tests/validation/spectrogram/results.md` is the generated report,
+with the header's twenty-four claims inventoried against their pins and the
+sabotage that turned each red.
+
 ## 6. The order of work
 
 One slice at a time, each its own change, each with its own review. The live

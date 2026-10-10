@@ -57,7 +57,7 @@ extern "C"
 
   int dp_awgn_amplitude_ok (float amplitude);
 
-  void dp_awgn_set_amplitude (dp_awgn_state_t *state, float val);
+  int dp_awgn_set_amplitude (dp_awgn_state_t *state, float val);
 
   void dp_awgn_reseed (dp_awgn_state_t *state, uint64_t seed);
 

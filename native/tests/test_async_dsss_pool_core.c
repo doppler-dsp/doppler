@@ -172,6 +172,12 @@ _test_arg_validation (void)
                 NULL, 0, CHIP_RATE, SYM_RATE, SPC, 2, CN0, 1e-2, 0.9, DU,
                 CELL_EPOCHS, 0.0, 4, 2, 1, 0.0, LOST_S, 0.0, 4, 8, 0, 0.125, 4)
             == NULL);
+  /* A 1-chip code: its cell receivers refuse it, so the pool does too,
+     rather than aborting inside a receiver's Dll (doppler#2103). */
+  DP_CHECK (dp_async_dsss_pool_create (
+                g_code, 1, CHIP_RATE, SYM_RATE, SPC, 2, CN0, 1e-2, 0.9, DU,
+                CELL_EPOCHS, 0.0, 4, 2, 1, 0.0, LOST_S, 0.0, 4, 8, 0, 0.125, 4)
+            == NULL);
   DP_CHECK (dp_async_dsss_pool_create (
                 g_code, SF, CHIP_RATE, SYM_RATE, SPC, 2, CN0, 1e-2, 0.9, DU,
                 CELL_EPOCHS, 0.0, 4, 0, 1, 0.0, LOST_S, 0.0, 4, 8, 0, 0.125, 4)

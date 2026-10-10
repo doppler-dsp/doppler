@@ -597,6 +597,39 @@ dll_update(dp_dll_state_t *s)
 dp_dll_state_t *dp_dll_create(const uint8_t *code, size_t code_len, size_t sps, double init_chip, double bn, double zeta, double spacing, size_t segments);
 
 /**
+ * @brief The DLL's one domain predicate: the arguments dp_dll_create()
+ *        builds a loop from.
+ *
+ * `code_len >= 1` and `segments >= 1`; a finite `init_chip` (it is folded,
+ * so any finite value is a phase); `bn` and `zeta` inside
+ * dp_loop_filter_params_ok(); and `0 < spacing < code_len/2`, where the
+ * early and late taps are distinct -- at 0 they coincide, at half the code
+ * they meet round the wrap, and a NaN made dll_replica read 2^62 chips past
+ * the end of the code.
+ *
+ * dp_dll_create() refuses outside it. A composer that builds its DLL through
+ * an abort-on-NULL wrapper, or embeds one by value through dp_dll_init(),
+ * calls it first and refuses with its own error (doppler#2103).
+ *
+ * @return 1 inside the domain, 0 outside it (a NaN is outside).
+ */
+int dp_dll_params_ok(size_t code_len, double init_chip, double bn, double zeta, double spacing, size_t segments);
+
+/**
+ * @brief Whether dp_dll_set_symbol_period() takes @p partials_per_symbol as
+ *        a period to turn the symbol aid ON.
+ *
+ * `segments > 1`, and a finite period from 2 up to 2^20 partials: the rings
+ * and hypotheses are allocated per period, and past 2^20 they are refused
+ * rather than sized. A composer that derives a period from its configuration
+ * checks it here at create, so the period it sets mid-stream is never
+ * refused (doppler#2103).
+ *
+ * @return 1 if the period turns the aid on, 0 otherwise.
+ */
+int dp_dll_symbol_period_ok(size_t segments, double partials_per_symbol);
+
+/**
  * @brief Derive a principled `segments` count from a max tolerable
  *        async-lookback correlation-power loss, instead of hand-picking one.
  *
@@ -711,6 +744,9 @@ size_t dp_dll_steps(dp_dll_state_t *state, const float _Complex *x, size_t x_len
  * @param state  DLL state.  Must be non-NULL.
  * @param bn     Loop noise bandwidth, normalised to the code-period rate.
  * @param zeta   Damping factor (0.707 = critically damped).
+ * @return DP_OK; DP_ERR_INVALID, changing nothing, when (bn, zeta) is outside
+ *         dp_loop_filter_params_ok() -- a NaN gave gains that never recover,
+ *         and a negative bn with zeta >= 1 a zero denominator (doppler#2103).
  * @code
  * >>> import numpy as np
  * >>> from doppler.track import Dll
@@ -723,9 +759,12 @@ size_t dp_dll_steps(dp_dll_state_t *state, const float _Complex *x, size_t x_len
  *
  * @endcode
  */
-void dp_dll_configure(dp_dll_state_t *state, double bn, double zeta);
+int dp_dll_configure(dp_dll_state_t *state, double bn, double zeta);
 double dp_dll_get_bn(const dp_dll_state_t *state);
-void dp_dll_set_bn(dp_dll_state_t *state, double val);
+/** @brief Set the loop bandwidth, keeping zeta. @return As
+ *         dp_dll_configure(): DP_ERR_INVALID, changing nothing, outside the
+ *         loop filter's domain. */
+int dp_dll_set_bn(dp_dll_state_t *state, double val);
 
 /**
  * @brief Set the carrier-aiding code-rate deviation (ratio; 0 = off).
@@ -858,7 +897,9 @@ void dp_dll_hold_here(dp_dll_state_t *state);
  * @return DP_OK; DP_ERR_INVALID when `segments <= 1`, or the period is not
  *         finite, is in (0, 2) or is past 2^20 partials -- the rings are
  *         sized by the period, and past that they are refused, not
- *         allocated (doppler#2103).
+ *         allocated (doppler#2103). Any finite period <= 0 turns the aid off;
+ *         `-inf` used to as well, and is refused now, as every non-finite
+ *         period is.
  * @code
  * >>> import numpy as np
  * >>> from doppler.track import Dll

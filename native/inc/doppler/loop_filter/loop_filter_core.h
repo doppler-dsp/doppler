@@ -130,11 +130,13 @@ extern "C"
    * @brief The domain the loop's gains are defined on: `bn >= 0`,
    *        `zeta > 0`, `t > 0`, all three finite.
    *
-   * The ONE predicate. dp_loop_filter_create() refuses outside it, and so
-   * does every embedder that takes these numbers from a caller and hands
-   * them to the unguarded dp_loop_filter_init(): a non-finite argument there
-   * yields NaN gains that never recover, and a negative `bn` with
-   * `zeta >= 1` can drive the gains' denominator through zero.
+   * The ONE predicate. dp_loop_filter_create() refuses outside it, and an
+   * embedder that takes these numbers from a caller should call it before
+   * the unguarded dp_loop_filter_init(): a non-finite argument there yields
+   * NaN gains that never recover, and a negative `bn` with `zeta >= 1` can
+   * drive the gains' denominator through zero. The Dll, the Despreader's
+   * code loop, ratesync and the MPSK receiver do; the embedders that do not
+   * yet are doppler#2112.
    *
    * @param bn    Loop noise bandwidth, normalized.
    * @param zeta  Damping factor.

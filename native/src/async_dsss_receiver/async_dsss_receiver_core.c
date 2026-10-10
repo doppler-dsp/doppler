@@ -208,7 +208,12 @@ adr_build_track_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
     {
       double partials_per_symbol = (double)segments * s->chip_rate
                                    / ((double)s->code_len * s->symbol_rate);
-      (void)dp_dll_set_symbol_period (dll, partials_per_symbol);
+      /* Under 2 partials the tracker keeps per-partial looks; any longer
+         period create() checked with dp_dll_symbol_period_ok(), so a refusal
+         here is a defect, not a configuration. */
+      if (partials_per_symbol >= 2.0
+          && dp_dll_set_symbol_period (dll, partials_per_symbol) != DP_OK)
+        abort ();
       size_t win  = dp_dll_get_symbol_window (dll);
       size_t look = (win ? win : 1) * (s->tsamps / segments);
       double amp
@@ -788,6 +793,26 @@ adr_new (const uint8_t *code, size_t code_len, double chip_rate,
      (0, 1] (1 puts the phase at the read). */
   if (cell && (correct_periods < 1 || !(gain > 0.0 && gain <= 1.0)))
     return NULL;
+  /* Each Dll this receiver builds -- the refine collector and the tracker,
+     both created mid-stream under dp_xnn -- meets the Dll's own domain now,
+     so a configuration the Dll refuses (a 1-chip code, whose early and late
+     taps would coincide) is refused here rather than aborting the process
+     mid-stream. And the tracker's symbol period, derived from configuration,
+     is either under 2 partials, where it keeps per-partial looks by design,
+     or one dp_dll_set_symbol_period() takes (doppler#2103). */
+  {
+    const size_t refine_segments
+        = dp_dll_lookback_segments (code_len * spc, refine_max_error_db);
+    const double partials
+        = (double)segments * chip_rate / ((double)code_len * symbol_rate);
+    if (!dp_dll_params_ok (code_len, 0.0, ASYNC_DSSS_RX_DLL_BN, 0.707, 0.5,
+                           refine_segments)
+        || !dp_dll_params_ok (code_len, 0.0, ASYNC_DSSS_RX_DLL_BN, 0.707,
+                              ASYNC_DSSS_RX_DLL_SPACING, segments)
+        || (segments > 1 && partials >= 2.0
+            && !dp_dll_symbol_period_ok (segments, partials)))
+      return NULL;
+  }
 
   dp_async_dsss_receiver_state_t *obj = dp_xcalloc (1, sizeof (*obj));
 

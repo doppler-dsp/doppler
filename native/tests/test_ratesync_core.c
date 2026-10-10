@@ -122,6 +122,14 @@ test_invalid_params (void)
   DP_CHECK (dp_ratesync_create (4.0, RATESYNC_PULSE_RRC, 1.5, 8, 2, 1024, 0.01,
                                 0.707, RATESYNC_TED_GARDNER)
             == NULL); /* beta > 1 */
+  /* The loop filter's own domain: the private check this replaced took an
+     infinite bn or zeta (doppler#2103). */
+  DP_CHECK (dp_ratesync_create (4.0, RATESYNC_PULSE_RRC, 0.35, 8, 2, 1024,
+                                INFINITY, 0.707, RATESYNC_TED_GARDNER)
+            == NULL);
+  DP_CHECK (dp_ratesync_create (4.0, RATESYNC_PULSE_RRC, 0.35, 8, 2, 1024,
+                                0.01, INFINITY, RATESYNC_TED_GARDNER)
+            == NULL);
   DP_CHECK (dp_ratesync_create (4.0, RATESYNC_PULSE_RRC, -0.1, 8, 2, 1024,
                                 0.01, 0.707, RATESYNC_TED_GARDNER)
             == NULL);

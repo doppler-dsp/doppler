@@ -150,7 +150,9 @@ dp_ratesync_loop_reset (ratesync_loop_t *l)
 void
 dp_ratesync_loop_configure (ratesync_loop_t *l, double bn, double zeta)
 {
-  if (!(bn >= 0.0) || !(zeta > 0.0))
+  /* The loop filter's own domain (it also refuses an infinite bn or zeta,
+     which the private check here let through; doppler#2103). */
+  if (!dp_loop_filter_params_ok (bn, zeta, 1.0))
     return;
   l->bn   = bn;
   l->zeta = zeta;
@@ -308,8 +310,8 @@ dp_ratesync_create (double sps, int pulse, double beta, size_t span, size_t m,
   /* Written as !(x >= y) so a NaN parameter is rejected, not accepted. */
   if (!(beta >= 0.0) || !(beta <= 1.0) || span < 1 || m < 2u
       || m > (size_t)RATESYNC_MAX_M || (m & 1u) != 0u || num_phases < 2u
-      || (num_phases & (num_phases - 1u)) != 0u || !(bn >= 0.0)
-      || !(zeta > 0.0)
+      || (num_phases & (num_phases - 1u)) != 0u
+      || !dp_loop_filter_params_ok (bn, zeta, 1.0)
       || (pulse != RATESYNC_PULSE_IANDD && pulse != RATESYNC_PULSE_RRC)
       || (ted != RATESYNC_TED_GARDNER && ted != RATESYNC_TED_DTTL))
     return NULL;

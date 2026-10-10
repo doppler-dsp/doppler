@@ -220,3 +220,25 @@ def test_odd_sps_still_builds():
         code=CODE, chip_rate=CHIP_RATE, symbol_rate=SYM_RATE, sps=5
     )
     assert rx is not None
+
+
+@pytest.mark.parametrize(
+    "cls",
+    [
+        "DsssReceiver",
+        "AsyncDsssReceiver",
+        "CellAsyncDsssReceiver",
+        "AsyncDsssPool",
+    ],
+)
+def test_a_one_chip_code_is_refused_not_aborted(cls):
+    """A 1-chip code spreads nothing, and the Dll each receiver builds
+    refuses it: its early and late taps would coincide (doppler#2103). The
+    receivers built that Dll through an abort-on-NULL wrapper and accepted
+    code_len >= 1, so a 1-chip code took the interpreter down. They refuse it
+    themselves now, as an argument error."""
+    import doppler.dsss as dsss
+
+    code = np.array([1], dtype=np.uint8)
+    with pytest.raises(ValueError):
+        getattr(dsss, cls)(code, chip_rate=1e6, symbol_rate=1e3)

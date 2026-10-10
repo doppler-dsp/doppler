@@ -120,6 +120,7 @@ class Data:
     detections_absolute: bool = False
     blob_ram: int = 0
     blob_disk: int = 0
+    ring_file: int = 0
     resume_ok: bool = False
     cross_reject: bool = False
     pd_meta: list = field(default_factory=list)
@@ -383,6 +384,7 @@ def characterise() -> Data:
         )
         d.blob_ram = int(ram.state_bytes())
         d.blob_disk = int(dsk.state_bytes())
+        d.ring_file = int(path.stat().st_size)
 
         # Resume across a mid-preamble split, into a fresh instance.
         at0 = 60_000
@@ -417,8 +419,9 @@ def characterise() -> Data:
     R.md()
     R.md(
         f"The difference is {d.blob_ram - d.blob_disk:,} B, which is exactly "
-        f"`retain_span * 8` ({d.retain_span} complex64 samples) — the whole "
-        "of the retained history and nothing else."
+        f"the ring file ({d.ring_file:,} B): the whole history ring, which "
+        "is what a live capture can be holding for a burst it will still "
+        "emit, and nothing else."
     )
     R.md()
 
@@ -853,9 +856,9 @@ def limits(d: Data) -> None:
         "the burst it was holding — the retained look-back travels (§2.6)",
     )
     R.limit(
-        d.blob_ram - d.blob_disk == d.retain_span * 8,
-        f"the persistent flavour's blob is smaller by exactly the retained "
-        f"span ({d.blob_ram - d.blob_disk:,} B) (§2.6)",
+        d.blob_ram - d.blob_disk == d.ring_file,
+        f"the persistent flavour's blob is smaller by exactly its ring "
+        f"file ({d.blob_ram - d.blob_disk:,} B) (§2.6)",
     )
     R.limit(
         d.cross_reject,

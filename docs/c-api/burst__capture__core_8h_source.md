@@ -99,8 +99,10 @@ typedef struct
   size_t k_lo;         
   size_t k_hi;         
   /* ── Detections in flight ────────────────────────────────────────────
-   * Only detections whose burst window has NOT yet arrived live here: every
-   * one whose window HAS arrived is emitted before push() returns, which is
+   * In ANCHOR ORDER, which set_state() checks. An unshadowed detection whose
+   * window has arrived is emitted before push() returns, except one a
+   * release() gave back after it, which the next push emits first; a
+   * detection whose history is gone is swept, counted in `dropped`. That is
    * what bounds retention (see the trim rule in the implementation). */
   burst_capture_pending_t *q; 
   size_t q_cap;   

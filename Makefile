@@ -2321,21 +2321,52 @@ test-ubsan: ## Run the C suite under UBSan; any undefined behaviour fails
 # suppressions file is a change in what this gate promises; fix the code.
 ASAN_DIR   ?= build-asan
 ASAN_FLAGS  = -fsanitize=address -fno-omit-frame-pointer -g
+# clang, not the default compiler (#2130). GCC's AddressSanitizer does not
+# instrument an access through a float _Complex lvalue -- crealf(b[i]),
+# cimagf(b[i]), a whole-complex load or store -- which is how every DSP
+# kernel here reads its samples, so a gcc-built test-asan passed while
+# resamp read 19 samples past its delay line. clang instruments all four.
+# The image carries clang's sanitizer runtime (the sanitizers job takes it
+# from there). native/tests/asan_canary.c holds this: built with ASAN_CC and
+# ASAN_FLAGS, it must draw an ASan report, so `ASAN_CC=gcc` is red.
+ASAN_CC    ?= clang
 # halt_on_error, for the reason UBSAN_OPTS gives above. `detect_leaks` is
 # spelled out rather than left to the platform default: it is ON by default on
 # Linux and OFF on macOS, so relying on the default would mean the gate
 # silently checks less on one of the two platforms CI builds.
-ASAN_OPTS   = halt_on_error=1:abort_on_error=1:detect_leaks=1
+# detect_odr_violation=1 reports two definitions of one global whose SIZES
+# differ -- a real ODR violation -- and not a same-size second registration.
+# clang's ASan (2026-10-10, clang 21) reported dp_lo_sin_lut and
+# dp_wfm_why_dsss_cont_rate as registered twice in one binary, both entries
+# from __asan_register_elf_globals at the same pc, while nm shows ONE
+# definition and one __odr_asan_gen_ indicator in that binary: a double
+# registration by the instrumentation, not two definitions. gcc's ASan, the
+# previous compiler, reported neither. Level 1 keeps the real case (#2130).
+ASAN_OPTS   = halt_on_error=1:abort_on_error=1:detect_leaks=1:detect_odr_violation=1
 
 test-asan: ## Run the C suite under ASan+LSan; any bad access or leak fails
 	$(CMAKE) -B $(ASAN_DIR) -S . \
 		-DCMAKE_BUILD_TYPE=Debug \
+		-DCMAKE_C_COMPILER=$(ASAN_CC) \
 		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
 		"-DCMAKE_C_FLAGS=$(ASAN_FLAGS)" \
 		"-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address" \
 		"-DCMAKE_SHARED_LINKER_FLAGS=-fsanitize=address" \
 		$(CMAKE_ARGS)
 	$(CMAKE) --build $(ASAN_DIR) --parallel $(NPROC)
+# The canary first: a compiler that cannot see a complex out-of-bounds read
+# makes every pass below say nothing about one (#2130).
+	@$(ASAN_CC) $(ASAN_FLAGS) native/tests/asan_canary.c \
+	    -o $(ASAN_DIR)/asan_canary
+	@if ASAN_OPTIONS=$(ASAN_OPTS) $(ASAN_DIR)/asan_canary \
+	      > $(ASAN_DIR)/asan_canary.log 2>&1 \
+	    || ! grep -q 'heap-buffer-overflow' $(ASAN_DIR)/asan_canary.log; then \
+	   echo "test-asan: the canary's out-of-bounds float _Complex read went"; \
+	   echo "  unreported, so $(ASAN_CC)'s ASan cannot see the kernels' bad"; \
+	   echo "  sample reads and this gate has not passed (#2130):"; \
+	   sed 's/^/    /' $(ASAN_DIR)/asan_canary.log; exit 1; \
+	 fi; \
+	 echo "test-asan: the canary's complex read was reported -- $(ASAN_CC) sees them"
 # An empty result set is not a pass -- the same trap test-tsan guards, and it
 # bites harder here because this target takes no pattern: a configure that
 # registered no tests would run zero of them and exit 0, reporting a clean

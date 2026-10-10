@@ -15,14 +15,19 @@
  *                      refresh, not once per sample. Reported per call
  *                      because quoting it per sample would flatter it by
  *                      the number of samples that went in.
- *   fft / frame_power / frame_db
+ *   fft / frame_power / frame_db / accumulate_frame
  *                      per FRAME, the Spectrogram's row kernel and the
- *                      transform inside it (#1894 A4, the design's U3).
- *                      `fft` is PSD's own call -- dp_fft_create (nfft, -1,
- *                      1), then dp_fft_execute_cf32, as psd_core.c creates
- *                      and psd_transform runs it -- so frame_power - fft is
- *                      the window and the power fold, and frame_db -
- *                      frame_power is the dB conversion. Measured in one
+ *                      transform inside it (#1894 A4, the design's U3), and
+ *                      one frame of PSD's own accumulate (#2094's first
+ *                      step). `fft` is PSD's own call -- dp_fft_create
+ *                      (nfft, -1, 1), then dp_fft_execute_cf32, as
+ *                      psd_core.c creates and psd_transform runs it -- so
+ *                      frame_power - fft is the window and the power/shift
+ *                      pass together (not split: #2094's fusion rewrites
+ *                      both), frame_db - frame_power is the dB conversion,
+ *                      and accumulate_frame - frame_power is the fold into
+ *                      the average, which bench_acc_trace_core.c times on
+ *                      its own as fold[mean,nfft=N]. Measured in one
  *                      interleaved loop, so the differences are taken
  *                      between rows of the same run.
  *
@@ -46,6 +51,7 @@
 #define ITERATIONS 50
 #define KROUNDS 30 /* the per-frame kernel section's rounds */
 #define NKERN 5    /* its transform sizes */
+#define NKIND 4    /* its kinds: fft, frame_power, frame_db, accumulate */
 
 /* One timed pass of the per-frame section: `reps` frames of one kind. */
 typedef struct
@@ -55,7 +61,7 @@ typedef struct
   dp_fft_state_t *plan;
   float _Complex *spec;
   float          *out;
-  double          t[3][KROUNDS];
+  double          t[NKIND][KROUNDS];
 } kern_t;
 
 static void
@@ -68,8 +74,10 @@ kern_run (kern_t *k, int kind, const float _Complex *x)
         dp_fft_execute_cf32 (k->plan, f, k->nfft, k->spec, k->nfft);
       else if (kind == 1)
         dp_psd_frame_power (k->p, f, k->out);
-      else
+      else if (kind == 2)
         dp_psd_frame_db (k->p, f, k->out);
+      else
+        dp_psd_accumulate (k->p, f, k->nfft); /* one frame: n = nfft */
     }
 }
 
@@ -180,10 +188,11 @@ main (void)
 
   /* ── the per-frame kernel, and the transform inside it (#1894 A4) ── */
   {
-    static const size_t ksz[NKERN]  = { 256, 1024, 4096, 16384, 65536 };
-    static const char  *kname[3]    = { "fft", "frame_power", "frame_db" };
-    kern_t              kern[NKERN] = { 0 };
-    float _Complex     *xk          = malloc ((size_t)BLOCK * 8 * sizeof *xk);
+    static const size_t ksz[NKERN] = { 256, 1024, 4096, 16384, 65536 };
+    static const char  *kname[NKIND]
+        = { "fft", "frame_power", "frame_db", "accumulate_frame" };
+    kern_t          kern[NKERN] = { 0 };
+    float _Complex *xk          = malloc ((size_t)BLOCK * 8 * sizeof *xk);
     if (!xk)
       return 1;
     for (size_t i = 0; i < (size_t)BLOCK * 8; i++)
@@ -205,15 +214,18 @@ main (void)
         c->out  = malloc (c->nfft * sizeof *c->out);
         if (!c->p || !c->plan || !c->spec || !c->out)
           return 1;
+        /* seed the average untimed: every timed accumulate is then a fold,
+           never the first frame's copy (the frame calls do not touch it) */
+        dp_psd_accumulate (c->p, xk, c->nfft);
       }
     DP_BENCH_SETTLE (kern_run (&kern[1], 2, xk));
-    /* the three kinds ROTATE per round: their shares are differences, and a
+    /* the kinds ROTATE per round: their shares are differences, and a
        fixed order would always start the same kind warm */
     for (int r = 0; r < KROUNDS; r++)
       for (int k = 0; k < NKERN; k++)
-        for (int q = 0; q < 3; q++)
+        for (int q = 0; q < NKIND; q++)
           {
-            const int kind = (q + r) % 3;
+            const int kind = (q + r) % NKIND;
             t0             = jm_bench_now_ns ();
             kern_run (&kern[k], kind, xk);
             t1                 = jm_bench_now_ns ();
@@ -222,7 +234,7 @@ main (void)
     printf ("\n");
     for (int k = 0; k < NKERN; k++)
       {
-        for (int kind = 0; kind < 3; kind++)
+        for (int kind = 0; kind < NKIND; kind++)
           {
             char name[64];
             (void)snprintf (name, sizeof name, "%s[nfft=%zu]", kname[kind],
@@ -243,7 +255,7 @@ main (void)
      JM_BENCH_MAX_ENTRIES without a word (just-buildit/just-makeit#2188), so
      the count is checked against the one the tables above DERIVE. A short
      set then reaches the publish gate as a missing component (#2062). */
-  const int want = (int)(sizeof nffts / sizeof *nffts) * 3 + NKERN * 3;
+  const int want = (int)(sizeof nffts / sizeof *nffts) * 3 + NKERN * NKIND;
   if (_bench.count != want)
     {
       (void)fprintf (stderr,

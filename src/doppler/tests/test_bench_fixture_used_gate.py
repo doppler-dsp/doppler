@@ -1,12 +1,25 @@
 """A benchmark test that takes the fixture and never calls it is an error.
 
-`jm apply` scaffolds ``bench_<obj>.py`` with the ``benchmark`` fixture and
-nothing that calls it, and a test written that way passes, collects, and
-records no measurement at all (#1010). pytest-benchmark already detects the
-shape -- it warns ``Benchmark fixture was not used at all in this test!`` at
-fixture teardown -- so the gate is that warning promoted to an error by
-``filterwarnings`` in ``pyproject.toml``: every test that requests the
-fixture is covered the moment it exists, with nothing to register.
+This is NOT what was wrong with the 17 files #1010 filled in. Those were
+jm's scaffold -- an ``obj`` fixture and no test at all -- so no
+``benchmark`` fixture was ever built and this gate could not see them; rule
+5 of ``scripts/check_bench_coverage.py`` is what caught them, per file.
+This gate covers the shape rule 5 cannot: a TEST that requests the fixture
+and never calls it, inside a file that otherwise records. Rule 5 passes
+such a file, and the test passes, collects, and records nothing. No
+instance of it exists today; this keeps it that way.
+
+pytest-benchmark already detects the shape -- it warns ``Benchmark fixture
+was not used at all in this test!`` at fixture teardown -- so the gate is
+that warning promoted to an error by ``filterwarnings`` in
+``pyproject.toml``: every test that requests the fixture is covered the
+moment it exists, with nothing to register.
+
+One side effect to read past: a benchmark test that FAILS before it reaches
+its ``benchmark(...)`` call (a precheck assert, a fixture that raises) now
+also reports this teardown error. The first failure is the real one; the
+"fixture was not used" error after it is a consequence, not a second
+defect.
 
 Each case runs a real pytest in a subprocess against a seeded file, with the
 REPO's own ``pyproject.toml`` as its config, so what is exercised is the

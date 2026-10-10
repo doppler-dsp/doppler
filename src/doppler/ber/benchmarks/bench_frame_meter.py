@@ -26,10 +26,15 @@ FAIL_EVERY = 97
 N_FAILED = len(range(0, N_FRAMES, FAIL_EVERY))
 
 
+#: The per-frame crc_ok values, built once: computing them inside the timed
+#: loop would charge the stimulus's modulo to every ``add``.
+CRC_OK = [0 if i % FAIL_EVERY == 0 else 1 for i in range(N_FRAMES)]
+
+
 def _feed(m):
     add = m.add
-    for i in range(N_FRAMES):
-        add(1, 0 if i % FAIL_EVERY == 0 else 1)
+    for ok in CRC_OK:
+        add(1, ok)
 
 
 def test_bench_add(benchmark):
@@ -44,7 +49,9 @@ def test_bench_add(benchmark):
     assert m.sync_detected == N_FRAMES
     if benchmark.stats:
         sec = benchmark.stats["min"]
-        benchmark.extra_info["MSa_s"] = N_FRAMES / sec / 1e6
+        # Frames, not samples: named for what is counted, so the report
+        # does not read it as a sample throughput.
+        benchmark.extra_info["Mframe_s"] = N_FRAMES / sec / 1e6
         benchmark.extra_info["ns_per_frame"] = sec / N_FRAMES * 1e9
 
 

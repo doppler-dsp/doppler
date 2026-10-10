@@ -10,9 +10,10 @@ faces is the binding's per-call overhead.
 
 The lookup points are spread across the table rather than a ramp: a
 monotone sweep keeps every lookup in the same cache line and measures the
-L1 hit, not the interpolation. They are also fractional (``+ 0.37``), so
-``nearest`` and ``linear`` do the work that distinguishes them from
-``floor`` instead of all three landing on an index.
+L1 hit, not the interpolation. Their fractions sit on BOTH sides of 0.5
+(never on it, where a rounding rule would have to be chosen), so a
+``nearest`` that floors -- or a ``linear`` that does -- fails the
+assertion instead of passing at a fraction that cannot tell them apart.
 
 ``execute`` writes into a caller-owned ``out=`` buffer, as the C row does,
 so the row times the kernel and not a 1 MiB allocation per call.
@@ -36,7 +37,12 @@ def table():
 @pytest.fixture(scope="module")
 def points():
     rng = np.random.default_rng(0x4D2B)
-    return rng.integers(0, TABLE_N - 4, BLOCK_64K).astype(np.float64) + 0.37
+    frac = rng.choice([0.2, 0.37, 0.63, 0.8], BLOCK_64K)
+    x = rng.integers(0, TABLE_N - 4, BLOCK_64K).astype(np.float64) + frac
+    # The stimulus must be able to tell nearest from floor at all: some
+    # points round down and some round up.
+    assert (frac < 0.5).any() and (frac > 0.5).any()
+    return x
 
 
 def _expect(method, table, x):
@@ -67,6 +73,11 @@ def test_bench_execute(benchmark, table, points, method):
         "times less work than the row is credited with"
     )
     np.testing.assert_allclose(got, _expect(method, table, points), atol=1e-12)
+    if method != "floor":
+        # The row is not floor wearing another name (#1969's class).
+        assert not np.allclose(got, _expect("floor", table, points)), (
+            f"{method} returned floor's answer on a stimulus where they differ"
+        )
 
     if benchmark.stats:
         # MIN, not mean: the least-disturbed observation, per

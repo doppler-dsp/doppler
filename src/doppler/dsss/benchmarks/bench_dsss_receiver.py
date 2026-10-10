@@ -54,6 +54,10 @@ ROUNDS = 30
 #: first; the carrier lock EMA crosses 0.99 by about the eighth (measured:
 #: 0.96 after five), and the row is named for the steady state.
 PRIME = 10
+#: Blocks past the timed rounds: pedantic's warmup round takes one, and
+#: ``--benchmark-cprofile`` runs an extra profiled call that takes another.
+#: An exhausted iterator raises StopIteration mid-benchmark, so leave room.
+HEADROOM = 4
 
 
 def _receiver():
@@ -102,7 +106,7 @@ def test_bench_steps_search(benchmark):
 
 def test_bench_steps_track(benchmark):
     """Locked: each round is the next contiguous 64k of the capture."""
-    x, bits = stream(PRIME + ROUNDS + 1)  # +1: pedantic's warmup round
+    x, bits = stream(PRIME + ROUNDS + HEADROOM)
     blocks = iter(np.split(x, x.size // BLOCK_64K))
     rx = _receiver()
     syms = [rx.steps(next(blocks)) for _ in range(PRIME)]

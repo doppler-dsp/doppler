@@ -744,7 +744,7 @@ int dp_resamp_set_state (
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID if the blob's envelope rejects. 
+DP\_OK, or DP\_ERR\_INVALID if the blob's envelope rejects or its delay-line head lies outside the line; `state` is then unchanged. 
 
 
 

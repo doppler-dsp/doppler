@@ -209,6 +209,89 @@ rt_resamp (double rate)
   return ok;
 }
 
+/* A blob with only its delay-line head forged keeps the envelope's size, so
+ * the size check passes it. The next output reads num_taps samples from
+ * delay_buf[head], past the line for any head at delay_cap or beyond
+ * (doppler#2111). Each forged head is refused by the SAME instance, which
+ * then gives the same blob and resumes the stream bit-for-bit; the last head
+ * inside the line is taken. Returns 1 on success. */
+static int
+forged_head_refused (double rate)
+{
+  enum
+  {
+    L   = 400,
+    CAP = 1024
+  };
+  const size_t cut = 157;
+  float _Complex in[L], outA[CAP], outB[CAP];
+  for (size_t i = 0; i < (size_t)L; i++)
+    {
+      double ph = 2.0 * M_PI * 0.031 * (double)i;
+      in[i]     = CMPLXF ((float)cos (ph), (float)sin (ph));
+    }
+
+  resamp_state_t *ra = dp_resamp_create (rate);
+  size_t          nA = dp_resamp_execute (ra, in, L, outA, CAP);
+  dp_resamp_destroy (ra);
+
+  resamp_state_t *r  = dp_resamp_create (rate);
+  size_t          nB = dp_resamp_execute (r, in, cut, outB, CAP);
+  const size_t    sb = dp_resamp_state_bytes (r);
+  /* The payload opens with the u32 phase; the head follows it. */
+  const size_t   off    = sizeof (dp_state_hdr_t) + sizeof (uint32_t);
+  unsigned char *before = malloc (sb), *bad = malloc (sb), *now = malloc (sb);
+  if (!before || !bad || !now)
+    {
+      dp_resamp_destroy (r);
+      free (before);
+      free (bad);
+      free (now);
+      return 0;
+    }
+  int ok = 1;
+  dp_resamp_get_state (r, before);
+
+  const size_t forged[] = { r->delay_cap, 2 * r->delay_cap, SIZE_MAX };
+  for (size_t k = 0; k < sizeof forged / sizeof *forged; k++)
+    {
+      memcpy (bad, before, sb);
+      memcpy (bad + off, &forged[k], sizeof (size_t));
+      const int rc = dp_resamp_set_state (r, bad);
+      dp_resamp_get_state (r, now);
+      if (rc != DP_ERR_INVALID || memcmp (now, before, sb) != 0)
+        {
+          fprintf (stderr, "  rate %.2f: forged head %zu taken\n", rate,
+                   forged[k]);
+          ok = 0;
+        }
+    }
+
+  /* The edge inside the line: the last head a live instance can hold. */
+  {
+    resamp_state_t *e    = dp_resamp_create (rate);
+    const size_t    last = e->delay_cap - 1;
+    memcpy (bad, before, sb);
+    memcpy (bad + off, &last, sizeof (size_t));
+    ok = ok && dp_resamp_set_state (e, bad) == DP_OK && e->delay_head == last;
+    dp_resamp_destroy (e);
+  }
+
+  /* The refusing instance tracks on as if nothing had been offered. */
+  nB += dp_resamp_execute (r, in + cut, L - cut, outB + nB, CAP - nB);
+  ok = ok && nA == nB;
+  for (size_t i = 0; ok && i < nA; i++)
+    if (crealf (outA[i]) != crealf (outB[i])
+        || cimagf (outA[i]) != cimagf (outB[i]))
+      ok = 0;
+
+  dp_resamp_destroy (r);
+  free (before);
+  free (bad);
+  free (now);
+  return ok;
+}
+
 /* dp_resamp_interp_fill must reproduce the interpolation branch of
  * dp_resamp_execute() bit-for-bit (both call the same per-output kernel), and
  * a single fill of M outputs must equal M single-output fills fed on demand
@@ -1333,6 +1416,8 @@ main (void)
   DP_CHECK (rt_resamp (0.5)); /* decimation: decim_iad/decim_tfd path */
   DP_CHECK (rt_resamp (2.0)); /* interpolation: delay_buf path        */
   DP_CHECK (rt_resamp (0.4)); /* non-integer: fractional phase + ctrl */
+  DP_CHECK (forged_head_refused (2.0)); /* each output reads from the head */
+  DP_CHECK (forged_head_refused (0.4));
 
   /* Chunk-invariance of the plain resampler across the same three regimes:
    * single samples, 7, 64, a prime and random splits all reproduce the

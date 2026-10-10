@@ -498,33 +498,39 @@ rc_stage_get_state (rc_stage_t type, const void *ptr, char *p)
   return p;
 }
 
-static const char *
-rc_stage_set_state (rc_stage_t type, void *ptr, const char *p)
+/* Restore one stage from *pp and advance *pp past it. Returns the first
+   refusal among the stage's children: it used to discard them, so a refused
+   stage was reported as a restore (doppler#2104). */
+static int
+rc_stage_set_state (rc_stage_t type, void *ptr, const char **pp)
 {
+  const char *p  = *pp;
+  int         rc = DP_OK;
   switch (type)
     {
     case RC_STAGE_HB:
-      dp_hbdecim_set_state ((hbdecim_state_t *)ptr, p);
+      rc = dp_hbdecim_set_state ((hbdecim_state_t *)ptr, p);
       p += dp_hbdecim_state_bytes ((const hbdecim_state_t *)ptr);
       break;
     case RC_STAGE_CIC:
       {
         rc_cic_stage_t *cs = (rc_cic_stage_t *)ptr;
-        dp_cic_set_state (cs->cic, p);
+        rc                 = dp_cic_set_state (cs->cic, p);
         p += dp_cic_state_bytes (cs->cic);
-        if (cs->fir)
+        if (rc == DP_OK && cs->fir)
           {
-            dp_fir_set_state (cs->fir, p);
+            rc = dp_fir_set_state (cs->fir, p);
             p += dp_fir_state_bytes (cs->fir);
           }
       }
       break;
     case RC_STAGE_RESAMP:
-      dp_resamp_set_state ((resamp_state_t *)ptr, p);
+      rc = dp_resamp_set_state ((resamp_state_t *)ptr, p);
       p += dp_resamp_state_bytes ((const resamp_state_t *)ptr);
       break;
     }
-  return p;
+  *pp = p;
+  return rc;
 }
 
 /*
@@ -1011,7 +1017,11 @@ dp_RateConverter_set_state (dp_RateConverter_state_t *s, const void *blob)
     return rc;
   const char *p = (const char *)blob + sizeof (dp_state_hdr_t);
   for (int i = 0; i < s->n_stages; i++)
-    p = rc_stage_set_state (s->stage_types[i], s->stage_ptrs[i], p);
+    {
+      rc = rc_stage_set_state (s->stage_types[i], s->stage_ptrs[i], &p);
+      if (rc != DP_OK)
+        return rc;
+    }
   if (s->agc)
     return dp_agc_set_state (s->agc, p);
   return DP_OK;

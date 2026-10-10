@@ -68,14 +68,17 @@ dp_psd_create (size_t n, double fs, int window, float beta, size_t pad,
     return NULL;
 
   /* Caller-sized, so each can still fail, and does return NULL: not
-   * dp_xmalloc, which is for trusted sizes and would abort instead. */
+   * dp_xmalloc, which is for trusted sizes and would abort instead.  The
+   * window holds n + 1 points (see the fill below); n + 1 cannot wrap and
+   * its byte count fits, since the refusal above holds n <= n * pad <=
+   * top_pow2, 2^60 on a 64-bit size_t. */
   const size_t nfft = dp_next_pow_two (n * pad);
   s->n              = n;
   s->nfft           = nfft;
   s->fs             = fs;
   s->full_scale     = full_scale;
   s->bits           = bits;
-  s->w              = (float *)malloc (n * sizeof (float));
+  s->w              = (float *)malloc ((n + 1) * sizeof (float));
   s->frame = (float _Complex *)malloc (nfft * sizeof (float _Complex));
   s->spec  = (float _Complex *)malloc (nfft * sizeof (float _Complex));
   s->pwr   = (float *)malloc (nfft * sizeof (float));
@@ -86,15 +89,23 @@ dp_psd_create (size_t n, double fs, int window, float beta, size_t pad,
       return NULL;
     }
 
+  /* The PERIODIC (DFT-even) window: the symmetric window of n + 1 points
+   * with its last sample dropped, which is Harris 1978's DFT-even form and
+   * scipy's get_window(..., fftbins=True).  The window functions build the
+   * symmetric form, the one filter design wants, so each is filled at
+   * n + 1 here and only w[0..n) is ever read: its cosines then complete
+   * whole periods over the frame, so a bin-centred tone under Hann reads
+   * zero beyond its two neighbours and the ENBW is the published one
+   * (#2053).  Rect has no taper, and no n + 1 to drop. */
   if (window == 1)
-    dp_kaiser_window (s->w, n, beta);
+    dp_kaiser_window (s->w, n + 1, beta);
   else if (window == 2)
-    dp_blackman_harris_window (s->w, n);
+    dp_blackman_harris_window (s->w, n + 1);
   else if (window == 3)
     for (size_t i = 0; i < n; i++) /* rectangular: no spectral library entry */
       s->w[i] = 1.0f;
   else
-    dp_hann_window (s->w, n);
+    dp_hann_window (s->w, n + 1);
 
   double cg = 0.0, s2 = 0.0;
   for (size_t i = 0; i < n; i++)
@@ -102,12 +113,14 @@ dp_psd_create (size_t n, double fs, int window, float beta, size_t pad,
       cg += (double)s->w[i];
       s2 += (double)s->w[i] * (double)s->w[i];
     }
-  /* Every reading divides by cg^2 (or s2): a window that sums to zero --
-   * the symmetric Hann at n = 2 is [0, 0] -- would read NaN, or the -200 dB
-   * floor for any input, so it is refused here (#1911 (f)).  So is one that
-   * is not a finite number: a Kaiser beta of NaN, or one large enough that
-   * I0 overflows, makes every tap NaN.  Not a threshold on the size:
-   * Blackman-Harris at n = 2 sums to 1.2e-4, tiny but valid. */
+  /* Every reading divides by cg^2 (or s2): a window that sums to zero
+   * would read NaN, or the -200 dB floor for any input, so it is refused
+   * here (#1911 (f)).  No periodic window sums to zero -- Hann at n = 2
+   * is [0, 1] -- except a Kaiser past I0's overflow, where every finite
+   * tap divided by I0(beta) = inf is 0, as at n = 3, beta = 2.3e5.  So is
+   * one that is not a finite number: a Kaiser beta of NaN, or an overflow
+   * that reaches a tap as inf / inf, makes taps NaN.  Not a threshold on
+   * a tap: Blackman-Harris at n = 2 is [6e-5, 1], tiny but valid. */
   if (!(cg > 0.0 && isfinite (cg)))
     {
       dp_psd_destroy (s);

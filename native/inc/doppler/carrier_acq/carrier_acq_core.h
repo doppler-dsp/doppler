@@ -119,8 +119,7 @@ typedef struct {
  * @param resolution_hz   Desired FFT frequency resolution, Hz. <= 0.0 is
  *                         a sentinel meaning "auto": symbol_rate_hz/10.0.
  *                         The block is round(sample_rate_hz/resolution_hz)
- *                         samples, floored at 3 -- the shortest whose
- *                         default Hann window has any gain.
+ *                         samples, floored at 3 (#1959).
  * @param zero_pad        PSD zero-pad factor (>= 1); see psd_core.h.
  * @param window          Enum index; 0=hann, 1=kaiser, 2=blackman-harris.
  * @param beta            Kaiser beta (ignored for hann/blackman-harris).

@@ -70,9 +70,10 @@ signal, take power rows
 ([the measurement](../design/spectrogram-measurements.md#54-the-db-floor-measured-2026-10-10-u5)).
 
 `nfft` must be the PSD's transform length for that frame, which is to say a
-power of two of at least 2, and `1 <= hop <= nfft`. The window must have gain
-at that length: `nfft = 2` with Hann is refused, because the symmetric
-two-point Hann is `[0, 0]`. A frame length that is
+power of two of at least 2, and `1 <= hop <= nfft`. The window must be
+finite: a Kaiser `beta` of NaN, or one past I0's overflow (about 2.25e5), is
+refused. PSD's windows are periodic, so every window has gain at every
+`nfft`, even 2, where Hann is `[0, 1]`. A frame length that is
 not a power of two would be zero-padded by the PSD to more bins than samples
 ([#1966](https://github.com/doppler-dsp/doppler/issues/1966)). The mode is
 one of the two; any other value is refused.

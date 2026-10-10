@@ -127,6 +127,9 @@ _PSD — averaging power-spectral-density estimator (Welch's method) and spectra
 A stateful, C-first periodogram averager (Welch's method). It composes the existing pieces of the library rather than re-implementing them: an [**dp\_fft\_state\_t**](structdp__fft__state__t.md) forward plan, a spectral window (Hann, Kaiser, Blackman-Harris or rectangular) with its coherent gain and ENBW, an [**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) per-bin power averager (mean / EMA / max-hold / min-hold), and the spectral free functions ([**dp\_magnitude\_db\_cf32**](spectral__core_8h.md#function-dp_magnitude_db_cf32), [**dp\_find\_peaks\_f32**](spectral__core_8h.md#function-dp_find_peaks_f32), [**dp\_obw\_from\_power**](spectral__core_8h.md#function-dp_obw_from_power), [**dp\_noise\_floor\_db**](spectral__core_8h.md#function-dp_noise_floor_db)) for the derived measurements.
 
 
+Every window is the PERIODIC (DFT-even) form, its cosines taken at 2 pi k/n for k = 0..n-1, not 2 pi k/(n-1): the symmetric window of n + 1 points with its last sample dropped (Harris 1978; scipy.signal.get\_window(..., fftbins=True)). That is the spectral-estimation convention, and the spectral library's window functions, which are symmetric for filter design, build it here as the first n of n + 1 points. On the n-point grid its cosines complete whole periods, so a bin-centred tone under Hann reads exactly zero beyond its two neighbouring bins (to float rounding), Hann's ENBW is exactly 1.5 bins for n &gt;= 3, Blackman-Harris's is Harris's published 2.004 for n &gt;= 7, and Hann at n = 2 is `[0, 1]`, which has gain (#2053).
+
+
 Feed complex baseband frames with [**dp\_psd\_accumulate()**](psd__core_8h.md#function-dp_psd_accumulate); each length-n frame is windowed, FFT'd, converted to power, fftshifted to DC-centred order and folded into the running average. Then read:
 * [**dp\_psd\_psd\_db()**](psd__core_8h.md#function-dp_psd_psd_db) : averaged power spectrum, dB (peak reads tone power)
 * [**dp\_psd\_psd\_dbhz()**](psd__core_8h.md#function-dp_psd_psd_dbhz) : averaged PSD, dB/Hz (ENBW / fs normalised)
@@ -323,8 +326,8 @@ dp_psd_state_t * dp_psd_create (
 
 * `n` Window / frame length in samples. Must be &gt;= 2. 
 * `fs` Sample rate in Hz (used for dB/Hz and band frequencies); finite and &gt; 0. 
-* `window` Window index: 0 = Hann, 1 = Kaiser, 2 = Blackman-Harris, 3 = rectangular (no taper: best resolution, worst leakage). 
-* `beta` Kaiser beta (ignored by every other window). One that makes the window non-finite  NaN, or large enough to overflow it  is refused. 
+* `window` Window index: 0 = Hann, 1 = Kaiser, 2 = Blackman-Harris, 3 = rectangular (no taper: best resolution, worst leakage). Each tapered one in its periodic (DFT-even) form. 
+* `beta` Kaiser beta (ignored by every other window). NaN, or one large enough to overflow I0 (about 2.25e5), is refused: its taps are NaN, or all 0. 
 * `pad` Zero-pad factor (&gt;= 1; 0 is refused); nfft = next\_pow\_two(n \* pad). 
 * `full_scale` Amplitude that reads 0 dBFS in the dB getters; finite and &gt; 0. Ignored when `bits` &gt; 0. 
 * `bits` ADC depth: when &gt; 0, sets full\_scale = 2^(bits-1) (the single definition of the dBFS reference); 0 = use `full_scale` directly. At most 64. 
@@ -335,7 +338,7 @@ dp_psd_state_t * dp_psd_create (
 
 **Returns:**
 
-Heap-allocated state, or NULL on invalid argument or OOM. A window whose coherent gain sum(w) is 0  Hann at n = 2, whose symmetric form is all zeros  is refused too: every reading divides by it. So is an `n` or `n` \* `pad` too large for its buffers to be sized, rather than wrapped to a small one. 
+Heap-allocated state, or NULL on invalid argument or OOM. A window whose coherent gain sum(w) is 0 or not finite is refused too: every reading divides by it. No window sums to 0 below I0's overflow (Hann at n = 2 is `[0, 1]`); a Kaiser `beta` past it, about 2.25e5, makes taps NaN  or, at an odd n just past it, every tap 0 (n = 3, beta = 2.3e5). So is an `n` or `n` \* `pad` too large for its buffers to be sized, rather than wrapped to a small one. 
 
 
 
@@ -450,7 +453,7 @@ void dp_psd_frame_linear (
 
 
 
-[**dp\_psd\_frame\_power()**](psd__core_8h.md#function-dp_psd_frame_power) divided by the window coherent gain squared and the full-scale reference squared, cg^2 \* full\_scale^2: a full-scale tone on a bin reads 1.0 whatever the window. [**dp\_psd\_frame\_db()**](psd__core_8h.md#function-dp_psd_frame_db) is exactly [**dp\_power\_to\_db\_f32()**](spectral__core_8h.md#function-dp_power_to_db_f32) of this, bit for bit: the quotient is rounded to float once and both readings are taken from it, so they cannot disagree about the reference, and a consumer that converts these values to dB itself gets exactly PSD's dB. This is the frame a consumer that averages for itself should take: the raw [**dp\_psd\_frame\_power()**](psd__core_8h.md#function-dp_psd_frame_power) sits 20\*log10(sum(w)) above it, 54.18 dB for Hann at 1024 points (docs/design/spectrogram-measurements.md section 5.3). Does not touch the running average; not thread-safe on one state.
+[**dp\_psd\_frame\_power()**](psd__core_8h.md#function-dp_psd_frame_power) divided by the window coherent gain squared and the full-scale reference squared, cg^2 \* full\_scale^2: a full-scale tone on a bin reads 1.0 whatever the window. [**dp\_psd\_frame\_db()**](psd__core_8h.md#function-dp_psd_frame_db) is exactly [**dp\_power\_to\_db\_f32()**](spectral__core_8h.md#function-dp_power_to_db_f32) of this, bit for bit: the quotient is rounded to float once and both readings are taken from it, so they cannot disagree about the reference, and a consumer that converts these values to dB itself gets exactly PSD's dB. This is the frame a consumer that averages for itself should take: the raw [**dp\_psd\_frame\_power()**](psd__core_8h.md#function-dp_psd_frame_power) sits 20\*log10(sum(w)) above it, 54.19 dB for Hann at 1024 points, whose periodic taps sum to 512 (docs/design/spectrogram-measurements.md section 5.3 measured 54.18 under the symmetric window). Does not touch the running average; not thread-safe on one state.
 
 
 

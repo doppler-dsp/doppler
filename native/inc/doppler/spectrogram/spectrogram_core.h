@@ -108,8 +108,10 @@ typedef struct
  * @param hop     Samples between row starts, 1 <= hop <= nfft. hop == nfft
  *                tiles the stream; hop < nfft overlaps the frames.
  * @param window  0 = Hann, 1 = Kaiser, 2 = Blackman-Harris, 3 = rectangular,
- *                as dp_psd_create(), which also refuses a window that sums
- *                to zero at this nfft (the symmetric Hann at nfft = 2).
+ *                as dp_psd_create(), in its periodic form, and refused as
+ *                it refuses: a window that is not finite (a NaN Kaiser
+ *                beta, or one past I0's overflow). Every window has gain at
+ *                every nfft: Hann at nfft = 2 is `[0, 1]`.
  * @param beta    Kaiser beta (ignored for the other windows).
  * @param mode    DP_SPECTROGRAM_POWER (linear rows, the default, 0) or
  *                DP_SPECTROGRAM_DB (dBFS rows, 1); any other value is

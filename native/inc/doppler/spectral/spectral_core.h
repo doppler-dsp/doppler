@@ -4,6 +4,10 @@
  *
  * Provides windowing (Kaiser, Hann, Blackman-Harris), ENBW computation, magnitude conversion,
  * and peak finding.  These are pure functions with no persistent state.
+ *
+ * The windows are the symmetric form (over N-1), the filter-design
+ * convention; PSD builds the periodic (DFT-even) form from them, as the
+ * first n points of the n + 1 point window (psd_core.h, #2053).
  */
 #ifndef DP_SPECTRAL_CORE_H
 #define DP_SPECTRAL_CORE_H

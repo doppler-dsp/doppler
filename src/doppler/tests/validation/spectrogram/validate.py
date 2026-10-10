@@ -550,10 +550,13 @@ def characterise(d) -> None:
     R.md()
     R.md(
         "An on-bin tone of power L dBFS reads L in its bin down to the "
-        "floor, then the floor. Its other bins show the window's leakage, "
-        "not rounding: PSD's windows are symmetric (#2053), so a tone on "
-        "the grid leaks into neighbouring bins under every window but the "
-        "rectangular one."
+        "floor, then the floor. Its other bins show the window's leakage "
+        "on the grid: PSD's windows are periodic (#2053), so Hann and "
+        "Blackman-Harris, sums of cosines that complete whole periods over "
+        "the frame, put an on-bin tone into its first one (Hann) or three "
+        "(Blackman-Harris) neighbours each side and only float rounding "
+        "further out; Kaiser, not a sum of cosines, leaks into every bin; "
+        "and the rectangular window, whose transform is one bin, into none."
     )
     R.md()
     tone = d["floor_tone"]
@@ -726,12 +729,12 @@ def review(d) -> None:
     hann2 = next(p for k, p, _ in _leak(d, "hann") if k == 2)
     R.find(
         "F7",
-        "GAP",
-        "Rows inherit PSD's symmetric windows, which are not orthogonal on "
-        f"the N-point grid, so an on-bin tone under Hann leaks {hann2:.1f} "
-        "dBc into bins +-2, where a periodic window would put none (§2.7). "
-        "It is PSD's convention, open there as #2053, and the Spectrogram "
-        "follows whatever PSD decides.",
+        "FIXED",
+        "Rows inherited PSD's symmetric windows, which are not orthogonal "
+        "on the N-point grid, so an on-bin tone under Hann leaked -69.7 dBc "
+        "into bins +-2. PSD's windows are periodic now (#2053) and the rows "
+        "follow, with no change here: under Hann an on-bin tone puts "
+        f"{hann2:.1f} dBc into bins +-2, float rounding (§2.7).",
     )
     R.find(
         "F8",

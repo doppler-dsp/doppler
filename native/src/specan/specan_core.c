@@ -31,7 +31,7 @@
  *    fits, with a wider-than-needed ENBW), and at least SPECAN_N_MIN.
  *
  * 3. BETA WIDENS THE ENBW to meet the request: target = rbw * n / fs_out, in
- *    [2, 4), and beta = kaiser_beta_for_enbw(target, n). The widest RBW is
+ *    [2, 4), and beta = kaiser_beta_for_enbw(target). The widest RBW is
  *    4 bins of the shortest window, 4 * fs_out / SPECAN_N_MIN; a wider
  *    request is clamped to it. Auto is span / 100.
  *
@@ -53,18 +53,20 @@
 /* Kaiser beta whose ENBW, for an n-point window, is `enbw` bins (2..4).
  *
  * A cubic least-squares fit of beta against ENBW, from np.kaiser(4096, beta)
- * over beta in [10, 55] restricted to ENBW in [1.98, 4.02]. A symmetric
- * n-point window spans n - 1 sample intervals, so its ENBW is the long-window
- * value times n / (n - 1); the fit is evaluated at enbw * (n - 1) / n to
- * undo that. The realised ENBW is then within 0.03% of the target for every
- * n >= 16 (uncorrected it was 0.18% at 512 and 6.7% at 16). The analyzer
+ * over beta in [10, 55] restricted to ENBW in [1.98, 4.02]. PSD's window is
+ * the periodic form (#2053), which spans n sample intervals, so its ENBW is
+ * the long-window value at every n and the fit is evaluated at enbw itself.
+ * The realised ENBW is then within 0.03% of the target for every n >= 16
+ * (measured 0.026% at every power of two from 16 to 4096) and breaks at
+ * n = 8 (7.4%). The symmetric window this replaced spans n - 1 intervals
+ * and needed the fit at enbw * (n - 1) / n; that correction, left on the
+ * periodic window, reads 0.22% low at 512 and 6.3% at 16. The analyzer
  * reports the RBW the window actually realises, so this sets how close that
  * lands to the request, not what is reported -- test_specan_core.c bounds
  * it. */
 static double
-kaiser_beta_for_enbw (double enbw, size_t n)
+kaiser_beta_for_enbw (double e)
 {
-  double e = enbw * (double)(n - 1) / (double)n;
   return ((0.00590559 * e + 3.07532701) * e + 0.24521102) * e - 0.960144;
 }
 
@@ -101,7 +103,7 @@ dp_specan_create (double fs, double span, double rbw, double src_center,
     target = SPECAN_ENBW_MIN;
   if (target > SPECAN_ENBW_MAX)
     target = SPECAN_ENBW_MAX;
-  double beta = kaiser_beta_for_enbw (target, n);
+  double beta = kaiser_beta_for_enbw (target);
 
   /* The display crop: bins ±nfft/2.56 are the span edges, exactly. */
   size_t half = (size_t)lround ((double)nfft / 2.56);

@@ -1680,10 +1680,11 @@ class PSD:
         0.
     window : Literal["hann", "kaiser", "blackman-harris", "rect"], default "hann"
         Window index: 0 = Hann, 1 = Kaiser, 2 = Blackman-Harris, 3 =
-        rectangular (no taper: best resolution, worst leakage).
+        rectangular (no taper: best resolution, worst leakage). Each tapered
+        one in its periodic (DFT-even) form.
     beta : float, default 0.0
-        Kaiser beta (ignored by every other window). One that makes the window
-        non-finite -- NaN, or large enough to overflow it -- is refused.
+        Kaiser beta (ignored by every other window). NaN, or one large enough
+        to overflow I0 (about 2.25e5), is refused: its taps are NaN, or all 0.
     pad : int, default 1
         Zero-pad factor (>= 1; 0 is refused); nfft = next_pow_two(n * pad).
     full_scale : float, default 1.0
@@ -1706,8 +1707,8 @@ class PSD:
         If construction fails. The exception message is ``PSD: invalid
         parameter (need n >= 2, pad >= 1 with n * pad within the largest FFT,
         finite fs > 0, bits <= 64, a finite full_scale > 0 when bits = 0, a
-        window whose taps sum to a finite nonzero value (not hann at n = 2, nor
-        a NaN or overflowing kaiser beta), and in exp mode 0 < alpha <= 1)``.
+        window whose taps sum to a finite nonzero value (not a NaN or
+        overflowing kaiser beta), and in exp mode 0 < alpha <= 1)``.
 
     Examples
     --------

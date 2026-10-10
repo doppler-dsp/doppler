@@ -83,6 +83,8 @@ class Data:
     sfdr: float = 0.0
     sfdr_one_tone: float = -1.0
     hann_leak_dbc: float = 0.0
+    hann_leak_worst: float = 0.0
+    hann_leak_bound: float = 0.0
     e_excess: float = 0.0
     d_zero_sd: float = 0.0
     d_zero_sd_db: float = 0.0
@@ -114,6 +116,9 @@ class Data:
     e_rows: list[list[str]] = field(default_factory=list)
     f_rows: list[list[str]] = field(default_factory=list)
     f_created: bool = False
+    f_hann2_reads: bool = False
+    f_zero_refused: bool = False
+    f_kaiser3_ok: bool = False
     g_band_empty: object = None
     i_overflow_refused: bool = False
     bp_agree_worst: float = 0.0
@@ -186,13 +191,22 @@ def _tone(n: int, k: float, amp: float = 1.0) -> np.ndarray:
 
 
 def _window(name: str, n: int, beta: float = BETA) -> np.ndarray:
-    """The window from its published definition, in double (the truth)."""
+    """The window from its published definition, in double (the truth).
+
+    The periodic (DFT-even) form PSD uses (#2053), written over N as Harris
+    (1978) defines it: k/N for k = 0..N-1, never N-1. Kaiser is the same
+    rule, I0(beta sqrt(1 - (2k/N - 1)^2)) / I0(beta), from numpy's I0
+    rather than ``np.kaiser``, which is the symmetric form. Nothing here
+    builds an (N+1)-point window and drops a sample, which is how doppler
+    builds it, so the two agree only if both are the published window.
+    """
     k = np.arange(n, dtype=np.float64)
     if name == "rect":
         return np.ones(n)
     if name == "kaiser":
-        return np.kaiser(n, beta)
-    x = 2.0 * np.pi * k / (n - 1)  # symmetric: doppler divides by N-1
+        r = 2.0 * k / n - 1.0
+        return np.i0(beta * np.sqrt(1.0 - r * r)) / np.i0(beta)
+    x = 2.0 * np.pi * k / n  # periodic: over N
     if name == "hann":
         return 0.5 - 0.5 * np.cos(x)
     a0, a1, a2, a3 = BH
@@ -298,9 +312,10 @@ def section_object() -> None:
         "the header), mapped onto `native/tests/test_psd_core.c` as "
         "**pinned**, **pinned only at literals** (asserted at one example "
         "where the claim is general) or **absent**. The C sections T1-T18 "
-        "came in parts a and b (#1955, #1956), the refusals with #1959, and "
-        "T19-T20 with this report. 'here' names the section of this report "
-        "that measures the claim through the binding, or C-ONLY."
+        "came in parts a and b (#1955, #1956), the refusals with #1959, "
+        "T19-T20 with this report, and T16b with the periodic window "
+        "(#2053). 'here' names the section of this report that measures "
+        "the claim through the binding, or C-ONLY."
     )
     R.md()
     P, L = "pinned", "pinned only at literals"
@@ -317,11 +332,25 @@ def section_object() -> None:
                 "§2.10 (b) (c) (f) (i); the rest C-ONLY",
             ],
             [
-                "a Kaiser `beta` that makes the window non-finite (NaN, or "
-                "about 2.3e5 and up) is refused",
+                "a Kaiser `beta` past I0's overflow (about 2.25e5) or NaN is "
+                "refused: its taps are NaN, or at an odd n every tap is 0",
                 "#1911 refusals block",
                 P,
-                "C-ONLY",
+                "§2.10 (f) (the zero taps); NaN C-ONLY",
+            ],
+            [
+                "every window is the periodic (DFT-even) form; Hann at n = 2 "
+                "is [0, 1], which has gain",
+                "#1911 refusals block (f)",
+                P,
+                "§2.10 (f)",
+            ],
+            [
+                "a bin-centred Hann tone reads zero beyond its two "
+                "neighbouring bins, to float rounding",
+                "T16b",
+                P,
+                "§2.6",
             ],
             [
                 "`alpha` is read and checked in exp mode only; mean, "
@@ -387,7 +416,13 @@ def section_object() -> None:
                 P,
                 "C-ONLY",
             ],
-            ["ENBW against the window's definition", "T5", P, "§2.3"],
+            [
+                "ENBW against the window's definition: Hann exactly 1.5 "
+                "(n >= 3), Blackman-Harris Harris's 2.004 (n >= 7)",
+                "ENBW block; T5",
+                P,
+                "§2.3",
+            ],
             [
                 "`rbw = enbw * fs / n` (the binding's property, claimed by "
                 "the header's create doctest)",
@@ -566,7 +601,6 @@ def _sec_enbw(d: Data) -> None:
     worst = 0.0
     a0, a1, a2, a3 = BH
     p = a0 * a0 + (a1 * a1 + a2 * a2 + a3 * a3) / 2.0
-    w0 = a0 - a1 + a2 - a3
     rect_one = True
     rbw_ok = True
     for n in (64, 100, 1024):
@@ -575,7 +609,12 @@ def _sec_enbw(d: Data) -> None:
             ww = _window(win, n)
             truth = n * float(np.sum(ww * ww)) / float(np.sum(ww)) ** 2
             if win == "blackman-harris":
-                closed = n * ((n - 1) * p + w0 * w0) / ((n - 1) * a0 + w0) ** 2
+                # periodic, N > 6: every cosine in w and w^2 sums to zero
+                # over N samples, so sum(w) = N a0, sum(w^2) = N p
+                closed = p / (a0 * a0)
+            elif win == "hann":
+                # likewise for N > 2: sum(w) = N/2, sum(w^2) = 3N/8
+                closed = 1.5
             else:
                 closed = truth
             err = abs(w.enbw - closed)
@@ -586,12 +625,14 @@ def _sec_enbw(d: Data) -> None:
             rows.append([str(n), win, f"{w.enbw:.6f}", f"{err:.1e}"])
     R.table(["n", "window", "ENBW, bins", "|ENBW - truth|"], rows)
     R.md(
-        f"The truth is `n sum(w^2) / sum(w)^2` of the window built in double "
-        f"from its definition (Blackman-Harris: the closed form from Harris's "
-        f"coefficients for the symmetric N-point window, whose periodic limit "
-        f"{p / (a0 * a0):.4f} his Table 1 rounds to 2.00). Worst "
-        f"{worst:.1e}. Rect is exactly 1.0: {'yes' if rect_one else 'NO'}; "
-        f"`rbw = enbw * fs / n`: {'yes' if rbw_ok else 'NO'}."
+        f"The truth is `n sum(w^2) / sum(w)^2` of the periodic window built "
+        f"in double from its definition over N (Kaiser), or its closed form: "
+        f"Hann exactly 1.5, and Blackman-Harris `P / a0^2` = "
+        f"{p / (a0 * a0):.4f} from Harris's coefficients, the value his "
+        f"Table 1 rounds to 2.00, at every N > 6. Worst {worst:.1e}. Rect "
+        f"is exactly 1.0: {'yes' if rect_one else 'NO'}; `rbw = enbw * fs / "
+        f"n`: {'yes' if rbw_ok else 'NO'}. The symmetric window PSD used "
+        f"before #2053 read 2.036 for Blackman-Harris at `n = 64` (F16)."
     )
     R.md()
     d.enbw_rows, d.enbw_worst = rows, worst
@@ -802,12 +843,20 @@ def _sec_measurements(d: Data) -> None:
     o = _psd(n=64, window="hann")
     o.accumulate(_tone(64, -16))
     d.sfdr_one_tone = o.sfdr(-30.0)
-    # why N/2 apart: a symmetric-Hann tone at bin 6 leaks to bin 20, and
-    # that leakage biases a spur placed there
+    # The periodic Hann is DFT-even: a bin-centred tone at bin 6 reads
+    # nothing beyond bins 5 and 7 but float rounding, whose bound (C T16b)
+    # is ||dX||^2 <= ((c log2 n + 3) u)^2 ||X||^2 for the float tone, window
+    # and product plus the FFT, and ||X||^2 = enbw cg^2. N/2 apart was
+    # chosen under the symmetric Hann, which leaked -82.4 dBc into bin 20.
     lk = _psd(n=64, window="hann")
     lk.accumulate(_tone(64, 6))
     ldb = _db(lk)
-    d.hann_leak_dbc = float(ldb[32 + 20] - ldb[32 + 6])
+    rel = ldb - ldb[32 + 6]
+    d.hann_leak_dbc = float(rel[32 + 20])
+    d.hann_leak_worst = float(np.max(np.delete(rel, [32 + 5, 32 + 6, 32 + 7])))
+    d.hann_leak_bound = 10.0 * math.log10(
+        ((FFT_C * math.log2(64) + 3.0) * U) ** 2 * lk.enbw
+    )
     near = _psd(n=64, window="hann")
     near.accumulate((_tone(64, 6) + 0.1 * _tone(64, 20)).astype(np.complex64))
     d.sfdr_bias_near = near.sfdr(-30.0) - 20.0
@@ -864,12 +913,16 @@ def _sec_measurements(d: Data) -> None:
         ],
     )
     R.md(
-        "The SFDR tones sit half the transform apart on purpose. A "
-        f"symmetric-Hann tone at bin 6 leaks {d.hann_leak_dbc:.1f} dBc into "
-        "bin 20, and a -20 dB spur placed there reads "
-        f"{d.sfdr_bias_near:+.1e} dB off. N/2 apart, each tone's leakage is "
-        "symmetric about the other, and the bias is "
-        f"{d.sfdr - 20.0:+.1e} dB."
+        "The SFDR tones sit half the transform apart, a placement chosen "
+        "under the symmetric Hann PSD used before #2053, whose bin-centred "
+        "tone at bin 6 leaked -82.4 dBc into bin 20 and moved a -20 dB spur "
+        "there by -5.2e-03 dB. The periodic Hann is DFT-even: a bin-centred "
+        "tone reads nothing beyond its two neighbours but float rounding, "
+        f"at most {d.hann_leak_worst:.1f} dBc against the bound "
+        f"{d.hann_leak_bound:.1f} dBc (C T16b), and "
+        f"{d.hann_leak_dbc:.1f} dBc at bin 20. A spur there now reads "
+        f"{d.sfdr_bias_near:+.1e} dB off, and N/2 apart "
+        f"{d.sfdr - 20.0:+.1e} dB: the placement no longer matters."
     )
     R.md()
 
@@ -1175,17 +1228,18 @@ def _sec_candidates(d: Data) -> None:
         ["window", "whole span, dB", "halves, dB", "halves summed, dB"], rows
     )
 
-    # (f) n = 2 Hann: a window with zero coherent gain
+    # (f) a window with zero coherent gain. #1911 found Hann at n = 2, whose
+    # symmetric form was [0, 0]; the periodic Hann (#2053) is [0, 1].
     rows = []
     # Only the constructor is in the try: a reader's ValueError must not
     # read as a refused create.
     try:
         w = _psd(n=2, window="hann")
     except ValueError as e:
-        rows.append(["create", f"refused ({type(e).__name__})", ""])
+        rows.append(["Hann, n = 2", f"refused ({type(e).__name__})", ""])
     else:
         d.f_created = True
-        rows.append(["create", "accepted", f"enbw = {w.enbw!r}"])
+        rows.append(["Hann, n = 2", "accepted", f"enbw = {w.enbw!r}"])
         w.accumulate(np.array([1.0, 1.0], np.complex64))
         rows.append(["psd_db()", repr(list(_db(w))), ""])
         rows.append(
@@ -1200,6 +1254,26 @@ def _sec_candidates(d: Data) -> None:
             ]
         )
         rows.append(["noise_floor()", repr(w.noise_floor()), ""])
+        # [0, 1] windows the unit frame to [0, 1]: |X|^2 = 1 in both bins
+        two = list(_two(w))
+        d.f_hann2_reads = list(_db(w)) == [0.0, 0.0] and two == [1.0, 1.0]
+    try:
+        _psd(n=3, window="kaiser", beta=2.3e5)
+    except ValueError as e:
+        d.f_zero_refused = True
+        rows.append(
+            [
+                "Kaiser, n = 3, beta = 2.3e5",
+                f"refused ({type(e).__name__})",
+                "every tap a finite I0 over I0(beta) = inf: 0",
+            ]
+        )
+    else:
+        rows.append(["Kaiser, n = 3, beta = 2.3e5", "accepted", ""])
+    try:
+        d.f_kaiser3_ok = _psd(n=3, window="kaiser", beta=2.2e5).enbw > 0.0
+    except ValueError:
+        d.f_kaiser3_ok = False
     d.f_rows = rows
     try:
         _psd(n=2, window="rect")
@@ -1207,9 +1281,14 @@ def _sec_candidates(d: Data) -> None:
     except ValueError:
         d.f_rect2_ok = False
     R.md(
-        "**(f)** `n = 2` with Hann: the symmetric 2-point Hann is `[0, 0]`, "
-        "so `cg = s2 = 0`. Create, then, if it is accepted, a unit frame and "
-        "each reader:"
+        "**(f)** A window with zero coherent gain, which every reading "
+        "divides by. #1911 found Hann at `n = 2`, whose symmetric form was "
+        "`[0, 0]`; PSD's periodic Hann (#2053) is `[0, 1]`, with gain 1, so "
+        "it is created and a unit DC frame reads 0 dB in both bins. The one "
+        "window that still sums to zero is a Kaiser past I0's overflow at "
+        "an odd `n`: at `n = 3`, `beta = 2.3e5`, every tap is a finite I0 "
+        "divided by an infinite one, 0. Each create, and for an accepted "
+        "one a unit frame and each reader:"
     )
     R.md()
     R.table(["call", "returns", "note"], rows)
@@ -1359,15 +1438,19 @@ def review(d: Data) -> None:
         "F8",
         "FIXED",
         "**A window with no gain built an estimator that read NaN or the "
-        "floor.** Hann at `n = 2` is `[0, 0]`; a Kaiser `beta` of NaN, or "
-        "from about 2.3e5 up, makes every tap NaN; a NaN `fs` or "
+        "floor.** Hann at `n = 2` was `[0, 0]` under the symmetric form; a "
+        "Kaiser `beta` of NaN, or from about 2.25e5 up, makes taps NaN, or "
+        "at an odd `n` just past I0's overflow every tap 0; a NaN `fs` or "
         "`full_scale` passed `<= 0.0`; `bits` above 64 overflows the "
-        "reference. Each is refused at create (#1959): §2.10 (f) measures "
-        "Hann at `n = 2`; the NaN-beta, non-finite `fs` / `full_scale` and "
-        "`bits > 64` refusals are C-ONLY (the #1911 refusals block). One "
-        "caller reached the Hann case mid-stream, AsyncDsssReceiver's "
-        "carrier estimator at `refine_n_fft` 1 or 2, so carrier_acq's block "
-        "floor is now 3, the shortest whose Hann has gain.",
+        "reference. Each is refused at create (#1959). Since #2053 (F16) "
+        "Hann at `n = 2` is the periodic `[0, 1]`, which has gain and is "
+        "accepted, so §2.10 (f) measures it read and the zero-sum Kaiser "
+        "(`n = 3`, `beta = 2.3e5`) refused; the NaN-beta, non-finite `fs` "
+        "/ `full_scale` and `bits > 64` refusals are C-ONLY (the #1911 "
+        "refusals block). One caller reached the Hann case mid-stream, "
+        "AsyncDsssReceiver's carrier estimator at `refine_n_fft` 1 or 2, so "
+        "carrier_acq's block floor became 3, the shortest whose symmetric "
+        "Hann had gain; it stays 3.",
     )
     R.find(
         "F9",
@@ -1437,19 +1520,29 @@ def review(d: Data) -> None:
     )
     R.find(
         "F16",
-        "GAP",
-        "**The windows are the symmetric (N-1) form, not the periodic form "
+        "FIXED",
+        "**The windows were the symmetric (N-1) form, not the periodic form "
         "spectral estimation conventionally uses.** `spectral_core.h` "
-        "defines Hann, Kaiser and Blackman-Harris over `N-1`, and PSD "
-        "inherits it. Three symptoms trace to it: Hann at `n = 2` is "
-        "`[0, 0]` (F8); a bin-centred Hann tone leaks "
-        f"{d.hann_leak_dbc:.1f} dBc into bins a DFT-even window would leave "
-        f"at the floor (§2.6); and Blackman-Harris's ENBW is "
-        f"{d.enbw_bh64:.3f} bins at `n = 64`, against the periodic window's "
-        f"{d.bh_periodic:.3f}, which Harris's Table 1 rounds to 2.00 (§2.3). "
-        "This report cannot question "
-        "it, since its window truth copies the same `N-1` form. Which "
-        "convention PSD should use, and what moving it would shift: #2053.",
+        "defines Hann, Kaiser and Blackman-Harris over `N-1`, the "
+        "filter-design convention, and PSD inherited it, with three "
+        "symptoms: Hann at `n = 2` was `[0, 0]` (F8); a bin-centred Hann "
+        "tone leaked -82.4 dBc into bin 20 from bin 6, where a DFT-even "
+        "window leaves nothing; and Blackman-Harris's ENBW was 2.036 bins "
+        "at `n = 64`, against Harris's 2.004. PSD now builds the periodic "
+        "(DFT-even) form from the same functions, the first `n` points of "
+        "the `n + 1` point window, and the functions stay symmetric for "
+        "filter design (#2053). What moved: Hann at `n = 2` is `[0, 1]` and "
+        "is accepted (§2.10 (f)); a bin-centred Hann tone reads at most "
+        f"{d.hann_leak_worst:.1f} dBc beyond its two neighbours, float "
+        f"rounding under the {d.hann_leak_bound:.1f} dBc bound (§2.6, C "
+        f"T16b); Blackman-Harris's ENBW is {d.enbw_bh64:.4f} at `n = 64`, "
+        f"Harris's {d.bh_periodic:.4f}, and Hann's exactly 1.5 (§2.3, C "
+        "T5). The window truth is written from the published periodic "
+        "definition over N, not copied from doppler's construction, so "
+        "this report now judges the convention rather than records it. "
+        "Every PSD number moved with it, and so did the Spectrogram, the "
+        "measure objects, Specan (whose beta fit dropped its `(n - 1)/n` "
+        "correction) and CarrierAcquisition, which compose it.",
     )
 
 
@@ -1488,8 +1581,9 @@ def limits(d: Data) -> None:
     R.limit(d.rect_enbw_one, "rect ENBW is exactly 1.0")
     R.limit(
         d.enbw_worst < 1e-6,
-        f"ENBW matches the window's definition, Blackman-Harris its "
-        f"published coefficients (worst {d.enbw_worst:.1e})",
+        f"ENBW matches the periodic window's definition: Hann exactly 1.5, "
+        f"Blackman-Harris Harris's P / a0^2 from its published "
+        f"coefficients, Kaiser over N (worst {d.enbw_worst:.1e})",
     )
     R.limit(d.rbw_is_enbw, "rbw = enbw * fs / n")
     R.limit(
@@ -1549,13 +1643,26 @@ def limits(d: Data) -> None:
     R.limit(
         d.b_pad0_refused
         and d.c_alpha_refused
-        and not d.f_created
+        and d.f_zero_refused
         and d.i_overflow_refused
         and d.c_alpha1_ok
+        and d.f_kaiser3_ok
         and d.f_rect2_ok,
-        "create refuses pad 0, an exp alpha of 0, -0.5 or 1.5, Hann at "
-        "n = 2 and n = 2^62, and accepts their in-domain neighbours: alpha "
-        "= 1 and rect at n = 2",
+        "create refuses pad 0, an exp alpha of 0, -0.5 or 1.5, a window "
+        "with zero gain (Kaiser at n = 3, beta 2.3e5) and n = 2^62, and "
+        "accepts their in-domain neighbours: alpha = 1, Kaiser at n = 3, "
+        "beta 2.2e5, and rect at n = 2",
+    )
+    R.limit(
+        d.f_created and d.f_hann2_reads,
+        "the periodic Hann at n = 2 is [0, 1]: it is accepted, and a unit DC "
+        "frame reads 0 dB, power 1.0, in both bins",
+    )
+    R.limit(
+        d.hann_leak_worst <= d.hann_leak_bound,
+        f"a bin-centred Hann tone reads nothing beyond its two neighbours "
+        f"but float rounding: at most {d.hann_leak_worst:.1f} dBc, under "
+        f"the {d.hann_leak_bound:.1f} dBc bound",
     )
     R.limit(
         d.c_fraction_nan and d.h_ok,
@@ -1586,6 +1693,12 @@ def build(write: bool = True) -> Report:
             "tone at 0 dBFS under every window and both references, "
             "certified in C (F3, §2.1). The averaged linear readouts carry "
             "no `full_scale` (F15).",
+            "**The windows are periodic (DFT-even), the spectral-estimation "
+            "form.** A bin-centred Hann tone reads nothing beyond its two "
+            f"neighbours ({d.hann_leak_worst:.0f} dBc at most, float "
+            "rounding), Blackman-Harris's ENBW is Harris's "
+            f"{d.bh_periodic:.3f}, and Hann at `n = 2` has gain; the window "
+            "functions themselves stay symmetric for filter design (F16).",
             "**The levels are absolute.** dB/Hz reads `var/fs` for every "
             "window at pad 1 and 2, within 5 sd of the estimator's own "
             "spread; whole-span band power is the same statistic (§2.5).",

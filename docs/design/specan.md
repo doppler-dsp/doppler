@@ -99,17 +99,22 @@ Beta comes from a cubic least-squares fit of beta against ENBW, from
 
 ```text
 beta(e) = 0.00590559 e³ + 3.07532701 e² + 0.24521102 e − 0.960144
-e       = target ENBW · (n − 1) / n
+e       = target ENBW
 ```
 
-The `(n − 1)/n` is the window's own length. A symmetric n-point window spans
-n − 1 sample intervals, so its ENBW is the long-window value times
-`n/(n − 1)`. Uncorrected, that was the whole fit error: 0.18% at 512 and
-6.7% at 16. Corrected, the realised ENBW is within 0.03% of the target for
-every `n ≥ 16`; at `n = 8` it breaks (7%), which is why 16 is the shortest
-window. The analyzer reports the RBW the window realises, so the fit decides
-how close that lands to the request, not what is reported. It replaces a
-60-step bisection that built the window once per step.
+The fit is evaluated at the target itself because PSD's window is the
+periodic (DFT-even) form
+([#2053](https://github.com/doppler-dsp/doppler/issues/2053)): an n-point
+periodic window spans n sample intervals, so its ENBW is the long-window
+value at every `n`. The realised ENBW is within 0.03% of the target for every
+`n ≥ 16` (0.026% at every power of two from 16 to 4096, measured); at `n = 8`
+it breaks (7.4%), which is why 16 is the shortest window. Before #2053 PSD's
+window was the symmetric form, which spans n − 1 intervals, and the fit was
+evaluated at `target · (n − 1)/n` to undo that; left on the periodic window,
+that correction reads 0.22% low at 512 and 6.3% at 16. The analyzer reports
+the RBW the window realises, so the fit decides how close that lands to the
+request, not what is reported. It replaces a 60-step bisection that built the
+window once per step.
 
 ## How it is checked
 
@@ -126,15 +131,16 @@ window (250 Hz) to the 16-point minimum (60 kHz, padded 32×). Four of them
 | Skirt          | a noiseless tone sits ≥ 80 dB above every bin outside its main lobe, wherever the main lobe leaves room to look                                                                          |
 | ENBW, measured | unit-variance white noise reads `rbw/fs` per bin within 0.1 dB, with equal total noise at every RBW: integrated noise power confirms the ENBW from the output, against the RBW requested |
 
-Each was proven by sabotage, and each turns the test red:
+Each was proven by sabotage, and each turns the test red (re-measured on
+PSD's periodic window, #2053):
 
-| Sabotage                           | Failures |
-| ---------------------------------- | -------: |
-| restore the old ENBW `[1, 2)` rule |       54 |
-| scale the beta fit by 3%           |       14 |
-| drop the `(n − 1)/n` correction    |       12 |
-| never pad (`nfft = n`)             |        9 |
-| solve beta for an ENBW 5% wide     |       25 |
+| Sabotage                                 | Failures |
+| ---------------------------------------- | -------: |
+| restore the old ENBW `[1, 2)` rule       |       55 |
+| scale the beta fit by 3%                 |       14 |
+| evaluate the fit at `target · (n − 1)/n` |       15 |
+| never pad (`nfft = n`)                   |        9 |
+| solve beta for an ENBW 5% wide           |       25 |
 
 The last one is caught by the noise check on its own at every RBW (+0.15 to
 +0.25 dB off `N0·RBW`), as well as by the realised-RBW bound.

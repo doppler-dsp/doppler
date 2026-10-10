@@ -190,4 +190,61 @@ def test_a_release_with_no_literal_build_list_fails(tmp_path: Path) -> None:
         tmp_path, ">=3.9", ["3.9"], release="jobs:\n  x:\n    runs-on: y\n"
     )
     assert r.returncode == 1
-    assert "found no literal" in r.stderr
+    assert "found no job whose matrix python is a list" in r.stderr
+
+
+#: build-windows's list as a YAML BLOCK list: the spelling a text scan for
+#: `python: [...]` skipped, so the gate passed with that job unchecked.
+_BLOCK = """\
+  build-windows:
+    strategy:
+      matrix:
+        python:
+          - "3.9"
+          - "3.10"
+"""
+
+
+def test_a_block_list_is_checked_like_a_flow_list(tmp_path: Path) -> None:
+    ok = _run(
+        tmp_path,
+        ">=3.9",
+        ["3.9", "3.10"],
+        release=_release(["3.9", "3.10"]) + _BLOCK,
+    )
+    assert ok.returncode == 0, ok.stderr
+    assert "build-windows" in ok.stdout
+
+
+def test_a_block_list_missing_a_classifier_fails(tmp_path: Path) -> None:
+    r = _run(
+        tmp_path,
+        ">=3.9",
+        ["3.9", "3.10", "3.11"],
+        release=_release(["3.9", "3.10", "3.11"]) + _BLOCK,
+    )
+    assert r.returncode == 1
+    assert "job build-windows: builds no cp311 wheel" in r.stderr
+
+
+def test_an_unquoted_version_is_not_read_as_another(tmp_path: Path) -> None:
+    """YAML reads an unquoted 3.10 as the float 3.1; flag it, never treat
+    it as some version."""
+    rel = (
+        "jobs:\n  b:\n    strategy:\n      matrix:\n"
+        "        python: [3.9, 3.10]\n"
+    )
+    r = _run(tmp_path, ">=3.9", ["3.9", "3.10"], release=rel)
+    assert r.returncode == 1
+    assert "neither cp3N nor quoted 3.N" in r.stderr
+
+
+def test_a_python_that_is_neither_list_nor_expression_fails(
+    tmp_path: Path,
+) -> None:
+    rel = _release(["3.9"]) + (
+        "  odd:\n    strategy:\n      matrix:\n        python: cp39\n"
+    )
+    r = _run(tmp_path, ">=3.9", ["3.9"], release=rel)
+    assert r.returncode == 1
+    assert "job odd: matrix python is 'cp39'" in r.stderr

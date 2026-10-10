@@ -1555,7 +1555,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 release-pr release-notes-body-check \
                 release-freshness-check \
                 print-jm-version print-stock-registry print-uv-version \
-                print-python-matrix lock \
+                print-python-matrix print-python-primary lock \
                 nats-up nats-down nats-purge \
                 docs-relink docs-drift-check drift-check changelog-check \
                 release-notes-size-check workflow-syntax-check \
@@ -1748,7 +1748,7 @@ workflow-syntax-check: ## Verify every workflow `run:` block is valid shell
 ci-aggregator-check: ## Verify every ci.yml job feeds the required `CI passed` check
 	@uv run python scripts/check_ci_aggregator.py
 
-python-versions-check: ## Verify the Python classifiers match requires-python
+python-versions-check: ## Verify the Python classifiers match requires-python and release.yml's build lists
 	@uv run python scripts/python_versions.py
 
 kwarg-parity-check: ## Verify each binding accepts the keywords its stub publishes
@@ -2923,6 +2923,9 @@ print-uv-version: ## Print the uv pin (release.yml reads it from here)
 # before anything installs uv, and the script runs on any Python >= 3.9.
 print-python-matrix: ## Print the supported Pythons as JSON (ci.yml and release.yml read it here)
 	@python3 scripts/python_versions.py --matrix
+
+print-python-primary: ## Print the primary Python leg, the floor (ci.yml reads it here)
+	@python3 scripts/python_versions.py --primary
 
 lock: ## Re-lock uv.lock with the pinned uv (LOCK_CMD, the one spelling)
 	$(LOCK_CMD)

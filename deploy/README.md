@@ -71,7 +71,7 @@ Run a single-node JetStream broker and exercise the `nats://` path:
 
 ```sh
 docker compose -f deploy/docker-compose.nats.yml up -d
-pytest src/doppler/stream/          # the nats:// tests run instead of skipping
+make test-python TEST_PATHS=src/doppler/stream/   # nats:// tests run, not skip
 docker compose -f deploy/docker-compose.nats.yml down
 ```
 

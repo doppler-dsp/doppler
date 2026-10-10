@@ -631,10 +631,12 @@ ______________________________________________________________________
 ## Step 11 — Rebuild, reconcile, and verify
 
 ```sh
-cmake --build build --target <module>   # rebuild just this .so
+make build BUILD_TARGET=<module>                          # rebuild just this .so
 make test-python TEST_PATHS=src/doppler/<module>/tests/   # just this module
-make test-python                        # full pytest suite, once, at the end
 ```
+
+That is the tests the change can reach; CI runs the full suite
+([How We Work §2](../workflow.md#2-prove-it-locally-then-push)).
 
 If you changed `objects/<component>.toml` (or `just-makeit.toml`) after
 the initial `jm apply` — e.g. added a property, tweaked a param default —

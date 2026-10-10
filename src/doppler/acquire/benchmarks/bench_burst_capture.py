@@ -1,8 +1,7 @@
 """Benchmark for BurstCapture — search, refine, and the window copy.
 
 Run:
-    pytest src/doppler/acquire/benchmarks/bench_burst_capture.py \
-        --benchmark-only
+    make bench-python PYTEST_ARGS="-k bench_burst_capture --benchmark-only"
 
 The same two rows, over the same 64k stimulus, as every other object in the
 chain (`_burst_stimulus.py`), so this number reads against `BurstAcquisition`'s

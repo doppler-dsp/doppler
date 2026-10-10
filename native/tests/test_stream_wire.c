@@ -805,6 +805,50 @@ test_reasm_total_above_uint32_is_refused (void)
 }
 
 static void
+test_reasm_another_streams_frame_spares_it (void)
+{
+  printf ("-- another type's unchunked frame on the base spares the frame; "
+          "its own stream's does not\n");
+  dp_reasm_t r  = { 0 };
+  ra_chunk_t c0 = ra_chunk (0, 0, 0), c1 = ra_chunk (0, 0, 1);
+  ra_chunk_t c2 = ra_chunk (0, 0, 2);
+  DP_CHECK (ra_feed (&r, &c0, 0) == -1);
+  DP_CHECK (ra_feed (&r, &c1, 0) == -1);
+
+  /* A SUB hears every type on its base: a telemetry publisher, and a CF64
+     one, are other subjects there, and say nothing about this CF32 frame. */
+  dp_header_t tlm = c0.hdr;
+  tlm.kind        = (uint16_t)DP_KIND_TLM;
+  tlm.format      = 0;
+  tlm.flags       = 0;
+  dp_reasm_unchunked (&r, &tlm);
+  dp_header_t cf64 = c0.hdr;
+  cf64.format      = (uint16_t)CF64;
+  cf64.flags       = 0;
+  dp_reasm_unchunked (&r, &cf64);
+  DP_CHECK (r.stats.abandoned == 0);
+  DP_CHECK (ra_feed (&r, &c2, 0) == 0); /* the frame still completes */
+
+  /* Its own stream's unchunked frame, and an end-of-stream, do end it. */
+  ra_chunk_t  n0  = ra_chunk (1, 0, 0);
+  dp_header_t own = n0.hdr;
+  own.flags       = 0;
+  DP_CHECK (ra_feed (&r, &n0, 0) == -1);
+  dp_reasm_unchunked (&r, &own);
+  DP_CHECK (r.stats.abandoned == 1);
+  DP_CHECK (r.buf == NULL);
+  ra_chunk_t  m0  = ra_chunk (2, 0, 0);
+  dp_header_t eos = m0.hdr;
+  eos.kind        = (uint16_t)DP_KIND_EOS;
+  eos.format      = 0;
+  eos.flags       = 0;
+  DP_CHECK (ra_feed (&r, &m0, 0) == -1);
+  dp_reasm_unchunked (&r, &eos);
+  DP_CHECK (r.stats.abandoned == 2);
+  dp_reasm_reset (&r);
+}
+
+static void
 test_reasm_abandon_counts_only_a_frame_in_progress (void)
 {
   printf ("-- an unchunked frame or EOS abandons a frame in progress\n");
@@ -844,6 +888,7 @@ main (void)
   test_reasm_forged_chunk_spares_the_frame ();
   test_reasm_total_above_uint32_is_refused ();
   test_reasm_abandon_counts_only_a_frame_in_progress ();
+  test_reasm_another_streams_frame_spares_it ();
 
   printf ("\n");
   DP_TEST_END ("test_stream_wire");

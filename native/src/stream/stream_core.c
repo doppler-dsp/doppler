@@ -287,6 +287,23 @@ dp_reasm_abandon (dp_reasm_t *r)
   r->stats.abandoned++;
 }
 
+void
+dp_reasm_unchunked (dp_reasm_t *r, const dp_header_t *hdr)
+{
+  if (!r || !r->buf || !hdr)
+    return;
+  /* Only a frame of the frame in progress's OWN stream says anything about
+     it. Its subject is iq.<base>.<type>, and kind and format name the
+     type; a SUB hears every type on its base, so a TLM16 or other-format
+     publisher there is a different subject, and its frames leave this one
+     alone. An end-of-stream names no stream (format 0; #2039), and the
+     receiver already ends on any EOS on the base -- recv returns
+     DP_ERR_EOF -- so it ends the frame in progress too. */
+  if (hdr->kind == DP_KIND_EOS
+      || (hdr->kind == r->key.kind && hdr->format == r->key.format))
+    dp_reasm_abandon (r);
+}
+
 int
 dp_reasm_feed (dp_reasm_t *r, const dp_header_t *hdr, const dp_chunk_t *chunk,
                const void *body, size_t body_len, int *complete, char **frame,

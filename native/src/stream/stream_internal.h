@@ -46,9 +46,10 @@ typedef enum
  * abandons the one in progress (counted) and STARTS the new one: it is
  * never discarded with it, which is what made one lost chunk lose every
  * later chunked frame (#2010). A chunk that fails the check is rejected
- * and costs the frame in progress nothing. An unchunked frame or an
- * end-of-stream abandons it too (dp_reasm_abandon). The state lives as
- * long as the socket, so a receive that times out mid-frame resumes it.
+ * and costs the frame in progress nothing. An unchunked frame of the same
+ * stream, or an end-of-stream, abandons it too (dp_reasm_unchunked). The
+ * state lives as long as the socket, so a receive that times out mid-frame
+ * resumes it.
  *
  * Chunks must sit on the sender's grid: chunk i covers
  * [i*S, min((i+1)*S, total)), S being the bytes of every chunk but the
@@ -78,11 +79,15 @@ int dp_reasm_feed (dp_reasm_t *r, const dp_header_t *hdr,
                    int *complete, char **frame, dp_header_t *frame_hdr);
 /* Free the frame in progress, if any; the counters are kept. */
 void dp_reasm_reset (dp_reasm_t *r);
-/* Give up the frame in progress, if any, and count it in `abandoned`. The
- * transport calls this when an unchunked frame or an end-of-stream arrives
- * on the subject: with one publisher per subject, either proves the frame
- * in progress lost a chunk and can never complete. */
+/* Give up the frame in progress, if any, and count it in `abandoned`. */
 void dp_reasm_abandon (dp_reasm_t *r);
+/* An unchunked frame (or an end-of-stream) `hdr` arrived. If it is of the
+ * frame in progress's own stream -- the same kind and format, so the same
+ * subject -- then with one publisher per subject that frame lost a chunk
+ * and can never complete: give it up, counted. A frame of another type on
+ * the same base says nothing about it, and leaves it alone. An EOS names
+ * no stream (#2039) and ends the receive, so it ends the frame too. */
+void dp_reasm_unchunked (dp_reasm_t *r, const dp_header_t *hdr);
 
 /* NATS-backed context.  Opaque nats.c handles are held as void* so this
  * header stays nats.h-free; stream_nats.c casts them back. */

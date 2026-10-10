@@ -3103,8 +3103,8 @@ test_a_wide_doppler_search_is_searched (void)
  * period ahead and could not reach the true start; a burst in the stream's
  * first (W - 1)*P samples wrapped its anchor to about 2^64 -- a window at a
  * garbage start, and a live checkpoint set_state() refuses because the
- * anchor is past the stream position. Asserted, tiled with W >= 3 and
- * reps = 1: a burst mid-stream comes back exactly once at its true start;
+ * anchor is past the stream position. Asserted, tiled with W - 1 > reps + 1
+ * and reps = 1: a burst mid-stream comes back exactly once at its true start;
  * one at sample 50 does too, pushed in 128-sample blocks, and a checkpoint
  * taken while it is still queued restores into the same capture.
  */
@@ -3148,7 +3148,10 @@ test_a_tiled_capture_anchors_at_its_dwell (void)
                                      2.5 * span, 1e-6, 0.9, 0, 0.0);
       DP_REQUIRE (s != NULL);
       const dp_acq_state_t *e = s->acq->engine;
-      DP_REQUIRE (e->window_bins >= 3u); /* the premise: tiled, W >= 3 */
+      /* The premise that makes the 9001 case discriminate: the old anchor,
+         (W - 1) periods early, is out of refine's reach (k_hi = reps), even
+         with the deciding frame a period past the start. */
+      DP_REQUIRE (e->window_bins - 1u > 1u + 1u);
       DP_REQUIRE (j == 0u || at < (e->window_bins - 1u) * NP);
 
       size_t found = 0, other = 0, restored = 0;
@@ -3189,6 +3192,89 @@ test_a_tiled_capture_anchors_at_its_dwell (void)
   return 0;
 }
 
+/** A tiled burst that follows a window closely is not shadowed by it
+ *  (doppler#2090).
+ *
+ * The third symptom of an anchor (W - 1) periods early: emitting a window
+ * arms `suppress_until` at its end, and a hit anchored before that is
+ * shadowed -- taken for the window's own payload -- and dropped at the next
+ * push. So a second burst whose start sits fewer than (W - 1)*P samples past
+ * the first window was lost, silently. Here reps >= W - 1, so refine reaches
+ * the first burst even from the old anchor, and the second alone carries the
+ * symptom: the gap clears min_gap (the capture promises both) and is under
+ * (W - 1)*P (the old anchor lands inside the first window's span). Both come
+ * out exactly once at their true starts.
+ */
+static int
+test_a_tiled_burst_after_a_window_is_not_shadowed (void)
+{
+  enum
+  {
+    NP  = 127,
+    RP  = 4,
+    PAY = 2600
+  };
+  uint8_t        code[NP];
+  dp_pn_state_t *pn = dp_pn_create (pn_mls_poly (7), 1u, 7u, 0);
+  DP_REQUIRE (pn != NULL);
+  for (size_t i = 0; i < NP; i++)
+    code[i] = pn_step (pn);
+  dp_pn_destroy (pn);
+  float _Complex *pre = dp_code_preamble (code, NP, 1);
+
+  static float _Complex cap[20000];
+  const size_t              n_cap = sizeof cap / sizeof *cap;
+  const double              span  = 1.0 / (double)NP;
+  const size_t              BL    = RP * NP + PAY;
+  dp_burst_capture_state_t *s     = dp_burst_capture_create (
+      pre, NP, BL, RP, 1.0, ACQ_CN0_NONE, 2.5 * span, 1e-6, 0.9, 0, 0.0);
+  DP_REQUIRE (s != NULL);
+  const size_t W   = s->acq->engine->window_bins;
+  const size_t gap = 300u;
+  /* The premises: tiled; the first burst within refine's reach of the old
+     anchor; a gap the capture promises to resolve, under (W - 1)*P. */
+  DP_REQUIRE (W >= 3u && W - 1u <= RP);
+  DP_REQUIRE (gap >= s->min_gap && gap < (W - 1u) * NP);
+
+  const size_t at[2] = { 3000u, 3000u + BL + gap };
+  const double f     = 0.7 * span;
+  uint32_t     st    = 2090u;
+  for (size_t i = 0; i < n_cap; i++)
+    {
+      const float re = (float)(0.02 * dp_gauss (&st));
+      const float im = (float)(0.02 * dp_gauss (&st));
+      cap[i]         = re + im * I;
+    }
+  for (size_t b = 0; b < 2u; b++)
+    for (size_t i = 0; i < RP * NP; i++)
+      cap[at[b] + i]
+          += pre[i % NP]
+             * (float _Complex)cexp (I * 2.0 * M_PI * f * (double)i);
+
+  size_t seen[2] = { 0 }, other = 0;
+  for (size_t off = 0; off < n_cap; off += 1000u)
+    {
+      size_t blk = n_cap - off < 1000u ? n_cap - off : 1000u;
+      (void)dp_burst_capture_push (s, cap + off, blk, NULL, 0);
+      for (size_t i = 0; i < dp_burst_capture_ready (s); i++)
+        {
+          const uint64_t ps = dp_burst_capture_event_at (s, i)->preamble_start;
+          seen[0] += ps == at[0];
+          seen[1] += ps == at[1];
+          other += ps != at[0] && ps != at[1];
+        }
+    }
+  if (seen[0] != 1u || seen[1] != 1u || other != 0u)
+    fprintf (stderr, "  tiled pair: first %zu, second %zu, other %zu\n",
+             seen[0], seen[1], other);
+  DP_CHECK (seen[0] == 1u);
+  DP_CHECK (seen[1] == 1u);
+  DP_CHECK (other == 0u);
+  dp_burst_capture_destroy (s);
+  free (pre);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -3209,6 +3295,8 @@ main (void)
   if (test_a_wide_doppler_search_is_searched ())
     return 1;
   if (test_a_tiled_capture_anchors_at_its_dwell ())
+    return 1;
+  if (test_a_tiled_burst_after_a_window_is_not_shadowed ())
     return 1;
   if (test_every_burst_is_emitted_once ())
     return 1;

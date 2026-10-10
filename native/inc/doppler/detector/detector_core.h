@@ -159,8 +159,8 @@ void dp_detector_destroy (dp_detector_state_t *state);
 /**
  * @brief Reset the correlator, the carry, and last-corr flag.
  * Discards any partial frame carried between pushes and zeroes the coherent
- * accumulator; dp_detector_consumed() reads 0.  Equivalent to starting fresh
- * from the same reference without rebuilding any internal object.
+ * accumulator.  Equivalent to starting fresh from the same reference without
+ * rebuilding any internal object.
  *
  * @code
  * >>> from doppler.spectral import CorrDetector
@@ -205,16 +205,11 @@ void dp_detector_set_threshold (dp_detector_state_t *state, float threshold);
  * the Python return list as (lag, peak_mag, noise_est, test_stat) tuples.
  * In Python the result is always a list, even when empty.
  *
- * In C a full @p result never loses input.  A frame yields at most one
- * detection, so a sample is taken unless it would complete a frame when
- * @p result has no room left: the push stops there, dp_detector_consumed()
- * reports how many samples it took, and the caller offers the rest again.
- * Taken input that completes no frame is the carry, held inside (fewer than
- * n samples), so input that completes no frame is taken whole even with
- * @p max_results 0, and with @p max_results >= 1 a push of any input takes
- * at least one sample.  Python's push() makes one call with room for 64
- * detections and does not offer the rest again, so input past the 64th
- * detection is lost (#1992): keep a Python chunk under 64 frames.
+ * Python's push() has room for 1024 detections a call.  A push that would
+ * make more loses the detections past the 1024th, and the input that would
+ * have made them: keep a chunk under 1024 frames.  Before v0.66 a push past
+ * its room (64 then) kept the whole frames it had already buffered and
+ * reported them on the next call; #1992 tracks sizing the list to the call.
  *
  * @param state        Allocated detector (non-NULL).
  * @param in           CF32 input chunk of arbitrary length.
@@ -222,6 +217,15 @@ void dp_detector_set_threshold (dp_detector_state_t *state, float threshold);
  * @param result       Caller-supplied array of at least @p max_results
  *                     det_result_t structs; filled on return.
  * @param max_results  Capacity of @p result (maximum detections to emit).
+ *                     A full @p result never loses input: a frame yields at
+ *                     most one detection, so a sample is taken unless it
+ *                     would complete a frame when @p result has no room
+ *                     left.  The push stops there, dp_detector_consumed()
+ *                     says how many samples it took, and the caller offers
+ *                     the rest again.  Taken input that completes no frame
+ *                     is the carry, held inside (fewer than n samples), so
+ *                     it is taken whole even at 0, and at >= 1 a push of
+ *                     any input takes at least one sample.
  * @return Number of det_result_t entries written to @p result.
  * @code
  * >>> from doppler.spectral import CorrDetector

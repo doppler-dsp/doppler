@@ -124,17 +124,17 @@ CorrDetectorObj_push (CorrDetectorObject *self, PyObject *args)
       return NULL;
     }
   size_t       n_in = (size_t)PyArray_SIZE (in_arr);
-  det_result_t results[64];
+  det_result_t results[1024];
   size_t       n_out = dp_detector_push (
       self->handle, (const float _Complex *)PyArray_DATA (in_arr), n_in,
-      results, 64);
+      results, 1024);
   Py_DECREF (in_arr);
-  if ((size_t)(n_out) > (size_t)(64))
+  if ((size_t)(n_out) > (size_t)(1024))
     {
       PyErr_Format (
           PyExc_RuntimeError,
           "CorrDetector.push: wrote %zu elements into a buffer of %zu",
-          (size_t)(n_out), (size_t)(64));
+          (size_t)(n_out), (size_t)(1024));
       return NULL;
     }
   PyObject *lst = PyList_New ((Py_ssize_t)n_out);
@@ -389,8 +389,8 @@ static PyMethodDef CorrDetectorObj_methods[] = {
   { "reset", (PyCFunction)CorrDetectorObj_reset, METH_NOARGS,
     "Reset the correlator, the carry, and last-corr flag. Discards any\n"
     "partial frame carried between pushes and zeroes the coherent\n"
-    "accumulator; dp_detector_consumed() reads 0. Equivalent to starting\n"
-    "fresh from the same reference without rebuilding any internal object.\n"
+    "accumulator. Equivalent to starting fresh from the same reference\n"
+    "without rebuilding any internal object.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -414,16 +414,12 @@ static PyMethodDef CorrDetectorObj_methods[] = {
     "Python return list as (lag, peak_mag, noise_est, test_stat) tuples. In\n"
     "Python the result is always a list, even when empty.\n"
     "\n"
-    "In C a full result never loses input. A frame yields at most one\n"
-    "detection, so a sample is taken unless it would complete a frame when\n"
-    "result has no room left: the push stops there, dp_detector_consumed()\n"
-    "reports how many samples it took, and the caller offers the rest again.\n"
-    "Taken input that completes no frame is the carry, held inside (fewer\n"
-    "than n samples), so input that completes no frame is taken whole even\n"
-    "with max_results 0, and with max_results >= 1 a push of any input takes\n"
-    "at least one sample. Python's push() makes one call with room for 64\n"
-    "detections and does not offer the rest again, so input past the 64th\n"
-    "detection is lost (#1992): keep a Python chunk under 64 frames.\n"
+    "Python's push() has room for 1024 detections a call. A push that would\n"
+    "make more loses the detections past the 1024th, and the input that\n"
+    "would have made them: keep a chunk under 1024 frames. Before v0.66 a\n"
+    "push past its room (64 then) kept the whole frames it had already\n"
+    "buffered and reported them on the next call; #1992 tracks sizing the\n"
+    "list to the call.\n"
     "\n"
     "Parameters\n"
     "----------\n"

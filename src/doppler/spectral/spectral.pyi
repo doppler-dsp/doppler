@@ -1203,8 +1203,8 @@ class CorrDetector:
     def reset(self) -> None:
         """Reset the correlator, the carry, and last-corr flag. Discards any
         partial frame carried between pushes and zeroes the coherent
-        accumulator; dp_detector_consumed() reads 0. Equivalent to starting
-        fresh from the same reference without rebuilding any internal object.
+        accumulator. Equivalent to starting fresh from the same reference
+        without rebuilding any internal object.
 
         Examples
         --------
@@ -1228,16 +1228,12 @@ class CorrDetector:
         Python return list as (lag, peak_mag, noise_est, test_stat) tuples. In
         Python the result is always a list, even when empty.
 
-        In C a full result never loses input. A frame yields at most one
-        detection, so a sample is taken unless it would complete a frame when
-        result has no room left: the push stops there, dp_detector_consumed()
-        reports how many samples it took, and the caller offers the rest again.
-        Taken input that completes no frame is the carry, held inside (fewer
-        than n samples), so input that completes no frame is taken whole even
-        with max_results 0, and with max_results >= 1 a push of any input takes
-        at least one sample. Python's push() makes one call with room for 64
-        detections and does not offer the rest again, so input past the 64th
-        detection is lost (#1992): keep a Python chunk under 64 frames.
+        Python's push() has room for 1024 detections a call. A push that would
+        make more loses the detections past the 1024th, and the input that
+        would have made them: keep a chunk under 1024 frames. Before v0.66 a
+        push past its room (64 then) kept the whole frames it had already
+        buffered and reported them on the next call; #1992 tracks sizing the
+        list to the call.
 
         Parameters
         ----------
@@ -1473,11 +1469,16 @@ class CorrDetector2D:
         """
 
     def push(self, x: complex) -> list[tuple[int, int, float, float, float]]:
-        """Stream an arbitrary-length CF32 chunk through the 2-D detector.
-        Identical to dp_detector_push() except frames are ny*nx complex samples
-        and each detection event carries (row, col) for the peak location
-        instead of a single lag index. In Python the result is always a list of
-        (row, col, peak_mag, noise_est, test_stat) tuples.
+        """Stream an arbitrary-length CF32 chunk through the 2-D detector. The
+        same pipeline as dp_detector_push(), except that frames are ny*nx
+        complex samples and each detection event carries (row, col) for the
+        peak location instead of a single lag index. In Python the result is
+        always a list of (row, col, peak_mag, noise_est, test_stat) tuples.
+
+        Unlike dp_detector_push(), a push that fills result stops taking input:
+        it keeps the whole frames it has already buffered for the next call and
+        drops the rest of its input, which nothing reports (#1895 moves it onto
+        the ring's framer, as the detector's push now is).
 
         Parameters
         ----------

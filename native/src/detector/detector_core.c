@@ -224,8 +224,11 @@ dp_detector_push (dp_detector_state_t *state, const float _Complex *in,
        * at most one det_result_t -- one dump, one result, below -- and (b)
        * the inner loop drains every frame fed before feeding again. Break
        * either and this overfills result or strands whole frames in the
-       * framer. acq's dump reports several peaks, so (a) fails there: feed
-       * it one frame at a time, never this. */
+       * framer. acq breaks (a): a dump reports up to max_peaks peaks, and
+       * acq_report_peaks truncates the dwell's list to the room left. So
+       * acq may admit a frame that can dump only while the room left is
+       * at least max_peaks -- neither this batch nor one frame at a time
+       * is enough there. */
       if (off < n_in)
         off += dp_f32_framer_feed_view (&state->framer, in + off, n_in - off,
                                         max_results - ndet);

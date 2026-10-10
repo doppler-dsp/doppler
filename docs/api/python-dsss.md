@@ -320,7 +320,7 @@ One `push()` per block does, in order:
     to idle.
 
 Every transition — `seeded`, `tracking`, `degrade`, `lost`, `released`,
-`dropped` — is logged at the sample it happened, beside the slot, the
+`dropped`, `refused` — is logged at the sample it happened, beside the slot, the
 receiver's state, the Doppler, the chip phase and the C/N0. What comes back,
 per slot and by index: `status(slot)`, a `PoolSlot` record by value, and
 `symbols(slot)`, the symbols that receiver decided on the last push. Nothing

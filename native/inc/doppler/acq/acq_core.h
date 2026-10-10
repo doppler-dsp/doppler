@@ -996,7 +996,7 @@ extern "C"
    * Doppler it reports to that range (doppler#2112 item 7); a hit past it
    * is refused as a seed rather than used, so the bound holds at the
    * receiver even where the search does not enforce it.
-   * and the product finite. A tiny carrier sent it to inf, so the seed
+   * A tiny carrier sent doppler / carrier to inf, so the seed
    * phase came out NaN, and the receiver aborted building its code loop
    * from it (doppler#2103). The one rule for every site that takes the
    * divisor: dp_acq_set_carrier_freq_hz() and the DSSS receivers' creates.

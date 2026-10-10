@@ -104,8 +104,8 @@ _Streaming spectrogram: a stream of any-size chunks in, rows of nfft-bin spectra
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**DP\_SPECTROGRAM\_DB**](spectrogram__core_8h.md#define-dp_spectrogram_db)  `0`<br>_Row units: dBFS, against the same reference. Asked for by name._  |
-| define  | [**DP\_SPECTROGRAM\_POWER**](spectrogram__core_8h.md#define-dp_spectrogram_power)  `1`<br>_Row units: linear power against the PSD's full-scale reference. The DEFAULT: what every example, guide and binding uses unless it asks for dB by name._  |
+| define  | [**DP\_SPECTROGRAM\_DB**](spectrogram__core_8h.md#define-dp_spectrogram_db)  `1`<br>_Row units: dBFS, against the same reference. Asked for by name._  |
+| define  | [**DP\_SPECTROGRAM\_POWER**](spectrogram__core_8h.md#define-dp_spectrogram_power)  `0`<br>_Row units: linear power against the PSD's full-scale reference. The DEFAULT: what every example, guide and binding uses unless it asks for dB by name._  |
 | define  | [**SPECTROGRAM\_STATE\_MAGIC**](spectrogram__core_8h.md#define-spectrogram_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('S', 'P', 'G', 'M')`<br>_State-blob magic ('SPGM') and layout version._  |
 | define  | [**SPECTROGRAM\_STATE\_VERSION**](spectrogram__core_8h.md#define-spectrogram_state_version)  `1u`<br> |
 
@@ -202,7 +202,7 @@ dp_spectrogram_state_t * dp_spectrogram_create (
 * `hop` Samples between row starts, 1 &lt;= hop &lt;= nfft. hop == nfft tiles the stream; hop &lt; nfft overlaps the frames. 
 * `window` 0 = Hann, 1 = Kaiser, 2 = Blackman-Harris, 3 = rectangular, as [**dp\_psd\_create()**](psd__core_8h.md#function-dp_psd_create), which also refuses a window that sums to zero at this nfft (the symmetric Hann at nfft = 2). 
 * `beta` Kaiser beta (ignored for the other windows). 
-* `mode` DP\_SPECTROGRAM\_POWER (linear rows, the default) or DP\_SPECTROGRAM\_DB (dBFS rows); any other value is refused. 
+* `mode` DP\_SPECTROGRAM\_POWER (linear rows, the default, 0) or DP\_SPECTROGRAM\_DB (dBFS rows, 1); any other value is refused. Pass it by name: `make lint` refuses an integer literal here. 
 
 
 
@@ -231,9 +231,10 @@ if (!s || !d)
   return 1;
 // refused: 1000 is not a power of two, a hop may not exceed nfft, and
 // a mode is one of the two
+const int not_a_mode = DP_SPECTROGRAM_DB + 1;
 if (dp_spectrogram_create (1000, 256, 2, 0.0f, DP_SPECTROGRAM_POWER)
     || dp_spectrogram_create (1024, 2048, 2, 0.0f, DP_SPECTROGRAM_POWER)
-    || dp_spectrogram_create (1024, 256, 2, 0.0f, 2))
+    || dp_spectrogram_create (1024, 256, 2, 0.0f, not_a_mode))
   return 1;
 dp_spectrogram_destroy (d);
 dp_spectrogram_destroy (s);
@@ -770,7 +771,7 @@ dp_spectrogram_destroy (a);
 
 _Row units: dBFS, against the same reference. Asked for by name._ 
 ```C++
-#define DP_SPECTROGRAM_DB `0`
+#define DP_SPECTROGRAM_DB `1`
 ```
 
 
@@ -788,12 +789,15 @@ Row k is [**dp\_psd\_frame\_db()**](psd__core_8h.md#function-dp_psd_frame_db) of
 
 _Row units: linear power against the PSD's full-scale reference. The DEFAULT: what every example, guide and binding uses unless it asks for dB by name._ 
 ```C++
-#define DP_SPECTROGRAM_POWER `1`
+#define DP_SPECTROGRAM_POWER `0`
 ```
 
 
 
-Row k is [**dp\_psd\_frame\_linear()**](psd__core_8h.md#function-dp_psd_frame_linear) of its frame, so a full-scale tone on a bin reads 1.0 whatever the window, and an all-zero frame reads 0: the only floor is float32's. A power row is what an averaging consumer folds with AccTrace (the mean of dB rows is not the dB of the mean), and what a display converts to dB for only the bins it draws. It is the default because that conversion is most of a dB row's cost: 70-83% of it at nfft 256 to 65536 (docs/design/spectrogram-measurements.md section 5.8). 
+Row k is [**dp\_psd\_frame\_linear()**](psd__core_8h.md#function-dp_psd_frame_linear) of its frame, so a full-scale tone on a bin reads 1.0 whatever the window, and an all-zero frame reads 0: the only floor is float32's. A power row is what an averaging consumer folds with AccTrace (the mean of dB rows is not the dB of the mean), and what a display converts to dB for only the bins it draws. It is the default because that conversion is most of a dB row's cost: 70-83% of it at nfft 256 to 65536 (docs/design/spectrogram-measurements.md section 5.8).
+
+
+It is 0, so a zeroed or calloc'd configuration selects power, never dB: dB is only ever asked for. A binding that maps mode names to these values by position (jm's string\_enum does) lists them in this order: power, db. 
 
 
         

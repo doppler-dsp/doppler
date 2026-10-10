@@ -59,8 +59,12 @@ extern "C"
  * display converts to dB for only the bins it draws. It is the default
  * because that conversion is most of a dB row's cost: 70-83% of it at nfft
  * 256 to 65536 (docs/design/spectrogram-measurements.md section 5.8).
+ *
+ * It is 0, so a zeroed or calloc'd configuration selects power, never dB:
+ * dB is only ever asked for. A binding that maps mode names to these values
+ * by position (jm's string_enum does) lists them in this order: power, db.
  */
-#define DP_SPECTROGRAM_POWER 1
+#define DP_SPECTROGRAM_POWER 0
 /**
  * @brief Row units: dBFS, against the same reference. Asked for by name.
  *
@@ -69,7 +73,7 @@ extern "C"
  * than -200 dB: PSD clamps power at 1e-20 before the log, so an all-zero
  * frame and a frame below the floor write the same row.
  */
-#define DP_SPECTROGRAM_DB 0
+#define DP_SPECTROGRAM_DB 1
 
 /**
  * @brief Spectrogram state. Allocate with dp_spectrogram_create().
@@ -104,8 +108,10 @@ typedef struct
  *                as dp_psd_create(), which also refuses a window that sums
  *                to zero at this nfft (the symmetric Hann at nfft = 2).
  * @param beta    Kaiser beta (ignored for the other windows).
- * @param mode    DP_SPECTROGRAM_POWER (linear rows, the default) or
- *                DP_SPECTROGRAM_DB (dBFS rows); any other value is refused.
+ * @param mode    DP_SPECTROGRAM_POWER (linear rows, the default, 0) or
+ *                DP_SPECTROGRAM_DB (dBFS rows, 1); any other value is
+ *                refused. Pass it by name: `make lint` refuses an integer
+ *                literal here.
  * @return Heap-allocated state, or NULL on an invalid argument.
  *
  * Every row is DC-centred exactly as PSD's kernel emits it: bin k at index
@@ -124,9 +130,10 @@ typedef struct
  *   return 1;
  * // refused: 1000 is not a power of two, a hop may not exceed nfft, and
  * // a mode is one of the two
+ * const int not_a_mode = DP_SPECTROGRAM_DB + 1;
  * if (dp_spectrogram_create (1000, 256, 2, 0.0f, DP_SPECTROGRAM_POWER)
  *     || dp_spectrogram_create (1024, 2048, 2, 0.0f, DP_SPECTROGRAM_POWER)
- *     || dp_spectrogram_create (1024, 256, 2, 0.0f, 2))
+ *     || dp_spectrogram_create (1024, 256, 2, 0.0f, not_a_mode))
  *   return 1;
  * dp_spectrogram_destroy (d);
  * dp_spectrogram_destroy (s);

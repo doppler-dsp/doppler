@@ -66,20 +66,22 @@ import sys
 import warnings
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pytest
 
 from doppler.tests import test_state_serialization as _matrix
+from doppler.tests._repo import repo_root
 
 if sys.version_info >= (3, 11):
     import tomllib
 else:
     import tomli as tomllib
 
-ROOT = Path(__file__).resolve().parents[3]
+# Walked up, not counted: the coverage job runs this from a copy two levels
+# deeper (build-cov/pkg/doppler), where parents[3] found no objects/ at all.
+ROOT = repo_root(__file__)
 LIST = ROOT / "scripts" / ".mutator-state-exempt"
 
 PASSING = ("TRAVELS", "KEYED")
@@ -561,6 +563,18 @@ def test_a_mutator_value_is_state_or_listed_exactly(mut: Mutator) -> None:
         f"{mut.key} is listed {listed[0]} but reads {got.name} ({got.detail})"
     )
     assert listed[1], f"{mut.key}: a listed {got.name} needs a reason"
+
+
+def test_discovery_sees_every_matrix_class() -> None:
+    """Fail closed: every class the serialization matrix builds must be one
+    discovery found. A root that misses objects/ finds no classes, and the
+    parametrized gate above then has nothing to check -- a pass by absence,
+    which is what the coverage job's copied tree produced."""
+    found = {cls for cls, *_ in _serializable()}
+    assert found, f"no serializable class found under {ROOT / 'objects'}"
+    missing = sorted(c for c in _RECIPES if c not in found)
+    assert not missing, f"matrix classes discovery missed: {missing}"
+    assert _MUTATORS, "no mutator discovered"
 
 
 def test_every_entry_names_a_mutator() -> None:

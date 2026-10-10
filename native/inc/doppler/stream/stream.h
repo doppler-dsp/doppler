@@ -808,7 +808,11 @@ extern "C"
    * @param ctx  Requester context.
    * @param data Pointer to payload bytes.
    * @param size Byte count.
-   * @return DP_OK on success.
+   * @return DP_OK on success, negative error code on failure;
+   *         DP_ERR_TOO_LARGE, with nothing sent, when @p size is
+   *         above INT_MAX, the most one NATS message can carry. It
+   *         is refused before narrowing to nats.c's int length,
+   *         which sent a truncated or empty message with DP_OK.
    */
   int dp_req_send (dp_req_t *ctx, const void *data, size_t size);
 
@@ -835,7 +839,11 @@ extern "C"
    * @param ctx  Replier context.
    * @param data Pointer to reply payload bytes.
    * @param size Byte count.
-   * @return DP_OK on success.
+   * @return DP_OK on success, negative error code on failure;
+   *         DP_ERR_TOO_LARGE, with nothing sent, when @p size is
+   *         above INT_MAX, the most one NATS message can carry. It
+   *         is refused before narrowing to nats.c's int length,
+   *         which sent a truncated or empty message with DP_OK.
    */
   int dp_rep_send (dp_rep_t *ctx, const void *data, size_t size);
 

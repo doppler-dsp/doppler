@@ -67,7 +67,7 @@ _Portable lock detector — level + time hysteresis over any scalar lock metric,
 |  void | [**dp\_lockdet\_get\_state**](#function-dp_lockdet_get_state) (const [**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* state, void \* blob) <br>_Serialize the detector state into_ `blob` _._ |
 |  void | [**dp\_lockdet\_init**](#function-dp_lockdet_init) ([**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* state, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Initialise a lock detector in place (no allocation)._  |
 |  void | [**dp\_lockdet\_reset**](#function-dp_lockdet_reset) ([**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* state) <br>_Drop the lock and clear the verify counter; keep the config. Returns the detector to the unlocked state with an empty verify run, as if freshly constructed with the same thresholds. Call it at a segment boundary so a decision made on one capture does not leak into an unrelated next one._  |
-|  int | [**dp\_lockdet\_set\_state**](#function-dp_lockdet_set_state) ([**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* state, const void \* blob) <br>_Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects._  |
+|  int | [**dp\_lockdet\_set\_state**](#function-dp_lockdet_set_state) ([**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* state, const void \* blob) <br>_Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope or the payload check refuses._  |
 |  size\_t | [**dp\_lockdet\_state\_bytes**](#function-dp_lockdet_state_bytes) (const [**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* state) <br>_Serialized-state byte size._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**dp\_lockdet\_state\_ok**](#function-dp_lockdet_state_ok) (const [**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* s) <br>_A lock-detector state a blob may carry: a decision that is 0 or 1._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**dp\_lockdet\_step**](#function-dp_lockdet_step) ([**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* state, double x) <br>_Feed one look of the lock metric; return the current decision._  |
@@ -359,7 +359,7 @@ False
 
 ### function dp\_lockdet\_set\_state 
 
-_Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects._ 
+_Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope or the payload check refuses._ 
 ```C++
 int dp_lockdet_set_state (
     dp_lockdet_state_t * state,
@@ -401,7 +401,7 @@ JM_FORCEINLINE int dp_lockdet_state_ok (
 
 
 
-step() only ever stores 0 or 1, so a decision of 7 is a forged blob, not a state: it surfaced as `locked` and read back through every embedder (#2142). set\_state, and every composition embedding a detector by value, refuses a snapshot this rejects. The counts are not checked: init() clamps them to &gt;= 1, but an embedding holds the all-zero state until its init runs, and that round-trips (a count of 0 steps as 1).
+step() only ever stores 0 or 1, so a decision of 7 is a forged blob, not a state: it surfaced as `locked` and read back through every embedder (#2142). The by-value embedders that refuse a snapshot this rejects are carrier\_nda, costas and symsync. dll, ratesync, mpsk\_receiver and the async sym\_lockdet do not yet; they are queued on #2142 (B/C) and #2137 row 7. The counts are not checked: init() clamps them to &gt;= 1, but an embedding holds the all-zero state until its init runs, and that round-trips (a count of 0 steps as 1).
 
 
 

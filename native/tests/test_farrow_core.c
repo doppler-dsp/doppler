@@ -172,5 +172,19 @@ main (void)
     dp_farrow_destroy (f);
   }
 
+  /* #2148 r3: init stores the order farrow_eval uses, so an out-of-range
+   * order comes out as cubic and the state's own predicate accepts it.
+   * create() still refuses such an order (see the test above). */
+  {
+    dp_farrow_state_t f;
+    farrow_init (&f, FARROW_CUBIC + 1);
+    DP_CHECK (f.order == FARROW_CUBIC);
+    DP_CHECK (dp_farrow_state_ok (&f));
+    farrow_init (&f, -1);
+    DP_CHECK (f.order == FARROW_CUBIC);
+    farrow_init (&f, FARROW_PARABOLIC);
+    DP_CHECK (f.order == FARROW_PARABOLIC);
+  }
+
   DP_TEST_END ("test_farrow_core");
 }

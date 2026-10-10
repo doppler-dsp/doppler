@@ -150,7 +150,10 @@ main (void)
     const size_t len_off
         = sizeof (dp_state_hdr_t) + offsetof (dp_boxcar_state_t, len);
     const size_t bad_pos[] = { BOXCAR_MAX_LEN, 4, SIZE_MAX };
-    const size_t bad_len[] = { 0, BOXCAR_MAX_LEN + 1 };
+    /* len above the ring is the refusal this loop means to test. A forged
+       len of 0 is refused too, but by pos (2 is not below max(len, 1)), so
+       it is not listed here. */
+    const size_t bad_len[] = { BOXCAR_MAX_LEN + 1 };
     for (size_t i = 0; i < sizeof bad_pos / sizeof *bad_pos; i++)
       DP_STATE_FORGE_TEST (dp_boxcar, b, BOXCAR_STATE_MAGIC,
                            BOXCAR_STATE_VERSION, pos_off, &bad_pos[i],

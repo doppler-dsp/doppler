@@ -303,8 +303,12 @@ dp_ring_head_ok (size_t head, size_t cap)
  * temporary, asks `OK(&tmp)` -- a predicate the object writes, true for every
  * state create() and the object's own methods can reach -- and commits only
  * when it holds; otherwise it returns DP_ERR_INVALID with the object
- * untouched.  DP_DEFINE_POD_STATE is this with DP_POD_ANY_OK, for an object
- * none of whose values a blob can make dangerous or unreachable.
+ * untouched.  DP_DEFINE_POD_STATE is this with DP_POD_ANY_OK, which is
+ * correct only for an object none of whose values a blob can make dangerous
+ * or unreachable. An object whose blob can carry such a value needs this
+ * form with a real predicate. carrier_mpsk (`m`, `tsamps`) still uses the
+ * unchecked form, and carrier_nda's predicate does not yet cover `m`. Both
+ * are open items on #2142.
  */
 #define DP_DEFINE_POD_STATE_CHECKED(pfx, STATE_T, MAGIC, VERSION, OK)        \
   size_t pfx##_state_bytes (const STATE_T *s)                                 \

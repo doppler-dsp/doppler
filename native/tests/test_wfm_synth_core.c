@@ -1538,6 +1538,39 @@ main (void)
                                sizeof flip);
         }
 
+        /* A refusal must come before the first write. This blob changes a
+         * committed scalar (cur_re) AND the presence flag, so a commit ahead
+         * of the presence check leaves the synth changed and fails the
+         * byte-identical check below (#2148 r3). */
+        {
+          const size_t   pres_off = sizeof (dp_state_hdr_t) + 4 + 4 + 4 + 8 + 8
+                                    + 8 + 8 + 8 + 8 + 1 + 1 + 1;
+          const size_t   cre_off  = sizeof (dp_state_hdr_t) + 4;
+          const float    cre      = 0.5f;
+          const uint8_t  flip     = s->fir ? 0 : 1;
+          const size_t   nb       = dp_wfm_synth_state_bytes (s);
+          unsigned char *g        = malloc (nb);
+          unsigned char *f        = malloc (nb);
+          unsigned char *pre      = malloc (nb);
+          unsigned char *post     = malloc (nb);
+          DP_CHECK (g && f && pre && post);
+          if (g && f && pre && post)
+            {
+              dp_wfm_synth_get_state (s, g);
+              memcpy (f, g, nb);
+              memcpy (f + cre_off, &cre, sizeof cre);
+              memcpy (f + pres_off, &flip, sizeof flip);
+              dp_wfm_synth_get_state (s, pre);
+              DP_CHECK (dp_wfm_synth_set_state (s, f) == DP_ERR_INVALID);
+              dp_wfm_synth_get_state (s, post);
+              DP_CHECK (memcmp (pre, post, nb) == 0);
+            }
+          free (g);
+          free (f);
+          free (pre);
+          free (post);
+        }
+
         /* the setters: refused values change nothing */
         DP_CHECK (dp_wfm_synth_set_sym_pos (s, 3) == DP_OK);
         DP_CHECK (dp_wfm_synth_set_sym_pos (s, nsps) == DP_ERR_INVALID);

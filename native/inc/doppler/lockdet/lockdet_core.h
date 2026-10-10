@@ -91,8 +91,10 @@ extern "C"
    *
    * step() only ever stores 0 or 1, so a decision of 7 is a forged blob,
    * not a state: it surfaced as `locked` and read back through every
-   * embedder (#2142). set_state, and every composition embedding a detector
-   * by value, refuses a snapshot this rejects. The counts are not checked:
+   * embedder (#2142). The by-value embedders that refuse a snapshot this
+   * rejects are carrier_nda, costas and symsync. dll, ratesync, mpsk_receiver
+   * and the async sym_lockdet do not yet; they are queued on #2142 (B/C) and
+   * #2137 row 7. The counts are not checked:
    * init() clamps them to >= 1, but an embedding holds the all-zero state
    * until its init runs, and that round-trips (a count of 0 steps as 1).
    *
@@ -198,7 +200,7 @@ extern "C"
   size_t dp_lockdet_state_bytes(const dp_lockdet_state_t *state);
   /** @brief Serialize the detector state into @p blob. */
   void dp_lockdet_get_state(const dp_lockdet_state_t *state, void *blob);
-  /** @brief Restore state; DP_OK, or DP_ERR_INVALID if the envelope rejects. */
+  /** @brief Restore state; DP_OK, or DP_ERR_INVALID if the envelope or the payload check refuses. */
   int dp_lockdet_set_state(dp_lockdet_state_t *state, const void *blob);
 
   /**

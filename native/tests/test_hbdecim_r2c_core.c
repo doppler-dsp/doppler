@@ -93,6 +93,13 @@ main (void)
                          HBDECIM_R2C_STATE_VERSION, eh, &far, sizeof far);
     DP_STATE_FORGE_TEST (dp_hbdecim_r2c, r, HBDECIM_R2C_STATE_MAGIC,
                          HBDECIM_R2C_STATE_VERSION, oh, &far, sizeof far);
+    /* head == cap is the first index past the ring, not only SIZE_MAX. cap
+       is the smallest power of two >= num_taps, so 4 for the 4-tap H4. */
+    const size_t capv = 4;
+    DP_STATE_FORGE_TEST (dp_hbdecim_r2c, r, HBDECIM_R2C_STATE_MAGIC,
+                         HBDECIM_R2C_STATE_VERSION, eh, &capv, sizeof capv);
+    DP_STATE_FORGE_TEST (dp_hbdecim_r2c, r, HBDECIM_R2C_STATE_MAGIC,
+                         HBDECIM_R2C_STATE_VERSION, oh, &capv, sizeof capv);
     DP_STATE_FORGE_TEST (dp_hbdecim_r2c, r, HBDECIM_R2C_STATE_MAGIC,
                          HBDECIM_R2C_STATE_VERSION, hp, &two, sizeof two);
     DP_STATE_FORGE_TEST (dp_hbdecim_r2c, r, HBDECIM_R2C_STATE_MAGIC,

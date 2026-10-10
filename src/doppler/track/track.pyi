@@ -716,6 +716,13 @@ class Dll:
         at a downstream SymbolSync when the symbol rate is near the code rate,
         so choose >= 2 for symbol-timing recovery.
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``Dll: invalid
+        parameter (need a non-empty code, segments >= 1, a finite init_chip, bn
+        >= 0 and zeta > 0 both finite, and 0 < spacing < len(code)/2)``.
+
     Examples
     --------
     >>> import numpy as np
@@ -1048,7 +1055,8 @@ class Dll:
         detection.det_n_noncoh over L * (sf * sps / segments) samples. Only the
         detector's looks change: the discriminator keeps its per-epoch window
         and the emitted partial stream is untouched. Raises ValueError when
-        segments <= 1 or the period is in (0, 2).
+        segments <= 1, or the period is not finite, is in (0, 2) or is past
+        2^20 partials.
 
         In `segments > 1` mode every partial is a look for the code-lock
         detector (dp_dll_configure_lock()) and the discriminator sees one epoch

@@ -253,6 +253,9 @@ every extension in the tree to run any object's limits.
 report in memory and fails if the committed bytes differ. `make validate`
 regenerates. Both discover validators by glob, so **a new object is gated
 the moment its folder exists** — there is no registration step to forget.
+`make validate` runs the Python validators and then every C harness's full
+sweep. To regenerate one object without the C half, run
+`make validate-py VALIDATORS=<its validate.py>`, which exits 0.
 
 ## Adding an object
 

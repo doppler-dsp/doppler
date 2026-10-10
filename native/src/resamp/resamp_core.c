@@ -323,8 +323,20 @@ dp_resamp_set_state (resamp_state_t *s, const void *blob)
     return rc;
   dp_reader_t r = dp_reader_init (blob, dp_resamp_state_bytes (s));
   r.off         = sizeof (dp_state_hdr_t);
-  s->phase      = dp_r_u32 (&r);
-  dp_r_bytes (&r, &s->delay_head, sizeof (size_t));
+  /* The envelope never reads a payload field, so one forged field keeps the
+     size. delay_head is the only running field that indexes memory: the
+     next output reads num_taps samples from delay_buf[delay_head], and a
+     live head is always masked below delay_cap, so anything else is refused
+     before a field is written (doppler#2111). The phases select an arm
+     through get_branch()'s shift, in range for any word, and ctrl_debt and
+     ctrl_ahead are counts that index nothing. */
+  const uint32_t phase = dp_r_u32 (&r);
+  size_t         head;
+  dp_r_bytes (&r, &head, sizeof head);
+  if (head >= s->delay_cap)
+    return DP_ERR_INVALID;
+  s->phase      = phase;
+  s->delay_head = head;
   s->ctrl_phase = dp_r_u32 (&r);
   s->ctrl_debt  = dp_r_u32 (&r);
   s->ctrl_ahead = dp_r_u32 (&r);

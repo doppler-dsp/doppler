@@ -3125,17 +3125,25 @@ VALIDATORS = $(shell find src/doppler -path '*/tests/validation/*/validate.py' |
 validate: validate-py ## Regenerate every object's validation report and plots (Python, then C)
 	@$(MAKE) --no-print-directory validate-c
 
+# An empty list is refused, as validate-c refuses its own: a loop over nothing
+# exits 0 having regenerated nothing, whether the glob stopped matching or
+# `VALIDATORS=` was typed bare, and either way the success is a lie.
 validate-py: ## Regenerate the Python validation reports only (VALIDATORS=<validate.py> to narrow)
+	@if [ -z "$(strip $(VALIDATORS))" ]; then \
+	    echo "validate-py: no validators -- VALIDATORS is empty, or the glob"; \
+	    echo "  over src/doppler/*/tests/validation/*/validate.py found none"; \
+	    exit 1; \
+	 fi
 	@for v in $(VALIDATORS); do \
 	    echo "=== $$v ==="; \
 	    uv run python $$v || exit 1; \
 	 done
 
-# Runs the real `validate-py` and `validate` with a stub validator, so it
-# builds nothing and runs no real harness; see the script for how each half is
+# Runs the real `validate-py` and `validate` with stub validators, so it runs
+# no real validator and no harness; see the script for how each case is
 # isolated. On `lint` because a gate whose correct use exits non-zero teaches
 # people to stop reading exit codes, and that is a fast-job mistake.
-validate-spellings-check: ## Verify validate-py exits 0 alone and validate still refuses an empty harness glob
+validate-spellings-check: ## Verify validate-py and validate exit 0 and refuse exactly when they should
 	@python3 scripts/check_validate_spellings.py
 
 # The C half of "refresh the validation". ctest runs each of these with

@@ -24,7 +24,8 @@ extern "C"
   typedef struct
   {
     uint64_t s[4];      /* xoshiro256++ scalar state             */
-    uint64_t seed;      /* initial seed stored for dp_awgn_reset()  */
+    uint64_t seed;      /* the seed dp_awgn_reset() replays: create's,
+                           or the last reseed's or restored blob's     */
     float    amplitude;
   } dp_awgn_state_t;
 
@@ -53,6 +54,8 @@ extern "C"
   float dp_awgn_get_amplitude (const dp_awgn_state_t *state);
 
   float dp_awgn_amplitude_for_snr (float snr_db, float signal_power);
+
+  int dp_awgn_amplitude_ok (float amplitude);
 
   void dp_awgn_set_amplitude (dp_awgn_state_t *state, float val);
 

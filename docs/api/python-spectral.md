@@ -50,9 +50,9 @@ peak-to-noise test statistic against `threshold` and emits a detection result
 when it passes (`threshold = 0.0` fires on every dump). The ring capacity is
 `next_pow_two(max(n, 512))` complex samples.
 
-One `push()` has room for **1024 detections**. A push that would make more
-loses the detections past the 1024th and the input that would have made them,
-so keep a chunk under 1024 frames
+One `push()` has room for **1024 detections**. Once a push fills it, every
+later frame of that call is lost, whether or not it would have made a
+detection, so keep a chunk under 1024 frames
 ([#1992](https://github.com/doppler-dsp/doppler/issues/1992)).
 
 ```python

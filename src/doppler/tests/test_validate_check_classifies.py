@@ -22,6 +22,7 @@ present.
 
 from __future__ import annotations
 
+import shlex
 import subprocess
 import sys
 from typing import TYPE_CHECKING
@@ -79,13 +80,17 @@ def test_all_fresh_passes(tmp_path: Path) -> None:
     assert "2 report(s) up to date" in r.stdout
 
 
-def test_a_stale_report_is_stale_and_says_make_validate(
+def test_a_stale_report_is_stale_and_says_make_validate_py(
     tmp_path: Path,
 ) -> None:
-    r = _run(_seed(tmp_path, {"a.py": _FRESH, "b.py": _STALE}))
+    fresh, stale = _seed(tmp_path, {"a.py": _FRESH, "b.py": _STALE})
+    r = _run([fresh, stale])
     assert r.returncode == 1
     assert "STALE — " in r.stdout
-    assert "run 'make validate'" in r.stdout
+    # The Python half, over exactly the stale report: `make validate` adds
+    # every C harness's full sweep, which re-renders no report (#2048).
+    want = f"run make validate-py VALIDATORS={shlex.quote(stale)}"
+    assert want in r.stdout
     # The diff is the diagnosis; a filename alone costs a round trip.
     assert "+new limit line" in r.stdout
     # And it must NOT be called an error, or a real drift hides behind
@@ -104,7 +109,7 @@ def test_a_crashed_validator_is_an_error_not_stale(tmp_path: Path) -> None:
     # It must name the remedy that works, and not the one that cannot.
     assert "make pyext" in r.stdout
     assert "STALE — " not in r.stdout
-    assert "run 'make validate'" not in r.stdout
+    assert "make validate" not in r.stdout
 
 
 def test_both_kinds_are_reported_separately(tmp_path: Path) -> None:

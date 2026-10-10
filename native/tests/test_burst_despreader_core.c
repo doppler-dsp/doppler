@@ -507,15 +507,19 @@ main (void)
 
       /* A blob of a despreader with NO acq code but preamble_left set: the
          size matches a no-acq target, so only the predicate refuses it. */
-      const size_t   n0  = dp_burst_despreader_state_bytes (twin);
-      unsigned char *b0  = malloc (n0);
+      const size_t   n0 = dp_burst_despreader_state_bytes (twin);
+      unsigned char *b0 = malloc (n0), *pre = malloc (n0);
       size_t         one = 1;
-      DP_REQUIRE (b0 != NULL);
+      DP_REQUIRE (b0 && pre);
       dp_burst_despreader_get_state (twin, b0);
       memcpy (b0 + hdr + offsetof (dp_burst_despreader_state_t, preamble_left),
               &one, sizeof one);
+      dp_burst_despreader_get_state (b, pre);
       DP_CHECK (dp_burst_despreader_set_state (b, b0) == DP_ERR_INVALID);
+      dp_burst_despreader_get_state (b, b0); /* and b is as it was */
+      DP_CHECK (memcmp (b0, pre, n0) == 0);
       free (b0);
+      free (pre);
     }
 
     free (blob);

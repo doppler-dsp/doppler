@@ -60,7 +60,7 @@ There is no list here to update.
 
 <!-- validation-log:start -->
 
-**37 objects certified** — 24 of the 88 `objects/*.toml` jm fragments, plus 13 with no object manifest at all (`buffer`, `ccsds_tm`, `conv`, `detection`, `ema`, `framer`, `mpsk`, `resamp`, `rs`, `wfm_compose`, `wfm_frame`, `wfm_plan`, `wfmgen`): a function primitive, or a core declared another way. Not every fragment is a DSP object with an envelope worth certifying, so read the denominator as a ceiling rather than a target — and note the two counts are different populations, not a percentage.
+**38 objects certified** — 25 of the 88 `objects/*.toml` jm fragments, plus 13 with no object manifest at all (`buffer`, `ccsds_tm`, `conv`, `detection`, `ema`, `framer`, `mpsk`, `resamp`, `rs`, `wfm_compose`, `wfm_frame`, `wfm_plan`, `wfmgen`): a function primitive, or a core declared another way. Not every fragment is a DSP object with an envelope worth certifying, so read the denominator as a ceiling rather than a target — and note the two counts are different populations, not a percentage.
 
 | object                                                                                                                                 | module       | limits | findings | still open                 |
 | -------------------------------------------------------------------------------------------------------------------------------------- | ------------ | ------ | -------- | -------------------------- |
@@ -83,6 +83,7 @@ There is no list here to update.
 | [NCO](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/tests/validation/nco/results.md)                             | `source`     | 18/18  | 9        | none                       |
 | [Corr2D](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/spectral/tests/validation/corr2d/results.md)                     | `spectral`   | 18/18  | 6        | none                       |
 | [CorrDetector2D](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/spectral/tests/validation/detector2d/results.md)         | `spectral`   | 15/15  | 5        | none                       |
+| [PSD](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/spectral/tests/validation/psd/results.md)                           | `spectral`   | 23/23  | 15       | 4 — F12, F13, F14, F15     |
 | [CarrierNda](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/carrier_nda/results.md)               | `track`      | 43/43  | 12       | 6 — F4, F5, F6, F7, F8, F9 |
 | [LoopFilter](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/loop_filter/results.md)               | `track`      | 26/26  | 10       | none                       |
 | [MpskReceiver](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/mpsk_receiver/results.md)           | `track`      | 63/63  | 8        | 2 — F6, F7                 |

@@ -329,14 +329,15 @@ sweep_snapshot (int emit)
   const size_t         total    = 700;
   if (emit)
     printf ("\n# snapshot\nn,hop,cuts,distinct_sizes,resume_bad,corrupt_tried,"
-            "corrupt_refused\n");
+            "corrupt_refused,carry_tried,carry_refused\n");
   else
     printf ("\n  snapshot  n  hop  cuts  sizes  resume-bad  corrupt "
-            "tried/refused\n");
+            "tried/refused  carry tried/refused\n");
   for (size_t s = 0; s < sizeof shapes / sizeof *shapes; s++)
     {
       const size_t n = shapes[s].n, hop = shapes[s].hop;
       size_t       cuts = 0, resume_bad = 0, tried = 0, refused = 0;
+      size_t       carry_tried = 0, carry_refused = 0;
       size_t       first_size = 0, distinct = 0;
       cf           in[1000];
       for (size_t i = 0; i < total; i++)
@@ -383,6 +384,25 @@ sweep_snapshot (int emit)
             }
           const size_t want = (total - n) / hop + 1;
           resume_bad += (bad != 0 || rows != want || rows_at_cut > want);
+          /* the tightest impossible carry: once a frame is out, a drained
+             framer holds at least n - hop samples, so the same blob claiming
+             n - hop - 1 with counters that agree (written = frames * hop +
+             live) is a snapshot no stream can produce, and is refused */
+          if (rows_at_cut > 0 && hop < n)
+            {
+              void *lie = malloc (bytes);
+              memcpy (lie, blob, bytes);
+              const uint64_t live = n - hop - 1, frames = rows_at_cut;
+              const uint64_t written = frames * hop + live;
+              memcpy ((char *)lie + sizeof (dp_state_hdr_t), &live,
+                      sizeof live);
+              memcpy ((char *)lie + DP_FRAMER_STATE_WRITTEN_OFFSET (float, n),
+                      &written, sizeof written);
+              carry_tried++;
+              carry_refused
+                  += dp_f32_framer_set_state (&b, lie) == DP_ERR_INVALID;
+              free (lie);
+            }
           /* a snapshot whose written counter is wrong is refused */
           ((uint64_t *)((char *)blob
                         + DP_FRAMER_STATE_WRITTEN_OFFSET (float, n)))[0]
@@ -395,11 +415,13 @@ sweep_snapshot (int emit)
           dp_f32_destroy (rb);
         }
       if (emit)
-        printf ("%zu,%zu,%zu,%zu,%zu,%zu,%zu\n", n, hop, cuts, distinct + 1,
-                resume_bad, tried, refused);
+        printf ("%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu\n", n, hop, cuts,
+                distinct + 1, resume_bad, tried, refused, carry_tried,
+                carry_refused);
       else
-        printf ("  %8s %2zu %4zu  %4zu  %5zu  %9zu  %zu / %zu\n", "", n, hop,
-                cuts, distinct + 1, resume_bad, tried, refused);
+        printf ("  %8s %2zu %4zu  %4zu  %5zu  %9zu  %zu / %zu  %zu / %zu\n",
+                "", n, hop, cuts, distinct + 1, resume_bad, tried, refused,
+                carry_tried, carry_refused);
     }
 }
 

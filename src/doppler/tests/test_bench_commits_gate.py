@@ -130,7 +130,7 @@ def test_a_stamp_off_main_fails(tmp_path: Path) -> None:
     _stamp(repo, side)
     r = _gate(repo)
     assert r.returncode == 1, r.stdout + r.stderr
-    assert f"{side[:9]} is not an ancestor of main" in r.stdout
+    assert f"{side[:9]} is not on main" in r.stdout
 
 
 def test_a_stamp_not_in_history_fails(tmp_path: Path) -> None:
@@ -141,41 +141,75 @@ def test_a_stamp_not_in_history_fails(tmp_path: Path) -> None:
     assert "not in this repository's history" in r.stdout
 
 
-def test_an_exempt_set_passes(tmp_path: Path) -> None:
+def test_an_exempt_pair_passes(tmp_path: Path) -> None:
     repo, _ = _repo(tmp_path)
-    _stamp(repo, _off_main(repo, "int b;\n"))
-    _exempt(repo, "v1.0.0 measured on a tree main never had\n")
+    side = _off_main(repo, "int b;\n")
+    _stamp(repo, side)
+    _exempt(repo, f"v1.0.0 {side[:9]} measured on a tree main never had\n")
     r = _gate(repo)
     assert r.returncode == 0, r.stdout + r.stderr
     assert "1 exempt" in r.stdout
 
 
-def test_a_stale_exemption_fails(tmp_path: Path) -> None:
-    """Sabotage (2): an exemption whose set now passes must be deleted."""
-    repo, base = _repo(tmp_path)
-    _stamp(repo, base)
-    _exempt(repo, "v1.0.0 once could not be fixed\n")
+def test_an_exempt_set_does_not_excuse_a_new_file(tmp_path: Path) -> None:
+    """Exempt is (set, commit): another off-main stamp in the set fails."""
+    repo, _ = _repo(tmp_path)
+    side = _off_main(repo, "int b;\n")
+    _stamp(repo, side)
+    _git(repo, "checkout", "-q", "side")
+    other = _commit(repo, "int c;\n", "more off-main work")
+    _git(repo, "checkout", "-q", "main")
+    _stamp(repo, other, "new.json")
+    _exempt(repo, f"v1.0.0 {side[:9]} measured on a tree main never had\n")
     r = _gate(repo)
     assert r.returncode == 1, r.stdout + r.stderr
-    assert "now passes -- delete the line" in r.stdout
+    assert f"{other[:9]} is not on main" in r.stdout
+
+
+def test_restamping_an_exempt_file_is_not_excused(tmp_path: Path) -> None:
+    """The exempt pair goes stale and the new stamp fails."""
+    repo, _ = _repo(tmp_path)
+    side = _off_main(repo, "int b;\n")
+    _git(repo, "checkout", "-q", "side")
+    other = _commit(repo, "int c;\n", "more off-main work")
+    _git(repo, "checkout", "-q", "main")
+    _stamp(repo, other)  # was `side`, the exempt one
+    _exempt(repo, f"v1.0.0 {side[:9]} measured on a tree main never had\n")
+    r = _gate(repo)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert f"{other[:9]} is not on main" in r.stdout
+    assert "no file there fails with that stamp" in r.stdout
+
+
+def test_a_stale_exemption_fails(tmp_path: Path) -> None:
+    """Sabotage (2): an exemption whose pair now passes must be deleted."""
+    repo, base = _repo(tmp_path)
+    _stamp(repo, base)
+    _exempt(repo, f"v1.0.0 {base[:9]} once could not be fixed\n")
+    r = _gate(repo)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "no file there fails with that stamp -- delete the line" in (
+        r.stdout
+    )
 
 
 def test_an_exemption_for_a_missing_set_is_stale(tmp_path: Path) -> None:
     repo, base = _repo(tmp_path)
     _stamp(repo, base)
-    _exempt(repo, "v9.9.9 no such release\n")
+    _exempt(repo, "v9.9.9 0123abcde no such release\n")
     r = _gate(repo)
     assert r.returncode == 1, r.stdout + r.stderr
     assert "directory is gone" in r.stdout
 
 
-def test_an_exemption_needs_a_reason(tmp_path: Path) -> None:
+def test_an_exemption_needs_a_commit_and_a_reason(tmp_path: Path) -> None:
     repo, _ = _repo(tmp_path)
-    _stamp(repo, _off_main(repo, "int b;\n"))
-    _exempt(repo, "v1.0.0\n")
+    side = _off_main(repo, "int b;\n")
+    _stamp(repo, side)
+    _exempt(repo, f"v1.0.0 {side[:9]}\n")
     r = _gate(repo)
     assert r.returncode == 1, r.stdout + r.stderr
-    assert "has no reason" in r.stdout
+    assert "needs `<release> <commit> <reason>`" in r.stdout
 
 
 def test_a_shallow_clone_names_the_depth(tmp_path: Path) -> None:
@@ -232,6 +266,7 @@ def test_restamp_refuses_when_no_commit_on_main_has_the_tree(
     r = _restamp(repo)
     assert r.returncode == 1, r.stdout + r.stderr
     assert "0 commit(s) on main have it (none)" in r.stdout
+    assert "if main is behind, fetch it first" in r.stdout
     assert path.read_text(encoding="utf-8") == text  # nothing written
 
 
@@ -277,13 +312,23 @@ def test_restamp_writes_nothing_if_any_file_is_refused(
     ) == texts
 
 
+def _gate_on_main(repo: Path) -> None:
+    """Commit a stand-in for the gate, so the ratchet is live at the base."""
+    (repo / "scripts").mkdir(exist_ok=True)
+    (repo / "scripts" / "check_bench_commits.py").write_text(
+        "# the gate\n", encoding="utf-8"
+    )
+
+
 def test_an_added_exemption_fails(tmp_path: Path) -> None:
-    """The list may only shrink: an entry the merge base lacks is refused."""
+    """The list may only shrink: a pair the merge base lacks is refused."""
     repo, _ = _repo(tmp_path)
-    _stamp(repo, _off_main(repo, "int old;\n"))
-    _exempt(repo, "v1.0.0 measured on a tree main never had\n")
+    old = _off_main(repo, "int old;\n")
+    _stamp(repo, old)
+    _gate_on_main(repo)
+    _exempt(repo, f"v1.0.0 {old[:9]} measured on a tree main never had\n")
     _git(repo, "add", "-A")
-    _git(repo, "commit", "-qm", "the old, honest exemption")
+    _git(repo, "commit", "-qm", "the gate and its honest exemption")
     _git(repo, "checkout", "-q", "-b", "feature")
     new = repo / "benchmarks/published/v2.0.0/native.json"
     new.parent.mkdir(parents=True)
@@ -293,27 +338,81 @@ def test_an_added_exemption_fails(tmp_path: Path) -> None:
     )
     _exempt(
         repo,
-        "v1.0.0 measured on a tree main never had\n"
-        "v2.0.0 a new set, quietly excused\n",
+        f"v1.0.0 {old[:9]} measured on a tree main never had\n"
+        f"v2.0.0 {old[:9]} a new set, quietly excused\n",
     )
     r = _gate(repo)
     assert r.returncode == 1, r.stdout + r.stderr
-    assert "v2.0.0 was ADDED -- the list may only shrink" in r.stdout
-    assert "v1.0.0 was ADDED" not in r.stdout
+    assert f"v2.0.0 {old[:9]} was ADDED" in r.stdout
+    assert "v1.0.0" not in r.stdout.split("ADDED")[0].splitlines()[-1]
 
 
-def test_a_checkout_that_has_the_commit_is_told_to_fetch(
-    tmp_path: Path,
-) -> None:
-    """In HEAD but not on base: a stale base is the first suspect."""
+def test_a_list_absent_at_the_base_held_nothing(tmp_path: Path) -> None:
+    """Deleting the list upstream must not switch the ratchet off.
+
+    The gate is live at the base, the list is not there: every pair on
+    the branch is ADDED. Before the shared helper, "absent" meant "new,
+    skip" and this passed.
+    """
+    repo, _ = _repo(tmp_path)
+    side = _off_main(repo, "int b;\n")
+    _stamp(repo, side)
+    _gate_on_main(repo)
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "the gate, and no exemptions")
+    _git(repo, "checkout", "-q", "-b", "feature")
+    _exempt(repo, f"v1.0.0 {side[:9]} excused on a branch\n")
+    r = _gate(repo)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert f"v1.0.0 {side[:9]} was ADDED" in r.stdout
+
+
+def test_a_commit_never_pushed_says_so(tmp_path: Path) -> None:
+    """On no remote branch: fetching cannot help, so do not suggest it."""
     repo, _ = _repo(tmp_path)
     side = _off_main(repo, "int b;\n")
     _git(repo, "checkout", "-q", "side")
     _stamp(repo, side)
     r = _gate(repo)
     assert r.returncode == 1, r.stdout + r.stderr
-    assert "if main is behind, fetch it first" in r.stdout
+    assert "on no remote branch: it was never pushed" in r.stdout
+    # and the remedy list does not lead with a fetch that cannot help
+    assert r.stdout.index("land it first") < r.stdout.index("git fetch")
+
+
+def test_a_commit_on_a_remote_branch_is_told_to_fetch(
+    tmp_path: Path,
+) -> None:
+    """On origin/feature but not origin/main: fetch is the first thing."""
+    origin, _ = _repo(tmp_path)
+    _git(tmp_path, "clone", "-q", f"file://{origin}", "clone")
+    clone = tmp_path / "clone"
+    _git(origin, "checkout", "-q", "-b", "feature")
+    feature = _commit(origin, "int f;\n", "on a branch")
+    _git(origin, "checkout", "-q", "main")
+    _git(clone, "fetch", "-q", "origin")
+    _stamp(clone, feature)
+    r = _gate(clone, base="origin/main")
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "origin/feature has it -- if it has merged since, fetch" in (
+        r.stdout
+    )
     assert r.stdout.index("git fetch origin") < r.stdout.index("bench-restamp")
+
+
+def test_the_verdict_names_a_missing_base(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """bench_interleaved asks before any gate runs: say "fetch"."""
+    monkeypatch.syspath_prepend(str(REPO / "scripts"))
+    spec = importlib.util.spec_from_file_location("_t_gate", GATE)
+    assert spec is not None and spec.loader is not None
+    gate = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(gate)
+    repo, base = _repo(tmp_path)
+    assert "origin/main is not here -- fetch it" in gate.verdict(
+        repo, base, "origin/main"
+    )
 
 
 def test_not_a_git_checkout_says_so(tmp_path: Path) -> None:

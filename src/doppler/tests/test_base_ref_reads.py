@@ -139,6 +139,53 @@ def _behind_main(root: Path) -> tuple[str, str]:
     return _git(root, "rev-parse", "feature"), tip
 
 
+def _ratchet_repo(root: Path, *, gate: bool, listed: str | None) -> None:
+    """main with (optionally) the gate and its list, then a branch."""
+    _repo(root)
+    _commit(root, "README", "x\n", "init")
+    if gate:
+        _commit(root, "scripts/gate.py", "# gate\n", "the gate")
+    if listed is not None:
+        _commit(root, "list.txt", listed, "the list")
+    _git(root, "checkout", "-q", "-b", "feature")
+
+
+def _added(gitbase: ModuleType, root: Path, now: list[str]) -> list[str]:
+    return gitbase.added_since_base(
+        root,
+        "main",
+        "list.txt",
+        now,
+        str.split,
+        since="scripts/gate.py",
+    )
+
+
+def test_a_ratchet_counts_only_what_the_base_lacked(
+    tmp_path: Path, gitbase: ModuleType
+) -> None:
+    _ratchet_repo(tmp_path, gate=True, listed="a b\n")
+    assert _added(gitbase, tmp_path, ["a", "b", "c"]) == ["c"]
+    assert _added(gitbase, tmp_path, ["a"]) == []  # shrinking is free
+
+
+def test_a_list_absent_at_the_base_held_nothing(
+    tmp_path: Path, gitbase: ModuleType
+) -> None:
+    """Absent means EMPTY: deleting the list upstream adds every entry."""
+    _ratchet_repo(tmp_path, gate=True, listed=None)
+    assert _added(gitbase, tmp_path, ["a", "b"]) == ["a", "b"]
+
+
+def test_a_ratchet_starts_when_its_gate_lands(
+    tmp_path: Path, gitbase: ModuleType
+) -> None:
+    """Before the gate exists at the base there is no baseline: the PR
+    that brings the gate may bring its first list."""
+    _ratchet_repo(tmp_path, gate=False, listed=None)
+    assert _added(gitbase, tmp_path, ["a", "b"]) == []
+
+
 def test_the_merge_base_is_used_not_the_tip(
     tmp_path: Path, gitbase: ModuleType
 ) -> None:

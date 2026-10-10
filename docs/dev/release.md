@@ -96,15 +96,15 @@ run in it goes through uv, and a uv other than `pyproject.toml`'s
 not, [Adding a Module](contributing/adding-a-module.md#prerequisites) has the
 update for each way uv gets installed.
 
-First put the CPU
-in a peak, repeatable state — the published `doppler_meta` records the governor
-either way, but `powersave` understates the numbers:
-
 **Measure a commit that is already on `origin/main`.** The set stamps it as
 `doppler_meta.commit`, a reader checks it out to reproduce the numbers, and
 `make bench-commits-check` refuses one main cannot reach (#1322).
 `bench-interleaved` says which commit it measures, and whether origin/main
 has it, before and after the run.
+
+First put the CPU
+in a peak, repeatable state — the published `doppler_meta` records the governor
+either way, but `powersave` understates the numbers:
 
 ```sh
 sudo cpupower frequency-set -g performance   # peak, repeatable; quiesce other load
@@ -119,11 +119,15 @@ git commit -m "docs: publish benchmarks for vX.Y.Z (<cpu>)"
 ```
 
 If a set was measured on a branch head instead, it can be restamped after
-the merge with `make bench-restamp VERSION=X.Y.Z`, but **only if that exact
-tree landed on main unchanged** (the branch rebase-merged, so the measured
-commit lands as a commit of its own). A squash-merge folds it into one
-commit with everything after it, leaves no tree-identical commit, and the
-restamp refuses.
+the merge, but **only if that exact tree landed on main unchanged** (the
+branch rebase-merged, so the measured commit lands as a commit of its own).
+A squash-merge folds it into one commit with everything after it, leaves no
+tree-identical commit, and the restamp refuses:
+
+```sh
+git fetch origin                     # the restamp matches against origin/main
+make bench-restamp VERSION=X.Y.Z     # doppler_meta.commit -> main's tree twin
+```
 
 `bench-interleaved` builds both flavours in throwaway git worktrees, runs the
 suite alternately K times (default 5; `K=N` to override), and keeps each

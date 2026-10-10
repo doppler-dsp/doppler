@@ -4435,7 +4435,8 @@ bench-interleaved: ## Measure portable + native alternately, denoised (VERSION=)
 ifndef VERSION
 	@echo "usage: make bench-interleaved VERSION=X.Y.Z [K=5]"; exit 1
 endif
-	uv run python scripts/bench_interleaved.py $(VERSION) $(if $(K),-k $(K),)
+	uv run python scripts/bench_interleaved.py $(VERSION) $(if $(K),-k $(K),) \
+	    --base $(BENCH_COMMIT_BASE)
 
 bench-publish: ## Stamp one build's numbers for a release (VERSION= BUILD=)
 ifndef VERSION

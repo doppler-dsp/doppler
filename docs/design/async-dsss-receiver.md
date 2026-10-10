@@ -552,7 +552,7 @@ never on a code epoch.
     assigned (§8.2's table).
 - **It is a lifecycle, and a duration.** Emitters come into view at their own
     frequencies, are acquired at their next window, are tracked, and leave. So
-    nothing may grow with time — `samples_fed` is 64-bit, per-push scratch reaches
+    nothing may grow with time — stream positions are 64-bit, per-push scratch reaches
     a high-water mark and stays, rings are fixed — and a checkpoint is taken live,
     for a restart mid-pass.
 - **The hand-off is a policy, not a property of the channel.** What a detection

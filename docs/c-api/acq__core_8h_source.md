@@ -297,6 +297,8 @@ extern "C"
 
   size_t dp_acq_consumed (const dp_acq_state_t *state);
 
+  uint64_t dp_acq_position (const dp_acq_state_t *state);
+
   typedef struct
   {
     uint64_t samples_consumed; 

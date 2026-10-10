@@ -295,15 +295,15 @@ typedef int (*det_frame_step_fn) (void *obj, const float _Complex *frame,
  * @brief The detectors' push: any chunk in through the ring's framer, frames
  *        of @p n at hop @p n out through @p step, never a lost input.
  *
- * dp_detector_push() and dp_detector2d_push() are this, with their own
- * step. Each frame yields at most one result, so the framer is fed only
- * what completes as many WHOLE frames as @p result has room for, and no
- * partial frame past them -- dp_f32_framer_feed_frames(), the rule acq
- * shares -- and every frame fed is drained before the next feed. That makes a batch
- * exact rather than an estimate: a batch can never write past the room
- * (each frame takes at most one slot) or strand a whole frame in the
- * framer (all are drained). Break either and the push overfills @p result
- * or strands frames; acq breaks the first (a dump reports several peaks),
+ * dp_detector_push() and dp_detector2d_push() are this, with their own step.
+ * Each frame yields at most one result, so the framer is fed only what
+ * completes as many WHOLE frames as @p result has room for, and no partial
+ * frame past them -- dp_f32_framer_feed_frames(), the rule acq shares -- and
+ * every frame fed is drained before the next feed. That makes a batch exact
+ * rather than an estimate: a batch can never write past the room (each frame
+ * takes at most one slot) or strand a whole frame in the framer (all are
+ * drained). Break either and the push overfills @p result or strands frames;
+ * acq breaks the first (a dump reports several peaks),
  * which is why it has its own drain.
  *
  * Once @p result is full -- and with no room it is full from the start --

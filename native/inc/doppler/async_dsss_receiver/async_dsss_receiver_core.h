@@ -418,11 +418,6 @@ extern "C"
                                         once tracking.                   */
     double   cn0_dbhz_est;        /**< Cached from the winning acquisition
                                         hit.                              */
-    uint64_t samples_fed;         /**< Running total handed to dp_acq_push()
-                                        so far -- the hit's samples_consumed
-                                        less this call's start is where the
-                                        call's tail, handed to tracking,
-                                        begins, as in DsssReceiver.       */
 
     /* Symbol-lock detector running state (see the ASYNC_DSSS_RX_LOCK_*
      * defines). lock_num/lock_den are the power-weighted EMAs of I^2-Q^2 and

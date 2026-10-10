@@ -90,6 +90,7 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 |  [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* | [**dp\_acq\_create\_continuous**](#function-dp_acq_create_continuous) (const uint8\_t \* code, size\_t code\_len, size\_t spc, double chip\_rate, double symbol\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, size\_t code\_only\_epochs, double doppler\_rate) <br>_Create a continuous-mode acquisition engine: always wideband window-tiling, allowing a block-coherent depth inside the tiles to accommodate waveforms with code-only windows._  |
 |  void | [**dp\_acq\_destroy**](#function-dp_acq_destroy) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state) <br>_Destroy and free an engine._  |
 |  void | [**dp\_acq\_get\_state**](#function-dp_acq_get_state) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, void \* blob) <br>_Serialize_ `state's` _cross-call state into_`blob` _(caller-owned,_[_**dp\_acq\_state\_bytes()**_](acq__core_8h.md#function-dp_acq_state_bytes) _long). Call between pushes (no partial dump pending)._ |
+|  uint64\_t | [**dp\_acq\_position**](#function-dp_acq_position) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state) <br>_The engine's stream position: every sample its pushes have taken, framed ones and the carry, since create, reset, a regrid or set\_state's restore._  |
 |  double | [**dp\_acq\_psl\_db**](#function-dp_acq_psl_db) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state) <br>_The preamble's peak sidelobe level, dB: 20\*log10 of the largest periodic-autocorrelation lag outside the mainlobe, relative to the peak (_ [_**acq\_shape\_t::psl**_](structacq__shape__t.md#variable-psl) _)._ |
 |  size\_t | [**dp\_acq\_push**](#function-dp_acq_push) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, const float \_Complex \* x, size\_t n\_in, [**acq\_result\_t**](structacq__result__t.md) \* result, size\_t max\_results) <br>_Stream raw samples; emit one event per CFAR dump above threshold._  |
 |  void | [**dp\_acq\_reset**](#function-dp_acq_reset) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state) <br>_Drain the input ring and reset the coherent accumulator._  |
@@ -798,6 +799,36 @@ void dp_acq_get_state (
 
 
 
+### function dp\_acq\_position 
+
+_The engine's stream position: every sample its pushes have taken, framed ones and the carry, since create, reset, a regrid or set\_state's restore._ 
+```C++
+uint64_t dp_acq_position (
+    const dp_acq_state_t * state
+) 
+```
+
+
+
+The timebase [**acq\_result\_t::samples\_consumed**](structacq__result__t.md#variable-samples_consumed) is counted in. Read at the start of a push, it is where that push's input begins, so a hit from that push ended at x + (hit.samples\_consumed - position): the hand-off a tracker resumes from. A caller's own count of what it has fed is a different timebase  configure\_search\_raw() and set\_state() reset or restore the engine and not the caller's count  and subtracting the two reads outside x.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_acq\_psl\_db 
 
 _The preamble's peak sidelobe level, dB: 20\*log10 of the largest periodic-autocorrelation lag outside the mainlobe, relative to the peak (_ [_**acq\_shape\_t::psl**_](structacq__shape__t.md#variable-psl) _)._
@@ -870,7 +901,7 @@ Python's push() has room for 1024 events a call, so a push that ends at most 102
 * `x` Raw input, interleaved CF32, `n_in` complex samples. 
 * `n_in` Number of complex input samples. 
 * `result` Output array for detection events. 
-* `max_results` Capacity of `result`. A full `result` never loses input. A frame that ends a dwell may report up to max\_peaks events, so it is taken only while at least min(max\_peaks, max\_results) slots are left (at least one); a frame that ends none needs no room while any slot is left. A FULL `result` takes nothing more, so at room 1 a push stops at its hit. At the first frame it does not take, the push takes the rest of its input only if the rest completes no frame, counting the carry (it is then the carry), and otherwise stops on that frame's boundary. [**dp\_acq\_consumed()**](acq__core_8h.md#function-dp_acq_consumed) says how many samples it took, and the caller offers the rest again. A `max_results` under max\_peaks cannot hold a whole dwell: a push with `result` empty still takes the dwell and keeps its strongest max\_results picks. That loses RESULTS  the dwell's weaker picks  never input; size `max_results` &gt;= max\_peaks to lose none. At 0 `result` is full from the start: a push takes only a rest that completes no frame, so a resume loop needs room for at least one. 
+* `max_results` Capacity of `result`. A full `result` never loses input. A frame that ends a dwell may report up to max\_peaks events, so it is taken only while at least min(max\_peaks, max\_results) slots are left (at least one); a frame that ends none needs no room while any slot is left. A FULL `result` takes nothing more, so at room 1 a push frames nothing past its hit. At the first frame it does not take, the push takes the rest of its input only if the rest completes no frame, counting the carry (it is then the carry), and otherwise stops on that frame's boundary. [**dp\_acq\_consumed()**](acq__core_8h.md#function-dp_acq_consumed) says how many samples it took, and the caller offers the rest again. A `max_results` under max\_peaks cannot hold a whole dwell: a push with `result` empty still takes the dwell and keeps its strongest max\_results picks. That loses RESULTS  the dwell's weaker picks  never input; size `max_results` &gt;= max\_peaks to lose none. At 0 `result` is full from the start: a push takes only a rest that completes no frame, so a resume loop needs room for at least one. 
 
 
 

@@ -521,6 +521,13 @@ temporaries. The worst bin measures 1.8e-15 against a bound of 1e-14. The same
 test pins the representation itself: in mean mode `acc` is the sum, bit for
 bit, and `value()` returns `(float)(acc / count)`.
 
+**What a reading moves by.** A float32 mean reading is the double mean
+rounded, and the two folds round differently, so a reading can move. The
+third program below reads 4096 bins after every one of 10⁴ frames,
+4.1 × 10⁷ readings. 147 moved by one float32 ULP and none by more. `PSD`'s
+certification report, regenerated, shows no change at its printed
+precision.
+
 **What it moved.** A mean trace's state blob now holds the sum, so
 `ACC_TRACE_STATE_VERSION` is 3. A version-2 blob is refused, by `AccTrace` and
 through every parent that nests one (`PSD`, `Specan`, `CarrierAcquisition`).
@@ -670,6 +677,66 @@ main (void)
     }
   printf ("double sum %.3f ns/bin   float+Kahan %.3f ns/bin   (%g %g)\n",
           bd / F / N * 1e9, bk / F / N * 1e9, dsum[7], (double)fs[7]);
+  return 0;
+}
+```
+
+```c
+/* How far a float32 mean reading moves when the fold changes from the
+   Welford update to the per-bin sum: ULPs of the float reading, worst over
+   4096 bins read after every frame up to 10^4. */
+#include <math.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define BINS 4096
+
+static uint64_t s = 0x2094ull;
+
+static double
+u (void)
+{
+  s ^= s << 13;
+  s ^= s >> 7;
+  s ^= s << 17;
+  return ((s >> 11) + 0.5) * (1.0 / 9007199254740992.0);
+}
+
+/* a float's position on the number line, so a difference counts ULPs */
+static int64_t
+ord (float f)
+{
+  int32_t i;
+  memcpy (&i, &f, 4);
+  return i < 0 ? -(int64_t)(i & 0x7fffffff) : i;
+}
+
+int
+main (void)
+{
+  static double w[BINS], sum[BINS];
+  int64_t       worst   = 0;
+  long          hist[4] = { 0 };
+  for (long k = 1; k <= 10000; k++)
+    for (int b = 0; b < BINS; b++)
+      {
+        const float p = (float)(-log (u ()) * (1.0 + b));
+        if (k == 1)
+          w[b] = sum[b] = p;
+        else
+          {
+            w[b] += ((double)p - w[b]) * (1.0 / (double)k);
+            sum[b] += (double)p;
+          }
+        const int64_t d = llabs (ord ((float)w[b])
+                                 - ord ((float)(sum[b] / (double)k)));
+        worst = d > worst ? d : worst;
+        hist[d > 3 ? 3 : d]++;
+      }
+  printf ("worst %lld ulp; 0 ulp %ld, 1 ulp %ld, 2 ulp %ld, more %ld\n",
+          (long long)worst, hist[0], hist[1], hist[2], hist[3]);
   return 0;
 }
 ```

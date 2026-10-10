@@ -274,9 +274,9 @@ class Despreader:
     ValueError
         If construction fails. The exception message is ``Despreader: invalid
         parameter (need a non-empty code; for the code loop a finite init_chip,
-        bn_code >= 0 and zeta > 0 both finite, and 0 < spacing < len(code)/2;
-        for the carrier loop bn_carrier >= 0, finite; and finite loop gains for
-        both)``.
+        bn_code >= 0 and zeta > 0 both finite, whose loop gains come out
+        finite, and 0 < spacing < len(code)/2; for the carrier loop bn_carrier
+        >= 0, finite; and finite loop gains for both)``.
 
     Examples
     --------
@@ -1967,7 +1967,9 @@ class DsssReceiver:
         independently overridable here, still bridged by a freshly-sized
         RateConverter, never coupled to each other. Only meaningful once
         tracking; rebuilds the chain with every replacement allocated first, so
-        a failed pin leaves the receiver on its prior grid.
+        a pin refused on its domain leaves the receiver on its prior grid. A
+        grid too large for the chain to allocate still aborts; sizing it out is
+        #2112 work.
 
         The escape hatch for the one composition-specific knob this object adds
         beyond its children's own: `segments` (Dll's tracking parameter) and
@@ -3823,15 +3825,16 @@ class AsyncDsssPool:
         phase, at any Doppler, dropped as that emitter's own (the zone is the
         code axis alone: a tracked emitter's data blocks put smeared copies of
         it at its own phase rows away, section 12.14); each survivor seeded
-        into a free slot, or counted dropped when there is none; every receiver
-        fed (an idle or lost one consumes and discards, so the feed has no
-        per-state branch), across the threads the pool was given; then every
-        receiver that reports lost, or has held its slot past
-        max_emitter_on_time_secs, released -- the row cleared, the receiver
-        reset to idle. Every transition -- seeded, tracking, degrade, lost,
-        released, dropped -- goes to the attached event log at the sample it
-        happened. Accepts any block size; a searcher dwell is decided when its
-        samples arrive. Returns the receivers assigned after this push.
+        into a free slot, or counted dropped when there is none (a hit outside
+        the seed domain is logged refused, not dropped); every receiver fed (an
+        idle or lost one consumes and discards, so the feed has no per-state
+        branch), across the threads the pool was given; then every receiver
+        that reports lost, or has held its slot past max_emitter_on_time_secs,
+        released -- the row cleared, the receiver reset to idle. Every
+        transition -- seeded, tracking, degrade, lost, released, dropped,
+        refused -- goes to the attached event log at the sample it happened.
+        Accepts any block size; a searcher dwell is decided when its samples
+        arrive. Returns the receivers assigned after this push.
 
         In order: the searcher; the table refreshed; every peak within one chip
         of a live row's code phase, at any Doppler, dropped as that emitter's
@@ -3958,9 +3961,9 @@ class AsyncDsssPool:
 
     def set_event_log(self, log: object | None) -> None:
         """Attach the run's event log (design section 8.1): from now on every
-        transition -- seeded, tracking, degrade, lost, released, dropped -- is
-        appended at the sample it happened, with the slot, the receiver's
-        state, the Doppler, the chip phase and the C/N0 staged as
+        transition -- seeded, tracking, degrade, lost, released, dropped,
+        refused -- is appended at the sample it happened, with the slot, the
+        receiver's state, the Doppler, the chip phase and the C/N0 staged as
         doppler:<name> fields beside the label (core:label). The pool is the
         one component that stamps; the log is borrowed, never owned. None
         detaches.

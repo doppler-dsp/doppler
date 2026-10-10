@@ -187,6 +187,16 @@ _test_arg_validation (void)
                                        2, 1, -1.0, LOST_S, 0.0, 4, 8, 0, 0.125,
                                        4)
             == NULL); /* carrier < 0 */
+  /* `> 0` alone passed +inf; the message says both rates are finite
+     (doppler#2103). */
+  DP_CHECK (dp_async_dsss_pool_create (
+                g_code, SF, INFINITY, SYM_RATE, SPC, 2, CN0, 1e-2, 0.9, DU,
+                CELL_EPOCHS, 0.0, 4, 2, 1, 0.0, LOST_S, 0.0, 4, 8, 0, 0.125, 4)
+            == NULL); /* chip_rate infinite */
+  DP_CHECK (dp_async_dsss_pool_create (
+                g_code, SF, CHIP_RATE, INFINITY, SPC, 2, CN0, 1e-2, 0.9, DU,
+                CELL_EPOCHS, 0.0, 4, 2, 1, 0.0, LOST_S, 0.0, 4, 8, 0, 0.125, 4)
+            == NULL); /* symbol_rate infinite */
   dp_async_dsss_pool_state_t *p = make_pool (3, 1);
   DP_CHECK (p != NULL);
   if (!p)

@@ -22,7 +22,8 @@ class LoopFilter:
     ------
     ValueError
         If construction fails. The exception message is ``bn must be >= 0, zeta
-        > 0 and t > 0, and all three finite``.
+        > 0 and t > 0, and all three finite, whose loop gains come out
+        finite``.
 
     Examples
     --------
@@ -117,7 +118,8 @@ class LoopFilter:
     def configure(self, bn: float, zeta: float, t: float) -> None:
         """Recompute the loop gains for a new (bn, zeta, t); preserves the
         integrator. Raises ValueError, changing nothing, when (bn, zeta, t) is
-        outside the loop's domain: bn >= 0, zeta > 0 and t > 0, all finite.
+        outside the loop's domain: bn >= 0, zeta > 0 and t > 0, all finite,
+        whose loop gains come out finite.
 
         Recomputes the proportional and integral gains from the standard
         2nd-order form but leaves integ untouched, so a loop can be widened for
@@ -747,7 +749,8 @@ class Dll:
     ValueError
         If construction fails. The exception message is ``Dll: invalid
         parameter (need a non-empty code, segments >= 1, a finite init_chip, bn
-        >= 0 and zeta > 0 both finite, and 0 < spacing < len(code)/2)``.
+        >= 0 and zeta > 0 both finite, whose loop gains come out finite, and 0
+        < spacing < len(code)/2)``.
 
     Examples
     --------
@@ -913,7 +916,8 @@ class Dll:
     def configure(self, bn: float, zeta: float) -> None:
         """Recompute the loop gains for a new (bn, zeta); preserves the code
         phase/rate. Raises ValueError, changing nothing, when (bn, zeta) is
-        outside the loop filter's domain: bn >= 0 and zeta > 0, both finite.
+        outside the loop filter's domain: bn >= 0 and zeta > 0, both finite,
+        whose loop gains come out finite.
 
         Re-derives the 2nd-order loop filter's proportional and integral gains
         for a new noise bandwidth and damping, leaving the tracked code phase,
@@ -2077,7 +2081,8 @@ class RateSync:
     ValueError
         If construction fails. The exception message is ``RateSync: invalid
         parameter (need sps >= m, 0 <= beta <= 1, span >= 1, m even in [2, 8],
-        num_phases a power of two >= 2, bn >= 0 and zeta > 0 both finite)``.
+        num_phases a power of two >= 2, bn >= 0 and zeta > 0 both finite, whose
+        loop gains come out finite)``.
 
     Examples
     --------
@@ -3328,8 +3333,8 @@ class MpskReceiver:
         parameter (need m in {2,4,8}, sps >= m_out -- sps > 2*m_out on the
         real-input MpskReceiverR, whose cascade runs behind a 2:1 halfband,
         m_out even in [2, 8], 0 <= rrc_beta <= 1, rrc_span >= 1, num_phases a
-        power of two >= 2, bn >= 0 and zeta > 0 both finite, 0 < bn_agc_ratio <
-        1)``.
+        power of two >= 2, bn >= 0 and zeta > 0 both finite, whose loop gains
+        come out finite, 0 < bn_agc_ratio < 1)``.
 
     Examples
     --------
@@ -3922,8 +3927,8 @@ class BpskReceiver:
         parameter (need m in {2,4,8}, sps >= m_out -- sps > 2*m_out on the
         real-input MpskReceiverR, whose cascade runs behind a 2:1 halfband,
         m_out even in [2, 8], 0 <= rrc_beta <= 1, rrc_span >= 1, num_phases a
-        power of two >= 2, bn >= 0 and zeta > 0 both finite, 0 < bn_agc_ratio <
-        1)``.
+        power of two >= 2, bn >= 0 and zeta > 0 both finite, whose loop gains
+        come out finite, 0 < bn_agc_ratio < 1)``.
 
     Examples
     --------
@@ -4567,8 +4572,8 @@ class MpskReceiverR:
         parameter (need m in {2,4,8}, sps >= m_out -- sps > 2*m_out on the
         real-input MpskReceiverR, whose cascade runs behind a 2:1 halfband,
         m_out even in [2, 8], 0 <= rrc_beta <= 1, rrc_span >= 1, num_phases a
-        power of two >= 2, bn >= 0 and zeta > 0 both finite, 0 < bn_agc_ratio <
-        1)``.
+        power of two >= 2, bn >= 0 and zeta > 0 both finite, whose loop gains
+        come out finite, 0 < bn_agc_ratio < 1)``.
 
     Examples
     --------

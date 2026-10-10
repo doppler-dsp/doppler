@@ -54,7 +54,7 @@ LoopFilterObj_init (LoopFilterObject *self, PyObject *args, PyObject *kwds)
     {
       PyErr_SetString (PyExc_ValueError,
                        "bn must be >= 0, zeta > 0 and t > 0, and all three "
-                       "finite");
+                       "finite, whose loop gains come out finite");
       return -1;
     }
   return 0;
@@ -445,7 +445,8 @@ static PyMethodDef LoopFilterObj_methods[] = {
     "\n"
     "Recompute the loop gains for a new (bn, zeta, t); preserves the "
     "integrator. Raises ValueError, changing nothing, when (bn, zeta, t) is "
-    "outside the loop's domain: bn >= 0, zeta > 0 and t > 0, all finite.\n"
+    "outside the loop's domain: bn >= 0, zeta > 0 and t > 0, all finite, "
+    "whose loop gains come out finite.\n"
     "\n"
     "Recomputes the proportional and integral gains from the standard\n"
     "2nd-order form but leaves integ untouched, so a loop can be widened for\n"
@@ -613,7 +614,8 @@ static PyTypeObject LoopFilterObjType = {
     "ValueError\n"
     "    If construction fails. The exception message is ``bn must be >= 0, "
     "zeta\n"
-    "    > 0 and t > 0, and all three finite``.\n"
+    "    > 0 and t > 0, and all three finite, whose loop gains come out\n"
+    "    finite``.\n"
     "\n"
     "Examples\n"
     "--------\n"

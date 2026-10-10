@@ -73,7 +73,8 @@ DllObj_init (DllObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_ValueError,
                        "Dll: invalid parameter (need a non-empty code, "
                        "segments >= 1, a finite init_chip, bn >= 0 and zeta "
-                       "> 0 both finite, and 0 < spacing < len(code)/2)");
+                       "> 0 both finite, whose loop gains come out finite, "
+                       "and 0 < spacing < len(code)/2)");
       return -1;
     }
   return 0;
@@ -823,7 +824,8 @@ static PyMethodDef DllObj_methods[] = {
     "\n"
     "Recompute the loop gains for a new (bn, zeta); preserves the code "
     "phase/rate. Raises ValueError, changing nothing, when (bn, zeta) is "
-    "outside the loop filter's domain: bn >= 0 and zeta > 0, both finite.\n"
+    "outside the loop filter's domain: bn >= 0 and zeta > 0, both finite, "
+    "whose loop gains come out finite.\n"
     "\n"
     "Re-derives the 2nd-order loop filter's proportional and integral gains\n"
     "for a new noise bandwidth and damping, leaving the tracked code phase,\n"
@@ -1424,7 +1426,9 @@ static PyTypeObject DllObjType = {
     "    If construction fails. The exception message is ``Dll: invalid\n"
     "    parameter (need a non-empty code, segments >= 1, a finite init_chip, "
     "bn\n"
-    "    >= 0 and zeta > 0 both finite, and 0 < spacing < len(code)/2)``.\n"
+    "    >= 0 and zeta > 0 both finite, whose loop gains come out finite, and "
+    "0\n"
+    "    < spacing < len(code)/2)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

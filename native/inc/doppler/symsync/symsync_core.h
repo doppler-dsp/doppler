@@ -393,6 +393,10 @@ extern "C"
    * @param order  Farrow interpolator order (0=linear, 1=parabolic, 2=cubic).
    * @param ted    Timing-error detector: SYMSYNC_TED_GARDNER (0, blind) or
    *               SYMSYNC_TED_DTTL (1, decision-directed; BPSK/QPSK only).
+   *
+   * Unguarded, as the by-value path: the caller checks (bn, zeta) with
+   * dp_loop_filter_params_ok() first. Outside it the loop's gains go NaN
+   * (doppler#2103).
    */
   void dp_symsync_init (dp_symsync_state_t *s, size_t sps, double bn, double zeta,
                      int order, int ted);

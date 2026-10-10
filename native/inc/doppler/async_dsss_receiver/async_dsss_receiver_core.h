@@ -852,6 +852,33 @@ extern "C"
                                 double cn0_dbhz_est);
 
   /**
+   * @brief The seed domain: whether `(chip_phase, doppler_hz_est)` is one
+   *        dp_async_dsss_receiver_seed() accepts, and one a live receiver can
+   *        hold.
+   *
+   * `chip_phase` must be finite and inside `[0, code_len)`, and
+   * `doppler_hz_est` must be strictly inside `(-fs/2, fs/2)`, where `fs` is
+   * `chip_rate * spc`. A Doppler at or past half the sample rate is not
+   * reportable (dp_acq_carrier_freq_ok() relies on this bound), and a seed
+   * there sent the hand-off's phase to NaN (doppler#2103).
+   *
+   * seed() refuses by this predicate, set_state() restores the seed fields
+   * only inside it, the searching receiver's hit path does not seed from a
+   * hit it fails, and the pool counts such a hit as refused rather than as
+   * dropped for want of a slot. It reads only the receiver's fixed config
+   * (code length, chip rate, spc), so any receiver built from the same
+   * config gives the same answer.
+   *
+   * @param state          Must be non-NULL.
+   * @param chip_phase     Code phase, chips.
+   * @param doppler_hz_est Doppler estimate, Hz.
+   * @return 1 inside the seed domain, 0 outside it (a NaN is outside).
+   */
+  int dp_async_dsss_receiver_seed_ok (const dp_async_dsss_receiver_state_t *state,
+                                      double chip_phase,
+                                      double doppler_hz_est);
+
+  /**
    * @brief One consistent picture of what the receiver is doing, by value.
    *
    * The status record of docs/design/async-dsss-receiver.md section 11.3:

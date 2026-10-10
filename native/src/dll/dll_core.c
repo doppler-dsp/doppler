@@ -638,6 +638,16 @@ dp_dll_set_state (dp_dll_state_t *s, const void *blob)
       && (!isfinite (t.sym_period) || t.aid_len >= t.aid_ring
           || t.aid_best >= t.aid_nhyp || t.aid_last_end > t.aid_count))
     return DP_ERR_INVALID;
+  /* The retained config a live instance can only hold after create (or a
+     retune) accepted it: the spacing places the early and late taps, and
+     dll_replica casts the offset it yields, so a NaN spacing indexed the
+     code out of bounds (doppler#2103, through set_state). The same
+     predicate create uses, on the blob's own values, so the two doors
+     cannot disagree. chip_pos stands in for create's init_chip: it is the
+     running phase, and the predicate refuses it when non-finite. */
+  if (!dp_dll_params_ok (t.sf, t.chip_pos, t.bn, t.zeta, t.spacing, t.segments)
+      || !dp_loop_filter_params_ok (t.bn, t.zeta, t.lf.t))
+    return DP_ERR_INVALID;
 
   /* The packed buffers, located before anything is written: with the keys
      above they are exactly what this instance holds, and a reader that ran
@@ -1160,12 +1170,18 @@ dp_dll_set_code_phase (dp_dll_state_t *state, double chips)
  * interval, and code_rate -- the per-epoch rate it implies -- is unchanged
  * by the switch. dp_loop_filter_configure keeps integ and recomputes the
  * gains from bn*t (loop_filter_core.h: keep bn*t <= 0.0112). */
-static void
+static int
 set_update_period (dp_dll_state_t *s, double t)
 {
-  s->lf.integ *= t / s->lf.t;
-  dp_loop_filter_configure (&s->lf, s->bn, s->zeta, t);
+  /* Configure first, and scale the integrator only when the filter took the
+     new interval. A refused t must change nothing: scaling first left integ
+     multiplied while the gains kept the old interval (doppler#2103). */
+  const double old_t = s->lf.t;
+  if (dp_loop_filter_configure (&s->lf, s->bn, s->zeta, t) != DP_OK)
+    return DP_ERR_INVALID;
+  s->lf.integ *= t / old_t;
   s->inv_upd = 1.0 / t;
+  return DP_OK;
 }
 
 int
@@ -1175,14 +1191,22 @@ dp_dll_set_symbol_period (dp_dll_state_t *state, double partials_per_symbol)
      ceil(NaN) = 2^63 (doppler#2103); an infinity is no period either. */
   if (!isfinite (partials_per_symbol))
     return DP_ERR_INVALID;
+  /* The loop's interval is checked before any buffer is freed or sized: a
+     refused period must leave the aid, the lock and the filter as they were.
+     Zero means "no symbol timing", so the filter goes back to t = 1. */
   if (partials_per_symbol <= 0.0)
     {
+      if (!dp_loop_filter_params_ok (state->bn, state->zeta, 1.0))
+        return DP_ERR_INVALID;
       free_aid_buffers (state);
       lock_clear (state);
-      set_update_period (state, 1.0);
-      return DP_OK;
+      return set_update_period (state, 1.0);
     }
   if (!dp_dll_symbol_period_ok (state->segments, partials_per_symbol))
+    return DP_ERR_INVALID;
+  if (!dp_loop_filter_params_ok (state->bn, state->zeta,
+                                 partials_per_symbol
+                                     / (double)state->segments))
     return DP_ERR_INVALID;
   size_t L   = (size_t)floor (partials_per_symbol) - 1;
   size_t cap = DLL_AID_MAX_EPOCHS * state->segments;
@@ -1215,8 +1239,10 @@ dp_dll_set_symbol_period (dp_dll_state_t *state, double partials_per_symbol)
   /* The loop now updates once per symbol -- P partials, P/segments epochs
      -- so the filter is re-timed to that interval and bn keeps its
      per-epoch meaning. */
-  set_update_period (state, partials_per_symbol / (double)state->segments);
-  return DP_OK;
+  /* Cannot refuse here: the same predicate was checked above, before the
+     buffers were touched. */
+  return set_update_period (state,
+                            partials_per_symbol / (double)state->segments);
 }
 
 size_t

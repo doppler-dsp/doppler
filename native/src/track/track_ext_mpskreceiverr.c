@@ -93,8 +93,8 @@ MpskReceiverRObj_init (MpskReceiverRObject *self, PyObject *args,
                        "MpskReceiverR: invalid parameter (need m in {2,4,8}, "
                        "sps > 2*m_out, m_out even in [2, 8], 0 <= rrc_beta "
                        "<= 1, rrc_span >= 1, num_phases a power of two >= 2, "
-                       "bn >= 0 and zeta > 0 both finite, 0 < bn_agc_ratio < "
-                       "1)");
+                       "bn >= 0 and zeta > 0 both finite, whose loop gains "
+                       "come out finite, 0 < bn_agc_ratio < 1)");
       return -1;
     }
   return 0;

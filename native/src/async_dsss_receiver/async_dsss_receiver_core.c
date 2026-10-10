@@ -1070,6 +1070,20 @@ dp_async_dsss_receiver_steps_max_out (dp_async_dsss_receiver_state_t *state)
 }
 
 int
+dp_async_dsss_receiver_seed_ok (const dp_async_dsss_receiver_state_t *state,
+                                double chip_phase, double doppler_hz_est)
+{
+  /* A Doppler is reportable only below half the sample rate, which is what
+     dp_acq_carrier_freq_ok() relies on to keep doppler / carrier finite; a
+     seed near 1e308 sent the hand-off's phase to NaN (doppler#2103). The
+     comparisons are written so a NaN fails them. */
+  return isfinite (chip_phase) && chip_phase >= 0.0
+         && chip_phase < (double)state->code_len
+         && fabs (doppler_hz_est)
+                < 0.5 * state->chip_rate * (double)state->spc;
+}
+
+int
 dp_async_dsss_receiver_seed (dp_async_dsss_receiver_state_t *state,
                              double chip_phase, double doppler_hz_est,
                              double cn0_dbhz_est)
@@ -1081,13 +1095,7 @@ dp_async_dsss_receiver_seed (dp_async_dsss_receiver_state_t *state,
   if (state->state != ASYNC_DSSS_RX_IDLE
       && state->state != ASYNC_DSSS_RX_SEARCHING)
     return DP_ERR_INVALID;
-  /* A Doppler is reportable only below half the sample rate, which is what
-     dp_acq_carrier_freq_ok() relies on to keep doppler / carrier finite; a
-     seed near 1e308 sent the hand-off's phase to NaN (doppler#2103). */
-  if (!isfinite (chip_phase) || chip_phase < 0.0
-      || chip_phase >= (double)state->code_len
-      || !(fabs (doppler_hz_est)
-           < 0.5 * state->chip_rate * (double)state->spc))
+  if (!dp_async_dsss_receiver_seed_ok (state, chip_phase, doppler_hz_est))
     return DP_ERR_INVALID;
 
   if (state->cell)
@@ -1172,12 +1180,19 @@ dp_async_dsss_receiver_steps (dp_async_dsss_receiver_state_t *state,
 
       /* A hit is a seed the object made for itself -- the same path an
        * outside detection takes. dp_acq_build_handoff() folds the phase into
-       * [0, code_len), so the seed is never refused from here. */
+       * [0, code_len), but not the Doppler: a hit at or past fs/2 is refused
+       * by the seed domain. Such a hit is no seed; the search goes on over
+       * the tail, exactly as it would after no hit. The refusal is handled
+       * here, not discarded, and nothing else needs it: the pool counts its
+       * own refused hits, and this receiver has no event log to count into. */
       acq_handoff_t ho;
       dp_acq_build_handoff (state->acq, &hit, state->code_len, state->spc,
                             &ho);
-      (void)dp_async_dsss_receiver_seed (state, ho.chip_phase,
-                                         ho.doppler_hz_est, ho.cn0_dbhz_est);
+      if (dp_async_dsss_receiver_seed (state, ho.chip_phase, ho.doppler_hz_est,
+                                       ho.cn0_dbhz_est)
+          != DP_OK)
+        return dp_async_dsss_receiver_steps (state, tail, tail_len, out,
+                                             max_out);
 
       return dp_async_dsss_receiver_steps (state, tail, tail_len, out,
                                            max_out);
@@ -1620,6 +1635,13 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
       || extra.car_carry_len > (uint64_t)s->tsamps
       || extra.cell != (uint8_t)(s->cell != 0)
       || extra.state > ASYNC_DSSS_RX_LOST)
+    return DP_ERR_INVALID;
+  /* The seed fields are only ever what seed() accepted (or the zeros reset
+     leaves), so a blob outside the seed domain is forged. Refused here,
+     before any child is decoded: a NaN phase reached dp_xnn in the refine
+     chain's Dll create (doppler#2103, through set_state). */
+  if (!dp_async_dsss_receiver_seed_ok (s, extra.seed_chip_phase,
+                                       extra.seed_doppler_hz_est))
     return DP_ERR_INVALID;
   if (s->acq)
     DP_R_CHILD (&_r, dp_acq, s->acq);

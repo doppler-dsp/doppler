@@ -191,8 +191,11 @@ _test_arg_validation (void)
                                                 1e-3, 0.9, 1, 8, 0, 2.5e9, 1.0,
                                                 100, 0.125, 4)
             == NULL); /* 1e6 / (7 * 0.1) partials at ONE segment */
-  /* A symbol period the Dll's aid would refuse -- here 4 * 1e6 / (7 * 0.1)
-     partials, past 2^20 -- is refused at create: the tracker sets it
+  /* A symbol of more than 2^20 Dll partials -- here 4 * 1e6 / (7 * 0.1),
+     about 5.7e6 -- is refused at create by the receiver's own chain-ratio
+     clause, segments * chip_rate / (code_len * symbol_rate) <= 2^20. That
+     is the same count the Dll's aid refuses past, so this case pins the
+     receiver's clause, not the aid's: the tracker sets the period
      mid-stream, where a refusal used to drop the aid silently (#2103). */
   DP_CHECK (dp_async_dsss_receiver_create_cell (CODE7, 7, 1e6, 0.1, 2, 2, 55.0,
                                                 1e-3, 0.9, 4, 8, 0, 0.0, 1.0,
@@ -2312,10 +2315,144 @@ _test_handoff_survives_reconfigure_and_restore (void)
   return 0;
 }
 
+/* A forged seed in a live blob is refused, and the target is left alone
+ * (doppler#2103). set_state() restored seed_chip_phase and seed_doppler_hz_est
+ * unchecked: a NaN phase went into the refine chain's Dll create, which
+ * aborts, and a Doppler of 1e308 sent the hand-off's phase to NaN. The
+ * forged value is located by its bytes: a seed writes its phase and Doppler
+ * as doubles, so a distinctive value's first occurrence in the blob is the
+ * extra record's field, which precedes the children. Asserted: each forged
+ * blob refused with the target's state byte-identical. Returns the number of
+ * failed checks. */
+static int
+_test_forged_seed_is_refused (void)
+{
+  uint8_t  code[1023];
+  uint32_t cst = 13;
+  for (size_t i = 0; i < 1023; i++)
+    code[i] = (uint8_t)(dp_bit (&cst) > 0 ? 0u : 1u);
+  int fails = 0;
+
+  struct
+  {
+    double      seed_phase, seed_doppler, forge_at_phase, forge_at_doppler;
+    const char *what;
+  } forge[] = {
+    { 512.25, 1000.5, NAN, 1000.5, "a NaN seed phase" },
+    { 512.25, 1000.5, 512.25, 1.0e308, "a seed Doppler of 1e308" },
+  };
+  for (size_t k = 0; k < sizeof forge / sizeof *forge; k++)
+    {
+      dp_async_dsss_receiver_state_t *src = dp_async_dsss_receiver_create (
+          code, 1023, 5.0e6, 2700.0, 2, 2, 45.0, 1e-3, 0.9, 100.0, 4, 8, 0,
+          0.5, 4, 14.0, 64, 8, false, 100000, 2.5e9, 2.0);
+      dp_async_dsss_receiver_state_t *dst = dp_async_dsss_receiver_create (
+          code, 1023, 5.0e6, 2700.0, 2, 2, 45.0, 1e-3, 0.9, 100.0, 4, 8, 0,
+          0.5, 4, 14.0, 64, 8, false, 100000, 2.5e9, 2.0);
+      DP_REQUIRE (src != NULL && dst != NULL);
+      DP_REQUIRE (dp_async_dsss_receiver_seed (src, forge[k].seed_phase,
+                                               forge[k].seed_doppler, 45.0)
+                  == DP_OK);
+      const size_t   cb   = dp_async_dsss_receiver_state_bytes (src);
+      unsigned char *blob = malloc (cb);
+      dp_async_dsss_receiver_get_state (src, blob);
+
+      /* Locate the first occurrence of the value to forge, by its bytes. */
+      const double find = k == 0 ? forge[k].seed_phase : forge[k].seed_doppler;
+      unsigned char pat[sizeof (double)];
+      memcpy (pat, &find, sizeof pat);
+      size_t at = cb;
+      for (size_t i = 0; i + sizeof pat <= cb && at == cb; i++)
+        if (memcmp (blob + i, pat, sizeof pat) == 0)
+          at = i;
+      DP_CHECK (at < cb);
+      if (at < cb)
+        {
+          const double forged
+              = k == 0 ? forge[k].forge_at_phase : forge[k].forge_at_doppler;
+          memcpy (blob + at, &forged, sizeof forged);
+          const size_t   cbd    = dp_async_dsss_receiver_state_bytes (dst);
+          unsigned char *before = malloc (cbd), *after = malloc (cbd);
+          dp_async_dsss_receiver_get_state (dst, before);
+          if (dp_async_dsss_receiver_set_state (dst, blob) != DP_ERR_INVALID)
+            {
+              fprintf (stderr, "  forged blob accepted: %s\n", forge[k].what);
+              fails++;
+            }
+          dp_async_dsss_receiver_get_state (dst, after);
+          if (memcmp (after, before, cbd) != 0)
+            {
+              fprintf (stderr, "  refused blob changed target: %s\n",
+                       forge[k].what);
+              fails++;
+            }
+          free (before);
+          free (after);
+        }
+      free (blob);
+      dp_async_dsss_receiver_destroy (src);
+      dp_async_dsss_receiver_destroy (dst);
+    }
+  return fails;
+}
+
+/* The seed domain, pinned at its edges (doppler#2103): the predicate that
+ * seed(), set_state(), the searching hit path and the pool all use. A phase
+ * must be finite and inside [0, code_len); a Doppler strictly inside
+ * (-fs/2, fs/2), fs = chip_rate * spc. Here fs = 10 MHz (5 Mchip/s at 2
+ * samples a chip), so fs/2 = 5 MHz: that is refused, the next float below it
+ * accepted, and NaN or infinity refused on either axis.
+ * Returns the number of failed checks. */
+static int
+_test_seed_domain (void)
+{
+  uint8_t  code[1023];
+  uint32_t cst = 13;
+  for (size_t i = 0; i < 1023; i++)
+    code[i] = (uint8_t)(dp_bit (&cst) > 0 ? 0u : 1u);
+  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
+      code, 1023, 5.0e6, 2700.0, 2, 2, 45.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5, 4,
+      14.0, 64, 8, false, 100000, 2.5e9, 2.0);
+  DP_REQUIRE (rx != NULL);
+  int          fails   = 0;
+  const double fs_half = 0.5 * 5.0e6 * 2.0; /* chip_rate * spc / 2 */
+  struct
+  {
+    double      phase, doppler;
+    int         ok;
+    const char *what;
+  } cases[] = {
+    { 0.0, 0.0, 1, "the origin" },
+    { 1022.99, 0.0, 1, "the last chip" },
+    { 1023.0, 0.0, 0, "a phase at code_len" },
+    { -0.5, 0.0, 0, "a negative phase" },
+    { NAN, 0.0, 0, "a NaN phase" },
+    { 0.0, fs_half, 0, "a Doppler at fs/2" },
+    { 0.0, nextafter (fs_half, 0.0), 1, "a Doppler just under fs/2" },
+    { 0.0, -fs_half, 0, "a Doppler at -fs/2" },
+    { 0.0, NAN, 0, "a NaN Doppler" },
+    { 0.0, INFINITY, 0, "an infinite Doppler" },
+  };
+  for (size_t k = 0; k < sizeof cases / sizeof *cases; k++)
+    {
+      const int got = dp_async_dsss_receiver_seed_ok (rx, cases[k].phase,
+                                                      cases[k].doppler);
+      if ((got != 0) != (cases[k].ok != 0))
+        {
+          fprintf (stderr, "  seed domain: %s gave %d\n", cases[k].what, got);
+          fails++;
+        }
+    }
+  dp_async_dsss_receiver_destroy (rx);
+  return fails;
+}
+
 int
 main (void)
 {
   (void)_test_arg_validation ();
+  DP_CHECK (_test_seed_domain () == 0);
+  DP_CHECK (_test_forged_seed_is_refused () == 0);
   (void)_test_acquire_and_decode ();
   (void)_test_handoff_resumes_at_the_hit ();
   (void)_test_handoff_survives_reconfigure_and_restore ();

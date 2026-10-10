@@ -93,6 +93,10 @@ typedef struct {
  * @param tsamps          Samples per symbol (the integrate-and-dump period).
  * @param bn_fll          FLL-assist bandwidth (0 = pure PLL).
  * @param m               Constellation order M (2, 4, 8).
+ *
+ * Unguarded, as the by-value path: the caller checks (bn, zeta) with
+ * dp_loop_filter_params_ok() first. Outside it the loop's gains go NaN
+ * (doppler#2103).
  */
 void dp_carrier_mpsk_init(dp_carrier_mpsk_state_t *s, double bn, double zeta,
                        double init_norm_freq, size_t tsamps, double bn_fll,

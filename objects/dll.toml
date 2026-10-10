@@ -16,7 +16,7 @@ fragment = "generated"
 # create() refuses a caller's bad float (doppler#2103) by returning NULL:
 # that is an argument error, not a failed malloc, so say so.
 create_error = "ValueError"
-create_error_message = "Dll: invalid parameter (need a non-empty code, segments >= 1, a finite init_chip, bn >= 0 and zeta > 0 both finite, and 0 < spacing < len(code)/2)"
+create_error_message = "Dll: invalid parameter (need a non-empty code, segments >= 1, a finite init_chip, bn >= 0 and zeta > 0 both finite, whose loop gains come out finite, and 0 < spacing < len(code)/2)"
 
 [[dll.init_params]]
 name = "code"
@@ -80,7 +80,7 @@ params = [
 
 [[dll.methods]]
 name = "configure"
-doc = "Recompute the loop gains for a new (bn, zeta); preserves the code phase/rate. Raises ValueError, changing nothing, when (bn, zeta) is outside the loop filter's domain: bn >= 0 and zeta > 0, both finite."
+doc = "Recompute the loop gains for a new (bn, zeta); preserves the code phase/rate. Raises ValueError, changing nothing, when (bn, zeta) is outside the loop filter's domain: bn >= 0 and zeta > 0, both finite, whose loop gains come out finite."
 arg_type = "void"
 return_type = "int"
 status_return = true

@@ -318,3 +318,12 @@ def test_a_nan_code_bandwidth_changes_nothing():
     before = d.bn_code
     d.bn_code = float("nan")
     assert d.bn_code == before
+
+
+def test_a_nan_carrier_bandwidth_changes_nothing():
+    """The carrier loop refuses a NaN bandwidth exactly as the code loop does
+    (doppler#2103): the setter's refusal leaves bn_carrier where it was."""
+    d = Despreader(_code(), SPS)
+    before = d.bn_carrier
+    d.bn_carrier = float("nan")
+    assert d.bn_carrier == before

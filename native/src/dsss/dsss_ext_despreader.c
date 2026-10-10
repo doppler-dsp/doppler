@@ -80,9 +80,10 @@ DespreaderObj_init (DespreaderObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_ValueError,
                        "Despreader: invalid parameter (need a non-empty "
                        "code; for the code loop a finite init_chip, bn_code "
-                       ">= 0 and zeta > 0 both finite, and 0 < spacing < "
-                       "len(code)/2; for the carrier loop bn_carrier >= 0, "
-                       "finite; and finite loop gains for both)");
+                       ">= 0 and zeta > 0 both finite, whose loop gains come "
+                       "out finite, and 0 < spacing < len(code)/2; for the "
+                       "carrier loop bn_carrier >= 0, finite; and finite "
+                       "loop gains for both)");
       return -1;
     }
   return 0;
@@ -1211,11 +1212,10 @@ static PyTypeObject DespreaderObjType = {
     "invalid\n"
     "    parameter (need a non-empty code; for the code loop a finite "
     "init_chip,\n"
-    "    bn_code >= 0 and zeta > 0 both finite, and 0 < spacing < "
-    "len(code)/2;\n"
-    "    for the carrier loop bn_carrier >= 0, finite; and finite loop gains "
-    "for\n"
-    "    both)``.\n"
+    "    bn_code >= 0 and zeta > 0 both finite, whose loop gains come out\n"
+    "    finite, and 0 < spacing < len(code)/2; for the carrier loop "
+    "bn_carrier\n"
+    "    >= 0, finite; and finite loop gains for both)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

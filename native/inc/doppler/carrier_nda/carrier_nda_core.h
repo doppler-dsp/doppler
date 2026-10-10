@@ -380,6 +380,11 @@ extern "C"
    * @param n               MA window divisor: window = sps/n samples (sps % n
    * == 0, sps/n <= BOXCAR_MAX_LEN).
    * @param m               Constellation order M (2, 4, 8).
+   *
+   * Unguarded, as the by-value path: the caller checks (bn, zeta) with
+   * dp_loop_filter_params_ok() first. Outside it the loop filter is not
+   * written at all -- config_loop refuses and changes nothing -- so an
+   * in-place init leaves the gains unset (doppler#2103).
    */
   void dp_carrier_nda_init (dp_carrier_nda_state_t *s, double bn, double zeta,
                          double init_norm_freq, size_t sps, int n, int m);

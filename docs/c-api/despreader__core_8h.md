@@ -360,7 +360,7 @@ A complete tracking despreader for a continuous DSSS-BPSK stream: it composes a 
 
 
 * `code` Spreading code (0/1 chips), one period; copied. 
-* `code_len` Code length (chips per period); &gt;= 1. 
+* `code_len` Code length (chips per period); with the code loop's floats, inside [**dp\_dll\_params\_ok()**](dll__core_8h.md#function-dp_dll_params_ok), or create refuses. 
 * `sps` Samples per chip. 
 * `init_norm_freq` Seed carrier frequency, cycles/sample (the acquisition estimate). 
 * `init_chip` Seed code phase, chips (the acquisition estimate). 
@@ -618,6 +618,9 @@ void dp_despreader_init (
 The by-value counterpart to [**dp\_despreader\_create()**](despreader__core_8h.md#function-dp_despreader_create): the caller retains ownership of `code` (it is not copied or freed). Seeds the carrier NCO at `init_norm_freq` and the code phase at `init_chip` (the acquisition estimate). The carrier loop's update period is one code period (`code_len * sps` samples).
 
 
+Unguarded, as the by-value path: the caller checks the code loop's arguments with [**dp\_dll\_params\_ok()**](dll__core_8h.md#function-dp_dll_params_ok) (`code_len`, `init_chip`, `bn_code`, `zeta`, `spacing`, one segment) first, as [**dp\_despreader\_create()**](despreader__core_8h.md#function-dp_despreader_create) does. Outside it the code loop reads past the code (doppler#2103). The carrier loop's own check is doppler#2112.
+
+
 
 
 **Parameters:**
@@ -625,7 +628,7 @@ The by-value counterpart to [**dp\_despreader\_create()**](despreader__core_8h.m
 
 * `ch` State to initialise. Must be non-NULL. 
 * `code` Spreading code (0/1 chips), one period; borrowed. 
-* `code_len` Code length (chips per period); &gt;= 1. 
+* `code_len` Code length (chips per period); see above. 
 * `sps` Samples per chip. 
 * `init_norm_freq` Seed carrier frequency, cycles/sample. 
 * `init_chip` Seed code phase, chips. 

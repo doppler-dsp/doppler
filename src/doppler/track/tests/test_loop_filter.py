@@ -78,3 +78,25 @@ def test_destroy():
     obj.destroy()
     with pytest.raises(RuntimeError, match="destroyed"):
         obj.step(1.0)
+
+
+@pytest.mark.parametrize(
+    "bn, zeta, t",
+    [
+        (float("nan"), 0.707, 1.0),
+        (-1.25, 1.0, 1.0),  # zeroed the gains' denominator
+        (0.01, float("inf"), 1.0),
+        (0.01, 0.707, 0.0),
+    ],
+)
+def test_configure_refuses_outside_the_domain(bn, zeta, t):
+    """configure() is as untrusted as the constructor: a NaN gave gains that
+    never recover, and a negative bn with zeta >= 1 divided by zero
+    (doppler#2103). It refuses outside dp_loop_filter_params_ok(), writing
+    nothing: the whole state, gains and integrator, is unchanged."""
+    lf = LoopFilter(bn=0.01, zeta=0.707, t=1.0)
+    lf.step(1.0)
+    held = lf.get_state()
+    with pytest.raises(ValueError, match="configure failed"):
+        lf.configure(bn, zeta, t)
+    assert lf.get_state() == held

@@ -83,10 +83,13 @@ DsssReceiverObj_init (DsssReceiverObject *self, PyObject *args, PyObject *kwds)
     {
       PyErr_SetString (PyExc_ValueError,
                        "DsssReceiver: invalid parameter (need a code of at "
-                       "least 2 chips, chip_rate > 0, symbol_rate > 0, spc "
-                       ">= 1, m in {2,4,8}, segments >= 1, sps >= 2 -- sps = "
-                       "1 cannot carry an m_out, whose smallest legal value "
-                       "is 2 and which MpskReceiver requires sps to reach)");
+                       "least 2 chips, a finite chip_rate > 0, a finite "
+                       "symbol_rate > 0, spc >= 1, m in {2,4,8}, segments >= "
+                       "1, sps >= 2 -- sps = 1 cannot carry an m_out, whose "
+                       "smallest legal value is 2 and which MpskReceiver "
+                       "requires sps to reach; and for the searcher a finite "
+                       "cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite "
+                       "doppler_uncertainty >= 0)");
       return -1;
     }
   return 0;
@@ -957,13 +960,16 @@ static PyTypeObject DsssReceiverObjType = {
     "ValueError\n"
     "    If construction fails. The exception message is ``DsssReceiver: "
     "invalid\n"
-    "    parameter (need a code of at least 2 chips, chip_rate > 0, "
-    "symbol_rate\n"
-    "    > 0, spc >= 1, m in {2,4,8}, segments >= 1, sps >= 2 -- sps = 1 "
-    "cannot\n"
-    "    carry an m_out, whose smallest legal value is 2 and which "
-    "MpskReceiver\n"
-    "    requires sps to reach)``.\n"
+    "    parameter (need a code of at least 2 chips, a finite chip_rate > 0, "
+    "a\n"
+    "    finite symbol_rate > 0, spc >= 1, m in {2,4,8}, segments >= 1, sps "
+    ">= 2\n"
+    "    -- sps = 1 cannot carry an m_out, whose smallest legal value is 2 "
+    "and\n"
+    "    which MpskReceiver requires sps to reach; and for the searcher a "
+    "finite\n"
+    "    cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >=\n"
+    "    0)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

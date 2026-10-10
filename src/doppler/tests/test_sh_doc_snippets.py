@@ -32,11 +32,18 @@ mid-release.
 
 **Execution** (fences that qualify): a fence that runs ``wfmgen`` or
 ``cat``, touches no live transport (``nats://``), streams no unbounded
-run and names no ``<placeholder>`` runs end-to-end under ``bash -e`` in a
-throwaway cwd — ``wfmgen`` is the real bundled binary, so a documented
-flag that does not exist fails here even though it has no Python parser.
-Repo-relative ``src/...`` paths are rewritten absolute so fences run from
-the tmp dir.
+run and names no ``<placeholder>`` runs end-to-end, as a script file under
+``bash -e -o pipefail`` with stdin closed, in a throwaway cwd — ``wfmgen``
+is the real bundled binary, so a documented flag that does not exist fails
+here even though it has no Python parser. Repo-relative ``src/...`` paths
+are rewritten absolute so fences run from the tmp dir.
+
+What a run checks is EXIT STATUS. A line written ``! cmd`` (an expected
+failure) is run as ``if cmd; then exit 1; fi``, so it passes on ANY
+non-zero exit: a misspelled flag satisfies it as well as the refusal the
+page means. `&&`, `||`, `&`, and a `!` that is not alone at the start of
+its line are refused, because ``bash -e`` would not see a failure there.
+The holes this does not close are #1997.
 
 Such a fence may only use the commands in ``_EXEC_ALLOWED``, the ones
 that are safe to run here. One that uses anything else **fails**, naming
@@ -271,17 +278,44 @@ def _tokens(line: str) -> list[str]:
     return list(lex)
 
 
+_HEREDOC_OP = re.compile(r"<<-?\s*(['\"]?)([^\s'\"<>|;&]+)\1")
+
+
 def _heredoc_tag(line: str) -> str | None:
     """The delimiter a line's heredoc ends on, or None.
 
-    Read from shell tokens, so a quoted ``"<<"`` and the shift in
-    ``$((1 << 4))`` are not heredocs, and ``<<"EOF"``, ``<<'EOF'`` and
-    ``<<-EOF`` all are. Mistaking one hid every line after it.
+    The first ``<<`` OUTSIDE quotes and outside ``$((...))`` arithmetic, and
+    not a ``<<<`` here-string, scanned the way the shell reads it: so
+    ``'<<'`` and ``"x << 2"`` are words, and the shift in ``$((1 << 4))``
+    is removed first. ``<<"EOF"``, ``<<'EOF'`` and ``<<-EOF`` are heredocs,
+    and their tag comes back unquoted. A lexer cannot answer this:
+    ``posix=True`` drops the quotes that make ``'<<'`` a word, and
+    ``posix=False`` cannot read a quote inside a word (``-Wl,"$(…)"``).
+    Mistaking a non-heredoc for one hid every line after it from the gate.
     """
-    words = _tokens(_ARITHMETIC.sub("0", line))
-    for i, word in enumerate(words[:-1]):
-        if word in ("<<", "<<-"):
-            return words[i + 1].removeprefix("-")
+    code = _ARITHMETIC.sub("0", line)
+    quote = ""
+    i = 0
+    while i < len(code):
+        c = code[i]
+        if quote:
+            if c == quote:
+                quote = ""
+            elif c == "\\" and quote == '"':
+                i += 1
+        elif c in "'\"":
+            quote = c
+        elif c == "\\":
+            i += 1
+        elif c == "#" and (i == 0 or code[i - 1].isspace()):
+            return None
+        elif code.startswith("<<<", i):  # a here-string: one word, no body
+            i += 3
+            continue
+        elif code.startswith("<<", i):
+            m = _HEREDOC_OP.match(code, i)
+            return m.group(2) if m else None
+        i += 1
     return None
 
 
@@ -469,11 +503,15 @@ def _unchecked(line: str) -> str | None:
     :func:`_checked_script` runs it in a checked form.
     """
     words = _tokens(line)
-    if "&&" in words or "||" in words:
+    if "&&" in words or "||" in words or "&" in words:
         return (
-            "a command before && or || can fail without failing the fence "
-            "(bash -e ignores it). Put each command on its own line; for "
-            "an expected failure, put `! cmd` on its own line"
+            "a command before &&, || or & can fail without failing the "
+            "fence (bash -e ignores it). Put each command on its own line; "
+            "for an expected failure, put `! cmd` on its own line"
+        )
+    if words[:1] == ["!"] and ";" in words:
+        return (
+            "`! a; b` would negate the whole line. Put `! cmd` on its own line"
         )
     if "!" in words[1:]:
         return (
@@ -751,9 +789,10 @@ def _gate(code: str, tmp_path: Path) -> int:
         "cat /dev/null | xxd",  # after a pipe (#1974)
         "cat /dev/null && xxd /dev/null",  # after &&
         "cat /dev/null;xxd /dev/null",  # after ; with no space
+        "cat /dev/null |& xxd",  # after |&
         "FOO=1 xxd /dev/null\ncat /dev/null",  # behind an assignment
     ],
-    ids=["own-line", "pipe", "and", "semicolon", "assignment"],
+    ids=["own-line", "pipe", "and", "semicolon", "pipe-stderr", "assignment"],
 )
 def test_the_gate_fails_a_fence_running_an_unlisted_command(
     code: str, tmp_path: Path
@@ -816,8 +855,14 @@ def test_a_negation_keeps_its_comment_out_of_the_check(
 
 @pytest.mark.parametrize(
     "line",
-    ["cat a && cat b", "cat a || cat b", "cat a; ! cat b"],
-    ids=["and", "or", "mid-line-bang"],
+    [
+        "cat a && cat b",
+        "cat a || cat b",
+        "cat a; ! cat b",
+        "cat /no/such & cat a",  # backgrounded: its status is never read
+        "! cmp -s a a; cat /no/such",  # the `!` would negate both
+    ],
+    ids=["and", "or", "mid-line-bang", "background", "bang-semicolon"],
 )
 def test_a_list_bash_e_cannot_see_is_refused(
     line: str, tmp_path: Path
@@ -835,12 +880,12 @@ def test_a_failing_producer_in_a_pipeline_fails(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     "code",
     [
-        "cat /dev/null |& cat",
         "{ cat /dev/null; }",
         'cat > f <<"EOF"\nxxd is data here\nEOF\ncat f',
         "cat > f <<-EOF\nxxd is data here\nEOF\ncat f",
+        "cat <<< word > f <<EOF\nxxd is data here\nEOF\ncat f",
     ],
-    ids=["pipe-stderr", "braces", "quoted-heredoc", "dash-heredoc"],
+    ids=["braces", "quoted-heredoc", "dash-heredoc", "after-here-string"],
 )
 def test_shell_syntax_the_gate_reads(code: str, tmp_path: Path) -> None:
     _gate(code, tmp_path)
@@ -848,8 +893,13 @@ def test_shell_syntax_the_gate_reads(code: str, tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     "line",
-    ['python3 -c "print(1 << 4)"', "printf '%d\\n' $((1 << 4))"],
-    ids=["quoted-shift", "arithmetic"],
+    [
+        'python3 -c "print(1 << 4)"',
+        "printf '%d\\n' $((1 << 4))",
+        "printf '%s\\n' '<<' STOP",  # a quoted operator, not a heredoc
+        "cat <<< word",  # a here-string has no body
+    ],
+    ids=["quoted-shift", "arithmetic", "quoted-operator", "here-string"],
 )
 def test_a_shift_is_not_a_heredoc(line: str, tmp_path: Path) -> None:
     """Read as a heredoc, the `<<` hid the unlisted `xxd` after it."""

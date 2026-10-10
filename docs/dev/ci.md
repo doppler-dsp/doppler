@@ -245,8 +245,9 @@ the tree that lands. A behind PR rebases and runs again. See
 
 **The primary leg.** Some steps of the `python` job are worth running once,
 not on every interpreter. They run on the *primary* leg, which is named by
-role, never by version: `scripts/python_versions.py --primary` prints it, and
-the rule is that **the primary is the floor**. These steps used to select
+role, never by version: `make print-python-primary` prints it (through
+`scripts/python_versions.py --primary`), and the rule is that **the primary
+is the floor**. These steps used to select
 `'3.12'`, the first leg of the original matrix. When 3.9 was added below it
 the literal stayed, and while a PR ran the floor alone, no PR ran them
 (#1714).

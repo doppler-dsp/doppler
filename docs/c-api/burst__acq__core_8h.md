@@ -61,6 +61,7 @@ _BurstAcquisition — thin forwarder onto acq\_core.c's shared engine._ [More...
 | Type | Name |
 | ---: | :--- |
 |  int | [**dp\_burst\_acq\_configure\_search\_raw**](#function-dp_burst_acq_configure_search_raw) ([**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the search grid directly, bypassing the auto-sizing search._  |
+|  size\_t | [**dp\_burst\_acq\_consumed**](#function-dp_burst_acq_consumed) (const [**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) \* state) <br>_Input samples the last_ [_**dp\_burst\_acq\_push()**_](burst__acq__core_8h.md#function-dp_burst_acq_push) _took: the embedded engine's_[_**dp\_acq\_consumed()**_](acq__core_8h.md#function-dp_acq_consumed) _, per call (not the cumulative_[_**acq\_result\_t::samples\_consumed**_](structacq__result__t.md#variable-samples_consumed) _)._ |
 |  [**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) \* | [**dp\_burst\_acq\_create**](#function-dp_burst_acq_create) (const float \_Complex \* preamble, size\_t preamble\_len, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate) <br>_Create a burst-mode acquisition engine for any repeated preamble, given as its samples (forwards to_ [_**dp\_acq\_create\_burst()**_](acq__core_8h.md#function-dp_acq_create_burst) __ _see its doc comment in_[_**acq\_core.h**_](acq__core_8h.md) _for the full physics)._ |
 |  void | [**dp\_burst\_acq\_destroy**](#function-dp_burst_acq_destroy) ([**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) \* state) <br>_Destroy and free an instance._  |
 |  void | [**dp\_burst\_acq\_get\_state**](#function-dp_burst_acq_get_state) (const [**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) \* state, void \* blob) <br> |
@@ -172,6 +173,33 @@ Forwards to [**dp\_acq\_configure\_search\_raw()**](acq__core_8h.md#function-dp_
 ```
  
 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_burst\_acq\_consumed 
+
+_Input samples the last_ [_**dp\_burst\_acq\_push()**_](burst__acq__core_8h.md#function-dp_burst_acq_push) _took: the embedded engine's_[_**dp\_acq\_consumed()**_](acq__core_8h.md#function-dp_acq_consumed) _, per call (not the cumulative_[_**acq\_result\_t::samples\_consumed**_](structacq__result__t.md#variable-samples_consumed) _)._
+```C++
+size_t dp_burst_acq_consumed (
+    const dp_burst_acq_state_t * state
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
 
 
 
@@ -326,6 +354,9 @@ size_t dp_burst_acq_push (
 Forwards to [**dp\_acq\_push()**](acq__core_8h.md#function-dp_acq_push) on the embedded engine (see its doc comment in [**acq\_core.h**](acq__core_8h.md) for the framing/CFAR mechanics). Each event carries the peak's Doppler bin and code phase (the two search axes), its CFAR statistic, and an estimated C/N0 — see [**acq\_result\_t**](structacq__result__t.md).
 
 
+Python's push() has room for 1024 events a call, with [**dp\_acq\_push()**](acq__core_8h.md#function-dp_acq_push)'s rule for what a push that fills it loses.
+
+
 
 
 **Parameters:**
@@ -335,7 +366,7 @@ Forwards to [**dp\_acq\_push()**](acq__core_8h.md#function-dp_acq_push) on the e
 * `x` Raw input, interleaved CF32, `n_in` complex samples. 
 * `n_in` Number of complex input samples. 
 * `result` Output array for detection events. 
-* `max_results` Capacity of `result`. 
+* `max_results` Capacity of `result:` [**dp\_acq\_push()**](acq__core_8h.md#function-dp_acq_push)'s contract, so a full `result` never loses input and [**dp\_burst\_acq\_consumed()**](burst__acq__core_8h.md#function-dp_burst_acq_consumed) says where to resume. 
 
 
 

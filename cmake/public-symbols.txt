@@ -156,6 +156,7 @@ dp_acq_build_handoff function
 dp_acq_cell_corr function
 dp_acq_cell_corr_grid function
 dp_acq_configure_search_raw function
+dp_acq_consumed function
 dp_acq_create_burst function
 dp_acq_create_continuous function
 dp_acq_destroy function
@@ -318,6 +319,7 @@ dp_boxcar_step function
 dp_boxcar_steps function
 dp_bpsk_map function
 dp_burst_acq_configure_search_raw function
+dp_burst_acq_consumed function
 dp_burst_acq_create function
 dp_burst_acq_destroy function
 dp_burst_acq_get_state function

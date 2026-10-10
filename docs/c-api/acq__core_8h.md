@@ -10,11 +10,11 @@
 
 _Streaming DSSS acquisition engine — burst and continuous front doors over one shared engine._ [More...](#detailed-description)
 
-* `#include "doppler/buffer/buffer.h"`
 * `#include "doppler/clib_common.h"`
 * `#include "doppler/corr2d/corr2d_core.h"`
 * `#include "doppler/detection/detection_core.h"`
 * `#include "doppler/dp_state.h"`
+* `#include "doppler/f32_buffer/f32_buffer_core.h"`
 * `#include "doppler/fft/fft_core.h"`
 * `#include "doppler/jm_perf.h"`
 * `#include "doppler/detector2d/detector2d_core.h"`
@@ -85,6 +85,7 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 |  double \_Complex | [**dp\_acq\_cell\_corr**](#function-dp_acq_cell_corr) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, const float \_Complex \* x, size\_t col, double f\_hz, double t0) <br>_One epoch's correlation against the replica at ONE code phase and ONE frequency: the engine's surface, evaluated at a single cell, on raw samples._  |
 |  void | [**dp\_acq\_cell\_corr\_grid**](#function-dp_acq_cell_corr_grid) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, const float \_Complex \* x, size\_t n\_epochs, size\_t col, const double \* f\_hz, size\_t n\_f, double t0, double \_Complex \* out) <br>[_**dp\_acq\_cell\_corr()**_](acq__core_8h.md#function-dp_acq_cell_corr) _at many frequencies over consecutive epochs, in one pass: the cells a caller scores once the code phase is settled and only the Doppler is left to search._ |
 |  int | [**dp\_acq\_configure\_search\_raw**](#function-dp_acq_configure_search_raw) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the search grid directly, bypassing both auto-sizing searches — the advanced escape hatch (mirrors Dll's/Costas's configure\_lock\_raw())._  |
+|  size\_t | [**dp\_acq\_consumed**](#function-dp_acq_consumed) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state) <br>_Input samples the last_ [_**dp\_acq\_push()**_](acq__core_8h.md#function-dp_acq_push) _took._ |
 |  [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* | [**dp\_acq\_create\_burst**](#function-dp_acq_create_burst) (const float \_Complex \* tmpl, size\_t n, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate) <br>_Create a burst-mode acquisition engine for a repeated preamble: coherent multi-repetition combining, up to_ `reps` _deep._ |
 |  [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* | [**dp\_acq\_create\_continuous**](#function-dp_acq_create_continuous) (const uint8\_t \* code, size\_t code\_len, size\_t spc, double chip\_rate, double symbol\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, size\_t code\_only\_epochs, double doppler\_rate) <br>_Create a continuous-mode acquisition engine: always wideband window-tiling, allowing a block-coherent depth inside the tiles to accommodate waveforms with code-only windows._  |
 |  void | [**dp\_acq\_destroy**](#function-dp_acq_destroy) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state) <br>_Destroy and free an engine._  |
@@ -147,7 +148,7 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 | define  | [**ACQ\_MAX\_PEAKS**](acq__core_8h.md#define-acq_max_peaks)  `64u`<br> |
 | define  | [**ACQ\_N\_NONCOH\_SAFETY\_CEILING**](acq__core_8h.md#define-acq_n_noncoh_safety_ceiling)  `256u`<br>_Internal safety-valve ceiling on auto-selected non-coherent looks_  _not a public knob (no caller-facing equivalent of the retired_`max_noncoh` _parameter)._ |
 | define  | [**ACQ\_STATE\_MAGIC**](acq__core_8h.md#define-acq_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'C', 'Q', 'R')`<br> |
-| define  | [**ACQ\_STATE\_VERSION**](acq__core_8h.md#define-acq_state_version)  `4u /\* v4: the block's raw epochs ride beside it \*/`<br> |
+| define  | [**ACQ\_STATE\_VERSION**](acq__core_8h.md#define-acq_state_version)  `5u`<br> |
 
 ## Detailed Description
 
@@ -554,6 +555,36 @@ Resizes every buffer/plan that depends on the grid (the slow-time FFT, the code 
 
 
 
+### function dp\_acq\_consumed 
+
+_Input samples the last_ [_**dp\_acq\_push()**_](acq__core_8h.md#function-dp_acq_push) _took._
+```C++
+size_t dp_acq_consumed (
+    const dp_acq_state_t * state
+) 
+```
+
+
+
+Per call: equal to its `n_in` unless `result` filled up, and then the caller resumes at x + consumed. Not [**acq\_result\_t::samples\_consumed**](structacq__result__t.md#variable-samples_consumed), which is CUMULATIVE and counts only framed samples  the stream position a hit's epoch ended at  so resuming from it would re-feed the carry and double-feed the stream. 0 after create, reset, a regrid and set\_state.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_acq\_create\_burst 
 
 _Create a burst-mode acquisition engine for a repeated preamble: coherent multi-repetition combining, up to_ `reps` _deep._
@@ -827,6 +858,9 @@ size_t dp_acq_push (
 Buffers `x`, then for every complete frame applies the slow-time Doppler FFT, correlates against the PN reference, dumps the coherent surface (or, when n\_noncoh &gt; 1, accumulates \|·\|² over n\_noncoh looks first), gates the peak on the auto-configured threshold, and appends an [**acq\_result\_t**](structacq__result__t.md). Each event carries the peak's Doppler bin and code phase (the two search axes), its CFAR statistic, and an estimated C/N0 — see [**acq\_result\_t**](structacq__result__t.md).
 
 
+Python's push() has room for 1024 events a call, so a push that ends at most 1024 / max\_peaks dwells, counting the carry, loses nothing. Once fewer than max\_peaks slots are left, the call stops before the next frame that would end a dwell, and the rest of its input is lost, unless the rest is shorter than a frame: that is kept as the carry. The next push stays on the frame grid only when what was lost is a whole number of frames. Before v0.66 the room was 64, and a push past it kept up to ring\_cap/frame\_n - 1 frames for the next call, dropped the rest, and could cut a dwell's list short. #1992 and just-buildit/just-makeit#2184 track sizing the list to the call.
+
+
 
 
 **Parameters:**
@@ -836,7 +870,7 @@ Buffers `x`, then for every complete frame applies the slow-time Doppler FFT, co
 * `x` Raw input, interleaved CF32, `n_in` complex samples. 
 * `n_in` Number of complex input samples. 
 * `result` Output array for detection events. 
-* `max_results` Capacity of `result`. 
+* `max_results` Capacity of `result`. A full `result` never loses input. A frame that ends a dwell may report up to max\_peaks events, so it is taken only while at least min(max\_peaks, max\_results) slots are left (at least one); a frame that ends none needs no room. At the first frame it cannot take, the push takes the rest of its input only if the rest completes no frame (it is then the carry), and otherwise stops on that frame's boundary. [**dp\_acq\_consumed()**](acq__core_8h.md#function-dp_acq_consumed) says how many samples it took, and the caller offers the rest again. A `max_results` under max\_peaks cannot hold a whole dwell: a push with `result` empty still takes the dwell and keeps its strongest max\_results picks. That loses RESULTS  the dwell's weaker picks  never input; size `max_results` &gt;= max\_peaks to lose none. At 0 a push takes only the frames that end no dwell, and a rest that completes no frame; a resume loop needs room for at least one. 
 
 
 
@@ -1594,7 +1628,7 @@ Quadrature nodes the Pd model averages the delay straddle over.
 
 
 
-The largest `max_peaks` [**dp\_acq\_set\_max\_peaks()**](acq__core_8h.md#function-dp_acq_set_max_peaks) accepts: one push's result array is sized to this many in the binding, so one dwell can always be reported whole. 
+The largest `max_peaks` [**dp\_acq\_set\_max\_peaks()**](acq__core_8h.md#function-dp_acq_set_max_peaks) accepts: the bindings' push result arrays (1024) are at least this many, so one dwell can always be reported whole. 
 
 
         
@@ -1637,7 +1671,7 @@ The semi-analytical Pd model both auto-sizers ascend against turns non-monotonic
 ### define ACQ\_STATE\_VERSION 
 
 ```C++
-#define ACQ_STATE_VERSION `4u /* v4: the block's raw epochs ride beside it */`
+#define ACQ_STATE_VERSION `5u`
 ```
 
 

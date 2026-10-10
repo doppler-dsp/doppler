@@ -53,6 +53,12 @@ dp_burst_acq_push (dp_burst_acq_state_t *state, const float _Complex *x,
   return dp_acq_push (state->engine, x, n_in, result, max_results);
 }
 
+size_t
+dp_burst_acq_consumed (const dp_burst_acq_state_t *state)
+{
+  return dp_acq_consumed (state->engine);
+}
+
 int
 dp_burst_acq_configure_search_raw (dp_burst_acq_state_t *state,
                                    size_t doppler_bins, size_t n_noncoh)

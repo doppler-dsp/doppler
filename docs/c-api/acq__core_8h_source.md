@@ -12,11 +12,11 @@
 #ifndef DP_ACQ_CORE_H
 #define DP_ACQ_CORE_H
 
-#include "doppler/buffer/buffer.h"
 #include "doppler/clib_common.h"
 #include "doppler/corr2d/corr2d_core.h"
 #include "doppler/detection/detection_core.h"
 #include "doppler/dp_state.h"
+#include "doppler/f32_buffer/f32_buffer_core.h"
 #include "doppler/fft/fft_core.h"
 #include "doppler/jm_perf.h"
 /* detector2d_core.h supplies det_noise_mode_t (guarded typedef). */
@@ -85,6 +85,8 @@ extern "C"
     dp_corr2d_state_t *corr; 
     dp_fft_state_t *slow_fft; 
     dp_f32_t    *ring;  
+    dp_f32_framer_t framer; 
+    size_t consumed;        
     float _Complex *ref; 
     float _Complex *yframe;  
     float _Complex *colbuf;  
@@ -215,14 +217,15 @@ extern "C"
     uint64_t n;                
     uint64_t samples_consumed; 
     uint32_t nc_count;     
-    uint32_t n_unconsumed; 
     uint32_t max_peaks;    
     uint32_t n_twins;      
     uint32_t blk_epoch; 
   } acq_extra_t;
 
 #define ACQ_STATE_MAGIC DP_FOURCC ('A', 'C', 'Q', 'R')
-#define ACQ_STATE_VERSION 4u /* v4: the block's raw epochs ride beside it */
+/* v5: the carry is the framer's snapshot (fewer than frame_n samples)
+   instead of the ring's raw contents, zero-padded to ring_cap. */
+#define ACQ_STATE_VERSION 5u
 
 #define ACQ_MAX_PEAKS 64u
 
@@ -291,6 +294,8 @@ extern "C"
 
   size_t dp_acq_push (dp_acq_state_t *state, const float _Complex *x, size_t n_in,
                    acq_result_t *result, size_t max_results);
+
+  size_t dp_acq_consumed (const dp_acq_state_t *state);
 
   typedef struct
   {

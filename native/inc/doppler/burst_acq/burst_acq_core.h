@@ -161,11 +161,16 @@ extern "C"
    * peak's Doppler bin and code phase (the two search axes), its CFAR
    * statistic, and an estimated C/N0 — see @ref acq_result_t.
    *
+   * Python's push() has room for 1024 events a call, with dp_acq_push()'s
+   * rule for what a push that fills it loses.
+   *
    * @param state        Allocated engine (non-NULL).
    * @param x            Raw input, interleaved CF32, @p n_in complex samples.
    * @param n_in         Number of complex input samples.
    * @param result       Output array for detection events.
-   * @param max_results  Capacity of @p result.
+   * @param max_results  Capacity of @p result: dp_acq_push()'s contract, so
+   *                     a full @p result never loses input and
+   *                     dp_burst_acq_consumed() says where to resume.
    * @return Number of events written (0 … max_results).
    * @code
    * >>> import numpy as np
@@ -185,6 +190,15 @@ extern "C"
   size_t dp_burst_acq_push (dp_burst_acq_state_t *state, const float _Complex *x,
                          size_t n_in, acq_result_t *result,
                          size_t max_results);
+
+  /**
+   * @brief Input samples the last dp_burst_acq_push() took: the embedded
+   *        engine's dp_acq_consumed(), per call (not the cumulative
+   *        acq_result_t::samples_consumed).
+   *
+   * @param state  Must be non-NULL.
+   */
+  size_t dp_burst_acq_consumed (const dp_burst_acq_state_t *state);
 
   /**
    * @brief Pin the search grid directly, bypassing the auto-sizing search.

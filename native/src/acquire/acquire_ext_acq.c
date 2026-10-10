@@ -144,7 +144,7 @@ AcquisitionObj_push (AcquisitionObject *self, PyObject *args)
       return NULL;
     }
   size_t       n_in = (size_t)PyArray_SIZE (in_arr);
-  acq_result_t results[64];
+  acq_result_t results[1024];
   /* nogil: GIL released across the pure-C kernel — sound only when
    * this object is not shared across threads concurrently (one
    * object per stream); the kernel touches only this object's
@@ -152,15 +152,15 @@ AcquisitionObj_push (AcquisitionObject *self, PyObject *args)
   const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (in_arr);
   size_t                n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = dp_acq_push (self->handle, _ng0, n_in, results, 64);
+    n_out = dp_acq_push (self->handle, _ng0, n_in, results, 1024);
   Py_END_ALLOW_THREADS
   Py_DECREF (in_arr);
-  if ((size_t)(n_out) > (size_t)(64))
+  if ((size_t)(n_out) > (size_t)(1024))
     {
       PyErr_Format (
           PyExc_RuntimeError,
           "Acquisition.push: wrote %zu elements into a buffer of %zu",
-          (size_t)(n_out), (size_t)(64));
+          (size_t)(n_out), (size_t)(1024));
       return NULL;
     }
   PyObject *lst = PyList_New ((Py_ssize_t)n_out);
@@ -1195,6 +1195,17 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "acq_result_t. Each event carries the peak's Doppler bin and code phase\n"
     "(the two search axes), its CFAR statistic, and an estimated C/N0 — see\n"
     "acq_result_t.\n"
+    "\n"
+    "Python's push() has room for 1024 events a call, so a push that ends at\n"
+    "most 1024 / max_peaks dwells, counting the carry, loses nothing. Once\n"
+    "fewer than max_peaks slots are left, the call stops before the next\n"
+    "frame that would end a dwell, and the rest of its input is lost, unless\n"
+    "the rest is shorter than a frame: that is kept as the carry. The next\n"
+    "push stays on the frame grid only when what was lost is a whole number\n"
+    "of frames. Before v0.66 the room was 64, and a push past it kept up to\n"
+    "ring_cap/frame_n - 1 frames for the next call, dropped the rest, and\n"
+    "could cut a dwell's list short. #1992 and just-buildit/just-makeit#2184\n"
+    "track sizing the list to the call.\n"
     "\n"
     "Parameters\n"
     "----------\n"

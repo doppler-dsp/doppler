@@ -1366,7 +1366,8 @@ _acq_cell_corr_grid_check (void)
 /** One engine, handed to the harness as its `arg`: @c kind 0 is a burst
  *  engine on its auto-sized grid, 1 the same pinned to 2 Doppler bins x 3
  *  non-coherent looks, 2 a continuous engine at its native span, 3 one
- *  window-tiled (wideband). */
+ *  window-tiled (wideband), 4 the same with a block of D = 4 coherent
+ *  epochs per tile, so three frames of every four end no dwell. */
 typedef struct
 {
   int                   kind;
@@ -1383,8 +1384,8 @@ ci_acq_create (void *arg)
             ? dp_acq_create_burst (c->tmpl, 64, 4, 1.0e6, 50.0, 0.0, 1e-3, 0.9,
                                    0, 0.0)
             : dp_acq_create_continuous (CODE31, 31, 4, 1.0e6, 2700.0, 55.0,
-                                        c->kind == 3 ? 3.5 * span : 0.0, 1e-3,
-                                        0.9, 0, 1, 0.0);
+                                        c->kind >= 3 ? 3.5 * span : 0.0, 1e-3,
+                                        0.9, 0, c->kind == 4 ? 7 : 1, 0.0);
   if (a
       && ((c->kind == 1 && dp_acq_configure_search_raw (a, 2, 3) != 0)
           || dp_acq_set_max_peaks (a, 4) != 0))
@@ -1410,6 +1411,42 @@ ci_acq_push (void *obj, const void *in, size_t n, void *out, size_t out_cap)
                       (acq_result_t *)out, out_cap);
 }
 
+/* The burst preamble the kinds 0 and 1 engines are built from: 64 samples
+   of seeded QPSK-ish symbols. */
+static void
+ci_acq_template (uint32_t *st, float _Complex tmpl[64])
+{
+  for (size_t i = 0; i < 64; i++)
+    {
+      const float re = (float)dp_bit (st);
+      const float im = (float)dp_bit (st);
+      tmpl[i]        = re + I * im;
+    }
+}
+
+/* The stream kind `kind` is fed, 37 1/3 frames long: the burst at irregular
+   offsets in noise, or the continuous code throughout, at a code phase that
+   is not a frame boundary. NULL if it cannot be allocated. */
+static float _Complex *
+ci_acq_stream (int kind, const float _Complex *tmpl, size_t frame_n,
+               uint32_t *st, size_t *len)
+{
+  *len              = 37 * frame_n + frame_n / 3;
+  float _Complex *x = malloc (*len * sizeof *x);
+  if (!x)
+    return NULL;
+  for (size_t i = 0; i < *len; i++)
+    x[i] = 0.4f * dp_cgauss (st);
+  if (kind < 2)
+    for (size_t at = 41; at + 256 <= *len; at += 3 * 256 + 97)
+      for (size_t i = 0; i < 256; i++)
+        x[at + i] += tmpl[i % 64];
+  else
+    for (size_t i = 0; i < *len; i++)
+      x[i] += CODE31[((i + 23) / 4) % 31] ? -1.0f : 1.0f;
+  return x;
+}
+
 /* The hits are a function of the input stream, not of how push() calls cut
  * it: a partial frame, a dwell's coherent sum, its non-coherent looks and
  * the stream position every hit is stamped with (samples_consumed) are all
@@ -1420,13 +1457,8 @@ _acq_chunk_invariance_check (void)
 {
   uint32_t st = 0x1895u;
   float _Complex tmpl[64];
-  for (size_t i = 0; i < 64; i++)
-    {
-      const float re = (float)dp_bit (&st);
-      const float im = (float)dp_bit (&st);
-      tmpl[i]        = re + I * im;
-    }
-  for (int kind = 0; kind < 4; kind++)
+  ci_acq_template (&st, tmpl);
+  for (int kind = 0; kind < 5; kind++)
     {
       const ci_acq_cfg_t cfg   = { kind, tmpl };
       dp_acq_state_t    *probe = ci_acq_create ((void *)&cfg);
@@ -1436,26 +1468,16 @@ _acq_chunk_invariance_check (void)
       const size_t frame_n = probe->frame_n;
       dp_acq_destroy (probe);
 
-      /* The burst sits at irregular offsets in noise; the continuous code
-         runs throughout, at a code phase that is not a frame boundary. */
-      const size_t    len = 37 * frame_n + frame_n / 3;
-      float _Complex *x   = malloc (len * sizeof *x);
+      size_t          len;
+      float _Complex *x = ci_acq_stream (kind, tmpl, frame_n, &st, &len);
       DP_CHECK (x != NULL);
       if (!x)
         return 1;
-      for (size_t i = 0; i < len; i++)
-        x[i] = 0.4f * dp_cgauss (&st);
-      if (kind < 2)
-        for (size_t at = 41; at + 256 <= len; at += 3 * 256 + 97)
-          for (size_t i = 0; i < 256; i++)
-            x[at + i] += tmpl[i % 64];
-      else
-        for (size_t i = 0; i < len; i++)
-          x[i] += CODE31[((i + 23) / 4) % 31] ? -1.0f : 1.0f;
 
       static const char *names[]
           = { "acq push, burst", "acq push, burst 2 x 3 looks",
-              "acq push, continuous", "acq push, continuous wideband" };
+              "acq push, continuous", "acq push, continuous wideband",
+              "acq push, continuous wideband, D = 4" };
       dp_ci_spec_t spec = {
         .name     = names[kind],
         .create   = ci_acq_create,
@@ -1469,6 +1491,183 @@ _acq_chunk_invariance_check (void)
       };
       DP_CHECK (dp_chunk_invariance (&spec, x, len) == 0);
       free (x);
+    }
+  return 0;
+}
+
+/* ── stop and resume (doppler#1895) ─────────────────────────────────────── */
+
+/* Push x through a in seeded random chunks of 1..max_chunk samples with room
+   for `cap` results a call, each chunk re-offered from dp_acq_consumed()
+   until it is used up, and return the results in got[]. Counts the calls
+   that stopped short, the stops anywhere but on a frame boundary, the calls
+   that took nothing (a stall: with room for one, a call can always take a
+   frame), and any call that wrote past its room -- literally: the slot just
+   past the room holds a byte pattern during the call, and a call that
+   changed it, or reports more than its room, counts. */
+static size_t
+ci_acq_resume (dp_acq_state_t *a, const float _Complex *x, size_t len,
+               size_t frame_n, size_t cap, size_t max_chunk, acq_result_t *got,
+               size_t got_len, size_t *stops, size_t *wrong_stop,
+               size_t *stalls, size_t *overfull)
+{
+  size_t       n_got = 0, off = 0;
+  uint32_t     r = 0x2019u;
+  acq_result_t sentinel;
+  memset (&sentinel, 0xA5, sizeof sentinel);
+  *stops = *wrong_stop = *stalls = *overfull = 0;
+  while (off < len)
+    {
+      size_t m = 1 + dp_xs32 (&r) % max_chunk;
+      if (m > len - off)
+        m = len - off;
+      for (size_t end = off + m; off < end;)
+        {
+          const size_t offered = end - off;
+          const int    guard   = n_got + cap < got_len;
+          if (guard)
+            got[n_got + cap] = sentinel;
+          const size_t k = dp_acq_push (a, x + off, offered, got + n_got, cap);
+          const size_t took = dp_acq_consumed (a);
+          if (k > cap
+              || (guard
+                  && memcmp (&got[n_got + cap], &sentinel, sizeof sentinel)
+                         != 0))
+            (*overfull)++;
+          n_got += k;
+          off += took;
+          if (took < offered)
+            {
+              (*stops)++;
+              if (off % frame_n != 0)
+                (*wrong_stop)++;
+            }
+          if (took == 0)
+            {
+              (*stalls)++;
+              return n_got; /* rather than spin, and let the caller fail */
+            }
+        }
+    }
+  return n_got;
+}
+
+/* A full result[] stops a push and never loses input. A frame that ends a
+ * dwell reports up to max_peaks results, so it is taken only while that
+ * many slots are left; a frame that ends none needs none. Every kind:
+ *
+ * - resumed from dp_acq_consumed() at room 4 (exactly max_peaks), 5 and 9,
+ *   in random chunks of up to three frames (cutting frames) and of up to
+ *   the whole stream (so calls span dwells, and stop at rooms 4 and 5:
+ *   room 9 fills only on six results in one call), the results equal one
+ *   push with room for all, no call writes past its room, every stop is on
+ *   a frame boundary, and no call stalls;
+ * - at room 1, under max_peaks 4, a dwell's list is cut to its strongest
+ *   pick, and every call still takes input: exactly the picks of an engine
+ *   whose max_peaks is 1 (cutting the list cuts what the next dwell's twin
+ *   rule sees too, so the one-shot run's first picks are not the
+ *   reference -- an engine that lists one is);
+ * - with no room, a push takes the frames that end no dwell and stops
+ *   before the first that does: none on the burst engine, two looks of
+ *   three on the 2 x 3 one, every epoch but the last of a dwell's blocks
+ *   and looks on a tiled one; and it takes a rest that completes no frame,
+ *   but not one that would. */
+static int
+_acq_resume_check (void)
+{
+  uint32_t st = 0x1895u;
+  float _Complex tmpl[64];
+  ci_acq_template (&st, tmpl);
+  for (int kind = 0; kind < 5; kind++)
+    {
+      const ci_acq_cfg_t cfg = { kind, tmpl };
+      dp_acq_state_t    *one = ci_acq_create ((void *)&cfg);
+      DP_CHECK (one != NULL);
+      if (!one)
+        continue;
+      const size_t frame_n = one->frame_n;
+      DP_CHECK (kind != 4
+                || (one->window_bins > 1 && one->coherent_bins == 4));
+      size_t          len;
+      float _Complex *x    = ci_acq_stream (kind, tmpl, frame_n, &st, &len);
+      const size_t    all  = 4 * (len / frame_n + 1);
+      acq_result_t   *want = malloc (all * sizeof *want);
+      acq_result_t   *got  = malloc ((all + 16) * sizeof *got);
+      DP_CHECK (x != NULL && want != NULL && got != NULL);
+      if (!x || !want || !got)
+        return 1;
+      const size_t n_want = dp_acq_push (one, x, len, want, all);
+      DP_CHECK (dp_acq_consumed (one) == len); /* room: all of it */
+      DP_CHECK (n_want > 0);
+      dp_acq_destroy (one);
+
+      static const size_t caps[] = { 4, 5, 9 };
+      for (size_t c = 0; c < 2 * (sizeof caps / sizeof *caps); c++)
+        {
+          const int       whole = c % 2; /* chunks up to the whole stream */
+          dp_acq_state_t *d     = ci_acq_create ((void *)&cfg);
+          DP_REQUIRE (d != NULL);
+          size_t       stops, wrong_stop, stalls, overfull;
+          const size_t n_got = ci_acq_resume (
+              d, x, len, frame_n, caps[c / 2], whole ? len : 3 * frame_n, got,
+              all + 16, &stops, &wrong_stop, &stalls, &overfull);
+          DP_CHECK (stops > 0 || !whole || caps[c / 2] > 5);
+          DP_CHECK (wrong_stop == 0);
+          DP_CHECK (stalls == 0);
+          DP_CHECK (overfull == 0);
+          DP_CHECK (n_got == n_want
+                    && memcmp (got, want, n_want * sizeof *want) == 0);
+          dp_acq_destroy (d);
+        }
+
+      /* Truncation: room 1 under max_peaks 4, against max_peaks 1. */
+      {
+        dp_acq_state_t *ref = ci_acq_create ((void *)&cfg);
+        dp_acq_state_t *d   = ci_acq_create ((void *)&cfg);
+        DP_REQUIRE (ref != NULL && d != NULL);
+        DP_CHECK (dp_acq_set_max_peaks (ref, 1) == 0);
+        const size_t n_ref = dp_acq_push (ref, x, len, want, all);
+        size_t       stops, wrong_stop, stalls, overfull;
+        const size_t n_got
+            = ci_acq_resume (d, x, len, frame_n, 1, 3 * frame_n, got, all + 16,
+                             &stops, &wrong_stop, &stalls, &overfull);
+        DP_CHECK (n_ref > 0);
+        DP_CHECK (stalls == 0);
+        DP_CHECK (wrong_stop == 0);
+        DP_CHECK (overfull == 0);
+        DP_CHECK (n_got == n_ref
+                  && memcmp (got, want, n_ref * sizeof *want) == 0);
+        dp_acq_destroy (ref);
+        dp_acq_destroy (d);
+      }
+
+      /* No room: the frames that end no dwell, then a stop on a boundary.
+         A dwell is D epochs per look (D > 1 only when tiled) times its
+         looks, read from the engine's grid; the counts the kinds were
+         built for are pinned too: none on the burst engine, two of the
+         2 x 3 one's three looks. */
+      {
+        dp_acq_state_t *d = ci_acq_create ((void *)&cfg);
+        DP_REQUIRE (d != NULL);
+        const size_t looks = (d->window_bins > 1 ? d->coherent_bins : 1)
+                                 * (d->n_noncoh > 1 ? d->n_noncoh : 1)
+                             - 1;
+        DP_CHECK (kind != 0 || looks == 0);
+        DP_CHECK (kind != 1 || looks == 2);
+        DP_CHECK (kind != 4 || looks >= 3);
+        DP_CHECK (dp_acq_push (d, x, (looks + 2) * frame_n, got, 0) == 0);
+        DP_CHECK (dp_acq_consumed (d) == looks * frame_n);
+        /* A rest that completes no frame is taken; one that would, not. */
+        const size_t at = looks * frame_n;
+        DP_CHECK (dp_acq_push (d, x + at, frame_n - 3, got, 0) == 0);
+        DP_CHECK (dp_acq_consumed (d) == frame_n - 3);
+        DP_CHECK (dp_acq_push (d, x + at + frame_n - 3, 3, got, 0) == 0);
+        DP_CHECK (dp_acq_consumed (d) == 0);
+        dp_acq_destroy (d);
+      }
+      free (x);
+      free (want);
+      free (got);
     }
   return 0;
 }
@@ -1549,9 +1748,11 @@ main (void)
   /* ── the shared round trip, mid-stream (doppler#1471) ─────────────────
    * acq's own round trips are hand-written, so the shared macro -- and its
    * every-byte-written check -- never saw the engine that broke it: the
-   * blob reserves ring_cap samples and dp_acq_get_state wrote only the
-   * n_unconsumed of them. Each engine here holds a PARTIAL frame, so the
-   * ring has a tail to leave unwritten; one is burst, one continuous with a
+   * blob reserved ring_cap samples and dp_acq_get_state wrote only the
+   * unconsumed ones. The carry is the framer's snapshot now, which pads its
+   * own unused slots, and this still holds every byte to it. Each engine
+   * here holds a PARTIAL frame, so the carry has slots to leave unwritten;
+   * one is burst, one continuous with a
    * block and non-coherent looks (the blob's optional regions present).
    * The fourth is built from a COMPLEX preamble -- Zadoff-Chu root 5 over 31
    * samples -- since every other round trip in the tree builds its engine
@@ -1820,6 +2021,7 @@ main (void)
   (void)_acq_hit_chip_phase_check ();
   (void)_acq_wideband_coverage_check ();
   (void)_acq_chunk_invariance_check ();
+  (void)_acq_resume_check ();
   (void)_acq_continuous_check ();
 
   /* ── samples_consumed: a per-hit anchor, not a per-call one ───────────

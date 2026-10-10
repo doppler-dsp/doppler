@@ -53,6 +53,12 @@ dp_burst_despreader_create (const uint8_t *code, size_t code_len, size_t sf,
   if (!code || code_len == 0 || sf == 0 || code_len < sf || sps < 2
       || !isfinite (init_norm_freq) || !isfinite (init_chip_phase))
     return NULL;
+  /* dp_loop_filter_init trusts its embedders: the loop filter's own domain,
+     asked of the one predicate it publishes (#2071). A NaN or infinite bn
+     gave NaN gains that poisoned both loops from the first symbol. */
+  if (!dp_loop_filter_params_ok (bn_carrier, 0.707, 1.0)
+      || !dp_loop_filter_params_ok (bn_code, 0.707, 1.0))
+    return NULL;
 
   dp_burst_despreader_state_t *s = calloc (1, sizeof (*s));
   if (!s)
@@ -412,20 +418,26 @@ dp_burst_despreader_get_bn_carrier (const dp_burst_despreader_state_t *s)
 {
   return s->lf_car.bn;
 }
-void
+int
 dp_burst_despreader_set_bn_carrier (dp_burst_despreader_state_t *s, double val)
 {
-  dp_loop_filter_configure (&s->lf_car, val, s->lf_car.zeta, s->lf_car.t);
+  /* configure refuses outside dp_loop_filter_params_ok and keeps the
+     loop's bandwidth; its status is this setter's. */
+  return dp_loop_filter_configure (&s->lf_car, val, s->lf_car.zeta,
+                                   s->lf_car.t);
 }
 double
 dp_burst_despreader_get_bn_code (const dp_burst_despreader_state_t *s)
 {
   return s->lf_code.bn;
 }
-void
+int
 dp_burst_despreader_set_bn_code (dp_burst_despreader_state_t *s, double val)
 {
-  dp_loop_filter_configure (&s->lf_code, val, s->lf_code.zeta, s->lf_code.t);
+  /* configure refuses outside dp_loop_filter_params_ok and keeps the
+     loop's bandwidth; its status is this setter's. */
+  return dp_loop_filter_configure (&s->lf_code, val, s->lf_code.zeta,
+                                   s->lf_code.t);
 }
 double
 dp_burst_despreader_get_norm_freq (const dp_burst_despreader_state_t *s)

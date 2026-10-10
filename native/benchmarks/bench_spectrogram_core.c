@@ -7,9 +7,16 @@
  * as much per sample), and whether pushing the stream in small chunks costs
  * more than pushing it in one block.
  *
- *   push[nfft=N,hop=H]          one push of the whole block
+ *   push[nfft=N,hop=H]          one push of the whole block, dB rows
  *   push[nfft=N,hop=H,chunk=C]  the same block in C-sample pushes, which is
  *                               what a socket or a pull source delivers
+ *   push[nfft=N,hop=H,mode=power]
+ *                               one push, POWER rows: the default since
+ *                               #1968, which skips the dB conversion. U4 for
+ *                               power (#2094) at nfft 256, 1024 (U4's own
+ *                               point, hop 256) and 65536, each at hop
+ *                               nfft/4, so the ratio to the dB row beside it
+ *                               is the conversion's share at that size
  *   direct[nfft=N,hop=H]        the same rows from a hand-written loop that
  *                               calls dp_psd_frame_db on x + k*hop: no ring,
  *                               no carry, no copy. A MEASURING STICK for the
@@ -30,9 +37,10 @@
  * block. Settled once per process, rounds on the outside and configurations
  * on the inside, MIN over rounds -- dp_bench.h says why each.
  *
- * 29 rows: jm_bench.h keeps at most JM_BENCH_MAX_ENTRIES (32) and drops the
- * rest WITHOUT A WORD (just-buildit/just-makeit#2188), so a row added past
- * 32 runs, prints and never reaches the JSON. Re-vendor after that ships.
+ * 32 rows, the cap: jm_bench.h keeps at most JM_BENCH_MAX_ENTRIES (32) and
+ * drops the rest WITHOUT A WORD (just-buildit/just-makeit#2188), so a row
+ * added past 32 runs, prints and never reaches the JSON. The power rows took
+ * the last three; re-vendor after that ships before adding another.
  */
 #include "doppler/psd/psd_core.h"
 #include "doppler/spectrogram/spectrogram_core.h"
@@ -52,6 +60,7 @@ typedef struct
 {
   size_t                  nfft, hop, chunk; /* chunk 0: one push */
   int                     direct;           /* the hand-written loop */
+  int                     mode;             /* a DP_SPECTROGRAM_* name */
   int                     mate;             /* a push's direct twin, or -1 */
   size_t                  block, cap;
   dp_spectrogram_state_t *s;
@@ -89,7 +98,7 @@ run (config_t *c, const float _Complex *x)
 
 static config_t *
 add (config_t *cfg, int *nc, size_t nfft, size_t hop, size_t chunk, int direct,
-     size_t block)
+     size_t block, int mode)
 {
   config_t *c = &cfg[(*nc)++];
   c->mate     = -1;
@@ -98,11 +107,12 @@ add (config_t *cfg, int *nc, size_t nfft, size_t hop, size_t chunk, int direct,
   c->chunk    = chunk;
   c->direct   = direct;
   c->block    = block;
-  /* Hann, dB rows by name, DC-centred, and the PSD the Spectrogram builds
-     for itself: the rows U1-U4 measured (spectrogram-measurements.md
-     entries 5.6-5.9). Power rows, the default, gain their own rows in
-     #2094's measurement. */
-  c->s = dp_spectrogram_create (nfft, hop, 0, 0.0f, DP_SPECTROGRAM_DB);
+  c->mode     = mode;
+  /* Hann, DC-centred, the mode named by the caller, and the PSD the
+     Spectrogram builds for itself. The dB rows are the ones U1-U4
+     measured (spectrogram-measurements.md entries 5.6-5.9); the power
+     rows are #2094's. */
+  c->s = dp_spectrogram_create (nfft, hop, 0, 0.0f, mode);
   c->p = direct ? dp_psd_create (nfft, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.0) : NULL;
   if (!c->s || (direct && !c->p))
     return NULL;
@@ -139,11 +149,11 @@ main (void)
       {
         const size_t n = u1[k], hop = n / div;
         const size_t block = n <= 4096 ? BLOCK : block_for (n);
-        config_t    *pc    = add (cfg, &nc, n, hop, 0, 0, block);
+        config_t *pc = add (cfg, &nc, n, hop, 0, 0, block, DP_SPECTROGRAM_DB);
         if (!pc)
           return 1;
         const int ip = nc - 1;
-        config_t *dc = add (cfg, &nc, n, hop, 0, 1, block);
+        config_t *dc = add (cfg, &nc, n, hop, 0, 1, block, DP_SPECTROGRAM_DB);
         if (!dc)
           return 1;
         cfg[ip].mate = nc - 1;
@@ -157,14 +167,23 @@ main (void)
                            n, hop);
             return 1;
           }
-        if (n <= 4096 && !add (cfg, &nc, n, hop, CHUNK, 0, BLOCK))
+        if (n <= 4096
+            && !add (cfg, &nc, n, hop, CHUNK, 0, BLOCK, DP_SPECTROGRAM_DB))
           return 1;
       }
   /* U2: chunk 1, nfft and 16 nfft at nfft 1024, hop 256 (CHUNK = 256 = hop
      is an original row) */
   static const size_t u2[] = { 1, 1024, 16384 };
   for (int i = 0; i < 3; i++)
-    if (!add (cfg, &nc, 1024, 256, u2[i], 0, BLOCK))
+    if (!add (cfg, &nc, 1024, 256, u2[i], 0, BLOCK, DP_SPECTROGRAM_DB))
+      return 1;
+  /* U4 for power rows (#2094): one push at hop nfft/4, beside the dB push
+     of the same shape, at the two ends of the range and U4's own 1024 */
+  static const size_t u4p[] = { 256, 1024, 65536 };
+  for (int i = 0; i < 3; i++)
+    if (!add (cfg, &nc, u4p[i], u4p[i] / 4, 0, 0,
+              u4p[i] <= 4096 ? BLOCK : block_for (u4p[i]),
+              DP_SPECTROGRAM_POWER))
       return 1;
 
   printf ("=== spectrogram benchmark ===\n");
@@ -204,6 +223,9 @@ main (void)
       else if (cfg[i].chunk)
         (void)snprintf (name, sizeof name, "push[nfft=%zu,hop=%zu,chunk=%zu]",
                         cfg[i].nfft, cfg[i].hop, cfg[i].chunk);
+      else if (cfg[i].mode == DP_SPECTROGRAM_POWER)
+        (void)snprintf (name, sizeof name, "push[nfft=%zu,hop=%zu,mode=power]",
+                        cfg[i].nfft, cfg[i].hop);
       else
         (void)snprintf (name, sizeof name, "push[nfft=%zu,hop=%zu]",
                         cfg[i].nfft, cfg[i].hop);

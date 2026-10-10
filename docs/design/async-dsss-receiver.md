@@ -775,6 +775,7 @@ flowchart LR
         Z -->|yes| OWN["that emitter's own:<br/>nothing"]
         Z -->|no, a slot free| SEED["dp_acq_build_handoff() → seed()<br/>«seeded»"]
         Z -->|no slot free| DROP["«dropped»"]
+        Z -->|a Doppler at or past fs/2| REF["«refused»"]
         SEED --> RX["12 cell receivers, idle until seeded<br/>pull-in → track (§4, §11); every one fed every block,<br/>across the threads"]
         X --> RX
         RX -->|"status(): Doppler, chip phase, flags"| T["the assigned table:<br/>one row per slot, keyed on locked loops"]
@@ -893,6 +894,8 @@ stateDiagram-v2
         emitter's own: nothing happens and nothing is logged.
         A peak with no free slot is counted and logged «dropped»
         and moves no slot.
+        A peak outside the seed domain (a Doppler at or past fs/2) is
+        logged «refused», not dropped, and moves no slot.
     end note
 ```
 

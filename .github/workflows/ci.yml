@@ -108,7 +108,7 @@ jobs:
         if [ "$CODE" = false ]; then
           pythons="[\"$primary\"]"
         else
-          pythons=$(python3 scripts/python_versions.py --matrix)
+          pythons=$(make -s print-python-matrix)
         fi
         { echo "pythons=$pythons"; echo "primary=$primary"; } >> "$GITHUB_OUTPUT"
         echo "pythons=$pythons primary=$primary"

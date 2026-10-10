@@ -2921,7 +2921,7 @@ print-uv-version: ## Print the uv pin (release.yml reads it from here)
 # PyPI smoke, which installs one wheel per Python on each platform
 # (doppler#1817). `python3` rather than the venv: verify-version reads it
 # before anything installs uv, and the script runs on any Python >= 3.9.
-print-python-matrix: ## Print the supported Pythons as JSON (release.yml reads it from here)
+print-python-matrix: ## Print the supported Pythons as JSON (ci.yml and release.yml read it here)
 	@python3 scripts/python_versions.py --matrix
 
 lock: ## Re-lock uv.lock with the pinned uv (LOCK_CMD, the one spelling)

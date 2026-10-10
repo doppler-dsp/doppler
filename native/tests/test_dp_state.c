@@ -41,8 +41,9 @@
  * A generic fidelity check turns out to be three lines and needs no knowledge
  * of the object: **restore into `b`, re-serialize `b`, and compare the bytes
  * to `a`'s blob.** The standard already guarantees this is well defined —
- * a blob carries only the RUNNING fields, config is restored by `create()`,
- * and `b` is required to be "a fresh object of the same config" — so two
+ * a blob carries the running fields and every mutator's value, the config
+ * no mutator reaches is restored by `create()`, and `b` is required to be
+ * "a fresh object of the same config" — so two
  * objects in the same state must serialize identically. The macro now does
  * that, and this file proves the addition is what catches `NOOP_OK`.
  */

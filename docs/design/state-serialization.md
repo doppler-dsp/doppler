@@ -102,7 +102,7 @@ ______________________________________________________________________
 ## What goes in the blob — a mutator's value is state
 
 A blob holds everything the next sample depends on that `create()` cannot
-rebuild from its own arguments. Three rules decide each field (#2022):
+rebuild from its own arguments. Four rules decide each field (#2022):
 
 1. **Running state is packed:** a phase, a delay line, an accumulator, an
     RNG, a loop's integrator.
@@ -115,6 +115,8 @@ rebuild from its own arguments. Three rules decide each field (#2022):
     reject key:** `sf`, `sps`, a mode, a rate. `set_state` refuses a blob whose
     key differs from the target's. It decodes into a temporary, checks it
     whole, then commits, so a refused blob changes nothing.
+1. **A blob that gains a field bumps the object's `*_STATE_VERSION`,** so
+    a blob of the old layout is refused rather than read as the new one.
 
 A mutator whose value **sizes the blob** makes the blob target-sized: it
 restores only into a target the same mutator gave the same size.
@@ -141,34 +143,40 @@ these rules, with nothing to register.
 
 **What it finds:**
 
-- every writable property, from the manifests;
-- every method that writes the object and returns neither a stream nor a
-    value;
+- every public member of the class Python gets, wherever it was bound: a
+    writable property, and every method but the lifecycle (`reset`, `close`,
+    `destroy`, the state triplet). Nothing is called a reader for its return
+    type: a reader is a call the probe sees change nothing;
+- each member's signature, from the class's `.pyi` stub;
 - every C setter Python cannot call, from the headers.
 
-**How it probes each mutator.** It takes an instance and a feed from this
+**How it probes each member.** It takes an instance and a feed from this
 page's Python matrix (`test_state_serialization.CASES`). It picks values the
-mutator accepts and that change what the object does. It then restores one
-value's blob into a default target, a target at the same value, and targets
-at other values, including the values beside it. Every target that accepts
-the blob must then reproduce the source: its readback, its continuation
-output and its blob. That gives five verdicts:
+member accepts and that change what the object does. It then restores one
+value's blob into a default target, a target at the same value, targets at
+other values, and targets beside it: a scalar a hair either side, an array
+of the same length with other content. Every target that accepts the blob
+must then reproduce the source: its readback (every property), its
+continuation output and its blob. That gives these verdicts:
 
-| verdict            | meaning                                                                           |
-| ------------------ | --------------------------------------------------------------------------------- |
-| `TRAVELS`          | passes: the default target takes the blob and matches                             |
-| `KEYED`            | passes: the default target refuses it, and a same-key target takes it and matches |
-| `LOST`             | fails: a target took the blob and then differed                                   |
-| `UNPROBED`         | fails: no two values it could find changed anything                               |
-| `NONDETERMINISTIC` | fails: two identical builds differed                                              |
+| verdict            | meaning                                                                               |
+| ------------------ | ------------------------------------------------------------------------------------- |
+| `TRAVELS`          | passes: the default target and one at another value take the blob and match           |
+| `KEYED`            | passes: the default target refuses it, and the same-value target takes it and matches |
+| `READS`            | passes: a call that hands back a value and changes nothing                            |
+| `LOST`             | fails: a target took the blob and then differed                                       |
+| `UNPROBED`         | fails: the probe could not show it either way, and the list says why                  |
+| `NONDETERMINISTIC` | fails: two identical builds differed                                                  |
+| `CRASHES`          | fails: the probe kills the process, so a child process confirms it                    |
 
-**The list.** Anything that does not pass is listed in
+**The list.** Anything that does not pass is listed once in
 `scripts/.mutator-state-exempt`, with exactly its verdict and a reason. That
-list only shrinks: an entry that now passes, names no mutator, or carries
-another verdict is red. Two more verdicts appear only there. `C_ONLY` marks
-a setter with no Python face (a C-side twin is #2077). `NO_RECIPE` marks a
-class with no matrix row (#2078). Each family of known violations has its
-issue (#2079–#2084), and its fix deletes its own lines.
+list only shrinks. An entry that now passes, names no mutator, or carries
+another verdict is red, and `make tests-ssot` refuses a key the merge base
+did not hold. Two more verdicts appear only there. `C_ONLY` marks a setter
+with no Python face (a C-side twin is #2077). `NO_RECIPE` marks a class with
+no matrix row (#2078). Each family of known violations has its issue
+(#2079–#2084), and its fix deletes its own lines.
 
 ______________________________________________________________________
 

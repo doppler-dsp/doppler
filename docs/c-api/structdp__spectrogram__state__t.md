@@ -199,8 +199,7 @@ int dp_spectrogram_state_t::mode;
 
 
 
-DP\_SPECTROGRAM\_DB. 
- 
+DP\_SPECTROGRAM\_POWER or DP\_SPECTROGRAM\_DB. 
 
 
         

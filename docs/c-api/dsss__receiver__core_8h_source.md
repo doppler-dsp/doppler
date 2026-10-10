@@ -138,11 +138,11 @@ extern "C"
    * doesn't gate child presence here). `segments`/`sps`/`n` are the
    * layout key: set_state rejects a blob whose grid disagrees with the
    * live engine's, the same way ddc_extra_t's `rate` is checked before
-   * touching any child. `car_carry_len` sizes the variable-length carry
-   * buffer packed after `extra` (length-prefixed, 0..tsamps-1 samples) --
-   * losing it on resume would desync the carrier loop's period
-   * alignment, so it's part of the fixed-layout `extra` struct even
-   * though the buffer bytes themselves are variable-length. */
+   * touching any child. `car_carry_len` counts the live samples of the
+   * carrier carry, 0..tsamps-1 (steps processes a full period at once, so
+   * set_state refuses tsamps) -- losing it on resume would desync the
+   * carrier loop's period alignment. The carry region itself is packed
+   * LAST, at its fixed tsamps size: the live samples, then zeros. */
 
   typedef struct
   {

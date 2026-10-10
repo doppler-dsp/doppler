@@ -43,6 +43,7 @@
 #include "doppler/dp_complex.h"
 #include "doppler/wfm/wfm_dsp.h" /* dp_wfm_cont_dsss_chips: the wfmgen C API       */
 #include <math.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1200,12 +1201,33 @@ _test_carry_tail_is_zeros (void)
       memcpy (blob + cb - carry + i * sizeof re_im, re_im, sizeof re_im);
     }
   DP_CHECK (dp_async_dsss_receiver_set_state (rx, blob) == DP_OK);
+  /* The restore really put real samples in the buffer: a set_state that
+     read only car_carry_len samples would leave this test nothing to see. */
+  size_t dirty = 0;
+  for (size_t i = 0; i < carry; i++)
+    dirty += ((const unsigned char *)rx->car_carry_buf)[i] != 0;
+  DP_CHECK (dirty > 0);
   memset (back, 0xA5, cb);
   dp_async_dsss_receiver_get_state (rx, back);
   size_t nonzero = 0;
   for (size_t i = cb - carry; i < cb; i++)
     nonzero += back[i] != 0;
   DP_CHECK (nonzero == 0);
+
+  /* A live carry is 0..tsamps-1 samples, so a blob claiming tsamps is
+     refused (offsetof on the public extra, checked against the live value
+     before it is patched). */
+  const size_t at = sizeof (dp_state_hdr_t)
+                    + offsetof (async_dsss_receiver_extra_t, car_carry_len);
+  uint64_t     v;
+  memcpy (&v, blob + at, sizeof v);
+  DP_CHECK (v == 0);
+  v = rx->tsamps - 1;
+  memcpy (blob + at, &v, sizeof v);
+  DP_CHECK (dp_async_dsss_receiver_set_state (rx, blob) == DP_OK);
+  v = rx->tsamps;
+  memcpy (blob + at, &v, sizeof v);
+  DP_CHECK (dp_async_dsss_receiver_set_state (rx, blob) == DP_ERR_INVALID);
   free (blob);
   free (back);
   dp_async_dsss_receiver_destroy (rx);

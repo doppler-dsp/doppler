@@ -89,7 +89,10 @@
  *
  * Both the refine and track stages share ONE carrier-wipe scratch/carry
  * buffer set (`car_wiped_buf`/`car_carry_buf`/`car_carry_len`, sized
- * `tsamps = code_len*spc`) since they never run concurrently.
+ * `tsamps = code_len*spc`) since they never run concurrently. The carry
+ * holds 0..tsamps-1 live samples (a full period is processed at once, and
+ * set_state refuses tsamps); the blob packs its fixed tsamps region last,
+ * the live samples then zeros.
  *
  * @code
  * dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create(

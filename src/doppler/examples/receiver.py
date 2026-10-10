@@ -54,10 +54,13 @@ def frames_missing(last_seq: int, seq: int) -> int:
 
     The header's ``sequence`` counts frames per publisher from 0, so a jump
     forward from ``last_seq`` to ``seq`` skipped ``seq - last_seq - 1``
-    frames. A sequence that repeats or goes BACKWARDS skipped none: a
-    restarted publisher counts from 0 again, and a redelivery repeats a
-    number. Subtracting regardless added a negative to the dropped count
-    on every restart (#2017).
+    frames. A sequence that repeats or goes BACKWARDS skipped none. A SUB
+    socket's delivery is at-most-once (docs/design/streaming.md, section 9),
+    so no frame comes twice: a repeat or a backward step means the
+    publisher restarted, counting from 0 again, or a second publisher
+    shares the address. Subtracting regardless added a negative to the
+    dropped count on every restart (#2017). The C twin is
+    ``receiver_frames_missing`` in ``native/examples/receiver_seq.h``.
 
     Parameters
     ----------
@@ -81,6 +84,55 @@ def frames_missing(last_seq: int, seq: int) -> int:
     return seq - last_seq - 1 if seq > last_seq else 0
 
 
+class SequenceCount:
+    """The running dropped-frame count over a stream: what ``main()`` keeps
+    between frames. The C twin is ``receiver_seq_t`` and
+    ``receiver_seq_feed`` in ``native/examples/receiver_seq.h``.
+
+    The first frame anchors the count and adds nothing, so a receiver that
+    joins mid-stream (first frame 1,000,000) has dropped nothing yet. Each
+    later frame adds :func:`frames_missing` from the previous one and
+    becomes the anchor whichever way it moved: after a restart the count
+    follows the new numbering, so a gap there counts too.
+
+    ``dropped`` is a LOWER bound across a restart. The frames a restarting
+    publisher sent before it went down but after the last one received,
+    and any it sent after coming up but before the first one received,
+    leave no gap in either numbering, so nothing counts them.
+
+    Attributes
+    ----------
+    last : int or None
+        The previous frame's ``sequence``; None before the first frame.
+    dropped : int
+        The frames skipped so far.
+
+    Examples
+    --------
+    >>> count = SequenceCount()
+    >>> for seq in [7, 8, 9, 12, 0, 1, 3]:  # a gap, a restart, a gap
+    ...     count.feed(seq)
+    >>> count.dropped
+    3
+    """
+
+    def __init__(self) -> None:
+        self.last: int | None = None
+        self.dropped = 0
+
+    def feed(self, seq: int) -> None:
+        """Take one frame's ``sequence``.
+
+        Parameters
+        ----------
+        seq : int
+            The frame's header ``sequence``.
+        """
+        if self.last is not None:
+            self.dropped += frames_missing(self.last, seq)
+        self.last = seq
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=__doc__,
@@ -100,8 +152,7 @@ def main() -> None:
     total_samples = 0
     total_bytes = 0
     packet_count = 0
-    last_seq = None
-    dropped = 0
+    count = SequenceCount()
 
     # Throughput is measured from the FIRST frame, not from start-up: the
     # wait for a sender to appear is not part of the rate, and counting it
@@ -141,10 +192,10 @@ def main() -> None:
             if t_first_ns == 0:
                 t_first_ns = now
 
+            # Forward gaps only: a restarted publisher's sequence goes back
+            # to 0, which is not a drop (SequenceCount).
             seq = hdr.get("sequence", 0)
-            if last_seq is not None:
-                dropped += frames_missing(last_seq, seq)
-            last_seq = seq
+            count.feed(seq)
 
             sent = int(hdr.get("timestamp_ns", 0))
             lat_ms = (now - sent) / 1e6 if now > sent else 0.0
@@ -210,7 +261,7 @@ def main() -> None:
                 f"  Packets:      {packet_count}\n"
                 f"  Total:        {total_samples} samples "
                 f"({mb:.2f} MB in {secs:.1f} s)\n"
-                f"  Dropped:      {dropped}\n\n"
+                f"  Dropped:      {count.dropped}\n\n"
                 f"  First {show} samples:\n{sample_lines}\n\n"
                 f"Press Ctrl+C to stop."
             )

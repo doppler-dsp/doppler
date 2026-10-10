@@ -112,11 +112,10 @@ main (int argc, char *argv[])
           endpoint);
   fflush (stdout);
 
-  uint64_t total_samples = 0;
-  uint64_t total_bytes   = 0;
-  uint64_t packet_count  = 0;
-  uint64_t last_seq      = 0;
-  uint64_t dropped       = 0;
+  uint64_t       total_samples = 0;
+  uint64_t       total_bytes   = 0;
+  uint64_t       packet_count  = 0;
+  receiver_seq_t seq           = { 0 }; /* the dropped-frame count */
 
   /* Throughput is measured from the FIRST frame, not from start-up: the
      wait for a sender to appear is not part of the rate, and counting it
@@ -176,9 +175,7 @@ main (int argc, char *argv[])
 
       /* Forward gaps only: a restarted publisher's sequence goes back to
          0, which is not a drop (receiver_seq.h). */
-      if (packet_count > 1)
-        dropped += receiver_frames_missing (last_seq, hdr.sequence);
-      last_seq = hdr.sequence;
+      receiver_seq_feed (&seq, hdr.sequence);
 
       /* One call, whatever the wire carried: dp_msg_mean_power normalises
          the integer formats by full scale, so this is dBFS either way and
@@ -229,7 +226,7 @@ main (int argc, char *argv[])
       printf ("  Packets:      %lu\n", (unsigned long)packet_count);
       printf ("  Total:        %lu samples (%.2f MB in %.1f s)\n",
               (unsigned long)total_samples, mb, secs);
-      printf ("  Dropped:      %lu\n", (unsigned long)dropped);
+      printf ("  Dropped:      %lu\n", (unsigned long)seq.dropped);
       printf ("\n");
       print_samples (data, type, n);
       printf ("\nPress Ctrl+C to stop.\n");

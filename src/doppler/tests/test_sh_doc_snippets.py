@@ -104,7 +104,8 @@ _EXEC_ALLOWED = frozenset(
     }
 )
 
-_HEREDOC_RE = re.compile(r"<<-?\s*'?(?P<tag>\w+)'?")
+#: `$((...))` arithmetic: its `<<` is a shift, not a heredoc.
+_ARITHMETIC = re.compile(r"\$\(\((?:[^()]|\([^()]*\))*\)\)")
 
 #: A target line in ``make help``: two-space indent, the name, then the
 #: description column. Section headers (``Core:``, ``Lint:``) sit at column
@@ -220,7 +221,7 @@ def _discover_pages() -> list[Path]:
 
 
 #: Words that end one simple command and start the next.
-_SEPARATORS = frozenset({"|", "||", "&&", ";", "&"})
+_SEPARATORS = frozenset({"|", "|&", "||", "&&", ";", "&"})
 #: A leading ``NAME=value`` environment assignment, not a command.
 _ASSIGNMENT = re.compile(r"[A-Za-z_]\w*=")
 
@@ -238,13 +239,13 @@ def _simple_commands(line: str) -> list[list[str]]:
     first word is the command that runs. Raises ``ValueError`` on an
     unbalanced quote.
 
-    Not seen, by construction: a command inside ``$(...)`` or backticks.
+    Group closers (``}``, ``)``) are not commands.
+
+    Not seen, by construction: a command inside ``$(...)``, backticks or a
+    process substitution ``<(...)``.
     """
-    lex = shlex.shlex(line, posix=True, punctuation_chars=True)
-    lex.whitespace_split = True
-    lex.commenters = "#"
     commands: list[list[str]] = [[]]
-    for word in lex:
+    for word in _tokens(line):
         if word in _SEPARATORS:
             commands.append([])
         else:
@@ -255,9 +256,33 @@ def _simple_commands(line: str) -> list[list[str]]:
             words[0] in ("!", "(", "{") or _ASSIGNMENT.match(words[0])
         ):
             words = words[1:]
+        while words and words[-1] in (")", "}"):
+            words = words[:-1]
         if words:
             out.append(words)
     return out
+
+
+def _tokens(line: str) -> list[str]:
+    """Shell words and operators, quotes removed, comments dropped."""
+    lex = shlex.shlex(line, posix=True, punctuation_chars=True)
+    lex.whitespace_split = True
+    lex.commenters = "#"
+    return list(lex)
+
+
+def _heredoc_tag(line: str) -> str | None:
+    """The delimiter a line's heredoc ends on, or None.
+
+    Read from shell tokens, so a quoted ``"<<"`` and the shift in
+    ``$((1 << 4))`` are not heredocs, and ``<<"EOF"``, ``<<'EOF'`` and
+    ``<<-EOF`` all are. Mistaking one hid every line after it.
+    """
+    words = _tokens(_ARITHMETIC.sub("0", line))
+    for i, word in enumerate(words[:-1]):
+        if word in ("<<", "<<-"):
+            return words[i + 1].removeprefix("-")
+    return None
 
 
 def _quote_open(line: str) -> bool:
@@ -273,12 +298,14 @@ def _quote_open(line: str) -> bool:
     return False
 
 
-def _command_lines(code: str, console: bool) -> list[str]:
-    """Extract the command lines from a fence body.
+def _command_spans(code: str, console: bool) -> list[tuple[str, int, int]]:
+    """The command lines of a fence, each with the raw lines it spans.
 
     Skips comments, blank lines, and heredoc bodies; joins backslash
     continuations. In ``console`` fences only ``$ ``-prefixed lines are
-    commands (the rest is displayed output).
+    commands (the rest is displayed output). Each entry is the logical
+    line and the first and last index (0-based) of the raw lines it came
+    from, so the executed script can be rewritten in place.
 
     A quoted string left open on one line continues onto the next, so a
     multi-line ``python3 -c "..."`` is ONE command whose argument keeps its
@@ -288,12 +315,12 @@ def _command_lines(code: str, console: bool) -> list[str]:
     raises ``ValueError`` naming the line it opened on, rather than take
     every line after it as one argument.
     """
-    lines: list[str] = []
+    spans: list[tuple[str, int, int]] = []
     heredoc_end: str | None = None
     pending = ""
+    first = 0
     in_quote = False
-    opened = 0
-    for n, raw in enumerate(code.splitlines(), 1):
+    for n, raw in enumerate(code.splitlines()):
         if heredoc_end is not None:
             if raw.strip() == heredoc_end:
                 heredoc_end = None
@@ -316,21 +343,28 @@ def _command_lines(code: str, console: bool) -> list[str]:
             if pending:
                 line = pending + " " + line
                 pending = ""
+            else:
+                first = n
         if line.endswith("\\"):
             pending = line[:-1].strip()
             continue
         if _quote_open(line):
-            pending, in_quote, opened = line, True, n
+            pending, in_quote = line, True
             continue
-        m = _HEREDOC_RE.search(line)
-        if m:
-            heredoc_end = m.group("tag")
-        lines.append(line)
+        heredoc_end = _heredoc_tag(line)
+        spans.append((line, first, n))
     if in_quote:
-        raise ValueError(f"a quote opened on fence line {opened} never closes")
+        raise ValueError(
+            f"a quote opened on fence line {first + 1} never closes"
+        )
     if pending:
-        lines.append(pending)
-    return lines
+        spans.append((pending, first, len(code.splitlines()) - 1))
+    return spans
+
+
+def _command_lines(code: str, console: bool) -> list[str]:
+    """The command lines of a fence; see :func:`_command_spans`."""
+    return [line for line, _, _ in _command_spans(code, console)]
 
 
 def _validate_cli_line(line: str, blockid: str, make_dir: Path = REPO) -> None:
@@ -426,6 +460,72 @@ def _unlisted(cmd_lines: list[str]) -> list[str]:
     )
 
 
+def _unchecked(line: str) -> str | None:
+    """Why ``bash -e`` would not see a failure on this line, or None.
+
+    `-e` ignores a failure in any command before the last `&&`/`||` of a
+    list, and in a `!`-negated one. A line that leans on either can show
+    a broken command and still pass. `!` at the START of a line is fine:
+    :func:`_checked_script` runs it in a checked form.
+    """
+    words = _tokens(line)
+    if "&&" in words or "||" in words:
+        return (
+            "a command before && or || can fail without failing the fence "
+            "(bash -e ignores it). Put each command on its own line; for "
+            "an expected failure, put `! cmd` on its own line"
+        )
+    if "!" in words[1:]:
+        return (
+            "a `!` the gate cannot run in a checked form. Put `! cmd` on "
+            "its own line"
+        )
+    return None
+
+
+def _strip_comment(line: str) -> str:
+    """``line`` without a trailing unquoted shell comment."""
+    quote = ""
+    for i, c in enumerate(line):
+        if quote:
+            if c == quote:
+                quote = ""
+        elif c in "'\"":
+            quote = c
+        elif c == "#" and (i == 0 or line[i - 1].isspace()):
+            return line[:i].rstrip()
+    return line
+
+
+def _negation(line: str) -> str:
+    """``! cmd`` as ``if cmd; then exit 1; fi``; any other line as is.
+
+    `bash -e` does not stop on a `!`-negated command, so an expected
+    failure written `! cmd` that started succeeding would pass. As an
+    `if`, it fails the fence.
+    """
+    if _tokens(line)[:1] != ["!"]:
+        return line
+    return f"if {_strip_comment(line.lstrip()[1:].strip())}; then exit 1; fi"
+
+
+def _checked_script(
+    code: str, spans: list[tuple[str, int, int]], console: bool
+) -> str:
+    """The fence as it is run, with every `! cmd` line checked.
+
+    A console fence runs its command lines; an sh/bash fence runs its raw
+    text (heredoc bodies included), each `!` line's raw span replaced.
+    """
+    if console:
+        return "\n".join(_negation(line) for line, _, _ in spans)
+    raw = code.splitlines()
+    for line, first, last in reversed(spans):
+        if _tokens(line)[:1] == ["!"]:
+            raw[first : last + 1] = [_negation(line)]
+    return "\n".join(raw)
+
+
 def _check_fence(
     code: str,
     blockid: str,
@@ -444,20 +544,21 @@ def _check_fence(
     """
     console = code.lstrip().startswith("$")
     try:
-        cmd_lines = _command_lines(code, console=console)
-    except ValueError as e:
+        spans = _command_spans(code, console=console)
+        cmd_lines = [line for line, _, _ in spans]
+        for line in cmd_lines:
+            _validate_cli_line(line, blockid, make_dir)
+        executed = not no_exec and _executable(code, cmd_lines, console)
+        unlisted = _unlisted(cmd_lines) if executed else []
+    except ValueError as e:  # an unbalanced quote or a dangling `\`
         raise AssertionError(
             f"{blockid}: {e}\n--- fence ---\n{code}"
         ) from None
 
-    for line in cmd_lines:
-        _validate_cli_line(line, blockid, make_dir)
-
-    if no_exec or not _executable(code, cmd_lines, console):
+    if not executed:
         return len(cmd_lines)
     # A fence the gate would run, but for a command it does not know, is
     # not run; it fails here rather than pass (#1787).
-    unlisted = _unlisted(cmd_lines)
     assert not unlisted, (
         f"{blockid}: this fence would execute, but it runs "
         f"{', '.join(unlisted)}, which is not in _EXEC_ALLOWED. Unexecuted, "
@@ -465,10 +566,32 @@ def _check_fence(
         f"_EXEC_ALLOWED if it is read-only and needs no network, or mark the "
         f"fence <!-- docs-snippet: no-exec=REASON -->.\n--- fence ---\n{code}"
     )
+    for line in cmd_lines:
+        why = _unchecked(line)
+        assert why is None, (
+            f"{blockid}: {why}.\n  {line}\n--- fence ---\n{code}"
+        )
+    # A fence that runs wfmgen needs a wfmgen that runs, checked BEFORE the
+    # run: afterwards is too late, because an expected failure (`! wfmgen`)
+    # is satisfied by "command not found" and the fence passes, so a
+    # post-mortem check never fires.
+    if any(
+        cmd[0] == "wfmgen"
+        for line in cmd_lines
+        for cmd in _simple_commands(line)
+    ):
+        assert _wfmgen_works(), (
+            f"{blockid}: this fence runs `wfmgen`, and `wfmgen --help` "
+            f"does not succeed here, so nothing it shows can be checked. "
+            f"The execution half of this gate runs the real binary.\n"
+            f"  wfmgen resolves to: {_wfmgen()}\n"
+            f"  Build first:  make pyext   (or: make build)\n"
+            f"--- fence ---\n{code}"
+        )
     # Console fences carry displayed output -- execute only the stripped
     # command lines. sh/bash fences run verbatim (they may contain heredocs
-    # the line extractor elides).
-    body = "\n".join(cmd_lines) if console else code
+    # the line extractor elides), `! cmd` lines in a checked form.
+    body = _checked_script(code, spans, console)
     # Absolute-ify repo-relative paths so the fence runs from the shared
     # throwaway cwd without touching the repo.
     script = scripts / "fence.sh"
@@ -487,8 +610,10 @@ def _check_fence(
     # timeout kills only bash itself, and an orphaned grandchild (a wfmgen
     # that turned out to stream) would keep writing forever -- this exact
     # leak once filled /tmp with 8 GB of IQ.
+    # -o pipefail: without it a pipeline's status is its LAST command's,
+    # and a failing producer (`wfmgen ... | cat`) passes.
     proc = subprocess.Popen(
-        ["bash", "-e", str(script)],
+        ["bash", "-e", "-o", "pipefail", str(script)],
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -505,20 +630,8 @@ def _check_fence(
             f"killed):\n--- fence ---\n{code}"
         ) from None
     stderr = err_b.decode(errors="replace")
-    if proc.returncode != 0 and not _wfmgen_works():
-        raise AssertionError(
-            f"{blockid}: this fence runs `wfmgen`, and `wfmgen "
-            f"--help` does not succeed here — so nothing on this "
-            f"page was actually checked. The execution half of "
-            f"this gate runs the real binary; an unbuilt tree "
-            f"cannot check it, and reports a correct documented "
-            f"flag as broken.\n"
-            f"  wfmgen resolves to: {_wfmgen()}\n"
-            f"  Build first:  make pyext   (or: make build)\n"
-            f"--- fence ---\n{code}"
-        )
     assert proc.returncode == 0, (
-        f"{blockid} failed under bash -e (exit "
+        f"{blockid} failed under bash -e -o pipefail (exit "
         f"{proc.returncode}), wfmgen={_wfmgen()}:"
         f"\n--- fence ---\n{code}\n"
         f"--- stderr (tail) ---\n{stderr[-2000:]}"
@@ -673,8 +786,88 @@ def test_a_multi_line_python_string_runs_as_one_command(
 def test_a_stdin_reader_does_not_swallow_the_rest(tmp_path: Path) -> None:
     """On bash's stdin, `cat` would read the next line as data and pass.
 
-    From a script file with stdin closed, `cat` sees EOF, the failing `ls`
+    From a script file with stdin closed, `cat` sees EOF, the failing line
     runs, and the fence fails as it should.
     """
-    with pytest.raises(AssertionError, match="exit 2"):
-        _gate("cat\nls /no/such/path", tmp_path)
+    code = "cat\npython3 -c 'import sys; sys.exit(4)'"
+    with pytest.raises(AssertionError, match="exit 4"):
+        _gate(code, tmp_path)
+
+
+def test_a_negated_command_that_succeeds_fails_the_fence(
+    tmp_path: Path,
+) -> None:
+    """`bash -e` ignores `!`; the gate runs `! cmd` as `if cmd; exit 1`.
+
+    Here a == a, so `cmp` succeeds and the documented failure did not
+    happen. Plain `bash -e` passed this.
+    """
+    code = "printf a > a\n! cmp -s a a\ncat a"
+    with pytest.raises(AssertionError, match="exit 1"):
+        _gate(code, tmp_path)
+
+
+def test_a_negation_keeps_its_comment_out_of_the_check(
+    tmp_path: Path,
+) -> None:
+    code = "printf a > a\nprintf b > b\n! cmp -s a b   # they differ\ncat a"
+    assert _gate(code, tmp_path) == 4
+
+
+@pytest.mark.parametrize(
+    "line",
+    ["cat a && cat b", "cat a || cat b", "cat a; ! cat b"],
+    ids=["and", "or", "mid-line-bang"],
+)
+def test_a_list_bash_e_cannot_see_is_refused(
+    line: str, tmp_path: Path
+) -> None:
+    with pytest.raises(AssertionError, match="own line"):
+        _gate(f"cat /dev/null\n{line}", tmp_path)
+
+
+def test_a_failing_producer_in_a_pipeline_fails(tmp_path: Path) -> None:
+    """-o pipefail: without it the pipeline's status is `cat`'s."""
+    with pytest.raises(AssertionError, match="exit 1"):
+        _gate("cat /no/such/file | cat", tmp_path)
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "cat /dev/null |& cat",
+        "{ cat /dev/null; }",
+        'cat > f <<"EOF"\nxxd is data here\nEOF\ncat f',
+        "cat > f <<-EOF\nxxd is data here\nEOF\ncat f",
+    ],
+    ids=["pipe-stderr", "braces", "quoted-heredoc", "dash-heredoc"],
+)
+def test_shell_syntax_the_gate_reads(code: str, tmp_path: Path) -> None:
+    _gate(code, tmp_path)
+
+
+@pytest.mark.parametrize(
+    "line",
+    ['python3 -c "print(1 << 4)"', "printf '%d\\n' $((1 << 4))"],
+    ids=["quoted-shift", "arithmetic"],
+)
+def test_a_shift_is_not_a_heredoc(line: str, tmp_path: Path) -> None:
+    """Read as a heredoc, the `<<` hid the unlisted `xxd` after it."""
+    with pytest.raises(AssertionError, match="runs xxd"):
+        _gate(f"cat /dev/null\n{line}\nxxd /dev/null", tmp_path)
+
+
+def test_a_dangling_continuation_names_its_fence(tmp_path: Path) -> None:
+    with pytest.raises(AssertionError, match=r"^seeded: "):
+        _gate('cat /dev/null\npython3 -c "print(1) \\', tmp_path)
+
+
+def test_wfmgen_is_checked_before_the_fence_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Checked after, `! wfmgen ...` passed on "command not found"."""
+    monkeypatch.setattr(
+        "doppler.tests.test_sh_doc_snippets._wfmgen_works", lambda: False
+    )
+    with pytest.raises(AssertionError, match="does not succeed here"):
+        _gate("! wfmgen --no-such-flag", tmp_path)

@@ -122,8 +122,8 @@ the caller's job. See [Checkpoint & Resume](state-serialization.md).
 - **Not a detector.** It stops at the row.
 - **Not a transport.** It never learns where its samples came from.
 
-The design, its goals and what it costs (36 MSa/s on one core at `nfft`
-1024 and `hop` 256, three quarters of it the dB conversion) are on
+The design, its goals and what it costs (about 36 MSa/s on one core at
+`nfft` 1024 and `hop` 256, three quarters of it the dB conversion) are on
 [the design page](../design/spectrogram.md); the carry is the
 [ring buffer's framed face](../design/ring-buffer.md); every function's
 contract, with an example, is the

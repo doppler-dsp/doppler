@@ -62,18 +62,21 @@ rather than confirms (all six are now answered, in the record's §5.4 to §5.9):
     sample: at most 3.3% of a sample's cost at any `nfft` from 256 to 65536
     and `hop` of `nfft`/4 or `nfft`, under the 5% that would have justified a
     second path.
-- **U2 — row latency. ANSWERED (§5.7).** None in samples: a row comes back
-    with the push that delivers its last sample. In time, a push costs
-    `c_s + c_p/C` per sample, with a 4.6 ns per-push overhead, so chunks of 1
-    cost 17% more than one block and from 256 samples on the chunk size is
-    invisible. Measured at `hop` 256 only.
-- **U3 — where a row's time goes. ANSWERED (§5.8): the logarithm
-    dominates.** The dB conversion is 70–83% of a row, at about 5.3 ns per
-    bin. The FFT is 12–24%. Whether a cheaper logarithm or power-first rows
+- **U2 — row latency. ANSWERED at `hop` 256 only (§5.7).** None in samples:
+    a row comes back with the push that delivers its last sample. In time, a
+    push costs `c_s + c_p/C` per sample, with a 4.6 ns per-push overhead, so
+    chunks of 1 cost 17% more than one block and from 256 samples on the
+    chunk size is invisible. U2 against `hop` waits on the bench's row cap
+    (#2062).
+- **U3 — where a row's time goes. ANSWERED (§5.8): the dB conversion
+    dominates.** It is 70–83% of a row, at about 5.3 ns per bin: a divide, a
+    clamp, a double `log10` and a cast, which the bench does not separate.
+    The FFT is 12–24%. Whether a cheaper conversion or power-first rows
     should change the default is #2074.
 - **U4 — rows per second one core sustains. ANSWERED (§5.9).** At `nfft`
-    1024 and `hop` 256, about 140,000 rows per second, a 36 MSa/s stream, on
-    one core of the fastest class. A 10 MSa/s stream takes 28% of it.
+    1024 and `hop` 256, about 141,000 rows per second (±4%), a 36 MSa/s
+    stream, on one core of the fastest class. A 10 MSa/s stream takes 28% of
+    it.
 - **U5 — the dB floor. ANSWERED (§5.4).** A dB row reads no lower than
     −200 dB per bin: a tone under that, and an all-zero frame, give the same
     row. Wideband noise reaches it about `10·log10(nfft)` sooner, and float
@@ -220,10 +223,10 @@ method and its caveats are in the record under the same number.
 - **§5.6** — The carry's copy is 0.2–3.3% of a sample's cost, so it gets
     no bypass.
 - **§5.7** — No row latency in samples. In time, a 4.6 ns per-push
-    overhead makes chunks of 1 cost 17% more than one block.
-- **§5.8** — The dB conversion's `log10` is 70–83% of a row (#2074).
-- **§5.9** — One core sustains 36 MSa/s at `nfft` 1024 and `hop` 256, which
-    is about 140,000 rows per second.
+    overhead makes chunks of 1 cost 17% more than one block, at `hop` 256.
+- **§5.8** — The dB conversion is 70–83% of a row (#2074).
+- **§5.9** — One core sustains about 36 MSa/s at `nfft` 1024 and `hop`
+    256, about 141,000 rows per second (±4%).
 
 The framer's cost against the hand-written loop is a property of the ring, and
 is recorded with it in [the ring's measurements](ring-buffer-measurements.md).

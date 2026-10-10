@@ -239,11 +239,17 @@ void dp_doppler_channel_reset(dp_doppler_channel_state_t *state);
 /** @brief Bytes dp_doppler_channel_get_state() writes (envelope + payload). */
 size_t dp_doppler_channel_state_bytes(const dp_doppler_channel_state_t *state);
 
-/** @brief Serialize the running state (both clocks + the resampler's). */
+/** @brief Serialize the running state: both sample clocks, the profile's last
+ *         `d` and whether a profile has driven the stream, then the
+ *         resampler's. */
 void dp_doppler_channel_get_state(const dp_doppler_channel_state_t *state, void *blob);
 
 /**
  * @brief Restore a blob written by dp_doppler_channel_get_state().
+ *
+ * A refused blob leaves the channel unchanged: the channel's own fields are
+ * decoded first and written only once the resampler has accepted its part
+ * (doppler#2104).
  * @return DP_OK, or DP_ERR_INVALID if the envelope or a child blob is rejected.
  */
 int dp_doppler_channel_set_state(dp_doppler_channel_state_t *state, const void *blob);

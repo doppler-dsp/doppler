@@ -146,13 +146,15 @@ dp_detector_reset (dp_detector_state_t *state)
 
 /* Serializable state — the corr child (restored, not reset) + the framer's
  * carry as its own child blob (fixed-size for a given n, and self-validating)
- * + the last-dump result fields. consumed is per-call output, not state. */
+ * + the last-dump result fields. consumed is per-call output, not state,
+ * and so is the last surface (out_buf): last_corr is None until the next
+ * dump, as after reset. */
 size_t
 dp_detector_state_bytes (const dp_detector_state_t *s)
 {
   return sizeof (dp_state_hdr_t) + dp_corr_state_bytes (s->corr)
          + dp_f32_framer_state_bytes (&s->framer) + sizeof (uint64_t)
-         + 3 * sizeof (float) + sizeof (uint32_t);
+         + 3 * sizeof (float);
 }
 
 void
@@ -166,7 +168,6 @@ dp_detector_get_state (const dp_detector_state_t *s, void *blob)
   dp_w_f32 (&_w, &s->peak_mag, 1);
   dp_w_f32 (&_w, &s->noise_est, 1);
   dp_w_f32 (&_w, &s->test_stat, 1);
-  dp_w_u32 (&_w, (uint32_t)s->_last_corr_valid);
 }
 
 int
@@ -180,7 +181,8 @@ dp_detector_set_state (dp_detector_state_t *s, const void *blob)
   dp_r_f32 (&_r, &s->peak_mag, 1);
   dp_r_f32 (&_r, &s->noise_est, 1);
   dp_r_f32 (&_r, &s->test_stat, 1);
-  s->_last_corr_valid = (int)dp_r_u32 (&_r);
+  /* out_buf is not carried, so there is no last surface to view. */
+  s->_last_corr_valid = 0;
   s->consumed         = 0;
   return DP_OK;
 }
@@ -200,64 +202,38 @@ dp_detector_set_threshold (dp_detector_state_t *state, float threshold)
 
 /* ── Stream push ────────────────────────────────────────────────────────── */
 
+/* One frame of dp_detector_push(), the step det_framed_push() drives:
+   correlate, and on a dump that passes the gate write ONE result. */
+static int
+detector_step (void *obj, const float _Complex *frame, void *result,
+               size_t slot)
+{
+  dp_detector_state_t *state = (dp_detector_state_t *)obj;
+  size_t n_out = dp_corr_execute (state->corr, frame, state->n, state->out_buf,
+                                  state->n);
+  if (n_out == 0)
+    return 0; /* still accumulating — no dump yet */
+
+  state->_last_corr_valid = 1;
+  detector_compute_stat (state);
+
+  if (state->threshold == 0.0f || state->test_stat > state->threshold)
+    {
+      ((det_result_t *)result)[slot]
+          = (det_result_t){ state->peak_lag, state->peak_mag, state->noise_est,
+                            state->test_stat };
+      return 1;
+    }
+  return 0;
+}
+
 size_t
 dp_detector_push (dp_detector_state_t *state, const float _Complex *in,
                   size_t n_in, det_result_t *result, size_t max_results)
 {
-  size_t ndet = 0;
-  size_t off  = 0; /* samples taken from in[] */
-
-  /* A frame yields at most one detection, so the framer is fed only what
-   * completes as many frames as result still has room for -- and once it
-   * is full, only what completes none: the carry. A sample is therefore
-   * taken unless it would complete a frame result has no room for; that
-   * sample and every one after it are left for the caller, who resumes at
-   * in + dp_detector_consumed(). Feeding the whole room at once rather than
-   * a frame at a time stops at the same sample (each fed frame can take at
-   * most one slot) with one copy per batch instead of one per frame. Every
-   * frame fed is drained before the next feed, so the framer is drained
-   * whenever this returns: the carry is fewer than n samples and the state
-   * blob has a fixed size. */
-  for (;;)
-    {
-      /* max_frames = the slots left is EXACT only because (a) a frame emits
-       * at most one det_result_t -- one dump, one result, below -- and (b)
-       * the inner loop drains every frame fed before feeding again. Break
-       * either and this overfills result or strands whole frames in the
-       * framer. acq breaks (a): a dump reports up to max_peaks peaks, and
-       * acq_report_peaks truncates the dwell's list to the room left. So
-       * acq may admit a frame that can dump only while the room left is
-       * at least max_peaks -- neither this batch nor one frame at a time
-       * is enough there. */
-      if (off < n_in)
-        off += dp_f32_framer_feed_view (&state->framer, in + off, n_in - off,
-                                        max_results - ndet);
-      size_t                drained = 0;
-      const float _Complex *frame; /* into the ring, contiguous across wrap */
-      while ((frame = dp_f32_framer_next_view (&state->framer)) != NULL)
-        {
-          drained++;
-          size_t n_out = dp_corr_execute (state->corr, frame, state->n,
-                                          state->out_buf, state->n);
-          if (n_out == 0)
-            continue; /* still accumulating — no dump yet */
-
-          state->_last_corr_valid = 1;
-          detector_compute_stat (state);
-
-          if (state->threshold == 0.0f || state->test_stat > state->threshold)
-            {
-              result[ndet++]
-                  = (det_result_t){ state->peak_lag, state->peak_mag,
-                                    state->noise_est, state->test_stat };
-            }
-        }
-      if (!drained)
-        break; /* the input is used up, or the next frame has no room */
-    }
-
-  state->consumed = off;
-  return ndet;
+  /* The drain, its contract and why a batch is exact: det_private.h. */
+  return det_framed_push (&state->framer, state->n, in, n_in, result,
+                          max_results, detector_step, state, &state->consumed);
 }
 
 size_t

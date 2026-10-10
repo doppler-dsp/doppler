@@ -114,7 +114,10 @@ JM_FORCEINLINE double
 dp_fmod_pos (double x, double m)
 {
   double r = fmod (x, m);
-  return r < 0.0 ? r + m : r;
+  if (r >= 0.0)
+    return r;
+  double y = r + m;
+  return y < m ? y : 0.0;
 }
 
 double dp_lgamma (double x);

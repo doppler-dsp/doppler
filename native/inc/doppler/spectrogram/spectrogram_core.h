@@ -23,8 +23,8 @@
  * to resume.
  *
  * Not thread-safe on one object (the kernel uses the object's scratch).
- * Complex float32 input only. The design, its goals and what is still
- * unmeasured are docs/design/spectrogram.md.
+ * Complex float32 input only. The design, its goals and what it costs are
+ * docs/design/spectrogram.md.
  */
 #ifndef DP_SPECTROGRAM_CORE_H
 #define DP_SPECTROGRAM_CORE_H

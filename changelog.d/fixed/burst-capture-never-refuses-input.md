@@ -5,4 +5,6 @@
     was refused. `push()` now writes what fits and loops, a detection whose
     history is gone is swept and counted in `dropped`, and a checkpoint
     carries the whole ring, so a resume emits what the live capture would.
-    State blobs move to version 5 (#2015, #2028).
+    `set_state()` checks a blob whole before writing anything, so a refused
+    one leaves the capture as it was. State blobs move to version 5 (#2015,
+    #2028).

@@ -674,7 +674,7 @@ size_t dp_burst_capture_state_t::q_cap;
 
 
 
-DERIVED, not a constant. Entries sit at least `refine_span` apart within `retain_span` of the head, so the count scales with burst\_len/refine\_span  about 1 at a short-burst test geometry but 5.5x at a real link. A fixed 8 silently dropped the hit AND the rest of the batch on anything else. 
+DERIVED, not a constant. Entries sit about `refine_span` apart inside the history trim keeps, so the count scales with burst\_len/refine\_span  about 1 at a short-burst test geometry but 5.5x at a real link. A fixed 8 silently dropped the hit AND the rest of the batch on anything else. 
  
 
 

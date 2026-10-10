@@ -150,8 +150,8 @@ Silence decodes nothing (**True**) — the control that stops every other row pa
 
 | what | value |
 |---|---|
-| state_bytes, fresh receiver | 136000 |
-| state_bytes, mid-preamble | 136000 |
+| state_bytes, fresh receiver | 134920 |
+| state_bytes, mid-preamble | 134920 |
 | resumed into a fresh instance, decoded | True |
 | clobbered envelope rejected | True |
 

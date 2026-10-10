@@ -62,10 +62,9 @@
 /**
  * @brief Detections collected from acquisition per batch.
  *
- * A BATCHING parameter, never a correctness one: push() loops until acq has
- * absorbed the whole chunk, so a smaller array means more iterations and
- * nothing else. Growing it to "be safe" would hide the fact that dp_acq_push()
- * stops once its result array is full and abandons the rest of its input.
+ * A BATCHING parameter, never a correctness one: push() keeps looping until
+ * acq has absorbed the whole chunk, offering it the rest again after every
+ * call, so a smaller array means more iterations and nothing else.
  */
 #define BURST_CAPTURE_HITS 16u
 
@@ -93,9 +92,10 @@
 
 /** @brief State blob magic — a wrong blob is rejected, not reinterpreted. */
 #define BURST_CAPTURE_STATE_MAGIC DP_FOURCC ('B', 'C', 'A', 'P')
-/** @brief State blob layout version. 5: `dropped` counts abandoned look-back,
- *  not refused input (doppler#2015), so a v4 blob's count means something
- *  else and is refused rather than carried over. */
+/** @brief State blob layout version. 5: the blob carries the whole ring, and
+ *  `dropped` counts look-back discarded while a burst still needed it, not
+ *  refused input (doppler#2015), so a v4 blob is refused rather than carried
+ *  over. */
 #define BURST_CAPTURE_STATE_VERSION 5u
 
 #ifdef __cplusplus
@@ -317,14 +317,16 @@ typedef struct
                             (doppler#1181).                                 */
 
   /* ── Detections in flight ────────────────────────────────────────────
-   * In ANCHOR ORDER, which set_state() checks. An unshadowed detection whose
-   * window has arrived is emitted before push() returns, except one a
-   * release() gave back after it, which the next push emits first; a
-   * detection whose history is gone is swept, counted in `dropped`. That is
-   * what bounds retention (see the trim rule in the implementation). */
+   * In ANCHOR ORDER, which set_state() checks, and emitted in that order:
+   * an unshadowed detection whose window has arrived is emitted before
+   * push() returns unless one queued ahead of it has not arrived, and one a
+   * release() gave back after the push is emitted by the next push first. A
+   * detection whose history is gone is swept, counted in `dropped` unless
+   * it was shadowed. That is what bounds retention (see the trim rule in the
+   * implementation). */
   burst_capture_pending_t *q; /**< Detections, anchor order; `q_cap` long.  */
-  size_t q_cap;   /**< DERIVED, not a constant. Entries sit at least
-                       `refine_span` apart within `retain_span` of the head,
+  size_t q_cap;   /**< DERIVED, not a constant. Entries sit about
+                       `refine_span` apart inside the history trim keeps,
                        so the count scales with burst_len/refine_span --
                        about 1 at a short-burst test geometry but 5.5x at a
                        real link. A fixed 8 silently dropped the hit AND the
@@ -513,18 +515,21 @@ dp_burst_capture_state_t *dp_burst_capture_create (
  * Two things follow, and they are the reason to reach for this constructor:
  *
  * - **The blob stops carrying the look-back.** For an in-RAM capture the
- *   retained history IS the blob (measured 2026-09-24: 2.73 MB at a
- *   1029-symbol frame, 16.84 MB at 8029). Backed, `state_bytes()` is a few hundred bytes plus
- *   the acquisition child, because the samples are already durable and the
- *   blob only has to name where in the ring they sit.
+ *   retained history IS the blob (measured 2026-10-10: 8.47 MB at a
+ *   1029-symbol frame, 33.64 MB at 8029). Backed, `state_bytes()` is the
+ *   detection queue plus the acquisition child (83-88 kB there), because the
+ *   samples are already durable and the blob only has to name where in the
+ *   ring they sit.
  * - **The history outlives the process.** Point a new capture at the same
  *   path and the samples are there; restore the blob and it reaches back
  *   across the restart into a burst that began before it.
  *
- * The file is created if absent and truncated to the ring's byte size, which
- * zeroes it. An existing file of exactly that size is adopted as it stands.
- * Because the capacity rounds up to a page, that size is
- * `capacity * sizeof(float _Complex)` — do not compute it from `burst_len`.
+ * The file is created if absent and truncated to the ring's mapped size,
+ * which zeroes it. An existing file of exactly that size is adopted as it
+ * stands. That size is the capacity in bytes,
+ * `capacity * sizeof(float _Complex)`, rounded up to a whole page -- do not
+ * compute it from `burst_len`. The blob saves exactly the capacity in bytes;
+ * on a large-page system the file can be bigger.
  *
  * A blob from a backed capture does NOT restore into an in-RAM one, or the
  * reverse: `state_bytes()` differs, so jm's length check rejects it. That is
@@ -560,10 +565,12 @@ dp_burst_capture_state_t *dp_burst_capture_create (
  * ...                             reps=4, fs=2e6)
  * >>> ram = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
  * >>> _ = cap.push(np.zeros(4096, dtype=np.complex64))
- * >>> # the look-back is in the file, so the blob stops carrying it
- * >>> ram.state_bytes() - cap.state_bytes() == os.path.getsize(path)
+ * >>> # the look-back is in the file, so the blob stops carrying the
+ * >>> # ring: twice retain_span rounded up to a power of two, 8 B a sample
+ * >>> ring = 1 << (2 * ram.retain_span - 1).bit_length()
+ * >>> ram.state_bytes() - cap.state_bytes() == ring * 8
  * True
- * >>> os.path.getsize(path) > 0
+ * >>> os.path.getsize(path) >= ring * 8   # rounded up to a page
  * True
  * @endcode
  */
@@ -619,9 +626,11 @@ size_t dp_burst_capture_push_max_out (dp_burst_capture_state_t *state,
  * It aborts the process in two places, both a defect in this object and
  * neither reachable from any input or from any blob set_state() accepts: a
  * history ring with no room after trim (the bound in the implementation's
- * trim proves room), and an acquisition call that neither wrote, framed nor
- * reported a hit (its ring always holds a frame). Each stops rather than
- * spinning forever -- and in a Python host it ends the interpreter.
+ * trim proves room), and an acquisition call that took nothing while input
+ * was left (each call starts with its result empty, and a push with its
+ * result empty takes at least the next frame, or the rest as carry). Each
+ * stops rather than spinning forever -- and in a Python host it ends the
+ * interpreter.
  *
  * @param state    Capture.
  * @param x        Input samples, @p x_len long.
@@ -847,6 +856,10 @@ void dp_burst_capture_get_state (const dp_burst_capture_state_t *state, void *bl
 /**
  * @brief Restore from @p blob. @return DP_OK or DP_ERR_INVALID.
  *
+ * A refusal changes nothing: every check runs before anything is written,
+ * so the capture's next get_state() is byte-identical to its last and its
+ * next push() is the one it would have made.
+ *
  * A wrong-object, wrong-version, wrong-size or foreign-endian blob is
  * refused, never reinterpreted; so is a blob from the other flavour (a
  * backed and an in-RAM capture have different `state_bytes()`). A backed
@@ -860,10 +873,13 @@ void dp_burst_capture_get_state (const dp_burst_capture_state_t *state, void *bl
  * shape this object supports, on both flavours.
  *
  * The blob holds all the look-back the ring held, so a capture resumes with
- * every burst it would have emitted. A blob's queue is checked rather than
- * trusted -- phases within their array, anchors in order, a refined start one
- * refine could have chosen -- and an entry its look-back cannot reach is
- * dropped and counted in `dropped`, as a forged blob can name one.
+ * every burst it would have emitted. A blob is checked rather than trusted:
+ * the queue's phases within their array, its anchors in order and none past
+ * the stream position, a refined start one refine could have chosen, a
+ * look-back no longer than the stream, and an acquisition child standing at
+ * the same stream position as the capture. A queued entry its look-back
+ * cannot reach is dropped -- counted in `dropped` if it was a burst,
+ * uncounted if it was shadowed -- as a forged blob can name one.
  */
 int dp_burst_capture_set_state (dp_burst_capture_state_t *state, const void *blob);
 

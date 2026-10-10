@@ -739,12 +739,8 @@ dp_wfm_data_get_state (const wfm_data_src_t *s, void *blob)
       {
         dp_w_u64 (&_w, s->st.hash);
         dp_w_u64 (&_w, s->have);
-        uint8_t *r = dp_w_reserve (&_w, res_cap (s));
-        if (r)
-          {
-            memcpy (r, s->res, s->have);
-            memset (r + s->have, 0, res_cap (s) - s->have);
-          }
+        dp_w_bytes (&_w, s->res, s->have);
+        dp_w_zeros (&_w, res_cap (s) - s->have);
         break;
       }
     }

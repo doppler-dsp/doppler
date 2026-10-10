@@ -554,9 +554,9 @@ The by-value counterpart to [**dp\_costas\_create()**](costas__core_8h.md#functi
 * `zeta` Damping factor (0.707 = critically damped). 
 * `init_norm_freq` Seed carrier frequency, cycles/sample. 
 * `tsamps` Samples per symbol (the integrate-and-dump period). 
-* `bn_fll` FLL-assist bandwidth (0 = pure PLL). 
+* `bn_fll` FLL-assist bandwidth (0 = pure PLL).
 
-
+Unguarded, as the by-value path: the caller checks (bn, zeta) with [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok) first. Outside it the loop's gains go NaN (doppler#2103). 
 
 
         

@@ -494,9 +494,9 @@ Seeds the NCO at `init_norm_freq` and the loop integrator to the matching per-sy
 * `init_norm_freq` Seed carrier frequency, cycles/sample. 
 * `tsamps` Samples per symbol (the integrate-and-dump period). 
 * `bn_fll` FLL-assist bandwidth (0 = pure PLL). 
-* `m` Constellation order M (2, 4, 8). 
+* `m` Constellation order M (2, 4, 8).
 
-
+Unguarded, as the by-value path: the caller checks (bn, zeta) with [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok) first. Outside it the loop's gains go NaN (doppler#2103). 
 
 
         

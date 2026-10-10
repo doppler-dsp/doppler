@@ -150,7 +150,7 @@ params = [
 
 [[dsss_receiver.methods]]
 name = "configure_chain_raw"
-doc = "Pin the despread/resample/demod grid directly, bypassing the create-time segments/sps defaults -- segments (Dll's tracking parameter) and sps/n (MpskReceiver's rate/carrier-arm parameters) stay independently overridable here, still bridged by a freshly-sized RateConverter, never coupled to each other. Only meaningful once tracking; rebuilds the chain with every replacement allocated first, so a failed pin leaves the receiver on its prior grid."
+doc = "Pin the despread/resample/demod grid directly, bypassing the create-time segments/sps defaults -- segments (Dll's tracking parameter) and sps/n (MpskReceiver's rate/carrier-arm parameters) stay independently overridable here, still bridged by a freshly-sized RateConverter, never coupled to each other. Only meaningful once tracking; rebuilds the chain with every replacement allocated first, so a pin refused on its domain leaves the receiver on its prior grid. A grid too large for the chain to allocate still aborts; sizing it out is #2112 work."
 arg_type = "void"
 return_type = "int"
 status_return = true

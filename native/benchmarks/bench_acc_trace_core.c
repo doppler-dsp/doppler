@@ -17,9 +17,21 @@
  * branch costs more than the arithmetic it avoids. `value()` is measured
  * separately because a display reads it far less often than it accumulates.
  *
+ *   fold[<mode>,nfft=N]
+ *                      per FRAME, at the five frame sizes PSD's per-frame
+ *                      kernel is measured at (bench_psd_core.c): the fold
+ *                      PSD's accumulate runs on every frame, so
+ *                      accumulate_frame ~ frame_power + fold[mean] there
+ *                      (#2094's first step, the baseline the SIMD fold is
+ *                      measured against). Each round resets the trace and
+ *                      seeds it untimed, so every timed call is a fold and
+ *                      never the seeding copy; the four modes and five
+ *                      sizes are interleaved, the modes rotating per round.
+ *
  * Timing is MIN over rounds, not mean -- benchmark noise is one-sided.
  */
 #include "doppler/acc_trace/acc_trace_core.h"
+#include "dp_bench.h"
 #include "jm_bench.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,6 +42,31 @@
 #define NBINS 4096
 #define FRAMES 16
 #define ITERATIONS 100
+#define FROUNDS 30 /* the fold section's rounds */
+#define NFOLD 5    /* its frame sizes, PSD's kernel sizes */
+
+/* One size of the fold section: a trace per mode, FRAMES + 1 distinct
+   frames (the first seeds), and per-round timings per mode. */
+typedef struct
+{
+  size_t                n;
+  dp_acc_trace_state_t *a[4];
+  float                *frames;
+  double                t[4][FROUNDS];
+} fold_t;
+
+/* Reset, seed untimed, then time FRAMES folds: what is timed is a fold of
+   every bin, never the first frame's copy. */
+static double
+fold_round (fold_t *f, int m)
+{
+  dp_acc_trace_reset (f->a[m]);
+  dp_acc_trace_accumulate (f->a[m], f->frames, f->n);
+  const uint64_t t0 = jm_bench_now_ns ();
+  for (int k = 1; k <= FRAMES; k++)
+    dp_acc_trace_accumulate (f->a[m], f->frames + (size_t)k * f->n, f->n);
+  return jm_bench_elapsed_sec (t0, jm_bench_now_ns ());
+}
 
 static double
 min_sec (const double *t, int n)
@@ -138,6 +175,65 @@ main (void)
           min_sec (t_acc[3], ITERATIONS) / min_sec (t_acc[0], ITERATIONS),
           FRAMES);
 
+  /* ── the fold at PSD's frame sizes (#2094) ── */
+  {
+    static const size_t fsz[NFOLD]  = { 256, 1024, 4096, 16384, 65536 };
+    static const char  *fmode[4]    = { "mean", "exp", "maxhold", "minhold" };
+    fold_t              fold[NFOLD] = { 0 };
+    for (int s = 0; s < NFOLD; s++)
+      {
+        fold_t *f = &fold[s];
+        f->n      = fsz[s];
+        f->frames = malloc ((size_t)(FRAMES + 1) * f->n * sizeof *f->frames);
+        if (!f->frames)
+          return 1;
+        /* independent draws, as above, so the hold modes update at a
+           realistic rate rather than never */
+        for (size_t i = 0; i < (size_t)(FRAMES + 1) * f->n; i++)
+          {
+            lfsr = (lfsr >> 1) ^ (uint32_t)(-(int32_t)(lfsr & 1u) & 0xB400u);
+            f->frames[i] = (float)((lfsr & 0xFFFFu) / 65535.0);
+          }
+        for (int m = 0; m < 4; m++)
+          if (!(f->a[m] = dp_acc_trace_create (f->n, modes[m], 0.1)))
+            return 1;
+      }
+    DP_BENCH_SETTLE ((void)fold_round (&fold[1], 0));
+    printf ("\n");
+    for (int r = 0; r < FROUNDS; r++)
+      for (int s = 0; s < NFOLD; s++)
+        for (int q = 0; q < 4; q++)
+          {
+            const int m     = (q + r) % 4;
+            fold[s].t[m][r] = fold_round (&fold[s], m);
+          }
+    for (int s = 0; s < NFOLD; s++)
+      {
+        for (int m = 0; m < 4; m++)
+          {
+            char name[64];
+            (void)snprintf (name, sizeof name, "fold[%s,nfft=%zu]", fmode[m],
+                            fold[s].n);
+            dp_bench_record (&_bench, name, fold[s].t[m], FROUNDS, FRAMES,
+                             "frame");
+            dp_acc_trace_destroy (fold[s].a[m]);
+          }
+        free (fold[s].frames);
+      }
+  }
+
+  /* Every row RECORDS, or nothing is written: jm_bench.h drops entries past
+     JM_BENCH_MAX_ENTRIES without a word (just-buildit/just-makeit#2188), so
+     the count is checked against the one the sections above derive (#2062):
+     4 modes and value(), then 4 modes at NFOLD sizes. */
+  const int want = 4 + 1 + 4 * NFOLD;
+  if (_bench.count != want)
+    {
+      (void)fprintf (stderr,
+                     "bench_acc_trace: recorded %d rows of %d; writing none\n",
+                     _bench.count, want);
+      return 1;
+    }
   (void)sink;
   free (frame);
   free (frames);

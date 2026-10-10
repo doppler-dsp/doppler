@@ -58,4 +58,19 @@ if(DP_WITH_STREAM)
         set_target_properties(${_ex} PROPERTIES
             RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
     endforeach()
+    # deploy/docker/stream_tool.c, the KEDA producer/consumer deploy/README.md
+    # documents. Its only recipe was deploy/docker/Dockerfile, which no
+    # workflow builds, so it went ten weeks without compiling while every
+    # gate stayed green (#2100). Built here, it fails `make build` and every
+    # CI leg that builds. It links the shipped archive, doppler_stream_static
+    # (nats.c folded in and respelled dp__v_*), as the Dockerfile does, so a
+    # break in that merge fails here too, not only in the image. Not on
+    # Windows: it is a POSIX container tool (<unistd.h>, usleep).
+    if(NOT WIN32)
+        add_executable(stream_tool
+            ${CMAKE_SOURCE_DIR}/deploy/docker/stream_tool.c)
+        target_link_libraries(stream_tool PRIVATE doppler_stream_static)
+        set_target_properties(stream_tool PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/deploy)
+    endif()
 endif()

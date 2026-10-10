@@ -262,60 +262,81 @@ composes a source with it could join the two, and that code is the caller.
 
 ### 5.6 What the carry's copy costs (2026-10-10) — U1
 
-**Method, shared by 5.6 to 5.9.** `make bench-interleaved VERSION=0.66.0-a4 K=5` at **c1ae84190**, a commit on main, on **cachyos-x8664-ai465**:
+**Method, shared by 5.6 to 5.9.** One run of
+`make bench-interleaved VERSION=0.66.0-a4 K=5` at **c1ae84190**, a commit
+on main, on **cachyos-x8664-ai465**:
 
 - **The machine:** AMD Ryzen AI 9 465, kernel 7.2.9-2-cachyos, governor
     `performance`, boost on, platform profile `performance`, GCC 16.2.1.
 - **Pinning:** every measurement ran on **cpus 0–3 and 10–13**, the fastest
     core class (`bench_report.fastest_cpus`). The builds ran unpinned.
 - **Two Release builds,** run alternately, five passes each: *portable*
-    (`-O3 -march=x86-64-v2 -ffast-math`) and *native* (`-O3 -march=native -mprefer-vector-width=256 -ffast-math`). Every pair of cells below is
-    portable / native.
-- **When:** 2026-10-10, 09:15 to 10:24 UTC, with nothing else running.
+    (`-O3 -march=x86-64-v2 -ffast-math`) and *native*
+    (`-O3 -march=native -mprefer-vector-width=256 -ffast-math`). Every pair
+    of cells below is portable / native.
+- **When:** 2026-10-10, 09:15 to 10:24 UTC. No other job was started on the
+    machine. One `ps` sample during the first pass showed the bench as the
+    only process using a measurable share of a core. Load was not logged
+    through the run.
 - **The rows** are `bench_spectrogram_core`'s `push`, `direct` and `chunk` rows
     and `bench_psd_core`'s `fft`, `frame_power` and `frame_db` rows (#2061).
 
-`bench_interleaved.py` keeps only each row's best pass and deletes the
-per-pass snapshots with its worktrees, so a copier saved all ten as they were
-written. A cell is a row's per-pass minimum per unit (sample or frame), as the
-bench reports it, taking the median over the five passes. A *spread* is
-(max − min) / median over those passes.
+**The data and the arithmetic are committed.** `bench_interleaved.py` keeps
+only each row's lowest-mean pass and deletes the per-pass snapshots with its
+worktrees, so the ten were saved as they were written. They are in
+`docs/design/spectrogram-measurements/u1u4/`, filtered to the spectrogram
+and PSD rows. Every table in 5.6 to 5.9 is the output of
+`docs/design/spectrogram-measurements/u1u4.py`, run on them. Its `--check`
+is in `make docs-invariants`, so a cell cannot be edited by hand.
+
+- A row's cost in one pass is the bench's per-pass minimum per unit (sample
+    or frame).
+- A cell is the median of that over the five passes.
+- A *spread* is (max − min) / median over the same passes.
 
 The decision rules were set before the run, in A4's plan as agreed with the
-coordinator, but not committed to the tree. U1 closes if push/direct is at
-most 1.05 at every shape, and is falsified if the ratio scatters more than
-5% across passes. U2's model gets no refit and must hold to 10%. U3's dB
-conversion "dominates" above 50% of a row. U4 must agree with U3 plus U1
-to within 10%.
+coordinator, but were not committed to the tree until now:
+
+- **U1** closes if push/direct is at most 1.05 at every shape, and is
+    falsified if the ratio scatters more than 5% across passes.
+- **U2's** model gets no refit and must hold to 10%.
+- **U3's** dB conversion "dominates" above 50% of a row.
+- **U4** must agree with U3 times U1 to within 10%.
 
 **What was measured.** `push` is the object, fed the whole block. `direct`
 is a hand-written loop that calls `dp_psd_frame_db` on `x + k·hop`, with no
 ring, carry or copy, and it refuses to run unless its rows equal `push`'s bit
 for bit. Each pair runs adjacently, in an order swapped every round.
 
-|   nfft |    hop | push, ns/sample | direct, ns/sample | push − direct | push/direct   | ratio spread |
-| -----: | -----: | --------------- | ----------------- | ------------- | ------------- | ------------ |
-|    256 |     64 | 27.319 / 26.025 | 27.222 / 25.967   | 0.078 / 0.117 | 1.003 / 1.005 | 0.3% / 0.5%  |
-|    256 |    256 | 6.904 / 6.617   | 6.856 / 6.529     | 0.087 / 0.087 | 1.013 / 1.013 | 0.8% / 1.2%  |
-|  1,024 |    256 | 27.787 / 26.391 | 27.646 / 26.282   | 0.141 / 0.109 | 1.005 / 1.004 | 0.6% / 0.3%  |
-|  1,024 |  1,024 | 7.111 / 6.786   | 7.019 / 6.718     | 0.106 / 0.086 | 1.015 / 1.013 | 1.3% / 0.7%  |
-|  4,096 |  1,024 | 27.540 / 26.002 | 27.437 / 25.919   | 0.103 / 0.058 | 1.004 / 1.002 | 0.7% / 0.3%  |
-|  4,096 |  4,096 | 7.406 / 7.038   | 7.276 / 6.887     | 0.138 / 0.123 | 1.019 / 1.017 | 0.8% / 0.6%  |
-| 16,384 |  4,096 | 27.003 / 25.455 | 26.837 / 25.314   | 0.166 / 0.144 | 1.006 / 1.006 | 0.5% / 0.4%  |
-| 16,384 | 16,384 | 7.756 / 7.333   | 7.595 / 7.249     | 0.178 / 0.119 | 1.024 / 1.017 | 1.0% / 2.4%  |
-| 65,536 | 16,384 | 28.268 / 26.465 | 28.141 / 26.307   | 0.108 / 0.158 | 1.004 / 1.006 | 0.3% / 0.6%  |
-| 65,536 | 65,536 | 8.106 / 7.711   | 8.005 / 7.433     | 0.101 / 0.243 | 1.013 / 1.033 | 0.6% / 2.2%  |
+<!-- spectrogram-u1u4:u1:start -->
 
-*The push − direct column is the median of each pass's difference, not the
-difference of the two medians beside it.*
+| nfft   | hop    | push, ns/sample | direct, ns/sample | push − direct | push/direct   | worst pass    | ratio spread |
+| ------ | ------ | --------------- | ----------------- | ------------- | ------------- | ------------- | ------------ |
+| 256    | 64     | 27.319 / 26.025 | 27.222 / 25.967   | 0.078 / 0.117 | 1.003 / 1.005 | 1.004 / 1.007 | 0.3% / 0.5%  |
+| 256    | 256    | 6.904 / 6.617   | 6.856 / 6.529     | 0.087 / 0.087 | 1.013 / 1.013 | 1.015 / 1.016 | 0.8% / 1.2%  |
+| 1,024  | 256    | 27.787 / 26.391 | 27.646 / 26.282   | 0.141 / 0.109 | 1.005 / 1.004 | 1.010 / 1.006 | 0.6% / 0.3%  |
+| 1,024  | 1,024  | 7.111 / 6.786   | 7.019 / 6.718     | 0.106 / 0.086 | 1.015 / 1.013 | 1.017 / 1.015 | 1.3% / 0.7%  |
+| 4,096  | 1,024  | 27.540 / 26.002 | 27.437 / 25.919   | 0.103 / 0.058 | 1.004 / 1.002 | 1.005 / 1.003 | 0.7% / 0.3%  |
+| 4,096  | 4,096  | 7.406 / 7.038   | 7.276 / 6.887     | 0.138 / 0.123 | 1.019 / 1.017 | 1.023 / 1.023 | 0.8% / 0.6%  |
+| 16,384 | 4,096  | 27.003 / 25.455 | 26.837 / 25.314   | 0.166 / 0.144 | 1.006 / 1.006 | 1.008 / 1.008 | 0.5% / 0.4%  |
+| 16,384 | 16,384 | 7.756 / 7.333   | 7.595 / 7.249     | 0.178 / 0.119 | 1.024 / 1.017 | 1.025 / 1.027 | 1.0% / 2.4%  |
+| 65,536 | 16,384 | 28.268 / 26.465 | 28.141 / 26.307   | 0.108 / 0.158 | 1.004 / 1.006 | 1.005 / 1.010 | 0.3% / 0.6%  |
+| 65,536 | 65,536 | 8.106 / 7.711   | 8.005 / 7.433     | 0.101 / 0.243 | 1.013 / 1.033 | 1.018 / 1.037 | 0.6% / 2.2%  |
+
+<!-- spectrogram-u1u4:u1:end -->
+
+*push − direct is the median of each pass's difference, not the difference of
+the two medians beside it. Worst pass is the largest single pass's ratio.*
 
 **The answer to U1: closed, no bypass.** The carry's copy costs 0.06 to
-0.24 ns per sample. That is at most **2.4%** of a sample's cost in the
-portable build and **3.3%** in the native one, under the 5% rule at every
-shape. The ratio spread across passes is at most 2.4%, so the falsifier did
-not fire. The copy weighs more at `hop = nfft` (1.3–3.3%) than at `nfft/4`
-(0.2–0.6%), because a quarter hop computes four rows per `nfft` samples and
-copies each sample once either way.
+0.24 ns per sample. The median ratio is at most 1.024 in the portable build
+and 1.033 in the native one. The worst single pass anywhere is 1.037 (native,
+65,536/65,536), so the 1.05 rule holds at every shape in every pass. The
+ratio scatters at most 2.4% across passes, so the falsifier did not fire.
+
+The copy weighs more at `hop = nfft` (1.3–3.3%) than at `nfft/4`
+(0.2–0.6%). A quarter hop computes four rows per `nfft` samples, while each
+sample is copied once either way.
 
 The absolute rows move more than their ratio: up to 4.2% and 5.6% across
 passes. That is the machine drifting under both rows of a pair at once, and
@@ -328,29 +349,47 @@ its last sample. The C test pins that (`test_spectrogram_core.c` §15), and
 the certification asserts it over every one-sample partition.
 
 **In time, it is the cost of that push.** The model, fixed before the run,
-has two parameters. *c_s* is the per-sample cost of the one-block push.
-*c_p* is the per-push overhead, read from the chunk-1 row as its per-sample
-cost minus *c_s*. A chunk of *C* samples should then cost `c_s + c_p / C` per
-sample. From the run, *c_s* is **27.787 / 26.391 ns/sample** (spread 3.7% /
-3.1%) and *c_p* is **4.640 / 4.607 ns per push**.
+has two parameters:
 
-|  chunk | measured, ns/sample | predicted `c_s + c_p/C` | error         |
-| -----: | ------------------- | ----------------------- | ------------- |
-|      1 | 32.427 / 30.998     | (defines *c_p*)         | —             |
-|    256 | 27.812 / 26.443     | 27.805 / 26.409         | +0.0% / +0.1% |
-|  1,024 | 27.875 / 26.492     | 27.792 / 26.396         | +0.3% / +0.4% |
-| 16,384 | 27.828 / 26.374     | 27.788 / 26.391         | +0.1% / −0.1% |
+- *c_s*, the per-sample cost of the one-block push;
+- *c_p*, the per-push overhead, read from the chunk-1 row as its per-sample
+    cost minus *c_s*.
 
-**The answer to U2.** The model holds to 0.4% with no refit, well inside
-its 10%. Pushing one sample at a time costs 17% more per sample than one
-block, which is the 4.6 ns call overhead. From 256 samples on, the chunk
-size is invisible. A row is ready when the push carrying its last sample
-returns, and for a chunk that completes one row, that push is dominated by
-the row itself: about 7 µs at `nfft` 1024 (5.8's `frame_db`).
+A chunk of *C* samples should then cost `c_s + c_p / C` per sample.
+
+<!-- spectrogram-u1u4:u2:start -->
+
+| *c_s*, ns/sample | spread      | *c_p*, ns per push |
+| ---------------- | ----------- | ------------------ |
+| 27.787 / 26.391  | 3.7% / 3.1% | 4.640 / 4.607      |
+
+| chunk  | measured, ns/sample | predicted `c_s + c_p/C` | error         |
+| ------ | ------------------- | ----------------------- | ------------- |
+| 1      | 32.427 / 30.998     | (defines *c_p*)         | —             |
+| 256    | 27.812 / 26.443     | 27.805 / 26.409         | +0.0% / +0.1% |
+| 1,024  | 27.875 / 26.492     | 27.792 / 26.396         | +0.3% / +0.4% |
+| 16,384 | 27.828 / 26.374     | 27.788 / 26.391         | +0.1% / -0.1% |
+
+<!-- spectrogram-u1u4:u2:end -->
+
+**The answer to U2, at `hop` 256.** The model holds to 0.4% with no refit,
+inside its 10%. Read that for what it tests:
+
+- **The 0.4% tests only *c_s*.** From 256 samples on, `c_p / C` is at most
+    0.018 ns, under 0.07% of a sample's cost.
+- **The chunk-1 row alone** carries *c_p*, about 4.6 ns per push, and that
+    row also defines it. So one sample per push costs 17% more per sample
+    than one block, and from 256 samples on the chunk size is invisible.
+
+A row is ready when the push carrying its last sample returns. For a chunk
+that completes one row, that push is mostly the row itself: about 7 µs at
+`nfft` 1024 (entry 5.8's `frame_db`).
 
 **What this does not cover.** As built (#2061), the chunk rows run at
-`nfft` 1024 and `hop` 256 only. The other hops wait on the bench's 32-row
-cap (just-buildit/just-makeit#2188, restored by #2062).
+`nfft` 1024 and `hop` 256 only, so U2 *against `hop`* is unmeasured. The
+rows for the other hops wait on the bench's 32-row cap
+(just-buildit/just-makeit#2188), and they are added to #2062's work beside
+U1's `nfft/2` rows.
 
 ### 5.8 Where a row's time goes (2026-10-10) — U3
 
@@ -364,25 +403,32 @@ ways per `nfft`, in one interleaved loop:
 
 The shares below are per-pass differences, as fractions of `frame_db`.
 
-|   nfft | fft, µs          | frame_power, µs   | frame_db, µs      | the FFT       | window + power | dB conversion | dB, ns per bin |
-| -----: | ---------------- | ----------------- | ----------------- | ------------- | -------------- | ------------- | -------------- |
-|    256 | 0.244 / 0.201    | 0.355 / 0.294     | 1.707 / 1.696     | 14.5% / 11.8% | 6.6% / 5.5%    | 78.9% / 82.7% | 5.27 / 5.47    |
-|  1,024 | 1.182 / 0.922    | 1.614 / 1.301     | 6.990 / 6.911     | 16.9% / 13.4% | 6.1% / 5.5%    | 76.9% / 81.2% | 5.25 / 5.48    |
-|  4,096 | 5.572 / 4.343    | 7.232 / 5.776     | 28.630 / 27.885   | 19.5% / 15.6% | 5.8% / 5.2%    | 74.7% / 79.3% | 5.22 / 5.40    |
-| 16,384 | 25.841 / 20.195  | 32.639 / 26.384   | 117.832 / 114.521 | 22.1% / 17.6% | 5.7% / 5.4%    | 72.2% / 77.0% | 5.20 / 5.38    |
-| 65,536 | 119.132 / 95.749 | 149.840 / 124.383 | 492.000 / 478.422 | 24.2% / 20.0% | 6.1% / 6.0%    | 69.6% / 74.0% | 5.21 / 5.41    |
+<!-- spectrogram-u1u4:u3:start -->
 
-*`frame_db` spreads at most 4.0% / 1.7% across passes.*
+| nfft   | fft, µs          | frame_power, µs   | frame_db, µs      | the FFT       | window + power | dB conversion | dB, ns per bin | frame_db spread |
+| ------ | ---------------- | ----------------- | ----------------- | ------------- | -------------- | ------------- | -------------- | --------------- |
+| 256    | 0.244 / 0.201    | 0.355 / 0.294     | 1.707 / 1.696     | 14.5% / 11.8% | 6.6% / 5.5%    | 78.9% / 82.7% | 5.27 / 5.47    | 4.0% / 1.7%     |
+| 1,024  | 1.182 / 0.922    | 1.614 / 1.301     | 6.990 / 6.911     | 16.9% / 13.4% | 6.1% / 5.5%    | 76.9% / 81.2% | 5.25 / 5.48    | 3.4% / 1.4%     |
+| 4,096  | 5.572 / 4.343    | 7.232 / 5.776     | 28.630 / 27.885   | 19.5% / 15.6% | 5.8% / 5.2%    | 74.7% / 79.3% | 5.22 / 5.40    | 3.2% / 1.0%     |
+| 16,384 | 25.841 / 20.195  | 32.639 / 26.384   | 117.832 / 114.521 | 22.1% / 17.6% | 5.7% / 5.4%    | 72.2% / 77.0% | 5.20 / 5.38    | 3.2% / 1.0%     |
+| 65,536 | 119.132 / 95.749 | 149.840 / 124.383 | 492.000 / 478.422 | 24.2% / 20.0% | 6.1% / 6.0%    | 69.6% / 74.0% | 5.21 / 5.41    | 2.9% / 1.6%     |
 
-**The answer to U3: the logarithm dominates.** The dB conversion is
-**69.6–82.7%** of a row at every size, at a nearly constant 5.2–5.5 ns per bin: a
-double-precision `log10` per bin (`psd_read_power`, `psd_core.c`). The FFT
-is 12–24%. The native build makes the FFT faster but not the logarithm, so
-the share grows there. By the design's own rule, a cheaper approximation
-would change what the default output mode should be. That is a decision
-about PSD's dB face, which every PSD reading and both certifications pin
-byte for byte, so it is filed rather than made here: #2074. Power mode
-(#1968) skips the conversion altogether.
+<!-- spectrogram-u1u4:u3:end -->
+
+**The answer to U3: the dB conversion dominates.** It is **69.6–82.7%** of a
+row at every size, at a nearly constant 5.2–5.5 ns per bin. Per bin, the
+conversion (`psd_read_power`, `psd_core.c`) is a divide by the reference, a
+clamp at the floor, a double-precision `log10` and a cast to float. The
+`log10` is the likely bulk, but this bench does not separate it from the
+other three.
+
+The FFT is 12–24% of a row. The native build makes the FFT faster but not
+the conversion, so the conversion's share grows there.
+
+By the design's own rule, a cheaper conversion would change what the default
+output mode should be. That is a decision about PSD's dB face, which every
+PSD reading and both certifications pin byte for byte, so it is filed rather
+than made here: #2074. Power mode (#1968) skips the conversion altogether.
 
 **What this cannot separate.** `frame_power − fft` is the window and the
 power fold together. As built, the bench cannot split them, and the
@@ -393,20 +439,28 @@ caller's frame cold. That matters most at 65,536, where the frame is 512 KB.
 ### 5.9 What one core sustains (2026-10-10) — U4
 
 At `nfft` 1024 and `hop` 256 (75% overlap), one core of the fastest class
-sustains:
+sustains this. Rates are rounded to the push row's spread.
 
-| build    | push, ns/sample      | samples per second | rows per second |
-| -------- | -------------------- | ------------------ | --------------- |
-| portable | 27.787 (spread 3.7%) | 36.0 M             | 140,577         |
-| native   | 26.391 (spread 3.1%) | 37.9 M             | 148,014         |
+<!-- spectrogram-u1u4:u4:start -->
 
-**Cross-check.** U3's `frame_db` per row, divided by the hop and multiplied
-by U1's push/direct, predicts 27.443 / 27.107 ns/sample. The measured push
-is within **+1.3% / −2.6%** of that, inside the 10% the plan set.
+| build    | push, ns/sample | samples per second | rows per second | `frame_db`/hop × push/direct | push against it |
+| -------- | --------------- | ------------------ | --------------- | ---------------------------- | --------------- |
+| portable | 27.79 (±3.7%)   | 36 M               | 141,000         | 27.44                        | +1.3%           |
+| native   | 26.39 (±3.1%)   | 38 M               | 148,000         | 27.11                        | -2.6%           |
+
+<!-- spectrogram-u1u4:u4:end -->
+
+**About the cross-check.** It is U3's `frame_db` per row, divided by the hop
+and multiplied by U1's push/direct. The measured push is within +1.3% /
+−2.6% of it, inside the 10% the plan set. But it is not independent:
+push / (`frame_db`/hop × push/direct) reduces to `direct`·hop / `frame_db`.
+That is two benches timing one kernel, `bench_spectrogram_core`'s hand loop
+and `bench_psd_core`'s row. What it shows is that the two benches agree, not
+that the push is right.
 
 **What that leaves a display.** At a stream of *f* samples per second, the
-Spectrogram takes *f* × 27.8 ns of one core: 28% at 10 MSa/s, and all of it
-near 36 MSa/s. Three quarters of that is the dB conversion (U3), so a
+Spectrogram takes about *f* × 28 ns of one core: 28% at 10 MSa/s, and all of
+it near 36 MSa/s. Three quarters of that is the dB conversion (U3), so a
 display that reads power rows, or converts only the bins it draws, keeps
 most of the core.
 

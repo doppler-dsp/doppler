@@ -135,17 +135,17 @@ CorrDetector2DObj_push (CorrDetector2DObject *self, PyObject *args)
       return NULL;
     }
   size_t         n_in = (size_t)PyArray_SIZE (in_arr);
-  det_result2d_t results[64];
+  det_result2d_t results[1024];
   size_t         n_out = dp_detector2d_push (
       self->handle, (const float _Complex *)PyArray_DATA (in_arr), n_in,
-      results, 64);
+      results, 1024);
   Py_DECREF (in_arr);
-  if ((size_t)(n_out) > (size_t)(64))
+  if ((size_t)(n_out) > (size_t)(1024))
     {
       PyErr_Format (
           PyExc_RuntimeError,
           "CorrDetector2D.push: wrote %zu elements into a buffer of %zu",
-          (size_t)(n_out), (size_t)(64));
+          (size_t)(n_out), (size_t)(1024));
       return NULL;
     }
   PyObject *lst = PyList_New ((Py_ssize_t)n_out);
@@ -428,8 +428,8 @@ CorrDetector2DObj_exit (CorrDetector2DObject *self, PyObject *args)
 
 static PyMethodDef CorrDetector2DObj_methods[] = {
   { "reset", (PyCFunction)CorrDetector2DObj_reset, METH_NOARGS,
-    "Reset the 2-D correlator, ring buffer, and last-corr flag. Discards\n"
-    "any partial frame buffered in the ring and zeroes the coherent\n"
+    "Reset the 2-D correlator, the carry, and last-corr flag. Discards\n"
+    "any partial frame carried between pushes and zeroes the coherent\n"
     "accumulator. The reference spectrum and FFT plans are preserved.\n"
     "\n"
     "Examples\n"
@@ -453,10 +453,12 @@ static PyMethodDef CorrDetector2DObj_methods[] = {
     "peak location instead of a single lag index. In Python the result is\n"
     "always a list of (row, col, peak_mag, noise_est, test_stat) tuples.\n"
     "\n"
-    "Unlike dp_detector_push(), a push that fills result stops taking input:\n"
-    "it keeps the whole frames it has already buffered for the next call and\n"
-    "drops the rest of its input, which nothing reports (#1895 moves it onto\n"
-    "the ring's framer, as the detector's push now is).\n"
+    "Python's push() has room for 1024 detections a call. Once a push fills\n"
+    "it, every later frame of that call is lost, whether or not it would\n"
+    "have made a detection: keep a chunk under 1024 frames. Before v0.66 the\n"
+    "room was 64, and a push past it kept up to ring_cap/n - 1 of those\n"
+    "frames for the next call and dropped the rest. #1992 and\n"
+    "just-buildit/just-makeit#2184 track sizing the list to the call.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -578,12 +580,13 @@ static PyTypeObject CorrDetector2DObjType = {
   = "Allocate a 2-D streaming signal detector backed by a 2-D correlator.\n"
     "Two-dimensional extension of dp_detector_create(). Input frames are "
     "flat\n"
-    "row-major CF32 arrays of length ny*nx streamed through a ring buffer. "
-    "On\n"
-    "every int-dump the peak flat index is decomposed into (row, col) and a\n"
-    "det_result2d_t is emitted when test_stat > threshold. The Python "
-    "wrapper\n"
-    "accepts a (ny, nx) CF32 ndarray for both ref and the push input.\n"
+    "row-major CF32 arrays of length ny*nx, cut from the stream by the "
+    "ring's\n"
+    "framer. On every int-dump the peak flat index is decomposed into (row, "
+    "col)\n"
+    "and a det_result2d_t is emitted when test_stat > threshold. The Python\n"
+    "wrapper accepts a (ny, nx) CF32 ndarray for both ref and the push "
+    "input.\n"
     "\n"
     "Parameters\n"
     "----------\n"

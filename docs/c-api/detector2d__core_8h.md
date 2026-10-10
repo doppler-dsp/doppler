@@ -10,9 +10,9 @@
 
 _2-D streaming signal detector with FFT2D-based correlation, integrate-and-dump, and configurable noise-referenced threshold._ [More...](#detailed-description)
 
-* `#include "doppler/buffer/buffer.h"`
 * `#include "doppler/corr2d/corr2d_core.h"`
 * `#include "doppler/dp_state.h"`
+* `#include "doppler/f32_buffer/f32_buffer_core.h"`
 
 
 
@@ -66,11 +66,12 @@ _2-D streaming signal detector with FFT2D-based correlation, integrate-and-dump,
 
 | Type | Name |
 | ---: | :--- |
-|  [**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* | [**dp\_detector2d\_create**](#function-dp_detector2d_create) (const float \_Complex \* ref, size\_t ny, size\_t nx, size\_t dwell, size\_t noise\_lo, size\_t noise\_hi, [**det\_noise\_mode\_t**](detector__core_8h.md#enum-det_noise_mode_t) noise\_mode, float threshold, int nthreads) <br>_Allocate a 2-D streaming signal detector backed by a 2-D correlator. Two-dimensional extension of_ [_**dp\_detector\_create()**_](detector__core_8h.md#function-dp_detector_create) _. Input frames are flat row-major CF32 arrays of length ny\*nx streamed through a ring buffer. On every int-dump the peak flat index is decomposed into (row, col) and a_[_**det\_result2d\_t**_](structdet__result2d__t.md) _is emitted when test\_stat &gt; threshold. The Python wrapper accepts a (ny, nx) CF32 ndarray for both_`ref` _and the push input._ |
+|  size\_t | [**dp\_detector2d\_consumed**](#function-dp_detector2d_consumed) (const [**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* state) <br>_Input samples the last_ [_**dp\_detector2d\_push()**_](detector2d__core_8h.md#function-dp_detector2d_push) _took._ |
+|  [**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* | [**dp\_detector2d\_create**](#function-dp_detector2d_create) (const float \_Complex \* ref, size\_t ny, size\_t nx, size\_t dwell, size\_t noise\_lo, size\_t noise\_hi, [**det\_noise\_mode\_t**](detector__core_8h.md#enum-det_noise_mode_t) noise\_mode, float threshold, int nthreads) <br>_Allocate a 2-D streaming signal detector backed by a 2-D correlator. Two-dimensional extension of_ [_**dp\_detector\_create()**_](detector__core_8h.md#function-dp_detector_create) _. Input frames are flat row-major CF32 arrays of length ny\*nx, cut from the stream by the ring's framer. On every int-dump the peak flat index is decomposed into (row, col) and a_[_**det\_result2d\_t**_](structdet__result2d__t.md) _is emitted when test\_stat &gt; threshold. The Python wrapper accepts a (ny, nx) CF32 ndarray for both_`ref` _and the push input._ |
 |  void | [**dp\_detector2d\_destroy**](#function-dp_detector2d_destroy) ([**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* state) <br>_Destroy and free._  |
 |  void | [**dp\_detector2d\_get\_state**](#function-dp_detector2d_get_state) (const [**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* state, void \* blob) <br> |
 |  size\_t | [**dp\_detector2d\_push**](#function-dp_detector2d_push) ([**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, [**det\_result2d\_t**](structdet__result2d__t.md) \* result, size\_t max\_results) <br>_Stream an arbitrary-length CF32 chunk through the 2-D detector. The same pipeline as_ [_**dp\_detector\_push()**_](detector__core_8h.md#function-dp_detector_push) _, except that frames are ny\*nx complex samples and each detection event carries (row, col) for the peak location instead of a single lag index. In Python the result is always a list of (row, col, peak\_mag, noise\_est, test\_stat) tuples._ |
-|  void | [**dp\_detector2d\_reset**](#function-dp_detector2d_reset) ([**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* state) <br>_Reset the 2-D correlator, ring buffer, and last-corr flag. Discards any partial frame buffered in the ring and zeroes the coherent accumulator. The reference spectrum and FFT plans are preserved._  |
+|  void | [**dp\_detector2d\_reset**](#function-dp_detector2d_reset) ([**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* state) <br>_Reset the 2-D correlator, the carry, and last-corr flag. Discards any partial frame carried between pushes and zeroes the coherent accumulator. The reference spectrum and FFT plans are preserved._  |
 |  int | [**dp\_detector2d\_set\_ref**](#function-dp_detector2d_set_ref) ([**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* state, const float \_Complex \* ref) <br>_Replace the reference image and recompute its spectrum._  |
 |  int | [**dp\_detector2d\_set\_state**](#function-dp_detector2d_set_state) ([**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* state, const void \* blob) <br> |
 |  void | [**dp\_detector2d\_set\_threshold**](#function-dp_detector2d_set_threshold) ([**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* state, float threshold) <br>_Change threshold without rebuilding._  |
@@ -107,14 +108,14 @@ _2-D streaming signal detector with FFT2D-based correlation, integrate-and-dump,
 | Type | Name |
 | ---: | :--- |
 | define  | [**DETECTOR2D\_STATE\_MAGIC**](detector2d__core_8h.md#define-detector2d_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('D','E','T','2')`<br> |
-| define  | [**DETECTOR2D\_STATE\_VERSION**](detector2d__core_8h.md#define-detector2d_state_version)  `1u`<br> |
+| define  | [**DETECTOR2D\_STATE\_VERSION**](detector2d__core_8h.md#define-detector2d_state_version)  `2u`<br> |
 | define  | [**DET\_NOISE\_MODE\_T\_DEFINED**](detector2d__core_8h.md#define-det_noise_mode_t_defined)  <br> |
 | define  | [**DET\_PEAK\_T\_DEFINED**](detector2d__core_8h.md#define-det_peak_t_defined)  <br>_One listed peak of a surface: a cell and its value, in the surface's own units (a magnitude on a coherent surface, a power on a non-coherent one). What det\_peak\_list() (_ [_**det\_private.h**_](det__private_8h.md) _) returns, and what the acquisition engine keeps per dwell._ |
 
 ## Detailed Description
 
 
-Two-dimensional extension of detector\_core. The input stream is chunked into ny×nx frames (flat row-major CF32). The test statistic and threshold semantics are identical to the 1-D variant; the only difference is that the peak index maps to a (row, col) pair instead of a single lag.
+Two-dimensional extension of detector\_core. The input stream is chunked into ny×nx frames (flat row-major CF32) by the ring's framed face (DECLARE\_DP\_BUFFER\_FRAMES), so the detections are a function of the input stream, not of how it was split into calls. The test statistic and threshold semantics are identical to the 1-D variant; the only difference is that the peak index maps to a (row, col) pair instead of a single lag.
 
 
 Detection events: [**det\_result2d\_t**](structdet__result2d__t.md) = { row, col, peak\_mag, noise\_est, test\_stat }
@@ -126,11 +127,17 @@ float _Complex ref[NY * NX] = { ... };
 dp_detector2d_state_t *det = dp_detector2d_create(ref, NY, NX, 1,
     0, NY*NX-1, DET_NOISE_MEAN, 0.0f, 1);
 det_result2d_t results[64];
+// a full results[] stops a push, and the input it did not take is
+// offered again -- dp_detector2d_consumed(det) says where it stopped
 while (recv(chunk, CHUNK_SZ)) {
-    size_t n = dp_detector2d_push(det, chunk, CHUNK_SZ, results, 64);
-    for (size_t i = 0; i < n; i++)
-        printf("row=%zu col=%zu stat=%.2f\n",
-               results[i].row, results[i].col, results[i].test_stat);
+    for (size_t off = 0; off < CHUNK_SZ;
+         off += dp_detector2d_consumed(det)) {
+        size_t n = dp_detector2d_push(det, chunk + off, CHUNK_SZ - off,
+                                      results, 64);
+        for (size_t i = 0; i < n; i++)
+            printf("row=%zu col=%zu stat=%.2f\n",
+                   results[i].row, results[i].col, results[i].test_stat);
+    }
 }
 dp_detector2d_destroy(det);
 ```
@@ -163,9 +170,39 @@ enum det_noise_mode_t {
 
 
 
+### function dp\_detector2d\_consumed 
+
+_Input samples the last_ [_**dp\_detector2d\_push()**_](detector2d__core_8h.md#function-dp_detector2d_push) _took._
+```C++
+size_t dp_detector2d_consumed (
+    const dp_detector2d_state_t * state
+) 
+```
+
+
+
+Equal to its `n_in` unless `result` filled up; then the caller resumes at in + consumed. 0 after create, reset, set\_ref and set\_state.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_detector2d\_create 
 
-_Allocate a 2-D streaming signal detector backed by a 2-D correlator. Two-dimensional extension of_ [_**dp\_detector\_create()**_](detector__core_8h.md#function-dp_detector_create) _. Input frames are flat row-major CF32 arrays of length ny\*nx streamed through a ring buffer. On every int-dump the peak flat index is decomposed into (row, col) and a_[_**det\_result2d\_t**_](structdet__result2d__t.md) _is emitted when test\_stat &gt; threshold. The Python wrapper accepts a (ny, nx) CF32 ndarray for both_`ref` _and the push input._
+_Allocate a 2-D streaming signal detector backed by a 2-D correlator. Two-dimensional extension of_ [_**dp\_detector\_create()**_](detector__core_8h.md#function-dp_detector_create) _. Input frames are flat row-major CF32 arrays of length ny\*nx, cut from the stream by the ring's framer. On every int-dump the peak flat index is decomposed into (row, col) and a_[_**det\_result2d\_t**_](structdet__result2d__t.md) _is emitted when test\_stat &gt; threshold. The Python wrapper accepts a (ny, nx) CF32 ndarray for both_`ref` _and the push input._
 ```C++
 dp_detector2d_state_t * dp_detector2d_create (
     const float _Complex * ref,
@@ -281,7 +318,7 @@ size_t dp_detector2d_push (
 
 
 
-Unlike [**dp\_detector\_push()**](detector__core_8h.md#function-dp_detector_push), a push that fills `result` stops taking input: it keeps the whole frames it has already buffered for the next call and drops the rest of its input, which nothing reports (#1895 moves it onto the ring's framer, as the detector's push now is).
+Python's push() has room for 1024 detections a call. Once a push fills it, every later frame of that call is lost, whether or not it would have made a detection: keep a chunk under 1024 frames. Before v0.66 the room was 64, and a push past it kept up to ring\_cap/n - 1 of those frames for the next call and dropped the rest. #1992 and just-buildit/just-makeit#2184 track sizing the list to the call.
 
 
 
@@ -293,7 +330,7 @@ Unlike [**dp\_detector\_push()**](detector__core_8h.md#function-dp_detector_push
 * `in` CF32 input chunk of arbitrary length. 
 * `n_in` Number of input samples in `in`. 
 * `result` Caller-supplied array of at least `max_results` [**det\_result2d\_t**](structdet__result2d__t.md) structs; filled on return. 
-* `max_results` Capacity of `result` (maximum detections to emit). 
+* `max_results` Capacity of `result` (maximum detections to emit). A full `result` never loses input: a frame yields at most one detection, so a sample is taken unless it would complete a frame when `result` has no room left. The push stops there, [**dp\_detector2d\_consumed()**](detector2d__core_8h.md#function-dp_detector2d_consumed) says how many samples it took, and the caller offers the rest again. Taken input that completes no frame is the carry, held inside (fewer than ny\*nx samples), so it is taken whole even at 0, and at &gt;= 1 a push of any input takes at least one sample. 
 
 
 
@@ -327,7 +364,7 @@ Number of [**det\_result2d\_t**](structdet__result2d__t.md) entries written to `
 
 ### function dp\_detector2d\_reset 
 
-_Reset the 2-D correlator, ring buffer, and last-corr flag. Discards any partial frame buffered in the ring and zeroes the coherent accumulator. The reference spectrum and FFT plans are preserved._ 
+_Reset the 2-D correlator, the carry, and last-corr flag. Discards any partial frame carried between pushes and zeroes the coherent accumulator. The reference spectrum and FFT plans are preserved._ 
 ```C++
 void dp_detector2d_reset (
     dp_detector2d_state_t * state
@@ -369,7 +406,7 @@ int dp_detector2d_set_ref (
 
 
 
-Always resets (ring, corr2d accumulator, last-dump bookkeeping), even if the new reference is subsequently rejected. The new reference must have the same ny\*nx total size; see [**dp\_corr2d\_set\_ref()**](corr2d__core_8h.md#function-dp_corr2d_set_ref) for the single-row-fast- path rejection rule this forwards.
+Always resets (the carry, corr2d accumulator, last-dump bookkeeping), even if the new reference is subsequently rejected. The new reference must have the same ny\*nx total size; see [**dp\_corr2d\_set\_ref()**](corr2d__core_8h.md#function-dp_corr2d_set_ref) for the single-row-fast- path rejection rule this forwards.
 
 
 
@@ -475,7 +512,7 @@ size_t dp_detector2d_state_bytes (
 ### define DETECTOR2D\_STATE\_VERSION 
 
 ```C++
-#define DETECTOR2D_STATE_VERSION `1u`
+#define DETECTOR2D_STATE_VERSION `2u`
 ```
 
 

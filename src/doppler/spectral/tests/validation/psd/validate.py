@@ -40,6 +40,11 @@ BETA = 8.0
 MODES = ("mean", "exp", "maxhold", "minhold")
 U = 2.0**-24  # float32 unit roundoff
 FFT_C = 5.0  # radix-2 FFT error constant (Higham, sec. 24.1)
+# Every dB reading is dp_power_to_db_f32 of the linear one (#2094): within
+# this of 10*log10, as test_spectral_core pins it (3.25e-4 measured over
+# every float32). It is exact at every power of two, 1.0 included, and its
+# error shrinks to 0 toward one, so the 0 dBFS limits keep their 1e-4.
+DB_CONV = 5e-4
 # Blackman-Harris, 4-term minimum, published (Harris 1978, Table 1).
 BH = (0.35875, 0.48829, 0.14128, 0.01168)
 
@@ -352,8 +357,8 @@ def section_object() -> None:
                 "C-ONLY (F3)",
             ],
             [
-                "`frame_linear`: 10·log10 of it is `frame_db` above the "
-                "floor; a full-scale bin tone reads 1.0 whatever the "
+                "`frame_db` is `dp_power_to_db_f32` of `frame_linear`, "
+                "bit for bit; a full-scale bin tone reads 1.0 whatever the "
                 "window, padded or not, against `full_scale` and `bits`",
                 "`dp_psd_frame_linear` block (#1963)",
                 P,
@@ -693,9 +698,13 @@ def _sec_density(d: Data) -> None:
                 off_worst, float(np.max(np.abs(hz - db - want_off)))
             )
             # whole-span band power is mean density times fs: the same
-            # statistic, so one z, and the two readouts must agree
+            # statistic, so one z. The two readouts agree to the dB
+            # conversion's bound: every dB/Hz bin went through it, while
+            # band power sums the linear bins and takes log10 in double.
             worst_z = max(worst_z, abs(z_hz))
-            d.bp_agree_worst = max(d.bp_agree_worst, abs(z_hz - z_bp))
+            d.bp_agree_worst = max(
+                d.bp_agree_worst, abs(10.0 * math.log10(dens * fs) - bp)
+            )
             tol = 10.0 * math.log10(1.0 + 5.0 * sigma)
             rows.append(
                 [
@@ -723,7 +732,8 @@ def _sec_density(d: Data) -> None:
     R.md(
         f"K = {k_frames}, n = {n}. Worst |z| {worst_z:.2f}; dB/Hz and "
         f"whole-span band power are one statistic, agreeing to "
-        f"{d.bp_agree_worst:.1e} in z. The dB/Hz - dB "
+        f"{d.bp_agree_worst:.1e} dB, inside the dB conversion's "
+        f"{DB_CONV:.0e}. The dB/Hz - dB "
         f"offset matches `10 log10(cg^2 / (fs s2))` to {off_worst:.1e} dB in "
         f"every bin."
     )
@@ -786,7 +796,8 @@ def _sec_measurements(d: Data) -> None:
     w = _psd(n=64, window="hann")
     w.accumulate((_tone(64, -16) + 0.1 * _tone(64, 16)).astype(np.complex64))
     d.sfdr = w.sfdr(-30.0)
-    d.sfdr_tol = 2.0 * 10.0 * math.log10(1.0 + _fft_bound(64))
+    # each of the two peaks: the float FFT's error, then the dB conversion's
+    d.sfdr_tol = 2.0 * (10.0 * math.log10(1.0 + _fft_bound(64)) + DB_CONV)
     o = _psd(n=64, window="hann")
     o.accumulate(_tone(64, -16))
     d.sfdr_one_tone = o.sfdr(-30.0)
@@ -841,7 +852,7 @@ def _sec_measurements(d: Data) -> None:
                 "0 and -20 dB tones, N/2 apart, Hann",
                 f"{d.sfdr:.6f} dB",
                 f"20 dB within {d.sfdr_tol:.1e} (the float FFT's bound "
-                "on each of the two bins)",
+                "and the dB conversion's on each of the two bins)",
             ],
             [
                 "SFDR, one tone",
@@ -1291,8 +1302,9 @@ def review(d: Data) -> None:
         "accumulate-then-read bit for bit (4 windows x n {64, 100} x pad "
         "{1, 2}), the average is untouched (T1), 0 dBFS under every window "
         "and both references (T2), the floor (T3) and the layout (T4); "
-        "`frame_linear` in its own block: 10·log10 of it is `frame_db` above "
-        "the floor, and a full-scale bin tone reads 1.0 under every window, "
+        "`frame_linear` in its own block: `frame_db` is `dp_power_to_db_f32` "
+        "of it, bit for bit, and a full-scale bin tone reads 1.0 under every "
+        "window, "
         "padded or not, against `full_scale` and `bits`. §2.1-§2.2 reach the "
         "same transform through `accumulate`.",
     )
@@ -1490,10 +1502,11 @@ def limits(d: Data) -> None:
         "exactly as a fresh state (maxhold, exp)",
     )
     R.limit(
-        d.stat_worst_z < 5.0 and d.bp_agree_worst < 1e-3,
+        d.stat_worst_z < 5.0 and d.bp_agree_worst < DB_CONV,
         f"dB/Hz reads var/fs, every window, pad {{1, 2}}, within 5 sd (worst "
         f"|z| {d.stat_worst_z:.2f}); whole-span band power, the same "
-        f"statistic, agrees",
+        f"statistic, agrees within the dB conversion's bound (worst "
+        f"{d.bp_agree_worst:.1e} dB)",
     )
     R.limit(
         d.dbhz_offset_worst < 1e-4,
@@ -1514,7 +1527,8 @@ def limits(d: Data) -> None:
     R.limit(
         abs(d.sfdr - 20.0) < d.sfdr_tol and d.sfdr_one_tone == 0.0,
         f"SFDR is carrier minus strongest spur (20 dB within "
-        f"{d.sfdr_tol:.1e}, the float FFT's bound), and 0 with "
+        f"{d.sfdr_tol:.1e}, the float FFT's and the dB conversion's "
+        "bounds), and 0 with "
         "one peak",
     )
     R.limit(

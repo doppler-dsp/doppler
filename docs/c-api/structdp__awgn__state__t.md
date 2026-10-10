@@ -39,7 +39,6 @@
 |  float | [**amplitude**](#variable-amplitude)  <br> |
 |  uint64\_t | [**s**](#variable-s)  <br> |
 |  uint64\_t | [**seed**](#variable-seed)  <br> |
-|  uint64\_t | [**vs**](#variable-vs)  <br> |
 
 
 
@@ -119,19 +118,6 @@ uint64_t dp_awgn_state_t::s[4];
 
 ```C++
 uint64_t dp_awgn_state_t::seed;
-```
-
-
-
-
-<hr>
-
-
-
-### variable vs 
-
-```C++
-uint64_t dp_awgn_state_t::vs[4][8];
 ```
 
 

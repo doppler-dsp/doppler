@@ -124,15 +124,20 @@ def check_text(text: str) -> tuple[int, list[tuple[int, str]]]:
     return calls, bad
 
 
-def tracked(root: Path) -> list[Path]:
-    """Every tracked C source, C header and Markdown page under `root`."""
+def tracked(root: Path) -> list[str]:
+    """Every tracked C source, C header and Markdown page under `root`.
+
+    As git names them: relative to `root`, with `/` on every OS. They are
+    reported that way too, so a finding reads the same on Windows, where a
+    `Path` would print `inc\\s.h` (#2097's clang-cl leg).
+    """
     out = subprocess.run(
         ["git", "-C", str(root), "ls-files", "-z", "--", "*.c", "*.h", "*.md"],
         check=True,
         capture_output=True,
         text=True,
     ).stdout
-    return [root / p for p in out.split("\0") if p]
+    return [p for p in out.split("\0") if p]
 
 
 def main(argv: list[str]) -> int:
@@ -142,17 +147,18 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--root", type=Path, default=ROOT)
     root = ap.parse_args(argv[1:]).root.resolve()
 
+    # Every message is ASCII: a Windows console's code page (cp1252) prints
+    # an em-dash as a replacement character (#2097's clang-cl leg).
     calls, files, bad = 0, 0, []
-    for path in tracked(root):
+    for rel in tracked(root):
         try:
-            text = path.read_text(encoding="utf-8")
+            text = (root / rel).read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
         n, found = check_text(text)
         if n:
             files += 1
             calls += n
-        rel = path.relative_to(root)
         bad += [(f"{rel}:{line}", mode) for line, mode in found]
 
     # A scan that finds no call at all is broken, not clean: the same
@@ -160,13 +166,13 @@ def main(argv: list[str]) -> int:
     if calls == 0:
         print(
             f"check_spectrogram_mode: found no {FUNCTION} call in the "
-            "tracked .c/.h/.md files — the scan is broken — FAIL"
+            "tracked .c/.h/.md files -- the scan is broken -- FAIL"
         )
         return 1
     if bad:
         print(
             f"check_spectrogram_mode: {FUNCTION}'s mode is a number, not a "
-            "name — FAIL"
+            "name -- FAIL"
         )
         for where, mode in bad:
             print(f"  {where}: mode = {mode}")
@@ -177,7 +183,7 @@ def main(argv: list[str]) -> int:
         )
         return 1
     print(
-        f"check_spectrogram_mode: OK — {calls} call(s) in {files} file(s), "
+        f"check_spectrogram_mode: OK -- {calls} call(s) in {files} file(s), "
         "every mode passed by name"
     )
     return 0

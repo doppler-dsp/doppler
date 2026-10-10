@@ -79,13 +79,26 @@ bd_same_state (const dp_burst_despreader_state_t *a,
   return same;
 }
 
-/* set_state refuses blob, and leaves target as twin, an untouched copy. */
+/* set_state refuses blob, and leaves target as twin, an untouched copy.
+   A target the blob did change is put back from twin, so each check stands
+   on its own rather than failing for an earlier one's sake. */
 static int
 bd_refused (dp_burst_despreader_state_t       *target,
             const dp_burst_despreader_state_t *twin, const void *blob)
 {
-  return dp_burst_despreader_set_state (target, blob) == DP_ERR_INVALID
-         && bd_same_state (target, twin);
+  int refused = dp_burst_despreader_set_state (target, blob) == DP_ERR_INVALID;
+  int same    = bd_same_state (target, twin);
+  if (!same)
+    {
+      unsigned char *b = malloc (dp_burst_despreader_state_bytes (twin));
+      if (b)
+        {
+          dp_burst_despreader_get_state (twin, b);
+          (void)dp_burst_despreader_set_state (target, b);
+          free (b);
+        }
+    }
+  return refused && same;
 }
 
 /* bd_refused for a copy of good with one struct field overwritten. */

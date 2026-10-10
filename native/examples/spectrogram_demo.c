@@ -91,9 +91,9 @@ main (void)
 
   /* Hann window, dB rows, DC-centred (bin k at NFFT/2 + k). */
   dp_spectrogram_state_t *a
-      = dp_spectrogram_create (NFFT, HOP, 0, 0.0f, DP_SPECTROGRAM_DB, 1);
+      = dp_spectrogram_create (NFFT, HOP, 0, 0.0f, DP_SPECTROGRAM_DB);
   dp_spectrogram_state_t *b
-      = dp_spectrogram_create (NFFT, HOP, 0, 0.0f, DP_SPECTROGRAM_DB, 1);
+      = dp_spectrogram_create (NFFT, HOP, 0, 0.0f, DP_SPECTROGRAM_DB);
   CHECK (a != NULL && b != NULL);
 
   /* rows_for is exact: how many rows the whole stream makes, before a

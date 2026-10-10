@@ -38,12 +38,15 @@ rows are computed per `nfft` samples. Each costs one FFT, so a quarter hop
 costs about four times as much per input sample.
 
 A row is `nfft` floats in **dBFS**, PSD's own convention: a full-scale tone
-on a bin reads 0 dB whatever the window. `shift = 1` puts DC at index
-`nfft/2`, with negative frequencies first, as PSD does; `shift = 0` gives
-FFT order, with bin *k* at index *k*. The window is PSD's index: 0 Hann,
-1 Kaiser (with `beta`), 2 Blackman-Harris, 3 rectangular.
+on a bin reads 0 dB whatever the window. Rows are DC-centred exactly as PSD
+emits them, bin *k* at index `nfft/2 + k` with negative frequencies first;
+bin order has one home, PSD's kernel, so there is no option to reorder it
+here ([#1988](https://github.com/doppler-dsp/doppler/issues/1988)). The
+window is PSD's index: 0 Hann, 1 Kaiser (with `beta`), 2 Blackman-Harris,
+3 rectangular.
 
-`nfft` must be a power of two and `1 <= hop <= nfft`. A frame length that is
+`nfft` must be the PSD's transform length for that frame, which is to say a
+power of two, and `1 <= hop <= nfft`. A frame length that is
 not a power of two would be zero-padded by the PSD to more bins than samples
 ([#1966](https://github.com/doppler-dsp/doppler/issues/1966)), and linear
 power rows are reserved until PSD's normalised per-frame power lands

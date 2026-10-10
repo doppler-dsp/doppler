@@ -153,7 +153,7 @@ Equal to its `n_in` unless `out` ran out of room; then the caller resumes at in 
 
 
 ```C++
-dp_spectrogram_state_t *s = dp_spectrogram_create (8, 8, 3, 0.0f, 0, 1);
+dp_spectrogram_state_t *s = dp_spectrogram_create (8, 8, 3, 0.0f, 0);
 float _Complex x[32] = { 0 };
 float row[8];
 // 32 samples make 4 rows, but out has room for 1: the push takes the 8
@@ -222,12 +222,12 @@ Call [**dp\_spectrogram\_destroy()**](spectrogram__core_8h.md#function-dp_spectr
 // nfft 1024, a row every 256 samples (75% overlap), Blackman-Harris,
 // dB rows, DC-centred
 dp_spectrogram_state_t *s
-    = dp_spectrogram_create (1024, 256, 2, 0.0f, DP_SPECTROGRAM_DB, 1);
+    = dp_spectrogram_create (1024, 256, 2, 0.0f, DP_SPECTROGRAM_DB);
 if (!s)
   return 1;
 // refused: 1000 is not a power of two, and a hop may not exceed nfft
-if (dp_spectrogram_create (1000, 256, 2, 0.0f, DP_SPECTROGRAM_DB, 1)
-    || dp_spectrogram_create (1024, 2048, 2, 0.0f, DP_SPECTROGRAM_DB, 1))
+if (dp_spectrogram_create (1000, 256, 2, 0.0f, DP_SPECTROGRAM_DB)
+    || dp_spectrogram_create (1024, 2048, 2, 0.0f, DP_SPECTROGRAM_DB))
   return 1;
 dp_spectrogram_destroy (s);
 ```
@@ -299,7 +299,7 @@ Floats written: nfft, or 0 if no row was owed.
 
 
 ```C++
-dp_spectrogram_state_t *s = dp_spectrogram_create (8, 4, 3, 0.0f, 0, 1);
+dp_spectrogram_state_t *s = dp_spectrogram_create (8, 4, 3, 0.0f, 0);
 float _Complex x[10] = { 0 };
 float row[8], last[8];
 // 10 samples: one row, [0, 8); samples 8 and 9 no row has covered
@@ -374,7 +374,7 @@ What [**dp\_spectrogram\_flush()**](spectrogram__core_8h.md#function-dp_spectrog
 
 
 ```C++
-dp_spectrogram_state_t *s = dp_spectrogram_create (8, 4, 3, 0.0f, 0, 1);
+dp_spectrogram_state_t *s = dp_spectrogram_create (8, 4, 3, 0.0f, 0);
 float _Complex x[12] = { 0 };
 float out[2 * 8];
 dp_spectrogram_push (s, x, 12, out, 2 * 8);
@@ -483,7 +483,7 @@ The capacity that makes a push take ALL of its input. Saturates at SIZE\_MAX rat
 
 
 ```C++
-dp_spectrogram_state_t *s = dp_spectrogram_create (8, 4, 3, 0.0f, 0, 1);
+dp_spectrogram_state_t *s = dp_spectrogram_create (8, 4, 3, 0.0f, 0);
 float _Complex x[16] = { 0 };
 float out[2 * 8];
 // 3 samples complete no row: no room is needed, and they are taken
@@ -531,7 +531,7 @@ The next row covers samples [0, nfft) of whatever is pushed next. [**dp\_spectro
 
 
 ```C++
-dp_spectrogram_state_t *s = dp_spectrogram_create (8, 8, 3, 0.0f, 0, 1);
+dp_spectrogram_state_t *s = dp_spectrogram_create (8, 8, 3, 0.0f, 0);
 float _Complex x[5] = { 0 };
 float row[8];
 dp_spectrogram_push (s, x, 5, row, 8);   // 5 samples of carry, no row
@@ -576,7 +576,7 @@ The carry plus `n_in` samples, cut into frames of nfft at the hop. A push with r
 
 
 ```C++
-dp_spectrogram_state_t *s = dp_spectrogram_create (8, 2, 3, 0.0f, 0, 1);
+dp_spectrogram_state_t *s = dp_spectrogram_create (8, 2, 3, 0.0f, 0);
 if (dp_spectrogram_rows_for (s, 7) != 0      // less than a frame
     || dp_spectrogram_rows_for (s, 8) != 1
     || dp_spectrogram_rows_for (s, 100) != 47) // (100 - 8) / 2 + 1
@@ -625,8 +625,8 @@ DP\_OK, or DP\_ERR\_INVALID (wrong magic, version, size or hop, or a corrupt car
 
 ```C++
 // one stream, cut mid-frame, resumed in a FRESH object, rows unchanged
-dp_spectrogram_state_t *a = dp_spectrogram_create (8, 4, 3, 0.0f, 0, 1);
-dp_spectrogram_state_t *b = dp_spectrogram_create (8, 4, 3, 0.0f, 0, 1);
+dp_spectrogram_state_t *a = dp_spectrogram_create (8, 4, 3, 0.0f, 0);
+dp_spectrogram_state_t *b = dp_spectrogram_create (8, 4, 3, 0.0f, 0);
 float _Complex x[20];
 for (int i = 0; i < 20; i++)
   x[i] = (float)i;
@@ -638,7 +638,7 @@ if (dp_spectrogram_state_bytes (b) > sizeof blob)
   return 1;
 dp_spectrogram_get_state (b, blob);
 dp_spectrogram_destroy (b);
-b = dp_spectrogram_create (8, 4, 3, 0.0f, 0, 1);
+b = dp_spectrogram_create (8, 4, 3, 0.0f, 0);
 if (dp_spectrogram_set_state (b, blob) != DP_OK)
   return 1;
 nb += dp_spectrogram_push (b, x + 11, 9, rb + nb, 4 * 8 - nb);

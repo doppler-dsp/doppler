@@ -269,7 +269,8 @@ sweep. To regenerate one object without the C half, run
 - [ ] Add the module's `test_validation_limits.py` if it is the module's
     first object; otherwise add the object to its `OBJECTS` map
 
-- [ ] `make validate` to generate `results.md`, plots and CSVs
+- [ ] `make validate-py VALIDATORS=<its validate.py>` to generate
+    `results.md`, plots and CSVs
 
 - [ ] **Update the C test and the Python example to carry whatever the
     validation established** — a new limit, a corrected rule, a number a

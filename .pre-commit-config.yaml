@@ -211,7 +211,7 @@ repos:
         entry: make -s lint-stock-images
         language: system
         pass_filenames: false
-        files: (^|/)(Dockerfile[^/]*|[^/]*\.[Dd]ockerfile|Makefile|[^/]*\.mk|[^/]*\.sh)$|^\.github/
+        files: (^|/)(Dockerfile[^/]*|[^/]*\.[Dd]ockerfile|Makefile|[^/]*\.mk|[^/]*\.sh)$|^\.github/|^scripts/(\.stock-pull-exempt|check_stock_images\.py)$
 
       # uv.lock's bytes depend on the uv that writes it, so uv is pinned once
       # in pyproject.toml and every installer reads that pin (doppler#1940).

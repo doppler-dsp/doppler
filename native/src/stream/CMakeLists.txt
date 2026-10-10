@@ -63,6 +63,16 @@ add_test(NAME test_stream_wire COMMAND test_stream_wire)
   add_test(NAME test_stream_nats_core COMMAND test_stream_nats_core)
   set_tests_properties(test_stream_nats_core PROPERTIES
       SKIP_RETURN_CODE 77)
+  # GNU ld and lld route doppler's call to natsMsg_Ack through the test's
+  # __wrap_natsMsg_Ack, which holds one ack in flight so the race test can
+  # see a teardown that does not wait for it (#2016). Linux only: ld64 and
+  # link.exe have no --wrap, and there the test runs without the hold.
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_options(test_stream_nats_core PRIVATE
+        "LINKER:--wrap=natsMsg_Ack")
+    target_compile_definitions(test_stream_nats_core PRIVATE
+        DP_TEST_HOLD_NATS_ACK=1)
+  endif()
 
   # Telemetry-ring -> NATS round-trip (skips without a live broker, like
   # test_stream_nats_core).

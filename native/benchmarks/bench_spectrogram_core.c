@@ -52,6 +52,7 @@ typedef struct
 {
   size_t                  nfft, hop, chunk; /* chunk 0: one push */
   int                     direct;           /* the hand-written loop */
+  int                     mate;             /* a push's direct twin, or -1 */
   size_t                  block, cap;
   dp_spectrogram_state_t *s;
   dp_psd_state_t         *p;
@@ -91,6 +92,7 @@ add (config_t *cfg, int *nc, size_t nfft, size_t hop, size_t chunk, int direct,
      size_t block)
 {
   config_t *c = &cfg[(*nc)++];
+  c->mate     = -1;
   c->nfft     = nfft;
   c->hop      = hop;
   c->chunk    = chunk;
@@ -124,36 +126,28 @@ main (void)
 
   config_t cfg[NCFG] = { 0 };
   int      nc        = 0;
-  /* the original rows, unchanged: nfft 256/1024/4096, hop nfft and nfft/4,
-     one push and CHUNK-sample pushes */
-  static const size_t nffts[] = { 256, 1024, 4096 };
-  for (int k = 0; k < 3; k++)
-    for (int h = 0; h < 2; h++)
-      for (int ch = 0; ch < 2; ch++)
-        if (!add (cfg, &nc, nffts[k], h ? nffts[k] / 4 : nffts[k],
-                  ch ? CHUNK : 0, 0, BLOCK))
-          return 1;
-  /* U1: push and direct over nfft 256..65536 x hop nfft/4 and nfft (the
-     midpoint nfft/2 would pass jm_bench.h's 32-row cap; see the top) */
+  /* One table. Every (nfft, hop): a one-push row and, beside it, its direct
+     twin (U1), so the two are timed adjacently at every size; and for the
+     original sizes 256/1024/4096 the CHUNK-sample row they always had. Hop
+     nfft and nfft/4 (the midpoint nfft/2 would pass jm_bench.h's 32-row
+     cap; see the top). */
   static const size_t u1[] = { 256, 1024, 4096, 16384, 65536 };
   for (int k = 0; k < 5; k++)
     for (size_t div = 1; div <= 4; div *= 4)
       {
         const size_t n = u1[k], hop = n / div;
-        const int    have = n <= 4096; /* an original row */
-        config_t    *pc   = NULL;
-        for (int i = 0; i < nc; i++)
-          if (cfg[i].nfft == n && cfg[i].hop == hop && !cfg[i].chunk
-              && !cfg[i].direct)
-            pc = &cfg[i];
-        if (!have && !(pc = add (cfg, &nc, n, hop, 0, 0, block_for (n))))
+        const size_t block = n <= 4096 ? BLOCK : block_for (n);
+        config_t    *pc    = add (cfg, &nc, n, hop, 0, 0, block);
+        if (!pc)
           return 1;
-        config_t *dc = add (cfg, &nc, n, hop, 0, 1, pc->block);
+        const int ip = nc - 1;
+        config_t *dc = add (cfg, &nc, n, hop, 0, 1, block);
         if (!dc)
           return 1;
+        cfg[ip].mate = nc - 1;
         /* the measuring stick must be the same computation, bit for bit */
-        size_t wp = run (pc, x), wd = run (dc, x);
-        if (wp != wd || memcmp (pc->out, dc->out, wp * sizeof *pc->out))
+        size_t wp = run (&cfg[ip], x), wd = run (dc, x);
+        if (wp != wd || memcmp (cfg[ip].out, dc->out, wp * sizeof *dc->out))
           {
             (void)fprintf (stderr,
                            "bench_spectrogram: direct differs from push at "
@@ -161,6 +155,8 @@ main (void)
                            n, hop);
             return 1;
           }
+        if (n <= 4096 && !add (cfg, &nc, n, hop, CHUNK, 0, BLOCK))
+          return 1;
       }
   /* U2: chunk 1, nfft and 16 nfft at nfft 1024, hop 256 (CHUNK = 256 = hop
      is an original row) */
@@ -177,10 +173,24 @@ main (void)
   for (int r = 0; r < ROUNDS; r++)
     for (int i = 0; i < nc; i++)
       {
-        uint64_t t0 = jm_bench_now_ns ();
-        sink += run (&cfg[i], x);
-        uint64_t t1 = jm_bench_now_ns ();
-        cfg[i].t[r] = jm_bench_elapsed_sec (t0, t1);
+        if (cfg[i].direct)
+          continue; /* timed beside its push, below */
+        /* a push and its direct twin, adjacent, the pair's order swapped
+           every round: U1 is their ratio, and a fixed order would always
+           run the same one second, warm */
+        int first = i, second = cfg[i].mate;
+        if (second >= 0 && r % 2)
+          first = cfg[i].mate, second = i;
+        for (int pass = 0; pass < 2; pass++)
+          {
+            const int j = pass ? second : first;
+            if (j < 0)
+              break;
+            uint64_t t0 = jm_bench_now_ns ();
+            sink += run (&cfg[j], x);
+            uint64_t t1 = jm_bench_now_ns ();
+            cfg[j].t[r] = jm_bench_elapsed_sec (t0, t1);
+          }
       }
 
   for (int i = 0; i < nc; i++)
@@ -202,6 +212,18 @@ main (void)
       free (cfg[i].out);
     }
   printf ("\n(sink %zu)\n", (size_t)sink);
+  /* Every row RECORDS, or nothing is written: jm_bench.h drops entries past
+     JM_BENCH_MAX_ENTRIES without a word (just-buildit/just-makeit#2188), so
+     the count is checked against nc, which the tables above DERIVE. A short
+     set then reaches the publish gate as a missing component (#2062). */
+  if (_bench.count != nc)
+    {
+      (void)fprintf (stderr,
+                     "bench_spectrogram: recorded %d rows of %d; writing "
+                     "none\n",
+                     _bench.count, nc);
+      return 1;
+    }
   jm_bench_write_json (&_bench, "spectrogram");
   free (x);
   return 0;

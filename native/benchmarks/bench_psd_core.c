@@ -207,11 +207,14 @@ main (void)
           return 1;
       }
     DP_BENCH_SETTLE (kern_run (&kern[1], 2, xk));
+    /* the three kinds ROTATE per round: their shares are differences, and a
+       fixed order would always start the same kind warm */
     for (int r = 0; r < KROUNDS; r++)
       for (int k = 0; k < NKERN; k++)
-        for (int kind = 0; kind < 3; kind++)
+        for (int q = 0; q < 3; q++)
           {
-            t0 = jm_bench_now_ns ();
+            const int kind = (q + r) % 3;
+            t0             = jm_bench_now_ns ();
             kern_run (&kern[k], kind, xk);
             t1                 = jm_bench_now_ns ();
             kern[k].t[kind][r] = jm_bench_elapsed_sec (t0, t1);
@@ -236,6 +239,18 @@ main (void)
     free (xk);
   }
 
+  /* Every row RECORDS, or nothing is written: jm_bench.h drops entries past
+     JM_BENCH_MAX_ENTRIES without a word (just-buildit/just-makeit#2188), so
+     the count is checked against the one the tables above DERIVE. A short
+     set then reaches the publish gate as a missing component (#2062). */
+  const int want = (int)(sizeof nffts / sizeof *nffts) * 3 + NKERN * 3;
+  if (_bench.count != want)
+    {
+      (void)fprintf (stderr,
+                     "bench_psd: recorded %d rows of %d; writing none\n",
+                     _bench.count, want);
+      return 1;
+    }
   (void)sink;
   free (x);
   free (xr);

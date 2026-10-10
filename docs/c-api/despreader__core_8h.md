@@ -86,7 +86,7 @@ _Continuous DSSS despreader — Costas carrier loop + DLL code loop._ [More...](
 |  void | [**dp\_despreader\_get\_state**](#function-dp_despreader_get_state) (const [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, void \* blob) <br> |
 |  void | [**dp\_despreader\_init**](#function-dp_despreader_init) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* ch, const uint8\_t \* code, size\_t code\_len, size\_t sps, double init\_norm\_freq, double init\_chip, double bn\_carrier, double bn\_code, double bn\_fll, double zeta, double spacing, size\_t periods\_per\_bit) <br>_Initialise a despreader in place; BORROWS_ `code` _._ |
 |  void | [**dp\_despreader\_reset**](#function-dp_despreader_reset) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state) <br>_Re-seed both loops to the create-time frequency/phase; keep config._  |
-|  void | [**dp\_despreader\_set\_bn\_carrier**](#function-dp_despreader_set_bn_carrier) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, double val) <br> |
+|  int | [**dp\_despreader\_set\_bn\_carrier**](#function-dp_despreader_set_bn_carrier) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, double val) <br> |
 |  int | [**dp\_despreader\_set\_bn\_code**](#function-dp_despreader_set_bn_code) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, double val) <br> |
 |  void | [**dp\_despreader\_set\_norm\_freq**](#function-dp_despreader_set_norm_freq) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, double val) <br> |
 |  int | [**dp\_despreader\_set\_state**](#function-dp_despreader_set_state) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, const void \* blob) <br> |
@@ -618,7 +618,7 @@ void dp_despreader_init (
 The by-value counterpart to [**dp\_despreader\_create()**](despreader__core_8h.md#function-dp_despreader_create): the caller retains ownership of `code` (it is not copied or freed). Seeds the carrier NCO at `init_norm_freq` and the code phase at `init_chip` (the acquisition estimate). The carrier loop's update period is one code period (`code_len * sps` samples).
 
 
-Unguarded, as the by-value path: the caller checks the code loop's arguments with [**dp\_dll\_params\_ok()**](dll__core_8h.md#function-dp_dll_params_ok) (`code_len`, `init_chip`, `bn_code`, `zeta`, `spacing`, one segment) first, as [**dp\_despreader\_create()**](despreader__core_8h.md#function-dp_despreader_create) does. Outside it the code loop reads past the code (doppler#2103). The carrier loop's own check is doppler#2112.
+Unguarded, as the by-value path: the caller checks the code loop's arguments with [**dp\_dll\_params\_ok()**](dll__core_8h.md#function-dp_dll_params_ok) (`code_len`, `init_chip`, `bn_code`, `zeta`, `spacing`, one segment) first, as [**dp\_despreader\_create()**](despreader__core_8h.md#function-dp_despreader_create) does. Outside it the code loop reads past the code (doppler#2103). Likewise the carrier loop's (`bn_carrier`, `zeta`) with [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok) at one update a symbol, or its gains go NaN (doppler#2112).
 
 
 
@@ -697,7 +697,7 @@ True
 ### function dp\_despreader\_set\_bn\_carrier 
 
 ```C++
-void dp_despreader_set_bn_carrier (
+int dp_despreader_set_bn_carrier (
     dp_despreader_state_t * state,
     double val
 ) 
@@ -705,6 +705,17 @@ void dp_despreader_set_bn_carrier (
 
 
 
+
+
+**Returns:**
+
+DP\_OK; DP\_ERR\_INVALID, changing nothing, outside the carrier loop's domain ([**dp\_costas\_configure()**](costas__core_8h.md#function-dp_costas_configure)). 
+
+
+
+
+
+        
 
 <hr>
 

@@ -19,30 +19,46 @@ dp_loop_filter_wn (double bn, double zeta)
   return 8.0 * zeta * bn / (4.0 * zeta * zeta + 1.0);
 }
 
+/* Standard 2nd-order PI loop-filter gains. bn is the loop noise bandwidth
+ * (normalized, cycles/sample), zeta the damping factor, t the update period
+ * in samples. wn is the natural frequency; the discrete kp/ki follow the
+ * canonical bilinear-mapped form (e.g. Stephens & Thomas). The one formula:
+ * init writes it, and the predicate checks what it gives, so the two cannot
+ * disagree about which inputs make a loop. */
+static void
+lf_gains (double bn, double zeta, double t, double *kp, double *ki)
+{
+  double wn  = dp_loop_filter_wn (bn, zeta);
+  double th  = wn * t;
+  double den = 4.0 + 4.0 * zeta * th + th * th;
+  *kp        = (8.0 * zeta * th) / den;
+  *ki        = (4.0 * th * th) / den;
+}
+
 void
 dp_loop_filter_init (dp_loop_filter_state_t *state, double bn, double zeta,
                      double t)
 {
-  /* Standard 2nd-order PI loop-filter gains. bn is the loop noise bandwidth
-   * (normalized, cycles/sample), zeta the damping factor, t the update period
-   * in samples. wn is the natural frequency; the discrete kp/ki follow the
-   * canonical bilinear-mapped form (e.g. Stephens & Thomas). integ is left
-   * untouched so a reconfigure preserves lock. */
-  double wn   = dp_loop_filter_wn (bn, zeta);
-  double th   = wn * t;
-  double den  = 4.0 + 4.0 * zeta * th + th * th;
+  /* The gains from lf_gains(); integ is left untouched so a reconfigure
+     preserves lock. */
   state->bn   = bn;
   state->zeta = zeta;
   state->t    = t;
-  state->kp   = (8.0 * zeta * th) / den;
-  state->ki   = (4.0 * th * th) / den;
+  lf_gains (bn, zeta, t, &state->kp, &state->ki);
 }
 
 int
 dp_loop_filter_params_ok (double bn, double zeta, double t)
 {
-  return bn >= 0.0 && zeta > 0.0 && t > 0.0 && isfinite (bn) && isfinite (zeta)
-         && isfinite (t); /* NaN fails every comparison */
+  /* Finite inputs are not enough: a finite bn past ~7e153 at t = 1 squares
+     th to inf, and ki = inf/inf is NaN (doppler#2103). The gains themselves
+     must be finite, which refuses no loop anyone runs. */
+  if (!(bn >= 0.0 && zeta > 0.0 && t > 0.0 && isfinite (bn) && isfinite (zeta)
+        && isfinite (t))) /* NaN fails every comparison */
+    return 0;
+  double kp, ki;
+  lf_gains (bn, zeta, t, &kp, &ki);
+  return isfinite (kp) && isfinite (ki);
 }
 
 dp_loop_filter_state_t *

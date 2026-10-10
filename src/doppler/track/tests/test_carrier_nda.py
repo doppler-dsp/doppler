@@ -66,14 +66,14 @@ def test_valid_orders(m):
 
 @pytest.mark.parametrize("m", [0, 1, 3, 5, 16])
 def test_invalid_order_raises(m):
-    with pytest.raises(MemoryError):
+    with pytest.raises(ValueError, match="CarrierNda: invalid parameter"):
         CarrierNda(m=m)
 
 
 @pytest.mark.parametrize("sps,n", [(8, 3), (8, 0), (0, 4), (10, 4)])
 def test_invalid_arm_geometry_raises(sps, n):
     # sps must be a positive whole multiple of n (arm_len = sps/n)
-    with pytest.raises(MemoryError):
+    with pytest.raises(ValueError, match="CarrierNda: invalid parameter"):
         CarrierNda(sps=sps, n=n, m=4)
 
 

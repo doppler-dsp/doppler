@@ -66,7 +66,11 @@ default = "1"
 name = "push"
 arg_type = "float _Complex"
 return_type = "det_result2d_t"
-max_results = 64
+# The binding makes ONE call into a stack array of this many results, and a
+# push that would make more loses the input past the last (#1992; the jm ask
+# is just-buildit/just-makeit#2184). 1024 makes that a push of over 1024
+# frames: 32 KiB of stack per call (sizeof(det_result2d_t) = 32).
+max_results = 1024
 result_fields = [{name = "row", type = "size_t"}, {name = "col", type = "size_t"}, {name = "peak_mag", type = "float"}, {name = "noise_est", type = "float"}, {name = "test_stat", type = "float"}]
 
 [[detector2d.properties]]

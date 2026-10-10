@@ -12,9 +12,9 @@
 #ifndef DP_DETECTOR2D_CORE_H
 #define DP_DETECTOR2D_CORE_H
 
-#include "doppler/buffer/buffer.h"
 #include "doppler/corr2d/corr2d_core.h"
 #include "doppler/dp_state.h"
+#include "doppler/f32_buffer/f32_buffer_core.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -60,6 +60,7 @@ typedef struct
 {
   dp_corr2d_state_t *corr;     
   dp_f32_t *ring;             
+  dp_f32_framer_t framer;     
   float _Complex *out_buf;   
   float *mag_buf;           
   float *noise_scratch;     
@@ -78,6 +79,7 @@ typedef struct
   float noise_est;
   float test_stat;
   int _last_corr_valid;     
+  size_t consumed;          
 } dp_detector2d_state_t;
 
 /* ── Lifecycle ──────────────────────────────────────────────────────────── */
@@ -102,11 +104,15 @@ size_t dp_detector2d_push (dp_detector2d_state_t *state, const float _Complex *i
                         size_t n_in, det_result2d_t *result,
                         size_t max_results);
 
+size_t dp_detector2d_consumed (const dp_detector2d_state_t *state);
+
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
- * corr2d child + the input ring's unconsumed samples (zero-padded to ring_cap)
- * + the last-dump result fields; scratch is config (rebuilt by create). */
+ * corr2d child + the framer's carry (its own child blob, fewer than ny*nx
+ * samples) + the last-dump result fields; scratch is config (rebuilt by
+ * create).  Version 2: the carry was the ring's raw contents, zero-padded to
+ * ring_cap. */
 #define DETECTOR2D_STATE_MAGIC DP_FOURCC ('D','E','T','2')
-#define DETECTOR2D_STATE_VERSION 1u
+#define DETECTOR2D_STATE_VERSION 2u
 size_t dp_detector2d_state_bytes (const dp_detector2d_state_t *state);
 void dp_detector2d_get_state (const dp_detector2d_state_t *state, void *blob);
 int dp_detector2d_set_state (dp_detector2d_state_t *state, const void *blob);

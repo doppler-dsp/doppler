@@ -28,5 +28,10 @@ def obj():
 
 
 def test_bench_push_64k(benchmark, obj):
+    # Every dump fires (threshold 0): 65536 samples at 8 x 8, dwell 4 is
+    # 256 detections. Checked, because a push that fills its results stops
+    # taking input -- at the old room of 64 this timed 16384 samples while
+    # crediting 65536.
     x = np.ones(BLOCK_64K, dtype=np.complex64)
-    benchmark(obj.push, x)
+    hits = benchmark(obj.push, x)
+    assert len(hits) == BLOCK_64K // (NY * NX * 4)

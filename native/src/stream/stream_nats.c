@@ -24,6 +24,7 @@
  * load-balance and a crashed consumer's un-acked frames redeliver.
  */
 
+#include "doppler/dp_thread.h"
 #include "doppler/stream/stream.h"
 #include "stream_internal.h"
 #include <nats.h>
@@ -269,6 +270,63 @@ nats_wire_role (struct dp_ctx *ctx, natsConnection *conn)
   return 0;
 }
 
+/* =========================================================================
+ * The context <-> message link (#2016)
+ * ========================================================================= */
+
+/* `closed` is set under the mutex BEFORE the context's NATS objects are torn
+   down, and an ack reads it under the same mutex, so an ack already in
+   flight finishes before teardown begins and one that comes after is
+   refused (DP_ERR_CLOSED) rather than reading a freed subscription. `role`
+   is the context's: only a PULL message is a JetStream message, so only it
+   is acked; nats.c's ack on any other reads a subscription with no
+   JetStream context (jsi == NULL) and faults with no close involved. */
+struct dp_msg_link
+{
+  dp_mutex_t mu;
+  size_t     refs;
+  int        closed;
+  dp_role_t  role;
+};
+
+static dp_msg_link_t *
+link_create (dp_role_t role)
+{
+  /* Fixed size, so only OOM can fail it: the abort-on-OOM helper. */
+  dp_msg_link_t *l = (dp_msg_link_t *)dp_xcalloc (1, sizeof *l);
+  dp_mutex_init (&l->mu);
+  l->refs = 1;
+  l->role = role;
+  return l;
+}
+
+static dp_msg_link_t *
+link_retain (dp_msg_link_t *l)
+{
+  dp_mutex_lock (&l->mu);
+  l->refs++;
+  dp_mutex_unlock (&l->mu);
+  return l;
+}
+
+/* The count drops under the mutex, but the mutex is destroyed only after
+   it is unlocked, and only by the holder of the last reference: nobody
+   else can be waiting on it then. */
+static void
+link_release (dp_msg_link_t *l)
+{
+  if (!l)
+    return;
+  dp_mutex_lock (&l->mu);
+  int last = --l->refs == 0;
+  dp_mutex_unlock (&l->mu);
+  if (last)
+    {
+      dp_mutex_destroy (&l->mu);
+      free (l);
+    }
+}
+
 struct dp_ctx *
 dp__nats_ctx_create (dp_role_t role, const char *endpoint,
                      dp_frame_kind_t kind, dp_sample_type_t format)
@@ -299,12 +357,21 @@ dp__nats_ctx_create (dp_role_t role, const char *endpoint,
   /* Cache the server's max message size; frames above it are chunked. */
   ctx->nats.max_payload
       = natsConnection_GetMaxPayload ((natsConnection *)ctx->nats.conn);
+  ctx->nats.link = link_create (role);
   return ctx;
 }
 
 void
 dp__nats_ctx_destroy (struct dp_ctx *ctx)
 {
+  /* Closed first, under the mutex: an ack in flight completes before the
+     subscription it reads goes, and every later one is refused. */
+  if (ctx->nats.link)
+    {
+      dp_mutex_lock (&ctx->nats.link->mu);
+      ctx->nats.link->closed = 1;
+      dp_mutex_unlock (&ctx->nats.link->mu);
+    }
   if (ctx->nats.sub)
     natsSubscription_Destroy ((natsSubscription *)ctx->nats.sub);
   if (ctx->nats.js)
@@ -316,6 +383,8 @@ dp__nats_ctx_destroy (struct dp_ctx *ctx)
   free (ctx->nats.base);
   free (ctx->nats.last_reply);
   dp_reasm_reset (&ctx->nats.reasm);
+  link_release (ctx->nats.link);
+  ctx->nats.link = NULL;
 }
 
 /* =========================================================================
@@ -745,6 +814,7 @@ nats_owned_msg (char *buf, const dp_header_t *fh, dp_msg_t **out_msg,
       return DP_ERR_MEMORY;
     }
   msg->owner       = DP_MSG_OWNED;
+  msg->link        = NULL; /* owns its buffer: no context to outlive */
   msg->u.owned.ptr = buf;
   msg->u.owned.len = fh->payload_bytes;
   msg->data_offset = 0;
@@ -879,6 +949,7 @@ dp__nats_recv_signal (struct dp_ctx *ctx, dp_msg_t **out_msg,
         }
       msg->owner       = DP_MSG_NATS;
       msg->u.nats      = m;
+      msg->link        = link_retain (ctx->nats.link);
       msg->data_offset = (size_t)(body - natsMsg_GetData (m));
       msg->kind        = (dp_frame_kind_t)hdr.kind;
       msg->format      = (dp_sample_type_t)hdr.format;
@@ -911,6 +982,7 @@ dp__nats_recv_raw (struct dp_ctx *ctx, dp_msg_t **out_msg, size_t *out_size)
     }
   msg->owner       = DP_MSG_NATS;
   msg->u.nats      = m;
+  msg->link        = link_retain (ctx->nats.link);
   msg->data_offset = 0;
   msg->kind        = DP_KIND_IQ; /* not meaningful for raw recv */
   msg->format      = CF64;
@@ -948,12 +1020,25 @@ dp__nats_msg_size (dp_msg_t *msg)
 void
 dp__nats_msg_free (dp_msg_t *msg)
 {
+  /* natsMsg_Destroy never touches the subscription, so this is safe after
+     the context is gone; the link outlives both until the last of them. */
   natsMsg_Destroy ((natsMsg *)msg->u.nats);
+  link_release (msg->link);
 }
 
 int
 dp__nats_msg_ack (dp_msg_t *msg)
 {
-  natsStatus s = natsMsg_Ack ((natsMsg *)msg->u.nats, NULL);
-  return (s == NATS_OK) ? DP_OK : DP_ERR_SEND;
+  dp_msg_link_t *l = msg->link;
+  int            rc;
+  dp_mutex_lock (&l->mu);
+  if (l->closed)
+    rc = DP_ERR_CLOSED; /* the broker redelivers it: ack before close */
+  else if (l->role != DP_ROLE_PULL)
+    rc = DP_OK; /* core NATS: there is nothing to acknowledge */
+  else
+    rc = natsMsg_Ack ((natsMsg *)msg->u.nats, NULL) == NATS_OK ? DP_OK
+                                                               : DP_ERR_SEND;
+  dp_mutex_unlock (&l->mu);
+  return rc;
 }

@@ -18,6 +18,7 @@
 #include <nats.h>
 
 #include "doppler/dp_complex.h"
+#include "doppler/dp_thread.h"
 #include "dp_nats_test.h"
 #include <stdatomic.h>
 #include <stdint.h>
@@ -454,6 +455,209 @@ test_send_refuses_a_count_that_wraps (void)
 
   dp_pub_destroy (pub);
   dp_sub_destroy (sub);
+}
+
+/* ------------------------------------------------------------------
+ * #2016 item 5: a message's ack after its context is gone.
+ *
+ * nats.c's ack reads the message's subscription, that subscription's
+ * JetStream context and its connection, and a natsMsg keeps none of them
+ * alive. dp_msg_ack() after dp_pull_destroy() read freed memory; every
+ * message now shares a refcounted link with its context, which the
+ * destroy marks closed before tearing anything down.
+ * ------------------------------------------------------------------ */
+static void
+test_ack_after_close_is_refused (void)
+{
+  printf ("\n-- an ack after its Pull is closed is refused --\n");
+  const char *ep = dp_nats_endpoint ("ackclose");
+
+  dp_pub_t *push = dp_push_create (ep, CF32);
+  dp_sub_t *pull = dp_pull_create (ep);
+  DP_CHECK (push != NULL && pull != NULL);
+  dp_nats_settle ();
+  if (!push || !pull)
+    {
+      dp_pub_destroy (push);
+      dp_sub_destroy (pull);
+      return;
+    }
+
+  float _Complex tx[4] = { 1, 2, 3, 4 };
+  DP_CHECK (dp_pub_send_cf32 (push, tx, 4, 48000.0, 0.0) == DP_OK);
+  DP_CHECK (dp_pub_send_cf32 (push, tx, 4, 48000.0, 0.0) == DP_OK);
+
+  dp_msg_t   *m1 = NULL, *m2 = NULL;
+  dp_header_t hdr;
+  dp_sub_set_timeout (pull, 3000);
+  DP_CHECK (dp_sub_recv (pull, &m1, &hdr) == DP_OK);
+  DP_CHECK (dp_sub_recv (pull, &m2, &hdr) == DP_OK);
+  /* The control: while the Pull is open, an ack goes through. */
+  DP_CHECK (m1 && dp_msg_ack (m1) == DP_OK);
+  dp_msg_free (m1);
+
+  /* m2 outlives its Pull: the ack is refused, and freeing it is fine. */
+  dp_sub_destroy (pull);
+  DP_CHECK (m2 && dp_msg_ack (m2) == DP_ERR_CLOSED);
+  dp_msg_free (m2);
+
+  /* Refused means not acked: the broker hands it to the next consumer. */
+  dp_sub_t *next = dp_pull_create (ep);
+  DP_CHECK (next != NULL);
+  if (next)
+    {
+      dp_msg_t *again = NULL;
+      dp_sub_set_timeout (next, PULL_ACKWAIT_MS + 3000);
+      DP_CHECK_MSG (dp_sub_recv (next, &again, &hdr) == DP_OK,
+                    "the frame whose ack was refused is redelivered");
+      if (again)
+        {
+          DP_CHECK (dp_msg_ack (again) == DP_OK);
+          dp_msg_free (again);
+        }
+      dp_sub_destroy (next);
+    }
+  dp_pub_destroy (push);
+}
+
+/* Only a PULL message is a JetStream message. On any other, nats.c's ack
+   either refuses (SUB: no reply subject) or reads a subscription with no
+   JetStream context (REP: a request HAS a reply subject) and faults. The
+   header promises a no-op for both. */
+static void
+test_ack_on_core_nats_is_a_noop (void)
+{
+  printf ("\n-- an ack on a SUB or REP message is a no-op --\n");
+  const char *ep = dp_nats_endpoint ("acknoop");
+
+  dp_sub_t *sub = dp_sub_create (ep);
+  DP_CHECK (sub != NULL);
+  dp_nats_settle ();
+  dp_pub_t *pub = dp_pub_create (ep, CF64);
+  DP_CHECK (pub != NULL);
+  dp_nats_settle ();
+  if (sub && pub)
+    {
+      double _Complex tx[2] = { 1, 2 };
+      DP_CHECK (dp_pub_send_cf64 (pub, tx, 2, 1.0, 0.0) == DP_OK);
+      dp_msg_t   *msg = NULL;
+      dp_header_t hdr;
+      dp_sub_set_timeout (sub, 3000);
+      DP_CHECK (dp_sub_recv (sub, &msg, &hdr) == DP_OK);
+      DP_CHECK (msg && dp_msg_ack (msg) == DP_OK);
+      if (msg)
+        dp_msg_free (msg);
+    }
+  dp_pub_destroy (pub);
+  dp_sub_destroy (sub);
+
+  const char *rep_ep = dp_nats_endpoint ("acknooprep");
+  dp_rep_t   *rep    = dp_rep_create (rep_ep);
+  DP_CHECK (rep != NULL);
+  dp_nats_settle ();
+  dp_req_t *req = dp_req_create (rep_ep);
+  DP_CHECK (req != NULL);
+  if (rep && req)
+    {
+      DP_CHECK (dp_req_send (req, "ping", 5) == DP_OK);
+      dp_msg_t *rq      = NULL;
+      size_t    rq_size = 0;
+      dp_rep_set_timeout (rep, 3000);
+      DP_CHECK (dp_rep_recv (rep, &rq, &rq_size) == DP_OK);
+      DP_CHECK (rq && dp_msg_ack (rq) == DP_OK);
+      if (rq)
+        dp_msg_free (rq);
+    }
+  dp_req_destroy (req);
+  dp_rep_destroy (rep);
+}
+
+enum
+{
+  RACE_N = 64
+};
+
+typedef struct
+{
+  dp_msg_t *msg[RACE_N];
+  int       rc[RACE_N];
+} race_t;
+
+DP_THREAD_FN (race_acker, arg)
+{
+  race_t *r = (race_t *)arg;
+  for (int i = 0; i < RACE_N; i++)
+    r->rc[i] = dp_msg_ack (r->msg[i]);
+  DP_THREAD_RETURN;
+}
+
+/* An ack racing the destroy on another thread: each completes before the
+   teardown or is refused, never reads a freed subscription (the TSan leg
+   runs this). Once one is refused, every later one is too. */
+static void
+test_ack_racing_close (void)
+{
+  printf ("\n-- acks racing a close: done before it, or refused --\n");
+  const char *ep = dp_nats_endpoint ("ackrace");
+
+  dp_pub_t *push = dp_push_create (ep, CF32);
+  dp_sub_t *pull = dp_pull_create (ep);
+  DP_CHECK (push != NULL && pull != NULL);
+  dp_nats_settle ();
+  if (!push || !pull)
+    {
+      dp_pub_destroy (push);
+      dp_sub_destroy (pull);
+      return;
+    }
+  float _Complex tx[4] = { 1, 2, 3, 4 };
+  for (int i = 0; i < RACE_N; i++)
+    DP_CHECK (dp_pub_send_cf32 (push, tx, 4, 48000.0, 0.0) == DP_OK);
+
+  race_t     *r = calloc (1, sizeof *r);
+  dp_header_t hdr;
+  int         got = 0;
+  DP_CHECK (r != NULL);
+  if (!r)
+    {
+      dp_sub_destroy (pull);
+      dp_pub_destroy (push);
+      return;
+    }
+  dp_sub_set_timeout (pull, 3000);
+  for (; got < RACE_N; got++)
+    if (dp_sub_recv (pull, &r->msg[got], &hdr) != DP_OK)
+      break;
+  DP_CHECK (got == RACE_N);
+  if (got == RACE_N)
+    {
+      dp_thread_t t;
+      const int   started = dp_thread_create (&t, race_acker, r) == 0;
+      DP_CHECK (started);
+      dp_sub_destroy (pull);
+      pull = NULL;
+      if (started)
+        dp_thread_join (t);
+      else
+        race_acker (r); /* still a valid check, just not a race */
+      int valid = 1, monotone = 1, refused = 0;
+      for (int i = 0; i < RACE_N; i++)
+        {
+          if (r->rc[i] != DP_OK && r->rc[i] != DP_ERR_CLOSED)
+            valid = 0;
+          if (r->rc[i] == DP_ERR_CLOSED)
+            refused = 1;
+          else if (refused)
+            monotone = 0; /* an ack went through after one was refused */
+        }
+      DP_CHECK (valid);
+      DP_CHECK (monotone);
+    }
+  for (int i = 0; i < got; i++)
+    dp_msg_free (r->msg[i]);
+  free (r);
+  dp_sub_destroy (pull);
+  dp_pub_destroy (push);
 }
 
 /* ------------------------------------------------------------------
@@ -993,6 +1197,9 @@ main (void)
   test_interrupt_unblocks_recv ();
   test_flush_after_send ();
   test_send_refuses_a_count_that_wraps ();
+  test_ack_after_close_is_refused ();
+  test_ack_on_core_nats_is_a_noop ();
+  test_ack_racing_close ();
   test_drain_then_send ();
   test_work_queue_is_age_bounded ();
   test_mid_frame_timeout_resumes_the_frame ();

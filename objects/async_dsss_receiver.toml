@@ -24,7 +24,7 @@ no_state = "true"
 no_step = "true"
 class_name = "AsyncDsssReceiver"
 create_error = "ValueError"
-create_error_message = "AsyncDsssReceiver: invalid parameter (need a code of at least 2 chips, a finite chip_rate > 0, a finite symbol_rate > 0, spc >= 1, m in {2,4,8}, segments >= 1, sps >= 2, carrier_freq_hz 0 or finite and above chip_rate * spc / 2, lost_confirm_s >= 0, refine_samples_per_symbol >= 1, refine_n_fft >= 1, refine_zero_pad >= 1, a symbol of at most 2^20 Dll partials, segments * chip_rate / (code_len * symbol_rate) <= 1048576; and for the searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >= 0)"
+create_error_message = "AsyncDsssReceiver: invalid parameter (need a code of at least 2 chips, a finite chip_rate > 0, a finite symbol_rate > 0 and <= chip_rate, spc >= 1, m in {2,4,8}, segments >= 1, sps >= 2, carrier_freq_hz 0 or finite and above chip_rate * spc / 2, lost_confirm_s >= 0, refine_samples_per_symbol >= 1, refine_n_fft >= 1, refine_zero_pad >= 1, a symbol of at most 2^20 Dll partials, segments * chip_rate / (code_len * symbol_rate) <= 1048576; and for the searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >= 0)"
 serializable = "true"
 depends_on = [
     { name = "ber" }, # dp_sym_test.h delegates here
@@ -250,7 +250,7 @@ arg_type = "void"
 return_type = "int"
 status_return = true
 error = "ValueError"
-error_message = "seed refused: the receiver already holds an assignment (refining, tracking or lost -- reset() releases it), or chip_phase is outside [0, code_len)"
+error_message = "seed refused: the receiver already holds an assignment (refining, tracking or lost -- reset() releases it), or chip_phase is outside [0, code_len), or doppler_hz_est is not finite and below chip_rate * spc / 2 in magnitude"
 params = [
     { name = "chip_phase", type = "double" },
     { name = "doppler_hz_est", type = "double" },
@@ -453,7 +453,7 @@ doc = "Binary code-lock flag from the live tracking Dll's own verify-counted (pf
 class_name = "CellAsyncDsssReceiver"
 create_fn = "dp_async_dsss_receiver_create_cell"
 create_error = "ValueError"
-create_error_message = "CellAsyncDsssReceiver: invalid parameter (need a code of at least 2 chips, a finite chip_rate > 0, a finite symbol_rate > 0, spc >= 1, m in {2,4,8}, segments >= 1, sps >= 2, carrier_freq_hz 0 or finite and above chip_rate * spc / 2, lost_confirm_s >= 0, correct_periods >= 1, 0 < gain <= 1, and a symbol of at most 2^20 Dll partials, segments * chip_rate / (code_len * symbol_rate) <= 1048576)"
+create_error_message = "CellAsyncDsssReceiver: invalid parameter (need a code of at least 2 chips, a finite chip_rate > 0, a finite symbol_rate > 0 and <= chip_rate, spc >= 1, m in {2,4,8}, segments >= 1, sps >= 2, carrier_freq_hz 0 or finite and above chip_rate * spc / 2, lost_confirm_s >= 0, 0 < pfa < 1, 0 < pd < 1, correct_periods >= 1, 0 < gain <= 1, and a symbol of at most 2^20 Dll partials, segments * chip_rate / (code_len * symbol_rate) <= 1048576)"
 exclude_methods = ["configure_search_raw", "set_refine_min_blocks"]
 exclude_properties = ["refine_min_blocks"]
 init_params = [

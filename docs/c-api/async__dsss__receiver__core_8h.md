@@ -438,7 +438,7 @@ Only `code`/`chip_rate`/`symbol_rate` describe the signal itself. `refine_*` par
 * `refine_zero_pad` CarrierAcquisition's own zero\_pad; default 8. 
 * `refine_sequential` CarrierAcquisition's own sequential mode; default false  sequential mode's early per-block test fires on far too little averaging at SPEC's own Es/N0 floor (confirmed: as few as 4 blocks, 150-200+ Hz off); false waits the full design\_snr-derived dwell\_target, matching freq\_refine.refine\_seed\_ carrier\_acq()'s own validated default. 
 * `refine_max_n_blocks` CarrierAcquisition's own give-up cap in sequential mode; default 100000. 
-* `carrier_freq_hz` Nominal RF carrier frequency, Hz, enabling carrier-&gt;code aiding; 0.0 (default) = off. When &gt; 0, the coupled code-rate Doppler (carrier\_offset/carrier\_freq) is fed to the tracking Dll via [**dp\_dll\_set\_rate\_aid()**](dll__core_8h.md#function-dp_dll_set_rate_aid) so the code loop rides a dilated clock the discriminator alone can't pull in at low SNR. Set to the receiver's own downlink RF frequency for a physically-coupled Doppler capture. 
+* `carrier_freq_hz` Nominal RF carrier frequency, Hz, enabling carrier-&gt;code aiding; 0.0 (default) = off. When &gt; 0, the coupled code-rate Doppler (carrier\_offset/carrier\_freq) is fed to the tracking Dll via [**dp\_dll\_set\_rate\_aid()**](dll__core_8h.md#function-dp_dll_set_rate_aid) so the code loop rides a dilated clock the discriminator alone can't pull in at low SNR. Set to the receiver's own downlink RF frequency for a physically-coupled Doppler capture. Coupled, it is above half the sample rate ([**dp\_acq\_carrier\_freq\_ok()**](acq__core_8h.md#function-dp_acq_carrier_freq_ok)). 
 * `lost_confirm_s` Release rule: both lock flags down, continuously, for longer than this many seconds puts the receiver in the lost state (see get\_lost()). Size it past the longest fade the link must ride. The clock also runs from the first tracking sample, when neither flag is up yet, so a hand-off that never locks within the interval is released the same way as an emitter that leaves. Default 0.0 = never  the searching flavor's exit is reset(), as before. 
 ```C++
 >>> import numpy as np
@@ -540,7 +540,7 @@ The searcher-timed tracker of docs/design/async-dsss-receiver.md section 12.22-1
 * `segments` Partial correlations per code period. 
 * `sps` MpskReceiver's samples per symbol. 
 * `differential` 1 for differentially-encoded data. 
-* `carrier_freq_hz` RF carrier, Hz; &gt; 0 couples the code rate to the carrier loop's Doppler (the dead reckoning and the Dll's aid), 0 = no dilation. 
+* `carrier_freq_hz` RF carrier, Hz; &gt; 0 couples the code rate to the carrier loop's Doppler (the dead reckoning and the Dll's aid), 0 = no dilation. Coupled, it is above half the sample rate ([**dp\_acq\_carrier\_freq\_ok()**](acq__core_8h.md#function-dp_acq_carrier_freq_ok)). 
 * `lost_confirm_s` The release rule's confirm time, seconds. 
 * `correct_periods` Code periods per correction (&gt;= 1): in a pool, the searcher's block depth. 
 * `gain` The correction's gain, chips per chip of the interval-mean read, (0, 1]; 1 puts the phase at the read. 

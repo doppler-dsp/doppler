@@ -521,6 +521,8 @@ extern "C"
    *                                   at low SNR. Set to the receiver's own
    *                                   downlink RF frequency for a
    *                                   physically-coupled Doppler capture.
+   *                                   Coupled, it is above half the sample
+   *                                   rate (dp_acq_carrier_freq_ok()).
    * @param lost_confirm_s             Release rule: both lock flags down,
    *                                   continuously, for longer than this
    *                                   many seconds puts the receiver in
@@ -646,7 +648,9 @@ extern "C"
    * @param differential    1 for differentially-encoded data.
    * @param carrier_freq_hz RF carrier, Hz; > 0 couples the code rate to the
    *                        carrier loop's Doppler (the dead reckoning and
-   *                        the Dll's aid), 0 = no dilation.
+   *                        the Dll's aid), 0 = no dilation. Coupled, it is
+   *                        above half the sample rate
+   *                        (dp_acq_carrier_freq_ok()).
    * @param lost_confirm_s  The release rule's confirm time, seconds.
    * @param correct_periods Code periods per correction (>= 1): in a pool,
    *                        the searcher's block depth.

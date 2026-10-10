@@ -2047,7 +2047,7 @@ class RateSync:
     ValueError
         If construction fails. The exception message is ``RateSync: invalid
         parameter (need sps >= m, 0 <= beta <= 1, span >= 1, m even in [2, 8],
-        num_phases a power of two >= 2, bn >= 0, zeta > 0)``.
+        num_phases a power of two >= 2, bn >= 0 and zeta > 0 both finite)``.
 
     Examples
     --------
@@ -3275,7 +3275,8 @@ class MpskReceiver:
         parameter (need m in {2,4,8}, sps >= m_out -- sps > 2*m_out on the
         real-input MpskReceiverR, whose cascade runs behind a 2:1 halfband,
         m_out even in [2, 8], 0 <= rrc_beta <= 1, rrc_span >= 1, num_phases a
-        power of two >= 2, bn >= 0, zeta > 0, 0 < bn_agc_ratio < 1)``.
+        power of two >= 2, bn >= 0 and zeta > 0 both finite, 0 < bn_agc_ratio <
+        1)``.
 
     Examples
     --------
@@ -3868,7 +3869,8 @@ class BpskReceiver:
         parameter (need m in {2,4,8}, sps >= m_out -- sps > 2*m_out on the
         real-input MpskReceiverR, whose cascade runs behind a 2:1 halfband,
         m_out even in [2, 8], 0 <= rrc_beta <= 1, rrc_span >= 1, num_phases a
-        power of two >= 2, bn >= 0, zeta > 0, 0 < bn_agc_ratio < 1)``.
+        power of two >= 2, bn >= 0 and zeta > 0 both finite, 0 < bn_agc_ratio <
+        1)``.
 
     Examples
     --------
@@ -4512,7 +4514,8 @@ class MpskReceiverR:
         parameter (need m in {2,4,8}, sps >= m_out -- sps > 2*m_out on the
         real-input MpskReceiverR, whose cascade runs behind a 2:1 halfband,
         m_out even in [2, 8], 0 <= rrc_beta <= 1, rrc_span >= 1, num_phases a
-        power of two >= 2, bn >= 0, zeta > 0, 0 < bn_agc_ratio < 1)``.
+        power of two >= 2, bn >= 0 and zeta > 0 both finite, 0 < bn_agc_ratio <
+        1)``.
 
     Examples
     --------

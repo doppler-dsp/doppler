@@ -123,15 +123,15 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
       PyErr_SetString (PyExc_ValueError,
                        "AsyncDsssReceiver: invalid parameter (need a code of "
                        "at least 2 chips, a finite chip_rate > 0, a finite "
-                       "symbol_rate > 0, spc >= 1, m in {2,4,8}, segments >= "
-                       "1, sps >= 2, carrier_freq_hz 0 or finite and above "
-                       "chip_rate * spc / 2, lost_confirm_s >= 0, "
-                       "refine_samples_per_symbol >= 1, refine_n_fft >= 1, "
-                       "refine_zero_pad >= 1, a symbol of at most 2^20 Dll "
-                       "partials, segments * chip_rate / (code_len * "
-                       "symbol_rate) <= 1048576; and for the searcher a "
-                       "finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite "
-                       "doppler_uncertainty >= 0)");
+                       "symbol_rate > 0 and <= chip_rate, spc >= 1, m in "
+                       "{2,4,8}, segments >= 1, sps >= 2, carrier_freq_hz 0 "
+                       "or finite and above chip_rate * spc / 2, "
+                       "lost_confirm_s >= 0, refine_samples_per_symbol >= 1, "
+                       "refine_n_fft >= 1, refine_zero_pad >= 1, a symbol of "
+                       "at most 2^20 Dll partials, segments * chip_rate / "
+                       "(code_len * symbol_rate) <= 1048576; and for the "
+                       "searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, "
+                       "a finite doppler_uncertainty >= 0)");
       return -1;
     }
   return 0;
@@ -327,7 +327,9 @@ AsyncDsssReceiverObj_seed (AsyncDsssReceiverObject *self, PyObject *args,
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
                     "seed refused: the receiver already holds an assignment "
                     "(refining, tracking or lost -- reset() releases it), or "
-                    "chip_phase is outside [0, code_len)",
+                    "chip_phase is outside [0, code_len), or doppler_hz_est "
+                    "is not finite and below chip_rate * spc / 2 in "
+                    "magnitude",
                     (long long)_rc);
       return NULL;
     }
@@ -1150,7 +1152,8 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "    If the C call returns a non-zero status. The exception message is\n"
     "    ``seed refused: the receiver already holds an assignment (refining,\n"
     "    tracking or lost -- reset() releases it), or chip_phase is outside\n"
-    "    [0, code_len)``, with the return code appended (gh-869).\n"
+    "    [0, code_len), or doppler_hz_est is not finite and below chip_rate\n"
+    "    * spc / 2 in magnitude``, with the return code appended (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1590,6 +1593,8 @@ static PyTypeObject AsyncDsssReceiverObjType = {
     "    discriminator alone can't pull in at low SNR. Set to the receiver's "
     "own\n"
     "    downlink RF frequency for a physically-coupled Doppler capture.\n"
+    "    Coupled, it is above half the sample rate "
+    "(dp_acq_carrier_freq_ok()).\n"
     "lost_confirm_s : float, default 0.0\n"
     "    Release rule: both lock flags down, continuously, for longer than "
     "this\n"
@@ -1611,19 +1616,17 @@ static PyTypeObject AsyncDsssReceiverObjType = {
     "``AsyncDsssReceiver:\n"
     "    invalid parameter (need a code of at least 2 chips, a finite "
     "chip_rate\n"
-    "    > 0, a finite symbol_rate > 0, spc >= 1, m in {2,4,8}, segments >= "
-    "1,\n"
-    "    sps >= 2, carrier_freq_hz 0 or finite and above chip_rate * spc / "
-    "2,\n"
-    "    lost_confirm_s >= 0, refine_samples_per_symbol >= 1, refine_n_fft >= "
-    "1,\n"
-    "    refine_zero_pad >= 1, a symbol of at most 2^20 Dll partials, "
-    "segments *\n"
-    "    chip_rate / (code_len * symbol_rate) <= 1048576; and for the "
-    "searcher a\n"
-    "    finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite "
-    "doppler_uncertainty\n"
-    "    >= 0)``.\n"
+    "    > 0, a finite symbol_rate > 0 and <= chip_rate, spc >= 1, m in "
+    "{2,4,8},\n"
+    "    segments >= 1, sps >= 2, carrier_freq_hz 0 or finite and above\n"
+    "    chip_rate * spc / 2, lost_confirm_s >= 0, refine_samples_per_symbol "
+    ">=\n"
+    "    1, refine_n_fft >= 1, refine_zero_pad >= 1, a symbol of at most "
+    "2^20\n"
+    "    Dll partials, segments * chip_rate / (code_len * symbol_rate) <=\n"
+    "    1048576; and for the searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd "
+    "<\n"
+    "    1, a finite doppler_uncertainty >= 0)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

@@ -323,3 +323,17 @@ def test_reset_returns_the_receiver_to_a_cold_start():
     second = rx.steps(x)
     assert len(first) == len(second)
     np.testing.assert_array_equal(first, second)
+
+
+@pytest.mark.parametrize(
+    "change", [{"bn_carrier": float("inf")}, {"zeta": float("inf")}]
+)
+def test_an_infinite_loop_parameter_is_refused_and_named(change):
+    """The loop filter's domain is finite: an infinite bandwidth or damping
+    was taken by the private check this create used to keep (doppler#2103).
+    The refusal names it, and the same receiver builds at good values."""
+    from doppler.track import MpskReceiverR
+
+    MpskReceiverR(**{"m": 2, "sps": 8.0})
+    with pytest.raises(ValueError, match="bn >= 0 and zeta > 0 both finite"):
+        MpskReceiverR(**{"m": 2, "sps": 8.0}, **change)

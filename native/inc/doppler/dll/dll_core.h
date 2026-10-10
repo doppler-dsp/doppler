@@ -622,6 +622,18 @@ dp_dll_state_t *dp_dll_create(const uint8_t *code, size_t code_len, size_t sps, 
 int dp_dll_params_ok(size_t code_len, double init_chip, double bn, double zeta, double spacing, size_t segments);
 
 /**
+ * @brief The longest symbol period, in partials, the symbol aid takes.
+ *
+ * Its rings and hypotheses are allocated per period, so a period past this
+ * is refused rather than sized: at 2^20 the rings are already 128 MiB, and a
+ * NaN or an absurd period used to reach dp_xcalloc with 2^63 and abort the
+ * process (doppler#2103). No link comes near it: 2^20 partials is 16384 code
+ * epochs a symbol even at 64 segments. A composer that builds a chain from a
+ * symbol period bounds it here too (AsyncDsssReceiver).
+ */
+#define DLL_AID_MAX_PERIOD 1048576.0
+
+/**
  * @brief Whether dp_dll_set_symbol_period() takes @p partials_per_symbol as
  *        a period to turn the symbol aid ON.
  *

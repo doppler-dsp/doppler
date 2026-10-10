@@ -1724,9 +1724,11 @@ class DsssReceiver:
     ValueError
         If construction fails. The exception message is ``DsssReceiver: invalid
         parameter (need a code of at least 2 chips, a finite chip_rate > 0, a
-        finite symbol_rate > 0, spc >= 1, m in {2,4,8}, segments >= 1, sps >= 2
-        -- sps = 1 cannot carry an m_out, whose smallest legal value is 2 and
-        which MpskReceiver requires sps to reach; and for the searcher a finite
+        finite symbol_rate > 0 and <= chip_rate, spc >= 1, m in {2,4,8},
+        segments >= 1, sps >= 2 -- sps = 1 cannot carry an m_out, whose
+        smallest legal value is 2 and which MpskReceiver requires sps to reach;
+        a chain resampling ratio, sps * symbol_rate * code_len / (chip_rate *
+        segments), that is a normal double; and for the searcher a finite
         cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >=
         0)``.
 
@@ -2235,6 +2237,7 @@ class AsyncDsssReceiver:
         dp_dll_set_rate_aid() so the code loop rides a dilated clock the
         discriminator alone can't pull in at low SNR. Set to the receiver's own
         downlink RF frequency for a physically-coupled Doppler capture.
+        Coupled, it is above half the sample rate (dp_acq_carrier_freq_ok()).
     lost_confirm_s : float, default 0.0
         Release rule: both lock flags down, continuously, for longer than this
         many seconds puts the receiver in the lost state (see get_lost()). Size
@@ -2249,13 +2252,13 @@ class AsyncDsssReceiver:
     ValueError
         If construction fails. The exception message is ``AsyncDsssReceiver:
         invalid parameter (need a code of at least 2 chips, a finite chip_rate
-        > 0, a finite symbol_rate > 0, spc >= 1, m in {2,4,8}, segments >= 1,
-        sps >= 2, carrier_freq_hz 0 or finite and above chip_rate * spc / 2,
-        lost_confirm_s >= 0, refine_samples_per_symbol >= 1, refine_n_fft >= 1,
-        refine_zero_pad >= 1, a symbol of at most 2^20 Dll partials, segments *
-        chip_rate / (code_len * symbol_rate) <= 1048576; and for the searcher a
-        finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty
-        >= 0)``.
+        > 0, a finite symbol_rate > 0 and <= chip_rate, spc >= 1, m in {2,4,8},
+        segments >= 1, sps >= 2, carrier_freq_hz 0 or finite and above
+        chip_rate * spc / 2, lost_confirm_s >= 0, refine_samples_per_symbol >=
+        1, refine_n_fft >= 1, refine_zero_pad >= 1, a symbol of at most 2^20
+        Dll partials, segments * chip_rate / (code_len * symbol_rate) <=
+        1048576; and for the searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd <
+        1, a finite doppler_uncertainty >= 0)``.
 
     Examples
     --------
@@ -2479,7 +2482,8 @@ class AsyncDsssReceiver:
             If the C call returns a non-zero status. The exception message is
             ``seed refused: the receiver already holds an assignment (refining,
             tracking or lost -- reset() releases it), or chip_phase is outside
-            [0, code_len)``, with the return code appended (gh-869).
+            [0, code_len), or doppler_hz_est is not finite and below chip_rate
+            * spc / 2 in magnitude``, with the return code appended (gh-869).
 
         Examples
         --------
@@ -3025,7 +3029,8 @@ class CellAsyncDsssReceiver:
         1 for differentially-encoded data.
     carrier_freq_hz : float, default 0.0
         RF carrier, Hz; > 0 couples the code rate to the carrier loop's Doppler
-        (the dead reckoning and the Dll's aid), 0 = no dilation.
+        (the dead reckoning and the Dll's aid), 0 = no dilation. Coupled, it is
+        above half the sample rate (dp_acq_carrier_freq_ok()).
     lost_confirm_s : float, default 2.0
         The release rule's confirm time, seconds.
     correct_periods : int, default 154
@@ -3042,13 +3047,13 @@ class CellAsyncDsssReceiver:
     ValueError
         If construction fails. The exception message is ``AsyncDsssReceiver:
         invalid parameter (need a code of at least 2 chips, a finite chip_rate
-        > 0, a finite symbol_rate > 0, spc >= 1, m in {2,4,8}, segments >= 1,
-        sps >= 2, carrier_freq_hz 0 or finite and above chip_rate * spc / 2,
-        lost_confirm_s >= 0, refine_samples_per_symbol >= 1, refine_n_fft >= 1,
-        refine_zero_pad >= 1, a symbol of at most 2^20 Dll partials, segments *
-        chip_rate / (code_len * symbol_rate) <= 1048576; and for the searcher a
-        finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty
-        >= 0)``.
+        > 0, a finite symbol_rate > 0 and <= chip_rate, spc >= 1, m in {2,4,8},
+        segments >= 1, sps >= 2, carrier_freq_hz 0 or finite and above
+        chip_rate * spc / 2, lost_confirm_s >= 0, refine_samples_per_symbol >=
+        1, refine_n_fft >= 1, refine_zero_pad >= 1, a symbol of at most 2^20
+        Dll partials, segments * chip_rate / (code_len * symbol_rate) <=
+        1048576; and for the searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd <
+        1, a finite doppler_uncertainty >= 0)``.
 
     Examples
     --------
@@ -3243,7 +3248,8 @@ class CellAsyncDsssReceiver:
             If the C call returns a non-zero status. The exception message is
             ``seed refused: the receiver already holds an assignment (refining,
             tracking or lost -- reset() releases it), or chip_phase is outside
-            [0, code_len)``, with the return code appended (gh-869).
+            [0, code_len), or doppler_hz_est is not finite and below chip_rate
+            * spc / 2 in magnitude``, with the return code appended (gh-869).
 
         Examples
         --------
@@ -3707,7 +3713,8 @@ class AsyncDsssPool:
         online core count, 1 is serial (default: 1).
     carrier_freq_hz : float, default 0.0
         RF carrier the Doppler is physically coupled to, Hz, told to the
-        searcher and every receiver; 0.0 = uncoupled (default: 0.0).
+        searcher and every receiver; 0.0 = uncoupled (default: 0.0). Coupled,
+        it is above half the sample rate (dp_acq_carrier_freq_ok()).
     lost_confirm_s : float, default 2.0
         The release rule's interval, seconds (section 10) (default: 2.0).
     max_emitter_on_time_secs : float, default 900.0
@@ -3731,15 +3738,16 @@ class AsyncDsssPool:
         If construction fails. The exception message is ``AsyncDsssPool:
         invalid parameter, or a searcher a cell receiver cannot take (need a
         code of at least 2 chips, a finite chip_rate > 0, a finite symbol_rate
-        > 0, spc >= 1, m in {2,4,8}, segments >= 1, sps >= 2, carrier_freq_hz 0
-        or finite and above chip_rate * spc / 2, lost_confirm_s >= 0, 0 < gain
-        <= 1, n_slots >= 1, 1 <= max_peaks <= 64, max_emitter_on_time_secs >=
-        0, a symbol of at most 2^20 Dll partials, segments * chip_rate /
-        (code_len * symbol_rate) <= 1048576; and a searcher with a finite
-        cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >= 0, a
-        finite doppler_rate >= 0, and a depth D > 1 -- code_only_epochs > 1 --
-        whose Doppler row is at most four times the carrier loop's pull-in
-        bound, doppler_res_hz <= 2 * 0.04 * chip_rate / code_len)``.
+        > 0 and <= chip_rate, spc >= 1, m in {2,4,8}, segments >= 1, sps >= 2,
+        carrier_freq_hz 0 or finite and above chip_rate * spc / 2,
+        lost_confirm_s >= 0, 0 < gain <= 1, n_slots >= 1, 1 <= max_peaks <= 64,
+        max_emitter_on_time_secs >= 0, a symbol of at most 2^20 Dll partials,
+        segments * chip_rate / (code_len * symbol_rate) <= 1048576; and a
+        searcher with a finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite
+        doppler_uncertainty >= 0, a finite doppler_rate >= 0, and a depth D > 1
+        -- code_only_epochs > 1 -- whose Doppler row is at most four times the
+        carrier loop's pull-in bound, doppler_res_hz <= 2 * 0.04 * chip_rate /
+        code_len)``.
 
     Examples
     --------

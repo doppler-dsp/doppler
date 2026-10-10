@@ -143,6 +143,7 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 
 | Type | Name |
 | ---: | :--- |
+| define  | [**DLL\_AID\_MAX\_PERIOD**](dll__core_8h.md#define-dll_aid_max_period)  `1048576.0`<br>_The longest symbol period, in partials, the symbol aid takes._  |
 | define  | [**DLL\_DISC\_CLAMP**](dll__core_8h.md#define-dll_disc_clamp)  `1.0`<br> |
 | define  | [**DLL\_EPS**](dll__core_8h.md#define-dll_eps)  `1e-12`<br> |
 | define  | [**DLL\_STATE\_MAGIC**](dll__core_8h.md#define-dll_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('D','L','L',' ')`<br> |
@@ -1744,6 +1745,24 @@ Out-of-line on purpose: the emit machinery must not inline into the per-sample c
 ## Macro Definition Documentation
 
 
+
+
+
+### define DLL\_AID\_MAX\_PERIOD 
+
+_The longest symbol period, in partials, the symbol aid takes._ 
+```C++
+#define DLL_AID_MAX_PERIOD `1048576.0`
+```
+
+
+
+Its rings and hypotheses are allocated per period, so a period past this is refused rather than sized: at 2^20 the rings are already 128 MiB, and a NaN or an absurd period used to reach dp\_xcalloc with 2^63 and abort the process (doppler#2103). No link comes near it: 2^20 partials is 16384 code epochs a symbol even at 64 segments. A composer that builds a chain from a symbol period bounds it here too (AsyncDsssReceiver). 
+
+
+        
+
+<hr>
 
 
 

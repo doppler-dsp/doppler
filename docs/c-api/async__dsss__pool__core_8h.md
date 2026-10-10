@@ -239,7 +239,7 @@ Two things the searcher must give a cell receiver, checked here and refused with
 * `max_peaks` The searcher's list capacity per dwell (default: 16). 
 * `n_slots` Receivers held (default: 12). 
 * `threads` Threads the receivers and the searcher's fan run across; &lt;= 0 picks the online core count, 1 is serial (default: 1). 
-* `carrier_freq_hz` RF carrier the Doppler is physically coupled to, Hz, told to the searcher and every receiver; 0.0 = uncoupled (default: 0.0). 
+* `carrier_freq_hz` RF carrier the Doppler is physically coupled to, Hz, told to the searcher and every receiver; 0.0 = uncoupled (default: 0.0). Coupled, it is above half the sample rate ([**dp\_acq\_carrier\_freq\_ok()**](acq__core_8h.md#function-dp_acq_carrier_freq_ok)). 
 * `lost_confirm_s` The release rule's interval, seconds (section 10) (default: 2.0). 
 * `max_emitter_on_time_secs` Maximum on-air time of one emitter, seconds; 0 = never (default: 900.0). 
 * `segments` The receivers' live Dll segments (default: 4). 

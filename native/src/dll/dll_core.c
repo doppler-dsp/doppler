@@ -25,13 +25,6 @@
    than the wipe-off holds), and each hypothesis's window power is an EMA
    over this many symbols. */
 #define DLL_AID_MAX_EPOCHS 4u
-/* The longest symbol period, in partials, the symbol aid takes. Its rings and
-   hypotheses are allocated per period, so a period past this is refused
-   rather than sized: at 2^20 the rings are already 128 MiB, and a NaN or an
-   absurd period used to reach dp_xcalloc with 2^63 and abort the process
-   (doppler#2103). No link comes near it -- 2^20 partials is 16384 code
-   epochs a symbol even at 64 segments. */
-#define DLL_AID_MAX_PERIOD 1048576.0
 #define DLL_AID_EMA_SYMBOLS 32.0
 
 /* xorshift32 — a tiny, deterministic PRNG for the lock-detector noise tap's

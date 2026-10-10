@@ -108,9 +108,10 @@ CellAsyncDsssReceiverObj_init (CellAsyncDsssReceiverObject *self,
       PyErr_SetString (PyExc_ValueError,
                        "CellAsyncDsssReceiver: invalid parameter (need a "
                        "code of at least 2 chips, a finite chip_rate > 0, a "
-                       "finite symbol_rate > 0, spc >= 1, m in {2,4,8}, "
-                       "segments >= 1, sps >= 2, carrier_freq_hz 0 or finite "
-                       "and above chip_rate * spc / 2, lost_confirm_s >= 0, "
+                       "finite symbol_rate > 0 and <= chip_rate, spc >= 1, m "
+                       "in {2,4,8}, segments >= 1, sps >= 2, carrier_freq_hz "
+                       "0 or finite and above chip_rate * spc / 2, "
+                       "lost_confirm_s >= 0, 0 < pfa < 1, 0 < pd < 1, "
                        "correct_periods >= 1, 0 < gain <= 1, and a symbol of "
                        "at most 2^20 Dll partials, segments * chip_rate / "
                        "(code_len * symbol_rate) <= 1048576)");
@@ -309,7 +310,9 @@ CellAsyncDsssReceiverObj_seed (CellAsyncDsssReceiverObject *self,
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
                     "seed refused: the receiver already holds an assignment "
                     "(refining, tracking or lost -- reset() releases it), or "
-                    "chip_phase is outside [0, code_len)",
+                    "chip_phase is outside [0, code_len), or doppler_hz_est "
+                    "is not finite and below chip_rate * spc / 2 in "
+                    "magnitude",
                     (long long)_rc);
       return NULL;
     }
@@ -1067,7 +1070,8 @@ static PyMethodDef CellAsyncDsssReceiverObj_methods[] = {
     "    If the C call returns a non-zero status. The exception message is\n"
     "    ``seed refused: the receiver already holds an assignment (refining,\n"
     "    tracking or lost -- reset() releases it), or chip_phase is outside\n"
-    "    [0, code_len)``, with the return code appended (gh-869).\n"
+    "    [0, code_len), or doppler_hz_est is not finite and below chip_rate\n"
+    "    * spc / 2 in magnitude``, with the return code appended (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1378,7 +1382,9 @@ static PyTypeObject CellAsyncDsssReceiverObjType = {
     "carrier_freq_hz : float, default 0.0\n"
     "    RF carrier, Hz; > 0 couples the code rate to the carrier loop's "
     "Doppler\n"
-    "    (the dead reckoning and the Dll's aid), 0 = no dilation.\n"
+    "    (the dead reckoning and the Dll's aid), 0 = no dilation. Coupled, it "
+    "is\n"
+    "    above half the sample rate (dp_acq_carrier_freq_ok()).\n"
     "lost_confirm_s : float, default 2.0\n"
     "    The release rule's confirm time, seconds.\n"
     "correct_periods : int, default 154\n"

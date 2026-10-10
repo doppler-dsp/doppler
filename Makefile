@@ -994,6 +994,7 @@ uv run python scripts/check_doc_face_parity.py
 uv run python scripts/check_init_param_optionality.py
 uv run python scripts/check_out_param_guard.py
 uv run python scripts/check_c_api_link_refs.py
+uv run python docs/design/spectrogram-measurements/u1u4.py --check
 endef
 
 # docs-check's invariants WITHOUT the site build, so pre-commit can run them.

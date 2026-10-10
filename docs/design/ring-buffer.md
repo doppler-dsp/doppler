@@ -21,7 +21,7 @@ ______________________________________________________________________
 
 | caller                                         | threads | how it reads                                                                       |
 | ---------------------------------------------- | ------- | ---------------------------------------------------------------------------------- |
-| `acq`                                          | one     | writes into free space it computes, reads fixed frames off `data`, `consume()`s    |
+| `acq`                                          | one     | the framed face, one frame at a time: a frame that ends a dwell waits for its room |
 | `detector`, `detector2d`                       | one     | the framed face: chunks in through `framer_feed`, frames out through `framer_next` |
 | `burst_capture`                                | one     | a **history**: samples addressed by absolute stream position; may be file-backed   |
 | Python `F32Buffer` / `F64Buffer` / `I16Buffer` | two     | a producer thread `write()`s, a consumer thread `wait()`s                          |

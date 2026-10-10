@@ -186,8 +186,9 @@ burst_capture_create_impl (const char *path, const float _Complex *preamble,
   s->cell_f    = dp_xmalloc (s->max_cells * sizeof *s->cell_f);
 
   /* dp_acq_state_bytes() is ALREADY a pure function of configuration -- it
-     sizes its sample region from `ring_cap`, the capacity, not from whatever
-     happens to be unconsumed. It is re-read in configure_search_raw(), the
+     sizes its carry from frame_n (the framer's fixed-size snapshot), not
+     from whatever happens to be unconsumed. It is re-read in
+     configure_search_raw(), the
      one call that can legitimately change the grid underneath it. */
   s->acq_blob_max = dp_acq_state_bytes (s->acq->engine);
   /* Mirrored once here: the declared warning needs it as a field, and a
@@ -721,30 +722,6 @@ burst_capture_drain (dp_burst_capture_state_t *s)
     ;
 }
 
-/**
- * @brief Samples the acquisition child has ABSORBED -- framed plus ringed.
- *
- * dp_acq_push() stops once it has filled the caller's result array and leaves
- * the rest of its input unwritten, so a composer has to re-feed the
- * remainder itself. The repo idiom for that diffs against the child's
- * `samples_consumed`, and that is correct where the tail is handed to a
- * different stage.
- *
- * Here the tail goes back to the SAME acq, and `samples_consumed` counts
- * only FRAMED samples -- acq's ring can hold samples it has written but not
- * yet framed. Diffing against it would re-feed those: a DOUBLE-FED stream,
- * which corrupts the detection positions rather than merely losing them.
- * The invariant quantity is framed plus ring-resident.
- */
-static uint64_t
-burst_capture_acq_absorbed (const dp_burst_capture_state_t *s)
-{
-  const dp_acq_state_t *e = s->acq->engine;
-  uint64_t              h = (uint64_t)DP_LOAD_RLX (&e->ring->head);
-  uint64_t              t = (uint64_t)DP_LOAD_RLX (&e->ring->tail);
-  return e->samples_consumed + (h - t);
-}
-
 size_t
 dp_burst_capture_push_max_out (dp_burst_capture_state_t *state, size_t x_len)
 {
@@ -816,14 +793,13 @@ dp_burst_capture_push (dp_burst_capture_state_t *state,
         }
       state->samples_fed += chunk;
 
-      /* SEARCH -- looping until acq has absorbed the WHOLE chunk. It stops
-         as soon as it has filled `hits` and abandons the rest of its input,
-         so a single call leaves detections unmade over samples this object
-         is holding (doppler#1008). */
+      /* SEARCH -- looping until acq has taken the WHOLE chunk. A push stops
+         before a frame it has no room in `hits` for and leaves the rest of
+         its input to the caller, so a single call would leave detections
+         unmade over samples this object is holding (doppler#1008). */
       size_t fed = 0;
       while (fed < chunk)
         {
-          uint64_t     before = burst_capture_acq_absorbed (state);
           acq_result_t hits[BURST_CAPTURE_HITS];
           size_t       nh
               = dp_burst_acq_push (state->acq, x + off + fed, chunk - fed,
@@ -941,12 +917,13 @@ dp_burst_capture_push (dp_burst_capture_state_t *state,
               state->pending++;
             }
 
-          /* How much acq actually took. A zero means it could not frame at
-             all, which its own ring capacity forbids -- break rather than
-             spin. */
-          uint64_t took64 = burst_capture_acq_absorbed (state) - before;
-          size_t   took   = took64 > (uint64_t)(chunk - fed) ? (chunk - fed)
-                                                             : (size_t)took64;
+          /* How much acq took THIS call -- per call, not the hits'
+             cumulative samples_consumed, which counts only framed samples:
+             resuming from that would re-feed acq's carry, a DOUBLE-FED
+             stream that corrupts detection positions. A zero cannot happen
+             with room for a dwell (a push with room takes at least one
+             sample) -- break rather than spin. */
+          size_t took = dp_burst_acq_consumed (state->acq);
           if (!took)
             break;
           fed += took;

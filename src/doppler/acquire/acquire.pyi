@@ -409,6 +409,17 @@ class Acquisition:
         (the two search axes), its CFAR statistic, and an estimated C/N0 — see
         acq_result_t.
 
+        Python's push() has room for 1024 events a call, so a push that ends at
+        most 1024 / max_peaks dwells, counting the carry, loses nothing. Once
+        fewer than max_peaks slots are left, the call stops before the next
+        frame that would end a dwell, and the rest of its input is lost, unless
+        the rest is shorter than a frame: that is kept as the carry. The next
+        push stays on the frame grid only when what was lost is a whole number
+        of frames. Before v0.66 the room was 64, and a push past it kept up to
+        ring_cap/frame_n - 1 frames for the next call, dropped the rest, and
+        could cut a dwell's list short. #1992 and just-buildit/just-makeit#2184
+        track sizing the list to the call.
+
         Parameters
         ----------
         x : complex
@@ -1405,6 +1416,9 @@ class BurstAcquisition:
         in acq_core.h for the framing/CFAR mechanics). Each event carries the
         peak's Doppler bin and code phase (the two search axes), its CFAR
         statistic, and an estimated C/N0 — see acq_result_t.
+
+        Python's push() has room for 1024 events a call, with dp_acq_push()'s
+        rule for what a push that fills it loses.
 
         Parameters
         ----------

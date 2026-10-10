@@ -44,6 +44,8 @@ extern "C"
                          size_t n_in, acq_result_t *result,
                          size_t max_results);
 
+  size_t dp_burst_acq_consumed (const dp_burst_acq_state_t *state);
+
   int dp_burst_acq_configure_search_raw (dp_burst_acq_state_t *state,
                                       size_t doppler_bins, size_t n_noncoh);
 

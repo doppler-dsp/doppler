@@ -368,7 +368,11 @@ def characterise() -> Data:
     R.md()
     with tempfile.TemporaryDirectory() as td:
         path = Path(td) / "ring.cf32"
-        ram = cap()
+        # The same design on both sides, so the backing is the ONE
+        # difference: a different C/N0 picks a different acquisition grid,
+        # and so a different acq blob, which the framer's snapshot (sized by
+        # the frame, not the ring's power of two) no longer hides (#1895).
+        ram = cap(cn0_dbhz=55.0)
         dsk = PersistentBurstCapture(
             path,
             code_preamble(acq_code(), SPC),

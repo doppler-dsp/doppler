@@ -105,8 +105,8 @@ The look-back IS the checkpoint for an in-RAM capture. Backed by a file, the rin
 
 | flavour | `state_bytes()` | carries the look-back? |
 |---|---|---|
-| `BurstCapture` | 46,248 B | yes |
-| `PersistentBurstCapture` | 4,840 B | no — the file does |
+| `BurstCapture` | 45,168 B | yes |
+| `PersistentBurstCapture` | 3,760 B | no — the file does |
 
 
 The difference is 41,408 B, which is exactly `retain_span * 8` (5176 complex64 samples) — the whole of the retained history and nothing else.

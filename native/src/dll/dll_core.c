@@ -25,6 +25,13 @@
    than the wipe-off holds), and each hypothesis's window power is an EMA
    over this many symbols. */
 #define DLL_AID_MAX_EPOCHS 4u
+/* The longest symbol period, in partials, the symbol aid takes. Its rings and
+   hypotheses are allocated per period, so a period past this is refused
+   rather than sized: at 2^20 the rings are already 128 MiB, and a NaN or an
+   absurd period used to reach dp_xcalloc with 2^63 and abort the process
+   (doppler#2103). No link comes near it -- 2^20 partials is 16384 code
+   epochs a symbol even at 64 segments. */
+#define DLL_AID_MAX_PERIOD 1048576.0
 #define DLL_AID_EMA_SYMBOLS 32.0
 
 /* xorshift32 — a tiny, deterministic PRNG for the lock-detector noise tap's
@@ -417,6 +424,15 @@ dp_dll_create (const uint8_t *code, size_t code_len, size_t sps,
                size_t segments)
 {
   if (!code || code_len == 0 || segments == 0)
+    return NULL;
+  /* Every float a caller hands in, checked before anything is allocated
+     (doppler#2103). The seed phase is folded, so any finite value is a phase;
+     the loop's own domain is the loop filter's predicate; and the early and
+     late taps must sit apart and inside half the code, where they are
+     distinct -- at 0 they coincide, at half the code they meet round the
+     wrap, and a NaN spacing made dll_replica index code[2^62]. */
+  if (!isfinite (init_chip) || !dp_loop_filter_params_ok (bn, zeta, 1.0)
+      || !(spacing > 0.0 && spacing < 0.5 * (double)code_len))
     return NULL;
   dp_dll_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
@@ -1111,6 +1127,10 @@ set_update_period (dp_dll_state_t *s, double t)
 int
 dp_dll_set_symbol_period (dp_dll_state_t *state, double partials_per_symbol)
 {
+  /* A NaN passed both guards below and reached the ring sizing as
+     ceil(NaN) = 2^63 (doppler#2103); an infinity is no period either. */
+  if (!isfinite (partials_per_symbol))
+    return DP_ERR_INVALID;
   if (partials_per_symbol <= 0.0)
     {
       free_aid_buffers (state);
@@ -1118,7 +1138,8 @@ dp_dll_set_symbol_period (dp_dll_state_t *state, double partials_per_symbol)
       set_update_period (state, 1.0);
       return DP_OK;
     }
-  if (state->segments <= 1 || partials_per_symbol < 2.0)
+  if (state->segments <= 1 || partials_per_symbol < 2.0
+      || partials_per_symbol > DLL_AID_MAX_PERIOD)
     return DP_ERR_INVALID;
   size_t L   = (size_t)floor (partials_per_symbol) - 1;
   size_t cap = DLL_AID_MAX_EPOCHS * state->segments;

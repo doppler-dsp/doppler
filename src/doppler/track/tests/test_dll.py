@@ -437,3 +437,38 @@ def test_set_lock_verify_binding_faces():
         d.set_lock_verify(0, 3)
     with pytest.raises(ValueError):
         d.set_lock_verify(2, 0)
+
+
+@pytest.mark.parametrize(
+    "kw",
+    [
+        {"spacing": float("nan")},
+        {"spacing": 0.0},
+        {"spacing": SF / 2},  # half the code: early and late meet
+        {"init_chip": float("inf")},
+        {"bn": float("nan")},
+        {"bn": -0.01},
+        {"zeta": 0.0},
+    ],
+)
+def test_create_refuses_a_bad_float(kw):
+    """A NaN spacing used to index code[2^62] on the first sample, and a
+    NaN or out-of-domain loop parameter gave gains that never recover
+    (doppler#2103). create() refuses them, and the manifest's create_error
+    says it was an argument, not a failed allocation."""
+    args = {"code": _code(), "sps": 2, "segments": 4, **kw}
+    with pytest.raises(ValueError, match="Dll: invalid parameter"):
+        Dll(**args)
+
+
+def test_set_symbol_period_refuses_a_period_it_cannot_size():
+    """A NaN period passed both guards and reached the ring sizing as 2^63,
+    and dp_xcalloc aborted the interpreter (doppler#2103). A non-finite or
+    absurd period is refused, and the window already set is kept."""
+    d = Dll(code=_code(), sps=2, segments=4)
+    d.set_symbol_period(13.5)
+    window = d.symbol_window
+    for p in (float("nan"), float("inf"), 1.0e30):
+        with pytest.raises(ValueError):
+            d.set_symbol_period(p)
+        assert d.symbol_window == window

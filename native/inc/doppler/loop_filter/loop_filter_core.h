@@ -127,6 +127,23 @@ extern "C"
   double dp_loop_filter_wn(double bn, double zeta);
 
   /**
+   * @brief The domain the loop's gains are defined on: `bn >= 0`,
+   *        `zeta > 0`, `t > 0`, all three finite.
+   *
+   * The ONE predicate. dp_loop_filter_create() refuses outside it, and so
+   * does every embedder that takes these numbers from a caller and hands
+   * them to the unguarded dp_loop_filter_init(): a non-finite argument there
+   * yields NaN gains that never recover, and a negative `bn` with
+   * `zeta >= 1` can drive the gains' denominator through zero.
+   *
+   * @param bn    Loop noise bandwidth, normalized.
+   * @param zeta  Damping factor.
+   * @param t     Update period, in samples.
+   * @return      1 inside the domain, 0 outside it (a NaN is outside).
+   */
+  int dp_loop_filter_params_ok(double bn, double zeta, double t);
+
+  /**
    * @brief Create a loop_filter instance, validating its arguments.
    *
    * This is the untrusted boundary — the Python constructor passes a

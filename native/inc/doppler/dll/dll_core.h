@@ -571,7 +571,10 @@ dll_update(dp_dll_state_t *s)
  *                   data-symbol clock). segments/epoch ~ samples/symbol at a
  *                   downstream SymbolSync when the symbol rate is near the code
  *                   rate, so choose >= 2 for symbol-timing recovery.
- * @return Heap-allocated state, or NULL on allocation failure.
+ * @return Heap-allocated state, or NULL on allocation failure or a refused
+ *         argument: an empty code, `segments` 0, a non-finite `init_chip`,
+ *         `bn` and `zeta` outside dp_loop_filter_params_ok(), or a `spacing`
+ *         outside (0, `code_len`/2) (doppler#2103).
  * @note Caller must call dp_dll_destroy() when done.
  * @code
  * >>> import numpy as np
@@ -852,8 +855,10 @@ void dp_dll_hold_here(dp_dll_state_t *state);
  * @param partials_per_symbol Data-symbol period in emitted partials,
  *                            `segments * chip_rate / (sf * symbol_rate)`;
  *                            >= 2. 0 disables (per-partial looks again).
- * @return DP_OK; DP_ERR_INVALID when `segments <= 1` or the period is in
- *         (0, 2).
+ * @return DP_OK; DP_ERR_INVALID when `segments <= 1`, or the period is not
+ *         finite, is in (0, 2) or is past 2^20 partials -- the rings are
+ *         sized by the period, and past that they are refused, not
+ *         allocated (doppler#2103).
  * @code
  * >>> import numpy as np
  * >>> from doppler.track import Dll

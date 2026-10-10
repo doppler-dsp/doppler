@@ -327,6 +327,10 @@ main (void)
     (void)dp_specan_execute (a, in, 4096, out, OUTCAP);
     DP_STATE_ROUNDTRIP_TEST (dp_specan, a, b);
     DP_CHECK (b->pend_len == a->pend_len);
+    /* a version-2 AccTrace blob, two levels down (specan -> psd -> trace),
+       is refused, and the refusal changes nothing (#2094): its mean trace
+       held the mean, which version 3 would read as a sum */
+    DP_STATE_NESTED_VERSION_TEST (dp_specan, a, ACC_TRACE_STATE_MAGIC, 2u);
     dp_specan_destroy (a);
     dp_specan_destroy (b);
   }

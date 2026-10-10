@@ -80,4 +80,57 @@
     }                                                                         \
   while (0)
 
+/*
+ * A CHILD's old format is refused through its PARENT (#2094).
+ *
+ * A composition nests each child's self-validating sub-blob, so a child's
+ * version bump needs no bump in the parent: the child's own envelope check
+ * runs inside the parent's set_state. This proves it rather than assuming it.
+ * Serialize @p obj, find the one nested envelope whose magic is
+ * @p child_magic, stamp it with @p old_version (every other byte stays
+ * valid, so only the version can refuse it), and require the parent to
+ * refuse the blob AND to be unchanged by the refusal: it re-serializes to
+ * the original blob byte for byte. Exactly one nested envelope of that magic
+ * must exist, so a renamed or flattened child turns this red rather than
+ * passing vacuously.
+ */
+#define DP_STATE_NESTED_VERSION_TEST(pfx, obj, child_magic, old_version)      \
+  do                                                                          \
+    {                                                                         \
+      const size_t   _nb = pfx##_state_bytes (obj);                           \
+      unsigned char *_g  = (unsigned char *)malloc (_nb);                     \
+      unsigned char *_l  = (unsigned char *)malloc (_nb);                     \
+      unsigned char *_a  = (unsigned char *)malloc (_nb);                     \
+      DP_CHECK (_g != NULL && _l != NULL && _a != NULL);                      \
+      if (_g && _l && _a)                                                     \
+        {                                                                     \
+          pfx##_get_state ((obj), _g);                                        \
+          memcpy (_l, _g, _nb);                                               \
+          size_t _at = 0, _hits = 0;                                          \
+          for (size_t _i = sizeof (dp_state_hdr_t);                           \
+               _i + sizeof (dp_state_hdr_t) <= _nb; _i++)                     \
+            {                                                                 \
+              dp_state_hdr_t _h;                                              \
+              memcpy (&_h, _g + _i, sizeof _h);                               \
+              if (_h.magic == (uint32_t)(child_magic))                        \
+                _at = _i, _hits++;                                            \
+            }                                                                 \
+          DP_CHECK (_hits == 1);                                              \
+          if (_hits == 1)                                                     \
+            {                                                                 \
+              dp_state_hdr_t _h;                                              \
+              memcpy (&_h, _l + _at, sizeof _h);                              \
+              _h.version = (uint16_t)(old_version);                           \
+              memcpy (_l + _at, &_h, sizeof _h);                              \
+              DP_CHECK (pfx##_set_state ((obj), _l) == DP_ERR_INVALID);       \
+              pfx##_get_state ((obj), _a);                                    \
+              DP_CHECK (memcmp (_a, _g, _nb) == 0);                           \
+            }                                                                 \
+        }                                                                     \
+      free (_g);                                                              \
+      free (_l);                                                              \
+      free (_a);                                                              \
+    }                                                                         \
+  while (0)
+
 #endif /* DP_STATE_TEST_H */

@@ -12,7 +12,7 @@
  * running mean numerically stable over long captures.
  *
  * The first frame seeds the trace in every mode; subsequent frames update it:
- *   - mean    : ``acc += (p - acc) / count``      (Welford running mean)
+ *   - mean    : ``acc += p``, a per-bin sum; value() divides by count
  *   - exp     : ``acc  = alpha*p + (1-alpha)*acc`` (EMA)
  *   - maxhold : ``acc  = max(acc, p)``  per bin
  *   - minhold : ``acc  = min(acc, p)``  per bin
@@ -44,7 +44,8 @@ typedef enum {
  * @brief AccTrace state.  Allocate with dp_acc_trace_create().
  */
 typedef struct {
-    double *acc;            /**< Running trace, length n (double). */
+    double *acc;            /**< Running trace, length n (double); in
+                                 mean mode the per-bin SUM, not the mean. */
     size_t n;               /**< Trace length (bins).             */
     acc_trace_mode_t mode;  /**< Reduction mode.                  */
     double alpha;           /**< EMA smoothing factor (exp mode). */
@@ -175,10 +176,12 @@ size_t dp_acc_trace_value(dp_acc_trace_state_t *state, size_t n, float *out,
  * by create.  mode is a reject key: a blob from a trace in another mode is
  * refused.  alpha travels because dp_acc_trace_set_alpha() can change it after
  * create (version 2; version 1 blobs, without mode or alpha, are refused).
+ * Version 3: a mean trace holds the per-bin sum, not the mean, so version 2
+ * blobs are refused too, and so is any blob that nests one (PSD's). 
  * set_state refuses an alpha the setter would refuse; either refusal leaves
  * the state untouched. */
 #define ACC_TRACE_STATE_MAGIC DP_FOURCC ('A','T','R','C')
-#define ACC_TRACE_STATE_VERSION 2u
+#define ACC_TRACE_STATE_VERSION 3u
 size_t dp_acc_trace_state_bytes (const dp_acc_trace_state_t *state);
 void dp_acc_trace_get_state (const dp_acc_trace_state_t *state, void *blob);
 int dp_acc_trace_set_state (dp_acc_trace_state_t *state, const void *blob);

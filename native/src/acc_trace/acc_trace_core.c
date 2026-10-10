@@ -2,10 +2,20 @@
  * @file acc_trace_core.c
  * @brief AccTrace — per-bin vector trace accumulator (mean/EMA/max/min hold).
  *
- * The running trace is held in double precision so that the linear mean stays
- * accurate over thousands of frames; input and output are float32.  The first
- * frame seeds the trace in every mode, which makes max/min-hold start from a
- * real sample (not +/-inf sentinels) and the EMA start unbiased.
+ * The running trace is held in double precision; input and output are
+ * float32.  In mean mode it is a per-bin SUM, divided by the count only when
+ * it is read: no per-frame divide, and over 10^7 frames of exponential power
+ * a relative error of 2.4e-14 where the Welford update it replaced reached
+ * 3.0e-13 (docs/design/spectrogram-measurements.md, 'The trace's mean is a
+ * sum').  The first frame seeds the trace in every mode, which makes
+ * max/min-hold start from a real sample (not +/-inf sentinels) and the EMA
+ * start unbiased.
+ *
+ * Every fold is a plain loop with an unconditional store, so the compiler
+ * vectorizes it in the builds that ship (GCC x86-64-v2, clang aarch64): the
+ * hold modes are a select, not the branch around a store they were, which
+ * only an AVX-512 build could vectorize (with masked stores), so the
+ * portable build ran them scalar, 7-10x slower than the mean.
  */
 #include "doppler/acc_trace/acc_trace_core.h"
 #include "doppler/util/util_core.h"
@@ -78,7 +88,9 @@ dp_acc_trace_reset (dp_acc_trace_state_t *state)
   state->count = 0;
 }
 
-/* Serializable state — mode, fold count, alpha, running trace.  n is config,
+/* Serializable state — mode, fold count, alpha, running trace (in mean mode,
+ * the per-bin sum: version 3, so a version-2 blob, which held the mean, is
+ * refused rather than read as a sum).  n is config,
  * restored by create() and checked by the blob's size.  mode is config too,
  * and travels only as a REJECT key, the way DDC packs its rate: a mean
  * trace's blob restored into an exp instance would otherwise come back OK and
@@ -150,13 +162,10 @@ dp_acc_trace_accumulate (dp_acc_trace_state_t *state, const float *p,
   switch (state->mode)
     {
     case ACC_TRACE_MEAN:
-      {
-        /* Welford running mean: acc += (p - acc) / count. */
-        const double inv = 1.0 / (double)state->count;
-        for (size_t i = 0; i < n; i++)
-          acc[i] += ((double)p[i] - acc[i]) * inv;
-        break;
-      }
+      /* The per-bin sum; dp_acc_trace_value divides by count. */
+      for (size_t i = 0; i < n; i++)
+        acc[i] += (double)p[i];
+      break;
     case ACC_TRACE_EXP:
       {
         const double a = state->alpha;
@@ -164,20 +173,22 @@ dp_acc_trace_accumulate (dp_acc_trace_state_t *state, const float *p,
           acc[i] = dp_ema_step (acc[i], (double)p[i], a);
         break;
       }
+    /* A select and an unconditional store, so both vectorize (a packed
+       max/min). A NaN in the frame never replaces the trace: the compare is
+       false, so the bin keeps what it held (-fno-finite-math-only keeps that
+       true under the library's -ffast-math). */
     case ACC_TRACE_MAXHOLD:
       for (size_t i = 0; i < n; i++)
         {
           const double v = (double)p[i];
-          if (v > acc[i])
-            acc[i] = v;
+          acc[i]         = v > acc[i] ? v : acc[i];
         }
       break;
     case ACC_TRACE_MINHOLD:
       for (size_t i = 0; i < n; i++)
         {
           const double v = (double)p[i];
-          if (v < acc[i])
-            acc[i] = v;
+          acc[i]         = v < acc[i] ? v : acc[i];
         }
       break;
     }
@@ -198,7 +209,15 @@ dp_acc_trace_value (dp_acc_trace_state_t *state, size_t n, float *out,
     return 0;
   /* Emission stops at the caller's capacity (jm gh-138). */
   size_t n_out = state->n < max_out ? state->n : max_out;
-  for (size_t i = 0; i < n_out; i++)
-    out[i] = (float)state->acc[i];
+  if (state->mode == ACC_TRACE_MEAN)
+    {
+      /* the sum becomes the mean here, once per reading, in double */
+      const double count = (double)state->count;
+      for (size_t i = 0; i < n_out; i++)
+        out[i] = (float)(state->acc[i] / count);
+    }
+  else
+    for (size_t i = 0; i < n_out; i++)
+      out[i] = (float)state->acc[i];
   return n_out;
 }

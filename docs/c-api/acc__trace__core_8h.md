@@ -106,7 +106,7 @@ _AccTrace — per-bin vector trace accumulator._ [More...](#detailed-description
 | Type | Name |
 | ---: | :--- |
 | define  | [**ACC\_TRACE\_STATE\_MAGIC**](acc__trace__core_8h.md#define-acc_trace_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A','T','R','C')`<br> |
-| define  | [**ACC\_TRACE\_STATE\_VERSION**](acc__trace__core_8h.md#define-acc_trace_state_version)  `2u`<br> |
+| define  | [**ACC\_TRACE\_STATE\_VERSION**](acc__trace__core_8h.md#define-acc_trace_state_version)  `3u`<br> |
 
 ## Detailed Description
 
@@ -115,7 +115,7 @@ Folds a stream of equal-length frames into a single running trace using one of f
 
 
 The first frame seeds the trace in every mode; subsequent frames update it:
-* mean : `acc += (p - acc) / count` (Welford running mean)
+* mean : `acc += p`, a per-bin sum; value() divides by count
 * exp : `acc = alpha*p + (1-alpha)*acc` (EMA)
 * maxhold : `acc = max(acc, p)` per bin
 * minhold : `acc = min(acc, p)` per bin
@@ -483,7 +483,7 @@ size_t dp_acc_trace_value_max_out (
 ### define ACC\_TRACE\_STATE\_VERSION 
 
 ```C++
-#define ACC_TRACE_STATE_VERSION `2u`
+#define ACC_TRACE_STATE_VERSION `3u`
 ```
 
 

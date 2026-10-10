@@ -1,5 +1,6 @@
 #include "doppler/dp_complex.h"
 #include "doppler/psd/psd_core.h"
+#include "doppler/spectral/spectral_core.h"
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
@@ -1787,6 +1788,56 @@ main (void)
     DP_CHECK (dp_psd_band_power (w, edges, 2, one, 2) == 1);
     DP_CHECK (isfinite (one[0]) && isnan (one[1]));
     dp_psd_destroy (w);
+  }
+
+  /* ── the averager's sum, read through PSD (#2094) ───────────────────────
+   * A mean trace holds the per-bin SUM now, and three readers see it:
+   *   - the averaged readings, through dp_acc_trace_value, which divides;
+   *   - occupied_bw, which reads avg->acc directly and is scale-invariant:
+   *     OBW is a ratio of power sums, so the count cancels, and it must
+   *     read the same as OBW over the mean, over many frames;
+   *   - the blob, whose nested AccTrace envelope is version 3, so a
+   *     version-2 one (which held the mean) is refused through PSD, and the
+   *     refusal changes nothing. */
+  {
+    const size_t    nfft = 256;
+    dp_psd_state_t *p
+        = dp_psd_create (nfft, 256.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
+    DP_REQUIRE (p != NULL);
+    float _Complex x[256];
+    uint32_t rng = 0x0B3u;
+    for (int f = 0; f < 3000; f++)
+      {
+        /* a tone over noise, so the band has edges inside the span */
+        for (size_t i = 0; i < nfft; i++)
+          x[i] = cexpf (I * 2.0f * (float)M_PI * 37.0f * (float)i / 256.0f)
+                 + 0.05f * dp_cgauss (&rng);
+        dp_psd_accumulate (p, x, nfft);
+      }
+    double *mean = (double *)malloc (nfft * sizeof *mean);
+    DP_REQUIRE (mean != NULL);
+    for (size_t i = 0; i < nfft; i++)
+      mean[i] = p->avg->acc[i] / (double)p->avg->count;
+    static const double frac[] = { 0.5, 0.9, 0.99, 0.999 };
+    for (size_t k = 0; k < sizeof frac / sizeof *frac; k++)
+      DP_CHECK (dp_psd_occupied_bw (p, frac[k])
+                == dp_obw_from_power (mean, nfft, 256.0, frac[k]));
+    free (mean);
+
+    /* an exact tie still resolves exactly over many frames: an impulse
+       puts the same power in every bin, and a sum of equal bins stays
+       equal, so f = 0.5 is 129 of 256 bins (one bin is 1 Hz) */
+    dp_psd_state_t *q
+        = dp_psd_create (nfft, 256.0, 3, 0.0f, 1, 1.0, 0, 0, 0.1);
+    DP_REQUIRE (q != NULL);
+    float _Complex imp[256] = { 1.0f };
+    for (int f = 0; f < 1000; f++)
+      dp_psd_accumulate (q, imp, nfft);
+    DP_CHECK (dp_psd_occupied_bw (q, 0.5) == 129.0);
+    dp_psd_destroy (q);
+
+    DP_STATE_NESTED_VERSION_TEST (dp_psd, p, ACC_TRACE_STATE_MAGIC, 2u);
+    dp_psd_destroy (p);
   }
 
   DP_TEST_END ("test_psd_core");

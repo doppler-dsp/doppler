@@ -54,10 +54,12 @@ size_t dp_acc_trace_value(dp_acc_trace_state_t *state, size_t n, float *out,
  * by create.  mode is a reject key: a blob from a trace in another mode is
  * refused.  alpha travels because dp_acc_trace_set_alpha() can change it after
  * create (version 2; version 1 blobs, without mode or alpha, are refused).
+ * Version 3: a mean trace holds the per-bin sum, not the mean, so version 2
+ * blobs are refused too, and so is any blob that nests one (PSD's). 
  * set_state refuses an alpha the setter would refuse; either refusal leaves
  * the state untouched. */
 #define ACC_TRACE_STATE_MAGIC DP_FOURCC ('A','T','R','C')
-#define ACC_TRACE_STATE_VERSION 2u
+#define ACC_TRACE_STATE_VERSION 3u
 size_t dp_acc_trace_state_bytes (const dp_acc_trace_state_t *state);
 void dp_acc_trace_get_state (const dp_acc_trace_state_t *state, void *blob);
 int dp_acc_trace_set_state (dp_acc_trace_state_t *state, const void *blob);

@@ -471,3 +471,205 @@ given exact room. So a step on unchanged row names at the next release can
 be the method, not the code. This run's merged set
 (`benchmarks/published/v0.66.0-a4/`) stays on the measuring machine. It is a
 characterization, not a release's published numbers.
+
+______________________________________________________________________
+
+### 5.10 The trace's mean is a sum (2026-10-10) — #2094
+
+**Question.** `AccTrace`'s mean mode folded every frame with a Welford update,
+`acc += (p − acc) / count`: a subtract, a multiply and a float-to-double
+conversion per bin per frame, and it is the fold every `PSD` frame runs.
+#2094 makes it a per-bin **sum**, divided by the count only when the trace is
+read. The owner asked for the sum's precision to be picked on its measured
+error over a long capture: double, or float with compensation.
+
+**Method.** Each bin is a noise-only `PSD` bin: frames of exponential power
+with mean 1. 32 bins are folded four ways and compared with the exact mean.
+The reference is a long-double Kahan sum. The program below is plain `-O2`,
+with no `-ffast-math`, so it measures the arithmetic and not a compiler's
+rewrite of it. Speed is a second program: one 4096-bin frame folded 64 times,
+the minimum over 200 rounds, on this machine (WSL2, unpinned, so the ratio
+is the result, not the absolute).
+
+**Error.** The worst relative error of the mean over the 32 bins:
+
+| frames | Welford, double (before) | sum, double | sum, float + Kahan | sum, float |
+| ------ | ------------------------ | ----------- | ------------------ | ---------- |
+| 10³    | 1.7e-15                  | 1.0e-16     | 4.3e-08            | 1.0e-06    |
+| 10⁵    | 1.6e-14                  | 2.0e-16     | 3.9e-08            | 1.2e-05    |
+| 10⁶    | 8.5e-14                  | 2.3e-15     | 2.9e-08            | 1.1e-04    |
+| 10⁷    | 3.0e-13                  | 2.4e-14     | 4.9e-08            | 1.1e-02    |
+
+**Speed** (ns per bin, one frame's fold, GCC 15.2 at `-O3`):
+
+| build                | sum, double | sum, float + Kahan |
+| -------------------- | ----------- | ------------------ |
+| portable (x86-64-v2) | 0.138       | 0.125              |
+| native               | 0.078       | 0.071              |
+
+**Decision: the double sum.** It is ten times more accurate than the Welford
+update it replaces, and seven orders more accurate than float with
+compensation. That compensation is also not safe in this library: it is
+built with `-ffast-math`, and under it the compiler is free to delete the
+compensation term, which would leave the plain float sum, 1% off at 10⁷
+frames. Float with compensation is about 10% faster in isolation. Both move
+the same 8 bytes per bin.
+
+**Pinned.** `test_acc_trace_core.c` folds 10⁶ frames in the library's own
+build (x86-64-v2, `-ffast-math`) against a Kahan reference held in volatile
+temporaries. The worst bin measures 1.8e-15 against a bound of 1e-14. The same
+test pins the representation itself: in mean mode `acc` is the sum, bit for
+bit, and `value()` returns `(float)(acc / count)`.
+
+**What it moved.** A mean trace's state blob now holds the sum, so
+`ACC_TRACE_STATE_VERSION` is 3. A version-2 blob is refused, by `AccTrace` and
+through every parent that nests one (`PSD`, `Specan`, `CarrierAcquisition`).
+`PSD`'s `occupied_bw` reads the trace directly. It is a ratio of power sums,
+so it is unchanged: it is pinned equal to OBW over the mean after 3,000
+frames. The hold modes became a select with an unconditional store, so every
+shipped build now vectorizes all four folds: GCC x86-64-v2, and clang for
+aarch64 Linux and macOS. Unpinned and on this machine, at 4096 bins, the
+holds went from 1.2–1.7 to 0.17 ns per bin in the portable build. The
+pinned before and after are #2094's bench run.
+
+<!-- docs-snippet: no-run=10^7 frames take seconds; the bound is pinned in test_acc_trace_core.c -->
+
+```c
+/* The worst relative error of the mean over 32 bins of exponential power,
+   four folds against a long-double Kahan reference. Plain -O2: no
+   -ffast-math, so the arithmetic is what is measured. */
+#include <math.h>
+#include <stdint.h>
+#include <stdio.h>
+
+#define BINS 32
+
+static uint64_t s = 0x9E3779B97F4A7C15ull;
+
+static double
+u (void)
+{
+  s ^= s << 13;
+  s ^= s >> 7;
+  s ^= s << 17;
+  return ((s >> 11) + 0.5) * (1.0 / 9007199254740992.0);
+}
+
+int
+main (void)
+{
+  const long frames[] = { 1000, 100000, 1000000, 10000000 };
+  for (int f = 0; f < 4; f++)
+    {
+      double worst[4] = { 0 };
+      for (int b = 0; b < BINS; b++)
+        {
+          long double ref = 0, rc = 0;
+          double      welford = 0, dsum = 0;
+          float       fsum = 0, kc = 0, naive = 0;
+          for (long k = 1; k <= frames[f]; k++)
+            {
+              const float p = (float)-log (u ());
+              long double y = (long double)p - rc, t = ref + y;
+              rc            = (t - ref) - y;
+              ref           = t;
+              welford += ((double)p - welford) / (double)k;
+              dsum += (double)p;
+              float fy = p - kc, ft = fsum + fy;
+              kc   = (ft - fsum) - fy;
+              fsum = ft;
+              naive += p;
+            }
+          const long double m    = ref / frames[f];
+          const double      e[4] = {
+            fabs ((double)((welford - m) / m)),
+            fabs ((double)((dsum / frames[f] - m) / m)),
+            fabs ((double)(((double)fsum / frames[f] - m) / m)),
+            fabs ((double)(((double)naive / frames[f] - m) / m)),
+          };
+          for (int i = 0; i < 4; i++)
+            if (e[i] > worst[i])
+              worst[i] = e[i];
+        }
+      printf ("%9ld frames: welford %.1e  sum(double) %.1e  "
+              "sum(float+Kahan) %.1e  sum(float) %.1e\n",
+              frames[f], worst[0], worst[1], worst[2], worst[3]);
+    }
+  return 0;
+}
+```
+
+<!-- docs-snippet: no-run=a timing, on whatever machine runs it; the ratio is the result -->
+
+```c
+/* ns per bin of one 4096-bin frame's fold, min over 200 rounds of 64
+   frames: the double sum against float with Kahan compensation. Built
+   WITHOUT -ffast-math, so the compensation is kept. */
+#include <stdint.h>
+#include <stdio.h>
+#include <time.h>
+
+#define N 4096
+#define F 64
+
+static float  frames[F][N];
+static double dsum[N];
+static float  fs[N], fc[N];
+
+static double
+now (void)
+{
+  struct timespec t;
+  clock_gettime (CLOCK_MONOTONIC, &t);
+  return t.tv_sec + t.tv_nsec * 1e-9;
+}
+
+__attribute__ ((noinline)) static void
+fold_d (const float *restrict p, double *restrict a)
+{
+  for (int i = 0; i < N; i++)
+    a[i] += (double)p[i];
+}
+
+__attribute__ ((noinline)) static void
+fold_k (const float *restrict p, float *restrict s, float *restrict c)
+{
+  for (int i = 0; i < N; i++)
+    {
+      float y = p[i] - c[i];
+      float t = s[i] + y;
+      c[i]    = (t - s[i]) - y;
+      s[i]    = t;
+    }
+}
+
+int
+main (void)
+{
+  uint32_t x = 1;
+  for (int f = 0; f < F; f++)
+    for (int i = 0; i < N; i++)
+      {
+        x ^= x << 13;
+        x ^= x >> 17;
+        x ^= x << 5;
+        frames[f][i] = (x >> 8) / 16777216.0f;
+      }
+  double bd = 1e9, bk = 1e9;
+  for (int r = 0; r < 200; r++)
+    {
+      double t0 = now ();
+      for (int f = 0; f < F; f++)
+        fold_d (frames[f], dsum);
+      double t1 = now ();
+      for (int f = 0; f < F; f++)
+        fold_k (frames[f], fs, fc);
+      double t2 = now ();
+      bd        = t1 - t0 < bd ? t1 - t0 : bd;
+      bk        = t2 - t1 < bk ? t2 - t1 : bk;
+    }
+  printf ("double sum %.3f ns/bin   float+Kahan %.3f ns/bin   (%g %g)\n",
+          bd / F / N * 1e9, bk / F / N * 1e9, dsum[7], (double)fs[7]);
+  return 0;
+}
+```

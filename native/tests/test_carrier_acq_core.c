@@ -332,6 +332,10 @@ main (void)
             /* a corrupted envelope must be rejected, not reinterpreted */
             ((char *)blob)[0] ^= (char)0xFF;
             DP_CHECK (dp_carrier_acq_set_state (cr, blob) == DP_ERR_INVALID);
+            /* a version-2 AccTrace blob nested in its PSD is refused, and
+               the refusal changes nothing (#2094) */
+            DP_STATE_NESTED_VERSION_TEST (dp_carrier_acq, cr,
+                                          ACC_TRACE_STATE_MAGIC, 2u);
             dp_carrier_acq_destroy (cr);
           }
         free (blob);

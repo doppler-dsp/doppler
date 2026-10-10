@@ -27,6 +27,7 @@
 #include "doppler/dp_thread.h"
 #include "doppler/stream/stream.h"
 #include "stream_internal.h"
+#include <limits.h>
 #include <nats.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -395,15 +396,26 @@ dp__nats_ctx_destroy (struct dp_ctx *ctx)
  * ========================================================================= */
 
 /* Publish one prebuilt buffer to the role's subject.  typestr is the sample
- * type name (used only by PUB to build "iq.{base}.{type}"). */
+ * type name (used only by PUB to build "iq.{base}.{type}").
+ *
+ * nats.c takes an int length, so this is the one place a send's size_t
+ * narrows. A length above INT_MAX is refused here, before the cast. Cast,
+ * 2^32 + 5 became 5 and those 5 bytes were sent; 2^31 and 2^32 - 1 went
+ * negative, and nats.c writes a negative payload as none at all
+ * (natsConn_bufferWrite skips len <= 0), so an empty message was sent.
+ * Every one returned DP_OK (doppler#2069). No broker carries a message
+ * that large, hence DP_ERR_TOO_LARGE. */
 static int
 nats_publish (struct dp_ctx *ctx, const char *typestr, const void *buf,
-              int len)
+              size_t len)
 {
   natsConnection *conn = (natsConnection *)ctx->nats.conn;
   natsStatus      s;
 
   ctx->last_error[0] = '\0'; /* a stale detail must not read as this one */
+  if (len > INT_MAX)
+    return DP_ERR_TOO_LARGE;
+  const int n = (int)len;
 
   switch (ctx->nats.role)
     {
@@ -412,19 +424,19 @@ nats_publish (struct dp_ctx *ctx, const char *typestr, const void *buf,
         char subj[640];
         (void)snprintf (subj, sizeof (subj), "iq.%s.%s", ctx->nats.base,
                         typestr);
-        s = natsConnection_Publish (conn, subj, buf, len);
+        s = natsConnection_Publish (conn, subj, buf, n);
         break;
       }
     case DP_ROLE_REQ:
       s = natsConnection_PublishRequest (
-          conn, ctx->nats.base, (const char *)ctx->nats.inbox, buf, len);
+          conn, ctx->nats.base, (const char *)ctx->nats.inbox, buf, n);
       if (s == NATS_OK)
         s = natsConnection_Flush (conn); /* push the request out now */
       break;
     case DP_ROLE_REP:
       if (!ctx->nats.last_reply)
         return DP_ERR_SEND; /* no request to answer */
-      s = natsConnection_Publish (conn, ctx->nats.last_reply, buf, len);
+      s = natsConnection_Publish (conn, ctx->nats.last_reply, buf, n);
       if (s == NATS_OK)
         s = natsConnection_Flush (conn);
       break;
@@ -437,8 +449,7 @@ nats_publish (struct dp_ctx *ctx, const char *typestr, const void *buf,
         (void)snprintf (subj, sizeof (subj), "work.%s.%s", ctx->nats.base,
                         typestr);
         jsPubAck *pa = NULL;
-        s = js_Publish (&pa, (jsCtx *)ctx->nats.js, subj, buf, len, NULL,
-                        NULL);
+        s = js_Publish (&pa, (jsCtx *)ctx->nats.js, subj, buf, n, NULL, NULL);
         if (pa)
           jsPubAck_Destroy (pa);
         break;
@@ -489,7 +500,7 @@ nats_publish_block (struct dp_ctx *ctx, const dp_header_t *h,
   if (data_len)
     memcpy (buf + hdr_sz + ch_sz, data, data_len);
   int rc = nats_publish (ctx, nats_type_token (h), buf,
-                         (int)(hdr_sz + ch_sz + data_len));
+                         hdr_sz + ch_sz + data_len);
   free (buf);
   return rc;
 }
@@ -623,7 +634,7 @@ dp__nats_flush (struct dp_ctx *ctx, int timeout_ms)
 int
 dp__nats_send_raw (struct dp_ctx *ctx, const void *data, size_t size)
 {
-  return nats_publish (ctx, NULL, data, (int)size);
+  return nats_publish (ctx, NULL, data, size);
 }
 
 /* =========================================================================

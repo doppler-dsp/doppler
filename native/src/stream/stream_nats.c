@@ -275,12 +275,15 @@ nats_wire_role (struct dp_ctx *ctx, natsConnection *conn)
  * ========================================================================= */
 
 /* `closed` is set under the mutex BEFORE the context's NATS objects are torn
-   down, and an ack reads it under the same mutex, so an ack already in
-   flight finishes before teardown begins and one that comes after is
-   refused (DP_ERR_CLOSED) rather than reading a freed subscription. `role`
-   is the context's: only a PULL message is a JetStream message, so only it
-   is acked; nats.c's ack on any other reads a subscription with no
-   JetStream context (jsi == NULL) and faults with no close involved. */
+   down, and a Pull message's ack reads it under the same mutex, so an ack
+   already in flight finishes before teardown begins and one that comes
+   after is refused (DP_ERR_CLOSED) rather than reading a freed
+   subscription. `role` is the context's: only a PULL message is a
+   JetStream message, so only it is acked. nats.c's ack is wrong for any
+   other, close or no close: a SUB message has no reply subject, so it is
+   refused (NATS_ILLEGAL_STATE); a REP request has one, so nats.c reads its
+   subscription's JetStream context, which is NULL -- undefined, and in a
+   Release build "+ACK" published to the requester's inbox. */
 struct dp_msg_link
 {
   dp_mutex_t mu;
@@ -1030,12 +1033,16 @@ int
 dp__nats_msg_ack (dp_msg_t *msg)
 {
   dp_msg_link_t *l = msg->link;
-  int            rc;
+  /* Role first, and without the lock: it is fixed when the link is created,
+     before any message can hold it. A core-NATS message has nothing to
+     acknowledge, so its ack is DP_OK whether or not its context is still
+     open -- the same answer a reassembled frame from that context gets. */
+  if (l->role != DP_ROLE_PULL)
+    return DP_OK;
+  int rc;
   dp_mutex_lock (&l->mu);
   if (l->closed)
     rc = DP_ERR_CLOSED; /* the broker redelivers it: ack before close */
-  else if (l->role != DP_ROLE_PULL)
-    rc = DP_OK; /* core NATS: there is nothing to acknowledge */
   else
     rc = natsMsg_Ack ((natsMsg *)msg->u.nats, NULL) == NATS_OK ? DP_OK
                                                                : DP_ERR_SEND;

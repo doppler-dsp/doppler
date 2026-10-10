@@ -148,10 +148,10 @@ int dp_msg_ack (
 For the resilient NATS work-queue tier (a `nats://` Pull consumer), delivery is at-least-once: a message stays pending until acked, and is redelivered if the consumer dies before acking. Call this once the message has been fully processed, then [**dp\_msg\_free()**](group__msg.md#function-dp_msg_free).
 
 
-A no-op (returns DP\_OK) for transports without acks — NATS core PUB/SUB, REQ/REP and reassembled chunked frames — so callers can ack unconditionally.
+A no-op (returns DP\_OK) for transports without acks — NATS core PUB/SUB, REQ/REP and reassembled chunked frames — so callers can ack unconditionally, before or after the receiving context is destroyed.
 
 
-**Ack before you close.** Once the context that received `msg` is destroyed, an ack is refused with DP\_ERR\_CLOSED and nothing is sent, so the broker redelivers the message to the next consumer. The message itself stays valid: [**dp\_msg\_free()**](group__msg.md#function-dp_msg_free) is still the caller's, whenever. An ack racing the destroy on another thread is safe either way: it completes before the context is torn down, or it is refused.
+**Ack a Pull message before you close.** Once the Pull context that received `msg` is destroyed, its ack is refused with DP\_ERR\_CLOSED and nothing is sent, so the broker redelivers the message to the next consumer. The message itself stays valid: [**dp\_msg\_free()**](group__msg.md#function-dp_msg_free) is still the caller's, whenever. An ack racing the destroy on another thread is safe either way: it completes before the context is torn down, or it is refused.
 
 
 
@@ -165,7 +165,7 @@ A no-op (returns DP\_OK) for transports without acks — NATS core PUB/SUB, REQ/
 
 **Returns:**
 
-DP\_OK on success; DP\_ERR\_CLOSED after its context is destroyed; DP\_ERR\_SEND if the broker could not be told. 
+DP\_OK on success, and always for a message with nothing to acknowledge; DP\_ERR\_CLOSED for a Pull message after its context is destroyed; DP\_ERR\_SEND if the broker could not be told. 
 
 
 

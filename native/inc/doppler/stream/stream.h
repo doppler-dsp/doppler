@@ -1162,6 +1162,21 @@ extern "C"
 #define DP_WORK_QUEUE_MAX_AGE_NS (3600LL * 1000000000LL)
 
   /**
+   * @brief Unacked frames a Pull consumer may hold before the server stops.
+   *
+   * A Pull is an explicit-ack consumer: past this many frames delivered and
+   * not yet acked (dp_msg_ack()), the server hands out no NEW frames, only
+   * redeliveries of the pending ones, each an AckWait after the last. That
+   * is the backpressure a work queue applies to a slow consumer, and the
+   * reason a consumer that never acks stalls at exactly this count.
+   *
+   * Python reads it as `doppler.stream.WORK_QUEUE_MAX_ACK_PENDING`, so a
+   * consumer that reasons about redeliveries names this value rather than
+   * restating it.
+   */
+#define DP_WORK_QUEUE_MAX_ACK_PENDING 1000
+
+  /**
    * @brief The backend's own account of the last failure on @p ctx.
    *
    * `dp_strerror()` names the CLASS of error doppler returned; this names

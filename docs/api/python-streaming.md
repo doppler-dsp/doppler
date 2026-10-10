@@ -111,6 +111,14 @@ with Pull("nats://127.0.0.1:4222/work") as pull:
     pull.ack(samples)
 ```
 
+A worker may hold `WORK_QUEUE_MAX_ACK_PENDING` frames delivered and not
+yet acked. Past that, the server hands it no new frames, only
+redeliveries of the pending ones, each an AckWait after the last, so a
+worker that never acks stalls at exactly that count. An ack is
+fire-and-forget, so a lost one is a redelivery too: the header's
+`sequence`, which counts each producer's frames from 0, is how a worker
+can tell one from a new frame.
+
 ______________________________________________________________________
 
 ## REQ / REP — request/response

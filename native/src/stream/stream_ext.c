@@ -1571,6 +1571,8 @@ PyInit_stream (void)
   PyModule_AddIntConstant (m, "CI16", CI16);
   PyModule_AddIntConstant (m, "CF32", CF32);
   PyModule_AddIntConstant (m, "TLM16", DP_KIND_TLM);
+  PyModule_AddIntConstant (m, "WORK_QUEUE_MAX_ACK_PENDING",
+                           DP_WORK_QUEUE_MAX_ACK_PENDING);
 
   /* ONE flag per process. The NATS receive path checks dp_interrupted()
      between slices, and this module is `no_generate`, so jm writes no

@@ -193,7 +193,7 @@ nats_pull_subscribe (struct dp_ctx *ctx, jsCtx *js, natsSubscription **out)
   so.ManualAck            = true; /* caller acks via dp_msg_ack */
   so.Config.Durable       = durable;
   so.Config.AckPolicy     = js_AckExplicit;
-  so.Config.MaxAckPending = 1000;               /* HWM-style backpressure */
+  so.Config.MaxAckPending = DP_WORK_QUEUE_MAX_ACK_PENDING; /* backpressure */
   so.Config.AckWait = 5LL * 1000 * 1000 * 1000; /* 5s ns -> fast redeliver */
 
   return (js_PullSubscribe (out, js, filter, durable, NULL, &so, NULL)

@@ -32,12 +32,24 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from _record import BUILDS, Pass, Runs, both, main, med, spread, table
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _record import (
+    BUILDS,
+    Pass,
+    Runs,
+    both,
+    main,
+    med,
+    spread,
+    table,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
 DATA = Path(__file__).resolve().parent / "u1u4"
+#: The commit every pass was measured at (``_record.load`` asserts it).
+COMMIT = "c1ae84190"
 SIZES = (256, 1024, 4096, 16384, 65536)
 BASE = "spectrogram::push[nfft=1024,hop=256]"
 ONE = "spectrogram::push[nfft=1024,hop=256,chunk=1]"
@@ -223,4 +235,4 @@ BLOCKS = {"u1": u1, "u2": u2, "u3": u3, "u4": u4}
 
 
 if __name__ == "__main__":
-    sys.exit(main("u1u4", DATA, BLOCKS, __doc__))
+    sys.exit(main("u1u4", DATA, COMMIT, BLOCKS, __doc__))

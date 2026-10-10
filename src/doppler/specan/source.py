@@ -433,12 +433,13 @@ class SocketSource(Source):
         while len(self._buf) < n:
             try:
                 data, hdr = sub.recv(timeout_ms=self._timeout_ms)
+            except TimeoutError:
+                # Nothing within timeout_ms: return what we have (may be
+                # empty). The binding RAISES here; it never returns None.
+                break
             except EOFError:
                 # The publisher's end-of-stream frame: nothing more is
                 # coming, so hand back what is buffered, as on a timeout.
-                break
-            if data is None:
-                # Timeout — return what we have (may be empty)
                 break
             data = to_complex64(data)
             self._fs = float(hdr["sample_rate"])
@@ -504,15 +505,21 @@ class PullSource(Source):
 
         while len(self._buf) < n:
             try:
-                data, hdr = pull.recv(timeout_ms=self._timeout_ms)
-            except EOFError:
-                break  # end of stream -- see SocketSource.read
-            if data is None:
-                break
-            data = to_complex64(data)
+                frame, hdr = pull.recv(timeout_ms=self._timeout_ms)
+            except (TimeoutError, EOFError):
+                break  # nothing more for now, or ever -- see SocketSource
+            data = to_complex64(frame)
             self._fs = float(hdr["sample_rate"])
             self._cf = float(hdr["center_freq"])
             self._buf = np.concatenate([self._buf, data.ravel()])
+            # Consumed: the samples are copied into the buffer, so ack the
+            # array recv returned (its buffer still alive). Pull is an
+            # explicit-ack work queue: an unacked frame is redelivered
+            # after AckWait and stays queued for the next run, and after
+            # MaxAckPending (1000) unacked frames the server sends ONLY
+            # redeliveries, which this loop would concatenate as new data
+            # (#2009). The end-of-stream frame is acked inside recv.
+            pull.ack(frame)
 
         out = self._buf[:n].copy()
         self._buf = self._buf[n:]

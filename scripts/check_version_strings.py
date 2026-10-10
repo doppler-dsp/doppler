@@ -72,6 +72,12 @@ def claims_version(line: str, version: str) -> bool:
     labelled as another tool's version (``jm 0.58.0``,
     ``just-makeit==0.58.0``) is skipped; see OTHER_TOOL_LABEL.
 
+    A SemVer pre-release suffix makes it a different version: ``0.58.0-a4``
+    or ``0.58.0-rc1`` names a run or a candidate, not the release, and a page
+    that records which label a measurement ran under stays true after the
+    tag. The suffix is a hyphen, at most a few letters, then a digit, so
+    prose such as ``0.58.0-based`` is still caught.
+
     >>> claims_version("doppler 0.58.0 adds a thing", "0.58.0")
     True
     >>> claims_version("The current release is 0.58.0.", "0.58.0")
@@ -84,8 +90,17 @@ def claims_version(line: str, version: str) -> bool:
     False
     >>> claims_version("see 10.58.01", "0.58.0")
     False
+    >>> claims_version("make bench VERSION=0.58.0-a4 K=5", "0.58.0")
+    False
+    >>> claims_version("cut 0.58.0-rc1 first", "0.58.0")
+    False
+    >>> claims_version("the 0.58.0-based layout", "0.58.0")
+    True
     """
-    needle = re.compile(rf"(?<![0-9.]){re.escape(version)}(?![0-9]|\.[0-9])")
+    needle = re.compile(
+        rf"(?<![0-9.]){re.escape(version)}"
+        r"(?![0-9]|\.[0-9]|-[A-Za-z]{0,5}[0-9])"
+    )
     return any(
         not OTHER_TOOL_LABEL.search(line[: m.start()])
         for m in needle.finditer(line)

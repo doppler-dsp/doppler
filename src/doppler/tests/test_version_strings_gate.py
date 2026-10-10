@@ -37,6 +37,8 @@ V = "0.58.0"
         # "the current version is X." is the claim the gate exists for.
         "The current release is 0.58.0.",
         "The current release is 0.58.0.\n",
+        # A hyphenated word is prose, not a pre-release label.
+        "the 0.58.0-based layout",
     ],
 )
 def test_doppler_version_in_prose_is_refused(line):
@@ -52,6 +54,12 @@ def test_doppler_version_in_prose_is_refused(line):
         "10.58.01 is a different number",
         "0.58.01 is too",
         "0.58.0.1 is a longer one",
+        # A SemVer pre-release label names a run or a candidate, not the
+        # release: the v0.66.0 tag tripped on a measurement record that cites
+        # the label its bench ran under.
+        "`make bench-interleaved VERSION=0.58.0-a4 K=5` at c1ae84190",
+        "(`benchmarks/published/v0.58.0-a4/`) stays on the machine",
+        "cut 0.58.0-rc1 first",
     ],
 )
 def test_another_tools_version_or_a_longer_number_passes(line):

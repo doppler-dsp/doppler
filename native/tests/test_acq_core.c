@@ -1691,6 +1691,50 @@ _acq_resume_check (void)
         dp_acq_destroy (d);
       }
 
+      /* set_state holds the stream position to the carry's frames: a blob
+         whose samples_consumed is off by a frame, or by one sample, is
+         refused, and the target is left exactly as an untouched twin. */
+      {
+        dp_acq_state_t *a    = ci_acq_create ((void *)&cfg);
+        dp_acq_state_t *t    = ci_acq_create ((void *)&cfg);
+        dp_acq_state_t *twin = ci_acq_create ((void *)&cfg);
+        DP_REQUIRE (a && t && twin);
+        const size_t   cut  = 3 * frame_n + 5; /* frames, and a carry */
+        const size_t   sb   = dp_acq_state_bytes (a);
+        unsigned char *blob = malloc (sb), *bad = malloc (sb);
+        unsigned char *bt = malloc (sb), *bw = malloc (sb);
+        DP_REQUIRE (blob && bad && bt && bw);
+        (void)dp_acq_push (a, x, cut, got, all);
+        (void)dp_acq_push (t, x, 2 * frame_n, got, all);
+        (void)dp_acq_push (twin, x, 2 * frame_n, got, all);
+        DP_REQUIRE (a->samples_consumed == 3 * frame_n);
+        dp_acq_get_state (a, blob);
+        static const int64_t deltas[] = { 1, -1 };
+        for (size_t dk = 0; dk < 4; dk++)
+          {
+            const int64_t step = dk < 2 ? (int64_t)frame_n : 1;
+            uint64_t      sc;
+            const size_t  at = sizeof (dp_state_hdr_t)
+                               + offsetof (acq_extra_t, samples_consumed);
+            memcpy (bad, blob, sb);
+            memcpy (&sc, bad + at, sizeof sc);
+            sc += (uint64_t)(deltas[dk % 2] * step);
+            memcpy (bad + at, &sc, sizeof sc);
+            DP_CHECK (dp_acq_set_state (t, bad) == DP_ERR_INVALID);
+            dp_acq_get_state (t, bt);
+            dp_acq_get_state (twin, bw);
+            DP_CHECK (memcmp (bt, bw, sb) == 0);
+          }
+        DP_CHECK (dp_acq_set_state (t, blob) == DP_OK); /* the control */
+        free (blob);
+        free (bad);
+        free (bt);
+        free (bw);
+        dp_acq_destroy (a);
+        dp_acq_destroy (t);
+        dp_acq_destroy (twin);
+      }
+
       /* A blob is a function of the stream (#2052): two identical engines
          fed the same input give the same bytes, mid-block and on a block
          boundary. The tiled engine's block was copied whole, so the

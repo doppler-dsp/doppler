@@ -669,6 +669,242 @@ test_pull_first_provisions_the_work_queue (void)
   dp_sub_destroy (pull);
 }
 
+/* ------------------------------------------------------------------
+ * Chunked-frame faults a broker cannot produce on cue (#2010): a frame's
+ * chunks are published by hand, through the client, laid out exactly as
+ * dp__nats_send_signal lays them out, so a test can stop between two.
+ * ------------------------------------------------------------------ */
+enum
+{
+  RAW_COUNT  = 2,  /* chunks per frame                  */
+  RAW_STRIDE = 64, /* bytes in every chunk but the last */
+  RAW_TOTAL  = 96  /* 64 + 32: CF32, 12 samples         */
+};
+
+/* The subject a PUB on endpoint `ep` sends CF32 frames to. */
+static void
+raw_subject (char *subj, size_t n, const char *ep)
+{
+  (void)snprintf (subj, n, "iq.%s.CF32", strrchr (ep, '/') + 1);
+}
+
+static unsigned char
+raw_byte (uint64_t seq, size_t i)
+{
+  return (unsigned char)(seq * 37u + i);
+}
+
+/* Publish chunk `idx` of frame `seq`, and flush it to the server, so that
+   whatever is published next -- on any connection -- arrives after it. */
+static int
+raw_chunk (natsConnection *nc, const char *subj, uint64_t seq, uint32_t idx)
+{
+  dp_header_t h;
+  memset (&h, 0, sizeof h);
+  h.magic = DP_STREAM_MAGIC;
+  memcpy (h.data_rep, dp_host_rep (), 4);
+  h.format       = (uint16_t)CF32;
+  h.kind         = (uint16_t)DP_KIND_IQ;
+  h.version      = DP_WIRE_VERSION;
+  h.flags        = DP_FLAG_CHUNKED;
+  h.sequence     = seq;
+  h.timestamp_ns = 1700000000000000000ull + seq;
+  h.sample_rate  = 1e6;
+  uint64_t off   = (uint64_t)idx * RAW_STRIDE;
+  size_t len = (idx + 1 < RAW_COUNT) ? RAW_STRIDE : (size_t)(RAW_TOTAL - off);
+  h.payload_bytes = (uint32_t)len;
+  h.num_samples   = len / 8;
+  dp_chunk_t ch   = { 0 };
+  ch.index        = idx;
+  ch.count        = RAW_COUNT;
+  ch.total_bytes  = RAW_TOTAL;
+  ch.offset       = off;
+
+  unsigned char buf[sizeof h + sizeof ch + RAW_STRIDE];
+  memcpy (buf, &h, sizeof h);
+  memcpy (buf + sizeof h, &ch, sizeof ch);
+  for (size_t i = 0; i < len; i++)
+    buf[sizeof h + sizeof ch + i] = raw_byte (seq, (size_t)off + i);
+  if (natsConnection_Publish (nc, subj, buf, (int)(sizeof h + sizeof ch + len))
+      != NATS_OK)
+    return -1;
+  return natsConnection_Flush (nc) == NATS_OK ? 0 : -1;
+}
+
+static dp_reasm_stats_t
+reasm_stats (const dp_sub_t *sub)
+{
+  dp_reasm_stats_t st = { 0 };
+  DP_CHECK (dp_sub_reasm_stats (sub, &st) == DP_OK);
+  return st;
+}
+
+/* ------------------------------------------------------------------
+ * test_mid_frame_timeout_resumes_the_frame: a receive that times out
+ * between two chunks keeps the frame, counts the timeout, and the next
+ * receive completes it.
+ * ------------------------------------------------------------------ */
+static void
+test_mid_frame_timeout_resumes_the_frame (void)
+{
+  printf ("\n-- a timeout between chunks keeps the frame for the next recv "
+          "--\n");
+  char ep[160], subj[224];
+  (void)snprintf (ep, sizeof ep, "%s", dp_nats_endpoint ("midframe"));
+  raw_subject (subj, sizeof subj, ep);
+  dp_sub_t       *sub = dp_sub_create (ep);
+  natsConnection *nc  = NULL;
+  DP_CHECK (sub != NULL);
+  DP_CHECK (natsConnection_ConnectTo (&nc, DP_NATS_URL) == NATS_OK);
+  if (!sub || !nc)
+    goto done;
+  dp_nats_settle ();
+  dp_sub_set_timeout (sub, 200);
+
+  dp_msg_t   *msg = NULL;
+  dp_header_t hdr;
+  DP_CHECK (raw_chunk (nc, subj, 5, 0) == 0);
+  DP_CHECK (dp_sub_recv (sub, &msg, &hdr) == DP_ERR_TIMEOUT);
+  DP_CHECK (reasm_stats (sub).mid_frame_timeouts == 1);
+
+  DP_CHECK (raw_chunk (nc, subj, 5, 1) == 0);
+  DP_CHECK (dp_sub_recv (sub, &msg, &hdr) == DP_OK);
+  if (msg)
+    {
+      DP_CHECK (dp_msg_num_samples (msg) == RAW_TOTAL / 8);
+      const unsigned char *b     = (const unsigned char *)dp_msg_data (msg);
+      int                  exact = 1;
+      for (size_t i = 0; i < RAW_TOTAL; i++)
+        exact &= b[i] == raw_byte (5, i);
+      DP_CHECK (exact);
+      dp_msg_free (msg);
+    }
+  DP_CHECK (reasm_stats (sub).abandoned == 0);
+done:
+  if (nc)
+    natsConnection_Destroy (nc);
+  dp_sub_destroy (sub);
+}
+
+/* ------------------------------------------------------------------
+ * test_a_stale_frame_is_abandoned: with one publisher per subject, an
+ * unchunked frame or an end-of-stream after a chunked frame proves that
+ * one lost a chunk. It is given up and counted, rather than held for ever
+ * with every idle timeout counted as a mid-frame one.
+ * ------------------------------------------------------------------ */
+static void
+test_a_stale_frame_is_abandoned (void)
+{
+  printf ("\n-- an unchunked frame or EOS abandons a frame that lost a "
+          "chunk --\n");
+  char ep[160], subj[224];
+  (void)snprintf (ep, sizeof ep, "%s", dp_nats_endpoint ("stale"));
+  raw_subject (subj, sizeof subj, ep);
+  dp_sub_t       *sub = dp_sub_create (ep);
+  dp_pub_t       *pub = dp_pub_create (ep, CF32);
+  natsConnection *nc  = NULL;
+  DP_CHECK (sub != NULL && pub != NULL);
+  DP_CHECK (natsConnection_ConnectTo (&nc, DP_NATS_URL) == NATS_OK);
+  if (!sub || !pub || !nc)
+    goto done;
+  dp_nats_settle ();
+  dp_sub_set_timeout (sub, 2000);
+
+  dp_msg_t   *msg = NULL;
+  dp_header_t hdr;
+  float _Complex x[4] = { 1, 2, 3, 4 };
+  DP_CHECK (raw_chunk (nc, subj, 50, 0) == 0); /* its chunk 1 never comes */
+  DP_CHECK (dp_pub_send_cf32 (pub, x, 4, 1e6, 0.0) == DP_OK);
+  DP_CHECK (dp_sub_recv (sub, &msg, &hdr) == DP_OK);
+  if (msg)
+    {
+      DP_CHECK (dp_msg_num_samples (msg) == 4);
+      dp_msg_free (msg);
+    }
+  DP_CHECK (reasm_stats (sub).abandoned == 1);
+
+  dp_sub_set_timeout (sub, 100); /* idle: nothing is held any more */
+  DP_CHECK (dp_sub_recv (sub, &msg, &hdr) == DP_ERR_TIMEOUT);
+  DP_CHECK (reasm_stats (sub).mid_frame_timeouts == 0);
+
+  dp_sub_set_timeout (sub, 2000);
+  DP_CHECK (raw_chunk (nc, subj, 51, 0) == 0);
+  DP_CHECK (dp_pub_send_eos (pub) == DP_OK);
+  DP_CHECK (dp_sub_recv (sub, &msg, &hdr) == DP_ERR_EOF);
+  DP_CHECK (reasm_stats (sub).abandoned == 2);
+done:
+  if (nc)
+    natsConnection_Destroy (nc);
+  dp_pub_destroy (pub);
+  dp_sub_destroy (sub);
+}
+
+/* ------------------------------------------------------------------
+ * test_recv_deadline_holds_while_chunks_keep_coming: a receive has ONE
+ * deadline however many chunks it reads. Each chunk below starts a frame
+ * that never completes (a lost chunk every time, or two publishers
+ * interleaving), and one arrives every 10 ms -- well inside the receive's
+ * 100 ms timeout. With a fresh timeout per message, the receive never
+ * returned while they kept coming.
+ * ------------------------------------------------------------------ */
+typedef struct
+{
+  const char  *subj;
+  volatile int stop;
+} raw_flood_t;
+
+DP_THREAD_FN (raw_flood, arg)
+{
+  raw_flood_t    *f  = (raw_flood_t *)arg;
+  natsConnection *nc = NULL;
+  if (natsConnection_ConnectTo (&nc, DP_NATS_URL) == NATS_OK)
+    {
+      uint64_t until = dp_mono_ns () + 2000000000ull; /* 2 s at most */
+      for (uint64_t seq = 1000; !f->stop && dp_mono_ns () < until; seq++)
+        {
+          (void)raw_chunk (nc, f->subj, seq, 0);
+          dp_thread_sleep_us (10000);
+        }
+      natsConnection_Destroy (nc);
+    }
+  DP_THREAD_RETURN;
+}
+
+static void
+test_recv_deadline_holds_while_chunks_keep_coming (void)
+{
+  printf ("\n-- recv(timeout) returns on time while chunks keep coming "
+          "--\n");
+  char ep[160], subj[224];
+  (void)snprintf (ep, sizeof ep, "%s", dp_nats_endpoint ("deadline"));
+  raw_subject (subj, sizeof subj, ep);
+  dp_sub_t *sub = dp_sub_create (ep);
+  DP_CHECK (sub != NULL);
+  if (!sub)
+    return;
+  dp_nats_settle ();
+  dp_sub_set_timeout (sub, 100);
+
+  raw_flood_t flood = { subj, 0 };
+  dp_thread_t th;
+  DP_CHECK (dp_thread_create (&th, raw_flood, &flood) == 0);
+  dp_thread_sleep_us (100000); /* the flood is under way */
+
+  dp_msg_t   *msg = NULL;
+  dp_header_t hdr;
+  uint64_t    t0 = dp_mono_ns ();
+  int         rc = dp_sub_recv (sub, &msg, &hdr);
+  double      ms = (double)(dp_mono_ns () - t0) / 1e6;
+  printf ("  recv returned %d after %.0f ms\n", rc, ms);
+  DP_CHECK (rc == DP_ERR_TIMEOUT);
+  DP_CHECK_MSG (ms < 600.0, "one 100 ms deadline, not one per chunk");
+  DP_CHECK (reasm_stats (sub).mid_frame_timeouts >= 1);
+
+  flood.stop = 1;
+  dp_thread_join (th);
+  dp_sub_destroy (sub);
+}
+
 int
 main (void)
 {
@@ -690,6 +926,9 @@ main (void)
   test_flush_after_send ();
   test_drain_then_send ();
   test_work_queue_is_age_bounded ();
+  test_mid_frame_timeout_resumes_the_frame ();
+  test_a_stale_frame_is_abandoned ();
+  test_recv_deadline_holds_while_chunks_keep_coming ();
 
   printf ("\n");
   DP_TEST_END ("test_stream_nats_core");

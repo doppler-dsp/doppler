@@ -460,7 +460,10 @@ int dp_sub_reasm_stats (
 
 
 
-Every receiving role keeps them; a context that never received a chunked frame reads all zeros. A frame that IS returned is complete and exact: chunks of two frames are never merged, because a frame is identified by its whole header (sequence, timestamp, rate, centre frequency, format) and its chunk geometry, not by its sequence alone.
+Only a SUB reassembles (PUB is the only role that chunks), so only a SUB's counts move; any other receiving context reads all zeros, as does a SUB that never received a chunked frame. A frame that IS returned is complete and exact. Chunks of two frames are not merged, because a frame is identified by its whole header (sequence, timestamp, rate, centre frequency, format) and its chunk geometry, not by its sequence alone  unless two publishers' headers are bit-identical, which the same explicit timestamp\_ns can make them (#2017).
+
+
+Read it from the receiving thread: a receive in progress on another thread updates the counts without a lock.
 
 
 
@@ -468,7 +471,7 @@ Every receiving role keeps them; a context that never received a chunked frame r
 **Parameters:**
 
 
-* `ctx` Any receiving context (SUB, PULL, REQ, REP). 
+* `ctx` Any receiving context; only a SUB's counts move. 
 * `out` Filled on success. 
 
 
@@ -489,7 +492,7 @@ if (sub && dp_sub_recv (sub, &msg, &hdr) == DP_OK)
   dp_msg_free (msg);
 dp_reasm_stats_t st;
 if (dp_sub_reasm_stats (sub, &st) == DP_OK && st.abandoned > 0)
-  printf ("%llu chunked frames lost\n",
+  printf ("%llu partial frames given up\n",
           (unsigned long long)st.abandoned);
 dp_sub_destroy (sub);
 ```

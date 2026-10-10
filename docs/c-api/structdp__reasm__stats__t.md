@@ -103,7 +103,7 @@ uint64_t dp_reasm_stats_t::abandoned;
 
 
 
-Frames given up part-assembled because a chunk of a DIFFERENT frame arrived first: a lost chunk, a subscriber that joined mid-frame, or a second publisher interleaving on the subject. That chunk starts the next frame; it is never discarded with the old one. 
+Partial assemblies given up  a count of assemblies, not of frames lost: a subscriber that joins mid-frame abandons a frame it never had, and two publishers interleaving abandon each other's. Given up when a chunk of a DIFFERENT frame arrives (that chunk starts the next frame; it is never discarded with the old one), or an unchunked frame or end-of-stream, which under one publisher per subject proves the frame in progress lost a chunk. 
 
 
         

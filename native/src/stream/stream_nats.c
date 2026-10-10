@@ -567,11 +567,44 @@ dp_wait_slice_ms (void)
   return (int64_t)dp_stream_interrupt_latency_ms ();
 }
 
+/* A receive's ONE deadline, in nats_Now() milliseconds, or -1 for none.
+ * Taken once per receive and carried across every message it reads: a
+ * chunked frame takes several, and a fresh timeout per message let a run
+ * of chunks that never completes a frame -- two publishers interleaving,
+ * or a stream of forged chunks -- hold recv(timeout_ms) for as long as
+ * messages kept coming (#2010). nats_Now() is the client's own clock, the
+ * one natsSubscription_NextMsg and _Fetch time their waits with, so no
+ * other clock could make the bound tighter. A timeout of 0
+ * ("non-blocking") still gets one 1 ms poll. */
+static int64_t
+nats_deadline (const struct dp_ctx *ctx)
+{
+  int to = ctx->nats.recv_timeout_ms;
+  return (to < 0) ? -1 : nats_Now () + (int64_t)(to == 0 ? 1 : to);
+}
+
+/* The next wait: one interrupt slice, cut to what is left of `deadline`.
+ * -1 once the deadline has passed. */
+static int64_t
+nats_wait_ms (int64_t deadline)
+{
+  int64_t slice = dp_wait_slice_ms ();
+  if (deadline >= 0)
+    {
+      int64_t left = deadline - nats_Now ();
+      if (left <= 0)
+        return -1;
+      if (left < slice)
+        slice = left;
+    }
+  return slice;
+}
+
 /* Pull one message from the durable JetStream consumer (batch of 1).  The
  * message is NOT acked here — the caller acks via dp_msg_ack once it has been
  * processed, so a crash before ack triggers redelivery (at-least-once). */
 static int
-nats_pull_fetch (struct dp_ctx *ctx, natsMsg **out)
+nats_pull_fetch (struct dp_ctx *ctx, natsMsg **out, int64_t deadline)
 {
   natsSubscription *sub = (natsSubscription *)ctx->nats.sub;
   if (!sub)
@@ -580,30 +613,22 @@ nats_pull_fetch (struct dp_ctx *ctx, natsMsg **out)
   if (dp_stream_interrupted ())
     return DP_ERR_INTERRUPTED;
 
-  int         to        = ctx->nats.recv_timeout_ms;
-  int64_t     remaining = (to < 0) ? -1 : (int64_t)(to == 0 ? 1 : to);
-  natsMsgList list      = { NULL, 0 };
+  natsMsgList list = { NULL, 0 };
   natsStatus  s;
 
   /* Sliced for the same reason the SUB path is: a worker parked on an
      empty work queue has to be able to hear dp_stream_interrupt(). */
   for (;;)
     {
-      int64_t slice = dp_wait_slice_ms ();
-      if (remaining >= 0 && remaining < slice)
-        slice = remaining;
+      int64_t slice = nats_wait_ms (deadline);
+      if (slice < 0)
+        return DP_ERR_TIMEOUT;
 
-      s = natsSubscription_Fetch (&list, sub, 1, (int64_t)slice, NULL);
+      s = natsSubscription_Fetch (&list, sub, 1, slice, NULL);
       if (s != NATS_TIMEOUT)
         break;
       if (dp_stream_interrupted ())
         return DP_ERR_INTERRUPTED;
-      if (remaining >= 0)
-        {
-          remaining -= slice;
-          if (remaining <= 0)
-            return DP_ERR_TIMEOUT;
-        }
     }
 
   if (s == NATS_TIMEOUT)
@@ -619,13 +644,13 @@ nats_pull_fetch (struct dp_ctx *ctx, natsMsg **out)
   return DP_OK;
 }
 
-/* Block for the next message honouring the stored timeout.  recv_timeout_ms
- * < 0 means block indefinitely (emulated by re-polling on NATS_TIMEOUT). */
+/* Block for the next message until `deadline` (nats_deadline()); -1 blocks
+ * indefinitely, emulated by re-polling on NATS_TIMEOUT. */
 static int
-nats_next (struct dp_ctx *ctx, natsMsg **out)
+nats_next (struct dp_ctx *ctx, natsMsg **out, int64_t deadline)
 {
   if (ctx->nats.role == DP_ROLE_PULL)
-    return nats_pull_fetch (ctx, out);
+    return nats_pull_fetch (ctx, out, deadline);
 
   natsSubscription *sub = (natsSubscription *)ctx->nats.sub;
   if (!sub)
@@ -637,33 +662,24 @@ nats_next (struct dp_ctx *ctx, natsMsg **out)
   if (dp_stream_interrupted ())
     return DP_ERR_INTERRUPTED;
 
-  int to = ctx->nats.recv_timeout_ms;
-
   /* Both paths are the same loop; the only difference is whether there is
      a deadline to run out of. Slicing the caller's own timeout matters as
      much as slicing an infinite wait: a five-second recv that ignores
-     Ctrl+C for five seconds is the same defect, smaller. */
-  int64_t remaining = (to < 0) ? -1 : (int64_t)(to == 0 ? 1 : to);
-
+     Ctrl+C for five seconds is the same defect, smaller. The deadline is
+     checked BEFORE each wait, so a message already queued is not taken
+     once it has passed: it waits for the next receive. */
   for (;;)
     {
-      int64_t slice = dp_wait_slice_ms ();
-      if (remaining >= 0 && remaining < slice)
-        slice = remaining;
+      int64_t slice = nats_wait_ms (deadline);
+      if (slice < 0)
+        return DP_ERR_TIMEOUT;
 
-      natsStatus s = natsSubscription_NextMsg (out, sub, (int64_t)slice);
+      natsStatus s = natsSubscription_NextMsg (out, sub, slice);
       if (s != NATS_TIMEOUT)
         return (s == NATS_OK) ? DP_OK : DP_ERR_RECV;
 
       if (dp_stream_interrupted ())
         return DP_ERR_INTERRUPTED;
-
-      if (remaining >= 0)
-        {
-          remaining -= slice;
-          if (remaining <= 0)
-            return DP_ERR_TIMEOUT;
-        }
     }
 }
 
@@ -732,10 +748,11 @@ dp__nats_recv_signal (struct dp_ctx *ctx, dp_msg_t **out_msg,
      outlives this call: a timeout between chunks keeps the frame in
      progress for the next receive, and a chunk of a different frame starts
      that frame rather than being thrown away (#2010). */
+  int64_t deadline = nats_deadline (ctx);
   for (;;)
     {
       natsMsg *m  = NULL;
-      int      rc = nats_next (ctx, &m);
+      int      rc = nats_next (ctx, &m, deadline);
       if (rc != DP_OK)
         {
           if (rc == DP_ERR_TIMEOUT && ctx->nats.reasm.buf)
@@ -786,12 +803,15 @@ dp__nats_recv_signal (struct dp_ctx *ctx, dp_msg_t **out_msg,
 
       /* End of stream is a STATEMENT, so it is reported rather than handed
          back as an empty frame a caller would have to recognise for itself.
-         Checked here -- after the envelope is validated, before anything sizes
-         a payload
-         -- because an EOS frame has no format and no samples, so the
-         element-size arithmetic below has nothing to work with. */
+         Checked here -- after the envelope is validated, before anything
+         sizes a payload -- because an EOS frame has no format and no
+         samples, so the element-size arithmetic below has nothing to work
+         with. */
       if ((dp_frame_kind_t)hdr.kind == DP_KIND_EOS)
         {
+          /* The publisher has finished, so a frame still in progress lost
+             a chunk and never will complete: give it up, counted. */
+          dp_reasm_abandon (&ctx->nats.reasm);
           if (out_hdr)
             memcpy (out_hdr, &hdr, sizeof (dp_header_t));
           /* Ack it HERE, which is the one place that can. PULL is an
@@ -826,8 +846,12 @@ dp__nats_recv_signal (struct dp_ctx *ctx, dp_msg_t **out_msg,
           continue; /* placed, or a chunk no frame could hold (counted) */
         }
 
-      /* Single message: zero-copy, data lives in the natsMsg past the header.
-       */
+      /* Single message: zero-copy, data lives in the natsMsg past the
+         header. With one publisher per subject, an unchunked frame after a
+         chunked one proves that one lost a chunk: give it up, counted,
+         rather than hold its buffer and call every idle timeout a
+         mid-frame one. */
+      dp_reasm_abandon (&ctx->nats.reasm);
       dp_msg_t *msg = (dp_msg_t *)malloc (sizeof (dp_msg_t));
       if (!msg)
         {
@@ -852,7 +876,7 @@ int
 dp__nats_recv_raw (struct dp_ctx *ctx, dp_msg_t **out_msg, size_t *out_size)
 {
   natsMsg *m  = NULL;
-  int      rc = nats_next (ctx, &m);
+  int      rc = nats_next (ctx, &m, nats_deadline (ctx));
   if (rc != DP_OK)
     return rc;
 

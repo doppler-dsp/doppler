@@ -1218,12 +1218,16 @@ extern "C"
    */
   typedef struct
   {
-    uint64_t abandoned; /**< Frames given up part-assembled because a chunk
-                             of a DIFFERENT frame arrived first: a lost
-                             chunk, a subscriber that joined mid-frame, or a
-                             second publisher interleaving on the subject.
-                             That chunk starts the next frame; it is never
-                             discarded with the old one. */
+    uint64_t abandoned; /**< Partial assemblies given up -- a count of
+                             assemblies, not of frames lost: a subscriber
+                             that joins mid-frame abandons a frame it never
+                             had, and two publishers interleaving abandon
+                             each other's. Given up when a chunk of a
+                             DIFFERENT frame arrives (that chunk starts the
+                             next frame; it is never discarded with the old
+                             one), or an unchunked frame or end-of-stream,
+                             which under one publisher per subject proves
+                             the frame in progress lost a chunk. */
     uint64_t rejected;  /**< Chunks no frame could hold, dropped: off the
                              chunk grid, out of range, or overlapping. */
     uint64_t mid_frame_timeouts; /**< Receives that timed out with a frame
@@ -1234,13 +1238,19 @@ extern "C"
   /**
    * @brief Read @p ctx's chunk-reassembly losses into @p out.
    *
-   * Every receiving role keeps them; a context that never received a
-   * chunked frame reads all zeros. A frame that IS returned is complete and
-   * exact: chunks of two frames are never merged, because a frame is
-   * identified by its whole header (sequence, timestamp, rate, centre
-   * frequency, format) and its chunk geometry, not by its sequence alone.
+   * Only a SUB reassembles (PUB is the only role that chunks), so only a
+   * SUB's counts move; any other receiving context reads all zeros, as does
+   * a SUB that never received a chunked frame. A frame that IS returned is
+   * complete and exact. Chunks of two frames are not merged, because a
+   * frame is identified by its whole header (sequence, timestamp, rate,
+   * centre frequency, format) and its chunk geometry, not by its sequence
+   * alone -- unless two publishers' headers are bit-identical, which the
+   * same explicit timestamp_ns can make them (#2017).
    *
-   * @param ctx  Any receiving context (SUB, PULL, REQ, REP).
+   * Read it from the receiving thread: a receive in progress on another
+   * thread updates the counts without a lock.
+   *
+   * @param ctx  Any receiving context; only a SUB's counts move.
    * @param out  Filled on success.
    * @return DP_OK, or DP_ERR_INVALID for a NULL argument.
    *
@@ -1254,7 +1264,7 @@ extern "C"
    *   dp_msg_free (msg);
    * dp_reasm_stats_t st;
    * if (dp_sub_reasm_stats (sub, &st) == DP_OK && st.abandoned > 0)
-   *   printf ("%llu chunked frames lost\n",
+   *   printf ("%llu partial frames given up\n",
    *           (unsigned long long)st.abandoned);
    * dp_sub_destroy (sub);
    * @endcode

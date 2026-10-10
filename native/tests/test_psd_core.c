@@ -365,9 +365,9 @@ main (void)
 
     /* a band entirely outside the span integrates to the floor */
     double far[2] = { 10.0, 11.0 };
-    float  pf[1];
-    dp_psd_band_power (w, far, 2, pf, 1); /* pf[1] */
-    DP_CHECK (pf[0] < -150.0f);
+    float  pf[1]  = { NAN };
+    DP_CHECK (dp_psd_band_power (w, far, 2, pf, 1) == 1);
+    DP_CHECK (pf[0] == -200.0f); /* 10 log10 of PSD's 1e-20 floor */
     dp_psd_destroy (w);
   }
 
@@ -1286,6 +1286,10 @@ main (void)
             float       *got_db  = malloc (nfft * sizeof *got_db);
             float       *got_p   = malloc (nfft * sizeof *got_p);
             DP_REQUIRE (want_db && want_p && got_db && got_p);
+            /* NaN-filled: at pad 2 nfft > n, and a kernel that wrote only n
+               bins must fail every time, not by what malloc left there */
+            for (size_t i = 0; i < nfft; i++)
+              got_db[i] = got_p[i] = NAN;
 
             dp_psd_accumulate (ref, x, n);
             DP_CHECK (dp_psd_psd_db (ref, nfft, want_db, nfft) == nfft);
@@ -1346,13 +1350,17 @@ main (void)
           float *db  = malloc (nfft * sizeof *db);
           float *raw = malloc (nfft * sizeof *raw);
           DP_REQUIRE (lin && db && raw);
+          for (size_t i = 0; i < nfft; i++)
+            lin[i] = db[i] = raw[i] = NAN; /* see the kernel block above */
           dp_psd_frame_linear (w, x, lin);
           dp_psd_frame_db (w, x, db);
           dp_psd_frame_power (w, x, raw);
           const double ref   = w->cg * w->cg;
-          int          as_db = 1, as_raw = 1;
+          int          as_db = 1, as_raw = 1, written = 1;
           for (size_t i = 0; i < nfft; i++)
             {
+              written &= isfinite (lin[i]) && isfinite (db[i])
+                         && isfinite (raw[i]);
               if (db[i] > -199.0f
                   && fabs (10.0 * log10 ((double)lin[i]) - (double)db[i])
                          > 2e-5)
@@ -1361,8 +1369,9 @@ main (void)
                   > 4.0 * ldexp (1.0, -24) * (double)raw[i])
                 as_raw = 0;
             }
-          DP_CHECK (as_db);  /* (i) */
-          DP_CHECK (as_raw); /* (iii) */
+          DP_CHECK (written); /* every one of nfft bins, all three */
+          DP_CHECK (as_db);   /* (i) */
+          DP_CHECK (as_raw);  /* (iii) */
 
           /* (ii): a unit tone on bin 5 reads 1.0 at nfft/2 + 5*nfft/n */
           float _Complex t[64];
@@ -1419,6 +1428,8 @@ main (void)
               float *raw = malloc (nfft * sizeof *raw);
               float *db  = malloc (nfft * sizeof *db);
               DP_REQUIRE (raw && db);
+              for (size_t i = 0; i < nfft; i++)
+                raw[i] = db[i] = NAN; /* see the kernel block above */
               dp_psd_frame_power (v, xv, raw);
               dp_psd_frame_db (v, xv, db);
               const double ref = (v->cg * v->cg) * (fss[f] * fss[f]);
@@ -1698,7 +1709,7 @@ main (void)
   }
 
   /* T19: every reader and every *_max_out is sized by nfft, not n (#1911
-   * (a), F5).  At pad = 1, nfft == n, so a reader or a hint that used n
+   * (a), F4).  At pad = 1, nfft == n, so a reader or a hint that used n
    * passed every test above; here n = 64 and pad = 2 give nfft = 128.  Each
    * hint must equal its reader's documented length, and each reader, given
    * room for twice that, must write exactly that many finite floats and

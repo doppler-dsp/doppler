@@ -142,7 +142,9 @@ extern "C"
   /** @brief Serialize @p state's mutable state into @p blob. */
   void dp_resamp_get_state (const resamp_state_t *state, void *blob);
   /** @brief Restore mutable state from @p blob (same rate).
-   *  @return DP_OK, or DP_ERR_INVALID if the blob's envelope rejects. */
+   *  @return DP_OK, or DP_ERR_INVALID if the blob's envelope rejects or its
+   *          delay-line head lies outside the line; @p state is then
+   *          unchanged. */
   int dp_resamp_set_state (resamp_state_t *state, const void *blob);
 
   /* ------------------------------------------------------------------

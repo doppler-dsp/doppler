@@ -105,8 +105,12 @@ CellAsyncDsssReceiverObj_init (CellAsyncDsssReceiverObject *self,
   Py_DECREF (code_arr);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError,
-                       "dp_async_dsss_receiver_create_cell returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "CellAsyncDsssReceiver: invalid parameter (need a "
+                       "code of at least 2 chips, chip_rate > 0, a finite "
+                       "symbol_rate > 0, spc >= 1, m in {2,4,8}, segments >= "
+                       "1, sps >= 1, carrier_freq_hz >= 0, lost_confirm_s >= "
+                       "0)");
       return -1;
     }
   return 0;

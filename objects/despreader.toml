@@ -5,6 +5,8 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "Despreader"
+create_error = "ValueError"
+create_error_message = "Despreader: invalid parameter (need a non-empty code; for the code loop a finite init_chip, bn_code >= 0 and zeta > 0 both finite, and 0 < spacing < len(code)/2)"
 # detection: dll_core's configure_lock now derives the CFAR threshold via
 # det_threshold_noncoherent, so anything linking dll_core links detection_core.
 depends_on = [

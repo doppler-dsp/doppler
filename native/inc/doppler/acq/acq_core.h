@@ -1663,7 +1663,8 @@ extern "C"
    * @return DP_OK, or DP_ERR_INVALID if the blob's envelope or its
    *         n/n_noncoh/max_peaks disagree with @p state (rebuild the engine
    *         from the matching descriptor first), or its carry is not
-   *         one a run could have left. A refused blob changes nothing.
+   *         one a run could have left, or the carry's frames and the
+   *         stream position disagree. A refused blob changes nothing.
    */
   int dp_acq_set_state (dp_acq_state_t *state, const void *blob);
 

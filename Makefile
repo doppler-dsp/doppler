@@ -1100,10 +1100,11 @@ COV_PATCH_MIN ?= 90
 # kills here, the last a C test that read /dev/full without end. This target
 # runs everything the repo has, instrumented, eight-wide, so it is where a
 # runaway has the most company to take with it. `COV_GUARD=` disables;
-# `MEM_GUARD_MAX=4G` overrides the 3/4-of-RAM default. The probe's
-# interpreter is exported rather than prefixed, because the ctest phase
-# runs from inside $(COV_DIR) and reaches the script through $(CURDIR)/ --
-# a prefix there would be taken for the path.
+# `MEM_GUARD_MAX=4G` holds this run's own scope to 4G, under the shared
+# 3/4-of-RAM ceiling it still sits in: it can only LOWER the limit, and only
+# for itself. The probe's interpreter is exported rather than prefixed,
+# because the ctest phase runs from inside $(COV_DIR) and reaches the script
+# through $(CURDIR)/ -- a prefix there would be taken for the path.
 COV_GUARD     ?= $(MEM_GUARD_CMD)
 # The instrumented C suite excludes the `sweep` validators, exactly as the
 # three sanitizer suites do (SAN_EXCLUDE_SWEEP). Spelled as its own variable

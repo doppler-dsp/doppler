@@ -1403,10 +1403,10 @@ class CorrDetector:
 class CorrDetector2D:
     """Allocate a 2-D streaming signal detector backed by a 2-D correlator.
     Two-dimensional extension of dp_detector_create(). Input frames are flat
-    row-major CF32 arrays of length ny*nx streamed through a ring buffer. On
-    every int-dump the peak flat index is decomposed into (row, col) and a
-    det_result2d_t is emitted when test_stat > threshold. The Python wrapper
-    accepts a (ny, nx) CF32 ndarray for both ref and the push input.
+    row-major CF32 arrays of length ny*nx, cut from the stream by the ring's
+    framer. On every int-dump the peak flat index is decomposed into (row, col)
+    and a det_result2d_t is emitted when test_stat > threshold. The Python
+    wrapper accepts a (ny, nx) CF32 ndarray for both ref and the push input.
 
     Parameters
     ----------
@@ -1450,8 +1450,8 @@ class CorrDetector2D:
         nthreads: int = 1,
     ) -> None: ...
     def reset(self) -> None:
-        """Reset the 2-D correlator, ring buffer, and last-corr flag. Discards
-        any partial frame buffered in the ring and zeroes the coherent
+        """Reset the 2-D correlator, the carry, and last-corr flag. Discards
+        any partial frame carried between pushes and zeroes the coherent
         accumulator. The reference spectrum and FFT plans are preserved.
 
         Examples
@@ -1475,10 +1475,12 @@ class CorrDetector2D:
         peak location instead of a single lag index. In Python the result is
         always a list of (row, col, peak_mag, noise_est, test_stat) tuples.
 
-        Unlike dp_detector_push(), a push that fills result stops taking input:
-        it keeps the whole frames it has already buffered for the next call and
-        drops the rest of its input, which nothing reports (#1895 moves it onto
-        the ring's framer, as the detector's push now is).
+        Python's push() has room for 1024 detections a call. Once a push fills
+        it, every later frame of that call is lost, whether or not it would
+        have made a detection: keep a chunk under 1024 frames. Before v0.66 the
+        room was 64, and a push past it kept up to ring_cap/n - 1 of those
+        frames for the next call and dropped the rest. #1992 and
+        just-buildit/just-makeit#2184 track sizing the list to the call.
 
         Parameters
         ----------

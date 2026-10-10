@@ -37,7 +37,9 @@ _2-D signal detector state._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 |  int | [**\_last\_corr\_valid**](#variable-_last_corr_valid)  <br> |
+|  size\_t | [**consumed**](#variable-consumed)  <br> |
 |  [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* | [**corr**](#variable-corr)  <br> |
+|  dp\_f32\_framer\_t | [**framer**](#variable-framer)  <br> |
 |  float \* | [**mag\_buf**](#variable-mag_buf)  <br> |
 |  size\_t | [**n**](#variable-n)  <br> |
 |  float | [**noise\_est**](#variable-noise_est)  <br> |
@@ -129,6 +131,24 @@ int dp_detector2d_state_t::_last_corr_valid;
 
 
 
+### variable consumed 
+
+```C++
+size_t dp_detector2d_state_t::consumed;
+```
+
+
+
+Input samples the last push took. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable corr 
 
 ```C++
@@ -138,6 +158,24 @@ dp_corr2d_state_t* dp_detector2d_state_t::corr;
 
 
 2-D FFT correlator + int-dump engine. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable framer 
+
+```C++
+dp_f32_framer_t dp_detector2d_state_t::framer;
+```
+
+
+
+Any chunk in, ny\*nx-sample frames out. 
  
 
 
@@ -364,7 +402,7 @@ dp_f32_t* dp_detector2d_state_t::ring;
 
 
 
-Double-mapped ring buffer (auto-sized). 
+The carry's storage, owned by `framer`. 
  
 
 

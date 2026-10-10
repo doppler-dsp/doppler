@@ -208,7 +208,7 @@ wfmgen --from-file msg.json -o b.cf32
 # The same length, edited in place: the replay is refused before it writes
 # anything, naming the record's hash and the file's.
 printf 'F7F8' > msg.bin
-wfmgen --from-file msg.json -o c.cf32 || echo "refused, exit $?"
+! wfmgen --from-file msg.json -o c.cf32   # refused: exits non-zero
 
 # From stdin: recorded as "-", replayed from the file given again.
 printf 'F7F7' > msg.bin
@@ -231,7 +231,8 @@ wfmgen --type bpsk --data-from-file six.bin --data-len 16 --sps 4 -o file.cf32
 printf '\001\043\105\147\211\253' \
   | wfmgen --type bpsk --data-from-file - --data-len 16 --fill 0 --sps 4 \
            -o stdin.cf32
-cmp frames.cf32 file.cf32 && cmp frames.cf32 stdin.cf32
+cmp frames.cf32 file.cf32
+cmp frames.cf32 stdin.cf32
 
 # A DSSS burst per frame: the same three chunks, three bursts.
 wfmgen --type dsss --acq-code 0x9 --data-code 0xd --data 0x0123456789AB \
@@ -525,8 +526,8 @@ wfmgen --type qpsk --sps 8 --pulse rrc --snr 6 --count 20000 \
 #     clipped 42.41% of I/Q components
 
 # Refuse to write a clipped capture at all: this one EXITS NON-ZERO.
-wfmgen --type qpsk --sps 8 --pulse rrc --snr 6 --count 20000 \
-       --sample-type ci16 --clip-error -o shaped.ci16 || echo "clipped, as expected"
+! wfmgen --type qpsk --sps 8 --pulse rrc --snr 6 --count 20000 \
+       --sample-type ci16 --clip-error -o shaped.ci16   # clipped: exits non-zero
 
 # Take the remedy the report named, and it passes.
 wfmgen --type qpsk --sps 8 --pulse rrc --snr 6 --count 20000 \
@@ -1106,8 +1107,7 @@ json.dump(frame, open("bad.json", "w"))
 PY
 wfmgen --type bits --modulation bpsk --frame cadu-ilv.json \
        --sps 1 -o cadu-ilv.cf32
-wfmgen --type bits --frame bad.json -o bad.cf32 \
-  || echo "refused, as documented"
+! wfmgen --type bits --frame bad.json -o bad.cf32   # refused, as documented
 ```
 
 ### In a scene, and from Python

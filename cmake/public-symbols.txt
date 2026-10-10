@@ -648,6 +648,7 @@ dp_det_threshold_noncoherent function
 dp_det_threshold_power function
 dp_det_verify_count function
 dp_det_verify_delay function
+dp_detector2d_consumed function
 dp_detector2d_create function
 dp_detector2d_destroy function
 dp_detector2d_get_state function

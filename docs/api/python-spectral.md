@@ -74,7 +74,9 @@ for chunk in stream_chunks():                     # any size under 1024 frames
         print("detection:", hit)                  # (lag, peak, noise, stat)
 ```
 
-`CorrDetector2D` is the 2-D streaming detector over a grid.
+`CorrDetector2D` is the 2-D streaming detector over a grid, with the same
+room: 1024 detections per `push()`, and every later frame of a push that
+fills it is lost.
 
 ::: doppler.spectral.CorrDetector
 

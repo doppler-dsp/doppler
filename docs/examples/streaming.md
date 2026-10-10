@@ -91,6 +91,7 @@ dp_header_t hdr;
 dp_pull_recv(pull, &msg, &hdr);
 dp_cf64_t *data = (dp_cf64_t *)dp_msg_data(msg);
 // use data ...
+dp_msg_ack(msg);   // processed: otherwise it is redelivered, and stays queued
 dp_msg_free(msg);
 dp_pull_destroy(pull);
 ```
@@ -148,6 +149,7 @@ with Push("nats://127.0.0.1:4222/work", CF64) as push:
 with Pull("nats://127.0.0.1:4222/work") as pull:
     data, hdr = pull.recv(timeout_ms=500)
     print(f"Got {hdr['num_samples']} samples at {hdr['sample_rate'] / 1e6:.2f} MHz")
+    pull.ack(data)  # processed: an unacked frame is redelivered and stays queued
 ```
 
 Run multiple workers for parallel processing:

@@ -257,6 +257,16 @@ repos:
         pass_filenames: false
         types_or: [c]
 
+      # dB rows are asked for by name (#1968): a Spectrogram mode is never an
+      # integer literal. Fires on C and Markdown, because a doc page's C fence
+      # and a header's @code block call the constructor too.
+      - id: spectrogram-mode
+        name: spectrogram mode by name
+        entry: make -s lint-spectrogram-mode
+        language: system
+        pass_filenames: false
+        types_or: [c, markdown]
+
       # A refusal reason has one shape, `const char **why`, and jm binds
       # exactly that one. Fires on any C change: a new refusal API can land
       # in any header.

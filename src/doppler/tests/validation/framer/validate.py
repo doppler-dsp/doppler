@@ -603,6 +603,33 @@ def build(write: bool = True) -> Report:
                 "a contract; not testable (F5)",
                 "—",
             ],
+            [
+                "C19",
+                "`feed_frames(n, k)` takes what completes at most `k` "
+                "frames and nothing of the next: `k` 0 takes nothing, a "
+                "short take ends on a frame boundary, and a `k` whose count "
+                "overflows is plain `feed`",
+                "§11 (NEW, #2042)",
+                "plain `feed` (part of the next frame admitted)",
+                "—",
+            ],
+            [
+                "C20",
+                "`feed_carry(n)` takes all of `n` if it completes no frame, "
+                "counting the carry, or none of it",
+                "§11 (NEW, #2042)",
+                "takes the no-frame prefix (`feed` with no room)",
+                "—",
+            ],
+            [
+                "C21",
+                "`state_frames` accepts exactly the blobs `set_state` "
+                "accepts and reports the frames it would restore, writing "
+                "nothing on a refusal",
+                "§11 (NEW, #2042)",
+                "a check of its own that skips the counter rule",
+                "—",
+            ],
         ],
     )
     R.md()

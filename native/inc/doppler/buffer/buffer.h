@@ -1353,6 +1353,95 @@ typedef enum
   }                                                                           \
                                                                               \
   /**                                                                         \
+   * @brief Take whole frames only: what completes at most @p max_frames      \
+   *        frames, and nothing of the frame after them.                      \
+   *                                                                          \
+   * feed() with the same @p max_frames bounds the FRAMES it yields, but      \
+   * admits up to hop - 1 samples of the next one as carry. A caller that     \
+   * may stop short of its input and must stop on a frame boundary -- a       \
+   * detector or acq whose result room is spent -- feeds with this. It takes  \
+   * the samples that bring the buffered total to exactly the end of frame    \
+   * @p max_frames, counting the frames already buffered, and so never part   \
+   * of frame @p max_frames + 1. @p max_frames 0 takes nothing; one whose     \
+   * sample count would overflow is uncapped, and this is then feed().        \
+   *                                                                          \
+   * @code                                                                    \
+   * DECLARE_DP_BUFFER_FRAMES (f32, float, float _Complex)                    \
+   *                                                                          \
+   * int main (void)                                                          \
+   * {                                                                        \
+   *   dp_f32_t *ring = dp_f32_create (32);                                   \
+   *   dp_f32_framer_t fr;                                                    \
+   *   if (!ring || dp_f32_framer_init (&fr, ring, 8, 8) != DP_OK)            \
+   *     return 1;                                                            \
+   *   float _Complex x[20] = { 0 };                                          \
+   *   size_t whole = dp_f32_framer_feed_frames_view (&fr, x, 20, 2); // 16   \
+   *   dp_f32_framer_reset (&fr);                                             \
+   *   size_t plain = dp_f32_framer_feed_view (&fr, x, 20, 2); // 20: + 4     \
+   *   dp_f32_destroy (ring);                                                 \
+   *   return whole == 16 && plain == 20 ? 0 : 1;                             \
+   * }                                                                        \
+   * @endcode                                                                 \
+   *                                                                          \
+   * @return Samples taken, 0..@p n.                                          \
+   */                                                                         \
+  static inline DP_BUFFER_UNUSED size_t                                       \
+  dp_##name##_framer_feed_frames (dp_##name##_framer_t *fr, const type *in,   \
+                                  size_t n, size_t max_frames)                \
+  {                                                                           \
+    if (max_frames == 0)                                                      \
+      return 0;                                                               \
+    dp_##name##_framer_settle (fr);                                           \
+    if (max_frames - 1 <= (SIZE_MAX - fr->frame_n) / fr->hop)                 \
+      {                                                                       \
+        size_t end = fr->frame_n + (max_frames - 1) * fr->hop;                \
+        size_t held = dp_##name##_available (fr->ring);                       \
+        size_t room = end > held ? end - held : 0;                            \
+        if (n > room)                                                         \
+          n = room;                                                           \
+      }                                                                       \
+    return dp_##name##_framer_feed (fr, in, n, max_frames);                   \
+  }                                                                           \
+                                                                              \
+  /**                                                                         \
+   * @brief Take all of @p n if it is carry -- if it completes no frame,      \
+   *        counting the carry already held -- or none of it.                 \
+   *                                                                          \
+   * The rule at a stop. Once a caller can take no more frames, the rest of   \
+   * its input is kept only if it cannot complete one; otherwise it is left   \
+   * whole to the caller, so a push that stops short stops on a frame         \
+   * boundary and never part-way into a frame it cannot report. feed() with   \
+   * no room takes the PREFIX that completes no frame, which is not this.     \
+   *                                                                          \
+   * @code                                                                    \
+   * DECLARE_DP_BUFFER_FRAMES (f32, float, float _Complex)                    \
+   *                                                                          \
+   * int main (void)                                                          \
+   * {                                                                        \
+   *   dp_f32_t *ring = dp_f32_create (32);                                   \
+   *   dp_f32_framer_t fr;                                                    \
+   *   if (!ring || dp_f32_framer_init (&fr, ring, 8, 8) != DP_OK)            \
+   *     return 1;                                                            \
+   *   float _Complex x[8] = { 0 };                                           \
+   *   size_t kept = dp_f32_framer_feed_carry_view (&fr, x, 5); // 5          \
+   *   size_t left = dp_f32_framer_feed_carry_view (&fr, x, 3); // 0: 5+3     \
+   *   dp_f32_destroy (ring);                                                 \
+   *   return kept == 5 && left == 0 ? 0 : 1;                                 \
+   * }                                                                        \
+   * @endcode                                                                 \
+   *                                                                          \
+   * @return @p n, or 0.                                                      \
+   */                                                                         \
+  static inline DP_BUFFER_UNUSED size_t                                       \
+  dp_##name##_framer_feed_carry (dp_##name##_framer_t *fr, const type *in,    \
+                                 size_t n)                                    \
+  {                                                                           \
+    return dp_##name##_framer_frames_for (fr, n) == 0                         \
+               ? dp_##name##_framer_feed (fr, in, n, 0)                       \
+               : 0;                                                           \
+  }                                                                           \
+                                                                              \
+  /**                                                                         \
    * @brief Has every frame the buffered samples make been handed out?        \
    *                                                                          \
    * True when fewer than frame_n samples remain once the owed hop is retired, \
@@ -1481,6 +1570,81 @@ typedef enum
     dp_w_u64 (&_w, fr->hop);                                                  \
   }                                                                           \
                                                                               \
+  /* Every refusal a snapshot can earn, in ONE place: set_state applies what  \
+     this accepts and state_frames reports it, so the two cannot disagree on  \
+     which blobs are snapshots. Reads, never writes. */                       \
+  static inline DP_BUFFER_UNUSED int                                          \
+  dp_##name##_framer_check_state_ (const dp_##name##_framer_t *fr,            \
+                                   const void *blob, uint64_t *live,          \
+                                   const void **src, uint64_t *written,       \
+                                   uint64_t *frames)                          \
+  {                                                                           \
+    size_t want = dp_##name##_framer_state_bytes (fr);                        \
+    DP_SET_OPEN (DP_FRAMER_STATE_MAGIC, 1u, want);                            \
+    *live = dp_r_u64 (&_r);                                                   \
+    uint64_t elem_bytes = dp_r_u64 (&_r);                                     \
+    *src = dp_r_reserve (&_r, (fr->frame_n - 1) * 2 * sizeof (type));         \
+    *written = dp_r_u64 (&_r);                                                \
+    *frames = dp_r_u64 (&_r);                                                 \
+    uint64_t hop = dp_r_u64 (&_r);                                            \
+    /* Frames retired exactly frames*hop samples, so what remains is written  \
+       minus that. Anything else is a corrupt blob, not a snapshot. */        \
+    if (_r.err || elem_bytes != sizeof (type) || hop != fr->hop               \
+        || *live > fr->frame_n - 1 || *frames > UINT64_MAX / fr->hop          \
+        || *written < *frames * fr->hop                                       \
+        || *written - *frames * fr->hop != *live)                             \
+      return DP_ERR_INVALID;                                                  \
+    return DP_OK;                                                             \
+  }                                                                           \
+                                                                              \
+  /**                                                                         \
+   * @brief The frames a snapshot records, without restoring it: what lets    \
+   *        a composition check its own position against its child's          \
+   *        before it writes anything.                                        \
+   *                                                                          \
+   * DP_OK exactly when dp_##name##_framer_set_state would accept @p blob,    \
+   * and DP_ERR_INVALID exactly when it would refuse it: both read it         \
+   * through one check. Changes nothing, @p frames included, on a refusal.    \
+   *                                                                          \
+   * @code                                                                    \
+   * DECLARE_DP_BUFFER_FRAMES (f32, float, float _Complex)                    \
+   *                                                                          \
+   * int main (void)                                                          \
+   * {                                                                        \
+   *   dp_f32_t *ring = dp_f32_create (32);                                   \
+   *   dp_f32_framer_t fr;                                                    \
+   *   if (!ring || dp_f32_framer_init (&fr, ring, 8, 8) != DP_OK)            \
+   *     return 1;                                                            \
+   *   float _Complex x[20] = { 0 };                                          \
+   *   dp_f32_framer_feed_view (&fr, x, 20, 2);                               \
+   *   while (dp_f32_framer_next_view (&fr))                                  \
+   *     ;                                           // 2 frames, 4 carried   \
+   *   unsigned char blob[512];                                               \
+   *   uint64_t frames = 0;                                                   \
+   *   if (dp_f32_framer_state_bytes (&fr) > sizeof blob)                     \
+   *     return 1;                                                            \
+   *   dp_f32_framer_get_state (&fr, blob);                                   \
+   *   int ok = dp_f32_framer_state_frames (&fr, blob, &frames); // 2         \
+   *   dp_f32_destroy (ring);                                                 \
+   *   return ok == DP_OK && frames == 2 ? 0 : 1;                             \
+   * }                                                                        \
+   * @endcode                                                                 \
+   *                                                                          \
+   * @return DP_OK, or DP_ERR_INVALID.                                        \
+   */                                                                         \
+  static inline DP_BUFFER_UNUSED int                                          \
+  dp_##name##_framer_state_frames (const dp_##name##_framer_t *fr,            \
+                                   const void *blob, uint64_t *frames)        \
+  {                                                                           \
+    uint64_t live, written, f;                                                \
+    const void *src;                                                          \
+    int rc = dp_##name##_framer_check_state_ (fr, blob, &live, &src,          \
+                                              &written, &f);                  \
+    if (rc == DP_OK)                                                          \
+      *frames = f;                                                            \
+    return rc;                                                                \
+  }                                                                           \
+                                                                              \
   /**                                                                         \
    * @brief Restore a snapshot into a framer of the same shape.               \
    * @return DP_OK, or DP_ERR_INVALID: wrong shape, sample type or magic, or  \
@@ -1490,22 +1654,12 @@ typedef enum
   static inline DP_BUFFER_UNUSED int                                          \
   dp_##name##_framer_set_state (dp_##name##_framer_t *fr, const void *blob)   \
   {                                                                           \
-    size_t want = dp_##name##_framer_state_bytes (fr);                        \
-    DP_SET_OPEN (DP_FRAMER_STATE_MAGIC, 1u, want);                            \
-    uint64_t live = dp_r_u64 (&_r);                                           \
-    uint64_t elem_bytes = dp_r_u64 (&_r);                                     \
-    const void *src                                                           \
-        = dp_r_reserve (&_r, (fr->frame_n - 1) * 2 * sizeof (type));          \
-    uint64_t written = dp_r_u64 (&_r);                                        \
-    uint64_t frames = dp_r_u64 (&_r);                                         \
-    uint64_t hop = dp_r_u64 (&_r);                                            \
-    /* Frames retired exactly frames*hop samples, so what remains is written  \
-       minus that. Anything else is a corrupt blob, not a snapshot. */        \
-    if (_r.err || elem_bytes != sizeof (type) || hop != fr->hop               \
-        || live > fr->frame_n - 1                                             \
-        || frames > UINT64_MAX / fr->hop                                      \
-        || written < frames * fr->hop || written - frames * fr->hop != live)  \
-      return DP_ERR_INVALID;                                                  \
+    uint64_t live, written, frames;                                           \
+    const void *src;                                                          \
+    int rc = dp_##name##_framer_check_state_ (fr, blob, &live, &src,          \
+                                              &written, &frames);             \
+    if (rc != DP_OK)                                                          \
+      return rc;                                                              \
     dp_##name##_framer_reset (fr);                                            \
     dp_##name##_write_some (fr->ring, (const type *)src, (size_t)live);       \
     fr->written = written;                                                    \
@@ -1525,6 +1679,22 @@ typedef enum
                                 size_t n, size_t max_frames)                  \
   {                                                                           \
     return dp_##name##_framer_feed (fr, (const type *)in, n, max_frames);     \
+  }                                                                           \
+                                                                              \
+  static inline DP_BUFFER_UNUSED size_t                                       \
+  dp_##name##_framer_feed_frames_view (dp_##name##_framer_t *fr,              \
+                                       const elem *in, size_t n,              \
+                                       size_t max_frames)                     \
+  {                                                                           \
+    return dp_##name##_framer_feed_frames (fr, (const type *)in, n,           \
+                                           max_frames);                       \
+  }                                                                           \
+                                                                              \
+  static inline DP_BUFFER_UNUSED size_t                                       \
+  dp_##name##_framer_feed_carry_view (dp_##name##_framer_t *fr,               \
+                                      const elem *in, size_t n)               \
+  {                                                                           \
+    return dp_##name##_framer_feed_carry (fr, (const type *)in, n);           \
   }                                                                           \
                                                                               \
   static inline DP_BUFFER_UNUSED int                                          \

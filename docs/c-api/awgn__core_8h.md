@@ -104,7 +104,7 @@ _Additive White Gaussian Noise generator._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 | define  | [**AWGN\_STATE\_MAGIC**](awgn__core_8h.md#define-awgn_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'W', 'G', 'N')`<br> |
-| define  | [**AWGN\_STATE\_VERSION**](awgn__core_8h.md#define-awgn_state_version)  `1u`<br> |
+| define  | [**AWGN\_STATE\_VERSION**](awgn__core_8h.md#define-awgn_state_version)  `2u`<br> |
 
 ## Detailed Description
 
@@ -570,7 +570,7 @@ size_t dp_awgn_state_bytes (
 ### define AWGN\_STATE\_VERSION 
 
 ```C++
-#define AWGN_STATE_VERSION `1u`
+#define AWGN_STATE_VERSION `2u`
 ```
 
 

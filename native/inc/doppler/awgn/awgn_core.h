@@ -96,10 +96,13 @@ extern "C"
   /* ── Serializable state (standard bytes interface; see dp_state.h) ────────
    * Serializes the running RNG state — the scalar xoshiro256++ state s[4] and
    * the 8 AVX2 stream states vs[4][8] — so a resumed generator continues the
-   * exact same noise sequence.  seed / amplitude are config (constructor).
-   * Envelope: [dp_state_hdr_t][u64 s[4]][u64 vs[4][8]]. */
+   * exact same noise sequence, and the amplitude, which dp_awgn_set_amplitude
+   * can change after create (a mutator's value is state, #2022). seed is
+   * config (constructor).
+   * Envelope: [dp_state_hdr_t][u64 s[4]][u64 vs[4][8]][f32 amplitude].
+   * v2: the amplitude (#2084). */
 #define AWGN_STATE_MAGIC DP_FOURCC ('A', 'W', 'G', 'N')
-#define AWGN_STATE_VERSION 1u
+#define AWGN_STATE_VERSION 2u
 
   /** @brief Serialized-state byte size. */
   size_t dp_awgn_state_bytes (const dp_awgn_state_t *state);

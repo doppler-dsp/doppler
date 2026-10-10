@@ -9,9 +9,13 @@ cost the same, because the limit is the serial per-bit feedback chain, not
 the realization or the width; the Python rows say whether the binding
 keeps that true.
 
-Each register uses the default maximal-length polynomial (``poly=0``), and
-before timing the row checks that it IS one: a full period carries exactly
-``2**(n-1)`` ones and the sequence repeats after ``2**n - 1``. A generator
+Each register uses the default maximal-length polynomial (``poly=0``).
+A reference instance checks that it IS one -- a full period carries
+exactly ``2**(n-1)`` ones and the sequence repeats after ``2**n - 1`` --
+and then the bits the TIMED call returned are located in that verified
+sequence and must match it bit for bit. Any 64 consecutive bits of an
+m-sequence with ``n < 64`` occur once per period, so the window is found
+by search whatever number of rounds the timer chose to run. A generator
 that fell off its maximal length would otherwise just produce bits at the
 same speed.
 """
@@ -37,6 +41,19 @@ def test_bench_generate(benchmark, lfsr, length):
     p = PN(seed=1, length=length, lfsr=lfsr)
     bits = np.array(benchmark(p.generate, BLOCK_64K))  # a view: copy it
     assert bits.size == BLOCK_64K
+
+    # The property on the output that was TIMED, not on the reference: it
+    # must be a contiguous window of the verified m-sequence.
+    ring = np.concatenate([full[:period]] * (1 + BLOCK_64K // period + 1))
+    pos = (
+        ring.astype(np.uint8)
+        .tobytes()
+        .find(bits[:64].astype(np.uint8).tobytes())
+    )
+    assert 0 <= pos < period, "the timed bits are not in the m-sequence"
+    assert np.array_equal(ring[pos : pos + BLOCK_64K], bits), (
+        f"{lfsr},len={length}: the timed output leaves the m-sequence"
+    )
     if benchmark.stats:
         sec = benchmark.stats["min"]
         benchmark.extra_info["MSa_s"] = BLOCK_64K / sec / 1e6

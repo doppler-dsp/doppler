@@ -186,10 +186,11 @@ HOLLOW_ALLOW: set[str] = set()
 #: It may only SHRINK -- a NEW bench_*.py must call `benchmark(...)`, and
 #: an entry whose file starts recording must lose its line (checked below,
 #: because the C ratchets learned the hard way that an unchecked promise of
-#: that shape is prose). It reached EMPTY in gh-1010, and stays the place
-#: a new hollow file would have to be argued into. Its per-TEST twin -- a
-#: test that takes the fixture and never calls it -- is pytest's own
-#: `filterwarnings` in pyproject.toml, which this file cannot see.
+#: that shape is prose). It reached EMPTY in gh-1010: all 17 entries were
+#: that scaffold, a file with no test in it at all. The other shape -- a
+#: TEST that requests the fixture and never calls it, in a file that
+#: otherwise records -- passes this rule, and is caught instead by
+#: pytest's own `filterwarnings` in pyproject.toml.
 PY_HOLLOW_ALLOW: set[str] = set()
 
 #: Rule 6. 100 GSa/s of 8-byte complex samples is 800 GB/s through one call:
@@ -450,9 +451,11 @@ def main() -> int:
         if _py_records(p):
             continue
         failures.append(
-            f"{rel}: takes the `benchmark` fixture but never calls it, so "
+            f"{rel}: never calls the `benchmark` fixture anywhere in the "
+            "file -- typically jm's scaffold, a fixture and no test -- so "
             "pytest-benchmark records no round and the component is absent "
-            "from every Python snapshot. Add a `benchmark(...)` call, or add "
+            "from every Python snapshot. Add a test that calls "
+            "`benchmark(...)`, or add "
             "it to PY_HOLLOW_ALLOW (ratchet — it may only shrink)."
         )
 

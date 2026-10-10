@@ -58,7 +58,7 @@ def _assert_frames(f, bits, n, fields):
 def _rate(benchmark, frames):
     if benchmark.stats:
         sec = benchmark.stats["min"]
-        benchmark.extra_info["MSa_s"] = frames * NBITS / sec / 1e6
+        benchmark.extra_info["Mbit_s"] = frames * NBITS / sec / 1e6
         benchmark.extra_info["us_per_frame"] = sec / frames * 1e6
 
 

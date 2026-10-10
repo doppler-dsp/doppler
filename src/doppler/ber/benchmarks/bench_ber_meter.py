@@ -108,5 +108,7 @@ def test_bench_align(benchmark, meter, capture):
     assert meter.lag == 0
     if benchmark.stats:
         sec = benchmark.stats["min"]
-        benchmark.extra_info["MSa_s"] = BLOCK_64K / sec / 1e6
+        # A latency row, no MSa_s: align's cost is the marker x lag span,
+        # not the capture length (714 us on 64k symbols, 727 us on 1457),
+        # so crediting it with 64k samples would invent a throughput.
         benchmark.extra_info["ms_per_capture"] = sec * 1e3

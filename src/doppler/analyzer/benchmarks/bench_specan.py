@@ -10,7 +10,12 @@ for as long as a display is open, so `execute` is timed per 64k block and
 
 The sweep is over RBW at a fixed span, because that is the control an
 operator turns and it moves two things at once: a finer RBW needs a longer
-transform but completes fewer frames per block. `retune` is its own row --
+transform but completes fewer frames per block. The three RBWs are chosen
+so the transforms DIFFER -- 512, 4096 and 16384 points -- because the
+transform has a 512-point floor (``nfft = max(n, 512)``, specan_core.h):
+at this span every RBW from 10 kHz up lands on it, so a coarser row would
+time the same FFT as the 10 kHz one under another name. Each row asserts
+the transform it claims. `retune` is its own row --
 it is what a sweeping or scrolling display calls between blocks, and it
 claims not to rebuild the plan.
 
@@ -46,10 +51,18 @@ def _peak_hz(sa, frame):
     return (i - sa.display_size // 2) * sa.fs_out / sa.nfft
 
 
-@pytest.mark.parametrize("rbw", [100.0e3, 10.0e3, 1.0e3])
+#: RBW -> the transform length it must produce at this span.
+RBW_NFFT = {10.0e3: 512, 2.0e3: 4096, 500.0: 16384}
+
+
+@pytest.mark.parametrize("rbw", list(RBW_NFFT))
 def test_bench_execute(benchmark, tone, rbw):
     """One 64k block in, the latest completed display frame out."""
     sa = Specan(fs=FS, span=SPAN, rbw=rbw)
+    assert sa.nfft == RBW_NFFT[rbw], (
+        f"rbw={rbw:.0f} transforms {sa.nfft} points, not {RBW_NFFT[rbw]} -- "
+        "the rows no longer time three different transforms"
+    )
     # Prime outside the timed region: the first block also fills the
     # decimator's history, which a streaming display pays once.
     sa.execute(tone)

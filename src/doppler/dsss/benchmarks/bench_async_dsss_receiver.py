@@ -54,6 +54,10 @@ WARM_ROUNDS = 30
 #: Blocks fed untimed before the warm row starts: refinement hands over to
 #: tracking in the fifth, and the lock EMA is past 0.99 by the tenth.
 PRIME = 12
+#: Blocks past the timed rounds: pedantic's warmup round takes one, and
+#: ``--benchmark-cprofile`` runs an extra profiled call that takes another.
+#: An exhausted iterator raises StopIteration mid-benchmark, so leave room.
+HEADROOM = 4
 
 
 def _receiver():
@@ -110,7 +114,7 @@ def test_bench_steps_cold(benchmark):
 
 def test_bench_steps_warm(benchmark):
     """Held lock: each round is the next contiguous 64k of the stream."""
-    x, bits = stream(PRIME + WARM_ROUNDS + 1)  # +1: the warmup round
+    x, bits = stream(PRIME + WARM_ROUNDS + HEADROOM)
     blocks = iter(np.split(x, x.size // BLOCK_64K))
     rx = _receiver()
     syms = [rx.steps(next(blocks)) for _ in range(PRIME)]

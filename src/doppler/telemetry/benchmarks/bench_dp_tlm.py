@@ -78,7 +78,7 @@ def _emit_row(benchmark, values, decim):
         # docs/dev/contributing/benchmarking.md. Credited with the events
         # OFFERED — the decimated row's point is what skipping costs.
         sec = benchmark.stats["min"]
-        benchmark.extra_info["MSa_s"] = BLOCK_64K / sec / 1e6
+        benchmark.extra_info["Mevent_s"] = BLOCK_64K / sec / 1e6
 
 
 def test_bench_emit(benchmark, values):
@@ -118,6 +118,6 @@ def test_bench_read(benchmark, values):
     assert tlm.avail == 0
 
     if benchmark.stats:
-        benchmark.extra_info["MSa_s"] = (
+        benchmark.extra_info["Mrecord_s"] = (
             BLOCK_64K / benchmark.stats["min"] / 1e6
         )

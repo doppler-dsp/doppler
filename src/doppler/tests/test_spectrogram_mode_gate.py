@@ -117,7 +117,10 @@ def test_a_literal_wrapped_in_a_header_comment_fails(tmp_path: Path) -> None:
     _seed(tmp_path, {"inc/s.h": bad})
     r = _run(tmp_path)
     assert r.returncode == 1
+    # git's path, `/` on every OS, and ASCII: Windows printed `inc\\s.h`
+    # and a cp1252 replacement for an em-dash (#2097's clang-cl leg)
     assert "inc/s.h:3: mode = 0" in r.stdout
+    assert r.stdout.isascii()
 
 
 def test_a_literal_in_a_markdown_fence_fails(tmp_path: Path) -> None:

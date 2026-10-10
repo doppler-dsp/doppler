@@ -114,7 +114,7 @@ _BurstDespreader component API._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 | define  | [**BURST\_DESPREADER\_STATE\_MAGIC**](burst__despreader__core_8h.md#define-burst_despreader_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('B','D','S','P')`<br> |
-| define  | [**BURST\_DESPREADER\_STATE\_VERSION**](burst__despreader__core_8h.md#define-burst_despreader_state_version)  `2u /\* v2: cumulative burst statistics \*/`<br> |
+| define  | [**BURST\_DESPREADER\_STATE\_VERSION**](burst__despreader__core_8h.md#define-burst_despreader_state_version)  `3u /\* v3: the acq code travels; sizing keys checked first (#2041) \*/`<br> |
 
 ## Detailed Description
 
@@ -791,7 +791,7 @@ size_t dp_burst_despreader_steps_max_out (
 ### define BURST\_DESPREADER\_STATE\_VERSION 
 
 ```C++
-#define BURST_DESPREADER_STATE_VERSION `2u /* v2: cumulative burst statistics */`
+#define BURST_DESPREADER_STATE_VERSION `3u /* v3: the acq code travels; sizing keys checked first (#2041) */`
 ```
 
 

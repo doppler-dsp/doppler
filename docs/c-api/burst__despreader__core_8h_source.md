@@ -96,10 +96,16 @@ double dp_burst_despreader_get_lock_stat (const dp_burst_despreader_state_t *sta
 
 size_t dp_burst_despreader_get_stat_n (const dp_burst_despreader_state_t *state);
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
- * whole-struct snapshot (loop_filter children POD-embedded);
- * the owned code + acq_code pointers are config, restored by create. */
+ * The struct (loop_filter children POD-embedded) and then the acq code. The
+ * data code is create-time config, rebuilt by create(); the acq code is a
+ * setter's value -- only set_acq() sets it -- so it travels (#2022), and its
+ * length is part of the blob's size. set_state refuses, writing nothing, a
+ * blob from another sf, sps or acq-code length, one whose preamble fields
+ * no set_acq() call could leave, or one whose chip position the kernel
+ * cannot index from (#2041). */
 #define BURST_DESPREADER_STATE_MAGIC DP_FOURCC ('B','D','S','P')
-#define BURST_DESPREADER_STATE_VERSION 2u /* v2: cumulative burst statistics */
+#define BURST_DESPREADER_STATE_VERSION                                       \
+  3u /* v3: the acq code travels; sizing keys checked first (#2041) */
 size_t dp_burst_despreader_state_bytes (const dp_burst_despreader_state_t *state);
 void dp_burst_despreader_get_state (const dp_burst_despreader_state_t *state, void *blob);
 int dp_burst_despreader_set_state (dp_burst_despreader_state_t *state, const void *blob);

@@ -194,6 +194,21 @@ int dp_delay_set_state(dp_delay_state_t *s, const void *blob)
 > you snapshot the whole struct, NULL it in the serialized copy and preserve the
 > live value in `set_state`. See `dp_dll_get_state`.
 
+> **Decode, check, then commit.** `set_state` writes nothing of the object
+> until every check that can refuse has passed. Read what the blob claims into
+> locals or a temporary, check it whole, and only then assign. `DP_SET_OPEN`
+> is no guard for the payload: it checks the envelope (magic, version,
+> endianness, and a size computed from THIS instance) and never reads a
+> payload field, so a blob with one field forged keeps the size and passes it.
+> Every field that sizes or indexes this instance's buffers (a code length, a
+> segment count, a ring's geometry) is therefore a reject key. Every running
+> field that indexes, or is cast to, an index is held to what a live instance
+> can carry. A refused blob then leaves the object byte-identical. A child
+> restored to check the parent is handed its own blob back on a mismatch.
+> `dp_dll_set_state` is the worked example (#2092): it used to read the whole
+> struct in first, and a refusal left it holding the blob's NULLs in place of
+> its code and buffers.
+
 > A **wall-clock or other non-deterministic quantity** (a `dp_sample_clock_t`
 > anchor, a running sample counter kept only for cross-call bookkeeping) is
 > runtime state, not resumable DSP state — never part of the blob. Bit-exact

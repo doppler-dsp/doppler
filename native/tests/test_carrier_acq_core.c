@@ -217,8 +217,10 @@ main (void)
      carry buffer's psd->n samples are state, so get_state writes zeros
      after them, whatever an earlier block left in the buffer. A carry of
      n - 1 samples, then two more (one closes the block, one starts a new
-     carry), leaves n - 2 real samples in the tail to leak: proven by
-     sabotage, writing the whole buffer again turns this red. ── */
+     carry), leaves n - 1 real samples (carry_buf[1..n-1]) in the tail to
+     leak: proven by sabotage, writing the whole buffer again turns this red.
+     The blob is poisoned first, so dropping only the zeroing goes red too,
+     not just on a heap that happens to hand back zeros. ── */
   {
     dp_carrier_acq_state_t *ca = dp_carrier_acq_create (
         SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9,
@@ -233,6 +235,7 @@ main (void)
         DP_CHECK (ca->carry_len == 1);
         const size_t   bytes = dp_carrier_acq_state_bytes (ca);
         unsigned char *blob  = malloc (bytes);
+        memset (blob, 0xA5, bytes);
         dp_carrier_acq_get_state (ca, blob);
         /* The carry region is the blob's last n samples. */
         const unsigned char *carry

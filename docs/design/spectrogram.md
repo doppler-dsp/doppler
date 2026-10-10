@@ -232,6 +232,8 @@ state — which of these is merged — is the tracking issue
 
 ## See also
 
+- [Streaming Spectrograms](../guide/spectrogram.md) — the user guide, and the
+    tested example
 - [The Ring Buffer](ring-buffer.md) — the framer's home
 - [The measurement record](spectrogram-measurements.md)
 - [Spectral analysis with PSD](../guide/spectral-psd.md) — the estimator whose

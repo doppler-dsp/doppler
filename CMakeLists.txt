@@ -960,6 +960,15 @@ target_include_directories(test_detection_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 add_test(NAME test_detection_core COMMAND test_detection_core)
 
+# The receiver example's dropped-frame rule (#2017): the example is a live
+# dashboard nothing can run to completion, so its one piece of arithmetic
+# lives in a header it shares with this test.
+add_executable(test_receiver_seq native/tests/test_receiver_seq.c)
+target_include_directories(test_receiver_seq
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/examples)
+add_test(NAME test_receiver_seq COMMAND test_receiver_seq)
+
 # util is function-only too: the EMA primitive and the saturate/square_clip
 # pair are module-level, so their test is registered here for the same
 # reason. It links util_core for the out-of-line definitions, though every

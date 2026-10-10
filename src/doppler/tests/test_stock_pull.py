@@ -31,10 +31,15 @@ HELPER = REPO / "scripts" / "stock-pull.sh"
 IMAGE = "r.io/lib/debian:stable"
 
 #: A docker client that answers `pull` from a script: line N of $PLAN is the
-#: Nth call's outcome, `ok` or the error text to print. Every call is
-#: appended to $CALLS, so a test can count them.
+#: Nth call's outcome, `ok` or the error text to print. Every pull is
+#: appended to $CALLS, so a test can count them. `image inspect IMG` finds
+#: IMG in the local store when it is a line of $PRESENT.
 _FAKE = """#!/usr/bin/env bash
-[ "$1" = pull ] || { echo "fake docker: only pull" >&2; exit 2; }
+if [ "$1 $2" = "image inspect" ]; then
+    grep -qxF -- "$3" "$PRESENT" && exit 0
+    echo "Error: No such image: $3" >&2; exit 1
+fi
+[ "$1" = pull ] || { echo "fake docker: pull, image inspect" >&2; exit 2; }
 echo "$*" >> "$CALLS"
 n=$(wc -l < "$CALLS")
 line=$(sed -n "${n}p" "$PLAN")
@@ -51,7 +56,13 @@ MISSING = (
 )
 
 
-def _helper(tmp_path: Path, plan: list[str], *args: str, attempts: int = 5):
+def _helper(
+    tmp_path: Path,
+    plan: list[str],
+    *args: str,
+    attempts: int = 5,
+    present: tuple[str, ...] = (),
+):
     # The helper's home is Linux CI, where the stock images are pulled; on
     # Windows a bare `bash` is System32's WSL launcher.
     skip_without_posix_shell("scripts/stock-pull.sh")
@@ -61,11 +72,15 @@ def _helper(tmp_path: Path, plan: list[str], *args: str, attempts: int = 5):
     (tmp_path / "plan").write_text("\n".join(plan) + "\n", encoding="utf-8")
     calls = tmp_path / "calls"
     calls.write_text("", encoding="utf-8")
+    (tmp_path / "present").write_text(
+        "".join(f"{img}\n" for img in present), encoding="utf-8"
+    )
     env = {
         **os.environ,
         "DOCKER": str(fake),
         "PLAN": str(tmp_path / "plan"),
         "CALLS": str(calls),
+        "PRESENT": str(tmp_path / "present"),
         "STOCK_PULL_DELAY": "0",
         "STOCK_PULL_ATTEMPTS": str(attempts),
         "STOCK_REGISTRY": "r.io/lib",
@@ -108,6 +123,54 @@ def test_a_rate_limit_that_never_clears_is_bounded(tmp_path: Path) -> None:
     assert len(pulled) == 3
     assert "toomanyrequests: Rate exceeded" in r.stderr
     assert "after 3 attempt(s)" in r.stderr
+
+
+@pytest.mark.parametrize(
+    "err",
+    [
+        # One wording each, so dropping any one from transient() is red.
+        "Error response from daemon: Get https://r.io/v2/: net/http: "
+        "request canceled",
+        "Error response from daemon: Get https://r.io/v2/: "
+        "Client.Timeout exceeded while awaiting headers",
+        "Error response from daemon: Head https://r.io/v2/lib/debian/"
+        "manifests/stable: context deadline exceeded",
+    ],
+)
+def test_a_go_timeout_is_retried(tmp_path: Path, err: str) -> None:
+    """Go's own wordings for a timed-out connection, which the header
+    promises to retry: a client deadline, a cancelled request or context."""
+    r, pulled = _helper(tmp_path, [err, "ok"], IMAGE)
+    assert r.returncode == 0, r.stderr
+    assert len(pulled) == 2
+
+
+def test_an_image_already_present_is_not_pulled(tmp_path: Path) -> None:
+    """What `docker run` and BuildKit did before the helper: a cached image
+    is used, so an offline or proxied box keeps working, and the mirror is
+    not asked. The plan would fail any pull."""
+    r, pulled = _helper(tmp_path, [MISSING], IMAGE, present=(IMAGE,))
+    assert r.returncode == 0, r.stderr
+    assert pulled == []
+    assert f"{IMAGE} (already present)" in r.stdout
+
+
+def test_dockerfile_mode_pulls_only_what_is_missing(tmp_path: Path) -> None:
+    df = tmp_path / "Dockerfile"
+    df.write_text(
+        "ARG STOCK_REGISTRY\nFROM ${STOCK_REGISTRY}/debian:bookworm AS b\n"
+        "FROM ${STOCK_REGISTRY}/python:3.12-slim\n",
+        encoding="utf-8",
+    )
+    r, pulled = _helper(
+        tmp_path,
+        ["ok"],
+        "--dockerfile",
+        str(df),
+        present=("r.io/lib/debian:bookworm",),
+    )
+    assert r.returncode == 0, r.stderr
+    assert [p.split()[-1] for p in pulled] == ["r.io/lib/python:3.12-slim"]
 
 
 def test_a_digest_with_429_in_it_is_not_a_rate_limit(tmp_path: Path) -> None:

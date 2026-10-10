@@ -10,8 +10,10 @@
 #
 # One site per line: the workflow, then the Dockerfile (with `:target` when
 # the step builds one), then why. This list may only SHRINK: the gate fails
-# on an entry that no longer names a container-driver build, and on a new
-# container-driver build that is not listed. Fix the build instead (#1982).
+# on an entry that no longer names a container-driver build, on a new
+# container-driver build that is not listed, and on an entry the list did
+# not have at the merge base with origin/main, so listing a new build is
+# not a way in. Fix the build instead (#1982).
 .github/workflows/ci-image.yml docker/ci.Dockerfile CI-image rebuild; FROM ${BASE} is CI_BASE_<key>
 .github/workflows/release.yml deploy/docker/Dockerfile.cli runtime image, build-push-action
 .github/workflows/release.yml deploy/docker/Dockerfile.examples:sdk SDK image, build-push-action

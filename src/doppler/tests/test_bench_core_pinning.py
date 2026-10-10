@@ -256,7 +256,14 @@ def _fake_interleaved(inter, monkeypatch, tmp_path, c_names):
     monkeypatch.delenv("MAKEFLAGS", raising=False)
     monkeypatch.delenv("BENCH_ARGS", raising=False)
     monkeypatch.setattr(inter, "machine_not_ready", lambda: [])
-    monkeypatch.setattr(inter, "setup_worktree", lambda b: str(tmp_path / b))
+    monkeypatch.setattr(
+        inter, "setup_worktree", lambda b, commit: str(tmp_path / b)
+    )
+    # The provenance line asks the real repository about the stamp (#1976);
+    # these tests are about the completeness refusal, so it is held fixed.
+    monkeypatch.setattr(
+        inter, "_provenance", lambda commit, base: f"measuring {commit}"
+    )
     monkeypatch.setattr(inter, "_build_info", lambda wt: ("cc 1.0", "-O2"))
     monkeypatch.setattr(inter, "fastest_cpus", lambda: None)
     monkeypatch.setattr(inter, "collect_meta", lambda *a, **k: {})

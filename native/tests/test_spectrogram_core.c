@@ -150,12 +150,18 @@ main (void)
     DP_CHECK (dp_spectrogram_create (8, 4, 0, 0.0f, DP_SPECTROGRAM_POWER)
               == NULL);
     DP_CHECK (dp_spectrogram_create (8, 4, 0, 0.0f, 2) == NULL);
-    /* ...and accepts the edges: the smallest nfft, hop == 1, hop == nfft */
-    static const size_t ok[][2] = { { 2, 1 }, { 2, 2 }, { 8, 1 }, { 8, 8 } };
+    /* The window is dp_psd_create's to refuse, and it refuses one that sums
+       to zero: the symmetric Hann at nfft 2 is [0, 0], so every row would
+       read NaN (#1911 (f)). */
+    DP_CHECK (dp_spectrogram_create (2, 1, 0, 0.0f, 0) == NULL);
+    /* ...and accepts the edges: the smallest nfft (with a window that has
+       energy there), hop == 1, hop == nfft. Columns: nfft, hop, window. */
+    static const size_t ok[][3]
+        = { { 2, 1, 3 }, { 2, 2, 3 }, { 8, 1, 0 }, { 8, 8, 0 } };
     for (size_t i = 0; i < sizeof ok / sizeof *ok; i++)
       {
-        dp_spectrogram_state_t *s
-            = dp_spectrogram_create (ok[i][0], ok[i][1], 0, 0.0f, 0);
+        dp_spectrogram_state_t *s = dp_spectrogram_create (
+            ok[i][0], ok[i][1], (int)ok[i][2], 0.0f, 0);
         DP_CHECK (s != NULL);
         dp_spectrogram_destroy (s);
       }

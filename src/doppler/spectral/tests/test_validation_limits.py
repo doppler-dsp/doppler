@@ -30,11 +30,13 @@ from doppler.spectral.tests.validation.corr2d import (
 from doppler.spectral.tests.validation.detector2d import (
     validate as detector2d_validate,
 )
+from doppler.spectral.tests.validation.psd import validate as psd_validate
 from doppler.tests._validation_common import assert_renders
 
 OBJECTS = {
     "corr2d": corr2d_validate,
     "detector2d": detector2d_validate,
+    "psd": psd_validate,
 }
 
 

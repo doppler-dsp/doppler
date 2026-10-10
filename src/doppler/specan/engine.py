@@ -158,8 +158,16 @@ class SpecanEngine:
         """
         from doppler.spectral import find_peaks_f32
 
+        # Nothing to show yet: an empty block (a source that timed out
+        # before its first frame, the normal `doppler compose` start-up
+        # with the sink up before the producer) arrives with a rate of 0.0,
+        # which equals the initial one, so no chain is built below.
+        if iq.size == 0:
+            return None
         if fs_in != self._fs_in or center_freq != self._center_freq:
             self._init_chain(fs_in, center_freq)
+        if self._specan is None:
+            return None
 
         # Mix, decimate, window, FFT, average, crop, dB — all in C.
         db = self._specan.execute(iq.astype(np.complex64))

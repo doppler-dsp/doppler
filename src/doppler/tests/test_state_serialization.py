@@ -339,8 +339,11 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
         lambda: AccTrace(n=8, mode="mean", alpha=0.1),
         _acctrace_feed,
     ),
-    # A mode that READS alpha: mean ignores it, so only exp shows a blob
-    # that resumes with the wrong smoothing (#2000).
+    # A mode that READS alpha, so the matrix's bit-exact resume covers the
+    # alpha field. Both instances are built with the same alpha and nothing
+    # here calls the setter, so this cannot show a blob resuming with the
+    # wrong smoothing: test_state_carries_a_runtime_alpha
+    # (accumulator/tests/test_acc_trace.py) does (#2000).
     "AccTraceExp": (
         lambda: AccTrace(n=8, mode="exp", alpha=0.25),
         _acctrace_feed,

@@ -120,3 +120,112 @@ not a nicety, so PSD's kernel is promoted rather than copied.
 **What it did not touch.** Speed, memory behaviour, threading and the ring: it
 was numpy. The unknowns U1–U6 on the design page are all about those, and none
 of them has a number yet.
+
+### 5.4 The dB floor, measured (2026-10-10) — U5
+
+**Question.** The design's U5. PSD's dB conversion clamps power at 1e-20
+before the logarithm (`PSD_FLOOR`, `psd_core.c`), so no row reads below
+−200 dB. How do an all-zero row and a near-zero one read, and does a caller
+need to tell them apart?
+
+**Method.** `native/validation/spectrogram_certify.c`, the measuring half of
+the certification still to come:
+`make build BUILD_TARGET=validate_spectrogram_certify`, then
+`./build/native/validation/validate_spectrogram_certify` (`--emit` writes the
+same numbers as CSV). One row at `nfft` 1024 under each of the four windows
+(Kaiser at β 8) of each of three inputs: an on-bin tone (bin 37) of power
+L dBFS, an all-zero frame, and one frame of seeded complex Gaussian noise of
+total power L dBFS. Seeded and untimed, so a re-run of the same build reads
+the same values. Intel Core Ultra 7 355 under WSL2, GCC 15.2.0, on main
+1ea1cca0b plus this entry's commit.
+
+**A tone reads its level down to the floor, then the floor.** The tone's bin
+reads L to four decimals under every window, from −120 to −200. At −201,
+−205, −210 and −250 it reads **−200.0000**, and so does every bin of the
+**all-zero frame** (1024 of 1024, under every window). A tone below
+−200 dBFS and digital silence make the same row, bit for bit. Most of a
+quiet tone's row is at the floor already: an on-bin tone leaves the other
+bins only rounding, and at −120 dBFS that rounding is under the clamp in all
+but 7 Hann bins, the tone's own three included (rect: all but the tone's
+one).
+
+**Wideband noise reaches the floor sooner, by about `10·log10(nfft)`.** A
+frame of complex noise spreads its power over the bins. Against PSD's tone
+reference each bin's power is exponential with mean `P·ENBW/n`, so its
+median sits at `L + 10·log10(ENBW/n) + 10·log10(ln 2)` dB: from each window's
+own ENBW at `nfft` 1024, L − 31.7 for rect, L − 29.9 for Hann, L − 29.5 for
+Kaiser β 8 and L − 28.7 for Blackman-Harris. Wherever the median is still
+above the clamp, the measured one is within 0.5 dB of that (the worst is
+0.48, Kaiser at −170). The share of bins at the clamp rises with it:
+
+| L, dBFS | Hann | Kaiser β 8 | Blackman-Harris | rect |
+| ------- | ---- | ---------- | --------------- | ---- |
+| −150    | 9    | 7          | 7               | 11   |
+| −160    | 60   | 52         | 40              | 92   |
+| −170    | 494  | 424        | 429             | 668  |
+| −175    | 908  | 902        | 796             | 980  |
+| −180    | 1023 | 1024       | 1015            | 1024 |
+
+*Bins of 1024 reading exactly −200 dB, one frame each.*
+
+Noise of total power −180 dBFS leaves at most 9 bins of 1024 above the floor
+(Blackman-Harris), and at −190 none under any window. The offset is
+`10·log10(ENBW/n)`, so the level at which noise vanishes rises 3 dB with each
+doubling of `nfft`. That follows from the formula; this entry does not
+measure other sizes.
+
+**The falsifier fired.** U5 rested on the guess that nothing a caller feeds
+a spectrogram is that small. Float sources in the tree make such samples. A
+wfm source's `level` is in dBFS with only an upper bound (`wfm_compose.h`,
+the source's `level`, `<= 0`), and the composer applies it as a gain of
+`10^(level/20)` (`wfm_compose.c`, `level → gain`). So a wfm noise source at
+`level` −180 is a valid input, and its rows at `nfft` 1024 can't be told from
+silence. float32 holds such samples as ordinary normal numbers (its smallest
+normal is an amplitude of about −759 dBFS), so nothing upstream rounds them
+to zero first.
+
+**The answer to U5.** By design, for the dB face. A logarithm has to stop
+somewhere, and the clamp is where it stops; what was missing was a statement
+of it. A caller that has to tell digital zero from a signal under the floor
+reads the samples, or the linear row once `mode = power` is enabled (#1968).
+The clamp lives in the dB conversion alone: PSD's per-frame linear power
+(`dp_psd_frame_power`) applies none, so that row keeps zero and tiny apart.
+
+### 5.5 What callers want at the end of a stream (2026-10-10) — U6
+
+**Question.** The design's U6. `flush` is explicit; does any caller want it
+implied by closing the source?
+
+**Method.** A survey of main at 1ea1cca0b, with nothing timed. It covers
+every call of `dp_spectrogram_push` or `dp_spectrogram_flush` outside the
+tests and the benchmarks, every loop #1894 plans to port onto the object,
+and how each transport tells its reader that a stream is over.
+
+**Callers.** One: `native/examples/spectrogram_demo.c`. Its stream is its
+own buffer, so it knows where the stream ends. It flushes explicitly, then
+checks that a second flush owes nothing. The loops #1894 lists for porting
+don't flush at all. `wfm_composition_demo.py` and `dsss_burst_demo.py` each
+build their rows over a whole capture, and the first stops before its last
+frame (`range(0, len(x) - nfft, hop)`). `specan`'s two re-blockers feed a live display.
+
+**Transports.**
+
+| reader                                            | how it learns the stream is over                                   |
+| ------------------------------------------------- | ------------------------------------------------------------------ |
+| C `dp_sub_recv` (`stream.h`)                      | returns `DP_ERR_EOF` when the sender has finished                  |
+| Python `Subscriber.recv`, `Pull.recv`             | raise `EOFError`                                                   |
+| `specan`'s `SocketSource.read`, `PullSource.read` | catch that `EOFError` and return what is buffered, as on a timeout |
+| `specan`'s `FileSource.read`                      | it doesn't: at end of file it seeks to the start and loops         |
+
+Every transport says when the stream is over, at the point where a caller
+would flush. The one layer that hides it is `specan`'s `Source`. Its readers
+feed a live display, where the end of a stream and a pause look the same,
+and a display has no use for a last row after it closes.
+
+**The answer to U6.** `flush` stays explicit. No caller lacks the signal, and
+the one that would be built on `specan`'s `Source` has no use for the row.
+"Implied by closing the source" also has no home in the object: the
+Spectrogram never learns where its samples came from (§7 of the design), so
+only the code that composes a source with it can join the two. If a caller
+ever needs that, the missing piece is `Source.read` reporting the end of the
+stream, not the Spectrogram guessing it.

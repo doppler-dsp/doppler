@@ -70,11 +70,15 @@ rather than confirms (none of these has a number yet):
     what the default output mode should be.
 - **U4 — rows per second one core sustains** at `nfft` 1024 and `hop` 256, and
     what that leaves a display.
-- **U5 — the dB floor.** The kernel clamps at −200 dB; how an all-zero row and
-    a near-zero row read, and whether a caller needs to tell them apart.
-- **U6 — what callers want at the end of a stream.** `flush` is explicit by
-    decision; whether any caller wants it implied by closing the source is open
-    and cheap to add later, expensive to remove.
+- **U5 — the dB floor. ANSWERED (§5.4).** A dB row reads no lower than
+    −200 dB per bin: a tone under that, and an all-zero frame, give the same
+    row. Wideband noise reaches it about `10·log10(nfft)` sooner, and float
+    sources in the tree can produce such samples. That is the dB face by
+    design; a caller who must tell zero from tiny reads the samples, or the
+    linear row (#1968), which has no clamp.
+- **U6 — what callers want at the end of a stream. ANSWERED (§5.5).** `flush`
+    stays explicit. Every transport reports the end of a stream where a caller
+    would flush, and no caller wants it implied.
 
 ## 3. The prototype
 
@@ -199,6 +203,12 @@ method and its caveats are in the record under the same number.
     memory-layout effect that the unchanged code shows too.
 - **§5.3** — The prototype: the contract holds on 392 cases, and a second
     kernel would be wrong by `20·log10(Σw)`.
+- **§5.4** — The dB floor: a row reads no lower than −200 dB, so a tone
+    under it and an all-zero frame give the same row bit for bit. Noise
+    vanishes sooner; at `nfft` 1024, a total of −180 dBFS leaves at most 9 bins
+    of 1024 above the floor.
+- **§5.5** — End of stream: the only caller flushes explicitly, and every
+    transport reports the end where a caller would flush.
 
 The framer's cost against the hand-written loop is a property of the ring, and
 is recorded with it in [the ring's measurements](ring-buffer-measurements.md).

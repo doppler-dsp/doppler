@@ -754,6 +754,10 @@ _Row units: dBFS, against the PSD's full-scale reference._
 
 
 
+A bin reads no lower than -200 dB: PSD clamps power at 1e-20 before the log, so an all-zero frame and a frame below the floor write the same row. 
+
+
+        
 
 <hr>
 

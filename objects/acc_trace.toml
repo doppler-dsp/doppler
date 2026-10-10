@@ -14,6 +14,8 @@ no_step = "true"
 class_name = "AccTrace"
 serializable = "true"
 fragment = "generated"
+create_error = "ValueError"
+create_error_message = "AccTrace: invalid parameter (need n >= 1, and in exp mode 0 < alpha <= 1)"
 
 [[acc_trace.init_params]]
 name = "n"

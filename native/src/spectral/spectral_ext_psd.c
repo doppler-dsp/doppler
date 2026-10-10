@@ -98,7 +98,13 @@ PSDObj_init (PSDObject *self, PyObject *args, PyObject *kwds)
                                 mode, alpha);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "dp_psd_create returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "PSD: invalid parameter (need n >= 2, pad >= 1 with n "
+                       "* pad within the largest FFT, finite fs > 0, finite "
+                       "full_scale > 0 or bits <= 64, a window whose taps "
+                       "sum to a finite nonzero value (not hann at n = 2, "
+                       "nor a NaN or overflowing kaiser beta), and in exp "
+                       "mode 0 < alpha <= 1)");
       return -1;
     }
   return 0;
@@ -1661,6 +1667,17 @@ static PyTypeObject PSDObjType = {
     "    rule is the AccTrace averager's, whose create refuses anything else, "
     "so\n"
     "    this does too. Ignored, and so not checked, in the other modes.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is ``PSD: invalid\n"
+    "    parameter (need n >= 2, pad >= 1 with n * pad within the largest "
+    "FFT,\n"
+    "    finite fs > 0, finite full_scale > 0 or bits <= 64, a window whose "
+    "taps\n"
+    "    sum to a finite nonzero value (not hann at n = 2, nor a NaN or\n"
+    "    overflowing kaiser beta), and in exp mode 0 < alpha <= 1)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

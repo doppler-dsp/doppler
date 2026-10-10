@@ -70,7 +70,9 @@ AccTraceObj_init (AccTraceObject *self, PyObject *args, PyObject *kwds)
   self->handle = dp_acc_trace_create (n, mode, alpha);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "dp_acc_trace_create returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "AccTrace: invalid parameter (need n >= 1, and in exp "
+                       "mode 0 < alpha <= 1)");
       return -1;
     }
   return 0;
@@ -567,33 +569,40 @@ static PyTypeObject AccTraceObjType = {
   .tp_basicsize                           = sizeof (AccTraceObject),
   .tp_dealloc                             = (destructor)AccTraceObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc     = "Create a length-n trace accumulator.\n"
-                "\n"
-                "Parameters\n"
-                "----------\n"
-                "n : int, default 1024\n"
-                "    Trace length in bins. Must be > 0; returns NULL otherwise.\n"
-                "mode : Literal[\"mean\", \"exp\", \"maxhold\", \"minhold\"], "
-                "default \"mean\"\n"
-                "    Reduction mode index (0=mean, 1=exp, 2=maxhold, 3=minhold).\n"
-                "alpha : float, default 0.1\n"
-                "    EMA smoothing factor, read only by exp mode, where it must "
-                "lie in (0,\n"
-                "    1]. Outside it the trace is not an average: 0 never leaves "
-                "the first\n"
-                "    frame, a negative alpha extrapolates away from the data (a "
-                "power trace\n"
-                "    goes negative), and above 1 the EMA step saturates to "
-                "pass-through. A\n"
-                "    NaN is refused too. Ignored, and so not checked, in the "
-                "other modes.\n"
-                "\n"
-                "Examples\n"
-                "--------\n"
-                ">>> from doppler.accumulator import AccTrace\n"
-                ">>> acc = AccTrace(n=8, mode=\"mean\")\n"
-                ">>> acc.n, acc.count\n"
-                "(8, 0)\n",
+  .tp_doc
+  = "Create a length-n trace accumulator.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n : int, default 1024\n"
+    "    Trace length in bins. Must be > 0; returns NULL otherwise.\n"
+    "mode : Literal[\"mean\", \"exp\", \"maxhold\", \"minhold\"], default "
+    "\"mean\"\n"
+    "    Reduction mode index (0=mean, 1=exp, 2=maxhold, 3=minhold).\n"
+    "alpha : float, default 0.1\n"
+    "    EMA smoothing factor, read only by exp mode, where it must lie in "
+    "(0,\n"
+    "    1]. Outside it the trace is not an average: 0 never leaves the "
+    "first\n"
+    "    frame, a negative alpha extrapolates away from the data (a power "
+    "trace\n"
+    "    goes negative), and above 1 the EMA step saturates to pass-through. "
+    "A\n"
+    "    NaN is refused too. Ignored, and so not checked, in the other "
+    "modes.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is ``AccTrace: invalid\n"
+    "    parameter (need n >= 1, and in exp mode 0 < alpha <= 1)``.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.accumulator import AccTrace\n"
+    ">>> acc = AccTrace(n=8, mode=\"mean\")\n"
+    ">>> acc.n, acc.count\n"
+    "(8, 0)\n",
   .tp_methods = AccTraceObj_methods,
   .tp_getset  = AccTrace_getset,
   .tp_new     = AccTraceObj_new,

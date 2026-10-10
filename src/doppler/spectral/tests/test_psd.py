@@ -267,6 +267,10 @@ def test_band_power_is_none_for_no_complete_band(no_band):
     "kwargs",
     [
         {"pad": 0},  # was silently pad = 1 (#1911 (b))
+        {"n": 1},
+        {"pad": 2**62},  # n * pad past the largest FFT a size_t can size
+        {"fs": 0.0},
+        {"full_scale": -1.0},
         # (c): refused by the AccTrace averager, whose NULL PSD returns.
         {"mode": "exp", "alpha": 0.0},  # never left the first frame
         {"mode": "exp", "alpha": -0.5},  # read negative power
@@ -283,9 +287,10 @@ def test_band_power_is_none_for_no_complete_band(no_band):
     ],
 )
 def test_create_refuses_what_it_used_to_accept(kwargs):
-    """A NULL create raises MemoryError, the binding's convention for every
-    refused argument (docs/dev/contributing/error-convention.md)."""
-    with pytest.raises(MemoryError):
+    """A refused argument raises ValueError naming the rules (#1986): the
+    declared ``create_error``, where a bare NULL used to read as an
+    out-of-memory MemoryError -- ``alpha=-0.5`` said "out of memory"."""
+    with pytest.raises(ValueError, match="PSD: invalid parameter"):
         PSD(**{"n": 64, "fs": 1.0, **kwargs})
 
 

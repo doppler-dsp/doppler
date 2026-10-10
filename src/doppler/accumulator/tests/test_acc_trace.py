@@ -63,10 +63,15 @@ BAD_ALPHAS = [0.0, -0.5, 1.5, float("nan")]
 def test_exp_refuses_alpha_outside_unit_interval(alpha):
     # Outside (0, 1] the EMA is not an average: 0 never leaves the first
     # frame, -0.5 reads negative power, 1.5 saturates to pass-through, NaN
-    # poisons every bin. create() refuses, which surfaces as MemoryError
-    # (no create_error is declared yet: #1986).
-    with pytest.raises(MemoryError):
+    # poisons every bin. create() refuses, and the declared create_error
+    # says why (#1986) -- a bare NULL used to read as MemoryError.
+    with pytest.raises(ValueError, match="AccTrace: invalid parameter"):
         AccTrace(n=4, mode="exp", alpha=alpha)
+
+
+def test_create_refuses_an_empty_trace():
+    with pytest.raises(ValueError, match="AccTrace: invalid parameter"):
+        AccTrace(n=0)
 
 
 @pytest.mark.parametrize("alpha", [1.0, 0.25, 1e-9])

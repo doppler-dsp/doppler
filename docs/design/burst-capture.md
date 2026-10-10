@@ -521,8 +521,11 @@ Two things the bank composition (#1174) and the review it asked for
 ### 11.1 One look, and a design C/N0 that is optional
 
 Refine reaches `k_lo = 3·reps + 2` code periods back from an anchor. The
-anchor is acquisition's: `samples_consumed − n + code_phase`, the epoch of
-the frame a hit was stamped on. On the non-coherent path that frame is the
+anchor is acquisition's: `samples_consumed − frame_n + code_phase`, the epoch
+of the frame a hit was stamped on. `frame_n` is the engine's whole coherent
+dwell natively and one code period in tiled Doppler mode, where backing off
+`n`, W periods, anchored every hit `(W − 1)` periods early (#2090). On the
+non-coherent path that frame is the
 **last** of `n_noncoh` accumulated, so a burst — whose preamble sits in one
 frame — gets an anchor up to `n_noncoh · coherent_bins` periods late. Sized
 at the old default of 50 dB-Hz the burst sizer chose `n_noncoh = 6` at the

@@ -343,7 +343,7 @@ the reason is precise rather than an oversight:
 
 - `chip_phase` is a residue (§3.1) — it cannot name a period.
 - `samples_consumed` is an **end** anchor: the offset the detection's epoch
-    *ended* at. Deriving a start from it (`samples_consumed - n + code_phase`)
+    *ended* at. Deriving a start from it (`samples_consumed - frame_n + code_phase`)
     yields the epoch of whichever repetition that frame locked, which is
     never *early* and can be up to one period **late** — the unrecoverable
     direction (§3.2).

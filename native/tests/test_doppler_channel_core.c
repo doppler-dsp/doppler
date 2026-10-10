@@ -244,32 +244,63 @@ main (void)
     /* The channel's own fields used to be written before its resampler
        child could refuse. A blob from an earlier point, with the child's
        envelope clobbered, is refused by the SAME channel, which then gives
-       the blob it gave before -- the fields included. */
+       the blob it gave before -- the fields included.
+
+       The blob is taken after execute() (prof_d = 0, profiled = 0) and the
+       channel advanced by execute_profile() at a nonzero ppm, so EACH of the
+       four fields differs between the two: n_in, n_out, prof_d, profiled.
+       A positive control then restores the unclobbered blob, so the test
+       cannot pass on a set_state that refuses everything. */
+    enum
+    {
+      N = 8192
+    };
     dp_doppler_channel_state_t *a
         = dp_doppler_channel_create (T_FS, T_FC, T_PPM, T_RATE);
     DP_CHECK (a != NULL);
-    size_t          cap = dp_doppler_channel_execute_max_out (a);
+    size_t cap  = dp_doppler_channel_execute_max_out (a);
+    size_t pcap = dp_doppler_channel_execute_profile_max_out (a, N);
+    if (pcap > cap)
+      cap = pcap;
     float _Complex *ya  = malloc (cap * sizeof *ya);
+    double         *ppm = malloc (N * sizeof *ppm);
     size_t          cb  = dp_doppler_channel_state_bytes (a);
     unsigned char  *old = malloc (cb), *cur = malloc (cb), *now = malloc (cb);
-    DP_CHECK (ya && old && cur && now);
+    DP_CHECK (ya && ppm && old && cur && now);
+    for (size_t i = 0; i < N; i++)
+      ppm[i] = 15.0;
 
-    (void)dp_doppler_channel_execute (a, x, 8192, ya, cap);
+    (void)dp_doppler_channel_execute (a, x, N, ya, cap);
     dp_doppler_channel_get_state (a, old);
-    (void)dp_doppler_channel_execute (a, x, 8192, ya, cap);
+    DP_CHECK (dp_doppler_channel_execute_profile (a, x, N, ppm, N, ya, cap)
+              >= 0);
     dp_doppler_channel_get_state (a, cur);
-    /* The premise: the advance moved the channel's own fields. */
+
+    /* The premise, per field: n_in, n_out, prof_d, profiled. */
     const size_t fields = sizeof (dp_state_hdr_t);
-    DP_CHECK (memcmp (old + fields, cur + fields, 4u * 8u) != 0);
+    for (size_t k = 0; k < 4u; k++)
+      DP_CHECK (memcmp (old + fields + 8u * k, cur + fields + 8u * k, 8u)
+                != 0);
+    /* And the child's part starts where the clobber goes. */
+    const uint32_t rs_magic = RESAMP_STATE_MAGIC;
+    DP_CHECK (memcmp (old + fields + 4u * 8u, &rs_magic, sizeof rs_magic)
+              == 0);
 
     old[fields + 4u * 8u] ^= 0xFFu; /* the resampler's envelope magic */
     DP_CHECK (dp_doppler_channel_set_state (a, old) == DP_ERR_INVALID);
     dp_doppler_channel_get_state (a, now);
     DP_CHECK (memcmp (now, cur, cb) == 0);
 
+    /* The positive control: the same blob, unclobbered, restores. */
+    old[fields + 4u * 8u] ^= 0xFFu;
+    DP_CHECK (dp_doppler_channel_set_state (a, old) == DP_OK);
+    dp_doppler_channel_get_state (a, now);
+    DP_CHECK (memcmp (now, old, cb) == 0);
+
     free (old);
     free (cur);
     free (now);
+    free (ppm);
     free (ya);
     dp_doppler_channel_destroy (a);
   }

@@ -357,15 +357,11 @@ dp_doppler_channel_set_state (dp_doppler_channel_state_t *state,
   const uint64_t n_out    = dp_r_u64 (&r);
   const double   prof_d   = dp_r_f64 (&r);
   const uint8_t  profiled = (uint8_t)(dp_r_u64 (&r) != 0u);
-  const void    *child = dp_r_reserve (&r, dp_resamp_state_bytes (state->rs));
-  if (!child)
-    return DP_ERR_INVALID;
   /* The child blob is self-validating -- a wrong resampler payload is
-     rejected by dp_resamp_set_state's own envelope check, not silently
-     reinterpreted -- and it checks before it writes. */
-  rc = dp_resamp_set_state (state->rs, child);
-  if (rc != DP_OK)
-    return rc;
+     rejected by dp_resamp_set_state's own checks, not silently
+     reinterpreted -- and they all run before it writes. DP_R_CHILD, so this
+     site joins doppler#2104's sweep to the transacted form. */
+  DP_R_CHILD (&r, dp_resamp, state->rs);
   state->n_in     = n_in;
   state->n_out    = n_out;
   state->prof_d   = prof_d;

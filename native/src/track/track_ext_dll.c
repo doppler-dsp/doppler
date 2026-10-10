@@ -70,7 +70,10 @@ DllObj_init (DllObject *self, PyObject *args, PyObject *kwds)
   Py_DECREF (code_arr);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "dp_dll_create returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "Dll: invalid parameter (need a non-empty code, "
+                       "segments >= 1, a finite init_chip, bn >= 0 and zeta "
+                       "> 0 both finite, and 0 < spacing < len(code)/2)");
       return -1;
     }
   return 0;
@@ -981,8 +984,8 @@ static PyMethodDef DllObj_methods[] = {
     "never across a transition. Size n_looks with detection.det_n_noncoh over "
     "L * (sf * sps / segments) samples. Only the detector's looks change: the "
     "discriminator keeps its per-epoch window and the emitted partial stream "
-    "is untouched. Raises ValueError when segments <= 1 or the period is in "
-    "(0, 2).\n"
+    "is untouched. Raises ValueError when segments <= 1, or the period is not "
+    "finite, is in (0, 2) or is past 2^20 partials.\n"
     "\n"
     "In `segments > 1` mode every partial is a look for the code-lock\n"
     "detector (dp_dll_configure_lock()) and the discriminator sees one epoch\n"
@@ -1400,6 +1403,14 @@ static PyTypeObject DllObjType = {
     "    at a downstream SymbolSync when the symbol rate is near the code "
     "rate,\n"
     "    so choose >= 2 for symbol-timing recovery.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is ``Dll: invalid\n"
+    "    parameter (need a non-empty code, segments >= 1, a finite init_chip, "
+    "bn\n"
+    "    >= 0 and zeta > 0 both finite, and 0 < spacing < len(code)/2)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

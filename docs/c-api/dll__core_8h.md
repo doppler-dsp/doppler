@@ -631,7 +631,7 @@ A non-coherent early/prompt/late DLL that tracks the code phase of a repeating s
 
 **Returns:**
 
-Heap-allocated state, or NULL on allocation failure. 
+Heap-allocated state, or NULL on allocation failure or a refused argument: an empty code, `segments` 0, a non-finite `init_chip`, `bn` and `zeta` outside [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok), or a `spacing` outside (0, `code_len`/2) (doppler#2103). 
 
 
 
@@ -1337,7 +1337,7 @@ The code loop steers once per symbol, on the early/prompt/late sums over the win
 
 **Returns:**
 
-DP\_OK; DP\_ERR\_INVALID when `segments <= 1` or the period is in (0, 2). 
+DP\_OK; DP\_ERR\_INVALID when `segments <= 1`, or the period is not finite, is in (0, 2) or is past 2^20 partials  the rings are sized by the period, and past that they are refused, not allocated (doppler#2103). 
 ```C++
 >>> import numpy as np
 >>> from doppler.track import Dll

@@ -38,6 +38,13 @@ dp_loop_filter_init (dp_loop_filter_state_t *state, double bn, double zeta,
   state->ki   = (4.0 * th * th) / den;
 }
 
+int
+dp_loop_filter_params_ok (double bn, double zeta, double t)
+{
+  return bn >= 0.0 && zeta > 0.0 && t > 0.0 && isfinite (bn) && isfinite (zeta)
+         && isfinite (t); /* NaN fails every comparison */
+}
+
 dp_loop_filter_state_t *
 dp_loop_filter_create (double bn, double zeta, double t)
 {
@@ -54,9 +61,8 @@ dp_loop_filter_create (double bn, double zeta, double t)
      zeta > 0 the intermediate th is non-negative, so
      den = 4 + 4*zeta*th + th^2 >= 4 and can no longer pass through zero —
      which it can for zeta >= 1 with a sufficiently negative bn. */
-  if (!(bn >= 0.0) || !(zeta > 0.0) || !(t > 0.0) || !isfinite (bn)
-      || !isfinite (zeta) || !isfinite (t))
-    return NULL; /* NaN fails every comparison above, by construction */
+  if (!dp_loop_filter_params_ok (bn, zeta, t))
+    return NULL;
 
   dp_loop_filter_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)

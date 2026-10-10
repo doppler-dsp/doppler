@@ -1031,11 +1031,16 @@ dp_burst_capture_push (dp_burst_capture_state_t *state,
               state->horizon = UINT64_MAX;
 
               /* The hit's own END anchor, made stream-absolute:
-                 samples_consumed is where this detection's epoch ENDED, so
+                 samples_consumed is where this detection's frame ENDED, so
                  backing off one frame and adding the code phase names a code
                  epoch rather than a position. Which epoch of the preamble it
-                 is, refine decides. */
-              uint64_t epoch = hits[i].samples_consumed - (uint64_t)e->n
+                 is, refine decides. The frame is the engine's `frame_n`, the
+                 samples the code phase was measured in: natively its whole
+                 coherent dwell, and in tiled Doppler mode ONE code period,
+                 where `n` counts W frequency hypotheses over that period and
+                 backing off `n` anchored every hit (W - 1) periods early
+                 (doppler#2090). */
+              uint64_t epoch = hits[i].samples_consumed - (uint64_t)e->frame_n
                                + (uint64_t)hits[i].code_phase;
 
               /* Record the hit BEFORE anything filters it. This is what the

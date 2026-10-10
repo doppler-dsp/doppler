@@ -3094,6 +3094,101 @@ test_a_wide_doppler_search_is_searched (void)
   return 0;
 }
 
+/** A tiled capture anchors each hit at its own dwell (doppler#2090).
+ *
+ * Past the native span the engine tiles Doppler: its rows are W frequency
+ * hypotheses over ONE frame of P samples, so a hit's code phase is measured
+ * in a frame of P, while the engine's `n` is W*P. Backing the epoch off `n`
+ * anchored every hit (W - 1)*P early. With reps = 1, refine looks only one
+ * period ahead and could not reach the true start; a burst in the stream's
+ * first (W - 1)*P samples wrapped its anchor to about 2^64 -- a window at a
+ * garbage start, and a live checkpoint set_state() refuses because the
+ * anchor is past the stream position. Asserted, tiled with W >= 3 and
+ * reps = 1: a burst mid-stream comes back exactly once at its true start;
+ * one at sample 50 does too, pushed in 128-sample blocks, and a checkpoint
+ * taken while it is still queued restores into the same capture.
+ */
+static int
+test_a_tiled_capture_anchors_at_its_dwell (void)
+{
+  enum
+  {
+    NP  = 127,
+    PAY = 400
+  };
+  uint8_t        code[NP];
+  dp_pn_state_t *pn = dp_pn_create (pn_mls_poly (7), 1u, 7u, 0);
+  DP_REQUIRE (pn != NULL);
+  for (size_t i = 0; i < NP; i++)
+    code[i] = pn_step (pn);
+  dp_pn_destroy (pn);
+  float _Complex *pre = dp_code_preamble (code, NP, 1);
+
+  static float _Complex cap[20000];
+  const size_t n_cap  = sizeof cap / sizeof *cap;
+  const double span   = 1.0 / (double)NP;
+  const size_t ats[2] = { 9001u, 50u };
+  for (size_t j = 0; j < 2u; j++)
+    {
+      const size_t at = ats[j];
+      const double f  = 1.3 * span;
+      uint32_t     st = 2090u + (uint32_t)j;
+      for (size_t i = 0; i < n_cap; i++)
+        {
+          const float re = (float)(0.02 * dp_gauss (&st));
+          const float im = (float)(0.02 * dp_gauss (&st));
+          cap[i]         = re + im * I;
+        }
+      for (size_t i = 0; i < NP; i++)
+        cap[at + i]
+            += pre[i] * (float _Complex)cexp (I * 2.0 * M_PI * f * (double)i);
+
+      dp_burst_capture_state_t *s
+          = dp_burst_capture_create (pre, NP, NP + PAY, 1u, 1.0, ACQ_CN0_NONE,
+                                     2.5 * span, 1e-6, 0.9, 0, 0.0);
+      DP_REQUIRE (s != NULL);
+      const dp_acq_state_t *e = s->acq->engine;
+      DP_REQUIRE (e->window_bins >= 3u); /* the premise: tiled, W >= 3 */
+      DP_REQUIRE (j == 0u || at < (e->window_bins - 1u) * NP);
+
+      size_t found = 0, other = 0, restored = 0;
+      for (size_t off = 0; off < n_cap; off += 128u)
+        {
+          size_t blk = n_cap - off < 128u ? n_cap - off : 128u;
+          (void)dp_burst_capture_push (s, cap + off, blk, NULL, 0);
+          for (size_t i = 0; i < dp_burst_capture_ready (s); i++)
+            {
+              const uint64_t ps
+                  = dp_burst_capture_event_at (s, i)->preamble_start;
+              found += ps == at;
+              other += ps != at;
+            }
+          /* A checkpoint while the detection is queued, before its window
+             has arrived, restores into the capture that took it. */
+          if (!restored && s->pending > 0u && found == 0u)
+            {
+              const size_t   cb   = dp_burst_capture_state_bytes (s);
+              unsigned char *blob = malloc (cb);
+              DP_REQUIRE (blob != NULL);
+              dp_burst_capture_get_state (s, blob);
+              DP_CHECK (dp_burst_capture_set_state (s, blob) == DP_OK);
+              free (blob);
+              restored = 1;
+            }
+        }
+      if (found != 1u || other != 0u)
+        fprintf (stderr, "  tiled at %zu: found %zu, other %zu\n", at, found,
+                 other);
+      DP_CHECK (restored == 1u);
+      DP_CHECK (found == 1u);
+      DP_CHECK (other == 0u);
+      DP_CHECK (s->dropped == 0u);
+      dp_burst_capture_destroy (s);
+    }
+  free (pre);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -3112,6 +3207,8 @@ main (void)
   if (test_refine_scores_every_detected_phase ())
     return 1;
   if (test_a_wide_doppler_search_is_searched ())
+    return 1;
+  if (test_a_tiled_capture_anchors_at_its_dwell ())
     return 1;
   if (test_every_burst_is_emitted_once ())
     return 1;

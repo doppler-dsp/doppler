@@ -1376,10 +1376,14 @@ set(_NATS_LIB "${_NATS_BLD}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}nats_static${CMAKE
 # override a cache, except when the cache names a different compiler: then
 # CMake deletes it and re-runs configure with none of them, so
 # NATS_BUILD_STREAMING falls back to ON, wants protobuf-c, and the first
-# build after a compiler change fails while the second passes. This command
-# runs only when the library is missing, so nothing is rebuilt that would
-# not be anyway. remove_directory, not `-E rm` (3.17) or `--fresh` (3.24):
-# the floor is 3.16.
+# build after a compiler change fails while the second passes. The command
+# runs when the library is missing or when this command's own text changes
+# (so a change here, this one included, rebuilds nats.c once in every
+# existing tree); either way nats.c is being configured anew, so wiping the
+# directory costs a recompile it would mostly do anyway. remove_directory,
+# not `-E rm` (3.17) or `--fresh` (3.24): the floor is 3.16. A fresh CI tree
+# never exercises this, so `make nats-vendor-fresh-check` seeds the stale
+# state on purpose.
 add_custom_command(OUTPUT "${_NATS_LIB}"
     COMMAND ${CMAKE_COMMAND} -E remove_directory "${_NATS_BLD}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${_NATS_BLD}"

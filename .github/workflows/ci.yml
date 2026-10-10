@@ -172,6 +172,12 @@ jobs:
     - name: Build
       run: make build
 
+    # A fresh tree never has a stale vendored-nats.c cache, so the #1936 fix
+    # is a no-op in every other step. This makes that state on purpose and
+    # checks the vendor's cache, not the exit code.
+    - name: Vendored nats.c keeps its options after a compiler change
+      run: make nats-vendor-fresh-check
+
     - name: Test
       run: make test
 

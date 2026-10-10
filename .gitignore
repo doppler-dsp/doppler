@@ -67,6 +67,7 @@ build-cov/
 build-ubsan/
 build-tsan/
 build-asan/
+build-nats-fresh/
 # `make warnings-check`: one scratch tree and log per compiler
 build-warnings-*
 build-ci-warnings-*

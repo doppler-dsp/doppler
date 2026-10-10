@@ -795,7 +795,8 @@ GATES_DEPS    = lint changelog-check release-notes-size-check \
                 vendored-collision-check \
                 test-asan test-ubsan test-tsan warnings-check \
                 consumer-faces-check burst-pipeline-check uno-q-check uno-q-nats-check glibc-gate \
-                check-isotime-parity coverage coverage-gate \
+                check-isotime-parity nats-vendor-fresh-check \
+                coverage coverage-gate \
                 docker-examples package-linux-smoke \
                 issues-check
 
@@ -809,6 +810,19 @@ GATES_DEPS    = lint changelog-check release-notes-size-check \
 GATES_CI_EXTRA = issues-check
 
 # ── Build ────────────────────────────────────────────────────────────────────
+# The vendored nats.c is configured from an EMPTY directory (#1936), because
+# CMake drops the custom command's -D options when a stale cache names
+# another compiler. Every CI tree is fresh, so nothing else exercises it:
+# this seeds that stale cache (same compiler, another path), runs the real
+# `make build` for the vendor target, and checks the vendor's CACHE for every
+# option the custom command passes. The cache, not the exit code: with
+# protobuf-c and OpenSSL installed the old bug builds green. Its own build
+# dir, so it means the same on a dev box as in CI.
+NATS_FRESH_DIR ?= build-nats-fresh
+nats-vendor-fresh-check: ## Prove the vendored nats.c keeps its options after a compiler change
+	@uv run python scripts/check_nats_vendor_fresh.py \
+	    --build-dir $(NATS_FRESH_DIR) --make "$(MAKE)" --cmake "$(CMAKE)"
+
 # Compile through ccache when it is installed, and silently not when it is
 # not: bootstrap.toml lists it, but a checkout predating that, or a box
 # provisioned another way, must still build. DERIVED rather than declared for
@@ -1579,7 +1593,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 ccsds-isolation-check instrumented-sweep-check mem-guard-check \
                 container-mount-check \
                 cargo-lock-check design-pages-check wfmgen-flag-matrix \
-                gallery-scripts-check \
+                gallery-scripts-check nats-vendor-fresh-check \
                 ci-run ci-gates ccache-stats \
                 wheel-check wheel-smoke release-smoke release-smoke-pypi \
                 check-wheel-tags release-wheel-tags \

@@ -131,13 +131,14 @@ dp_detector2d_reset (dp_detector2d_state_t *state)
 /* Serializable state — the corr2d child (restored, not reset) + the
  * framer's carry as its own child blob (fixed-size for a given ny*nx, and
  * self-validating) + the last-dump result fields. consumed is per-call
- * output, not state. */
+ * output, not state, and so is the last surface (out_buf): last_corr is
+ * None until the next dump, as after reset. */
 size_t
 dp_detector2d_state_bytes (const dp_detector2d_state_t *s)
 {
   return sizeof (dp_state_hdr_t) + dp_corr2d_state_bytes (s->corr)
          + dp_f32_framer_state_bytes (&s->framer) + 2 * sizeof (uint64_t)
-         + 3 * sizeof (float) + sizeof (uint32_t);
+         + 3 * sizeof (float);
 }
 
 void
@@ -152,7 +153,6 @@ dp_detector2d_get_state (const dp_detector2d_state_t *s, void *blob)
   dp_w_f32 (&_w, &s->peak_mag, 1);
   dp_w_f32 (&_w, &s->noise_est, 1);
   dp_w_f32 (&_w, &s->test_stat, 1);
-  dp_w_u32 (&_w, (uint32_t)s->_last_corr_valid);
 }
 
 int
@@ -167,7 +167,8 @@ dp_detector2d_set_state (dp_detector2d_state_t *s, const void *blob)
   dp_r_f32 (&_r, &s->peak_mag, 1);
   dp_r_f32 (&_r, &s->noise_est, 1);
   dp_r_f32 (&_r, &s->test_stat, 1);
-  s->_last_corr_valid = (int)dp_r_u32 (&_r);
+  /* out_buf is not carried, so there is no last surface to view. */
+  s->_last_corr_valid = 0;
   s->consumed         = 0;
   return DP_OK;
 }
@@ -187,57 +188,40 @@ dp_detector2d_set_threshold (dp_detector2d_state_t *state, float threshold)
 
 /* ── Stream push ────────────────────────────────────────────────────────── */
 
+/* One frame of dp_detector2d_push(), the step det_framed_push() drives:
+   correlate, and on a dump that passes the gate write ONE result. */
+static int
+detector2d_step (void *obj, const float _Complex *frame, void *result,
+                 size_t slot)
+{
+  dp_detector2d_state_t *state = (dp_detector2d_state_t *)obj;
+  size_t n_out = dp_corr2d_execute (state->corr, frame, state->n,
+                                    state->out_buf, state->n);
+  if (n_out == 0)
+    return 0;
+
+  state->_last_corr_valid = 1;
+  detector2d_compute_stat_2d (state);
+
+  if (state->threshold == 0.0f || state->test_stat > state->threshold)
+    {
+      ((det_result2d_t *)result)[slot]
+          = (det_result2d_t){ state->peak_row, state->peak_col,
+                              state->peak_mag, state->noise_est,
+                              state->test_stat };
+      return 1;
+    }
+  return 0;
+}
+
 size_t
 dp_detector2d_push (dp_detector2d_state_t *state, const float _Complex *in,
                     size_t n_in, det_result2d_t *result, size_t max_results)
 {
-  size_t ndet = 0;
-  size_t off  = 0; /* samples taken from in[] */
-
-  /* dp_detector_push()'s drain, at frame ny*nx: the framer is fed only what
-   * completes as many frames as result still has room for -- once it is
-   * full, only what completes none (the carry) -- and every frame fed is
-   * drained before the next feed. So a sample is taken unless it would
-   * complete a frame result has no room for, the rest is left for the
-   * caller (dp_detector2d_consumed()), and the framer is drained whenever
-   * this returns. */
-  for (;;)
-    {
-      /* max_frames = the slots left is EXACT only because (a) a frame emits
-       * at most one det_result2d_t -- one dump, one result, below -- and (b)
-       * the inner loop drains every frame fed before feeding again. Break
-       * either and this overfills result or strands whole frames in the
-       * framer; see detector_core.c's twin for why acq cannot do this. */
-      if (off < n_in)
-        off += dp_f32_framer_feed_view (&state->framer, in + off, n_in - off,
-                                        max_results - ndet);
-      size_t          drained = 0;
-      float _Complex *frame; /* into the ring, contiguous across its wrap */
-      while ((frame = dp_f32_framer_next_view (&state->framer)) != NULL)
-        {
-          drained++;
-          size_t n_out = dp_corr2d_execute (state->corr, frame, state->n,
-                                            state->out_buf, state->n);
-          if (n_out == 0)
-            continue;
-
-          state->_last_corr_valid = 1;
-          detector2d_compute_stat_2d (state);
-
-          if (state->threshold == 0.0f || state->test_stat > state->threshold)
-            {
-              result[ndet++]
-                  = (det_result2d_t){ state->peak_row, state->peak_col,
-                                      state->peak_mag, state->noise_est,
-                                      state->test_stat };
-            }
-        }
-      if (!drained)
-        break; /* the input is used up, or the next frame has no room */
-    }
-
-  state->consumed = off;
-  return ndet;
+  /* The drain, its contract and why a batch is exact: det_private.h. */
+  return det_framed_push (&state->framer, state->n, in, n_in, result,
+                          max_results, detector2d_step, state,
+                          &state->consumed);
 }
 
 size_t

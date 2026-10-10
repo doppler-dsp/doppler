@@ -13,6 +13,7 @@ _Shared internals for detector\_core.c and detector2d\_core.c._ [More...](#detai
 * `#include <stdint.h>`
 * `#include <stdlib.h>`
 * `#include <string.h>`
+* `#include "doppler/f32_buffer/f32_buffer_core.h"`
 * `#include "doppler/util/util_core.h"`
 
 
@@ -36,6 +37,11 @@ _Shared internals for detector\_core.c and detector2d\_core.c._ [More...](#detai
 | struct | [**det\_peak\_t**](structdet__peak__t.md) <br> |
 
 
+## Public Types
+
+| Type | Name |
+| ---: | :--- |
+| typedef int(\* | [**det\_frame\_step\_fn**](#typedef-det_frame_step_fn)  <br>_One frame's work for det\_framed\_push(): correlate_ `frame` _and, on a dump that passes the gate, write ONE result at index_`slot` _of_`result` _. Returns 1 if it wrote one, 0 if not_ _never more._ |
 
 
 
@@ -63,6 +69,7 @@ _Shared internals for detector\_core.c and detector2d\_core.c._ [More...](#detai
 | Type | Name |
 | ---: | :--- |
 |  int | [**det\_cmp\_f32\_asc**](#function-det_cmp_f32_asc) (const void \* a, const void \* b) <br> |
+|  size\_t | [**det\_framed\_push**](#function-det_framed_push) (dp\_f32\_framer\_t \* fr, size\_t n, const float \_Complex \* in, size\_t n\_in, void \* result, size\_t max\_results, [**det\_frame\_step\_fn**](det__private_8h.md#typedef-det_frame_step_fn) step, void \* obj, size\_t \* consumed) <br>_The detectors' push: any chunk in through the ring's framer, frames of_ `n` _at hop_`n` _out through_`step` _, never a lost input._ |
 |  float | [**det\_noise\_chunk**](#function-det_noise_chunk) (const float \* mag, size\_t lo, size\_t hi, [**det\_noise\_mode\_t**](detector__core_8h.md#enum-det_noise_mode_t) mode) <br>_The per-chunk noise aggregates_  _MEAN, MIN, MAX_ _over bins &#91;lo, hi&#93;, needing no scratch buffer._ |
 |  float | [**det\_noise\_estimate**](#function-det_noise_estimate) (const float \* mag, size\_t lo, size\_t hi, float \* scratch, [**det\_noise\_mode\_t**](detector__core_8h.md#enum-det_noise_mode_t) mode) <br>_Aggregate \|corr\| over bins &#91;lo, hi&#93; using the selected mode._  |
 |  size\_t | [**det\_peak\_list**](#function-det_peak_list) (const float \* surf, size\_t ny, size\_t nx, float gate, size\_t excl\_rows, size\_t excl\_cols, uint8\_t \* mask, [**det\_peak\_t**](structdet__peak__t.md) \* out, size\_t max\_peaks) <br>_The maximum of a surface, iterated with exclusion zones: every peak above a gate, strongest first, at most_ `max_peaks` _of them._ |
@@ -107,6 +114,22 @@ Not part of the public API. Include after the module's own header so that det\_n
 
 
     
+## Public Types Documentation
+
+
+
+
+### typedef det\_frame\_step\_fn 
+
+_One frame's work for det\_framed\_push(): correlate_ `frame` _and, on a dump that passes the gate, write ONE result at index_`slot` _of_`result` _. Returns 1 if it wrote one, 0 if not_ _never more._
+```C++
+typedef int(* det_frame_step_fn) (void *obj, const float _Complex *frame, void *result, size_t slot);
+```
+
+
+
+
+<hr>
 ## Public Static Functions Documentation
 
 
@@ -123,6 +146,62 @@ static int det_cmp_f32_asc (
 
 
 
+
+<hr>
+
+
+
+### function det\_framed\_push 
+
+_The detectors' push: any chunk in through the ring's framer, frames of_ `n` _at hop_`n` _out through_`step` _, never a lost input._
+```C++
+static inline size_t det_framed_push (
+    dp_f32_framer_t * fr,
+    size_t n,
+    const float _Complex * in,
+    size_t n_in,
+    void * result,
+    size_t max_results,
+    det_frame_step_fn step,
+    void * obj,
+    size_t * consumed
+) 
+```
+
+
+
+[**dp\_detector\_push()**](detector__core_8h.md#function-dp_detector_push) and [**dp\_detector2d\_push()**](detector2d__core_8h.md#function-dp_detector2d_push) are this, with their own step. Each frame yields at most one result, so the framer is fed only what completes as many WHOLE frames as `result` has room for  the room times n, less the carry already held, and no partial frame past them  and every frame fed is drained before the next feed. That makes a batch exact rather than an estimate: a batch can never write past the room (each frame takes at most one slot) or strand a whole frame in the framer (all are drained). Break either and the push overfills `result` or strands frames; acq breaks the first (a dump reports several peaks), which is why it has its own drain.
+
+
+Once `result` is full the push takes NOTHING more, not even a partial frame of carry, so a push that stopped full stops on a frame boundary: a caller that cannot resume (Python's one call per push) stays frame- aligned instead of shifted by the carry it never sees. A push with no room takes nothing at all, so a resume loop needs room for at least one. Input that runs out mid-frame is the carry, held for the next call.
+
+
+
+
+**Parameters:**
+
+
+* `fr` The object's framer, bound at frame and hop `n`. 
+* `n` Samples per frame. 
+* `in` Input samples. 
+* `n_in` Samples in `in`. 
+* `result` The caller's results, handed to `step`. 
+* `max_results` Room in `result`. 
+* `step` The object's per-frame work. 
+* `obj` Handed to `step`. 
+* `consumed` Set to the samples of `in` this push took. 
+
+
+
+**Returns:**
+
+Results written. 
+
+
+
+
+
+        
 
 <hr>
 

@@ -410,7 +410,7 @@ uint64_t dp_burst_capture_state_t::dropped;
 
 
 
-Samples the ring refused. A LOST BURST each, not a statistic  lifetime, survives reset(). 
+Samples of look-back discarded while a queued detection still needed them. push() never refuses input; this moves only when a detection that can never be emitted is abandoned so the ring can take the stream, or when set\_state() restores one the blob's look-back cannot reach. A LOST BURST each, not a statistic  lifetime, survives reset(). 
  
 
 

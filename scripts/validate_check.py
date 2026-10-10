@@ -16,7 +16,7 @@ Three outcomes, three messages (doppler#1074):
 exit status          meaning
 ===================  ==================================================
 ``0``                the committed report matches a fresh run
-``EXIT_STALE`` (3)   it does not -- re-run ``make validate``
+``EXIT_STALE`` (3)   it does not -- re-run ``make validate-py``
 anything else        the validator never decided; its output is the
                      diagnosis, so it is replayed verbatim
 ===================  ==================================================
@@ -41,6 +41,7 @@ Usage
 
 from __future__ import annotations
 
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -101,8 +102,15 @@ def main(argv: list[str]) -> int:
 
     # Two different remedies. Naming both when only one applies is how the
     # old message sent a reader to `make validate` for an import error.
+    # A stale report is re-rendered by its Python validator alone, so the
+    # remedy is `validate-py` over exactly the stale ones, ready to paste.
+    # `make validate` would add every C harness's full sweep, which needs
+    # `make build` and re-renders no report (#2048).
     if stale:
-        print(f"validate-check: {len(stale)} stale — run 'make validate'")
+        print(
+            f"validate-check: {len(stale)} stale — run "
+            f"make validate-py VALIDATORS={shlex.quote(' '.join(stale))}"
+        )
     if broken:
         print(
             f"validate-check: {len(broken)} could not run — read the output "

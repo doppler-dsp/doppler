@@ -1633,7 +1633,8 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 ci-aggregator-check python-versions-check \
                 jm-pin \
                 issue-link-check \
-                validate validate-c validate-check \
+                validate validate-py validate-c validate-check \
+                validate-spellings-check \
                 test-sweep validation-time-baseline \
                 characterize characterization-check \
                 doxygen-warn-gate \
@@ -1767,6 +1768,7 @@ lint: tests-ssot characterization-check validation-report-check changelog-check 
       ccsds-isolation-check container-mount-check cargo-lock-check \
       instrumented-sweep-check mem-guard-check \
       design-pages-check gallery-scripts-check bench-commits-check \
+      validate-spellings-check \
       drift-check doxygen-check
 
 # The base the assertion ratchet compares against, same shape as COV_BASE:
@@ -3109,12 +3111,40 @@ docs-drift-check: ## Check the generated doc regions are up to date
 # are needed.
 VALIDATORS = $(shell find src/doppler -path '*/tests/validation/*/validate.py' | sort)
 
-validate: ## Regenerate every object's validation report and plots
+# The two halves are two targets so that a run can ask for ONE by name.
+# `make validate-py VALIDATORS=<its validate.py>` regenerates a single
+# Python-only object and exits 0. The only spelling for that used to be
+# `make validate VALIDATORS=<it> VALIDATORS_C=`, and validate-c's guard
+# refused it as an empty glob -- the correct use of the target exited 2, on
+# #2033 and again on #2047. The guard cannot tell "no C harness wanted" from
+# "no C harness found", so wanting none is said by naming the half, and the
+# guard stays for the run that wants both. A prerequisite rather than a
+# second recursive call: make finishes it before this recipe starts, so the
+# Python half still runs first under -j. validate-spellings-check (on `lint`)
+# holds both directions (#2048).
+validate: validate-py ## Regenerate every object's validation report and plots (Python, then C)
+	@$(MAKE) --no-print-directory validate-c
+
+# An empty list is refused, as validate-c refuses its own: a loop over nothing
+# exits 0 having regenerated nothing, whether the glob stopped matching or
+# `VALIDATORS=` was typed bare, and either way the success is a lie.
+validate-py: ## Regenerate the Python validation reports only (VALIDATORS=<validate.py> to narrow)
+	@if [ -z "$(strip $(VALIDATORS))" ]; then \
+	    echo "validate-py: no validators -- VALIDATORS is empty, or the glob"; \
+	    echo "  over src/doppler/*/tests/validation/*/validate.py found none"; \
+	    exit 1; \
+	 fi
 	@for v in $(VALIDATORS); do \
 	    echo "=== $$v ==="; \
 	    uv run python $$v || exit 1; \
 	 done
-	@$(MAKE) --no-print-directory validate-c
+
+# Runs the real `validate-py` and `validate` with stub validators, so it runs
+# no real validator and no harness; see the script for how each case is
+# isolated. On `lint` because a gate whose correct use exits non-zero teaches
+# people to stop reading exit codes, and that is a fast-job mistake.
+validate-spellings-check: ## Verify validate-py and validate exit 0 and refuse exactly when they should
+	@python3 scripts/check_validate_spellings.py
 
 # The C half of "refresh the validation". ctest runs each of these with
 # `--check`, which is the REGRESSION SUBSET -- the downselect that would catch
@@ -3171,6 +3201,7 @@ validation-time-baseline: ## Re-record the sweep spot-check budget from a run
 validate-c: ## Run every C validation harness's FULL sweep (not the --check subset)
 	@if [ -z "$(VALIDATORS_C)" ]; then \
 	    echo "validate-c: no harness sources found under native/validation/"; \
+	    echo "  A Python-only run is 'make validate-py VALIDATORS=...'."; \
 	    exit 1; \
 	 fi
 	@mkdir -p $(VALIDATE_C_OUT)

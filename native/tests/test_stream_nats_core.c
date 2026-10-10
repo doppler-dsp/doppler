@@ -478,6 +478,8 @@ test_ack_after_close_is_refused (void)
   dp_nats_settle ();
   if (!push || !pull)
     {
+      if (push)
+        DP_CHECK (dp_ctx_delete_stream (push) == DP_OK);
       dp_pub_destroy (push);
       dp_sub_destroy (pull);
       return;
@@ -517,6 +519,8 @@ test_ack_after_close_is_refused (void)
         }
       dp_sub_destroy (next);
     }
+  /* The queue was made up here, so ending it is ours (#1136). */
+  DP_CHECK (dp_ctx_delete_stream (push) == DP_OK);
   dp_pub_destroy (push);
 }
 

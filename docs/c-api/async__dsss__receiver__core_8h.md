@@ -192,7 +192,7 @@ The production C port of the validated Python prototype's own search -&gt; refin
 **Cell mode** (`dp_async_dsss_receiver_create_cell()`) is the same object with NO embedded `Acquisition` and no refine chain: the search is somebody else's  a searcher covering one channel for every emitter on it  and the receiver takes its detection from outside through `dp_async_dsss_receiver_seed()`, exactly the record its own hit would have produced, then runs on the searcher's timing (design section 12.22-12.28). It starts idle, `reset()` returns it to idle, and the searching branch of `steps()` is unreachable. `seed()` is a method of BOTH flavors (a hit is a seed the object made for itself), and it refuses on a receiver that already holds one: "assigned once" is enforced here, not by the caller's discipline. The hand-off flavor that preceded it  the same seed into this object's own refine chain  was retired on 2026-09-10 once the cell mode matched it on the lifecycle soak (section 12.27-12.28, #1283).
 
 
-Both the refine and track stages share ONE carrier-wipe scratch/carry buffer set (`car_wiped_buf`/`car_carry_buf`/`car_carry_len`, sized `tsamps = code_len*spc`) since they never run concurrently.
+Both the refine and track stages share ONE carrier-wipe scratch/carry buffer set (`car_wiped_buf`/`car_carry_buf`/`car_carry_len`, sized `tsamps = code_len*spc`) since they never run concurrently. The carry holds 0..tsamps-1 live samples (a full period is processed at once, and set\_state refuses tsamps); the blob packs its fixed tsamps region last, the live samples then zeros.
 
 
 

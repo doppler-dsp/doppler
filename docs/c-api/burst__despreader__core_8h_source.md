@@ -99,10 +99,12 @@ size_t dp_burst_despreader_get_stat_n (const dp_burst_despreader_state_t *state)
  * The struct (loop_filter children POD-embedded) and then the acq code. The
  * data code is create-time config, rebuilt by create(); the acq code is a
  * setter's value -- only set_acq() sets it -- so it travels (#2022), and its
- * length is part of the blob's size. set_state refuses, writing nothing, a
- * blob from another sf, sps or acq-code length, one whose preamble fields
- * no set_acq() call could leave, or one whose chip position the kernel
- * cannot index from (#2041). */
+ * length is part of the blob's size. The loops' bn travels too: it is
+ * set_bn_carrier()'s and set_bn_code()'s value. set_state refuses, writing
+ * nothing, a blob from another sf, sps, seed or acq-code length; one whose
+ * preamble fields no set_acq() call could leave; one whose loop gains are
+ * not the ones its bn derives; and one holding a non-finite number, as an
+ * object fed a NaN sample does (#2041). */
 #define BURST_DESPREADER_STATE_MAGIC DP_FOURCC ('B','D','S','P')
 #define BURST_DESPREADER_STATE_VERSION                                       \
   3u /* v3: the acq code travels; sizing keys checked first (#2041) */

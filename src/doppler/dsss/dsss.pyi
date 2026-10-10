@@ -700,16 +700,23 @@ class BurstDespreader:
     sps : int, default 2
         Samples per chip (default: 2).
     init_norm_freq : float, default 0.0
-        Seed carrier frequency, cycles/sample — the acquisition estimate
-        (default: 0.0).
+        Seed carrier frequency, cycles/sample — the acquisition estimate;
+        finite (default: 0.0).
     init_chip_phase : float, default 0.0
-        Seed code phase, chips (default: 0.0).
+        Seed code phase, chips; finite (default: 0.0).
     bn_carrier : float, default 0.05
         Carrier (Costas) loop noise bandwidth, normalized to the symbol rate
         (default: 0.05).
     bn_code : float, default 0.01
         Code (DLL) loop noise bandwidth, normalized to the symbol rate
         (default: 0.01).
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``BurstDespreader:
+        invalid parameter (need a code of at least sf chips, sf >= 1, sps >= 2,
+        and a finite init_norm_freq and init_chip_phase)``.
 
     Examples
     --------

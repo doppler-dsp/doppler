@@ -86,13 +86,15 @@ typedef struct
  *            (default: 1).
  * @param sps  Samples per chip (default: 2).
  * @param init_norm_freq  Seed carrier frequency, cycles/sample — the
- *            acquisition estimate (default: 0.0).
- * @param init_chip_phase  Seed code phase, chips (default: 0.0).
+ *            acquisition estimate; finite (default: 0.0).
+ * @param init_chip_phase  Seed code phase, chips; finite (default: 0.0).
  * @param bn_carrier  Carrier (Costas) loop noise bandwidth, normalized to
  *              the symbol rate (default: 0.05).
  * @param bn_code  Code (DLL) loop noise bandwidth, normalized to the
  *              symbol rate (default: 0.01).
- * @return Heap-allocated state, or NULL on allocation failure.
+ * @return Heap-allocated state, or NULL on allocation failure or an invalid
+ *         argument: no code, code_len < sf, sf == 0, sps < 2, or a
+ *         non-finite seed.
  * @note Caller must call dp_burst_despreader_destroy() when done.
  * @code
  * >>> import numpy as np
@@ -373,10 +375,12 @@ size_t dp_burst_despreader_get_stat_n (const dp_burst_despreader_state_t *state)
  * The struct (loop_filter children POD-embedded) and then the acq code. The
  * data code is create-time config, rebuilt by create(); the acq code is a
  * setter's value -- only set_acq() sets it -- so it travels (#2022), and its
- * length is part of the blob's size. set_state refuses, writing nothing, a
- * blob from another sf, sps or acq-code length, one whose preamble fields
- * no set_acq() call could leave, or one whose chip position the kernel
- * cannot index from (#2041). */
+ * length is part of the blob's size. The loops' bn travels too: it is
+ * set_bn_carrier()'s and set_bn_code()'s value. set_state refuses, writing
+ * nothing, a blob from another sf, sps, seed or acq-code length; one whose
+ * preamble fields no set_acq() call could leave; one whose loop gains are
+ * not the ones its bn derives; and one holding a non-finite number, as an
+ * object fed a NaN sample does (#2041). */
 #define BURST_DESPREADER_STATE_MAGIC DP_FOURCC ('B','D','S','P')
 #define BURST_DESPREADER_STATE_VERSION                                       \
   3u /* v3: the acq code travels; sizing keys checked first (#2041) */

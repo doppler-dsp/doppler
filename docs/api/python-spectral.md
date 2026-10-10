@@ -50,6 +50,11 @@ peak-to-noise test statistic against `threshold` and emits a detection result
 when it passes (`threshold = 0.0` fires on every dump). The ring capacity is
 `next_pow_two(max(n, 512))` complex samples.
 
+One `push()` has room for **1024 detections**. A push that would make more
+loses the detections past the 1024th and the input that would have made them,
+so keep a chunk under 1024 frames
+([#1992](https://github.com/doppler-dsp/doppler/issues/1992)).
+
 ```python
 import numpy as np
 from doppler.spectral import CorrDetector
@@ -64,7 +69,7 @@ def stream_chunks():                              # a real CF32 source
                + 1j * np.random.randn(1024)).astype(np.complex64)
 
 
-for chunk in stream_chunks():                     # any chunk size
+for chunk in stream_chunks():                     # any size under 1024 frames
     for hit in det.push(chunk.astype(np.complex64)):
         print("detection:", hit)                  # (lag, peak, noise, stat)
 ```

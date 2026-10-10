@@ -51,6 +51,7 @@ typedef struct {
     size_t acc_n;            
     float _Complex prev;      
     int have_prev;           
+    int32_t _pad;
     double lock_metric;      
     dp_lockdet_state_t lock;    
     double last_error;       

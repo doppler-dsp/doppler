@@ -232,8 +232,8 @@ dp_detector_push (dp_detector_state_t *state, const float _Complex *in,
                   size_t n_in, det_result_t *result, size_t max_results)
 {
   /* The drain, its contract and why a batch is exact: det_private.h. */
-  return det_framed_push (&state->framer, state->n, in, n_in, result,
-                          max_results, detector_step, state, &state->consumed);
+  return det_framed_push (&state->framer, in, n_in, result, max_results,
+                          detector_step, state, &state->consumed);
 }
 
 size_t

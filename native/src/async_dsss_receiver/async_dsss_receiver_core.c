@@ -1513,7 +1513,10 @@ dp_async_dsss_receiver_get_state (const dp_async_dsss_receiver_state_t *s,
   DP_W_CHILD (&_w, dp_dll, s->dll);
   DP_W_CHILD (&_w, dp_RateConverter, s->rc);
   DP_W_CHILD (&_w, dp_mpsk_receiver, s->rx);
-  dp_w_cf32 (&_w, s->car_carry_buf, s->tsamps);
+  /* The carry's live samples, then zeros: the rest of the buffer is an
+     earlier period's or dp_xmalloc's, not state (#2076's sibling). */
+  dp_w_cf32 (&_w, s->car_carry_buf, s->car_carry_len);
+  dp_w_zeros (&_w, (s->tsamps - s->car_carry_len) * sizeof (float _Complex));
 }
 
 int

@@ -1174,6 +1174,44 @@ _test_refine_dwell_floor (void)
   return 0;
 }
 
+/* The blob's carry region is the live carry, then zeros (#2076's sibling).
+ * A restore fills the whole buffer with real samples at car_carry_len 0,
+ * the state a completed period leaves behind; the next get_state, into a
+ * poisoned blob, must ship none of them. Writing the whole buffer again
+ * turns this red. */
+static int
+_test_carry_tail_is_zeros (void)
+{
+  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
+      CODE7, 7, 1.0e6, 35714.29, 4, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5, 4,
+      14.0, 64, 8, false, 100000, 0.0, 0.0);
+  DP_CHECK (rx != NULL);
+  if (!rx)
+    return 1;
+  const size_t   cb    = dp_async_dsss_receiver_state_bytes (rx);
+  const size_t   carry = rx->tsamps * sizeof (float _Complex);
+  unsigned char *blob  = malloc (cb);
+  unsigned char *back  = malloc (cb);
+  dp_async_dsss_receiver_get_state (rx, blob);
+  DP_CHECK (rx->car_carry_len == 0);
+  for (size_t i = 0; i < rx->tsamps; i++)
+    {
+      const float re_im[2] = { (float)(i + 1), 0.5f };
+      memcpy (blob + cb - carry + i * sizeof re_im, re_im, sizeof re_im);
+    }
+  DP_CHECK (dp_async_dsss_receiver_set_state (rx, blob) == DP_OK);
+  memset (back, 0xA5, cb);
+  dp_async_dsss_receiver_get_state (rx, back);
+  size_t nonzero = 0;
+  for (size_t i = cb - carry; i < cb; i++)
+    nonzero += back[i] != 0;
+  DP_CHECK (nonzero == 0);
+  free (blob);
+  free (back);
+  dp_async_dsss_receiver_destroy (rx);
+  return 0;
+}
+
 static int
 _test_seeded_blob_keyed_by_flavor (void)
 {
@@ -2235,6 +2273,7 @@ main (void)
   (void)_test_one_flag_down_is_a_degrade ();
   (void)_test_refine_dwell_floor ();
   (void)_test_seeded_blob_keyed_by_flavor ();
+  (void)_test_carry_tail_is_zeros ();
   (void)_test_status_record ();
   (void)_test_cell_lifecycle_and_args ();
   (void)_test_cell_seed_past_pullin_is_estimated ();

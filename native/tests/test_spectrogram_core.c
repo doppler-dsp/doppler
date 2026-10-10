@@ -956,6 +956,21 @@ main (void)
       dp_spectrogram_destroy (c);
     }
 
+    /* ...and before its first row. With rows out, a blob of another hop
+       fails the counter check too (written - frames * hop != the carry),
+       which masked the hop check itself: removing it left the case above
+       green. With no row out the counters agree under any hop, so only the
+       stored hop can refuse it */
+    {
+      dp_spectrogram_state_t *c
+          = dp_spectrogram_create (nfft, hop + 1, 0, 0.0f, 0);
+      DP_REQUIRE (c != NULL);
+      DP_REQUIRE (dp_spectrogram_push (c, x, 20, rows, 4 * nfft) == 0);
+      dp_spectrogram_get_state (c, lie);
+      REFUSE (lie);
+      dp_spectrogram_destroy (c);
+    }
+
     /* an impossible carry in the framer's child blob: 21 held with 2 rows
        out (a drained framer holds at least nfft - hop = 22), and counters
        that agree, written = 2 * hop + 21 */

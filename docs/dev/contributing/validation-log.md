@@ -101,7 +101,7 @@ There is no list here to update.
 | [conv](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/conv/results.md)                                  | `— (C only)` | 7/7    | 3        | none                        |
 | [The ring's framer](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/framer/results.md)                   | `— (C only)` | 19/19  | 6        | none                        |
 | [rs](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/rs/results.md)                                      | `— (C only)` | 11/11  | 4        | none                        |
-| [The Spectrogram](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/spectrogram/results.md)                | `— (C only)` | 30/30  | 10       | 2 — F6, F7                  |
+| [The Spectrogram](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/spectrogram/results.md)                | `— (C only)` | 32/32  | 11       | 3 — F6, F7, F10             |
 | [wfmgen](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/wfmgen/results.md)                              | `— (C only)` | 18/18  | 9        | none                        |
 
 <!-- validation-log:end -->

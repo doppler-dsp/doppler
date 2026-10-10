@@ -220,7 +220,7 @@ is recorded with it in [the ring's measurements](ring-buffer-measurements.md).
 Its header's claims are certified in C, because it has no Python face yet:
 `native/validation/spectrogram_certify.c` measures and
 `src/doppler/tests/validation/spectrogram/results.md` is the generated report,
-with the header's twenty-four claims inventoried against their pins and the
+with the header's twenty-seven claims inventoried against their pins and the
 sabotage that turned each red.
 
 ## 6. The order of work

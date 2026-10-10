@@ -312,11 +312,12 @@ target_link_libraries(validate_framer_certify PRIVATE doppler_lib_static ${DP_MA
 dp_gnu_compile_options(validate_framer_certify PRIVATE -O3 -funroll-loops)
 
 # spectrogram_certify measures the Spectrogram, which has no Python face until
-# #1894's slice 3b. Today it holds the characterization's U5 (the dB floor,
-# docs/design/spectrogram-measurements.md §5.4); the certification adds its
-# claims and a validator under src/doppler/tests/validation/spectrogram/. No
-# `--check`, no CTest, for the reason conv_certify gives; it reaches
-# native/tests for dp_rng_test.h's seeded complex Gaussian.
+# #1894's slice 3b: its header's claims at scale, and the characterization's
+# U5 (the dB floor, docs/design/spectrogram-measurements.md §5.4). The
+# validator that renders and asserts them is
+# src/doppler/tests/validation/spectrogram/validate.py. No `--check`, no
+# CTest, for the reason conv_certify gives; it reaches native/tests for
+# dp_rng_test.h's seeded complex Gaussian.
 add_executable(validate_spectrogram_certify
                ${CMAKE_CURRENT_SOURCE_DIR}/spectrogram_certify.c)
 target_include_directories(validate_spectrogram_certify

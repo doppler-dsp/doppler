@@ -60,7 +60,7 @@ There is no list here to update.
 
 <!-- validation-log:start -->
 
-**38 objects certified** — 25 of the 88 `objects/*.toml` jm fragments, plus 13 with no object manifest at all (`buffer`, `ccsds_tm`, `conv`, `detection`, `ema`, `framer`, `mpsk`, `resamp`, `rs`, `wfm_compose`, `wfm_frame`, `wfm_plan`, `wfmgen`): a function primitive, or a core declared another way. Not every fragment is a DSP object with an envelope worth certifying, so read the denominator as a ceiling rather than a target — and note the two counts are different populations, not a percentage.
+**39 objects certified** — 25 of the 88 `objects/*.toml` jm fragments, plus 14 with no object manifest at all (`buffer`, `ccsds_tm`, `conv`, `detection`, `ema`, `framer`, `mpsk`, `resamp`, `rs`, `spectrogram`, `wfm_compose`, `wfm_frame`, `wfm_plan`, `wfmgen`): a function primitive, or a core declared another way. Not every fragment is a DSP object with an envelope worth certifying, so read the denominator as a ceiling rather than a target — and note the two counts are different populations, not a percentage.
 
 | object                                                                                                                                 | module       | limits | findings | still open                  |
 | -------------------------------------------------------------------------------------------------------------------------------------- | ------------ | ------ | -------- | --------------------------- |
@@ -101,6 +101,7 @@ There is no list here to update.
 | [conv](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/conv/results.md)                                  | `— (C only)` | 7/7    | 3        | none                        |
 | [The ring's framer](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/framer/results.md)                   | `— (C only)` | 19/19  | 6        | none                        |
 | [rs](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/rs/results.md)                                      | `— (C only)` | 11/11  | 4        | none                        |
+| [The Spectrogram](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/spectrogram/results.md)                | `— (C only)` | 30/30  | 10       | 2 — F6, F7                  |
 | [wfmgen](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/wfmgen/results.md)                              | `— (C only)` | 18/18  | 9        | none                        |
 
 <!-- validation-log:end -->

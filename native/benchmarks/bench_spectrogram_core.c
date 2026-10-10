@@ -98,9 +98,11 @@ add (config_t *cfg, int *nc, size_t nfft, size_t hop, size_t chunk, int direct,
   c->chunk    = chunk;
   c->direct   = direct;
   c->block    = block;
-  /* Hann, dB, DC-centred: the shape a waterfall asks for, and the PSD the
-     Spectrogram builds for itself */
-  c->s = dp_spectrogram_create (nfft, hop, 0, 0.0f, 0);
+  /* Hann, dB rows by name, DC-centred, and the PSD the Spectrogram builds
+     for itself: the rows U1-U4 measured (spectrogram-measurements.md
+     entries 5.6-5.9). Power rows, the default, gain their own rows in
+     #2094's measurement. */
+  c->s = dp_spectrogram_create (nfft, hop, 0, 0.0f, DP_SPECTROGRAM_DB);
   c->p = direct ? dp_psd_create (nfft, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.0) : NULL;
   if (!c->s || (direct && !c->p))
     return NULL;

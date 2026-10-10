@@ -277,6 +277,15 @@ repos:
         pass_filenames: false
         files: ^(native/inc/|cmake/public-symbols\.txt$)
 
+      # A ring's head, tail and mask belong to buffer.h; the consumers left
+      # touching them are a ratchet that only shrinks (#1426).
+      - id: ring-internals
+        name: ring internals stay in buffer.h
+        entry: make -s lint-ring-internals
+        language: system
+        pass_filenames: false
+        files: ^(native/.*\.[ch]|scripts/(\.ring-internals-ratchet|check_ring_internals\.py))$
+
       # A docs fence or an example that computes a claim and drops it (a bare
       # `np.array_equal(...)` statement) runs green and checks nothing; so
       # does an example with no assert at all. doppler#1682.

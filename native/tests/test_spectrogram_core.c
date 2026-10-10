@@ -24,6 +24,8 @@
  *      'SPGM' version 1, it carries the stream position and nothing else,
  *      and set_state refuses a wrong magic, version, envelope size, nfft,
  *      hop or an impossible carry, leaving the object as it was (G4)
+ * 14b. a different window or beta is NOT refused on restore: the rows that
+ *      follow are the restoring object's window, not the blob's source's
  *  15. a row arrives with the push that delivers its last sample: zero
  *      latency in samples
  *
@@ -386,7 +388,7 @@ main (void)
     DP_REQUIRE (pre_blob != NULL);
     uint32_t r   = 0xBAC4u;
     size_t   off = 0, made = 0, short_calls = 0;
-    int      maximal = 1;
+    int      maximal = 1, progressed = 1;
     while (off < NX)
       {
         size_t chunk = 1 + dp_xs32 (&r) % (3 * nfft);
@@ -423,10 +425,17 @@ main (void)
               maximal = 0;
             short_calls += took < chunk - done;
             done += took;
-            DP_REQUIRE (took || w); /* every call made progress */
+            if (!took && !w)
+              {
+                /* no progress: a failed check, not an abort, so the
+                   sections after this one still run */
+                progressed = 0;
+                break;
+              }
           }
         off += chunk;
       }
+    DP_CHECK (progressed); /* every call made progress */
     DP_CHECK (made == rows);
     DP_CHECK (memcmp (got, want, rows * nfft * sizeof *got) == 0);
     /* the precondition: the backpressure path really ran */
@@ -521,7 +530,10 @@ main (void)
         size_t flushed = dp_spectrogram_flush (s, row);
         if ((flushed == nfft) != (n > covered))
           iff = 0;
-        if ((flushed == 0) != (pend == 0)) /* pending 0 iff nothing owed */
+        /* pending is what no written row covered, counted here from the
+           rows the push returned, not read back from the framer that
+           flush also reads */
+        if (pend != n - covered)
           iff = 0;
         if (flushed == nfft)
           {
@@ -773,8 +785,9 @@ main (void)
 
   /* ---- 13. an all-zero row reads exactly the kernel's floor --------- */
   /* PSD clamps power at 1e-20 before the log, so a frame of zeros reads
-     -200 dB in every bin, exactly, whatever the window: what a caller tests
-     to tell "no signal at all" from a weak one */
+     -200 dB in every bin, exactly, whatever the window. The clamp makes ANY
+     frame below about -200 dBFS read the same, so -200 does not tell "no
+     signal" from a signal under the floor; design U5 leaves that open */
   {
     const size_t nfft       = 32;
     float _Complex zero[32] = { 0 };
@@ -955,6 +968,52 @@ main (void)
     dp_spectrogram_destroy (a);
     dp_spectrogram_destroy (b);
     dp_spectrogram_destroy (twin);
+  }
+
+  /* ---- 14b. a different window or beta is NOT refused on restore ------ */
+  /* The blob carries no window or beta, so a Hann object's blob restores
+     into a Kaiser object, and what follows is Kaiser's: the continuation
+     equals a Kaiser object fed the whole stream, from the row the split
+     left off at. The precondition: a Hann continuation differs, so the
+     comparison could tell the two apart. */
+  {
+    const size_t            nfft = 16, hop = 6, split = 77, total = 400;
+    dp_spectrogram_state_t *a = dp_spectrogram_create (nfft, hop, 0, 0.0f, 0);
+    dp_spectrogram_state_t *b = dp_spectrogram_create (nfft, hop, 1, 6.0f, 0);
+    dp_spectrogram_state_t *ref
+        = dp_spectrogram_create (nfft, hop, 1, 6.0f, 0);
+    DP_REQUIRE (a && b && ref);
+    float *out_a = malloc (total * nfft * sizeof *out_a);
+    float *out_b = malloc (total * nfft * sizeof *out_b);
+    float *out_r = malloc (total * nfft * sizeof *out_r);
+    void  *blob  = malloc (dp_spectrogram_state_bytes (a));
+    DP_REQUIRE (out_a && out_b && out_r && blob);
+    size_t ka = dp_spectrogram_push (a, x, split, out_a, total * nfft) / nfft;
+    DP_CHECK (dp_spectrogram_consumed (a) == split);
+    dp_spectrogram_get_state (a, blob);
+    DP_CHECK (dp_spectrogram_set_state (b, blob) == DP_OK); /* not refused */
+    size_t kb = dp_spectrogram_push (b, x + split, total - split, out_b,
+                                     total * nfft)
+                / nfft;
+    size_t kr
+        = dp_spectrogram_push (ref, x, total, out_r, total * nfft) / nfft;
+    DP_CHECK (ka + kb == kr);
+    DP_CHECK (kb > 0
+              && memcmp (out_b, out_r + ka * nfft, kb * nfft * sizeof *out_b)
+                     == 0);
+    /* the precondition: the Hann object's own continuation is different */
+    size_t kh = dp_spectrogram_push (a, x + split, total - split, out_a,
+                                     total * nfft)
+                / nfft;
+    DP_CHECK (kh == kb
+              && memcmp (out_a, out_b, kb * nfft * sizeof *out_a) != 0);
+    free (blob);
+    free (out_r);
+    free (out_b);
+    free (out_a);
+    dp_spectrogram_destroy (ref);
+    dp_spectrogram_destroy (b);
+    dp_spectrogram_destroy (a);
   }
 
   /* ---- 15. a row arrives with the push that delivers its last sample -- */

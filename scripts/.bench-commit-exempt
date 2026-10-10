@@ -1,10 +1,12 @@
 # Published benchmark sets whose doppler_meta.commit can never be put on main.
 # Read by scripts/check_bench_commits.py (make bench-commits-check, #1322).
 #
-# One line per exempt (set, commit) PAIR, then why it cannot be fixed: the
-# pair, so a new off-main file in an exempt set, or a re-stamped one, still
-# fails. This list may only SHRINK: the gate fails on an ADDED pair, on a
-# pair no file fails with any more, and on a set whose directory is gone.
+# One line per exempt (set, commit) PAIR, then why it cannot be fixed. A file
+# in an exempt set passes only if its stamp IS the exempt commit: a new file
+# there with any other off-main stamp fails, and re-stamping an exempt file
+# fails while its old pair goes stale. This list may only SHRINK: the gate
+# fails on an ADDED pair, on a pair no file fails with any more, and on a
+# set whose directory is gone.
 # A new set never goes here -- measure on main, or
 # `make bench-restamp VERSION=...` it onto main's tree-identical commit.
 v0.56.0 c9dbcf8da the commit is gone from GitHub (fetch answers "not our ref"), so its tree cannot be matched to a main commit

@@ -149,10 +149,13 @@ def added_since_base(
     entry is added. Reading "absent" as "new, skip the check" turned the
     ratchet off for any branch that moved the list (#1976 review).
 
-    The one exception is the change that introduces the ratchet itself.
-    ``since`` names the gate's own file, and while THAT is absent at the
-    base there is no baseline yet, so nothing counts as added. That lets
-    the PR that brings a gate also bring its first list.
+    The one exception is the change that introduces the ratchet itself:
+    the gate's own file (``since``) AND the list are both absent at the
+    base, so there is no baseline yet and nothing counts as added. That
+    lets the PR that brings a gate also bring its first list. Both, not
+    the gate alone: otherwise renaming the gate (``git mv``, then point
+    ``since`` at the new name) would make its file "absent at the base"
+    and switch the ratchet off for a list that is right there.
 
     Raises
     ------
@@ -160,8 +163,8 @@ def added_since_base(
         See :func:`resolve_base`. A ratchet that cannot read its baseline
         has not been checked, so callers fail closed.
     """
-    if show_at_base(root, ref, since) is None:
-        return []
     then = show_at_base(root, ref, rel)
+    if then is None and show_at_base(root, ref, since) is None:
+        return []
     before = set(parse(then)) if then is not None else set()
     return [e for e in entries if e not in before]

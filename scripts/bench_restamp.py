@@ -41,7 +41,7 @@ from pathlib import Path
 
 # The gate's own reads: what a commit resolves to and whether main has it.
 # One home, so the restamp cannot disagree with the gate it exists to pass.
-from check_bench_commits import PUBLISHED, git, resolve, verdict
+from check_bench_commits import PUBLISHED, SHA, git, resolve, verdict
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -53,6 +53,8 @@ class RestampError(Exception):
 def _target(root: Path, name: str, data: dict, base: str) -> str | None:
     """The abbreviated commit to stamp, or None when already on base."""
     old = data["doppler_meta"]["commit"]
+    if not SHA.fullmatch(old):
+        raise RestampError(f"{name}: {old!r} is not a commit SHA")
     sha = resolve(root, old)
     full = data.get("commit_info", {}).get("id", "")
     if sha is None and full.startswith(old):

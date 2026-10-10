@@ -186,6 +186,15 @@ def test_a_ratchet_starts_when_its_gate_lands(
     assert _added(gitbase, tmp_path, ["a", "b"]) == []
 
 
+def test_renaming_the_gate_does_not_switch_it_off(
+    tmp_path: Path, gitbase: ModuleType
+) -> None:
+    """The gate's file is "absent at the base" after a `git mv`, but the
+    list is right there: that is not the bootstrap, so compare."""
+    _ratchet_repo(tmp_path, gate=False, listed="a b\n")
+    assert _added(gitbase, tmp_path, ["a", "b", "c"]) == ["c"]
+
+
 def test_the_merge_base_is_used_not_the_tip(
     tmp_path: Path, gitbase: ModuleType
 ) -> None:

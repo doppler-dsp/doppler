@@ -214,7 +214,7 @@ dp_awgn_state_bytes (const dp_awgn_state_t *state)
 {
   (void)state;
   return sizeof (dp_state_hdr_t) + sizeof (uint64_t) * 4
-         + sizeof (uint64_t) * 4 * 8;
+         + sizeof (uint64_t) * 4 * 8 + sizeof (float);
 }
 
 void
@@ -225,6 +225,7 @@ dp_awgn_get_state (const dp_awgn_state_t *state, void *blob)
             dp_awgn_state_bytes (state));
   dp_w_bytes (&w, state->s, sizeof state->s);
   dp_w_bytes (&w, state->vs, sizeof state->vs);
+  dp_w_f32 (&w, &state->amplitude, 1);
 }
 
 int
@@ -238,6 +239,9 @@ dp_awgn_set_state (dp_awgn_state_t *state, const void *blob)
   r.off         = sizeof (dp_state_hdr_t);
   dp_r_bytes (&r, state->s, sizeof state->s);
   dp_r_bytes (&r, state->vs, sizeof state->vs);
+  /* set_amplitude takes any float, so the restore does too: the blob may
+     carry exactly what the setter could have stored. */
+  dp_r_f32 (&r, &state->amplitude, 1);
   return DP_OK;
 }
 

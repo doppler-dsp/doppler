@@ -21,7 +21,8 @@
 #
 # key                                                   verdict           reason
 
-# -- LOST (17)
+# -- LOST (18)
+BurstCapture.configure_search_raw                       LOST              mid-stream it resets acq's position but not samples_fed, so a capture refuses its own later checkpoint (#2087)
 DDC.norm_freq                                           LOST              family 1, the LO/NCO root: norm_freq is not in the leaf blob (#2079)
 Ddcr.norm_freq                                          LOST              family 1, the LO/NCO root: norm_freq is not in the leaf blob (#2079)
 LO.norm_freq                                            LOST              family 1, the LO/NCO root: norm_freq is not in the leaf blob (#2079)
@@ -39,9 +40,6 @@ RateSync.bn                                             LOST              family
 RateSync.configure_lock_raw                             LOST              family 5: the receivers' loop/lock setters (#2083)
 RateSync.configure                                      LOST              family 5: the receivers' loop/lock setters, bn and zeta (#2083)
 AWGN.amplitude                                          LOST              family 6: the amplitude is not packed (#2084)
-
-# -- NONDETERMINISTIC (1)
-CarrierAcquisition.steps                                NONDETERMINISTIC  get_state writes the carry buffer's uninitialised tail (#2076)
 
 # -- UNPROBED (13)
 BurstCapture.release                                    UNPROBED          releases a captured burst by index, and the matrix feed captures none, so no index is valid; a feed that captures one is #2078

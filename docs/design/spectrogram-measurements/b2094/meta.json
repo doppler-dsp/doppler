@@ -1,0 +1,54 @@
+{
+ "portable": {
+  "measured_at": "2026-10-10T17:45:40.049087+00:00",
+  "commit": "c36a042e0",
+  "compiler": "cc (GCC) 16.2.1 20260810",
+  "flags": "-O3 -march=x86-64-v2 -ffast-math",
+  "cpu": "AMD Ryzen AI 9 465 w/ Radeon 880M",
+  "cores": 20,
+  "cpu_governor": "performance",
+  "cpu_boost": "on",
+  "platform_profile": "performance",
+  "pinned_cpus": [
+   0,
+   1,
+   2,
+   3,
+   10,
+   11,
+   12,
+   13
+  ],
+  "kernel": "7.2.9-2-cachyos",
+  "python": "3.13.13",
+  "numpy": "2.4.5",
+  "glibc": "glibc 2.44",
+  "cmake": "4.4.4"
+ },
+ "native": {
+  "measured_at": "2026-10-10T17:52:26.986920+00:00",
+  "commit": "c36a042e0",
+  "compiler": "cc (GCC) 16.2.1 20260810",
+  "flags": "-O3 -march=native -mprefer-vector-width=256 -ffast-math",
+  "cpu": "AMD Ryzen AI 9 465 w/ Radeon 880M",
+  "cores": 20,
+  "cpu_governor": "performance",
+  "cpu_boost": "on",
+  "platform_profile": "performance",
+  "pinned_cpus": [
+   0,
+   1,
+   2,
+   3,
+   10,
+   11,
+   12,
+   13
+  ],
+  "kernel": "7.2.9-2-cachyos",
+  "python": "3.13.13",
+  "numpy": "2.4.5",
+  "glibc": "glibc 2.44",
+  "cmake": "4.4.4"
+ }
+}

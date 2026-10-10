@@ -284,3 +284,30 @@ def test_acq_handoff_verify_reject():
     bogus = Despreader(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
     bogus.steps(noise)
     assert bogus.code_locked is False  # reject: tear down, back to acq
+
+
+@pytest.mark.parametrize(
+    "kw",
+    [
+        {"spacing": float("nan")},
+        {"init_chip": float("nan")},
+        {"bn_code": float("nan")},
+    ],
+)
+def test_create_refuses_a_bad_code_loop_parameter(kw):
+    """The code loop is a Dll embedded by value, which trusts its arguments:
+    Despreader(code, spacing=nan).steps(x) read code[2^62] on x86-64
+    (doppler#2103). The Despreader checks them against the Dll's own domain
+    at create."""
+    with pytest.raises(ValueError, match="Despreader: invalid parameter"):
+        Despreader(_code(), SPS, **kw)
+
+
+def test_a_nan_code_bandwidth_changes_nothing():
+    """The C setter refuses a NaN bandwidth. A jm writable property cannot
+    yet raise what its setter returns (just-buildit/just-makeit#2182), so the
+    refusal shows as the value staying put rather than a ValueError."""
+    d = Despreader(_code(), SPS)
+    before = d.bn_code
+    d.bn_code = float("nan")
+    assert d.bn_code == before

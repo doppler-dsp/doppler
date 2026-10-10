@@ -217,6 +217,25 @@ test_state_roundtrip (void)
   dp_awgn_destroy (a);
   dp_awgn_destroy (b);
   free (blob);
+
+  /* The amplitude travels (#2084): set after create, it is a mutator's value
+     and so state. A target created at another amplitude resumes at the
+     source's, and continues with the same output. */
+  dp_awgn_state_t *src = dp_awgn_create (7, 1.0f);
+  dp_awgn_state_t *dst = dp_awgn_create (7, 1.0f);
+  dp_awgn_generate (src, M, ref, M);
+  dp_awgn_set_amplitude (src, 2.5f);
+  dp_awgn_set_amplitude (dst, 0.25f); /* another value: must not survive */
+  void *b2 = malloc (dp_awgn_state_bytes (src));
+  dp_awgn_get_state (src, b2);
+  DP_CHECK (dp_awgn_set_state (dst, b2) == DP_OK);
+  DP_CHECK (dp_awgn_get_amplitude (dst) == 2.5f);
+  dp_awgn_generate (src, M, ref, M);
+  dp_awgn_generate (dst, M, got, M);
+  DP_CHECK (memcmp (ref, got, sizeof ref) == 0);
+  dp_awgn_destroy (src);
+  dp_awgn_destroy (dst);
+  free (b2);
 }
 
 /* ------------------------------------------------------------------

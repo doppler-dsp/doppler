@@ -239,6 +239,41 @@ main (void)
     dp_doppler_channel_destroy (b);
   }
 
+  /* ---- 6b. a refused blob changes nothing (doppler#2104) -------------- */
+  {
+    /* The channel's own fields used to be written before its resampler
+       child could refuse. A blob from an earlier point, with the child's
+       envelope clobbered, is refused by the SAME channel, which then gives
+       the blob it gave before -- the fields included. */
+    dp_doppler_channel_state_t *a
+        = dp_doppler_channel_create (T_FS, T_FC, T_PPM, T_RATE);
+    DP_CHECK (a != NULL);
+    size_t          cap = dp_doppler_channel_execute_max_out (a);
+    float _Complex *ya  = malloc (cap * sizeof *ya);
+    size_t          cb  = dp_doppler_channel_state_bytes (a);
+    unsigned char  *old = malloc (cb), *cur = malloc (cb), *now = malloc (cb);
+    DP_CHECK (ya && old && cur && now);
+
+    (void)dp_doppler_channel_execute (a, x, 8192, ya, cap);
+    dp_doppler_channel_get_state (a, old);
+    (void)dp_doppler_channel_execute (a, x, 8192, ya, cap);
+    dp_doppler_channel_get_state (a, cur);
+    /* The premise: the advance moved the channel's own fields. */
+    const size_t fields = sizeof (dp_state_hdr_t);
+    DP_CHECK (memcmp (old + fields, cur + fields, 4u * 8u) != 0);
+
+    old[fields + 4u * 8u] ^= 0xFFu; /* the resampler's envelope magic */
+    DP_CHECK (dp_doppler_channel_set_state (a, old) == DP_ERR_INVALID);
+    dp_doppler_channel_get_state (a, now);
+    DP_CHECK (memcmp (now, cur, cb) == 0);
+
+    free (old);
+    free (cur);
+    free (now);
+    free (ya);
+    dp_doppler_channel_destroy (a);
+  }
+
   /* ---- 7. the standard round-trip + envelope reject ------------------- */
   {
     dp_doppler_channel_state_t *a

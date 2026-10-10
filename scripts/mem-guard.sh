@@ -17,10 +17,15 @@
 # still sink the machine together, which is exactly how the VM died on
 # 2026-10-01 and again on 2026-10-03 -- the docs build (6.0 GiB) beside an
 # xdist pytest run. In one slice they share one budget, and an overrun
-# kills the largest of them instead of the VM. The last guarded command to
-# start sets the slice's ceiling; with the default that is the same value
-# every time. scripts/check_mem_guarded.py fails `make lint` when a parallel
-# pytest or a zensical command is reachable without this script.
+# kills the largest of them instead of the VM. The slice's ceiling is ALWAYS
+# the machine-wide value, 3/4 of MemTotal, never a caller's: it used to come
+# from whichever guarded command started last, so one caller's
+# MEM_GUARD_MAX=4G held every other session's live commands to 4G (#1960).
+# A caller who wants less gets it on its OWN scope (MemoryMax on the
+# systemd-run scope, nested under the shared slice), which tightens that
+# command and nobody else. scripts/check_mem_guarded.py fails `make lint`
+# when a parallel pytest or a zensical command is reachable without this
+# script.
 #
 # The ceiling is PROVED before it is trusted. A user manager that accepts
 # MemoryMax without the memory controller delegated to it enforces nothing,
@@ -31,7 +36,8 @@
 # is accepted but not enforced -- the command runs unguarded and says so on
 # stderr. Either way the command runs; the guard never blocks the work.
 #
-#   MEM_GUARD_MAX     ceiling; default 3/4 of MemTotal (e.g. 11500M)
+#   MEM_GUARD_MAX     a lower ceiling for THIS command's own scope (e.g.
+#                     4G); the shared slice stays at 3/4 of MemTotal
 #   MEM_GUARD_PYTHON  interpreter for the probe; default python3
 #   MEM_GUARD=0       skip the guard entirely
 set -euo pipefail
@@ -42,10 +48,13 @@ if [ "${MEM_GUARD:-1}" = 0 ]; then
   exec "$@"
 fi
 
-max=${MEM_GUARD_MAX:-}
-if [ -z "$max" ] && [ -r /proc/meminfo ]; then
+# The shared slice's ceiling: machine-wide, the same for every caller.
+max=
+if [ -r /proc/meminfo ]; then
   max=$(awk '/^MemTotal/ { printf "%dM", $2 * 3 / 4 / 1024 }' /proc/meminfo)
 fi
+# This command's own ceiling, if it asked for one.
+cap=${MEM_GUARD_MAX:-}
 py=${MEM_GUARD_PYTHON:-python3}
 
 unguarded() {
@@ -98,5 +107,13 @@ slice=doppler-guard.slice
 systemctl --user set-property --runtime "$slice" \
   MemoryMax="$max" MemorySwapMax=0 \
   || unguarded "could not set the ceiling on $slice" "$@"
+if [ -n "$cap" ]; then
+  # Nested: the scope can never exceed the slice, so a cap above the shared
+  # ceiling simply leaves the shared ceiling in force.
+  echo "mem-guard: ceiling $max, shared across $slice; this command" \
+    "capped at $cap" >&2
+  exec systemd-run --user --scope -q --slice="$slice" \
+    -p MemoryMax="$cap" -p MemorySwapMax=0 -- "$@"
+fi
 echo "mem-guard: ceiling $max, shared across $slice" >&2
 exec systemd-run --user --scope -q --slice="$slice" -- "$@"

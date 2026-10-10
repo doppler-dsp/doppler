@@ -128,6 +128,28 @@ main (void)
     dp_hbdecim_q15_destroy (b);
   }
 
+  /* #2148 r3: the AVX2 kernel reads a[N-16-k], which is inside the fold
+   * only when the fold is at least K_pad long. Short tap counts take the
+   * scalar path. Run them with exactly-sized buffers so ASan sees any read
+   * outside the ring (native -march=native ASan build is the proof). */
+  for (size_t taps = 2; taps <= 15; taps++)
+    {
+      float h[15];
+      for (size_t i = 0; i < taps; i++)
+        h[i] = 0.05f * (float)(i + 1);
+      dp_hbdecim_q15_state_t *q = dp_hbdecim_q15_create (taps, h);
+      DP_CHECK (q != NULL);
+      if (q)
+        {
+          int16_t in[2 * 24], out[2 * 24];
+          for (int i = 0; i < 2 * 24; i++)
+            in[i] = (int16_t)(50 * i - 300);
+          size_t n = dp_hbdecim_q15_execute (q, in, 24, out, 24);
+          DP_CHECK (n <= 24);
+          dp_hbdecim_q15_destroy (q);
+        }
+    }
+
   /* ---------------------------------------------------------------- *
    * #2142: a forged head or flag is refused, the object untouched          *
    * ---------------------------------------------------------------- */

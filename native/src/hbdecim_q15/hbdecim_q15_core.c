@@ -170,9 +170,21 @@ compute_output (const dp_hbdecim_q15_state_t *r, int16_t *out_I,
 
   int64_t acc_I, acc_Q;
 
+  /* The AVX2 kernel loads a[N-16-k] for k < K_pad, which stays inside the
+   * fold only when N_fold >= K_pad. A shorter fold (num_taps < 16, or the
+   * N-odd case with few taps) reads before the window, so it takes the scalar
+   * path, which is the exact reference and gives the same sum (#2142). */
 #if defined(__AVX2__)
-  acc_I = fir_q15_avx2 (a_I, N_fold, r->coeffs, r->K_pad);
-  acc_Q = fir_q15_avx2 (a_Q, N_fold, r->coeffs, r->K_pad);
+  if (N_fold >= r->K_pad)
+    {
+      acc_I = fir_q15_avx2 (a_I, N_fold, r->coeffs, r->K_pad);
+      acc_Q = fir_q15_avx2 (a_Q, N_fold, r->coeffs, r->K_pad);
+    }
+  else
+    {
+      acc_I = fir_q15_scalar (a_I, N_fold, r->coeffs, r->K);
+      acc_Q = fir_q15_scalar (a_Q, N_fold, r->coeffs, r->K);
+    }
 #else
   acc_I = fir_q15_scalar (a_I, N_fold, r->coeffs, r->K);
   acc_Q = fir_q15_scalar (a_Q, N_fold, r->coeffs, r->K);

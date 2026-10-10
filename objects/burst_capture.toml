@@ -382,7 +382,7 @@ identical to "nothing was ever there"."""
 [[burst_capture.properties]]
 name = "dropped"
 type = "uint64_t"
-doc = "Samples of look-back discarded while a queued detection still needed them, lifetime: the part of a dead detection's span -- one whose history is gone, so it can never be emitted -- behind the ring's tail. push() never refuses input, and a resume carries all the look-back, so on a live stream this stays 0. A LOST BURST each, not a statistic -- it survives reset()."
+doc = "Samples of look-back discarded while a queued detection still needed them, lifetime: the part of a dead detection's span -- one whose history is gone, so it can never be emitted -- behind the ring's tail. A shadowed detection is not counted. On a live stream this stays 0: push() never refuses input, a moved anchor is a later one, and a re-armed refine reads no further back than the history kept for an unarrived detection at or ahead of it. A resume carries all the look-back, so what makes it non-zero is a blob that names history it does not hold. A LOST BURST each, not a statistic -- it survives reset()."
 
 [[burst_capture.properties]]
 name = "n_bursts"

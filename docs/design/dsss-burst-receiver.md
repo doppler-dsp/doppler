@@ -591,8 +591,7 @@ push(x, n) ->
                  keep the one with the larger raw peak_mag
              inside a burst that already DECODED -> its payload, drop
              otherwise -> a new candidate
-             (acq is re-fed until it has absorbed the whole chunk: it
-              stops once its result array fills and abandons the rest)
+             (acq is re-fed until it has absorbed the whole chunk)
     per claimed burst WHOSE WINDOW HAS ARRIVED -- all of them, not one:
         REFINE   score offsets over +/- REPS*P: one code-period
                  correlation per preamble position, combined
@@ -702,9 +701,10 @@ than mechanism (the primitive should not grow them):
     refine still needs it. This is the receiver's bookkeeping, and it is what
     the sizing formula above has to be checked against. The one exception is
     a detection that can never be emitted because its history is already
-    gone: it would pin the ring until the stream stopped, so it is
-    abandoned, and the look-back it held is counted as lost. Trim is still
-    the only place history is released.
+    gone: it would pin the ring until the stream stopped, so the sweep
+    drops it, and the look-back it held is counted as lost if it was a
+    burst. On a live stream none dies; a resume or a forged blob is what
+    the sweep is for. Trim is still the only place history is released.
 - **No overrun; a loud loss.** `dp_f32_write()` is all-or-nothing, right for
     a frame and wrong for a stream: a refused chunk was skipped by history
     AND by acquisition, so every later epoch came out early by exactly what
@@ -712,7 +712,7 @@ than mechanism (the primitive should not grow them):
     burst pin the ring made the first refusal permanent (#2028). The capture
     writes what fits (`dp_f32_write_some()`) and loops, so the ring head,
     what acquisition has absorbed and the stream position are one number. A
-    partial write is not a loss. Loud means an abandoned detection, counted
+    partial write is not a loss. Loud means a dead detection, counted
     in `dropped` -- a **lost burst**, an error a caller sees rather than a
     statistic. Same reasoning as `Report.capture`'s refusal to file a
     capture with a hole.
@@ -1033,8 +1033,8 @@ are not re-made:
     acquisition child, the look-back and the queue, with nothing of the
     demodulator (§6.2). The buffer is necessarily in the blob — a resume has
     to reach back to a burst start already gone past — and after the split
-    the same fixed `retain_span` region is written, one envelope deeper,
-    behind the capture's own `state_bytes()`.
+    the same fixed region, the whole history ring, is written one envelope
+    deeper, behind the capture's own `state_bytes()`.
 - **It needs no new accessor.** `dp_acq_state_t::doppler_res_hz` is a public
     field and `BurstAcquisition.doppler_res_hz` is a published property
     (`objects/burst_acq.toml`), so nothing re-derives the bin width.
@@ -1047,14 +1047,14 @@ and `state_bytes()`:
 
 | geometry                | `retain_span` | `state_bytes()` |
 | ----------------------- | ------------- | --------------- |
-| SF31×4, 61-sym frame    | 5 176         | 0.14 MB         |
+| SF31×4, 61-sym frame    | 5 176         | 0.13 MB         |
 | SF511×5, 1029-sym frame | 324 716       | 8.41 MB         |
 | SF511×5, 8029-sym frame | 2 088 716     | 33.58 MB        |
 
 The history ring — twice `retain_span` rounded up to a power of two, at 8 B a
-sample — is all but 5–22 kB of each, so a checkpoint is the history and
+sample — is all but 4–22 kB of each, so a checkpoint is the history and
 little else. (Re-measured 2026-10-10 for #2015, which made the blob carry the
-whole ring rather than `retain_span` of it, so a resume emits every burst the
+whole ring rather than `retain_span` of it, and again after #2042's acq blob, so a resume emits every burst the
 live receiver would; the 2026-09-01 figures were 0.05 / 2.57 / 16.68 MB.) In a microservices deployment that is plausibly fine — a
 blob is written on migration, not per `push()`. Where it is not, the answer
 is a different **retention backend**: a circular file the blob references by
@@ -1063,7 +1063,7 @@ space. That is a policy about where retained samples live, and it is
 precisely what the capture is the right owner of — today's ring is RAM the
 object owns and no knob changes that. **Built since:**
 `PersistentBurstCapture` (2026-09-01) keeps the ring in a file, and its blob
-drops the `retain_span · 8` bytes of history.
+drops the ring's `capacity · 8` bytes of history.
 
 ### 11.5 The name
 

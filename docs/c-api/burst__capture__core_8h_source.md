@@ -99,11 +99,13 @@ typedef struct
   size_t k_lo;         
   size_t k_hi;         
   /* ── Detections in flight ────────────────────────────────────────────
-   * In ANCHOR ORDER, which set_state() checks. An unshadowed detection whose
-   * window has arrived is emitted before push() returns, except one a
-   * release() gave back after it, which the next push emits first; a
-   * detection whose history is gone is swept, counted in `dropped`. That is
-   * what bounds retention (see the trim rule in the implementation). */
+   * In ANCHOR ORDER, which set_state() checks, and emitted in that order:
+   * an unshadowed detection whose window has arrived is emitted before
+   * push() returns unless one queued ahead of it has not arrived, and one a
+   * release() gave back after the push is emitted by the next push first. A
+   * detection whose history is gone is swept, counted in `dropped` unless
+   * it was shadowed. That is what bounds retention (see the trim rule in the
+   * implementation). */
   burst_capture_pending_t *q; 
   size_t q_cap;   
   size_t q_head;  

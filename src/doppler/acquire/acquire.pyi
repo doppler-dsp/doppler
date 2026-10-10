@@ -1893,10 +1893,11 @@ class BurstCapture:
         It aborts the process in two places, both a defect in this object and
         neither reachable from any input or from any blob set_state() accepts:
         a history ring with no room after trim (the bound in the
-        implementation's trim proves room), and an acquisition call that
-        neither wrote, framed nor reported a hit (its ring always holds a
-        frame). Each stops rather than spinning forever -- and in a Python host
-        it ends the interpreter.
+        implementation's trim proves room), and an acquisition call that took
+        nothing while input was left (each call starts with its result empty,
+        and a push with its result empty takes at least the next frame, or the
+        rest as carry). Each stops rather than spinning forever -- and in a
+        Python host it ends the interpreter.
 
         Parameters
         ----------
@@ -2437,9 +2438,13 @@ class BurstCapture:
         """Samples of look-back discarded while a queued detection still needed
         them, lifetime: the part of a dead detection's span -- one whose
         history is gone, so it can never be emitted -- behind the ring's tail.
-        push() never refuses input, and a resume carries all the look-back, so
-        on a live stream this stays 0. A LOST BURST each, not a statistic -- it
-        survives reset().
+        A shadowed detection is not counted. On a live stream this stays 0:
+        push() never refuses input, a moved anchor is a later one, and a
+        re-armed refine reads no further back than the history kept for an
+        unarrived detection at or ahead of it. A resume carries all the
+        look-back, so what makes it non-zero is a blob that names history it
+        does not hold. A LOST BURST each, not a statistic -- it survives
+        reset().
         """
 
     @property
@@ -2552,10 +2557,12 @@ class PersistentBurstCapture:
     ...                             reps=4, fs=2e6)
     >>> ram = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
     >>> _ = cap.push(np.zeros(4096, dtype=np.complex64))
-    >>> # the look-back is in the file, so the blob stops carrying it
-    >>> ram.state_bytes() - cap.state_bytes() == os.path.getsize(path)
+    >>> # the look-back is in the file, so the blob stops carrying the
+    >>> # ring: twice retain_span rounded up to a power of two, 8 B a sample
+    >>> ring = 1 << (2 * ram.retain_span - 1).bit_length()
+    >>> ram.state_bytes() - cap.state_bytes() == ring * 8
     True
-    >>> os.path.getsize(path) > 0
+    >>> os.path.getsize(path) >= ring * 8   # rounded up to a page
     True
 
     """
@@ -2603,10 +2610,11 @@ class PersistentBurstCapture:
         It aborts the process in two places, both a defect in this object and
         neither reachable from any input or from any blob set_state() accepts:
         a history ring with no room after trim (the bound in the
-        implementation's trim proves room), and an acquisition call that
-        neither wrote, framed nor reported a hit (its ring always holds a
-        frame). Each stops rather than spinning forever -- and in a Python host
-        it ends the interpreter.
+        implementation's trim proves room), and an acquisition call that took
+        nothing while input was left (each call starts with its result empty,
+        and a push with its result empty takes at least the next frame, or the
+        rest as carry). Each stops rather than spinning forever -- and in a
+        Python host it ends the interpreter.
 
         Parameters
         ----------
@@ -3150,9 +3158,13 @@ class PersistentBurstCapture:
         """Samples of look-back discarded while a queued detection still needed
         them, lifetime: the part of a dead detection's span -- one whose
         history is gone, so it can never be emitted -- behind the ring's tail.
-        push() never refuses input, and a resume carries all the look-back, so
-        on a live stream this stays 0. A LOST BURST each, not a statistic -- it
-        survives reset().
+        A shadowed detection is not counted. On a live stream this stays 0:
+        push() never refuses input, a moved anchor is a later one, and a
+        re-armed refine reads no further back than the history kept for an
+        unarrived detection at or ahead of it. A resume carries all the
+        look-back, so what makes it non-zero is a blob that names history it
+        does not hold. A LOST BURST each, not a statistic -- it survives
+        reset().
         """
 
     @property

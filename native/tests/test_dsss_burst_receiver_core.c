@@ -974,11 +974,12 @@ test_every_burst_survives_any_block_size (void)
   return 0;
 }
 
-/* dp_acq_push() stops once it has filled the caller's result array and
- * abandons the rest of its input (acq_core.c:925). push() slices at chunk_max,
- * so a chunk can easily carry more than BURST_CAPTURE_HITS dumps -- and a
- * single dp_burst_acq_push() per chunk then leaves acq un-fed over samples
- * this object is holding, losing detections rather than samples.
+/* dp_acq_push() takes no more than its result array has room for, and the
+ * caller offers it the rest again. push() slices at chunk_max, so a chunk
+ * can easily carry more than BURST_CAPTURE_HITS dumps -- so it keeps looping
+ * until acq has absorbed the whole chunk. A single dp_burst_acq_push() per
+ * chunk would leave acq un-fed over samples this object is holding, losing
+ * detections rather than samples.
  *
  * Pinning the grid to one coherent bin makes the acquisition frame ONE code
  * period, so a chunk spans ~92 frames and saturation is certain.

@@ -430,7 +430,14 @@ _SynthEngine_set_wtype (_SynthEngineObject *self, PyObject *args)
   int v = 0;
   if (!PyArg_ParseTuple (args, "i", &v))
     return NULL;
-  dp_wfm_synth_set_wtype (self->handle, v);
+  if (dp_wfm_synth_set_wtype (self->handle, v) != DP_OK)
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "set_wtype(%d): not a waveform type, or one this "
+                    "engine's create() built no generator for",
+                    v);
+      return NULL;
+    }
   Py_RETURN_NONE;
 }
 

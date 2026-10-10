@@ -103,7 +103,7 @@ _Synth component API._ [More...](#detailed-description)
 |  int | [**dp\_wfm\_synth\_set\_state**](#function-dp_wfm_synth_set_state) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, const void \* blob) <br> |
 |  void | [**dp\_wfm\_synth\_set\_sym\_pos**](#function-dp_wfm_synth_set_sym_pos) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, int val) <br>_Override the symbol-position counter in-place. Injecting 0 forces the next_ [_**dp\_wfm\_synth\_step()**_](wfm__synth__core_8h.md#function-dp_wfm_synth_step) _to latch a new PN chip; any other value fast-forwards into the middle of the current symbol hold._ |
 |  int | [**dp\_wfm\_synth\_set\_symbols**](#function-dp_wfm_synth_set_symbols) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, const float \_Complex \* symbols, size\_t n) <br>_Attach a complex-symbol stream to a type=symbols synth (no-op else)._  |
-|  void | [**dp\_wfm\_synth\_set\_wtype**](#function-dp_wfm_synth_set_wtype) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, int val) <br>_Override the waveform type discriminant in-place. Changing wtype does not reinitialise sub-objects; use with care._  |
+|  int | [**dp\_wfm\_synth\_set\_wtype**](#function-dp_wfm_synth_set_wtype) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, int val) <br>_Override the waveform type discriminant in-place. Changing wtype does not reinitialise sub-objects, so a type whose generator create() did not build is refused: PN, BPSK and QPSK need the PN source an engine created as one of them (or as dsss) has._  |
 |  size\_t | [**dp\_wfm\_synth\_state\_bytes**](#function-dp_wfm_synth_state_bytes) (const [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state) <br> |
 |  const char \* | [**dp\_wfm\_synth\_state\_refusal**](#function-dp_wfm_synth_state_refusal) (const [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state) <br>_Why the synth's state cannot be serialized, or NULL when it can._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**dp\_wfm\_synth\_step**](#function-dp_wfm_synth_step) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state) <br>_Generate one output sample from internal state. Advances the PN LFSR (modulated types only, on symbol boundaries), the LO phase accumulator, and the AWGN engine, then returns the mixed result:_ `sym * carrier + noise` _. Inlined and hot-path annotated so tight per-sample loops pay no call overhead._ |
@@ -1227,9 +1227,9 @@ pass them in". The stream is oversampled by the create-time `sps` and **cycled**
 
 ### function dp\_wfm\_synth\_set\_wtype 
 
-_Override the waveform type discriminant in-place. Changing wtype does not reinitialise sub-objects; use with care._ 
+_Override the waveform type discriminant in-place. Changing wtype does not reinitialise sub-objects, so a type whose generator create() did not build is refused: PN, BPSK and QPSK need the PN source an engine created as one of them (or as dsss) has._ 
 ```C++
-void dp_wfm_synth_set_wtype (
+int dp_wfm_synth_set_wtype (
     dp_wfm_synth_state_t * state,
     int val
 ) 
@@ -1243,7 +1243,14 @@ void dp_wfm_synth_set_wtype (
 
 
 * `state` Must be non-NULL. 
-* `val` New wtype value (WFM\_SYNTH\_TONE .. WFM\_SYNTH\_QPSK). 
+* `val` New wtype value (WFM\_SYNTH\_TONE .. WFM\_SYNTH\_DSSS). 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID with the state unchanged when `val` is not a waveform type or needs a generator this engine lacks. 
+
 
 
 

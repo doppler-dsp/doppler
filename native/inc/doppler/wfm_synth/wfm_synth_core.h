@@ -1062,12 +1062,16 @@ int dp_wfm_synth_get_wtype(const dp_wfm_synth_state_t *state);
 
 /**
  * @brief Override the waveform type discriminant in-place.
- * Changing wtype does not reinitialise sub-objects; use with care.
+ * Changing wtype does not reinitialise sub-objects, so a type whose
+ * generator create() did not build is refused: PN, BPSK and QPSK need the
+ * PN source an engine created as one of them (or as dsss) has.
  *
  * @param state  Must be non-NULL.
- * @param val    New wtype value (WFM_SYNTH_TONE .. WFM_SYNTH_QPSK).
+ * @param val    New wtype value (WFM_SYNTH_TONE .. WFM_SYNTH_DSSS).
+ * @return DP_OK, or DP_ERR_INVALID with the state unchanged when @p val is
+ *         not a waveform type or needs a generator this engine lacks.
  */
-void dp_wfm_synth_set_wtype(dp_wfm_synth_state_t *state, int val);
+int dp_wfm_synth_set_wtype(dp_wfm_synth_state_t *state, int val);
 
 /**
  * @brief Return the samples-per-symbol count.

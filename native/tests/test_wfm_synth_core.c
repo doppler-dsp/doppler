@@ -1324,10 +1324,29 @@ main (void)
         WFM_SYNTH_QPSK, 1e6, 0.0, 100.0, 1, 5, 4, 7, 0, 0, 0.0);
     DP_REQUIRE_MSG (ac != NULL, "accessors: create");
     DP_CHECK (dp_wfm_synth_get_wtype (ac) == WFM_SYNTH_QPSK);
+    /* A tone engine built no PN source, so PN, BPSK and QPSK are refused
+       rather than read through a NULL generator on the next step: that
+       step segfaulted (#2095). The engine keeps its type and still runs. */
+    {
+      dp_wfm_synth_state_t *tone = dp_wfm_synth_create (
+          WFM_SYNTH_TONE, 1e6, 1e3, 100.0, 1, 5, 4, 7, 0, 0, 0.0);
+      DP_REQUIRE_MSG (tone != NULL, "accessors: tone create");
+      for (int t = WFM_SYNTH_PN; t <= WFM_SYNTH_QPSK; t++)
+        DP_CHECK (dp_wfm_synth_set_wtype (tone, t) == DP_ERR_INVALID);
+      DP_CHECK (dp_wfm_synth_get_wtype (tone) == WFM_SYNTH_TONE);
+      DP_CHECK (dp_wfm_synth_set_wtype (tone, WFM_SYNTH_NOISE) == DP_OK);
+      float _Complex out[16];
+      dp_wfm_synth_steps (tone, out, 16);
+      dp_wfm_synth_destroy (tone);
+    }
     DP_CHECK (dp_wfm_synth_get_nsps (ac) == 4);
-    dp_wfm_synth_set_wtype (ac, WFM_SYNTH_BPSK);
+    DP_CHECK (dp_wfm_synth_set_wtype (ac, WFM_SYNTH_BPSK) == DP_OK);
     DP_CHECK (dp_wfm_synth_get_wtype (ac) == WFM_SYNTH_BPSK);
-    dp_wfm_synth_set_wtype (ac, WFM_SYNTH_QPSK);
+    DP_CHECK (dp_wfm_synth_set_wtype (ac, WFM_SYNTH_QPSK) == DP_OK);
+    /* Not a waveform type: refused, and the type stays (#2095). */
+    DP_CHECK (dp_wfm_synth_set_wtype (ac, 99) == DP_ERR_INVALID);
+    DP_CHECK (dp_wfm_synth_set_wtype (ac, -1) == DP_ERR_INVALID);
+    DP_CHECK (dp_wfm_synth_get_wtype (ac) == WFM_SYNTH_QPSK);
     dp_wfm_synth_set_nsps (ac, 2);
     DP_CHECK (dp_wfm_synth_get_nsps (ac) == 2);
     dp_wfm_synth_set_nsps (ac, 4);

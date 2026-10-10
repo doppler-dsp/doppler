@@ -1231,6 +1231,7 @@ dp_psd_sfdr function
 dp_psd_snr function
 dp_psd_state_bytes function
 dp_psd_total_band_power function
+dp_psd_window function
 dp_pub_create function
 dp_pub_create_tlm function
 dp_pub_destroy function

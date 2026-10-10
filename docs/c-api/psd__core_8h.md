@@ -87,6 +87,7 @@ _PSD — averaging power-spectral-density estimator (Welch's method) and spectra
 |  double | [**dp\_psd\_snr**](#function-dp_psd_snr) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, double lo\_hz, double hi\_hz) <br>_In-band SNR in dB: peak level in_ `[lo_hz, hi_hz]` _minus the noise floor._ |
 |  size\_t | [**dp\_psd\_state\_bytes**](#function-dp_psd_state_bytes) (const [**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br> |
 |  double | [**dp\_psd\_total\_band\_power**](#function-dp_psd_total_band_power) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, const double \* bands, size\_t bands\_len) <br>_Total integrated power across all bands in dB._  |
+|  int | [**dp\_psd\_window**](#function-dp_psd_window) (float \* w, size\_t n, int window, float beta) <br>_Fill_ `w` _with PSD's window: the periodic (DFT-even) form._ |
 
 
 
@@ -127,7 +128,7 @@ _PSD — averaging power-spectral-density estimator (Welch's method) and spectra
 A stateful, C-first periodogram averager (Welch's method). It composes the existing pieces of the library rather than re-implementing them: an [**dp\_fft\_state\_t**](structdp__fft__state__t.md) forward plan, a spectral window (Hann, Kaiser, Blackman-Harris or rectangular) with its coherent gain and ENBW, an [**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) per-bin power averager (mean / EMA / max-hold / min-hold), and the spectral free functions ([**dp\_magnitude\_db\_cf32**](spectral__core_8h.md#function-dp_magnitude_db_cf32), [**dp\_find\_peaks\_f32**](spectral__core_8h.md#function-dp_find_peaks_f32), [**dp\_obw\_from\_power**](spectral__core_8h.md#function-dp_obw_from_power), [**dp\_noise\_floor\_db**](spectral__core_8h.md#function-dp_noise_floor_db)) for the derived measurements.
 
 
-Every window is the PERIODIC (DFT-even) form, its cosines taken at 2 pi k/n for k = 0..n-1, not 2 pi k/(n-1): the symmetric window of n + 1 points with its last sample dropped (Harris 1978; scipy.signal.get\_window(..., fftbins=True)). That is the spectral-estimation convention, and the spectral library's window functions, which are symmetric for filter design, build it here as the first n of n + 1 points. On the n-point grid its cosines complete whole periods, so a bin-centred tone under Hann reads exactly zero beyond its two neighbouring bins (to float rounding), Hann's ENBW is exactly 1.5 bins for n &gt;= 3, Blackman-Harris's is Harris's published 2.004 for n &gt;= 7, and Hann at n = 2 is `[0, 1]`, which has gain (#2053).
+Every window is the PERIODIC (DFT-even) form, its cosines taken at 2 pi k/n for k = 0..n-1, not 2 pi k/(n-1): the symmetric window of n + 1 points with its last sample dropped (Harris 1978; scipy.signal.get\_window(..., fftbins=True)). That is the spectral-estimation convention. The spectral library's window functions are symmetric, for filter design, and [**dp\_psd\_window()**](psd__core_8h.md#function-dp_psd_window) builds the periodic form from them as the first n of n + 1 points. On the n-point grid its cosines complete whole periods, so a bin-centred tone under Hann reads exactly zero beyond its two neighbouring bins (to float rounding), Hann's ENBW is exactly 1.5 bins for n &gt;= 3, Blackman-Harris's is Harris's published 2.004 for n &gt;= 7, and Hann at n = 2 is `[0, 1]`, which has gain (#2053).
 
 
 Feed complex baseband frames with [**dp\_psd\_accumulate()**](psd__core_8h.md#function-dp_psd_accumulate); each length-n frame is windowed, FFT'd, converted to power, fftshifted to DC-centred order and folded into the running average. Then read:
@@ -993,6 +994,58 @@ Total band power in dB (dB floor if empty).
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_psd\_window 
+
+_Fill_ `w` _with PSD's window: the periodic (DFT-even) form._
+```C++
+int dp_psd_window (
+    float * w,
+    size_t n,
+    int window,
+    float beta
+) 
+```
+
+
+
+The window [**dp\_psd\_create()**](psd__core_8h.md#function-dp_psd_create) builds, and the one place it is built: the symmetric window of `n` + 1 points from the spectral library's window functions, whose first `n` points are the periodic window (see the file comment). A caller that plans around the window a PSD will use  [**dp\_measure\_min\_samples()**](measure__core_8h.md#function-dp_measure_min_samples) sizes a capture from its ENBW  reads it here rather than rebuilding it, so the two cannot disagree.
+
+
+
+
+**Parameters:**
+
+
+* `w` Output, room for `n` + 1 floats: `w[0..n)` is the window and `w[n]` the dropped end sample (rect leaves it unset). 
+* `n` Window length in samples, &gt;= 1. 
+* `window` 0 = Hann, 1 = Kaiser, 2 = Blackman-Harris, 3 = rectangular, as [**dp\_psd\_create()**](psd__core_8h.md#function-dp_psd_create). 
+* `beta` Kaiser beta (ignored by every other window). 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID for a window index outside 0..3, with `w` untouched.
+
+
+
+```C++
+float w[5];                                  // n + 1 for n = 4
+if (dp_psd_window (w, 4, 0, 0.0f) != DP_OK)  // periodic Hann
+  return 1;
+// 0, 0.5, 1, 0.5: its sum is n / 2 = 2
+if (fabsf (w[0] + w[1] + w[2] + w[3] - 2.0f) > 1e-6f)
+  return 1;
+```
+ 
 
 
         

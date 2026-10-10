@@ -353,6 +353,13 @@ def section_object() -> None:
                 "§2.6",
             ],
             [
+                "`dp_psd_window` builds the window create uses, bit for "
+                "bit, and refuses an index outside 0-3",
+                "dp_psd_window block",
+                P,
+                "C-ONLY",
+            ],
+            [
                 "`alpha` is read and checked in exp mode only; mean, "
                 "max-hold and min-hold accept any",
                 "#1911 refusals block",
@@ -1542,7 +1549,9 @@ def review(d: Data) -> None:
         "this report now judges the convention rather than records it. "
         "Every PSD number moved with it, and so did the Spectrogram, the "
         "measure objects, Specan (whose beta fit dropped its `(n - 1)/n` "
-        "correction) and CarrierAcquisition, which compose it.",
+        "correction) and CarrierAcquisition, which compose it, and "
+        "`measure_min_samples`, which plans a capture from the same window "
+        "through `dp_psd_window`, the one function that builds it.",
     )
 
 

@@ -24,7 +24,34 @@
 /* Power floor (~ -200 dB) guarding log10 of empty / zero bins. */
 #define PSD_FLOOR 1e-20
 
-/* Smallest power of two >= x. */
+/* ── the window ────────────────────────────────────────────────────────── */
+
+/* The PERIODIC (DFT-even) window: the symmetric window of n + 1 points
+ * with its last sample dropped, which is Harris 1978's DFT-even form and
+ * scipy's get_window(..., fftbins=True).  The window functions build the
+ * symmetric form, the one filter design wants, so each is filled at n + 1
+ * here and only w[0..n) is ever read: its cosines then complete whole
+ * periods over the frame, so a bin-centred tone under Hann reads zero
+ * beyond its two neighbours and the ENBW is the published one (#2053).
+ * Rect has no taper, and no n + 1 to drop.  The one place the periodic
+ * form is built: dp_psd_create windows with it, and a planner that sizes
+ * a capture for PSD's window (dp_measure_min_samples) reads it here. */
+int
+dp_psd_window (float *w, size_t n, int window, float beta)
+{
+  if (window == 0)
+    dp_hann_window (w, n + 1);
+  else if (window == 1)
+    dp_kaiser_window (w, n + 1, beta);
+  else if (window == 2)
+    dp_blackman_harris_window (w, n + 1);
+  else if (window == 3)
+    for (size_t i = 0; i < n; i++) /* rectangular: no spectral library entry */
+      w[i] = 1.0f;
+  else
+    return DP_ERR_INVALID;
+  return DP_OK;
+}
 
 /* ── lifecycle ─────────────────────────────────────────────────────────── */
 
@@ -43,8 +70,9 @@ dp_psd_create (size_t n, double fs, int window, float beta, size_t pad,
   /* fs and full_scale divide every reading, so each must be a finite
    * positive number; the negated form also refuses a NaN, which passed a
    * plain `<= 0.0` and built an estimator that read NaN. */
-  if (n < 2 || pad < 1 || !(fs > 0.0 && isfinite (fs)) || window < 0
-      || window > 3 || !(full_scale > 0.0 && isfinite (full_scale)))
+  /* The window index is dp_psd_window's to refuse, below. */
+  if (n < 2 || pad < 1 || !(fs > 0.0 && isfinite (fs))
+      || !(full_scale > 0.0 && isfinite (full_scale)))
     return NULL;
   if (mode < ACC_TRACE_MEAN || mode > ACC_TRACE_MINHOLD)
     return NULL;
@@ -69,7 +97,7 @@ dp_psd_create (size_t n, double fs, int window, float beta, size_t pad,
 
   /* Caller-sized, so each can still fail, and does return NULL: not
    * dp_xmalloc, which is for trusted sizes and would abort instead.  The
-   * window holds n + 1 points (see the fill below); n + 1 cannot wrap and
+   * window holds n + 1 points (dp_psd_window); n + 1 cannot wrap and
    * its byte count fits, since the refusal above holds n <= n * pad <=
    * top_pow2, 2^60 on a 64-bit size_t. */
   const size_t nfft = dp_next_pow_two (n * pad);
@@ -89,23 +117,12 @@ dp_psd_create (size_t n, double fs, int window, float beta, size_t pad,
       return NULL;
     }
 
-  /* The PERIODIC (DFT-even) window: the symmetric window of n + 1 points
-   * with its last sample dropped, which is Harris 1978's DFT-even form and
-   * scipy's get_window(..., fftbins=True).  The window functions build the
-   * symmetric form, the one filter design wants, so each is filled at
-   * n + 1 here and only w[0..n) is ever read: its cosines then complete
-   * whole periods over the frame, so a bin-centred tone under Hann reads
-   * zero beyond its two neighbours and the ENBW is the published one
-   * (#2053).  Rect has no taper, and no n + 1 to drop. */
-  if (window == 1)
-    dp_kaiser_window (s->w, n + 1, beta);
-  else if (window == 2)
-    dp_blackman_harris_window (s->w, n + 1);
-  else if (window == 3)
-    for (size_t i = 0; i < n; i++) /* rectangular: no spectral library entry */
-      s->w[i] = 1.0f;
-  else
-    dp_hann_window (s->w, n + 1);
+  /* The periodic window, w[0..n) of the n + 1 allocated above. */
+  if (dp_psd_window (s->w, n, window, beta) != DP_OK)
+    {
+      dp_psd_destroy (s);
+      return NULL;
+    }
 
   double cg = 0.0, s2 = 0.0;
   for (size_t i = 0; i < n; i++)

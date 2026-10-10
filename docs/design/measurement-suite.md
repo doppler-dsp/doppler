@@ -233,9 +233,14 @@ self-describing:
 
 To resolve a target RBW, `measure_min_samples(fs, target_rbw, bits, dynamic_range_db, complex_input)`
 returns $\lceil \text{ENBW}\cdot f_s/\text{RBW} \rceil$ for the **same** auto-selected
-window the analyser will use — the dynamic-range target (from `bits` or
-`dynamic_range_db`) fixes `beta`, whose ENBW sets the bins-per-RBW — so a capture
-planned at that length lands at the requested RBW. A non-positive `target_rbw`
+window the analyser will use. The dynamic-range target (from `bits` or
+`dynamic_range_db`) fixes `beta`, and the ENBW comes from that beta's window
+built by `dp_psd_window`, the one function that builds the analyser's window
+(PSD's periodic Kaiser,
+[#2053](https://github.com/doppler-dsp/doppler/issues/2053)). So a capture
+planned at that length is the smallest whose realised RBW meets the request,
+which `test_measure_core.c` checks against a `ToneMeasure` built at the
+planned length. A non-positive `target_rbw`
 defaults to `span/1000` (span = `f_s/2` real, `f_s` complex), a sensible
 "good enough" grid. `dp_coherent_freq` then snaps a test tone to the nearest
 leakage-free coherent frequency (integer cycles in the capture, coprime with `N`)

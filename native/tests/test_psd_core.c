@@ -1201,6 +1201,41 @@ main (void)
     dp_psd_destroy (o);
   }
 
+  /* ── dp_psd_window: the window create builds ──────────────────────────
+   * The one place the periodic form is made, which dp_measure_min_samples
+   * also reads (test_measure_core.c pins that side).  For
+   * every window at n = 2, 7 and 64, its w[0..n) equals the state's w bit
+   * for bit; an index outside 0..3 is DP_ERR_INVALID with the buffer
+   * untouched (NaN sentinels), which is the refusal create returns NULL
+   * on.  The periodic form itself is pinned by T5, T16b and the ENBW and
+   * (f) blocks, through create. */
+  {
+    static const size_t wn[] = { 2, 7, 64 };
+    for (int win = 0; win <= 3; win++)
+      for (size_t j = 0; j < sizeof wn / sizeof wn[0]; j++)
+        {
+          float           w[65];
+          dp_psd_state_t *p
+              = dp_psd_create (wn[j], 1.0, win, 8.0f, 1, 1.0, 0, 0, 0.0);
+          DP_REQUIRE (p != NULL);
+          DP_CHECK (dp_psd_window (w, wn[j], win, 8.0f) == DP_OK);
+          DP_CHECK (memcmp (w, p->w, wn[j] * sizeof w[0]) == 0);
+          dp_psd_destroy (p);
+        }
+    static const int bad_win[] = { -1, 4 };
+    for (size_t j = 0; j < 2; j++)
+      {
+        float w[5]      = { NAN, NAN, NAN, NAN, NAN };
+        int   untouched = 1;
+        DP_CHECK (dp_psd_window (w, 4, bad_win[j], 0.0f) == DP_ERR_INVALID);
+        for (size_t i = 0; i < 5; i++)
+          untouched &= isnan (w[i]) != 0;
+        DP_CHECK (untouched);
+        DP_CHECK (dp_psd_create (N, 1.0, bad_win[j], 0.0f, 1, 1.0, 0, 0, 0.0)
+                  == NULL);
+      }
+  }
+
   /* T16b: the periodic Hann is DFT-even (#2053).  It is
    * 1/2 - e^{+j 2 pi k/n}/4 - e^{-j 2 pi k/n}/4, so on the n-point grid its
    * transform is three bins: n/2 at 0 and -n/4 at +-1.  A bin-centred unit

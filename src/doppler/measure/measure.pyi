@@ -1039,8 +1039,11 @@ def measure_min_samples(
 
     Plans a capture for the same auto-Kaiser window the measurement objects
     use: the dynamic-range target (from dynamic_range_db, else bits)
-    selects the Kaiser beta, whose ENBW (measured via kaiser_enbw) sets the
-    bins-per-RBW. RBW = ENBW * fs / n, so n = ceil(ENBW * fs / target_rbw).
+    selects the Kaiser beta, and the ENBW of that beta's window, built by
+    dp_psd_window() exactly as the objects' composed PSD builds it (the
+    periodic form), sets the bins-per-RBW. RBW = ENBW * fs / n, so n =
+    ceil(ENBW * fs / target_rbw): the smallest capture whose realised RBW
+    meets the target.
 
     Parameters
     ----------

@@ -1360,6 +1360,7 @@
 * **dp\_psd\_snr** ([**psd\_core.h**](psd__core_8h.md))
 * **dp\_psd\_state\_bytes** ([**psd\_core.h**](psd__core_8h.md))
 * **dp\_psd\_total\_band\_power** ([**psd\_core.h**](psd__core_8h.md))
+* **dp\_psd\_window** ([**psd\_core.h**](psd__core_8h.md))
 * **dp\_ratesync\_configure** ([**ratesync\_core.h**](ratesync__core_8h.md))
 * **dp\_ratesync\_configure\_lock\_raw** ([**ratesync\_core.h**](ratesync__core_8h.md))
 * **dp\_ratesync\_create** ([**ratesync\_core.h**](ratesync__core_8h.md))

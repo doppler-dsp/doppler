@@ -1119,7 +1119,9 @@ target_include_directories(
 #   filter   design_lowpass is SIZED by resample's kaiser_num_taps and
 #            SHAPED by spectral's kaiser_window
 #   measure  measure_min_samples picks a window via spectral's
-#            kaiser_beta_for_sidelobe
+#            kaiser_beta_for_sidelobe and builds it with PSD's
+#            dp_psd_window, the window the analysers use (#2053); psd_core
+#            is an OBJECT library, so its fft and acc_trace calls come too
 #   wfm      wfm_core is an OBJECT library, so every TU in it arrives
 #            whether the benchmark calls it or not, and four of them
 #            delegate: rrc_taps/dsss_spread to wfm_dsp_core,
@@ -1128,7 +1130,8 @@ target_include_directories(
 #            that one needs). Not one of those is reimplemented here, which
 #            is the whole reason the link line is longer than the header
 add_executable(bench_measure_core native/benchmarks/bench_measure_core.c)
-target_link_libraries(bench_measure_core PRIVATE measure_core spectral_core ${DP_MATH_LIBRARY})
+target_link_libraries(bench_measure_core PRIVATE measure_core psd_core fft_core
+                      acc_trace_core spectral_core ${DP_MATH_LIBRARY})
 target_include_directories(
   bench_measure_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                              ${CMAKE_SOURCE_DIR}/native/benchmarks)

@@ -14,14 +14,15 @@
  * Every window is the PERIODIC (DFT-even) form, its cosines taken at
  * 2 pi k/n for k = 0..n-1, not 2 pi k/(n-1): the symmetric window of n + 1
  * points with its last sample dropped (Harris 1978;
- * scipy.signal.get_window(..., fftbins=True)).  That
- * is the spectral-estimation convention, and the spectral library's window
- * functions, which are symmetric for filter design, build it here as the
- * first n of n + 1 points.  On the n-point grid its cosines complete whole
- * periods, so a bin-centred tone under Hann reads exactly zero beyond its
- * two neighbouring bins (to float rounding), Hann's ENBW is exactly 1.5
- * bins for n >= 3, Blackman-Harris's is Harris's published 2.004 for
- * n >= 7, and Hann at n = 2 is `[0, 1]`, which has gain (#2053).
+ * scipy.signal.get_window(..., fftbins=True)).  That is the
+ * spectral-estimation convention.  The spectral library's window functions
+ * are symmetric, for filter design, and dp_psd_window() builds the periodic
+ * form from them as the first n of n + 1 points.  On the n-point grid its
+ * cosines complete whole periods, so a bin-centred tone under Hann reads
+ * exactly zero beyond its two neighbouring bins (to float rounding), Hann's
+ * ENBW is exactly 1.5 bins for n >= 3, Blackman-Harris's is Harris's
+ * published 2.004 for n >= 7, and Hann at n = 2 is `[0, 1]`, which has gain
+ * (#2053).
  *
  * Feed complex baseband frames with dp_psd_accumulate(); each length-n frame is
  * windowed, FFT'd, converted to power, fftshifted to DC-centred order and
@@ -120,6 +121,37 @@ typedef struct {
 dp_psd_state_t *dp_psd_create(size_t n, double fs, int window, float beta,
                             size_t pad, double full_scale, size_t bits,
                             int mode, double alpha);
+
+/**
+ * @brief Fill @p w with PSD's window: the periodic (DFT-even) form.
+ *
+ * The window dp_psd_create() builds, and the one place it is built: the
+ * symmetric window of @p n + 1 points from the spectral library's window
+ * functions, whose first @p n points are the periodic window (see the file
+ * comment). A caller that plans around the window a PSD will use --
+ * dp_measure_min_samples() sizes a capture from its ENBW -- reads it here
+ * rather than rebuilding it, so the two cannot disagree.
+ *
+ * @param w       Output, room for @p n + 1 floats: `w[0..n)` is the
+ *                window and `w[n]` the dropped end sample (rect leaves it
+ *                unset).
+ * @param n       Window length in samples, >= 1.
+ * @param window  0 = Hann, 1 = Kaiser, 2 = Blackman-Harris,
+ *                3 = rectangular, as dp_psd_create().
+ * @param beta    Kaiser beta (ignored by every other window).
+ * @return DP_OK, or DP_ERR_INVALID for a window index outside 0..3, with
+ *         @p w untouched.
+ *
+ * @code
+ * float w[5];                                  // n + 1 for n = 4
+ * if (dp_psd_window (w, 4, 0, 0.0f) != DP_OK)  // periodic Hann
+ *   return 1;
+ * // 0, 0.5, 1, 0.5: its sum is n / 2 = 2
+ * if (fabsf (w[0] + w[1] + w[2] + w[3] - 2.0f) > 1e-6f)
+ *   return 1;
+ * @endcode
+ */
+int dp_psd_window(float *w, size_t n, int window, float beta);
 
 /**
  * @brief Destroy a PSD instance and release all memory.

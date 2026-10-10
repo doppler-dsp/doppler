@@ -259,14 +259,15 @@ dp_awgn_get_amplitude (const dp_awgn_state_t *state)
   return state->amplitude;
 }
 
-void
+int
 dp_awgn_set_amplitude (dp_awgn_state_t *state, float val)
 {
-  /* Ignored outside the domain: the setter returns nothing, so the refusal
-     is silent here (the header says so). */
+  /* Refused outside the domain, and the old amplitude stays: a dropped return
+     keeps a valid sigma. */
   if (!dp_awgn_amplitude_ok (val))
-    return;
+    return DP_ERR_INVALID;
   state->amplitude = val;
+  return DP_OK;
 }
 
 void
@@ -323,6 +324,10 @@ dp_awgn_generate (dp_awgn_state_t *state, size_t n, float _Complex *out,
 int
 dp_awgn (uint64_t seed, float amplitude, size_t n, float _Complex *out)
 {
+  /* An amplitude outside the domain is an invalid argument, not a memory
+     failure, so it is checked before the create that would also refuse it. */
+  if (!dp_awgn_amplitude_ok (amplitude))
+    return DP_ERR_INVALID;
   dp_awgn_state_t *g = dp_awgn_create (seed, amplitude);
   if (!g)
     return DP_ERR_MEMORY;

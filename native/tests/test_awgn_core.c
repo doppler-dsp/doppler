@@ -186,6 +186,11 @@ test_oneshot (void)
   float _Complex out[N_SMALL];
   DP_CHECK (dp_awgn (42, 0.7f, N_SMALL, out) == 0);
   DP_CHECK (memcmp (ref, out, N_SMALL * sizeof *out) == 0);
+  /* An amplitude outside the domain is an invalid argument, not a memory
+     failure, and nothing is generated for it. */
+  DP_CHECK (dp_awgn (42, NAN, N_SMALL, out) == DP_ERR_INVALID);
+  DP_CHECK (dp_awgn (42, -1.0f, N_SMALL, out) == DP_ERR_INVALID);
+  DP_CHECK (dp_awgn (42, INFINITY, N_SMALL, out) == DP_ERR_INVALID);
 }
 
 /* Advance the RNG, serialize, restore into a fresh generator, and the noise
@@ -292,17 +297,23 @@ test_forged_state_refused (void)
   DP_CHECK (g != NULL);
   if (!g)
     return;
-  dp_awgn_set_amplitude (g, nanf);
-  dp_awgn_set_amplitude (g, inff);
-  dp_awgn_set_amplitude (g, negf);
-  DP_CHECK (dp_awgn_get_amplitude (g) == 2.0f); /* ignored, not taken */
+  DP_CHECK (dp_awgn_set_amplitude (g, nanf) == DP_ERR_INVALID);
+  DP_CHECK (dp_awgn_set_amplitude (g, inff) == DP_ERR_INVALID);
+  DP_CHECK (dp_awgn_set_amplitude (g, negf) == DP_ERR_INVALID);
+  DP_CHECK (dp_awgn_get_amplitude (g) == 2.0f); /* refused, not taken */
 
-  dp_awgn_state_t *src    = dp_awgn_create (5, 1.0f);
-  dp_awgn_state_t *dst    = dp_awgn_create (5, 1.0f);
-  const size_t     sb     = dp_awgn_state_bytes (src);
-  unsigned char   *blob   = malloc (sb);
-  unsigned char   *before = malloc (sb);
-  unsigned char   *after  = malloc (sb);
+  /* The target differs from the blob in every field: another seed, another
+     amplitude, and a generate that moves its RNG words. Otherwise a partial
+     write (a seed or RNG copy done before the check) lands on values the
+     target already holds and goes unseen. */
+  dp_awgn_state_t *src = dp_awgn_create (5, 1.0f);
+  dp_awgn_state_t *dst = dp_awgn_create (6, 0.5f);
+  float _Complex scratch[8];
+  dp_awgn_generate (dst, 8, scratch, 8);
+  const size_t   sb     = dp_awgn_state_bytes (src);
+  unsigned char *blob   = malloc (sb);
+  unsigned char *before = malloc (sb);
+  unsigned char *after  = malloc (sb);
   dp_awgn_get_state (src, blob);
   const size_t base = sizeof (dp_state_hdr_t);
   const size_t amp  = base + 4 * sizeof (uint64_t) + sizeof (uint64_t);

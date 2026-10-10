@@ -269,7 +269,7 @@ composes a source with it could join the two, and that code is the caller.
 - **Pinning:** every measurement ran on **cpus 0–3 and 10–13**, the fastest
     core class (`bench_report.fastest_cpus`). The builds ran unpinned.
 - **Two Release builds,** run alternately, five passes each: *portable*
-    (`-O3 -march=x86-64-v2 -ffast-math`) and *native* (`-O3 -march=native   -mprefer-vector-width=256 -ffast-math`). Every pair of cells below is
+    (`-O3 -march=x86-64-v2 -ffast-math`) and *native* (`-O3 -march=native -mprefer-vector-width=256 -ffast-math`). Every pair of cells below is
     portable / native.
 - **When:** 2026-10-10, 09:15 to 10:24 UTC, with nothing else running.
 - **The rows** are `bench_spectrogram_core`'s `push`, `direct` and `chunk` rows

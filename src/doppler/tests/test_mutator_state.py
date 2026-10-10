@@ -466,9 +466,14 @@ def discover() -> list[Mutator]:
                     "method",
                     sig[0] if sig else None,
                     optional=sig[1] if sig else (),
-                    stream=_is_stream(d, m),
+                    # Each rule is the manifest's key AND the stub's shape:
+                    # a stream call takes its input as a required argument,
+                    # and a capacity query takes only lengths.
+                    stream=_is_stream(d, m) and bool(sig and sig[0]),
                     handle=_is_handle(d, m),
-                    accessor=_is_accessor(d, m),
+                    accessor=_is_accessor(d, m)
+                    and sig is not None
+                    and all(_bare(q.ann) == "int" for q in sig[0]),
                 )
             )
         if d.view is None:  # a view shares its parent's core and its header

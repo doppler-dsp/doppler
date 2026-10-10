@@ -123,7 +123,12 @@ import subprocess
 import sys
 
 from _c_source import strip_comments
-from _gitbase import BaseUnreadableError, resolve_base, show_at
+from _gitbase import (
+    BaseUnreadableError,
+    added_since_base,
+    resolve_base,
+    show_at,
+)
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 TESTS = ROOT / "native" / "tests"
@@ -760,6 +765,64 @@ def ratchet_added(path: pathlib.Path, base: str) -> list[str]:
     ]
 
 
+#: A RATCHET over a Python gate's list: src/doppler/tests/test_mutator_state.py
+#: judges each entry against the probe, and mutator_list_added() stops the
+#: list growing. The gate's own file is ``since`` for added_since_base.
+MUTATOR_LIST = ROOT / "scripts" / ".mutator-state-exempt"
+MUTATOR_GATE = "src/doppler/tests/test_mutator_state.py"
+
+
+def parse_mutator_list(text: str) -> list[tuple[str, str, str]]:
+    """`key verdict reason` lines of the mutator-state list, in file order.
+
+    The one reader of that file's format: the gate imports it, and so does
+    the growth check below. A list rather than a dict, so a key written
+    twice reaches the gate as two entries and is refused there, instead of
+    the second silently winning.
+    """
+    out: list[tuple[str, str, str]] = []
+    for raw in text.splitlines():
+        line = raw.strip()
+        if line and not line.startswith("#"):
+            key, *rest = line.split(None, 2)
+            verdict = rest[0] if rest else ""
+            out.append(
+                (key, verdict, rest[1].strip() if len(rest) > 1 else "")
+            )
+    return out
+
+
+def mutator_list_added(base: str) -> list[str]:
+    """Mutators the list names that the merge base with `base` did not.
+
+    The gate's stale checks make the list shrink; this stops it growing, so
+    a PR that breaks a mutator cannot forgive it with a new line (#2085
+    review). Asked through _gitbase.added_since_base, the one ratchet read:
+    a list absent at the base holds nothing, unless the gate is new too.
+    An entry is its KEY: a verdict that changes is the gate's to judge.
+    """
+
+    def keys(text: str) -> list[str]:
+        return [k for k, _, _ in parse_mutator_list(text)]
+
+    rel = MUTATOR_LIST.relative_to(ROOT).as_posix()
+    now = MUTATOR_LIST.read_text() if MUTATOR_LIST.exists() else ""
+    try:
+        added = added_since_base(
+            ROOT, base, rel, keys(now), keys, since=MUTATOR_GATE
+        )
+    except BaseUnreadableError:
+        raise LookupError(
+            f"base ref {base!r} does not resolve.\n"
+            "  A ratchet that cannot read its baseline has not passed."
+        ) from None
+    return [
+        f"{rel}: '{k}' ADDED -- the list may only shrink; make the blob "
+        "carry the value instead of forgiving it"
+        for k in sorted(set(added))
+    ]
+
+
 IGNORE = TESTS / ".assertion-ratchet-ignore"
 
 # What counts as an assertion, on either side of the migration. Both sets are
@@ -1090,6 +1153,7 @@ def main() -> int:
         added = (
             ratchet_added(STATE_RATCHET, base)
             + ratchet_added(CHUNK_RATCHET, base)
+            + mutator_list_added(base)
             if base
             else []
         )

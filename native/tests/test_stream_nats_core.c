@@ -20,6 +20,7 @@
 #include "doppler/dp_complex.h"
 #include "dp_nats_test.h"
 #include <stdatomic.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -394,6 +395,62 @@ test_flush_after_send (void)
 
   /* Flushing with nothing pending is a no-op that still round-trips. */
   DP_CHECK (dp_pub_flush (pub, 2000) == DP_OK);
+
+  dp_pub_destroy (pub);
+  dp_sub_destroy (sub);
+}
+
+/* ------------------------------------------------------------------
+ * test_send_refuses_a_count_that_wraps (doppler#2016)
+ *
+ * The send path sized the payload as num_samples * elem and only THEN
+ * compared it with the 32-bit wire limit, so a count near SIZE_MAX
+ * wrapped under the limit: the call returned DP_OK and put a header on
+ * the wire claiming 2^60 + 2 samples over a 32-byte payload.
+ * ------------------------------------------------------------------ */
+static void
+test_send_refuses_a_count_that_wraps (void)
+{
+  printf ("\n-- a count whose byte size wraps is refused, not sent --\n");
+  const char *ep = dp_nats_endpoint ("wrap");
+
+  dp_sub_t *sub = dp_sub_create (ep);
+  DP_CHECK (sub != NULL);
+  dp_nats_settle ();
+  dp_pub_t *pub = dp_pub_create (ep, CF64);
+  DP_CHECK (pub != NULL);
+  dp_nats_settle ();
+  if (!sub || !pub)
+    {
+      dp_pub_destroy (pub);
+      dp_sub_destroy (sub);
+      return;
+    }
+
+  double _Complex tx[2] = { 1, 2 };
+
+  /* 16 * (SIZE_MAX / 16 + 3) = 2^64 + 32, which wraps to exactly the
+     32 bytes tx holds. */
+  size_t forged = SIZE_MAX / 16 + 3;
+  DP_CHECK ((size_t)(forged * 16) == sizeof tx);
+  DP_CHECK (dp_pub_send_cf64 (pub, tx, forged, 1.0, 0.0) == DP_ERR_TOO_LARGE);
+
+  /* The plain over-limit count, which never wrapped, is refused too. */
+  DP_CHECK (dp_pub_send_cf64 (pub, tx, (size_t)UINT32_MAX / 16 + 1, 1.0, 0.0)
+            == DP_ERR_TOO_LARGE);
+
+  /* And the honest count still goes: the refusals are the counts'. */
+  DP_CHECK (dp_pub_send_cf64 (pub, tx, 2, 1.0, 0.0) == DP_OK);
+  DP_CHECK (dp_pub_flush (pub, 2000) == DP_OK);
+
+  /* The honest frame is the first thing on the wire, not a forged one. */
+  dp_msg_t   *msg = NULL;
+  dp_header_t hdr;
+  dp_sub_set_timeout (sub, 1000);
+  DP_CHECK (dp_sub_recv (sub, &msg, &hdr) == DP_OK);
+  DP_CHECK (msg != NULL && dp_msg_num_samples (msg) == 2);
+  if (msg)
+    dp_msg_free (msg);
 
   dp_pub_destroy (pub);
   dp_sub_destroy (sub);
@@ -935,6 +992,7 @@ main (void)
   test_chunked_pub_sub ();
   test_interrupt_unblocks_recv ();
   test_flush_after_send ();
+  test_send_refuses_a_count_that_wraps ();
   test_drain_then_send ();
   test_work_queue_is_age_bounded ();
   test_mid_frame_timeout_resumes_the_frame ();

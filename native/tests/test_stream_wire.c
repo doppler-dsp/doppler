@@ -333,17 +333,20 @@ test_mean_power (void)
  * carried and be believed.
  * ------------------------------------------------------------------ */
 static size_t
-build_frame (char *buf, size_t cap, size_t nsamples)
+build_frame_of (char *buf, size_t cap, dp_frame_kind_t kind,
+                dp_sample_type_t format, size_t nsamples)
 {
   dp_header_t h = { 0 };
   h.magic       = DP_STREAM_MAGIC;
   memcpy (h.data_rep, dp_host_rep (), 4);
-  h.format        = (uint16_t)CF64;
-  h.kind          = (uint16_t)DP_KIND_IQ;
-  h.version       = DP_WIRE_VERSION;
-  h.flags         = 0;
-  h.num_samples   = nsamples;
-  h.payload_bytes = (uint32_t)(nsamples * dp_sample_size (CF64));
+  h.format      = (uint16_t)(kind == DP_KIND_IQ ? format : 0);
+  h.kind        = (uint16_t)kind;
+  h.version     = DP_WIRE_VERSION;
+  h.flags       = 0;
+  h.num_samples = nsamples;
+  h.payload_bytes
+      = (uint32_t)(nsamples
+                   * dp_element_size (kind, (dp_sample_type_t)h.format));
 
   size_t total = sizeof h + h.payload_bytes;
   if (total > cap)
@@ -351,6 +354,13 @@ build_frame (char *buf, size_t cap, size_t nsamples)
   memset (buf, 0, total);
   memcpy (buf, &h, sizeof h);
   return total;
+}
+
+/* The CF64 I/Q frame most checks below start from. */
+static size_t
+build_frame (char *buf, size_t cap, size_t nsamples)
+{
+  return build_frame_of (buf, cap, DP_KIND_IQ, CF64, nsamples);
 }
 
 static void
@@ -457,6 +467,86 @@ test_frame_parse (void)
   DP_CHECK (ch.total_bytes == 4 * sizeof (double _Complex));
   DP_CHECK ((const char *)body
             == cbuf + sizeof (dp_header_t) + sizeof (dp_chunk_t));
+}
+
+/* ------------------------------------------------------------------
+ * num_samples is the sender's claim, and a claim times the element size
+ * wraps (doppler#2016). Every element size is a power of two, so for each
+ * one there is a forged count, n + 2^64 / elem, whose product with elem is
+ * EXACTLY the honest payload modulo 2^64. A receiver that checked by
+ * multiplying believed it, and dp_msg_num_samples() then reported a count
+ * no buffer holds. At n = 512 the CF32 forgery is the issue's own,
+ * 0x2000000000000200 over a 4096-byte payload.
+ * ------------------------------------------------------------------ */
+static void
+test_frame_parse_wrapping_count (void)
+{
+  printf ("-- a forged sample count that wraps is refused\n");
+
+  static const struct
+  {
+    dp_frame_kind_t  kind;
+    dp_sample_type_t format;
+  } classes[] = { { DP_KIND_IQ, CI8 },  { DP_KIND_IQ, CI16 },
+                  { DP_KIND_IQ, CI32 }, { DP_KIND_IQ, CF32 },
+                  { DP_KIND_IQ, CF64 }, { DP_KIND_TLM, (dp_sample_type_t)0 } };
+  enum
+  {
+    N = 512
+  };
+  /* + 1: room for the partial-element frame below, at the widest elem. */
+  static char buf[sizeof (dp_header_t) + N * 16 + 1];
+
+  for (size_t i = 0; i < sizeof classes / sizeof classes[0]; i++)
+    {
+      dp_header_t h;
+      dp_chunk_t  ch;
+      int         chunked = 0;
+      const void *body    = NULL;
+      size_t      blen    = 0;
+      size_t      elem = dp_element_size (classes[i].kind, classes[i].format);
+      size_t      len  = build_frame_of (buf, sizeof buf, classes[i].kind,
+                                         classes[i].format, N);
+      char        what[128];
+
+      snprintf (what, sizeof what, "fixture builds, class %zu", i);
+      DP_CHECK_MSG (len > 0 && elem > 0, what);
+      if (len == 0 || elem == 0)
+        continue;
+      /* The honest frame parses, so the refusal below is the count's. */
+      snprintf (what, sizeof what, "honest frame parses, class %zu", i);
+      DP_CHECK_MSG (dp_frame_parse (buf, len, &h, &ch, &chunked, &body, &blen)
+                        == DP_OK,
+                    what);
+
+      /* A payload one byte past a whole number of elements: num_samples
+         equals avail / elem rounded DOWN, so the count alone cannot catch
+         it, and the trailing byte belongs to no sample. */
+      ((dp_header_t *)buf)->payload_bytes += 1;
+      buf[len] = 0;
+      snprintf (what, sizeof what, "partial element refused, class %zu", i);
+      DP_CHECK_MSG (
+          dp_frame_parse (buf, len + 1, &h, &ch, &chunked, &body, &blen)
+              == DP_ERR_INVALID,
+          what);
+      ((dp_header_t *)buf)->payload_bytes -= 1;
+
+      /* The premise: elem divides 2^64, and the forged product lands on
+         the honest payload exactly, so a multiplying check passes it. */
+      snprintf (what, sizeof what, "elem %zu is a power of two", elem);
+      DP_CHECK_MSG ((elem & (elem - 1)) == 0, what);
+      uint64_t forged = (uint64_t)N + (UINT64_MAX / elem + 1);
+      snprintf (what, sizeof what,
+                "forged count wraps onto the payload, class %zu", i);
+      DP_CHECK_MSG (forged * elem == (uint64_t)N * elem, what);
+
+      ((dp_header_t *)buf)->num_samples = forged;
+      snprintf (what, sizeof what, "forged count %#llx refused, class %zu",
+                (unsigned long long)forged, i);
+      DP_CHECK_MSG (dp_frame_parse (buf, len, &h, &ch, &chunked, &body, &blen)
+                        == DP_ERR_INVALID,
+                    what);
+    }
 }
 
 /* ------------------------------------------------------------------
@@ -877,6 +967,7 @@ main (void)
   test_flag_mask ();
   test_mean_power ();
   test_frame_parse ();
+  test_frame_parse_wrapping_count ();
   test_argument_guards ();
   test_interrupt_flag ();
   test_reasm_lost_chunk ();

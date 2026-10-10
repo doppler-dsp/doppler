@@ -280,4 +280,40 @@ def test_set_state_carries_set_acq_and_refuses_what_it_cannot_index():
     d = BurstDespreader(data, sf=31, sps=4)
     d.set_acq(other, 2)
     d.set_state(blob)
-    np.testing.assert_array_equal(a.steps(x[600:]), d.steps(x[600:]))
+    out = a.steps(x[600:])
+    assert out.size > 0  # the comparison below is not of two empties
+    np.testing.assert_array_equal(out, d.steps(x[600:]))
+
+
+def test_set_state_checks_the_blob_in_c_not_only_its_size():
+    """#2041, round 2: a blob the same size as the target's but made under
+    another create-time seed passes the binding's size check and is refused
+    by the C set_state itself -- "rejected", not "size mismatch" -- leaving
+    the target as it was. A setter's value is state, so the loops' bn
+    travels; and a seed that is not finite is refused at construction,
+    because set_state compares the seeds and NaN equals nothing."""
+    rng = np.random.default_rng(2041)
+    data = rng.integers(0, 2, 31).astype(np.uint8)
+    x = (rng.standard_normal(2048) + 1j * rng.standard_normal(2048)).astype(
+        np.complex64
+    )
+
+    src = BurstDespreader(data, sf=31, sps=4, init_norm_freq=0.01)
+    t = BurstDespreader(data, sf=31, sps=4)
+    blob, before = src.get_state(), t.get_state()
+    assert len(blob) == len(before)  # past the binding's size check
+    with pytest.raises(ValueError, match="rejected"):
+        t.set_state(blob)
+    assert t.get_state() == before
+
+    s2 = BurstDespreader(data, sf=31, sps=4)
+    s2.bn_carrier = 0.02
+    s2.steps(x[:600])
+    t.set_state(s2.get_state())
+    assert t.bn_carrier == 0.02
+    out = s2.steps(x[600:])
+    assert out.size > 0
+    np.testing.assert_array_equal(out, t.steps(x[600:]))
+
+    with pytest.raises(ValueError, match="finite"):
+        BurstDespreader(data, sf=31, sps=4, init_chip_phase=float("nan"))

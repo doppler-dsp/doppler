@@ -113,13 +113,19 @@ static int dp_test_checks_ = 0;
 #define DP_TEST_PASS_(what) ((void)0)
 #endif
 
+/* Every stderr line goes through here, after stdout is flushed. stderr is
+ * unbuffered and stdout is fully buffered once redirected, so in a
+ * `> log 2>&1` capture a FAIL used to land in the middle of a buffered PASS
+ * line, and a harness counting `^FAIL` undercounted (#2050). */
+#define DP_TEST_ERR_(...) (fflush (stdout), fprintf (stderr, __VA_ARGS__))
+
 /* The stringified condition carries file and line; a hand-written message
  * carries intent. Both report through one place so the format cannot drift
  * the way six copies of it did. */
 #define DP_TEST_FAIL_AT_(what)                                                \
-  fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, (what))
+  DP_TEST_ERR_ ("FAIL %s:%d  %s\n", __FILE__, __LINE__, (what))
 
-#define DP_TEST_FAIL_MSG_(msg) fprintf (stderr, "FAIL: %s\n", (msg))
+#define DP_TEST_FAIL_MSG_(msg) DP_TEST_ERR_ ("FAIL: %s\n", (msg))
 
 /** Record a failure and continue. The workhorse: use it unless a later
  *  check would be unsafe once this one has failed. */
@@ -206,8 +212,8 @@ static int dp_test_checks_ = 0;
       dp_test_checks_++;                                                      \
       if (!(fabs (_a - _b) <= (double)(tol)))                                 \
         {                                                                     \
-          fprintf (stderr, "FAIL %s:%d  %s=%.6g vs %s=%.6g (tol %g)\n",       \
-                   __FILE__, __LINE__, #a, _a, #b, _b, (double)(tol));        \
+          DP_TEST_ERR_ ("FAIL %s:%d  %s=%.6g vs %s=%.6g (tol %g)\n",          \
+                        __FILE__, __LINE__, #a, _a, #b, _b, (double)(tol));   \
           dp_test_fails_++;                                                   \
         }                                                                     \
       else                                                                    \
@@ -252,12 +258,12 @@ static int dp_test_checks_ = 0;
     {                                                                         \
       if (dp_test_checks_ == 0)                                               \
         {                                                                     \
-          fprintf (stderr, "%s ASSERTED NOTHING — no check ran\n", (name));   \
+          DP_TEST_ERR_ ("%s ASSERTED NOTHING — no check ran\n", (name));      \
           return 1;                                                           \
         }                                                                     \
       if (dp_test_fails_)                                                     \
         {                                                                     \
-          fprintf (stderr, "%s FAILED (%d)\n", (name), dp_test_fails_);       \
+          DP_TEST_ERR_ ("%s FAILED (%d)\n", (name), dp_test_fails_);          \
           return 1;                                                           \
         }                                                                     \
       printf ("%s PASSED\n", (name));                                         \
@@ -282,7 +288,7 @@ static int dp_test_checks_ = 0;
     {                                                                         \
       if (dp_test_fails_)                                                     \
         {                                                                     \
-          fprintf (stderr, "%s FAILED (%d)\n", (name), dp_test_fails_);       \
+          DP_TEST_ERR_ ("%s FAILED (%d)\n", (name), dp_test_fails_);          \
           return 1;                                                           \
         }                                                                     \
       return 0;                                                               \

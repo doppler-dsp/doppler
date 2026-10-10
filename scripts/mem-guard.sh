@@ -31,7 +31,11 @@
 # MemoryMax without the memory controller delegated to it enforces nothing,
 # and that would be an inert guard reporting a ceiling it does not hold. So a
 # 64 MiB allocation is run under a 32 MiB ceiling first: only if that probe
-# is killed is the real command run under the ceiling. Otherwise -- no
+# is killed is the real command run under the ceiling. The probe has its OWN
+# slice, doppler-mgprobe.slice, a SIBLING of the guard under doppler.slice:
+# systemd nests slices by dash, so a doppler-guard-probe.slice was a child of
+# the guard, and every probe kill was logged against doppler-guard.slice too,
+# making the journal useless as evidence of a real kill (#1961). Otherwise -- no
 # systemd user session (a CI runner, a container, macOS), or a ceiling that
 # is accepted but not enforced -- the command runs unguarded and says so on
 # stderr. Either way the command runs; the guard never blocks the work.
@@ -93,9 +97,9 @@ systemd-run --user --scope -q -- true 2>/dev/null \
 # unit outright, so the probe is retried without it. The popup is the cost
 # there, never the ceiling: a guard disarmed to stay quiet would be worse.
 probe() {
-  systemctl --user set-property --runtime doppler-guard-probe.slice \
+  systemctl --user set-property --runtime doppler-mgprobe.slice \
     MemoryMax=32M MemorySwapMax=0 || return 1
-  systemd-run --user --scope -q --slice=doppler-guard-probe.slice "$@" -- \
+  systemd-run --user --scope -q --slice=doppler-mgprobe.slice "$@" -- \
     "$py" -c "bytearray(b'x') * (64 << 20)"
 }
 rc=0

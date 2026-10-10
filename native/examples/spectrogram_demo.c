@@ -17,9 +17,13 @@
  *      whole row when it is full, and dp_spectrogram_consumed() says where
  *      to resume -- nothing is ever dropped.
  *
- * Every row that lies inside one frequency segment is checked physically:
- * its peak is the bin of that segment's tone, at 0 dBFS (the LO is a
- * full-scale tone, and a row is PSD's dBFS of its frame). Then
+ * The rows are linear power, the default: a full-scale tone on a bin reads
+ * 1.0. A display converts to dB only the bins it draws, and so does this
+ * program: every row that lies inside one frequency segment is checked
+ * physically, its peak on the bin of that segment's tone at 0 dBFS, and
+ * that one bin is the only one it converts. Converting every bin of every
+ * row is most of a dB row's cost (docs/design/spectrogram-measurements.md,
+ * entry 5.8), which is why dB rows are asked for by name. Then
  * dp_spectrogram_flush() ends the stream with the one zero-padded row the
  * last samples still owe.
  *
@@ -63,7 +67,14 @@ static const int BIN[NSEG] = { 20, -50, 90, 5 };
 static const size_t CHUNK[] = { 1, 37, 700, 5 };
 #define NCHUNK (sizeof CHUNK / sizeof *CHUNK)
 
-/* Peak index of one row. */
+/* A power bin in dBFS: the conversion a display makes for what it draws. */
+static float
+to_db (float power)
+{
+  return 10.0f * log10f (power);
+}
+
+/* Peak index of one row (power and its dB rank the bins alike). */
 static size_t
 peak (const float *row)
 {
@@ -89,11 +100,12 @@ main (void)
   dp_lo_steps (lo, TAIL, x + NSEG * SEG, TAIL);
   dp_lo_destroy (lo);
 
-  /* Hann window, dB rows, DC-centred (bin k at NFFT/2 + k). */
+  /* Hann window, power rows (the default), DC-centred (bin k at
+     NFFT/2 + k). */
   dp_spectrogram_state_t *a
-      = dp_spectrogram_create (NFFT, HOP, 0, 0.0f, DP_SPECTROGRAM_DB);
+      = dp_spectrogram_create (NFFT, HOP, 0, 0.0f, DP_SPECTROGRAM_POWER);
   dp_spectrogram_state_t *b
-      = dp_spectrogram_create (NFFT, HOP, 0, 0.0f, DP_SPECTROGRAM_DB);
+      = dp_spectrogram_create (NFFT, HOP, 0, 0.0f, DP_SPECTROGRAM_POWER);
   CHECK (a != NULL && b != NULL);
 
   /* rows_for is exact: how many rows the whole stream makes, before a
@@ -149,7 +161,8 @@ main (void)
   CHECK (short_pushes > 0); /* way 2 really did run out of room */
 
   /* Physics: a row inside one segment peaks on that segment's tone, at the
-     tone's true level. A row straddling a hop holds two tones; skip it. */
+     tone's true level: 1.0 in power, 0 dBFS once that one bin is converted.
+     A row straddling a hop holds two tones; skip it. */
   size_t checked = 0;
   for (size_t r = 0; r < rows; r++)
     {
@@ -159,7 +172,7 @@ main (void)
       const float *row = fall_a + r * NFFT;
       size_t       p   = peak (row);
       CHECK (p == (size_t)(NFFT / 2 + BIN[first / SEG]));
-      CHECK (fabsf (row[p]) < 0.01f); /* 0 dBFS */
+      CHECK (fabsf (to_db (row[p])) < 0.01f); /* 0 dBFS */
       checked++;
     }
   CHECK (checked > rows / 2);
@@ -179,7 +192,7 @@ main (void)
   CHECK (rows * HOP >= (NSEG - 1) * SEG);
   size_t lp = peak (last_a);
   CHECK (lp == (size_t)(NFFT / 2 + BIN[NSEG - 1]));
-  CHECK (last_a[lp] <= 0.0f && last_a[lp] > -0.5f);
+  CHECK (to_db (last_a[lp]) <= 0.0f && to_db (last_a[lp]) > -0.5f);
   CHECK (dp_spectrogram_flush (a, last_a) == 0); /* the stream is over */
 
   printf ("spectrogram: %d samples in chunks of 1/37/700/5 -> %zu rows of "

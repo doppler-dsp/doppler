@@ -71,8 +71,10 @@ rather than confirms (all six are now answered, in the record's §5.4 to §5.9):
 - **U3 — where a row's time goes. ANSWERED (§5.8): the dB conversion
     dominates.** It is 70–83% of a row, at about 5.3 ns per bin: a divide, a
     clamp, a double `log10` and a cast, which the bench does not separate.
-    The FFT is 12–24%. Whether a cheaper conversion or power-first rows
-    should change the default is #2074.
+    The FFT is 12–24%. So **power rows are the default** (#1968, the
+    owner's decision on #2074): a dB row is asked for by name, and a display
+    converts only the bins it draws. A faster dB conversion for the rows that
+    still want it is #2094's.
 - **U4 — rows per second one core sustains. ANSWERED (§5.9).** At `nfft`
     1024 and `hop` 256, about 141,000 rows per second (±4%), a 36 MSa/s
     stream, on one core of the fastest class. A 10 MSa/s stream takes 28% of
@@ -80,9 +82,9 @@ rather than confirms (all six are now answered, in the record's §5.4 to §5.9):
 - **U5 — the dB floor. ANSWERED (§5.4).** A dB row reads no lower than
     −200 dB per bin: a tone under that, and an all-zero frame, give the same
     row. Wideband noise reaches it about `10·log10(nfft)` sooner, and float
-    sources in the tree can produce such samples. That is the dB face by
-    design; a caller who must tell zero from tiny reads the samples, or the
-    linear row (#1968), whose only floor is float32's.
+    sources in the tree can produce such samples. That is the dB mode's floor
+    by design; a caller who must tell zero from tiny takes power rows, the
+    default, whose only floor is float32's.
 - **U6 — what callers want at the end of a stream. ANSWERED (§5.5).** `flush`
     stays explicit: only the caller knows where its own stream ends, and the
     transports' end-of-stream marker can be dropped (PUB/SUB) or repeated
@@ -139,8 +141,9 @@ step that makes a frame a spectrum — the window (Hann, Kaiser, Blackman-Harris
 and rectangular), the zero-pad, the FFT, the DC-centred power, and the dBFS
 reference that makes a full-scale tone read 0 dB. Those steps are one internal
 transform that `accumulate` and the per-frame calls
-(`dp_psd_frame_power`, `dp_psd_frame_db`) share, and one dB conversion that the
-averaged readouts and the single-frame one share.
+(`dp_psd_frame_power`, `dp_psd_frame_linear`, `dp_psd_frame_db`) share, and one
+reading of power against that reference — linear, or dB — that the averaged
+readouts and the single-frame ones share.
 
 The alternative, `fft` plus `dp_magnitude_db_cf32`, is rejected on the
 prototype's number (§3), not on taste.
@@ -170,9 +173,15 @@ and `push_max_out(n)` is exactly the room that makes a push take all of `n`.
 `nfft` is a power of two and `1 <= hop <= nfft`: frame length and row width
 are then the same number, which a frame PSD zero-pads to more bins than
 samples would not give (separating the two is
-[#1966](https://github.com/doppler-dsp/doppler/issues/1966)). Rows are dBFS;
-`mode = power` is reserved and refused until PSD's normalised per-frame
-power is on main, so the two modes share one reference
+[#1966](https://github.com/doppler-dsp/doppler/issues/1966)). **Rows are linear
+power by default** (`DP_SPECTROGRAM_POWER`, `dp_psd_frame_linear`), and dBFS
+when the caller names `DP_SPECTROGRAM_DB` (`dp_psd_frame_db`). Both are PSD's
+readings of one normalised power, so the two modes share one reference: a
+full-scale tone reads 1.0 in one and 0 dB in the other. Power is the default
+because the dB conversion is 70–83% of a dB row (§5.8, U3): a display converts
+only what it draws, and an averaging consumer folds power rows, since the mean
+of dB rows is not the dB of the mean. Nothing in the tree gets dB rows from a
+default; every dB call site names its mode
 ([#1968](https://github.com/doppler-dsp/doppler/issues/1968)). Every row is
 DC-centred exactly as PSD's kernel emits it, bin *k* at index `nfft/2 + k`:
 bin order has one home, and an FFT-order option, if one is ever wanted,
@@ -186,7 +195,8 @@ The Python face is **declarative or absent**. A `push` that returns
 (just-buildit/just-makeit#2115, implemented by #2152's `out_cols`), and that
 is its only jm dependency: jm already sizes a `variable_output` method from
 its input through a two-argument `_max_out (state, n_in)`, which is
-`push_max_out`. Until that release, the Spectrogram is a hand-owned C
+`push_max_out`. Its `mode` defaults to `"power"`, and `"db"` is asked for by
+name, as in C. Until that release, the Spectrogram is a hand-owned C
 component (`[project].c_deps`); no hand-written binding stands in.
 
 ### 4.4 What it composes, and what it does not re-implement

@@ -1,0 +1,1 @@
+- **`make test-python TEST_PATHS=<files/dirs>` runs only those tests (#1998).** It uses the same mem-guard, leak check and flags as the full suite. A path in `PYTEST_ARGS` was collected in addition to `src/`, so the whole suite ran: 4867 tests for a 24-test file. That pushed sessions to raw `pytest`, which skips the guard. `make help` and the workflow page name the knob.

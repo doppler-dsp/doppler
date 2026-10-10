@@ -632,7 +632,8 @@ ______________________________________________________________________
 
 ```sh
 cmake --build build --target <module>   # rebuild just this .so
-make test-python                        # full pytest suite
+make test-python TEST_PATHS=src/doppler/<module>/tests/   # just this module
+make test-python                        # full pytest suite, once, at the end
 ```
 
 If you changed `objects/<component>.toml` (or `just-makeit.toml`) after

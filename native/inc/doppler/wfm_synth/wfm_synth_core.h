@@ -1056,20 +1056,23 @@ void dp_wfm_synth_steps(
  * Use this to inspect which synthesis path is active at runtime.
  *
  * @param state  Must be non-NULL.
- * @return Integer waveform type index (WFM_SYNTH_TONE .. WFM_SYNTH_QPSK).
+ * @return Integer waveform type index (WFM_SYNTH_TONE .. WFM_SYNTH_DSSS).
  */
 int dp_wfm_synth_get_wtype(const dp_wfm_synth_state_t *state);
 
 /**
  * @brief Override the waveform type discriminant in-place.
- * Changing wtype does not reinitialise sub-objects, so a type whose
- * generator create() did not build is refused: PN, BPSK and QPSK need the
- * PN source an engine created as one of them (or as dsss) has.
+ * Changing wtype does not reinitialise sub-objects, so a type that would
+ * read a PN source this engine lacks is refused: PN, BPSK and QPSK read it,
+ * and so does every type but symbols, bits and dsss once set_rrc has
+ * attached a shaper. create() builds the source only for PN, BPSK and QPSK,
+ * and for dsss when its length has an MLS polynomial. Raises ValueError
+ * from Python, naming which of the two refusals it is.
  *
  * @param state  Must be non-NULL.
  * @param val    New wtype value (WFM_SYNTH_TONE .. WFM_SYNTH_DSSS).
  * @return DP_OK, or DP_ERR_INVALID with the state unchanged when @p val is
- *         not a waveform type or needs a generator this engine lacks.
+ *         not a waveform type or reads a PN source this engine lacks.
  */
 int dp_wfm_synth_set_wtype(dp_wfm_synth_state_t *state, int val);
 
@@ -1091,8 +1094,11 @@ int dp_wfm_synth_get_nsps(const dp_wfm_synth_state_t *state);
  *
  * @param state  Must be non-NULL.
  * @param val    New nsps value (>= 1).
+ * @return DP_OK, or DP_ERR_INVALID with the state unchanged when @p val is
+ *         below 1 (the modulated step divides by it). Raises ValueError from
+ *         Python.
  */
-void dp_wfm_synth_set_nsps(dp_wfm_synth_state_t *state, int val);
+int dp_wfm_synth_set_nsps(dp_wfm_synth_state_t *state, int val);
 
 /**
  * @brief Return the current position within the current symbol (0..nsps-1).

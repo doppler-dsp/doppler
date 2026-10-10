@@ -516,14 +516,17 @@ class _SynthEngine:
         Returns
         -------
         int
-            Integer waveform type index (WFM_SYNTH_TONE .. WFM_SYNTH_QPSK).
+            Integer waveform type index (WFM_SYNTH_TONE .. WFM_SYNTH_DSSS).
         """
 
     def set_wtype(self, value: int) -> None:
         """Override the waveform type discriminant in-place. Changing wtype
-        does not reinitialise sub-objects, so a type whose generator create()
-        did not build is refused: PN, BPSK and QPSK need the PN source an
-        engine created as one of them (or as dsss) has.
+        does not reinitialise sub-objects, so a type that would read a PN
+        source this engine lacks is refused: PN, BPSK and QPSK read it, and so
+        does every type but symbols, bits and dsss once set_rrc has attached a
+        shaper. create() builds the source only for PN, BPSK and QPSK, and for
+        dsss when its length has an MLS polynomial. Raises ValueError from
+        Python, naming which of the two refusals it is.
 
         Parameters
         ----------

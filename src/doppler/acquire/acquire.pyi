@@ -1873,6 +1873,14 @@ class BurstCapture:
         each. Every sample of x is consumed. An empty return is normal -- it
         means no burst completed in this call.
 
+        It aborts the process in two places, both a defect in this object and
+        neither reachable from any input or from any blob set_state() accepts:
+        a history ring with no room after trim (the bound in the
+        implementation's trim proves room), and an acquisition call that
+        neither wrote, framed nor reported a hit (its ring always holds a
+        frame). Each stops rather than spinning forever -- and in a Python host
+        it ends the interpreter.
+
         Parameters
         ----------
         x : npt.NDArray[np.complex64]
@@ -2410,10 +2418,11 @@ class BurstCapture:
     @property
     def dropped(self) -> int:
         """Samples of look-back discarded while a queued detection still needed
-        them, lifetime. push() never refuses input: this moves only when a
-        detection that can never be emitted is let go so the ring can take the
-        stream, or when set_state() restores one its blob's look-back cannot
-        reach. A LOST BURST each, not a statistic -- it survives reset().
+        them, lifetime: the part of a dead detection's span -- one whose
+        history is gone, so it can never be emitted -- behind the ring's tail.
+        push() never refuses input, and a resume carries all the look-back, so
+        on a live stream this stays 0. A LOST BURST each, not a statistic -- it
+        survives reset().
         """
 
     @property
@@ -2527,7 +2536,7 @@ class PersistentBurstCapture:
     >>> ram = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
     >>> _ = cap.push(np.zeros(4096, dtype=np.complex64))
     >>> # the look-back is in the file, so the blob stops carrying it
-    >>> ram.state_bytes() - cap.state_bytes() == ram.retain_span * 8
+    >>> ram.state_bytes() - cap.state_bytes() == os.path.getsize(path)
     True
     >>> os.path.getsize(path) > 0
     True
@@ -2573,6 +2582,14 @@ class PersistentBurstCapture:
         starting at `i*burst_len`, and events() returns the matching record for
         each. Every sample of x is consumed. An empty return is normal -- it
         means no burst completed in this call.
+
+        It aborts the process in two places, both a defect in this object and
+        neither reachable from any input or from any blob set_state() accepts:
+        a history ring with no room after trim (the bound in the
+        implementation's trim proves room), and an acquisition call that
+        neither wrote, framed nor reported a hit (its ring always holds a
+        frame). Each stops rather than spinning forever -- and in a Python host
+        it ends the interpreter.
 
         Parameters
         ----------
@@ -3114,10 +3131,11 @@ class PersistentBurstCapture:
     @property
     def dropped(self) -> int:
         """Samples of look-back discarded while a queued detection still needed
-        them, lifetime. push() never refuses input: this moves only when a
-        detection that can never be emitted is let go so the ring can take the
-        stream, or when set_state() restores one its blob's look-back cannot
-        reach. A LOST BURST each, not a statistic -- it survives reset().
+        them, lifetime: the part of a dead detection's span -- one whose
+        history is gone, so it can never be emitted -- behind the ring's tail.
+        push() never refuses input, and a resume carries all the look-back, so
+        on a live stream this stays 0. A LOST BURST each, not a statistic -- it
+        survives reset().
         """
 
     @property

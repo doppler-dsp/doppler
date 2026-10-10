@@ -637,10 +637,12 @@ them:
     ([doppler#1008](https://github.com/doppler-dsp/doppler/issues/1008)):
     `push()` abandoned the rest of its input after an emit. Fixing it needed
     the retention bound restored at the same time — consuming the input alone
-    makes the ring refuse samples (`dropped=5632`), because `trim` clamps to
+    made the ring refuse samples (`dropped=5632`), because `trim` clamps to
     the oldest queued detection and draining one per chunk lets the backlog
-    grow. Draining **every** arrived detection is what makes `dropped` 0 by
-    construction.
+    grow. Draining **every** arrived detection is half of what bounds the
+    ring; the other half came with #2015: the queue kept in stream order, a
+    dead detection swept at every trim, and `push()` never refusing input at
+    all.
 
 ### 7.1 Look-back — the receiver retains what acquisition releases
 
@@ -1039,18 +1041,21 @@ are not re-made:
 
 ### 11.4 The look-back IS the blob
 
-Measured 2026-09-01 by constructing
+Measured 2026-10-10 by constructing
 `DsssBurstReceiver(acq_code, data_code, frame, reps, spc=4, chip_rate=1e6)` over a `sync13 | payload | CRC-16` description and reading its own `retain_span`
 and `state_bytes()`:
 
 | geometry                | `retain_span` | `state_bytes()` |
 | ----------------------- | ------------- | --------------- |
-| SF31×4, 61-sym frame    | 4 928         | 0.05 MB         |
-| SF511×5, 1029-sym frame | 318 584       | 2.57 MB         |
-| SF511×5, 8029-sym frame | 2 082 584     | 16.68 MB        |
+| SF31×4, 61-sym frame    | 5 176         | 0.14 MB         |
+| SF511×5, 1029-sym frame | 324 716       | 8.41 MB         |
+| SF511×5, 8029-sym frame | 2 088 716     | 33.58 MB        |
 
-`retain_span · 8 B` is all but ~20 kB of each, so a checkpoint is the history
-and little else. In a microservices deployment that is plausibly fine — a
+The history ring — twice `retain_span` rounded up to a power of two, at 8 B a
+sample — is all but 5–22 kB of each, so a checkpoint is the history and
+little else. (Re-measured 2026-10-10 for #2015, which made the blob carry the
+whole ring rather than `retain_span` of it, so a resume emits every burst the
+live receiver would; the 2026-09-01 figures were 0.05 / 2.57 / 16.68 MB.) In a microservices deployment that is plausibly fine — a
 blob is written on migration, not per `push()`. Where it is not, the answer
 is a different **retention backend**: a circular file the blob references by
 offset instead of carrying, or a ring shared out of the object's address

@@ -1024,11 +1024,12 @@ test_acq_saturation_does_not_lose_bursts (void)
         found++;
   DP_CHECK (found == 3);
   DP_CHECK (dp_dsss_burst_receiver_get_dropped (s) == 0);
-  /* Dropped samples mean the history ring refused a chunk: something held
-     the tail further back than retain_span, which this geometry is sized to
-     rule out. It has only ever happened on Windows (doppler#1360), never on
-     Linux across 400 noise seeds, so a failure reports the numbers that
-     decide it rather than a bare count. */
+  /* `dropped` counts look-back abandoned with a dead detection -- one whose
+     history went before it could be emitted -- and nothing in this geometry
+     should make one. Before push() stopped refusing input (doppler#2015) it
+     counted refused chunks, which only ever happened on Windows
+     (doppler#1360), never on Linux across 400 noise seeds, so a failure
+     reports the numbers that decide it rather than a bare count. */
   if (dp_dsss_burst_receiver_get_dropped (s) != 0)
     {
       const dp_burst_capture_state_t *c = s->cap;

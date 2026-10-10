@@ -410,7 +410,7 @@ uint64_t dp_burst_capture_state_t::dropped;
 
 
 
-Samples of look-back discarded while a queued detection still needed them. push() never refuses input; this moves only when a detection that can never be emitted is abandoned so the ring can take the stream, or when set\_state() restores one the blob's look-back cannot reach. A LOST BURST each, not a statistic  lifetime, survives reset(). 
+Samples of look-back discarded while a queued detection still needed them  the part of a dead detection's span (one whose history is gone, so it can never be emitted) behind the ring's tail. push() never refuses input. A LOST BURST each, not a statistic  lifetime, survives reset(). 
  
 
 
@@ -656,7 +656,7 @@ burst_capture_pending_t* dp_burst_capture_state_t::q;
 
 
 
-Detections, oldest first; `q_cap` long. 
+Detections, anchor order; `q_cap` long. 
  
 
 

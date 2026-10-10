@@ -47,8 +47,9 @@ window is PSD's index: 0 Hann, 1 Kaiser (with `beta`), 2 Blackman-Harris,
 
 A bin reads no lower than **−200 dB**: PSD clamps power before the logarithm,
 so an all-zero frame and a signal under the floor give the same row. Noise
-reaches it about `10·log10(nfft)` sooner than a tone (a total of −180 dBFS
-leaves at most 9 of 1024 bins above it). To tell digital zero from a very
+reaches it about `10·log10(nfft)` sooner than a tone (at `nfft` 1024, a total
+of −180 dBFS leaves on average a handful of the 1024 bins above it). To tell
+digital zero from a very
 quiet signal, read the samples
 ([the measurement](../design/spectrogram-measurements.md#54-the-db-floor-measured-2026-10-10-u5)).
 

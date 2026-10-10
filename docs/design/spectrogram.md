@@ -55,7 +55,7 @@ The goals, each of which is a thing a test can fail:
 | G7  | **Backpressure loses nothing.** A short output buffer slows the stream down; it never drops input.                                                                    |
 
 What is **not known**, and is therefore what the characterization measures
-rather than confirms (none of these has a number yet):
+rather than confirms (U5 and U6 are answered; U1–U4 have no number yet):
 
 - **U1 — the carry's copy against a bypass.** Every sample goes through the
     ring (about 8 bytes copied per complex sample). Whether feeding the FFT
@@ -75,10 +75,12 @@ rather than confirms (none of these has a number yet):
     row. Wideband noise reaches it about `10·log10(nfft)` sooner, and float
     sources in the tree can produce such samples. That is the dB face by
     design; a caller who must tell zero from tiny reads the samples, or the
-    linear row (#1968), which has no clamp.
+    linear row (#1968), whose only floor is float32's.
 - **U6 — what callers want at the end of a stream. ANSWERED (§5.5).** `flush`
-    stays explicit. Every transport reports the end of a stream where a caller
-    would flush, and no caller wants it implied.
+    stays explicit: only the caller knows where its own stream ends, and the
+    transports' end-of-stream marker can be dropped (PUB/SUB) or repeated
+    (PUSH/PULL), so a flush implied by it could lose the last row or emit one
+    mid-stream.
 
 ## 3. The prototype
 
@@ -205,10 +207,12 @@ method and its caveats are in the record under the same number.
     kernel would be wrong by `20·log10(Σw)`.
 - **§5.4** — The dB floor: a row reads no lower than −200 dB, so a tone
     under it and an all-zero frame give the same row bit for bit. Noise
-    vanishes sooner; at `nfft` 1024, a total of −180 dBFS leaves at most 9 bins
-    of 1024 above the floor.
-- **§5.5** — End of stream: the only caller flushes explicitly, and every
-    transport reports the end where a caller would flush.
+    vanishes about `10·log10(nfft)` sooner: at `nfft` 1024 a total of
+    −180 dBFS leaves on average 1 to 6 bins of 1024 above the floor,
+    depending on the window, and the exponential-bin model predicts every
+    count to within 2.3 bins.
+- **§5.5** — End of stream: the only caller flushes explicitly, and the
+    transports' marker is not reliable enough to imply a flush.
 
 The framer's cost against the hand-written loop is a property of the ring, and
 is recorded with it in [the ring's measurements](ring-buffer-measurements.md).

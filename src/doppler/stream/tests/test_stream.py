@@ -1149,14 +1149,19 @@ def test_ack_after_close_raises_value_error():
     ep = _unique_endpoint("ackclose")
     push = Push(ep, CF64)
     pull = Pull(ep)
-    _ready_queue(push, pull, np.zeros(1, dtype=np.complex128), ep)
-    push.send(np.full(2, 3 + 4j, dtype=np.complex128))
-    samples, _ = pull.recv(timeout_ms=2000)
-    pull.close()
-    with pytest.raises(ValueError, match="closed"):
-        pull.ack(samples)
-    np.testing.assert_array_equal(samples, np.full(2, 3 + 4j))
-    push.__exit__(None, None, None)
+    try:
+        _ready_queue(push, pull, np.zeros(1, dtype=np.complex128), ep)
+        push.send(np.full(2, 3 + 4j, dtype=np.complex128))
+        samples, _ = pull.recv(timeout_ms=2000)
+        pull.close()
+        with pytest.raises(ValueError, match="closed"):
+            pull.ack(samples)
+        np.testing.assert_array_equal(samples, np.full(2, 3 + 4j))
+    finally:
+        # The queue was made up here, so ending it is ours (#1136).
+        _delete_stream_if_present(push)
+        pull.close()
+        push.__exit__(None, None, None)
 
 
 def test_ack_after_the_pull_is_collected_raises_value_error():
@@ -1166,16 +1171,21 @@ def test_ack_after_the_pull_is_collected_raises_value_error():
     ep = _unique_endpoint("ackgc")
     push = Push(ep, CF64)
     pull = Pull(ep)
-    _ready_queue(push, pull, np.zeros(1, dtype=np.complex128), ep)
-    push.send(np.ones(2, dtype=np.complex128))
-    samples, _ = pull.recv(timeout_ms=2000)
-    del pull
-    gc.collect()
-    other = Pull(_unique_endpoint("ackgc_other"))
-    with pytest.raises(ValueError, match="closed"):
-        other.ack(samples)
-    other.close()
-    push.__exit__(None, None, None)
+    other = None
+    try:
+        _ready_queue(push, pull, np.zeros(1, dtype=np.complex128), ep)
+        push.send(np.ones(2, dtype=np.complex128))
+        samples, _ = pull.recv(timeout_ms=2000)
+        del pull
+        gc.collect()
+        other = Pull(ep)
+        with pytest.raises(ValueError, match="closed"):
+            other.ack(samples)
+    finally:
+        _delete_stream_if_present(push)
+        if other is not None:
+            other.close()
+        push.__exit__(None, None, None)
 
 
 def test_ack_on_a_subscriber_frame_is_a_noop():

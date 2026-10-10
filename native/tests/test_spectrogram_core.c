@@ -18,6 +18,17 @@
  *      object bit for bit, fixed size, wrong hop refused (G4)
  *  11. the Python face's sizing: chunks shorter than a frame, each out sized
  *      by push_max_out (mostly 0), equal one big push bit for bit (G7)
+ *  12. beta is ignored outside the Kaiser window
+ *  13. an all-zero row reads exactly the kernel's -200 dB floor
+ *  14. the blob's size is a function of nfft alone, and set_state refuses
+ *      another nfft, another version and an impossible carry, changing
+ *      nothing (G4)
+ *  15. a row arrives with the push that delivers its last sample: zero
+ *      latency in samples
+ *
+ * Fewer than nfft samples are held once a push returns (the carry bound,
+ * G4's premise): rows_for(s, 0) is 0 exactly then, and it is checked after
+ * every push of the chunk-invariance run (5) and the backpressure run (6).
  *
  * The rule push follows is the framer's feed contract: a sample is taken
  * unless it would complete a row out has no room for.
@@ -31,6 +42,7 @@
 
 #include <complex.h>
 #include <math.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -128,6 +140,10 @@ ci_process (void *obj, const void *in, size_t n, void *out, size_t out_cap)
   size_t got = dp_spectrogram_push (s, (const float _Complex *)in, n,
                                     (float *)out, out_cap);
   /* the harness sizes out for the one-shot, so every chunk is taken whole */
+  /* the carry bound: fewer than nfft held once a push returns, which is
+     exactly when no row is due on the carry alone */
+  if (dp_spectrogram_rows_for (s, 0) != 0)
+    return (size_t)-1;
   return dp_spectrogram_consumed (s) == n ? got : (size_t)-1;
 }
 
@@ -356,6 +372,7 @@ main (void)
                                             row, nfft + 5);
             DP_CHECK (w == 0 || w == nfft);
             DP_CHECK (dp_spectrogram_pending (s) < nfft);
+            DP_CHECK (dp_spectrogram_rows_for (s, 0) == 0); /* held < nfft */
             if (w && made < rows)
               memcpy (got + made * nfft, row, nfft * sizeof *row);
             made += w / nfft;
@@ -651,6 +668,173 @@ main (void)
         DP_CHECK (zero_room > 0); /* the no-room path really ran */
         free (want);
         free (got);
+        dp_spectrogram_destroy (s);
+      }
+  }
+
+  /* ---- 12. beta is ignored outside the Kaiser window ---------------- */
+  {
+    const size_t nfft = 64;
+    for (int w = 0; w < 4; w++)
+      {
+        dp_spectrogram_state_t *a
+            = dp_spectrogram_create (nfft, nfft, w, 0.0f, 0);
+        dp_spectrogram_state_t *b
+            = dp_spectrogram_create (nfft, nfft, w, 7.5f, 0);
+        float ra[64], rb[64];
+        DP_REQUIRE (a != NULL && b != NULL);
+        DP_REQUIRE (dp_spectrogram_push (a, x, nfft, ra, nfft) == nfft);
+        DP_REQUIRE (dp_spectrogram_push (b, x, nfft, rb, nfft) == nfft);
+        const int same = memcmp (ra, rb, sizeof ra) == 0;
+        /* Kaiser (1) is the precondition: there beta MUST change the row,
+           or "the same" for the other three would prove nothing */
+        DP_CHECK (w == 1 ? !same : same);
+        dp_spectrogram_destroy (a);
+        dp_spectrogram_destroy (b);
+      }
+  }
+
+  /* ---- 13. an all-zero row reads exactly the kernel's floor --------- */
+  /* PSD clamps power at 1e-20 before the log, so a frame of zeros reads
+     -200 dB in every bin, exactly, whatever the window: what a caller tests
+     to tell "no signal at all" from a weak one */
+  {
+    const size_t nfft       = 32;
+    float _Complex zero[32] = { 0 };
+    float row[32];
+    for (int w = 0; w < 4; w++)
+      {
+        dp_spectrogram_state_t *s
+            = dp_spectrogram_create (nfft, nfft, w, 7.5f, 0);
+        DP_REQUIRE (s != NULL);
+        DP_REQUIRE (dp_spectrogram_push (s, zero, nfft, row, nfft) == nfft);
+        int at_floor = 1;
+        for (size_t i = 0; i < nfft; i++)
+          at_floor &= row[i] == -200.0f;
+        DP_CHECK (at_floor);
+        dp_spectrogram_destroy (s);
+      }
+  }
+
+  /* ---- 14. the blob: size from nfft alone; every refusal changes nothing */
+  {
+    const size_t nfft = 32, hop = 10;
+    /* the size is a function of nfft alone: every window and hop agrees */
+    static const size_t hops[] = { 1, 10, 32 };
+    size_t              want   = 0;
+    int                 one    = 1;
+    for (int w = 0; w < 4; w++)
+      for (size_t h = 0; h < sizeof hops / sizeof *hops; h++)
+        {
+          dp_spectrogram_state_t *t
+              = dp_spectrogram_create (nfft, hops[h], w, 7.5f, 0);
+          DP_REQUIRE (t != NULL);
+          size_t bytes = dp_spectrogram_state_bytes (t);
+          if (!want)
+            want = bytes;
+          one &= bytes == want;
+          dp_spectrogram_destroy (t);
+        }
+    DP_CHECK (one);
+
+    /* a real carry: 50 samples make 2 rows and hold 30 */
+    float                   rows[4 * 32];
+    dp_spectrogram_state_t *a = dp_spectrogram_create (nfft, hop, 0, 0.0f, 0);
+    DP_REQUIRE (a != NULL);
+    DP_REQUIRE (dp_spectrogram_push (a, x, 50, rows, 4 * nfft) == 2 * nfft);
+    const size_t   bytes = dp_spectrogram_state_bytes (a);
+    unsigned char *blob  = (unsigned char *)malloc (bytes);
+    unsigned char *lie   = (unsigned char *)calloc (1, 2 * bytes);
+    DP_REQUIRE (blob != NULL && lie != NULL);
+    dp_spectrogram_get_state (a, blob);
+
+    /* the target holds a stream of its own, so "unchanged" is visible */
+    dp_spectrogram_state_t *b = dp_spectrogram_create (nfft, hop, 0, 0.0f, 0);
+    DP_REQUIRE (b != NULL);
+    dp_spectrogram_push (b, x + 300, 5, rows, 4 * nfft);
+    DP_REQUIRE (dp_spectrogram_pending (b) == 5
+                && dp_spectrogram_consumed (b) == 5);
+#define B_UNCHANGED                                                           \
+  (dp_spectrogram_pending (b) == 5 && dp_spectrogram_consumed (b) == 5)
+
+    /* another nfft: its blob is the wrong size */
+    dp_spectrogram_state_t *c = dp_spectrogram_create (16, 5, 0, 0.0f, 0);
+    DP_REQUIRE (c != NULL);
+    DP_REQUIRE (dp_spectrogram_state_bytes (c) < bytes);
+    dp_spectrogram_push (c, x, 20, rows, 4 * nfft);
+    dp_spectrogram_get_state (c, lie); /* zero-padded to the target's size */
+    DP_CHECK (dp_spectrogram_set_state (b, lie) == DP_ERR_INVALID);
+    DP_CHECK (B_UNCHANGED);
+    dp_spectrogram_destroy (c);
+
+    /* another version */
+    memcpy (lie, blob, bytes);
+    uint16_t version;
+    memcpy (&version, lie + offsetof (dp_state_hdr_t, version),
+            sizeof version);
+    version++;
+    memcpy (lie + offsetof (dp_state_hdr_t, version), &version,
+            sizeof version);
+    DP_CHECK (dp_spectrogram_set_state (b, lie) == DP_ERR_INVALID);
+    DP_CHECK (B_UNCHANGED);
+
+    /* an impossible carry in the framer's child blob: 21 held with 2 rows
+       out (a drained framer holds at least nfft - hop = 22), and counters
+       that agree, written = 2 * hop + 21 */
+    memcpy (lie, blob, bytes);
+    unsigned char *child   = lie + sizeof (dp_state_hdr_t);
+    const uint64_t live    = nfft - hop - 1;
+    const uint64_t written = 2 * hop + live;
+    memcpy (child + sizeof (dp_state_hdr_t), &live, sizeof live);
+    memcpy (child + DP_FRAMER_STATE_WRITTEN_OFFSET (float, nfft), &written,
+            sizeof written);
+    DP_CHECK (dp_spectrogram_set_state (b, lie) == DP_ERR_INVALID);
+    DP_CHECK (B_UNCHANGED);
+#undef B_UNCHANGED
+
+    /* ...and the real blob restores: the refusals are the checks, not a
+       set_state that refuses everything */
+    DP_CHECK (dp_spectrogram_set_state (b, blob) == DP_OK);
+    DP_CHECK (dp_spectrogram_pending (b) == dp_spectrogram_pending (a));
+    free (blob);
+    free (lie);
+    dp_spectrogram_destroy (a);
+    dp_spectrogram_destroy (b);
+  }
+
+  /* ---- 15. a row arrives with the push that delivers its last sample -- */
+  /* zero latency in samples: fed one sample per push, the push carrying
+     sample r*hop + nfft - 1 is the one that returns row r -- never a later
+     push -- and what it returns IS row r */
+  {
+    static const size_t shp[][2] = { { 16, 16 }, { 16, 5 }, { 8, 1 } };
+    for (size_t k = 0; k < sizeof shp / sizeof *shp; k++)
+      {
+        const size_t            nfft = shp[k][0], hop = shp[k][1];
+        dp_spectrogram_state_t *s
+            = dp_spectrogram_create (nfft, hop, 0, 0.0f, 0);
+        dp_psd_state_t *p = ref_psd (nfft, 0, 0.0f);
+        DP_REQUIRE (s != NULL && p != NULL);
+        float  row[16], ref[16];
+        size_t r       = 0;
+        int    on_time = 1;
+        for (size_t i = 0; i < 300; i++)
+          {
+            size_t    w   = dp_spectrogram_push (s, x + i, 1, row, nfft);
+            const int due = i + 1 >= nfft && (i + 1 - nfft) % hop == 0;
+            if ((w == nfft) != due)
+              on_time = 0;
+            if (w == nfft)
+              {
+                dp_psd_frame_db (p, x + r * hop, ref);
+                if (memcmp (row, ref, nfft * sizeof *row) != 0)
+                  on_time = 0;
+                r++;
+              }
+          }
+        DP_CHECK (on_time);
+        DP_CHECK (r == (300 - nfft) / hop + 1); /* and rows did arrive */
+        dp_psd_destroy (p);
         dp_spectrogram_destroy (s);
       }
   }

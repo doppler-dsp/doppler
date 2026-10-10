@@ -254,8 +254,9 @@ void dp_carrier_acq_steps(dp_carrier_acq_state_t *state, const float _Complex *x
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Composition: psd + detector children (self-contained sub-blobs) + own
  * running fields (n_blocks/ready/residual_hz/carry_len) + the carry
- * buffer (fixed psd->n capacity, only the first carry_len samples
- * meaningful). nfft/dwell_target/max_n_blocks are config -- validated
+ * buffer (fixed psd->n capacity: the first carry_len samples, then zeros,
+ * so the blob is a function of the object -- #2076). nfft/dwell_target/
+ * max_n_blocks are config -- validated
  * against the live instance, not restored from the blob (a resumed
  * instance must be
  * constructed with the same sample_rate_hz/symbol_rate_hz/psd_template/

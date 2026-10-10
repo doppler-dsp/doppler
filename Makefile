@@ -854,7 +854,7 @@ GATES_CI_EXTRA = issues-check
 # (standard.mk documents the hazard), so the script runs make itself.
 NATS_FRESH_DIR = build-nats-fresh
 nats-vendor-fresh-check: ## Prove the vendored nats.c keeps its options after a compiler change
-	@uv run python scripts/check_nats_vendor_fresh.py \
+	@python3 scripts/check_nats_vendor_fresh.py \
 	    --build-dir $(NATS_FRESH_DIR) --protect $(BUILD_DIR) --cmake "$(CMAKE)"
 
 # Compile through ccache when it is installed, and silently not when it is

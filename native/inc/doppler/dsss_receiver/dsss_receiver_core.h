@@ -150,9 +150,9 @@ extern "C"
     double   doppler_hz_est; /**< Cached from the winning acquisition hit. */
     double   cn0_dbhz_est;   /**< Cached from the winning acquisition hit. */
     uint64_t samples_fed;    /**< Running total handed to dp_acq_push() so far
-                                   — diffed against acq->samples_consumed
-                                   right after a hit to find the exact
-                                   unconsumed tail of the current call.    */
+                                   — the hit's samples_consumed less this
+                                   call's start is where the call's tail,
+                                   handed to tracking, begins.             */
   } dp_dsss_receiver_state_t;
 
   /* SPEC-derived defaults for the pre-despread carrier loop (bn<=0.01
@@ -300,9 +300,9 @@ extern "C"
    * While searching, samples feed the embedded Acquisition and nothing
    * is emitted (0 return is normal, not an error). The moment a hit
    * fires, `Dll`/`RateConverter`/`MpskReceiver` are built and seeded
-   * from it, and the unconsumed tail of THIS call — computed exactly
-   * from `acq->samples_consumed`, no samples dropped or double-fed — is
-   * handed straight to them in the same call. While tracking, samples
+   * from it, and the rest of THIS call from where the hit's frame ended
+   * — the hit's own `samples_consumed`, so no samples are dropped or
+   * double-fed — is handed straight to them in the same call. While tracking, samples
    * feed `Dll -> RateConverter -> MpskReceiver` in sequence. Accepts any
    * block size; state carries across calls (`Acquisition`/`Dll`/
    * `RateConverter`/`MpskReceiver` are all already block-size invariant,

@@ -684,16 +684,13 @@ def review(d) -> None:
     R.find(
         "F4",
         "BY DESIGN",
-        "A blob restores into an object of another window, beta or mode "
-        "without complaint, and the rows that follow are that object's "
-        "(§2.5). The blob carries the stream position and no "
-        "configuration, so keeping the create arguments the same is the "
-        "caller's precondition, and the header states it. `nfft` and `hop` "
-        "are the exceptions, refused because they change what the position "
-        "means. The mode is accepted by #2022's own criterion: a setting is "
-        'packed as a reject key when it "changes what the blob means (a '
-        "mode, a rate)\", and the Spectrogram's blob is the carry, the same "
-        "samples whichever units the rows are read in.",
+        "A blob from another window, beta or mode is refused, and the object "
+        "is unchanged (#2102, the owner's ruling). The blob carries the "
+        "configuration the rows depend on (mode, nfft, hop, window, and the "
+        "Kaiser beta), so a restore cannot silently change what the rows "
+        "mean. A Hann or rectangular object takes another beta, which does "
+        "not change its rows. The stream position restores only into the "
+        "same configuration.",
     )
     R.find(
         "F5",
@@ -967,20 +964,22 @@ def limits(d) -> None:
     R.limit(
         bool(st)
         and all(
-            _i(r, "window_refused") == 0 and _i(r, "window_wrong") == 0
+            _i(r, "window_refused") == _i(r, "cuts")
+            and _i(r, "window_wrong") == 0
             for r in st
         ),
-        "a blob restores into an object of another window, and the rows "
-        "that follow are that window's own",
+        "a blob from another window is refused at every cut, and no object "
+        "restored from one writes a row",
     )
 
     R.limit(
         bool(st)
         and all(
-            _i(r, "mode_refused") == 0 and _i(r, "mode_wrong") == 0 for r in st
+            _i(r, "mode_refused") == _i(r, "cuts") and _i(r, "mode_wrong") == 0
+            for r in st
         ),
-        "a blob restores into an object of the other mode, and the rows "
-        "that follow are in that mode's units",
+        "a blob from the other mode is refused at every cut, and no object "
+        "restored from one writes a row",
     )
 
     lv = d["level"]

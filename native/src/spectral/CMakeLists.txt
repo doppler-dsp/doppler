@@ -29,6 +29,7 @@ target_link_libraries(spectral PRIVATE
     psd_core
     spectrogram_core
     acc_trace_core
+    dp_interrupt_guard_core
     Python3::NumPy)
 target_include_directories(spectral PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 set_target_properties(spectral PROPERTIES
@@ -55,6 +56,7 @@ target_link_libraries(test_spectral_core PRIVATE
     psd_core
     spectrogram_core
     acc_trace_core
+    dp_interrupt_guard_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_spectral_core
     PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)

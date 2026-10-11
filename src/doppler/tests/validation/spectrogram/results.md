@@ -184,14 +184,14 @@ At every cut point from 0 to 3`nfft`+3 (every 13th at `nfft` 1024), a stream is 
 
 | mode | nfft | hop | window | cuts | bytes | sizes | varies | unwritten | after restore | resume bad | envelope refused | hop refused | nfft refused | changed | window refused | window wrong | mode refused | mode wrong |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| power | 8 | 3 | hann | 28 | 128 | 1 | 0 | 0 | 0 | 0 | 84 of 84 | 28 of 28 | 28 of 28 | 0 | 0 | 0 | 0 | 0 |
-| power | 64 | 16 | kaiser | 196 | 576 | 1 | 0 | 0 | 0 | 0 | 588 of 588 | 196 of 196 | 196 of 196 | 0 | 0 | 0 | 0 | 0 |
-| power | 256 | 64 | blackman-harris | 772 | 2,112 | 1 | 0 | 0 | 0 | 0 | 2316 of 2316 | 772 of 772 | 772 of 772 | 0 | 0 | 0 | 0 | 0 |
-| power | 1,024 | 256 | rect | 237 | 8,256 | 1 | 0 | 0 | 0 | 0 | 711 of 711 | 237 of 237 | 237 of 237 | 0 | 0 | 0 | 0 | 0 |
-| dB | 8 | 3 | hann | 28 | 128 | 1 | 0 | 0 | 0 | 0 | 84 of 84 | 28 of 28 | 28 of 28 | 0 | 0 | 0 | 0 | 0 |
-| dB | 64 | 16 | kaiser | 196 | 576 | 1 | 0 | 0 | 0 | 0 | 588 of 588 | 196 of 196 | 196 of 196 | 0 | 0 | 0 | 0 | 0 |
-| dB | 256 | 64 | blackman-harris | 772 | 2,112 | 1 | 0 | 0 | 0 | 0 | 2316 of 2316 | 772 of 772 | 772 of 772 | 0 | 0 | 0 | 0 | 0 |
-| dB | 1,024 | 256 | rect | 237 | 8,256 | 1 | 0 | 0 | 0 | 0 | 711 of 711 | 237 of 237 | 237 of 237 | 0 | 0 | 0 | 0 | 0 |
+| power | 8 | 3 | hann | 28 | 156 | 1 | 0 | 0 | 0 | 0 | 84 of 84 | 28 of 28 | 28 of 28 | 0 | 28 | 0 | 28 | 0 |
+| power | 64 | 16 | kaiser | 196 | 604 | 1 | 0 | 0 | 0 | 0 | 588 of 588 | 196 of 196 | 196 of 196 | 0 | 196 | 0 | 196 | 0 |
+| power | 256 | 64 | blackman-harris | 772 | 2,140 | 1 | 0 | 0 | 0 | 0 | 2316 of 2316 | 772 of 772 | 772 of 772 | 0 | 772 | 0 | 772 | 0 |
+| power | 1,024 | 256 | rect | 237 | 8,284 | 1 | 0 | 0 | 0 | 0 | 711 of 711 | 237 of 237 | 237 of 237 | 0 | 237 | 0 | 237 | 0 |
+| dB | 8 | 3 | hann | 28 | 156 | 1 | 0 | 0 | 0 | 0 | 84 of 84 | 28 of 28 | 28 of 28 | 0 | 28 | 0 | 28 | 0 |
+| dB | 64 | 16 | kaiser | 196 | 604 | 1 | 0 | 0 | 0 | 0 | 588 of 588 | 196 of 196 | 196 of 196 | 0 | 196 | 0 | 196 | 0 |
+| dB | 256 | 64 | blackman-harris | 772 | 2,140 | 1 | 0 | 0 | 0 | 0 | 2316 of 2316 | 772 of 772 | 772 of 772 | 0 | 772 | 0 | 772 | 0 |
+| dB | 1,024 | 256 | rect | 237 | 8,284 | 1 | 0 | 0 | 0 | 0 | 711 of 711 | 237 of 237 | 237 of 237 | 0 | 237 | 0 | 237 | 0 |
 
 
 The impossible-carry refusal (a drained carry fewer than `nfft` - `hop` with a row out) needs the framer's blob layout, so it is pinned in C (§14) and certified at scale in the framer's own report rather than here.
@@ -315,7 +315,7 @@ At -190, -210 dBFS every frame of every window is all floor, 1,024 of 1,024 bins
 
 - **F3 · BY DESIGN** — A bin reads no lower than -200 dB, so a tone under the floor and digital silence give the same row (§2.7), and noise reaches it about `10·log10(nfft)` sooner. A logarithm has to stop somewhere; the header and the guide now say where. It is the dB mode's floor: a caller that must tell zero from tiny takes power rows, the default since #1968 (F6), whose only floor is float32's and where an all-zero frame reads exactly 0.
 
-- **F4 · BY DESIGN** — A blob restores into an object of another window, beta or mode without complaint, and the rows that follow are that object's (§2.5). The blob carries the stream position and no configuration, so keeping the create arguments the same is the caller's precondition, and the header states it. `nfft` and `hop` are the exceptions, refused because they change what the position means. The mode is accepted by #2022's own criterion: a setting is packed as a reject key when it "changes what the blob means (a mode, a rate)", and the Spectrogram's blob is the carry, the same samples whichever units the rows are read in.
+- **F4 · BY DESIGN** — A blob from another window, beta or mode is refused, and the object is unchanged (#2102, the owner's ruling). The blob carries the configuration the rows depend on (mode, nfft, hop, window, and the Kaiser beta), so a restore cannot silently change what the rows mean. A Hann or rectangular object takes another beta, which does not change its rows. The stream position restores only into the same configuration.
 
 - **F5 · BY DESIGN** — One object is not thread-safe: the kernel uses the object's own scratch. That is a contract, not something a test can prove. Threads each own an object, and the state blob is how a stream moves between them.
 
@@ -361,8 +361,8 @@ Claims a caller may rely on, asserted by this run.
 | PASS | a blob taken at any of 1,233 cut points, in each mode, restores into a new object, replacing its carry and resetting consumed, and resumes bit for bit |
 | PASS | a blob with a corrupt magic, version or size, from another hop, or from another nfft is always refused |
 | PASS | a refused blob changes nothing: pending, consumed and the next rows are the untouched twin's |
-| PASS | a blob restores into an object of another window, and the rows that follow are that window's own |
-| PASS | a blob restores into an object of the other mode, and the rows that follow are in that mode's units |
+| PASS | a blob from another window is refused at every cut, and no object restored from one writes a row |
+| PASS | a blob from the other mode is refused at every cut, and no object restored from one writes a row |
 | PASS | a tone on bin k peaks at index nfft/2 + k, for every bin of nfft 8, 64 and 1,024 under every window |
 | PASS | a full-scale tone on a bin reads 1.0 in a power row within 2.3e-05 (1e-4 dB) under every window (largest 3.0e-07) |
 | PASS | a full-scale tone on a bin reads 0 dBFS in a dB row within 1e-04 dB under every window (largest 1.3e-06 dB) |

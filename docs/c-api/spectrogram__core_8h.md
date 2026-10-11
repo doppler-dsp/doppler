@@ -16,6 +16,7 @@ _Streaming spectrogram: a stream of any-size chunks in, rows of nfft-bin spectra
 * `#include "doppler/psd/psd_core.h"`
 * `#include <stddef.h>`
 * `#include <stdint.h>`
+* `#include "doppler/dp_interrupt_guard/dp_interrupt_guard_core.h"`
 
 
 

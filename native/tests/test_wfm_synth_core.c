@@ -594,7 +594,7 @@ main (void)
           WFM_SYNTH_SYMBOLS, 1e6, 0.0, 10.0, 0, 1, 3, 7, 0, 0, 0.0);
       DP_CHECK (clean && noisy && target);
       DP_CHECK (dp_wfm_synth_state_bytes (noisy)
-                != dp_wfm_synth_state_bytes (clean));
+                > dp_wfm_synth_state_bytes (clean));
       const size_t zb    = dp_wfm_synth_state_bytes (noisy);
       uint8_t     *zblob = malloc (zb);
       DP_REQUIRE (zblob != NULL);

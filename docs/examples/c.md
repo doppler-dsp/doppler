@@ -203,7 +203,7 @@ ______________________________________________________________________
 
 int main(void) {
     float complex out[1024];
-    dp_awgn(0, 1.0f, 1024, out);   /* seed=0, amplitude=1.0 — DP_OK (0) on success, DP_ERR_MEMORY (-6) on failure */
+    dp_awgn(0, 1.0f, 1024, out);   /* seed=0, amplitude=1.0 — DP_OK (0) on success; DP_ERR_INVALID for a NaN, infinite or negative amplitude; DP_ERR_MEMORY (-6) on allocation failure */
     return 0;
 }
 ```

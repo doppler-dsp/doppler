@@ -34,7 +34,7 @@ int main(void)
 {
   float complex out[1024];
   if (dp_awgn(42, 1.0f, 1024, out) != DP_OK) {
-      /* handle OOM */
+      /* DP_ERR_INVALID for a bad amplitude, DP_ERR_MEMORY when out of memory */
       return 1;
   }
   return 0;

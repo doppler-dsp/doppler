@@ -17,6 +17,7 @@
 #include "doppler/jm_perf.h"
 #include "doppler/fft/fft_core.h"
 #include "doppler/acc_trace/acc_trace_core.h"
+#include "doppler/f32_buffer/f32_buffer_core.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -37,11 +38,18 @@ typedef struct {
     double fs;                 
     double full_scale;         
     size_t bits;               
+    size_t hop;                
+    dp_f32_t *ring;            
+    dp_f32_framer_t fr;        
 } dp_psd_state_t;
 
 dp_psd_state_t *dp_psd_create(size_t n, double fs, int window, float beta,
                             size_t pad, double full_scale, size_t bits,
                             int mode, double alpha);
+
+dp_psd_state_t *dp_psd_create_hop(size_t n, double fs, int window, float beta,
+                                 size_t pad, double full_scale, size_t bits,
+                                 int mode, double alpha, size_t hop);
 
 void dp_psd_destroy(dp_psd_state_t *state);
 

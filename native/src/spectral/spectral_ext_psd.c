@@ -41,10 +41,11 @@ PSDObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 PSDObj_init (PSDObject *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[]    = { "n",          "fs",   "window", "beta",  "pad",
-                               "full_scale", "bits", "mode",   "alpha", NULL };
-  unsigned long long n_raw = 1024;
-  double             fs    = 1.0;
+  static char *kwlist[]
+      = { "n",    "fs",   "window", "beta", "pad", "full_scale",
+          "bits", "mode", "alpha",  "hop",  NULL };
+  unsigned long long n_raw      = 1024;
+  double             fs         = 1.0;
   const char        *window_str = "hann";
   float              beta       = 0.0f;
   unsigned long long pad_raw    = 1;
@@ -52,10 +53,11 @@ PSDObj_init (PSDObject *self, PyObject *args, PyObject *kwds)
   unsigned long long bits_raw   = 0;
   const char        *mode_str   = "mean";
   double             alpha      = 0.1;
+  unsigned long long hop_raw    = 0;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|KdsfKdKsd", kwlist, &n_raw,
-                                    &fs, &window_str, &beta, &pad_raw,
-                                    &full_scale, &bits_raw, &mode_str, &alpha))
+  if (!PyArg_ParseTupleAndKeywords (
+          args, kwds, "|KdsfKdKsdK", kwlist, &n_raw, &fs, &window_str, &beta,
+          &pad_raw, &full_scale, &bits_raw, &mode_str, &alpha, &hop_raw))
     return -1;
   size_t n      = (size_t)n_raw;
   int    window = 0;
@@ -94,8 +96,9 @@ PSDObj_init (PSDObject *self, PyObject *args, PyObject *kwds)
                     mode_str);
       return -1;
     }
-  self->handle = dp_psd_create (n, fs, window, beta, pad, full_scale, bits,
-                                mode, alpha);
+  size_t hop   = (size_t)hop_raw;
+  self->handle = dp_psd_create_hop (n, fs, window, beta, pad, full_scale, bits,
+                                    mode, alpha, hop);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
@@ -1165,7 +1168,8 @@ static PyMethodDef PSDObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "accumulate(x) -> None\n"
     "\n"
-    "Window, FFT and fold floor(n_in/n) cf32 frames into the average.\n"
+    "Window, FFT and fold every cf32 frame the stream completes into the "
+    "average; a partial frame is carried to the next call.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1206,7 +1210,7 @@ static PyMethodDef PSDObj_methods[] = {
     "    >>> import numpy as np\n"
     "    >>> from doppler.spectral import PSD\n"
     "    >>> obj = PSD(n=1024, fs=1.0, window=\"hann\", beta=0.0, pad=1, "
-    "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1)\n"
+    "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1, hop=0)\n"
     "    >>> obj.accumulate_real(np.zeros(4, dtype=np.float32))\n" },
   { "reset", (PyCFunction)PSDObj_reset, METH_NOARGS,
     "reset() -> None\n"
@@ -1217,7 +1221,7 @@ static PyMethodDef PSDObj_methods[] = {
     "--------\n"
     "    >>> from doppler.spectral import PSD\n"
     "    >>> obj = PSD(n=1024, fs=1.0, window=\"hann\", beta=0.0, pad=1, "
-    "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1)\n"
+    "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1, hop=0)\n"
     "    >>> obj.reset()\n" },
   { "psd_db", (PyCFunction)(void *)PSDObj_psd_db, METH_VARARGS | METH_KEYWORDS,
     "psd_db(count=1) -> ndarray | None\n"
@@ -1244,7 +1248,7 @@ static PyMethodDef PSDObj_methods[] = {
     "    >>> import numpy as np\n"
     "    >>> from doppler.spectral import PSD\n"
     "    >>> obj = PSD(n=1024, fs=1.0, window=\"hann\", beta=0.0, pad=1, "
-    "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1)\n"
+    "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1, hop=0)\n"
     "    >>> y = obj.psd_db(4)\n"
     "    >>> y.dtype\n"
     "    dtype('float32')\n" },
@@ -1324,7 +1328,7 @@ static PyMethodDef PSDObj_methods[] = {
     "    >>> import numpy as np\n"
     "    >>> from doppler.spectral import PSD\n"
     "    >>> obj = PSD(n=1024, fs=1.0, window=\"hann\", beta=0.0, pad=1, "
-    "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1)\n"
+    "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1, hop=0)\n"
     "    >>> y = obj.power_twosided(4)\n"
     "    >>> y.dtype\n"
     "    dtype('float32')\n" },
@@ -1365,7 +1369,7 @@ static PyMethodDef PSDObj_methods[] = {
     "    >>> import numpy as np\n"
     "    >>> from doppler.spectral import PSD\n"
     "    >>> obj = PSD(n=1024, fs=1.0, window=\"hann\", beta=0.0, pad=1, "
-    "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1)\n"
+    "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1, hop=0)\n"
     "    >>> y = obj.power_onesided(4)\n"
     "    >>> y.dtype\n"
     "    dtype('float32')\n" },
@@ -1440,7 +1444,7 @@ static PyMethodDef PSDObj_methods[] = {
     "    >>> import numpy as np\n"
     "    >>> from doppler.spectral import PSD\n"
     "    >>> obj = PSD(n=1024, fs=1.0, window=\"hann\", beta=0.0, pad=1, "
-    "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1)\n"
+    "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1, hop=0)\n"
     "    >>> obj.total_band_power(np.zeros(4, dtype=np.float64))\n"
     "    0.0\n" },
   { "occupied_bw", (PyCFunction)(void *)PSDObj_occupied_bw,
@@ -1490,7 +1494,7 @@ static PyMethodDef PSDObj_methods[] = {
     "--------\n"
     "    >>> from doppler.spectral import PSD\n"
     "    >>> obj = PSD(n=1024, fs=1.0, window=\"hann\", beta=0.0, pad=1, "
-    "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1)\n"
+    "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1, hop=0)\n"
     "    >>> obj.noise_floor()\n"
     "    0.0\n" },
   { "snr", (PyCFunction)(void *)PSDObj_snr, METH_VARARGS | METH_KEYWORDS,
@@ -1515,7 +1519,7 @@ static PyMethodDef PSDObj_methods[] = {
     "    >>> import numpy as np\n"
     "    >>> from doppler.spectral import PSD\n"
     "    >>> obj = PSD(n=1024, fs=1.0, window=\"hann\", beta=0.0, pad=1, "
-    "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1)\n"
+    "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1, hop=0)\n"
     "    >>> obj.snr(0.0, 0.0)\n"
     "    0.0\n" },
   { "sfdr", (PyCFunction)(void *)PSDObj_sfdr, METH_VARARGS | METH_KEYWORDS,
@@ -1538,7 +1542,7 @@ static PyMethodDef PSDObj_methods[] = {
     "    >>> import numpy as np\n"
     "    >>> from doppler.spectral import PSD\n"
     "    >>> obj = PSD(n=1024, fs=1.0, window=\"hann\", beta=0.0, pad=1, "
-    "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1)\n"
+    "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1, hop=0)\n"
     "    >>> obj.sfdr(0.0)\n"
     "    0.0\n" },
   { "state_bytes", (PyCFunction)PSDObj_state_bytes, METH_NOARGS,
@@ -1633,7 +1637,9 @@ static PyTypeObject PSDObjType = {
   .tp_dealloc                             = (destructor)PSDObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
   .tp_doc
-  = "Create an averaging PSD estimator.\n"
+  = "Create an averaging PSD estimator with a frame hop: frame k covers\n"
+    "stream samples [k*hop, k*hop + n). hop = n is the non-overlapping frame\n"
+    "dp_psd_create() makes.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1671,6 +1677,13 @@ static PyTypeObject PSDObjType = {
     "    rule is the AccTrace averager's, whose create refuses anything else, "
     "so\n"
     "    this does too. Ignored, and so not checked, in the other modes.\n"
+    "hop : int, default 0\n"
+    "    Samples between frame starts, 1..n; 0 means n, so a binding can "
+    "default\n"
+    "    to the frame dp_psd_create makes. A hop above n (a gap between "
+    "frames)\n"
+    "    is refused: the framer holds no sample it has not been told to "
+    "keep.\n"
     "\n"
     "Raises\n"
     "------\n"

@@ -25,10 +25,12 @@ boundary and far tighter than any real change.
 from __future__ import annotations
 
 import json
+import math
 
 import numpy as np
 import pytest
 
+from doppler.specan import engine as engine_mod
 from doppler.specan.record_demo import record
 from doppler.tests._repo import repo_root
 
@@ -96,3 +98,40 @@ def test_the_recording_is_reproducible() -> None:
     a = record(n_frames=3)
     b = record(n_frames=3)
     assert a == b
+
+
+# Independent of the golden: the noise reads noise_floor_dbm plus
+# 10*log10(ENBW * fs_out / fs_in), ENBW = rbw * N / fs_out.
+def test_the_displayed_noise_is_the_rbw_normalised_floor(monkeypatch) -> None:
+    sizes: list[int] = []
+    process = engine_mod.SpecanEngine.process
+
+    def spy(self, iq, fs_in, center_freq):
+        frame = process(self, iq, fs_in, center_freq)
+        if frame is not None:
+            sizes.append(frame.data_size)
+        return frame
+
+    monkeypatch.setattr(engine_mod.SpecanEngine, "process", spy)
+    fs, rbw, floor = 2.048e6, 4000.0, -90.0
+    frames = record(
+        n_frames=60,
+        rbw=rbw,
+        sample_rate=fs,
+        center_freq=0.0,
+        tone_freq=1e5,
+        tone_power=-20.0,
+        noise_floor=floor,
+        warmup=5,
+        seed=0,
+    )
+    lin = []
+    for f in frames:
+        db = np.asarray(f["db"])
+        d = np.abs(np.arange(db.size) - int(np.argmax(db)))
+        lin.append(10 ** (db[d >= 40] / 10))  # clear of the tone's skirt
+    measured = 10 * math.log10(np.concatenate(lin).mean())
+    last = frames[-1]
+    enbw = last["rbw"] * sizes[-1] / last["fs_out"]
+    expected = floor + 10 * math.log10(enbw * last["fs_out"] / fs)
+    assert abs(measured - expected) <= 0.5, (measured, expected)

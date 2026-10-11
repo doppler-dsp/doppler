@@ -441,13 +441,37 @@ def _outs(d: Declared, name: str) -> tuple[str, ...]:
     )
 
 
-def _pure(d: Declared, name: str) -> bool:
-    """A value-returning method whose C first parameter is const.
+def _strip_c_comments(text: str) -> str:
+    """C source with its block and line comments removed, so a decoy in a
+    comment cannot stand for a declaration."""
+    text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+    return re.sub(r"//[^\n]*", "", text)
 
-    The C prototype the manifest binds is ``<ret> dp_<comp>_<name>(const
-    <state>_t *s, ...)``: a const state pointer proves the call cannot write
-    through it, so the method is a reader by the header, not by probing. A
-    void method is not a reader, const or not, because it returns nothing.
+
+def _const_state_query(text: str, cname: str) -> bool:
+    """Whether C ``text`` DECLARES ``cname`` with a const state as its first
+    parameter.
+
+    The declaration is the prototype ending in ``;``, so a definition body is
+    not one. The first parameter must be a ``const <x>_state_t *``: a const
+    float pointer to a free function's data is not a state. A const state
+    pointer is shallow, so this only says the call takes no write through it;
+    the probe still has to observe the call inert (see ``_judge``).
+    """
+    # The parameter list may wrap; a body ({) or a nested brace is not a
+    # prototype, so the match stops at the closing paren and the semicolon.
+    params = r"\s*\(\s*const\s+\w+_state_t\s*\*[^;{}]*\)\s*;"
+    decl = re.compile(r"\b" + re.escape(cname) + params)
+    return bool(decl.search(_strip_c_comments(text)))
+
+
+def _pure(d: Declared, name: str) -> bool:
+    """A value-returning method whose C prototype takes its state const.
+
+    The C name is ``dp_<comp>_<name>`` by convention, which no manifest key
+    supplies, so the rule FAILS CLOSED: a missing header, a missing
+    declaration, or a name the convention does not produce is not pure. A
+    void method is not a query, const or not, because it returns nothing.
     """
     md = d.method(name) or {}
     if md.get("return_type") in (None, "void"):
@@ -455,9 +479,7 @@ def _pure(d: Declared, name: str) -> bool:
     header = ROOT / "native" / "inc" / "doppler" / d.comp / f"{d.comp}_core.h"
     if not header.exists():
         return False
-    text = re.sub(r"/\*.*?\*/", "", header.read_text("utf-8"), flags=re.S)
-    cname = re.escape(f"dp_{d.comp}_{name}")
-    return bool(re.search(rf"\b{cname}\s*\(\s*const\s+\w+\s*\*", text))
+    return _const_state_query(header.read_text("utf-8"), f"dp_{d.comp}_{name}")
 
 
 def _c_only(cls: str, comp: str, bound: set[str]) -> list[Mutator]:
@@ -970,8 +992,15 @@ def _judge(
     *,
     valued: bool,
     may_read: bool,
+    pure: bool = False,
 ) -> tuple[Verdict, list[Any]]:
-    """One dimension's verdict, and the values it accepted."""
+    """One dimension's verdict, and the values it accepted.
+
+    ``pure`` is the header's word that the call takes its state const. It is
+    not a verdict by itself: a const state pointer is shallow (the call can
+    still write through a member), so a pure method is READS only where the
+    probe also observes it inert, and a visible write stays the write's
+    verdict, red."""
     vals, refs, returned = _accepted(mut, make, feed, cands)
     if not vals:
         return Verdict("UNPROBED", "no value the mutator accepts"), vals
@@ -986,8 +1015,11 @@ def _judge(
         ), vals
     uncalled = _observe(_warm(make, feed), mut, feed)
     if all(r == uncalled for r in refs):
-        if returned and may_read:
-            return Verdict("READS"), vals
+        if returned and (may_read or pure):
+            return Verdict(
+                "READS",
+                "const state, and observed inert in every row" if pure else "",
+            ), vals
         return Verdict(
             "UNPROBED",
             "no value it accepts changes anything the probe can see",
@@ -1036,8 +1068,12 @@ def probe(mut: Mutator, make, feed) -> Verdict:
         # An inert call taking a value it does not visibly keep is no
         # reader: it may be a setter the recipe cannot see. Only a call
         # with no value, a stream call (a pure transform of its input), or
-        # jm's declared capacity query reads.
-        may_read=not values or mut.stream or mut.accessor,
+        # jm's declared capacity query reads. An out buffer is not a value,
+        # but a call whose only argument is an out buffer is no reader either
+        # unless an observation says it is (out-only, non-const, inert stays
+        # UNPROBED).
+        may_read=(not values and not mut.outs) or mut.stream or mut.accessor,
+        pure=mut.pure,
     )
     if not vals:
         return verdict
@@ -1096,13 +1132,6 @@ def _verdict(mut: Mutator) -> Verdict:
         return Verdict("C_ONLY", "no Python face to probe")
     if mut.handle:
         return Verdict("HANDLE")
-    if mut.pure:
-        # Provably a reader: the C prototype takes the state const, so no
-        # probe can show a write that the signature forbids.
-        return Verdict(
-            "READS",
-            "its C first parameter is const: a query that cannot write state",
-        )
     recipes = _RECIPES.get(mut.cls)
     if not recipes:
         return Verdict("NO_RECIPE", "no row in test_state_serialization.CASES")
@@ -1261,3 +1290,64 @@ def test_only_a_crash_signal_reads_crashes(
     if os.name == "nt":
         pytest.skip("POSIX signal numbers")
     assert _died_of_a_crash(returncode) is crash
+
+
+# ── the rules that classify a method by its header and its manifest ──────────
+#
+# Unit tests over synthetic text, so each sabotage is a string this file owns:
+# the derivation is proved on the decoys it must reject, not only on the real
+# headers, which a refactor could break without a test noticing.
+
+
+@pytest.mark.parametrize(
+    "text, expect",
+    [
+        ("size_t dp_x_q (const dp_x_state_t *s, size_t n);", True),
+        ("size_t dp_x_q (dp_x_state_t *s, size_t n);", False),
+        ("float dp_x_q (const float *x, size_t n);", False),
+        ("// size_t dp_x_q (const dp_x_state_t *s);", False),
+        ("/* size_t dp_x_q (const dp_x_state_t *s); */", False),
+        ("size_t dp_x_q (const dp_x_state_t *s);\n", True),
+        ("size_t dp_x_q (\n    const dp_x_state_t *s,\n    size_t n);", True),
+        ("size_t dp_x_q (const dp_x_state_t *s) { return 0; }", False),
+        ("size_t dp_x_other (const dp_x_state_t *s);", False),
+        ("", False),
+    ],
+    ids=[
+        "const state",
+        "non-const state",
+        "const float data, not a state",
+        "line-comment decoy",
+        "block-comment decoy",
+        "declaration with a trailing newline",
+        "multi-line prototype",
+        "a definition, not a declaration",
+        "a different name",
+        "missing declaration",
+    ],
+)
+def test_const_state_query_takes_only_a_declared_const_state(text, expect):
+    """The derivation reads the declaration the header binds, only that."""
+    assert _const_state_query(text, "dp_x_q") is expect
+
+
+def test_an_out_parameter_is_out_only_when_the_manifest_declares_it():
+    """`out = true` in the manifest is the declaration; a name is not."""
+    declared = {
+        "name": "x",
+        "methods": [
+            {
+                "name": "fill",
+                "params": [{"name": "row", "type": "float[]", "out": True}],
+            },
+            {
+                "name": "row_only",
+                "params": [{"name": "row", "type": "float[]"}],
+            },
+        ],
+    }
+    d = Declared("X", "x", declared, None)
+    assert _outs(d, "fill") == ("row",)
+    # Same parameter name, not declared out: not an out buffer.
+    assert _outs(d, "row_only") == ()
+    assert _outs(d, "absent") == ()

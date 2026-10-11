@@ -252,7 +252,7 @@ Six things the inventory flagged as possibly wrong, (a)-(f), two found measuring
 
 ### 2.11 The frame hop and carry (the binding is the certification)
 
-Checked through the binding, against the C test's pins (taken from main's build, commit 4ab923ea5). Golden checksums: 10/10 equal main. Chunk invariance over 10 partitions: yes. Overlap at hop n/2 against the hop-n fold of the same frames: yes. A hop above n is refused: yes; hop 0 reads as hop n: yes. A blob cut mid-carry continues to the same bits: yes. A blob of another hop is refused (yes) and leaves the object unchanged (yes).
+Checked through the binding against a float64 numpy average of the same whole frames, within the float32 FFT bound: 10/10 within it, worst error 2.5e-03 of the bound. Chunk invariance over 10 partitions: yes. Overlap at hop n/2 against the hop-n fold of the same frames: yes. A hop above n is refused: yes; hop 0 reads as hop n: yes. A blob cut mid-carry continues to the same bits: yes. A blob of another hop is refused (yes) and leaves the object unchanged (yes).
 
 ## 3. Review — findings
 
@@ -317,7 +317,7 @@ Claims a caller may rely on. A failure here is a regression, not a new finding. 
 | PASS | occupied_bw is NaN for a fraction outside the open interval (0, 1), 1 included, and a one-bin tone reads one bin just inside it |
 | PASS | a state blob resumes bit-exactly |
 | PASS | a clobbered state envelope is refused |
-| PASS | a single call of whole frames at hop = n reads main's ten pinned checksums (5 configs x 2 lengths; 10/10 equal) |
+| PASS | a single call of whole frames at hop = n averages to the old algorithm (float64 numpy) within the float32 FFT bound (5 configs x 2 lengths; worst 2.5e-03 of the bound) |
 | PASS | any partition of a 10n+17 stream averages to one call's bits: 7 fixed sizes and 3 seeded splits, n = 64 Hann |
 | PASS | hop = n/2 averages to the hop-n fold of the same frames, bit for bit |
 | PASS | a hop above n raises ValueError; hop 0 reads as hop = n, bit for bit |

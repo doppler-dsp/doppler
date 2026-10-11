@@ -42,12 +42,15 @@ _PSD state. Allocate with_ [_**dp\_psd\_create()**_](psd__core_8h.md#function-dp
 |  float \* | [**dbbuf**](#variable-dbbuf)  <br> |
 |  double | [**enbw**](#variable-enbw)  <br> |
 |  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* | [**fft**](#variable-fft)  <br> |
+|  dp\_f32\_framer\_t | [**fr**](#variable-fr)  <br> |
 |  float \_Complex \* | [**frame**](#variable-frame)  <br> |
 |  double | [**fs**](#variable-fs)  <br> |
 |  double | [**full\_scale**](#variable-full_scale)  <br> |
+|  size\_t | [**hop**](#variable-hop)  <br> |
 |  size\_t | [**n**](#variable-n)  <br> |
 |  size\_t | [**nfft**](#variable-nfft)  <br> |
 |  float \* | [**pwr**](#variable-pwr)  <br> |
+|  dp\_f32\_t \* | [**ring**](#variable-ring)  <br> |
 |  double | [**s2**](#variable-s2)  <br> |
 |  float \_Complex \* | [**spec**](#variable-spec)  <br> |
 |  float \* | [**w**](#variable-w)  <br> |
@@ -207,6 +210,23 @@ Forward cf32 plan, size nfft.
 
 
 
+### variable fr 
+
+```C++
+dp_f32_framer_t dp_psd_state_t::fr;
+```
+
+
+
+Splits the stream into n-sample frames; carries the partial. 
+
+
+        
+
+<hr>
+
+
+
 ### variable frame 
 
 ```C++
@@ -261,6 +281,24 @@ Amplitude that reads 0 dBFS.
 
 
 
+### variable hop 
+
+```C++
+size_t dp_psd_state_t::hop;
+```
+
+
+
+Samples between frame starts, 1..n. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable n 
 
 ```C++
@@ -306,6 +344,23 @@ float* dp_psd_state_t::pwr;
 
 
 DC-centred power scratch, length nfft. 
+
+
+        
+
+<hr>
+
+
+
+### variable ring 
+
+```C++
+dp_f32_t* dp_psd_state_t::ring;
+```
+
+
+
+The framer's ring, 2n, owned by the framer. 
 
 
         

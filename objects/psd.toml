@@ -18,6 +18,7 @@ class_name = "PSD"
 depends_on = ["fft_core", "spectral_core", { name = "acc_trace", link = true }]
 serializable = "true"
 fragment = "generated"
+create_fn = "dp_psd_create_hop"
 create_error = "ValueError"
 create_error_message = "PSD: invalid parameter (need n >= 2, pad >= 1 with n * pad within the largest FFT, finite fs > 0, bits <= 64, a finite full_scale > 0 when bits = 0, a window whose taps sum to a finite nonzero value (not hann at n = 2, nor a NaN or overflowing kaiser beta), and in exp mode 0 < alpha <= 1)"
 
@@ -66,9 +67,14 @@ name = "alpha"
 type = "double"
 default = "0.1"
 
+[[psd.init_params]]
+name = "hop"
+type = "size_t"
+default = "0"
+
 [[psd.methods]]
 name = "accumulate"
-doc = "Window, FFT and fold floor(n_in/n) cf32 frames into the average."
+doc = "Window, FFT and fold every cf32 frame the stream completes into the average; a partial frame is carried to the next call."
 arg_type = "void"
 return_type = "void"
 nogil = true

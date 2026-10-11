@@ -97,6 +97,31 @@ mean_f (const float *a, size_t n)
   return m / (double)n;
 }
 
+/* A deterministic cf32 stream, the one the golden hashes were pinned on. */
+static void
+golden_stream (float _Complex *x, size_t n, uint32_t seed)
+{
+  uint32_t st = seed ? seed : 1u;
+  for (size_t i = 0; i < n; i++)
+    {
+      float a = (float)(dp_uni (&st) - 0.5);
+      float b = (float)(dp_uni (&st) - 0.5);
+      x[i]    = a + I * b;
+    }
+}
+
+/* A rotate-xor checksum over the bytes of a float array: the bit-identity
+ * check. Any single changed bit changes it. */
+static uint64_t
+fnv1a (const void *p, size_t n)
+{
+  const unsigned char *b = p;
+  uint64_t             h = 0x9E3779B97F4A7C15ULL;
+  for (size_t i = 0; i < n; i++)
+    h = ((h << 7) | (h >> 57)) ^ b[i];
+  return h;
+}
+
 int
 main (void)
 {
@@ -1787,6 +1812,198 @@ main (void)
     DP_CHECK (dp_psd_band_power (w, edges, 2, one, 2) == 1);
     DP_CHECK (isfinite (one[0]) && isnan (one[1]));
     dp_psd_destroy (w);
+  }
+
+  /* T21: the golden. A single call of whole frames at hop = n, and a call
+   * with a trailing partial frame, average to the same bits main did: the
+   * FNV-1a hash of the averaged power trace is pinned from main's build,
+   * before the framer came in. The configs cover Hann, Kaiser, rect, exp and
+   * max-hold averaging, and pad 1 and 2. */
+  {
+    static const struct
+    {
+      int      cfg;
+      size_t   len;
+      uint64_t hash;
+    } pins[] = {
+      { 0, 320, 0xe39afcbfdaeda728ULL },  { 0, 357, 0xe39afcbfdaeda728ULL },
+      { 1, 1280, 0xa686023a83bb7207ULL }, { 1, 1317, 0xa686023a83bb7207ULL },
+      { 2, 500, 0xfded990c180b1654ULL },  { 2, 537, 0xfded990c180b1654ULL },
+      { 3, 160, 0x2b33ed232e1b5f61ULL },  { 3, 197, 0x22bd602ca3d1cf84ULL },
+      { 4, 640, 0xf3483cf642a094e5ULL },  { 4, 677, 0xf3483cf642a094e5ULL }
+    };
+    const struct
+    {
+      size_t n;
+      int    window;
+      float  beta;
+      size_t pad;
+      int    mode;
+      double alpha;
+    } cfg[] = {
+      { 64, 0, 0.0f, 1, 0, 0.0 },  { 256, 0, 0.0f, 2, 0, 0.0 },
+      { 100, 1, 8.0f, 2, 0, 0.0 }, { 32, 3, 0.0f, 1, 1, 0.5 },
+      { 128, 2, 0.0f, 1, 2, 0.0 },
+    };
+    for (size_t p = 0; p < sizeof pins / sizeof pins[0]; p++)
+      {
+        const size_t    n = cfg[pins[p].cfg].n;
+        float _Complex *x = malloc (pins[p].len * sizeof *x);
+        DP_REQUIRE (x != NULL);
+        golden_stream (x, pins[p].len, 12345u + (uint32_t)pins[p].cfg);
+        dp_psd_state_t *w
+            = dp_psd_create (n, 1e6, cfg[pins[p].cfg].window,
+                             cfg[pins[p].cfg].beta, cfg[pins[p].cfg].pad, 1.0,
+                             0, cfg[pins[p].cfg].mode, cfg[pins[p].cfg].alpha);
+        DP_REQUIRE (w != NULL);
+        dp_psd_accumulate (w, x, pins[p].len);
+        float        out[1024];
+        const size_t got = dp_psd_power_twosided (w, 1024, out, 1024);
+        DP_CHECK (got == w->nfft);
+        DP_CHECK (fnv1a (out, got * sizeof *out) == pins[p].hash);
+        dp_psd_destroy (w);
+        free (x);
+      }
+  }
+
+  /* T22: chunk invariance. Any partition of one stream into calls averages to
+   * the bits of one call: the carried partial frame is the framer's, so where
+   * the stream is cut cannot change which frames exist. */
+  {
+    const size_t    n = 64, len = 10 * n + 17;
+    float _Complex *x = malloc (len * sizeof *x);
+    DP_REQUIRE (x != NULL);
+    golden_stream (x, len, 777u);
+    dp_psd_state_t *one = dp_psd_create (n, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
+    DP_REQUIRE (one != NULL);
+    dp_psd_accumulate (one, x, len);
+    float ref[64];
+    DP_CHECK (dp_psd_power_twosided (one, 64, ref, 64) == 64);
+    const size_t chunk[] = { 1, 7, n - 1, n, n + 1, 3 * n + 5, 2 * n };
+    for (size_t c = 0; c < sizeof chunk / sizeof chunk[0]; c++)
+      {
+        dp_psd_state_t *w = dp_psd_create (n, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
+        DP_REQUIRE (w != NULL);
+        for (size_t at = 0; at < len; at += chunk[c])
+          dp_psd_accumulate (w, x + at,
+                             (len - at < chunk[c]) ? len - at : chunk[c]);
+        float got[64];
+        DP_CHECK (dp_psd_power_twosided (w, 64, got, 64) == 64);
+        DP_CHECK (memcmp (got, ref, sizeof ref) == 0);
+        dp_psd_destroy (w);
+      }
+    dp_psd_destroy (one);
+    free (x);
+  }
+
+  /* T23: overlap. At hop = n/2 the average is the average of the same frames
+   * folded one per call through a hop = n estimator: the frames are the same
+   * samples, in the same order, through the same kernel, so the bits agree. */
+  {
+    const size_t    n = 64, hop = 32, len = 10 * n;
+    float _Complex *x = malloc (len * sizeof *x);
+    DP_REQUIRE (x != NULL);
+    golden_stream (x, len, 4242u);
+    dp_psd_state_t *w
+        = dp_psd_create_hop (n, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0, hop);
+    dp_psd_state_t *r = dp_psd_create (n, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
+    DP_REQUIRE (w != NULL && r != NULL);
+    dp_psd_accumulate (w, x, len);
+    for (size_t at = 0; at + n <= len; at += hop)
+      dp_psd_accumulate (r, x + at, n);
+    float got[64], ref[64];
+    DP_CHECK (dp_psd_power_twosided (w, 64, got, 64) == 64);
+    DP_CHECK (dp_psd_power_twosided (r, 64, ref, 64) == 64);
+    DP_CHECK (memcmp (got, ref, sizeof got) == 0);
+    dp_psd_destroy (w);
+    dp_psd_destroy (r);
+    free (x);
+  }
+
+  /* T24: a gap between frames is refused, and so is a hop of 0. */
+  {
+    DP_CHECK (dp_psd_create_hop (64, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0, 65)
+              == NULL);
+    /* 0 is the default: the frame dp_psd_create makes, hop = n. */
+    dp_psd_state_t *z
+        = dp_psd_create_hop (64, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0, 0);
+    DP_REQUIRE (z != NULL);
+    DP_CHECK (z->hop == 64);
+    dp_psd_destroy (z);
+  }
+
+  /* T25: the state round trip mid-stream. A blob cut from a stream with a
+   * partial frame in the carry, restored into a fresh object, continues to the
+   * same bits as the original. */
+  {
+    const size_t    n = 64, hop = 32, len = 9 * n + 11;
+    float _Complex *x = malloc (len * sizeof *x);
+    DP_REQUIRE (x != NULL);
+    golden_stream (x, len, 99u);
+    dp_psd_state_t *a
+        = dp_psd_create_hop (n, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0, hop);
+    dp_psd_state_t *b
+        = dp_psd_create_hop (n, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0, hop);
+    DP_REQUIRE (a != NULL && b != NULL);
+    dp_psd_accumulate (a, x, 5 * n + 11);
+    void *blob = malloc (dp_psd_state_bytes (a));
+    DP_REQUIRE (blob != NULL);
+    dp_psd_get_state (a, blob);
+    DP_CHECK (dp_psd_set_state (b, blob) == DP_OK);
+    dp_psd_accumulate (a, x + 5 * n + 11, len - (5 * n + 11));
+    dp_psd_accumulate (b, x + 5 * n + 11, len - (5 * n + 11));
+    float ra[64], rb[64];
+    DP_CHECK (dp_psd_power_twosided (a, 64, ra, 64) == 64);
+    DP_CHECK (dp_psd_power_twosided (b, 64, rb, 64) == 64);
+    DP_CHECK (memcmp (ra, rb, sizeof ra) == 0);
+    free (blob);
+    dp_psd_destroy (a);
+    dp_psd_destroy (b);
+    free (x);
+  }
+
+  /* T26: refusals change nothing. A snapshot of a different hop, and one whose
+   * carried frame is damaged, are refused, and the object reads the same bits
+   * as before the call. */
+  {
+    const size_t    n = 64, len = 5 * n + 9;
+    float _Complex *x = malloc (len * sizeof *x);
+    DP_REQUIRE (x != NULL);
+    golden_stream (x, len, 31u);
+    dp_psd_state_t *t
+        = dp_psd_create_hop (n, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0, 32);
+    dp_psd_state_t *src_h
+        = dp_psd_create_hop (n, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0, 64);
+    dp_psd_state_t *src
+        = dp_psd_create_hop (n, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0, 32);
+    DP_REQUIRE (t != NULL && src_h != NULL && src != NULL);
+    dp_psd_accumulate (t, x, len);
+    dp_psd_accumulate (src_h, x, len);
+    dp_psd_accumulate (src, x + 3, len - 3);
+    float before[64], after[64];
+    DP_CHECK (dp_psd_power_twosided (t, 64, before, 64) == 64);
+    void *other = malloc (dp_psd_state_bytes (src_h));
+    DP_REQUIRE (other != NULL);
+    dp_psd_get_state (src_h, other);
+    DP_CHECK (dp_psd_set_state (t, other) == DP_ERR_INVALID);
+    DP_CHECK (dp_psd_power_twosided (t, 64, after, 64) == 64);
+    DP_CHECK (memcmp (before, after, sizeof before) == 0);
+    /* A right-hop blob with its carried frame's magic clobbered. */
+    void *dmg = malloc (dp_psd_state_bytes (src));
+    DP_REQUIRE (dmg != NULL);
+    dp_psd_get_state (src, dmg);
+    ((uint8_t *)
+         dmg)[sizeof (dp_state_hdr_t) + dp_acc_trace_state_bytes (src->avg)]
+        ^= 0xFFu;
+    DP_CHECK (dp_psd_set_state (t, dmg) == DP_ERR_INVALID);
+    DP_CHECK (dp_psd_power_twosided (t, 64, after, 64) == 64);
+    DP_CHECK (memcmp (before, after, sizeof before) == 0);
+    free (other);
+    free (dmg);
+    dp_psd_destroy (t);
+    dp_psd_destroy (src_h);
+    dp_psd_destroy (src);
+    free (x);
   }
 
   DP_TEST_END ("test_psd_core");

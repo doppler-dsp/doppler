@@ -103,7 +103,7 @@ main (void)
     {
       if (dp_thread_create (&th[i], worker, &w[i]) != 0)
         {
-          fprintf (stderr, "dp_thread_create failed\n");
+          DP_TEST_ERR ("dp_thread_create failed\n");
           return 1;
         }
     }

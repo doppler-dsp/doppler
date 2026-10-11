@@ -156,7 +156,7 @@ pin (dp_acq_state_t *a)
 {
   if (dp_acq_configure_search_raw (a, D, 1) != 0)
     {
-      fprintf (stderr, "dp_acq_configure_search_raw (D=%u, 1) refused\n", D);
+      DP_TEST_ERR ("dp_acq_configure_search_raw (D=%u, 1) refused\n", D);
       abort ();
     }
 }

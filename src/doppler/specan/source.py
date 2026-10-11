@@ -59,7 +59,6 @@ def to_complex64(data: np.ndarray) -> np.ndarray:
     Examples
     --------
     >>> import numpy as np
-
     >>> to_complex64(np.array([64, -128, 0, 127], np.int8)).tolist()
     [(0.5-1j), 0.9921875j]
     """
@@ -167,7 +166,6 @@ class DemoSource(Source):
     Two seeded sources agree sample for sample:
 
     >>> import numpy as np
-
     >>> a = DemoSource(seed=7).read(1024)[0]
     >>> b = DemoSource(seed=7).read(1024)[0]
     >>> bool(np.array_equal(a, b))

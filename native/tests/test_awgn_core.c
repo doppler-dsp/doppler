@@ -187,10 +187,16 @@ test_oneshot (void)
   DP_CHECK (dp_awgn (42, 0.7f, N_SMALL, out) == 0);
   DP_CHECK (memcmp (ref, out, N_SMALL * sizeof *out) == 0);
   /* An amplitude outside the domain is an invalid argument, not a memory
-     failure, and nothing is generated for it. */
+     failure. Poison out first: a refused call must leave it untouched, so
+     the poison surviving all three refusals is the proof nothing was
+     generated. */
+  for (size_t k = 0; k < N_SMALL; k++)
+    out[k] = 7.0f;
   DP_CHECK (dp_awgn (42, NAN, N_SMALL, out) == DP_ERR_INVALID);
   DP_CHECK (dp_awgn (42, -1.0f, N_SMALL, out) == DP_ERR_INVALID);
   DP_CHECK (dp_awgn (42, INFINITY, N_SMALL, out) == DP_ERR_INVALID);
+  for (size_t k = 0; k < N_SMALL; k++)
+    DP_CHECK (out[k] == 7.0f);
 }
 
 /* Advance the RNG, serialize, restore into a fresh generator, and the noise
@@ -279,8 +285,9 @@ test_state_roundtrip (void)
  * sigma came back as the generator's amplitude, and an all-zero s[4] is
  * xoshiro256++'s fixed point, which emits zeros forever. The create and the
  * setter take the same amplitude predicate: create refuses it, and the setter
- * ignores it. The blob layout is [hdr][u64 s[4]][u64 seed][f32 amplitude];
- * each case forges one field and compares the whole state, not one value.
+ * returns DP_ERR_INVALID and leaves the amplitude where it was. The blob
+ * layout is [hdr][u64 s[4]][u64 seed][f32 amplitude]; each case forges one
+ * field and compares the whole state, not one value.
  * ------------------------------------------------------------------ */
 static void
 test_forged_state_refused (void)

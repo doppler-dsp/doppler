@@ -605,12 +605,16 @@ LEAK_CHECK    = python3 scripts/check_test_leaks.py
 # which they did twice, 2026-10-01 and 2026-10-03. `MEM_GUARD=0` skips it;
 # `make mem-guard-check` fails on a heavy command that does not reach it.
 MEM_GUARD_CMD = scripts/mem-guard.sh
+# CTEST_SELECT narrows the C suite the way PYTEST_SELECT narrows pytest:
+# `make test CTEST_SELECT='-R <re>'` runs only the matching ctests, still
+# under LEAK_CHECK. Empty by default, so the full suite is unchanged.
+CTEST_SELECT  ?=
 TEST_CMD      = $(LEAK_CHECK) --ctest -- \
                     $(CTEST) --test-dir $(BUILD_DIR) --output-on-failure \
-                    $(TEST_EXCLUDE_SWEEP)
+                    $(TEST_EXCLUDE_SWEEP) $(CTEST_SELECT)
 TEST_FAST_CMD = $(LEAK_CHECK) --ctest -- \
                     $(CTEST) --test-dir $(BUILD_DIR) --output-on-failure \
-                    --stop-on-failure $(TEST_EXCLUDE_SWEEP)
+                    --stop-on-failure $(TEST_EXCLUDE_SWEEP) $(CTEST_SELECT)
 # The SELECTION must match CI's exactly, or `make test-python` means one thing
 # locally and another in CI — which it did: local ran everything under src/,
 # CI excluded the `docs_snippets` and `examples` markers. Those two markers have

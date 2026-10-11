@@ -980,7 +980,10 @@ class AWGN:
 
     @property
     def amplitude(self) -> float:
-        """Return the current amplitude (per-component std dev)."""
+        """Per-component standard deviation. Assigning an invalid value (NaN,
+        infinite or negative) is ignored: the amplitude keeps its old value,
+        and the property does not raise.
+        """
     @amplitude.setter
     def amplitude(self, value: float) -> None: ...
     def destroy(self) -> None:

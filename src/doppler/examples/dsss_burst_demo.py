@@ -220,12 +220,13 @@ def psd_db(x: np.ndarray, nfft: int = 512) -> np.ndarray:
 
 
 def spectrogram(x: np.ndarray, nfft: int = 128, hop: int = 32) -> np.ndarray:
-    """Spectrogram rows in dB, normalised to the peak."""
-    sg = (
-        Spectrogram(nfft=nfft, hop=hop, window="hann", mode="db")
-        .push(np.asarray(x, dtype=np.complex64))
-        .T
-    )
+    """Spectrogram rows in dB, normalised to the peak, tail flushed."""
+    sp = Spectrogram(nfft=nfft, hop=hop, window="hann", mode="db")
+    rows = sp.push(np.asarray(x, dtype=np.complex64))
+    tail = np.zeros(nfft, np.float32)
+    if sp.flush(tail):  # the zero-padded frame the stream's end owes
+        rows = np.vstack([rows, tail[None, :]])
+    sg = rows.T
     return sg - sg.max()
 
 
@@ -403,7 +404,18 @@ fig.suptitle(
 # ── A: spectrogram ───────────────────────────────────────────────────────────
 ax = axes[0, 0]
 sg = spectrogram(burst)
-assert sg.shape == (128, (len(burst) - 128) // 32 + 1), sg.shape
+# Whole frames, plus the owed tail frame when the burst does not end on a hop.
+whole = (len(burst) - 128) // 32 + 1
+owed = (len(burst) - 128) % 32 != 0
+assert sg.shape == (128, whole + owed), sg.shape
+# Payload columns carry the spread signal; silence columns carry noise only.
+col_mid = np.arange(sg.shape[1]) * 32 + 64
+pay = (col_mid >= acq_end) & (col_mid < payload_end)
+sil = col_mid >= payload_end
+gain_db = 10 * np.log10(
+    np.mean(10 ** (sg[:, pay] / 10)) / np.mean(10 ** (sg[:, sil] / 10))
+)
+assert gain_db > SNR_DB / 2, (gain_db, SNR_DB)
 t_sg = np.linspace(0, len(burst) / FS * 1e3, sg.shape[1])
 f_sg = np.linspace(-FS / 2e3, FS / 2e3, sg.shape[0])
 ax.pcolormesh(t_sg, f_sg, sg, vmin=-50, vmax=0, cmap="magma", shading="auto")

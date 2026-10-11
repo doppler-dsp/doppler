@@ -113,18 +113,23 @@ how close that lands to the request, not what is reported. It replaces a
 
 ## Which window a call shows: the newest
 
+Here a *window* is the block of decimated samples one spectrum is computed from:
+`n * navg` samples, the length `dp_specan_execute` waits for before it can make a
+spectrum. It is not the Kaiser taper of the transform.
+
 A call to `dp_specan_execute` consumes every complete window of decimated input
-it holds, and returns the spectrum of the newest of them. The older windows are
-dropped, not queued. The returned spectrum is one window: the estimator is reset
+it holds and returns the spectrum of the newest one. The older complete windows
+are dropped, not queued. The spectrum is one window: the estimator is reset
 before that window is folded in, so no average runs across calls.
 
-The newest window is the right one for a display. A caller that feeds more than
-a window's worth at a time sees the latest frame, not a frame that is further
-behind real time each call. The buffer then stays bounded by one window plus the
-remainder, which keeps the fixed-size state blob valid.
+After a call the pending buffer holds fewer than one window, so it stays bounded
+at one window of samples. The state blob is sized for that bound.
 
-A stream that must not drop a window is not a Specan stream. It is a spectrogram,
-one row per window, which the `Spectrogram` object provides.
+`dp_specan_retune` clears the pending buffer, so the first spectrum after a
+retune is built only from samples taken at the new tuning.
+
+A display keeps up by showing the latest spectrum. A stream that must not drop a
+window is a spectrogram, one row per window, which `Spectrogram` provides.
 
 ## How it is checked
 

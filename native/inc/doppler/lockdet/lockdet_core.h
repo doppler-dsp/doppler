@@ -200,7 +200,8 @@ extern "C"
   size_t dp_lockdet_state_bytes(const dp_lockdet_state_t *state);
   /** @brief Serialize the detector state into @p blob. */
   void dp_lockdet_get_state(const dp_lockdet_state_t *state, void *blob);
-  /** @brief Restore state; DP_OK, or DP_ERR_INVALID if the envelope or the payload check refuses. */
+  /** @brief Restore state; DP_OK, or DP_ERR_INVALID if the envelope or the
+   *  payload check refuses. */
   int dp_lockdet_set_state(dp_lockdet_state_t *state, const void *blob);
 
   /**

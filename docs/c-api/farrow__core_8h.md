@@ -491,7 +491,7 @@ JM_FORCEINLINE void farrow_init (
 
 
 
-farrow\_eval reads any order other than LINEAR or PARABOLIC as cubic, so init stores exactly that. The state then carries an order its own predicate accepts, and a round trip of a stream built with an out-of-range order does not fail on restore (#2148 r3, nit 9). The public create() still refuses such an order outright. 
+farrow\_eval reads any order other than LINEAR or PARABOLIC as cubic, so init stores exactly that. The state then carries an order its own predicate accepts, and a round trip of a stream built with an out-of-range order does not fail on restore. The public create() still refuses such an order outright. 
 
 
         

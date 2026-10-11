@@ -629,7 +629,8 @@ extern "C"
   size_t dp_carrier_nda_state_bytes (const dp_carrier_nda_state_t *state);
   /** @brief Serialize the full loop state into @p blob. */
   void dp_carrier_nda_get_state (const dp_carrier_nda_state_t *state, void *blob);
-  /** @brief Restore state; DP_OK, or DP_ERR_INVALID if the envelope or the payload check refuses.
+  /** @brief Restore state; DP_OK, or DP_ERR_INVALID if the envelope or the
+   *  payload check refuses.
    */
   int dp_carrier_nda_set_state (dp_carrier_nda_state_t *state, const void *blob);
 

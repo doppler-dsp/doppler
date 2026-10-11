@@ -218,7 +218,8 @@ extern "C"
   size_t dp_boxcar_state_bytes (const dp_boxcar_state_t *s);
   /** @brief Serialize the full state into @p blob. */
   void dp_boxcar_get_state (const dp_boxcar_state_t *s, void *blob);
-  /** @brief Restore state; DP_OK, or DP_ERR_INVALID if the envelope or the payload check refuses.
+  /** @brief Restore state; DP_OK, or DP_ERR_INVALID if the envelope or the
+   *  payload check refuses.
    */
   int dp_boxcar_set_state (dp_boxcar_state_t *s, const void *blob);
 

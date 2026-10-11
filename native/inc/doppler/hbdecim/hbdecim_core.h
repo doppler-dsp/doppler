@@ -93,7 +93,8 @@ extern "C"
   /** @brief Serialize @p r's mutable state into @p blob. */
   void dp_hbdecim_get_state (const hbdecim_state_t *r, void *blob);
   /** @brief Restore mutable state from @p blob (same num_taps).
-   *  @return DP_OK, or DP_ERR_INVALID if the blob's envelope or payload check refuses. */
+   *  @return DP_OK, or DP_ERR_INVALID if the blob's envelope or payload check
+   *  refuses. */
   int dp_hbdecim_set_state (hbdecim_state_t *r, const void *blob);
 
   /**

@@ -301,8 +301,12 @@ symsync_state_ok (const dp_symsync_state_t *s)
 {
   /* The embedded Farrow and detector are checked by their own predicates
      (#2142). `avgs` must be at least 1: init always runs configure_lock_raw,
-     which sets it to 1 or more, so 0 is unreachable. Left at 0, lock_sum/avgs
-     is inf, which passes dp_saturate and declares lock on noise. */
+     which sets it to 1 or more, so 0 is reachable only as the all-zero
+     state of an embedding that has not run its init. That state is unusable:
+     lock_sum / avgs is inf, which passes dp_saturate and declares lock on
+     noise. So this refuses it, and an embedder must run dp_symsync_init
+     before it snapshots. See docs/design/state-serialization.md,
+     "Checked POD". */
   return s->avgs >= 1 && dp_farrow_state_ok (&s->farrow)
          && dp_lockdet_state_ok (&s->lock);
 }

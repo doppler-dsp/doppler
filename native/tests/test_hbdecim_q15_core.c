@@ -129,9 +129,10 @@ main (void)
   }
 
   /* #2148 r3: the AVX2 kernel reads a[N-16-k], which is inside the fold
-   * only when the fold is at least K_pad long. Short tap counts take the
-   * scalar path. Run them with exactly-sized buffers so ASan sees any read
-   * outside the ring (native -march=native ASan build is the proof). */
+   * only when the fold is at least K_pad long. Tap counts under 16 take the
+   * scalar path. The ring is heap-allocated, so ASan catches a read outside
+   * it; the in/out buffers here are stack arrays and are not what ASan
+   * checks for this. The native -march=native ASan build is the proof. */
   for (size_t taps = 2; taps <= 15; taps++)
     {
       float h[15];

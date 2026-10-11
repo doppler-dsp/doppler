@@ -598,11 +598,13 @@ dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
     return DP_ERR_INVALID;
   DP_SET_OPEN (WFM_SYNTH_STATE_MAGIC, WFM_SYNTH_STATE_VERSION,
                dp_wfm_synth_state_bytes (s));
-  /* Every field is decoded into a local and checked before the first write,
-     so a refusal leaves the synth as it was (#2142). The kernel reads
-     symbols[sym_read_idx] BEFORE it wraps it; sym_pos indexes the chip
-     buffer; and the child-presence bytes read only blob bytes and config,
-     so they belong in the check too, not after the commit (#2148). */
+  /* Every field the synth owns is decoded into a local and checked before
+     the first write, so a refusal leaves those fields as they were (#2142).
+     The kernel reads symbols[sym_read_idx] BEFORE it wraps it; sym_pos
+     indexes the chip buffer; and the child-presence bytes read only blob
+     bytes and config, so they belong in the check too, not after the commit
+     (#2148). A child is restored after this commit, so a refusing child
+     leaves these fields restored; that is #2104. */
   const int sym_pos = (int)dp_r_u32 (&_r);
   float     cur_re, cur_im;
   dp_r_f32 (&_r, &cur_re, 1);

@@ -96,7 +96,7 @@ _Synth component API._ [More...](#detailed-description)
 |  int | [**dp\_wfm\_synth\_set\_dsss\_chips**](#function-dp_wfm_synth_set_dsss_chips) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, const uint8\_t \* chips, size\_t n\_chips) <br>_Install an assembled two-code DSSS burst as the chip pattern._  |
 |  int | [**dp\_wfm\_synth\_set\_dsss\_cont**](#function-dp_wfm_synth_set_dsss_cont) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, const uint8\_t \* code, size\_t code\_len, double chips\_per\_symbol, int data\_mode, const uint8\_t \* data, size\_t n\_data) <br>_Configure a type=dsss synth for CONTINUOUS ASYNCHRONOUS generation._  |
 |  int | [**dp\_wfm\_synth\_set\_dsss\_window**](#function-dp_wfm_synth_set_dsss_window) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, size\_t code\_only\_symbols, size\_t frame\_symbols) <br>_Give the continuous DSSS stream a frame with a pure-code window._  |
-|  int | [**dp\_wfm\_synth\_set\_nsps**](#function-dp_wfm_synth_set_nsps) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, int val) <br>_Override the samples-per-symbol count in-place. Does not flush the symbol-position counter (sym\_pos). A hold that shrinks below the current sym\_pos is refused, so when changing sps mid-stream set sym\_pos=0 first, then this._  |
+|  int | [**dp\_wfm\_synth\_set\_nsps**](#function-dp_wfm_synth_set_nsps) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, int val) <br>_Override the samples-per-symbol count in-place. Does not flush the symbol-position counter (sym\_pos). A hold to or below the current sym\_pos is refused, so when changing sps mid-stream set sym\_pos first (to 0 is always legal), then this. Refusing the other order keeps sym\_pos inside the hold._  |
 |  int | [**dp\_wfm\_synth\_set\_refill**](#function-dp_wfm_synth_set_refill) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, [**wfm\_synth\_refill\_fn**](wfm__synth__core_8h.md#typedef-wfm_synth_refill_fn) fn, void \* user, void(\*)(void \*) free\_user) <br>_Pull each frame from_ `fn` _instead of cycling the pattern._ |
 |  int | [**dp\_wfm\_synth\_set\_refill\_state**](#function-dp_wfm_synth_set_refill_state) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, const [**wfm\_synth\_refill\_state\_t**](structwfm__synth__refill__state__t.md) \* ops) <br>_Give the attached refill its state triplet, so the synth serializes._  |
 |  int | [**dp\_wfm\_synth\_set\_rrc**](#function-dp_wfm_synth_set_rrc) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, const float \* taps, size\_t ntaps) <br>_Enable RRC pulse shaping on a symbol synth (pn/bpsk/qpsk/bits)._  |
@@ -939,7 +939,7 @@ The frame is on the DATA clock: of every `frame_symbols` symbols, the first `cod
 
 ### function dp\_wfm\_synth\_set\_nsps 
 
-_Override the samples-per-symbol count in-place. Does not flush the symbol-position counter (sym\_pos). A hold that shrinks below the current sym\_pos is refused, so when changing sps mid-stream set sym\_pos=0 first, then this._ 
+_Override the samples-per-symbol count in-place. Does not flush the symbol-position counter (sym\_pos). A hold to or below the current sym\_pos is refused, so when changing sps mid-stream set sym\_pos first (to 0 is always legal), then this. Refusing the other order keeps sym\_pos inside the hold._ 
 ```C++
 int dp_wfm_synth_set_nsps (
     dp_wfm_synth_state_t * state,
@@ -955,7 +955,7 @@ int dp_wfm_synth_set_nsps (
 
 
 * `state` Must be non-NULL. 
-* `val` New nsps value (&gt;= 1, and &gt; the current sym\_pos). 
+* `val` New nsps value: at least 1, and above the current sym\_pos. 
 
 
 
@@ -963,6 +963,13 @@ int dp_wfm_synth_set_nsps (
 
 DP\_OK, or DP\_ERR\_INVALID with `state` unchanged. 
 
+
+
+
+**Exception:**
+
+
+* `ValueError` from the Python binding when `val` is refused. 
 
 
 
@@ -1169,7 +1176,7 @@ int dp_wfm_synth_set_sym_pos (
 
 
 * `state` Must be non-NULL. 
-* `val` New sym\_pos value (0 &lt;= val &lt; nsps). 
+* `val` New sym\_pos value: 0 &lt;= val &lt; nsps. 
 
 
 
@@ -1177,6 +1184,13 @@ int dp_wfm_synth_set_sym_pos (
 
 DP\_OK, or DP\_ERR\_INVALID with `state` unchanged. 
 
+
+
+
+**Exception:**
+
+
+* `ValueError` from the Python binding when `val` is refused. 
 
 
 

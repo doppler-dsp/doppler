@@ -332,8 +332,8 @@ def section_object() -> None:
             ],
             ["destroy(NULL) is a no-op", "lifecycle block", P, "C-ONLY"],
             [
-                "accumulate folds floor(x_len / n) frames; a trailing "
-                "partial frame is ignored",
+                "accumulate folds every frame the stream completes; the "
+                "trailing partial is carried to the next call",
                 "accumulate block (3 frames + a partial)",
                 L,
                 "C-ONLY",

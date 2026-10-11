@@ -8,7 +8,7 @@ import time
 
 import pytest
 
-from doppler.specan import record_demo, server, terminal
+from doppler.specan import record_demo, terminal
 from doppler.specan.config import SpecanConfig
 from doppler.specan.engine import (
     DBM_AT_UNIT_AMPLITUDE,
@@ -85,6 +85,8 @@ def test_terminal_dsp_loop_announces_the_frame_data_size():
 
 
 def test_server_next_frame_announces_the_frame_data_size(monkeypatch):
+    # The server needs fastapi; skip, not error, where it is not installed.
+    server = pytest.importorskip("doppler.specan.server")
     engine = _SpyEngine(SpecanConfig())
     source = _RecordingSource()
     monkeypatch.setattr(server, "_engine", engine)

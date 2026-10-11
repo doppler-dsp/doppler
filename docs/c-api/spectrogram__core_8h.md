@@ -71,7 +71,7 @@ _Streaming spectrogram: a stream of any-size chunks in, rows of nfft-bin spectra
 |  void | [**dp\_spectrogram\_get\_state**](#function-dp_spectrogram_get_state) (const [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s, void \* blob) <br>_Serialize the stream position into_ `blob` _._ |
 |  size\_t | [**dp\_spectrogram\_pending**](#function-dp_spectrogram_pending) (const [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s) <br>_Samples pushed that no written row has covered yet._  |
 |  size\_t | [**dp\_spectrogram\_push**](#function-dp_spectrogram_push) ([**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s, const float \_Complex \* in, size\_t n\_in, float \* out, size\_t max\_out) <br>_Push input, write every whole row it completes that fits._  |
-|  size\_t | [**dp\_spectrogram\_push\_max\_out**](#function-dp_spectrogram_push_max_out) (const [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s, size\_t n\_in) <br>_Floats one push of_ `n_in` _samples writes when_`out` _has room: dp\_spectrogram\_rows\_for(s, n\_in) \* nfft._ |
+|  size\_t | [**dp\_spectrogram\_push\_max\_out**](#function-dp_spectrogram_push_max_out) (const [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s, size\_t n\_in) <br>_Floats one push of_ `n_in` _samples writes when_`out` _has room: the rows\_for(n\_in) count times nfft._ |
 |  void | [**dp\_spectrogram\_reset**](#function-dp_spectrogram_reset) ([**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s) <br>_Forget the stream: drop the carry and restart at sample 0._  |
 |  size\_t | [**dp\_spectrogram\_rows\_for**](#function-dp_spectrogram_rows_for) (const [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s, size\_t n\_in) <br>_Rows a push of_ `n_in` _more samples completes, given the carry: exact, not an estimate._ |
 |  int | [**dp\_spectrogram\_set\_state**](#function-dp_spectrogram_set_state) ([**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s, const void \* blob) <br>_Restore a stream position, so the next push continues it bit for bit._  |
@@ -268,7 +268,7 @@ The row sits on the hop grid: it starts at the next row start k\*hop, never at t
 
 **Returns:**
 
-Floats written: nfft, or 0 if no row was owed; -1 if `row_len` is not nfft. 
+Floats written: nfft, or 0 if no row was owed; -1 if the row is not exactly nfft floats long. 
 
 
 
@@ -428,10 +428,10 @@ size_t dp_spectrogram_push (
 
 
 
-Takes the input in order and writes row after row into `out`, each `nfft` floats, until either the input is used up or the next row is due and `out` has no room for it. Only whole rows are written: a `max_out` that is not a multiple of nfft uses floor(max\_out / nfft) rows of it, and an `out` too small for one row writes nothing.
+Takes the input in order and produces each row as soon as a frame of nfft samples is complete, at every hop. A partial frame is carried to the next call, so the rows do not depend on how the input was split into calls. Input that completes no row is always taken whole.
 
 
-A short `out` never loses input. A sample is taken unless taking it would complete a row `out` has no room for: the framer's feed contract (DECLARE\_DP\_BUFFER\_FRAMES) applied to rows. [**dp\_spectrogram\_consumed()**](spectrogram__core_8h.md#function-dp_spectrogram_consumed) reports how many were taken, and the caller offers the rest again. Taken input that does not yet complete a row is the carry, held inside: fewer than nfft samples once this returns. So input that completes no row is always taken whole, even with `max_out` 0.
+Only whole rows are written. A C caller bounds the write with `max_out` and takes the rows that fit; the consumed count reports the input those rows used, and the caller offers the rest again. The Python face has no short buffer: its binding sizes the output for the whole chunk (see the Python method doc).
 
 
 
@@ -449,7 +449,7 @@ A short `out` never loses input. A sample is taken unless taking it would comple
 
 **Returns:**
 
-In C, the floats written: a multiple of nfft, at most dp\_spectrogram\_push\_max\_out(s, n\_in). In Python, the completed rows as a (rows, nfft) matrix, or None when there are none. 
+In C, the floats written: a multiple of nfft, at most the room the push\_max\_out count gives for n\_in. In Python, the completed rows as a (rows, nfft) matrix, or None when there are none. 
 
 
 
@@ -463,7 +463,7 @@ In C, the floats written: a multiple of nfft, at most dp\_spectrogram\_push\_max
 
 ### function dp\_spectrogram\_push\_max\_out 
 
-_Floats one push of_ `n_in` _samples writes when_`out` _has room: dp\_spectrogram\_rows\_for(s, n\_in) \* nfft._
+_Floats one push of_ `n_in` _samples writes when_`out` _has room: the rows\_for(n\_in) count times nfft._
 ```C++
 size_t dp_spectrogram_push_max_out (
     const dp_spectrogram_state_t * s,
@@ -504,7 +504,7 @@ void dp_spectrogram_reset (
 
 
 
-The next row covers samples [0, nfft) of whatever is pushed next. [**dp\_spectrogram\_consumed()**](spectrogram__core_8h.md#function-dp_spectrogram_consumed) and [**dp\_spectrogram\_pending()**](spectrogram__core_8h.md#function-dp_spectrogram_pending) read 0. Configuration is kept.
+The next row covers samples [0, nfft) of whatever is pushed next. The consumed count and the pending count read 0. Configuration is kept.
 
 
 

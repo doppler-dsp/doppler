@@ -2264,6 +2264,10 @@ class Spectrogram:
         complete, so no input is held back. To bound memory, push smaller chunks,
         sized with rows_for(n).
 
+        An object is not thread-safe: one Spectrogram must not be pushed from two
+        threads at once, because the kernel uses the object's scratch. push releases
+        the GIL, so other Python threads run meanwhile, but not on this object.
+
         An out array, if given, must be a float32 array of at least
         push_max_out(len(x)) elements. A smaller out raises ValueError; it is not
         taken as a short one.
@@ -2277,19 +2281,16 @@ class Spectrogram:
         >>> sp.consumed, sp.pending
         (20, 4)
 
-        Takes the input in order and writes row after row into out, each nfft
-        floats, until either the input is used up or the next row is due and
-        out has no room for it. Only whole rows are written: a max_out that is
-        not a multiple of nfft uses floor(max_out / nfft) rows of it, and an
-        out too small for one row writes nothing.
+        Takes the input in order and produces each row as soon as a frame of
+        nfft samples is complete, at every hop. A partial frame is carried to
+        the next call, so the rows do not depend on how the input was split
+        into calls. Input that completes no row is always taken whole.
 
-        A short out never loses input. A sample is taken unless taking it would
-        complete a row out has no room for: the framer's feed contract
-        (DECLARE_DP_BUFFER_FRAMES) applied to rows. dp_spectrogram_consumed()
-        reports how many were taken, and the caller offers the rest again.
-        Taken input that does not yet complete a row is the carry, held inside:
-        fewer than nfft samples once this returns. So input that completes no
-        row is always taken whole, even with max_out 0.
+        Only whole rows are written. A C caller bounds the write with max_out
+        and takes the rows that fit; the consumed count reports the input those
+        rows used, and the caller offers the rest again. The Python face has no
+        short buffer: its binding sizes the output for the whole chunk (see the
+        Python method doc).
 
         Parameters
         ----------
@@ -2301,15 +2302,15 @@ class Spectrogram:
         Returns
         -------
         NDArray[np.float32] | None
-            In C, the floats written: a multiple of nfft, at most
-            dp_spectrogram_push_max_out(s, n_in). In Python, the completed rows
-            as a (rows, nfft) matrix, or None when there are none. None when
-            the C call writes no output.
+            In C, the floats written: a multiple of nfft, at most the room the
+            push_max_out count gives for n_in. In Python, the completed rows as
+            a (rows, nfft) matrix, or None when there are none. None when the C
+            call writes no output.
         """
 
     def push_max_out(self, n_in: int) -> int:
-        """Floats one push of n_in samples writes when out has room:
-        dp_spectrogram_rows_for(s, n_in) * nfft.
+        """Floats one push of n_in samples writes when out has room: the
+        rows_for(n_in) count times nfft.
 
         The capacity that makes a push take ALL of its input. Saturates at
 
@@ -2361,8 +2362,8 @@ class Spectrogram:
         Returns
         -------
         int
-            Floats written: nfft, or 0 if no row was owed; -1 if row_len is not
-            nfft.
+            Floats written: nfft, or 0 if no row was owed; -1 if the row is not
+            exactly nfft floats long.
 
         Raises
         ------
@@ -2413,9 +2414,8 @@ class Spectrogram:
         >>> sp.pending
         0
 
-        The next row covers samples [0, nfft) of whatever is pushed next.
-        dp_spectrogram_consumed() and dp_spectrogram_pending() read 0.
-        Configuration is kept.
+        The next row covers samples [0, nfft) of whatever is pushed next. The
+        consumed count and the pending count read 0. Configuration is kept.
         """
 
     def state_bytes(self) -> int:

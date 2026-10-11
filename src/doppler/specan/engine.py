@@ -23,6 +23,7 @@ engine can be constructed before the source's sample rate is known.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -30,11 +31,22 @@ import numpy as np
 
 if TYPE_CHECKING:
     from doppler.specan.config import SpecanConfig
+    from doppler.specan.source import Source
 
-# dBm calibration: amplitude=1.0 ↔ +10 dBm into 50 Ω
-# P = V² / (2·Z)   →   P_mW = 1000·V²/(2·50) = V²/0.1
-# dBm = 10·log10(P_mW) = 10·log10(V²/0.1) = 20·log10(V) + 10
-_DBM_OFFSET = 10.0  # 20·log10(1.0) + 10 = 10 dBm at amplitude=1
+# The one dBm calibration (into 50 Ω, peak volts):
+#   P = V² / (2·Z)   →   P_mW = 1000·V²/(2·50) = V²/0.1
+#   dBm = 10·log10(P_mW) = 10·log10(V²/0.1) = 20·log10(V) + 10
+# so amplitude 1.0 is +10 dBm. Both the engine's offset and the demo source's
+# tone and noise levels read this one definition (#2159).
+DBM_AT_UNIT_AMPLITUDE = 10.0
+
+
+# The inverse of the calibration above, written as power: P = 10^(dBm/10)
+# * 1e-3 watts, then V = sqrt(P * 2 * 50) from P = V^2 / (2 Z). Returns the
+# peak volts into 50 ohm; dBm = DBM_AT_UNIT_AMPLITUDE gives 1.0.
+def dbm_to_amplitude(dbm: float) -> float:
+    p_watts = 10.0 ** (dbm / 10.0) * 1e-3
+    return math.sqrt(p_watts * 2.0 * 50.0)
 
 
 @dataclass
@@ -81,6 +93,8 @@ class SpecanEngine:
         self._data_size: int = 0
         self._span: float = 0.0
         self._block_size: int = 4096
+        # The FFT size the source was last told (see step()).
+        self._announced_fft_size: int = 0
 
     # ------------------------------------------------------------------
     # Lazy initialisation / reconfiguration
@@ -115,7 +129,7 @@ class SpecanEngine:
             rbw=rbw,
             src_center=center_freq,
             center=cfg.center,
-            offset_db=_DBM_OFFSET - cfg.level,
+            offset_db=DBM_AT_UNIT_AMPLITUDE - cfg.level,
             navg=1,
         )
 
@@ -250,3 +264,16 @@ class SpecanEngine:
     def block_size(self) -> int:
         """Suggested number of input samples per :meth:`process` call."""
         return self._block_size
+
+    # One read, process and handshake, the loop every front end runs. When the
+    # FFT size changes, the source is told the frame's data_size (the Kaiser
+    # window / RBW frame length, what a source scales its noise and tones by),
+    # not the cropped display bin count. The read is block_size, which already
+    # carries the 4096-sample floor.
+    def step(self, source: Source) -> SpectrumFrame | None:
+        iq, fs, cf = source.read(self._block_size)
+        frame = self.process(iq, fs, cf)
+        if frame is not None and frame.fft_size != self._announced_fft_size:
+            self._announced_fft_size = frame.fft_size
+            source.set_fft_size(frame.data_size)
+        return frame

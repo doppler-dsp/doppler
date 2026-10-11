@@ -53,7 +53,8 @@ dp_psd_create_hop (size_t n, double fs, int window, float beta, size_t pad,
    * positive number; the negated form also refuses a NaN, which passed a
    * plain `<= 0.0` and built an estimator that read NaN. */
   if (n < 2 || pad < 1 || !(fs > 0.0 && isfinite (fs)) || window < 0
-      || window > 3 || !(full_scale > 0.0 && isfinite (full_scale)))
+      || window > 3 || !(full_scale > 0.0 && isfinite (full_scale))
+      || n > ((size_t)-1) / (2 * sizeof (float _Complex)))
     return NULL;
   if (hop == 0)
     hop = n;
@@ -132,22 +133,13 @@ dp_psd_create_hop (size_t n, double fs, int window, float beta, size_t pad,
 
   s->fft = dp_fft_create (nfft, -1, 1);
   s->avg = dp_acc_trace_create (nfft, mode, alpha);
-  if (!s->fft || !s->avg)
-    {
-      dp_psd_destroy (s);
-      return NULL;
-    }
   /* The framer owns a ring of two frames: the carry (< n) plus what one feed
-   * admits, so a call loops once per frame, not once per sample. Refused, not
-   * wrapped, for an n whose doubled size is not a size_t. */
-  if (n > ((size_t)-1) / 2)
-    {
-      dp_psd_destroy (s);
-      return NULL;
-    }
+   * admits, so a call loops once per frame, not once per sample. Its checks
+   * share the allocation check above: a refused one frees the object. */
   s->hop  = hop;
   s->ring = dp_f32_create (2 * n);
-  if (!s->ring || dp_f32_framer_init (&s->fr, s->ring, n, hop) != DP_OK)
+  if (!s->fft || !s->avg || !s->ring
+      || dp_f32_framer_init (&s->fr, s->ring, n, hop) != DP_OK)
     {
       dp_psd_destroy (s);
       return NULL;
@@ -278,11 +270,12 @@ dp_psd_accumulate (dp_psd_state_t *state, const float _Complex *x,
    * has room for at least one more sample), so the loop ends only when the
    * input is used up. A call of whole frames at hop = n takes the same path
    * as before, frame for frame. */
-  size_t taken = 0;
-  while (taken < x_len)
+  size_t taken = 0, took = 0;
+  while (taken < x_len
+         && (took = dp_f32_framer_feed_view (&state->fr, x + taken,
+                                             x_len - taken, SIZE_MAX))
+                > 0)
     {
-      const size_t took = dp_f32_framer_feed_view (&state->fr, x + taken,
-                                                   x_len - taken, SIZE_MAX);
       taken += took;
       const float _Complex *frame;
       while ((frame = dp_f32_framer_next_view (&state->fr)) != NULL)
@@ -290,8 +283,6 @@ dp_psd_accumulate (dp_psd_state_t *state, const float _Complex *x,
           psd_window_frame (state, frame);
           psd_fold_frame (state);
         }
-      if (!took)
-        break;
     }
 }
 

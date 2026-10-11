@@ -132,6 +132,7 @@ Lifecycle: `create -> (step / steps / configure / reset)* -> destroy`
 dp_lockdet_state_t d;
 dp_lockdet_init (&d, 1.5, 1.2, 2, 3);       // declare: 2 looks > 1.5
 dp_lockdet_reset (&d);                      // cnt = 0, locked = 0
+double metric = 2.0;                      // one lock-metric look
 int locked = dp_lockdet_step (&d, metric);  // one look -> current flag
 ```
  

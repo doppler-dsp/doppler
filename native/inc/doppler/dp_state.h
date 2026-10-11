@@ -328,7 +328,7 @@ dp_ring_head_ok (size_t head, size_t cap)
                                  (VERSION));                                  \
     if (_rc != DP_OK)                                                         \
       return _rc;                                                             \
-    STATE_T     _c;                                                           \
+    STATE_T     _c = { 0 };                                                   \
     dp_reader_t _r = dp_reader_init (blob, pfx##_state_bytes (s));            \
     _r.off         = sizeof (dp_state_hdr_t);                                 \
     dp_r_bytes (&_r, &_c, sizeof _c);                                         \

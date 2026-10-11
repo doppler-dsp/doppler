@@ -184,8 +184,8 @@ dp_hbdecim_set_state (hbdecim_state_t *r, const void *blob)
   rd.off         = sizeof (dp_state_hdr_t);
   /* Decoded and checked before anything is written: the envelope reads no
      payload field, and a head is a ring index (#2142). */
-  size_t even_head, odd_head;
-  int    has_pending;
+  size_t even_head = 0, odd_head = 0;
+  int    has_pending = 0;
   dp_r_bytes (&rd, &even_head, sizeof (size_t));
   dp_r_bytes (&rd, &odd_head, sizeof (size_t));
   dp_r_bytes (&rd, &has_pending, sizeof (int));

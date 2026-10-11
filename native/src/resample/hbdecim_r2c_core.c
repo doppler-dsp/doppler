@@ -211,9 +211,9 @@ dp_hbdecim_r2c_set_state (hbdecim_r2c_state_t *r, const void *blob)
   /* Decoded and checked before anything is written: the envelope reads no
      payload field. A head is a ring index; `parity` is toggled with ^= 1,
      so a 2 would never alternate and the fs/4 flip would stop (#2142). */
-  size_t even_head, odd_head;
-  int    has_pending, parity;
-  float  pending;
+  size_t even_head = 0, odd_head = 0;
+  int    has_pending = 0, parity = 0;
+  float  pending = 0.0f;
   dp_r_bytes (&rd, &even_head, sizeof (size_t));
   dp_r_bytes (&rd, &odd_head, sizeof (size_t));
   dp_r_bytes (&rd, &has_pending, sizeof (int));

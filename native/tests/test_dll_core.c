@@ -499,6 +499,9 @@ forged_state_is_refused_or_recomputed (void)
   /* A hold, so the snapshot is a live filter and the held rows below forge
      a real one. */
   dp_dll_hold_here (d);
+  /* The held integrator set apart from the live one: hold_here copies lf, so
+     without this a swap of the two fields would pass. */
+  d->held_lf.integ      = 1.5;
   const size_t   cb     = dp_dll_state_bytes (d);
   unsigned char *honest = malloc (cb);
   dp_dll_get_state (d, honest);
@@ -510,20 +513,27 @@ forged_state_is_refused_or_recomputed (void)
             && dp_dll_set_symbol_period (fresh, period) == DP_OK);
   DP_CHECK (fresh && dp_dll_set_state (fresh, honest) == DP_OK);
 
-  /* Refused: the target is byte-identical afterwards. */
+  const double subnormal = 1e-310; /* positive, but no interval at all */
+  /* Refused: the target is byte-identical afterwards. A NaN integrator or
+     seed is deliberately not guarded: a caller who forges a non-finite
+     value gets garbage out, and no check is spent refusing it. */
   const double nan = NAN;
-  fails += forged_is_refused (d,
-                              offsetof (dp_dll_state_t, lf)
-                                  + offsetof (dp_loop_filter_state_t, integ),
-                              &nan, sizeof nan, "a NaN filter integrator");
-  fails += forged_is_refused (d,
-                              offsetof (dp_dll_state_t, held_lf)
-                                  + offsetof (dp_loop_filter_state_t, integ),
-                              &nan, sizeof nan, "a NaN held integrator");
-  fails += forged_is_refused (d, offsetof (dp_dll_state_t, seed_chip), &nan,
-                              sizeof nan, "a NaN seed phase");
   fails += forged_is_refused (d, offsetof (dp_dll_state_t, chip_pos), &nan,
                               sizeof nan, "a NaN chip phase");
+  /* The filters and the update rate are restored verbatim, so a forged gain,
+     interval or rate is validated and refused, never patched up. */
+  fails += forged_is_refused (
+      d, offsetof (dp_dll_state_t, lf) + offsetof (dp_loop_filter_state_t, kp),
+      &nan, sizeof nan, "a NaN loop gain");
+  fails += forged_is_refused (
+      d, offsetof (dp_dll_state_t, lf) + offsetof (dp_loop_filter_state_t, t),
+      &nan, sizeof nan, "a NaN update interval");
+  fails += forged_is_refused (d,
+                              offsetof (dp_dll_state_t, held_lf)
+                                  + offsetof (dp_loop_filter_state_t, kp),
+                              &nan, sizeof nan, "a NaN held loop gain");
+  fails += forged_is_refused (d, offsetof (dp_dll_state_t, inv_upd), &nan,
+                              sizeof nan, "a NaN update rate");
 
   /* The repro: a bandwidth refused at a symbol interval below one. segments 4,
      a period of 2 partials (interval 0.5): configure at 5e153 must refuse. */
@@ -555,22 +565,31 @@ forged_state_is_refused_or_recomputed (void)
                               "a bandwidth valid at t = 1 but not at the "
                               "aided interval");
 
-  /* Recomputed: the forged value is ignored, and the target ends in the
-     honest state the blob was written from. */
+  /* Refused: an interval or period that is no symbol timing at all. A
+     subnormal period made inv_upd infinite, then NaN; a held snapshot with no
+     interval is no filter a hold leaves. */
+  fails += forged_is_refused (d, offsetof (dp_dll_state_t, sym_period),
+                              &subnormal, sizeof subnormal,
+                              "a subnormal symbol period");
+  const double zero = 0.0;
+  fails += forged_is_refused (d,
+                              offsetof (dp_dll_state_t, held_lf)
+                                  + offsetof (dp_loop_filter_state_t, t),
+                              &zero, sizeof zero, "a held interval of zero");
+  fails += forged_is_refused (d,
+                              offsetof (dp_dll_state_t, held_lf)
+                                  + offsetof (dp_loop_filter_state_t, t),
+                              &subnormal, sizeof subnormal,
+                              "a held interval of 1e-310");
+
+  /* Ignored: the rate table is the live object's, not the blob's, so a forged
+     one is ignored and the target ends in the honest state. */
   struct
   {
     size_t      off;
     const char *what;
   } recompute[] = {
-    { offsetof (dp_dll_state_t, lf) + offsetof (dp_loop_filter_state_t, kp),
-      "a NaN loop gain" },
-    { offsetof (dp_dll_state_t, lf) + offsetof (dp_loop_filter_state_t, t),
-      "a NaN update interval" },
     { offsetof (dp_dll_state_t, rate_p), "a NaN rate table" },
-    { offsetof (dp_dll_state_t, held_lf)
-          + offsetof (dp_loop_filter_state_t, kp),
-      "a NaN held loop gain" },
-    { offsetof (dp_dll_state_t, inv_upd), "a NaN update rate" },
   };
   for (size_t k = 0; k < sizeof recompute / sizeof *recompute; k++)
     {
@@ -637,6 +656,65 @@ hold_then_retune_resumes_exact (void)
     {
       dp_dll_set_coast (a, 1);
       dp_dll_set_coast (c, 1);
+      const size_t na = dp_dll_steps (a, rx, 128, out_a, 64);
+      const size_t nc = dp_dll_steps (c, rx, 128, out_c, 64);
+      DP_CHECK (na == nc && na > 0);
+      DP_CHECK (memcmp (out_a, out_c, na * sizeof *out_a) == 0);
+      const size_t   cb_a = dp_dll_state_bytes (a);
+      unsigned char *sa = malloc (cb_a), *sc = malloc (cb_a);
+      dp_dll_get_state (a, sa);
+      dp_dll_get_state (c, sc);
+      DP_CHECK (memcmp (sa, sc, cb_a) == 0);
+      free (sa);
+      free (sc);
+      dp_dll_destroy (c);
+    }
+  free (blob);
+  dp_dll_destroy (a);
+  return fails;
+}
+
+/* The coast-first orders resume bit-for-bit (doppler#2103). A hold, then one
+ * of three orders of operations, then a round trip, must coast, uncoast and
+ * step exactly as the object that was never serialized. order 0: a bandwidth
+ * retune after the hold; order 1: a symbol period change after the hold;
+ * order 2: a re-hold while coasting. Returns the number of failed checks. */
+static int
+coast_order_resumes_exact (int order)
+{
+  int     fails = 0;
+  uint8_t code[31];
+  make_code (code, 31, 2103u);
+  const double    period_a = order == 1 ? 4.0 : 8.0;
+  dp_dll_state_t *a = dp_dll_create (code, 31, 2, 0.0, 0.01, 0.707, 0.5, 4);
+  if (!a || dp_dll_set_symbol_period (a, 8.0) != DP_OK)
+    return 1;
+  float _Complex rx[128], warm[64], out_a[64], out_c[64];
+  for (size_t i = 0; i < 128; i++)
+    rx[i] = CMPLXF (cosf (0.3f * (float)i), sinf (0.7f * (float)i));
+  (void)dp_dll_steps (a, rx, 128, warm, 64); /* warm up: a live state */
+  dp_dll_hold_here (a);
+  if (order == 0)
+    DP_CHECK (dp_dll_set_bn (a, 0.02) == DP_OK);
+  else if (order == 1)
+    DP_CHECK (dp_dll_set_symbol_period (a, period_a) == DP_OK);
+  else
+    {
+      dp_dll_set_coast (a, 1);
+      dp_dll_hold_here (a); /* the re-hold, while coasting */
+    }
+  dp_dll_set_coast (a, 1);
+
+  const size_t   cb   = dp_dll_state_bytes (a);
+  unsigned char *blob = malloc (cb);
+  dp_dll_get_state (a, blob);
+  dp_dll_state_t *c = dp_dll_create (code, 31, 2, 0.0, 0.01, 0.707, 0.5, 4);
+  DP_CHECK (c != NULL && dp_dll_set_symbol_period (c, period_a) == DP_OK);
+  DP_CHECK (c != NULL && dp_dll_set_state (c, blob) == DP_OK);
+  if (c)
+    {
+      dp_dll_set_coast (a, 0); /* the uncoast, after the round trip */
+      dp_dll_set_coast (c, 0);
       const size_t na = dp_dll_steps (a, rx, 128, out_a, 64);
       const size_t nc = dp_dll_steps (c, rx, 128, out_c, 64);
       DP_CHECK (na == nc && na > 0);
@@ -1778,6 +1856,9 @@ main (void)
   DP_CHECK (refused_retune_changes_nothing () == 0);
   DP_CHECK (forged_state_is_refused_or_recomputed () == 0);
   DP_CHECK (hold_then_retune_resumes_exact () == 0);
+  DP_CHECK (coast_order_resumes_exact (0) == 0);
+  DP_CHECK (coast_order_resumes_exact (1) == 0);
+  DP_CHECK (coast_order_resumes_exact (2) == 0);
 
   DP_TEST_END ("test_dll_core");
 }

@@ -1400,7 +1400,7 @@ The code loop steers once per symbol, on the early/prompt/late sums over the win
 
 **Returns:**
 
-DP\_OK; DP\_ERR\_INVALID when `segments <= 1`, or the period is not finite, is in (0, 2) or is past 2^20 partials, or when the loop's bandwidth is outside the domain at the period's interval or at t = 1 (the gains would overflow)  the rings are sized by the period, and past that they are refused, not allocated (doppler#2103). Any finite period &lt;= 0 turns the aid off; `-inf` used to as well, and is refused now, as every non-finite period is. 
+DP\_OK; DP\_ERR\_INVALID when `segments <= 1`, or the period is not finite, is negative, is in (0, 2) or is past 2^20 partials, or when the loop's bandwidth is outside the domain at the period's interval or at t = 1 (the gains would overflow)  the rings are sized by the period, and past that they are refused, not allocated (doppler#2103). Exactly 0 turns the aid off; a negative period is refused, not taken as 0. 
 ```C++
 >>> import numpy as np
 >>> from doppler.track import Dll

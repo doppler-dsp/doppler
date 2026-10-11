@@ -919,13 +919,12 @@ void dp_dll_hold_here(dp_dll_state_t *state);
  *                            `segments * chip_rate / (sf * symbol_rate)`;
  *                            >= 2. 0 disables (per-partial looks again).
  * @return DP_OK; DP_ERR_INVALID when `segments <= 1`, or the period is not
- *         finite, is in (0, 2) or is past 2^20 partials, or when the loop's
- *         bandwidth is outside the domain at the period's interval or at
- *         t = 1 (the gains would overflow) -- the rings are
- *         sized by the period, and past that they are refused, not
- *         allocated (doppler#2103). Any finite period <= 0 turns the aid off;
- *         `-inf` used to as well, and is refused now, as every non-finite
- *         period is.
+ *         finite, is negative, is in (0, 2) or is past 2^20 partials, or when
+ *         the loop's bandwidth is outside the domain at the period's interval
+ *         or at t = 1 (the gains would overflow) -- the rings are sized by the
+ *         period, and past that they are refused, not allocated (doppler#2103).
+ *         Exactly 0 turns the aid off; a negative period is refused, not taken
+ *         as 0.
  * @code
  * >>> import numpy as np
  * >>> from doppler.track import Dll

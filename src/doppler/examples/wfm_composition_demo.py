@@ -62,7 +62,7 @@ x = Composer(timeline).compose()  # → complex64
 # The narrative block above must stay self-contained (the gallery page
 # includes it verbatim), so this import follows it. noqa: E402 — import
 # not at top of file, by design.
-from doppler.spectral import PSD  # noqa: E402
+from doppler.spectral import PSD, Spectrogram  # noqa: E402
 
 N = 1 << 16  # == the scene's num_samples above
 
@@ -79,15 +79,14 @@ def psd_db(x, nfft=1024):
     return p - p.max()
 
 
-# A short-time spectrogram has no single-shot PSD analogue, so this STFT helper
-# stays explicit (per-frame FFT magnitude, not an averaged power estimate).
+# One dB row per hop, through the library's spectrogram: every whole frame,
+# the last one included.
 def spectrogram_db(x, nfft=256, hop=64):
-    win = np.hanning(nfft)
-    cols = [
-        np.fft.fftshift(np.abs(np.fft.fft(x[i : i + nfft] * win)))
-        for i in range(0, len(x) - nfft, hop)
-    ]
-    s = 20 * np.log10(np.array(cols).T + 1e-9)
+    s = (
+        Spectrogram(nfft=nfft, hop=hop, window="hann", mode="db")
+        .push(np.asarray(x, dtype=np.complex64))
+        .T
+    )
     return s - s.max()
 
 
@@ -172,6 +171,7 @@ ax[0, 0].grid(alpha=0.3)
 
 # B: timeline spectrogram
 s = spectrogram_db(x)
+assert s.shape == (256, (len(x) - 256) // 64 + 1), s.shape
 ax[0, 1].imshow(
     s,
     aspect="auto",

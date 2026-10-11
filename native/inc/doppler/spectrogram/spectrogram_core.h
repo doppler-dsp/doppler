@@ -114,10 +114,8 @@ typedef struct
  *                dp_psd_create() takes it. It also refuses a window that sums
  *                to zero at this nfft (the symmetric Hann at nfft = 2).
  * @param beta    Kaiser beta (ignored for the other windows).
- * @param mode    DP_SPECTROGRAM_POWER (linear rows, the default, 0) or
- *                DP_SPECTROGRAM_DB (dBFS rows, 1); any other value is
- *                refused. Pass it by name: `make lint` refuses an integer
- *                literal here.
+ * @param mode    Row units: "power" (linear rows, the default) or "db" (dBFS
+ *                rows, asked for by name). Any other value is refused.
  * @return Heap-allocated state, or NULL on an invalid argument.
  *
  * Every row is DC-centred exactly as PSD's kernel emits it: bin k at index
@@ -164,9 +162,8 @@ void dp_spectrogram_reset (dp_spectrogram_state_t *s);
  * @param n_in     Samples in @p in.
  * @param out      Rows, row-major, nfft floats each.
  * @param max_out  Floats @p out has room for.
- * @return In C, the floats written: a multiple of nfft, at most the room the
- *         push_max_out count gives for n_in. In Python, the completed rows as
- *         a (rows, nfft) matrix, or None when there are none.
+ * @return Floats written, a multiple of nfft. From Python, the completed
+ *         rows as a (rows, nfft) matrix, or None when none is completed.
  */
 size_t dp_spectrogram_push (dp_spectrogram_state_t *s,
                             const float _Complex *in, size_t n_in, float *out,

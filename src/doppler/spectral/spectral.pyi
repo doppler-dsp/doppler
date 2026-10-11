@@ -2217,9 +2217,8 @@ class Spectrogram:
     beta : float, default 0.0
         Kaiser beta (ignored for the other windows).
     mode : Literal["power", "db"], default "power"
-        DP_SPECTROGRAM_POWER (linear rows, the default, 0) or DP_SPECTROGRAM_DB
-        (dBFS rows, 1); any other value is refused. Pass it by name: `make
-        lint` refuses an integer literal here.
+        Row units: "power" (linear rows, the default) or "db" (dBFS rows, asked
+        for by name). Any other value is refused.
 
     Raises
     ------
@@ -2302,10 +2301,9 @@ class Spectrogram:
         Returns
         -------
         NDArray[np.float32] | None
-            In C, the floats written: a multiple of nfft, at most the room the
-            push_max_out count gives for n_in. In Python, the completed rows as
-            a (rows, nfft) matrix, or None when there are none. None when the C
-            call writes no output.
+            Floats written, a multiple of nfft. From Python, the completed rows
+            as a (rows, nfft) matrix, or None when none is completed. None when
+            the C call writes no output.
         """
 
     def push_max_out(self, n_in: int) -> int:

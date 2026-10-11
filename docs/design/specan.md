@@ -111,6 +111,21 @@ window. The analyzer reports the RBW the window realises, so the fit decides
 how close that lands to the request, not what is reported. It replaces a
 60-step bisection that built the window once per step.
 
+## Which window a call shows: the newest
+
+A call to `dp_specan_execute` consumes every complete window of decimated input
+it holds, and returns the spectrum of the newest of them. The older windows are
+dropped, not queued. The returned spectrum is one window: the estimator is reset
+before that window is folded in, so no average runs across calls.
+
+The newest window is the right one for a display. A caller that feeds more than
+a window's worth at a time sees the latest frame, not a frame that is further
+behind real time each call. The buffer then stays bounded by one window plus the
+remainder, which keeps the fixed-size state blob valid.
+
+A stream that must not drop a window is not a Specan stream. It is a spectrogram,
+one row per window, which the `Spectrogram` object provides.
+
 ## How it is checked
 
 All in `native/tests/test_specan_core.c`, over eleven RBWs from a 2048-point

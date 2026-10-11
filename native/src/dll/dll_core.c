@@ -286,6 +286,17 @@ set_segments (dp_dll_state_t *s, size_t segments)
  * interval is accepted by set_state at that interval: a live object's own
  * blob resumes. */
 static int
+dll_t_ok (double t, size_t segments)
+{
+  /* The update interval a filter may hold: 1 (the create and the zero
+     default), or inside the aided range, [2, 2^20] partials over the segments.
+     A NaN, a subnormal or an overflowing interval is none of these. */
+  return t == 1.0
+         || (t >= 2.0 / (double)segments
+             && t <= DLL_AID_MAX_PERIOD / (double)segments);
+}
+
+static int
 dll_bn_zeta_ok (double bn, double zeta, double t)
 {
   return dp_loop_filter_params_ok (bn, zeta, 1.0)
@@ -352,8 +363,6 @@ dp_dll_init (dp_dll_state_t *s, const uint8_t *code, size_t code_len,
   /* The held snapshot is zeroed whole: a stack embed would otherwise carry
      garbage into the blob, and nothing reads it until a hold writes it. */
   memset (&s->held_lf, 0, sizeof s->held_lf);
-  s->held_bn   = 0.0;
-  s->held_zeta = 0.0;
   s->code      = code; /* borrowed */
   s->owns_code = 0;
   /* dp_dll_init always runs with segments == 1 (configure_geometry's
@@ -670,28 +679,25 @@ dp_dll_set_state (dp_dll_state_t *s, const void *blob)
   if (!dp_dll_params_ok (t.sf, t.chip_pos, t.bn, t.zeta, t.spacing,
                          t.segments))
     return DP_ERR_INVALID;
-  /* The filter's update interval is the symbol period's, tied here instead of
-     trusted from the blob: a symbol period's interval is P / segments, and no
-     symbol period is 1 (the create and the zero default). The bandwidth must
-     be one a live Dll could hold at that interval (dll_bn_zeta_ok). The
-     integrators and seed must be finite: a loop driven to a NaN integrator by
-     non-finite input now has its own blob refused. That is intended, since a
-     NaN loop is not restorable, and a restored NaN would be an unguarded NaN
-     in the next update. */
-  const double t_upd
-      = t.sym_period > 0.0 ? t.sym_period / (double)t.segments : 1.0;
-  /* The held snapshot is a filter only once the loop has held (held_inc set,
-     the gate set_coast uses). It is checked at the bandwidth and interval it
-     was taken with, not the live ones, since set_bn after a hold leaves it
-     unchanged; a held loop with no interval is no state a hold leaves. An
-     unheld snapshot is zero and is not checked. */
+  /* The filters are restored VERBATIM, gains included, so resume is bit-exact
+     by construction, and each is validated against its OWN bandwidth, zeta and
+     interval (dp_loop_filter_state_ok): never the Dll's update interval, since
+     a coasting filter legitimately sits at 1 while the aid runs. The Dll's
+     bandwidth must be one a live Dll could hold at its live interval
+     (dll_bn_zeta_ok), and the update rate must be the live interval's
+     reciprocal. */
   const int held = t.held_inc != 0;
-  if (!dll_bn_zeta_ok (t.bn, t.zeta, t_upd)
+  if (!dll_bn_zeta_ok (t.bn, t.zeta, t.lf.t) || !dll_t_ok (t.lf.t, t.segments)
+      || (t.sym_period <= 0.0 && t.lf.t != 1.0)
+      || !dp_loop_filter_state_ok (&t.lf)
       || (held
-          && (t.held_lf.t <= 0.0
-              || !dll_bn_zeta_ok (t.held_bn, t.held_zeta, t.held_lf.t)))
-      || !isfinite (t.lf.integ) || !isfinite (t.held_lf.integ)
-      || !isfinite (t.seed_chip))
+          && (!dll_t_ok (t.held_lf.t, t.segments)
+              || !dp_loop_filter_state_ok (&t.held_lf)))
+      || !(fabs (t.inv_upd
+                     * (t.sym_period > 0.0 ? t.sym_period / (double)t.segments
+                                           : 1.0)
+                 - 1.0)
+           <= 1e-9))
     return DP_ERR_INVALID;
 
   /* The packed buffers, located before anything is written: with the keys
@@ -749,20 +755,10 @@ dp_dll_set_state (dp_dll_state_t *s, const void *blob)
   t.ctrl_p        = s->ctrl_p;
   t.rate_i        = s->rate_i;
   t.rate_p        = s->rate_p;
-  /* The filters' gains are recomputed from (bn, zeta, their interval), each
-     keeping its own integrator, and the update rate follows the interval the
-     symbol period set (the same tie the check above made). */
-  const double lf_integ   = t.lf.integ;
-  const double held_integ = t.held_lf.integ;
-  dp_loop_filter_init (&t.lf, t.bn, t.zeta, t_upd);
-  if (held)
-    dp_loop_filter_init (&t.held_lf, t.held_bn, t.held_zeta, t.held_lf.t);
-  else
-    t.held_lf.kp = t.held_lf.ki = 0.0; /* never held: no gains to keep */
-  t.lf.integ      = lf_integ;
-  t.held_lf.integ = held_integ;
-  t.inv_upd       = 1.0 / t_upd;
-  *s              = t;
+  /* The filters' gains, integrators and interval are the blob's, verbatim
+     (validated above): a recompute on restore could not be bit-exact across
+     compilers or against a coast, so none is done. */
+  *s = t;
   if (n_seg)
     {
       memcpy (s->chunk_p, seg_p, n_seg * sizeof (*s->chunk_p));
@@ -1135,10 +1131,8 @@ dp_dll_set_bn (dp_dll_state_t *state, double val)
 void
 dp_dll_hold_here (dp_dll_state_t *state)
 {
-  state->held_inc  = state->code_nco.phase_inc;
-  state->held_lf   = state->lf;
-  state->held_bn   = state->bn;
-  state->held_zeta = state->zeta;
+  state->held_inc = state->code_nco.phase_inc;
+  state->held_lf  = state->lf;
 }
 
 /* A held loop's control: the held filter's integrator alone, through the

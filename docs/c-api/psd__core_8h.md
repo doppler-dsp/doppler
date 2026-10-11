@@ -63,11 +63,11 @@ _PSD — averaging power-spectral-density estimator (Welch's method) and spectra
 | Type | Name |
 | ---: | :--- |
 |  void | [**dp\_psd\_accumulate**](#function-dp_psd_accumulate) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len) <br>_Window, FFT and fold complex baseband frames into the average. Folds every frame the stream completes: frame k covers stream samples [k\*hop, k\*hop + n) (hop = n unless_ [_**dp\_psd\_create\_hop()**_](psd__core_8h.md#function-dp_psd_create_hop) _said otherwise). A trailing partial frame is carried to the next call, not dropped: the framer holds it. A single call of whole frames at hop = n averages what dp\_psd\_accumulate always has._ |
-|  void | [**dp\_psd\_accumulate\_real**](#function-dp_psd_accumulate_real) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, const float \* x, size\_t x\_len) <br>_Window, zero-pad, FFT and fold real frames into the average. The real-input counterpart to_ [_**dp\_psd\_accumulate()**_](psd__core_8h.md#function-dp_psd_accumulate) _: each length-n frame is windowed, zero-padded to nfft, transformed and folded as a DC-centred two-sided power spectrum (a real frame is Hermitian, so the +k and -k bins carry equal power). Read the one-sided fold with_[_**dp\_psd\_power\_onesided()**_](psd__core_8h.md#function-dp_psd_power_onesided) _. Processes floor(n\_in / n) full frames._ |
+|  void | [**dp\_psd\_accumulate\_real**](#function-dp_psd_accumulate_real) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, const float \* x, size\_t x\_len) <br>_Window, zero-pad, FFT and fold real frames into the average. The real-input counterpart to_ [_**dp\_psd\_accumulate()**_](psd__core_8h.md#function-dp_psd_accumulate) _: each length-n frame is windowed, zero-padded to nfft, transformed and folded as a DC-centred two-sided power spectrum (a real frame is Hermitian, so the +k and -k bins carry equal power). Read the one-sided fold with_[_**dp\_psd\_power\_onesided()**_](psd__core_8h.md#function-dp_psd_power_onesided) _._ |
 |  size\_t | [**dp\_psd\_band\_power**](#function-dp_psd_band_power) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, const double \* bands, size\_t bands\_len, float \* out, size\_t max\_out) <br>_Integrated power per band in dB._ `bands` _is a flat array of_`[lo0, hi0, lo1, hi1, ...]` _band edges in Hz; the output holds one dB value per band (n\_bands = bands\_len / 2). Edges are clamped to the analysed span; a band fully outside the span integrates to the dB floor. Returns 0 (Python None) when there is nothing to report: before any frame is accumulated, or when_`bands` _holds no complete lo/hi pair._ |
 |  size\_t | [**dp\_psd\_band\_power\_max\_out**](#function-dp_psd_band_power_max_out) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Output capacity hint for band\_power(); 0 (binding sizes from bands)._  |
 |  [**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* | [**dp\_psd\_create**](#function-dp_psd_create) (size\_t n, double fs, int window, float beta, size\_t pad, double full\_scale, size\_t bits, int mode, double alpha) <br>_Create an averaging PSD estimator._  |
-|  [**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* | [**dp\_psd\_create\_hop**](#function-dp_psd_create_hop) (size\_t n, double fs, int window, float beta, size\_t pad, double full\_scale, size\_t bits, int mode, double alpha, size\_t hop) <br>_Create an averaging PSD estimator with a frame hop: frame k covers stream samples [k\*hop, k\*hop + n). hop = n is the non-overlapping frame_ [_**dp\_psd\_create()**_](psd__core_8h.md#function-dp_psd_create) _makes._ |
+|  [**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* | [**dp\_psd\_create\_hop**](#function-dp_psd_create_hop) (size\_t n, double fs, int window, float beta, size\_t pad, double full\_scale, size\_t bits, int mode, double alpha, size\_t hop) <br>_Create an averaging PSD estimator whose frames are spaced by a hop._  |
 |  void | [**dp\_psd\_destroy**](#function-dp_psd_destroy) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Destroy a PSD instance and release all memory._  |
 |  void | [**dp\_psd\_frame\_db**](#function-dp_psd_frame_db) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, const float \_Complex \* x, float \* out) <br>_One frame in dBFS, against the estimator's own reference._  |
 |  void | [**dp\_psd\_frame\_linear**](#function-dp_psd_frame_linear) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, const float \_Complex \* x, float \* out) <br>_One frame in linear full-scale^2 units, against the estimator's own reference._  |
@@ -121,7 +121,7 @@ _PSD — averaging power-spectral-density estimator (Welch's method) and spectra
 | Type | Name |
 | ---: | :--- |
 | define  | [**PSD\_STATE\_MAGIC**](psd__core_8h.md#define-psd_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('P','S','D',' ')`<br> |
-| define  | [**PSD\_STATE\_VERSION**](psd__core_8h.md#define-psd_state_version)  `1u`<br> |
+| define  | [**PSD\_STATE\_VERSION**](psd__core_8h.md#define-psd_state_version)  `2u`<br> |
 
 ## Detailed Description
 
@@ -202,7 +202,7 @@ True
 
 ### function dp\_psd\_accumulate\_real 
 
-_Window, zero-pad, FFT and fold real frames into the average. The real-input counterpart to_ [_**dp\_psd\_accumulate()**_](psd__core_8h.md#function-dp_psd_accumulate) _: each length-n frame is windowed, zero-padded to nfft, transformed and folded as a DC-centred two-sided power spectrum (a real frame is Hermitian, so the +k and -k bins carry equal power). Read the one-sided fold with_[_**dp\_psd\_power\_onesided()**_](psd__core_8h.md#function-dp_psd_power_onesided) _. Processes floor(n\_in / n) full frames._
+_Window, zero-pad, FFT and fold real frames into the average. The real-input counterpart to_ [_**dp\_psd\_accumulate()**_](psd__core_8h.md#function-dp_psd_accumulate) _: each length-n frame is windowed, zero-padded to nfft, transformed and folded as a DC-centred two-sided power spectrum (a real frame is Hermitian, so the +k and -k bins carry equal power). Read the one-sided fold with_[_**dp\_psd\_power\_onesided()**_](psd__core_8h.md#function-dp_psd_power_onesided) _._
 ```C++
 void dp_psd_accumulate_real (
     dp_psd_state_t * state,
@@ -211,6 +211,9 @@ void dp_psd_accumulate_real (
 ) 
 ```
 
+
+
+This call stays on whole frames at hop = n: it folds floor(n\_in / n) frames and drops a trailing partial frame. It neither reads nor writes the carry of the complex accumulate call, so mixing the two on one object mixes two streams, and a hop below n is not used by this call.
 
 
 
@@ -367,7 +370,7 @@ True
 
 ### function dp\_psd\_create\_hop 
 
-_Create an averaging PSD estimator with a frame hop: frame k covers stream samples [k\*hop, k\*hop + n). hop = n is the non-overlapping frame_ [_**dp\_psd\_create()**_](psd__core_8h.md#function-dp_psd_create) _makes._
+_Create an averaging PSD estimator whose frames are spaced by a hop._ 
 ```C++
 dp_psd_state_t * dp_psd_create_hop (
     size_t n,
@@ -385,6 +388,9 @@ dp_psd_state_t * dp_psd_create_hop (
 
 
 
+Frame k covers stream samples [k\*hop, k\*hop + n). A hop equal to n gives non-overlapping frames. A trailing partial frame is carried to the next accumulate call, not dropped.
+
+
 
 
 **Parameters:**
@@ -399,7 +405,7 @@ dp_psd_state_t * dp_psd_create_hop (
 * `bits` ADC depth: when &gt; 0, sets full\_scale = 2^(bits-1) (the single definition of the dBFS reference); 0 = use `full_scale` directly. At most 64. 
 * `mode` Averaging mode index (0=mean, 1=exp, 2=maxhold, 3=minhold). 
 * `alpha` EMA smoothing factor, exp mode only, where it must lie in (0, 1]: the rule is the AccTrace averager's, whose create refuses anything else, so this does too. Ignored, and so not checked, in the other modes. 
-* `hop` Samples between frame starts, 1..n; 0 means n, so a binding can default to the frame dp\_psd\_create makes. A hop above n (a gap between frames) is refused: the framer holds no sample it has not been told to keep. 
+* `hop` Samples between frame starts, 1..n. 0 means n, which gives non-overlapping frames; the default. A hop above n would leave samples between frames that are never kept, so it is refused. 
 
 
 
@@ -418,7 +424,7 @@ Caller must call [**dp\_psd\_destroy()**](psd__core_8h.md#function-dp_psd_destro
 
 ```C++
 >>> from doppler.spectral import PSD
->>> w = PSD(n=1024, fs=1.0e6, window="kaiser", beta=8.0, mode="mean")
+>>> w = PSD(n=1024, fs=1.0e6, window="kaiser", beta=8.0, mode="mean", hop=512)
 >>> w.n, w.fs
 (1024, 1000000.0)
 >>> round(w.rbw / (w.fs / w.n), 3) == round(w.enbw, 3)
@@ -1087,7 +1093,7 @@ Total band power in dB (dB floor if empty).
 ### define PSD\_STATE\_VERSION 
 
 ```C++
-#define PSD_STATE_VERSION `1u`
+#define PSD_STATE_VERSION `2u`
 ```
 
 

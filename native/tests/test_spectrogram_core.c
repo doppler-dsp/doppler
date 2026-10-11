@@ -527,7 +527,7 @@ sections (int mode)
             = dp_spectrogram_push (s, x, n, buf, sizeof buf / 4) / nfft;
         size_t covered = rows ? (rows - 1) * hop + nfft : 0;
         size_t pend    = dp_spectrogram_pending (s);
-        size_t flushed = dp_spectrogram_flush (s, row);
+        size_t flushed = dp_spectrogram_flush (s, row, nfft);
         if ((flushed == nfft) != (n > covered))
           iff = 0;
         /* pending is what no written row covered, counted here from the
@@ -551,8 +551,8 @@ sections (int mode)
           }
         /* restarted: a second flush owes nothing, pending is 0, and the
            next row covers samples [0, nfft) of the NEW stream */
-        if (dp_spectrogram_flush (s, row) != 0 || dp_spectrogram_pending (s)
-            || dp_spectrogram_consumed (s) != 0)
+        if (dp_spectrogram_flush (s, row, nfft) != 0
+            || dp_spectrogram_pending (s) || dp_spectrogram_consumed (s) != 0)
           restart = 0;
         float           first[16], ref[16];
         dp_psd_state_t *p = ref_psd (nfft, 0, 0.0f);

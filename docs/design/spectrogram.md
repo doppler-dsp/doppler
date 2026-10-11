@@ -157,7 +157,7 @@ size_t dp_spectrogram_push (s, const cf32 *in, size_t n_in,
 size_t dp_spectrogram_push_max_out (s, size_t n_in);  /* rows_for * nfft  */
 size_t dp_spectrogram_consumed (s);        /* input the last push took    */
 size_t dp_spectrogram_rows_for (s, size_t n_in);  /* exact, in rows       */
-size_t dp_spectrogram_flush (s, float *row);      /* 0 or nfft floats     */
+size_t dp_spectrogram_flush (s, float *row, size_t row_len); /* 0 or nfft floats */
 size_t dp_spectrogram_pending (s);
 /* + reset, destroy, and the state triplet */
 ```

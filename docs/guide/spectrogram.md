@@ -107,7 +107,7 @@ row has covered yet.
 ## Ending a stream
 
 The last few samples of a stream usually complete no row.
-`dp_spectrogram_flush(s, row)` writes the one row they are owed,
+`dp_spectrogram_flush(s, row, nfft)` writes the one row they are owed,
 zero-padded. It is **on the hop grid**: it starts at the next row start
 `k·hop`, not at the first uncovered sample, so it is exactly the row a
 one-shot run over the zero-padded stream would have made. It writes a row if

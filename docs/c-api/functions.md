@@ -1469,6 +1469,8 @@
 * **dp\_spectrogram\_create** ([**spectrogram\_core.h**](spectrogram__core_8h.md))
 * **dp\_spectrogram\_destroy** ([**spectrogram\_core.h**](spectrogram__core_8h.md))
 * **dp\_spectrogram\_flush** ([**spectrogram\_core.h**](spectrogram__core_8h.md))
+* **dp\_spectrogram\_get\_consumed** ([**spectrogram\_core.h**](spectrogram__core_8h.md))
+* **dp\_spectrogram\_get\_pending** ([**spectrogram\_core.h**](spectrogram__core_8h.md))
 * **dp\_spectrogram\_get\_state** ([**spectrogram\_core.h**](spectrogram__core_8h.md))
 * **dp\_spectrogram\_pending** ([**spectrogram\_core.h**](spectrogram__core_8h.md))
 * **dp\_spectrogram\_push** ([**spectrogram\_core.h**](spectrogram__core_8h.md))

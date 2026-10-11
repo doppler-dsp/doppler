@@ -182,8 +182,8 @@ main (void)
      end). Both ways owe the same one. */
   float last_a[NFFT], last_b[NFFT];
   CHECK (dp_spectrogram_pending (a) > 0);
-  CHECK (dp_spectrogram_flush (a, last_a) == NFFT);
-  CHECK (dp_spectrogram_flush (b, last_b) == NFFT);
+  CHECK (dp_spectrogram_flush (a, last_a, NFFT) == NFFT);
+  CHECK (dp_spectrogram_flush (b, last_b, NFFT) == NFFT);
   CHECK (memcmp (last_a, last_b, sizeof last_a) == 0);
   /* Physics for the flushed row too: it starts at rows * HOP, inside the
      last segment, whose tone runs on to the end of the stream; the zeros
@@ -193,7 +193,7 @@ main (void)
   size_t lp = peak (last_a);
   CHECK (lp == (size_t)(NFFT / 2 + BIN[NSEG - 1]));
   CHECK (to_db (last_a[lp]) <= 0.0f && to_db (last_a[lp]) > -0.5f);
-  CHECK (dp_spectrogram_flush (a, last_a) == 0); /* the stream is over */
+  CHECK (dp_spectrogram_flush (a, last_a, NFFT) == 0); /* the stream is over */
 
   printf ("spectrogram: %d samples in chunks of 1/37/700/5 -> %zu rows of "
           "%d bins (hop %d) + 1 flushed\n",

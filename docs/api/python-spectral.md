@@ -89,14 +89,15 @@ ______________________________________________________________________
 ## Averaging PSD & measurements
 
 `PSD` is a stateful Welch-method (averaging) power-spectral-density estimator —
-the single PSD core the [measurement suite](python-measure.md) also consumes (see
-the [Power Spectra & Measurements guide](../guide/spectral-psd.md) for the usage
-walk-through). A capture is cut into segments of `n` samples, one every `hop` samples
-(default `hop = n`, non-overlapping); each complete segment is windowed, **zero-padded to `nfft = next_pow_two(n·pad)`**, FFT'd, converted
-to power, fftshifted to DC-centred order and folded into a running average
-([`AccTrace`](python-accumulator.md), `mode` of `"mean"` / `"exp"` / `"maxhold"`
-/ `"minhold"`). Feed complex baseband with `accumulate()` or real input with
-`accumulate_real()`.
+the single PSD core the [measurement suite](python-measure.md) also consumes
+(see the [Power Spectra & Measurements guide](../guide/spectral-psd.md) for the
+usage walk-through). A capture is cut into segments of `n` samples, one every
+`hop` samples (default `hop = n`, non-overlapping); each complete segment is
+windowed, **zero-padded to `nfft = next_pow_two(n·pad)`**, FFT'd, converted to
+power, fftshifted to DC-centred order and folded into a running average
+([`AccTrace`](python-accumulator.md), `mode` of `"mean"` / `"exp"` /
+`"maxhold"` / `"minhold"`). Feed complex baseband with `accumulate()` or real
+input with `accumulate_real()`.
 
 ```python
 import numpy as np

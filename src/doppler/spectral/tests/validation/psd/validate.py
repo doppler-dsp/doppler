@@ -1260,13 +1260,12 @@ def _sec_candidates(d: Data) -> None:
     R.md()
 
 
-# ── 3. review ─────────────────────────────────────────────────────────
-
-
 # ── 2.11 the frame hop and carry (the binding is the certification) ─────────
 
 # The C test's pins (test_psd_core.c, T21): (config index, stream length,
-# value), from main's build at 4ab923ea5, on the dp_uni stream below.
+# value), from main's build at 4ab923ea5, on the dp_uni stream below. The C
+# test runs at fs = 1e6; _psd here uses fs = 1.0. The averaged power does not
+# depend on fs, and the 10/10 match is that check.
 GOLDEN_PINS = (
     (0, 320, 0xE39AFCBFDAEDA728),
     (0, 357, 0xE39AFCBFDAEDA728),
@@ -1412,6 +1411,7 @@ def _sec_frames(d: Data) -> None:
     R.md()
 
 
+# ── 3. review ─────────────────────────────────────────────────────────
 def review(d: Data) -> None:
     R.md("## 3. Review — findings")
     R.md()
@@ -1708,7 +1708,6 @@ def limits(d: Data) -> None:
     R.limit(d.state_exact, "a state blob resumes bit-exactly")
     R.limit(d.state_rejects, "a clobbered state envelope is refused")
 
-    # ── build ─────────────────────────────────────────────────────────────
     R.limit(
         all(d.frame_golden) and len(d.frame_golden) == 10,
         f"a single call of whole frames at hop = n reads main's ten pinned "
@@ -1736,6 +1735,9 @@ def limits(d: Data) -> None:
         "a blob of another hop is refused with ValueError and the object "
         "reads unchanged",
     )
+
+
+# ── build ─────────────────────────────────────────────────────────────
 
 
 def build(write: bool = True) -> Report:

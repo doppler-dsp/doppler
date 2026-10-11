@@ -336,7 +336,7 @@ size_t dp_tonemeas_spectrum_dbfs (
 
 
 
-The windowed, zero-padded magnitude spectrum behind the metrics, laid out DC-centred (fftshifted) and normalised to dBFS so it drops straight under an analyzer trace. Use it to eyeball where the fundamental, harmonics and spurs that analyze() quantifies actually sit.
+The windowed, zero-padded magnitude spectrum behind the metrics, laid out DC-centred (fftshifted) and normalised to dBFS so it drops straight under an analyzer trace. Use it to eyeball where the fundamental, harmonics and spurs that analyze() quantifies actually sit. It is the composed PSD's psd\_db: PSD's dBFS reference, its -200 dB floor and the library's one dB conversion, dp\_power\_to\_db\_f32.
 
 
 

@@ -49,7 +49,6 @@
  * 2 Blackman-Harris). The analyzer always uses Kaiser: beta is its RBW knob.
  */
 #define PSD_WINDOW_KAISER 1
-#define SPECAN_EPS 1e-20f
 
 /* Kaiser beta whose ENBW, for an n-point window, is `enbw` bins (2..4).
  *
@@ -291,19 +290,16 @@ dp_specan_execute (dp_specan_state_t *state, const float _Complex *x,
   memmove (state->pend, state->pend + frames * need,
            state->pend_len * sizeof *state->pend);
 
-  dp_psd_power_twosided (state->psd, state->nfft, state->pwr, state->nfft);
-
-  /* Crop the central display band and convert to dBFS (+ application offset).
-   * The 0-dBFS reference is the PSD core's full_scale (single source). */
-  double fs2 = state->psd->full_scale * state->psd->full_scale;
+  /* The display is the PSD's own dBFS reading, cropped to the central band
+   * and shifted by the application offset. Reading it through PSD gives its
+   * reference (cg^2 * full_scale^2, rounded once), its -200 dB floor and the
+   * library's one dB conversion (#2108); state->pwr is the nfft scratch. */
+  dp_psd_psd_db (state->psd, state->nfft, state->pwr, state->nfft);
   size_t cnt = state->disp_n;
   if (cnt > max_out)
     cnt = max_out;
   for (size_t i = 0; i < cnt; i++)
-    out[i] = 10.0f
-                 * log10f (state->pwr[state->disp_lo + i] / (float)fs2
-                           + SPECAN_EPS)
-             + (float)state->offset_db;
+    out[i] = state->pwr[state->disp_lo + i] + (float)state->offset_db;
   return cnt;
 }
 

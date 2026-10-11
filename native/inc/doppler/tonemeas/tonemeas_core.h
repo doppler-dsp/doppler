@@ -177,6 +177,8 @@ size_t dp_tonemeas_spectrum_dbfs_max_out(dp_tonemeas_state_t *state);
  * DC-centred (fftshifted) and normalised to dBFS so it drops straight under an
  * analyzer trace.  Use it to eyeball where the fundamental, harmonics and
  * spurs that analyze() quantifies actually sit.
+ * It is the composed PSD's psd_db: PSD's dBFS reference, its -200 dB
+ * floor and the library's one dB conversion, dp_power_to_db_f32.
  *
  * @param state    The analyser.
  * @param x        Real time-domain capture (length @p x_len).

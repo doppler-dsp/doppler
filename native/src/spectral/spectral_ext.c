@@ -407,6 +407,44 @@ _bind_noise_floor_db (PyObject *self, PyObject *args, PyObject *kwds)
   return PyFloat_FromDouble (_r);
 }
 
+static PyObject *
+_bind_power_to_db_f32 (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  (void)self;
+  static char *_kwlist[] = { "lin", NULL };
+  PyObject    *lin_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &lin_obj))
+    return NULL;
+  PyArrayObject *lin_arr = (PyArrayObject *)jm_array_arg (
+      lin_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS, "lin");
+  if (!lin_arr)
+    {
+      return NULL;
+    }
+  const float *lin       = (const float *)PyArray_DATA (lin_arr);
+  size_t       lin_len   = (size_t)PyArray_SIZE (lin_arr);
+  size_t       _dim_need = (size_t)(lin_len);
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (lin_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "power_to_db_f32: output of %zu elements is too large",
+                    _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
+  PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_FLOAT, 0);
+  if (!_out)
+    {
+      Py_DECREF (lin_arr);
+      return NULL;
+    }
+  dp_power_to_db_f32 (lin, lin_len,
+                      (float *)PyArray_DATA ((PyArrayObject *)_out));
+  Py_DECREF (lin_arr);
+  return _out;
+}
+
 /* ======================================================== */
 /* Module                                                    */
 /* ======================================================== */
@@ -668,6 +706,49 @@ static PyMethodDef spectral_module_methods[] = {
     "nan\n" },
   { "noise_floor_db", (PyCFunction)(void *)_bind_noise_floor_db,
     METH_VARARGS | METH_KEYWORDS, "Noise floor db.\n" },
+  { "power_to_db_f32", (PyCFunction)(void *)_bind_power_to_db_f32,
+    METH_VARARGS | METH_KEYWORDS,
+    "Linear power to dB: 10·log10, with PSD's floor, fast.\n"
+    "\n"
+    "Each value of out is 10·log10 of the matching value of lin when that is\n"
+    "at or above 1e-20, and exactly -200 below it: 0, a subnormal and a\n"
+    "negative value all read -200. That is PSD's floor, the one definition,\n"
+    "so there is no floor argument. A power of two converts exactly, to the\n"
+    "correctly rounded value (1.0 reads exactly 0 dB), and every other value\n"
+    "lies within 0.01 dB of double-precision 10·log10. The bound is MEASURED\n"
+    "over every positive finite float32\n"
+    "(native/validation/power_to_db_sweep.c, in `make test-sweep`); the\n"
+    "achieved worst, 3.25e-4 dB, is in the measurement record\n"
+    "(docs/design/spectrogram-measurements.md, \"The fast dB conversion\").\n"
+    "\n"
+    "It is the library's dB conversion for power: every dB reading PSD takes\n"
+    "goes through it, so a PSD or Spectrogram dB value is this function of\n"
+    "the matching linear value, bit for bit, and a display that converts\n"
+    "only the power bins it draws gets exactly the dB rows. Branchless, so\n"
+    "it vectorizes. NaN and Inf in give an unspecified value (PSD produces\n"
+    "neither from finite input). lin_len 0 writes nothing.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "lin : npt.NDArray[np.float32]\n"
+    "    Linear power (a power ratio), float32.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.float32]\n"
+    "    Output.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.spectral import power_to_db_f32\n"
+    ">>> x = np.array([1.0, 2.0, 0.5, 0.0, 1e-30], dtype=np.float32)\n"
+    ">>> power_to_db_f32(x).tolist()     # 2^k exactly; the floor below "
+    "1e-20\n"
+    "[0.0, 3.0102999210357666, -3.0102999210357666, -200.0, -200.0]\n"
+    ">>> d = power_to_db_f32(np.array([100.0], dtype=np.float32))[0]\n"
+    ">>> bool(abs(d - 20.0) < 0.01)     # off a power of two: within 0.01 dB\n"
+    "True\n" },
   { NULL, NULL, 0, NULL }
 };
 

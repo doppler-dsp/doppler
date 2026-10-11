@@ -479,7 +479,9 @@ class ToneMeasure:
         The windowed, zero-padded magnitude spectrum behind the metrics, laid
         out DC-centred (fftshifted) and normalised to dBFS so it drops straight
         under an analyzer trace. Use it to eyeball where the fundamental,
-        harmonics and spurs that analyze() quantifies actually sit.
+        harmonics and spurs that analyze() quantifies actually sit. It is the
+        composed PSD's psd_db: PSD's dBFS reference, its -200 dB floor and the
+        library's one dB conversion, dp_power_to_db_f32.
 
         Parameters
         ----------
@@ -725,7 +727,9 @@ class NPRMeasure:
         The same windowed, zero-padded PSD the NPR metrics are read off, laid
         out DC-centred (fftshifted) and normalised to dBFS for an
         analyzer-display backdrop. Use it to see the notch and the active band
-        that analyze() integrates over.
+        that analyze() integrates over. It is the composed PSD's psd_db: PSD's
+        dBFS reference, its -200 dB floor and the library's one dB conversion,
+        dp_power_to_db_f32.
 
         Parameters
         ----------
@@ -925,7 +929,9 @@ class IMDMeasure:
         The same windowed, zero-padded PSD the IMD metrics are read off, laid
         out DC-centred (fftshifted) and normalised to dBFS for an
         analyzer-display backdrop. Use it to see the two fundamentals and the
-        intermodulation products that analyze() integrates.
+        intermodulation products that analyze() integrates. It is the composed
+        PSD's psd_db: PSD's dBFS reference, its -200 dB floor and the library's
+        one dB conversion, dp_power_to_db_f32.
 
         Parameters
         ----------

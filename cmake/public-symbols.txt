@@ -1200,6 +1200,7 @@ dp_pocketfft_execute_2d function
 dp_pocketfft_execute_2d_cf32 function
 dp_pocketfft_plan_1d function
 dp_pocketfft_plan_2d function
+dp_power_to_db_f32 function
 dp_ppe_create function
 dp_ppe_destroy function
 dp_ppe_estimate function

@@ -225,6 +225,44 @@ def harness_blocks(
     return blocks
 
 
+def p2db_pin_db() -> float:
+    """The dB conversion's pinned bound, read from its one declaration.
+
+    `dp_power_to_db_f32` is within this many dB of double-precision 10*log10,
+    as `make test` pins it: ``DP_P2DB_PIN_DB`` in
+    ``native/tests/dp_power_to_db_test.h`` (the contract is 0.01 dB; the
+    exhaustive sweep measured 3.25e-4). A certification whose tolerance
+    admits the conversion's error derives that tolerance from this value
+    rather than restating the number, so loosening the pin loosens those
+    limits with it (#2094). Exactly one definition must match; none or two
+    is an error, never a default.
+
+    Returns
+    -------
+    float
+        The bound, in dB.
+
+    Examples
+    --------
+    >>> from doppler.tests._validation_common import p2db_pin_db
+    >>> 0.0 < p2db_pin_db() < 0.01
+    True
+    """
+    root = repo_root()
+    path = root / "native" / "tests" / "dp_power_to_db_test.h"
+    found = re.findall(
+        r"^#define DP_P2DB_PIN_DB (\S+)$",
+        path.read_text(encoding="utf-8"),
+        re.MULTILINE,
+    )
+    if len(found) != 1:
+        raise SystemExit(
+            f"{path.relative_to(root)}: expected one DP_P2DB_PIN_DB, "
+            f"found {len(found)}"
+        )
+    return float(found[0])
+
+
 def clamp_evm_db(evm: float) -> float:
     """Floor an EVM at @ref EVM_FLOOR_DB, where it stops being a number.
 

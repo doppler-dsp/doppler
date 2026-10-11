@@ -403,7 +403,7 @@ void dp_psd_frame_db (
 
 
 
-[**dp\_psd\_frame\_power()**](psd__core_8h.md#function-dp_psd_frame_power) divided by the window coherent gain squared and the full-scale reference, as 10\*log10 with the -200 dB floor, so a full-scale tone on a bin reads 0 dB whatever the window. The result equals [**dp\_psd\_psd\_db()**](psd__core_8h.md#function-dp_psd_psd_db) after accumulating that one frame, bit for bit (pinned by test\_psd\_core.c). Does not touch the running average.
+[**dp\_psd\_frame\_linear()**](psd__core_8h.md#function-dp_psd_frame_linear) converted by [**dp\_power\_to\_db\_f32()**](spectral__core_8h.md#function-dp_power_to_db_f32), bit for bit: 10\*log10 within 0.01 dB, exact at every power of two, with the -200 dB floor, so a full-scale tone on a bin reads 0 dB whatever the window. The result equals [**dp\_psd\_psd\_db()**](psd__core_8h.md#function-dp_psd_psd_db) after accumulating that one frame, bit for bit (pinned by test\_psd\_core.c). Does not touch the running average.
 
 
 
@@ -450,7 +450,7 @@ void dp_psd_frame_linear (
 
 
 
-[**dp\_psd\_frame\_power()**](psd__core_8h.md#function-dp_psd_frame_power) divided by the window coherent gain squared and the full-scale reference squared, cg^2 \* full\_scale^2: a full-scale tone on a bin reads 1.0 whatever the window. [**dp\_psd\_frame\_db()**](psd__core_8h.md#function-dp_psd_frame_db) is 10\*log10 of the same quotient, with the -200 dB floor  the two are read from one double, so they cannot disagree about the reference. This is the frame a consumer that averages for itself should take: the raw [**dp\_psd\_frame\_power()**](psd__core_8h.md#function-dp_psd_frame_power) sits 20\*log10(sum(w)) above it, 54.18 dB for Hann at 1024 points (docs/design/spectrogram-measurements.md section 5.3). Does not touch the running average; not thread-safe on one state.
+[**dp\_psd\_frame\_power()**](psd__core_8h.md#function-dp_psd_frame_power) divided by the window coherent gain squared and the full-scale reference squared, cg^2 \* full\_scale^2: a full-scale tone on a bin reads 1.0 whatever the window. [**dp\_psd\_frame\_db()**](psd__core_8h.md#function-dp_psd_frame_db) is exactly [**dp\_power\_to\_db\_f32()**](spectral__core_8h.md#function-dp_power_to_db_f32) of this, bit for bit: the quotient is rounded to float once and both readings are taken from it, so they cannot disagree about the reference, and a consumer that converts these values to dB itself gets exactly PSD's dB. This is the frame a consumer that averages for itself should take: the raw [**dp\_psd\_frame\_power()**](psd__core_8h.md#function-dp_psd_frame_power) sits 20\*log10(sum(w)) above it, 54.18 dB for Hann at 1024 points (docs/design/spectrogram-measurements.md section 5.3). Does not touch the running average; not thread-safe on one state.
 
 
 

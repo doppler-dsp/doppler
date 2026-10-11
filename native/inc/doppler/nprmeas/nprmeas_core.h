@@ -124,6 +124,8 @@ size_t dp_nprmeas_spectrum_dbfs_max_out(dp_nprmeas_state_t *state);
  * DC-centred (fftshifted) and normalised to dBFS for an analyzer-display
  * backdrop.  Use it to see the notch and the active band that analyze()
  * integrates over.
+ * It is the composed PSD's psd_db: PSD's dBFS reference, its -200 dB
+ * floor and the library's one dB conversion, dp_power_to_db_f32.
  *
  * @param state    The analyser.
  * @param x        Real time-domain capture (length @p x_len).

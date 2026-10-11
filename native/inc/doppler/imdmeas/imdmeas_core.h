@@ -111,6 +111,8 @@ size_t dp_imdmeas_spectrum_dbfs_max_out(dp_imdmeas_state_t *state);
  * DC-centred (fftshifted) and normalised to dBFS for an analyzer-display
  * backdrop.  Use it to see the two fundamentals and the intermodulation
  * products that analyze() integrates.
+ * It is the composed PSD's psd_db: PSD's dBFS reference, its -200 dB
+ * floor and the library's one dB conversion, dp_power_to_db_f32.
  *
  * @param state    The analyser.
  * @param x        Real time-domain capture (length @p x_len).

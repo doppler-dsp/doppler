@@ -199,17 +199,9 @@ dp_imdmeas_spectrum_dbfs (dp_imdmeas_state_t *state, const float *x,
    * averaged PSD the metrics use, scaled to the shared 0-dBFS reference. */
   dp_psd_reset (state->psd);
   dp_psd_accumulate_real (state->psd, x, x_len);
-  size_t nfft = dp_psd_power_twosided (state->psd, state->nfft, state->pwr,
-                                       state->nfft);
-  if (nfft == 0)
-    return 0;
-  /* Emission stops at the caller's capacity (jm gh-138). The count
-     argument above is the INPUT capture length; the output length is
-     the analyser's nfft, so this is the only real bound. */
-  if (nfft > max_out)
-    nfft = max_out;
-  double ref = state->psd->full_scale * state->psd->full_scale;
-  for (size_t i = 0; i < nfft; i++)
-    out[i] = (float)(10.0 * log10 ((double)state->pwr[i] / ref + IMD_EPS));
-  return nfft;
+  /* That IS the composed PSD's dBFS reading, so it reads through PSD:
+   * its reference (cg^2 * full_scale^2, rounded once), its -200 dB floor
+   * and the library's one dB conversion (#2108). psd_db returns 0 before
+   * a frame and stops at the caller's capacity (jm gh-138). */
+  return dp_psd_psd_db (state->psd, state->nfft, out, max_out);
 }

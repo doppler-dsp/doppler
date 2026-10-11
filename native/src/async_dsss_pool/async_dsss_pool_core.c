@@ -95,10 +95,15 @@ dp_async_dsss_pool_create (
     double lost_confirm_s, double max_emitter_on_time_secs, size_t segments,
     size_t sps, int differential, double gain, size_t pullin_intervals)
 {
-  if (!code || code_len == 0 || !(chip_rate > 0.0) || !(symbol_rate > 0.0)
-      || spc == 0 || n_slots == 0 || max_peaks == 0
-      || !(carrier_freq_hz >= 0.0) || !(lost_confirm_s >= 0.0)
-      || !(max_emitter_on_time_secs >= 0.0))
+  /* `> 0` alone passes +inf, which the message promises is refused: both
+     rates must be finite as well as positive. create_cell refuses an
+     infinite rate too; this check stays so the pool refuses before any
+     acquisition engine is built on inf (doppler#2103). */
+  if (!code || code_len == 0 || !(chip_rate > 0.0) || !isfinite (chip_rate)
+      || !(symbol_rate > 0.0) || !isfinite (symbol_rate) || spc == 0
+      || n_slots == 0 || max_peaks == 0
+      || !dp_acq_carrier_freq_ok (carrier_freq_hz, chip_rate * (double)spc)
+      || !(lost_confirm_s >= 0.0) || !(max_emitter_on_time_secs >= 0.0))
     return NULL;
   /* Fixed sizes from validated arguments: abort-on-OOM, no unwind path. */
   dp_async_dsss_pool_state_t *s = dp_xcalloc (1, sizeof *s);
@@ -291,6 +296,19 @@ dp_async_dsss_pool_push (dp_async_dsss_pool_state_t *s,
             own = s->rows[i].assigned && in_zone (s, &s->rows[i], phase);
           if (own)
             continue;
+          /* A hit the seed domain refuses (its Doppler at or past fs/2) is no
+             seed for any slot, and it is not a full pool either: it is logged
+             as refused, and it is not counted as dropped for want of a slot.
+             Every receiver shares one config, so the first one answers for
+             all. */
+          if (!dp_async_dsss_receiver_seed_ok (s->rx[0], phase,
+                                               ho.doppler_hz_est))
+            {
+              emit (s, s->hits[h].samples_consumed, "refused", s->n_slots,
+                    ASYNC_DSSS_RX_IDLE, ho.doppler_hz_est, phase,
+                    ho.cn0_dbhz_est, NULL);
+              continue;
+            }
           size_t free_slot = s->n_slots;
           for (size_t i = 0; i < s->n_slots; i++)
             if (!s->rows[i].assigned

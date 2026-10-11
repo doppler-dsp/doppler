@@ -86,7 +86,7 @@ _Non-data-aided (NDA) M-th-power carrier-tracking loop._ [More...](#detailed-des
 |  void | [**dp\_carrier\_nda\_get\_state**](#function-dp_carrier_nda_get_state) (const [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state, void \* blob) <br>_Serialize the full loop state into_ `blob` _._ |
 |  void | [**dp\_carrier\_nda\_init**](#function-dp_carrier_nda_init) ([**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* s, double bn, double zeta, double init\_norm\_freq, size\_t sps, int n, int m) <br>_Initialise an NDA carrier loop in place (no allocation)._  |
 |  void | [**dp\_carrier\_nda\_reset**](#function-dp_carrier_nda_reset) ([**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state) <br>_Re-seed the loop to its create-time frequency/phase; keep config._  |
-|  void | [**dp\_carrier\_nda\_set\_bn**](#function-dp_carrier_nda_set_bn) ([**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state, double val) <br> |
+|  int | [**dp\_carrier\_nda\_set\_bn**](#function-dp_carrier_nda_set_bn) ([**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state, double val) <br>_Retune bn, keeping zeta. A bn outside_ [_**dp\_loop\_filter\_params\_ok()**_](loop__filter__core_8h.md#function-dp_loop_filter_params_ok) _is refused (_`DP_ERR_INVALID` _) and changes nothing: the gains, their rad-&gt;cycle scale and the reported bn all stay (doppler#2112). As a writable property it refuses without raising until just-buildit/just-makeit#2182._ |
 |  void | [**dp\_carrier\_nda\_set\_norm\_freq**](#function-dp_carrier_nda_set_norm_freq) ([**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state, double val) <br> |
 |  int | [**dp\_carrier\_nda\_set\_state**](#function-dp_carrier_nda_set_state) ([**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state, const void \* blob) <br>_Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects._  |
 |  int | [**dp\_carrier\_nda\_set\_telemetry**](#function-dp_carrier_nda_set_telemetry) ([**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the carrier loop's probes on it. Registers four probes, emitted once per input sample (this is a sample-rate loop — use_ `decim` _to thin the stream): "&lt;prefix&gt;.lock" (the lock-signal EMA, ~1 when phase-locked), "&lt;prefix&gt;.e" (the M-th-power phase discriminator — the loop stress), "&lt;prefix&gt;.freq" (the tracked carrier frequency, cycles/sample) and "&lt;prefix&gt;.locked" (the verify-counted lockdet decision, 0/1). Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._ |
@@ -668,9 +668,9 @@ void dp_carrier_nda_init (
 * `init_norm_freq` Seed carrier frequency, cycles/sample. 
 * `sps` Samples per symbol. 
 * `n` MA window divisor: window = sps/n samples (sps % n == 0, sps/n &lt;= BOXCAR\_MAX\_LEN). 
-* `m` Constellation order M (2, 4, 8). 
+* `m` Constellation order M (2, 4, 8).
 
-
+Unguarded, as the by-value path: the caller checks (bn, zeta) with [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok) first. Outside it the loop filter is not written at all  config\_loop refuses and changes nothing  so an in-place init leaves the gains and bn/zeta unset, since seed() zeroes integ (doppler#2103). 
 
 
         
@@ -729,8 +729,9 @@ Restores the object to its post-create state: the carrier NCO is reset to the se
 
 ### function dp\_carrier\_nda\_set\_bn 
 
+_Retune bn, keeping zeta. A bn outside_ [_**dp\_loop\_filter\_params\_ok()**_](loop__filter__core_8h.md#function-dp_loop_filter_params_ok) _is refused (_`DP_ERR_INVALID` _) and changes nothing: the gains, their rad-&gt;cycle scale and the reported bn all stay (doppler#2112). As a writable property it refuses without raising until just-buildit/just-makeit#2182._
 ```C++
-void dp_carrier_nda_set_bn (
+int dp_carrier_nda_set_bn (
     dp_carrier_nda_state_t * state,
     double val
 ) 

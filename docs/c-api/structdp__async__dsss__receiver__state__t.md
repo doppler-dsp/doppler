@@ -92,6 +92,7 @@ _Composed receiver state._ [More...](#detailed-description)
 |  size\_t | [**refine\_segments**](#variable-refine_segments)  <br> |
 |  bool | [**refine\_sequential**](#variable-refine_sequential)  <br> |
 |  size\_t | [**refine\_zero\_pad**](#variable-refine_zero_pad)  <br> |
+|  uint64\_t | [**refused\_hits**](#variable-refused_hits)  <br> |
 |  [**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) \* | [**rx**](#variable-rx)  <br> |
 |  double | [**seed\_chip\_phase**](#variable-seed_chip_phase)  <br> |
 |  double | [**seed\_doppler\_hz\_est**](#variable-seed_doppler_hz_est)  <br> |
@@ -1011,6 +1012,24 @@ size_t dp_async_dsss_receiver_state_t::refine_zero_pad;
 
 
 
+
+<hr>
+
+
+
+### variable refused\_hits 
+
+```C++
+uint64_t dp_async_dsss_receiver_state_t::refused_hits;
+```
+
+
+
+Searching hits the seed domain refused as seeds, since create or reset. In the blob with state\_samples, so a resumed receiver's status matches an unbroken run's. 
+ 
+
+
+        
 
 <hr>
 

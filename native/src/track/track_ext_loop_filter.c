@@ -54,7 +54,7 @@ LoopFilterObj_init (LoopFilterObject *self, PyObject *args, PyObject *kwds)
     {
       PyErr_SetString (PyExc_ValueError,
                        "bn must be >= 0, zeta > 0 and t > 0, and all three "
-                       "finite");
+                       "finite, whose loop gains come out finite");
       return -1;
     }
   return 0;
@@ -167,7 +167,13 @@ LoopFilterObj_configure (LoopFilterObject *self, PyObject *args,
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddd", _kwlist, &bn, &zeta,
                                     &t))
     return NULL;
-  dp_loop_filter_configure (self->handle, bn, zeta, t);
+  int _rc = dp_loop_filter_configure (self->handle, bn, zeta, t);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "configure failed",
+                    (long long)_rc);
+      return NULL;
+    }
   Py_RETURN_NONE;
 }
 
@@ -438,13 +444,19 @@ static PyMethodDef LoopFilterObj_methods[] = {
     "configure(bn, zeta, t) -> None\n"
     "\n"
     "Recompute the loop gains for a new (bn, zeta, t); preserves the "
-    "integrator.\n"
+    "integrator. Raises ValueError, changing nothing, when (bn, zeta, t) is "
+    "outside the loop's domain: bn >= 0, zeta > 0 and t > 0, all finite, "
+    "whose loop gains come out finite.\n"
     "\n"
     "Recomputes the proportional and integral gains from the standard\n"
     "2nd-order form but leaves integ untouched, so a loop can be widened for\n"
     "fast acquisition and then narrowed for steady-state tracking while\n"
     "holding its accumulated frequency/rate estimate — the retune preserves\n"
     "lock.\n"
+    "\n"
+    "A (bn, zeta, t) outside dp_loop_filter_params_ok() is refused and\n"
+    "changes nothing: a NaN gave gains that never recover, and a negative bn\n"
+    "could zero the denominator (doppler#2103).\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -454,6 +466,12 @@ static PyMethodDef LoopFilterObj_methods[] = {
     "    Damping factor (typically 0.707).\n"
     "t : float\n"
     "    Update period in samples (> 0).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``configure failed``, with the return code appended (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -596,7 +614,8 @@ static PyTypeObject LoopFilterObjType = {
     "ValueError\n"
     "    If construction fails. The exception message is ``bn must be >= 0, "
     "zeta\n"
-    "    > 0 and t > 0, and all three finite``.\n"
+    "    > 0 and t > 0, and all three finite, whose loop gains come out\n"
+    "    finite``.\n"
     "\n"
     "Examples\n"
     "--------\n"

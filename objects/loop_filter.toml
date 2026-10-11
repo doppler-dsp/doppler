@@ -10,7 +10,7 @@ serializable = "true"
 # doubles arrive here. A NULL from create() means the domain was violated,
 # not that malloc failed, so say so rather than raising MemoryError.
 create_error = "ValueError"
-create_error_message = "bn must be >= 0, zeta > 0 and t > 0, and all three finite"
+create_error_message = "bn must be >= 0, zeta > 0 and t > 0, and all three finite, whose loop gains come out finite"
 fragment = "generated"
 
 [[loop_filter.init_params]]
@@ -30,9 +30,10 @@ default = "1.0"
 
 [[loop_filter.methods]]
 name = "configure"
-doc = "Recompute the loop gains for a new (bn, zeta, t); preserves the integrator."
+doc = "Recompute the loop gains for a new (bn, zeta, t); preserves the integrator. Raises ValueError, changing nothing, when (bn, zeta, t) is outside the loop's domain: bn >= 0, zeta > 0 and t > 0, all finite, whose loop gains come out finite."
 arg_type = "void"
-return_type = "void"
+return_type = "int"
+status_return = true
 params = [{ name = "bn", type = "double" }, { name = "zeta", type = "double" }, { name = "t", type = "double" }]
 
 [[loop_filter.methods]]

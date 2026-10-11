@@ -279,6 +279,30 @@ set_segments (dp_dll_state_t *s, size_t segments)
     }
 }
 
+/* The one bandwidth domain every Dll path uses (doppler#2103): bn and zeta
+ * valid at t = 1, the interval create and a zero symbol period return the
+ * filter to, AND at the interval `t` the loop runs at. configure, set_bn,
+ * set_symbol_period and set_state all call this, so a bn accepted at an
+ * interval is accepted by set_state at that interval: a live object's own
+ * blob resumes. */
+static int
+dll_t_ok (double t, size_t segments)
+{
+  /* The update interval a filter may hold: 1 (the create and the zero
+     default), or inside the aided range, [2, 2^20] partials over the segments.
+     A NaN, a subnormal or an overflowing interval is none of these. */
+  return t == 1.0
+         || (t >= 2.0 / (double)segments
+             && t <= DLL_AID_MAX_PERIOD / (double)segments);
+}
+
+static int
+dll_bn_zeta_ok (double bn, double zeta, double t)
+{
+  return dp_loop_filter_params_ok (bn, zeta, 1.0)
+         && dp_loop_filter_params_ok (bn, zeta, t);
+}
+
 static void
 configure_geometry (dp_dll_state_t *s, size_t code_len, size_t sps,
                     double init_chip, double bn, double zeta, double spacing)
@@ -333,9 +357,12 @@ dp_dll_init (dp_dll_state_t *s, const uint8_t *code, size_t code_len,
      garbage/NaN value on another host (macOS/arm64) makes the argument
      degenerate and (uint32_t)-casts to 0, freezing the code NCO -- the loop
      stops wrapping and never converges (validate_dll_jitter #82). */
-  s->rate_aid  = 0.0;
-  s->coast     = 0;
-  s->held_inc  = 0;
+  s->rate_aid = 0.0;
+  s->coast    = 0;
+  s->held_inc = 0;
+  /* The held snapshot is zeroed whole: a stack embed would otherwise carry
+     garbage into the blob, and nothing reads it until a hold writes it. */
+  memset (&s->held_lf, 0, sizeof s->held_lf);
   s->code      = code; /* borrowed */
   s->owns_code = 0;
   /* dp_dll_init always runs with segments == 1 (configure_geometry's
@@ -416,7 +443,9 @@ dp_dll_create (const uint8_t *code, size_t code_len, size_t sps,
                double init_chip, double bn, double zeta, double spacing,
                size_t segments)
 {
-  if (!code || code_len == 0 || segments == 0)
+  /* Every argument checked before anything is allocated (doppler#2103). */
+  if (!code
+      || !dp_dll_params_ok (code_len, init_chip, bn, zeta, spacing, segments))
     return NULL;
   dp_dll_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
@@ -632,9 +661,43 @@ dp_dll_set_state (dp_dll_state_t *s, const void *blob)
     return DP_ERR_INVALID;
   if (!(isfinite (t.noise_guard) && t.noise_guard >= 0.0))
     return DP_ERR_INVALID;
+  /* The period must be one set_symbol_period would take (the predicate, not
+     just finiteness): a subnormal period made inv_upd inf, then NaN, and the
+     NCO conversion undefined. */
   if (s->sym_period > 0.0
-      && (!isfinite (t.sym_period) || t.aid_len >= t.aid_ring
-          || t.aid_best >= t.aid_nhyp || t.aid_last_end > t.aid_count))
+      && (!dp_dll_symbol_period_ok (t.segments, t.sym_period)
+          || t.aid_len >= t.aid_ring || t.aid_best >= t.aid_nhyp
+          || t.aid_last_end > t.aid_count))
+    return DP_ERR_INVALID;
+  /* The retained config a live instance can only hold after create (or a
+     retune) accepted it: the spacing places the early and late taps, and
+     dll_replica casts the offset it yields, so a NaN spacing indexed the
+     code out of bounds (doppler#2103, through set_state). The same
+     predicate create uses, on the blob's own values. chip_pos stands in for
+     create's init_chip: it is the running phase, and the predicate refuses
+     it when non-finite. */
+  if (!dp_dll_params_ok (t.sf, t.chip_pos, t.bn, t.zeta, t.spacing,
+                         t.segments))
+    return DP_ERR_INVALID;
+  /* The filters are restored VERBATIM, gains included, so resume is bit-exact
+     by construction, and each is validated against its OWN bandwidth, zeta and
+     interval (dp_loop_filter_state_ok): never the Dll's update interval, since
+     a coasting filter legitimately sits at 1 while the aid runs. The Dll's
+     bandwidth must be one a live Dll could hold at its live interval
+     (dll_bn_zeta_ok), and the update rate must be the live interval's
+     reciprocal. */
+  const int held = t.held_inc != 0;
+  if (!dll_bn_zeta_ok (t.bn, t.zeta, t.lf.t) || !dll_t_ok (t.lf.t, t.segments)
+      || (t.sym_period <= 0.0 && t.lf.t != 1.0)
+      || !dp_loop_filter_state_ok (&t.lf)
+      || (held
+          && (!dll_t_ok (t.held_lf.t, t.segments)
+              || !dp_loop_filter_state_ok (&t.held_lf)))
+      || !(fabs (t.inv_upd
+                     * (t.sym_period > 0.0 ? t.sym_period / (double)t.segments
+                                           : 1.0)
+                 - 1.0)
+           <= 1e-9))
     return DP_ERR_INVALID;
 
   /* The packed buffers, located before anything is written: with the keys
@@ -677,7 +740,25 @@ dp_dll_set_state (dp_dll_state_t *s, const void *blob)
   t.aid_ring_e      = s->aid_ring_e;
   t.aid_ring_l      = s->aid_ring_l;
   t.aid_power       = s->aid_power;
-  *s                = t;
+  /* The derived values are this instance's, not the blob's. The reciprocals
+     and gain tables are functions of sf, sps and segments, which the checks
+     above hold equal to this instance's, so the live ones are right by
+     construction; a blob's copy was restored verbatim and could carry a NaN
+     into the next update (rate_* and ctrl_* had no check at all). */
+  t.inv_sps       = s->inv_sps;
+  t.inv_tsamps    = s->inv_tsamps;
+  t.inv_tsamps2   = s->inv_tsamps2;
+  t.inv_tsamps_sf = s->inv_tsamps_sf;
+  t.seg_chips     = s->seg_chips;
+  t.seg_norm      = s->seg_norm;
+  t.ctrl_i        = s->ctrl_i;
+  t.ctrl_p        = s->ctrl_p;
+  t.rate_i        = s->rate_i;
+  t.rate_p        = s->rate_p;
+  /* The filters' gains, integrators and interval are the blob's, verbatim
+     (validated above): a recompute on restore could not be bit-exact across
+     compilers or against a coast, so none is done. */
+  *s = t;
   if (n_seg)
     {
       memcpy (s->chunk_p, seg_p, n_seg * sizeof (*s->chunk_p));
@@ -698,12 +779,35 @@ dp_dll_set_state (dp_dll_state_t *s, const void *blob)
   return DP_OK;
 }
 
-void
+int
+dp_dll_params_ok (size_t code_len, double init_chip, double bn, double zeta,
+                  double spacing, size_t segments)
+{
+  return code_len >= 1 && segments >= 1 && isfinite (init_chip)
+         && dp_loop_filter_params_ok (bn, zeta, 1.0) && spacing > 0.0
+         && spacing < 0.5 * (double)code_len; /* NaN fails the comparisons */
+}
+
+int
+dp_dll_symbol_period_ok (size_t segments, double partials_per_symbol)
+{
+  return segments > 1 && isfinite (partials_per_symbol)
+         && partials_per_symbol >= 2.0
+         && partials_per_symbol <= DLL_AID_MAX_PERIOD;
+}
+
+int
 dp_dll_configure (dp_dll_state_t *state, double bn, double zeta)
 {
+  /* The loop filter refuses outside its own domain before writing
+     anything, so the Dll's copies are written only after it took them: a
+     NaN gave gains that never recover (doppler#2103). */
+  if (!dll_bn_zeta_ok (bn, zeta, state->lf.t)
+      || dp_loop_filter_configure (&state->lf, bn, zeta, state->lf.t) != DP_OK)
+    return DP_ERR_INVALID;
   state->bn   = bn;
   state->zeta = zeta;
-  dp_loop_filter_configure (&state->lf, bn, zeta, state->lf.t);
+  return DP_OK;
 }
 
 /* Output bound: emitted symbols <= x_len; the binding sizes the buffer to the
@@ -1018,10 +1122,10 @@ dp_dll_get_bn (const dp_dll_state_t *state)
   return state->bn;
 }
 
-void
+int
 dp_dll_set_bn (dp_dll_state_t *state, double val)
 {
-  dp_dll_configure (state, val, state->zeta);
+  return dp_dll_configure (state, val, state->zeta);
 }
 
 void
@@ -1136,25 +1240,42 @@ dp_dll_set_code_phase (dp_dll_state_t *state, double chips)
  * interval, and code_rate -- the per-epoch rate it implies -- is unchanged
  * by the switch. dp_loop_filter_configure keeps integ and recomputes the
  * gains from bn*t (loop_filter_core.h: keep bn*t <= 0.0112). */
-static void
+static int
 set_update_period (dp_dll_state_t *s, double t)
 {
-  s->lf.integ *= t / s->lf.t;
-  dp_loop_filter_configure (&s->lf, s->bn, s->zeta, t);
+  /* Configure first, and scale the integrator only when the filter took the
+     new interval. A refused t must change nothing: scaling first left integ
+     multiplied while the gains kept the old interval (doppler#2103). */
+  const double old_t = s->lf.t;
+  if (dp_loop_filter_configure (&s->lf, s->bn, s->zeta, t) != DP_OK)
+    return DP_ERR_INVALID;
+  s->lf.integ *= t / old_t;
   s->inv_upd = 1.0 / t;
+  return DP_OK;
 }
 
 int
 dp_dll_set_symbol_period (dp_dll_state_t *state, double partials_per_symbol)
 {
+  /* A NaN passed both guards below and reached the ring sizing as
+     ceil(NaN) = 2^63 (doppler#2103); an infinity is no period either. */
+  if (!isfinite (partials_per_symbol))
+    return DP_ERR_INVALID;
+  /* The loop's interval is checked before any buffer is freed or sized: a
+     refused period must leave the aid, the lock and the filter as they were.
+     Zero means "no symbol timing", so the filter goes back to t = 1. */
   if (partials_per_symbol <= 0.0)
     {
+      if (!dll_bn_zeta_ok (state->bn, state->zeta, 1.0))
+        return DP_ERR_INVALID;
       free_aid_buffers (state);
       lock_clear (state);
-      set_update_period (state, 1.0);
-      return DP_OK;
+      return set_update_period (state, 1.0);
     }
-  if (state->segments <= 1 || partials_per_symbol < 2.0)
+  if (!dp_dll_symbol_period_ok (state->segments, partials_per_symbol))
+    return DP_ERR_INVALID;
+  if (!dll_bn_zeta_ok (state->bn, state->zeta,
+                       partials_per_symbol / (double)state->segments))
     return DP_ERR_INVALID;
   size_t L   = (size_t)floor (partials_per_symbol) - 1;
   size_t cap = DLL_AID_MAX_EPOCHS * state->segments;
@@ -1187,8 +1308,10 @@ dp_dll_set_symbol_period (dp_dll_state_t *state, double partials_per_symbol)
   /* The loop now updates once per symbol -- P partials, P/segments epochs
      -- so the filter is re-timed to that interval and bn keeps its
      per-epoch meaning. */
-  set_update_period (state, partials_per_symbol / (double)state->segments);
-  return DP_OK;
+  /* Cannot refuse here: the same predicate was checked above, before the
+     buffers were touched. */
+  return set_update_period (state,
+                            partials_per_symbol / (double)state->segments);
 }
 
 size_t

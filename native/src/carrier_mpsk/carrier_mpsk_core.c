@@ -42,6 +42,10 @@ dp_carrier_mpsk_create (double bn, double zeta, double init_norm_freq,
 {
   if (m != 2 && m != 4 && m != 8)
     return NULL; /* only BPSK / QPSK / 8PSK */
+  /* The loop filter's own domain, refused before allocating: a NaN or an
+     overflowing bandwidth gave gains that never recover (doppler#2112). */
+  if (!dp_loop_filter_params_ok (bn, zeta, 1.0))
+    return NULL;
   dp_carrier_mpsk_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
     return NULL;
@@ -67,13 +71,18 @@ dp_carrier_mpsk_reset (dp_carrier_mpsk_state_t *state)
 DP_DEFINE_POD_STATE (dp_carrier_mpsk, dp_carrier_mpsk_state_t,
                      CARRIER_MPSK_STATE_MAGIC, CARRIER_MPSK_STATE_VERSION)
 
-void
+int
 dp_carrier_mpsk_configure (dp_carrier_mpsk_state_t *state, double bn,
                            double zeta)
 {
+  /* The loop filter refuses outside its domain before writing anything, so
+     bn and zeta are stored only once it took them: the getter never reports
+     a bandwidth the loop is not running (doppler#2112). */
+  if (dp_loop_filter_configure (&state->lf, bn, zeta, 1.0) != DP_OK)
+    return DP_ERR_INVALID;
   state->bn   = bn;
   state->zeta = zeta;
-  dp_loop_filter_configure (&state->lf, bn, zeta, 1.0);
+  return DP_OK;
 }
 
 /* Output bound: emitted symbols <= x_len; the binding sizes the buffer to the
@@ -112,10 +121,10 @@ dp_carrier_mpsk_get_bn (const dp_carrier_mpsk_state_t *state)
   return state->bn;
 }
 
-void
+int
 dp_carrier_mpsk_set_bn (dp_carrier_mpsk_state_t *state, double val)
 {
-  dp_carrier_mpsk_configure (state, val, state->zeta);
+  return dp_carrier_mpsk_configure (state, val, state->zeta);
 }
 
 double

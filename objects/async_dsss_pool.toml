@@ -24,7 +24,7 @@ serializable = "true"
 # A NULL create is an argument out of range, or a searcher a cell receiver
 # cannot take (gh-482), not memory.
 create_error = "ValueError"
-create_error_message = "AsyncDsssPool: invalid parameter, or a searcher a cell receiver cannot take (need a non-empty code, chip_rate > 0, symbol_rate > 0, spc >= 1, n_slots >= 1, max_peaks >= 1, carrier_freq_hz >= 0, lost_confirm_s >= 0, max_emitter_on_time_secs >= 0, 0 < gain <= 1; a searcher depth D > 1 -- code_only_epochs > 1 -- whose Doppler row is at most four times the carrier loop's pull-in bound, doppler_res_hz <= 2 * 0.04 * chip_rate / code_len)"
+create_error_message = "AsyncDsssPool: invalid parameter, or a searcher a cell receiver cannot take (need a code of at least 2 chips, a finite chip_rate > 0, a finite symbol_rate > 0 and <= chip_rate, spc >= 1, m in {2,4,8}, segments >= 1, sps >= 2, carrier_freq_hz 0 or finite and above chip_rate * spc / 2, lost_confirm_s >= 0, 0 < gain <= 1, n_slots >= 1, 1 <= max_peaks <= 64, max_emitter_on_time_secs >= 0, a symbol of at most 2^20 Dll partials, segments * chip_rate / (code_len * symbol_rate) <= 1048576; and a searcher with a finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >= 0, a finite doppler_rate >= 0, and a depth D > 1 -- code_only_epochs > 1 -- whose Doppler row is at most four times the carrier loop's pull-in bound, doppler_res_hz <= 2 * 0.04 * chip_rate / code_len)"
 # dp_parallel.h's persistent pool is pthreads (the receivers across threads).
 extra_link_libs = ["Threads::Threads"]
 depends_on = [
@@ -174,7 +174,7 @@ default = "4"
 # ── Methods ──────────────────────────────────────────────────────────────
 [[async_dsss_pool.methods]]
 name = "push"
-doc = "One block of raw cf32 samples through the population (design section 8.2), in order: the searcher; the table refreshed from every live receiver's status(); every peak within one chip of a live row's code phase, at any Doppler, dropped as that emitter's own (the zone is the code axis alone: a tracked emitter's data blocks put smeared copies of it at its own phase rows away, section 12.14); each survivor seeded into a free slot, or counted dropped when there is none; every receiver fed (an idle or lost one consumes and discards, so the feed has no per-state branch), across the threads the pool was given; then every receiver that reports lost, or has held its slot past max_emitter_on_time_secs, released -- the row cleared, the receiver reset to idle. Every transition -- seeded, tracking, degrade, lost, released, dropped -- goes to the attached event log at the sample it happened. Accepts any block size; a searcher dwell is decided when its samples arrive. Returns the receivers assigned after this push."
+doc = "One block of raw cf32 samples through the population (design section 8.2), in order: the searcher; the table refreshed from every live receiver's status(); every peak within one chip of a live row's code phase, at any Doppler, dropped as that emitter's own (the zone is the code axis alone: a tracked emitter's data blocks put smeared copies of it at its own phase rows away, section 12.14); each survivor seeded into a free slot, or counted dropped when there is none (a hit outside the seed domain is logged refused, not dropped); every receiver fed (an idle or lost one consumes and discards, so the feed has no per-state branch), across the threads the pool was given; then every receiver that reports lost, or has held its slot past max_emitter_on_time_secs, released -- the row cleared, the receiver reset to idle. Every transition -- seeded, tracking, degrade, lost, released, dropped, refused -- goes to the attached event log at the sample it happened. Accepts any block size; a searcher dwell is decided when its samples arrive. Returns the receivers assigned after this push."
 arg_type = "void"
 return_type = "size_t"
 nogil = true
@@ -221,7 +221,7 @@ params = [{ name = "slot", type = "size_t" }]
 
 [[async_dsss_pool.methods]]
 name = "set_event_log"
-doc = "Attach the run's event log (design section 8.1): from now on every transition -- seeded, tracking, degrade, lost, released, dropped -- is appended at the sample it happened, with the slot, the receiver's state, the Doppler, the chip phase and the C/N0 staged as doppler:<name> fields beside the label (core:label). The pool is the one component that stamps; the log is borrowed, never owned. None detaches."
+doc = "Attach the run's event log (design section 8.1): from now on every transition -- seeded, tracking, degrade, lost, released, dropped, refused -- is appended at the sample it happened, with the slot, the receiver's state, the Doppler, the chip phase and the C/N0 staged as doppler:<name> fields beside the label (core:label). The pool is the one component that stamps; the log is borrowed, never owned. None detaches."
 arg_type = "void"
 return_type = "int"
 status_return = true

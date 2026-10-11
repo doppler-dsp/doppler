@@ -397,6 +397,12 @@ dp_carrier_acq_set_state (dp_carrier_acq_state_t *s, const void *blob)
       || extra.max_n_blocks != (uint64_t)s->max_n_blocks
       || extra.carry_len > (uint64_t)s->psd->n)
     return DP_ERR_INVALID;
+  /* The residual is a bin's offset within the sample rate, so it lies within
+     half of it. A forged residual of NaN or 1e298 reached the async hand-off's
+     Dll as a NaN seed phase (doppler#2103, through set_state). `!(...)` also
+     refuses a NaN, which fails every comparison. */
+  if (!(fabs (extra.residual_hz) <= 0.5 * s->sample_rate_hz))
+    return DP_ERR_INVALID;
   DP_R_CHILD (&_r, dp_psd, s->psd);
   DP_R_CHILD (&_r, dp_detector, s->det);
   dp_r_cf32 (&_r, s->carry_buf, s->psd->n);

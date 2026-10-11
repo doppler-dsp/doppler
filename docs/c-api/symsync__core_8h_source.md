@@ -206,9 +206,9 @@ extern "C"
   size_t dp_symsync_steps (dp_symsync_state_t *state, const float _Complex *x,
                         size_t x_len, float _Complex *out, size_t max_out);
 
-  void   dp_symsync_configure (dp_symsync_state_t *state, double bn, double zeta);
+  int    dp_symsync_configure (dp_symsync_state_t *state, double bn, double zeta);
   double dp_symsync_get_bn (const dp_symsync_state_t *state);
-  void   dp_symsync_set_bn (dp_symsync_state_t *state, double val);
+  int    dp_symsync_set_bn (dp_symsync_state_t *state, double val);
   double dp_symsync_get_timing_error (const dp_symsync_state_t *state);
   double dp_symsync_get_rate (const dp_symsync_state_t *state);
 

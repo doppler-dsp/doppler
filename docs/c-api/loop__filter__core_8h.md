@@ -59,14 +59,16 @@ _Second-order proportional-integral loop filter — the shared engine of every t
 
 | Type | Name |
 | ---: | :--- |
-|  void | [**dp\_loop\_filter\_configure**](#function-dp_loop_filter_configure) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, double bn, double zeta, double t) <br>_Retune the loop gains_ `kp` _/_`ki` _for a new (bn, zeta, t) without disturbing the integrator._ |
+|  int | [**dp\_loop\_filter\_configure**](#function-dp_loop_filter_configure) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, double bn, double zeta, double t) <br>_Retune the loop gains_ `kp` _/_`ki` _for a new (bn, zeta, t) without disturbing the integrator._ |
 |  [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* | [**dp\_loop\_filter\_create**](#function-dp_loop_filter_create) (double bn, double zeta, double t) <br>_Create a loop\_filter instance, validating its arguments._  |
 |  void | [**dp\_loop\_filter\_destroy**](#function-dp_loop_filter_destroy) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state) <br>_Destroy a loop\_filter instance and release all memory._  |
 |  void | [**dp\_loop\_filter\_get\_state**](#function-dp_loop_filter_get_state) (const [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, void \* blob) <br>_Serialize the loop state into_ `blob` _._ |
 |  void | [**dp\_loop\_filter\_init**](#function-dp_loop_filter_init) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, double bn, double zeta, double t) <br>_Initialise a loop filter in place (no allocation)._  |
+|  int | [**dp\_loop\_filter\_params\_ok**](#function-dp_loop_filter_params_ok) (double bn, double zeta, double t) <br>_The domain the loop's gains are defined on:_ `bn >= 0` _,_`zeta > 0` _,_`t > 0` _, all three finite, and gains that come out finite._ |
 |  void | [**dp\_loop\_filter\_reset**](#function-dp_loop_filter_reset) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state) <br>_Zero the integrator memory while keeping the configured gains._  |
 |  int | [**dp\_loop\_filter\_set\_state**](#function-dp_loop_filter_set_state) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, const void \* blob) <br>_Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects._  |
 |  size\_t | [**dp\_loop\_filter\_state\_bytes**](#function-dp_loop_filter_state_bytes) (const [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state) <br>_Serialized-state byte size._  |
+|  int | [**dp\_loop\_filter\_state\_ok**](#function-dp_loop_filter_state_ok) (const [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* s) <br>_Whether a stored filter is one a live filter could hold._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) double | [**dp\_loop\_filter\_step**](#function-dp_loop_filter_step) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, double x) <br>_Advance the loop one update with error_ `x` _and return the control value the tracker should apply._ |
 |  void | [**dp\_loop\_filter\_steps**](#function-dp_loop_filter_steps) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, const double \* x, double \* out, size\_t n) <br>_Filter a whole block of loop errors, returning the control value for each update._  |
 |  double | [**dp\_loop\_filter\_wn**](#function-dp_loop_filter_wn) (double bn, double zeta) <br>_Natural frequency implied by a loop bandwidth and damping._  |
@@ -149,7 +151,7 @@ dp_loop_filter_destroy(lf);
 
 _Retune the loop gains_ `kp` _/_`ki` _for a new (bn, zeta, t) without disturbing the integrator._
 ```C++
-void dp_loop_filter_configure (
+int dp_loop_filter_configure (
     dp_loop_filter_state_t * state,
     double bn,
     double zeta,
@@ -162,6 +164,9 @@ void dp_loop_filter_configure (
 Recomputes the proportional and integral gains from the standard 2nd-order form but leaves `integ` untouched, so a loop can be widened for fast acquisition and then narrowed for steady-state tracking while holding its accumulated frequency/rate estimate — the retune preserves lock.
 
 
+A (bn, zeta, t) outside [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok) is refused and changes nothing: a NaN gave gains that never recover, and a negative bn could zero the denominator (doppler#2103).
+
+
 
 
 **Parameters:**
@@ -170,7 +175,14 @@ Recomputes the proportional and integral gains from the standard 2nd-order form 
 * `state` Must be non-NULL. 
 * `bn` Loop noise bandwidth, normalized cycles/sample (&gt;= 0). 
 * `zeta` Damping factor (typically 0.707). 
-* `t` Update period in samples (&gt; 0).
+* `t` Update period in samples (&gt; 0). 
+
+
+
+**Returns:**
+
+`DP_OK`, or `DP_ERR_INVALID` outside [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok).
+
 
 
 ```C++
@@ -324,6 +336,47 @@ Computes `kp` / `ki` from the loop noise bandwidth `bn` (normalized, cycles/samp
 
 
 
+### function dp\_loop\_filter\_params\_ok 
+
+_The domain the loop's gains are defined on:_ `bn >= 0` _,_`zeta > 0` _,_`t > 0` _, all three finite, and gains that come out finite._
+```C++
+int dp_loop_filter_params_ok (
+    double bn,
+    double zeta,
+    double t
+) 
+```
+
+
+
+The ONE predicate. [**dp\_loop\_filter\_create()**](loop__filter__core_8h.md#function-dp_loop_filter_create) and [**dp\_loop\_filter\_configure()**](loop__filter__core_8h.md#function-dp_loop_filter_configure) refuse outside it, and an embedder that takes these numbers from a caller calls it before the unguarded [**dp\_loop\_filter\_init()**](loop__filter__core_8h.md#function-dp_loop_filter_init): a non-finite argument there yields NaN gains that never recover, a negative `bn` with `zeta >= 1` can drive the gains' denominator through zero, and a finite `bn` past ~7e153 at `t = 1` overflows the gains to NaN. It checks the gains init would write, from the same formula. The Dll, the Despreader's two loops, ratesync, the MPSK receiver, Costas, SymbolSync, CarrierMpsk and CarrierNda call it (doppler#2103, #2112).
+
+
+
+
+**Parameters:**
+
+
+* `bn` Loop noise bandwidth, normalized. 
+* `zeta` Damping factor. 
+* `t` Update period, in samples. 
+
+
+
+**Returns:**
+
+1 inside the domain, 0 outside it (a NaN is outside). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_loop\_filter\_reset 
 
 _Zero the integrator memory while keeping the configured gains._ 
@@ -394,6 +447,43 @@ size_t dp_loop_filter_state_bytes (
 
 
 
+
+<hr>
+
+
+
+### function dp\_loop\_filter\_state\_ok 
+
+_Whether a stored filter is one a live filter could hold._ 
+```C++
+int dp_loop_filter_state_ok (
+    const dp_loop_filter_state_t * s
+) 
+```
+
+
+
+For restoring a serialized filter, whose gains are taken verbatim rather than recomputed. The filter must be in the domain at its OWN bn, zeta and t ([**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok)), and carry gains that match the one gains body at that bn, zeta and t to a relative tolerance of 1e-9. The tolerance lets a blob written by another compiler restore; a forged NaN, infinite or absurd gain is refused.
+
+
+
+
+**Parameters:**
+
+
+* `s` The stored filter. 
+
+
+
+**Returns:**
+
+1 if it is one a live filter could hold, 0 otherwise. 
+
+
+
+
+
+        
 
 <hr>
 

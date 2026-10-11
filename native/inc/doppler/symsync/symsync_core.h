@@ -393,6 +393,10 @@ extern "C"
    * @param order  Farrow interpolator order (0=linear, 1=parabolic, 2=cubic).
    * @param ted    Timing-error detector: SYMSYNC_TED_GARDNER (0, blind) or
    *               SYMSYNC_TED_DTTL (1, decision-directed; BPSK/QPSK only).
+   *
+   * Unguarded, as the by-value path: the caller checks (bn, zeta) with
+   * dp_loop_filter_params_ok() first. Outside it the loop's gains go NaN
+   * (doppler#2103).
    */
   void dp_symsync_init (dp_symsync_state_t *s, size_t sps, double bn, double zeta,
                      int order, int ted);
@@ -499,10 +503,17 @@ extern "C"
    * 0.05
    *
    * @endcode
+   * @return `DP_OK`, or `DP_ERR_INVALID` for a (bn, zeta) outside
+   *         dp_loop_filter_params_ok(); a refusal changes nothing, so the
+   *         bandwidth the getter reports is always the one the loop runs
+   *         (doppler#2112).
    */
-  void   dp_symsync_configure (dp_symsync_state_t *state, double bn, double zeta);
+  int    dp_symsync_configure (dp_symsync_state_t *state, double bn, double zeta);
   double dp_symsync_get_bn (const dp_symsync_state_t *state);
-  void   dp_symsync_set_bn (dp_symsync_state_t *state, double val);
+  /** @brief Retune bn, keeping zeta: dp_symsync_configure()'s refusal and status.
+   *  As a writable property it refuses without raising until
+   *  just-buildit/just-makeit#2182: the value stays put. */
+  int    dp_symsync_set_bn (dp_symsync_state_t *state, double val);
   double dp_symsync_get_timing_error (const dp_symsync_state_t *state);
   double dp_symsync_get_rate (const dp_symsync_state_t *state);
 

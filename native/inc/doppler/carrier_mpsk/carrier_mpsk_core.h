@@ -93,6 +93,10 @@ typedef struct {
  * @param tsamps          Samples per symbol (the integrate-and-dump period).
  * @param bn_fll          FLL-assist bandwidth (0 = pure PLL).
  * @param m               Constellation order M (2, 4, 8).
+ *
+ * Unguarded, as the by-value path: the caller checks (bn, zeta) with
+ * dp_loop_filter_params_ok() first. Outside it the loop's gains go NaN
+ * (doppler#2103).
  */
 void dp_carrier_mpsk_init(dp_carrier_mpsk_state_t *s, double bn, double zeta,
                        double init_norm_freq, size_t tsamps, double bn_fll,
@@ -306,10 +310,17 @@ size_t dp_carrier_mpsk_steps(dp_carrier_mpsk_state_t *state, const float _Comple
  * 0.01
  *
  * @endcode
+ * @return `DP_OK`, or `DP_ERR_INVALID` for a (bn, zeta) outside
+ *         dp_loop_filter_params_ok(); a refusal changes nothing, so the
+ *         bandwidth the getter reports is always the one the loop runs
+ *         (doppler#2112).
  */
-void dp_carrier_mpsk_configure(dp_carrier_mpsk_state_t *state, double bn, double zeta);
+int dp_carrier_mpsk_configure(dp_carrier_mpsk_state_t *state, double bn, double zeta);
 double dp_carrier_mpsk_get_bn(const dp_carrier_mpsk_state_t *state);
-void dp_carrier_mpsk_set_bn(dp_carrier_mpsk_state_t *state, double val);
+/** @brief Retune bn, keeping zeta: dp_carrier_mpsk_configure()'s refusal and status.
+ *  As a writable property it refuses without raising until
+ *  just-buildit/just-makeit#2182: the value stays put. */
+int dp_carrier_mpsk_set_bn(dp_carrier_mpsk_state_t *state, double val);
 double dp_carrier_mpsk_get_norm_freq(const dp_carrier_mpsk_state_t *state);
 void dp_carrier_mpsk_set_norm_freq(dp_carrier_mpsk_state_t *state, double val);
 double dp_carrier_mpsk_get_lock_metric(const dp_carrier_mpsk_state_t *state);

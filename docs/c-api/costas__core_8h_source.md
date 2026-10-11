@@ -132,9 +132,9 @@ size_t dp_costas_steps_max_out(dp_costas_state_t *state);
 
 size_t dp_costas_steps(dp_costas_state_t *state, const float _Complex *x, size_t x_len, float _Complex *out, size_t max_out);
 
-void dp_costas_configure(dp_costas_state_t *state, double bn, double zeta);
+int dp_costas_configure(dp_costas_state_t *state, double bn, double zeta);
 double dp_costas_get_bn(const dp_costas_state_t *state);
-void dp_costas_set_bn(dp_costas_state_t *state, double val);
+int dp_costas_set_bn(dp_costas_state_t *state, double val);
 double dp_costas_get_norm_freq(const dp_costas_state_t *state);
 double dp_costas_get_nco_freq(const dp_costas_state_t *state);
 void dp_costas_set_norm_freq(dp_costas_state_t *state, double val);

@@ -749,5 +749,48 @@ main (void)
     free (rx);
   }
 
+  /* A bad loop parameter is refused at create and by every setter, and a
+     refused retune changes nothing -- bn, zeta and the gains -- so the
+     getter never reports a bandwidth the loop is not running. A finite bn
+     of 1e200 overflows the gains to NaN, which the predicate now refuses
+     (doppler#2112). */
+  {
+    DP_CHECK (dp_carrier_nda_create (NAN, 0.707, 0.0, 8, 2, 4) == NULL);
+    DP_CHECK (dp_carrier_nda_create (1e200, 0.707, 0.0, 8, 2, 4) == NULL);
+    dp_carrier_nda_state_t *c
+        = dp_carrier_nda_create (0.01, 0.707, 0.0, 8, 2, 4);
+    DP_CHECK (c != NULL);
+    if (c)
+      {
+        /* The whole object, not its loop filter: a refusal changes no byte. */
+        const size_t   cb     = dp_carrier_nda_state_bytes (c);
+        unsigned char *before = malloc (cb), *after = malloc (cb);
+        dp_carrier_nda_get_state (c, before);
+        const double bn = c->bn, zeta = c->zeta;
+        /* Twice: a refusal must not compound (CarrierNda rescaled its
+           unchanged gains by 1/2pi on each). */
+        DP_CHECK (dp_carrier_nda_set_bn (c, NAN) == DP_ERR_INVALID);
+        DP_CHECK (dp_carrier_nda_set_bn (c, NAN) == DP_ERR_INVALID);
+        dp_carrier_nda_get_state (c, after);
+        DP_CHECK (memcmp (after, before, cb) == 0);
+        free (before);
+        free (after);
+        DP_CHECK (c->bn == bn && c->zeta == zeta);
+        /* The control: a good retune is taken. */
+        DP_CHECK (dp_carrier_nda_set_bn (c, 0.02) == DP_OK && c->bn == 0.02);
+        /* Scaled exactly once on success: the loop filter is then the one a
+           fresh create at the new bandwidth builds, byte for byte. */
+        dp_carrier_nda_state_t *f
+            = dp_carrier_nda_create (0.02, 0.707, 0.0, 8, 2, 4);
+        DP_CHECK (f != NULL);
+        if (f)
+          {
+            DP_CHECK (memcmp (&c->lf, &f->lf, sizeof c->lf) == 0);
+            dp_carrier_nda_destroy (f);
+          }
+        dp_carrier_nda_destroy (c);
+      }
+  }
+
   DP_TEST_END ("test_carrier_nda_core");
 }

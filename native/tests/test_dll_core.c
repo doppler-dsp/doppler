@@ -266,6 +266,473 @@ refused_blob_changes_nothing (void)
   return fails;
 }
 
+/* A bad float is refused, never run (doppler#2103).
+ *
+ * create() took every float unchecked: a NaN spacing made dll_replica index
+ * code[2^62] on x86-64, and a NaN or out-of-domain bn/zeta gave NaN gains
+ * that never recover. set_symbol_period() let a NaN past both its guards to
+ * ceil(NaN) = 2^63 in the ring sizing, and dp_xcalloc aborted the process.
+ * Asserted: each bad argument refused, the edges inside the domain accepted
+ * (a spacing just under half the code, a frozen bn = 0, a long but sane
+ * period), and a refused period leaving the one already set in place.
+ * Returns the number of failed checks, for main's tally. */
+static int
+bad_floats_are_refused (void)
+{
+  int     fails = 0;
+  uint8_t code[31];
+  make_code (code, 31, 2103u);
+  const double half = 0.5 * 31.0;
+  struct
+  {
+    double      init_chip, bn, zeta, spacing;
+    const char *what;
+  } bad[] = {
+    { 0.0, 0.01, 0.707, NAN, "a NaN spacing" },
+    { 0.0, 0.01, 0.707, INFINITY, "an infinite spacing" },
+    { 0.0, 0.01, 0.707, 0.0, "a zero spacing" },
+    { 0.0, 0.01, 0.707, -0.5, "a negative spacing" },
+    { 0.0, 0.01, 0.707, half, "a spacing of half the code" },
+    { NAN, 0.01, 0.707, 0.5, "a NaN seed phase" },
+    { INFINITY, 0.01, 0.707, 0.5, "an infinite seed phase" },
+    { 0.0, NAN, 0.707, 0.5, "a NaN bn" },
+    { 0.0, -0.01, 0.707, 0.5, "a negative bn" },
+    { 0.0, INFINITY, 0.707, 0.5, "an infinite bn" },
+    { 0.0, 0.01, 0.0, 0.5, "a zero zeta" },
+    { 0.0, 0.01, NAN, 0.5, "a NaN zeta" },
+  };
+  for (size_t k = 0; k < sizeof bad / sizeof *bad; k++)
+    {
+      dp_dll_state_t *d
+          = dp_dll_create (code, 31, 2, bad[k].init_chip, bad[k].bn,
+                           bad[k].zeta, bad[k].spacing, 4);
+      if (d)
+        {
+          fprintf (stderr, "  bad float accepted by create: %s\n",
+                   bad[k].what);
+          fails++;
+          dp_dll_destroy (d);
+        }
+    }
+  /* The edges inside the domain are taken. */
+  dp_dll_state_t *e
+      = dp_dll_create (code, 31, 2, 7.25, 0.0, 0.707, half - 0.1, 4);
+  if (!e)
+    {
+      fprintf (stderr, "  create refused an argument inside the domain\n");
+      return fails + 1;
+    }
+  dp_dll_destroy (e);
+
+  dp_dll_state_t *d = dp_dll_create (code, 31, 2, 0.0, 0.01, 0.707, 0.5, 4);
+  if (!d)
+    return fails + 1;
+  const double periods[] = { NAN, INFINITY, -INFINITY, 1048576.0 + 1.0 };
+  for (int pass = 0; pass < 2; pass++)
+    {
+      const double held = d->sym_period;
+      for (size_t k = 0; k < sizeof periods / sizeof *periods; k++)
+        if (dp_dll_set_symbol_period (d, periods[k]) != DP_ERR_INVALID
+            || d->sym_period != held)
+          {
+            fprintf (stderr, "  bad period %g accepted (pass %d)\n",
+                     periods[k], pass);
+            fails++;
+          }
+      /* A long but sane period is taken, then held through the refusals. */
+      if (pass == 0 && dp_dll_set_symbol_period (d, 1.0e5) != DP_OK)
+        {
+          fprintf (stderr, "  a period of 1e5 partials was refused\n");
+          fails++;
+        }
+    }
+  /* The cap, pinned at its edge: 2^20 partials taken, one more refused. */
+  if (dp_dll_set_symbol_period (d, 1048576.0) != DP_OK)
+    {
+      fprintf (stderr, "  the period cap itself (2^20) was refused\n");
+      fails++;
+    }
+  if (dp_dll_set_symbol_period (d, 1048576.0 + 1.0) != DP_ERR_INVALID
+      || d->sym_period != 1048576.0)
+    {
+      fprintf (stderr, "  a period one past the cap was taken\n");
+      fails++;
+    }
+
+  /* configure() and the bn setter refuse what create refuses, and change
+     nothing doing it: a NaN, and a negative bn with zeta >= 1 (a zero
+     denominator in the gains). */
+  const double kp = d->lf.kp, ki = d->lf.ki, bn0 = d->bn, z0 = d->zeta;
+  if (dp_dll_configure (d, NAN, 0.707) != DP_ERR_INVALID
+      || dp_dll_configure (d, -1.25, 1.0) != DP_ERR_INVALID
+      || dp_dll_configure (d, 0.01, INFINITY) != DP_ERR_INVALID
+      || dp_dll_set_bn (d, NAN) != DP_ERR_INVALID || d->lf.kp != kp
+      || d->lf.ki != ki || d->bn != bn0 || d->zeta != z0)
+    {
+      fprintf (stderr, "  configure or set_bn took a bad loop parameter\n");
+      fails++;
+    }
+  if (dp_dll_configure (d, 0.02, 0.707) != DP_OK || d->bn != 0.02)
+    {
+      fprintf (stderr, "  configure refused a good loop parameter\n");
+      fails++;
+    }
+  dp_dll_destroy (d);
+  return fails;
+}
+
+/* A refused retune changes nothing, and a forged config is refused
+ * (doppler#2103).
+ *
+ * set_symbol_period() scaled the integrator before the loop filter refused
+ * the new interval, then returned DP_OK anyway, so a refused period left
+ * integ multiplied while the gains kept the old interval. The Dll now checks
+ * the interval before anything is freed or sized. set_state() restored
+ * spacing, bn and zeta unchecked, and a forged NaN spacing indexed the code
+ * out of bounds. Asserted, against the whole state's blob rather than one
+ * field: each refused period leaves the object byte-identical, and each
+ * forged config field is refused with the object unchanged. Returns the
+ * number of failed checks. */
+static int
+refused_retune_changes_nothing (void)
+{
+  int     fails = 0;
+  uint8_t code[31];
+  make_code (code, 31, 2103u);
+
+  /* The two repros: a bandwidth valid at the create's interval whose gains
+     overflow at the symbol's. Each period divided by the segments is
+     refused by the loop filter. */
+  struct
+  {
+    size_t      sps;
+    double      bn;
+    size_t      segments;
+    double      period;
+    const char *what;
+  } retune[] = {
+    { 1, 1.0e153, 4, 40.0, "bn 1e153, segments 4, period 40" },
+    { 2, 1.0e150, 4, 1048576.0, "bn 1e150, segments 4, period 2^20" },
+  };
+  for (size_t k = 0; k < sizeof retune / sizeof *retune; k++)
+    {
+      dp_dll_state_t *d
+          = dp_dll_create (code, 31, retune[k].sps, 0.0, retune[k].bn, 0.707,
+                           0.5, retune[k].segments);
+      if (!d)
+        {
+          fprintf (stderr, "  create refused: %s\n", retune[k].what);
+          fails++;
+          continue;
+        }
+      /* A nonzero integrator, so a scale that ran would show. */
+      d->lf.integ           = 3.0;
+      const size_t   cb     = dp_dll_state_bytes (d);
+      unsigned char *before = malloc (cb), *now = malloc (cb);
+      dp_dll_get_state (d, before);
+      if (dp_dll_set_symbol_period (d, retune[k].period) != DP_ERR_INVALID)
+        {
+          fprintf (stderr, "  refused retune returned DP_OK: %s\n",
+                   retune[k].what);
+          fails++;
+        }
+      /* The size must hold after the refusal, or the compare below reads past
+         the blob it was sized for. */
+      DP_CHECK (dp_dll_state_bytes (d) == cb);
+      dp_dll_get_state (d, now);
+      if (memcmp (now, before, cb) != 0)
+        {
+          fprintf (stderr, "  refused retune changed state: %s\n",
+                   retune[k].what);
+          fails++;
+        }
+      free (before);
+      free (now);
+      dp_dll_destroy (d);
+    }
+
+  /* Forged config in a live blob: spacing, bn and zeta, at their edges. */
+  dp_dll_state_t *d = dp_dll_create (code, 31, 2, 0.0, 0.01, 0.707, 0.5, 4);
+  if (!d)
+    return fails + 1;
+  const double nan = NAN, inf = INFINITY, zero = 0.0, half = 15.5;
+  fails += forged_is_refused (d, offsetof (dp_dll_state_t, spacing), &nan,
+                              sizeof nan, "a NaN spacing");
+  fails += forged_is_refused (d, offsetof (dp_dll_state_t, spacing), &inf,
+                              sizeof inf, "an infinite spacing");
+  fails += forged_is_refused (d, offsetof (dp_dll_state_t, spacing), &zero,
+                              sizeof zero, "a zero spacing");
+  fails += forged_is_refused (d, offsetof (dp_dll_state_t, spacing), &half,
+                              sizeof half, "a spacing of half the code");
+  fails += forged_is_refused (d, offsetof (dp_dll_state_t, bn), &nan,
+                              sizeof nan, "a NaN bn");
+  fails += forged_is_refused (d, offsetof (dp_dll_state_t, zeta), &zero,
+                              sizeof zero, "a zero zeta");
+  dp_dll_destroy (d);
+  return fails;
+}
+
+/* set_state() refuses a forged blob or recomputes what a blob cannot be
+ * trusted with (doppler#2103). An aided Dll is set up at a symbol period, so
+ * the blob carries a real update interval and a held snapshot.
+ *
+ * Refused, the target unchanged: a NaN integrator (the filter's or the held
+ * snapshot's), a NaN seed phase, a NaN chip phase.
+ * Recomputed, the target restored to the honest state: a forged loop gain
+ * (kp), a forged update interval (lf.t), a forged rate table (rate_p).
+ * Accepted, a blob written at the aided interval resumes into a fresh object
+ * set to the same period. Returns the number of failed checks. */
+static int
+forged_state_is_refused_or_recomputed (void)
+{
+  int     fails = 0;
+  uint8_t code[31];
+  make_code (code, 31, 2103u);
+  const double period = 8.0; /* 8 partials over 4 segments: interval 2 */
+
+  dp_dll_state_t *d = dp_dll_create (code, 31, 2, 0.0, 0.01, 0.707, 0.5, 4);
+  if (!d || dp_dll_set_symbol_period (d, period) != DP_OK)
+    return 1;
+  d->lf.integ      = 3.0;
+  d->held_lf.integ = 1.5;
+  d->seed_chip     = 4.0;
+  /* A hold, so the snapshot is a live filter and the held rows below forge
+     a real one. */
+  dp_dll_hold_here (d);
+  /* The held integrator set apart from the live one: hold_here copies lf, so
+     without this a swap of the two fields would pass. */
+  d->held_lf.integ      = 1.5;
+  const size_t   cb     = dp_dll_state_bytes (d);
+  unsigned char *honest = malloc (cb);
+  dp_dll_get_state (d, honest);
+
+  /* The own blob resumes at the aided interval. */
+  dp_dll_state_t *fresh
+      = dp_dll_create (code, 31, 2, 0.0, 0.01, 0.707, 0.5, 4);
+  DP_CHECK (fresh != NULL
+            && dp_dll_set_symbol_period (fresh, period) == DP_OK);
+  DP_CHECK (fresh && dp_dll_set_state (fresh, honest) == DP_OK);
+
+  const double subnormal = 1e-310; /* positive, but no interval at all */
+  /* Refused: the target is byte-identical afterwards. A NaN integrator or
+     seed is deliberately not guarded: a caller who forges a non-finite
+     value gets garbage out, and no check is spent refusing it. */
+  const double nan = NAN;
+  fails += forged_is_refused (d, offsetof (dp_dll_state_t, chip_pos), &nan,
+                              sizeof nan, "a NaN chip phase");
+  /* The filters and the update rate are restored verbatim, so a forged gain,
+     interval or rate is validated and refused, never patched up. */
+  fails += forged_is_refused (
+      d, offsetof (dp_dll_state_t, lf) + offsetof (dp_loop_filter_state_t, kp),
+      &nan, sizeof nan, "a NaN loop gain");
+  fails += forged_is_refused (
+      d, offsetof (dp_dll_state_t, lf) + offsetof (dp_loop_filter_state_t, t),
+      &nan, sizeof nan, "a NaN update interval");
+  fails += forged_is_refused (d,
+                              offsetof (dp_dll_state_t, held_lf)
+                                  + offsetof (dp_loop_filter_state_t, kp),
+                              &nan, sizeof nan, "a NaN held loop gain");
+  fails += forged_is_refused (d, offsetof (dp_dll_state_t, inv_upd), &nan,
+                              sizeof nan, "a NaN update rate");
+
+  /* The repro: a bandwidth refused at a symbol interval below one. segments 4,
+     a period of 2 partials (interval 0.5): configure at 5e153 must refuse. */
+  dp_dll_state_t *r = dp_dll_create (code, 31, 2, 0.0, 0.01, 0.707, 0.5, 4);
+  DP_CHECK (r != NULL && dp_dll_set_symbol_period (r, 2.0) == DP_OK);
+  DP_CHECK (r != NULL && dp_dll_configure (r, 5e153, 0.707) == DP_ERR_INVALID);
+  if (r)
+    dp_dll_destroy (r);
+
+  /* A bandwidth valid at t = 1 but overflowing at the aided interval (2) is
+     refused by configure and by set_state at that interval. The edge is
+     found, not assumed: bisect the t = 1 bound, then take three quarters of
+     it, which is valid at 1 and past the bound at 2. */
+  double hi = 1.0e308, lo = 0.0;
+  for (int i = 0; i < 2000; i++)
+    {
+      const double mid = 0.5 * (lo + hi);
+      if (dp_loop_filter_params_ok (mid, 0.707, 1.0))
+        lo = mid;
+      else
+        hi = mid;
+    }
+  const double edge_bn = 0.75 * lo;
+  DP_CHECK (dp_loop_filter_params_ok (edge_bn, 0.707, 1.0));
+  DP_CHECK (!dp_loop_filter_params_ok (edge_bn, 0.707, 2.0));
+  DP_CHECK (dp_dll_configure (d, edge_bn, 0.707) == DP_ERR_INVALID);
+  fails += forged_is_refused (d, offsetof (dp_dll_state_t, bn), &edge_bn,
+                              sizeof edge_bn,
+                              "a bandwidth valid at t = 1 but not at the "
+                              "aided interval");
+
+  /* Refused: an interval or period that is no symbol timing at all. A
+     subnormal period made inv_upd infinite, then NaN; a held snapshot with no
+     interval is no filter a hold leaves. */
+  fails += forged_is_refused (d, offsetof (dp_dll_state_t, sym_period),
+                              &subnormal, sizeof subnormal,
+                              "a subnormal symbol period");
+  const double zero = 0.0;
+  fails += forged_is_refused (d,
+                              offsetof (dp_dll_state_t, held_lf)
+                                  + offsetof (dp_loop_filter_state_t, t),
+                              &zero, sizeof zero, "a held interval of zero");
+  fails += forged_is_refused (d,
+                              offsetof (dp_dll_state_t, held_lf)
+                                  + offsetof (dp_loop_filter_state_t, t),
+                              &subnormal, sizeof subnormal,
+                              "a held interval of 1e-310");
+
+  /* Ignored: the rate table is the live object's, not the blob's, so a forged
+     one is ignored and the target ends in the honest state. */
+  struct
+  {
+    size_t      off;
+    const char *what;
+  } recompute[] = {
+    { offsetof (dp_dll_state_t, rate_p), "a NaN rate table" },
+  };
+  for (size_t k = 0; k < sizeof recompute / sizeof *recompute; k++)
+    {
+      dp_dll_state_t *x
+          = dp_dll_create (code, 31, 2, 0.0, 0.01, 0.707, 0.5, 4);
+      if (!x || dp_dll_set_symbol_period (x, period) != DP_OK)
+        return fails + 1;
+      unsigned char *bad = malloc (cb), *now = malloc (cb);
+      memcpy (bad, honest, cb);
+      memcpy (bad + sizeof (dp_state_hdr_t) + recompute[k].off, &nan,
+              sizeof nan);
+      if (dp_dll_set_state (x, bad) != DP_OK)
+        {
+          fprintf (stderr, "  forged blob refused, not recomputed: %s\n",
+                   recompute[k].what);
+          fails++;
+        }
+      dp_dll_get_state (x, now);
+      if (memcmp (now, honest, cb) != 0)
+        {
+          fprintf (stderr, "  forged blob restored, not recomputed: %s\n",
+                   recompute[k].what);
+          fails++;
+        }
+      free (bad);
+      free (now);
+      dp_dll_destroy (x);
+    }
+
+  free (honest);
+  dp_dll_destroy (fresh);
+  dp_dll_destroy (d);
+  return fails;
+}
+
+/* The hold path resumes bit-for-bit (doppler#2103). A hold, then a retune of
+ * the bandwidth, then a round trip must coast and step exactly as the object
+ * that was never serialized. The held snapshot keeps the bandwidth it was
+ * taken with, so the retune after the hold must not change what the coast
+ * replays. Returns the number of failed checks. */
+static int
+hold_then_retune_resumes_exact (void)
+{
+  int     fails = 0;
+  uint8_t code[31];
+  make_code (code, 31, 2103u);
+  dp_dll_state_t *a = dp_dll_create (code, 31, 2, 0.0, 0.01, 0.707, 0.5, 4);
+  if (!a || dp_dll_set_symbol_period (a, 8.0) != DP_OK)
+    return 1;
+  float _Complex rx[128], out[64], out_a[64], out_c[64];
+  for (size_t i = 0; i < 128; i++)
+    rx[i] = CMPLXF (cosf (0.3f * (float)i), sinf (0.7f * (float)i));
+  (void)dp_dll_steps (a, rx, 128, out, 64); /* warm up: a live state */
+  dp_dll_hold_here (a);
+  DP_CHECK (dp_dll_set_bn (a, 0.02) == DP_OK); /* a retune after the hold */
+
+  const size_t   cb   = dp_dll_state_bytes (a);
+  unsigned char *blob = malloc (cb);
+  dp_dll_get_state (a, blob);
+  dp_dll_state_t *c = dp_dll_create (code, 31, 2, 0.0, 0.01, 0.707, 0.5, 4);
+  DP_CHECK (c != NULL && dp_dll_set_symbol_period (c, 8.0) == DP_OK);
+  DP_CHECK (c != NULL && dp_dll_set_state (c, blob) == DP_OK);
+  if (c)
+    {
+      dp_dll_set_coast (a, 1);
+      dp_dll_set_coast (c, 1);
+      const size_t na = dp_dll_steps (a, rx, 128, out_a, 64);
+      const size_t nc = dp_dll_steps (c, rx, 128, out_c, 64);
+      DP_CHECK (na == nc && na > 0);
+      DP_CHECK (memcmp (out_a, out_c, na * sizeof *out_a) == 0);
+      const size_t   cb_a = dp_dll_state_bytes (a);
+      unsigned char *sa = malloc (cb_a), *sc = malloc (cb_a);
+      dp_dll_get_state (a, sa);
+      dp_dll_get_state (c, sc);
+      DP_CHECK (memcmp (sa, sc, cb_a) == 0);
+      free (sa);
+      free (sc);
+      dp_dll_destroy (c);
+    }
+  free (blob);
+  dp_dll_destroy (a);
+  return fails;
+}
+
+/* The coast-first orders resume bit-for-bit (doppler#2103). A hold, then one
+ * of three orders of operations, then a round trip, must coast, uncoast and
+ * step exactly as the object that was never serialized. order 0: a bandwidth
+ * retune after the hold; order 1: a symbol period change after the hold;
+ * order 2: a re-hold while coasting. Returns the number of failed checks. */
+static int
+coast_order_resumes_exact (int order)
+{
+  int     fails = 0;
+  uint8_t code[31];
+  make_code (code, 31, 2103u);
+  const double    period_a = order == 1 ? 4.0 : 8.0;
+  dp_dll_state_t *a = dp_dll_create (code, 31, 2, 0.0, 0.01, 0.707, 0.5, 4);
+  if (!a || dp_dll_set_symbol_period (a, 8.0) != DP_OK)
+    return 1;
+  float _Complex rx[128], warm[64], out_a[64], out_c[64];
+  for (size_t i = 0; i < 128; i++)
+    rx[i] = CMPLXF (cosf (0.3f * (float)i), sinf (0.7f * (float)i));
+  (void)dp_dll_steps (a, rx, 128, warm, 64); /* warm up: a live state */
+  dp_dll_hold_here (a);
+  if (order == 0)
+    DP_CHECK (dp_dll_set_bn (a, 0.02) == DP_OK);
+  else if (order == 1)
+    DP_CHECK (dp_dll_set_symbol_period (a, period_a) == DP_OK);
+  else
+    {
+      dp_dll_set_coast (a, 1);
+      dp_dll_hold_here (a); /* the re-hold, while coasting */
+    }
+  dp_dll_set_coast (a, 1);
+
+  const size_t   cb   = dp_dll_state_bytes (a);
+  unsigned char *blob = malloc (cb);
+  dp_dll_get_state (a, blob);
+  dp_dll_state_t *c = dp_dll_create (code, 31, 2, 0.0, 0.01, 0.707, 0.5, 4);
+  DP_CHECK (c != NULL && dp_dll_set_symbol_period (c, period_a) == DP_OK);
+  DP_CHECK (c != NULL && dp_dll_set_state (c, blob) == DP_OK);
+  if (c)
+    {
+      dp_dll_set_coast (a, 0); /* the uncoast, after the round trip */
+      dp_dll_set_coast (c, 0);
+      const size_t na = dp_dll_steps (a, rx, 128, out_a, 64);
+      const size_t nc = dp_dll_steps (c, rx, 128, out_c, 64);
+      DP_CHECK (na == nc && na > 0);
+      DP_CHECK (memcmp (out_a, out_c, na * sizeof *out_a) == 0);
+      const size_t   cb_a = dp_dll_state_bytes (a);
+      unsigned char *sa = malloc (cb_a), *sc = malloc (cb_a);
+      dp_dll_get_state (a, sa);
+      dp_dll_get_state (c, sc);
+      DP_CHECK (memcmp (sa, sc, cb_a) == 0);
+      free (sa);
+      free (sc);
+      dp_dll_destroy (c);
+    }
+  free (blob);
+  dp_dll_destroy (a);
+  return fails;
+}
+
 int
 main (void)
 {
@@ -1381,6 +1848,17 @@ main (void)
 
   /* A refused blob changes nothing (doppler#2092). */
   DP_CHECK (refused_blob_changes_nothing () == 0);
+
+  /* A bad float is refused, never run (doppler#2103). */
+  DP_CHECK (bad_floats_are_refused () == 0);
+
+  /* A refused retune changes nothing; a forged config is refused (#2103). */
+  DP_CHECK (refused_retune_changes_nothing () == 0);
+  DP_CHECK (forged_state_is_refused_or_recomputed () == 0);
+  DP_CHECK (hold_then_retune_resumes_exact () == 0);
+  DP_CHECK (coast_order_resumes_exact (0) == 0);
+  DP_CHECK (coast_order_resumes_exact (1) == 0);
+  DP_CHECK (coast_order_resumes_exact (2) == 0);
 
   DP_TEST_END ("test_dll_core");
 }

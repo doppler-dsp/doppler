@@ -153,6 +153,7 @@ dp_acc_trace_value_max_out function
 dp_acq_block_prompt function
 dp_acq_block_raw function
 dp_acq_build_handoff function
+dp_acq_carrier_freq_ok function
 dp_acq_cell_corr function
 dp_acq_cell_corr_grid function
 dp_acq_configure_search_raw function
@@ -240,6 +241,7 @@ dp_async_dsss_receiver_get_state function
 dp_async_dsss_receiver_get_tracking function
 dp_async_dsss_receiver_reset function
 dp_async_dsss_receiver_seed function
+dp_async_dsss_receiver_seed_ok function
 dp_async_dsss_receiver_set_refine_min_blocks function
 dp_async_dsss_receiver_set_state function
 dp_async_dsss_receiver_state_bytes function
@@ -691,6 +693,7 @@ dp_dll_init function
 dp_dll_lock_epoch function
 dp_dll_lock_look function
 dp_dll_lookback_segments function
+dp_dll_params_ok function
 dp_dll_reset function
 dp_dll_set_bn function
 dp_dll_set_coast function
@@ -703,6 +706,7 @@ dp_dll_set_telemetry function
 dp_dll_state_bytes function
 dp_dll_steps function
 dp_dll_steps_max_out function
+dp_dll_symbol_period_ok function
 dp_dll_take_error function
 dp_dll_take_error_mean function
 dp_dll_tlm_flush function
@@ -1065,9 +1069,11 @@ dp_loop_filter_create function
 dp_loop_filter_destroy function
 dp_loop_filter_get_state function
 dp_loop_filter_init function
+dp_loop_filter_params_ok function
 dp_loop_filter_reset function
 dp_loop_filter_set_state function
 dp_loop_filter_state_bytes function
+dp_loop_filter_state_ok function
 dp_loop_filter_step function
 dp_loop_filter_steps function
 dp_loop_filter_wn function

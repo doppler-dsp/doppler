@@ -120,8 +120,18 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
   Py_DECREF (code_arr);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError,
-                       "dp_async_dsss_receiver_create returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "AsyncDsssReceiver: invalid parameter (need a code of "
+                       "at least 2 chips, a finite chip_rate > 0, a finite "
+                       "symbol_rate > 0 and <= chip_rate, spc >= 1, m in "
+                       "{2,4,8}, segments >= 1, sps >= 2, carrier_freq_hz 0 "
+                       "or finite and above chip_rate * spc / 2, "
+                       "lost_confirm_s >= 0, refine_samples_per_symbol >= 1, "
+                       "refine_n_fft >= 1, refine_zero_pad >= 1, a symbol of "
+                       "at most 2^20 Dll partials, segments * chip_rate / "
+                       "(code_len * symbol_rate) <= 1048576; and for the "
+                       "searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, "
+                       "a finite doppler_uncertainty >= 0)");
       return -1;
     }
   return 0;
@@ -317,7 +327,9 @@ AsyncDsssReceiverObj_seed (AsyncDsssReceiverObject *self, PyObject *args,
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
                     "seed refused: the receiver already holds an assignment "
                     "(refining, tracking or lost -- reset() releases it), or "
-                    "chip_phase is outside [0, code_len)",
+                    "chip_phase is outside [0, code_len), or doppler_hz_est "
+                    "is not finite and below chip_rate * spc / 2 in "
+                    "magnitude",
                     (long long)_rc);
       return NULL;
     }
@@ -344,6 +356,9 @@ static PyStructSequence_Field AsyncDsssReceiverObj_status_fields[] = {
   { "both_down_samples",
     "Input samples both flags have been down without a break (the release "
     "clock); in lost it keeps counting -- samples since the flags dropped." },
+  { "refused_hits",
+    "Searching hits refused as seeds by the seed domain (a Doppler at or past "
+    "fs/2), since create or reset. The search went on over each one's tail." },
   { NULL, NULL },
 };
 static PyStructSequence_Desc AsyncDsssReceiverObj_status_desc
@@ -351,7 +366,7 @@ static PyStructSequence_Desc AsyncDsssReceiverObj_status_desc
         "AsyncDsssReceiver's status record: state (0 searching, 1 refining, 2 "
         "tracking, 3 idle, 4 lost), the live estimates, both lock flags, and "
         "the two clocks in input samples.",
-        AsyncDsssReceiverObj_status_fields, 13 };
+        AsyncDsssReceiverObj_status_fields, 14 };
 static PyTypeObject *AsyncDsssReceiverObj_status_type = NULL;
 
 static PyObject *
@@ -392,6 +407,9 @@ AsyncDsssReceiverObj_status (AsyncDsssReceiverObject *self,
   PyStructSequence_SET_ITEM (
       _o, 12,
       PyLong_FromUnsignedLongLong ((unsigned long long)_r.both_down_samples));
+  PyStructSequence_SET_ITEM (
+      _o, 13,
+      PyLong_FromUnsignedLongLong ((unsigned long long)_r.refused_hits));
   return _o;
 }
 
@@ -1140,7 +1158,8 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "    If the C call returns a non-zero status. The exception message is\n"
     "    ``seed refused: the receiver already holds an assignment (refining,\n"
     "    tracking or lost -- reset() releases it), or chip_phase is outside\n"
-    "    [0, code_len)``, with the return code appended (gh-869).\n"
+    "    [0, code_len), or doppler_hz_est is not finite and below chip_rate\n"
+    "    * spc / 2 in magnitude``, with the return code appended (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1173,7 +1192,7 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "status() -> ReceiverStatus record (state, doppler_hz, chip_phase, "
     "code_rate, cn0_dbhz_est, code_locked, locked, lock_metric, "
     "lock_threshold, car_last_error, mpsk_last_error, state_samples, "
-    "both_down_samples)\n"
+    "both_down_samples, refused_hits)\n"
     "\n"
     "One consistent picture of the receiver, by value (design section 11.3): "
     "state, where the emitter is now (the whole carrier estimate -- loop 1's "
@@ -1348,15 +1367,27 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "\n"
     "Pin the live-tracking despread/resample/demod grid directly, bypassing "
     "the create-time segments/sps defaults. Only meaningful once tracking; "
-    "rebuilds the chain with every replacement allocated first, so a failed "
-    "pin leaves the receiver on its prior grid.\n"
+    "rebuilds the chain with every replacement allocated first. Raises "
+    "ValueError, leaving the receiver on its prior grid, for a grid the chain "
+    "cannot be built on: n >= 1 dividing sps, sps >= 2, and a symbol of at "
+    "most 2^20 Dll partials at the new segments, segments * chip_rate / "
+    "(code_len * symbol_rate) <= 1048576. An n MpskReceiver refuses (odd, or "
+    "over 8) still aborts (doppler#2112).\n"
+    "\n"
+    "The new grid is checked as create() checked the first, before anything\n"
+    "is rebuilt, and refused with the receiver left on its prior grid: the\n"
+    "Dll's domain at segments, sps >= 2, and a symbol period of at most 2^20\n"
+    "Dll partials, which the Dll's aid would otherwise refuse mid-build\n"
+    "(doppler#2103). Not yet refused, and still an abort: an n that\n"
+    "MpskReceiver refuses (odd, or over 8), and an allocation failure in the\n"
+    "rebuild (doppler#2112).\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "segments : int\n"
     "    Live-tracking Dll segments per code period.\n"
     "sps : int\n"
-    "    MpskReceiver samples per symbol (the resample target).\n"
+    "    MpskReceiver samples per symbol (the resample target), >= 2.\n"
     "n : int\n"
     "    MpskReceiver's carrier-arm count; must divide sps.\n"
     "\n"
@@ -1568,6 +1599,8 @@ static PyTypeObject AsyncDsssReceiverObjType = {
     "    discriminator alone can't pull in at low SNR. Set to the receiver's "
     "own\n"
     "    downlink RF frequency for a physically-coupled Doppler capture.\n"
+    "    Coupled, it is above half the sample rate "
+    "(dp_acq_carrier_freq_ok()).\n"
     "lost_confirm_s : float, default 0.0\n"
     "    Release rule: both lock flags down, continuously, for longer than "
     "this\n"
@@ -1581,6 +1614,25 @@ static PyTypeObject AsyncDsssReceiverObjType = {
     "    emitter that leaves. Default 0.0 = never -- the searching flavor's "
     "exit\n"
     "    is reset(), as before.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is "
+    "``AsyncDsssReceiver:\n"
+    "    invalid parameter (need a code of at least 2 chips, a finite "
+    "chip_rate\n"
+    "    > 0, a finite symbol_rate > 0 and <= chip_rate, spc >= 1, m in "
+    "{2,4,8},\n"
+    "    segments >= 1, sps >= 2, carrier_freq_hz 0 or finite and above\n"
+    "    chip_rate * spc / 2, lost_confirm_s >= 0, refine_samples_per_symbol "
+    ">=\n"
+    "    1, refine_n_fft >= 1, refine_zero_pad >= 1, a symbol of at most "
+    "2^20\n"
+    "    Dll partials, segments * chip_rate / (code_len * symbol_rate) <=\n"
+    "    1048576; and for the searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd "
+    "<\n"
+    "    1, a finite doppler_uncertainty >= 0)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

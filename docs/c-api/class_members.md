@@ -771,6 +771,7 @@
 * **ref** ([**acq\_part\_t**](structacq__part__t.md), [**dp\_acq\_state\_t**](structdp__acq__state__t.md))
 * **refine\_samples\_fed** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
 * **refine\_segments** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
+* **refused\_hits** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**async\_dsss\_receiver\_status\_t**](structasync__dsss__receiver__status__t.md), [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
 * **runner\_db** ([**ber\_align\_t**](structber__align__t.md))
 * **rel** ([**ber\_interval\_t**](structber__interval__t.md))
 * **refined** ([**burst\_capture\_pending\_t**](structburst__capture__pending__t.md))

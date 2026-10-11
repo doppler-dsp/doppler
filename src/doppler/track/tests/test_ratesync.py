@@ -368,3 +368,17 @@ def test_context_manager_and_destroy():
     rs.destroy()
     with pytest.raises(RuntimeError, match="destroyed"):
         rs.steps(np.zeros(16, dtype=np.complex64))
+
+
+@pytest.mark.parametrize(
+    "change", [{"bn": float("inf")}, {"zeta": float("inf")}]
+)
+def test_an_infinite_loop_parameter_is_refused_and_named(change):
+    """The loop filter's domain is finite: an infinite bandwidth or damping
+    was taken by the private check this create used to keep (doppler#2103).
+    The refusal names it, and the same receiver builds at good values."""
+    from doppler.track import RateSync
+
+    RateSync(**{"sps": 8.0})
+    with pytest.raises(ValueError, match="bn >= 0 and zeta > 0 both finite"):
+        RateSync(**{"sps": 8.0}, **change)

@@ -98,6 +98,31 @@ main (void)
     DP_CHECK (c != NULL);
     if (!c)
       return 1;
+    /* The code loop's own domain, refused at create and by its setter: a NaN
+       spacing read code[2^62] on the first sample, and a NaN bn gave gains
+       that never recover (doppler#2103). */
+    DP_CHECK (dp_despreader_create (code, sf, sps, 0.0, 0.0, 0.05, 0.005, 0.0,
+                                    0.707, NAN, 1)
+              == NULL);
+    DP_CHECK (dp_despreader_create (code, sf, sps, 0.0, NAN, 0.05, 0.005, 0.0,
+                                    0.707, 0.5, 1)
+              == NULL);
+    DP_CHECK (dp_despreader_create (code, sf, sps, 0.0, 0.0, 0.05, NAN, 0.0,
+                                    0.707, 0.5, 1)
+              == NULL);
+    DP_CHECK (dp_despreader_set_bn_code (c, NAN) == DP_ERR_INVALID);
+    DP_CHECK (dp_despreader_get_bn_code (c) == 0.005);
+    /* And the carrier loop's, embedded by value through dp_costas_init(),
+       which trusts its arguments: a NaN bn_carrier gave NaN gains
+       (doppler#2112). */
+    DP_CHECK (dp_despreader_create (code, sf, sps, 0.0, 0.0, NAN, 0.005, 0.0,
+                                    0.707, 0.5, 1)
+              == NULL);
+    DP_CHECK (dp_despreader_create (code, sf, sps, 0.0, 0.0, 1e200, 0.005, 0.0,
+                                    0.707, 0.5, 1)
+              == NULL);
+    DP_CHECK (dp_despreader_set_bn_carrier (c, NAN) == DP_ERR_INVALID);
+    DP_CHECK (dp_despreader_get_bn_carrier (c) == 0.05);
     DP_CHECK (fabs (dp_despreader_get_norm_freq (c) - 0.001)
               < 1e-9); /* seeded */
     DP_CHECK (dp_despreader_get_code_rate (c) == 1.0);

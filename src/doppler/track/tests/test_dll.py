@@ -437,3 +437,74 @@ def test_set_lock_verify_binding_faces():
         d.set_lock_verify(0, 3)
     with pytest.raises(ValueError):
         d.set_lock_verify(2, 0)
+
+
+@pytest.mark.parametrize(
+    "kw, names",
+    [
+        ({"spacing": float("nan")}, "0 < spacing < len"),
+        ({"spacing": 0.0}, "0 < spacing < len"),
+        # half the code: early and late meet
+        ({"spacing": SF / 2}, "0 < spacing < len"),
+        ({"init_chip": float("inf")}, "a finite init_chip"),
+        ({"bn": float("nan")}, "bn >= 0 and zeta > 0 both finite"),
+        ({"bn": -0.01}, "bn >= 0 and zeta > 0 both finite"),
+        ({"zeta": 0.0}, "bn >= 0 and zeta > 0 both finite"),
+    ],
+)
+def test_create_refuses_a_bad_float(kw, names):
+    """A NaN spacing used to index code[2^62] on the first sample, and a
+    NaN or out-of-domain loop parameter gave gains that never recover
+    (doppler#2103). create() refuses them, and the manifest's create_error
+    says it was an argument, not a failed allocation."""
+    args = {"code": _code(), "sps": 2, "segments": 4}
+    Dll(**args)  # the control: this argument, not another, is refused
+    with pytest.raises(ValueError, match=f"Dll: invalid parameter.*{names}"):
+        Dll(**args, **kw)
+
+
+def test_set_symbol_period_refuses_a_period_it_cannot_size():
+    """A NaN period passed both guards and reached the ring sizing as 2^63,
+    and dp_xcalloc aborted the interpreter (doppler#2103). A non-finite or
+    absurd period is refused, and the window already set is kept."""
+    d = Dll(code=_code(), sps=2, segments=4)
+    d.set_symbol_period(13.5)
+    window = d.symbol_window
+    for p in (float("nan"), float("inf"), 1.0e30):
+        with pytest.raises(ValueError, match="set_symbol_period failed"):
+            d.set_symbol_period(p)
+        assert d.symbol_window == window
+
+
+def test_configure_refuses_a_bad_loop_parameter():
+    """configure() hands (bn, zeta) to the loop filter, whose gains a NaN
+    poisons for good and a negative bn with zeta >= 1 divides by zero
+    (doppler#2103). It refuses them, changing nothing.
+
+    zeta is not a property, so "nothing" is checked by behaviour: a retune
+    of bn reuses the stored zeta, so a zeta written before the refusal would
+    give this loop other gains than a fresh one's after the same retune."""
+    d = Dll(code=_code(), sps=2, bn=0.01)
+    for bn, zeta in (
+        (float("nan"), 0.707),
+        (-1.25, 1.0),
+        (0.01, float("inf")),
+    ):
+        with pytest.raises(ValueError, match="configure failed"):
+            d.configure(bn, zeta)
+        assert d.bn == 0.01
+    ref = Dll(code=_code(), sps=2, bn=0.01)
+    d.bn = ref.bn = 0.02
+    rng = np.random.default_rng(2103)
+    x = (rng.standard_normal(40 * 31 * 2) + 1j).astype(np.complex64)
+    assert d.steps(x).tobytes() == ref.steps(x).tobytes()
+    assert d.get_state() == ref.get_state()
+
+
+def test_a_nan_bandwidth_changes_nothing():
+    """The C setter refuses a NaN bandwidth. A jm writable property cannot
+    yet raise what its setter returns (just-buildit/just-makeit#2182), so the
+    refusal shows as the value staying put rather than a ValueError."""
+    d = Dll(code=_code(), sps=2, bn=0.01)
+    d.bn = float("nan")
+    assert d.bn == 0.01

@@ -106,6 +106,12 @@ extern "C"
    * the channel's resampled pulse, 12.22). */
 #define ASYNC_DSSS_RX_DLL_SPACING 0.5
 #define ASYNC_DSSS_RX_DLL_DISC_SLOPE (2.0 - ASYNC_DSSS_RX_DLL_SPACING)
+  /* The damping of both Dlls this receiver builds, the tracker and the
+   * refine collector, and the collector's early-late spacing, chips. Named
+   * once because create() checks the very arguments each build site passes
+   * (dp_dll_params_ok(), doppler#2103). */
+#define ASYNC_DSSS_RX_DLL_ZETA 0.707
+#define ASYNC_DSSS_RX_REFINE_DLL_SPACING 0.5
 
   /* Symbol-lock detector on the emitted symbols. The lock signal is the
    * BPSK phase-lock statistic (I^2 - Q^2)/(I^2 + Q^2) = cos(2*phi) per
@@ -222,6 +228,7 @@ extern "C"
     double   lost_confirm_s;       
     uint64_t lost_confirm_samples; 
     uint64_t state_samples;        
+    uint64_t refused_hits;         
     uint64_t both_down_samples;    
     int      had_lock;             
     int      car_coasting;         
@@ -287,6 +294,10 @@ extern "C"
                                 double chip_phase, double doppler_hz_est,
                                 double cn0_dbhz_est);
 
+  int dp_async_dsss_receiver_seed_ok (const dp_async_dsss_receiver_state_t *state,
+                                      double chip_phase,
+                                      double doppler_hz_est);
+
   typedef struct
   {
     int state; 
@@ -302,6 +313,7 @@ extern "C"
     double mpsk_last_error; 
     uint64_t state_samples; 
     uint64_t both_down_samples; 
+    uint64_t refused_hits;      
   } async_dsss_receiver_status_t;
 
   async_dsss_receiver_status_t dp_async_dsss_receiver_status (
@@ -400,10 +412,11 @@ extern "C"
     double   cell_rate_bias;
     uint64_t period_count;
     uint64_t intervals;
+    uint64_t refused_hits; 
   } async_dsss_receiver_extra_t;
 
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 7u /* v7: no hand-off flavor; v6: the cell pull-in */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 8u /* v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
 
   size_t dp_async_dsss_receiver_state_bytes (
       const dp_async_dsss_receiver_state_t *state);

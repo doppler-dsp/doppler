@@ -94,7 +94,8 @@ MpskReceiverObj_init (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
                        "MpskReceiverR, whose cascade runs behind a 2:1 "
                        "halfband, m_out even in [2, 8], 0 <= rrc_beta <= 1, "
                        "rrc_span >= 1, num_phases a power of two >= 2, bn >= "
-                       "0, zeta > 0, 0 < bn_agc_ratio < 1)");
+                       "0 and zeta > 0 both finite, whose loop gains come "
+                       "out finite, 0 < bn_agc_ratio < 1)");
       return -1;
     }
   return 0;
@@ -1402,7 +1403,9 @@ static PyTypeObject MpskReceiverObjType = {
     "    real-input MpskReceiverR, whose cascade runs behind a 2:1 halfband,\n"
     "    m_out even in [2, 8], 0 <= rrc_beta <= 1, rrc_span >= 1, num_phases "
     "a\n"
-    "    power of two >= 2, bn >= 0, zeta > 0, 0 < bn_agc_ratio < 1)``.\n"
+    "    power of two >= 2, bn >= 0 and zeta > 0 both finite, whose loop "
+    "gains\n"
+    "    come out finite, 0 < bn_agc_ratio < 1)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

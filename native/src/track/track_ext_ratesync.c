@@ -91,7 +91,8 @@ RateSyncObj_init (RateSyncObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_ValueError,
                        "RateSync: invalid parameter (need sps >= m, 0 <= "
                        "beta <= 1, span >= 1, m even in [2, 8], num_phases a "
-                       "power of two >= 2, bn >= 0, zeta > 0)");
+                       "power of two >= 2, bn >= 0 and zeta > 0 both finite, "
+                       "whose loop gains come out finite)");
       return -1;
     }
   return 0;
@@ -944,7 +945,9 @@ static PyTypeObject RateSyncObjType = {
     "    If construction fails. The exception message is ``RateSync: invalid\n"
     "    parameter (need sps >= m, 0 <= beta <= 1, span >= 1, m even in [2, "
     "8],\n"
-    "    num_phases a power of two >= 2, bn >= 0, zeta > 0)``.\n"
+    "    num_phases a power of two >= 2, bn >= 0 and zeta > 0 both finite, "
+    "whose\n"
+    "    loop gains come out finite)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

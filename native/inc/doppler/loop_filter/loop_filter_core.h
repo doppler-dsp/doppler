@@ -127,6 +127,42 @@ extern "C"
   double dp_loop_filter_wn(double bn, double zeta);
 
   /**
+   * @brief The domain the loop's gains are defined on: `bn >= 0`,
+   *        `zeta > 0`, `t > 0`, all three finite, and gains that come out
+   *        finite.
+   *
+   * The ONE predicate. dp_loop_filter_create() and dp_loop_filter_configure()
+   * refuse outside it, and an embedder that takes these numbers from a
+   * caller calls it before the unguarded dp_loop_filter_init(): a non-finite
+   * argument there yields NaN gains that never recover, a negative `bn` with
+   * `zeta >= 1` can drive the gains' denominator through zero, and a finite
+   * `bn` past ~7e153 at `t = 1` overflows the gains to NaN. It checks the
+   * gains init would write, from the same formula. The Dll, the Despreader's
+   * two loops, ratesync, the MPSK receiver, Costas, SymbolSync,
+   * CarrierMpsk and CarrierNda call it (doppler#2103, #2112).
+   *
+   * @param bn    Loop noise bandwidth, normalized.
+   * @param zeta  Damping factor.
+   * @param t     Update period, in samples.
+   * @return      1 inside the domain, 0 outside it (a NaN is outside).
+   */
+  int dp_loop_filter_params_ok(double bn, double zeta, double t);
+
+  /**
+   * @brief Whether a stored filter is one a live filter could hold.
+   *
+   * For restoring a serialized filter, whose gains are taken verbatim rather
+   * than recomputed. The filter must be in the domain at its OWN bn, zeta and
+   * t (dp_loop_filter_params_ok()), and carry gains that match the one gains body at that bn, zeta and t to a relative
+   * tolerance of 1e-9. The tolerance lets a blob written by another compiler
+   * restore; a forged NaN, infinite or absurd gain is refused.
+   *
+   * @param s  The stored filter.
+   * @return 1 if it is one a live filter could hold, 0 otherwise.
+   */
+  int dp_loop_filter_state_ok(const dp_loop_filter_state_t *s);
+
+  /**
    * @brief Create a loop_filter instance, validating its arguments.
    *
    * This is the untrusted boundary — the Python constructor passes a
@@ -161,10 +197,15 @@ extern "C"
    * acquisition and then narrowed for steady-state tracking while holding its
    * accumulated frequency/rate estimate — the retune preserves lock.
    *
+   * A (bn, zeta, t) outside dp_loop_filter_params_ok() is refused and
+   * changes nothing: a NaN gave gains that never recover, and a negative
+   * bn could zero the denominator (doppler#2103).
+   *
    * @param state  Must be non-NULL.
    * @param bn     Loop noise bandwidth, normalized cycles/sample (>= 0).
    * @param zeta   Damping factor (typically 0.707).
    * @param t      Update period in samples (> 0).
+   * @return `DP_OK`, or `DP_ERR_INVALID` outside dp_loop_filter_params_ok().
    *
    * @code
    * >>> from doppler.track import LoopFilter
@@ -179,7 +220,7 @@ extern "C"
    *
    * @endcode
    */
-  void dp_loop_filter_configure(dp_loop_filter_state_t *state, double bn, double zeta,
+  int dp_loop_filter_configure(dp_loop_filter_state_t *state, double bn, double zeta,
                              double t);
 
   /**

@@ -220,3 +220,148 @@ def test_odd_sps_still_builds():
         code=CODE, chip_rate=CHIP_RATE, symbol_rate=SYM_RATE, sps=5
     )
     assert rx is not None
+
+
+# Each receiver at a configuration it builds. A case below changes ONE
+# argument, so the refusal is that argument's; the base is built first, so a
+# base the receiver refuses fails here rather than passing every case.
+_RX_BASE = {
+    "DsssReceiver": {"chip_rate": 1.023e6, "symbol_rate": 1e3},
+    "AsyncDsssReceiver": {"chip_rate": 1.023e6, "symbol_rate": 1e3},
+    "CellAsyncDsssReceiver": {"chip_rate": 1.023e6, "symbol_rate": 1e3},
+    "AsyncDsssPool": {
+        "chip_rate": 5e6,
+        "symbol_rate": 2700.0,
+        "cn0_dbhz": 47.0,
+        "doppler_uncertainty": 6000.0,
+        "n_slots": 2,
+    },
+}
+_ALL = tuple(_RX_BASE)
+_ASYNC = ("AsyncDsssReceiver", "CellAsyncDsssReceiver", "AsyncDsssPool")
+_SEARCHING = ("DsssReceiver", "AsyncDsssReceiver", "AsyncDsssPool")
+_NAN = float("nan")
+
+# (classes, the one argument changed, what the message must name). Before
+# doppler#2103 most of these took the interpreter down (SIGABRT), from a
+# dp_xnn build under create or later in the stream; the PR body lists each.
+_REFUSALS = [
+    (_ALL, {"code": np.array([1], np.uint8)}, "a code of at least 2 chips"),
+    (_ALL, {"chip_rate": _NAN}, "a finite chip_rate > 0"),
+    (_ALL, {"symbol_rate": _NAN}, "a finite symbol_rate > 0"),
+    (_ALL, {"sps": 1}, "sps >= 2"),
+    # The cell flavour has no searcher, but its carrier estimator refuses
+    # these under dp_xnn, so it must refuse them itself.
+    (_ALL, {"pfa": 2.0}, "0 < pfa < 1"),
+    (_ALL, {"pfa": 0.0}, "0 < pfa < 1"),
+    (_ALL, {"pd": 1.5}, "0 < pd < 1"),
+    (_SEARCHING, {"cn0_dbhz": _NAN}, "a finite cn0_dbhz"),
+    (
+        _SEARCHING,
+        {"doppler_uncertainty": _NAN},
+        "a finite doppler_uncertainty >= 0",
+    ),
+    (_ASYNC, {"carrier_freq_hz": 1e-305}, "above chip_rate \\* spc / 2"),
+    (_ASYNC, {"carrier_freq_hz": 5e-324}, "above chip_rate \\* spc / 2"),
+    (_ASYNC, {"symbol_rate": 1e-6}, "at most 2\\^20 Dll partials"),
+    # The cap holds at one segment too, where the aid is off but the
+    # chain's resampling ratio still depends on it.
+    (_ASYNC, {"symbol_rate": 1e-6, "segments": 1}, "at most 2\\^20"),
+    # A tiny rate underflowed the chain's ratio to 0, and a rate past the
+    # chip rate sized its scratch at ~4e12 samples: both aborted.
+    (_ASYNC, {"symbol_rate": 5e-324}, "at most 2\\^20 Dll partials"),
+    (("DsssReceiver",), {"symbol_rate": 5e-324}, "a normal double"),
+    (_ALL, {"symbol_rate": 1e15}, "symbol_rate > 0 and <= chip_rate"),
+    (
+        ("AsyncDsssReceiver",),
+        {"refine_n_fft": 0},
+        "refine_n_fft >= 1",
+    ),
+    (
+        ("AsyncDsssReceiver",),
+        {"refine_zero_pad": 0},
+        "refine_zero_pad >= 1",
+    ),
+    (
+        ("AsyncDsssReceiver",),
+        {"refine_samples_per_symbol": 0},
+        "refine_samples_per_symbol >= 1",
+    ),
+    (
+        ("CellAsyncDsssReceiver",),
+        {"correct_periods": 0},
+        "correct_periods >= 1",
+    ),
+    (
+        ("CellAsyncDsssReceiver", "AsyncDsssPool"),
+        {"gain": 0.0},
+        "0 < gain <= 1",
+    ),
+]
+
+
+def _change_id(change):
+    return "-".join(
+        f"{k}=len{len(v)}" if isinstance(v, np.ndarray) else f"{k}={v}"
+        for k, v in change.items()
+    )
+
+
+@pytest.mark.parametrize(
+    "cls, change, names",
+    [
+        pytest.param(cls, change, names, id=f"{cls}-{_change_id(change)}")
+        for classes, change, names in _REFUSALS
+        for cls in classes
+    ],
+)
+def test_create_refuses_and_names_the_condition(cls, change, names):
+    """A bad argument is a ValueError whose message names the condition it
+    broke, where most used to abort the process (doppler#2103). The message
+    is one string per class, so the condition it names proves only that the
+    message lists it; that this argument is the one refused is proved by the
+    same receiver building with it at a good value."""
+    import doppler.dsss as dsss
+
+    make = getattr(dsss, cls)
+    kw = dict(_RX_BASE[cls], code=CODE)
+    make(**kw)
+    with pytest.raises(ValueError, match=names):
+        make(**dict(kw, **change))
+
+
+@pytest.mark.parametrize("cls", ["AsyncDsssReceiver", "CellAsyncDsssReceiver"])
+def test_seed_refuses_a_doppler_past_half_the_sample_rate(cls):
+    """A Doppler is reportable only below half the sample rate, which the
+    carrier rule relies on to keep doppler / carrier finite. A seed near
+    1e308 sent the hand-off's phase to NaN and aborted building the code
+    loop (doppler#2103); seed() refuses it, and takes one just inside."""
+    import doppler.dsss as dsss
+
+    rx = getattr(dsss, cls)(CODE, chip_rate=1.023e6, symbol_rate=1e3)
+    fs = 1.023e6 * 2  # the default spc
+    with pytest.raises(ValueError, match="doppler_hz_est is not finite"):
+        rx.seed(0.0, 0.5 * fs, 45.0)
+    with pytest.raises(ValueError, match="doppler_hz_est is not finite"):
+        rx.seed(0.0, -1e308, 45.0)
+    rx.seed(0.0, 0.25 * fs, 45.0)
+
+
+@pytest.mark.parametrize("cls", ["AsyncDsssReceiver", "CellAsyncDsssReceiver"])
+def test_configure_chain_raw_refuses_a_grid_create_would(cls):
+    """configure_chain_raw() rebuilds the tracker on a new grid. It now checks
+    that grid as create() checks the first, before anything is rebuilt, so a
+    grid the chain cannot take is a ValueError and the receiver keeps its own
+    (doppler#2103). The cases are what reached an abort mid-rebuild: a symbol
+    of more Dll partials than the aid takes, and sps = 1, which carries no
+    m_out. A 1023-chip code at 1.023 Mchip/s and 1 kbaud has a symbol of one
+    code period, so 2^20 + 1 segments is one partial past the cap."""
+    import doppler.dsss as dsss
+
+    rx = getattr(dsss, cls)(CODE, chip_rate=1.023e6, symbol_rate=1e3)
+    rx.configure_chain_raw(4, 8, 4)
+    held = rx.get_state()
+    for grid in ((2**20 + 1, 8, 4), (4, 1, 1)):
+        with pytest.raises(ValueError, match="configure_chain_raw failed"):
+            rx.configure_chain_raw(*grid)
+        assert rx.get_state() == held

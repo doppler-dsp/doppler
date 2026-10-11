@@ -224,6 +224,10 @@ dp_symsync_init (dp_symsync_state_t *s, size_t sps, double bn, double zeta,
 dp_symsync_state_t *
 dp_symsync_create (size_t sps, double bn, double zeta, int order, int ted)
 {
+  /* The loop filter's own domain, refused before allocating: a NaN or an
+     overflowing bandwidth gave gains that never recover (doppler#2112). */
+  if (!dp_loop_filter_params_ok (bn, zeta, 1.0))
+    return NULL;
   dp_symsync_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
     return NULL;
@@ -296,12 +300,17 @@ dp_symsync_tlm_flush (const dp_symsync_state_t *s)
 DP_DEFINE_POD_STATE_TLM (dp_symsync, dp_symsync_state_t, SYMSYNC_STATE_MAGIC,
                          SYMSYNC_STATE_VERSION, tlm)
 
-void
+int
 dp_symsync_configure (dp_symsync_state_t *state, double bn, double zeta)
 {
+  /* The loop filter refuses outside its domain before writing anything, so
+     bn and zeta are stored only once it took them: the getter never reports
+     a bandwidth the loop is not running (doppler#2112). */
+  if (dp_loop_filter_configure (&state->lf, bn, zeta, 1.0) != DP_OK)
+    return DP_ERR_INVALID;
   state->bn   = bn;
   state->zeta = zeta;
-  dp_loop_filter_configure (&state->lf, bn, zeta, 1.0);
+  return DP_OK;
 }
 
 size_t
@@ -374,10 +383,10 @@ dp_symsync_get_bn (const dp_symsync_state_t *state)
   return state->bn;
 }
 
-void
+int
 dp_symsync_set_bn (dp_symsync_state_t *state, double val)
 {
-  dp_symsync_configure (state, val, state->zeta);
+  return dp_symsync_configure (state, val, state->zeta);
 }
 
 double

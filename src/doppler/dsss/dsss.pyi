@@ -32,7 +32,7 @@ class PolynomialPhaseEstimate(tuple[float, float, float]):
         """winning-row peak-to-mean (rough confidence)."""
 
 @final
-class ReceiverStatus(tuple[int, float, float, float, float, int, int, float, float, float, float, int, int]):
+class ReceiverStatus(tuple[int, float, float, float, float, int, int, float, float, float, float, int, int, int]):
     """AsyncDsssReceiver's status record: state (0 searching, 1 refining, 2
     tracking, 3 idle, 4 lost), the live estimates, both lock flags, and the two
     clocks in input samples.
@@ -65,6 +65,8 @@ class ReceiverStatus(tuple[int, float, float, float, float, int, int, float, flo
         Input samples since `state` was entered.
     both_down_samples : int
         Input samples both flags have been down without a break (the release clock); in lost it keeps counting -- samples since the flags dropped.
+    refused_hits : int
+        Searching hits refused as seeds by the seed domain (a Doppler at or past fs/2), since create or reset. The search went on over each one's tail.
     """
 
     @property
@@ -124,6 +126,13 @@ class ReceiverStatus(tuple[int, float, float, float, float, int, int, float, flo
         """Input samples both flags have been down without a break (the release
         clock); in lost it keeps counting -- samples since the flags
         dropped.
+        """
+
+    @property
+    def refused_hits(self) -> int:
+        """Searching hits refused as seeds by the seed domain (a Doppler at or
+        past fs/2), since create or reset. The search went on over each one's
+        tail.
         """
 
 @final
@@ -268,6 +277,15 @@ class Despreader:
         DLL early/late correlator tap offset, chips.
     periods_per_bit : int, default 1
         Code periods per data bit (1 = one bit per period).
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``Despreader: invalid
+        parameter (need a non-empty code; for the code loop a finite init_chip,
+        bn_code >= 0 and zeta > 0 both finite, whose loop gains come out
+        finite, and 0 < spacing < len(code)/2; for the carrier loop bn_carrier
+        >= 0, finite, whose loop gains come out finite)``.
 
     Examples
     --------
@@ -1715,10 +1733,14 @@ class DsssReceiver:
     ------
     ValueError
         If construction fails. The exception message is ``DsssReceiver: invalid
-        parameter (need a non-empty code, chip_rate > 0, symbol_rate > 0, spc
-        >= 1, m in {2,4,8}, segments >= 1, sps >= 2 -- sps = 1 cannot carry an
-        m_out, whose smallest legal value is 2 and which MpskReceiver requires
-        sps to reach)``.
+        parameter (need a code of at least 2 chips, a finite chip_rate > 0, a
+        finite symbol_rate > 0 and <= chip_rate, spc >= 1, m in {2,4,8},
+        segments >= 1, sps >= 2 -- sps = 1 cannot carry an m_out, whose
+        smallest legal value is 2 and which MpskReceiver requires sps to reach;
+        a chain resampling ratio, sps * symbol_rate * code_len / (chip_rate *
+        segments), that is a normal double; and for the searcher a finite
+        cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >=
+        0)``.
 
     Examples
     --------
@@ -1954,7 +1976,9 @@ class DsssReceiver:
         independently overridable here, still bridged by a freshly-sized
         RateConverter, never coupled to each other. Only meaningful once
         tracking; rebuilds the chain with every replacement allocated first, so
-        a failed pin leaves the receiver on its prior grid.
+        a pin refused on its domain leaves the receiver on its prior grid. A
+        grid too large for the chain to allocate still aborts; sizing it out is
+        #2112 work.
 
         The escape hatch for the one composition-specific knob this object adds
         beyond its children's own: `segments` (Dll's tracking parameter) and
@@ -2225,6 +2249,7 @@ class AsyncDsssReceiver:
         dp_dll_set_rate_aid() so the code loop rides a dilated clock the
         discriminator alone can't pull in at low SNR. Set to the receiver's own
         downlink RF frequency for a physically-coupled Doppler capture.
+        Coupled, it is above half the sample rate (dp_acq_carrier_freq_ok()).
     lost_confirm_s : float, default 0.0
         Release rule: both lock flags down, continuously, for longer than this
         many seconds puts the receiver in the lost state (see get_lost()). Size
@@ -2233,6 +2258,19 @@ class AsyncDsssReceiver:
         that never locks within the interval is released the same way as an
         emitter that leaves. Default 0.0 = never -- the searching flavor's exit
         is reset(), as before.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``AsyncDsssReceiver:
+        invalid parameter (need a code of at least 2 chips, a finite chip_rate
+        > 0, a finite symbol_rate > 0 and <= chip_rate, spc >= 1, m in {2,4,8},
+        segments >= 1, sps >= 2, carrier_freq_hz 0 or finite and above
+        chip_rate * spc / 2, lost_confirm_s >= 0, refine_samples_per_symbol >=
+        1, refine_n_fft >= 1, refine_zero_pad >= 1, a symbol of at most 2^20
+        Dll partials, segments * chip_rate / (code_len * symbol_rate) <=
+        1048576; and for the searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd <
+        1, a finite doppler_uncertainty >= 0)``.
 
     Examples
     --------
@@ -2456,7 +2494,8 @@ class AsyncDsssReceiver:
             If the C call returns a non-zero status. The exception message is
             ``seed refused: the receiver already holds an assignment (refining,
             tracking or lost -- reset() releases it), or chip_phase is outside
-            [0, code_len)``, with the return code appended (gh-869).
+            [0, code_len), or doppler_hz_est is not finite and below chip_rate
+            * spc / 2 in magnitude``, with the return code appended (gh-869).
 
         Examples
         --------
@@ -2664,15 +2703,27 @@ class AsyncDsssReceiver:
     def configure_chain_raw(self, segments: int, sps: int, n: int) -> None:
         """Pin the live-tracking despread/resample/demod grid directly,
         bypassing the create-time segments/sps defaults. Only meaningful once
-        tracking; rebuilds the chain with every replacement allocated first, so
-        a failed pin leaves the receiver on its prior grid.
+        tracking; rebuilds the chain with every replacement allocated first.
+        Raises ValueError, leaving the receiver on its prior grid, for a grid
+        the chain cannot be built on: n >= 1 dividing sps, sps >= 2, and a
+        symbol of at most 2^20 Dll partials at the new segments, segments *
+        chip_rate / (code_len * symbol_rate) <= 1048576. An n MpskReceiver
+        refuses (odd, or over 8) still aborts (doppler#2112).
+
+        The new grid is checked as create() checked the first, before anything
+        is rebuilt, and refused with the receiver left on its prior grid: the
+        Dll's domain at segments, sps >= 2, and a symbol period of at most 2^20
+        Dll partials, which the Dll's aid would otherwise refuse mid-build
+        (doppler#2103). Not yet refused, and still an abort: an n that
+        MpskReceiver refuses (odd, or over 8), and an allocation failure in the
+        rebuild (doppler#2112).
 
         Parameters
         ----------
         segments : int
             Live-tracking Dll segments per code period.
         sps : int
-            MpskReceiver samples per symbol (the resample target).
+            MpskReceiver samples per symbol (the resample target), >= 2.
         n : int
             MpskReceiver's carrier-arm count; must divide sps.
 
@@ -2990,7 +3041,8 @@ class CellAsyncDsssReceiver:
         1 for differentially-encoded data.
     carrier_freq_hz : float, default 0.0
         RF carrier, Hz; > 0 couples the code rate to the carrier loop's Doppler
-        (the dead reckoning and the Dll's aid), 0 = no dilation.
+        (the dead reckoning and the Dll's aid), 0 = no dilation. Coupled, it is
+        above half the sample rate (dp_acq_carrier_freq_ok()).
     lost_confirm_s : float, default 2.0
         The release rule's confirm time, seconds.
     correct_periods : int, default 154
@@ -3001,6 +3053,19 @@ class CellAsyncDsssReceiver:
         1]; 1 puts the phase at the read.
     pullin_intervals : int, default 4
         Intervals at gain 1 before `gain` applies.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``AsyncDsssReceiver:
+        invalid parameter (need a code of at least 2 chips, a finite chip_rate
+        > 0, a finite symbol_rate > 0 and <= chip_rate, spc >= 1, m in {2,4,8},
+        segments >= 1, sps >= 2, carrier_freq_hz 0 or finite and above
+        chip_rate * spc / 2, lost_confirm_s >= 0, refine_samples_per_symbol >=
+        1, refine_n_fft >= 1, refine_zero_pad >= 1, a symbol of at most 2^20
+        Dll partials, segments * chip_rate / (code_len * symbol_rate) <=
+        1048576; and for the searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd <
+        1, a finite doppler_uncertainty >= 0)``.
 
     Examples
     --------
@@ -3195,7 +3260,8 @@ class CellAsyncDsssReceiver:
             If the C call returns a non-zero status. The exception message is
             ``seed refused: the receiver already holds an assignment (refining,
             tracking or lost -- reset() releases it), or chip_phase is outside
-            [0, code_len)``, with the return code appended (gh-869).
+            [0, code_len), or doppler_hz_est is not finite and below chip_rate
+            * spc / 2 in magnitude``, with the return code appended (gh-869).
 
         Examples
         --------
@@ -3318,15 +3384,27 @@ class CellAsyncDsssReceiver:
     def configure_chain_raw(self, segments: int, sps: int, n: int) -> None:
         """Pin the live-tracking despread/resample/demod grid directly,
         bypassing the create-time segments/sps defaults. Only meaningful once
-        tracking; rebuilds the chain with every replacement allocated first, so
-        a failed pin leaves the receiver on its prior grid.
+        tracking; rebuilds the chain with every replacement allocated first.
+        Raises ValueError, leaving the receiver on its prior grid, for a grid
+        the chain cannot be built on: n >= 1 dividing sps, sps >= 2, and a
+        symbol of at most 2^20 Dll partials at the new segments, segments *
+        chip_rate / (code_len * symbol_rate) <= 1048576. An n MpskReceiver
+        refuses (odd, or over 8) still aborts (doppler#2112).
+
+        The new grid is checked as create() checked the first, before anything
+        is rebuilt, and refused with the receiver left on its prior grid: the
+        Dll's domain at segments, sps >= 2, and a symbol period of at most 2^20
+        Dll partials, which the Dll's aid would otherwise refuse mid-build
+        (doppler#2103). Not yet refused, and still an abort: an n that
+        MpskReceiver refuses (odd, or over 8), and an allocation failure in the
+        rebuild (doppler#2112).
 
         Parameters
         ----------
         segments : int
             Live-tracking Dll segments per code period.
         sps : int
-            MpskReceiver samples per symbol (the resample target).
+            MpskReceiver samples per symbol (the resample target), >= 2.
         n : int
             MpskReceiver's carrier-arm count; must divide sps.
 
@@ -3647,7 +3725,8 @@ class AsyncDsssPool:
         online core count, 1 is serial (default: 1).
     carrier_freq_hz : float, default 0.0
         RF carrier the Doppler is physically coupled to, Hz, told to the
-        searcher and every receiver; 0.0 = uncoupled (default: 0.0).
+        searcher and every receiver; 0.0 = uncoupled (default: 0.0). Coupled,
+        it is above half the sample rate (dp_acq_carrier_freq_ok()).
     lost_confirm_s : float, default 2.0
         The release rule's interval, seconds (section 10) (default: 2.0).
     max_emitter_on_time_secs : float, default 900.0
@@ -3670,10 +3749,15 @@ class AsyncDsssPool:
     ValueError
         If construction fails. The exception message is ``AsyncDsssPool:
         invalid parameter, or a searcher a cell receiver cannot take (need a
-        non-empty code, chip_rate > 0, symbol_rate > 0, spc >= 1, n_slots >= 1,
-        max_peaks >= 1, carrier_freq_hz >= 0, lost_confirm_s >= 0,
-        max_emitter_on_time_secs >= 0, 0 < gain <= 1; a searcher depth D > 1 --
-        code_only_epochs > 1 -- whose Doppler row is at most four times the
+        code of at least 2 chips, a finite chip_rate > 0, a finite symbol_rate
+        > 0 and <= chip_rate, spc >= 1, m in {2,4,8}, segments >= 1, sps >= 2,
+        carrier_freq_hz 0 or finite and above chip_rate * spc / 2,
+        lost_confirm_s >= 0, 0 < gain <= 1, n_slots >= 1, 1 <= max_peaks <= 64,
+        max_emitter_on_time_secs >= 0, a symbol of at most 2^20 Dll partials,
+        segments * chip_rate / (code_len * symbol_rate) <= 1048576; and a
+        searcher with a finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite
+        doppler_uncertainty >= 0, a finite doppler_rate >= 0, and a depth D > 1
+        -- code_only_epochs > 1 -- whose Doppler row is at most four times the
         carrier loop's pull-in bound, doppler_res_hz <= 2 * 0.04 * chip_rate /
         code_len)``.
 
@@ -3750,15 +3834,16 @@ class AsyncDsssPool:
         phase, at any Doppler, dropped as that emitter's own (the zone is the
         code axis alone: a tracked emitter's data blocks put smeared copies of
         it at its own phase rows away, section 12.14); each survivor seeded
-        into a free slot, or counted dropped when there is none; every receiver
-        fed (an idle or lost one consumes and discards, so the feed has no
-        per-state branch), across the threads the pool was given; then every
-        receiver that reports lost, or has held its slot past
-        max_emitter_on_time_secs, released -- the row cleared, the receiver
-        reset to idle. Every transition -- seeded, tracking, degrade, lost,
-        released, dropped -- goes to the attached event log at the sample it
-        happened. Accepts any block size; a searcher dwell is decided when its
-        samples arrive. Returns the receivers assigned after this push.
+        into a free slot, or counted dropped when there is none (a hit outside
+        the seed domain is logged refused, not dropped); every receiver fed (an
+        idle or lost one consumes and discards, so the feed has no per-state
+        branch), across the threads the pool was given; then every receiver
+        that reports lost, or has held its slot past max_emitter_on_time_secs,
+        released -- the row cleared, the receiver reset to idle. Every
+        transition -- seeded, tracking, degrade, lost, released, dropped,
+        refused -- goes to the attached event log at the sample it happened.
+        Accepts any block size; a searcher dwell is decided when its samples
+        arrive. Returns the receivers assigned after this push.
 
         In order: the searcher; the table refreshed; every peak within one chip
         of a live row's code phase, at any Doppler, dropped as that emitter's
@@ -3885,9 +3970,9 @@ class AsyncDsssPool:
 
     def set_event_log(self, log: object | None) -> None:
         """Attach the run's event log (design section 8.1): from now on every
-        transition -- seeded, tracking, degrade, lost, released, dropped -- is
-        appended at the sample it happened, with the slot, the receiver's
-        state, the Doppler, the chip phase and the C/N0 staged as
+        transition -- seeded, tracking, degrade, lost, released, dropped,
+        refused -- is appended at the sample it happened, with the slot, the
+        receiver's state, the Doppler, the chip phase and the C/N0 staged as
         doppler:<name> fields beside the label (core:label). The pool is the
         one component that stamps; the log is borrowed, never owned. None
         detaches.

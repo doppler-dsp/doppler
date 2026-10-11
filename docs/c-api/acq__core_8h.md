@@ -82,6 +82,7 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 |  size\_t | [**dp\_acq\_block\_prompt**](#function-dp_acq_block_prompt) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, size\_t tile, size\_t col, float \_Complex \* out, size\_t n\_out) <br>_One cell's column of the last whole block: the per-epoch complex correlations at a code phase, the despread stream at epoch rate._  |
 |  size\_t | [**dp\_acq\_block\_raw**](#function-dp_acq_block_raw) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, float \_Complex \* out, size\_t n\_out) <br>_The last whole block's raw samples, as pushed._  |
 |  void | [**dp\_acq\_build\_handoff**](#function-dp_acq_build_handoff) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, const [**acq\_result\_t**](structacq__result__t.md) \* hit, size\_t code\_len, size\_t spc, [**acq\_handoff\_t**](structacq__handoff__t.md) \* out) <br>_Convert one_ [_**dp\_acq\_push()**_](acq__core_8h.md#function-dp_acq_push) _hit into a wire-ready hand-off record._ |
+|  int | [**dp\_acq\_carrier\_freq\_ok**](#function-dp_acq_carrier_freq_ok) (double carrier\_freq\_hz, double sample\_rate\_hz) <br>_Whether_ `carrier_freq_hz` _is a carrier the code can be coupled to at_`sample_rate_hz:` _0 (uncoupled), or finite and above half the sample rate._ |
 |  double \_Complex | [**dp\_acq\_cell\_corr**](#function-dp_acq_cell_corr) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, const float \_Complex \* x, size\_t col, double f\_hz, double t0) <br>_One epoch's correlation against the replica at ONE code phase and ONE frequency: the engine's surface, evaluated at a single cell, on raw samples._  |
 |  void | [**dp\_acq\_cell\_corr\_grid**](#function-dp_acq_cell_corr_grid) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, const float \_Complex \* x, size\_t n\_epochs, size\_t col, const double \* f\_hz, size\_t n\_f, double t0, double \_Complex \* out) <br>[_**dp\_acq\_cell\_corr()**_](acq__core_8h.md#function-dp_acq_cell_corr) _at many frequencies over consecutive epochs, in one pass: the cells a caller scores once the code phase is settled and only the Doppler is left to search._ |
 |  int | [**dp\_acq\_configure\_search\_raw**](#function-dp_acq_configure_search_raw) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the search grid directly, bypassing both auto-sizing searches — the advanced escape hatch (mirrors Dll's/Costas's configure\_lock\_raw())._  |
@@ -389,6 +390,37 @@ Two convention inversions live here, ported verbatim from `dsss_receiver_core.c`
   * `spc` Samples/chip — likewise. 
   * `out` Written on return (non-NULL). 
 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_acq\_carrier\_freq\_ok 
+
+_Whether_ `carrier_freq_hz` _is a carrier the code can be coupled to at_`sample_rate_hz:` _0 (uncoupled), or finite and above half the sample rate._
+```C++
+int dp_acq_carrier_freq_ok (
+    double carrier_freq_hz,
+    double sample_rate_hz
+) 
+```
+
+
+
+Every coupled stage divides a Doppler by the carrier: the hand-off's dilation, a coherent block's epoch alignment, a code loop's rate aid. A seed a receiver accepts has a Doppler below half its sample rate ([**dp\_async\_dsss\_receiver\_seed\_ok()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_seed_ok)), so a carrier above that keeps \|doppler / carrier\| &lt; 1, the physical v/c, when the hand-off is taken from a seed. The acquisition search itself does not yet bound the Doppler it reports to that range (doppler#2112 item 7); a hit past it is refused as a seed rather than used, so the bound holds at the receiver even where the search does not enforce it. A tiny carrier sent doppler / carrier to inf, so the seed phase came out NaN, and the receiver aborted building its code loop from it (doppler#2103). The one rule for every site that takes the divisor: [**dp\_acq\_set\_carrier\_freq\_hz()**](acq__core_8h.md#function-dp_acq_set_carrier_freq_hz) and the DSSS receivers' creates.
+
+
+
+
+**Returns:**
+
+1 if the carrier is taken, 0 otherwise (a NaN is not). 
 
 
 
@@ -1072,7 +1104,7 @@ Config, not running state: it is not in the state blob, so a resumed engine want
 
 **Returns:**
 
-`DP_OK`, or `DP_ERR_INVALID` for a negative or non-finite value. 
+`DP_OK`, or `DP_ERR_INVALID` for a carrier outside [**dp\_acq\_carrier\_freq\_ok()**](acq__core_8h.md#function-dp_acq_carrier_freq_ok) at this engine's sample rate. 
 ```C++
 >>> import numpy as np
 >>> from doppler.acquire import Acquisition

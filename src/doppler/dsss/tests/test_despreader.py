@@ -284,3 +284,49 @@ def test_acq_handoff_verify_reject():
     bogus = Despreader(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
     bogus.steps(noise)
     assert bogus.code_locked is False  # reject: tear down, back to acq
+
+
+@pytest.mark.parametrize(
+    "kw, names",
+    [
+        ({"spacing": float("nan")}, "0 < spacing < len"),
+        ({"init_chip": float("nan")}, "a finite init_chip"),
+        ({"bn_code": float("nan")}, "bn_code >= 0 and zeta > 0 both finite"),
+        # The carrier loop's, embedded through an unguarded Costas init
+        # (doppler#2112).
+        ({"bn_carrier": float("nan")}, "bn_carrier >= 0, finite"),
+        (
+            {"bn_carrier": 1e200},
+            "bn_carrier >= 0, finite, whose loop gains come out finite",
+        ),
+    ],
+)
+def test_create_refuses_a_bad_code_loop_parameter(kw, names):
+    """The code loop is a Dll embedded by value, which trusts its arguments:
+    Despreader(code, spacing=nan).steps(x) read code[2^62] on x86-64
+    (doppler#2103). The Despreader checks them against the Dll's own domain
+    at create."""
+    Despreader(_code(), SPS)  # the control: this argument is the refused one
+    with pytest.raises(
+        ValueError, match=f"Despreader: invalid parameter.*{names}"
+    ):
+        Despreader(_code(), SPS, **kw)
+
+
+def test_a_nan_code_bandwidth_changes_nothing():
+    """The C setter refuses a NaN bandwidth. A jm writable property cannot
+    yet raise what its setter returns (just-buildit/just-makeit#2182), so the
+    refusal shows as the value staying put rather than a ValueError."""
+    d = Despreader(_code(), SPS)
+    before = d.bn_code
+    d.bn_code = float("nan")
+    assert d.bn_code == before
+
+
+def test_a_nan_carrier_bandwidth_changes_nothing():
+    """The carrier loop refuses a NaN bandwidth exactly as the code loop does
+    (doppler#2103): the setter's refusal leaves bn_carrier where it was."""
+    d = Despreader(_code(), SPS)
+    before = d.bn_carrier
+    d.bn_carrier = float("nan")
+    assert d.bn_carrier == before

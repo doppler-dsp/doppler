@@ -211,6 +211,12 @@ extern "C"
    * the channel's resampled pulse, 12.22). */
 #define ASYNC_DSSS_RX_DLL_SPACING 0.5
 #define ASYNC_DSSS_RX_DLL_DISC_SLOPE (2.0 - ASYNC_DSSS_RX_DLL_SPACING)
+  /* The damping of both Dlls this receiver builds, the tracker and the
+   * refine collector, and the collector's early-late spacing, chips. Named
+   * once because create() checks the very arguments each build site passes
+   * (dp_dll_params_ok(), doppler#2103). */
+#define ASYNC_DSSS_RX_DLL_ZETA 0.707
+#define ASYNC_DSSS_RX_REFINE_DLL_SPACING 0.5
 
   /* Symbol-lock detector on the emitted symbols. The lock signal is the
    * BPSK phase-lock statistic (I^2 - Q^2)/(I^2 + Q^2) = cos(2*phi) per
@@ -366,6 +372,11 @@ extern "C"
     uint64_t lost_confirm_samples; /**< lost_confirm_s at the input rate. */
     uint64_t state_samples;        /**< Running: samples fed since the
                                         current state was entered.       */
+    uint64_t refused_hits;         /**< Searching hits the seed domain refused
+                                        as seeds, since create or reset. In
+                                        the blob with state_samples, so a
+                                        resumed receiver's status matches an
+                                        unbroken run's.                  */
     uint64_t both_down_samples;    /**< Running: consecutive samples fed
                                         while tracking with BOTH lock
                                         flags down -- the release clock;
@@ -515,6 +526,8 @@ extern "C"
    *                                   at low SNR. Set to the receiver's own
    *                                   downlink RF frequency for a
    *                                   physically-coupled Doppler capture.
+   *                                   Coupled, it is above half the sample
+   *                                   rate (dp_acq_carrier_freq_ok()).
    * @param lost_confirm_s             Release rule: both lock flags down,
    *                                   continuously, for longer than this
    *                                   many seconds puts the receiver in
@@ -640,7 +653,9 @@ extern "C"
    * @param differential    1 for differentially-encoded data.
    * @param carrier_freq_hz RF carrier, Hz; > 0 couples the code rate to the
    *                        carrier loop's Doppler (the dead reckoning and
-   *                        the Dll's aid), 0 = no dilation.
+   *                        the Dll's aid), 0 = no dilation. Coupled, it is
+   *                        above half the sample rate
+   *                        (dp_acq_carrier_freq_ok()).
    * @param lost_confirm_s  The release rule's confirm time, seconds.
    * @param correct_periods Code periods per correction (>= 1): in a pool,
    *                        the searcher's block depth.
@@ -842,6 +857,33 @@ extern "C"
                                 double cn0_dbhz_est);
 
   /**
+   * @brief The seed domain: whether `(chip_phase, doppler_hz_est)` is one
+   *        dp_async_dsss_receiver_seed() accepts, and one a live receiver can
+   *        hold.
+   *
+   * `chip_phase` must be finite and inside `[0, code_len)`, and
+   * `doppler_hz_est` must be strictly inside `(-fs/2, fs/2)`, where `fs` is
+   * `chip_rate * spc`. A Doppler at or past half the sample rate is not
+   * reportable (dp_acq_carrier_freq_ok() relies on this bound), and a seed
+   * there sent the hand-off's phase to NaN (doppler#2103).
+   *
+   * seed() refuses by this predicate, set_state() restores the seed fields
+   * only inside it, the searching receiver's hit path does not seed from a
+   * hit it fails, and the pool counts such a hit as refused rather than as
+   * dropped for want of a slot. It reads only the receiver's fixed config
+   * (code length, chip rate, spc), so any receiver built from the same
+   * config gives the same answer.
+   *
+   * @param state          Must be non-NULL.
+   * @param chip_phase     Code phase, chips.
+   * @param doppler_hz_est Doppler estimate, Hz.
+   * @return 1 inside the seed domain, 0 outside it (a NaN is outside).
+   */
+  int dp_async_dsss_receiver_seed_ok (const dp_async_dsss_receiver_state_t *state,
+                                      double chip_phase,
+                                      double doppler_hz_est);
+
+  /**
    * @brief One consistent picture of what the receiver is doing, by value.
    *
    * The status record of docs/design/async-dsss-receiver.md section 11.3:
@@ -878,6 +920,10 @@ extern "C"
                                      without a break (the release clock);
                                      in lost it keeps counting -- samples
                                      since the flags dropped.             */
+    uint64_t refused_hits;      /**< Searching hits refused as seeds by the
+                                     seed domain (a Doppler at or past fs/2),
+                                     since create or reset. The search went on
+                                     over each one's tail.                */
   } async_dsss_receiver_status_t;
 
   /**
@@ -1038,15 +1084,22 @@ extern "C"
    * still bridged by a freshly-sized `RateConverter` and never coupled to
    * each other. While searching/refining it re-pins the grid used to build
    * the next tracking chain; once tracking it rebuilds `dll`/`rc`/`rx` in
-   * place, allocating every replacement before adopting it so a failed pin
-   * leaves the receiver usable on its prior grid.
+   * place, allocating every replacement before adopting it.
+   *
+   * The new grid is checked as create() checked the first, before anything
+   * is rebuilt, and refused with the receiver left on its prior grid: the
+   * Dll's domain at @p segments, @p sps >= 2, and a symbol period of at most
+   * 2^20 Dll partials, which the Dll's aid would otherwise refuse mid-build
+   * (doppler#2103). Not yet refused, and still an abort: an @p n that
+   * MpskReceiver refuses (odd, or over 8), and an allocation failure in the
+   * rebuild (doppler#2112).
    *
    * @param state     Must be non-NULL.
    * @param segments  Live-tracking Dll segments per code period.
-   * @param sps       MpskReceiver samples per symbol (the resample target).
+   * @param sps       MpskReceiver samples per symbol (the resample target),
+   *                  >= 2.
    * @param n         MpskReceiver's carrier-arm count; must divide @p sps.
-   * @return 0 on success, -1 on invalid grid or an allocation failure
-   *         (the receiver is left usable at its prior grid on failure).
+   * @return 0 on success, -1 on a grid refused as above.
    * @code
    * >>> import numpy as np
    * >>> from doppler.dsss import AsyncDsssReceiver
@@ -1170,10 +1223,11 @@ extern "C"
     double   cell_rate_bias;
     uint64_t period_count;
     uint64_t intervals;
+    uint64_t refused_hits; /**< v8: the searching hits refused as seeds. */
   } async_dsss_receiver_extra_t;
 
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 7u /* v7: no hand-off flavor; v6: the cell pull-in */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 8u /* v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
 
   size_t dp_async_dsss_receiver_state_bytes (
       const dp_async_dsss_receiver_state_t *state);

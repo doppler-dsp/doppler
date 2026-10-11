@@ -49,6 +49,10 @@ own `out` must give it at least `push_max_out(len(x))` elements: a smaller
 `out` is refused with `ValueError`, not taken as a short push. That is the
 Python face today; the jm gap is jm#2230.
 
+One object is not thread-safe: do not push one `Spectrogram` from two threads
+at once. `push` releases the GIL, so other threads run, but not on the same
+object.
+
 A state blob restores only into an object of the same mode, hop, nfft and
 window (and the same Kaiser beta). Any other configuration is refused with
 `ValueError` and the object is unchanged: see the mode note in

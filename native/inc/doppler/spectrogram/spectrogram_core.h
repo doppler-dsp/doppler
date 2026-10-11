@@ -138,7 +138,7 @@ void dp_spectrogram_destroy (dp_spectrogram_state_t *s);
  * @brief Forget the stream: drop the carry and restart at sample 0.
  *
  * The next row covers samples [0, nfft) of whatever is pushed next.
- * dp_spectrogram_consumed() and dp_spectrogram_pending() read 0.
+ * The consumed count and the pending count read 0.
  * Configuration is kept.
  *
  * @param s  Must be non-NULL.
@@ -148,28 +148,25 @@ void dp_spectrogram_reset (dp_spectrogram_state_t *s);
 /**
  * @brief Push input, write every whole row it completes that fits.
  *
- * Takes the input in order and writes row after row into @p out, each
- * @c nfft floats, until either the input is used up or the next row is due
- * and @p out has no room for it. Only whole rows are written: a @p max_out
- * that is not a multiple of nfft uses floor(max_out / nfft) rows of it, and
- * an @p out too small for one row writes nothing.
+ * Takes the input in order and produces each row as soon as a frame of nfft
+ * samples is complete, at every hop. A partial frame is carried to the next
+ * call, so the rows do not depend on how the input was split into calls. Input
+ * that completes no row is always taken whole.
  *
- * A short @p out never loses input. A sample is taken unless taking it would
- * complete a row @p out has no room for: the framer's feed contract
- * (DECLARE_DP_BUFFER_FRAMES) applied to rows. dp_spectrogram_consumed()
- * reports how many were taken, and the caller offers the rest again. Taken
- * input that does not yet complete a row is the carry, held inside: fewer
- * than nfft samples once this returns. So input that completes no row is
- * always taken whole, even with @p max_out 0.
+ * Only whole rows are written. A C caller bounds the write with @p max_out and
+ * takes the rows that fit; the consumed count reports the input those rows
+ * used, and the caller offers the rest again. The Python face has no short
+ * buffer: its binding sizes the output for the whole chunk (see the Python
+ * method doc).
  *
  * @param s        Must be non-NULL.
  * @param in       Complex baseband samples (cf32).
  * @param n_in     Samples in @p in.
  * @param out      Rows, row-major, nfft floats each.
  * @param max_out  Floats @p out has room for.
- * @return In C, the floats written: a multiple of nfft, at most
- *         dp_spectrogram_push_max_out(s, n_in). In Python, the completed rows
- *         as a (rows, nfft) matrix, or None when there are none.
+ * @return In C, the floats written: a multiple of nfft, at most the room the
+ *         push_max_out count gives for n_in. In Python, the completed rows as
+ *         a (rows, nfft) matrix, or None when there are none.
  */
 size_t dp_spectrogram_push (dp_spectrogram_state_t *s,
                             const float _Complex *in, size_t n_in, float *out,
@@ -177,7 +174,7 @@ size_t dp_spectrogram_push (dp_spectrogram_state_t *s,
 
 /**
  * @brief Floats one push of @p n_in samples writes when @p out has room:
- *        dp_spectrogram_rows_for(s, n_in) * nfft.
+ *        the rows_for(n_in) count times nfft.
  *
  * The capacity that makes a push take ALL of its input. Saturates at
  * SIZE_MAX rather than wrapping.
@@ -227,8 +224,8 @@ size_t dp_spectrogram_rows_for (const dp_spectrogram_state_t *s,
  * @param row_len  Floats of room in @p row. Must be exactly nfft: any other
  *                 length is refused before anything moves, the owed frame
  *                 stays owed, and -1 is returned (never a count).
- * @return Floats written: nfft, or 0 if no row was owed; -1 if
- *         @p row_len is not nfft.
+ * @return Floats written: nfft, or 0 if no row was owed; -1 if the row is not
+ *         exactly nfft floats long.
  */
 int64_t dp_spectrogram_flush (dp_spectrogram_state_t *s, float *row,
                               size_t row_len);

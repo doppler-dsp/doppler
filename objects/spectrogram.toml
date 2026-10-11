@@ -73,11 +73,13 @@ default = "power"
 
 # push() returns the completed rows as a (rows, nfft) float32 matrix, or None
 # when it completes none. out_cols names the row width from the object; the
-# `state` alias is what the binding generates for it. Consumption is the
-# `consumed` property below. Its input is consumed whole: the binding sizes
-# its own output for every row the chunk can complete, so consumed equals the
-# input length, and a caller bounds memory by pushing smaller chunks (sized
-# with rows_for). A smaller out is refused, not taken as a short one.
+# `state` alias is what the binding generates for it. The binding sizes its
+# output for every row the chunk can complete, so consumed equals the chunk
+# length; a caller bounds memory by pushing smaller chunks, sized with
+# rows_for. A smaller out is refused with ValueError (jm#2230 is the gap).
+# The state blob is version 2 and carries the configuration (mode, nfft, hop,
+# window, beta), so a blob from another configuration is refused on restore;
+# that is the owner's ruling on #2102, and the PR body says so.
 [[spectrogram.methods]]
 name = "push"
 arg_type = "float _Complex[]"
@@ -96,6 +98,10 @@ completes none. A partial frame is carried to the next push. consumed equals
 the input length: the binding allocates room for every row the chunk can
 complete, so no input is held back. To bound memory, push smaller chunks,
 sized with rows_for(n).
+
+An object is not thread-safe: one Spectrogram must not be pushed from two
+threads at once, because the kernel uses the object's scratch. push releases
+the GIL, so other Python threads run meanwhile, but not on this object.
 
 An out array, if given, must be a float32 array of at least
 push_max_out(len(x)) elements. A smaller out raises ValueError; it is not

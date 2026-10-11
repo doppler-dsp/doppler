@@ -166,6 +166,6 @@ ______________________________________________________________________
 <!-- related-pages:start -->
 
 **Guides** — [Real-Time Pacing & Timestamping](../guide/timing.md)
-**Design** — [The ring buffer — one contiguous view of a stream](../design/ring-buffer.md)
+**Design** — [The ring buffer — one contiguous view of a stream](../design/ring-buffer.md), [Spectrum Analyzer](../design/specan.md)
 
 <!-- related-pages:end -->

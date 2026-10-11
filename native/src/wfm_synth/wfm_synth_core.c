@@ -147,6 +147,23 @@ dp_wfm_synth_create (int type, double fs, double freq, double snr,
   return obj;
 }
 
+/* Whether this engine can run type `t`, with the polyphase shaper attached
+   or not: the one rule set_wtype and set_rrc both ask, so the two setters
+   cannot disagree (#2095). A pn/bpsk/qpsk step reads the PN source, and so
+   does the shaper for every type but symbols, bits and dsss
+   (wfm_synth_next_symbol). create() builds that source only for those
+   three types, and for dsss when its length has an MLS polynomial. */
+static int
+wfm_synth_runnable (const dp_wfm_synth_state_t *s, int t, int shaped)
+{
+  if (t < WFM_SYNTH_TONE || t > WFM_SYNTH_DSSS)
+    return 0;
+  const int reads_pn = (t >= WFM_SYNTH_PN && t <= WFM_SYNTH_QPSK)
+                       || (shaped && t != WFM_SYNTH_SYMBOLS
+                           && t != WFM_SYNTH_BITS && t != WFM_SYNTH_DSSS);
+  return !reads_pn || s->pn != NULL;
+}
+
 int
 dp_wfm_synth_set_rrc (dp_wfm_synth_state_t *state, const float *taps,
                       size_t ntaps)
@@ -158,6 +175,11 @@ dp_wfm_synth_set_rrc (dp_wfm_synth_state_t *state, const float *taps,
       && state->wtype != WFM_SYNTH_BITS && state->wtype != WFM_SYNTH_SYMBOLS
       && state->wtype != WFM_SYNTH_DSSS)
     return 0;
+  /* The shaped engine must still be runnable at its current type. Every
+     type that reaches here is (a pn-family engine always has its source),
+     so this is the same rule set_wtype applies, asked from this side. */
+  if (!wfm_synth_runnable (state, state->wtype, 1))
+    return DP_ERR_INVALID;
   if (!taps || ntaps == 0)
     return -1;
   /* Scale the (unit-energy) taps by sqrt(sps) here, in one place, so the
@@ -509,7 +531,8 @@ dp_wfm_synth_state_bytes (const dp_wfm_synth_state_t *s)
      at the checkpoint, rather than a blob that resumes the wrong data. */
   if (dp_wfm_synth_state_refusal (s))
     return 0;
-  size_t b = sizeof (dp_state_hdr_t) + sizeof (uint32_t) /* sym_pos      */
+  size_t b = sizeof (dp_state_hdr_t) + sizeof (uint32_t) /* wtype        */
+             + sizeof (uint32_t)                         /* sym_pos      */
              + 2 * sizeof (float)                        /* cur_re/im    */
              + sizeof (uint64_t)                         /* bit_idx      */
              + sizeof (uint64_t)                         /* sym_read_idx */
@@ -543,6 +566,7 @@ dp_wfm_synth_get_state (const dp_wfm_synth_state_t *s, void *blob)
     return; /* refused: state_bytes said 0 */
   DP_GET_OPEN (WFM_SYNTH_STATE_MAGIC, WFM_SYNTH_STATE_VERSION,
                dp_wfm_synth_state_bytes (s));
+  dp_w_u32 (&_w, (uint32_t)s->wtype);
   dp_w_u32 (&_w, (uint32_t)s->sym_pos);
   dp_w_f32 (&_w, &s->cur_re, 1);
   dp_w_f32 (&_w, &s->cur_im, 1);
@@ -586,6 +610,13 @@ dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
     return DP_ERR_INVALID;
   DP_SET_OPEN (WFM_SYNTH_STATE_MAGIC, WFM_SYNTH_STATE_VERSION,
                dp_wfm_synth_state_bytes (s));
+  /* The type is a mutator's value (set_wtype), so it travels. It is checked
+     with set_wtype's own predicate before anything is written; the shaper's
+     presence is the target's, since the child set is checked below. */
+  const int wt = (int)dp_r_u32 (&_r);
+  if (!wfm_synth_runnable (s, wt, s->shaper != NULL))
+    return DP_ERR_INVALID;
+  s->wtype   = wt;
   s->sym_pos = (int)dp_r_u32 (&_r);
   dp_r_f32 (&_r, &s->cur_re, 1);
   dp_r_f32 (&_r, &s->cur_im, 1);
@@ -1033,10 +1064,18 @@ dp_wfm_synth_get_wtype (const dp_wfm_synth_state_t *state)
   return state->wtype;
 }
 
-void
+int
 dp_wfm_synth_set_wtype (dp_wfm_synth_state_t *state, int val)
 {
+  /* A type no step path knows, or one whose generator create() did not
+     build: the PN/BPSK/QPSK steps read state->pn, which exists only on an
+     engine created as one of those (or as dsss), so switching a tone
+     engine to PN dereferenced NULL on the next step (#2095). Refused, with
+     the state unchanged. */
+  if (!wfm_synth_runnable (state, val, state->shaper != NULL))
+    return DP_ERR_INVALID;
   state->wtype = val;
+  return DP_OK;
 }
 
 int
@@ -1045,10 +1084,15 @@ dp_wfm_synth_get_nsps (const dp_wfm_synth_state_t *state)
   return state->nsps;
 }
 
-void
+int
 dp_wfm_synth_set_nsps (dp_wfm_synth_state_t *state, int val)
 {
+  /* The modulated step divides by nsps: 0 was a division by zero, and a
+     negative count no symbol clock can keep. Refused, state unchanged. */
+  if (val < 1)
+    return DP_ERR_INVALID;
   state->nsps = val;
+  return DP_OK;
 }
 
 int

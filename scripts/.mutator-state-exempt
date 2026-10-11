@@ -57,7 +57,6 @@ _SynthEngine.set_rrc                                    UNPROBED          hand-b
 _SynthEngine.set_symbols                                UNPROBED          hand-bound, with no stub signature to make a value from; family 4 (#2082)
 
 # -- CRASHES (1)
-_SynthEngine.set_wtype                                  CRASHES           a type create() built no generator for segfaults the next step (#2095); family 4 (#2082)
 
 # -- C_ONLY (16)
 Acquisition.dp_acq_set_surface_sink                     C_ONLY            a sink; confirm EXEMPT through the C twin (#2077)

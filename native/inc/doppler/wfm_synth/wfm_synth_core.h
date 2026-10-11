@@ -1056,18 +1056,25 @@ void dp_wfm_synth_steps(
  * Use this to inspect which synthesis path is active at runtime.
  *
  * @param state  Must be non-NULL.
- * @return Integer waveform type index (WFM_SYNTH_TONE .. WFM_SYNTH_QPSK).
+ * @return Integer waveform type index (WFM_SYNTH_TONE .. WFM_SYNTH_DSSS).
  */
 int dp_wfm_synth_get_wtype(const dp_wfm_synth_state_t *state);
 
 /**
  * @brief Override the waveform type discriminant in-place.
- * Changing wtype does not reinitialise sub-objects; use with care.
+ * Changing wtype does not reinitialise sub-objects, so a type that would
+ * read a PN source this engine lacks is refused: PN, BPSK and QPSK read it,
+ * and so does every type but symbols, bits and dsss once set_rrc has
+ * attached a shaper. create() builds the source only for PN, BPSK and QPSK,
+ * and for dsss when its length has an MLS polynomial. Raises ValueError
+ * from Python, naming which of the two refusals it is.
  *
  * @param state  Must be non-NULL.
- * @param val    New wtype value (WFM_SYNTH_TONE .. WFM_SYNTH_QPSK).
+ * @param val    New wtype value (WFM_SYNTH_TONE .. WFM_SYNTH_DSSS).
+ * @return DP_OK, or DP_ERR_INVALID with the state unchanged when @p val is
+ *         not a waveform type or reads a PN source this engine lacks.
  */
-void dp_wfm_synth_set_wtype(dp_wfm_synth_state_t *state, int val);
+int dp_wfm_synth_set_wtype(dp_wfm_synth_state_t *state, int val);
 
 /**
  * @brief Return the samples-per-symbol count.
@@ -1087,8 +1094,11 @@ int dp_wfm_synth_get_nsps(const dp_wfm_synth_state_t *state);
  *
  * @param state  Must be non-NULL.
  * @param val    New nsps value (>= 1).
+ * @return DP_OK, or DP_ERR_INVALID with the state unchanged when @p val is
+ *         below 1 (the modulated step divides by it). Raises ValueError from
+ *         Python.
  */
-void dp_wfm_synth_set_nsps(dp_wfm_synth_state_t *state, int val);
+int dp_wfm_synth_set_nsps(dp_wfm_synth_state_t *state, int val);
 
 /**
  * @brief Return the current position within the current symbol (0..nsps-1).
@@ -1160,8 +1170,9 @@ void dp_wfm_synth_set_cur_im(dp_wfm_synth_state_t *state, float val);
  * refill the blob carries it and nests the refill's own sub-blob. */
 #define WFM_SYNTH_STATE_MAGIC DP_FOURCC ('W','F','M','S')
 /* v2: + continuous-DSSS chip/symbol clocks; v3: + data_ended, the pulled
-   frame and the refill's sub-blob (doppler#1681) */
-#define WFM_SYNTH_STATE_VERSION 3u
+   frame and the refill's sub-blob (doppler#1681); v4: + wtype, a mutator's
+   value (#2095, family 4 / #2082) */
+#define WFM_SYNTH_STATE_VERSION 4u
 size_t dp_wfm_synth_state_bytes (const dp_wfm_synth_state_t *state);
 void dp_wfm_synth_get_state (const dp_wfm_synth_state_t *state, void *blob);
 int dp_wfm_synth_set_state (dp_wfm_synth_state_t *state, const void *blob);

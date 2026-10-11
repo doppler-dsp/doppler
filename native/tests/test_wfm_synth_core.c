@@ -568,9 +568,9 @@ main (void)
     dp_wfm_synth_get_state (a, blob);
     DP_CHECK (dp_wfm_synth_set_state (b, blob) == 0);
     DP_CHECK (b->sym_read_idx == a->sym_read_idx);
-    /* A v3 blob (before #2084 grew the embedded AWGN blob) has the same
-       magic and endian but version 3. Forge only the version field, on a
-       copy, so the length is right and the VERSION check alone refuses it. */
+    /* A blob with the right length and a stale version: the same magic and
+       endian, version 3. Forge only the version field, on a copy, so the
+       VERSION check is what refuses it. */
     {
       uint8_t *old = malloc (nb);
       memcpy (old, blob, nb);
@@ -578,6 +578,34 @@ main (void)
       memcpy (old + offsetof (dp_state_hdr_t, version), &v3, sizeof v3);
       DP_CHECK (dp_wfm_synth_set_state (b, old) == DP_ERR_INVALID);
       free (old);
+    }
+    /* The train case: a NOISY synth (snr below WFM_SYNTH_SNR_CLEAN) embeds
+       the AWGN child that #2084 changed, so its blob is the one a v3 blob
+       from before the change would not match. The same forged version must
+       be refused here too, with the length right. The clean blob has no
+       AWGN child, which is why it never changed length. */
+    {
+      dp_wfm_synth_state_t *clean
+          = dp_wfm_synth_create (WFM_SYNTH_SYMBOLS, 1e6, 0.0,
+                                 WFM_SYNTH_SNR_CLEAN, 0, 1, 3, 7, 0, 0, 0.0);
+      dp_wfm_synth_state_t *noisy = dp_wfm_synth_create (
+          WFM_SYNTH_SYMBOLS, 1e6, 0.0, 10.0, 0, 1, 3, 7, 0, 0, 0.0);
+      dp_wfm_synth_state_t *target = dp_wfm_synth_create (
+          WFM_SYNTH_SYMBOLS, 1e6, 0.0, 10.0, 0, 1, 3, 7, 0, 0, 0.0);
+      DP_CHECK (clean && noisy && target);
+      DP_CHECK (dp_wfm_synth_state_bytes (noisy)
+                != dp_wfm_synth_state_bytes (clean));
+      const size_t zb    = dp_wfm_synth_state_bytes (noisy);
+      uint8_t     *zblob = malloc (zb);
+      DP_REQUIRE (zblob != NULL);
+      dp_wfm_synth_get_state (noisy, zblob);
+      const uint16_t v3 = 3u;
+      memcpy (zblob + offsetof (dp_state_hdr_t, version), &v3, sizeof v3);
+      DP_CHECK (dp_wfm_synth_set_state (target, zblob) == DP_ERR_INVALID);
+      free (zblob);
+      dp_wfm_synth_destroy (clean);
+      dp_wfm_synth_destroy (noisy);
+      dp_wfm_synth_destroy (target);
     }
     dp_wfm_synth_steps (b, cont, 88); /* resume from the split */
     int ok = 1;

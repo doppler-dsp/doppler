@@ -68,6 +68,7 @@ _Second-order proportional-integral loop filter — the shared engine of every t
 |  void | [**dp\_loop\_filter\_reset**](#function-dp_loop_filter_reset) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state) <br>_Zero the integrator memory while keeping the configured gains._  |
 |  int | [**dp\_loop\_filter\_set\_state**](#function-dp_loop_filter_set_state) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, const void \* blob) <br>_Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects._  |
 |  size\_t | [**dp\_loop\_filter\_state\_bytes**](#function-dp_loop_filter_state_bytes) (const [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state) <br>_Serialized-state byte size._  |
+|  int | [**dp\_loop\_filter\_state\_ok**](#function-dp_loop_filter_state_ok) (const [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* s) <br>_Whether a stored filter is one a live filter could hold._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) double | [**dp\_loop\_filter\_step**](#function-dp_loop_filter_step) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, double x) <br>_Advance the loop one update with error_ `x` _and return the control value the tracker should apply._ |
 |  void | [**dp\_loop\_filter\_steps**](#function-dp_loop_filter_steps) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, const double \* x, double \* out, size\_t n) <br>_Filter a whole block of loop errors, returning the control value for each update._  |
 |  double | [**dp\_loop\_filter\_wn**](#function-dp_loop_filter_wn) (double bn, double zeta) <br>_Natural frequency implied by a loop bandwidth and damping._  |
@@ -446,6 +447,43 @@ size_t dp_loop_filter_state_bytes (
 
 
 
+
+<hr>
+
+
+
+### function dp\_loop\_filter\_state\_ok 
+
+_Whether a stored filter is one a live filter could hold._ 
+```C++
+int dp_loop_filter_state_ok (
+    const dp_loop_filter_state_t * s
+) 
+```
+
+
+
+For restoring a serialized filter, whose gains are taken verbatim rather than recomputed. The filter must be in the domain at its OWN bn, zeta and t ([**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok)), and carry gains that match the one gains body at that bn, zeta and t to a relative tolerance of 1e-9. The tolerance lets a blob written by another compiler restore; a forged NaN, infinite or absurd gain is refused.
+
+
+
+
+**Parameters:**
+
+
+* `s` The stored filter. 
+
+
+
+**Returns:**
+
+1 if it is one a live filter could hold, 0 otherwise. 
+
+
+
+
+
+        
 
 <hr>
 

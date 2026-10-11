@@ -69,6 +69,8 @@ typedef struct {
     int coast;               
     uint32_t held_inc;       
     dp_loop_filter_state_t held_lf; 
+    double held_bn;          
+    double held_zeta;        
     /* The steer's gain table: how the loop filter's integrator and
        proportional term reach phase_inc (cycles per sample) and code_rate
        (a ratio), set once by segments in set_segments(). ONE steer,

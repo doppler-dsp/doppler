@@ -295,7 +295,10 @@ def test_acq_handoff_verify_reject():
         # The carrier loop's, embedded through an unguarded Costas init
         # (doppler#2112).
         ({"bn_carrier": float("nan")}, "bn_carrier >= 0, finite"),
-        ({"bn_carrier": 1e200}, "bn_carrier >= 0, finite"),
+        (
+            {"bn_carrier": 1e200},
+            "bn_carrier >= 0, finite, whose loop gains come out finite",
+        ),
     ],
 )
 def test_create_refuses_a_bad_code_loop_parameter(kw, names):

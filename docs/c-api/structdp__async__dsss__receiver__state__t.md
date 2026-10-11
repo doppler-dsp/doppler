@@ -1025,7 +1025,7 @@ uint64_t dp_async_dsss_receiver_state_t::refused_hits;
 
 
 
-Observational: searching hits the seed domain refused as seeds, since create or reset. Not in the blob: a restored receiver counts from zero. 
+Searching hits the seed domain refused as seeds, since create or reset. In the blob with state\_samples, so a resumed receiver's status matches an unbroken run's. 
  
 
 

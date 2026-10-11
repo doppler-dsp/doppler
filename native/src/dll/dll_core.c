@@ -279,12 +279,7 @@ set_segments (dp_dll_state_t *s, size_t segments)
     }
 }
 
-/* The one bandwidth domain every Dll path uses (doppler#2103): bn and zeta
- * valid at t = 1, the interval create and a zero symbol period return the
- * filter to, AND at the interval `t` the loop runs at. configure, set_bn,
- * set_symbol_period and set_state all call this, so a bn accepted at an
- * interval is accepted by set_state at that interval: a live object's own
- * blob resumes. */
+/* The update interval a filter may hold (used by dll_t_ok's callers). */
 static int
 dll_t_ok (double t, size_t segments)
 {
@@ -296,6 +291,12 @@ dll_t_ok (double t, size_t segments)
              && t <= DLL_AID_MAX_PERIOD / (double)segments);
 }
 
+/* The one bandwidth domain every Dll path uses (doppler#2103): bn and zeta
+ * valid at t = 1, the interval create and a zero symbol period return the
+ * filter to, AND at the interval `t` the loop runs at. configure, set_bn,
+ * set_symbol_period and set_state all call this, so a bn accepted at an
+ * interval is accepted by set_state at that interval: a live object's own
+ * blob resumes. */
 static int
 dll_bn_zeta_ok (double bn, double zeta, double t)
 {
@@ -659,7 +660,7 @@ dp_dll_set_state (dp_dll_state_t *s, const void *blob)
     return DP_ERR_INVALID;
   if (!(t.off_chips >= 0.0 && t.off_chips < (double)t.sf))
     return DP_ERR_INVALID;
-  if (!(isfinite (t.noise_guard) && t.noise_guard >= 0.0))
+  if (!(t.noise_guard >= 0.0)) /* NaN fails the comparison */
     return DP_ERR_INVALID;
   /* The period must be one set_symbol_period would take (the predicate, not
      just finiteness): a subnormal period made inv_upd inf, then NaN, and the
@@ -791,8 +792,7 @@ dp_dll_params_ok (size_t code_len, double init_chip, double bn, double zeta,
 int
 dp_dll_symbol_period_ok (size_t segments, double partials_per_symbol)
 {
-  return segments > 1 && isfinite (partials_per_symbol)
-         && partials_per_symbol >= 2.0
+  return segments > 1 && partials_per_symbol >= 2.0 /* NaN fails this */
          && partials_per_symbol <= DLL_AID_MAX_PERIOD;
 }
 
@@ -1257,14 +1257,12 @@ set_update_period (dp_dll_state_t *s, double t)
 int
 dp_dll_set_symbol_period (dp_dll_state_t *state, double partials_per_symbol)
 {
-  /* A NaN passed both guards below and reached the ring sizing as
-     ceil(NaN) = 2^63 (doppler#2103); an infinity is no period either. */
-  if (!isfinite (partials_per_symbol))
-    return DP_ERR_INVALID;
   /* The loop's interval is checked before any buffer is freed or sized: a
      refused period must leave the aid, the lock and the filter as they were.
      Zero means "no symbol timing", so the filter goes back to t = 1. */
-  if (partials_per_symbol <= 0.0)
+  /* Exactly zero is "no symbol timing"; a negative period is invalid input and
+     goes to the predicate below, which refuses it, not to this branch. */
+  if (partials_per_symbol == 0.0)
     {
       if (!dll_bn_zeta_ok (state->bn, state->zeta, 1.0))
         return DP_ERR_INVALID;

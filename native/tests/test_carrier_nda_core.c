@@ -789,6 +789,10 @@ main (void)
     dp_carrier_nda_state_t *b
         = dp_carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 4);
     DP_CHECK (a != NULL && b != NULL);
+    /* The shared harness: determinism, the envelope reject, and the same
+       restore as below, on two create()-state objects. */
+    if (a && b)
+      DP_STATE_ROUNDTRIP_TEST (dp_carrier_nda, a, b);
     if (a && b)
       {
         float _Complex x[256], y[256];

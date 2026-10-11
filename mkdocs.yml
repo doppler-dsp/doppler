@@ -195,6 +195,7 @@ nav:
       - Measurement:
           - Measurement Suite: gallery/measure.md
           - "Measurement Suite: IMD & NPR": gallery/measure-imd-npr.md
+          - A Streaming Spectrogram: gallery/spectrogram.md
           - "Measuring an Error Rate, Defensibly": gallery/ber-awgn.md
       - Quantization & Fixed-Point:
           - ADC Quantisation: gallery/adc.md

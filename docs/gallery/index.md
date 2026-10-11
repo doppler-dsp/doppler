@@ -95,6 +95,7 @@ Those live on the [Examples](../examples/index.md) page instead.
 - [Measurement Suite](measure.md) — SNR / SINAD / THD / SFDR / ENOB from `ToneMeasure`.
 - [Measurement Suite: IMD & NPR](measure-imd-npr.md) — two-tone IMD/IM3, TOI, and notched-noise NPR.
 - [Measuring an Error Rate, Defensibly](ber-awgn.md) — `BerMeter` on AWGN: detected alignment, inverse binomial sampling, and the exact confidence interval.
+- [A Streaming Spectrogram](spectrogram.md) — a chirp and a tone as one row per 64 samples, in power and in dB, on a DC-centred axis.
 
 ## Quantization & Fixed-Point
 

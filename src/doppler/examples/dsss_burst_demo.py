@@ -404,9 +404,15 @@ fig.suptitle(
 # ── A: spectrogram ───────────────────────────────────────────────────────────
 ax = axes[0, 0]
 sg = spectrogram(burst)
-# Whole frames, plus the owed tail frame when the burst does not end on a hop.
+# Un-flushed, the count is the whole frames; flushed, it adds the owed tail.
 whole = (len(burst) - 128) // 32 + 1
 owed = (len(burst) - 128) % 32 != 0
+unflushed = (
+    Spectrogram(nfft=128, hop=32, window="hann", mode="db")
+    .push(np.asarray(burst, dtype=np.complex64))
+    .shape[0]
+)
+assert unflushed == whole, (unflushed, whole)
 assert sg.shape == (128, whole + owed), sg.shape
 # Payload columns carry the spread signal; silence columns carry noise only.
 col_mid = np.arange(sg.shape[1]) * 32 + 64
@@ -415,7 +421,8 @@ sil = col_mid >= payload_end
 gain_db = 10 * np.log10(
     np.mean(10 ** (sg[:, pay] / 10)) / np.mean(10 ** (sg[:, sil] / 10))
 )
-assert gain_db > SNR_DB / 2, (gain_db, SNR_DB)
+# The expected lift is 10*log10(1+SNR), about 18 dB; the bound is SNR_DB - 6.
+assert gain_db > SNR_DB - 6, (gain_db, SNR_DB)
 t_sg = np.linspace(0, len(burst) / FS * 1e3, sg.shape[1])
 f_sg = np.linspace(-FS / 2e3, FS / 2e3, sg.shape[0])
 ax.pcolormesh(t_sg, f_sg, sg, vmin=-50, vmax=0, cmap="magma", shading="auto")

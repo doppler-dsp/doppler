@@ -5,7 +5,9 @@ Examples
 >>> import numpy as np
 >>> from doppler.filter import MovingAverage
 >>> MovingAverage(2).steps(np.ones(3, np.complex64)).real.tolist()
-[0.5, 1.0, 1.0]"""
+[0.5, 1.0, 1.0]
+
+"""
 
 # filter/__init__.py — re-export all types from the C extension.
 import os as _os

@@ -1220,7 +1220,7 @@ static PyMethodDef PSDObj_methods[] = {
     "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1)\n"
     "    >>> obj.reset()\n" },
   { "psd_db", (PyCFunction)(void *)PSDObj_psd_db, METH_VARARGS | METH_KEYWORDS,
-    "psd_db(count=1) -> ndarray\n"
+    "psd_db(count=1) -> ndarray | None\n"
     "\n"
     "Averaged power spectrum in dB (None before any accumulate).\n"
     "\n"
@@ -1235,8 +1235,9 @@ static PyMethodDef PSDObj_methods[] = {
     "\n"
     "Returns\n"
     "-------\n"
-    "NDArray[np.float32]\n"
-    "    min(nfft, max_out), or 0 if empty.\n"
+    "NDArray[np.float32] | None\n"
+    "    min(nfft, max_out), or 0 if empty. None when the C call writes no\n"
+    "    output.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1258,7 +1259,7 @@ static PyMethodDef PSDObj_methods[] = {
     "    Output.\n" },
   { "psd_dbhz", (PyCFunction)(void *)PSDObj_psd_dbhz,
     METH_VARARGS | METH_KEYWORDS,
-    "psd_dbhz(count=1) -> ndarray\n"
+    "psd_dbhz(count=1) -> ndarray | None\n"
     "\n"
     "Averaged power spectral density in dB/Hz (None before any accumulate).\n"
     "\n"
@@ -1275,8 +1276,8 @@ static PyMethodDef PSDObj_methods[] = {
     "\n"
     "Returns\n"
     "-------\n"
-    "NDArray[np.float32]\n"
-    "    Output.\n"
+    "NDArray[np.float32] | None\n"
+    "    Output. None when the C call writes no output.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1298,7 +1299,7 @@ static PyMethodDef PSDObj_methods[] = {
     "    Output.\n" },
   { "power_twosided", (PyCFunction)(void *)PSDObj_power_twosided,
     METH_VARARGS | METH_KEYWORDS,
-    "power_twosided(count=1) -> ndarray\n"
+    "power_twosided(count=1) -> ndarray | None\n"
     "\n"
     "Averaged linear power, DC-centred two-sided (length nfft); "
     "cg^2-normalised.\n"
@@ -1314,8 +1315,9 @@ static PyMethodDef PSDObj_methods[] = {
     "\n"
     "Returns\n"
     "-------\n"
-    "NDArray[np.float32]\n"
-    "    min(nfft, max_out), or 0 if empty.\n"
+    "NDArray[np.float32] | None\n"
+    "    min(nfft, max_out), or 0 if empty. None when the C call writes no\n"
+    "    output.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1338,7 +1340,7 @@ static PyMethodDef PSDObj_methods[] = {
     "    Output.\n" },
   { "power_onesided", (PyCFunction)(void *)PSDObj_power_onesided,
     METH_VARARGS | METH_KEYWORDS,
-    "power_onesided(count=1) -> ndarray\n"
+    "power_onesided(count=1) -> ndarray | None\n"
     "\n"
     "Averaged linear power, one-sided fold (length nfft/2+1); "
     "cg^2-normalised.\n"
@@ -1354,8 +1356,9 @@ static PyMethodDef PSDObj_methods[] = {
     "\n"
     "Returns\n"
     "-------\n"
-    "NDArray[np.float32]\n"
-    "    min(nfft/2 + 1, max_out), or 0 if empty.\n"
+    "NDArray[np.float32] | None\n"
+    "    min(nfft/2 + 1, max_out), or 0 if empty. None when the C call\n"
+    "    writes no output.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1378,7 +1381,7 @@ static PyMethodDef PSDObj_methods[] = {
     "    Output.\n" },
   { "band_power", (PyCFunction)(void *)PSDObj_band_power,
     METH_VARARGS | METH_KEYWORDS,
-    "band_power(bands, out) -> ndarray\n"
+    "band_power(bands, out) -> ndarray | None\n"
     "\n"
     "Integrated power per band in dB; bands = [lo0,hi0,lo1,hi1,...] Hz. None "
     "when there is nothing to report: before any accumulate, or no complete "
@@ -1393,9 +1396,10 @@ static PyMethodDef PSDObj_methods[] = {
     "\n"
     "Returns\n"
     "-------\n"
-    "NDArray[np.float32]\n"
+    "NDArray[np.float32] | None\n"
     "    The number of bands written, min(n_bands, max_out); 0 (Python None)\n"
-    "    when there is nothing to report.\n"
+    "    when there is nothing to report. None when the C call writes no\n"
+    "    output.\n"
     "\n"
     "Examples\n"
     "--------\n"

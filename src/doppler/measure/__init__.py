@@ -7,7 +7,9 @@ Examples
 >>> tm = ToneMeasure(n=4096, fs=1.024e6)
 >>> x = np.cos(2 * np.pi * 200 / 4096 * np.arange(4096)).astype(np.float32)
 >>> bool(tm.analyze(x).enob > 10)
-True"""
+True
+
+"""
 
 # measure/__init__.py — re-export all types from the C extension.
 import os as _os

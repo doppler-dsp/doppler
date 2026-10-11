@@ -469,7 +469,7 @@ static PyMethodDef Corr2DObj_methods[] = {
 
   { "execute", (PyCFunction)(void *)Corr2DObj_execute,
     METH_VARARGS | METH_KEYWORDS,
-    "execute(x, out) -> ndarray\n"
+    "execute(x, out) -> ndarray | None\n"
     "\n"
     "Correlate one 2-D frame and optionally dump the coherent\n"
     "accumulator. Runs the 2-D pipeline: FFT2 → pointwise multiply with\n"
@@ -491,11 +491,11 @@ static PyMethodDef Corr2DObj_methods[] = {
     "\n"
     "Returns\n"
     "-------\n"
-    "NDArray[np.complex64]\n"
+    "NDArray[np.complex64] | None\n"
     "    ny*nx on a dump (or max_out if smaller), 0 otherwise If n_in is not\n"
     "    the required length the call is REFUSED with nothing read, written\n"
     "    or counted: SIZE_MAX in C, ValueError in Python (#1925). (None in\n"
-    "    Python).\n"
+    "    Python). None when the C call writes no output.\n"
     "\n"
     "Raises\n"
     "------\n"

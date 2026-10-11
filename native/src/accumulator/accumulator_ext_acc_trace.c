@@ -440,7 +440,7 @@ static PyMethodDef AccTraceObj_methods[] = {
     "0\n" },
   { "value", (PyCFunction)(void *)AccTraceObj_value,
     METH_VARARGS | METH_KEYWORDS,
-    "value(count=1) -> ndarray\n"
+    "value(count=1) -> ndarray | None\n"
     "\n"
     "Copy the current averaged trace (None before any accumulate).\n"
     "\n"
@@ -455,8 +455,9 @@ static PyMethodDef AccTraceObj_methods[] = {
     "\n"
     "Returns\n"
     "-------\n"
-    "NDArray[np.float32]\n"
-    "    min(n, max_out) samples, or 0 if empty.\n"
+    "NDArray[np.float32] | None\n"
+    "    min(n, max_out) samples, or 0 if empty. None when the C call writes\n"
+    "    no output.\n"
     "\n"
     "Examples\n"
     "--------\n"

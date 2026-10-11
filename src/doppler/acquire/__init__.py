@@ -7,7 +7,9 @@ Examples
 >>> ca = CarrierAcquisition(sample_rate_hz=8000.0, symbol_rate_hz=1000.0,
 ...                          resolution_hz=5.0)
 >>> ca.ready()
-False"""
+False
+
+"""
 
 # acquire/__init__.py — re-export all types from the C extension.
 import os as _os

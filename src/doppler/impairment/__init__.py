@@ -6,7 +6,9 @@ Examples
 >>> from doppler.impairment import DopplerChannel
 >>> ch = DopplerChannel(fs=1e6, carrier_hz=1e5, doppler_ppm=10.0)
 >>> bool(ch.execute(np.ones(64, np.complex64)).size > 0)
-True"""
+True
+
+"""
 
 # impairment/__init__.py — re-export all types from the C extension.
 import os as _os

@@ -468,7 +468,7 @@ static PyMethodDef SpecanObj_methods[] = {
 
   { "execute", (PyCFunction)(void *)SpecanObj_execute,
     METH_VARARGS | METH_KEYWORDS,
-    "execute(x, out) -> ndarray\n"
+    "execute(x, out) -> ndarray | None\n"
     "\n"
     "Mix, decimate, average; return one DC-centred dB display frame, or "
     "None.\n"
@@ -488,8 +488,9 @@ static PyMethodDef SpecanObj_methods[] = {
     "\n"
     "Returns\n"
     "-------\n"
-    "NDArray[np.float32]\n"
-    "    Display bins written (disp_n), or 0 if no frame is ready yet.\n"
+    "NDArray[np.float32] | None\n"
+    "    Display bins written (disp_n), or 0 if no frame is ready yet. None\n"
+    "    when the C call writes no output.\n"
     "\n"
     "Examples\n"
     "--------\n"

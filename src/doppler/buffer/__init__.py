@@ -8,7 +8,9 @@ Examples
 >>> b.write(np.ones(4, np.complex64))
 True
 >>> b.wait(4).shape
-(4,)"""
+(4,)
+
+"""
 
 # buffer/__init__.py — re-export all types from the C extension.
 import os as _os

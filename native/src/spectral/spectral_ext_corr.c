@@ -410,7 +410,7 @@ static PyMethodDef CorrObj_methods[] = {
 
   { "execute", (PyCFunction)(void *)CorrObj_execute,
     METH_VARARGS | METH_KEYWORDS,
-    "execute(x, out) -> ndarray\n"
+    "execute(x, out) -> ndarray | None\n"
     "\n"
     "Correlate one frame and optionally dump the coherent accumulator.\n"
     "Runs: forward FFT → pointwise multiply with ref_spec → accumulate the\n"
@@ -433,11 +433,11 @@ static PyMethodDef CorrObj_methods[] = {
     "\n"
     "Returns\n"
     "-------\n"
-    "NDArray[np.complex64]\n"
+    "NDArray[np.complex64] | None\n"
     "    n_out on a dump call (or max_out if smaller), 0 otherwise If n_in\n"
     "    is not the required length the call is REFUSED with nothing read,\n"
     "    written or counted: SIZE_MAX in C, ValueError in Python (#1925).\n"
-    "    (None in Python).\n"
+    "    (None in Python). None when the C call writes no output.\n"
     "\n"
     "Raises\n"
     "------\n"

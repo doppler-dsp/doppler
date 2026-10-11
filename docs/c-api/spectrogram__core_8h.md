@@ -187,7 +187,7 @@ dp_spectrogram_state_t * dp_spectrogram_create (
 * `hop` Samples between row starts, 1 &lt;= hop &lt;= nfft. hop == nfft tiles the stream; hop &lt; nfft overlaps the frames. 
 * `window` The window: "hann", "kaiser", "blackman-harris" or "rect" in Python; in C the index 0, 1, 2 or 3 in that order, as [**dp\_psd\_create()**](psd__core_8h.md#function-dp_psd_create) takes it. It also refuses a window that sums to zero at this nfft (the symmetric Hann at nfft = 2). 
 * `beta` Kaiser beta (ignored for the other windows). 
-* `mode` DP\_SPECTROGRAM\_POWER (linear rows, the default, 0) or DP\_SPECTROGRAM\_DB (dBFS rows, 1); any other value is refused. Pass it by name: `make lint` refuses an integer literal here. 
+* `mode` Row units: "power" (linear rows, the default) or "db" (dBFS rows, asked for by name). Any other value is refused. 
 
 
 
@@ -449,7 +449,7 @@ Only whole rows are written. A C caller bounds the write with `max_out` and take
 
 **Returns:**
 
-In C, the floats written: a multiple of nfft, at most the room the push\_max\_out count gives for n\_in. In Python, the completed rows as a (rows, nfft) matrix, or None when there are none. 
+Floats written, a multiple of nfft. From Python, the completed rows as a (rows, nfft) matrix, or None when none is completed. 
 
 
 

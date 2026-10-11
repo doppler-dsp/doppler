@@ -235,7 +235,7 @@ test_matched_recovers_symbols (void)
 
   DP_CHECK (best < -40.0); /* measured -45.4 dB (CIC(8) alias floor) */
   if (best >= -40.0)
-    fprintf (stderr, "  matched DDC EVM: %.1f dB\n", best);
+    DP_TEST_ERR ("  matched DDC EVM: %.1f dB\n", best);
 }
 
 /* The carrier port closes. A tone 0.01 cycles/sample away from where the LO

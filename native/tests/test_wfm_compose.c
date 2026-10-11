@@ -5859,7 +5859,7 @@ main (void)
     DP_CHECK_MSG (strcmp (got, want) == 0,
                   "a record's bytes: keys in table order, each JSON policy");
     if (strcmp (got, want) != 0)
-      (void)fprintf (stderr, "got:\n%s\n", got);
+      (void)DP_TEST_ERR ("got:\n%s\n", got);
     free (got);
   }
 

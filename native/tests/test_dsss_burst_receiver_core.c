@@ -1034,15 +1034,14 @@ test_acq_saturation_does_not_lose_bursts (void)
   if (dp_dsss_burst_receiver_get_dropped (s) != 0)
     {
       const dp_burst_capture_state_t *c = s->cap;
-      fprintf (stderr,
-               "  dropped=%llu cap=%zu retain=%zu chunk_max=%zu period=%zu"
-               " burst_len=%zu detections=%zu events=%zu pending=%zu"
-               " theta=%g\n",
-               (unsigned long long)dp_dsss_burst_receiver_get_dropped (s),
-               (size_t)c->hist->capacity, (size_t)c->retain_span,
-               (size_t)c->chunk_max, (size_t)c->code_period,
-               (size_t)s->burst_len, (size_t)c->det_len, n_ev,
-               (size_t)c->pending, (double)c->acq->engine->threshold);
+      DP_TEST_ERR ("  dropped=%llu cap=%zu retain=%zu chunk_max=%zu period=%zu"
+                   " burst_len=%zu detections=%zu events=%zu pending=%zu"
+                   " theta=%g\n",
+                   (unsigned long long)dp_dsss_burst_receiver_get_dropped (s),
+                   (size_t)c->hist->capacity, (size_t)c->retain_span,
+                   (size_t)c->chunk_max, (size_t)c->code_period,
+                   (size_t)s->burst_len, (size_t)c->det_len, n_ev,
+                   (size_t)c->pending, (double)c->acq->engine->threshold);
     }
 
   free (evs);

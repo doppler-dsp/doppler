@@ -1382,6 +1382,31 @@ main (void)
       dp_wfm_synth_steps (ds, out, 16);
       dp_wfm_synth_destroy (ds);
     }
+    /* The type travels in the blob (#2095, family 4): a type set_wtype
+       accepted is the type a restore gives, and a blob naming a type the
+       target cannot run is refused with the target unchanged. The forged word
+       is the first payload word, the one wtype is written to. */
+    {
+      dp_wfm_synth_state_t *src = dp_wfm_synth_create (
+          WFM_SYNTH_TONE, 1e6, 1e3, 100.0, 1, 5, 4, 7, 0, 0, 0.0);
+      dp_wfm_synth_state_t *dst = dp_wfm_synth_create (
+          WFM_SYNTH_TONE, 1e6, 1e3, 100.0, 1, 5, 4, 7, 0, 0, 0.0);
+      DP_REQUIRE_MSG (src != NULL && dst != NULL, "wtype blob: create");
+      DP_CHECK (dp_wfm_synth_set_wtype (src, WFM_SYNTH_CHIRP) == DP_OK);
+      void *blob = malloc (dp_wfm_synth_state_bytes (src));
+      DP_REQUIRE_MSG (blob != NULL, "wtype blob: alloc");
+      dp_wfm_synth_get_state (src, blob);
+      DP_CHECK (dp_wfm_synth_set_state (dst, blob) == DP_OK);
+      DP_CHECK (dp_wfm_synth_get_wtype (dst) == WFM_SYNTH_CHIRP);
+      uint32_t forged = (uint32_t)WFM_SYNTH_PN;
+      memcpy ((uint8_t *)blob + sizeof (dp_state_hdr_t), &forged,
+              sizeof forged);
+      DP_CHECK (dp_wfm_synth_set_state (dst, blob) == DP_ERR_INVALID);
+      DP_CHECK (dp_wfm_synth_get_wtype (dst) == WFM_SYNTH_CHIRP);
+      free (blob);
+      dp_wfm_synth_destroy (src);
+      dp_wfm_synth_destroy (dst);
+    }
     DP_CHECK (dp_wfm_synth_get_nsps (ac) == 4);
     DP_CHECK (dp_wfm_synth_set_wtype (ac, WFM_SYNTH_BPSK) == DP_OK);
     DP_CHECK (dp_wfm_synth_get_wtype (ac) == WFM_SYNTH_BPSK);

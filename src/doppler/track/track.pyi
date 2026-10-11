@@ -1092,10 +1092,11 @@ class Dll:
         detection.det_n_noncoh over L * (sf * sps / segments) samples. Only the
         detector's looks change: the discriminator keeps its per-epoch window
         and the emitted partial stream is untouched. Raises ValueError when
-        segments <= 1, or the period is not finite, is in (0, 2) or is past
-        2^20 partials, or when the bandwidth's loop gains would overflow at the
-        period's interval or at t = 1 (the bandwidth domain). Any finite period
-        <= 0 turns the aid off (-inf used to as well, and is refused now).
+        segments <= 1, or the period is not finite, is negative, is in (0, 2)
+        or is past 2^20 partials, or when the bandwidth's loop gains would
+        overflow at the period's interval or at t = 1 (the bandwidth domain).
+        Exactly 0 turns the aid off; a negative period is refused, not taken as
+        0.
 
         In `segments > 1` mode every partial is a look for the code-lock
         detector (dp_dll_configure_lock()) and the discriminator sees one epoch

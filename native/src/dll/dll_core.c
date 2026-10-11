@@ -279,7 +279,10 @@ set_segments (dp_dll_state_t *s, size_t segments)
     }
 }
 
-/* The update interval a filter may hold (used by dll_t_ok's callers). */
+/* The update interval domain: a filter's t must be 1 (the create default and
+ * the zero symbol period), or lie in the aided range. A symbol holds 2 to
+ * 2^20 partials, and t is the update period in symbols, so t = partials /
+ * segments lies in [2 / segments, 2^20 / segments]. */
 static int
 dll_t_ok (double t, size_t segments)
 {
@@ -1257,11 +1260,11 @@ set_update_period (dp_dll_state_t *s, double t)
 int
 dp_dll_set_symbol_period (dp_dll_state_t *state, double partials_per_symbol)
 {
-  /* The loop's interval is checked before any buffer is freed or sized: a
-     refused period must leave the aid, the lock and the filter as they were.
-     Zero means "no symbol timing", so the filter goes back to t = 1. */
-  /* Exactly zero is "no symbol timing"; a negative period is invalid input and
-     goes to the predicate below, which refuses it, not to this branch. */
+  /* Exactly zero means "no symbol timing", so the filter goes back to t = 1.
+     A negative period is invalid input: it goes to the predicate below, which
+     refuses it, not to this branch. The loop's interval is checked before any
+     buffer is freed or sized: a refused period must leave the aid, the lock
+     and the filter as they were. */
   if (partials_per_symbol == 0.0)
     {
       if (!dll_bn_zeta_ok (state->bn, state->zeta, 1.0))

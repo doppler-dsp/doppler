@@ -327,7 +327,10 @@ bad_floats_are_refused (void)
   dp_dll_state_t *d = dp_dll_create (code, 31, 2, 0.0, 0.01, 0.707, 0.5, 4);
   if (!d)
     return fails + 1;
-  const double periods[] = { NAN, INFINITY, -INFINITY, 1048576.0 + 1.0 };
+  /* A negative period is refused, not taken as zero: -1.0 and a tiny negative
+     are both the case the zero branch used to swallow. */
+  const double periods[]
+      = { NAN, INFINITY, -INFINITY, -1.0, -1e-300, 1048576.0 + 1.0 };
   for (int pass = 0; pass < 2; pass++)
     {
       const double held = d->sym_period;

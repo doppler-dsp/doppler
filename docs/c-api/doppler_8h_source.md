@@ -86,6 +86,8 @@
 
 #include "doppler/psd/psd_core.h"
 
+#include "doppler/spectrogram/spectrogram_core.h"
+
 #include "doppler/tonemeas/tonemeas_core.h"
 
 #include "doppler/nprmeas/nprmeas_core.h"

@@ -2188,6 +2188,408 @@ class PSD:
             Traceback object, or None. Ignored.
         """
 
+@final
+class Spectrogram:
+    """Create a streaming spectrogram.
+
+    Parameters
+    ----------
+    nfft : int, default 256
+        Samples per frame and bins per row, which must be the same number: an
+        nfft the PSD would zero-pad to a longer transform (anything but a power
+        of two >= 2) is refused rather than given rows wider than its frames.
+    hop : int, default 256
+        Samples between row starts, 1 <= hop <= nfft. hop == nfft tiles the
+        stream; hop < nfft overlaps the frames.
+    window : Literal["hann", "kaiser", "blackman-harris", "rect"], default "hann"
+        0 = Hann, 1 = Kaiser, 2 = Blackman-Harris, 3 = rectangular, as
+        dp_psd_create(), which also refuses a window that sums to zero at this
+        nfft (the symmetric Hann at nfft = 2).
+    beta : float, default 0.0
+        Kaiser beta (ignored for the other windows).
+    mode : Literal["power", "db"], default "power"
+        DP_SPECTROGRAM_POWER (linear rows, the default, 0) or DP_SPECTROGRAM_DB
+        (dBFS rows, 1); any other value is refused. Pass it by name: `make
+        lint` refuses an integer literal here.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``Spectrogram: invalid
+        parameter (need 1 <= hop <= nfft, nfft within the largest transform, a
+        window the PSD accepts, and mode power or db)``.
+
+    Examples
+    --------
+    // nfft 1024, a row every 256 samples (75% overlap), Blackman-Harris,
+    // power rows (the default), DC-centred
+    dp_spectrogram_state_t *s
+        = dp_spectrogram_create (1024, 256, 2, 0.0f, DP_SPECTROGRAM_POWER);
+    // the same rows in dBFS, asked for by name
+    dp_spectrogram_state_t *d
+        = dp_spectrogram_create (1024, 256, 2, 0.0f, DP_SPECTROGRAM_DB);
+    if (!s || !d)
+      return 1;
+    // refused: 1000 is not a power of two, a hop may not exceed nfft, and
+    // a mode is one of the two
+    const int not_a_mode = DP_SPECTROGRAM_DB + 1;
+    if (dp_spectrogram_create (1000, 256, 2, 0.0f, DP_SPECTROGRAM_POWER)
+        || dp_spectrogram_create (1024, 2048, 2, 0.0f, DP_SPECTROGRAM_POWER)
+        || dp_spectrogram_create (1024, 256, 2, 0.0f, not_a_mode))
+      return 1;
+    dp_spectrogram_destroy (d);
+    dp_spectrogram_destroy (s);
+    >>> import numpy as np
+    >>> from doppler.spectral import Spectrogram
+    >>> sp = Spectrogram(nfft=1024, hop=256, window="blackman-harris")
+    >>> rows = sp.push(np.ones(1024 + 256, np.complex64))
+    >>> rows.shape
+    (2, 1024)
+
+    """
+
+    def __init__(
+        self,
+        nfft: int = 256,
+        hop: int = 256,
+        window: Literal["hann", "kaiser", "blackman-harris", "rect"] = "hann",
+        beta: float = 0.0,
+        mode: Literal["power", "db"] = "power",
+    ) -> None: ...
+    def push(
+        self,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.float32] | None = None,
+    ) -> NDArray[np.float32] | None:
+        """Push input, write every whole row it completes that fits.
+
+        Takes the input in order and writes row after row into out, each nfft
+        floats, until either the input is used up or the next row is due and
+        out has no room for it. Only whole rows are written: a max_out that is
+        not a multiple of nfft uses floor(max_out / nfft) rows of it, and an
+        out too small for one row writes nothing.
+
+        A short out never loses input. A sample is taken unless taking it would
+        complete a row out has no room for: the framer's feed contract
+        (DECLARE_DP_BUFFER_FRAMES) applied to rows. dp_spectrogram_consumed()
+        reports how many were taken, and the caller offers the rest again.
+        Taken input that does not yet complete a row is the carry, held inside:
+        fewer than nfft samples once this returns. So input that completes no
+        row is always taken whole, even with max_out 0.
+
+        Parameters
+        ----------
+        x : npt.NDArray[np.complex64]
+            Input.
+        out : npt.NDArray[np.float32] | None
+            Rows, row-major, nfft floats each.
+
+        Returns
+        -------
+        NDArray[np.float32] | None
+            Floats written: a multiple of nfft, at most
+            dp_spectrogram_push_max_out(s, n_in). None when the C call writes
+            no output.
+
+        Examples
+        --------
+        // nfft 8, hop 4, rectangular, power: a unit tone on bin 2
+        dp_spectrogram_state_t *s
+            = dp_spectrogram_create (8, 4, 3, 0.0f, DP_SPECTROGRAM_POWER);
+        float _Complex x[16];
+        for (int i = 0; i < 16; i++)
+          x[i] = cexpf (I * 2.0f * 3.14159265f * 2.0f * (float)i / 8.0f);
+        float rows[3 * 8];
+        size_t got = dp_spectrogram_push (s, x, 16, rows, 3 * 8);
+        // 16 samples at hop 4 complete the rows starting at 0, 4 and 8
+        if (got != 3 * 8 || dp_spectrogram_consumed (s) != 16)
+          return 1;
+        if (fabsf (rows[4 + 2] - 1.0f) > 1e-4f) // bin 2 reads 1.0, at nfft/2 + 2
+          return 1;
+        dp_spectrogram_destroy (s);
+        >>> import numpy as np
+        >>> from doppler.spectral import Spectrogram
+        >>> sp = Spectrogram(nfft=8, hop=8, window="rect")
+        >>> rows = sp.push(np.ones(20, np.complex64))
+        >>> rows.shape
+        (2, 8)
+        >>> sp.consumed, sp.pending
+        (20, 4)
+
+        """
+
+    def push_max_out(self, n_in: int) -> int:
+        """Floats one push of n_in samples writes when out has room:
+        dp_spectrogram_rows_for(s, n_in) * nfft.
+
+        The capacity that makes a push take ALL of its input. Saturates at
+
+        SIZE_MAX rather than wrapping.
+
+        Parameters
+        ----------
+        n_in : int
+            Samples about to be pushed.
+
+        Returns
+        -------
+        int
+            Output.
+
+        Examples
+        --------
+        dp_spectrogram_state_t *s
+            = dp_spectrogram_create (8, 4, 3, 0.0f, DP_SPECTROGRAM_POWER);
+        float _Complex x[16] = { 0 };
+        float out[2 * 8];
+        // 3 samples complete no row: no room is needed, and they are taken
+        if (dp_spectrogram_push_max_out (s, 3) != 0)
+          return 1;
+        dp_spectrogram_push (s, x, 3, out, 0);
+        if (dp_spectrogram_consumed (s) != 3)
+          return 1;
+        // 3 carried + 9 more = 12 samples: the rows starting at 0 and at 4
+        size_t room = dp_spectrogram_push_max_out (s, 9);
+        if (room != 2 * 8 || dp_spectrogram_push (s, x, 9, out, room) != room
+            || dp_spectrogram_consumed (s) != 9)
+          return 1;
+        dp_spectrogram_destroy (s);
+
+        """
+
+    def flush(self, row: npt.NDArray[np.float32]) -> int:
+        """End the stream: write the one zero-padded row it still owes, if any.
+
+        The row sits on the hop grid: it starts at the next row start k*hop,
+        never at the first sample no row covered, so it is the row a one-shot
+        push of the input zero-padded to that row's end would have written. It
+        is written if and only if the stream holds a sample no earlier row
+        covered. Either way the spectrogram then restarts at sample 0, as after
+        reset, so a second flush writes nothing.
+
+        Parameters
+        ----------
+        row : npt.NDArray[np.float32]
+            Room for nfft floats.
+
+        Returns
+        -------
+        int
+            Floats written: nfft, or 0 if no row was owed or row_len is less
+            than nfft.
+
+        Examples
+        --------
+        dp_spectrogram_state_t *s
+            = dp_spectrogram_create (8, 4, 3, 0.0f, DP_SPECTROGRAM_POWER);
+        dp_spectrogram_state_t *t
+            = dp_spectrogram_create (8, 4, 3, 0.0f, DP_SPECTROGRAM_POWER);
+        if (!s || !t)
+          return 1;
+        float _Complex x[10], tail[8] = { 0 };
+        for (int i = 0; i < 10; i++)
+          x[i] = (float)(i + 1);
+        float row[8], last[8], want[8];
+        // 10 samples: one row, [0, 8); samples 8 and 9 no row has covered
+        dp_spectrogram_push (s, x, 10, row, 8);
+        if (dp_spectrogram_pending (s) != 2)
+          return 1;
+        // the owed row starts on the hop grid, at 4 (not at 8): x[4..10), zeros
+        if (dp_spectrogram_flush (s, last, 8) != 8)
+          return 1;
+        memcpy (tail, x + 4, 6 * sizeof *x);      // the same frame, pushed whole
+        if (dp_spectrogram_push (t, tail, 8, want, 8) != 8
+            || memcmp (last, want, sizeof want) != 0)
+          return 1;
+        if (dp_spectrogram_flush (s, last, 8) != 0)  // the stream is over
+          return 1;
+        dp_spectrogram_destroy (t);
+        dp_spectrogram_destroy (s);
+        >>> import numpy as np
+        >>> from doppler.spectral import Spectrogram
+        >>> sp = Spectrogram(nfft=8, hop=8, window="rect")
+        >>> _ = sp.push(np.ones(11, np.complex64))
+        >>> row = np.empty(8, np.float32)
+        >>> sp.flush(row)
+        8
+        >>> sp.flush(row)
+        0
+
+        """
+
+    def rows_for(self, n_in: int) -> int:
+        """Rows a push of n_in more samples completes, given the carry: exact,
+        not an estimate.
+
+        The carry plus n_in samples, cut into frames of nfft at the hop. A push
+        with room for this many rows writes exactly this many and takes all of
+        n_in.
+
+        Parameters
+        ----------
+        n_in : int
+            Samples about to be pushed.
+
+        Returns
+        -------
+        int
+            Output.
+
+        Examples
+        --------
+        dp_spectrogram_state_t *s
+            = dp_spectrogram_create (8, 2, 3, 0.0f, DP_SPECTROGRAM_POWER);
+        if (dp_spectrogram_rows_for (s, 7) != 0      // less than a frame
+            || dp_spectrogram_rows_for (s, 8) != 1
+            || dp_spectrogram_rows_for (s, 100) != 47) // (100 - 8) / 2 + 1
+          return 1;
+        dp_spectrogram_destroy (s);
+        >>> from doppler.spectral import Spectrogram
+        >>> sp = Spectrogram(nfft=8, hop=2)
+        >>> sp.rows_for(7), sp.rows_for(8), sp.rows_for(100)
+        (0, 1, 47)
+
+        """
+
+    def reset(self) -> None:
+        """Forget the stream: drop the carry and restart at sample 0.
+
+        The next row covers samples [0, nfft) of whatever is pushed next.
+        dp_spectrogram_consumed() and dp_spectrogram_pending() read 0.
+        Configuration is kept.
+
+        Examples
+        --------
+        dp_spectrogram_state_t *s
+            = dp_spectrogram_create (8, 8, 3, 0.0f, DP_SPECTROGRAM_POWER);
+        float _Complex x[5] = { 0 };
+        float row[8];
+        dp_spectrogram_push (s, x, 5, row, 8);   // 5 samples of carry, no row
+        if (dp_spectrogram_pending (s) != 5)
+          return 1;
+        dp_spectrogram_reset (s);                 // the carry is gone
+        if (dp_spectrogram_pending (s) != 0)
+          return 1;
+        dp_spectrogram_destroy (s);
+        >>> import numpy as np
+        >>> from doppler.spectral import Spectrogram
+        >>> sp = Spectrogram(nfft=8, hop=8)
+        >>> _ = sp.push(np.ones(5, np.complex64))
+        >>> sp.pending
+        5
+        >>> sp.reset()
+        >>> sp.pending
+        0
+
+        """
+
+    def state_bytes(self) -> int:
+        """Size in bytes of this object's serialized state.
+
+        The exact length `get_state` returns and `set_state` requires. It
+        depends on how the object was constructed (state arrays are sized at
+        construction), so read it from the instance rather than assuming a
+        constant.
+
+        Raises ``RuntimeError`` if the Spectrogram has already been destroyed.
+
+        Returns
+        -------
+        int
+            Byte length of one serialized state blob.
+        """
+
+    def get_state(self) -> bytes:
+        """Serialize this object's mutable state to bytes.
+
+        Captures exactly the state that evolves as the object runs, so a blob
+        taken now and restored later resumes from this point. Construction
+        parameters are not included: restore into an object built the same way.
+
+        The blob is opaque and always `state_bytes()` long. Its layout is an
+        implementation detail of the C core and is not a stable format across
+        builds.
+
+        Raises ``RuntimeError`` if the Spectrogram has already been destroyed.
+
+        Returns
+        -------
+        bytes
+            Opaque snapshot, `state_bytes()` bytes long.
+        """
+
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a `get_state()` blob.
+
+        Overwrites the live state in place; the object keeps the parameters it
+        was constructed with. Length is validated against `state_bytes()`
+        before the blob is handed to the C core, and the core may reject it as
+        well.
+
+        Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
+        length differs from `state_bytes()` or the core rejects it, and
+        ``RuntimeError`` if the Spectrogram has already been destroyed.
+
+        Parameters
+        ----------
+        blob : bytes
+            A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
+
+    @property
+    def consumed(self) -> int:
+        """Input samples the last push took (the `consumed` property)."""
+
+    @property
+    def pending(self) -> int:
+        """Samples carried toward the next row (the `pending` property)."""
+
+    def destroy(self) -> None:
+        """Release the underlying C resources immediately.
+
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on
+        exit.
+
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
+        """
+
+    def __enter__(self) -> "Spectrogram":
+        """Enter a context manager, returning this object.
+
+        Lets a Spectrogram be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        Spectrogram
+            This same object, not a copy.
+        """
+
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
+        """Exit a context manager, releasing the Spectrogram.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
+
 def kaiser_enbw(w: npt.NDArray[np.float32]) -> float:
     """Compute the equivalent noise bandwidth of a window in bins. ENBW = N
     * sum(w²) / (sum(w))² quantifies how many noise bins the window smears

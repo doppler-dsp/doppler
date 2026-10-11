@@ -1848,7 +1848,7 @@ Examples
 True
 
 """
-objects = ["fft", "fft2d", "corr", "corr2d", "detector", "detector2d", "psd"]
+objects = ["fft", "fft2d", "corr", "corr2d", "detector", "detector2d", "psd", "spectrogram"]
 # psd_core composes acc_trace_core (the AccTrace averager); its OBJECT symbols
 # are linked into the spectral .so via psd.toml's depends_on link=true (gh-225).
 

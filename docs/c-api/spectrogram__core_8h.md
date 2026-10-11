@@ -64,7 +64,9 @@ _Streaming spectrogram: a stream of any-size chunks in, rows of nfft-bin spectra
 |  size\_t | [**dp\_spectrogram\_consumed**](#function-dp_spectrogram_consumed) (const [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s) <br>_Input samples the last_ [_**dp\_spectrogram\_push()**_](spectrogram__core_8h.md#function-dp_spectrogram_push) _took._ |
 |  [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* | [**dp\_spectrogram\_create**](#function-dp_spectrogram_create) (size\_t nfft, size\_t hop, int window, float beta, int mode) <br>_Create a streaming spectrogram._  |
 |  void | [**dp\_spectrogram\_destroy**](#function-dp_spectrogram_destroy) ([**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s) <br>_Release a spectrogram and everything it owns._  |
-|  size\_t | [**dp\_spectrogram\_flush**](#function-dp_spectrogram_flush) ([**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s, float \* row) <br>_End the stream: write the one zero-padded row it still owes, if any._  |
+|  size\_t | [**dp\_spectrogram\_flush**](#function-dp_spectrogram_flush) ([**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s, float \* row, size\_t row\_len) <br>_End the stream: write the one zero-padded row it still owes, if any._  |
+|  size\_t | [**dp\_spectrogram\_get\_consumed**](#function-dp_spectrogram_get_consumed) (const [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* state) <br>_Input samples the last push took (the_ `consumed` _property)._ |
+|  size\_t | [**dp\_spectrogram\_get\_pending**](#function-dp_spectrogram_get_pending) (const [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* state) <br>_Samples carried toward the next row (the_ `pending` _property)._ |
 |  void | [**dp\_spectrogram\_get\_state**](#function-dp_spectrogram_get_state) (const [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s, void \* blob) <br>_Serialize the stream position into_ `blob` _._ |
 |  size\_t | [**dp\_spectrogram\_pending**](#function-dp_spectrogram_pending) (const [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s) <br>_Samples pushed that no written row has covered yet._  |
 |  size\_t | [**dp\_spectrogram\_push**](#function-dp_spectrogram_push) ([**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s, const float \_Complex \* in, size\_t n\_in, float \* out, size\_t max\_out) <br>_Push input, write every whole row it completes that fits._  |
@@ -239,6 +241,18 @@ if (dp_spectrogram_create (1000, 256, 2, 0.0f, DP_SPECTROGRAM_POWER)
 dp_spectrogram_destroy (d);
 dp_spectrogram_destroy (s);
 ```
+
+
+
+
+```C++
+>>> import numpy as np
+>>> from doppler.spectral import Spectrogram
+>>> sp = Spectrogram(nfft=1024, hop=256, window="blackman-harris")
+>>> rows = sp.push(np.ones(1024 + 256, np.complex64))
+>>> rows.shape
+(2, 1024)
+```
  
 
 
@@ -290,7 +304,8 @@ _End the stream: write the one zero-padded row it still owes, if any._
 ```C++
 size_t dp_spectrogram_flush (
     dp_spectrogram_state_t * s,
-    float * row
+    float * row,
+    size_t row_len
 ) 
 ```
 
@@ -306,12 +321,13 @@ The row sits on the hop grid: it starts at the next row start k\*hop, never at t
 
 * `s` Must be non-NULL. 
 * `row` Room for nfft floats. 
+* `row_len` Floats of room in `row`. Less than nfft is refused: 0 is returned and the owed frame stays owed for a retry. 
 
 
 
 **Returns:**
 
-Floats written: nfft, or 0 if no row was owed.
+Floats written: nfft, or 0 if no row was owed or `row_len` is less than nfft.
 
 
 
@@ -331,18 +347,107 @@ dp_spectrogram_push (s, x, 10, row, 8);
 if (dp_spectrogram_pending (s) != 2)
   return 1;
 // the owed row starts on the hop grid, at 4 (not at 8): x[4..10), zeros
-if (dp_spectrogram_flush (s, last) != 8)
+if (dp_spectrogram_flush (s, last, 8) != 8)
   return 1;
 memcpy (tail, x + 4, 6 * sizeof *x);      // the same frame, pushed whole
 if (dp_spectrogram_push (t, tail, 8, want, 8) != 8
     || memcmp (last, want, sizeof want) != 0)
   return 1;
-if (dp_spectrogram_flush (s, last) != 0)  // the stream is over
+if (dp_spectrogram_flush (s, last, 8) != 0)  // the stream is over
   return 1;
 dp_spectrogram_destroy (t);
 dp_spectrogram_destroy (s);
 ```
+
+
+
+
+```C++
+>>> import numpy as np
+>>> from doppler.spectral import Spectrogram
+>>> sp = Spectrogram(nfft=8, hop=8, window="rect")
+>>> _ = sp.push(np.ones(11, np.complex64))
+>>> row = np.empty(8, np.float32)
+>>> sp.flush(row)
+8
+>>> sp.flush(row)
+0
+```
  
+
+
+        
+
+<hr>
+
+
+
+### function dp\_spectrogram\_get\_consumed 
+
+_Input samples the last push took (the_ `consumed` _property)._
+```C++
+size_t dp_spectrogram_get_consumed (
+    const dp_spectrogram_state_t * state
+) 
+```
+
+
+
+Same value as [**dp\_spectrogram\_consumed()**](spectrogram__core_8h.md#function-dp_spectrogram_consumed); this is the name the binding reads, because jm derives a property's getter as `<core>_get_<name>`.
+
+
+
+
+**Parameters:**
+
+
+* `state` A live spectrogram. 
+
+
+
+**Returns:**
+
+Samples of the last push that became rows; the rest were not taken (a short output buffer stops the push at a whole row). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_spectrogram\_get\_pending 
+
+_Samples carried toward the next row (the_ `pending` _property)._
+```C++
+size_t dp_spectrogram_get_pending (
+    const dp_spectrogram_state_t * state
+) 
+```
+
+
+
+Same value as [**dp\_spectrogram\_pending()**](spectrogram__core_8h.md#function-dp_spectrogram_pending); the binding's name for it, as above.
+
+
+
+
+**Parameters:**
+
+
+* `state` A live spectrogram. 
+
+
+
+**Returns:**
+
+The partial frame's length in samples, 0 to nfft - 1. 
+
+
+
 
 
         
@@ -501,6 +606,20 @@ if (fabsf (rows[4 + 2] - 1.0f) > 1e-4f) // bin 2 reads 1.0, at nfft/2 + 2
   return 1;
 dp_spectrogram_destroy (s);
 ```
+
+
+
+
+```C++
+>>> import numpy as np
+>>> from doppler.spectral import Spectrogram
+>>> sp = Spectrogram(nfft=8, hop=8, window="rect")
+>>> rows = sp.push(np.ones(20, np.complex64))
+>>> rows.shape
+(2, 8)
+>>> sp.consumed, sp.pending
+(20, 4)
+```
  
 
 
@@ -596,6 +715,21 @@ if (dp_spectrogram_pending (s) != 0)
   return 1;
 dp_spectrogram_destroy (s);
 ```
+
+
+
+
+```C++
+>>> import numpy as np
+>>> from doppler.spectral import Spectrogram
+>>> sp = Spectrogram(nfft=8, hop=8)
+>>> _ = sp.push(np.ones(5, np.complex64))
+>>> sp.pending
+5
+>>> sp.reset()
+>>> sp.pending
+0
+```
  
 
 
@@ -637,6 +771,16 @@ if (dp_spectrogram_rows_for (s, 7) != 0      // less than a frame
     || dp_spectrogram_rows_for (s, 100) != 47) // (100 - 8) / 2 + 1
   return 1;
 dp_spectrogram_destroy (s);
+```
+
+
+
+
+```C++
+>>> from doppler.spectral import Spectrogram
+>>> sp = Spectrogram(nfft=8, hop=2)
+>>> sp.rows_for(7), sp.rows_for(8), sp.rows_for(100)
+(0, 1, 47)
 ```
  
 

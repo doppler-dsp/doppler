@@ -1,4 +1,5 @@
 #include "doppler/loop_filter/loop_filter_core.h"
+#include <float.h>
 #include <math.h>
 #include <stdlib.h>
 
@@ -25,7 +26,20 @@ dp_loop_filter_wn (double bn, double zeta)
  * canonical bilinear-mapped form (e.g. Stephens & Thomas). The one formula:
  * init writes it, and the predicate checks what it gives, so the two cannot
  * disagree about which inputs make a loop. */
-static void
+/* One compiled body for the gains, out of line. Under -ffast-math a static
+ * helper inlined into one caller and called from another compiles to two
+ * copies with different bits (clang-cl did), so a gain computed by create
+ * and one computed by a restore disagreed on the last bit. Forbidding the
+ * inline and the clone keeps every caller on the one body (doppler#2103). */
+#if defined(_MSC_VER)
+#define LF_GAINS_OUT_OF_LINE __declspec (noinline)
+#elif defined(__GNUC__) && !defined(__clang__)
+#define LF_GAINS_OUT_OF_LINE __attribute__ ((noinline, noclone))
+#else
+#define LF_GAINS_OUT_OF_LINE __attribute__ ((noinline))
+#endif
+
+static LF_GAINS_OUT_OF_LINE void
 lf_gains (double bn, double zeta, double t, double *kp, double *ki)
 {
   double wn  = dp_loop_filter_wn (bn, zeta);
@@ -59,6 +73,24 @@ dp_loop_filter_params_ok (double bn, double zeta, double t)
   double kp, ki;
   lf_gains (bn, zeta, t, &kp, &ki);
   return isfinite (kp) && isfinite (ki);
+}
+
+/* Whether a stored filter (a restored blob's) is one a live filter could
+ * hold. Its gains are restored verbatim, so they are not recomputed; they are
+ * checked against the one gains body at the filter's own bandwidth, zeta and
+ * interval, to a tight relative tolerance. A tolerance rather than equality,
+ * so a blob from another compiler or platform still restores, while a
+ * forged NaN, infinite or absurd gain is refused. */
+int
+dp_loop_filter_state_ok (const dp_loop_filter_state_t *s)
+{
+  if (!dp_loop_filter_params_ok (s->bn, s->zeta, s->t))
+    return 0;
+  double kp, ki;
+  lf_gains (s->bn, s->zeta, s->t, &kp, &ki);
+  const double tol_kp = 1e-9 * fabs (kp) + DBL_MIN;
+  const double tol_ki = 1e-9 * fabs (ki) + DBL_MIN;
+  return fabs (s->kp - kp) <= tol_kp && fabs (s->ki - ki) <= tol_ki;
 }
 
 dp_loop_filter_state_t *

@@ -80,9 +80,10 @@ w.nfft     # 8192   — zero-padded transform length (sets the bin spacing)
 
 ### Feed data — real or complex, segmented and averaged
 
-A capture longer than `n` is split into `floor(len / n)` non-overlapping
-segments; each is windowed, (zero-padded,) FFT'd and folded into the running
-average. Pass more data to average more segments — averaging trades frequency
+A capture is cut into segments of `n` samples, one starting every `hop` samples
+(`hop` defaults to `n`, so segments do not overlap). Each complete segment is
+windowed, (zero-padded,) FFT'd and folded into the running average; a trailing
+partial segment is held and completed by the next call. Pass more data to average more segments — averaging trades frequency
 snapshots for a smoother, lower-variance noise floor.
 
 ```python
@@ -103,7 +104,7 @@ for frame in cf32_frames:           # each frame: any multiple of n samples
     w.accumulate(frame)
 
 # real input (f32) — folded to a one-sided spectrum
-w.accumulate_real(real_capture)     # averages floor(len/n) segments
+w.accumulate_real(real_capture)     # averages the whole segments; a tail is dropped
 
 w.count                             # number of segments folded in so far
 w.reset()                           # discard the average; re-seed on next accumulate

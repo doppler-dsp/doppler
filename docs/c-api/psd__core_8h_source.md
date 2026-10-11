@@ -105,10 +105,13 @@ double dp_psd_snr(dp_psd_state_t *state, double lo_hz, double hi_hz);
 
 double dp_psd_sfdr(dp_psd_state_t *state, float min_db);
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
- * delegates to the acc_trace power averager; window/plan/scratch
- * are config, rebuilt by create. */
+ * The blob is the acc_trace power averager, then the framer's snapshot of the
+ * carried partial frame. Both children have fixed sizes, so the blob's size
+ * depends on the config only. hop is a reject key: a blob of another hop is
+ * refused, since the carried frame means something different at another hop.
+ * Window, plan, scratch, n, nfft and hop are config, rebuilt by create. */
 #define PSD_STATE_MAGIC DP_FOURCC ('P','S','D',' ')
-#define PSD_STATE_VERSION 1u
+#define PSD_STATE_VERSION 2u
 size_t dp_psd_state_bytes (const dp_psd_state_t *state);
 void dp_psd_get_state (const dp_psd_state_t *state, void *blob);
 int dp_psd_set_state (dp_psd_state_t *state, const void *blob);

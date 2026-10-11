@@ -372,10 +372,11 @@ extern "C"
     uint64_t lost_confirm_samples; /**< lost_confirm_s at the input rate. */
     uint64_t state_samples;        /**< Running: samples fed since the
                                         current state was entered.       */
-    uint64_t refused_hits;         /**< Observational: searching hits the seed
-                                        domain refused as seeds, since create
-                                        or reset. Not in the blob: a restored
-                                        receiver counts from zero.       */
+    uint64_t refused_hits;         /**< Searching hits the seed domain refused
+                                        as seeds, since create or reset. In
+                                        the blob with state_samples, so a
+                                        resumed receiver's status matches an
+                                        unbroken run's.                  */
     uint64_t both_down_samples;    /**< Running: consecutive samples fed
                                         while tracking with BOTH lock
                                         flags down -- the release clock;
@@ -1222,10 +1223,11 @@ extern "C"
     double   cell_rate_bias;
     uint64_t period_count;
     uint64_t intervals;
+    uint64_t refused_hits; /**< v8: the searching hits refused as seeds. */
   } async_dsss_receiver_extra_t;
 
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 7u /* v7: no hand-off flavor; v6: the cell pull-in */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 8u /* v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
 
   size_t dp_async_dsss_receiver_state_bytes (
       const dp_async_dsss_receiver_state_t *state);

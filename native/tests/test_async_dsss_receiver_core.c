@@ -2397,13 +2397,13 @@ _test_forged_seed_is_refused (void)
   return fails;
 }
 
-/* The hand-off's refined Doppler is checked against the seed domain before
- * the live chain is built from it (doppler#2103). A seed and a residual can
- * each be in range and sum past half the sample rate: here the seed is 4.998
- * MHz (in range at fs = 10 MHz) and the estimator's residual is 5 kHz (in
- * range at its own 10.8 kHz rate), so the sum is 5.003 MHz. The hand-off must
- * keep the seed's own Doppler, not the sum. The estimator is forced ready by
- * the blob, so the next steps() is the hand-off. Returns the number of failed
+/* An honest refined Doppler near half the sample rate tracks at seed plus
+ * residual (doppler#2103). The seed is 4.998 MHz (in range at fs = 10 MHz)
+ * and the estimator's residual is 5 kHz (in range at its own 10.8 kHz rate),
+ * so the sum is 5.003 MHz, past fs/2. The hand-off's guard is the abort's
+ * precondition only (a finite value and an in-code phase), and the sum meets
+ * it, so the hand-off tracks at the sum. The estimator is forced ready by the
+ * blob, so the next steps() is the hand-off. Returns the number of failed
  * checks. */
 static int
 _test_handoff_keeps_seed_doppler_in_domain (void)
@@ -2439,11 +2439,12 @@ _test_handoff_keeps_seed_doppler_in_domain (void)
       DP_CHECK (dp_async_dsss_receiver_set_state (dst, blob) == DP_OK);
       float _Complex x[1024] = { 0 }, out[1024];
       (void)dp_async_dsss_receiver_steps (dst, x, 1024, out, 1024);
-      /* The seed's own Doppler, not seed + residual (past fs/2). */
-      if (dp_async_dsss_receiver_get_doppler_hz (dst) != seed_hz)
+      /* Seed plus residual: the honest refined value, tracked as it was. */
+      if (dp_async_dsss_receiver_get_doppler_hz (dst) != seed_hz + residual_hz)
         {
-          fprintf (stderr, "  hand-off Doppler %g, not the seed %g\n",
-                   dp_async_dsss_receiver_get_doppler_hz (dst), seed_hz);
+          fprintf (stderr, "  hand-off Doppler %g, not seed + residual %g\n",
+                   dp_async_dsss_receiver_get_doppler_hz (dst),
+                   seed_hz + residual_hz);
           fails++;
         }
     }

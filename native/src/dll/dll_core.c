@@ -282,9 +282,9 @@ set_segments (dp_dll_state_t *s, size_t segments)
 /* The one bandwidth domain every Dll path uses (doppler#2103): bn and zeta
  * valid at t = 1, the interval create and a zero symbol period return the
  * filter to, AND at the interval `t` the loop runs at. configure, set_bn,
- * set_symbol_period and set_state all call this, so a bn one of them accepts
- * is one all of them accept, and a live object's own blob resumes: a blob
- * written at an interval is accepted at that interval. */
+ * set_symbol_period and set_state all call this, so a bn accepted at an
+ * interval is accepted by set_state at that interval: a live object's own
+ * blob resumes. */
 static int
 dll_bn_zeta_ok (double bn, double zeta, double t)
 {
@@ -346,9 +346,14 @@ dp_dll_init (dp_dll_state_t *s, const uint8_t *code, size_t code_len,
      garbage/NaN value on another host (macOS/arm64) makes the argument
      degenerate and (uint32_t)-casts to 0, freezing the code NCO -- the loop
      stops wrapping and never converges (validate_dll_jitter #82). */
-  s->rate_aid  = 0.0;
-  s->coast     = 0;
-  s->held_inc  = 0;
+  s->rate_aid = 0.0;
+  s->coast    = 0;
+  s->held_inc = 0;
+  /* The held snapshot is zeroed whole: a stack embed would otherwise carry
+     garbage into the blob, and nothing reads it until a hold writes it. */
+  memset (&s->held_lf, 0, sizeof s->held_lf);
+  s->held_bn   = 0.0;
+  s->held_zeta = 0.0;
   s->code      = code; /* borrowed */
   s->owns_code = 0;
   /* dp_dll_init always runs with segments == 1 (configure_geometry's
@@ -647,9 +652,13 @@ dp_dll_set_state (dp_dll_state_t *s, const void *blob)
     return DP_ERR_INVALID;
   if (!(isfinite (t.noise_guard) && t.noise_guard >= 0.0))
     return DP_ERR_INVALID;
+  /* The period must be one set_symbol_period would take (the predicate, not
+     just finiteness): a subnormal period made inv_upd inf, then NaN, and the
+     NCO conversion undefined. */
   if (s->sym_period > 0.0
-      && (!isfinite (t.sym_period) || t.aid_len >= t.aid_ring
-          || t.aid_best >= t.aid_nhyp || t.aid_last_end > t.aid_count))
+      && (!dp_dll_symbol_period_ok (t.segments, t.sym_period)
+          || t.aid_len >= t.aid_ring || t.aid_best >= t.aid_nhyp
+          || t.aid_last_end > t.aid_count))
     return DP_ERR_INVALID;
   /* The retained config a live instance can only hold after create (or a
      retune) accepted it: the spacing places the early and late taps, and
@@ -664,15 +673,23 @@ dp_dll_set_state (dp_dll_state_t *s, const void *blob)
   /* The filter's update interval is the symbol period's, tied here instead of
      trusted from the blob: a symbol period's interval is P / segments, and no
      symbol period is 1 (the create and the zero default). The bandwidth must
-     be one a live Dll could hold at that interval (dll_bn_zeta_ok), and the
-     integrators and seed must be finite -- a forged NaN integrator or seed
-     restored verbatim is an unguarded NaN in the next update. */
+     be one a live Dll could hold at that interval (dll_bn_zeta_ok). The
+     integrators and seed must be finite: a loop driven to a NaN integrator by
+     non-finite input now has its own blob refused. That is intended, since a
+     NaN loop is not restorable, and a restored NaN would be an unguarded NaN
+     in the next update. */
   const double t_upd
       = t.sym_period > 0.0 ? t.sym_period / (double)t.segments : 1.0;
-  /* The held snapshot is zero until the loop first holds (its interval is
-     then 0), and a zero snapshot is no filter to check. */
+  /* The held snapshot is a filter only once the loop has held (held_inc set,
+     the gate set_coast uses). It is checked at the bandwidth and interval it
+     was taken with, not the live ones, since set_bn after a hold leaves it
+     unchanged; a held loop with no interval is no state a hold leaves. An
+     unheld snapshot is zero and is not checked. */
+  const int held = t.held_inc != 0;
   if (!dll_bn_zeta_ok (t.bn, t.zeta, t_upd)
-      || (t.held_lf.t != 0.0 && !dll_bn_zeta_ok (t.bn, t.zeta, t.held_lf.t))
+      || (held
+          && (t.held_lf.t <= 0.0
+              || !dll_bn_zeta_ok (t.held_bn, t.held_zeta, t.held_lf.t)))
       || !isfinite (t.lf.integ) || !isfinite (t.held_lf.integ)
       || !isfinite (t.seed_chip))
     return DP_ERR_INVALID;
@@ -738,8 +755,8 @@ dp_dll_set_state (dp_dll_state_t *s, const void *blob)
   const double lf_integ   = t.lf.integ;
   const double held_integ = t.held_lf.integ;
   dp_loop_filter_init (&t.lf, t.bn, t.zeta, t_upd);
-  if (t.held_lf.t != 0.0)
-    dp_loop_filter_init (&t.held_lf, t.bn, t.zeta, t.held_lf.t);
+  if (held)
+    dp_loop_filter_init (&t.held_lf, t.held_bn, t.held_zeta, t.held_lf.t);
   else
     t.held_lf.kp = t.held_lf.ki = 0.0; /* never held: no gains to keep */
   t.lf.integ      = lf_integ;
@@ -1118,8 +1135,10 @@ dp_dll_set_bn (dp_dll_state_t *state, double val)
 void
 dp_dll_hold_here (dp_dll_state_t *state)
 {
-  state->held_inc = state->code_nco.phase_inc;
-  state->held_lf  = state->lf;
+  state->held_inc  = state->code_nco.phase_inc;
+  state->held_lf   = state->lf;
+  state->held_bn   = state->bn;
+  state->held_zeta = state->zeta;
 }
 
 /* A held loop's control: the held filter's integrator alone, through the

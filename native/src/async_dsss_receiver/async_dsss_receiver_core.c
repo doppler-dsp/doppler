@@ -82,6 +82,26 @@ adr_reset_lock (dp_async_dsss_receiver_state_t *s)
   dp_lockdet_reset (&s->sym_lockdet);
 }
 
+/* The code phase the live chain starts from: the seed's, advanced by the
+ * clock dilation the Doppler implies over the refine (samples_consumed_refine
+ * samples). Off when carrier_freq_hz == 0: no carrier, no dilation. The one
+ * formula the hand-off uses, for the refined value and the seed fallback. */
+static double
+adr_handover_phase (const dp_async_dsss_receiver_state_t *state,
+                    double doppler_hz_est, uint64_t samples_consumed_refine)
+{
+  double phase = state->seed_chip_phase;
+  if (state->carrier_freq_hz > 0.0)
+    {
+      double dilation = doppler_hz_est / state->carrier_freq_hz;
+      double chips_elapsed
+          = (double)samples_consumed_refine / (double)state->spc;
+      phase = dp_fmod_pos (phase + dilation * chips_elapsed,
+                           (double)state->code_len);
+    }
+  return phase;
+}
+
 /* Every state transition goes through here so the two running clocks stay
  * honest: `state_samples` counts from the entry, and the release clock
  * (`both_down_samples`) only ever runs inside tracking. */
@@ -1249,16 +1269,6 @@ dp_async_dsss_receiver_steps (dp_async_dsss_receiver_state_t *state,
       double refined_doppler_hz_est
           = state->seed_doppler_hz_est
             + (ca->ready ? ca->residual_hz : 0.0); /* give-up: unrefined */
-      /* The refined value is checked against the seed domain before the live
-         chain is built from it. A refusal is handled as a failed refine: the
-         hand-off keeps the seed's own Doppler, which the seed already passed.
-         Nothing is built under dp_xnn from an unchecked number, whatever
-         wrote it (the residual, a forged blob or a numeric overflow;
-         doppler#2103). */
-      if (!dp_async_dsss_receiver_seed_ok (state, state->seed_chip_phase,
-                                           refined_doppler_hz_est))
-        refined_doppler_hz_est = state->seed_doppler_hz_est;
-
       /* samples_consumed_refine: freq_refine.refine_seed_carrier_acq()'s
        * own elapsed-time formula, ported verbatim -- a resampled chain
        * has no exact raw-sample-to-block correspondence to track through
@@ -1323,15 +1333,22 @@ dp_async_dsss_receiver_steps (dp_async_dsss_receiver_state_t *state,
        * by 13 chips over the same 53 ms (measured), where the dilation
        * model from the refined Doppler is within a tenth of a chip. Off
        * when carrier_freq_hz == 0: no carrier, no dilation to model. */
-      double handover_chip_phase = state->seed_chip_phase;
-      if (state->carrier_freq_hz > 0.0)
+      /* The live chain's Dll is built under dp_xnn, which aborts on a
+         non-finite or out-of-code init phase. Those are the only preconditions
+         it needs, so they are the only things checked here: an honest refined
+         value anywhere else, including right at fs/2, tracks at seed +
+         residual as it did before. A value failing them takes the
+         failed-refine path, the seed's own Doppler and phase, so no unchecked
+         number reaches dp_xnn (doppler#2103). */
+      double handover_chip_phase = adr_handover_phase (
+          state, refined_doppler_hz_est, samples_consumed_refine);
+      if (!isfinite (refined_doppler_hz_est) || !isfinite (handover_chip_phase)
+          || handover_chip_phase < 0.0
+          || handover_chip_phase >= (double)state->code_len)
         {
-          double dilation = refined_doppler_hz_est / state->carrier_freq_hz;
-          double chips_elapsed
-              = (double)samples_consumed_refine / (double)state->spc;
-          handover_chip_phase
-              = dp_fmod_pos (handover_chip_phase + dilation * chips_elapsed,
-                             (double)state->code_len);
+          refined_doppler_hz_est = state->seed_doppler_hz_est;
+          handover_chip_phase    = adr_handover_phase (
+              state, refined_doppler_hz_est, samples_consumed_refine);
         }
       adr_rebuild_track_chain (state, handover_chip_phase,
                                refined_doppler_hz_est, state->segments,
@@ -1628,6 +1645,7 @@ dp_async_dsss_receiver_get_state (const dp_async_dsss_receiver_state_t *s,
     .cell_rate_bias      = s->cell_rate_bias,
     .period_count        = (uint64_t)s->period_count,
     .intervals           = s->intervals,
+    .refused_hits        = s->refused_hits,
     .cell_refined        = (uint8_t)(s->cell_refined != 0),
   };
   dp_w_bytes (&_w, &extra, sizeof extra);
@@ -1711,5 +1729,6 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
   s->cell_refined        = extra.cell_refined != 0;
   s->period_count        = (size_t)extra.period_count;
   s->intervals           = extra.intervals;
+  s->refused_hits        = extra.refused_hits;
   return DP_OK;
 }

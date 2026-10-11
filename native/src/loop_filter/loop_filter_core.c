@@ -20,12 +20,6 @@ dp_loop_filter_wn (double bn, double zeta)
   return 8.0 * zeta * bn / (4.0 * zeta * zeta + 1.0);
 }
 
-/* Standard 2nd-order PI loop-filter gains. bn is the loop noise bandwidth
- * (normalized, cycles/sample), zeta the damping factor, t the update period
- * in samples. wn is the natural frequency; the discrete kp/ki follow the
- * canonical bilinear-mapped form (e.g. Stephens & Thomas). The one formula:
- * init writes it, and the predicate checks what it gives, so the two cannot
- * disagree about which inputs make a loop. */
 /* One compiled body for the gains, out of line. Under -ffast-math a static
  * helper inlined into one caller and called from another compiles to two
  * copies with different bits (clang-cl did), so a gain computed by create
@@ -39,6 +33,12 @@ dp_loop_filter_wn (double bn, double zeta)
 #define LF_GAINS_OUT_OF_LINE __attribute__ ((noinline))
 #endif
 
+/* Standard 2nd-order PI loop-filter gains. bn is the loop noise bandwidth
+ * (normalized, cycles/sample), zeta the damping factor, t the update period
+ * in samples. wn is the natural frequency; the discrete kp/ki follow the
+ * canonical bilinear-mapped form (e.g. Stephens & Thomas). The one formula:
+ * init writes it, and the predicate checks what it gives, so the two cannot
+ * disagree about which inputs make a loop. */
 static LF_GAINS_OUT_OF_LINE void
 lf_gains (double bn, double zeta, double t, double *kp, double *ki)
 {
@@ -67,8 +67,7 @@ dp_loop_filter_params_ok (double bn, double zeta, double t)
   /* Finite inputs are not enough: a finite bn past ~7e153 at t = 1 squares
      th to inf, and ki = inf/inf is NaN (doppler#2103). The gains themselves
      must be finite, which refuses no loop anyone runs. */
-  if (!(bn >= 0.0 && zeta > 0.0 && t > 0.0 && isfinite (bn) && isfinite (zeta)
-        && isfinite (t))) /* NaN fails every comparison */
+  if (!(bn >= 0.0 && zeta > 0.0 && t > 0.0)) /* NaN fails every comparison */
     return 0;
   double kp, ki;
   lf_gains (bn, zeta, t, &kp, &ki);

@@ -512,6 +512,9 @@ forged_state_is_refused_or_recomputed (void)
   DP_CHECK (fresh != NULL
             && dp_dll_set_symbol_period (fresh, period) == DP_OK);
   DP_CHECK (fresh && dp_dll_set_state (fresh, honest) == DP_OK);
+  /* Both integrators come back, each in its own field: the held one is the
+     distinct value, so a restore that swapped or dropped it would show. */
+  DP_CHECK (fresh && fresh->lf.integ == 3.0 && fresh->held_lf.integ == 1.5);
 
   const double subnormal = 1e-310; /* positive, but no interval at all */
   /* Refused: the target is byte-identical afterwards. A NaN integrator or

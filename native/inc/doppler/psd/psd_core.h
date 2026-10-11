@@ -112,7 +112,8 @@ dp_psd_state_t *dp_psd_create(size_t n, double fs, int window, float beta,
 /**
  * @brief Create an averaging PSD estimator whose frames are spaced by a hop.
  *
- * Frame k covers stream samples [k*hop, k*hop + n). A hop equal to n gives
+ * Frame k covers stream samples k*hop through k*hop + n - 1. A hop equal to n
+ * gives
  * non-overlapping frames. A trailing partial frame is carried to the next
  * accumulate call, not dropped.
  *
@@ -177,7 +178,7 @@ void dp_psd_reset(dp_psd_state_t *state);
 /**
  * @brief Window, FFT and fold complex baseband frames into the average.
  * Folds every frame the stream completes: frame k covers stream samples
- * [k*hop, k*hop + n) (hop = n unless dp_psd_create_hop() said otherwise).
+ * k*hop through k*hop + n - 1 (hop = n unless dp_psd_create_hop() said otherwise).
  * A trailing partial frame is carried to the next call, not dropped: the
  * framer holds it. A single call of whole frames at hop = n averages what
  * dp_psd_accumulate always has.

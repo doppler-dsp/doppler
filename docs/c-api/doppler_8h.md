@@ -46,6 +46,7 @@
 * `#include "doppler/detector/detector_core.h"`
 * `#include "doppler/detector2d/detector2d_core.h"`
 * `#include "doppler/psd/psd_core.h"`
+* `#include "doppler/spectrogram/spectrogram_core.h"`
 * `#include "doppler/tonemeas/tonemeas_core.h"`
 * `#include "doppler/nprmeas/nprmeas_core.h"`
 * `#include "doppler/imdmeas/imdmeas_core.h"`

@@ -63,7 +63,8 @@ size_t dp_spectrogram_consumed (const dp_spectrogram_state_t *s);
 size_t dp_spectrogram_rows_for (const dp_spectrogram_state_t *s,
                                 size_t n_in);
 
-size_t dp_spectrogram_flush (dp_spectrogram_state_t *s, float *row);
+size_t dp_spectrogram_flush (dp_spectrogram_state_t *s, float *row,
+                             size_t row_len);
 
 size_t dp_spectrogram_pending (const dp_spectrogram_state_t *s);
 
@@ -73,6 +74,9 @@ void dp_spectrogram_get_state (const dp_spectrogram_state_t *s, void *blob);
 
 int dp_spectrogram_set_state (dp_spectrogram_state_t *s, const void *blob);
 
+size_t dp_spectrogram_get_consumed (const dp_spectrogram_state_t *state);
+
+size_t dp_spectrogram_get_pending (const dp_spectrogram_state_t *state);
 #ifdef __cplusplus
 }
 #endif

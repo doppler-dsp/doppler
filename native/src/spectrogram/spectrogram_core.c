@@ -161,8 +161,12 @@ dp_spectrogram_consumed (const dp_spectrogram_state_t *s)
 }
 
 size_t
-dp_spectrogram_flush (dp_spectrogram_state_t *s, float *row)
+dp_spectrogram_flush (dp_spectrogram_state_t *s, float *row, size_t row_len)
 {
+  /* A row buffer shorter than one row is refused before anything moves, so
+   * the owed frame stays owed for a retry with room. */
+  if (row_len < s->nfft)
+    return 0;
   /* push leaves the framer drained, so the framer's flush cannot refuse
    * here; it either copies the owed, zero-padded frame or owes none. Both
    * restart the stream. */
@@ -178,6 +182,19 @@ size_t
 dp_spectrogram_pending (const dp_spectrogram_state_t *s)
 {
   return dp_f32_framer_pending (&s->fr);
+}
+
+/* The binding's names for the two read-only properties (see the header). */
+size_t
+dp_spectrogram_get_consumed (const dp_spectrogram_state_t *s)
+{
+  return dp_spectrogram_consumed (s);
+}
+
+size_t
+dp_spectrogram_get_pending (const dp_spectrogram_state_t *s)
+{
+  return dp_spectrogram_pending (s);
 }
 
 /* Serializable state: the carry, which is the framer's snapshot, nested in

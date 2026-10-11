@@ -765,7 +765,7 @@ sweep_flush (int emit)
             wp += dp_spectrogram_pending (s) != owed;
             for (size_t j = 0; j < nfft; j++)
               row[j] = NAN;
-            const size_t wf = dp_spectrogram_flush (s, row);
+            const size_t wf = dp_spectrogram_flush (s, row, nfft);
             wd += (wf != 0 && wf != nfft) || (wf == nfft) != (owed > 0);
             if (wf == nfft)
               {
@@ -777,7 +777,7 @@ sweep_flush (int emit)
                 ref_row (p, mode, frame, want);
                 og += memcmp (row, want, nfft * sizeof *row) != 0;
               }
-            sn += dp_spectrogram_flush (s, row) != 0;
+            sn += dp_spectrogram_flush (s, row, nfft) != 0;
             af += dp_spectrogram_consumed (s) != 0
                   || dp_spectrogram_pending (s) != 0;
             /* restarted at sample 0: the next nfft samples are row 0 */

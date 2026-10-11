@@ -6,7 +6,9 @@ Examples
 >>> a = AccF32()
 >>> a.step(1.5); a.step(2.5)
 >>> a.get()
-4.0"""
+4.0
+
+"""
 
 # accumulator/__init__.py — re-export all types from the C extension.
 import os as _os

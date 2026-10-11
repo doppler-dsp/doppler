@@ -6,7 +6,9 @@ Examples
 >>> from doppler.mpsk import mpsk_map, mpsk_demap
 >>> bits = np.array([0, 1, 1, 0], np.uint8)
 >>> np.array_equal(mpsk_demap(mpsk_map(bits, 4), 4), bits)
-True"""
+True
+
+"""
 
 # mpsk/__init__.py — re-export all types from the C extension.
 import os as _os

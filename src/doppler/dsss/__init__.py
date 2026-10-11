@@ -9,7 +9,9 @@ Examples
 >>> csign = np.where(code & 1, -1.0, 1.0)
 >>> tx = np.repeat(np.tile(csign, 20), 2).astype(np.complex64)
 >>> bool(Despreader(code, sps=2).steps(tx).size >= 19)
-True"""
+True
+
+"""
 
 # dsss/__init__.py — re-export all types from the C extension.
 import os as _os

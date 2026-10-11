@@ -4,7 +4,9 @@ Examples
 --------
 >>> from doppler.source import NCO
 >>> NCO(norm_freq=0.25).steps_u32(4).tolist()
-[0, 1073741824, 2147483648, 3221225472]"""
+[0, 1073741824, 2147483648, 3221225472]
+
+"""
 
 # source/__init__.py — re-export all types from the C extension.
 import os as _os

@@ -196,7 +196,8 @@ class F32Buffer:
         -------
         NDArray[np.complex64] | None
             Zero-copy view of the next ``n`` samples, or ``None`` when fewer
-            than ``n`` have been written so far.
+            than ``n`` have been written so far. None when the C call lends
+            nothing (returns NULL) and its status has no exception row.
 
         Raises
         ------
@@ -347,15 +348,17 @@ class F32Buffer:
         """``True`` once the producer has called :meth:`close`."""
 
     def destroy(self) -> None:
-        """Release the underlying C resources immediately.
+        """Close the object; the memory goes with its last user.
 
         Ordinarily unnecessary: the resources are freed when the object is
-        garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on
-        exit.
+        garbage-collected. Call this, or use the object as a context manager,
+        to end its use at a definite point.
 
-        Idempotent: calling it again on an already-released object does
-        nothing. Every other method raises ``RuntimeError`` once it has run.
+        Views this object handed out keep the memory they point into, as does a
+        call still running on another thread: it is freed when the last of
+        them, and this object, are gone, not here (gh-2187). Idempotent:
+        calling it again does nothing. Every other method raises
+        ``RuntimeError`` once it has run.
         """
 
     def __enter__(self) -> "F32Buffer":
@@ -574,7 +577,8 @@ class F64Buffer:
         -------
         NDArray[np.complex128] | None
             Zero-copy view of the next ``n`` samples, or ``None`` when fewer
-            than ``n`` have been written so far.
+            than ``n`` have been written so far. None when the C call lends
+            nothing (returns NULL) and its status has no exception row.
 
         Raises
         ------
@@ -725,15 +729,17 @@ class F64Buffer:
         """``True`` once the producer has called :meth:`close`."""
 
     def destroy(self) -> None:
-        """Release the underlying C resources immediately.
+        """Close the object; the memory goes with its last user.
 
         Ordinarily unnecessary: the resources are freed when the object is
-        garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on
-        exit.
+        garbage-collected. Call this, or use the object as a context manager,
+        to end its use at a definite point.
 
-        Idempotent: calling it again on an already-released object does
-        nothing. Every other method raises ``RuntimeError`` once it has run.
+        Views this object handed out keep the memory they point into, as does a
+        call still running on another thread: it is freed when the last of
+        them, and this object, are gone, not here (gh-2187). Idempotent:
+        calling it again does nothing. Every other method raises
+        ``RuntimeError`` once it has run.
         """
 
     def __enter__(self) -> "F64Buffer":
@@ -966,7 +972,8 @@ class I16Buffer:
         -------
         NDArray[Any] | None
             Zero-copy view of the next ``n`` samples, or ``None`` when fewer
-            than ``n`` have been written so far.
+            than ``n`` have been written so far. None when the C call lends
+            nothing (returns NULL) and its status has no exception row.
 
         Raises
         ------
@@ -1120,15 +1127,17 @@ class I16Buffer:
         """``True`` once the producer has called :meth:`close`."""
 
     def destroy(self) -> None:
-        """Release the underlying C resources immediately.
+        """Close the object; the memory goes with its last user.
 
         Ordinarily unnecessary: the resources are freed when the object is
-        garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on
-        exit.
+        garbage-collected. Call this, or use the object as a context manager,
+        to end its use at a definite point.
 
-        Idempotent: calling it again on an already-released object does
-        nothing. Every other method raises ``RuntimeError`` once it has run.
+        Views this object handed out keep the memory they point into, as does a
+        call still running on another thread: it is freed when the last of
+        them, and this object, are gone, not here (gh-2187). Idempotent:
+        calling it again does nothing. Every other method raises
+        ``RuntimeError`` once it has run.
         """
 
     def __enter__(self) -> "I16Buffer":

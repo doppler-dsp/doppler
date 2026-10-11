@@ -63,7 +63,7 @@ class Specan:
         self,
         x: npt.NDArray[np.complex64],
         out: npt.NDArray[np.float32] | None = None,
-    ) -> NDArray[np.float32]:
+    ) -> NDArray[np.float32] | None:
         """Mix, decimate, average; return one DC-centred dB display frame, or
         None.
 
@@ -82,8 +82,9 @@ class Specan:
 
         Returns
         -------
-        NDArray[np.float32]
-            Display bins written (disp_n), or 0 if no frame is ready yet.
+        NDArray[np.float32] | None
+            Display bins written (disp_n), or 0 if no frame is ready yet. None
+            when the C call writes no output.
 
         Examples
         --------

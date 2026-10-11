@@ -809,7 +809,7 @@ class AccTrace:
         self,
         count: int = 1,
         out: npt.NDArray[np.float32] | None = None,
-    ) -> NDArray[np.float32]:
+    ) -> NDArray[np.float32] | None:
         """Copy the current averaged trace (None before any accumulate).
 
         Parameters
@@ -823,8 +823,9 @@ class AccTrace:
 
         Returns
         -------
-        NDArray[np.float32]
-            min(n, max_out) samples, or 0 if empty.
+        NDArray[np.float32] | None
+            min(n, max_out) samples, or 0 if empty. None when the C call writes
+            no output.
 
         Examples
         --------

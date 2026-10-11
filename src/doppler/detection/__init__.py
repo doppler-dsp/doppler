@@ -5,7 +5,9 @@ Examples
 >>> from doppler.detection import LockDet
 >>> d = LockDet(up_thresh=1.5, down_thresh=1.2, n_up=2, n_down=2)
 >>> [d.step(2.0), d.step(2.0)]
-[0, 1]"""
+[0, 1]
+
+"""
 
 # detection/__init__.py — re-export all types from the C extension.
 import os as _os

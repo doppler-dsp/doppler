@@ -8,7 +8,9 @@ Examples
 ...             center=0.0, offset_db=0.0, full_scale=1.0, bits=0,
 ...             window="kaiser", navg=1)
 >>> sp.execute(np.ones(4096, np.complex64)).shape
-(201,)"""
+(201,)
+
+"""
 
 # analyzer/__init__.py — re-export all types from the C extension.
 import os as _os

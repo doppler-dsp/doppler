@@ -8,7 +8,9 @@ Examples
 >>> m = BerMeter()
 >>> _ = m.set_truth(truth)
 >>> m.score((1.0 - 2.0 * truth).astype(np.complex64))
-0"""
+0
+
+"""
 
 # ber/__init__.py — re-export all types from the C extension.
 import os as _os

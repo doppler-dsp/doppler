@@ -5,7 +5,9 @@ Examples
 >>> from doppler.telemetry import Telemetry
 >>> t = Telemetry()
 >>> t.probe('loop.err')
-0"""
+0
+
+"""
 
 # telemetry/__init__.py — re-export all types from the C extension.
 import os as _os

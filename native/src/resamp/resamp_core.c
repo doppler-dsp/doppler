@@ -331,7 +331,7 @@ dp_resamp_set_state (resamp_state_t *s, const void *blob)
      through get_branch()'s shift, in range for any word, and ctrl_debt and
      ctrl_ahead are counts that index nothing. */
   const uint32_t phase = dp_r_u32 (&r);
-  size_t         head;
+  size_t         head  = 0;
   dp_r_bytes (&r, &head, sizeof head);
   if (head >= s->delay_cap)
     return DP_ERR_INVALID;

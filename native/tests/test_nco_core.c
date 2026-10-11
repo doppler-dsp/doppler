@@ -823,8 +823,8 @@ main (void)
             long got  = events_u32 (base, slew_buf, SLEW_N);
 
             if (labs (got - want) > 1)
-              fprintf (stderr, "  base=%.9f shape=%-18s oracle=%ld got=%ld\n",
-                       base, shape_name[shape], want, got);
+              DP_TEST_ERR ("  base=%.9f shape=%-18s oracle=%ld got=%ld\n",
+                           base, shape_name[shape], want, got);
             DP_CHECK (labs (got - want) <= 1); /* the truncation floor */
           }
       }

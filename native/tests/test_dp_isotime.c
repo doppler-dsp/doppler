@@ -38,11 +38,10 @@ expect (int64_t sec, uint32_t nsec, unsigned frac, const char *want)
   int  n = dp_isotime_format (buf, sizeof buf, sec, nsec, frac);
   if (n < 0 || strcmp (buf, want) != 0)
     {
-      fprintf (stderr,
-               "FAIL %s  dp_isotime_format(%lld, %u, %u) = \"%s\" (%d), "
-               "want \"%s\"\n",
-               __FILE__, (long long)sec, nsec, frac, n < 0 ? "<error>" : buf,
-               n, want);
+      DP_TEST_ERR ("FAIL %s  dp_isotime_format(%lld, %u, %u) = \"%s\" (%d), "
+                   "want \"%s\"\n",
+                   __FILE__, (long long)sec, nsec, frac,
+                   n < 0 ? "<error>" : buf, n, want);
       DP_RECORD_FAIL ();
       return;
     }
@@ -57,11 +56,10 @@ expect_ext (int64_t sec, uint32_t nsec, unsigned frac, const char *want)
                                  DP_ISOTIME_EXTENDED);
   if (n < 0 || strcmp (buf, want) != 0)
     {
-      fprintf (stderr,
-               "FAIL %s  dp_isotime_format_as(%lld, %u, %u, EXTENDED) = "
-               "\"%s\" (%d), want \"%s\"\n",
-               __FILE__, (long long)sec, nsec, frac, n < 0 ? "<error>" : buf,
-               n, want);
+      DP_TEST_ERR ("FAIL %s  dp_isotime_format_as(%lld, %u, %u, EXTENDED) = "
+                   "\"%s\" (%d), want \"%s\"\n",
+                   __FILE__, (long long)sec, nsec, frac,
+                   n < 0 ? "<error>" : buf, n, want);
       DP_RECORD_FAIL ();
       return;
     }
@@ -238,7 +236,7 @@ emit (int argc, char **argv)
 {
   if (argc != 5)
     {
-      fprintf (stderr, "usage: %s --emit SEC NSEC FRAC\n", argv[0]);
+      DP_TEST_ERR ("usage: %s --emit SEC NSEC FRAC\n", argv[0]);
       return 2;
     }
   long long     sec  = atoll (argv[2]);
@@ -248,7 +246,7 @@ emit (int argc, char **argv)
   if (dp_isotime_format (buf, sizeof buf, (int64_t)sec, (uint32_t)nsec, frac)
       < 0)
     {
-      fprintf (stderr, "format failed\n");
+      DP_TEST_ERR ("format failed\n");
       return 2;
     }
   printf ("%s\n", buf);

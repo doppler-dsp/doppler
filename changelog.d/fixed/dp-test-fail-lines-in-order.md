@@ -1,5 +1,6 @@
-- **A C test's FAIL lines land in order in a redirected log.** `dp_test.h`
+- **A C test's diagnostics land in order in a redirected log.** `dp_test.h`
     wrote failures to unbuffered stderr while verbose PASS lines sat in
-    stdout's buffer, so in a `> log 2>&1` capture a FAIL could land inside a
-    PASS line and a count of `^FAIL` came up short. Every stderr line now
-    flushes stdout first (#2050).
+    stdout's buffer, so a `> log 2>&1` capture could put a FAIL inside a PASS
+    line and undercount `^FAIL`. Every diagnostic now goes through
+    `DP_TEST_ERR`, which flushes stdout first, and `make tests-ssot` refuses a
+    raw `fprintf(stderr` in `native/tests` (#2050).

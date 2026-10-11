@@ -1285,8 +1285,8 @@ main (void)
       const int before = dp_test_fails_;
       const int ended  = sections (MODES[m]);
       if (dp_test_fails_ != before)
-        fprintf (stderr, "  (the failures above are in %s mode)\n",
-                 MODES[m] == DP_SPECTROGRAM_POWER ? "power" : "dB");
+        DP_TEST_ERR ("  (the failures above are in %s mode)\n",
+                     MODES[m] == DP_SPECTROGRAM_POWER ? "power" : "dB");
       if (ended)
         return 1;
     }

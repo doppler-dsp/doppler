@@ -963,6 +963,26 @@ def ratchet(base: str) -> list[str]:
     return bad
 
 
+#: A raw stderr write in a test. dp_test.h is the one place the write may
+#: live: DP_TEST_ERR wraps it with the stdout flush that keeps diagnostics in
+#: order (#2050).
+RAW_STDERR = re.compile(r"fprintf\s*\(\s*stderr\b")
+
+
+def raw_stderr() -> list[str]:
+    """Every raw stderr write in native/tests/*.c, except dp_test.h itself."""
+    hits: list[str] = []
+    for path in sorted(TESTS.glob("*.c")):
+        if path == HEADER:
+            continue
+        for number, line in enumerate(path.read_text().splitlines(), 1):
+            if RAW_STDERR.search(line):
+                hits.append(
+                    f"{path.relative_to(ROOT)}:{number}: {line.strip()}"
+                )
+    return hits
+
+
 def main() -> int:
     # An empty result set is not a pass, in either half of this gate. The
     # glibc gate went green on a missing .so and the C tarball gate on an
@@ -1108,6 +1128,16 @@ def main() -> int:
         print("\n  A suite can go green while covering less. If a removal is")
         print("  deliberate, list the file in")
         print(f"  {IGNORE.relative_to(ROOT)} with the reason.")
+        return 1
+
+    raw = raw_stderr()
+    if raw:
+        print("check_tests_ssot: a test writes stderr directly.")
+        for line in raw:
+            print(f"  {line}")
+        print("\n  A raw fprintf(stderr) can land out of order against the")
+        print("  stdout buffer (#2050). Write the line with DP_TEST_ERR, the")
+        print("  macro in native/tests/dp_test.h that flushes stdout first.")
         return 1
 
     scanned = len([p for p in sources() if p.suffix == ".c"])

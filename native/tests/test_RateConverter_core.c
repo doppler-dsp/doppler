@@ -749,8 +749,8 @@ test_matched_droop_folds_into_bank (void)
   DP_CHECK (comp < -45.0);
   DP_CHECK (comp < no_comp - 20.0);
   if (!(comp < -45.0) || !(comp < no_comp - 20.0))
-    fprintf (stderr, "  droop fold: comp=%.1f dB  no_comp=%.1f dB\n", comp,
-             no_comp);
+    DP_TEST_ERR ("  droop fold: comp=%.1f dB  no_comp=%.1f dB\n", comp,
+                 no_comp);
 }
 
 /* ------------------------------------------------------------------ */
@@ -847,10 +847,9 @@ test_plain_cascade_is_unity_gain (void)
         int ok = fabs (calc - 1.0) < 2e-3 && fabs (meas - calc) < 1e-3;
         DP_CHECK (ok);
         if (!ok)
-          fprintf (stderr,
-                   "  gain rate=%.6g comp=%d: calculated %.6f, measured "
-                   "%.6f\n",
-                   rates[r], comp, calc, meas);
+          DP_TEST_ERR ("  gain rate=%.6g comp=%d: calculated %.6f, measured "
+                       "%.6f\n",
+                       rates[r], comp, calc, meas);
       }
 }
 
@@ -953,10 +952,9 @@ test_matched_cascade_returns_the_symbol_amplitude (void)
         int ok = fabs (fabs (amp) - _MF_TX_AMP) < 0.02 * _MF_TX_AMP;
         DP_CHECK (ok);
         if (!ok)
-          fprintf (stderr,
-                   "  matched gain sps=%.4g beta=%.2f comp=%d: sent %.4f, "
-                   "recovered %.4f\n",
-                   sps[s], beta[b], comp, _MF_TX_AMP, amp);
+          DP_TEST_ERR ("  matched gain sps=%.4g beta=%.2f comp=%d: sent %.4f, "
+                       "recovered %.4f\n",
+                       sps[s], beta[b], comp, _MF_TX_AMP, amp);
       }
 }
 
@@ -1179,9 +1177,9 @@ test_agc_delivers_unit_symbol_amplitude (void)
       int ok_on = fabs (fabs (on) - 1.0) < 0.03;
       DP_CHECK (ok_on);
       if (!ok_off || !ok_on)
-        fprintf (stderr,
-                 "  agc scale=%.2f: off %.4f (want %.4f), on %.4f (want 1)\n",
-                 scales[i], off, want_off, on);
+        DP_TEST_ERR (
+            "  agc scale=%.2f: off %.4f (want %.4f), on %.4f (want 1)\n",
+            scales[i], off, want_off, on);
     }
 }
 
@@ -1195,8 +1193,7 @@ test_matched_recovers_symbols (void)
   DP_CHECK (hb < -55.0);
   DP_CHECK (cic < -45.0);
   if (!(hb < -55.0) || !(cic < -45.0))
-    fprintf (stderr, "  matched EVM: halfband=%.1f dB  cic=%.1f dB\n", hb,
-             cic);
+    DP_TEST_ERR ("  matched EVM: halfband=%.1f dB  cic=%.1f dB\n", hb, cic);
 }
 
 static void

@@ -822,8 +822,8 @@ run (dp_acq_state_t *a, const uint8_t *code, double ppm, double cn0,
   stim_t st;
   if (stim_open (&st, code, ppm, cn0, seed, win_sym, c->bits))
     {
-      fprintf (stderr, "the stimulus does not open at %.0f ppm, %.0f dB-Hz\n",
-               ppm, cn0);
+      DP_TEST_ERR ("the stimulus does not open at %.0f ppm, %.0f dB-Hz\n", ppm,
+                   cn0);
       return 1;
     }
   c->win_sym   = win_sym;
@@ -1033,8 +1033,7 @@ calibrate (dp_acq_state_t *a, const uint8_t *code, sink_ctx_t *c, cal_t *out,
       }
   if (m < 20)
     {
-      fprintf (stderr, "calibration saw %zu coherent dwells of %zu\n", m,
-               c->n);
+      DP_TEST_ERR ("calibration saw %zu coherent dwells of %zu\n", m, c->n);
       return 1;
     }
   out->n_win = m;
@@ -1169,8 +1168,8 @@ calibrate_dll (dp_acq_state_t *a, const uint8_t *code, sink_ctx_t *c,
           }
       if (!ne)
         {
-          fprintf (stderr,
-                   "the DLL read nothing inside the cell from u0 %+.3f\n", u0);
+          DP_TEST_ERR ("the DLL read nothing inside the cell from u0 %+.3f\n",
+                       u0);
           return 1;
         }
       /* The drift within one block on the held rate, chips/s: the offset
@@ -1371,8 +1370,8 @@ make_engine (const uint8_t *code, double cn0, sink_ctx_t *c)
   if (dp_acq_surface_doppler_hz (a, c->hz, c->rows) != c->rows
       || dp_acq_surface_chip_phase (a, c->chip, c->cols) != c->cols)
     {
-      fprintf (stderr, "the surface's axes do not read %zu x %zu\n", c->rows,
-               c->cols);
+      DP_TEST_ERR ("the surface's axes do not read %zu x %zu\n", c->rows,
+                   c->cols);
       dp_acq_destroy (a);
       return NULL;
     }

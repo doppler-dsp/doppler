@@ -32,6 +32,15 @@ dp_psd_state_t *
 dp_psd_create (size_t n, double fs, int window, float beta, size_t pad,
                double full_scale, size_t bits, int mode, double alpha)
 {
+  return dp_psd_create_hop (n, fs, window, beta, pad, full_scale, bits, mode,
+                            alpha, n);
+}
+
+dp_psd_state_t *
+dp_psd_create_hop (size_t n, double fs, int window, float beta, size_t pad,
+                   double full_scale, size_t bits, int mode, double alpha,
+                   size_t hop)
+{
   /* The single definition of the dBFS reference: bits>0 selects an ADC
    * full scale (2^(bits-1)); otherwise full_scale is the analog/general ref.
    * bits is a depth an ADC has: past 64 the reference outgrows any sample
@@ -45,6 +54,10 @@ dp_psd_create (size_t n, double fs, int window, float beta, size_t pad,
    * plain `<= 0.0` and built an estimator that read NaN. */
   if (n < 2 || pad < 1 || !(fs > 0.0 && isfinite (fs)) || window < 0
       || window > 3 || !(full_scale > 0.0 && isfinite (full_scale)))
+    return NULL;
+  if (hop == 0)
+    hop = n;
+  if (hop > n)
     return NULL;
   if (mode < ACC_TRACE_MEAN || mode > ACC_TRACE_MINHOLD)
     return NULL;
@@ -124,6 +137,21 @@ dp_psd_create (size_t n, double fs, int window, float beta, size_t pad,
       dp_psd_destroy (s);
       return NULL;
     }
+  /* The framer owns a ring of two frames: the carry (< n) plus what one feed
+   * admits, so a call loops once per frame, not once per sample. Refused, not
+   * wrapped, for an n whose doubled size is not a size_t. */
+  if (n > ((size_t)-1) / 2)
+    {
+      dp_psd_destroy (s);
+      return NULL;
+    }
+  s->hop  = hop;
+  s->ring = dp_f32_create (2 * n);
+  if (!s->ring || dp_f32_framer_init (&s->fr, s->ring, n, hop) != DP_OK)
+    {
+      dp_psd_destroy (s);
+      return NULL;
+    }
   return s;
 }
 
@@ -141,6 +169,8 @@ dp_psd_destroy (dp_psd_state_t *state)
   free (state->spec);
   free (state->pwr);
   free (state->dbbuf);
+  if (state->ring)
+    dp_f32_destroy (state->ring);
   free (state);
 }
 
@@ -148,14 +178,19 @@ void
 dp_psd_reset (dp_psd_state_t *state)
 {
   dp_acc_trace_reset (state->avg);
+  dp_f32_framer_reset (&state->fr);
 }
 
-/* Serializable state — delegates to the acc_trace power averager (the only
- * running state); window, FFT plan, and scratch are config (create). */
+/* Serializable state: the power averager, then the framer's snapshot of the
+ * carried partial frame. Both children are self-contained sub-blobs with
+ * fixed sizes (the framer's is fixed by its frame length, not its fill), so
+ * the blob's size is a function of the config, as dp_state_validate requires.
+ * Window, FFT plan, scratch, n, nfft and hop are config (create). */
 size_t
 dp_psd_state_bytes (const dp_psd_state_t *s)
 {
-  return sizeof (dp_state_hdr_t) + dp_acc_trace_state_bytes (s->avg);
+  return sizeof (dp_state_hdr_t) + dp_acc_trace_state_bytes (s->avg)
+         + dp_f32_framer_state_bytes (&s->fr);
 }
 
 void
@@ -163,13 +198,23 @@ dp_psd_get_state (const dp_psd_state_t *s, void *blob)
 {
   DP_GET_OPEN (PSD_STATE_MAGIC, PSD_STATE_VERSION, dp_psd_state_bytes (s));
   DP_W_CHILD (&_w, dp_acc_trace, s->avg);
+  DP_W_CHILD (&_w, dp_f32_framer, &s->fr);
 }
 
 int
 dp_psd_set_state (dp_psd_state_t *s, const void *blob)
 {
   DP_SET_OPEN (PSD_STATE_MAGIC, PSD_STATE_VERSION, dp_psd_state_bytes (s));
+  /* The carried frame is checked before the average is written, so a refused
+   * framer snapshot changes nothing: the framer's own check reads the blob
+   * and writes nothing, and it refuses a hop that is not this object's. */
+  uint64_t          frames;
+  const void *const framer
+      = (const uint8_t *)blob + _r.off + dp_acc_trace_state_bytes (s->avg);
+  if (dp_f32_framer_state_frames (&s->fr, framer, &frames) != DP_OK)
+    return DP_ERR_INVALID;
   DP_R_CHILD (&_r, dp_acc_trace, s->avg);
+  DP_R_CHILD (&_r, dp_f32_framer, &s->fr);
   return DP_OK;
 }
 
@@ -227,13 +272,26 @@ void
 dp_psd_accumulate (dp_psd_state_t *state, const float _Complex *x,
                    size_t x_len)
 {
-  const size_t n      = state->n;
-  const size_t nframe = x_len / n;
-
-  for (size_t f = 0; f < nframe; f++)
+  /* The framer cuts the stream into frames at the hop and keeps the partial
+   * one; every frame it hands out is windowed and folded in. The feed admits
+   * whatever fits the ring (the carry is < n once drained, so the ring always
+   * has room for at least one more sample), so the loop ends only when the
+   * input is used up. A call of whole frames at hop = n takes the same path
+   * as before, frame for frame. */
+  size_t taken = 0;
+  while (taken < x_len)
     {
-      psd_window_frame (state, x + f * n);
-      psd_fold_frame (state);
+      const size_t took = dp_f32_framer_feed_view (&state->fr, x + taken,
+                                                   x_len - taken, SIZE_MAX);
+      taken += took;
+      const float _Complex *frame;
+      while ((frame = dp_f32_framer_next_view (&state->fr)) != NULL)
+        {
+          psd_window_frame (state, frame);
+          psd_fold_frame (state);
+        }
+      if (!took)
+        break;
     }
 }
 

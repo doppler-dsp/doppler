@@ -30,6 +30,9 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    from doppler.buffer import F32Buffer
     from doppler.source import LO
     from doppler.specan.config import SpecanConfig
     from doppler.stream import Pull, Subscriber
@@ -386,11 +389,90 @@ class FileSource(Source):
 
 
 # ------------------------------------------------------------------
+# NATS sources: one ring, two receivers
+# ------------------------------------------------------------------
+
+
+def _ceil_pow2(x: int) -> int:
+    """Return the smallest power of two that is at least *x*."""
+    return 1 << (x - 1).bit_length()
+
+
+class _ChunkedSource(Source):
+    """Serve reads from a ring that a subclass's packets fill."""
+
+    def __init__(self, timeout_ms: int) -> None:
+        self._timeout_ms = timeout_ms
+        self._ring: F32Buffer | None = None
+        self._fs: float = 0.0
+        self._cf: float = 0.0
+
+    @abstractmethod
+    def _packets(self) -> Iterator[tuple[np.ndarray, float, float]]:
+        """Yield ``(samples, sample_rate, center_freq)`` for each packet."""
+        ...
+
+    def read(self, n: int) -> tuple[np.ndarray, float, float]:
+        packets = self._packets()
+        try:
+            while self._held() < n:  # receive only while a read needs more
+                packet = next(packets, None)
+                if packet is None:
+                    break
+                samples, self._fs, self._cf = packet
+                if samples.size:
+                    ring = self._fit(n, samples.size)
+                    ring.write(samples)
+        finally:
+            # Closing a suspended generator runs the code after its yield, so
+            # a frame is acked here, after the copy above, even on an error.
+            packets.close()
+        return self._take(n), self._fs, self._cf
+
+    def _held(self) -> int:
+        return 0 if self._ring is None else self._ring.available
+
+    def _fit(self, n: int, p: int) -> F32Buffer:
+        """Return the ring, grown so a *p*-sample packet fits beside *n*."""
+        if self._ring is None:
+            self._ring = self._new_ring(_ceil_pow2(n + 2 * p))
+        elif self._ring.capacity < n + p:
+            held = self._ring.available
+            grown = self._new_ring(_ceil_pow2(held + p + n))
+            if held:
+                grown.write(self._ring.wait(held))  # held: returns at once
+                self._ring.consume(held)
+            self._ring.destroy()
+            self._ring = grown
+        return self._ring
+
+    def _take(self, n: int) -> np.ndarray:
+        """Remove and return up to *n* samples from the ring."""
+        ring = self._ring
+        k = 0 if ring is None else min(n, ring.available)
+        if ring is None or k == 0:
+            return np.empty(0, dtype=np.complex64)
+        out = ring.wait(k).copy()  # k held: returns at once
+        ring.consume(k)
+        return out
+
+    def _new_ring(self, capacity: int) -> F32Buffer:
+        from doppler.buffer import F32Buffer
+
+        return F32Buffer(capacity)
+
+    def close(self) -> None:
+        if self._ring is not None:
+            self._ring.destroy()
+            self._ring = None
+
+
+# ------------------------------------------------------------------
 # Socket source
 # ------------------------------------------------------------------
 
 
-class SocketSource(Source):
+class SocketSource(_ChunkedSource):
     """
     NATS PUB/SUB subscriber.
 
@@ -411,12 +493,9 @@ class SocketSource(Source):
         address: str,
         timeout_ms: int = 2000,
     ) -> None:
+        super().__init__(timeout_ms)
         self._address = address
-        self._timeout_ms = timeout_ms
         self._sub = None
-        self._fs: float = 0.0
-        self._cf: float = 0.0
-        self._buf = np.empty(0, dtype=np.complex64)
 
     def _get_sub(self) -> Subscriber:
         if self._sub is None:
@@ -426,31 +505,23 @@ class SocketSource(Source):
             self._sub.__enter__()
         return self._sub
 
-    def read(self, n: int) -> tuple[np.ndarray, float, float]:
+    def _packets(self) -> Iterator[tuple[np.ndarray, float, float]]:
         sub = self._get_sub()
-
-        # Drain packets until the buffer holds >= n samples
-        while len(self._buf) < n:
+        while True:
             try:
                 data, hdr = sub.recv(timeout_ms=self._timeout_ms)
-            except TimeoutError:
-                # Nothing within timeout_ms: return what we have (may be
-                # empty). The binding RAISES here; it never returns None.
-                break
-            except EOFError:
-                # The publisher's end-of-stream frame: nothing more is
-                # coming, so hand back what is buffered, as on a timeout.
-                break
-            data = to_complex64(data)
-            self._fs = float(hdr["sample_rate"])
-            self._cf = float(hdr["center_freq"])
-            self._buf = np.concatenate([self._buf, data.ravel()])
-
-        out = self._buf[:n].copy()
-        self._buf = self._buf[n:]
-        return out, self._fs, self._cf
+            except (TimeoutError, EOFError):
+                # A timeout, or the publisher's end-of-stream frame: either
+                # way nothing more comes for this read.
+                return
+            yield (
+                to_complex64(data).ravel(),
+                float(hdr["sample_rate"]),
+                float(hdr["center_freq"]),
+            )
 
     def close(self) -> None:
+        super().close()
         if self._sub is not None:
             self._sub.__exit__(None, None, None)
             self._sub = None
@@ -461,7 +532,7 @@ class SocketSource(Source):
 # ------------------------------------------------------------------
 
 
-class PullSource(Source):
+class PullSource(_ChunkedSource):
     """
     NATS JetStream PUSH/PULL receiver.
 
@@ -513,17 +584,14 @@ class PullSource(Source):
         address: str,
         timeout_ms: int = 2000,
     ) -> None:
+        super().__init__(timeout_ms)
         self._address = address
-        self._timeout_ms = timeout_ms
         self._pull = None
         self._next_seq: int | None = None
         self.duplicates = 0
         self.gaps = 0
         self.restarts = 0
         self.undecodable = 0
-        self._fs: float = 0.0
-        self._cf: float = 0.0
-        self._buf = np.empty(0, dtype=np.complex64)
 
     def _get_pull(self) -> Pull:
         if self._pull is None:
@@ -533,28 +601,29 @@ class PullSource(Source):
             self._pull.__enter__()
         return self._pull
 
-    def read(self, n: int) -> tuple[np.ndarray, float, float]:
+    def _packets(self) -> Iterator[tuple[np.ndarray, float, float]]:
         from doppler.stream import WORK_QUEUE_MAX_ACK_PENDING
 
         pull = self._get_pull()
-
-        while len(self._buf) < n:
+        while True:
             try:
                 frame, hdr = pull.recv(timeout_ms=self._timeout_ms)
             except TimeoutError:
-                break  # nothing more for now -- see SocketSource
+                return  # nothing more for now -- see SocketSource
             except EOFError:
                 # That producer is gone; the next one counts from 0 again,
                 # and is not a redelivery of the old one's frames.
                 self._next_seq = None
-                break
+                return
             # Acked in `finally`, whatever happens: Pull is an explicit-ack
             # work queue, and an unacked frame is redelivered every AckWait
             # and stays queued for the next run. After MaxAckPending
-            # unacked frames the server sends ONLY redeliveries, which this
-            # loop would concatenate as new data (#2009). That holds for a
-            # frame read here and found undecodable, too. The end-of-stream
-            # frame is acked inside recv.
+            # unacked frames the server sends ONLY redeliveries, which would
+            # be read as new data (#2009). That holds for a frame found
+            # undecodable, too. The end-of-stream frame is acked inside recv.
+            # The yield suspends with the frame unacked: the reader copies
+            # the samples, then resumes this generator (or closes it), and
+            # only then does the ack below run.
             try:
                 seq = int(hdr["sequence"])
                 if self._next_seq is not None:
@@ -567,20 +636,18 @@ class PullSource(Source):
                     else:
                         self.gaps -= behind  # 0 when in order
                 self._next_seq = seq + 1
-                data = to_complex64(frame)
-                self._fs = float(hdr["sample_rate"])
-                self._cf = float(hdr["center_freq"])
-                self._buf = np.concatenate([self._buf, data.ravel()])
+                yield (
+                    to_complex64(frame).ravel(),
+                    float(hdr["sample_rate"]),
+                    float(hdr["center_freq"]),
+                )
             except (KeyError, TypeError, ValueError):
                 self.undecodable += 1
             finally:
                 pull.ack(frame)
 
-        out = self._buf[:n].copy()
-        self._buf = self._buf[n:]
-        return out, self._fs, self._cf
-
     def close(self) -> None:
+        super().close()
         if self._pull is not None:
             self._pull.__exit__(None, None, None)
             self._pull = None

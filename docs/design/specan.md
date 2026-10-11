@@ -131,6 +131,49 @@ retune is built only from samples taken at the new tuning.
 A display keeps up by showing the latest spectrum. A stream that must not drop a
 window is a spectrogram, one row per window, which `Spectrogram` provides.
 
+## The NATS sources: how a read is served
+
+`SocketSource` and `PullSource` share one ring and differ only in how they
+receive. A `read(n)` returns the next `n` complex64 samples, or fewer when the
+stream stops first.
+
+- **Short reads.** A read receives packets only while it holds fewer than `n`
+    samples. A timeout or an end-of-stream frame ends the read and returns what
+    is held: `k < n` samples, possibly none. Samples received but not returned
+    stay in the ring for the next read.
+- **The ring.** One `F32Buffer`, created at the first packet with capacity
+    `2^ceil(log2(n + 2p))` for a read of `n` and a packet of `p` samples. A
+    packet is written whole only while the ring holds `n + p` samples. A ring
+    too small for that is rebuilt at `2^ceil(log2(held + p + n))`, which copies
+    the held samples once. A read larger than the ring grows it at the first
+    packet that needs room, not at the call. A read takes `min(n, held)`
+    samples and never waits on the ring.
+- **Acks (`PullSource`).** A frame is acked after its samples are copied into
+    the ring and before `read()` returns. The packet generator suspends at the
+    yield with the frame unacked; the ack runs when the reader resumes the
+    generator, or closes it at the end of the read. A read that raises (a
+    transport error, or a failed ring grow) closes the generator the same way,
+    so the frame it holds is acked. Such a frame is acked whether or not its
+    samples were copied, so its samples are lost: the same as before the ring.
+    Duplicates and undecodable frames are acked on receipt. The end-of-stream
+    frame is acked inside `recv`.
+- **Threads.** `read()` and the receive run on the caller's thread. The DSP
+    loop calls `source.read`; in the server, `_next_frame` runs on the
+    single-worker `_dsp_executor`. The NATS I/O thread only fills the
+    subscription queue. The `Pull` ack takes a mutex, so an ack from another
+    thread is safe; the counters `duplicates`, `gaps`, `restarts` and
+    `undecodable` are updated on the caller's thread.
+- **Cost.** A drain of `T` samples costs time linear in `T`: one copy per
+    packet and one copy per doubling of the ring. The measured ratio of drain
+    time at `2T` to `T` is in the pull request, not pinned here.
+- **Checked by** `src/doppler/specan/tests/test_nats_source_model.py`: seeded
+    schedules of packets, timeouts, end-of-stream frames, redeliveries, gaps,
+    restarts and undecodable frames, with read sizes drawn at random. Every
+    read is compared with a plain-list model of the same rules, including the
+    four counters after each read, and every frame's ack count. The fakes
+    poison a frame when it is acked (`PullSource`) or at the next receive
+    (`SocketSource`), so a copy made after that point reads NaN and fails.
+
 ## How it is checked
 
 All in `native/tests/test_specan_core.c`, over eleven RBWs from a 2048-point

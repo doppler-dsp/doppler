@@ -160,13 +160,14 @@ dp_spectrogram_consumed (const dp_spectrogram_state_t *s)
   return s->consumed;
 }
 
-size_t
+int64_t
 dp_spectrogram_flush (dp_spectrogram_state_t *s, float *row, size_t row_len)
 {
-  /* A row buffer shorter than one row is refused before anything moves, so
-   * the owed frame stays owed for a retry with room. */
-  if (row_len < s->nfft)
-    return 0;
+  /* A row buffer that is not exactly one row is refused before anything
+   * moves: -1, so a wrong-shape row cannot read as "nothing owed" (0). The
+   * owed frame stays owed for a retry. */
+  if (row_len != s->nfft)
+    return -1;
   /* push leaves the framer drained, so the framer's flush cannot refuse
    * here; it either copies the owed, zero-padded frame or owes none. Both
    * restart the stream. */
@@ -175,7 +176,7 @@ dp_spectrogram_flush (dp_spectrogram_state_t *s, float *row, size_t row_len)
   if (owed != 1)
     return 0;
   spectrogram_row (s, s->last, row);
-  return s->nfft;
+  return (int64_t)s->nfft;
 }
 
 size_t
@@ -197,13 +198,19 @@ dp_spectrogram_get_pending (const dp_spectrogram_state_t *s)
   return dp_spectrogram_pending (s);
 }
 
-/* Serializable state: the carry, which is the framer's snapshot, nested in
- * the spectrogram's own envelope. The kernel's window, plan and scratch and
- * the mode are configuration, restored by create(). */
+/* Serializable state: the configuration the rows depend on, then the carry,
+ * which is the framer's snapshot, nested in the spectrogram's own envelope.
+ * The configuration (mode, nfft, hop, window, beta) is written so a restore
+ * can REFUSE a blob whose rows would mean something else (#2102): a power
+ * blob never loads into a dB object, and nothing is written on a refusal.
+ * The kernel's plan and scratch are not state and are rebuilt by create(). */
+#define SPECTROGRAM_CONFIG_BYTES (4u + 8u + 8u + 4u + 4u)
+
 size_t
 dp_spectrogram_state_bytes (const dp_spectrogram_state_t *s)
 {
-  return sizeof (dp_state_hdr_t) + dp_f32_framer_state_bytes (&s->fr);
+  return sizeof (dp_state_hdr_t) + SPECTROGRAM_CONFIG_BYTES
+         + dp_f32_framer_state_bytes (&s->fr);
 }
 
 void
@@ -211,6 +218,11 @@ dp_spectrogram_get_state (const dp_spectrogram_state_t *s, void *blob)
 {
   DP_GET_OPEN (SPECTROGRAM_STATE_MAGIC, SPECTROGRAM_STATE_VERSION,
                dp_spectrogram_state_bytes (s));
+  dp_w_u32 (&_w, (uint32_t)s->mode);
+  dp_w_u64 (&_w, (uint64_t)s->nfft);
+  dp_w_u64 (&_w, (uint64_t)s->hop);
+  dp_w_u32 (&_w, (uint32_t)s->window);
+  dp_w_f32 (&_w, &s->beta, 1);
   DP_W_CHILD (&_w, dp_f32_framer, &s->fr);
 }
 
@@ -219,6 +231,21 @@ dp_spectrogram_set_state (dp_spectrogram_state_t *s, const void *blob)
 {
   DP_SET_OPEN (SPECTROGRAM_STATE_MAGIC, SPECTROGRAM_STATE_VERSION,
                dp_spectrogram_state_bytes (s));
+  /* Read the configuration and refuse a mismatch before anything is written:
+   * the object is unchanged on a refusal. */
+  const uint32_t mode   = dp_r_u32 (&_r);
+  const uint64_t nfft   = dp_r_u64 (&_r);
+  const uint64_t hop    = dp_r_u64 (&_r);
+  const uint32_t window = dp_r_u32 (&_r);
+  float          beta   = 0.0f;
+  dp_r_f32 (&_r, &beta, 1);
+  /* beta only shapes the Kaiser window (window index 1); elsewhere it does
+   * not change a row, so it is not compared there. */
+  const int beta_matters = s->window == 1;
+  if ((int)mode != s->mode || nfft != (uint64_t)s->nfft
+      || hop != (uint64_t)s->hop || (int)window != s->window
+      || (beta_matters && beta != s->beta))
+    return DP_ERR_INVALID;
   DP_R_CHILD (&_r, dp_f32_framer, &s->fr);
   s->consumed = 0;
   return DP_OK;

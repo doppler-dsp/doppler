@@ -1,25 +1,17 @@
-"""Benchmark for Spectrogram.
+"""Benchmarks for Spectrogram: construction and streaming push."""
 
-Run through the bench targets; see docs/dev/contributing/benchmarking.md.
-"""
-
-import pytest
+import numpy as np
 
 from doppler.spectral import Spectrogram
 
-BLOCK_64K = 65_536
-
-
-@pytest.fixture
-def obj():
-    return Spectrogram(
-        nfft=256, hop=256, window="hann", beta=0.0, mode="power"
-    )
-
 
 def test_bench_create(benchmark):
-    benchmark(
-        lambda: Spectrogram(
-            nfft=256, hop=256, window="hann", beta=0.0, mode="power"
-        )
-    )
+    """Construction cost: the window and the PSD plan."""
+    benchmark(lambda: Spectrogram(nfft=256, hop=256, window="hann"))
+
+
+def test_bench_push(benchmark):
+    """Streaming push: one 64 KiB chunk, rows out."""
+    x = np.ones(8192, np.complex64)
+    sp = Spectrogram(nfft=256, hop=256, window="hann")
+    benchmark(lambda: sp.push(x))

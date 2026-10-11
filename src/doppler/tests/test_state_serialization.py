@@ -165,8 +165,7 @@ def _frame_feed(method: str, n: int) -> _Feed:
 
 
 def _spectrogram_feed(o: Any, seg: NDArray[np.complex64]) -> NDArray[Any]:
-    """Feed for the Spectrogram: push the whole segment in one call, so the
-    partial-frame carry and the row count are both part of the state."""
+    """Push the whole segment at once, so the partial-frame carry is state."""
     o.push(seg.astype(np.complex64))
     return np.frombuffer(o.get_state(), dtype=np.uint8)
 

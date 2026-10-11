@@ -182,8 +182,8 @@ main (void)
      end). Both ways owe the same one. */
   float last_a[NFFT], last_b[NFFT];
   CHECK (dp_spectrogram_pending (a) > 0);
-  CHECK (dp_spectrogram_flush (a, last_a, NFFT) == NFFT);
-  CHECK (dp_spectrogram_flush (b, last_b, NFFT) == NFFT);
+  CHECK (dp_spectrogram_flush (a, last_a, NFFT) == (int64_t)NFFT);
+  CHECK (dp_spectrogram_flush (b, last_b, NFFT) == (int64_t)NFFT);
   CHECK (memcmp (last_a, last_b, sizeof last_a) == 0);
   /* Physics for the flushed row too: it starts at rows * HOP, inside the
      last segment, whose tone runs on to the end of the stream; the zeros

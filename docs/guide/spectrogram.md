@@ -12,11 +12,47 @@ end to end, a detector scanning time and frequency. If you want one averaged
 spectrum instead, that is [`PSD`](spectral-psd.md); a spectrogram row *is*
 the PSD of its frame, unaveraged.
 
-!!! note "C only, for now"
+The C face is `#include "doppler/spectrogram/spectrogram_core.h"` and link
+`libdoppler`. The Python face is `doppler.spectral.Spectrogram`, below.
 
-    The Python face follows the just-makeit release that can return a
-    `(rows, nfft)` matrix from a method (just-makeit#2152). Until then the
-    spectrogram is a C component: `#include "doppler/spectrogram/spectrogram_core.h"` and link `libdoppler`.
+## In Python
+
+`push` returns the rows a chunk completes as a `(rows, nfft)` matrix, or
+`None` when it completes none. `flush` writes the zero-padded partial frame
+into a row of exactly `nfft` floats. The two faces agree on the rows.
+
+```python
+import numpy as np
+from doppler.spectral import Spectrogram
+
+sp = Spectrogram(nfft=256, hop=256, window="blackman-harris")
+x = np.exp(2j * np.pi * 32 * np.arange(4096) / 256).astype(np.complex64)
+
+rows = []
+for i in range(0, len(x), 37):  # chunks of any size give the same rows
+    block = sp.push(x[i : i + 37])
+    if block is not None:
+        rows.append(block)
+tail = np.empty(256, np.float32)
+if sp.flush(tail):  # the trailing partial frame, if one is owed
+    rows.append(tail[None, :])
+waterfall = np.concatenate(rows)
+
+assert waterfall.shape == (16, 256)
+assert waterfall[:, 256 // 2 + 32].min() > 0.99  # a unit tone reads 1.0
+```
+
+A chunk's output buffer is sized for every row the chunk can complete, so
+`push` takes all of its input and `consumed` equals the chunk length. To bound
+memory, push smaller chunks, sized with `rows_for`. A caller that supplies its
+own `out` must give it at least `push_max_out(len(x))` elements: a smaller
+`out` is refused with `ValueError`, not taken as a short push. That is the
+Python face today; the jm gap is jm#2230.
+
+A state blob restores only into an object of the same mode, hop, nfft and
+window (and the same Kaiser beta). Any other configuration is refused with
+`ValueError` and the object is unchanged: see the mode note in
+[Checkpoint and resume](#checkpoint-and-resume).
 
 ## A waterfall from a stream that arrives in pieces
 
@@ -118,16 +154,17 @@ the stream, so a second flush writes nothing.
 
 ## Checkpoint and resume
 
-The state is the stream position: the carry, the stream counts and the hop
-that frames them. `dp_spectrogram_get_state` and `dp_spectrogram_set_state`
-move it as a standard state blob of a size that depends on `nfft` alone.
-Restore it into a fresh spectrogram created with the same arguments, and the
-next push continues the stream bit for bit, even mid-frame.
+The state is the stream position, the carry and the configuration the rows
+depend on. `dp_spectrogram_get_state` and `dp_spectrogram_set_state` move it
+as a standard state blob, which is version 2. Restore it into a spectrogram
+created with the same configuration, and the next push continues the stream
+bit for bit, even mid-frame.
 
-A different `nfft` or `hop` is refused on restore. A different window,
-`beta` or mode is **not**: the blob does not carry them, so the rows that
-follow are the restoring object's, not the original's. Keeping them the same
-is the caller's job. See [Checkpoint & Resume](state-serialization.md).
+A blob from a different configuration is refused on restore, and the object
+is unchanged: a different mode, `hop`, `nfft` or window, or a different Kaiser
+`beta`. A Hann or rectangular object does not refuse a different `beta`,
+because `beta` shapes only the Kaiser window. Refusing a checkpoint from another mode
+is the owner's ruling on #2102. See [Checkpoint & Resume](state-serialization.md).
 
 ## What it is not
 

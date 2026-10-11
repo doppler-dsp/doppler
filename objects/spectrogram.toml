@@ -7,9 +7,11 @@
 # partial frame is carried to the next push, and a trailing partial frame
 # is dropped unless flush() is called.
 #
-# The contract prose and the Python examples live in the C header's Doxygen
-# (native/inc/doppler/spectrogram/spectrogram_core.h); jm renders them into
-# the numpy docstrings on both faces. Nothing here is a `doc` key.
+# The C header's Doxygen is the contract for the C face. The Python face's
+# methods carry their own `doc` keys below, because the C prose describes a
+# C caller: out-buffer sizing, the sentinel return and the window indices.
+# The generated Parameters and Returns sections still come from the header's
+# @param and @return, so those are written to read correctly on both faces.
 
 [spectrogram]
 arg_type = "float _Complex"
@@ -23,6 +25,15 @@ serializable = "true"
 fragment = "generated"
 create_error = "ValueError"
 create_error_message = "Spectrogram: invalid parameter (need 1 <= hop <= nfft, nfft within the largest transform, a window the PSD accepts, and mode power or db)"
+doc = """A streaming short-time power spectrum: a stream in chunks of any size, one row of nfft bins per hop samples, each row the PSD of its frame.
+
+>>> import numpy as np
+>>> from doppler.spectral import Spectrogram
+>>> sp = Spectrogram(nfft=8, hop=8, window="rect")
+>>> rows = sp.push(np.ones(16, np.complex64))
+>>> rows.shape
+(2, 8)
+"""
 
 [[spectrogram.init_params]]
 name = "nfft"
@@ -50,6 +61,11 @@ default = "0.0f"
 
 # Order IS the C values: DP_SPECTROGRAM_POWER = 0, DP_SPECTROGRAM_DB = 1.
 # jm's string_enum maps by position, so do not reorder.
+#
+# Configuration, not state: create() sets the mode, and the state blob holds
+# only the framer's carry. A blob written in one mode therefore loads into an
+# object of the other mode, without a refusal. Whether that refusal should
+# exist is open: #2102.
 [[spectrogram.init_params]]
 name = "mode"
 type = "string_enum:power,db"
@@ -58,7 +74,10 @@ default = "power"
 # push() returns the completed rows as a (rows, nfft) float32 matrix, or None
 # when it completes none. out_cols names the row width from the object; the
 # `state` alias is what the binding generates for it. Consumption is the
-# `consumed` property below.
+# `consumed` property below. Its input is consumed whole: the binding sizes
+# its own output for every row the chunk can complete, so consumed equals the
+# input length, and a caller bounds memory by pushing smaller chunks (sized
+# with rows_for). A smaller out is refused, not taken as a short one.
 [[spectrogram.methods]]
 name = "push"
 arg_type = "float _Complex[]"
@@ -67,27 +86,97 @@ variable_output = true
 pass_capacity = true
 out_cols = "state->nfft"
 none_on_empty = true
+# The GIL is released across the kernel, as the ddc precedent does for its
+# execute. A single object is not safe for concurrent use from two threads.
+nogil = true
+doc = """Push a chunk of samples, and return the rows it completes.
+
+The rows come back as a (rows, nfft) float32 matrix, or None when the chunk
+completes none. A partial frame is carried to the next push. consumed equals
+the input length: the binding allocates room for every row the chunk can
+complete, so no input is held back. To bound memory, push smaller chunks,
+sized with rows_for(n).
+
+An out array, if given, must be a float32 array of at least
+push_max_out(len(x)) elements. A smaller out raises ValueError; it is not
+taken as a short one.
+
+>>> import numpy as np
+>>> from doppler.spectral import Spectrogram
+>>> sp = Spectrogram(nfft=8, hop=8, window="rect")
+>>> rows = sp.push(np.ones(20, np.complex64))
+>>> rows.shape
+(2, 8)
+>>> sp.consumed, sp.pending
+(20, 4)
+"""
 
 # flush() writes the one zero-padded row a pending partial frame is owed into
-# a caller buffer of at least nfft floats, and returns the floats written (0
-# when no frame is owed, or the buffer is shorter than one row). The buffer
-# is a fixed out-parameter: a flush owes at most one row, so it has no count.
+# a caller buffer of exactly nfft floats, and returns the floats written (0
+# when no frame is owed). The buffer is a fixed out-parameter: a flush owes at
+# most one row, so it has no count. A row of any other size is refused as
+# -1, which the binding raises as ValueError (error_negative); 0 still means "nothing
+# owed".
 [[spectrogram.methods]]
 name = "flush"
 arg_type = "void"
-return_type = "size_t"
+return_type = "int64_t"
 params = [{ name = "row", type = "float[]", out = true }]
+error_negative = true
+error = "ValueError"
+error_message = "flush: row must hold exactly nfft floats"
+doc = """End the stream: write the row a pending partial frame is owed into row.
+
+row must be a writable float32 array of exactly nfft elements; any other size
+raises ValueError, and the owed frame stays owed. Returns nfft when a frame was
+owed and was written, 0 when none was owed. A flush restarts the stream.
+
+The example uses hop 4, so the owed row starts on the hop grid, at sample 4:
+
+>>> import numpy as np
+>>> from doppler.spectral import Spectrogram
+>>> sp = Spectrogram(nfft=8, hop=4, window="rect")
+>>> _ = sp.push(np.ones(11, np.complex64))
+>>> row = np.empty(8, np.float32)
+>>> sp.flush(row)
+8
+>>> sp.flush(row)
+0
+"""
 
 [[spectrogram.methods]]
 name = "rows_for"
 arg_type = "void"
 return_type = "size_t"
 params = [{ name = "n_in", type = "size_t" }]
+doc = """How many rows a push of n_in more samples would complete, from the current carry.
+
+Takes no input. Use it to size chunks that bound memory.
+
+>>> from doppler.spectral import Spectrogram
+>>> sp = Spectrogram(nfft=8, hop=2)
+>>> sp.rows_for(7), sp.rows_for(8), sp.rows_for(100)
+(0, 1, 47)
+"""
 
 [[spectrogram.methods]]
 name = "reset"
 arg_type = "void"
 return_type = "void"
+doc = """Forget the stream: drop the carry and restart at sample 0.
+
+The configuration is kept. consumed and pending read 0 afterwards.
+
+>>> import numpy as np
+>>> from doppler.spectral import Spectrogram
+>>> sp = Spectrogram(nfft=8, hop=8)
+>>> _ = sp.push(np.ones(5, np.complex64))
+>>> sp.pending
+5
+>>> sp.reset()
+>>> sp.pending
+0
+"""
 
 [[spectrogram.properties]]
 name = "consumed"

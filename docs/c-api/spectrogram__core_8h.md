@@ -15,6 +15,7 @@ _Streaming spectrogram: a stream of any-size chunks in, rows of nfft-bin spectra
 * `#include "doppler/f32_buffer/f32_buffer_core.h"`
 * `#include "doppler/psd/psd_core.h"`
 * `#include <stddef.h>`
+* `#include <stdint.h>`
 
 
 
@@ -64,7 +65,7 @@ _Streaming spectrogram: a stream of any-size chunks in, rows of nfft-bin spectra
 |  size\_t | [**dp\_spectrogram\_consumed**](#function-dp_spectrogram_consumed) (const [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s) <br>_Input samples the last_ [_**dp\_spectrogram\_push()**_](spectrogram__core_8h.md#function-dp_spectrogram_push) _took._ |
 |  [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* | [**dp\_spectrogram\_create**](#function-dp_spectrogram_create) (size\_t nfft, size\_t hop, int window, float beta, int mode) <br>_Create a streaming spectrogram._  |
 |  void | [**dp\_spectrogram\_destroy**](#function-dp_spectrogram_destroy) ([**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s) <br>_Release a spectrogram and everything it owns._  |
-|  size\_t | [**dp\_spectrogram\_flush**](#function-dp_spectrogram_flush) ([**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s, float \* row, size\_t row\_len) <br>_End the stream: write the one zero-padded row it still owes, if any._  |
+|  int64\_t | [**dp\_spectrogram\_flush**](#function-dp_spectrogram_flush) ([**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s, float \* row, size\_t row\_len) <br>_End the stream: write the one zero-padded row it still owes, if any._  |
 |  size\_t | [**dp\_spectrogram\_get\_consumed**](#function-dp_spectrogram_get_consumed) (const [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* state) <br>_Input samples the last push took (the_ `consumed` _property)._ |
 |  size\_t | [**dp\_spectrogram\_get\_pending**](#function-dp_spectrogram_get_pending) (const [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* state) <br>_Samples carried toward the next row (the_ `pending` _property)._ |
 |  void | [**dp\_spectrogram\_get\_state**](#function-dp_spectrogram_get_state) (const [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s, void \* blob) <br>_Serialize the stream position into_ `blob` _._ |
@@ -109,7 +110,7 @@ _Streaming spectrogram: a stream of any-size chunks in, rows of nfft-bin spectra
 | define  | [**DP\_SPECTROGRAM\_DB**](spectrogram__core_8h.md#define-dp_spectrogram_db)  `1`<br>_Row units: dBFS, against the same reference. Asked for by name._  |
 | define  | [**DP\_SPECTROGRAM\_POWER**](spectrogram__core_8h.md#define-dp_spectrogram_power)  `0`<br>_Row units: linear power against the PSD's full-scale reference. The DEFAULT: what every example, guide and binding uses unless it asks for dB by name._  |
 | define  | [**SPECTROGRAM\_STATE\_MAGIC**](spectrogram__core_8h.md#define-spectrogram_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('S', 'P', 'G', 'M')`<br>_State-blob magic ('SPGM') and layout version._  |
-| define  | [**SPECTROGRAM\_STATE\_VERSION**](spectrogram__core_8h.md#define-spectrogram_state_version)  `1u`<br> |
+| define  | [**SPECTROGRAM\_STATE\_VERSION**](spectrogram__core_8h.md#define-spectrogram_state_version)  `2u`<br> |
 
 ## Detailed Description
 
@@ -123,7 +124,7 @@ The object composes and re-implements none of its parts. The carry between calls
 Lifecycle: [**dp\_spectrogram\_create()**](spectrogram__core_8h.md#function-dp_spectrogram_create), then any number of [**dp\_spectrogram\_push()**](spectrogram__core_8h.md#function-dp_spectrogram_push) calls, then [**dp\_spectrogram\_flush()**](spectrogram__core_8h.md#function-dp_spectrogram_flush) once to end the stream, then [**dp\_spectrogram\_destroy()**](spectrogram__core_8h.md#function-dp_spectrogram_destroy). A short output buffer never loses input: push stops at a whole row and [**dp\_spectrogram\_consumed()**](spectrogram__core_8h.md#function-dp_spectrogram_consumed) says where to resume.
 
 
-Not thread-safe on one object (the kernel uses the object's scratch). Complex float32 input only. The design, its goals and what it costs are docs/design/spectrogram.md. 
+Not thread-safe on one object (the kernel uses the object's scratch). Complex float32 input only. The design, its goals and what it costs are docs/design/spectrogram.md. The C examples are native/examples/ spectrogram\_demo.c, which the example gate runs; they are not kept in this header, because the Python docstrings are generated from it. 
 
 
     
@@ -151,27 +152,9 @@ Equal to its `n_in` unless `out` ran out of room; then the caller resumes at in 
 **Parameters:**
 
 
-* `s` Must be non-NULL.
+* `s` Must be non-NULL. 
 
 
-```C++
-dp_spectrogram_state_t *s
-    = dp_spectrogram_create (8, 8, 3, 0.0f, DP_SPECTROGRAM_POWER);
-float _Complex x[32] = { 0 };
-float row[8];
-// 32 samples make 4 rows, but out has room for 1: the push takes the 8
-// that complete it and the 7 after them that complete nothing; sample 15
-// would complete a row with no room, so it is not taken
-if (dp_spectrogram_push (s, x, 32, row, 8) != 8
-    || dp_spectrogram_consumed (s) != 15)
-  return 1;
-// resume at x + 15: sample 15 completes the next row
-if (dp_spectrogram_push (s, x + 15, 32 - 15, row, 8) != 8
-    || dp_spectrogram_consumed (s) != 8)
-  return 1;
-dp_spectrogram_destroy (s);
-```
- 
 
 
         
@@ -202,7 +185,7 @@ dp_spectrogram_state_t * dp_spectrogram_create (
 
 * `nfft` Samples per frame and bins per row, which must be the same number: an nfft the PSD would zero-pad to a longer transform (anything but a power of two &gt;= 2) is refused rather than given rows wider than its frames. 
 * `hop` Samples between row starts, 1 &lt;= hop &lt;= nfft. hop == nfft tiles the stream; hop &lt; nfft overlaps the frames. 
-* `window` 0 = Hann, 1 = Kaiser, 2 = Blackman-Harris, 3 = rectangular, as [**dp\_psd\_create()**](psd__core_8h.md#function-dp_psd_create), which also refuses a window that sums to zero at this nfft (the symmetric Hann at nfft = 2). 
+* `window` The window: "hann", "kaiser", "blackman-harris" or "rect" in Python; in C the index 0, 1, 2 or 3 in that order, as [**dp\_psd\_create()**](psd__core_8h.md#function-dp_psd_create) takes it. It also refuses a window that sums to zero at this nfft (the symmetric Hann at nfft = 2). 
 * `beta` Kaiser beta (ignored for the other windows). 
 * `mode` DP\_SPECTROGRAM\_POWER (linear rows, the default, 0) or DP\_SPECTROGRAM\_DB (dBFS rows, 1); any other value is refused. Pass it by name: `make lint` refuses an integer literal here. 
 
@@ -217,43 +200,10 @@ Every row is DC-centred exactly as PSD's kernel emits it: bin k at index nfft/2 
 
 **Note:**
 
-Call [**dp\_spectrogram\_destroy()**](spectrogram__core_8h.md#function-dp_spectrogram_destroy) when done.
+Call [**dp\_spectrogram\_destroy()**](spectrogram__core_8h.md#function-dp_spectrogram_destroy) when done. 
 
 
 
-```C++
-// nfft 1024, a row every 256 samples (75% overlap), Blackman-Harris,
-// power rows (the default), DC-centred
-dp_spectrogram_state_t *s
-    = dp_spectrogram_create (1024, 256, 2, 0.0f, DP_SPECTROGRAM_POWER);
-// the same rows in dBFS, asked for by name
-dp_spectrogram_state_t *d
-    = dp_spectrogram_create (1024, 256, 2, 0.0f, DP_SPECTROGRAM_DB);
-if (!s || !d)
-  return 1;
-// refused: 1000 is not a power of two, a hop may not exceed nfft, and
-// a mode is one of the two
-const int not_a_mode = DP_SPECTROGRAM_DB + 1;
-if (dp_spectrogram_create (1000, 256, 2, 0.0f, DP_SPECTROGRAM_POWER)
-    || dp_spectrogram_create (1024, 2048, 2, 0.0f, DP_SPECTROGRAM_POWER)
-    || dp_spectrogram_create (1024, 256, 2, 0.0f, not_a_mode))
-  return 1;
-dp_spectrogram_destroy (d);
-dp_spectrogram_destroy (s);
-```
-
-
-
-
-```C++
->>> import numpy as np
->>> from doppler.spectral import Spectrogram
->>> sp = Spectrogram(nfft=1024, hop=256, window="blackman-harris")
->>> rows = sp.push(np.ones(1024 + 256, np.complex64))
->>> rows.shape
-(2, 1024)
-```
- 
 
 
         
@@ -278,18 +228,9 @@ void dp_spectrogram_destroy (
 **Parameters:**
 
 
-* `s` May be NULL (no-op).
+* `s` May be NULL (no-op). 
 
 
-```C++
-dp_spectrogram_state_t *s
-    = dp_spectrogram_create (8, 4, 3, 0.0f, DP_SPECTROGRAM_POWER);
-if (!s)
-  return 1;
-dp_spectrogram_destroy (s);    // its PSD, its ring and its carry go too
-dp_spectrogram_destroy (NULL); // a no-op
-```
- 
 
 
         
@@ -302,7 +243,7 @@ dp_spectrogram_destroy (NULL); // a no-op
 
 _End the stream: write the one zero-padded row it still owes, if any._ 
 ```C++
-size_t dp_spectrogram_flush (
+int64_t dp_spectrogram_flush (
     dp_spectrogram_state_t * s,
     float * row,
     size_t row_len
@@ -321,59 +262,16 @@ The row sits on the hop grid: it starts at the next row start k\*hop, never at t
 
 * `s` Must be non-NULL. 
 * `row` Room for nfft floats. 
-* `row_len` Floats of room in `row`. Less than nfft is refused: 0 is returned and the owed frame stays owed for a retry. 
+* `row_len` Floats of room in `row`. Must be exactly nfft: any other length is refused before anything moves, the owed frame stays owed, and -1 is returned (never a count). 
 
 
 
 **Returns:**
 
-Floats written: nfft, or 0 if no row was owed or `row_len` is less than nfft.
+Floats written: nfft, or 0 if no row was owed; -1 if `row_len` is not nfft. 
 
 
 
-```C++
-dp_spectrogram_state_t *s
-    = dp_spectrogram_create (8, 4, 3, 0.0f, DP_SPECTROGRAM_POWER);
-dp_spectrogram_state_t *t
-    = dp_spectrogram_create (8, 4, 3, 0.0f, DP_SPECTROGRAM_POWER);
-if (!s || !t)
-  return 1;
-float _Complex x[10], tail[8] = { 0 };
-for (int i = 0; i < 10; i++)
-  x[i] = (float)(i + 1);
-float row[8], last[8], want[8];
-// 10 samples: one row, [0, 8); samples 8 and 9 no row has covered
-dp_spectrogram_push (s, x, 10, row, 8);
-if (dp_spectrogram_pending (s) != 2)
-  return 1;
-// the owed row starts on the hop grid, at 4 (not at 8): x[4..10), zeros
-if (dp_spectrogram_flush (s, last, 8) != 8)
-  return 1;
-memcpy (tail, x + 4, 6 * sizeof *x);      // the same frame, pushed whole
-if (dp_spectrogram_push (t, tail, 8, want, 8) != 8
-    || memcmp (last, want, sizeof want) != 0)
-  return 1;
-if (dp_spectrogram_flush (s, last, 8) != 0)  // the stream is over
-  return 1;
-dp_spectrogram_destroy (t);
-dp_spectrogram_destroy (s);
-```
-
-
-
-
-```C++
->>> import numpy as np
->>> from doppler.spectral import Spectrogram
->>> sp = Spectrogram(nfft=8, hop=8, window="rect")
->>> _ = sp.push(np.ones(11, np.complex64))
->>> row = np.empty(8, np.float32)
->>> sp.flush(row)
-8
->>> sp.flush(row)
-0
-```
- 
 
 
         
@@ -474,30 +372,9 @@ void dp_spectrogram_get_state (
 
 
 * `s` Must be non-NULL. 
-* `blob` dp\_spectrogram\_state\_bytes(s) bytes, every one written.
+* `blob` dp\_spectrogram\_state\_bytes(s) bytes, every one written. 
 
 
-```C++
-// every byte is written: two differently pre-filled blobs come out equal
-// (a union, so each blob is aligned for the dp_state_hdr_t it opens with)
-union { dp_state_hdr_t h; unsigned char b[256]; } b1, b2;
-dp_spectrogram_state_t *s
-    = dp_spectrogram_create (8, 4, 3, 0.0f, DP_SPECTROGRAM_POWER);
-if (!s || dp_spectrogram_state_bytes (s) > sizeof b1.b)
-  return 1;
-size_t n = dp_spectrogram_state_bytes (s);
-float _Complex x[5] = { 1, 2, 3, 4, 5 };
-float out[8];
-dp_spectrogram_push (s, x, 5, out, 8); // 5 samples held, no row yet
-memset (b1.b, 0xAA, n);
-memset (b2.b, 0x55, n);
-dp_spectrogram_get_state (s, b1.b);
-dp_spectrogram_get_state (s, b2.b);
-if (memcmp (b1.b, b2.b, n) != 0)
-  return 1;
-dp_spectrogram_destroy (s);
-```
- 
 
 
         
@@ -525,23 +402,9 @@ What [**dp\_spectrogram\_flush()**](spectrogram__core_8h.md#function-dp_spectrog
 **Parameters:**
 
 
-* `s` Must be non-NULL.
+* `s` Must be non-NULL. 
 
 
-```C++
-dp_spectrogram_state_t *s
-    = dp_spectrogram_create (8, 4, 3, 0.0f, DP_SPECTROGRAM_POWER);
-float _Complex x[12] = { 0 };
-float out[2 * 8];
-dp_spectrogram_push (s, x, 12, out, 2 * 8);
-if (dp_spectrogram_pending (s) != 0)   // rows at 0 and 4 cover all 12
-  return 1;
-dp_spectrogram_push (s, x, 3, out, 2 * 8);
-if (dp_spectrogram_pending (s) != 3)
-  return 1;
-dp_spectrogram_destroy (s);
-```
- 
 
 
         
@@ -586,41 +449,10 @@ A short `out` never loses input. A sample is taken unless taking it would comple
 
 **Returns:**
 
-Floats written: a multiple of nfft, at most dp\_spectrogram\_push\_max\_out(s, n\_in).
+In C, the floats written: a multiple of nfft, at most dp\_spectrogram\_push\_max\_out(s, n\_in). In Python, the completed rows as a (rows, nfft) matrix, or None when there are none. 
 
 
 
-```C++
-// nfft 8, hop 4, rectangular, power: a unit tone on bin 2
-dp_spectrogram_state_t *s
-    = dp_spectrogram_create (8, 4, 3, 0.0f, DP_SPECTROGRAM_POWER);
-float _Complex x[16];
-for (int i = 0; i < 16; i++)
-  x[i] = cexpf (I * 2.0f * 3.14159265f * 2.0f * (float)i / 8.0f);
-float rows[3 * 8];
-size_t got = dp_spectrogram_push (s, x, 16, rows, 3 * 8);
-// 16 samples at hop 4 complete the rows starting at 0, 4 and 8
-if (got != 3 * 8 || dp_spectrogram_consumed (s) != 16)
-  return 1;
-if (fabsf (rows[4 + 2] - 1.0f) > 1e-4f) // bin 2 reads 1.0, at nfft/2 + 2
-  return 1;
-dp_spectrogram_destroy (s);
-```
-
-
-
-
-```C++
->>> import numpy as np
->>> from doppler.spectral import Spectrogram
->>> sp = Spectrogram(nfft=8, hop=8, window="rect")
->>> rows = sp.push(np.ones(20, np.complex64))
->>> rows.shape
-(2, 8)
->>> sp.consumed, sp.pending
-(20, 4)
-```
- 
 
 
         
@@ -650,28 +482,9 @@ The capacity that makes a push take ALL of its input. Saturates at SIZE\_MAX rat
 
 
 * `s` Must be non-NULL. 
-* `n_in` Samples about to be pushed.
+* `n_in` Samples about to be pushed. 
 
 
-```C++
-dp_spectrogram_state_t *s
-    = dp_spectrogram_create (8, 4, 3, 0.0f, DP_SPECTROGRAM_POWER);
-float _Complex x[16] = { 0 };
-float out[2 * 8];
-// 3 samples complete no row: no room is needed, and they are taken
-if (dp_spectrogram_push_max_out (s, 3) != 0)
-  return 1;
-dp_spectrogram_push (s, x, 3, out, 0);
-if (dp_spectrogram_consumed (s) != 3)
-  return 1;
-// 3 carried + 9 more = 12 samples: the rows starting at 0 and at 4
-size_t room = dp_spectrogram_push_max_out (s, 9);
-if (room != 2 * 8 || dp_spectrogram_push (s, x, 9, out, room) != room
-    || dp_spectrogram_consumed (s) != 9)
-  return 1;
-dp_spectrogram_destroy (s);
-```
- 
 
 
         
@@ -699,38 +512,9 @@ The next row covers samples [0, nfft) of whatever is pushed next. [**dp\_spectro
 **Parameters:**
 
 
-* `s` Must be non-NULL.
+* `s` Must be non-NULL. 
 
 
-```C++
-dp_spectrogram_state_t *s
-    = dp_spectrogram_create (8, 8, 3, 0.0f, DP_SPECTROGRAM_POWER);
-float _Complex x[5] = { 0 };
-float row[8];
-dp_spectrogram_push (s, x, 5, row, 8);   // 5 samples of carry, no row
-if (dp_spectrogram_pending (s) != 5)
-  return 1;
-dp_spectrogram_reset (s);                 // the carry is gone
-if (dp_spectrogram_pending (s) != 0)
-  return 1;
-dp_spectrogram_destroy (s);
-```
-
-
-
-
-```C++
->>> import numpy as np
->>> from doppler.spectral import Spectrogram
->>> sp = Spectrogram(nfft=8, hop=8)
->>> _ = sp.push(np.ones(5, np.complex64))
->>> sp.pending
-5
->>> sp.reset()
->>> sp.pending
-0
-```
- 
 
 
         
@@ -760,29 +544,9 @@ The carry plus `n_in` samples, cut into frames of nfft at the hop. A push with r
 
 
 * `s` Must be non-NULL. 
-* `n_in` Samples about to be pushed.
+* `n_in` Samples about to be pushed. 
 
 
-```C++
-dp_spectrogram_state_t *s
-    = dp_spectrogram_create (8, 2, 3, 0.0f, DP_SPECTROGRAM_POWER);
-if (dp_spectrogram_rows_for (s, 7) != 0      // less than a frame
-    || dp_spectrogram_rows_for (s, 8) != 1
-    || dp_spectrogram_rows_for (s, 100) != 47) // (100 - 8) / 2 + 1
-  return 1;
-dp_spectrogram_destroy (s);
-```
-
-
-
-
-```C++
->>> from doppler.spectral import Spectrogram
->>> sp = Spectrogram(nfft=8, hop=2)
->>> sp.rows_for(7), sp.rows_for(8), sp.rows_for(100)
-(0, 1, 47)
-```
- 
 
 
         
@@ -812,44 +576,16 @@ Precondition, the caller's to keep because the blob does not carry it: `s` was c
 
 
 * `s` A spectrogram created with the same arguments. 
-* `blob` From [**dp\_spectrogram\_get\_state()**](spectrogram__core_8h.md#function-dp_spectrogram_get_state). 
+* `blob` From [**dp\_spectrogram\_get\_state()**](spectrogram__core_8h.md#function-dp_spectrogram_get_state). A blob is refused, with `s` unchanged, when its magic, version or size is wrong, when its configuration differs from `s` (mode, nfft, hop, window, and beta for the Kaiser window: a checkpoint from another mode, or from a window that shapes the rows differently, would mean something else), or when its carry is corrupt.
 
 
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID (wrong magic, version, size or hop, or a corrupt carry), with `s` unchanged.
+DP\_OK, or DP\_ERR\_INVALID. 
 
 
 
-```C++
-// one stream, cut mid-frame, resumed in a FRESH object, rows unchanged
-dp_spectrogram_state_t *a
-    = dp_spectrogram_create (8, 4, 3, 0.0f, DP_SPECTROGRAM_POWER);
-dp_spectrogram_state_t *b
-    = dp_spectrogram_create (8, 4, 3, 0.0f, DP_SPECTROGRAM_POWER);
-float _Complex x[20];
-for (int i = 0; i < 20; i++)
-  x[i] = (float)i;
-float ra[4 * 8], rb[4 * 8];
-size_t na = dp_spectrogram_push (a, x, 20, ra, 4 * 8);
-size_t nb = dp_spectrogram_push (b, x, 11, rb, 4 * 8); // stop at 11
-// a union: the blob opens with a dp_state_hdr_t, so it must be aligned
-union { dp_state_hdr_t h; unsigned char b[256]; } blob;
-if (dp_spectrogram_state_bytes (b) > sizeof blob.b)
-  return 1;
-dp_spectrogram_get_state (b, blob.b);
-dp_spectrogram_destroy (b);
-b = dp_spectrogram_create (8, 4, 3, 0.0f, DP_SPECTROGRAM_POWER);
-if (dp_spectrogram_set_state (b, blob.b) != DP_OK)
-  return 1;
-nb += dp_spectrogram_push (b, x + 11, 9, rb + nb, 4 * 8 - nb);
-if (nb != na || memcmp (ra, rb, na * sizeof *ra) != 0)
-  return 1;
-dp_spectrogram_destroy (a);
-dp_spectrogram_destroy (b);
-```
- 
 
 
         
@@ -877,29 +613,9 @@ The blob is the stream position  the framer's snapshot: the carry (fewer than nf
 **Parameters:**
 
 
-* `s` Must be non-NULL.
+* `s` Must be non-NULL. 
 
 
-```C++
-// the same nfft, the same size, whatever the hop, window or beta
-dp_spectrogram_state_t *a
-    = dp_spectrogram_create (16, 4, 0, 0.0f, DP_SPECTROGRAM_POWER);
-dp_spectrogram_state_t *b
-    = dp_spectrogram_create (16, 16, 1, 8.0f, DP_SPECTROGRAM_POWER);
-dp_spectrogram_state_t *c
-    = dp_spectrogram_create (32, 4, 0, 0.0f, DP_SPECTROGRAM_POWER);
-if (!a || !b || !c)
-  return 1;
-if (dp_spectrogram_state_bytes (a) != dp_spectrogram_state_bytes (b))
-  return 1;
-// a longer frame holds a longer carry
-if (dp_spectrogram_state_bytes (c) <= dp_spectrogram_state_bytes (a))
-  return 1;
-dp_spectrogram_destroy (c);
-dp_spectrogram_destroy (b);
-dp_spectrogram_destroy (a);
-```
- 
 
 
         
@@ -967,7 +683,7 @@ _State-blob magic ('SPGM') and layout version._
 ### define SPECTROGRAM\_STATE\_VERSION 
 
 ```C++
-#define SPECTROGRAM_STATE_VERSION `1u`
+#define SPECTROGRAM_STATE_VERSION `2u`
 ```
 
 

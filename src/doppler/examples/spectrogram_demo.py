@@ -12,21 +12,21 @@ NFFT = 256
 HOP = 64
 FS = 1.0e6
 N_SEG = 8 * NFFT  # each tone is held for eight frames (rows)
+# 96 samples past whole frames: the stream then owes a partial frame.
+CAPTURE = 16 * NFFT * 4 + 96
 
 
 # --8<-- [start:stream]
-def stream_rows(x: np.ndarray, mode: str, hop: int) -> np.ndarray:
-    """Push x in arbitrary chunks and return every row the stream produces.
-
-    The chunk sizes are random and not multiples of the frame, so the rows are
-    the same however the stream is cut: that is the object's contract.
-    """
+def stream_rows(
+    x: np.ndarray, mode: str, hop: int, chunked: bool = True
+) -> np.ndarray:
+    """Return every row a stream produces, pushed in chunks or all at once."""
     sp = Spectrogram(nfft=NFFT, hop=hop, window="hann", mode=mode)
     rows = []
     rng = np.random.default_rng(0)
     pos = 0
     while pos < x.size:
-        size = int(rng.integers(1, 3 * NFFT))
+        size = int(rng.integers(1, 3 * NFFT)) if chunked else x.size
         block = sp.push(x[pos : pos + size])
         if block is not None:  # None: this push completed no row
             rows.append(block)
@@ -42,20 +42,14 @@ def stream_rows(x: np.ndarray, mode: str, hop: int) -> np.ndarray:
 
 # --8<-- [start:figure]
 def make_figure(out_path: str = "spectrogram_demo.png") -> None:
-    """Draw a chirp and a tone as power rows and as dB rows, and check them.
-
-    The chirp sweeps from -0.4 fs to +0.4 fs over the whole capture; the tone
-    sits at +0.2 fs at half amplitude, a quarter of the power. The axes are
-    DC-centred, so a frequency reads straight off the horizontal axis.
-    """
-    n = np.arange(16 * NFFT * 4)
+    """Draw the chirp and tone as power and dB rows, after checking them."""
+    n = np.arange(CAPTURE)
     t = n / FS
-    total = t[-1] + 1.0 / FS
+    total = CAPTURE / FS
     f0, f1 = -0.4 * FS, 0.4 * FS
     k = (f1 - f0) / total
     chirp = np.exp(2j * np.pi * (f0 * t + 0.5 * k * t * t))
-    # On a bin centre: 51 bins of 256 is 0.199 fs, so the reading is the bin's
-    # own -6.02 dB, not the window's off-bin scalloping.
+    # On a bin centre, so the reading is the bin's own -6.02 dB.
     f_tone = 51 * FS / NFFT
     tone = 0.5 * np.exp(2j * np.pi * f_tone * t)
     x = (chirp + tone).astype(np.complex64)
@@ -63,29 +57,39 @@ def make_figure(out_path: str = "spectrogram_demo.png") -> None:
     power = stream_rows(x, "power", HOP)
     db = stream_rows(x, "db", HOP)
     assert power.shape == db.shape
+    # 254 whole frames, then the owed partial one, flushed at the end.
+    assert power.shape[0] == 255
+    # Chunking must not change the rows: compare with one push.
+    assert np.array_equal(power, stream_rows(x, "power", HOP, chunked=False))
 
-    # Physical checks, each a claim about the figure's data:
-    # 1. The chirp's peak bin tracks the sweep: its frequency at the frame's
-    #    centre, to within one bin, on every row clear of the tone.
+    bin_hz = FS / NFFT
+    freqs = np.fft.fftshift(np.fft.fftfreq(NFFT, 1 / FS))
+    # The bins span -fs/2 to +fs/2 exactly, so the axis edges are these.
+    assert np.isclose(freqs[0], -FS / 2)
+    assert np.isclose(freqs[-1] + bin_hz, FS / 2)
+
     rows = np.arange(power.shape[0])
     centre = (rows * HOP + NFFT / 2) / FS
     expect_hz = f0 + k * centre
-    bin_hz = FS / NFFT
     far = np.abs(expect_hz - f_tone) > 4 * bin_hz
+    # The chirp's peak tracks the sweep within one bin, the flushed row too.
     peak_hz = (power.argmax(axis=1) - NFFT // 2) * bin_hz
     assert np.all(np.abs(peak_hz[far] - expect_hz[far]) <= bin_hz), np.abs(
         peak_hz[far] - expect_hz[far]
     ).max()
-    # 2. The tone reads a quarter of full scale in power rows, and -6.02 dB in
-    #    dB rows, on its own bin, where the chirp is not.
-    quiet = np.argmax(np.abs(expect_hz - f_tone) > 4 * bin_hz)
     tone_bin = NFFT // 2 + 51
-    assert abs(power[quiet, tone_bin] - 0.25) < 0.02, power[quiet, tone_bin]
-    assert abs(db[quiet, tone_bin] - (-6.02)) < 0.2, db[quiet, tone_bin]
+    # The tone reads a quarter of full scale, and -6.02 dB, on every row clear
+    # of the chirp.
+    assert far.sum() > 200
+    assert np.all(np.abs(power[far, tone_bin] - 0.25) < 0.02)
+    assert np.all(np.abs(db[far, tone_bin] + 6.02) < 0.2)
+    # Each dB row is 10 log10 of its power row, above the -90 dB floor.
+    live = power > 1e-9
+    assert np.allclose(db[live], 10 * np.log10(power[live]), atol=1e-3)
 
     fig, (ax_p, ax_d) = plt.subplots(1, 2, figsize=(11, 5), sharey=True)
     # MHz across; ms down, with row 0 (time 0) at the top of the panel.
-    extent = (-0.5, 0.5, total * 1e3, 0.0)
+    extent = (freqs[0] / 1e6, (freqs[-1] + bin_hz) / 1e6, total * 1e3, 0.0)
     im_p = ax_p.imshow(
         power,
         origin="upper",

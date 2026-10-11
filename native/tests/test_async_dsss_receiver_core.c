@@ -2437,14 +2437,14 @@ _test_forged_seed_is_refused (void)
           dp_async_dsss_receiver_get_state (dst, before);
           if (dp_async_dsss_receiver_set_state (dst, blob) != DP_ERR_INVALID)
             {
-              fprintf (stderr, "  forged blob accepted: %s\n", forge[k].what);
+              DP_TEST_ERR ("  forged blob accepted: %s\n", forge[k].what);
               fails++;
             }
           dp_async_dsss_receiver_get_state (dst, after);
           if (memcmp (after, before, cbd) != 0)
             {
-              fprintf (stderr, "  refused blob changed target: %s\n",
-                       forge[k].what);
+              DP_TEST_ERR ("  refused blob changed target: %s\n",
+                           forge[k].what);
               fails++;
             }
           free (before);
@@ -2502,9 +2502,9 @@ _test_honest_edge_seed_tracks_seed_plus_residual (void)
       /* Seed plus residual: the honest refined value, tracked as it was. */
       if (dp_async_dsss_receiver_get_doppler_hz (dst) != seed_hz + residual_hz)
         {
-          fprintf (stderr, "  hand-off Doppler %g, not seed + residual %g\n",
-                   dp_async_dsss_receiver_get_doppler_hz (dst),
-                   seed_hz + residual_hz);
+          DP_TEST_ERR ("  hand-off Doppler %g, not seed + residual %g\n",
+                       dp_async_dsss_receiver_get_doppler_hz (dst),
+                       seed_hz + residual_hz);
           fails++;
         }
     }
@@ -2557,7 +2557,7 @@ _test_seed_domain (void)
                                                       cases[k].doppler);
       if ((got != 0) != (cases[k].ok != 0))
         {
-          fprintf (stderr, "  seed domain: %s gave %d\n", cases[k].what, got);
+          DP_TEST_ERR ("  seed domain: %s gave %d\n", cases[k].what, got);
           fails++;
         }
     }
@@ -2610,8 +2610,8 @@ _test_forged_residual_refused (void)
       memcpy (bad + residual, &forged[k], sizeof forged[k]);
       if (dp_async_dsss_receiver_set_state (dst, bad) != DP_ERR_INVALID)
         {
-          fprintf (stderr, "  forged residual accepted: %s\n",
-                   k == 0 ? "a NaN residual" : "a residual past fs/2");
+          DP_TEST_ERR ("  forged residual accepted: %s\n",
+                       k == 0 ? "a NaN residual" : "a residual past fs/2");
           fails++;
         }
       free (bad);
@@ -2644,13 +2644,13 @@ _test_forged_cell_searching_refused (void)
   int fails = 0;
   if (dp_async_dsss_receiver_set_state (dst, blob) != DP_OK)
     {
-      fprintf (stderr, "  honest cell blob refused\n");
+      DP_TEST_ERR ("  honest cell blob refused\n");
       fails++;
     }
   blob[sizeof (dp_state_hdr_t)] = (unsigned char)ASYNC_DSSS_RX_SEARCHING;
   if (dp_async_dsss_receiver_set_state (dst, blob) != DP_ERR_INVALID)
     {
-      fprintf (stderr, "  forged cell SEARCHING blob accepted\n");
+      DP_TEST_ERR ("  forged cell SEARCHING blob accepted\n");
       fails++;
     }
   free (blob);
@@ -2683,14 +2683,14 @@ _test_refused_hits_round_trips (void)
   int fails = 0;
   if (dp_async_dsss_receiver_set_state (dst, blob) != DP_OK)
     {
-      fprintf (stderr, "  honest blob refused\n");
+      DP_TEST_ERR ("  honest blob refused\n");
       fails++;
     }
   if (dp_async_dsss_receiver_status (dst).refused_hits != 7)
     {
-      fprintf (stderr, "  restored refused_hits %llu, not 7\n",
-               (unsigned long long)dp_async_dsss_receiver_status (dst)
-                   .refused_hits);
+      DP_TEST_ERR ("  restored refused_hits %llu, not 7\n",
+                   (unsigned long long)dp_async_dsss_receiver_status (dst)
+                       .refused_hits);
       fails++;
     }
   free (blob);

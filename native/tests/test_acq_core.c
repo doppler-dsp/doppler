@@ -1873,8 +1873,7 @@ carrier_and_prior_domain (void)
   for (size_t k = 0; k < sizeof cases / sizeof *cases; k++)
     if (dp_acq_carrier_freq_ok (cases[k].hz, fs) != cases[k].ok)
       {
-        fprintf (stderr, "  carrier %g Hz: ok=%d\n", cases[k].hz,
-                 !cases[k].ok);
+        DP_TEST_ERR ("  carrier %g Hz: ok=%d\n", cases[k].hz, !cases[k].ok);
         fails++;
       }
 
@@ -1897,7 +1896,7 @@ carrier_and_prior_domain (void)
           CODE7, 7, 2, 1.0e6, 0.0, 60.0, priors[k], 1e-2, 0.9, 0, 1, 0.0);
       if (bad)
         {
-          fprintf (stderr, "  doppler_uncertainty %g taken\n", priors[k]);
+          DP_TEST_ERR ("  doppler_uncertainty %g taken\n", priors[k]);
           fails++;
           dp_acq_destroy (bad);
         }

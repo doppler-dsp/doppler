@@ -42,12 +42,13 @@ import numpy as np
 from doppler.wfm import Composer, Segment, Writer, qpsk, tone
 
 FS = 1e6  # scene sample rate, Hz
+CW_HZ = 2e5  # the CW tone's frequency, Hz
 
 # 1. Mix a scene: a QPSK SoI under a CW interferer, over one noise
 #    floor. fs on the sum resolves every absolute freq below — without
 #    it the default fs=1.0 silently aliases the "+200 kHz" tone to DC.
 soi = qpsk(snr=15, snr_mode="esno", sps=8, level=-10.0, seed=1)
-inter = tone(freq=2e5, level=-3.0)  # −3 dBFS CW at +200 kHz
+inter = tone(freq=CW_HZ, level=-3.0)  # −3 dBFS CW at +200 kHz
 scene = Segment.sum(soi, inter, num_samples=1 << 16, fs=FS)
 
 # 2. Sequence it after a preamble (time, not frequency).
@@ -172,6 +173,13 @@ ax[0, 0].grid(alpha=0.3)
 # B: timeline spectrogram
 s = spectrogram_db(x)
 assert s.shape == (256, (len(x) - 256) // 64 + 1), s.shape
+# The CW is the strongest line outside the QPSK band, and the last frame lies
+# inside the scene: its bin follows from the tone frequency and the FFT size.
+cw_bin = 256 // 2 + round(CW_HZ / FS * 256)
+assert abs(int(np.argmax(s[:, -1])) - cw_bin) <= 1, (
+    np.argmax(s[:, -1]),
+    cw_bin,
+)
 ax[0, 1].imshow(
     s,
     aspect="auto",

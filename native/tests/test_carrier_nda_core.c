@@ -778,39 +778,25 @@ main (void)
     dp_carrier_nda_destroy (s);
   }
 
-  /* #2148 r3: create-state round trip. a and b are both create()'s state,
-   * with nothing driven into either, so this checks the envelope and the
-   * fields create() sets, not a running state. b is driven first, so the
-   * restore must overwrite a state that differs from a's. Otherwise the
-   * fidelity leg cannot fail: two fresh objects are already identical. */
+  /* The shared round trip, on a driven object. a and b come from create()
+   * with nothing driven into either. b is then stepped, so its state differs
+   * from a's, and the single DP_STATE_ROUNDTRIP_TEST call runs its
+   * determinism, fidelity, every-byte and envelope-reject legs against that
+   * driven b. Two fresh objects would make the fidelity leg unable to fail
+   * (#2148 r3). */
   {
     dp_carrier_nda_state_t *a
         = dp_carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 4);
     dp_carrier_nda_state_t *b
         = dp_carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 4);
     DP_CHECK (a != NULL && b != NULL);
-    /* The shared harness: determinism, the envelope reject, and the same
-       restore as below, on two create()-state objects. */
-    if (a && b)
-      DP_STATE_ROUNDTRIP_TEST (dp_carrier_nda, a, b);
     if (a && b)
       {
         float _Complex x[256], y[256];
         for (size_t i = 0; i < 256; i++)
           x[i] = (0.3f + 0.01f * (float)i) + I * (0.2f - 0.003f * (float)i);
         (void)dp_carrier_nda_steps (b, x, 256, y, 256);
-        size_t cb     = dp_carrier_nda_state_bytes (a);
-        void  *blob_a = malloc (cb), *blob_b = malloc (cb);
-        DP_CHECK (blob_a != NULL && blob_b != NULL);
-        if (blob_a && blob_b)
-          {
-            dp_carrier_nda_get_state (a, blob_a);
-            DP_CHECK (dp_carrier_nda_set_state (b, blob_a) == DP_OK);
-            dp_carrier_nda_get_state (b, blob_b);
-            DP_CHECK (memcmp (blob_a, blob_b, cb) == 0);
-          }
-        free (blob_a);
-        free (blob_b);
+        DP_STATE_ROUNDTRIP_TEST (dp_carrier_nda, a, b);
       }
     dp_carrier_nda_destroy (a);
     dp_carrier_nda_destroy (b);

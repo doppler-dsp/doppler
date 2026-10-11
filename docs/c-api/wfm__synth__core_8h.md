@@ -969,7 +969,7 @@ DP\_OK, or DP\_ERR\_INVALID with `state` unchanged.
 **Exception:**
 
 
-* `ValueError` from the Python binding when `val` is refused. 
+* `ValueError` unless the new value is &gt;= 1 and above sym\_pos. 
 
 
 
@@ -1190,7 +1190,7 @@ DP\_OK, or DP\_ERR\_INVALID with `state` unchanged.
 **Exception:**
 
 
-* `ValueError` from the Python binding when `val` is refused. 
+* `ValueError` unless 0 &lt;= value &lt; nsps. 
 
 
 

@@ -171,9 +171,11 @@ compute_output (const dp_hbdecim_q15_state_t *r, int16_t *out_I,
   int64_t acc_I, acc_Q;
 
   /* The AVX2 kernel loads a[N-16-k] for k < K_pad, which stays inside the
-   * fold only when N_fold >= K_pad. For num_taps < 16 the fold is shorter
+   * fold only when N_fold >= K_pad. For num_taps 2..15 the fold is shorter
    * than one 16-tap vector and reads before the window, so that case takes
-   * the scalar path, the exact reference, which gives the same sum (#2142). */
+   * the scalar path, the exact reference, which gives the same sum. num_taps
+   * 1 gives a fold of length 0 or 1, so it takes the scalar path too
+   * (#2142). */
 #if defined(__AVX2__)
   if (N_fold >= r->K_pad)
     {

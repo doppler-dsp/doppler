@@ -1090,7 +1090,7 @@ int dp_wfm_synth_get_nsps(const dp_wfm_synth_state_t *state);
  * @param state  Must be non-NULL.
  * @param val    New nsps value: at least 1, and above the current sym_pos.
  * @return DP_OK, or DP_ERR_INVALID with @p state unchanged.
- * @throws ValueError from the Python binding when @p val is refused.
+ * @throws ValueError unless the new value is >= 1 and above sym_pos.
  */
 int dp_wfm_synth_set_nsps(dp_wfm_synth_state_t *state, int val);
 
@@ -1113,7 +1113,7 @@ int dp_wfm_synth_get_sym_pos(const dp_wfm_synth_state_t *state);
  * @param state  Must be non-NULL.
  * @param val    New sym_pos value: 0 <= val < nsps.
  * @return DP_OK, or DP_ERR_INVALID with @p state unchanged.
- * @throws ValueError from the Python binding when @p val is refused.
+ * @throws ValueError unless 0 <= value < nsps.
  */
 int dp_wfm_synth_set_sym_pos(dp_wfm_synth_state_t *state, int val);
 

@@ -555,7 +555,7 @@ class _SynthEngine:
         Raises
         ------
         ValueError
-            from the Python binding when val is refused.
+            unless the new value is >= 1 and above sym_pos.
         """
 
     def get_sym_pos(self) -> int:
@@ -583,7 +583,7 @@ class _SynthEngine:
         Raises
         ------
         ValueError
-            from the Python binding when val is refused.
+            unless 0 <= value < nsps.
         """
 
     def get_cur_re(self) -> float:

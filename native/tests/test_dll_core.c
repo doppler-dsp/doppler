@@ -308,8 +308,7 @@ bad_floats_are_refused (void)
                            bad[k].zeta, bad[k].spacing, 4);
       if (d)
         {
-          fprintf (stderr, "  bad float accepted by create: %s\n",
-                   bad[k].what);
+          DP_TEST_ERR ("  bad float accepted by create: %s\n", bad[k].what);
           fails++;
           dp_dll_destroy (d);
         }
@@ -319,7 +318,7 @@ bad_floats_are_refused (void)
       = dp_dll_create (code, 31, 2, 7.25, 0.0, 0.707, half - 0.1, 4);
   if (!e)
     {
-      fprintf (stderr, "  create refused an argument inside the domain\n");
+      DP_TEST_ERR ("  create refused an argument inside the domain\n");
       return fails + 1;
     }
   dp_dll_destroy (e);
@@ -335,27 +334,27 @@ bad_floats_are_refused (void)
         if (dp_dll_set_symbol_period (d, periods[k]) != DP_ERR_INVALID
             || d->sym_period != held)
           {
-            fprintf (stderr, "  bad period %g accepted (pass %d)\n",
-                     periods[k], pass);
+            DP_TEST_ERR ("  bad period %g accepted (pass %d)\n", periods[k],
+                         pass);
             fails++;
           }
       /* A long but sane period is taken, then held through the refusals. */
       if (pass == 0 && dp_dll_set_symbol_period (d, 1.0e5) != DP_OK)
         {
-          fprintf (stderr, "  a period of 1e5 partials was refused\n");
+          DP_TEST_ERR ("  a period of 1e5 partials was refused\n");
           fails++;
         }
     }
   /* The cap, pinned at its edge: 2^20 partials taken, one more refused. */
   if (dp_dll_set_symbol_period (d, 1048576.0) != DP_OK)
     {
-      fprintf (stderr, "  the period cap itself (2^20) was refused\n");
+      DP_TEST_ERR ("  the period cap itself (2^20) was refused\n");
       fails++;
     }
   if (dp_dll_set_symbol_period (d, 1048576.0 + 1.0) != DP_ERR_INVALID
       || d->sym_period != 1048576.0)
     {
-      fprintf (stderr, "  a period one past the cap was taken\n");
+      DP_TEST_ERR ("  a period one past the cap was taken\n");
       fails++;
     }
 
@@ -369,12 +368,12 @@ bad_floats_are_refused (void)
       || dp_dll_set_bn (d, NAN) != DP_ERR_INVALID || d->lf.kp != kp
       || d->lf.ki != ki || d->bn != bn0 || d->zeta != z0)
     {
-      fprintf (stderr, "  configure or set_bn took a bad loop parameter\n");
+      DP_TEST_ERR ("  configure or set_bn took a bad loop parameter\n");
       fails++;
     }
   if (dp_dll_configure (d, 0.02, 0.707) != DP_OK || d->bn != 0.02)
     {
-      fprintf (stderr, "  configure refused a good loop parameter\n");
+      DP_TEST_ERR ("  configure refused a good loop parameter\n");
       fails++;
     }
   dp_dll_destroy (d);
@@ -421,7 +420,7 @@ refused_retune_changes_nothing (void)
                            0.5, retune[k].segments);
       if (!d)
         {
-          fprintf (stderr, "  create refused: %s\n", retune[k].what);
+          DP_TEST_ERR ("  create refused: %s\n", retune[k].what);
           fails++;
           continue;
         }
@@ -432,8 +431,8 @@ refused_retune_changes_nothing (void)
       dp_dll_get_state (d, before);
       if (dp_dll_set_symbol_period (d, retune[k].period) != DP_ERR_INVALID)
         {
-          fprintf (stderr, "  refused retune returned DP_OK: %s\n",
-                   retune[k].what);
+          DP_TEST_ERR ("  refused retune returned DP_OK: %s\n",
+                       retune[k].what);
           fails++;
         }
       /* The size must hold after the refusal, or the compare below reads past
@@ -442,8 +441,7 @@ refused_retune_changes_nothing (void)
       dp_dll_get_state (d, now);
       if (memcmp (now, before, cb) != 0)
         {
-          fprintf (stderr, "  refused retune changed state: %s\n",
-                   retune[k].what);
+          DP_TEST_ERR ("  refused retune changed state: %s\n", retune[k].what);
           fails++;
         }
       free (before);
@@ -603,15 +601,15 @@ forged_state_is_refused_or_recomputed (void)
               sizeof nan);
       if (dp_dll_set_state (x, bad) != DP_OK)
         {
-          fprintf (stderr, "  forged blob refused, not recomputed: %s\n",
-                   recompute[k].what);
+          DP_TEST_ERR ("  forged blob refused, not recomputed: %s\n",
+                       recompute[k].what);
           fails++;
         }
       dp_dll_get_state (x, now);
       if (memcmp (now, honest, cb) != 0)
         {
-          fprintf (stderr, "  forged blob restored, not recomputed: %s\n",
-                   recompute[k].what);
+          DP_TEST_ERR ("  forged blob restored, not recomputed: %s\n",
+                       recompute[k].what);
           fails++;
         }
       free (bad);

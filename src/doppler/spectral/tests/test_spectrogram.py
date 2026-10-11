@@ -1,4 +1,4 @@
-"""Spectrogram: chunking, resume, row levels and flush."""
+"""Spectrogram: chunking, resume, levels, flush and refusals."""
 
 import numpy as np
 import pytest
@@ -9,17 +9,17 @@ NFFT = 64
 
 
 def _tone(n: int, k: int, amp: float = 1.0) -> np.ndarray:
-    """A complex tone on bin k of an nfft-point frame, repeated to length n."""
+    """A complex tone on bin k of an NFFT-point frame, repeated to length n."""
     t = np.arange(n)
     return (amp * np.exp(2j * np.pi * k * t / NFFT)).astype(np.complex64)
 
 
 def _push_all(sp: Spectrogram, x: np.ndarray, chunk: int) -> np.ndarray:
-    """Push x in chunks of `chunk` samples and collect every row produced."""
+    """Push x in chunks of chunk samples and collect the rows produced."""
     rows = []
     for i in range(0, len(x), chunk):
         block = sp.push(x[i : i + chunk])
-        if block is not None:  # None: this push completed no row
+        if block is not None:
             rows.append(block)
     return np.concatenate(rows) if rows else np.empty((0, NFFT), np.float32)
 
@@ -29,7 +29,7 @@ class TestChunkInvariance:
 
     @pytest.mark.parametrize("chunk", [1, 7, 33, 64, 200, 1000])
     def test_rows_do_not_depend_on_the_chunking(self, chunk):
-        """Odd chunk sizes straddle frame edges; the rows must not move."""
+        """Odd chunk sizes straddle frame edges, and the rows must not move."""
         rng = np.random.default_rng(1)
         x = (
             rng.standard_normal(1000) + 1j * rng.standard_normal(1000)
@@ -44,6 +44,11 @@ class TestChunkInvariance:
         x = np.ones(1000, np.complex64)
         rows = _push_all(Spectrogram(nfft=NFFT, hop=NFFT), x, 1000)
         assert rows.shape[0] == 1000 // NFFT
+
+    def test_zero_length_push_returns_none(self):
+        """A push that completes no row returns None."""
+        sp = Spectrogram(nfft=NFFT, hop=NFFT)
+        assert sp.push(np.zeros(0, np.complex64)) is None
 
 
 class TestResume:
@@ -65,6 +70,40 @@ class TestResume:
         tail = _push_all(b, x[cut:], 700 - cut)
         assert np.array_equal(np.concatenate([head, tail]), expect)
 
+    @pytest.mark.parametrize(
+        "src, dst",
+        [
+            ({"window": "rect"}, {"window": "rect", "mode": "db"}),
+            ({"window": "rect"}, {"window": "rect", "hop": NFFT // 2}),
+            ({"window": "rect"}, {"window": "rect", "nfft": 2 * NFFT}),
+            ({"window": "rect"}, {"window": "blackman-harris"}),
+            (
+                {"window": "kaiser", "beta": 2.0},
+                {"window": "kaiser", "beta": 9.0},
+            ),
+        ],
+        ids=["mode", "hop", "nfft", "window", "kaiser-beta"],
+    )
+    def test_a_blob_from_another_configuration_is_refused(self, src, dst):
+        """A blob from another mode, hop, nfft, window or beta is refused."""
+        base = {"nfft": NFFT, "hop": NFFT}
+        s = Spectrogram(**{**base, **src})
+        s.push(np.ones(40, np.complex64))
+        blob = s.get_state()
+        d = Spectrogram(**{**base, **dst})
+        d.push(np.ones(7, np.complex64))
+        before = d.get_state()
+        with pytest.raises(ValueError):
+            d.set_state(blob)
+        assert d.get_state() == before
+        assert d.pending == 7
+
+    def test_a_hann_object_takes_a_blob_with_another_beta(self):
+        """Beta shapes only the Kaiser window, so a Hann object restores it."""
+        src = Spectrogram(nfft=NFFT, hop=NFFT, window="hann", beta=0.0)
+        dst = Spectrogram(nfft=NFFT, hop=NFFT, window="hann", beta=5.0)
+        dst.set_state(src.get_state())
+
 
 class TestRowIsOnePsdFrame:
     """A row is the PSD of its frame."""
@@ -85,27 +124,40 @@ class TestLevels:
     """Full-scale tone levels in power and dB mode."""
 
     def test_full_scale_tone_reads_one_in_power_mode(self):
-        """A unit-amplitude tone reads 1.0 on its bin."""
+        """A unit-amplitude tone reads 1.0 on its bin, DC-centred."""
         row = Spectrogram(nfft=NFFT, hop=NFFT, window="rect").push(
             _tone(NFFT, 10)
         )[0]
         assert row.argmax() == NFFT // 2 + 10
         assert row[NFFT // 2 + 10] == pytest.approx(1.0, rel=1e-4)
 
-    def test_full_scale_tone_reads_its_dbfs_in_db_mode(self):
-        """The same tone reads 0 dBFS on its bin in dB mode."""
+    def test_full_scale_tone_reads_zero_dbfs_in_db_mode(self):
+        """A unit-amplitude tone reads 0 dBFS on its bin in dB mode."""
         row = Spectrogram(nfft=NFFT, hop=NFFT, window="rect", mode="db").push(
             _tone(NFFT, 10)
         )[0]
         assert row[NFFT // 2 + 10] == pytest.approx(0.0, abs=1e-3)
 
+    def test_half_amplitude_tone_reads_minus_6_02_db_in_db_mode(self):
+        """A 0.5-amplitude tone is a quarter of the power: -6.02 dBFS."""
+        row = Spectrogram(nfft=NFFT, hop=NFFT, window="rect", mode="db").push(
+            _tone(NFFT, 10, amp=0.5)
+        )[0]
+        assert row[NFFT // 2 + 10] == pytest.approx(-6.0206, abs=1e-3)
+
 
 class TestBackpressure:
-    """A row limit loses no input."""
+    """The out buffer's shape and size are checked on the Python face."""
+
+    def test_a_short_out_is_refused_not_taken_as_a_short_push(self):
+        """An out smaller than push_max_out(n) raises ValueError (jm#2230)."""
+        sp = Spectrogram(nfft=NFFT, hop=NFFT)
+        x = np.ones(4 * NFFT, np.complex64)
+        with pytest.raises(ValueError):
+            sp.push(x, out=np.empty((1, NFFT), np.float32))
 
     def test_a_full_capacity_push_takes_all_its_input(self):
-        """With out sized to push_max_out, one call takes every sample and
-        writes every row it completes; consumed reports the whole input."""
+        """With out sized to push_max_out, one call takes every sample."""
         x = np.ones(4 * NFFT, np.complex64)
         sp = Spectrogram(nfft=NFFT, hop=NFFT)
         out = np.empty((sp.push_max_out(len(x)) // NFFT, NFFT), np.float32)
@@ -113,23 +165,70 @@ class TestBackpressure:
         assert block.shape == (4, NFFT)
         assert sp.consumed == len(x)
 
+    def test_an_out_of_the_wrong_dtype_is_a_type_error(self):
+        """A float64 out is refused with TypeError."""
+        sp = Spectrogram(nfft=8, hop=8)
+        with pytest.raises(TypeError):
+            sp.push(
+                np.ones(16, np.complex64), out=np.empty((2, 8), np.float64)
+            )
+
+    def test_a_one_dimensional_out_is_refused(self):
+        """A 1-D out is refused: it must be (rows, nfft)."""
+        sp = Spectrogram(nfft=8, hop=8)
+        with pytest.raises(ValueError):
+            sp.push(np.ones(16, np.complex64), out=np.empty(16, np.float32))
+
+    def test_an_out_with_the_wrong_columns_is_refused(self):
+        """An out whose columns are not nfft is refused."""
+        sp = Spectrogram(nfft=8, hop=8)
+        with pytest.raises(ValueError):
+            sp.push(
+                np.ones(16, np.complex64), out=np.empty((2, 4), np.float32)
+            )
+
 
 class TestFlush:
-    """flush() emits the trailing partial frame."""
+    """flush() emits the owed row, and refuses a row of the wrong size."""
 
-    def test_flush_emits_the_trailing_partial_frame(self):
-        """The partial frame is zero-padded to nfft and emitted by flush()."""
-        x = np.ones(NFFT + 10, np.complex64)
-        sp = Spectrogram(nfft=NFFT, hop=NFFT)
-        rows = [sp.push(x)]
-        tail = np.empty(NFFT, np.float32)
-        assert sp.flush(tail) == NFFT
-        assert sp.pending == 0
-        assert np.concatenate([*rows, tail[None, :]]).shape[0] == 2
+    def test_flush_emits_the_owed_row_on_the_hop_grid_with_hop_below_nfft(
+        self,
+    ):
+        """With hop 4 the owed row starts at sample 4 and is its PSD frame."""
+        x = (np.arange(11) + 1j * np.arange(11)).astype(np.complex64)
+        sp = Spectrogram(nfft=8, hop=4, window="rect")
+        sp.push(x)
+        row = np.empty(8, np.float32)
+        assert sp.flush(row) == 8
+        padded = np.zeros(8, np.complex64)
+        padded[:7] = x[4:]
+        psd = PSD(n=8, fs=1.0, window="rect", mode="mean")
+        psd.accumulate(padded)
+        np.testing.assert_allclose(row, psd.power_twosided(), rtol=1e-5)
+
+    @pytest.mark.parametrize("size", [7, 9])
+    def test_a_row_of_the_wrong_size_is_refused_and_the_frame_stays_owed(
+        self, size
+    ):
+        """A short or long row raises ValueError, and nothing is lost."""
+        sp = Spectrogram(nfft=8, hop=8, window="rect")
+        sp.push(np.ones(11, np.complex64))
+        with pytest.raises(ValueError):
+            sp.flush(np.empty(size, np.float32))
+        assert sp.pending == 3
+        assert sp.flush(np.empty(8, np.float32)) == 8
+
+    def test_a_second_flush_owes_nothing(self):
+        """A flush restarts the stream, so a second flush writes 0."""
+        sp = Spectrogram(nfft=8, hop=8, window="rect")
+        sp.push(np.ones(11, np.complex64))
+        row = np.empty(8, np.float32)
+        assert sp.flush(row) == 8
+        assert sp.flush(row) == 0
 
 
 class TestConstruction:
-    """Invalid construction is refused."""
+    """Invalid construction is refused, and the mode defaults to power."""
 
     @pytest.mark.parametrize("hop", [0, NFFT + 1])
     def test_hop_outside_one_to_nfft_is_refused(self, hop):

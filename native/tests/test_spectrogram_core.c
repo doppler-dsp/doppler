@@ -527,7 +527,7 @@ sections (int mode)
             = dp_spectrogram_push (s, x, n, buf, sizeof buf / 4) / nfft;
         size_t covered = rows ? (rows - 1) * hop + nfft : 0;
         size_t pend    = dp_spectrogram_pending (s);
-        size_t flushed = dp_spectrogram_flush (s, row, nfft);
+        size_t flushed = (size_t)dp_spectrogram_flush (s, row, nfft);
         if ((flushed == nfft) != (n > covered))
           iff = 0;
         /* pending is what no written row covered, counted here from the
@@ -567,6 +567,24 @@ sections (int mode)
     DP_CHECK (grid);
     DP_CHECK (iff);
     DP_CHECK (restart);
+  }
+  /* A row buffer that is not exactly one row is refused as -1, never a
+     count, and the owed frame stays owed: a short or a long row must not
+     read as "nothing owed" (0). */
+  {
+    float                   row[8], last[8];
+    dp_spectrogram_state_t *s
+        = dp_spectrogram_create (8, 8, 3, 0.0f, DP_SPECTROGRAM_POWER);
+    DP_REQUIRE (s != NULL);
+    float _Complex xc[11] = { 0 };
+    (void)dp_spectrogram_push (s, xc, 11, row, 8);
+    DP_CHECK (dp_spectrogram_pending (s) == 3);
+    DP_CHECK (dp_spectrogram_flush (s, last, 7) == -1);
+    DP_CHECK (dp_spectrogram_flush (s, last, 9) == -1);
+    DP_CHECK (dp_spectrogram_pending (s) == 3); /* still owed */
+    DP_CHECK (dp_spectrogram_flush (s, last, 8) == 8);
+    DP_CHECK (dp_spectrogram_pending (s) == 0);
+    dp_spectrogram_destroy (s);
   }
 
   /* ---- 8. reset and pending ------------------------------------------- */
@@ -718,6 +736,59 @@ sections (int mode)
     free (got);
   }
 
+  /* A blob from another configuration is refused and leaves the object
+     byte-identical (#2102): a power checkpoint never loads into a dB object,
+     and nfft, hop, window and a Kaiser beta are refused the same way. A
+     beta is ignored outside the Kaiser window, so a Hann object takes it. */
+  {
+    dp_spectrogram_state_t *a
+        = dp_spectrogram_create (8, 4, 0, 0.0f, DP_SPECTROGRAM_POWER);
+    float _Complex xa[5] = { 0 };
+    DP_REQUIRE (a != NULL);
+    (void)dp_spectrogram_push (a, xa, 5, (float[8]){ 0 }, 8);
+    const size_t nb = dp_spectrogram_state_bytes (a);
+    uint8_t     *ab = malloc (nb);
+    dp_spectrogram_get_state (a, ab);
+    struct
+    {
+      size_t nfft, hop;
+      int    window;
+      float  beta;
+      int    mode;
+    } cases[] = {
+      { 8, 4, 0, 0.0f, DP_SPECTROGRAM_DB },     /* mode */
+      { 8, 8, 0, 0.0f, DP_SPECTROGRAM_POWER },  /* hop */
+      { 16, 4, 0, 0.0f, DP_SPECTROGRAM_POWER }, /* nfft */
+      { 8, 4, 3, 0.0f, DP_SPECTROGRAM_POWER },  /* window: rect */
+      { 8, 4, 1, 2.0f, DP_SPECTROGRAM_POWER },  /* window: kaiser */
+    };
+    for (size_t k = 0; k < sizeof cases / sizeof *cases; k++)
+      {
+        dp_spectrogram_state_t *b = dp_spectrogram_create (
+            cases[k].nfft, cases[k].hop, cases[k].window, cases[k].beta,
+            cases[k].mode);
+        DP_REQUIRE (b != NULL);
+        (void)dp_spectrogram_push (b, xa, 3, (float[16]){ 0 }, 16);
+        const size_t bb     = dp_spectrogram_state_bytes (b);
+        uint8_t     *before = malloc (bb), *after = malloc (bb);
+        dp_spectrogram_get_state (b, before);
+        DP_CHECK (dp_spectrogram_set_state (b, ab) == DP_ERR_INVALID);
+        dp_spectrogram_get_state (b, after);
+        DP_CHECK (memcmp (before, after, bb) == 0); /* unchanged */
+        free (before);
+        free (after);
+        dp_spectrogram_destroy (b);
+      }
+    /* Hann ignores beta: a different beta restores. */
+    dp_spectrogram_state_t *h
+        = dp_spectrogram_create (8, 4, 0, 5.0f, DP_SPECTROGRAM_POWER);
+    DP_REQUIRE (h != NULL);
+    DP_CHECK (dp_spectrogram_set_state (h, ab) == DP_OK);
+    dp_spectrogram_destroy (h);
+    free (ab);
+    dp_spectrogram_destroy (a);
+  }
+
   /* ---- 11. the Python face's sizing, in C --------------------------- */
   /* A binding with no consumed() sizes each push's out by push_max_out and
      must lose nothing: a socket handing over chunks shorter than a frame,
@@ -851,19 +922,18 @@ sections (int mode)
     DP_REQUIRE (blob != NULL && lie != NULL);
     dp_spectrogram_get_state (a, blob);
 
-    /* the envelope is the spectrogram's own: 'SPGM', version 1 */
+    /* the envelope is the spectrogram's own: 'SPGM', version 2 */
     dp_state_hdr_t hdr;
     memcpy (&hdr, blob, sizeof hdr);
     DP_CHECK (SPECTROGRAM_STATE_MAGIC == DP_FOURCC ('S', 'P', 'G', 'M'));
-    DP_CHECK (SPECTROGRAM_STATE_VERSION == 1u);
+    DP_CHECK (SPECTROGRAM_STATE_VERSION == 2u);
     DP_CHECK (hdr.magic == SPECTROGRAM_STATE_MAGIC);
     DP_CHECK (hdr.version == SPECTROGRAM_STATE_VERSION);
     DP_CHECK (hdr.bytes == bytes);
 
-    /* the blob carries the stream position and nothing else: the same
-       stream pushed in other pieces (so another consumed()) into a
-       spectrogram of another window, beta and mode serializes byte for byte
-       the same */
+    /* The blob carries the configuration as well as the carry (#2102): the
+       same stream in another mode serializes differently, because the mode
+       is in the blob and a restore refuses the other mode's blob. */
     {
       const int               other_mode = mode == DP_SPECTROGRAM_POWER
                                                ? DP_SPECTROGRAM_DB
@@ -878,7 +948,7 @@ sections (int mode)
       unsigned char *ob = (unsigned char *)malloc (bytes);
       DP_REQUIRE (ob != NULL);
       dp_spectrogram_get_state (other, ob);
-      DP_CHECK (memcmp (ob, blob, bytes) == 0);
+      DP_CHECK (memcmp (ob, blob, bytes) != 0); /* the mode is in the blob */
       free (ob);
       dp_spectrogram_destroy (other);
     }
@@ -1018,140 +1088,59 @@ sections (int mode)
     dp_spectrogram_destroy (twin);
   }
 
-  /* ---- 14b. a different window, beta or mode is NOT refused on restore */
-  /* The blob carries no window or beta, so a Hann object's blob restores
-     into a Kaiser object, and what follows is Kaiser's: the continuation
-     equals a Kaiser object fed the whole stream, from the row the split
-     left off at. The precondition: a Hann continuation differs, so the
-     comparison could tell the two apart. */
-  {
-    const size_t            nfft = 16, hop = 6, split = 77, total = 400;
-    dp_spectrogram_state_t *a
-        = dp_spectrogram_create (nfft, hop, 0, 0.0f, mode);
-    dp_spectrogram_state_t *b
-        = dp_spectrogram_create (nfft, hop, 1, 6.0f, mode);
-    dp_spectrogram_state_t *ref
-        = dp_spectrogram_create (nfft, hop, 1, 6.0f, mode);
-    DP_REQUIRE (a && b && ref);
-    float *out_a = malloc (total * nfft * sizeof *out_a);
-    float *out_b = malloc (total * nfft * sizeof *out_b);
-    float *out_r = malloc (total * nfft * sizeof *out_r);
-    void  *blob  = malloc (dp_spectrogram_state_bytes (a));
-    DP_REQUIRE (out_a && out_b && out_r && blob);
-    size_t ka = dp_spectrogram_push (a, x, split, out_a, total * nfft) / nfft;
-    DP_CHECK (dp_spectrogram_consumed (a) == split);
-    dp_spectrogram_get_state (a, blob);
-    DP_CHECK (dp_spectrogram_set_state (b, blob) == DP_OK); /* not refused */
-    size_t kb = dp_spectrogram_push (b, x + split, total - split, out_b,
-                                     total * nfft)
-                / nfft;
-    size_t kr
-        = dp_spectrogram_push (ref, x, total, out_r, total * nfft) / nfft;
-    DP_CHECK (ka + kb == kr);
-    DP_CHECK (kb > 0
-              && memcmp (out_b, out_r + ka * nfft, kb * nfft * sizeof *out_b)
-                     == 0);
-    /* the precondition: the Hann object's own continuation is different */
-    size_t kh = dp_spectrogram_push (a, x + split, total - split, out_a,
-                                     total * nfft)
-                / nfft;
-    DP_CHECK (kh == kb
-              && memcmp (out_a, out_b, kb * nfft * sizeof *out_a) != 0);
-    free (blob);
-    free (out_r);
-    free (out_b);
-    free (out_a);
-    dp_spectrogram_destroy (ref);
-    dp_spectrogram_destroy (b);
-    dp_spectrogram_destroy (a);
-  }
-  /* ...and "or beta": a Kaiser beta 6 blob restores into a Kaiser beta 9
-     object, whose continuation is beta 9's (a beta 9 object fed the whole
-     stream); the precondition is that beta 6's own continuation differs. */
-  {
-    const size_t            nfft = 16, hop = 6, split = 77, total = 400;
-    dp_spectrogram_state_t *a
-        = dp_spectrogram_create (nfft, hop, 1, 6.0f, mode);
-    dp_spectrogram_state_t *b
-        = dp_spectrogram_create (nfft, hop, 1, 9.0f, mode);
-    dp_spectrogram_state_t *ref
-        = dp_spectrogram_create (nfft, hop, 1, 9.0f, mode);
-    DP_REQUIRE (a && b && ref);
-    float *out_a = malloc (total * nfft * sizeof *out_a);
-    float *out_b = malloc (total * nfft * sizeof *out_b);
-    float *out_r = malloc (total * nfft * sizeof *out_r);
-    void  *blob  = malloc (dp_spectrogram_state_bytes (a));
-    DP_REQUIRE (out_a && out_b && out_r && blob);
-    size_t ka = dp_spectrogram_push (a, x, split, out_a, total * nfft) / nfft;
-    dp_spectrogram_get_state (a, blob);
-    DP_CHECK (dp_spectrogram_set_state (b, blob) == DP_OK); /* not refused */
-    size_t kb = dp_spectrogram_push (b, x + split, total - split, out_b,
-                                     total * nfft)
-                / nfft;
-    size_t kr
-        = dp_spectrogram_push (ref, x, total, out_r, total * nfft) / nfft;
-    DP_CHECK (ka + kb == kr);
-    DP_CHECK (kb > 0
-              && memcmp (out_b, out_r + ka * nfft, kb * nfft * sizeof *out_b)
-                     == 0);
-    size_t k6 = dp_spectrogram_push (a, x + split, total - split, out_a,
-                                     total * nfft)
-                / nfft;
-    DP_CHECK (k6 == kb
-              && memcmp (out_a, out_b, kb * nfft * sizeof *out_a) != 0);
-    free (blob);
-    free (out_r);
-    free (out_b);
-    free (out_a);
-    dp_spectrogram_destroy (ref);
-    dp_spectrogram_destroy (b);
-    dp_spectrogram_destroy (a);
-  }
-
-  /* ...and "or mode": a blob from this mode restores into an object of the
-     other, whose continuation is the other mode's rows (an other-mode object
-     fed the whole stream); the precondition is that this mode's own
-     continuation differs, which it does in every bin, being other units. */
+  /* ---- 14b. a window, beta or mode another object wrote is REFUSED ----
+     The blob carries the configuration the rows depend on (#2102): a blob
+     written under another window, a Kaiser beta that shapes the rows, or
+     another mode is refused, and the object is left as it was. */
   {
     const size_t nfft = 16, hop = 6, split = 77, total = 400;
-    const int    other = mode == DP_SPECTROGRAM_POWER ? DP_SPECTROGRAM_DB
-                                                      : DP_SPECTROGRAM_POWER;
-    dp_spectrogram_state_t *a
-        = dp_spectrogram_create (nfft, hop, 0, 0.0f, mode);
-    dp_spectrogram_state_t *b
-        = dp_spectrogram_create (nfft, hop, 0, 0.0f, other);
-    dp_spectrogram_state_t *ref
-        = dp_spectrogram_create (nfft, hop, 0, 0.0f, other);
-    DP_REQUIRE (a && b && ref);
-    float *out_a = malloc (total * nfft * sizeof *out_a);
-    float *out_b = malloc (total * nfft * sizeof *out_b);
-    float *out_r = malloc (total * nfft * sizeof *out_r);
-    void  *blob  = malloc (dp_spectrogram_state_bytes (a));
-    DP_REQUIRE (out_a && out_b && out_r && blob);
-    size_t ka = dp_spectrogram_push (a, x, split, out_a, total * nfft) / nfft;
-    dp_spectrogram_get_state (a, blob);
-    DP_CHECK (dp_spectrogram_set_state (b, blob) == DP_OK); /* not refused */
-    size_t kb = dp_spectrogram_push (b, x + split, total - split, out_b,
-                                     total * nfft)
-                / nfft;
-    size_t kr
-        = dp_spectrogram_push (ref, x, total, out_r, total * nfft) / nfft;
-    DP_CHECK (ka + kb == kr);
-    DP_CHECK (kb > 0
-              && memcmp (out_b, out_r + ka * nfft, kb * nfft * sizeof *out_b)
-                     == 0);
-    size_t km = dp_spectrogram_push (a, x + split, total - split, out_a,
-                                     total * nfft)
-                / nfft;
-    DP_CHECK (km == kb
-              && memcmp (out_a, out_b, kb * nfft * sizeof *out_a) != 0);
-    free (blob);
-    free (out_r);
-    free (out_b);
-    free (out_a);
-    dp_spectrogram_destroy (ref);
-    dp_spectrogram_destroy (b);
-    dp_spectrogram_destroy (a);
+    float       *out = malloc (total * nfft * sizeof *out);
+    DP_REQUIRE (out != NULL);
+    const int other_mode = mode == DP_SPECTROGRAM_POWER ? DP_SPECTROGRAM_DB
+                                                        : DP_SPECTROGRAM_POWER;
+    /* { source window, source beta, source mode,
+         target window, target beta, target mode } */
+    const struct
+    {
+      int   sw;
+      float sb;
+      int   sm;
+      int   tw;
+      float tb;
+      int   tm;
+    } pairs[] = {
+      { 1, 6.0f, mode, 1, 9.0f, mode },       /* Kaiser beta 6 -> beta 9 */
+      { 0, 0.0f, mode, 1, 6.0f, mode },       /* Hann -> Kaiser */
+      { 1, 6.0f, mode, 1, 6.0f, other_mode }, /* this mode -> the other */
+    };
+    for (size_t k = 0; k < sizeof pairs / sizeof *pairs; k++)
+      {
+        dp_spectrogram_state_t *src = dp_spectrogram_create (
+            nfft, hop, pairs[k].sw, pairs[k].sb, pairs[k].sm);
+        DP_REQUIRE (src != NULL);
+        (void)dp_spectrogram_push (src, x, split, out, total * nfft);
+        void *blob = malloc (dp_spectrogram_state_bytes (src));
+        DP_REQUIRE (blob != NULL);
+        dp_spectrogram_get_state (src, blob);
+        dp_spectrogram_destroy (src);
+
+        dp_spectrogram_state_t *b = dp_spectrogram_create (
+            nfft, hop, pairs[k].tw, pairs[k].tb, pairs[k].tm);
+        DP_REQUIRE (b != NULL);
+        (void)dp_spectrogram_push (b, x, 5, out, total * nfft);
+        const size_t   bb     = dp_spectrogram_state_bytes (b);
+        unsigned char *before = malloc (bb), *after = malloc (bb);
+        DP_REQUIRE (before != NULL && after != NULL);
+        dp_spectrogram_get_state (b, before);
+        DP_CHECK (dp_spectrogram_set_state (b, blob) == DP_ERR_INVALID);
+        dp_spectrogram_get_state (b, after);
+        DP_CHECK (memcmp (before, after, bb) == 0); /* unchanged */
+        free (before);
+        free (after);
+        dp_spectrogram_destroy (b);
+        free (blob);
+      }
+    free (out);
   }
 
   /* ---- 15. a row arrives with the push that delivers its last sample -- */

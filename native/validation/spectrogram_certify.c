@@ -765,9 +765,10 @@ sweep_flush (int emit)
             wp += dp_spectrogram_pending (s) != owed;
             for (size_t j = 0; j < nfft; j++)
               row[j] = NAN;
-            const size_t wf = dp_spectrogram_flush (s, row, nfft);
-            wd += (wf != 0 && wf != nfft) || (wf == nfft) != (owed > 0);
-            if (wf == nfft)
+            const int64_t wf = dp_spectrogram_flush (s, row, nfft);
+            wd += (wf != 0 && wf != (int64_t)nfft)
+                  || (wf == (int64_t)nfft) != (owed > 0);
+            if (wf == (int64_t)nfft)
               {
                 emitted++;
                 /* the next row start, k*hop, zero-padded past the end */

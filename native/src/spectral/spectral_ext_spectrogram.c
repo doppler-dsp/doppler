@@ -184,9 +184,18 @@ SpectrogramObj_push (SpectrogramObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      size_t n_out = dp_spectrogram_push (
-          self->handle, (const float _Complex *)PyArray_DATA (in_arr),
-          (size_t)n, (float *)PyArray_DATA (out_arr), _cap);
+      /* nogil: GIL released across the pure-C kernel — sound only when
+       * this object is not shared across threads concurrently (one
+       * object per stream); the kernel touches only this object's
+       * state/buffers and the caller's input. */
+      const float _Complex *_ng0
+          = (const float _Complex *)PyArray_DATA (in_arr);
+      float *_ng1 = (float *)PyArray_DATA (out_arr);
+      size_t n_out;
+      Py_BEGIN_ALLOW_THREADS
+        n_out
+            = dp_spectrogram_push (self->handle, _ng0, (size_t)n, _ng1, _cap);
+      Py_END_ALLOW_THREADS
       Py_DECREF (in_arr);
       if ((size_t)(n_out) > (size_t)(_cap))
         {
@@ -248,10 +257,16 @@ SpectrogramObj_push (SpectrogramObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (in_arr);
       return NULL;
     }
-  float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = dp_spectrogram_push (
-      self->handle, (const float _Complex *)PyArray_DATA (in_arr), (size_t)n,
-      _d0, _cap);
+  float *_d0 = (float *)PyArray_DATA ((PyArrayObject *)arr0);
+  /* nogil: GIL released across the pure-C kernel — sound only when
+   * this object is not shared across threads concurrently (one
+   * object per stream); the kernel touches only this object's
+   * state/buffers and the caller's input. */
+  const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (in_arr);
+  size_t                n_out;
+  Py_BEGIN_ALLOW_THREADS
+    n_out = dp_spectrogram_push (self->handle, _ng0, (size_t)n, _d0, _cap);
+  Py_END_ALLOW_THREADS
   Py_DECREF (in_arr);
   if ((size_t)(n_out) > (size_t)(_cap))
     {
@@ -318,11 +333,18 @@ SpectrogramObj_flush (SpectrogramObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  float *row     = (float *)PyArray_DATA (row_arr);
-  size_t row_len = (size_t)PyArray_SIZE (row_arr);
-  size_t y       = dp_spectrogram_flush (self->handle, row, row_len);
+  float  *row     = (float *)PyArray_DATA (row_arr);
+  size_t  row_len = (size_t)PyArray_SIZE (row_arr);
+  int64_t _rc     = dp_spectrogram_flush (self->handle, row, row_len);
   Py_DECREF (row_arr);
-  return PyLong_FromUnsignedLongLong ((unsigned long long)y);
+  if (_rc < 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "flush: row must hold exactly nfft floats",
+                    (long long)_rc);
+      return NULL;
+    }
+  return PyLong_FromLongLong ((long long)_rc);
 }
 
 static PyObject *
@@ -481,7 +503,31 @@ static PyMethodDef SpectrogramObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "push(x, out) -> ndarray | None\n"
     "\n"
-    "Push input, write every whole row it completes that fits.\n"
+    "Push a chunk of samples, and return the rows it completes.\n"
+    "\n"
+    "The rows come back as a (rows, nfft) float32 matrix, or None when the "
+    "chunk\n"
+    "completes none. A partial frame is carried to the next push. consumed "
+    "equals\n"
+    "the input length: the binding allocates room for every row the chunk "
+    "can\n"
+    "complete, so no input is held back. To bound memory, push smaller "
+    "chunks,\n"
+    "sized with rows_for(n).\n"
+    "\n"
+    "An out array, if given, must be a float32 array of at least\n"
+    "push_max_out(len(x)) elements. A smaller out raises ValueError; it is "
+    "not\n"
+    "taken as a short one.\n"
+    "\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.spectral import Spectrogram\n"
+    ">>> sp = Spectrogram(nfft=8, hop=8, window=\"rect\")\n"
+    ">>> rows = sp.push(np.ones(20, np.complex64))\n"
+    ">>> rows.shape\n"
+    "(2, 8)\n"
+    ">>> sp.consumed, sp.pending\n"
+    "(20, 4)\n"
     "\n"
     "Takes the input in order and writes row after row into out, each nfft\n"
     "floats, until either the input is used up or the next row is due and\n"
@@ -507,35 +553,20 @@ static PyMethodDef SpectrogramObj_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[np.float32] | None\n"
-    "    Floats written: a multiple of nfft, at most\n"
-    "    dp_spectrogram_push_max_out(s, n_in). None when the C call writes\n"
-    "    no output.\n"
+    "    In C, the floats written: a multiple of nfft, at most\n"
+    "    dp_spectrogram_push_max_out(s, n_in). In Python, the completed rows\n"
+    "    as a (rows, nfft) matrix, or None when there are none. None when\n"
+    "    the C call writes no output.\n"
     "\n"
     "Examples\n"
     "--------\n"
-    "// nfft 8, hop 4, rectangular, power: a unit tone on bin 2\n"
-    "dp_spectrogram_state_t *s\n"
-    "    = dp_spectrogram_create (8, 4, 3, 0.0f, DP_SPECTROGRAM_POWER);\n"
-    "float _Complex x[16];\n"
-    "for (int i = 0; i < 16; i++)\n"
-    "  x[i] = cexpf (I * 2.0f * 3.14159265f * 2.0f * (float)i / 8.0f);\n"
-    "float rows[3 * 8];\n"
-    "size_t got = dp_spectrogram_push (s, x, 16, rows, 3 * 8);\n"
-    "// 16 samples at hop 4 complete the rows starting at 0, 4 and 8\n"
-    "if (got != 3 * 8 || dp_spectrogram_consumed (s) != 16)\n"
-    "  return 1;\n"
-    "if (fabsf (rows[4 + 2] - 1.0f) > 1e-4f) // bin 2 reads 1.0, at nfft/2 + "
-    "2\n"
-    "  return 1;\n"
-    "dp_spectrogram_destroy (s);\n"
-    ">>> import numpy as np\n"
-    ">>> from doppler.spectral import Spectrogram\n"
-    ">>> sp = Spectrogram(nfft=8, hop=8, window=\"rect\")\n"
-    ">>> rows = sp.push(np.ones(20, np.complex64))\n"
-    ">>> rows.shape\n"
-    "(2, 8)\n"
-    ">>> sp.consumed, sp.pending\n"
-    "(20, 4)\n" },
+    "    >>> import numpy as np\n"
+    "    >>> from doppler.spectral import Spectrogram\n"
+    "    >>> obj = Spectrogram(nfft=256, hop=256, window=\"hann\", beta=0.0, "
+    "mode=\"power\")\n"
+    "    >>> y = obj.push(np.zeros(4, dtype=np.complex64))\n"
+    "    >>> y.dtype\n"
+    "    dtype('float32')\n" },
   { "push_max_out", (PyCFunction)SpectrogramObj_push_max_out, METH_VARARGS,
     "push_max_out(n_in) -> int\n"
     "\n"
@@ -553,31 +584,32 @@ static PyMethodDef SpectrogramObj_methods[] = {
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    "dp_spectrogram_state_t *s\n"
-    "    = dp_spectrogram_create (8, 4, 3, 0.0f, DP_SPECTROGRAM_POWER);\n"
-    "float _Complex x[16] = { 0 };\n"
-    "float out[2 * 8];\n"
-    "// 3 samples complete no row: no room is needed, and they are taken\n"
-    "if (dp_spectrogram_push_max_out (s, 3) != 0)\n"
-    "  return 1;\n"
-    "dp_spectrogram_push (s, x, 3, out, 0);\n"
-    "if (dp_spectrogram_consumed (s) != 3)\n"
-    "  return 1;\n"
-    "// 3 carried + 9 more = 12 samples: the rows starting at 0 and at 4\n"
-    "size_t room = dp_spectrogram_push_max_out (s, 9);\n"
-    "if (room != 2 * 8 || dp_spectrogram_push (s, x, 9, out, room) != room\n"
-    "    || dp_spectrogram_consumed (s) != 9)\n"
-    "  return 1;\n"
-    "dp_spectrogram_destroy (s);\n" },
+    "    Output.\n" },
   { "flush", (PyCFunction)(void *)SpectrogramObj_flush,
     METH_VARARGS | METH_KEYWORDS,
     "flush(row) -> int\n"
     "\n"
-    "End the stream: write the one zero-padded row it still owes, if any.\n"
+    "End the stream: write the row a pending partial frame is owed into row.\n"
+    "\n"
+    "row must be a writable float32 array of exactly nfft elements; any other "
+    "size\n"
+    "raises ValueError, and the owed frame stays owed. Returns nfft when a "
+    "frame was\n"
+    "owed and was written, 0 when none was owed. A flush restarts the "
+    "stream.\n"
+    "\n"
+    "The example uses hop 4, so the owed row starts on the hop grid, at "
+    "sample 4:\n"
+    "\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.spectral import Spectrogram\n"
+    ">>> sp = Spectrogram(nfft=8, hop=4, window=\"rect\")\n"
+    ">>> _ = sp.push(np.ones(11, np.complex64))\n"
+    ">>> row = np.empty(8, np.float32)\n"
+    ">>> sp.flush(row)\n"
+    "8\n"
+    ">>> sp.flush(row)\n"
+    "0\n"
     "\n"
     "The row sits on the hop grid: it starts at the next row start k*hop,\n"
     "never at the first sample no row covered, so it is the row a one-shot\n"
@@ -594,53 +626,37 @@ static PyMethodDef SpectrogramObj_methods[] = {
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Floats written: nfft, or 0 if no row was owed or row_len is less\n"
-    "    than nfft.\n"
+    "    Floats written: nfft, or 0 if no row was owed; -1 if row_len is not\n"
+    "    nfft.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a negative value. The exception message is\n"
+    "    ``flush: row must hold exactly nfft floats``, with the return code\n"
+    "    appended (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"
-    "dp_spectrogram_state_t *s\n"
-    "    = dp_spectrogram_create (8, 4, 3, 0.0f, DP_SPECTROGRAM_POWER);\n"
-    "dp_spectrogram_state_t *t\n"
-    "    = dp_spectrogram_create (8, 4, 3, 0.0f, DP_SPECTROGRAM_POWER);\n"
-    "if (!s || !t)\n"
-    "  return 1;\n"
-    "float _Complex x[10], tail[8] = { 0 };\n"
-    "for (int i = 0; i < 10; i++)\n"
-    "  x[i] = (float)(i + 1);\n"
-    "float row[8], last[8], want[8];\n"
-    "// 10 samples: one row, [0, 8); samples 8 and 9 no row has covered\n"
-    "dp_spectrogram_push (s, x, 10, row, 8);\n"
-    "if (dp_spectrogram_pending (s) != 2)\n"
-    "  return 1;\n"
-    "// the owed row starts on the hop grid, at 4 (not at 8): x[4..10), "
-    "zeros\n"
-    "if (dp_spectrogram_flush (s, last, 8) != 8)\n"
-    "  return 1;\n"
-    "memcpy (tail, x + 4, 6 * sizeof *x);      // the same frame, pushed "
-    "whole\n"
-    "if (dp_spectrogram_push (t, tail, 8, want, 8) != 8\n"
-    "    || memcmp (last, want, sizeof want) != 0)\n"
-    "  return 1;\n"
-    "if (dp_spectrogram_flush (s, last, 8) != 0)  // the stream is over\n"
-    "  return 1;\n"
-    "dp_spectrogram_destroy (t);\n"
-    "dp_spectrogram_destroy (s);\n"
-    ">>> import numpy as np\n"
-    ">>> from doppler.spectral import Spectrogram\n"
-    ">>> sp = Spectrogram(nfft=8, hop=8, window=\"rect\")\n"
-    ">>> _ = sp.push(np.ones(11, np.complex64))\n"
-    ">>> row = np.empty(8, np.float32)\n"
-    ">>> sp.flush(row)\n"
-    "8\n"
-    ">>> sp.flush(row)\n"
-    "0\n" },
+    "    >>> import numpy as np\n"
+    "    >>> from doppler.spectral import Spectrogram\n"
+    "    >>> obj = Spectrogram(nfft=256, hop=256, window=\"hann\", beta=0.0, "
+    "mode=\"power\")\n"
+    "    >>> obj.flush(np.zeros(4, dtype=np.float32))\n"
+    "    0\n" },
   { "rows_for", (PyCFunction)(void *)SpectrogramObj_rows_for,
     METH_VARARGS | METH_KEYWORDS,
     "rows_for(n_in) -> int\n"
     "\n"
-    "Rows a push of n_in more samples completes, given the carry: exact,\n"
-    "not an estimate.\n"
+    "How many rows a push of n_in more samples would complete, from the "
+    "current carry.\n"
+    "\n"
+    "Takes no input. Use it to size chunks that bound memory.\n"
+    "\n"
+    ">>> from doppler.spectral import Spectrogram\n"
+    ">>> sp = Spectrogram(nfft=8, hop=2)\n"
+    ">>> sp.rows_for(7), sp.rows_for(8), sp.rows_for(100)\n"
+    "(0, 1, 47)\n"
     "\n"
     "The carry plus n_in samples, cut into frames of nfft at the hop. A push\n"
     "with room for this many rows writes exactly this many and takes all of\n"
@@ -658,39 +674,19 @@ static PyMethodDef SpectrogramObj_methods[] = {
     "\n"
     "Examples\n"
     "--------\n"
-    "dp_spectrogram_state_t *s\n"
-    "    = dp_spectrogram_create (8, 2, 3, 0.0f, DP_SPECTROGRAM_POWER);\n"
-    "if (dp_spectrogram_rows_for (s, 7) != 0      // less than a frame\n"
-    "    || dp_spectrogram_rows_for (s, 8) != 1\n"
-    "    || dp_spectrogram_rows_for (s, 100) != 47) // (100 - 8) / 2 + 1\n"
-    "  return 1;\n"
-    "dp_spectrogram_destroy (s);\n"
-    ">>> from doppler.spectral import Spectrogram\n"
-    ">>> sp = Spectrogram(nfft=8, hop=2)\n"
-    ">>> sp.rows_for(7), sp.rows_for(8), sp.rows_for(100)\n"
-    "(0, 1, 47)\n" },
+    "    >>> import numpy as np\n"
+    "    >>> from doppler.spectral import Spectrogram\n"
+    "    >>> obj = Spectrogram(nfft=256, hop=256, window=\"hann\", beta=0.0, "
+    "mode=\"power\")\n"
+    "    >>> obj.rows_for(0)\n"
+    "    0\n" },
   { "reset", (PyCFunction)SpectrogramObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
     "Forget the stream: drop the carry and restart at sample 0.\n"
     "\n"
-    "The next row covers samples [0, nfft) of whatever is pushed next.\n"
-    "dp_spectrogram_consumed() and dp_spectrogram_pending() read 0.\n"
-    "Configuration is kept.\n"
+    "The configuration is kept. consumed and pending read 0 afterwards.\n"
     "\n"
-    "Examples\n"
-    "--------\n"
-    "dp_spectrogram_state_t *s\n"
-    "    = dp_spectrogram_create (8, 8, 3, 0.0f, DP_SPECTROGRAM_POWER);\n"
-    "float _Complex x[5] = { 0 };\n"
-    "float row[8];\n"
-    "dp_spectrogram_push (s, x, 5, row, 8);   // 5 samples of carry, no row\n"
-    "if (dp_spectrogram_pending (s) != 5)\n"
-    "  return 1;\n"
-    "dp_spectrogram_reset (s);                 // the carry is gone\n"
-    "if (dp_spectrogram_pending (s) != 0)\n"
-    "  return 1;\n"
-    "dp_spectrogram_destroy (s);\n"
     ">>> import numpy as np\n"
     ">>> from doppler.spectral import Spectrogram\n"
     ">>> sp = Spectrogram(nfft=8, hop=8)\n"
@@ -699,7 +695,18 @@ static PyMethodDef SpectrogramObj_methods[] = {
     "5\n"
     ">>> sp.reset()\n"
     ">>> sp.pending\n"
-    "0\n" },
+    "0\n"
+    "\n"
+    "The next row covers samples [0, nfft) of whatever is pushed next.\n"
+    "dp_spectrogram_consumed() and dp_spectrogram_pending() read 0.\n"
+    "Configuration is kept.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    "    >>> from doppler.spectral import Spectrogram\n"
+    "    >>> obj = Spectrogram(nfft=256, hop=256, window=\"hann\", beta=0.0, "
+    "mode=\"power\")\n"
+    "    >>> obj.reset()\n" },
   { "state_bytes", (PyCFunction)SpectrogramObj_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"
     "\n"
@@ -792,7 +799,15 @@ static PyTypeObject SpectrogramObjType = {
   .tp_dealloc                             = (destructor)SpectrogramObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
   .tp_doc
-  = "Create a streaming spectrogram.\n"
+  = "A streaming short-time power spectrum: a stream in chunks of any size, "
+    "one row of nfft bins per hop samples, each row the PSD of its frame.\n"
+    "\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.spectral import Spectrogram\n"
+    ">>> sp = Spectrogram(nfft=8, hop=8, window=\"rect\")\n"
+    ">>> rows = sp.push(np.ones(16, np.complex64))\n"
+    ">>> rows.shape\n"
+    "(2, 8)\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -808,10 +823,12 @@ static PyTypeObject SpectrogramObjType = {
     "    stream; hop < nfft overlaps the frames.\n"
     "window : Literal[\"hann\", \"kaiser\", \"blackman-harris\", \"rect\"], "
     "default \"hann\"\n"
-    "    0 = Hann, 1 = Kaiser, 2 = Blackman-Harris, 3 = rectangular, as\n"
-    "    dp_psd_create(), which also refuses a window that sums to zero at "
-    "this\n"
-    "    nfft (the symmetric Hann at nfft = 2).\n"
+    "    The window: \"hann\", \"kaiser\", \"blackman-harris\" or \"rect\" in "
+    "Python; in\n"
+    "    C the index 0, 1, 2 or 3 in that order, as dp_psd_create() takes it. "
+    "It\n"
+    "    also refuses a window that sums to zero at this nfft (the symmetric\n"
+    "    Hann at nfft = 2).\n"
     "beta : float, default 0.0\n"
     "    Kaiser beta (ignored for the other windows).\n"
     "mode : Literal[\"power\", \"db\"], default \"power\"\n"
@@ -831,31 +848,16 @@ static PyTypeObject SpectrogramObjType = {
     "\n"
     "Examples\n"
     "--------\n"
-    "// nfft 1024, a row every 256 samples (75% overlap), Blackman-Harris,\n"
-    "// power rows (the default), DC-centred\n"
-    "dp_spectrogram_state_t *s\n"
-    "    = dp_spectrogram_create (1024, 256, 2, 0.0f, DP_SPECTROGRAM_POWER);\n"
-    "// the same rows in dBFS, asked for by name\n"
-    "dp_spectrogram_state_t *d\n"
-    "    = dp_spectrogram_create (1024, 256, 2, 0.0f, DP_SPECTROGRAM_DB);\n"
-    "if (!s || !d)\n"
-    "  return 1;\n"
-    "// refused: 1000 is not a power of two, a hop may not exceed nfft, and\n"
-    "// a mode is one of the two\n"
-    "const int not_a_mode = DP_SPECTROGRAM_DB + 1;\n"
-    "if (dp_spectrogram_create (1000, 256, 2, 0.0f, DP_SPECTROGRAM_POWER)\n"
-    "    || dp_spectrogram_create (1024, 2048, 2, 0.0f, "
-    "DP_SPECTROGRAM_POWER)\n"
-    "    || dp_spectrogram_create (1024, 256, 2, 0.0f, not_a_mode))\n"
-    "  return 1;\n"
-    "dp_spectrogram_destroy (d);\n"
-    "dp_spectrogram_destroy (s);\n"
-    ">>> import numpy as np\n"
+    "Create with defaults:\n"
+    "\n"
     ">>> from doppler.spectral import Spectrogram\n"
-    ">>> sp = Spectrogram(nfft=1024, hop=256, window=\"blackman-harris\")\n"
-    ">>> rows = sp.push(np.ones(1024 + 256, np.complex64))\n"
-    ">>> rows.shape\n"
-    "(2, 1024)\n",
+    ">>> obj = Spectrogram(\n"
+    "...     nfft=256,\n"
+    "...     hop=256,\n"
+    "...     window=\"hann\",\n"
+    "...     beta=0.0,\n"
+    "...     mode=\"power\",\n"
+    "... )\n",
   .tp_methods = SpectrogramObj_methods,
   .tp_getset  = Spectrogram_getset,
   .tp_new     = SpectrogramObj_new,

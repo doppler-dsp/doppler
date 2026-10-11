@@ -23,8 +23,11 @@ target_link_libraries(spectrogram_core PUBLIC
 
 # An OBJECT library hands its own objects to what links it, not those of the
 # OBJECT libraries it links in turn, so every executable names the whole chain.
+# The generated symbols table (test_spectrogram_symbols.c) names every function
+# the Python binding calls; linking it makes an undefined one fail the build.
 add_executable(test_spectrogram_core
-    ${CMAKE_SOURCE_DIR}/native/tests/test_spectrogram_core.c)
+    ${CMAKE_SOURCE_DIR}/native/tests/test_spectrogram_core.c
+    ${CMAKE_SOURCE_DIR}/native/tests/test_spectrogram_symbols.c)
 target_link_libraries(test_spectrogram_core PRIVATE
     spectrogram_core psd_core fft_core spectral_core acc_trace_core
     f32_buffer_core dp_interrupt_guard_core ${DP_MATH_LIBRARY})

@@ -17,6 +17,7 @@
 #include "doppler/f32_buffer/f32_buffer_core.h"
 #include "doppler/psd/psd_core.h"
 #include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -24,7 +25,9 @@ extern "C"
 #endif
 
 #define SPECTROGRAM_STATE_MAGIC DP_FOURCC ('S', 'P', 'G', 'M')
-#define SPECTROGRAM_STATE_VERSION 1u
+/* v2: the blob carries the configuration (mode, nfft, hop, window, beta) so a
+ * restore refuses a blob whose rows would mean something else (#2102). */
+#define SPECTROGRAM_STATE_VERSION 2u
 
 #define DP_SPECTROGRAM_POWER 0
 #define DP_SPECTROGRAM_DB 1
@@ -63,8 +66,8 @@ size_t dp_spectrogram_consumed (const dp_spectrogram_state_t *s);
 size_t dp_spectrogram_rows_for (const dp_spectrogram_state_t *s,
                                 size_t n_in);
 
-size_t dp_spectrogram_flush (dp_spectrogram_state_t *s, float *row,
-                             size_t row_len);
+int64_t dp_spectrogram_flush (dp_spectrogram_state_t *s, float *row,
+                              size_t row_len);
 
 size_t dp_spectrogram_pending (const dp_spectrogram_state_t *s);
 

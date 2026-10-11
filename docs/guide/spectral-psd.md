@@ -83,8 +83,9 @@ w.nfft     # 8192   — zero-padded transform length (sets the bin spacing)
 A capture is cut into segments of `n` samples, one starting every `hop` samples
 (`hop` defaults to `n`, so segments do not overlap). Each complete segment is
 windowed, (zero-padded,) FFT'd and folded into the running average; a trailing
-partial segment is held and completed by the next call. Pass more data to average more segments — averaging trades frequency
-snapshots for a smoother, lower-variance noise floor.
+partial segment is held and completed by the next call. Pass more data to
+average more segments — averaging trades frequency snapshots for a smoother,
+lower-variance noise floor.
 
 ```python
 import numpy as np

@@ -152,7 +152,9 @@ zero-padded. It is **on the hop grid**: it starts at the next row start
 `k·hop`, not at the first uncovered sample, so it is exactly the row a
 one-shot run over the zero-padded stream would have made. It writes a row if
 and only if a sample is uncovered, returns `nfft` or 0 floats, and restarts
-the stream, so a second flush writes nothing.
+the stream, so a second flush writes nothing. A row buffer that is not exactly
+`nfft` long is refused with `-1` (`ValueError` in Python) before anything
+moves, so the owed frame stays owed for a retry.
 
 `flush` is explicit by design: closing a source does not imply it.
 

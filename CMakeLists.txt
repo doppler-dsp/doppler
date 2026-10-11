@@ -1217,8 +1217,8 @@ target_include_directories(test_dp_state
 target_compile_options(test_dp_state PRIVATE -O2)
 add_test(NAME test_dp_state COMMAND test_dp_state)
 
-# dp_test.h's own output: a FAIL lands in order, at a line start, in a
-# `> log 2>&1` capture (#2050). The test redirects itself, so it needs no
+# dp_test.h's own output: a FAIL lands in order, after the stdout it follows,
+# in a `> log 2>&1` capture (#2050). The test redirects itself, so it needs no
 # shell and runs the same under ctest on every leg.
 add_executable(test_dp_test_fail_order native/tests/test_dp_test_fail_order.c)
 target_include_directories(test_dp_test_fail_order

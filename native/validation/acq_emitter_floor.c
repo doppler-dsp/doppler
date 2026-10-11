@@ -105,17 +105,17 @@ measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
                                   SIZING_CN0, DU, PFA, PD, 0, 1, 0.0);
   if (!a)
     {
-      fprintf (stderr, "dp_acq_create_continuous failed\n");
+      DP_TEST_ERR ("dp_acq_create_continuous failed\n");
       return 1;
     }
   out->n_noncoh    = a->n_noncoh;
   out->window_bins = a->window_bins;
   if (a->n_noncoh != 1 || a->coherent_bins != 1 || a->interp != 1)
     {
-      fprintf (stderr,
-               "engine sized n_noncoh=%zu coherent_bins=%zu interp=%zu; this "
-               "harness reads the single-look surface and needs 1/1/1\n",
-               a->n_noncoh, a->coherent_bins, a->interp);
+      DP_TEST_ERR (
+          "engine sized n_noncoh=%zu coherent_bins=%zu interp=%zu; this "
+          "harness reads the single-look surface and needs 1/1/1\n",
+          a->n_noncoh, a->coherent_bins, a->interp);
       dp_acq_destroy (a);
       return 1;
     }
@@ -156,7 +156,7 @@ measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
   free (flips);
   if (!syn || rc != 0)
     {
-      fprintf (stderr, "wfm_synth continuous DSSS setup failed\n");
+      DP_TEST_ERR ("wfm_synth continuous DSSS setup failed\n");
       dp_acq_destroy (a);
       dp_wfm_synth_destroy (syn);
       return 1;

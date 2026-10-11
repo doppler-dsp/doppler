@@ -50,6 +50,14 @@ class Data:
 
     level_rows: list[list[str]] = field(default_factory=list)
     level_worst_db: float = 0.0
+    frame_golden: list[bool] = field(default_factory=list)
+    frame_chunks: bool = False
+    frame_overlap: bool = False
+    frame_hop_refused: bool = False
+    frame_hop0_same: bool = False
+    frame_state_mid: bool = False
+    frame_wrong_hop_refused: bool = False
+    frame_wrong_hop_unchanged: bool = False
     layout_exact: bool = False
     bits_is_full_scale: bool = False
     fs_tone_db: float = 0.0
@@ -473,6 +481,7 @@ def characterise() -> Data:
     _sec_contracts(d)
     _sec_state(d)
     _sec_candidates(d)
+    _sec_frames(d)
     return d
 
 
@@ -1254,6 +1263,155 @@ def _sec_candidates(d: Data) -> None:
 # ── 3. review ─────────────────────────────────────────────────────────
 
 
+# ── 2.11 the frame hop and carry (the binding is the certification) ─────────
+
+# The C test's pins (test_psd_core.c, T21): (config index, stream length,
+# value), from main's build at 4ab923ea5, on the dp_uni stream below.
+GOLDEN_PINS = (
+    (0, 320, 0xE39AFCBFDAEDA728),
+    (0, 357, 0xE39AFCBFDAEDA728),
+    (1, 1280, 0xA686023A83BB7207),
+    (1, 1317, 0xA686023A83BB7207),
+    (2, 500, 0xFDED990C180B1654),
+    (2, 537, 0xFDED990C180B1654),
+    (3, 160, 0x2B33ED232E1B5F61),
+    (3, 197, 0x22BD602CA3D1CF84),
+    (4, 640, 0xF3483CF642A094E5),
+    (4, 677, 0xF3483CF642A094E5),
+)
+GOLDEN_CFG = (
+    (64, "hann", 0.0, 1, "mean", 0.0),
+    (256, "hann", 0.0, 2, "mean", 0.0),
+    (100, "kaiser", 8.0, 2, "mean", 0.0),
+    (32, "rect", 0.0, 1, "exp", 0.5),
+    (128, "blackman-harris", 0.0, 1, "maxhold", 0.0),
+)
+_M64 = (1 << 64) - 1
+
+
+def _dp_uni_stream(n: int, seed: int) -> np.ndarray:
+    """The C test's golden stream, in pure Python: dp_xs32 then dp_uni."""
+    st = seed if seed else 1
+    out = np.empty(n, dtype=np.complex64)
+
+    def uni() -> float:
+        nonlocal st
+        x = st if st else 1
+        x ^= (x << 13) & 0xFFFFFFFF
+        x ^= x >> 17
+        x ^= (x << 5) & 0xFFFFFFFF
+        st = x
+        return (x + 1.0) / 4294967297.0
+
+    for i in range(n):
+        a = np.float32(uni() - 0.5)
+        b = np.float32(uni() - 0.5)
+        out[i] = a + 1j * b
+    return out
+
+
+def _rxr(data: bytes) -> int:
+    """The C test's rotate-xor checksum over a byte string."""
+    h = 0x9E3779B97F4A7C15
+    for byte in data:
+        h = (((h << 7) | (h >> 57)) & _M64) ^ byte
+    return h
+
+
+def _trace_bytes(w: PSD) -> bytes:
+    """The averaged two-sided power, as the float32 bytes the C side holds."""
+    return np.asarray(
+        w.power_twosided(w.power_twosided_max_out()), dtype=np.float32
+    ).tobytes()
+
+
+def _frame_face_bits(n: int, x: np.ndarray, **kw) -> bytes:
+    """One object, one accumulate of x; the bytes of its averaged trace."""
+    w = _psd(n=n, **kw)
+    w.accumulate(x)
+    return _trace_bytes(w)
+
+
+def _sec_frames(d: Data) -> None:
+    R.md("### 2.11 The frame hop and carry (the binding is the certification)")
+    R.md()
+    golden = []
+    for cfg_i, length, want in GOLDEN_PINS:
+        n, window, beta, pad, mode, alpha = GOLDEN_CFG[cfg_i]
+        x = _dp_uni_stream(length, 12345 + cfg_i)
+        w = _psd(
+            n=n, window=window, beta=beta, pad=pad, mode=mode, alpha=alpha
+        )
+        w.accumulate(x)
+        golden.append(_rxr(_trace_bytes(w)) == want)
+    d.frame_golden = golden
+
+    n, length = 64, 10 * 64 + 17
+    x = _dp_uni_stream(length, 777)
+    ref = _frame_face_bits(n, x)
+    sizes = [1, 7, n - 1, n, n + 1, 3 * n + 5, 2 * n]
+    rng = np.random.default_rng(20261011)
+    for _ in range(3):
+        sizes.append(int(rng.integers(1, 2 * n + 1)))
+    chunk_ok = True
+    for size in sizes:
+        w = _psd(n=n)
+        for at in range(0, length, size):
+            w.accumulate(x[at : at + size])
+        chunk_ok = chunk_ok and _trace_bytes(w) == ref
+    d.frame_chunks = chunk_ok
+
+    hop = n // 2
+    fold = _psd(n=n)
+    for at in range(0, length - n + 1, hop):
+        fold.accumulate(x[at : at + n])
+    d.frame_overlap = _frame_face_bits(n, x, hop=hop) == _trace_bytes(fold)
+
+    try:
+        _psd(n=n, hop=n + 1)
+        d.frame_hop_refused = False
+    except ValueError:
+        d.frame_hop_refused = True
+    d.frame_hop0_same = _frame_face_bits(n, x, hop=0) == ref
+
+    a = _psd(n=n, hop=hop)
+    a.accumulate(x[: 5 * n + 11])
+    blob = a.get_state()
+    b = _psd(n=n, hop=hop)
+    b.set_state(blob)
+    a.accumulate(x[5 * n + 11 :])
+    b.accumulate(x[5 * n + 11 :])
+    d.frame_state_mid = _trace_bytes(a) == _trace_bytes(b)
+
+    src = _psd(n=n, hop=n)
+    src.accumulate(x[: 4 * n + 9])
+    dst = _psd(n=n, hop=hop)
+    dst.accumulate(x[100 : 100 + 3 * n + 1])
+    before = _trace_bytes(dst)
+    try:
+        dst.set_state(src.get_state())
+        d.frame_wrong_hop_refused = False
+    except ValueError:
+        d.frame_wrong_hop_refused = True
+    d.frame_wrong_hop_unchanged = _trace_bytes(dst) == before
+
+    R.md(
+        f"Checked through the binding, against the C test's pins (taken from "
+        f"main's build, commit 4ab923ea5). Golden checksums: "
+        f"{sum(golden)}/{len(golden)} equal main. Chunk invariance over "
+        f"{len(sizes)} partitions: {'yes' if chunk_ok else 'NO'}. Overlap at "
+        f"hop n/2 against the hop-n fold of the same frames: "
+        f"{'yes' if d.frame_overlap else 'NO'}. A hop above n is refused: "
+        f"{'yes' if d.frame_hop_refused else 'NO'}; hop 0 reads as hop n: "
+        f"{'yes' if d.frame_hop0_same else 'NO'}. A blob cut mid-carry "
+        f"continues to the same bits: {'yes' if d.frame_state_mid else 'NO'}. "
+        f"A blob of another hop is refused "
+        f"({'yes' if d.frame_wrong_hop_refused else 'NO'}) and leaves the "
+        f"object unchanged ({'yes' if d.frame_wrong_hop_unchanged else 'NO'})."
+    )
+    R.md()
+
+
 def review(d: Data) -> None:
     R.md("## 3. Review — findings")
     R.md()
@@ -1550,8 +1708,34 @@ def limits(d: Data) -> None:
     R.limit(d.state_exact, "a state blob resumes bit-exactly")
     R.limit(d.state_rejects, "a clobbered state envelope is refused")
 
-
-# ── build ─────────────────────────────────────────────────────────────
+    # ── build ─────────────────────────────────────────────────────────────
+    R.limit(
+        all(d.frame_golden) and len(d.frame_golden) == 10,
+        f"a single call of whole frames at hop = n reads main's ten pinned "
+        f"checksums (5 configs x 2 lengths; {sum(d.frame_golden)}/10 equal)",
+    )
+    R.limit(
+        d.frame_chunks,
+        "any partition of a 10n+17 stream averages to one call's bits: 7 "
+        "fixed sizes and 3 seeded splits, n = 64 Hann",
+    )
+    R.limit(
+        d.frame_overlap,
+        "hop = n/2 averages to the hop-n fold of the same frames, bit for bit",
+    )
+    R.limit(
+        d.frame_hop_refused and d.frame_hop0_same,
+        "a hop above n raises ValueError; hop 0 reads as hop = n, bit for bit",
+    )
+    R.limit(
+        d.frame_state_mid,
+        "a state blob cut mid-carry continues to the same bits (hop n/2)",
+    )
+    R.limit(
+        d.frame_wrong_hop_refused and d.frame_wrong_hop_unchanged,
+        "a blob of another hop is refused with ValueError and the object "
+        "reads unchanged",
+    )
 
 
 def build(write: bool = True) -> Report:

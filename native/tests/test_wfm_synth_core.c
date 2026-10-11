@@ -1283,8 +1283,7 @@ main (void)
         }
     DP_CHECK_MSG (seam, "gap noise continues the on-time RNG stream");
     if (!seam)
-      fprintf (stderr, "  first divergence at sample %zu of %zu\n", first_bad,
-               n2);
+      DP_TEST_ERR ("  first divergence at sample %zu of %zu\n", first_bad, n2);
     /* precondition: the stream is not all zeros, or the comparison above
        would hold for a noise_steps that generated nothing at all. */
     double e = 0.0;
@@ -1429,7 +1428,7 @@ main (void)
           }
         DP_CHECK_MSG (ok, "shaped output == scaled taps * upsampled symbols");
         if (!ok)
-          fprintf (stderr, "  sps=%d worst |err| = %.3g\n", sps, worst);
+          DP_TEST_ERR ("  sps=%d worst |err| = %.3g\n", sps, worst);
         free (y);
         dp_wfm_synth_destroy (sh);
       }

@@ -51,6 +51,6 @@ main (int argc, char **argv)
 
   /* An unknown mode must not look like any of the three. A silent exit 0 here
      would make a typo in the CMake registration read as a passing gate. */
-  fprintf (stderr, "test_dp_test_end: unknown mode '%s'\n", mode);
+  DP_TEST_ERR ("test_dp_test_end: unknown mode '%s'\n", mode);
   return 2;
 }

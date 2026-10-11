@@ -326,10 +326,9 @@ ctrl_near_unity_consumes_input (void)
          runs to CAP. */
       if (n < (size_t)L - 2 || n > (size_t)L + 2)
         {
-          fprintf (stderr,
-                   "  ctrl dev %+.3e: %zu outputs from %d inputs "
-                   "(expected ~%d)\n",
-                   dev[k], n, L, L);
+          DP_TEST_ERR ("  ctrl dev %+.3e: %zu outputs from %d inputs "
+                       "(expected ~%d)\n",
+                       dev[k], n, L, L);
           ok = 0;
           continue;
         }
@@ -341,8 +340,8 @@ ctrl_near_unity_consumes_input (void)
           repeats++;
       if (repeats > n / 8)
         {
-          fprintf (stderr, "  ctrl dev %+.3e: %zu/%zu outputs repeat\n",
-                   dev[k], repeats, n);
+          DP_TEST_ERR ("  ctrl dev %+.3e: %zu/%zu outputs repeat\n", dev[k],
+                       repeats, n);
           ok = 0;
         }
     }
@@ -510,17 +509,16 @@ ctrl_acc_names_next_arm (double rate)
           int arm = (int)lrintf (crealf (o[0])) - 1;
           if (arm != predicted)
             {
-              fprintf (stderr,
-                       "  §10 rate=%.3f call %d: arm %d, mu predicted %d\n",
-                       rate, k, arm, predicted);
+              DP_TEST_ERR (
+                  "  §10 rate=%.3f call %d: arm %d, mu predicted %d\n", rate,
+                  k, arm, predicted);
               ok = 0;
             }
         }
       double mu = dp_resamp_get_ctrl_acc (r);
       if (!(mu >= 0.0 && mu < 1.0))
         {
-          fprintf (stderr, "  §10 rate=%.3f: mu %.17g outside [0,1)\n", rate,
-                   mu);
+          DP_TEST_ERR ("  §10 rate=%.3f: mu %.17g outside [0,1)\n", rate, mu);
           ok = 0;
         }
       predicted = (int)floor (mu * (double)P);
@@ -575,9 +573,9 @@ ctrl_wrap_is_one_input (double rate)
   size_t skip    = (size_t)floor (1.0 / rate);
   long   created = (long)(outs * skip + wraps);
   long   left    = created - (long)CALLS;
-  fprintf (stderr,
-           "  §11 rate=%.3f: %zu outs, %zu wraps, skip %zu, debt left %ld\n",
-           rate, outs, wraps, skip, left);
+  DP_TEST_ERR (
+      "  §11 rate=%.3f: %zu outs, %zu wraps, skip %zu, debt left %ld\n", rate,
+      outs, wraps, skip, left);
   return left >= 0 && left <= (long)skip + 1;
 }
 
@@ -614,8 +612,8 @@ ctrl_acc_steady_at_exact_rate (double rate)
       dp_resamp_execute_ctrl_push (r, CMPLXF (1.0f, 0.0f), 0.0, o, 8);
       if (dp_resamp_get_ctrl_acc (r) != 0.0)
         {
-          fprintf (stderr, "  §12 rate=%.3f: mu drifted to %.17g at %d\n",
-                   rate, dp_resamp_get_ctrl_acc (r), k);
+          DP_TEST_ERR ("  §12 rate=%.3f: mu drifted to %.17g at %d\n", rate,
+                       dp_resamp_get_ctrl_acc (r), k);
           ok = 0;
           break;
         }
@@ -632,10 +630,9 @@ ctrl_acc_steady_at_exact_rate (double rate)
     }
   if (!moved)
     {
-      fprintf (stderr,
-               "  §12 rate=%.3f: mu never moved under a steer — the "
-               "zero above is vacuous\n",
-               rate);
+      DP_TEST_ERR ("  §12 rate=%.3f: mu never moved under a steer — the "
+                   "zero above is vacuous\n",
+                   rate);
       ok = 0;
     }
 
@@ -669,8 +666,8 @@ ctrl_acc_slews_at_rate_error (double rate)
 
   double t_in     = 1.0 / rate;
   double expected = (double)outs * (t_in - floor (t_in));
-  fprintf (stderr, "  §12 rate=%.4f: %zu wraps, predicted %.2f\n", rate, wraps,
-           expected);
+  DP_TEST_ERR ("  §12 rate=%.4f: %zu wraps, predicted %.2f\n", rate, wraps,
+               expected);
   return fabs ((double)wraps - expected) <= 1.0;
 }
 
@@ -981,18 +978,17 @@ ctrl_rides_interpolator (double rate)
   if (rate >= 1.0)
     {
       if (!same)
-        fprintf (stderr,
-                 "  §18 rate=%.3f: ctrl path differs from execute at or "
-                 "above unity (na %zu, nb %zu)\n",
-                 rate, na, nb);
+        DP_TEST_ERR ("  §18 rate=%.3f: ctrl path differs from execute at or "
+                     "above unity (na %zu, nb %zu)\n",
+                     rate, na, nb);
       return same;
     }
 
   /* Below unity the two structures must NOT coincide — and the ctrl path
      must still be a resampler, not merely different. */
   double resid = gate_tone_evm_db (rate, 1);
-  fprintf (stderr, "  §18 rate=%.3f: differs=%d, ctrl residual %.1f dB\n",
-           rate, !same, resid);
+  DP_TEST_ERR ("  §18 rate=%.3f: differs=%d, ctrl residual %.1f dB\n", rate,
+               !same, resid);
   return !same && resid < -60.0;
 }
 
@@ -1054,10 +1050,9 @@ inputs_needed_is_exact (double rate)
       size_t got = dp_resamp_interp_fill (r, in, out, m);
       if (got != need)
         {
-          fprintf (stderr,
-                   "  §20 rate=%.3f call %d: predicted %zu inputs, "
-                   "consumed %zu\n",
-                   rate, k, need, got);
+          DP_TEST_ERR ("  §20 rate=%.3f call %d: predicted %zu inputs, "
+                       "consumed %zu\n",
+                       rate, k, need, got);
           ok = 0;
         }
       tot_in += got;
@@ -1072,10 +1067,9 @@ inputs_needed_is_exact (double rate)
      accumulated total may lag by at most the final partial period. */
   double expect = (double)tot_out / rate;
   double err    = fabs ((double)tot_in - expect);
-  fprintf (stderr,
-           "  §20 rate=%.3f: %zu outputs consumed %zu inputs, law says "
-           "%.1f (err %.1f)\n",
-           rate, tot_out, tot_in, expect, err);
+  DP_TEST_ERR ("  §20 rate=%.3f: %zu outputs consumed %zu inputs, law says "
+               "%.1f (err %.1f)\n",
+               rate, tot_out, tot_in, expect, err);
   return err <= 2.0;
 }
 
@@ -1250,9 +1244,8 @@ main (void)
       for (int k = 0; k < 8; k++)
         if (fabs (dly[k] - mean) > spread)
           spread = fabs (dly[k] - mean);
-      fprintf (stderr,
-               "  R==1 all-pass %s: |H| dev %.3e, delay %.4f +/- %.3e\n",
-               use_ctrl ? "ctrl" : "free", worst_h, mean, spread);
+      DP_TEST_ERR ("  R==1 all-pass %s: |H| dev %.3e, delay %.4f +/- %.3e\n",
+                   use_ctrl ? "ctrl" : "free", worst_h, mean, spread);
       DP_CHECK (worst_h < 5e-3); /* all-pass */
       DP_CHECK (spread < 2e-2);  /* PURE delay: no frequency dependence */
       /* and it is the one the accessor states, to a twentieth of a sample
@@ -1277,8 +1270,8 @@ main (void)
         {
           double evm = gate_tone_evm_db (gate_rates[k], use_ctrl);
           if (!(evm < -60.0))
-            fprintf (stderr, "  tone purity rate=%.2f %s: %.1f dB\n",
-                     gate_rates[k], use_ctrl ? "ctrl" : "free", evm);
+            DP_TEST_ERR ("  tone purity rate=%.2f %s: %.1f dB\n",
+                         gate_rates[k], use_ctrl ? "ctrl" : "free", evm);
           DP_CHECK (evm < -60.0);
         }
   }
@@ -1505,13 +1498,13 @@ main (void)
     if (rg)
       {
         double g = dp_resamp_dc_gain (rg);
-        fprintf (stderr, "  §13 default Kaiser dc_gain %.6f\n", g);
+        DP_TEST_ERR ("  §13 default Kaiser dc_gain %.6f\n", g);
         DP_CHECK (fabs (g - 1.0) < 1e-3); /* the header's @code says 1.000 */
         dp_resamp_destroy (rg);
       }
 
     double worst = dc_gain_worst_arm_deviation ();
-    fprintf (stderr, "  §13 worst arm deviation from arm 0: %.3e\n", worst);
+    DP_TEST_ERR ("  §13 worst arm deviation from arm 0: %.3e\n", worst);
     DP_CHECK (worst >= 0.0
               && worst < 1e-3); /* arm 0 answers for all of them */
 
@@ -1527,8 +1520,8 @@ main (void)
         double want = dp_resamp_dc_gain (rr);
         dp_resamp_destroy (rr);
         double got = dc_gain_measured (rate);
-        fprintf (stderr, "  §13 rate %.2f: computed %.6f, measured %.6f\n",
-                 rate, want, got);
+        DP_TEST_ERR ("  §13 rate %.2f: computed %.6f, measured %.6f\n", rate,
+                     want, got);
         DP_CHECK (fabs (got - want) < 5e-3);
       }
 
@@ -1567,10 +1560,9 @@ main (void)
         double sb_edge = band_response_db (rate, of_out (0.6));
         double sb_deep = band_response_db (rate, of_out (0.9));
 #undef of_out
-        fprintf (stderr,
-                 "  §17 rate=%.2f: fs_out 0.2/0.4 -> %.2f/%.2f dB, "
-                 "0.6/0.9 -> %.1f/%.1f dB\n",
-                 rate, pb_in, pb_edge, sb_edge, sb_deep);
+        DP_TEST_ERR ("  §17 rate=%.2f: fs_out 0.2/0.4 -> %.2f/%.2f dB, "
+                     "0.6/0.9 -> %.1f/%.1f dB\n",
+                     rate, pb_in, pb_edge, sb_edge, sb_deep);
         DP_CHECK (fabs (pb_in) < 0.5);   /* well inside the passband  */
         DP_CHECK (fabs (pb_edge) < 1.0); /* at the advertised edge    */
         DP_CHECK (sb_edge < -60.0);      /* the advertised rejection  */
@@ -1594,10 +1586,9 @@ main (void)
       {
         double lo = image_floor_db (rates[i], 0.05);
         double hi = image_floor_db (rates[i], 0.35);
-        fprintf (stderr,
-                 "  §17b rate=%.1f: image floor %.1f dBc (f0 .05), "
-                 "%.1f dBc (f0 .35)\n",
-                 rates[i], lo, hi);
+        DP_TEST_ERR ("  §17b rate=%.1f: image floor %.1f dBc (f0 .05), "
+                     "%.1f dBc (f0 .35)\n",
+                     rates[i], lo, hi);
         DP_CHECK (lo < -60.0);
         DP_CHECK (hi < -60.0);
       }

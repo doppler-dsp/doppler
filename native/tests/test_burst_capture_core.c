@@ -1081,7 +1081,7 @@ test_a_refused_blob_changes_nothing (void)
       const int rc = dp_burst_capture_set_state (a, bad);
       dp_burst_capture_get_state (a, now);
       if (rc != DP_ERR_INVALID || memcmp (now, blob, cb) != 0)
-        fprintf (stderr, "  refused blob: %s\n", what[c]);
+        DP_TEST_ERR ("  refused blob: %s\n", what[c]);
       DP_CHECK (rc == DP_ERR_INVALID);
       DP_CHECK (memcmp (now, blob, cb) == 0);
     }
@@ -1114,7 +1114,7 @@ test_a_refused_blob_changes_nothing (void)
     const int rc = dp_burst_capture_set_state (d, blob);
     dp_burst_capture_get_state (d, bad);
     if (rc != DP_ERR_INVALID || memcmp (now, bad, cb) != 0)
-      fprintf (stderr, "  refused blob: (4) engine outgrew its region\n");
+      DP_TEST_ERR ("  refused blob: (4) engine outgrew its region\n");
     DP_CHECK (rc == DP_ERR_INVALID);
     DP_CHECK (memcmp (now, bad, cb) == 0);
     for (size_t off = LEAD; off < n_cap; off += 8192u)
@@ -3012,8 +3012,8 @@ test_refine_scores_every_detected_phase (void)
       }
   DP_CHECK (exact == total);
   if (exact != total)
-    fprintf (stderr, "  refine_scores_every_detected_phase: %d/%d exact\n",
-             exact, total);
+    DP_TEST_ERR ("  refine_scores_every_detected_phase: %d/%d exact\n", exact,
+                 total);
   return 0;
 }
 
@@ -3180,8 +3180,8 @@ test_a_tiled_capture_anchors_at_its_dwell (void)
             }
         }
       if (found != 1u || other != 0u)
-        fprintf (stderr, "  tiled at %zu: found %zu, other %zu\n", at, found,
-                 other);
+        DP_TEST_ERR ("  tiled at %zu: found %zu, other %zu\n", at, found,
+                     other);
       DP_CHECK (restored == 1u);
       DP_CHECK (found == 1u);
       DP_CHECK (other == 0u);
@@ -3265,8 +3265,8 @@ test_a_tiled_burst_after_a_window_is_not_shadowed (void)
         }
     }
   if (seen[0] != 1u || seen[1] != 1u || other != 0u)
-    fprintf (stderr, "  tiled pair: first %zu, second %zu, other %zu\n",
-             seen[0], seen[1], other);
+    DP_TEST_ERR ("  tiled pair: first %zu, second %zu, other %zu\n", seen[0],
+                 seen[1], other);
   DP_CHECK (seen[0] == 1u);
   DP_CHECK (seen[1] == 1u);
   DP_CHECK (other == 0u);

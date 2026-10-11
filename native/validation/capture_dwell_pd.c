@@ -126,7 +126,7 @@ make (size_t depth, double cn0)
       ZC, N, BURST, R, 1.0, cn0, 0.0, PFA, 0.9, 0, 0.0);
   if (!s || dp_burst_capture_configure_search_raw (s, depth, 1) != 0)
     {
-      fprintf (stderr, "capture at D=%zu refused\n", depth);
+      DP_TEST_ERR ("capture at D=%zu refused\n", depth);
       abort ();
     }
   return s;
@@ -182,8 +182,8 @@ measure (size_t depth, double target, int trials, uint32_t seed)
   r.cn0    = cn0_for (depth, target);
   if (isnan (r.cn0))
     {
-      fprintf (stderr, "no C/N0 reaches a burst Pd of %g at D=%zu\n", target,
-               depth);
+      DP_TEST_ERR ("no C/N0 reaches a burst Pd of %g at D=%zu\n", target,
+                   depth);
       abort ();
     }
 

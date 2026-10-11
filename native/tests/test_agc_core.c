@@ -102,8 +102,8 @@ guard_survives_one_bad_sample (float _Complex bad, const char *what)
      assertions below are about the guard and not about nothing happening. */
   if (!(s->p_avg == 1.0 && s->gain_db == 0.0))
     {
-      fprintf (stderr, "  §13 %s: precondition — loop did not start clean\n",
-               what);
+      DP_TEST_ERR ("  §13 %s: precondition — loop did not start clean\n",
+                   what);
       ok = 0;
     }
 
@@ -111,29 +111,28 @@ guard_survives_one_bad_sample (float _Complex bad, const char *what)
 
   if (!isfinite (s->p_avg))
     {
-      fprintf (stderr, "  §13 %s: p_avg went non-finite (%g)\n", what,
-               s->p_avg);
+      DP_TEST_ERR ("  §13 %s: p_avg went non-finite (%g)\n", what, s->p_avg);
       ok = 0;
     }
   if (!isfinite (s->gain_db))
     {
-      fprintf (stderr, "  §13 %s: gain_db went non-finite (%g)\n", what,
-               s->gain_db);
+      DP_TEST_ERR ("  §13 %s: gain_db went non-finite (%g)\n", what,
+                   s->gain_db);
       ok = 0;
     }
   /* The detector must have SATURATED, not ignored the sample — otherwise a
      guard that simply dropped bad samples would also pass. */
   if (!(s->p_avg > 1.0))
     {
-      fprintf (stderr, "  §13 %s: detector did not saturate (p_avg %g)\n",
-               what, s->p_avg);
+      DP_TEST_ERR ("  §13 %s: detector did not saturate (p_avg %g)\n", what,
+                   s->p_avg);
       ok = 0;
     }
   /* ...and the saturation drove the gain DOWN. */
   if (!(s->gain_db < 0.0))
     {
-      fprintf (stderr, "  §13 %s: unknown level drove gain UP (%g dB)\n", what,
-               s->gain_db);
+      DP_TEST_ERR ("  §13 %s: unknown level drove gain UP (%g dB)\n", what,
+                   s->gain_db);
       ok = 0;
     }
 
@@ -141,14 +140,13 @@ guard_survives_one_bad_sample (float _Complex bad, const char *what)
   float _Complex y = dp_agc_step (s, 1.0f + 0.0f * I);
   if (!isfinite (crealf (y)) || !isfinite (cimagf (y)))
     {
-      fprintf (stderr, "  §13 %s: output non-finite after recovery sample\n",
-               what);
+      DP_TEST_ERR ("  §13 %s: output non-finite after recovery sample\n",
+                   what);
       ok = 0;
     }
   if (!isfinite (s->p_avg))
     {
-      fprintf (stderr, "  §13 %s: p_avg non-finite after a normal sample\n",
-               what);
+      DP_TEST_ERR ("  §13 %s: p_avg non-finite after a normal sample\n", what);
       ok = 0;
     }
   dp_agc_destroy (s);
@@ -198,18 +196,16 @@ silence_leaves_the_loop_recoverable (int use_block)
      "Still finite" proves nothing about a loop that never left its seed. */
   if (!(fabs (s->gain_db - settled) > 1.0))
     {
-      fprintf (stderr,
-               "  §14 %s: precondition — silence did not move the "
-               "loop (%g -> %g)\n",
-               what, settled, s->gain_db);
+      DP_TEST_ERR ("  §14 %s: precondition — silence did not move the "
+                   "loop (%g -> %g)\n",
+                   what, settled, s->gain_db);
       ok = 0;
     }
   if (!isfinite (s->gain_db) || !isfinite (s->p_avg) || !isfinite (s->g_last))
     {
-      fprintf (stderr,
-               "  §14 %s: state non-finite after silence "
-               "(gain %g, p_avg %g, g_last %g)\n",
-               what, s->gain_db, s->p_avg, s->g_last);
+      DP_TEST_ERR ("  §14 %s: state non-finite after silence "
+                   "(gain %g, p_avg %g, g_last %g)\n",
+                   what, s->gain_db, s->p_avg, s->g_last);
       ok = 0;
     }
 
@@ -224,10 +220,9 @@ silence_leaves_the_loop_recoverable (int use_block)
     }
   if (!recovered)
     {
-      fprintf (stderr,
-               "  §14 %s: did not recover within %d samples "
-               "(gain %g, p_avg %g)\n",
-               what, BUDGET, s->gain_db, s->p_avg);
+      DP_TEST_ERR ("  §14 %s: did not recover within %d samples "
+                   "(gain %g, p_avg %g)\n",
+                   what, BUDGET, s->gain_db, s->p_avg);
       ok = 0;
     }
   dp_agc_destroy (s);
@@ -255,14 +250,13 @@ exp10_is_total (void)
       double g = agc_exp10_ (vs[i]);
       if (!(g >= 0.0))
         {
-          fprintf (stderr, "  §15 agc_exp10_(%g) = %g — negative or NaN\n",
-                   vs[i], g);
+          DP_TEST_ERR ("  §15 agc_exp10_(%g) = %g — negative or NaN\n", vs[i],
+                       g);
           ok = 0;
         }
       if (!isfinite (g))
         {
-          fprintf (stderr, "  §15 agc_exp10_(%g) = %g — not finite\n", vs[i],
-                   g);
+          DP_TEST_ERR ("  §15 agc_exp10_(%g) = %g — not finite\n", vs[i], g);
           ok = 0;
         }
     }
@@ -271,7 +265,7 @@ exp10_is_total (void)
   double gn = agc_exp10_ (0.0 / 0.0);
   if (!(gn >= 0.0 && gn <= 1.0))
     {
-      fprintf (stderr, "  §15 agc_exp10_(NaN) = %g — did not attenuate\n", gn);
+      DP_TEST_ERR ("  §15 agc_exp10_(NaN) = %g — did not attenuate\n", gn);
       ok = 0;
     }
   /* Saturating must not have cost accuracy inside the working range. The
@@ -281,8 +275,8 @@ exp10_is_total (void)
       double got = agc_exp10_ (v), ref = pow (10.0, v);
       if (!(fabs (got - ref) / ref < 1e-3))
         {
-          fprintf (stderr, "  §15 agc_exp10_(%g) rel err %g exceeds 1e-3\n", v,
-                   fabs (got - ref) / ref);
+          DP_TEST_ERR ("  §15 agc_exp10_(%g) rel err %g exceeds 1e-3\n", v,
+                       fabs (got - ref) / ref);
           ok = 0;
           break;
         }
@@ -319,9 +313,9 @@ log10_is_total (void)
       double got = agc_log10_ (cases[i].in);
       if (!(got == cases[i].want))
         {
-          fprintf (stderr,
-                   "  §16 agc_log10_(%s) = %g, expected the saturated %g\n",
-                   cases[i].what, got, cases[i].want);
+          DP_TEST_ERR (
+              "  §16 agc_log10_(%s) = %g, expected the saturated %g\n",
+              cases[i].what, got, cases[i].want);
           ok = 0;
         }
     }
@@ -329,8 +323,7 @@ log10_is_total (void)
      than something every caller has to remember to add a floor for. */
   if (!(fabs (10.0 * at_floor + 300.0) < 0.01))
     {
-      fprintf (stderr, "  §16 the floor reads %g dB, not -300\n",
-               10.0 * at_floor);
+      DP_TEST_ERR ("  §16 the floor reads %g dB, not -300\n", 10.0 * at_floor);
       ok = 0;
     }
   /* Accuracy inside the working range; header documents ~1e-3 absolute and
@@ -341,8 +334,8 @@ log10_is_total (void)
       double p = pow (10.0, e);
       if (!(fabs (agc_log10_ (p) - log10 (p)) < 1e-3))
         {
-          fprintf (stderr, "  §16 agc_log10_(%g) abs err %g exceeds 1e-3\n", p,
-                   fabs (agc_log10_ (p) - log10 (p)));
+          DP_TEST_ERR ("  §16 agc_log10_(%g) abs err %g exceeds 1e-3\n", p,
+                       fabs (agc_log10_ (p) - log10 (p)));
           ok = 0;
           break;
         }
@@ -370,23 +363,21 @@ applied_gain_is_finite_after_silence (void)
      or "finite" is a statement about an ordinary gain and proves nothing. */
   if (!(s->g_last == 0.0))
     {
-      fprintf (stderr,
-               "  §17 precondition — g_last did not underflow (%g); the "
-               "accessor is not being asked the hard question\n",
-               s->g_last);
+      DP_TEST_ERR ("  §17 precondition — g_last did not underflow (%g); the "
+                   "accessor is not being asked the hard question\n",
+                   s->g_last);
       ok = 0;
     }
   double db = dp_agc_get_applied_gain_db (s);
   if (!isfinite (db))
     {
-      fprintf (stderr, "  §17 applied_gain_db = %g, not finite\n", db);
+      DP_TEST_ERR ("  §17 applied_gain_db = %g, not finite\n", db);
       ok = 0;
     }
   /* Still unmistakably "off" rather than quietly plausible. */
   if (!(db < -1000.0))
     {
-      fprintf (stderr, "  §17 applied_gain_db = %g does not read as off\n",
-               db);
+      DP_TEST_ERR ("  §17 applied_gain_db = %g does not read as off\n", db);
       ok = 0;
     }
   dp_agc_destroy (s);
@@ -427,8 +418,8 @@ saturate_contract (void)
                                 cases[i].nan_to);
       if (!(got == cases[i].want))
         {
-          fprintf (stderr, "  §18 %s: got %g, expected %g\n", cases[i].what,
-                   got, cases[i].want);
+          DP_TEST_ERR ("  §18 %s: got %g, expected %g\n", cases[i].what, got,
+                       cases[i].want);
           ok = 0;
         }
     }
@@ -462,8 +453,8 @@ gain_update_period_holds_and_converges (void)
         (void)dp_agc_step (s, dir * 10.0f);
       if (!(fabs (s->gain_db - want) < 0.5))
         {
-          fprintf (stderr, "  §19 P=%zu converged to %g dB, not %g\n", Ps[k],
-                   s->gain_db, want);
+          DP_TEST_ERR ("  §19 P=%zu converged to %g dB, not %g\n", Ps[k],
+                       s->gain_db, want);
           ok = 0;
         }
       dp_agc_destroy (s);
@@ -495,16 +486,15 @@ gain_update_period_holds_and_converges (void)
        constant" is a statement about a converged loop and proves nothing. */
     if (changes == 0)
       {
-        fprintf (stderr, "  §19 precondition — gain never moved, so the "
-                         "hold is not being tested\n");
+        DP_TEST_ERR ("  §19 precondition — gain never moved, so the "
+                     "hold is not being tested\n");
         ok = 0;
       }
     else if (changes != 1)
       {
-        fprintf (stderr,
-                 "  §19 P=8 applied gain changed %d times in 8 "
-                 "samples, expected exactly 1 (zero-order hold)\n",
-                 changes);
+        DP_TEST_ERR ("  §19 P=8 applied gain changed %d times in 8 "
+                     "samples, expected exactly 1 (zero-order hold)\n",
+                     changes);
         ok = 0;
       }
     dp_agc_destroy (s);
@@ -556,8 +546,8 @@ settling_scales_with_bandwidth_and_depends_on_level (void)
   long t_slow = tau_1e (0.0025, 0.05, 10.0, 200000);
   if (t_fast <= 0 || t_slow <= 0)
     {
-      fprintf (stderr, "  §20 settling did not complete (%ld, %ld)\n", t_fast,
-               t_slow);
+      DP_TEST_ERR ("  §20 settling did not complete (%ld, %ld)\n", t_fast,
+                   t_slow);
       ok = 0;
     }
   else
@@ -565,10 +555,9 @@ settling_scales_with_bandwidth_and_depends_on_level (void)
       double ratio = (double)t_slow / (double)t_fast;
       if (!(ratio > 1.6 && ratio < 2.4))
         {
-          fprintf (stderr,
-                   "  §20 halving loop_bw scaled settling by %.2fx "
-                   "(%ld -> %ld), expected ~2x\n",
-                   ratio, t_fast, t_slow);
+          DP_TEST_ERR ("  §20 halving loop_bw scaled settling by %.2fx "
+                       "(%ld -> %ld), expected ~2x\n",
+                       ratio, t_fast, t_slow);
           ok = 0;
         }
     }
@@ -581,16 +570,16 @@ settling_scales_with_bandwidth_and_depends_on_level (void)
   long t_quiet = tau_1e (0.0025, 0.01, 0.01, 500000);
   if (t_loud <= 0 || t_quiet <= 0)
     {
-      fprintf (stderr, "  §20 level sweep did not complete (%ld, %ld)\n",
-               t_loud, t_quiet);
+      DP_TEST_ERR ("  §20 level sweep did not complete (%ld, %ld)\n", t_loud,
+                   t_quiet);
       ok = 0;
     }
   else if (!(t_quiet > t_loud))
     {
-      fprintf (stderr,
-               "  §20 quiet input settled in %ld samples vs %ld loud — the "
-               "detector's asymmetry has vanished; re-derive the header\n",
-               t_quiet, t_loud);
+      DP_TEST_ERR (
+          "  §20 quiet input settled in %ld samples vs %ld loud — the "
+          "detector's asymmetry has vanished; re-derive the header\n",
+          t_quiet, t_loud);
       ok = 0;
     }
   return ok;
@@ -617,14 +606,14 @@ seed_is_the_reference_power (void)
         return 0;
       if (!(fabs (s->p_avg - want) < 1e-12 * (want > 1.0 ? want : 1.0)))
         {
-          fprintf (stderr, "  §21 create(ref %g): p_avg %g, expected %g\n",
-                   refs[k], s->p_avg, want);
+          DP_TEST_ERR ("  §21 create(ref %g): p_avg %g, expected %g\n",
+                       refs[k], s->p_avg, want);
           ok = 0;
         }
       if (!(s->g_last == 1.0))
         {
-          fprintf (stderr, "  §21 create(ref %g): g_last %g, expected 1.0\n",
-                   refs[k], s->g_last);
+          DP_TEST_ERR ("  §21 create(ref %g): g_last %g, expected 1.0\n",
+                       refs[k], s->g_last);
           ok = 0;
         }
 
@@ -635,30 +624,28 @@ seed_is_the_reference_power (void)
         (void)dp_agc_step (s, (0.6f + 0.8f * I) * 25.0f);
       if (!(fabs (s->p_avg - want) > 1e-6 && s->g_last != 1.0))
         {
-          fprintf (stderr,
-                   "  §21 precondition (ref %g) — the loop did not move "
-                   "(p_avg %g, g_last %g)\n",
-                   refs[k], s->p_avg, s->g_last);
+          DP_TEST_ERR ("  §21 precondition (ref %g) — the loop did not move "
+                       "(p_avg %g, g_last %g)\n",
+                       refs[k], s->p_avg, s->g_last);
           ok = 0;
         }
       dp_agc_reset (s);
       if (!(fabs (s->p_avg - want) < 1e-12 * (want > 1.0 ? want : 1.0)))
         {
-          fprintf (stderr, "  §21 reset(ref %g): p_avg %g, expected %g\n",
-                   refs[k], s->p_avg, want);
+          DP_TEST_ERR ("  §21 reset(ref %g): p_avg %g, expected %g\n", refs[k],
+                       s->p_avg, want);
           ok = 0;
         }
       if (!(s->g_last == 1.0 && s->gain_db == 0.0 && s->gain_phase == 0))
         {
-          fprintf (stderr,
-                   "  §21 reset(ref %g): g_last %g gain_db %g phase %zu\n",
-                   refs[k], s->g_last, s->gain_db, s->gain_phase);
+          DP_TEST_ERR ("  §21 reset(ref %g): g_last %g gain_db %g phase %zu\n",
+                       refs[k], s->g_last, s->gain_db, s->gain_phase);
           ok = 0;
         }
       /* Configuration survives. */
       if (!(s->ref_db == refs[k]))
         {
-          fprintf (stderr, "  §21 reset clobbered ref_db (%g)\n", s->ref_db);
+          DP_TEST_ERR ("  §21 reset clobbered ref_db (%g)\n", s->ref_db);
           ok = 0;
         }
       dp_agc_destroy (s);
@@ -713,10 +700,9 @@ block_gain_is_a_first_order_hold (void)
   /* Vacuity precondition: the chunk must actually be ramping. */
   if (!(fabs (mean_step) > 1e-6))
     {
-      fprintf (stderr,
-               "  §22 precondition — chunk is flat (mean step %g); a "
-               "staircase would pass this\n",
-               mean_step);
+      DP_TEST_ERR ("  §22 precondition — chunk is flat (mean step %g); a "
+                   "staircase would pass this\n",
+                   mean_step);
       ok = 0;
     }
   for (int i = 0; i < D; i++)
@@ -724,10 +710,10 @@ block_gain_is_a_first_order_hold (void)
       double step = g[i + 1] - g[i];
       if (!(fabs (step - mean_step) < 0.01 * fabs (mean_step)))
         {
-          fprintf (stderr,
-                   "  §22 in-chunk step %d is %g against a mean of %g — not "
-                   "a linear ramp\n",
-                   i, step, mean_step);
+          DP_TEST_ERR (
+              "  §22 in-chunk step %d is %g against a mean of %g — not "
+              "a linear ramp\n",
+              i, step, mean_step);
           ok = 0;
           break;
         }
@@ -810,20 +796,19 @@ decim_is_neutral_at_the_steady_state (void)
          statement about three loops that all did nothing. */
       if (!(fabs (s->gain_db + 20.0) < 0.1))
         {
-          fprintf (stderr,
-                   "  §23 precondition — decim %zu is at %g dB after %d "
-                   "samples, not converged on -20\n",
-                   ds[k], s->gain_db, N);
+          DP_TEST_ERR ("  §23 precondition — decim %zu is at %g dB after %d "
+                       "samples, not converged on -20\n",
+                       ds[k], s->gain_db, N);
           ok = 0;
         }
       if (k == 0)
         first = s->gain_db;
       else if (!(fabs (s->gain_db - first) < 0.05))
         {
-          fprintf (stderr,
-                   "  §23 decim %zu settled at %g dB against decim 8's %g — "
-                   "the rescaling does not preserve the steady state\n",
-                   ds[k], s->gain_db, first);
+          DP_TEST_ERR (
+              "  §23 decim %zu settled at %g dB against decim 8's %g — "
+              "the rescaling does not preserve the steady state\n",
+              ds[k], s->gain_db, first);
           ok = 0;
         }
       dp_agc_destroy (s);
@@ -908,19 +893,19 @@ decim_is_neutral_at_the_steady_state (void)
         /* Vacuity: a transient that never moved would agree trivially. */
         if (!(worst > 0.0))
           {
-            fprintf (stderr,
-                     "  §23 %s — the three decims agree EXACTLY across the "
-                     "whole transient, so this asserts nothing\n",
-                     dirs[di].what);
+            DP_TEST_ERR (
+                "  §23 %s — the three decims agree EXACTLY across the "
+                "whole transient, so this asserts nothing\n",
+                dirs[di].what);
             ok = 0;
           }
         if (!(worst < dirs[di].bound))
           {
-            fprintf (stderr,
-                     "  §23 %s: at 4*decim*loop_bw = %g (inside the <= 0.05 "
-                     "rule) the mid-transient spread is %g dB at n = %zu, "
-                     "over the %g dB bound\n",
-                     dirs[di].what, group, worst, at, dirs[di].bound);
+            DP_TEST_ERR (
+                "  §23 %s: at 4*decim*loop_bw = %g (inside the <= 0.05 "
+                "rule) the mid-transient spread is %g dB at n = %zu, "
+                "over the %g dB bound\n",
+                dirs[di].what, group, worst, at, dirs[di].bound);
             ok = 0;
           }
       }
@@ -977,25 +962,23 @@ failed_attach_leaves_it_detached (void)
         (void)snprintf (nm, sizeof nm, "filler.%d", i);
         if (dp_tlm_probe (probe_t, nm, 1) < 0)
           {
-            fprintf (stderr, "  §24 could not fill the probe table (at %d)\n",
-                     i);
+            DP_TEST_ERR ("  §24 could not fill the probe table (at %d)\n", i);
             ok = 0;
             break;
           }
       }
     if (!(dp_tlm_probe (probe_t, "spare.one", 1) >= 0))
       {
-        fprintf (stderr,
-                 "  §24 precondition — no slot left after %d "
-                 "fillers; the table is smaller than assumed\n",
-                 DP_TLM_MAX_PROBES - 1);
+        DP_TEST_ERR ("  §24 precondition — no slot left after %d "
+                     "fillers; the table is smaller than assumed\n",
+                     DP_TLM_MAX_PROBES - 1);
         ok = 0;
       }
     if (!(dp_tlm_probe (probe_t, "spare.two", 1) < 0))
       {
-        fprintf (stderr, "  §24 precondition — more than one slot was free; "
-                         "the AGC's second probe would fit and the split "
-                         "case is untested\n");
+        DP_TEST_ERR ("  §24 precondition — more than one slot was free; "
+                     "the AGC's second probe would fit and the split "
+                     "case is untested\n");
         ok = 0;
       }
     dp_tlm_destroy (probe_t);
@@ -1010,15 +993,14 @@ failed_attach_leaves_it_detached (void)
   int rc = dp_agc_set_telemetry (s, tlm, "agc", 1);
   if (!(rc == DP_ERR_INVALID))
     {
-      fprintf (stderr,
-               "  §24 attach into a nearly-full table returned %d, "
-               "expected DP_ERR_INVALID\n",
-               rc);
+      DP_TEST_ERR ("  §24 attach into a nearly-full table returned %d, "
+                   "expected DP_ERR_INVALID\n",
+                   rc);
       ok = 0;
     }
   if (!(s->tlm.ctx == NULL))
     {
-      fprintf (stderr, "  §24 a failed attach left the object ATTACHED\n");
+      DP_TEST_ERR ("  §24 a failed attach left the object ATTACHED\n");
       ok = 0;
     }
   /* And it still runs, emitting nothing — the half that "fails whole"
@@ -1027,7 +1009,7 @@ failed_attach_leaves_it_detached (void)
   dp_tlm_rec_t recs[8];
   if (!(dp_tlm_read (tlm, 8, recs, 8) == 0))
     {
-      fprintf (stderr, "  §24 a half-attached object emitted records\n");
+      DP_TEST_ERR ("  §24 a half-attached object emitted records\n");
       ok = 0;
     }
   dp_agc_destroy (s);
@@ -1063,24 +1045,24 @@ set_telemetry_refuses_an_overlong_prefix (void)
 
   if (!(dp_agc_set_telemetry (s, tlm, over, 1) == DP_ERR_INVALID))
     {
-      fprintf (stderr, "  §26 a 23-byte prefix was not refused\n");
+      DP_TEST_ERR ("  §26 a 23-byte prefix was not refused\n");
       ok = 0;
     }
   if (!(s->tlm.ctx == NULL && dp_tlm_probe_count (tlm) == 0))
     {
-      fprintf (stderr, "  §26 a refused attach touched the registry or ctx\n");
+      DP_TEST_ERR ("  §26 a refused attach touched the registry or ctx\n");
       ok = 0;
     }
 
   if (!(dp_agc_set_telemetry (s, tlm, fit, 1) == DP_OK))
     {
-      fprintf (stderr, "  §26 a 22-byte prefix (the longest that fits) was "
-                       "refused\n");
+      DP_TEST_ERR ("  §26 a 22-byte prefix (the longest that fits) was "
+                   "refused\n");
       ok = 0;
     }
   if (!(dp_tlm_probe_count (tlm) == 2 && s->tlm.ctx == tlm))
     {
-      fprintf (stderr, "  §26 the fitting attach did not register both\n");
+      DP_TEST_ERR ("  §26 the fitting attach did not register both\n");
       ok = 0;
     }
 
@@ -1123,8 +1105,8 @@ settling_samples_is_the_loop_it_describes (void)
                                             bad[i].err, bad[i].tol);
       if (got != 0)
         {
-          fprintf (stderr, "  §25 %s: returned %zu, expected a refusal\n",
-                   bad[i].what, got);
+          DP_TEST_ERR ("  §25 %s: returned %zu, expected a refusal\n",
+                       bad[i].what, got);
           ok = 0;
         }
     }
@@ -1132,7 +1114,7 @@ settling_samples_is_the_loop_it_describes (void)
   /* Already inside the tolerance is settled, and the contract says >= 1. */
   if (dp_agc_settling_samples (0.0025, 0.05, 0.1, 0.5) != 1)
     {
-      fprintf (stderr, "  §25 an already-settled loop did not report 1\n");
+      DP_TEST_ERR ("  §25 an already-settled loop did not report 1\n");
       ok = 0;
     }
 
@@ -1145,27 +1127,26 @@ settling_samples_is_the_loop_it_describes (void)
      comparisons below are between refusals. */
   if (!(quiet && loud && loose && fast))
     {
-      fprintf (stderr,
-               "  §25 precondition — a valid query was refused "
-               "(%zu, %zu, %zu, %zu)\n",
-               quiet, loud, loose, fast);
+      DP_TEST_ERR ("  §25 precondition — a valid query was refused "
+                   "(%zu, %zu, %zu, %zu)\n",
+                   quiet, loud, loose, fast);
       return 0;
     }
 
   /* A quiet start is the slow direction — the detector's concave log. */
   if (!(quiet > loud))
     {
-      fprintf (stderr,
-               "  §25 a +40 dB start took %zu against a -40 dB start's %zu; "
-               "the asymmetry has vanished or reversed\n",
-               quiet, loud);
+      DP_TEST_ERR (
+          "  §25 a +40 dB start took %zu against a -40 dB start's %zu; "
+          "the asymmetry has vanished or reversed\n",
+          quiet, loud);
       ok = 0;
     }
   /* A looser bar is cheaper. Catches a helper ignoring tol_db. */
   if (!(loose < quiet))
     {
-      fprintf (stderr, "  §25 tol_db 3.0 cost %zu against 0.5's %zu\n", loose,
-               quiet);
+      DP_TEST_ERR ("  §25 tol_db 3.0 cost %zu against 0.5's %zu\n", loose,
+                   quiet);
       ok = 0;
     }
   /* Settling scales as 1/loop_bw: 4x the bandwidth, roughly a quarter the
@@ -1175,10 +1156,9 @@ settling_samples_is_the_loop_it_describes (void)
   double scale = (double)quiet / (double)fast;
   if (!(scale > 2.0 && scale < 6.0))
     {
-      fprintf (stderr,
-               "  §25 4x the bandwidth changed settling by %.2fx (%zu -> "
-               "%zu), expected roughly 4x\n",
-               scale, quiet, fast);
+      DP_TEST_ERR ("  §25 4x the bandwidth changed settling by %.2fx (%zu -> "
+                   "%zu), expected roughly 4x\n",
+                   scale, quiet, fast);
       ok = 0;
     }
 
@@ -1194,11 +1174,11 @@ settling_samples_is_the_loop_it_describes (void)
       (void)dp_agc_step (s, x);
     if (!(fabs (s->gain_db - 40.0) <= 0.5))
       {
-        fprintf (stderr,
-                 "  §25 after the reported %zu samples the loop is at %g dB, "
-                 "not within 0.5 of 40 — the helper does not describe the "
-                 "loop it claims to\n",
-                 quiet, s->gain_db);
+        DP_TEST_ERR (
+            "  §25 after the reported %zu samples the loop is at %g dB, "
+            "not within 0.5 of 40 — the helper does not describe the "
+            "loop it claims to\n",
+            quiet, s->gain_db);
         ok = 0;
       }
     dp_agc_destroy (s);

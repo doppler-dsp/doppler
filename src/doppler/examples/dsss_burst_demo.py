@@ -63,7 +63,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from doppler.acquire import BurstAcquisition
-from doppler.spectral import FFT, PSD, Corr, hann_window, magnitude_db_cf32
+from doppler.spectral import PSD, Corr, Spectrogram
 from doppler.wfm import PN, Composer, FrameDesc, Segment, bpsk_map
 
 # ── burst geometry ───────────────────────────────────────────────────────────
@@ -220,32 +220,12 @@ def psd_db(x: np.ndarray, nfft: int = 512) -> np.ndarray:
 
 
 def spectrogram(x: np.ndarray, nfft: int = 128, hop: int = 32) -> np.ndarray:
-    """Short-time FFT magnitude in dB, normalised to its peak.
-
-    Every stage is a doppler primitive rather than its numpy equivalent:
-    :func:`~doppler.spectral.hann_window` for the taper,
-    :class:`~doppler.spectral.FFT` for the transform, and
-    :func:`~doppler.spectral.magnitude_db_cf32` for the dB magnitude. The
-    library owns each of those exactly once, and this is the same window and
-    the same transform :class:`~doppler.spectral.PSD` uses in panel C — so
-    the two spectral panels cannot disagree about what a Hann window is.
-    """
-    win = np.empty(nfft, np.float32)
-    hann_window(win)
-    with FFT(n=nfft) as fft:
-        cols = [
-            np.fft.fftshift(
-                magnitude_db_cf32(
-                    fft.execute_cf32(
-                        (x[i : i + nfft] * win).astype(np.complex64)
-                    ),
-                    1e-9,  # -180 dB floor: the guard against log10(0)
-                    0.0,
-                )
-            )
-            for i in range(0, len(x) - nfft, hop)
-        ]
-    sg = np.array(cols).T
+    """Spectrogram rows in dB, normalised to the peak."""
+    sg = (
+        Spectrogram(nfft=nfft, hop=hop, window="hann", mode="db")
+        .push(np.asarray(x, dtype=np.complex64))
+        .T
+    )
     return sg - sg.max()
 
 
@@ -423,6 +403,7 @@ fig.suptitle(
 # ── A: spectrogram ───────────────────────────────────────────────────────────
 ax = axes[0, 0]
 sg = spectrogram(burst)
+assert sg.shape == (128, (len(burst) - 128) // 32 + 1), sg.shape
 t_sg = np.linspace(0, len(burst) / FS * 1e3, sg.shape[1])
 f_sg = np.linspace(-FS / 2e3, FS / 2e3, sg.shape[0])
 ax.pcolormesh(t_sg, f_sg, sg, vmin=-50, vmax=0, cmap="magma", shading="auto")

@@ -236,8 +236,7 @@ def _next_frame() -> SpectrumFrame | None:
     if _engine is None or _source is None:
         return None
     try:
-        iq, fs, cf = _source.read(_engine.block_size)
-        return _engine.process(iq, fs, cf)
+        return _engine.step(_source)
     except Exception as exc:
         log.warning("frame error: %s", exc)
         return None

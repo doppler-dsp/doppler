@@ -59,6 +59,10 @@ class _Engine:
     def process(self, iq, fs, cf):
         return None
 
+    def step(self, source):
+        iq, fs, cf = source.read(self.block_size)
+        return self.process(iq, fs, cf)
+
 
 def _headless(monkeypatch):
     monkeypatch.setattr(terminal, "Live", _Live)

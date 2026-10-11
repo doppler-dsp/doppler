@@ -29,6 +29,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from doppler.specan.engine import dbm_to_amplitude
+
 if TYPE_CHECKING:
     from doppler.source import LO
     from doppler.specan.config import SpecanConfig
@@ -54,6 +56,7 @@ def to_complex64(data: np.ndarray) -> np.ndarray:
     Examples
     --------
     >>> import numpy as np
+
     >>> to_complex64(np.array([64, -128, 0, 127], np.int8)).tolist()
     [(0.5-1j), 0.9921875j]
     """
@@ -103,16 +106,6 @@ class Source(ABC):
 # ------------------------------------------------------------------
 # Demo source
 # ------------------------------------------------------------------
-
-_DBM_REF = 1.0 / (2.0 * 50.0 * 0.001)  # 1/(2*Z*P_ref) for dBm into 50Ω
-
-
-def _dbm_to_amplitude(dbm: float) -> float:
-    """Convert dBm (into 50 Ω) to linear amplitude (V peak)."""
-    # P = V²/(2Z)  →  V = sqrt(P * 2Z)
-    # P (watts) = 10^(dBm/10) * 1e-3
-    p_watts = 10.0 ** (dbm / 10.0) * 1e-3
-    return math.sqrt(p_watts * 2.0 * 50.0)
 
 
 def _wrap_signed(fn: float) -> float:
@@ -171,6 +164,7 @@ class DemoSource(Source):
     Two seeded sources agree sample for sample:
 
     >>> import numpy as np
+
     >>> a = DemoSource(seed=7).read(1024)[0]
     >>> b = DemoSource(seed=7).read(1024)[0]
     >>> bool(np.array_equal(a, b))
@@ -197,7 +191,7 @@ class DemoSource(Source):
         self._fs = float(sample_rate)
         self._cf = float(center_freq)
         self._fft_size = 512  # updated by engine via set_fft_size()
-        self._noise_amp = _dbm_to_amplitude(noise_floor)
+        self._noise_amp = dbm_to_amplitude(noise_floor)
         self._noise_floor_dbm = float(noise_floor)
         self._chirp_rate: float = float(chirp_rate)
         self._chirp_dir: int = 1
@@ -216,7 +210,7 @@ class DemoSource(Source):
     def _make_tone(self, fn: float, dbm: float) -> dict:
         return {
             "fn": _wrap_signed(fn),
-            "amp": _dbm_to_amplitude(dbm),
+            "amp": dbm_to_amplitude(dbm),
             "dbm": float(dbm),
             "nco": None,
         }
@@ -244,12 +238,12 @@ class DemoSource(Source):
     def set_tone_power(self, dbm: float) -> None:
         """Set primary tone power in dBm."""
         self._tones[0]["dbm"] = float(dbm)
-        self._tones[0]["amp"] = _dbm_to_amplitude(dbm)
+        self._tones[0]["amp"] = dbm_to_amplitude(dbm)
 
     def set_noise_floor(self, dbm: float) -> None:
         """Set noise floor in dBm."""
         self._noise_floor_dbm = float(dbm)
-        self._noise_amp = _dbm_to_amplitude(dbm)
+        self._noise_amp = dbm_to_amplitude(dbm)
 
     def set_chirp(self, rate: float) -> None:
         """Enable/disable chirp sweep on the primary tone.

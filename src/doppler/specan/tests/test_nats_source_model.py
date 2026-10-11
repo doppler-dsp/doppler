@@ -61,7 +61,9 @@ def _frame_event(array, sequence, rate):
 
 def _schedule(rng, *, pull, length):
     """Seeded events: ("frame", array, header), ("timeout",), ("eos",)."""
-    events, seq = [], 0
+    # a producer already far along, so a restart is a backwards jump past
+    # WORK_QUEUE_MAX_ACK_PENDING (1000) rather than a small one
+    events, seq = [], int(rng.integers(2000, 10**6))
     for _ in range(length):
         roll = rng.random()
         if roll < 0.05:
@@ -85,15 +87,15 @@ def _schedule(rng, *, pull, length):
             seq += int(rng.integers(1, 4))
             events.append(_frame_event(frame, seq, rate))
             seq += 1
-        elif roll < 0.13:  # a new producer, from 0
+        elif roll < 0.14:  # a new producer, from 0
             seq = 0
             events.append(_frame_event(frame, seq, rate))
             seq += 1
-        elif roll < 0.15:  # no decoder takes this dtype
+        elif roll < 0.16:  # no decoder takes this dtype
             u16 = rng.integers(0, 2**16, size, dtype=np.uint16)
             events.append(_frame_event(u16, seq, rate))
             seq += 1
-        elif roll < 0.16:  # no sequence at all
+        elif roll < 0.17:  # no sequence at all
             events.append(_frame_event(frame, None, rate))
         else:
             events.append(_frame_event(frame, seq, rate))

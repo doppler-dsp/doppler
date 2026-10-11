@@ -2406,7 +2406,7 @@ _test_forged_seed_is_refused (void)
  * blob, so the next steps() is the hand-off. Returns the number of failed
  * checks. */
 static int
-_test_handoff_keeps_seed_doppler_in_domain (void)
+_test_honest_edge_seed_tracks_seed_plus_residual (void)
 {
   uint8_t  code[1023];
   uint32_t cst = 13;
@@ -2599,6 +2599,46 @@ _test_forged_cell_searching_refused (void)
   return fails;
 }
 
+/* refused_hits is part of the blob, so a resumed receiver's status reports the
+ * count it had: set 7, round-trip, and the restored status reads 7
+ * (doppler#2103). Returns the number of failed checks. */
+static int
+_test_refused_hits_round_trips (void)
+{
+  uint8_t  code[1023];
+  uint32_t cst = 13;
+  for (size_t i = 0; i < 1023; i++)
+    code[i] = (uint8_t)(dp_bit (&cst) > 0 ? 0u : 1u);
+  dp_async_dsss_receiver_state_t *src = dp_async_dsss_receiver_create (
+      code, 1023, 5.0e6, 2700.0, 2, 2, 45.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5, 4,
+      14.0, 64, 8, false, 100000, 2.5e9, 2.0);
+  dp_async_dsss_receiver_state_t *dst = dp_async_dsss_receiver_create (
+      code, 1023, 5.0e6, 2700.0, 2, 2, 45.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5, 4,
+      14.0, 64, 8, false, 100000, 2.5e9, 2.0);
+  DP_REQUIRE (src != NULL && dst != NULL);
+  src->refused_hits   = 7;
+  const size_t   cb   = dp_async_dsss_receiver_state_bytes (src);
+  unsigned char *blob = malloc (cb);
+  dp_async_dsss_receiver_get_state (src, blob);
+  int fails = 0;
+  if (dp_async_dsss_receiver_set_state (dst, blob) != DP_OK)
+    {
+      fprintf (stderr, "  honest blob refused\n");
+      fails++;
+    }
+  if (dp_async_dsss_receiver_status (dst).refused_hits != 7)
+    {
+      fprintf (stderr, "  restored refused_hits %llu, not 7\n",
+               (unsigned long long)dp_async_dsss_receiver_status (dst)
+                   .refused_hits);
+      fails++;
+    }
+  free (blob);
+  dp_async_dsss_receiver_destroy (src);
+  dp_async_dsss_receiver_destroy (dst);
+  return fails;
+}
+
 int
 main (void)
 {
@@ -2606,7 +2646,8 @@ main (void)
   DP_CHECK (_test_forged_cell_searching_refused () == 0);
   DP_CHECK (_test_seed_domain () == 0);
   DP_CHECK (_test_forged_residual_refused () == 0);
-  DP_CHECK (_test_handoff_keeps_seed_doppler_in_domain () == 0);
+  DP_CHECK (_test_honest_edge_seed_tracks_seed_plus_residual () == 0);
+  DP_CHECK (_test_refused_hits_round_trips () == 0);
   DP_CHECK (_test_forged_seed_is_refused () == 0);
   (void)_test_acquire_and_decode ();
   (void)_test_handoff_resumes_at_the_hit ();

@@ -133,10 +133,6 @@ typedef struct {
                                   dp_dll_set_coast().                           */
     uint32_t held_inc;       /**< phase_inc as of the last dp_dll_hold_here(). */
     dp_loop_filter_state_t held_lf; /**< the filter as of the last dp_dll_hold_here(). */
-    double held_bn;          /**< bn as of the last dp_dll_hold_here(), the
-                                  snapshot's own: set_bn after a hold does not
-                                  change the held filter's gains. */
-    double held_zeta;        /**< zeta as of the last dp_dll_hold_here(). */
     /* The steer's gain table: how the loop filter's integrator and
        proportional term reach phase_inc (cycles per sample) and code_rate
        (a ratio), set once by segments in set_segments(). ONE steer,

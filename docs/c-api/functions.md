@@ -1236,6 +1236,7 @@
 * **dp\_loop\_filter\_reset** ([**loop\_filter\_core.h**](loop__filter__core_8h.md))
 * **dp\_loop\_filter\_set\_state** ([**loop\_filter\_core.h**](loop__filter__core_8h.md))
 * **dp\_loop\_filter\_state\_bytes** ([**loop\_filter\_core.h**](loop__filter__core_8h.md))
+* **dp\_loop\_filter\_state\_ok** ([**loop\_filter\_core.h**](loop__filter__core_8h.md))
 * **dp\_loop\_filter\_step** ([**loop\_filter\_core.h**](loop__filter__core_8h.md))
 * **dp\_loop\_filter\_steps** ([**loop\_filter\_core.h**](loop__filter__core_8h.md))
 * **dp\_loop\_filter\_wn** ([**loop\_filter\_core.h**](loop__filter__core_8h.md))

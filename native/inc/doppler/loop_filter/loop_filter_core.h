@@ -149,6 +149,20 @@ extern "C"
   int dp_loop_filter_params_ok(double bn, double zeta, double t);
 
   /**
+   * @brief Whether a stored filter is one a live filter could hold.
+   *
+   * For restoring a serialized filter, whose gains are taken verbatim rather
+   * than recomputed. The filter must be in the domain at its OWN bn, zeta and
+   * t (dp_loop_filter_params_ok()), and carry gains that match the one gains body at that bn, zeta and t to a relative
+   * tolerance of 1e-9. The tolerance lets a blob written by another compiler
+   * restore; a forged NaN, infinite or absurd gain is refused.
+   *
+   * @param s  The stored filter.
+   * @return 1 if it is one a live filter could hold, 0 otherwise.
+   */
+  int dp_loop_filter_state_ok(const dp_loop_filter_state_t *s);
+
+  /**
    * @brief Create a loop_filter instance, validating its arguments.
    *
    * This is the untrusted boundary — the Python constructor passes a

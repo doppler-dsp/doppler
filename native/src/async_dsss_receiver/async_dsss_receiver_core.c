@@ -98,6 +98,10 @@ adr_handover_phase (const dp_async_dsss_receiver_state_t *state,
           = (double)samples_consumed_refine / (double)state->spc;
       phase = dp_fmod_pos (phase + dilation * chips_elapsed,
                            (double)state->code_len);
+      /* dp_fmod_pos can return exactly code_len for a value a hair under it:
+         that is the phase zero, not an out-of-code phase to refuse. */
+      if (phase == (double)state->code_len)
+        phase = 0.0;
     }
   return phase;
 }
@@ -1334,10 +1338,10 @@ dp_async_dsss_receiver_steps (dp_async_dsss_receiver_state_t *state,
        * model from the refined Doppler is within a tenth of a chip. Off
        * when carrier_freq_hz == 0: no carrier, no dilation to model. */
       /* The live chain's Dll is built under dp_xnn, which aborts on a
-         non-finite or out-of-code init phase. Those are the only preconditions
-         it needs, so they are the only things checked here: an honest refined
-         value anywhere else, including right at fs/2, tracks at seed +
-         residual as it did before. A value failing them takes the
+         non-finite init phase or one outside [0, code_len). Those are the only
+         preconditions it needs, so they are the only things checked here: an
+         honest refined value anywhere else, including right at fs/2, tracks at
+         seed + residual as it did before. A value failing them takes the
          failed-refine path, the seed's own Doppler and phase, so no unchecked
          number reaches dp_xnn (doppler#2103). */
       double handover_chip_phase = adr_handover_phase (

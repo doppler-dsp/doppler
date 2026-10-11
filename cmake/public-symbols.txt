@@ -1073,6 +1073,7 @@ dp_loop_filter_params_ok function
 dp_loop_filter_reset function
 dp_loop_filter_set_state function
 dp_loop_filter_state_bytes function
+dp_loop_filter_state_ok function
 dp_loop_filter_step function
 dp_loop_filter_steps function
 dp_loop_filter_wn function

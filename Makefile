@@ -2177,6 +2177,7 @@ GALLERY_SCRIPTS := \
     src/doppler/examples/mpsk_nda_theory_demo.py \
     src/doppler/examples/q15_uq15_demo.py \
     src/doppler/examples/receiver_lock_demo.py \
+    src/doppler/examples/spectrogram_demo.py \
     src/doppler/examples/symsync_demo.py \
     src/doppler/examples/symsync_theory_demo.py
 

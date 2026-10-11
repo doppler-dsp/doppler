@@ -66,8 +66,10 @@ _DLL state._ [More...](#detailed-description)
 |  uint64\_t | [**err\_n**](#variable-err_n)  <br> |
 |  double | [**err\_sum**](#variable-err_sum)  <br> |
 |  int | [**have\_prev\_epoch**](#variable-have_prev_epoch)  <br> |
+|  double | [**held\_bn**](#variable-held_bn)  <br> |
 |  uint32\_t | [**held\_inc**](#variable-held_inc)  <br> |
 |  [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) | [**held\_lf**](#variable-held_lf)  <br> |
+|  double | [**held\_zeta**](#variable-held_zeta)  <br> |
 |  double | [**inv\_sps**](#variable-inv_sps)  <br> |
 |  double | [**inv\_tsamps**](#variable-inv_tsamps)  <br> |
 |  double | [**inv\_tsamps2**](#variable-inv_tsamps2)  <br> |
@@ -700,6 +702,23 @@ int dp_dll_state_t::have_prev_epoch;
 
 
 
+### variable held\_bn 
+
+```C++
+double dp_dll_state_t::held_bn;
+```
+
+
+
+bn as of the last [**dp\_dll\_hold\_here()**](dll__core_8h.md#function-dp_dll_hold_here), the snapshot's own: set\_bn after a hold does not change the held filter's gains. 
+
+
+        
+
+<hr>
+
+
+
 ### variable held\_inc 
 
 ```C++
@@ -726,6 +745,23 @@ dp_loop_filter_state_t dp_dll_state_t::held_lf;
 
 
 the filter as of the last [**dp\_dll\_hold\_here()**](dll__core_8h.md#function-dp_dll_hold_here). 
+
+
+        
+
+<hr>
+
+
+
+### variable held\_zeta 
+
+```C++
+double dp_dll_state_t::held_zeta;
+```
+
+
+
+zeta as of the last [**dp\_dll\_hold\_here()**](dll__core_8h.md#function-dp_dll_hold_here). 
 
 
         

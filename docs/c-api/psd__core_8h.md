@@ -15,6 +15,7 @@ _PSD — averaging power-spectral-density estimator (Welch's method) and spectra
 * `#include "doppler/jm_perf.h"`
 * `#include "doppler/fft/fft_core.h"`
 * `#include "doppler/acc_trace/acc_trace_core.h"`
+* `#include "doppler/f32_buffer/f32_buffer_core.h"`
 
 
 
@@ -61,11 +62,12 @@ _PSD — averaging power-spectral-density estimator (Welch's method) and spectra
 
 | Type | Name |
 | ---: | :--- |
-|  void | [**dp\_psd\_accumulate**](#function-dp_psd_accumulate) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len) <br>_Window, FFT and fold complex baseband frames into the average. Processes floor(n\_in / n) full frames; a trailing partial frame is ignored._  |
+|  void | [**dp\_psd\_accumulate**](#function-dp_psd_accumulate) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len) <br>_Window, FFT and fold complex baseband frames into the average. Folds every frame the stream completes: frame k covers stream samples [k\*hop, k\*hop + n) (hop = n unless_ [_**dp\_psd\_create\_hop()**_](psd__core_8h.md#function-dp_psd_create_hop) _said otherwise). A trailing partial frame is carried to the next call, not dropped: the framer holds it. A single call of whole frames at hop = n averages what dp\_psd\_accumulate always has._ |
 |  void | [**dp\_psd\_accumulate\_real**](#function-dp_psd_accumulate_real) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, const float \* x, size\_t x\_len) <br>_Window, zero-pad, FFT and fold real frames into the average. The real-input counterpart to_ [_**dp\_psd\_accumulate()**_](psd__core_8h.md#function-dp_psd_accumulate) _: each length-n frame is windowed, zero-padded to nfft, transformed and folded as a DC-centred two-sided power spectrum (a real frame is Hermitian, so the +k and -k bins carry equal power). Read the one-sided fold with_[_**dp\_psd\_power\_onesided()**_](psd__core_8h.md#function-dp_psd_power_onesided) _. Processes floor(n\_in / n) full frames._ |
 |  size\_t | [**dp\_psd\_band\_power**](#function-dp_psd_band_power) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, const double \* bands, size\_t bands\_len, float \* out, size\_t max\_out) <br>_Integrated power per band in dB._ `bands` _is a flat array of_`[lo0, hi0, lo1, hi1, ...]` _band edges in Hz; the output holds one dB value per band (n\_bands = bands\_len / 2). Edges are clamped to the analysed span; a band fully outside the span integrates to the dB floor. Returns 0 (Python None) when there is nothing to report: before any frame is accumulated, or when_`bands` _holds no complete lo/hi pair._ |
 |  size\_t | [**dp\_psd\_band\_power\_max\_out**](#function-dp_psd_band_power_max_out) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Output capacity hint for band\_power(); 0 (binding sizes from bands)._  |
 |  [**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* | [**dp\_psd\_create**](#function-dp_psd_create) (size\_t n, double fs, int window, float beta, size\_t pad, double full\_scale, size\_t bits, int mode, double alpha) <br>_Create an averaging PSD estimator._  |
+|  [**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* | [**dp\_psd\_create\_hop**](#function-dp_psd_create_hop) (size\_t n, double fs, int window, float beta, size\_t pad, double full\_scale, size\_t bits, int mode, double alpha, size\_t hop) <br>_Create an averaging PSD estimator with a frame hop: frame k covers stream samples [k\*hop, k\*hop + n). hop = n is the non-overlapping frame_ [_**dp\_psd\_create()**_](psd__core_8h.md#function-dp_psd_create) _makes._ |
 |  void | [**dp\_psd\_destroy**](#function-dp_psd_destroy) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Destroy a PSD instance and release all memory._  |
 |  void | [**dp\_psd\_frame\_db**](#function-dp_psd_frame_db) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, const float \_Complex \* x, float \* out) <br>_One frame in dBFS, against the estimator's own reference._  |
 |  void | [**dp\_psd\_frame\_linear**](#function-dp_psd_frame_linear) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, const float \_Complex \* x, float \* out) <br>_One frame in linear full-scale^2 units, against the estimator's own reference._  |
@@ -81,7 +83,7 @@ _PSD — averaging power-spectral-density estimator (Welch's method) and spectra
 |  size\_t | [**dp\_psd\_psd\_db\_max\_out**](#function-dp_psd_psd_db_max_out) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Output capacity hint for psd\_db(); equals nfft._  |
 |  size\_t | [**dp\_psd\_psd\_dbhz**](#function-dp_psd_psd_dbhz) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, size\_t n, float \* out, size\_t max\_out) <br>_Averaged power spectral density in dB/Hz, DC-centred. Normalised by_ `fs * sum(w^2)` _(ENBW-aware), the standard one-sided-free PSD scaling. Differs from psd\_db() by the constant_`10*log10(cg^2/(fs*s2))` _. Returns 0 (Python None) before any frame is accumulated._ |
 |  size\_t | [**dp\_psd\_psd\_dbhz\_max\_out**](#function-dp_psd_psd_dbhz_max_out) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Output capacity hint for psd\_dbhz(); equals nfft._  |
-|  void | [**dp\_psd\_reset**](#function-dp_psd_reset) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Discard the running average; the next accumulate re-seeds it._  |
+|  void | [**dp\_psd\_reset**](#function-dp_psd_reset) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Discard the running average and any carried partial frame; the next accumulate re-seeds the average and starts the stream again._  |
 |  int | [**dp\_psd\_set\_state**](#function-dp_psd_set_state) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, const void \* blob) <br> |
 |  double | [**dp\_psd\_sfdr**](#function-dp_psd_sfdr) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, float min\_db) <br>_Spurious-free dynamic range in dB from the two strongest peaks._  |
 |  double | [**dp\_psd\_snr**](#function-dp_psd_snr) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, double lo\_hz, double hi\_hz) <br>_In-band SNR in dB: peak level in_ `[lo_hz, hi_hz]` _minus the noise floor._ |
@@ -151,7 +153,7 @@ Lifecycle: create -&gt; (accumulate / reset)\* -&gt; (measurement getters)\* -&g
 
 ### function dp\_psd\_accumulate 
 
-_Window, FFT and fold complex baseband frames into the average. Processes floor(n\_in / n) full frames; a trailing partial frame is ignored._ 
+_Window, FFT and fold complex baseband frames into the average. Folds every frame the stream completes: frame k covers stream samples [k\*hop, k\*hop + n) (hop = n unless_ [_**dp\_psd\_create\_hop()**_](psd__core_8h.md#function-dp_psd_create_hop) _said otherwise). A trailing partial frame is carried to the next call, not dropped: the framer holds it. A single call of whole frames at hop = n averages what dp\_psd\_accumulate always has._
 ```C++
 void dp_psd_accumulate (
     dp_psd_state_t * state,
@@ -330,6 +332,74 @@ dp_psd_state_t * dp_psd_create (
 * `bits` ADC depth: when &gt; 0, sets full\_scale = 2^(bits-1) (the single definition of the dBFS reference); 0 = use `full_scale` directly. At most 64. 
 * `mode` Averaging mode index (0=mean, 1=exp, 2=maxhold, 3=minhold). 
 * `alpha` EMA smoothing factor, exp mode only, where it must lie in (0, 1]: the rule is the AccTrace averager's, whose create refuses anything else, so this does too. Ignored, and so not checked, in the other modes. 
+
+
+
+**Returns:**
+
+Heap-allocated state, or NULL on invalid argument or OOM. A window whose coherent gain sum(w) is 0  Hann at n = 2, whose symmetric form is all zeros  is refused too: every reading divides by it. So is an `n` or `n` \* `pad` too large for its buffers to be sized, rather than wrapped to a small one. 
+
+
+
+
+**Note:**
+
+Caller must call [**dp\_psd\_destroy()**](psd__core_8h.md#function-dp_psd_destroy) when done.
+
+
+
+```C++
+>>> from doppler.spectral import PSD
+>>> w = PSD(n=1024, fs=1.0e6, window="kaiser", beta=8.0, mode="mean")
+>>> w.n, w.fs
+(1024, 1000000.0)
+>>> round(w.rbw / (w.fs / w.n), 3) == round(w.enbw, 3)
+True
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_psd\_create\_hop 
+
+_Create an averaging PSD estimator with a frame hop: frame k covers stream samples [k\*hop, k\*hop + n). hop = n is the non-overlapping frame_ [_**dp\_psd\_create()**_](psd__core_8h.md#function-dp_psd_create) _makes._
+```C++
+dp_psd_state_t * dp_psd_create_hop (
+    size_t n,
+    double fs,
+    int window,
+    float beta,
+    size_t pad,
+    double full_scale,
+    size_t bits,
+    int mode,
+    double alpha,
+    size_t hop
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `n` Window / frame length in samples. Must be &gt;= 2. 
+* `fs` Sample rate in Hz (used for dB/Hz and band frequencies); finite and &gt; 0. 
+* `window` Window index: 0 = Hann, 1 = Kaiser, 2 = Blackman-Harris, 3 = rectangular (no taper: best resolution, worst leakage). 
+* `beta` Kaiser beta (ignored by every other window). One that makes the window non-finite  NaN, or large enough to overflow it  is refused. 
+* `pad` Zero-pad factor (&gt;= 1; 0 is refused); nfft = next\_pow\_two(n \* pad). 
+* `full_scale` Amplitude that reads 0 dBFS in the dB getters; finite and &gt; 0. Ignored when `bits` &gt; 0. 
+* `bits` ADC depth: when &gt; 0, sets full\_scale = 2^(bits-1) (the single definition of the dBFS reference); 0 = use `full_scale` directly. At most 64. 
+* `mode` Averaging mode index (0=mean, 1=exp, 2=maxhold, 3=minhold). 
+* `alpha` EMA smoothing factor, exp mode only, where it must lie in (0, 1]: the rule is the AccTrace averager's, whose create refuses anything else, so this does too. Ignored, and so not checked, in the other modes. 
+* `hop` Samples between frame starts, 1..n; 0 means n, so a binding can default to the frame dp\_psd\_create makes. A hop above n (a gap between frames) is refused: the framer holds no sample it has not been told to keep. 
 
 
 
@@ -830,7 +900,7 @@ size_t dp_psd_psd_dbhz_max_out (
 
 ### function dp\_psd\_reset 
 
-_Discard the running average; the next accumulate re-seeds it._ 
+_Discard the running average and any carried partial frame; the next accumulate re-seeds the average and starts the stream again._ 
 ```C++
 void dp_psd_reset (
     dp_psd_state_t * state

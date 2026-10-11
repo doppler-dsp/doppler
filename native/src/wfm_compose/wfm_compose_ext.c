@@ -512,79 +512,79 @@ _coerce_dp_wfm_source_crc_refuse_text (uint8_t **dst, size_t *n_dst,
 static int
 Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[]         = { "type",
-                                    "freq",
-                                    "snr",
-                                    "snr_mode",
-                                    "seed",
-                                    "sps",
-                                    "pn_length",
-                                    "pn_poly",
-                                    "lfsr",
-                                    "level",
-                                    "background",
-                                    "f_end",
-                                    "span",
-                                    "doppler",
-                                    "doppler_rate",
-                                    "carrier_hz",
-                                    "doppler_lifetime",
-                                    "modulation",
-                                    "pulse",
-                                    "rrc_beta",
-                                    "rrc_span",
-                                    "symbols",
-                                    "acq_code",
-                                    "acq_reps",
-                                    "data_code",
-                                    "sync",
-                                    "crc",
-                                    "symbol_rate",
-                                    "dsss_code_only",
-                                    "frame",
-                                    "bits",
-                                    "data",
-                                    "data_len",
-                                    "fill",
-                                    "fs",
-                                    NULL };
-  const char  *type             = "tone";
-  PyObject    *freq             = NULL;
-  PyObject    *snr              = NULL;
-  const char  *snr_mode         = "auto";
-  uint32_t     seed             = 0;
-  int          sps              = 1;
-  int          pn_length        = 15;
-  uint64_t     pn_poly          = 0;
-  const char  *lfsr             = "galois";
-  PyObject    *level            = NULL;
-  int          background       = 0;
-  PyObject    *f_end            = NULL;
-  size_t       span             = 0;
-  PyObject    *doppler          = NULL;
-  PyObject    *doppler_rate     = NULL;
-  double       carrier_hz       = 0.0;
-  const char  *doppler_lifetime = "per_instance";
-  const char  *modulation       = "bpsk";
-  const char  *pulse            = "rect";
-  double       rrc_beta         = 0.35;
-  int          rrc_span         = 8;
-  PyObject    *symbols          = NULL;
-  PyObject    *acq_code         = NULL;
-  size_t       acq_reps         = 1;
-  PyObject    *data_code        = NULL;
-  PyObject    *sync             = NULL;
-  PyObject    *crc              = NULL;
-  double       symbol_rate      = 0.0;
-  int          dsss_code_only   = 0;
-  PyObject    *frame            = NULL;
-  PyObject    *bits             = NULL;
-  PyObject    *data             = NULL;
-  size_t       data_len         = 0;
-  PyObject    *fill             = NULL;
-  double       fs               = 1e6;
-  PyObject    *_kw              = kwds;
-  int          _kw_owned        = 0;
+  static char       *kwlist[]         = { "type",
+                                          "freq",
+                                          "snr",
+                                          "snr_mode",
+                                          "seed",
+                                          "sps",
+                                          "pn_length",
+                                          "pn_poly",
+                                          "lfsr",
+                                          "level",
+                                          "background",
+                                          "f_end",
+                                          "span",
+                                          "doppler",
+                                          "doppler_rate",
+                                          "carrier_hz",
+                                          "doppler_lifetime",
+                                          "modulation",
+                                          "pulse",
+                                          "rrc_beta",
+                                          "rrc_span",
+                                          "symbols",
+                                          "acq_code",
+                                          "acq_reps",
+                                          "data_code",
+                                          "sync",
+                                          "crc",
+                                          "symbol_rate",
+                                          "dsss_code_only",
+                                          "frame",
+                                          "bits",
+                                          "data",
+                                          "data_len",
+                                          "fill",
+                                          "fs",
+                                          NULL };
+  const char        *type             = "tone";
+  PyObject          *freq             = NULL;
+  PyObject          *snr              = NULL;
+  const char        *snr_mode         = "auto";
+  unsigned long      seed_raw         = 0;
+  int                sps              = 1;
+  int                pn_length        = 15;
+  unsigned long long pn_poly_raw      = 0;
+  const char        *lfsr             = "galois";
+  PyObject          *level            = NULL;
+  int                background       = 0;
+  PyObject          *f_end            = NULL;
+  unsigned long long span_raw         = 0;
+  PyObject          *doppler          = NULL;
+  PyObject          *doppler_rate     = NULL;
+  double             carrier_hz       = 0.0;
+  const char        *doppler_lifetime = "per_instance";
+  const char        *modulation       = "bpsk";
+  const char        *pulse            = "rect";
+  double             rrc_beta         = 0.35;
+  int                rrc_span         = 8;
+  PyObject          *symbols          = NULL;
+  PyObject          *acq_code         = NULL;
+  unsigned long long acq_reps_raw     = 1;
+  PyObject          *data_code        = NULL;
+  PyObject          *sync             = NULL;
+  PyObject          *crc              = NULL;
+  double             symbol_rate      = 0.0;
+  int                dsss_code_only   = 0;
+  PyObject          *frame            = NULL;
+  PyObject          *bits             = NULL;
+  PyObject          *data             = NULL;
+  unsigned long long data_len_raw     = 0;
+  PyObject          *fill             = NULL;
+  double             fs               = 1e6;
+  PyObject          *_kw              = kwds;
+  int                _kw_owned        = 0;
   if (kwds)
     {
       {
@@ -670,13 +670,13 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
       }
     }
   if (!PyArg_ParseTupleAndKeywords (
-          args, _kw, "|sOOsIiiKsOiOnOOdsssdiOOnOOOdiOOOnOd", kwlist, &type,
-          &freq, &snr, &snr_mode, &seed, &sps, &pn_length, &pn_poly, &lfsr,
-          &level, &background, &f_end, &span, &doppler, &doppler_rate,
-          &carrier_hz, &doppler_lifetime, &modulation, &pulse, &rrc_beta,
-          &rrc_span, &symbols, &acq_code, &acq_reps, &data_code, &sync, &crc,
-          &symbol_rate, &dsss_code_only, &frame, &bits, &data, &data_len,
-          &fill, &fs))
+          args, _kw, "|sOOskiiKsOiOKOOdsssdiOOKOOOdiOOOKOd", kwlist, &type,
+          &freq, &snr, &snr_mode, &seed_raw, &sps, &pn_length, &pn_poly_raw,
+          &lfsr, &level, &background, &f_end, &span_raw, &doppler,
+          &doppler_rate, &carrier_hz, &doppler_lifetime, &modulation, &pulse,
+          &rrc_beta, &rrc_span, &symbols, &acq_code, &acq_reps_raw, &data_code,
+          &sync, &crc, &symbol_rate, &dsss_code_only, &frame, &bits, &data,
+          &data_len_raw, &fill, &fs))
     {
       if (_kw_owned)
         Py_DECREF (_kw);
@@ -755,9 +755,11 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
       }
     self->src.snr_mode = _i;
   }
+  uint32_t seed       = (uint32_t)seed_raw;
   self->src.seed      = seed;
   self->src.sps       = sps;
   self->src.pn_length = pn_length;
+  uint64_t pn_poly    = (uint64_t)pn_poly_raw;
   self->src.pn_poly   = pn_poly;
   {
     int _i = _enum_index (_enum_wfm_lfsr, lfsr);
@@ -812,6 +814,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
     {
       self->src.f_end = (double)0.0;
     }
+  size_t span    = (size_t)span_raw;
   self->src.span = span;
   if (doppler != NULL)
     {
@@ -897,6 +900,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
           (uint8_t **)&self->src.acq_code.bits, &self->src.acq_code.len,
           acq_code))
     return -1;
+  size_t acq_reps    = (size_t)acq_reps_raw;
   self->src.acq_reps = acq_reps;
   if (!_coerce_dp_wfm_source_bits_refuse_text (
           (uint8_t **)&self->src.data_code.bits, &self->src.data_code.len,
@@ -921,6 +925,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   if (!_coerce_dp_wfm_source_bits_refuse_text (
           (uint8_t **)&self->src.data.bits, &self->src.data.len, data))
     return -1;
+  size_t data_len    = (size_t)data_len_raw;
   self->src.data_len = data_len;
   if (!_coerce_dp_wfm_source_bits_refuse_text (
           (uint8_t **)&self->src.fill.bits, &self->src.fill.len, fill))
@@ -969,7 +974,7 @@ Synth_get_freq (SynthObject *self, void *closure)
   if (self->src.ranged & WFM_RANGE_FREQ)
     return Py_BuildValue ("(dd)", (double)self->src.freq,
                           (double)self->src.freq_hi);
-  return PyFloat_FromDouble ((double)self->src.freq);
+  return PyFloat_FromDouble (self->src.freq);
 }
 static int
 Synth_set_freq (SynthObject *self, PyObject *value, void *closure)
@@ -998,7 +1003,7 @@ Synth_get_snr (SynthObject *self, void *closure)
   if (self->src.ranged & WFM_RANGE_SNR)
     return Py_BuildValue ("(dd)", (double)self->src.snr,
                           (double)self->src.snr_hi);
-  return PyFloat_FromDouble ((double)self->src.snr);
+  return PyFloat_FromDouble (self->src.snr);
 }
 static int
 Synth_set_snr (SynthObject *self, PyObject *value, void *closure)
@@ -1063,9 +1068,11 @@ static int
 Synth_set_seed (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  self->src.seed = (uint32_t)PyLong_AsLong (value);
-  if (PyErr_Occurred ())
+  unsigned long _v_raw = 0UL;
+  if (!PyArg_Parse (value, "k", &_v_raw))
     return -1;
+  uint32_t _v    = (uint32_t)_v_raw;
+  self->src.seed = _v;
   return 0;
 }
 static PyObject *
@@ -1078,9 +1085,10 @@ static int
 Synth_set_sps (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  self->src.sps = (int)PyLong_AsLong (value);
-  if (PyErr_Occurred ())
+  int _v = 0;
+  if (!PyArg_Parse (value, "i", &_v))
     return -1;
+  self->src.sps = _v;
   return 0;
 }
 static PyObject *
@@ -1093,9 +1101,10 @@ static int
 Synth_set_pn_length (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  self->src.pn_length = (int)PyLong_AsLong (value);
-  if (PyErr_Occurred ())
+  int _v = 0;
+  if (!PyArg_Parse (value, "i", &_v))
     return -1;
+  self->src.pn_length = _v;
   return 0;
 }
 static PyObject *
@@ -1108,9 +1117,11 @@ static int
 Synth_set_pn_poly (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  self->src.pn_poly = (uint64_t)PyLong_AsUnsignedLongLong (value);
-  if (PyErr_Occurred ())
+  unsigned long long _v_raw = 0ULL;
+  if (!PyArg_Parse (value, "K", &_v_raw))
     return -1;
+  uint64_t _v       = (uint64_t)_v_raw;
+  self->src.pn_poly = _v;
   return 0;
 }
 static PyObject *
@@ -1152,7 +1163,7 @@ Synth_get_level (SynthObject *self, void *closure)
   if (self->src.ranged & WFM_RANGE_LEVEL)
     return Py_BuildValue ("(dd)", (double)self->src.level,
                           (double)self->src.level_hi);
-  return PyFloat_FromDouble ((double)self->src.level);
+  return PyFloat_FromDouble (self->src.level);
 }
 static int
 Synth_set_level (SynthObject *self, PyObject *value, void *closure)
@@ -1184,9 +1195,10 @@ static int
 Synth_set_background (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  self->src.background = (int)PyLong_AsLong (value);
-  if (PyErr_Occurred ())
+  int _v = 0;
+  if (!PyArg_Parse (value, "i", &_v))
     return -1;
+  self->src.background = _v;
   return 0;
 }
 static PyObject *
@@ -1196,7 +1208,7 @@ Synth_get_f_end (SynthObject *self, void *closure)
   if (self->src.ranged & WFM_RANGE_FEND)
     return Py_BuildValue ("(dd)", (double)self->src.f_end,
                           (double)self->src.f_end_hi);
-  return PyFloat_FromDouble ((double)self->src.f_end);
+  return PyFloat_FromDouble (self->src.f_end);
 }
 static int
 Synth_set_f_end (SynthObject *self, PyObject *value, void *closure)
@@ -1222,15 +1234,17 @@ static PyObject *
 Synth_get_span (SynthObject *self, void *closure)
 {
   (void)closure;
-  return PyLong_FromSize_t ((size_t)self->src.span);
+  return PyLong_FromUnsignedLongLong ((unsigned long long)self->src.span);
 }
 static int
 Synth_set_span (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  self->src.span = (size_t)PyLong_AsLong (value);
-  if (PyErr_Occurred ())
+  unsigned long long _v_raw = 0ULL;
+  if (!PyArg_Parse (value, "K", &_v_raw))
     return -1;
+  size_t _v      = (size_t)_v_raw;
+  self->src.span = _v;
   return 0;
 }
 static PyObject *
@@ -1240,7 +1254,7 @@ Synth_get_doppler (SynthObject *self, void *closure)
   if (self->src.ranged & WFM_RANGE_DOPPLER)
     return Py_BuildValue ("(dd)", (double)self->src.doppler,
                           (double)self->src.doppler_hi);
-  return PyFloat_FromDouble ((double)self->src.doppler);
+  return PyFloat_FromDouble (self->src.doppler);
 }
 static int
 Synth_set_doppler (SynthObject *self, PyObject *value, void *closure)
@@ -1269,7 +1283,7 @@ Synth_get_doppler_rate (SynthObject *self, void *closure)
   if (self->src.ranged & WFM_RANGE_DOPPLER_RATE)
     return Py_BuildValue ("(dd)", (double)self->src.doppler_rate,
                           (double)self->src.doppler_rate_hi);
-  return PyFloat_FromDouble ((double)self->src.doppler_rate);
+  return PyFloat_FromDouble (self->src.doppler_rate);
 }
 static int
 Synth_set_doppler_rate (SynthObject *self, PyObject *value, void *closure)
@@ -1295,15 +1309,16 @@ static PyObject *
 Synth_get_carrier_hz (SynthObject *self, void *closure)
 {
   (void)closure;
-  return PyFloat_FromDouble ((double)self->src.carrier_hz);
+  return PyFloat_FromDouble (self->src.carrier_hz);
 }
 static int
 Synth_set_carrier_hz (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  self->src.carrier_hz = (double)PyFloat_AsDouble (value);
-  if (PyErr_Occurred ())
+  double _v = 0.0;
+  if (!PyArg_Parse (value, "d", &_v))
     return -1;
+  self->src.carrier_hz = _v;
   return 0;
 }
 static PyObject *
@@ -1408,15 +1423,16 @@ static PyObject *
 Synth_get_rrc_beta (SynthObject *self, void *closure)
 {
   (void)closure;
-  return PyFloat_FromDouble ((double)self->src.rrc_beta);
+  return PyFloat_FromDouble (self->src.rrc_beta);
 }
 static int
 Synth_set_rrc_beta (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  self->src.rrc_beta = (double)PyFloat_AsDouble (value);
-  if (PyErr_Occurred ())
+  double _v = 0.0;
+  if (!PyArg_Parse (value, "d", &_v))
     return -1;
+  self->src.rrc_beta = _v;
   return 0;
 }
 static PyObject *
@@ -1429,9 +1445,10 @@ static int
 Synth_set_rrc_span (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  self->src.rrc_span = (int)PyLong_AsLong (value);
-  if (PyErr_Occurred ())
+  int _v = 0;
+  if (!PyArg_Parse (value, "i", &_v))
     return -1;
+  self->src.rrc_span = _v;
   return 0;
 }
 static PyObject *
@@ -1479,15 +1496,17 @@ static PyObject *
 Synth_get_acq_reps (SynthObject *self, void *closure)
 {
   (void)closure;
-  return PyLong_FromSize_t ((size_t)self->src.acq_reps);
+  return PyLong_FromUnsignedLongLong ((unsigned long long)self->src.acq_reps);
 }
 static int
 Synth_set_acq_reps (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  self->src.acq_reps = (size_t)PyLong_AsLong (value);
-  if (PyErr_Occurred ())
+  unsigned long long _v_raw = 0ULL;
+  if (!PyArg_Parse (value, "K", &_v_raw))
     return -1;
+  size_t _v          = (size_t)_v_raw;
+  self->src.acq_reps = _v;
   return 0;
 }
 static PyObject *
@@ -1552,15 +1571,16 @@ static PyObject *
 Synth_get_symbol_rate (SynthObject *self, void *closure)
 {
   (void)closure;
-  return PyFloat_FromDouble ((double)self->src.symbol_rate);
+  return PyFloat_FromDouble (self->src.symbol_rate);
 }
 static int
 Synth_set_symbol_rate (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  self->src.symbol_rate = (double)PyFloat_AsDouble (value);
-  if (PyErr_Occurred ())
+  double _v = 0.0;
+  if (!PyArg_Parse (value, "d", &_v))
     return -1;
+  self->src.symbol_rate = _v;
   return 0;
 }
 static PyObject *
@@ -1573,9 +1593,10 @@ static int
 Synth_set_dsss_code_only (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  self->src.dsss_code_only = (int)PyLong_AsLong (value);
-  if (PyErr_Occurred ())
+  int _v = 0;
+  if (!PyArg_Parse (value, "i", &_v))
     return -1;
+  self->src.dsss_code_only = _v;
   return 0;
 }
 static PyObject *
@@ -1643,15 +1664,17 @@ static PyObject *
 Synth_get_data_len (SynthObject *self, void *closure)
 {
   (void)closure;
-  return PyLong_FromSize_t ((size_t)self->src.data_len);
+  return PyLong_FromUnsignedLongLong ((unsigned long long)self->src.data_len);
 }
 static int
 Synth_set_data_len (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  self->src.data_len = (size_t)PyLong_AsLong (value);
-  if (PyErr_Occurred ())
+  unsigned long long _v_raw = 0ULL;
+  if (!PyArg_Parse (value, "K", &_v_raw))
     return -1;
+  size_t _v          = (size_t)_v_raw;
+  self->src.data_len = _v;
   return 0;
 }
 static PyObject *
@@ -2164,9 +2187,10 @@ Segment_init (SegmentObject *self, PyObject *args, PyObject *kwds)
     PyObject *_o = PyDict_GetItemString (kw, "fs");
     if (_o)
       {
-        self->fs = (double)PyFloat_AsDouble (_o);
-        if (PyErr_Occurred ())
+        double _v = 0.0;
+        if (!PyArg_Parse (_o, "d", &_v))
           goto fail;
+        self->fs = _v;
         if (PyDict_DelItemString (kw, "fs") < 0)
           goto fail;
       }
@@ -2219,9 +2243,11 @@ Segment_init (SegmentObject *self, PyObject *args, PyObject *kwds)
     PyObject *_o = PyDict_GetItemString (kw, "repeats");
     if (_o)
       {
-        self->repeats = (size_t)PyLong_AsSize_t (_o);
-        if (PyErr_Occurred ())
+        unsigned long long _v_raw = 0ULL;
+        if (!PyArg_Parse (_o, "K", &_v_raw))
           goto fail;
+        size_t _v     = (size_t)_v_raw;
+        self->repeats = _v;
         if (PyDict_DelItemString (kw, "repeats") < 0)
           goto fail;
       }
@@ -2337,9 +2363,10 @@ Segment_sum (PyObject *cls, PyObject *args, PyObject *kwds)
         PyObject *_o = PyDict_GetItemString (kw, "fs");
         if (_o)
           {
-            self->fs = (double)PyFloat_AsDouble (_o);
-            if (PyErr_Occurred ())
+            double _v = 0.0;
+            if (!PyArg_Parse (_o, "d", &_v))
               goto fail;
+            self->fs = _v;
           }
       }
       {
@@ -2386,9 +2413,11 @@ Segment_sum (PyObject *cls, PyObject *args, PyObject *kwds)
         PyObject *_o = PyDict_GetItemString (kw, "repeats");
         if (_o)
           {
-            self->repeats = (size_t)PyLong_AsSize_t (_o);
-            if (PyErr_Occurred ())
+            unsigned long long _v_raw = 0ULL;
+            if (!PyArg_Parse (_o, "K", &_v_raw))
               goto fail;
+            size_t _v     = (size_t)_v_raw;
+            self->repeats = _v;
           }
       }
       {
@@ -2447,15 +2476,16 @@ static PyObject *
 Segment_get_fs (SegmentObject *self, void *closure)
 {
   (void)closure;
-  return PyFloat_FromDouble ((double)self->fs);
+  return PyFloat_FromDouble (self->fs);
 }
 static int
 Segment_set_fs (SegmentObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  self->fs = (double)PyFloat_AsDouble (value);
-  if (PyErr_Occurred ())
+  double _v = 0.0;
+  if (!PyArg_Parse (value, "d", &_v))
     return -1;
+  self->fs = _v;
   return 0;
 }
 static PyObject *
@@ -2465,7 +2495,7 @@ Segment_get_num_samples (SegmentObject *self, void *closure)
   if (self->ranged & WFM_RANGE_NUM_SAMPLES)
     return Py_BuildValue ("(nn)", (Py_ssize_t)self->num_samples,
                           (Py_ssize_t)self->num_samples_hi);
-  return PyLong_FromSize_t ((size_t)self->num_samples);
+  return PyLong_FromUnsignedLongLong ((unsigned long long)self->num_samples);
 }
 static int
 Segment_set_num_samples (SegmentObject *self, PyObject *value, void *closure)
@@ -2494,7 +2524,7 @@ Segment_get_off_samples (SegmentObject *self, void *closure)
   if (self->ranged & WFM_RANGE_OFF_SAMPLES)
     return Py_BuildValue ("(nn)", (Py_ssize_t)self->off_samples,
                           (Py_ssize_t)self->off_samples_hi);
-  return PyLong_FromSize_t ((size_t)self->off_samples);
+  return PyLong_FromUnsignedLongLong ((unsigned long long)self->off_samples);
 }
 static int
 Segment_set_off_samples (SegmentObject *self, PyObject *value, void *closure)
@@ -2520,15 +2550,17 @@ static PyObject *
 Segment_get_repeats (SegmentObject *self, void *closure)
 {
   (void)closure;
-  return PyLong_FromSize_t ((size_t)self->repeats);
+  return PyLong_FromUnsignedLongLong ((unsigned long long)self->repeats);
 }
 static int
 Segment_set_repeats (SegmentObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  self->repeats = (size_t)PyLong_AsSize_t (value);
-  if (PyErr_Occurred ())
+  unsigned long long _v_raw = 0ULL;
+  if (!PyArg_Parse (value, "K", &_v_raw))
     return -1;
+  size_t _v     = (size_t)_v_raw;
+  self->repeats = _v;
   return 0;
 }
 static PyObject *
@@ -2538,7 +2570,7 @@ Segment_get_delay_samples (SegmentObject *self, void *closure)
   if (self->ranged & WFM_RANGE_DELAY_SAMPLES)
     return Py_BuildValue ("(nn)", (Py_ssize_t)self->delay_samples,
                           (Py_ssize_t)self->delay_samples_hi);
-  return PyLong_FromSize_t ((size_t)self->delay_samples);
+  return PyLong_FromUnsignedLongLong ((unsigned long long)self->delay_samples);
 }
 static int
 Segment_set_delay_samples (SegmentObject *self, PyObject *value, void *closure)

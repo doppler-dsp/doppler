@@ -16,13 +16,19 @@
 typedef struct
 {
   PyObject_HEAD dp_detector2d_state_t *handle;
+  dp_detector2d_state_t *_jm_parked; /* gh-2187: freed by tp_dealloc */
 } CorrDetector2DObject;
 
 static void
 CorrDetector2DObj_dealloc (CorrDetector2DObject *self)
 {
+  /* gh-2187: destroy() parks the state here instead of
+     freeing it under the views this object lent; they are
+     gone now, so the free is now. */
   if (self->handle)
     dp_detector2d_destroy (self->handle);
+  if (self->_jm_parked)
+    dp_detector2d_destroy (self->_jm_parked);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -401,8 +407,11 @@ CorrDetector2DObj_destroy (CorrDetector2DObject *self,
 {
   if (self->handle)
     {
-      dp_detector2d_destroy (self->handle);
-      self->handle = NULL;
+      /* gh-2187: the views this object lent point into the
+         state; the free waits for tp_dealloc, and every method
+         refuses from here on. */
+      self->_jm_parked = self->handle;
+      self->handle     = NULL;
     }
   Py_RETURN_NONE;
 }
@@ -421,8 +430,11 @@ CorrDetector2DObj_exit (CorrDetector2DObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      dp_detector2d_destroy (self->handle);
-      self->handle = NULL;
+      /* gh-2187: the views this object lent point into the
+         state; the free waits for tp_dealloc, and every method
+         refuses from here on. */
+      self->_jm_parked = self->handle;
+      self->handle     = NULL;
     }
   Py_RETURN_NONE;
 }
@@ -540,15 +552,17 @@ static PyMethodDef CorrDetector2DObj_methods[] = {
     "    A `get_state()` blob from this type, exactly `state_bytes()` "
     "long.\n" },
   { "destroy", (PyCFunction)CorrDetector2DObj_destroy, METH_NOARGS,
-    "Release the underlying C resources immediately.\n"
+    "Close the object; the memory goes with its last user.\n"
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
-    "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on\n"
-    "exit.\n"
+    "garbage-collected. Call this, or use the object as a context manager,\n"
+    "to end its use at a definite point.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does\n"
-    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Views this object handed out keep the memory they point into, as does a\n"
+    "call still running on another thread: it is freed when the last of\n"
+    "them, and this object, are gone, not here (gh-2187). Idempotent:\n"
+    "calling it again does nothing. Every other method raises\n"
+    "``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)CorrDetector2DObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"

@@ -706,7 +706,7 @@ class Corr:
         self,
         x: npt.NDArray[np.complex64],
         out: npt.NDArray[np.complex64] | None = None,
-    ) -> NDArray[np.complex64]:
+    ) -> NDArray[np.complex64] | None:
         """Correlate one frame and optionally dump the coherent accumulator.
         Runs: forward FFT → pointwise multiply with ref_spec → accumulate the
         cross-spectrum; on dump, inverse FFT → normalise (÷ n). Accumulating in
@@ -728,11 +728,11 @@ class Corr:
 
         Returns
         -------
-        NDArray[np.complex64]
+        NDArray[np.complex64] | None
             n_out on a dump call (or max_out if smaller), 0 otherwise If n_in
             is not the required length the call is REFUSED with nothing read,
             written or counted: SIZE_MAX in C, ValueError in Python (#1925).
-            (None in Python).
+            (None in Python). None when the C call writes no output.
 
         Raises
         ------
@@ -961,7 +961,7 @@ class Corr2D:
         self,
         x: npt.NDArray[np.complex64],
         out: npt.NDArray[np.complex64] | None = None,
-    ) -> NDArray[np.complex64]:
+    ) -> NDArray[np.complex64] | None:
         """Correlate one 2-D frame and optionally dump the coherent
         accumulator. Runs the 2-D pipeline: FFT2 → pointwise multiply with
         ref_spec → accumulate the cross-spectrum; on dump, IFFT2 → normalise (÷
@@ -982,11 +982,11 @@ class Corr2D:
 
         Returns
         -------
-        NDArray[np.complex64]
+        NDArray[np.complex64] | None
             ny*nx on a dump (or max_out if smaller), 0 otherwise If n_in is not
             the required length the call is REFUSED with nothing read, written
             or counted: SIZE_MAX in C, ValueError in Python (#1925). (None in
-            Python).
+            Python). None when the C call writes no output.
 
         Raises
         ------
@@ -1359,15 +1359,17 @@ class CorrDetector:
         """
 
     def destroy(self) -> None:
-        """Release the underlying C resources immediately.
+        """Close the object; the memory goes with its last user.
 
         Ordinarily unnecessary: the resources are freed when the object is
-        garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on
-        exit.
+        garbage-collected. Call this, or use the object as a context manager,
+        to end its use at a definite point.
 
-        Idempotent: calling it again on an already-released object does
-        nothing. Every other method raises ``RuntimeError`` once it has run.
+        Views this object handed out keep the memory they point into, as does a
+        call still running on another thread: it is freed when the last of
+        them, and this object, are gone, not here (gh-2187). Idempotent:
+        calling it again does nothing. Every other method raises
+        ``RuntimeError`` once it has run.
         """
 
     def __enter__(self) -> "CorrDetector":
@@ -1622,15 +1624,17 @@ class CorrDetector2D:
         """
 
     def destroy(self) -> None:
-        """Release the underlying C resources immediately.
+        """Close the object; the memory goes with its last user.
 
         Ordinarily unnecessary: the resources are freed when the object is
-        garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on
-        exit.
+        garbage-collected. Call this, or use the object as a context manager,
+        to end its use at a definite point.
 
-        Idempotent: calling it again on an already-released object does
-        nothing. Every other method raises ``RuntimeError`` once it has run.
+        Views this object handed out keep the memory they point into, as does a
+        call still running on another thread: it is freed when the last of
+        them, and this object, are gone, not here (gh-2187). Idempotent:
+        calling it again does nothing. Every other method raises
+        ``RuntimeError`` once it has run.
         """
 
     def __enter__(self) -> "CorrDetector2D":
@@ -1778,7 +1782,7 @@ class PSD:
         self,
         count: int = 1,
         out: npt.NDArray[np.float32] | None = None,
-    ) -> NDArray[np.float32]:
+    ) -> NDArray[np.float32] | None:
         """Averaged power spectrum in dB (None before any accumulate).
 
         Parameters
@@ -1792,8 +1796,9 @@ class PSD:
 
         Returns
         -------
-        NDArray[np.float32]
-            min(nfft, max_out), or 0 if empty.
+        NDArray[np.float32] | None
+            min(nfft, max_out), or 0 if empty. None when the C call writes no
+            output.
         """
 
     def psd_db_max_out(self) -> int:
@@ -1809,7 +1814,7 @@ class PSD:
         self,
         count: int = 1,
         out: npt.NDArray[np.float32] | None = None,
-    ) -> NDArray[np.float32]:
+    ) -> NDArray[np.float32] | None:
         """Averaged power spectral density in dB/Hz (None before any
         accumulate).
 
@@ -1826,8 +1831,8 @@ class PSD:
 
         Returns
         -------
-        NDArray[np.float32]
-            Output.
+        NDArray[np.float32] | None
+            Output. None when the C call writes no output.
 
         Examples
         --------
@@ -1854,7 +1859,7 @@ class PSD:
         self,
         count: int = 1,
         out: npt.NDArray[np.float32] | None = None,
-    ) -> NDArray[np.float32]:
+    ) -> NDArray[np.float32] | None:
         """Averaged linear power, DC-centred two-sided (length nfft);
         cg^2-normalised.
 
@@ -1869,8 +1874,9 @@ class PSD:
 
         Returns
         -------
-        NDArray[np.float32]
-            min(nfft, max_out), or 0 if empty.
+        NDArray[np.float32] | None
+            min(nfft, max_out), or 0 if empty. None when the C call writes no
+            output.
         """
 
     def power_twosided_max_out(self) -> int:
@@ -1886,7 +1892,7 @@ class PSD:
         self,
         count: int = 1,
         out: npt.NDArray[np.float32] | None = None,
-    ) -> NDArray[np.float32]:
+    ) -> NDArray[np.float32] | None:
         """Averaged linear power, one-sided fold (length nfft/2+1);
         cg^2-normalised.
 
@@ -1901,8 +1907,9 @@ class PSD:
 
         Returns
         -------
-        NDArray[np.float32]
-            min(nfft/2 + 1, max_out), or 0 if empty.
+        NDArray[np.float32] | None
+            min(nfft/2 + 1, max_out), or 0 if empty. None when the C call
+            writes no output.
         """
 
     def power_onesided_max_out(self) -> int:
@@ -1918,7 +1925,7 @@ class PSD:
         self,
         bands: npt.NDArray[np.float64],
         out: npt.NDArray[np.float32] | None = None,
-    ) -> NDArray[np.float32]:
+    ) -> NDArray[np.float32] | None:
         """Integrated power per band in dB; bands = [lo0,hi0,lo1,hi1,...] Hz.
         None when there is nothing to report: before any accumulate, or no
         complete lo/hi pair.
@@ -1932,9 +1939,10 @@ class PSD:
 
         Returns
         -------
-        NDArray[np.float32]
+        NDArray[np.float32] | None
             The number of bands written, min(n_bands, max_out); 0 (Python None)
-            when there is nothing to report.
+            when there is nothing to report. None when the C call writes no
+            output.
 
         Examples
         --------

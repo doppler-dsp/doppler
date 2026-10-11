@@ -25,7 +25,9 @@ True
 dtype('uint8')
 >>> rs = ReedSolomon(nroots=32)             # RS(255,223), corrects 16
 >>> rs.n, rs.k, rs.e
-(255, 223, 16)"""
+(255, 223, 16)
+
+"""
 
 # coding/__init__.py — re-export all types from the C extension.
 import os as _os

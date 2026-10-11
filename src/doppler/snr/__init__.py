@@ -9,7 +9,9 @@ Examples
 >>> sym += 0.1 * (rng.standard_normal(20000)
 ...              + 1j * rng.standard_normal(20000)).astype(np.complex64)
 >>> bool(15 < snr_m2m4_db(sym) < 25)
-True"""
+True
+
+"""
 
 # snr/__init__.py — re-export all types from the C extension.
 import os as _os

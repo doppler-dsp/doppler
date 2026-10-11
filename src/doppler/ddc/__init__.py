@@ -5,7 +5,9 @@ Examples
 >>> import numpy as np
 >>> from doppler.ddc import DDC
 >>> DDC(norm_freq=0.1).execute(np.ones(16, np.complex64)).size
-4"""
+4
+
+"""
 
 import os as _os
 import sys as _sys

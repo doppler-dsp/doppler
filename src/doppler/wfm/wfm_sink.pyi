@@ -25,7 +25,7 @@ class StreamSink:
     """
 
     def __init__(self, endpoint: int, sample_type: str = ...) -> None: ...
-    def send(self, x: npt.NDArray[np.complex64], fs: float, fc: float) -> int:
+    def send(self, iq: npt.NDArray[np.complex64], fs: float, fc: float) -> int:
         """Convert a cf32 block to the wire type and publish it.
 
         Parameters

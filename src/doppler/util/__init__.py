@@ -4,7 +4,9 @@ Examples
 --------
 >>> from doppler.util import square_clip
 >>> square_clip(2 + 0j, 1.0)
-(1+0j)"""
+(1+0j)
+
+"""
 
 # util/__init__.py — re-export all types from the C extension.
 import os as _os

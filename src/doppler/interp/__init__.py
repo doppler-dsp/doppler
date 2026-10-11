@@ -6,7 +6,9 @@ Examples
 >>> from doppler.interp import InterpolatedTable
 >>> t = InterpolatedTable(np.arange(4, dtype=np.complex128))
 >>> t.execute(np.array([1.5], np.float64)).real.round(2).tolist()
-[1.5]"""
+[1.5]
+
+"""
 
 # interp/__init__.py — re-export all types from the C extension.
 import os as _os

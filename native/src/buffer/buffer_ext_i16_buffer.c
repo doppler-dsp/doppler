@@ -16,14 +16,20 @@
 typedef struct
 {
   PyObject_HEAD dp_i16_buffer_state_t *handle;
-  size_t                               _jm_borrowed; /* last borrow's count */
+  dp_i16_buffer_state_t *_jm_parked;   /* gh-2187: freed by tp_dealloc */
+  size_t                 _jm_borrowed; /* last borrow's count */
 } I16BufferObject;
 
 static void
 I16BufferObj_dealloc (I16BufferObject *self)
 {
+  /* gh-2187: destroy() parks the state here instead of
+     freeing it under the views this object lent; they are
+     gone now, so the free is now. */
   if (self->handle)
     dp_i16_destroy (self->handle);
+  if (self->_jm_parked)
+    dp_i16_destroy (self->_jm_parked);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -515,7 +521,8 @@ I16BufferObj_consume (I16BufferObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "|K", _kwlist, &n_raw))
     return NULL;
   size_t n = (size_t)n_raw;
-  if (!n)
+  if (!(PyTuple_GET_SIZE (args) > 0
+        || (kwds && PyDict_GetItemString (kwds, "n"))))
     {
       n = self->_jm_borrowed;
       if (!n)
@@ -643,8 +650,11 @@ I16BufferObj_destroy (I16BufferObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      dp_i16_destroy (self->handle);
-      self->handle = NULL;
+      /* gh-2187: the views this object lent point into the
+         state; the free waits for tp_dealloc, and every method
+         refuses from here on. */
+      self->_jm_parked = self->handle;
+      self->handle     = NULL;
     }
   Py_RETURN_NONE;
 }
@@ -662,8 +672,11 @@ I16BufferObj_exit (I16BufferObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      dp_i16_destroy (self->handle);
-      self->handle = NULL;
+      /* gh-2187: the views this object lent point into the
+         state; the free waits for tp_dealloc, and every method
+         refuses from here on. */
+      self->_jm_parked = self->handle;
+      self->handle     = NULL;
     }
   Py_RETURN_NONE;
 }
@@ -805,7 +818,7 @@ static PyMethodDef I16BufferObj_methods[] = {
     ">>> buf.consume()\n" },
   { "peek", (PyCFunction)(void *)I16BufferObj_peek,
     METH_VARARGS | METH_KEYWORDS,
-    "peek(n) -> ndarray\n"
+    "peek(n) -> ndarray | None\n"
     "\n"
     ":meth:`wait` that never blocks: a view, or None for not yet.\n"
     "\n"
@@ -834,7 +847,8 @@ static PyMethodDef I16BufferObj_methods[] = {
     "-------\n"
     "NDArray[Any] | None\n"
     "    Zero-copy view of the next ``n`` samples, or ``None`` when fewer\n"
-    "    than ``n`` have been written so far.\n"
+    "    than ``n`` have been written so far. None when the C call lends\n"
+    "    nothing (returns NULL) and its status has no exception row.\n"
     "\n"
     "Raises\n"
     "------\n"
@@ -963,15 +977,17 @@ static PyMethodDef I16BufferObj_methods[] = {
     ">>> buf.available, buf.closed\n"
     "(0, False)\n" },
   { "destroy", (PyCFunction)I16BufferObj_destroy, METH_NOARGS,
-    "Release the underlying C resources immediately.\n"
+    "Close the object; the memory goes with its last user.\n"
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
-    "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on\n"
-    "exit.\n"
+    "garbage-collected. Call this, or use the object as a context manager,\n"
+    "to end its use at a definite point.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does\n"
-    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Views this object handed out keep the memory they point into, as does a\n"
+    "call still running on another thread: it is freed when the last of\n"
+    "them, and this object, are gone, not here (gh-2187). Idempotent:\n"
+    "calling it again does nothing. Every other method raises\n"
+    "``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)I16BufferObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"

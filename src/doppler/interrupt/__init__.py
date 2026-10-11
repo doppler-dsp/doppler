@@ -5,7 +5,9 @@ Examples
 >>> from doppler.interrupt import Interrupt
 >>> it = Interrupt([])
 >>> it.interrupted()
-0"""
+0
+
+"""
 
 # interrupt/__init__.py — re-export all types from the C extension.
 import os as _os

@@ -586,14 +586,18 @@ static PyMethodDef WriterObj_methods[] = {
     "Examples\n"
     "--------\n"
     "    >>> import numpy as np\n"
-    "    >>> from doppler.wfm_writer import Writer\n"
+    "    >>> from doppler.wfm import Writer\n"
     "    >>> obj = Writer(path=..., fs=0.0, file_type=\"raw\", "
     "sample_type=\"cf32\", endian=\"le\", fc=0.0, total=0, headroom=0.0, "
     "t0=0.0, sidecar=True)\n"
     "    >>> obj.track_clipping(0)\n" },
   { "add_keyword", (PyCFunction)(void *)WriterObj_add_keyword,
     METH_VARARGS | METH_KEYWORDS,
-    "add_keyword(...) -- add a codec-typed value." },
+    "Attach a BLUE extended-header keyword (BLUE captures only). `type` is a "
+    "single character (B/I/L/X int, F/D float, A string, T deprecated int); "
+    "`value` is a str for A, a single int/float, or a sequence of them. "
+    "Keywords are buffered and written at close(). The read side is "
+    "Reader.keywords.\n" },
   { "close", (PyCFunction)WriterObj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"
     "\n"

@@ -7,7 +7,9 @@ Examples
 >>> from doppler.ccsds import asm_bits
 >>> b = asm_bits()
 >>> int("".join(map(str, b.tolist())), 2) == 0x1ACFFC1D
-True"""
+True
+
+"""
 
 # ccsds/__init__.py — re-export all types from the C extension.
 import os as _os

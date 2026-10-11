@@ -7,7 +7,9 @@ Examples
 >>> for v in (1, 2, 3):
 ...     d.push(complex(v))
 >>> d.ptr(3).real.tolist()   # most-recent-first tap snapshot
-[3.0, 2.0, 1.0]"""
+[3.0, 2.0, 1.0]
+
+"""
 
 # delay/__init__.py — re-export all types from the C extension.
 import os as _os

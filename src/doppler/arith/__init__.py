@@ -6,7 +6,9 @@ Examples
 >>> a = AccQ15()
 >>> a.step(100); a.step(50)
 >>> a.get()
-150"""
+150
+
+"""
 
 # arith/__init__.py — re-export all types from the C extension.
 import os as _os

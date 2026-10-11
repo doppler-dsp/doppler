@@ -7,7 +7,9 @@ Examples
 >>> f = FFT(n=1024)
 >>> X = f.execute_cf32(np.ones(1024, np.complex64))
 >>> bool(abs(X[0].real - 1024) < 1)
-True"""
+True
+
+"""
 
 # spectral/__init__.py — re-export all types from the C extension.
 import os as _os

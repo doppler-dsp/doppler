@@ -299,7 +299,10 @@ AWGN_setprop_amplitude (AWGNObject *self, PyObject *value,
 static PyGetSetDef AWGN_getset[]
     = { { "amplitude", (getter)AWGN_getprop_amplitude,
           (setter)AWGN_setprop_amplitude,
-          "Return the current amplitude (per-component std dev).\n", NULL },
+          "Per-component standard deviation. Assigning an invalid value (NaN, "
+          "infinite or negative) is ignored: the amplitude keeps its old "
+          "value, and the property does not raise.\n",
+          NULL },
         { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *

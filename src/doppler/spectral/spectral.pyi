@@ -1673,7 +1673,9 @@ class CorrDetector2D:
 
 @final
 class PSD:
-    """Create an averaging PSD estimator.
+    """Create an averaging PSD estimator with a frame hop: frame k covers
+    stream samples [k*hop, k*hop + n). hop = n is the non-overlapping frame
+    dp_psd_create() makes.
 
     Parameters
     ----------
@@ -1703,6 +1705,10 @@ class PSD:
         EMA smoothing factor, exp mode only, where it must lie in (0, 1]: the
         rule is the AccTrace averager's, whose create refuses anything else, so
         this does too. Ignored, and so not checked, in the other modes.
+    hop : int, default 0
+        Samples between frame starts, 1..n; 0 means n, so a binding can default
+        to the frame dp_psd_create makes. A hop above n (a gap between frames)
+        is refused: the framer holds no sample it has not been told to keep.
 
     Raises
     ------
@@ -1735,9 +1741,11 @@ class PSD:
         bits: int = 0,
         mode: Literal["mean", "exp", "maxhold", "minhold"] = "mean",
         alpha: float = 0.1,
+        hop: int = 0,
     ) -> None: ...
     def accumulate(self, x: npt.NDArray[np.complex64]) -> None:
-        """Window, FFT and fold floor(n_in/n) cf32 frames into the average.
+        """Window, FFT and fold every cf32 frame the stream completes into the
+        average; a partial frame is carried to the next call.
 
         Parameters
         ----------

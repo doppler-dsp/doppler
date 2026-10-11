@@ -1340,6 +1340,7 @@
 * **dp\_psd\_band\_power** ([**psd\_core.h**](psd__core_8h.md))
 * **dp\_psd\_band\_power\_max\_out** ([**psd\_core.h**](psd__core_8h.md))
 * **dp\_psd\_create** ([**psd\_core.h**](psd__core_8h.md))
+* **dp\_psd\_create\_hop** ([**psd\_core.h**](psd__core_8h.md))
 * **dp\_psd\_destroy** ([**psd\_core.h**](psd__core_8h.md))
 * **dp\_psd\_frame\_db** ([**psd\_core.h**](psd__core_8h.md))
 * **dp\_psd\_frame\_linear** ([**psd\_core.h**](psd__core_8h.md))

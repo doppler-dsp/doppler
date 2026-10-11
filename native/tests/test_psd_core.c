@@ -111,9 +111,18 @@ golden_stream (float _Complex *x, size_t n, uint32_t seed)
 }
 
 /* A rotate-xor checksum over the bytes of a float array: the bit-identity
- * check. Any single changed bit changes it. */
+ * check of T21. It is not FNV: it rotates the state left by 7 and xors each
+ * byte in, so any single changed bit changes it.
+ *
+ * The T21 pins were generated from main's build, commit 4ab923ea5, with a
+ * program that runs the five T21 configs on the dp_uni stream below (seed
+ * 12345 + config index, lengths 5n and 5n + 37), prints this checksum of the
+ * averaged dp_psd_power_twosided() trace, and is linked with that commit's
+ * build/libdoppler.a: `gcc -Inative/inc -Ibuild/native/inc -Inative/tests
+ * gen.c build/libdoppler.a -lm -lpthread`. Re-pin only from main, never from
+ * this branch, or the test would only prove the branch agrees with itself. */
 static uint64_t
-fnv1a (const void *p, size_t n)
+rxr_checksum (const void *p, size_t n)
 {
   const unsigned char *b = p;
   uint64_t             h = 0x9E3779B97F4A7C15ULL;
@@ -340,7 +349,8 @@ main (void)
     const int       k = 8;
     float _Complex x[64];
     fill_tone (x, N, k);
-    /* feed 3 full frames + a trailing partial that must be ignored */
+    /* feed 3 full frames + a trailing partial: the partial is carried, not
+     * folded, so the count stays 3 */
     float _Complex buf[64 * 3 + 7];
     for (size_t f = 0; f < 3; f++)
       for (size_t i = 0; i < N; i++)
@@ -719,7 +729,8 @@ main (void)
     dp_psd_state_t *w = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
     DP_REQUIRE (w != NULL);
     dp_psd_accumulate_real (w, x, sizeof x / sizeof x[0]);
-    DP_CHECK (w->avg->count == 2); /* the 7-sample tail is ignored */
+    DP_CHECK (w->avg->count
+              == 2); /* accumulate_real drops the 7-sample tail */
     float two[64], one[33];
     DP_REQUIRE (dp_psd_power_twosided (w, N, two, N) == N);
     DP_REQUIRE (dp_psd_power_onesided (w, N / 2 + 1, one, N / 2 + 1)
@@ -1816,9 +1827,9 @@ main (void)
 
   /* T21: the golden. A single call of whole frames at hop = n, and a call
    * with a trailing partial frame, average to the same bits main did: the
-   * FNV-1a hash of the averaged power trace is pinned from main's build,
-   * before the framer came in. The configs cover Hann, Kaiser, rect, exp and
-   * max-hold averaging, and pad 1 and 2. */
+   * rotate-xor checksum of the averaged power trace is pinned from main's
+   * build, before the framer came in. The configs cover Hann, Kaiser, rect,
+   * exp and max-hold averaging, and pad 1 and 2. */
   {
     static const struct
     {
@@ -1860,7 +1871,7 @@ main (void)
         float        out[1024];
         const size_t got = dp_psd_power_twosided (w, 1024, out, 1024);
         DP_CHECK (got == w->nfft);
-        DP_CHECK (fnv1a (out, got * sizeof *out) == pins[p].hash);
+        DP_CHECK (rxr_checksum (out, got * sizeof *out) == pins[p].hash);
         dp_psd_destroy (w);
         free (x);
       }
@@ -1896,6 +1907,43 @@ main (void)
     free (x);
   }
 
+  /* T22b: chunk invariance at hop < n, directly. Overlapping frames carry more
+   * than a partial frame between calls, so the partitions are cut through the
+   * overlap as well as through a frame. Each hop is compared to one call at
+   * the same hop, bit for bit. */
+  {
+    const size_t    n = 64, len = 9 * n + 23;
+    const size_t    hops[]  = { 32, 40 };
+    const size_t    chunk[] = { 1, 7, 40, 41, 3 * 40 + 5, 80 };
+    float _Complex *x       = malloc (len * sizeof *x);
+    DP_REQUIRE (x != NULL);
+    golden_stream (x, len, 5150u);
+    for (size_t h = 0; h < sizeof hops / sizeof hops[0]; h++)
+      {
+        dp_psd_state_t *one
+            = dp_psd_create_hop (n, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0, hops[h]);
+        DP_REQUIRE (one != NULL);
+        dp_psd_accumulate (one, x, len);
+        float ref[64];
+        DP_CHECK (dp_psd_power_twosided (one, 64, ref, 64) == 64);
+        for (size_t c = 0; c < sizeof chunk / sizeof chunk[0]; c++)
+          {
+            dp_psd_state_t *w = dp_psd_create_hop (n, 1e6, 0, 0.0f, 1, 1.0, 0,
+                                                   0, 0.0, hops[h]);
+            DP_REQUIRE (w != NULL);
+            for (size_t at = 0; at < len; at += chunk[c])
+              dp_psd_accumulate (w, x + at,
+                                 (len - at < chunk[c]) ? len - at : chunk[c]);
+            float got[64];
+            DP_CHECK (dp_psd_power_twosided (w, 64, got, 64) == 64);
+            DP_CHECK (memcmp (got, ref, sizeof ref) == 0);
+            dp_psd_destroy (w);
+          }
+        dp_psd_destroy (one);
+      }
+    free (x);
+  }
+
   /* T23: overlap. At hop = n/2 the average is the average of the same frames
    * folded one per call through a hop = n estimator: the frames are the same
    * samples, in the same order, through the same kernel, so the bits agree. */
@@ -1920,16 +1968,32 @@ main (void)
     free (x);
   }
 
-  /* T24: a gap between frames is refused, and so is a hop of 0. */
+  /* T24: a hop above n (a gap between frames) is refused for every n; a hop of
+   * 0 means n: it is the same object as dp_psd_create() of the same config and
+   * averages to the same bits. */
   {
-    DP_CHECK (dp_psd_create_hop (64, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0, 65)
-              == NULL);
-    /* 0 is the default: the frame dp_psd_create makes, hop = n. */
-    dp_psd_state_t *z
-        = dp_psd_create_hop (64, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0, 0);
-    DP_REQUIRE (z != NULL);
-    DP_CHECK (z->hop == 64);
-    dp_psd_destroy (z);
+    const size_t ns[] = { 32, 64, 100 };
+    for (size_t i = 0; i < sizeof ns / sizeof ns[0]; i++)
+      {
+        const size_t n = ns[i];
+        DP_CHECK (dp_psd_create_hop (n, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0, n + 1)
+                  == NULL);
+        dp_psd_state_t *z
+            = dp_psd_create_hop (n, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0, 0);
+        dp_psd_state_t *d = dp_psd_create (n, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
+        DP_REQUIRE (z != NULL && d != NULL);
+        DP_CHECK (z->hop == n);
+        float _Complex x[256];
+        golden_stream (x, 2 * n + 9, 808u + (uint32_t)n);
+        dp_psd_accumulate (z, x, 2 * n + 9);
+        dp_psd_accumulate (d, x, 2 * n + 9);
+        float a[256], b[256];
+        DP_CHECK (dp_psd_power_twosided (z, 256, a, 256) == d->nfft);
+        DP_CHECK (dp_psd_power_twosided (d, 256, b, 256) == d->nfft);
+        DP_CHECK (memcmp (a, b, d->nfft * sizeof *a) == 0);
+        dp_psd_destroy (z);
+        dp_psd_destroy (d);
+      }
   }
 
   /* T25: the state round trip mid-stream. A blob cut from a stream with a
@@ -2003,6 +2067,39 @@ main (void)
     dp_psd_destroy (t);
     dp_psd_destroy (src_h);
     dp_psd_destroy (src);
+    free (x);
+  }
+
+  /* T27: the version is part of the blob. A blob of the old layout (version 1)
+   * of the same length is refused by its version, not by its size, and the
+   * object reads the same bits as before. */
+  {
+    const size_t    n = 64, hop = 32;
+    float _Complex *x = malloc (300 * sizeof *x);
+    DP_REQUIRE (x != NULL);
+    golden_stream (x, 300, 27u);
+    dp_psd_state_t *src
+        = dp_psd_create_hop (n, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0, hop);
+    dp_psd_state_t *dst
+        = dp_psd_create_hop (n, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0, hop);
+    DP_REQUIRE (src != NULL && dst != NULL);
+    dp_psd_accumulate (src, x, 300);
+    dp_psd_accumulate (dst, x + 100, 200);
+    float before[64], after[64];
+    DP_CHECK (dp_psd_power_twosided (dst, 64, before, 64) == 64);
+    void *blob = malloc (dp_psd_state_bytes (src));
+    DP_REQUIRE (blob != NULL);
+    dp_psd_get_state (src, blob);
+    dp_state_hdr_t *h = blob;
+    DP_REQUIRE (h->version == PSD_STATE_VERSION);
+    h->version = 1;
+    DP_CHECK (dp_psd_state_bytes (dst) == dp_psd_state_bytes (src));
+    DP_CHECK (dp_psd_set_state (dst, blob) == DP_ERR_INVALID);
+    DP_CHECK (dp_psd_power_twosided (dst, 64, after, 64) == 64);
+    DP_CHECK (memcmp (before, after, sizeof before) == 0);
+    free (blob);
+    dp_psd_destroy (src);
+    dp_psd_destroy (dst);
     free (x);
   }
 

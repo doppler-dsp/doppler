@@ -110,9 +110,11 @@ dp_psd_state_t *dp_psd_create(size_t n, double fs, int window, float beta,
                             int mode, double alpha);
 
 /**
- * @brief Create an averaging PSD estimator with a frame hop: frame k covers
- *        stream samples [k*hop, k*hop + n). hop = n is the non-overlapping
- *        frame dp_psd_create() makes.
+ * @brief Create an averaging PSD estimator whose frames are spaced by a hop.
+ *
+ * Frame k covers stream samples [k*hop, k*hop + n). A hop equal to n gives
+ * non-overlapping frames. A trailing partial frame is carried to the next
+ * accumulate call, not dropped.
  *
  * @param n           Window / frame length in samples.  Must be >= 2.
  * @param fs          Sample rate in Hz (used for dB/Hz and band frequencies);
@@ -135,10 +137,10 @@ dp_psd_state_t *dp_psd_create(size_t n, double fs, int window, float beta,
  *                    (0, 1]: the rule is the AccTrace averager's, whose
  *                    create refuses anything else, so this does too.
  *                    Ignored, and so not checked, in the other modes.
- * @param hop         Samples between frame starts, 1..n; 0 means n, so a
- *                    binding can default to the frame dp_psd_create makes.
- *                    A hop above n (a gap between frames) is refused: the
- *                    framer holds no sample it has not been told to keep.
+ * @param hop         Samples between frame starts, 1..n. 0 means n, which
+ *                    gives non-overlapping frames; the default. A hop above
+ *                    n would leave samples between frames that are never
+ *                    kept, so it is refused.
  * @return Heap-allocated state, or NULL on invalid argument or OOM. A window
  *         whose coherent gain sum(w) is 0 -- Hann at n = 2, whose symmetric
  *         form is all zeros -- is refused too: every reading divides by it.
@@ -148,7 +150,7 @@ dp_psd_state_t *dp_psd_create(size_t n, double fs, int window, float beta,
  *
  * @code
  * >>> from doppler.spectral import PSD
- * >>> w = PSD(n=1024, fs=1.0e6, window="kaiser", beta=8.0, mode="mean")
+ * >>> w = PSD(n=1024, fs=1.0e6, window="kaiser", beta=8.0, mode="mean", hop=512)
  * >>> w.n, w.fs
  * (1024, 1000000.0)
  * >>> round(w.rbw / (w.fs / w.n), 3) == round(w.enbw, 3)
@@ -297,7 +299,11 @@ void dp_psd_frame_db(dp_psd_state_t *state, const float _Complex *x,
  * windowed, zero-padded to nfft, transformed and folded as a DC-centred
  * two-sided power spectrum (a real frame is Hermitian, so the +k and -k bins
  * carry equal power).  Read the one-sided fold with dp_psd_power_onesided().
- * Processes floor(n_in / n) full frames.
+ *
+ * This call stays on whole frames at hop = n: it folds floor(n_in / n) frames
+ * and drops a trailing partial frame. It neither reads nor writes the carry of
+ * the complex accumulate call, so mixing the two on one object mixes two
+ * streams, and a hop below n is not used by this call.
  *
  * @param state  Must be non-NULL.
  * @param x      Real samples (f32).
@@ -479,10 +485,13 @@ double dp_psd_snr(dp_psd_state_t *state, double lo_hz, double hi_hz);
  */
 double dp_psd_sfdr(dp_psd_state_t *state, float min_db);
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
- * delegates to the acc_trace power averager; window/plan/scratch
- * are config, rebuilt by create. */
+ * The blob is the acc_trace power averager, then the framer's snapshot of the
+ * carried partial frame. Both children have fixed sizes, so the blob's size
+ * depends on the config only. hop is a reject key: a blob of another hop is
+ * refused, since the carried frame means something different at another hop.
+ * Window, plan, scratch, n, nfft and hop are config, rebuilt by create. */
 #define PSD_STATE_MAGIC DP_FOURCC ('P','S','D',' ')
-#define PSD_STATE_VERSION 1u
+#define PSD_STATE_VERSION 2u
 size_t dp_psd_state_bytes (const dp_psd_state_t *state);
 void dp_psd_get_state (const dp_psd_state_t *state, void *blob);
 int dp_psd_set_state (dp_psd_state_t *state, const void *blob);

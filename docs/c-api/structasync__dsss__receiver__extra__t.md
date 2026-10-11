@@ -56,6 +56,7 @@
 |  uint64\_t | [**period\_count**](#variable-period_count)  <br> |
 |  uint64\_t | [**refine\_samples\_fed**](#variable-refine_samples_fed)  <br> |
 |  uint64\_t | [**refine\_segments**](#variable-refine_segments)  <br> |
+|  uint64\_t | [**refused\_hits**](#variable-refused_hits)  <br> |
 |  double | [**seed\_chip\_phase**](#variable-seed_chip_phase)  <br> |
 |  double | [**seed\_doppler\_hz\_est**](#variable-seed_doppler_hz_est)  <br> |
 |  uint64\_t | [**segments**](#variable-segments)  <br> |
@@ -408,6 +409,23 @@ uint64_t async_dsss_receiver_extra_t::refine_segments;
 
 
 
+
+<hr>
+
+
+
+### variable refused\_hits 
+
+```C++
+uint64_t async_dsss_receiver_extra_t::refused_hits;
+```
+
+
+
+v8: the searching hits refused as seeds. 
+
+
+        
 
 <hr>
 

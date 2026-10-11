@@ -6,7 +6,7 @@ no_state = "true"
 no_step = "true"
 class_name = "Despreader"
 create_error = "ValueError"
-create_error_message = "Despreader: invalid parameter (need a non-empty code; for the code loop a finite init_chip, bn_code >= 0 and zeta > 0 both finite, whose loop gains come out finite, and 0 < spacing < len(code)/2; for the carrier loop bn_carrier >= 0, finite)"
+create_error_message = "Despreader: invalid parameter (need a non-empty code; for the code loop a finite init_chip, bn_code >= 0 and zeta > 0 both finite, whose loop gains come out finite, and 0 < spacing < len(code)/2; for the carrier loop bn_carrier >= 0, finite, whose loop gains come out finite)"
 # detection: dll_core's configure_lock now derives the CFAR threshold via
 # det_threshold_noncoherent, so anything linking dll_core links detection_core.
 depends_on = [

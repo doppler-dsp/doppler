@@ -170,9 +170,23 @@ compute_output (const dp_hbdecim_q15_state_t *r, int16_t *out_I,
 
   int64_t acc_I, acc_Q;
 
+  /* The AVX2 kernel loads a[N-16-k] for k < K_pad, which stays inside the
+   * fold only when N_fold >= K_pad. For num_taps 2..15 the fold is shorter
+   * than one 16-tap vector and reads before the window, so that case takes
+   * the scalar path, the exact reference, which gives the same sum. num_taps
+   * 1 gives a fold of length 0 or 1, so it takes the scalar path too
+   * (#2142). */
 #if defined(__AVX2__)
-  acc_I = fir_q15_avx2 (a_I, N_fold, r->coeffs, r->K_pad);
-  acc_Q = fir_q15_avx2 (a_Q, N_fold, r->coeffs, r->K_pad);
+  if (N_fold >= r->K_pad)
+    {
+      acc_I = fir_q15_avx2 (a_I, N_fold, r->coeffs, r->K_pad);
+      acc_Q = fir_q15_avx2 (a_Q, N_fold, r->coeffs, r->K_pad);
+    }
+  else
+    {
+      acc_I = fir_q15_scalar (a_I, N_fold, r->coeffs, r->K);
+      acc_Q = fir_q15_scalar (a_Q, N_fold, r->coeffs, r->K);
+    }
 #else
   acc_I = fir_q15_scalar (a_I, N_fold, r->coeffs, r->K);
   acc_Q = fir_q15_scalar (a_Q, N_fold, r->coeffs, r->K);
@@ -338,9 +352,17 @@ dp_hbdecim_q15_set_state (dp_hbdecim_q15_state_t *s, const void *blob)
 {
   DP_SET_OPEN (HBDECIM_Q15_STATE_MAGIC, HBDECIM_Q15_STATE_VERSION,
                dp_hbdecim_q15_state_bytes (s));
-  s->even_head   = (size_t)dp_r_u64 (&_r);
-  s->odd_head    = (size_t)dp_r_u64 (&_r);
-  s->has_pending = (int)dp_r_u32 (&_r);
+  /* Decoded and checked before anything is written: the envelope reads no
+     payload field, and a head is a ring index (#2142). */
+  const size_t   even_head   = (size_t)dp_r_u64 (&_r);
+  const size_t   odd_head    = (size_t)dp_r_u64 (&_r);
+  const uint32_t has_pending = dp_r_u32 (&_r);
+  if (!dp_ring_head_ok (even_head, s->cap)
+      || !dp_ring_head_ok (odd_head, s->cap) || has_pending > 1)
+    return DP_ERR_INVALID;
+  s->even_head   = even_head;
+  s->odd_head    = odd_head;
+  s->has_pending = (int)has_pending;
   dp_r_bytes (&_r, &s->pending_I, sizeof s->pending_I);
   dp_r_bytes (&_r, &s->pending_Q, sizeof s->pending_Q);
   const size_t rb = 2 * s->cap * sizeof (int16_t);

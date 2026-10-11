@@ -456,7 +456,13 @@ _SynthEngine_set_nsps (_SynthEngineObject *self, PyObject *args)
   int v = 0;
   if (!PyArg_ParseTuple (args, "i", &v))
     return NULL;
-  dp_wfm_synth_set_nsps (self->handle, v);
+  if (dp_wfm_synth_set_nsps (self->handle, v) != DP_OK)
+    {
+      PyErr_SetString (PyExc_ValueError,
+                       "nsps must be >= 1 and above the current sym_pos "
+                       "(set sym_pos to 0 first)");
+      return NULL;
+    }
   Py_RETURN_NONE;
 }
 
@@ -483,7 +489,12 @@ _SynthEngine_set_sym_pos (_SynthEngineObject *self, PyObject *args)
   int v = 0;
   if (!PyArg_ParseTuple (args, "i", &v))
     return NULL;
-  dp_wfm_synth_set_sym_pos (self->handle, v);
+  if (dp_wfm_synth_set_sym_pos (self->handle, v) != DP_OK)
+    {
+      PyErr_SetString (PyExc_ValueError,
+                       "sym_pos must satisfy 0 <= sym_pos < nsps");
+      return NULL;
+    }
   Py_RETURN_NONE;
 }
 
@@ -773,8 +784,10 @@ static PyMethodDef _SynthEngine_methods[] = {
     "tone/noise this field is present but unused by the synthesis path.\n" },
   { "set_nsps", (PyCFunction)_SynthEngine_set_nsps, METH_VARARGS,
     "Override the samples-per-symbol count in-place. Does not flush the "
-    "symbol-position counter (sym_pos); set sym_pos=0 as well when changing "
-    "sps mid-stream.\n" },
+    "symbol-position counter (sym_pos). A hold to or below the current "
+    "sym_pos is refused, so when changing sps mid-stream set sym_pos first "
+    "(to 0 is always legal), then this. Refusing the other order keeps "
+    "sym_pos inside the hold.\n" },
   { "get_sym_pos", (PyCFunction)_SynthEngine_get_sym_pos, METH_NOARGS,
     "Return the current position within the current symbol (0..nsps-1). "
     "Reaches nsps and wraps to 0 each time a new symbol is consumed from the "

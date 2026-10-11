@@ -17,7 +17,10 @@
 
 #define DP_TEST_VERBOSE 1
 #include "doppler/hbdecim/hbdecim_core.h"
+#include "dp_state_test.h"
 #include "dp_test.h"
+#include <stddef.h>
+#include <stdint.h>
 
 #include <math.h>
 #include <stdio.h>
@@ -307,6 +310,28 @@ main (void)
   test_dc_passthrough ();
   test_alias_rejection ();
   test_state_roundtrip ();
+
+  /* ---------------------------------------------------------------- *
+   * #2142: a forged head or flag is refused, the object untouched          *
+   * ---------------------------------------------------------------- */
+  {
+    /* Blob: [hdr][even_head][odd_head][has_pending int][pending]... A head
+       indexes its ring; has_pending is a flag. */
+    hbdecim_state_t *r = dp_hbdecim_create (N_TAPS, H4_FIR);
+    DP_CHECK (r != NULL);
+    const size_t eh  = sizeof (dp_state_hdr_t);
+    const size_t oh  = eh + sizeof (size_t);
+    const size_t hp  = oh + sizeof (size_t);
+    const size_t cap = r->even_cap;
+    const int    two = 2;
+    DP_STATE_FORGE_TEST (dp_hbdecim, r, HBDECIM_STATE_MAGIC,
+                         HBDECIM_STATE_VERSION, eh, &cap, sizeof cap);
+    DP_STATE_FORGE_TEST (dp_hbdecim, r, HBDECIM_STATE_MAGIC,
+                         HBDECIM_STATE_VERSION, oh, &cap, sizeof cap);
+    DP_STATE_FORGE_TEST (dp_hbdecim, r, HBDECIM_STATE_MAGIC,
+                         HBDECIM_STATE_VERSION, hp, &two, sizeof two);
+    dp_hbdecim_destroy (r);
+  }
 
   DP_TEST_END ("test_hbdecim_core");
 }

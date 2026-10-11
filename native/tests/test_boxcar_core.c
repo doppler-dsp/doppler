@@ -10,10 +10,14 @@
  */
 #include "doppler/boxcar/boxcar_core.h"
 #include "doppler/dp_complex.h"
+#include "dp_state_test.h"
 #include "dp_test.h"
 #include <math.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 int
 main (void)
@@ -128,6 +132,66 @@ main (void)
     free (in);
     free (outA);
     free (outB);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * #2142: a forged index is refused, the object untouched          *
+   * ---------------------------------------------------------------- */
+  {
+    /* dp_boxcar_step writes ring[pos] BEFORE it wraps pos, so a pos at or
+       past BOXCAR_MAX_LEN wrote past the struct, and a len above it let pos
+       walk there. A pos inside the ring but past len is no state either. */
+    dp_boxcar_state_t *b = dp_boxcar_create (4, 1.0);
+    DP_CHECK (b != NULL);
+    for (int k = 0; k < 6; k++)
+      (void)dp_boxcar_step (b, (float)k); /* pos = 2, mid-window */
+    const size_t pos_off
+        = sizeof (dp_state_hdr_t) + offsetof (dp_boxcar_state_t, pos);
+    const size_t len_off
+        = sizeof (dp_state_hdr_t) + offsetof (dp_boxcar_state_t, len);
+    const size_t bad_pos[] = { BOXCAR_MAX_LEN, 4, SIZE_MAX };
+    /* len above the ring is the refusal this loop means to test. A forged
+       len of 0 is refused too, but by pos (2 is not below max(len, 1)), so
+       it is not listed here. */
+    const size_t bad_len[] = { BOXCAR_MAX_LEN + 1 };
+    for (size_t i = 0; i < sizeof bad_pos / sizeof *bad_pos; i++)
+      DP_STATE_FORGE_TEST (dp_boxcar, b, BOXCAR_STATE_MAGIC,
+                           BOXCAR_STATE_VERSION, pos_off, &bad_pos[i],
+                           sizeof bad_pos[i]);
+    for (size_t i = 0; i < sizeof bad_len / sizeof *bad_len; i++)
+      DP_STATE_FORGE_TEST (dp_boxcar, b, BOXCAR_STATE_MAGIC,
+                           BOXCAR_STATE_VERSION, len_off, &bad_len[i],
+                           sizeof bad_len[i]);
+
+    /* And the write itself: step after the refused forgery. Were the blob
+       taken, this would store ring[64], one element past the struct, which
+       `make test-asan` reports as a heap overflow. */
+    unsigned char *blob = malloc (dp_boxcar_state_bytes (b));
+    DP_CHECK (blob != NULL);
+    if (blob)
+      {
+        dp_boxcar_get_state (b, blob);
+        const size_t past = BOXCAR_MAX_LEN;
+        memcpy (blob + pos_off, &past, sizeof past);
+        DP_CHECK (dp_boxcar_set_state (b, blob) == DP_ERR_INVALID);
+        (void)dp_boxcar_step (b, 1.0f);
+        free (blob);
+      }
+    /* The all-zero state is a state: an embedding holds it until its init
+       runs. It must round-trip, and stepping it writes ring[0] only. */
+    dp_boxcar_state_t zero;
+    memset (&zero, 0, sizeof zero);
+    unsigned char *zb = malloc (dp_boxcar_state_bytes (&zero));
+    DP_CHECK (zb != NULL);
+    if (zb)
+      {
+        dp_boxcar_get_state (&zero, zb);
+        DP_CHECK (dp_boxcar_set_state (b, zb) == DP_OK);
+        (void)dp_boxcar_step (b, 1.0f);
+        DP_CHECK (b->pos == 0);
+        free (zb);
+      }
+    dp_boxcar_destroy (b);
   }
 
   DP_TEST_END ("test_boxcar_core");

@@ -405,7 +405,8 @@ extern "C"
    * @param zeta  zeta (default: 0.707).
    * @param order  Enum index; 0=linear…2=cubic.
    * @param ted  Enum index; 0=gardner, 1=dttl (BPSK/QPSK only).
-   * @return Heap-allocated state, or NULL on allocation failure.
+   * @return Heap-allocated state, or NULL for an @p order outside 0..2 or on
+   *         allocation failure.
    * @note Caller must call dp_symsync_destroy() when done.
    */
   dp_symsync_state_t *dp_symsync_create (size_t sps, double bn, double zeta,

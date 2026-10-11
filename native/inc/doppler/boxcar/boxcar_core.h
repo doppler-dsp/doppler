@@ -97,6 +97,29 @@ extern "C"
   }
 
   /**
+   * @brief A boxcar state a blob may carry: a window that fits, a write
+   *        index inside it.
+   *
+   * dp_boxcar_step() writes `ring[pos]` BEFORE it wraps `pos`, so a `pos`
+   * at or past `BOXCAR_MAX_LEN` writes past the struct, and a `len` above it
+   * lets `pos` walk there (#2142). set_state, and any composition that
+   * embeds a boxcar by value, refuses a snapshot this rejects.
+   *
+   * The all-zero state (`len == 0`, `pos == 0`) passes: an embedding holds
+   * it until its init runs, and it round-trips like any other. Stepping it
+   * writes `ring[0]` only.
+   *
+   * @param s  Decoded boxcar state. Must be non-NULL.
+   * @return Non-zero when `len <= BOXCAR_MAX_LEN` and `pos` is below `len`
+   *         (below 1 when `len` is 0).
+   */
+  JM_FORCEINLINE int
+  dp_boxcar_state_ok (const dp_boxcar_state_t *s)
+  {
+    return s->len <= BOXCAR_MAX_LEN && s->pos < (s->len ? s->len : 1);
+  }
+
+  /**
    * @brief Set the output gain; refresh the cached scale.
    * @param s     Boxcar state. Must be non-NULL.
    * @param gain  New output gain (folded into `scale = gain / len`).
@@ -195,7 +218,8 @@ extern "C"
   size_t dp_boxcar_state_bytes (const dp_boxcar_state_t *s);
   /** @brief Serialize the full state into @p blob. */
   void dp_boxcar_get_state (const dp_boxcar_state_t *s, void *blob);
-  /** @brief Restore state; DP_OK, or DP_ERR_INVALID if the envelope rejects.
+  /** @brief Restore state; DP_OK, or DP_ERR_INVALID if the envelope or the
+   *  payload check refuses.
    */
   int dp_boxcar_set_state (dp_boxcar_state_t *s, const void *blob);
 

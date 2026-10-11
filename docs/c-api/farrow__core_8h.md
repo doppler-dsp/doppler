@@ -74,6 +74,7 @@ _Farrow fractional-delay interpolator — linear / parabolic / cubic._ [More...]
 |  void | [**dp\_farrow\_reset**](#function-dp_farrow_reset) ([**dp\_farrow\_state\_t**](structdp__farrow__state__t.md) \* state) <br>_Clear the interpolator delay line; keep the order._  |
 |  int | [**dp\_farrow\_set\_state**](#function-dp_farrow_set_state) ([**dp\_farrow\_state\_t**](structdp__farrow__state__t.md) \* state, const void \* blob) <br> |
 |  size\_t | [**dp\_farrow\_state\_bytes**](#function-dp_farrow_state_bytes) (const [**dp\_farrow\_state\_t**](structdp__farrow__state__t.md) \* state) <br> |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**dp\_farrow\_state\_ok**](#function-dp_farrow_state_ok) (const [**dp\_farrow\_state\_t**](structdp__farrow__state__t.md) \* s) <br>_A Farrow state a blob may carry: one of the three orders._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**farrow\_eval**](#function-farrow_eval) (const [**dp\_farrow\_state\_t**](structdp__farrow__state__t.md) \* s, float mu) <br>_Interpolate at fractional offset_ `mu` _∈_`[0,1)` _between_`d[1]` _and_`d[2]` _._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) void | [**farrow\_init**](#function-farrow_init) ([**dp\_farrow\_state\_t**](structdp__farrow__state__t.md) \* s, int order) <br>_Initialise in place: set order, clear the delay line._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**farrow\_push**](#function-farrow_push) ([**dp\_farrow\_state\_t**](structdp__farrow__state__t.md) \* s, float \_Complex x) <br>_Push one input sample into the delay line (oldest drops out)._  |
@@ -181,7 +182,7 @@ dp_farrow_state_t * dp_farrow_create (
 
 **Returns:**
 
-Heap-allocated state, or NULL on allocation failure. 
+Heap-allocated state, or NULL for an order outside 0..2 or on allocation failure. 
 
 
 
@@ -402,6 +403,43 @@ size_t dp_farrow_state_bytes (
 
 
 
+### function dp\_farrow\_state\_ok 
+
+_A Farrow state a blob may carry: one of the three orders._ 
+```C++
+JM_FORCEINLINE int dp_farrow_state_ok (
+    const dp_farrow_state_t * s
+) 
+```
+
+
+
+[**dp\_farrow\_create()**](farrow__core_8h.md#function-dp_farrow_create) refuses any other order, so a blob carrying one is forged, not a state (#2142). [**farrow\_eval()**](farrow__core_8h.md#function-farrow_eval) would read it as cubic. Every set\_state that carries a Farrow, by itself or embedded, refuses it.
+
+
+
+
+**Parameters:**
+
+
+* `s` Decoded Farrow state. Must be non-NULL. 
+
+
+
+**Returns:**
+
+Non-zero when `order` is FARROW\_LINEAR, \_PARABOLIC or \_CUBIC. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function farrow\_eval 
 
 _Interpolate at fractional offset_ `mu` _∈_`[0,1)` _between_`d[1]` _and_`d[2]` _._
@@ -453,6 +491,10 @@ JM_FORCEINLINE void farrow_init (
 
 
 
+farrow\_eval reads any order other than LINEAR or PARABOLIC as cubic, so init stores exactly that. The state then carries an order its own predicate accepts, and a round trip of a stream built with an out-of-range order does not fail on restore. The public create() still refuses such an order outright. 
+
+
+        
 
 <hr>
 

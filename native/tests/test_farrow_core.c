@@ -14,6 +14,8 @@
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include <math.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -149,6 +151,39 @@ main (void)
     DP_CHECK (farrow_eval (b, 0.3f) == farrow_eval (a, 0.3f));
     dp_farrow_destroy (a);
     dp_farrow_destroy (b);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * #2142: a forged order is refused, the object untouched          *
+   * ---------------------------------------------------------------- */
+  {
+    /* create() refuses any order but the three; the blob may not carry one
+       either (farrow_eval would read it as cubic). */
+    DP_CHECK (dp_farrow_create (FARROW_CUBIC + 1) == NULL);
+    DP_CHECK (dp_farrow_create (-1) == NULL);
+    dp_farrow_state_t *f = dp_farrow_create (FARROW_PARABOLIC);
+    DP_CHECK (f != NULL);
+    const size_t off
+        = sizeof (dp_state_hdr_t) + offsetof (dp_farrow_state_t, order);
+    const int bad[] = { FARROW_CUBIC + 1, -1 };
+    for (size_t i = 0; i < sizeof bad / sizeof *bad; i++)
+      DP_STATE_FORGE_TEST (dp_farrow, f, FARROW_STATE_MAGIC,
+                           FARROW_STATE_VERSION, off, &bad[i], sizeof bad[i]);
+    dp_farrow_destroy (f);
+  }
+
+  /* #2148 r3: init stores the order farrow_eval uses, so an out-of-range
+   * order comes out as cubic and the state's own predicate accepts it.
+   * create() still refuses such an order (see the test above). */
+  {
+    dp_farrow_state_t f;
+    farrow_init (&f, FARROW_CUBIC + 1);
+    DP_CHECK (f.order == FARROW_CUBIC);
+    DP_CHECK (dp_farrow_state_ok (&f));
+    farrow_init (&f, -1);
+    DP_CHECK (f.order == FARROW_CUBIC);
+    farrow_init (&f, FARROW_PARABOLIC);
+    DP_CHECK (f.order == FARROW_PARABOLIC);
   }
 
   DP_TEST_END ("test_farrow_core");

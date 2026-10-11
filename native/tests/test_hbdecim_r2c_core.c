@@ -11,7 +11,10 @@
  */
 
 #include "doppler/hbdecim/hbdecim_r2c_core.h"
+#include "dp_state_test.h"
 #include "dp_test.h"
+#include <stddef.h>
+#include <stdint.h>
 
 #include "doppler/dp_complex.h"
 #include <math.h>
@@ -68,6 +71,40 @@ main (void)
     free (in);
     free (outA);
     free (outB);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * #2142: a forged head, flag or parity is refused, the object untouched *
+   * ---------------------------------------------------------------- */
+  {
+    /* Blob: [hdr][even_head][odd_head][has_pending int][pending f32]
+       [parity int]... parity is toggled with ^= 1, so a 2 would never
+       alternate and the fs/4 flip would stop. The struct is private, so
+       the head is forged past any capacity. */
+    hbdecim_r2c_state_t *r = dp_hbdecim_r2c_create (4, H4);
+    DP_CHECK (r != NULL);
+    const size_t eh  = sizeof (dp_state_hdr_t);
+    const size_t oh  = eh + sizeof (size_t);
+    const size_t hp  = oh + sizeof (size_t);
+    const size_t par = hp + sizeof (int) + sizeof (float);
+    const size_t far = SIZE_MAX;
+    const int    two = 2;
+    DP_STATE_FORGE_TEST (dp_hbdecim_r2c, r, HBDECIM_R2C_STATE_MAGIC,
+                         HBDECIM_R2C_STATE_VERSION, eh, &far, sizeof far);
+    DP_STATE_FORGE_TEST (dp_hbdecim_r2c, r, HBDECIM_R2C_STATE_MAGIC,
+                         HBDECIM_R2C_STATE_VERSION, oh, &far, sizeof far);
+    /* head == cap is the first index past the ring, not only SIZE_MAX. cap
+       is the smallest power of two >= num_taps, so 4 for the 4-tap H4. */
+    const size_t capv = 4;
+    DP_STATE_FORGE_TEST (dp_hbdecim_r2c, r, HBDECIM_R2C_STATE_MAGIC,
+                         HBDECIM_R2C_STATE_VERSION, eh, &capv, sizeof capv);
+    DP_STATE_FORGE_TEST (dp_hbdecim_r2c, r, HBDECIM_R2C_STATE_MAGIC,
+                         HBDECIM_R2C_STATE_VERSION, oh, &capv, sizeof capv);
+    DP_STATE_FORGE_TEST (dp_hbdecim_r2c, r, HBDECIM_R2C_STATE_MAGIC,
+                         HBDECIM_R2C_STATE_VERSION, hp, &two, sizeof two);
+    DP_STATE_FORGE_TEST (dp_hbdecim_r2c, r, HBDECIM_R2C_STATE_MAGIC,
+                         HBDECIM_R2C_STATE_VERSION, par, &two, sizeof two);
+    dp_hbdecim_r2c_destroy (r);
   }
 
   DP_TEST_END ("test_hbdecim_r2c_core");

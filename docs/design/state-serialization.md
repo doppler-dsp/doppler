@@ -236,7 +236,9 @@ A **pointer-free** struct *is* its own state — snapshot it whole. Defines all
 three functions; place it once beside `reset`. Restoring the config fields is a
 harmless no-op into an identically-built instance. An embedded **POD child**
 (e.g. a `dp_loop_filter_state_t` by value) is captured automatically, so a
-composition of by-value POD members is still one `DP_DEFINE_POD_STATE`.
+composition of by-value POD members is still one `DP_DEFINE_POD_STATE`,
+**unless a member has a checked predicate**: then the composition needs the
+checked form, with that member's predicate ANDed into its own `OK`.
 
 <!-- docs-snippet: skip=usage excerpt (real macro invocation, but not a standalone compilable program) -->
 
@@ -245,6 +247,21 @@ composition of by-value POD members is still one `DP_DEFINE_POD_STATE`.
 DP_DEFINE_POD_STATE(dp_loop_filter, dp_loop_filter_state_t,
                     LOOP_FILTER_STATE_MAGIC, LOOP_FILTER_STATE_VERSION)
 ```
+
+**Checked POD — `DP_DEFINE_POD_STATE_CHECKED(pfx, STATE_T, MAGIC, VERSION, OK)`.**
+Use this when a blob can carry a value that would be dangerous or unreachable
+in a live instance. `OK(const STATE_T *)` is a predicate the object writes. The
+snapshot is decoded into a temporary, `OK` is asked, and only a snapshot it
+accepts is committed; otherwise `set_state` returns `DP_ERR_INVALID` and the
+object is untouched. Any state `create()` and the object's own methods can
+reach must satisfy `OK`. The all-zero state of an embedding that has not yet
+run its init is reachable, so `OK` must accept it, unless that state is
+unusable. Then `OK` refuses it, and the embedder must run its init before it
+snapshots: symsync refuses `avgs == 0`, because `lock_sum / avgs` is infinite
+and declares lock on noise. The unchecked `DP_DEFINE_POD_STATE` is this with an
+always-true predicate, and is correct only for an object none of whose values
+a blob can make dangerous or unreachable. A ring head is an example of a value
+that needs `OK`: check it with `dp_ring_head_ok(head, cap)`.
 
 ### Field-wise — `DP_GET_OPEN` / `DP_SET_OPEN`
 
@@ -273,7 +290,12 @@ void dp_delay_get_state(const dp_delay_state_t *s, void *blob)
 int dp_delay_set_state(dp_delay_state_t *s, const void *blob)
 {
   DP_SET_OPEN(DELAY_STATE_MAGIC, DELAY_STATE_VERSION, dp_delay_state_bytes(s));
-  s->head = (size_t)dp_r_u64(&_r);
+  /* The head indexes the ring, and the envelope never reads it: check it
+     with the ring predicate before anything is written. */
+  size_t head = (size_t)dp_r_u64(&_r);
+  if (!dp_ring_head_ok(head, s->capacity))
+    return DP_ERR_INVALID;
+  s->head = head;
   dp_r_bytes(&_r, s->buf, 2 * s->capacity * sizeof(double _Complex));
   return DP_OK;
 }
@@ -441,7 +463,9 @@ converters, FFT plans, by-value analyzers) are exempt.
     ([What goes in the blob](#what-goes-in-the-blob-a-mutators-value-is-state)). Pick
     the macro for the shape (see [Helper macros](#helper-macros-the-three-serializer-shapes)):
 
-    - **pointer-free POD** → `DP_DEFINE_POD_STATE(...)` (one line).
+    - **pointer-free POD** → `DP_DEFINE_POD_STATE(...)` (one line); with a
+        value a blob can make dangerous or unreachable,
+        `DP_DEFINE_POD_STATE_CHECKED(..., OK)`.
     - **owns heap buffers** → field-wise with `DP_GET_OPEN`/`DP_SET_OPEN` + the
         `dp_w_*`/`dp_r_*` cursors; skip pointers (re-derived by `create()`).
     - **composition** → `DP_W_CHILD`/`DP_R_CHILD` over each serializable child.

@@ -3,6 +3,8 @@
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include <math.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -209,6 +211,26 @@ main (void)
         == 0);
     dp_delay_destroy (a);
     dp_delay_destroy (b);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * #2142: a forged head is refused, the object untouched          *
+   * ---------------------------------------------------------------- */
+  {
+    /* dp_delay_ptr reads the window at &buf[head] with no push first, so a
+       head at or past the capacity read out of bounds. Blob: [hdr][head]. */
+    dp_delay_state_t *d = dp_delay_create (4);
+    DP_CHECK (d != NULL);
+    dp_delay_push (d, 1.0);
+    const size_t bad[] = { d->capacity, SIZE_MAX };
+    for (size_t i = 0; i < sizeof bad / sizeof *bad; i++)
+      {
+        const uint64_t v = (uint64_t)bad[i];
+        DP_STATE_FORGE_TEST (dp_delay, d, DELAY_STATE_MAGIC,
+                             DELAY_STATE_VERSION, sizeof (dp_state_hdr_t), &v,
+                             sizeof v);
+      }
+    dp_delay_destroy (d);
   }
 
   DP_TEST_END ("test_delay_core");

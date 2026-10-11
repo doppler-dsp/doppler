@@ -64,7 +64,13 @@ dp_delay_set_state (dp_delay_state_t *s, const void *blob)
 {
   DP_SET_OPEN (DELAY_STATE_MAGIC, DELAY_STATE_VERSION,
                dp_delay_state_bytes (s));
-  s->head = (size_t)dp_r_u64 (&_r);
+  /* The head indexes the ring (dp_delay_ptr reads the window at
+     &buf[head] with no push first), and the envelope never reads it: a
+     forged one is refused before anything is written (#2142). */
+  size_t head = (size_t)dp_r_u64 (&_r);
+  if (!dp_ring_head_ok (head, s->capacity))
+    return DP_ERR_INVALID;
+  s->head = head;
   dp_r_bytes (&_r, s->buf, 2 * s->capacity * sizeof (double _Complex));
   return DP_OK;
 }

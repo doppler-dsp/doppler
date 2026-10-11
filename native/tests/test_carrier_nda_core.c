@@ -27,8 +27,11 @@
 #include "doppler/dp_complex.h"
 #include "doppler/mpsk/mpsk_core.h"
 #include "dp_rng_test.h"
+#include "dp_state_test.h"
 #include "dp_test.h"
 #include <math.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -747,6 +750,56 @@ main (void)
       DP_CHECK (fabs ((double)s_edge[mi] - (double)s_edge[0])
                 <= 0.25 * (double)s_edge[0]);
     free (rx);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * #2142: a forged arm or verdict is refused, the object untouched          *
+   * ---------------------------------------------------------------- */
+  {
+    /* The boxcar arm is embedded by value, so its forged pos wrote past the
+       struct exactly as a standalone boxcar's did; the lock verdict is 0/1. */
+    dp_carrier_nda_state_t *s
+        = dp_carrier_nda_create (0.01, 0.707, 0.01, 8, 4, 4);
+    DP_CHECK (s != NULL);
+    const size_t pos_off  = sizeof (dp_state_hdr_t)
+                            + offsetof (dp_carrier_nda_state_t, arm)
+                            + offsetof (dp_boxcar_state_t, pos);
+    const size_t lock_off = sizeof (dp_state_hdr_t)
+                            + offsetof (dp_carrier_nda_state_t, lockdet)
+                            + offsetof (dp_lockdet_state_t, locked);
+    const size_t past     = BOXCAR_MAX_LEN;
+    const int    seven    = 7;
+    DP_STATE_FORGE_TEST (dp_carrier_nda, s, CARRIER_NDA_STATE_MAGIC,
+                         CARRIER_NDA_STATE_VERSION, pos_off, &past,
+                         sizeof past);
+    DP_STATE_FORGE_TEST (dp_carrier_nda, s, CARRIER_NDA_STATE_MAGIC,
+                         CARRIER_NDA_STATE_VERSION, lock_off, &seven,
+                         sizeof seven);
+    dp_carrier_nda_destroy (s);
+  }
+
+  /* The shared round trip, on a driven object. a and b come from create()
+   * with nothing driven into either. b is then stepped, so its state differs
+   * from a's, and the single DP_STATE_ROUNDTRIP_TEST call runs its
+   * determinism, fidelity, every-byte and envelope-reject legs against that
+   * driven b. Two fresh objects would make the fidelity leg unable to fail
+   * (#2148 r3). */
+  {
+    dp_carrier_nda_state_t *a
+        = dp_carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 4);
+    dp_carrier_nda_state_t *b
+        = dp_carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 4);
+    DP_CHECK (a != NULL && b != NULL);
+    if (a && b)
+      {
+        float _Complex x[256], y[256];
+        for (size_t i = 0; i < 256; i++)
+          x[i] = (0.3f + 0.01f * (float)i) + I * (0.2f - 0.003f * (float)i);
+        (void)dp_carrier_nda_steps (b, x, 256, y, 256);
+        DP_STATE_ROUNDTRIP_TEST (dp_carrier_nda, a, b);
+      }
+    dp_carrier_nda_destroy (a);
+    dp_carrier_nda_destroy (b);
   }
 
   DP_TEST_END ("test_carrier_nda_core");

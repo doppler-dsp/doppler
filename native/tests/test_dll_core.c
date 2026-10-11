@@ -122,7 +122,7 @@ forged_is_refused (dp_dll_state_t *x, size_t off, const void *val, size_t len,
   dp_dll_get_state (x, now);
   const int failed = rc != DP_ERR_INVALID || memcmp (now, before, cb) != 0;
   if (failed)
-    fprintf (stderr, "  refused blob: %s\n", what);
+    DP_TEST_ERR ("  refused blob: %s\n", what);
   free (before);
   free (bad);
   free (now);
@@ -218,7 +218,7 @@ refused_blob_changes_nothing (void)
       dp_dll_get_state (b, now);
       if (rc != DP_ERR_INVALID || memcmp (now, before, cb) != 0)
         {
-          fprintf (stderr, "  refused blob: %s\n", what[k]);
+          DP_TEST_ERR ("  refused blob: %s\n", what[k]);
           fails++;
         }
     }
@@ -248,13 +248,13 @@ refused_blob_changes_nothing (void)
     (void)dp_dll_steps (all[k], rx + nrx / 2, nrx - nrx / 2, out, 64);
   if (dp_tlm_read (tlm, 512, recs, 512) == 0)
     {
-      fprintf (stderr, "  refused blob: the refusing instance went silent\n");
+      DP_TEST_ERR ("  refused blob: the refusing instance went silent\n");
       fails++;
     }
   if (fabs (dp_dll_get_code_rate (b) - 1.0) > 1e-2
       || fabs (dp_dll_get_code_rate (c) - 1.0) > 1e-2)
     {
-      fprintf (stderr, "  refused blob: a refusal moved the loop\n");
+      DP_TEST_ERR ("  refused blob: a refusal moved the loop\n");
       fails++;
     }
   free (before);

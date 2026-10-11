@@ -88,7 +88,7 @@ scratch_leave (void)
       link[n] = 0;
       if (strncmp (link, scratch_dir, strlen (scratch_dir)) == 0)
         {
-          fprintf (stderr, "  still open at exit: %s\n", link);
+          DP_TEST_ERR ("  still open at exit: %s\n", link);
           DP_CHECK_MSG (0, "every file the test opened is closed");
         }
     }
@@ -107,7 +107,7 @@ scratch_leave (void)
           {
             snprintf (p, sizeof p, "%s/%s", scratch_dir, fd.name);
             if (remove (p) != 0)
-              fprintf (stderr, "  could not remove %s\n", fd.name);
+              DP_TEST_ERR ("  could not remove %s\n", fd.name);
           }
       while (_findnext (h, &fd) == 0);
       _findclose (h);
@@ -119,7 +119,7 @@ scratch_leave (void)
       {
         snprintf (p, sizeof p, "%s/%s", scratch_dir, e->d_name);
         if (remove (p) != 0)
-          fprintf (stderr, "  could not remove %s\n", e->d_name);
+          DP_TEST_ERR ("  could not remove %s\n", e->d_name);
       }
   if (d)
     closedir (d);

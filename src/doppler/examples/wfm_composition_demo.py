@@ -173,13 +173,10 @@ ax[0, 0].grid(alpha=0.3)
 # B: timeline spectrogram
 s = spectrogram_db(x)
 assert s.shape == (256, (len(x) - 256) // 64 + 1), s.shape
-# The CW is the strongest line outside the QPSK band, and the last frame lies
-# inside the scene: its bin follows from the tone frequency and the FFT size.
+# The CW is the strongest line in the last frame, which lies inside the scene,
+# so the column's argmax is its bin: DC plus the tone's offset in bins.
 cw_bin = 256 // 2 + round(CW_HZ / FS * 256)
-assert abs(int(np.argmax(s[:, -1])) - cw_bin) <= 1, (
-    np.argmax(s[:, -1]),
-    cw_bin,
-)
+assert int(np.argmax(s[:, -1])) == cw_bin, (np.argmax(s[:, -1]), cw_bin)
 ax[0, 1].imshow(
     s,
     aspect="auto",

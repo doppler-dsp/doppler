@@ -20,7 +20,11 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "Spectrogram"
-depends_on = ["fft_core", "spectral_core", { name = "psd", link = true }]
+# The push kernel reaches the framer (f32_buffer_core), which needs the
+# interrupt primitive, so the object links the process-wide guard declaratively
+# and the module joins its rendezvous (doppler#976). A link jm cannot see is a
+# module that keeps its own flag.
+depends_on = ["fft_core", "spectral_core", { name = "psd", link = true }, { name = "dp_interrupt_guard", link = true }]
 serializable = "true"
 fragment = "generated"
 create_error = "ValueError"

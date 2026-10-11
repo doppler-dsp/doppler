@@ -921,7 +921,8 @@ sweep_state (int emit)
             resume += rb + rc != r_n
                       || rows_differing (got, want, r_n, nfft) != 0;
 
-            /* another window is NOT refused; the rows that follow are its */
+            /* another window is REFUSED (#2102): counted if it is taken, and
+               a taken one must not write a row */
             for (size_t k = rb * nfft; k < (r_n + 2) * nfft; k++)
               got[k] = NAN;
             if (dp_spectrogram_set_state (v, b1) != DP_OK)
@@ -936,7 +937,7 @@ sweep_state (int emit)
                                  != 0;
               }
 
-            /* nor is another mode; the rows that follow are its units */
+            /* another mode is REFUSED too (#2102): counted if taken */
             for (size_t k = rb * nfft; k < (r_n + 2) * nfft; k++)
               got[k] = NAN;
             if (dp_spectrogram_set_state (u, b1) != DP_OK)

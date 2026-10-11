@@ -8,4 +8,5 @@
 - **AWGN state blobs written before v2, and `wfm_synth` blobs that embed one,
     no longer restore.** A v1 `AWGN` blob is refused; a noisy synth blob
     written since v0.61 embeds one and is refused as a length error. The synth
-    blob version is unchanged (3) for now; the refusal is the record of it.
+    blob version is unchanged (3); the owner decides whether to bump the synth
+    version, and the refusal is the record until then.

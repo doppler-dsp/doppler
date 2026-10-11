@@ -67,7 +67,7 @@ def _schedule(rng, *, pull, length):
         if roll < 0.05:
             events.append(("timeout",))
             continue
-        if roll < 0.06:
+        if roll < 0.055:  # rare, so a sequence climbs past MAX_BEHIND first
             events.append(("eos",))
             seq = 0  # the next producer counts from 0
             continue
@@ -246,6 +246,18 @@ def test_a_read_that_raises_acks_the_frames_it_took(monkeypatch):
     with pytest.raises(RuntimeError, match="link down"):
         src.read(64)
     assert src._pull.acked == [0, 1]
+
+
+def test_the_receive_budget_turns_a_hang_into_a_failure(monkeypatch):
+    """A source that never acks is cut off, not left to redeliver forever."""
+    frames = [
+        (np.ones(4, np.complex64), {**HDR, "sequence": k}) for k in (0, 1)
+    ]
+    fake = type("Fake", (_ScheduledPull,), {"frames": frames, "budget": 1})
+    monkeypatch.setattr(doppler.stream, "Pull", fake)
+    src = PullSource(ADDR, timeout_ms=10)
+    with pytest.raises(AssertionError, match="never acked"):
+        src.read(64)
 
 
 def test_a_read_that_fails_mid_packet_still_acks_that_frame(monkeypatch):

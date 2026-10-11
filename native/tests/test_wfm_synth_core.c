@@ -6,6 +6,7 @@
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include <math.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -567,6 +568,17 @@ main (void)
     dp_wfm_synth_get_state (a, blob);
     DP_CHECK (dp_wfm_synth_set_state (b, blob) == 0);
     DP_CHECK (b->sym_read_idx == a->sym_read_idx);
+    /* A v3 blob (before #2084 grew the embedded AWGN blob) has the same
+       magic and endian but version 3. Forge only the version field, on a
+       copy, so the length is right and the VERSION check alone refuses it. */
+    {
+      uint8_t *old = malloc (nb);
+      memcpy (old, blob, nb);
+      const uint16_t v3 = 3u;
+      memcpy (old + offsetof (dp_state_hdr_t, version), &v3, sizeof v3);
+      DP_CHECK (dp_wfm_synth_set_state (b, old) == DP_ERR_INVALID);
+      free (old);
+    }
     dp_wfm_synth_steps (b, cont, 88); /* resume from the split */
     int ok = 1;
     for (int i = 0; i < 40; i++)

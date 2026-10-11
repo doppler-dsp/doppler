@@ -134,8 +134,9 @@ window is a spectrogram, one row per window, which `Spectrogram` provides.
 ## The source handshake
 
 Every front end runs one loop, `SpecanEngine.step(source)`: read a block of
-`engine.block_size` samples, process it, and, when the frame's FFT size
-changes, tell the source the frame's `data_size`. The terminal, the web server
+`engine.block_size` samples, process it, and, when the frame's `data_size`
+changes (a span or rbw change rebuilds the chain), tell the source the new
+`data_size`. The terminal, the web server
 and the recorder all call it, so they cannot disagree about what the source
 was told.
 

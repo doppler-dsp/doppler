@@ -91,8 +91,8 @@ class SpecanEngine:
         self._data_size: int = 0
         self._span: float = 0.0
         self._block_size: int = 4096
-        # The FFT size the source was last told (see step()).
-        self._announced_fft_size: int = 0
+        # The data size the source was last told (see step()).
+        self._announced_data_size: int = 0
 
     # ------------------------------------------------------------------
     # Lazy initialisation / reconfiguration
@@ -267,7 +267,7 @@ class SpecanEngine:
     def step(self, source: Source) -> SpectrumFrame | None:
         iq, fs, cf = source.read(self._block_size)
         frame = self.process(iq, fs, cf)
-        if frame is not None and frame.fft_size != self._announced_fft_size:
-            self._announced_fft_size = frame.fft_size
+        if frame is not None and frame.data_size != self._announced_data_size:
+            self._announced_data_size = frame.data_size
             source.set_fft_size(frame.data_size)
         return frame

@@ -1673,9 +1673,7 @@ class CorrDetector2D:
 
 @final
 class PSD:
-    """Create an averaging PSD estimator with a frame hop: frame k covers
-    stream samples [k*hop, k*hop + n). hop = n is the non-overlapping frame
-    dp_psd_create() makes.
+    """Create an averaging PSD estimator whose frames are spaced by a hop.
 
     Parameters
     ----------
@@ -1706,23 +1704,24 @@ class PSD:
         rule is the AccTrace averager's, whose create refuses anything else, so
         this does too. Ignored, and so not checked, in the other modes.
     hop : int, default 0
-        Samples between frame starts, 1..n; 0 means n, so a binding can default
-        to the frame dp_psd_create makes. A hop above n (a gap between frames)
-        is refused: the framer holds no sample it has not been told to keep.
+        Samples between frame starts, 1..n. 0 means n, which gives
+        non-overlapping frames; the default. A hop above n would leave samples
+        between frames that are never kept, so it is refused.
 
     Raises
     ------
     ValueError
         If construction fails. The exception message is ``PSD: invalid
         parameter (need n >= 2, pad >= 1 with n * pad within the largest FFT,
-        finite fs > 0, bits <= 64, a finite full_scale > 0 when bits = 0, a
-        window whose taps sum to a finite nonzero value (not hann at n = 2, nor
-        a NaN or overflowing kaiser beta), and in exp mode 0 < alpha <= 1)``.
+        finite fs > 0, bits <= 64, hop in 1..n (0 = n), a finite full_scale > 0
+        when bits = 0, a window whose taps sum to a finite nonzero value (not
+        hann at n = 2, nor a NaN or overflowing kaiser beta), and in exp mode 0
+        < alpha <= 1)``.
 
     Examples
     --------
     >>> from doppler.spectral import PSD
-    >>> w = PSD(n=1024, fs=1.0e6, window="kaiser", beta=8.0, mode="mean")
+    >>> w = PSD(n=1024, fs=1.0e6, window="kaiser", beta=8.0, mode="mean", hop=512)
     >>> w.n, w.fs
     (1024, 1000000.0)
     >>> round(w.rbw / (w.fs / w.n), 3) == round(w.enbw, 3)
@@ -1773,8 +1772,13 @@ class PSD:
         """
 
     def accumulate_real(self, x: npt.NDArray[np.float32]) -> None:
-        """Window, zero-pad, FFT and fold floor(n_in/n) real frames into the
-        average.
+        """Window, zero-pad, FFT and fold the whole real frames of a block into
+        the average, at hop = n. A trailing partial frame is dropped.
+
+        This call stays on whole frames at hop = n: it folds floor(n_in / n)
+        frames and drops a trailing partial frame. It neither reads nor writes
+        the carry of the complex accumulate call, so mixing the two on one
+        object mixes two streams, and a hop below n is not used by this call.
 
         Parameters
         ----------

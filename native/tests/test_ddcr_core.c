@@ -183,8 +183,8 @@ test_freq_port_is_the_lo_axis (void)
       amax = fmaxf (amax, cabsf (outB[i]));
     }
   if (!(dmax <= 1e-4f * amax))
-    fprintf (stderr, "freq port vs LO: max |diff| %.3g at peak |out| %.3g\n",
-             (double)dmax, (double)amax);
+    DP_TEST_ERR ("freq port vs LO: max |diff| %.3g at peak |out| %.3g\n",
+                 (double)dmax, (double)amax);
   DP_CHECK (amax > 0.0f && dmax <= 1e-4f * amax);
   DP_CHECK (dp_ddcr_get_norm_freq (a) == 0.0); /* centre untouched */
 
@@ -280,7 +280,7 @@ test_matched_recovers_symbols (void)
 
   DP_CHECK (best < -50.0); /* measured -59.8 dB (halfband cascade) */
   if (best >= -50.0)
-    fprintf (stderr, "  matched DdcR EVM: %.1f dB\n", best);
+    DP_TEST_ERR ("  matched DdcR EVM: %.1f dB\n", best);
 }
 
 /* The CIC's silent input bound reaches through the real front end too. */

@@ -25,8 +25,8 @@ expect (const char *s, uint64_t want)
   const uint64_t got = dp_hash64 (DP_HASH64_INIT, s, strlen (s));
   if (got != want)
     {
-      fprintf (stderr, "FAIL dp_hash64(\"%s\") = 0x%016llx, want 0x%016llx\n",
-               s, (unsigned long long)got, (unsigned long long)want);
+      DP_TEST_ERR ("FAIL dp_hash64(\"%s\") = 0x%016llx, want 0x%016llx\n", s,
+                   (unsigned long long)got, (unsigned long long)want);
       DP_RECORD_FAIL ();
       return;
     }

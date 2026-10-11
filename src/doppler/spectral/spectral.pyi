@@ -1773,7 +1773,9 @@ class PSD:
 
     def accumulate_real(self, x: npt.NDArray[np.float32]) -> None:
         """Window, zero-pad, FFT and fold the whole real frames of a block into
-        the average, at hop = n. A trailing partial frame is dropped.
+        the average, at hop = n. A trailing partial frame is dropped. It
+        neither reads nor writes the carry of the complex accumulate, so mixing
+        the two on one object mixes two streams.
 
         This call stays on whole frames at hop = n: it folds floor(n_in / n)
         frames and drops a trailing partial frame. It neither reads nor writes

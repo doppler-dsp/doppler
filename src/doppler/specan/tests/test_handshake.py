@@ -21,9 +21,9 @@ from doppler.specan.source import DemoSource
 class _RecordingSource(DemoSource):
     # A demo source that keeps every ``set_fft_size`` it is given.
 
-    def __init__(self) -> None:
+    def __init__(self, sample_rate: float = 1e6) -> None:
         super().__init__(
-            sample_rate=1e6, center_freq=0.0, tone_freq=1e5, seed=3
+            sample_rate=sample_rate, center_freq=0.0, tone_freq=1e5, seed=3
         )
         self.announced: list[int] = []
 
@@ -46,7 +46,7 @@ class _SpyEngine(SpecanEngine):
         return frame
 
 
-def _first_frame(step, limit: int = 200):
+def _first_frame(step, limit: int = 1000):
     # Call ``step`` until it returns a frame; fail if it never does.
     for _ in range(limit):
         frame = step()
@@ -115,3 +115,19 @@ def test_one_dbm_definition_is_the_one_the_engine_offsets_by():
     for dbm in (-90.0, -20.0, 0.0, 13.0):
         expected = 10.0 ** ((dbm - DBM_AT_UNIT_AMPLITUDE) / 20.0)
         assert dbm_to_amplitude(dbm) == pytest.approx(expected)
+
+
+def test_an_rbw_change_after_the_first_frame_re_announces():
+    # At 2.048 MHz a 4 kHz to 8 kHz rbw change halves data_size (1024 to 512);
+    # the source must be told the new size, not keep scaling by the old one.
+    cfg = SpecanConfig(fs=2.048e6, rbw=4000.0)
+    engine = _SpyEngine(cfg)
+    source = _RecordingSource(sample_rate=2.048e6)
+
+    first = _first_frame(lambda: engine.step(source))
+    cfg.rbw = 8000.0
+    engine.zoom(cfg.span)
+    second = _first_frame(lambda: engine.step(source))
+
+    assert second.data_size != first.data_size
+    assert source.announced == [first.data_size, second.data_size]

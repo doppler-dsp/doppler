@@ -1963,6 +1963,12 @@ main (void)
    * 0 means n: it is the same object as dp_psd_create() of the same config and
    * averages to the same bits. */
   {
+    /* The smallest window past the ring's size limit is refused, with no
+     * ring: the pad check alone admits it, so the size check refuses it. */
+    DP_CHECK (
+        dp_psd_create_hop (((size_t)-1) / (2 * sizeof (float _Complex)) + 1,
+                           1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0, 0)
+        == NULL);
     const size_t ns[] = { 32, 64, 100 };
     for (size_t i = 0; i < sizeof ns / sizeof ns[0]; i++)
       {

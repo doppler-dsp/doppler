@@ -345,7 +345,7 @@ test_forged_state_refused (void)
       const int rc = dp_awgn_set_state (dst, bad);
       dp_awgn_get_state (dst, after);
       if (rc != DP_ERR_INVALID)
-        fprintf (stderr, "  forged blob accepted: %s\n", forge[k].what);
+        DP_TEST_ERR ("  forged blob accepted: %s\n", forge[k].what);
       DP_CHECK (rc == DP_ERR_INVALID);
       DP_CHECK (memcmp (after, before, sb) == 0);
       free (bad);

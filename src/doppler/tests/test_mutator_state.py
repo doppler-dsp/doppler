@@ -216,6 +216,12 @@ class Mutator:
     stream: bool = False  # its input is the object's stream
     handle: bool = False  # it attaches a handle to the outside world
     accessor: bool = False  # jm's capacity query for a variable_output call
+    # The C first parameter is const-qualified: the call cannot mutate state,
+    # so it is a reader by the prototype, not by observation (see _pure).
+    pure: bool = False
+    # The parameters the manifest declares `out = true`: a buffer the call
+    # fills, not a value it keeps (see _outs).
+    outs: tuple[str, ...] = ()
 
     @property
     def key(self) -> str:
@@ -423,6 +429,37 @@ def _is_accessor(d: Declared, name: str) -> bool:
     return bool(base and base.get("variable_output"))
 
 
+def _outs(d: Declared, name: str) -> tuple[str, ...]:
+    """The parameters the manifest declares ``out = true`` for this method.
+
+    Read from the manifest's own ``params``, so a buffer the call fills is
+    known by the declaration, never by its name.
+    """
+    md = d.method(name) or {}
+    return tuple(
+        str(p["name"]) for p in md.get("params", []) if p.get("out") is True
+    )
+
+
+def _pure(d: Declared, name: str) -> bool:
+    """A value-returning method whose C first parameter is const.
+
+    The C prototype the manifest binds is ``<ret> dp_<comp>_<name>(const
+    <state>_t *s, ...)``: a const state pointer proves the call cannot write
+    through it, so the method is a reader by the header, not by probing. A
+    void method is not a reader, const or not, because it returns nothing.
+    """
+    md = d.method(name) or {}
+    if md.get("return_type") in (None, "void"):
+        return False
+    header = ROOT / "native" / "inc" / "doppler" / d.comp / f"{d.comp}_core.h"
+    if not header.exists():
+        return False
+    text = re.sub(r"/\*.*?\*/", "", header.read_text("utf-8"), flags=re.S)
+    cname = re.escape(f"dp_{d.comp}_{name}")
+    return bool(re.search(rf"\b{cname}\s*\(\s*const\s+\w+\s*\*", text))
+
+
 def _c_only(cls: str, comp: str, bound: set[str]) -> list[Mutator]:
     header = ROOT / "native" / "inc" / "doppler" / comp / f"{comp}_core.h"
     if not header.exists():
@@ -474,6 +511,8 @@ def discover() -> list[Mutator]:
                     accessor=_is_accessor(d, m)
                     and sig is not None
                     and all(_bare(q.ann) == "int" for q in sig[0]),
+                    pure=_pure(d, m),
+                    outs=_outs(d, m),
                 )
             )
         if d.view is None:  # a view shares its parent's core and its header
@@ -632,10 +671,33 @@ def _values(ann: str, lengths: list[int], seed: int) -> list[Any]:
     return _scalar_candidates(a)
 
 
+# The sizes an out buffer is offered at, beyond _lengths: a call that fills a
+# buffer refuses one too small, so the probe must reach the object's own row
+# width. A recipe's nfft is not always one of _lengths, so the default
+# (256) and a larger one (1024) are offered as well; a size that is refused is
+# skipped like any refused value.
+_OUT_LENGTHS = (256, 1024)
+
+
+def _out_buffers(p: Param, obj: Any) -> list[Any]:
+    """Buffers for an out parameter: the call fills them, so their content is
+    not a value and is not varied. Offered at every length the probe knows."""
+    dt = _dtype(_bare(p.ann))
+    if dt is None:
+        return _values(p.ann, _lengths(obj), 0)
+    sizes = dict.fromkeys([*_lengths(obj), *_OUT_LENGTHS])
+    return [_array(dt, n, seed=n) for n in sizes]
+
+
 def _calls(mut: Mutator, obj: Any) -> Iterator[Call]:
     """Candidate calls over the required parameters."""
     assert mut.params is not None
-    per = [_values(p.ann, _lengths(obj), i) for i, p in enumerate(mut.params)]
+    per = [
+        _out_buffers(p, obj)
+        if p.name in mut.outs
+        else _values(p.ann, _lengths(obj), i)
+        for i, p in enumerate(mut.params)
+    ]
     if not per:
         return iter([Call(())])
     # Each param starts at its own offset, so two params of one type are
@@ -962,17 +1024,20 @@ def probe(mut: Mutator, make, feed) -> Verdict:
                     break
         return _judge(mut, make, feed, cands, valued=True, may_read=False)[0]
     obj = _warm(make, feed)
+    # A declared out buffer is not a value the call keeps, so only the rest
+    # of the required parameters count as values (the manifest's out = true).
+    values = [p for p in (mut.params or ()) if p.name not in mut.outs]
     verdict, vals = _judge(
         mut,
         make,
         feed,
         _calls(mut, obj),
-        valued=bool(mut.params) and not mut.stream,
+        valued=bool(values) and not mut.stream,
         # An inert call taking a value it does not visibly keep is no
         # reader: it may be a setter the recipe cannot see. Only a call
         # with no value, a stream call (a pure transform of its input), or
         # jm's declared capacity query reads.
-        may_read=not mut.params or mut.stream or mut.accessor,
+        may_read=not values or mut.stream or mut.accessor,
     )
     if not vals:
         return verdict
@@ -1031,6 +1096,13 @@ def _verdict(mut: Mutator) -> Verdict:
         return Verdict("C_ONLY", "no Python face to probe")
     if mut.handle:
         return Verdict("HANDLE")
+    if mut.pure:
+        # Provably a reader: the C prototype takes the state const, so no
+        # probe can show a write that the signature forbids.
+        return Verdict(
+            "READS",
+            "its C first parameter is const: a query that cannot write state",
+        )
     recipes = _RECIPES.get(mut.cls)
     if not recipes:
         return Verdict("NO_RECIPE", "no row in test_state_serialization.CASES")

@@ -62,6 +62,7 @@
 validate_acq_surface_jitter            221.9
 validate_async_dsss_pool_soak_budget   138.3
 validate_async_dsss_pool_soak          128.1
+validate_power_to_db_sweep             68.0  # every float32 (#2094): 28.9s here x 2.35, the CI/workstation ratio above, until CI's first run re-records it
 validate_async_dsss_receiver_release    34.7
 validate_receiver_pullin                26.1
 validate_acq_peak_list                  23.2

@@ -471,3 +471,72 @@ given exact room. So a step on unchanged row names at the next release can
 be the method, not the code. This run's merged set
 (`benchmarks/published/v0.66.0-a4/`) stays on the measuring machine. It is a
 characterization, not a release's published numbers.
+
+______________________________________________________________________
+
+### 5.11 The fast dB conversion (2026-10-10) — #2094, #2074
+
+**Question.** The #2094 baseline (5.12) measures the dB conversion,
+`frame_db − frame_linear`, at 5.1–5.3 ns per bin, 67–81% of a dB frame: a
+divide, a clamp, a double `log10` and a cast per bin. 5.12 is this entry's
+before; U3 (§5.8) found the same share before #2113's rows existed. The owner's decision on
+#2074 is a faster `log10` by default, 0.01 dB its budget, exact precision
+opt-in only if a caller ever needs it. This entry is the conversion that
+replaced it, `dp_power_to_db_f32`, and what it achieves.
+
+**How.** log2 of a float is its exponent plus log2 of its mantissa. The
+mantissa is reduced to \[√½, √2), and log2(1 + t) there is t·q(t), with q a
+cubic fitted by iteratively reweighted least squares, close to minimax. The
+t·q(t) form makes log2(1) exactly 0, so every power of two converts exactly.
+The last step, (e + log2 m)·10·log10 2, is a double product rounded once. A
+float split constant would make k·10·log10 2 exact as well, but the library's
+`-ffast-math` re-associated it and 14 powers of two missed by an ulp. One
+select reads exactly −200 below 1e-20, PSD's floor.
+
+| fit degree | max \|log2 error\| | max error, dB |
+| ---------- | ------------------ | ------------- |
+| 2          | 8.6e-4             | 2.6e-3        |
+| **3**      | 1.0e-4             | 3.1e-4        |
+| 4          | 1.5e-5             | 4.5e-5        |
+
+Degree 3 is inside the 0.01 dB budget by a factor of thirty; degree 2 by
+four.
+
+**Achieved bound, exhaustive.** `validate_power_to_db_sweep` converts every
+positive finite float32 through the vectorized call: 1.63 × 10⁹ values at or
+above the floor, 5.1 × 10⁸ below it. **The worst error is 3.25e-4 dB**, at
+1.79 × 10³⁰. Every value below the floor reads exactly −200, and so do all
+2.14 × 10⁹ negative floats. It runs in `make test-sweep`, 28.9 s on this
+machine. A sampled tier in `make test` covers every exponent, its extremes and
+2¹⁶ mantissas each, and also asserts 5e-4 dB, so a degraded polynomial is
+caught long before the contract is. With the polynomial's last term dropped,
+both tiers fail at 0.029 dB.
+
+**Speed, indicative** (unpinned, WSL2, portable build, ns per frame). **What
+this change is judged by is `frame_db − frame_linear`**, 5.12's split column,
+measured pinned on main after it lands against 5.12's before. This branch
+predates #2113's `frame_linear` row, so the table below measured
+`frame_db − frame_power`. That is the conversion plus the normalisation
+(about 0.16 ns per bin in 5.12): about 3% of the conversion before, and
+about 17% of it after, so it overstates the after.
+
+Conversion and normalisation, `frame_db − frame_power`, before → after:
+
+| nfft  | conversion before | after  | ratio | `frame_db` before | after   |
+| ----- | ----------------- | ------ | ----- | ----------------- | ------- |
+| 256   | 1,535             | 235    | 6.5×  | 1,921             | 620     |
+| 1024  | 6,011             | 964    | 6.2×  | 7,714             | 2,646   |
+| 4096  | 23,782            | 3,889  | 6.1×  | 32,141            | 12,218  |
+| 16384 | 94,463            | 16,215 | 5.8×  | 132,515           | 53,928  |
+| 65536 | 398,008           | 66,758 | 6.0×  | 583,708           | 248,342 |
+
+At `nfft` 1024 the conversion and normalisation fall from 78% of a
+`frame_db` to 36%.
+
+**What it moved.** Every PSD dB reading, `frame_db` and the Spectrogram's dB
+rows, is now `dp_power_to_db_f32` of the matching linear value, bit for bit
+(pinned in `test_psd_core.c`). So a display that converts only the power bins
+it draws gets exactly the dB rows. A dB reading off a power of two moves by
+up to 3.25e-4 dB. The exact `log10` path is removed, not kept. The other dB
+converters in the library are #2108, to switch or to say why they keep
+double.

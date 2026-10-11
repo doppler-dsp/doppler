@@ -35,6 +35,7 @@
  *      that follow are the restoring object's, not the blob's source's
  *  15. a row arrives with the push that delivers its last sample: zero
  *      latency in samples
+ *  16. a dB row IS dp_power_to_db_f32 of the power row, bit for bit
  *
  * Sections 2 to 15 run once per mode, power (the default) first: every
  * claim but a row's units is the same in both, and a row's units are pinned
@@ -47,6 +48,7 @@
  * The rule push follows is the framer's feed contract: a sample is taken
  * unless it would complete a row out has no room for.
  */
+#include "doppler/spectral/spectral_core.h"
 #include "doppler/spectrogram/spectrogram_core.h"
 
 #include "dp_chunk_inv.h"
@@ -1276,6 +1278,41 @@ main (void)
     dp_psd_destroy (p);
     dp_spectrogram_destroy (s);
     free (cfg);
+  }
+
+  /* ---- 16. a dB row IS dp_power_to_db_f32 of the power row (#2094) ---- */
+  /* The header's claim, across modes: the same stream into a power and a dB
+     spectrogram, and every dB row equals the library's one dB conversion of
+     the matching power row, bit for bit, so converting power rows is
+     exactly the dB mode. Every window, an overlapping hop. */
+  {
+    const size_t nfft = 64, hop = 24;
+    const size_t rows = (NX - nfft) / hop + 1;
+    float       *pw   = (float *)malloc (rows * nfft * sizeof *pw);
+    float       *db   = (float *)malloc (rows * nfft * sizeof *db);
+    float       *want = (float *)malloc (rows * nfft * sizeof *want);
+    DP_REQUIRE (pw && db && want);
+    int same = 1;
+    for (int w = 0; w < 4; w++)
+      {
+        dp_spectrogram_state_t *a
+            = dp_spectrogram_create (nfft, hop, w, 7.5f, DP_SPECTROGRAM_POWER);
+        dp_spectrogram_state_t *b
+            = dp_spectrogram_create (nfft, hop, w, 7.5f, DP_SPECTROGRAM_DB);
+        DP_REQUIRE (a && b);
+        DP_REQUIRE (dp_spectrogram_push (a, x, NX, pw, rows * nfft)
+                    == rows * nfft);
+        DP_REQUIRE (dp_spectrogram_push (b, x, NX, db, rows * nfft)
+                    == rows * nfft);
+        dp_power_to_db_f32 (pw, rows * nfft, want);
+        same &= memcmp (db, want, rows * nfft * sizeof *db) == 0;
+        dp_spectrogram_destroy (a);
+        dp_spectrogram_destroy (b);
+      }
+    DP_CHECK (same);
+    free (pw);
+    free (db);
+    free (want);
   }
 
   /* Every section after 1, in each mode. A failure's file:line is the same

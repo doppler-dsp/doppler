@@ -275,26 +275,28 @@ psd_db_ref (const dp_psd_state_t *s)
 }
 
 /* pwr[0..n) read against the estimator's reference -- the one conversion
- * every averaged readout and both single-frame readouts go through.  Linear
- * (full-scale^2 units, into `lin`) and dBFS with the -200 dB floor (into
- * `db`) come from the SAME double quotient, so the dB reading is exactly
- * 10*log10 of the linear one before either is rounded to float.  Taking the
- * log of the float-rounded linear value instead would move dB by up to an
- * ulp, and frame_db is pinned byte-for-byte (#1894's kernel promotion).
- * Either output may be NULL. */
+ * every averaged readout and both single-frame readouts go through.  The
+ * quotient pwr / (cg^2 * full_scale^2) is taken in double and rounded to
+ * float once.  A linear reading (full-scale^2 units) is that float, and a
+ * dB reading is dp_power_to_db_f32 of it, the library's one dB conversion
+ * (#2094), whose floor is PSD's -200 dB.  So a dB reading is that function
+ * of the linear one, bit for bit, and a caller who converts linear readings
+ * gets exactly PSD's dB.  pwr is the estimator's own scratch: a dB reading
+ * leaves the quotient in it.  Exactly one of lin and db is non-NULL. */
 static void
-psd_read_power (const dp_psd_state_t *s, const float *pwr, float *lin,
-                float *db, size_t n)
+psd_read_power (const dp_psd_state_t *s, float *pwr, float *lin, float *db,
+                size_t n)
 {
   const double ref = psd_db_ref (s);
-  for (size_t i = 0; i < n; i++)
+  if (lin)
     {
-      const double p = (double)pwr[i] / ref;
-      if (lin)
-        lin[i] = (float)p;
-      if (db)
-        db[i] = (float)(10.0 * log10 (fmax (p, PSD_FLOOR)));
+      for (size_t i = 0; i < n; i++)
+        lin[i] = (float)((double)pwr[i] / ref);
+      return;
     }
+  for (size_t i = 0; i < n; i++)
+    pwr[i] = (float)((double)pwr[i] / ref);
+  dp_power_to_db_f32 (pwr, n, db);
 }
 
 /* Fill out[0..n-1] with the averaged power spectrum in dBFS, where n is

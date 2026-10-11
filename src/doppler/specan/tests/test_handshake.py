@@ -1,12 +1,4 @@
-# The source/engine FFT-size handshake, once, for every front end (#2159).
-#
-# Each front end reads, processes and then tells the source the frame's
-# ``data_size``: the Kaiser window and RBW frame length, the value a source
-# needs to scale its noise and tones. Before #2159 the terminal did this, the
-# recorder told the source the cropped display bin count instead, and the web
-# server never told it at all. Each test below drives one front end's real
-# frame path against a source that records what it was told, and asserts the
-# source was told the ``data_size`` of the frames that front end produced.
+# FFT-size handshake, per front end; the contract is in docs/design/specan.md.
 
 
 from __future__ import annotations

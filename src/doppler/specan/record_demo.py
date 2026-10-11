@@ -26,9 +26,7 @@ if TYPE_CHECKING:
     from doppler.specan.source import Source
 
 
-# Drives the engine from the source and keeps n_frames after warmup frames are
-# dropped, so filters settle first. The read and the FFT-size handshake are
-# engine.step's, the same loop the live front ends run.
+# Warm up, then keep n_frames; the handshake is engine.step's.
 def collect_frames(
     engine: SpecanEngine,
     source: Source,

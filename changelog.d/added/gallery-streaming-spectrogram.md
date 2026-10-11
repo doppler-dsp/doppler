@@ -1,0 +1,1 @@
+- **A gallery page for the streaming spectrogram.** One chirp and one tone, as power rows and as dB rows, with the stream and figure code included from `spectrogram_demo.py` and its checks gating the figure's data (Refs #1894).

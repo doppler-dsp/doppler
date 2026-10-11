@@ -191,6 +191,9 @@ dev = [
     "mdformat-gfm-alerts==2.1.0; python_version >= '3.10'",
     "mdformat-mkdocs==5.2.1; python_version >= '3.10'",
     "pre-commit>=4.0",
+    "fastapi>=0.100",
+    "uvicorn[standard]>=0.23",
+    "websockets>=12.0",
 ]
 # Docs toolchain is intentionally separate from dev so wheel builds can
 # uv sync --no-group docs and avoid a docs-dep network blip failing a release.

@@ -531,7 +531,8 @@ dp_wfm_synth_state_bytes (const dp_wfm_synth_state_t *s)
      at the checkpoint, rather than a blob that resumes the wrong data. */
   if (dp_wfm_synth_state_refusal (s))
     return 0;
-  size_t b = sizeof (dp_state_hdr_t) + sizeof (uint32_t) /* sym_pos      */
+  size_t b = sizeof (dp_state_hdr_t) + sizeof (uint32_t) /* wtype        */
+             + sizeof (uint32_t)                         /* sym_pos      */
              + 2 * sizeof (float)                        /* cur_re/im    */
              + sizeof (uint64_t)                         /* bit_idx      */
              + sizeof (uint64_t)                         /* sym_read_idx */
@@ -565,6 +566,7 @@ dp_wfm_synth_get_state (const dp_wfm_synth_state_t *s, void *blob)
     return; /* refused: state_bytes said 0 */
   DP_GET_OPEN (WFM_SYNTH_STATE_MAGIC, WFM_SYNTH_STATE_VERSION,
                dp_wfm_synth_state_bytes (s));
+  dp_w_u32 (&_w, (uint32_t)s->wtype);
   dp_w_u32 (&_w, (uint32_t)s->sym_pos);
   dp_w_f32 (&_w, &s->cur_re, 1);
   dp_w_f32 (&_w, &s->cur_im, 1);
@@ -608,6 +610,13 @@ dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
     return DP_ERR_INVALID;
   DP_SET_OPEN (WFM_SYNTH_STATE_MAGIC, WFM_SYNTH_STATE_VERSION,
                dp_wfm_synth_state_bytes (s));
+  /* The type is a mutator's value (set_wtype), so it travels. It is checked
+     with set_wtype's own predicate before anything is written; the shaper's
+     presence is the target's, since the child set is checked below. */
+  const int wt = (int)dp_r_u32 (&_r);
+  if (!wfm_synth_runnable (s, wt, s->shaper != NULL))
+    return DP_ERR_INVALID;
+  s->wtype   = wt;
   s->sym_pos = (int)dp_r_u32 (&_r);
   dp_r_f32 (&_r, &s->cur_re, 1);
   dp_r_f32 (&_r, &s->cur_im, 1);

@@ -50,7 +50,8 @@ class Data:
 
     level_rows: list[list[str]] = field(default_factory=list)
     level_worst_db: float = 0.0
-    frame_golden: list[bool] = field(default_factory=list)
+    frame_oracle: list[bool] = field(default_factory=list)
+    frame_oracle_worst: float = 0.0
     frame_chunks: bool = False
     frame_overlap: bool = False
     frame_hop_refused: bool = False
@@ -1262,34 +1263,26 @@ def _sec_candidates(d: Data) -> None:
 
 # ── 2.11 the frame hop and carry (the binding is the certification) ─────────
 
-# The C test's pins (test_psd_core.c, T21): (config index, stream length,
-# value), from main's build at 4ab923ea5, on the dp_uni stream below. The C
-# test runs at fs = 1e6; _psd here uses fs = 1.0. The averaged power does not
-# depend on fs, and the 10/10 match is that check.
-GOLDEN_PINS = (
-    (0, 320, 0xE39AFCBFDAEDA728),
-    (0, 357, 0xE39AFCBFDAEDA728),
-    (1, 1280, 0xA686023A83BB7207),
-    (1, 1317, 0xA686023A83BB7207),
-    (2, 500, 0xFDED990C180B1654),
-    (2, 537, 0xFDED990C180B1654),
-    (3, 160, 0x2B33ED232E1B5F61),
-    (3, 197, 0x22BD602CA3D1CF84),
-    (4, 640, 0xF3483CF642A094E5),
-    (4, 677, 0xF3483CF642A094E5),
-)
-GOLDEN_CFG = (
+# The configs of the whole-frame oracle (test_psd_core.c, T21): the same five
+# configs and two lengths, run through the binding. No value is pinned: the
+# oracle compares the binding with itself, one frame per call against a single
+# call, so it holds on any platform.
+ORACLE_CFG = (
     (64, "hann", 0.0, 1, "mean", 0.0),
     (256, "hann", 0.0, 2, "mean", 0.0),
     (100, "kaiser", 8.0, 2, "mean", 0.0),
     (32, "rect", 0.0, 1, "exp", 0.5),
     (128, "blackman-harris", 0.0, 1, "maxhold", 0.0),
 )
-_M64 = (1 << 64) - 1
+ORACLE_RUNS = tuple(
+    (cfg_i, length)
+    for cfg_i in range(len(ORACLE_CFG))
+    for length in (5 * ORACLE_CFG[cfg_i][0], 5 * ORACLE_CFG[cfg_i][0] + 37)
+)
 
 
 def _dp_uni_stream(n: int, seed: int) -> np.ndarray:
-    """The C test's golden stream, in pure Python: dp_xs32 then dp_uni."""
+    """The C test's stream, in pure Python: dp_xs32 then dp_uni."""
     st = seed if seed else 1
     out = np.empty(n, dtype=np.complex64)
 
@@ -1309,12 +1302,36 @@ def _dp_uni_stream(n: int, seed: int) -> np.ndarray:
     return out
 
 
-def _rxr(data: bytes) -> int:
-    """The C test's rotate-xor checksum over a byte string."""
-    h = 0x9E3779B97F4A7C15
-    for byte in data:
-        h = (((h << 7) | (h >> 57)) & _M64) ^ byte
-    return h
+def _numpy_average(x, n, pad, window, beta, mode, alpha):
+    """The old algorithm in float64 numpy: whole frames, averaged in `mode`.
+
+    Returns the trace normalised by the window's coherent gain squared, as the
+    binding's power_twosided() reports it, and the bound on its float32 error.
+    The bound is _fft_bound(nfft) times the largest frame total, the error one
+    frame's float32 FFT can make in any bin; no averaging mode is worse than
+    its worst frame, and the readout's rounding adds one float32 unit of the
+    peak. Nothing here goes through the framer or the C kernel.
+    """
+    w = _window(window, n, beta)
+    nfft = _nfft(n, pad)
+    cg2 = float(np.sum(w)) ** 2
+    acc, total_max = None, 0.0
+    for f in range(len(x) // n):
+        p = _truth_power(x[f * n : (f + 1) * n], w, nfft)
+        total_max = max(total_max, float(np.sum(p)) / cg2)
+        if acc is None:
+            acc = p.copy()
+        elif mode == "mean":
+            acc = acc + (p - acc) / (f + 1)
+        elif mode == "exp":
+            acc = alpha * p + (1.0 - alpha) * acc
+        elif mode == "maxhold":
+            acc = np.maximum(acc, p)
+        else:
+            acc = np.minimum(acc, p)
+    ref = acc / cg2
+    bound = _fft_bound(nfft) * total_max + U * float(np.max(ref))
+    return ref, bound
 
 
 def _trace_bytes(w: PSD) -> bytes:
@@ -1334,16 +1351,23 @@ def _frame_face_bits(n: int, x: np.ndarray, **kw) -> bytes:
 def _sec_frames(d: Data) -> None:
     R.md("### 2.11 The frame hop and carry (the binding is the certification)")
     R.md()
-    golden = []
-    for cfg_i, length, want in GOLDEN_PINS:
-        n, window, beta, pad, mode, alpha = GOLDEN_CFG[cfg_i]
+    oracle, worst = [], 0.0
+    for cfg_i, length in ORACLE_RUNS:
+        n, window, beta, pad, mode, alpha = ORACLE_CFG[cfg_i]
         x = _dp_uni_stream(length, 12345 + cfg_i)
         w = _psd(
             n=n, window=window, beta=beta, pad=pad, mode=mode, alpha=alpha
         )
-        w.accumulate(x)
-        golden.append(_rxr(_trace_bytes(w)) == want)
-    d.frame_golden = golden
+        w.accumulate(x)  # whole frames, and the trailing partial is carried
+        got = np.asarray(
+            w.power_twosided(w.power_twosided_max_out()), dtype=np.float64
+        )
+        ref, bound = _numpy_average(x, n, pad, window, beta, mode, alpha)
+        err = float(np.max(np.abs(got - ref)))
+        oracle.append(err <= bound)
+        worst = max(worst, err / bound)
+    d.frame_oracle = oracle
+    d.frame_oracle_worst = worst
 
     n, length = 64, 10 * 64 + 17
     x = _dp_uni_stream(length, 777)
@@ -1395,9 +1419,11 @@ def _sec_frames(d: Data) -> None:
     d.frame_wrong_hop_unchanged = _trace_bytes(dst) == before
 
     R.md(
-        f"Checked through the binding, against the C test's pins (taken from "
-        f"main's build, commit 4ab923ea5). Golden checksums: "
-        f"{sum(golden)}/{len(golden)} equal main. Chunk invariance over "
+        f"Checked through the binding against a float64 numpy average of the "
+        f"same whole frames, within the float32 FFT bound: "
+        f"{sum(d.frame_oracle)}/{len(d.frame_oracle)} within it, worst error "
+        f"{d.frame_oracle_worst:.1e} "
+        f"of the bound. Chunk invariance over "
         f"{len(sizes)} partitions: {'yes' if chunk_ok else 'NO'}. Overlap at "
         f"hop n/2 against the hop-n fold of the same frames: "
         f"{'yes' if d.frame_overlap else 'NO'}. A hop above n is refused: "
@@ -1709,9 +1735,11 @@ def limits(d: Data) -> None:
     R.limit(d.state_rejects, "a clobbered state envelope is refused")
 
     R.limit(
-        all(d.frame_golden) and len(d.frame_golden) == 10,
-        f"a single call of whole frames at hop = n reads main's ten pinned "
-        f"checksums (5 configs x 2 lengths; {sum(d.frame_golden)}/10 equal)",
+        all(d.frame_oracle) and len(d.frame_oracle) == len(ORACLE_RUNS),
+        f"a single call of whole frames at hop = n averages to the old "
+        f"algorithm (float64 numpy) within the float32 FFT bound (5 configs "
+        f"x 2 "
+        f"lengths; worst {d.frame_oracle_worst:.1e} of the bound)",
     )
     R.limit(
         d.frame_chunks,

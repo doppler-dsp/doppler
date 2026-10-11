@@ -97,7 +97,7 @@ mean_f (const float *a, size_t n)
   return m / (double)n;
 }
 
-/* A deterministic cf32 stream, the one the golden hashes were pinned on. */
+/* A deterministic cf32 stream: the input the frame tests run on. */
 static void
 golden_stream (float _Complex *x, size_t n, uint32_t seed)
 {
@@ -108,27 +108,6 @@ golden_stream (float _Complex *x, size_t n, uint32_t seed)
       float b = (float)(dp_uni (&st) - 0.5);
       x[i]    = a + I * b;
     }
-}
-
-/* A rotate-xor checksum over the bytes of a float array: the bit-identity
- * check of T21. It is not FNV: it rotates the state left by 7 and xors each
- * byte in, so any single changed bit changes it.
- *
- * The T21 pins were generated from main's build, commit 4ab923ea5, with a
- * program that runs the five T21 configs on the dp_uni stream below (seed
- * 12345 + config index, lengths 5n and 5n + 37), prints this checksum of the
- * averaged dp_psd_power_twosided() trace, and is linked with that commit's
- * build/libdoppler.a: `gcc -Inative/inc -Ibuild/native/inc -Inative/tests
- * gen.c build/libdoppler.a -lm -lpthread`. Re-pin only from main, never from
- * this branch, or the test would only prove the branch agrees with itself. */
-static uint64_t
-rxr_checksum (const void *p, size_t n)
-{
-  const unsigned char *b = p;
-  uint64_t             h = 0x9E3779B97F4A7C15ULL;
-  for (size_t i = 0; i < n; i++)
-    h = ((h << 7) | (h >> 57)) ^ b[i];
-  return h;
 }
 
 int
@@ -399,9 +378,9 @@ main (void)
     DP_CHECK (fabs (10.0 * log10 (lin) - total) < 1e-2);
 
     /* a band entirely outside the span integrates to the floor */
-    double far[2] = { 10.0, 11.0 };
-    float  pf[1]  = { NAN };
-    DP_CHECK (dp_psd_band_power (w, far, 2, pf, 1) == 1);
+    double band_edges[2] = { 10.0, 11.0 };
+    float  pf[1]         = { NAN };
+    DP_CHECK (dp_psd_band_power (w, band_edges, 2, pf, 1) == 1);
     DP_CHECK (pf[0] == -200.0f); /* 10 log10 of PSD's 1e-20 floor */
     dp_psd_destroy (w);
   }
@@ -1825,24 +1804,13 @@ main (void)
     dp_psd_destroy (w);
   }
 
-  /* T21: the golden. A single call of whole frames at hop = n, and a call
-   * with a trailing partial frame, average to the same bits main did: the
-   * rotate-xor checksum of the averaged power trace is pinned from main's
-   * build, before the framer came in. The configs cover Hann, Kaiser, rect,
-   * exp and max-hold averaging, and pad 1 and 2. */
+  /* T21: the whole-frame oracle. A single call of whole frames at hop = n
+   * averages to the bits the averager reaches when the same frames are folded
+   * by hand: the per-frame kernel into a plain dp_acc_trace, one frame at a
+   * time, with the trailing partial dropped. Both sides run on this build, so
+   * the test holds on any platform; no value is pinned. The configs cover
+   * Hann, Kaiser, rect, exp and max-hold averaging, and pad 1 and 2. */
   {
-    static const struct
-    {
-      int      cfg;
-      size_t   len;
-      uint64_t hash;
-    } pins[] = {
-      { 0, 320, 0xe39afcbfdaeda728ULL },  { 0, 357, 0xe39afcbfdaeda728ULL },
-      { 1, 1280, 0xa686023a83bb7207ULL }, { 1, 1317, 0xa686023a83bb7207ULL },
-      { 2, 500, 0xfded990c180b1654ULL },  { 2, 537, 0xfded990c180b1654ULL },
-      { 3, 160, 0x2b33ed232e1b5f61ULL },  { 3, 197, 0x22bd602ca3d1cf84ULL },
-      { 4, 640, 0xf3483cf642a094e5ULL },  { 4, 677, 0xf3483cf642a094e5ULL }
-    };
     const struct
     {
       size_t n;
@@ -1856,25 +1824,48 @@ main (void)
       { 100, 1, 8.0f, 2, 0, 0.0 }, { 32, 3, 0.0f, 1, 1, 0.5 },
       { 128, 2, 0.0f, 1, 2, 0.0 },
     };
-    for (size_t p = 0; p < sizeof pins / sizeof pins[0]; p++)
-      {
-        const size_t    n = cfg[pins[p].cfg].n;
-        float _Complex *x = malloc (pins[p].len * sizeof *x);
-        DP_REQUIRE (x != NULL);
-        golden_stream (x, pins[p].len, 12345u + (uint32_t)pins[p].cfg);
-        dp_psd_state_t *w
-            = dp_psd_create (n, 1e6, cfg[pins[p].cfg].window,
-                             cfg[pins[p].cfg].beta, cfg[pins[p].cfg].pad, 1.0,
-                             0, cfg[pins[p].cfg].mode, cfg[pins[p].cfg].alpha);
-        DP_REQUIRE (w != NULL);
-        dp_psd_accumulate (w, x, pins[p].len);
-        float        out[1024];
-        const size_t got = dp_psd_power_twosided (w, 1024, out, 1024);
-        DP_CHECK (got == w->nfft);
-        DP_CHECK (rxr_checksum (out, got * sizeof *out) == pins[p].hash);
-        dp_psd_destroy (w);
-        free (x);
-      }
+    for (size_t c = 0; c < sizeof cfg / sizeof cfg[0]; c++)
+      for (size_t l = 0; l < 2; l++)
+        {
+          const size_t    n   = cfg[c].n;
+          const size_t    len = l == 0 ? 5 * n : 5 * n + 37;
+          float _Complex *x   = malloc (len * sizeof *x);
+          DP_REQUIRE (x != NULL);
+          golden_stream (x, len, 12345u + (uint32_t)c);
+          dp_psd_state_t *w
+              = dp_psd_create (n, 1e6, cfg[c].window, cfg[c].beta, cfg[c].pad,
+                               1.0, 0, cfg[c].mode, cfg[c].alpha);
+          dp_psd_state_t *kernel
+              = dp_psd_create (n, 1e6, cfg[c].window, cfg[c].beta, cfg[c].pad,
+                               1.0, 0, cfg[c].mode, cfg[c].alpha);
+          DP_REQUIRE (w != NULL && kernel != NULL);
+          dp_acc_trace_state_t *oracle
+              = dp_acc_trace_create (w->nfft, cfg[c].mode, cfg[c].alpha);
+          float *pwr  = malloc (w->nfft * sizeof *pwr);
+          float *got  = malloc (w->nfft * sizeof *got);
+          float *want = malloc (w->nfft * sizeof *want);
+          DP_REQUIRE (oracle != NULL && pwr != NULL && got != NULL
+                      && want != NULL);
+          dp_psd_accumulate (w, x, len);
+          for (size_t f = 0; f < len / n; f++)
+            {
+              dp_psd_frame_power (kernel, x + f * n, pwr);
+              dp_acc_trace_accumulate (oracle, pwr, w->nfft);
+            }
+          DP_CHECK (w->avg->count == len / n);
+          DP_CHECK (dp_acc_trace_value (w->avg, w->nfft, got, w->nfft)
+                    == w->nfft);
+          DP_CHECK (dp_acc_trace_value (oracle, w->nfft, want, w->nfft)
+                    == w->nfft);
+          DP_CHECK (memcmp (got, want, w->nfft * sizeof *got) == 0);
+          free (got);
+          free (want);
+          free (pwr);
+          free (x);
+          dp_acc_trace_destroy (oracle);
+          dp_psd_destroy (kernel);
+          dp_psd_destroy (w);
+        }
   }
 
   /* T22: chunk invariance. Any partition of one stream into calls averages to

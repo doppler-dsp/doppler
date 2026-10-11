@@ -1,12 +1,123 @@
-"""A streaming spectrogram of a tone that changes frequency."""
+"""A streaming spectrogram of a chirp and a tone, in power and dB rows."""
 
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 import numpy as np
 
 from doppler.spectral import Spectrogram
 
 NFFT = 256
+HOP = 64
 FS = 1.0e6
 N_SEG = 8 * NFFT  # each tone is held for eight frames (rows)
+
+
+# --8<-- [start:stream]
+def stream_rows(x: np.ndarray, mode: str, hop: int) -> np.ndarray:
+    """Push x in arbitrary chunks and return every row the stream produces.
+
+    The chunk sizes are random and not multiples of the frame, so the rows are
+    the same however the stream is cut: that is the object's contract.
+    """
+    sp = Spectrogram(nfft=NFFT, hop=hop, window="hann", mode=mode)
+    rows = []
+    rng = np.random.default_rng(0)
+    pos = 0
+    while pos < x.size:
+        size = int(rng.integers(1, 3 * NFFT))
+        block = sp.push(x[pos : pos + size])
+        if block is not None:  # None: this push completed no row
+            rows.append(block)
+        pos += size
+    tail = np.empty(NFFT, np.float32)
+    if sp.flush(tail):  # a trailing partial frame, zero-padded, if one is owed
+        rows.append(tail[None, :])
+    return np.concatenate(rows)
+
+
+# --8<-- [end:stream]
+
+
+# --8<-- [start:figure]
+def make_figure(out_path: str = "spectrogram_demo.png") -> None:
+    """Draw a chirp and a tone as power rows and as dB rows, and check them.
+
+    The chirp sweeps from -0.4 fs to +0.4 fs over the whole capture; the tone
+    sits at +0.2 fs at half amplitude, a quarter of the power. The axes are
+    DC-centred, so a frequency reads straight off the horizontal axis.
+    """
+    n = np.arange(16 * NFFT * 4)
+    t = n / FS
+    total = t[-1] + 1.0 / FS
+    f0, f1 = -0.4 * FS, 0.4 * FS
+    k = (f1 - f0) / total
+    chirp = np.exp(2j * np.pi * (f0 * t + 0.5 * k * t * t))
+    # On a bin centre: 51 bins of 256 is 0.199 fs, so the reading is the bin's
+    # own -6.02 dB, not the window's off-bin scalloping.
+    f_tone = 51 * FS / NFFT
+    tone = 0.5 * np.exp(2j * np.pi * f_tone * t)
+    x = (chirp + tone).astype(np.complex64)
+
+    power = stream_rows(x, "power", HOP)
+    db = stream_rows(x, "db", HOP)
+    assert power.shape == db.shape
+
+    # Physical checks, each a claim about the figure's data:
+    # 1. The chirp's peak bin tracks the sweep: its frequency at the frame's
+    #    centre, to within one bin, on every row clear of the tone.
+    rows = np.arange(power.shape[0])
+    centre = (rows * HOP + NFFT / 2) / FS
+    expect_hz = f0 + k * centre
+    bin_hz = FS / NFFT
+    far = np.abs(expect_hz - f_tone) > 4 * bin_hz
+    peak_hz = (power.argmax(axis=1) - NFFT // 2) * bin_hz
+    assert np.all(np.abs(peak_hz[far] - expect_hz[far]) <= bin_hz), np.abs(
+        peak_hz[far] - expect_hz[far]
+    ).max()
+    # 2. The tone reads a quarter of full scale in power rows, and -6.02 dB in
+    #    dB rows, on its own bin, where the chirp is not.
+    quiet = np.argmax(np.abs(expect_hz - f_tone) > 4 * bin_hz)
+    tone_bin = NFFT // 2 + 51
+    assert abs(power[quiet, tone_bin] - 0.25) < 0.02, power[quiet, tone_bin]
+    assert abs(db[quiet, tone_bin] - (-6.02)) < 0.2, db[quiet, tone_bin]
+
+    fig, (ax_p, ax_d) = plt.subplots(1, 2, figsize=(11, 5), sharey=True)
+    # MHz across; ms down, with row 0 (time 0) at the top of the panel.
+    extent = (-0.5, 0.5, total * 1e3, 0.0)
+    im_p = ax_p.imshow(
+        power,
+        origin="upper",
+        aspect="auto",
+        extent=extent,
+        vmin=0.0,
+        vmax=1.0,
+        cmap="magma",
+    )
+    im_d = ax_d.imshow(
+        db,
+        origin="upper",
+        aspect="auto",
+        extent=extent,
+        vmin=-90.0,
+        vmax=0.0,
+        cmap="magma",
+    )
+    ax_p.set_title("power rows (linear, the default)")
+    ax_d.set_title("dB rows (dBFS, asked for by name)")
+    for ax in (ax_p, ax_d):
+        ax.set_xlabel("frequency (MHz, DC-centred)")
+        ax.axvline(0.0, color="w", lw=0.5, ls=":")
+    ax_p.set_ylabel("time (ms)")
+    fig.colorbar(im_p, ax=ax_p, label="power (full scale = 1)")
+    fig.colorbar(im_d, ax=ax_d, label="level (dBFS)")
+    fig.suptitle("A chirp and a tone, one row per 64 samples")
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
+# --8<-- [end:figure]
 
 
 def main() -> None:
@@ -16,22 +127,7 @@ def main() -> None:
     bins = np.where(n < N_SEG, 32, 96)
     x = np.exp(2j * np.pi * bins * n / NFFT).astype(np.complex64)
 
-    sp = Spectrogram(nfft=NFFT, hop=NFFT, window="hann", mode="power")
-
-    rows = []
-    rng = np.random.default_rng(0)
-    pos = 0
-    while pos < x.size:
-        # Chunks of arbitrary size, not multiples of NFFT.
-        size = int(rng.integers(1, 3 * NFFT))
-        block = sp.push(x[pos : pos + size])
-        if block is not None:  # None: this push completed no row
-            rows.append(block)
-        pos += size
-    tail = np.empty(NFFT, np.float32)
-    if sp.flush(tail):  # a trailing partial frame, zero-padded, if one is owed
-        rows.append(tail[None, :])
-    spectrogram = np.concatenate(rows)
+    spectrogram = stream_rows(x, "power", NFFT)
 
     # Physical checks, each one a claim about the result:
     # 1. Every whole frame produced exactly one row, and none is missing.
@@ -50,6 +146,7 @@ def main() -> None:
         f"{spectrogram.shape[0]} rows of {NFFT} bins; "
         f"tone moved 32 -> 96 at row 8; peak power {peak.mean():.3f}"
     )
+    make_figure()
 
 
 if __name__ == "__main__":

@@ -72,7 +72,7 @@ _AccTrace — per-bin vector trace accumulator._ [More...](#detailed-description
 |  int | [**dp\_acc\_trace\_set\_alpha**](#function-dp_acc_trace_set_alpha) ([**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state, double alpha) <br>_Set the EMA smoothing factor, under_ [_**dp\_acc\_trace\_create()**_](acc__trace__core_8h.md#function-dp_acc_trace_create) _'s rule._ |
 |  int | [**dp\_acc\_trace\_set\_state**](#function-dp_acc_trace_set_state) ([**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state, const void \* blob) <br> |
 |  size\_t | [**dp\_acc\_trace\_state\_bytes**](#function-dp_acc_trace_state_bytes) (const [**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state) <br> |
-|  size\_t | [**dp\_acc\_trace\_value**](#function-dp_acc_trace_value) ([**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state, size\_t n, float \* out, size\_t max\_out) <br>_Return the current reduced trace, one value per bin. Copies the full length-n trace out to the caller and returns the number of samples written; the Python wrapper turns that into a fresh float32 array of the reduced trace (the running mean, EMA, max-hold, or min-hold, per the construction_ `mode` _). Before any frame has been accumulated the trace is empty: the count is 0, which the wrapper renders as_`None` _. Reading is non-destructive — the running trace keeps accumulating across later frames._ |
+|  size\_t | [**dp\_acc\_trace\_value**](#function-dp_acc_trace_value) ([**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state, size\_t n, float \* out, size\_t max\_out) <br>_Return the current reduced trace, one value per bin. Writes the length-n reading out to the caller (in mean mode the per-bin sum divided by the count, in double, then rounded; otherwise the trace itself) and returns the number of samples written; the Python wrapper turns that into a fresh float32 array of the reduced trace (the running mean, EMA, max-hold, or min-hold, per the construction_ `mode` _). Before any frame has been accumulated the trace is empty: the count is 0, which the wrapper renders as_`None` _. Reading is non-destructive — the running trace keeps accumulating across later frames._ |
 |  size\_t | [**dp\_acc\_trace\_value\_max\_out**](#function-dp_acc_trace_value_max_out) ([**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state) <br>_Output capacity hint for value(); equals the trace length n._  |
 
 
@@ -106,7 +106,7 @@ _AccTrace — per-bin vector trace accumulator._ [More...](#detailed-description
 | Type | Name |
 | ---: | :--- |
 | define  | [**ACC\_TRACE\_STATE\_MAGIC**](acc__trace__core_8h.md#define-acc_trace_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A','T','R','C')`<br> |
-| define  | [**ACC\_TRACE\_STATE\_VERSION**](acc__trace__core_8h.md#define-acc_trace_state_version)  `2u`<br> |
+| define  | [**ACC\_TRACE\_STATE\_VERSION**](acc__trace__core_8h.md#define-acc_trace_state_version)  `3u`<br> |
 
 ## Detailed Description
 
@@ -115,7 +115,7 @@ Folds a stream of equal-length frames into a single running trace using one of f
 
 
 The first frame seeds the trace in every mode; subsequent frames update it:
-* mean : `acc += (p - acc) / count` (Welford running mean)
+* mean : `acc += p`, a per-bin sum; value() divides by count
 * exp : `acc = alpha*p + (1-alpha)*acc` (EMA)
 * maxhold : `acc = max(acc, p)` per bin
 * minhold : `acc = min(acc, p)` per bin
@@ -398,7 +398,7 @@ size_t dp_acc_trace_state_bytes (
 
 ### function dp\_acc\_trace\_value 
 
-_Return the current reduced trace, one value per bin. Copies the full length-n trace out to the caller and returns the number of samples written; the Python wrapper turns that into a fresh float32 array of the reduced trace (the running mean, EMA, max-hold, or min-hold, per the construction_ `mode` _). Before any frame has been accumulated the trace is empty: the count is 0, which the wrapper renders as_`None` _. Reading is non-destructive — the running trace keeps accumulating across later frames._
+_Return the current reduced trace, one value per bin. Writes the length-n reading out to the caller (in mean mode the per-bin sum divided by the count, in double, then rounded; otherwise the trace itself) and returns the number of samples written; the Python wrapper turns that into a fresh float32 array of the reduced trace (the running mean, EMA, max-hold, or min-hold, per the construction_ `mode` _). Before any frame has been accumulated the trace is empty: the count is 0, which the wrapper renders as_`None` _. Reading is non-destructive — the running trace keeps accumulating across later frames._
 ```C++
 size_t dp_acc_trace_value (
     dp_acc_trace_state_t * state,
@@ -483,7 +483,7 @@ size_t dp_acc_trace_value_max_out (
 ### define ACC\_TRACE\_STATE\_VERSION 
 
 ```C++
-#define ACC_TRACE_STATE_VERSION `2u`
+#define ACC_TRACE_STATE_VERSION `3u`
 ```
 
 

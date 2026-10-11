@@ -115,11 +115,23 @@ dp_costas_tlm_flush (const dp_costas_state_t *s)
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_locked, (double)s->lock.locked);
 }
 
+/* A snapshot this object could hold: its embedded detector's verdict is 0
+ * or 1 (dp_lockdet_state_ok, #2142). `tsamps` is not checked: a receiver
+ * embeds Costas loops by value and holds them all-zero until it seeds them,
+ * and that state round-trips. */
+static int
+costas_state_ok (const dp_costas_state_t *s)
+{
+  return dp_lockdet_state_ok (&s->lock);
+}
+
 /* Serializable state — pointer-free POD whole-struct snapshot, with the
- * telemetry attachment zeroed in blobs and kept live across restore
- * (see DP_DEFINE_POD_STATE_TLM in dp_state.h). */
-DP_DEFINE_POD_STATE_TLM (dp_costas, dp_costas_state_t, COSTAS_STATE_MAGIC,
-                         COSTAS_STATE_VERSION, tlm)
+ * telemetry attachment zeroed in blobs and kept live across restore, and a
+ * snapshot costas_state_ok() rejects refused untouched (see
+ * DP_DEFINE_POD_STATE_TLM_CHECKED in dp_state.h). */
+DP_DEFINE_POD_STATE_TLM_CHECKED (dp_costas, dp_costas_state_t,
+                                 COSTAS_STATE_MAGIC, COSTAS_STATE_VERSION, tlm,
+                                 costas_state_ok)
 
 void
 dp_costas_configure (dp_costas_state_t *state, double bn, double zeta)

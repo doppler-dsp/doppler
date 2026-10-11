@@ -369,7 +369,7 @@ dp_symsync_state_t * dp_symsync_create (
 
 **Returns:**
 
-Heap-allocated state, or NULL on allocation failure. 
+Heap-allocated state, or NULL for an `order` outside 0..2 or on allocation failure. 
 
 
 

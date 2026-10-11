@@ -1,0 +1,1 @@
+- **`hbdecim_q15` stays inside its ring on AVX2 builds with few taps.** A fold shorter than the padded tap count read before the window; it now takes the scalar path, with the same output (#2142, PR #2148).

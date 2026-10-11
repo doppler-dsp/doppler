@@ -63,12 +63,38 @@ typedef struct {
     int order;          /**< FARROW_LINEAR / _PARABOLIC / _CUBIC.      */
 } dp_farrow_state_t;
 
-/** @brief Initialise in place: set order, clear the delay line. */
+/**
+ * @brief Initialise in place: set order, clear the delay line.
+ *
+ * farrow_eval reads any order other than LINEAR or PARABOLIC as cubic, so
+ * init stores exactly that. The state then carries an order its own
+ * predicate accepts, and a round trip of a stream built with an out-of-range
+ * order does not fail on restore. The public create()
+ * still refuses such an order outright.
+ */
 JM_FORCEINLINE void
 farrow_init (dp_farrow_state_t *s, int order)
 {
     s->d[0] = s->d[1] = s->d[2] = s->d[3] = 0.0f;
-    s->order = order;
+    s->order = (order == FARROW_LINEAR || order == FARROW_PARABOLIC)
+                   ? order
+                   : FARROW_CUBIC;
+}
+
+/**
+ * @brief A Farrow state a blob may carry: one of the three orders.
+ *
+ * dp_farrow_create() refuses any other order, so a blob carrying one is
+ * forged, not a state (#2142). farrow_eval() would read it as cubic. Every
+ * set_state that carries a Farrow, by itself or embedded, refuses it.
+ *
+ * @param s  Decoded Farrow state. Must be non-NULL.
+ * @return Non-zero when `order` is FARROW_LINEAR, _PARABOLIC or _CUBIC.
+ */
+JM_FORCEINLINE int
+dp_farrow_state_ok (const dp_farrow_state_t *s)
+{
+    return s->order >= FARROW_LINEAR && s->order <= FARROW_CUBIC;
 }
 
 /** @brief Push one input sample into the delay line (oldest drops out). */
@@ -117,7 +143,8 @@ farrow_eval (const dp_farrow_state_t *s, float mu)
 /**
  * @brief Create a Farrow interpolator.
  * @param order  0 = linear, 1 = parabolic, 2 = cubic.
- * @return Heap-allocated state, or NULL on allocation failure.
+ * @return Heap-allocated state, or NULL for an order outside 0..2 or on
+ *         allocation failure.
  * @note Caller must call dp_farrow_destroy() when done.
  */
 dp_farrow_state_t *dp_farrow_create(int order);

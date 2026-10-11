@@ -14,8 +14,11 @@
 #include "doppler/costas/costas_core.h"
 #include "doppler/dp_complex.h"
 #include "dp_rng_test.h"
+#include "dp_state_test.h"
 #include "dp_test.h"
 #include <math.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -444,6 +447,36 @@ main (void)
       }
     dp_costas_destroy (c);
     dp_tlm_destroy (tlm);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * #2142: a forged verdict is refused, the object untouched *
+   * ---------------------------------------------------------------- */
+  {
+    /* The embedded detector's verdict is 0 or 1. */
+    dp_costas_state_t *c = dp_costas_create (0.05, 0.707, 0.01, 16, 0.0);
+    DP_CHECK (c != NULL);
+    const size_t lk    = sizeof (dp_state_hdr_t)
+                         + offsetof (dp_costas_state_t, lock)
+                         + offsetof (dp_lockdet_state_t, locked);
+    const int    seven = 7;
+    DP_STATE_FORGE_TEST (dp_costas, c, COSTAS_STATE_MAGIC,
+                         COSTAS_STATE_VERSION, lk, &seven, sizeof seven);
+
+    /* The all-zero state is a state: a receiver embeds Costas loops by
+       value and holds them zeroed until it seeds them, and its blob carries
+       them that way (tsamps 0, detector counts 0). It must round-trip. */
+    dp_costas_state_t zero;
+    memset (&zero, 0, sizeof zero);
+    unsigned char *blob = malloc (dp_costas_state_bytes (&zero));
+    DP_CHECK (blob != NULL);
+    if (blob)
+      {
+        dp_costas_get_state (&zero, blob);
+        DP_CHECK (dp_costas_set_state (c, blob) == DP_OK);
+        free (blob);
+      }
+    dp_costas_destroy (c);
   }
 
   DP_TEST_END ("test_costas_core");

@@ -32,6 +32,12 @@ extern "C"
     int locked;         
   } dp_lockdet_state_t;
 
+  JM_FORCEINLINE int
+  dp_lockdet_state_ok (const dp_lockdet_state_t *s)
+  {
+    return s->locked == 0 || s->locked == 1;
+  }
+
   void dp_lockdet_init(dp_lockdet_state_t *state, double up_thresh,
                     double down_thresh, uint32_t n_up, uint32_t n_down);
 

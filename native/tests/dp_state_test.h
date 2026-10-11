@@ -17,6 +17,7 @@
 #ifndef DP_STATE_TEST_H
 #define DP_STATE_TEST_H
 
+#include "doppler/dp_state.h"
 #include "dp_test.h"
 #include <stdlib.h>
 #include <string.h>
@@ -78,6 +79,58 @@
       DP_CHECK (pfx##_set_state ((b), _blob) == DP_ERR_INVALID);              \
       free (_blob);                                                           \
       free (_back);                                                           \
+    }                                                                         \
+  while (0)
+
+/*
+ * The FORGED-FIELD half (#2111, #2142).
+ *
+ * The envelope checks a blob's size, magic, version and endianness, never a
+ * payload field, so a blob with one field forged keeps its size and passes
+ * it. A set_state that takes an index or a flag from the payload unchecked
+ * then indexes out of bounds (boxcar's `pos` WROTE past its struct) or holds
+ * a state its object never could. So a forged field must be refused by the
+ * object's own check, and refused cleanly:
+ *
+ *   - the forgery changed the blob (else the case is vacuous);
+ *   - the envelope still passes, so it is the payload check that refuses;
+ *   - set_state on the SAME instance returns DP_ERR_INVALID;
+ *   - the instance is untouched: get_state is byte-identical to before;
+ *   - and the undoctored blob is accepted, the positive control.
+ *
+ * `off` is the field's byte offset from the start of the blob (so add
+ * sizeof (dp_state_hdr_t) to an offset into the payload), and the `n` bytes
+ * at `val` are written there.
+ */
+#define DP_STATE_FORGE_TEST(pfx, s, MAGIC, VERSION, off, val, n)              \
+  do                                                                          \
+    {                                                                         \
+      size_t         _fb  = pfx##_state_bytes (s);                            \
+      unsigned char *_g   = malloc (_fb);                                     \
+      unsigned char *_f   = malloc (_fb);                                     \
+      unsigned char *_pre = malloc (_fb);                                     \
+      unsigned char *_pos = malloc (_fb);                                     \
+      DP_CHECK (_g && _f && _pre && _pos && (size_t)(off) + (n) <= _fb);      \
+      if (_g && _f && _pre && _pos && (size_t)(off) + (n) <= _fb)             \
+        {                                                                     \
+          pfx##_get_state ((s), _g);                                          \
+          memcpy (_f, _g, _fb);                                               \
+          memcpy (_f + (off), (val), (n));                                    \
+          DP_CHECK (memcmp (_f, _g, _fb) != 0);                               \
+          DP_CHECK (dp_state_validate (_f, _fb, (MAGIC), (VERSION))           \
+                    == DP_OK);                                                \
+          pfx##_get_state ((s), _pre);                                        \
+          DP_CHECK (pfx##_set_state ((s), _f) == DP_ERR_INVALID);             \
+          pfx##_get_state ((s), _pos);                                        \
+          DP_CHECK (memcmp (_pre, _pos, _fb) == 0);                           \
+          DP_CHECK (pfx##_set_state ((s), _g) == DP_OK);                      \
+          pfx##_get_state ((s), _pos);                                        \
+          DP_CHECK (memcmp (_g, _pos, _fb) == 0);                             \
+        }                                                                     \
+      free (_g);                                                              \
+      free (_f);                                                              \
+      free (_pre);                                                            \
+      free (_pos);                                                            \
     }                                                                         \
   while (0)
 

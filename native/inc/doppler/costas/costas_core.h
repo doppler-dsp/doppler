@@ -262,7 +262,8 @@ void dp_costas_tlm_flush(const dp_costas_state_t *s);
 size_t dp_costas_state_bytes(const dp_costas_state_t *state);
 /** @brief Serialize the full loop state into @p blob. */
 void dp_costas_get_state(const dp_costas_state_t *state, void *blob);
-/** @brief Restore state; DP_OK, or DP_ERR_INVALID if the envelope rejects. */
+/** @brief Restore state; DP_OK, or DP_ERR_INVALID if the envelope or the
+ *  payload check refuses. */
 int dp_costas_set_state(dp_costas_state_t *state, const void *blob);
 
 size_t dp_costas_steps_max_out(dp_costas_state_t *state);

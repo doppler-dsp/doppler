@@ -96,12 +96,12 @@ _Synth component API._ [More...](#detailed-description)
 |  int | [**dp\_wfm\_synth\_set\_dsss\_chips**](#function-dp_wfm_synth_set_dsss_chips) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, const uint8\_t \* chips, size\_t n\_chips) <br>_Install an assembled two-code DSSS burst as the chip pattern._  |
 |  int | [**dp\_wfm\_synth\_set\_dsss\_cont**](#function-dp_wfm_synth_set_dsss_cont) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, const uint8\_t \* code, size\_t code\_len, double chips\_per\_symbol, int data\_mode, const uint8\_t \* data, size\_t n\_data) <br>_Configure a type=dsss synth for CONTINUOUS ASYNCHRONOUS generation._  |
 |  int | [**dp\_wfm\_synth\_set\_dsss\_window**](#function-dp_wfm_synth_set_dsss_window) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, size\_t code\_only\_symbols, size\_t frame\_symbols) <br>_Give the continuous DSSS stream a frame with a pure-code window._  |
-|  void | [**dp\_wfm\_synth\_set\_nsps**](#function-dp_wfm_synth_set_nsps) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, int val) <br>_Override the samples-per-symbol count in-place. Does not flush the symbol-position counter (sym\_pos); set sym\_pos=0 as well when changing sps mid-stream._  |
+|  int | [**dp\_wfm\_synth\_set\_nsps**](#function-dp_wfm_synth_set_nsps) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, int val) <br>_Override the samples-per-symbol count in-place. Does not flush the symbol-position counter (sym\_pos). A hold to or below the current sym\_pos is refused, so when changing sps mid-stream set sym\_pos first (to 0 is always legal), then this. Refusing the other order keeps sym\_pos inside the hold._  |
 |  int | [**dp\_wfm\_synth\_set\_refill**](#function-dp_wfm_synth_set_refill) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, [**wfm\_synth\_refill\_fn**](wfm__synth__core_8h.md#typedef-wfm_synth_refill_fn) fn, void \* user, void(\*)(void \*) free\_user) <br>_Pull each frame from_ `fn` _instead of cycling the pattern._ |
 |  int | [**dp\_wfm\_synth\_set\_refill\_state**](#function-dp_wfm_synth_set_refill_state) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, const [**wfm\_synth\_refill\_state\_t**](structwfm__synth__refill__state__t.md) \* ops) <br>_Give the attached refill its state triplet, so the synth serializes._  |
 |  int | [**dp\_wfm\_synth\_set\_rrc**](#function-dp_wfm_synth_set_rrc) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, const float \* taps, size\_t ntaps) <br>_Enable RRC pulse shaping on a symbol synth (pn/bpsk/qpsk/bits)._  |
 |  int | [**dp\_wfm\_synth\_set\_state**](#function-dp_wfm_synth_set_state) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, const void \* blob) <br> |
-|  void | [**dp\_wfm\_synth\_set\_sym\_pos**](#function-dp_wfm_synth_set_sym_pos) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, int val) <br>_Override the symbol-position counter in-place. Injecting 0 forces the next_ [_**dp\_wfm\_synth\_step()**_](wfm__synth__core_8h.md#function-dp_wfm_synth_step) _to latch a new PN chip; any other value fast-forwards into the middle of the current symbol hold._ |
+|  int | [**dp\_wfm\_synth\_set\_sym\_pos**](#function-dp_wfm_synth_set_sym_pos) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, int val) <br>_Override the symbol-position counter in-place. Injecting 0 forces the next_ [_**dp\_wfm\_synth\_step()**_](wfm__synth__core_8h.md#function-dp_wfm_synth_step) _to latch a new PN chip; any other value fast-forwards into the middle of the current symbol hold._ |
 |  int | [**dp\_wfm\_synth\_set\_symbols**](#function-dp_wfm_synth_set_symbols) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, const float \_Complex \* symbols, size\_t n) <br>_Attach a complex-symbol stream to a type=symbols synth (no-op else)._  |
 |  void | [**dp\_wfm\_synth\_set\_wtype**](#function-dp_wfm_synth_set_wtype) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, int val) <br>_Override the waveform type discriminant in-place. Changing wtype does not reinitialise sub-objects; use with care._  |
 |  size\_t | [**dp\_wfm\_synth\_state\_bytes**](#function-dp_wfm_synth_state_bytes) (const [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state) <br> |
@@ -939,9 +939,9 @@ The frame is on the DATA clock: of every `frame_symbols` symbols, the first `cod
 
 ### function dp\_wfm\_synth\_set\_nsps 
 
-_Override the samples-per-symbol count in-place. Does not flush the symbol-position counter (sym\_pos); set sym\_pos=0 as well when changing sps mid-stream._ 
+_Override the samples-per-symbol count in-place. Does not flush the symbol-position counter (sym\_pos). A hold to or below the current sym\_pos is refused, so when changing sps mid-stream set sym\_pos first (to 0 is always legal), then this. Refusing the other order keeps sym\_pos inside the hold._ 
 ```C++
-void dp_wfm_synth_set_nsps (
+int dp_wfm_synth_set_nsps (
     dp_wfm_synth_state_t * state,
     int val
 ) 
@@ -955,7 +955,21 @@ void dp_wfm_synth_set_nsps (
 
 
 * `state` Must be non-NULL. 
-* `val` New nsps value (&gt;= 1). 
+* `val` New nsps value: at least 1, and above the current sym\_pos. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID with `state` unchanged. 
+
+
+
+
+**Exception:**
+
+
+* `ValueError` unless the new value is &gt;= 1 and above sym\_pos. 
 
 
 
@@ -1148,7 +1162,7 @@ int dp_wfm_synth_set_state (
 
 _Override the symbol-position counter in-place. Injecting 0 forces the next_ [_**dp\_wfm\_synth\_step()**_](wfm__synth__core_8h.md#function-dp_wfm_synth_step) _to latch a new PN chip; any other value fast-forwards into the middle of the current symbol hold._
 ```C++
-void dp_wfm_synth_set_sym_pos (
+int dp_wfm_synth_set_sym_pos (
     dp_wfm_synth_state_t * state,
     int val
 ) 
@@ -1162,7 +1176,21 @@ void dp_wfm_synth_set_sym_pos (
 
 
 * `state` Must be non-NULL. 
-* `val` New sym\_pos value (0 &lt;= val &lt; nsps). 
+* `val` New sym\_pos value: 0 &lt;= val &lt; nsps. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID with `state` unchanged. 
+
+
+
+
+**Exception:**
+
+
+* `ValueError` unless 0 &lt;= value &lt; nsps. 
 
 
 

@@ -316,6 +316,7 @@ dp_boxcar_reset function
 dp_boxcar_set_gain function
 dp_boxcar_set_state function
 dp_boxcar_state_bytes function
+dp_boxcar_state_ok function
 dp_boxcar_step function
 dp_boxcar_steps function
 dp_bpsk_map function
@@ -845,6 +846,7 @@ dp_farrow_get_state function
 dp_farrow_reset function
 dp_farrow_set_state function
 dp_farrow_state_bytes function
+dp_farrow_state_ok function
 dp_fft2d_create function
 dp_fft2d_destroy function
 dp_fft2d_execute_cf32 function
@@ -1058,6 +1060,7 @@ dp_lockdet_init function
 dp_lockdet_reset function
 dp_lockdet_set_state function
 dp_lockdet_state_bytes function
+dp_lockdet_state_ok function
 dp_lockdet_step function
 dp_lockdet_steps function
 dp_loop_filter_configure function

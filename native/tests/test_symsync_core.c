@@ -15,6 +15,8 @@
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include <math.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -418,6 +420,40 @@ main (void)
     free (lrx);
     free (lbits);
     free (lsym);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * #2142: a forged order or verdict is refused, the object untouched *
+   * ---------------------------------------------------------------- */
+  {
+    /* The embedded Farrow and detector are checked by their own
+       predicates; create() refuses an order outside the three. */
+    DP_CHECK (dp_symsync_create (4, 0.01, 0.707, FARROW_CUBIC + 1,
+                                 SYMSYNC_TED_GARDNER)
+              == NULL);
+    dp_symsync_state_t *s = dp_symsync_create (4, 0.01, 0.707, FARROW_CUBIC,
+                                               SYMSYNC_TED_GARDNER);
+    DP_CHECK (s != NULL);
+    const size_t od    = sizeof (dp_state_hdr_t)
+                         + offsetof (dp_symsync_state_t, farrow)
+                         + offsetof (dp_farrow_state_t, order);
+    const size_t lk    = sizeof (dp_state_hdr_t)
+                         + offsetof (dp_symsync_state_t, lock)
+                         + offsetof (dp_lockdet_state_t, locked);
+    const int    nine  = 9;
+    const int    seven = 7;
+    DP_STATE_FORGE_TEST (dp_symsync, s, SYMSYNC_STATE_MAGIC,
+                         SYMSYNC_STATE_VERSION, od, &nine, sizeof nine);
+    DP_STATE_FORGE_TEST (dp_symsync, s, SYMSYNC_STATE_MAGIC,
+                         SYMSYNC_STATE_VERSION, lk, &seven, sizeof seven);
+    /* avgs = 0 is unreachable (init always sets it to 1 or more), and it
+       makes lock_sum/avgs infinite, so it is refused (#2148 r3). */
+    const size_t av
+        = sizeof (dp_state_hdr_t) + offsetof (dp_symsync_state_t, avgs);
+    const size_t zero = 0;
+    DP_STATE_FORGE_TEST (dp_symsync, s, SYMSYNC_STATE_MAGIC,
+                         SYMSYNC_STATE_VERSION, av, &zero, sizeof zero);
+    dp_symsync_destroy (s);
   }
 
   DP_TEST_END ("test_symsync_core");

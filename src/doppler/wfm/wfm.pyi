@@ -542,13 +542,20 @@ class _SynthEngine:
 
     def set_nsps(self, value: int) -> None:
         """Override the samples-per-symbol count in-place. Does not flush the
-        symbol-position counter (sym_pos); set sym_pos=0 as well when changing
-        sps mid-stream.
+        symbol-position counter (sym_pos). A hold to or below the current
+        sym_pos is refused, so when changing sps mid-stream set sym_pos first
+        (to 0 is always legal), then this. Refusing the other order keeps
+        sym_pos inside the hold.
 
         Parameters
         ----------
         value : int
             Input.
+
+        Raises
+        ------
+        ValueError
+            unless the new value is >= 1 and above sym_pos.
         """
 
     def get_sym_pos(self) -> int:
@@ -572,6 +579,11 @@ class _SynthEngine:
         ----------
         value : int
             Input.
+
+        Raises
+        ------
+        ValueError
+            unless 0 <= value < nsps.
         """
 
     def get_cur_re(self) -> float:

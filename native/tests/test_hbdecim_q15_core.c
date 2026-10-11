@@ -11,6 +11,8 @@
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include <math.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -124,6 +126,53 @@ main (void)
     DP_CHECK (memcmp (b->odd_Q, a->odd_Q, rb) == 0);
     dp_hbdecim_q15_destroy (a);
     dp_hbdecim_q15_destroy (b);
+  }
+
+  /* #2148 r3: the AVX2 kernel reads a[N-16-k], which is inside the fold
+   * only when the fold is at least K_pad long. Tap counts under 16 take the
+   * scalar path. The ring is heap-allocated, so ASan catches a read outside
+   * it; the in/out buffers here are stack arrays and are not what ASan
+   * checks for this. The native -march=native ASan build is the proof. */
+  for (size_t taps = 2; taps <= 15; taps++)
+    {
+      float h[15];
+      for (size_t i = 0; i < taps; i++)
+        h[i] = 0.05f * (float)(i + 1);
+      dp_hbdecim_q15_state_t *q = dp_hbdecim_q15_create (taps, h);
+      DP_CHECK (q != NULL);
+      if (q)
+        {
+          int16_t in[2 * 24], out[2 * 24];
+          for (int i = 0; i < 2 * 24; i++)
+            in[i] = (int16_t)(50 * i - 300);
+          size_t n = dp_hbdecim_q15_execute (q, in, 24, out, 24);
+          DP_CHECK (n <= 24);
+          dp_hbdecim_q15_destroy (q);
+        }
+    }
+
+  /* ---------------------------------------------------------------- *
+   * #2142: a forged head or flag is refused, the object untouched          *
+   * ---------------------------------------------------------------- */
+  {
+    /* Blob: [hdr][even_head u64][odd_head u64][has_pending u32]... */
+    dp_hbdecim_q15_state_t *s = dp_hbdecim_q15_create (25, H25_stub);
+    DP_CHECK (s != NULL);
+    if (s)
+      {
+        const size_t   eh  = sizeof (dp_state_hdr_t);
+        const size_t   oh  = eh + sizeof (uint64_t);
+        const size_t   hp  = oh + sizeof (uint64_t);
+        const uint64_t cap = (uint64_t)s->cap;
+        const uint32_t two = 2;
+        DP_STATE_FORGE_TEST (dp_hbdecim_q15, s, HBDECIM_Q15_STATE_MAGIC,
+                             HBDECIM_Q15_STATE_VERSION, eh, &cap, sizeof cap);
+        DP_STATE_FORGE_TEST (dp_hbdecim_q15, s, HBDECIM_Q15_STATE_MAGIC,
+                             HBDECIM_Q15_STATE_VERSION, oh, &cap, sizeof cap);
+        DP_STATE_FORGE_TEST (dp_hbdecim_q15, s, HBDECIM_Q15_STATE_MAGIC,
+                             HBDECIM_Q15_STATE_VERSION, hp, &two, sizeof two);
+        dp_hbdecim_q15_destroy (s);
+      }
   }
 
   DP_TEST_END ("test_hbdecim_q15_core");

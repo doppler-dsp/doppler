@@ -57,7 +57,6 @@ doppler/hbdecim/hbdecim_r2c_core.h::dp_hbdecim_r2c_create
 doppler/hbdecim_q15/hbdecim_q15_core.h::dp_hbdecim_q15_create
 doppler/interleaver/interleaver_core.h::dp_interleaver_create
 doppler/jm_simd.h::JM_ZERO_F32
-doppler/lockdet/lockdet_core.h::dp_lockdet_init
 doppler/mpsk_receiver/mpsk_receiver_core.h::dp_mpsk_receiver_create
 doppler/mpsk_receiver/mpsk_receiver_core.h::dp_mpsk_receiver_create#1
 doppler/pn/pn_core.h::pn_mls_poly

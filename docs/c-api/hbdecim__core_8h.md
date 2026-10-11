@@ -373,7 +373,7 @@ int dp_hbdecim_set_state (
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID if the blob's envelope rejects. 
+DP\_OK, or DP\_ERR\_INVALID if the blob's envelope or payload check refuses. 
 
 
 

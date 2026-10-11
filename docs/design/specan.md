@@ -131,6 +131,31 @@ retune is built only from samples taken at the new tuning.
 A display keeps up by showing the latest spectrum. A stream that must not drop a
 window is a spectrogram, one row per window, which `Spectrogram` provides.
 
+## The source handshake
+
+Every front end runs one loop, `SpecanEngine.step(source)`: read a block of
+`engine.block_size` samples, process it, and, when the frame's FFT size
+changes, tell the source the frame's `data_size`. The terminal, the web server
+and the recorder all call it, so they cannot disagree about what the source
+was told.
+
+`data_size` is the Kaiser window and RBW frame length. It is the value a
+source scales its noise and tones by. It is not the display bin count, which
+is the cropped `fft_size` a frame carries. Before the one loop existed, the
+recorder sent the display bin count, so its demo noise floor was scaled
+wrongly, and the web server never sent anything, so the demo kept its default
+level.
+
+The block size already carries the 4096-sample floor, so no front end adds
+its own.
+
+## One dBm definition
+
+Amplitude 1.0 is +10 dBm into 50 ohm, peak volts. The engine offsets its
+output by `DBM_AT_UNIT_AMPLITUDE` (10 dBm), and `dbm_to_amplitude` is the
+inverse that a demo source uses for its tone and noise levels. Those are the
+only two places the convention is written down.
+
 ## The NATS sources: how a read is served
 
 `SocketSource` and `PullSource` share one ring and differ only in how they

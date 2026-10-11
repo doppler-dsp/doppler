@@ -41,9 +41,7 @@ if TYPE_CHECKING:
 DBM_AT_UNIT_AMPLITUDE = 10.0
 
 
-# The inverse of the calibration above, written as power: P = 10^(dBm/10)
-# * 1e-3 watts, then V = sqrt(P * 2 * 50) from P = V^2 / (2 Z). Returns the
-# peak volts into 50 ohm; dBm = DBM_AT_UNIT_AMPLITUDE gives 1.0.
+# The inverse of the calibration above; see docs/design/specan.md.
 def dbm_to_amplitude(dbm: float) -> float:
     p_watts = 10.0 ** (dbm / 10.0) * 1e-3
     return math.sqrt(p_watts * 2.0 * 50.0)
@@ -265,11 +263,7 @@ class SpecanEngine:
         """Suggested number of input samples per :meth:`process` call."""
         return self._block_size
 
-    # One read, process and handshake, the loop every front end runs. When the
-    # FFT size changes, the source is told the frame's data_size (the Kaiser
-    # window / RBW frame length, what a source scales its noise and tones by),
-    # not the cropped display bin count. The read is block_size, which already
-    # carries the 4096-sample floor.
+    # The one loop every front end runs; see docs/design/specan.md.
     def step(self, source: Source) -> SpectrumFrame | None:
         iq, fs, cf = source.read(self._block_size)
         frame = self.process(iq, fs, cf)

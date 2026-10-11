@@ -36,6 +36,7 @@
 #include "doppler/jm_perf.h"
 #include "doppler/fft/fft_core.h"
 #include "doppler/acc_trace/acc_trace_core.h"
+#include "doppler/f32_buffer/f32_buffer_core.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -59,6 +60,9 @@ typedef struct {
     double fs;                 /**< Sample rate, Hz.                      */
     double full_scale;         /**< Amplitude that reads 0 dBFS.          */
     size_t bits;               /**< ADC depth that set full_scale, else 0.*/
+    size_t hop;                /**< Samples between frame starts, 1..n.   */
+    dp_f32_t *ring;            /**< The framer's ring, 2n, owned by the framer. */
+    dp_f32_framer_t fr;        /**< Splits the stream into n-sample frames; carries the partial. */
 } dp_psd_state_t;
 
 /**
@@ -106,20 +110,75 @@ dp_psd_state_t *dp_psd_create(size_t n, double fs, int window, float beta,
                             int mode, double alpha);
 
 /**
+ * @brief Create an averaging PSD estimator with a frame hop: frame k covers
+ *        stream samples [k*hop, k*hop + n). hop = n is the non-overlapping
+ *        frame dp_psd_create() makes.
+ *
+ * @param n           Window / frame length in samples.  Must be >= 2.
+ * @param fs          Sample rate in Hz (used for dB/Hz and band frequencies);
+ *                    finite and > 0.
+ * @param window      Window index: 0 = Hann, 1 = Kaiser, 2 = Blackman-Harris,
+ *                    3 = rectangular (no taper: best resolution, worst leakage).
+ * @param beta        Kaiser beta (ignored by every other window). One that
+ *                    makes the window non-finite -- NaN, or large enough to
+ *                    overflow it -- is refused.
+ * @param pad         Zero-pad factor (>= 1; 0 is refused);
+ *                    nfft = next_pow_two(n * pad).
+ * @param full_scale  Amplitude that reads 0 dBFS in the dB getters; finite
+ *                    and > 0.
+ *                    Ignored when @p bits > 0.
+ * @param bits        ADC depth: when > 0, sets full_scale = 2^(bits-1) (the
+ *                    single definition of the dBFS reference); 0 = use
+ *                    @p full_scale directly.  At most 64.
+ * @param mode        Averaging mode index (0=mean, 1=exp, 2=maxhold, 3=minhold).
+ * @param alpha       EMA smoothing factor, exp mode only, where it must lie in
+ *                    (0, 1]: the rule is the AccTrace averager's, whose
+ *                    create refuses anything else, so this does too.
+ *                    Ignored, and so not checked, in the other modes.
+ * @param hop         Samples between frame starts, 1..n; 0 means n, so a
+ *                    binding can default to the frame dp_psd_create makes.
+ *                    A hop above n (a gap between frames) is refused: the
+ *                    framer holds no sample it has not been told to keep.
+ * @return Heap-allocated state, or NULL on invalid argument or OOM. A window
+ *         whose coherent gain sum(w) is 0 -- Hann at n = 2, whose symmetric
+ *         form is all zeros -- is refused too: every reading divides by it.
+ *         So is an @p n or @p n * @p pad too large for its buffers to be
+ *         sized, rather than wrapped to a small one.
+ * @note Caller must call dp_psd_destroy() when done.
+ *
+ * @code
+ * >>> from doppler.spectral import PSD
+ * >>> w = PSD(n=1024, fs=1.0e6, window="kaiser", beta=8.0, mode="mean")
+ * >>> w.n, w.fs
+ * (1024, 1000000.0)
+ * >>> round(w.rbw / (w.fs / w.n), 3) == round(w.enbw, 3)
+ * True
+ * @endcode
+ */
+dp_psd_state_t *dp_psd_create_hop(size_t n, double fs, int window, float beta,
+                                 size_t pad, double full_scale, size_t bits,
+                                 int mode, double alpha, size_t hop);
+
+/**
  * @brief Destroy a PSD instance and release all memory.
  * @param state  May be NULL (no-op).
  */
 void dp_psd_destroy(dp_psd_state_t *state);
 
 /**
- * @brief Discard the running average; the next accumulate re-seeds it.
+ * @brief Discard the running average and any carried partial frame; the
+ * next accumulate re-seeds the average and starts the stream again.
  * @param state  Must be non-NULL.
  */
 void dp_psd_reset(dp_psd_state_t *state);
 
 /**
  * @brief Window, FFT and fold complex baseband frames into the average.
- * Processes floor(n_in / n) full frames; a trailing partial frame is ignored.
+ * Folds every frame the stream completes: frame k covers stream samples
+ * [k*hop, k*hop + n) (hop = n unless dp_psd_create_hop() said otherwise).
+ * A trailing partial frame is carried to the next call, not dropped: the
+ * framer holds it. A single call of whole frames at hop = n averages what
+ * dp_psd_accumulate always has.
  *
  * @param state  Must be non-NULL.
  * @param x      Complex baseband samples (cf32).

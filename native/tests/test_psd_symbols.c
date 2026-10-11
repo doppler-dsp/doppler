@@ -23,7 +23,7 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_psd[] = {
-    (jm_any_fn)dp_psd_create,
+    (jm_any_fn)dp_psd_create_hop,
     (jm_any_fn)dp_psd_destroy,
     (jm_any_fn)dp_psd_reset,
     (jm_any_fn)dp_psd_accumulate,

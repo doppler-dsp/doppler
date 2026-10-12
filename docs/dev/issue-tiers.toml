@@ -1524,3 +1524,28 @@ status = "open"
 tier = 1
 title = "named-args helper discovery: six known limits (first enum wins, shadowing, variadic, unbalanced braces, strings before comments, compared parameters)"
 status = "open"
+
+[issue.2229]
+tier = 2
+title = "acq: a dwell straddling a burst's start with under one epoch of signal reports its Doppler up to ~D/2 bins off (first hit only; tiled and narrowband alike)"
+status = "open"
+
+[issue.2232]
+tier = 1
+title = "test(acq): the tiled burst C test never exercises the tile-alias hop; a sign-flipped hop passes test_acq_core (caught only by a sweep validator)"
+status = "open"
+
+[issue.2234]
+tier = 0
+title = "BurstCapture: a tiled capture of a repeated chirp reports the wrong Doppler tile 13-78% of the time, start up to 7 periods off (pre-existing, D = 1 too)"
+status = "open"
+
+[issue.2235]
+tier = 1
+title = "acq: since #2230, a tiled burst search at D > 1 reports raw hits a whole tile off, off the ridge, for band-limited repeated chirps (9-12% of hits; D = 1: none)"
+status = "open"
+
+[issue.2236]
+tier = 2
+title = "acq: resolve a tiled burst's tile alias over a delay window and re-estimate the code phase at the resolved hypothesis (ridge-aware; the fix for the chirp raw-hit errors)"
+status = "open"

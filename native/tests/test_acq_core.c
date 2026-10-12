@@ -787,6 +787,77 @@ _chirp_stream (const uint8_t *code, size_t sf, size_t spc, double fs, size_t n,
     }
 }
 
+/* rate_hypotheses = 0 (auto): the engine picks the smallest count whose
+ * residual rate stops limiting the depth. Over a sweep of design points --
+ * a weak one that wants the whole preamble (the most hypotheses), a strong
+ * one a capped engine already serves (one) and the range between -- check:
+ *   - it is the engine an explicit count of the same size builds (the same
+ *     depth, the same gate), so the choice is readable and repeatable;
+ *   - it is MINIMAL: one hypothesis fewer leaves the drift bound binding and
+ *     the engine shallower. This is what a "choose the maximum" mistake
+ *     fails -- the maximum is correct and costs 64 passes a dwell. */
+static int
+_acq_rate_auto_check (void)
+{
+  const size_t sf = 31, spc = 2, reps = 16;
+  const double crate = 1.0e6, rate = 2.0e7;
+  const double cn0s[]  = { 30.0, 42.0, 48.0, 50.0, 52.0, 54.0, 56.0 };
+  size_t       last_n  = ACQ_RATE_HYPS_MAX + 1;
+  int          saw_one = 0, saw_many = 0;
+  for (size_t k = 0; k < sizeof cn0s / sizeof *cn0s; k++)
+    {
+      dp_acq_state_t *a = burst_with_rates (
+          CODE31, sf, reps, spc, crate, cn0s[k], 0.0, 1e-3, 0.9, 0, rate, 0);
+      DP_REQUIRE (a != NULL);
+      const size_t n = a->rate_hyps;
+      DP_CHECK (n >= 1 && n <= ACQ_RATE_HYPS_MAX);
+      /* A weaker design point never needs fewer hypotheses. */
+      DP_CHECK (n <= last_n);
+      last_n = n;
+      saw_one |= (n == 1);
+      saw_many |= (n > 2);
+
+      dp_acq_state_t *e = burst_with_rates (
+          CODE31, sf, reps, spc, crate, cn0s[k], 0.0, 1e-3, 0.9, 0, rate, n);
+      DP_REQUIRE (e != NULL);
+      DP_CHECK (e->coherent_bins == a->coherent_bins);
+      DP_CHECK (e->searched_bins == a->searched_bins);
+      DP_CHECK (e->eta == a->eta);
+      dp_acq_destroy (e);
+
+      if (n > 1)
+        {
+          dp_acq_state_t *fewer
+              = burst_with_rates (CODE31, sf, reps, spc, crate, cn0s[k], 0.0,
+                                  1e-3, 0.9, 0, rate, n - 1);
+          DP_REQUIRE (fewer != NULL);
+          DP_CHECK_MSG (fewer->coherent_bins < a->coherent_bins,
+                        "one hypothesis fewer must cost depth: auto is "
+                        "minimal");
+          dp_acq_destroy (fewer);
+        }
+      dp_acq_destroy (a);
+    }
+  DP_CHECK_MSG (saw_one && saw_many,
+                "the sweep covers both ends: no compensation needed, and "
+                "several hypotheses");
+
+  /* No design point: the sizer integrates the whole preamble, so the answer
+     is the count that lets the residual allow `reps` -- and it is the same
+     one dp_acq_rate_hypotheses_for() names for it. */
+  {
+    dp_acq_state_t *a
+        = burst_with_rates (CODE31, sf, reps, spc, crate, ACQ_CN0_NONE, 0.0,
+                            1e-3, 0.9, 0, rate, 0);
+    DP_REQUIRE (a != NULL);
+    DP_CHECK (a->coherent_bins == reps);
+    DP_CHECK (a->rate_hyps
+              == dp_acq_rate_hypotheses_for (crate / (double)sf, rate, reps));
+    dp_acq_destroy (a);
+  }
+  return 0;
+}
+
 /* Doppler-rate compensation (dp_acq_create_burst's rate_hypotheses): the
  * rate bound on the coherent depth applies to the RESIDUAL, `rate/(n - 1)`,
  * so a rate that capped the depth at 5 repetitions lets the engine run 10 --
@@ -803,8 +874,9 @@ _acq_rate_hypotheses_check (void)
   /* The argument rules: out of range, or a span of nothing, or a continuous
      engine, is refused; one hypothesis is always fine. */
   {
+    /* 0 is auto, and auto needs a span like any n > 1. */
     DP_CHECK (burst_with_rates (CODE31, sf, reps, spc, crate, ACQ_CN0_NONE,
-                                0.0, 1e-3, 0.9, 0, rate, 0)
+                                0.0, 1e-3, 0.9, 0, 0.0, 0)
               == NULL);
     DP_CHECK (burst_with_rates (CODE31, sf, reps, spc, crate, ACQ_CN0_NONE,
                                 0.0, 1e-3, 0.9, 0, rate, ACQ_RATE_HYPS_MAX + 1)
@@ -2776,6 +2848,7 @@ main (void)
   (void)_acq_template_check ();
   (void)_acq_doppler_rate_check ();
   (void)_acq_rate_hypotheses_check ();
+  (void)_acq_rate_auto_check ();
   (void)_acq_cell_corr_grid_check ();
   (void)_acq_burst_pd_check ();
   (void)_acq_half_bin_check ();

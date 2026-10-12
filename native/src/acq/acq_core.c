@@ -1928,6 +1928,37 @@ acq_off_peak (const float _Complex *replica, size_t n, acq_shape_t *sh)
   free (buf);
 }
 
+/* rate_hypotheses = 0 (auto): the fewest hypotheses the span needs, chosen
+ * from the sizer itself rather than a rule of thumb. For each n the drift
+ * bound is either binding or not: D*(n) is the depth the sizer picks at n
+ * hypotheses with the bound OFF (priced with n looks per cell, which is what
+ * moves it), and D_cap(n) the depth the residual rate R/(n - 1) tolerates
+ * (n = 1 has no compensation: R itself). The first n with D_cap(n) >= D*(n)
+ * is the first at which the hypotheses stop costing depth -- more of them
+ * would only multiply the per-dwell work and the false-alarm count. None
+ * does within ACQ_RATE_HYPS_MAX: take the maximum, the best this can do.
+ * Leaves st->rate_hyps at the choice; doppler_rate is restored. */
+static void
+acq_auto_rate_hypotheses (dp_acq_state_t *st, double pfa, double pd,
+                          double snr, double du)
+{
+  const double f_epoch = st->chip_rate / (double)st->sf;
+  const double span    = st->doppler_rate;
+  size_t       n;
+  for (n = 1; n < ACQ_RATE_HYPS_MAX; n++)
+    {
+      size_t d_star, nc, wb;
+      st->rate_hyps    = n;
+      st->doppler_rate = 0.0;
+      acq_auto_config_burst (st, pfa, pd, snr, du, &d_star, &nc, &wb);
+      st->doppler_rate = span;
+      const double r   = n > 1 ? span / (double)(n - 1) : span;
+      if (acq_drift_depth (f_epoch, r, st->reps) >= d_star)
+        break;
+    }
+  st->rate_hyps = n;
+}
+
 /* Shared builder: allocates and configures the engine, dropping straight
  * into whichever auto-sizer `continuous` selects.  Not declared in the
  * header -- dp_acq_create_burst()/dp_acq_create_continuous() are the only
@@ -1966,9 +1997,8 @@ acq_acq_create_impl (const float _Complex *replica, size_t sf,
       || !(pfa > 0.0 && pfa < 1.0) || !(pd > 0.0 && pd < 1.0)
       || !(doppler_uncertainty >= 0.0 && isfinite (doppler_uncertainty))
       || code_only_epochs < 1 || !(doppler_rate >= 0.0)
-      || !isfinite (doppler_rate) || rate_hypotheses < 1
-      || rate_hypotheses > ACQ_RATE_HYPS_MAX
-      || (rate_hypotheses > 1 && (continuous || !(doppler_rate > 0.0))))
+      || !isfinite (doppler_rate) || rate_hypotheses > ACQ_RATE_HYPS_MAX
+      || (rate_hypotheses != 1 && (continuous || !(doppler_rate > 0.0))))
     return NULL;
 
   dp_acq_state_t *st = (dp_acq_state_t *)calloc (1, sizeof (*st));
@@ -2011,8 +2041,12 @@ acq_acq_create_impl (const float _Complex *replica, size_t sf,
                                   &best_window_bins);
     }
   else
-    acq_auto_config_burst (st, pfa, pd, snr, doppler_uncertainty, &best_d,
-                           &best_nc, &best_window_bins);
+    {
+      if (rate_hypotheses == 0)
+        acq_auto_rate_hypotheses (st, pfa, pd, snr, doppler_uncertainty);
+      acq_auto_config_burst (st, pfa, pd, snr, doppler_uncertainty, &best_d,
+                             &best_nc, &best_window_bins);
+    }
 
   if (acq_regrid (st, best_d, best_nc, best_window_bins, replica) != 0)
     goto fail;

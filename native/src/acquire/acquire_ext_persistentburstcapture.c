@@ -114,9 +114,9 @@ PersistentBurstCaptureObj_init (PersistentBurstCaptureObject *self,
                        "BurstCapture: invalid parameter (need a non-empty "
                        "preamble with finite, non-zero energy, reps >= 1, fs "
                        "> 0, burst_len >= 1, cn0_dbhz finite or NaN, "
-                       "doppler_rate >= 0, 1 <= rate_hypotheses <= 64 (and "
-                       "doppler_rate nonzero above 1), 0 < pfa < 1, 0 < pd < "
-                       "1)");
+                       "doppler_rate >= 0, 0 <= rate_hypotheses <= 64 (0 = "
+                       "auto; doppler_rate nonzero unless 1), 0 < pfa < 1, 0 "
+                       "< pd < 1)");
       return -1;
     }
   return 0;
@@ -1250,10 +1250,12 @@ static PyGetSetDef PersistentBurstCapture_getset[] = {
   { "rate_hypotheses", (getter)PersistentBurstCapture_getprop_rate_hypotheses,
     NULL,
     "Doppler-rate hypotheses the acquisition searches, as given at "
-    "construction; 1 is none -- `doppler_rate` then only caps the coherent "
-    "depth. Above 1 `doppler_rate` is the span of the hypotheses, the depth "
-    "is bounded by the residual `doppler_rate/(rate_hypotheses - 1)`, and "
-    "refine tries the rates too.\n",
+    "construction, or the count the acquisition chose when it was built with "
+    "0 (auto: the fewest whose residual stops limiting the depth); 1 is none "
+    "-- `doppler_rate` then only caps the coherent depth. Above 1 "
+    "`doppler_rate` is the span of the hypotheses, the depth is bounded by "
+    "the residual `doppler_rate/(rate_hypotheses - 1)`, and refine tries the "
+    "rates too.\n",
     NULL },
   { "pd_predicted", (getter)PersistentBurstCapture_getprop_pd_predicted, NULL,
     "Detection probability of ONE dwell of the sized grid lying wholly inside "

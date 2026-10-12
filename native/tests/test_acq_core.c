@@ -719,6 +719,38 @@ _acq_tiled_burst_offcentre_check (void)
       /* The sign survives, which a fold over the wrong count loses. */
       DP_CHECK ((f < 0.0) == (ho.doppler_hz_est < 0.0));
     }
+
+  /* Tones straddling a tile BOUNDARY, +-0.5 and +-1.5 native spans, +-0.02
+     native either side in steps of 0.005, off the bin grid. Such a tone reads
+     almost equally in both tiles (the tile de-rotates by its own centre, and
+     the slow-time transform folds it to the same row index of each), so the
+     engine's raw pick can be the neighbour; acq_resolve_tile_alias() asks the
+     block at the row's frequency and one span down and up and moves the pick.
+     That hop is only exercised here: the on-bin tones above never need it, and
+     a sign slip in it passed test_acq_core until it was swept (doppler#2232).
+     Each must come back within a bin of the truth, in the right tile. */
+  const double edge[] = { 0.5, -0.5, 1.5, -1.5 };
+  for (size_t i = 0; i < sizeof edge / sizeof *edge; i++)
+    for (int q = -4; q <= 4; q++)
+      {
+        const double    f   = (edge[i] + 0.005 * (double)q) * native;
+        const size_t    len = 6 * a->coherent_bins * nx;
+        float _Complex *x   = malloc (len * sizeof *x);
+        DP_REQUIRE (x != NULL);
+        for (size_t k = 0; k < len; k++)
+          {
+            const double ph = 2.0 * M_PI * f * (double)k / fs;
+            x[k]            = ((CODE7[(k % nx) / spc] & 1u) ? -1.0f : 1.0f)
+                              * (float _Complex) (cos (ph) + I * sin (ph));
+          }
+        dp_acq_reset (a);
+        acq_result_t hit[8];
+        const size_t nh = dp_acq_push (a, x, len, hit, 8);
+        free (x);
+        DP_REQUIRE (nh >= 1);
+        DP_CHECK (fabs (acq_bin_doppler_hz (a, hit[0].doppler_bin) - f)
+                  <= res);
+      }
   dp_acq_destroy (a);
   return 0;
 }

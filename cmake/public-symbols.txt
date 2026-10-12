@@ -359,6 +359,7 @@ dp_burst_capture_get_pd_predicted function
 dp_burst_capture_get_pending function
 dp_burst_capture_get_preamble_start function
 dp_burst_capture_get_psl_db function
+dp_burst_capture_get_rate_hypotheses function
 dp_burst_capture_get_state function
 dp_burst_capture_get_straddle_loss function
 dp_burst_capture_push function

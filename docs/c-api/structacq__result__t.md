@@ -40,6 +40,7 @@ _One acquisition detection event._
 |  float | [**cn0\_dbhz\_est**](#variable-cn0_dbhz_est)  <br> |
 |  size\_t | [**code\_phase**](#variable-code_phase)  <br> |
 |  size\_t | [**doppler\_bin**](#variable-doppler_bin)  <br> |
+|  double | [**doppler\_rate\_hz\_s**](#variable-doppler_rate_hz_s)  <br> |
 |  float | [**noise\_est**](#variable-noise_est)  <br> |
 |  float | [**peak\_mag**](#variable-peak_mag)  <br> |
 |  uint64\_t | [**samples\_consumed**](#variable-samples_consumed)  <br> |
@@ -156,6 +157,23 @@ size_t acq_result_t::doppler_bin;
 
 Peak row: Doppler bin (0 … coherent\_bins-1), or, in wideband mode, a bin of the uniform grid of window\_bins\*coherent\_bins bins (window\_bins tiles of coherent\_bins each) — see [**acq\_core.h**](acq__core_8h.md)'s file doc comment. 
  
+
+
+        
+
+<hr>
+
+
+
+### variable doppler\_rate\_hz\_s 
+
+```C++
+double acq_result_t::doppler_rate_hz_s;
+```
+
+
+
+The Doppler rate, Hz/s, of the rate hypothesis that won this hit's dwell ([**dp\_acq\_create\_burst()**](acq__core_8h.md#function-dp_acq_create_burst)'s rate\_hypotheses); 0 without hypotheses. A hypothesis, not a fit: the carrier's rate lies within half a spacing, `doppler_rate/(n - 1)`, of it. The Doppler the hit reports is the carrier's at the middle of the dwell's block. Appended last so positional initialisers do not shift. 
 
 
         

@@ -45,7 +45,8 @@ BurstAcquisitionObj_init (BurstAcquisitionObject *self, PyObject *args,
 {
   static char *kwlist[] = {
     "preamble", "reps", "fs",         "cn0_dbhz",     "doppler_uncertainty",
-    "pfa",      "pd",   "noise_mode", "doppler_rate", NULL
+    "pfa",      "pd",   "noise_mode", "doppler_rate", "rate_hypotheses",
+    NULL
   };
   PyObject          *preamble_obj        = NULL;
   unsigned long long reps_raw            = 1;
@@ -56,11 +57,12 @@ BurstAcquisitionObj_init (BurstAcquisitionObject *self, PyObject *args,
   double             pd                  = 0.9;
   const char        *noise_mode_str      = "mean";
   double             doppler_rate        = 0.0;
+  unsigned long long rate_hypotheses_raw = 1;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|Kdddddsd", kwlist,
-                                    &preamble_obj, &reps_raw, &fs, &cn0_dbhz,
-                                    &doppler_uncertainty, &pfa, &pd,
-                                    &noise_mode_str, &doppler_rate))
+  if (!PyArg_ParseTupleAndKeywords (
+          args, kwds, "O|KdddddsdK", kwlist, &preamble_obj, &reps_raw, &fs,
+          &cn0_dbhz, &doppler_uncertainty, &pfa, &pd, &noise_mode_str,
+          &doppler_rate, &rate_hypotheses_raw))
     return -1;
   size_t reps       = (size_t)reps_raw;
   int    noise_mode = 0;
@@ -80,7 +82,8 @@ BurstAcquisitionObj_init (BurstAcquisitionObject *self, PyObject *args,
                     noise_mode_str);
       return -1;
     }
-  PyArrayObject *preamble_arr = jm_array_arg (
+  size_t         rate_hypotheses = (size_t)rate_hypotheses_raw;
+  PyArrayObject *preamble_arr    = jm_array_arg (
       preamble_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "preamble");
   if (!preamble_arr)
     {
@@ -89,7 +92,8 @@ BurstAcquisitionObj_init (BurstAcquisitionObject *self, PyObject *args,
   size_t preamble_len = (size_t)PyArray_SIZE (preamble_arr);
   self->handle        = dp_burst_acq_create (
       (const float _Complex *)PyArray_DATA (preamble_arr), preamble_len, reps,
-      fs, cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode, doppler_rate);
+      fs, cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode, doppler_rate,
+      rate_hypotheses);
   Py_DECREF (preamble_arr);
   if (!self->handle)
     {
@@ -97,8 +101,9 @@ BurstAcquisitionObj_init (BurstAcquisitionObject *self, PyObject *args,
                        "BurstAcquisition: invalid parameter (need a "
                        "non-empty preamble with finite, non-zero energy, "
                        "reps >= 1, fs > 0, cn0_dbhz finite or NaN, "
-                       "doppler_uncertainty >= 0, doppler_rate >= 0, 0 < pfa "
-                       "< 1, 0 < pd < 1)");
+                       "doppler_uncertainty >= 0, doppler_rate >= 0, 1 <= "
+                       "rate_hypotheses <= 64 (and doppler_rate > 0 above "
+                       "1), 0 < pfa < 1, 0 < pd < 1)");
       return -1;
     }
   if (self->handle->underpowered)
@@ -170,7 +175,7 @@ BurstAcquisitionObj_push (BurstAcquisitionObject *self, PyObject *args)
   for (size_t i = 0; i < n_out; i++)
     {
       PyObject *tup = Py_BuildValue (
-          "(NNNNNNNN)",
+          "(NNNNNNNNN)",
           PyLong_FromUnsignedLongLong (
               (unsigned long long)results[i].doppler_bin),
           PyLong_FromUnsignedLongLong (
@@ -181,7 +186,8 @@ BurstAcquisitionObj_push (BurstAcquisitionObject *self, PyObject *args)
           PyFloat_FromDouble ((double)results[i].cn0_dbhz_est),
           PyLong_FromUnsignedLongLong (
               (unsigned long long)results[i].samples_consumed),
-          PyFloat_FromDouble (results[i].chip_phase));
+          PyFloat_FromDouble (results[i].chip_phase),
+          PyFloat_FromDouble (results[i].doppler_rate_hz_s));
       if (!tup)
         {
           Py_DECREF (lst);
@@ -508,6 +514,18 @@ BurstAcquisition_getprop_doppler_rate (BurstAcquisitionObject *self,
   return PyFloat_FromDouble ((self->handle->engine->doppler_rate));
 }
 static PyObject *
+BurstAcquisition_getprop_rate_hypotheses (BurstAcquisitionObject *self,
+                                          void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)(self->handle->engine->rate_hyps));
+}
+static PyObject *
 BurstAcquisition_getprop_cn0_dbhz (BurstAcquisitionObject *self,
                                    void                   *Py_UNUSED (closure))
 {
@@ -635,6 +653,12 @@ static PyGetSetDef BurstAcquisition_getset[] = {
   { "doppler_rate", (getter)BurstAcquisition_getprop_doppler_rate, NULL,
     "Doppler rate (Hz/s) the coherent depth is bounded against: coherent_bins "
     "<= f_epoch/sqrt(2*doppler_rate). 0 is no bound.\n",
+    NULL },
+  { "rate_hypotheses", (getter)BurstAcquisition_getprop_rate_hypotheses, NULL,
+    "Doppler-rate hypotheses the engine searches, as given at construction; 1 "
+    "is none -- `doppler_rate` then only caps the coherent depth. Above 1 "
+    "`doppler_rate` is the span of the hypotheses and the depth is bounded by "
+    "the residual `doppler_rate/(rate_hypotheses - 1)`.\n",
     NULL },
   { "cn0_dbhz", (getter)BurstAcquisition_getprop_cn0_dbhz, NULL,
     "Carrier-to-noise density used to size the search (dB-Hz).\n", NULL },
@@ -979,6 +1003,16 @@ static PyTypeObject BurstAcquisitionObjType = {
     "    Doppler rate in Hz/s (>= 0) that caps the coherent depth at\n"
     "    `f_epoch/sqrt(2*doppler_rate)` repetitions (doppler#1482); 0 is no\n"
     "    bound.\n"
+    "rate_hypotheses : int, default 1\n"
+    "    Doppler-rate hypotheses to search (>= 1, at most ACQ_RATE_HYPS_MAX); "
+    "1\n"
+    "    searches none. Above 1 the engine COMPENSATES the rate rather than "
+    "only\n"
+    "    capping the depth: `doppler_rate` becomes the span `[-R, +R]`, the\n"
+    "    coherent block is de-chirped at this many rates across it, and the\n"
+    "    depth is bounded by the residual `R/(n - 1)` -- see\n"
+    "    dp_acq_create_burst(), which owns the semantics. Needs a non-zero\n"
+    "    `doppler_rate`.\n"
     "\n"
     "Raises\n"
     "------\n"
@@ -987,7 +1021,9 @@ static PyTypeObject BurstAcquisitionObjType = {
     "    invalid parameter (need a non-empty preamble with finite, non-zero\n"
     "    energy, reps >= 1, fs > 0, cn0_dbhz finite or NaN, "
     "doppler_uncertainty\n"
-    "    >= 0, doppler_rate >= 0, 0 < pfa < 1, 0 < pd < 1)``.\n"
+    "    >= 0, doppler_rate >= 0, 1 <= rate_hypotheses <= 64 (and "
+    "doppler_rate >\n"
+    "    0 above 1), 0 < pfa < 1, 0 < pd < 1)``.\n"
     "\n"
     "Warns\n"
     "-----\n"
@@ -1023,7 +1059,23 @@ static PyTypeObject BurstAcquisitionObjType = {
     ">>> z.code_bins                # samples per repetition\n"
     "127\n"
     ">>> z.push(np.tile(np.roll(zc, 40), 10))[0][:2]\n"
-    "(0, 40)\n",
+    "(0, 40)\n"
+    "\n"
+    "A carrier that sweeps caps the coherent depth; searching Doppler-rate\n"
+    "hypotheses compensates it instead, and buys the depth back:\n"
+    "\n"
+    ">>> import warnings\n"
+    ">>> def make(**kw):\n"
+    "...     with warnings.catch_warnings():\n"
+    "...         warnings.simplefilter(\"ignore\")   # under-powered, below\n"
+    "...         return BurstAcquisition(zc, reps=16, fs=1.0, "
+    "cn0_dbhz=-13.0,\n"
+    "...                                 doppler_rate=9e-7, **kw)\n"
+    ">>> make().doppler_bins, make().underpowered      # the rate caps it\n"
+    "(5, True)\n"
+    ">>> c = make(rate_hypotheses=9)\n"
+    ">>> c.rate_hypotheses, c.doppler_bins, c.underpowered\n"
+    "(9, 10, False)\n",
   .tp_methods = BurstAcquisitionObj_methods,
   .tp_getset  = BurstAcquisition_getset,
   .tp_new     = BurstAcquisitionObj_new,

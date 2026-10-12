@@ -82,7 +82,7 @@ main (void)
           pre[i] = nrz[i / spc];
         dp_burst_acq_state_t *a
             = dp_burst_acq_create (pre, sf * spc, 8, CHIP_RATE * (double)spc,
-                                   65.0, 0.0, 1e-2, 0.9, 0, 0.0);
+                                   65.0, 0.0, 1e-2, 0.9, 0, 0.0, 1);
         if (!a)
           {
             (void)fprintf (stderr,

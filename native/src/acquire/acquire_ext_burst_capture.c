@@ -41,10 +41,19 @@ BurstCaptureObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 BurstCaptureObj_init (BurstCaptureObject *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[] = { "preamble",   "burst_len",           "reps", "fs",
-                            "cn0_dbhz",   "doppler_uncertainty", "pfa",  "pd",
-                            "noise_mode", "doppler_rate",        NULL };
-  PyObject    *preamble_obj              = NULL;
+  static char       *kwlist[]            = { "preamble",
+                                             "burst_len",
+                                             "reps",
+                                             "fs",
+                                             "cn0_dbhz",
+                                             "doppler_uncertainty",
+                                             "pfa",
+                                             "pd",
+                                             "noise_mode",
+                                             "doppler_rate",
+                                             "rate_hypotheses",
+                                             NULL };
+  PyObject          *preamble_obj        = NULL;
   unsigned long long burst_len_raw       = 8192;
   unsigned long long reps_raw            = 5;
   double             fs                  = 1.0;
@@ -54,11 +63,12 @@ BurstCaptureObj_init (BurstCaptureObject *self, PyObject *args, PyObject *kwds)
   double             pd                  = 0.9;
   const char        *noise_mode_str      = "mean";
   double             doppler_rate        = 0.0;
+  unsigned long long rate_hypotheses_raw = 1;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|KKdddddsd", kwlist,
-                                    &preamble_obj, &burst_len_raw, &reps_raw,
-                                    &fs, &cn0_dbhz, &doppler_uncertainty, &pfa,
-                                    &pd, &noise_mode_str, &doppler_rate))
+  if (!PyArg_ParseTupleAndKeywords (
+          args, kwds, "O|KKdddddsdK", kwlist, &preamble_obj, &burst_len_raw,
+          &reps_raw, &fs, &cn0_dbhz, &doppler_uncertainty, &pfa, &pd,
+          &noise_mode_str, &doppler_rate, &rate_hypotheses_raw))
     return -1;
   size_t burst_len  = (size_t)burst_len_raw;
   size_t reps       = (size_t)reps_raw;
@@ -79,7 +89,8 @@ BurstCaptureObj_init (BurstCaptureObject *self, PyObject *args, PyObject *kwds)
                     noise_mode_str);
       return -1;
     }
-  PyArrayObject *preamble_arr = jm_array_arg (
+  size_t         rate_hypotheses = (size_t)rate_hypotheses_raw;
+  PyArrayObject *preamble_arr    = jm_array_arg (
       preamble_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "preamble");
   if (!preamble_arr)
     {
@@ -89,7 +100,7 @@ BurstCaptureObj_init (BurstCaptureObject *self, PyObject *args, PyObject *kwds)
   self->handle        = dp_burst_capture_create (
       (const float _Complex *)PyArray_DATA (preamble_arr), preamble_len,
       burst_len, reps, fs, cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode,
-      doppler_rate);
+      doppler_rate, rate_hypotheses);
   Py_DECREF (preamble_arr);
   if (!self->handle)
     {
@@ -97,7 +108,9 @@ BurstCaptureObj_init (BurstCaptureObject *self, PyObject *args, PyObject *kwds)
                        "BurstCapture: invalid parameter (need a non-empty "
                        "preamble with finite, non-zero energy, reps >= 1, fs "
                        "> 0, burst_len >= 1, cn0_dbhz finite or NaN, "
-                       "doppler_rate >= 0, 0 < pfa < 1, 0 < pd < 1)");
+                       "doppler_rate >= 0, 1 <= rate_hypotheses <= 64 (and "
+                       "doppler_rate nonzero above 1), 0 < pfa < 1, 0 < pd < "
+                       "1)");
       return -1;
     }
   if (self->handle->underpowered)
@@ -957,6 +970,19 @@ BurstCapture_getprop_doppler_rate (BurstCaptureObject *self,
   return PyFloat_FromDouble (dp_burst_capture_get_doppler_rate (self->handle));
 }
 static PyObject *
+BurstCapture_getprop_rate_hypotheses (BurstCaptureObject *self,
+                                      void               *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)dp_burst_capture_get_rate_hypotheses (self->handle));
+}
+static PyObject *
 BurstCapture_getprop_pd_predicted (BurstCaptureObject *self,
                                    void               *Py_UNUSED (closure))
 {
@@ -1213,6 +1239,13 @@ static PyGetSetDef BurstCapture_getset[] = {
     "Doppler rate (Hz/s) the acquisition's coherent depth is bounded against: "
     "`doppler_bins <= f_epoch/sqrt(2*doppler_rate)`, so the carrier drifts "
     "less than half a slow-time row per block. 0 is no bound.\n",
+    NULL },
+  { "rate_hypotheses", (getter)BurstCapture_getprop_rate_hypotheses, NULL,
+    "Doppler-rate hypotheses the acquisition searches, as given at "
+    "construction; 1 is none -- `doppler_rate` then only caps the coherent "
+    "depth. Above 1 `doppler_rate` is the span of the hypotheses, the depth "
+    "is bounded by the residual `doppler_rate/(rate_hypotheses - 1)`, and "
+    "refine tries the rates too.\n",
     NULL },
   { "pd_predicted", (getter)BurstCapture_getprop_pd_predicted, NULL,
     "Detection probability of ONE dwell of the sized grid lying wholly inside "
@@ -1797,7 +1830,29 @@ static PyTypeObject BurstCaptureObjType = {
     "depth\n"
     "    at `f_epoch/sqrt(2*doppler_rate)` repetitions (doppler#1482); 0 is "
     "no\n"
-    "    bound.\n"
+    "    bound. With rate_hypotheses > 1 it is the span instead.\n"
+    "rate_hypotheses : int, default 1\n"
+    "    Doppler-rate hypotheses to search (>= 1, at most ACQ_RATE_HYPS_MAX); "
+    "1\n"
+    "    searches none and doppler_rate only caps the depth. Above 1 the "
+    "capture\n"
+    "    COMPENSATES the rate: `doppler_rate` is the span `[-R, +R]`, the\n"
+    "    acquisition de-chirps its coherent block at this many rates across "
+    "it,\n"
+    "    and the depth is bounded by the RESIDUAL, `R/(n - 1)` -- deeper "
+    "blocks,\n"
+    "    more sensitivity, about `n` times the per-dwell cost, and a "
+    "false-alarm\n"
+    "    budget split over the hypotheses (dp_acq_create_burst() owns the\n"
+    "    semantics). Refine follows the engine: its coherent sum over the\n"
+    "    preamble's periods tries the rates too, on a finer grid because it\n"
+    "    integrates the whole preamble, and its Doppler cells widen by the "
+    "shift\n"
+    "    a rate puts between the detecting dwell's middle and the preamble's "
+    "--\n"
+    "    so a burst the engine found by rate is placed by rate. Needs a "
+    "non-zero\n"
+    "    doppler_rate (the span). Measured: validate_acq_rate_pd.\n"
     "\n"
     "Raises\n"
     "------\n"
@@ -1808,7 +1863,9 @@ static PyTypeObject BurstCaptureObjType = {
     "reps\n"
     "    >= 1, fs > 0, burst_len >= 1, cn0_dbhz finite or NaN, doppler_rate "
     ">=\n"
-    "    0, 0 < pfa < 1, 0 < pd < 1)``.\n"
+    "    0, 1 <= rate_hypotheses <= 64 (and doppler_rate nonzero above 1), 0 "
+    "<\n"
+    "    pfa < 1, 0 < pd < 1)``.\n"
     "\n"
     "Warns\n"
     "-----\n"
@@ -1833,7 +1890,26 @@ static PyTypeObject BurstCaptureObjType = {
     ">>> cap.burst_len\n"
     "512\n"
     ">>> cap.retain_span == cap.refine_span + cap.burst_len\n"
-    "True\n",
+    "True\n"
+    "\n"
+    "A carrier that sweeps caps the coherent depth at its rate; searching\n"
+    "Doppler-rate hypotheses compensates it, and buys the depth back:\n"
+    "\n"
+    ">>> import warnings\n"
+    ">>> k = np.arange(127)\n"
+    ">>> zc = np.exp(-1j * np.pi * 5 * k * (k + 1) / "
+    "127).astype(np.complex64)\n"
+    ">>> def make(**kw):\n"
+    "...     with warnings.catch_warnings():\n"
+    "...         warnings.simplefilter(\"ignore\")   # under-powered, below\n"
+    "...         return BurstCapture(zc, burst_len=2432, reps=16, fs=1.0,\n"
+    "...                             cn0_dbhz=-13.0, doppler_rate=9e-7, "
+    "**kw)\n"
+    ">>> make().doppler_bins, make().underpowered      # the rate caps it\n"
+    "(5, True)\n"
+    ">>> c = make(rate_hypotheses=9)\n"
+    ">>> c.rate_hypotheses, c.doppler_bins, c.underpowered\n"
+    "(9, 10, False)\n",
   .tp_methods = BurstCaptureObj_methods,
   .tp_getset  = BurstCapture_getset,
   .tp_new     = BurstCaptureObj_new,

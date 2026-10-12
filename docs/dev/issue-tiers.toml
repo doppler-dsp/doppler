@@ -383,7 +383,7 @@ status = "open"
 [issue.1010]
 tier = 1
 title = "19 Python benchmarks take the `benchmark` fixture and never call it"
-status = "in review ([#1972](https://github.com/doppler-dsp/doppler/pull/1972))"
+status = "open"
 
 [issue.1028]
 tier = 1
@@ -595,7 +595,7 @@ why = "The Windows C library builds and links; the Python extensions, the interr
 [issue.1366]
 tier = 1
 title = "bench: acc_f32's madd/madd2d/get/dump benchmarks measure a no-op"
-status = "in review ([#1980](https://github.com/doppler-dsp/doppler/pull/1980))"
+status = "open"
 why = "Four acc_f32 benchmarks call the kernel with NULL, 0, so they time call overhead under the kernel's name"
 
 [issue.1370]
@@ -1283,7 +1283,7 @@ status = "open"
 [issue.2053]
 tier = 2
 title = "psd: windows are symmetric (N-1), not the periodic form spectral estimation uses -- Hann n=2 is zero, -82 dBc leakage, BH ENBW 2.036"
-status = "in review ([#2140](https://github.com/doppler-dsp/doppler/pull/2140))"
+status = "open"
 
 [issue.2054]
 tier = 5
@@ -1298,7 +1298,7 @@ status = "open"
 [issue.2059]
 tier = 1
 title = "validation reports: _self_check resolves \u00a7N.M but never F<n> -- a renumbered finding silently re-points every citation"
-status = "in review ([#2147](https://github.com/doppler-dsp/doppler/pull/2147))"
+status = "open"
 
 [issue.2062]
 tier = 1
@@ -1318,12 +1318,12 @@ status = "open"
 [issue.2071]
 tier = 2
 title = "burst_despreader: create() and set_bn_* pass an unvalidated bn to dp_loop_filter_init, which trusts its embedders to validate"
-status = "in review ([#2139](https://github.com/doppler-dsp/doppler/pull/2139))"
+status = "open"
 
 [issue.2074]
 tier = 3
 title = "PSD's dB conversion is 70-83% of a frame: decide on a cheaper conversion or a power-first default (Spectrogram U3)"
-status = "in review ([#2117](https://github.com/doppler-dsp/doppler/pull/2117))"
+status = "open"
 
 [issue.2077]
 tier = 1
@@ -1383,7 +1383,7 @@ status = "open"
 [issue.2095]
 tier = 0
 title = "_SynthEngine.set_wtype(PN|BPSK|QPSK) on an engine created otherwise segfaults on the next step"
-status = "in review ([#2132](https://github.com/doppler-dsp/doppler/pull/2132))"
+status = "open"
 
 [issue.2104]
 tier = 2
@@ -1393,17 +1393,17 @@ status = "open"
 [issue.2108]
 tier = 5
 title = "One dB conversion: every remaining log10 site switches to dp_power_to_db_f32 or says why it keeps double"
-status = "in review ([#2126](https://github.com/doppler-dsp/doppler/pull/2126))"
+status = "open"
 
 [issue.2110]
 tier = 0
 title = "clib: dp_fmod_pos can return m (outside [0,m)), so dll_replica reads code[sf], one past the copy"
-status = "in review ([#2141](https://github.com/doppler-dsp/doppler/pull/2141))"
+status = "open"
 
 [issue.2111]
 tier = 0
 title = "resamp: set_state trusts a forged delay_head, and the next output reads past delay_buf"
-status = "in review ([#2134](https://github.com/doppler-dsp/doppler/pull/2134))"
+status = "open"
 
 [issue.2112]
 tier = 0
@@ -1423,7 +1423,7 @@ status = "open"
 [issue.2143]
 tier = 2
 title = "bench(psd): power_onesided is timed one call per round, so its 1,024 cell moves in 7% clock steps"
-status = "in review ([#2146](https://github.com/doppler-dsp/doppler/pull/2146))"
+status = "open"
 
 [issue.2159]
 tier = 2
@@ -1470,11 +1470,6 @@ tier = 5
 title = "specan nits from the #2180 review: dBm import direction, step() naming, fastapi skip"
 status = "open"
 
-[issue.2191]
-tier = 1
-title = "Window and mode literals still reach the constructors through test helpers the named-args gate cannot see"
-status = "in review ([#2199](https://github.com/doppler-dsp/doppler/pull/2199))"
-
 [issue.2194]
 tier = 1
 title = "carrier_acq's window set is declared twice, and the named-args gate checks its slot against psd_window, not the carrier_acq_window view"
@@ -1505,6 +1500,11 @@ tier = 1
 title = "A changelog fragment without its leading \"- \" passes every PR gate and fails only at release assembly"
 status = "open"
 
+[issue.2208]
+tier = 3
+title = "test_server_ws.py: websocket recv has no timeout, so a hung server stalls the Python leg"
+status = "open"
+
 [issue.2211]
 tier = 2
 title = "PSD kernel follow-ups from #2209's review: ENBW off the kernel, meters carry an unused ring, the identity dump's gaps"
@@ -1513,4 +1513,19 @@ status = "open"
 [issue.2212]
 tier = 0
 title = "Run from a rebase exec, the gate tests' scratch repos obey the inherited GIT_DIR and rewrite the caller's index"
+status = "open"
+
+[issue.2217]
+tier = 4
+title = "BurstCapture: compensate the Doppler rate (rate hypotheses), with Pd/Pfa characterized to confidence bounds"
+status = "open"
+
+[issue.2218]
+tier = 3
+title = "acq: a burst engine's measured per-dwell Pfa is 2x its target (1.97e-3 against 1e-3, ZC 127 x 16, D = 5)"
+status = "open"
+
+[issue.2219]
+tier = 4
+title = "rate_hypotheses follow-ups: tiled Monte-Carlo, per-event rate, DsssBurstReceiver, a deterministic guard for refine"
 status = "open"

@@ -35,7 +35,7 @@
  * float _Complex pre[124];
  * for (size_t i = 0; i < 124; i++) pre[i] = nrz[i / 4];
  * dp_burst_capture_state_t *cap = dp_burst_capture_create (
- *     pre, 124, 4096, 4, 4.0e6, 55.0, 0.0, 1e-3, 0.9, 0, 0.0);
+ *     pre, 124, 4096, 4, 4.0e6, 55.0, 0.0, 1e-3, 0.9, 0, 0.0, 1);
  * float _Complex x[2048] = { 0 };
  * float _Complex win[4096];
  * size_t n = dp_burst_capture_push (cap, x, 2048, win, 4096);
@@ -255,7 +255,10 @@ typedef struct
   size_t max_cells;         /**< Doppler cells refine can need: the most an
                                  engine bin spans at depth `reps`, which is
                                  at D = 1 -- `2 * ceil(reps *
-                                 BURST_CAPTURE_REFINE_INTERP / 2) + 3`.   */
+                                 BURST_CAPTURE_REFINE_INTERP / 2) + 3`, plus
+                                 the cells a rate hypothesis shifts the
+                                 preamble's Doppler by, per side, when the
+                                 engine searches rates.                   */
   size_t refine_span;  /**< Candidate offsets searched, in samples:
                             `(k_lo + k_hi + reps) * code_period`. Read it
                             rather than restating the formula -- the design
@@ -482,7 +485,26 @@ typedef struct
  * @param doppler_rate  Doppler rate, Hz/s (>= 0), that caps the
  *                      acquisition's coherent depth at
  *                      `f_epoch/sqrt(2*doppler_rate)` repetitions
- *                      (doppler#1482); 0 is no bound.
+ *                      (doppler#1482); 0 is no bound. With
+ *                      @p rate_hypotheses > 1 it is the span instead.
+ * @param rate_hypotheses  Doppler-rate hypotheses to search (>= 1, at most
+ *                      ACQ_RATE_HYPS_MAX); 1 searches none and
+ *                      @p doppler_rate only caps the depth. Above 1 the
+ *                      capture COMPENSATES the rate: `doppler_rate` is the
+ *                      span `[-R, +R]`, the acquisition de-chirps its
+ *                      coherent block at this many rates across it, and the
+ *                      depth is bounded by the RESIDUAL, `R/(n - 1)` -- deeper
+ *                      blocks, more sensitivity, about `n` times the per-dwell
+ *                      cost, and a false-alarm budget split over the
+ *                      hypotheses (dp_acq_create_burst() owns the semantics).
+ *                      Refine follows the engine: its coherent sum over the
+ *                      preamble's periods tries the rates too, on a finer
+ *                      grid because it integrates the whole preamble, and
+ *                      its Doppler cells widen by the shift a rate puts
+ *                      between the detecting dwell's middle and the
+ *                      preamble's -- so a burst the engine found by rate is
+ *                      placed by rate. Needs a non-zero @p doppler_rate (the
+ *                      span). Measured: validate_acq_rate_pd.
  * @return Heap state, or NULL if any parameter is out of range.
  *
  * @code
@@ -495,13 +517,30 @@ typedef struct
  * 512
  * >>> cap.retain_span == cap.refine_span + cap.burst_len
  * True
+ *
+ * A carrier that sweeps caps the coherent depth at its rate; searching
+ * Doppler-rate hypotheses compensates it, and buys the depth back:
+ *
+ * >>> import warnings
+ * >>> k = np.arange(127)
+ * >>> zc = np.exp(-1j * np.pi * 5 * k * (k + 1) / 127).astype(np.complex64)
+ * >>> def make(**kw):
+ * ...     with warnings.catch_warnings():
+ * ...         warnings.simplefilter("ignore")   # under-powered, below
+ * ...         return BurstCapture(zc, burst_len=2432, reps=16, fs=1.0,
+ * ...                             cn0_dbhz=-13.0, doppler_rate=9e-7, **kw)
+ * >>> make().doppler_bins, make().underpowered      # the rate caps it
+ * (5, True)
+ * >>> c = make(rate_hypotheses=9)
+ * >>> c.rate_hypotheses, c.doppler_bins, c.underpowered
+ * (9, 10, False)
  * @endcode
  */
 dp_burst_capture_state_t *dp_burst_capture_create (
     const float _Complex *preamble, size_t preamble_len, size_t burst_len,
     size_t reps,
     double fs, double cn0_dbhz, double doppler_uncertainty, double pfa,
-    double pd, int noise_mode, double doppler_rate);
+    double pd, int noise_mode, double doppler_rate, size_t rate_hypotheses);
 
 /**
  * @brief Create a capture whose look-back lives in a FILE.
@@ -551,7 +590,10 @@ dp_burst_capture_state_t *dp_burst_capture_create (
  * @param doppler_rate  Doppler rate, Hz/s (>= 0), that caps the
  *                      acquisition's coherent depth at
  *                      `f_epoch/sqrt(2*doppler_rate)` repetitions
- *                      (doppler#1482); 0 is no bound.
+ *                      (doppler#1482); 0 is no bound. With
+ *                      @p rate_hypotheses > 1 it is the span instead.
+ * @param rate_hypotheses  Doppler-rate hypotheses to search; see
+ *                      dp_burst_capture_create().
  * @return Heap state, or NULL if a parameter is out of range or the file
  *         could not be opened, sized or mapped.
  *
@@ -578,7 +620,7 @@ dp_burst_capture_state_t *dp_burst_capture_create_backed (
     const char *path, const float _Complex *preamble, size_t preamble_len,
     size_t burst_len, size_t reps, double fs, double cn0_dbhz,
     double doppler_uncertainty, double pfa, double pd, int noise_mode,
-    double doppler_rate);
+    double doppler_rate, size_t rate_hypotheses);
 
 /** @brief Release a capture and everything it owns. NULL-safe. */
 void dp_burst_capture_destroy (dp_burst_capture_state_t *state);
@@ -839,6 +881,10 @@ double dp_burst_capture_get_psl_db (const dp_burst_capture_state_t *state);
 /** @brief Doppler rate (Hz/s) the coherent depth is bounded against; 0 is
  *         no bound. */
 double dp_burst_capture_get_doppler_rate (const dp_burst_capture_state_t *state);
+/** @brief Doppler-rate hypotheses searched; 1 is none -- `doppler_rate` then
+ *         only caps the coherent depth. */
+size_t dp_burst_capture_get_rate_hypotheses (
+    const dp_burst_capture_state_t *state);
 /** @brief Doppler hypotheses searched: the coherent depth, or the window-tile
  *         count past the native span -- acq_grid_bins() (doppler#1512). */
 size_t dp_burst_capture_get_doppler_bins (const dp_burst_capture_state_t *state);

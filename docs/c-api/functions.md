@@ -456,6 +456,7 @@
 * **dp\_burst\_capture\_get\_pending** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
 * **dp\_burst\_capture\_get\_preamble\_start** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
 * **dp\_burst\_capture\_get\_psl\_db** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
+* **dp\_burst\_capture\_get\_rate\_hypotheses** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
 * **dp\_burst\_capture\_get\_state** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
 * **dp\_burst\_capture\_get\_straddle\_loss** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
 * **dp\_burst\_capture\_push** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))

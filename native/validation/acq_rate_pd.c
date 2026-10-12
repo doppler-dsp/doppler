@@ -1,0 +1,404 @@
+/**
+ * @file acq_rate_pd.c
+ * @brief What Doppler-rate compensation buys a burst CAPTURE, and what it
+ *        costs in false alarms -- measured, with confidence bounds.
+ *
+ * `doppler_rate` alone only LIMITS the acquisition's coherent depth to
+ * `f_epoch/sqrt(2*doppler_rate)` repetitions, so a carrier sweeping at that
+ * rate costs integration gain. dp_burst_capture_create()'s
+ * `rate_hypotheses`
+ * compensates it instead: the engine de-chirps its coherent block at `Rh`
+ * rates across `[-doppler_rate, +doppler_rate]`, the depth is bounded by the
+ * residual `doppler_rate/(Rh-1)`, and the per-cell Pfa is split over the
+ * hypotheses. This program is the evidence for all three halves of that
+ * sentence.
+ *
+ *   Geometry   a Zadoff-Chu 127 preamble repeated 16 times, then 1000
+ *              samples of random QPSK, at fs = 1 (rates are cycles/sample^2).
+ *              The carrier SWEEPS through the whole burst, preamble and
+ *              payload: frequency `f_mid + a*(i - centre)`, `a` drawn
+ *              uniform over the rate span for the "uniform" rows. The
+ *              burst lands at a uniform random offset, a continuous delay,
+ *              in AWGN from the shipped `awgn`.
+ *
+ *   Pd         for each hypothesis count Rh, at ONE C/N0: the one where the
+ *              most-compensated engine predicts a burst Pd of 0.9. The
+ *              ENGINE scores hit when some dwell overlapping the preamble
+ *              names its code phase; the CAPTURE scores hit when it emits a
+ *              window whose preamble_start is within 3 samples of the
+ *              truth. Both carry a Wilson 95% interval. `pred` is the
+ *              engine's own pd_burst, which does NOT model the loss of a
+ *              rate that falls between two hypotheses -- that is what the
+ *              "midpoint" rows measure: every trial's rate exactly half a
+ *              spacing from the nearest hypothesis, the worst case the
+ *              depth bound is derived against.
+ *
+ *   Pfa        noise only, through the engine: the share of dwells that
+ *              clear the gate, against the `pfa` asked for, with a Wilson
+ *              95% interval. The sizer prices `Rh` times the cells; this
+ *              measures whether that is enough.
+ *
+ * Usage:
+ *   validate_acq_rate_pd           every hypothesis count, 1000 trials a row,
+ *                                  200000 noise dwells a row
+ *   validate_acq_rate_pd --check   the spot checks CTest runs, on 1, 5 and 9
+ *                                  hypotheses and fewer trials: compensation
+ *                                  delivers what it predicts, beats the
+ *                                  capped depth, and holds Pfa
+ *
+ * Both modes assert the same claims.
+ */
+#include "doppler/acq/acq_core.h"
+#include "doppler/awgn/awgn_core.h"
+#include "doppler/burst_capture/burst_capture_core.h"
+#include "doppler/dp_complex.h"
+#include "dp_preamble_test.h"
+#include "dp_rng_test.h"
+#include "dp_test.h"
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define N 127u
+#define REPS 16u
+#define PAYLOAD 1000u
+#define BURST (REPS * N + PAYLOAD)
+#define PFA 1e-3
+#define PD 0.9
+#define TOL 3.0
+/* The rate span, cycles/sample^2: the carrier sweeps 0.0009 of the sample
+   rate across the preamble (a quarter of the native Doppler span, 1/(2N)),
+   at either sign. Uncompensated, the drift bound caps the depth at 5
+   repetitions of 16. */
+#define RATE 9.0e-7
+
+static float _Complex ZC[N];
+
+static void
+zadoff_chu (void)
+{
+  for (size_t k = 0; k < N; k++)
+    ZC[k] = (float _Complex)cexp (-I * M_PI * 5.0 * (double)k * (double)(k + 1)
+                                  / (double)N);
+}
+
+static dp_burst_capture_state_t *
+make (size_t rh, double cn0)
+{
+  dp_burst_capture_state_t *s = dp_burst_capture_create (
+      ZC, N, BURST, REPS, 1.0, cn0, 0.0, PFA, PD, 0, RATE, rh);
+  if (!s)
+    {
+      DP_TEST_ERR ("capture at Rh=%zu refused\n", rh);
+      abort ();
+    }
+  return s;
+}
+
+/* The C/N0 (per-sample SNR, dB, at fs = 1) at which a capture with `rh`
+   hypotheses first predicts a burst Pd of `target`, on a quarter-dB grid:
+   pd_burst rises with C/N0, so a bisection finds the step a scan would. */
+static double
+cn0_for (size_t rh, double target)
+{
+  int lo = 0, hi = 200; /* -30 dB .. +20 dB */
+  while (lo < hi)
+    {
+      int                       mid = (lo + hi) / 2;
+      dp_burst_capture_state_t *s   = make (rh, -30.0 + 0.25 * (double)mid);
+      double                    p   = dp_burst_capture_get_pd_burst (s);
+      dp_burst_capture_destroy (s);
+      if (p >= target)
+        hi = mid;
+      else
+        lo = mid + 1;
+    }
+  return -30.0 + 0.25 * (double)lo;
+}
+
+/* Wilson score interval for k successes in n trials, 95%. Unlike the normal
+   approximation it stays inside [0, 1] and is honest at k = 0, which the
+   false-alarm rows live at. */
+static void
+wilson (double k, double n, double *lo, double *hi)
+{
+  const double z = 1.959964, p = k / n, z2 = z * z;
+  const double c = (p + z2 / (2.0 * n)) / (1.0 + z2 / n);
+  const double h
+      = z * sqrt (p * (1.0 - p) / n + z2 / (4.0 * n * n)) / (1.0 + z2 / n);
+  *lo = c - h < 0.0 ? 0.0 : c - h;
+  *hi = c + h > 1.0 ? 1.0 : c + h;
+}
+
+typedef struct
+{
+  size_t rh, depth;
+  int    midpoint;
+  double pred, eng, eng_lo, eng_hi, cap, cap_lo, cap_hi;
+} pd_row_t;
+
+/* The rate of trial `t`: uniform over the span, or -- the worst case for a
+   hypothesis grid -- exactly half a spacing from the nearest hypothesis
+   (a random gap, so no hypothesis is favoured). One hypothesis has no
+   gap: the midpoint falls back to the span's edge. */
+static double
+trial_rate (size_t rh, int midpoint, uint32_t *st)
+{
+  if (!midpoint)
+    return (2.0 * dp_uni (st) - 1.0) * RATE;
+  if (rh < 2)
+    return (dp_uni (st) < 0.5 ? -RATE : RATE);
+  const double step = 2.0 * RATE / (double)(rh - 1);
+  const size_t gap  = (size_t)(dp_uni (st) * (double)(rh - 1));
+  return -RATE + ((double)(gap > rh - 2 ? rh - 2 : gap) + 0.5) * step;
+}
+
+static pd_row_t
+measure_pd (size_t rh, int midpoint, double cn0, int trials, uint32_t seed)
+{
+  pd_row_t r = { 0 };
+  r.rh       = rh;
+  r.midpoint = midpoint;
+
+  dp_burst_capture_state_t *s = make (rh, cn0);
+  r.pred                      = dp_burst_capture_get_pd_burst (s);
+  r.depth                     = dp_burst_capture_get_doppler_bins (s);
+  const size_t     lead_max   = 3u * r.depth * N;
+  const size_t     len = lead_max + BURST + 2u * s->refine_span + 4u * N;
+  float _Complex  *x   = dp_xmalloc (len * sizeof *x);
+  float _Complex  *nz  = dp_xmalloc (len * sizeof *nz);
+  float _Complex  *per = dp_xmalloc (N * sizeof *per);
+  const size_t     cap = dp_burst_capture_push_max_out (s, len);
+  float _Complex  *out = dp_xmalloc ((cap ? cap : 1) * sizeof *out);
+  dp_awgn_state_t *g   = dp_xnn (
+      dp_awgn_create (seed, dp_awgn_amplitude_for_snr ((float)cn0, 1.0f)));
+  /* The carrier stays inside the native span for the whole preamble. */
+  const double dur  = (double)(REPS * N);
+  const double span = 1.0 / (2.0 * (double)N) - RATE * 0.5 * dur;
+  uint32_t     st   = seed;
+  int          hits = 0, eng = 0;
+
+  for (int t = 0; t < trials; t++)
+    {
+      const size_t at
+          = r.depth * N + (size_t)(dp_uni (&st) * (double)(2u * r.depth * N));
+      const double f_mid = (2.0 * dp_uni (&st) - 1.0) * span;
+      const double rate  = trial_rate (rh, midpoint, &st);
+      const double frac  = dp_uni (&st);
+      dp_preamble_shift (ZC, N, frac, per);
+      memset (x, 0, len * sizeof *x);
+      for (size_t i = 0; i < BURST; i++)
+        {
+          float _Complex v
+              = i < REPS * N
+                    ? per[i % N]
+                    : (float _Complex)cexp (I * M_PI / 2.0
+                                            * (double)(dp_xs32 (&st) >> 30));
+          const double u = (double)i - 0.5 * dur; /* about the preamble */
+          x[at + i] = v
+                      * (float _Complex)cexp (
+                          I * 2.0 * M_PI * (f_mid * u + 0.5 * rate * u * u));
+        }
+      dp_awgn_generate (g, len, nz, len);
+      for (size_t i = 0; i < len; i++)
+        x[i] += nz[i];
+
+      dp_burst_capture_reset (s);
+      (void)dp_burst_capture_push (s, x, len, out, cap);
+      int hit = 0;
+      for (size_t k = 0; k < dp_burst_capture_ready (s); k++)
+        {
+          const burst_capture_event_t *ev = dp_burst_capture_event_at (s, k);
+          if (ev
+              && fabs ((double)ev->preamble_start - ((double)at + frac))
+                     <= TOL)
+            hit = 1;
+        }
+      hits += hit;
+
+      /* The ENGINE's own verdict: some dwell overlapping the preamble named
+         its code phase (the raw hits the capture recorded before claiming
+         anything). */
+      const double truth = fmod ((double)at + frac, (double)N);
+      int          e_hit = 0;
+      for (size_t k = 0; k < s->det_len; k++)
+        {
+          const double ep = (double)s->det[k].epoch;
+          double       d  = fabs (fmod (ep, (double)N) - truth);
+          if (d > 0.5 * (double)N)
+            d = (double)N - d;
+          if (d <= TOL && ep > (double)at - (double)((r.depth + 1u) * N)
+              && ep < (double)(at + REPS * N))
+            e_hit = 1;
+        }
+      eng += e_hit;
+    }
+  r.eng = (double)eng / trials;
+  r.cap = (double)hits / trials;
+  wilson (eng, trials, &r.eng_lo, &r.eng_hi);
+  wilson (hits, trials, &r.cap_lo, &r.cap_hi);
+  dp_awgn_destroy (g);
+  free (out);
+  free (per);
+  free (nz);
+  free (x);
+  dp_burst_capture_destroy (s);
+  return r;
+}
+
+typedef struct
+{
+  size_t rh, depth;
+  double dwells, hits, pfa, lo, hi;
+} pfa_row_t;
+
+/* Noise only, straight through the engine at the design C/N0: the share of
+   dwells that clear the gate. The engine reports at most one hit a dwell
+   (max_peaks 1), so hits/dwells is the per-dwell false-alarm rate the
+   `pfa` parameter targets. */
+static pfa_row_t
+measure_pfa (size_t rh, double cn0, double dwells_wanted, uint32_t seed)
+{
+  pfa_row_t r = { 0 };
+  r.rh        = rh;
+  dp_acq_state_t *a
+      = dp_acq_create_burst (ZC, N, REPS, 1.0, cn0, 0.0, PFA, PD, 0, RATE, rh);
+  if (!a)
+    {
+      DP_TEST_ERR ("engine at Rh=%zu refused\n", rh);
+      abort ();
+    }
+  r.depth                    = a->coherent_bins;
+  const size_t     per_dwell = a->frame_n;
+  const size_t     chunk     = 64u * per_dwell;
+  float _Complex  *nz        = dp_xmalloc (chunk * sizeof *nz);
+  acq_result_t     res[64];
+  dp_awgn_state_t *g = dp_xnn (
+      dp_awgn_create (seed, dp_awgn_amplitude_for_snr ((float)cn0, 1.0f)));
+  while (r.dwells < dwells_wanted)
+    {
+      dp_awgn_generate (g, chunk, nz, chunk);
+      size_t off = 0;
+      while (off < chunk)
+        {
+          const size_t nh = dp_acq_push (a, nz + off, chunk - off, res, 64);
+          r.hits += (double)nh;
+          off += dp_acq_consumed (a);
+          if (dp_acq_consumed (a) == 0)
+            break;
+        }
+      r.dwells += 64.0;
+    }
+  r.pfa = r.hits / r.dwells;
+  wilson (r.hits, r.dwells, &r.lo, &r.hi);
+  dp_awgn_destroy (g);
+  free (nz);
+  dp_acq_destroy (a);
+  return r;
+}
+
+int
+main (int argc, char **argv)
+{
+  const int    check  = (argc > 1 && strcmp (argv[1], "--check") == 0);
+  const int    trials = check ? 250 : 1000;
+  const double dwells = check ? 1.0e4 : 2.0e5;
+  zadoff_chu ();
+
+  /* The design point: where the most-compensated engine predicts PD. The
+     spot check keeps both ends and the middle, and the worst case (a rate
+     between two hypotheses) at the middle; the sweep, every count. */
+  const size_t  RH_ALL[]   = { 1, 3, 5, 9 };
+  const size_t  RH_CHECK[] = { 1, 5, 9 };
+  const size_t *RH         = check ? RH_CHECK : RH_ALL;
+  const size_t  NRH        = check ? sizeof RH_CHECK / sizeof *RH_CHECK
+                                   : sizeof RH_ALL / sizeof *RH_ALL;
+  const double  cn0        = cn0_for (RH[NRH - 1], PD);
+  printf ("Zadoff-Chu %u x %u then %u samples of QPSK, fs = 1, rate span "
+          "+-%g cycles/sample^2 (the carrier sweeps %.4f of fs across the "
+          "preamble)\npfa %g, pd %g; every row at C/N0 %.2f dB, where Rh = "
+          "%zu predicts a burst Pd of %g; %d trials a row, Wilson 95%%\n\n",
+          N, REPS, PAYLOAD, RATE, 2.0 * RATE * (double)(REPS * N), PFA, PD,
+          cn0, RH[NRH - 1], PD, trials);
+
+  printf ("%3s %3s %-9s %6s | %6s %6s %6s | %6s %6s %6s\n", "Rh", "D", "rate",
+          "pred", "engine", "lo95", "hi95", "captur", "lo95", "hi95");
+  pd_row_t rows[8];
+  size_t   nrows = 0;
+  for (size_t i = 0; i < NRH; i++)
+    for (int mid = 0; mid < 2; mid++)
+      {
+        if ((RH[i] == 1 || (check && RH[i] != 5)) && mid)
+          continue;
+        pd_row_t r    = measure_pd (RH[i], mid, cn0, trials,
+                                    4242u + 17u * (uint32_t)i + (uint32_t)mid);
+        rows[nrows++] = r;
+        printf ("%3zu %3zu %-9s %6.3f | %6.3f %6.3f %6.3f | %6.3f %6.3f "
+                "%6.3f\n",
+                r.rh, r.depth, mid ? "midpoint" : "uniform", r.pred, r.eng,
+                r.eng_lo, r.eng_hi, r.cap, r.cap_lo, r.cap_hi);
+      }
+
+  printf ("\nnoise only: share of dwells above the gate (target pfa %g)\n",
+          PFA);
+  printf ("%3s %3s %9s %7s %9s %9s %9s\n", "Rh", "D", "dwells", "hits", "pfa",
+          "lo95", "hi95");
+  pfa_row_t prow[8];
+  for (size_t i = 0; i < NRH; i++)
+    {
+      prow[i] = measure_pfa (RH[i], cn0, dwells, 99u + (uint32_t)i);
+      printf ("%3zu %3zu %9.0f %7.0f %9.2e %9.2e %9.2e\n", prow[i].rh,
+              prow[i].depth, prow[i].dwells, prow[i].hits, prow[i].pfa,
+              prow[i].lo, prow[i].hi);
+    }
+
+  /* The same claims in both modes: a sweep that asserted nothing would fail
+     `make validate` for it (doppler#1566), and the full rows are a longer
+     look at what the spot check pins. */
+  {
+    /* The compensated engine and capture deliver what pd_burst promises,
+       in the worst case for a hypothesis grid as well as the average:
+       the promise sits inside the 95% interval or below it. */
+    for (size_t k = 0; k < nrows; k++)
+      if (rows[k].rh > 1)
+        {
+          DP_CHECK_MSG (rows[k].eng_hi >= rows[k].pred,
+                        "compensated engine delivers its pd_burst");
+          DP_CHECK_MSG (rows[k].cap_hi >= rows[k].pred,
+                        "compensated capture delivers its pd_burst");
+          /* The trials are seeded, so a second run draws the SAME 250
+             bursts and the point estimate is a regression pin, not a
+             significance test. It is what holds refine's two rate
+             refinements -- the Doppler cells widened by the shift a rate
+             puts between the detecting dwell and the preamble, and a rate
+             grid denser than the engine's -- because each is worth about
+             0.02 here and a 95% interval (+-0.04) cannot see 0.02. Taken
+             away, the uniform rows read 0.880-0.884 against a pin of
+             pred - 0.015 = 0.889-0.892; with them, 0.904-0.912. */
+          if (!rows[k].midpoint)
+            DP_CHECK_MSG (rows[k].cap >= rows[k].pred - 0.015,
+                          "compensated capture is within 0.015 of its "
+                          "pd_burst on the seeded trials");
+        }
+    /* And it is worth having: the most compensated capture beats the
+       capped depth, outside both intervals. */
+    const pd_row_t *base = &rows[0], *top = &rows[0];
+    for (size_t k = 0; k < nrows; k++)
+      if (!rows[k].midpoint && rows[k].rh >= top->rh)
+        top = &rows[k];
+    DP_CHECK_MSG (top->cap_lo > base->cap_hi,
+                  "compensation beats the capped depth, outside the "
+                  "intervals");
+    /* Pfa: the hypotheses are priced. The rows with Rh > 1 are not
+       significantly above the target. (Rh = 1 is the engine as it ran
+       before compensation existed, and reads about twice the target at
+       this geometry -- reported above, not this program's to hold.) */
+    for (size_t i = 0; i < NRH; i++)
+      if (prow[i].rh > 1)
+        DP_CHECK_MSG (prow[i].lo <= PFA,
+                      "per-dwell Pfa is not significantly above the "
+                      "target");
+  }
+  DP_TEST_END ("validate_acq_rate_pd");
+}

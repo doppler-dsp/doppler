@@ -124,7 +124,7 @@ nogil = true
 # push of over 1024 / max_peaks dwells: 48 KiB of stack per call
 # (sizeof(acq_result_t) = 48).
 max_results = 1024
-result_fields = [{name = "doppler_bin", type = "size_t"}, {name = "code_phase", type = "size_t"}, {name = "peak_mag", type = "float"}, {name = "noise_est", type = "float"}, {name = "test_stat", type = "float"}, {name = "cn0_dbhz_est", type = "float"}, {name = "samples_consumed", type = "uint64_t"}, {name = "chip_phase", type = "double"}]
+result_fields = [{name = "doppler_bin", type = "size_t"}, {name = "code_phase", type = "size_t"}, {name = "peak_mag", type = "float"}, {name = "noise_est", type = "float"}, {name = "test_stat", type = "float"}, {name = "cn0_dbhz_est", type = "float"}, {name = "samples_consumed", type = "uint64_t"}, {name = "chip_phase", type = "double"}, {name = "doppler_rate_hz_s", type = "double"}]
 
 # Advanced escape hatch: pin the search grid directly, bypassing both
 # auto-sizing searches (mirrors Dll's/Costas's configure_lock_raw()). Raises

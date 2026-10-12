@@ -16,7 +16,7 @@ serializable = "true"
 # rejects a parameter set that cannot build a capture. Same shape as
 # objects/dsss_burst_receiver.toml's.
 create_error = "ValueError"
-create_error_message = "BurstCapture: invalid parameter (need a non-empty preamble with finite, non-zero energy, reps >= 1, fs > 0, burst_len >= 1, cn0_dbhz finite or NaN, doppler_rate >= 0, 0 < pfa < 1, 0 < pd < 1)"
+create_error_message = "BurstCapture: invalid parameter (need a non-empty preamble with finite, non-zero energy, reps >= 1, fs > 0, burst_len >= 1, cn0_dbhz finite or NaN, doppler_rate >= 0, 1 <= rate_hypotheses <= 64 (and doppler_rate nonzero above 1), 0 < pfa < 1, 0 < pd < 1)"
 # A search that cannot meet the requested `pd` still BUILDS, best-effort, and
 # then captures fewer bursts than arrived -- so the only symptom is a quiet
 # stream. Declared here rather than hand-patched: jm's condition must be a
@@ -115,6 +115,16 @@ name = "doppler_rate"
 type = "double"
 default = "0.0"
 
+# Doppler-rate hypotheses to search. 1 = none, and doppler_rate only caps the
+# acquisition's depth; above 1 the capture COMPENSATES the rate -- doppler_rate
+# becomes the span of the hypotheses, the depth is bounded by the residual
+# doppler_rate/(n - 1), and refine tries the rates too. Appended last, so no
+# positional call moves.
+[[burst_capture.init_params]]
+name = "rate_hypotheses"
+type = "size_t"
+default = "1"
+
 # ── The persistent flavour ───────────────────────────────────────────────────
 # A difference in CONSTRUCTOR is a flavor (a view over one core); a difference
 # in METHOD SIGNATURE would be a separate type. This differs only in where the
@@ -141,6 +151,7 @@ init_params = [
   { name = "pd", type = "double", default = "0.9" },
   { name = "noise_mode", type = "string_enum:mean,median,min,max", default = "mean" },
   { name = "doppler_rate", type = "double", default = "0.0" },
+  { name = "rate_hypotheses", type = "size_t", default = "1" },
 ]
 
 [[burst_capture.methods]]
@@ -313,6 +324,11 @@ doc = "True when the search cannot meet the requested `pd` at this `cn0_dbhz` an
 name = "doppler_rate"
 type = "double"
 doc = "Doppler rate (Hz/s) the acquisition's coherent depth is bounded against: `doppler_bins <= f_epoch/sqrt(2*doppler_rate)`, so the carrier drifts less than half a slow-time row per block. 0 is no bound."
+
+[[burst_capture.properties]]
+name = "rate_hypotheses"
+type = "size_t"
+doc = "Doppler-rate hypotheses the acquisition searches, as given at construction; 1 is none -- `doppler_rate` then only caps the coherent depth. Above 1 `doppler_rate` is the span of the hypotheses, the depth is bounded by the residual `doppler_rate/(rate_hypotheses - 1)`, and refine tries the rates too."
 
 [[burst_capture.properties]]
 name = "pd_predicted"

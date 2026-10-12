@@ -554,7 +554,7 @@ size_t dp_burst_capture_state_t::max_cells;
 
 
 
-Doppler cells refine can need: the most an engine bin spans at depth `reps`, which is at D = 1  `2 * ceil(reps * BURST_CAPTURE_REFINE_INTERP / 2) + 3`. 
+Doppler cells refine can need: the most an engine bin spans at depth `reps`, which is at D = 1  `2 * ceil(reps * BURST_CAPTURE_REFINE_INTERP / 2) + 3`, plus the cells a rate hypothesis shifts the preamble's Doppler by, per side, when the engine searches rates. 
  
 
 

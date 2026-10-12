@@ -87,7 +87,7 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 |  void | [**dp\_acq\_cell\_corr\_grid**](#function-dp_acq_cell_corr_grid) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, const float \_Complex \* x, size\_t n\_epochs, size\_t col, const double \* f\_hz, size\_t n\_f, double t0, double \_Complex \* out) <br>[_**dp\_acq\_cell\_corr()**_](acq__core_8h.md#function-dp_acq_cell_corr) _at many frequencies over consecutive epochs, in one pass: the cells a caller scores once the code phase is settled and only the Doppler is left to search._ |
 |  int | [**dp\_acq\_configure\_search\_raw**](#function-dp_acq_configure_search_raw) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the search grid directly, bypassing both auto-sizing searches — the advanced escape hatch (mirrors Dll's/Costas's configure\_lock\_raw())._  |
 |  size\_t | [**dp\_acq\_consumed**](#function-dp_acq_consumed) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state) <br>_Input samples the last_ [_**dp\_acq\_push()**_](acq__core_8h.md#function-dp_acq_push) _took._ |
-|  [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* | [**dp\_acq\_create\_burst**](#function-dp_acq_create_burst) (const float \_Complex \* tmpl, size\_t n, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate) <br>_Create a burst-mode acquisition engine for a repeated preamble: coherent multi-repetition combining, up to_ `reps` _deep._ |
+|  [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* | [**dp\_acq\_create\_burst**](#function-dp_acq_create_burst) (const float \_Complex \* tmpl, size\_t n, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate, size\_t rate\_hypotheses) <br>_Create a burst-mode acquisition engine for a repeated preamble: coherent multi-repetition combining, up to_ `reps` _deep._ |
 |  [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* | [**dp\_acq\_create\_continuous**](#function-dp_acq_create_continuous) (const uint8\_t \* code, size\_t code\_len, size\_t spc, double chip\_rate, double symbol\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, size\_t code\_only\_epochs, double doppler\_rate) <br>_Create a continuous-mode acquisition engine: always wideband window-tiling, allowing a block-coherent depth inside the tiles to accommodate waveforms with code-only windows._  |
 |  void | [**dp\_acq\_destroy**](#function-dp_acq_destroy) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state) <br>_Destroy and free an engine._  |
 |  void | [**dp\_acq\_get\_state**](#function-dp_acq_get_state) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, void \* blob) <br>_Serialize_ `state's` _cross-call state into_`blob` _(caller-owned,_[_**dp\_acq\_state\_bytes()**_](acq__core_8h.md#function-dp_acq_state_bytes) _long). Call between pushes (no partial dump pending)._ |
@@ -149,8 +149,9 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 | define  | [**ACQ\_DELAY\_LOSS\_NODES**](acq__core_8h.md#define-acq_delay_loss_nodes)  `4`<br> |
 | define  | [**ACQ\_MAX\_PEAKS**](acq__core_8h.md#define-acq_max_peaks)  `64u`<br> |
 | define  | [**ACQ\_N\_NONCOH\_SAFETY\_CEILING**](acq__core_8h.md#define-acq_n_noncoh_safety_ceiling)  `256u`<br>_Internal safety-valve ceiling on auto-selected non-coherent looks_  _not a public knob (no caller-facing equivalent of the retired_`max_noncoh` _parameter)._ |
+| define  | [**ACQ\_RATE\_HYPS\_MAX**](acq__core_8h.md#define-acq_rate_hyps_max)  `64u`<br> |
 | define  | [**ACQ\_STATE\_MAGIC**](acq__core_8h.md#define-acq_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'C', 'Q', 'R')`<br> |
-| define  | [**ACQ\_STATE\_VERSION**](acq__core_8h.md#define-acq_state_version)  `5u`<br> |
+| define  | [**ACQ\_STATE\_VERSION**](acq__core_8h.md#define-acq_state_version)  `6u`<br> |
 
 ## Detailed Description
 
@@ -196,7 +197,7 @@ float _Complex pre[124];
 for (size_t i = 0; i < 124; i++)
   pre[i] = nrz[i / 4];                   // each chip held 4 samples
 dp_acq_state_t *a = dp_acq_create_burst(pre, 124, 16, 4.0e6, 45.0,
-                                  0.0, 1e-3, 0.9, 0, 0.0);
+                                  0.0, 1e-3, 0.9, 0, 0.0, 1);
 acq_result_t hits[64];
 size_t nh = dp_acq_push(a, samples, n_samples, hits, 64);
 for (size_t i = 0; i < nh; i++)
@@ -632,7 +633,8 @@ dp_acq_state_t * dp_acq_create_burst (
     double pfa,
     double pd,
     int noise_mode,
-    double doppler_rate
+    double doppler_rate,
+    size_t rate_hypotheses
 ) 
 ```
 
@@ -666,6 +668,18 @@ The within-repetition rotation loss keeps the engine's `sinc` model: it is the z
 `tmpl` is scaled to unit RMS (a copy  the caller's buffer is only read), so `peak_mag` and `noise_est` come out in the signal's units whatever the preamble's amplitude. C/N0 is the preamble's mean power.
 
 
+**What hypotheses change**, when `rate_hypotheses` is `n > 1`:
+* **Depth.** The drift bound is applied to the RESIDUAL rate, the farthest a true rate can sit from a hypothesis, `R/(n - 1)`, so `coherent_bins` can grow by up to `sqrt(n - 1)` at a fixed span.
+* **False alarms.** A dwell now offers `n` looks at each cell: the per-cell Pfa is split over `n * searched_bins * code_bins` cells and the gate is the larger count's. Each hypothesis is CFAR-tested against its own surface and the dwell takes the strongest; [**acq\_result\_t**](structacq__result__t.md):: doppler\_rate\_hz\_s names the winner.
+* **Cost.** A dwell does `n` slow-time passes (and a recompute of the winner when it was not the last): about `n` times the per-dwell cost.
+* **Pd.** The model prices a rate ON a hypothesis. Between two, the coherent gain falls with the residual; the depth bound limits that to half a slow-time row, and validate\_acq\_rate\_pd measures it (a rate half a spacing from every hypothesis, the worst case, against a rate drawn uniformly).
+
+
+
+
+The count is config, not running state, and it is a reject key of the state blob: a blob from an engine with another count is refused, not reinterpreted.
+
+
 
 
 **Parameters:**
@@ -680,20 +694,21 @@ The within-repetition rotation loss keeps the engine's `sinc` model: it is the z
 * `pfa` Target system (max-of-N) false-alarm probability (0,1). 
 * `pd` Target detection probability (0,1); a sizing target only when `cn0_dbhz` is given. 
 * `noise_mode` CFAR mode index: 0=mean, 1=median, 2=min, 3=max. 
-* `doppler_rate` Doppler rate in Hz/s (&gt;= 0) the coherent depth is bounded against: at most `f_epoch/sqrt(2*doppler_rate)` repetitions (`f_epoch = fs/n`, the repetition rate), so the carrier's drift over one block stays inside half a slow-time row (doppler#1482). 0 is no bound: the depth is sized up to `reps`. 
+* `doppler_rate` Doppler rate in Hz/s (&gt;= 0) the coherent depth is bounded against: at most `f_epoch/sqrt(2*doppler_rate)` repetitions (`f_epoch = fs/n`, the repetition rate), so the carrier's drift over one block stays inside half a slow-time row (doppler#1482). 0 is no bound: the depth is sized up to `reps`. With `rate_hypotheses` &gt; 1 it is the SPAN of the rates searched, below. 
+* `rate_hypotheses` Doppler-rate hypotheses to search (&gt;= 1, at most [**ACQ\_RATE\_HYPS\_MAX**](acq__core_8h.md#define-acq_rate_hyps_max)); 1 searches none and `doppler_rate` only caps the depth. Above 1 the engine COMPENSATES the rate: `doppler_rate` is the span `[-R, +R]` and the coherent block is searched at `rate_hypotheses` rates evenly spaced across it, `a_h = -R + 2 R h / (n - 1)`. For each the slow-time axis is multiplied by `exp(-j pi a_h t^2)`, `t` the epoch's time from the block's middle, before the slow-time transform  so the Doppler an engine reports is the carrier's at the block's middle, where a hand-off wants it, and a signal whose rate sits within half a spacing of a hypothesis integrates as a still one (see below). Needs a non-zero `doppler_rate:` it is the span.
 
 
 
 **Returns:**
 
-Heap-allocated state, or NULL on bad arguments / allocation failure. 
+Heap-allocated state, or NULL on bad arguments (including a `rate_hypotheses` outside `[1, ACQ_RATE_HYPS_MAX]`, or above 1 with `doppler_rate == 0`) / allocation failure. 
 ```C++
 // 127-sample Zadoff-Chu preamble at 1 MS/s, up to 8 repetitions
 float _Complex zc[127];
 for (int k = 0; k < 127; k++)
   zc[k] = cexpf (-I * (float)(M_PI * 5.0 * k * (k + 1) / 127.0));
 dp_acq_state_t *a = dp_acq_create_burst (zc, 127, 8, 1.0e6, 50.0, 0.0, 1e-3,
-                                   0.9, 0, 0.0);
+                                   0.9, 0, 0.0, 1);
 dp_acq_destroy (a);
 ```
  
@@ -851,7 +866,7 @@ float _Complex pre[124];               // a 31-chip code at 4x
 for (size_t i = 0; i < 124; i++)
   pre[i] = (i / 4) % 3 ? 1.0f : -1.0f;
 dp_acq_state_t *a = dp_acq_create_burst (pre, 124, 16, 4.0e6, 45.0,
-                                         0.0, 1e-3, 0.9, 0, 0.0);
+                                         0.0, 1e-3, 0.9, 0, 0.0, 1);
 float _Complex x[300] = { 0 };
 uint64_t       before = dp_acq_position (a);           // 0
 acq_result_t   hit;
@@ -1739,6 +1754,23 @@ The semi-analytical Pd model both auto-sizers ascend against turns non-monotonic
 
 
 
+### define ACQ\_RATE\_HYPS\_MAX 
+
+```C++
+#define ACQ_RATE_HYPS_MAX `64u`
+```
+
+
+
+Most Doppler-rate hypotheses an engine searches. Each one costs a full slow-time pass per dwell, so this bounds the cost of a typo, not a design: the residual rate falls as 1/(R-1), and a few dozen hypotheses already take a rate span out to depths no preamble repeats to. 
+
+
+        
+
+<hr>
+
+
+
 ### define ACQ\_STATE\_MAGIC 
 
 ```C++
@@ -1755,7 +1787,7 @@ The semi-analytical Pd model both auto-sizers ascend against turns non-monotonic
 ### define ACQ\_STATE\_VERSION 
 
 ```C++
-#define ACQ_STATE_VERSION `5u`
+#define ACQ_STATE_VERSION `6u`
 ```
 
 

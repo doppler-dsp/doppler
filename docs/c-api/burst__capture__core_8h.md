@@ -72,8 +72,8 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 | Type | Name |
 | ---: | :--- |
 |  int | [**dp\_burst\_capture\_configure\_search\_raw**](#function-dp_burst_capture_configure_search_raw) ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the embedded acquisition's search grid directly._  |
-|  [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* | [**dp\_burst\_capture\_create**](#function-dp_burst_capture_create) (const float \_Complex \* preamble, size\_t preamble\_len, size\_t burst\_len, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate) <br>_Create a burst capture: acquisition, refine and retention behind one push()._  |
-|  [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* | [**dp\_burst\_capture\_create\_backed**](#function-dp_burst_capture_create_backed) (const char \* path, const float \_Complex \* preamble, size\_t preamble\_len, size\_t burst\_len, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate) <br>_Create a capture whose look-back lives in a FILE._  |
+|  [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* | [**dp\_burst\_capture\_create**](#function-dp_burst_capture_create) (const float \_Complex \* preamble, size\_t preamble\_len, size\_t burst\_len, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate, size\_t rate\_hypotheses) <br>_Create a burst capture: acquisition, refine and retention behind one push()._  |
+|  [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* | [**dp\_burst\_capture\_create\_backed**](#function-dp_burst_capture_create_backed) (const char \* path, const float \_Complex \* preamble, size\_t preamble\_len, size\_t burst\_len, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate, size\_t rate\_hypotheses) <br>_Create a capture whose look-back lives in a FILE._  |
 |  void | [**dp\_burst\_capture\_destroy**](#function-dp_burst_capture_destroy) ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_Release a capture and everything it owns. NULL-safe._  |
 |  size\_t | [**dp\_burst\_capture\_detections**](#function-dp_burst_capture_detections) ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state, size\_t n, [**burst\_capture\_detection\_t**](structburst__capture__detection__t.md) \* out, size\_t max\_out) <br>_Every hit the search made in the last push(), unfiltered._  |
 |  size\_t | [**dp\_burst\_capture\_detections\_max\_out**](#function-dp_burst_capture_detections_max_out) ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state, size\_t n) <br>_Raw detections available from the last push()._ `n` _is ignored._ |
@@ -98,6 +98,7 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 |  size\_t | [**dp\_burst\_capture\_get\_pending**](#function-dp_burst_capture_get_pending) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br> |
 |  uint64\_t | [**dp\_burst\_capture\_get\_preamble\_start**](#function-dp_burst_capture_get_preamble_start) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br> |
 |  double | [**dp\_burst\_capture\_get\_psl\_db**](#function-dp_burst_capture_get_psl_db) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_The preamble's peak sidelobe level, dB:_ [_**dp\_acq\_psl\_db()**_](acq__core_8h.md#function-dp_acq_psl_db) _of the engine. A burst clearing the threshold by more than_`-psl_db` _also detects its own sidelobe, outside the peak zone; -INFINITY for a perfect sequence._ |
+|  size\_t | [**dp\_burst\_capture\_get\_rate\_hypotheses**](#function-dp_burst_capture_get_rate_hypotheses) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_Doppler-rate hypotheses searched; 1 is none_  __`doppler_rate` _then only caps the coherent depth._ |
 |  void | [**dp\_burst\_capture\_get\_state**](#function-dp_burst_capture_get_state) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state, void \* blob) <br>_Serialize into_ `blob` _, which must be state\_bytes() long._ |
 |  double | [**dp\_burst\_capture\_get\_straddle\_loss**](#function-dp_burst_capture_get_straddle_loss) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_Correlation kept, worst case, by a burst landing between bins._  |
 |  size\_t | [**dp\_burst\_capture\_push**](#function-dp_burst_capture_push) ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Stream samples; get back every burst whose window has arrived._  |
@@ -171,7 +172,7 @@ bin_to_nrz (code, 31, nrz, 31);
 float _Complex pre[124];
 for (size_t i = 0; i < 124; i++) pre[i] = nrz[i / 4];
 dp_burst_capture_state_t *cap = dp_burst_capture_create (
-    pre, 124, 4096, 4, 4.0e6, 55.0, 0.0, 1e-3, 0.9, 0, 0.0);
+    pre, 124, 4096, 4, 4.0e6, 55.0, 0.0, 1e-3, 0.9, 0, 0.0, 1);
 float _Complex x[2048] = { 0 };
 float _Complex win[4096];
 size_t n = dp_burst_capture_push (cap, x, 2048, win, 4096);
@@ -243,7 +244,8 @@ dp_burst_capture_state_t * dp_burst_capture_create (
     double pfa,
     double pd,
     int noise_mode,
-    double doppler_rate
+    double doppler_rate,
+    size_t rate_hypotheses
 ) 
 ```
 
@@ -273,7 +275,8 @@ Any repeated preamble: a chirp, a Zadoff-Chu sequence, shaped PSK, or a PN code 
 * `pfa` Target false-alarm probability, in (0, 1). 
 * `pd` Target detection probability, in (0, 1). 
 * `noise_mode` CFAR reference: 0=mean, 1=median, 2=min, 3=max. 
-* `doppler_rate` Doppler rate, Hz/s (&gt;= 0), that caps the acquisition's coherent depth at `f_epoch/sqrt(2*doppler_rate)` repetitions (doppler#1482); 0 is no bound. 
+* `doppler_rate` Doppler rate, Hz/s (&gt;= 0), that caps the acquisition's coherent depth at `f_epoch/sqrt(2*doppler_rate)` repetitions (doppler#1482); 0 is no bound. With `rate_hypotheses` &gt; 1 it is the span instead. 
+* `rate_hypotheses` Doppler-rate hypotheses to search (&gt;= 1, at most ACQ\_RATE\_HYPS\_MAX); 1 searches none and `doppler_rate` only caps the depth. Above 1 the capture COMPENSATES the rate: `doppler_rate` is the span `[-R, +R]`, the acquisition de-chirps its coherent block at this many rates across it, and the depth is bounded by the RESIDUAL, `R/(n - 1)`  deeper blocks, more sensitivity, about `n` times the per-dwell cost, and a false-alarm budget split over the hypotheses ([**dp\_acq\_create\_burst()**](acq__core_8h.md#function-dp_acq_create_burst) owns the semantics). Refine follows the engine: its coherent sum over the preamble's periods tries the rates too, on a finer grid because it integrates the whole preamble, and its Doppler cells widen by the shift a rate puts between the detecting dwell's middle and the preamble's  so a burst the engine found by rate is placed by rate. Needs a non-zero `doppler_rate` (the span). Measured: validate\_acq\_rate\_pd. 
 
 
 
@@ -293,6 +296,23 @@ Heap state, or NULL if any parameter is out of range.
 512
 >>> cap.retain_span == cap.refine_span + cap.burst_len
 True
+
+A carrier that sweeps caps the coherent depth at its rate; searching
+Doppler-rate hypotheses compensates it, and buys the depth back:
+
+>>> import warnings
+>>> k = np.arange(127)
+>>> zc = np.exp(-1j * np.pi * 5 * k * (k + 1) / 127).astype(np.complex64)
+>>> def make(**kw):
+...     with warnings.catch_warnings():
+...         warnings.simplefilter("ignore")   # under-powered, below
+...         return BurstCapture(zc, burst_len=2432, reps=16, fs=1.0,
+...                             cn0_dbhz=-13.0, doppler_rate=9e-7, **kw)
+>>> make().doppler_bins, make().underpowered      # the rate caps it
+(5, True)
+>>> c = make(rate_hypotheses=9)
+>>> c.rate_hypotheses, c.doppler_bins, c.underpowered
+(9, 10, False)
 ```
  
 
@@ -319,7 +339,8 @@ dp_burst_capture_state_t * dp_burst_capture_create_backed (
     double pfa,
     double pd,
     int noise_mode,
-    double doppler_rate
+    double doppler_rate,
+    size_t rate_hypotheses
 ) 
 ```
 
@@ -360,7 +381,8 @@ A blob from a backed capture does NOT restore into an in-RAM one, or the reverse
 * `pfa` Target false-alarm probability, in (0, 1). 
 * `pd` Target detection probability, in (0, 1). 
 * `noise_mode` CFAR reference: 0=mean, 1=median, 2=min, 3=max. 
-* `doppler_rate` Doppler rate, Hz/s (&gt;= 0), that caps the acquisition's coherent depth at `f_epoch/sqrt(2*doppler_rate)` repetitions (doppler#1482); 0 is no bound. 
+* `doppler_rate` Doppler rate, Hz/s (&gt;= 0), that caps the acquisition's coherent depth at `f_epoch/sqrt(2*doppler_rate)` repetitions (doppler#1482); 0 is no bound. With `rate_hypotheses` &gt; 1 it is the span instead. 
+* `rate_hypotheses` Doppler-rate hypotheses to search; see [**dp\_burst\_capture\_create()**](burst__capture__core_8h.md#function-dp_burst_capture_create). 
 
 
 
@@ -813,6 +835,22 @@ uint64_t dp_burst_capture_get_preamble_start (
 _The preamble's peak sidelobe level, dB:_ [_**dp\_acq\_psl\_db()**_](acq__core_8h.md#function-dp_acq_psl_db) _of the engine. A burst clearing the threshold by more than_`-psl_db` _also detects its own sidelobe, outside the peak zone; -INFINITY for a perfect sequence._
 ```C++
 double dp_burst_capture_get_psl_db (
+    const dp_burst_capture_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_burst\_capture\_get\_rate\_hypotheses 
+
+_Doppler-rate hypotheses searched; 1 is none_  __`doppler_rate` _then only caps the coherent depth._
+```C++
+size_t dp_burst_capture_get_rate_hypotheses (
     const dp_burst_capture_state_t * state
 ) 
 ```

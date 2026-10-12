@@ -41,6 +41,7 @@ extern "C"
     float cn0_dbhz_est;        
     uint64_t samples_consumed; 
     double chip_phase; 
+    double doppler_rate_hz_s; 
   } acq_result_t;
 
   typedef struct
@@ -138,6 +139,10 @@ extern "C"
     double epochs_per_symbol;  
     size_t code_only_epochs; 
     double doppler_rate; 
+    size_t rate_hyps;    
+    float _Complex *rate_chirp; 
+    size_t rate_chirp_d; 
+    size_t rate_best_h;  
     double carrier_freq_hz; 
     float _Complex *blk; 
     float _Complex *blk_raw; 
@@ -220,16 +225,21 @@ extern "C"
     uint32_t max_peaks;    
     uint32_t n_twins;      
     uint32_t blk_epoch; 
+    uint32_t rate_hyps; 
+    uint32_t _pad2;
   } acq_extra_t;
 
 #define ACQ_STATE_MAGIC DP_FOURCC ('A', 'C', 'Q', 'R')
 /* v5: the carry is the framer's snapshot (fewer than frame_n samples)
-   instead of the ring's raw contents, zero-padded to ring_cap. */
-#define ACQ_STATE_VERSION 5u
+   instead of the ring's raw contents, zero-padded to ring_cap.
+   v6: acq_extra_t carries the rate-hypothesis count. */
+#define ACQ_STATE_VERSION 6u
 
 #define ACQ_MAX_PEAKS 64u
 
 #define ACQ_COL_CHUNK 32u
+
+#define ACQ_RATE_HYPS_MAX 64u
 
 #define ACQ_N_NONCOH_SAFETY_CEILING 256u
 
@@ -239,7 +249,8 @@ extern "C"
                                  size_t reps, double fs, double cn0_dbhz,
                                  double doppler_uncertainty, double pfa,
                                  double pd, int noise_mode,
-                                 double doppler_rate);
+                                 double doppler_rate,
+                                 size_t rate_hypotheses);
 
   dp_acq_state_t *dp_acq_create_continuous (const uint8_t *code, size_t code_len,
                                       size_t spc, double chip_rate,

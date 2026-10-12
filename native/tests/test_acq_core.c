@@ -45,17 +45,29 @@ static const uint8_t CODE31[31]
  * fs = chip_rate * spc -- how a caller builds one. A missing or empty code
  * still reaches dp_acq_create_burst(), so its refusal is what is tested. */
 static dp_acq_state_t *
-burst_from_code (const uint8_t *code, size_t code_len, size_t reps, size_t spc,
-                 double chip_rate, double cn0_dbhz, double doppler_uncertainty,
-                 double pfa, double pd, int noise_mode, double doppler_rate)
+burst_with_rates (const uint8_t *code, size_t code_len, size_t reps,
+                  size_t spc, double chip_rate, double cn0_dbhz,
+                  double doppler_uncertainty, double pfa, double pd,
+                  int noise_mode, double doppler_rate, size_t rate_hypotheses)
 {
   const size_t    n   = (code && code_len && spc) ? code_len * spc : 0;
   float _Complex *pre = n ? dp_code_preamble (code, code_len, spc) : NULL;
   dp_acq_state_t *a   = dp_acq_create_burst (
       pre, n, reps, chip_rate * (double)spc, cn0_dbhz, doppler_uncertainty,
-      pfa, pd, noise_mode, doppler_rate);
+      pfa, pd, noise_mode, doppler_rate, rate_hypotheses);
   free (pre);
   return a;
+}
+
+/* The same, searching no rate hypotheses: what almost every test wants. */
+static dp_acq_state_t *
+burst_from_code (const uint8_t *code, size_t code_len, size_t reps, size_t spc,
+                 double chip_rate, double cn0_dbhz, double doppler_uncertainty,
+                 double pfa, double pd, int noise_mode, double doppler_rate)
+{
+  return burst_with_rates (code, code_len, reps, spc, chip_rate, cn0_dbhz,
+                           doppler_uncertainty, pfa, pd, noise_mode,
+                           doppler_rate, 1);
 }
 
 /* ── dp_acq_run pure-transducer (state in/out) round-trip
@@ -643,6 +655,192 @@ _acq_wideband_coherent_center_check (void)
   return 0;
 }
 
+/* A repeated preamble whose carrier SWEEPS: `n` samples of `code` (chips
+ * held `spc` samples, repeating), mixed by exp(j 2 pi (f_mid u + rate u^2/2))
+ * with u the time from the middle of the `n` samples, seconds. */
+static void
+_chirp_stream (const uint8_t *code, size_t sf, size_t spc, double fs, size_t n,
+               double f_mid, double rate, float _Complex *x)
+{
+  const size_t nx = sf * spc;
+  for (size_t k = 0; k < n; k++)
+    {
+      const double u  = ((double)k - 0.5 * (double)n) / fs;
+      const double ph = 2.0 * M_PI * (f_mid * u + 0.5 * rate * u * u);
+      const float  v  = (code[(k % nx) / spc] & 1u) ? -1.0f : 1.0f;
+      x[k]            = v * (float _Complex) (cos (ph) + I * sin (ph));
+    }
+}
+
+/* Doppler-rate compensation (dp_acq_create_burst's rate_hypotheses): the
+ * rate bound on the coherent depth applies to the RESIDUAL, `rate/(n - 1)`,
+ * so a rate that capped the depth at 5 repetitions lets the engine run 10 --
+ * and the engine finds the rate. Checked on the narrowband grid, the tiled
+ * one (du past the native span, PR 2210's path), and the blob. */
+static int
+_acq_rate_hypotheses_check (void)
+{
+  const size_t sf = 31, spc = 2, nx = sf * spc, reps = 16;
+  const double crate = 1.0e6, fs = crate * (double)spc;
+  const double f_epoch = crate / (double)sf;
+  const double rate    = 2.0e7;
+
+  /* The argument rules: out of range, or a span of nothing, or a continuous
+     engine, is refused; one hypothesis is always fine. */
+  {
+    DP_CHECK (burst_with_rates (CODE31, sf, reps, spc, crate, ACQ_CN0_NONE,
+                                0.0, 1e-3, 0.9, 0, rate, 0)
+              == NULL);
+    DP_CHECK (burst_with_rates (CODE31, sf, reps, spc, crate, ACQ_CN0_NONE,
+                                0.0, 1e-3, 0.9, 0, rate, ACQ_RATE_HYPS_MAX + 1)
+              == NULL);
+    /* Hypotheses over a span of nothing have nothing to span. */
+    DP_CHECK (burst_with_rates (CODE31, sf, reps, spc, crate, ACQ_CN0_NONE,
+                                0.0, 1e-3, 0.9, 0, 0.0, 3)
+              == NULL);
+    dp_acq_state_t *z = burst_with_rates (
+        CODE31, sf, reps, spc, crate, ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0, 0.0, 1);
+    dp_acq_state_t *m
+        = burst_with_rates (CODE31, sf, reps, spc, crate, ACQ_CN0_NONE, 0.0,
+                            1e-3, 0.9, 0, rate, ACQ_RATE_HYPS_MAX);
+    DP_CHECK (z != NULL && z->rate_hyps == 1);
+    DP_CHECK (m != NULL && m->rate_hyps == ACQ_RATE_HYPS_MAX);
+    dp_acq_destroy (z);
+    dp_acq_destroy (m);
+  }
+
+  /* Sizing: with no design point the whole preamble is integrated, up to
+     the drift bound -- of the RESIDUAL. D = floor(f_epoch /
+     sqrt(2 * rate / (n - 1))), at least one, at most reps. */
+  {
+    size_t last = 0;
+    for (size_t n = 1; n <= 9; n += (n == 1 ? 1 : 2))
+      {
+        dp_acq_state_t *a
+            = burst_with_rates (CODE31, sf, reps, spc, crate, ACQ_CN0_NONE,
+                                0.0, 1e-3, 0.9, 0, rate, n);
+        DP_REQUIRE (a != NULL);
+        const double res  = n > 1 ? rate / (double)(n - 1) : rate;
+        size_t       want = (size_t)floor (f_epoch / sqrt (2.0 * res));
+        want              = want > reps ? reps : want < 1 ? 1 : want;
+        DP_CHECK (a->coherent_bins == want);
+        DP_CHECK (a->coherent_bins >= last);
+        /* And every hypothesis is another look at each cell: the gate is
+           the one for searched_bins * code_bins * n of them. */
+        DP_CHECK (
+            fabs ((double)a->eta
+                  - dp_det_threshold (dp_det_pfa_cell (
+                      1e-3, (double)(a->searched_bins * a->code_bins * n))))
+            < 1e-4);
+        last = a->coherent_bins;
+        dp_acq_destroy (a);
+      }
+    DP_CHECK_MSG (last > 5, "compensation buys depth over the capped 5");
+  }
+
+  /* The engine finds the rate, either sign, and gains over the capped depth:
+     a noise-free burst sweeping at +-1e7 Hz/s with a Doppler of 3 kHz. */
+  for (int sign = -1; sign <= 1; sign += 2)
+    {
+      const double    true_rate = 1.0e7 * sign;
+      float _Complex *x         = malloc (3 * reps * nx * sizeof *x);
+      DP_REQUIRE (x != NULL);
+      _chirp_stream (CODE31, sf, spc, fs, 3 * reps * nx, 3.0e3, true_rate, x);
+      acq_result_t hit[8];
+      float        stat[2];
+      for (int comp = 0; comp < 2; comp++)
+        {
+          dp_acq_state_t *a
+              = burst_with_rates (CODE31, sf, reps, spc, crate, ACQ_CN0_NONE,
+                                  0.0, 1e-3, 0.9, 0, rate, comp ? 5 : 1);
+          DP_REQUIRE (a != NULL);
+          const size_t nh = dp_acq_push (a, x, 3 * reps * nx, hit, 8);
+          DP_CHECK (nh >= 1);
+          stat[comp] = nh ? hit[0].test_stat : 0.0f;
+          if (nh)
+            {
+              DP_CHECK (hit[0].code_phase == 0);
+              /* The hypotheses are -2e7, -1e7, 0, 1e7, 2e7: the truth is on
+                 one, and it wins. Without hypotheses there is no rate. */
+              DP_CHECK (hit[0].doppler_rate_hz_s == (comp ? true_rate : 0.0));
+            }
+          dp_acq_destroy (a);
+        }
+      DP_CHECK_MSG (stat[1] > 1.3f * stat[0],
+                    "the compensated statistic beats the capped depth's");
+      free (x);
+    }
+
+  /* The tiled grid: du past the native span, a block-coherent slow-time
+     axis inside each tile (PR 2210). The rate is a property of the block,
+     so it is found here too, and a Doppler off the centre tile. */
+  {
+    const size_t    sf7 = 7, nx7 = sf7 * spc, reps7 = 8;
+    const double    span7 = crate / (2.0 * (double)sf7);
+    const double    rate7 = 4.0e8;
+    dp_acq_state_t *c1
+        = burst_with_rates (CODE7, sf7, reps7, spc, crate, ACQ_CN0_NONE,
+                            3.5 * span7, 1e-3, 0.9, 0, rate7, 1);
+    dp_acq_state_t *a
+        = burst_with_rates (CODE7, sf7, reps7, spc, crate, ACQ_CN0_NONE,
+                            3.5 * span7, 1e-3, 0.9, 0, rate7, 5);
+    DP_REQUIRE (a != NULL && c1 != NULL);
+    DP_CHECK (a->window_bins > 1 && c1->window_bins > 1);
+    DP_CHECK (a->coherent_bins > c1->coherent_bins);
+    for (int sign = -1; sign <= 1; sign += 2)
+      {
+        float _Complex *x = malloc (4 * reps7 * nx7 * sizeof *x);
+        DP_REQUIRE (x != NULL);
+        _chirp_stream (CODE7, sf7, spc, crate * (double)spc, 4 * reps7 * nx7,
+                       60.0e3 * sign, 2.0e8 * sign, x);
+        dp_acq_reset (a);
+        acq_result_t hit[8];
+        const size_t nh = dp_acq_push (a, x, 4 * reps7 * nx7, hit, 8);
+        DP_CHECK (nh >= 1);
+        if (nh)
+          DP_CHECK (hit[0].doppler_rate_hz_s == 2.0e8 * sign);
+        free (x);
+      }
+    dp_acq_destroy (a);
+    dp_acq_destroy (c1);
+  }
+
+  /* The blob: the count is a reject key. A blob from an engine with other
+     hypotheses (a different search, a different meaning for a surface) is
+     refused, not reinterpreted; the same engine round-trips. Two
+     hypotheses leave the residual at the whole span, so they land on the
+     depth one does: same grid, same size, and only the count tells the
+     blobs apart -- the reject key, not the length check. */
+  {
+    dp_acq_state_t *a
+        = burst_with_rates (CODE31, sf, reps, spc, crate, ACQ_CN0_NONE, 0.0,
+                            1e-3, 0.9, 0, rate, 2);
+    dp_acq_state_t *b
+        = burst_with_rates (CODE31, sf, reps, spc, crate, ACQ_CN0_NONE, 0.0,
+                            1e-3, 0.9, 0, rate, 1);
+    dp_acq_state_t *c
+        = burst_with_rates (CODE31, sf, reps, spc, crate, ACQ_CN0_NONE, 0.0,
+                            1e-3, 0.9, 0, rate, 2);
+    DP_REQUIRE (a != NULL && b != NULL && c != NULL);
+    const size_t bytes = dp_acq_state_bytes (a);
+    DP_REQUIRE (dp_acq_state_bytes (b) == bytes);
+    void *blob  = malloc (bytes);
+    void *again = malloc (bytes);
+    DP_REQUIRE (blob != NULL && again != NULL);
+    dp_acq_get_state (a, blob);
+    DP_CHECK (dp_acq_set_state (b, blob) == DP_ERR_INVALID);
+    DP_CHECK (dp_acq_set_state (c, blob) == DP_OK);
+    dp_acq_get_state (c, again);
+    DP_CHECK (memcmp (blob, again, bytes) == 0);
+    free (blob);
+    free (again);
+    dp_acq_destroy (a);
+    dp_acq_destroy (b);
+    dp_acq_destroy (c);
+  }
+  return 0;
+}
+
 /* The hit's own chip_phase (filled in acq_report_peaks) and the hand-off
  * (dp_acq_build_handoff) are one helper, so for every real hit they agree
  * to rounding. Checked on a drifted emitter (a Doppler bin off DC, carrier
@@ -939,23 +1137,23 @@ _acq_template_check (void)
     float _Complex nan4[4] = { 1, 1, NAN, 1 };
     float _Complex inf4[4] = { 1, 1, INFINITY, 1 };
     DP_CHECK (dp_acq_create_burst (NULL, 4, reps, fs, ACQ_CN0_NONE, 0.0, 1e-3,
-                                   0.9, 0, 0.0)
+                                   0.9, 0, 0.0, 1)
               == NULL);
     DP_CHECK (dp_acq_create_burst (z, 0, reps, fs, ACQ_CN0_NONE, 0.0, 1e-3,
-                                   0.9, 0, 0.0)
+                                   0.9, 0, 0.0, 1)
               == NULL);
     DP_CHECK (dp_acq_create_burst (z, 4, reps, fs, ACQ_CN0_NONE, 0.0, 1e-3,
-                                   0.9, 0, 0.0)
+                                   0.9, 0, 0.0, 1)
               == NULL);
     DP_CHECK (dp_acq_create_burst (nan4, 4, reps, fs, ACQ_CN0_NONE, 0.0, 1e-3,
-                                   0.9, 0, 0.0)
+                                   0.9, 0, 0.0, 1)
               == NULL);
     DP_CHECK (dp_acq_create_burst (inf4, 4, reps, fs, ACQ_CN0_NONE, 0.0, 1e-3,
-                                   0.9, 0, 0.0)
+                                   0.9, 0, 0.0, 1)
               == NULL);
     z[0] = 1.0f;
     DP_CHECK (dp_acq_create_burst (z, 4, reps, 0.0, ACQ_CN0_NONE, 0.0, 1e-3,
-                                   0.9, 0, 0.0)
+                                   0.9, 0, 0.0, 1)
               == NULL);
   }
 
@@ -986,7 +1184,7 @@ _acq_template_check (void)
       zc[k] = (float _Complex)cexp (-I * M_PI * 5.0 * (double)k
                                     * (double)(k + 1) / (double)N);
     dp_acq_state_t *a = dp_acq_create_burst (zc, N, reps, fs, ACQ_CN0_NONE,
-                                             0.0, 1e-3, 0.9, 0, 0.0);
+                                             0.0, 1e-3, 0.9, 0, 0.0, 1);
     DP_REQUIRE (a != NULL);
     DP_CHECK (a->shape.zone == 1);
     const int nk   = ACQ_DELAY_LOSS_NODES;
@@ -1017,7 +1215,7 @@ _acq_template_check (void)
       zc[k] = (float _Complex)cexp (-I * M_PI * 3.0 * (double)(k * k)
                                     / (double)N);
     dp_acq_state_t *a = dp_acq_create_burst (zc, N, reps, fs, ACQ_CN0_NONE,
-                                             0.0, 1e-3, 0.9, 0, 0.0);
+                                             0.0, 1e-3, 0.9, 0, 0.0, 1);
     DP_REQUIRE (a != NULL);
     DP_CHECK (a->shape.zone == 1);
     for (int k = 0; k < ACQ_DELAY_LOSS_NODES; k++)
@@ -1044,10 +1242,10 @@ _acq_template_check (void)
         c[k]  = (float _Complex)cexp (I * M_PI * (double)(k * k) / (double)N);
         c7[k] = 7.0f * c[k];
       }
-    dp_acq_state_t *a
-        = dp_acq_create_burst (c, N, reps, fs, 45.0, 0.0, 1e-3, 0.9, 0, 0.0);
-    dp_acq_state_t *b
-        = dp_acq_create_burst (c7, N, reps, fs, 45.0, 0.0, 1e-3, 0.9, 0, 0.0);
+    dp_acq_state_t *a = dp_acq_create_burst (c, N, reps, fs, 45.0, 0.0, 1e-3,
+                                             0.9, 0, 0.0, 1);
+    dp_acq_state_t *b = dp_acq_create_burst (c7, N, reps, fs, 45.0, 0.0, 1e-3,
+                                             0.9, 0, 0.0, 1);
     DP_REQUIRE (a != NULL && b != NULL);
     DP_CHECK (a->coherent_bins == b->coherent_bins);
     DP_CHECK (a->threshold == b->threshold && a->eta == b->eta);
@@ -1112,7 +1310,7 @@ _acq_template_check (void)
     for (int c = 0; c < 4; c++)
       {
         dp_acq_state_t *a = dp_acq_create_burst (
-            cases[c].t, N, reps, fs, ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0, 0.0);
+            cases[c].t, N, reps, fs, ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0, 0.0, 1);
         DP_REQUIRE (a != NULL);
         DP_CHECK (a->coherent_bins == reps);
         double f = (double)cases[c].bin / (double)(N * reps);
@@ -1162,7 +1360,7 @@ _acq_burst_pd_check (void)
   /* Pinned at every depth: the by-construction ordering. */
   {
     dp_acq_state_t *a = dp_acq_create_burst (zc, n, reps, 1.0, -13.0, 0.0,
-                                             1e-3, 0.9, 0, 0.0);
+                                             1e-3, 0.9, 0, 0.0, 1);
     DP_REQUIRE (a != NULL);
     for (size_t d = 1; d <= reps; d++)
       {
@@ -1189,7 +1387,7 @@ _acq_burst_pd_check (void)
     for (int k = 0; k < 3; k++)
       {
         dp_acq_state_t *a = dp_acq_create_burst (zc, n, reps, 1.0, cn0[k], 0.0,
-                                                 1e-3, 0.9, 0, 0.0);
+                                                 1e-3, 0.9, 0, 0.0, 1);
         DP_REQUIRE (a != NULL);
         DP_CHECK (a->coherent_bins == depth[k]);
         DP_CHECK (a->underpowered == under[k]);
@@ -1239,7 +1437,7 @@ _acq_doppler_rate_check (void)
                                    0.0, 1e-3, 0.9, 0, bad[i])
                   == NULL);
         DP_CHECK (dp_acq_create_burst (t, 7, reps, crate, ACQ_CN0_NONE, 0.0,
-                                       1e-3, 0.9, 0, bad[i])
+                                       1e-3, 0.9, 0, bad[i], 1)
                   == NULL);
       }
   }
@@ -1308,7 +1506,7 @@ _acq_doppler_rate_check (void)
     for (size_t i = 0; i < 7; i++)
       t[i] = (CODE7[i] & 1u) ? -1.0f : 1.0f;
     dp_acq_state_t *tp = dp_acq_create_burst (t, 7, reps, crate, ACQ_CN0_NONE,
-                                              0.0, 1e-3, 0.9, 0, rate);
+                                              0.0, 1e-3, 0.9, 0, rate, 1);
     DP_REQUIRE (tp != NULL);
     DP_CHECK (tp->coherent_bins == cap);
     dp_acq_destroy (tp);
@@ -1337,7 +1535,7 @@ _acq_cell_corr_grid_check (void)
   for (size_t m = 0; m < P; m++)
     pre[m] = dp_cgauss (&rng);
   dp_acq_state_t *a
-      = dp_acq_create_burst (pre, P, 4, fs, 45.0, 0.0, 1e-3, 0.9, 0, 0.0);
+      = dp_acq_create_burst (pre, P, 4, fs, 45.0, 0.0, 1e-3, 0.9, 0, 0.0, 1);
   DP_REQUIRE (a != NULL && a->code_bins == P);
 
   enum
@@ -1438,7 +1636,7 @@ ci_acq_create (void *arg)
   dp_acq_state_t     *a
       = c->kind < 2
             ? dp_acq_create_burst (c->tmpl, 64, 4, 1.0e6, 50.0, 0.0, 1e-3, 0.9,
-                                   0, 0.0)
+                                   0, 0.0, 1)
             : dp_acq_create_continuous (CODE31, 31, 4, 1.0e6, 2700.0, 55.0,
                                         c->kind >= 3 ? 3.5 * span : 0.0, 1e-3,
                                         0.9, 0, c->kind == 4 ? 7 : 1, 0.0);
@@ -2061,7 +2259,7 @@ main (void)
     for (int k = 0; k < 2; k++)
       {
         pairs[3][k] = dp_acq_create_burst (zc, 31, 8, 1.0e6, 50.0, 0.0, 1e-3,
-                                           0.9, 0, 0.0);
+                                           0.9, 0, 0.0, 1);
         pairs[0][k] = burst_from_code (CODE7, 7, 8, spc, crate, 45.0, 0.0,
                                        1e-3, 0.9, 0, 0.0);
         pairs[1][k] = dp_acq_create_continuous (
@@ -2303,6 +2501,7 @@ main (void)
   (void)_acq_configure_search_raw_check ();
   (void)_acq_template_check ();
   (void)_acq_doppler_rate_check ();
+  (void)_acq_rate_hypotheses_check ();
   (void)_acq_cell_corr_grid_check ();
   (void)_acq_burst_pd_check ();
   (void)_acq_half_bin_check ();
@@ -3198,10 +3397,11 @@ main (void)
     double got[3];
     for (int c = 0; c < 3; c++)
       {
-        dp_acq_state_t *a = dp_xnn (dp_acq_create_burst (
-            cases[c].t, cases[c].n, 4, 1.0e6, 50.0, 0.0, 1e-3, 0.9, 0, 0.0));
-        const size_t    n = cases[c].n, z = a->shape.zone;
-        double          r0 = 0.0, best = 0.0;
+        dp_acq_state_t *a
+            = dp_xnn (dp_acq_create_burst (cases[c].t, cases[c].n, 4, 1.0e6,
+                                           50.0, 0.0, 1e-3, 0.9, 0, 0.0, 1));
+        const size_t n = cases[c].n, z = a->shape.zone;
+        double       r0 = 0.0, best = 0.0;
         for (size_t m = 0; m < n; m++)
           {
             double _Complex r = 0.0;

@@ -16,7 +16,7 @@
  * for (int k = 0; k < 127; k++)
  *   zc[k] = cexpf (-I * (float)(M_PI * 5.0 * k * (k + 1) / 127.0));
  * dp_burst_acq_state_t *obj = dp_burst_acq_create(zc, 127, 8, 1.0e6, 50.0,
- *                                           0.0, 1e-3, 0.9, 0, 0.0);
+ *                                           0.0, 1e-3, 0.9, 0, 0.0, 1);
  * acq_result_t hits[64];
  * size_t nh = dp_burst_acq_push(obj, samples, n_samples, hits, 64);
  * dp_burst_acq_destroy(obj);
@@ -83,6 +83,14 @@ extern "C"
    * @param doppler_rate  Doppler rate in Hz/s (>= 0) that caps the coherent
    *                  depth at `f_epoch/sqrt(2*doppler_rate)` repetitions
    *                  (doppler#1482); 0 is no bound.
+   * @param rate_hypotheses  Doppler-rate hypotheses to search (>= 1, at
+   *                  most ACQ_RATE_HYPS_MAX); 1 searches none. Above 1 the
+   *                  engine COMPENSATES the rate rather than only capping the
+   *                  depth: `doppler_rate` becomes the span `[-R, +R]`, the
+   *                  coherent block is de-chirped at this many rates across
+   *                  it, and the depth is bounded by the residual
+   *                  `R/(n - 1)` -- see dp_acq_create_burst(), which owns the
+   *                  semantics. Needs a non-zero `doppler_rate`.
    * @return Heap-allocated state, or NULL on bad arguments / allocation
    *         failure.
    * @code
@@ -112,6 +120,21 @@ extern "C"
    * >>> z.push(np.tile(np.roll(zc, 40), 10))[0][:2]
    * (0, 40)
    *
+   * A carrier that sweeps caps the coherent depth; searching Doppler-rate
+   * hypotheses compensates it instead, and buys the depth back:
+   *
+   * >>> import warnings
+   * >>> def make(**kw):
+   * ...     with warnings.catch_warnings():
+   * ...         warnings.simplefilter("ignore")   # under-powered, below
+   * ...         return BurstAcquisition(zc, reps=16, fs=1.0, cn0_dbhz=-13.0,
+   * ...                                 doppler_rate=9e-7, **kw)
+   * >>> make().doppler_bins, make().underpowered      # the rate caps it
+   * (5, True)
+   * >>> c = make(rate_hypotheses=9)
+   * >>> c.rate_hypotheses, c.doppler_bins, c.underpowered
+   * (9, 10, False)
+   *
    * @endcode
    */
   dp_burst_acq_state_t *dp_burst_acq_create (const float _Complex *preamble,
@@ -120,7 +143,8 @@ extern "C"
                                        double cn0_dbhz,
                                        double doppler_uncertainty, double pfa,
                                        double pd, int noise_mode,
-                                       double doppler_rate);
+                                       double doppler_rate,
+                                       size_t rate_hypotheses);
 
   /** @brief Destroy and free an instance.  @param state May be NULL. */
   void dp_burst_acq_destroy (dp_burst_acq_state_t *state);

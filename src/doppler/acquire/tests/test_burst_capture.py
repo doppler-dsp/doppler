@@ -582,3 +582,97 @@ def test_psl_db_is_the_engines_on_every_class(tmp_path):
     assert BurstAcquisition(zc, reps=8, fs=1.0e6, cn0_dbhz=50.0).psl_db == (
         -np.inf
     )
+
+
+# ── a Doppler rate compensated, not just capped ────────────────────────────
+
+
+def _zc(n=127):
+    k = np.arange(n)
+    return np.exp(-1j * np.pi * 5 * k * (k + 1) / n).astype(np.complex64)
+
+
+def _sweeping_burst(pre, reps, payload, at, total, f_mid, rate, sigma, seed):
+    """A repeated preamble then `payload` samples, the carrier sweeping at
+    `rate` about the preamble's middle, in noise (fs = 1)."""
+    rng = np.random.default_rng(seed)
+    n = pre.size
+    x = sigma * (
+        rng.standard_normal(total) + 1j * rng.standard_normal(total)
+    ).astype(np.complex64)
+    u = np.arange(reps * n + payload) - 0.5 * reps * n
+    ph = 2 * np.pi * (f_mid * u + 0.5 * rate * u * u)
+    body = np.concatenate([np.tile(pre, reps), np.ones(payload)])
+    x[at : at + u.size] += (body * np.exp(1j * ph)).astype(np.complex64)
+    return x
+
+
+def test_rate_hypotheses_buy_depth_and_the_power_to_meet_pd():
+    """Capped, the depth cannot meet the requested pd at this C/N0; with the
+    rates searched the residual drift allows twice the depth, and it can."""
+    import warnings
+
+    pre = _zc()
+    kw = {
+        "burst_len": 2432,
+        "reps": 16,
+        "fs": 1.0,
+        "cn0_dbhz": -13.0,
+        "doppler_rate": 9e-7,
+    }
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        capped = BurstCapture(pre, **kw)
+    assert capped.rate_hypotheses == 1 and capped.doppler_bins == 5
+    assert capped.underpowered
+    cap = BurstCapture(pre, rate_hypotheses=9, **kw)
+    assert cap.rate_hypotheses == 9 and cap.doppler_bins == 10
+    assert not cap.underpowered
+
+
+@pytest.mark.parametrize("n", [0, 65])
+def test_rate_hypotheses_out_of_range_is_a_value_error(n):
+    with pytest.raises(ValueError, match="rate_hypotheses"):
+        BurstCapture(
+            _zc(),
+            burst_len=2432,
+            reps=16,
+            fs=1.0,
+            doppler_rate=9e-7,
+            rate_hypotheses=n,
+        )
+
+
+def test_rate_hypotheses_need_a_rate_to_span():
+    with pytest.raises(ValueError, match="rate_hypotheses"):
+        BurstCapture(_zc(), burst_len=2432, reps=16, fs=1.0, rate_hypotheses=5)
+
+
+def test_a_swept_burst_is_placed_exactly_with_the_rates(tmp_path):
+    """At this noise level a capture that only caps the depth names the wrong
+    repetition for about half the bursts (refine's coherent sum collapses on
+    a sweep of 0.0037 of fs); with the rates it names none wrong. The
+    persistent view takes the same argument."""
+    pre = _zc()
+    burst_len = 16 * 127 + 400
+    kw = {
+        "burst_len": burst_len,
+        "reps": 16,
+        "fs": 1.0,
+        "cn0_dbhz": 10.0,
+        "doppler_rate": 9e-7,
+        "rate_hypotheses": 5,
+    }
+    for cap in (
+        BurstCapture(pre, **kw),
+        PersistentBurstCapture(tmp_path / "ring.cf32", pre, **kw),
+    ):
+        assert cap.rate_hypotheses == 5
+        for j, at in enumerate((6001, 7333, 8090, 9217, 10000, 11111)):
+            x = _sweeping_burst(
+                pre, 16, 400, at, 26000, 5e-4, 8e-7, 0.1, 2210 + j
+            )
+            cap.reset()
+            cap.push(x)
+            starts = [int(e[0]) for e in cap.events()]
+            assert at in starts, f"burst at {at} captured at {starts}"

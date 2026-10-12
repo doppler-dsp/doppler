@@ -533,8 +533,22 @@ def test_an_unreadable_base_fails_closed(tmp_path: Path) -> None:
 
 def test_the_real_tree_passes() -> None:
     """The gate against doppler itself, so the seeded cases are not the only
-    thing it has ever been pointed at."""
+    thing it has ever been pointed at.
+
+    `--base HEAD` deliberately neuters rule 7's values ratchet here. Whether
+    an enumerator's value moved since main is a question about a BRANCH, and
+    it has an execution home: `make lint-wfm-enum-tables`, which the
+    `wfm-enum-tables` pre-commit hook dispatches to at the default
+    `--base origin/main`, under the `pre-commit (lint + format)` job that
+    checks out at `fetch-depth: 0`. This test asks the other question -- does
+    the tree agree with its manifest -- and runs in the Python jobs, whose
+    shallow checkout has no `origin/main`: left at the default it fails
+    closed there, testing the fetch depth instead of the gate (#2190's first
+    CI run). Same shape as test_alloc_helper_gate.py.
+    """
     r = subprocess.run(
-        [sys.executable, str(SCRIPT)], capture_output=True, text=True
+        [sys.executable, str(SCRIPT), "--base", "HEAD"],
+        capture_output=True,
+        text=True,
     )
     assert r.returncode == 0, r.stdout

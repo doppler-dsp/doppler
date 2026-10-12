@@ -185,19 +185,6 @@ dp_spectrogram_pending (const dp_spectrogram_state_t *s)
   return dp_f32_framer_pending (&s->fr);
 }
 
-/* The binding's names for the two read-only properties (see the header). */
-size_t
-dp_spectrogram_get_consumed (const dp_spectrogram_state_t *s)
-{
-  return dp_spectrogram_consumed (s);
-}
-
-size_t
-dp_spectrogram_get_pending (const dp_spectrogram_state_t *s)
-{
-  return dp_spectrogram_pending (s);
-}
-
 /* Serializable state: the configuration the rows depend on, then the carry,
  * which is the framer's snapshot, nested in the spectrogram's own envelope.
  * The configuration (mode, nfft, hop, window, beta) is written so a restore

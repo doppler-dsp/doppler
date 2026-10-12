@@ -1402,8 +1402,6 @@ dp_spectrogram_consumed function
 dp_spectrogram_create function
 dp_spectrogram_destroy function
 dp_spectrogram_flush function
-dp_spectrogram_get_consumed function
-dp_spectrogram_get_pending function
 dp_spectrogram_get_state function
 dp_spectrogram_pending function
 dp_spectrogram_push function

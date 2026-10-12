@@ -94,6 +94,43 @@ SpectrogramObj_init (SpectrogramObject *self, PyObject *args, PyObject *kwds)
   return 0;
 }
 
+/* String-enum tables — order is the C int (the [[enum]] SSOT). */
+static const char *const _enum_Spectrogram_psd_window[] = {
+  "hann", "kaiser", "blackman-harris", "rect", NULL,
+};
+static const int _enum_Spectrogram_psd_window_c[] = {
+  DP_PSD_WINDOW_HANN,
+  DP_PSD_WINDOW_KAISER,
+  DP_PSD_WINDOW_BLACKMAN_HARRIS,
+  DP_PSD_WINDOW_RECT,
+};
+static inline const char *
+_enum_Spectrogram_psd_window_name (long v)
+{
+  for (int j = 0; j < 4; j++)
+    if (_enum_Spectrogram_psd_window_c[j] == v)
+      return _enum_Spectrogram_psd_window[j];
+  return NULL;
+}
+
+static const char *const _enum_Spectrogram_spectrogram_mode[] = {
+  "power",
+  "db",
+  NULL,
+};
+static const int _enum_Spectrogram_spectrogram_mode_c[] = {
+  DP_SPECTROGRAM_POWER,
+  DP_SPECTROGRAM_DB,
+};
+static inline const char *
+_enum_Spectrogram_spectrogram_mode_name (long v)
+{
+  for (int j = 0; j < 2; j++)
+    if (_enum_Spectrogram_spectrogram_mode_c[j] == v)
+      return _enum_Spectrogram_spectrogram_mode[j];
+  return NULL;
+}
+
 static PyObject *
 SpectrogramObj_push_max_out (SpectrogramObject *self, PyObject *args)
 {
@@ -433,6 +470,76 @@ SpectrogramObj_set_state (SpectrogramObject *self, PyObject *arg)
   Py_RETURN_NONE;
 }
 static PyObject *
+Spectrogram_getprop_nfft (SpectrogramObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->nfft);
+}
+static PyObject *
+Spectrogram_getprop_hop (SpectrogramObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->hop);
+}
+static PyObject *
+Spectrogram_getprop_window (SpectrogramObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  long        _v = (long)(self->handle->window);
+  const char *_s = _enum_Spectrogram_psd_window_name (_v);
+  if (!_s)
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "window holds psd_window value %ld, which is none of"
+                    " its choices",
+                    _v);
+      return NULL;
+    }
+  return PyUnicode_FromString (_s);
+}
+static PyObject *
+Spectrogram_getprop_beta (SpectrogramObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble ((double)self->handle->beta);
+}
+static PyObject *
+Spectrogram_getprop_mode (SpectrogramObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  long        _v = (long)(self->handle->mode);
+  const char *_s = _enum_Spectrogram_spectrogram_mode_name (_v);
+  if (!_s)
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "mode holds spectrogram_mode value %ld, which is none of"
+                    " its choices",
+                    _v);
+      return NULL;
+    }
+  return PyUnicode_FromString (_s);
+}
+static PyObject *
 Spectrogram_getprop_consumed (SpectrogramObject *self,
                               void              *Py_UNUSED (closure))
 {
@@ -441,9 +548,8 @@ Spectrogram_getprop_consumed (SpectrogramObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)dp_spectrogram_get_consumed (self->handle));
+      (unsigned long long)self->handle->consumed);
 }
 static PyObject *
 Spectrogram_getprop_pending (SpectrogramObject *self,
@@ -454,16 +560,40 @@ Spectrogram_getprop_pending (SpectrogramObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)dp_spectrogram_get_pending (self->handle));
+      (unsigned long long)(dp_spectrogram_pending (self->handle)));
 }
 
 static PyGetSetDef Spectrogram_getset[] = {
+  { "nfft", (getter)Spectrogram_getprop_nfft, NULL,
+    "Samples per frame, and bins per row: one number, because a frame the PSD "
+    "would zero-pad to a longer transform is refused at construction.\n",
+    NULL },
+  { "hop", (getter)Spectrogram_getprop_hop, NULL,
+    "Samples between row starts, 1 to nfft: nfft tiles the stream, anything "
+    "less overlaps the frames.\n",
+    NULL },
+  { "window", (getter)Spectrogram_getprop_window, NULL,
+    "The window every frame is shaped by: \"hann\", \"kaiser\", "
+    "\"blackman-harris\" or \"rect\".\n",
+    NULL },
+  { "beta", (getter)Spectrogram_getprop_beta, NULL,
+    "The Kaiser beta the Spectrogram was made with. It shapes the Kaiser "
+    "window only; under the others it changes no row.\n",
+    NULL },
+  { "mode", (getter)Spectrogram_getprop_mode, NULL,
+    "The row units: \"power\" (linear against full scale, the default) or "
+    "\"db\" (dBFS).\n",
+    NULL },
   { "consumed", (getter)Spectrogram_getprop_consumed, NULL,
-    "Input samples the last push took (the `consumed` property).\n", NULL },
+    "Input samples the last push took. From Python it is always the chunk's "
+    "length: the binding sizes its output for every row the chunk completes, "
+    "so no input is held back.\n",
+    NULL },
   { "pending", (getter)Spectrogram_getprop_pending, NULL,
-    "Samples carried toward the next row (the `pending` property).\n", NULL },
+    "Samples pushed that no row has covered yet: what flush() would turn into "
+    "a row. 0 means the stream is complete as it stands.\n",
+    NULL },
   { NULL, NULL, NULL, NULL, NULL }
 };
 

@@ -2498,12 +2498,47 @@ class Spectrogram:
         """
 
     @property
+    def nfft(self) -> int:
+        """Samples per frame, and bins per row: one number, because a frame the
+        PSD would zero-pad to a longer transform is refused at construction.
+        """
+
+    @property
+    def hop(self) -> int:
+        """Samples between row starts, 1 to nfft: nfft tiles the stream,
+        anything less overlaps the frames.
+        """
+
+    @property
+    def window(self) -> Literal["hann", "kaiser", "blackman-harris", "rect"]:
+        """The window every frame is shaped by: "hann", "kaiser",
+        "blackman-harris" or "rect".
+        """
+
+    @property
+    def beta(self) -> float:
+        """The Kaiser beta the Spectrogram was made with. It shapes the Kaiser
+        window only; under the others it changes no row.
+        """
+
+    @property
+    def mode(self) -> Literal["power", "db"]:
+        """The row units: "power" (linear against full scale, the default) or
+        "db" (dBFS).
+        """
+
+    @property
     def consumed(self) -> int:
-        """Input samples the last push took (the `consumed` property)."""
+        """Input samples the last push took. From Python it is always the
+        chunk's length: the binding sizes its output for every row the chunk
+        completes, so no input is held back.
+        """
 
     @property
     def pending(self) -> int:
-        """Samples carried toward the next row (the `pending` property)."""
+        """Samples pushed that no row has covered yet: what flush() would turn
+        into a row. 0 means the stream is complete as it stands.
+        """
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.

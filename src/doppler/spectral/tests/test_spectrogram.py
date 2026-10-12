@@ -242,3 +242,53 @@ class TestConstruction:
             _tone(NFFT, 10)
         )[0]
         assert row.max() <= 1.0 + 1e-4
+
+
+class TestConfiguration:
+    """The configuration reads back as built, read-only, by the same names."""
+
+    def test_every_argument_reads_back(self):
+        """window and mode come back as the strings that made them."""
+        sp = Spectrogram(nfft=64, hop=16, window="kaiser", beta=7.5, mode="db")
+        assert (sp.nfft, sp.hop, sp.window, sp.beta, sp.mode) == (
+            64,
+            16,
+            "kaiser",
+            7.5,
+            "db",
+        )
+        assert isinstance(sp.nfft, int) and isinstance(sp.hop, int)
+        assert isinstance(sp.window, str) and isinstance(sp.mode, str)
+
+    @pytest.mark.parametrize(
+        "window", ["hann", "kaiser", "blackman-harris", "rect"]
+    )
+    def test_every_window_reads_back(self, window):
+        """Every name the constructor takes is a name the property returns."""
+        assert Spectrogram(nfft=16, hop=16, window=window).window == window
+
+    def test_the_defaults_read_back(self):
+        """The defaults are the documented ones."""
+        sp = Spectrogram()
+        assert (sp.nfft, sp.window, sp.beta, sp.mode) == (
+            256,
+            "hann",
+            0.0,
+            "power",
+        )
+
+    def test_consumed_and_pending_follow_the_stream(self):
+        """pending is the uncovered tail; consumed is the whole chunk."""
+        sp = Spectrogram(nfft=8, hop=8, window="rect")
+        sp.push(np.ones(20, np.complex64))
+        assert (sp.consumed, sp.pending) == (20, 4)
+
+    @pytest.mark.parametrize(
+        "name",
+        ["nfft", "hop", "window", "beta", "mode", "consumed", "pending"],
+    )
+    def test_the_configuration_is_read_only(self, name):
+        """A setter would change what an existing object's rows mean."""
+        sp = Spectrogram(nfft=8, hop=8)
+        with pytest.raises(AttributeError):
+            setattr(sp, name, getattr(sp, name))

@@ -263,7 +263,7 @@ sections (int mode)
       {
         const size_t    nfft    = nffts[f];
         const size_t    hops[4] = { 1, 3, nfft / 2, nfft };
-        dp_psd_state_t *p       = ref_psd (nfft, 0, 7.5f);
+        dp_psd_state_t *p       = ref_psd (nfft, DP_PSD_WINDOW_HANN, 7.5f);
         DP_REQUIRE (p != NULL);
         for (size_t h = 0; h < 4; h++)
           for (size_t pre = 0; pre < 2 * nfft; pre += 1 + pre / 3)
@@ -272,8 +272,8 @@ sections (int mode)
                 const size_t hop = hops[h], total = pre + n;
                 fill_nan (want, sizeof want / sizeof *want);
                 fill_nan (got, sizeof got / sizeof *got);
-                size_t want_n = oneshot (mode, nfft, hop, 0, total, want,
-                                         sizeof want / 4);
+                size_t want_n = oneshot (mode, nfft, hop, DP_PSD_WINDOW_HANN,
+                                         total, want, sizeof want / 4);
                 /* room = push_max_out(n) */
                 dp_spectrogram_state_t *s = dp_spectrogram_create (
                     nfft, hop, DP_PSD_WINDOW_HANN, 7.5f, mode);
@@ -383,8 +383,9 @@ sections (int mode)
     float       *want = (float *)malloc (rows * nfft * sizeof *want);
     float       *got  = (float *)malloc (rows * nfft * sizeof *got);
     DP_REQUIRE (want != NULL && got != NULL);
-    DP_REQUIRE (oneshot (mode, nfft, hop, 1, NX, want, rows * nfft)
-                == rows * nfft);
+    DP_REQUIRE (
+        oneshot (mode, nfft, hop, DP_PSD_WINDOW_KAISER, NX, want, rows * nfft)
+        == rows * nfft);
 
     /* arbitrary chunks, each re-offered from consumed() until it is in */
     dp_spectrogram_state_t *s
@@ -551,7 +552,7 @@ sections (int mode)
                that shares no framer with the object under test */
             float _Complex padded[64 + 16] = { 0 };
             memcpy (padded, x, n * sizeof *x);
-            dp_psd_state_t *gp = ref_psd (nfft, 0, 0.0f);
+            dp_psd_state_t *gp = ref_psd (nfft, DP_PSD_WINDOW_HANN, 0.0f);
             DP_REQUIRE (gp != NULL);
             ref_row (gp, mode, padded + rows * hop, want);
             if (memcmp (row, want, sizeof row) != 0)
@@ -564,7 +565,7 @@ sections (int mode)
             || dp_spectrogram_pending (s) || dp_spectrogram_consumed (s) != 0)
           restart = 0;
         float           first[16], ref[16];
-        dp_psd_state_t *p = ref_psd (nfft, 0, 0.0f);
+        dp_psd_state_t *p = ref_psd (nfft, DP_PSD_WINDOW_HANN, 0.0f);
         DP_REQUIRE (p != NULL);
         ref_row (p, mode, x + 3, ref);
         if (dp_spectrogram_push (s, x + 3, nfft, first, nfft) != nfft
@@ -622,7 +623,7 @@ sections (int mode)
     DP_CHECK (dp_spectrogram_pending (s) == 0);
     DP_CHECK (dp_spectrogram_consumed (s) == 0);
     float           row[16], ref[16];
-    dp_psd_state_t *p = ref_psd (nfft, 1, 7.5f);
+    dp_psd_state_t *p = ref_psd (nfft, DP_PSD_WINDOW_KAISER, 7.5f);
     DP_REQUIRE (p != NULL);
     DP_CHECK (dp_spectrogram_push (s, x + 100, nfft, row, nfft) == nfft);
     ref_row (p, mode, x + 100, ref);
@@ -669,7 +670,8 @@ sections (int mode)
     float       *want = (float *)malloc (rows * nfft * sizeof *want);
     float       *got  = (float *)malloc (rows * nfft * sizeof *got);
     DP_REQUIRE (want != NULL && got != NULL);
-    DP_REQUIRE (oneshot (mode, nfft, hop, 2, NX, want, rows * nfft)
+    DP_REQUIRE (oneshot (mode, nfft, hop, DP_PSD_WINDOW_BLACKMAN_HARRIS, NX,
+                         want, rows * nfft)
                 == rows * nfft);
 
     /* a mid-frame split at a spread of offsets across three frames (the
@@ -835,7 +837,8 @@ sections (int mode)
         float       *want = (float *)malloc (rows * nfft * sizeof *want);
         float       *got  = (float *)malloc (rows * nfft * sizeof *got);
         DP_REQUIRE (want != NULL && got != NULL);
-        DP_REQUIRE (oneshot (mode, nfft, hop, 0, NX, want, rows * nfft)
+        DP_REQUIRE (oneshot (mode, nfft, hop, DP_PSD_WINDOW_HANN, NX, want,
+                             rows * nfft)
                     == rows * nfft);
         dp_spectrogram_state_t *s = dp_spectrogram_create (
             nfft, hop, DP_PSD_WINDOW_HANN, 7.5f, mode);
@@ -1191,7 +1194,7 @@ sections (int mode)
         const size_t            nfft = shp[k][0], hop = shp[k][1];
         dp_spectrogram_state_t *s = dp_spectrogram_create (
             nfft, hop, DP_PSD_WINDOW_HANN, 0.0f, mode);
-        dp_psd_state_t *p = ref_psd (nfft, 0, 0.0f);
+        dp_psd_state_t *p = ref_psd (nfft, DP_PSD_WINDOW_HANN, 0.0f);
         DP_REQUIRE (s != NULL && p != NULL);
         float  row[16], ref[16];
         size_t r       = 0;

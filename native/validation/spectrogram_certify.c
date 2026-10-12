@@ -574,7 +574,7 @@ sweep_backpressure (int emit)
     {
       const int mode = MODES[m];
       size_t    r_n;
-      float    *want = oracle (mode, nfft, hop, 0, len, &r_n);
+      float    *want = oracle (mode, nfft, hop, DP_PSD_WINDOW_HANN, len, &r_n);
       float    *got  = malloc ((r_n + 8) * nfft * sizeof *got);
       float    *buf  = malloc ((7 * nfft + 13) * sizeof *buf);
       if (!want || !got || !buf)
@@ -582,7 +582,8 @@ sweep_backpressure (int emit)
       for (size_t c = 0; c < sizeof chunk / sizeof *chunk; c++)
         for (size_t q = 0; q < sizeof rooms / sizeof *rooms; q++)
           {
-            dp_spectrogram_state_t *s = make (mode, nfft, hop, 0);
+            dp_spectrogram_state_t *s
+                = make (mode, nfft, hop, DP_PSD_WINDOW_HANN);
             if (!s)
               return 1;
             const size_t full = rooms[q] * nfft, cap = full + 13;
@@ -674,9 +675,10 @@ sweep_sizing (int emit)
         const size_t ns[] = { 0,        1,    hop - 1,  hop,         hop + 1,
                               nfft - 1, nfft, nfft + 1, 3 * nfft + 5 };
         const size_t cap  = ((4 * nfft + 5) / hop + 2) * nfft;
-        dp_spectrogram_state_t *base = make (mode, nfft, hop, 3);
-        dp_spectrogram_state_t *t    = make (mode, nfft, hop, 3);
-        float                  *out  = malloc (cap * sizeof *out);
+        dp_spectrogram_state_t *base
+            = make (mode, nfft, hop, DP_PSD_WINDOW_RECT);
+        dp_spectrogram_state_t *t = make (mode, nfft, hop, DP_PSD_WINDOW_RECT);
+        float                  *out = malloc (cap * sizeof *out);
         unsigned char          *blob
             = base ? malloc (dp_spectrogram_state_bytes (base)) : NULL;
         if (!base || !t || !out || !blob)
@@ -873,8 +875,9 @@ sweep_state (int emit)
         /* the size is a function of nfft alone */
         size_t                  varies = 0;
         dp_spectrogram_state_t *o[3]
-            = { make (mode, nfft, 1, 0), make (mode, nfft, nfft, 3),
-                make (mode, nfft, hop2, 1) };
+            = { make (mode, nfft, 1, DP_PSD_WINDOW_HANN),
+                make (mode, nfft, nfft, DP_PSD_WINDOW_RECT),
+                make (mode, nfft, hop2, DP_PSD_WINDOW_KAISER) };
         for (int k = 0; k < 3; k++)
           {
             if (!o[k])

@@ -139,11 +139,13 @@ only way in and the bound a fact rather than a hope. Its own section belongs on
 A spectrogram is **PSD per frame, no averaging**. `PSD` already owns every
 step that makes a frame a spectrum — the window (Hann, Kaiser, Blackman-Harris,
 and rectangular), the zero-pad, the FFT, the DC-centred power, and the dBFS
-reference that makes a full-scale tone read 0 dB. Those steps are one internal
-transform that `accumulate` and the per-frame calls
-(`dp_psd_frame_power`, `dp_psd_frame_linear`, `dp_psd_frame_db`) share, and one
-reading of power against that reference — linear, or dB — that the averaged
-readouts and the single-frame ones share.
+reference that makes a full-scale tone read 0 dB. Those steps are one struct,
+`dp_psd_kernel_t` (filled by `dp_psd_kernel_init`), and one transform over it
+that `accumulate` and the per-frame calls (`dp_psd_frame_power`,
+`dp_psd_frame_linear`, `dp_psd_frame_db`) share, and one reading of power
+against that reference — linear, or dB — that the averaged readouts and the
+single-frame ones share. PSD holds a kernel by value and folds each frame into
+its average; the Spectrogram holds one by value and emits each frame.
 
 The alternative, `fft` plus `dp_magnitude_db_cf32`, is rejected on the
 prototype's number (§3), not on taste.
@@ -162,13 +164,15 @@ size_t dp_spectrogram_pending (s);
 /* + reset, destroy, and the state triplet */
 ```
 
-It owns a ring, a framer, and the PSD estimator whose kernel it calls. `push`
-loops `framer_feed` → `framer_next` → the PSD kernel, so any chunk size works
-whatever the ring's capacity. **A sample is taken unless it would complete a
-row `out` has no room for** — the framer's own `feed` contract, applied to
-rows. So a short `out` stops at a whole row and `consumed()` says where to
-resume, input that completes no row is always taken (even with `max_out` 0),
-and `push_max_out(n)` is exactly the room that makes a push take all of `n`.
+It owns a ring, a framer, and PSD's per-frame kernel — the kernel alone, not a
+PSD, whose averager, dB buffer, ring and framer would be dead here (28·nfft
+allocated bytes, §5.10). `push` loops `framer_feed` → `framer_next` → the
+kernel, so any chunk size works whatever the ring's capacity. **A sample is
+taken unless it would complete a row `out` has no room for** — the framer's
+own `feed` contract, applied to rows. So a short `out` stops at a whole row
+and `consumed()` says where to resume, input that completes no row is always
+taken (even with `max_out` 0), and `push_max_out(n)` is exactly the room that
+makes a push take all of `n`.
 
 `nfft` is a power of two and `1 <= hop <= nfft`, a `hop` of 0 meaning `nfft`
 (PSD's rule, resolved at create, so the blob holds `nfft`): frame length and
@@ -210,12 +214,12 @@ just-buildit/just-makeit#2233).
 
 ### 4.4 What it composes, and what it does not re-implement
 
-| need                                       | owner                                                       |
-| ------------------------------------------ | ----------------------------------------------------------- |
-| any chunk in, fixed frames out, hop, flush | the ring's framer                                           |
-| window, zero-pad, FFT, power, dBFS         | `PSD`'s per-frame kernel (and through it `FFT` and windows) |
-| the state envelope and cursors             | `dp_state.h`                                                |
-| averaging rows, if a caller wants it       | `AccTrace`, composed by the caller                          |
+| need                                       | owner                                                                        |
+| ------------------------------------------ | ---------------------------------------------------------------------------- |
+| any chunk in, fixed frames out, hop, flush | the ring's framer                                                            |
+| window, zero-pad, FFT, power, dBFS         | `dp_psd_kernel_t`, PSD's per-frame kernel (and through it `FFT` and windows) |
+| the state envelope and cursors             | `dp_state.h`                                                                 |
+| averaging rows, if a caller wants it       | `AccTrace`, composed by the caller                                           |
 
 ## 5. What is measured
 
@@ -246,6 +250,12 @@ method and its caveats are in the record under the same number.
 - **§5.8** — The dB conversion is 70–83% of a row (#2074).
 - **§5.9** — One core sustains about 36 MSa/s at `nfft` 1024 and `hop`
     256, about 141,000 rows per second (±4%).
+- **§5.10** — Holding PSD's kernel instead of a PSD left every output and
+    state blob of PSD, the Spectrogram and six consumers **byte-identical**,
+    at the default and native flags on one x86-64 machine; a Spectrogram
+    allocates **28·`nfft` fewer bytes**, virtual and not resident (derived:
+    12 heap plus the ring's 16 memfd, counted once), and no benchmark row
+    moves by more than its own round-to-round spread.
 
 The framer's cost against the hand-written loop is a property of the ring, and
 is recorded with it in [the ring's measurements](ring-buffer-measurements.md).

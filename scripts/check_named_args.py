@@ -79,7 +79,10 @@ those projects build against a RELEASED doppler, and v0.67.0 carries the
 row whose function was renamed away would otherwise check nothing and read
 as clean. A discovered helper has no row to go stale, but discovery can stop
 SEEING one -- a definition in a shape it does not read is dropped, and its
-calls pass unchecked. The gate itself fails only when it discovers no helper
+calls pass unchecked. A ``static`` body whose braces do not close (an
+``#if`` and its ``#else`` each opening one) is a finding: read to the
+file's end, it would take in every function below it and teach a false
+helper (#2227). Otherwise the gate fails only when it discovers no helper
 anywhere; it does not know which helpers the tree should have. Its test
 does: ``test_the_real_trees_helpers_are_discovered`` pins each real helper
 (file, name, argument count, slots and enums) as a subset, so a lost or
@@ -388,9 +391,14 @@ _STATIC_DEF = re.compile(
 )
 
 
-def _brace_end(code: str, j: int) -> int:
+def _brace_end(code: str, j: int) -> int | None:
     """The offset of the `}` closing the `{` at `j` (comments and strings
-    already blanked)."""
+    already blanked), or None when it never closes: an `#if` and its
+    `#else` that each open a brace, read together, leave one open (#2227).
+
+    >>> _brace_end("{ { } }", 0), _brace_end("{ {\\n{\\n} }", 0)
+    (6, None)
+    """
     depth = 0
     for i in range(j, len(code)):
         if code[i] == "{":
@@ -399,7 +407,7 @@ def _brace_end(code: str, j: int) -> int:
             depth -= 1
             if depth == 0:
                 return i
-    return len(code)
+    return None
 
 
 def _shadowed(code: str, name: str, body: int, at: int) -> bool:
@@ -428,8 +436,11 @@ def _param_name(param: str) -> str | None:
 
 def discover(
     text: str,
-) -> dict[str, tuple[int, dict[int, tuple[str, str]]]]:
-    """The file's forwarding helpers, found by data flow (#2197).
+) -> tuple[
+    dict[str, tuple[int, dict[int, tuple[str, str]]]], list[tuple[int, str]]
+]:
+    """The file's forwarding helpers, found by data flow (#2197), and the
+    (line, name) of each `static` definition whose body it cannot read.
 
     A `static` function is a helper when one of its parameters is passed,
     bare, into a gated slot of a TABLE call, or of another helper in the
@@ -439,9 +450,15 @@ def discover(
     and has no row; a parameter used inside an expression (`w + 0`) is not
     forwarded bare and is not followed. Only `static` functions: a helper
     is file-local, so its row checks its own file's calls.
+
+    A body whose braces never close is not read at all: taken to the end
+    of the file, it would take in every function below it and their calls,
+    and teach a false helper (#2227). It is returned for the caller to
+    report, so the gate fails on it rather than reading past it.
     """
     code = _blank_lexemes(text, comments=True)
     defs = []
+    unread: list[tuple[int, str]] = []
     for m in _STATIC_DEF.finditer(code):
         got = _args(code, m.end() - 1)
         if got is None:
@@ -459,7 +476,12 @@ def discover(
         if code[spans[-1][0] : spans[-1][1]].strip() == "...":
             params.pop()
             arity = -len(params)
-        defs.append((m.group("name"), params, arity, j, _brace_end(code, j)))
+        k = _brace_end(code, j)
+        if k is None:
+            line = code.count("\n", 0, m.start("name")) + 1
+            unread.append((line, m.group("name")))
+            continue
+        defs.append((m.group("name"), params, arity, j, k))
     rows: dict[str, tuple[int, dict[int, tuple[str, str]]]] = {}
     changed = True
     while changed:
@@ -496,7 +518,7 @@ def discover(
                             both = set(old[1].split("|")) | {enum}
                             row[1][p] = (old[0], "|".join(sorted(both)))
                             changed = True
-    return rows
+    return rows, unread
 
 
 def check_text(
@@ -630,13 +652,17 @@ def main(argv: list[str]) -> int:
     helper_calls: dict[tuple[str, str], int] = {}
     discovered = 0
     files, fixed, left = 0, 0, []
+    unread: list[tuple[str, str]] = []
     for rel in tracked(root):
         path = root / rel
         try:
             text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        helpers = discover(text) if rel.endswith(".c") else None
+        helpers = None
+        if rel.endswith(".c"):
+            helpers, lost = discover(text)
+            unread += [(f"{rel}:{line}", name) for line, name in lost]
         if helpers:
             discovered += len(helpers)
         n, found = check_text(text, names, not rel.endswith(".md"), helpers)
@@ -688,6 +714,16 @@ def main(argv: list[str]) -> int:
             "\n  discovered helper's, means the signature moved: fix the call"
             "\n  (or the TABLE row)."
         )
+    # A body discovery cannot read could hold a helper, or teach a false one
+    # if read past its end, so it fails like a row that finds no call.
+    if unread:
+        print("check_named_args: a static body cannot be read -- FAIL")
+        for where, name in unread:
+            print(
+                f"  {where}: {name}: its braces do not close (an #if and its"
+                " #else each opening one?), so discovery cannot read it;"
+                " open the brace once, outside the #if"
+            )
     # A row that finds no call is broken, not clean: the same defect as a
     # glob that silently matches nothing, one function at a time.
     missing = [f for f, k in calls.items() if k == 0]
@@ -704,7 +740,7 @@ def main(argv: list[str]) -> int:
             "check_named_args: discovered no forwarding helper in any tracked"
             " .c file -- the discovery is broken -- FAIL"
         )
-    if left or missing or blind:
+    if left or unread or missing or blind:
         return 1
     print(
         f"check_named_args: OK -- {sum(calls.values())} call(s) and"

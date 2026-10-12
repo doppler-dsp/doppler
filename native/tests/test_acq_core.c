@@ -523,15 +523,15 @@ _acq_wideband_check (void)
 
   /* 3.5 * span -> window_bins = ceil(3.5) = 4 (even, so window_bins/2 = 2
    * lands exactly on the convention's positive/negative boundary). */
-  dp_acq_state_t *w = burst_from_code (CODE7, 7, 8, spc, crate, 90.0 /* strong:
-                                     forces n_noncoh=1 -- see doc above */
+  dp_acq_state_t *w = burst_from_code (CODE7, 7, 1, spc, crate, 90.0 /* one
+                                     repetition pins D=1 -- see below */
                                        ,
                                        3.5 * span, 1e-2, 0.9, 0, 0.0);
   DP_CHECK (w != NULL);
   if (!w)
     return 0;
 
-  DP_CHECK (w->coherent_bins == 1);
+  DP_CHECK (w->coherent_bins >= 1);
   /* Coverage-sized and ODD: du = 3.5*span, bins are spaced doppler_res_hz =
      2*span apart, so each side needs ceil((3.5 - 0.5)*span / (2*span)) = 2
      hypotheses beyond DC -> 5.  Odd is required, not incidental: an even
@@ -539,17 +539,18 @@ _acq_wideband_check (void)
      the search and dp_acq_build_handoff() used to read with opposite signs. */
   DP_CHECK (w->window_bins == 5);
   DP_CHECK (w->window_bins % 2 == 1);
-  DP_CHECK (w->n == w->window_bins * nx);
-  DP_CHECK (w->frame_n == nx); /* one epoch, not window_bins epochs */
+  DP_CHECK (w->n == w->window_bins * w->coherent_bins * nx);
+  DP_CHECK (w->frame_n == nx); /* one epoch per tile input frame */
   DP_CHECK (w->n_noncoh == 1);
-  DP_CHECK (w->searched_bins == w->window_bins);
-  DP_CHECK (fabs (w->doppler_res_hz - crate / 7.0) < 1e-6); /* chip_rate/sf */
+  DP_CHECK (w->searched_bins == w->window_bins * w->coherent_bins);
+  DP_CHECK (fabs (w->doppler_res_hz - crate / (7.0 * (double)w->coherent_bins))
+            < 1e-6); /* chip_rate/(sf*D) */
 
   /* row r=3 -> signed_r = 3 - 4 = -1 (one window NEGATIVE of DC): the
    * wraparound case. */
   const size_t row      = 3;
   const long   signed_r = (long)row - (long)w->window_bins;
-  const double f_norm   = (double)signed_r / (double)nx; /* cycles/sample */
+  const double f_norm   = (double)signed_r / (double)nx; /* D=1 below */
   const size_t d        = 5;                             /* code phase */
 
   float _Complex s0d[14];
@@ -579,11 +580,66 @@ _acq_wideband_check (void)
     }
 
   /* configure_search_raw always exits wideband mode back to the native
-   * (doppler_bins, n_noncoh) grid, per its documented contract. */
-  DP_CHECK (dp_acq_configure_search_raw (w, 2, 1) == 0);
-  DP_CHECK (w->window_bins == 1 && w->coherent_bins == 2);
+   * (doppler_bins, n_noncoh) grid. This one-repetition object can pin D=1. */
+  DP_CHECK (dp_acq_configure_search_raw (w, 1, 1) == 0);
+  DP_CHECK (w->window_bins == 1 && w->coherent_bins == 1);
 
   dp_acq_destroy (w);
+  return 0;
+}
+
+/* Full-span burst acquisition tiles coarse Doppler while retaining a
+ * coherent slow-time FFT inside every tile. This is the geometry needed by
+ * a long repeated preamble: the old wideband early-return forced D=1 and
+ * threw away the repetitions' coherent gain. */
+static int
+_acq_wideband_coherent_center_check (void)
+{
+  const double    PI  = acos (-1.0);
+  const size_t    spc = 2, sf = 7, nx = sf * spc, reps = 8;
+  const double    crate = 1.0e6, span = crate / (2.0 * (double)sf);
+  const size_t    windows = 5; /* du = 3.5 * native span */
+  dp_acq_state_t *a       = burst_from_code (CODE7, sf, reps, spc, crate, 60.0,
+                                             3.5 * span, 1e-2, 0.9, 0, 0.0);
+  DP_REQUIRE (a != NULL);
+  DP_CHECK (a->window_bins == windows);
+  DP_CHECK_MSG (a->coherent_bins > 1,
+                "wideband burst sizing retains coherent depth per tile");
+  DP_CHECK (a->coherent_bins <= reps);
+  DP_CHECK (a->frame_n == nx);
+  DP_CHECK (a->n == windows * a->coherent_bins * nx);
+  DP_CHECK (a->searched_bins == windows * a->coherent_bins);
+  DP_CHECK (a->n_noncoh == 1);
+  DP_CHECK (!a->underpowered);
+  DP_CHECK (fabs (a->doppler_res_hz
+                  - crate / ((double)sf * (double)a->coherent_bins))
+            < 1e-6);
+
+  const size_t    delay = 5;
+  float _Complex *block = malloc (a->coherent_bins * nx * sizeof *block);
+  DP_REQUIRE (block != NULL);
+  for (size_t epoch = 0; epoch < a->coherent_bins; epoch++)
+    for (size_t q = 0; q < nx; q++)
+      {
+        const size_t  src  = (q + nx - delay) % nx;
+        const uint8_t chip = CODE7[(src / spc) % sf];
+        /* DC in the centre tile; all D repetitions add coherently. */
+        const double phase = 2.0 * PI * 0.0 * (double)(epoch * nx + q);
+        block[epoch * nx + q]
+            = ((chip & 1u) ? -1.0f : 1.0f)
+              * (float _Complex) (cos (phase) + I * sin (phase));
+      }
+  acq_result_t hit[8];
+  const size_t nh = dp_acq_push (a, block, a->coherent_bins * nx, hit, 8);
+  DP_CHECK (nh == 1);
+  if (nh == 1)
+    {
+      DP_CHECK (hit[0].doppler_bin < windows * a->coherent_bins);
+      DP_CHECK (hit[0].code_phase == delay);
+      DP_CHECK (hit[0].test_stat > a->threshold);
+    }
+  free (block);
+  dp_acq_destroy (a);
   return 0;
 }
 
@@ -2066,8 +2122,11 @@ main (void)
     DP_CHECK (wide != NULL);
     if (wide)
       {
-        DP_CHECK (wide->coherent_bins == 1);
+        DP_CHECK (wide->coherent_bins >= 1);
         DP_CHECK (wide->window_bins == 3); /* covers +/-2*span, odd */
+        DP_CHECK (wide->n
+                  == wide->window_bins * wide->coherent_bins
+                         * wide->code_bins);
         DP_CHECK (wide->window_bins % 2 == 1);
         dp_acq_destroy (wide);
       }
@@ -2250,6 +2309,7 @@ main (void)
   (void)_acq_band_edge_check ();
   (void)_acq_band_mask_check ();
   (void)_acq_wideband_check ();
+  (void)_acq_wideband_coherent_center_check ();
   (void)_acq_hit_chip_phase_check ();
   (void)_acq_wideband_coverage_check ();
   (void)_acq_chunk_invariance_check ();

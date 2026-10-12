@@ -3,7 +3,7 @@ include = ["objects/*.toml"]
 [project]
 jm_version = "0.103.0"
 name = "doppler"
-version = "0.66.0"
+version = "0.67.0"
 build = "cmake"
 # c_prefix (jm#1591, #1545): every C symbol jm derives carries dp_, so two
 # installed jm libraries that share a component name (fir, fft, agc) link
@@ -645,7 +645,7 @@ fn = "dp_wfm_stream_sink_send_eos"
 # rather than hand the status back, so the stub is `-> None`. It read `-> int`
 # until the 0.67.1 pin: jm honoured `error` in the annotation only on the
 # arg-carrying branch, so this zero-arg method disagreed with the `drain`
-# below that declares the identical pair. just-makeit#1116, fixed in 0.67.0
+# below that declares the identical pair. just-makeit#1116, fixed in jm 0.67
 # and verified here -- the regenerated stub says `-> None`.
 returns = "int"
 error = "OSError"

@@ -22,6 +22,49 @@ def _log(msg: str) -> None:
     print(f"[{ts}] {msg}", flush=True)
 
 
+def _tolerate_unencodable_output() -> None:
+    r"""Keep startup alive when stdout cannot encode what it prints.
+
+    A redirected stdout (a file, a pipe, a service or a scheduled task's log)
+    takes the platform's legacy code page, which on Windows is cp1252 unless
+    ``PYTHONUTF8`` is set, with the ``strict`` error handler. The startup
+    banner prints an arrow that cp1252 has no byte for, so a plain ``print``
+    raised ``UnicodeEncodeError`` and the process exited before the server
+    listened (#2225).
+
+    A stream whose handler is ``strict`` is given ``backslashreplace``: the
+    arrow prints as the six characters ``→``, so nothing is lost, and
+    the next non-ASCII character cannot take startup down the same way.
+    Every other stream is left alone. ``sys.stderr`` is always opened with
+    ``backslashreplace`` already, and a handler someone chose is theirs (a C
+    locale gives stdout ``surrogateescape``, for one). An explicit
+    ``PYTHONIOENCODING=cp1252:strict`` cannot be told from the default
+    ``strict``, so it is reconfigured too. A stand-in without ``reconfigure``
+    (``io.StringIO``) and ``None`` (a windowed process has no stdout) are
+    skipped.
+
+    Examples
+    --------
+    The suite collects no module doctests, so the guard for this is
+    ``test_server_harness.py``; the example only shows the substitution.
+
+    >>> import contextlib
+    >>> import io
+    >>> raw = io.BytesIO()
+    >>> out = io.TextIOWrapper(raw, encoding="cp1252")
+    >>> with contextlib.redirect_stdout(out):
+    ...     _tolerate_unencodable_output()
+    ...     print("a → b", end="")
+    >>> out.flush()
+    >>> raw.getvalue()
+    b'a \\u2192 b'
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None and stream.errors == "strict":
+            reconfigure(errors="backslashreplace")
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the doppler-specan argument parser.
 
@@ -161,6 +204,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    _tolerate_unencodable_output()
     args = build_parser().parse_args()
 
     # ----------------------------------------------------------------

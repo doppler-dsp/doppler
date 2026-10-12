@@ -182,9 +182,9 @@ chain_init (chain_t *c, double fs, double offset, double rate, size_t n)
   c->cvt_i8 = dp_i8_to_f32_create (128.0f);
   c->ddc    = dp_ddc_create (-offset / fs, rate);
   /* Hann window, no padding, 0 dBFS = amplitude 1.0, linear mean. */
-  c->psd
-      = dp_psd_create (n, fs * rate, 0, 0.0f, 1, 1.0, 0, ACC_TRACE_MEAN, 0.0);
-  c->cf        = malloc (BLOCK * sizeof *c->cf);
+  c->psd = dp_psd_create (n, fs * rate, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0, 0,
+                          ACC_TRACE_MEAN, 0.0);
+  c->cf  = malloc (BLOCK * sizeof *c->cf);
   c->stage_cap = dp_ddc_execute_max_out (c->ddc, BLOCK) + n;
   c->stage     = malloc (c->stage_cap * sizeof *c->stage);
   return c->cvt_u8 && c->cvt_i8 && c->ddc && c->psd && c->cf && c->stage;

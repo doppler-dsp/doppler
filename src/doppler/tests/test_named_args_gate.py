@@ -123,8 +123,10 @@ int main (void)
       4e6, 1e5, 0.0, 4, DP_PSD_WINDOW_HANN, 0.0f, NULL, 0, 1e-3, 0.9, 2.0,
       true, 1000);
   dp_acc_trace_state_t *t = dp_acc_trace_create (8, ACC_TRACE_MEAN, 0.1);
+  dp_psd_kernel_t k;
+  int ok = dp_psd_kernel_init (&k, 64, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0);
   printf ("dp_psd_create(%d, 0, 0, 0, 0, 0, 0, 0, 0) is no call\\n", 9);
-  return !a || !b || !p || !q || !c || !t;
+  return !a || !b || !p || !q || !c || !t || ok;
 }
 """
 
@@ -186,13 +188,13 @@ def test_named_arguments_pass_in_every_shape(tmp_path: Path) -> None:
     _seed(tmp_path)
     r = _run(tmp_path)
     assert r.returncode == 0, r.stdout
-    # six calls in a.c (the printf is a string), the @code call in s.h (its
+    # seven calls in a.c (the printf is a string), the @code call in s.h (its
     # declaration is not a call), the fence in p.md; the prose mention is
     # not a call either. One call of each HELPERS row, in its two files.
     helpers = _gate().HELPERS
     n = sum(len(rows) for rows in helpers.values())
     files = 3 + len(helpers)
-    assert f"8 call(s) and {n} helper call(s) in {files} file(s)" in r.stdout
+    assert f"9 call(s) and {n} helper call(s) in {files} file(s)" in r.stdout
 
 
 def test_a_literal_mode_fails_and_names_the_line(tmp_path: Path) -> None:
@@ -264,6 +266,11 @@ def test_a_literal_behind_a_comment_fails(tmp_path: Path) -> None:
             "ACC_TRACE_EXP, 0.5",
             "1, 0.5",
             "a.c:11: dp_psd_create_hop mode = 1 (write ACC_TRACE_EXP)",
+        ),
+        (
+            "(&k, 64, DP_PSD_WINDOW_HANN,",
+            "(&k, 64, 3,",
+            "a.c:18: dp_psd_kernel_init window = 3 (write DP_PSD_WINDOW_RECT)",
         ),
         (
             "0.0, 4, DP_PSD_WINDOW_HANN,",

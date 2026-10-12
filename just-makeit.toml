@@ -3531,8 +3531,8 @@ values = ["iandd", "rrc", "none"]
 enumerators = ["RC_PULSE_IANDD", "RC_PULSE_RRC", "RC_PULSE_NONE"]
 
 # PSD's window, by name (psd_core.h, `SSOT: enum=psd_window`). The Spectrogram
-# takes the same index, because dp_psd_create is the one owner of it; HANN is
-# 0, so a zeroed configuration is Hann. Bound by name (gh-1450), so the
+# takes the same index, because PSD's kernel (dp_psd_kernel_init) is the one
+# owner of it; HANN is 0, so a zeroed configuration is Hann. Bound by name (gh-1450), so the
 # binding writes DP_PSD_WINDOW_* and the compiler checks every name.
 [[enum]]
 name = "psd_window"

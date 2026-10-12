@@ -117,7 +117,7 @@ float _Complex* dp_carrier_acq_state_t::carry_buf;
 
 
 
-Raw-input carry, capacity psd-&gt;n. 
+Raw-input carry, capacity psd-&gt;k.n. 
  
 
 

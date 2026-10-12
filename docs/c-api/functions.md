@@ -1353,6 +1353,8 @@
 * **dp\_psd\_frame\_linear** ([**psd\_core.h**](psd__core_8h.md))
 * **dp\_psd\_frame\_power** ([**psd\_core.h**](psd__core_8h.md))
 * **dp\_psd\_get\_state** ([**psd\_core.h**](psd__core_8h.md))
+* **dp\_psd\_kernel\_free** ([**psd\_core.h**](psd__core_8h.md))
+* **dp\_psd\_kernel\_init** ([**psd\_core.h**](psd__core_8h.md))
 * **dp\_psd\_noise\_floor** ([**psd\_core.h**](psd__core_8h.md))
 * **dp\_psd\_occupied\_bw** ([**psd\_core.h**](psd__core_8h.md))
 * **dp\_psd\_power\_onesided** ([**psd\_core.h**](psd__core_8h.md))

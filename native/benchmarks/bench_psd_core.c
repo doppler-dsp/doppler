@@ -91,13 +91,13 @@ kern_run (kern_t *k, int kind, const float _Complex *x)
       if (kind == 0)
         dp_fft_execute_cf32 (k->plan, f, k->nfft, k->spec, k->nfft);
       else if (kind == 1)
-        dp_psd_frame_power (k->p, f, k->out);
+        dp_psd_frame_power (&k->p->k, f, k->out);
       else if (kind == 2)
-        dp_psd_frame_db (k->p, f, k->out);
+        dp_psd_frame_db (&k->p->k, f, k->out);
       else if (kind == 3)
         dp_psd_accumulate (k->p, f, k->nfft); /* one frame: n = nfft */
       else
-        dp_psd_frame_linear (k->p, f, k->out);
+        dp_psd_frame_linear (&k->p->k, f, k->out);
     }
 }
 

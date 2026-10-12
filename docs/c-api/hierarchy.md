@@ -109,6 +109,7 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**dp\_pn\_state\_t**](structdp__pn__state__t.md) 
 * **struct** [**dp\_pool\_t**](structdp__pool__t.md) 
 * **struct** [**dp\_ppe\_state\_t**](structdp__ppe__state__t.md) _PolynomialPhaseEstimator state (FFT plan + rate grid + scratch)._ 
+* **struct** [**dp\_psd\_kernel\_t**](structdp__psd__kernel__t.md) _PSD's per-frame kernel: one frame of n samples in, nfft DC-centred power bins out, and their reading against the full-scale reference._ 
 * **struct** [**dp\_psd\_state\_t**](structdp__psd__state__t.md) _PSD state. Allocate with_ [_**dp\_psd\_create()**_](psd__core_8h.md#function-dp_psd_create) _._
 * **struct** [**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) _RateSync state: a matched-filter cascade and the timing loop._ 
 * **struct** [**dp\_reader\_t**](structdp__reader__t.md) 

@@ -187,15 +187,19 @@ arg_type = "void"
 return_type = "double"
 params = [{name = "min_db", type = "float"}]
 
+# n, nfft and full_scale live in the per-frame kernel (dp_psd_kernel_t), so
+# they read through it; the docs are the ones the struct members carried.
 [[psd.properties]]
 name = "n"
 type = "size_t"
-field = true
+expr = "self->handle->k.n"
+doc = "Window / frame length (samples)."
 
 [[psd.properties]]
 name = "nfft"
 type = "size_t"
-field = true
+expr = "self->handle->k.nfft"
+doc = "Zero-padded transform length."
 
 [[psd.properties]]
 name = "fs"
@@ -205,7 +209,8 @@ field = true
 [[psd.properties]]
 name = "full_scale"
 type = "double"
-field = true
+expr = "self->handle->k.full_scale"
+doc = "Amplitude that reads 0 dBFS."
 
 [[psd.properties]]
 name = "bits"
@@ -220,7 +225,7 @@ field = true
 [[psd.properties]]
 name = "rbw"
 type = "double"
-expr = "self->handle->enbw * self->handle->fs / (double)self->handle->n"
+expr = "self->handle->enbw * self->handle->fs / (double)self->handle->k.n"
 
 [[psd.properties]]
 name = "count"

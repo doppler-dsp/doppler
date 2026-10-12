@@ -21,7 +21,7 @@
 
 | Type | Name |
 | ---: | :--- |
-| file | [**psd\_core.h**](psd__core_8h.md) <br>_PSD — averaging power-spectral-density estimator (Welch's method) and spectral measurement suite._  |
+| file | [**psd\_core.h**](psd__core_8h.md) <br>_PSD — averaging power-spectral-density estimator (Welch's method), its per-frame kernel, and spectral measurement suite._  |
 
 
 

@@ -114,7 +114,7 @@ dp_specan_create (double fs, double span, double rbw, double src_center,
   double norm_freq = -(center - src_center) / fs;
   s->ddc           = dp_ddc_create (norm_freq, rate);
   /* The PSD core owns the 0-dBFS reference (full_scale / bits); the display
-   * reads it back as s->psd->full_scale, so dBFS is single-sourced. The
+   * reads it back as s->psd->k.full_scale, so dBFS is single-sourced. The
    * window is always Kaiser: beta is the analyzer's RBW knob. */
   s->psd = dp_psd_create (n, fs_out, DP_PSD_WINDOW_KAISER, (float)beta,
                           nfft / n, full_scale, bits, ACC_TRACE_MEAN, 0.1);
@@ -292,7 +292,7 @@ dp_specan_execute (dp_specan_state_t *state, const float _Complex *x,
 
   /* Crop the central display band and convert to dBFS (+ application offset).
    * The 0-dBFS reference is the PSD core's full_scale (single source). */
-  double fs2 = state->psd->full_scale * state->psd->full_scale;
+  double fs2 = state->psd->k.full_scale * state->psd->k.full_scale;
   size_t cnt = state->disp_n;
   if (cnt > max_out)
     cnt = max_out;

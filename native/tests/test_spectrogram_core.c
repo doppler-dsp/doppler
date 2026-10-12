@@ -94,9 +94,9 @@ static void
 ref_row (dp_psd_state_t *p, int mode, const float _Complex *frame, float *out)
 {
   if (mode == DP_SPECTROGRAM_POWER)
-    dp_psd_frame_linear (p, frame, out);
+    dp_psd_frame_linear (&p->k, frame, out);
   else
-    dp_psd_frame_db (p, frame, out);
+    dp_psd_frame_db (&p->k, frame, out);
 }
 
 /* Rows of a one-shot push of x[0..n): the reference for every partition.
@@ -1349,7 +1349,7 @@ main (void)
     DP_REQUIRE (s != NULL && p != NULL);
     float row[64], want[64];
     DP_REQUIRE (dp_spectrogram_push (s, x, 64, row, 64) == 64);
-    dp_psd_frame_linear (p, x, want);
+    dp_psd_frame_linear (&p->k, x, want);
     DP_CHECK (memcmp (row, want, sizeof row) == 0);
     dp_psd_destroy (p);
     dp_spectrogram_destroy (s);

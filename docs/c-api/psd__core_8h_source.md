@@ -31,20 +31,29 @@ enum {
 };
 
 typedef struct {
-    dp_fft_state_t *fft;          
-    dp_acc_trace_state_t *avg;    
-    float *w;                  
+    dp_fft_state_t *fft;        
+    float *w;                   
     float _Complex *frame;      
     float _Complex *spec;       
-    float *pwr;                
+    float *pwr;                 
+    double cg;                  
+    double s2;                  
+    size_t n;                   
+    size_t nfft;                
+    double full_scale;          
+} dp_psd_kernel_t;
+
+int dp_psd_kernel_init(dp_psd_kernel_t *k, size_t n, int window, float beta,
+                       size_t pad, double full_scale);
+
+void dp_psd_kernel_free(dp_psd_kernel_t *k);
+
+typedef struct {
+    dp_psd_kernel_t k;         
+    dp_acc_trace_state_t *avg;    
     float *dbbuf;              
-    double cg;                 
-    double s2;                 
     double enbw;               
-    size_t n;                  
-    size_t nfft;               
     double fs;                 
-    double full_scale;         
     size_t bits;               
     size_t hop;                
     dp_f32_t *ring;            
@@ -66,13 +75,13 @@ void dp_psd_reset(dp_psd_state_t *state);
 void dp_psd_accumulate(dp_psd_state_t *state, const float _Complex *x,
                       size_t x_len);
 
-void dp_psd_frame_power(dp_psd_state_t *state, const float _Complex *x,
+void dp_psd_frame_power(dp_psd_kernel_t *k, const float _Complex *x,
                         float *pwr);
 
-void dp_psd_frame_linear(dp_psd_state_t *state, const float _Complex *x,
+void dp_psd_frame_linear(dp_psd_kernel_t *k, const float _Complex *x,
                          float *out);
 
-void dp_psd_frame_db(dp_psd_state_t *state, const float _Complex *x,
+void dp_psd_frame_db(dp_psd_kernel_t *k, const float _Complex *x,
                      float *out);
 
 void dp_psd_accumulate_real(dp_psd_state_t *state, const float *x, size_t x_len);

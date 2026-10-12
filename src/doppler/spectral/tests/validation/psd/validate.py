@@ -267,8 +267,8 @@ def section_object() -> None:
         "into a per-bin average (mean, EMA, max-hold or min-hold), stored "
         "DC-centred. It reads the average back as a spectrum and as the "
         "measurements a spectrum analyser makes. Its per-frame kernel, "
-        "`dp_psd_frame_power` / `dp_psd_frame_db`, is what the Spectrogram "
-        "composes."
+        "`dp_psd_kernel_t` with `dp_psd_frame_power` / `dp_psd_frame_db`, "
+        "is what the Spectrogram composes."
     )
     R.md()
     R.table(
@@ -345,6 +345,24 @@ def section_object() -> None:
                 "trailing partial is carried to the next call",
                 "accumulate block (3 frames + a partial)",
                 L,
+                "C-ONLY",
+            ],
+            [
+                "`dp_psd_kernel_init` refuses what create refuses for the "
+                "kernel (n < 2, pad 0, a window index outside 0-3, a "
+                "non-finite or non-positive full_scale, a non-finite "
+                "window, a window with no gain, an n·pad too large to "
+                "size) and leaves nothing allocated; `dp_psd_kernel_free` "
+                "is safe after any outcome and on a zeroed kernel",
+                "bare-kernel block",
+                P,
+                "C-ONLY",
+            ],
+            [
+                "a bare kernel turns a frame into the bins a PSD's own "
+                "kernel does",
+                "bare-kernel block, 4 windows, n 64, pad 2",
+                P,
                 "C-ONLY",
             ],
             [
@@ -1468,10 +1486,14 @@ def review(d: Data) -> None:
     R.find(
         "F3",
         "C-ONLY",
-        "`dp_psd_frame_power`, `dp_psd_frame_db` and `dp_psd_frame_linear` "
-        "(#1963), the per-frame kernel the Spectrogram composes, have no "
-        "Python binding. They are "
-        "certified in `native/tests/test_psd_core.c`: one frame equals "
+        "The per-frame kernel the Spectrogram composes — "
+        "`dp_psd_kernel_t`, filled by `dp_psd_kernel_init`, and the frame "
+        "calls `dp_psd_frame_power`, `dp_psd_frame_db` and "
+        "`dp_psd_frame_linear` (#1963) that take it — has no Python "
+        "binding. It is certified in `native/tests/test_psd_core.c`: the "
+        "bare-kernel block (its refusals leave nothing allocated, free is "
+        "safe after any outcome, and a bare kernel's frames equal a PSD's "
+        "under every window); one frame equals "
         "accumulate-then-read bit for bit (4 windows x n {64, 100} x pad "
         "{1, 2}), the average is untouched (T1), 0 dBFS under every window "
         "and both references (T2), the floor (T3) and the layout (T4); "

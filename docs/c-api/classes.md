@@ -120,6 +120,7 @@
 * [**dp\_pn\_state\_t**](structdp__pn__state__t.md)
 * [**dp\_pool\_t**](structdp__pool__t.md)
 * [**dp\_ppe\_state\_t**](structdp__ppe__state__t.md)
+* [**dp\_psd\_kernel\_t**](structdp__psd__kernel__t.md)
 * [**dp\_psd\_state\_t**](structdp__psd__state__t.md)
 * [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md)
 * [**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md)

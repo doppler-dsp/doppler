@@ -1222,6 +1222,8 @@ dp_psd_frame_db function
 dp_psd_frame_linear function
 dp_psd_frame_power function
 dp_psd_get_state function
+dp_psd_kernel_free function
+dp_psd_kernel_init function
 dp_psd_noise_floor function
 dp_psd_occupied_bw function
 dp_psd_power_onesided function

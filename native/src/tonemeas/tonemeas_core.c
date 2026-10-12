@@ -60,7 +60,7 @@ dp_tonemeas_create (size_t n, double fs, size_t n_harmonics, double full_scale,
 
   /* The shared PSD core owns the window, the zero-padded FFT, the (single-
    * frame mean) averager AND the dBFS reference (full_scale / bits): the
-   * metric kernels read it back as s->psd->full_scale, so the 0-dBFS
+   * metric kernels read it back as s->psd->k.full_scale, so the 0-dBFS
    * reference is defined exactly once, in the core.  (The linear accessors
    * stay cg^2-normalised; the kernels apply full_scale^2 themselves.) */
   s->psd = dp_psd_create (n, fs, DP_PSD_WINDOW_KAISER, (float)beta,
@@ -72,7 +72,7 @@ dp_tonemeas_create (size_t n, double fs, size_t n_harmonics, double full_scale,
     }
 
   s->n        = n;
-  s->nfft     = s->psd->nfft;
+  s->nfft     = s->psd->k.nfft;
   s->fs       = fs;
   s->enbw     = s->psd->enbw;
   s->beta     = beta;
@@ -327,8 +327,8 @@ dp_tonemeas_analyze (dp_tonemeas_state_t *state, const float *x, size_t n_in)
   tone_meas_t r;
   size_t      nbins = build_real (state, x, n_in);
   double      df    = state->fs / (double)state->nfft;
-  double      ref
-      = state->psd->full_scale * state->psd->full_scale / 2.0; /* sine power */
+  double      ref   = state->psd->k.full_scale * state->psd->k.full_scale
+                      / 2.0; /* sine power */
   compute_metrics (state, nbins, 0, df, ref, 1, &r);
   return r;
 }
@@ -340,8 +340,8 @@ dp_tonemeas_analyze_complex (dp_tonemeas_state_t  *state,
   tone_meas_t r;
   size_t      nbins = build_complex (state, x, n_in);
   double      df    = state->fs / (double)state->nfft;
-  double      ref   = state->psd->full_scale
-                      * state->psd->full_scale; /* exponential power */
+  double      ref   = state->psd->k.full_scale
+                      * state->psd->k.full_scale; /* exponential power */
   compute_metrics (state, nbins, (long)(state->nfft / 2), df, ref, 0, &r);
   return r;
 }
@@ -379,7 +379,7 @@ dp_tonemeas_time_stats (dp_tonemeas_state_t *state, const float *x,
   r.crest_db    = (rms_ac > 0.0) ? 20.0 * log10 (peak_ac / rms_ac) : 0.0;
   r.papr_db     = r.crest_db;
   r.dc_offset   = dc;
-  r.fs_util_pct = 100.0 * peak_abs / state->psd->full_scale;
+  r.fs_util_pct = 100.0 * peak_abs / state->psd->k.full_scale;
   return r;
 }
 
@@ -406,7 +406,7 @@ dp_tonemeas_spectrum_dbfs (dp_tonemeas_state_t *state, const float *x,
      the analyser's nfft, so this is the only real bound. */
   if (nfft > max_out)
     nfft = max_out;
-  double ref = state->psd->full_scale * state->psd->full_scale;
+  double ref = state->psd->k.full_scale * state->psd->k.full_scale;
   for (size_t i = 0; i < nfft; i++)
     out[i] = (float)(10.0 * log10 ((double)state->pwr[i] / ref + TM_EPS));
   return nfft;

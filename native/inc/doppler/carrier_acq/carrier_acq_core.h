@@ -84,11 +84,11 @@ typedef struct {
     dp_psd_state_t      *psd; /**< FFT + window + non-coherent power avg.  */
     dp_detector_state_t *det; /**< Correlate averaged power vs. template.  */
 
-    /* Scratch, not state -- sized nfft/psd->n, allocated once at create
+    /* Scratch, not state -- sized nfft/psd->k.n, allocated once at create
      * (no allocation in the steps() hot path). */
     float         *pwr_buf;    /**< dp_psd_power_twosided() output, nfft.  */
     float _Complex *power_buf;  /**< pwr_buf packed complex (imag=0).    */
-    float _Complex *carry_buf;  /**< Raw-input carry, capacity psd->n.   */
+    float _Complex *carry_buf;  /**< Raw-input carry, capacity psd->k.n.   */
     size_t         carry_len;  /**< Valid samples in carry_buf, 0..n-1. */
 
     /* Config, fixed at construction (restored by create(), not the
@@ -259,7 +259,7 @@ void dp_carrier_acq_steps(dp_carrier_acq_state_t *state, const float _Complex *x
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Composition: psd + detector children (self-contained sub-blobs) + own
  * running fields (n_blocks/ready/residual_hz/carry_len) + the carry
- * buffer (fixed psd->n capacity: the first carry_len samples, then zeros,
+ * buffer (fixed psd->k.n capacity: the first carry_len samples, then zeros,
  * so the blob is a function of the object -- #2076). nfft/dwell_target/
  * max_n_blocks are config -- validated
  * against the live instance, not restored from the blob (a resumed

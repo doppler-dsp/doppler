@@ -223,7 +223,7 @@ Here is a list of all files with brief descriptions:
             * **dir** [**ppe**](dir_2835f10376dc04900139beed5b4d2457.md)     
                 * **file** [**ppe\_core.h**](ppe__core_8h.md) _Feedforward polynomial-phase estimator (frequency + chirp rate)._     
             * **dir** [**psd**](dir_80b4a8b440284bffd6bf0fbeb7bfe41f.md)     
-                * **file** [**psd\_core.h**](psd__core_8h.md) _PSD — averaging power-spectral-density estimator (Welch's method) and spectral measurement suite._     
+                * **file** [**psd\_core.h**](psd__core_8h.md) _PSD — averaging power-spectral-density estimator (Welch's method), its per-frame kernel, and spectral measurement suite._     
             * **dir** [**ratesync**](dir_6debd7d9ad90888bb5b8a40a122d95e8.md)     
                 * **file** [**ratesync\_core.h**](ratesync__core_8h.md) _RateSync — symbol-timing recovery on a matched-filter rate cascade._     
             * **dir** [**resamp**](dir_9d8524a806701f72e323943267d27190.md)     

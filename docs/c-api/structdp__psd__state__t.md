@@ -38,22 +38,13 @@ _PSD state. Allocate with_ [_**dp\_psd\_create()**_](psd__core_8h.md#function-dp
 | ---: | :--- |
 |  [**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* | [**avg**](#variable-avg)  <br> |
 |  size\_t | [**bits**](#variable-bits)  <br> |
-|  double | [**cg**](#variable-cg)  <br> |
 |  float \* | [**dbbuf**](#variable-dbbuf)  <br> |
 |  double | [**enbw**](#variable-enbw)  <br> |
-|  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* | [**fft**](#variable-fft)  <br> |
 |  dp\_f32\_framer\_t | [**fr**](#variable-fr)  <br> |
-|  float \_Complex \* | [**frame**](#variable-frame)  <br> |
 |  double | [**fs**](#variable-fs)  <br> |
-|  double | [**full\_scale**](#variable-full_scale)  <br> |
 |  size\_t | [**hop**](#variable-hop)  <br> |
-|  size\_t | [**n**](#variable-n)  <br> |
-|  size\_t | [**nfft**](#variable-nfft)  <br> |
-|  float \* | [**pwr**](#variable-pwr)  <br> |
+|  [**dp\_psd\_kernel\_t**](structdp__psd__kernel__t.md) | [**k**](#variable-k)  <br> |
 |  dp\_f32\_t \* | [**ring**](#variable-ring)  <br> |
-|  double | [**s2**](#variable-s2)  <br> |
-|  float \_Complex \* | [**spec**](#variable-spec)  <br> |
-|  float \* | [**w**](#variable-w)  <br> |
 
 
 
@@ -138,24 +129,6 @@ ADC depth that set full\_scale, else 0.
 
 
 
-### variable cg 
-
-```C++
-double dp_psd_state_t::cg;
-```
-
-
-
-Window coherent gain, sum(w). 
- 
-
-
-        
-
-<hr>
-
-
-
 ### variable dbbuf 
 
 ```C++
@@ -192,24 +165,6 @@ Equivalent noise bandwidth, bins.
 
 
 
-### variable fft 
-
-```C++
-dp_fft_state_t* dp_psd_state_t::fft;
-```
-
-
-
-Forward cf32 plan, size nfft. 
- 
-
-
-        
-
-<hr>
-
-
-
 ### variable fr 
 
 ```C++
@@ -227,24 +182,6 @@ Splits the stream into n-sample frames; carries the partial.
 
 
 
-### variable frame 
-
-```C++
-float _Complex* dp_psd_state_t::frame;
-```
-
-
-
-Windowed + zero-padded, length nfft. 
- 
-
-
-        
-
-<hr>
-
-
-
 ### variable fs 
 
 ```C++
@@ -254,24 +191,6 @@ double dp_psd_state_t::fs;
 
 
 Sample rate, Hz. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable full\_scale 
-
-```C++
-double dp_psd_state_t::full_scale;
-```
-
-
-
-Amplitude that reads 0 dBFS. 
  
 
 
@@ -299,51 +218,15 @@ Samples between frame starts, 1..n.
 
 
 
-### variable n 
+### variable k 
 
 ```C++
-size_t dp_psd_state_t::n;
+dp_psd_kernel_t dp_psd_state_t::k;
 ```
 
 
 
-Window / frame length (samples). 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable nfft 
-
-```C++
-size_t dp_psd_state_t::nfft;
-```
-
-
-
-Zero-padded transform length. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable pwr 
-
-```C++
-float* dp_psd_state_t::pwr;
-```
-
-
-
-DC-centred power scratch, length nfft. 
+The per-frame kernel; owns the window. 
 
 
         
@@ -361,60 +244,6 @@ dp_f32_t* dp_psd_state_t::ring;
 
 
 The framer's ring, 2n, owned by the framer. 
-
-
-        
-
-<hr>
-
-
-
-### variable s2 
-
-```C++
-double dp_psd_state_t::s2;
-```
-
-
-
-Window power, sum(w^2). 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable spec 
-
-```C++
-float _Complex* dp_psd_state_t::spec;
-```
-
-
-
-FFT output scratch, length nfft. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable w 
-
-```C++
-float* dp_psd_state_t::w;
-```
-
-
-
-Window, length n. 
- 
 
 
         

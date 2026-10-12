@@ -1494,3 +1494,13 @@ status = "open"
 tier = 2
 title = "Published Python benchmarks under ~300 ns carry the timer's overhead whenever pytest-benchmark calibrates one iteration per round"
 status = "open"
+
+[issue.2204]
+tier = 2
+title = "carrier_acq_core.h states the carrier_acq window set a third time, in prose, and nothing holds it"
+status = "open"
+
+[issue.2205]
+tier = 1
+title = "A changelog fragment without its leading \"- \" passes every PR gate and fails only at release assembly"
+status = "open"

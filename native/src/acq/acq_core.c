@@ -2155,7 +2155,9 @@ double _Complex dp_acq_rate_phasor (double rate, double t)
 size_t
 dp_acq_rate_hypotheses_for (double f_epoch, double span, size_t depth)
 {
-  if (!(span > 0.0) || depth < 1)
+  /* NaN or infinity would reach the size_t conversion below: UB. */
+  if (!(span > 0.0) || !isfinite (span) || !(f_epoch > 0.0)
+      || !isfinite (f_epoch) || depth < 1)
     return 1;
   /* The residual is span / (n - 1): the smallest n leaving it under what a
      block of `depth` epochs tolerates (acq_drift_rate_limit). */
@@ -2475,7 +2477,11 @@ acq_rate_search (dp_acq_state_t *st, const float _Complex *frame,
     {
       n_out = acq_make_surface (st, frame, fan, h);
       acq_compute_stat (st);
-      if (st->test_stat > best)
+      /* h == 0 takes the first unconditionally: a NaN statistic (every
+         hypothesis of a dwell of non-finite samples) fails `>` against
+         anything, which would leave rate_best unwritten and restore the
+         PREVIOUS dwell's winner below. */
+      if (h == 0 || st->test_stat > best)
         {
           best   = st->test_stat;
           best_h = h;

@@ -3180,6 +3180,105 @@ test_a_sweeping_carrier_is_compensated (void)
       DP_CHECK_MSG (hit, "the swept burst is placed exactly");
     }
 
+  /* At the DESIGN C/N0. The pair above runs at 10 dB-Hz with the noise far
+     under the burst, which sizes the engine at D = 1: one look, so only
+     refine's rates are exercised. Here the noise sits at the C/N0 the engine
+     is sized for (-13 dB per sample at fs = 1), so the engine itself runs deep
+     (D > 2) and its own de-chirp decides the detection: nine hypotheses
+     against one, the one capped by the drift bound at a shallower depth. The
+     bursts are seeded, so the counts are a regression pin; the margin is
+     what the engine's de-chirp is worth here (measured 0.91 against 0.55). */
+  {
+    enum
+    {
+      TRIALS = 60
+    };
+    dp_burst_capture_state_t *zd = dp_burst_capture_create (
+        zc, NP, BURST, RP, 1.0, -13.0, 0.0, 1e-3, 0.9, 0, rate, 1);
+    dp_burst_capture_state_t *sd = dp_burst_capture_create (
+        zc, NP, BURST, RP, 1.0, -13.0, 0.0, 1e-3, 0.9, 0, rate, 9);
+    DP_REQUIRE (sd != NULL && zd != NULL);
+    DP_REQUIRE (sd->acq->engine->coherent_bins > 2);
+    DP_REQUIRE (sd->acq->engine->coherent_bins
+                > zd->acq->engine->coherent_bins);
+    dp_burst_capture_state_t *eng[2] = { sd, zd };
+    size_t                    got[2] = { 0, 0 };
+    const double sd_noise = sqrt (10.0); /* per component: power 20 = 13 dB */
+    for (size_t j = 0; j < TRIALS; j++)
+      {
+        uint32_t     st = 7700u + (uint32_t)j;
+        const size_t a0 = 6000u + 211u * (j % 17u) + j;
+        for (size_t i = 0; i < LEN; i++)
+          {
+            const float re = (float)(sd_noise * dp_gauss (&st));
+            const float im = (float)(sd_noise * dp_gauss (&st));
+            x[i]           = re + im * I;
+          }
+        for (size_t i = 0; i < BURST; i++)
+          {
+            const double u = (double)i - 0.5 * (double)(RP * NP);
+            x[a0 + i]
+                += (i < RP * NP ? zc[i % NP] : 1.0f)
+                   * (float _Complex)cexp (
+                       I * 2.0 * M_PI * (f_mid * u + 0.5 * sweep * u * u));
+          }
+        for (int d = 0; d < 2; d++)
+          {
+            dp_burst_capture_reset (eng[d]);
+            (void)dp_burst_capture_push (eng[d], x, LEN, out, cap);
+            for (size_t k = 0; k < dp_burst_capture_ready (eng[d]); k++)
+              {
+                const burst_capture_event_t *ev
+                    = dp_burst_capture_event_at (eng[d], k);
+                if (ev && ev->preamble_start == a0)
+                  {
+                    got[d]++;
+                    break;
+                  }
+              }
+          }
+      }
+    DP_TEST_ERR ("  DEEP %zu CAPPED %zu of %d\n", got[0], got[1], TRIALS);
+    DP_CHECK_MSG (got[0] >= (TRIALS * 8) / 10,
+                  "the de-chirping engine places most swept bursts");
+    DP_CHECK_MSG (got[0] >= got[1] + TRIALS / 5,
+                  "without the rates the same bursts are missed");
+    dp_burst_capture_destroy (sd);
+    dp_burst_capture_destroy (zd);
+  }
+
+  /* An enormous finite rate span must not size refine's cells past the
+     native span: the allowance is clamped to half of it per side (reps * IP
+     / 2 cells). At this span the unclamped allowance is ~9e9 cells, a scratch
+     of hundreds of GB (the allocation aborts); far beyond it the cast itself
+     is out of range. Two hypotheses is the least that compensates. Built,
+     bounded, and pushed once so a sanitizer sees any overrun of the cell
+     scratch. */
+  {
+    dp_burst_capture_state_t *big = dp_burst_capture_create (
+        zc, NP, BURST, RP, 1.0, 10.0, 0.0, 1e-3, 0.9, 0, 1.0e3, 2);
+    DP_REQUIRE (big != NULL);
+    const size_t half_span = (RP * BURST_CAPTURE_REFINE_INTERP + 1u) / 2u;
+    DP_CHECK_MSG (big->max_cells <= 2u * half_span + 3u + 2u * half_span
+                                        + BURST_CAPTURE_EDGE_TWINS,
+                  "refine's cell scratch stays within the native span");
+    for (size_t j = 0; j < 1; j++)
+      {
+        uint32_t st = 1930u + (uint32_t)j;
+        for (size_t i = 0; i < LEN; i++)
+          {
+            const float re = (float)(0.1 * dp_gauss (&st));
+            const float im = (float)(0.1 * dp_gauss (&st));
+            x[i]           = re + im * I;
+          }
+        for (size_t i = 0; i < BURST; i++)
+          x[7333 + i] += (i < RP * NP ? zc[i % NP] : 1.0f);
+        dp_burst_capture_reset (big);
+        (void)dp_burst_capture_push (big, x, LEN, out, cap);
+      }
+    dp_burst_capture_destroy (big);
+  }
+
   /* The blob: one hypothesis against five is the same grid (the depth is
      one at this level of noise, so the sizes agree), and only the count
      tells the blobs apart. */

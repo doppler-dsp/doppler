@@ -60,6 +60,7 @@ dp_carrier_acq_create (double sample_rate_hz, double symbol_rate_hz,
    * configuration: it does not set rect apart from the other two.) The
    * bottom of the range is PSD's to check, as the one owner of the
    * index. */
+  /* SSOT: view=carrier_acq_window */
   if (window > DP_PSD_WINDOW_BLACKMAN_HARRIS)
     return NULL;
 

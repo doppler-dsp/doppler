@@ -41,7 +41,10 @@ variable initialised from a literal, a table cell, a loop bound.
 **One declaration.** Each slot names an ``[[enum]]`` of just-makeit.toml,
 and the names come from the C enum that carries it (``SSOT: enum=X``, held
 to the manifest by ``check_wfm_enum_tables.py``'s rule 7), read with that
-gate's own parser. So this file keeps no copy of any name or value.
+gate's own parser. A view (``carrier_acq_window``) has its parent's names,
+restricted to the view, so ``--fix`` names only what the constructor takes
+and a value outside the view is reported as no such value (#2194). So this
+file keeps no copy of any name or value.
 
 **Registration-free.** It scans every tracked ``*.c``, ``*.h`` and ``*.md``
 (``git ls-files``), so a new example, test, bench or doc page is checked the
@@ -83,7 +86,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from check_wfm_enum_tables import bound_enums
+from check_wfm_enum_tables import enum_names
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -101,7 +104,7 @@ TABLE: dict[str, tuple[int, dict[int, tuple[str, str]]]] = {
         10,
         {2: ("window", "psd_window"), 7: ("mode", "acc_trace_mode")},
     ),
-    "dp_carrier_acq_create": (13, {4: ("window", "psd_window")}),
+    "dp_carrier_acq_create": (13, {4: ("window", "carrier_acq_window")}),
     "dp_acc_trace_create": (3, {1: ("mode", "acc_trace_mode")}),
 }
 
@@ -146,11 +149,13 @@ EXEMPT_SLOTS = {"example-projects/": frozenset({"psd_window"})}
 def _call_re(table: dict[str, object]) -> re.Pattern[str]:
     """A call of any function in `table`. Longest first, so
     `dp_psd_create_hop` is never read as `dp_psd_create`. A member call,
-    `s.make (...)` or `ops->make (...)`, is another function."""
+    `s.make (...)` or `ops->make (...)`, is another function. A comment
+    between the name and its `(` is stepped over (#2198)."""
     return re.compile(
         r"(?<![\w.])(?<!->)("
         + "|".join(sorted(table, key=len, reverse=True))
-        + r")\s*\("
+        + r")\s*(?:/\*.*?\*/\s*|//[^\n]*\n\s*)*\(",
+        re.S,
     )
 
 
@@ -402,11 +407,10 @@ def tracked(root: Path) -> list[str]:
 
 
 def _names(root: Path) -> tuple[dict[str, dict[int, str]], list[str]]:
-    """value -> name for every [[enum]] a slot uses, from its C enum."""
-    bound, errs = bound_enums(root)
-    by_enum: dict[str, dict[int, str]] = {}
-    for _, enum, pairs in bound:
-        by_enum[enum] = {v: n for n, v in pairs if v is not None}
+    """value -> name for every [[enum]] a slot uses, from its C enum. A view
+    (carrier_acq_window) has its parent's names, restricted to the view, so
+    a value outside it has none (#2194)."""
+    by_enum, errs = enum_names(root)
     rows = [
         *TABLE.values(),
         *(r for h in HELPERS.values() for r in h.values()),

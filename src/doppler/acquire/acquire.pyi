@@ -23,8 +23,8 @@ class CarrierAcquisition:
     zero_pad : int, default 4
         PSD zero-pad factor (>= 1); see psd_core.h.
     window : Literal["hann", "kaiser", "blackman-harris"], default "hann"
-        "hann" (the default), "kaiser" or "blackman-harris": the windows the
-        threshold was calibrated at.
+        "hann" (the default, and the window the threshold was fit at), "kaiser"
+        or "blackman-harris".
 
         - ``"hann"`` — Hann: the default.
         - ``"kaiser"`` — Kaiser, shaped by `beta`.

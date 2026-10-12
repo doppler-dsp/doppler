@@ -885,6 +885,38 @@ _acq_rate_hypotheses_check (void)
       free (x);
     }
 
+  /* A dwell whose power overflows float reads a NaN statistic (inf/inf) at
+     EVERY hypothesis, which no `>` can pick. The search must not then restore
+     the PREVIOUS dwell's winning surface: a stale surface that reported a hit
+     the samples cannot have made. Push a swept burst (a winner is left
+     behind), one block of the overflowing level to flush the dwells that
+     straddle the join, then a second: no hit. 1e19 is finite, its power is
+     not; infinity is the other way in. */
+  {
+    const float     levels[] = { 1.0e19f, INFINITY };
+    const size_t    len      = 3 * reps * nx;
+    float _Complex *x        = malloc (3 * len * sizeof *x);
+    DP_REQUIRE (x != NULL);
+    for (size_t k = 0; k < sizeof levels / sizeof *levels; k++)
+      {
+        _chirp_stream (CODE31, sf, spc, fs, len, 3.0e3, 1.0e7, x);
+        for (size_t i = len; i < 3 * len; i++)
+          x[i] = levels[k];
+        dp_acq_state_t *a
+            = burst_with_rates (CODE31, sf, reps, spc, crate, ACQ_CN0_NONE,
+                                0.0, 1e-3, 0.9, 0, rate, 5);
+        DP_REQUIRE (a != NULL);
+        acq_result_t hit[64];
+        DP_CHECK (dp_acq_push (a, x, len, hit, 64) >= 1);
+        (void)dp_acq_push (a, x + len, len, hit, 64);
+        DP_CHECK_MSG (dp_acq_push (a, x + 2 * len, len, hit, 64) == 0,
+                      "a dwell of overflowing power reports nothing, not "
+                      "the last winner");
+        dp_acq_destroy (a);
+      }
+    free (x);
+  }
+
   /* Rate hypotheses do not compose with non-coherent looks: a pinned grid
      with n_noncoh > 1 is refused (the search scores each hypothesis with the
      coherent statistic against a gate the non-coherent path zeroes). */
@@ -918,6 +950,11 @@ _acq_rate_hypotheses_check (void)
       dp_acq_destroy (a);
     }
   DP_CHECK (dp_acq_rate_hypotheses_for (f_epoch, 0.0, 5) == 1);
+  /* Non-finite inputs mean no compensation, not a NaN cast to size_t. */
+  DP_CHECK (dp_acq_rate_hypotheses_for (NAN, rate, 5) == 1);
+  DP_CHECK (dp_acq_rate_hypotheses_for (f_epoch, NAN, 5) == 1);
+  DP_CHECK (dp_acq_rate_hypotheses_for (f_epoch, INFINITY, 5) == 1);
+  DP_CHECK (dp_acq_rate_hypotheses_for (0.0, rate, 5) == 1);
   DP_CHECK (dp_acq_rate_hypothesis (rate, 5, 0) == -rate
             && dp_acq_rate_hypothesis (rate, 5, 2) == 0.0
             && dp_acq_rate_hypothesis (rate, 5, 4) == rate

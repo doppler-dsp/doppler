@@ -698,13 +698,27 @@ smallest depth) searches ONE look: the gate of an engine without hypotheses,
 hypothesis 0 and reported `-R` whatever the carrier did.
 
 The reported rate (`doppler_rate_hz_s`) is a hypothesis, not a fit, and a
-reliable one only with signal to spare. Adjacent hypotheses differ by at most
-π/4 of phase at the block's edges at the depth the residual bound allows, so
-at the C/N0 the engine was sized for noise picks among neighbours: in review,
-400 hits at `n = 9`, `D = 10`, true rate 0, a signal 3 dB above the design
-point (−10 against −13 dB-Hz): 110 named the nearest hypothesis and 60 named
-±R. At +10 dB-Hz it held for 399 of 400. Detection is unaffected (the winning surface is a good one whichever
-neighbour it is); treat the value as a seed.
+reliable one only from a block WHOLLY inside the preamble and well above the
+design point. Adjacent hypotheses differ by at most π/4 of phase at the
+block's edges at the depth the residual bound allows, so at the C/N0 the
+engine was sized for noise picks among neighbours, and a dwell straddling the
+preamble's edge integrates part payload and often names ±R. Measured by
+`validate_acq_rate_pd`'s reported-rate rows (`n = 9`, `D = 10`, design
+−13 dB-Hz, 200 seeded bursts a row):
+
+| signal | true rate | all hits naming the nearest | full-block hits naming it |
+| ------ | --------- | --------------------------: | ------------------------: |
+| −13 dB | 0         |                       20.4% |            29.5% (of 112) |
+| −13 dB | +R        |                       53.3% |            66.1% (of 118) |
+| +10 dB | 0         |                       39.2% |             100% (of 119) |
+| +10 dB | +R        |                       51.5% |             100% (of 121) |
+
+About three hits in four come from straddling dwells. The 23-dB-over rows are
+gated (95% of the full-block hits, with at least 40 of them); the others are
+printed and not claimed. Detection is unaffected, since the surface that wins
+is a good one whichever neighbour it is; treat the value as a seed. With
+`max_peaks > 1` one hypothesis's surface serves the whole dwell's list, so
+every hit of a dwell wears the winner's rate.
 
 **What it costs, and where the cost is paid.**
 

@@ -298,6 +298,114 @@ measure_pfa (size_t rh, double cn0, double dwells_wanted, uint32_t seed)
   return r;
 }
 
+typedef struct
+{
+  size_t rh, depth;
+  double sig, rate;
+  long   hits, nearest, edge, full, full_near;
+} rate_row_t;
+
+/* What the engine's doppler_rate_hz_s says, against the truth (the
+   reviewer's probe of #2238, landed): the same synthesis as measure_pd -- a
+   burst at a uniform offset, a continuous delay, f_mid uniform, the carrier
+   sweeping at `rate` about the preamble's middle, QPSK payload, the shipped
+   awgn at `sig` dB -- straight into an engine sized for `design`. A hit is
+   scored only on the burst's own code phase. `nearest` counts hits naming the
+   hypothesis nearest the truth, `edge` those naming +-R, and `full` /
+   `full_near` the same restricted to hits whose dwell's block lay WHOLLY
+   inside the preamble: a block straddling its edge integrates part noise and
+   part payload, and names a rate from a surface that is not the preamble's. */
+static rate_row_t
+measure_rate (size_t rh, double design, double sig, double rate, int trials,
+              uint32_t seed)
+{
+  rate_row_t      r = { 0 };
+  dp_acq_state_t *a = dp_acq_create_burst (ZC, N, REPS, 1.0, design, 0.0, PFA,
+                                           PD, 0, RATE, rh);
+  if (!a)
+    {
+      DP_TEST_ERR ("engine at Rh=%zu refused\n", rh);
+      abort ();
+    }
+  r.rh                      = rh;
+  r.sig                     = sig;
+  r.rate                    = rate;
+  r.depth                   = a->coherent_bins;
+  const size_t     D        = a->coherent_bins;
+  const size_t     lead_max = 3u * D * N;
+  const size_t     len      = lead_max + BURST + 4u * N;
+  float _Complex  *x        = dp_xmalloc (len * sizeof *x);
+  float _Complex  *nz       = dp_xmalloc (len * sizeof *nz);
+  float _Complex  *per      = dp_xmalloc (N * sizeof *per);
+  dp_awgn_state_t *g        = dp_xnn (
+      dp_awgn_create (seed, dp_awgn_amplitude_for_snr ((float)sig, 1.0f)));
+  const double dur  = (double)(REPS * N);
+  const double span = 1.0 / (2.0 * (double)N) - RATE * 0.5 * dur;
+  const double step = 2.0 * RATE / (double)(rh - 1);
+  uint32_t     st   = seed;
+  acq_result_t res[64];
+  for (int t = 0; t < trials; t++)
+    {
+      const size_t at = D * N + (size_t)(dp_uni (&st) * (double)(2u * D * N));
+      const double f_mid = (2.0 * dp_uni (&st) - 1.0) * span;
+      const double frac  = dp_uni (&st);
+      dp_preamble_shift (ZC, N, frac, per);
+      memset (x, 0, len * sizeof *x);
+      for (size_t i = 0; i < BURST; i++)
+        {
+          float _Complex v
+              = i < REPS * N
+                    ? per[i % N]
+                    : (float _Complex)cexp (I * M_PI / 2.0
+                                            * (double)(dp_xs32 (&st) >> 30));
+          const double u = (double)i - 0.5 * dur;
+          x[at + i] = v
+                      * (float _Complex)cexp (
+                          I * 2.0 * M_PI * (f_mid * u + 0.5 * rate * u * u));
+        }
+      dp_awgn_generate (g, len, nz, len);
+      for (size_t i = 0; i < len; i++)
+        x[i] += nz[i];
+      dp_acq_reset (a);
+      const double truth = fmod ((double)at + frac, (double)N);
+      size_t       off   = 0;
+      while (off < len)
+        {
+          const size_t nh = dp_acq_push (a, x + off, len - off, res, 64);
+          for (size_t k = 0; k < nh; k++)
+            {
+              double d = fabs ((double)res[k].code_phase - truth);
+              if (d > 0.5 * (double)N)
+                d = (double)N - d;
+              if (d > TOL)
+                continue; /* not this burst's code phase */
+              r.hits++;
+              const double end = (double)res[k].samples_consumed;
+              const int    in  = end - (double)(D * N) >= (double)at
+                                 && end <= (double)(at + REPS * N);
+              r.full += in;
+              if (fabs (res[k].doppler_rate_hz_s - rate) <= 0.5 * step + 1e-15)
+                {
+                  r.nearest++;
+                  r.full_near += in;
+                }
+              if (fabs (fabs (res[k].doppler_rate_hz_s) - RATE) < 1e-15)
+                r.edge++;
+            }
+          const size_t c = dp_acq_consumed (a);
+          if (c == 0)
+            break;
+          off += c;
+        }
+    }
+  dp_awgn_destroy (g);
+  free (per);
+  free (nz);
+  free (x);
+  dp_acq_destroy (a);
+  return r;
+}
+
 int
 main (int argc, char **argv)
 {
@@ -353,6 +461,35 @@ main (int argc, char **argv)
               prow[i].lo, prow[i].hi);
     }
 
+  /* The reported rate, against the truth (acq_result_t::doppler_rate_hz_s).
+     The contract: right from a block wholly inside the preamble, and only
+     well above the design point; a block straddling the preamble's edge
+     often names +-R. The full run prints the design point and 3 dB over as
+     well, which the contract does not claim; the +23 dB row is gated. */
+  printf ("\nreported rate: Rh = 9, hits on the burst's code phase\n");
+  printf ("%7s %9s %6s | %6s %7s %7s | %6s %9s\n", "sig dB", "true rate",
+          "hits", "near", "near %", "+-R %", "full", "full near");
+  rate_row_t rr[8];
+  size_t     nrr = 0;
+  {
+    const double sigs[3] = { cn0, cn0 + 3.0, cn0 + 23.0 };
+    for (int i = check ? 2 : 0; i < 3; i++)
+      for (int k = 0; k < 2; k++)
+        {
+          rr[nrr] = measure_rate (9, cn0, sigs[i], k ? RATE : 0.0,
+                                  check ? 100 : 200,
+                                  777u + 10u * (uint32_t)i + (uint32_t)k);
+          const rate_row_t *q = &rr[nrr++];
+          printf ("%7.2f %+9.1e %6ld | %6ld %6.1f%% %6.1f%% | %6ld %8.1f%%\n",
+                  q->sig, q->rate, q->hits, q->nearest,
+                  q->hits ? 100.0 * (double)q->nearest / (double)q->hits : 0.0,
+                  q->hits ? 100.0 * (double)q->edge / (double)q->hits : 0.0,
+                  q->full,
+                  q->full ? 100.0 * (double)q->full_near / (double)q->full
+                          : 0.0);
+        }
+  }
+
   /* The same claims in both modes: a sweep that asserted nothing would fail
      `make validate` for it (doppler#1566), and the full rows are a longer
      look at what the spot check pins. */
@@ -390,6 +527,20 @@ main (int argc, char **argv)
     DP_CHECK_MSG (top->cap_lo > base->cap_hi,
                   "compensation beats the capped depth, outside the "
                   "intervals");
+    /* The reported rate: the rows 23 dB over the design point are the ones
+       the contract claims. From a block wholly inside the preamble the
+       winning hypothesis is the nearest to the truth (measured 111/111 and
+       121/121 at 200 trials); a handful of such blocks is not a measurement,
+       so the row must have them. */
+    for (size_t k = 0; k < nrr; k++)
+      if (rr[k].sig > cn0 + 20.0)
+        {
+          DP_CHECK_MSG (rr[k].full >= 40,
+                        "enough full-block hits to read the rate from");
+          DP_CHECK_MSG (rr[k].full_near * 100 >= rr[k].full * 95,
+                        "a full block well above design names the nearest "
+                        "rate hypothesis");
+        }
     /* Pfa: the hypotheses are priced. The rows with Rh > 1 are not
        significantly above the target. (Rh = 1 is the engine as it ran
        before compensation existed, and reads about twice the target at

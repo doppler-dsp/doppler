@@ -59,6 +59,22 @@ def _tolerate_unencodable_output() -> None:
     >>> raw.getvalue()
     b'a \\u2192 b'
     """
+    import os
+
+    python_env = {
+        k: v for k, v in os.environ.items() if k.startswith("PYTHON")
+    }
+    print(
+        "EXPERIMENT-DIAG "
+        f"stdout={type(sys.stdout).__name__} "
+        f"encoding={getattr(sys.stdout, 'encoding', None)!r} "
+        f"errors={getattr(sys.stdout, 'errors', None)!r} "
+        f"utf8_mode={sys.flags.utf8_mode} "
+        f"is_original={sys.stdout is sys.__stdout__} "
+        f"PYTHON_env={python_env!r} "
+        f"stderr_errors={getattr(sys.stderr, 'errors', None)!r}",
+        file=sys.stderr,
+    )
     for stream in (sys.stdout, sys.stderr):
         reconfigure = getattr(stream, "reconfigure", None)
         if reconfigure is not None and stream.errors == "strict":

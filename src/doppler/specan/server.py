@@ -274,7 +274,16 @@ def main(
     _source = make_source(cfg)
     _engine = SpecanEngine(cfg)
 
+    import sys
+
     url = f"http://{host}:{port}"
+    print(
+        "EXPERIMENT-DIAG at-banner "
+        f"stdout={type(sys.stdout).__name__} "
+        f"errors={getattr(sys.stdout, 'errors', None)!r} "
+        f"is_original={sys.stdout is sys.__stdout__}",
+        file=sys.stderr,
+    )
     print(f"  doppler specan  →  {url}")
 
     if open_browser and not _is_wsl():

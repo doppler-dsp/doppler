@@ -157,8 +157,25 @@ dp_spectrogram_state_t *s = dp_spectrogram_create (
 """
 
 
+#: carrier_acq's window is a VIEW of psd_window: three of its four.
+_VIEW_TOML = """\
+[[enum]]
+name = "psd_window"
+values = ["hann", "kaiser", "blackman-harris", "rect"]
+enumerators = ["DP_PSD_WINDOW_HANN", "DP_PSD_WINDOW_KAISER",
+               "DP_PSD_WINDOW_BLACKMAN_HARRIS", "DP_PSD_WINDOW_RECT"]
+
+[[enum]]
+name = "carrier_acq_window"
+values = ["hann", "kaiser", "blackman-harris"]
+enumerators = ["DP_PSD_WINDOW_HANN", "DP_PSD_WINDOW_KAISER",
+               "DP_PSD_WINDOW_BLACKMAN_HARRIS"]
+"""
+
+
 def _seed(tmp_path: Path, **override: str) -> None:
     files = {
+        "just-makeit.toml": _VIEW_TOML,
         f"{_HDR}/psd/psd_core.h": _ENUMS_H,
         "a.c": _NAMED_C,
         "inc/s.h": _NAMED_H_OK,
@@ -645,3 +662,34 @@ def test_an_arity_change_prints_before_the_row_it_empties(
     empty = out.find(f"found no call of the helper make in {_CERTIFY}")
     assert 0 <= arity < empty, out
     assert "TABLE or HELPERS" in out
+
+
+def test_a_value_outside_a_view_has_no_name(tmp_path: Path) -> None:
+    """carrier_acq's slot is the carrier_acq_window view: rect (3) is a
+    psd_window value the create refuses, so it is no such value here, and
+    --fix leaves it rather than writing DP_PSD_WINDOW_RECT (#2194)."""
+    bad = _NAMED_C.replace("0.0, 4, DP_PSD_WINDOW_HANN,", "0.0, 4, 3,")
+    _seed(tmp_path, **{"a.c": bad})
+    r = _run(tmp_path, "--fix")
+    assert r.returncode == 1
+    assert "dp_carrier_acq_create window = 3 (no such value)" in r.stdout
+    assert (tmp_path / "a.c").read_text(encoding="utf-8") == bad
+
+
+@pytest.mark.parametrize(
+    "between", [" /* the create */ ", "\n  // the create\n  "]
+)
+def test_a_comment_before_the_paren_does_not_hide_a_call(
+    tmp_path: Path, between: str
+) -> None:
+    """`dp_psd_create /* c */ (...)` is still a call, and its literal is
+    still refused (#2198)."""
+    bad = _NAMED_C.replace(
+        "dp_psd_create (64, 1.0, DP_PSD_WINDOW_KAISER",
+        f"dp_psd_create{between}(64, 1.0, 1",
+    )
+    assert bad != _NAMED_C
+    _seed(tmp_path, **{"a.c": bad})
+    r = _run(tmp_path)
+    assert r.returncode == 1, r.stdout
+    assert "dp_psd_create window = 1 (write DP_PSD_WINDOW_KAISER)" in r.stdout

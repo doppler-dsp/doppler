@@ -40,15 +40,19 @@ pytest.importorskip("uvicorn")
 websockets = pytest.importorskip("websockets")
 
 
-@pytest.fixture
-def specan_server(tmp_path):
-    """Run ``doppler.specan --web`` on a free port; yield ``(port, log)``."""
+@contextlib.contextmanager
+def _run_server(tmp_path, extra_env):
+    """Run ``doppler.specan --web`` on a free port; yield ``(port, log)``.
+
+    ``extra_env`` is added to the child's environment. The child's output
+    goes to a file the test reads when something goes wrong.
+    """
     port = free_port()
     log = tmp_path / "server.log"
     # Unbuffered, so a child that hangs mid-startup still shows how far it got:
     # with stdout redirected to a file it is block-buffered, and the banner
     # would sit in the child's memory instead of in the log.
-    env = {**os.environ, "PYTHONUNBUFFERED": "1"}
+    env = {**os.environ, "PYTHONUNBUFFERED": "1", **extra_env}
     with log.open("wb") as out:
         proc = subprocess.Popen(
             [
@@ -78,6 +82,26 @@ def specan_server(tmp_path):
             except subprocess.TimeoutExpired:
                 proc.kill()
                 proc.wait(timeout=10)
+
+
+@pytest.fixture
+def specan_server(tmp_path):
+    """The server on a free port; yields ``(port, log)``."""
+    with _run_server(tmp_path, {}) as server:
+        yield server
+
+
+@pytest.fixture
+def specan_server_cp1252(tmp_path):
+    """The server with a stdout that can only encode cp1252 (#2225).
+
+    A redirected stdout takes the legacy code page on Windows, so the child
+    there already runs this way. ``PYTHONIOENCODING`` gives every other
+    platform the same stdout, which is what makes the regression reproducible
+    on Linux.
+    """
+    with _run_server(tmp_path, {"PYTHONIOENCODING": "cp1252"}) as server:
+        yield server
 
 
 def _get_state(port: int) -> dict:
@@ -160,3 +184,12 @@ def test_rapid_burst_fully_applied(specan_server):
     )
     assert result["final"]["demo"]["tone_power"] == pytest.approx(-7.0)
     assert result["final"]["demo"]["noise_floor"] == pytest.approx(-55.0)
+
+
+def test_the_server_starts_when_stdout_cannot_encode_its_banner(
+    specan_server_cp1252,
+):
+    # The fixture already failed with the child's own traceback if the server
+    # did not come up; this confirms it is serving, not merely alive.
+    port, _log = specan_server_cp1252
+    assert _get_state(port)["demo"]

@@ -22,6 +22,41 @@ def _log(msg: str) -> None:
     print(f"[{ts}] {msg}", flush=True)
 
 
+def _tolerate_unencodable_output() -> None:
+    """Make stdout and stderr substitute what their encoding cannot encode.
+
+    A redirected stdout (a file, a pipe, a service or a scheduled task's log)
+    takes the platform's legacy code page, which on Windows is cp1252 unless
+    ``PYTHONUTF8`` is set. The startup banner prints an arrow that cp1252 has
+    no byte for, so a plain ``print`` raised ``UnicodeEncodeError`` and the
+    process exited before the server listened (#2225). Replacing the
+    unencodable character with ``?`` keeps startup alive for this arrow and
+    for the next non-ASCII character anyone prints.
+
+    Only text streams that can be reconfigured are touched: ``reconfigure``
+    exists on the real ``sys.stdout`` and ``sys.stderr``, and is absent on a
+    stand-in such as ``io.StringIO`` and on ``None`` (a windowed process has
+    no stdout), which are left alone.
+
+    Examples
+    --------
+    >>> import contextlib
+    >>> import io
+    >>> raw = io.BytesIO()
+    >>> out = io.TextIOWrapper(raw, encoding="cp1252")
+    >>> with contextlib.redirect_stdout(out):
+    ...     _tolerate_unencodable_output()
+    ...     print("a \\u2192 b", end="")
+    >>> out.flush()
+    >>> raw.getvalue()
+    b'a ? b'
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(errors="replace")
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the doppler-specan argument parser.
 
@@ -161,6 +196,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    _tolerate_unencodable_output()
     args = build_parser().parse_args()
 
     # ----------------------------------------------------------------

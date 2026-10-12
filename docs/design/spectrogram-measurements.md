@@ -538,6 +538,43 @@ by more than both sides' spread. The largest moves are `power_onesided` at
 Spectrogram's `direct` at `nfft` 256 (+2.9%, spread 5.8%). The kernel's code
 is the same apart from field offsets.
 
+**The meters' ring, measured (#2211 b, 2026-10-12).** PSD's ring stayed where
+the Spectrogram's went: the three meters `dp_psd_create` a PSD and feed it
+through `dp_psd_accumulate_real`, which never touches it, though `tonemeas`'s
+complex path does frame through it. One throwaway C program (not committed,
+by #2211's ruling), one `n` per fresh process, on the library at b4c470846
+(after #2253), Release, WSL2 on x86-64, two runs agreeing. In kB from
+`/proc/self/status` across one `dp_psd_create`, then the same PSD after the
+meters' path and after one framed complex push; then the ring alone
+(`dp_f32_create (2n)`, as create makes it); then the create time, the minimum
+of 200:
+
+| n      | create VmSize / VmRSS | after `accumulate_real` VmRSS | after a framed push VmRSS | ring alone VmSize / VmRSS | create time |
+| ------ | --------------------- | ----------------------------- | ------------------------- | ------------------------- | ----------- |
+| 4,096  | 708 / 576             | 672                           | 736                       | 128 / 0                   | 116 µs      |
+| 65,536 | 12,564 / 4,756        | 6,920                         | 7,944                     | 2,048 / 0                 | 2.28 ms     |
+
+The ring is address space and no resident memory. It is a memfd of 16·`n`
+bytes (`2n` rounded up to a power of two, 8 bytes each) mapped twice, 32·`n`
+of VmSize, and it stays unfaulted on the meters' path. The first framed push
+adds exactly 16·`n` of RSS (64 kB, 1,024 kB), which is what proves it was not
+resident until then. The rest of create's resident memory is the kernel
+(window, frame, spectrum, power, plan), the dB buffer and the averager, which
+every path needs.
+
+**Decision ([#2211](https://github.com/doppler-dsp/doppler/issues/2211)): the
+meters keep the ring.** A PSD that makes its ring on the first framed push was
+rejected, because `dp_psd_accumulate` returns nothing. A failed first
+allocation there would be a silent drop on the hottest entry point, and the
+error convention puts allocation in `create()`. A restore of almost any used
+PSD would allocate too, and `DP_ERR_MEMORY` would surface as `DP_ERR_INVALID`
+through `DP_R_CHILD` and as `ValueError` in Python. A ring-less create mode
+with a whole-frame complex twin was not built: it would grow PSD's surface on
+every face for a saving of address space. Removing the ring outright means a
+meter holds a kernel and an averager instead of a PSD, which belongs with
+moving the kernel into a component of its own
+([spectrogram.md §4.2](spectrogram.md#42-psds-kernel-is-the-spectrum)).
+
 **What this does not cover.** One x86-64 machine. On aarch64 and macOS, where
 the compiler may contract differently, only the in-build oracles hold it
 ([#2187](https://github.com/doppler-dsp/doppler/issues/2187)). Nor does the

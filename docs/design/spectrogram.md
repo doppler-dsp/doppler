@@ -153,7 +153,11 @@ Spectrogram links all of PSD to use the kernel alone: its averaging code and
 graph. A component of its own would drop only those two from one link line,
 for a new component, manifest entry and test target to keep. The Spectrogram
 already uses the ring and framer itself. It moves when a consumer needs the
-kernel without PSD's dependencies, and none does (#2211).
+kernel without PSD's dependencies, and none does (#2211). The three meters
+would be the next. Holding a kernel and an averager instead of a PSD would
+drop PSD's ring, which is address space only (§5.10). But it needs PSD's
+readouts moved below the PSD and a larger kernel API. That is sized L and
+belongs with this move; it is not started.
 
 The alternative, `fft` plus `dp_magnitude_db_cf32`, is rejected on the
 prototype's number (§3), not on taste.

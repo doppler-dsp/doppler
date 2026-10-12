@@ -686,6 +686,34 @@ def test_a_helper_mentioned_in_a_comment_is_prose(tmp_path: Path) -> None:
     assert r.returncode == 0, r.stdout
 
 
+def test_a_quote_in_a_comment_hides_no_helper(tmp_path: Path) -> None:
+    """A quote inside a comment, then a string on the same line, must not
+    read as one string that swallows the comment's `*/`: blanked strings
+    first, the comment would then run to the next `*/` in the file and hide
+    every helper between (#2227). One left-to-right pass blanks each for
+    what it is, so the helpers are still found."""
+    src = '/* 5" */ static const char *k = "x";\n' + _HELPERS_C + "/* end */\n"
+    _seed(tmp_path, **{_HELPERS_REL: src})
+    r = _run(tmp_path)
+    assert r.returncode == 0, r.stdout
+    assert "of 3 discovered helper(s)" in r.stdout, r.stdout
+
+
+def test_a_quote_in_a_comment_hides_no_call(tmp_path: Path) -> None:
+    """The same quote, ahead of a constructor call and a string on one
+    line: read strings-first, the call sat inside a "string" and its literal
+    window passed; read in one pass it is a call, and red (#2227)."""
+    src = _NAMED_C.replace(
+        "  return !a",
+        '  /* 5" */ x = dp_spectrogram_create (8, 4, 3, 0.0f,'
+        ' DP_SPECTROGRAM_POWER); s = "";\n  return !a',
+    )
+    _seed(tmp_path, **{"a.c": src})
+    r = _run(tmp_path)
+    assert r.returncode == 1, r.stdout
+    assert "dp_spectrogram_create window = 3" in r.stdout, r.stdout
+
+
 def test_a_helper_name_in_another_file_is_not_checked(tmp_path: Path) -> None:
     """Helper names are generic (`make`), so a row holds its own file only."""
     src = _NAMED_C.replace("  return !a", "  make (1, 2, 3);\n  return !a")

@@ -58,8 +58,7 @@ typedef struct {
  *
  * @param n      Trace length in bins.  Must be > 0, with n doubles a
  *               byte count a size_t holds; returns NULL otherwise.
- * @param mode   Reduction mode: "mean", "exp", "maxhold" or "minhold"; in C
- *               ACC_TRACE_MEAN, _EXP, _MAXHOLD or _MINHOLD.
+ * @param mode   Reduction mode: "mean", "exp", "maxhold" or "minhold".
  * @param alpha  EMA smoothing factor, read only by @c exp mode, where it must
  *               lie in (0, 1].  Outside it the trace is not an average: 0
  *               never leaves the first frame, a negative alpha extrapolates

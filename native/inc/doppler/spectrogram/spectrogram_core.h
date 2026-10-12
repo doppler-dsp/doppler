@@ -283,29 +283,6 @@ void dp_spectrogram_get_state (const dp_spectrogram_state_t *s, void *blob);
  * @return DP_OK, or DP_ERR_INVALID.
  */
 int dp_spectrogram_set_state (dp_spectrogram_state_t *s, const void *blob);
-
-/**
- * @brief Input samples the last push took (the `consumed` property).
- *
- * Same value as dp_spectrogram_consumed(); this is the name the binding
- * reads, because jm derives a property's getter as `<core>_get_<name>`.
- *
- * @param state  A live spectrogram.
- * @return Samples of the last push that became rows; the rest were not taken
- *         (a short output buffer stops the push at a whole row).
- */
-size_t dp_spectrogram_get_consumed (const dp_spectrogram_state_t *state);
-
-/**
- * @brief Samples carried toward the next row (the `pending` property).
- *
- * Same value as dp_spectrogram_pending(); the binding's name for it, as
- * above.
- *
- * @param state  A live spectrogram.
- * @return The partial frame's length in samples, 0 to nfft - 1.
- */
-size_t dp_spectrogram_get_pending (const dp_spectrogram_state_t *state);
 #ifdef __cplusplus
 }
 #endif

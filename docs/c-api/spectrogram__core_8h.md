@@ -72,8 +72,6 @@ _Streaming spectrogram: a stream of any-size chunks in, rows of nfft-bin spectra
 |  [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* | [**dp\_spectrogram\_create**](#function-dp_spectrogram_create) (size\_t nfft, size\_t hop, int window, float beta, int mode) <br>_Create a streaming spectrogram._  |
 |  void | [**dp\_spectrogram\_destroy**](#function-dp_spectrogram_destroy) ([**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s) <br>_Release a spectrogram and everything it owns._  |
 |  int64\_t | [**dp\_spectrogram\_flush**](#function-dp_spectrogram_flush) ([**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s, float \* row, size\_t row\_len) <br>_End the stream: write the one zero-padded row it still owes, if any._  |
-|  size\_t | [**dp\_spectrogram\_get\_consumed**](#function-dp_spectrogram_get_consumed) (const [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* state) <br>_Input samples the last push took (the_ `consumed` _property)._ |
-|  size\_t | [**dp\_spectrogram\_get\_pending**](#function-dp_spectrogram_get_pending) (const [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* state) <br>_Samples carried toward the next row (the_ `pending` _property)._ |
 |  void | [**dp\_spectrogram\_get\_state**](#function-dp_spectrogram_get_state) (const [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s, void \* blob) <br>_Serialize the stream position into_ `blob` _._ |
 |  size\_t | [**dp\_spectrogram\_pending**](#function-dp_spectrogram_pending) (const [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s) <br>_Samples pushed that no written row has covered yet._  |
 |  size\_t | [**dp\_spectrogram\_push**](#function-dp_spectrogram_push) ([**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s, const float \_Complex \* in, size\_t n\_in, float \* out, size\_t max\_out) <br>_Push input, write every whole row it completes that fits._  |
@@ -291,80 +289,6 @@ The row sits on the hop grid: it starts at the next row start k\*hop, never at t
 **Returns:**
 
 Floats written: nfft, or 0 if no row was owed; -1 if the row is not exactly nfft floats long. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function dp\_spectrogram\_get\_consumed 
-
-_Input samples the last push took (the_ `consumed` _property)._
-```C++
-size_t dp_spectrogram_get_consumed (
-    const dp_spectrogram_state_t * state
-) 
-```
-
-
-
-Same value as [**dp\_spectrogram\_consumed()**](spectrogram__core_8h.md#function-dp_spectrogram_consumed); this is the name the binding reads, because jm derives a property's getter as `<core>_get_<name>`.
-
-
-
-
-**Parameters:**
-
-
-* `state` A live spectrogram. 
-
-
-
-**Returns:**
-
-Samples of the last push that became rows; the rest were not taken (a short output buffer stops the push at a whole row). 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function dp\_spectrogram\_get\_pending 
-
-_Samples carried toward the next row (the_ `pending` _property)._
-```C++
-size_t dp_spectrogram_get_pending (
-    const dp_spectrogram_state_t * state
-) 
-```
-
-
-
-Same value as [**dp\_spectrogram\_pending()**](spectrogram__core_8h.md#function-dp_spectrogram_pending); the binding's name for it, as above.
-
-
-
-
-**Parameters:**
-
-
-* `state` A live spectrogram. 
-
-
-
-**Returns:**
-
-The partial frame's length in samples, 0 to nfft - 1. 
 
 
 

@@ -185,10 +185,53 @@ The configuration is kept. consumed and pending read 0 afterwards.
 0
 """
 
+# The configuration reads back, read-only: each is a member the state blob
+# already serializes, so `field = true` reads it directly. The docs are the
+# Python face's own (the struct's /**< text is C-shaped). window and mode
+# decode through the same [[enum]] the constructor takes, so they read back
+# as the strings that made them.
+[[spectrogram.properties]]
+name = "nfft"
+type = "size_t"
+field = true
+doc = "Samples per frame, and bins per row: one number, because a frame the PSD would zero-pad to a longer transform is refused at construction."
+
+[[spectrogram.properties]]
+name = "hop"
+type = "size_t"
+field = true
+doc = "Samples between row starts, 1 to nfft: nfft tiles the stream, anything less overlaps the frames."
+
+[[spectrogram.properties]]
+name = "window"
+type = "int"
+enum = "psd_window"
+field = true
+doc = "The window every frame is shaped by: \"hann\", \"kaiser\", \"blackman-harris\" or \"rect\"."
+
+[[spectrogram.properties]]
+name = "beta"
+type = "float"
+field = true
+doc = "The Kaiser beta the Spectrogram was made with. It shapes the Kaiser window only; under the others it changes no row."
+
+[[spectrogram.properties]]
+name = "mode"
+type = "int"
+enum = "spectrogram_mode"
+field = true
+doc = "The row units: \"power\" (linear against full scale, the default) or \"db\" (dBFS)."
+
 [[spectrogram.properties]]
 name = "consumed"
 type = "size_t"
+field = true
+doc = "Input samples the last push took. From Python it is always the chunk's length: the binding sizes its output for every row the chunk completes, so no input is held back."
 
+# A computed value, read through the core's own query: no `<core>_get_`
+# wrapper is needed for an `expr` property.
 [[spectrogram.properties]]
 name = "pending"
 type = "size_t"
+expr = "dp_spectrogram_pending (self->handle)"
+doc = "Samples pushed that no row has covered yet: what flush() would turn into a row. 0 means the stream is complete as it stands."

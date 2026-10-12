@@ -714,6 +714,50 @@ def test_a_quote_in_a_comment_hides_no_call(tmp_path: Path) -> None:
     assert "dp_spectrogram_create window = 3" in r.stdout, r.stdout
 
 
+#: A helper whose one parameter reaches two enums: PSD's window and
+#: carrier_acq's view of it, which has no rect.
+_BOTH_C = """\
+static void
+both (int w)
+{
+  dp_psd_create (64, 1.0, w, 0.0f, 1, 1.0, 0, ACC_TRACE_MEAN, 0.1);
+  dp_carrier_acq_create (4e6, 1e5, 0.0, 4, w, 0.0f, NULL, 0, 1e-3, 0.9,
+                         2.0, true, 1000);
+}
+
+void
+call_both (void)
+{
+  both (LITERAL);
+}
+"""
+
+
+def test_a_parameter_feeding_two_enums_is_named_only_where_they_agree(
+    tmp_path: Path,
+) -> None:
+    """`both (1)` is Kaiser in both enums, so --fix names it; `both (3)` is
+    rect to PSD and no value of carrier_acq's view, so the finding says so
+    and --fix leaves it: first-enum-wins would have written
+    DP_PSD_WINDOW_RECT where carrier_acq refuses it (#2227)."""
+    rel = "native/tests/both.c"
+    _seed(tmp_path, **{rel: _BOTH_C.replace("LITERAL", "3")})
+    r = _run(tmp_path, "--fix")
+    assert r.returncode == 1, r.stdout
+    assert (
+        f"{rel}:12: both window = 3 (feeds carrier_acq_window (no such value),"
+        " psd_window (DP_PSD_WINDOW_RECT): name it by hand)"
+    ) in r.stdout, r.stdout
+    assert "both (3);" in (tmp_path / rel).read_text(encoding="utf-8")
+
+    agree = tmp_path / "agree"
+    _seed(agree, **{rel: _BOTH_C.replace("LITERAL", "1")})
+    r = _run(agree, "--fix")
+    assert r.returncode == 0, r.stdout
+    fixed = (agree / rel).read_text(encoding="utf-8")
+    assert "both (DP_PSD_WINDOW_KAISER);" in fixed
+
+
 def test_a_helper_name_in_another_file_is_not_checked(tmp_path: Path) -> None:
     """Helper names are generic (`make`), so a row holds its own file only."""
     src = _NAMED_C.replace("  return !a", "  make (1, 2, 3);\n  return !a")

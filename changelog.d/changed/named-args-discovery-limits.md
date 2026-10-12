@@ -1,3 +1,4 @@
-- **The named-args gate reads a quote inside a comment as a comment.**
-    Blanked strings-first, `/* 5" */` hid every helper and call up to the
-    next quote (#2227).
+- **The named-args gate's helper discovery stops misreading two C shapes.**
+    A quote inside a comment hid every helper and call up to the next
+    quote, and a parameter feeding two enums made `--fix` write a name one
+    of them refuses (#2227).

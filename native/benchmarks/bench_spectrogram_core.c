@@ -122,8 +122,10 @@ add (config_t *cfg, int *nc, size_t nfft, size_t hop, size_t chunk, int direct,
      Spectrogram builds for itself. The dB rows are the ones U1-U4
      measured (spectrogram-measurements.md entries 5.6-5.9); the power
      rows are #2094's. */
-  c->s = dp_spectrogram_create (nfft, hop, 0, 0.0f, mode);
-  c->p = direct ? dp_psd_create (nfft, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.0) : NULL;
+  c->s = dp_spectrogram_create (nfft, hop, DP_PSD_WINDOW_HANN, 0.0f, mode);
+  c->p = direct ? dp_psd_create (nfft, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0,
+                                 0, ACC_TRACE_MEAN, 0.0)
+                : NULL;
   if (!c->s || (direct && !c->p))
     return NULL;
   c->cap = dp_spectrogram_push_max_out (c->s, block);

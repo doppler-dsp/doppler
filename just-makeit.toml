@@ -3525,9 +3525,50 @@ name = "wfm_type"
 values = ["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits", "symbols", "dsss"]
 
 [[enum]]
-# Order IS rc_pulse_t (RateConverter_core.h): iandd = 0, rrc = 1, none = 2.
+# rc_pulse_t (RateConverter_core.h), bound by name: the C enum carries
+# `SSOT: enum=rc_pulse` and scripts/check_wfm_enum_tables.py holds its names
+# to these.
 name = "rc_pulse"
 values = ["iandd", "rrc", "none"]
+enumerators = ["RC_PULSE_IANDD", "RC_PULSE_RRC", "RC_PULSE_NONE"]
+
+# PSD's window, by name (psd_core.h, `SSOT: enum=psd_window`). The Spectrogram
+# takes the same index, because dp_psd_create is the one owner of it; HANN is
+# 0, so a zeroed configuration is Hann. Bound by name (gh-1450), so the
+# binding writes DP_PSD_WINDOW_* and the compiler checks every name.
+[[enum]]
+name = "psd_window"
+values = ["hann", "kaiser", "blackman-harris", "rect"]
+enumerators = [
+  "DP_PSD_WINDOW_HANN", "DP_PSD_WINDOW_KAISER",
+  "DP_PSD_WINDOW_BLACKMAN_HARRIS", "DP_PSD_WINDOW_RECT",
+]
+
+# carrier_acq's window: a VIEW over psd_window with the three windows its
+# threshold was calibrated at (KAPPA was fit at Hann, carrier_acq_core.c), no
+# rect. Every name is a psd_window enumerator, so it has no C enum of its own.
+[[enum]]
+name = "carrier_acq_window"
+values = ["hann", "kaiser", "blackman-harris"]
+enumerators = [
+  "DP_PSD_WINDOW_HANN", "DP_PSD_WINDOW_KAISER",
+  "DP_PSD_WINDOW_BLACKMAN_HARRIS",
+]
+
+# The Spectrogram's row units (spectrogram_core.h). POWER is 0, so a zeroed
+# configuration selects power and dB is only ever asked for (#1968).
+[[enum]]
+name = "spectrogram_mode"
+values = ["power", "db"]
+enumerators = ["DP_SPECTROGRAM_POWER", "DP_SPECTROGRAM_DB"]
+
+# AccTrace's reduction, and so PSD's averaging mode (acc_trace_core.h).
+[[enum]]
+name = "acc_trace_mode"
+values = ["mean", "exp", "maxhold", "minhold"]
+enumerators = [
+  "ACC_TRACE_MEAN", "ACC_TRACE_EXP", "ACC_TRACE_MAXHOLD", "ACC_TRACE_MINHOLD",
+]
 
 [[enum]]
 name = "crc"

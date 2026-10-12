@@ -30,8 +30,15 @@ extern "C"
  * restore refuses a blob whose rows would mean something else (#2102). */
 #define SPECTROGRAM_STATE_VERSION 2u
 
-#define DP_SPECTROGRAM_POWER 0
-#define DP_SPECTROGRAM_DB 1
+/* The row units. The Python face binds "power" and "db" to these constants
+ * by name (just-makeit.toml, `[[enum]] spectrogram_mode`), so their order is
+ * this header's alone. */
+/* SSOT: enum=spectrogram_mode */
+enum
+{
+  DP_SPECTROGRAM_POWER = 0,
+  DP_SPECTROGRAM_DB = 1
+};
 
 typedef struct
 {

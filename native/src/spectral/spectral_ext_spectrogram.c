@@ -55,13 +55,13 @@ SpectrogramObj_init (SpectrogramObject *self, PyObject *args, PyObject *kwds)
   size_t hop    = (size_t)hop_raw;
   int    window = 0;
   if (strcmp (window_str, "hann") == 0)
-    window = 0;
+    window = DP_PSD_WINDOW_HANN;
   else if (strcmp (window_str, "kaiser") == 0)
-    window = 1;
+    window = DP_PSD_WINDOW_KAISER;
   else if (strcmp (window_str, "blackman-harris") == 0)
-    window = 2;
+    window = DP_PSD_WINDOW_BLACKMAN_HARRIS;
   else if (strcmp (window_str, "rect") == 0)
-    window = 3;
+    window = DP_PSD_WINDOW_RECT;
   else
     {
       PyErr_Format (PyExc_ValueError,
@@ -72,9 +72,9 @@ SpectrogramObj_init (SpectrogramObject *self, PyObject *args, PyObject *kwds)
     }
   int mode = 0;
   if (strcmp (mode_str, "power") == 0)
-    mode = 0;
+    mode = DP_SPECTROGRAM_POWER;
   else if (strcmp (mode_str, "db") == 0)
-    mode = 1;
+    mode = DP_SPECTROGRAM_DB;
   else
     {
       PyErr_Format (PyExc_ValueError,
@@ -826,16 +826,24 @@ static PyTypeObject SpectrogramObjType = {
     "default \"hann\"\n"
     "    The window: \"hann\", \"kaiser\", \"blackman-harris\" or \"rect\" in "
     "Python; in\n"
-    "    C the index 0, 1, 2 or 3 in that order, as dp_psd_create() takes it. "
-    "It\n"
-    "    also refuses a window that sums to zero at this nfft (the symmetric\n"
-    "    Hann at nfft = 2).\n"
+    "    C DP_PSD_WINDOW_HANN, _KAISER, _BLACKMAN_HARRIS or _RECT, as\n"
+    "    dp_psd_create() takes it. It also refuses a window that sums to zero "
+    "at\n"
+    "    this nfft (the symmetric Hann at nfft = 2).\n"
+    "\n"
+    "    - ``\"hann\"`` — Hann: the default.\n"
+    "    - ``\"kaiser\"`` — Kaiser, shaped by `beta`.\n"
+    "    - ``\"blackman-harris\"`` — 4-term Blackman-Harris.\n"
+    "    - ``\"rect\"`` — Rectangular: no taper, best resolution, worst "
+    "leakage.\n"
     "beta : float, default 0.0\n"
     "    Kaiser beta (ignored for the other windows).\n"
     "mode : Literal[\"power\", \"db\"], default \"power\"\n"
     "    Row units: \"power\" (linear rows, the default) or \"db\" (dBFS "
     "rows, asked\n"
-    "    for by name). Any other value is refused.\n"
+    "    for by name); in C DP_SPECTROGRAM_POWER or DP_SPECTROGRAM_DB. Any "
+    "other\n"
+    "    value is refused.\n"
     "\n"
     "Raises\n"
     "------\n"

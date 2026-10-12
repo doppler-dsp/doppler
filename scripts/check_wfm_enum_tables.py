@@ -38,6 +38,18 @@ So this gate makes the SSOT claim a check rather than a comment:
    never re-rendered, so a new enum value reaches the manifest, the C enum and
    the `.pyi` while that table stays short. The getter then indexes past its
    own NULL. Fail-closed: a table matching no `[[enum]]` is an error too.
+7. **An enum bound by NAME has exactly one C enum, and the same names.** An
+   `[[enum]]` that lists `enumerators` (gh-1450) makes jm write each C
+   constant by name, so the compiler checks every name the manifest uses --
+   but not the other way: a C value added with no Python name compiles and
+   is unreachable from Python. So the C enum carries `SSOT: enum=X` (and
+   nothing else), and its enumerator names equal `X.enumerators`, in order.
+   Both directions fail closed: an annotation naming no `[[enum]]`, or one
+   whose `[[enum]]` lists no `enumerators`, is an error, and so is an
+   `[[enum]]` with `enumerators` that no annotated C enum carries -- unless
+   every one of its names is a name of ONE annotated C enum, which makes it
+   a view over that enum (`carrier_acq_window` offers three of
+   `psd_window`'s four), never a source of names of its own.
 
 The annotation is a plain `/* ... */` comment -- doxygen reads only `/**` and
 `/*!`, so it is invisible to the C API docs -- placed anywhere between the
@@ -210,6 +222,137 @@ def _c_enum(path: Path, typedef: str) -> list[tuple[str, int | None]] | None:
     return out
 
 
+#: An enum declaration, anonymous or typedef'd, in a header under INC_DIR.
+_ENUM_DECL_RE = re.compile(
+    r"(?:typedef\s+)?\benum\s*(?:\w+\s*)?\{(?P<body>[^}]*)\}\s*(?:\w+\s*)?;"
+)
+_COMMENT_RE = re.compile(r"/\*.*?\*/|//[^\n]*", re.DOTALL)
+
+
+def _enumerators(body: str) -> list[tuple[str, int | None]]:
+    """The (name, C value) pairs of an enum body, in source order.
+
+    A value is the explicit integer, or one past the previous value as C
+    counts it; None once an explicit value is not an integer literal.
+    """
+    out: list[tuple[str, int | None]] = []
+    nxt: int | None = 0
+    for part in _COMMENT_RE.sub("", body).split(","):
+        if not part.strip():
+            continue
+        name, eq, val = part.partition("=")
+        if eq:
+            try:
+                nxt = int(val.strip(), 0)
+            except ValueError:
+                nxt = None
+        out.append((name.strip(), nxt))
+        nxt = None if nxt is None else nxt + 1
+    return out
+
+
+def bound_enums(
+    root: Path,
+) -> tuple[list[tuple[str, str, list[tuple[str, int | None]]]], list[str]]:
+    """Every header enum annotated `SSOT: enum=X`, and the malformed ones.
+
+    The annotation is looked for between the previous `;` OUTSIDE a comment
+    and the enum itself -- the "since the previous declaration" rule
+    `_tables` uses -- so an enum cannot adopt an annotation written for a
+    declaration above it. Returns ``(where, X, [(name, value), ...])`` and
+    errors. Public: `check_named_args.py` reads the same enums to turn a
+    literal back into its name, rather than keeping a copy of them.
+    """
+    found: list[tuple[str, str, list[tuple[str, int | None]]]] = []
+    errs: list[str] = []
+    for path in sorted((root / INC_DIR).rglob("*.h")):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        if "SSOT:" not in text:
+            continue
+        # Same offsets, comments blanked: a `;` inside prose ends nothing.
+        masked = _COMMENT_RE.sub(lambda m: " " * len(m.group(0)), text)
+        rel = path.relative_to(root).as_posix()
+        for m in _ENUM_DECL_RE.finditer(masked):
+            start = masked.rfind(";", 0, m.start()) + 1
+            specs = _SSOT_RE.findall(text[start : m.start()])
+            if not specs:
+                continue
+            line = text.count("\n", 0, m.start()) + 1
+            if len(specs) > 1:
+                errs.append(
+                    f"{rel}:{line}: {len(specs)} `SSOT:` annotations above"
+                    " one enum; exactly one describes it."
+                )
+                continue
+            fields = [f.strip() for f in specs[0].split(",") if f.strip()]
+            keys = [f.partition("=")[0].strip() for f in fields]
+            if keys != ["enum"]:
+                errs.append(
+                    f"{rel}:{line}: a C enum's annotation takes `enum=` only"
+                    f" (got {specs[0].strip()!r}); its names are checked"
+                    " against that [[enum]]'s `enumerators`."
+                )
+                continue
+            name = fields[0].partition("=")[2].strip()
+            body = text[m.start("body") : m.end("body")]
+            found.append((f"{rel}:{line}", name, _enumerators(body)))
+    return found, errs
+
+
+def _check_bound_enums(root: Path, data: dict) -> list[str]:
+    """Rule 7: an [[enum]] bound by name and its one C enum agree."""
+    bound, errs = bound_enums(root)
+    by_name = {e["name"]: e for e in data.get("enum", [])}
+    carried: dict[str, list[str]] = {}
+    for where, name, pairs in bound:
+        names = [n for n, _ in pairs]
+        carried.setdefault(name, []).append(where)
+        spec = by_name.get(name)
+        if spec is None:
+            errs.append(
+                f"{where}: `SSOT: enum={name}` names no [[enum]] in"
+                f" {MANIFEST_REL}."
+            )
+            continue
+        want = spec.get("enumerators")
+        if want is None:
+            errs.append(
+                f"{where}: [[enum]] {name} lists no `enumerators`, so jm"
+                " numbers its names by position and nothing ties them to this"
+                " C enum. Bind them by name (gh-1450)."
+            )
+            continue
+        if names != list(want):
+            errs.append(
+                f"{where}: the C enum's names != [[enum]] {name}"
+                f" enumerators\n      header:   {names}\n"
+                f"      manifest: {list(want)}"
+            )
+    bound_names = [{n for n, _ in pairs} for _, _, pairs in bound]
+    for name, spec in by_name.items():
+        if "enumerators" not in spec:
+            continue
+        homes = carried.get(name, [])
+        if len(homes) == 1:
+            continue
+        # A view: every name already belongs to one bound C enum, so the
+        # compiler checks them and none is a name of its own.
+        if not homes and any(
+            set(spec["enumerators"]) <= s for s in bound_names
+        ):
+            continue
+        errs.append(
+            f"{MANIFEST_REL}: [[enum]] {name} lists `enumerators`, so"
+            f" exactly one C enum must carry `SSOT: enum={name}` (or every"
+            " name must belong to one that does); found"
+            f" {len(homes)}{': ' + ', '.join(homes) if homes else ''}."
+        )
+    return errs
+
+
 def _scan_files(root: Path, names_h: Path) -> list[Path]:
     out: list[Path] = []
     for rel in SCAN_ROOTS:
@@ -375,6 +518,9 @@ def check(root: Path) -> list[str]:
                     " member by member and this table is NOT re-rendered:"
                     " edit it by hand to match."
                 )
+
+    # Rule 7 -- an [[enum]] bound by name has one C enum with its names.
+    errs += _check_bound_enums(root, data)
     return errs
 
 
@@ -401,10 +547,12 @@ def main() -> int:
         )
         return 1
 
-    n = len(_tables((args.root / NAMES_H_REL).read_text(encoding="utf-8")))
+    root = args.root.resolve()
+    n = len(_tables((root / NAMES_H_REL).read_text(encoding="utf-8")))
+    k = len(bound_enums(root)[0])
     print(
         f"wfm-enum-tables: OK — {n} table(s) match their [[enum]],"
-        " 0 second homes"
+        f" {k} C enum(s) bound by name, 0 second homes"
     )
     return 0
 

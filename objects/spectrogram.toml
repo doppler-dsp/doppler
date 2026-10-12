@@ -51,11 +51,12 @@ name = "hop"
 type = "size_t"
 default = "256"
 
-# Same index as objects/psd.toml: the C create validates it through
-# dp_psd_create, the one owner of the window index.
+# The same [[enum]] as objects/psd.toml (psd_window, bound by name to
+# DP_PSD_WINDOW_*): the C create validates it through dp_psd_create, the one
+# owner of the window index.
 [[spectrogram.init_params]]
 name = "window"
-type = "string_enum:hann,kaiser,blackman-harris,rect"
+type = "enum:psd_window"
 default = "hann"
 
 [[spectrogram.init_params]]
@@ -63,8 +64,8 @@ name = "beta"
 type = "float"
 default = "0.0f"
 
-# Order IS the C values: DP_SPECTROGRAM_POWER = 0, DP_SPECTROGRAM_DB = 1.
-# jm's string_enum maps by position, so do not reorder.
+# [[enum]] spectrogram_mode, bound by name to DP_SPECTROGRAM_POWER / _DB, so
+# the binding writes the constants and their order is the header's alone.
 #
 # Configuration, not state: create() sets the mode, and the state blob holds
 # only the framer's carry. A blob written in one mode therefore loads into an
@@ -72,7 +73,7 @@ default = "0.0f"
 # exist is open: #2102.
 [[spectrogram.init_params]]
 name = "mode"
-type = "string_enum:power,db"
+type = "enum:spectrogram_mode"
 default = "power"
 
 # push() returns the completed rows as a (rows, nfft) float32 matrix, or None

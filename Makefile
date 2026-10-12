@@ -193,8 +193,8 @@ LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format \
                version-literals text-encoding cmake-script-policy \
                why-param doc-claims public-symbols curl-fail \
                warnings-exempt stock-images uv-pin uv-lock tlm-name-join \
-               ring-internals spectrogram-mode
-FORMAT_TOOLS = ruff-format ruff mdformat clang-format
+               ring-internals named-args
+FORMAT_TOOLS = ruff-format ruff mdformat named-args clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
 # (*.pyi, vendor, the re-export __init__.py shims), so the path list is just
@@ -432,13 +432,17 @@ LINT_cmake-script-policy = python3 scripts/check_cmake_script_policy.py
 LINT_header-example-arity = \
     $(UV) run python scripts/check_header_example_arity.py
 
-# dB rows are asked for by name (#1968): no dp_spectrogram_create call in a
-# tracked .c, .h or .md passes its mode as an integer literal. The constructor
-# takes a plain int, so the compiler cannot refuse `0` or `1`, and a number
-# hides which mode was meant -- #2097 swapped the values so that the zero
-# value is power, and a numbered call would have changed meaning without a
-# diff. Registration-free (git ls-files). Plain python3: stdlib only.
-LINT_spectrogram-mode = python3 scripts/check_spectrogram_mode.py
+# Integer-coded arguments are passed by name: no PSD window or averaging
+# mode, and no Spectrogram mode, is an integer literal in a tracked .c, .h or
+# .md. The constructors take a plain int, so the compiler cannot refuse `0` or
+# `1`, and a number hides which choice was meant -- #2097 swapped the
+# Spectrogram's modes, and a numbered call would have changed meaning without
+# a diff (#1968); #1894's review found 283 more. The names come from the C
+# enums `SSOT: enum=X` binds to just-makeit.toml (wfm-enum-tables rule 7),
+# read with that gate's parser, so this keeps no copy of them. `--fix` writes
+# the names, which makes this target the fixer `make format` runs too.
+# Registration-free (git ls-files). `uv run`: it reads the manifest's TOML.
+LINT_named-args = $(UV) run python scripts/check_named_args.py --fix
 
 # A refusal names its cause through `const char **why` -- a static sentence,
 # written only on refusal, NULL allowed, never freed. Every public refusal API

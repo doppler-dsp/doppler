@@ -45,10 +45,6 @@
 #define SPECAN_N_MIN 16u
 #define SPECAN_ENBW_MIN 2.0
 #define SPECAN_ENBW_MAX 4.0
-/* dp_psd_create's window index for Kaiser (its header: 0 Hann, 1 Kaiser,
- * 2 Blackman-Harris). The analyzer always uses Kaiser: beta is its RBW knob.
- */
-#define PSD_WINDOW_KAISER 1
 #define SPECAN_EPS 1e-20f
 
 /* Kaiser beta whose ENBW, for an n-point window, is `enbw` bins (2..4).
@@ -118,9 +114,10 @@ dp_specan_create (double fs, double span, double rbw, double src_center,
   double norm_freq = -(center - src_center) / fs;
   s->ddc           = dp_ddc_create (norm_freq, rate);
   /* The PSD core owns the 0-dBFS reference (full_scale / bits); the display
-   * reads it back as s->psd->full_scale, so dBFS is single-sourced. */
-  s->psd = dp_psd_create (n, fs_out, PSD_WINDOW_KAISER, (float)beta, nfft / n,
-                          full_scale, bits, 0, 0.1);
+   * reads it back as s->psd->full_scale, so dBFS is single-sourced. The
+   * window is always Kaiser: beta is the analyzer's RBW knob. */
+  s->psd = dp_psd_create (n, fs_out, DP_PSD_WINDOW_KAISER, (float)beta,
+                          nfft / n, full_scale, bits, ACC_TRACE_MEAN, 0.1);
   s->pwr = malloc (nfft * sizeof *s->pwr);
   if (!s->ddc || !s->psd || !s->pwr)
     {

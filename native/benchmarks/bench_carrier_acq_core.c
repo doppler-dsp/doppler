@@ -75,8 +75,8 @@ main (void)
     for (int q = 0; q < 2; q++)
       {
         dp_carrier_acq_state_t *ca = dp_carrier_acq_create (
-            SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, pads[p], 0, 0.0f, NULL, 0,
-            1e-3, 0.9, 2.0, seqs[q], MAX_N_BLOCKS);
+            SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, pads[p], DP_PSD_WINDOW_HANN,
+            0.0f, NULL, 0, 1e-3, 0.9, 2.0, seqs[q], MAX_N_BLOCKS);
         if (!ca)
           {
             (void)fprintf (stderr,

@@ -34,7 +34,7 @@ default = "1.0"
 
 [[psd.init_params]]
 name = "window"
-type = "string_enum:hann,kaiser,blackman-harris,rect"
+type = "enum:psd_window"
 default = "hann"
 
 [[psd.init_params]]
@@ -59,7 +59,7 @@ default = "0"
 
 [[psd.init_params]]
 name = "mode"
-type = "string_enum:mean,exp,maxhold,minhold"
+type = "enum:acc_trace_mode"
 default = "mean"
 
 [[psd.init_params]]

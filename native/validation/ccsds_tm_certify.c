@@ -298,8 +298,8 @@ rand_spectrum (const ccsds_tm_rand_t *r, size_t nfft, size_t frames)
      are the signal, so a window whose sidelobes are above the line spacing
      would smear one harmonic into its neighbours and report a floor that is
      really the window. */
-  dp_psd_state_t *p = dp_psd_create (nfft, 1.0, 2 /* Blackman-Harris */, 0.0f,
-                                     1, 1.0, 0, 0 /* mean */, 0.0);
+  dp_psd_state_t *p = dp_psd_create (nfft, 1.0, DP_PSD_WINDOW_BLACKMAN_HARRIS,
+                                     0.0f, 1, 1.0, 0, ACC_TRACE_MEAN, 0.0);
   if (!p)
     exit (1);
   dp_psd_accumulate_real (p, x, n);

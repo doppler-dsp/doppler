@@ -117,19 +117,29 @@ main (void)
 
   /* ── lifecycle + invalid args ───────────────────────────────────────── */
   {
-    DP_CHECK (dp_psd_create (1, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1)
+    /* Codes no enum has, named: a literal in a window or mode slot is
+       refused by scripts/check_named_args.py. */
+    const int window_past_rect  = 4;
+    const int mode_past_minhold = 9;
+    DP_CHECK (dp_psd_create (1, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0, 0,
+                             ACC_TRACE_MEAN, 0.1)
               == NULL); /* n<2  */
-    DP_CHECK (dp_psd_create (N, 0.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1)
+    DP_CHECK (dp_psd_create (N, 0.0, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0, 0,
+                             ACC_TRACE_MEAN, 0.1)
               == NULL); /* fs   */
-    DP_CHECK (dp_psd_create (N, 1.0, 4, 0.0f, 1, 1.0, 0, 0, 0.1)
-              == NULL); /* win: 0..3 are Hann, Kaiser, B-H, rect */
-    DP_CHECK (dp_psd_create (N, 1.0, 0, 0.0f, 1, 0.0, 0, 0, 0.1)
+    DP_CHECK (dp_psd_create (N, 1.0, window_past_rect, 0.0f, 1, 1.0, 0,
+                             ACC_TRACE_MEAN, 0.1)
+              == NULL); /* win: HANN, KAISER, BLACKMAN_HARRIS, RECT only */
+    DP_CHECK (dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1, 0.0, 0,
+                             ACC_TRACE_MEAN, 0.1)
               == NULL); /* fscl */
-    DP_CHECK (dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 9, 0.1)
+    DP_CHECK (dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0, 0,
+                             mode_past_minhold, 0.1)
               == NULL);    /* mode */
     dp_psd_destroy (NULL); /* ok   */
 
-    dp_psd_state_t *w = dp_psd_create (N, 1.0e6, 1, 8.0f, 1, 1.0, 0, 0, 0.1);
+    dp_psd_state_t *w = dp_psd_create (N, 1.0e6, DP_PSD_WINDOW_KAISER, 8.0f, 1,
+                                       1.0, 0, ACC_TRACE_MEAN, 0.1);
     DP_CHECK (w != NULL);
     DP_CHECK (w->n == N);
     DP_CHECK (w->fs == 1.0e6);
@@ -146,8 +156,11 @@ main (void)
    * so a create that refused everything could not pass. */
   {
     /* (b) pad 0 was silently treated as 1; it is refused like n < 2. */
-    DP_CHECK (dp_psd_create (N, 1.0, 0, 0.0f, 0, 1.0, 0, 0, 0.1) == NULL);
-    dp_psd_state_t *p1 = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
+    DP_CHECK (dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 0, 1.0, 0,
+                             ACC_TRACE_MEAN, 0.1)
+              == NULL);
+    dp_psd_state_t *p1 = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                        1.0, 0, ACC_TRACE_MEAN, 0.1);
     DP_CHECK (p1 != NULL);
     dp_psd_destroy (p1);
 
@@ -162,13 +175,14 @@ main (void)
         = { ACC_TRACE_MEAN, ACC_TRACE_MAXHOLD, ACC_TRACE_MINHOLD };
     for (size_t i = 0; i < sizeof bad / sizeof bad[0]; i++)
       {
-        DP_CHECK (
-            dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, ACC_TRACE_EXP, bad[i])
-            == NULL);
+        DP_CHECK (dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0, 0,
+                                 ACC_TRACE_EXP, bad[i])
+                  == NULL);
         for (size_t k = 0; k < sizeof no_read / sizeof no_read[0]; k++)
           {
-            dp_psd_state_t *m = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0,
-                                               no_read[k], bad[i]);
+            dp_psd_state_t *m
+                = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0, 0,
+                                 no_read[k], bad[i]);
             DP_CHECK (m != NULL);
             dp_psd_destroy (m);
           }
@@ -176,8 +190,8 @@ main (void)
     const double good[] = { 1.0, 0.25, 1e-9 };
     for (size_t i = 0; i < sizeof good / sizeof good[0]; i++)
       {
-        dp_psd_state_t *e = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0,
-                                           ACC_TRACE_EXP, good[i]);
+        dp_psd_state_t *e = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                           1.0, 0, ACC_TRACE_EXP, good[i]);
         DP_CHECK (e != NULL);
         dp_psd_destroy (e);
       }
@@ -186,9 +200,13 @@ main (void)
      * [0, 0], and every reading divides by sum(w)^2.  It read -200 dB from
      * psd_db and NaN from psd_dbhz for any input.  Blackman-Harris at n = 2
      * sums to 1.2e-4 and Hann at n = 3 to 1: tiny or small, not zero. */
-    DP_CHECK (dp_psd_create (2, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1) == NULL);
-    dp_psd_state_t *bh2 = dp_psd_create (2, 1.0, 2, 0.0f, 1, 1.0, 0, 0, 0.1);
-    dp_psd_state_t *h3  = dp_psd_create (3, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
+    DP_CHECK (dp_psd_create (2, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0, 0,
+                             ACC_TRACE_MEAN, 0.1)
+              == NULL);
+    dp_psd_state_t *bh2 = dp_psd_create (2, 1.0, DP_PSD_WINDOW_BLACKMAN_HARRIS,
+                                         0.0f, 1, 1.0, 0, ACC_TRACE_MEAN, 0.1);
+    dp_psd_state_t *h3  = dp_psd_create (3, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                         1.0, 0, ACC_TRACE_MEAN, 0.1);
     DP_CHECK (bh2 != NULL && bh2->cg > 0.0);
     DP_CHECK (h3 != NULL && h3->cg > 0.0);
     dp_psd_destroy (bh2);
@@ -202,12 +220,18 @@ main (void)
      * refused before any allocation, which the sanitizer legs require: ASan
      * and TSan report an overflowing calloc as an error, not a NULL. */
     const size_t big = (size_t)1 << 62;
-    DP_CHECK (dp_psd_create (big, 1.0, 3, 0.0f, 1, 1.0, 0, 0, 0.1) == NULL);
-    DP_CHECK (dp_psd_create (2, 1.0, 3, 0.0f, 2 * big, 1.0, 0, 0, 0.1)
+    DP_CHECK (dp_psd_create (big, 1.0, DP_PSD_WINDOW_RECT, 0.0f, 1, 1.0, 0,
+                             ACC_TRACE_MEAN, 0.1)
               == NULL);
-    DP_CHECK (dp_psd_create (3, 1.0, 3, 0.0f, big, 1.0, 0, 0, 0.1) == NULL);
+    DP_CHECK (dp_psd_create (2, 1.0, DP_PSD_WINDOW_RECT, 0.0f, 2 * big, 1.0, 0,
+                             ACC_TRACE_MEAN, 0.1)
+              == NULL);
+    DP_CHECK (dp_psd_create (3, 1.0, DP_PSD_WINDOW_RECT, 0.0f, big, 1.0, 0,
+                             ACC_TRACE_MEAN, 0.1)
+              == NULL);
     /* precondition: n = 2 under rect, at an ordinary pad, still builds */
-    dp_psd_state_t *r2 = dp_psd_create (2, 1.0, 3, 0.0f, 4, 1.0, 0, 0, 0.1);
+    dp_psd_state_t *r2 = dp_psd_create (2, 1.0, DP_PSD_WINDOW_RECT, 0.0f, 4,
+                                        1.0, 0, ACC_TRACE_MEAN, 0.1);
     DP_CHECK (r2 != NULL && r2->nfft == 8);
     dp_psd_destroy (r2);
 
@@ -221,27 +245,36 @@ main (void)
     const double nonfinite[] = { NAN, INFINITY };
     for (size_t i = 0; i < 2; i++)
       {
-        DP_CHECK (dp_psd_create (N, nonfinite[i], 0, 0.0f, 1, 1.0, 0, 0, 0.1)
+        DP_CHECK (dp_psd_create (N, nonfinite[i], DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                 1.0, 0, ACC_TRACE_MEAN, 0.1)
                   == NULL);
-        DP_CHECK (dp_psd_create (N, 1.0, 0, 0.0f, 1, nonfinite[i], 0, 0, 0.1)
+        DP_CHECK (dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                 nonfinite[i], 0, ACC_TRACE_MEAN, 0.1)
                   == NULL);
       }
     const float bad_beta[] = { NAN, INFINITY, 2.3e5f };
     for (size_t i = 0; i < 3; i++)
       {
-        DP_CHECK (dp_psd_create (N, 1.0, 1, bad_beta[i], 1, 1.0, 0, 0, 0.1)
+        DP_CHECK (dp_psd_create (N, 1.0, DP_PSD_WINDOW_KAISER, bad_beta[i], 1,
+                                 1.0, 0, ACC_TRACE_MEAN, 0.1)
                   == NULL);
         /* beta is Kaiser's alone: Hann ignores it */
         dp_psd_state_t *h
-            = dp_psd_create (N, 1.0, 0, bad_beta[i], 1, 1.0, 0, 0, 0.1);
+            = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, bad_beta[i], 1, 1.0,
+                             0, ACC_TRACE_MEAN, 0.1);
         DP_CHECK (h != NULL);
         dp_psd_destroy (h);
       }
-    DP_CHECK (dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 65, 0, 0.1) == NULL);
-    DP_CHECK (dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, (size_t)1 << 31, 0, 0.1)
+    DP_CHECK (dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0, 65,
+                             ACC_TRACE_MEAN, 0.1)
               == NULL);
-    dp_psd_state_t *k22 = dp_psd_create (N, 1.0, 1, 2.2e5f, 1, 1.0, 0, 0, 0.1);
-    dp_psd_state_t *b64 = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 64, 0, 0.1);
+    DP_CHECK (dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0,
+                             (size_t)1 << 31, ACC_TRACE_MEAN, 0.1)
+              == NULL);
+    dp_psd_state_t *k22 = dp_psd_create (N, 1.0, DP_PSD_WINDOW_KAISER, 2.2e5f,
+                                         1, 1.0, 0, ACC_TRACE_MEAN, 0.1);
+    dp_psd_state_t *b64 = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                         1.0, 64, ACC_TRACE_MEAN, 0.1);
     DP_CHECK (k22 != NULL && isfinite (k22->cg));
     DP_CHECK (b64 != NULL && b64->full_scale == ldexp (1.0, 63));
     dp_psd_destroy (k22);
@@ -255,7 +288,8 @@ main (void)
    * read 13 or 53 bins by position (h).  The rule is dp_obw_from_power's,
    * pinned in test_spectral_core.c; this pins that PSD reaches it. */
   {
-    dp_psd_state_t *w = dp_psd_create (N, 1.0, 3, 0.0f, 1, 1.0, 0, 0, 0.1);
+    dp_psd_state_t *w = dp_psd_create (N, 1.0, DP_PSD_WINDOW_RECT, 0.0f, 1,
+                                       1.0, 0, ACC_TRACE_MEAN, 0.1);
     DP_REQUIRE (w != NULL);
     const double out_of_domain[] = { 0.0, -1.0, 1.0, 1.5, NAN };
     const size_t n_ood = sizeof out_of_domain / sizeof out_of_domain[0];
@@ -299,7 +333,7 @@ main (void)
       {
         dp_psd_state_t *r
             = dp_psd_create (ties[k].n, 256.0, ties[k].window, ties[k].beta,
-                             ties[k].pad, 1.0, 0, 0, 0.1);
+                             ties[k].pad, 1.0, 0, ACC_TRACE_MEAN, 0.1);
         DP_REQUIRE (r != NULL && r->nfft == 256);
         float _Complex imp[100] = { 0 };
         imp[0]                  = 1.0f;
@@ -311,7 +345,8 @@ main (void)
 
   /* ── DC tone lands at the centre bin after fftshift ─────────────────── */
   {
-    dp_psd_state_t *w = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
+    dp_psd_state_t *w = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                       1.0, 0, ACC_TRACE_MEAN, 0.1);
     float _Complex x[64];
     for (size_t i = 0; i < N; i++)
       x[i] = 1.0f + 0.0f * I;
@@ -324,7 +359,8 @@ main (void)
 
   /* ── tone at bin k maps to index n/2 + k; counts frames ─────────────── */
   {
-    dp_psd_state_t *w = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
+    dp_psd_state_t *w = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                       1.0, 0, ACC_TRACE_MEAN, 0.1);
     const int       k = 8;
     float _Complex x[64];
     fill_tone (x, N, k);
@@ -346,7 +382,8 @@ main (void)
 
   /* ── psd_dbhz differs from psd_db by a constant offset ──────────────── */
   {
-    dp_psd_state_t *w = dp_psd_create (32, 2.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
+    dp_psd_state_t *w = dp_psd_create (32, 2.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                       1.0, 0, ACC_TRACE_MEAN, 0.1);
     float _Complex x[32];
     fill_tone (x, 32, 5);
     dp_psd_accumulate (w, x, 32);
@@ -361,7 +398,8 @@ main (void)
 
   /* ── band power: a partition sums (in power) to the total ───────────── */
   {
-    dp_psd_state_t *w = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
+    dp_psd_state_t *w = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                       1.0, 0, ACC_TRACE_MEAN, 0.1);
     float _Complex x[64];
     fill_tone (x, N, 10);
     for (int r = 0; r < 4; r++)
@@ -395,11 +433,12 @@ main (void)
   {
     const double whole[2] = { -0.5, 0.5 };
     /* window: 0=hann, 1=kaiser, 2=blackman-harris; pad in {1,4}. */
-    for (int win = 0; win <= 2; win++)
+    for (int win = DP_PSD_WINDOW_HANN; win <= DP_PSD_WINDOW_BLACKMAN_HARRIS;
+         win++)
       for (size_t pad = 1; pad <= 4; pad *= 4)
         {
-          dp_psd_state_t *w
-              = dp_psd_create (N, 1.0, win, 8.0f, pad, 1.0, 0, 0, 0.1);
+          dp_psd_state_t *w = dp_psd_create (N, 1.0, win, 8.0f, pad, 1.0, 0,
+                                             ACC_TRACE_MEAN, 0.1);
           DP_CHECK (w != NULL);
           float _Complex x[64];
           fill_tone (x, N, 9); /* window spreads it; Parseval recovers total */
@@ -413,7 +452,8 @@ main (void)
 
   /* ── occupied bandwidth: narrow for a tone, ~full for flat noise ────── */
   {
-    dp_psd_state_t *w = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
+    dp_psd_state_t *w = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                       1.0, 0, ACC_TRACE_MEAN, 0.1);
     float _Complex x[64];
     fill_tone (x, N, 4);
     for (int r = 0; r < 4; r++)
@@ -425,7 +465,8 @@ main (void)
 
   /* ── noise floor / SNR / SFDR are finite on a two-tone signal ───────── */
   {
-    dp_psd_state_t *w = dp_psd_create (N, 1.0, 1, 8.0f, 1, 1.0, 0, 0, 0.1);
+    dp_psd_state_t *w = dp_psd_create (N, 1.0, DP_PSD_WINDOW_KAISER, 8.0f, 1,
+                                       1.0, 0, ACC_TRACE_MEAN, 0.1);
     float _Complex x[64];
     for (size_t i = 0; i < N; i++)
       {
@@ -461,8 +502,8 @@ main (void)
     /* exact and pad-invariant: X[DC] = A*sum(w), so |X[DC]|^2/cg^2 = A^2 */
     for (size_t pad = 1; pad <= 2; pad++)
       {
-        dp_psd_state_t *w
-            = dp_psd_create (N, 1.0, 0, 0.0f, pad, 1.0, 0, 0, 0.1);
+        dp_psd_state_t *w = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f,
+                                           pad, 1.0, 0, ACC_TRACE_MEAN, 0.1);
         dp_psd_accumulate_real (w, x, N);
         float  two[128];
         size_t nfft = dp_psd_power_twosided (w, w->nfft, two, w->nfft);
@@ -477,8 +518,10 @@ main (void)
 
   /* ── ENBW: Hann ~1.5 bins; Kaiser(beta=8) wider ─────────────────────── */
   {
-    dp_psd_state_t *h = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
-    dp_psd_state_t *k = dp_psd_create (N, 1.0, 1, 8.0f, 1, 1.0, 0, 0, 0.1);
+    dp_psd_state_t *h = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                       1.0, 0, ACC_TRACE_MEAN, 0.1);
+    dp_psd_state_t *k = dp_psd_create (N, 1.0, DP_PSD_WINDOW_KAISER, 8.0f, 1,
+                                       1.0, 0, ACC_TRACE_MEAN, 0.1);
     DP_CHECK (fabs (h->enbw - 1.5) < 0.05);
     DP_CHECK (k->enbw
               > h->enbw); /* a Kaiser(8) main lobe is wider than Hann */
@@ -488,7 +531,8 @@ main (void)
 
   /* ── one-sided fold conserves energy: sum(one) == sum(two) ──────────── */
   {
-    dp_psd_state_t *w = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
+    dp_psd_state_t *w = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                       1.0, 0, ACC_TRACE_MEAN, 0.1);
     float           x[64];
     fill_real_tone (x, N, 7, 0.5);
     dp_psd_accumulate_real (w, x, N);
@@ -512,8 +556,8 @@ main (void)
     double tot[3] = { 0 };
     for (size_t pad = 1; pad <= 2; pad++)
       {
-        dp_psd_state_t *w
-            = dp_psd_create (N, 1.0, 0, 0.0f, pad, 1.0, 0, 0, 0.1);
+        dp_psd_state_t *w = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f,
+                                           pad, 1.0, 0, ACC_TRACE_MEAN, 0.1);
         dp_psd_accumulate_real (w, x, N);
         float  two[128];
         size_t nfft = dp_psd_power_twosided (w, w->nfft, two, w->nfft);
@@ -529,7 +573,8 @@ main (void)
   {
     float x[64];
     fill_real_tone (x, N, 11, 0.4);
-    dp_psd_state_t *w = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
+    dp_psd_state_t *w = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                       1.0, 0, ACC_TRACE_MEAN, 0.1);
     dp_psd_accumulate_real (w, x, N);
     float a[33];
     dp_psd_power_onesided (w, N / 2 + 1, a, N / 2 + 1);
@@ -557,10 +602,10 @@ main (void)
     for (size_t i = 0; i < N; i++)
       buf[N + i] = f2[i];
 
-    dp_psd_state_t *mx
-        = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, ACC_TRACE_MAXHOLD, 0.1);
-    dp_psd_state_t *mn
-        = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, ACC_TRACE_MINHOLD, 0.1);
+    dp_psd_state_t *mx = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                        1.0, 0, ACC_TRACE_MAXHOLD, 0.1);
+    dp_psd_state_t *mn = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                        1.0, 0, ACC_TRACE_MINHOLD, 0.1);
     dp_psd_accumulate_real (mx, buf, 2 * N);
     dp_psd_accumulate_real (mn, buf, 2 * N);
     float pmx[64], pmn[64];
@@ -580,8 +625,10 @@ main (void)
     for (size_t i = 0; i < K * N; i++)
       buf[i] = lcg_unit (&rng);
 
-    dp_psd_state_t *w1 = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
-    dp_psd_state_t *wK = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
+    dp_psd_state_t *w1 = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                        1.0, 0, ACC_TRACE_MEAN, 0.1);
+    dp_psd_state_t *wK = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                        1.0, 0, ACC_TRACE_MEAN, 0.1);
     dp_psd_accumulate_real (w1, buf, N);     /* 1 frame  */
     dp_psd_accumulate_real (wK, buf, K * N); /* K frames */
     float p1[64], pK[64];
@@ -614,7 +661,8 @@ main (void)
    * The post-reset pass carries its precondition: the same readers were
    * non-empty the moment before. */
   {
-    dp_psd_state_t *w = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
+    dp_psd_state_t *w = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                       1.0, 0, ACC_TRACE_MEAN, 0.0);
     DP_REQUIRE (w != NULL);
     float _Complex x[64];
     fill_tone (x, N, 6);
@@ -660,9 +708,12 @@ main (void)
     uint32_t seed = 19112u;
     float _Complex x[64];
     fill_cnoise (x, N, 1.0, &seed);
-    dp_psd_state_t *w1 = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
-    dp_psd_state_t *w4 = dp_psd_create (N, 1.0, 0, 0.0f, 1, 4.0, 0, 0, 0.0);
-    dp_psd_state_t *wb = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 3, 0, 0.0);
+    dp_psd_state_t *w1 = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                        1.0, 0, ACC_TRACE_MEAN, 0.0);
+    dp_psd_state_t *w4 = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                        4.0, 0, ACC_TRACE_MEAN, 0.0);
+    dp_psd_state_t *wb = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                        1.0, 3, ACC_TRACE_MEAN, 0.0);
     DP_REQUIRE (w1 && w4 && wb);
     dp_psd_accumulate (w1, x, N);
     dp_psd_accumulate (w4, x, N);
@@ -705,7 +756,8 @@ main (void)
     float    x[64 * 2 + 7];
     for (size_t i = 0; i < sizeof x / sizeof x[0]; i++)
       x[i] = (float)dp_gauss (&seed);
-    dp_psd_state_t *w = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
+    dp_psd_state_t *w = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                       1.0, 0, ACC_TRACE_MEAN, 0.0);
     DP_REQUIRE (w != NULL);
     dp_psd_accumulate_real (w, x, sizeof x / sizeof x[0]);
     DP_CHECK (w->avg->count
@@ -739,7 +791,8 @@ main (void)
      * Precondition: the halves do differ, by more than 10% somewhere. */
     float _Complex z[64];
     fill_cnoise (z, N, 1.0, &seed);
-    dp_psd_state_t *c = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
+    dp_psd_state_t *c = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                       1.0, 0, ACC_TRACE_MEAN, 0.0);
     DP_REQUIRE (c != NULL);
     dp_psd_accumulate (c, z, N);
     DP_REQUIRE (dp_psd_power_twosided (c, N, two, N) == N);
@@ -779,7 +832,8 @@ main (void)
     uint32_t           seed      = 19114u;
     float _Complex f[4][64];
     float           P[4][64];
-    dp_psd_state_t *k = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
+    dp_psd_state_t *k = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                       1.0, 0, ACC_TRACE_MEAN, 0.0);
     DP_REQUIRE (k != NULL);
     for (size_t j = 0; j < 4; j++)
       {
@@ -791,8 +845,8 @@ main (void)
     const double cg2 = k->cg * k->cg;
     for (int mode = 0; mode <= 3; mode++)
       {
-        dp_psd_state_t *w
-            = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, mode, alpha);
+        dp_psd_state_t *w = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                           1.0, 0, mode, alpha);
         DP_REQUIRE (w != NULL);
         for (size_t j = 0; j < 4; j++)
           dp_psd_accumulate (w, f[j], N);
@@ -846,10 +900,10 @@ main (void)
     static const int modes[2] = { ACC_TRACE_MAXHOLD, ACC_TRACE_EXP };
     for (size_t j = 0; j < 2; j++)
       {
-        dp_psd_state_t *fresh
-            = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, modes[j], 0.25);
-        dp_psd_state_t *w
-            = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, modes[j], 0.25);
+        dp_psd_state_t *fresh = dp_psd_create (
+            N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0, 0, modes[j], 0.25);
+        dp_psd_state_t *w = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                           1.0, 0, modes[j], 0.25);
         DP_REQUIRE (fresh && w);
         float want[64], got[64];
         dp_psd_accumulate (fresh, b, N);
@@ -885,8 +939,8 @@ main (void)
     for (size_t pad = 1; pad <= 2; pad++)
       {
         uint32_t        seed = 19116u + (uint32_t)pad;
-        dp_psd_state_t *w
-            = dp_psd_create (N, fs, 0, 0.0f, pad, 1.0, 0, 0, 0.0);
+        dp_psd_state_t *w = dp_psd_create (N, fs, DP_PSD_WINDOW_HANN, 0.0f,
+                                           pad, 1.0, 0, ACC_TRACE_MEAN, 0.0);
         DP_REQUIRE (w != NULL);
         float _Complex x[64];
         for (size_t f = 0; f < K; f++)
@@ -936,8 +990,8 @@ main (void)
     const double whole[2] = { -0.5, 0.5 };
     for (size_t pad = 1; pad <= 4; pad *= 4)
       {
-        dp_psd_state_t *w
-            = dp_psd_create (N, 1.0, 3, 0.0f, pad, 1.0, 0, 0, 0.0);
+        dp_psd_state_t *w = dp_psd_create (N, 1.0, DP_PSD_WINDOW_RECT, 0.0f,
+                                           pad, 1.0, 0, ACC_TRACE_MEAN, 0.0);
         DP_REQUIRE (w != NULL);
         float _Complex x[64];
         fill_tone (x, N, 9);
@@ -948,12 +1002,12 @@ main (void)
 
     const size_t K   = 1024;
     const double var = 0.5;
-    for (int win = 0; win <= 3; win++)
+    for (int win = DP_PSD_WINDOW_HANN; win <= DP_PSD_WINDOW_RECT; win++)
       for (size_t pad = 1; pad <= 2; pad++)
         {
           uint32_t        seed = 19117u + (uint32_t)(10 * win) + (uint32_t)pad;
-          dp_psd_state_t *w
-              = dp_psd_create (N, 1.0, win, 8.0f, pad, 1.0, 0, 0, 0.0);
+          dp_psd_state_t *w    = dp_psd_create (N, 1.0, win, 8.0f, pad, 1.0, 0,
+                                                ACC_TRACE_MEAN, 0.0);
           DP_REQUIRE (w != NULL);
           float _Complex x[64];
           for (size_t f = 0; f < K; f++)
@@ -972,7 +1026,8 @@ main (void)
           dp_psd_destroy (w);
         }
 
-    dp_psd_state_t *w = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
+    dp_psd_state_t *w = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                       1.0, 0, ACC_TRACE_MEAN, 0.0);
     DP_REQUIRE (w != NULL);
     float _Complex x[64];
     fill_tone (x, N, 10);
@@ -1002,7 +1057,8 @@ main (void)
    * asserted, [1012, 1016], is that with the 6-sigma inward move allowed.
    * (c) An all-zero input has no power: 0. */
   {
-    dp_psd_state_t *t = dp_psd_create (N, 1.0, 3, 0.0f, 1, 1.0, 0, 0, 0.0);
+    dp_psd_state_t *t = dp_psd_create (N, 1.0, DP_PSD_WINDOW_RECT, 0.0f, 1,
+                                       1.0, 0, ACC_TRACE_MEAN, 0.0);
     DP_REQUIRE (t != NULL);
     float _Complex x[64];
     fill_tone (x, N, 7);
@@ -1012,7 +1068,8 @@ main (void)
 
     const size_t    NN = 1024, K = 256;
     uint32_t        seed = 19118u;
-    dp_psd_state_t *w    = dp_psd_create (NN, 1.0, 3, 0.0f, 1, 1.0, 0, 0, 0.0);
+    dp_psd_state_t *w    = dp_psd_create (NN, 1.0, DP_PSD_WINDOW_RECT, 0.0f, 1,
+                                          1.0, 0, ACC_TRACE_MEAN, 0.0);
     float _Complex *y    = malloc (NN * sizeof *y);
     DP_REQUIRE (w && y);
     for (size_t f = 0; f < K; f++)
@@ -1026,7 +1083,8 @@ main (void)
     free (y);
     dp_psd_destroy (w);
 
-    dp_psd_state_t *z = dp_psd_create (N, 1.0, 3, 0.0f, 1, 1.0, 0, 0, 0.0);
+    dp_psd_state_t *z = dp_psd_create (N, 1.0, DP_PSD_WINDOW_RECT, 0.0f, 1,
+                                       1.0, 0, ACC_TRACE_MEAN, 0.0);
     DP_REQUIRE (z != NULL);
     for (size_t i = 0; i < N; i++)
       x[i] = 0.0f;
@@ -1057,7 +1115,8 @@ main (void)
     const size_t    NN = 256, K = 256;
     const double    var  = 1.0;
     uint32_t        seed = 19119u;
-    dp_psd_state_t *w    = dp_psd_create (NN, 1.0, 3, 0.0f, 1, 1.0, 0, 0, 0.0);
+    dp_psd_state_t *w    = dp_psd_create (NN, 1.0, DP_PSD_WINDOW_RECT, 0.0f, 1,
+                                          1.0, 0, ACC_TRACE_MEAN, 0.0);
     float _Complex *y    = malloc (NN * sizeof *y);
     float _Complex *s    = malloc (NN * sizeof *s);
     DP_REQUIRE (w && y && s);
@@ -1106,7 +1165,8 @@ main (void)
     const size_t    NN = 256, K = 256;
     const double    var  = 1.0;
     uint32_t        seed = 19120u;
-    dp_psd_state_t *w    = dp_psd_create (NN, 1.0, 3, 0.0f, 1, 1.0, 0, 0, 0.0);
+    dp_psd_state_t *w    = dp_psd_create (NN, 1.0, DP_PSD_WINDOW_RECT, 0.0f, 1,
+                                          1.0, 0, ACC_TRACE_MEAN, 0.0);
     float _Complex *y    = malloc (NN * sizeof *y);
     float _Complex *t    = malloc (NN * sizeof *t);
     float _Complex *s    = malloc (NN * sizeof *s);
@@ -1155,8 +1215,10 @@ main (void)
    * leaves one peak above -30 dB (its main-lobe skirt is monotonic, not a
    * peak): exactly 0. */
   {
-    dp_psd_state_t *w = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
-    dp_psd_state_t *o = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
+    dp_psd_state_t *w = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                       1.0, 0, ACC_TRACE_MEAN, 0.0);
+    dp_psd_state_t *o = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                       1.0, 0, ACC_TRACE_MEAN, 0.0);
     DP_REQUIRE (w && o);
     float _Complex c[64], sp[64], x[64];
     fill_tone (c, N, -16);
@@ -1177,20 +1239,24 @@ main (void)
    * refused like an out-of-range one, and n = 2 -- the stated minimum -- is
    * accepted. */
   {
-    for (int win = 0; win <= 3; win++)
+    for (int win = DP_PSD_WINDOW_HANN; win <= DP_PSD_WINDOW_RECT; win++)
       {
-        dp_psd_state_t *b0
-            = dp_psd_create (N, 1.0, win, 0.0f, 1, 1.0, 0, 0, 0.0);
-        dp_psd_state_t *b8
-            = dp_psd_create (N, 1.0, win, 8.0f, 1, 1.0, 0, 0, 0.0);
+        dp_psd_state_t *b0 = dp_psd_create (N, 1.0, win, 0.0f, 1, 1.0, 0,
+                                            ACC_TRACE_MEAN, 0.0);
+        dp_psd_state_t *b8 = dp_psd_create (N, 1.0, win, 8.0f, 1, 1.0, 0,
+                                            ACC_TRACE_MEAN, 0.0);
         DP_REQUIRE (b0 && b8);
         const int same = memcmp (b0->w, b8->w, N * sizeof b0->w[0]) == 0;
-        DP_CHECK (win == 1 ? !same : same);
+        DP_CHECK (win == DP_PSD_WINDOW_KAISER ? !same : same);
         dp_psd_destroy (b0);
         dp_psd_destroy (b8);
       }
-    DP_CHECK (dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, -1, 0.0) == NULL);
-    dp_psd_state_t *two = dp_psd_create (2, 1.0, 3, 0.0f, 1, 1.0, 0, 0, 0.0);
+    const int mode_below_mean = -1;
+    DP_CHECK (dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0, 0,
+                             mode_below_mean, 0.0)
+              == NULL);
+    dp_psd_state_t *two = dp_psd_create (2, 1.0, DP_PSD_WINDOW_RECT, 0.0f, 1,
+                                         1.0, 0, ACC_TRACE_MEAN, 0.0);
     DP_CHECK (two != NULL);
     dp_psd_destroy (two);
   }
@@ -1200,7 +1266,8 @@ main (void)
     /* Every readout here used to ignore its count argument entirely and
      * write state->nfft floats regardless of what the caller owned. */
     const size_t    N = 64;
-    dp_psd_state_t *w = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
+    dp_psd_state_t *w = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                       1.0, 0, ACC_TRACE_MEAN, 0.1);
     float _Complex x[64];
     float buf[64];
     DP_CHECK (w != NULL);
@@ -1255,8 +1322,10 @@ main (void)
     float _Complex frame[64];
     for (int i = 0; i < 64; i++)
       frame[i] = (float)(i % 8) - 4.0f + 0.3f * I;
-    dp_psd_state_t *a = dp_psd_create (64, 1.0e6, 1, 8.0f, 1, 1.0, 0, 0, 0.1);
-    dp_psd_state_t *b = dp_psd_create (64, 1.0e6, 1, 8.0f, 1, 1.0, 0, 0, 0.1);
+    dp_psd_state_t *a = dp_psd_create (64, 1.0e6, DP_PSD_WINDOW_KAISER, 8.0f,
+                                       1, 1.0, 0, ACC_TRACE_MEAN, 0.1);
+    dp_psd_state_t *b = dp_psd_create (64, 1.0e6, DP_PSD_WINDOW_KAISER, 8.0f,
+                                       1, 1.0, 0, ACC_TRACE_MEAN, 0.1);
     DP_CHECK (a != NULL && b != NULL);
     dp_psd_accumulate (a, frame, 64);
     dp_psd_accumulate (a, frame, 64);
@@ -1276,7 +1345,7 @@ main (void)
     static const size_t ns[]   = { 64, 100 }; /* 100: not a power of two */
     static const size_t pads[] = { 1, 2 };
     uint32_t            seed   = 12345u;
-    for (int win = 0; win <= 3; win++)
+    for (int win = DP_PSD_WINDOW_HANN; win <= DP_PSD_WINDOW_RECT; win++)
       for (size_t a = 0; a < 2; a++)
         for (size_t b = 0; b < 2; b++)
           {
@@ -1290,10 +1359,10 @@ main (void)
                 x[i]           = CMPLXF (re, im);
               }
 
-            dp_psd_state_t *ref
-                = dp_psd_create (n, 1.0, win, 6.0f, pads[b], 1.0, 0, 0, 0.0);
-            dp_psd_state_t *k
-                = dp_psd_create (n, 1.0, win, 6.0f, pads[b], 1.0, 0, 0, 0.0);
+            dp_psd_state_t *ref = dp_psd_create (n, 1.0, win, 6.0f, pads[b],
+                                                 1.0, 0, ACC_TRACE_MEAN, 0.0);
+            dp_psd_state_t *k = dp_psd_create (n, 1.0, win, 6.0f, pads[b], 1.0,
+                                               0, ACC_TRACE_MEAN, 0.0);
             DP_REQUIRE (ref && k);
             const size_t nfft    = ref->nfft;
             float       *want_db = malloc (nfft * sizeof *want_db);
@@ -1351,11 +1420,11 @@ main (void)
    *  (iv)  the running average is untouched. */
   {
     uint32_t seed = 1911u * 3u;
-    for (int win = 0; win <= 3; win++)
+    for (int win = DP_PSD_WINDOW_HANN; win <= DP_PSD_WINDOW_RECT; win++)
       for (size_t pad = 1; pad <= 2; pad++)
         {
-          dp_psd_state_t *w
-              = dp_psd_create (N, 1.0, win, 8.0f, pad, 1.0, 0, 0, 0.0);
+          dp_psd_state_t *w = dp_psd_create (N, 1.0, win, 8.0f, pad, 1.0, 0,
+                                             ACC_TRACE_MEAN, 0.0);
           DP_REQUIRE (w != NULL);
           const size_t nfft = w->nfft;
           float _Complex x[64];
@@ -1403,8 +1472,10 @@ main (void)
 
     /* (ii) against the reference: an amplitude-2^11 tone reads 1.0 with
      * full_scale = 2^11, and bits = 12 gives the same bytes. */
-    dp_psd_state_t *wf = dp_psd_create (N, 1.0, 0, 0.0f, 1, 2048.0, 0, 0, 0.0);
-    dp_psd_state_t *wb = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 12, 0, 0.0);
+    dp_psd_state_t *wf = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                        2048.0, 0, ACC_TRACE_MEAN, 0.0);
+    dp_psd_state_t *wb = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                        1.0, 12, ACC_TRACE_MEAN, 0.0);
     DP_REQUIRE (wf && wb);
     float _Complex t[64];
     fill_tone (t, N, 5);
@@ -1428,13 +1499,13 @@ main (void)
      * full_scale 2048 is a power of two, so the product is exact in any
      * order; zeros reach the floor. */
     static const double fss[] = { 1.0, 2048.0 };
-    for (int win = 0; win <= 3; win++)
+    for (int win = DP_PSD_WINDOW_HANN; win <= DP_PSD_WINDOW_RECT; win++)
       for (size_t pad = 1; pad <= 2; pad++)
         for (size_t f = 0; f < 2; f++)
           for (int zero = 0; zero <= 1; zero++)
             {
-              dp_psd_state_t *v
-                  = dp_psd_create (N, 1.0, win, 8.0f, pad, fss[f], 0, 0, 0.0);
+              dp_psd_state_t *v = dp_psd_create (
+                  N, 1.0, win, 8.0f, pad, fss[f], 0, ACC_TRACE_MEAN, 0.0);
               DP_REQUIRE (v != NULL);
               const size_t nfft = v->nfft;
               float _Complex xv[64];
@@ -1470,7 +1541,8 @@ main (void)
     {
       RN = 32
     };
-    dp_psd_state_t *r = dp_psd_create (RN, 1.0, 3, 0.0f, 1, 1.0, 0, 0, 0.0);
+    dp_psd_state_t *r = dp_psd_create (RN, 1.0, DP_PSD_WINDOW_RECT, 0.0f, 1,
+                                       1.0, 0, ACC_TRACE_MEAN, 0.0);
     DP_REQUIRE (r != NULL);
     int all_ones = 1;
     for (size_t i = 0; i < RN; i++)
@@ -1485,8 +1557,13 @@ main (void)
     /* a unit tone on a bin reads 0 dBFS: cg^2 normalisation is window-blind */
     DP_CHECK (fabsf (db[RN / 2 + 5]) < 1e-3f);
     dp_psd_destroy (r);
-    DP_CHECK (dp_psd_create (RN, 1.0, 4, 0.0f, 1, 1.0, 0, 0, 0.0) == NULL);
-    DP_CHECK (dp_psd_create (RN, 1.0, -1, 0.0f, 1, 1.0, 0, 0, 0.0) == NULL);
+    const int window_past_rect = 4, window_below_hann = -1;
+    DP_CHECK (dp_psd_create (RN, 1.0, window_past_rect, 0.0f, 1, 1.0, 0,
+                             ACC_TRACE_MEAN, 0.0)
+              == NULL);
+    DP_CHECK (dp_psd_create (RN, 1.0, window_below_hann, 0.0f, 1, 1.0, 0,
+                             ACC_TRACE_MEAN, 0.0)
+              == NULL);
   }
 
   /* ════════════════════════════════════════════════════════════════════════
@@ -1511,7 +1588,8 @@ main (void)
       a[i] = dp_cgauss (&seed);
     for (size_t i = 0; i < N; i++)
       b[i] = 10.0f * dp_cgauss (&seed);
-    dp_psd_state_t *w = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
+    dp_psd_state_t *w = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                       1.0, 0, ACC_TRACE_MEAN, 0.0);
     DP_REQUIRE (w != NULL);
     dp_psd_accumulate (w, a, N);
     dp_psd_accumulate (w, a, N);
@@ -1545,11 +1623,11 @@ main (void)
   {
     const float TOL_DB = 1e-4f;
     const int   k      = 5;
-    for (int win = 0; win <= 3; win++)
+    for (int win = DP_PSD_WINDOW_HANN; win <= DP_PSD_WINDOW_RECT; win++)
       for (size_t pad = 1; pad <= 2; pad++)
         {
-          dp_psd_state_t *w
-              = dp_psd_create (N, 1.0, win, 8.0f, pad, 1.0, 0, 0, 0.0);
+          dp_psd_state_t *w = dp_psd_create (N, 1.0, win, 8.0f, pad, 1.0, 0,
+                                             ACC_TRACE_MEAN, 0.0);
           DP_REQUIRE (w != NULL);
           const size_t nfft = w->nfft;
           /* bin k of the n-point frame is bin k*nfft/n of the transform */
@@ -1574,8 +1652,10 @@ main (void)
      * unit tone by 2^11 is exact in float32. */
     const size_t    B  = 12;
     const double    FS = 2048.0; /* 2^(B-1) */
-    dp_psd_state_t *wf = dp_psd_create (N, 1.0, 0, 0.0f, 1, FS, 0, 0, 0.0);
-    dp_psd_state_t *wb = dp_psd_create (N, 1.0, 0, 0.0f, 1, 999.0, B, 0, 0.0);
+    dp_psd_state_t *wf = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                        FS, 0, ACC_TRACE_MEAN, 0.0);
+    dp_psd_state_t *wb = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                        999.0, B, ACC_TRACE_MEAN, 0.0);
     DP_REQUIRE (wf != NULL && wb != NULL);
     DP_CHECK (wb->full_scale == FS);
     float _Complex x[64];
@@ -1601,7 +1681,8 @@ main (void)
    * (~1.2e-5 dB); 1e-4 dB covers it.  A floor at any other power of ten
    * misses by >= 10 dB. */
   {
-    dp_psd_state_t *w = dp_psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
+    dp_psd_state_t *w = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                       1.0, 0, ACC_TRACE_MEAN, 0.0);
     DP_REQUIRE (w != NULL);
     float _Complex zero[64];
     for (size_t i = 0; i < N; i++)
@@ -1641,8 +1722,8 @@ main (void)
     for (size_t pad = 1; pad <= 2; pad++)
       for (size_t j = 0; j < sizeof ks / sizeof ks[0]; j++)
         {
-          dp_psd_state_t *w
-              = dp_psd_create (N, 1.0, 3, 0.0f, pad, 1.0, 0, 0, 0.0);
+          dp_psd_state_t *w = dp_psd_create (N, 1.0, DP_PSD_WINDOW_RECT, 0.0f,
+                                             pad, 1.0, 0, ACC_TRACE_MEAN, 0.0);
           DP_REQUIRE (w != NULL);
           const size_t nfft = w->nfft;
           const long   step = (long)(nfft / N);
@@ -1689,9 +1770,11 @@ main (void)
       {
         const double    n = (double)ns[j];
         dp_psd_state_t *r
-            = dp_psd_create (ns[j], 1.0, 3, 0.0f, 1, 1.0, 0, 0, 0.0);
+            = dp_psd_create (ns[j], 1.0, DP_PSD_WINDOW_RECT, 0.0f, 1, 1.0, 0,
+                             ACC_TRACE_MEAN, 0.0);
         dp_psd_state_t *bh
-            = dp_psd_create (ns[j], 1.0, 2, 0.0f, 1, 1.0, 0, 0, 0.0);
+            = dp_psd_create (ns[j], 1.0, DP_PSD_WINDOW_BLACKMAN_HARRIS, 0.0f,
+                             1, 1.0, 0, ACC_TRACE_MEAN, 0.0);
         DP_REQUIRE (r != NULL && bh != NULL);
         DP_CHECK (r->enbw == 1.0);
         const double want = n * ((n - 1.0) * P + w0 * w0)
@@ -1716,7 +1799,8 @@ main (void)
     for (size_t j = 0; j < sizeof c / sizeof c[0]; j++)
       {
         dp_psd_state_t *w
-            = dp_psd_create (c[j].n, 1.0, 3, 0.0f, c[j].pad, 1.0, 0, 0, 0.0);
+            = dp_psd_create (c[j].n, 1.0, DP_PSD_WINDOW_RECT, 0.0f, c[j].pad,
+                             1.0, 0, ACC_TRACE_MEAN, 0.0);
         DP_REQUIRE (w != NULL);
         DP_CHECK (w->nfft == c[j].nfft);
         dp_psd_destroy (w);
@@ -1732,7 +1816,8 @@ main (void)
    * 0: the binding sizes its output from the bands. */
   {
     const size_t    n = 64, nfft = 128, half = nfft / 2;
-    dp_psd_state_t *w = dp_psd_create (n, 1.0, 0, 0.0f, 2, 1.0, 0, 0, 0.0);
+    dp_psd_state_t *w = dp_psd_create (n, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 2,
+                                       1.0, 0, ACC_TRACE_MEAN, 0.0);
     DP_REQUIRE (w != NULL && w->nfft == nfft);
     float _Complex x[64];
     fill_tone (x, n, 5);
@@ -1786,7 +1871,8 @@ main (void)
    * the precondition is that a complete pair on the same estimator does
    * write one band. */
   {
-    dp_psd_state_t *w = dp_psd_create (64, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
+    dp_psd_state_t *w = dp_psd_create (64, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                       1.0, 0, ACC_TRACE_MEAN, 0.0);
     DP_REQUIRE (w != NULL);
     float _Complex x[64];
     fill_tone (x, 64, 3);
@@ -1820,9 +1906,11 @@ main (void)
       int    mode;
       double alpha;
     } cfg[] = {
-      { 64, 0, 0.0f, 1, 0, 0.0 },  { 256, 0, 0.0f, 2, 0, 0.0 },
-      { 100, 1, 8.0f, 2, 0, 0.0 }, { 32, 3, 0.0f, 1, 1, 0.5 },
-      { 128, 2, 0.0f, 1, 2, 0.0 },
+      { 64, DP_PSD_WINDOW_HANN, 0.0f, 1, ACC_TRACE_MEAN, 0.0 },
+      { 256, DP_PSD_WINDOW_HANN, 0.0f, 2, ACC_TRACE_MEAN, 0.0 },
+      { 100, DP_PSD_WINDOW_KAISER, 8.0f, 2, ACC_TRACE_MEAN, 0.0 },
+      { 32, DP_PSD_WINDOW_RECT, 0.0f, 1, ACC_TRACE_EXP, 0.5 },
+      { 128, DP_PSD_WINDOW_BLACKMAN_HARRIS, 0.0f, 1, ACC_TRACE_MAXHOLD, 0.0 },
     };
     for (size_t c = 0; c < sizeof cfg / sizeof cfg[0]; c++)
       for (size_t l = 0; l < 2; l++)
@@ -1876,7 +1964,8 @@ main (void)
     float _Complex *x = malloc (len * sizeof *x);
     DP_REQUIRE (x != NULL);
     golden_stream (x, len, 777u);
-    dp_psd_state_t *one = dp_psd_create (n, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
+    dp_psd_state_t *one = dp_psd_create (n, 1e6, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                         1.0, 0, ACC_TRACE_MEAN, 0.0);
     DP_REQUIRE (one != NULL);
     dp_psd_accumulate (one, x, len);
     float ref[64];
@@ -1884,7 +1973,8 @@ main (void)
     const size_t chunk[] = { 1, 7, n - 1, n, n + 1, 3 * n + 5, 2 * n };
     for (size_t c = 0; c < sizeof chunk / sizeof chunk[0]; c++)
       {
-        dp_psd_state_t *w = dp_psd_create (n, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
+        dp_psd_state_t *w = dp_psd_create (n, 1e6, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                           1.0, 0, ACC_TRACE_MEAN, 0.0);
         DP_REQUIRE (w != NULL);
         for (size_t at = 0; at < len; at += chunk[c])
           dp_psd_accumulate (w, x + at,
@@ -1912,15 +2002,17 @@ main (void)
     for (size_t h = 0; h < sizeof hops / sizeof hops[0]; h++)
       {
         dp_psd_state_t *one
-            = dp_psd_create_hop (n, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0, hops[h]);
+            = dp_psd_create_hop (n, 1e6, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0, 0,
+                                 ACC_TRACE_MEAN, 0.0, hops[h]);
         DP_REQUIRE (one != NULL);
         dp_psd_accumulate (one, x, len);
         float ref[64];
         DP_CHECK (dp_psd_power_twosided (one, 64, ref, 64) == 64);
         for (size_t c = 0; c < sizeof chunk / sizeof chunk[0]; c++)
           {
-            dp_psd_state_t *w = dp_psd_create_hop (n, 1e6, 0, 0.0f, 1, 1.0, 0,
-                                                   0, 0.0, hops[h]);
+            dp_psd_state_t *w
+                = dp_psd_create_hop (n, 1e6, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0,
+                                     0, ACC_TRACE_MEAN, 0.0, hops[h]);
             DP_REQUIRE (w != NULL);
             for (size_t at = 0; at < len; at += chunk[c])
               dp_psd_accumulate (w, x + at,
@@ -1943,9 +2035,10 @@ main (void)
     float _Complex *x = malloc (len * sizeof *x);
     DP_REQUIRE (x != NULL);
     golden_stream (x, len, 4242u);
-    dp_psd_state_t *w
-        = dp_psd_create_hop (n, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0, hop);
-    dp_psd_state_t *r = dp_psd_create (n, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
+    dp_psd_state_t *w = dp_psd_create_hop (n, 1e6, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                           1.0, 0, ACC_TRACE_MEAN, 0.0, hop);
+    dp_psd_state_t *r = dp_psd_create (n, 1e6, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                       1.0, 0, ACC_TRACE_MEAN, 0.0);
     DP_REQUIRE (w != NULL && r != NULL);
     dp_psd_accumulate (w, x, len);
     for (size_t at = 0; at + n <= len; at += hop)
@@ -1965,19 +2058,22 @@ main (void)
   {
     /* The smallest window past the ring's size limit is refused, with no
      * ring: the pad check alone admits it, so the size check refuses it. */
-    DP_CHECK (
-        dp_psd_create_hop (((size_t)-1) / (2 * sizeof (float _Complex)) + 1,
-                           1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0, 0)
-        == NULL);
+    DP_CHECK (dp_psd_create_hop (
+                  ((size_t)-1) / (2 * sizeof (float _Complex)) + 1, 1e6,
+                  DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0, 0, ACC_TRACE_MEAN, 0.0, 0)
+              == NULL);
     const size_t ns[] = { 32, 64, 100 };
     for (size_t i = 0; i < sizeof ns / sizeof ns[0]; i++)
       {
         const size_t n = ns[i];
-        DP_CHECK (dp_psd_create_hop (n, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0, n + 1)
+        DP_CHECK (dp_psd_create_hop (n, 1e6, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0,
+                                     0, ACC_TRACE_MEAN, 0.0, n + 1)
                   == NULL);
         dp_psd_state_t *z
-            = dp_psd_create_hop (n, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0, 0);
-        dp_psd_state_t *d = dp_psd_create (n, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
+            = dp_psd_create_hop (n, 1e6, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0, 0,
+                                 ACC_TRACE_MEAN, 0.0, 0);
+        dp_psd_state_t *d = dp_psd_create (n, 1e6, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                           1.0, 0, ACC_TRACE_MEAN, 0.0);
         DP_REQUIRE (z != NULL && d != NULL);
         DP_CHECK (z->hop == n);
         float _Complex x[256];
@@ -2001,10 +2097,10 @@ main (void)
     float _Complex *x = malloc (len * sizeof *x);
     DP_REQUIRE (x != NULL);
     golden_stream (x, len, 99u);
-    dp_psd_state_t *a
-        = dp_psd_create_hop (n, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0, hop);
-    dp_psd_state_t *b
-        = dp_psd_create_hop (n, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0, hop);
+    dp_psd_state_t *a = dp_psd_create_hop (n, 1e6, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                           1.0, 0, ACC_TRACE_MEAN, 0.0, hop);
+    dp_psd_state_t *b = dp_psd_create_hop (n, 1e6, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                           1.0, 0, ACC_TRACE_MEAN, 0.0, hop);
     DP_REQUIRE (a != NULL && b != NULL);
     dp_psd_accumulate (a, x, 5 * n + 11);
     void *blob = malloc (dp_psd_state_bytes (a));
@@ -2031,12 +2127,12 @@ main (void)
     float _Complex *x = malloc (len * sizeof *x);
     DP_REQUIRE (x != NULL);
     golden_stream (x, len, 31u);
-    dp_psd_state_t *t
-        = dp_psd_create_hop (n, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0, 32);
-    dp_psd_state_t *src_h
-        = dp_psd_create_hop (n, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0, 64);
-    dp_psd_state_t *src
-        = dp_psd_create_hop (n, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0, 32);
+    dp_psd_state_t *t = dp_psd_create_hop (n, 1e6, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                           1.0, 0, ACC_TRACE_MEAN, 0.0, 32);
+    dp_psd_state_t *src_h = dp_psd_create_hop (
+        n, 1e6, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0, 0, ACC_TRACE_MEAN, 0.0, 64);
+    dp_psd_state_t *src = dp_psd_create_hop (
+        n, 1e6, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0, 0, ACC_TRACE_MEAN, 0.0, 32);
     DP_REQUIRE (t != NULL && src_h != NULL && src != NULL);
     dp_psd_accumulate (t, x, len);
     dp_psd_accumulate (src_h, x, len);
@@ -2075,10 +2171,10 @@ main (void)
     float _Complex *x = malloc (300 * sizeof *x);
     DP_REQUIRE (x != NULL);
     golden_stream (x, 300, 27u);
-    dp_psd_state_t *src
-        = dp_psd_create_hop (n, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0, hop);
-    dp_psd_state_t *dst
-        = dp_psd_create_hop (n, 1e6, 0, 0.0f, 1, 1.0, 0, 0, 0.0, hop);
+    dp_psd_state_t *src = dp_psd_create_hop (
+        n, 1e6, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0, 0, ACC_TRACE_MEAN, 0.0, hop);
+    dp_psd_state_t *dst = dp_psd_create_hop (
+        n, 1e6, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0, 0, ACC_TRACE_MEAN, 0.0, hop);
     DP_REQUIRE (src != NULL && dst != NULL);
     dp_psd_accumulate (src, x, 300);
     dp_psd_accumulate (dst, x + 100, 200);

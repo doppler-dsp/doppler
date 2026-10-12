@@ -40,7 +40,7 @@
 
 | Type | Name |
 | ---: | :--- |
-| enum  | [**wfm\_\_surface\_8h\_1a385c44f6fb256e5716a2302a5b940388**](#enum-wfm__surface_8h_1a385c44f6fb256e5716a2302a5b940388)  <br> |
+| enum  | [**wfm\_\_surface\_8h\_1ac36f475ca5b446f4fde4c9b90bec77c8**](#enum-wfm__surface_8h_1ac36f475ca5b446f4fde4c9b90bec77c8)  <br> |
 | enum  | [**wfm\_json\_level\_t**](#enum-wfm_json_level_t)  <br> |
 | enum  | [**wfm\_surf\_owner\_t**](#enum-wfm_surf_owner_t)  <br> |
 | enum  | [**wfm\_sv\_kind\_t**](#enum-wfm_sv_kind_t)  <br> |
@@ -135,10 +135,10 @@
 
 
 
-### enum wfm\_\_surface\_8h\_1a385c44f6fb256e5716a2302a5b940388 
+### enum wfm\_\_surface\_8h\_1ac36f475ca5b446f4fde4c9b90bec77c8 
 
 ```C++
-enum wfm__surface_8h_1a385c44f6fb256e5716a2302a5b940388 {
+enum wfm__surface_8h_1ac36f475ca5b446f4fde4c9b90bec77c8 {
     WFM_SURFACE_source_type,
     WFM_SURFACE_source_freq,
     WFM_SURFACE_source_snr,

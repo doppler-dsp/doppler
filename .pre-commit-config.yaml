@@ -257,12 +257,13 @@ repos:
         pass_filenames: false
         types_or: [c]
 
-      # dB rows are asked for by name (#1968): a Spectrogram mode is never an
-      # integer literal. Fires on C and Markdown, because a doc page's C fence
-      # and a header's @code block call the constructor too.
-      - id: spectrogram-mode
-        name: spectrogram mode by name
-        entry: make -s lint-spectrogram-mode
+      # Integer-coded arguments by name (#1968, #1894): a PSD window or
+      # averaging mode, or a Spectrogram mode, is never an integer literal.
+      # Fires on C and Markdown, because a doc page's C fence and a header's
+      # @code block call the constructors too.
+      - id: named-args
+        name: integer-coded arguments by name
+        entry: make -s lint-named-args
         language: system
         pass_filenames: false
         types_or: [c, markdown]

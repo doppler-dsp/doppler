@@ -19,6 +19,7 @@
 extern "C" {
 #endif
 
+/* SSOT: enum=acc_trace_mode */
 typedef enum {
     ACC_TRACE_MEAN = 0,    
     ACC_TRACE_EXP = 1,     

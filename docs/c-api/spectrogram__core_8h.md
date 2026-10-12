@@ -39,6 +39,11 @@ _Streaming spectrogram: a stream of any-size chunks in, rows of nfft-bin spectra
 | struct | [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) <br>_Spectrogram state. Allocate with_ [_**dp\_spectrogram\_create()**_](spectrogram__core_8h.md#function-dp_spectrogram_create) _._ |
 
 
+## Public Types
+
+| Type | Name |
+| ---: | :--- |
+| enum  | [**spectrogram\_\_core\_8h\_1abed82baf7f470b522273a3e37c24c600**](#enum-spectrogram__core_8h_1abed82baf7f470b522273a3e37c24c600)  <br> |
 
 
 
@@ -108,8 +113,6 @@ _Streaming spectrogram: a stream of any-size chunks in, rows of nfft-bin spectra
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**DP\_SPECTROGRAM\_DB**](spectrogram__core_8h.md#define-dp_spectrogram_db)  `1`<br>_Row units: dBFS, against the same reference. Asked for by name._  |
-| define  | [**DP\_SPECTROGRAM\_POWER**](spectrogram__core_8h.md#define-dp_spectrogram_power)  `0`<br>_Row units: linear power against the PSD's full-scale reference. The DEFAULT: what every example, guide and binding uses unless it asks for dB by name._  |
 | define  | [**SPECTROGRAM\_STATE\_MAGIC**](spectrogram__core_8h.md#define-spectrogram_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('S', 'P', 'G', 'M')`<br>_State-blob magic ('SPGM') and layout version._  |
 | define  | [**SPECTROGRAM\_STATE\_VERSION**](spectrogram__core_8h.md#define-spectrogram_state_version)  `2u`<br> |
 
@@ -129,6 +132,24 @@ Not thread-safe on one object (the kernel uses the object's scratch). Complex fl
 
 
     
+## Public Types Documentation
+
+
+
+
+### enum spectrogram\_\_core\_8h\_1abed82baf7f470b522273a3e37c24c600 
+
+```C++
+enum spectrogram__core_8h_1abed82baf7f470b522273a3e37c24c600 {
+    DP_SPECTROGRAM_POWER = 0,
+    DP_SPECTROGRAM_DB = 1
+};
+```
+
+
+
+
+<hr>
 ## Public Functions Documentation
 
 
@@ -186,9 +207,9 @@ dp_spectrogram_state_t * dp_spectrogram_create (
 
 * `nfft` Samples per frame and bins per row, which must be the same number: an nfft the PSD would zero-pad to a longer transform (anything but a power of two &gt;= 2) is refused rather than given rows wider than its frames. 
 * `hop` Samples between row starts, 1 &lt;= hop &lt;= nfft. hop == nfft tiles the stream; hop &lt; nfft overlaps the frames. 
-* `window` The window: "hann", "kaiser", "blackman-harris" or "rect" in Python; in C the index 0, 1, 2 or 3 in that order, as [**dp\_psd\_create()**](psd__core_8h.md#function-dp_psd_create) takes it. It also refuses a window that sums to zero at this nfft (the symmetric Hann at nfft = 2). 
+* `window` The window: "hann", "kaiser", "blackman-harris" or "rect" in Python; in C DP\_PSD\_WINDOW\_HANN, \_KAISER, \_BLACKMAN\_HARRIS or \_RECT, as [**dp\_psd\_create()**](psd__core_8h.md#function-dp_psd_create) takes it. It also refuses a window that sums to zero at this nfft (the symmetric Hann at nfft = 2). 
 * `beta` Kaiser beta (ignored for the other windows). 
-* `mode` Row units: "power" (linear rows, the default) or "db" (dBFS rows, asked for by name). Any other value is refused. 
+* `mode` Row units: "power" (linear rows, the default) or "db" (dBFS rows, asked for by name); in C DP\_SPECTROGRAM\_POWER or DP\_SPECTROGRAM\_DB. Any other value is refused. 
 
 
 
@@ -625,45 +646,6 @@ The blob is the stream position  the framer's snapshot: the carry (fewer than nf
 ## Macro Definition Documentation
 
 
-
-
-
-### define DP\_SPECTROGRAM\_DB 
-
-_Row units: dBFS, against the same reference. Asked for by name._ 
-```C++
-#define DP_SPECTROGRAM_DB `1`
-```
-
-
-
-Row k is [**dp\_psd\_frame\_db()**](psd__core_8h.md#function-dp_psd_frame_db) of its frame: 10\*log10 of the quotient a power row holds, so a full-scale tone on a bin reads 0 dB. A bin reads no lower than -200 dB: PSD clamps power at 1e-20 before the log, so an all-zero frame and a frame below the floor write the same row. 
-
-
-        
-
-<hr>
-
-
-
-### define DP\_SPECTROGRAM\_POWER 
-
-_Row units: linear power against the PSD's full-scale reference. The DEFAULT: what every example, guide and binding uses unless it asks for dB by name._ 
-```C++
-#define DP_SPECTROGRAM_POWER `0`
-```
-
-
-
-Row k is [**dp\_psd\_frame\_linear()**](psd__core_8h.md#function-dp_psd_frame_linear) of its frame, so a full-scale tone on a bin reads 1.0 whatever the window, and an all-zero frame reads 0: the only floor is float32's. A power row is what an averaging consumer folds with AccTrace (the mean of dB rows is not the dB of the mean), and what a display converts to dB for only the bins it draws. It is the default because that conversion is most of a dB row's cost: 70-83% of it at nfft 256 to 65536 (docs/design/spectrogram-measurements.md section 5.8).
-
-
-It is 0, so a zeroed or calloc'd configuration selects power, never dB: dB is only ever asked for. A binding that maps mode names to these values by position (jm's string\_enum does) lists them in this order: power, db. 
-
-
-        
-
-<hr>
 
 
 

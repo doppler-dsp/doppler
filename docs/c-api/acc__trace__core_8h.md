@@ -39,7 +39,7 @@ _AccTrace — per-bin vector trace accumulator._ [More...](#detailed-description
 
 | Type | Name |
 | ---: | :--- |
-| enum  | [**acc\_trace\_mode\_t**](#enum-acc_trace_mode_t)  <br>_Trace reduction mode. Values match the Python string-enum index order ("mean", "exp", "maxhold", "minhold")._  |
+| enum  | [**acc\_trace\_mode\_t**](#enum-acc_trace_mode_t)  <br>_Trace reduction mode. The Python faces (AccTrace, PSD) name these "mean", "exp", "maxhold" and "minhold", bound to the constants by name (just-makeit.toml,_ `[[enum]] acc_trace_mode` _)._ |
 
 
 
@@ -134,7 +134,7 @@ Lifecycle: create -&gt; (accumulate / reset)\* -&gt; value -&gt; destroy
 
 ### enum acc\_trace\_mode\_t 
 
-_Trace reduction mode. Values match the Python string-enum index order ("mean", "exp", "maxhold", "minhold")._ 
+_Trace reduction mode. The Python faces (AccTrace, PSD) name these "mean", "exp", "maxhold" and "minhold", bound to the constants by name (just-makeit.toml,_ `[[enum]] acc_trace_mode` _)._
 ```C++
 enum acc_trace_mode_t {
     ACC_TRACE_MEAN = 0,
@@ -213,7 +213,7 @@ dp_acc_trace_state_t * dp_acc_trace_create (
 
 
 * `n` Trace length in bins. Must be &gt; 0, with n doubles a byte count a size\_t holds; returns NULL otherwise. 
-* `mode` Reduction mode index (0=mean, 1=exp, 2=maxhold, 3=minhold). 
+* `mode` Reduction mode: "mean", "exp", "maxhold" or "minhold"; in C ACC\_TRACE\_MEAN, \_EXP, \_MAXHOLD or \_MINHOLD. 
 * `alpha` EMA smoothing factor, read only by `exp` mode, where it must lie in (0, 1]. Outside it the trace is not an average: 0 never leaves the first frame, a negative alpha extrapolates away from the data (a power trace goes negative), and above 1 the EMA step saturates to pass-through. A NaN is refused too. Ignored, and so not checked, in the other modes. 
 
 

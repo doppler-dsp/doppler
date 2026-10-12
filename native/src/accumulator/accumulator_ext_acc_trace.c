@@ -52,13 +52,13 @@ AccTraceObj_init (AccTraceObject *self, PyObject *args, PyObject *kwds)
   size_t n    = (size_t)n_raw;
   int    mode = 0;
   if (strcmp (mode_str, "mean") == 0)
-    mode = 0;
+    mode = ACC_TRACE_MEAN;
   else if (strcmp (mode_str, "exp") == 0)
-    mode = 1;
+    mode = ACC_TRACE_EXP;
   else if (strcmp (mode_str, "maxhold") == 0)
-    mode = 2;
+    mode = ACC_TRACE_MAXHOLD;
   else if (strcmp (mode_str, "minhold") == 0)
-    mode = 3;
+    mode = ACC_TRACE_MINHOLD;
   else
     {
       PyErr_Format (PyExc_ValueError,
@@ -581,7 +581,13 @@ static PyTypeObject AccTraceObjType = {
     "    holds; returns NULL otherwise.\n"
     "mode : Literal[\"mean\", \"exp\", \"maxhold\", \"minhold\"], default "
     "\"mean\"\n"
-    "    Reduction mode index (0=mean, 1=exp, 2=maxhold, 3=minhold).\n"
+    "    Reduction mode: \"mean\", \"exp\", \"maxhold\" or \"minhold\"; in C\n"
+    "    ACC_TRACE_MEAN, _EXP, _MAXHOLD or _MINHOLD.\n"
+    "\n"
+    "    - ``\"mean\"`` — Linear running mean of all frames.\n"
+    "    - ``\"exp\"`` — Exponential moving average (alpha).\n"
+    "    - ``\"maxhold\"`` — Per-bin running maximum.\n"
+    "    - ``\"minhold\"`` — Per-bin running minimum.\n"
     "alpha : float, default 0.1\n"
     "    EMA smoothing factor, read only by exp mode, where it must lie in "
     "(0,\n"

@@ -40,8 +40,8 @@ dp_imdmeas_create (size_t n, double fs, double full_scale, size_t bits,
 
   /* The PSD core owns the dBFS reference (full_scale / bits); read it back as
    * s->psd->full_scale so it is defined exactly once. */
-  s->psd = dp_psd_create (n, fs, 1 /* Kaiser */, (float)beta, MEASURE_PAD,
-                          full_scale, bits, ACC_TRACE_MEAN, 0.0);
+  s->psd = dp_psd_create (n, fs, DP_PSD_WINDOW_KAISER, (float)beta,
+                          MEASURE_PAD, full_scale, bits, ACC_TRACE_MEAN, 0.0);
   if (!s->psd)
     {
       dp_imdmeas_destroy (s);

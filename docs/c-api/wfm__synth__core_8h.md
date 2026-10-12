@@ -50,8 +50,8 @@ _Synth component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| enum  | [**wfm\_\_synth\_\_core\_8h\_1abc5c98fcc1211af2b80116dd6e0a035d**](#enum-wfm__synth__core_8h_1abc5c98fcc1211af2b80116dd6e0a035d)  <br> |
-| enum  | [**wfm\_\_synth\_\_core\_8h\_1ac36f475ca5b446f4fde4c9b90bec77c8**](#enum-wfm__synth__core_8h_1ac36f475ca5b446f4fde4c9b90bec77c8)  <br> |
+| enum  | [**wfm\_\_synth\_\_core\_8h\_1a05589fbab0657f08285ebdfe93f5ec9e**](#enum-wfm__synth__core_8h_1a05589fbab0657f08285ebdfe93f5ec9e)  <br> |
+| enum  | [**wfm\_\_synth\_\_core\_8h\_1a16af7b253440dadd46a80a4b9fddba4d**](#enum-wfm__synth__core_8h_1a16af7b253440dadd46a80a4b9fddba4d)  <br> |
 | typedef int(\* | [**wfm\_synth\_refill\_fn**](#typedef-wfm_synth_refill_fn)  <br>_Synth state._  |
 
 
@@ -174,10 +174,10 @@ dp_wfm_synth_destroy(obj);
 
 
 
-### enum wfm\_\_synth\_\_core\_8h\_1abc5c98fcc1211af2b80116dd6e0a035d 
+### enum wfm\_\_synth\_\_core\_8h\_1a05589fbab0657f08285ebdfe93f5ec9e 
 
 ```C++
-enum wfm__synth__core_8h_1abc5c98fcc1211af2b80116dd6e0a035d {
+enum wfm__synth__core_8h_1a05589fbab0657f08285ebdfe93f5ec9e {
     WFM_SYNTH_TONE = 0,
     WFM_SYNTH_NOISE = 1,
     WFM_SYNTH_PN = 2,
@@ -201,10 +201,10 @@ Waveform type discriminant (the `type` create argument / type choice).
 
 
 
-### enum wfm\_\_synth\_\_core\_8h\_1ac36f475ca5b446f4fde4c9b90bec77c8 
+### enum wfm\_\_synth\_\_core\_8h\_1a16af7b253440dadd46a80a4b9fddba4d 
 
 ```C++
-enum wfm__synth__core_8h_1ac36f475ca5b446f4fde4c9b90bec77c8 {
+enum wfm__synth__core_8h_1a16af7b253440dadd46a80a4b9fddba4d {
     WFM_DSSS_DATA_NONE = 0,
     WFM_DSSS_DATA_BITS = 1,
     WFM_DSSS_DATA_PRBS = 2

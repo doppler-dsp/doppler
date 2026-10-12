@@ -45,7 +45,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 | typedef struct wfm\_compose\_state | [**dp\_wfm\_compose\_state\_t**](#typedef-dp_wfm_compose_state_t)  <br> |
-| enum  | [**wfm\_\_compose\_8h\_1ab04a0655cd1e3bcac5e8f48c18df1a57**](#enum-wfm__compose_8h_1ab04a0655cd1e3bcac5e8f48c18df1a57)  <br>_Per-field "draw uniformly each repeat" flags (_ `ranged` _bitmask)._ |
+| enum  | [**wfm\_\_compose\_8h\_1abc5c98fcc1211af2b80116dd6e0a035d**](#enum-wfm__compose_8h_1abc5c98fcc1211af2b80116dd6e0a035d)  <br>_Per-field "draw uniformly each repeat" flags (_ `ranged` _bitmask)._ |
 | enum  | [**wfm\_bitmod\_t**](#enum-wfm_bitmod_t)  <br>_How a_ `WFM_SYNTH_BITS` _source maps its payload to symbols._ |
 | enum  | [**wfm\_doppler\_lifetime\_t**](#enum-wfm_doppler_lifetime_t)  <br>_When a source's Doppler channel restarts._  |
 | typedef void(\* | [**wfm\_feed\_fn**](#typedef-wfm_feed_fn)  <br>_Where a channel renderer's INPUT comes from, when it is not a synth._  |
@@ -237,11 +237,11 @@ Opaque composer state.
 
 
 
-### enum wfm\_\_compose\_8h\_1ab04a0655cd1e3bcac5e8f48c18df1a57 
+### enum wfm\_\_compose\_8h\_1abc5c98fcc1211af2b80116dd6e0a035d 
 
 _Per-field "draw uniformly each repeat" flags (_ `ranged` _bitmask)._
 ```C++
-enum wfm__compose_8h_1ab04a0655cd1e3bcac5e8f48c18df1a57 {
+enum wfm__compose_8h_1abc5c98fcc1211af2b80116dd6e0a035d {
     WFM_RANGE_FREQ = 1u << 0,
     WFM_RANGE_SNR = 1u << 1,
     WFM_RANGE_LEVEL = 1u << 2,

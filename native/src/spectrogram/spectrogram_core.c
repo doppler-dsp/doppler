@@ -55,8 +55,8 @@ dp_spectrogram_create (size_t nfft, size_t hop, int window, float beta,
    * the PSD's transform length of bins, so that has to BE nfft: the PSD owns
    * the transform length (it zero-pads n to its own choice), and an nfft it
    * would pad is refused here rather than given rows wider than its frames. */
-  dp_psd_state_t *psd
-      = dp_psd_create (nfft, 1.0, window, beta, 1, 1.0, 0, 0, 0.0);
+  dp_psd_state_t *psd = dp_psd_create (nfft, 1.0, window, beta, 1, 1.0, 0,
+                                       ACC_TRACE_MEAN, 0.0);
   if (!psd)
     return NULL;
   if (psd->nfft != nfft)
@@ -239,9 +239,9 @@ dp_spectrogram_set_state (dp_spectrogram_state_t *s, const void *blob)
   const uint32_t window = dp_r_u32 (&_r);
   float          beta   = 0.0f;
   dp_r_f32 (&_r, &beta, 1);
-  /* beta only shapes the Kaiser window (window index 1); elsewhere it does
-   * not change a row, so it is not compared there. */
-  const int beta_matters = s->window == 1;
+  /* beta only shapes the Kaiser window; elsewhere it does not change a row,
+   * so it is not compared there. */
+  const int beta_matters = s->window == DP_PSD_WINDOW_KAISER;
   if ((int)mode != s->mode || nfft != (uint64_t)s->nfft
       || hop != (uint64_t)s->hop || (int)window != s->window
       || (beta_matters && beta != s->beta))

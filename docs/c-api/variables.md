@@ -108,6 +108,7 @@
 ## p
 
 * **pn\_\_core\_8h\_1abc6126af1d45847bc59afa0aa3216b04** ([**pn\_core.h**](pn__core_8h.md))
+* **psd\_\_core\_8h\_1adc29c2ff13d900c2f185ee95427fb06c** ([**psd\_core.h**](psd__core_8h.md))
 * **PULSE\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))
 
 
@@ -115,14 +116,15 @@
 
 * **rc\_pulse\_t** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
 * **rc\_stage\_t** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
-* **ratesync\_\_core\_8h\_1a61dadd085c1777f559549e05962b2c9e** ([**ratesync\_core.h**](ratesync__core_8h.md))
+* **ratesync\_\_core\_8h\_1a0411cd49bb5b71852cecd93bcbf0ca2d** ([**ratesync\_core.h**](ratesync__core_8h.md))
 * **ratesync\_\_core\_8h\_1a726ca809ffd3d67ab4b8476646f26635** ([**ratesync\_core.h**](ratesync__core_8h.md))
 
 
 ## s
 
-* **symsync\_\_core\_8h\_1a0411cd49bb5b71852cecd93bcbf0ca2d** ([**symsync\_core.h**](symsync__core_8h.md))
-* **symsync\_\_core\_8h\_1abed82baf7f470b522273a3e37c24c600** ([**symsync\_core.h**](symsync__core_8h.md))
+* **spectrogram\_\_core\_8h\_1abed82baf7f470b522273a3e37c24c600** ([**spectrogram\_core.h**](spectrogram__core_8h.md))
+* **symsync\_\_core\_8h\_1a385c44f6fb256e5716a2302a5b940388** ([**symsync\_core.h**](symsync__core_8h.md))
+* **symsync\_\_core\_8h\_1ab04a0655cd1e3bcac5e8f48c18df1a57** ([**symsync\_core.h**](symsync__core_8h.md))
 * **SEED\_ADVANCE\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))
 * **SEQ\_KIND\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))
 * **STAGE\_KIND\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))
@@ -141,7 +143,7 @@
 
 ## w
 
-* **wfm\_\_compose\_8h\_1ab04a0655cd1e3bcac5e8f48c18df1a57** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **wfm\_\_compose\_8h\_1abc5c98fcc1211af2b80116dd6e0a035d** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_bitmod\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_doppler\_lifetime\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_feed\_fn** ([**wfm\_compose.h**](wfm__compose_8h.md))
@@ -165,7 +167,7 @@
 * **WFM\_JSON\_KEYS\_SUM\_SEGMENT** ([**wfm\_surface.h**](wfm__surface_8h.md))
 * **WFM\_SURFACE** ([**wfm\_surface.h**](wfm__surface_8h.md))
 * **WFM\_SURFACE\_EXCLUSIVE** ([**wfm\_surface.h**](wfm__surface_8h.md))
-* **wfm\_\_surface\_8h\_1a385c44f6fb256e5716a2302a5b940388** ([**wfm\_surface.h**](wfm__surface_8h.md))
+* **wfm\_\_surface\_8h\_1ac36f475ca5b446f4fde4c9b90bec77c8** ([**wfm\_surface.h**](wfm__surface_8h.md))
 * **wfm\_json\_level\_t** ([**wfm\_surface.h**](wfm__surface_8h.md))
 * **wfm\_surf\_owner\_t** ([**wfm\_surface.h**](wfm__surface_8h.md))
 * **wfm\_sv\_kind\_t** ([**wfm\_surface.h**](wfm__surface_8h.md))
@@ -175,8 +177,8 @@
 * **wfm\_mode\_t** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))
 * **wfm\_reader\_stype\_t** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))
 * **wfm\_t0\_source\_t** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))
-* **wfm\_\_synth\_\_core\_8h\_1abc5c98fcc1211af2b80116dd6e0a035d** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
-* **wfm\_\_synth\_\_core\_8h\_1ac36f475ca5b446f4fde4c9b90bec77c8** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
+* **wfm\_\_synth\_\_core\_8h\_1a05589fbab0657f08285ebdfe93f5ec9e** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
+* **wfm\_\_synth\_\_core\_8h\_1a16af7b253440dadd46a80a4b9fddba4d** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **wfm\_synth\_refill\_fn** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **wfm\_filetype\_t** ([**wfm\_writer\_core.h**](wfm__writer__core_8h.md))
 

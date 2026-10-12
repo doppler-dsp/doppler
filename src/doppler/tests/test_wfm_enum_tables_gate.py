@@ -81,6 +81,7 @@ def _seed(
     manifest: str = _MANIFEST,
     cenum: str = _CENUM,
     sources: dict[str, str] | None = None,
+    headers: dict[str, str] | None = None,
 ) -> None:
     names = tmp_path / _HDR / "wfm" / "wfm_names.h"
     names.parent.mkdir(parents=True, exist_ok=True)
@@ -96,6 +97,39 @@ def _seed(
         p = tmp_path / "native" / "src" / rel
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(body, encoding="utf-8")
+
+    for rel, body in (headers or {}).items():
+        p = tmp_path / _HDR / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(body, encoding="utf-8")
+
+
+#: Rule 7's fixture: an [[enum]] bound BY NAME and the one C enum carrying it.
+_BOUND_H = """\
+/** The window. A doc block above the annotation, as the real headers have. */
+/* SSOT: enum=win */
+enum {
+    W_HANN = 0, /**< Hann; a `;` in a comment ends nothing. */
+    W_RECT = 1  /**< rect. */
+};
+"""
+
+_BOUND_TOML = """
+[[enum]]
+name = "win"
+values = ["hann", "rect"]
+enumerators = ["W_HANN", "W_RECT"]
+"""
+
+
+def _seed_bound(
+    tmp_path: Path, header: str = _BOUND_H, manifest: str = _BOUND_TOML
+) -> None:
+    _seed(
+        tmp_path,
+        manifest=_MANIFEST + manifest,
+        headers={"psd/win.h": header},
+    )
 
 
 def _run(tmp_path: Path) -> subprocess.CompletedProcess[str]:
@@ -310,6 +344,109 @@ def test_an_emptied_header_is_not_a_pass(tmp_path: Path) -> None:
     r = _run(tmp_path)
     assert r.returncode == 1
     assert "no name tables found" in r.stdout
+
+
+def test_a_bound_c_enum_passes(tmp_path: Path) -> None:
+    """Rule 7's baseline, so each RED below is about its one edit."""
+    _seed_bound(tmp_path)
+    r = _run(tmp_path)
+    assert r.returncode == 0, r.stdout
+    assert "1 C enum(s) bound by name" in r.stdout
+
+
+def test_a_c_value_with_no_python_name_fails(tmp_path: Path) -> None:
+    """Rule 7, the direction the compiler cannot see: jm writes each
+    manifest name as a C constant, so a missing C name fails to build, but a
+    C value the manifest never names compiles and is unreachable from
+    Python."""
+    _seed_bound(
+        tmp_path,
+        header=_BOUND_H.replace("W_RECT = 1", "W_KAISER = 1,\n    W_RECT = 2"),
+    )
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    assert "the C enum's names != [[enum]] win enumerators" in r.stdout
+    assert "'W_HANN', 'W_KAISER', 'W_RECT'" in r.stdout
+
+
+def test_enumerators_no_c_enum_carries_fail(tmp_path: Path) -> None:
+    """Fail-closed: binding by name is a claim about ONE C enum."""
+    _seed_bound(tmp_path, header=_BOUND_H.replace("/* SSOT: enum=win */", ""))
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    assert "exactly one C enum must carry `SSOT: enum=win`" in r.stdout
+
+
+def test_an_annotation_does_not_reach_past_a_declaration(
+    tmp_path: Path,
+) -> None:
+    """The annotation belongs to the next declaration, not to the next enum:
+    an enum must not adopt one written for something above it."""
+    _seed_bound(
+        tmp_path,
+        header=_BOUND_H.replace(
+            "/* SSOT: enum=win */", "/* SSOT: enum=win */\nint x;"
+        ),
+    )
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    assert "exactly one C enum must carry `SSOT: enum=win`" in r.stdout
+
+
+def test_a_view_over_a_bound_enum_passes(tmp_path: Path) -> None:
+    """carrier_acq_window's shape: a subset of a bound enum's names, with no
+    C enum of its own."""
+    _seed_bound(
+        tmp_path,
+        manifest=_BOUND_TOML
+        + '\n[[enum]]\nname = "win_sub"\nvalues = ["hann"]\n'
+        'enumerators = ["W_HANN"]\n',
+    )
+    r = _run(tmp_path)
+    assert r.returncode == 0, r.stdout
+
+
+def test_a_view_with_a_name_of_its_own_fails(tmp_path: Path) -> None:
+    _seed_bound(
+        tmp_path,
+        manifest=_BOUND_TOML
+        + '\n[[enum]]\nname = "win_sub"\nvalues = ["hann", "x"]\n'
+        'enumerators = ["W_HANN", "W_OTHER"]\n',
+    )
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    assert "[[enum]] win_sub lists `enumerators`" in r.stdout
+
+
+def test_an_annotated_enum_bound_by_position_fails(tmp_path: Path) -> None:
+    """An annotation on an [[enum]] with no `enumerators` claims a tie that
+    nothing makes: jm numbers those names by position."""
+    _seed_bound(
+        tmp_path,
+        manifest=_BOUND_TOML.replace(
+            'enumerators = ["W_HANN", "W_RECT"]\n', ""
+        ),
+    )
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    assert "[[enum]] win lists no `enumerators`" in r.stdout
+
+
+def test_an_annotation_naming_no_enum_fails(tmp_path: Path) -> None:
+    _seed_bound(tmp_path, header=_BOUND_H.replace("enum=win", "enum=nope"))
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    assert "`SSOT: enum=nope` names no [[enum]]" in r.stdout
+
+
+def test_a_c_enum_annotation_with_table_fields_fails(tmp_path: Path) -> None:
+    _seed_bound(
+        tmp_path,
+        header=_BOUND_H.replace("enum=win */", "enum=win, count=N_WIN */"),
+    )
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    assert "takes `enum=` only" in r.stdout
 
 
 def test_the_real_tree_passes() -> None:

@@ -63,8 +63,8 @@ dp_tonemeas_create (size_t n, double fs, size_t n_harmonics, double full_scale,
    * metric kernels read it back as s->psd->full_scale, so the 0-dBFS
    * reference is defined exactly once, in the core.  (The linear accessors
    * stay cg^2-normalised; the kernels apply full_scale^2 themselves.) */
-  s->psd = dp_psd_create (n, fs, 1 /* Kaiser */, (float)beta, MEASURE_PAD,
-                          full_scale, bits, ACC_TRACE_MEAN, 0.0);
+  s->psd = dp_psd_create (n, fs, DP_PSD_WINDOW_KAISER, (float)beta,
+                          MEASURE_PAD, full_scale, bits, ACC_TRACE_MEAN, 0.0);
   if (!s->psd)
     {
       dp_tonemeas_destroy (s);

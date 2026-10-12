@@ -30,9 +30,11 @@ extern "C" {
 #endif
 
 /**
- * @brief Trace reduction mode.  Values match the Python string-enum index
- * order ("mean", "exp", "maxhold", "minhold").
+ * @brief Trace reduction mode. The Python faces (AccTrace, PSD) name these
+ * "mean", "exp", "maxhold" and "minhold", bound to the constants by name
+ * (just-makeit.toml, `[[enum]] acc_trace_mode`).
  */
+/* SSOT: enum=acc_trace_mode */
 typedef enum {
     ACC_TRACE_MEAN = 0,    /**< Linear running mean of all frames.   */
     ACC_TRACE_EXP = 1,     /**< Exponential moving average (alpha).   */
@@ -56,7 +58,8 @@ typedef struct {
  *
  * @param n      Trace length in bins.  Must be > 0, with n doubles a
  *               byte count a size_t holds; returns NULL otherwise.
- * @param mode   Reduction mode index (0=mean, 1=exp, 2=maxhold, 3=minhold).
+ * @param mode   Reduction mode: "mean", "exp", "maxhold" or "minhold"; in C
+ *               ACC_TRACE_MEAN, _EXP, _MAXHOLD or _MINHOLD.
  * @param alpha  EMA smoothing factor, read only by @c exp mode, where it must
  *               lie in (0, 1].  Outside it the trace is not an average: 0
  *               never leaves the first frame, a negative alpha extrapolates

@@ -643,6 +643,53 @@ _acq_wideband_coherent_center_check (void)
   return 0;
 }
 
+/* A tiled burst search with NO design C/N0 is D = 1, as it always was.
+ *
+ * Only a stated C/N0 asks for a depth inside the tiles. Without one the
+ * sizer's "integrate the whole preamble" default would hand a tiled search
+ * d_max = reps: window_bins * reps epochs of buffer (sf 127, reps 64,
+ * du 10 * span: ~0.1 MB -> ~14.5 MB), a reps-epoch decision latency, and a
+ * blob carrying the block, for every default-built object. Checked on two
+ * geometries, one of them that one.
+ */
+static int
+_acq_wideband_default_depth_check (void)
+{
+  const struct
+  {
+    size_t sf, reps, spc;
+    double du_spans;
+  } g[] = { { 7, 8, 2, 3.5 }, { 127, 64, 1, 10.0 } };
+  for (size_t i = 0; i < sizeof g / sizeof *g; i++)
+    {
+      const double crate = 1.0e6;
+      const double span  = crate / (2.0 * (double)g[i].sf);
+      uint8_t     *code  = malloc (g[i].sf);
+      DP_REQUIRE (code != NULL);
+      for (size_t k = 0; k < g[i].sf; k++)
+        code[k] = (uint8_t)((k * 5u + (k >> 2)) & 1u);
+      dp_acq_state_t *none = burst_from_code (
+          code, g[i].sf, g[i].reps, g[i].spc, crate, ACQ_CN0_NONE,
+          g[i].du_spans * span, 1e-3, 0.9, 0, 0.0);
+      DP_REQUIRE (none != NULL);
+      DP_CHECK (none->window_bins > 1);
+      DP_CHECK (none->coherent_bins == 1);
+      /* No block buffers at all: the default object is the D = 1 engine. */
+      DP_CHECK (none->blk == NULL && none->blk_raw == NULL);
+      DP_CHECK (none->n == none->window_bins * none->code_bins);
+      /* And a stated C/N0 still buys depth (the point of the sizer). */
+      dp_acq_state_t *some
+          = burst_from_code (code, g[i].sf, g[i].reps, g[i].spc, crate, 60.0,
+                             g[i].du_spans * span, 1e-3, 0.9, 0, 0.0);
+      DP_REQUIRE (some != NULL);
+      DP_CHECK (some->window_bins == none->window_bins);
+      dp_acq_destroy (none);
+      dp_acq_destroy (some);
+      free (code);
+    }
+  return 0;
+}
+
 /* The hit's own chip_phase (filled in acq_report_peaks) and the hand-off
  * (dp_acq_build_handoff) are one helper, so for every real hit they agree
  * to rounding. Checked on a drifted emitter (a Doppler bin off DC, carrier
@@ -2310,6 +2357,7 @@ main (void)
   (void)_acq_band_mask_check ();
   (void)_acq_wideband_check ();
   (void)_acq_wideband_coherent_center_check ();
+  (void)_acq_wideband_default_depth_check ();
   (void)_acq_hit_chip_phase_check ();
   (void)_acq_wideband_coverage_check ();
   (void)_acq_chunk_invariance_check ();

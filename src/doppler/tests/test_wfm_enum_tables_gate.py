@@ -452,7 +452,10 @@ def test_a_view_with_no_c_bound_fails(tmp_path: Path) -> None:
     _seed_view(tmp_path, c=None)
     r = _run(tmp_path)
     assert r.returncode == 1
-    assert "view [[enum]] win_sub needs exactly one C comparison" in r.stdout
+    assert "view [[enum]] win_sub has no C refusal" in r.stdout
+    # the message says where the annotation goes and what to write
+    assert "`/* SSOT: view=win_sub */` on the line above" in r.stdout
+    assert "`if (<arg> > W_HANN)` (or `>= W_RECT`)" in r.stdout
 
 
 def test_a_c_bound_naming_another_enumerator_fails(tmp_path: Path) -> None:
@@ -461,7 +464,10 @@ def test_a_c_bound_naming_another_enumerator_fails(tmp_path: Path) -> None:
     _seed_view(tmp_path, c=_VIEW_C.replace("> W_HANN", "> W_RECT"))
     r = _run(tmp_path)
     assert r.returncode == 1
-    assert "compares against W_RECT, but view win_sub's last" in r.stdout
+    assert (
+        "the refusal `> W_RECT` admits ['W_HANN', 'W_RECT'], but view"
+        " win_sub is ['W_HANN']: write `> W_HANN` (or `>= W_RECT`)"
+    ) in r.stdout
 
 
 def test_a_view_that_is_not_a_prefix_fails(tmp_path: Path) -> None:
@@ -618,3 +624,55 @@ def test_the_real_tree_passes() -> None:
         text=True,
     )
     assert r.returncode == 0, r.stdout
+
+
+def test_a_doubled_annotation_fails(tmp_path: Path) -> None:
+    """Exactly one refusal states a view's bound: two is as wrong as none
+    (weakening `!= 1` to `< 1` must not pass)."""
+    _seed_view(tmp_path, c=_VIEW_C + _VIEW_C.replace("make", "make2"))
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    assert "has 2 `SSOT: view=win_sub` annotations" in r.stdout
+
+
+def test_the_equivalent_ge_form_passes(tmp_path: Path) -> None:
+    """`>= NEXT` is the same bound as `> LAST`: the likeliest rewrite."""
+    _seed_view(tmp_path, c=_VIEW_C.replace("> W_HANN", ">= W_RECT"))
+    r = _run(tmp_path)
+    assert r.returncode == 0, r.stdout
+
+
+def test_an_operand_with_arithmetic_is_no_refusal(tmp_path: Path) -> None:
+    """`> W_HANN + 1` admits a value past the view: the operand must be the
+    enumerator alone."""
+    _seed_view(tmp_path, c=_VIEW_C.replace("> W_HANN", "> W_HANN + 1"))
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    assert "is not a refusal of the form `> W_HANN`" in r.stdout
+
+
+def test_a_line_comment_annotation_is_read(tmp_path: Path) -> None:
+    """`// SSOT: view=X` ends at its line, not at the next `*/` in the file
+    (a later block comment must not move the scan)."""
+    c = (
+        _VIEW_C.replace(
+            "  /* SSOT: view=win_sub */", "  // SSOT: view=win_sub"
+        )
+        + "/* a later comment */\n"
+    )
+    _seed_view(tmp_path, c=c)
+    r = _run(tmp_path)
+    assert r.returncode == 0, r.stdout
+
+
+def test_the_refusal_must_be_the_next_line(tmp_path: Path) -> None:
+    """The annotation sits directly above the refusal: one statement in
+    between and it describes nothing."""
+    c = _VIEW_C.replace(
+        "  /* SSOT: view=win_sub */\n",
+        "  /* SSOT: view=win_sub */\n  int unrelated = 0;\n",
+    )
+    _seed_view(tmp_path, c=c)
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    assert "the line after `SSOT: view=win_sub` is not a refusal" in r.stdout

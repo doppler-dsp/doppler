@@ -693,3 +693,21 @@ def test_a_comment_before_the_paren_does_not_hide_a_call(
     r = _run(tmp_path)
     assert r.returncode == 1, r.stdout
     assert "dp_psd_create window = 1 (write DP_PSD_WINDOW_KAISER)" in r.stdout
+
+
+def test_a_run_of_comments_before_a_paren_stays_linear(tmp_path: Path) -> None:
+    """Forty comments between a name and a `(` -- or no `(` at all -- scan
+    in linear time: the comment is a tempered dot, never a lazy `.*?` that
+    re.S lets cross into the next comment and backtrack (review of #2202)."""
+    run = " ".join(f"/* {i} */" for i in range(40))
+    src = _NAMED_C.replace(
+        "  return !a", f"  dp_psd_create {run} ;\n  return !a"
+    )
+    _seed(tmp_path, **{"a.c": src})
+    r = subprocess.run(
+        [sys.executable, str(SCRIPT), "--root", str(tmp_path)],
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    assert r.returncode == 0, r.stdout

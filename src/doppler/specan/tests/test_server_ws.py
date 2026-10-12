@@ -21,7 +21,9 @@ import json
 import os
 import subprocess
 import sys
+import time
 import urllib.request
+import warnings
 
 import pytest
 
@@ -67,7 +69,13 @@ def specan_server(tmp_path):
             env=env,
         )
         try:
+            started = time.monotonic()
             wait_for_state(f"http://127.0.0.1:{port}/state", proc, log)
+            warnings.warn(
+                f"EXPERIMENT specan server ready after "
+                f"{time.monotonic() - started:.2f} s",
+                stacklevel=2,
+            )
             yield port, log
         finally:
             proc.terminate()

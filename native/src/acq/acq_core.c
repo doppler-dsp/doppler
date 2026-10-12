@@ -13,6 +13,7 @@
  */
 
 #include "doppler/acq/acq_core.h"
+#include "doppler/acq/acq_private.h"
 /* det_private.h needs det_noise_mode_t (from detector2d_core.h, included
  * above) and supplies the header-only det_ring_create / det_noise_estimate
  * statics.
@@ -2477,11 +2478,7 @@ acq_rate_search (dp_acq_state_t *st, const float _Complex *frame,
     {
       n_out = acq_make_surface (st, frame, fan, h);
       acq_compute_stat (st);
-      /* h == 0 takes the first unconditionally: a NaN statistic (every
-         hypothesis of a dwell of non-finite samples) fails `>` against
-         anything, which would leave rate_best unwritten and restore the
-         PREVIOUS dwell's winner below. */
-      if (h == 0 || st->test_stat > best)
+      if (acq_rate_better (h, st->test_stat, best))
         {
           best   = st->test_stat;
           best_h = h;

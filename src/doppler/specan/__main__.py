@@ -22,6 +22,67 @@ def _log(msg: str) -> None:
     print(f"[{ts}] {msg}", flush=True)
 
 
+# Error handlers that raise when a character cannot be encoded.
+# ``surrogateescape`` and ``surrogatepass`` only handle lone surrogates, so for
+# anything else they raise like ``strict`` does. The other built-ins substitute
+# or ignore, and are left alone.
+_RAISING_ERROR_HANDLERS = frozenset(
+    {"strict", "surrogateescape", "surrogatepass"}
+)
+
+
+def _tolerate_unencodable_output() -> None:
+    r"""Keep startup alive when stdout cannot encode what it prints.
+
+    A redirected stdout (a file, a pipe, a service or a scheduled task's log)
+    takes the platform's legacy code page, which on Windows is cp1252 unless
+    ``PYTHONUTF8`` is set. The startup banner prints an arrow that cp1252 has
+    no byte for, so a plain ``print`` raised ``UnicodeEncodeError`` and the
+    process exited before the server listened (#2225).
+
+    Which handler a redirected stdout carries decides whether that raises, and
+    it is not always ``strict``. Measured on the GitHub Windows runner (Python
+    3.12.10, stdout redirected to a file, UTF-8 mode off): encoding ``cp1252``
+    with ``surrogateescape``. That handler only handles lone surrogates, so it
+    raised on the arrow too, and a fix keyed on ``strict`` alone passed
+    everywhere else and failed there.
+
+    A stream whose handler would raise (``strict``, ``surrogateescape``,
+    ``surrogatepass``) is therefore given ``backslashreplace``: the arrow
+    prints as the text backslash-u-2192, so nothing is lost, and the next
+    non-ASCII character cannot take startup down the same way. A handler that
+    already substitutes or ignores (``replace``, ``ignore``,
+    ``backslashreplace``, ``xmlcharrefreplace``, ``namereplace``) is someone's
+    choice and is left alone, and ``sys.stderr`` is always opened with
+    ``backslashreplace`` already. A stand-in without ``reconfigure``
+    (``io.StringIO``) and ``None`` (a windowed process has no stdout) are
+    skipped.
+
+    Examples
+    --------
+    The suite collects no module doctests, so the guard for this is
+    ``test_server_harness.py``; the example only shows the substitution.
+
+    >>> import contextlib
+    >>> import io
+    >>> raw = io.BytesIO()
+    >>> out = io.TextIOWrapper(raw, "cp1252", errors="surrogateescape")
+    >>> with contextlib.redirect_stdout(out):
+    ...     _tolerate_unencodable_output()
+    ...     print("a \u2192 b", end="")
+    >>> out.flush()
+    >>> raw.getvalue()
+    b'a \\u2192 b'
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if (
+            reconfigure is not None
+            and stream.errors in _RAISING_ERROR_HANDLERS
+        ):
+            reconfigure(errors="backslashreplace")
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the doppler-specan argument parser.
 
@@ -161,6 +222,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    _tolerate_unencodable_output()
     args = build_parser().parse_args()
 
     # ----------------------------------------------------------------

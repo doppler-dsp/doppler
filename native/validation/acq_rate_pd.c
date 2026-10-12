@@ -41,10 +41,10 @@
  * Usage:
  *   validate_acq_rate_pd           every hypothesis count, 1000 trials a row,
  *                                  200000 noise dwells a row
- *   validate_acq_rate_pd --check   the spot checks CTest runs, on 1, 5 and 9
- *                                  hypotheses and fewer trials: compensation
- *                                  delivers what it predicts, beats the
- *                                  capped depth, and holds Pfa
+ *   validate_acq_rate_pd --check   the spot checks CTest runs, on 1, 5, 9 and
+ *                                  auto (0) hypotheses and fewer trials:
+ * compensation delivers what it predicts, beats the capped depth, and holds
+ * Pfa
  *
  * Both modes assert the same claims.
  */
@@ -134,7 +134,7 @@ wilson (double k, double n, double *lo, double *hi)
 typedef struct
 {
   size_t rh, depth;
-  int    midpoint;
+  int    midpoint, autorow;
   double pred, eng, eng_lo, eng_hi, cap, cap_lo, cap_hi;
 } pd_row_t;
 
@@ -154,14 +154,18 @@ trial_rate (size_t rh, int midpoint, uint32_t *st)
   return -RATE + ((double)(gap > rh - 2 ? rh - 2 : gap) + 0.5) * step;
 }
 
+/* `rh` is the count ASKED for; 0 is auto, and the row then carries the count
+   the engine chose (the trials' midpoint rates need it too). */
 static pd_row_t
 measure_pd (size_t rh, int midpoint, double cn0, int trials, uint32_t seed)
 {
   pd_row_t r = { 0 };
-  r.rh       = rh;
   r.midpoint = midpoint;
+  r.autorow  = (rh == 0);
 
   dp_burst_capture_state_t *s = make (rh, cn0);
+  rh                          = dp_burst_capture_get_rate_hypotheses (s);
+  r.rh                        = rh;
   r.pred                      = dp_burst_capture_get_pd_burst (s);
   r.depth                     = dp_burst_capture_get_doppler_bins (s);
   const size_t     lead_max   = 3u * r.depth * N;
@@ -260,8 +264,7 @@ typedef struct
 static pfa_row_t
 measure_pfa (size_t rh, double cn0, double dwells_wanted, uint32_t seed)
 {
-  pfa_row_t r = { 0 };
-  r.rh        = rh;
+  pfa_row_t       r = { 0 };
   dp_acq_state_t *a
       = dp_acq_create_burst (ZC, N, REPS, 1.0, cn0, 0.0, PFA, PD, 0, RATE, rh);
   if (!a)
@@ -269,6 +272,7 @@ measure_pfa (size_t rh, double cn0, double dwells_wanted, uint32_t seed)
       DP_TEST_ERR ("engine at Rh=%zu refused\n", rh);
       abort ();
     }
+  r.rh                       = a->rate_hyps; /* what auto chose, else rh */
   r.depth                    = a->coherent_bins;
   const size_t     per_dwell = a->frame_n;
   const size_t     chunk     = 64u * per_dwell;
@@ -417,42 +421,47 @@ main (int argc, char **argv)
   /* The design point: where the most-compensated engine predicts PD. The
      spot check keeps both ends and the middle, and the worst case (a rate
      between two hypotheses) at the middle; the sweep, every count. */
-  const size_t  RH_ALL[]   = { 1, 3, 5, 9 };
-  const size_t  RH_CHECK[] = { 1, 5, 9 };
+  const size_t  RH_ALL[]   = { 1, 3, 5, 9, 0 };
+  const size_t  RH_CHECK[] = { 1, 5, 9, 0 };
   const size_t *RH         = check ? RH_CHECK : RH_ALL;
   const size_t  NRH        = check ? sizeof RH_CHECK / sizeof *RH_CHECK
                                    : sizeof RH_ALL / sizeof *RH_ALL;
-  const double  cn0        = cn0_for (RH[NRH - 1], PD);
+  /* The last entry is 0 = auto: the design point is the last EXPLICIT count's,
+     and auto is then measured at it. */
+  const double cn0 = cn0_for (RH[NRH - 2], PD);
   printf ("Zadoff-Chu %u x %u then %u samples of QPSK, fs = 1, rate span "
           "+-%g cycles/sample^2 (the carrier sweeps %.4f of fs across the "
           "preamble)\npfa %g, pd %g; every row at C/N0 %.2f dB, where Rh = "
           "%zu predicts a burst Pd of %g; %d trials a row, Wilson 95%%\n\n",
           N, REPS, PAYLOAD, RATE, RATE * (double)(REPS * N), PFA, PD, cn0,
-          RH[NRH - 1], PD, trials);
+          RH[NRH - 2], PD, trials);
 
-  printf ("%3s %3s %-9s %6s | %6s %6s %6s | %6s %6s %6s\n", "Rh", "D", "rate",
+  printf ("%3s %3s %-12s %6s | %6s %6s %6s | %6s %6s %6s\n", "Rh", "D", "rate",
           "pred", "engine", "lo95", "hi95", "captur", "lo95", "hi95");
-  pd_row_t rows[8];
+  pd_row_t rows[12];
   size_t   nrows = 0;
   for (size_t i = 0; i < NRH; i++)
     for (int mid = 0; mid < 2; mid++)
       {
-        if ((RH[i] == 1 || (check && RH[i] != 5)) && mid)
+        if ((RH[i] == 1 || RH[i] == 0 || (check && RH[i] != 5)) && mid)
           continue;
         pd_row_t r    = measure_pd (RH[i], mid, cn0, trials,
                                     4242u + 17u * (uint32_t)i + (uint32_t)mid);
         rows[nrows++] = r;
-        printf ("%3zu %3zu %-9s %6.3f | %6.3f %6.3f %6.3f | %6.3f %6.3f "
+        printf ("%3zu %3zu %-12s %6.3f | %6.3f %6.3f %6.3f | %6.3f %6.3f "
                 "%6.3f\n",
-                r.rh, r.depth, mid ? "midpoint" : "uniform", r.pred, r.eng,
-                r.eng_lo, r.eng_hi, r.cap, r.cap_lo, r.cap_hi);
+                r.rh, r.depth,
+                r.autorow ? "uniform auto"
+                : mid     ? "midpoint"
+                          : "uniform",
+                r.pred, r.eng, r.eng_lo, r.eng_hi, r.cap, r.cap_lo, r.cap_hi);
       }
 
   printf ("\nnoise only: share of dwells above the gate (target pfa %g)\n",
           PFA);
   printf ("%3s %3s %9s %7s %9s %9s %9s\n", "Rh", "D", "dwells", "hits", "pfa",
           "lo95", "hi95");
-  pfa_row_t prow[8];
+  pfa_row_t prow[12];
   for (size_t i = 0; i < NRH; i++)
     {
       prow[i] = measure_pfa (RH[i], cn0, dwells, 99u + (uint32_t)i);
@@ -522,7 +531,7 @@ main (int argc, char **argv)
        capped depth, outside both intervals. */
     const pd_row_t *base = &rows[0], *top = &rows[0];
     for (size_t k = 0; k < nrows; k++)
-      if (!rows[k].midpoint && rows[k].rh >= top->rh)
+      if (!rows[k].midpoint && !rows[k].autorow && rows[k].rh >= top->rh)
         top = &rows[k];
     DP_CHECK_MSG (top->cap_lo > base->cap_hi,
                   "compensation beats the capped depth, outside the "
@@ -540,6 +549,22 @@ main (int argc, char **argv)
           DP_CHECK_MSG (rr[k].full_near * 100 >= rr[k].full * 95,
                         "a full block well above design names the nearest "
                         "rate hypothesis");
+        }
+    /* Auto (rate_hypotheses = 0) is worth having: it picks FEWER hypotheses
+       than the most compensated explicit count -- the cost of a dwell is
+       proportional to the count -- and delivers what that count does, no
+       worse outside the intervals, and beats the capped depth. */
+    for (size_t k = 0; k < nrows; k++)
+      if (rows[k].autorow)
+        {
+          DP_CHECK_MSG (rows[k].rh <= top->rh,
+                        "auto picks no more hypotheses than the maximum "
+                        "explicit count");
+          DP_CHECK_MSG (rows[k].cap_hi >= top->cap_lo,
+                        "auto is no worse than the most compensated count");
+          DP_CHECK_MSG (rows[k].cap_lo > base->cap_hi,
+                        "auto beats the capped depth, outside the "
+                        "intervals");
         }
     /* Pfa: the hypotheses are priced. The rows with Rh > 1 are not
        significantly above the target. (Rh = 1 is the engine as it ran

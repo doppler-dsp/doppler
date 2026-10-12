@@ -83,14 +83,16 @@ extern "C"
    * @param doppler_rate  Doppler rate in Hz/s (>= 0) that caps the coherent
    *                  depth at `f_epoch/sqrt(2*doppler_rate)` repetitions
    *                  (doppler#1482); 0 is no bound.
-   * @param rate_hypotheses  Doppler-rate hypotheses to search (>= 1, at
-   *                  most ACQ_RATE_HYPS_MAX); 1 searches none. Above 1 the
+   * @param rate_hypotheses  Doppler-rate hypotheses to search (0 = auto,
+   *                  else 1 to ACQ_RATE_HYPS_MAX); 1 searches none. Above 1 the
    *                  engine COMPENSATES the rate rather than only capping the
    *                  depth: `doppler_rate` becomes the span `[-R, +R]`, the
    *                  coherent block is de-chirped at this many rates across
    *                  it, and the depth is bounded by the residual
    *                  `R/(n - 1)` -- see dp_acq_create_burst(), which owns the
-   *                  semantics. Needs a non-zero `doppler_rate`.
+   *                  semantics, including 0 = auto (the engine chooses the
+   *                  count; read it back from `engine->rate_hyps`). Needs a
+   *                  non-zero `doppler_rate`.
    * @return Heap-allocated state, or NULL on bad arguments / allocation
    *         failure.
    * @code

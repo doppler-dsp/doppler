@@ -491,8 +491,11 @@ typedef struct
  *                      `f_epoch/sqrt(2*doppler_rate)` repetitions
  *                      (doppler#1482); 0 is no bound. With
  *                      @p rate_hypotheses > 1 it is the span instead.
- * @param rate_hypotheses  Doppler-rate hypotheses to search (>= 1, at most
- *                      ACQ_RATE_HYPS_MAX); 1 searches none and
+ * @param rate_hypotheses  Doppler-rate hypotheses to search (0 = auto,
+ *                      else 1 to ACQ_RATE_HYPS_MAX; auto picks the fewest the
+ *                      span needs, see dp_acq_create_burst(), and
+ *                      dp_burst_capture_get_rate_hypotheses() reads the
+ *                      choice); 1 searches none and
  *                      @p doppler_rate only caps the depth. Above 1 the
  *                      capture COMPENSATES the rate: `doppler_rate` is the
  *                      span `[-R, +R]`, the acquisition de-chirps its

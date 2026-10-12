@@ -3126,10 +3126,21 @@ test_a_sweeping_carrier_is_compensated (void)
     zc[k] = (float _Complex)cexp (-I * M_PI * 5.0 * (double)k * (double)(k + 1)
                                   / (double)NP);
 
-  /* Refusals: a count out of range, or hypotheses over a span of nothing. */
+  /* Refusals: a count out of range, or hypotheses (auto included) over a
+     span of nothing. 0 is auto: with a span it builds, and the capture
+     reports the count the acquisition chose. */
   DP_CHECK (dp_burst_capture_create (zc, NP, BURST, RP, 1.0, 10.0, 0.0, 1e-3,
-                                     0.9, 0, rate, 0)
+                                     0.9, 0, 0.0, 0)
             == NULL);
+  {
+    dp_burst_capture_state_t *au = dp_burst_capture_create (
+        zc, NP, BURST, RP, 1.0, 10.0, 0.0, 1e-3, 0.9, 0, rate, 0);
+    DP_REQUIRE (au != NULL);
+    DP_CHECK (dp_burst_capture_get_rate_hypotheses (au) >= 1
+              && dp_burst_capture_get_rate_hypotheses (au)
+                     <= ACQ_RATE_HYPS_MAX);
+    dp_burst_capture_destroy (au);
+  }
   DP_CHECK (dp_burst_capture_create (zc, NP, BURST, RP, 1.0, 10.0, 0.0, 1e-3,
                                      0.9, 0, rate, ACQ_RATE_HYPS_MAX + 1)
             == NULL);

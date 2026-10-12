@@ -676,3 +676,39 @@ def test_a_swept_burst_is_placed_exactly_with_the_rates(tmp_path):
             cap.push(x)
             starts = [int(e[0]) for e in cap.events()]
             assert at in starts, f"burst at {at} captured at {starts}"
+
+
+def test_a_swept_burst_at_the_design_cn0_needs_the_engines_rates():
+    """At the design C/N0 (noise at -13 dB per sample) the engine runs deep
+    (D > 2) and its own rate search decides the detection; the test above
+    runs at 10 dB-Hz, D = 1, where only refine's rates are exercised. Nine
+    hypotheses place most of the seeded bursts; one, capped at a shallower
+    depth, misses most of them."""
+    import warnings
+
+    pre = _zc()
+    kw = {
+        "burst_len": 16 * 127 + 400,
+        "reps": 16,
+        "fs": 1.0,
+        "cn0_dbhz": -13.0,
+        "doppler_rate": 9e-7,
+    }
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")  # the capped one is underpowered
+        capped = BurstCapture(pre, **kw)
+    deep = BurstCapture(pre, rate_hypotheses=9, **kw)
+    assert deep.doppler_bins > 2 and deep.doppler_bins > capped.doppler_bins
+    got = {"deep": 0, "capped": 0}
+    trials = 20
+    for j in range(trials):
+        at = 6000 + 211 * (j % 17) + j
+        x = _sweeping_burst(
+            pre, 16, 400, at, 26000, 5e-4, 8e-7, 10**0.5, 7700 + j
+        )
+        for name, cap in (("deep", deep), ("capped", capped)):
+            cap.reset()
+            cap.push(x)
+            got[name] += at in [int(e[0]) for e in cap.events()]
+    assert got["deep"] >= 0.8 * trials
+    assert got["deep"] >= got["capped"] + trials // 5, got

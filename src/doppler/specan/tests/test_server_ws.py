@@ -24,6 +24,7 @@ import re
 import subprocess
 import sys
 import urllib.request
+from typing import Any
 
 import pytest
 
@@ -115,36 +116,73 @@ def _get_state(port: int) -> dict:
         return json.loads(resp.read())
 
 
+async def _drain(ws: Any) -> None:
+    """Read and discard frames until cancelled, as a browser does.
+
+    The server streams about 30 frames a second whether or not anyone reads.
+    A client that stops reading lets its receive queue fill, which pauses its
+    reading, and then it cannot see the server's close frame: ``close()``
+    waits out the whole ``close_timeout`` (10 s) and ends with code 1006.
+    Against this server (websockets 16.0) ``close()`` took 10.01 s that way
+    and 0.00 s with a reader running, so the server answers a close promptly
+    and the wait was this client's. ``_drive`` cancels the reader just before
+    it leaves the ``async with`` that closes the connection, too short a gap
+    for the queue to fill again, and then checks the close code.
+    """
+    async for _ in ws:
+        pass
+
+
 async def _drive(port: int) -> dict:
     uri = f"ws://127.0.0.1:{port}/ws"
     async with websockets.connect(uri) as ws:
-        await recv(ws)  # drain one frame so the connection is live
+        await recv(ws)  # one frame, bounded: the connection is live
 
-        # A rapid burst mimicking one slider drag: many messages, no
-        # pause -- this is exactly the pattern that used to desync the
-        # receive state after the first command or two.
-        n = 60
-        for i in range(n):
-            fn = -0.45 + i * (0.9 / (n - 1))
-            await ws.send(json.dumps({"tone_freq": fn}))
-            await asyncio.sleep(0.005)
+        # Read frames in the background for the rest of the drive. An abnormal
+        # drop mid-drive raises when the reader is awaited in the ``finally``;
+        # a clean close only ends its loop, so it is the close code, checked
+        # after the block, that catches a close which stalls.
+        drainer = asyncio.create_task(_drain(ws))
+        try:
+            # A rapid burst mimicking one slider drag: many messages, no
+            # pause -- this is exactly the pattern that used to desync the
+            # receive state after the first command or two.
+            n = 60
+            for i in range(n):
+                fn = -0.45 + i * (0.9 / (n - 1))
+                await ws.send(json.dumps({"tone_freq": fn}))
+                await asyncio.sleep(0.005)
 
-        await asyncio.sleep(0.3)
-        state_after_burst = _get_state(port)
+            await asyncio.sleep(0.3)
+            state_after_burst = _get_state(port)
 
-        # Unrelated controls sent well after the burst must still land --
-        # this is the part that stayed broken even after the burst's own
-        # tail command got through, pre-fix.
-        await ws.send(json.dumps({"tone_power": -7.0}))
-        await asyncio.sleep(0.2)
-        await ws.send(json.dumps({"noise_floor": -55.0}))
-        await asyncio.sleep(0.3)
+            # Unrelated controls sent well after the burst must still land
+            # -- this is the part that stayed broken even after the burst's
+            # own tail command got through, pre-fix.
+            await ws.send(json.dumps({"tone_power": -7.0}))
+            await asyncio.sleep(0.2)
+            await ws.send(json.dumps({"noise_floor": -55.0}))
+            await asyncio.sleep(0.3)
 
-        return {
-            "burst_final_fn": state_after_burst["demo"]["tone_freq"],
-            "expected_fn": -0.45 + (n - 1) * (0.9 / (n - 1)),
-            "final": _get_state(port),
-        }
+            result = {
+                "burst_final_fn": state_after_burst["demo"]["tone_freq"],
+                "expected_fn": -0.45 + (n - 1) * (0.9 / (n - 1)),
+                "final": _get_state(port),
+            }
+        finally:
+            drainer.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await drainer
+
+    # Leaving the block closed the connection. websockets 16.0 swallows the
+    # ConnectionClosed it raises after ``close_timeout`` aborts the transport,
+    # so a close that stalls would only make this test 10 s slower and end
+    # with code 1006: the code is what shows the handshake completed.
+    assert ws.close_code == 1000, (
+        f"the close handshake did not complete cleanly "
+        f"(close code {ws.close_code})"
+    )
+    return result
 
 
 def test_rapid_burst_fully_applied(specan_server):

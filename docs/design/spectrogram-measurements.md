@@ -540,7 +540,13 @@ is the same apart from field offsets.
 
 **What this does not cover.** One x86-64 machine. On aarch64 and macOS, where
 the compiler may contract differently, only the in-build oracles hold it
-([#2187](https://github.com/doppler-dsp/doppler/issues/2187)).
+([#2187](https://github.com/doppler-dsp/doppler/issues/2187)). Nor does the
+dump reach every path the change touched: PSD is built through
+`dp_psd_create`, so no PSD hop below `n`; no forged `set_state` blob; no
+refusal path; no NaN input and none at the −200 dB floor; no Kaiser beta but
+6; no pad above 2; and no `DP_ERR_MEMORY`. The unit tests' sabotage covers the
+`DP_ERR_INVALID` refusals only
+([#2211](https://github.com/doppler-dsp/doppler/issues/2211)).
 
 ### 5.12 Where a PSD frame's time goes (2026-10-10) — the #2094 baseline
 

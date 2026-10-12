@@ -9,13 +9,13 @@ Derived 2026-10-12 by `make issues`, which reads the live issue list; titles and
 | Tier                                   | What it means             | Open |
 | -------------------------------------- | ------------------------- | ---- |
 | [0](#tier-0-breaks-for-a-user)         | Breaks for a user         | 21   |
-| [1](#tier-1-a-gate-that-does-not-gate) | A gate that does not gate | 52   |
-| [2](#tier-2-a-claim-nothing-measures)  | A claim nothing measures  | 59   |
+| [1](#tier-1-a-gate-that-does-not-gate) | A gate that does not gate | 51   |
+| [2](#tier-2-a-claim-nothing-measures)  | A claim nothing measures  | 60   |
 | [3](#tier-3-measured-cost)             | Measured cost             | 23   |
 | [4](#tier-4-cannot-be-reached)         | Cannot be reached         | 44   |
 | [5](#tier-5-convergence-and-hygiene)   | Convergence and hygiene   | 84   |
 
-12 of them have a pull request open against them; the **Status** column says which.
+11 of them have a pull request open against them; the **Status** column says which.
 
 ## Tier 0 — Breaks for a user
 
@@ -98,7 +98,6 @@ This repo's own doctrine turned on itself: *a claim nothing runs is prose*. Each
 | [#2078](https://github.com/doppler-dsp/doppler/issues/2078) | state: 11 serializable classes have no test_state_serialization CASES row, so #2022's gate cannot probe their mutators                                                                             | open                                                                  |
 | [#2093](https://github.com/doppler-dsp/doppler/issues/2093) | state gate (#2022): what #2085's review leaves -- refused-restore probe, NONDETERMINISTIC masking, C-only discovery                                                                                | open                                                                  |
 | [#2182](https://github.com/doppler-dsp/doppler/issues/2182) | Validation reports restate header claims by hand; nothing ties a claim to its header sentence or its verdicts (deferred design)                                                                    | open                                                                  |
-| [#2191](https://github.com/doppler-dsp/doppler/issues/2191) | Window and mode literals still reach the constructors through test helpers the named-args gate cannot see                                                                                          | in review ([#2199](https://github.com/doppler-dsp/doppler/pull/2199)) |
 | [#2194](https://github.com/doppler-dsp/doppler/issues/2194) | carrier_acq's window set is declared twice, and the named-args gate checks its slot against psd_window, not the carrier_acq_window view                                                            | open                                                                  |
 | [#2197](https://github.com/doppler-dsp/doppler/issues/2197) | named-args: discover forwarding helpers by parameter name instead of a hand-kept HELPERS table                                                                                                     | open                                                                  |
 | [#2198](https://github.com/doppler-dsp/doppler/issues/2198) | named-args: a constructor call with a comment between its name and '(' is not seen                                                                                                                 | open                                                                  |
@@ -169,6 +168,7 @@ A header, report or design doc asserts a number or a behaviour that no test and 
 | [#2188](https://github.com/doppler-dsp/doppler/issues/2188) | docs/specan/chirp_frames.json is stale and no test reads it                                                                                                                                        | open                                                                  |
 | [#2200](https://github.com/doppler-dsp/doppler/issues/2200) | Published Python benchmarks under ~300 ns carry the timer's overhead whenever pytest-benchmark calibrates one iteration per round                                                                  | open                                                                  |
 | [#2204](https://github.com/doppler-dsp/doppler/issues/2204) | carrier_acq_core.h states the carrier_acq window set a third time, in prose, and nothing holds it                                                                                                  | open                                                                  |
+| [#2208](https://github.com/doppler-dsp/doppler/issues/2208) | test_server_ws.py: websocket recv has no timeout, so a hung server stalls the Python leg                                                                                                           | open                                                                  |
 
 ## Tier 3 — Measured cost
 

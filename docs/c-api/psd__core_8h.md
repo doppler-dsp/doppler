@@ -35,6 +35,7 @@ _PSD — averaging power-spectral-density estimator (Welch's method) and spectra
 
 | Type | Name |
 | ---: | :--- |
+| struct | [**dp\_psd\_kernel\_t**](structdp__psd__kernel__t.md) <br>_PSD's per-frame kernel: one frame of n samples in, nfft DC-centred power bins out, and their reading against the full-scale reference._  |
 | struct | [**dp\_psd\_state\_t**](structdp__psd__state__t.md) <br>_PSD state. Allocate with_ [_**dp\_psd\_create()**_](psd__core_8h.md#function-dp_psd_create) _._ |
 
 
@@ -74,10 +75,12 @@ _PSD — averaging power-spectral-density estimator (Welch's method) and spectra
 |  [**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* | [**dp\_psd\_create**](#function-dp_psd_create) (size\_t n, double fs, int window, float beta, size\_t pad, double full\_scale, size\_t bits, int mode, double alpha) <br>_Create an averaging PSD estimator._  |
 |  [**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* | [**dp\_psd\_create\_hop**](#function-dp_psd_create_hop) (size\_t n, double fs, int window, float beta, size\_t pad, double full\_scale, size\_t bits, int mode, double alpha, size\_t hop) <br>_Create an averaging PSD estimator whose frames are spaced by a hop._  |
 |  void | [**dp\_psd\_destroy**](#function-dp_psd_destroy) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Destroy a PSD instance and release all memory._  |
-|  void | [**dp\_psd\_frame\_db**](#function-dp_psd_frame_db) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, const float \_Complex \* x, float \* out) <br>_One frame in dBFS, against the estimator's own reference._  |
-|  void | [**dp\_psd\_frame\_linear**](#function-dp_psd_frame_linear) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, const float \_Complex \* x, float \* out) <br>_One frame in linear full-scale^2 units, against the estimator's own reference._  |
-|  void | [**dp\_psd\_frame\_power**](#function-dp_psd_frame_power) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, const float \_Complex \* x, float \* pwr) <br>_One frame's DC-centred two-sided power: window, zero-pad, FFT, \|X\|^2._  |
+|  void | [**dp\_psd\_frame\_db**](#function-dp_psd_frame_db) ([**dp\_psd\_kernel\_t**](structdp__psd__kernel__t.md) \* k, const float \_Complex \* x, float \* out) <br>_One frame in dBFS, against the estimator's own reference._  |
+|  void | [**dp\_psd\_frame\_linear**](#function-dp_psd_frame_linear) ([**dp\_psd\_kernel\_t**](structdp__psd__kernel__t.md) \* k, const float \_Complex \* x, float \* out) <br>_One frame in linear full-scale^2 units, against the estimator's own reference._  |
+|  void | [**dp\_psd\_frame\_power**](#function-dp_psd_frame_power) ([**dp\_psd\_kernel\_t**](structdp__psd__kernel__t.md) \* k, const float \_Complex \* x, float \* pwr) <br>_One frame's DC-centred two-sided power: window, zero-pad, FFT, \|X\|^2._  |
 |  void | [**dp\_psd\_get\_state**](#function-dp_psd_get_state) (const [**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, void \* blob) <br> |
+|  void | [**dp\_psd\_kernel\_free**](#function-dp_psd_kernel_free) ([**dp\_psd\_kernel\_t**](structdp__psd__kernel__t.md) \* k) <br>_Release what_ [_**dp\_psd\_kernel\_init()**_](psd__core_8h.md#function-dp_psd_kernel_init) _allocated, and zero the kernel._ |
+|  int | [**dp\_psd\_kernel\_init**](#function-dp_psd_kernel_init) ([**dp\_psd\_kernel\_t**](structdp__psd__kernel__t.md) \* k, size\_t n, int window, float beta, size\_t pad, double full\_scale) <br>_Fill a kernel: the window, its gains, the scratch and the plan._  |
 |  double | [**dp\_psd\_noise\_floor**](#function-dp_psd_noise_floor) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Noise-floor estimate: median of the averaged dB spectrum._  |
 |  double | [**dp\_psd\_occupied\_bw**](#function-dp_psd_occupied_bw) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, double fraction) <br>_Occupied bandwidth in Hz holding_ `fraction` _of the total power._ |
 |  size\_t | [**dp\_psd\_power\_onesided**](#function-dp_psd_power_onesided) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, size\_t cap, float \* out, size\_t max\_out) <br>_Averaged linear power, one-sided (length nfft/2 + 1). Folds the DC-centred two-sided estimate onto_ `[0, fs/2]` _: the DC and Nyquist bins are kept as-is, every interior bin is the sum of its +k and -k halves (so a real-input tone reads 2\*avg\|_`X[k]` _\|^2 / cg^2 there). Coherent-gain normalised; full\_scale is NOT applied. Returns 0 before any accumulate._ |
@@ -501,7 +504,7 @@ void dp_psd_destroy (
 _One frame in dBFS, against the estimator's own reference._ 
 ```C++
 void dp_psd_frame_db (
-    dp_psd_state_t * state,
+    dp_psd_kernel_t * k,
     const float _Complex * x,
     float * out
 ) 
@@ -509,7 +512,7 @@ void dp_psd_frame_db (
 
 
 
-[**dp\_psd\_frame\_power()**](psd__core_8h.md#function-dp_psd_frame_power) divided by the window coherent gain squared and the full-scale reference, as 10\*log10 with the -200 dB floor, so a full-scale tone on a bin reads 0 dB whatever the window. The result equals [**dp\_psd\_psd\_db()**](psd__core_8h.md#function-dp_psd_psd_db) after accumulating that one frame, bit for bit (pinned by test\_psd\_core.c). Does not touch the running average.
+[**dp\_psd\_frame\_power()**](psd__core_8h.md#function-dp_psd_frame_power) divided by the window coherent gain squared and the full-scale reference, as 10\*log10 with the -200 dB floor, so a full-scale tone on a bin reads 0 dB whatever the window. The result equals [**dp\_psd\_psd\_db()**](psd__core_8h.md#function-dp_psd_psd_db) after accumulating that one frame, bit for bit (pinned by test\_psd\_core.c). Does not touch a PSD's running average.
 
 
 
@@ -517,21 +520,22 @@ void dp_psd_frame_db (
 **Parameters:**
 
 
-* `state` Must be non-NULL. 
-* `x` Exactly `state->n` complex samples (cf32). 
-* `out` Output, `state->nfft` floats, DC-centred.
+* `k` A kernel [**dp\_psd\_kernel\_init()**](psd__core_8h.md#function-dp_psd_kernel_init) filled. 
+* `x` Exactly `k->n` complex samples (cf32). 
+* `out` Output, `k->nfft` floats, DC-centred.
 
 
 ```C++
-dp_psd_state_t *p = dp_psd_create (8, 1.0, DP_PSD_WINDOW_RECT, 0.0f, 1, 1.0,
-                                   0, ACC_TRACE_MEAN, 0.0);
+dp_psd_kernel_t k;
+if (dp_psd_kernel_init (&k, 8, DP_PSD_WINDOW_RECT, 0.0f, 1, 1.0) != DP_OK)
+  return 1;
 float _Complex x[8];
 float db[8];
 for (int i = 0; i < 8; i++)
   x[i] = cexpf (I * 2.0f * 3.14159265f * 2.0f * (float)i / 8.0f);
-dp_psd_frame_db (p, x, db);        // unit tone on bin 2, rectangular
+dp_psd_frame_db (&k, x, db);       // unit tone on bin 2, rectangular
 const int bad = fabsf (db[4 + 2]) > 1e-4f; // bin 2 is at nfft/2 + 2
-dp_psd_destroy (p);                // freed on either path
+dp_psd_kernel_free (&k);           // freed on either path
 if (bad)
   return 1;
 ```
@@ -549,7 +553,7 @@ if (bad)
 _One frame in linear full-scale^2 units, against the estimator's own reference._ 
 ```C++
 void dp_psd_frame_linear (
-    dp_psd_state_t * state,
+    dp_psd_kernel_t * k,
     const float _Complex * x,
     float * out
 ) 
@@ -557,7 +561,7 @@ void dp_psd_frame_linear (
 
 
 
-[**dp\_psd\_frame\_power()**](psd__core_8h.md#function-dp_psd_frame_power) divided by the window coherent gain squared and the full-scale reference squared, cg^2 \* full\_scale^2: a full-scale tone on a bin reads 1.0 whatever the window. [**dp\_psd\_frame\_db()**](psd__core_8h.md#function-dp_psd_frame_db) is 10\*log10 of the same quotient, with the -200 dB floor  the two are read from one double, so they cannot disagree about the reference. This is the frame a consumer that averages for itself should take: the raw [**dp\_psd\_frame\_power()**](psd__core_8h.md#function-dp_psd_frame_power) sits 20\*log10(sum(w)) above it, 54.18 dB for Hann at 1024 points (docs/design/spectrogram-measurements.md section 5.3). Does not touch the running average; not thread-safe on one state.
+[**dp\_psd\_frame\_power()**](psd__core_8h.md#function-dp_psd_frame_power) divided by the window coherent gain squared and the full-scale reference squared, cg^2 \* full\_scale^2: a full-scale tone on a bin reads 1.0 whatever the window. [**dp\_psd\_frame\_db()**](psd__core_8h.md#function-dp_psd_frame_db) is 10\*log10 of the same quotient, with the -200 dB floor  the two are read from one double, so they cannot disagree about the reference. This is the frame a consumer that averages for itself should take: the raw [**dp\_psd\_frame\_power()**](psd__core_8h.md#function-dp_psd_frame_power) sits 20\*log10(sum(w)) above it, 54.18 dB for Hann at 1024 points (docs/design/spectrogram-measurements.md section 5.3). Does not touch a PSD's running average; not thread-safe on one kernel.
 
 
 
@@ -565,21 +569,22 @@ void dp_psd_frame_linear (
 **Parameters:**
 
 
-* `state` Must be non-NULL. 
-* `x` Exactly `state->n` complex samples (cf32). 
-* `out` Output, `state->nfft` floats, DC-centred.
+* `k` A kernel [**dp\_psd\_kernel\_init()**](psd__core_8h.md#function-dp_psd_kernel_init) filled. 
+* `x` Exactly `k->n` complex samples (cf32). 
+* `out` Output, `k->nfft` floats, DC-centred.
 
 
 ```C++
-dp_psd_state_t *p = dp_psd_create (8, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0,
-                                   0, ACC_TRACE_MEAN, 0.0);
+dp_psd_kernel_t k;
+if (dp_psd_kernel_init (&k, 8, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0) != DP_OK)
+  return 1;
 float _Complex x[8];
 float lin[8];
 for (int i = 0; i < 8; i++)
   x[i] = cexpf (I * 2.0f * 3.14159265f * 2.0f * (float)i / 8.0f);
-dp_psd_frame_linear (p, x, lin);   // unit tone on bin 2, Hann
+dp_psd_frame_linear (&k, x, lin);  // unit tone on bin 2, Hann
 const int bad = fabsf (lin[4 + 2] - 1.0f) > 1e-4f; // bin 2 at nfft/2 + 2
-dp_psd_destroy (p);                // freed on either path
+dp_psd_kernel_free (&k);           // freed on either path
 if (bad)
   return 1;
 ```
@@ -597,7 +602,7 @@ if (bad)
 _One frame's DC-centred two-sided power: window, zero-pad, FFT, \|X\|^2._ 
 ```C++
 void dp_psd_frame_power (
-    dp_psd_state_t * state,
+    dp_psd_kernel_t * k,
     const float _Complex * x,
     float * pwr
 ) 
@@ -605,7 +610,7 @@ void dp_psd_frame_power (
 
 
 
-The per-frame kernel [**dp\_psd\_accumulate()**](psd__core_8h.md#function-dp_psd_accumulate) folds into its average, exposed without the average. The result is the UN-NORMALISED power the averager folds: no division by the window coherent gain squared, so a tone does not read at its true level ([**dp\_psd\_frame\_db()**](psd__core_8h.md#function-dp_psd_frame_db) applies that division). Do not compare this raw output with [**dp\_psd\_power\_twosided()**](psd__core_8h.md#function-dp_psd_power_twosided), which divides by cg^2 on the double path. It stays the raw \|X\|^2 because that is what the averager folds; a consumer that wants a frame against the dBFS reference  in linear units to average itself, or in dB  takes [**dp\_psd\_frame\_linear()**](psd__core_8h.md#function-dp_psd_frame_linear) or [**dp\_psd\_frame\_db()**](psd__core_8h.md#function-dp_psd_frame_db). Uses the estimator's scratch, so it is not thread-safe on one state and it does not touch the running average.
+The per-frame kernel [**dp\_psd\_accumulate()**](psd__core_8h.md#function-dp_psd_accumulate) folds into its average, exposed without the average. The result is the UN-NORMALISED power the averager folds: no division by the window coherent gain squared, so a tone does not read at its true level ([**dp\_psd\_frame\_db()**](psd__core_8h.md#function-dp_psd_frame_db) applies that division). Do not compare this raw output with [**dp\_psd\_power\_twosided()**](psd__core_8h.md#function-dp_psd_power_twosided), which divides by cg^2 on the double path. It stays the raw \|X\|^2 because that is what the averager folds; a consumer that wants a frame against the dBFS reference  in linear units to average itself, or in dB  takes [**dp\_psd\_frame\_linear()**](psd__core_8h.md#function-dp_psd_frame_linear) or [**dp\_psd\_frame\_db()**](psd__core_8h.md#function-dp_psd_frame_db). Uses the kernel's scratch, so it is not thread-safe on one kernel; a PSD's kernel is `&psd->k`, and this does not touch that PSD's running average.
 
 
 
@@ -613,9 +618,9 @@ The per-frame kernel [**dp\_psd\_accumulate()**](psd__core_8h.md#function-dp_psd
 **Parameters:**
 
 
-* `state` Must be non-NULL. 
-* `x` Exactly `state->n` complex samples (cf32). 
-* `pwr` Output, `state->nfft` floats, bin k (centred) at index nfft/2 + k. 
+* `k` A kernel [**dp\_psd\_kernel\_init()**](psd__core_8h.md#function-dp_psd_kernel_init) filled. 
+* `x` Exactly `k->n` complex samples (cf32). 
+* `pwr` Output, `k->nfft` floats, bin k (centred) at index nfft/2 + k. 
 
 
 
@@ -637,6 +642,80 @@ void dp_psd_get_state (
 
 
 
+
+<hr>
+
+
+
+### function dp\_psd\_kernel\_free 
+
+_Release what_ [_**dp\_psd\_kernel\_init()**_](psd__core_8h.md#function-dp_psd_kernel_init) _allocated, and zero the kernel._
+```C++
+void dp_psd_kernel_free (
+    dp_psd_kernel_t * k
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `k` A kernel [**dp\_psd\_kernel\_init()**](psd__core_8h.md#function-dp_psd_kernel_init) was called on (any outcome). 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_psd\_kernel\_init 
+
+_Fill a kernel: the window, its gains, the scratch and the plan._ 
+```C++
+int dp_psd_kernel_init (
+    dp_psd_kernel_t * k,
+    size_t n,
+    int window,
+    float beta,
+    size_t pad,
+    double full_scale
+) 
+```
+
+
+
+`k` is zeroed first, so it is safe to call [**dp\_psd\_kernel\_free()**](psd__core_8h.md#function-dp_psd_kernel_free) on it whatever this returns. On a refusal or an allocation failure nothing is left allocated.
+
+
+
+
+**Parameters:**
+
+
+* `k` The kernel to fill (caller-owned storage). 
+* `n` Frame length in samples; at least 2. 
+* `window` DP\_PSD\_WINDOW\_HANN, \_KAISER, \_BLACKMAN\_HARRIS or \_RECT. 
+* `beta` Kaiser beta (ignored by every other window). One that makes the window non-finite is refused. 
+* `pad` Zero-pad factor (&gt;= 1); nfft = next\_pow\_two(n \* pad). 
+* `full_scale` Amplitude that reads 0 dBFS; finite and &gt; 0. 
+
+
+
+**Returns:**
+
+DP\_OK; DP\_ERR\_INVALID for an argument out of range, a window with no gain at n (Hann at 2) or an n \* pad too large to size; DP\_ERR\_MEMORY when an allocation fails. 
+
+
+
+
+
+        
 
 <hr>
 

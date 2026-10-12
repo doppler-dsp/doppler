@@ -61,23 +61,67 @@ enum {
 };
 
 /**
+ * @brief PSD's per-frame kernel: one frame of n samples in, nfft DC-centred
+ *        power bins out, and their reading against the full-scale reference.
+ *
+ * The one place a frame becomes a spectrum. It is held BY VALUE by every
+ * object that turns frames into spectra -- PSD, which folds each into its
+ * average, and the Spectrogram, which emits each one -- so neither owns a
+ * copy of the window, the transform or the dBFS reference, and neither
+ * carries the other's machinery. Fill it with dp_psd_kernel_init() and
+ * release it with dp_psd_kernel_free(); the frame calls below use its
+ * scratch, so one kernel serves one thread at a time.
+ */
+typedef struct {
+    dp_fft_state_t *fft;        /**< Forward cf32 plan, size nfft.         */
+    float *w;                   /**< Window, length n.                     */
+    float _Complex *frame;      /**< Windowed + zero-padded, length nfft.  */
+    float _Complex *spec;       /**< FFT output scratch, length nfft.      */
+    float *pwr;                 /**< DC-centred power scratch, length nfft.*/
+    double cg;                  /**< Window coherent gain, sum(w).         */
+    double s2;                  /**< Window power, sum(w^2).               */
+    size_t n;                   /**< Window / frame length (samples).      */
+    size_t nfft;                /**< Zero-padded transform length.         */
+    double full_scale;          /**< Amplitude that reads 0 dBFS.          */
+} dp_psd_kernel_t;
+
+/**
+ * @brief Fill a kernel: the window, its gains, the scratch and the plan.
+ *
+ * @p k is zeroed first, so it is safe to call dp_psd_kernel_free() on it
+ * whatever this returns. On a refusal or an allocation failure nothing is
+ * left allocated.
+ *
+ * @param k           The kernel to fill (caller-owned storage).
+ * @param n           Frame length in samples; at least 2.
+ * @param window      DP_PSD_WINDOW_HANN, _KAISER, _BLACKMAN_HARRIS or
+ *                    _RECT.
+ * @param beta        Kaiser beta (ignored by every other window). One that
+ *                    makes the window non-finite is refused.
+ * @param pad         Zero-pad factor (>= 1); nfft = next_pow_two(n * pad).
+ * @param full_scale  Amplitude that reads 0 dBFS; finite and > 0.
+ * @return DP_OK; DP_ERR_INVALID for an argument out of range, a window with
+ *         no gain at n (Hann at 2) or an n * pad too large to size;
+ *         DP_ERR_MEMORY when an allocation fails.
+ */
+int dp_psd_kernel_init(dp_psd_kernel_t *k, size_t n, int window, float beta,
+                       size_t pad, double full_scale);
+
+/**
+ * @brief Release what dp_psd_kernel_init() allocated, and zero the kernel.
+ * @param k  A kernel dp_psd_kernel_init() was called on (any outcome).
+ */
+void dp_psd_kernel_free(dp_psd_kernel_t *k);
+
+/**
  * @brief PSD state.  Allocate with dp_psd_create().
  */
 typedef struct {
-    dp_fft_state_t *fft;          /**< Forward cf32 plan, size nfft.         */
+    dp_psd_kernel_t k;         /**< The per-frame kernel; owns the window. */
     dp_acc_trace_state_t *avg;    /**< Per-bin power averager, length nfft.  */
-    float *w;                  /**< Window, length n.                     */
-    float _Complex *frame;      /**< Windowed + zero-padded, length nfft.  */
-    float _Complex *spec;       /**< FFT output scratch, length nfft.      */
-    float *pwr;                /**< DC-centred power scratch, length nfft.*/
     float *dbbuf;              /**< dB-trace scratch, length nfft.        */
-    double cg;                 /**< Window coherent gain, sum(w).         */
-    double s2;                 /**< Window power, sum(w^2).               */
     double enbw;               /**< Equivalent noise bandwidth, bins.     */
-    size_t n;                  /**< Window / frame length (samples).      */
-    size_t nfft;               /**< Zero-padded transform length.         */
     double fs;                 /**< Sample rate, Hz.                      */
-    double full_scale;         /**< Amplitude that reads 0 dBFS.          */
     size_t bits;               /**< ADC depth that set full_scale, else 0.*/
     size_t hop;                /**< Samples between frame starts, 1..n.   */
     dp_f32_t *ring;            /**< The framer's ring, 2n, owned by the framer. */
@@ -240,16 +284,16 @@ void dp_psd_accumulate(dp_psd_state_t *state, const float _Complex *x,
  * cg^2 on the double path. It stays the raw |X|^2 because that is what the
  * averager folds; a consumer that wants a frame against the dBFS reference
  * -- in linear units to average itself, or in dB -- takes
- * dp_psd_frame_linear() or dp_psd_frame_db(). Uses the estimator's scratch,
- * so it is not thread-safe on one state and it does not touch the running
- * average.
+ * dp_psd_frame_linear() or dp_psd_frame_db(). Uses the kernel's scratch, so
+ * it is not thread-safe on one kernel; a PSD's kernel is @c &psd->k, and this
+ * does not touch that PSD's running average.
  *
- * @param state  Must be non-NULL.
- * @param x      Exactly @c state->n complex samples (cf32).
- * @param pwr    Output, @c state->nfft floats, bin k (centred) at index
+ * @param k      A kernel dp_psd_kernel_init() filled.
+ * @param x      Exactly @c k->n complex samples (cf32).
+ * @param pwr    Output, @c k->nfft floats, bin k (centred) at index
  *               nfft/2 + k.
  */
-void dp_psd_frame_power(dp_psd_state_t *state, const float _Complex *x,
+void dp_psd_frame_power(dp_psd_kernel_t *k, const float _Complex *x,
                         float *pwr);
 
 /**
@@ -263,28 +307,29 @@ void dp_psd_frame_power(dp_psd_state_t *state, const float _Complex *x,
  * they cannot disagree about the reference. This is the frame a consumer that
  * averages for itself should take: the raw dp_psd_frame_power() sits
  * 20*log10(sum(w)) above it, 54.18 dB for Hann at 1024 points
- * (docs/design/spectrogram-measurements.md section 5.3). Does not touch the
- * running average; not thread-safe on one state.
+ * (docs/design/spectrogram-measurements.md section 5.3). Does not touch a
+ * PSD's running average; not thread-safe on one kernel.
  *
- * @param state  Must be non-NULL.
- * @param x      Exactly @c state->n complex samples (cf32).
- * @param out    Output, @c state->nfft floats, DC-centred.
+ * @param k      A kernel dp_psd_kernel_init() filled.
+ * @param x      Exactly @c k->n complex samples (cf32).
+ * @param out    Output, @c k->nfft floats, DC-centred.
  *
  * @code
- * dp_psd_state_t *p = dp_psd_create (8, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0,
- *                                    0, ACC_TRACE_MEAN, 0.0);
+ * dp_psd_kernel_t k;
+ * if (dp_psd_kernel_init (&k, 8, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0) != DP_OK)
+ *   return 1;
  * float _Complex x[8];
  * float lin[8];
  * for (int i = 0; i < 8; i++)
  *   x[i] = cexpf (I * 2.0f * 3.14159265f * 2.0f * (float)i / 8.0f);
- * dp_psd_frame_linear (p, x, lin);   // unit tone on bin 2, Hann
+ * dp_psd_frame_linear (&k, x, lin);  // unit tone on bin 2, Hann
  * const int bad = fabsf (lin[4 + 2] - 1.0f) > 1e-4f; // bin 2 at nfft/2 + 2
- * dp_psd_destroy (p);                // freed on either path
+ * dp_psd_kernel_free (&k);           // freed on either path
  * if (bad)
  *   return 1;
  * @endcode
  */
-void dp_psd_frame_linear(dp_psd_state_t *state, const float _Complex *x,
+void dp_psd_frame_linear(dp_psd_kernel_t *k, const float _Complex *x,
                          float *out);
 
 /**
@@ -294,27 +339,28 @@ void dp_psd_frame_linear(dp_psd_state_t *state, const float _Complex *x,
  * full-scale reference, as 10*log10 with the -200 dB floor, so a full-scale
  * tone on a bin reads 0 dB whatever the window. The result equals
  * dp_psd_psd_db() after accumulating that one frame, bit for bit (pinned by
- * test_psd_core.c). Does not touch the running average.
+ * test_psd_core.c). Does not touch a PSD's running average.
  *
- * @param state  Must be non-NULL.
- * @param x      Exactly @c state->n complex samples (cf32).
- * @param out    Output, @c state->nfft floats, DC-centred.
+ * @param k      A kernel dp_psd_kernel_init() filled.
+ * @param x      Exactly @c k->n complex samples (cf32).
+ * @param out    Output, @c k->nfft floats, DC-centred.
  *
  * @code
- * dp_psd_state_t *p = dp_psd_create (8, 1.0, DP_PSD_WINDOW_RECT, 0.0f, 1, 1.0,
- *                                    0, ACC_TRACE_MEAN, 0.0);
+ * dp_psd_kernel_t k;
+ * if (dp_psd_kernel_init (&k, 8, DP_PSD_WINDOW_RECT, 0.0f, 1, 1.0) != DP_OK)
+ *   return 1;
  * float _Complex x[8];
  * float db[8];
  * for (int i = 0; i < 8; i++)
  *   x[i] = cexpf (I * 2.0f * 3.14159265f * 2.0f * (float)i / 8.0f);
- * dp_psd_frame_db (p, x, db);        // unit tone on bin 2, rectangular
+ * dp_psd_frame_db (&k, x, db);       // unit tone on bin 2, rectangular
  * const int bad = fabsf (db[4 + 2]) > 1e-4f; // bin 2 is at nfft/2 + 2
- * dp_psd_destroy (p);                // freed on either path
+ * dp_psd_kernel_free (&k);           // freed on either path
  * if (bad)
  *   return 1;
  * @endcode
  */
-void dp_psd_frame_db(dp_psd_state_t *state, const float _Complex *x,
+void dp_psd_frame_db(dp_psd_kernel_t *k, const float _Complex *x,
                      float *out);
 
 /**

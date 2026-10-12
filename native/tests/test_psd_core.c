@@ -79,12 +79,12 @@ static double
 w4_ratio (const dp_psd_state_t *s)
 {
   double s4 = 0.0;
-  for (size_t i = 0; i < s->n; i++)
+  for (size_t i = 0; i < s->k.n; i++)
     {
-      const double w2 = (double)s->w[i] * (double)s->w[i];
+      const double w2 = (double)s->k.w[i] * (double)s->k.w[i];
       s4 += w2 * w2;
     }
-  return s4 / (s->s2 * s->s2);
+  return s4 / (s->k.s2 * s->k.s2);
 }
 
 /* Mean over the first n entries, in double. */
@@ -141,7 +141,7 @@ main (void)
     dp_psd_state_t *w = dp_psd_create (N, 1.0e6, DP_PSD_WINDOW_KAISER, 8.0f, 1,
                                        1.0, 0, ACC_TRACE_MEAN, 0.1);
     DP_CHECK (w != NULL);
-    DP_CHECK (w->n == N);
+    DP_CHECK (w->k.n == N);
     DP_CHECK (w->fs == 1.0e6);
     DP_CHECK (w->enbw > 1.0); /* any non-rectangular window has ENBW > 1 bin */
 
@@ -207,8 +207,8 @@ main (void)
                                          0.0f, 1, 1.0, 0, ACC_TRACE_MEAN, 0.1);
     dp_psd_state_t *h3  = dp_psd_create (3, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
                                          1.0, 0, ACC_TRACE_MEAN, 0.1);
-    DP_CHECK (bh2 != NULL && bh2->cg > 0.0);
-    DP_CHECK (h3 != NULL && h3->cg > 0.0);
+    DP_CHECK (bh2 != NULL && bh2->k.cg > 0.0);
+    DP_CHECK (h3 != NULL && h3->k.cg > 0.0);
     dp_psd_destroy (bh2);
     dp_psd_destroy (h3);
 
@@ -232,7 +232,7 @@ main (void)
     /* precondition: n = 2 under rect, at an ordinary pad, still builds */
     dp_psd_state_t *r2 = dp_psd_create (2, 1.0, DP_PSD_WINDOW_RECT, 0.0f, 4,
                                         1.0, 0, ACC_TRACE_MEAN, 0.1);
-    DP_CHECK (r2 != NULL && r2->nfft == 8);
+    DP_CHECK (r2 != NULL && r2->k.nfft == 8);
     dp_psd_destroy (r2);
 
     /* What every reading divides by must be a finite positive number.  A
@@ -275,8 +275,8 @@ main (void)
                                          1, 1.0, 0, ACC_TRACE_MEAN, 0.1);
     dp_psd_state_t *b64 = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
                                          1.0, 64, ACC_TRACE_MEAN, 0.1);
-    DP_CHECK (k22 != NULL && isfinite (k22->cg));
-    DP_CHECK (b64 != NULL && b64->full_scale == ldexp (1.0, 63));
+    DP_CHECK (k22 != NULL && isfinite (k22->k.cg));
+    DP_CHECK (b64 != NULL && b64->k.full_scale == ldexp (1.0, 63));
     dp_psd_destroy (k22);
     dp_psd_destroy (b64);
   }
@@ -334,7 +334,7 @@ main (void)
         dp_psd_state_t *r
             = dp_psd_create (ties[k].n, 256.0, ties[k].window, ties[k].beta,
                              ties[k].pad, 1.0, 0, ACC_TRACE_MEAN, 0.1);
-        DP_REQUIRE (r != NULL && r->nfft == 256);
+        DP_REQUIRE (r != NULL && r->k.nfft == 256);
         float _Complex imp[100] = { 0 };
         imp[0]                  = 1.0f;
         dp_psd_accumulate (r, imp, ties[k].n);
@@ -506,11 +506,11 @@ main (void)
                                            pad, 1.0, 0, ACC_TRACE_MEAN, 0.1);
         dp_psd_accumulate_real (w, x, N);
         float  two[128];
-        size_t nfft = dp_psd_power_twosided (w, w->nfft, two, w->nfft);
-        DP_CHECK (nfft == w->nfft);
-        DP_CHECK (fabs (two[w->nfft / 2] - A * A) < 1e-3); /* DC bin */
+        size_t nfft = dp_psd_power_twosided (w, w->k.nfft, two, w->k.nfft);
+        DP_CHECK (nfft == w->k.nfft);
+        DP_CHECK (fabs (two[w->k.nfft / 2] - A * A) < 1e-3); /* DC bin */
         float one[65];
-        dp_psd_power_onesided (w, w->nfft / 2 + 1, one, w->nfft / 2 + 1);
+        dp_psd_power_onesided (w, w->k.nfft / 2 + 1, one, w->k.nfft / 2 + 1);
         DP_CHECK (fabs (one[0] - A * A) < 1e-3); /* one-sided DC */
         dp_psd_destroy (w);
       }
@@ -560,7 +560,7 @@ main (void)
                                            pad, 1.0, 0, ACC_TRACE_MEAN, 0.1);
         dp_psd_accumulate_real (w, x, N);
         float  two[128];
-        size_t nfft = dp_psd_power_twosided (w, w->nfft, two, w->nfft);
+        size_t nfft = dp_psd_power_twosided (w, w->k.nfft, two, w->k.nfft);
         for (size_t i = 0; i < nfft; i++)
           tot[pad] += two[i];
         dp_psd_destroy (w);
@@ -840,9 +840,9 @@ main (void)
         fill_cnoise (f[j], N, 1.0, &seed);
         for (size_t i = 0; i < N; i++)
           f[j][i] *= scales[j];
-        dp_psd_frame_power (k, f[j], P[j]);
+        dp_psd_frame_power (&k->k, f[j], P[j]);
       }
-    const double cg2 = k->cg * k->cg;
+    const double cg2 = k->k.cg * k->k.cg;
     for (int mode = 0; mode <= 3; mode++)
       {
         dp_psd_state_t *w = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
@@ -948,15 +948,16 @@ main (void)
             fill_cnoise (x, N, var, &seed);
             dp_psd_accumulate (w, x, N);
           }
-        const size_t nfft = w->nfft;
+        const size_t nfft = w->k.nfft;
         float       *hz   = malloc (nfft * sizeof *hz);
         float       *db   = malloc (nfft * sizeof *db);
         DP_REQUIRE (hz && db);
         DP_REQUIRE (dp_psd_psd_dbhz (w, nfft, hz, nfft) == nfft);
         DP_REQUIRE (dp_psd_psd_db (w, nfft, db, nfft) == nfft);
-        double       lin      = 0.0;
-        int          off      = 1;
-        const double want_off = 10.0 * log10 (w->cg * w->cg / (fs * w->s2));
+        double       lin = 0.0;
+        int          off = 1;
+        const double want_off
+            = 10.0 * log10 (w->k.cg * w->k.cg / (fs * w->k.s2));
         for (size_t i = 0; i < nfft; i++)
           {
             lin += pow (10.0, hz[i] / 10.0);
@@ -1246,7 +1247,7 @@ main (void)
         dp_psd_state_t *b8 = dp_psd_create (N, 1.0, win, 8.0f, 1, 1.0, 0,
                                             ACC_TRACE_MEAN, 0.0);
         DP_REQUIRE (b0 && b8);
-        const int same = memcmp (b0->w, b8->w, N * sizeof b0->w[0]) == 0;
+        const int same = memcmp (b0->k.w, b8->k.w, N * sizeof b0->k.w[0]) == 0;
         DP_CHECK (win == DP_PSD_WINDOW_KAISER ? !same : same);
         dp_psd_destroy (b0);
         dp_psd_destroy (b8);
@@ -1364,7 +1365,7 @@ main (void)
             dp_psd_state_t *k = dp_psd_create (n, 1.0, win, 6.0f, pads[b], 1.0,
                                                0, ACC_TRACE_MEAN, 0.0);
             DP_REQUIRE (ref && k);
-            const size_t nfft    = ref->nfft;
+            const size_t nfft    = ref->k.nfft;
             float       *want_db = malloc (nfft * sizeof *want_db);
             float       *want_p  = malloc (nfft * sizeof *want_p);
             float       *got_db  = malloc (nfft * sizeof *got_db);
@@ -1380,13 +1381,13 @@ main (void)
             DP_CHECK (dp_psd_power_twosided (ref, nfft, want_p, nfft) == nfft);
 
             /* The kernel leaves the average alone: nothing accumulated. */
-            dp_psd_frame_db (k, x, got_db);
+            dp_psd_frame_db (&k->k, x, got_db);
             DP_CHECK (dp_psd_psd_db (k, nfft, got_p, nfft) == 0);
             DP_CHECK (memcmp (got_db, want_db, nfft * sizeof *got_db) == 0);
 
             /* raw power / cg^2 is exactly the two-sided readout */
-            dp_psd_frame_power (k, x, got_p);
-            const double cg2  = ref->cg * ref->cg;
+            dp_psd_frame_power (&k->k, x, got_p);
+            const double cg2  = ref->k.cg * ref->k.cg;
             int          same = 1;
             for (size_t i = 0; i < nfft; i++)
               if ((float)((double)got_p[i] / cg2) != want_p[i])
@@ -1426,7 +1427,7 @@ main (void)
           dp_psd_state_t *w = dp_psd_create (N, 1.0, win, 8.0f, pad, 1.0, 0,
                                              ACC_TRACE_MEAN, 0.0);
           DP_REQUIRE (w != NULL);
-          const size_t nfft = w->nfft;
+          const size_t nfft = w->k.nfft;
           float _Complex x[64];
           for (size_t i = 0; i < N; i++)
             x[i] = dp_cgauss (&seed);
@@ -1436,10 +1437,10 @@ main (void)
           DP_REQUIRE (lin && db && raw);
           for (size_t i = 0; i < nfft; i++)
             lin[i] = db[i] = raw[i] = NAN; /* see the kernel block above */
-          dp_psd_frame_linear (w, x, lin);
-          dp_psd_frame_db (w, x, db);
-          dp_psd_frame_power (w, x, raw);
-          const double ref   = w->cg * w->cg;
+          dp_psd_frame_linear (&w->k, x, lin);
+          dp_psd_frame_db (&w->k, x, db);
+          dp_psd_frame_power (&w->k, x, raw);
+          const double ref   = w->k.cg * w->k.cg;
           int          as_db = 1, as_raw = 1, written = 1;
           for (size_t i = 0; i < nfft; i++)
             {
@@ -1460,7 +1461,7 @@ main (void)
           /* (ii): a unit tone on bin 5 reads 1.0 at nfft/2 + 5*nfft/n */
           float _Complex t[64];
           fill_tone (t, N, 5);
-          dp_psd_frame_linear (w, t, lin);
+          dp_psd_frame_linear (&w->k, t, lin);
           DP_CHECK (fabs ((double)lin[nfft / 2 + 5 * (nfft / N)] - 1.0)
                     < 2e-5);
           DP_CHECK (w->avg->count == 0); /* (iv) */
@@ -1482,8 +1483,8 @@ main (void)
     for (size_t i = 0; i < N; i++)
       t[i] *= 2048.0f;
     float lf[64], lb[64];
-    dp_psd_frame_linear (wf, t, lf);
-    dp_psd_frame_linear (wb, t, lb);
+    dp_psd_frame_linear (&wf->k, t, lf);
+    dp_psd_frame_linear (&wb->k, t, lb);
     DP_CHECK (fabs ((double)lf[N / 2 + 5] - 1.0) < 2e-5);
     DP_CHECK (memcmp (lf, lb, sizeof lf) == 0);
     dp_psd_destroy (wf);
@@ -1507,7 +1508,7 @@ main (void)
               dp_psd_state_t *v = dp_psd_create (
                   N, 1.0, win, 8.0f, pad, fss[f], 0, ACC_TRACE_MEAN, 0.0);
               DP_REQUIRE (v != NULL);
-              const size_t nfft = v->nfft;
+              const size_t nfft = v->k.nfft;
               float _Complex xv[64];
               for (size_t i = 0; i < N; i++)
                 xv[i] = zero ? 0.0f : (float)fss[f] * dp_cgauss (&seed);
@@ -1516,9 +1517,9 @@ main (void)
               DP_REQUIRE (raw && db);
               for (size_t i = 0; i < nfft; i++)
                 raw[i] = db[i] = NAN; /* see the kernel block above */
-              dp_psd_frame_power (v, xv, raw);
-              dp_psd_frame_db (v, xv, db);
-              const double ref = (v->cg * v->cg) * (fss[f] * fss[f]);
+              dp_psd_frame_power (&v->k, xv, raw);
+              dp_psd_frame_db (&v->k, xv, db);
+              const double ref = (v->k.cg * v->k.cg) * (fss[f] * fss[f]);
               int          bit = 1;
               for (size_t i = 0; i < nfft; i++)
                 {
@@ -1546,14 +1547,14 @@ main (void)
     DP_REQUIRE (r != NULL);
     int all_ones = 1;
     for (size_t i = 0; i < RN; i++)
-      if (r->w[i] != 1.0f)
+      if (r->k.w[i] != 1.0f)
         all_ones = 0;
     DP_CHECK (all_ones);
-    DP_CHECK (r->cg == (double)RN); /* sum of ones */
+    DP_CHECK (r->k.cg == (double)RN); /* sum of ones */
     float _Complex x[RN];
     float db[RN];
     fill_tone (x, RN, 5);
-    dp_psd_frame_db (r, x, db);
+    dp_psd_frame_db (&r->k, x, db);
     /* a unit tone on a bin reads 0 dBFS: cg^2 normalisation is window-blind */
     DP_CHECK (fabsf (db[RN / 2 + 5]) < 1e-3f);
     dp_psd_destroy (r);
@@ -1564,6 +1565,66 @@ main (void)
     DP_CHECK (dp_psd_create (RN, 1.0, window_below_hann, 0.0f, 1, 1.0, 0,
                              ACC_TRACE_MEAN, 0.0)
               == NULL);
+  }
+
+  /* ── the kernel on its own: refusals, free, and the same frames ─────────
+     dp_psd_kernel_t is what PSD and the Spectrogram each hold by value. A
+     bare kernel refuses what dp_psd_create refuses for it, leaves nothing
+     allocated on a refusal (one is refused AFTER allocating: Hann at n = 2
+     has no gain), is freeable on any outcome and from a zero init, and turns
+     a frame into exactly the bins a PSD's own kernel does. */
+  {
+    enum
+    {
+      KN = 64
+    };
+    dp_psd_kernel_t k;
+    const int       window_past_rect = 4;
+    DP_CHECK (dp_psd_kernel_init (&k, 1, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0)
+              == DP_ERR_INVALID); /* n < 2 */
+    DP_CHECK (k.w == NULL && k.fft == NULL && k.n == 0);
+    DP_CHECK (dp_psd_kernel_init (&k, KN, DP_PSD_WINDOW_HANN, 0.0f, 0, 1.0)
+              == DP_ERR_INVALID); /* pad 0 */
+    DP_CHECK (dp_psd_kernel_init (&k, KN, window_past_rect, 0.0f, 1, 1.0)
+              == DP_ERR_INVALID);
+    DP_CHECK (dp_psd_kernel_init (&k, KN, DP_PSD_WINDOW_HANN, 0.0f, 1, 0.0)
+              == DP_ERR_INVALID); /* full scale 0 */
+    DP_CHECK (dp_psd_kernel_init (&k, KN, DP_PSD_WINDOW_HANN, 0.0f, 1, NAN)
+              == DP_ERR_INVALID); /* full scale NaN */
+    DP_CHECK (dp_psd_kernel_init (&k, 2, DP_PSD_WINDOW_HANN, 0.0f,
+                                  (size_t)-1 / 2, 1.0)
+              == DP_ERR_INVALID); /* n * pad too large to size */
+    DP_CHECK (dp_psd_kernel_init (&k, KN, DP_PSD_WINDOW_KAISER, NAN, 1, 1.0)
+              == DP_ERR_INVALID); /* non-finite window: after allocating */
+    DP_CHECK (k.w == NULL && k.fft == NULL);
+    DP_CHECK (dp_psd_kernel_init (&k, 2, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0)
+              == DP_ERR_INVALID); /* no gain: refused after allocating */
+    DP_CHECK (k.w == NULL && k.frame == NULL && k.spec == NULL && k.pwr == NULL
+              && k.fft == NULL); /* ...and freed */
+    dp_psd_kernel_free (&k);     /* freeable after it */
+    dp_psd_kernel_t z;
+    memset (&z, 0, sizeof z);
+    dp_psd_kernel_free (&z); /* and from a zero init */
+    for (int win = DP_PSD_WINDOW_HANN; win <= DP_PSD_WINDOW_RECT; win++)
+      {
+        DP_REQUIRE (dp_psd_kernel_init (&k, KN, win, 6.0f, 2, 1.0) == DP_OK);
+        dp_psd_state_t *p = dp_psd_create (KN, 1.0, win, 6.0f, 2, 1.0, 0,
+                                           ACC_TRACE_MEAN, 0.0);
+        DP_REQUIRE (p != NULL);
+        DP_CHECK (k.nfft == 2 * KN && k.nfft == p->k.nfft);
+        float _Complex x[KN];
+        float a[2 * KN], b[2 * KN], c[2 * KN], d[2 * KN];
+        fill_tone (x, KN, 7);
+        dp_psd_frame_linear (&k, x, a);
+        dp_psd_frame_linear (&p->k, x, b);
+        dp_psd_frame_db (&k, x, c);
+        dp_psd_frame_db (&p->k, x, d);
+        DP_CHECK (memcmp (a, b, sizeof a) == 0);
+        DP_CHECK (memcmp (c, d, sizeof c) == 0);
+        dp_psd_destroy (p);
+        dp_psd_kernel_free (&k);
+        DP_CHECK (k.w == NULL && k.fft == NULL);
+      }
   }
 
   /* ════════════════════════════════════════════════════════════════════════
@@ -1598,8 +1659,8 @@ main (void)
     DP_REQUIRE (dp_psd_psd_db (w, N, db0, N) == N);
     DP_REQUIRE (dp_psd_power_twosided (w, N, p0, N) == N);
 
-    dp_psd_frame_db (w, b, scratch);
-    dp_psd_frame_power (w, b, scratch);
+    dp_psd_frame_db (&w->k, b, scratch);
+    dp_psd_frame_power (&w->k, b, scratch);
 
     DP_CHECK (w->avg->count == count0);
     DP_CHECK (dp_psd_psd_db (w, N, db1, N) == N);
@@ -1629,14 +1690,14 @@ main (void)
           dp_psd_state_t *w = dp_psd_create (N, 1.0, win, 8.0f, pad, 1.0, 0,
                                              ACC_TRACE_MEAN, 0.0);
           DP_REQUIRE (w != NULL);
-          const size_t nfft = w->nfft;
+          const size_t nfft = w->k.nfft;
           /* bin k of the n-point frame is bin k*nfft/n of the transform */
           const size_t at = nfft / 2 + (size_t)k * (nfft / N);
           float _Complex x[64];
           fill_tone (x, N, k);
           float *db = malloc (nfft * sizeof *db);
           DP_REQUIRE (db != NULL);
-          dp_psd_frame_db (w, x, db);
+          dp_psd_frame_db (&w->k, x, db);
           DP_CHECK (fabsf (db[at]) < TOL_DB);
           dp_psd_accumulate (w, x, N);
           DP_CHECK (dp_psd_psd_db (w, nfft, db, nfft) == nfft);
@@ -1657,14 +1718,14 @@ main (void)
     dp_psd_state_t *wb = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
                                         999.0, B, ACC_TRACE_MEAN, 0.0);
     DP_REQUIRE (wf != NULL && wb != NULL);
-    DP_CHECK (wb->full_scale == FS);
+    DP_CHECK (wb->k.full_scale == FS);
     float _Complex x[64];
     fill_tone (x, N, k);
     for (size_t i = 0; i < N; i++)
       x[i] *= (float)FS;
     float df[64], dbits[64];
-    dp_psd_frame_db (wf, x, df);
-    dp_psd_frame_db (wb, x, dbits);
+    dp_psd_frame_db (&wf->k, x, df);
+    dp_psd_frame_db (&wb->k, x, dbits);
     DP_CHECK (fabsf (df[N / 2 + (size_t)k]) < TOL_DB);
     DP_CHECK (memcmp (df, dbits, sizeof df) == 0);
     dp_psd_accumulate (wf, x, N);
@@ -1689,7 +1750,7 @@ main (void)
       zero[i] = 0.0f;
     float db[64];
     int   at_floor = 1;
-    dp_psd_frame_db (w, zero, db);
+    dp_psd_frame_db (&w->k, zero, db);
     for (size_t i = 0; i < N; i++)
       if (fabsf (db[i] + 200.0f) > 1e-4f)
         at_floor = 0;
@@ -1725,14 +1786,14 @@ main (void)
           dp_psd_state_t *w = dp_psd_create (N, 1.0, DP_PSD_WINDOW_RECT, 0.0f,
                                              pad, 1.0, 0, ACC_TRACE_MEAN, 0.0);
           DP_REQUIRE (w != NULL);
-          const size_t nfft = w->nfft;
+          const size_t nfft = w->k.nfft;
           const long   step = (long)(nfft / N);
           const size_t want = (size_t)((long)(nfft / 2) + ks[j] * step);
           float _Complex x[64];
           fill_tone (x, N, ks[j]);
           float *db = malloc (nfft * sizeof *db);
           DP_REQUIRE (db != NULL);
-          dp_psd_frame_db (w, x, db);
+          dp_psd_frame_db (&w->k, x, db);
           DP_CHECK (argmax (db, nfft) == want);
           dp_psd_accumulate (w, x, N);
           DP_CHECK (dp_psd_psd_db (w, nfft, db, nfft) == nfft);
@@ -1802,7 +1863,7 @@ main (void)
             = dp_psd_create (c[j].n, 1.0, DP_PSD_WINDOW_RECT, 0.0f, c[j].pad,
                              1.0, 0, ACC_TRACE_MEAN, 0.0);
         DP_REQUIRE (w != NULL);
-        DP_CHECK (w->nfft == c[j].nfft);
+        DP_CHECK (w->k.nfft == c[j].nfft);
         dp_psd_destroy (w);
       }
   }
@@ -1818,7 +1879,7 @@ main (void)
     const size_t    n = 64, nfft = 128, half = nfft / 2;
     dp_psd_state_t *w = dp_psd_create (n, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 2,
                                        1.0, 0, ACC_TRACE_MEAN, 0.0);
-    DP_REQUIRE (w != NULL && w->nfft == nfft);
+    DP_REQUIRE (w != NULL && w->k.nfft == nfft);
     float _Complex x[64];
     fill_tone (x, n, 5);
     dp_psd_accumulate (w, x, n);
@@ -1928,24 +1989,24 @@ main (void)
                                1.0, 0, cfg[c].mode, cfg[c].alpha);
           DP_REQUIRE (w != NULL && kernel != NULL);
           dp_acc_trace_state_t *oracle
-              = dp_acc_trace_create (w->nfft, cfg[c].mode, cfg[c].alpha);
-          float *pwr  = malloc (w->nfft * sizeof *pwr);
-          float *got  = malloc (w->nfft * sizeof *got);
-          float *want = malloc (w->nfft * sizeof *want);
+              = dp_acc_trace_create (w->k.nfft, cfg[c].mode, cfg[c].alpha);
+          float *pwr  = malloc (w->k.nfft * sizeof *pwr);
+          float *got  = malloc (w->k.nfft * sizeof *got);
+          float *want = malloc (w->k.nfft * sizeof *want);
           DP_REQUIRE (oracle != NULL && pwr != NULL && got != NULL
                       && want != NULL);
           dp_psd_accumulate (w, x, len);
           for (size_t f = 0; f < len / n; f++)
             {
-              dp_psd_frame_power (kernel, x + f * n, pwr);
-              dp_acc_trace_accumulate (oracle, pwr, w->nfft);
+              dp_psd_frame_power (&kernel->k, x + f * n, pwr);
+              dp_acc_trace_accumulate (oracle, pwr, w->k.nfft);
             }
           DP_CHECK (w->avg->count == len / n);
-          DP_CHECK (dp_acc_trace_value (w->avg, w->nfft, got, w->nfft)
-                    == w->nfft);
-          DP_CHECK (dp_acc_trace_value (oracle, w->nfft, want, w->nfft)
-                    == w->nfft);
-          DP_CHECK (memcmp (got, want, w->nfft * sizeof *got) == 0);
+          DP_CHECK (dp_acc_trace_value (w->avg, w->k.nfft, got, w->k.nfft)
+                    == w->k.nfft);
+          DP_CHECK (dp_acc_trace_value (oracle, w->k.nfft, want, w->k.nfft)
+                    == w->k.nfft);
+          DP_CHECK (memcmp (got, want, w->k.nfft * sizeof *got) == 0);
           free (got);
           free (want);
           free (pwr);
@@ -2081,9 +2142,9 @@ main (void)
         dp_psd_accumulate (z, x, 2 * n + 9);
         dp_psd_accumulate (d, x, 2 * n + 9);
         float a[256], b[256];
-        DP_CHECK (dp_psd_power_twosided (z, 256, a, 256) == d->nfft);
-        DP_CHECK (dp_psd_power_twosided (d, 256, b, 256) == d->nfft);
-        DP_CHECK (memcmp (a, b, d->nfft * sizeof *a) == 0);
+        DP_CHECK (dp_psd_power_twosided (z, 256, a, 256) == d->k.nfft);
+        DP_CHECK (dp_psd_power_twosided (d, 256, b, 256) == d->k.nfft);
+        DP_CHECK (memcmp (a, b, d->k.nfft * sizeof *a) == 0);
         dp_psd_destroy (z);
         dp_psd_destroy (d);
       }

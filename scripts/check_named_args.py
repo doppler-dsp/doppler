@@ -93,6 +93,7 @@ TABLE: dict[str, tuple[int, dict[int, tuple[str, str]]]] = {
         {2: ("window", "psd_window"), 7: ("mode", "acc_trace_mode")},
     ),
     "dp_carrier_acq_create": (13, {4: ("window", "psd_window")}),
+    "dp_psd_kernel_init": (6, {2: ("window", "psd_window")}),
     "dp_acc_trace_create": (3, {1: ("mode", "acc_trace_mode")}),
 }
 

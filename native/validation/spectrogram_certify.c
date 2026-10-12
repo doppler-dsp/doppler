@@ -358,9 +358,9 @@ static void
 ref_row (dp_psd_state_t *p, int mode, const cf *frame, float *out)
 {
   if (mode == DP_SPECTROGRAM_POWER)
-    dp_psd_frame_linear (p, frame, out);
+    dp_psd_frame_linear (&p->k, frame, out);
   else
-    dp_psd_frame_db (p, frame, out);
+    dp_psd_frame_db (&p->k, frame, out);
 }
 
 /** @brief Rows `len` samples make: (len - nfft) / hop + 1, or 0. */

@@ -32,7 +32,9 @@ another helper -- would hide a literal from the constructor's row (#2191).
 ``discover`` finds them by data flow (#2197): a ``static`` function one of
 whose parameters is passed bare into a gated slot of a TABLE call, or of
 another helper in the file, gets that row, for its own file (names like
-``make`` are generic). A definition is read in the shapes this tree writes:
+``make`` are generic). A parameter that reaches two enums keeps both, so a
+literal at its call is named only where they agree (#2227). A definition is
+read in the shapes this tree writes:
 ``static`` at the start of a line or indented, after any upper-case macro
 (``JM_HOT``), ``[[attribute]]`` or ``__attribute__((...))``, with the return
 type, qualifiers and attributes on that line or any line before the name.
@@ -45,8 +47,8 @@ points are TABLE rows); a ``static inline`` forwarder in a header
 declared after the list); a parameter forwarded inside an expression
 (``w + 0``) or through a local variable; a parameter only COMPARED with an
 enumerator (``mode == DP_SPECTROGRAM_POWER``: a literal at such a call is
-not refused); a local that shadows a parameter, a variadic helper's ``...``
-and a parameter that feeds two enums (#2227); a function pointer or macro;
+not refused); a local that shadows a parameter and a variadic helper's
+``...`` (#2227); a function pointer or macro;
 a value that never passes through a call slot -- a variable initialised
 from a literal, a table cell, a loop bound.
 
@@ -317,6 +319,7 @@ class Finding:
         bare: str,
         name: str | None,
         span: tuple[int, int] | None,
+        note: str | None = None,
     ) -> None:
         self.line = line
         self.func = func
@@ -324,6 +327,7 @@ class Finding:
         self.bare = bare
         self.name = name
         self.span = span
+        self.note = note  # why no name is offered, when it is not "none"
 
 
 def _fix_span(text: str, s: int, e: int, name: str) -> tuple[int, int] | None:
@@ -430,8 +434,17 @@ def discover(
                     arg = _bare(code[a:b])
                     if arg and arg in params:
                         row = rows.setdefault(name, (len(params), {}))
-                        if params.index(arg) not in row[1]:
-                            row[1][params.index(arg)] = (label, enum)
+                        p = params.index(arg)
+                        old = row[1].get(p)
+                        if old is None:
+                            row[1][p] = (label, enum)
+                            changed = True
+                        elif enum not in old[1].split("|"):
+                            # One parameter, two enums (a window passed to
+                            # PSD and to carrier_acq's view): keep both, so
+                            # a literal is named only where they agree.
+                            both = set(old[1].split("|")) | {enum}
+                            row[1][p] = (old[0], "|".join(sorted(both)))
                             changed = True
     return rows
 
@@ -494,12 +507,24 @@ def check_text(
             bare = _bare(text[s:e])
             if not (_INT.fullmatch(bare) or _CHAR.fullmatch(bare)):
                 continue
-            name, span = None, None
+            name, span, note = None, None, None
             if _INT.fullmatch(bare):
-                name = names.get(enum, {}).get(_value(bare))
+                # A discovered parameter can feed two enums ("a|b"): a
+                # literal has a name only when every one of them agrees.
+                each = {
+                    e: names.get(e, {}).get(_value(bare))
+                    for e in enum.split("|")
+                }
+                if len(set(each.values())) == 1:
+                    name = next(iter(each.values()))
+                else:
+                    note = "feeds " + ", ".join(
+                        f"{e} ({n or 'no such value'})"
+                        for e, n in sorted(each.items())
+                    )
                 if name:
                     span = _fix_span(text, s, e, name)
-            found.append(Finding(line, func, param, bare, name, span))
+            found.append(Finding(line, func, param, bare, name, span, note))
     return calls, found
 
 
@@ -596,7 +621,9 @@ def main(argv: list[str]) -> int:
             if f.param == "arity":
                 print(f"  {where}: {f.func} called with {f.bare}")
                 continue
-            if not f.name:
+            if f.note:
+                hint = f" ({f.note}: name it by hand)"
+            elif not f.name:
                 hint = " (no such value)"
             elif args.fix:
                 hint = f" ({f.name}, but not a lone literal: edit it by hand)"

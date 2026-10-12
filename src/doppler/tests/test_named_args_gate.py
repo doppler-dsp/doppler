@@ -35,6 +35,56 @@ if TYPE_CHECKING:
 REPO = repo_root(__file__)
 SCRIPT = REPO / "scripts" / "check_named_args.py"
 
+
+def _gate():  # type: ignore[no-untyped-def]
+    """The gate as a module, for its tables and its proof helper."""
+    sys.path.insert(0, str(SCRIPT.parent))
+    try:
+        import check_named_args as g
+    finally:
+        sys.path.remove(str(SCRIPT.parent))
+    return g
+
+
+#: The name a seeded call passes in each enum's slot.
+_NAME = {
+    "psd_window": "DP_PSD_WINDOW_HANN",
+    "spectrogram_mode": "DP_SPECTROGRAM_POWER",
+}
+
+
+def _helper_src(rows: dict, literal: tuple[str, int] | None = None) -> str:
+    """One file's seeded helpers: each one's definition (every argument a
+    declaration, so not a call) and one call passing its slots by name -- or,
+    for `literal` = (function, slot), that one slot as the number 1."""
+    defs, calls = [], []
+    for func, (nargs, slots) in rows.items():
+        params = ", ".join(f"int a{i}" for i in range(nargs))
+        defs.append(f"static int {func} ({params});")
+        args = []
+        for i in range(nargs):
+            if literal == (func, i):
+                args.append("1")
+            elif i in slots:
+                args.append(_NAME[slots[i][1]])
+            else:
+                args.append(f"x{i}")
+        calls.append(f"  {func} ({', '.join(args)});")
+    return "\n".join([*defs, "void seeded (void)", "{", *calls, "}", ""])
+
+
+def _helper_files(
+    literal: tuple[str, str, int] | None = None,
+) -> dict[str, str]:
+    """Every HELPERS file, seeded; `literal` = (path, function, slot)."""
+    return {
+        path: _helper_src(
+            rows, literal[1:] if literal and literal[0] == path else None
+        )
+        for path, rows in _gate().HELPERS.items()
+    }
+
+
 #: Where the gate reads the bound C enums, relative to the root it is given.
 _HDR = header_root().relative_to(repo_root())
 
@@ -111,6 +161,7 @@ def _seed(tmp_path: Path, **override: str) -> None:
         "a.c": _NAMED_C,
         "inc/s.h": _NAMED_H_OK,
         "docs/p.md": _NAMED_MD,
+        **_helper_files(),
     }
     files.update(override)
     for rel, text in files.items():
@@ -135,9 +186,11 @@ def test_named_arguments_pass_in_every_shape(tmp_path: Path) -> None:
     _seed(tmp_path)
     r = _run(tmp_path)
     assert r.returncode == 0, r.stdout
-    # six calls in a.c (the printf is a string), the declaration and the
-    # @code call in s.h, the fence in p.md; the prose mention is not a call
-    assert "9 call(s) in 3 file(s)" in r.stdout
+    # six calls in a.c (the printf is a string), the @code call in s.h (its
+    # declaration is not a call), the fence in p.md; the prose mention is
+    # not a call either. One call of each HELPERS row, in its two files.
+    n = sum(len(rows) for rows in _gate().HELPERS.values())
+    assert f"8 call(s) and {n} helper call(s) in 5 file(s)" in r.stdout
 
 
 def test_a_literal_mode_fails_and_names_the_line(tmp_path: Path) -> None:
@@ -306,7 +359,7 @@ def test_a_literal_hidden_by_a_comma_comment_or_cast_fails(
     r = _run(tmp_path)
     assert r.returncode == 1, r.stdout
     assert f"a.c:9: dp_psd_create window = {lit}" in r.stdout
-    assert "9 call(s)" not in r.stdout  # the gate did not pass it
+    assert "OK --" not in r.stdout  # the gate did not pass it
 
 
 @pytest.mark.parametrize("expr", ["(base) + 1", "(n) - 1", "w + 0"])
@@ -346,11 +399,7 @@ def test_an_ellipsis_mention_is_prose(tmp_path: Path) -> None:
 def test_fix_proves_the_rewrite_before_making_it() -> None:
     """--fix rewrites a token only if the argument then reduces to exactly
     the name; anything else is reported and left alone."""
-    sys.path.insert(0, str(SCRIPT.parent))
-    try:
-        import check_named_args as g
-    finally:
-        sys.path.remove(str(SCRIPT.parent))
+    g = _gate()
     assert g._fix_span("(int) 1", 0, 7, "K") == (6, 7)
     assert g._fix_span("1 /* 2, 3 */", 0, 12, "K") == (0, 1)
     assert g._fix_span("(base) + 1", 0, 10, "K") is None
@@ -426,3 +475,86 @@ def test_the_real_tree_passes() -> None:
         [sys.executable, str(SCRIPT)], capture_output=True, text=True
     )
     assert r.returncode == 0, r.stdout
+
+
+def _helper_slots() -> list[tuple[str, str, int, str]]:
+    return [
+        (path, func, idx, param)
+        for path, rows in _gate().HELPERS.items()
+        for func, (_, slots) in rows.items()
+        for idx, (param, _) in slots.items()
+    ]
+
+
+@pytest.mark.parametrize(("path", "func", "idx", "param"), _helper_slots())
+def test_every_helper_slot_is_checked(
+    tmp_path: Path, path: str, func: str, idx: int, param: str
+) -> None:
+    """One case per (file, helper, slot) in HELPERS (#2191): a literal that
+    reaches a constructor through a helper is refused in that helper's
+    file, as a direct call's is."""
+    _seed(tmp_path, **_helper_files((path, func, idx)))
+    r = _run(tmp_path)
+    assert r.returncode == 1, r.stdout
+    assert f"{path}:" in r.stdout
+    assert f": {func} {param} = 1 (write " in r.stdout
+
+
+def test_fix_names_a_helper_literal(tmp_path: Path) -> None:
+    path = "native/validation/spectrogram_certify.c"
+    _seed(tmp_path, **_helper_files((path, "make", 3)))
+    r = _run(tmp_path, "--fix")
+    assert r.returncode == 0, r.stdout
+    assert "named 1 literal(s)" in r.stdout
+    fixed = (tmp_path / path).read_text(encoding="utf-8")
+    assert (
+        "make (DP_SPECTROGRAM_POWER, x1, x2, DP_PSD_WINDOW_KAISER);" in fixed
+    )
+
+
+def test_a_helper_mentioned_in_a_comment_is_prose(tmp_path: Path) -> None:
+    """`the units sections (3, 9, 13)` is a sentence. A helper is file-local
+    C, so its rows read the file with comments blanked (TABLE's cannot: a
+    header's @code block is a comment)."""
+    path = "native/tests/test_spectrogram_core.c"
+    src = "/* misread at the units sections (3, 9, 13) */\n"
+    src += _helper_files()[path]
+    _seed(tmp_path, **{path: src})
+    r = _run(tmp_path)
+    assert r.returncode == 0, r.stdout
+
+
+def test_a_helper_name_in_another_file_is_not_checked(tmp_path: Path) -> None:
+    """Helper names are generic (`make`), so a row holds its own file only."""
+    src = _NAMED_C.replace("  return !a", "  make (1, 2, 3);\n  return !a")
+    _seed(tmp_path, **{"a.c": src})
+    assert _run(tmp_path).returncode == 0
+
+
+def test_a_helper_row_with_no_call_fails(tmp_path: Path) -> None:
+    """Fail-closed per helper row, in its file: a helper renamed or inlined
+    away must take its row with it. Its definition, every argument a
+    declaration, is still there and is not a call."""
+    path = "native/validation/spectrogram_certify.c"
+    src = _helper_files()[path].replace("  make (", "  remade (")
+    _seed(tmp_path, **{path: src})
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    assert f"found no call of the helper make in {path}" in r.stdout
+
+
+def test_a_table_prototype_is_not_a_call(tmp_path: Path) -> None:
+    """A prototype is not a call, so it cannot stand in for a missing one:
+    with every dp_acc_trace_create call gone, its row fails although the
+    seeded header still declares it."""
+    no_t = _NAMED_C.replace(
+        "dp_acc_trace_create (8, ACC_TRACE_MEAN, 0.1)", "NULL"
+    )
+    proto = _NAMED_H_OK + (
+        "dp_acc_trace_state_t *dp_acc_trace_create (size_t n, int mode,\n"
+        "                                           double alpha);\n"
+    )
+    _seed(tmp_path, **{"a.c": no_t, "inc/s.h": proto})
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    assert "found no dp_acc_trace_create call" in r.stdout

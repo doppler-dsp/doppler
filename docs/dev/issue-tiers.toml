@@ -1470,25 +1470,10 @@ tier = 5
 title = "specan nits from the #2180 review: dBm import direction, step() naming, fastapi skip"
 status = "open"
 
-[issue.2191]
-tier = 1
-title = "Window and mode literals still reach the constructors through test helpers the named-args gate cannot see"
-status = "in review ([#2199](https://github.com/doppler-dsp/doppler/pull/2199))"
-
-[issue.2194]
-tier = 1
-title = "carrier_acq's window set is declared twice, and the named-args gate checks its slot against psd_window, not the carrier_acq_window view"
-status = "open"
-
 [issue.2197]
 tier = 1
 title = "named-args: discover forwarding helpers by parameter name instead of a hand-kept HELPERS table"
-status = "open"
-
-[issue.2198]
-tier = 1
-title = "named-args: a constructor call with a comment between its name and '(' is not seen"
-status = "open"
+status = "in review ([#2226](https://github.com/doppler-dsp/doppler/pull/2226))"
 
 [issue.2200]
 tier = 2
@@ -1513,4 +1498,24 @@ status = "open"
 [issue.2212]
 tier = 0
 title = "Run from a rebase exec, the gate tests' scratch repos obey the inherited GIT_DIR and rewrite the caller's index"
+status = "open"
+
+[issue.2217]
+tier = 3
+title = "BurstCapture: compensate the Doppler rate (rate hypotheses), with Pd/Pfa characterized to confidence bounds"
+status = "in review ([#2221](https://github.com/doppler-dsp/doppler/pull/2221))"
+
+[issue.2218]
+tier = 1
+title = "acq: a burst engine's measured per-dwell Pfa is 2x its target (1.97e-3 against 1e-3, ZC 127 x 16, D = 5)"
+status = "open"
+
+[issue.2219]
+tier = 2
+title = "rate_hypotheses follow-ups: tiled Monte-Carlo, per-event rate, DsssBurstReceiver, a deterministic guard for refine"
+status = "open"
+
+[issue.2224]
+tier = 1
+title = "acq: a tiled burst engine's pd_predicted/pd_burst price W\u00b7D\u00b7cb samples, not D\u00b7cb -- it always reports ~1.000 and underpowered never fires (measured 0.62-0.94)"
 status = "open"

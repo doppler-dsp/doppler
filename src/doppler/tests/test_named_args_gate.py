@@ -857,6 +857,46 @@ def test_a_local_that_shadows_a_parameter_teaches_no_helper(
     assert f"{rel}:12: sweep window = 1" in r.stdout, r.stdout
 
 
+#: `picky`'s `#if` and `#else` each open a brace, so read together its
+#: body never closes; `other` passes the GLOBAL `w` to PSD.
+_UNBALANCED_C = """\
+int w;
+
+static void
+picky (int w)
+{
+#if FAST
+  if (w > 0) {
+#else
+  if (w >= 0) {
+#endif
+    (void) w;
+  }
+}
+
+void
+other (void)
+{
+  dp_psd_create (64, 1.0, w, 0.0f, 1, 1.0, 0, ACC_TRACE_MEAN, 0.1);
+  picky (3);
+}
+"""
+
+
+def test_a_body_whose_braces_do_not_close_is_a_finding(tmp_path: Path) -> None:
+    """Read to the file's end, `picky`'s body took in `other` and its PSD
+    call, so `picky` became a helper and `--fix` rewrote `picky (3)` to
+    DP_PSD_WINDOW_RECT, exit 0 (#2227). A body discovery cannot read is a
+    finding instead, and the file is left alone."""
+    rel = "native/tests/picky.c"
+    _seed(tmp_path, **{rel: _UNBALANCED_C})
+    r = _run(tmp_path, "--fix")
+    assert r.returncode == 1, r.stdout
+    assert f"{rel}:4: picky: its braces do not close" in r.stdout, r.stdout
+    assert "picky window" not in r.stdout, r.stdout
+    assert (tmp_path / rel).read_text(encoding="utf-8") == _UNBALANCED_C
+
+
 def test_a_helper_name_in_another_file_is_not_checked(tmp_path: Path) -> None:
     """Helper names are generic (`make`), so a row holds its own file only."""
     src = _NAMED_C.replace("  return !a", "  make (1, 2, 3);\n  return !a")
@@ -968,7 +1008,8 @@ def test_the_real_trees_helpers_are_discovered() -> None:
         "native/benchmarks/bench_spectrogram_core.c": {"add": (8, {7: _M})},
     }
     for rel, rows in want.items():
-        found = g.discover((REPO / rel).read_text(encoding="utf-8"))
+        found, unread = g.discover((REPO / rel).read_text(encoding="utf-8"))
+        assert unread == [], (rel, unread)
         for name, row in rows.items():
             assert found.get(name) == row, (rel, name, found.get(name))
 

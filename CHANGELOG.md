@@ -13,6 +13,99 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.68.0] - 2026-10-12
+
+### Breaking
+
+- **PSD's per-frame kernel is its own struct, and the frame calls take it.**
+    `dp_psd_frame_power`/`_linear`/`_db` take `&psd->k`; passing the PSD
+    itself is unsupported, even where a compiler still accepts it.
+    `dp_psd_state_t`'s `fft`, `w`, `frame`, `spec`, `pwr`, `cg`, `s2`, `n`,
+    `nfft` and `full_scale` move under `k`, so code holding a PSD (carrier_acq,
+    tonemeas, imdmeas, nprmeas and specan do) reads `psd->k.nfft`.
+    `dp_spectrogram_state_t.psd` is gone: the Spectrogram holds a kernel,
+    `s->k` (#1894).
+
+### Added
+
+- **`dp_psd_kernel_init` / `dp_psd_kernel_free`: frames to spectra without a
+    PSD.** The window, transform and dBFS reference, none of the averaging; a
+    refusal returns `DP_ERR_INVALID` with nothing allocated (#1894).
+
+- **The spectrogram gallery page opens on a crowded band.** A carrier, a
+    chirp, a QPSK and a BPSK burst over the noise floor, built with the
+    waveform generator and streamed into a dB waterfall; the example checks
+    every level against the carrier before it draws (#1894).
+
+### Changed
+
+- **carrier_acq's window set, stated in the manifest and again in C, is held
+    to agree.** The C refusal carries `SSOT: view=carrier_acq_window` and
+    must bound the view exactly; named-args checks carrier_acq's slot against
+    the view, and sees a direct call with a comment before its `(` (#2194,
+    #2198).
+
+- **The named-args gate finds those helpers itself, replacing #2191's
+    hand-kept table.** A `static` function, in the definition shapes the
+    gate reads, that passes a parameter, bare, into a constructor's window
+    or mode slot (or into another such helper) is held like the
+    constructor. Nine of the table's ten are found; `rows_are_the_psd` and
+    `oracle`'s mode only compare, so a literal mode at their calls is no
+    longer refused (#2227) (#2197).
+
+- **The named-args gate follows the helpers that forward a window or mode
+    into a constructor.** The Spectrogram's C test, certification harness
+    and bench forward them through helpers; their 16 literals, and 8 the
+    gate cannot see, are names now. A definition or prototype is no longer a
+    call (#2191). How the helpers are found is the entry below (#2197).
+
+- **The specan web server tests now run in CI, and read frames the way a browser does.**
+    The burst test no longer sits out a 10 s websocket close timeout, so it takes about
+    2 s instead of 12, and it asserts that the close completed
+    ([#2159](https://github.com/doppler-dsp/doppler/issues/2159)).
+
+- **A Spectrogram allocates 28·nfft fewer bytes, virtual, not resident.** It
+    holds PSD's kernel, not a PSD whose averager, dB buffer and ring it never
+    touched. The 28 is derived (12 of heap plus the ring's 16 of memfd,
+    counted once). Rows and state blobs are byte-identical on x86-64;
+    off-x86 was not compared (#2187) (#1894, design §5.10).
+
+- **The uno-q example names its PSD window, and the named-args gate holds
+    example projects' window slots too.** v0.67.0 carries `DP_PSD_WINDOW_*`,
+    so `example-projects/` lose the exemption they had while the released
+    library lacked the names (#2186).
+
+- **A tone or chirp repeated across segments restarts its phase at the
+    boundary today**, though the guide promises seamless joins; what a join
+    guarantees is being decided in #2244.
+
+- **A tiled (wideband) burst search keeps a coherent depth inside every Doppler
+    tile when a design C/N0 asks for one; with none it stays at D = 1.** A tiled
+    object built WITH a design C/N0 can now come out at D > 1 where 0.67.0 gave
+    1 (45 dB-Hz: `coherent_bins` 1 to 8): its buffers, latency and state blob
+    grow, and a 0.67.0 blob of it is refused on restore. A hit's `doppler_bin`
+    indexes `window_bins * D` rows, which `BurstAcquisition.doppler_bins` now
+    reports, as `BurstCapture` did (#2218, #2224; #2210). A tiled search of a
+    band-limited repeated chirp is unreliable in tile resolution (#2234,
+    pre-existing; #2235).
+
+### Fixed
+
+- **`doppler-specan --web` no longer exits at startup when its stdout cannot encode the
+    banner arrow.** A redirected stdout under cp1252, as on Windows, crashed it with
+    `UnicodeEncodeError` before the server listened; the arrow now prints as an escape
+    ([#2225](https://github.com/doppler-dsp/doppler/issues/2225)).
+
+- **The specan web server test can no longer hang a CI leg, and says why it failed.**
+    Every wait is bounded and the server's output goes to a file the failure quotes
+    ([#2208](https://github.com/doppler-dsp/doppler/issues/2208)).
+
+- **The test suite no longer rewrites your git index when run from a rebase
+    exec or a hook.** `git rebase -x` exports `GIT_DIR`, and the gate tests'
+    scratch repos obeyed it (3,771 staged deletions in one replay); the root
+    `conftest.py` now clears git's redirect variables in every pytest process
+    (#2212).
+
 ## [0.67.0] - 2026-10-12
 
 ### Breaking
@@ -16687,7 +16780,8 @@ ______________________________________________________________________
 [0.65.0]: https://github.com/doppler-dsp/doppler/compare/v0.64.0...v0.65.0
 [0.66.0]: https://github.com/doppler-dsp/doppler/compare/v0.65.0...v0.66.0
 [0.67.0]: https://github.com/doppler-dsp/doppler/compare/v0.66.0...v0.67.0
+[0.68.0]: https://github.com/doppler-dsp/doppler/compare/v0.67.0...v0.68.0
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.67.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.68.0...HEAD

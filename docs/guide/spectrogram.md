@@ -19,7 +19,9 @@ The C face is `#include "doppler/spectrogram/spectrogram_core.h"` and link
 
 `push` returns the rows a chunk completes as a `(rows, nfft)` matrix, or
 `None` when it completes none. `flush` writes the zero-padded partial frame
-into a row of exactly `nfft` floats. The two faces agree on the rows.
+into a row of exactly `nfft` floats (returning it as `push` returns its rows
+is [#2181](https://github.com/doppler-dsp/doppler/issues/2181)). The two
+faces agree on the rows.
 
 ```python
 import numpy as np
@@ -40,6 +42,15 @@ waterfall = np.concatenate(rows)
 
 assert waterfall.shape == (16, 256)
 assert waterfall[:, 256 // 2 + 32].min() > 0.99  # a unit tone reads 1.0
+```
+
+The object says how it was built: `nfft`, `hop`, `window`, `beta` and `mode`
+read back, `window` and `mode` as the strings that made them. `hop` defaults
+to 0, which means `nfft`, so the default tiles the stream at any `nfft`:
+
+```python
+sp = Spectrogram(nfft=1024, window="kaiser", beta=7.5)
+assert (sp.nfft, sp.hop, sp.window, sp.mode) == (1024, 1024, "kaiser", "power")
 ```
 
 A chunk's output buffer is sized for every row the chunk can complete, so
@@ -109,7 +120,8 @@ signal, take power rows
 ([the measurement](../design/spectrogram-measurements.md#54-the-db-floor-measured-2026-10-10-u5)).
 
 `nfft` must be the PSD's transform length for that frame, which is to say a
-power of two of at least 2, and `1 <= hop <= nfft`. The window must have gain
+power of two of at least 2, and `1 <= hop <= nfft`; a `hop` of 0 means `nfft`,
+as it does for PSD, and is the Python default. The window must have gain
 at that length: `nfft = 2` with Hann is refused, because the symmetric
 two-point Hann is `[0, 0]`. A frame length that is
 not a power of two would be zero-padded by the PSD to more bins than samples

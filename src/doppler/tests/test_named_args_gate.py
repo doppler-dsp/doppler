@@ -189,8 +189,10 @@ def test_named_arguments_pass_in_every_shape(tmp_path: Path) -> None:
     # six calls in a.c (the printf is a string), the @code call in s.h (its
     # declaration is not a call), the fence in p.md; the prose mention is
     # not a call either. One call of each HELPERS row, in its two files.
-    n = sum(len(rows) for rows in _gate().HELPERS.values())
-    assert f"8 call(s) and {n} helper call(s) in 5 file(s)" in r.stdout
+    helpers = _gate().HELPERS
+    n = sum(len(rows) for rows in helpers.values())
+    files = 3 + len(helpers)
+    assert f"8 call(s) and {n} helper call(s) in {files} file(s)" in r.stdout
 
 
 def test_a_literal_mode_fails_and_names_the_line(tmp_path: Path) -> None:
@@ -558,3 +560,81 @@ def test_a_table_prototype_is_not_a_call(tmp_path: Path) -> None:
     r = _run(tmp_path)
     assert r.returncode == 1
     assert "found no dp_acc_trace_create call" in r.stdout
+
+
+_CERTIFY = "native/validation/spectrogram_certify.c"
+
+
+def test_a_definition_with_complex_parameters_is_not_a_call(
+    tmp_path: Path,
+) -> None:
+    """`const float _Complex *x` is a declaration too: a definition shaped
+    like row_of's may not stand in for its renamed calls (review of #2196:
+    the old two-word rule read it as a call and kept the row green)."""
+    src = _helper_files()[_CERTIFY]
+    src = src.replace(
+        "static int row_of (int a0, int a1, int a2);",
+        "static void row_of (int window, const float _Complex *x,\n"
+        "                    float *restrict row);",
+    ).replace("  row_of (", "  rowed (")
+    _seed(tmp_path, **{_CERTIFY: src})
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    assert f"found no call of the helper row_of in {_CERTIFY}" in r.stdout
+
+
+def test_an_unnamed_prototype_is_not_a_call(tmp_path: Path) -> None:
+    """A prototype's parameters may be bare types; it is still no call."""
+    src = _helper_files()[_CERTIFY]
+    src = src.replace(
+        "static int make (int a0, int a1, int a2, int a3);",
+        "static void make (int, size_t, unsigned long long, const int);",
+    ).replace("  make (", "  remade (")
+    _seed(tmp_path, **{_CERTIFY: src})
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    assert f"found no call of the helper make in {_CERTIFY}" in r.stdout
+
+
+def test_a_member_call_is_not_a_helper_call(tmp_path: Path) -> None:
+    """`ops->make (...)` is another function: not an arity finding, not a
+    literal to fix (review of #2196)."""
+    src = _helper_files()[_CERTIFY].replace(
+        "void seeded (void)\n{\n",
+        "void seeded (void)\n{\n  ops->make (x0, x1, x2, 3);\n"
+        "  ops->make (1, 2);\n  s.make (1, 2, 3, 3);\n",
+    )
+    _seed(tmp_path, **{_CERTIFY: src})
+    r = _run(tmp_path, "--fix")
+    assert r.returncode == 0, r.stdout
+    assert (tmp_path / _CERTIFY).read_text(encoding="utf-8") == src
+
+
+def test_a_renamed_helper_says_rename_the_row(tmp_path: Path) -> None:
+    """Dropping a row un-gates the helper, so a rename is told to rename
+    the row, and only a helper that is gone may lose it."""
+    src = _helper_files()[_CERTIFY].replace("  make (", "  remade (")
+    _seed(tmp_path, **{_CERTIFY: src})
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    assert "rename the row, or drop it if the helper is gone" in r.stdout
+
+
+def test_an_arity_change_prints_before_the_row_it_empties(
+    tmp_path: Path,
+) -> None:
+    """When a helper's only call has another argument count, the row finds
+    no call: the arity finding is the cause and must print, not be hidden
+    behind the empty row; the footer names HELPERS."""
+    src = _helper_files()[_CERTIFY].replace(
+        "  make (DP_SPECTROGRAM_POWER, x1, x2, DP_PSD_WINDOW_HANN);",
+        "  make (DP_SPECTROGRAM_POWER, x1, DP_PSD_WINDOW_HANN);",
+    )
+    _seed(tmp_path, **{_CERTIFY: src})
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    out = r.stdout
+    arity = out.find("make called with 3 argument(s), its row says 4")
+    empty = out.find(f"found no call of the helper make in {_CERTIFY}")
+    assert 0 <= arity < empty, out
+    assert "TABLE or HELPERS" in out

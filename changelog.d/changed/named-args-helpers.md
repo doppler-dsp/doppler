@@ -1,4 +1,4 @@
-- **The named-args gate follows a test's helpers, file by file.** Fourteen
-    helpers in the Spectrogram's C test and certification harness forward a
-    window or mode into a gated slot; their 16 literals are names now, and
-    a definition or prototype no longer counts as a call (#2191).
+- **The named-args gate follows the helpers that forward a window or mode
+    into a constructor, file by file.** Ten in the Spectrogram's C test,
+    certification harness and bench; their 16 literals, and 8 the gate cannot
+    see, are names now. A definition or prototype is no longer a call (#2191).

@@ -357,8 +357,9 @@ sections (int mode)
 
   /* ---- 5. chunk invariance (G1) --------------------------------------- */
   {
-    ci_cfg_t cfg[]
-        = { { 32, 32, 0, mode }, { 32, 7, 1, mode }, { 16, 1, 3, mode } };
+    ci_cfg_t cfg[] = { { 32, 32, DP_PSD_WINDOW_HANN, mode },
+                       { 32, 7, DP_PSD_WINDOW_KAISER, mode },
+                       { 16, 1, DP_PSD_WINDOW_RECT, mode } };
     for (size_t k = 0; k < sizeof cfg / sizeof *cfg; k++)
       {
         dp_ci_spec_t spec = {

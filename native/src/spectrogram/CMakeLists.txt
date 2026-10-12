@@ -1,12 +1,11 @@
-# spectrogram — hand-owned c_dep: a stream of any-size chunks in, rows of
-# nfft-bin spectra out, one every hop samples (docs/design/spectrogram.md).
+# spectrogram — a stream of any-size chunks in, rows of nfft-bin spectra out,
+# one every hop samples (docs/design/spectrogram.md).
 #
-# A c_dep rather than a jm object because it has no Python face yet, and jm
-# cannot declare an object without generating one: the binding (#1894 slice
-# 3b) waits on just-makeit#2152 (`out_cols`), and moves this component to an
-# objects/spectrogram.toml then. Until it does, jm apply only emits the
-# add_subdirectory for this dir (listed in [project].c_deps); this file is
-# hand-maintained, and the root CMakeLists.txt wires the core into libdoppler.
+# A jm object of the spectral module (objects/spectrogram.toml): jm emits this
+# dir's add_subdirectory and wires the core into libdoppler from the root
+# CMakeLists.txt, and generates the Python binding. This file stays
+# hand-written: it builds the core and its C test, bench and example, and
+# the composition below is why.
 #
 # It composes, and re-implements none of: PSD's per-frame kernel (psd_core,
 # and through it fft_core / spectral_core / acc_trace_core) and the ring's

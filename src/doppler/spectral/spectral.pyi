@@ -2228,15 +2228,16 @@ class Spectrogram:
     ----------
     nfft : int, default 256
         Samples per frame and bins per row, which must be the same number: an
-        nfft the PSD would zero-pad to a longer transform (anything but a power
-        of two >= 2) is refused rather than given rows wider than its frames.
+        nfft that would be zero-padded to a longer transform (anything but a
+        power of two >= 2) is refused rather than given rows wider than its
+        frames.
     hop : int, default 0
         Samples between row starts, 1 to nfft. 0 means nfft, which tiles the
         stream; the default. Less than nfft overlaps the frames. A hop above
         nfft would leave samples no row covers, so it is refused.
     window : Literal["hann", "kaiser", "blackman-harris", "rect"], default "hann"
-        The window: "hann", "kaiser", "blackman-harris" or "rect", the PSD's
-        own. It also refuses a window that sums to zero at this nfft (the
+        The window: "hann", "kaiser", "blackman-harris" or "rect", as PSD takes
+        them. It also refuses a window that sums to zero at this nfft (the
         symmetric Hann at nfft = 2).
 
         - ``"hann"`` — Hann: the default.

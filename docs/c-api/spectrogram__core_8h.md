@@ -120,7 +120,7 @@ _Streaming spectrogram: a stream of any-size chunks in, rows of nfft-bin spectra
 A row is the PSD of one frame, and nothing else: row k is PSD's per-frame kernel applied to stream samples [k\*hop, k\*hop + nfft)  [**dp\_psd\_frame\_linear()**](psd__core_8h.md#function-dp_psd_frame_linear) for power rows, the default, or [**dp\_psd\_frame\_db()**](psd__core_8h.md#function-dp_psd_frame_db) for dB rows, which a caller asks for by name. So the window, the FFT and the full-scale reference are PSD's own, and a full-scale tone on a bin reads 1.0 in power, 0 dB in dB. The rows are a function of the INPUT STREAM, not of how it was split into calls: pushing it in one call, a sample at a time, or in any other partition gives the same rows, bit for bit.
 
 
-The object composes and re-implements none of its parts. The carry between calls is the ring's framed face (DECLARE\_DP\_BUFFER\_FRAMES): fewer than nfft samples are held once a push returns, so the state blob has a size that depends on nfft alone. The spectrum is PSD's per-frame kernel. It does not average rows (fold them with AccTrace), detect, display or decimate.
+The object composes and re-implements none of its parts. The carry between calls is the ring's framed face (DECLARE\_DP\_BUFFER\_FRAMES): fewer than nfft samples are held once a push returns, so the state blob has a size that depends on nfft alone. The spectrum is PSD's per-frame kernel, held by value ([**dp\_psd\_kernel\_t**](structdp__psd__kernel__t.md)): the window, the transform and the full-scale reference, and none of PSD's averaging. It does not average rows (fold them with AccTrace), detect, display or decimate.
 
 
 Lifecycle: [**dp\_spectrogram\_create()**](spectrogram__core_8h.md#function-dp_spectrogram_create), then any number of [**dp\_spectrogram\_push()**](spectrogram__core_8h.md#function-dp_spectrogram_push) calls, then [**dp\_spectrogram\_flush()**](spectrogram__core_8h.md#function-dp_spectrogram_flush) once to end the stream, then [**dp\_spectrogram\_destroy()**](spectrogram__core_8h.md#function-dp_spectrogram_destroy). A short output buffer never loses input: push stops at a whole row and [**dp\_spectrogram\_consumed()**](spectrogram__core_8h.md#function-dp_spectrogram_consumed) says where to resume.
@@ -203,9 +203,9 @@ dp_spectrogram_state_t * dp_spectrogram_create (
 **Parameters:**
 
 
-* `nfft` Samples per frame and bins per row, which must be the same number: an nfft the PSD would zero-pad to a longer transform (anything but a power of two &gt;= 2) is refused rather than given rows wider than its frames. 
+* `nfft` Samples per frame and bins per row, which must be the same number: an nfft that would be zero-padded to a longer transform (anything but a power of two &gt;= 2) is refused rather than given rows wider than its frames. 
 * `hop` Samples between row starts, 1 to nfft. 0 means nfft, which tiles the stream; the default. Less than nfft overlaps the frames. A hop above nfft would leave samples no row covers, so it is refused. 
-* `window` The window: "hann", "kaiser", "blackman-harris" or "rect", the PSD's own. It also refuses a window that sums to zero at this nfft (the symmetric Hann at nfft = 2). 
+* `window` The window: "hann", "kaiser", "blackman-harris" or "rect", as PSD takes them. It also refuses a window that sums to zero at this nfft (the symmetric Hann at nfft = 2). 
 * `beta` Kaiser beta (ignored for the other windows). 
 * `mode` Row units: "power" (linear rows, the default) or "db" (dBFS rows, asked for by name). Any other value is refused. 
 

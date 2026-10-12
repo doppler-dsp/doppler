@@ -486,7 +486,7 @@
 
 ## k
 
-* **k** ([**conv\_code\_t**](structconv__code__t.md), [**dp\_psd\_state\_t**](structdp__psd__state__t.md), [**rs\_t**](structrs__t.md))
+* **k** ([**conv\_code\_t**](structconv__code__t.md), [**dp\_psd\_state\_t**](structdp__psd__state__t.md), [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md), [**rs\_t**](structrs__t.md))
 * **keep\_surface** ([**dp\_acq\_state\_t**](structdp__acq__state__t.md))
 * **k\_hi** ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md))
 * **k\_lo** ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md))
@@ -714,7 +714,7 @@
 * **ppe** ([**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md))
 * **preamble\_left** ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md))
 * **power\_buf** ([**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md))
-* **psd** ([**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md), [**dp\_imdmeas\_state\_t**](structdp__imdmeas__state__t.md), [**dp\_nprmeas\_state\_t**](structdp__nprmeas__state__t.md), [**dp\_specan\_state\_t**](structdp__specan__state__t.md), [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md), [**dp\_tonemeas\_state\_t**](structdp__tonemeas__state__t.md))
+* **psd** ([**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md), [**dp\_imdmeas\_state\_t**](structdp__imdmeas__state__t.md), [**dp\_nprmeas\_state\_t**](structdp__nprmeas__state__t.md), [**dp\_specan\_state\_t**](structdp__specan__state__t.md), [**dp\_tonemeas\_state\_t**](structdp__tonemeas__state__t.md))
 * **pwr\_buf** ([**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md))
 * **prev** ([**dp\_carrier\_mpsk\_state\_t**](structdp__carrier__mpsk__state__t.md), [**dp\_costas\_state\_t**](structdp__costas__state__t.md))
 * **prev\_abs** ([**dp\_carrier\_mpsk\_state\_t**](structdp__carrier__mpsk__state__t.md))

@@ -7,6 +7,7 @@
 
 * **acq\_bin\_doppler\_hz** ([**acq\_core.h**](acq__core_8h.md))
 * **acq\_grid\_bins** ([**acq\_core.h**](acq__core_8h.md))
+* **acq\_rate\_better** ([**acq\_private.h**](acq__private_8h.md))
 * **agc\_exp10\_** ([**agc\_core.h**](agc__core_8h.md))
 * **agc\_log10\_** ([**agc\_core.h**](agc__core_8h.md))
 * **agc\_power\_** ([**agc\_core.h**](agc__core_8h.md))

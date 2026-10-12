@@ -45,6 +45,7 @@ Here is a list of all files with brief descriptions:
                 * **file** [**accumulator\_core.h**](accumulator__core_8h.md) _Accumulator module — public C API._ 
             * **dir** [**acq**](dir_34926d0c3adbcf3f65d9e19727d3354d.md)     
                 * **file** [**acq\_core.h**](acq__core_8h.md) _Streaming DSSS acquisition engine — burst and continuous front doors over one shared engine._     
+                * **file** [**acq\_private.h**](acq__private_8h.md) _Shared internals for acq\_core.c and its test._     
             * **dir** [**acquire**](dir_684079cd19bcefcd0ee51c221517a041.md)     
                 * **file** [**acquire\_core.h**](acquire__core_8h.md) _Acquire module — public C API._     
             * **dir** [**adc**](dir_eddcd1edcea89729b407f545f79f2d08.md)     

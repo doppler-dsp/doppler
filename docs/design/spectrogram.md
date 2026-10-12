@@ -170,9 +170,10 @@ rows. So a short `out` stops at a whole row and `consumed()` says where to
 resume, input that completes no row is always taken (even with `max_out` 0),
 and `push_max_out(n)` is exactly the room that makes a push take all of `n`.
 
-`nfft` is a power of two and `1 <= hop <= nfft`: frame length and row width
-are then the same number, which a frame PSD zero-pads to more bins than
-samples would not give (separating the two is
+`nfft` is a power of two and `1 <= hop <= nfft`, a `hop` of 0 meaning `nfft`
+(PSD's rule, resolved at create, so the blob holds `nfft`): frame length and
+row width are then the same number, which a frame PSD zero-pads to more bins
+than samples would not give (separating the two is
 [#1966](https://github.com/doppler-dsp/doppler/issues/1966)). **Rows are linear
 power by default** (`DP_SPECTROGRAM_POWER`, `dp_psd_frame_linear`), and dBFS
 when the caller names `DP_SPECTROGRAM_DB` (`dp_psd_frame_db`). Both are PSD's

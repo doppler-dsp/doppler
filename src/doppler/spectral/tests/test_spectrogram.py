@@ -251,6 +251,22 @@ class TestConstruction:
         )
         assert np.array_equal(rows, tiled)
 
+    def test_hop_0_is_hop_nfft_in_the_blob_too(self):
+        """hop 0 is resolved at construction, so its blob is hop = nfft's
+        byte for byte and each restores into the other."""
+        x = np.arange(37, dtype=np.float32).astype(np.complex64)
+        zero, tiled = Spectrogram(nfft=8, hop=0), Spectrogram(nfft=8, hop=8)
+        zero.push(x)
+        tiled.push(x)
+        assert zero.get_state() == tiled.get_state()
+        zero.set_state(tiled.get_state())
+        tiled.set_state(zero.get_state())
+
+    def test_hop_0_at_nfft_0_is_refused(self):
+        """hop 0 resolves to nfft, which is 0: the range still refuses it."""
+        with pytest.raises(ValueError):
+            Spectrogram(nfft=0, hop=0)
+
     def test_mode_is_power_by_default(self):
         """A caller who does not ask for dB gets linear power."""
         row = Spectrogram(nfft=NFFT, hop=NFFT, window="rect").push(
@@ -274,6 +290,14 @@ class TestConfiguration:
         )
         assert isinstance(sp.nfft, int) and isinstance(sp.hop, int)
         assert isinstance(sp.window, str) and isinstance(sp.mode, str)
+        assert isinstance(sp.beta, float)
+
+    def test_beta_reads_back_as_the_float32_it_keeps(self):
+        """beta is stored as float32, so a value float32 cannot hold exactly
+        reads back widened, not as typed: 0.1 is 0.10000000149011612."""
+        sp = Spectrogram(nfft=16, hop=16, window="kaiser", beta=0.1)
+        assert sp.beta == float(np.float32(0.1))
+        assert sp.beta != 0.1
 
     @pytest.mark.parametrize(
         "window", ["hann", "kaiser", "blackman-harris", "rect"]
@@ -298,6 +322,7 @@ class TestConfiguration:
         sp = Spectrogram(nfft=8, hop=8, window="rect")
         sp.push(np.ones(20, np.complex64))
         assert (sp.consumed, sp.pending) == (20, 4)
+        assert isinstance(sp.consumed, int) and isinstance(sp.pending, int)
 
     @pytest.mark.parametrize(
         "name",

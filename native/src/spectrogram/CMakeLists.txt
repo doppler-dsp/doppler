@@ -4,8 +4,8 @@
 # A jm object of the spectral module (objects/spectrogram.toml): jm emits this
 # dir's add_subdirectory and wires the core into libdoppler from the root
 # CMakeLists.txt, and generates the Python binding. This file stays
-# hand-written: it builds the core and its C test, bench and example, and
-# the composition below is why.
+# hand-written: it builds the core and its C test and bench (the example
+# is native/examples/CMakeLists.txt's), and the composition below is why.
 #
 # It composes, and re-implements none of: PSD's per-frame kernel (psd_core,
 # and through it fft_core / spectral_core / acc_trace_core) and the ring's
@@ -35,8 +35,8 @@ target_include_directories(test_spectrogram_core PRIVATE
     ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_spectrogram_core COMMAND test_spectrogram_core)
 
-# The benchmark. Hand-registered because `spectrogram` is a c_dep and not one
-# of jm's components, so jm generates no target for it.
+# The benchmark. Hand-registered because this file is hand-written (above),
+# so jm generates no bench target for the object.
 add_executable(bench_spectrogram_core
     ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_spectrogram_core.c)
 target_link_libraries(bench_spectrogram_core PRIVATE

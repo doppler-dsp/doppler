@@ -2519,8 +2519,9 @@ class Spectrogram:
 
     @property
     def beta(self) -> float:
-        """The Kaiser beta the Spectrogram was made with. It shapes the Kaiser
-        window only; under the others it changes no row.
+        """The Kaiser beta the Spectrogram was made with, as the float32 it
+        keeps: 0.1 reads back 0.10000000149011612. It shapes the Kaiser window
+        only; under the others it changes no row.
         """
 
     @property

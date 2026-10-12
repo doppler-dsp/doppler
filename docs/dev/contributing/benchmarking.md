@@ -139,14 +139,15 @@ directly below.
 
 ### Benchmarks that are not jm components
 
-Two kinds of benchmark have no manifest object behind them, so jm
-generates no bench target and theirs is registered by hand in a
-CMakeLists:
+Three kinds of benchmark get no bench target from jm, so theirs is
+registered by hand in a CMakeLists:
 
 - a **`c_deps` entry** — hand-owned C a module links (`conv`, `rs`,
-    `ccsds_tm`, `resamp`, `timing`, `spectrogram`);
+    `ccsds_tm`, `resamp`, `timing`);
 - a **function-only module** — one whose surface is free functions, with
-    no object of its own (`mpsk`, `ber`, `snr`, `util`, `detection`).
+    no object of its own (`mpsk`, `ber`, `snr`, `util`, `detection`);
+- an **object whose component CMakeLists is hand-written** — `spectrogram`,
+    which composes PSD's per-frame kernel and the ring's framed face.
 
 `jm bench` runs them anyway: since
 [just-makeit#1023](https://github.com/just-buildit/just-makeit/issues/1023)

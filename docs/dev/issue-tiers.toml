@@ -8,7 +8,7 @@
 # tier 2 a claim nothing measures   5 convergence and hygiene
 
 [meta]
-generated = "2026-10-11"
+generated = "2026-10-12"
 
 [issue.502]
 tier = 3
@@ -1453,7 +1453,7 @@ status = "open"
 [issue.2185]
 tier = 2
 title = "carrier_acq accepts the rect window its header excludes, at an uncalibrated threshold"
-status = "open"
+status = "in review ([#2193](https://github.com/doppler-dsp/doppler/pull/2193))"
 
 [issue.2186]
 tier = 5
@@ -1473,4 +1473,9 @@ status = "open"
 [issue.2189]
 tier = 5
 title = "specan nits from the #2180 review: dBm import direction, step() naming, fastapi skip"
+status = "open"
+
+[issue.2191]
+tier = 1
+title = "Window and mode literals still reach the constructors through test helpers the named-args gate cannot see"
 status = "open"

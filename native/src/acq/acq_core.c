@@ -1269,10 +1269,16 @@ acq_auto_config_burst (const dp_acq_state_t *st, double pfa, double pd,
   /* No design C/N0: integrate the whole preamble. The smallest-depth search
      below trades sensitivity for latency against a stated signal; with no
      signal stated there is nothing to trade, and a burst's preamble is all
-     there is to integrate. */
+     there is to integrate.
+     EXCEPT in a tiled search: there the depth multiplies the buffers (a
+     block of window_bins * D epochs, 0.1 MB -> 14.5 MB at sf 127, reps 64,
+     du 10 * span), the decision latency (reps epochs before the first
+     verdict) and the state blob, and the default-built object -- no design
+     point given -- has always been D = 1. A depth in a tiled search is the
+     answer to a stated C/N0, never a default. */
   if (!(snr > 0.0))
     {
-      *out_d = d_max;
+      *out_d = (*out_window_bins > 1) ? 1u : d_max;
       return;
     }
 

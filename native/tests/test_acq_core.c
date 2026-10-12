@@ -16,6 +16,7 @@
  * shipped generator's job: validate_acq_peak_list's --check.
  */
 #include "doppler/acq/acq_core.h"
+#include "doppler/acq/acq_private.h"
 #include "doppler/detector/det_private.h"
 #include "doppler/dp_complex.h"
 #include "doppler/dp_tlm/dp_tlm_core.h"
@@ -885,36 +886,41 @@ _acq_rate_hypotheses_check (void)
       free (x);
     }
 
-  /* A dwell whose power overflows float reads a NaN statistic (inf/inf) at
-     EVERY hypothesis, which no `>` can pick. The search must not then restore
-     the PREVIOUS dwell's winning surface: a stale surface that reported a hit
-     the samples cannot have made. Push a swept burst (a winner is left
-     behind), one block of the overflowing level to flush the dwells that
-     straddle the join, then a second: no hit. 1e19 is finite, its power is
-     not; infinity is the other way in. */
+  /* The rate search's pick, as a rule. A dwell whose every statistic is NaN
+     (power overflowing float is inf/inf) must still pick hypothesis 0, or the
+     search restores the PREVIOUS dwell's winning surface -- a stale hit. The
+     end-to-end route to a NaN statistic depends on the compiler's math flags
+     (fast-math lowers |z| to an overflowing sqrt; clang's cabsf does not), so
+     it is pinned here directly, the same on every build. */
   {
-    const float     levels[] = { 1.0e19f, INFINITY };
-    const size_t    len      = 3 * reps * nx;
-    float _Complex *x        = malloc (3 * len * sizeof *x);
-    DP_REQUIRE (x != NULL);
-    for (size_t k = 0; k < sizeof levels / sizeof *levels; k++)
-      {
-        _chirp_stream (CODE31, sf, spc, fs, len, 3.0e3, 1.0e7, x);
-        for (size_t i = len; i < 3 * len; i++)
-          x[i] = levels[k];
-        dp_acq_state_t *a
-            = burst_with_rates (CODE31, sf, reps, spc, crate, ACQ_CN0_NONE,
-                                0.0, 1e-3, 0.9, 0, rate, 5);
-        DP_REQUIRE (a != NULL);
-        acq_result_t hit[64];
-        DP_CHECK (dp_acq_push (a, x, len, hit, 64) >= 1);
-        (void)dp_acq_push (a, x + len, len, hit, 64);
-        DP_CHECK_MSG (dp_acq_push (a, x + 2 * len, len, hit, 64) == 0,
-                      "a dwell of overflowing power reports nothing, not "
-                      "the last winner");
-        dp_acq_destroy (a);
-      }
-    free (x);
+    const float nan = NAN, inf = INFINITY;
+    /* Hypothesis 0 takes the first place whatever it reads. */
+    DP_CHECK (acq_rate_better (0, nan, -1.0f));
+    DP_CHECK (acq_rate_better (0, nan, nan));
+    DP_CHECK (acq_rate_better (0, 0.0f, 5.0f));
+    DP_CHECK (acq_rate_better (0, -inf, inf));
+    /* After it, strictly better wins; NaN never displaces, ties keep. */
+    DP_CHECK (acq_rate_better (1, 2.0f, 1.0f));
+    DP_CHECK (!acq_rate_better (1, 1.0f, 1.0f));
+    DP_CHECK (!acq_rate_better (3, 0.5f, 1.0f));
+    DP_CHECK (!acq_rate_better (1, nan, 1.0f));
+    DP_CHECK (!acq_rate_better (1, nan, nan));
+    DP_CHECK (!acq_rate_better (2, 1.0f, nan));
+    DP_CHECK (acq_rate_better (1, inf, 1.0f));
+    DP_CHECK (!acq_rate_better (1, inf, inf));
+    /* An all-NaN dwell: the search's loop picks 0 and nothing displaces it. */
+    {
+      const float stats[5] = { nan, nan, nan, nan, nan };
+      float       best     = -1.0f;
+      size_t      best_h   = 99;
+      for (size_t h = 0; h < 5; h++)
+        if (acq_rate_better (h, stats[h], best))
+          {
+            best   = stats[h];
+            best_h = h;
+          }
+      DP_CHECK (best_h == 0);
+    }
   }
 
   /* Rate hypotheses do not compose with non-coherent looks: a pinned grid

@@ -13,6 +13,185 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.67.0] - 2026-10-12
+
+### Breaking
+
+- **A Spectrogram state blob is version 2 and carries its configuration, so
+    `dp_spectrogram_set_state` refuses one from another mode, `nfft`, hop,
+    window or Kaiser beta, and refuses a version-1 blob.** `state_bytes()` is
+    28 bytes larger for the same `nfft`. v0.66.0 wrote version 1, and its
+    header said another window, beta or mode restores (#2102).
+
+- **`dp_spectrogram_flush` takes the row's length, and returns a signed count.**
+    The signature is now `int64_t dp_spectrogram_flush (s, float *row, size_t row_len)`.
+    A row that is not exactly `nfft` floats is refused as `-1` before anything
+    moves, and the owed frame stays owed. Before, a short row returned 0, which
+    read as "nothing owed". Callers pass the row's length. The Python face
+    raises `ValueError` for that refusal (#1894).
+
+### Added
+
+- **A gallery page for the streaming spectrogram.** One chirp and one tone, as power rows and as dB rows, with the stream and figure code included from `spectrogram_demo.py` and its checks gating the figure's data (Refs #1894).
+
+- **PSD's windows have C names: `DP_PSD_WINDOW_HANN`, `_KAISER`,
+    `_BLACKMAN_HARRIS` and `_RECT`.** The Python strings bind to them, and to
+    `ACC_TRACE_*` and `DP_SPECTROGRAM_*`, by name; `make lint` refuses a number
+    in those slots of a direct call to the five constructors (#1894).
+
+- **`Spectrogram`, the streaming short-time power spectrum, in Python.**
+    Chunks of any size in, one PSD row per `hop` samples out (`hop` defaults
+    to `nfft`), `flush` to end the stream; power rows by default, `mode="db"`
+    by name. The configuration reads back; the state round-trips bit for bit
+    and refuses a blob from another configuration (#1894, #2102).
+
+### Changed
+
+- **`AWGN` refuses a bad argument with a `ValueError`, not a `MemoryError`,
+    and the C setter reports its refusal.** A `NaN`, infinite or negative
+    `amplitude` given to the constructor used to report running out of memory.
+    Code catching `MemoryError` around `AWGN(...)` must catch `ValueError` now.
+    `dp_awgn_set_amplitude` changed from `void` to `int`: it returns `DP_OK`,
+    or `DP_ERR_INVALID` for a refused value. Callers that drop the return keep
+    their old sigma (#2084).
+
+- **AWGN state blobs written before v2, and `wfm_synth` blobs that embed one,
+    no longer restore.** A v1 `AWGN` blob is refused; a noisy synth blob
+    written since v0.61 embeds one and is refused as a length error. The synth
+    blob is version 4 (next entry), so a v3 synth blob is refused by its
+    version as well.
+
+- **`dp_awgn_state_t` loses its unread `vs` member (`sizeof` 304 → 48), and a
+    `wfm` synth at `snr = -inf` (or below about −388 dB over fs) fails at
+    create.** Nothing in the tree embeds the struct. The synth used to emit
+    inf/NaN noise for such an SNR; it now fails, and the exception class it
+    raises is #1800's to fix (#2084).
+
+- **`dp_carrier_acq_create` refuses the rectangular window: a C caller passing
+    3 now gets NULL.** v0.65.0 and v0.66.0 built an object for it, though the
+    header, the manifest and the Python face offer only Hann, Kaiser and
+    Blackman-Harris; Python never accepted "rect" (#2185).
+
+- **A refused create raises `ValueError`, not `MemoryError`, and a coupled
+    `carrier_freq_hz` must be 0 or above half the sample rate.** The
+    receivers, `Dll`, `Despreader` and the loops name the argument they
+    refuse; `Acquisition.set_carrier_freq_hz` refuses the same band (#2103).
+
+- **The WFM and DSSS demos draw their spectrograms with the library's `Spectrogram`.**
+    The WFM demo's hand-written loop dropped its last frame; both demos now keep
+    every whole frame, and each checks the row count (#1894).
+    The DSSS demo now flushes the owed tail frame, and both demos assert their
+    physical checks: the CW's bin in the WFM demo, and payload above silence in
+    the DSSS demo.
+
+- **just-makeit pin 0.100.1 → 0.103.0.** Project schema 8 → 9
+    (`[app]` is now `[[app]]`). It brings `out_cols`, so a `variable_output`
+    method can return a `(rows, nfft)` matrix (jm gh-2115), and a property
+    setter that can refuse a value (gh-2182). The regenerated stubs and
+    sacred `_ext` fragments are the only other change.
+
+- **`PSD` takes a `hop`, and carries its partial segment.** `PSD(hop=...)` sets the
+    spacing between segments, from 1 to `n`; `0` (the default) means `n`, which keeps
+    the old non-overlapping behaviour. `accumulate` now holds a trailing partial
+    segment for the next call instead of dropping it, so any chunking of a stream
+    averages to the same result as one call. A single call of whole segments at
+    `hop = n` is unchanged, bit for bit (#1894). `accumulate_real` is unchanged and
+    still drops its tail.
+
+- **The `PSD` state blob grew.** It now holds the carried segment, and its version is
+    2, so an older blob is refused. Anything that embeds a `PSD` state (the specan,
+    carrier-acquisition and measurement blobs) grows by the same amount.
+
+- **The specan NATS sources read through one ring.** `SocketSource` and `PullSource` share an `F32Buffer` ring and a single read path; a drain no longer copies the whole backlog once per packet, so its cost stops growing as the square of the backlog. The contract, including when a `PullSource` frame is acked, is in `docs/design/specan.md` (#1894).
+
+- **`dp_spectrogram_create` takes `hop = 0` to mean `nfft`, PSD's rule.**
+    v0.66.0 refused 0; a hop above `nfft` is still refused (#1894).
+
+- **`DP_SPECTROGRAM_POWER` and `DP_SPECTROGRAM_DB` are enum constants, no
+    longer macros.** Their values are unchanged (0 and 1), but `#ifdef`,
+    `#if defined (...)` and `#if DP_SPECTROGRAM_DB` on them now read false or 0
+    (#1894).
+
+- **The `wfm_synth` state blob is version 4.** Its embedded `AWGN` blob is
+    version 2 (seed and amplitude, #2084), so a noisy synth blob changed size.
+    A version 3 synth blob is refused by its version: a clean one (no AWGN
+    child) has the same length, so the VERSION check alone refuses it. A noisy
+    v3 blob is refused by its length as well, since its AWGN child is shorter.
+
+### Fixed
+
+- **`AWGN`'s state blob carries its seed and amplitude (v2, 60 B, from
+    304 B), and refuses a bad amplitude or an all-zero RNG state.** A
+    restored generator keeps the source's amplitude and the seed `reset()`
+    replays, so a restored `wfm` synth emits the source's noise level, and
+    replays the source's noise seed, not its own (#2084).
+    NaN, infinite and negative amplitudes are refused at create and on
+    restore; the setter ignores them, and the one-shot `dp_awgn` returns
+    `DP_ERR_INVALID` for them.
+
+- **The DSSS receivers, `Dll`, `Despreader` and the shared loop-filter loops
+    refuse a bad float or out-of-domain argument instead of aborting or
+    running NaN gains.** A refused retune, a forged blob or a seed past fs/2
+    changes nothing. Chain sizes past allocation still abort (#2112).
+    `RateSync` `configure`/`set_bn` stay void (#2112).
+
+- **`Dll.set_symbol_period` refuses a period above 2^20 partials and a
+    negative period.** A negative period used to be taken as "no symbol
+    timing", the same as zero; only exactly zero means that now. `Dll`
+    `spacing` at or below zero, or at or above half the code length, is
+    refused at create.
+
+- **Not yet guarded:** `burst_despreader` (`burst_despreader_core.c:78-79,418,428`)
+    is a sixth embedder of the loop filter and still takes a non-finite or
+    negative `bn`. Tracked on #2112 and #2139.
+
+- **A C test's diagnostics land in order in a redirected log.** `dp_test.h`
+    wrote failures to unbuffered stderr while verbose PASS lines sat in
+    stdout's buffer, so a `> log 2>&1` capture could put a FAIL inside a PASS
+    line and undercount `^FAIL`. Every diagnostic now goes through
+    `DP_TEST_ERR`, which flushes stdout first, and `make tests-ssot` refuses a
+    raw `fprintf(stderr` in `native/tests` (#2050).
+
+- **The DSSS receivers' state blobs stop carrying bytes that are not
+    state.** `DsssReceiver` and `AsyncDsssReceiver` wrote their whole
+    carrier-carry buffer, though only its first `car_carry_len` samples are
+    state. A Costas loop built on the stack carried its 4-byte struct hole,
+    and hbdecim kept a consumed sample in `pending`. Two identical
+    receivers could therefore give different blobs. Each is now written as
+    zeros, through one new `dp_w_zeros` that every zero-pad uses, and the
+    receivers and `CarrierAcquisition` refuse a blob claiming a full carry,
+    which `steps` never leaves.
+
+- **`make gallery GALLERY_SCRIPTS=<one>` renders only that script's plot (#2058).** The characterization step ran on every run, so narrowing to one demo also rewrote `docs/assets/dsss_acq_characterization.png`, an unrelated diff that is easy to commit by accident. It now runs only on a plain `make gallery`, and `release-freshness-check` reads the characterization subjects, so a changed one cannot be tagged with its plot unrendered. `gallery-scripts-check` holds both from `make -n`.
+
+- **`dp_req_send`/`dp_rep_send` refuse a size above `INT_MAX` with
+    `DP_ERR_TOO_LARGE`** instead of narrowing it to nats.c's `int` length
+    and returning `DP_OK`: 2^32 + 5 bytes sent 5, and 2^31 sent an empty
+    message (#2069). C only; the Python `Requester`/`Replier` send framed,
+    already-bounded messages.
+
+- **The specan web server and recorder now tell the source its `data_size`.** Each front end had its own read, process and announce; the server never announced, and the recorder announced the display bin count. The demo trace's noise moves +1.07 dB (#2159).
+
+- **`SpecanEngine.step` is the one loop.** The terminal, the server and the recorder all call it, and it announces only when `data_size` changes.
+
+- **`make test-asan` sees an out-of-bounds read through a complex
+    sample.** GCC's AddressSanitizer does not instrument a `float _Complex`
+    access (`crealf(b[i])`, a whole-complex load or store), which is how
+    the DSP kernels read samples, so a gcc-built run passed while resamp
+    read 19 samples past its delay line. `test-asan` now builds with clang
+    (`ASAN_CC`), and a canary complex read must draw an ASan report or the
+    gate fails (#2130).
+
+- **`make validate-py VALIDATORS=<validate.py>` regenerates one Python-only object and exits 0 (#2048).** The only spelling used to be `make validate VALIDATORS=<it> VALIDATORS_C=`, which the C half's empty-glob guard refused, so the correct use exited 2. `make validate` keeps the guard, `validate-py` refuses an empty list, and `make validate-check` now names `validate-py` over the stale reports. `make lint` runs both targets with passing and failing stub validators.
+
+- **Respelling the vendored symbols leaves the compiler's own names
+    alone.** `cmake/prefix_vendored.cmake` renamed every global a vendored
+    member defined, including clang ASan's `___asan_globals_registered`, in
+    every member of `libdoppler.a`. A program linking its own instrumented
+    object beside the archive then registered each global twice, which ASan
+    reports as an ODR violation. Names reserved to the implementation
+    (`__*`, `_[A-Z]*`) are now skipped (#2130).
+
 ## [0.66.0] - 2026-10-10
 
 ### Breaking
@@ -16507,7 +16686,8 @@ ______________________________________________________________________
 [0.64.0]: https://github.com/doppler-dsp/doppler/compare/v0.63.0...v0.64.0
 [0.65.0]: https://github.com/doppler-dsp/doppler/compare/v0.64.0...v0.65.0
 [0.66.0]: https://github.com/doppler-dsp/doppler/compare/v0.65.0...v0.66.0
+[0.67.0]: https://github.com/doppler-dsp/doppler/compare/v0.66.0...v0.67.0
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.66.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.67.0...HEAD

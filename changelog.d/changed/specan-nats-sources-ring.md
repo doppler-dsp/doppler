@@ -1,1 +1,0 @@
-- **The specan NATS sources read through one ring.** `SocketSource` and `PullSource` share an `F32Buffer` ring and a single read path; a drain no longer copies the whole backlog once per packet, so its cost stops growing as the square of the backlog. The contract, including when a `PullSource` frame is acked, is in `docs/design/specan.md` (#1894).

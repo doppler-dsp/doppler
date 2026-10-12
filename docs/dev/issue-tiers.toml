@@ -1504,3 +1504,13 @@ status = "open"
 tier = 1
 title = "A changelog fragment without its leading \"- \" passes every PR gate and fails only at release assembly"
 status = "open"
+
+[issue.2211]
+tier = 2
+title = "PSD kernel follow-ups from #2209's review: ENBW off the kernel, meters carry an unused ring, the identity dump's gaps"
+status = "open"
+
+[issue.2212]
+tier = 0
+title = "Run from a rebase exec, the gate tests' scratch repos obey the inherited GIT_DIR and rewrite the caller's index"
+status = "open"

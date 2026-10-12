@@ -711,6 +711,7 @@ specan-web = [
 dev = [
     { name = "clang-format" },
     { name = "clang-tidy" },
+    { name = "doppler-dsp", extra = ["specan-web"] },
     { name = "jsonschema", version = "4.25.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
     { name = "jsonschema", version = "4.26.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "just-makeit" },
@@ -763,6 +764,7 @@ provides-extras = ["cli", "specan", "specan-web"]
 dev = [
     { name = "clang-format", specifier = "==22.1.8" },
     { name = "clang-tidy", specifier = "==22.1.8" },
+    { name = "doppler-dsp", extras = ["specan-web"] },
     { name = "jsonschema", specifier = ">=4.18" },
     { name = "just-makeit", specifier = "==0.103.0" },
     { name = "matplotlib", marker = "python_full_version == '3.9.*'", specifier = "<3.10" },

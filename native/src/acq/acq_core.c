@@ -838,8 +838,8 @@ acq_intra_umax (size_t D, size_t sb, double du, double span)
 }
 
 /* The Doppler-axis interpolation a grid gets: none for a single coherent
- * bin (there is no slow-time transform to pad) or in wideband mode (the
- * window axis is not a slow-time FFT), ACQ_DOPPLER_INTERP otherwise. One
+ * bin (there is no slow-time transform to pad), ACQ_DOPPLER_INTERP for a
+ * coherent slow-time axis, including one inside each wideband tile. One
  * rule, because acq_regrid() applies it to the surface and the Pd model
  * derates scalloping over the bin it produces -- a model still averaging
  * over the NATIVE bin read 0.47 where the engine measured 0.72
@@ -1238,10 +1238,11 @@ acq_cover_window_bins (double du, double span)
  * Pd the honest answer is `underpowered`, which acq_commit_thresholds()
  * sets from pd_predicted; it is not more looks.
  *
- * du > span (wideband fallback): coherent depth structurally can't cover
- * more than one native span regardless of reps, so *out_d is forced to 1
- * and *out_window_bins = ceil(du/span) tiles the requested uncertainty
- * instead.
+ * du > span (wideband): *out_window_bins = ceil(du/span) tiles the requested
+ * uncertainty, and the sizer still chooses a coherent depth inside each
+ * tile. Each tile is one native span wide; the slow-time FFT resolves the
+ * residual within it. The tile count and depth are both priced into the
+ * global threshold.
  *
  * du <= span: picks the smallest coherent depth D in [1, d_max] whose
  * burst Pd (pd_burst: every dwell a uniformly aligned preamble spans, at the
@@ -1260,14 +1261,8 @@ acq_auto_config_burst (const dp_acq_state_t *st, double pfa, double pd,
   const size_t cb   = st->code_bins;
   const double span = st->doppler_span_hz;
 
-  *out_nc = 1; /* see above: a burst has one frame of preamble */
-  if (du > span)
-    {
-      *out_d           = 1;
-      *out_window_bins = acq_cover_window_bins (du, span);
-      return;
-    }
-  *out_window_bins   = 1;
+  *out_nc            = 1; /* see above: a burst has one frame of preamble */
+  *out_window_bins   = (du > span) ? acq_cover_window_bins (du, span) : 1u;
   const size_t d_max = acq_drift_depth (st->chip_rate / (double)st->sf,
                                         st->doppler_rate, st->reps);
 
@@ -1290,19 +1285,23 @@ acq_auto_config_burst (const dp_acq_state_t *st, double pfa, double pd,
    * alignment: one aligned dwell under-credits a small D, which gets about
    * reps/D dwells, and over-credits a large one, whose dwells straddle the
    * preamble's edge (doppler#1498). */
-  size_t best_d = 1;
-  double best_p = -1.0;
-  int    met    = 0;
+  size_t       best_d      = 1;
+  double       best_p      = -1.0;
+  int          met         = 0;
+  const size_t window_bins = *out_window_bins;
   for (size_t D = 1; D <= d_max; D++)
     {
-      size_t       sb   = acq_searched_bins (D, du, span);
-      double       umax = acq_intra_umax (D, sb, du, span);
-      double       pc   = dp_det_pfa_cell (pfa, (double)(sb * cb));
-      double       eta  = dp_det_threshold (pc);
-      const double k_ref
-          = st->noise_mode == DET_NOISE_MEAN ? (double)(D * cb) : 0.0;
-      double p = acq_mean_pd (snr, D, umax, &st->shape, (int)(D * cb), eta, 1,
-                              acq_interp_for (D, 1), st->reps, k_ref);
+      const size_t sb    = window_bins > 1 ? window_bins * D
+                                           : acq_searched_bins (D, du, span);
+      double       umax  = acq_intra_umax (D, sb, du, span);
+      double       pc    = dp_det_pfa_cell (pfa, (double)(sb * cb));
+      double       eta   = dp_det_threshold (pc);
+      const double k_ref = st->noise_mode == DET_NOISE_MEAN
+                               ? (double)(window_bins * D * cb)
+                               : 0.0;
+      double       p
+          = acq_mean_pd (snr, D, umax, &st->shape, (int)(D * cb), eta, 1,
+                         acq_interp_for (D, window_bins), st->reps, k_ref);
       if (p >= pd)
         {
           best_d = D;
@@ -1459,9 +1458,9 @@ acq_regrid (dp_acq_state_t *st, size_t new_db, size_t new_nc,
   const int    grid_changed = (new_db != st->coherent_bins) || (new_n != st->n)
                               || (new_freq_bins != st->window_bins);
   const size_t new_frame_n  = (new_freq_bins > 1) ? cb : new_n;
-  /* Interpolate the Doppler axis only where there IS one: wideband mode
-     tiles frequency with window_bins and pins coherent_bins at 1, so its
-     rows are hypotheses rather than FFT bins and have no scalloping to fix. */
+  /* Interpolate each coherent Doppler axis. In wideband mode the window axis
+    supplies coarse frequency tiles; each tile can still have a coherent
+    slow-time FFT and its own interpolated rows. */
   const size_t new_interp = acq_interp_for (new_db, new_freq_bins);
   const size_t new_n_surf = new_n * new_interp;
 

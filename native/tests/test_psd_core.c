@@ -1608,6 +1608,16 @@ main (void)
     dp_psd_kernel_free (&z); /* and from a zero init */
     DP_CHECK (z.w == NULL && z.fft == NULL && z.n == 0);
     dp_psd_kernel_free (NULL); /* and NULL is a no-op, as every destroy */
+    /* A kernel answers its window's ENBW with no PSD around it: exactly one
+       bin for the rectangular window, about 1.5 for Hann. */
+    DP_REQUIRE (dp_psd_kernel_init (&k, KN, DP_PSD_WINDOW_RECT, 0.0f, 1, 1.0)
+                == DP_OK);
+    DP_CHECK (k.enbw == 1.0);
+    dp_psd_kernel_free (&k);
+    DP_REQUIRE (dp_psd_kernel_init (&k, KN, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0)
+                == DP_OK);
+    DP_CHECK (fabs (k.enbw - 1.5) < 0.05);
+    dp_psd_kernel_free (&k);
     for (int win = DP_PSD_WINDOW_HANN; win <= DP_PSD_WINDOW_RECT; win++)
       {
         DP_REQUIRE (dp_psd_kernel_init (&k, KN, win, 6.0f, 2, 1.0) == DP_OK);
@@ -1615,6 +1625,9 @@ main (void)
                                            ACC_TRACE_MEAN, 0.0);
         DP_REQUIRE (p != NULL);
         DP_CHECK (k.nfft == 2 * KN && k.nfft == p->k.nfft);
+        /* one ENBW: the bare kernel's, its PSD's kernel's, and the PSD's
+           released field, which is a copy of it */
+        DP_CHECK (k.enbw == p->k.enbw && p->enbw == p->k.enbw);
         float _Complex x[KN];
         float a[2 * KN], b[2 * KN], c[2 * KN], d[2 * KN];
         fill_tone (x, KN, 7);

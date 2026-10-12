@@ -91,6 +91,8 @@ typedef struct {
     float *pwr;                 /**< DC-centred power scratch, length nfft.*/
     double cg;                  /**< Window coherent gain, sum(w).         */
     double s2;                  /**< Window power, sum(w^2).               */
+    double enbw;                /**< Equivalent noise bandwidth, bins:
+                                     n * s2 / cg^2 (1.5 for Hann).     */
     size_t n;                   /**< Window / frame length (samples).      */
     size_t nfft;                /**< Zero-padded transform length.         */
     double full_scale;          /**< Amplitude that reads 0 dBFS.          */
@@ -132,7 +134,8 @@ typedef struct {
     dp_psd_kernel_t k;         /**< The per-frame kernel; owns the window. */
     dp_acc_trace_state_t *avg;    /**< Per-bin power averager, length nfft.  */
     float *dbbuf;              /**< dB-trace scratch, length nfft.        */
-    double enbw;               /**< Equivalent noise bandwidth, bins.     */
+    double enbw;               /**< Equivalent noise bandwidth, bins (the
+                                    kernel's, copied at create). */
     double fs;                 /**< Sample rate, Hz.                      */
     size_t bits;               /**< ADC depth that set full_scale, else 0.*/
     size_t hop;                /**< Samples between frame starts, 1..n.   */

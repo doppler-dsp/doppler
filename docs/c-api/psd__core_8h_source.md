@@ -38,6 +38,7 @@ typedef struct {
     float *pwr;                 
     double cg;                  
     double s2;                  
+    double enbw;                
     size_t n;                   
     size_t nfft;                
     double full_scale;          

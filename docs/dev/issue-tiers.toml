@@ -1450,11 +1450,6 @@ tier = 5
 title = "PSD readouts carry a meaningless count keyword and an ignored cap slot (adopt just-makeit#2233)"
 status = "open"
 
-[issue.2185]
-tier = 2
-title = "carrier_acq accepts the rect window its header excludes, at an uncalibrated threshold"
-status = "in review ([#2193](https://github.com/doppler-dsp/doppler/pull/2193))"
-
 [issue.2186]
 tier = 5
 title = "uno-q example: name its PSD window once a release carries DP_PSD_WINDOW_*"
@@ -1478,9 +1473,19 @@ status = "open"
 [issue.2191]
 tier = 1
 title = "Window and mode literals still reach the constructors through test helpers the named-args gate cannot see"
-status = "open"
+status = "in review ([#2196](https://github.com/doppler-dsp/doppler/pull/2196))"
 
 [issue.2194]
 tier = 1
 title = "carrier_acq's window set is declared twice, and the named-args gate checks its slot against psd_window, not the carrier_acq_window view"
+status = "open"
+
+[issue.2197]
+tier = 1
+title = "named-args: discover forwarding helpers by parameter name instead of a hand-kept HELPERS table"
+status = "open"
+
+[issue.2198]
+tier = 1
+title = "named-args: a constructor call with a comment between its name and '(' is not seen"
 status = "open"

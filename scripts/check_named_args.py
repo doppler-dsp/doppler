@@ -32,15 +32,23 @@ another helper -- would hide a literal from the constructor's row (#2191).
 ``discover`` finds them by data flow (#2197): a ``static`` function one of
 whose parameters is passed bare into a gated slot of a TABLE call, or of
 another helper in the file, gets that row, for its own file (names like
-``make`` are generic). A helper that only compares a window or mode passes
-it into no slot and has no row. Its rows read the file with comments
-blanked. A definition or prototype, every argument a declaration or a bare
-type, is not a call, and neither is a member call (``ops->make``).
+``make`` are generic). A definition is read in the shapes this tree writes:
+``static`` at the start of a line or indented, after any upper-case macro
+(``JM_HOT``), ``[[attribute]]`` or ``__attribute__((...))``, with the return
+type, qualifiers and attributes on that line or any line before the name.
+Its rows read the file with comments blanked. A definition or prototype,
+every argument a declaration or a bare type, is not a call, and neither is a
+member call (``ops->make``).
 **Not held:** a non-``static`` forwarding function (a library's own entry
-points are TABLE rows), a parameter forwarded inside an expression
-(``w + 0``) or through a local variable, a function pointer or macro, or a
-value that never passes through a call slot -- a variable initialised from
-a literal, a table cell, a loop bound.
+points are TABLE rows); a ``static inline`` forwarder in a header
+(discovery reads ``.c`` files only); a K&R definition (its parameters are
+declared after the list); a parameter forwarded inside an expression
+(``w + 0``) or through a local variable; a parameter only COMPARED with an
+enumerator (``mode == DP_SPECTROGRAM_POWER``: a literal at such a call is
+not refused); a local that shadows a parameter, a variadic helper's ``...``
+and a parameter that feeds two enums (#2227); a function pointer or macro;
+a value that never passes through a call slot -- a variable initialised
+from a literal, a table cell, a loop bound.
 
 **One declaration.** Each slot names an ``[[enum]]`` of just-makeit.toml,
 and the names come from the C enum that carries it (``SSOT: enum=X``, held
@@ -59,9 +67,15 @@ headers this already scans. ``example-projects/`` is scanned, except its
 window slots: those projects build against a RELEASED doppler, which has the
 mode names but no ``DP_PSD_WINDOW_*`` yet (#2186).
 
-**Fail-closed, per row.** Every function in ``TABLE`` must be called at least
-once: a row whose function was renamed away would otherwise check nothing
-and read as clean.
+**Fail-closed.** Every function in ``TABLE`` must be called at least once: a
+row whose function was renamed away would otherwise check nothing and read
+as clean. A discovered helper has no row to go stale, but discovery can stop
+SEEING one -- a definition in a shape it does not read is dropped, and its
+calls pass unchecked. The gate itself fails only when it discovers no helper
+anywhere; it does not know which helpers the tree should have. Its test
+does: ``test_the_real_trees_helpers_are_discovered`` pins each real helper
+(file, name, argument count, slots and enums) as a subset, so a lost or
+changed helper is red there, and a new one needs no edit.
 
 **What it does not refuse:** a variable initialised from a literal, or an
 expression such as ``1 - 1``. A refusal test that needs an invalid value
@@ -300,10 +314,25 @@ def _fix_span(text: str, s: int, e: int, name: str) -> tuple[int, int] | None:
     return None
 
 
-#: A file-local function's definition, GNU style or not: `static` and its
-#: return type (on this line or the one before), then the name and `(`.
+#: An attribute: `[[maybe_unused]]`, or `__attribute__((x))` with at most
+#: one level of parentheses inside (`__attribute__((aligned (16)))`).
+_ATTR = r"(?:\[\[[^\]]*\]\]|__attribute__\s*\(\((?:[^()]|\([^()]*\))*\)\))"
+
+#: A file-local function's definition, GNU style or not: `static` at the
+#: start of a line or indented, after any upper-case macros (`JM_HOT`) and
+#: attributes; then the return type, qualifiers and attributes across any
+#: number of lines; then the name, never `__attribute__` itself (it is
+#: followed by `(` too), and `(`. Nothing in between may be `;`, a brace or
+#: a parenthesis outside an attribute, so a call or a statement ends it.
+#: Whether a `{` follows the parameter list, making it a definition and not
+#: a prototype, is the caller's check.
 _STATIC_DEF = re.compile(
-    r"^static\b[^;{}()]*?(?P<name>[A-Za-z_]\w*)\s*\(", re.MULTILINE
+    r"^[ \t]*"
+    rf"(?:(?:{_ATTR}|[A-Z_][A-Z0-9_]*)\s+)*"
+    r"static\b"
+    rf"(?:{_ATTR}|[^;{{}}()])*?"
+    r"(?P<name>(?!__attribute__\b)[A-Za-z_]\w*)\s*\(",
+    re.MULTILINE,
 )
 
 

@@ -21,6 +21,7 @@ mention and a string literal that are not calls, the two skipped trees, and
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from typing import TYPE_CHECKING
@@ -48,14 +49,27 @@ def _gate():  # type: ignore[no-untyped-def]
 
 #: A seeded file of helpers, as the tests and harnesses write them: `make`
 #: forwards both slots into a constructor, `wrap` forwards through `make` (a
-#: second hop), `is_kaiser` only compares, and `scale` forwards inside an
-#: expression -- the last two are no helpers.
+#: second hop), `row_of` forwards its window past declarations a two-word
+#: rule misread as a call's arguments (the certification harness's shape,
+#: review of #2196), `is_kaiser` only compares, and `scale` forwards inside
+#: an expression -- the last two are no helpers.
 _HELPERS_REL = "native/tests/helpers.c"
 _HELPERS_C = """\
 static dp_spectrogram_state_t *
 make (int mode, size_t nfft, size_t hop, int window)
 {
   return dp_spectrogram_create (nfft, hop, window, 0.0f, mode);
+}
+
+static void
+row_of (int window, const float _Complex *x,
+        float *restrict row)
+{
+  dp_spectrogram_state_t *s
+      = dp_spectrogram_create (8, 4, window, 0.0f, DP_SPECTROGRAM_POWER);
+  (void)x;
+  (void)row;
+  (void)s;
 }
 
 static dp_spectrogram_state_t *
@@ -81,6 +95,7 @@ seeded (void)
 {
   make (DP_SPECTROGRAM_DB, 8, 4, DP_PSD_WINDOW_HANN);
   wrap (DP_PSD_WINDOW_RECT);
+  row_of (DP_PSD_WINDOW_KAISER, NULL, NULL);
   is_kaiser (1);
   scale (1);
 }
@@ -208,12 +223,12 @@ def test_named_arguments_pass_in_every_shape(tmp_path: Path) -> None:
     r = _run(tmp_path)
     assert r.returncode == 0, r.stdout
     # Direct: seven calls in a.c (the printf is a string), the @code call in
-    # s.h (its declaration is not a call), the fence in p.md, and the two in
-    # helpers.c's bodies. Helpers: make twice (seeded and wrap's body) and
-    # wrap once; is_kaiser and scale are discovered as no helpers, and the
-    # definitions are no calls.
+    # s.h (its declaration is not a call), the fence in p.md, and the three
+    # in helpers.c's bodies (make's, row_of's, scale's). Helpers: make twice
+    # (seeded and wrap's body), wrap once and row_of once; is_kaiser and
+    # scale are discovered as no helpers, and the definitions are no calls.
     assert (
-        "11 call(s) and 3 call(s) of 2 discovered helper(s) in 4 file(s)"
+        "12 call(s) and 4 call(s) of 3 discovered helper(s) in 4 file(s)"
         in r.stdout
     ), r.stdout
 
@@ -529,6 +544,13 @@ def _helpers(old: str, new: str) -> dict[str, str]:
     return {_HELPERS_REL: _HELPERS_C.replace(old, new)}
 
 
+def _finding(r: subprocess.CompletedProcess[str], msg: str) -> None:
+    """`msg` is reported against the helpers file and a line in it: a
+    finding that names no file cannot be found in a tree of 900."""
+    where = rf"^  {re.escape(_HELPERS_REL)}:\d+: {re.escape(msg)}$"
+    assert re.search(where, r.stdout, re.MULTILINE), r.stdout
+
+
 def test_a_forwarding_helper_is_discovered_and_held(tmp_path: Path) -> None:
     """`make` forwards both slots into a constructor, so its literals are
     refused like a direct call's (#2191), with no table to keep (#2197)."""
@@ -541,8 +563,8 @@ def test_a_forwarding_helper_is_discovered_and_held(tmp_path: Path) -> None:
     )
     r = _run(tmp_path)
     assert r.returncode == 1
-    assert "make mode = 1 (write DP_SPECTROGRAM_DB)" in r.stdout
-    assert "make window = 3 (write DP_PSD_WINDOW_RECT)" in r.stdout
+    _finding(r, "make mode = 1 (write DP_SPECTROGRAM_DB)")
+    _finding(r, "make window = 3 (write DP_PSD_WINDOW_RECT)")
 
 
 def test_a_second_hop_is_discovered(tmp_path: Path) -> None:
@@ -550,7 +572,56 @@ def test_a_second_hop_is_discovered(tmp_path: Path) -> None:
     _seed(tmp_path, **_helpers("  wrap (DP_PSD_WINDOW_RECT);", "  wrap (1);"))
     r = _run(tmp_path)
     assert r.returncode == 1
-    assert "wrap window = 1 (write DP_PSD_WINDOW_KAISER)" in r.stdout
+    _finding(r, "wrap window = 1 (write DP_PSD_WINDOW_KAISER)")
+
+
+def test_a_helper_with_declarator_parameters_is_held(tmp_path: Path) -> None:
+    """`row_of (int window, const float _Complex *x, float *restrict row)`
+    is the certification harness's shape. Its definition is declarations,
+    not a call (review of #2196: a two-word rule read it as one, so the
+    baseline counts one row_of call, the seeded one), and it forwards
+    `window`, so a literal at its call is refused in its own file."""
+    _seed(
+        tmp_path,
+        **_helpers(
+            "  row_of (DP_PSD_WINDOW_KAISER, NULL, NULL);",
+            "  row_of (1, NULL, NULL);",
+        ),
+    )
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    _finding(r, "row_of window = 1 (write DP_PSD_WINDOW_KAISER)")
+
+
+@pytest.mark.parametrize(
+    "prefix",
+    [
+        "JM_HOT static",
+        "[[maybe_unused]] static",
+        "static __attribute__((unused))",
+        "  static",
+    ],
+    ids=["macro", "c23-attribute", "gnu-attribute", "indented"],
+)
+def test_a_prefixed_or_indented_definition_is_discovered(
+    tmp_path: Path, prefix: str
+) -> None:
+    """`JM_HOT static` (this tree's own idiom, fir_core.c), a C23 or a GNU
+    attribute, and an indented `static` all define a helper. A shape missed
+    drops `make`, and every helper that calls it, while the gate still says
+    OK: so a literal at `make` must stay red in each."""
+    files = _helpers(
+        "static dp_spectrogram_state_t *\nmake (",
+        f"{prefix} dp_spectrogram_state_t *\nmake (",
+    )
+    files[_HELPERS_REL] = files[_HELPERS_REL].replace(
+        "  make (DP_SPECTROGRAM_DB, 8, 4, DP_PSD_WINDOW_HANN);",
+        "  make (DP_SPECTROGRAM_DB, 8, 4, 3);",
+    )
+    _seed(tmp_path, **files)
+    r = _run(tmp_path)
+    assert r.returncode == 1, r.stdout
+    _finding(r, "make window = 3 (write DP_PSD_WINDOW_RECT)")
 
 
 def test_fix_names_a_helper_literal(tmp_path: Path) -> None:
@@ -574,7 +645,7 @@ def test_a_compare_or_an_expression_is_no_helper(tmp_path: Path) -> None:
     )
     r = _run(tmp_path)
     assert r.returncode == 0, r.stdout
-    assert "of 2 discovered helper(s)" in r.stdout
+    assert "of 3 discovered helper(s)" in r.stdout
 
 
 def test_a_non_static_function_is_no_helper(tmp_path: Path) -> None:
@@ -588,7 +659,7 @@ def test_a_non_static_function_is_no_helper(tmp_path: Path) -> None:
     _seed(tmp_path, **{"native/tests/pub.c": pub})
     r = _run(tmp_path)
     assert r.returncode == 0, r.stdout
-    assert "of 2 discovered helper(s)" in r.stdout
+    assert "of 3 discovered helper(s)" in r.stdout
 
 
 def test_discovering_nothing_fails_closed(tmp_path: Path) -> None:
@@ -635,31 +706,30 @@ def test_a_member_call_is_not_a_helper_call(tmp_path: Path) -> None:
 
 
 def test_definitions_of_any_shape_are_not_calls(tmp_path: Path) -> None:
-    """`const size_t`, `unsigned long long`, `float _Complex *restrict` and
-    an unnamed prototype are declarations: the counts do not move, and
-    `make` is still discovered by its named parameters."""
+    """`const size_t`, `unsigned long long`, the seed's `row_of` with its
+    `float _Complex *restrict`, and an unnamed prototype whose parameters
+    are bare multi-word types, `(int, size_t, unsigned long long, const
+    int)`, are declarations: the counts do not move, and `make` is still
+    discovered by its named parameters."""
     files = _helpers(
         "static dp_spectrogram_state_t *\nmake (int mode, size_t nfft,"
         " size_t hop, int window)\n",
-        "static dp_spectrogram_state_t *make (int, size_t, size_t, int);\n"
+        "static dp_spectrogram_state_t *make (int, size_t,"
+        " unsigned long long, const int);\n"
         "static dp_spectrogram_state_t *\nmake (int mode, const size_t nfft,"
         " unsigned long long hop, int window)\n",
-    )
-    files[_HELPERS_REL] += (
-        "static void\nrow_of (int window, const float _Complex *x,\n"
-        "        float *restrict row)\n{\n}\n"
     )
     _seed(tmp_path, **files)
     r = _run(tmp_path)
     assert r.returncode == 0, r.stdout
-    assert "11 call(s) and 3 call(s) of 2 discovered helper(s)" in r.stdout, (
+    assert "12 call(s) and 4 call(s) of 3 discovered helper(s)" in r.stdout, (
         r.stdout
     )
 
 
 def test_an_arity_change_is_reported(tmp_path: Path) -> None:
-    """A helper call with another argument count is a finding, and the
-    footer says whose row it is."""
+    """A helper call with another argument count is a finding, against its
+    file, and the footer says whose row it is."""
     _seed(
         tmp_path,
         **_helpers(
@@ -669,33 +739,64 @@ def test_an_arity_change_is_reported(tmp_path: Path) -> None:
     )
     r = _run(tmp_path)
     assert r.returncode == 1
-    assert "make called with 3 argument(s), its row says 4" in r.stdout
+    _finding(r, "make called with 3 argument(s), its row says 4")
     assert "discovered helper's" in r.stdout
 
 
+def test_an_arity_change_prints_before_the_row_it_empties(
+    tmp_path: Path,
+) -> None:
+    """When a TABLE function's only call has another argument count, its
+    row finds no call: the arity finding is the cause and must print first,
+    not be hidden behind the empty row it causes."""
+    src = _NAMED_C.replace(
+        "dp_acc_trace_create (8, ACC_TRACE_MEAN, 0.1)",
+        "dp_acc_trace_create (8, ACC_TRACE_MEAN)",
+    )
+    _seed(tmp_path, **{"a.c": src})
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    out = r.stdout
+    arity = out.find(
+        "a.c:16: dp_acc_trace_create called with 2 argument(s), its row says 3"
+    )
+    empty = out.find("found no dp_acc_trace_create call")
+    assert 0 <= arity < empty, out
+
+
+_W = ("window", "psd_window")
+_M = ("mode", "spectrogram_mode")
+
+
 def test_the_real_trees_helpers_are_discovered() -> None:
-    """The nine forwarding helpers the hand table listed (#2199), less the
-    two slots that only reached a compare (`rows_are_the_psd`, `oracle`'s
-    mode), are found in the real tree by data flow."""
+    """Nine of the ten helpers #2191's hand table listed are found in the
+    real tree by data flow, each pinned whole: file, name, argument count,
+    and each slot's position, name and enum. A helper discovery stops
+    seeing (a definition shape it does not read) or reads differently is
+    red here, though the gate itself would still say OK; a NEW helper needs
+    no edit, since this is a subset. The tenth, `rows_are_the_psd`, and
+    `oracle`'s mode reach only a compare, so a literal mode at their calls
+    is no longer refused (#2227)."""
     g = _gate()
     want = {
         "native/tests/test_spectrogram_core.c": {
-            "ref_psd",
-            "oneshot",
-            "sections",
+            "ref_psd": (3, {1: _W}),
+            "oneshot": (7, {0: _M, 3: _W}),
+            "sections": (1, {0: _M}),
         },
         "native/validation/spectrogram_certify.c": {
-            "row_of",
-            "make",
-            "ref_psd",
-            "oracle",
-            "partition",
+            "row_of": (3, {0: _W}),
+            "make": (4, {0: _M, 3: _W}),
+            "ref_psd": (2, {1: _W}),
+            "oracle": (6, {3: _W}),
+            "partition": (11, {0: _M, 3: _W}),
         },
-        "native/benchmarks/bench_spectrogram_core.c": {"add"},
+        "native/benchmarks/bench_spectrogram_core.c": {"add": (8, {7: _M})},
     }
-    for rel, names in want.items():
+    for rel, rows in want.items():
         found = g.discover((REPO / rel).read_text(encoding="utf-8"))
-        assert names <= set(found), (rel, sorted(found))
+        for name, row in rows.items():
+            assert found.get(name) == row, (rel, name, found.get(name))
 
 
 def test_a_value_outside_a_view_has_no_name(tmp_path: Path) -> None:

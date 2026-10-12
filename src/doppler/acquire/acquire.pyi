@@ -23,7 +23,8 @@ class CarrierAcquisition:
     zero_pad : int, default 4
         PSD zero-pad factor (>= 1); see psd_core.h.
     window : Literal["hann", "kaiser", "blackman-harris"], default "hann"
-        Enum index; 0=hann, 1=kaiser, 2=blackman-harris.
+        "hann" (the default), "kaiser" or "blackman-harris": the windows the
+        threshold was calibrated at.
 
         - ``"hann"`` — Hann: the default.
         - ``"kaiser"`` — Kaiser, shaped by `beta`.

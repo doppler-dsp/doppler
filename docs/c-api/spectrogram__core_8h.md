@@ -207,9 +207,9 @@ dp_spectrogram_state_t * dp_spectrogram_create (
 
 * `nfft` Samples per frame and bins per row, which must be the same number: an nfft the PSD would zero-pad to a longer transform (anything but a power of two &gt;= 2) is refused rather than given rows wider than its frames. 
 * `hop` Samples between row starts, 1 &lt;= hop &lt;= nfft. hop == nfft tiles the stream; hop &lt; nfft overlaps the frames. 
-* `window` The window: "hann", "kaiser", "blackman-harris" or "rect" in Python; in C DP\_PSD\_WINDOW\_HANN, \_KAISER, \_BLACKMAN\_HARRIS or \_RECT, as [**dp\_psd\_create()**](psd__core_8h.md#function-dp_psd_create) takes it. It also refuses a window that sums to zero at this nfft (the symmetric Hann at nfft = 2). 
+* `window` The window: "hann", "kaiser", "blackman-harris" or "rect", the PSD's own. It also refuses a window that sums to zero at this nfft (the symmetric Hann at nfft = 2). 
 * `beta` Kaiser beta (ignored for the other windows). 
-* `mode` Row units: "power" (linear rows, the default) or "db" (dBFS rows, asked for by name); in C DP\_SPECTROGRAM\_POWER or DP\_SPECTROGRAM\_DB. Any other value is refused. 
+* `mode` Row units: "power" (linear rows, the default) or "db" (dBFS rows, asked for by name). Any other value is refused. 
 
 
 

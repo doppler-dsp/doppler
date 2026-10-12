@@ -117,15 +117,12 @@ typedef struct
  *                rather than given rows wider than its frames.
  * @param hop     Samples between row starts, 1 <= hop <= nfft. hop == nfft
  *                tiles the stream; hop < nfft overlaps the frames.
- * @param window  The window: "hann", "kaiser", "blackman-harris" or "rect" in
- *                Python; in C DP_PSD_WINDOW_HANN, _KAISER, _BLACKMAN_HARRIS or
- *                _RECT, as dp_psd_create() takes it. It also refuses a window
- *                that sums to zero at this nfft (the symmetric Hann at
- *                nfft = 2).
+ * @param window  The window: "hann", "kaiser", "blackman-harris" or "rect",
+ *                the PSD's own. It also refuses a window that sums to zero
+ *                at this nfft (the symmetric Hann at nfft = 2).
  * @param beta    Kaiser beta (ignored for the other windows).
  * @param mode    Row units: "power" (linear rows, the default) or "db" (dBFS
- *                rows, asked for by name); in C DP_SPECTROGRAM_POWER or
- *                DP_SPECTROGRAM_DB. Any other value is refused.
+ *                rows, asked for by name). Any other value is refused.
  * @return Heap-allocated state, or NULL on an invalid argument.
  *
  * Every row is DC-centred exactly as PSD's kernel emits it: bin k at index

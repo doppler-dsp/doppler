@@ -132,11 +132,28 @@ def _seed_bound(
     )
 
 
-def _run(tmp_path: Path) -> subprocess.CompletedProcess[str]:
+def _run(tmp_path: Path, *extra: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, str(SCRIPT), "--root", str(tmp_path)],
+        [sys.executable, str(SCRIPT), "--root", str(tmp_path), *extra],
         capture_output=True,
         text=True,
+    )
+
+
+def _git(tmp_path: Path, *args: str) -> None:
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(tmp_path),
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            *args,
+        ],
+        check=True,
+        capture_output=True,
     )
 
 
@@ -447,6 +464,71 @@ def test_a_c_enum_annotation_with_table_fields_fails(tmp_path: Path) -> None:
     r = _run(tmp_path)
     assert r.returncode == 1
     assert "takes `enum=` only" in r.stdout
+
+
+def test_a_renumbered_enumerator_fails_in_the_tree(tmp_path: Path) -> None:
+    """Rule 7's values: a bound value is persisted (the Spectrogram blob
+    stores its window), so `KAISER = 5` re-reads every saved blob -- and the
+    names, which still match, cannot see it."""
+    _seed_bound(tmp_path, header=_BOUND_H.replace("W_RECT = 1", "W_RECT = 5"))
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    assert "values [0, 5] do not run consecutively" in r.stdout
+
+
+def test_a_duplicate_value_fails(tmp_path: Path) -> None:
+    _seed_bound(tmp_path, header=_BOUND_H.replace("W_RECT = 1", "W_RECT = 0"))
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    assert "values [0, 0] do not run consecutively" in r.stdout
+
+
+def _seed_bound_git(tmp_path: Path) -> None:
+    """The bound fixture as a repository whose HEAD is the base."""
+    _seed_bound(tmp_path)
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "add", ".")
+    _git(tmp_path, "commit", "-q", "-m", "base")
+
+
+def test_an_unchanged_value_passes_against_the_base(tmp_path: Path) -> None:
+    """The ratchet's baseline, in a real repository with a real base."""
+    _seed_bound_git(tmp_path)
+    r = _run(tmp_path, "--base", "HEAD")
+    assert r.returncode == 0, r.stdout
+
+
+def test_a_renumber_with_a_matching_reorder_fails_against_the_base(
+    tmp_path: Path,
+) -> None:
+    """The case the tree cannot see: the C enum renumbered AND the manifest
+    reordered to match, so names, order and consecutiveness all hold. Only
+    the merge base remembers that W_HANN was 0."""
+    _seed_bound_git(tmp_path)
+    (tmp_path / _HDR / "psd" / "win.h").write_text(
+        "/* SSOT: enum=win */\nenum {\n    W_RECT = 0,\n    W_HANN = 1\n};\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "just-makeit.toml").write_text(
+        _MANIFEST
+        + _BOUND_TOML.replace('["hann", "rect"]', '["rect", "hann"]').replace(
+            '["W_HANN", "W_RECT"]', '["W_RECT", "W_HANN"]'
+        ),
+        encoding="utf-8",
+    )
+    r = _run(tmp_path, "--base", "HEAD")
+    assert r.returncode == 1
+    assert "W_HANN was 0 at the merge base" in r.stdout
+    assert "W_RECT was 1 at the merge base" in r.stdout
+
+
+def test_an_unreadable_base_fails_closed(tmp_path: Path) -> None:
+    """A shallow clone has a baseline it cannot read: that is a failure that
+    names the ref, never a silent pass (the alloc ratchet's #1051)."""
+    _seed_bound_git(tmp_path)
+    r = _run(tmp_path, "--base", "refs/heads/no-such-base")
+    assert r.returncode == 1
+    assert "`refs/heads/no-such-base` does not resolve" in r.stdout
 
 
 def test_the_real_tree_passes() -> None:

@@ -13,12 +13,21 @@ written as numbers, one hidden behind a comment (``1 /* Kaiser */``).
 
 **What it checks.** ``TABLE`` names each constructor whose arguments are
 integer codes, the argument count of a real call, and which slots hold
-which code. A call with that many arguments whose named slot is, once
-comments, enclosing parentheses and casts are stripped, an integer literal
-(decimal, octal, hex or binary, any ``u``/``l`` suffix, either sign) or a
-character literal, is refused. A mention with another argument count
-(prose's ``dp_psd_create()``) is not a call and is skipped, and a call
-inside a string literal is not a call either.
+which code. A DIRECT call whose named slot is, once comments, enclosing
+parentheses and casts are stripped, an integer literal (decimal, octal, hex
+or binary, any ``u``/``l`` suffix, either sign) or a character literal, is
+refused. Comments inside the call are stepped over when it is split into
+arguments, so a comma in ``1 /* Kaiser, beta 8 */`` cannot hide it. A cast
+is recognised by a TYPE spelling (``int``, ``unsigned int``, ``size_t``,
+any ``*_t``), never by "a name in parentheses": ``(base) + 1`` is a sum.
+A call with a different argument count is a finding too, since a moved
+signature would otherwise leave its row checking nothing. Prose is not a
+call: ``dp_psd_create()``, ``dp_psd_create(1 << 62, ...)``, or a call
+inside a string literal.
+
+**What it does not hold:** a literal that reaches a constructor through a
+helper -- a test's ``ref_psd (nfft, 0, ...)``, the certify harness's
+``make (..., 3)`` -- or a variable initialised from one (#2191).
 
 **One declaration.** Each slot names an ``[[enum]]`` of just-makeit.toml,
 and the names come from the C enum that carries it (``SSOT: enum=X``, held
@@ -29,9 +38,10 @@ gate's own parser. So this file keeps no copy of any name or value.
 (``git ls-files``), so a new example, test, bench or doc page is checked the
 moment it is committed. Calls are joined across lines, and a header comment's
 ``*`` continuation is stripped first, so a call wrapped inside an ``@code``
-block is read whole. Two trees are skipped: ``docs/c-api/`` is generated from
-the headers this already scans, and ``example-projects/`` builds against a
-RELEASED doppler that predates the names (#2186).
+block is read whole. ``docs/c-api/`` is skipped: it is generated from the
+headers this already scans. ``example-projects/`` is scanned, except its
+window slots: those projects build against a RELEASED doppler, which has the
+mode names but no ``DP_PSD_WINDOW_*`` yet (#2186).
 
 **Fail-closed, per row.** Every function in ``TABLE`` must be called at least
 once: a row whose function was renamed away would otherwise check nothing
@@ -44,8 +54,10 @@ determined.
 
 **--fix** rewrites each refused literal to the name whose C value it is, in
 place and by source position, so ``make format`` (which runs
-``lint-named-args``) is the fixer the gate points at. A literal that is no
-value of its enum is left alone and still refused.
+``lint-named-args``) is the fixer the gate points at. It rewrites only
+what it can PROVE: the argument, rewritten, must reduce to exactly the
+name. A literal that is no value of its enum, or one it cannot prove, is
+left alone and still refused.
 
 Usage
 -----
@@ -81,10 +93,17 @@ TABLE: dict[str, tuple[int, dict[int, tuple[str, str]]]] = {
         {2: ("window", "psd_window"), 7: ("mode", "acc_trace_mode")},
     ),
     "dp_carrier_acq_create": (13, {4: ("window", "psd_window")}),
+    "dp_acc_trace_create": (3, {1: ("mode", "acc_trace_mode")}),
 }
 
-#: Tracked trees that are not this gate's (see the module docstring).
-SKIP = ("docs/c-api/", "example-projects/")
+#: Tracked trees that are not this gate's: generated from what it scans.
+SKIP = ("docs/c-api/",)
+
+#: path prefix -> the enums whose slots it may still write as numbers. The
+#: example projects build against a RELEASED doppler (uno-q pins 0.66.0),
+#: which has the mode names but no DP_PSD_WINDOW_* yet (#2186); every other
+#: slot there is checked.
+EXEMPT_SLOTS = {"example-projects/": frozenset({"psd_window"})}
 
 # Longest first, so `dp_psd_create_hop` is never read as `dp_psd_create`.
 _CALL = re.compile(
@@ -102,7 +121,17 @@ _STRING = re.compile(r'"(?:\\.|[^"\\\n])*"|\'(?:\\.|[^\'\\\n])\'')
 
 _INT = re.compile(r"[+-]?\s*(?:0[xX][0-9a-fA-F]+|0[bB][01]+|\d+)[uUlL]*")
 _CHAR = re.compile(r"'(?:\\.|[^'\\])'")
-_CAST = re.compile(r"\(\s*(?:const\s+)?[A-Za-z_]\w*\s*\)\s*(.+)", re.S)
+#: A cast is recognised by a TYPE spelling, never by "a name in parentheses":
+#: `(base) + 1` is a sum, and reading `(base)` as a cast made it the literal
+#: `+ 1` (and --fix wrote `(base) DP_PSD_WINDOW_KAISER`). A typedef'd integer
+#: ends in `_t`; `(unsigned int)1` is a cast, which the old one-word rule
+#: missed.
+_TYPE = (
+    r"(?:(?:const|volatile)\s+)*"
+    r"(?:(?:(?:signed|unsigned|short|long|int|char)\b\s*)+"
+    r"|(?:float|double|_Bool|bool|[A-Za-z_]\w*_t)\b)"
+)
+_CAST = re.compile(r"\(\s*" + _TYPE + r"\s*\)\s*(.+)", re.S)
 #: Inside one argument: a comment to step over, or the literal to rewrite.
 #: Whitespace belongs to the literal only after a sign: an unsigned literal's
 #: span starts at its first digit, so the rewrite keeps the space, newline and
@@ -118,9 +147,25 @@ _TOKEN = re.compile(
 def _args(text: str, start: int) -> tuple[list[tuple[int, int]], int] | None:
     """The (start, end) span of each top-level argument of the call whose
     `(` is at `start`, with the offset just past its `)`; None when the
-    parentheses never close (a fragment cut off by the file's end)."""
-    depth, spans, a = 0, [], start + 1
-    for i in range(start, len(text)):
+    parentheses never close (a fragment cut off by the file's end).
+
+    A comment inside the call is stepped over, not read: a comma in
+    `1 /* Kaiser, beta 8 */` split the argument in two, the call then had
+    the wrong count, and it was skipped as no call at all. A call inside a
+    header's @code block carries no comment of its own, so stepping over
+    `/* ... */` and `// ...` here cannot hide one."""
+    depth, spans, a, i, n = 0, [], start + 1, start, len(text)
+    while i < n:
+        if text.startswith("/*", i):
+            j = text.find("*/", i + 2)
+            if j < 0:
+                return None
+            i = j + 2
+            continue
+        if text.startswith("//", i):
+            j = text.find("\n", i)
+            i = n if j < 0 else j
+            continue
         ch = text[i]
         if ch in "([{":
             depth += 1
@@ -132,6 +177,7 @@ def _args(text: str, start: int) -> tuple[list[tuple[int, int]], int] | None:
         elif ch == "," and depth == 1:
             spans.append((a, i))
             a = i + 1
+        i += 1
     return None
 
 
@@ -167,7 +213,12 @@ def _value(literal: str) -> int | None:
 
 
 class Finding:
-    """One refused literal, and the name that replaces it if there is one."""
+    """One refused literal, and the name that replaces it if there is one.
+
+    `span` is set only when --fix can PROVE the rewrite: the argument,
+    rewritten, reduces to exactly the name. Anything else is reported and
+    left alone, so the fixer cannot write code that does not compile.
+    """
 
     def __init__(
         self,
@@ -186,10 +237,28 @@ class Finding:
         self.span = span
 
 
+def _fix_span(text: str, s: int, e: int, name: str) -> tuple[int, int] | None:
+    """The span of the lone integer token in argument text[s:e], if replacing
+    it with `name` leaves an argument that reduces to exactly `name`."""
+    for t in _TOKEN.finditer(text, s, e):
+        if t.group(2):
+            a, b = t.span(2)
+            if _bare(text[s:a] + name + text[b:e]) == name:
+                return a, b
+            return None
+    return None
+
+
 def check_text(
-    text: str, names: dict[str, dict[int, str]], is_c: bool
+    text: str,
+    names: dict[str, dict[int, str]],
+    is_c: bool,
+    exempt: frozenset[str] = frozenset(),
 ) -> tuple[dict[str, int], list[Finding]]:
-    """Calls checked per function, and each literal found in a named slot."""
+    """Calls checked per function, and each finding: a literal in a named
+    slot (not one of the `exempt` enums), or a call whose argument count is
+    not its row's -- a signature change must not leave a stale row quietly
+    checking nothing. A zero-argument mention is prose, not a call."""
     scan = _STRING.sub(lambda m: " " * len(m.group(0)), text) if is_c else text
     calls: dict[str, int] = {}
     found: list[Finding] = []
@@ -197,22 +266,40 @@ def check_text(
         func = m.group(1)
         nargs, slots = TABLE[func]
         got = _args(scan, m.end() - 1)
-        if got is None or len(got[0]) != nargs:
+        if got is None:
+            continue
+        spans = got[0]
+        bares = [_bare(text[s:e]) for s, e in spans]
+        # Prose, not a call: `dp_psd_create()`, or `dp_psd_create(1 << 62,
+        # ...)` with an ellipsis standing for the rest.
+        if bares == [""] or "..." in bares:
+            continue
+        line = text.count("\n", 0, m.start()) + 1
+        if len(spans) != nargs:
+            found.append(
+                Finding(
+                    line,
+                    func,
+                    "arity",
+                    f"{len(spans)} argument(s), its row says {nargs}",
+                    None,
+                    None,
+                )
+            )
             continue
         calls[func] = calls.get(func, 0) + 1
         for idx, (param, enum) in slots.items():
-            s, e = got[0][idx]
+            if enum in exempt:
+                continue
+            s, e = spans[idx]
             bare = _bare(text[s:e])
             if not (_INT.fullmatch(bare) or _CHAR.fullmatch(bare)):
                 continue
             name, span = None, None
             if _INT.fullmatch(bare):
                 name = names.get(enum, {}).get(_value(bare))
-                for t in _TOKEN.finditer(text, s, e):
-                    if t.group(2):
-                        span = t.span(2)
-                        break
-            line = text.count("\n", 0, m.start()) + 1
+                if name:
+                    span = _fix_span(text, s, e, name)
             found.append(Finding(line, func, param, bare, name, span))
     return calls, found
 
@@ -273,7 +360,10 @@ def main(argv: list[str]) -> int:
             text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        n, found = check_text(text, names, not rel.endswith(".md"))
+        exempt = frozenset().union(
+            *(e for p, e in EXEMPT_SLOTS.items() if rel.startswith(p))
+        )
+        n, found = check_text(text, names, not rel.endswith(".md"), exempt)
         if n:
             files += 1
             for f, k in n.items():
@@ -307,12 +397,22 @@ def main(argv: list[str]) -> int:
             "check_named_args: an integer-coded argument is a number -- FAIL"
         )
         for where, f in left:
-            hint = f" (write {f.name})" if f.name else " (no such value)"
+            if f.param == "arity":
+                print(f"  {where}: {f.func} called with {f.bare}")
+                continue
+            if not f.name:
+                hint = " (no such value)"
+            elif args.fix:
+                hint = f" ({f.name}, but not a lone literal: edit it by hand)"
+            else:
+                hint = f" (write {f.name})"
             print(f"  {where}: {f.func} {f.param} = {f.bare}{hint}")
         print(
             "\n  Pass DP_PSD_WINDOW_*, ACC_TRACE_* or DP_SPECTROGRAM_* by"
             "\n  name, or a variable that holds one; `make format` writes the"
             "\n  names. A deliberately invalid value goes in a named variable."
+            "\n  A call whose argument count is not its TABLE row's means the"
+            "\n  signature moved: fix the call, or the row."
         )
         return 1
     print(

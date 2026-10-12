@@ -49,7 +49,11 @@ So this gate makes the SSOT claim a check rather than a comment:
    `[[enum]]` with `enumerators` that no annotated C enum carries -- unless
    every one of its names is a name of ONE annotated C enum, which makes it
    a view over that enum (`carrier_acq_window` offers three of
-   `psd_window`'s four), never a source of names of its own.
+   `psd_window`'s four), never a source of names of its own. And the VALUES
+   hold, because they are persisted (a Spectrogram blob stores its window
+   and mode): they run consecutively in the manifest's order, and an
+   enumerator that existed at the merge base with `--base` keeps its value
+   (a shallow clone whose base will not resolve fails closed).
 
 The annotation is a plain `/* ... */` comment -- doxygen reads only `/**` and
 `/*!`, so it is invisible to the C API docs -- placed anywhere between the
@@ -75,6 +79,7 @@ import re
 import sys
 from pathlib import Path
 
+from _gitbase import BaseUnreadableError, in_git_repo, resolve_base, show_at
 from _layout import GLUE_FRAGMENT, INC_DIR, header
 
 # `tomllib` is 3.11+. Every OTHER gate under scripts/ that a test in
@@ -270,36 +275,118 @@ def bound_enums(
             text = path.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
             continue
-        if "SSOT:" not in text:
-            continue
-        # Same offsets, comments blanked: a `;` inside prose ends nothing.
-        masked = _COMMENT_RE.sub(lambda m: " " * len(m.group(0)), text)
-        rel = path.relative_to(root).as_posix()
-        for m in _ENUM_DECL_RE.finditer(masked):
-            start = masked.rfind(";", 0, m.start()) + 1
-            specs = _SSOT_RE.findall(text[start : m.start()])
-            if not specs:
-                continue
-            line = text.count("\n", 0, m.start()) + 1
-            if len(specs) > 1:
-                errs.append(
-                    f"{rel}:{line}: {len(specs)} `SSOT:` annotations above"
-                    " one enum; exactly one describes it."
-                )
-                continue
-            fields = [f.strip() for f in specs[0].split(",") if f.strip()]
-            keys = [f.partition("=")[0].strip() for f in fields]
-            if keys != ["enum"]:
-                errs.append(
-                    f"{rel}:{line}: a C enum's annotation takes `enum=` only"
-                    f" (got {specs[0].strip()!r}); its names are checked"
-                    " against that [[enum]]'s `enumerators`."
-                )
-                continue
-            name = fields[0].partition("=")[2].strip()
-            body = text[m.start("body") : m.end("body")]
-            found.append((f"{rel}:{line}", name, _enumerators(body)))
+        f, e = _bound_in_text(text, path.relative_to(root).as_posix())
+        found += f
+        errs += e
     return found, errs
+
+
+def _bound_in_text(
+    text: str, rel: str
+) -> tuple[list[tuple[str, str, list[tuple[str, int | None]]]], list[str]]:
+    """`bound_enums` for one header's text: the working tree's, or the merge
+    base's when the values ratchet reads what an enumerator used to be."""
+    found: list[tuple[str, str, list[tuple[str, int | None]]]] = []
+    errs: list[str] = []
+    if "SSOT:" not in text:
+        return found, errs
+    # Same offsets, comments blanked: a `;` inside prose ends nothing.
+    masked = _COMMENT_RE.sub(lambda m: " " * len(m.group(0)), text)
+    for m in _ENUM_DECL_RE.finditer(masked):
+        start = masked.rfind(";", 0, m.start()) + 1
+        specs = _SSOT_RE.findall(text[start : m.start()])
+        if not specs:
+            continue
+        line = text.count("\n", 0, m.start()) + 1
+        if len(specs) > 1:
+            errs.append(
+                f"{rel}:{line}: {len(specs)} `SSOT:` annotations above"
+                " one enum; exactly one describes it."
+            )
+            continue
+        fields = [f.strip() for f in specs[0].split(",") if f.strip()]
+        keys = [f.partition("=")[0].strip() for f in fields]
+        if keys != ["enum"]:
+            errs.append(
+                f"{rel}:{line}: a C enum's annotation takes `enum=` only"
+                f" (got {specs[0].strip()!r}); its names are checked"
+                " against that [[enum]]'s `enumerators`."
+            )
+            continue
+        name = fields[0].partition("=")[2].strip()
+        body = text[m.start("body") : m.end("body")]
+        found.append((f"{rel}:{line}", name, _enumerators(body)))
+    return found, errs
+
+
+def _check_bound_values(
+    root: Path, base: str, bound: list[tuple[str, str, list]]
+) -> list[str]:
+    """Rule 7's values: what a bound enumerator reads, now and since the base.
+
+    The values are persisted -- the Spectrogram blob stores its window and
+    mode, `AccTrace.mode` returns the int -- so a renumbered window re-reads
+    every saved blob as another one, and names alone cannot see it. Two
+    checks, because each misses what the other catches:
+
+    - **In the tree** (no git): every value is an integer C can read here,
+      and the values run consecutively in the manifest's order. That refuses
+      `KAISER = 5` and a duplicate, on any clone.
+    - **Since the merge base** with `base`: an enumerator that existed there
+      keeps its value. That refuses a renumber made TOGETHER with a matching
+      reorder of the manifest, which the tree alone reads as consistent.
+
+    A tree that is not a git repository has no base to compare (a seeded
+    test tree); a repository whose base will not resolve -- a shallow clone
+    -- fails CLOSED, naming the ref, because a ratchet that cannot read its
+    baseline has not been checked (scripts/_gitbase.py).
+    """
+    errs: list[str] = []
+    for where, name, pairs in bound:
+        vals = [v for _, v in pairs]
+        if any(v is None for v in vals):
+            errs.append(
+                f"{where}: [[enum]] {name}'s C enum has a value this gate"
+                " cannot read as an integer; a bound enum's values are"
+                " persisted, so each must be a plain integer."
+            )
+        elif vals != list(range(vals[0], vals[0] + len(vals))):
+            errs.append(
+                f"{where}: [[enum]] {name}'s values {vals} do not run"
+                " consecutively in the manifest's order (a duplicate, or a"
+                " renumbered enumerator)."
+            )
+    if not in_git_repo(root):
+        return errs
+    try:
+        rev = resolve_base(root, base)
+    except BaseUnreadableError:
+        return [
+            *errs,
+            f"the values ratchet cannot read its baseline: `{base}` does not"
+            " resolve here (a shallow clone?). Fetch it, e.g. `git fetch"
+            " --no-tags origin +refs/heads/main:refs/remotes/origin/main`,"
+            " or pass --base.",
+        ]
+    for where, name, pairs in bound:
+        rel = where.rpartition(":")[0]
+        then = show_at(root, rev, rel)
+        if then is None:
+            continue
+        old = {
+            n: v
+            for _, x, ps in _bound_in_text(then, rel)[0]
+            if x == name
+            for n, v in ps
+        }
+        for n, v in pairs:
+            if n in old and old[n] is not None and old[n] != v:
+                errs.append(
+                    f"{where}: {n} was {old[n]} at the merge base with"
+                    f" {base} and is {v} now. Its value is persisted, so it"
+                    " may not change: add a new enumerator instead."
+                )
+    return errs
 
 
 def _check_bound_enums(root: Path, data: dict) -> list[str]:
@@ -368,7 +455,7 @@ def _scan_files(root: Path, names_h: Path) -> list[Path]:
     return out
 
 
-def check(root: Path) -> list[str]:
+def check(root: Path, base: str = "origin/main") -> list[str]:
     """Every problem found, as ready-to-print lines."""
     errs: list[str] = []
     names_h = root / NAMES_H_REL
@@ -521,6 +608,7 @@ def check(root: Path) -> list[str]:
 
     # Rule 7 -- an [[enum]] bound by name has one C enum with its names.
     errs += _check_bound_enums(root, data)
+    errs += _check_bound_values(root, base, bound_enums(root)[0])
     return errs
 
 
@@ -532,9 +620,15 @@ def main() -> int:
         default=Path(__file__).resolve().parent.parent,
         help="tree to check (default: the repository root)",
     )
+    ap.add_argument(
+        "--base",
+        default="origin/main",
+        help="ref whose merge base holds the enumerator values a bound enum"
+        " may not change (rule 7)",
+    )
     args = ap.parse_args()
 
-    errs = check(args.root.resolve())
+    errs = check(args.root.resolve(), args.base)
     if errs:
         print(f"wfm-enum-tables: {len(errs)} problem(s).")
         for e in errs:

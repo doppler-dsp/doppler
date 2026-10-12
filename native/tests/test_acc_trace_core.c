@@ -14,14 +14,19 @@ main (void)
 
   /* ── lifecycle + invalid args ───────────────────────────────────────── */
   {
-    DP_CHECK (dp_acc_trace_create (0, 0, 0.1) == NULL); /* n == 0 */
+    DP_CHECK (dp_acc_trace_create (0, ACC_TRACE_MEAN, 0.1)
+              == NULL); /* n == 0 */
     /* n doubles past what a size_t can count in bytes: refused before
        calloc, whose overflow ASan and TSan report as an error. */
-    DP_CHECK (dp_acc_trace_create (SIZE_MAX / sizeof (double) + 1, 0, 0.1)
+    DP_CHECK (dp_acc_trace_create (SIZE_MAX / sizeof (double) + 1,
+                                   ACC_TRACE_MEAN, 0.1)
               == NULL);
-    DP_CHECK (dp_acc_trace_create (8, -1, 0.1) == NULL); /* bad mode */
-    DP_CHECK (dp_acc_trace_create (8, 4, 0.1) == NULL);  /* bad mode */
-    dp_acc_trace_destroy (NULL);                         /* must not crash */
+    /* modes no enum has, named: check_named_args.py refuses a literal in
+       the mode slot */
+    const int mode_below_mean = -1, mode_past_minhold = 4;
+    DP_CHECK (dp_acc_trace_create (8, mode_below_mean, 0.1) == NULL);
+    DP_CHECK (dp_acc_trace_create (8, mode_past_minhold, 0.1) == NULL);
+    dp_acc_trace_destroy (NULL); /* must not crash */
 
     dp_acc_trace_state_t *obj = dp_acc_trace_create (8, ACC_TRACE_MEAN, 0.1);
     DP_CHECK (obj != NULL);
@@ -184,7 +189,7 @@ main (void)
 
   /* ── pass_capacity: emission stops at max_out (jm gh-138) ────────── */
   {
-    dp_acc_trace_state_t *a    = dp_acc_trace_create (8, 0, 0.1);
+    dp_acc_trace_state_t *a    = dp_acc_trace_create (8, ACC_TRACE_MEAN, 0.1);
     const float           p[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
     float                 out[8];
     DP_CHECK (a != NULL);

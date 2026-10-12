@@ -72,8 +72,9 @@ int main (void)
   dp_carrier_acq_state_t *c = dp_carrier_acq_create (
       4e6, 1e5, 0.0, 4, DP_PSD_WINDOW_HANN, 0.0f, NULL, 0, 1e-3, 0.9, 2.0,
       true, 1000);
+  dp_acc_trace_state_t *t = dp_acc_trace_create (8, ACC_TRACE_MEAN, 0.1);
   printf ("dp_psd_create(%d, 0, 0, 0, 0, 0, 0, 0, 0) is no call\\n", 9);
-  return !a || !b || !p || !q || !c;
+  return !a || !b || !p || !q || !c || !t;
 }
 """
 
@@ -134,9 +135,9 @@ def test_named_arguments_pass_in_every_shape(tmp_path: Path) -> None:
     _seed(tmp_path)
     r = _run(tmp_path)
     assert r.returncode == 0, r.stdout
-    # five calls in a.c (the printf is a string), the declaration and the
+    # six calls in a.c (the printf is a string), the declaration and the
     # @code call in s.h, the fence in p.md; the prose mention is not a call
-    assert "8 call(s) in 3 file(s)" in r.stdout
+    assert "9 call(s) in 3 file(s)" in r.stdout
 
 
 def test_a_literal_mode_fails_and_names_the_line(tmp_path: Path) -> None:
@@ -190,9 +191,14 @@ def test_a_literal_behind_a_comment_fails(tmp_path: Path) -> None:
             " (write DP_PSD_WINDOW_BLACKMAN_HARRIS)",
         ),
         (
-            "ACC_TRACE_MEAN, 0.1",
-            "3, 0.1",
+            "0, ACC_TRACE_MEAN, 0.1",
+            "0, 3, 0.1",
             "a.c:9: dp_psd_create mode = 3 (write ACC_TRACE_MINHOLD)",
+        ),
+        (
+            "(8, ACC_TRACE_MEAN, 0.1)",
+            "(8, 2, 0.1)",
+            "a.c:16: dp_acc_trace_create mode = 2 (write ACC_TRACE_MAXHOLD)",
         ),
         (
             "(64, 1.0, win,",
@@ -217,7 +223,7 @@ def test_every_table_slot_is_checked(
 ) -> None:
     """One case per (function, slot) in TABLE, so a row that stopped being
     read cannot hide behind the others."""
-    assert named in _NAMED_C
+    assert _NAMED_C.count(named) == 1
     _seed(tmp_path, **{"a.c": _NAMED_C.replace(named, literal)})
     r = _run(tmp_path)
     assert r.returncode == 1
@@ -250,16 +256,105 @@ def test_an_untracked_file_is_not_the_gates(tmp_path: Path) -> None:
     assert _run(tmp_path).returncode == 0
 
 
-@pytest.mark.parametrize("tree", ["docs/c-api/x.md", "example-projects/q/m.c"])
-def test_the_skipped_trees_are_not_the_gates(
-    tmp_path: Path, tree: str
-) -> None:
-    """docs/c-api is generated from the headers already scanned; the example
-    projects build against a released doppler that predates the names."""
+def test_generated_c_api_pages_are_not_the_gates(tmp_path: Path) -> None:
+    """docs/c-api is generated from the headers already scanned."""
     _seed(
-        tmp_path, **{tree: "x = dp_spectrogram_create (8, 4, 0, 0.0f, 0);\n"}
+        tmp_path,
+        **{
+            "docs/c-api/x.md": (
+                "x = dp_spectrogram_create (8, 4, 0, 0.0f, 0);\n"
+            )
+        },
     )
     assert _run(tmp_path).returncode == 0
+
+
+def test_example_projects_are_exempt_for_the_window_slot_only(
+    tmp_path: Path,
+) -> None:
+    """The example projects build against a released doppler, which has the
+    mode names but no DP_PSD_WINDOW_* yet (#2186): their window may be a
+    number, and every other slot is held."""
+    ok = "x = dp_spectrogram_create (8, 4, 0, 0.0f, DP_SPECTROGRAM_POWER);\n"
+    _seed(tmp_path, **{"example-projects/q/m.c": ok})
+    assert _run(tmp_path).returncode == 0
+    bad = "x = dp_psd_create (8, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);\n"
+    _seed(tmp_path / "bad", **{"example-projects/q/m.c": bad})
+    r = _run(tmp_path / "bad")
+    assert r.returncode == 1
+    assert "example-projects/q/m.c:1: dp_psd_create mode = 0" in r.stdout
+    assert "window" not in r.stdout.split("FAIL", 1)[1].split("Pass")[0]
+
+
+@pytest.mark.parametrize(
+    ("arg", "lit"),
+    [
+        ("1 /* Kaiser, beta 8 */", "1"),
+        ("1 // Kaiser, then a stray )\n", "1"),
+        ("(unsigned int)1", "1"),
+        ("(uint32_t) 1", "1"),
+    ],
+)
+def test_a_literal_hidden_by_a_comma_comment_or_cast_fails(
+    tmp_path: Path, arg: str, lit: str
+) -> None:
+    """A comma or `)` inside a comment split the call and hid it entirely;
+    a two-word or typedef'd cast was not seen as a cast. Each is a literal
+    in the window slot."""
+    bad = _NAMED_C.replace("DP_PSD_WINDOW_KAISER, 8.0f", f"{arg}, 8.0f")
+    _seed(tmp_path, **{"a.c": bad})
+    r = _run(tmp_path)
+    assert r.returncode == 1, r.stdout
+    assert f"a.c:9: dp_psd_create window = {lit}" in r.stdout
+    assert "9 call(s)" not in r.stdout  # the gate did not pass it
+
+
+@pytest.mark.parametrize("expr", ["(base) + 1", "(n) - 1", "w + 0"])
+def test_an_expression_is_not_a_literal(tmp_path: Path, expr: str) -> None:
+    """`(base) + 1` is a sum, not a cast of `+ 1`; reading it as one made
+    --fix write `(base) DP_PSD_WINDOW_KAISER`, which does not compile."""
+    src = _NAMED_C.replace("DP_PSD_WINDOW_KAISER, 8.0f", f"{expr}, 8.0f")
+    _seed(tmp_path, **{"a.c": src})
+    r = _run(tmp_path, "--fix")
+    assert r.returncode == 0, r.stdout
+    assert (tmp_path / "a.c").read_text(encoding="utf-8") == src
+
+
+def test_a_call_with_the_wrong_argument_count_fails(tmp_path: Path) -> None:
+    """A signature change must not leave a stale row checking nothing: a call
+    whose count is not the row's is a finding, not a skip."""
+    src = _NAMED_C.replace(
+        "  dp_acc_trace_state_t *t",
+        "  dp_psd_create (64, 1.0, DP_PSD_WINDOW_HANN);\n"
+        "  dp_acc_trace_state_t *t",
+    )
+    _seed(tmp_path, **{"a.c": src})
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    assert (
+        "a.c:16: dp_psd_create called with 3 argument(s), its row says 9"
+        in r.stdout
+    )
+
+
+def test_an_ellipsis_mention_is_prose(tmp_path: Path) -> None:
+    """`dp_psd_create(1 << 62, ...)` in a report names a call, not one."""
+    _seed(tmp_path, **{"docs/q.md": "`dp_psd_create(1 << 62, ...)` crashed\n"})
+    assert _run(tmp_path).returncode == 0
+
+
+def test_fix_proves_the_rewrite_before_making_it() -> None:
+    """--fix rewrites a token only if the argument then reduces to exactly
+    the name; anything else is reported and left alone."""
+    sys.path.insert(0, str(SCRIPT.parent))
+    try:
+        import check_named_args as g
+    finally:
+        sys.path.remove(str(SCRIPT.parent))
+    assert g._fix_span("(int) 1", 0, 7, "K") == (6, 7)
+    assert g._fix_span("1 /* 2, 3 */", 0, 12, "K") == (0, 1)
+    assert g._fix_span("(base) + 1", 0, 10, "K") is None
+    assert g._fix_span("w + 1", 0, 5, "K") is None
 
 
 def test_a_row_whose_function_is_never_called_fails(tmp_path: Path) -> None:

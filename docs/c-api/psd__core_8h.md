@@ -358,12 +358,12 @@ dp_psd_state_t * dp_psd_create (
 
 * `n` Window / frame length in samples. Must be &gt;= 2. 
 * `fs` Sample rate in Hz (used for dB/Hz and band frequencies); finite and &gt; 0. 
-* `window` The window: "hann" (the default), "kaiser", "blackman-harris" or "rect" (no taper: best resolution, worst leakage); in C DP\_PSD\_WINDOW\_HANN, \_KAISER, \_BLACKMAN\_HARRIS or \_RECT. 
+* `window` The window: "hann" (the default), "kaiser", "blackman-harris" or "rect" (no taper: best resolution, worst leakage). 
 * `beta` Kaiser beta (ignored by every other window). One that makes the window non-finite  NaN, or large enough to overflow it  is refused. 
 * `pad` Zero-pad factor (&gt;= 1; 0 is refused); nfft = next\_pow\_two(n \* pad). 
 * `full_scale` Amplitude that reads 0 dBFS in the dB getters; finite and &gt; 0. Ignored when `bits` &gt; 0. 
 * `bits` ADC depth: when &gt; 0, sets full\_scale = 2^(bits-1) (the single definition of the dBFS reference); 0 = use `full_scale` directly. At most 64. 
-* `mode` Averaging mode: "mean", "exp", "maxhold" or "minhold"; in C ACC\_TRACE\_MEAN, \_EXP, \_MAXHOLD or \_MINHOLD. 
+* `mode` Averaging mode: "mean", "exp", "maxhold" or "minhold". 
 * `alpha` EMA smoothing factor, exp mode only, where it must lie in (0, 1]: the rule is the AccTrace averager's, whose create refuses anything else, so this does too. Ignored, and so not checked, in the other modes. 
 
 
@@ -428,12 +428,12 @@ Frame k covers stream samples k\*hop through k\*hop + n - 1. A hop equal to n gi
 
 * `n` Window / frame length in samples. Must be &gt;= 2. 
 * `fs` Sample rate in Hz (used for dB/Hz and band frequencies); finite and &gt; 0. 
-* `window` The window: "hann" (the default), "kaiser", "blackman-harris" or "rect" (no taper: best resolution, worst leakage); in C DP\_PSD\_WINDOW\_HANN, \_KAISER, \_BLACKMAN\_HARRIS or \_RECT. 
+* `window` The window: "hann" (the default), "kaiser", "blackman-harris" or "rect" (no taper: best resolution, worst leakage). 
 * `beta` Kaiser beta (ignored by every other window). One that makes the window non-finite  NaN, or large enough to overflow it  is refused. 
 * `pad` Zero-pad factor (&gt;= 1; 0 is refused); nfft = next\_pow\_two(n \* pad). 
 * `full_scale` Amplitude that reads 0 dBFS in the dB getters; finite and &gt; 0. Ignored when `bits` &gt; 0. 
 * `bits` ADC depth: when &gt; 0, sets full\_scale = 2^(bits-1) (the single definition of the dBFS reference); 0 = use `full_scale` directly. At most 64. 
-* `mode` Averaging mode: "mean", "exp", "maxhold" or "minhold"; in C ACC\_TRACE\_MEAN, \_EXP, \_MAXHOLD or \_MINHOLD. 
+* `mode` Averaging mode: "mean", "exp", "maxhold" or "minhold". 
 * `alpha` EMA smoothing factor, exp mode only, where it must lie in (0, 1]: the rule is the AccTrace averager's, whose create refuses anything else, so this does too. Ignored, and so not checked, in the other modes. 
 * `hop` Samples between frame starts, 1..n. 0 means n, which gives non-overlapping frames; the default. A hop above n would leave samples between frames that are never kept, so it is refused. 
 

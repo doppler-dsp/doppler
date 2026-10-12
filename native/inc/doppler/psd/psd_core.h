@@ -90,8 +90,7 @@ typedef struct {
  *                    finite and > 0.
  * @param window      The window: "hann" (the default), "kaiser",
  *                    "blackman-harris" or "rect" (no taper: best resolution,
- *                    worst leakage); in C DP_PSD_WINDOW_HANN, _KAISER,
- *                    _BLACKMAN_HARRIS or _RECT.
+ *                    worst leakage).
  * @param beta        Kaiser beta (ignored by every other window). One that
  *                    makes the window non-finite -- NaN, or large enough to
  *                    overflow it -- is refused.
@@ -103,8 +102,7 @@ typedef struct {
  * @param bits        ADC depth: when > 0, sets full_scale = 2^(bits-1) (the
  *                    single definition of the dBFS reference); 0 = use
  *                    @p full_scale directly.  At most 64.
- * @param mode        Averaging mode: "mean", "exp", "maxhold" or "minhold";
- *                    in C ACC_TRACE_MEAN, _EXP, _MAXHOLD or _MINHOLD.
+ * @param mode        Averaging mode: "mean", "exp", "maxhold" or "minhold".
  * @param alpha       EMA smoothing factor, exp mode only, where it must lie in
  *                    (0, 1]: the rule is the AccTrace averager's, whose
  *                    create refuses anything else, so this does too.
@@ -142,8 +140,7 @@ dp_psd_state_t *dp_psd_create(size_t n, double fs, int window, float beta,
  *                    finite and > 0.
  * @param window      The window: "hann" (the default), "kaiser",
  *                    "blackman-harris" or "rect" (no taper: best resolution,
- *                    worst leakage); in C DP_PSD_WINDOW_HANN, _KAISER,
- *                    _BLACKMAN_HARRIS or _RECT.
+ *                    worst leakage).
  * @param beta        Kaiser beta (ignored by every other window). One that
  *                    makes the window non-finite -- NaN, or large enough to
  *                    overflow it -- is refused.
@@ -155,8 +152,7 @@ dp_psd_state_t *dp_psd_create(size_t n, double fs, int window, float beta,
  * @param bits        ADC depth: when > 0, sets full_scale = 2^(bits-1) (the
  *                    single definition of the dBFS reference); 0 = use
  *                    @p full_scale directly.  At most 64.
- * @param mode        Averaging mode: "mean", "exp", "maxhold" or "minhold";
- *                    in C ACC_TRACE_MEAN, _EXP, _MAXHOLD or _MINHOLD.
+ * @param mode        Averaging mode: "mean", "exp", "maxhold" or "minhold".
  * @param alpha       EMA smoothing factor, exp mode only, where it must lie in
  *                    (0, 1]: the rule is the AccTrace averager's, whose
  *                    create refuses anything else, so this does too.

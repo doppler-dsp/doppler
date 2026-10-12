@@ -1684,8 +1684,7 @@ class PSD:
         0.
     window : Literal["hann", "kaiser", "blackman-harris", "rect"], default "hann"
         The window: "hann" (the default), "kaiser", "blackman-harris" or "rect"
-        (no taper: best resolution, worst leakage); in C DP_PSD_WINDOW_HANN,
-        _KAISER, _BLACKMAN_HARRIS or _RECT.
+        (no taper: best resolution, worst leakage).
 
         - ``"hann"`` — Hann: the default.
         - ``"kaiser"`` — Kaiser, shaped by `beta`.
@@ -1704,8 +1703,7 @@ class PSD:
         definition of the dBFS reference); 0 = use full_scale directly. At most
         64.
     mode : Literal["mean", "exp", "maxhold", "minhold"], default "mean"
-        Averaging mode: "mean", "exp", "maxhold" or "minhold"; in C
-        ACC_TRACE_MEAN, _EXP, _MAXHOLD or _MINHOLD.
+        Averaging mode: "mean", "exp", "maxhold" or "minhold".
 
         - ``"mean"`` — Linear running mean of all frames.
         - ``"exp"`` — Exponential moving average (alpha).
@@ -2236,10 +2234,9 @@ class Spectrogram:
         Samples between row starts, 1 <= hop <= nfft. hop == nfft tiles the
         stream; hop < nfft overlaps the frames.
     window : Literal["hann", "kaiser", "blackman-harris", "rect"], default "hann"
-        The window: "hann", "kaiser", "blackman-harris" or "rect" in Python; in
-        C DP_PSD_WINDOW_HANN, _KAISER, _BLACKMAN_HARRIS or _RECT, as
-        dp_psd_create() takes it. It also refuses a window that sums to zero at
-        this nfft (the symmetric Hann at nfft = 2).
+        The window: "hann", "kaiser", "blackman-harris" or "rect", the PSD's
+        own. It also refuses a window that sums to zero at this nfft (the
+        symmetric Hann at nfft = 2).
 
         - ``"hann"`` — Hann: the default.
         - ``"kaiser"`` — Kaiser, shaped by `beta`.
@@ -2249,8 +2246,7 @@ class Spectrogram:
         Kaiser beta (ignored for the other windows).
     mode : Literal["power", "db"], default "power"
         Row units: "power" (linear rows, the default) or "db" (dBFS rows, asked
-        for by name); in C DP_SPECTROGRAM_POWER or DP_SPECTROGRAM_DB. Any other
-        value is refused.
+        for by name). Any other value is refused.
 
     Raises
     ------

@@ -96,8 +96,12 @@ extern "C"
     float *noise_scratch; 
     float *nc_surface;    
     /* Wideband mode only (window_bins > 1) — see the file doc comment.
-     * Independent of corr/slow_fft/yframe/colbuf/colout above (unused, but
-     * left allocated at their trivial coherent_bins=1 size, in this mode). */
+     * Independent of corr/slow_fft/yframe/colbuf/colout above, which this
+     * mode does not run: a tiled engine's slow-time transform is the per-tile
+     * plans (tile_slow/tile_col). They are still ALLOCATED, at the sizes
+     * acq_regrid() gives them -- slow_fft and colbuf at coherent_bins *
+     * interp, a one-row correlator -- so with a depth inside the tiles they
+     * are not the trivial coherent_bins = 1 size. */
     dp_fft_state_t *wide_fwd; 
     dp_fft_state_t *wide_inv; 
     float _Complex

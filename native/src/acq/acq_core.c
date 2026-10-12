@@ -1202,7 +1202,10 @@ acq_cover_window_bins (double du, double span)
 {
   if (!(du > 0.0))
     return 1;
-  const double res = 2.0 * span; /* D == 1 in every wideband path */
+  /* The spacing of the TILES, one native span wide each, at any depth: a
+     depth D inside a tile refines the combined grid to res / D, it does
+     not move the tiles. */
+  const double res = 2.0 * span;
   /* The -1e-9 is a boundary guard, not a fudge: a du that is an exact whole
      number of bins lands on an integer here, and floating-point rounding can
      put it one ULP ABOVE that integer (du = 3*span at span = 1e6/62 gives

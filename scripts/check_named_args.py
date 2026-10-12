@@ -35,8 +35,10 @@ another helper in the file, gets that row, for its own file (names like
 ``make`` are generic). A parameter that reaches two enums keeps both, so a
 literal at its call is named only where they agree (#2227). A variadic
 helper's ``...`` is not a parameter: its named parameters are the fewest
-arguments a call may pass (#2227). A definition is read in the shapes this
-tree writes:
+arguments a call may pass (#2227). A local that re-declares a parameter
+(``for (int w = 0; ...)``) ends it: from that declaration on, the name is
+the local's, so it teaches no helper (#2227). A definition is read in the
+shapes this tree writes:
 ``static`` at the start of a line or indented, after any upper-case macro
 (``JM_HOT``), ``[[attribute]]`` or ``__attribute__((...))``, with the return
 type, qualifiers and attributes on that line or any line before the name.
@@ -49,7 +51,9 @@ points are TABLE rows); a ``static inline`` forwarder in a header
 declared after the list); a parameter forwarded inside an expression
 (``w + 0``) or through a local variable; a parameter only COMPARED with an
 enumerator (``mode == DP_SPECTROGRAM_POWER``: a literal at such a call is
-not refused); a local that shadows a parameter (#2227); a function pointer
+not refused); a parameter forwarded after the block of a local that
+shadowed it closes, or one shadowed by a declarator after a comma
+(``int a, w;``) or a typedef not spelled ``*_t`` (#2227); a function pointer
 or macro;
 a value that never passes through a call slot -- a variable initialised
 from a literal, a table cell, a loop bound.
@@ -398,6 +402,22 @@ def _brace_end(code: str, j: int) -> int:
     return len(code)
 
 
+def _shadowed(code: str, name: str, body: int, at: int) -> bool:
+    """Whether the body opened at `body` declares a local `name` before
+    `at`. From that declaration on, `name` is the local and not the
+    parameter (#2227). A declaration is read as a type word, any `*`, then
+    the name, so `for (int w = 0; ...)` and `size_t *w;` count, and a use
+    (`w + 1`, `(int) w`) does not.
+
+    >>> _shadowed("{ for (int w = 0;;) f (w); }", "w", 0, 20)
+    True
+    >>> _shadowed("{ f (w); int w; }", "w", 0, 6)
+    False
+    """
+    decl = rf"\b{_TYPE_WORD}[\s*]+{re.escape(name)}\b"
+    return re.search(decl, code[body:at]) is not None
+
+
 def _param_name(param: str) -> str | None:
     """The name a parameter declaration binds, or None for `void`, `...`
     and an unnamed one (a bare type)."""
@@ -458,7 +478,11 @@ def discover(
                 for idx, (label, enum) in slots.items():
                     a, b = got[0][idx]
                     arg = _bare(code[a:b])
-                    if arg and arg in params:
+                    if (
+                        arg
+                        and arg in params
+                        and not _shadowed(code, arg, j, cm.start())
+                    ):
                         row = rows.setdefault(name, (arity, {}))
                         p = params.index(arg)
                         old = row[1].get(p)

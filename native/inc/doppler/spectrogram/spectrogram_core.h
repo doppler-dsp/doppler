@@ -16,8 +16,10 @@
  * The object composes and re-implements none of its parts. The carry between
  * calls is the ring's framed face (DECLARE_DP_BUFFER_FRAMES): fewer than nfft
  * samples are held once a push returns, so the state blob has a size that
- * depends on nfft alone. The spectrum is PSD's per-frame kernel. It does not
- * average rows (fold them with AccTrace), detect, display or decimate.
+ * depends on nfft alone. The spectrum is PSD's per-frame kernel, held by
+ * value (dp_psd_kernel_t): the window, the transform and the full-scale
+ * reference, and none of PSD's averaging. It does not average rows (fold
+ * them with AccTrace), detect, display or decimate.
  *
  * Lifecycle: dp_spectrogram_create(), then any number of
  * dp_spectrogram_push() calls, then dp_spectrogram_flush() once to end the
@@ -91,19 +93,19 @@ enum
 /**
  * @brief Spectrogram state. Allocate with dp_spectrogram_create().
  *
- * Every field is configuration except @c fr's stream position and
- * @c consumed. The state blob carries the configuration a row depends on
+ * Every field is configuration (or @c k's scratch) except @c fr's stream
+ * position and @c consumed. The state blob carries the configuration a row depends on
  * (mode, nfft, hop, window, beta) and the stream position, not @c consumed.
  */
 typedef struct
 {
-  dp_psd_state_t *psd; /**< The per-frame kernel: n = nfft, no zero-pad. */
+  dp_psd_kernel_t k;   /**< PSD's per-frame kernel: n = nfft, no pad.  */
   dp_f32_t *ring;      /**< The carry's storage, owned by @c fr alone.  */
   dp_f32_framer_t fr;  /**< Any chunk in, nfft-sample frames out.       */
   float _Complex *last; /**< flush()'s zero-padded frame, nfft samples. */
   size_t nfft;          /**< Samples per frame, and bins per row.       */
   size_t hop;           /**< Samples between row starts.                */
-  int window;           /**< A DP_PSD_WINDOW_* (see dp_psd_create()).  */
+  int window;           /**< A DP_PSD_WINDOW_* (the kernel's window).  */
   float beta;           /**< Kaiser beta (the Kaiser window only).      */
   int mode;             /**< DP_SPECTROGRAM_POWER or DP_SPECTROGRAM_DB. */
   size_t consumed;      /**< Input samples the last push took.          */

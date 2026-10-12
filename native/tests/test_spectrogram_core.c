@@ -693,6 +693,8 @@ sections (int mode)
         dp_spectrogram_state_t *b = dp_spectrogram_create (
             nfft, hop, DP_PSD_WINDOW_BLACKMAN_HARRIS, 0.0f, mode);
         DP_REQUIRE (b != NULL);
+        /* the kernel the object holds is the row's width, unpadded */
+        DP_CHECK (b->k.n == nfft && b->k.nfft == nfft);
         if (dp_spectrogram_state_bytes (b) != bytes)
           fixed_size = 0; /* a function of the shape, not of the fill */
         /* b is not pristine: a stray carry and a nonzero consumed, so the
@@ -703,6 +705,9 @@ sections (int mode)
         DP_REQUIRE (dp_spectrogram_consumed (b) == 3);
         DP_REQUIRE (dp_spectrogram_set_state (b, blob) == DP_OK);
         DP_CHECK (dp_spectrogram_consumed (b) == 0);
+        /* and still is: a blob of another nfft is refused, so a restore
+           cannot leave the kernel and the configuration disagreeing */
+        DP_CHECK (b->nfft == nfft && b->k.nfft == b->nfft);
         made += dp_spectrogram_push (b, x + split, NX - split, got + made,
                                      rows * nfft - made);
         if (made != rows * nfft
@@ -1294,7 +1299,7 @@ main (void)
                 == NULL);
       DP_CHECK (dp_spectrogram_create (8, 4, window_past_rect, 0.0f, mode)
                 == NULL);
-      /* The window is dp_psd_create's to refuse, and it refuses one that
+      /* The window is dp_psd_kernel_init's to refuse, and it refuses one that
          sums to zero: the symmetric Hann at nfft 2 is [0, 0], so every row
          would read NaN (#1911 (f)). */
       DP_CHECK (dp_spectrogram_create (2, 1, DP_PSD_WINDOW_HANN, 0.0f, mode)

@@ -1554,3 +1554,8 @@ status = "open"
 tier = 2
 title = "wfm: a chirp or tone repeated across segments jumps in phase at the boundary, though the docs promise seamless joins"
 status = "open"
+
+[issue.2254]
+tier = 5
+title = "examples/: 33 print calls in 16 scripts hold characters cp1252 cannot encode, so they crash on a redirected stdout on Windows"
+status = "open"

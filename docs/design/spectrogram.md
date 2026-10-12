@@ -147,6 +147,14 @@ against that reference — linear, or dB — that the averaged readouts and the
 single-frame ones share. PSD holds a kernel by value and folds each frame into
 its average; the Spectrogram holds one by value and emits each frame.
 
+**The kernel stays in the psd component.** `psd_core.c` builds it, so the
+Spectrogram links all of PSD to use the kernel alone: its averaging code and
+`acc_trace`. What the Spectrogram stopped holding (§5.10) is memory, not build
+graph. A component of its own would drop only those two from one link line,
+for a new component, manifest entry and test target to keep. The Spectrogram
+already uses the ring and framer itself. It moves when a consumer needs the
+kernel without PSD's dependencies, and none does (#2211).
+
 The alternative, `fft` plus `dp_magnitude_db_cf32`, is rejected on the
 prototype's number (§3), not on taste.
 

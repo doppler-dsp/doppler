@@ -20,7 +20,6 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-
 if TYPE_CHECKING:
     from doppler.specan.engine import SpecanEngine
     from doppler.specan.source import Source

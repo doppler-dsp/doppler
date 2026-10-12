@@ -1113,26 +1113,28 @@ PSD_getprop_mode (PSDObject *self, void *Py_UNUSED (closure))
   return PyLong_FromLong ((long)((int)self->handle->avg->mode));
 }
 
-static PyGetSetDef PSD_getset[]
-    = { { "n", (getter)PSD_getprop_n, NULL,
-          "Window / frame length (samples).\n", NULL },
-        { "nfft", (getter)PSD_getprop_nfft, NULL,
-          "Zero-padded transform length.\n", NULL },
-        { "fs", (getter)PSD_getprop_fs, NULL, "Sample rate, Hz.\n", NULL },
-        { "full_scale", (getter)PSD_getprop_full_scale, NULL,
-          "Amplitude that reads 0 dBFS.\n", NULL },
-        { "bits", (getter)PSD_getprop_bits, NULL,
-          "ADC depth that set full_scale, else 0.\n", NULL },
-        { "enbw", (getter)PSD_getprop_enbw, NULL,
-          "Equivalent noise bandwidth, bins.\n", NULL },
-        { "rbw", (getter)PSD_getprop_rbw, NULL, "Rbw.\n", NULL },
-        { "count", (getter)PSD_getprop_count, NULL,
-          "Frames folded into the averaged trace so far.\n", NULL },
-        { "mode", (getter)PSD_getprop_mode, NULL,
-          "Trace reduction mode, as the enum index: 0 mean, 1 exp, 2 maxhold, "
-          "3 minhold.\n",
-          NULL },
-        { NULL, NULL, NULL, NULL, NULL } };
+static PyGetSetDef PSD_getset[] = {
+  { "n", (getter)PSD_getprop_n, NULL, "Window / frame length (samples).\n",
+    NULL },
+  { "nfft", (getter)PSD_getprop_nfft, NULL, "Zero-padded transform length.\n",
+    NULL },
+  { "fs", (getter)PSD_getprop_fs, NULL, "Sample rate, Hz.\n", NULL },
+  { "full_scale", (getter)PSD_getprop_full_scale, NULL,
+    "Amplitude that reads 0 dBFS.\n", NULL },
+  { "bits", (getter)PSD_getprop_bits, NULL,
+    "ADC depth that set full_scale, else 0.\n", NULL },
+  { "enbw", (getter)PSD_getprop_enbw, NULL,
+    "Equivalent noise bandwidth, bins (the kernel's, copied at create).\n",
+    NULL },
+  { "rbw", (getter)PSD_getprop_rbw, NULL, "Rbw.\n", NULL },
+  { "count", (getter)PSD_getprop_count, NULL,
+    "Frames folded into the averaged trace so far.\n", NULL },
+  { "mode", (getter)PSD_getprop_mode, NULL,
+    "Trace reduction mode, as the enum index: 0 mean, 1 exp, 2 maxhold, 3 "
+    "minhold.\n",
+    NULL },
+  { NULL, NULL, NULL, NULL, NULL }
+};
 
 static PyObject *
 PSDObj_destroy (PSDObject *self, PyObject *Py_UNUSED (ignored))

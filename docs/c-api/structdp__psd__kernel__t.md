@@ -37,6 +37,7 @@ _PSD's per-frame kernel: one frame of n samples in, nfft DC-centred power bins o
 | Type | Name |
 | ---: | :--- |
 |  double | [**cg**](#variable-cg)  <br> |
+|  double | [**enbw**](#variable-enbw)  <br> |
 |  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* | [**fft**](#variable-fft)  <br> |
 |  float \_Complex \* | [**frame**](#variable-frame)  <br> |
 |  double | [**full\_scale**](#variable-full_scale)  <br> |
@@ -111,6 +112,24 @@ double dp_psd_kernel_t::cg;
 
 
 Window coherent gain, sum(w). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable enbw 
+
+```C++
+double dp_psd_kernel_t::enbw;
+```
+
+
+
+Equivalent noise bandwidth, bins: n \* s2 / cg^2 (1.5 for Hann). 
  
 
 

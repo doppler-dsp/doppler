@@ -155,8 +155,7 @@ double dp_psd_state_t::enbw;
 
 
 
-Equivalent noise bandwidth, bins. 
- 
+Equivalent noise bandwidth, bins (the kernel's, copied at create). 
 
 
         

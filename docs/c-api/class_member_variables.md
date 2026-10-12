@@ -299,7 +299,7 @@
 * **even\_I** ([**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md))
 * **even\_Q** ([**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md))
 * **even\_head** ([**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md), [**hbdecim\_state\_t**](structhbdecim__state__t.md))
-* **enbw** ([**dp\_imdmeas\_state\_t**](structdp__imdmeas__state__t.md), [**dp\_nprmeas\_state\_t**](structdp__nprmeas__state__t.md), [**dp\_psd\_state\_t**](structdp__psd__state__t.md), [**dp\_tonemeas\_state\_t**](structdp__tonemeas__state__t.md))
+* **enbw** ([**dp\_imdmeas\_state\_t**](structdp__imdmeas__state__t.md), [**dp\_nprmeas\_state\_t**](structdp__nprmeas__state__t.md), [**dp\_psd\_kernel\_t**](structdp__psd__kernel__t.md), [**dp\_psd\_state\_t**](structdp__psd__state__t.md), [**dp\_tonemeas\_state\_t**](structdp__tonemeas__state__t.md))
 * **err** ([**dp\_reader\_t**](structdp__reader__t.md), [**dp\_writer\_t**](structdp__writer__t.md))
 * **epoch\_mono\_ns** ([**dp\_sample\_clock\_t**](structdp__sample__clock__t.md))
 * **epoch\_real\_ns** ([**dp\_sample\_clock\_t**](structdp__sample__clock__t.md))

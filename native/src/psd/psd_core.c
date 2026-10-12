@@ -107,8 +107,9 @@ dp_psd_kernel_init (dp_psd_kernel_t *k, size_t n, int window, float beta,
       dp_psd_kernel_free (k);
       return DP_ERR_INVALID;
     }
-  k->cg = cg;
-  k->s2 = s2;
+  k->cg   = cg;
+  k->s2   = s2;
+  k->enbw = (double)n * s2 / (cg * cg);
 
   k->fft = dp_fft_create (nfft, -1, 1);
   if (!k->fft)
@@ -172,7 +173,7 @@ dp_psd_create_hop (size_t n, double fs, int window, float beta, size_t pad,
   const size_t nfft = s->k.nfft;
   s->fs             = fs;
   s->bits           = bits;
-  s->enbw           = (double)n * s->k.s2 / (s->k.cg * s->k.cg);
+  s->enbw           = s->k.enbw;
   s->dbbuf          = (float *)malloc (nfft * sizeof (float));
   s->avg            = dp_acc_trace_create (nfft, mode, alpha);
   /* The framer owns a ring of two frames: the carry (< n) plus what one feed

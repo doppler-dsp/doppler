@@ -2150,7 +2150,9 @@ class PSD:
 
     @property
     def enbw(self) -> float:
-        """Equivalent noise bandwidth, bins."""
+        """Equivalent noise bandwidth, bins (the kernel's, copied at
+        create).
+        """
 
     @property
     def rbw(self) -> float:

@@ -815,6 +815,48 @@ def test_a_variadic_helper_takes_at_least_its_named_arguments(
     ) in r.stdout, r.stdout
 
 
+#: `sweep`'s loop declares its own `w`, shadowing the parameter. FIRST is
+#: where a forwarding call may go before the loop.
+_SHADOW_C = """\
+static void
+sweep (int w)
+{FIRST
+  for (int w = 0; w < 4; w++)
+    dp_spectrogram_create (8, 4, w, 0.0f, DP_SPECTROGRAM_POWER);
+}
+
+void
+call_sweep (void)
+{
+  sweep (1);
+}
+"""
+
+
+def test_a_local_that_shadows_a_parameter_teaches_no_helper(
+    tmp_path: Path,
+) -> None:
+    """The loop's `w` is a local, so `sweep` forwards nothing and
+    `sweep (1)` is not this gate's: read as the parameter, it made `sweep`
+    a helper, and `make format` would have rewritten the call to
+    `sweep (DP_PSD_WINDOW_KAISER)` (#2227). A parameter counts up to the
+    declaration that shadows it, not past it: forwarded before the loop,
+    `sweep` is a helper again and `sweep (1)` is refused."""
+    rel = "native/tests/sweep.c"
+    src = _SHADOW_C.replace("FIRST", "")
+    _seed(tmp_path, **{rel: src})
+    r = _run(tmp_path, "--fix")
+    assert r.returncode == 0, r.stdout
+    assert (tmp_path / rel).read_text(encoding="utf-8") == src
+
+    before = tmp_path / "before"
+    fwd = "\n  dp_spectrogram_create (8, 4, w, 0.0f, DP_SPECTROGRAM_POWER);"
+    _seed(before, **{rel: _SHADOW_C.replace("FIRST", fwd)})
+    r = _run(before)
+    assert r.returncode == 1, r.stdout
+    assert f"{rel}:12: sweep window = 1" in r.stdout, r.stdout
+
+
 def test_a_helper_name_in_another_file_is_not_checked(tmp_path: Path) -> None:
     """Helper names are generic (`make`), so a row holds its own file only."""
     src = _NAMED_C.replace("  return !a", "  make (1, 2, 3);\n  return !a")

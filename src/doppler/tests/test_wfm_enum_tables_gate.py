@@ -410,21 +410,87 @@ def test_an_annotation_does_not_reach_past_a_declaration(
     assert "exactly one C enum must carry `SSOT: enum=win`" in r.stdout
 
 
+#: Rule 8's fixture: a view over `win`, and the C comparison that bounds it.
+_VIEW_TOML = (
+    _BOUND_TOML + '\n[[enum]]\nname = "win_sub"\nvalues = ["hann"]\n'
+    'enumerators = ["W_HANN"]\n'
+)
+_VIEW_C = """\
+int make (int window)
+{
+  /* SSOT: view=win_sub */
+  if (s->window > W_HANN)
+    return 0;
+  return 1;
+}
+"""
+
+
+def _seed_view(
+    tmp_path: Path, manifest: str = _VIEW_TOML, c: str | None = _VIEW_C
+) -> None:
+    _seed_bound(tmp_path, manifest=manifest)
+    if c is not None:
+        f = tmp_path / "native/src/acq/acq_core.c"
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(c, encoding="utf-8")
+
+
 def test_a_view_over_a_bound_enum_passes(tmp_path: Path) -> None:
     """carrier_acq_window's shape: a subset of a bound enum's names, with no
-    C enum of its own."""
-    _seed_bound(
-        tmp_path,
-        manifest=_BOUND_TOML
-        + '\n[[enum]]\nname = "win_sub"\nvalues = ["hann"]\n'
-        'enumerators = ["W_HANN"]\n',
-    )
+    C enum of its own, and the C comparison that refuses past it. `->` in
+    `s->window` is a member access, not the comparison."""
+    _seed_view(tmp_path)
     r = _run(tmp_path)
     assert r.returncode == 0, r.stdout
+    assert "1 view(s) bounded in C" in r.stdout
+
+
+def test_a_view_with_no_c_bound_fails(tmp_path: Path) -> None:
+    """Rule 8: C takes the parent's type, so a view nothing in C bounds
+    lets a C caller pass the parent's other values (#2194)."""
+    _seed_view(tmp_path, c=None)
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    assert "view [[enum]] win_sub needs exactly one C comparison" in r.stdout
+
+
+def test_a_c_bound_naming_another_enumerator_fails(tmp_path: Path) -> None:
+    """Moving the refusal without the view (or the view without the
+    refusal) makes the C and Python sets differ."""
+    _seed_view(tmp_path, c=_VIEW_C.replace("> W_HANN", "> W_RECT"))
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    assert "compares against W_RECT, but view win_sub's last" in r.stdout
+
+
+def test_a_view_that_is_not_a_prefix_fails(tmp_path: Path) -> None:
+    """One comparison bounds a prefix of the parent, nothing else."""
+    _seed_view(
+        tmp_path,
+        manifest=_VIEW_TOML.replace(
+            'values = ["hann"]\nenumerators = ["W_HANN"]',
+            'values = ["rect"]\nenumerators = ["W_RECT"]',
+        ),
+        c=_VIEW_C.replace("> W_HANN", "> W_RECT"),
+    )
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    assert "is not a prefix of win" in r.stdout
+
+
+def test_a_view_annotation_naming_no_view_fails(tmp_path: Path) -> None:
+    _seed_view(
+        tmp_path,
+        c=_VIEW_C + "/* SSOT: view=nonesuch */\nif (w > W_HANN) {}\n",
+    )
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    assert "`SSOT: view=nonesuch` names no view" in r.stdout
 
 
 def test_a_view_with_a_name_of_its_own_fails(tmp_path: Path) -> None:
-    _seed_bound(
+    _seed_view(
         tmp_path,
         manifest=_BOUND_TOML
         + '\n[[enum]]\nname = "win_sub"\nvalues = ["hann", "x"]\n'

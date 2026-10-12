@@ -393,9 +393,12 @@ class FileSource(Source):
 # ------------------------------------------------------------------
 
 
-def _ceil_pow2(x: int) -> int:
-    """Return the smallest power of two that is at least *x*."""
-    return 1 << (x - 1).bit_length()
+def _view(ring: F32Buffer, k: int) -> np.ndarray:
+    """Lend the next *k* samples of *ring*, which must already hold them."""
+    view = ring.peek(k)
+    if view is None:
+        raise RuntimeError(f"ring does not hold the {k} samples asked for")
+    return view
 
 
 class _ChunkedSource(Source):
@@ -413,6 +416,8 @@ class _ChunkedSource(Source):
         ...
 
     def read(self, n: int) -> tuple[np.ndarray, float, float]:
+        if n < 0:
+            raise ValueError(f"read({n}): n must not be negative")
         packets = self._packets()
         try:
             while self._held() < n:  # receive only while a read needs more
@@ -422,11 +427,10 @@ class _ChunkedSource(Source):
                 samples, self._fs, self._cf = packet
                 if samples.size:
                     ring = self._fit(n, samples.size)
-                    ring.write(samples)
+                    if not ring.write(samples):
+                        raise RuntimeError("ring refused a sized packet")
         finally:
-            # Closing a suspended generator runs the code after its yield, so
-            # a frame is acked here, after the copy above, even on an error.
-            packets.close()
+            packets.close()  # runs the held frame's ack, after the copy
         return self._take(n), self._fs, self._cf
 
     def _held(self) -> int:
@@ -434,13 +438,15 @@ class _ChunkedSource(Source):
 
     def _fit(self, n: int, p: int) -> F32Buffer:
         """Return the ring, grown so a *p*-sample packet fits beside *n*."""
+        from doppler.util import next_pow_two
+
         if self._ring is None:
-            self._ring = self._new_ring(_ceil_pow2(n + 2 * p))
+            self._ring = self._new_ring(next_pow_two(n + 2 * p))
         elif self._ring.capacity < n + p:
             held = self._ring.available
-            grown = self._new_ring(_ceil_pow2(held + p + n))
+            grown = self._new_ring(next_pow_two(held + p + n))
             if held:
-                grown.write(self._ring.wait(held))  # held: returns at once
+                grown.write(_view(self._ring, held))
                 self._ring.consume(held)
             self._ring.destroy()
             self._ring = grown
@@ -452,7 +458,7 @@ class _ChunkedSource(Source):
         k = 0 if ring is None else min(n, ring.available)
         if ring is None or k == 0:
             return np.empty(0, dtype=np.complex64)
-        out = ring.wait(k).copy()  # k held: returns at once
+        out = _view(ring, k).copy()  # copied before the loan is released
         ring.consume(k)
         return out
 
@@ -511,8 +517,7 @@ class SocketSource(_ChunkedSource):
             try:
                 data, hdr = sub.recv(timeout_ms=self._timeout_ms)
             except (TimeoutError, EOFError):
-                # A timeout, or the publisher's end-of-stream frame: either
-                # way nothing more comes for this read.
+                # A timeout or the end-of-stream frame: nothing more comes.
                 return
             yield (
                 to_complex64(data).ravel(),
@@ -611,19 +616,10 @@ class PullSource(_ChunkedSource):
             except TimeoutError:
                 return  # nothing more for now -- see SocketSource
             except EOFError:
-                # That producer is gone; the next one counts from 0 again,
-                # and is not a redelivery of the old one's frames.
+                # A new producer starts at 0; not redeliveries.
                 self._next_seq = None
                 return
-            # Acked in `finally`, whatever happens: Pull is an explicit-ack
-            # work queue, and an unacked frame is redelivered every AckWait
-            # and stays queued for the next run. After MaxAckPending
-            # unacked frames the server sends ONLY redeliveries, which would
-            # be read as new data (#2009). That holds for a frame found
-            # undecodable, too. The end-of-stream frame is acked inside recv.
-            # The yield suspends with the frame unacked: the reader copies
-            # the samples, then resumes this generator (or closes it), and
-            # only then does the ack below run.
+            # Acked in finally, after the copy, whatever happens (#2009).
             try:
                 seq = int(hdr["sequence"])
                 if self._next_seq is not None:

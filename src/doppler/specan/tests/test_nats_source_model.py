@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 import doppler.stream
+from doppler.buffer import F32Buffer
 from doppler.specan.source import PullSource, SocketSource
 from doppler.specan.tests.test_nats_sources import (
     FS,
@@ -61,8 +62,7 @@ def _frame_event(array, sequence, rate):
 
 def _schedule(rng, *, pull, length):
     """Seeded events: ("frame", array, header), ("timeout",), ("eos",)."""
-    # a producer already far along, so a restart is a backwards jump past
-    # WORK_QUEUE_MAX_ACK_PENDING (1000) rather than a small one
+    # starts far along, so a restart is a jump past MAX_BEHIND
     events, seq = [], int(rng.integers(2000, 10**6))
     for _ in range(length):
         roll = rng.random()
@@ -302,3 +302,35 @@ def test_read_leaves_its_packet_generator_finished(monkeypatch):
     assert len(got) == 8
     assert made and all(gen.gi_frame is None for gen in made)
     assert src._pull.acked == [0, 1]
+
+
+def test_a_rebuild_with_samples_held_keeps_them_in_order(monkeypatch):
+    """A 50-sample backlog, then a 5000-sample packet: the ring is rebuilt."""
+    frames = [
+        (np.arange(50, dtype=np.complex64), {**HDR, "sequence": 0}),
+        (np.arange(50, 5050, dtype=np.complex64), {**HDR, "sequence": 1}),
+    ]
+    src = _pull_source(monkeypatch, frames)
+    got, _, _ = src.read(100)
+    np.testing.assert_array_equal(got, np.arange(100, dtype=np.complex64))
+    assert src._ring.capacity >= 100 + 5000  # the packet fit, once rebuilt
+    rest, _, _ = src.read(4950)
+    want = np.arange(100, 5050, dtype=np.complex64)
+    np.testing.assert_array_equal(rest, want)
+
+
+def test_a_refused_write_is_an_error_not_a_silent_loss(monkeypatch):
+    frames = [(np.ones(4, np.complex64), {**HDR, "sequence": 0})]
+    src = _pull_source(monkeypatch, frames)
+    ring = F32Buffer(1)  # too small for the 4-sample packet
+    monkeypatch.setattr(src, "_fit", lambda n, p: ring)
+    try:
+        with pytest.raises(RuntimeError, match="refused"):
+            src.read(64)
+    finally:
+        ring.destroy()
+
+
+def test_a_negative_read_is_refused():
+    with pytest.raises(ValueError, match="negative"):
+        PullSource(ADDR, timeout_ms=10).read(-1)

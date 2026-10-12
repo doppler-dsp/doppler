@@ -1504,3 +1504,8 @@ status = "open"
 tier = 1
 title = "A changelog fragment without its leading \"- \" passes every PR gate and fails only at release assembly"
 status = "open"
+
+[issue.2208]
+tier = 2
+title = "test_server_ws.py: websocket recv has no timeout, so a hung server stalls the Python leg"
+status = "open"

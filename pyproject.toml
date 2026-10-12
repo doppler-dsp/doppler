@@ -191,6 +191,10 @@ dev = [
     "mdformat-gfm-alerts==2.1.0; python_version >= '3.10'",
     "mdformat-mkdocs==5.2.1; python_version >= '3.10'",
     "pre-commit>=4.0",
+    # The specan web server's tests (test_server_ws.py, and the server case in
+    # test_handshake.py) drive a real FastAPI/uvicorn server. Without these
+    # they skip, and a skip is not a pass.
+    "doppler-dsp[specan-web]",
 ]
 # Docs toolchain is intentionally separate from dev so wheel builds can
 # uv sync --no-group docs and avoid a docs-dep network blip failing a release.

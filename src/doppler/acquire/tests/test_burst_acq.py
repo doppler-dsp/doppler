@@ -405,3 +405,39 @@ def test_a_tiled_search_with_depth_reports_the_whole_grid():
     # More than the tile count: a depth was chosen inside the tiles.
     tiles = 2 * int(np.ceil((3.5 * span - span) / (2 * span))) + 1
     assert acq.doppler_bins > tiles and acq.doppler_bins % tiles == 0
+
+
+@pytest.mark.parametrize("native_spans", [1.2, -1.2, -1.9])
+def test_the_documented_recipe_reads_an_off_centre_tile(native_spans):
+    """`bin_to_signed(bin, doppler_bins) * doppler_res_hz` -- the recipe in
+    the acquisition guides -- is the signed Doppler of a tiled search with a
+    coherent depth, in a tile off the centre and in a negative one. A PN
+    preamble: a Zadoff-Chu one cannot be told apart across tiles (its
+    delay-Doppler ridge repeats at every tile). Whole dwells of input, as the
+    engine frames them."""
+    from doppler.acquire import bin_to_signed
+
+    chips = PN(poly=mls_poly(7), seed=1, length=7).generate(127)
+    code = np.asarray(chips).astype(np.uint8) & 1
+    pre = code_preamble(code, 1)
+    fs = 1.0e6
+    native = fs / code.size  # one tile's width, Hz
+    acq = BurstAcquisition(
+        pre,
+        reps=8,
+        fs=fs,
+        cn0_dbhz=45.0,
+        doppler_uncertainty=1.75 * native,
+    )
+    res = acq.doppler_res_hz
+    depth = round(native / res)
+    assert depth > 1 and acq.doppler_bins == 5 * depth  # 5 tiles x depth
+    f = round(native_spans * native / res) * res  # exactly on a bin
+    k = np.arange(6 * depth * pre.size)
+    x = (np.tile(pre, 6 * depth) * np.exp(2j * np.pi * f * k / fs)).astype(
+        np.complex64
+    )
+    hits = acq.push(x)
+    assert hits, "the tone is detected"
+    got = bin_to_signed(hits[0][0], acq.doppler_bins) * res
+    assert got == pytest.approx(f, abs=1e-6)

@@ -51,8 +51,9 @@ def _gate():  # type: ignore[no-untyped-def]
 #: forwards both slots into a constructor, `wrap` forwards through `make` (a
 #: second hop), `row_of` forwards its window past declarations a two-word
 #: rule misread as a call's arguments (the certification harness's shape,
-#: review of #2196), `is_kaiser` only compares, and `scale` forwards inside
-#: an expression -- the last two are no helpers.
+#: review of #2196), `is_kaiser` only COMPARES its window with an
+#: enumerator (a slot all the same, #2227), and `scale` forwards inside an
+#: expression -- no helper.
 _HELPERS_REL = "native/tests/helpers.c"
 _HELPERS_C = """\
 static dp_spectrogram_state_t *
@@ -96,7 +97,7 @@ seeded (void)
   make (DP_SPECTROGRAM_DB, 8, 4, DP_PSD_WINDOW_HANN);
   wrap (DP_PSD_WINDOW_RECT);
   row_of (DP_PSD_WINDOW_KAISER, NULL, NULL);
-  is_kaiser (1);
+  is_kaiser (DP_PSD_WINDOW_KAISER);
   scale (1);
 }
 """
@@ -225,10 +226,11 @@ def test_named_arguments_pass_in_every_shape(tmp_path: Path) -> None:
     # Direct: seven calls in a.c (the printf is a string), the @code call in
     # s.h (its declaration is not a call), the fence in p.md, and the three
     # in helpers.c's bodies (make's, row_of's, scale's). Helpers: make twice
-    # (seeded and wrap's body), wrap once and row_of once; is_kaiser and
-    # scale are discovered as no helpers, and the definitions are no calls.
+    # (seeded and wrap's body), wrap once, row_of once and is_kaiser once
+    # (its compare is a slot, #2227); scale is no helper, and the definitions
+    # are no calls.
     assert (
-        "12 call(s) and 4 call(s) of 3 discovered helper(s) in 4 file(s)"
+        "12 call(s) and 5 call(s) of 4 discovered helper(s) in 4 file(s)"
         in r.stdout
     ), r.stdout
 
@@ -646,19 +648,94 @@ def test_fix_names_a_helper_literal(tmp_path: Path) -> None:
     assert "  wrap (DP_PSD_WINDOW_RECT);" in fixed
 
 
-def test_a_compare_or_an_expression_is_no_helper(tmp_path: Path) -> None:
-    """`is_kaiser` only compares and `scale` forwards `w + 0`: neither is
-    discovered, so their literals are not this gate's (the baseline's
-    `is_kaiser (1)` and `scale (1)` pass)."""
+def test_a_compared_parameter_is_a_slot(tmp_path: Path) -> None:
+    """`is_kaiser` only compares its window with DP_PSD_WINDOW_KAISER. A
+    literal at its call is the #2097 renumbering hazard all the same, so the
+    compare makes the parameter a slot of that enumerator's enum (#2227):
+    `is_kaiser (3)` is refused and named. Before, it passed."""
     _seed(
         tmp_path,
-        **_helpers(
-            "  is_kaiser (1);\n  scale (1);", "  is_kaiser (3);\n  scale (3);"
-        ),
+        **_helpers("  is_kaiser (DP_PSD_WINDOW_KAISER);", "  is_kaiser (3);"),
     )
     r = _run(tmp_path)
+    assert r.returncode == 1, r.stdout
+    _finding(r, "is_kaiser window = 3 (write DP_PSD_WINDOW_RECT)")
+
+
+def test_an_expression_is_no_helper(tmp_path: Path) -> None:
+    """`scale` forwards `w + 0`, not `w`: no slot, so its literal is not
+    this gate's (the baseline's `scale (1)` passes)."""
+    _seed(tmp_path, **_helpers("  scale (1);", "  scale (3);"))
+    r = _run(tmp_path)
     assert r.returncode == 0, r.stdout
-    assert "of 3 discovered helper(s)" in r.stdout
+    assert "of 4 discovered helper(s)" in r.stdout
+
+
+#: Every compare shape: a reversed `==`, a `!=`, a `switch` on the
+#: parameter with gated `case` labels, and a compare with an enumerator no
+#: TABLE slot uses (`WFM_SYNTH_CHIRP`), which makes no slot.
+_COMPARE_C = """\
+static int
+rev (int mode)
+{
+  return DP_SPECTROGRAM_DB == mode;
+}
+
+static int
+neq (int mode)
+{
+  return mode != DP_SPECTROGRAM_POWER;
+}
+
+static int
+pick (int mode)
+{
+  switch (mode)
+    {
+    case DP_SPECTROGRAM_DB:
+      return 1;
+    default:
+      return 0;
+    }
+}
+
+static int
+ungated (int type)
+{
+  return type == WFM_SYNTH_CHIRP;
+}
+
+void
+call_them (void)
+{
+  rev (1);
+  neq (1);
+  pick (1);
+  ungated (1);
+}
+"""
+
+
+def test_every_compare_shape_is_a_slot_of_a_gated_enum(tmp_path: Path) -> None:
+    """A reversed `==`, a `!=` and a `switch` with gated `case` labels each
+    make the parameter a slot, so `rev (1)`, `neq (1)` and `pick (1)` are
+    refused. A compare with an enumerator of an enum no TABLE slot uses
+    makes none: the gate holds its own enums, not every enum in the tree.
+    The seed binds that enum in a header of its own, so `WFM_SYNTH_CHIRP` is
+    a real enumerator the gate could have taken, not an unknown name."""
+    rel = "native/tests/compare.c"
+    ungated_h = "/* SSOT: enum=wfm_kind */\nenum { WFM_SYNTH_CHIRP = 1 };\n"
+    _seed(
+        tmp_path,
+        **{rel: _COMPARE_C, f"{_HDR}/wfm/wfm_kind.h": ungated_h},
+    )
+    r = _run(tmp_path)
+    assert r.returncode == 1, r.stdout
+    for name, line in (("rev", 34), ("neq", 35), ("pick", 36)):
+        assert (
+            f"{rel}:{line}: {name} mode = 1 (write DP_SPECTROGRAM_DB)"
+        ) in r.stdout, r.stdout
+    assert "ungated" not in r.stdout, r.stdout
 
 
 def test_a_non_static_function_is_no_helper(tmp_path: Path) -> None:
@@ -672,7 +749,7 @@ def test_a_non_static_function_is_no_helper(tmp_path: Path) -> None:
     _seed(tmp_path, **{"native/tests/pub.c": pub})
     r = _run(tmp_path)
     assert r.returncode == 0, r.stdout
-    assert "of 3 discovered helper(s)" in r.stdout
+    assert "of 4 discovered helper(s)" in r.stdout
 
 
 def test_discovering_nothing_fails_closed(tmp_path: Path) -> None:
@@ -706,7 +783,7 @@ def test_a_quote_in_a_comment_hides_no_helper(tmp_path: Path) -> None:
     _seed(tmp_path, **{_HELPERS_REL: src})
     r = _run(tmp_path)
     assert r.returncode == 0, r.stdout
-    assert "of 3 discovered helper(s)" in r.stdout, r.stdout
+    assert "of 4 discovered helper(s)" in r.stdout, r.stdout
 
 
 def test_a_quote_in_a_comment_hides_no_call(tmp_path: Path) -> None:
@@ -936,7 +1013,7 @@ def test_definitions_of_any_shape_are_not_calls(tmp_path: Path) -> None:
     _seed(tmp_path, **files)
     r = _run(tmp_path)
     assert r.returncode == 0, r.stdout
-    assert "12 call(s) and 4 call(s) of 3 discovered helper(s)" in r.stdout, (
+    assert "12 call(s) and 5 call(s) of 4 discovered helper(s)" in r.stdout, (
         r.stdout
     )
 
@@ -983,32 +1060,40 @@ _M = ("mode", "spectrogram_mode")
 
 
 def test_the_real_trees_helpers_are_discovered() -> None:
-    """Nine of the ten helpers #2191's hand table listed are found in the
-    real tree by data flow, each pinned whole: file, name, argument count,
-    and each slot's position, name and enum. A helper discovery stops
-    seeing (a definition shape it does not read) or reads differently is
-    red here, though the gate itself would still say OK; a NEW helper needs
-    no edit, since this is a subset. The tenth, `rows_are_the_psd`, and
-    `oracle`'s mode reach only a compare, so a literal mode at their calls
-    is no longer refused (#2227)."""
+    """All ten helpers #2191's hand table listed are found in the real tree
+    by data flow, each pinned whole: file, name, argument count, and each
+    slot's position, name and enum. A helper discovery stops seeing (a
+    definition shape it does not read) or reads differently is red here,
+    though the gate itself would still say OK; a NEW helper needs no edit,
+    since this is a subset. `ref_row` only COMPARES its mode with
+    DP_SPECTROGRAM_POWER; that compare is a slot (#2227), so `ref_row` is a
+    helper, and `rows_are_the_psd` and `oracle`'s mode, which forward into
+    it, are held again."""
     g = _gate()
+    names, errs = g._names(REPO)
+    assert errs == [], errs
+    gated = g._enumerators(names)
     want = {
         "native/tests/test_spectrogram_core.c": {
             "ref_psd": (3, {1: _W}),
+            "ref_row": (4, {1: _M}),
             "oneshot": (7, {0: _M, 3: _W}),
+            "rows_are_the_psd": (7, {1: _M}),
             "sections": (1, {0: _M}),
         },
         "native/validation/spectrogram_certify.c": {
             "row_of": (3, {0: _W}),
             "make": (4, {0: _M, 3: _W}),
             "ref_psd": (2, {1: _W}),
-            "oracle": (6, {3: _W}),
+            "ref_row": (4, {1: _M}),
+            "oracle": (6, {0: _M, 3: _W}),
             "partition": (11, {0: _M, 3: _W}),
         },
         "native/benchmarks/bench_spectrogram_core.c": {"add": (8, {7: _M})},
     }
     for rel, rows in want.items():
-        found, unread = g.discover((REPO / rel).read_text(encoding="utf-8"))
+        text = (REPO / rel).read_text(encoding="utf-8")
+        found, unread = g.discover(text, gated)
         assert unread == [], (rel, unread)
         for name, row in rows.items():
             assert found.get(name) == row, (rel, name, found.get(name))

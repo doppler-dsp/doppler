@@ -523,15 +523,15 @@ _acq_wideband_check (void)
 
   /* 3.5 * span -> window_bins = ceil(3.5) = 4 (even, so window_bins/2 = 2
    * lands exactly on the convention's positive/negative boundary). */
-  dp_acq_state_t *w = burst_from_code (CODE7, 7, 1, spc, crate, 90.0 /* one
-                                     repetition pins D=1 -- see below */
+  dp_acq_state_t *w = burst_from_code (CODE7, 7, 8, spc, crate, 90.0 /* strong:
+                                     forces n_noncoh=1 -- see doc above */
                                        ,
                                        3.5 * span, 1e-2, 0.9, 0, 0.0);
   DP_CHECK (w != NULL);
   if (!w)
     return 0;
 
-  DP_CHECK (w->coherent_bins >= 1);
+  DP_CHECK (w->coherent_bins == 1);
   /* Coverage-sized and ODD: du = 3.5*span, bins are spaced doppler_res_hz =
      2*span apart, so each side needs ceil((3.5 - 0.5)*span / (2*span)) = 2
      hypotheses beyond DC -> 5.  Odd is required, not incidental: an even
@@ -539,18 +539,17 @@ _acq_wideband_check (void)
      the search and dp_acq_build_handoff() used to read with opposite signs. */
   DP_CHECK (w->window_bins == 5);
   DP_CHECK (w->window_bins % 2 == 1);
-  DP_CHECK (w->n == w->window_bins * w->coherent_bins * nx);
-  DP_CHECK (w->frame_n == nx); /* one epoch per tile input frame */
+  DP_CHECK (w->n == w->window_bins * nx);
+  DP_CHECK (w->frame_n == nx); /* one epoch, not window_bins epochs */
   DP_CHECK (w->n_noncoh == 1);
-  DP_CHECK (w->searched_bins == w->window_bins * w->coherent_bins);
-  DP_CHECK (fabs (w->doppler_res_hz - crate / (7.0 * (double)w->coherent_bins))
-            < 1e-6); /* chip_rate/(sf*D) */
+  DP_CHECK (w->searched_bins == w->window_bins);
+  DP_CHECK (fabs (w->doppler_res_hz - crate / 7.0) < 1e-6); /* chip_rate/sf */
 
   /* row r=3 -> signed_r = 3 - 4 = -1 (one window NEGATIVE of DC): the
    * wraparound case. */
   const size_t row      = 3;
   const long   signed_r = (long)row - (long)w->window_bins;
-  const double f_norm   = (double)signed_r / (double)nx; /* D=1 below */
+  const double f_norm   = (double)signed_r / (double)nx; /* cycles/sample */
   const size_t d        = 5;                             /* code phase */
 
   float _Complex s0d[14];
@@ -580,9 +579,9 @@ _acq_wideband_check (void)
     }
 
   /* configure_search_raw always exits wideband mode back to the native
-   * (doppler_bins, n_noncoh) grid. This one-repetition object can pin D=1. */
-  DP_CHECK (dp_acq_configure_search_raw (w, 1, 1) == 0);
-  DP_CHECK (w->window_bins == 1 && w->coherent_bins == 1);
+   * (doppler_bins, n_noncoh) grid, per its documented contract. */
+  DP_CHECK (dp_acq_configure_search_raw (w, 2, 1) == 0);
+  DP_CHECK (w->window_bins == 1 && w->coherent_bins == 2);
 
   dp_acq_destroy (w);
   return 0;
@@ -2237,7 +2236,12 @@ main (void)
     DP_CHECK (wide != NULL);
     if (wide)
       {
-        DP_CHECK (wide->coherent_bins >= 1);
+        /* 45 dB-Hz cannot meet pd=0.9 over 3 tiles at any depth, so the
+           sizer takes the best-effort fallback -- the whole preamble. Pinned
+           exactly: a depth inside the tiles is the point of #2210, and a
+           bound of >= 1 holds for every size_t the engine could return. */
+        DP_CHECK (wide->coherent_bins == 8);
+        DP_CHECK (wide->underpowered);
         DP_CHECK (wide->window_bins == 3); /* covers +/-2*span, odd */
         DP_CHECK (wide->n
                   == wide->window_bins * wide->coherent_bins

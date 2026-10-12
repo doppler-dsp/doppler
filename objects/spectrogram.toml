@@ -52,8 +52,8 @@ type = "size_t"
 default = "0"
 
 # The same [[enum]] as objects/psd.toml (psd_window, bound by name to
-# DP_PSD_WINDOW_*): the C create validates it through dp_psd_create, the one
-# owner of the window index.
+# DP_PSD_WINDOW_*): the C create validates it through dp_psd_kernel_init,
+# the one owner of the window index.
 [[spectrogram.init_params]]
 name = "window"
 type = "enum:psd_window"

@@ -3,4 +3,6 @@
     itself is unsupported, even where a compiler still accepts it.
     `dp_psd_state_t`'s `fft`, `w`, `frame`, `spec`, `pwr`, `cg`, `s2`, `n`,
     `nfft` and `full_scale` move under `k`, so code holding a PSD (carrier_acq,
-    tonemeas, imdmeas, nprmeas and specan do) reads `psd->k.nfft` (#1894).
+    tonemeas, imdmeas, nprmeas and specan do) reads `psd->k.nfft`.
+    `dp_spectrogram_state_t.psd` is gone: the Spectrogram holds a kernel,
+    `s->k` (#1894).

@@ -42,7 +42,7 @@ enum
 
 typedef struct
 {
-  dp_psd_state_t *psd; 
+  dp_psd_kernel_t k;   
   dp_f32_t *ring;      
   dp_f32_framer_t fr;  
   float _Complex *last; 

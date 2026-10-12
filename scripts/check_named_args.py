@@ -150,11 +150,14 @@ def _call_re(table: dict[str, object]) -> re.Pattern[str]:
     """A call of any function in `table`. Longest first, so
     `dp_psd_create_hop` is never read as `dp_psd_create`. A member call,
     `s.make (...)` or `ops->make (...)`, is another function. A comment
-    between the name and its `(` is stepped over (#2198)."""
+    between the name and its `(` is stepped over (#2198) -- a TABLE row's
+    concern: a helper's rows already read the file with comments blanked.
+    The comment is matched with a tempered dot, never a lazy `.*?`, which
+    re.S lets cross into the next comment and backtrack."""
     return re.compile(
         r"(?<![\w.])(?<!->)("
         + "|".join(sorted(table, key=len, reverse=True))
-        + r")\s*(?:/\*.*?\*/\s*|//[^\n]*\n\s*)*\(",
+        + r")\s*(?:/\*(?:(?!\*/).)*\*/\s*|//[^\n]*\n\s*)*\(",
         re.S,
     )
 

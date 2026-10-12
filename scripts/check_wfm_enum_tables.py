@@ -54,13 +54,16 @@ So this gate makes the SSOT claim a check rather than a comment:
    and mode): they run consecutively in the manifest's order, and an
    enumerator that existed at the merge base with `--base` keeps its value
    (a shallow clone whose base will not resolve fails closed).
-8. **A view's set is declared once, and C refuses past it.** A view names
-   a subset of its parent for Python, but C takes the parent's type, so C
-   must refuse the rest: a second statement of the same set (#2194). So the
-   refusal carries `/* SSOT: view=X */` on the line above it, the view is a
-   PREFIX of its parent (one comparison bounds it), and the comparison
-   names the view's last enumerator. A view with no such comparison, or two,
-   is an error, and so is an annotation naming no view.
+8. **A view's set, stated in the manifest and again in C, is held to
+   agree.** A view names a subset of its parent for Python, but C takes the
+   parent's type, so C must refuse the rest: a second statement of the same
+   set (#2194). So the refusal carries `/* SSOT: view=X */` (or `//`) on the
+   line directly above it, the view is a PREFIX of its parent (one
+   comparison bounds it), and the comparison is `> LAST` or `>= NEXT` with
+   the enumerator alone as its operand (`> LAST + 1` admits too much). A
+   view with no such comparison, or two, an annotation naming no view, or
+   any other comparison is an error that says what to write. It holds the
+   comparison, not that the statement returns or runs first.
 
 The annotation is a plain `/* ... */` comment -- doxygen reads only `/**` and
 `/*!`, so it is invisible to the C API docs -- placed anywhere between the
@@ -137,13 +140,19 @@ _DEFINE_RE = re.compile(r"^\s*#\s*define\s+(\w+)\s+(\d+)\s*$", re.MULTILINE)
 _SSOT_RE = re.compile(
     r"^[ \t]*(?:/\*|\*)?[ \t]*SSOT:[ \t]*(?P<spec>[^*\n]+)", re.MULTILINE
 )
-#: Rule 8: `/* SSOT: view=X */` opening the line above the comparison that
-#: refuses past view X, in C under native/. The comparison is read up to the
-#: statement's end; `->` is a member access, never a `>`.
+#: Rule 8: `/* SSOT: view=X */` (or `// SSOT: view=X`) on the line above
+#: the comparison that refuses past view X, in C under native/.
 _VIEW_RE = re.compile(
-    r"^[ \t]*(?:/\*|\*|//)?[ \t]*SSOT:[ \t]*view=(?P<view>\w+)", re.MULTILINE
+    r"^[ \t]*(?P<lead>/\*|\*|//)?[ \t]*SSOT:[ \t]*view=(?P<view>\w+)",
+    re.MULTILINE,
 )
-_BOUND_CMP_RE = re.compile(r"(?<![-=<>])>(?![>=])\s*(?P<name>[A-Za-z_]\w*)")
+#: The refusal: `> LAST` or the equivalent `>= NEXT`, whose operand is the
+#: enumerator ALONE (`> BH + 1` admits a value past the view, so it is no
+#: refusal). `->` is a member access, never a `>`.
+_BOUND_CMP_RE = re.compile(
+    r"(?<![-=<>])(?P<op>>=?)(?!=)\s*(?P<name>[A-Za-z_]\w*)\s*(?=[)&|;?]|$)",
+    re.MULTILINE,
+)
 
 
 class Table:
@@ -497,17 +506,21 @@ def _check_view_bounds(
     data: dict,
     bound: list[tuple[str, str, list[tuple[str, int | None]]]],
 ) -> list[str]:
-    """Rule 8: a view's set is declared once, and C refuses past it.
+    """Rule 8: a view's set, stated twice, is held to agree.
 
     A view names a subset of its parent's values for Python; C, which takes
-    the parent's type, has to refuse the rest, and that refusal is a second
-    statement of the same set. So the comparison carries `SSOT: view=X`, the
-    view is a PREFIX of its parent (one comparison bounds it), and the
-    comparison names the view's last enumerator. Adding a value to the view
-    without moving the refusal, or the reverse, is then red.
+    the parent's type, has to refuse the rest, and that refusal states the
+    same set a second time. So the refusal carries `SSOT: view=X` on the
+    line above it, the view is a PREFIX of its parent (one comparison bounds
+    it), and the comparison is `> LAST` or `>= NEXT` with the enumerator
+    alone as its operand. Adding a value to the view without moving the
+    refusal, or the reverse, is then red. It checks the comparison, not that
+    the statement returns or runs first: review and the C test hold that.
     """
     views = _views(data, bound)
-    marks: dict[str, list[tuple[str, str | None]]] = {v: [] for v in views}
+    marks: dict[str, list[tuple[str, tuple[str, str] | None]]] = {
+        v: [] for v in views
+    }
     errs: list[str] = []
     for top in SCAN_ROOTS:
         for path in sorted((root / top).rglob("*.[ch]")):
@@ -526,44 +539,76 @@ def _check_view_bounds(
                         " enum, with none of its own)."
                     )
                     continue
-                # The statement after the annotation's comment.
-                after = text.find("*/", m.end())
-                after = m.end() if after < 0 else after + 2
-                end = min(
-                    (
-                        i
-                        for i in (text.find(";", after), text.find("{", after))
-                        if i >= 0
-                    ),
-                    default=len(text),
-                )
-                cmp_ = _BOUND_CMP_RE.search(text, after, end)
+                # The comment ends at the line's end (`//`) or at its `*/`;
+                # the refusal is the next non-blank line, nothing further.
+                if m.group("lead") == "//":
+                    after = text.find("\n", m.end())
+                else:
+                    after = text.find("*/", m.end())
+                    after = after + 2 if after >= 0 else m.end()
+                after = after if after >= 0 else len(text)
+                while after < len(text) and text[after] in " \t\n":
+                    after += 1
+                eol = text.find("\n", after)
+                eol = len(text) if eol < 0 else eol
+                cmp_ = _BOUND_CMP_RE.search(text, after, eol)
                 marks[view].append(
-                    (where, cmp_.group("name") if cmp_ else None)
+                    (where, (cmp_["op"], cmp_["name"]) if cmp_ else None)
                 )
     for view, (parent, pairs, names) in views.items():
         found = marks[view]
-        if len(found) != 1:
+        parent_names = [n for n, _ in pairs]
+        last = names[-1]
+        nxt = (
+            parent_names[len(names)]
+            if len(names) < len(parent_names)
+            else None
+        )
+        write = f"`> {last}`" + (f" (or `>= {nxt}`)" if nxt else "")
+        if not found:
             errs.append(
-                f"{MANIFEST_REL}: view [[enum]] {view} needs exactly one C"
-                f" comparison carrying `SSOT: view={view}`, the refusal of"
-                f" {parent}'s other values; found {len(found)}"
-                f"{': ' + ', '.join(w for w, _ in found) if found else ''}."
+                f"{MANIFEST_REL}: view [[enum]] {view} has no C refusal."
+                f" C takes {parent}, so put `/* SSOT: view={view} */` on the"
+                f" line above the comparison that refuses past the view:"
+                f" `if (<arg> > {last})`"
+                + (f" (or `>= {nxt}`)." if nxt else ".")
             )
             continue
-        where, cmp_name = found[0]
-        parent_names = [n for n, _ in pairs]
+        if len(found) > 1:
+            errs.append(
+                f"{MANIFEST_REL}: view [[enum]] {view} has {len(found)}"
+                f" `SSOT: view={view}` annotations"
+                f" ({', '.join(w for w, _ in found)}); exactly one refusal"
+                " states its bound."
+            )
+            continue
+        where, cmp_ = found[0]
         if names != parent_names[: len(names)]:
             errs.append(
                 f"{where}: view {view} ({names}) is not a prefix of {parent}"
                 f" ({parent_names}), so one comparison cannot bound it."
             )
-        elif cmp_name != names[-1]:
+            continue
+        if cmp_ is None:
             errs.append(
-                f"{where}: the refusal compares against {cmp_name}, but view"
-                f" {view}'s last enumerator is {names[-1]}: the C and Python"
-                " sets differ."
+                f"{where}: the line after `SSOT: view={view}` is not a"
+                f" refusal of the form {write}, with the enumerator alone as"
+                " its operand."
             )
+            continue
+        op, name = cmp_
+        if (op, name) in ((">", last), (">=", nxt)):
+            continue
+        admitted = (
+            parent_names[: parent_names.index(name) + (op == ">")]
+            if name in parent_names
+            else None
+        )
+        errs.append(
+            f"{where}: the refusal `{op} {name}` admits"
+            f" {admitted if admitted is not None else 'an unknown set'},"
+            f" but view {view} is {names}: write {write}."
+        )
     return errs
 
 
@@ -737,7 +782,7 @@ def check(root: Path, base: str = "origin/main") -> list[str]:
     errs += _check_bound_enums(root, data)
     bound = bound_enums(root)[0]
     errs += _check_bound_values(root, base, bound)
-    # Rule 8 -- a view's set is declared once, and C refuses past it.
+    # Rule 8 -- a view's set, stated twice, is held to agree.
     errs += _check_view_bounds(root, data, bound)
     return errs
 

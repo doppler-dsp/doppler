@@ -93,6 +93,12 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  double | [**pfa**](#variable-pfa)  <br> |
 |  double | [**pfa\_cell**](#variable-pfa_cell)  <br> |
 |  [**dp\_pool\_t**](structdp__pool__t.md) \* | [**pool**](#variable-pool)  <br> |
+|  float \_Complex \* | [**rate\_best**](#variable-rate_best)  <br> |
+|  size\_t | [**rate\_best\_cap**](#variable-rate_best_cap)  <br> |
+|  size\_t | [**rate\_best\_h**](#variable-rate_best_h)  <br> |
+|  float \_Complex \* | [**rate\_chirp**](#variable-rate_chirp)  <br> |
+|  size\_t | [**rate\_chirp\_d**](#variable-rate_chirp_d)  <br> |
+|  size\_t | [**rate\_hyps**](#variable-rate_hyps)  <br> |
 |  float \_Complex \* | [**ref**](#variable-ref)  <br> |
 |  size\_t | [**reps**](#variable-reps)  <br> |
 |  dp\_f32\_t \* | [**ring**](#variable-ring)  <br> |
@@ -1172,6 +1178,113 @@ dp_pool_t* dp_acq_state_t::pool;
 
 
 NULL or one thread = serial 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable rate\_best 
+
+```C++
+float _Complex* dp_acq_state_t::rate_best;
+```
+
+
+
+n\_surf cells: the best hypothesis' surface while the others are searched. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable rate\_best\_cap 
+
+```C++
+size_t dp_acq_state_t::rate_best_cap;
+```
+
+
+
+Cells rate\_best holds. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable rate\_best\_h 
+
+```C++
+size_t dp_acq_state_t::rate_best_h;
+```
+
+
+
+Winning hypothesis of the last dwell. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable rate\_chirp 
+
+```C++
+float _Complex* dp_acq_state_t::rate_chirp;
+```
+
+
+
+rate\_hyps \* rate\_chirp\_d slow-time de-chirp phasors; NULL while rate\_hyps == 1. Rebuilt lazily when coherent\_bins moves. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable rate\_chirp\_d 
+
+```C++
+size_t dp_acq_state_t::rate_chirp_d;
+```
+
+
+
+The coherent\_bins rate\_chirp was built for. 
+
+
+        
+
+<hr>
+
+
+
+### variable rate\_hyps 
+
+```C++
+size_t dp_acq_state_t::rate_hyps;
+```
+
+
+
+Doppler-rate hypotheses searched (&gt;= 1); 1 = none: the engine as it ran without them. [**dp\_acq\_create\_burst()**](acq__core_8h.md#function-dp_acq_create_burst)'s rate\_hypotheses. 
  
 
 

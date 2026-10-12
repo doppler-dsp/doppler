@@ -121,10 +121,10 @@ nogil = true
 # The binding makes ONE call into a stack array of this many results, and a
 # push that would make more loses the input past the dwell it stops at
 # (#1992; the jm ask is just-buildit/just-makeit#2184). 1024 makes that a
-# push of over 1024 / max_peaks dwells: 48 KiB of stack per call
-# (sizeof(acq_result_t) = 48).
+# push of over 1024 / max_peaks dwells: 56 KiB of stack per call
+# (sizeof(acq_result_t) = 56).
 max_results = 1024
-result_fields = [{name = "doppler_bin", type = "size_t"}, {name = "code_phase", type = "size_t"}, {name = "peak_mag", type = "float"}, {name = "noise_est", type = "float"}, {name = "test_stat", type = "float"}, {name = "cn0_dbhz_est", type = "float"}, {name = "samples_consumed", type = "uint64_t"}, {name = "chip_phase", type = "double"}]
+result_fields = [{name = "doppler_bin", type = "size_t"}, {name = "code_phase", type = "size_t"}, {name = "peak_mag", type = "float"}, {name = "noise_est", type = "float"}, {name = "test_stat", type = "float"}, {name = "cn0_dbhz_est", type = "float"}, {name = "samples_consumed", type = "uint64_t"}, {name = "chip_phase", type = "double"}, {name = "doppler_rate_hz_s", type = "double"}]
 
 # Advanced escape hatch: pin the search grid directly, bypassing both
 # auto-sizing searches (mirrors Dll's/Costas's configure_lock_raw()). Raises

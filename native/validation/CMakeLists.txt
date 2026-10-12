@@ -570,6 +570,19 @@ dp_gnu_compile_options(validate_capture_dwell_pd PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_capture_dwell_pd
          COMMAND validate_capture_dwell_pd --check)
 
+# What Doppler-rate compensation buys a burst CAPTURE and costs in false
+# alarms: Pd at each hypothesis count against the capped depth, the worst-case
+# rate between two hypotheses, and the per-dwell Pfa, all with Wilson bounds.
+add_executable(validate_acq_rate_pd
+               ${CMAKE_CURRENT_SOURCE_DIR}/acq_rate_pd.c)
+target_include_directories(validate_acq_rate_pd
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_acq_rate_pd PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
+dp_gnu_compile_options(validate_acq_rate_pd PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_acq_rate_pd
+         COMMAND validate_acq_rate_pd --check)
+
 # The pool's lifecycle soak: emitters from the shipped synth with its
 # window, each through the shipped doppler_channel at its own Doppler,
 # arriving and leaving at the sum; one AsyncDsssPool at the operating point

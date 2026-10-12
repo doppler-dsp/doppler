@@ -51,7 +51,7 @@ with frequency windows, and sizes its non-coherent looks from
 `(cn0_dbhz, pfa, pd)` using `doppler.detection`; its coherent depth is set by
 the code-only epochs you declare (`code_only_epochs`) and capped by
 `doppler_rate`, never grown to meet `pd`. Push arbitrary-length blocks; it
-yields one 8-tuple per detection — `(doppler_bin, code_phase, peak_mag, noise_est, test_stat, cn0_dbhz_est, samples_consumed, chip_phase)`, the last being the `Dll` seed in chips. See the
+yields one 9-tuple per detection — `(doppler_bin, code_phase, peak_mag, noise_est, test_stat, cn0_dbhz_est, samples_consumed, chip_phase, doppler_rate_hz_s)`, `chip_phase` being the `Dll` seed in chips and `doppler_rate_hz_s` the winning Doppler-rate hypothesis (0 unless the search was built with `rate_hypotheses`). See the
 [DSSS acquisition guide](../guide/dsss-acquisition.md#continuous-data-modulated-signals-the-asynchronous-symbol-clock-case)
 for when to use it.
 
@@ -64,7 +64,7 @@ period of any repeated complex preamble as samples, plus their rate `fs`, and
 sizes the coherent depth: the smallest number of repetitions whose Pd for the
 whole burst meets `pd`, with no non-coherent looks. Every dwell whose
 statistic clears the gate reports a hit, so one burst typically produces
-several; each is the same 8-tuple as
+several; each is the same 9-tuple as
 [`Acquisition`](#acquisition-continuous-acquisition)'s, except that
 `chip_phase` counts preamble samples, one chip per sample. The two front doors
 differ in what they take (preamble samples against a code) and in how they

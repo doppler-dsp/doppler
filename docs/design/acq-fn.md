@@ -48,7 +48,7 @@ alongside** the OO API, never a replacement.
 ## State blobs (flat, versioned POD)
 
 - **`acq_fn` state** (`dp_acq_state_bytes` / `dp_acq_get_state` in
-    `native/src/acq/acq_core.c`, version 5), in the order it is written:
+    `native/src/acq/acq_core.c`, version 6), in the order it is written:
 
     1. the envelope, then `acq_extra_t`: `n`, `n_noncoh`, `max_peaks`, the
         running sample offset `samples_consumed` (the code-phase anchor,
@@ -99,7 +99,7 @@ main (void)
      ACQ_N_NONCOH_SAFETY_CEILING; a burst engine never adds any.) */
   dp_acq_state_t *(*create_burst) (const float _Complex *, size_t, size_t,
                                 double, double, double, double, double, int,
-                                double)
+                                double, size_t)
       = dp_acq_create_burst;
   dp_acq_state_t *(*create_cont) (const uint8_t *, size_t, size_t, double,
                                double, double, double, double, double, int,

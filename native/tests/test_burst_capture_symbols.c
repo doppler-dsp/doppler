@@ -42,6 +42,7 @@ const jm_any_fn jm_bound_symbols_burst_capture[] = {
     (jm_any_fn)dp_burst_capture_get_pd_burst,
     (jm_any_fn)dp_burst_capture_get_psl_db,
     (jm_any_fn)dp_burst_capture_get_doppler_rate,
+    (jm_any_fn)dp_burst_capture_get_rate_hypotheses,
     (jm_any_fn)dp_burst_capture_get_doppler_bins,
     (jm_any_fn)dp_burst_capture_get_n_noncoh,
     (jm_any_fn)dp_burst_capture_get_code_bins,

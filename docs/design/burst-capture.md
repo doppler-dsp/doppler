@@ -170,7 +170,8 @@ ______________________________________________________________________
 dp_burst_capture_state_t *dp_burst_capture_create (
     const float _Complex *preamble, size_t preamble_len, size_t burst_len,
     size_t reps, double fs, double cn0_dbhz, double doppler_uncertainty,
-    double pfa, double pd, int noise_mode, double doppler_rate);
+    double pfa, double pd, int noise_mode, double doppler_rate,
+    size_t rate_hypotheses);
 
 size_t dp_burst_capture_push (dp_burst_capture_state_t *, const float complex *x,
                            size_t x_len, float complex *out, size_t max_out);
@@ -667,6 +668,99 @@ position. The child is restored to check that, and handed its own blob back
 on a mismatch, which resets acq's unserialized `dwells` and `surface_at`.
 Each check stands between a forged blob and a `push()` that aborts, reads
 out of bounds, shifts every later epoch, or silently stops capturing.
+
+### 11.5 A sweeping carrier: cap the depth, or compensate the rate
+
+`doppler_rate` alone is a CAP. A carrier that sweeps at `a` Hz/s drifts
+`a·D·T` over a block of `D` repetitions (`T = P/fs`), and the slow-time
+transform stays coherent only while that is under half of its row,
+`1/(2·D·T)`: `D ≤ f_epoch/√(2a)`. A faster sweep does not break the capture,
+it shrinks the block, and the integration gain with it.
+
+`rate_hypotheses = n > 1` compensates instead. `doppler_rate` becomes the SPAN
+`[-R, +R]`, and the coherent block is searched at `n` rates evenly spaced
+across it. For each, the slow-time axis is multiplied by `exp(-jπ·a_h·t²)`,
+`t` the epoch's time from the block's middle, before the transform. The cap
+then applies to the RESIDUAL, the farthest a true rate can sit from a
+hypothesis, `R/(n - 1)`: the depth grows by up to `√(n - 1)` at a fixed span
+(the bound reaches 15 at `n = 9`; the sizer picks the
+smallest depth that meets `pd`, which at the design point below is 10). One mechanism, both grids: the narrowband engine
+multiplies each column before its slow-time FFT, and the tiled one (a
+`doppler_uncertainty` past the native span, PR #2210) multiplies inside every
+tile's block.
+
+A block of one or two epochs cannot see a rate: at `D = 1` the de-chirp is
+`t = 0`, at `D = 2` it is `t = ±T/2`, and either way every hypothesis
+multiplies the block by one constant phase, so the `n` surfaces are the same
+surface. An engine sized there (a strong design point makes the sizer pick the
+smallest depth) searches ONE look: the gate of an engine without hypotheses,
+`n = 1`'s cost, and a reported rate of 0. Without that, a strict `>` kept
+hypothesis 0 and reported `-R` whatever the carrier did.
+
+The reported rate (`doppler_rate_hz_s`) is a hypothesis, not a fit, and a
+reliable one only with signal to spare. Adjacent hypotheses differ by at most
+π/4 of phase at the block's edges at the depth the residual bound allows, so
+at the C/N0 the engine was sized for noise picks among neighbours: in review,
+400 hits at `n = 9`, `D = 10`, true rate 0, a signal 3 dB above the design
+point (−10 against −13 dB-Hz): 110 named the nearest hypothesis and 60 named
+±R. At +10 dB-Hz it held for 399 of 400. Detection is unaffected (the winning surface is a good one whichever
+neighbour it is); treat the value as a seed.
+
+**What it costs, and where the cost is paid.**
+
+- *Per-dwell work* is about `n` times: each hypothesis is a full slow-time
+    pass, CFAR-tested against its own surface (a reference taken over a max of
+    hypotheses is biased up, and the gate is derived for one). Measured, one
+    thread, ZC 127 × 16 at fs = 1: 43 µs a dwell uncompensated (D = 5), 418 µs
+    at `n = 5` (D = 9), 772 µs at `n = 9` (D = 10), about 85 µs a hypothesis.
+- *False alarms* are priced, not hoped away: the per-cell Pfa is split over
+    `n·searched_bins·code_bins` cells, so the gate rises with `n`. The
+    hypotheses are strongly correlated, so that is conservative: measured per
+    dwell against a target of 1e-3, `n = 3, 5, 9` read 1.06e-3, 0.89e-3,
+    0.59e-3, none significantly above it.
+- *Refine follows.* Its coherent sum runs the whole preamble, so a sweep that
+    the engine's short dwell tolerates collapses it: the capture named the
+    wrong repetition for about half the bursts at high SNR. Refine tries the
+    same rates (on a grid denser than the engine's whenever the engine's is
+    too coarse for `reps` periods, the drift rule at that depth), and widens
+    its Doppler cells by the shift a rate puts between the detecting dwell's
+    middle and the preamble's. Each of those two is worth about 0.02 of Pd on
+    the validator's trials.
+
+**What it buys, measured** (`native/validation/acq_rate_pd.c`; ZC 127 × 16,
+fs = 1, rate span ±9e-7 cycles/sample², so a carrier at the span's rate
+sweeps 0.0018 of fs across the preamble; C/N0 −13 dB, where `n = 9` predicts a burst Pd of 0.9;
+1000 trials a row; Wilson 95%):
+
+|   n |   D | rate drawn | `pd_burst` | engine |   capture | capture 95%   |
+| --: | --: | :--------- | ---------: | -----: | --------: | :------------ |
+|   1 |   5 | uniform    |      0.849 |  0.945 | **0.546** | 0.515 – 0.577 |
+|   3 |   8 | uniform    |      0.899 |  0.976 |     0.912 | 0.893 – 0.928 |
+|   3 |   8 | midpoint   |      0.899 |  0.979 |     0.916 | 0.897 – 0.932 |
+|   5 |   9 | uniform    |      0.907 |  0.988 |     0.930 | 0.912 – 0.944 |
+|   5 |   9 | midpoint   |      0.907 |  0.984 |     0.927 | 0.909 – 0.942 |
+|   9 |  10 | uniform    |      0.904 |  0.985 |     0.912 | 0.893 – 0.928 |
+|   9 |  10 | midpoint   |      0.904 |  0.977 |     0.918 | 0.899 – 0.933 |
+
+*midpoint* puts every trial's rate exactly half a spacing from the nearest
+hypothesis, the worst case the depth bound is derived against; *uniform* draws
+it over the span. `pd_burst` prices a rate ON a hypothesis, and the table is
+the evidence that the half-spacing residual costs nothing beyond what the
+bound already allows: the worst case reads the same as the average.
+Uncompensated, the same C/N0 delivers 0.55: the engine still sees the burst
+(0.945) and refine loses it.
+
+**Two things this does not say.** The uncompensated row's Pfa is a separate
+finding: the engine as it ran before this section reads **1.97e-3** a dwell
+against a target of 1e-3 (393 hits in 200000 dwells, 95% 1.78 – 2.17e-3).
+That row is the code path this change leaves untouched when `n = 1`, so it is
+reported here and filed, not fixed here. And the tiled grid is covered by the
+C tests (rate found, either sign, in a tile off the centre) but not by the
+Monte-Carlo above.
+
+Hits carry the winning hypothesis as `doppler_rate_hz_s` (BurstAcquisition's
+last field); a capture's events do not yet, because the queue, the blob and the
+event record all carry a hit and would change together.
 
 ## 10. See also
 

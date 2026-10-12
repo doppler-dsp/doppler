@@ -252,12 +252,12 @@ ______________________________________________________________________
 
 `push` accepts any-length cf32 blocks, buffers them in a ring, and emits one
 detection per coherent **frame** (or, on the non-coherent path, per `n_noncoh`
-accumulated frames) whose statistic clears the gate. Each hit is an 8-tuple:
+accumulated frames) whose statistic clears the gate. Each hit is a 9-tuple:
 
 ```python
-for dop, phase, peak, noise, stat, cn0, samples_consumed, chip_phase in acq.push(
-    chunk
-):
+for (
+    dop, phase, peak, noise, stat, cn0, samples_consumed, chip_phase, rate
+) in acq.push(chunk):
     ...
 ```
 

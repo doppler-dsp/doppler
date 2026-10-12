@@ -137,7 +137,7 @@
  * for (size_t i = 0; i < 124; i++)
  *   pre[i] = nrz[i / 4];                   // each chip held 4 samples
  * dp_acq_state_t *a = dp_acq_create_burst(pre, 124, 16, 4.0e6, 45.0,
- *                                   0.0, 1e-3, 0.9, 0, 0.0);
+ *                                   0.0, 1e-3, 0.9, 0, 0.0, 1);
  * acq_result_t hits[64];
  * size_t nh = dp_acq_push(a, samples, n_samples, hits, 64);
  * for (size_t i = 0; i < nh; i++)
@@ -227,6 +227,30 @@ extern "C"
                             carrier setter, so its hits carry no dwell
                             advance. Appended last so positional
                             initialisers do not shift. */
+    double doppler_rate_hz_s; /**< The Doppler rate, Hz/s, of the rate
+                            hypothesis that won this hit's dwell
+                            (dp_acq_create_burst()'s rate_hypotheses); 0 without
+                            hypotheses, and 0 when the dwell's block is one
+                            or two epochs, which cannot see a rate (every
+                            hypothesis is then the same surface). A
+                            hypothesis, not a fit, and a RELIABLE one only
+                            with signal to spare: the carrier's rate lies
+                            within half a spacing, `doppler_rate/(n - 1)`, of
+                            it when the dwell is well above the design point
+                            (measured in the review of #2221: 400 hits, N = 9,
+                            D = 10, true rate 0, a dwell at -10 dB-Hz
+                            against a -13 dB-Hz design -- 110 name the
+                            nearest hypothesis and 60 name +-R; at +10 dB-Hz,
+                            399 do),
+                            because adjacent hypotheses differ by at most
+                            pi/4 of phase at the block's edges and noise
+                            picks among neighbours. DETECTION is unaffected --
+                            the surface that wins is a good one whichever
+                            neighbour it is. Treat the value as a seed, not a
+                            measurement, at the C/N0 the engine was sized
+                            for. The Doppler the hit reports is the carrier's
+                            at the middle of the dwell's block. Appended last
+                            so positional initialisers do not shift. */
   } acq_result_t;
 
   /**
@@ -437,6 +461,18 @@ extern "C"
                                   (§2.1); 1 = no window, D = 1.          */
     double doppler_rate; /**< Doppler rate the depth is bounded against
                               (Hz/s); 0 = no bound from the rate.       */
+    size_t rate_hyps;    /**< Doppler-rate hypotheses searched (>= 1); 1 =
+                              none: the engine as it ran without them.
+                              dp_acq_create_burst()'s rate_hypotheses.   */
+    float _Complex *rate_chirp; /**< rate_hyps * rate_chirp_d slow-time
+                                     de-chirp phasors; NULL while
+                                     rate_hyps == 1. Rebuilt lazily when
+                                     coherent_bins moves.                */
+    size_t rate_chirp_d; /**< The coherent_bins rate_chirp was built for. */
+    float _Complex *rate_best; /**< n_surf cells: the best hypothesis' surface
+                                    while the others are searched.       */
+    size_t rate_best_cap;      /**< Cells rate_best holds.                  */
+    size_t rate_best_h;  /**< Winning hypothesis of the last dwell.       */
     double carrier_freq_hz; /**< RF carrier the Doppler is physically
                                  coupled to, Hz (dp_acq_set_carrier_freq_hz());
                                  0 = uncoupled: no code-rate hypothesis per
@@ -599,12 +635,17 @@ extern "C"
     uint32_t max_peaks;    /**< List capacity; must equal the engine's.   */
     uint32_t n_twins;      /**< Last dwell's picks that follow.           */
     uint32_t blk_epoch; /**< v3: epochs gathered in the block being built */
+    uint32_t rate_hyps; /**< v6: rate hypotheses searched; must equal the
+                             engine's -- it sizes the search and changes
+                             what a surface means.                       */
+    uint32_t _pad2;
   } acq_extra_t;
 
 #define ACQ_STATE_MAGIC DP_FOURCC ('A', 'C', 'Q', 'R')
 /* v5: the carry is the framer's snapshot (fewer than frame_n samples)
-   instead of the ring's raw contents, zero-padded to ring_cap. */
-#define ACQ_STATE_VERSION 5u
+   instead of the ring's raw contents, zero-padded to ring_cap.
+   v6: acq_extra_t carries the rate-hypothesis count. */
+#define ACQ_STATE_VERSION 6u
 
 /** The largest `max_peaks` dp_acq_set_max_peaks() accepts: the bindings'
  *  push result arrays (1024) are at least this many, so one dwell can
@@ -616,6 +657,12 @@ extern "C"
  *  lines per slow-time row of the block and writes four per surface row,
  *  where a column at a time read and wrote one line per CELL. */
 #define ACQ_COL_CHUNK 32u
+
+/** Most Doppler-rate hypotheses an engine searches. Each one costs a full
+ *  slow-time pass per dwell, so this bounds the cost of a typo, not a
+ *  design: the residual rate falls as 1/(R-1), and a few dozen hypotheses
+ *  already take a rate span out to depths no preamble repeats to. */
+#define ACQ_RATE_HYPS_MAX 64u
 
   /**
    * @brief Internal safety-valve ceiling on auto-selected non-coherent
@@ -714,6 +761,27 @@ extern "C"
    * read), so `peak_mag` and `noise_est` come out in the signal's units
    * whatever the preamble's amplitude. C/N0 is the preamble's mean power.
    *
+   * **What hypotheses change**, when @p rate_hypotheses is `n > 1`:
+   * - **Depth.** The drift bound is applied to the RESIDUAL rate, the farthest
+   *   a true rate can sit from a hypothesis, `R/(n - 1)`, so `coherent_bins`
+   *   can grow by up to `sqrt(n - 1)` at a fixed span.
+   * - **False alarms.** A dwell now offers `n` looks at each cell: the
+   *   per-cell Pfa is split over `n * searched_bins * code_bins` cells and the
+   *   gate is the larger count's. Each hypothesis is CFAR-tested against its
+   *   own surface and the dwell takes the strongest; acq_result_t::
+   *   doppler_rate_hz_s names the winner.
+   * - **Cost.** A dwell does `n` slow-time passes (and a recompute of the
+   *   winner when it was not the last): about `n` times the per-dwell cost.
+   * - **Pd.** The model prices a rate ON a hypothesis. Between two, the
+   *   coherent gain falls with the residual; the depth bound limits that to
+   *   half a slow-time row, and validate_acq_rate_pd measures it (a rate half
+   *   a spacing from every hypothesis, the worst case, against a rate drawn
+   *   uniformly).
+   *
+   * The count is config, not running state, and it is a reject key of the
+   * state blob: a blob from an engine with another count is refused, not
+   * reinterpreted.
+   *
    * @param tmpl        One period of the preamble, @p n samples; not all
    *                    zero, every sample finite.
    * @param n           Samples per repetition (>= 1).
@@ -742,16 +810,38 @@ extern "C"
    *                    repetitions (`f_epoch = fs/n`, the repetition rate), so
    *                    the carrier's drift over one block stays inside half a
    *                    slow-time row (doppler#1482). 0 is no bound: the depth
-   *                    is sized up to @p reps.
-   * @return Heap-allocated state, or NULL on bad arguments / allocation
-   *         failure.
+   *                    is sized up to @p reps. With @p rate_hypotheses > 1 it
+   *                    is the SPAN of the rates searched, below.
+   * @param rate_hypotheses  Doppler-rate hypotheses to search (>= 1, at most
+   *                    @ref ACQ_RATE_HYPS_MAX); 1 searches none and
+   *                    @p doppler_rate only caps the depth. Above 1 the
+   *                    engine COMPENSATES the rate: `doppler_rate` is the span
+   *                    `[-R, +R]` and the coherent block is searched at
+   *                    @p rate_hypotheses rates evenly spaced across it,
+   *                    `a_h = -R + 2 R h / (n - 1)`. For each the slow-time
+   *                    axis is multiplied by `exp(-j pi a_h t^2)`, `t` the
+   *                    epoch's time from the block's middle, before the
+   *                    slow-time transform -- so the Doppler an engine
+   *                    reports is the carrier's at the block's middle, where a
+   *                    hand-off wants it, and a signal whose rate sits within
+   *                    half a spacing of a hypothesis integrates as a still
+   *                    one (see below). A block of one or two epochs
+   *                    cannot see a rate -- every hypothesis is then the
+   *                    same surface -- so an engine sized to D <= 2 searches
+   *                    ONE look (the gate of an engine without hypotheses),
+   *                    runs once, and reports a rate of 0. Needs a non-zero @p doppler_rate: it
+   *                    is the span.
+   *
+   * @return Heap-allocated state, or NULL on bad arguments (including a
+   *         @p rate_hypotheses outside `[1, ACQ_RATE_HYPS_MAX]`, or above 1
+   *         with `doppler_rate == 0`) / allocation failure.
    * @code
    * // 127-sample Zadoff-Chu preamble at 1 MS/s, up to 8 repetitions
    * float _Complex zc[127];
    * for (int k = 0; k < 127; k++)
    *   zc[k] = cexpf (-I * (float)(M_PI * 5.0 * k * (k + 1) / 127.0));
    * dp_acq_state_t *a = dp_acq_create_burst (zc, 127, 8, 1.0e6, 50.0, 0.0, 1e-3,
-   *                                    0.9, 0, 0.0);
+   *                                    0.9, 0, 0.0, 1);
    * dp_acq_destroy (a);
    * @endcode
    */
@@ -759,7 +849,8 @@ extern "C"
                                  size_t reps, double fs, double cn0_dbhz,
                                  double doppler_uncertainty, double pfa,
                                  double pd, int noise_mode,
-                                 double doppler_rate);
+                                 double doppler_rate,
+                                 size_t rate_hypotheses);
 
   /**
    * @brief Create a continuous-mode acquisition engine: always wideband
@@ -838,6 +929,39 @@ extern "C"
                                       size_t code_only_epochs,
                                       double doppler_rate);
 
+  /**
+   * @brief Rate hypothesis @p h of @p n over `[-span, +span]`, Hz/s:
+   *        `-span + 2*span*h/(n - 1)`; 0 for `n <= 1`.
+   *
+   * The engine's grid, exported so a composing object searches the SAME
+   * rates and not a restatement of them (dp_burst_capture's refine).
+   */
+  double dp_acq_rate_hypothesis (double span, size_t n, size_t h);
+
+  /**
+   * @brief The de-chirp phasor `exp(-j*pi*rate*t^2)` for a rate in Hz/s at
+   *        time @p t seconds from the block's middle.
+   *
+   * What the engine multiplies a block's slow-time axis by, and what refine
+   * multiplies its per-period correlations by: one definition of the centring
+   * and the sign.
+   */
+  double _Complex dp_acq_rate_phasor (double rate, double t);
+
+  /**
+   * @brief The fewest rate hypotheses over `[-span, +span]` that leave the
+   *        residual `span/(n - 1)` within what a block of @p depth epochs
+   *        tolerates, `f_epoch^2/(2*depth^2)` -- the drift rule behind the
+   *        depth cap, inverted. At least 2 for a positive span; 1 for none;
+   *        at most @ref ACQ_RATE_HYPS_MAX.
+   *
+   * @param f_epoch  Epoch rate, Hz (`fs/n` for a burst engine).
+   * @param span     Rate span, Hz/s (>= 0).
+   * @param depth    Block depth in epochs (>= 1).
+   */
+  size_t dp_acq_rate_hypotheses_for (double f_epoch, double span,
+                                     size_t depth);
+
   /** @brief Destroy and free an engine.  @param state May be NULL. */
   void dp_acq_destroy (dp_acq_state_t *state);
 
@@ -887,7 +1011,9 @@ extern "C"
    * @param doppler_bins Coherent depth to pin, in `[1, reps]`.
    * @param n_noncoh     Non-coherent look count to pin, in
    *                     `[1, ACQ_N_NONCOH_SAFETY_CEILING]`.
-   * @return 0 on success, -1 if either argument is out of range or an
+   * @return 0 on success, -1 if either argument is out of range (or
+   *         @p n_noncoh > 1 on an engine with rate hypotheses, which do not
+   *         compose with non-coherent looks), or an
    *         allocation fails (the engine is left usable at its prior grid
    *         on failure).
    * @code
@@ -1540,7 +1666,7 @@ extern "C"
    * for (size_t i = 0; i < 124; i++)
    *   pre[i] = (i / 4) % 3 ? 1.0f : -1.0f;
    * dp_acq_state_t *a = dp_acq_create_burst (pre, 124, 16, 4.0e6, 45.0,
-   *                                          0.0, 1e-3, 0.9, 0, 0.0);
+   *                                          0.0, 1e-3, 0.9, 0, 0.0, 1);
    * float _Complex x[300] = { 0 };
    * uint64_t       before = dp_acq_position (a);           // 0
    * acq_result_t   hit;

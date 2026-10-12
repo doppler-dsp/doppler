@@ -122,8 +122,8 @@ typedef struct {
  *                         samples, floored at 3 -- the shortest whose
  *                         default Hann window has any gain.
  * @param zero_pad        PSD zero-pad factor (>= 1); see psd_core.h.
- * @param window          "hann" (the default), "kaiser" or "blackman-harris":
- *                        the windows the threshold was calibrated at.
+ * @param window          "hann" (the default, and the window the threshold
+ *                        was fit at), "kaiser" or "blackman-harris".
  * @param beta            Kaiser beta (ignored for hann/blackman-harris).
  * @param psd_template     Known PSD-shape template override, length
  *                        must equal nfft = next_pow_two(block * zero_pad),

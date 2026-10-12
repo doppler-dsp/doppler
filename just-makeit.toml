@@ -3544,9 +3544,10 @@ enumerators = [
   "DP_PSD_WINDOW_BLACKMAN_HARRIS", "DP_PSD_WINDOW_RECT",
 ]
 
-# carrier_acq's window: a VIEW over psd_window with the three windows its
-# threshold was calibrated at (KAPPA was fit at Hann, carrier_acq_core.c), no
-# rect. Every name is a psd_window enumerator, so it has no C enum of its own.
+# carrier_acq's window: a VIEW over psd_window with the three windows it
+# offers (its threshold's KAPPA was fit at Hann, carrier_acq_core.c), no rect,
+# which its C create refuses (#2185). Every name is a psd_window enumerator,
+# so it has no C enum of its own.
 [[enum]]
 name = "carrier_acq_window"
 values = ["hann", "kaiser", "blackman-harris"]

@@ -113,6 +113,10 @@ typedef struct {
 /**
  * @brief Create a carrier_acq instance.
  *
+ * In C the window is DP_PSD_WINDOW_HANN, DP_PSD_WINDOW_KAISER or
+ * DP_PSD_WINDOW_BLACKMAN_HARRIS; any other, the rectangular window
+ * included, returns NULL.
+ *
  * @param sample_rate_hz  Sample rate of the input stream, Hz (required).
  * @param symbol_rate_hz  Symbol rate, Hz -- builds the default template
  *                        (required).

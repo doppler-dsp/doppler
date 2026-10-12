@@ -42,7 +42,7 @@ _PSD — averaging power-spectral-density estimator (Welch's method) and spectra
 
 | Type | Name |
 | ---: | :--- |
-| enum  | [**psd\_\_core\_8h\_1adc29c2ff13d900c2f185ee95427fb06c**](#enum-psd__core_8h_1adc29c2ff13d900c2f185ee95427fb06c)  <br>_The window of_ [_**dp\_psd\_create()**_](psd__core_8h.md#function-dp_psd_create) _, and of every object that builds its frames through it (the Spectrogram, carrier acquisition)._ |
+| enum  | [**psd\_\_core\_8h\_1adc29c2ff13d900c2f185ee95427fb06c**](#enum-psd__core_8h_1adc29c2ff13d900c2f185ee95427fb06c)  <br>_The window of_ [_**dp\_psd\_create()**_](psd__core_8h.md#function-dp_psd_create) _, and of the objects that build their frames through it: all four for the Spectrogram, a subset for carrier acquisition (_[_**dp\_carrier\_acq\_create()**_](carrier__acq__core_8h.md#function-dp_carrier_acq_create) _says which)._ |
 
 
 
@@ -158,7 +158,7 @@ Lifecycle: create -&gt; (accumulate / reset)\* -&gt; (measurement getters)\* -&g
 
 ### enum psd\_\_core\_8h\_1adc29c2ff13d900c2f185ee95427fb06c 
 
-_The window of_ [_**dp\_psd\_create()**_](psd__core_8h.md#function-dp_psd_create) _, and of every object that builds its frames through it (the Spectrogram, carrier acquisition)._
+_The window of_ [_**dp\_psd\_create()**_](psd__core_8h.md#function-dp_psd_create) _, and of the objects that build their frames through it: all four for the Spectrogram, a subset for carrier acquisition (_[_**dp\_carrier\_acq\_create()**_](carrier__acq__core_8h.md#function-dp_carrier_acq_create) _says which)._
 ```C++
 enum psd__core_8h_1adc29c2ff13d900c2f185ee95427fb06c {
     DP_PSD_WINDOW_HANN = 0,
@@ -170,7 +170,7 @@ enum psd__core_8h_1adc29c2ff13d900c2f185ee95427fb06c {
 
 
 
-HANN is 0, so a zeroed configuration is Hann. The Python faces name the same windows "hann", "kaiser", "blackman-harris" and "rect", bound to these constants by name (just-makeit.toml, `[[enum]] psd_window`). 
+HANN is 0, so a zeroed configuration is Hann. The Python faces name the same windows "hann", "kaiser", "blackman-harris" and "rect", bound to these constants by name (just-makeit.toml, `[[enum]] psd_window`); carrier acquisition's face names its subset (`carrier_acq_window`). 
 
 
         

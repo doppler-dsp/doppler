@@ -37,8 +37,11 @@ literal at its call is named only where they agree (#2227). A variadic
 helper's ``...`` is not a parameter: its named parameters are the fewest
 arguments a call may pass (#2227). A local that re-declares a parameter
 (``for (int w = 0; ...)``) ends it: from that declaration on, the name is
-the local's, so it teaches no helper (#2227). A definition is read in the
-shapes this tree writes:
+the local's, so it teaches no helper (#2227). A parameter only COMPARED
+with an enumerator of an enum TABLE gates (``mode == DP_SPECTROGRAM_POWER``,
+either way round, ``!=``, or a ``switch`` and its ``case`` labels) is a slot
+of that enum too: a literal at its call is the #2097 renumbering hazard all
+the same (#2227). A definition is read in the shapes this tree writes:
 ``static`` at the start of a line or indented, after any upper-case macro
 (``JM_HOT``), ``[[attribute]]`` or ``__attribute__((...))``, with the return
 type, qualifiers and attributes on that line or any line before the name.
@@ -49,9 +52,9 @@ member call (``ops->make``).
 points are TABLE rows); a ``static inline`` forwarder in a header
 (discovery reads ``.c`` files only); a K&R definition (its parameters are
 declared after the list); a parameter forwarded inside an expression
-(``w + 0``) or through a local variable; a parameter only COMPARED with an
-enumerator (``mode == DP_SPECTROGRAM_POWER``: a literal at such a call is
-not refused); a parameter forwarded after the block of a local that
+(``w + 0``) or through a local variable; a parameter compared with a
+literal (``mode == 0``), through a macro, or with an enumerator of an enum
+no TABLE slot uses; a parameter forwarded after the block of a local that
 shadowed it closes, or one shadowed by a declarator after a comma
 (``int a, w;``) or a typedef not spelled ``*_t`` (#2227); a function pointer
 or macro;
@@ -434,8 +437,86 @@ def _param_name(param: str) -> str | None:
     return ids[-1] if len(ids) >= 2 else None
 
 
+def _add_slot(
+    rows: dict[str, tuple[int, dict[int, tuple[str, str]]]],
+    name: str,
+    arity: int,
+    p: int,
+    label: str,
+    enum: str,
+) -> bool:
+    """Give helper `name`'s parameter `p` the slot (`label`, `enum`), and
+    say whether its row changed. A parameter that reaches two enums (a
+    window passed to PSD and to carrier_acq's view) keeps both, "a|b", so a
+    literal at its call is named only where they agree (#2227).
+
+    >>> rows = {}
+    >>> _add_slot(rows, "f", 1, 0, "w", "b")
+    True
+    >>> _add_slot(rows, "f", 1, 0, "w", "a")
+    True
+    >>> _add_slot(rows, "f", 1, 0, "w", "b"), rows
+    (False, {'f': (1, {0: ('w', 'a|b')})})
+    """
+    row = rows.setdefault(name, (arity, {}))
+    old = row[1].get(p)
+    if old is None:
+        row[1][p] = (label, enum)
+        return True
+    if enum in old[1].split("|"):
+        return False
+    both = set(old[1].split("|")) | {enum}
+    row[1][p] = (old[0], "|".join(sorted(both)))
+    return True
+
+
+#: A `case` label of a switch.
+_CASE = re.compile(r"\bcase\s+([A-Za-z_]\w*)\s*:")
+
+
+def _compared(
+    code: str, param: str, body: int, end: int, gated: dict[str, str]
+) -> set[str]:
+    """The gated enums whose enumerators `param` is COMPARED with in the
+    body code[body:end]: `param == X` or `X == param`, `!=` either way, or a
+    `switch (param)` whose `case` labels are X (#2227). A member (`s->mode`,
+    `s.mode`) is not the parameter, and neither is a name a local re-declared
+    before the compare.
+
+    >>> g = {"DP_SPECTROGRAM_DB": "spectrogram_mode"}
+    >>> _compared("{ return DP_SPECTROGRAM_DB != m; }", "m", 0, 99, g)
+    {'spectrogram_mode'}
+    >>> _compared("{ return s->m == DP_SPECTROGRAM_DB; }", "m", 0, 99, g)
+    set()
+    >>> sw = "{ switch (m) { case DP_SPECTROGRAM_DB: ; } }"
+    >>> _compared(sw, "m", 0, 99, g)
+    {'spectrogram_mode'}
+    """
+    p = re.escape(param)
+    me = rf"(?<![\w.])(?<!->){p}\b(?!\s*(?:->|\.|\[))"
+    cmp = re.compile(
+        rf"{me}\s*[!=]=\s*([A-Za-z_]\w*)\b|\b([A-Za-z_]\w*)\s*[!=]=\s*{me}"
+    )
+    found = set()
+    for m in cmp.finditer(code, body, end):
+        x = m.group(1) or m.group(2)
+        if x in gated and not _shadowed(code, param, body, m.start()):
+            found.add(gated[x])
+    for m in re.compile(rf"\bswitch\s*\(\s*{p}\s*\)\s*\{{").finditer(
+        code, body, end
+    ):
+        close = _brace_end(code, m.end() - 1)
+        if close is None or _shadowed(code, param, body, m.start()):
+            continue
+        for c in _CASE.finditer(code, m.end(), close):
+            if c.group(1) in gated:
+                found.add(gated[c.group(1)])
+    return found
+
+
 def discover(
     text: str,
+    gated: dict[str, str] | None = None,
 ) -> tuple[
     dict[str, tuple[int, dict[int, tuple[str, str]]]], list[tuple[int, str]]
 ]:
@@ -446,10 +527,12 @@ def discover(
     bare, into a gated slot of a TABLE call, or of another helper in the
     same file (to a fixpoint, so a helper that calls a helper is found). Its
     row is that parameter's position, the slot's name and the slot's enum.
-    A function that only COMPARES a window or mode passes it into no slot
-    and has no row; a parameter used inside an expression (`w + 0`) is not
-    forwarded bare and is not followed. Only `static` functions: a helper
-    is file-local, so its row checks its own file's calls.
+    A parameter COMPARED with an enumerator of `gated` (`mode ==
+    DP_SPECTROGRAM_POWER`, or a `switch` on it) is a slot of that enum,
+    named for the parameter (#2227); a parameter used inside an expression
+    (`w + 0`) is not forwarded bare and is not followed. Only `static`
+    functions: a helper is file-local, so its row checks its own file's
+    calls.
 
     A body whose braces never close is not read at all: taken to the end
     of the file, it would take in every function below it and their calls,
@@ -483,6 +566,14 @@ def discover(
             continue
         defs.append((m.group("name"), params, arity, j, k))
     rows: dict[str, tuple[int, dict[int, tuple[str, str]]]] = {}
+    # A compare is a slot of its own: the seed the fixpoint below forwards
+    # from, so a helper that passes a parameter into a COMPARING helper is
+    # found too (`rows_are_the_psd` and `oracle` into `ref_row`).
+    for name, params, arity, j, k in defs:
+        for p, label in enumerate(params):
+            if label:
+                for enum in sorted(_compared(code, label, j, k, gated or {})):
+                    _add_slot(rows, name, arity, p, label, enum)
     changed = True
     while changed:
         changed = False
@@ -505,18 +596,8 @@ def discover(
                         and arg in params
                         and not _shadowed(code, arg, j, cm.start())
                     ):
-                        row = rows.setdefault(name, (arity, {}))
                         p = params.index(arg)
-                        old = row[1].get(p)
-                        if old is None:
-                            row[1][p] = (label, enum)
-                            changed = True
-                        elif enum not in old[1].split("|"):
-                            # One parameter, two enums (a window passed to
-                            # PSD and to carrier_acq's view): keep both, so
-                            # a literal is named only where they agree.
-                            both = set(old[1].split("|")) | {enum}
-                            row[1][p] = (old[0], "|".join(sorted(both)))
+                        if _add_slot(rows, name, arity, p, label, enum):
                             changed = True
     return rows, unread
 
@@ -631,6 +712,34 @@ def _names(root: Path) -> tuple[dict[str, dict[int, str]], list[str]]:
     return by_enum, errs
 
 
+def _enumerators(names: dict[str, dict[int, str]]) -> dict[str, str]:
+    """enumerator -> the gated enum it belongs to, for the compares that
+    discovery reads (#2227). Only TABLE's enums are gated, so a compare with
+    any other enum's enumerator (`type == WFM_SYNTH_CHIRP`) is no slot. A
+    view (carrier_acq_window) shares its parent's names; a compare with one
+    says nothing about the view, so the name goes to the enum with the most
+    names, the parent.
+
+    >>> m = _enumerators(
+    ...     {
+    ...         "psd_window": {0: "H", 3: "R"},
+    ...         "carrier_acq_window": {0: "H"},
+    ...         "spectrogram_mode": {0: "P"},
+    ...         "other": {0: "O"},
+    ...     }
+    ... )
+    >>> m["H"], m["R"], m["P"], "O" in m
+    ('psd_window', 'psd_window', 'spectrogram_mode', False)
+    """
+    gated = {e for _, s in TABLE.values() for _, e in s.values()}
+    out: dict[str, str] = {}
+    # Smallest first, so a parent, sorted after its view, has the last word.
+    for enum in sorted(gated, key=lambda e: (len(names.get(e, {})), e)):
+        for name in names.get(enum, {}).values():
+            out[name] = enum
+    return out
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     # A gate that can only run against the real tree cannot be sabotaged
@@ -647,6 +756,7 @@ def main(argv: list[str]) -> int:
         for e in errs:
             print(f"check_named_args: {e} -- FAIL")
         return 1
+    gated = _enumerators(names)
 
     calls: dict[str, int] = dict.fromkeys(TABLE, 0)
     helper_calls: dict[tuple[str, str], int] = {}
@@ -661,7 +771,7 @@ def main(argv: list[str]) -> int:
             continue
         helpers = None
         if rel.endswith(".c"):
-            helpers, lost = discover(text)
+            helpers, lost = discover(text, gated)
             unread += [(f"{rel}:{line}", name) for line, name in lost]
         if helpers:
             discovered += len(helpers)

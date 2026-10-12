@@ -54,6 +54,13 @@ So this gate makes the SSOT claim a check rather than a comment:
    and mode): they run consecutively in the manifest's order, and an
    enumerator that existed at the merge base with `--base` keeps its value
    (a shallow clone whose base will not resolve fails closed).
+8. **A view's set is declared once, and C refuses past it.** A view names
+   a subset of its parent for Python, but C takes the parent's type, so C
+   must refuse the rest: a second statement of the same set (#2194). So the
+   refusal carries `/* SSOT: view=X */` on the line above it, the view is a
+   PREFIX of its parent (one comparison bounds it), and the comparison
+   names the view's last enumerator. A view with no such comparison, or two,
+   is an error, and so is an annotation naming no view.
 
 The annotation is a plain `/* ... */` comment -- doxygen reads only `/**` and
 `/*!`, so it is invisible to the C API docs -- placed anywhere between the
@@ -130,6 +137,13 @@ _DEFINE_RE = re.compile(r"^\s*#\s*define\s+(\w+)\s+(\d+)\s*$", re.MULTILINE)
 _SSOT_RE = re.compile(
     r"^[ \t]*(?:/\*|\*)?[ \t]*SSOT:[ \t]*(?P<spec>[^*\n]+)", re.MULTILINE
 )
+#: Rule 8: `/* SSOT: view=X */` opening the line above the comparison that
+#: refuses past view X, in C under native/. The comparison is read up to the
+#: statement's end; `->` is a member access, never a `>`.
+_VIEW_RE = re.compile(
+    r"^[ \t]*(?:/\*|\*|//)?[ \t]*SSOT:[ \t]*view=(?P<view>\w+)", re.MULTILINE
+)
+_BOUND_CMP_RE = re.compile(r"(?<![-=<>])>(?![>=])\s*(?P<name>[A-Za-z_]\w*)")
 
 
 class Table:
@@ -418,7 +432,7 @@ def _check_bound_enums(root: Path, data: dict) -> list[str]:
                 f" enumerators\n      header:   {names}\n"
                 f"      manifest: {list(want)}"
             )
-    bound_names = [{n for n, _ in pairs} for _, _, pairs in bound]
+    views = _views(data, bound)
     for name, spec in by_name.items():
         if "enumerators" not in spec:
             continue
@@ -426,10 +440,9 @@ def _check_bound_enums(root: Path, data: dict) -> list[str]:
         if len(homes) == 1:
             continue
         # A view: every name already belongs to one bound C enum, so the
-        # compiler checks them and none is a name of its own.
-        if not homes and any(
-            set(spec["enumerators"]) <= s for s in bound_names
-        ):
+        # compiler checks them and none is a name of its own (rule 8 holds
+        # its C refusal to it).
+        if not homes and name in views:
             continue
         errs.append(
             f"{MANIFEST_REL}: [[enum]] {name} lists `enumerators`, so"
@@ -437,6 +450,120 @@ def _check_bound_enums(root: Path, data: dict) -> list[str]:
             " name must belong to one that does); found"
             f" {len(homes)}{': ' + ', '.join(homes) if homes else ''}."
         )
+    return errs
+
+
+def _views(
+    data: dict, bound: list[tuple[str, str, list[tuple[str, int | None]]]]
+) -> dict[str, tuple[str, list[tuple[str, int | None]], list[str]]]:
+    """Every view: an [[enum]] with `enumerators`, no C enum of its own, and
+    every name a name of ONE bound C enum. ``{view: (parent, parent's
+    (name, value) pairs, the view's names)}`` -- rule 7's definition, in one
+    place for rule 7, rule 8 and `enum_names`."""
+    homes = {name for _, name, _ in bound}
+    out: dict[str, tuple[str, list[tuple[str, int | None]], list[str]]] = {}
+    for spec in data.get("enum", []):
+        name, want = spec.get("name"), spec.get("enumerators")
+        if not want or name in homes:
+            continue
+        for _, parent, pairs in bound:
+            if set(want) <= {n for n, _ in pairs}:
+                out[name] = (parent, pairs, list(want))
+                break
+    return out
+
+
+def enum_names(root: Path) -> tuple[dict[str, dict[int, str]], list[str]]:
+    """value -> name for every [[enum]] a C enum binds, views included: a
+    view's are its parent's, restricted to the view, so a value outside it
+    has no name. Public: `check_named_args.py` names a literal by it."""
+    bound, errs = bound_enums(root)
+    out = {
+        enum: {v: n for n, v in pairs if v is not None}
+        for _, enum, pairs in bound
+    }
+    manifest = root / MANIFEST_REL
+    if manifest.is_file():
+        data = tomllib.loads(manifest.read_text(encoding="utf-8"))
+        for view, (_, pairs, names) in _views(data, bound).items():
+            out[view] = {
+                v: n for n, v in pairs if n in names and v is not None
+            }
+    return out, errs
+
+
+def _check_view_bounds(
+    root: Path,
+    data: dict,
+    bound: list[tuple[str, str, list[tuple[str, int | None]]]],
+) -> list[str]:
+    """Rule 8: a view's set is declared once, and C refuses past it.
+
+    A view names a subset of its parent's values for Python; C, which takes
+    the parent's type, has to refuse the rest, and that refusal is a second
+    statement of the same set. So the comparison carries `SSOT: view=X`, the
+    view is a PREFIX of its parent (one comparison bounds it), and the
+    comparison names the view's last enumerator. Adding a value to the view
+    without moving the refusal, or the reverse, is then red.
+    """
+    views = _views(data, bound)
+    marks: dict[str, list[tuple[str, str | None]]] = {v: [] for v in views}
+    errs: list[str] = []
+    for top in SCAN_ROOTS:
+        for path in sorted((root / top).rglob("*.[ch]")):
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                continue
+            rel = path.relative_to(root).as_posix()
+            for m in _VIEW_RE.finditer(text):
+                where = f"{rel}:{text.count(chr(10), 0, m.start()) + 1}"
+                view = m.group("view")
+                if view not in views:
+                    errs.append(
+                        f"{where}: `SSOT: view={view}` names no view (an"
+                        " [[enum]] whose names all belong to one bound C"
+                        " enum, with none of its own)."
+                    )
+                    continue
+                # The statement after the annotation's comment.
+                after = text.find("*/", m.end())
+                after = m.end() if after < 0 else after + 2
+                end = min(
+                    (
+                        i
+                        for i in (text.find(";", after), text.find("{", after))
+                        if i >= 0
+                    ),
+                    default=len(text),
+                )
+                cmp_ = _BOUND_CMP_RE.search(text, after, end)
+                marks[view].append(
+                    (where, cmp_.group("name") if cmp_ else None)
+                )
+    for view, (parent, pairs, names) in views.items():
+        found = marks[view]
+        if len(found) != 1:
+            errs.append(
+                f"{MANIFEST_REL}: view [[enum]] {view} needs exactly one C"
+                f" comparison carrying `SSOT: view={view}`, the refusal of"
+                f" {parent}'s other values; found {len(found)}"
+                f"{': ' + ', '.join(w for w, _ in found) if found else ''}."
+            )
+            continue
+        where, cmp_name = found[0]
+        parent_names = [n for n, _ in pairs]
+        if names != parent_names[: len(names)]:
+            errs.append(
+                f"{where}: view {view} ({names}) is not a prefix of {parent}"
+                f" ({parent_names}), so one comparison cannot bound it."
+            )
+        elif cmp_name != names[-1]:
+            errs.append(
+                f"{where}: the refusal compares against {cmp_name}, but view"
+                f" {view}'s last enumerator is {names[-1]}: the C and Python"
+                " sets differ."
+            )
     return errs
 
 
@@ -608,7 +735,10 @@ def check(root: Path, base: str = "origin/main") -> list[str]:
 
     # Rule 7 -- an [[enum]] bound by name has one C enum with its names.
     errs += _check_bound_enums(root, data)
-    errs += _check_bound_values(root, base, bound_enums(root)[0])
+    bound = bound_enums(root)[0]
+    errs += _check_bound_values(root, base, bound)
+    # Rule 8 -- a view's set is declared once, and C refuses past it.
+    errs += _check_view_bounds(root, data, bound)
     return errs
 
 
@@ -643,10 +773,13 @@ def main() -> int:
 
     root = args.root.resolve()
     n = len(_tables((root / NAMES_H_REL).read_text(encoding="utf-8")))
-    k = len(bound_enums(root)[0])
+    bound = bound_enums(root)[0]
+    data = tomllib.loads((root / MANIFEST_REL).read_text(encoding="utf-8"))
+    v = len(_views(data, bound))
     print(
         f"wfm-enum-tables: OK — {n} table(s) match their [[enum]],"
-        f" {k} C enum(s) bound by name, 0 second homes"
+        f" {len(bound)} C enum(s) bound by name, {v} view(s) bounded in C,"
+        " 0 second homes"
     )
     return 0
 

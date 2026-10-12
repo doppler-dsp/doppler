@@ -67,10 +67,9 @@ default = "0.0f"
 # [[enum]] spectrogram_mode, bound by name to DP_SPECTROGRAM_POWER / _DB, so
 # the binding writes the constants and their order is the header's alone.
 #
-# Configuration, not state: create() sets the mode, and the state blob holds
-# only the framer's carry. A blob written in one mode therefore loads into an
-# object of the other mode, without a refusal. Whether that refusal should
-# exist is open: #2102.
+# Configuration: create() sets the mode. The state blob (version 2) carries it
+# with the rest of the configuration a row depends on (nfft, hop, window, the
+# Kaiser beta), so set_state refuses a blob from another mode (#2102).
 [[spectrogram.init_params]]
 name = "mode"
 type = "enum:spectrogram_mode"
@@ -82,9 +81,6 @@ default = "power"
 # output for every row the chunk can complete, so consumed equals the chunk
 # length; a caller bounds memory by pushing smaller chunks, sized with
 # rows_for. A smaller out is refused with ValueError (jm#2230 is the gap).
-# The state blob is version 2 and carries the configuration (mode, nfft, hop,
-# window, beta), so a blob from another configuration is refused on restore;
-# that is the owner's ruling on #2102, and the PR body says so.
 [[spectrogram.methods]]
 name = "push"
 arg_type = "float _Complex[]"

@@ -21,18 +21,21 @@
  *   9. rows are DC-centred: bin k at index nfft/2 + k, as PSD emits them
  *  10. the state blob: round trip, a mid-frame split resumed in a FRESH
  *      object bit for bit, fixed size, wrong hop refused (G4)
+ * 10b. a blob from another configuration -- mode, nfft, hop, window, or a
+ *      Kaiser beta -- is refused and leaves the object byte-identical
+ *      (#2102); another beta under Hann restores, since it changes no row
  *  11. the Python face's sizing: chunks shorter than a frame, each out sized
  *      by push_max_out (mostly 0), equal one big push bit for bit (G7)
  *  12. beta is ignored outside the Kaiser window
  *  13. an all-zero row reads exactly 0 in power, and exactly the kernel's
  *      -200 dB floor in dB
  *  14. the blob: its size is a function of nfft alone, its envelope is
- *      'SPGM' version 1, it carries the stream position and nothing else,
- *      get_state writes every byte, and set_state refuses a wrong magic,
- *      version, envelope size, nfft, hop or an impossible carry, leaving
- *      the object as it was (G4)
- * 14b. a different window, beta or mode is NOT refused on restore: the rows
- *      that follow are the restoring object's, not the blob's source's
+ *      'SPGM' version 2, it carries the configuration a row depends on and
+ *      the stream position, get_state writes every byte, and set_state
+ *      refuses a wrong magic, version, envelope size, nfft, hop or an
+ *      impossible carry, leaving the object as it was (G4)
+ * 14b. a blob another window, Kaiser beta or mode wrote is REFUSED on
+ *      restore, at every cut of a running stream, and nothing changes
  *  15. a row arrives with the push that delivers its last sample: zero
  *      latency in samples
  *
@@ -740,6 +743,7 @@ sections (int mode)
     free (got);
   }
 
+  /* ---- 10b. a blob from another configuration is REFUSED ------------ */
   /* A blob from another configuration is refused and leaves the object
      byte-identical (#2102): a power checkpoint never loads into a dB object,
      and nfft, hop, window and a Kaiser beta are refused the same way. A

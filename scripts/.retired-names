@@ -74,3 +74,18 @@ doppler-doxygen:	the CI image — see deploy/docker/README.md
 \bdp_wfm_source_describe_frame\b	the source's carried frame, or dp_wfm_frame_fixed() of its common fields
 \bFrameLayout\b	Frame.field_off(Frame.field_index("payload")) -- a frame is read by name
 \bdp_wfm_synth_set_dsss\b(?!_)	dp_wfm_dsss_desc_chips() then dp_wfm_synth_set_dsss_chips()
+
+# doppler#1894 / #2102: the Spectrogram's state blob carries its configuration
+# (version 2), and a restore REFUSES another window, mode or Kaiser beta. The
+# version-1 contract said the opposite in the header, the manifest, the design
+# page, the C test index and the certification, and 3a29bc8d0 changed the code
+# while every one of those kept its old sentence. Each row is one of those
+# sentences' own phrasing, matched per line: "NOT refused" alone is live in
+# other objects (mpsk, wfm_compose, the interleaver), so it is never a row.
+beta or mode is NOT refused	a blob from another window, mode or Kaiser beta is refused (#2102)
+header says are NOT refused	the header refuses another window, mode or Kaiser beta (#2102)
+the caller's to keep	the blob carries the configuration, and set_state refuses another (#2102)
+another window or mode restores without	another window, mode or Kaiser beta is refused (#2102)
+framer's snapshot and nothing else	the configuration a row depends on, then the framer's snapshot (#2102)
+does not carry consumed\(\), the PSD's window	it carries mode, nfft, hop, window and beta, not consumed() (#2102)
+without a refusal\. Whether that refusal	set_state refuses a blob from another mode (#2102)

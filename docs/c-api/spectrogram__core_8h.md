@@ -589,7 +589,7 @@ int dp_spectrogram_set_state (
 
 
 
-Precondition, the caller's to keep because the blob does not carry it: `s` was created with the same arguments (nfft, hop, window, beta, mode) as the spectrogram the blob came from. A different nfft or hop is refused (the size and the framer's stored hop tell); a different window, beta or mode is NOT, and the rows that follow are the restoring object's, not the original's.
+The blob is refused, with `s` unchanged, when its magic, version or size is wrong; when the configuration it carries differs from `s's`  another mode, nfft, hop or window, or under the Kaiser window another beta, since a checkpoint from another configuration would mean something else (#2102); or when its carry is corrupt. A beta under any other window changes no row, so it is not compared. A version-1 blob, which carried no configuration, is refused by its version.
 
 
 
@@ -597,8 +597,8 @@ Precondition, the caller's to keep because the blob does not carry it: `s` was c
 **Parameters:**
 
 
-* `s` A spectrogram created with the same arguments. 
-* `blob` From [**dp\_spectrogram\_get\_state()**](spectrogram__core_8h.md#function-dp_spectrogram_get_state). A blob is refused, with `s` unchanged, when its magic, version or size is wrong, when its configuration differs from `s` (mode, nfft, hop, window, and beta for the Kaiser window: a checkpoint from another mode, or from a window that shapes the rows differently, would mean something else), or when its carry is corrupt.
+* `s` A spectrogram. 
+* `blob` From [**dp\_spectrogram\_get\_state()**](spectrogram__core_8h.md#function-dp_spectrogram_get_state). 
 
 
 
@@ -627,7 +627,7 @@ size_t dp_spectrogram_state_bytes (
 
 
 
-The blob is the stream position  the framer's snapshot: the carry (fewer than nfft samples, padded to nfft - 1), its element size, the stream counts, and the hop that frames them  inside the spectrogram's own envelope. It does not carry consumed(), the PSD's window or beta, or the spectrogram's own mode. So nfft and hop are checked on restore (the size and the stored hop), and window, beta and mode are the caller's to keep the same  see [**dp\_spectrogram\_set\_state()**](spectrogram__core_8h.md#function-dp_spectrogram_set_state).
+The blob is the configuration a row depends on  mode, nfft, hop, window and beta  then the stream position: the framer's snapshot, which is the carry (fewer than nfft samples, padded to nfft - 1), its element size, the stream counts and the hop that frames them. Both sit inside the spectrogram's own envelope, version 2. Every field has a fixed size, so the length depends on nfft alone. It does not carry consumed(), which reads 0 after a restore. What a restore refuses is [**dp\_spectrogram\_set\_state()**](spectrogram__core_8h.md#function-dp_spectrogram_set_state)'s.
 
 
 

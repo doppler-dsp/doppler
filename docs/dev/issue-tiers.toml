@@ -8,7 +8,7 @@
 # tier 2 a claim nothing measures   5 convergence and hygiene
 
 [meta]
-generated = "2026-10-10"
+generated = "2026-10-11"
 
 [issue.502]
 tier = 3
@@ -1067,12 +1067,6 @@ title = "bench: wfm Reader Python cells moved +11% / +21% in v0.65.0, one cell p
 status = "open"
 why = "wfm Reader Python bench cells moved +11%/+21% in v0.65.0 with no measured cause"
 
-[issue.1941]
-tier = 5
-title = "v0.66.0 plan: the C Spectrogram (#1894 slice 3a) and an issue burndown"
-status = "open"
-why = "Release tracking issue for v0.66.0: the C Spectrogram and the burndown"
-
 [issue.1957]
 tier = 5
 title = "psd: scalar readouts return 0.0 for 'no measurement', a value a real measurement also returns"
@@ -1286,16 +1280,6 @@ tier = 5
 title = "Makefile:1674 says gen-c-api-check runs via docs-invariants; it runs only as its own pre-commit hook"
 status = "open"
 
-[issue.2048]
-tier = 5
-title = "make validate: no Python-only spelling -- VALIDATORS_C= (empty) exits 2 as 'no harness sources found'"
-status = "in review ([#2124](https://github.com/doppler-dsp/doppler/pull/2124))"
-
-[issue.2050]
-tier = 5
-title = "dp_test: a FAIL written to stderr lands mid-line in a redirected log (stdout is not flushed first)"
-status = "in review ([#2133](https://github.com/doppler-dsp/doppler/pull/2133))"
-
 [issue.2053]
 tier = 2
 title = "psd: windows are symmetric (N-1), not the periodic form spectral estimation uses -- Hann n=2 is zero, -82 dBc leakage, BH ENBW 2.036"
@@ -1310,11 +1294,6 @@ status = "open"
 tier = 0
 title = "adopt just-makeit#2187: a buffer's destroy() must not unmap under its live views (#2016 item 4)"
 status = "open"
-
-[issue.2058]
-tier = 5
-title = "make gallery GALLERY_SCRIPTS=<one> still rewrites docs/assets/dsss_acq_characterization.png (the characterization step is unscoped)"
-status = "in review ([#2125](https://github.com/doppler-dsp/doppler/pull/2125))"
 
 [issue.2059]
 tier = 1
@@ -1335,11 +1314,6 @@ status = "open"
 tier = 5
 title = "package-linux: the builder image's dnf failure is discarded (docker build -q >/dev/null), and dnf has no retry"
 status = "open"
-
-[issue.2069]
-tier = 2
-title = "stream: dp_req_send/dp_rep_send truncate a payload of 2^32 bytes or more (send_raw casts size to int)"
-status = "in review ([#2144](https://github.com/doppler-dsp/doppler/pull/2144))"
 
 [issue.2071]
 tier = 2
@@ -1386,11 +1360,6 @@ tier = 2
 title = "state (#2022 family 5): receivers' and meters' setters -- RateSync bn and lock, BerMeter truth/align, acq carrier, DSSS lock_raw"
 status = "open"
 
-[issue.2084]
-tier = 2
-title = "state (#2022 family 6): AWGN amplitude is not serialized"
-status = "in review ([#2136](https://github.com/doppler-dsp/doppler/pull/2136))"
-
 [issue.2087]
 tier = 2
 title = "burst_capture: configure_search_raw() mid-stream resets acq position but not samples_fed, so every later epoch is early"
@@ -1415,16 +1384,6 @@ status = "open"
 tier = 0
 title = "_SynthEngine.set_wtype(PN|BPSK|QPSK) on an engine created otherwise segfaults on the next step"
 status = "in review ([#2132](https://github.com/doppler-dsp/doppler/pull/2132))"
-
-[issue.2102]
-tier = 2
-title = "spectrogram: refuse a checkpoint from the other mode? (owner decision)"
-status = "open"
-
-[issue.2103]
-tier = 0
-title = "dll: a NaN spacing or symbol period crashes (x86-64 OOB read) or aborts (calloc of 2^63)"
-status = "in review ([#2128](https://github.com/doppler-dsp/doppler/pull/2128))"
 
 [issue.2104]
 tier = 2
@@ -1456,17 +1415,62 @@ tier = 2
 title = "specan PullSource: a read returned 10 of 1200 frames and timed out (intermittent, CI Python 3.10)"
 status = "open"
 
-[issue.2130]
-tier = 1
-title = "test-asan is blind to out-of-bounds access through float _Complex (gcc ASan does not instrument complex types)"
-status = "in review ([#2145](https://github.com/doppler-dsp/doppler/pull/2145))"
-
 [issue.2142]
 tier = 0
 title = "set_state trusts index fields from the blob: MovingAverage writes out of bounds; delay, wfm_synth read out of bounds"
-status = "in review ([#2148](https://github.com/doppler-dsp/doppler/pull/2148))"
+status = "open"
 
 [issue.2143]
 tier = 2
 title = "bench(psd): power_onesided is timed one call per round, so its 1,024 cell moves in 7% clock steps"
 status = "in review ([#2146](https://github.com/doppler-dsp/doppler/pull/2146))"
+
+[issue.2159]
+tier = 2
+title = "specan: the source/engine handshake is written three times and the copies disagree"
+status = "open"
+
+[issue.2181]
+tier = 4
+title = "Spectrogram.flush() returns the owed row as (1, nfft) or None, at just-makeit#2233's tag"
+status = "open"
+
+[issue.2182]
+tier = 1
+title = "Validation reports restate header claims by hand; nothing ties a claim to its header sentence or its verdicts (deferred design)"
+status = "open"
+
+[issue.2183]
+tier = 4
+title = "PSD reads back hop, window, beta, pad and alpha, and PSD.mode by name"
+status = "open"
+
+[issue.2184]
+tier = 5
+title = "PSD readouts carry a meaningless count keyword and an ignored cap slot (adopt just-makeit#2233)"
+status = "open"
+
+[issue.2185]
+tier = 2
+title = "carrier_acq accepts the rect window its header excludes, at an uncalibrated threshold"
+status = "open"
+
+[issue.2186]
+tier = 5
+title = "uno-q example: name its PSD window once a release carries DP_PSD_WINDOW_*"
+status = "open"
+
+[issue.2187]
+tier = 2
+title = "PSD kernel extraction is byte-identical on x86 only; run the before/after dump on aarch64"
+status = "open"
+
+[issue.2188]
+tier = 2
+title = "docs/specan/chirp_frames.json is stale and no test reads it"
+status = "open"
+
+[issue.2189]
+tier = 5
+title = "specan nits from the #2180 review: dBm import direction, step() naming, fastapi skip"
+status = "open"

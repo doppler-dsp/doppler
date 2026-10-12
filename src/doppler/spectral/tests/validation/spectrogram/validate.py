@@ -3,9 +3,10 @@
 The Spectrogram is `native/inc/doppler/spectrogram/spectrogram_core.h`: a
 stream of any-size chunks in, rows of `nfft`-bin spectra out, one row every
 `hop` samples -- linear power by default, dBFS when asked for by name. Its
-Python face is #1894's slice 3b and does not exist yet, so this follows
-`docs/dev/contributing/validation.md`, "Certifying a component with no
-binding": **the C harness
+Python face, `doppler.spectral.Spectrogram`, is generated over this same C
+with no logic of its own, and the claims certified here are the header's, so
+they are measured in C, as `docs/dev/contributing/validation.md` describes
+for a component certified through its C API: **the C harness
 `native/validation/spectrogram_certify.c` measures; this file renders and
 asserts.** Nothing there decides what is acceptable; every threshold lives in
 `limits()` below.
@@ -19,7 +20,7 @@ certified on its own (`src/doppler/spectral/tests/validation/psd/`).
 
 Run it directly to regenerate `results.md`:
 
-    python src/doppler/tests/validation/spectrogram/validate.py
+    python src/doppler/spectral/tests/validation/spectrogram/validate.py
 
 or with `--check` to see whether the committed report is stale.
 """
@@ -425,11 +426,13 @@ def characterise(d) -> None:
         "`nfft` zero-padded to this size; each must be refused, and the "
         "target must be unchanged in `pending`, `consumed` and, at the "
         "end, in the rows its next push makes against an untouched twin "
-        "(*changed*). Last, the blob is restored into an object of "
-        "**another window**, and into one of **the other mode**, which the "
-        "header says are NOT refused: the rows must continue as that "
-        "window's own (*window wrong*), and in that mode's units (*mode "
-        "wrong*)."
+        "(*changed*). Last, the blob is offered to an object of **another "
+        "window**, of **the other mode**, and of **another beta**, each "
+        "holding a stray carry. The header refuses the first two at every "
+        "cut (#2102), and a taken one counts as *wrong* whatever its rows "
+        "read. Another beta is refused under the Kaiser window, whose rows it "
+        "shapes; under every other window it changes no row, so the blob is "
+        "taken and the stream must finish as the oracle's (*beta wrong*)."
     )
     R.md()
     R.table(
@@ -453,6 +456,8 @@ def characterise(d) -> None:
             "window wrong",
             "mode refused",
             "mode wrong",
+            "beta refused",
+            "beta wrong",
         ],
         [
             [
@@ -471,10 +476,12 @@ def characterise(d) -> None:
                 f"{_i(r, 'hop_refused')} of {_i(r, 'hop_tried')}",
                 f"{_i(r, 'nfft_refused')} of {_i(r, 'nfft_tried')}",
                 f"{_i(r, 'target_changed')}",
-                f"{_i(r, 'window_refused')}",
+                f"{_i(r, 'window_refused')} of {_i(r, 'cuts')}",
                 f"{_i(r, 'window_wrong')}",
-                f"{_i(r, 'mode_refused')}",
+                f"{_i(r, 'mode_refused')} of {_i(r, 'cuts')}",
                 f"{_i(r, 'mode_wrong')}",
+                f"{_i(r, 'beta_refused')} of {_i(r, 'cuts')}",
+                f"{_i(r, 'beta_wrong')}",
             ]
             for r in d["state"]
         ],
@@ -665,10 +672,11 @@ def review(d) -> None:
     R.find(
         "F2",
         "C-ONLY",
-        "Every claim here is verified in C, because the Spectrogram has no "
-        "Python face yet: #1894's slice 3b declares one through jm, and it "
-        "waits on just-buildit/just-makeit#2152. When it lands, the face "
-        "is a binding over the claims certified here.",
+        "Every claim here is verified in C, where the header states it. The "
+        "Python face (`doppler.spectral.Spectrogram`, #2171) is generated "
+        "over the same C with no logic of its own; its binding is pinned by "
+        "its own tests and doctests (the matrix shape, `None`, a refused "
+        "short `out`, flush's -1 raised as `ValueError`), not here.",
     )
     R.find(
         "F3",
@@ -982,6 +990,22 @@ def limits(d) -> None:
         "restored from one writes a row",
     )
 
+    # Both halves of the header's beta rule, and a Kaiser row to hold the
+    # first: without one the "refused" half would pass on no evidence.
+    R.limit(
+        bool(st)
+        and any(r["window"] == "kaiser" for r in st)
+        and all(
+            _i(r, "beta_refused")
+            == (_i(r, "cuts") if r["window"] == "kaiser" else 0)
+            and _i(r, "beta_wrong") == 0
+            for r in st
+        ),
+        "a blob from another Kaiser beta is refused at every cut; under "
+        "every other window another beta is taken, and the stream continues "
+        "bit for bit",
+    )
+
     lv = d["level"]
     R.limit(
         bool(lv) and all(_i(r, "peak_wrong") == 0 for r in lv),
@@ -1278,10 +1302,12 @@ def build(write: bool = True) -> Report:
             ],
             [
                 "C18",
-                "the blob is 'SPGM' version 1 and carries the stream "
-                "position only: not `consumed`, the window, beta or mode",
+                "the blob is 'SPGM' version 2 and carries the configuration "
+                "a row depends on (mode, `nfft`, hop, window, beta) and the "
+                "stream position, not `consumed`",
                 "§14",
-                "#2043: the blob carries `consumed` (M6); version 2 (M8)",
+                "#2043: the blob carries `consumed` (M6); the version bumped "
+                "(M8)",
                 "—",
             ],
             [
@@ -1303,7 +1329,8 @@ def build(write: bool = True) -> Report:
             [
                 "C21",
                 "`set_state` refuses a wrong magic, version, size, `nfft`, "
-                "hop or an impossible carry, changing nothing",
+                "hop or an impossible carry, changing nothing (another "
+                "window, mode or Kaiser beta: C22)",
                 "§14",
                 "#2043: any version (K5), any size (K6), an impossible "
                 "carry (K7), mutate before validating (M7). This report: "
@@ -1313,12 +1340,13 @@ def build(write: bool = True) -> Report:
             ],
             [
                 "C22",
-                "another window, beta or mode is NOT refused on restore, "
-                "and the rows that follow are the restoring object's",
-                "§14b",
-                "#2043: the restore takes the source's window back (S14b) "
-                "or its beta (S14b-β). #1968: the modes made one, which "
-                "the mode case's precondition refuses",
+                "a blob from another window, the other mode, or under the "
+                "Kaiser window another beta is refused, changing nothing "
+                "(#2102); under any other window another beta restores",
+                "§10b, §14b",
+                "this report: the mode compare removed; the window compare "
+                "removed; the beta compare removed; beta compared under "
+                "every window. Each turned the C test and §2.5 red",
                 "§2.5",
             ],
             [
@@ -1375,8 +1403,8 @@ def build(write: bool = True) -> Report:
     R.executive(
         "The Spectrogram",
         source=(
-            "Generated by `validate.py` in this folder. The Spectrogram has "
-            "no Python binding yet, so every number is measured by "
+            "Generated by `validate.py` in this folder. The claims are the C "
+            "header's, so every number is measured by "
             "`native/validation/spectrogram_certify.c` and rendered here. "
             "§2.7 also sets the measured floor beside an exponential-bin "
             "model, named where it is used. Re-run to regenerate."
@@ -1400,10 +1428,10 @@ def build(write: bool = True) -> Report:
             "because only the caller knows where its stream ends (§2.4, "
             "F9).",
             "**The blob is a fixed size per `nfft`, every byte written, "
-            "and resumes bit for bit from any cut.** It carries no "
-            "configuration: another window or mode restores without "
-            "complaint and continues as itself, so keeping the create "
-            "arguments is the caller's job (§2.5, F4).",
+            "and resumes bit for bit from any cut.** It carries the "
+            "configuration a row depends on, so a blob from another window, "
+            "the other mode or another Kaiser beta is refused at every cut "
+            "and the object is left as it was (§2.5, F4).",
             "**A dB row reads no lower than -200 dB.** A tone under the floor "
             "and digital silence give the same row, and wideband noise "
             "reaches it about `10·log10(nfft)` sooner; at `nfft` 1,024 a "

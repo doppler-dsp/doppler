@@ -187,19 +187,25 @@ DC-centred exactly as PSD's kernel emits it, bin *k* at index `nfft/2 + k`:
 bin order has one home, and an FFT-order option, if one is ever wanted,
 belongs to that kernel
 ([#1988](https://github.com/doppler-dsp/doppler/issues/1988)). The state is
-the spectrogram's envelope around the framer's snapshot and nothing else,
-because the window, the plan and the scratch are configuration.
+the spectrogram's envelope around the configuration a row depends on (mode,
+nfft, hop, window and the Kaiser beta) and the framer's snapshot. The
+configuration is there to be checked, not restored: a blob from another
+configuration would mean something else, so it is refused
+([#2102](https://github.com/doppler-dsp/doppler/issues/2102)). The plan and
+the scratch are rebuilt by `create`.
 
-The Python face is **declarative or absent**. A `push` that returns
-`(rows, nfft)` needs jm to express a two-dimensional result
-(just-buildit/just-makeit#2115, implemented by #2152's `out_cols`), and that
-is its only jm dependency: jm already sizes a `variable_output` method from
-its input through a two-argument `_max_out (state, n_in)`, which is
-`push_max_out`. Its `mode` defaults to `"power"`, and `"db"` is asked for by
-name, as in C. jm maps a string enum to the C value by position, so the face
-lists them in the constants' order: `power` (0, the zero value), then `db`
-(1). Until that release, the Spectrogram is a hand-owned C
-component (`[project].c_deps`); no hand-written binding stands in.
+The Python face, `doppler.spectral.Spectrogram`, is **declarative**: jm
+renders all of it from `objects/spectrogram.toml`, and no hand-written binding
+stands in. `push` returns `(rows, nfft)` through jm's `out_cols`
+(just-buildit/just-makeit#2115), sized from its input by the two-argument
+`push_max_out (state, n_in)`. `mode` defaults to `"power"`, and `"db"` is
+asked for by name, as in C: both faces name the same constants, bound by name
+(`[[enum]] spectrogram_mode`), so their order is the header's alone. Two
+gaps are jm's: a short `out` cannot reach `push`
+(just-buildit/just-makeit#2230), and `flush` takes the caller's row until a
+count-less method can return one
+([#2181](https://github.com/doppler-dsp/doppler/issues/2181), waiting on
+just-buildit/just-makeit#2233).
 
 ### 4.4 What it composes, and what it does not re-implement
 
@@ -243,11 +249,12 @@ method and its caveats are in the record under the same number.
 The framer's cost against the hand-written loop is a property of the ring, and
 is recorded with it in [the ring's measurements](ring-buffer-measurements.md).
 
-Its header's claims are certified in C, because it has no Python face yet:
+Its header's claims are certified in C, where they are stated; the Python
+face is generated over the same C and pinned by its own tests.
 `native/validation/spectrogram_certify.c` measures and
-`src/doppler/tests/validation/spectrogram/results.md` is the generated report,
-with the header's twenty-seven claims inventoried against their pins and the
-sabotage that turned each red.
+`src/doppler/spectral/tests/validation/spectrogram/results.md` is the
+generated report, with the header's twenty-seven claims inventoried against
+their pins and the sabotage that turned each red.
 
 ## 6. The order of work
 

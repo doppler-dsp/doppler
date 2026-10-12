@@ -41,6 +41,9 @@ RETIRED = Path(__file__).parent / ".retired-names"
 # and `.git` is not source.
 SCAN_DIRS = (
     "native",
+    # The jm manifests: hand-written, and a comment in one carried a retired
+    # restore contract for months after the code had moved (#1894).
+    "objects",
     "examples",
     "example-projects",
     "src/doppler",

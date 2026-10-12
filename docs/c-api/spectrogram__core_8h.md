@@ -204,7 +204,7 @@ dp_spectrogram_state_t * dp_spectrogram_create (
 
 
 * `nfft` Samples per frame and bins per row, which must be the same number: an nfft the PSD would zero-pad to a longer transform (anything but a power of two &gt;= 2) is refused rather than given rows wider than its frames. 
-* `hop` Samples between row starts, 1 &lt;= hop &lt;= nfft. hop == nfft tiles the stream; hop &lt; nfft overlaps the frames. 
+* `hop` Samples between row starts, 1 to nfft. 0 means nfft, which tiles the stream; the default. Less than nfft overlaps the frames. A hop above nfft would leave samples no row covers, so it is refused. 
 * `window` The window: "hann", "kaiser", "blackman-harris" or "rect", the PSD's own. It also refuses a window that sums to zero at this nfft (the symmetric Hann at nfft = 2). 
 * `beta` Kaiser beta (ignored for the other windows). 
 * `mode` Row units: "power" (linear rows, the default) or "db" (dBFS rows, asked for by name). Any other value is refused. 

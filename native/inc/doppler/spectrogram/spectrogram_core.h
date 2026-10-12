@@ -116,8 +116,10 @@ typedef struct
  *                same number: an nfft the PSD would zero-pad to a longer
  *                transform (anything but a power of two >= 2) is refused
  *                rather than given rows wider than its frames.
- * @param hop     Samples between row starts, 1 <= hop <= nfft. hop == nfft
- *                tiles the stream; hop < nfft overlaps the frames.
+ * @param hop     Samples between row starts, 1 to nfft. 0 means nfft, which
+ *                tiles the stream; the default. Less than nfft overlaps the
+ *                frames. A hop above nfft would leave samples no row covers,
+ *                so it is refused.
  * @param window  The window: "hann", "kaiser", "blackman-harris" or "rect",
  *                the PSD's own. It also refuses a window that sums to zero
  *                at this nfft (the symmetric Hann at nfft = 2).

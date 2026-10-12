@@ -39,7 +39,7 @@ The campaign's order is header first. *Pin* is the section of the C test that as
 
 | # | claim in the header | pin | red under | here |
 |---|---|---|---|---|
-| C1 | `create` refuses an `nfft` that is not a power of two of at least 2, a hop outside 1..`nfft`, a bad window index or one with no gain at `nfft` (Hann at 2), in either mode, and any mode but power and dB; it accepts both modes | §1 | #1975: the `nfft` check removed (N1), and its validation cases. #1968: power refused again; any mode accepted | — |
+| C1 | `create` refuses an `nfft` that is not a power of two of at least 2, a hop past `nfft` (0 means `nfft`), a bad window or one with no gain at `nfft` (Hann at 2), in either mode, and any mode but power and dB; it accepts both modes | §1 | #1975: the `nfft` check removed (N1), and its validation cases. #1968: power refused again; any mode accepted | — |
 | C2 | row *k* is `dp_psd_frame_linear` (power, the default) or `dp_psd_frame_db` (dB) of samples `[k*hop, k*hop + nfft)` | §2, §4 | #1975: a rotation in the row (D1); raw power as a second kernel (S3); a framer defect both paths share (T1). #1968: dB rows always, linear rows always, the modes swapped | §2.1 |
 | C3 | the rows do not depend on how the stream was split | §5 | #1975 T1; #2043: a row drained a push late (K8, K8b) | §2.1 |
 | C4 | fewer than `nfft` samples are held once a push returns | §5, §6 | #2043: one frame past the room (K1) | §2.1, §2.2 |

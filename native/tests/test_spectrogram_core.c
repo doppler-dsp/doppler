@@ -1224,8 +1224,26 @@ main (void)
                                            DP_PSD_WINDOW_HANN, 0.0f, mode)
                     == NULL);
         }
-      DP_CHECK (dp_spectrogram_create (8, 0, DP_PSD_WINDOW_HANN, 0.0f, mode)
-                == NULL); /* 0 */
+      /* hop 0 means nfft, PSD's rule: it creates, keeps hop = nfft, and its
+         rows are hop = nfft's bit for bit */
+      {
+        dp_spectrogram_state_t *z
+            = dp_spectrogram_create (8, 0, DP_PSD_WINDOW_HANN, 0.0f, mode);
+        dp_spectrogram_state_t *t
+            = dp_spectrogram_create (8, 8, DP_PSD_WINDOW_HANN, 0.0f, mode);
+        DP_REQUIRE (z != NULL && t != NULL);
+        DP_CHECK (z->hop == 8);
+        float _Complex x0[37];
+        for (size_t i = 0; i < 37; i++)
+          x0[i] = (float)i - 18.0f * (float)_Complex_I;
+        float  rz[5 * 8], rt[5 * 8];
+        size_t wz = dp_spectrogram_push (z, x0, 37, rz, 5 * 8);
+        size_t wt = dp_spectrogram_push (t, x0, 37, rt, 5 * 8);
+        DP_CHECK (wz == 4 * 8 && wz == wt);
+        DP_CHECK (memcmp (rz, rt, wz * sizeof *rz) == 0);
+        dp_spectrogram_destroy (t);
+        dp_spectrogram_destroy (z);
+      }
       DP_CHECK (dp_spectrogram_create (8, 9, DP_PSD_WINDOW_HANN, 0.0f, mode)
                 == NULL); /* > */
       /* windows no enum has, named: check_named_args.py refuses a literal

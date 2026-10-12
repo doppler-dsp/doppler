@@ -230,11 +230,26 @@ class TestFlush:
 class TestConstruction:
     """Invalid construction is refused, and the mode defaults to power."""
 
-    @pytest.mark.parametrize("hop", [0, NFFT + 1])
-    def test_hop_outside_one_to_nfft_is_refused(self, hop):
-        """hop must be in 1..nfft."""
+    def test_hop_past_nfft_is_refused(self):
+        """A hop above nfft would leave samples no row covers."""
         with pytest.raises(ValueError):
-            Spectrogram(nfft=NFFT, hop=hop)
+            Spectrogram(nfft=NFFT, hop=NFFT + 1)
+
+    @pytest.mark.parametrize("nfft", [8, 128, 1024])
+    def test_hop_0_means_nfft_at_any_nfft(self, nfft):
+        """The default hop is 0, PSD's rule: it tiles the stream at any nfft.
+
+        With a fixed default, Spectrogram(nfft=128) was refused and nfft 1024
+        silently overlapped its frames 4 to 1.
+        """
+        sp = Spectrogram(nfft=nfft)
+        assert sp.hop == nfft
+        rows = sp.push(np.ones(3 * nfft, np.complex64))
+        assert rows.shape == (3, nfft)
+        tiled = Spectrogram(nfft=nfft, hop=nfft).push(
+            np.ones(3 * nfft, np.complex64)
+        )
+        assert np.array_equal(rows, tiled)
 
     def test_mode_is_power_by_default(self):
         """A caller who does not ask for dB gets linear power."""
@@ -270,7 +285,8 @@ class TestConfiguration:
     def test_the_defaults_read_back(self):
         """The defaults are the documented ones."""
         sp = Spectrogram()
-        assert (sp.nfft, sp.window, sp.beta, sp.mode) == (
+        assert (sp.nfft, sp.hop, sp.window, sp.beta, sp.mode) == (
+            256,
             256,
             "hann",
             0.0,

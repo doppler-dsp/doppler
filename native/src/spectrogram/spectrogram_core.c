@@ -42,7 +42,11 @@ dp_spectrogram_state_t *
 dp_spectrogram_create (size_t nfft, size_t hop, int window, float beta,
                        int mode)
 {
-  /* window is validated by dp_psd_create, the one owner of the index. */
+  /* window is validated by dp_psd_create, the one owner of the index. A hop
+     of 0 means nfft, PSD's own rule (dp_psd_create_hop); nfft 0 leaves it 0,
+     and that is refused with the rest of the range. */
+  if (hop == 0)
+    hop = nfft;
   if (hop == 0 || hop > nfft)
     return NULL;
   if (mode != DP_SPECTROGRAM_POWER && mode != DP_SPECTROGRAM_DB)

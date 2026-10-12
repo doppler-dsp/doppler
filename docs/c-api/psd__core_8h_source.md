@@ -22,6 +22,14 @@
 extern "C" {
 #endif
 
+/* SSOT: enum=psd_window */
+enum {
+    DP_PSD_WINDOW_HANN = 0,            
+    DP_PSD_WINDOW_KAISER = 1,          
+    DP_PSD_WINDOW_BLACKMAN_HARRIS = 2, 
+    DP_PSD_WINDOW_RECT = 3, 
+};
+
 typedef struct {
     dp_fft_state_t *fft;          
     dp_acc_trace_state_t *avg;    

@@ -62,13 +62,13 @@ PSDObj_init (PSDObject *self, PyObject *args, PyObject *kwds)
   size_t n      = (size_t)n_raw;
   int    window = 0;
   if (strcmp (window_str, "hann") == 0)
-    window = 0;
+    window = DP_PSD_WINDOW_HANN;
   else if (strcmp (window_str, "kaiser") == 0)
-    window = 1;
+    window = DP_PSD_WINDOW_KAISER;
   else if (strcmp (window_str, "blackman-harris") == 0)
-    window = 2;
+    window = DP_PSD_WINDOW_BLACKMAN_HARRIS;
   else if (strcmp (window_str, "rect") == 0)
-    window = 3;
+    window = DP_PSD_WINDOW_RECT;
   else
     {
       PyErr_Format (PyExc_ValueError,
@@ -81,13 +81,13 @@ PSDObj_init (PSDObject *self, PyObject *args, PyObject *kwds)
   size_t bits = (size_t)bits_raw;
   int    mode = 0;
   if (strcmp (mode_str, "mean") == 0)
-    mode = 0;
+    mode = ACC_TRACE_MEAN;
   else if (strcmp (mode_str, "exp") == 0)
-    mode = 1;
+    mode = ACC_TRACE_EXP;
   else if (strcmp (mode_str, "maxhold") == 0)
-    mode = 2;
+    mode = ACC_TRACE_MAXHOLD;
   else if (strcmp (mode_str, "minhold") == 0)
-    mode = 3;
+    mode = ACC_TRACE_MINHOLD;
   else
     {
       PyErr_Format (PyExc_ValueError,
@@ -1657,8 +1657,17 @@ static PyTypeObject PSDObjType = {
     "    0.\n"
     "window : Literal[\"hann\", \"kaiser\", \"blackman-harris\", \"rect\"], "
     "default \"hann\"\n"
-    "    Window index: 0 = Hann, 1 = Kaiser, 2 = Blackman-Harris, 3 =\n"
-    "    rectangular (no taper: best resolution, worst leakage).\n"
+    "    The window: \"hann\" (the default), \"kaiser\", \"blackman-harris\" "
+    "or \"rect\"\n"
+    "    (no taper: best resolution, worst leakage); in C "
+    "DP_PSD_WINDOW_HANN,\n"
+    "    _KAISER, _BLACKMAN_HARRIS or _RECT.\n"
+    "\n"
+    "    - ``\"hann\"`` — Hann: the default.\n"
+    "    - ``\"kaiser\"`` — Kaiser, shaped by `beta`.\n"
+    "    - ``\"blackman-harris\"`` — 4-term Blackman-Harris.\n"
+    "    - ``\"rect\"`` — Rectangular: no taper, best resolution, worst "
+    "leakage.\n"
     "beta : float, default 0.0\n"
     "    Kaiser beta (ignored by every other window). One that makes the "
     "window\n"
@@ -1676,7 +1685,13 @@ static PyTypeObject PSDObjType = {
     "    64.\n"
     "mode : Literal[\"mean\", \"exp\", \"maxhold\", \"minhold\"], default "
     "\"mean\"\n"
-    "    Averaging mode index (0=mean, 1=exp, 2=maxhold, 3=minhold).\n"
+    "    Averaging mode: \"mean\", \"exp\", \"maxhold\" or \"minhold\"; in C\n"
+    "    ACC_TRACE_MEAN, _EXP, _MAXHOLD or _MINHOLD.\n"
+    "\n"
+    "    - ``\"mean\"`` — Linear running mean of all frames.\n"
+    "    - ``\"exp\"`` — Exponential moving average (alpha).\n"
+    "    - ``\"maxhold\"`` — Per-bin running maximum.\n"
+    "    - ``\"minhold\"`` — Per-bin running minimum.\n"
     "alpha : float, default 0.1\n"
     "    EMA smoothing factor, exp mode only, where it must lie in (0, 1]: "
     "the\n"

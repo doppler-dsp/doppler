@@ -37,6 +37,7 @@ typedef enum
   RC_STAGE_RESAMP = 2, 
 } rc_stage_t;
 
+/* SSOT: enum=rc_pulse */
 typedef enum
 {
   RC_PULSE_IANDD = 0, 

@@ -158,6 +158,7 @@ extern "C"
    *  NOT one of them. It is the reason this is an enum rather than the
    *  `stype` table: "auto" is -1, so a binding that numbered the names by
    *  position would make it 0 and slide every other name up by one. */
+  /* SSOT: enum=reader_stype */
   typedef enum
   {
     WFM_READER_STYPE_AUTO = -1, /**< the caller said nothing. */

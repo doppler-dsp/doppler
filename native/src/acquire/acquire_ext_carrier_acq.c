@@ -78,11 +78,11 @@ CarrierAcquisitionObj_init (CarrierAcquisitionObject *self, PyObject *args,
   size_t zero_pad = (size_t)zero_pad_raw;
   int    window   = 0;
   if (strcmp (window_str, "hann") == 0)
-    window = 0;
+    window = DP_PSD_WINDOW_HANN;
   else if (strcmp (window_str, "kaiser") == 0)
-    window = 1;
+    window = DP_PSD_WINDOW_KAISER;
   else if (strcmp (window_str, "blackman-harris") == 0)
-    window = 2;
+    window = DP_PSD_WINDOW_BLACKMAN_HARRIS;
   else
     {
       PyErr_Format (PyExc_ValueError,
@@ -514,6 +514,10 @@ static PyTypeObject CarrierAcquisitionObjType = {
     "window : Literal[\"hann\", \"kaiser\", \"blackman-harris\"], default "
     "\"hann\"\n"
     "    Enum index; 0=hann, 1=kaiser, 2=blackman-harris.\n"
+    "\n"
+    "    - ``\"hann\"`` — Hann: the default.\n"
+    "    - ``\"kaiser\"`` — Kaiser, shaped by `beta`.\n"
+    "    - ``\"blackman-harris\"`` — 4-term Blackman-Harris.\n"
     "beta : float, default 0.0\n"
     "    Kaiser beta (ignored for hann/blackman-harris).\n"
     "psd_template : NDArray[np.float32], default ...\n"

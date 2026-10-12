@@ -435,7 +435,7 @@ adr_new_carrier_acq (const dp_async_dsss_receiver_state_t *s,
                          / (double)s->refine_n_fft;
   dp_carrier_acq_state_t *ca = dp_xnn (dp_carrier_acq_create (
       target_rate, s->symbol_rate, resolution_hz, s->refine_zero_pad,
-      0 /* window=hann */, 0.0f, NULL, 0, s->pfa, s->pd, design_snr,
+      DP_PSD_WINDOW_HANN, 0.0f, NULL, 0, s->pfa, s->pd, design_snr,
       s->refine_sequential, s->refine_max_n_blocks));
   if (ca->dwell_target < s->refine_min_blocks)
     ca->dwell_target = s->refine_min_blocks;

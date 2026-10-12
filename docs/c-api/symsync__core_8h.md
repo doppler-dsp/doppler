@@ -47,8 +47,8 @@ _SymbolSync component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| enum  | [**symsync\_\_core\_8h\_1a0411cd49bb5b71852cecd93bcbf0ca2d**](#enum-symsync__core_8h_1a0411cd49bb5b71852cecd93bcbf0ca2d)  <br>_Timing-error-detector selection for_ [_**dp\_symsync\_state\_t::ted**_](structdp__symsync__state__t.md#variable-ted) _._ |
-| enum  | [**symsync\_\_core\_8h\_1abed82baf7f470b522273a3e37c24c600**](#enum-symsync__core_8h_1abed82baf7f470b522273a3e37c24c600)  <br>_Pulse code for_ [_**dp\_symsync\_ted\_slope()**_](symsync__core_8h.md#function-dp_symsync_ted_slope) _; values match rc\_pulse\_t._ |
+| enum  | [**symsync\_\_core\_8h\_1a385c44f6fb256e5716a2302a5b940388**](#enum-symsync__core_8h_1a385c44f6fb256e5716a2302a5b940388)  <br>_Pulse code for_ [_**dp\_symsync\_ted\_slope()**_](symsync__core_8h.md#function-dp_symsync_ted_slope) _; values match rc\_pulse\_t._ |
+| enum  | [**symsync\_\_core\_8h\_1ab04a0655cd1e3bcac5e8f48c18df1a57**](#enum-symsync__core_8h_1ab04a0655cd1e3bcac5e8f48c18df1a57)  <br>_Timing-error-detector selection for_ [_**dp\_symsync\_state\_t::ted**_](structdp__symsync__state__t.md#variable-ted) _._ |
 
 
 
@@ -154,13 +154,13 @@ dp_symsync_destroy(obj);
 
 
 
-### enum symsync\_\_core\_8h\_1a0411cd49bb5b71852cecd93bcbf0ca2d 
+### enum symsync\_\_core\_8h\_1a385c44f6fb256e5716a2302a5b940388 
 
-_Timing-error-detector selection for_ [_**dp\_symsync\_state\_t::ted**_](structdp__symsync__state__t.md#variable-ted) _._
+_Pulse code for_ [_**dp\_symsync\_ted\_slope()**_](symsync__core_8h.md#function-dp_symsync_ted_slope) _; values match rc\_pulse\_t._
 ```C++
-enum symsync__core_8h_1a0411cd49bb5b71852cecd93bcbf0ca2d {
-    SYMSYNC_TED_GARDNER = 0,
-    SYMSYNC_TED_DTTL = 1
+enum symsync__core_8h_1a385c44f6fb256e5716a2302a5b940388 {
+    SYMSYNC_PULSE_IANDD = 0,
+    SYMSYNC_PULSE_RRC = 1
 };
 ```
 
@@ -171,13 +171,13 @@ enum symsync__core_8h_1a0411cd49bb5b71852cecd93bcbf0ca2d {
 
 
 
-### enum symsync\_\_core\_8h\_1abed82baf7f470b522273a3e37c24c600 
+### enum symsync\_\_core\_8h\_1ab04a0655cd1e3bcac5e8f48c18df1a57 
 
-_Pulse code for_ [_**dp\_symsync\_ted\_slope()**_](symsync__core_8h.md#function-dp_symsync_ted_slope) _; values match rc\_pulse\_t._
+_Timing-error-detector selection for_ [_**dp\_symsync\_state\_t::ted**_](structdp__symsync__state__t.md#variable-ted) _._
 ```C++
-enum symsync__core_8h_1abed82baf7f470b522273a3e37c24c600 {
-    SYMSYNC_PULSE_IANDD = 0,
-    SYMSYNC_PULSE_RRC = 1
+enum symsync__core_8h_1ab04a0655cd1e3bcac5e8f48c18df1a57 {
+    SYMSYNC_TED_GARDNER = 0,
+    SYMSYNC_TED_DTTL = 1
 };
 ```
 

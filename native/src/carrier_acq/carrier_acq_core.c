@@ -68,9 +68,10 @@ dp_carrier_acq_create (double sample_rate_hz, double symbol_rate_hz,
   if (!s)
     return NULL;
 
-  s->psd = dp_psd_create (n_fft, sample_rate_hz, window, beta, zero_pad,
-                          /*full_scale=*/1.0, /*bits=*/0, /*mode=*/0 /*mean*/,
-                          /*alpha=*/0.1);
+  s->psd
+      = dp_psd_create (n_fft, sample_rate_hz, window, beta, zero_pad,
+                       /*full_scale=*/1.0, /*bits=*/0, /*mode=*/ACC_TRACE_MEAN,
+                       /*alpha=*/0.1);
   if (!s->psd)
     {
       free (s);

@@ -52,8 +52,9 @@ dp_psd_create_hop (size_t n, double fs, int window, float beta, size_t pad,
   /* fs and full_scale divide every reading, so each must be a finite
    * positive number; the negated form also refuses a NaN, which passed a
    * plain `<= 0.0` and built an estimator that read NaN. */
-  if (n < 2 || pad < 1 || !(fs > 0.0 && isfinite (fs)) || window < 0
-      || window > 3 || !(full_scale > 0.0 && isfinite (full_scale))
+  if (n < 2 || pad < 1 || !(fs > 0.0 && isfinite (fs))
+      || window < DP_PSD_WINDOW_HANN || window > DP_PSD_WINDOW_RECT
+      || !(full_scale > 0.0 && isfinite (full_scale))
       || n > ((size_t)-1) / (2 * sizeof (float _Complex)))
     return NULL;
   if (hop == 0)
@@ -100,11 +101,11 @@ dp_psd_create_hop (size_t n, double fs, int window, float beta, size_t pad,
       return NULL;
     }
 
-  if (window == 1)
+  if (window == DP_PSD_WINDOW_KAISER)
     dp_kaiser_window (s->w, n, beta);
-  else if (window == 2)
+  else if (window == DP_PSD_WINDOW_BLACKMAN_HARRIS)
     dp_blackman_harris_window (s->w, n);
-  else if (window == 3)
+  else if (window == DP_PSD_WINDOW_RECT)
     for (size_t i = 0; i < n; i++) /* rectangular: no spectral library entry */
       s->w[i] = 1.0f;
   else

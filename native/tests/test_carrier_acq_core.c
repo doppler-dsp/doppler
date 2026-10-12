@@ -66,8 +66,8 @@ main (void)
     float _Complex *x
         = _make_signal (N_SYMBOLS, SPS, SAMPLE_RATE_HZ, TONE_HZ, 12345u, &n);
     dp_carrier_acq_state_t *ca = dp_carrier_acq_create (
-        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9,
-        2.0, /*sequential=*/true, MAX_N_BLOCKS);
+        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, DP_PSD_WINDOW_HANN, 0.0f, NULL,
+        0, 1e-3, 0.9, 2.0, /*sequential=*/true, MAX_N_BLOCKS);
     DP_CHECK (ca != NULL);
     if (ca)
       {
@@ -87,8 +87,8 @@ main (void)
     float _Complex *x
         = _make_signal (N_SYMBOLS, SPS, SAMPLE_RATE_HZ, TONE_HZ, 12345u, &n);
     dp_carrier_acq_state_t *ca = dp_carrier_acq_create (
-        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9,
-        2.0, /*sequential=*/false, MAX_N_BLOCKS);
+        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, DP_PSD_WINDOW_HANN, 0.0f, NULL,
+        0, 1e-3, 0.9, 2.0, /*sequential=*/false, MAX_N_BLOCKS);
     DP_CHECK (ca != NULL);
     if (ca)
       {
@@ -111,8 +111,8 @@ main (void)
     float _Complex *x
         = _make_signal (N_SYMBOLS, SPS, SAMPLE_RATE_HZ, TONE_HZ, 12345u, &n);
     dp_carrier_acq_state_t *ca = dp_carrier_acq_create (
-        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9,
-        2.0, true, MAX_N_BLOCKS);
+        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, DP_PSD_WINDOW_HANN, 0.0f, NULL,
+        0, 1e-3, 0.9, 2.0, true, MAX_N_BLOCKS);
     DP_CHECK (ca != NULL);
     if (ca)
       {
@@ -134,8 +134,8 @@ main (void)
      up at dwell_target (the fixed, design_snr-driven wait point) ── */
   {
     dp_carrier_acq_state_t *ca = dp_carrier_acq_create (
-        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9,
-        2.0, /*sequential=*/false, MAX_N_BLOCKS);
+        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, DP_PSD_WINDOW_HANN, 0.0f, NULL,
+        0, 1e-3, 0.9, 2.0, /*sequential=*/false, MAX_N_BLOCKS);
     DP_CHECK (ca != NULL);
     if (ca)
       {
@@ -158,8 +158,8 @@ main (void)
   {
     const size_t            small_cap = 5;
     dp_carrier_acq_state_t *ca        = dp_carrier_acq_create (
-        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9,
-        2.0, /*sequential=*/true, small_cap);
+        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, DP_PSD_WINDOW_HANN, 0.0f, NULL,
+        0, 1e-3, 0.9, 2.0, /*sequential=*/true, small_cap);
     DP_CHECK (ca != NULL);
     if (ca)
       {
@@ -180,8 +180,8 @@ main (void)
      runs to completion without crashing ── */
   {
     dp_carrier_acq_state_t *probe = dp_carrier_acq_create (
-        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9,
-        2.0, true, MAX_N_BLOCKS);
+        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, DP_PSD_WINDOW_HANN, 0.0f, NULL,
+        0, 1e-3, 0.9, 2.0, true, MAX_N_BLOCKS);
     DP_CHECK (probe != NULL);
     if (probe)
       {
@@ -198,8 +198,8 @@ main (void)
         float _Complex *x = _make_signal (N_SYMBOLS, SPS, SAMPLE_RATE_HZ,
                                           TONE_HZ, 12345u, &n);
         dp_carrier_acq_state_t *ca = dp_carrier_acq_create (
-            SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, tmpl, nfft, 1e-3,
-            0.9, 2.0, true, MAX_N_BLOCKS);
+            SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, DP_PSD_WINDOW_HANN, 0.0f,
+            tmpl, nfft, 1e-3, 0.9, 2.0, true, MAX_N_BLOCKS);
         DP_CHECK (ca != NULL);
         if (ca)
           {
@@ -223,8 +223,8 @@ main (void)
      not just on a heap that happens to hand back zeros. ── */
   {
     dp_carrier_acq_state_t *ca = dp_carrier_acq_create (
-        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9,
-        2.0, true, MAX_N_BLOCKS);
+        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, DP_PSD_WINDOW_HANN, 0.0f, NULL,
+        0, 1e-3, 0.9, 2.0, true, MAX_N_BLOCKS);
     DP_CHECK (ca != NULL);
     if (ca)
       {
@@ -253,8 +253,8 @@ main (void)
   }
 
   /* ── invalid args rejected ── */
-  DP_CHECK (dp_carrier_acq_create (0.0, 0.0, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3,
-                                   0.9, 2.0, true, MAX_N_BLOCKS)
+  DP_CHECK (dp_carrier_acq_create (0.0, 0.0, 0.0, 4, DP_PSD_WINDOW_HANN, 0.0f,
+                                   NULL, 0, 1e-3, 0.9, 2.0, true, MAX_N_BLOCKS)
             == NULL);
 
   /* ── a coarse resolution still builds: the block is floored at 3 ──
@@ -271,7 +271,8 @@ main (void)
     float _Complex *x
         = _make_signal (64, SPS, SAMPLE_RATE_HZ, TONE_HZ, 777u, &n);
     for (size_t r = 0; r < sizeof res_hz / sizeof res_hz[0]; r++)
-      for (int win = 0; win <= 2; win++)
+      for (int win = DP_PSD_WINDOW_HANN; win <= DP_PSD_WINDOW_BLACKMAN_HARRIS;
+           win++)
         {
           dp_carrier_acq_state_t *ca = dp_carrier_acq_create (
               SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, res_hz[r], 4, win, 6.0f, NULL, 0,
@@ -305,11 +306,11 @@ main (void)
     float _Complex *x
         = _make_signal (N_SYMBOLS, SPS, SAMPLE_RATE_HZ, TONE_HZ, 777u, &n);
     dp_carrier_acq_state_t *a = dp_carrier_acq_create (
-        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9,
-        2.0, true, MAX_N_BLOCKS);
+        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, DP_PSD_WINDOW_HANN, 0.0f, NULL,
+        0, 1e-3, 0.9, 2.0, true, MAX_N_BLOCKS);
     dp_carrier_acq_state_t *b = dp_carrier_acq_create (
-        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9,
-        2.0, true, MAX_N_BLOCKS);
+        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, DP_PSD_WINDOW_HANN, 0.0f, NULL,
+        0, 1e-3, 0.9, 2.0, true, MAX_N_BLOCKS);
     DP_CHECK (a != NULL && b != NULL);
     if (a && b)
       {
@@ -343,8 +344,8 @@ main (void)
     float _Complex *x
         = _make_signal (N_SYMBOLS, SPS, SAMPLE_RATE_HZ, TONE_HZ, 999u, &n);
     dp_carrier_acq_state_t *ca = dp_carrier_acq_create (
-        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9,
-        2.0, /*sequential=*/true, MAX_N_BLOCKS);
+        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, DP_PSD_WINDOW_HANN, 0.0f, NULL,
+        0, 1e-3, 0.9, 2.0, /*sequential=*/true, MAX_N_BLOCKS);
     DP_CHECK (ca != NULL);
     if (ca)
       {
@@ -356,8 +357,8 @@ main (void)
         dp_carrier_acq_get_state (ca, blob);
 
         dp_carrier_acq_state_t *cr = dp_carrier_acq_create (
-            SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3,
-            0.9, 2.0, /*sequential=*/true, MAX_N_BLOCKS);
+            SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, DP_PSD_WINDOW_HANN, 0.0f,
+            NULL, 0, 1e-3, 0.9, 2.0, /*sequential=*/true, MAX_N_BLOCKS);
         DP_CHECK (cr != NULL);
         if (cr)
           {
@@ -388,11 +389,11 @@ main (void)
      checked against the live value before the blob is patched. ── */
   {
     dp_carrier_acq_state_t *ca = dp_carrier_acq_create (
-        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9,
-        2.0, true, MAX_N_BLOCKS);
+        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, DP_PSD_WINDOW_HANN, 0.0f, NULL,
+        0, 1e-3, 0.9, 2.0, true, MAX_N_BLOCKS);
     dp_carrier_acq_state_t *cr = dp_carrier_acq_create (
-        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9,
-        2.0, true, MAX_N_BLOCKS);
+        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, DP_PSD_WINDOW_HANN, 0.0f, NULL,
+        0, 1e-3, 0.9, 2.0, true, MAX_N_BLOCKS);
     DP_CHECK (ca != NULL && cr != NULL);
     if (ca && cr)
       {

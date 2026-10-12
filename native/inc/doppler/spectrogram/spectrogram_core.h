@@ -53,33 +53,40 @@ extern "C"
  * restore refuses a blob whose rows would mean something else (#2102). */
 #define SPECTROGRAM_STATE_VERSION 2u
 
-/**
- * @brief Row units: linear power against the PSD's full-scale reference.
- *        The DEFAULT: what every example, guide and binding uses unless it
- *        asks for dB by name.
- *
- * Row k is dp_psd_frame_linear() of its frame, so a full-scale tone on a bin
- * reads 1.0 whatever the window, and an all-zero frame reads 0: the only
- * floor is float32's. A power row is what an averaging consumer folds with
- * AccTrace (the mean of dB rows is not the dB of the mean), and what a
- * display converts to dB for only the bins it draws. It is the default
- * because that conversion is most of a dB row's cost: 70-83% of it at nfft
- * 256 to 65536 (docs/design/spectrogram-measurements.md section 5.8).
- *
- * It is 0, so a zeroed or calloc'd configuration selects power, never dB:
- * dB is only ever asked for. A binding that maps mode names to these values
- * by position (jm's string_enum does) lists them in this order: power, db.
- */
-#define DP_SPECTROGRAM_POWER 0
-/**
- * @brief Row units: dBFS, against the same reference. Asked for by name.
- *
- * Row k is dp_psd_frame_db() of its frame: 10*log10 of the quotient a power
- * row holds, so a full-scale tone on a bin reads 0 dB. A bin reads no lower
- * than -200 dB: PSD clamps power at 1e-20 before the log, so an all-zero
- * frame and a frame below the floor write the same row.
- */
-#define DP_SPECTROGRAM_DB 1
+/* The row units. The Python face binds "power" and "db" to these constants
+ * by name (just-makeit.toml, `[[enum]] spectrogram_mode`), so their order is
+ * this header's alone. */
+/* SSOT: enum=spectrogram_mode */
+enum
+{
+  /**
+   * @brief Row units: linear power against the PSD's full-scale reference.
+   *        The DEFAULT: what every example, guide and binding uses unless
+   *        it asks for dB by name.
+   *
+   * Row k is dp_psd_frame_linear() of its frame, so a full-scale tone on a
+   * bin reads 1.0 whatever the window, and an all-zero frame reads 0: the
+   * only floor is float32's. A power row is what an averaging consumer
+   * folds with AccTrace (the mean of dB rows is not the dB of the mean), and
+   * what a display converts to dB for only the bins it draws. It is the
+   * default because that conversion is most of a dB row's cost: 70-83% of
+   * it at nfft 256 to 65536 (docs/design/spectrogram-measurements.md
+   * section 5.8).
+   *
+   * It is 0, so a zeroed or calloc'd configuration selects power, never dB:
+   * dB is only ever asked for.
+   */
+  DP_SPECTROGRAM_POWER = 0,
+  /**
+   * @brief Row units: dBFS, against the same reference. Asked for by name.
+   *
+   * Row k is dp_psd_frame_db() of its frame: 10*log10 of the quotient a
+   * power row holds, so a full-scale tone on a bin reads 0 dB. A bin reads
+   * no lower than -200 dB: PSD clamps power at 1e-20 before the log, so an
+   * all-zero frame and a frame below the floor write the same row.
+   */
+  DP_SPECTROGRAM_DB = 1
+};
 
 /**
  * @brief Spectrogram state. Allocate with dp_spectrogram_create().
@@ -95,7 +102,7 @@ typedef struct
   float _Complex *last; /**< flush()'s zero-padded frame, nfft samples. */
   size_t nfft;          /**< Samples per frame, and bins per row.       */
   size_t hop;           /**< Samples between row starts.                */
-  int window;           /**< PSD window index (see dp_psd_create()).    */
+  int window;           /**< A DP_PSD_WINDOW_* (see dp_psd_create()).  */
   float beta;           /**< Kaiser beta (window 1 only).               */
   int mode;             /**< DP_SPECTROGRAM_POWER or DP_SPECTROGRAM_DB. */
   size_t consumed;      /**< Input samples the last push took.          */
@@ -111,12 +118,14 @@ typedef struct
  * @param hop     Samples between row starts, 1 <= hop <= nfft. hop == nfft
  *                tiles the stream; hop < nfft overlaps the frames.
  * @param window  The window: "hann", "kaiser", "blackman-harris" or "rect" in
- *                Python; in C the index 0, 1, 2 or 3 in that order, as
- *                dp_psd_create() takes it. It also refuses a window that sums
- *                to zero at this nfft (the symmetric Hann at nfft = 2).
+ *                Python; in C DP_PSD_WINDOW_HANN, _KAISER, _BLACKMAN_HARRIS or
+ *                _RECT, as dp_psd_create() takes it. It also refuses a window
+ *                that sums to zero at this nfft (the symmetric Hann at
+ *                nfft = 2).
  * @param beta    Kaiser beta (ignored for the other windows).
  * @param mode    Row units: "power" (linear rows, the default) or "db" (dBFS
- *                rows, asked for by name). Any other value is refused.
+ *                rows, asked for by name); in C DP_SPECTROGRAM_POWER or
+ *                DP_SPECTROGRAM_DB. Any other value is refused.
  * @return Heap-allocated state, or NULL on an invalid argument.
  *
  * Every row is DC-centred exactly as PSD's kernel emits it: bin k at index

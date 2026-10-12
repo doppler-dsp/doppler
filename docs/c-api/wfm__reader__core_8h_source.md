@@ -71,6 +71,7 @@ extern "C"
     WFM_FOLLOW_INTERRUPTED  
   } wfm_follow_end_t;
 
+  /* SSOT: enum=reader_stype */
   typedef enum
   {
     WFM_READER_STYPE_AUTO = -1, 

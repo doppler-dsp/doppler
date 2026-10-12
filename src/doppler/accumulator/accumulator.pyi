@@ -740,7 +740,13 @@ class AccTrace:
         Trace length in bins. Must be > 0, with n doubles a byte count a size_t
         holds; returns NULL otherwise.
     mode : Literal["mean", "exp", "maxhold", "minhold"], default "mean"
-        Reduction mode index (0=mean, 1=exp, 2=maxhold, 3=minhold).
+        Reduction mode: "mean", "exp", "maxhold" or "minhold"; in C
+        ACC_TRACE_MEAN, _EXP, _MAXHOLD or _MINHOLD.
+
+        - ``"mean"`` — Linear running mean of all frames.
+        - ``"exp"`` — Exponential moving average (alpha).
+        - ``"maxhold"`` — Per-bin running maximum.
+        - ``"minhold"`` — Per-bin running minimum.
     alpha : float, default 0.1
         EMA smoothing factor, read only by exp mode, where it must lie in (0,
         1]. Outside it the trace is not an average: 0 never leaves the first

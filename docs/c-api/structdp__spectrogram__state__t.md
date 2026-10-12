@@ -269,7 +269,7 @@ int dp_spectrogram_state_t::window;
 
 
 
-PSD window index (see [**dp\_psd\_create()**](psd__core_8h.md#function-dp_psd_create)). 
+A DP\_PSD\_WINDOW\_\* (see [**dp\_psd\_create()**](psd__core_8h.md#function-dp_psd_create)). 
  
 
 

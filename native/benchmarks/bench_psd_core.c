@@ -139,8 +139,8 @@ main (void)
     {
       /* window 0, pad 1, full_scale 1.0, bits 0, mode 0 (linear mean),
          alpha 0.1 -- the shape test_psd_core.c constructs. */
-      dp_psd_state_t *p
-          = dp_psd_create (nffts[k], 1.0e6, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
+      dp_psd_state_t *p = dp_psd_create (nffts[k], 1.0e6, DP_PSD_WINDOW_HANN,
+                                         0.0f, 1, 1.0, 0, ACC_TRACE_MEAN, 0.1);
       if (!p)
         {
           (void)fprintf (stderr, "bench_psd: dp_psd_create(nfft=%zu) NULL\n",
@@ -233,7 +233,8 @@ main (void)
            largest transform is still several frames long */
         c->reps = BLOCK / c->nfft < 4 ? 4 : BLOCK / c->nfft;
         /* Hann, pad 1: the Spectrogram's own construction */
-        c->p    = dp_psd_create (c->nfft, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
+        c->p = dp_psd_create (c->nfft, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0,
+                              0, ACC_TRACE_MEAN, 0.0);
         c->plan = dp_fft_create (c->nfft, -1, 1); /* psd_core.c's call */
         c->spec = malloc (c->nfft * sizeof *c->spec);
         c->out  = malloc (c->nfft * sizeof *c->out);

@@ -24,7 +24,7 @@ default = "1024"
 
 [[acc_trace.init_params]]
 name = "mode"
-type = "string_enum:mean,exp,maxhold,minhold"
+type = "enum:acc_trace_mode"
 default = "mean"
 
 [[acc_trace.init_params]]

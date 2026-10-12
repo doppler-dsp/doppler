@@ -82,6 +82,7 @@ typedef enum
  * fractional timing delay a downstream loop steers. Values 0/1 match
  * `MPSK_RX_PULSE_IANDD`/`_RRC` so one vocabulary covers the family.
  */
+/* SSOT: enum=rc_pulse */
 typedef enum
 {
   RC_PULSE_IANDD = 0, /**< rectangular: integrate-and-dump boxcar.        */

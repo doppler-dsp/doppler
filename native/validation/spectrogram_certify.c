@@ -87,7 +87,8 @@ row_of (int window, const float _Complex *x, float *row)
 {
   /* Kaiser at beta 8, a display's usual choice; beta is ignored otherwise */
   dp_spectrogram_state_t *s = dp_spectrogram_create (
-      NFFT, NFFT, window, window == 1 ? 8.0f : 0.0f, DP_SPECTROGRAM_DB);
+      NFFT, NFFT, window, window == DP_PSD_WINDOW_KAISER ? 8.0f : 0.0f,
+      DP_SPECTROGRAM_DB);
   if (!s)
     return -1;
   size_t w = dp_spectrogram_push (s, x, NFFT, row, NFFT);
@@ -122,14 +123,14 @@ enbw_of (int window, size_t n)
     {
       const double x = 2.0 * M_PI * (double)i / (double)(n - 1);
       double       w = 1.0; /* rect */
-      if (window == 0)
+      if (window == DP_PSD_WINDOW_HANN)
         w = 0.5 - 0.5 * cos (x);
-      else if (window == 1)
+      else if (window == DP_PSD_WINDOW_KAISER)
         {
           const double r = 2.0 * (double)i / (double)(n - 1) - 1.0;
           w = bessel_i0 (8.0 * sqrt (1.0 - r * r)) / bessel_i0 (8.0);
         }
-      else if (window == 2)
+      else if (window == DP_PSD_WINDOW_BLACKMAN_HARRIS)
         w = 0.35875 - 0.48829 * cos (x) + 0.14128 * cos (2.0 * x)
             - 0.01168 * cos (3.0 * x);
       s1 += w;
@@ -174,7 +175,7 @@ floor_tone (int emit)
   printf (emit ? "# floor_tone\nwindow,level_dbfs,tone_bin_db,"
                  "tone_bin_minus_level_db,tone_bin_is_floor,bins_at_floor\n"
                : "\nfloor_tone: an on-bin tone of power L dBFS, its bin\n");
-  for (int w = 0; w < 4; w++)
+  for (int w = DP_PSD_WINDOW_HANN; w <= DP_PSD_WINDOW_RECT; w++)
     for (size_t j = 0; j < nl; j++)
       {
         tone (pow (10.0, level[j] / 20.0), x);
@@ -204,7 +205,7 @@ leakage (int emit)
   printf (emit ? "# leakage\nwindow,offset,plus_dbc,minus_dbc\n"
                : "\nleakage: a full-scale on-bin tone, bins k away, dBc\n");
   tone (1.0, x);
-  for (int w = 0; w < 4; w++)
+  for (int w = DP_PSD_WINDOW_HANN; w <= DP_PSD_WINDOW_RECT; w++)
     {
       if (row_of (w, x, row))
         return 1;
@@ -225,7 +226,7 @@ floor_zero (int emit)
   float row[NFFT];
   printf (emit ? "# floor_zero\nwindow,bins_at_floor,bins,min_db,max_db\n"
                : "\nfloor_zero: an all-zero frame\n");
-  for (int w = 0; w < 4; w++)
+  for (int w = DP_PSD_WINDOW_HANN; w <= DP_PSD_WINDOW_RECT; w++)
     {
       if (row_of (w, x, row))
         return 1;
@@ -254,7 +255,7 @@ floor_noise (int emit)
                  "mean_at_floor,min_at_floor,max_at_floor\n"
                : "\nfloor_noise: complex noise of total power L dBFS, the "
                  "mean over frames\n");
-  for (int w = 0; w < 4; w++)
+  for (int w = DP_PSD_WINDOW_HANN; w <= DP_PSD_WINDOW_RECT; w++)
     for (size_t j = 0; j < nl; j++)
       {
         uint32_t     seed    = 1894u + (uint32_t)(100 * w + j);
@@ -319,7 +320,7 @@ stream_init (void)
 static float
 beta_of (int window)
 {
-  return window == 1 ? 8.0f : 0.0f;
+  return window == DP_PSD_WINDOW_KAISER ? 8.0f : 0.0f;
 }
 
 /* The two modes, the default first, and their names in the CSV. */
@@ -345,8 +346,8 @@ make (int mode, size_t nfft, size_t hop, int window)
 static dp_psd_state_t *
 ref_psd (size_t nfft, int window)
 {
-  return dp_psd_create (nfft, 1.0, window, beta_of (window), 1, 1.0, 0, 0,
-                        0.0);
+  return dp_psd_create (nfft, 1.0, window, beta_of (window), 1, 1.0, 0,
+                        ACC_TRACE_MEAN, 0.0);
 }
 
 /** @brief The header's statement of a row of `mode`, built separately:
@@ -482,11 +483,15 @@ sweep_rows (int emit)
 {
   /* nfft, hop, window, stream length */
   static const size_t shape[][4] = {
-    { 2, 1, 3, 4099 },         { 8, 8, 0, 10007 },
-    { 8, 3, 1, 10007 },        { 8, 1, 2, 6007 },
-    { 64, 16, 3, 30011 },      { 256, 64, 0, 65537 },
-    { 1024, 256, 1, MAXLEN },  { 1024, 1024, 2, MAXLEN },
-    { 4096, 1365, 3, MAXLEN },
+    { 2, 1, DP_PSD_WINDOW_RECT, 4099 },
+    { 8, 8, DP_PSD_WINDOW_HANN, 10007 },
+    { 8, 3, DP_PSD_WINDOW_KAISER, 10007 },
+    { 8, 1, DP_PSD_WINDOW_BLACKMAN_HARRIS, 6007 },
+    { 64, 16, DP_PSD_WINDOW_RECT, 30011 },
+    { 256, 64, DP_PSD_WINDOW_HANN, 65537 },
+    { 1024, 256, DP_PSD_WINDOW_KAISER, MAXLEN },
+    { 1024, 1024, DP_PSD_WINDOW_BLACKMAN_HARRIS, MAXLEN },
+    { 4096, 1365, DP_PSD_WINDOW_RECT, MAXLEN },
   };
   block (emit, "rows",
          "every row against PSD's reading of its slice, under fixed and "
@@ -729,9 +734,11 @@ sweep_sizing (int emit)
 static int
 sweep_flush (int emit)
 {
-  static const size_t shape[][3]
-      = { { 2, 1, 3 }, { 8, 8, 0 },   { 8, 3, 1 },
-          { 8, 1, 2 }, { 64, 16, 3 }, { 256, 64, 0 } };
+  static const size_t shape[][3] = {
+    { 2, 1, DP_PSD_WINDOW_RECT },   { 8, 8, DP_PSD_WINDOW_HANN },
+    { 8, 3, DP_PSD_WINDOW_KAISER }, { 8, 1, DP_PSD_WINDOW_BLACKMAN_HARRIS },
+    { 64, 16, DP_PSD_WINDOW_RECT }, { 256, 64, DP_PSD_WINDOW_HANN }
+  };
   block (emit, "flush",
          "every stream length 0..4*nfft+3: push, flush, flush again, restart",
          "mode,nfft,hop,window,lengths,emitted,wrong_pending,wrong_decision,"
@@ -821,9 +828,11 @@ static int
 sweep_state (int emit)
 {
   /* nfft, hop, window, cut stride */
-  static const size_t shape[][4] = {
-    { 8, 3, 0, 1 }, { 64, 16, 1, 1 }, { 256, 64, 2, 1 }, { 1024, 256, 3, 13 }
-  };
+  static const size_t shape[][4]
+      = { { 8, 3, DP_PSD_WINDOW_HANN, 1 },
+          { 64, 16, DP_PSD_WINDOW_KAISER, 1 },
+          { 256, 64, DP_PSD_WINDOW_BLACKMAN_HARRIS, 1 },
+          { 1024, 256, DP_PSD_WINDOW_RECT, 13 } };
   block (
       emit, "state",
       "a cut at every point 0..3*nfft+3 (every 13th at nfft 1024): "
@@ -840,7 +849,8 @@ sweep_state (int emit)
         const int    mode = MODES[m], mode2 = other_mode (mode);
         const size_t nfft = shape[i][0], hop = shape[i][1];
         const size_t stride = shape[i][3], len = 4 * nfft + hop + 37;
-        const int    w = (int)shape[i][2], w2 = (w + 1) % 4;
+        const int    w    = (int)shape[i][2],
+                     w2   = (w + 1) % (DP_PSD_WINDOW_RECT + 1);
         const size_t hop2 = hop < nfft ? hop + 1 : hop - 1;
         size_t       r_n, r_d, r_m;
         float       *want = oracle (mode, nfft, hop, w, len, &r_n);
@@ -1067,7 +1077,7 @@ sweep_level (int emit)
          "dB)",
          "mode,window,nfft,bins,peak_wrong,max_abs_err");
   for (size_t m = 0; m < NMODES; m++)
-    for (int w = 0; w < 4; w++)
+    for (int w = DP_PSD_WINDOW_HANN; w <= DP_PSD_WINDOW_RECT; w++)
       for (size_t i = 0; i < sizeof sizes / sizeof *sizes; i++)
         {
           const int    mode         = MODES[m];

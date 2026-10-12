@@ -73,7 +73,7 @@ default = "4"
 
 [[carrier_acq.init_params]]
 name = "window"
-type = "string_enum:hann,kaiser,blackman-harris"
+type = "enum:carrier_acq_window"
 default = "hann"
 
 [[carrier_acq.init_params]]

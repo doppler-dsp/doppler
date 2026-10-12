@@ -102,10 +102,10 @@ main (void)
 
   /* Hann window, power rows (the default), DC-centred (bin k at
      NFFT/2 + k). */
-  dp_spectrogram_state_t *a
-      = dp_spectrogram_create (NFFT, HOP, 0, 0.0f, DP_SPECTROGRAM_POWER);
-  dp_spectrogram_state_t *b
-      = dp_spectrogram_create (NFFT, HOP, 0, 0.0f, DP_SPECTROGRAM_POWER);
+  dp_spectrogram_state_t *a = dp_spectrogram_create (
+      NFFT, HOP, DP_PSD_WINDOW_HANN, 0.0f, DP_SPECTROGRAM_POWER);
+  dp_spectrogram_state_t *b = dp_spectrogram_create (
+      NFFT, HOP, DP_PSD_WINDOW_HANN, 0.0f, DP_SPECTROGRAM_POWER);
   CHECK (a != NULL && b != NULL);
 
   /* rows_for is exact: how many rows the whole stream makes, before a

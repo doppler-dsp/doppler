@@ -42,6 +42,23 @@ extern "C" {
 #endif
 
 /**
+ * @brief The window of dp_psd_create(), and of every object that builds its
+ *        frames through it (the Spectrogram, carrier acquisition).
+ *
+ * HANN is 0, so a zeroed configuration is Hann. The Python faces name the
+ * same windows "hann", "kaiser", "blackman-harris" and "rect", bound to these
+ * constants by name (just-makeit.toml, `[[enum]] psd_window`).
+ */
+/* SSOT: enum=psd_window */
+enum {
+    DP_PSD_WINDOW_HANN = 0,            /**< Hann: the default.              */
+    DP_PSD_WINDOW_KAISER = 1,          /**< Kaiser, shaped by `beta`.       */
+    DP_PSD_WINDOW_BLACKMAN_HARRIS = 2, /**< 4-term Blackman-Harris.         */
+    DP_PSD_WINDOW_RECT = 3, /**< Rectangular: no taper, best resolution,
+                                 worst leakage.                         */
+};
+
+/**
  * @brief PSD state.  Allocate with dp_psd_create().
  */
 typedef struct {
@@ -71,8 +88,10 @@ typedef struct {
  * @param n           Window / frame length in samples.  Must be >= 2.
  * @param fs          Sample rate in Hz (used for dB/Hz and band frequencies);
  *                    finite and > 0.
- * @param window      Window index: 0 = Hann, 1 = Kaiser, 2 = Blackman-Harris,
- *                    3 = rectangular (no taper: best resolution, worst leakage).
+ * @param window      The window: "hann" (the default), "kaiser",
+ *                    "blackman-harris" or "rect" (no taper: best resolution,
+ *                    worst leakage); in C DP_PSD_WINDOW_HANN, _KAISER,
+ *                    _BLACKMAN_HARRIS or _RECT.
  * @param beta        Kaiser beta (ignored by every other window). One that
  *                    makes the window non-finite -- NaN, or large enough to
  *                    overflow it -- is refused.
@@ -84,7 +103,8 @@ typedef struct {
  * @param bits        ADC depth: when > 0, sets full_scale = 2^(bits-1) (the
  *                    single definition of the dBFS reference); 0 = use
  *                    @p full_scale directly.  At most 64.
- * @param mode        Averaging mode index (0=mean, 1=exp, 2=maxhold, 3=minhold).
+ * @param mode        Averaging mode: "mean", "exp", "maxhold" or "minhold";
+ *                    in C ACC_TRACE_MEAN, _EXP, _MAXHOLD or _MINHOLD.
  * @param alpha       EMA smoothing factor, exp mode only, where it must lie in
  *                    (0, 1]: the rule is the AccTrace averager's, whose
  *                    create refuses anything else, so this does too.
@@ -120,8 +140,10 @@ dp_psd_state_t *dp_psd_create(size_t n, double fs, int window, float beta,
  * @param n           Window / frame length in samples.  Must be >= 2.
  * @param fs          Sample rate in Hz (used for dB/Hz and band frequencies);
  *                    finite and > 0.
- * @param window      Window index: 0 = Hann, 1 = Kaiser, 2 = Blackman-Harris,
- *                    3 = rectangular (no taper: best resolution, worst leakage).
+ * @param window      The window: "hann" (the default), "kaiser",
+ *                    "blackman-harris" or "rect" (no taper: best resolution,
+ *                    worst leakage); in C DP_PSD_WINDOW_HANN, _KAISER,
+ *                    _BLACKMAN_HARRIS or _RECT.
  * @param beta        Kaiser beta (ignored by every other window). One that
  *                    makes the window non-finite -- NaN, or large enough to
  *                    overflow it -- is refused.
@@ -133,7 +155,8 @@ dp_psd_state_t *dp_psd_create(size_t n, double fs, int window, float beta,
  * @param bits        ADC depth: when > 0, sets full_scale = 2^(bits-1) (the
  *                    single definition of the dBFS reference); 0 = use
  *                    @p full_scale directly.  At most 64.
- * @param mode        Averaging mode index (0=mean, 1=exp, 2=maxhold, 3=minhold).
+ * @param mode        Averaging mode: "mean", "exp", "maxhold" or "minhold";
+ *                    in C ACC_TRACE_MEAN, _EXP, _MAXHOLD or _MINHOLD.
  * @param alpha       EMA smoothing factor, exp mode only, where it must lie in
  *                    (0, 1]: the rule is the AccTrace averager's, whose
  *                    create refuses anything else, so this does too.
@@ -250,7 +273,8 @@ void dp_psd_frame_power(dp_psd_state_t *state, const float _Complex *x,
  * @param out    Output, @c state->nfft floats, DC-centred.
  *
  * @code
- * dp_psd_state_t *p = dp_psd_create (8, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.0);
+ * dp_psd_state_t *p = dp_psd_create (8, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0,
+ *                                    0, ACC_TRACE_MEAN, 0.0);
  * float _Complex x[8];
  * float lin[8];
  * for (int i = 0; i < 8; i++)
@@ -279,7 +303,8 @@ void dp_psd_frame_linear(dp_psd_state_t *state, const float _Complex *x,
  * @param out    Output, @c state->nfft floats, DC-centred.
  *
  * @code
- * dp_psd_state_t *p = dp_psd_create (8, 1.0, 3, 0.0f, 1, 1.0, 0, 0, 0.0);
+ * dp_psd_state_t *p = dp_psd_create (8, 1.0, DP_PSD_WINDOW_RECT, 0.0f, 1, 1.0,
+ *                                    0, ACC_TRACE_MEAN, 0.0);
  * float _Complex x[8];
  * float db[8];
  * for (int i = 0; i < 8; i++)

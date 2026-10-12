@@ -137,8 +137,8 @@ Lifecycle: create -&gt; steps()\* -&gt; (ready ? residual\_hz : keep feeding) -&
 
 ```C++
 dp_carrier_acq_state_t *ca = dp_carrier_acq_create(
-    4.092e6, 100e3, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9, 2.0, true,
-    100000);
+    4.092e6, 100e3, 0.0, 4, DP_PSD_WINDOW_HANN, 0.0f, NULL, 0, 1e-3, 0.9,
+    2.0, true, 100000);
 while (!ca->ready && ca->n_blocks < ca->max_n_blocks)
     dp_carrier_acq_steps(ca, block, block_len);
 double hz = ca->residual_hz; // valid only when ca->ready

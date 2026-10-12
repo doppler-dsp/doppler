@@ -24,6 +24,10 @@ class CarrierAcquisition:
         PSD zero-pad factor (>= 1); see psd_core.h.
     window : Literal["hann", "kaiser", "blackman-harris"], default "hann"
         Enum index; 0=hann, 1=kaiser, 2=blackman-harris.
+
+        - ``"hann"`` — Hann: the default.
+        - ``"kaiser"`` — Kaiser, shaped by `beta`.
+        - ``"blackman-harris"`` — 4-term Blackman-Harris.
     beta : float, default 0.0
         Kaiser beta (ignored for hann/blackman-harris).
     psd_template : NDArray[np.float32], default ...

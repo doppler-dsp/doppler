@@ -1683,8 +1683,14 @@ class PSD:
         Sample rate in Hz (used for dB/Hz and band frequencies); finite and >
         0.
     window : Literal["hann", "kaiser", "blackman-harris", "rect"], default "hann"
-        Window index: 0 = Hann, 1 = Kaiser, 2 = Blackman-Harris, 3 =
-        rectangular (no taper: best resolution, worst leakage).
+        The window: "hann" (the default), "kaiser", "blackman-harris" or "rect"
+        (no taper: best resolution, worst leakage); in C DP_PSD_WINDOW_HANN,
+        _KAISER, _BLACKMAN_HARRIS or _RECT.
+
+        - ``"hann"`` — Hann: the default.
+        - ``"kaiser"`` — Kaiser, shaped by `beta`.
+        - ``"blackman-harris"`` — 4-term Blackman-Harris.
+        - ``"rect"`` — Rectangular: no taper, best resolution, worst leakage.
     beta : float, default 0.0
         Kaiser beta (ignored by every other window). One that makes the window
         non-finite -- NaN, or large enough to overflow it -- is refused.
@@ -1698,7 +1704,13 @@ class PSD:
         definition of the dBFS reference); 0 = use full_scale directly. At most
         64.
     mode : Literal["mean", "exp", "maxhold", "minhold"], default "mean"
-        Averaging mode index (0=mean, 1=exp, 2=maxhold, 3=minhold).
+        Averaging mode: "mean", "exp", "maxhold" or "minhold"; in C
+        ACC_TRACE_MEAN, _EXP, _MAXHOLD or _MINHOLD.
+
+        - ``"mean"`` — Linear running mean of all frames.
+        - ``"exp"`` — Exponential moving average (alpha).
+        - ``"maxhold"`` — Per-bin running maximum.
+        - ``"minhold"`` — Per-bin running minimum.
     alpha : float, default 0.1
         EMA smoothing factor, exp mode only, where it must lie in (0, 1]: the
         rule is the AccTrace averager's, whose create refuses anything else, so
@@ -2225,14 +2237,20 @@ class Spectrogram:
         stream; hop < nfft overlaps the frames.
     window : Literal["hann", "kaiser", "blackman-harris", "rect"], default "hann"
         The window: "hann", "kaiser", "blackman-harris" or "rect" in Python; in
-        C the index 0, 1, 2 or 3 in that order, as dp_psd_create() takes it. It
-        also refuses a window that sums to zero at this nfft (the symmetric
-        Hann at nfft = 2).
+        C DP_PSD_WINDOW_HANN, _KAISER, _BLACKMAN_HARRIS or _RECT, as
+        dp_psd_create() takes it. It also refuses a window that sums to zero at
+        this nfft (the symmetric Hann at nfft = 2).
+
+        - ``"hann"`` — Hann: the default.
+        - ``"kaiser"`` — Kaiser, shaped by `beta`.
+        - ``"blackman-harris"`` — 4-term Blackman-Harris.
+        - ``"rect"`` — Rectangular: no taper, best resolution, worst leakage.
     beta : float, default 0.0
         Kaiser beta (ignored for the other windows).
     mode : Literal["power", "db"], default "power"
         Row units: "power" (linear rows, the default) or "db" (dBFS rows, asked
-        for by name). Any other value is refused.
+        for by name); in C DP_SPECTROGRAM_POWER or DP_SPECTROGRAM_DB. Any other
+        value is refused.
 
     Raises
     ------

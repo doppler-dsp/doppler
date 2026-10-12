@@ -454,6 +454,16 @@ def test_fix_proves_the_rewrite_before_making_it() -> None:
     assert g._fix_span("w + 1", 0, 5, "K") is None
 
 
+def test_the_gates_own_examples_hold() -> None:
+    """The examples in the gate's docstrings are claims about its parser:
+    nothing else runs a script's doctests, so this does (#2227)."""
+    import doctest
+
+    r = doctest.testmod(_gate())
+    assert r.failed == 0
+    assert r.attempted >= 2, "the gate's examples were not found"
+
+
 def test_a_row_whose_function_is_never_called_fails(tmp_path: Path) -> None:
     """Fail-closed per row: a renamed function would otherwise check nothing
     and read as clean, however many calls the other rows found."""
@@ -756,6 +766,53 @@ def test_a_parameter_feeding_two_enums_is_named_only_where_they_agree(
     assert r.returncode == 0, r.stdout
     fixed = (agree / rel).read_text(encoding="utf-8")
     assert "both (DP_PSD_WINDOW_KAISER);" in fixed
+
+
+#: A variadic helper: two named parameters, then `...`.
+_VARIADIC_C = """\
+static void
+logged (size_t n, int w, ...)
+{
+  dp_psd_create (n, 1.0, w, 0.0f, 1, 1.0, 0, ACC_TRACE_MEAN, 0.1);
+}
+
+void
+call_logged (void)
+{
+  logged (64, DP_PSD_WINDOW_HANN);
+  logged (64, LITERAL, "x", 3);
+}
+"""
+
+
+def test_a_variadic_helper_takes_at_least_its_named_arguments(
+    tmp_path: Path,
+) -> None:
+    """`...` is not a parameter: `logged (n, w, ...)` takes at least two
+    arguments, so a call with two and a call with four are both its calls,
+    and a literal at either is named. Counted as a third parameter, both
+    were arity findings and the literal went unnamed (#2227). Fewer than
+    two is still an arity finding: the named parameters are a minimum."""
+    rel = "native/tests/logged.c"
+    named = _VARIADIC_C.replace("LITERAL", "DP_PSD_WINDOW_HANN")
+    _seed(tmp_path, **{rel: named})
+    r = _run(tmp_path)
+    assert r.returncode == 0, r.stdout
+
+    lit = tmp_path / "lit"
+    _seed(lit, **{rel: _VARIADIC_C.replace("LITERAL", "3")})
+    r = _run(lit, "--fix")
+    assert r.returncode == 0, r.stdout
+    fixed = (lit / rel).read_text(encoding="utf-8")
+    assert 'logged (64, DP_PSD_WINDOW_RECT, "x", 3);' in fixed, fixed
+
+    short = tmp_path / "short"
+    _seed(short, **{rel: named.replace("logged (64, DP", "logged (DP", 1)})
+    r = _run(short)
+    assert r.returncode == 1, r.stdout
+    assert (
+        f"{rel}:10: logged called with 1 argument(s), its row says at least 2"
+    ) in r.stdout, r.stdout
 
 
 def test_a_helper_name_in_another_file_is_not_checked(tmp_path: Path) -> None:

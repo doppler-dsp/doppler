@@ -367,21 +367,24 @@ def test_generated_c_api_pages_are_not_the_gates(tmp_path: Path) -> None:
     assert _run(tmp_path).returncode == 0
 
 
-def test_example_projects_are_exempt_for_the_window_slot_only(
-    tmp_path: Path,
-) -> None:
-    """The example projects build against a released doppler, which has the
-    mode names but no DP_PSD_WINDOW_* yet (#2186): their window may be a
-    number, and every other slot is held."""
-    ok = "x = dp_spectrogram_create (8, 4, 0, 0.0f, DP_SPECTROGRAM_POWER);\n"
+def test_example_projects_hold_the_window_slot_too(tmp_path: Path) -> None:
+    """The example projects build against a released doppler, and v0.67.0
+    carries the DP_PSD_WINDOW_* names (#2186), so their window slot is held
+    like every other: a name passes, and a number fails with its line."""
+    ok = (
+        "x = dp_spectrogram_create (8, 4, DP_PSD_WINDOW_HANN, 0.0f,\n"
+        "                           DP_SPECTROGRAM_POWER);\n"
+    )
     _seed(tmp_path, **{"example-projects/q/m.c": ok})
     assert _run(tmp_path).returncode == 0
-    bad = "x = dp_psd_create (8, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);\n"
+    bad = "x = dp_spectrogram_create (8, 4, 0, 0.0f, DP_SPECTROGRAM_POWER);\n"
     _seed(tmp_path / "bad", **{"example-projects/q/m.c": bad})
     r = _run(tmp_path / "bad")
     assert r.returncode == 1
-    assert "example-projects/q/m.c:1: dp_psd_create mode = 0" in r.stdout
-    assert "window" not in r.stdout.split("FAIL", 1)[1].split("Pass")[0]
+    assert (
+        "example-projects/q/m.c:1: dp_spectrogram_create window = 0 "
+        "(write DP_PSD_WINDOW_HANN)" in r.stdout
+    ), r.stdout
 
 
 @pytest.mark.parametrize(

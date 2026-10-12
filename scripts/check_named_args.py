@@ -63,9 +63,9 @@ file keeps no copy of any name or value.
 moment it is committed. Calls are joined across lines, and a header comment's
 ``*`` continuation is stripped first, so a call wrapped inside an ``@code``
 block is read whole. ``docs/c-api/`` is skipped: it is generated from the
-headers this already scans. ``example-projects/`` is scanned, except its
-window slots: those projects build against a RELEASED doppler, which has the
-mode names but no ``DP_PSD_WINDOW_*`` yet (#2186).
+headers this already scans. ``example-projects/`` is scanned like the rest:
+those projects build against a RELEASED doppler, and v0.67.0 carries the
+``DP_PSD_WINDOW_*`` names, so their window slots are held too (#2186).
 
 **Fail-closed.** Every function in ``TABLE`` must be called at least once: a
 row whose function was renamed away would otherwise check nothing and read
@@ -129,12 +129,6 @@ TABLE: dict[str, tuple[int, dict[int, tuple[str, str]]]] = {
 
 #: Tracked trees that are not this gate's: generated from what it scans.
 SKIP = ("docs/c-api/",)
-
-#: path prefix -> the enums whose slots it may still write as numbers. The
-#: example projects build against a RELEASED doppler (uno-q pins 0.66.0),
-#: which has the mode names but no DP_PSD_WINDOW_* yet (#2186); every other
-#: slot there is checked.
-EXEMPT_SLOTS = {"example-projects/": frozenset({"psd_window"})}
 
 
 def _call_re(table: dict[str, object]) -> re.Pattern[str]:
@@ -417,15 +411,14 @@ def check_text(
     text: str,
     names: dict[str, dict[int, str]],
     is_c: bool,
-    exempt: frozenset[str] = frozenset(),
     helpers: dict[str, tuple[int, dict[int, tuple[str, str]]]] | None = None,
 ) -> tuple[dict[str, int], list[Finding]]:
     """Calls checked per function, and each finding: a literal in a named
-    slot (not one of the `exempt` enums), or a call whose argument count is
-    not its row's -- a signature change must not leave a stale row quietly
-    checking nothing. A zero-argument mention is prose, not a call, and a
-    definition or prototype (every argument a declaration) is not one
-    either. `helpers` are this file's own rows, checked beside TABLE's."""
+    slot, or a call whose argument count is not its row's -- a signature
+    change must not leave a stale row quietly checking nothing. A
+    zero-argument mention is prose, not a call, and a definition or
+    prototype (every argument a declaration) is not one either. `helpers`
+    are this file's own rows, checked beside TABLE's."""
     table = {**TABLE, **(helpers or {})}
     scan = _STRING.sub(lambda m: " " * len(m.group(0)), text) if is_c else text
     hits = [(m, scan) for m in _CALL.finditer(scan)]
@@ -468,8 +461,6 @@ def check_text(
             continue
         calls[func] = calls.get(func, 0) + 1
         for idx, (param, enum) in slots.items():
-            if enum in exempt:
-                continue
             s, e = spans[idx]
             bare = _bare(text[s:e])
             if not (_INT.fullmatch(bare) or _CHAR.fullmatch(bare)):
@@ -541,15 +532,10 @@ def main(argv: list[str]) -> int:
             text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        exempt = frozenset().union(
-            *(e for p, e in EXEMPT_SLOTS.items() if rel.startswith(p))
-        )
         helpers = discover(text) if rel.endswith(".c") else None
         if helpers:
             discovered += len(helpers)
-        n, found = check_text(
-            text, names, not rel.endswith(".md"), exempt, helpers
-        )
+        n, found = check_text(text, names, not rel.endswith(".md"), helpers)
         if n:
             files += 1
             for f, k in n.items():

@@ -21,9 +21,9 @@ fragment = "generated"
 # Composes acq's shared engine (dp_acq_state_t/acq_core.c) -- this class is the
 # BURST front door (see docs/design/async-dsss-receiver.md's Acquisition/
 # BurstAcquisition split); today's existing pre-split Acquisition behavior,
-# unchanged, including its wideband fallback for doppler_uncertainty beyond
-# the native span (coherent depth structurally can't cover more than one
-# native span, regardless of class). The hand-written burst_acq_core.h/.c
+# unchanged, including its wideband mode for doppler_uncertainty beyond the
+# native span (window tiles, with a coherent depth inside each tile when a
+# design cn0_dbhz asks for one; D = 1 without). The hand-written burst_acq_core.h/.c
 # (below) is a thin forwarder onto dp_acq_create_burst()/dp_acq_push()/etc -- the
 # entire algorithm lives in acq_core.c exactly once.
 depends_on = [
@@ -146,8 +146,8 @@ doc = "Delay hypotheses searched: one repetition of the preamble, in samples (le
 [[burst_acq.properties]]
 name = "doppler_bins"
 type = "size_t"
-expr = "((self->handle->engine->window_bins > 1) ? self->handle->engine->window_bins : self->handle->engine->coherent_bins)"
-doc = "Coherent depth chosen: the slow-time FFT length in code reps (<= reps), unless doppler_uncertainty exceeds the native span, in which case this reports the wideband window-tile count instead (coherent depth forced to 1 -- see acq_core.h's file doc comment)."
+expr = "acq_grid_bins(self->handle->engine)"
+doc = "Doppler hypotheses searched: the coherent depth chosen (the slow-time FFT length in code reps, <= reps), times the window-tile count when doppler_uncertainty exceeds the native span -- a tile keeps its own coherent depth when a design cn0_dbhz asks for one, and a hit's doppler_bin indexes all of window_bins * depth rows. This is the count to fold a hit's bin over (bin_to_signed(bin, doppler_bins) * doppler_res_hz is the signed Doppler); it is acq_grid_bins(), and the same number BurstCapture.doppler_bins reads."
 
 [[burst_acq.properties]]
 name = "reps"

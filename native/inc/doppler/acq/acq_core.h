@@ -40,9 +40,10 @@
  *   latency for a strong signal, unmodulated bursts/preambles only.  A tighter
  *   @p doppler_uncertainty shrinks the searched cell count, lowering the
  *   Sidak threshold (more sensitive).  When @p doppler_uncertainty
- *   exceeds the native span, falls back to the wideband window-tiling
- *   mechanism below instead (coherent depth structurally can't cover more
- *   than one span, regardless of mode).
+ *   exceeds the native span, the wideband window-tiling mechanism below
+ *   tiles it, and the coherent depth is chosen INSIDE every tile -- the
+ *   smallest that meets @p pd at a stated design C/N0, and 1 with none (a
+ *   default-built tiled search has never carried a block).
  * - dp_acq_create_continuous() — for a continuous, data-modulated signal:
  *   ALWAYS uses the wideband window-tiling mechanism below, unconditionally
  *   (never attempts coherent multi-epoch combining, even when
@@ -59,8 +60,9 @@
  * aren't portable across configurations).
  *
  * **Wideband window-tiling mode**: instead of coherent combining, tiles the
- * requested uncertainty with `window_bins = ceil(doppler_uncertainty /
- * (chip_rate/(2*sf)))` parallel frequency-window hypotheses, each one native
+ * requested uncertainty with `window_bins = 2*ceil((du - span)/(2*span)) + 1`
+ * (`du = doppler_uncertainty`, `span = chip_rate/(2*sf)`; always odd, so the
+ * coverage is symmetric) parallel frequency-window hypotheses, each one native
  * span wide, searched every epoch from a SINGLE shared forward FFT of that
  * epoch: hypothesis r's spectrum is the shared FFT circularly rolled by r
  * bins (exact — the window spacing IS this code_bins-point FFT's own bin
@@ -77,9 +79,11 @@
  * this engine sizes against grows unreliable past a few hundred looks — not
  * a public knob to tune around that). `doppler_bin` in @ref acq_result_t
  * reports the frequency-window index (0 … window_bins-1, native FFT-bin
- * ordering) instead of a slow-time-FFT row when this mode is active;
- * `doppler_res_hz` reports the per-window spacing (chip_rate/sf) at
- * coherent_bins=1.
+ * ordering) instead of a slow-time-FFT row when this mode is active at
+ * coherent_bins=1, where `doppler_res_hz` is the per-window spacing
+ * (chip_rate/sf). A burst engine sized to a coherent depth D > 1 inside the
+ * tiles (a stated design C/N0) indexes the combined grid instead:
+ * `window_bins*D` bins of `chip_rate/(sf*D)`, folded over acq_grid_bins().
  *
  * **Block-coherent depth inside the tiles** (docs/design/async-dsss-receiver.md
  * §2.3): the engine allows a coherent depth, to accommodate waveforms with
@@ -669,16 +673,18 @@ extern "C"
    *
    * @p cn0_dbhz is the DESIGN (minimum) C/N0 and is optional: NaN
    * (@ref ACQ_CN0_NONE) means none was given, and the engine then integrates the whole preamble
-   * (`coherent_bins = reps`) with the threshold set by @p pfa alone.  @p pd
+   * (`coherent_bins = reps`; 1 in a tiled search, where a depth multiplies
+   * the buffers and the latency and only a stated C/N0 asks for one) with the
+   * threshold set by @p pfa alone.  @p pd
    * is a sizing target only when a design C/N0 is given; without one
    * `pd_predicted` and `pd_burst` are NAN and `underpowered` is never set.
    *
    * A tighter @p doppler_uncertainty narrows the scanned Doppler band,
    * lowering the per-cell threshold (more sensitive).  When
    * @p doppler_uncertainty exceeds the native span `fs/(2n)`,
-   * falls back to the wideband window-tiling mechanism (see the file doc
-   * comment) instead -- coherent depth structurally can't cover more than
-   * one native span, regardless of @p reps.  Use dp_acq_configure_search_raw()
+   * engages the wideband window-tiling mechanism (see the file doc
+   * comment): `2*ceil((du - span)/(2*span)) + 1` windows, with a coherent
+   * depth chosen inside each (1 with no design C/N0).  Use dp_acq_configure_search_raw()
    * to pin the grid directly instead of relying on this auto-sizer.
    *
    * What a code once knew analytically, the preamble's own correlation
@@ -718,9 +724,11 @@ extern "C"
    * @param doppler_uncertainty  One-sided Doppler search half-range in Hz; 0
    *                    uses the full native span +/- fs/(2n). A value greater
    *                    than the native span engages wideband mode (see the
-   *                    file doc comment above): coherent_bins is forced to 1
-   *                    and the uncertainty is tiled with parallel
-   *                    frequency-window hypotheses instead.
+   *                    file doc comment above): the uncertainty is tiled
+   *                    with parallel frequency-window hypotheses and a
+   *                    coherent depth is chosen inside every tile (1 with no
+   *                    design C/N0); the surface is
+   *                    `window_bins * coherent_bins` rows.
    * @param pfa         Target system (max-of-N) false-alarm probability (0,1).
    * @param pd          Target detection probability (0,1); a sizing target
    *                    only when @p cn0_dbhz is given.

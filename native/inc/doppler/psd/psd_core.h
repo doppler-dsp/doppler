@@ -42,9 +42,10 @@ extern "C" {
 #endif
 
 /**
- * @brief The window of dp_psd_create(), and of the objects that build their
- *        frames through it: all four for the Spectrogram, a subset for
- *        carrier acquisition (dp_carrier_acq_create() says which).
+ * @brief The window of dp_psd_create() and dp_psd_kernel_init(), and of the
+ *        objects built on them: all four for the Spectrogram (which holds a
+ *        kernel), a subset for carrier acquisition (dp_carrier_acq_create()
+ *        says which).
  *
  * HANN is 0, so a zeroed configuration is Hann. The Python faces name the
  * same windows "hann", "kaiser", "blackman-harris" and "rect", bound to these

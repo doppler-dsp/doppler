@@ -43,7 +43,7 @@ _PSD — averaging power-spectral-density estimator (Welch's method) and spectra
 
 | Type | Name |
 | ---: | :--- |
-| enum  | [**psd\_\_core\_8h\_1adc29c2ff13d900c2f185ee95427fb06c**](#enum-psd__core_8h_1adc29c2ff13d900c2f185ee95427fb06c)  <br>_The window of_ [_**dp\_psd\_create()**_](psd__core_8h.md#function-dp_psd_create) _, and of the objects that build their frames through it: all four for the Spectrogram, a subset for carrier acquisition (_[_**dp\_carrier\_acq\_create()**_](carrier__acq__core_8h.md#function-dp_carrier_acq_create) _says which)._ |
+| enum  | [**psd\_\_core\_8h\_1adc29c2ff13d900c2f185ee95427fb06c**](#enum-psd__core_8h_1adc29c2ff13d900c2f185ee95427fb06c)  <br>_The window of_ [_**dp\_psd\_create()**_](psd__core_8h.md#function-dp_psd_create) _and_[_**dp\_psd\_kernel\_init()**_](psd__core_8h.md#function-dp_psd_kernel_init) _, and of the objects built on them: all four for the Spectrogram (which holds a kernel), a subset for carrier acquisition (_[_**dp\_carrier\_acq\_create()**_](carrier__acq__core_8h.md#function-dp_carrier_acq_create) _says which)._ |
 
 
 
@@ -161,7 +161,7 @@ Lifecycle: create -&gt; (accumulate / reset)\* -&gt; (measurement getters)\* -&g
 
 ### enum psd\_\_core\_8h\_1adc29c2ff13d900c2f185ee95427fb06c 
 
-_The window of_ [_**dp\_psd\_create()**_](psd__core_8h.md#function-dp_psd_create) _, and of the objects that build their frames through it: all four for the Spectrogram, a subset for carrier acquisition (_[_**dp\_carrier\_acq\_create()**_](carrier__acq__core_8h.md#function-dp_carrier_acq_create) _says which)._
+_The window of_ [_**dp\_psd\_create()**_](psd__core_8h.md#function-dp_psd_create) _and_[_**dp\_psd\_kernel\_init()**_](psd__core_8h.md#function-dp_psd_kernel_init) _, and of the objects built on them: all four for the Spectrogram (which holds a kernel), a subset for carrier acquisition (_[_**dp\_carrier\_acq\_create()**_](carrier__acq__core_8h.md#function-dp_carrier_acq_create) _says which)._
 ```C++
 enum psd__core_8h_1adc29c2ff13d900c2f185ee95427fb06c {
     DP_PSD_WINDOW_HANN = 0,

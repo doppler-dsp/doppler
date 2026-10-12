@@ -472,6 +472,74 @@ be the method, not the code. This run's merged set
 (`benchmarks/published/v0.66.0-a4/`) stays on the measuring machine. It is a
 characterization, not a release's published numbers.
 
+### 5.10 The Spectrogram holds the kernel, not a PSD (2026-10-12)
+
+**Question.** Moving PSD's per-frame state into `dp_psd_kernel_t`, and having
+the Spectrogram hold only that, must change no output and no state blob of PSD
+or of anything built on it, and should free what the Spectrogram held and
+never used.
+
+**Method.** As §5.1: one C program, built against two libraries exported with
+`git archive` -- before (7971912e2, the release this change follows) and after (e69381dbd; the commit
+after it changes docs and a header comment only) -- Release, once at the
+default flags and once with `DOPPLER_NATIVE=ON`. It writes, for PSD, 4 windows
+× `n` {64, 100, 257, 1024} × pad {1, 2} × 4 averaging modes × complex and real
+input (real at `bits` 12): the state blob mid-stream and at the end, every
+readout (`psd_db`, `psd_dbhz`, both power spectra, band power, occupied
+bandwidth, noise floor, SNR, SFDR) and the three frame calls. For the
+Spectrogram, 4 windows × `nfft` {64, 256, 1024} × hop {0, `nfft`/4, `nfft`−3}
+× both modes, in ragged chunks: its rows, its flush and its blobs. Then
+carrier_acq (3 windows, sequential or not; its blob mid-stream and at the
+end), specan (two `navg`; its display and its blob), the async DSSS receiver
+(carrier_acq inside; its symbols and its blob) and the three meters' results
+(they keep no state, so they have no blob). 11,827,950 bytes per run, compared
+with `cmp`. The frame calls are spelled `(p)` against the first library and
+`(&p->k)` against the second; nothing else differs. The whole of it is one
+self-contained script, attached to the pull request that made the change:
+`bash repro.sh REPO 7971912e2 e69381dbd` builds both, runs both, and prints
+the comparison and the memory below.
+
+**Result.** Byte-identical, at both flag sets. The native build's output
+differs from the default build's, so the second comparison is not the first
+one twice.
+
+**The check on the check.** `nm` finds `dp_psd_kernel_init` in the second
+library and not in the first.
+
+**Memory.** Three counts across one `dp_spectrogram_create`, after a warm-up
+create and destroy at the same size, in bytes: the heap (`mallinfo2`'s
+`uordblks + hblkhd`, the method of `async_dsss_pool_soak.c`), the rings' memfd
+(`memfd:dp_shm` in `/proc/self/maps`: a ring is mapped, not malloc'd), and all
+address space (`VmSize`, both of those included):
+
+| nfft      | heap before | heap after  | memfd before | memfd after | mapped before | mapped after |
+| --------- | ----------- | ----------- | ------------ | ----------- | ------------- | ------------ |
+| 256       | 41,792      | 39,728      | 16,384       | 8,192       | 16,384        | 8,192        |
+| 4,096     | 704,720     | 655,536     | 262,144      | 131,072     | 868,352       | 720,896      |
+| 65,536    | 11,272,208  | 10,485,744  | 4,194,304    | 2,097,152   | 15,466,496    | 12,582,912   |
+| 1,048,576 | 180,354,896 | 167,771,952 | 67,108,864   | 33,554,432  | 247,463,936   | 201,326,592  |
+
+From `nfft` 4,096 up the heap shrinks by 12·`nfft`: the averager's 8 and the
+dB buffer's 4. The memfd mappings halve, 64·`nfft` to 32·`nfft`: PSD's ring,
+16·`nfft` of memfd mapped twice, is gone, and the Spectrogram's own stays.
+From 65,536 up, where every heap buffer is its own mapping too, all address
+space shrinks by 44·`nfft`. That is 28·`nfft` fewer allocated bytes (12 heap,
+16 memfd). At 256 the allocator's arenas blur the heap count. These are
+allocated and virtual bytes, not resident ones: the dead buffers were never
+touched, so their pages were never resident.
+
+**Speed.** `bench_psd_core` and `bench_spectrogram_core` from both builds, run
+alternately (before, after; then after, before) for 7 rounds, unpinned; each
+row's minimum, and each side's round-to-round spread. No row of either moves
+by more than both sides' spread. The largest moves are `power_onesided` at
+`nfft` 4,096 (+4.7%, a call of about 1 µs whose spread is ±15%) and the
+Spectrogram's `direct` at `nfft` 256 (+2.9%, spread 5.8%). The kernel's code
+is the same apart from field offsets.
+
+**What this does not cover.** One x86-64 machine. On aarch64 and macOS, where
+the compiler may contract differently, only the in-build oracles hold it
+([#2187](https://github.com/doppler-dsp/doppler/issues/2187)).
+
 ### 5.12 Where a PSD frame's time goes (2026-10-10) — the #2094 baseline
 
 **Method, shared by 5.12 to 5.14.** One run of

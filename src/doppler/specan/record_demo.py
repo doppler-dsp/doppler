@@ -20,13 +20,6 @@ import sys
 from pathlib import Path
 
 
-def _next_power_of_two(n: int) -> int:
-    p = 1
-    while p < n:
-        p <<= 1
-    return p
-
-
 def record(
     n_frames: int = 120,
     rbw: float = 4000.0,

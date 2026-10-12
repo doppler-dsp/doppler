@@ -1,10 +1,7 @@
-- **A tiled (wideband) burst search keeps a coherent depth inside every
-    Doppler tile when a design C/N0 asks for one; with none it stays at D = 1.**
-    The sizer prices the tiles and the depth together in the threshold and the
-    mean-noise reference, and interpolates each tile's slow-time axis. A hit's
-    `doppler_bin` then indexes `window_bins * D` rows, and
-    `BurstAcquisition.doppler_bins` now reports that product, as
-    `BurstCapture.doppler_bins` already did, so
-    `bin_to_signed(bin, doppler_bins) * doppler_res_hz` is the signed Doppler.
-    The Pd model's coherent length for a tiled surface is #2224; per-dwell Pfa
-    is #2218 (#2210).
+- **A tiled (wideband) burst search keeps a coherent depth inside every Doppler
+    tile when a design C/N0 asks for one; with none it stays at D = 1.** A tiled
+    object built WITH a design C/N0 can now come out at D > 1 where 0.67.0 gave
+    1 (45 dB-Hz: `coherent_bins` 1 to 8): its buffers, latency and state blob
+    grow, and a 0.67.0 blob of it is refused on restore. A hit's `doppler_bin`
+    indexes `window_bins * D` rows, which `BurstAcquisition.doppler_bins` now
+    reports, as `BurstCapture` did (#2218, #2224; #2210).

@@ -185,7 +185,7 @@ dp_carrier_acq_state_t * dp_carrier_acq_create (
 * `symbol_rate_hz` Symbol rate, Hz  builds the default template (required). 
 * `resolution_hz` Desired FFT frequency resolution, Hz. &lt;= 0.0 is a sentinel meaning "auto": symbol\_rate\_hz/10.0. The block is round(sample\_rate\_hz/resolution\_hz) samples, floored at 3  the shortest whose default Hann window has any gain. 
 * `zero_pad` PSD zero-pad factor (&gt;= 1); see [**psd\_core.h**](psd__core_8h.md). 
-* `window` "hann" (the default), "kaiser" or "blackman-harris": the windows the threshold was calibrated at. 
+* `window` "hann" (the default, and the window the threshold was fit at), "kaiser" or "blackman-harris". 
 * `beta` Kaiser beta (ignored for hann/blackman-harris). 
 * `psd_template` Known PSD-shape template override, length must equal nfft = next\_pow\_two(block \* zero\_pad), block as above; NULL/length-0 means "not supplied"  the default rectangular-pulse sinc^2 template (from symbol\_rate\_hz) is used. 
 * `psd_template_len` Length of `psd_template` (0 if not supplied). 

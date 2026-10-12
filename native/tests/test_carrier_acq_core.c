@@ -256,6 +256,21 @@ main (void)
   DP_CHECK (dp_carrier_acq_create (0.0, 0.0, 0.0, 4, DP_PSD_WINDOW_HANN, 0.0f,
                                    NULL, 0, 1e-3, 0.9, 2.0, true, MAX_N_BLOCKS)
             == NULL);
+  /* the rectangular window PSD takes but this threshold was never measured
+     at is refused, and the three offered windows build (#2185) */
+  DP_CHECK (dp_carrier_acq_create (SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4,
+                                   DP_PSD_WINDOW_RECT, 0.0f, NULL, 0, 1e-3,
+                                   0.9, 2.0, true, MAX_N_BLOCKS)
+            == NULL);
+  for (int win = DP_PSD_WINDOW_HANN; win <= DP_PSD_WINDOW_BLACKMAN_HARRIS;
+       win++)
+    {
+      dp_carrier_acq_state_t *ok = dp_carrier_acq_create (
+          SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, win, 6.0f, NULL, 0, 1e-3,
+          0.9, 2.0, true, MAX_N_BLOCKS);
+      DP_CHECK (ok != NULL);
+      dp_carrier_acq_destroy (ok);
+    }
 
   /* ── a coarse resolution still builds: the block is floored at 3 ──
    * fs/resolution of 2.22, 1 and 0.25 asked for blocks of 2, 1 and 0.  The

@@ -6,12 +6,32 @@
 from __future__ import annotations
 
 import atexit
+import os
 import pathlib
 import shutil
 import socket
 import subprocess
 import tempfile
 import time
+
+#: The variables through which git is pointed at a repository other than
+#: the one its working directory is in. `git rebase -x CMD` exports GIT_DIR
+#: and GIT_PREFIX to CMD, and a hook may export the rest. Many gate tests
+#: build a scratch repo (`git init <tmp>`, `git -C <tmp> add .`), and with
+#: GIT_DIR inherited those calls re-initialise and rewrite the CALLER's
+#: index instead: one per-commit replay ended with 3,771 staged deletions
+#: and 38 gate tests red (#2212). Cleared here, at import, in every process
+#: that loads this file (each xdist worker too), so every test, and every
+#: subprocess a test starts, finds its repository from its own cwd.
+GIT_REDIRECTS = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_PREFIX",
+    "GIT_COMMON_DIR",
+)
+for _name in GIT_REDIRECTS:
+    os.environ.pop(_name, None)
 
 _IGNORE = pathlib.Path(__file__).parent / "docs" / ".doc-snippet-ignore"
 

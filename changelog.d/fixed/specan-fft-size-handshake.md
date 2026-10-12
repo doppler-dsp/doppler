@@ -1,6 +1,2 @@
-- **The specan web server and recorder now tell the source the frame's
-    `data_size`.** Each front end ran its own read, process and
-    `set_fft_size` copy, and they disagreed: the recorder sent the cropped
-    display bin count, and the web server never sent one, so the demo kept
-    its default noise level. `SpecanEngine.step` is now the one loop, and the
-    terminal, the server and the recorder all call it (#2159).
+- **The specan web server and recorder now tell the source its `data_size`.** Each front end had its own read, process and announce; the server never announced, and the recorder announced the display bin count. The demo trace's noise moves +1.07 dB (#2159).
+- **`SpecanEngine.step` is the one loop.** The terminal, the server and the recorder all call it, and it announces only when `data_size` changes.

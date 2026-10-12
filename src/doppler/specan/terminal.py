@@ -372,6 +372,6 @@ class TerminalDisplay:
 
         Only then may the caller close the source and the engine: while
         the thread lives it may be inside ``source.read()``, and will call
-        ``engine.process()`` when that returns.
+        ``engine.step()`` when that returns.
         """
         return self._dsp_thread is None or not self._dsp_thread.is_alive()

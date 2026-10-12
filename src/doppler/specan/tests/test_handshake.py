@@ -131,3 +131,21 @@ def test_an_rbw_change_after_the_first_frame_re_announces():
 
     assert second.data_size != first.data_size
     assert source.announced == [first.data_size, second.data_size]
+
+
+def test_a_data_size_change_with_the_same_display_bins_re_announces():
+    # 8 to 16 kHz rbw at 2.048 MHz: data_size 512 to 256, nfft stays 512 and
+    # the display stays 401 bins. Only data_size moves, so an announce keyed
+    # on the display bins never fires.
+    cfg = SpecanConfig(fs=2.048e6, rbw=8000.0)
+    engine = _SpyEngine(cfg)
+    source = _RecordingSource(sample_rate=2.048e6)
+
+    first = _first_frame(lambda: engine.step(source))
+    cfg.rbw = 16000.0
+    engine.zoom(cfg.span)
+    second = _first_frame(lambda: engine.step(source))
+
+    assert first.fft_size == second.fft_size
+    assert (first.data_size, second.data_size) == (512, 256)
+    assert source.announced == [512, 256]

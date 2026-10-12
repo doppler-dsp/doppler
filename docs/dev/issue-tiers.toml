@@ -1473,7 +1473,7 @@ status = "open"
 [issue.2191]
 tier = 1
 title = "Window and mode literals still reach the constructors through test helpers the named-args gate cannot see"
-status = "in review ([#2196](https://github.com/doppler-dsp/doppler/pull/2196))"
+status = "in review ([#2199](https://github.com/doppler-dsp/doppler/pull/2199))"
 
 [issue.2194]
 tier = 1
@@ -1488,4 +1488,9 @@ status = "open"
 [issue.2198]
 tier = 1
 title = "named-args: a constructor call with a comment between its name and '(' is not seen"
+status = "open"
+
+[issue.2200]
+tier = 2
+title = "Published Python benchmarks under ~300 ns carry the timer's overhead whenever pytest-benchmark calibrates one iteration per round"
 status = "open"

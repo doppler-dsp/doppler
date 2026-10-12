@@ -25,14 +25,18 @@ signature would otherwise leave its row checking nothing. Prose is not a
 call: ``dp_psd_create()``, ``dp_psd_create(1 << 62, ...)``, or a call
 inside a string literal.
 
-**Helpers, file by file.** A helper that passes its argument straight into
-a gated slot -- a test's ``ref_psd (nfft, window, beta)``, the certify
-harness's ``make (mode, nfft, hop, window)`` -- would hide a literal from
-the row it forwards to, so ``HELPERS`` gives it a row for the one file that
-defines it (names like ``make`` are generic; #2191). A definition or a
-prototype, every argument a declaration, is not a call. **Not held:** a
-helper in a file ``HELPERS`` does not name, or a variable initialised from
-a literal.
+**Helpers, file by file.** A helper that FORWARDS its argument into a
+constructor's gated slot -- a test's ``ref_psd (nfft, window, beta)``, the
+certify harness's ``make (mode, nfft, hop, window)``, directly or through
+another helper -- would hide a literal from the constructor's row, so
+``HELPERS`` gives it a row for the one file that defines it (names like
+``make`` are generic; #2191). A helper that only compares a window or mode
+reaches no constructor and has no row. A definition or prototype, every
+argument a declaration or a bare type, is not a call, and neither is a
+member call (``ops->make``). **Not held:** a forwarding helper ``HELPERS``
+does not list (found by hand; #2197), a second hop through a function
+pointer or macro, or a value that never passes through a call slot -- a
+variable initialised from a literal, a table cell, a loop bound.
 
 **One declaration.** Each slot names an ``[[enum]]`` of just-makeit.toml,
 and the names come from the C enum that carries it (``SSOT: enum=X``, held
@@ -103,28 +107,29 @@ TABLE: dict[str, tuple[int, dict[int, tuple[str, str]]]] = {
 
 _W = ("window", "psd_window")
 _M = ("mode", "spectrogram_mode")
-#: File-scoped rows (#2191): a helper that passes its argument straight into
-#: a gated slot of a TABLE function hides a literal from that row, so it gets
-#: a row of its own -- for the one file that defines it, because helper names
-#: like `make` are generic. Same shape as TABLE, keyed by the file.
+#: File-scoped rows (#2191): a helper that FORWARDS its argument into a
+#: gated slot of a constructor -- directly, or through another helper here
+#: -- hides a literal from that constructor's row, so it gets a row of its
+#: own, for the one file that defines it (helper names like `make` are
+#: generic). A helper that only COMPARES a window or mode against a name
+#: reaches no constructor and has no row. Same shape as TABLE, keyed by the
+#: file. Rows are found by hand (#2197 asks for discovery).
 HELPERS: dict[str, dict[str, tuple[int, dict[int, tuple[str, str]]]]] = {
     "native/tests/test_spectrogram_core.c": {
         "ref_psd": (3, {1: _W}),
-        "ref_row": (4, {1: _M}),
         "oneshot": (7, {0: _M, 3: _W}),
         "rows_are_the_psd": (7, {1: _M}),
         "sections": (1, {0: _M}),
     },
     "native/validation/spectrogram_certify.c": {
         "row_of": (3, {0: _W}),
-        "enbw_of": (2, {0: _W}),
-        "beta_of": (1, {0: _W}),
-        "other_mode": (1, {0: _M}),
         "make": (4, {0: _M, 3: _W}),
         "ref_psd": (2, {1: _W}),
-        "ref_row": (4, {1: _M}),
         "oracle": (6, {0: _M, 3: _W}),
         "partition": (11, {0: _M, 3: _W}),
+    },
+    "native/benchmarks/bench_spectrogram_core.c": {
+        "add": (8, {7: _M}),
     },
 }
 
@@ -140,22 +145,36 @@ EXEMPT_SLOTS = {"example-projects/": frozenset({"psd_window"})}
 
 def _call_re(table: dict[str, object]) -> re.Pattern[str]:
     """A call of any function in `table`. Longest first, so
-    `dp_psd_create_hop` is never read as `dp_psd_create`."""
+    `dp_psd_create_hop` is never read as `dp_psd_create`. A member call,
+    `s.make (...)` or `ops->make (...)`, is another function."""
     return re.compile(
-        r"(?<![\w.])("
+        r"(?<![\w.])(?<!->)("
         + "|".join(sorted(table, key=len, reverse=True))
         + r")\s*\("
     )
 
 
 _CALL = _call_re(TABLE)
-#: A parameter declaration, `size_t nfft` or `const float *x`: two words
-#: where a call has an expression. A definition or prototype is not a call,
-#: so it neither counts toward its row nor hides a missing one.
-_DECL = re.compile(
-    r"(?:(?:const|volatile|unsigned|signed|struct)\s+)*"
-    r"[A-Za-z_]\w*[\s*]+[A-Za-z_]\w*(?:\s*\[\w*\])?"
+#: A parameter declaration: type words, any `*`, then a name, and an
+#: optional array suffix -- `size_t nfft`, `const float _Complex *frame`,
+#: `unsigned long long x`, `float *restrict out`. Where a call has an
+#: expression, a declaration has words. A definition or prototype (every
+#: argument one of these, or `_TYPE_ONLY`) is not a call, so it neither
+#: counts toward its row nor stands in for a missing one.
+_IDENT = r"[A-Za-z_]\w*"
+_DECL = re.compile(rf"(?:{_IDENT}[\s*]+)+{_IDENT}(?:\s*\[[^\]]*\])?")
+#: An unnamed prototype parameter: a type alone -- `size_t`, `void`,
+#: `const float _Complex *`. Built from C's own type words and `*_t` only,
+#: so a variable passed alone (`w`) is never one.
+_TYPE_WORD = (
+    r"(?:void|char|short|int|long|float|double|signed|unsigned|const"
+    r"|volatile|restrict|_Bool|bool|_Complex|struct\s+"
+    + _IDENT
+    + r"|"
+    + _IDENT
+    + r"_t)"
 )
+_TYPE_ONLY = re.compile(rf"{_TYPE_WORD}(?:[\s*]+{_TYPE_WORD})*[\s*]*")
 
 #: A line break inside a call, with a comment's continuation prefix (`*`,
 #: never the `*/` that closes it, or `//`) removed, so a call wrapped in a
@@ -334,7 +353,7 @@ def check_text(
         # ...)` with an ellipsis standing for the rest.
         if bares == [""] or "..." in bares:
             continue
-        if all(_DECL.fullmatch(b) for b in bares):
+        if all(_DECL.fullmatch(b) or _TYPE_ONLY.fullmatch(b) for b in bares):
             continue
         line = text.count("\n", 0, m.start()) + 1
         if len(spans) != nargs:
@@ -453,26 +472,10 @@ def main(argv: list[str]) -> int:
             path.write_text(text, encoding="utf-8")
             fixed += len(todo)
 
-    # A row that finds no call is broken, not clean: the same defect as a
-    # glob that silently matches nothing, one function at a time.
-    missing = [f for f, k in calls.items() if k == 0]
-    for f in missing:
-        print(
-            f"check_named_args: found no {f} call in the tracked"
-            " .c/.h/.md files -- the scan is broken -- FAIL"
-        )
-    # A helper row is held the same way, in its own file: a helper renamed
-    # or inlined away (or a file moved) must take its row with it.
-    lost = [(p, f) for (p, f), k in helper_calls.items() if k == 0]
-    for p, f in lost:
-        print(
-            f"check_named_args: found no call of the helper {f} in {p}"
-            " -- drop its HELPERS row or fix the scan -- FAIL"
-        )
-    if missing or lost:
-        return 1
     if fixed:
         print(f"check_named_args: named {fixed} literal(s)")
+    # The findings print first: an arity change can be WHY a row below
+    # found no call, and the cause must not be hidden behind its effect.
     if left:
         print(
             "check_named_args: an integer-coded argument is a number -- FAIL"
@@ -492,9 +495,27 @@ def main(argv: list[str]) -> int:
             "\n  Pass DP_PSD_WINDOW_*, ACC_TRACE_* or DP_SPECTROGRAM_* by"
             "\n  name, or a variable that holds one; `make format` writes the"
             "\n  names. A deliberately invalid value goes in a named variable."
-            "\n  A call whose argument count is not its TABLE row's means the"
-            "\n  signature moved: fix the call, or the row."
+            "\n  A call whose argument count is not its TABLE or HELPERS"
+            "\n  row's means the signature moved: fix the call, or the row."
         )
+    # A row that finds no call is broken, not clean: the same defect as a
+    # glob that silently matches nothing, one function at a time.
+    missing = [f for f, k in calls.items() if k == 0]
+    for f in missing:
+        print(
+            f"check_named_args: found no {f} call in the tracked"
+            " .c/.h/.md files -- the scan is broken -- FAIL"
+        )
+    # A helper row is held the same way, in its own file. A rename needs the
+    # row renamed (dropping it would un-gate the helper); only a helper that
+    # is gone takes its row with it.
+    lost = [(p, f) for (p, f), k in helper_calls.items() if k == 0]
+    for p, f in lost:
+        print(
+            f"check_named_args: found no call of the helper {f} in {p}"
+            " -- rename the row, or drop it if the helper is gone -- FAIL"
+        )
+    if left or missing or lost:
         return 1
     print(
         f"check_named_args: OK -- {sum(calls.values())} call(s) and"

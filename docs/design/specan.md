@@ -134,18 +134,29 @@ window is a spectrogram, one row per window, which `Spectrogram` provides.
 ## The source handshake
 
 Every front end runs one loop, `SpecanEngine.step(source)`: read a block of
-`engine.block_size` samples, process it, and, when the frame's `data_size`
-changes (a span or rbw change rebuilds the chain), tell the source the new
-`data_size`. The terminal, the web server
-and the recorder all call it, so they cannot disagree about what the source
-was told.
+`engine.block_size` samples, process it, and then, when the frame's
+`data_size` differs from the one the source was last told, call
+`source.set_fft_size(data_size)`. The terminal, the web server and the recorder
+all call it, so they cannot disagree about what the source was told.
 
-`data_size` is the Kaiser window and RBW frame length. It is the value a
-source scales its noise and tones by. It is not the display bin count, which
-is the cropped `fft_size` a frame carries. Before the one loop existed, the
-recorder sent the display bin count, so its demo noise floor was scaled
-wrongly, and the web server never sent anything, so the demo kept its default
-level.
+The announce follows `process`. The first frame at a new size is therefore
+computed from a block read before the source was told, so its samples carry
+the old scale. The source hears the new size for the block after it.
+
+Three kinds of change rebuild the chain and can change `data_size`: a change
+of input rate or centre frequency (`_init_chain`), a span change (`zoom`), and
+an rbw change. The announce keys on the value, not on the change.
+
+`data_size` is the Kaiser window and RBW frame length. A source scales its
+noise by it (`DemoSource`); its tones are scaled by their own amplitude. It is
+not the display bin count, the cropped `fft_size` a frame carries. For a
+`data_size` below 512 the transform is padded to 512 bins, and the display
+count follows that transform, so a change of `data_size` there can leave
+`fft_size` unchanged. Keying the announce on the display bins would miss such a
+change. The 8 to 16 kHz step at 2.048 MHz is one (`data_size` 512 to 256, with
+`fft_size` 401 throughout). Before the one loop existed, the recorder sent the
+display bin count, and the web server never sent anything, so the demo kept
+its default level.
 
 The block size already carries the 4096-sample floor, so no front end adds
 its own.

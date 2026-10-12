@@ -268,6 +268,6 @@ class SpecanEngine:
         iq, fs, cf = source.read(self._block_size)
         frame = self.process(iq, fs, cf)
         if frame is not None and frame.data_size != self._announced_data_size:
-            self._announced_data_size = frame.data_size
             source.set_fft_size(frame.data_size)
+            self._announced_data_size = frame.data_size
         return frame

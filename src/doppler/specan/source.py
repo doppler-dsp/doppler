@@ -99,7 +99,7 @@ class Source(ABC):
         ...
 
     def set_fft_size(self, n: int) -> None:  # noqa: B027
-        """Notify the source of the current FFT size (optional hint)."""
+        """Notify the source of the data size its noise scales by (a hint)."""
 
     def close(self) -> None:  # noqa: B027
         """Release any held resources."""

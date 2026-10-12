@@ -1549,3 +1549,8 @@ status = "open"
 tier = 2
 title = "acq: resolve a tiled burst's tile alias over a delay window and re-estimate the code phase at the resolved hypothesis (ridge-aware; the fix for the chirp raw-hit errors)"
 status = "open"
+
+[issue.2244]
+tier = 2
+title = "wfm: a chirp or tone repeated across segments jumps in phase at the boundary, though the docs promise seamless joins"
+status = "open"

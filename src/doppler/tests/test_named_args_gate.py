@@ -46,43 +46,45 @@ def _gate():  # type: ignore[no-untyped-def]
     return g
 
 
-#: The name a seeded call passes in each enum's slot.
-_NAME = {
-    "psd_window": "DP_PSD_WINDOW_HANN",
-    "spectrogram_mode": "DP_SPECTROGRAM_POWER",
+#: A seeded file of helpers, as the tests and harnesses write them: `make`
+#: forwards both slots into a constructor, `wrap` forwards through `make` (a
+#: second hop), `is_kaiser` only compares, and `scale` forwards inside an
+#: expression -- the last two are no helpers.
+_HELPERS_REL = "native/tests/helpers.c"
+_HELPERS_C = """\
+static dp_spectrogram_state_t *
+make (int mode, size_t nfft, size_t hop, int window)
+{
+  return dp_spectrogram_create (nfft, hop, window, 0.0f, mode);
 }
 
+static dp_spectrogram_state_t *
+wrap (int w)
+{
+  return make (DP_SPECTROGRAM_POWER, 8, 4, w);
+}
 
-def _helper_src(rows: dict, literal: tuple[str, int] | None = None) -> str:
-    """One file's seeded helpers: each one's definition (every argument a
-    declaration, so not a call) and one call passing its slots by name -- or,
-    for `literal` = (function, slot), that one slot as the number 1."""
-    defs, calls = [], []
-    for func, (nargs, slots) in rows.items():
-        params = ", ".join(f"int a{i}" for i in range(nargs))
-        defs.append(f"static int {func} ({params});")
-        args = []
-        for i in range(nargs):
-            if literal == (func, i):
-                args.append("1")
-            elif i in slots:
-                args.append(_NAME[slots[i][1]])
-            else:
-                args.append(f"x{i}")
-        calls.append(f"  {func} ({', '.join(args)});")
-    return "\n".join([*defs, "void seeded (void)", "{", *calls, "}", ""])
+static int
+is_kaiser (int window)
+{
+  return window == DP_PSD_WINDOW_KAISER;
+}
 
+static dp_spectrogram_state_t *
+scale (int w)
+{
+  return dp_spectrogram_create (8, 4, w + 0, 0.0f, DP_SPECTROGRAM_POWER);
+}
 
-def _helper_files(
-    literal: tuple[str, str, int] | None = None,
-) -> dict[str, str]:
-    """Every HELPERS file, seeded; `literal` = (path, function, slot)."""
-    return {
-        path: _helper_src(
-            rows, literal[1:] if literal and literal[0] == path else None
-        )
-        for path, rows in _gate().HELPERS.items()
-    }
+void
+seeded (void)
+{
+  make (DP_SPECTROGRAM_DB, 8, 4, DP_PSD_WINDOW_HANN);
+  wrap (DP_PSD_WINDOW_RECT);
+  is_kaiser (1);
+  scale (1);
+}
+"""
 
 
 #: Where the gate reads the bound C enums, relative to the root it is given.
@@ -180,7 +182,7 @@ def _seed(tmp_path: Path, **override: str) -> None:
         "a.c": _NAMED_C,
         "inc/s.h": _NAMED_H_OK,
         "docs/p.md": _NAMED_MD,
-        **_helper_files(),
+        _HELPERS_REL: _HELPERS_C,
     }
     files.update(override)
     for rel, text in files.items():
@@ -205,13 +207,15 @@ def test_named_arguments_pass_in_every_shape(tmp_path: Path) -> None:
     _seed(tmp_path)
     r = _run(tmp_path)
     assert r.returncode == 0, r.stdout
-    # seven calls in a.c (the printf is a string), the @code call in s.h (its
-    # declaration is not a call), the fence in p.md; the prose mention is
-    # not a call either. One call of each HELPERS row, in its two files.
-    helpers = _gate().HELPERS
-    n = sum(len(rows) for rows in helpers.values())
-    files = 3 + len(helpers)
-    assert f"9 call(s) and {n} helper call(s) in {files} file(s)" in r.stdout
+    # Direct: seven calls in a.c (the printf is a string), the @code call in
+    # s.h (its declaration is not a call), the fence in p.md, and the two in
+    # helpers.c's bodies. Helpers: make twice (seeded and wrap's body) and
+    # wrap once; is_kaiser and scale are discovered as no helpers, and the
+    # definitions are no calls.
+    assert (
+        "11 call(s) and 3 call(s) of 2 discovered helper(s) in 4 file(s)"
+        in r.stdout
+    ), r.stdout
 
 
 def test_a_literal_mode_fails_and_names_the_line(tmp_path: Path) -> None:
@@ -503,72 +507,6 @@ def test_the_real_tree_passes() -> None:
     assert r.returncode == 0, r.stdout
 
 
-def _helper_slots() -> list[tuple[str, str, int, str]]:
-    return [
-        (path, func, idx, param)
-        for path, rows in _gate().HELPERS.items()
-        for func, (_, slots) in rows.items()
-        for idx, (param, _) in slots.items()
-    ]
-
-
-@pytest.mark.parametrize(("path", "func", "idx", "param"), _helper_slots())
-def test_every_helper_slot_is_checked(
-    tmp_path: Path, path: str, func: str, idx: int, param: str
-) -> None:
-    """One case per (file, helper, slot) in HELPERS (#2191): a literal that
-    reaches a constructor through a helper is refused in that helper's
-    file, as a direct call's is."""
-    _seed(tmp_path, **_helper_files((path, func, idx)))
-    r = _run(tmp_path)
-    assert r.returncode == 1, r.stdout
-    assert f"{path}:" in r.stdout
-    assert f": {func} {param} = 1 (write " in r.stdout
-
-
-def test_fix_names_a_helper_literal(tmp_path: Path) -> None:
-    path = "native/validation/spectrogram_certify.c"
-    _seed(tmp_path, **_helper_files((path, "make", 3)))
-    r = _run(tmp_path, "--fix")
-    assert r.returncode == 0, r.stdout
-    assert "named 1 literal(s)" in r.stdout
-    fixed = (tmp_path / path).read_text(encoding="utf-8")
-    assert (
-        "make (DP_SPECTROGRAM_POWER, x1, x2, DP_PSD_WINDOW_KAISER);" in fixed
-    )
-
-
-def test_a_helper_mentioned_in_a_comment_is_prose(tmp_path: Path) -> None:
-    """`the units sections (3, 9, 13)` is a sentence. A helper is file-local
-    C, so its rows read the file with comments blanked (TABLE's cannot: a
-    header's @code block is a comment)."""
-    path = "native/tests/test_spectrogram_core.c"
-    src = "/* misread at the units sections (3, 9, 13) */\n"
-    src += _helper_files()[path]
-    _seed(tmp_path, **{path: src})
-    r = _run(tmp_path)
-    assert r.returncode == 0, r.stdout
-
-
-def test_a_helper_name_in_another_file_is_not_checked(tmp_path: Path) -> None:
-    """Helper names are generic (`make`), so a row holds its own file only."""
-    src = _NAMED_C.replace("  return !a", "  make (1, 2, 3);\n  return !a")
-    _seed(tmp_path, **{"a.c": src})
-    assert _run(tmp_path).returncode == 0
-
-
-def test_a_helper_row_with_no_call_fails(tmp_path: Path) -> None:
-    """Fail-closed per helper row, in its file: a helper renamed or inlined
-    away must take its row with it. Its definition, every argument a
-    declaration, is still there and is not a call."""
-    path = "native/validation/spectrogram_certify.c"
-    src = _helper_files()[path].replace("  make (", "  remade (")
-    _seed(tmp_path, **{path: src})
-    r = _run(tmp_path)
-    assert r.returncode == 1
-    assert f"found no call of the helper make in {path}" in r.stdout
-
-
 def test_a_table_prototype_is_not_a_call(tmp_path: Path) -> None:
     """A prototype is not a call, so it cannot stand in for a missing one:
     with every dp_acc_trace_create call gone, its row fails although the
@@ -586,82 +524,178 @@ def test_a_table_prototype_is_not_a_call(tmp_path: Path) -> None:
     assert "found no dp_acc_trace_create call" in r.stdout
 
 
-_CERTIFY = "native/validation/spectrogram_certify.c"
+def _helpers(old: str, new: str) -> dict[str, str]:
+    assert _HELPERS_C.count(old) == 1, old
+    return {_HELPERS_REL: _HELPERS_C.replace(old, new)}
 
 
-def test_a_definition_with_complex_parameters_is_not_a_call(
-    tmp_path: Path,
-) -> None:
-    """`const float _Complex *x` is a declaration too: a definition shaped
-    like row_of's may not stand in for its renamed calls (review of #2196:
-    the old two-word rule read it as a call and kept the row green)."""
-    src = _helper_files()[_CERTIFY]
-    src = src.replace(
-        "static int row_of (int a0, int a1, int a2);",
-        "static void row_of (int window, const float _Complex *x,\n"
-        "                    float *restrict row);",
-    ).replace("  row_of (", "  rowed (")
-    _seed(tmp_path, **{_CERTIFY: src})
+def test_a_forwarding_helper_is_discovered_and_held(tmp_path: Path) -> None:
+    """`make` forwards both slots into a constructor, so its literals are
+    refused like a direct call's (#2191), with no table to keep (#2197)."""
+    _seed(
+        tmp_path,
+        **_helpers(
+            "  make (DP_SPECTROGRAM_DB, 8, 4, DP_PSD_WINDOW_HANN);",
+            "  make (1, 8, 4, 3);",
+        ),
+    )
     r = _run(tmp_path)
     assert r.returncode == 1
-    assert f"found no call of the helper row_of in {_CERTIFY}" in r.stdout
+    assert "make mode = 1 (write DP_SPECTROGRAM_DB)" in r.stdout
+    assert "make window = 3 (write DP_PSD_WINDOW_RECT)" in r.stdout
 
 
-def test_an_unnamed_prototype_is_not_a_call(tmp_path: Path) -> None:
-    """A prototype's parameters may be bare types; it is still no call."""
-    src = _helper_files()[_CERTIFY]
-    src = src.replace(
-        "static int make (int a0, int a1, int a2, int a3);",
-        "static void make (int, size_t, unsigned long long, const int);",
-    ).replace("  make (", "  remade (")
-    _seed(tmp_path, **{_CERTIFY: src})
+def test_a_second_hop_is_discovered(tmp_path: Path) -> None:
+    """`wrap` forwards through `make`: found at the fixpoint."""
+    _seed(tmp_path, **_helpers("  wrap (DP_PSD_WINDOW_RECT);", "  wrap (1);"))
     r = _run(tmp_path)
     assert r.returncode == 1
-    assert f"found no call of the helper make in {_CERTIFY}" in r.stdout
+    assert "wrap window = 1 (write DP_PSD_WINDOW_KAISER)" in r.stdout
+
+
+def test_fix_names_a_helper_literal(tmp_path: Path) -> None:
+    _seed(tmp_path, **_helpers("  wrap (DP_PSD_WINDOW_RECT);", "  wrap (3);"))
+    r = _run(tmp_path, "--fix")
+    assert r.returncode == 0, r.stdout
+    assert "named 1 literal(s)" in r.stdout
+    fixed = (tmp_path / _HELPERS_REL).read_text(encoding="utf-8")
+    assert "  wrap (DP_PSD_WINDOW_RECT);" in fixed
+
+
+def test_a_compare_or_an_expression_is_no_helper(tmp_path: Path) -> None:
+    """`is_kaiser` only compares and `scale` forwards `w + 0`: neither is
+    discovered, so their literals are not this gate's (the baseline's
+    `is_kaiser (1)` and `scale (1)` pass)."""
+    _seed(
+        tmp_path,
+        **_helpers(
+            "  is_kaiser (1);\n  scale (1);", "  is_kaiser (3);\n  scale (3);"
+        ),
+    )
+    r = _run(tmp_path)
+    assert r.returncode == 0, r.stdout
+    assert "of 2 discovered helper(s)" in r.stdout
+
+
+def test_a_non_static_function_is_no_helper(tmp_path: Path) -> None:
+    """A helper is file-local; a library's own entry points are TABLE
+    rows. A non-`static` forwarder is not discovered (a stated limit)."""
+    pub = (
+        "dp_spectrogram_state_t *\npub (int window)\n{\n"
+        "  return dp_spectrogram_create (8, 4, window, 0.0f,"
+        " DP_SPECTROGRAM_POWER);\n}\nvoid g (void) { pub (3); }\n"
+    )
+    _seed(tmp_path, **{"native/tests/pub.c": pub})
+    r = _run(tmp_path)
+    assert r.returncode == 0, r.stdout
+    assert "of 2 discovered helper(s)" in r.stdout
+
+
+def test_discovering_nothing_fails_closed(tmp_path: Path) -> None:
+    """A tree whose discovery finds no helper has a broken discovery, not
+    a clean tree: the same rule as a TABLE row with no call."""
+    _seed(tmp_path, **{_HELPERS_REL: "void nothing (void) {}\n"})
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    assert "discovered no forwarding helper" in r.stdout
+
+
+def test_a_helper_mentioned_in_a_comment_is_prose(tmp_path: Path) -> None:
+    """`the units sections (3, 9, 13)` is a sentence: a helper's rows read
+    the file with comments blanked (TABLE's cannot: a header's @code block
+    is a comment)."""
+    _seed(
+        tmp_path,
+        **{_HELPERS_REL: "/* compare make (3, 9) */\n" + _HELPERS_C},
+    )
+    r = _run(tmp_path)
+    assert r.returncode == 0, r.stdout
+
+
+def test_a_helper_name_in_another_file_is_not_checked(tmp_path: Path) -> None:
+    """Helper names are generic (`make`), so a row holds its own file only."""
+    src = _NAMED_C.replace("  return !a", "  make (1, 2, 3);\n  return !a")
+    _seed(tmp_path, **{"a.c": src})
+    assert _run(tmp_path).returncode == 0
 
 
 def test_a_member_call_is_not_a_helper_call(tmp_path: Path) -> None:
-    """`ops->make (...)` is another function: not an arity finding, not a
-    literal to fix (review of #2196)."""
-    src = _helper_files()[_CERTIFY].replace(
-        "void seeded (void)\n{\n",
-        "void seeded (void)\n{\n  ops->make (x0, x1, x2, 3);\n"
-        "  ops->make (1, 2);\n  s.make (1, 2, 3, 3);\n",
+    """`ops->make (...)` and `s.make (...)` are other functions: not an
+    arity finding, not a literal to fix (review of #2196)."""
+    files = _helpers(
+        "  scale (1);\n",
+        "  scale (1);\n  ops->make (x, 1, 2, 3);\n  ops->make (1, 2);\n"
+        "  s.make (1, 2, 3, 3);\n",
     )
-    _seed(tmp_path, **{_CERTIFY: src})
+    _seed(tmp_path, **files)
     r = _run(tmp_path, "--fix")
     assert r.returncode == 0, r.stdout
-    assert (tmp_path / _CERTIFY).read_text(encoding="utf-8") == src
+    got = (tmp_path / _HELPERS_REL).read_text(encoding="utf-8")
+    assert got == files[_HELPERS_REL]
 
 
-def test_a_renamed_helper_says_rename_the_row(tmp_path: Path) -> None:
-    """Dropping a row un-gates the helper, so a rename is told to rename
-    the row, and only a helper that is gone may lose it."""
-    src = _helper_files()[_CERTIFY].replace("  make (", "  remade (")
-    _seed(tmp_path, **{_CERTIFY: src})
-    r = _run(tmp_path)
-    assert r.returncode == 1
-    assert "rename the row, or drop it if the helper is gone" in r.stdout
-
-
-def test_an_arity_change_prints_before_the_row_it_empties(
-    tmp_path: Path,
-) -> None:
-    """When a helper's only call has another argument count, the row finds
-    no call: the arity finding is the cause and must print, not be hidden
-    behind the empty row; the footer names HELPERS."""
-    src = _helper_files()[_CERTIFY].replace(
-        "  make (DP_SPECTROGRAM_POWER, x1, x2, DP_PSD_WINDOW_HANN);",
-        "  make (DP_SPECTROGRAM_POWER, x1, DP_PSD_WINDOW_HANN);",
+def test_definitions_of_any_shape_are_not_calls(tmp_path: Path) -> None:
+    """`const size_t`, `unsigned long long`, `float _Complex *restrict` and
+    an unnamed prototype are declarations: the counts do not move, and
+    `make` is still discovered by its named parameters."""
+    files = _helpers(
+        "static dp_spectrogram_state_t *\nmake (int mode, size_t nfft,"
+        " size_t hop, int window)\n",
+        "static dp_spectrogram_state_t *make (int, size_t, size_t, int);\n"
+        "static dp_spectrogram_state_t *\nmake (int mode, const size_t nfft,"
+        " unsigned long long hop, int window)\n",
     )
-    _seed(tmp_path, **{_CERTIFY: src})
+    files[_HELPERS_REL] += (
+        "static void\nrow_of (int window, const float _Complex *x,\n"
+        "        float *restrict row)\n{\n}\n"
+    )
+    _seed(tmp_path, **files)
+    r = _run(tmp_path)
+    assert r.returncode == 0, r.stdout
+    assert "11 call(s) and 3 call(s) of 2 discovered helper(s)" in r.stdout, (
+        r.stdout
+    )
+
+
+def test_an_arity_change_is_reported(tmp_path: Path) -> None:
+    """A helper call with another argument count is a finding, and the
+    footer says whose row it is."""
+    _seed(
+        tmp_path,
+        **_helpers(
+            "  make (DP_SPECTROGRAM_DB, 8, 4, DP_PSD_WINDOW_HANN);",
+            "  make (DP_SPECTROGRAM_DB, 8, DP_PSD_WINDOW_HANN);",
+        ),
+    )
     r = _run(tmp_path)
     assert r.returncode == 1
-    out = r.stdout
-    arity = out.find("make called with 3 argument(s), its row says 4")
-    empty = out.find(f"found no call of the helper make in {_CERTIFY}")
-    assert 0 <= arity < empty, out
-    assert "TABLE or HELPERS" in out
+    assert "make called with 3 argument(s), its row says 4" in r.stdout
+    assert "discovered helper's" in r.stdout
+
+
+def test_the_real_trees_helpers_are_discovered() -> None:
+    """The nine forwarding helpers the hand table listed (#2199), less the
+    two slots that only reached a compare (`rows_are_the_psd`, `oracle`'s
+    mode), are found in the real tree by data flow."""
+    g = _gate()
+    want = {
+        "native/tests/test_spectrogram_core.c": {
+            "ref_psd",
+            "oneshot",
+            "sections",
+        },
+        "native/validation/spectrogram_certify.c": {
+            "row_of",
+            "make",
+            "ref_psd",
+            "oracle",
+            "partition",
+        },
+        "native/benchmarks/bench_spectrogram_core.c": {"add"},
+    }
+    for rel, names in want.items():
+        found = g.discover((REPO / rel).read_text(encoding="utf-8"))
+        assert names <= set(found), (rel, sorted(found))
 
 
 def test_a_value_outside_a_view_has_no_name(tmp_path: Path) -> None:

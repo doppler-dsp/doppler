@@ -25,18 +25,22 @@ signature would otherwise leave its row checking nothing. Prose is not a
 call: ``dp_psd_create()``, ``dp_psd_create(1 << 62, ...)``, or a call
 inside a string literal.
 
-**Helpers, file by file.** A helper that FORWARDS its argument into a
+**Helpers, discovered.** A helper that FORWARDS its argument into a
 constructor's gated slot -- a test's ``ref_psd (nfft, window, beta)``, the
 certify harness's ``make (mode, nfft, hop, window)``, directly or through
-another helper -- would hide a literal from the constructor's row, so
-``HELPERS`` gives it a row for the one file that defines it (names like
-``make`` are generic; #2191). A helper that only compares a window or mode
-reaches no constructor and has no row. A definition or prototype, every
-argument a declaration or a bare type, is not a call, and neither is a
-member call (``ops->make``). **Not held:** a forwarding helper ``HELPERS``
-does not list (found by hand; #2197), a second hop through a function
-pointer or macro, or a value that never passes through a call slot -- a
-variable initialised from a literal, a table cell, a loop bound.
+another helper -- would hide a literal from the constructor's row (#2191).
+``discover`` finds them by data flow (#2197): a ``static`` function one of
+whose parameters is passed bare into a gated slot of a TABLE call, or of
+another helper in the file, gets that row, for its own file (names like
+``make`` are generic). A helper that only compares a window or mode passes
+it into no slot and has no row. Its rows read the file with comments
+blanked. A definition or prototype, every argument a declaration or a bare
+type, is not a call, and neither is a member call (``ops->make``).
+**Not held:** a non-``static`` forwarding function (a library's own entry
+points are TABLE rows), a parameter forwarded inside an expression
+(``w + 0``) or through a local variable, a function pointer or macro, or a
+value that never passes through a call slot -- a variable initialised from
+a literal, a table cell, a loop bound.
 
 **One declaration.** Each slot names an ``[[enum]]`` of just-makeit.toml,
 and the names come from the C enum that carries it (``SSOT: enum=X``, held
@@ -107,34 +111,6 @@ TABLE: dict[str, tuple[int, dict[int, tuple[str, str]]]] = {
     "dp_carrier_acq_create": (13, {4: ("window", "carrier_acq_window")}),
     "dp_psd_kernel_init": (6, {2: ("window", "psd_window")}),
     "dp_acc_trace_create": (3, {1: ("mode", "acc_trace_mode")}),
-}
-
-_W = ("window", "psd_window")
-_M = ("mode", "spectrogram_mode")
-#: File-scoped rows (#2191): a helper that FORWARDS its argument into a
-#: gated slot of a constructor -- directly, or through another helper here
-#: -- hides a literal from that constructor's row, so it gets a row of its
-#: own, for the one file that defines it (helper names like `make` are
-#: generic). A helper that only COMPARES a window or mode against a name
-#: reaches no constructor and has no row. Same shape as TABLE, keyed by the
-#: file. Rows are found by hand (#2197 asks for discovery).
-HELPERS: dict[str, dict[str, tuple[int, dict[int, tuple[str, str]]]]] = {
-    "native/tests/test_spectrogram_core.c": {
-        "ref_psd": (3, {1: _W}),
-        "oneshot": (7, {0: _M, 3: _W}),
-        "rows_are_the_psd": (7, {1: _M}),
-        "sections": (1, {0: _M}),
-    },
-    "native/validation/spectrogram_certify.c": {
-        "row_of": (3, {0: _W}),
-        "make": (4, {0: _M, 3: _W}),
-        "ref_psd": (2, {1: _W}),
-        "oracle": (6, {0: _M, 3: _W}),
-        "partition": (11, {0: _M, 3: _W}),
-    },
-    "native/benchmarks/bench_spectrogram_core.c": {
-        "add": (8, {7: _M}),
-    },
 }
 
 #: Tracked trees that are not this gate's: generated from what it scans.
@@ -324,6 +300,90 @@ def _fix_span(text: str, s: int, e: int, name: str) -> tuple[int, int] | None:
     return None
 
 
+#: A file-local function's definition, GNU style or not: `static` and its
+#: return type (on this line or the one before), then the name and `(`.
+_STATIC_DEF = re.compile(
+    r"^static\b[^;{}()]*?(?P<name>[A-Za-z_]\w*)\s*\(", re.MULTILINE
+)
+
+
+def _brace_end(code: str, j: int) -> int:
+    """The offset of the `}` closing the `{` at `j` (comments and strings
+    already blanked)."""
+    depth = 0
+    for i in range(j, len(code)):
+        if code[i] == "{":
+            depth += 1
+        elif code[i] == "}":
+            depth -= 1
+            if depth == 0:
+                return i
+    return len(code)
+
+
+def _param_name(param: str) -> str | None:
+    """The name a parameter declaration binds, or None for `void`, `...`
+    and an unnamed one (a bare type)."""
+    p = re.sub(r"\[[^\]]*\]", "", param).strip()
+    ids = re.findall(r"[A-Za-z_]\w*", p)
+    return ids[-1] if len(ids) >= 2 else None
+
+
+def discover(
+    text: str,
+) -> dict[str, tuple[int, dict[int, tuple[str, str]]]]:
+    """The file's forwarding helpers, found by data flow (#2197).
+
+    A `static` function is a helper when one of its parameters is passed,
+    bare, into a gated slot of a TABLE call, or of another helper in the
+    same file (to a fixpoint, so a helper that calls a helper is found). Its
+    row is that parameter's position, the slot's name and the slot's enum.
+    A function that only COMPARES a window or mode passes it into no slot
+    and has no row; a parameter used inside an expression (`w + 0`) is not
+    forwarded bare and is not followed. Only `static` functions: a helper
+    is file-local, so its row checks its own file's calls.
+    """
+    blank = lambda m: " " * len(m.group(0))  # noqa: E731
+    code = _COMMENT.sub(blank, _STRING.sub(blank, text))
+    defs = []
+    for m in _STATIC_DEF.finditer(code):
+        got = _args(code, m.end() - 1)
+        if got is None:
+            continue
+        spans, end = got
+        j = end
+        while j < len(code) and code[j].isspace():
+            j += 1
+        if j >= len(code) or code[j] != "{":
+            continue  # a prototype, not a definition
+        params = [_param_name(code[a:b]) for a, b in spans]
+        defs.append((m.group("name"), params, j, _brace_end(code, j)))
+    rows: dict[str, tuple[int, dict[int, tuple[str, str]]]] = {}
+    changed = True
+    while changed:
+        changed = False
+        table = {**TABLE, **rows}
+        call = _call_re(table)
+        for name, params, j, k in defs:
+            for cm in call.finditer(code, j, k):
+                func = cm.group(1)
+                if func == name:
+                    continue
+                nargs, slots = table[func]
+                got = _args(code, cm.end() - 1)
+                if got is None or len(got[0]) != nargs:
+                    continue
+                for idx, (label, enum) in slots.items():
+                    a, b = got[0][idx]
+                    arg = _bare(code[a:b])
+                    if arg and arg in params:
+                        row = rows.setdefault(name, (len(params), {}))
+                        if params.index(arg) not in row[1]:
+                            row[1][params.index(arg)] = (label, enum)
+                            changed = True
+    return rows
+
+
 def check_text(
     text: str,
     names: dict[str, dict[int, str]],
@@ -415,11 +475,8 @@ def _names(root: Path) -> tuple[dict[str, dict[int, str]], list[str]]:
     (carrier_acq_window) has its parent's names, restricted to the view, so
     a value outside it has none (#2194)."""
     by_enum, errs = enum_names(root)
-    rows = [
-        *TABLE.values(),
-        *(r for h in HELPERS.values() for r in h.values()),
-    ]
-    for enum in sorted({e for _, s in rows for _, e in s.values()}):
+    # A discovered helper's slots carry TABLE's enums, so TABLE names them all.
+    for enum in sorted({e for _, s in TABLE.values() for _, e in s.values()}):
         if enum not in by_enum:
             errs.append(
                 f"no C enum carries `SSOT: enum={enum}`, so a literal in its"
@@ -446,7 +503,8 @@ def main(argv: list[str]) -> int:
         return 1
 
     calls: dict[str, int] = dict.fromkeys(TABLE, 0)
-    helper_calls = {(p, f): 0 for p, rows in HELPERS.items() for f in rows}
+    helper_calls: dict[tuple[str, str], int] = {}
+    discovered = 0
     files, fixed, left = 0, 0, []
     for rel in tracked(root):
         path = root / rel
@@ -457,7 +515,9 @@ def main(argv: list[str]) -> int:
         exempt = frozenset().union(
             *(e for p, e in EXEMPT_SLOTS.items() if rel.startswith(p))
         )
-        helpers = HELPERS.get(rel)
+        helpers = discover(text) if rel.endswith(".c") else None
+        if helpers:
+            discovered += len(helpers)
         n, found = check_text(
             text, names, not rel.endswith(".md"), exempt, helpers
         )
@@ -465,7 +525,7 @@ def main(argv: list[str]) -> int:
             files += 1
             for f, k in n.items():
                 if helpers and f in helpers:
-                    helper_calls[(rel, f)] += k
+                    helper_calls[(rel, f)] = helper_calls.get((rel, f), 0) + k
                 else:
                     calls[f] += k
         todo = [f for f in found if args.fix and f.name and f.span]
@@ -503,8 +563,9 @@ def main(argv: list[str]) -> int:
             "\n  Pass DP_PSD_WINDOW_*, ACC_TRACE_* or DP_SPECTROGRAM_* by"
             "\n  name, or a variable that holds one; `make format` writes the"
             "\n  names. A deliberately invalid value goes in a named variable."
-            "\n  A call whose argument count is not its TABLE or HELPERS"
-            "\n  row's means the signature moved: fix the call, or the row."
+            "\n  A call whose argument count is not its TABLE row's, or a"
+            "\n  discovered helper's, means the signature moved: fix the call"
+            "\n  (or the TABLE row)."
         )
     # A row that finds no call is broken, not clean: the same defect as a
     # glob that silently matches nothing, one function at a time.
@@ -514,20 +575,20 @@ def main(argv: list[str]) -> int:
             f"check_named_args: found no {f} call in the tracked"
             " .c/.h/.md files -- the scan is broken -- FAIL"
         )
-    # A helper row is held the same way, in its own file. A rename needs the
-    # row renamed (dropping it would un-gate the helper); only a helper that
-    # is gone takes its row with it.
-    lost = [(p, f) for (p, f), k in helper_calls.items() if k == 0]
-    for p, f in lost:
+    # Discovery is held the same way: a tree with forwarding helpers in it
+    # where it finds none has a broken discovery, not a clean tree.
+    blind = discovered == 0
+    if blind:
         print(
-            f"check_named_args: found no call of the helper {f} in {p}"
-            " -- rename the row, or drop it if the helper is gone -- FAIL"
+            "check_named_args: discovered no forwarding helper in any tracked"
+            " .c file -- the discovery is broken -- FAIL"
         )
-    if left or missing or lost:
+    if left or missing or blind:
         return 1
     print(
         f"check_named_args: OK -- {sum(calls.values())} call(s) and"
-        f" {sum(helper_calls.values())} helper call(s) in {files} file(s),"
+        f" {sum(helper_calls.values())} call(s) of {discovered} discovered"
+        f" helper(s) in {files} file(s),"
         " every integer-coded argument passed by name"
     )
     return 0

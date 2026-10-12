@@ -378,3 +378,30 @@ def test_a_code_reads_the_same_rule():
 def test_a_bad_doppler_rate_is_a_value_error(rate):
     with pytest.raises(ValueError, match="doppler_rate >= 0"):
         BurstAcquisition(_ZC, reps=8, doppler_rate=rate)
+
+
+# ── doppler_bins is the grid a hit's bin indexes ───────────────────────────
+
+
+def test_a_tiled_search_with_depth_reports_the_whole_grid():
+    """Tiled (doppler_uncertainty past the native span) AND coherent inside
+    each tile: a hit's bin indexes window_bins * depth rows, and that product
+    is what `doppler_bins` must be -- it is the count the documented recipe
+    folds over, `bin_to_signed(bin, doppler_bins) * doppler_res_hz`. It used
+    to read the tile count alone, so BurstCapture (which reads the product)
+    and BurstAcquisition disagreed, and the recipe gave the wrong Doppler."""
+    from doppler.acquire import BurstCapture
+
+    span = 1.0 / (2.0 * _ZC.size)
+    kw = {
+        "reps": 8,
+        "fs": 1.0,
+        "cn0_dbhz": -10.0,
+        "doppler_uncertainty": 3.5 * span,
+    }
+    acq = BurstAcquisition(_ZC, **kw)
+    cap = BurstCapture(_ZC, burst_len=2048, **kw)
+    assert acq.doppler_bins == cap.doppler_bins
+    # More than the tile count: a depth was chosen inside the tiles.
+    tiles = 2 * int(np.ceil((3.5 * span - span) / (2 * span))) + 1
+    assert acq.doppler_bins > tiles and acq.doppler_bins % tiles == 0

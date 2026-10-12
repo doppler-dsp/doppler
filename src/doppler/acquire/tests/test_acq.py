@@ -317,8 +317,8 @@ def test_doppler_uncertainty_sharpens_gate():
 
     # Beyond the native span, wideband mode tiles the uncertainty with
     # parallel frequency-window hypotheses (roll-FFT search, one epoch)
-    # instead of a coherent slow-time axis -- doppler_bins (the unified
-    # property) reports that window-tile count instead.
+    # on top of whatever coherent depth the design C/N0 asks for inside each
+    # tile -- doppler_bins (the unified property) reports tiles * depth.
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
         wide = BurstAcquisition(
@@ -336,8 +336,16 @@ def test_doppler_uncertainty_sharpens_gate():
     # and folded to k in [-1, 0] -- reaching -2*span but nothing above DC, so
     # any positive Doppler in the requested range was uncovered. An odd count
     # is what makes the grid symmetric; see _cover_window_bins().
-    assert wide.doppler_bins == 3
-    assert wide.doppler_bins % 2 == 1
+    #
+    # doppler_bins is the grid a hit's bin indexes -- tiles * the coherent
+    # depth chosen inside each (a design C/N0, here 50 dB-Hz, asks for one) --
+    # so the tile count is that over the depth, which the resolution gives:
+    # doppler_res_hz = 2 * doppler_span_hz / depth.
+    depth = round(2 * wide.doppler_span_hz / wide.doppler_res_hz)
+    assert depth >= 1 and wide.doppler_bins % depth == 0
+    tiles = wide.doppler_bins // depth
+    assert tiles == 3
+    assert tiles % 2 == 1
 
 
 def test_underpowered_warns():

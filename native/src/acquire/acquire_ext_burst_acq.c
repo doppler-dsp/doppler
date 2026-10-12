@@ -333,9 +333,7 @@ BurstAcquisition_getprop_doppler_bins (BurstAcquisitionObject *self,
       return NULL;
     }
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)(((self->handle->engine->window_bins > 1)
-                                ? self->handle->engine->window_bins
-                                : self->handle->engine->coherent_bins)));
+      (unsigned long long)(acq_grid_bins (self->handle->engine)));
 }
 static PyObject *
 BurstAcquisition_getprop_reps (BurstAcquisitionObject *self,
@@ -573,10 +571,14 @@ static PyGetSetDef BurstAcquisition_getset[] = {
     "(len(preamble)).\n",
     NULL },
   { "doppler_bins", (getter)BurstAcquisition_getprop_doppler_bins, NULL,
-    "Coherent depth chosen: the slow-time FFT length in code reps (<= reps), "
-    "unless doppler_uncertainty exceeds the native span, in which case this "
-    "reports the wideband window-tile count instead (coherent depth forced to "
-    "1 -- see acq_core.h's file doc comment).\n",
+    "Doppler hypotheses searched: the coherent depth chosen (the slow-time "
+    "FFT length in code reps, <= reps), times the window-tile count when "
+    "doppler_uncertainty exceeds the native span -- a tile keeps its own "
+    "coherent depth when a design cn0_dbhz asks for one, and a hit's "
+    "doppler_bin indexes all of window_bins * depth rows. This is the count "
+    "to fold a hit's bin over (bin_to_signed(bin, doppler_bins) * "
+    "doppler_res_hz is the signed Doppler); it is acq_grid_bins(), and the "
+    "same number BurstCapture.doppler_bins reads.\n",
     NULL },
   { "reps", (getter)BurstAcquisition_getprop_reps, NULL,
     "Max coherent code repetitions (the coherence ceiling).\n", NULL },

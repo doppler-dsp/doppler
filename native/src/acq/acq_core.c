@@ -1144,10 +1144,10 @@ acq_commit_thresholds (dp_acq_state_t *st, double pfa, double pd, double snr,
 /* Ascend n_noncoh from 1 until the AVERAGED Pd meets pd, capped at
  * ACQ_N_NONCOH_SAFETY_CEILING (the internal safety valve replacing the old
  * caller-supplied max_noncoh cap -- see its doc comment in acq_core.h).
- * Shared by the wideband/window-tiling path (D pinned to 1, sb = window
- * count) and the burst path's non-coherent fallback (D = the coherent depth
- * that fell short, sb = its searched-bin count).  det_n_noncoh sizes at the
- * mean straddle amplitude -- a fast initializer that Jensen makes slightly
+ * Shared by the continuous engine's window-tiling path (D pinned to 1, sb =
+ * window count) and the burst path's non-coherent fallback (D = the coherent
+ * depth that fell short, sb = its searched-bin count).  det_n_noncoh sizes at
+ * the mean straddle amplitude -- a fast initializer that Jensen makes slightly
  * optimistic -- then the count escalates until the AVERAGED Pd meets the
  * target. */
 static size_t
@@ -1238,11 +1238,11 @@ acq_cover_window_bins (double du, double span)
  * Pd the honest answer is `underpowered`, which acq_commit_thresholds()
  * sets from pd_predicted; it is not more looks.
  *
- * du > span (wideband): *out_window_bins = ceil(du/span) tiles the requested
- * uncertainty, and the sizer still chooses a coherent depth inside each
- * tile. Each tile is one native span wide; the slow-time FFT resolves the
- * residual within it. The tile count and depth are both priced into the
- * global threshold.
+ * du > span (wideband): *out_window_bins = 2*ceil((du - span)/(2*span)) + 1
+ * (acq_cover_window_bins(), always odd) tiles the requested uncertainty, and
+ * the sizer still chooses a coherent depth inside each tile. Each tile is one
+ * native span wide; the slow-time FFT resolves the residual within it. The
+ * tile count and depth are both priced into the global threshold.
  *
  * du <= span: picks the smallest coherent depth D in [1, d_max] whose
  * burst Pd (pd_burst: every dwell a uniformly aligned preamble spans, at the

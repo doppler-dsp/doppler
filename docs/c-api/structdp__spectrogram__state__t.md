@@ -93,7 +93,7 @@ _Spectrogram state. Allocate with_ [_**dp\_spectrogram\_create()**_](spectrogram
 ## Detailed Description
 
 
-Every field is configuration except `fr's` stream position and `consumed`; the state blob carries only the former. 
+Every field is configuration except `fr's` stream position and `consumed`. The state blob carries the configuration a row depends on (mode, nfft, hop, window, beta) and the stream position, not `consumed`. 
 
 
     
@@ -110,7 +110,7 @@ float dp_spectrogram_state_t::beta;
 
 
 
-Kaiser beta (window 1 only). 
+Kaiser beta (the Kaiser window only). 
  
 
 

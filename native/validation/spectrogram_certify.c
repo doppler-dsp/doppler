@@ -3,11 +3,11 @@
  * @brief The measurements the Spectrogram's characterization and
  * certification are built from.
  *
- * The Spectrogram has no Python binding until #1894's slice 3b, so its
- * evidence follows `docs/dev/contributing/validation.md` "Certifying a
- * component with no binding": **this file measures, and
- * `src/doppler/tests/validation/spectrogram/validate.py` renders and
- * asserts.** Nothing here decides whether a number is acceptable.
+ * The claims are the C header's, and the Python face is generated over this
+ * same C with no logic of its own, so the evidence is measured in C: **this
+ * file measures, and
+ * `src/doppler/spectral/tests/validation/spectrogram/validate.py` renders
+ * and asserts.** Nothing here decides whether a number is acceptable.
  *
  * Run with no arguments for a readable run (`make validate-c`), or with
  * `--emit` for the CSV blocks the validator parses.
@@ -33,8 +33,10 @@
  * - `flush`: every length 0..4*nfft+3, the grid row iff owed, once, then a
  *   restart.
  * - `state`: every cut point, two fills, a restore into a new object that
- *   holds a stray carry, the refusals, and another window's and another
- *   mode's continuation.
+ *   holds a stray carry, and the refusals: a corrupt envelope, another hop
+ *   or nfft, another window, the other mode, and under the Kaiser window
+ *   another beta (#2102). Under the other windows another beta is taken
+ *   and the stream continues bit for bit.
  * - `level`: a full-scale tone on every bin, its peak index and level: 1.0
  *   in power, 0 dB in dB, the error in the row's own units.
  *
@@ -842,7 +844,7 @@ sweep_state (int emit)
       "restore_refused,after_restore_wrong,resume_bad,corrupt_tried,"
       "corrupt_refused,target_changed,hop_tried,hop_refused,nfft_tried,"
       "nfft_refused,window_refused,window_wrong,mode_refused,"
-      "mode_wrong");
+      "mode_wrong,beta_refused,beta_wrong");
   for (size_t m = 0; m < NMODES; m++)
     for (size_t i = 0; i < sizeof shape / sizeof *shape; i++)
       {
@@ -891,6 +893,7 @@ sweep_state (int emit)
         size_t resume = 0, ctried = 0, crefused = 0, changed = 0;
         size_t htried = 0, hrefused = 0, ntried = 0, nrefused = 0;
         size_t wrefused = 0, wwrong = 0, mrefused = 0, mwrong = 0;
+        size_t brefused = 0, bwrong = 0;
         for (size_t cut = 0; cut <= 3 * nfft + 3; cut += stride)
           {
             cuts++;
@@ -961,6 +964,32 @@ sweep_state (int emit)
                                              ru, nfft)
                                  != 0;
               }
+
+            /* another beta: REFUSED under the Kaiser window, whose rows it
+               shapes (#2102); taken under any other, whose rows it does not
+               change, and the stream then continues bit for bit. A taken
+               Kaiser blob is wrong whatever its rows read. */
+            {
+              dp_spectrogram_state_t *k = dp_spectrogram_create (
+                  nfft, hop, w, beta_of (w) + 1.0f, mode);
+              if (!k)
+                return 1;
+              dp_spectrogram_push (k, X + 700, 3, scratch, 0);
+              for (size_t q = rb * nfft; q < (r_n + 2) * nfft; q++)
+                got[q] = NAN;
+              if (dp_spectrogram_set_state (k, b1) != DP_OK)
+                brefused++;
+              else
+                {
+                  const size_t rk
+                      = push_in_fives (k, cut, len, got + rb * nfft) / nfft;
+                  bwrong += w == DP_PSD_WINDOW_KAISER || rb + rk != r_n
+                            || rows_differing (got + rb * nfft,
+                                               want + rb * nfft, rk, nfft)
+                                   != 0;
+                }
+              dp_spectrogram_destroy (k);
+            }
 
             /* corrupt envelopes: magic, version, size */
             const size_t pend = dp_spectrogram_pending (target);
@@ -1047,11 +1076,11 @@ sweep_state (int emit)
         }
         printf (
             "%s,%zu,%zu,%s,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,"
-            "%zu,%zu,%zu,%zu,%zu,%zu,%zu\n",
+            "%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu\n",
             MODE_NAME[m], nfft, hop, WINDOW[w], cuts, bytes, sizes + 1, varies,
             unwritten, refused, after, resume, ctried, crefused, changed,
             htried, hrefused, ntried, nrefused, wrefused, wwrong, mrefused,
-            mwrong);
+            mwrong, brefused, bwrong);
         free (lie);
         free (b2);
         free (b1);

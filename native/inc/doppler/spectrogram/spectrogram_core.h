@@ -92,7 +92,8 @@ enum
  * @brief Spectrogram state. Allocate with dp_spectrogram_create().
  *
  * Every field is configuration except @c fr's stream position and
- * @c consumed; the state blob carries only the former.
+ * @c consumed. The state blob carries the configuration a row depends on
+ * (mode, nfft, hop, window, beta) and the stream position, not @c consumed.
  */
 typedef struct
 {
@@ -103,7 +104,7 @@ typedef struct
   size_t nfft;          /**< Samples per frame, and bins per row.       */
   size_t hop;           /**< Samples between row starts.                */
   int window;           /**< A DP_PSD_WINDOW_* (see dp_psd_create()).  */
-  float beta;           /**< Kaiser beta (window 1 only).               */
+  float beta;           /**< Kaiser beta (the Kaiser window only).      */
   int mode;             /**< DP_SPECTROGRAM_POWER or DP_SPECTROGRAM_DB. */
   size_t consumed;      /**< Input samples the last push took.          */
 } dp_spectrogram_state_t;
@@ -247,13 +248,13 @@ size_t dp_spectrogram_pending (const dp_spectrogram_state_t *s);
 /**
  * @brief Bytes of the state blob, a function of nfft alone.
  *
- * The blob is the stream position -- the framer's snapshot: the carry
- * (fewer than nfft samples, padded to nfft - 1), its element size, the
- * stream counts, and the hop that frames them -- inside the spectrogram's own
- * envelope. It does not carry consumed(), the PSD's window or beta, or the
- * spectrogram's own mode. So nfft and hop are checked on restore (the size
- * and the stored hop), and window, beta and mode are the caller's to keep
- * the same -- see dp_spectrogram_set_state().
+ * The blob is the configuration a row depends on -- mode, nfft, hop, window
+ * and beta -- then the stream position: the framer's snapshot, which is the
+ * carry (fewer than nfft samples, padded to nfft - 1), its element size, the
+ * stream counts and the hop that frames them. Both sit inside the
+ * spectrogram's own envelope, version 2. Every field has a fixed size, so the
+ * length depends on nfft alone. It does not carry consumed(), which reads 0
+ * after a restore. What a restore refuses is dp_spectrogram_set_state()'s.
  *
  * @param s  Must be non-NULL.
  */
@@ -269,21 +270,16 @@ void dp_spectrogram_get_state (const dp_spectrogram_state_t *s, void *blob);
 /**
  * @brief Restore a stream position, so the next push continues it bit for bit.
  *
- * Precondition, the caller's to keep because the blob does not carry it:
- * @p s was created with the same arguments (nfft, hop, window, beta, mode)
- * as the spectrogram the blob came from. A different nfft or hop is refused
- * (the size and the framer's stored hop tell); a different window, beta or
- * mode is NOT, and the rows that follow are the restoring object's, not the
- * original's.
+ * The blob is refused, with @p s unchanged, when its magic, version or size
+ * is wrong; when the configuration it carries differs from @p s's -- another
+ * mode, nfft, hop or window, or under the Kaiser window another beta, since a
+ * checkpoint from another configuration would mean something else (#2102);
+ * or when its carry is corrupt. A beta under any other window changes no row,
+ * so it is not compared. A version-1 blob, which carried no configuration, is
+ * refused by its version.
  *
- * @param s     A spectrogram created with the same arguments.
+ * @param s     A spectrogram.
  * @param blob  From dp_spectrogram_get_state().
- * A blob is refused, with @p s unchanged, when its magic, version or size is
- * wrong, when its configuration differs from @p s (mode, nfft, hop, window,
- * and beta for the Kaiser window: a checkpoint from another mode, or from a
- * window that shapes the rows differently, would mean something else), or when
- * its carry is corrupt.
- *
  * @return DP_OK, or DP_ERR_INVALID.
  */
 int dp_spectrogram_set_state (dp_spectrogram_state_t *s, const void *blob);

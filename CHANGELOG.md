@@ -51,13 +51,13 @@ ______________________________________________________________________
     or mode slot (or into another such helper) is held like the
     constructor. Nine of the table's ten are found; `rows_are_the_psd` and
     `oracle`'s mode only compare, so a literal mode at their calls is no
-    longer refused (#2227) (#2197).
+    longer refused (#2197, #2227).
 
 - **The named-args gate follows the helpers that forward a window or mode
     into a constructor.** The Spectrogram's C test, certification harness
     and bench forward them through helpers; their 16 literals, and 8 the
     gate cannot see, are names now. A definition or prototype is no longer a
-    call (#2191). How the helpers are found is the entry below (#2197).
+    call (#2191). How the helpers are found is the entry above (#2197).
 
 - **The specan web server tests now run in CI, and read frames the way a browser does.**
     The burst test no longer sits out a 10 s websocket close timeout, so it takes about
@@ -68,26 +68,28 @@ ______________________________________________________________________
     holds PSD's kernel, not a PSD whose averager, dB buffer and ring it never
     touched. The 28 is derived (12 of heap plus the ring's 16 of memfd,
     counted once). Rows and state blobs are byte-identical on x86-64;
-    off-x86 was not compared (#2187) (#1894, design §5.10).
+    off-x86 was not compared (#2187; #1894, design §5.10).
 
 - **The uno-q example names its PSD window, and the named-args gate holds
     example projects' window slots too.** v0.67.0 carries `DP_PSD_WINDOW_*`,
     so `example-projects/` lose the exemption they had while the released
     library lacked the names (#2186).
 
-- **A tone or chirp repeated across segments restarts its phase at the
-    boundary today**, though the guide promises seamless joins; what a join
-    guarantees is being decided in #2244.
+- **Known limit: a tone or chirp repeated across segments restarts its
+    phase at the boundary today**, though the guide promises seamless joins;
+    what a join guarantees is being decided in #2244.
 
 - **A tiled (wideband) burst search keeps a coherent depth inside every Doppler
-    tile when a design C/N0 asks for one; with none it stays at D = 1.** A tiled
-    object built WITH a design C/N0 can now come out at D > 1 where 0.67.0 gave
-    1 (45 dB-Hz: `coherent_bins` 1 to 8): its buffers, latency and state blob
-    grow, and a 0.67.0 blob of it is refused on restore. A hit's `doppler_bin`
-    indexes `window_bins * D` rows, which `BurstAcquisition.doppler_bins` now
-    reports, as `BurstCapture` did (#2218, #2224; #2210). A tiled search of a
+    tile when a design C/N0 asks for one; with none it stays at D = 1.** Built
+    WITH one, a tiled object can now come out at D > 1 where 0.67.0 gave 1
+    (e.g. 45 dB-Hz, 8 repetitions: `coherent_bins` 1 to 8): its buffers,
+    latency and state blob grow, and a 0.67.0 blob of it is refused on restore.
+    A hit's `doppler_bin` indexes `window_bins * D` rows, which
+    `BurstAcquisition.doppler_bins` now reports, as `BurstCapture` did (#2210).
+    Known limits: a tiled engine's `pd_burst` over-credits it, so `underpowered`
+    stays clear where it should warn (#2224: 1.000 reported, 0.69 delivered); a
     band-limited repeated chirp is unreliable in tile resolution (#2234,
-    pre-existing; #2235).
+    pre-existing; #2235, new with D > 1).
 
 ### Fixed
 

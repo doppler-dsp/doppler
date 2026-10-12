@@ -35,13 +35,13 @@ flowchart TD
 `bits` is the ergonomic ADC knob: `bits>0` sets `full_scale = 2**(bits-1)` in
 `dp_psd_create`, the **only** place that conversion lives. `full_scale` remains the
 analog/general alternative. Every consumer forwards `bits`/`full_scale` into its
-`PSD` and reads the resolved reference back as `psd->full_scale` — none of them
-re-derive it.
+`PSD` and reads the resolved reference back as `psd->k.full_scale` — none of
+them re-derive it.
 
 | API                   | dBFS knob             | display-spectrum method | notes                                                       |
 | --------------------- | --------------------- | ----------------------- | ----------------------------------------------------------- |
 | `spectral.PSD`        | `bits` / `full_scale` | `psd_db` / `psd_dbhz`   | the core; `bits` resolves to `full_scale` here, once        |
-| `measure.ToneMeasure` | `bits` / `full_scale` | `spectrum_dbfs(x)`      | reads `psd->full_scale` in the metric kernels               |
+| `measure.ToneMeasure` | `bits` / `full_scale` | `spectrum_dbfs(x)`      | reads `psd->k.full_scale` in the metric kernels             |
 | `measure.IMDMeasure`  | `bits` / `full_scale` | `spectrum_dbfs(x)`      | same                                                        |
 | `measure.NPRMeasure`  | `bits` / `full_scale` | `spectrum_dbfs(x)`      | same                                                        |
 | `analyzer.Specan`     | `bits` / `full_scale` | `execute()` -> dBFS     | `offset_db` is an additive offset on top of dBFS (e.g. dBm) |

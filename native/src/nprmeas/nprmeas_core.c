@@ -32,7 +32,7 @@ dp_nprmeas_create (size_t n, double fs, double full_scale, size_t bits,
   double beta = dp_kaiser_beta_for_sidelobe (dr);
 
   /* The PSD core owns the dBFS reference (full_scale / bits); read it back as
-   * s->psd->full_scale so it is defined exactly once. */
+   * s->psd->k.full_scale so it is defined exactly once. */
   s->psd = dp_psd_create (n, fs, DP_PSD_WINDOW_KAISER, (float)beta,
                           MEASURE_PAD, full_scale, bits, ACC_TRACE_MEAN, 0.0);
   if (!s->psd)
@@ -41,7 +41,7 @@ dp_nprmeas_create (size_t n, double fs, double full_scale, size_t bits,
       return NULL;
     }
   s->n    = n;
-  s->nfft = s->psd->nfft;
+  s->nfft = s->psd->k.nfft;
   s->fs   = fs;
   s->enbw = s->psd->enbw;
   s->beta = beta;
@@ -128,7 +128,7 @@ dp_nprmeas_analyze (dp_nprmeas_state_t *s, const float *x, size_t n_in,
 
   /* per-bin power referenced to a full-scale tone (same cal as tonemeas) */
   double cal = (double)s->nfft / (double)s->n * s->enbw;
-  double ref = s->psd->full_scale * s->psd->full_scale / 2.0 * cal;
+  double ref = s->psd->k.full_scale * s->psd->k.full_scale / 2.0 * cal;
 
   r.npr_db          = 10.0 * log10 (in_mean / nt_mean);
   r.inband_psd_dbfs = 10.0 * log10 (in_mean / ref);
@@ -162,7 +162,7 @@ dp_nprmeas_spectrum_dbfs (dp_nprmeas_state_t *state, const float *x,
      the analyser's nfft, so this is the only real bound. */
   if (nfft > max_out)
     nfft = max_out;
-  double ref = state->psd->full_scale * state->psd->full_scale;
+  double ref = state->psd->k.full_scale * state->psd->k.full_scale;
   for (size_t i = 0; i < nfft; i++)
     out[i] = (float)(10.0 * log10 ((double)state->pwr[i] / ref + NPR_EPS));
   return nfft;

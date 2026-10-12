@@ -92,7 +92,7 @@ run (config_t *c, const float _Complex *x)
     {
       size_t k = 0;
       for (; k * c->hop + c->nfft <= c->block; k++)
-        dp_psd_frame_db (c->p, x + k * c->hop, c->out + k * c->nfft);
+        dp_psd_frame_db (&c->p->k, x + k * c->hop, c->out + k * c->nfft);
       return k * c->nfft;
     }
   dp_spectrogram_reset (c->s);

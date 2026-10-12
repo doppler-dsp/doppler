@@ -33,9 +33,9 @@ spectrogram_row (dp_spectrogram_state_t *s, const float _Complex *frame,
                  float *row)
 {
   if (s->mode == DP_SPECTROGRAM_DB)
-    dp_psd_frame_db (s->psd, frame, row);
+    dp_psd_frame_db (&s->psd->k, frame, row);
   else
-    dp_psd_frame_linear (s->psd, frame, row);
+    dp_psd_frame_linear (&s->psd->k, frame, row);
 }
 
 dp_spectrogram_state_t *
@@ -63,7 +63,7 @@ dp_spectrogram_create (size_t nfft, size_t hop, int window, float beta,
                                        ACC_TRACE_MEAN, 0.0);
   if (!psd)
     return NULL;
-  if (psd->nfft != nfft)
+  if (psd->k.nfft != nfft)
     {
       dp_psd_destroy (psd);
       return NULL;

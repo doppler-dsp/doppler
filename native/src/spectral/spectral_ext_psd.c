@@ -1027,7 +1027,7 @@ PSD_getprop_n (PSDObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->n);
+  return PyLong_FromUnsignedLongLong ((unsigned long long)(self->handle->k.n));
 }
 static PyObject *
 PSD_getprop_nfft (PSDObject *self, void *Py_UNUSED (closure))
@@ -1037,7 +1037,8 @@ PSD_getprop_nfft (PSDObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->nfft);
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)(self->handle->k.nfft));
 }
 static PyObject *
 PSD_getprop_fs (PSDObject *self, void *Py_UNUSED (closure))
@@ -1057,7 +1058,7 @@ PSD_getprop_full_scale (PSDObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble (self->handle->full_scale);
+  return PyFloat_FromDouble ((self->handle->k.full_scale));
 }
 static PyObject *
 PSD_getprop_bits (PSDObject *self, void *Py_UNUSED (closure))
@@ -1088,7 +1089,7 @@ PSD_getprop_rbw (PSDObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   return PyFloat_FromDouble (
-      (self->handle->enbw * self->handle->fs / (double)self->handle->n));
+      (self->handle->enbw * self->handle->fs / (double)self->handle->k.n));
 }
 static PyObject *
 PSD_getprop_count (PSDObject *self, void *Py_UNUSED (closure))

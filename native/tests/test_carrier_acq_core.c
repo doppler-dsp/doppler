@@ -214,7 +214,7 @@ main (void)
   }
 
   /* ── the blob is a function of the object (#2076): only carry_len of the
-     carry buffer's psd->n samples are state, so get_state writes zeros
+     carry buffer's psd->k.n samples are state, so get_state writes zeros
      after them, whatever an earlier block left in the buffer. A carry of
      n - 1 samples, then two more (one closes the block, one starts a new
      carry), leaves n - 1 real samples (carry_buf[1..n-1]) in the tail to
@@ -228,7 +228,7 @@ main (void)
     DP_CHECK (ca != NULL);
     if (ca)
       {
-        const size_t    n     = ca->psd->n;
+        const size_t    n     = ca->psd->k.n;
         float _Complex *noise = _make_noise (n + 1, 2076u);
         dp_carrier_acq_steps (ca, noise, n - 1);
         dp_carrier_acq_steps (ca, noise + (n - 1), 2);
@@ -295,12 +295,12 @@ main (void)
           DP_CHECK (ca != NULL);
           if (!ca)
             continue;
-          DP_CHECK (ca->psd->n == 3);
+          DP_CHECK (ca->psd->k.n == 3);
           dp_carrier_acq_steps (ca, x, n);
           float        db[16];
           const size_t got
-              = dp_psd_psd_db (ca->psd, ca->psd->nfft, db, ca->psd->nfft);
-          DP_CHECK (got == ca->psd->nfft);
+              = dp_psd_psd_db (ca->psd, ca->psd->k.nfft, db, ca->psd->k.nfft);
+          DP_CHECK (got == ca->psd->k.nfft);
           float peak = -1e30f;
           for (size_t i = 0; i < got; i++)
             {
@@ -412,7 +412,7 @@ main (void)
     DP_CHECK (ca != NULL && cr != NULL);
     if (ca && cr)
       {
-        const size_t    n     = ca->psd->n;
+        const size_t    n     = ca->psd->k.n;
         float _Complex *noise = _make_noise (n, 2077u);
         dp_carrier_acq_steps (ca, noise, n - 1);
         DP_CHECK (ca->carry_len == n - 1);

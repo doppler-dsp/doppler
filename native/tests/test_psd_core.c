@@ -327,8 +327,9 @@ main (void)
       size_t n, pad;
       int    window;
       float  beta;
-    } const ties[]
-        = { { 100, 2, 3, 0.0f }, { 64, 4, 1, 6.0f }, { 64, 4, 1, 1.0f } };
+    } const ties[] = { { 100, 2, DP_PSD_WINDOW_RECT, 0.0f },
+                       { 64, 4, DP_PSD_WINDOW_KAISER, 6.0f },
+                       { 64, 4, DP_PSD_WINDOW_KAISER, 1.0f } };
     for (size_t k = 0; k < sizeof ties / sizeof ties[0]; k++)
       {
         dp_psd_state_t *r
@@ -843,7 +844,7 @@ main (void)
         dp_psd_frame_power (k, f[j], P[j]);
       }
     const double cg2 = k->cg * k->cg;
-    for (int mode = 0; mode <= 3; mode++)
+    for (int mode = ACC_TRACE_MEAN; mode <= ACC_TRACE_MINHOLD; mode++)
       {
         dp_psd_state_t *w = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
                                            1.0, 0, mode, alpha);

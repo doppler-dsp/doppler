@@ -25,9 +25,14 @@ signature would otherwise leave its row checking nothing. Prose is not a
 call: ``dp_psd_create()``, ``dp_psd_create(1 << 62, ...)``, or a call
 inside a string literal.
 
-**What it does not hold:** a literal that reaches a constructor through a
-helper -- a test's ``ref_psd (nfft, 0, ...)``, the certify harness's
-``make (..., 3)`` -- or a variable initialised from one (#2191).
+**Helpers, file by file.** A helper that passes its argument straight into
+a gated slot -- a test's ``ref_psd (nfft, window, beta)``, the certify
+harness's ``make (mode, nfft, hop, window)`` -- would hide a literal from
+the row it forwards to, so ``HELPERS`` gives it a row for the one file that
+defines it (names like ``make`` are generic; #2191). A definition or a
+prototype, every argument a declaration, is not a call. **Not held:** a
+helper in a file ``HELPERS`` does not name, or a variable initialised from
+a literal.
 
 **One declaration.** Each slot names an ``[[enum]]`` of just-makeit.toml,
 and the names come from the C enum that carries it (``SSOT: enum=X``, held
@@ -96,6 +101,33 @@ TABLE: dict[str, tuple[int, dict[int, tuple[str, str]]]] = {
     "dp_acc_trace_create": (3, {1: ("mode", "acc_trace_mode")}),
 }
 
+_W = ("window", "psd_window")
+_M = ("mode", "spectrogram_mode")
+#: File-scoped rows (#2191): a helper that passes its argument straight into
+#: a gated slot of a TABLE function hides a literal from that row, so it gets
+#: a row of its own -- for the one file that defines it, because helper names
+#: like `make` are generic. Same shape as TABLE, keyed by the file.
+HELPERS: dict[str, dict[str, tuple[int, dict[int, tuple[str, str]]]]] = {
+    "native/tests/test_spectrogram_core.c": {
+        "ref_psd": (3, {1: _W}),
+        "ref_row": (4, {1: _M}),
+        "oneshot": (7, {0: _M, 3: _W}),
+        "rows_are_the_psd": (7, {1: _M}),
+        "sections": (1, {0: _M}),
+    },
+    "native/validation/spectrogram_certify.c": {
+        "row_of": (3, {0: _W}),
+        "enbw_of": (2, {0: _W}),
+        "beta_of": (1, {0: _W}),
+        "other_mode": (1, {0: _M}),
+        "make": (4, {0: _M, 3: _W}),
+        "ref_psd": (2, {1: _W}),
+        "ref_row": (4, {1: _M}),
+        "oracle": (6, {0: _M, 3: _W}),
+        "partition": (11, {0: _M, 3: _W}),
+    },
+}
+
 #: Tracked trees that are not this gate's: generated from what it scans.
 SKIP = ("docs/c-api/",)
 
@@ -105,9 +137,24 @@ SKIP = ("docs/c-api/",)
 #: slot there is checked.
 EXEMPT_SLOTS = {"example-projects/": frozenset({"psd_window"})}
 
-# Longest first, so `dp_psd_create_hop` is never read as `dp_psd_create`.
-_CALL = re.compile(
-    r"(?<![\w.])(" + "|".join(sorted(TABLE, key=len, reverse=True)) + r")\s*\("
+
+def _call_re(table: dict[str, object]) -> re.Pattern[str]:
+    """A call of any function in `table`. Longest first, so
+    `dp_psd_create_hop` is never read as `dp_psd_create`."""
+    return re.compile(
+        r"(?<![\w.])("
+        + "|".join(sorted(table, key=len, reverse=True))
+        + r")\s*\("
+    )
+
+
+_CALL = _call_re(TABLE)
+#: A parameter declaration, `size_t nfft` or `const float *x`: two words
+#: where a call has an expression. A definition or prototype is not a call,
+#: so it neither counts toward its row nor hides a missing one.
+_DECL = re.compile(
+    r"(?:(?:const|volatile|unsigned|signed|struct)\s+)*"
+    r"[A-Za-z_]\w*[\s*]+[A-Za-z_]\w*(?:\s*\[\w*\])?"
 )
 
 #: A line break inside a call, with a comment's continuation prefix (`*`,
@@ -254,18 +301,31 @@ def check_text(
     names: dict[str, dict[int, str]],
     is_c: bool,
     exempt: frozenset[str] = frozenset(),
+    helpers: dict[str, tuple[int, dict[int, tuple[str, str]]]] | None = None,
 ) -> tuple[dict[str, int], list[Finding]]:
     """Calls checked per function, and each finding: a literal in a named
     slot (not one of the `exempt` enums), or a call whose argument count is
     not its row's -- a signature change must not leave a stale row quietly
-    checking nothing. A zero-argument mention is prose, not a call."""
+    checking nothing. A zero-argument mention is prose, not a call, and a
+    definition or prototype (every argument a declaration) is not one
+    either. `helpers` are this file's own rows, checked beside TABLE's."""
+    table = {**TABLE, **(helpers or {})}
     scan = _STRING.sub(lambda m: " " * len(m.group(0)), text) if is_c else text
+    hits = [(m, scan) for m in _CALL.finditer(scan)]
+    if helpers:
+        # A helper is file-local C, so a mention of one inside a comment is
+        # prose (`the units sections (3, 9, 13)`), never a call: its rows
+        # read the file with comments blanked. TABLE's rows cannot, because
+        # a header's @code block, which they must read, is a comment.
+        code = _COMMENT.sub(lambda m: " " * len(m.group(0)), scan)
+        hits += [(m, code) for m in _call_re(helpers).finditer(code)]
+        hits.sort(key=lambda h: h[0].start())
     calls: dict[str, int] = {}
     found: list[Finding] = []
-    for m in _CALL.finditer(scan):
+    for m, src in hits:
         func = m.group(1)
-        nargs, slots = TABLE[func]
-        got = _args(scan, m.end() - 1)
+        nargs, slots = table[func]
+        got = _args(src, m.end() - 1)
         if got is None:
             continue
         spans = got[0]
@@ -273,6 +333,8 @@ def check_text(
         # Prose, not a call: `dp_psd_create()`, or `dp_psd_create(1 << 62,
         # ...)` with an ellipsis standing for the rest.
         if bares == [""] or "..." in bares:
+            continue
+        if all(_DECL.fullmatch(b) for b in bares):
             continue
         line = text.count("\n", 0, m.start()) + 1
         if len(spans) != nargs:
@@ -326,7 +388,11 @@ def _names(root: Path) -> tuple[dict[str, dict[int, str]], list[str]]:
     by_enum: dict[str, dict[int, str]] = {}
     for _, enum, pairs in bound:
         by_enum[enum] = {v: n for n, v in pairs if v is not None}
-    for enum in sorted({e for _, s in TABLE.values() for _, e in s.values()}):
+    rows = [
+        *TABLE.values(),
+        *(r for h in HELPERS.values() for r in h.values()),
+    ]
+    for enum in sorted({e for _, s in rows for _, e in s.values()}):
         if enum not in by_enum:
             errs.append(
                 f"no C enum carries `SSOT: enum={enum}`, so a literal in its"
@@ -353,6 +419,7 @@ def main(argv: list[str]) -> int:
         return 1
 
     calls: dict[str, int] = dict.fromkeys(TABLE, 0)
+    helper_calls = {(p, f): 0 for p, rows in HELPERS.items() for f in rows}
     files, fixed, left = 0, 0, []
     for rel in tracked(root):
         path = root / rel
@@ -363,11 +430,17 @@ def main(argv: list[str]) -> int:
         exempt = frozenset().union(
             *(e for p, e in EXEMPT_SLOTS.items() if rel.startswith(p))
         )
-        n, found = check_text(text, names, not rel.endswith(".md"), exempt)
+        helpers = HELPERS.get(rel)
+        n, found = check_text(
+            text, names, not rel.endswith(".md"), exempt, helpers
+        )
         if n:
             files += 1
             for f, k in n.items():
-                calls[f] += k
+                if helpers and f in helpers:
+                    helper_calls[(rel, f)] += k
+                else:
+                    calls[f] += k
         todo = [f for f in found if args.fix and f.name and f.span]
         for f in found:
             if f not in todo:
@@ -383,12 +456,20 @@ def main(argv: list[str]) -> int:
     # A row that finds no call is broken, not clean: the same defect as a
     # glob that silently matches nothing, one function at a time.
     missing = [f for f, k in calls.items() if k == 0]
-    if missing:
-        for f in missing:
-            print(
-                f"check_named_args: found no {f} call in the tracked"
-                " .c/.h/.md files -- the scan is broken -- FAIL"
-            )
+    for f in missing:
+        print(
+            f"check_named_args: found no {f} call in the tracked"
+            " .c/.h/.md files -- the scan is broken -- FAIL"
+        )
+    # A helper row is held the same way, in its own file: a helper renamed
+    # or inlined away (or a file moved) must take its row with it.
+    lost = [(p, f) for (p, f), k in helper_calls.items() if k == 0]
+    for p, f in lost:
+        print(
+            f"check_named_args: found no call of the helper {f} in {p}"
+            " -- drop its HELPERS row or fix the scan -- FAIL"
+        )
+    if missing or lost:
         return 1
     if fixed:
         print(f"check_named_args: named {fixed} literal(s)")
@@ -416,8 +497,9 @@ def main(argv: list[str]) -> int:
         )
         return 1
     print(
-        f"check_named_args: OK -- {sum(calls.values())} call(s) in {files}"
-        " file(s), every integer-coded argument passed by name"
+        f"check_named_args: OK -- {sum(calls.values())} call(s) and"
+        f" {sum(helper_calls.values())} helper call(s) in {files} file(s),"
+        " every integer-coded argument passed by name"
     )
     return 0
 

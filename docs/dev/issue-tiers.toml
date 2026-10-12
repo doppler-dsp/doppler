@@ -1479,3 +1479,8 @@ status = "open"
 tier = 1
 title = "Window and mode literals still reach the constructors through test helpers the named-args gate cannot see"
 status = "open"
+
+[issue.2194]
+tier = 1
+title = "carrier_acq's window set is declared twice, and the named-args gate checks its slot against psd_window, not the carrier_acq_window view"
+status = "open"

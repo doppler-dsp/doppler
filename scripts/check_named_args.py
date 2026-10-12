@@ -33,8 +33,10 @@ another helper -- would hide a literal from the constructor's row (#2191).
 whose parameters is passed bare into a gated slot of a TABLE call, or of
 another helper in the file, gets that row, for its own file (names like
 ``make`` are generic). A parameter that reaches two enums keeps both, so a
-literal at its call is named only where they agree (#2227). A definition is
-read in the shapes this tree writes:
+literal at its call is named only where they agree (#2227). A variadic
+helper's ``...`` is not a parameter: its named parameters are the fewest
+arguments a call may pass (#2227). A definition is read in the shapes this
+tree writes:
 ``static`` at the start of a line or indented, after any upper-case macro
 (``JM_HOT``), ``[[attribute]]`` or ``__attribute__((...))``, with the return
 type, qualifiers and attributes on that line or any line before the name.
@@ -47,8 +49,8 @@ points are TABLE rows); a ``static inline`` forwarder in a header
 declared after the list); a parameter forwarded inside an expression
 (``w + 0``) or through a local variable; a parameter only COMPARED with an
 enumerator (``mode == DP_SPECTROGRAM_POWER``: a literal at such a call is
-not refused); a local that shadows a parameter and a variadic helper's
-``...`` (#2227); a function pointer or macro;
+not refused); a local that shadows a parameter (#2227); a function pointer
+or macro;
 a value that never passes through a call slot -- a variable initialised
 from a literal, a table cell, a loop bound.
 
@@ -111,6 +113,7 @@ from check_wfm_enum_tables import enum_names
 ROOT = Path(__file__).resolve().parent.parent
 
 #: function -> (argument count, {argument index: (parameter, [[enum]])}).
+#: A discovered variadic helper's count is negative: at least that many.
 TABLE: dict[str, tuple[int, dict[int, tuple[str, str]]]] = {
     "dp_spectrogram_create": (
         5,
@@ -131,6 +134,23 @@ TABLE: dict[str, tuple[int, dict[int, tuple[str, str]]]] = {
 
 #: Tracked trees that are not this gate's: generated from what it scans.
 SKIP = ("docs/c-api/",)
+
+
+def _fits(count: int, nargs: int) -> bool:
+    """Whether a call with `count` arguments is a call of a row of `nargs`:
+    exactly that many, or for a variadic helper's row (negative) at least
+    its named parameters. `f (int w, ...)` is -1, so `f (w)` and
+    `f (w, "x", 3)` are both its calls (#2227).
+
+    >>> _fits(2, 2), _fits(3, 2), _fits(1, -1), _fits(3, -1), _fits(1, -2)
+    (True, False, True, True, False)
+    """
+    return count == nargs or 0 < -nargs <= count
+
+
+def _says(nargs: int) -> str:
+    """A row's argument count as an arity finding states it."""
+    return f"at least {-nargs}" if nargs < 0 else str(nargs)
 
 
 def _call_re(table: dict[str, object]) -> re.Pattern[str]:
@@ -413,27 +433,33 @@ def discover(
         if j >= len(code) or code[j] != "{":
             continue  # a prototype, not a definition
         params = [_param_name(code[a:b]) for a, b in spans]
-        defs.append((m.group("name"), params, j, _brace_end(code, j)))
+        # `...` is no parameter: a variadic row counts its named ones as a
+        # minimum, so a call with more arguments is still its call (#2227).
+        arity = len(params)
+        if code[spans[-1][0] : spans[-1][1]].strip() == "...":
+            params.pop()
+            arity = -len(params)
+        defs.append((m.group("name"), params, arity, j, _brace_end(code, j)))
     rows: dict[str, tuple[int, dict[int, tuple[str, str]]]] = {}
     changed = True
     while changed:
         changed = False
         table = {**TABLE, **rows}
         call = _call_re(table)
-        for name, params, j, k in defs:
+        for name, params, arity, j, k in defs:
             for cm in call.finditer(code, j, k):
                 func = cm.group(1)
                 if func == name:
                     continue
                 nargs, slots = table[func]
                 got = _args(code, cm.end() - 1)
-                if got is None or len(got[0]) != nargs:
+                if got is None or not _fits(len(got[0]), nargs):
                     continue
                 for idx, (label, enum) in slots.items():
                     a, b = got[0][idx]
                     arg = _bare(code[a:b])
                     if arg and arg in params:
-                        row = rows.setdefault(name, (len(params), {}))
+                        row = rows.setdefault(name, (arity, {}))
                         p = params.index(arg)
                         old = row[1].get(p)
                         if old is None:
@@ -489,13 +515,13 @@ def check_text(
         if all(_DECL.fullmatch(b) or _TYPE_ONLY.fullmatch(b) for b in bares):
             continue
         line = text.count("\n", 0, m.start()) + 1
-        if len(spans) != nargs:
+        if not _fits(len(spans), nargs):
             found.append(
                 Finding(
                     line,
                     func,
                     "arity",
-                    f"{len(spans)} argument(s), its row says {nargs}",
+                    f"{len(spans)} argument(s), its row says {_says(nargs)}",
                     None,
                     None,
                 )

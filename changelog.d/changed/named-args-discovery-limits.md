@@ -1,4 +1,4 @@
-- **The named-args gate's helper discovery stops misreading two C shapes.**
-    A quote inside a comment hid every helper and call up to the next
-    quote, and a parameter feeding two enums made `--fix` write a name one
-    of them refuses (#2227).
+- **The named-args gate's helper discovery stops misreading three C
+    shapes.** A quote inside a comment, a parameter feeding two enums and a
+    variadic `...` could each hide a literal or make `--fix` write a wrong
+    name (#2227).

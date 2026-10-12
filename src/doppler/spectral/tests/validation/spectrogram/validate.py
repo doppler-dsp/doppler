@@ -1157,8 +1157,8 @@ def build(write: bool = True) -> Report:
             [
                 "C1",
                 "`create` refuses an `nfft` that is not a power of two of "
-                "at least 2, a hop outside 1..`nfft`, a bad window index or "
-                "one with no gain at `nfft` (Hann at 2), in either mode, "
+                "at least 2, a hop past `nfft` (0 means `nfft`), a bad window "
+                "or one with no gain at `nfft` (Hann at 2), in either mode, "
                 "and any mode but power and dB; it accepts both modes",
                 "§1",
                 "#1975: the `nfft` check removed (N1), and its validation "

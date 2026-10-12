@@ -2230,9 +2230,10 @@ class Spectrogram:
         Samples per frame and bins per row, which must be the same number: an
         nfft the PSD would zero-pad to a longer transform (anything but a power
         of two >= 2) is refused rather than given rows wider than its frames.
-    hop : int, default 256
-        Samples between row starts, 1 <= hop <= nfft. hop == nfft tiles the
-        stream; hop < nfft overlaps the frames.
+    hop : int, default 0
+        Samples between row starts, 1 to nfft. 0 means nfft, which tiles the
+        stream; the default. Less than nfft overlaps the frames. A hop above
+        nfft would leave samples no row covers, so it is refused.
     window : Literal["hann", "kaiser", "blackman-harris", "rect"], default "hann"
         The window: "hann", "kaiser", "blackman-harris" or "rect", the PSD's
         own. It also refuses a window that sums to zero at this nfft (the
@@ -2252,8 +2253,8 @@ class Spectrogram:
     ------
     ValueError
         If construction fails. The exception message is ``Spectrogram: invalid
-        parameter (need 1 <= hop <= nfft, nfft within the largest transform, a
-        window the PSD accepts, and mode power or db)``.
+        parameter (need hop in 0..nfft, 0 meaning nfft; nfft within the largest
+        transform, a window the PSD accepts, and mode power or db)``.
 
     Examples
     --------
@@ -2262,7 +2263,7 @@ class Spectrogram:
     >>> from doppler.spectral import Spectrogram
     >>> obj = Spectrogram(
     ...     nfft=256,
-    ...     hop=256,
+    ...     hop=0,
     ...     window="hann",
     ...     beta=0.0,
     ...     mode="power",
@@ -2273,7 +2274,7 @@ class Spectrogram:
     def __init__(
         self,
         nfft: int = 256,
-        hop: int = 256,
+        hop: int = 0,
         window: Literal["hann", "kaiser", "blackman-harris", "rect"] = "hann",
         beta: float = 0.0,
         mode: Literal["power", "db"] = "power",
@@ -2506,7 +2507,8 @@ class Spectrogram:
     @property
     def hop(self) -> int:
         """Samples between row starts, 1 to nfft: nfft tiles the stream,
-        anything less overlaps the frames.
+        anything less overlaps the frames. A hop of 0 at construction means
+        nfft, and reads back as nfft.
         """
 
     @property

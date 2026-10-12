@@ -43,7 +43,7 @@ SpectrogramObj_init (SpectrogramObject *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[] = { "nfft", "hop", "window", "beta", "mode", NULL };
   unsigned long long nfft_raw   = 256;
-  unsigned long long hop_raw    = 256;
+  unsigned long long hop_raw    = 0;
   const char        *window_str = "hann";
   float              beta       = 0.0f;
   const char        *mode_str   = "power";
@@ -86,9 +86,9 @@ SpectrogramObj_init (SpectrogramObject *self, PyObject *args, PyObject *kwds)
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
-                       "Spectrogram: invalid parameter (need 1 <= hop <= "
-                       "nfft, nfft within the largest transform, a window "
-                       "the PSD accepts, and mode power or db)");
+                       "Spectrogram: invalid parameter (need hop in 0..nfft, "
+                       "0 meaning nfft; nfft within the largest transform, a "
+                       "window the PSD accepts, and mode power or db)");
       return -1;
     }
   return 0;
@@ -571,7 +571,8 @@ static PyGetSetDef Spectrogram_getset[] = {
     NULL },
   { "hop", (getter)Spectrogram_getprop_hop, NULL,
     "Samples between row starts, 1 to nfft: nfft tiles the stream, anything "
-    "less overlaps the frames.\n",
+    "less overlaps the frames. A hop of 0 at construction means nfft, and "
+    "reads back as nfft.\n",
     NULL },
   { "window", (getter)Spectrogram_getprop_window, NULL,
     "The window every frame is shaped by: \"hann\", \"kaiser\", "
@@ -694,7 +695,7 @@ static PyMethodDef SpectrogramObj_methods[] = {
     "--------\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler.spectral import Spectrogram\n"
-    "    >>> obj = Spectrogram(nfft=256, hop=256, window=\"hann\", beta=0.0, "
+    "    >>> obj = Spectrogram(nfft=256, hop=0, window=\"hann\", beta=0.0, "
     "mode=\"power\")\n"
     "    >>> y = obj.push(np.zeros(4, dtype=np.complex64))\n"
     "    >>> y.dtype\n"
@@ -772,7 +773,7 @@ static PyMethodDef SpectrogramObj_methods[] = {
     "--------\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler.spectral import Spectrogram\n"
-    "    >>> obj = Spectrogram(nfft=256, hop=256, window=\"hann\", beta=0.0, "
+    "    >>> obj = Spectrogram(nfft=256, hop=0, window=\"hann\", beta=0.0, "
     "mode=\"power\")\n"
     "    >>> obj.flush(np.zeros(4, dtype=np.float32))\n"
     "    0\n" },
@@ -808,7 +809,7 @@ static PyMethodDef SpectrogramObj_methods[] = {
     "--------\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler.spectral import Spectrogram\n"
-    "    >>> obj = Spectrogram(nfft=256, hop=256, window=\"hann\", beta=0.0, "
+    "    >>> obj = Spectrogram(nfft=256, hop=0, window=\"hann\", beta=0.0, "
     "mode=\"power\")\n"
     "    >>> obj.rows_for(0)\n"
     "    0\n" },
@@ -835,7 +836,7 @@ static PyMethodDef SpectrogramObj_methods[] = {
     "Examples\n"
     "--------\n"
     "    >>> from doppler.spectral import Spectrogram\n"
-    "    >>> obj = Spectrogram(nfft=256, hop=256, window=\"hann\", beta=0.0, "
+    "    >>> obj = Spectrogram(nfft=256, hop=0, window=\"hann\", beta=0.0, "
     "mode=\"power\")\n"
     "    >>> obj.reset()\n" },
   { "state_bytes", (PyCFunction)SpectrogramObj_state_bytes, METH_NOARGS,
@@ -949,9 +950,12 @@ static PyTypeObject SpectrogramObjType = {
     "power\n"
     "    of two >= 2) is refused rather than given rows wider than its "
     "frames.\n"
-    "hop : int, default 256\n"
-    "    Samples between row starts, 1 <= hop <= nfft. hop == nfft tiles the\n"
-    "    stream; hop < nfft overlaps the frames.\n"
+    "hop : int, default 0\n"
+    "    Samples between row starts, 1 to nfft. 0 means nfft, which tiles "
+    "the\n"
+    "    stream; the default. Less than nfft overlaps the frames. A hop "
+    "above\n"
+    "    nfft would leave samples no row covers, so it is refused.\n"
     "window : Literal[\"hann\", \"kaiser\", \"blackman-harris\", \"rect\"], "
     "default \"hann\"\n"
     "    The window: \"hann\", \"kaiser\", \"blackman-harris\" or \"rect\", "
@@ -976,9 +980,9 @@ static PyTypeObject SpectrogramObjType = {
     "ValueError\n"
     "    If construction fails. The exception message is ``Spectrogram: "
     "invalid\n"
-    "    parameter (need 1 <= hop <= nfft, nfft within the largest transform, "
-    "a\n"
-    "    window the PSD accepts, and mode power or db)``.\n"
+    "    parameter (need hop in 0..nfft, 0 meaning nfft; nfft within the "
+    "largest\n"
+    "    transform, a window the PSD accepts, and mode power or db)``.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -987,7 +991,7 @@ static PyTypeObject SpectrogramObjType = {
     ">>> from doppler.spectral import Spectrogram\n"
     ">>> obj = Spectrogram(\n"
     "...     nfft=256,\n"
-    "...     hop=256,\n"
+    "...     hop=0,\n"
     "...     window=\"hann\",\n"
     "...     beta=0.0,\n"
     "...     mode=\"power\",\n"

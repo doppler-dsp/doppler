@@ -28,7 +28,7 @@ depends_on = ["fft_core", "spectral_core", { name = "psd", link = true }, { name
 serializable = "true"
 fragment = "generated"
 create_error = "ValueError"
-create_error_message = "Spectrogram: invalid parameter (need 1 <= hop <= nfft, nfft within the largest transform, a window the PSD accepts, and mode power or db)"
+create_error_message = "Spectrogram: invalid parameter (need hop in 0..nfft, 0 meaning nfft; nfft within the largest transform, a window the PSD accepts, and mode power or db)"
 doc = """A streaming short-time power spectrum: a stream in chunks of any size, one row of nfft bins per hop samples, each row the PSD of its frame.
 
 >>> import numpy as np
@@ -44,12 +44,12 @@ name = "nfft"
 type = "size_t"
 default = "256"
 
-# hop = nfft gives non-overlapping frames; hop < nfft overlaps them. Must be
-# 1 <= hop <= nfft (the C refuses any other value at create).
+# 0 (the default) means nfft, PSD's own rule, so the default tiles the stream
+# at any nfft; less than nfft overlaps the frames, and above it is refused.
 [[spectrogram.init_params]]
 name = "hop"
 type = "size_t"
-default = "256"
+default = "0"
 
 # The same [[enum]] as objects/psd.toml (psd_window, bound by name to
 # DP_PSD_WINDOW_*): the C create validates it through dp_psd_create, the one
@@ -200,7 +200,7 @@ doc = "Samples per frame, and bins per row: one number, because a frame the PSD 
 name = "hop"
 type = "size_t"
 field = true
-doc = "Samples between row starts, 1 to nfft: nfft tiles the stream, anything less overlaps the frames."
+doc = "Samples between row starts, 1 to nfft: nfft tiles the stream, anything less overlaps the frames. A hop of 0 at construction means nfft, and reads back as nfft."
 
 [[spectrogram.properties]]
 name = "window"

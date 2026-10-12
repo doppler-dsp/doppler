@@ -643,6 +643,74 @@ _acq_wideband_coherent_center_check (void)
   return 0;
 }
 
+/* A BURST search tiled with a coherent depth INSIDE the tiles reports a hit's
+ * bin, its Hz and its hand-off on the one combined grid -- off the centre
+ * tile, and on a NEGATIVE one.
+ *
+ * #2210 gave the tiles a depth, so a hit's `doppler_bin` indexes
+ * window_bins * D rows of `doppler_res_hz = chip_rate/(sf*D)` in native FFT
+ * order (0 = DC, ascending, then wrapping negative). The existing tiled
+ * checks put the tone at DC or ask the continuous engine; this puts a tone
+ * at +1.2 and -1.2 native spans and at -1.9 (tile -2), exactly on a bin, and
+ * asserts the bin NUMBER the fold predicts, the Hz acq_bin_doppler_hz() makes
+ * of it, and what dp_acq_build_handoff() reports -- all three the one fold
+ * over acq_grid_bins(), so a fold over anything else (the depth, the tile
+ * count) reads these as a different bin or the wrong sign.
+ */
+static int
+_acq_tiled_burst_offcentre_check (void)
+{
+  const size_t    sf = 7, spc = 2, nx = sf * spc, reps = 8;
+  const double    crate = 1.0e6, fs = crate * (double)spc;
+  const double    span = crate / (2.0 * (double)sf);
+  dp_acq_state_t *a    = burst_from_code (CODE7, sf, reps, spc, crate, 60.0,
+                                          3.5 * span, 1e-3, 0.9, 0, 0.0);
+  DP_REQUIRE (a != NULL);
+  DP_REQUIRE (a->window_bins > 1 && a->coherent_bins > 1);
+  const size_t grid = acq_grid_bins (a);
+  DP_CHECK (grid == a->window_bins * a->coherent_bins);
+  const double res = a->doppler_res_hz;
+  DP_CHECK (fabs (res - crate / ((double)sf * (double)a->coherent_bins))
+            < 1e-6);
+
+  const double native = 2.0 * span; /* one tile's width, Hz */
+  const double want[] = { 1.2 * native, -1.2 * native, -1.9 * native };
+  for (size_t i = 0; i < sizeof want / sizeof *want; i++)
+    {
+      /* Exactly on a bin of the combined grid. */
+      const long   m = lround (want[i] / res);
+      const double f = (double)m * res;
+      const size_t expect_bin
+          = (size_t)(((m % (long)grid) + (long)grid) % (long)grid);
+
+      const size_t    len = 6 * a->coherent_bins * nx;
+      float _Complex *x   = malloc (len * sizeof *x);
+      DP_REQUIRE (x != NULL);
+      for (size_t k = 0; k < len; k++)
+        {
+          const double ph = 2.0 * M_PI * f * (double)k / fs;
+          x[k]            = ((CODE7[(k % nx) / spc] & 1u) ? -1.0f : 1.0f)
+                            * (float _Complex) (cos (ph) + I * sin (ph));
+        }
+      dp_acq_reset (a);
+      acq_result_t hit[8];
+      const size_t nh = dp_acq_push (a, x, len, hit, 8);
+      free (x);
+      DP_REQUIRE (nh >= 1);
+
+      DP_CHECK (hit[0].doppler_bin == expect_bin);
+      DP_CHECK (fabs (acq_bin_doppler_hz (a, hit[0].doppler_bin) - f) < 1e-6);
+      acq_handoff_t ho;
+      dp_acq_build_handoff (a, &hit[0], sf, spc, &ho);
+      DP_CHECK (fabs (ho.doppler_hz_est - f) < 1e-6);
+      DP_CHECK (ho.doppler_res_hz == res);
+      /* The sign survives, which a fold over the wrong count loses. */
+      DP_CHECK ((f < 0.0) == (ho.doppler_hz_est < 0.0));
+    }
+  dp_acq_destroy (a);
+  return 0;
+}
+
 /* A tiled burst search with NO design C/N0 is D = 1, as it always was.
  *
  * Only a stated C/N0 asks for a depth inside the tiles. Without one the
@@ -2358,6 +2426,7 @@ main (void)
   (void)_acq_wideband_check ();
   (void)_acq_wideband_coherent_center_check ();
   (void)_acq_wideband_default_depth_check ();
+  (void)_acq_tiled_burst_offcentre_check ();
   (void)_acq_hit_chip_phase_check ();
   (void)_acq_wideband_coverage_check ();
   (void)_acq_chunk_invariance_check ();

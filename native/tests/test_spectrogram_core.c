@@ -3,7 +3,7 @@
  * each, against external truths wherever one exists:
  *
  *   1. create refuses what the header says it refuses, and accepts both
- *      modes
+ *      modes; hop 0 is hop = nfft, rows and blob alike
  *  1b. the zero value is power: a calloc'd configuration's mode gives
  *      dp_psd_frame_linear rows, never dB ones
  *   2. a row IS the kernel's reading of its frame, bit for bit (G3):
@@ -22,8 +22,9 @@
  *  10. the state blob: round trip, a mid-frame split resumed in a FRESH
  *      object bit for bit, fixed size, wrong hop refused (G4)
  * 10b. a blob from another configuration -- mode, nfft, hop, window, or a
- *      Kaiser beta -- is refused and leaves the object byte-identical
- *      (#2102); another beta under Hann restores, since it changes no row
+ *      Kaiser beta at the same window -- is refused and leaves the object
+ *      byte-identical (#2102); another beta under Hann restores, since it
+ *      changes no row
  *  11. the Python face's sizing: chunks shorter than a frame, each out sized
  *      by push_max_out (mostly 0), equal one big push bit for bit (G7)
  *  12. beta is ignored outside the Kaiser window
@@ -35,7 +36,8 @@
  *      refuses a wrong magic, version, envelope size, nfft, hop or an
  *      impossible carry, leaving the object as it was (G4)
  * 14b. a blob another window, Kaiser beta or mode wrote is REFUSED on
- *      restore, at every cut of a running stream, and nothing changes
+ *      restore, at one cut of a running stream, and nothing changes (the
+ *      certification's C22 runs every cut)
  *  15. a row arrives with the push that delivers its last sample: zero
  *      latency in samples
  *
@@ -787,6 +789,29 @@ sections (int mode)
         free (after);
         dp_spectrogram_destroy (b);
       }
+    /* A Kaiser beta is refused at the SAME window: a beta-6 blob into a
+       beta-9 object, which is unchanged. */
+    {
+      dp_spectrogram_state_t *k6 = dp_spectrogram_create (
+          8, 4, DP_PSD_WINDOW_KAISER, 6.0f, DP_SPECTROGRAM_POWER);
+      dp_spectrogram_state_t *k9 = dp_spectrogram_create (
+          8, 4, DP_PSD_WINDOW_KAISER, 9.0f, DP_SPECTROGRAM_POWER);
+      DP_REQUIRE (k6 != NULL && k9 != NULL);
+      (void)dp_spectrogram_push (k6, xa, 5, (float[8]){ 0 }, 8);
+      (void)dp_spectrogram_push (k9, xa, 3, (float[8]){ 0 }, 8);
+      uint8_t *kb = malloc (nb), *before = malloc (nb), *after = malloc (nb);
+      DP_REQUIRE (kb != NULL && before != NULL && after != NULL);
+      dp_spectrogram_get_state (k6, kb);
+      dp_spectrogram_get_state (k9, before);
+      DP_CHECK (dp_spectrogram_set_state (k9, kb) == DP_ERR_INVALID);
+      dp_spectrogram_get_state (k9, after);
+      DP_CHECK (memcmp (before, after, nb) == 0); /* unchanged */
+      free (kb);
+      free (before);
+      free (after);
+      dp_spectrogram_destroy (k9);
+      dp_spectrogram_destroy (k6);
+    }
     /* Hann ignores beta: a different beta restores. */
     dp_spectrogram_state_t *h = dp_spectrogram_create (
         8, 4, DP_PSD_WINDOW_HANN, 5.0f, DP_SPECTROGRAM_POWER);
@@ -1241,9 +1266,25 @@ main (void)
         size_t wt = dp_spectrogram_push (t, x0, 37, rt, 5 * 8);
         DP_CHECK (wz == 4 * 8 && wz == wt);
         DP_CHECK (memcmp (rz, rt, wz * sizeof *rz) == 0);
+        /* ...and it IS hop = nfft, stored resolved: the two blobs are the
+           same bytes, and each restores into the other */
+        const size_t nb = dp_spectrogram_state_bytes (z);
+        DP_REQUIRE (nb == dp_spectrogram_state_bytes (t));
+        uint8_t *bz = malloc (nb), *bt = malloc (nb);
+        DP_REQUIRE (bz != NULL && bt != NULL);
+        dp_spectrogram_get_state (z, bz);
+        dp_spectrogram_get_state (t, bt);
+        DP_CHECK (memcmp (bz, bt, nb) == 0);
+        DP_CHECK (dp_spectrogram_set_state (z, bt) == DP_OK);
+        DP_CHECK (dp_spectrogram_set_state (t, bz) == DP_OK);
+        free (bz);
+        free (bt);
         dp_spectrogram_destroy (t);
         dp_spectrogram_destroy (z);
       }
+      /* hop 0 at nfft 0 resolves to 0, which the range refuses */
+      DP_CHECK (dp_spectrogram_create (0, 0, DP_PSD_WINDOW_HANN, 0.0f, mode)
+                == NULL);
       DP_CHECK (dp_spectrogram_create (8, 9, DP_PSD_WINDOW_HANN, 0.0f, mode)
                 == NULL); /* > */
       /* windows no enum has, named: check_named_args.py refuses a literal

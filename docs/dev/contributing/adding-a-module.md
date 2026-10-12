@@ -659,9 +659,11 @@ Before opening a PR:
 - [ ] `make test-stubs` — every `@code` doctest in your header runs
 - [ ] `make test-python` — all Python tests pass
 - [ ] `make bench` — C and Python benchmarks run and JSON snapshots are saved
-- [ ] The C benchmark exists **and runs**: an object's is scaffolded, a
-    `c_deps` entry's or a function-only module's is hand-written and
-    hand-registered (Step 10b). `make lint` gates both halves
+- [ ] The C benchmark exists **and runs**: an object's is scaffolded
+    (unless its component CMakeLists is hand-written, as the
+    spectrogram's is); a `c_deps` entry's or a function-only module's is
+    hand-written and hand-registered (Step 10b). `make lint` gates both
+    halves
 - [ ] `jm status --check` — zero manifest drift
 - [ ] `__init__.py` and `<module>.pyi` are **generated**, not hand-edited
     — the surface is declared in the manifest and documented in the header

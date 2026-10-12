@@ -263,14 +263,16 @@ size_t dp_spectrogram_pending (const dp_spectrogram_state_t *s);
 size_t dp_spectrogram_state_bytes (const dp_spectrogram_state_t *s);
 
 /**
- * @brief Serialize the stream position into @p blob.
+ * @brief Serialize the configuration a row depends on, then the stream
+ *        position, into @p blob.
  * @param s     Must be non-NULL.
  * @param blob  dp_spectrogram_state_bytes(s) bytes, every one written.
  */
 void dp_spectrogram_get_state (const dp_spectrogram_state_t *s, void *blob);
 
 /**
- * @brief Restore a stream position, so the next push continues it bit for bit.
+ * @brief Restore the stream position from a blob of the same configuration,
+ *        so the next push continues it bit for bit.
  *
  * The blob is refused, with @p s unchanged, when its magic, version or size
  * is wrong; when the configuration it carries differs from @p s's -- another

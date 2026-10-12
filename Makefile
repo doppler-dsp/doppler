@@ -1125,9 +1125,10 @@ BENCH_THRESHOLD ?= 0.30
 BENCH_ALLOW ?= test_bench_execute_decim_64k
 
 # `jm bench` runs every benchmark CMake builds, not only jm's components: a
-# `c_deps` entry (conv, rs, spectrogram) or a function-only module (mpsk,
-# ber, snr, util, detection) has a bench target and no manifest object, and
-# since just-makeit#1023 jm discovers those by scanning the built targets.
+# `c_deps` entry (conv, rs), a function-only module (mpsk, ber, snr, util,
+# detection) or an object whose component CMakeLists is hand-written
+# (spectrogram) has a bench target jm did not generate, and since
+# just-makeit#1023 jm discovers those by scanning the built targets.
 # Observed 2026-10-09 on the pinned 0.100.1: `make bench BENCH_ARGS=
 # "--c-only conv rs spectrogram mpsk ber snr util detection"` ran each and
 # wrote its JSON.

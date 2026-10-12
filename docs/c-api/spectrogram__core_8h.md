@@ -72,13 +72,13 @@ _Streaming spectrogram: a stream of any-size chunks in, rows of nfft-bin spectra
 |  [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* | [**dp\_spectrogram\_create**](#function-dp_spectrogram_create) (size\_t nfft, size\_t hop, int window, float beta, int mode) <br>_Create a streaming spectrogram._  |
 |  void | [**dp\_spectrogram\_destroy**](#function-dp_spectrogram_destroy) ([**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s) <br>_Release a spectrogram and everything it owns._  |
 |  int64\_t | [**dp\_spectrogram\_flush**](#function-dp_spectrogram_flush) ([**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s, float \* row, size\_t row\_len) <br>_End the stream: write the one zero-padded row it still owes, if any._  |
-|  void | [**dp\_spectrogram\_get\_state**](#function-dp_spectrogram_get_state) (const [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s, void \* blob) <br>_Serialize the stream position into_ `blob` _._ |
+|  void | [**dp\_spectrogram\_get\_state**](#function-dp_spectrogram_get_state) (const [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s, void \* blob) <br>_Serialize the configuration a row depends on, then the stream position, into_ `blob` _._ |
 |  size\_t | [**dp\_spectrogram\_pending**](#function-dp_spectrogram_pending) (const [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s) <br>_Samples pushed that no written row has covered yet._  |
 |  size\_t | [**dp\_spectrogram\_push**](#function-dp_spectrogram_push) ([**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s, const float \_Complex \* in, size\_t n\_in, float \* out, size\_t max\_out) <br>_Push input, write every whole row it completes that fits._  |
 |  size\_t | [**dp\_spectrogram\_push\_max\_out**](#function-dp_spectrogram_push_max_out) (const [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s, size\_t n\_in) <br>_Floats one push of_ `n_in` _samples writes when_`out` _has room: the rows\_for(n\_in) count times nfft._ |
 |  void | [**dp\_spectrogram\_reset**](#function-dp_spectrogram_reset) ([**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s) <br>_Forget the stream: drop the carry and restart at sample 0._  |
 |  size\_t | [**dp\_spectrogram\_rows\_for**](#function-dp_spectrogram_rows_for) (const [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s, size\_t n\_in) <br>_Rows a push of_ `n_in` _more samples completes, given the carry: exact, not an estimate._ |
-|  int | [**dp\_spectrogram\_set\_state**](#function-dp_spectrogram_set_state) ([**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s, const void \* blob) <br>_Restore a stream position, so the next push continues it bit for bit._  |
+|  int | [**dp\_spectrogram\_set\_state**](#function-dp_spectrogram_set_state) ([**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s, const void \* blob) <br>_Restore the stream position from a blob of the same configuration, so the next push continues it bit for bit._  |
 |  size\_t | [**dp\_spectrogram\_state\_bytes**](#function-dp_spectrogram_state_bytes) (const [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s) <br>_Bytes of the state blob, a function of nfft alone._  |
 
 
@@ -302,7 +302,7 @@ Floats written: nfft, or 0 if no row was owed; -1 if the row is not exactly nfft
 
 ### function dp\_spectrogram\_get\_state 
 
-_Serialize the stream position into_ `blob` _._
+_Serialize the configuration a row depends on, then the stream position, into_ `blob` _._
 ```C++
 void dp_spectrogram_get_state (
     const dp_spectrogram_state_t * s,
@@ -503,7 +503,7 @@ The carry plus `n_in` samples, cut into frames of nfft at the hop. A push with r
 
 ### function dp\_spectrogram\_set\_state 
 
-_Restore a stream position, so the next push continues it bit for bit._ 
+_Restore the stream position from a blob of the same configuration, so the next push continues it bit for bit._ 
 ```C++
 int dp_spectrogram_set_state (
     dp_spectrogram_state_t * s,

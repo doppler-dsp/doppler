@@ -5,8 +5,9 @@ stream of any-size chunks in, rows of `nfft`-bin spectra out, one row every
 `hop` samples -- linear power by default, dBFS when asked for by name. Its
 Python face, `doppler.spectral.Spectrogram`, is generated over this same C
 with no logic of its own, and the claims certified here are the header's, so
-they are measured in C, as `docs/dev/contributing/validation.md` describes
-for a component certified through its C API: **the C harness
+they are measured in C. That is the arrangement
+`docs/dev/contributing/validation.md` gives a component with no binding,
+used here although this one has a binding: **the C harness
 `native/validation/spectrogram_certify.c` measures; this file renders and
 asserts.** Nothing there decides what is acceptable; every threshold lives in
 `limits()` below.
@@ -1162,7 +1163,10 @@ def build(write: bool = True) -> Report:
                 "and any mode but power and dB; it accepts both modes",
                 "§1",
                 "#1975: the `nfft` check removed (N1), and its validation "
-                "cases. #1968: power refused again; any mode accepted",
+                "cases. #1968: power refused again; any mode accepted. "
+                "#2192: the 0-to-`nfft` mapping removed (hop 0 refused); "
+                "hop 0 framed as `nfft` but stored as 0 (its blob is not "
+                "hop = `nfft`'s)",
                 "—",
             ],
             [

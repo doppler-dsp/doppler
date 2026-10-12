@@ -213,7 +213,7 @@ doc = "The window every frame is shaped by: \"hann\", \"kaiser\", \"blackman-har
 name = "beta"
 type = "float"
 field = true
-doc = "The Kaiser beta the Spectrogram was made with. It shapes the Kaiser window only; under the others it changes no row."
+doc = "The Kaiser beta the Spectrogram was made with, as the float32 it keeps: 0.1 reads back 0.10000000149011612. It shapes the Kaiser window only; under the others it changes no row."
 
 [[spectrogram.properties]]
 name = "mode"

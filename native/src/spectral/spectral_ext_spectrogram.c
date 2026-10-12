@@ -579,8 +579,9 @@ static PyGetSetDef Spectrogram_getset[] = {
     "\"blackman-harris\" or \"rect\".\n",
     NULL },
   { "beta", (getter)Spectrogram_getprop_beta, NULL,
-    "The Kaiser beta the Spectrogram was made with. It shapes the Kaiser "
-    "window only; under the others it changes no row.\n",
+    "The Kaiser beta the Spectrogram was made with, as the float32 it keeps: "
+    "0.1 reads back 0.10000000149011612. It shapes the Kaiser window only; "
+    "under the others it changes no row.\n",
     NULL },
   { "mode", (getter)Spectrogram_getprop_mode, NULL,
     "The row units: \"power\" (linear against full scale, the default) or "

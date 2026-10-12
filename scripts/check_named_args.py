@@ -174,9 +174,39 @@ _TYPE_ONLY = re.compile(rf"{_TYPE_WORD}(?:[\s*]+{_TYPE_WORD})*[\s*]*")
 #: header's @code block reads as one line.
 _BREAK = re.compile(r"\n[ \t]*(?:\*(?!/)|//)?")
 _COMMENT = re.compile(r"/\*.*?\*/|//[^\n]*", re.S)
-#: C string and character literals, blanked before calls are looked for so
-#: a `printf ("dp_psd_create(%zu)")` is not a call. Same offsets kept.
-_STRING = re.compile(r'"(?:\\.|[^"\\\n])*"|\'(?:\\.|[^\'\\\n])\'')
+#: A comment, or a C string or character literal, whichever STARTS first.
+#: Blanking them in this one left-to-right pass, rather than strings and
+#: then comments, is what keeps a quote inside a comment (`/* 5" */`) from
+#: opening a "string" that swallows the comment's `*/`, and a `/*` inside a
+#: string from opening a comment (#2227). A `printf ("dp_psd_create(%zu)")`
+#: is then not a call either.
+_LEXEME = re.compile(
+    r"(?P<comment>/\*.*?\*/|//[^\n]*)"
+    r'|"(?:\\.|[^"\\\n])*"|\'(?:\\.|[^\'\\\n])\'',
+    re.S,
+)
+
+
+def _blank_lexemes(text: str, comments: bool) -> str:
+    """`text` with every string and character literal blanked to spaces, and
+    every comment too when `comments`, in one pass (same offsets kept).
+
+    TABLE's calls are read with comments kept, because a header's @code
+    block is a comment; a helper's calls, and discovery, with them blanked.
+
+    >>> _blank_lexemes('/* 5" */ f ("x");', comments=False)
+    '/* 5" */ f (   );'
+    >>> _blank_lexemes('/* 5" */ f ("x");', comments=True)
+    '         f (   );'
+    """
+
+    def sub(m: re.Match[str]) -> str:
+        if m.group("comment") is not None and not comments:
+            return m.group(0)
+        return " " * len(m.group(0))
+
+    return _LEXEME.sub(sub, text)
+
 
 _INT = re.compile(r"[+-]?\s*(?:0[xX][0-9a-fA-F]+|0[bB][01]+|\d+)[uUlL]*")
 _CHAR = re.compile(r"'(?:\\.|[^'\\])'")
@@ -366,8 +396,7 @@ def discover(
     forwarded bare and is not followed. Only `static` functions: a helper
     is file-local, so its row checks its own file's calls.
     """
-    blank = lambda m: " " * len(m.group(0))  # noqa: E731
-    code = _COMMENT.sub(blank, _STRING.sub(blank, text))
+    code = _blank_lexemes(text, comments=True)
     defs = []
     for m in _STATIC_DEF.finditer(code):
         got = _args(code, m.end() - 1)
@@ -420,14 +449,14 @@ def check_text(
     prototype (every argument a declaration) is not one either. `helpers`
     are this file's own rows, checked beside TABLE's."""
     table = {**TABLE, **(helpers or {})}
-    scan = _STRING.sub(lambda m: " " * len(m.group(0)), text) if is_c else text
+    scan = _blank_lexemes(text, comments=False) if is_c else text
     hits = [(m, scan) for m in _CALL.finditer(scan)]
     if helpers:
         # A helper is file-local C, so a mention of one inside a comment is
         # prose (`the units sections (3, 9, 13)`), never a call: its rows
         # read the file with comments blanked. TABLE's rows cannot, because
         # a header's @code block, which they must read, is a comment.
-        code = _COMMENT.sub(lambda m: " " * len(m.group(0)), scan)
+        code = _blank_lexemes(text, comments=True)
         hits += [(m, code) for m in _call_re(helpers).finditer(code)]
         hits.sort(key=lambda h: h[0].start())
     calls: dict[str, int] = {}

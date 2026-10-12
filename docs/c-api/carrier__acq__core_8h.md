@@ -176,6 +176,9 @@ dp_carrier_acq_state_t * dp_carrier_acq_create (
 
 
 
+In C the window is DP\_PSD\_WINDOW\_HANN, DP\_PSD\_WINDOW\_KAISER or DP\_PSD\_WINDOW\_BLACKMAN\_HARRIS; any other, the rectangular window included, returns NULL.
+
+
 
 
 **Parameters:**

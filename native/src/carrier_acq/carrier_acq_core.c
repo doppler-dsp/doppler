@@ -53,11 +53,13 @@ dp_carrier_acq_create (double sample_rate_hz, double symbol_rate_hz,
       || design_snr < 0.0)
     return NULL;
 
-  /* Three windows are offered, Hann (where KAPPA, below, was fit),
-   * Kaiser and Blackman-Harris. PSD also takes the rectangular window,
-   * which was never offered here and never measured, so it is refused
-   * rather than run at an unknown false-alarm rate (#2185). The bottom of
-   * the range is PSD's to check, as the one owner of the index. */
+  /* Three windows are offered -- by the header, the manifest and the
+   * Python face -- Hann, Kaiser and Blackman-Harris. PSD also takes the
+   * rectangular window, which was never offered here, so it is refused
+   * rather than built (#2185). (KAPPA, below, was fit at one Hann
+   * configuration: it does not set rect apart from the other two.) The
+   * bottom of the range is PSD's to check, as the one owner of the
+   * index. */
   if (window > DP_PSD_WINDOW_BLACKMAN_HARRIS)
     return NULL;
 

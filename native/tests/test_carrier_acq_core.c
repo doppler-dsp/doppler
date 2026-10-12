@@ -256,8 +256,8 @@ main (void)
   DP_CHECK (dp_carrier_acq_create (0.0, 0.0, 0.0, 4, DP_PSD_WINDOW_HANN, 0.0f,
                                    NULL, 0, 1e-3, 0.9, 2.0, true, MAX_N_BLOCKS)
             == NULL);
-  /* the rectangular window PSD takes but this threshold was never measured
-     at is refused, and the three offered windows build (#2185) */
+  /* the rectangular window, which PSD takes but carrier_acq never offered,
+     is refused, and the three offered windows build (#2185) */
   DP_CHECK (dp_carrier_acq_create (SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4,
                                    DP_PSD_WINDOW_RECT, 0.0f, NULL, 0, 1e-3,
                                    0.9, 2.0, true, MAX_N_BLOCKS)

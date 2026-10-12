@@ -42,12 +42,14 @@ extern "C" {
 #endif
 
 /**
- * @brief The window of dp_psd_create(), and of every object that builds its
- *        frames through it (the Spectrogram, carrier acquisition).
+ * @brief The window of dp_psd_create(), and of the objects that build their
+ *        frames through it: all four for the Spectrogram, a subset for
+ *        carrier acquisition (dp_carrier_acq_create() says which).
  *
  * HANN is 0, so a zeroed configuration is Hann. The Python faces name the
  * same windows "hann", "kaiser", "blackman-harris" and "rect", bound to these
- * constants by name (just-makeit.toml, `[[enum]] psd_window`).
+ * constants by name (just-makeit.toml, `[[enum]] psd_window`); carrier
+ * acquisition's face names its subset (`carrier_acq_window`).
  */
 /* SSOT: enum=psd_window */
 enum {

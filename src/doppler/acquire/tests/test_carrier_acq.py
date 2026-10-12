@@ -90,6 +90,22 @@ def test_invalid_sample_rate_rejected():
         CarrierAcquisition(0.0, SYMBOL_RATE_HZ)
 
 
+@pytest.mark.parametrize("window", ["hann", "kaiser", "blackman-harris"])
+def test_every_offered_window_builds(window):
+    """The three windows carrier acquisition offers each build (#2185)."""
+    ca = CarrierAcquisition(
+        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, window=window, beta=6.0
+    )
+    assert ca.nfft >= 1
+
+
+def test_rect_is_refused():
+    """PSD's rectangular window was never offered here: the name is
+    refused before C is reached (#2185)."""
+    with pytest.raises(ValueError):
+        CarrierAcquisition(SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, window="rect")
+
+
 def test_context_manager():
     with CarrierAcquisition(SAMPLE_RATE_HZ, SYMBOL_RATE_HZ) as ca:
         ca.steps(_make_signal())

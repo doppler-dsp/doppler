@@ -1524,3 +1524,8 @@ status = "open"
 tier = 1
 title = "named-args helper discovery: six known limits (first enum wins, shadowing, variadic, unbalanced braces, strings before comments, compared parameters)"
 status = "open"
+
+[issue.2244]
+tier = 2
+title = "wfm: a chirp or tone repeated across segments jumps in phase at the boundary, though the docs promise seamless joins"
+status = "open"

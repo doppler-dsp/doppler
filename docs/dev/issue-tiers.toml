@@ -1450,11 +1450,6 @@ tier = 5
 title = "PSD readouts carry a meaningless count keyword and an ignored cap slot (adopt just-makeit#2233)"
 status = "open"
 
-[issue.2186]
-tier = 5
-title = "uno-q example: name its PSD window once a release carries DP_PSD_WINDOW_*"
-status = "open"
-
 [issue.2187]
 tier = 2
 title = "PSD kernel extraction is byte-identical on x86 only; run the before/after dump on aarch64"
@@ -1469,11 +1464,6 @@ status = "open"
 tier = 5
 title = "specan nits from the #2180 review: dBm import direction, step() naming, fastapi skip"
 status = "open"
-
-[issue.2197]
-tier = 1
-title = "named-args: discover forwarding helpers by parameter name instead of a hand-kept HELPERS table"
-status = "in review ([#2226](https://github.com/doppler-dsp/doppler/pull/2226))"
 
 [issue.2200]
 tier = 2
@@ -1495,15 +1485,10 @@ tier = 2
 title = "PSD kernel follow-ups from #2209's review: ENBW off the kernel, meters carry an unused ring, the identity dump's gaps"
 status = "open"
 
-[issue.2212]
-tier = 0
-title = "Run from a rebase exec, the gate tests' scratch repos obey the inherited GIT_DIR and rewrite the caller's index"
-status = "open"
-
 [issue.2217]
 tier = 3
 title = "BurstCapture: compensate the Doppler rate (rate hypotheses), with Pd/Pfa characterized to confidence bounds"
-status = "in review ([#2221](https://github.com/doppler-dsp/doppler/pull/2221))"
+status = "in review ([#2238](https://github.com/doppler-dsp/doppler/pull/2238))"
 
 [issue.2218]
 tier = 1
@@ -1517,7 +1502,7 @@ status = "open"
 
 [issue.2224]
 tier = 1
-title = "acq: a tiled burst engine's pd_predicted/pd_burst price W\u00b7D\u00b7cb samples, not D\u00b7cb -- it always reports ~1.000 and underpowered never fires (measured 0.62-0.94)"
+title = "acq: a tiled burst engine's pd_predicted/pd_burst price W\u00b7D\u00b7cb samples, not D\u00b7cb -- it reports ~1.000 (0.62-0.94 measured) and underpowered stays clear where it should warn"
 status = "open"
 
 [issue.2227]
@@ -1558,4 +1543,9 @@ status = "open"
 [issue.2254]
 tier = 5
 title = "examples/: 33 print calls in 16 scripts hold characters cp1252 cannot encode, so they crash on a redirected stdout on Windows"
+status = "open"
+
+[issue.2256]
+tier = 1
+title = "ci: ECR Public's anonymous DATA quota ('toomanyrequests: Data limit exceeded') outlasts stock-pull.sh's 75 s retry window"
 status = "open"

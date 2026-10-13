@@ -1952,8 +1952,10 @@ acq_auto_rate_hypotheses (dp_acq_state_t *st, double pfa, double pd,
       st->doppler_rate = 0.0;
       acq_auto_config_burst (st, pfa, pd, snr, du, &d_star, &nc, &wb);
       st->doppler_rate = span;
-      const double r   = n > 1 ? span / (double)(n - 1) : span;
-      if (acq_drift_depth (f_epoch, r, st->reps) >= d_star)
+      /* The residual from its one home: rate_hyps = n and doppler_rate = span
+         are both set, which is what acq_residual_rate() reads. */
+      if (acq_drift_depth (f_epoch, acq_residual_rate (st), st->reps)
+          >= d_star)
         break;
     }
   st->rate_hyps = n;

@@ -43,8 +43,8 @@
  *                                  200000 noise dwells a row
  *   validate_acq_rate_pd --check   the spot checks CTest runs, on 1, 5, 9 and
  *                                  auto (0) hypotheses and fewer trials:
- * compensation delivers what it predicts, beats the capped depth, and holds
- * Pfa
+ *                                  compensation delivers what it predicts,
+ *                                  beats the capped depth, and holds Pfa
  *
  * Both modes assert the same claims.
  */
@@ -575,8 +575,8 @@ main (int argc, char **argv)
     for (size_t k = 0; k < nrows; k++)
       if (rows[k].autorow)
         {
-          DP_CHECK_MSG (rows[k].rh <= top->rh,
-                        "auto picks no more hypotheses than the maximum "
+          DP_CHECK_MSG (rows[k].rh < top->rh,
+                        "auto picks FEWER hypotheses than the maximum "
                         "explicit count");
           DP_CHECK_MSG (rows[k].cap_hi >= top->cap_lo,
                         "auto is no worse than the most compensated count");
@@ -600,8 +600,9 @@ main (int argc, char **argv)
      point recomputed for it (cn0_for), then the capped depth against five
      hypotheses. Two rows and one Pfa row: the claim is "the compensation is
      not specific to ZC", which two counts and the false-alarm bound show;
-     the full grid above is ZC's. Measured in review at 1000 trials: capped
-     0.564, N = 5 0.921. */
+     the full grid above is ZC's. Capture Pd, capped against N = 5: 0.552
+     against 0.924 in this --check run (250 trials), 0.564 against 0.921 in
+     the reviewer's 1000-trial run. */
   {
     lfm_preamble ();
     const double cn0_l  = cn0_for (9, PD);

@@ -755,6 +755,81 @@ _acq_tiled_burst_offcentre_check (void)
   return 0;
 }
 
+/* The tile-edge alias's hop, pinned directly (#2275).
+ *
+ * acq_resolve_tile_alias() decides which of two neighbouring tiles an edge
+ * tone belongs to by asking the block, at the row's frequency and one span
+ * down and up. A sweep of tones through the engine goes red under a flipped
+ * hop only for the tones whose RAW pick is the alias; nothing asserted that
+ * any tone still needs the hop, so an engine change that made every raw pick
+ * right would have left the sweep green with the hop sign flipped. Here the
+ * raw pick is taken out of the question: the engine reads a tone on a bin of
+ * the combined grid, and the resolver is HANDED the row of the wrong
+ * neighbouring tile -- the same fold index one tile down, then one tile up --
+ * and must return the true one. A row that is already right must come back
+ * unchanged, and an engine that is not block-coherent and tiled (D = 1:
+ * no raw block to ask) must return the row it was given. */
+static int
+_acq_tile_alias_hop_check (void)
+{
+  const size_t    sf = 7, spc = 2, nx = sf * spc, reps = 8;
+  const double    crate = 1.0e6, fs = crate * (double)spc;
+  const double    span = crate / (2.0 * (double)sf);
+  dp_acq_state_t *a    = burst_from_code (CODE7, sf, reps, spc, crate, 60.0,
+                                          3.5 * span, 1e-3, 0.9, 0, 0.0);
+  DP_REQUIRE (a != NULL);
+  DP_REQUIRE (a->window_bins > 1 && a->coherent_bins > 1 && a->blk_raw);
+  const size_t D = a->coherent_bins, rows = a->window_bins * D;
+  const double res    = a->doppler_res_hz;
+  const double native = 2.0 * span; /* one tile's width, Hz */
+
+  const double want[] = { 1.2 * native, -1.2 * native };
+  for (size_t i = 0; i < sizeof want / sizeof *want; i++)
+    {
+      const long   m = lround (want[i] / res);
+      const double f = (double)m * res;
+      const size_t true_row
+          = (size_t)(((m % (long)rows) + (long)rows) % (long)rows);
+
+      const size_t    len = 6 * D * nx; /* whole blocks: ends on a boundary */
+      float _Complex *x   = malloc (len * sizeof *x);
+      DP_REQUIRE (x != NULL);
+      for (size_t k = 0; k < len; k++)
+        {
+          const double ph = 2.0 * M_PI * f * (double)k / fs;
+          x[k]            = ((CODE7[(k % nx) / spc] & 1u) ? -1.0f : 1.0f)
+                            * (float _Complex) (cos (ph) + I * sin (ph));
+        }
+      dp_acq_reset (a);
+      acq_result_t hit[8];
+      const size_t nh = dp_acq_push (a, x, len, hit, 8);
+      free (x);
+      DP_REQUIRE (nh >= 1);
+      const size_t col = hit[0].code_phase;
+
+      /* The block the engine just closed is in blk_raw. One tile down and one
+         tile up, wrapped on the combined grid: the same fold index, the other
+         tile. */
+      const size_t wrong_dn = (true_row + rows - D) % rows;
+      const size_t wrong_up = (true_row + D) % rows;
+      DP_CHECK (acq_resolve_tile_alias (a, wrong_dn, col) == true_row);
+      DP_CHECK (acq_resolve_tile_alias (a, wrong_up, col) == true_row);
+      DP_CHECK (acq_resolve_tile_alias (a, true_row, col) == true_row);
+    }
+  dp_acq_destroy (a);
+
+  /* D = 1 (no design C/N0): no raw block, so nothing to ask; the row is
+     returned as given. */
+  dp_acq_state_t *b
+      = burst_from_code (CODE7, sf, reps, spc, crate, ACQ_CN0_NONE, 3.5 * span,
+                         1e-3, 0.9, 0, 0.0);
+  DP_REQUIRE (b != NULL);
+  DP_REQUIRE (b->window_bins > 1 && b->coherent_bins == 1 && !b->blk_raw);
+  DP_CHECK (acq_resolve_tile_alias (b, 3, 0) == 3);
+  dp_acq_destroy (b);
+  return 0;
+}
+
 /* A tiled burst search with NO design C/N0 is D = 1, as it always was.
  *
  * Only a stated C/N0 asks for a depth inside the tiles. Without one the
@@ -2908,6 +2983,7 @@ main (void)
   (void)_acq_wideband_coherent_center_check ();
   (void)_acq_wideband_default_depth_check ();
   (void)_acq_tiled_burst_offcentre_check ();
+  (void)_acq_tile_alias_hop_check ();
   (void)_acq_hit_chip_phase_check ();
   (void)_acq_wideband_coverage_check ();
   (void)_acq_chunk_invariance_check ();

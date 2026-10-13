@@ -44,18 +44,28 @@ _SynthEngine_init (_SynthEngineObject *self, PyObject *args, PyObject *kwds)
   double             fs           = 1000000.0;
   double             freq         = 0.0;
   double             snr          = 100.0;
-  unsigned long      seed_raw     = 0UL;
+  long long          seed_raw     = 0LL;
   int                sps          = 8;
   int                pn_length    = 7;
   unsigned long long pn_poly_raw  = 0ULL;
   const char        *lfsr_str     = "galois";
   double             f_end        = 0.0;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|ssdddkiiKsd", kwlist,
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|ssdddLiiKsd", kwlist,
                                     &type_str, &snr_mode_str, &fs, &freq, &snr,
                                     &seed_raw, &sps, &pn_length, &pn_poly_raw,
                                     &lfsr_str, &f_end))
     return -1;
+  /* `seed` is parsed wide and range-tested, not through `k`: `k` masks, so
+   * seed=2**32 + 5 built a synth seeded 5 and -1 one seeded 4294967295
+   * (#2276). */
+  if (seed_raw < 0 || seed_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "seed: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)seed_raw, (long long)0, (long long)UINT32_MAX);
+      return -1;
+    }
   int type = 0;
   if (strcmp (type_str, "tone") == 0)
     type = 0;

@@ -722,9 +722,9 @@ _acq_tiled_burst_offcentre_check (void)
 
   /* Tones straddling a tile BOUNDARY, +-0.5 and +-1.5 native spans, +-0.02
      native either side in steps of 0.005, off the bin grid. Such a tone reads
-     almost equally in both tiles (the tile de-rotates by its own centre, and
+     almost equally in both tiles (the tile de-rotates by its own center, and
      the slow-time transform folds it to the same row index of each), so the
-     engine's raw pick can be the neighbour; acq_resolve_tile_alias() asks the
+     engine's raw pick can be the neighbor; acq_resolve_tile_alias() asks the
      block at the row's frequency and one span down and up and moves the pick.
      That hop is only exercised here: the on-bin tones above never need it, and
      a sign slip in it passed test_acq_core until it was swept (doppler#2232).

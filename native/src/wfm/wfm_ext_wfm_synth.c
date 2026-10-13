@@ -655,6 +655,91 @@ _SynthEngine_set_chirp_span (_SynthEngineObject *self, PyObject *args,
   Py_RETURN_NONE;
 }
 
+static PyObject *
+_SynthEngine_prod (_SynthEngineObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "x", "out", NULL };
+  PyObject    *in_obj    = NULL;
+  PyObject    *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &in_obj,
+                                    &out_obj))
+    return NULL;
+  PyArrayObject *in_arr
+      = jm_array_arg (in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
+  if (!in_arr)
+    {
+      return NULL;
+    }
+  Py_ssize_t n = PyArray_SIZE (in_arr);
+  if (out_obj && out_obj != Py_None)
+    {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          Py_DECREF (in_arr);
+          return NULL;
+        }
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
+      if (!out_arr)
+        {
+          Py_DECREF (in_arr);
+          return NULL;
+        }
+      if (PyArray_SIZE (out_arr) != n)
+        {
+          PyErr_Format (PyExc_ValueError, "out length %zd != input length %zd",
+                        (Py_ssize_t)PyArray_SIZE (out_arr), (Py_ssize_t)n);
+          Py_DECREF (out_arr);
+          Py_DECREF (in_arr);
+          return NULL;
+        }
+      /* nogil: GIL released across the pure-C kernel — sound only when
+       * this object is not shared across threads concurrently (one
+       * object per stream); the kernel touches only this object's
+       * state/buffers and the caller's input. */
+      const float _Complex *_ng0
+          = (const float _Complex *)PyArray_DATA (in_arr);
+      float _Complex *_ng1 = (float _Complex *)PyArray_DATA (out_arr);
+      Py_BEGIN_ALLOW_THREADS
+        dp_wfm_synth_prod (self->handle, _ng0, (size_t)n, _ng1);
+      Py_END_ALLOW_THREADS
+      Py_DECREF (in_arr);
+      return (PyObject *)out_arr;
+    }
+  npy_intp  dims[] = { n };
+  PyObject *out    = PyArray_SimpleNew (1, dims, NPY_COMPLEX64);
+  if (!out)
+    {
+      Py_DECREF (in_arr);
+      return NULL;
+    }
+  /* nogil: GIL released across the pure-C kernel — sound only when
+   * this object is not shared across threads concurrently (one
+   * object per stream); the kernel touches only this object's
+   * state/buffers and the caller's input. */
+  const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (in_arr);
+  float _Complex *_ng1 = (float _Complex *)PyArray_DATA ((PyArrayObject *)out);
+  Py_BEGIN_ALLOW_THREADS
+    dp_wfm_synth_prod (self->handle, _ng0, (size_t)n, _ng1);
+  Py_END_ALLOW_THREADS
+  Py_DECREF (in_arr);
+  return out;
+}
+
 static PyMethodDef _SynthEngine_methods[] = {
   { "reset", (PyCFunction)_SynthEngine_reset, METH_NOARGS,
     "Reset Synth to its post-create state. Resets the LO phase\n"
@@ -846,6 +931,51 @@ static PyMethodDef _SynthEngine_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
+  { "prod", (PyCFunction)(void (*) (void))_SynthEngine_prod,
+    METH_VARARGS | METH_KEYWORDS,
+    "prod(x, out=None) -> ndarray\n"
+    "\n"
+    "Multiply a block by the synth's next output samples.\n"
+    "\n"
+    "``out[i] = x[i] * y[i]``, where ``y`` is what ``steps(len(x))`` would "
+    "emit\n"
+    "next. The synth advances exactly as ``steps(len(x))`` does, so split "
+    "calls\n"
+    "leave the same synth state as one call and an empty ``x`` does not "
+    "advance it;\n"
+    "the product itself agrees across such call sequences to rounding (a few "
+    "ulp\n"
+    "of ``|x| * |y|``), not to the bit, because the compiler may contract "
+    "the\n"
+    "multiply differently on different paths (arm64 under ``-ffast-math``). A "
+    "tone\n"
+    "synth makes this a rotation, a chirp a swept rotation, noise a noise\n"
+    "multiplier, PN/BPSK a modulation. ``x`` is not modified.\n"
+    "\n"
+    "This is the general waveform-multiplication operator: with a tone synth\n"
+    "it is a rotation, with a chirp synth a swept rotation, with noise a\n"
+    "noise multiplier, with PN/BPSK a modulation.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : npt.NDArray[np.complex64]\n"
+    "    Input.\n"
+    "out : npt.NDArray[np.complex64] | None\n"
+    "    Output block of ``n`` cf32 samples (may alias ``in``).\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.complex64]\n"
+    "    Output.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.wfm import Synth\n"
+    ">>> import numpy as np\n"
+    ">>> s = Synth(type=\"tone\", fs=1.0, freq=0.25)\n"
+    ">>> y = s.prod(np.ones(4, np.complex64))\n"
+    ">>> bool(np.allclose(y, [1, 1j, -1, -1j], atol=1e-5))\n"
+    "True\n" },
   { "state_bytes", (PyCFunction)_SynthEngine_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"
     "\n"

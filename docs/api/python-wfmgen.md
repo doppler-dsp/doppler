@@ -51,6 +51,27 @@ qpsk = Synth(type="qpsk", sps=8, snr=10).steps(8192)
 s = Synth(type="tone", freq=1000, fs=1e6).step()
 ```
 
+### Multiplying by a waveform — `prod()` and `rotate()`
+
+A synth is also an **operator**: `Synth.prod(x)` returns `x` times the
+synth's next `len(x)` samples, advancing the synth exactly as `steps(len(x))`
+would (split calls equal one call; `x` is not modified). A tone makes it a
+rotation, a chirp a swept rotation, noise a noise multiplier, PN/BPSK a
+modulation. `rotate(x, freq, rate, fs, center)` is the swept-carrier special
+case: it multiplies `x` by `exp(j 2 pi (freq u + rate u^2 / 2))` about a
+stated `center` sample (default the middle of `x`), to a constant phase.
+The chirp's start and end frequencies come from the one C home of that arithmetic, `dp_wfm_synth_sweep_ends`, which Python reaches through the private `_sweep_ends`; `rotate` is the supported way in, and it refuses an `fs` that is not positive and finite.
+
+```python
+import numpy as np
+from doppler.wfm import rotate
+
+x = np.ones(1001, np.complex64)
+y = rotate(x, freq=0.0, rate=1e-4)       # cycles/sample, cycles/sample^2
+inst = np.angle(y[1:] * np.conj(y[:-1])) / (2 * np.pi)
+assert abs(inst[0] + 0.05) < 1e-4 and abs(inst[-1] - 0.05) < 1e-4
+```
+
 ### Bits (user-defined pattern)
 
 A `bits` waveform sends a **specific bit sequence** — preambles, sync

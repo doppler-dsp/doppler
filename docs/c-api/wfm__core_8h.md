@@ -53,6 +53,7 @@ _Wfmgen module — public C API._
 
 | Type | Name |
 | ---: | :--- |
+|  void | [**dp\_\_sweep\_ends**](#function-dp__sweep_ends) (double fs, double f\_mid, double rate, size\_t n, double center, double \* out) <br> |
 |  void | [**dp\_bpsk\_map**](#function-dp_bpsk_map) (const uint8\_t \* bits, size\_t bits\_len, float \_Complex \* out) <br>_Map binary bits {0, 1} to BPSK constellation symbols (cf32). The mapping is: 0 -&gt; +1 + 0j, 1 -&gt; -1 + 0j. Output is unit-power (each symbol has magnitude 1). The imaginary component is always zero. Typically used before a carrier multiply and noise addition to build a BPSK burst without the full Synth engine._  |
 |  uint16\_t | [**dp\_crc16**](#function-dp_crc16) (const uint8\_t \* bits, size\_t bits\_len) <br>_CRC-16-CCITT (poly 0x1021, init 0xFFFF) over a bit stream, MSB-first. The one frame CRC doppler's DSSS burst convention uses: the_ `dsss` _waveform appends it over the payload bits on transmit and_`BurstDemod` _validates it as_`frame_valid` _on receive (both call the same C kernel,_[_**dp\_crc16.h**_](dp__crc16_8h.md) _). Each input byte carries one bit (0/1) in its LSB — an unpacked bit array, not a packed byte-stream CRC. Transmit the result MSB-first._ |
 |  void | [**dp\_dsss\_spread**](#function-dp_dsss_spread) (const float \_Complex \* syms, size\_t syms\_len, const uint8\_t \* code, size\_t code\_len, int sf, float \_Complex \* out) <br> |
@@ -94,6 +95,26 @@ _Wfmgen module — public C API._
 
 ## Public Functions Documentation
 
+
+
+
+### function dp\_\_sweep\_ends 
+
+```C++
+void dp__sweep_ends (
+    double fs,
+    double f_mid,
+    double rate,
+    size_t n,
+    double center,
+    double * out
+) 
+```
+
+
+
+
+<hr>
 
 
 

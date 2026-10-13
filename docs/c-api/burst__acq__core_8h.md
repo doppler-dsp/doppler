@@ -62,7 +62,7 @@ _BurstAcquisition — thin forwarder onto acq\_core.c's shared engine._ [More...
 | ---: | :--- |
 |  int | [**dp\_burst\_acq\_configure\_search\_raw**](#function-dp_burst_acq_configure_search_raw) ([**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the search grid directly, bypassing the auto-sizing search._  |
 |  size\_t | [**dp\_burst\_acq\_consumed**](#function-dp_burst_acq_consumed) (const [**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) \* state) <br>_Input samples the last_ [_**dp\_burst\_acq\_push()**_](burst__acq__core_8h.md#function-dp_burst_acq_push) _took: the embedded engine's_[_**dp\_acq\_consumed()**_](acq__core_8h.md#function-dp_acq_consumed) _, per call (not the cumulative_[_**acq\_result\_t::samples\_consumed**_](structacq__result__t.md#variable-samples_consumed) _)._ |
-|  [**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) \* | [**dp\_burst\_acq\_create**](#function-dp_burst_acq_create) (const float \_Complex \* preamble, size\_t preamble\_len, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate) <br>_Create a burst-mode acquisition engine for any repeated preamble, given as its samples (forwards to_ [_**dp\_acq\_create\_burst()**_](acq__core_8h.md#function-dp_acq_create_burst) __ _see its doc comment in_[_**acq\_core.h**_](acq__core_8h.md) _for the full physics)._ |
+|  [**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) \* | [**dp\_burst\_acq\_create**](#function-dp_burst_acq_create) (const float \_Complex \* preamble, size\_t preamble\_len, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate, size\_t rate\_hypotheses) <br>_Create a burst-mode acquisition engine for any repeated preamble, given as its samples (forwards to_ [_**dp\_acq\_create\_burst()**_](acq__core_8h.md#function-dp_acq_create_burst) __ _see its doc comment in_[_**acq\_core.h**_](acq__core_8h.md) _for the full physics)._ |
 |  void | [**dp\_burst\_acq\_destroy**](#function-dp_burst_acq_destroy) ([**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) \* state) <br>_Destroy and free an instance._  |
 |  void | [**dp\_burst\_acq\_get\_state**](#function-dp_burst_acq_get_state) (const [**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) \* state, void \* blob) <br> |
 |  size\_t | [**dp\_burst\_acq\_push**](#function-dp_burst_acq_push) ([**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) \* state, const float \_Complex \* x, size\_t n\_in, [**acq\_result\_t**](structacq__result__t.md) \* result, size\_t max\_results) <br>_Stream raw samples; emit one event per CFAR dump above threshold._  |
@@ -111,7 +111,7 @@ float _Complex zc[127];
 for (int k = 0; k < 127; k++)
   zc[k] = cexpf (-I * (float)(M_PI * 5.0 * k * (k + 1) / 127.0));
 dp_burst_acq_state_t *obj = dp_burst_acq_create(zc, 127, 8, 1.0e6, 50.0,
-                                          0.0, 1e-3, 0.9, 0, 0.0);
+                                          0.0, 1e-3, 0.9, 0, 0.0, 1);
 acq_result_t hits[64];
 size_t nh = dp_burst_acq_push(obj, samples, n_samples, hits, 64);
 dp_burst_acq_destroy(obj);
@@ -224,7 +224,8 @@ dp_burst_acq_state_t * dp_burst_acq_create (
     double pfa,
     double pd,
     int noise_mode,
-    double doppler_rate
+    double doppler_rate,
+    size_t rate_hypotheses
 ) 
 ```
 
@@ -248,6 +249,7 @@ One period of `preamble_len` complex samples at `fs`, repeated up to `reps` time
 * `pd` Target detection probability (0,1). 
 * `noise_mode` CFAR mode index: 0=mean, 1=median, 2=min, 3=max. 
 * `doppler_rate` Doppler rate in Hz/s (&gt;= 0) that caps the coherent depth at `f_epoch/sqrt(2*doppler_rate)` repetitions (doppler#1482); 0 is no bound. 
+* `rate_hypotheses` Doppler-rate hypotheses to search (&gt;= 1, at most ACQ\_RATE\_HYPS\_MAX); 1 searches none. Above 1 the engine COMPENSATES the rate rather than only capping the depth: `doppler_rate` becomes the span `[-R, +R]`, the coherent block is de-chirped at this many rates across it, and the depth is bounded by the residual `R/(n - 1)`  see [**dp\_acq\_create\_burst()**](acq__core_8h.md#function-dp_acq_create_burst), which owns the semantics. Needs a non-zero `doppler_rate`. 
 
 
 
@@ -280,6 +282,21 @@ Zadoff-Chu sequence, in normalized units:
 127
 >>> z.push(np.tile(np.roll(zc, 40), 10))[0][:2]
 (0, 40)
+
+A carrier that sweeps caps the coherent depth; searching Doppler-rate
+hypotheses compensates it instead, and buys the depth back:
+
+>>> import warnings
+>>> def make(**kw):
+...     with warnings.catch_warnings():
+...         warnings.simplefilter("ignore")   # under-powered, below
+...         return BurstAcquisition(zc, reps=16, fs=1.0, cn0_dbhz=-13.0,
+...                                 doppler_rate=9e-7, **kw)
+>>> make().doppler_bins, make().underpowered      # the rate caps it
+(5, True)
+>>> c = make(rate_hypotheses=9)
+>>> c.rate_hypotheses, c.doppler_bins, c.underpowered
+(9, 10, False)
 ```
  
 

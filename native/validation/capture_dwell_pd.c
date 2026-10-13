@@ -123,7 +123,7 @@ static dp_burst_capture_state_t *
 make (size_t depth, double cn0)
 {
   dp_burst_capture_state_t *s = dp_burst_capture_create (
-      ZC, N, BURST, R, 1.0, cn0, 0.0, PFA, 0.9, 0, 0.0);
+      ZC, N, BURST, R, 1.0, cn0, 0.0, PFA, 0.9, 0, 0.0, 1);
   if (!s || dp_burst_capture_configure_search_raw (s, depth, 1) != 0)
     {
       DP_TEST_ERR ("capture at D=%zu refused\n", depth);

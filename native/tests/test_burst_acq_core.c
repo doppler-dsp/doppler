@@ -25,7 +25,7 @@ main (void)
   /* A NULL/empty preamble is rejected, same as dp_acq_create_burst() itself.
    */
   DP_CHECK (
-      dp_burst_acq_create (NULL, 0, 1, 4.0e6, 50.0, 0.0, 1e-3, 0.9, 0, 0.0)
+      dp_burst_acq_create (NULL, 0, 1, 4.0e6, 50.0, 0.0, 1e-3, 0.9, 0, 0.0, 1)
       == NULL);
 
   const size_t spc   = 2;
@@ -34,7 +34,7 @@ main (void)
 
   float _Complex       *pre = dp_code_preamble (CODE7, 7, spc);
   dp_burst_acq_state_t *obj = dp_burst_acq_create (
-      pre, nx, 8, crate * (double)spc, 65.0, 0.0, 1e-2, 0.9, 0, 0.0);
+      pre, nx, 8, crate * (double)spc, 65.0, 0.0, 1e-2, 0.9, 0, 0.0, 1);
   free (pre);
   DP_CHECK (obj != NULL);
   if (!obj)

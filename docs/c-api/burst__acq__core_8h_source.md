@@ -34,7 +34,8 @@ extern "C"
                                        double cn0_dbhz,
                                        double doppler_uncertainty, double pfa,
                                        double pd, int noise_mode,
-                                       double doppler_rate);
+                                       double doppler_rate,
+                                       size_t rate_hypotheses);
 
   void dp_burst_acq_destroy (dp_burst_acq_state_t *state);
 

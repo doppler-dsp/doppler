@@ -153,7 +153,9 @@ ______________________________________________________________________
 ## Detections: `BurstAcquisition`
 
 `BurstAcquisition` is the search on its own. Each call to `push` returns the
-detections completed in that block, as 8-tuples:
+detections completed in that block, as 9-tuples (the last field,
+`doppler_rate_hz_s`, is the winning Doppler-rate hypothesis, 0 unless the
+search was built with `rate_hypotheses`):
 
 ```python
 from doppler.acquire import BurstAcquisition, bin_to_signed
@@ -163,7 +165,7 @@ hits = []
 for block in np.array_split(x, 7):              # any block size
     hits += acq.push(block)
 
-dop, delay, peak, noise, stat, cn0_est, consumed, chip_phase = hits[0]
+dop, delay, peak, noise, stat, cn0_est, consumed, chip_phase, rate = hits[0]
 doppler_hz = bin_to_signed(dop, acq.doppler_bins) * acq.doppler_res_hz
 assert delay == 300 % 127                       # the delay WITHIN a period
 assert abs(doppler_hz - 1500.0) <= acq.doppler_res_hz / 2

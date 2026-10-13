@@ -10,7 +10,7 @@ serializable = "true"
 # -- the same shape as objects/burst_capture.toml's. Before this, an infinite
 # cn0_dbhz or a pfa of 1 surfaced as MemoryError.
 create_error = "ValueError"
-create_error_message = "BurstAcquisition: invalid parameter (need a non-empty preamble with finite, non-zero energy, reps >= 1, fs > 0, cn0_dbhz finite or NaN, doppler_uncertainty >= 0, doppler_rate >= 0, 0 < pfa < 1, 0 < pd < 1)"
+create_error_message = "BurstAcquisition: invalid parameter (need a non-empty preamble with finite, non-zero energy, reps >= 1, fs > 0, cn0_dbhz finite or NaN, doppler_uncertainty >= 0, doppler_rate >= 0, 1 <= rate_hypotheses <= 64 (and doppler_rate > 0 above 1), 0 < pfa < 1, 0 < pd < 1)"
 # The under-powered UserWarning is declared (gh-481): its condition is a
 # bool field of dp_burst_acq_state_t, which mirrors the engine's at
 # construction -- the same warning objects/acq.toml declares.
@@ -88,6 +88,15 @@ name = "doppler_rate"
 type = "double"
 default = "0.0"
 
+# Doppler-rate hypotheses to search. 1 = none, and doppler_rate only caps the
+# depth; above 1 the engine COMPENSATES the rate -- doppler_rate becomes the
+# span of the hypotheses and the depth is bounded by the residual
+# doppler_rate/(n - 1). Appended last, so no positional call moves.
+[[burst_acq.init_params]]
+name = "rate_hypotheses"
+type = "size_t"
+default = "1"
+
 [[burst_acq.methods]]
 name = "push"
 arg_type = "float _Complex"
@@ -96,10 +105,10 @@ nogil = true
 # The binding makes ONE call into a stack array of this many results, and a
 # push that would make more loses the input past the dwell it stops at
 # (#1992; the jm ask is just-buildit/just-makeit#2184). 1024 makes that a
-# push of over 1024 / max_peaks dwells: 48 KiB of stack per call
-# (sizeof(acq_result_t) = 48).
+# push of over 1024 / max_peaks dwells: 56 KiB of stack per call
+# (sizeof(acq_result_t) = 56).
 max_results = 1024
-result_fields = [{name = "doppler_bin", type = "size_t"}, {name = "code_phase", type = "size_t"}, {name = "peak_mag", type = "float"}, {name = "noise_est", type = "float"}, {name = "test_stat", type = "float"}, {name = "cn0_dbhz_est", type = "float"}, {name = "samples_consumed", type = "uint64_t"}, {name = "chip_phase", type = "double"}]
+result_fields = [{name = "doppler_bin", type = "size_t"}, {name = "code_phase", type = "size_t"}, {name = "peak_mag", type = "float"}, {name = "noise_est", type = "float"}, {name = "test_stat", type = "float"}, {name = "cn0_dbhz_est", type = "float"}, {name = "samples_consumed", type = "uint64_t"}, {name = "chip_phase", type = "double"}, {name = "doppler_rate_hz_s", type = "double"}]
 
 # Advanced escape hatch: pin the search grid directly, bypassing both
 # auto-sizing searches (mirrors Dll's/Costas's configure_lock_raw()). Raises
@@ -238,6 +247,12 @@ name = "doppler_rate"
 type = "double"
 expr = "self->handle->engine->doppler_rate"
 doc = "Doppler rate (Hz/s) the coherent depth is bounded against: coherent_bins <= f_epoch/sqrt(2*doppler_rate). 0 is no bound."
+
+[[burst_acq.properties]]
+name = "rate_hypotheses"
+type = "size_t"
+expr = "self->handle->engine->rate_hyps"
+doc = "Doppler-rate hypotheses the engine searches, as given at construction; 1 is none -- `doppler_rate` then only caps the coherent depth. Above 1 `doppler_rate` is the span of the hypotheses and the depth is bounded by the residual `doppler_rate/(rate_hypotheses - 1)`."
 
 [[burst_acq.properties]]
 name = "cn0_dbhz"

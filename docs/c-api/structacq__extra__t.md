@@ -37,6 +37,7 @@ _Per-object extra header for an engine's cross-call state._ [More...](#detailed-
 | Type | Name |
 | ---: | :--- |
 |  uint16\_t | [**\_pad**](#variable-_pad)  <br> |
+|  uint32\_t | [**\_pad2**](#variable-_pad2)  <br> |
 |  uint32\_t | [**blk\_epoch**](#variable-blk_epoch)  <br> |
 |  uint16\_t | [**has\_nc**](#variable-has_nc)  <br> |
 |  uint32\_t | [**max\_peaks**](#variable-max_peaks)  <br> |
@@ -44,6 +45,7 @@ _Per-object extra header for an engine's cross-call state._ [More...](#detailed-
 |  uint32\_t | [**n\_noncoh**](#variable-n_noncoh)  <br> |
 |  uint32\_t | [**n\_twins**](#variable-n_twins)  <br> |
 |  uint32\_t | [**nc\_count**](#variable-nc_count)  <br> |
+|  uint32\_t | [**rate\_hyps**](#variable-rate_hyps)  <br> |
 |  uint64\_t | [**samples\_consumed**](#variable-samples_consumed)  <br> |
 
 
@@ -111,6 +113,19 @@ Build the byte buffer with [**dp\_acq\_state\_bytes()**](acq__core_8h.md#functio
 
 ```C++
 uint16_t acq_extra_t::_pad;
+```
+
+
+
+
+<hr>
+
+
+
+### variable \_pad2 
+
+```C++
+uint32_t acq_extra_t::_pad2;
 ```
 
 
@@ -236,6 +251,24 @@ uint32_t acq_extra_t::nc_count;
 
 
 Looks accumulated in the current dump. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable rate\_hyps 
+
+```C++
+uint32_t acq_extra_t::rate_hyps;
+```
+
+
+
+v6: rate hypotheses searched; must equal the engine's  it sizes the search and changes what a surface means. 
  
 
 

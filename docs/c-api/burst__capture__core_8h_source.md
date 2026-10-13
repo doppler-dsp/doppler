@@ -90,6 +90,8 @@ typedef struct
   /* ── Refine scratch (docs/design/dsss-burst-receiver.md §3.4) ───────── */
   double _Complex *cell_buf; 
   double *cell_f;           
+  double _Complex *rate_ph; 
+  size_t rate_ph_n;         
   size_t max_cells;         
   size_t refine_span;  
   size_t corr_len;     
@@ -156,13 +158,13 @@ dp_burst_capture_state_t *dp_burst_capture_create (
     const float _Complex *preamble, size_t preamble_len, size_t burst_len,
     size_t reps,
     double fs, double cn0_dbhz, double doppler_uncertainty, double pfa,
-    double pd, int noise_mode, double doppler_rate);
+    double pd, int noise_mode, double doppler_rate, size_t rate_hypotheses);
 
 dp_burst_capture_state_t *dp_burst_capture_create_backed (
     const char *path, const float _Complex *preamble, size_t preamble_len,
     size_t burst_len, size_t reps, double fs, double cn0_dbhz,
     double doppler_uncertainty, double pfa, double pd, int noise_mode,
-    double doppler_rate);
+    double doppler_rate, size_t rate_hypotheses);
 
 void dp_burst_capture_destroy (dp_burst_capture_state_t *state);
 
@@ -223,6 +225,8 @@ double dp_burst_capture_get_pd_predicted (const dp_burst_capture_state_t *state)
 double dp_burst_capture_get_pd_burst (const dp_burst_capture_state_t *state);
 double dp_burst_capture_get_psl_db (const dp_burst_capture_state_t *state);
 double dp_burst_capture_get_doppler_rate (const dp_burst_capture_state_t *state);
+size_t dp_burst_capture_get_rate_hypotheses (
+    const dp_burst_capture_state_t *state);
 size_t dp_burst_capture_get_doppler_bins (const dp_burst_capture_state_t *state);
 size_t dp_burst_capture_get_n_noncoh (const dp_burst_capture_state_t *state);
 size_t dp_burst_capture_get_code_bins (const dp_burst_capture_state_t *state);

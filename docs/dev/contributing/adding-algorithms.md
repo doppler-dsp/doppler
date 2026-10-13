@@ -177,6 +177,16 @@ against a receiver whose carrier discriminator did nothing at all
 exists, treat the sabotage as part of writing the test, not as a review step
 somebody else performs.
 
+**A guard can pass because it never ran.** The blob test for
+`rate_hypotheses` (the count is a reject key) was first written as "if the two
+engines' sizes agree, expect `DP_ERR_INVALID`" -- and they never agreed, so the
+assertion was skipped and the sabotage that dropped the key read **green**. It
+was found only because every guard of that change was sabotaged once. Build the
+case so the precondition is a `DP_REQUIRE` (here, an N = 1 engine against an
+N = 2 one, which land on the same depth), never an `if` around the assertion.
+A Bash chain whose hook-blocked tail takes its first half with it did the same
+thing to a different edit; read the file, not the green.
+
 Do this *before* the Python face exists. A test written through the binding
 measures whatever the binding happens to expose, and the surfaces that matter
 most are routinely the ones with no binding at all.
@@ -195,6 +205,15 @@ The rule worth knowing here is that a *published* diagnostic and a *useful*
 one are not the same thing: an object can publish two views of its own state
 that are secretly the same view. Check what a composing receiver would
 actually need to debug you.
+
+**A create-time count that changes what a surface means is a reject key, and
+a constructor argument.** `rate_hypotheses` (the burst engine's Doppler-rate
+search, [burst-capture §11.5](../../design/burst-capture.md)) sizes the grid and
+decides which surface a blob describes, so the blob carries it and refuses a
+blob with another (acq state v6). It is an argument and not a setter on
+purpose: a setter is a mutator the [#2022 gate](../../design/state-serialization.md)
+probes, a view with no row in the serialization matrix cannot be probed, and a
+mid-stream re-size has to reset everything the engine composes.
 
 **A new running field is a blob version bump**, and the field you forgot to
 pack is found by the mid-stream split test, not by the round trip: a split
@@ -219,6 +238,19 @@ Two homes, and which one depends on the language of the answer:
 - `src/doppler/<module>/tests/characterization/<subject>/` when it is a long
     Monte-Carlo sweep over an object that *does* have a binding. Run by
     `make characterize` and by nothing else, deliberately.
+
+A probability the caller will rely on -- a Pd, a Pfa -- is reported **with its
+interval**, not as a point, and the sweep's rows include the worst case rather
+than only the average. The exemplar is `native/validation/acq_rate_pd.c`: Wilson
+95% on every row, a rate placed exactly between two hypotheses next to one drawn
+uniformly, a noise-only Pfa row per configuration, and the **same assertions in
+`--check` and in the full sweep** (a sweep that asserts nothing fails
+`make validate`, [#1566](https://github.com/doppler-dsp/doppler/issues/1566)).
+Where an effect is smaller than the interval -- two refinements worth 0.02 of Pd
+against a +-0.04 interval -- the trials are seeded, so the effect is measured
+**paired**, by ablating it on the identical trials, and the seeded point
+estimate is pinned. That is a regression pin, not a significance test, and the
+validator says which it is.
 
 "Deliberately" is the whole point of both rows: neither runs on a push. What
 CI gets from this phase is the `--check` subset and the fast tests you write
@@ -389,9 +421,11 @@ by phase: reach for the row before writing a line of the thing it names.
 |                       | the state round trip and the clobbered-blob reject                                                                         | `dp_state_test.h` — `DP_STATE_ROUNDTRIP_TEST`                                                                                                                                                                                                                                                                                                                                                                         |
 | 3–4, 7, any C         | **a waveform**: tone, PN, BPSK/QPSK, chirp, a bit pattern, a DSSS burst or a continuous asynchronous DSSS stream with data | `wfm_synth` (`dp_wfm_synth_create` + `set_dsss_cont` / `set_dsss` / `set_bits` / `set_symbols`), the generator wfmgen itself renders with; `dp_wfm_synth_noise_steps` for the noise a gap carries                                                                                                                                                                                                                     |
 |                       | a scene: sources summed, segments in time, ranged fields, repeats, Doppler per source                                      | `wfm_compose` (`dp_wfm_compose_create` / `_from_json`) — but it rebuilds a source at a segment boundary, so a fade of a *continuing* emitter is a scalar on one synth's stream, not a segment                                                                                                                                                                                                                         |
+|                       | a swept carrier: a chirp about a stated centre, no time-base dilation                                                      | **not shipped.** `doppler_channel` couples the sweep to dilation and a 10.5-sample group delay, so it cannot isolate the carrier; `test_acq_core.c`, `test_burst_capture_core.c` and `acq_rate_pd.c` each carry the phase ramp ([#2219](https://github.com/doppler-dsp/doppler/issues/2219))                                                                                                                          |
 |                       | noise at a stated SNR or C/N0                                                                                              | `awgn` with `dp_awgn_amplitude_for_snr` (the one answer to "per rail or total"), `dp_wfm_snr_over_fs` for the mode conversion                                                                                                                                                                                                                                                                                         |
 |                       | Doppler as physics: time-base dilation plus carrier, one parameter                                                         | `doppler_channel` — not a frequency offset                                                                                                                                                                                                                                                                                                                                                                            |
 |                       | a spreading code                                                                                                           | `gold` (CCSDS #365 is the header's example), `pn`                                                                                                                                                                                                                                                                                                                                                                     |
+| 7, validation harness | a probability with a confidence interval, the worst case beside the average, Pfa from noise only                           | `native/validation/acq_rate_pd.c` -- `wilson()` is local to it, the first one; a second user hoists it into a shared header ([#2219](https://github.com/doppler-dsp/doppler/issues/2219))                                                                                                                                                                                                                             |
 | 5, benches            | timing, min over rounds, the settle once per process, the JSON                                                             | `jm_bench.h` + `dp_bench.h`; interleave configurations — [Benchmarking](benchmarking.md)                                                                                                                                                                                                                                                                                                                              |
 | 7, validation harness | everything in the C-test rows, plus a `--check` spot check registered in CTest                                             | the exemplar is `native/validation/lockdet_verify.c`: a probability measured with the shipped `awgn`, because a private sigma moves a rate without failing anything                                                                                                                                                                                                                                                   |
 |                       | a lifecycle soak: a population arriving and leaving over minutes, the heap watched, the cost budgeted                      | `native/validation/async_dsss_pool_soak.c` — `--check` (the regression subset), `--emit` (CSV for the report), `--duration`, `--budget`. Two heap lessons it paid for: presize the harness's own records before the baseline is taken, or their doublings read as the object growing; and glibc's tcache counts as in use, so the process re-execs with `glibc.malloc.tcache_count=0` before the count means anything |

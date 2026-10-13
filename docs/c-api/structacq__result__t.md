@@ -40,6 +40,7 @@ _One acquisition detection event._
 |  float | [**cn0\_dbhz\_est**](#variable-cn0_dbhz_est)  <br> |
 |  size\_t | [**code\_phase**](#variable-code_phase)  <br> |
 |  size\_t | [**doppler\_bin**](#variable-doppler_bin)  <br> |
+|  double | [**doppler\_rate\_hz\_s**](#variable-doppler_rate_hz_s)  <br> |
 |  float | [**noise\_est**](#variable-noise_est)  <br> |
 |  float | [**peak\_mag**](#variable-peak_mag)  <br> |
 |  uint64\_t | [**samples\_consumed**](#variable-samples_consumed)  <br> |
@@ -156,6 +157,23 @@ size_t acq_result_t::doppler_bin;
 
 Peak row: Doppler bin (0 … coherent\_bins-1), or, in wideband mode, a bin of the uniform grid of window\_bins\*coherent\_bins bins (window\_bins tiles of coherent\_bins each) — see [**acq\_core.h**](acq__core_8h.md)'s file doc comment. 
  
+
+
+        
+
+<hr>
+
+
+
+### variable doppler\_rate\_hz\_s 
+
+```C++
+double acq_result_t::doppler_rate_hz_s;
+```
+
+
+
+The Doppler rate, Hz/s, of the rate hypothesis that won this hit's dwell ([**dp\_acq\_create\_burst()**](acq__core_8h.md#function-dp_acq_create_burst)'s rate\_hypotheses); 0 without hypotheses, and 0 when the dwell's block is one or two epochs, which cannot see a rate (every hypothesis is then the same surface). A hypothesis, not a fit, and a RELIABLE one only with signal to spare: the carrier's rate lies within half a spacing, `doppler_rate/(n - 1)`, of it when the dwell is well above the design point (measured in the review of #2221: 400 hits, N = 9, D = 10, true rate 0, a dwell at -10 dB-Hz against a -13 dB-Hz design  110 name the nearest hypothesis and 60 name +-R; at +10 dB-Hz, 399 do), because adjacent hypotheses differ by at most pi/4 of phase at the block's edges and noise picks among neighbours. DETECTION is unaffected  the surface that wins is a good one whichever neighbour it is. Treat the value as a seed, not a measurement, at the C/N0 the engine was sized for. The Doppler the hit reports is the carrier's at the middle of the dwell's block. Appended last so positional initialisers do not shift. 
 
 
         

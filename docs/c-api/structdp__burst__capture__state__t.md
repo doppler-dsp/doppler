@@ -67,6 +67,8 @@ _BurstCapture state._ [More...](#detailed-description)
 |  [**burst\_capture\_pending\_t**](structburst__capture__pending__t.md) \* | [**q**](#variable-q)  <br> |
 |  size\_t | [**q\_cap**](#variable-q_cap)  <br> |
 |  size\_t | [**q\_head**](#variable-q_head)  <br> |
+|  double \_Complex \* | [**rate\_ph**](#variable-rate_ph)  <br> |
+|  size\_t | [**rate\_ph\_n**](#variable-rate_ph_n)  <br> |
 |  int | [**recovered**](#variable-recovered)  <br> |
 |  size\_t | [**refine\_span**](#variable-refine_span)  <br> |
 |  uint8\_t \* | [**released**](#variable-released)  <br> |
@@ -554,7 +556,7 @@ size_t dp_burst_capture_state_t::max_cells;
 
 
 
-Doppler cells refine can need: the most an engine bin spans at depth `reps`, which is at D = 1  `2 * ceil(reps * BURST_CAPTURE_REFINE_INTERP / 2) + 3`. 
+Doppler cells refine can need: the most an engine bin spans at depth `reps`, which is at D = 1  `2 * ceil(reps * BURST_CAPTURE_REFINE_INTERP / 2) + 3`, plus the cells a rate hypothesis shifts the preamble's Doppler by, per side, when the engine searches rates. 
  
 
 
@@ -693,6 +695,42 @@ size_t dp_burst_capture_state_t::q_head;
 
 
 Index of the oldest entry. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable rate\_ph 
+
+```C++
+double _Complex* dp_burst_capture_state_t::rate_ph;
+```
+
+
+
+Refine's rate hypotheses as phasors over the preamble's periods, `rate_ph_n * reps`, built once at create. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable rate\_ph\_n 
+
+```C++
+size_t dp_burst_capture_state_t::rate_ph_n;
+```
+
+
+
+Rows of `rate_ph`; 1 without hypotheses. 
  
 
 

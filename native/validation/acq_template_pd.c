@@ -199,7 +199,7 @@ measure (const tmpl_t *tp, const uint8_t *code, double cn0, uint32_t seed,
   float _Complex *cpre = code ? dp_code_preamble (code, 31, spc) : NULL;
   dp_acq_state_t *a
       = dp_xnn (dp_acq_create_burst (code ? cpre : tp->t, n, gm->reps, fs, cn0,
-                                     0.0, PFA, 0.9, 0, gm->rate_arg));
+                                     0.0, PFA, 0.9, 0, gm->rate_arg, 1));
   free (cpre);
   if (gm->pinned)
     pin (a);
@@ -292,7 +292,7 @@ cn0_for (const float _Complex *pre, size_t n, double fs, double target)
   int lo = 0, hi = 280;
   {
     dp_acq_state_t *a = dp_xnn (dp_acq_create_burst (
-        pre, n, D, fs, 30.0 + 0.25 * (double)hi, 0.0, PFA, 0.9, 0, 0.0));
+        pre, n, D, fs, 30.0 + 0.25 * (double)hi, 0.0, PFA, 0.9, 0, 0.0, 1));
     pin (a);
     const double p = a->pd_predicted;
     dp_acq_destroy (a);
@@ -303,7 +303,7 @@ cn0_for (const float _Complex *pre, size_t n, double fs, double target)
     {
       const int       mid = (lo + hi) / 2;
       dp_acq_state_t *a   = dp_xnn (dp_acq_create_burst (
-          pre, n, D, fs, 30.0 + 0.25 * (double)mid, 0.0, PFA, 0.9, 0, 0.0));
+          pre, n, D, fs, 30.0 + 0.25 * (double)mid, 0.0, PFA, 0.9, 0, 0.0, 1));
       pin (a);
       const double p = a->pd_predicted;
       dp_acq_destroy (a);
@@ -352,9 +352,9 @@ drift_rows (const tmpl_t *zc, int check)
      the step a linear scan finds, in ~8 constructions rather than ~95. */
   int lo = 0, hi = 160; /* steps down from 70 dB-Hz */
   {
-    dp_acq_state_t *a = dp_xnn (dp_acq_create_burst (zc->t, zc->n, reps, FS_T,
-                                                     70.0 - 0.25 * (double)hi,
-                                                     0.0, PFA, 0.9, 0, 0.0));
+    dp_acq_state_t *a    = dp_xnn (dp_acq_create_burst (
+        zc->t, zc->n, reps, FS_T, 70.0 - 0.25 * (double)hi, 0.0, PFA, 0.9, 0,
+        0.0, 1));
     const int       deep = a->coherent_bins >= 10;
     dp_acq_destroy (a);
     DP_REQUIRE (deep);
@@ -364,7 +364,7 @@ drift_rows (const tmpl_t *zc, int check)
       const int       mid  = (lo + hi) / 2;
       dp_acq_state_t *a    = dp_xnn (dp_acq_create_burst (
           zc->t, zc->n, reps, FS_T, 70.0 - 0.25 * (double)mid, 0.0, PFA, 0.9,
-          0, 0.0));
+          0, 0.0, 1));
       const int       deep = a->coherent_bins >= 10;
       dp_acq_destroy (a);
       if (deep)

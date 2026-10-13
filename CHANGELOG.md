@@ -13,6 +13,101 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.69.0] - 2026-10-13
+
+### Breaking
+
+- **The burst constructors take a trailing `rate_hypotheses`, and a hit gains a
+    ninth field, `doppler_rate_hz_s` (#2217).** In C, `dp_acq_create_burst`,
+    `dp_burst_acq_create`, `dp_burst_capture_create` and
+    `dp_burst_capture_create_backed` gain a trailing `size_t` after
+    `doppler_rate`: append `1` to keep today's behaviour (`0`, or more than 64,
+    returns NULL). `acq_result_t` gains a last `double`, 0 without hypotheses,
+    so `sizeof` goes from 48 to 56 and whatever holds one needs a rebuild. In
+    Python the constructors default `rate_hypotheses=1`, so no call moves, but
+    `Acquisition.push` and `BurstAcquisition.push` return 9-tuples: unpack nine
+    names, or take `hit[:8]`.
+
+- **The acquisition state blob is version 6, 8 bytes larger, and refuses a
+    different `rate_hypotheses` (#2217).** A blob saved by v0.68.0 no longer
+    restores: C returns `DP_ERR_INVALID` and leaves the engine as it was,
+    Python raises `ValueError`. That includes every blob that embeds an
+    acquisition (`BurstAcquisition`, `BurstCapture`, `PersistentBurstCapture`,
+    `DsssBurstReceiver`, `DsssReceiver`, `AsyncDsssReceiver`, `AsyncDsssPool`):
+    their own versions did not move, but their size did. Nothing migrates a
+    blob; re-create the object.
+
+### Added
+
+- **`rate_hypotheses=N` compensates a sweeping carrier: at N = 3 to 9 a capture
+    places 0.91–0.93 of bursts where the capped depth places 0.55 (#2217).**
+    `BurstAcquisition`, `BurstCapture` and `PersistentBurstCapture` take N from
+    1 to 64 (default 1) and de-chirp the coherent block at N rates across
+    `±doppler_rate` (Hz/s, nonzero, now the span); the depth is then bounded by
+    the residual `doppler_rate/(N − 1)`, not by the rate. Zadoff-Chu 127 × 16,
+    rates drawn over ±9e-7 cycles/sample² (`doppler_rate` = 9e-7·fs² Hz/s; at
+    the edge the carrier sweeps 0.0018 of fs across the preamble), C/N0 −13
+    dB-Hz at fs = 1, where N = 9 predicts 0.9: 0.55 capped, then 0.91, 0.93 and
+    0.91 at N = 3, 5 and 9 (1000 trials a row, Wilson 95% intervals 0.515–0.577
+    capped and 0.893–0.944 compensated). It costs about N times the CPU per
+    input sample; a dwell costs more, 43 µs capped, 418 µs at N = 5 and 772 µs
+    at N = 9 (one thread), because the block gets deeper as well. In C,
+    `dp_acq_rate_hypotheses_for` sizes N for a depth. Design:
+    [`burst-capture.md` §11.5](docs/design/burst-capture.md); measured by
+    `validate_acq_rate_pd`.
+
+- **A hit's `doppler_rate_hz_s` is a seed, not a measurement (#2217).** It is
+    the Hz/s of the hypothesis that won the dwell, 0 without hypotheses or in a
+    block of one or two epochs. Only from a block wholly inside the preamble
+    and 23 dB over the design point does it name the hypothesis nearest the
+    true rate every time (N = 9: 119 of 119 at rate 0, 121 of 121 at +R); at
+    the design point 30% and 66% of those hits do, and detection is unaffected.
+
+- **PSD's kernel carries its window's ENBW, 1.5 bins for Hann (#2211).**
+    `dp_psd_kernel_t.enbw` is the equivalent noise bandwidth in bins, computed
+    once in `dp_psd_kernel_init`, so a kernel-only caller reads ENBW, and RBW
+    as `enbw * fs / n`, without a PSD; `dp_psd_state_t.enbw` is now a copy of
+    it. The member sits before `n`, so recompile.
+
+### Changed
+
+- **The named-args gate holds a parameter that is only compared with a gated
+    enumerator.** `mode == DP_SPECTROGRAM_POWER`, a `!=`, or a `switch` on it
+    makes the parameter a slot, so 7 more helpers are held (9 to 16), among
+    them `rows_are_the_psd`, and `oracle`'s mode again (#2227).
+
+- **The named-args gate's helper discovery stops misreading four C shapes, and
+    fails on a fifth it cannot read.** A quote inside a comment, a parameter
+    feeding two enums, a variadic `...` and a local that shadows a parameter
+    could each hide a literal or make `--fix` write a wrong name; a body whose
+    braces never close is now a finding (#2227).
+
+- **The enum-tables gate holds a view's set where a C reader sees it too.**
+    Rule 8 now reads the doc comment of the function holding the annotated
+    refusal and requires it to name exactly the view's enumerators, in the
+    view's order; no doc comment is a finding. `dp_carrier_acq_create`'s brief
+    was the third statement of carrier_acq's window set, held by nothing
+    (#2204).
+
+- **Known limits of `rate_hypotheses` and the engine under it (#2219, #2218).**
+    A capture's events do not carry the winning rate, `DsssBurstReceiver` does
+    not take `rate_hypotheses`, and the tiled (wideband) grid is covered by C
+    tests but not by the Monte-Carlo above. Separately, the burst engine
+    without hypotheses runs at twice its asked per-dwell false-alarm rate:
+    1.97e-3 measured against `pfa` = 1e-3 (ZC 127 × 16, D = 5), where N = 3, 5
+    and 9 read 1.06e-3, 0.89e-3 and 0.59e-3. That path is unchanged and filed,
+    not fixed.
+
+### Fixed
+
+- **The chirp docs now say what their phase promise covers: reads of one synth
+    join byte for byte, and each segment of a scene starts afresh.** v0.68.0's
+    known limit ("a tone or chirp repeated across segments restarts its phase")
+    misread that promise, and #2244 is closed as not planned. No code changed;
+    a sweep meant to run unbroken is one segment. Sample `n` steps by
+    `freq + n·k`, with `k = (f_end − freq) / span`, so the span's last sample
+    steps at `f_end − k`, and `f_end` is held from the next.
+
 ## [0.68.0] - 2026-10-12
 
 ### Breaking
@@ -16783,7 +16878,8 @@ ______________________________________________________________________
 [0.66.0]: https://github.com/doppler-dsp/doppler/compare/v0.65.0...v0.66.0
 [0.67.0]: https://github.com/doppler-dsp/doppler/compare/v0.66.0...v0.67.0
 [0.68.0]: https://github.com/doppler-dsp/doppler/compare/v0.67.0...v0.68.0
+[0.69.0]: https://github.com/doppler-dsp/doppler/compare/v0.68.0...v0.69.0
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.68.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.69.0...HEAD

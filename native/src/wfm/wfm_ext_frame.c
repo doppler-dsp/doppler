@@ -341,26 +341,73 @@ FrameObj_add_stage (FrameObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char  *_kwlist[] = { "kind",     "first_field", "n_fields",  "depth",
-                              "emit_num", "emit_den",    "unit_bits", NULL };
-  int           kind      = 0;
-  unsigned long first_field_raw = 0;
-  unsigned long n_fields_raw    = 0;
-  unsigned long depth_raw       = 0;
-  unsigned long emit_num_raw    = 0;
-  unsigned long emit_den_raw    = 0;
-  unsigned long unit_bits_raw   = 0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|ikkkkkk", _kwlist, &kind,
+  static char *_kwlist[] = { "kind",     "first_field", "n_fields",  "depth",
+                             "emit_num", "emit_den",    "unit_bits", NULL };
+  int          kind      = 0;
+  long long    first_field_raw = 0;
+  long long    n_fields_raw    = 0;
+  long long    depth_raw       = 0;
+  long long    emit_num_raw    = 0;
+  long long    emit_den_raw    = 0;
+  long long    unit_bits_raw   = 0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|iLLLLLL", _kwlist, &kind,
                                     &first_field_raw, &n_fields_raw,
                                     &depth_raw, &emit_num_raw, &emit_den_raw,
                                     &unit_bits_raw))
     return NULL;
+  if (first_field_raw < 0 || first_field_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (
+          PyExc_OverflowError,
+          "first_field: %lld is out of range for uint32_t [%lld, %lld]",
+          (long long)first_field_raw, (long long)0, (long long)UINT32_MAX);
+      return NULL;
+    }
   uint32_t first_field = (uint32_t)first_field_raw;
-  uint32_t n_fields    = (uint32_t)n_fields_raw;
-  uint32_t depth       = (uint32_t)depth_raw;
-  uint32_t emit_num    = (uint32_t)emit_num_raw;
-  uint32_t emit_den    = (uint32_t)emit_den_raw;
-  uint32_t unit_bits   = (uint32_t)unit_bits_raw;
+  if (n_fields_raw < 0 || n_fields_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "n_fields: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)n_fields_raw, (long long)0,
+                    (long long)UINT32_MAX);
+      return NULL;
+    }
+  uint32_t n_fields = (uint32_t)n_fields_raw;
+  if (depth_raw < 0 || depth_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "depth: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)depth_raw, (long long)0, (long long)UINT32_MAX);
+      return NULL;
+    }
+  uint32_t depth = (uint32_t)depth_raw;
+  if (emit_num_raw < 0 || emit_num_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "emit_num: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)emit_num_raw, (long long)0,
+                    (long long)UINT32_MAX);
+      return NULL;
+    }
+  uint32_t emit_num = (uint32_t)emit_num_raw;
+  if (emit_den_raw < 0 || emit_den_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "emit_den: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)emit_den_raw, (long long)0,
+                    (long long)UINT32_MAX);
+      return NULL;
+    }
+  uint32_t emit_den = (uint32_t)emit_den_raw;
+  if (unit_bits_raw < 0 || unit_bits_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (
+          PyExc_OverflowError,
+          "unit_bits: %lld is out of range for uint32_t [%lld, %lld]",
+          (long long)unit_bits_raw, (long long)0, (long long)UINT32_MAX);
+      return NULL;
+    }
+  uint32_t unit_bits = (uint32_t)unit_bits_raw;
   int      _rc = dp_frame_add_stage (self->handle, kind, first_field, n_fields,
                                      depth, emit_num, emit_den, unit_bits);
   if (_rc < 0)
@@ -398,12 +445,19 @@ FrameObj_name_field (FrameObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char  *_kwlist[] = { "index", "name", NULL };
-  unsigned long index_raw = 0UL;
-  const char   *name      = NULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "ks", _kwlist, &index_raw,
+  static char *_kwlist[] = { "index", "name", NULL };
+  long long    index_raw = 0LL;
+  const char  *name      = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Ls", _kwlist, &index_raw,
                                     &name))
     return NULL;
+  if (index_raw < 0 || index_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "index: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)index_raw, (long long)0, (long long)UINT32_MAX);
+      return NULL;
+    }
   uint32_t index = (uint32_t)index_raw;
   int      _rc   = dp_frame_name_field (self->handle, index, name);
   if (_rc != 0)
@@ -484,15 +538,30 @@ FrameObj_add_stage_over (FrameObject *self, PyObject *args, PyObject *kwds)
     }
   static char *_kwlist[]
       = { "kind", "first", "last", "depth", "unit_bits", NULL };
-  int           kind          = 0;
-  const char   *first         = NULL;
-  const char   *last          = NULL;
-  unsigned long depth_raw     = 0;
-  unsigned long unit_bits_raw = 0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "iss|kk", _kwlist, &kind,
+  int         kind          = 0;
+  const char *first         = NULL;
+  const char *last          = NULL;
+  long long   depth_raw     = 0;
+  long long   unit_bits_raw = 0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "iss|LL", _kwlist, &kind,
                                     &first, &last, &depth_raw, &unit_bits_raw))
     return NULL;
-  uint32_t depth     = (uint32_t)depth_raw;
+  if (depth_raw < 0 || depth_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "depth: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)depth_raw, (long long)0, (long long)UINT32_MAX);
+      return NULL;
+    }
+  uint32_t depth = (uint32_t)depth_raw;
+  if (unit_bits_raw < 0 || unit_bits_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (
+          PyExc_OverflowError,
+          "unit_bits: %lld is out of range for uint32_t [%lld, %lld]",
+          (long long)unit_bits_raw, (long long)0, (long long)UINT32_MAX);
+      return NULL;
+    }
   uint32_t unit_bits = (uint32_t)unit_bits_raw;
   int _rc = dp_frame_add_stage_over (self->handle, kind, first, last, depth,
                                      unit_bits);

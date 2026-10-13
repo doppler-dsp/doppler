@@ -267,11 +267,11 @@ RateSyncObj_set_telemetry (RateSyncObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char  *_kwlist[] = { "tlm", "prefix", "decim", NULL };
-  PyObject     *tlm_obj   = Py_None;
-  const char   *prefix    = NULL;
-  unsigned long decim_raw = 1;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Os|k", _kwlist, &tlm_obj,
+  static char *_kwlist[] = { "tlm", "prefix", "decim", NULL };
+  PyObject    *tlm_obj   = Py_None;
+  const char  *prefix    = NULL;
+  long long    decim_raw = 1;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Os|L", _kwlist, &tlm_obj,
                                     &prefix, &decim_raw))
     return NULL;
   dp_tlm_t *tlm = NULL;
@@ -291,6 +291,13 @@ RateSyncObj_set_telemetry (RateSyncObject *self, PyObject *args,
       Py_DECREF (tlm_cap);
       if (!tlm)
         return NULL;
+    }
+  if (decim_raw < 0 || decim_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "decim: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)decim_raw, (long long)0, (long long)UINT32_MAX);
+      return NULL;
     }
   uint32_t decim = (uint32_t)decim_raw;
   int      _rc = dp_ratesync_set_telemetry (self->handle, tlm, prefix, decim);
@@ -334,14 +341,29 @@ RateSyncObj_configure_lock_raw (RateSyncObject *self, PyObject *args,
   unsigned long long avgs_raw    = 0ULL;
   double             up_thresh   = 0.0;
   double             down_thresh = 0.0;
-  unsigned long      n_up_raw    = 0UL;
-  unsigned long      n_down_raw  = 0UL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Kddkk", _kwlist, &avgs_raw,
+  long long          n_up_raw    = 0LL;
+  long long          n_down_raw  = 0LL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "KddLL", _kwlist, &avgs_raw,
                                     &up_thresh, &down_thresh, &n_up_raw,
                                     &n_down_raw))
     return NULL;
-  size_t   avgs   = (size_t)avgs_raw;
-  uint32_t n_up   = (uint32_t)n_up_raw;
+  size_t avgs = (size_t)avgs_raw;
+  if (n_up_raw < 0 || n_up_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "n_up: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)n_up_raw, (long long)0, (long long)UINT32_MAX);
+      return NULL;
+    }
+  uint32_t n_up = (uint32_t)n_up_raw;
+  if (n_down_raw < 0 || n_down_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "n_down: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)n_down_raw, (long long)0,
+                    (long long)UINT32_MAX);
+      return NULL;
+    }
   uint32_t n_down = (uint32_t)n_down_raw;
   dp_ratesync_configure_lock_raw (self->handle, avgs, up_thresh, down_thresh,
                                   n_up, n_down);

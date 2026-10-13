@@ -41,11 +41,18 @@ CICObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 CICObj_init (CICObject *self, PyObject *args, PyObject *kwds)
 {
-  static char  *kwlist[] = { "R", NULL };
-  unsigned long R_raw    = 16;
+  static char *kwlist[] = { "R", NULL };
+  long long    R_raw    = 16;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|k", kwlist, &R_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|L", kwlist, &R_raw))
     return -1;
+  if (R_raw < 0 || R_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "R: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)R_raw, (long long)0, (long long)UINT32_MAX);
+      return -1;
+    }
   uint32_t R   = (uint32_t)R_raw;
   self->handle = dp_cic_create (R);
   if (!self->handle)
@@ -76,10 +83,17 @@ CICObj_reconfigure (CICObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char  *_kwlist[] = { "R", NULL };
-  unsigned long R_raw     = 0UL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "k", _kwlist, &R_raw))
+  static char *_kwlist[] = { "R", NULL };
+  long long    R_raw     = 0LL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "L", _kwlist, &R_raw))
     return NULL;
+  if (R_raw < 0 || R_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "R: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)R_raw, (long long)0, (long long)UINT32_MAX);
+      return NULL;
+    }
   uint32_t R = (uint32_t)R_raw;
   dp_cic_reconfigure (self->handle, R);
   Py_RETURN_NONE;

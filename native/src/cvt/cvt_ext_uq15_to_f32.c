@@ -76,9 +76,16 @@ UQ15ToF32_step (UQ15ToF32Object *self, PyObject *args)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  unsigned int x_raw = 0U;
-  if (!PyArg_ParseTuple (args, "I", &x_raw))
+  int x_raw = 0;
+  if (!PyArg_ParseTuple (args, "i", &x_raw))
     return NULL;
+  if (x_raw < 0 || x_raw > (int)UINT16_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "x: %lld is out of range for uint16_t [%lld, %lld]",
+                    (long long)x_raw, (long long)0, (long long)UINT16_MAX);
+      return NULL;
+    }
   uint16_t x = (uint16_t)x_raw;
   float    y = dp_uq15_to_f32_step (self->handle, x);
   return PyFloat_FromDouble ((double)y);

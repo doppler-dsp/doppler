@@ -94,12 +94,20 @@ SyncFinderObj_find (SyncFinderObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char  *_kwlist[]      = { "bits", "max_errors", NULL };
-  PyObject     *bits_obj       = NULL;
-  unsigned long max_errors_raw = 0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|k", _kwlist, &bits_obj,
+  static char *_kwlist[]      = { "bits", "max_errors", NULL };
+  PyObject    *bits_obj       = NULL;
+  long long    max_errors_raw = 0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|L", _kwlist, &bits_obj,
                                     &max_errors_raw))
     return NULL;
+  if (max_errors_raw < 0 || max_errors_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (
+          PyExc_OverflowError,
+          "max_errors: %lld is out of range for uint32_t [%lld, %lld]",
+          (long long)max_errors_raw, (long long)0, (long long)UINT32_MAX);
+      return NULL;
+    }
   uint32_t       max_errors = (uint32_t)max_errors_raw;
   PyArrayObject *bits_arr
       = jm_array_arg (bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "bits");
@@ -148,10 +156,18 @@ SyncFinderObj_pfa (SyncFinderObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char  *_kwlist[]      = { "max_errors", NULL };
-  unsigned long max_errors_raw = 0UL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "k", _kwlist, &max_errors_raw))
+  static char *_kwlist[]      = { "max_errors", NULL };
+  long long    max_errors_raw = 0LL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "L", _kwlist, &max_errors_raw))
     return NULL;
+  if (max_errors_raw < 0 || max_errors_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (
+          PyExc_OverflowError,
+          "max_errors: %lld is out of range for uint32_t [%lld, %lld]",
+          (long long)max_errors_raw, (long long)0, (long long)UINT32_MAX);
+      return NULL;
+    }
   uint32_t max_errors = (uint32_t)max_errors_raw;
   double   y          = dp_syncword_pfa (self->handle, max_errors);
   return PyFloat_FromDouble (y);

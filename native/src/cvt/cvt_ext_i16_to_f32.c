@@ -79,6 +79,14 @@ I16ToF32_step (I16ToF32Object *self, PyObject *args)
   int x_raw = 0;
   if (!PyArg_ParseTuple (args, "i", &x_raw))
     return NULL;
+  if (x_raw < (int)INT16_MIN || x_raw > (int)INT16_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "x: %lld is out of range for int16_t [%lld, %lld]",
+                    (long long)x_raw, (long long)INT16_MIN,
+                    (long long)INT16_MAX);
+      return NULL;
+    }
   int16_t x = (int16_t)x_raw;
   float   y = dp_i16_to_f32_step (self->handle, x);
   return PyFloat_FromDouble ((double)y);

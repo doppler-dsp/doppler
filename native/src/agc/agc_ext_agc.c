@@ -170,11 +170,11 @@ AGCObj_set_telemetry (AGCObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char  *_kwlist[] = { "tlm", "prefix", "decim", NULL };
-  PyObject     *tlm_obj   = Py_None;
-  const char   *prefix    = NULL;
-  unsigned long decim_raw = 1;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Os|k", _kwlist, &tlm_obj,
+  static char *_kwlist[] = { "tlm", "prefix", "decim", NULL };
+  PyObject    *tlm_obj   = Py_None;
+  const char  *prefix    = NULL;
+  long long    decim_raw = 1;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Os|L", _kwlist, &tlm_obj,
                                     &prefix, &decim_raw))
     return NULL;
   dp_tlm_t *tlm = NULL;
@@ -194,6 +194,13 @@ AGCObj_set_telemetry (AGCObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (tlm_cap);
       if (!tlm)
         return NULL;
+    }
+  if (decim_raw < 0 || decim_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "decim: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)decim_raw, (long long)0, (long long)UINT32_MAX);
+      return NULL;
     }
   uint32_t decim = (uint32_t)decim_raw;
   int      _rc   = dp_agc_set_telemetry (self->handle, tlm, prefix, decim);

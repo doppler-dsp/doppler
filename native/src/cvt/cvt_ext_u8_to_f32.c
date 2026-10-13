@@ -87,9 +87,16 @@ U8ToF32_step (U8ToF32Object *self, PyObject *args)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  unsigned int x_raw = 0U;
-  if (!PyArg_ParseTuple (args, "I", &x_raw))
+  int x_raw = 0;
+  if (!PyArg_ParseTuple (args, "i", &x_raw))
     return NULL;
+  if (x_raw < 0 || x_raw > (int)UINT8_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "x: %lld is out of range for uint8_t [%lld, %lld]",
+                    (long long)x_raw, (long long)0, (long long)UINT8_MAX);
+      return NULL;
+    }
   uint8_t x = (uint8_t)x_raw;
   float   y = dp_u8_to_f32_step (self->handle, x);
   return PyFloat_FromDouble ((double)y);

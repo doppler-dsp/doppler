@@ -44,14 +44,22 @@ PNObj_init (PNObject *self, PyObject *args, PyObject *kwds)
   static char       *kwlist[]   = { "poly", "seed", "length", "lfsr", NULL };
   unsigned long long poly_raw   = 0;
   unsigned long long seed_raw   = 0;
-  unsigned long      length_raw = 0;
+  long long          length_raw = 0;
   const char        *lfsr_str   = "galois";
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|KKks", kwlist, &poly_raw,
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|KKLs", kwlist, &poly_raw,
                                     &seed_raw, &length_raw, &lfsr_str))
     return -1;
-  uint64_t poly   = (uint64_t)poly_raw;
-  uint64_t seed   = (uint64_t)seed_raw;
+  uint64_t poly = (uint64_t)poly_raw;
+  uint64_t seed = (uint64_t)seed_raw;
+  if (length_raw < 0 || length_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "length: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)length_raw, (long long)0,
+                    (long long)UINT32_MAX);
+      return -1;
+    }
   uint32_t length = (uint32_t)length_raw;
   int      lfsr   = 0;
   if (strcmp (lfsr_str, "galois") == 0)

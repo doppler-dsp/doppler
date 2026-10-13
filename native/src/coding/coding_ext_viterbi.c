@@ -43,14 +43,29 @@ ViterbiObj_init (ViterbiObject *self, PyObject *args, PyObject *kwds)
 {
   static char       *kwlist[]   = { "poly", "k", "invert", "depth", NULL };
   PyObject          *poly_obj   = NULL;
-  unsigned long      k_raw      = 7;
-  unsigned long      invert_raw = 0;
+  long long          k_raw      = 7;
+  long long          invert_raw = 0;
   unsigned long long depth_raw  = 35;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|kkK", kwlist, &poly_obj,
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|LLK", kwlist, &poly_obj,
                                     &k_raw, &invert_raw, &depth_raw))
     return -1;
-  uint32_t       k      = (uint32_t)k_raw;
+  if (k_raw < 0 || k_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "k: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)k_raw, (long long)0, (long long)UINT32_MAX);
+      return -1;
+    }
+  uint32_t k = (uint32_t)k_raw;
+  if (invert_raw < 0 || invert_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "invert: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)invert_raw, (long long)0,
+                    (long long)UINT32_MAX);
+      return -1;
+    }
   uint32_t       invert = (uint32_t)invert_raw;
   size_t         depth  = (size_t)depth_raw;
   PyArrayObject *poly_arr

@@ -529,9 +529,17 @@ Reader_setprop_follow_timeout_ms (ReaderObject *self, PyObject *value,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return -1;
     }
-  unsigned long v_raw = 0UL;
-  if (!PyArg_Parse (value, "k", &v_raw))
+  long long v_raw = 0LL;
+  if (!PyArg_Parse (value, "L", &v_raw))
     return -1;
+  if (v_raw < 0 || v_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (
+          PyExc_OverflowError,
+          "follow_timeout_ms: %lld is out of range for uint32_t [%lld, %lld]",
+          (long long)v_raw, (long long)0, (long long)UINT32_MAX);
+      return -1;
+    }
   uint32_t v = (uint32_t)v_raw;
   dp_wfm_reader_set_follow_timeout_ms (self->handle, v);
   return 0;
@@ -557,9 +565,17 @@ Reader_setprop_follow_grace_ms (ReaderObject *self, PyObject *value,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return -1;
     }
-  unsigned long v_raw = 0UL;
-  if (!PyArg_Parse (value, "k", &v_raw))
+  long long v_raw = 0LL;
+  if (!PyArg_Parse (value, "L", &v_raw))
     return -1;
+  if (v_raw < 0 || v_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (
+          PyExc_OverflowError,
+          "follow_grace_ms: %lld is out of range for uint32_t [%lld, %lld]",
+          (long long)v_raw, (long long)0, (long long)UINT32_MAX);
+      return -1;
+    }
   uint32_t v = (uint32_t)v_raw;
   dp_wfm_reader_set_follow_grace_ms (self->handle, v);
   return 0;

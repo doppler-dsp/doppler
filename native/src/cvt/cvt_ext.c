@@ -95,13 +95,21 @@ _bind_int_to_bin (PyObject *self, PyObject *args, PyObject *kwds)
   (void)self;
   static char       *_kwlist[]  = { "v", "n_bits", "out", "bitorder", NULL };
   unsigned long long v_raw      = 0ULL;
-  unsigned long      n_bits_raw = 0UL;
+  long long          n_bits_raw = 0LL;
   PyObject          *out_obj    = NULL;
   int                bitorder   = 0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "KkOi", _kwlist, &v_raw,
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "KLOi", _kwlist, &v_raw,
                                     &n_bits_raw, &out_obj, &bitorder))
     return NULL;
-  uint64_t v      = (uint64_t)v_raw;
+  uint64_t v = (uint64_t)v_raw;
+  if (n_bits_raw < 0 || n_bits_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "n_bits: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)n_bits_raw, (long long)0,
+                    (long long)UINT32_MAX);
+      return NULL;
+    }
   uint32_t n_bits = (uint32_t)n_bits_raw;
   /* Require the exact dtype AND C-contiguity — either mismatch makes
    * the marshal write into a temp copy, not the caller's buffer. */

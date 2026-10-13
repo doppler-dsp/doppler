@@ -41,15 +41,30 @@ ConvEncoderObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 ConvEncoderObj_init (ConvEncoderObject *self, PyObject *args, PyObject *kwds)
 {
-  static char  *kwlist[]   = { "poly", "k", "invert", NULL };
-  PyObject     *poly_obj   = NULL;
-  unsigned long k_raw      = 7;
-  unsigned long invert_raw = 0;
+  static char *kwlist[]   = { "poly", "k", "invert", NULL };
+  PyObject    *poly_obj   = NULL;
+  long long    k_raw      = 7;
+  long long    invert_raw = 0;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|kk", kwlist, &poly_obj,
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|LL", kwlist, &poly_obj,
                                     &k_raw, &invert_raw))
     return -1;
-  uint32_t       k      = (uint32_t)k_raw;
+  if (k_raw < 0 || k_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "k: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)k_raw, (long long)0, (long long)UINT32_MAX);
+      return -1;
+    }
+  uint32_t k = (uint32_t)k_raw;
+  if (invert_raw < 0 || invert_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "invert: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)invert_raw, (long long)0,
+                    (long long)UINT32_MAX);
+      return -1;
+    }
   uint32_t       invert = (uint32_t)invert_raw;
   PyArrayObject *poly_arr
       = jm_array_arg (poly_obj, NPY_UINT32, NPY_ARRAY_C_CONTIGUOUS, "poly");

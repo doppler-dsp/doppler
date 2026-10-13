@@ -116,10 +116,12 @@ floor behind pi/4-QPSK's lower PAPR.
 
 A `chirp` is a **linear-FM sweep**: its instantaneous frequency ramps from
 `freq` (the start, also spellable `f_start=`) to `f_end` over `span` samples,
-then holds at `f_end`. The phase is continuous, so multi-segment chirps
-join seamlessly — pulse-compression, SAR, sonar, and frequency-response test
-signals all fall out of this one type. `f_end < freq` is a down-chirp; `snr`
-adds AWGN exactly as for a tone.
+then holds at `f_end`. Its phase is one running accumulator, so a `Synth` read
+in pieces joins seamlessly: the pieces are byte for byte one read (the second
+example below). Pulse-compression, SAR, sonar and frequency-response test
+signals all fall out of this one type. A composer `Segment` is different: each
+starts its sources afresh, so a sweep meant to run unbroken is one segment.
+`f_end < freq` is a down-chirp; `snr` adds AWGN exactly as for a tone.
 
 ```python
 from doppler.wfm import Synth, chirp
@@ -132,11 +134,22 @@ down = Synth(type="chirp", freq=1e6, f_end=500e3, fs=2e6, span=50000)
 x = down.steps(50000)
 ```
 
+```python
+import numpy as np
+
+# Four reads of one chirp are one read, byte for byte.
+s = chirp(f_start=100e3, f_end=300e3, fs=1e6, span=2044)
+pieces = np.concatenate([s.steps(511) for _ in range(4)])
+whole = chirp(f_start=100e3, f_end=300e3, fs=1e6, span=2044).steps(2044)
+assert pieces.tobytes() == whole.tobytes()
+```
+
 The **span is declared, never inferred from a read**: `step()`,
 `steps(N)` and any chunking of reads give the same waveform. A standalone
 sweeping chirp without `span` raises when it first generates. In a `Segment`
-the span defaults to the segment's `num_samples`, so `f_end` is reached at its
-last sample.
+the span defaults to the segment's `num_samples`. Sample `n` steps by
+`freq + n·k`, with `k = (f_end − freq) / span`, so the span's last sample
+steps at `f_end − k`, and `f_end` is held from the sample after.
 
 ### Clean vs noisy, baseband vs offset
 

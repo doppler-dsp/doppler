@@ -70,12 +70,18 @@ ______________________________________________________________________
 ## Chirp — linear-FM sweep
 
 A `chirp` sweeps its instantaneous frequency linearly from `--freq` (the start)
-to `--f-end` over its span, then holds at `--f-end`;
-`--f-end < --freq` is a down-chirp. The phase is continuous across segments, so
-concatenated chirps join seamlessly — radar pulse compression, SAR, sonar, and
-frequency-response test signals all fall out of this one type. On the CLI and
-in a `Segment` the span is the on-time (`--count`, `num_samples`), so `--f-end`
-is reached at the last sample; a `span` on the source overrides it.
+to `--f-end` over its span, then holds at `--f-end`; `--f-end < --freq` is a
+down-chirp. Its phase is one running accumulator, so a chirp read in pieces --
+one block or many, `step()` or `steps(n)` -- joins seamlessly: the pieces are
+the same samples, byte for byte, as one read. Radar pulse compression, SAR,
+sonar and frequency-response test signals all fall out of this one type. A
+scene's segments are different: each segment starts its sources afresh, so a
+sweep meant to run unbroken is one segment.
+
+On the CLI and in a `Segment` the span is the on-time (`--count`,
+`num_samples`); a `span` on the source overrides it. Sample `n` steps by
+`--freq + n·k`, with `k = (--f-end − --freq) / span`, so the span's last
+sample steps at `--f-end − k`, and `--f-end` is held from the sample after.
 
 A standalone Python `Synth`/`chirp()` has no segment to lend a span, so a
 sweeping one must declare `span=`. It raises on first generation otherwise,

@@ -630,7 +630,7 @@ def test_rate_hypotheses_buy_depth_and_the_power_to_meet_pd():
     assert not cap.underpowered
 
 
-@pytest.mark.parametrize("n", [0, 65])
+@pytest.mark.parametrize("n", [65])
 def test_rate_hypotheses_out_of_range_is_a_value_error(n):
     with pytest.raises(ValueError, match="rate_hypotheses"):
         BurstCapture(
@@ -646,6 +646,23 @@ def test_rate_hypotheses_out_of_range_is_a_value_error(n):
 def test_rate_hypotheses_need_a_rate_to_span():
     with pytest.raises(ValueError, match="rate_hypotheses"):
         BurstCapture(_zc(), burst_len=2432, reps=16, fs=1.0, rate_hypotheses=5)
+    with pytest.raises(ValueError, match="rate_hypotheses"):
+        BurstCapture(_zc(), burst_len=2432, reps=16, fs=1.0, rate_hypotheses=0)
+
+
+def test_rate_hypotheses_zero_is_auto():
+    """0 chooses the count: at the validator's design point it picks fewer
+    than nine and still meets pd at the depth nine does."""
+    kw = {
+        "burst_len": 2432,
+        "reps": 16,
+        "fs": 1.0,
+        "cn0_dbhz": -13.0,
+        "doppler_rate": 9e-7,
+    }
+    auto = BurstCapture(_zc(), rate_hypotheses=0, **kw)
+    assert 1 < auto.rate_hypotheses < 9
+    assert auto.doppler_bins >= 9 and not auto.underpowered
 
 
 def test_a_swept_burst_is_placed_exactly_with_the_rates(tmp_path):

@@ -535,18 +535,26 @@ main (int argc, char **argv)
              refinements -- the Doppler cells widened by the shift a rate
              puts between the detecting dwell and the preamble, and a rate
              grid denser than the engine's -- because each is worth about
-             0.02 here and a 95% interval (+-0.04) cannot see 0.02. Re-proved
-             on the migrated stimulus (the library's own rotation), --check:
-             with both refinements the uniform rows read 0.912 (n = 5), 0.924
-             (n = 9) and 0.948 (auto, n = 4); both taken away they read 0.888,
-             0.904 and 0.908 against pins of pred - 0.015 = 0.892, 0.889 and
-             0.897. So the pin is still red without them, but ONLY through
-             the n = 5 row and by one trial of 250 (the widened cells alone
-             leave that row on its pin, 0.892; the denser grid alone leaves
-             every row above it), a thinner margin than the old ramp's. */
+             0.02 here and a 95% interval (+-0.04) cannot see 0.02.
+             Re-proved on the migrated stimulus (the library's own rotation),
+             --check, uniform rows n = 5, n = 9, auto (n = 4), pins
+             pred - 0.010 = 0.897, 0.894, 0.902:
+               with both refinements        0.912  0.924  0.948  (green)
+               widened cells removed        0.892  .      .      (red, n = 5)
+               denser grid removed          0.908  0.924  0.928  (green)
+               both removed                 0.888  0.904  0.908  (red, n = 5)
+             The pin therefore holds the widened cells (alone, and jointly
+             with the grid) through the n = 5 row: about 2 trials of 250 on
+             the removed side (0.888 against 0.897) and 3.75 on the intact
+             side (0.912 against 0.897). Both are SEEDED pins with a few
+             trials of margin either way, so the next change of stimulus or
+             RNG reopens them; the guard that does not depend on a draw is
+             the deterministic refine test still open as #2219, and this pin
+             is a stopgap until it lands. The denser grid alone is not held
+             by any row here. */
           if (!rows[k].midpoint)
-            DP_CHECK_MSG (rows[k].cap >= rows[k].pred - 0.015,
-                          "compensated capture is within 0.015 of its "
+            DP_CHECK_MSG (rows[k].cap >= rows[k].pred - 0.010,
+                          "compensated capture is within 0.010 of its "
                           "pd_burst on the seeded trials");
         }
     /* And it is worth having: the most compensated capture beats the

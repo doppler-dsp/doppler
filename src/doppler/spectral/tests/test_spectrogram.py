@@ -189,42 +189,58 @@ class TestBackpressure:
 
 
 class TestFlush:
-    """flush() emits the owed row, and refuses a row of the wrong size."""
+    """flush() returns the owed row as push returns rows, or None (#2181)."""
 
-    def test_flush_emits_the_owed_row_on_the_hop_grid_with_hop_below_nfft(
+    def test_flush_returns_the_owed_row_on_the_hop_grid_with_hop_below_nfft(
         self,
     ):
         """With hop 4 the owed row starts at sample 4 and is its PSD frame."""
         x = (np.arange(11) + 1j * np.arange(11)).astype(np.complex64)
         sp = Spectrogram(nfft=8, hop=4, window="rect")
         sp.push(x)
-        row = np.empty(8, np.float32)
-        assert sp.flush(row) == 8
+        assert sp.flush_max_out() == 8
+        row = sp.flush()
+        assert row.shape == (1, 8)
+        assert row.dtype == np.float32
         padded = np.zeros(8, np.complex64)
         padded[:7] = x[4:]
         psd = PSD(n=8, fs=1.0, window="rect", mode="mean")
         psd.accumulate(padded)
-        np.testing.assert_allclose(row, psd.power_twosided(), rtol=1e-5)
+        np.testing.assert_allclose(row[0], psd.power_twosided(), rtol=1e-5)
 
-    @pytest.mark.parametrize("size", [7, 9])
-    def test_a_row_of_the_wrong_size_is_refused_and_the_frame_stays_owed(
-        self, size
+    def test_out_is_written_in_place(self):
+        """A (1, nfft) out is the row's storage, and holds what () returns."""
+        x = np.ones(11, np.complex64)
+        want = Spectrogram(nfft=8, hop=8, window="rect")
+        want.push(x)
+        sp = Spectrogram(nfft=8, hop=8, window="rect")
+        sp.push(x)
+        buf = np.zeros((1, 8), np.float32)
+        got = sp.flush(out=buf)
+        assert np.shares_memory(got, buf)
+        np.testing.assert_array_equal(got, want.flush())
+
+    @pytest.mark.parametrize("shape", [(1, 7), (1, 9), (2, 8), (8,)])
+    def test_an_out_of_the_wrong_shape_is_refused_and_the_frame_stays_owed(
+        self, shape
     ):
-        """A short or long row raises ValueError, and nothing is lost."""
+        """A short, long, two-row or 1-D out raises ValueError, losing
+        nothing: the (2, 8) case reaches the kernel's exact-length refusal."""
         sp = Spectrogram(nfft=8, hop=8, window="rect")
         sp.push(np.ones(11, np.complex64))
         with pytest.raises(ValueError):
-            sp.flush(np.empty(size, np.float32))
+            sp.flush(out=np.empty(shape, np.float32))
         assert sp.pending == 3
-        assert sp.flush(np.empty(8, np.float32)) == 8
+        assert sp.flush().shape == (1, 8)
 
-    def test_a_second_flush_owes_nothing(self):
-        """A flush restarts the stream, so a second flush writes 0."""
+    @pytest.mark.parametrize("with_out", [False, True])
+    def test_a_second_flush_returns_none(self, with_out):
+        """A flush restarts the stream, so a second flush owes nothing."""
         sp = Spectrogram(nfft=8, hop=8, window="rect")
         sp.push(np.ones(11, np.complex64))
-        row = np.empty(8, np.float32)
-        assert sp.flush(row) == 8
-        assert sp.flush(row) == 0
+        kw = {"out": np.empty((1, 8), np.float32)} if with_out else {}
+        assert sp.flush(**kw).shape == (1, 8)
+        assert sp.flush(**kw) is None
 
 
 class TestConstruction:

@@ -64,7 +64,7 @@ Samples arrive in pieces of any size, as they would from a radio, and the
 object turns them into rows as the frames complete. The example pushes the
 stream in random chunks, and the script checks that the rows match a single
 push of the whole capture. The chunk sizes do not change the rows. At the end
-the stream is flushed, which writes the zero-padded partial frame if one is
+the stream is flushed, which returns the zero-padded partial frame if one is
 owed:
 
 ```python

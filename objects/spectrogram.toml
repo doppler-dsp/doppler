@@ -118,25 +118,34 @@ taken as a short one.
 (20, 4)
 """
 
-# flush() writes the one zero-padded row a pending partial frame is owed into
-# a caller buffer of exactly nfft floats, and returns the floats written (0
-# when no frame is owed). The buffer is a fixed out-parameter: a flush owes at
-# most one row, so it has no count. A row of any other size is refused as
-# -1, which the binding raises as ValueError (error_negative); 0 still means "nothing
-# owed".
+# flush() returns the one zero-padded row a pending partial frame is owed, as
+# push returns its rows: a (1, nfft) float32 matrix, or None when no row is
+# owed (#2181). A flush owes at most one row, sized by the object alone, so it
+# takes no count (jm gh-2233) and flush_max_out() is nfft. The kernel refuses
+# a row buffer that is not exactly nfft floats with -1, which the binding
+# raises as ValueError (error_negative over the int64_t count); 0 still means
+# "nothing owed".
 [[spectrogram.methods]]
 name = "flush"
 arg_type = "void"
-return_type = "int64_t"
-params = [{ name = "row", type = "float[]", out = true }]
+return_type = "float"
+variable_output = true
+pass_capacity = true
+no_count = true
+out_cols = "state->nfft"
+none_on_empty = true
+count_type = "int64_t"
 error_negative = true
 error = "ValueError"
-error_message = "flush: row must hold exactly nfft floats"
-doc = """End the stream: write the row a pending partial frame is owed into row.
+error_message = "flush: out must hold exactly nfft floats"
+doc = """End the stream: return the row a pending partial frame is owed.
 
-row must be a writable float32 array of exactly nfft elements; any other size
-raises ValueError, and the owed frame stays owed. Returns nfft when a frame was
-owed and was written, 0 when none was owed. A flush restarts the stream.
+The row comes back as a (1, nfft) float32 matrix, the shape push returns, or
+None when no row was owed. Either way the stream restarts, as after reset, so
+a second flush returns None.
+
+An out array, if given, must be a float32 array of shape (1, nfft); any other
+shape raises ValueError, and the owed frame stays owed.
 
 The example uses hop 4, so the owed row starts on the hop grid, at sample 4:
 
@@ -144,11 +153,10 @@ The example uses hop 4, so the owed row starts on the hop grid, at sample 4:
 >>> from doppler.spectral import Spectrogram
 >>> sp = Spectrogram(nfft=8, hop=4, window="rect")
 >>> _ = sp.push(np.ones(11, np.complex64))
->>> row = np.empty(8, np.float32)
->>> sp.flush(row)
-8
->>> sp.flush(row)
-0
+>>> sp.flush().shape
+(1, 8)
+>>> sp.flush() is None
+True
 """
 
 [[spectrogram.methods]]

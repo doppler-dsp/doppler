@@ -1051,6 +1051,65 @@ void dp_wfm_synth_steps(
     size_t               n);
 
 /**
+ * @brief Multiply a block by the synth's next output samples.
+ * ``out[i] = in[i] * y[i]`` for ``i = 0 .. n-1``, where ``y`` is exactly
+ * what dp_wfm_synth_steps() would emit next.  The synth advances by ``n``
+ * samples just as dp_wfm_synth_steps(state, ., n) would, EXACTLY: a split call
+ * sequence (3 + 5 + n) leaves the same synth state as one call, and the
+ * synth samples ``y`` are the same, and ``n == 0`` is a no-op that does not
+ * advance it.  The PRODUCT agrees across such sequences to rounding, not to
+ * the bit: the compiler may contract the multiply differently on the vector
+ * body and the scalar tail, split calls and in place vs out of place (the
+ * -ffast-math builds do on arm64; see the note in dp_wfm_synth_steps()), so
+ * compare products with a few ulp of ``|in| * |y|``, and drive a single call
+ * path where byte-for-byte matters.  ``out`` may equal ``in`` (in place).  No
+ * new state, so the state blob is unchanged.
+ *
+ * This is the general waveform-multiplication operator: with a tone synth it
+ * is a rotation, with a chirp synth a swept rotation, with noise a noise
+ * multiplier, with PN/BPSK a modulation.
+ *
+ * @param state  Initialized Synth state returned by ``dp_wfm_synth_create``.
+ * @param in     Input block of ``n`` cf32 samples.
+ * @param n      Number of samples.
+ * @param out    Output block of ``n`` cf32 samples (may alias ``in``).
+ * @code
+ * >>> from doppler.wfm import Synth
+ * >>> import numpy as np
+ * >>> s = Synth(type="tone", fs=1.0, freq=0.25)
+ * >>> y = s.prod(np.ones(4, np.complex64))
+ * >>> bool(np.allclose(y, [1, 1j, -1, -1j], atol=1e-5))
+ * True
+ * @endcode
+ */
+void dp_wfm_synth_prod(
+    dp_wfm_synth_state_t *state,
+    const float _Complex *in,
+    size_t                n,
+    float _Complex       *out);
+
+/**
+ * @brief Start and end frequency of the chirp that sweeps about a center.
+ * A chirp with ``freq = *f0``, ``f_end = *f_end`` and
+ * dp_wfm_synth_set_chirp_span(n) has instantaneous frequency
+ * ``f_mid + rate*u`` (Hz) at sample ``i``, ``u = (i - center)/fs`` seconds,
+ * and so multiplies a block by ``exp(j*2*pi*(f_mid*u + rate*u^2/2))`` up to
+ * one constant phase (the synth's phase is 0 at sample 0, the formula's at
+ * ``u = 0``).  The synth's increment lands after its sample, hence the
+ * half-sample in ``*f0``.  Pure arithmetic: no state, nothing allocated.
+ *
+ * @param fs      Sample rate, Hz (> 0).
+ * @param f_mid   Frequency at the center, Hz.
+ * @param rate    Sweep, Hz per second.
+ * @param n       Samples the sweep spans (pass to set_chirp_span).
+ * @param center  Sample index of ``u = 0`` (need not be an integer).
+ * @param f0      Out: chirp start frequency, Hz.
+ * @param f_end   Out: chirp end frequency, Hz.
+ */
+void dp_wfm_synth_sweep_ends(double fs, double f_mid, double rate, size_t n,
+                             double center, double *f0, double *f_end);
+
+/**
  * @brief Return the active waveform type discriminant.
  * Maps to the WFM_SYNTH_* enum: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk.
  * Use this to inspect which synthesis path is active at runtime.

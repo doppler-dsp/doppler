@@ -460,6 +460,49 @@ class _SynthEngine:
             Sweep length in samples (> 0).
         """
 
+    def prod(
+        self,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
+    ) -> NDArray[np.complex64]:
+        """Multiply a block by the synth's next output samples.
+
+        ``out[i] = x[i] * y[i]``, where ``y`` is what ``steps(len(x))`` would emit
+        next. The synth advances exactly as ``steps(len(x))`` does, so split calls
+        leave the same synth state as one call and an empty ``x`` does not advance it;
+        the product itself agrees across such call sequences to rounding (a few ulp
+        of ``|x| * |y|``), not to the bit, because the compiler may contract the
+        multiply differently on different paths (arm64 under ``-ffast-math``). A tone
+        synth makes this a rotation, a chirp a swept rotation, noise a noise
+        multiplier, PN/BPSK a modulation. ``x`` is not modified.
+
+        This is the general waveform-multiplication operator: with a tone synth
+        it is a rotation, with a chirp synth a swept rotation, with noise a
+        noise multiplier, with PN/BPSK a modulation.
+
+        Parameters
+        ----------
+        x : npt.NDArray[np.complex64]
+            Input.
+        out : npt.NDArray[np.complex64] | None
+            Output block of ``n`` cf32 samples (may alias ``in``).
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Output.
+
+        Examples
+        --------
+        >>> from doppler.wfm import Synth
+        >>> import numpy as np
+        >>> s = Synth(type="tone", fs=1.0, freq=0.25)
+        >>> y = s.prod(np.ones(4, np.complex64))
+        >>> bool(np.allclose(y, [1, 1j, -1, -1j], atol=1e-5))
+        True
+
+        """
+
     def state_bytes(self) -> int:
         """Size in bytes of this object's serialized state.
 
@@ -3131,6 +3174,30 @@ def field_bits(spec: str) -> NDArray[np.uint8]:
 def rrc_taps(beta: float, sps: int, span: int) -> NDArray[np.float32]:
     """Root-raised-cosine pulse-shaping taps (2*span*sps+1 unit-energy cf32
     taps).
+    """
+
+def _sweep_ends(
+    fs: float,
+    f_mid: float,
+    rate: float,
+    n: int,
+    center: float,
+) -> NDArray[np.float64]:
+    """Start and end frequency of the chirp that sweeps about a center.
+
+    A chirp from ``f0`` to ``f_end`` pinned over ``n`` samples has instantaneous
+    frequency ``f_mid + rate*u`` Hz at sample ``i``, ``u = (i - center)/fs``
+    seconds, so it multiplies a block by ``exp(j*2*pi*(f_mid*u + rate*u**2/2))``
+    up to one constant phase. This is the single copy of that arithmetic
+    (``dp_wfm_synth_sweep_ends``); ``doppler.wfm.rotate`` takes it from here.
+
+    Examples
+    --------
+    >>> from doppler.wfm import _sweep_ends
+    >>> f0, f_end = _sweep_ends(1.0, 0.0, 1e-4, 1001, 500.0)
+    >>> round(float(f0), 6), round(float(f_end), 6)
+    (-0.04995, 0.05015)
+
     """
 
 def dsss_spread(

@@ -420,3 +420,25 @@ doc = "Pin a chirp's sweep to `span` samples (no-op for non-chirp). Only the fir
 arg_type = "void"
 return_type = "void"
 params = [{ name = "span", type = "size_t" }]
+
+# The waveform-multiplication operator: dp_wfm_synth_prod is
+# void (state, in, n, out), exactly the form `batch` declares (jm >= 0.105.0).
+# The result is as long as the input, so there is no _max_out bound.
+[[wfm_synth.methods]]
+name = "prod"
+arg_type = "float _Complex"
+return_type = "float _Complex"
+batch = true
+nogil = true
+strict = true
+doc = """Multiply a block by the synth's next output samples.
+
+``out[i] = x[i] * y[i]``, where ``y`` is what ``steps(len(x))`` would emit
+next. The synth advances exactly as ``steps(len(x))`` does, so split calls
+leave the same synth state as one call and an empty ``x`` does not advance it;
+the product itself agrees across such call sequences to rounding (a few ulp
+of ``|x| * |y|``), not to the bit, because the compiler may contract the
+multiply differently on different paths (arm64 under ``-ffast-math``). A tone
+synth makes this a rotation, a chirp a swept rotation, noise a noise
+multiplier, PN/BPSK a modulation. ``x`` is not modified.
+"""

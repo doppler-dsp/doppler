@@ -460,6 +460,15 @@ void dp_wfm_synth_steps(
     float _Complex          *output,
     size_t               n);
 
+void dp_wfm_synth_prod(
+    dp_wfm_synth_state_t *state,
+    const float _Complex *in,
+    size_t                n,
+    float _Complex       *out);
+
+void dp_wfm_synth_sweep_ends(double fs, double f_mid, double rate, size_t n,
+                             double center, double *f0, double *f_end);
+
 int dp_wfm_synth_get_wtype(const dp_wfm_synth_state_t *state);
 
 void dp_wfm_synth_set_wtype(dp_wfm_synth_state_t *state, int val);

@@ -929,7 +929,7 @@ extra_link_libs = ["wfm_dsp_core"]
 # straight from their .so submodules — zero hand-Python). Composition surface +
 # the remaining free functions still come from compose.py.
 [module.wfm.reexports]
-compose = ["Synth", "tone", "bpsk", "qpsk", "pn", "noise", "chirp", "bits", "Segment", "Timeline", "Composer", "Plan", "prepare", "draws", "PlanFromBlob", "PlanFromFile"]
+compose = ["Synth", "rotate", "tone", "bpsk", "qpsk", "pn", "noise", "chirp", "bits", "Segment", "Timeline", "Composer", "Plan", "prepare", "draws", "PlanFromBlob", "PlanFromFile"]
 wfm_writer = ["Writer", "write_blue_header"]
 wfm_reader = ["Reader"]
 wfm_sink = ["StreamSink"]
@@ -1060,6 +1060,47 @@ type = "int"
 [[module.wfm.functions.params]]
 name = "span"
 type = "int"
+
+[[module.wfm.functions]]
+name = "_sweep_ends"
+doc = """Start and end frequency of the chirp that sweeps about a center.
+
+A chirp from ``f0`` to ``f_end`` pinned over ``n`` samples has instantaneous
+frequency ``f_mid + rate*u`` Hz at sample ``i``, ``u = (i - center)/fs``
+seconds, so it multiplies a block by ``exp(j*2*pi*(f_mid*u + rate*u**2/2))``
+up to one constant phase. This is the single copy of that arithmetic
+(``dp_wfm_synth_sweep_ends``); ``doppler.wfm.rotate`` takes it from here.
+
+Examples
+--------
+>>> from doppler.wfm import _sweep_ends
+>>> f0, f_end = _sweep_ends(1.0, 0.0, 1e-4, 1001, 500.0)
+>>> round(float(f0), 6), round(float(f_end), 6)
+(-0.04995, 0.05015)
+"""
+out_type = "double"
+variable_output = true
+out_size = "2"
+
+[[module.wfm.functions.params]]
+name = "fs"
+type = "double"
+
+[[module.wfm.functions.params]]
+name = "f_mid"
+type = "double"
+
+[[module.wfm.functions.params]]
+name = "rate"
+type = "double"
+
+[[module.wfm.functions.params]]
+name = "n"
+type = "size_t"
+
+[[module.wfm.functions.params]]
+name = "center"
+type = "double"
 
 [[module.wfm.functions]]
 name = "dsss_spread"
@@ -1642,6 +1683,8 @@ generator = "wfm_synth"
 bridge_fn = "dp_wfm_source_to_synth"
 # gh-1307: a refused Synth raises dp_wfm_source_error()'s sentence.
 bridge_error_fn = "dp_wfm_source_to_synth_error"
+# The operator, on the public type too (just-makeit#2259 part 2).
+methods = ["prod"]
 
 [module.wfm_compose.segment]
 type_name = "Segment"

@@ -407,14 +407,13 @@ size_t dp_psd_power_twosided_max_out(dp_psd_state_t *state);
  * (and writes nothing) before any frame is accumulated.
  *
  * @param state  Must be non-NULL.
- * @param cap    Caller buffer capacity (must be >= nfft).
  * @param out    Destination, at least nfft float32 elements.
  * @param max_out Capacity of @p out in elements. Emission stops there, so the
  *               return value is the number actually written.
  * @return min(nfft, max_out), or 0 if empty.
  */
-size_t dp_psd_power_twosided(dp_psd_state_t *state, size_t cap, float *out,
-                          size_t max_out);
+size_t dp_psd_power_twosided(dp_psd_state_t *state, float *out,
+                             size_t max_out);
 
 /** @brief Output capacity hint for dp_psd_power_onesided(); equals nfft/2+1. */
 size_t dp_psd_power_onesided_max_out(dp_psd_state_t *state);
@@ -427,14 +426,13 @@ size_t dp_psd_power_onesided_max_out(dp_psd_state_t *state);
  * normalised; full_scale is NOT applied.  Returns 0 before any accumulate.
  *
  * @param state  Must be non-NULL.
- * @param cap    Caller buffer capacity (must be >= nfft/2 + 1).
  * @param out    Destination, at least nfft/2 + 1 float32 elements.
  * @param max_out Capacity of @p out in elements. Emission stops there, so the
  *               return value is the number actually written.
  * @return min(nfft/2 + 1, max_out), or 0 if empty.
  */
-size_t dp_psd_power_onesided(dp_psd_state_t *state, size_t cap, float *out,
-                          size_t max_out);
+size_t dp_psd_power_onesided(dp_psd_state_t *state, float *out,
+                             size_t max_out);
 
 /** @brief Output capacity hint for psd_db(); equals nfft. */
 size_t dp_psd_psd_db_max_out(dp_psd_state_t *state);
@@ -446,14 +444,12 @@ size_t dp_psd_psd_db_max_out(dp_psd_state_t *state);
  * frame is accumulated.
  *
  * @param state  Must be non-NULL.
- * @param n      Caller buffer capacity (ignored; buffer is pre-sized to nfft).
  * @param out    Destination, at least nfft float32 elements.
  * @param max_out Capacity of @p out in elements. Emission stops there, so the
  *               return value is the number actually written.
  * @return min(nfft, max_out), or 0 if empty.
  */
-size_t dp_psd_psd_db(dp_psd_state_t *state, size_t n, float *out,
-                  size_t max_out);
+size_t dp_psd_psd_db(dp_psd_state_t *state, float *out, size_t max_out);
 
 /** @brief Output capacity hint for psd_dbhz(); equals nfft. */
 size_t dp_psd_psd_dbhz_max_out(dp_psd_state_t *state);
@@ -474,8 +470,7 @@ size_t dp_psd_psd_dbhz_max_out(dp_psd_state_t *state);
  * True
  * @endcode
  */
-size_t dp_psd_psd_dbhz(dp_psd_state_t *state, size_t n, float *out,
-                    size_t max_out);
+size_t dp_psd_psd_dbhz(dp_psd_state_t *state, float *out, size_t max_out);
 
 /** @brief Output capacity hint for band_power(); 0 (binding sizes from bands). */
 size_t dp_psd_band_power_max_out(dp_psd_state_t *state);

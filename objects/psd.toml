@@ -104,6 +104,9 @@ variable_output = true
 # max_out truncates the emission instead of overrunning `out`.
 pass_capacity = true
 none_on_empty = true
+# Sized by the object alone, so no count (jm gh-2233): the kernel is
+# (state, out, max_out) and Python's readout takes only out= (#2184).
+no_count = true
 
 [[psd.methods]]
 name = "psd_dbhz"
@@ -115,6 +118,9 @@ variable_output = true
 # max_out truncates the emission instead of overrunning `out`.
 pass_capacity = true
 none_on_empty = true
+# Sized by the object alone, so no count (jm gh-2233): the kernel is
+# (state, out, max_out) and Python's readout takes only out= (#2184).
+no_count = true
 
 [[psd.methods]]
 name = "power_twosided"
@@ -126,6 +132,9 @@ variable_output = true
 # max_out truncates the emission instead of overrunning `out`.
 pass_capacity = true
 none_on_empty = true
+# Sized by the object alone, so no count (jm gh-2233): the kernel is
+# (state, out, max_out) and Python's readout takes only out= (#2184).
+no_count = true
 
 [[psd.methods]]
 name = "power_onesided"
@@ -137,6 +146,9 @@ variable_output = true
 # max_out truncates the emission instead of overrunning `out`.
 pass_capacity = true
 none_on_empty = true
+# Sized by the object alone, so no count (jm gh-2233): the kernel is
+# (state, out, max_out) and Python's readout takes only out= (#2184).
+no_count = true
 
 [[psd.methods]]
 name = "band_power"

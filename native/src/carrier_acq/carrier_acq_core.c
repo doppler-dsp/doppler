@@ -287,7 +287,7 @@ carrier_acq_process_block (dp_carrier_acq_state_t *s,
   if (!do_test)
     return;
 
-  size_t got = dp_psd_power_twosided (s->psd, s->nfft, s->pwr_buf, s->nfft);
+  size_t got = dp_psd_power_twosided (s->psd, s->pwr_buf, s->nfft);
   if (got == 0)
     return;
   for (size_t k = 0; k < s->nfft; k++)

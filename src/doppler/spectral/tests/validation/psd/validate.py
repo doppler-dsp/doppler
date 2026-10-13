@@ -240,19 +240,15 @@ def _psd(**kw) -> PSD:
 
 
 def _db(w: PSD) -> np.ndarray:
-    return np.asarray(w.psd_db(w.psd_db_max_out()), dtype=np.float64)
+    return np.asarray(w.psd_db(), dtype=np.float64)
 
 
 def _two(w: PSD) -> np.ndarray:
-    return np.asarray(
-        w.power_twosided(w.power_twosided_max_out()), dtype=np.float64
-    )
+    return np.asarray(w.power_twosided(), dtype=np.float64)
 
 
 def _one(w: PSD) -> np.ndarray:
-    return np.asarray(
-        w.power_onesided(w.power_onesided_max_out()), dtype=np.float64
-    )
+    return np.asarray(w.power_onesided(), dtype=np.float64)
 
 
 # ── 1. the object ─────────────────────────────────────────────────────
@@ -707,7 +703,7 @@ def _sec_density(d: Data) -> None:
             for _ in range(k_frames):
                 w.accumulate(_cnoise(r, n, var))
             sigma = math.sqrt(_w4_ratio(_window(win, n)) / k_frames)
-            hz = np.asarray(w.psd_dbhz(w.psd_dbhz_max_out()), np.float64)
+            hz = np.asarray(w.psd_dbhz(), np.float64)
             db = _db(w)
             dens = float(np.mean(10.0 ** (hz / 10.0)))
             z_hz = (dens / (var / fs) - 1.0) / sigma
@@ -942,10 +938,10 @@ def _sec_contracts(d: Data) -> None:
     w = _psd(n=64, window="hann")
     band = np.array([-0.25, 0.25])
     seen = [
-        ["psd_db()", repr(w.psd_db(64))],
-        ["psd_dbhz()", repr(w.psd_dbhz(64))],
-        ["power_twosided()", repr(w.power_twosided(64))],
-        ["power_onesided()", repr(w.power_onesided(33))],
+        ["psd_db()", repr(w.psd_db())],
+        ["psd_dbhz()", repr(w.psd_dbhz())],
+        ["power_twosided()", repr(w.power_twosided())],
+        ["power_onesided()", repr(w.power_onesided())],
         ["band_power(bands)", repr(w.band_power(band))],
         ["total_band_power(bands)", f"{w.total_band_power(band):.4f}"],
         ["occupied_bw(0.99)", repr(w.occupied_bw(0.99))],
@@ -1040,7 +1036,7 @@ def _sec_candidates(d: Data) -> None:
     # (a) the header's n where the code uses nfft
     w = _psd(n=64, pad=2)
     w.accumulate(_tone(64, 3))
-    d.a_len_padded = len(w.psd_db(w.psd_db_max_out()))
+    d.a_len_padded = len(w.psd_db())
     d.a_nfft = w.nfft
     d.a_max_out = w.psd_dbhz_max_out()
     R.md(
@@ -1204,9 +1200,7 @@ def _sec_candidates(d: Data) -> None:
         rows.append(["create", "accepted", f"enbw = {w.enbw!r}"])
         w.accumulate(np.array([1.0, 1.0], np.complex64))
         rows.append(["psd_db()", repr(list(_db(w))), ""])
-        rows.append(
-            ["psd_dbhz()", repr(list(w.psd_dbhz(w.psd_dbhz_max_out()))), ""]
-        )
+        rows.append(["psd_dbhz()", repr(list(w.psd_dbhz())), ""])
         rows.append(["power_twosided()", repr(list(_two(w))), ""])
         rows.append(
             [
@@ -1354,9 +1348,7 @@ def _numpy_average(x, n, pad, window, beta, mode, alpha):
 
 def _trace_bytes(w: PSD) -> bytes:
     """The averaged two-sided power, as the float32 bytes the C side holds."""
-    return np.asarray(
-        w.power_twosided(w.power_twosided_max_out()), dtype=np.float32
-    ).tobytes()
+    return np.asarray(w.power_twosided(), dtype=np.float32).tobytes()
 
 
 def _frame_face_bits(n: int, x: np.ndarray, **kw) -> bytes:
@@ -1377,9 +1369,7 @@ def _sec_frames(d: Data) -> None:
             n=n, window=window, beta=beta, pad=pad, mode=mode, alpha=alpha
         )
         w.accumulate(x)  # whole frames, and the trailing partial is carried
-        got = np.asarray(
-            w.power_twosided(w.power_twosided_max_out()), dtype=np.float64
-        )
+        got = np.asarray(w.power_twosided(), dtype=np.float64)
         ref, bound = _numpy_average(x, n, pad, window, beta, mode, alpha)
         err = float(np.max(np.abs(got - ref)))
         oracle.append(err <= bound)

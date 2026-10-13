@@ -298,8 +298,7 @@ main (void)
           DP_CHECK (ca->psd->k.n == 3);
           dp_carrier_acq_steps (ca, x, n);
           float        db[16];
-          const size_t got
-              = dp_psd_psd_db (ca->psd, ca->psd->k.nfft, db, ca->psd->k.nfft);
+          const size_t got = dp_psd_psd_db (ca->psd, db, ca->psd->k.nfft);
           DP_CHECK (got == ca->psd->k.nfft);
           float peak = -1e30f;
           for (size_t i = 0; i < got; i++)

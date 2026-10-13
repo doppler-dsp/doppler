@@ -437,10 +437,8 @@ dp_psd_power_twosided_max_out (dp_psd_state_t *state)
 }
 
 size_t
-dp_psd_power_twosided (dp_psd_state_t *state, size_t cap, float *out,
-                       size_t max_out)
+dp_psd_power_twosided (dp_psd_state_t *state, float *out, size_t max_out)
 {
-  (void)cap;
   if (!psd_pull_power (state))
     return 0;
   const double cg2 = state->k.cg * state->k.cg;
@@ -458,10 +456,8 @@ dp_psd_power_onesided_max_out (dp_psd_state_t *state)
 }
 
 size_t
-dp_psd_power_onesided (dp_psd_state_t *state, size_t cap, float *out,
-                       size_t max_out)
+dp_psd_power_onesided (dp_psd_state_t *state, float *out, size_t max_out)
 {
-  (void)cap;
   if (!psd_pull_power (state))
     return 0;
   const double cg2  = state->k.cg * state->k.cg;
@@ -548,9 +544,8 @@ dp_psd_psd_db_max_out (dp_psd_state_t *state)
 }
 
 size_t
-dp_psd_psd_db (dp_psd_state_t *state, size_t n, float *out, size_t max_out)
+dp_psd_psd_db (dp_psd_state_t *state, float *out, size_t max_out)
 {
-  (void)n;
   /* psd_fill_db does the clamping and returns what it wrote. */
   return psd_fill_db (state, out, max_out);
 }
@@ -562,11 +557,11 @@ dp_psd_psd_dbhz_max_out (dp_psd_state_t *state)
 }
 
 size_t
-dp_psd_psd_dbhz (dp_psd_state_t *state, size_t n, float *out, size_t max_out)
+dp_psd_psd_dbhz (dp_psd_state_t *state, float *out, size_t max_out)
 {
   /* Offset only what dp_psd_psd_db actually wrote -- walking to nfft here
    * would read past the clamp. */
-  const size_t n_out = dp_psd_psd_db (state, n, out, max_out);
+  const size_t n_out = dp_psd_psd_db (state, out, max_out);
   if (!n_out)
     return 0;
   /* dB/Hz differs from the dBFS spectrum by a constant. */

@@ -287,10 +287,9 @@ PSDObj_psd_db (PSDObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char *_kwlist[] = { "count", "out", NULL };
-  Py_ssize_t   n         = 1;
+  static char *_kwlist[] = { "out", NULL };
   PyObject    *out_obj   = NULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|nO", _kwlist, &n, &out_obj))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|O", _kwlist, &out_obj))
     return NULL;
   if (out_obj && out_obj != Py_None)
     {
@@ -315,7 +314,7 @@ PSDObj_psd_db (PSDObject *self, PyObject *args, PyObject *kwds)
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
       size_t _omax    = dp_psd_psd_db_max_out (self->handle);
-      size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
+      size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -323,7 +322,7 @@ PSDObj_psd_db (PSDObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      size_t n_out = dp_psd_psd_db (self->handle, (size_t)n,
+      size_t n_out = dp_psd_psd_db (self->handle,
                                     (float *)PyArray_DATA (out_arr), _cap);
       if ((size_t)(n_out) > (size_t)(_cap))
         {
@@ -355,10 +354,9 @@ PSDObj_psd_db (PSDObject *self, PyObject *args, PyObject *kwds)
         }
       return _oview;
     }
-  size_t _need = (size_t)n;
+  size_t _need = dp_psd_psd_db_max_out (self->handle);
   size_t _cap  = dp_psd_psd_db_max_out (self->handle);
-  if (!_cap || _cap < _need)
-    _cap = _need;
+  (void)_need;
   size_t _adim_need = (size_t)(_cap);
   if (_adim_need > (size_t)NPY_MAX_INTP)
     {
@@ -374,7 +372,7 @@ PSDObj_psd_db (PSDObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = dp_psd_psd_db (self->handle, (size_t)n, _d0, _cap);
+  size_t n_out = dp_psd_psd_db (self->handle, _d0, _cap);
   if ((size_t)(n_out) > (size_t)(_cap))
     {
       Py_DECREF (arr0);
@@ -423,10 +421,9 @@ PSDObj_psd_dbhz (PSDObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char *_kwlist[] = { "count", "out", NULL };
-  Py_ssize_t   n         = 1;
+  static char *_kwlist[] = { "out", NULL };
   PyObject    *out_obj   = NULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|nO", _kwlist, &n, &out_obj))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|O", _kwlist, &out_obj))
     return NULL;
   if (out_obj && out_obj != Py_None)
     {
@@ -451,7 +448,7 @@ PSDObj_psd_dbhz (PSDObject *self, PyObject *args, PyObject *kwds)
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
       size_t _omax    = dp_psd_psd_dbhz_max_out (self->handle);
-      size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
+      size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -459,7 +456,7 @@ PSDObj_psd_dbhz (PSDObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      size_t n_out = dp_psd_psd_dbhz (self->handle, (size_t)n,
+      size_t n_out = dp_psd_psd_dbhz (self->handle,
                                       (float *)PyArray_DATA (out_arr), _cap);
       if ((size_t)(n_out) > (size_t)(_cap))
         {
@@ -492,10 +489,9 @@ PSDObj_psd_dbhz (PSDObject *self, PyObject *args, PyObject *kwds)
         }
       return _oview;
     }
-  size_t _need = (size_t)n;
+  size_t _need = dp_psd_psd_dbhz_max_out (self->handle);
   size_t _cap  = dp_psd_psd_dbhz_max_out (self->handle);
-  if (!_cap || _cap < _need)
-    _cap = _need;
+  (void)_need;
   size_t _adim_need = (size_t)(_cap);
   if (_adim_need > (size_t)NPY_MAX_INTP)
     {
@@ -511,7 +507,7 @@ PSDObj_psd_dbhz (PSDObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = dp_psd_psd_dbhz (self->handle, (size_t)n, _d0, _cap);
+  size_t n_out = dp_psd_psd_dbhz (self->handle, _d0, _cap);
   if ((size_t)(n_out) > (size_t)(_cap))
     {
       Py_DECREF (arr0);
@@ -560,10 +556,9 @@ PSDObj_power_twosided (PSDObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char *_kwlist[] = { "count", "out", NULL };
-  Py_ssize_t   n         = 1;
+  static char *_kwlist[] = { "out", NULL };
   PyObject    *out_obj   = NULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|nO", _kwlist, &n, &out_obj))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|O", _kwlist, &out_obj))
     return NULL;
   if (out_obj && out_obj != Py_None)
     {
@@ -588,7 +583,7 @@ PSDObj_power_twosided (PSDObject *self, PyObject *args, PyObject *kwds)
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
       size_t _omax    = dp_psd_power_twosided_max_out (self->handle);
-      size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
+      size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -597,7 +592,7 @@ PSDObj_power_twosided (PSDObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t n_out = dp_psd_power_twosided (
-          self->handle, (size_t)n, (float *)PyArray_DATA (out_arr), _cap);
+          self->handle, (float *)PyArray_DATA (out_arr), _cap);
       if ((size_t)(n_out) > (size_t)(_cap))
         {
           Py_DECREF (out_arr);
@@ -629,10 +624,9 @@ PSDObj_power_twosided (PSDObject *self, PyObject *args, PyObject *kwds)
         }
       return _oview;
     }
-  size_t _need = (size_t)n;
+  size_t _need = dp_psd_power_twosided_max_out (self->handle);
   size_t _cap  = dp_psd_power_twosided_max_out (self->handle);
-  if (!_cap || _cap < _need)
-    _cap = _need;
+  (void)_need;
   size_t _adim_need = (size_t)(_cap);
   if (_adim_need > (size_t)NPY_MAX_INTP)
     {
@@ -648,7 +642,7 @@ PSDObj_power_twosided (PSDObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = dp_psd_power_twosided (self->handle, (size_t)n, _d0, _cap);
+  size_t n_out = dp_psd_power_twosided (self->handle, _d0, _cap);
   if ((size_t)(n_out) > (size_t)(_cap))
     {
       Py_DECREF (arr0);
@@ -698,10 +692,9 @@ PSDObj_power_onesided (PSDObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char *_kwlist[] = { "count", "out", NULL };
-  Py_ssize_t   n         = 1;
+  static char *_kwlist[] = { "out", NULL };
   PyObject    *out_obj   = NULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|nO", _kwlist, &n, &out_obj))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|O", _kwlist, &out_obj))
     return NULL;
   if (out_obj && out_obj != Py_None)
     {
@@ -726,7 +719,7 @@ PSDObj_power_onesided (PSDObject *self, PyObject *args, PyObject *kwds)
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
       size_t _omax    = dp_psd_power_onesided_max_out (self->handle);
-      size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
+      size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -735,7 +728,7 @@ PSDObj_power_onesided (PSDObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t n_out = dp_psd_power_onesided (
-          self->handle, (size_t)n, (float *)PyArray_DATA (out_arr), _cap);
+          self->handle, (float *)PyArray_DATA (out_arr), _cap);
       if ((size_t)(n_out) > (size_t)(_cap))
         {
           Py_DECREF (out_arr);
@@ -767,10 +760,9 @@ PSDObj_power_onesided (PSDObject *self, PyObject *args, PyObject *kwds)
         }
       return _oview;
     }
-  size_t _need = (size_t)n;
+  size_t _need = dp_psd_power_onesided_max_out (self->handle);
   size_t _cap  = dp_psd_power_onesided_max_out (self->handle);
-  if (!_cap || _cap < _need)
-    _cap = _need;
+  (void)_need;
   size_t _adim_need = (size_t)(_cap);
   if (_adim_need > (size_t)NPY_MAX_INTP)
     {
@@ -786,7 +778,7 @@ PSDObj_power_onesided (PSDObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = dp_psd_power_onesided (self->handle, (size_t)n, _d0, _cap);
+  size_t n_out = dp_psd_power_onesided (self->handle, _d0, _cap);
   if ((size_t)(n_out) > (size_t)(_cap))
     {
       Py_DECREF (arr0);
@@ -1326,16 +1318,12 @@ static PyMethodDef PSDObj_methods[] = {
     "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1, hop=0)\n"
     "    >>> obj.reset()\n" },
   { "psd_db", (PyCFunction)(void *)PSDObj_psd_db, METH_VARARGS | METH_KEYWORDS,
-    "psd_db(count=1) -> ndarray | None\n"
+    "psd_db(out) -> ndarray | None\n"
     "\n"
     "Averaged power spectrum in dB (None before any accumulate).\n"
     "\n"
     "Parameters\n"
     "----------\n"
-    "count : int\n"
-    "    How many output samples to ask for. The call may return fewer; size\n"
-    "    an `out=` buffer with the matching `_max_out()` when you need the\n"
-    "    worst case.\n"
     "out : npt.NDArray[np.float32] | None\n"
     "    Destination, at least nfft float32 elements.\n"
     "\n"
@@ -1351,7 +1339,7 @@ static PyMethodDef PSDObj_methods[] = {
     "    >>> from doppler.spectral import PSD\n"
     "    >>> obj = PSD(n=1024, fs=1.0, window=\"hann\", beta=0.0, pad=1, "
     "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1, hop=0)\n"
-    "    >>> y = obj.psd_db(4)\n"
+    "    >>> y = obj.psd_db()\n"
     "    >>> y.dtype\n"
     "    dtype('float32')\n" },
   { "psd_db_max_out", (PyCFunction)PSDObj_psd_db_max_out, METH_NOARGS,
@@ -1365,16 +1353,12 @@ static PyMethodDef PSDObj_methods[] = {
     "    Output.\n" },
   { "psd_dbhz", (PyCFunction)(void *)PSDObj_psd_dbhz,
     METH_VARARGS | METH_KEYWORDS,
-    "psd_dbhz(count=1) -> ndarray | None\n"
+    "psd_dbhz(out) -> ndarray | None\n"
     "\n"
     "Averaged power spectral density in dB/Hz (None before any accumulate).\n"
     "\n"
     "Parameters\n"
     "----------\n"
-    "count : int\n"
-    "    How many output samples to ask for. The call may return fewer; size\n"
-    "    an `out=` buffer with the matching `_max_out()` when you need the\n"
-    "    worst case.\n"
     "out : npt.NDArray[np.float32] | None\n"
     "    Optional pre-allocated output buffer. When given, the result is\n"
     "    written into it and the returned array is a view of exactly the\n"
@@ -1405,17 +1389,13 @@ static PyMethodDef PSDObj_methods[] = {
     "    Output.\n" },
   { "power_twosided", (PyCFunction)(void *)PSDObj_power_twosided,
     METH_VARARGS | METH_KEYWORDS,
-    "power_twosided(count=1) -> ndarray | None\n"
+    "power_twosided(out) -> ndarray | None\n"
     "\n"
     "Averaged linear power, DC-centred two-sided (length nfft); "
     "cg^2-normalised.\n"
     "\n"
     "Parameters\n"
     "----------\n"
-    "count : int\n"
-    "    How many output samples to ask for. The call may return fewer; size\n"
-    "    an `out=` buffer with the matching `_max_out()` when you need the\n"
-    "    worst case.\n"
     "out : npt.NDArray[np.float32] | None\n"
     "    Destination, at least nfft float32 elements.\n"
     "\n"
@@ -1431,7 +1411,7 @@ static PyMethodDef PSDObj_methods[] = {
     "    >>> from doppler.spectral import PSD\n"
     "    >>> obj = PSD(n=1024, fs=1.0, window=\"hann\", beta=0.0, pad=1, "
     "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1, hop=0)\n"
-    "    >>> y = obj.power_twosided(4)\n"
+    "    >>> y = obj.power_twosided()\n"
     "    >>> y.dtype\n"
     "    dtype('float32')\n" },
   { "power_twosided_max_out", (PyCFunction)PSDObj_power_twosided_max_out,
@@ -1446,17 +1426,13 @@ static PyMethodDef PSDObj_methods[] = {
     "    Output.\n" },
   { "power_onesided", (PyCFunction)(void *)PSDObj_power_onesided,
     METH_VARARGS | METH_KEYWORDS,
-    "power_onesided(count=1) -> ndarray | None\n"
+    "power_onesided(out) -> ndarray | None\n"
     "\n"
     "Averaged linear power, one-sided fold (length nfft/2+1); "
     "cg^2-normalised.\n"
     "\n"
     "Parameters\n"
     "----------\n"
-    "count : int\n"
-    "    How many output samples to ask for. The call may return fewer; size\n"
-    "    an `out=` buffer with the matching `_max_out()` when you need the\n"
-    "    worst case.\n"
     "out : npt.NDArray[np.float32] | None\n"
     "    Destination, at least nfft/2 + 1 float32 elements.\n"
     "\n"
@@ -1472,7 +1448,7 @@ static PyMethodDef PSDObj_methods[] = {
     "    >>> from doppler.spectral import PSD\n"
     "    >>> obj = PSD(n=1024, fs=1.0, window=\"hann\", beta=0.0, pad=1, "
     "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1, hop=0)\n"
-    "    >>> y = obj.power_onesided(4)\n"
+    "    >>> y = obj.power_onesided()\n"
     "    >>> y.dtype\n"
     "    dtype('float32')\n" },
   { "power_onesided_max_out", (PyCFunction)PSDObj_power_onesided_max_out,

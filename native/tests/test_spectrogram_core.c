@@ -581,7 +581,8 @@ sections (int mode)
   }
   /* A row buffer that is not exactly one row is refused as -1, never a
      count, and the owed frame stays owed: a short or a long row must not
-     read as "nothing owed" (0). */
+     read as "nothing owed" (0). flush_max_out is that one length: the
+     binding allocates it (#2181), so it must be the length flush takes. */
   {
     float                   row[8], last[8];
     dp_spectrogram_state_t *s = dp_spectrogram_create (
@@ -593,7 +594,9 @@ sections (int mode)
     DP_CHECK (dp_spectrogram_flush (s, last, 7) == -1);
     DP_CHECK (dp_spectrogram_flush (s, last, 9) == -1);
     DP_CHECK (dp_spectrogram_pending (s) == 3); /* still owed */
-    DP_CHECK (dp_spectrogram_flush (s, last, 8) == 8);
+    DP_CHECK (dp_spectrogram_flush_max_out (s) == 8);
+    DP_CHECK (dp_spectrogram_flush (s, last, dp_spectrogram_flush_max_out (s))
+              == 8);
     DP_CHECK (dp_spectrogram_pending (s) == 0);
     dp_spectrogram_destroy (s);
   }

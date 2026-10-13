@@ -234,10 +234,21 @@ size_t dp_spectrogram_rows_for (const dp_spectrogram_state_t *s,
  *                 length is refused before anything moves, the owed frame
  *                 stays owed, and -1 is returned (never a count).
  * @return Floats written: nfft, or 0 if no row was owed; -1 if the row is not
- *         exactly nfft floats long.
+ *         exactly nfft floats long. From Python, the owed row as a (1, nfft)
+ *         matrix, or None when none was owed.
  */
 int64_t dp_spectrogram_flush (dp_spectrogram_state_t *s, float *row,
                               size_t row_len);
+
+/**
+ * @brief Floats dp_spectrogram_flush() writes: nfft, the one row it can owe.
+ *
+ * Sized by the object alone, since a flush owes at most one row. It is also
+ * the only row length dp_spectrogram_flush() accepts.
+ *
+ * @param s  Must be non-NULL.
+ */
+size_t dp_spectrogram_flush_max_out (const dp_spectrogram_state_t *s);
 
 /**
  * @brief Samples pushed that no written row has covered yet.

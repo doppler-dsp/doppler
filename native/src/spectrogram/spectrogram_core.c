@@ -186,6 +186,12 @@ dp_spectrogram_flush (dp_spectrogram_state_t *s, float *row, size_t row_len)
 }
 
 size_t
+dp_spectrogram_flush_max_out (const dp_spectrogram_state_t *s)
+{
+  return s->nfft;
+}
+
+size_t
 dp_spectrogram_pending (const dp_spectrogram_state_t *s)
 {
   return dp_f32_framer_pending (&s->fr);

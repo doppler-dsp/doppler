@@ -2357,13 +2357,18 @@ class Spectrogram:
             Output.
         """
 
-    def flush(self, row: npt.NDArray[np.float32]) -> int:
-        """End the stream: write the row a pending partial frame is owed into
-        row.
+    def flush(
+        self,
+        out: npt.NDArray[np.float32] | None = None,
+    ) -> NDArray[np.float32] | None:
+        """End the stream: return the row a pending partial frame is owed.
 
-        row must be a writable float32 array of exactly nfft elements; any other size
-        raises ValueError, and the owed frame stays owed. Returns nfft when a frame was
-        owed and was written, 0 when none was owed. A flush restarts the stream.
+        The row comes back as a (1, nfft) float32 matrix, the shape push returns, or
+        None when no row was owed. Either way the stream restarts, as after reset, so
+        a second flush returns None.
+
+        An out array, if given, must be a float32 array of shape (1, nfft); any other
+        shape raises ValueError, and the owed frame stays owed.
 
         The example uses hop 4, so the owed row starts on the hop grid, at sample 4:
 
@@ -2371,11 +2376,10 @@ class Spectrogram:
         >>> from doppler.spectral import Spectrogram
         >>> sp = Spectrogram(nfft=8, hop=4, window="rect")
         >>> _ = sp.push(np.ones(11, np.complex64))
-        >>> row = np.empty(8, np.float32)
-        >>> sp.flush(row)
-        8
-        >>> sp.flush(row)
-        0
+        >>> sp.flush().shape
+        (1, 8)
+        >>> sp.flush() is None
+        True
 
         The row sits on the hop grid: it starts at the next row start k*hop,
         never at the first sample no row covered, so it is the row a one-shot
@@ -2386,21 +2390,41 @@ class Spectrogram:
 
         Parameters
         ----------
-        row : npt.NDArray[np.float32]
-            Room for nfft floats.
+        out : npt.NDArray[np.float32] | None
+            Optional pre-allocated output buffer: a writable, C-contiguous 2-D
+            array of shape (rows, cols), where cols is this method's fixed row
+            width. When given, the result is written into it and the returned
+            array is a (rows, cols) view of exactly the rows produced; when
+            omitted, a fresh array is allocated.
 
         Returns
         -------
-        int
+        NDArray[np.float32] | None
             Floats written: nfft, or 0 if no row was owed; -1 if the row is not
-            exactly nfft floats long.
+            exactly nfft floats long. From Python, the owed row as a (1, nfft)
+            matrix, or None when none was owed. None when the C call writes no
+            output.
 
         Raises
         ------
         ValueError
             If the C call returns a negative value. The exception message is
-            ``flush: row must hold exactly nfft floats``, with the return code
+            ``flush: out must hold exactly nfft floats``, with the return code
             appended (gh-869).
+        """
+
+    def flush_max_out(self) -> int:
+        """Floats dp_spectrogram_flush() writes: nfft, the one row it can owe.
+
+        Sized by the object alone, since a flush owes at most one row. It is
+        also
+
+        the only row length dp_spectrogram_flush() accepts.
+
+        Returns
+        -------
+        int
+            Output.
         """
 
     def rows_for(self, n_in: int) -> int:

@@ -77,6 +77,8 @@ size_t dp_spectrogram_rows_for (const dp_spectrogram_state_t *s,
 int64_t dp_spectrogram_flush (dp_spectrogram_state_t *s, float *row,
                               size_t row_len);
 
+size_t dp_spectrogram_flush_max_out (const dp_spectrogram_state_t *s);
+
 size_t dp_spectrogram_pending (const dp_spectrogram_state_t *s);
 
 size_t dp_spectrogram_state_bytes (const dp_spectrogram_state_t *s);

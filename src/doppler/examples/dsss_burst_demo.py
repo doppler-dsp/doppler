@@ -223,9 +223,9 @@ def spectrogram(x: np.ndarray, nfft: int = 128, hop: int = 32) -> np.ndarray:
     """Spectrogram rows in dB, normalised to the peak, tail flushed."""
     sp = Spectrogram(nfft=nfft, hop=hop, window="hann", mode="db")
     rows = sp.push(np.asarray(x, dtype=np.complex64))
-    tail = np.zeros(nfft, np.float32)
-    if sp.flush(tail):  # the zero-padded frame the stream's end owes
-        rows = np.vstack([rows, tail[None, :]])
+    tail = sp.flush()  # the zero-padded frame the stream's end owes
+    if tail is not None:
+        rows = np.vstack([rows, tail])
     sg = rows.T
     return sg - sg.max()
 

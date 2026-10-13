@@ -1505,11 +1505,6 @@ tier = 1
 title = "acq: a tiled burst engine's pd_predicted/pd_burst price W\u00b7D\u00b7cb samples, not D\u00b7cb -- it reports ~1.000 (0.62-0.94 measured) and underpowered stays clear where it should warn"
 status = "open"
 
-[issue.2227]
-tier = 1
-title = "named-args helper discovery: six known limits (first enum wins, shadowing, variadic, unbalanced braces, strings before comments, compared parameters)"
-status = "open"
-
 [issue.2229]
 tier = 2
 title = "acq: a dwell straddling a burst's start with under one epoch of signal reports its Doppler up to ~D/2 bins off (first hit only; tiled and narrowband alike)"
@@ -1533,11 +1528,6 @@ status = "open"
 [issue.2236]
 tier = 2
 title = "acq: resolve a tiled burst's tile alias over a delay window and re-estimate the code phase at the resolved hypothesis (ridge-aware; the fix for the chirp raw-hit errors)"
-status = "open"
-
-[issue.2244]
-tier = 2
-title = "wfm: a chirp or tone repeated across segments jumps in phase at the boundary, though the docs promise seamless joins"
 status = "open"
 
 [issue.2254]

@@ -17,6 +17,7 @@ from doppler.wfm import (
     FrameDesc,
     Segment,
     Synth,
+    _SynthEngine,
     bits,
     chirp,
     field_bits,
@@ -240,6 +241,34 @@ def test_reset_reproduces():
 def test_bad_type_rejected():
     with pytest.raises((ValueError, TypeError)):
         Synth(type="not-a-waveform")
+
+
+# --- _SynthEngine seed range (#2276) ----------------------------------------
+#
+# `_SynthEngine` is a hand-owned binding, so jm's generated range test
+# (gh-2144) never reached it: `seed` was parsed through `k`, which masks, and
+# cast to uint32_t. seed=2**32 + 5 built a synth seeded 5 and -1 one seeded
+# 4294967295, so a caller's out-of-range seed silently replayed another
+# realization. `Synth` is the composer's generated type and was already
+# checked; this is the other constructor.
+
+
+@pytest.mark.parametrize("bad", [-1, 2**32, 2**32 + 5, -(2**32)])
+def test_engine_refuses_a_seed_outside_uint32(bad):
+    with pytest.raises(OverflowError):
+        _SynthEngine(type="noise", seed=bad)
+
+
+def test_engine_keeps_the_uint32_edge_seed_distinct():
+    # The top of the range is a real seed, not a wrapped one: it is accepted,
+    # reproducible, and not the stream a masked 2**32 + 5 used to alias (5).
+    top = _SynthEngine(type="noise", seed=2**32 - 1).steps(16)
+    assert np.array_equal(
+        top, _SynthEngine(type="noise", seed=2**32 - 1).steps(16)
+    )
+    assert not np.array_equal(
+        top, _SynthEngine(type="noise", seed=5).steps(16)
+    )
 
 
 # ── RRC pulse shaping ────────────────────────────────────────────────────────

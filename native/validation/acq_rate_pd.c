@@ -55,6 +55,7 @@
 #include "doppler/wfm_synth/wfm_synth_core.h"
 #include "dp_preamble_test.h"
 #include "dp_rng_test.h"
+#include "dp_swept_test.h"
 #include "dp_test.h"
 #include <math.h>
 #include <stdio.h>
@@ -217,11 +218,10 @@ measure_pd (size_t rh, int midpoint, double cn0, int trials, uint32_t seed)
                     ? per[i % N]
                     : (float _Complex)cexp (I * M_PI / 2.0
                                             * (double)(dp_xs32 (&st) >> 30));
-          const double u = (double)i - 0.5 * dur; /* about the preamble */
-          x[at + i] = v
-                      * (float _Complex)cexp (
-                          I * 2.0 * M_PI * (f_mid * u + 0.5 * rate * u * u));
+          x[at + i] = v;
         }
+      /* The sweep is about the PREAMBLE's middle; the payload continues it. */
+      dp_swept_rotate (x + at, BURST, 1.0, f_mid, rate, 0.5 * dur);
       dp_awgn_generate (g, len, nz, len);
       for (size_t i = 0; i < len; i++)
         x[i] += nz[i];
@@ -380,11 +380,9 @@ measure_rate (size_t rh, double design, double sig, double rate, int trials,
                     ? per[i % N]
                     : (float _Complex)cexp (I * M_PI / 2.0
                                             * (double)(dp_xs32 (&st) >> 30));
-          const double u = (double)i - 0.5 * dur;
-          x[at + i] = v
-                      * (float _Complex)cexp (
-                          I * 2.0 * M_PI * (f_mid * u + 0.5 * rate * u * u));
+          x[at + i] = v;
         }
+      dp_swept_rotate (x + at, BURST, 1.0, f_mid, rate, 0.5 * dur);
       dp_awgn_generate (g, len, nz, len);
       for (size_t i = 0; i < len; i++)
         x[i] += nz[i];
@@ -537,9 +535,15 @@ main (int argc, char **argv)
              refinements -- the Doppler cells widened by the shift a rate
              puts between the detecting dwell and the preamble, and a rate
              grid denser than the engine's -- because each is worth about
-             0.02 here and a 95% interval (+-0.04) cannot see 0.02. Taken
-             away, the uniform rows read 0.880-0.884 against a pin of
-             pred - 0.015 = 0.889-0.892; with them, 0.904-0.912. */
+             0.02 here and a 95% interval (+-0.04) cannot see 0.02. Re-proved
+             on the migrated stimulus (the library's own rotation), --check:
+             with both refinements the uniform rows read 0.912 (n = 5), 0.924
+             (n = 9) and 0.948 (auto, n = 4); both taken away they read 0.888,
+             0.904 and 0.908 against pins of pred - 0.015 = 0.892, 0.889 and
+             0.897. So the pin is still red without them, but ONLY through
+             the n = 5 row and by one trial of 250 (the widened cells alone
+             leave that row on its pin, 0.892; the denser grid alone leaves
+             every row above it), a thinner margin than the old ramp's. */
           if (!rows[k].midpoint)
             DP_CHECK_MSG (rows[k].cap >= rows[k].pred - 0.015,
                           "compensated capture is within 0.015 of its "
@@ -600,9 +604,10 @@ main (int argc, char **argv)
      point recomputed for it (cn0_for), then the capped depth against five
      hypotheses. Two rows and one Pfa row: the claim is "the compensation is
      not specific to ZC", which two counts and the false-alarm bound show;
-     the full grid above is ZC's. Capture Pd, capped against N = 5: 0.552
-     against 0.924 in this --check run (250 trials), 0.564 against 0.921 in
-     the reviewer's 1000-trial run. */
+     the full grid above is ZC's. Capture Pd, capped against N = 5: 0.500
+     against 0.928 in this --check run (250 trials, the library's rotation as
+     the swept carrier); the reviewer's 1000-trial run, on the old private
+     phase ramp, read 0.564 against 0.921. */
   {
     lfm_preamble ();
     const double cn0_l  = cn0_for (9, PD);

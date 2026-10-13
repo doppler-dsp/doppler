@@ -151,6 +151,83 @@ def test_emit_unknown_probe_raises():
         tlm.emit(0, 1.0)  # nothing registered yet
 
 
+# --- Range tests for the hand-owned binding (#2270, #2271, #2272) ----------
+#
+# telemetry_ext_dp_tlm.c is a sacred fragment, so jm's generated range test
+# (gh-2144) never reached it: `emit` cast a `long` straight to int32_t and
+# `probe` / `set_decim` parsed a uint32_t through `k`, which masks. Each
+# wrapped into a value that looked valid. OverflowError is an ArithmeticError,
+# not a ValueError, so these tests also tell "refused as out of range" apart
+# from the registry's own ValueError for an in-range miss.
+
+# One past each end of int32_t, and +-2**32, which the bare cast aliased
+# onto probe 0.
+BAD_IDS = [2**31, -(2**31) - 1, 2**32, -(2**32)]
+
+# What `k` masked into a plausible decimation: -1 became 4294967295, 2**32 + 3
+# became 3, and +-2**32 became 0 (a different error from the right cause).
+BAD_DECIMS = [-1, 2**32, 2**32 + 3, -(2**32)]
+
+
+@pytest.mark.parametrize("bad", BAD_IDS)
+def test_emit_refuses_an_id_outside_int32(bad):
+    tlm = Telemetry(1 << 12)
+    pid = tlm.probe("x")
+    with pytest.raises(OverflowError):
+        tlm.emit(bad, 1.0)
+    # Refused before the ring was touched: 2**32 used to record into probe 0.
+    assert tlm.emitted(pid) == 0
+    assert len(tlm.read()) == 0
+
+
+@pytest.mark.parametrize("edge", [2**31 - 1, -(2**31)])
+def test_emit_reaches_the_registry_at_the_int32_edges(edge):
+    tlm = Telemetry(1 << 12)
+    tlm.probe("x")
+    # In range for int32_t, so the range test passes and the registry, which
+    # never issued this id, refuses it: a ValueError, not an OverflowError.
+    with pytest.raises(ValueError):
+        tlm.emit(edge, 1.0)
+
+
+@pytest.mark.parametrize("bad", BAD_DECIMS)
+def test_probe_refuses_a_decim_outside_uint32(bad):
+    tlm = Telemetry(1 << 12)
+    with pytest.raises(OverflowError):
+        tlm.probe("x", decim=bad)
+    # Not registered with a wrapped decimation either.
+    assert tlm.probe_count == 0
+
+
+def test_probe_accepts_the_uint32_edges():
+    tlm = Telemetry(1 << 12)
+    assert tlm.probe("lo", decim=1) == 0
+    assert tlm.probe("hi", decim=2**32 - 1) == 1
+    with pytest.raises(ValueError):  # in range; the core refuses 0
+        tlm.probe("zero", decim=0)
+
+
+@pytest.mark.parametrize("bad", BAD_DECIMS)
+def test_set_decim_refuses_a_decim_outside_uint32(bad):
+    tlm = Telemetry(1 << 12)
+    pid = tlm.probe("x", decim=3)
+    with pytest.raises(OverflowError):
+        tlm.set_decim("x", bad)
+    # The running probe keeps its factor: the first event, then every third.
+    for i in range(10):
+        tlm.emit(pid, float(i))
+    assert tlm.read()["value"].tolist() == [0.0, 3.0, 6.0, 9.0]
+
+
+def test_set_decim_accepts_the_uint32_edges():
+    tlm = Telemetry(1 << 12)
+    tlm.probe("x")
+    tlm.set_decim("x", 2**32 - 1)
+    tlm.set_decim("x", 1)
+    with pytest.raises(ValueError):  # in range; the core refuses 0
+        tlm.set_decim("x", 0)
+
+
 def test_destroy_then_use_raises():
     tlm = Telemetry(1 << 12)
     tlm.destroy()

@@ -34,6 +34,7 @@ const jm_any_fn jm_bound_symbols_wfm_synth[] = {
     (jm_any_fn)dp_wfm_synth_destroy,
     (jm_any_fn)dp_wfm_synth_reset,
     (jm_any_fn)dp_wfm_synth_steps,
+    (jm_any_fn)dp_wfm_synth_prod,
     (jm_any_fn)dp_wfm_synth_get_wtype,
     (jm_any_fn)dp_wfm_synth_set_wtype,
     (jm_any_fn)dp_wfm_synth_get_nsps,

@@ -998,6 +998,49 @@ dp_wfm_synth_steps (dp_wfm_synth_state_t *state, float _Complex *output,
 }
 
 void
+dp_wfm_synth_sweep_ends (double fs, double f_mid, double rate, size_t n,
+                         double center, double *f0, double *f_end)
+{
+  /* The synth's chirp phase at sample i is f0*i + k*i*(i-1)/2 (each
+   * increment lands AFTER its sample), so matching f(u) = f_mid + rate*u
+   * about `center` puts the start at f_mid - k*(center - 1/2), with k the
+   * slope in Hz per sample. This is the ONE copy of that arithmetic: the C
+   * test helper and doppler.wfm.rotate both take it from here. */
+  const double k = rate / fs;
+  *f0            = f_mid - k * (center - 0.5);
+  *f_end         = *f0 + k * (double)n;
+}
+
+void
+dp_wfm_synth_prod (dp_wfm_synth_state_t *state, const float _Complex *in,
+                   size_t n, float _Complex *out)
+{
+  /* The operator, not a second generator: the synth's own block kernel
+   * fills a small scratch and the product is one multiply per sample. The
+   * synth therefore advances exactly as dp_wfm_synth_steps(state, ., n)
+   * would: a split call sequence leaves the same synth state as one call
+   * (steps is chunk invariant). The PRODUCT agrees across such sequences to
+   * rounding, not to the bit -- the compiler may contract the multiply into
+   * an FMA differently on different paths (arm64 under -ffast-math, see the
+   * note on dp_wfm_synth_steps' kernel) -- so callers compare it with a few
+   * ulp of |in| * |y|. Reading in[i] only after scratch[i] exists, and
+   * writing out[i] last, is what makes out == in safe. */
+  enum
+  {
+    PCH = 256
+  };
+  float _Complex scratch[PCH];
+  for (size_t done = 0; done < n;)
+    {
+      size_t m = (n - done < (size_t)PCH) ? (n - done) : (size_t)PCH;
+      dp_wfm_synth_steps (state, scratch, m);
+      for (size_t i = 0; i < m; i++)
+        out[done + i] = in[done + i] * scratch[i];
+      done += m;
+    }
+}
+
+void
 dp_wfm_synth_noise_steps (dp_wfm_synth_state_t *state, float _Complex *output,
                           size_t n)
 {

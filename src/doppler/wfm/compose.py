@@ -42,6 +42,7 @@ Examples
 from __future__ import annotations
 
 import json as _json
+import math as _math
 from importlib.util import find_spec as _find_spec
 from typing import TYPE_CHECKING
 
@@ -467,3 +468,114 @@ def prepare(scene: Composer | str | bytes) -> Plan:
     1024
     """
     return Plan(scene)
+
+
+# ── rotate: the special case of Synth.prod ──────────────────────────────────
+
+
+def rotate(
+    x: NDArray[np.complex64],
+    freq: float,
+    rate: float = 0.0,
+    fs: float = 1.0,
+    center: float | None = None,
+) -> NDArray[np.complex64]:
+    """Multiply ``x`` by a carrier that sweeps about a stated center.
+
+    The special case of ``Synth.prod`` that most tests want: a tone (or
+    a chirp) *is* a rotation. ``x`` is multiplied by
+
+    ``exp(j*2*pi*(freq*u + 0.5*rate*u**2))``,  ``u = (n - center) / fs``
+
+    so ``freq`` is the carrier **at the center** (Hz) and ``rate`` the sweep
+    (Hz/s). With ``fs = 1`` they are cycles/sample and cycles/sample**2. By
+    default the center is the middle of ``x``, ``(len(x) - 1) / 2``; pass
+    ``center`` (a sample index, not necessarily an integer or inside ``x``)
+    when the sweep is about some other instant -- a burst whose preamble is
+    swept about its own middle while the payload continues the same sweep.
+
+    How it is built: a ``wfm_synth`` chirp (a tone when ``rate == 0``) whose
+    slope is ``rate / fs**2`` and whose start frequency is chosen so the
+    instantaneous frequency is ``freq`` at the center, then
+    ``Synth.prod``. The sweep is pinned over ``len(x)`` samples, which
+    is what keeps it from holding at its end frequency inside ``x``.
+
+    The synth's phase is 0 at sample 0; the formula above is 0 at the center.
+    The two differ by a **constant phase** -- the instantaneous frequency and
+    the sweep rate agree exactly -- and no detector in this tree depends on
+    it (acquisition correlates non-coherently across the dwell). Do not use
+    this where the absolute carrier phase at a sample matters.
+
+    Parameters
+    ----------
+    x : NDArray[np.complex64]
+        1-D complex64 block. Not modified.
+    freq : float
+        Carrier at the center, Hz (cycles/sample when ``fs = 1``).
+    rate : float, default 0.0
+        Sweep, Hz/s (cycles/sample**2 when ``fs = 1``). Zero is a pure tone.
+    fs : float, default 1.0
+        Sample rate, Hz; must be positive.
+    center : float, optional
+        Sample index of ``u = 0``. Default ``(len(x) - 1) / 2``.
+
+    Returns
+    -------
+    NDArray[np.complex64]
+        A new array, the same length as ``x``.
+
+    Raises
+    ------
+    TypeError
+        If ``x`` is not a complex64 ndarray.
+    ValueError
+        If ``x`` is not 1-D or ``fs`` is not positive.
+
+    Examples
+    --------
+    A tone: every sample advances the phase by ``2*pi*freq/fs``.
+
+    >>> import numpy as np
+    >>> from doppler.wfm import rotate
+    >>> y = rotate(np.ones(8, np.complex64), freq=0.125)
+    >>> step = np.angle(y[1:] * np.conj(y[:-1]))
+    >>> bool(np.allclose(step, 2 * np.pi * 0.125, atol=1e-5))
+    True
+
+    A chirp: the frequency is ``freq`` in the middle and ``rate`` moves it
+    linearly, here 0.1 cycles/sample from end to end.
+
+    >>> n = 1001
+    >>> y = rotate(np.ones(n, np.complex64), freq=0.0, rate=1e-4)
+    >>> inst = np.angle(y[1:] * np.conj(y[:-1])) / (2 * np.pi)
+    >>> bool(abs(inst[0] + 0.05) < 1e-4 and abs(inst[-1] - 0.05) < 1e-4)
+    True
+    >>> bool(abs(inst[n // 2]) < 1e-4)
+    True
+    """
+    import numpy as np
+
+    if not isinstance(x, np.ndarray) or x.dtype != np.complex64:
+        got = x.dtype if isinstance(x, np.ndarray) else type(x)
+        raise TypeError(
+            f"x must be an ndarray of dtype np.complex64 (got {got})"
+        )
+    if x.ndim != 1:
+        raise ValueError(f"x must be 1-D (got {x.ndim}-D)")
+    if not (fs > 0.0 and _math.isfinite(fs)):
+        raise ValueError(f"fs must be positive and finite (got {fs})")
+    n = x.size
+    if n == 0:
+        return x.copy()
+    c = 0.5 * (n - 1) if center is None else float(center)
+    from .wfm import _sweep_ends
+
+    if rate == 0.0:
+        synth = Synth(type="tone", fs=fs, freq=freq)
+    else:
+        # The centering arithmetic lives once, in C (dp_wfm_synth_sweep_ends).
+        f0, f_end = _sweep_ends(fs, freq, rate, n, c)
+        synth = Synth(type="chirp", fs=fs, freq=f0, f_end=f_end, span=n)
+    # Synth.prod is strict (a strided block is an error, not a silent copy);
+    # rotate takes any 1-D complex64 view, so the one copy is made here.
+    return synth.prod(np.ascontiguousarray(x))

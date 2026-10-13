@@ -350,6 +350,56 @@ class Synth:
         A no-op before the first `steps()`/`step()`, which starts from sample 0
         anyway.
         """
+    def prod(
+        self,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
+    ) -> NDArray[np.complex64]:
+        """Multiply a block by the synth's next output samples.
+
+        ``out[i] = x[i] * y[i]``, where ``y`` is what ``steps(len(x))`` would emit
+        next. The synth advances exactly as ``steps(len(x))`` does, so split calls
+        leave the same synth state as one call and an empty ``x`` does not advance it;
+        the product itself agrees across such call sequences to rounding (a few ulp
+        of ``|x| * |y|``), not to the bit, because the compiler may contract the
+        multiply differently on different paths (arm64 under ``-ffast-math``). A tone
+        synth makes this a rotation, a chirp a swept rotation, noise a noise
+        multiplier, PN/BPSK a modulation. ``x`` is not modified.
+
+        This is the general waveform-multiplication operator: with a tone synth
+        it is a rotation, with a chirp synth a swept rotation, with noise a
+        noise multiplier, with PN/BPSK a modulation.
+
+        Parameters
+        ----------
+        x : npt.NDArray[np.complex64]
+            Input.
+        out : npt.NDArray[np.complex64] | None
+            Output block of ``n`` cf32 samples (may alias ``in``).
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Output.
+
+        Raises
+        ------
+        ValueError
+            If `dp_wfm_source_to_synth` refuses this configuration; the message
+            is its reason.
+        RuntimeError
+            If `dp_wfm_source_to_synth` fails and gives no reason.
+
+        Examples
+        --------
+        >>> from doppler.wfm import Synth
+        >>> import numpy as np
+        >>> s = Synth(type="tone", fs=1.0, freq=0.25)
+        >>> y = s.prod(np.ones(4, np.complex64))
+        >>> bool(np.allclose(y, [1, 1j, -1, -1j], atol=1e-5))
+        True
+
+        """
 
 @disjoint_base
 class Segment:

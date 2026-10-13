@@ -795,7 +795,13 @@ _chirp_stream (const uint8_t *code, size_t sf, size_t spc, double fs, size_t n,
  *     depth, the same gate), so the choice is readable and repeatable;
  *   - it is MINIMAL: one hypothesis fewer leaves the drift bound binding and
  *     the engine shallower. This is what a "choose the maximum" mistake
- *     fails -- the maximum is correct and costs 64 passes a dwell. */
+ *     fails -- the maximum is correct and costs 64 passes a dwell;
+ *   - it is not TOO FEW: an explicit engine at the same count over a span so
+ *     small that the drift bound cannot bind has the sizer's own, unbounded
+ *     depth at that count, and auto's must equal it. Without this, auto could
+ *     pick a count whose residual still caps the depth (say by pricing D* at
+ *     one look) and every check above would stay green, since "equal to the
+ *     explicit engine of the same size" holds by construction. */
 static int
 _acq_rate_auto_check (void)
 {
@@ -825,6 +831,17 @@ _acq_rate_auto_check (void)
       DP_CHECK (e->eta == a->eta);
       dp_acq_destroy (e);
 
+      /* Not too few: the same count with the drift bound switched off by a
+         vanishing span. Its depth is D*(n); auto must have reached it. */
+      dp_acq_state_t *u
+          = burst_with_rates (CODE31, sf, reps, spc, crate, cn0s[k], 0.0, 1e-3,
+                              0.9, 0, rate * 1.0e-9, n > 1 ? n : 1);
+      DP_REQUIRE (u != NULL);
+      DP_CHECK_MSG (u->coherent_bins == a->coherent_bins,
+                    "auto's depth is the unbounded depth at its count: the "
+                    "residual no longer caps it");
+      dp_acq_destroy (u);
+
       if (n > 1)
         {
           dp_acq_state_t *fewer
@@ -843,8 +860,9 @@ _acq_rate_auto_check (void)
                 "several hypotheses");
 
   /* No design point: the sizer integrates the whole preamble, so the answer
-     is the count that lets the residual allow `reps` -- and it is the same
-     one dp_acq_rate_hypotheses_for() names for it. */
+     is the count that lets the residual allow `reps`. At this geometry that
+     is also the count dp_acq_rate_hypotheses_for() names, the two being the
+     same drift inversion; a check of this geometry, not a general contract. */
   {
     dp_acq_state_t *a
         = burst_with_rates (CODE31, sf, reps, spc, crate, ACQ_CN0_NONE, 0.0,

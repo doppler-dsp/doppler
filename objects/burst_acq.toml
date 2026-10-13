@@ -10,7 +10,7 @@ serializable = "true"
 # -- the same shape as objects/burst_capture.toml's. Before this, an infinite
 # cn0_dbhz or a pfa of 1 surfaced as MemoryError.
 create_error = "ValueError"
-create_error_message = "BurstAcquisition: invalid parameter (need a non-empty preamble with finite, non-zero energy, reps >= 1, fs > 0, cn0_dbhz finite or NaN, doppler_uncertainty >= 0, doppler_rate >= 0, 1 <= rate_hypotheses <= 64 (and doppler_rate > 0 above 1), 0 < pfa < 1, 0 < pd < 1)"
+create_error_message = "BurstAcquisition: invalid parameter (need a non-empty preamble with finite, non-zero energy, reps >= 1, fs > 0, cn0_dbhz finite or NaN, doppler_uncertainty >= 0, doppler_rate >= 0, 0 <= rate_hypotheses <= 64 (0 = auto; doppler_rate > 0 unless 1), 0 < pfa < 1, 0 < pd < 1)"
 # The under-powered UserWarning is declared (gh-481): its condition is a
 # bool field of dp_burst_acq_state_t, which mirrors the engine's at
 # construction -- the same warning objects/acq.toml declares.
@@ -91,7 +91,8 @@ default = "0.0"
 # Doppler-rate hypotheses to search. 1 = none, and doppler_rate only caps the
 # depth; above 1 the engine COMPENSATES the rate -- doppler_rate becomes the
 # span of the hypotheses and the depth is bounded by the residual
-# doppler_rate/(n - 1). Appended last, so no positional call moves.
+# doppler_rate/(n - 1). 0 = auto: the fewest hypotheses whose residual stops
+# limiting the depth. Appended last, so no positional call moves.
 [[burst_acq.init_params]]
 name = "rate_hypotheses"
 type = "size_t"
@@ -252,7 +253,7 @@ doc = "Doppler rate (Hz/s) the coherent depth is bounded against: coherent_bins 
 name = "rate_hypotheses"
 type = "size_t"
 expr = "self->handle->engine->rate_hyps"
-doc = "Doppler-rate hypotheses the engine searches, as given at construction; 1 is none -- `doppler_rate` then only caps the coherent depth. Above 1 `doppler_rate` is the span of the hypotheses and the depth is bounded by the residual `doppler_rate/(rate_hypotheses - 1)`."
+doc = "Doppler-rate hypotheses the engine searches, as given at construction, or the count the engine chose when it was built with 0 (auto: the fewest whose residual stops limiting the depth); 1 is none -- `doppler_rate` then only caps the coherent depth. Above 1 `doppler_rate` is the span of the hypotheses and the depth is bounded by the residual `doppler_rate/(rate_hypotheses - 1)`."
 
 [[burst_acq.properties]]
 name = "cn0_dbhz"

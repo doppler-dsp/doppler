@@ -249,7 +249,7 @@ One period of `preamble_len` complex samples at `fs`, repeated up to `reps` time
 * `pd` Target detection probability (0,1). 
 * `noise_mode` CFAR mode index: 0=mean, 1=median, 2=min, 3=max. 
 * `doppler_rate` Doppler rate in Hz/s (&gt;= 0) that caps the coherent depth at `f_epoch/sqrt(2*doppler_rate)` repetitions (doppler#1482); 0 is no bound. 
-* `rate_hypotheses` Doppler-rate hypotheses to search (&gt;= 1, at most ACQ\_RATE\_HYPS\_MAX); 1 searches none. Above 1 the engine COMPENSATES the rate rather than only capping the depth: `doppler_rate` becomes the span `[-R, +R]`, the coherent block is de-chirped at this many rates across it, and the depth is bounded by the residual `R/(n - 1)`  see [**dp\_acq\_create\_burst()**](acq__core_8h.md#function-dp_acq_create_burst), which owns the semantics. Needs a non-zero `doppler_rate`. 
+* `rate_hypotheses` Doppler-rate hypotheses to search (0 = auto, else 1 to ACQ\_RATE\_HYPS\_MAX); 1 searches none. Above 1 the engine COMPENSATES the rate rather than only capping the depth: `doppler_rate` becomes the span `[-R, +R]`, the coherent block is de-chirped at this many rates across it, and the depth is bounded by the residual `R/(n - 1)`  see [**dp\_acq\_create\_burst()**](acq__core_8h.md#function-dp_acq_create_burst), which owns the semantics, including 0 = auto (the engine chooses the count; read it back from `engine->rate_hyps`). Needs a non-zero `doppler_rate`. 
 
 
 

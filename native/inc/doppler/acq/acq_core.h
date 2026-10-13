@@ -820,7 +820,8 @@ extern "C"
    *                    slow-time row (doppler#1482). 0 is no bound: the depth
    *                    is sized up to @p reps. With @p rate_hypotheses > 1 it
    *                    is the SPAN of the rates searched, below.
-   * @param rate_hypotheses  Doppler-rate hypotheses to search (>= 1, at most
+   * @param rate_hypotheses  Doppler-rate hypotheses to search (0, or >= 1 and
+   *                    at most
    *                    @ref ACQ_RATE_HYPS_MAX); 1 searches none and
    *                    @p doppler_rate only caps the depth. Above 1 the
    *                    engine COMPENSATES the rate: `doppler_rate` is the span
@@ -839,9 +840,16 @@ extern "C"
    *                    ONE look (the gate of an engine without hypotheses),
    *                    runs once, and reports a rate of 0. Needs a non-zero @p doppler_rate: it
    *                    is the span.
+   *                    **0 is AUTO**: the engine picks the smallest `n` whose
+   *                    residual `R/(n - 1)` no longer limits the depth the
+   *                    sizer would choose with no drift bound at all (priced
+   *                    at that `n`), or @ref ACQ_RATE_HYPS_MAX if none does;
+   *                    the choice is the engine's `rate_hyps`. Burst only,
+   *                    and needs a non-zero @p doppler_rate like any
+   *                    `n > 1`.
    *
    * @return Heap-allocated state, or NULL on bad arguments (including a
-   *         @p rate_hypotheses outside `[1, ACQ_RATE_HYPS_MAX]`, or above 1
+   *         @p rate_hypotheses above ACQ_RATE_HYPS_MAX, or 0 or above 1
    *         with `doppler_rate == 0`) / allocation failure.
    * @code
    * // 127-sample Zadoff-Chu preamble at 1 MS/s, up to 8 repetitions

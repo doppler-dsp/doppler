@@ -118,7 +118,7 @@ main (void)
     pre[i] = nrz[i / SPC];
   dp_burst_capture_state_t *cap = dp_burst_capture_create (
       pre, ACQ_SF * SPC, BURST_LEN, REPS, CHIP_RATE * SPC, 55.0, 0.0, 1e-3,
-      0.9, 0, 0.0);
+      0.9, 0, 0.0, 1);
   if (!cap)
     {
       fprintf (stderr, "dp_burst_capture_create failed\n");

@@ -15,6 +15,91 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* The rate hypotheses refine sums over. The engine's own count is sized for
+ * a dwell of `coherent_bins` periods; refine's sum runs the whole preamble,
+ * `reps` periods, so the residual it can leave is the same drift rule at
+ * that depth -- `(fs/P)^2 / (2 reps^2)` Hz/s, the rate at which the drift
+ * over the sum stays inside half a slow-time row of it. Hypotheses enough
+ * to leave no more than that across the span, never fewer than the
+ * engine's (a caller who asked for more gets them), and none at all when
+ * the engine has none: the sum as it ran. */
+static size_t
+burst_capture_rate_hyps (const dp_acq_state_t *eng, size_t reps)
+{
+  if (eng->rate_hyps < 2)
+    return 1;
+  /* The engine's drift rule at refine's depth, from the engine's own home
+     for it (dp_acq_rate_hypotheses_for), never fewer than the engine's. */
+  const size_t need = dp_acq_rate_hypotheses_for (
+      eng->fs / (double)eng->code_bins, eng->doppler_rate, reps);
+  return need > eng->rate_hyps ? need : eng->rate_hyps;
+}
+
+/* The rate hypotheses' phasors over the preamble's periods, about its middle,
+ * R_h rows of `reps`: the cells mix each period at a constant frequency, so
+ * what a rate leaves is the engine's de-chirp phasor, at the period's time
+ * from the middle. Spans the engine's [-R, +R] on the engine's grid
+ * (dp_acq_rate_hypothesis), so refine searches the rates the engine did.
+ * Built once, at create: nothing in them moves while the capture runs. */
+static void
+burst_capture_rate_phasors (dp_burst_capture_state_t *s)
+{
+  const dp_acq_state_t *eng  = s->acq->engine;
+  const size_t          reps = s->reps;
+  const size_t          R_h  = burst_capture_rate_hyps (eng, reps);
+  s->rate_ph_n               = R_h;
+  s->rate_ph                 = dp_xmalloc (R_h * reps * sizeof *s->rate_ph);
+  for (size_t h = 0; h < R_h; h++)
+    {
+      const double a = dp_acq_rate_hypothesis (eng->doppler_rate, R_h, h);
+      for (size_t r = 0; r < reps; r++)
+        {
+          const double t           = ((double)r - 0.5 * (double)(reps - 1))
+                                     * (double)s->code_period / eng->fs;
+          s->rate_ph[h * reps + r] = dp_acq_rate_phasor (a, t);
+        }
+    }
+}
+
+/* The Doppler cells refine scans on each side of the engine's estimate for
+ * a rate. The engine reads the carrier extrapolated to its dwell's MIDDLE
+ * (the de-chirp is about it), and refine's sum is centred on the preamble's;
+ * a dwell that overlaps only the preamble's edge has its middle up to
+ * (reps + D)/2 periods from the preamble's. The carrier moves
+ * `rate * (reps + D) * (P / fs) / 2` Hz over that, in refine's fine cells of
+ * `fs / (P * reps * IP)`. Clamped to half the native span per side, reps *
+ * IP / 2 cells: past that the cells only re-score wrapped duplicates, and an
+ * unbounded `doppler_rate` would wrap the allocations they size. Zero without
+ * rate hypotheses -- the engine and refine as they ran. */
+static size_t
+burst_capture_rate_cells (const dp_acq_state_t *eng, size_t reps)
+{
+  if (eng->rate_hyps < 2)
+    return 0;
+  const double per  = (double)eng->code_bins / eng->fs;
+  const double want = 0.5 * eng->doppler_rate
+                      * (double)BURST_CAPTURE_REFINE_INTERP * (double)reps
+                      * (double)(reps + eng->coherent_bins) * per * per;
+  const double cap  = 0.5 * (double)reps * (double)BURST_CAPTURE_REFINE_INTERP;
+  return (size_t)ceil (want < cap ? want : cap);
+}
+
+/* Allocate refine's cell scratch for the engine as built: the cells an
+ * engine bin spans at depth `reps` (the widest, at D = 1) plus the rate
+ * allowance, and the edge twins. Called once, at create: the rate
+ * hypotheses that move the allowance are fixed there too. */
+static void
+burst_capture_size_cells (dp_burst_capture_state_t *s)
+{
+  /* + BURST_CAPTURE_EDGE_TWINS: the cells at the native span's edge are
+     scored at BOTH aliases (see burst_capture_refine). */
+  s->max_cells = 2u * ((s->reps * BURST_CAPTURE_REFINE_INTERP + 1u) / 2u) + 3u
+                 + 2u * burst_capture_rate_cells (s->acq->engine, s->reps)
+                 + BURST_CAPTURE_EDGE_TWINS;
+  s->cell_buf  = dp_xmalloc (s->corr_len * s->max_cells * sizeof *s->cell_buf);
+  s->cell_f    = dp_xmalloc (s->max_cells * sizeof *s->cell_f);
+}
+
 /**
  * @brief Both constructors, differing only in where the ring's pages live.
  *
@@ -32,7 +117,11 @@
  * @param pd            Target detection probability, in (0, 1).
  * @param noise_mode    CFAR reference: 0=mean, 1=median, 2=min, 3=max.
  * @param doppler_rate  Doppler rate, Hz/s, capping the coherent depth; 0 is
- *                      no bound.
+ *                      no bound. With @p rate_hypotheses > 1 it is the span
+ *                      of the rates searched instead.
+ * @param rate_hypotheses  Doppler-rate hypotheses the acquisition searches
+ *                      (>= 1); 1 searches none. Refine follows the engine:
+ *                      see burst_capture_rate_hyps().
  * @return Heap state, or NULL on an out-of-range parameter or a file the
  *         ring could not be backed with.
  */
@@ -41,7 +130,7 @@ burst_capture_create_impl (const char *path, const float _Complex *preamble,
                            size_t n, size_t burst_len, size_t reps, double fs,
                            double cn0_dbhz, double doppler_uncertainty,
                            double pfa, double pd, int noise_mode,
-                           double doppler_rate)
+                           double doppler_rate, size_t rate_hypotheses)
 {
   /* Every one of these is an ARGUMENT error, and the manifest's
    * create_error/create_error_message turn a NULL return into a ValueError
@@ -74,7 +163,7 @@ burst_capture_create_impl (const char *path, const float _Complex *preamble,
    * kept here: the engine holds it, at unit RMS. */
   s->acq = dp_burst_acq_create (preamble, n, reps, fs, cn0_dbhz,
                                 doppler_uncertainty, pfa, pd, noise_mode,
-                                doppler_rate);
+                                doppler_rate, rate_hypotheses);
   if (!s->acq)
     goto fail;
 
@@ -183,12 +272,8 @@ burst_capture_create_impl (const char *path, const float _Complex *preamble,
      candidates are anchor + k*P, so the whole search is (k_lo+k_hi+reps)
      code periods, each evaluated at the Doppler cells refine needs. */
   s->corr_len = s->k_lo + s->k_hi + reps + 1u;
-  /* + BURST_CAPTURE_EDGE_TWINS: the cells at the native span's edge are
-     scored at BOTH aliases (see burst_capture_refine). */
-  s->max_cells = 2u * ((reps * BURST_CAPTURE_REFINE_INTERP + 1u) / 2u) + 3u
-                 + BURST_CAPTURE_EDGE_TWINS;
-  s->cell_buf  = dp_xmalloc (s->corr_len * s->max_cells * sizeof *s->cell_buf);
-  s->cell_f    = dp_xmalloc (s->max_cells * sizeof *s->cell_f);
+  burst_capture_size_cells (s);
+  burst_capture_rate_phasors (s);
 
   /* dp_acq_state_bytes() is ALREADY a pure function of configuration -- it
      sizes its carry from frame_n (the framer's fixed-size snapshot), not
@@ -212,11 +297,11 @@ dp_burst_capture_create (const float _Complex *preamble, size_t preamble_len,
                          size_t burst_len, size_t reps, double fs,
                          double cn0_dbhz, double doppler_uncertainty,
                          double pfa, double pd, int noise_mode,
-                         double doppler_rate)
+                         double doppler_rate, size_t rate_hypotheses)
 {
-  return burst_capture_create_impl (NULL, preamble, preamble_len, burst_len,
-                                    reps, fs, cn0_dbhz, doppler_uncertainty,
-                                    pfa, pd, noise_mode, doppler_rate);
+  return burst_capture_create_impl (
+      NULL, preamble, preamble_len, burst_len, reps, fs, cn0_dbhz,
+      doppler_uncertainty, pfa, pd, noise_mode, doppler_rate, rate_hypotheses);
 }
 
 dp_burst_capture_state_t *
@@ -225,13 +310,14 @@ dp_burst_capture_create_backed (const char           *path,
                                 size_t preamble_len, size_t burst_len,
                                 size_t reps, double fs, double cn0_dbhz,
                                 double doppler_uncertainty, double pfa,
-                                double pd, int noise_mode, double doppler_rate)
+                                double pd, int noise_mode, double doppler_rate,
+                                size_t rate_hypotheses)
 {
   if (!path || !*path)
     return NULL;
-  return burst_capture_create_impl (path, preamble, preamble_len, burst_len,
-                                    reps, fs, cn0_dbhz, doppler_uncertainty,
-                                    pfa, pd, noise_mode, doppler_rate);
+  return burst_capture_create_impl (
+      path, preamble, preamble_len, burst_len, reps, fs, cn0_dbhz,
+      doppler_uncertainty, pfa, pd, noise_mode, doppler_rate, rate_hypotheses);
 }
 
 void
@@ -245,6 +331,7 @@ dp_burst_capture_destroy (dp_burst_capture_state_t *state)
     dp_f32_destroy (state->hist);
   free (state->cell_buf);
   free (state->cell_f);
+  free (state->rate_ph);
   free (state->q);
   free (state->win);
   free (state->released);
@@ -426,7 +513,7 @@ burst_capture_refine (dp_burst_capture_state_t *s, uint64_t anchor,
   const double fine = eng->fs / ((double)P * (double)reps * (double)IP);
   const size_t half
       = (reps * IP + 2u * eng->coherent_bins - 1u) / (2u * eng->coherent_bins)
-        + 1u;
+        + 1u + burst_capture_rate_cells (eng, reps);
   size_t cells = 2u * half + 1u;
   if (cells > s->max_cells - BURST_CAPTURE_EDGE_TWINS)
     cells = s->max_cells - BURST_CAPTURE_EDGE_TWINS;
@@ -476,22 +563,30 @@ burst_capture_refine (dp_burst_capture_state_t *s, uint64_t anchor,
   dp_acq_cell_corr_grid (eng, burst_capture_at (s, lo), n_pos, 0, s->cell_f,
                          nf, 0.0, s->cell_buf);
 
+  /* The rate hypotheses' phasors (burst_capture_rate_phasors(), built once
+     at create: they depend only on configuration). The hypothesis is scored
+     with the cell and the position, and the best of all three wins. One
+     hypothesis, a = 0, is the sum as it ran. */
+  const size_t           R_h = s->rate_ph_n;
+  const double _Complex *rph = s->rate_ph;
+
   double best   = -1.0;
   size_t best_k = 0;
   for (size_t k = 0; k + reps <= n_pos; k++)
     for (size_t j = 0; j < nf; j++)
-      {
-        double _Complex acc = 0.0;
-        for (size_t r = 0; r < reps; r++)
-          acc += s->cell_buf[(k + r) * nf + j];
-        const double pk
-            = creal (acc) * creal (acc) + cimag (acc) * cimag (acc);
-        if (pk > best)
-          {
-            best   = pk;
-            best_k = k;
-          }
-      }
+      for (size_t h = 0; h < R_h; h++)
+        {
+          double _Complex acc = 0.0;
+          for (size_t r = 0; r < reps; r++)
+            acc += s->cell_buf[(k + r) * nf + j] * rph[h * reps + r];
+          const double pk
+              = creal (acc) * creal (acc) + cimag (acc) * cimag (acc);
+          if (pk > best)
+            {
+              best   = pk;
+              best_k = k;
+            }
+        }
 
   *start = lo + (uint64_t)(best_k * P);
   *score = best;
@@ -1295,6 +1390,12 @@ dp_burst_capture_configure_search_raw (dp_burst_capture_state_t *state,
      state_bytes() promises is a pure function of configuration. */
   state->acq_blob_max = dp_acq_state_bytes (state->acq->engine);
   return DP_OK;
+}
+
+size_t
+dp_burst_capture_get_rate_hypotheses (const dp_burst_capture_state_t *state)
+{
+  return state->acq->engine->rate_hyps;
 }
 
 /* ── Read-backs ──────────────────────────────────────────────────────────

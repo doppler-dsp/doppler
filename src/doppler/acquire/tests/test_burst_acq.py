@@ -188,7 +188,8 @@ def test_hit_chip_phase_matches_acquisition(spc):
     assert burst and cont, "both classes must detect the strong code"
     b, c = burst[0], cont[0]
 
-    assert len(b) == len(c) == 8
+    assert len(b) == len(c) == 9
+    assert b[8] == c[8] == 0.0, "neither searches rate hypotheses here"
     assert b[1] == c[1], "the two front doors disagree on the lag"
     n = SF * spc
     assert b[7] == pytest.approx((n - b[1]) % n, abs=1e-9)
@@ -441,3 +442,64 @@ def test_the_documented_recipe_reads_an_off_centre_tile(native_spans):
     assert hits, "the tone is detected"
     got = bin_to_signed(hits[0][0], acq.doppler_bins) * res
     assert got == pytest.approx(f, abs=1e-6)
+
+
+# ── a Doppler rate compensated, not just capped ────────────────────────────
+
+
+def _sweeping_stream(pre, reps, f_mid, rate):
+    """`reps` repetitions of `pre` whose carrier sweeps at `rate`, about the
+    stream's middle (normalized: fs = 1, so rates are cycles/sample^2)."""
+    n = pre.size
+    u = np.arange(reps * n) - 0.5 * reps * n
+    ph = 2 * np.pi * (f_mid * u + 0.5 * rate * u * u)
+    return (np.tile(pre, reps) * np.exp(1j * ph)).astype(np.complex64)
+
+
+def test_rate_hypotheses_default_to_none():
+    b = BurstAcquisition(_ZC, reps=8, doppler_rate=1e-6)
+    assert b.rate_hypotheses == 1
+
+
+def test_rate_hypotheses_buy_depth_over_the_cap():
+    """The drift bound applies to the RESIDUAL, doppler_rate / (n - 1): the
+    same rate that capped the depth at 5 allows 15 once nine rates are
+    searched: the residual is 1/8 of the span, so the cap grows by
+    sqrt(8)."""
+    f_epoch = 1.0 / _ZC.size
+    rate = f_epoch**2 / (2 * 5.5**2)  # a ceiling of 5
+    assert BurstAcquisition(_ZC, reps=16, doppler_rate=rate).doppler_bins == 5
+    b = BurstAcquisition(_ZC, reps=16, doppler_rate=rate, rate_hypotheses=9)
+    assert b.rate_hypotheses == 9 and b.doppler_bins == 15
+
+
+@pytest.mark.parametrize("n", [0, 65, 1000])
+def test_rate_hypotheses_out_of_range_is_a_value_error(n):
+    with pytest.raises(ValueError, match="rate_hypotheses"):
+        BurstAcquisition(_ZC, reps=8, doppler_rate=1e-6, rate_hypotheses=n)
+
+
+def test_rate_hypotheses_need_a_rate_to_span():
+    """doppler_rate is the SPAN of the hypotheses: with none given there is
+    nothing to compensate."""
+    with pytest.raises(ValueError, match="rate_hypotheses"):
+        BurstAcquisition(_ZC, reps=8, rate_hypotheses=3)
+    assert BurstAcquisition(_ZC, reps=8, rate_hypotheses=1)  # one is fine
+
+
+@pytest.mark.parametrize("sign", [-1, 1])
+def test_a_hit_names_the_rate_hypothesis_that_won(sign):
+    """The hit's last field is the winning rate; the truth is on a hypothesis
+    here (hypotheses are -R, -R/2, 0, R/2, R), so it is found exactly."""
+    span = 9e-7
+    b = BurstAcquisition(_ZC, reps=16, doppler_rate=span, rate_hypotheses=5)
+    x = _sweeping_stream(_ZC, 48, 5e-4 * sign, 0.5 * span * sign)
+    hits = b.push(x)
+    assert hits, "the swept burst is detected"
+    assert hits[0][-1] == pytest.approx(0.5 * span * sign)
+
+
+def test_a_hit_without_hypotheses_reports_no_rate():
+    b = BurstAcquisition(_ZC, reps=8)
+    hits = b.push(np.tile(_ZC, 16).astype(np.complex64))
+    assert hits and hits[0][-1] == 0.0

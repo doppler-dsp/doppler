@@ -20,6 +20,7 @@
 * **ACQ\_DELAY\_LOSS\_NODES** ([**acq\_core.h**](acq__core_8h.md))
 * **ACQ\_MAX\_PEAKS** ([**acq\_core.h**](acq__core_8h.md))
 * **ACQ\_N\_NONCOH\_SAFETY\_CEILING** ([**acq\_core.h**](acq__core_8h.md))
+* **ACQ\_RATE\_HYPS\_MAX** ([**acq\_core.h**](acq__core_8h.md))
 * **ACQ\_STATE\_MAGIC** ([**acq\_core.h**](acq__core_8h.md))
 * **ACQ\_STATE\_VERSION** ([**acq\_core.h**](acq__core_8h.md))
 * **ADC\_STATE\_MAGIC** ([**adc\_core.h**](adc__core_8h.md))

@@ -48,7 +48,8 @@ PersistentBurstCaptureObj_init (PersistentBurstCaptureObject *self,
   static char *kwlist[]
       = { "path", "preamble",   "burst_len",           "reps",
           "fs",   "cn0_dbhz",   "doppler_uncertainty", "pfa",
-          "pd",   "noise_mode", "doppler_rate",        NULL };
+          "pd",   "noise_mode", "doppler_rate",        "rate_hypotheses",
+          NULL };
   PyObject          *preamble_obj        = NULL;
   PyObject          *path                = NULL; /* fspath -> bytes */
   unsigned long long burst_len_raw       = 8192;
@@ -60,11 +61,13 @@ PersistentBurstCaptureObj_init (PersistentBurstCaptureObject *self,
   double             pd                  = 0.9;
   const char        *noise_mode_str      = "mean";
   double             doppler_rate        = 0.0;
+  unsigned long long rate_hypotheses_raw = 1;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "O&O|KKdddddsd", kwlist, PyUnicode_FSConverter, &path,
+          args, kwds, "O&O|KKdddddsdK", kwlist, PyUnicode_FSConverter, &path,
           &preamble_obj, &burst_len_raw, &reps_raw, &fs, &cn0_dbhz,
-          &doppler_uncertainty, &pfa, &pd, &noise_mode_str, &doppler_rate))
+          &doppler_uncertainty, &pfa, &pd, &noise_mode_str, &doppler_rate,
+          &rate_hypotheses_raw))
     {
       Py_XDECREF (path);
       return -1;
@@ -89,7 +92,8 @@ PersistentBurstCaptureObj_init (PersistentBurstCaptureObject *self,
       Py_XDECREF (path);
       return -1;
     }
-  PyArrayObject *preamble_arr = jm_array_arg (
+  size_t         rate_hypotheses = (size_t)rate_hypotheses_raw;
+  PyArrayObject *preamble_arr    = jm_array_arg (
       preamble_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "preamble");
   if (!preamble_arr)
     {
@@ -101,7 +105,7 @@ PersistentBurstCaptureObj_init (PersistentBurstCaptureObject *self,
       PyBytes_AS_STRING (path),
       (const float _Complex *)PyArray_DATA (preamble_arr), preamble_len,
       burst_len, reps, fs, cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode,
-      doppler_rate);
+      doppler_rate, rate_hypotheses);
   Py_XDECREF (path);
   Py_DECREF (preamble_arr);
   if (!self->handle)
@@ -110,7 +114,9 @@ PersistentBurstCaptureObj_init (PersistentBurstCaptureObject *self,
                        "BurstCapture: invalid parameter (need a non-empty "
                        "preamble with finite, non-zero energy, reps >= 1, fs "
                        "> 0, burst_len >= 1, cn0_dbhz finite or NaN, "
-                       "doppler_rate >= 0, 0 < pfa < 1, 0 < pd < 1)");
+                       "doppler_rate >= 0, 1 <= rate_hypotheses <= 64 (and "
+                       "doppler_rate nonzero above 1), 0 < pfa < 1, 0 < pd < "
+                       "1)");
       return -1;
     }
   return 0;
@@ -967,6 +973,19 @@ PersistentBurstCapture_getprop_doppler_rate (
   return PyFloat_FromDouble (dp_burst_capture_get_doppler_rate (self->handle));
 }
 static PyObject *
+PersistentBurstCapture_getprop_rate_hypotheses (
+    PersistentBurstCaptureObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)dp_burst_capture_get_rate_hypotheses (self->handle));
+}
+static PyObject *
 PersistentBurstCapture_getprop_pd_predicted (
     PersistentBurstCaptureObject *self, void *Py_UNUSED (closure))
 {
@@ -1227,6 +1246,14 @@ static PyGetSetDef PersistentBurstCapture_getset[] = {
     "Doppler rate (Hz/s) the acquisition's coherent depth is bounded against: "
     "`doppler_bins <= f_epoch/sqrt(2*doppler_rate)`, so the carrier drifts "
     "less than half a slow-time row per block. 0 is no bound.\n",
+    NULL },
+  { "rate_hypotheses", (getter)PersistentBurstCapture_getprop_rate_hypotheses,
+    NULL,
+    "Doppler-rate hypotheses the acquisition searches, as given at "
+    "construction; 1 is none -- `doppler_rate` then only caps the coherent "
+    "depth. Above 1 `doppler_rate` is the span of the hypotheses, the depth "
+    "is bounded by the residual `doppler_rate/(rate_hypotheses - 1)`, and "
+    "refine tries the rates too.\n",
     NULL },
   { "pd_predicted", (getter)PersistentBurstCapture_getprop_pd_predicted, NULL,
     "Detection probability of ONE dwell of the sized grid lying wholly inside "
@@ -1824,7 +1851,9 @@ static PyTypeObject PersistentBurstCaptureObjType = {
     "depth\n"
     "    at `f_epoch/sqrt(2*doppler_rate)` repetitions (doppler#1482); 0 is "
     "no\n"
-    "    bound.\n"
+    "    bound. With rate_hypotheses > 1 it is the span instead.\n"
+    "rate_hypotheses : int, default 1\n"
+    "    Doppler-rate hypotheses to search; see dp_burst_capture_create().\n"
     "\n"
     "Examples\n"
     "--------\n"

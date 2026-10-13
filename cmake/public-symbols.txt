@@ -165,6 +165,9 @@ dp_acq_get_state function
 dp_acq_position function
 dp_acq_psl_db function
 dp_acq_push function
+dp_acq_rate_hypotheses_for function
+dp_acq_rate_hypothesis function
+dp_acq_rate_phasor function
 dp_acq_reset function
 dp_acq_run function
 dp_acq_set_carrier_freq_hz function
@@ -359,6 +362,7 @@ dp_burst_capture_get_pd_predicted function
 dp_burst_capture_get_pending function
 dp_burst_capture_get_preamble_start function
 dp_burst_capture_get_psl_db function
+dp_burst_capture_get_rate_hypotheses function
 dp_burst_capture_get_state function
 dp_burst_capture_get_straddle_loss function
 dp_burst_capture_push function

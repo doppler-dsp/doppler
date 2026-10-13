@@ -147,7 +147,7 @@ dp_dsss_burst_receiver_create_desc (
     pre[i] = nrz[i / spc];
   s->cap = dp_burst_capture_create (pre, n, s->burst_len, reps, fs, cn0_dbhz,
                                     doppler_uncertainty, pfa, pd, 0,
-                                    max_rate * fs * fs);
+                                    max_rate * fs * fs, 1);
   free (pre);
   free (nrz);
   if (!s->cap)

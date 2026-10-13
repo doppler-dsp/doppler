@@ -695,8 +695,10 @@ in effect: `D*(n)` is the depth it picks with the drift bound OFF, priced with
 (`n = 1`: `R` itself). The first `n` with `D_cap(n) >= D*(n)` is the first at
 which the hypotheses stop costing depth, so it is the smallest that does not
 trade sensitivity for work; if none does by 64, it is 64. At the design point
-below it picks `n = 4` at `D = 9`, where `n = 9` is `D = 10`: the same capture
-Pd (0.916 against 0.912, 250 trials) for under half the per-dwell work. A
+below it picks `n = 4` at `D = 9`, where `n = 9` is `D = 10`: a capture Pd
+no worse than `n = 9`'s (0.935 against 0.906 at 1000 trials, 95% intervals
+0.918 – 0.949 and 0.886 – 0.923; see the table below) for 4/9 of the per-dwell
+work by the cost model below. A
 strong design point that a capped depth already serves picks `n = 1`. The
 choice reads back as `rate_hypotheses`, burst engines only, and like any
 `n > 1` it needs a `doppler_rate` to span.
@@ -743,9 +745,18 @@ every hit of a dwell wears the winner's rate.
     (D = 10), about 85 µs a hypothesis.
 - *False alarms* are priced, not hoped away: the per-cell Pfa is split over
     `n·searched_bins·code_bins` cells, so the gate rises with `n`. The
-    hypotheses are strongly correlated, so that is conservative: measured per
-    dwell against a target of 1e-3, `n = 3, 5, 9` read 1.06e-3, 0.89e-3,
-    0.59e-3, none significantly above it.
+    hypotheses are strongly correlated, so that is conservative at large `n`
+    and not yet at small `n`. Measured per dwell against a target of 1e-3,
+    noise only, 200000 dwells a row: `n = 1, 3, 5, 9` read 1.97e-3, 1.06e-3,
+    0.89e-3, 0.59e-3, and the auto row (`n = 4`) **1.15e-3 (95% 1.01e-3 –
+    1.30e-3), whose lower bound is above the target**. At 1e6 dwells (seeds
+    5003, 5004, 5005 and, for the auto engine, 5000): `n = 3` 1202 hits,
+    1.20e-3 (1.14 – 1.27e-3), above; `n = 4` 1069 hits, 1.07e-3 (1.01 –
+    1.14e-3), above, barely, and the auto engine 1047 hits, 1.05e-3 (0.99 –
+    1.11e-3), inside; `n = 5` 833 hits, 0.83e-3 (0.78 – 0.89e-3), below.
+    Pooling the three `n = 4` runs gives 1.07e-3 (1.02 – 1.11e-3): about 7%
+    over, small but real. The excess shrinks with `n` and belongs with the
+    uncompensated engine's (below, #2218); it is filed as #2287.
 - *Refine follows.* Its coherent sum runs the whole preamble, so a sweep that
     the engine's short dwell tolerates collapses it: the capture named the
     wrong repetition for about half the bursts at high SNR. Refine tries the
@@ -758,25 +769,30 @@ every hit of a dwell wears the winner's rate.
 **What it buys, measured** (`native/validation/acq_rate_pd.c`; ZC 127 × 16,
 fs = 1, rate span ±9e-7 cycles/sample², so a carrier at the span's rate
 sweeps 0.0018 of fs across the preamble; C/N0 −13 dB, where `n = 9` predicts a burst Pd of 0.9;
-1000 trials a row; Wilson 95%):
+1000 trials a row; Wilson 95%; the swept carrier is the library's own
+`wfm_synth` rotation, `dp_wfm_synth_prod`, not a private phase ramp):
 
-|   n |   D | rate drawn | `pd_burst` | engine |   capture | capture 95%   |
-| --: | --: | :--------- | ---------: | -----: | --------: | :------------ |
-|   1 |   5 | uniform    |      0.849 |  0.945 | **0.546** | 0.515 – 0.577 |
-|   3 |   8 | uniform    |      0.899 |  0.976 |     0.912 | 0.893 – 0.928 |
-|   3 |   8 | midpoint   |      0.899 |  0.979 |     0.916 | 0.897 – 0.932 |
-|   5 |   9 | uniform    |      0.907 |  0.988 |     0.930 | 0.912 – 0.944 |
-|   5 |   9 | midpoint   |      0.907 |  0.984 |     0.927 | 0.909 – 0.942 |
-|   9 |  10 | uniform    |      0.904 |  0.985 |     0.912 | 0.893 – 0.928 |
-|   9 |  10 | midpoint   |      0.904 |  0.977 |     0.918 | 0.899 – 0.933 |
+|   n |   D | rate drawn    | `pd_burst` | engine |   capture | capture 95%   |
+| --: | --: | :------------ | ---------: | -----: | --------: | :------------ |
+|   1 |   5 | uniform       |      0.849 |  0.958 | **0.564** | 0.533 – 0.594 |
+|   3 |   8 | uniform       |      0.899 |  0.981 |     0.913 | 0.894 – 0.929 |
+|   3 |   8 | midpoint      |      0.899 |  0.984 |     0.929 | 0.911 – 0.943 |
+|   5 |   9 | uniform       |      0.907 |  0.980 |     0.918 | 0.899 – 0.933 |
+|   5 |   9 | midpoint      |      0.907 |  0.981 |     0.923 | 0.905 – 0.938 |
+|   9 |  10 | uniform       |      0.904 |  0.979 |     0.906 | 0.886 – 0.923 |
+|   9 |  10 | midpoint      |      0.904 |  0.981 |     0.916 | 0.897 – 0.932 |
+|   4 |   9 | uniform, auto |      0.912 |  0.987 |     0.935 | 0.918 – 0.949 |
 
 *midpoint* puts every trial's rate exactly half a spacing from the nearest
 hypothesis, the worst case the depth bound is derived against; *uniform* draws
 it over the span. `pd_burst` prices a rate ON a hypothesis, and the table is
 the evidence that the half-spacing residual costs nothing beyond what the
 bound already allows: the worst case reads the same as the average.
-Uncompensated, the same C/N0 delivers 0.55: the engine still sees the burst
-(0.945) and refine loses it.
+Uncompensated, the same C/N0 delivers 0.56: the engine still sees the burst
+(0.958) and refine loses it. The auto row (`rate_hypotheses = 0`) chose `n = 4`
+at `D = 9`; its capture Pd, 0.935 (0.918 – 0.949), is no worse than `n = 9`'s
+0.906 (0.886 – 0.923) -- the intervals overlap only slightly, so no better can
+be claimed from 1000 trials.
 
 **Two things this does not say.** The uncompensated row's Pfa is a separate
 finding: the engine as it ran before this section reads **1.97e-3** a dwell

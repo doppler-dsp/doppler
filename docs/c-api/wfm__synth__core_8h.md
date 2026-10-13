@@ -87,6 +87,7 @@ _Synth component API._ [More...](#detailed-description)
 |  int | [**dp\_wfm\_synth\_get\_sym\_pos**](#function-dp_wfm_synth_get_sym_pos) (const [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state) <br>_Return the current position within the current symbol (0..nsps-1). Reaches nsps and wraps to 0 each time a new symbol is consumed from the PN LFSR. Useful for frame alignment: sym\_pos==0 on a step boundary means the very next sample begins a fresh symbol._  |
 |  int | [**dp\_wfm\_synth\_get\_wtype**](#function-dp_wfm_synth_get_wtype) (const [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state) <br>_Return the active waveform type discriminant. Maps to the WFM\_SYNTH\_\* enum: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk. Use this to inspect which synthesis path is active at runtime._  |
 |  void | [**dp\_wfm\_synth\_noise\_steps**](#function-dp_wfm_synth_noise_steps) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, float \_Complex \* output, size\_t n) <br>_Generate n noise-only samples — the synth's additive-AWGN term with no signal — continuing the same noise RNG stream_ [_**dp\_wfm\_synth\_steps()**_](wfm__synth__core_8h.md#function-dp_wfm_synth_steps) _draws from (no reseed, identical chunked awgn call pattern, so a gap rendered here is the seamless continuation of the on-time noise). Writes exact zeros and advances nothing for a clean synth (no AWGN child). Used by the composer to carry a segment's noise floor through its off-time gap._ |
+|  void | [**dp\_wfm\_synth\_prod**](#function-dp_wfm_synth_prod) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, const float \_Complex \* in, size\_t n, float \_Complex \* out) <br>_Multiply a block by the synth's next output samples._ `out[i] = in[i] * y[i]` _for_`i = 0 .. n-1` _, where_`y` _is exactly what_[_**dp\_wfm\_synth\_steps()**_](wfm__synth__core_8h.md#function-dp_wfm_synth_steps) _would emit next. The synth advances by_`n` _samples just as dp\_wfm\_synth\_steps(state, ., n) would, so a split call sequence (3 + 5 + n) equals one call, and_`n == 0` _is a no-op that does not advance it._`out` _may equal_`in` _(in place). No new state, so the state blob is unchanged._ |
 |  void | [**dp\_wfm\_synth\_reseed\_noise**](#function-dp_wfm_synth_reseed_noise) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, uint32\_t seed) <br>_Reseed only the additive-noise (AWGN) generator, leaving the signal (LO / PN code / data / pulse shaping) untouched. A no-op for a synth with no noise. Used by the composer to give each repeat a fresh noise realization while the underlying waveform stays bit-identical._  |
 |  void | [**dp\_wfm\_synth\_reset**](#function-dp_wfm_synth_reset) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state) <br>_Reset Synth to its post-create state. Resets the LO phase accumulator, AWGN internal state, and PN LFSR register to their initial values so the output sequence is perfectly reproducible from sample 0._  |
 |  int | [**dp\_wfm\_synth\_set\_bits**](#function-dp_wfm_synth_set_bits) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, const uint8\_t \* bits, size\_t n, int modulation) <br>_Attach a user bit pattern to a type=bits synth (no-op otherwise)._  |
@@ -108,6 +109,7 @@ _Synth component API._ [More...](#detailed-description)
 |  const char \* | [**dp\_wfm\_synth\_state\_refusal**](#function-dp_wfm_synth_state_refusal) (const [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state) <br>_Why the synth's state cannot be serialized, or NULL when it can._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**dp\_wfm\_synth\_step**](#function-dp_wfm_synth_step) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state) <br>_Generate one output sample from internal state. Advances the PN LFSR (modulated types only, on symbol boundaries), the LO phase accumulator, and the AWGN engine, then returns the mixed result:_ `sym * carrier + noise` _. Inlined and hot-path annotated so tight per-sample loops pay no call overhead._ |
 |  void | [**dp\_wfm\_synth\_steps**](#function-dp_wfm_synth_steps) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, float \_Complex \* output, size\_t n) <br>_Generate a block of output samples. Calls_ [_**dp\_wfm\_synth\_step()**_](wfm__synth__core_8h.md#function-dp_wfm_synth_step) _in a tight loop, writing each cf32 sample into_`output` _. The Python binding returns a freshly allocated NumPy complex64 array; ownership is transferred to the caller._ |
+|  void | [**dp\_wfm\_synth\_sweep\_ends**](#function-dp_wfm_synth_sweep_ends) (double fs, double f\_mid, double rate, size\_t n, double center, double \* f0, double \* f\_end) <br>_Start and end frequency of the chirp that sweeps about a center. A chirp with_ `freq = *f0` _,_`f_end = *f_end` _and dp\_wfm\_synth\_set\_chirp\_span(n) has instantaneous frequency_`f_mid + rate*u` _(Hz) at sample_`i` _,_`u = (i - center)/fs` _seconds, and so multiplies a block by_`exp(j*2*pi*(f_mid*u + rate*u^2/2))` _up to one constant phase (the synth's phase is 0 at sample 0, the formula's at_`u = 0` _). The synth's increment lands after its sample, hence the half-sample in_`*f0` _. Pure arithmetic: no state, nothing allocated._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**wfm\_synth\_bit\_next**](#function-wfm_synth_bit_next) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* s, unsigned \* bit) <br>_The next bit of the pattern, or none once the data has ended._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float \_Complex | [**wfm\_synth\_bit\_symbol**](#function-wfm_synth_bit_symbol) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* s) <br>_Next symbol from the user bit pattern — one mapping, every M._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**wfm\_synth\_bps**](#function-wfm_synth_bps) (int type) <br>_Bits carried by one symbol of_ `type` _— the_`bps` _an Eb/No needs._ |
@@ -577,6 +579,51 @@ void dp_wfm_synth_noise_steps (
 * `state` Synth state (may be NULL — no-op). 
 * `output` n complex samples out. 
 * `n` Sample count. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_synth\_prod 
+
+_Multiply a block by the synth's next output samples._ `out[i] = in[i] * y[i]` _for_`i = 0 .. n-1` _, where_`y` _is exactly what_[_**dp\_wfm\_synth\_steps()**_](wfm__synth__core_8h.md#function-dp_wfm_synth_steps) _would emit next. The synth advances by_`n` _samples just as dp\_wfm\_synth\_steps(state, ., n) would, so a split call sequence (3 + 5 + n) equals one call, and_`n == 0` _is a no-op that does not advance it._`out` _may equal_`in` _(in place). No new state, so the state blob is unchanged._
+```C++
+void dp_wfm_synth_prod (
+    dp_wfm_synth_state_t * state,
+    const float _Complex * in,
+    size_t n,
+    float _Complex * out
+) 
+```
+
+
+
+This is the general waveform-multiplication operator: with a tone synth it is a rotation, with a chirp synth a swept rotation, with noise a noise multiplier, with PN/BPSK a modulation.
+
+
+
+
+**Parameters:**
+
+
+* `state` Initialized Synth state returned by `dp_wfm_synth_create`. 
+* `in` Input block of `n` cf32 samples. 
+* `n` Number of samples. 
+* `out` Output block of `n` cf32 samples (may alias `in`). 
+```C++
+>>> from doppler.wfm import _SynthEngine
+>>> import numpy as np
+>>> s = _SynthEngine(type="tone", fs=1.0, freq=0.25, snr=100.0)
+>>> y = s.prod(np.ones(4, np.complex64))
+>>> bool(np.allclose(y, [1, 1j, -1, -1j], atol=1e-5))
+True
+```
+ 
 
 
 
@@ -1362,6 +1409,45 @@ void dp_wfm_synth_steps (
 [(1+0j), (1+0j), (1+0j), (1+0j)]
 ```
  
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_synth\_sweep\_ends 
+
+_Start and end frequency of the chirp that sweeps about a center. A chirp with_ `freq = *f0` _,_`f_end = *f_end` _and dp\_wfm\_synth\_set\_chirp\_span(n) has instantaneous frequency_`f_mid + rate*u` _(Hz) at sample_`i` _,_`u = (i - center)/fs` _seconds, and so multiplies a block by_`exp(j*2*pi*(f_mid*u + rate*u^2/2))` _up to one constant phase (the synth's phase is 0 at sample 0, the formula's at_`u = 0` _). The synth's increment lands after its sample, hence the half-sample in_`*f0` _. Pure arithmetic: no state, nothing allocated._
+```C++
+void dp_wfm_synth_sweep_ends (
+    double fs,
+    double f_mid,
+    double rate,
+    size_t n,
+    double center,
+    double * f0,
+    double * f_end
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `fs` Sample rate, Hz (&gt; 0). 
+* `f_mid` Frequency at the center, Hz. 
+* `rate` Sweep, Hz per second. 
+* `n` Samples the sweep spans (pass to set\_chirp\_span). 
+* `center` Sample index of `u = 0` (need not be an integer). 
+* `f0` Out: chirp start frequency, Hz. 
+* `f_end` Out: chirp end frequency, Hz. 
 
 
 

@@ -508,6 +508,43 @@ class _SynthEngine:
         blob : bytes
             A `get_state()` blob from this type, exactly `state_bytes()` long.
         """
+
+    def prod(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
+        """Multiply a block by the synth's next output samples.
+
+        ``out[i] = x[i] * y[i]``, where ``y`` is what ``steps(len(x))`` would emit
+        next. The synth advances exactly as ``steps(len(x))`` does, so split calls
+        equal one call and an empty ``x`` does not advance it. A tone synth makes this
+        a rotation, a chirp a swept rotation, noise a noise multiplier, PN/BPSK a
+        modulation. ``x`` is not modified.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            1-D complex64 block to multiply.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            A new array, ``x`` times the synth's next ``len(x)`` samples.
+
+        Raises
+        ------
+        TypeError
+            If ``x`` is not a complex64 ndarray.
+        ValueError
+            If ``x`` is not 1-D.
+
+        Examples
+        --------
+        >>> from doppler.wfm import _SynthEngine
+        >>> import numpy as np
+        >>> s = _SynthEngine(type="tone", fs=1.0, freq=0.25, snr=100.0)
+        >>> y = s.prod(np.ones(4, np.complex64))
+        >>> bool(np.allclose(y, [1, 1j, -1, -1j], atol=1e-5))
+        True
+
+        """
     def get_wtype(self) -> int:
         """Return the active waveform type discriminant. Maps to the
         WFM_SYNTH_* enum: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk. Use this to
@@ -3119,6 +3156,30 @@ def field_bits(spec: str) -> NDArray[np.uint8]:
 def rrc_taps(beta: float, sps: int, span: int) -> NDArray[np.float32]:
     """Root-raised-cosine pulse-shaping taps (2*span*sps+1 unit-energy cf32
     taps).
+    """
+
+def sweep_ends(
+    fs: float,
+    f_mid: float,
+    rate: float,
+    n: int,
+    center: float,
+) -> NDArray[np.float64]:
+    """Start and end frequency of the chirp that sweeps about a center.
+
+    A chirp from ``f0`` to ``f_end`` pinned over ``n`` samples has instantaneous
+    frequency ``f_mid + rate*u`` Hz at sample ``i``, ``u = (i - center)/fs``
+    seconds, so it multiplies a block by ``exp(j*2*pi*(f_mid*u + rate*u**2/2))``
+    up to one constant phase. This is the single copy of that arithmetic
+    (``dp_wfm_synth_sweep_ends``); ``doppler.wfm.rotate`` takes it from here.
+
+    Examples
+    --------
+    >>> from doppler.wfm import sweep_ends
+    >>> f0, f_end = sweep_ends(1.0, 0.0, 1e-4, 1001, 500.0)
+    >>> round(float(f0), 6), round(float(f_end), 6)
+    (-0.04995, 0.05015)
+
     """
 
 def dsss_spread(

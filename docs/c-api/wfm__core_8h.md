@@ -62,6 +62,7 @@ _Wfmgen module — public C API._
 |  void | [**dp\_rc\_h**](#function-dp_rc_h) (const double \* t, size\_t t\_len, double \* out, double beta) <br> |
 |  void | [**dp\_rrc\_h**](#function-dp_rrc_h) (const double \* t, size\_t t\_len, double \* out, double beta) <br> |
 |  void | [**dp\_rrc\_taps**](#function-dp_rrc_taps) (double beta, int sps, int span, float \* out) <br> |
+|  void | [**dp\_sweep\_ends**](#function-dp_sweep_ends) (double fs, double f\_mid, double rate, size\_t n, double center, double \* out) <br> |
 |  float | [**dp\_wfm\_awgn\_amplitude**](#function-dp_wfm_awgn_amplitude) (float snr\_db, float signal\_power) <br>_Compute the per-component AWGN amplitude for a target SNR. The AWGN engine uses equal-power I and Q noise: complex noise power is 2 \* amplitude². This function inverts that relationship for a given_ `signal_power` _and_`snr_db` _(measured over the full sample-rate bandwidth): amplitude = sqrt(signal\_power / (2 \* 10^(snr\_db / 10))). Pass the result directly to_`dp_awgn_create` _to get the exact noise level that corresponds to the requested SNR._ |
 |  float | [**dp\_wfm\_ebno\_to\_snr\_db**](#function-dp_wfm_ebno_to_snr_db) (float ebno\_db, int bits\_per\_symbol, float samples\_per\_symbol) <br>_Convert Eb/No (dB) to SNR (dB) over the full sample-rate band. Digital communication systems are typically specified in Eb/No; doppler uses an fs-band SNR internally. The conversion is: SNR\_fs = Eb/No + 10 log10(bits\_per\_symbol) - 10 log10(samples\_per\_symbol) For BPSK (bits\_per\_symbol=1, sps=8) at Eb/No=10 dB this gives ~0.97 dB. For QPSK (bits\_per\_symbol=2, sps=8) at Eb/No=10 dB this gives ~3.98 dB._  |
 
@@ -381,6 +382,26 @@ void dp_rrc_taps (
     int sps,
     int span,
     float * out
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_sweep\_ends 
+
+```C++
+void dp_sweep_ends (
+    double fs,
+    double f_mid,
+    double rate,
+    size_t n,
+    double center,
+    double * out
 ) 
 ```
 

@@ -437,7 +437,10 @@ doc = """Multiply a block by the synth's next output samples.
 
 ``out[i] = x[i] * y[i]``, where ``y`` is what ``steps(len(x))`` would emit
 next. The synth advances exactly as ``steps(len(x))`` does, so split calls
-equal one call and an empty ``x`` does not advance it. A tone synth makes this
+leave the same synth state as one call and an empty ``x`` does not advance it;
+the product itself agrees across such call sequences to rounding (a few ulp
+of ``|x| * |y|``), not to the bit, because the compiler may contract the
+multiply differently on different paths (arm64 under ``-ffast-math``). A tone synth makes this
 a rotation, a chirp a swept rotation, noise a noise multiplier, PN/BPSK a
 modulation. ``x`` is not modified.
 

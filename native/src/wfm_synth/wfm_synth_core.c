@@ -1018,9 +1018,13 @@ dp_wfm_synth_prod (dp_wfm_synth_state_t *state, const float _Complex *in,
   /* The operator, not a second generator: the synth's own block kernel
    * fills a small scratch and the product is one multiply per sample. The
    * synth therefore advances exactly as dp_wfm_synth_steps(state, ., n)
-   * would, and a split call sequence equals one call (steps is chunk
-   * invariant). Reading in[i] only after scratch[i] exists, and writing
-   * out[i] last, is what makes out == in safe. */
+   * would: a split call sequence leaves the same synth state as one call
+   * (steps is chunk invariant). The PRODUCT agrees across such sequences to
+   * rounding, not to the bit -- the compiler may contract the multiply into
+   * an FMA differently on different paths (arm64 under -ffast-math, see the
+   * note on dp_wfm_synth_steps' kernel) -- so callers compare it with a few
+   * ulp of |in| * |y|. Reading in[i] only after scratch[i] exists, and
+   * writing out[i] last, is what makes out == in safe. */
   enum
   {
     PCH = 256

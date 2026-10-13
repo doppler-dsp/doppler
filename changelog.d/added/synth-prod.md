@@ -3,7 +3,7 @@
     `doppler.wfm.rotate` as the swept-carrier special case.** A tone makes it
     a rotation, a chirp a swept rotation, noise a noise multiplier, PN/BPSK a
     modulation; the synth advances exactly as `steps(n)` does, so split calls
-    equal one call. `rotate(x, freq, rate, fs, center)` applies a chirp about
+    leave the same state, and the product agrees to rounding, not to the bit. `rotate(x, freq, rate, fs, center)` applies a chirp about
     a stated center, its endpoints from the one C home
     `dp_wfm_synth_sweep_ends` (`_sweep_ends`, private); the C twin is
     `native/tests/dp_swept_test.h`.

@@ -1054,10 +1054,16 @@ void dp_wfm_synth_steps(
  * @brief Multiply a block by the synth's next output samples.
  * ``out[i] = in[i] * y[i]`` for ``i = 0 .. n-1``, where ``y`` is exactly
  * what dp_wfm_synth_steps() would emit next.  The synth advances by ``n``
- * samples just as dp_wfm_synth_steps(state, ., n) would, so a split call
- * sequence (3 + 5 + n) equals one call, and ``n == 0`` is a no-op that does
- * not advance it.  ``out`` may equal ``in`` (in place).  No new state, so
- * the state blob is unchanged.
+ * samples just as dp_wfm_synth_steps(state, ., n) would, EXACTLY: a split call
+ * sequence (3 + 5 + n) leaves the same synth state as one call, and the
+ * synth samples ``y`` are the same, and ``n == 0`` is a no-op that does not
+ * advance it.  The PRODUCT agrees across such sequences to rounding, not to
+ * the bit: the compiler may contract the multiply differently on the vector
+ * body and the scalar tail, split calls and in place vs out of place (the
+ * -ffast-math builds do on arm64; see the note in dp_wfm_synth_steps()), so
+ * compare products with a few ulp of ``|in| * |y|``, and drive a single call
+ * path where byte-for-byte matters.  ``out`` may equal ``in`` (in place).  No
+ * new state, so the state blob is unchanged.
  *
  * This is the general waveform-multiplication operator: with a tone synth it
  * is a rotation, with a chirp synth a swept rotation, with noise a noise

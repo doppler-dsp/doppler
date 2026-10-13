@@ -7,6 +7,8 @@
 #include "dp_state_test.h"
 #include "dp_swept_test.h"
 #include "dp_test.h"
+#include <complex.h>
+#include <float.h>
 #include <math.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -44,6 +46,38 @@ chirp_steps (void *o, const void *in, size_t n, void *out, size_t out_cap)
 
 /* Floating-point helpers — use inline functions, not macros, so arguments
  * are evaluated exactly once.  Safe to call with stateful step() results. */
+/* Two ways of computing the same product agree to ROUNDING, not to the bit.
+ * dp_wfm_synth_prod, a split call sequence, an in-place call and the test's
+ * own `steps() * in` reference all multiply the same two numbers, but the
+ * compiler may contract the multiply (and the noise-add inside steps) into
+ * fused multiply-adds differently on the vector body and the scalar tail and
+ * in place vs out of place -- the repo's -ffast-math builds do on arm64, and
+ * dp_wfm_synth_steps' own comment (wfm_synth_core.c, "an ULP on FMA targets
+ * (arm64)") already says callers needing byte-for-byte must drive one path.
+ * So the product is compared with a RELATIVE tolerance: a few ulp of the
+ * product's magnitude |in| * |y| (y = the synth's sample), per element, since
+ * noisy BPSK is not unit-modulus. What IS exact stays exact: the synth's
+ * state after any call sequence is compared byte for byte. A wrong answer
+ * (a dropped `in`, a missed or extra advance, a reset) errs by O(1) of that
+ * magnitude, about a million times the tolerance. */
+#define PROD_RTOL (8.0 * (double)FLT_EPSILON)
+
+static double
+prod_worst_rel_err (const float _Complex *a, const float _Complex *b,
+                    const float _Complex *x, const float _Complex *y, size_t n)
+{
+  double worst = 0.0;
+  for (size_t i = 0; i < n; i++)
+    {
+      const double scale = (double)cabsf (x[i]) * (double)cabsf (y[i]);
+      const double err   = (double)cabsf (a[i] - b[i]);
+      const double rel = scale > 0.0 ? err / scale : (err > 0.0 ? 1e30 : 0.0);
+      if (rel > worst)
+        worst = rel;
+    }
+  return worst;
+}
+
 int
 main (void)
 {
@@ -1525,7 +1559,8 @@ main (void)
     {
       PN_N = 700 /* > two 256-sample scratch chunks */
     };
-    static float _Complex x[PN_N], ref[PN_N], got[PN_N], b1[PN_N], b2[PN_N];
+    static float _Complex x[PN_N], ys[PN_N], ref[PN_N], got[PN_N], b1[PN_N],
+        b2[PN_N];
     uint32_t st = 91u;
     for (int i = 0; i < PN_N; i++)
       {
@@ -1555,14 +1590,16 @@ main (void)
           }
         dp_wfm_synth_state_t *p = mk[0], *r = mk[1], *ip = mk[2], *sp = mk[3];
 
-        /* (a) bit-exact against the elementwise product of an independent
-         * steps() run from an identical second synth. */
-        dp_wfm_synth_steps (r, ref, PN_N);
+        /* (a) the product agrees (to rounding, see PROD_RTOL) with the
+         * elementwise product of an independent steps() run from an identical
+         * second synth; `ys` keeps that run's samples, the magnitude scale of
+         * every comparison below. */
+        dp_wfm_synth_steps (r, ys, PN_N);
         for (int i = 0; i < PN_N; i++)
-          ref[i] *= x[i];
+          ref[i] = ys[i] * x[i];
         dp_wfm_synth_prod (p, x, PN_N, got);
-        DP_CHECK_MSG (memcmp (ref, got, sizeof ref) == 0,
-                      "prod == in * steps, bit-exact");
+        DP_CHECK_MSG (prod_worst_rel_err (ref, got, x, ys, PN_N) <= PROD_RTOL,
+                      "prod == in * steps, to rounding");
 
         /* the synth advanced exactly as steps() would: identical state. */
         {
@@ -1577,23 +1614,26 @@ main (void)
           free (bb);
         }
 
-        /* (b) in place == out of place. It compares against `got`, the
-           out-of-place result (a) just pinned to the independent reference,
-           so it is only as strong as (a): a core that reads `out` instead
-           of `in` goes red here because (a) went red first, not because (b)
-           knows the right answer. What (b) adds is the aliasing itself --
-           out == in must not read an element it already overwrote. */
+        /* (b) in place == out of place, to rounding. It compares against
+           `got`, the out-of-place result (a) just pinned to the independent
+           reference, so it is only as strong as (a): a core that reads `out`
+           instead of `in` goes red here because (a) went red first, not
+           because (b) knows the right answer. What (b) adds is the aliasing
+           itself -- out == in must not read an element it already
+           overwrote. */
         memcpy (b1, x, sizeof x);
         dp_wfm_synth_prod (ip, b1, PN_N, b1);
-        DP_CHECK_MSG (memcmp (b1, got, sizeof got) == 0,
-                      "prod in place == out of place");
+        DP_CHECK_MSG (prod_worst_rel_err (b1, got, x, ys, PN_N) <= PROD_RTOL,
+                      "prod in place == out of place, to rounding");
 
-        /* (c) split calls == one call, and the state after matches. */
+        /* (c) split calls == one call to rounding, and the state after is
+           byte-for-byte the one-call state (the synth's advance is exact,
+           only the product's rounding is path-dependent). */
         dp_wfm_synth_prod (sp, x, 3, b2);
         dp_wfm_synth_prod (sp, x + 3, 5, b2 + 3);
         dp_wfm_synth_prod (sp, x + 8, PN_N - 8, b2 + 8);
-        DP_CHECK_MSG (memcmp (b2, got, sizeof got) == 0,
-                      "3 + 5 + rest == one call");
+        DP_CHECK_MSG (prod_worst_rel_err (b2, got, x, ys, PN_N) <= PROD_RTOL,
+                      "3 + 5 + rest == one call, to rounding");
         {
           size_t nb = dp_wfm_synth_state_bytes (sp);
           void  *ba = malloc (nb), *bb = malloc (nb);

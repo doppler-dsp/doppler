@@ -48,28 +48,55 @@ def test_engine_prod_matches_steps_for_every_waveform_family():
         )
 
 
+# Two ways of computing the same product agree to ROUNDING, not to the bit: the
+# compiler may contract the multiply (and steps()'s noise-add) into fused
+# multiply-adds differently on the vector body and the scalar tail and between
+# split calls -- the repo's -ffast-math builds do on arm64, and
+# dp_wfm_synth_steps's own comment (wfm_synth_core.c, "an ULP on FMA targets
+# (arm64)") says callers needing byte-for-byte must drive one path. So the
+# comparisons across paths below use a RELATIVE tolerance, a few float32 ulp of
+# the per-element magnitude (noisy BPSK is not unit-modulus); the input
+# being unmodified stays an exact comparison. A wrong answer (a dropped input,
+# a stray advance) errs by O(1) of that magnitude, about a million times it.
+_RTOL = 8 * float(np.finfo(np.float32).eps)
+
+
+def _close(a, b, scale):
+    """``|a - b| <= _RTOL * scale`` element by element."""
+    err = np.abs(a.astype(np.complex128) - b.astype(np.complex128))
+    assert np.all(err <= _RTOL * scale), float(
+        (err / np.maximum(scale, 1e-30)).max()
+    )
+
+
 def test_split_calls_equal_one_call_and_share_the_steps_stream():
     x = _x(100)
     one = _SynthEngine(type="bpsk", sps=2, snr=15.0, seed=1)
     split = _SynthEngine(type="bpsk", sps=2, snr=15.0, seed=1)
+    y = _SynthEngine(type="bpsk", sps=2, snr=15.0, seed=1).steps(100)
     ref = one.prod(x)
     got = np.concatenate(
         [split.prod(x[:3]), split.prod(x[3:8]), split.prod(x[8:])]
     )
-    np.testing.assert_array_equal(got, ref)
+    _close(got, ref, np.abs(x) * np.abs(y))
     # prod and steps draw from ONE stream: a steps() after the prods
     # continues where they stopped.
-    np.testing.assert_array_equal(split.steps(10), one.steps(10))
+    a, b = split.steps(10), one.steps(10)
+    _close(a, b, np.abs(b).max())
 
 
 def test_empty_block_does_not_advance_the_synth():
+    # fs = 1 so one sample is 0.1 cycle: with the default 1 MHz rate a 0.1 Hz
+    # tone moves 6e-7 rad a sample, inside the rounding tolerance, and a stray
+    # advance would be invisible.
     s, r = (
-        _SynthEngine(type="tone", freq=0.1),
-        _SynthEngine(type="tone", freq=0.1),
+        _SynthEngine(type="tone", fs=1.0, freq=0.1),
+        _SynthEngine(type="tone", fs=1.0, freq=0.1),
     )
     out = s.prod(np.zeros(0, np.complex64))
     assert out.shape == (0,) and out.dtype == np.complex64
-    np.testing.assert_array_equal(s.steps(5), r.steps(5))
+    a, b = s.steps(5), r.steps(5)
+    _close(a, b, np.abs(b).max())
 
 
 def test_the_input_is_not_modified_and_the_result_is_new():

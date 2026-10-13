@@ -329,6 +329,8 @@ void dp_wfm_synth_reseed_noise(dp_wfm_synth_state_t *state, uint32_t seed);
 void dp_wfm_synth_noise_steps(dp_wfm_synth_state_t *state, float _Complex *output,
                            size_t n);
 
+size_t dp_wfm_synth_prod_max_out(dp_wfm_synth_state_t *state, size_t n_in);
+
 JM_FORCEINLINE JM_HOT float _Complex
 dp_wfm_synth_step(dp_wfm_synth_state_t *state)
 {
@@ -459,6 +461,12 @@ void dp_wfm_synth_steps(
     dp_wfm_synth_state_t *state,
     float _Complex          *output,
     size_t               n);
+
+void dp_wfm_synth_prod(
+    dp_wfm_synth_state_t *state,
+    const float _Complex *in,
+    float _Complex       *out,
+    size_t                n);
 
 int dp_wfm_synth_get_wtype(const dp_wfm_synth_state_t *state);
 

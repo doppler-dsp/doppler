@@ -3,7 +3,9 @@
 #include "doppler/wfm/wfm_frame.h" /* the burst: dp_wfm_frame_fixed + spread */
 #include "doppler/wfm_synth/wfm_synth_core.h"
 #include "dp_chunk_inv.h"
+#include "dp_rng_test.h"
 #include "dp_state_test.h"
+#include "dp_swept_test.h"
 #include "dp_test.h"
 #include <math.h>
 #include <stddef.h>
@@ -1512,6 +1514,175 @@ main (void)
     DP_CHECK_MSG (varies, "...and is not constant");
     dp_wfm_synth_destroy (s128);
     dp_wfm_synth_destroy (s1);
+  }
+
+  /* -- dp_wfm_synth_prod: the waveform-multiplication operator ---------------
+   * out[i] = in[i] * (the synth's next output), advancing the synth exactly as
+   * steps() does. Three sources cover its three generators: a tone (LO), a
+   * chirp (its own phase recurrence) and a noisy BPSK (PN + AWGN). */
+  {
+    enum
+    {
+      PN_N = 700 /* > two 256-sample scratch chunks */
+    };
+    static float _Complex x[PN_N], ref[PN_N], got[PN_N], b1[PN_N], b2[PN_N];
+    uint32_t st = 91u;
+    for (int i = 0; i < PN_N; i++)
+      {
+        const float re = (float)dp_gauss (&st);
+        const float im = (float)dp_gauss (&st);
+        x[i]           = re + im * I;
+      }
+    for (int kind = 0; kind < 3; kind++)
+      {
+        dp_wfm_synth_state_t *mk[4];
+        for (int j = 0; j < 4; j++)
+          {
+            if (kind == 0)
+              mk[j] = dp_wfm_synth_create (WFM_SYNTH_TONE, 1e6, 1.25e5, 100.0,
+                                           0, 1, 8, 7, 0, 0, 0.0);
+            else if (kind == 1)
+              {
+                mk[j] = dp_wfm_synth_create (WFM_SYNTH_CHIRP, 1e6, 1e4, 100.0,
+                                             0, 1, 8, 7, 0, 0, 3e5);
+                if (mk[j])
+                  dp_wfm_synth_set_chirp_span (mk[j], PN_N);
+              }
+            else
+              mk[j] = dp_wfm_synth_create (WFM_SYNTH_BPSK, 1e6, 0.0, 12.0, 0,
+                                           7, 4, 9, 0, 0, 0.0);
+            DP_REQUIRE (mk[j] != NULL);
+          }
+        dp_wfm_synth_state_t *p = mk[0], *r = mk[1], *ip = mk[2], *sp = mk[3];
+
+        /* (a) bit-exact against the elementwise product of an independent
+         * steps() run from an identical second synth. */
+        dp_wfm_synth_steps (r, ref, PN_N);
+        for (int i = 0; i < PN_N; i++)
+          ref[i] *= x[i];
+        dp_wfm_synth_prod (p, x, got, PN_N);
+        DP_CHECK_MSG (memcmp (ref, got, sizeof ref) == 0,
+                      "prod == in * steps, bit-exact");
+
+        /* the synth advanced exactly as steps() would: identical state. */
+        {
+          size_t nb = dp_wfm_synth_state_bytes (p);
+          DP_CHECK (nb == dp_wfm_synth_state_bytes (r));
+          void *ba = malloc (nb), *bb = malloc (nb);
+          dp_wfm_synth_get_state (p, ba);
+          dp_wfm_synth_get_state (r, bb);
+          DP_CHECK_MSG (memcmp (ba, bb, nb) == 0,
+                        "prod leaves the state steps() would");
+          free (ba);
+          free (bb);
+        }
+
+        /* (b) in place == out of place. */
+        memcpy (b1, x, sizeof x);
+        dp_wfm_synth_prod (ip, b1, b1, PN_N);
+        DP_CHECK_MSG (memcmp (b1, got, sizeof got) == 0,
+                      "prod in place == out of place");
+
+        /* (c) split calls == one call, and the state after matches. */
+        dp_wfm_synth_prod (sp, x, b2, 3);
+        dp_wfm_synth_prod (sp, x + 3, b2 + 3, 5);
+        dp_wfm_synth_prod (sp, x + 8, b2 + 8, PN_N - 8);
+        DP_CHECK_MSG (memcmp (b2, got, sizeof got) == 0,
+                      "3 + 5 + rest == one call");
+        {
+          size_t nb = dp_wfm_synth_state_bytes (sp);
+          void  *ba = malloc (nb), *bb = malloc (nb);
+          dp_wfm_synth_get_state (sp, ba);
+          dp_wfm_synth_get_state (p, bb);
+          DP_CHECK_MSG (memcmp (ba, bb, nb) == 0,
+                        "split calls end in the one-call state");
+          free (ba);
+          free (bb);
+        }
+
+        /* (d) n == 0 touches nothing and does not advance the synth. */
+        {
+          size_t nb               = dp_wfm_synth_state_bytes (p);
+          void  *ba               = malloc (nb);
+          void  *bb               = malloc (nb);
+          float _Complex sentinel = 7.0f + 9.0f * I;
+          dp_wfm_synth_get_state (p, ba);
+          dp_wfm_synth_prod (p, x, &sentinel, 0);
+          dp_wfm_synth_get_state (p, bb);
+          DP_CHECK_MSG (memcmp (ba, bb, nb) == 0 && crealf (sentinel) == 7.0f,
+                        "n == 0 is a no-op that does not advance");
+          free (ba);
+          free (bb);
+        }
+        for (int j = 0; j < 4; j++)
+          dp_wfm_synth_destroy (mk[j]);
+      }
+  }
+
+  /* -- dp_swept_rotate: the special case, a rotation about a stated center --
+   * The applied phase is the closed form up to ONE constant (the synth's
+   * phase is 0 at sample 0, the target's at u = 0), so the check divides the
+   * constant out by comparing every sample against sample 0. */
+  {
+    enum
+    {
+      RN = 1000
+    };
+    static float _Complex y[RN];
+    /* tone at fs 1; tone at fs 2000; chirp at fs 1; chirp at fs 2000 about an
+       off-center sample. */
+    const double sf_[] = { 1.0, 2000.0, 1.0, 2000.0 };
+    const double ff_[] = { 0.0125, 300.0, 0.05, 300.0 };
+    const double r_[]  = { 0.0, 0.0, 1e-4, 1e3 };
+    const double ctr_[]
+        = { 0.5 * (RN - 1), 0.5 * (RN - 1), 0.5 * (RN - 1), 100.0 };
+    for (int c = 0; c < 4; c++)
+      {
+        const double sf = sf_[c], ff = ff_[c], r = r_[c], ctr = ctr_[c];
+        for (int i = 0; i < RN; i++)
+          y[i] = 1.0f;
+        DP_REQUIRE (dp_swept_rotate (y, RN, sf, ff, r, ctr) == 0);
+        double worst = 0.0;
+        for (int i = 0; i < RN; i++)
+          {
+            const double u = i - ctr, u0 = -ctr;
+            const double ph = 2.0 * M_PI
+                              * (ff / sf * (u - u0)
+                                 + 0.5 * r / (sf * sf) * (u * u - u0 * u0));
+            const double complex want = cexp (I * ph);
+            const double complex have
+                = (double complex)y[i] * conj ((double complex)y[0]);
+            const double e = cabs (have - want);
+            if (e > worst)
+              worst = e;
+          }
+        DP_CHECK_MSG (worst < 2e-3,
+                      "rotate applies the closed-form phase (to a constant)");
+        /* (f) the instantaneous frequency is where claimed, at both ends:
+           the angle between neighbors, cycles per sample. */
+        for (int e = 0; e < 2; e++)
+          {
+            const int    i = e ? RN - 2 : 0;
+            const double w
+                = carg ((double complex)y[i + 1] * conj ((double complex)y[i]))
+                  / (2.0 * M_PI);
+            const double u    = (double)i + 0.5 - ctr;
+            const double want = ff / sf + r / (sf * sf) * u;
+            DP_CHECK_MSG (fabs (w - want) < 1e-4,
+                          "instantaneous frequency matches at the ends");
+          }
+        /* a nonzero rate really moves the frequency between the ends. */
+        if (r != 0.0)
+          {
+            const double a
+                = carg ((double complex)y[1] * conj ((double complex)y[0]));
+            const double z = carg ((double complex)y[RN - 1]
+                                   * conj ((double complex)y[RN - 2]));
+            DP_CHECK_MSG (fabs (z - a) / (2.0 * M_PI)
+                              > 0.5 * fabs (r) / (sf * sf) * (RN - 2),
+                          "the far end's frequency differs from the near's");
+          }
+      }
   }
 
   /* the serialization sections above also count via CHECK — fail if any

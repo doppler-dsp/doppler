@@ -883,6 +883,8 @@ void dp_wfm_synth_reseed_noise(dp_wfm_synth_state_t *state, uint32_t seed);
 void dp_wfm_synth_noise_steps(dp_wfm_synth_state_t *state, float _Complex *output,
                            size_t n);
 
+size_t dp_wfm_synth_prod_max_out(dp_wfm_synth_state_t *state, size_t n_in);
+
 /**
  * @brief Generate one output sample from internal state.
  * Advances the PN LFSR (modulated types only, on symbol boundaries), the
@@ -1049,6 +1051,38 @@ void dp_wfm_synth_steps(
     dp_wfm_synth_state_t *state,
     float _Complex          *output,
     size_t               n);
+
+/**
+ * @brief Multiply a block by the synth's next output samples.
+ * ``out[i] = in[i] * y[i]`` for ``i = 0 .. n-1``, where ``y`` is exactly
+ * what dp_wfm_synth_steps() would emit next.  The synth advances by ``n``
+ * samples just as dp_wfm_synth_steps(state, ., n) would, so a split call
+ * sequence (3 + 5 + n) equals one call, and ``n == 0`` is a no-op that does
+ * not advance it.  ``out`` may equal ``in`` (in place).  No new state, so
+ * the state blob is unchanged.
+ *
+ * This is the general waveform-multiplication operator: with a tone synth it
+ * is a rotation, with a chirp synth a swept rotation, with noise a noise
+ * multiplier, with PN/BPSK a modulation.
+ *
+ * @param state  Initialized Synth state returned by ``dp_wfm_synth_create``.
+ * @param in     Input block of ``n`` cf32 samples.
+ * @param out    Output block of ``n`` cf32 samples (may alias ``in``).
+ * @param n      Number of samples.
+ * @code
+ * >>> from doppler.wfm import _SynthEngine
+ * >>> import numpy as np
+ * >>> s = _SynthEngine(type="tone", fs=1.0, freq=0.25, snr=100.0)
+ * >>> y = s.prod(np.ones(4, np.complex64))
+ * >>> bool(np.allclose(y, [1, 1j, -1, -1j], atol=1e-5))
+ * True
+ * @endcode
+ */
+void dp_wfm_synth_prod(
+    dp_wfm_synth_state_t *state,
+    const float _Complex *in,
+    float _Complex       *out,
+    size_t                n);
 
 /**
  * @brief Return the active waveform type discriminant.

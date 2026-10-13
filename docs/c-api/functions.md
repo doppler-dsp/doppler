@@ -1764,6 +1764,8 @@
 * **dp\_wfm\_synth\_get\_sym\_pos** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **dp\_wfm\_synth\_get\_wtype** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **dp\_wfm\_synth\_noise\_steps** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
+* **dp\_wfm\_synth\_prod** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
+* **dp\_wfm\_synth\_prod\_max\_out** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **dp\_wfm\_synth\_reseed\_noise** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **dp\_wfm\_synth\_reset** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **dp\_wfm\_synth\_set\_bits** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))

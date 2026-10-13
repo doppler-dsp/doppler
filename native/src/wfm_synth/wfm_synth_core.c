@@ -998,6 +998,31 @@ dp_wfm_synth_steps (dp_wfm_synth_state_t *state, float _Complex *output,
 }
 
 void
+dp_wfm_synth_prod (dp_wfm_synth_state_t *state, const float _Complex *in,
+                   float _Complex *out, size_t n)
+{
+  /* The operator, not a second generator: the synth's own block kernel
+   * fills a small scratch and the product is one multiply per sample. The
+   * synth therefore advances exactly as dp_wfm_synth_steps(state, ., n)
+   * would, and a split call sequence equals one call (steps is chunk
+   * invariant). Reading in[i] only after scratch[i] exists, and writing
+   * out[i] last, is what makes out == in safe. */
+  enum
+  {
+    PCH = 256
+  };
+  float _Complex scratch[PCH];
+  for (size_t done = 0; done < n;)
+    {
+      size_t m = (n - done < (size_t)PCH) ? (n - done) : (size_t)PCH;
+      dp_wfm_synth_steps (state, scratch, m);
+      for (size_t i = 0; i < m; i++)
+        out[done + i] = in[done + i] * scratch[i];
+      done += m;
+    }
+}
+
+void
 dp_wfm_synth_noise_steps (dp_wfm_synth_state_t *state, float _Complex *output,
                           size_t n)
 {
@@ -1085,4 +1110,14 @@ void
 dp_wfm_synth_set_cur_im (dp_wfm_synth_state_t *state, float val)
 {
   state->cur_im = val;
+}
+
+/* <<IMPLEMENT: return maximum possible output samples for prod given current
+ * state and n_in >> */
+size_t
+dp_wfm_synth_prod_max_out (dp_wfm_synth_state_t *state, size_t n_in)
+{
+  (void)state;
+  (void)n_in;
+  return 0; /* placeholder */
 }

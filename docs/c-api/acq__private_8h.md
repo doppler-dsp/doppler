@@ -10,6 +10,8 @@
 
 _Shared internals for acq\_core.c and its test._ [More...](#detailed-description)
 
+* `#include "doppler/acq/acq_core.h"`
+* `#include <math.h>`
 * `#include <stddef.h>`
 
 
@@ -55,6 +57,7 @@ _Shared internals for acq\_core.c and its test._ [More...](#detailed-description
 | Type | Name |
 | ---: | :--- |
 |  int | [**acq\_rate\_better**](#function-acq_rate_better) (size\_t h, float stat, float best) <br>_Does hypothesis_ `h's` _statistic_`stat` _replace the best so far,_`best` _? The rule the rate search picks its winner by._ |
+|  size\_t | [**acq\_resolve\_tile\_alias**](#function-acq_resolve_tile_alias) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* st, size\_t row, size\_t col) <br> |
 
 
 
@@ -84,7 +87,7 @@ _Shared internals for acq\_core.c and its test._ [More...](#detailed-description
 ## Detailed Description
 
 
-Not part of the public API: nothing here is exported, and nothing here is promised to a caller. It exists so a one-line rule that decides a result can be unit-tested as a rule (test\_acq\_core.c includes it), the pattern [**detector/det\_private.h**](det__private_8h.md) follows. 
+Not part of the public API: nothing here is exported, and nothing here is promised to a caller. It exists so a rule that decides a result (the rate search's pick, the tile-edge alias's hop) can be unit-tested as a rule (test\_acq\_core.c includes it), the pattern [**detector/det\_private.h**](det__private_8h.md) follows. 
 
 
     
@@ -113,6 +116,23 @@ Unit-tested as a rule on NaN / inf / finite values, because the end-to-end route
 
 
         
+
+<hr>
+
+
+
+### function acq\_resolve\_tile\_alias 
+
+```C++
+static inline size_t acq_resolve_tile_alias (
+    const dp_acq_state_t * st,
+    size_t row,
+    size_t col
+) 
+```
+
+
+
 
 <hr>
 

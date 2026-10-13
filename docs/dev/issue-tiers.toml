@@ -1500,11 +1500,6 @@ tier = 2
 title = "acq: a dwell straddling a burst's start with under one epoch of signal reports its Doppler up to ~D/2 bins off (first hit only; tiled and narrowband alike)"
 status = "open"
 
-[issue.2232]
-tier = 1
-title = "test(acq): the tiled burst C test never exercises the tile-alias hop; a sign-flipped hop passes test_acq_core (caught only by a sweep validator)"
-status = "in review ([#2265](https://github.com/doppler-dsp/doppler/pull/2265))"
-
 [issue.2234]
 tier = 0
 title = "BurstCapture: a tiled capture of a repeated chirp reports the wrong Doppler tile 13-78% of the time, start up to 7 periods off (pre-existing, D = 1 too)"
@@ -1528,4 +1523,9 @@ status = "open"
 [issue.2256]
 tier = 1
 title = "ci: ECR Public's anonymous DATA quota ('toomanyrequests: Data limit exceeded') outlasts stock-pull.sh's 75 s retry window"
+status = "open"
+
+[issue.2279]
+tier = 5
+title = "hand-owned fragments: six uint64_t / size_t parses use the masking K (dp_tlm x4, wfm_synth pn_poly and span), so a negative or over-wide int wraps"
 status = "open"

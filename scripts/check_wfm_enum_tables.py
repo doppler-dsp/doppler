@@ -63,7 +63,11 @@ So this gate makes the SSOT claim a check rather than a comment:
    the enumerator alone as its operand (`> LAST + 1` admits too much). A
    view with no such comparison, or two, an annotation naming no view, or
    any other comparison is an error that says what to write. It holds the
-   comparison, not that the statement returns or runs first.
+   comparison, not that the statement returns or runs first. The function
+   holding the refusal documents the set a THIRD time, for a C reader, so
+   its doc comment (on the definition, or on a declaration in a scanned
+   header) must name exactly the view's enumerators in the view's order,
+   and no other of the parent's; no doc comment is an error (#2204).
 
 The annotation is a plain `/* ... */` comment -- doxygen reads only `/**` and
 `/*!`, so it is invisible to the C API docs -- placed anywhere between the
@@ -153,6 +157,54 @@ _BOUND_CMP_RE = re.compile(
     r"(?<![-=<>])(?P<op>>=?)(?!=)\s*(?P<name>[A-Za-z_]\w*)\s*(?=[)&|;?]|$)",
     re.MULTILINE,
 )
+#: A C comment, blanked to spaces (offsets kept) before reading code.
+_C_COMMENT_RE = re.compile(r"/\*.*?\*/|//[^\n]*", re.S)
+#: A function's name in its signature: the first `name (`.
+_FN_NAME_RE = re.compile(r"(?P<fn>[A-Za-z_]\w*)\s*\(")
+
+
+def _enclosing_function(text: str, pos: int) -> str | None:
+    """The name of the function whose body holds `pos` in C `text`, or None.
+
+    The body opens with the last `{` that starts a line before `pos` (GNU
+    style or not), and the name is the first `name (` of the signature
+    above it, read back to the previous statement's end, comments blanked.
+
+    >>> _enclosing_function("int f (int w)\\n{\\n  x;\\n}\\n", 18)
+    'f'
+    >>> _enclosing_function("int g;\\n", 3) is None
+    True
+    """
+    code = _C_COMMENT_RE.sub(lambda m: " " * len(m.group(0)), text)
+    brace = code.rfind("\n{", 0, pos)
+    if brace < 0:
+        return None
+    start = max(code.rfind(";", 0, brace), code.rfind("}", 0, brace)) + 1
+    m = _FN_NAME_RE.search(code, start, brace)
+    return m["fn"] if m else None
+
+
+def _doc_comment(fn: str, texts: list[str]) -> str | None:
+    """The `/** ... */` doc comment directly above a declaration or the
+    definition of `fn` in any of `texts`, or None. Directly: only the
+    return type and qualifiers stand between the comment's end and the name.
+
+    >>> _doc_comment("f", ["/** The doc. */\\nint *f (int w);\\n"])
+    '/** The doc. */'
+    >>> _doc_comment("f", ["/* plain */\\nint f (int w);\\n"]) is None
+    True
+    """
+    call = re.compile(rf"\b{re.escape(fn)}\s*\(")
+    for text in texts:
+        for m in call.finditer(text):
+            end = text.rfind("*/", 0, m.start())
+            between = text[end + 2 : m.start()] if end >= 0 else ""
+            if end < 0 or not re.fullmatch(r"[\s\w*]*", between):
+                continue
+            begin = text.rfind("/*", 0, end)
+            if begin >= 0 and text.startswith("/**", begin):
+                return text[begin : end + 2]
+    return None
 
 
 class Table:
@@ -501,6 +553,47 @@ def enum_names(root: Path) -> tuple[dict[str, dict[int, str]], list[str]]:
     return out, errs
 
 
+def _check_view_brief(
+    view: str,
+    names: list[str],
+    parent_names: list[str],
+    where: str,
+    rel: str,
+    fn: str | None,
+    texts: dict[str, str],
+) -> list[str]:
+    """Rule 8's third statement (#2204): the function holding a view's
+    refusal documents the set C accepts, so its doc comment -- on the
+    definition, or on a declaration in any scanned header -- names exactly
+    the view's enumerators, in the view's order, and no other of the
+    parent's. Fail-closed: no doc comment is an error, not a skip."""
+    if fn is None:
+        return [
+            f"{where}: view {view}'s refusal sits in no function, so no"
+            " doc comment states the set it refuses past."
+        ]
+    order = [rel] + [r for r in texts if r != rel and r.endswith(".h")]
+    doc = _doc_comment(fn, [texts[r] for r in order])
+    if doc is None:
+        return [
+            f"{where}: `{fn}` holds view {view}'s refusal but has no doc"
+            f" comment: its brief must name the set C accepts, {names}, in"
+            " order (#2204)."
+        ]
+    pat = re.compile(r"\b(" + "|".join(map(re.escape, parent_names)) + r")\b")
+    got: list[str] = []
+    for m in pat.finditer(doc):
+        if m[1] not in got:
+            got.append(m[1])
+    if got == names:
+        return []
+    return [
+        f"{where}: `{fn}`'s doc comment names {got}, but view {view} is"
+        f" {names}: name exactly the view's enumerators, in order, so the"
+        " brief cannot state a set the refusal no longer holds (#2204)."
+    ]
+
+
 def _check_view_bounds(
     root: Path,
     data: dict,
@@ -518,10 +611,13 @@ def _check_view_bounds(
     the statement returns or runs first: review and the C test hold that.
     """
     views = _views(data, bound)
-    marks: dict[str, list[tuple[str, tuple[str, str] | None]]] = {
-        v: [] for v in views
-    }
+    marks: dict[
+        str, list[tuple[str, tuple[str, str] | None, str, str | None]]
+    ] = {v: [] for v in views}
     errs: list[str] = []
+    #: Every scanned file's text, the refusal's own first: where a brief is
+    #: looked for (its definition, then any header declaration).
+    texts: dict[str, str] = {}
     for top in SCAN_ROOTS:
         for path in sorted((root / top).rglob("*.[ch]")):
             try:
@@ -529,6 +625,7 @@ def _check_view_bounds(
             except (UnicodeDecodeError, OSError):
                 continue
             rel = path.relative_to(root).as_posix()
+            texts[rel] = text
             for m in _VIEW_RE.finditer(text):
                 where = f"{rel}:{text.count(chr(10), 0, m.start()) + 1}"
                 view = m.group("view")
@@ -553,7 +650,12 @@ def _check_view_bounds(
                 eol = len(text) if eol < 0 else eol
                 cmp_ = _BOUND_CMP_RE.search(text, after, eol)
                 marks[view].append(
-                    (where, (cmp_["op"], cmp_["name"]) if cmp_ else None)
+                    (
+                        where,
+                        (cmp_["op"], cmp_["name"]) if cmp_ else None,
+                        rel,
+                        _enclosing_function(text, m.start()),
+                    )
                 )
     for view, (parent, pairs, names) in views.items():
         found = marks[view]
@@ -578,11 +680,11 @@ def _check_view_bounds(
             errs.append(
                 f"{MANIFEST_REL}: view [[enum]] {view} has {len(found)}"
                 f" `SSOT: view={view}` annotations"
-                f" ({', '.join(w for w, _ in found)}); exactly one refusal"
+                f" ({', '.join(w for w, *_ in found)}); exactly one refusal"
                 " states its bound."
             )
             continue
-        where, cmp_ = found[0]
+        where, cmp_, rel, fn = found[0]
         if names != parent_names[: len(names)]:
             errs.append(
                 f"{where}: view {view} ({names}) is not a prefix of {parent}"
@@ -598,6 +700,9 @@ def _check_view_bounds(
             continue
         op, name = cmp_
         if (op, name) in ((">", last), (">=", nxt)):
+            errs += _check_view_brief(
+                view, names, parent_names, where, rel, fn, texts
+            )
             continue
         admitted = (
             parent_names[: parent_names.index(name) + (op == ">")]

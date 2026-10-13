@@ -1820,17 +1820,12 @@ class PSD:
 
     def psd_db(
         self,
-        count: int = 1,
         out: npt.NDArray[np.float32] | None = None,
     ) -> NDArray[np.float32] | None:
         """Averaged power spectrum in dB (None before any accumulate).
 
         Parameters
         ----------
-        count : int
-            How many output samples to ask for. The call may return fewer; size
-            an `out=` buffer with the matching `_max_out()` when you need the
-            worst case.
         out : npt.NDArray[np.float32] | None
             Destination, at least nfft float32 elements.
 
@@ -1852,7 +1847,6 @@ class PSD:
 
     def psd_dbhz(
         self,
-        count: int = 1,
         out: npt.NDArray[np.float32] | None = None,
     ) -> NDArray[np.float32] | None:
         """Averaged power spectral density in dB/Hz (None before any
@@ -1860,10 +1854,6 @@ class PSD:
 
         Parameters
         ----------
-        count : int
-            How many output samples to ask for. The call may return fewer; size
-            an `out=` buffer with the matching `_max_out()` when you need the
-            worst case.
         out : npt.NDArray[np.float32] | None
             Optional pre-allocated output buffer. When given, the result is
             written into it and the returned array is a view of exactly the
@@ -1897,7 +1887,6 @@ class PSD:
 
     def power_twosided(
         self,
-        count: int = 1,
         out: npt.NDArray[np.float32] | None = None,
     ) -> NDArray[np.float32] | None:
         """Averaged linear power, DC-centred two-sided (length nfft);
@@ -1905,10 +1894,6 @@ class PSD:
 
         Parameters
         ----------
-        count : int
-            How many output samples to ask for. The call may return fewer; size
-            an `out=` buffer with the matching `_max_out()` when you need the
-            worst case.
         out : npt.NDArray[np.float32] | None
             Destination, at least nfft float32 elements.
 
@@ -1930,7 +1915,6 @@ class PSD:
 
     def power_onesided(
         self,
-        count: int = 1,
         out: npt.NDArray[np.float32] | None = None,
     ) -> NDArray[np.float32] | None:
         """Averaged linear power, one-sided fold (length nfft/2+1);
@@ -1938,10 +1922,6 @@ class PSD:
 
         Parameters
         ----------
-        count : int
-            How many output samples to ask for. The call may return fewer; size
-            an `out=` buffer with the matching `_max_out()` when you need the
-            worst case.
         out : npt.NDArray[np.float32] | None
             Destination, at least nfft/2 + 1 float32 elements.
 

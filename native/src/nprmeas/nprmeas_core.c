@@ -89,8 +89,7 @@ dp_nprmeas_analyze (dp_nprmeas_state_t *s, const float *x, size_t n_in,
   /* average the capture's segments -> one-sided cg^2-normalised power */
   dp_psd_reset (s->psd);
   dp_psd_accumulate_real (s->psd, x, n_in);
-  size_t nbins = dp_psd_power_onesided (s->psd, s->nfft / 2 + 1, s->pwr,
-                                        s->nfft / 2 + 1);
+  size_t nbins = dp_psd_power_onesided (s->psd, s->pwr, s->nfft / 2 + 1);
   if (nbins == 0)
     return r; /* capture holds no full frame */
   size_t half = s->nfft / 2;
@@ -153,8 +152,7 @@ dp_nprmeas_spectrum_dbfs (dp_nprmeas_state_t *state, const float *x,
    * averaged PSD the metrics use, scaled to the shared 0-dBFS reference. */
   dp_psd_reset (state->psd);
   dp_psd_accumulate_real (state->psd, x, x_len);
-  size_t nfft = dp_psd_power_twosided (state->psd, state->nfft, state->pwr,
-                                       state->nfft);
+  size_t nfft = dp_psd_power_twosided (state->psd, state->pwr, state->nfft);
   if (nfft == 0)
     return 0;
   /* Emission stops at the caller's capacity (jm gh-138). The count

@@ -42,13 +42,33 @@ static int
 AccTraceObj_init (AccTraceObject *self, PyObject *args, PyObject *kwds)
 {
   static char       *kwlist[] = { "n", "mode", "alpha", NULL };
+  PyObject          *n_obj    = NULL;
   unsigned long long n_raw    = 1024;
   const char        *mode_str = "mean";
   double             alpha    = 0.1;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|Ksd", kwlist, &n_raw,
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|Osd", kwlist, &n_obj,
                                     &mode_str, &alpha))
     return -1;
+  if (n_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (n_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      n_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((n_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || n_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "n: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   size_t n    = (size_t)n_raw;
   int    mode = 0;
   if (strcmp (mode_str, "mean") == 0)
@@ -98,7 +118,13 @@ AccTraceObj_accumulate (AccTraceObject *self, PyObject *args, PyObject *kwds)
     }
   const float *p     = (const float *)PyArray_DATA (p_arr);
   size_t       p_len = (size_t)PyArray_SIZE (p_arr);
-  dp_acc_trace_accumulate (self->handle, p, p_len);
+  /* nogil: GIL released across the pure-C kernel — sound only when
+   * this object is not shared across threads concurrently (one
+   * object per stream); the kernel touches only this object's
+   * state/buffers and the caller's input. */
+  Py_BEGIN_ALLOW_THREADS
+    dp_acc_trace_accumulate (self->handle, p, p_len);
+  Py_END_ALLOW_THREADS
   Py_DECREF (p_arr);
   Py_RETURN_NONE;
 }
@@ -496,9 +522,11 @@ static PyMethodDef AccTraceObj_methods[] = {
   { "get_state", (PyCFunction)AccTraceObj_get_state, METH_NOARGS,
     "Serialize this object's mutable state to bytes.\n"
     "\n"
-    "Captures exactly the state that evolves as the object runs, so a blob\n"
-    "taken now and restored later resumes from this point. Construction\n"
-    "parameters are not included: restore into an object built the same way.\n"
+    "Captures the state that evolves as the object runs, including any value\n"
+    "a setter changed after construction, so a blob taken now and restored\n"
+    "later resumes from this point. Construction parameters are not\n"
+    "restored: restore into an object built the same way. A core may check\n"
+    "some of them and refuse a blob built differently.\n"
     "\n"
     "The blob is opaque and always `state_bytes()` long. Its layout is an\n"
     "implementation detail of the C core and is not a stable format across\n"
@@ -513,10 +541,12 @@ static PyMethodDef AccTraceObj_methods[] = {
   { "set_state", (PyCFunction)AccTraceObj_set_state, METH_O,
     "Restore mutable state from a `get_state()` blob.\n"
     "\n"
-    "Overwrites the live state in place; the object keeps the parameters it\n"
-    "was constructed with. Length is validated against `state_bytes()`\n"
-    "before the blob is handed to the C core, and the core may reject it as\n"
-    "well.\n"
+    "Overwrites the live state in place, including any value a setter\n"
+    "changed after construction. Construction parameters are not restored:\n"
+    "restore into an object built the same way. Length is validated against\n"
+    "`state_bytes()` before the blob is handed to the C core, which may\n"
+    "reject it too: a core may check some construction parameters and refuse\n"
+    "a blob built differently.\n"
     "\n"
     "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
     "length differs from `state_bytes()` or the core rejects it, and\n"

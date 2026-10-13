@@ -180,9 +180,11 @@ class Resampler:
     def get_state(self) -> bytes:
         """Serialize this object's mutable state to bytes.
 
-        Captures exactly the state that evolves as the object runs, so a blob
-        taken now and restored later resumes from this point. Construction
-        parameters are not included: restore into an object built the same way.
+        Captures the state that evolves as the object runs, including any value
+        a setter changed after construction, so a blob taken now and restored
+        later resumes from this point. Construction parameters are not
+        restored: restore into an object built the same way. A core may check
+        some of them and refuse a blob built differently.
 
         The blob is opaque and always `state_bytes()` long. Its layout is an
         implementation detail of the C core and is not a stable format across
@@ -199,10 +201,12 @@ class Resampler:
     def set_state(self, blob: bytes) -> None:
         """Restore mutable state from a `get_state()` blob.
 
-        Overwrites the live state in place; the object keeps the parameters it
-        was constructed with. Length is validated against `state_bytes()`
-        before the blob is handed to the C core, and the core may reject it as
-        well.
+        Overwrites the live state in place, including any value a setter
+        changed after construction. Construction parameters are not restored:
+        restore into an object built the same way. Length is validated against
+        `state_bytes()` before the blob is handed to the C core, which may
+        reject it too: a core may check some construction parameters and refuse
+        a blob built differently.
 
         Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
         length differs from `state_bytes()` or the core rejects it, and
@@ -402,9 +406,11 @@ class HalfbandDecimator:
     def get_state(self) -> bytes:
         """Serialize this object's mutable state to bytes.
 
-        Captures exactly the state that evolves as the object runs, so a blob
-        taken now and restored later resumes from this point. Construction
-        parameters are not included: restore into an object built the same way.
+        Captures the state that evolves as the object runs, including any value
+        a setter changed after construction, so a blob taken now and restored
+        later resumes from this point. Construction parameters are not
+        restored: restore into an object built the same way. A core may check
+        some of them and refuse a blob built differently.
 
         The blob is opaque and always `state_bytes()` long. Its layout is an
         implementation detail of the C core and is not a stable format across
@@ -422,10 +428,12 @@ class HalfbandDecimator:
     def set_state(self, blob: bytes) -> None:
         """Restore mutable state from a `get_state()` blob.
 
-        Overwrites the live state in place; the object keeps the parameters it
-        was constructed with. Length is validated against `state_bytes()`
-        before the blob is handed to the C core, and the core may reject it as
-        well.
+        Overwrites the live state in place, including any value a setter
+        changed after construction. Construction parameters are not restored:
+        restore into an object built the same way. Length is validated against
+        `state_bytes()` before the blob is handed to the C core, which may
+        reject it too: a core may check some construction parameters and refuse
+        a blob built differently.
 
         Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
         length differs from `state_bytes()` or the core rejects it, and
@@ -645,9 +653,11 @@ class CIC:
     def get_state(self) -> bytes:
         """Serialize this object's mutable state to bytes.
 
-        Captures exactly the state that evolves as the object runs, so a blob
-        taken now and restored later resumes from this point. Construction
-        parameters are not included: restore into an object built the same way.
+        Captures the state that evolves as the object runs, including any value
+        a setter changed after construction, so a blob taken now and restored
+        later resumes from this point. Construction parameters are not
+        restored: restore into an object built the same way. A core may check
+        some of them and refuse a blob built differently.
 
         The blob is opaque and always `state_bytes()` long. Its layout is an
         implementation detail of the C core and is not a stable format across
@@ -664,10 +674,12 @@ class CIC:
     def set_state(self, blob: bytes) -> None:
         """Restore mutable state from a `get_state()` blob.
 
-        Overwrites the live state in place; the object keeps the parameters it
-        was constructed with. Length is validated against `state_bytes()`
-        before the blob is handed to the C core, and the core may reject it as
-        well.
+        Overwrites the live state in place, including any value a setter
+        changed after construction. Construction parameters are not restored:
+        restore into an object built the same way. Length is validated against
+        `state_bytes()` before the blob is handed to the C core, which may
+        reject it too: a core may check some construction parameters and refuse
+        a blob built differently.
 
         Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
         length differs from `state_bytes()` or the core rejects it, and
@@ -980,9 +992,11 @@ class RateConverter:
     def get_state(self) -> bytes:
         """Serialize this object's mutable state to bytes.
 
-        Captures exactly the state that evolves as the object runs, so a blob
-        taken now and restored later resumes from this point. Construction
-        parameters are not included: restore into an object built the same way.
+        Captures the state that evolves as the object runs, including any value
+        a setter changed after construction, so a blob taken now and restored
+        later resumes from this point. Construction parameters are not
+        restored: restore into an object built the same way. A core may check
+        some of them and refuse a blob built differently.
 
         The blob is opaque and always `state_bytes()` long. Its layout is an
         implementation detail of the C core and is not a stable format across
@@ -1000,10 +1014,12 @@ class RateConverter:
     def set_state(self, blob: bytes) -> None:
         """Restore mutable state from a `get_state()` blob.
 
-        Overwrites the live state in place; the object keeps the parameters it
-        was constructed with. Length is validated against `state_bytes()`
-        before the blob is handed to the C core, and the core may reject it as
-        well.
+        Overwrites the live state in place, including any value a setter
+        changed after construction. Construction parameters are not restored:
+        restore into an object built the same way. Length is validated against
+        `state_bytes()` before the blob is handed to the C core, which may
+        reject it too: a core may check some construction parameters and refuse
+        a blob built differently.
 
         Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
         length differs from `state_bytes()` or the core rejects it, and
@@ -1376,9 +1392,11 @@ class MatchedRateConverter:
     def get_state(self) -> bytes:
         """Serialize this object's mutable state to bytes.
 
-        Captures exactly the state that evolves as the object runs, so a blob
-        taken now and restored later resumes from this point. Construction
-        parameters are not included: restore into an object built the same way.
+        Captures the state that evolves as the object runs, including any value
+        a setter changed after construction, so a blob taken now and restored
+        later resumes from this point. Construction parameters are not
+        restored: restore into an object built the same way. A core may check
+        some of them and refuse a blob built differently.
 
         The blob is opaque and always `state_bytes()` long. Its layout is an
         implementation detail of the C core and is not a stable format across
@@ -1396,10 +1414,12 @@ class MatchedRateConverter:
     def set_state(self, blob: bytes) -> None:
         """Restore mutable state from a `get_state()` blob.
 
-        Overwrites the live state in place; the object keeps the parameters it
-        was constructed with. Length is validated against `state_bytes()`
-        before the blob is handed to the C core, and the core may reject it as
-        well.
+        Overwrites the live state in place, including any value a setter
+        changed after construction. Construction parameters are not restored:
+        restore into an object built the same way. Length is validated against
+        `state_bytes()` before the blob is handed to the C core, which may
+        reject it too: a core may check some construction parameters and refuse
+        a blob built differently.
 
         Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
         length differs from `state_bytes()` or the core rejects it, and
@@ -1633,9 +1653,11 @@ class Farrow:
     def get_state(self) -> bytes:
         """Serialize this object's mutable state to bytes.
 
-        Captures exactly the state that evolves as the object runs, so a blob
-        taken now and restored later resumes from this point. Construction
-        parameters are not included: restore into an object built the same way.
+        Captures the state that evolves as the object runs, including any value
+        a setter changed after construction, so a blob taken now and restored
+        later resumes from this point. Construction parameters are not
+        restored: restore into an object built the same way. A core may check
+        some of them and refuse a blob built differently.
 
         The blob is opaque and always `state_bytes()` long. Its layout is an
         implementation detail of the C core and is not a stable format across
@@ -1652,10 +1674,12 @@ class Farrow:
     def set_state(self, blob: bytes) -> None:
         """Restore mutable state from a `get_state()` blob.
 
-        Overwrites the live state in place; the object keeps the parameters it
-        was constructed with. Length is validated against `state_bytes()`
-        before the blob is handed to the C core, and the core may reject it as
-        well.
+        Overwrites the live state in place, including any value a setter
+        changed after construction. Construction parameters are not restored:
+        restore into an object built the same way. Length is validated against
+        `state_bytes()` before the blob is handed to the C core, which may
+        reject it too: a core may check some construction parameters and refuse
+        a blob built differently.
 
         Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
         length differs from `state_bytes()` or the core rejects it, and
@@ -1844,9 +1868,11 @@ class HalfbandDecimatorQ15:
     def get_state(self) -> bytes:
         """Serialize this object's mutable state to bytes.
 
-        Captures exactly the state that evolves as the object runs, so a blob
-        taken now and restored later resumes from this point. Construction
-        parameters are not included: restore into an object built the same way.
+        Captures the state that evolves as the object runs, including any value
+        a setter changed after construction, so a blob taken now and restored
+        later resumes from this point. Construction parameters are not
+        restored: restore into an object built the same way. A core may check
+        some of them and refuse a blob built differently.
 
         The blob is opaque and always `state_bytes()` long. Its layout is an
         implementation detail of the C core and is not a stable format across
@@ -1864,10 +1890,12 @@ class HalfbandDecimatorQ15:
     def set_state(self, blob: bytes) -> None:
         """Restore mutable state from a `get_state()` blob.
 
-        Overwrites the live state in place; the object keeps the parameters it
-        was constructed with. Length is validated against `state_bytes()`
-        before the blob is handed to the C core, and the core may reject it as
-        well.
+        Overwrites the live state in place, including any value a setter
+        changed after construction. Construction parameters are not restored:
+        restore into an object built the same way. Length is validated against
+        `state_bytes()` before the blob is handed to the C core, which may
+        reject it too: a core may check some construction parameters and refuse
+        a blob built differently.
 
         Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
         length differs from `state_bytes()` or the core rejects it, and

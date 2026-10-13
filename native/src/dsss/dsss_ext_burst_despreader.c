@@ -47,18 +47,58 @@ BurstDespreaderObj_init (BurstDespreaderObject *self, PyObject *args,
       = { "code",       "sf",      "sps", "init_norm_freq", "init_chip_phase",
           "bn_carrier", "bn_code", NULL };
   PyObject          *code_obj        = NULL;
+  PyObject          *sf_obj          = NULL;
   unsigned long long sf_raw          = 1;
+  PyObject          *sps_obj         = NULL;
   unsigned long long sps_raw         = 2;
   double             init_norm_freq  = 0.0;
   double             init_chip_phase = 0.0;
   double             bn_carrier      = 0.05;
   double             bn_code         = 0.01;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|KKdddd", kwlist, &code_obj,
-                                    &sf_raw, &sps_raw, &init_norm_freq,
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|OOdddd", kwlist, &code_obj,
+                                    &sf_obj, &sps_obj, &init_norm_freq,
                                     &init_chip_phase, &bn_carrier, &bn_code))
     return -1;
-  size_t         sf  = (size_t)sf_raw;
+  if (sf_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (sf_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      sf_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((sf_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || sf_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "sf: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t sf = (size_t)sf_raw;
+  if (sps_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (sps_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      sps_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((sps_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || sps_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "sps: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   size_t         sps = (size_t)sps_raw;
   PyArrayObject *code_arr
       = jm_array_arg (code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "code");
@@ -103,16 +143,20 @@ BurstDespreaderObj_steps (BurstDespreaderObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char   *_kwlist[] = { "x", "out", NULL };
-  PyObject      *x_obj     = NULL;
-  PyArrayObject *x_arr     = NULL;
-  PyObject      *out_obj   = NULL;
+  static char *_kwlist[] = { "x", "out", NULL };
+  PyObject    *x_obj     = NULL;
+  PyObject    *out_obj   = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
-    return NULL;
+    {
+      return NULL;
+    }
+  const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
+  size_t                x_len = (size_t)PyArray_SIZE (x_arr);
   if (out_obj && out_obj != Py_None)
     {
       /* Require the exact dtype AND C-contiguity — either mismatch makes
@@ -153,14 +197,10 @@ BurstDespreaderObj_steps (BurstDespreaderObject *self, PyObject *args,
        * this object is not shared across threads concurrently (one
        * object per stream); the kernel touches only this object's
        * state/buffers and the caller's input. */
-      const float _Complex *_ng0
-          = (const float _Complex *)PyArray_DATA (x_arr);
-      size_t          _ng1 = (size_t)PyArray_SIZE (x_arr);
-      float _Complex *_ng2 = (float _Complex *)PyArray_DATA (out_arr);
+      float _Complex *_ng0 = (float _Complex *)PyArray_DATA (out_arr);
       size_t          n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out
-            = dp_burst_despreader_steps (self->handle, _ng0, _ng1, _ng2, _cap);
+        n_out = dp_burst_despreader_steps (self->handle, x, x_len, _ng0, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       if ((size_t)(n_out) > (size_t)(_cap))
@@ -215,11 +255,9 @@ BurstDespreaderObj_steps (BurstDespreaderObject *self, PyObject *args,
    * this object is not shared across threads concurrently (one
    * object per stream); the kernel touches only this object's
    * state/buffers and the caller's input. */
-  const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (x_arr);
-  size_t                _ng1 = (size_t)PyArray_SIZE (x_arr);
-  size_t                n_out;
+  size_t n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = dp_burst_despreader_steps (self->handle, _ng0, _ng1, _d0, _cap);
+    n_out = dp_burst_despreader_steps (self->handle, x, x_len, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   if ((size_t)(n_out) > (size_t)(_cap))
@@ -268,16 +306,20 @@ BurstDespreaderObj_bits (BurstDespreaderObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char   *_kwlist[] = { "x", "out", NULL };
-  PyObject      *x_obj     = NULL;
-  PyArrayObject *x_arr     = NULL;
-  PyObject      *out_obj   = NULL;
+  static char *_kwlist[] = { "x", "out", NULL };
+  PyObject    *x_obj     = NULL;
+  PyObject    *out_obj   = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
-    return NULL;
+    {
+      return NULL;
+    }
+  const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
+  size_t                x_len = (size_t)PyArray_SIZE (x_arr);
   if (out_obj && out_obj != Py_None)
     {
       /* Require the exact dtype AND C-contiguity — either mismatch makes
@@ -318,14 +360,10 @@ BurstDespreaderObj_bits (BurstDespreaderObject *self, PyObject *args,
        * this object is not shared across threads concurrently (one
        * object per stream); the kernel touches only this object's
        * state/buffers and the caller's input. */
-      const float _Complex *_ng0
-          = (const float _Complex *)PyArray_DATA (x_arr);
-      size_t   _ng1 = (size_t)PyArray_SIZE (x_arr);
-      uint8_t *_ng2 = (uint8_t *)PyArray_DATA (out_arr);
+      uint8_t *_ng0 = (uint8_t *)PyArray_DATA (out_arr);
       size_t   n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out
-            = dp_burst_despreader_bits (self->handle, _ng0, _ng1, _ng2, _cap);
+        n_out = dp_burst_despreader_bits (self->handle, x, x_len, _ng0, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       if ((size_t)(n_out) > (size_t)(_cap))
@@ -380,11 +418,9 @@ BurstDespreaderObj_bits (BurstDespreaderObject *self, PyObject *args,
    * this object is not shared across threads concurrently (one
    * object per stream); the kernel touches only this object's
    * state/buffers and the caller's input. */
-  const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (x_arr);
-  size_t                _ng1 = (size_t)PyArray_SIZE (x_arr);
-  size_t                n_out;
+  size_t n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = dp_burst_despreader_bits (self->handle, _ng0, _ng1, _d0, _cap);
+    n_out = dp_burst_despreader_bits (self->handle, x, x_len, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   if ((size_t)(n_out) > (size_t)(_cap))
@@ -423,10 +459,30 @@ BurstDespreaderObj_set_acq (BurstDespreaderObject *self, PyObject *args,
     }
   static char       *_kwlist[]    = { "acq_code", "acq_reps", NULL };
   PyObject          *acq_code_obj = NULL;
+  PyObject          *acq_reps_obj = NULL;
   unsigned long long acq_reps_raw = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OK", _kwlist, &acq_code_obj,
-                                    &acq_reps_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO", _kwlist, &acq_code_obj,
+                                    &acq_reps_obj))
     return NULL;
+  if (acq_reps_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (acq_reps_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      acq_reps_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((acq_reps_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || acq_reps_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "acq_reps: %S is out of range for size_t [0, %llu]",
+                        _ix, (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t         acq_reps     = (size_t)acq_reps_raw;
   PyArrayObject *acq_code_arr = jm_array_arg (
       acq_code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "acq_code");
@@ -519,7 +575,6 @@ BurstDespreader_getprop_bn_carrier (BurstDespreaderObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (
       dp_burst_despreader_get_bn_carrier (self->handle));
 }
@@ -547,7 +602,6 @@ BurstDespreader_getprop_bn_code (BurstDespreaderObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_burst_despreader_get_bn_code (self->handle));
 }
 static int
@@ -574,7 +628,6 @@ BurstDespreader_getprop_norm_freq (BurstDespreaderObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_burst_despreader_get_norm_freq (self->handle));
 }
 static int
@@ -601,7 +654,6 @@ BurstDespreader_getprop_code_phase (BurstDespreaderObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (
       dp_burst_despreader_get_code_phase (self->handle));
 }
@@ -614,7 +666,6 @@ BurstDespreader_getprop_lock_metric (BurstDespreaderObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (
       dp_burst_despreader_get_lock_metric (self->handle));
 }
@@ -627,7 +678,6 @@ BurstDespreader_getprop_snr_est (BurstDespreaderObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_burst_despreader_get_snr_est (self->handle));
 }
 static PyObject *
@@ -639,7 +689,6 @@ BurstDespreader_getprop_lock_stat (BurstDespreaderObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_burst_despreader_get_lock_stat (self->handle));
 }
 static PyObject *
@@ -651,7 +700,6 @@ BurstDespreader_getprop_stat_n (BurstDespreaderObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_burst_despreader_get_stat_n (self->handle));
 }
@@ -927,9 +975,11 @@ static PyMethodDef BurstDespreaderObj_methods[] = {
   { "get_state", (PyCFunction)BurstDespreaderObj_get_state, METH_NOARGS,
     "Serialize this object's mutable state to bytes.\n"
     "\n"
-    "Captures exactly the state that evolves as the object runs, so a blob\n"
-    "taken now and restored later resumes from this point. Construction\n"
-    "parameters are not included: restore into an object built the same way.\n"
+    "Captures the state that evolves as the object runs, including any value\n"
+    "a setter changed after construction, so a blob taken now and restored\n"
+    "later resumes from this point. Construction parameters are not\n"
+    "restored: restore into an object built the same way. A core may check\n"
+    "some of them and refuse a blob built differently.\n"
     "\n"
     "The blob is opaque and always `state_bytes()` long. Its layout is an\n"
     "implementation detail of the C core and is not a stable format across\n"
@@ -945,10 +995,12 @@ static PyMethodDef BurstDespreaderObj_methods[] = {
   { "set_state", (PyCFunction)BurstDespreaderObj_set_state, METH_O,
     "Restore mutable state from a `get_state()` blob.\n"
     "\n"
-    "Overwrites the live state in place; the object keeps the parameters it\n"
-    "was constructed with. Length is validated against `state_bytes()`\n"
-    "before the blob is handed to the C core, and the core may reject it as\n"
-    "well.\n"
+    "Overwrites the live state in place, including any value a setter\n"
+    "changed after construction. Construction parameters are not restored:\n"
+    "restore into an object built the same way. Length is validated against\n"
+    "`state_bytes()` before the blob is handed to the C core, which may\n"
+    "reject it too: a core may check some construction parameters and refuse\n"
+    "a blob built differently.\n"
     "\n"
     "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
     "length differs from `state_bytes()` or the core rejects it, and\n"

@@ -49,10 +49,30 @@ static int
 I16BufferObj_init (I16BufferObject *self, PyObject *args, PyObject *kwds)
 {
   static char       *kwlist[]     = { "capacity", NULL };
+  PyObject          *capacity_obj = NULL;
   unsigned long long capacity_raw = 0ULL;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", kwlist, &capacity_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", kwlist, &capacity_obj))
     return -1;
+  if (capacity_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (capacity_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      capacity_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((capacity_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || capacity_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "capacity: %S is out of range for size_t [0, %llu]",
+                        _ix, (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   size_t capacity = (size_t)capacity_raw;
   self->handle    = dp_i16_create (capacity);
   if (!self->handle)
@@ -326,9 +346,29 @@ I16BufferObj_wait (I16BufferObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   static char       *_kwlist[] = { "n", NULL };
+  PyObject          *n_obj     = NULL;
   unsigned long long n_raw     = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &n_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &n_obj))
     return NULL;
+  if (n_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (n_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      n_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((n_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || n_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "n: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t n = (size_t)n_raw;
   /* nogil: GIL released across the pure-C kernel — sound only when
    * this object is not shared across threads concurrently (one
@@ -450,9 +490,29 @@ I16BufferObj_peek (I16BufferObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   static char       *_kwlist[] = { "n", NULL };
+  PyObject          *n_obj     = NULL;
   unsigned long long n_raw     = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &n_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &n_obj))
     return NULL;
+  if (n_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (n_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      n_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((n_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || n_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "n: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t     n  = (size_t)n_raw;
   dp_iq16_t *_p = dp_i16_peek_view (self->handle, n);
   if (!_p)
@@ -517,9 +577,29 @@ I16BufferObj_consume (I16BufferObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   static char       *_kwlist[] = { "n", NULL };
+  PyObject          *n_obj     = NULL;
   unsigned long long n_raw     = 0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|K", _kwlist, &n_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|O", _kwlist, &n_obj))
     return NULL;
+  if (n_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (n_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      n_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((n_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || n_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "n: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t n = (size_t)n_raw;
   if (!(PyTuple_GET_SIZE (args) > 0
         || (kwds && PyDict_GetItemString (kwds, "n"))))
@@ -578,7 +658,6 @@ I16Buffer_getprop_capacity (I16BufferObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_i16_buffer_get_capacity (self->handle));
 }
@@ -590,7 +669,6 @@ I16Buffer_getprop_available (I16BufferObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_i16_buffer_get_available (self->handle));
 }
@@ -602,7 +680,6 @@ I16Buffer_getprop_space (I16BufferObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_i16_buffer_get_space (self->handle));
 }
@@ -614,7 +691,6 @@ I16Buffer_getprop_dropped (I16BufferObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_i16_buffer_get_dropped (self->handle));
 }
@@ -626,7 +702,6 @@ I16Buffer_getprop_closed (I16BufferObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyBool_FromLong ((long)(dp_i16_buffer_get_closed (self->handle)));
 }
 

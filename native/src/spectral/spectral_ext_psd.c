@@ -44,21 +44,44 @@ PSDObj_init (PSDObject *self, PyObject *args, PyObject *kwds)
   static char *kwlist[]
       = { "n",    "fs",   "window", "beta", "pad", "full_scale",
           "bits", "mode", "alpha",  "hop",  NULL };
+  PyObject          *n_obj      = NULL;
   unsigned long long n_raw      = 1024;
   double             fs         = 1.0;
   const char        *window_str = "hann";
   float              beta       = 0.0f;
+  PyObject          *pad_obj    = NULL;
   unsigned long long pad_raw    = 1;
   double             full_scale = 1.0;
+  PyObject          *bits_obj   = NULL;
   unsigned long long bits_raw   = 0;
   const char        *mode_str   = "mean";
   double             alpha      = 0.1;
+  PyObject          *hop_obj    = NULL;
   unsigned long long hop_raw    = 0;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "|KdsfKdKsdK", kwlist, &n_raw, &fs, &window_str, &beta,
-          &pad_raw, &full_scale, &bits_raw, &mode_str, &alpha, &hop_raw))
+          args, kwds, "|OdsfOdOsdO", kwlist, &n_obj, &fs, &window_str, &beta,
+          &pad_obj, &full_scale, &bits_obj, &mode_str, &alpha, &hop_obj))
     return -1;
+  if (n_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (n_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      n_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((n_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || n_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "n: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   size_t n      = (size_t)n_raw;
   int    window = 0;
   if (strcmp (window_str, "hann") == 0)
@@ -77,7 +100,45 @@ PSDObj_init (PSDObject *self, PyObject *args, PyObject *kwds)
                     window_str);
       return -1;
     }
-  size_t pad  = (size_t)pad_raw;
+  if (pad_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (pad_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      pad_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((pad_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || pad_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "pad: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t pad = (size_t)pad_raw;
+  if (bits_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (bits_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      bits_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((bits_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || bits_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "bits: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   size_t bits = (size_t)bits_raw;
   int    mode = 0;
   if (strcmp (mode_str, "mean") == 0)
@@ -95,6 +156,25 @@ PSDObj_init (PSDObject *self, PyObject *args, PyObject *kwds)
                     "\"minhold\", got '%s'",
                     mode_str);
       return -1;
+    }
+  if (hop_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (hop_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      hop_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((hop_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || hop_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "hop: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
     }
   size_t hop   = (size_t)hop_raw;
   self->handle = dp_psd_create_hop (n, fs, window, beta, pad, full_scale, bits,
@@ -134,7 +214,13 @@ PSDObj_accumulate (PSDObject *self, PyObject *args, PyObject *kwds)
     }
   const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
   size_t                x_len = (size_t)PyArray_SIZE (x_arr);
-  dp_psd_accumulate (self->handle, x, x_len);
+  /* nogil: GIL released across the pure-C kernel — sound only when
+   * this object is not shared across threads concurrently (one
+   * object per stream); the kernel touches only this object's
+   * state/buffers and the caller's input. */
+  Py_BEGIN_ALLOW_THREADS
+    dp_psd_accumulate (self->handle, x, x_len);
+  Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   Py_RETURN_NONE;
 }
@@ -159,7 +245,13 @@ PSDObj_accumulate_real (PSDObject *self, PyObject *args, PyObject *kwds)
     }
   const float *x     = (const float *)PyArray_DATA (x_arr);
   size_t       x_len = (size_t)PyArray_SIZE (x_arr);
-  dp_psd_accumulate_real (self->handle, x, x_len);
+  /* nogil: GIL released across the pure-C kernel — sound only when
+   * this object is not shared across threads concurrently (one
+   * object per stream); the kernel touches only this object's
+   * state/buffers and the caller's input. */
+  Py_BEGIN_ALLOW_THREADS
+    dp_psd_accumulate_real (self->handle, x, x_len);
+  Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   Py_RETURN_NONE;
 }
@@ -744,17 +836,20 @@ PSDObj_band_power (PSDObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char   *_kwlist[] = { "bands", "out", NULL };
-  PyObject      *bands_obj = NULL;
-  PyArrayObject *bands_arr = NULL;
-  PyObject      *out_obj   = NULL;
+  static char *_kwlist[] = { "bands", "out", NULL };
+  PyObject    *bands_obj = NULL;
+  PyObject    *out_obj   = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &bands_obj,
                                     &out_obj))
     return NULL;
-  bands_arr
+  PyArrayObject *bands_arr
       = jm_array_arg (bands_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS, "bands");
   if (!bands_arr)
-    return NULL;
+    {
+      return NULL;
+    }
+  const double *bands     = (const double *)PyArray_DATA (bands_arr);
+  size_t        bands_len = (size_t)PyArray_SIZE (bands_arr);
   if (out_obj && out_obj != Py_None)
     {
       /* Require the exact dtype AND C-contiguity — either mismatch makes
@@ -791,10 +886,8 @@ PSDObj_band_power (PSDObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (bands_arr);
           return NULL;
         }
-      size_t n_out = dp_psd_band_power (
-          self->handle, (const double *)PyArray_DATA (bands_arr),
-          (size_t)PyArray_SIZE (bands_arr), (float *)PyArray_DATA (out_arr),
-          _cap);
+      size_t n_out = dp_psd_band_power (self->handle, bands, bands_len,
+                                        (float *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (bands_arr);
       if ((size_t)(n_out) > (size_t)(_cap))
         {
@@ -848,9 +941,7 @@ PSDObj_band_power (PSDObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = dp_psd_band_power (
-      self->handle, (const double *)PyArray_DATA (bands_arr),
-      (size_t)PyArray_SIZE (bands_arr), _d0, _cap);
+  size_t n_out = dp_psd_band_power (self->handle, bands, bands_len, _d0, _cap);
   Py_DECREF (bands_arr);
   if ((size_t)(n_out) > (size_t)(_cap))
     {
@@ -1573,9 +1664,11 @@ static PyMethodDef PSDObj_methods[] = {
   { "get_state", (PyCFunction)PSDObj_get_state, METH_NOARGS,
     "Serialize this object's mutable state to bytes.\n"
     "\n"
-    "Captures exactly the state that evolves as the object runs, so a blob\n"
-    "taken now and restored later resumes from this point. Construction\n"
-    "parameters are not included: restore into an object built the same way.\n"
+    "Captures the state that evolves as the object runs, including any value\n"
+    "a setter changed after construction, so a blob taken now and restored\n"
+    "later resumes from this point. Construction parameters are not\n"
+    "restored: restore into an object built the same way. A core may check\n"
+    "some of them and refuse a blob built differently.\n"
     "\n"
     "The blob is opaque and always `state_bytes()` long. Its layout is an\n"
     "implementation detail of the C core and is not a stable format across\n"
@@ -1590,10 +1683,12 @@ static PyMethodDef PSDObj_methods[] = {
   { "set_state", (PyCFunction)PSDObj_set_state, METH_O,
     "Restore mutable state from a `get_state()` blob.\n"
     "\n"
-    "Overwrites the live state in place; the object keeps the parameters it\n"
-    "was constructed with. Length is validated against `state_bytes()`\n"
-    "before the blob is handed to the C core, and the core may reject it as\n"
-    "well.\n"
+    "Overwrites the live state in place, including any value a setter\n"
+    "changed after construction. Construction parameters are not restored:\n"
+    "restore into an object built the same way. Length is validated against\n"
+    "`state_bytes()` before the blob is handed to the C core, which may\n"
+    "reject it too: a core may check some construction parameters and refuse\n"
+    "a blob built differently.\n"
     "\n"
     "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
     "length differs from `state_bytes()` or the core rejects it, and\n"

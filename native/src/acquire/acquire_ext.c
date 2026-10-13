@@ -84,12 +84,52 @@ _bind_bin_to_signed (PyObject *self, PyObject *args, PyObject *kwds)
 {
   (void)self;
   static char       *_kwlist[]  = { "bin", "n_bins", NULL };
+  PyObject          *bin_obj    = NULL;
   unsigned long long bin_raw    = 0ULL;
+  PyObject          *n_bins_obj = NULL;
   unsigned long long n_bins_raw = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "KK", _kwlist, &bin_raw,
-                                    &n_bins_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO", _kwlist, &bin_obj,
+                                    &n_bins_obj))
     return NULL;
-  size_t bin    = (size_t)bin_raw;
+  if (bin_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (bin_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      bin_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((bin_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || bin_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "bin: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t bin = (size_t)bin_raw;
+  if (n_bins_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (n_bins_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      n_bins_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((n_bins_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || n_bins_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "n_bins: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t n_bins = (size_t)n_bins_raw;
   return PyLong_FromLong ((long)dp_bin_to_signed (bin, n_bins));
 }

@@ -47,13 +47,15 @@ MatchedDdcrObj_init (MatchedDdcrObject *self, PyObject *args, PyObject *kwds)
   double       rate      = 0.25;
   const char  *pulse_str = "rrc";
   double       beta      = 0.35;
+  PyObject    *span_obj  = NULL;
   unsigned long long span_raw       = 8;
   double             pulse_sps      = 2.0;
+  PyObject          *num_phases_obj = NULL;
   unsigned long long num_phases_raw = 1024;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|ddsdKdK", kwlist, &norm_freq,
-                                    &rate, &pulse_str, &beta, &span_raw,
-                                    &pulse_sps, &num_phases_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|ddsdOdO", kwlist, &norm_freq,
+                                    &rate, &pulse_str, &beta, &span_obj,
+                                    &pulse_sps, &num_phases_obj))
     return -1;
   int pulse = 0;
   if (strcmp (pulse_str, "iandd") == 0)
@@ -67,7 +69,45 @@ MatchedDdcrObj_init (MatchedDdcrObject *self, PyObject *args, PyObject *kwds)
                     pulse_str);
       return -1;
     }
-  size_t span       = (size_t)span_raw;
+  if (span_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (span_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      span_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((span_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || span_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "span: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t span = (size_t)span_raw;
+  if (num_phases_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (num_phases_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      num_phases_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((num_phases_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || num_phases_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "num_phases: %S is out of range for size_t [0, %llu]",
+                        _ix, (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   size_t num_phases = (size_t)num_phases_raw;
   self->handle = dp_ddcr_create_matched (norm_freq, rate, pulse, beta, span,
                                          pulse_sps, num_phases);
@@ -116,16 +156,20 @@ MatchedDdcrObj_execute (MatchedDdcrObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char   *_kwlist[] = { "x", "out", NULL };
-  PyObject      *x_obj     = NULL;
-  PyArrayObject *x_arr     = NULL;
-  PyObject      *out_obj   = NULL;
+  static char *_kwlist[] = { "x", "out", NULL };
+  PyObject    *x_obj     = NULL;
+  PyObject    *out_obj   = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = jm_array_arg (x_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS, "x");
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
-    return NULL;
+    {
+      return NULL;
+    }
+  const float *x     = (const float *)PyArray_DATA (x_arr);
+  size_t       x_len = (size_t)PyArray_SIZE (x_arr);
   if (out_obj && out_obj != Py_None)
     {
       /* Require the exact dtype AND C-contiguity — either mismatch makes
@@ -166,12 +210,10 @@ MatchedDdcrObj_execute (MatchedDdcrObject *self, PyObject *args,
        * this object is not shared across threads concurrently (one
        * object per stream); the kernel touches only this object's
        * state/buffers and the caller's input. */
-      const float    *_ng0 = (const float *)PyArray_DATA (x_arr);
-      size_t          _ng1 = (size_t)PyArray_SIZE (x_arr);
-      float _Complex *_ng2 = (float _Complex *)PyArray_DATA (out_arr);
+      float _Complex *_ng0 = (float _Complex *)PyArray_DATA (out_arr);
       size_t          n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out = dp_ddcr_execute (self->handle, _ng0, _ng1, _ng2, _cap);
+        n_out = dp_ddcr_execute (self->handle, x, x_len, _ng0, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       if ((size_t)(n_out) > (size_t)(_cap))
@@ -225,11 +267,9 @@ MatchedDdcrObj_execute (MatchedDdcrObject *self, PyObject *args,
    * this object is not shared across threads concurrently (one
    * object per stream); the kernel touches only this object's
    * state/buffers and the caller's input. */
-  const float *_ng0 = (const float *)PyArray_DATA (x_arr);
-  size_t       _ng1 = (size_t)PyArray_SIZE (x_arr);
-  size_t       n_out;
+  size_t n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = dp_ddcr_execute (self->handle, _ng0, _ng1, _d0, _cap);
+    n_out = dp_ddcr_execute (self->handle, x, x_len, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   if ((size_t)(n_out) > (size_t)(_cap))
@@ -278,18 +318,22 @@ MatchedDdcrObj_execute_ctrl (MatchedDdcrObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char   *_kwlist[] = { "x", "rate_ctrl", "freq_ctrl", "out", NULL };
-  PyObject      *x_obj     = NULL;
-  PyArrayObject *x_arr     = NULL;
-  double         rate_ctrl = 0;
-  double         freq_ctrl = 0;
-  PyObject      *out_obj   = NULL;
+  static char *_kwlist[] = { "x", "rate_ctrl", "freq_ctrl", "out", NULL };
+  PyObject    *x_obj     = NULL;
+  double       rate_ctrl = 0.0;
+  double       freq_ctrl = 0.0;
+  PyObject    *out_obj   = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "Odd|O", _kwlist, &x_obj,
                                     &rate_ctrl, &freq_ctrl, &out_obj))
     return NULL;
-  x_arr = jm_array_arg (x_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS, "x");
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
-    return NULL;
+    {
+      return NULL;
+    }
+  const float *x     = (const float *)PyArray_DATA (x_arr);
+  size_t       x_len = (size_t)PyArray_SIZE (x_arr);
   if (out_obj && out_obj != Py_None)
     {
       /* Require the exact dtype AND C-contiguity — either mismatch makes
@@ -330,13 +374,11 @@ MatchedDdcrObj_execute_ctrl (MatchedDdcrObject *self, PyObject *args,
        * this object is not shared across threads concurrently (one
        * object per stream); the kernel touches only this object's
        * state/buffers and the caller's input. */
-      const float    *_ng0 = (const float *)PyArray_DATA (x_arr);
-      size_t          _ng1 = (size_t)PyArray_SIZE (x_arr);
-      float _Complex *_ng2 = (float _Complex *)PyArray_DATA (out_arr);
+      float _Complex *_ng0 = (float _Complex *)PyArray_DATA (out_arr);
       size_t          n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out = dp_ddcr_execute_ctrl (self->handle, _ng0, _ng1, rate_ctrl,
-                                      freq_ctrl, _ng2, _cap);
+        n_out = dp_ddcr_execute_ctrl (self->handle, x, x_len, rate_ctrl,
+                                      freq_ctrl, _ng0, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       if ((size_t)(n_out) > (size_t)(_cap))
@@ -391,12 +433,10 @@ MatchedDdcrObj_execute_ctrl (MatchedDdcrObject *self, PyObject *args,
    * this object is not shared across threads concurrently (one
    * object per stream); the kernel touches only this object's
    * state/buffers and the caller's input. */
-  const float *_ng0 = (const float *)PyArray_DATA (x_arr);
-  size_t       _ng1 = (size_t)PyArray_SIZE (x_arr);
-  size_t       n_out;
+  size_t n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = dp_ddcr_execute_ctrl (self->handle, _ng0, _ng1, rate_ctrl,
-                                  freq_ctrl, _d0, _cap);
+    n_out = dp_ddcr_execute_ctrl (self->handle, x, x_len, rate_ctrl, freq_ctrl,
+                                  _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   if ((size_t)(n_out) > (size_t)(_cap))
@@ -446,9 +486,9 @@ MatchedDdcrObj_execute_ctrl_push (MatchedDdcrObject *self, PyObject *args,
       return NULL;
     }
   static char *_kwlist[] = { "x", "rate_ctrl", "freq_ctrl", "out", NULL };
-  float        x         = 0;
-  double       rate_ctrl = 0;
-  double       freq_ctrl = 0;
+  float        x         = 0.0f;
+  double       rate_ctrl = 0.0;
+  double       freq_ctrl = 0.0;
   PyObject    *out_obj   = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "fdd|O", _kwlist, &x,
                                     &rate_ctrl, &freq_ctrl, &out_obj))
@@ -638,7 +678,6 @@ MatchedDdcr_getprop_norm_freq (MatchedDdcrObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_ddcr_get_norm_freq (self->handle));
 }
 static int
@@ -664,7 +703,6 @@ MatchedDdcr_getprop_rate (MatchedDdcrObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_ddcr_get_rate (self->handle));
 }
 static PyObject *
@@ -676,7 +714,6 @@ MatchedDdcr_getprop_clipped (MatchedDdcrObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyBool_FromLong ((long)(dp_ddcr_get_clipped (self->handle)));
 }
 static PyObject *
@@ -688,7 +725,6 @@ MatchedDdcr_getprop_narrow_pulse (MatchedDdcrObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyBool_FromLong ((long)(dp_ddcr_get_narrow_pulse (self->handle)));
 }
 
@@ -922,9 +958,11 @@ static PyMethodDef MatchedDdcrObj_methods[] = {
   { "get_state", (PyCFunction)MatchedDdcrObj_get_state, METH_NOARGS,
     "Serialize this object's mutable state to bytes.\n"
     "\n"
-    "Captures exactly the state that evolves as the object runs, so a blob\n"
-    "taken now and restored later resumes from this point. Construction\n"
-    "parameters are not included: restore into an object built the same way.\n"
+    "Captures the state that evolves as the object runs, including any value\n"
+    "a setter changed after construction, so a blob taken now and restored\n"
+    "later resumes from this point. Construction parameters are not\n"
+    "restored: restore into an object built the same way. A core may check\n"
+    "some of them and refuse a blob built differently.\n"
     "\n"
     "The blob is opaque and always `state_bytes()` long. Its layout is an\n"
     "implementation detail of the C core and is not a stable format across\n"
@@ -939,10 +977,12 @@ static PyMethodDef MatchedDdcrObj_methods[] = {
   { "set_state", (PyCFunction)MatchedDdcrObj_set_state, METH_O,
     "Restore mutable state from a `get_state()` blob.\n"
     "\n"
-    "Overwrites the live state in place; the object keeps the parameters it\n"
-    "was constructed with. Length is validated against `state_bytes()`\n"
-    "before the blob is handed to the C core, and the core may reject it as\n"
-    "well.\n"
+    "Overwrites the live state in place, including any value a setter\n"
+    "changed after construction. Construction parameters are not restored:\n"
+    "restore into an object built the same way. Length is validated against\n"
+    "`state_bytes()` before the blob is handed to the C core, which may\n"
+    "reject it too: a core may check some construction parameters and refuse\n"
+    "a blob built differently.\n"
     "\n"
     "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
     "length differs from `state_bytes()` or the core rejects it, and\n"

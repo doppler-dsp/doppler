@@ -520,7 +520,6 @@ ReedSolomon_getprop_n (ReedSolomonObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_rs_codec_get_n (self->handle));
 }
@@ -532,7 +531,6 @@ ReedSolomon_getprop_k (ReedSolomonObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_rs_codec_get_k (self->handle));
 }
@@ -544,7 +542,6 @@ ReedSolomon_getprop_e (ReedSolomonObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_rs_codec_get_e (self->handle));
 }
@@ -556,7 +553,6 @@ ReedSolomon_getprop_nroots (ReedSolomonObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_rs_codec_get_nroots (self->handle));
 }
@@ -569,7 +565,6 @@ ReedSolomon_getprop_symbol_bits (ReedSolomonObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_rs_codec_get_symbol_bits (self->handle));
 }

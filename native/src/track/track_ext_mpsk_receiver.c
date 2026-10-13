@@ -48,6 +48,7 @@ MpskReceiverObj_init (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
           "num_phases", "agc",         "bn_agc_ratio",   NULL };
   int                m              = 4;
   double             sps            = 8.0;
+  PyObject          *m_out_obj      = NULL;
   unsigned long long m_out_raw      = 0;
   const char        *pulse_str      = "iandd";
   double             rrc_beta       = 0.35;
@@ -58,16 +59,36 @@ MpskReceiverObj_init (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
   double             lock_thresh    = 0;
   double             init_norm_freq = 0.0;
   int                differential   = 0;
+  PyObject          *num_phases_obj = NULL;
   unsigned long long num_phases_raw = 0;
   int                agc            = 1;
   double             bn_agc_ratio   = 0;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "|idKsdidddddiKid", kwlist, &m, &sps, &m_out_raw,
+          args, kwds, "|idOsdidddddiOid", kwlist, &m, &sps, &m_out_obj,
           &pulse_str, &rrc_beta, &rrc_span, &bn_carrier, &zeta, &bn_timing,
-          &lock_thresh, &init_norm_freq, &differential, &num_phases_raw, &agc,
+          &lock_thresh, &init_norm_freq, &differential, &num_phases_obj, &agc,
           &bn_agc_ratio))
     return -1;
+  if (m_out_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (m_out_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      m_out_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((m_out_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || m_out_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "m_out: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   size_t m_out = (size_t)m_out_raw;
   int    pulse = 0;
   if (strcmp (pulse_str, "iandd") == 0)
@@ -80,6 +101,25 @@ MpskReceiverObj_init (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
                     "pulse must be one of \"iandd\", \"rrc\", got '%s'",
                     pulse_str);
       return -1;
+    }
+  if (num_phases_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (num_phases_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      num_phases_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((num_phases_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || num_phases_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "num_phases: %S is out of range for size_t [0, %llu]",
+                        _ix, (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
     }
   size_t num_phases = (size_t)num_phases_raw;
   self->handle      = dp_mpsk_receiver_create (
@@ -174,16 +214,20 @@ MpskReceiverObj_steps (MpskReceiverObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char   *_kwlist[] = { "x", "out", NULL };
-  PyObject      *x_obj     = NULL;
-  PyArrayObject *x_arr     = NULL;
-  PyObject      *out_obj   = NULL;
+  static char *_kwlist[] = { "x", "out", NULL };
+  PyObject    *x_obj     = NULL;
+  PyObject    *out_obj   = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
-    return NULL;
+    {
+      return NULL;
+    }
+  const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
+  size_t                x_len = (size_t)PyArray_SIZE (x_arr);
   if (out_obj && out_obj != Py_None)
     {
       /* Require the exact dtype AND C-contiguity — either mismatch makes
@@ -224,13 +268,10 @@ MpskReceiverObj_steps (MpskReceiverObject *self, PyObject *args,
        * this object is not shared across threads concurrently (one
        * object per stream); the kernel touches only this object's
        * state/buffers and the caller's input. */
-      const float _Complex *_ng0
-          = (const float _Complex *)PyArray_DATA (x_arr);
-      size_t          _ng1 = (size_t)PyArray_SIZE (x_arr);
-      float _Complex *_ng2 = (float _Complex *)PyArray_DATA (out_arr);
+      float _Complex *_ng0 = (float _Complex *)PyArray_DATA (out_arr);
       size_t          n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out = dp_mpsk_receiver_steps (self->handle, _ng0, _ng1, _ng2, _cap);
+        n_out = dp_mpsk_receiver_steps (self->handle, x, x_len, _ng0, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       if ((size_t)(n_out) > (size_t)(_cap))
@@ -284,11 +325,9 @@ MpskReceiverObj_steps (MpskReceiverObject *self, PyObject *args,
    * this object is not shared across threads concurrently (one
    * object per stream); the kernel touches only this object's
    * state/buffers and the caller's input. */
-  const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (x_arr);
-  size_t                _ng1 = (size_t)PyArray_SIZE (x_arr);
-  size_t                n_out;
+  size_t n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = dp_mpsk_receiver_steps (self->handle, _ng0, _ng1, _d0, _cap);
+    n_out = dp_mpsk_receiver_steps (self->handle, x, x_len, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   if ((size_t)(n_out) > (size_t)(_cap))
@@ -336,16 +375,20 @@ MpskReceiverObj_bits (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char   *_kwlist[] = { "x", "out", NULL };
-  PyObject      *x_obj     = NULL;
-  PyArrayObject *x_arr     = NULL;
-  PyObject      *out_obj   = NULL;
+  static char *_kwlist[] = { "x", "out", NULL };
+  PyObject    *x_obj     = NULL;
+  PyObject    *out_obj   = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
-    return NULL;
+    {
+      return NULL;
+    }
+  const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
+  size_t                x_len = (size_t)PyArray_SIZE (x_arr);
   if (out_obj && out_obj != Py_None)
     {
       /* Require the exact dtype AND C-contiguity — either mismatch makes
@@ -386,13 +429,10 @@ MpskReceiverObj_bits (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
        * this object is not shared across threads concurrently (one
        * object per stream); the kernel touches only this object's
        * state/buffers and the caller's input. */
-      const float _Complex *_ng0
-          = (const float _Complex *)PyArray_DATA (x_arr);
-      size_t   _ng1 = (size_t)PyArray_SIZE (x_arr);
-      uint8_t *_ng2 = (uint8_t *)PyArray_DATA (out_arr);
+      uint8_t *_ng0 = (uint8_t *)PyArray_DATA (out_arr);
       size_t   n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out = dp_mpsk_receiver_bits (self->handle, _ng0, _ng1, _ng2, _cap);
+        n_out = dp_mpsk_receiver_bits (self->handle, x, x_len, _ng0, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       if ((size_t)(n_out) > (size_t)(_cap))
@@ -446,11 +486,9 @@ MpskReceiverObj_bits (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
    * this object is not shared across threads concurrently (one
    * object per stream); the kernel touches only this object's
    * state/buffers and the caller's input. */
-  const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (x_arr);
-  size_t                _ng1 = (size_t)PyArray_SIZE (x_arr);
-  size_t                n_out;
+  size_t n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = dp_mpsk_receiver_bits (self->handle, _ng0, _ng1, _d0, _cap);
+    n_out = dp_mpsk_receiver_bits (self->handle, x, x_len, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   if ((size_t)(n_out) > (size_t)(_cap))
@@ -554,7 +592,6 @@ MpskReceiver_getprop_agc_gain_db (MpskReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_mpsk_receiver_get_agc_gain_db (self->handle));
 }
 static PyObject *
@@ -566,7 +603,6 @@ MpskReceiver_getprop_norm_freq (MpskReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_mpsk_receiver_get_norm_freq (self->handle));
 }
 static int
@@ -592,7 +628,6 @@ MpskReceiver_getprop_lock (MpskReceiverObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_mpsk_receiver_get_lock (self->handle));
 }
 static PyObject *
@@ -603,7 +638,6 @@ MpskReceiver_getprop_zeta (MpskReceiverObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_mpsk_receiver_get_zeta (self->handle));
 }
 static PyObject *
@@ -615,7 +649,6 @@ MpskReceiver_getprop_num_phases (MpskReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_mpsk_receiver_get_num_phases (self->handle));
 }
@@ -628,7 +661,6 @@ MpskReceiver_getprop_lock_thresh (MpskReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_mpsk_receiver_get_lock_thresh (self->handle));
 }
 static PyObject *
@@ -640,7 +672,6 @@ MpskReceiver_getprop_lock_drop_thresh (MpskReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (
       dp_mpsk_receiver_get_lock_drop_thresh (self->handle));
 }
@@ -653,7 +684,6 @@ MpskReceiver_getprop_sync_lock_thresh (MpskReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (
       dp_mpsk_receiver_get_sync_lock_thresh (self->handle));
 }
@@ -666,7 +696,6 @@ MpskReceiver_getprop_sync_lock_drop_thresh (MpskReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (
       dp_mpsk_receiver_get_sync_lock_drop_thresh (self->handle));
 }
@@ -679,7 +708,6 @@ MpskReceiver_getprop_bn_agc_ratio (MpskReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_mpsk_receiver_get_bn_agc_ratio (self->handle));
 }
 static PyObject *
@@ -691,7 +719,6 @@ MpskReceiver_getprop_locked (MpskReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromLong ((long)dp_mpsk_receiver_get_locked (self->handle));
 }
 static PyObject *
@@ -703,7 +730,6 @@ MpskReceiver_getprop_lock_time (MpskReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromLongLong (
       (long long)dp_mpsk_receiver_get_lock_time (self->handle));
 }
@@ -716,7 +742,6 @@ MpskReceiver_getprop_timing_rate (MpskReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_mpsk_receiver_get_timing_rate (self->handle));
 }
 static PyObject *
@@ -727,7 +752,6 @@ MpskReceiver_getprop_m (MpskReceiverObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromLong ((long)dp_mpsk_receiver_get_m (self->handle));
 }
 static PyObject *
@@ -738,7 +762,6 @@ MpskReceiver_getprop_sps (MpskReceiverObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_mpsk_receiver_get_sps (self->handle));
 }
 static PyObject *
@@ -750,7 +773,6 @@ MpskReceiver_getprop_m_out (MpskReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_mpsk_receiver_get_m_out (self->handle));
 }
@@ -763,7 +785,6 @@ MpskReceiver_getprop_clipped (MpskReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromLong ((long)dp_mpsk_receiver_get_clipped (self->handle));
 }
 
@@ -1177,9 +1198,11 @@ static PyMethodDef MpskReceiverObj_methods[] = {
   { "get_state", (PyCFunction)MpskReceiverObj_get_state, METH_NOARGS,
     "Serialize this object's mutable state to bytes.\n"
     "\n"
-    "Captures exactly the state that evolves as the object runs, so a blob\n"
-    "taken now and restored later resumes from this point. Construction\n"
-    "parameters are not included: restore into an object built the same way.\n"
+    "Captures the state that evolves as the object runs, including any value\n"
+    "a setter changed after construction, so a blob taken now and restored\n"
+    "later resumes from this point. Construction parameters are not\n"
+    "restored: restore into an object built the same way. A core may check\n"
+    "some of them and refuse a blob built differently.\n"
     "\n"
     "The blob is opaque and always `state_bytes()` long. Its layout is an\n"
     "implementation detail of the C core and is not a stable format across\n"
@@ -1194,10 +1217,12 @@ static PyMethodDef MpskReceiverObj_methods[] = {
   { "set_state", (PyCFunction)MpskReceiverObj_set_state, METH_O,
     "Restore mutable state from a `get_state()` blob.\n"
     "\n"
-    "Overwrites the live state in place; the object keeps the parameters it\n"
-    "was constructed with. Length is validated against `state_bytes()`\n"
-    "before the blob is handed to the C core, and the core may reject it as\n"
-    "well.\n"
+    "Overwrites the live state in place, including any value a setter\n"
+    "changed after construction. Construction parameters are not restored:\n"
+    "restore into an object built the same way. Length is validated against\n"
+    "`state_bytes()` before the blob is handed to the C core, which may\n"
+    "reject it too: a core may check some construction parameters and refuse\n"
+    "a blob built differently.\n"
     "\n"
     "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
     "length differs from `state_bytes()` or the core rejects it, and\n"

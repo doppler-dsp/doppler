@@ -94,13 +94,33 @@ _bind_int_to_bin (PyObject *self, PyObject *args, PyObject *kwds)
 {
   (void)self;
   static char       *_kwlist[]  = { "v", "n_bits", "out", "bitorder", NULL };
+  PyObject          *v_obj      = NULL;
   unsigned long long v_raw      = 0ULL;
   long long          n_bits_raw = 0LL;
   PyObject          *out_obj    = NULL;
   int                bitorder   = 0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "KLOi", _kwlist, &v_raw,
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OLOi", _kwlist, &v_obj,
                                     &n_bits_raw, &out_obj, &bitorder))
     return NULL;
+  if (v_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (v_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      v_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((v_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || v_raw > (unsigned long long)UINT64_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "v: %S is out of range for uint64_t [0, %llu]", _ix,
+                        (unsigned long long)UINT64_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   uint64_t v = (uint64_t)v_raw;
   if (n_bits_raw < 0 || n_bits_raw > (long long)UINT32_MAX)
     {

@@ -85,13 +85,33 @@ _bind_measure_min_samples (PyObject *self, PyObject *args, PyObject *kwds)
   };
   double             fs               = 0.0;
   double             target_rbw       = 0.0;
+  PyObject          *bits_obj         = NULL;
   unsigned long long bits_raw         = 0ULL;
   double             dynamic_range_db = 0.0;
   int                complex_input    = 0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddKdi", _kwlist, &fs,
-                                    &target_rbw, &bits_raw, &dynamic_range_db,
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddOdi", _kwlist, &fs,
+                                    &target_rbw, &bits_obj, &dynamic_range_db,
                                     &complex_input))
     return NULL;
+  if (bits_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (bits_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      bits_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((bits_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || bits_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "bits: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t bits = (size_t)bits_raw;
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_measure_min_samples (
@@ -103,12 +123,52 @@ _bind_measure_rec_nfft (PyObject *self, PyObject *args, PyObject *kwds)
 {
   (void)self;
   static char       *_kwlist[] = { "n", "pad", NULL };
+  PyObject          *n_obj     = NULL;
   unsigned long long n_raw     = 0ULL;
+  PyObject          *pad_obj   = NULL;
   unsigned long long pad_raw   = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "KK", _kwlist, &n_raw,
-                                    &pad_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO", _kwlist, &n_obj,
+                                    &pad_obj))
     return NULL;
-  size_t n   = (size_t)n_raw;
+  if (n_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (n_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      n_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((n_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || n_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "n: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t n = (size_t)n_raw;
+  if (pad_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (pad_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      pad_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((pad_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || pad_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "pad: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t pad = (size_t)pad_raw;
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_measure_rec_nfft (n, pad));
@@ -119,9 +179,29 @@ _bind_measure_proc_gain (PyObject *self, PyObject *args, PyObject *kwds)
 {
   (void)self;
   static char       *_kwlist[] = { "nfft", NULL };
+  PyObject          *nfft_obj  = NULL;
   unsigned long long nfft_raw  = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &nfft_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &nfft_obj))
     return NULL;
+  if (nfft_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (nfft_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      nfft_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((nfft_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || nfft_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "nfft: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t nfft = (size_t)nfft_raw;
   return PyFloat_FromDouble (dp_measure_proc_gain (nfft));
 }
@@ -133,10 +213,30 @@ _bind_dp_coherent_freq (PyObject *self, PyObject *args, PyObject *kwds)
   static char       *_kwlist[] = { "fs", "f_target", "N", NULL };
   double             fs        = 0.0;
   double             f_target  = 0.0;
+  PyObject          *N_obj     = NULL;
   unsigned long long N_raw     = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddK", _kwlist, &fs, &f_target,
-                                    &N_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddO", _kwlist, &fs, &f_target,
+                                    &N_obj))
     return NULL;
+  if (N_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (N_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      N_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((N_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || N_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "N: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t N = (size_t)N_raw;
   return PyFloat_FromDouble (dp_coherent_freq (fs, f_target, N));
 }

@@ -51,13 +51,15 @@ MatchedRateConverterObj_init (MatchedRateConverterObject *self, PyObject *args,
   int                compensate = 1;
   const char        *pulse_str  = "rrc";
   double             beta       = 0.35;
+  PyObject          *span_obj   = NULL;
   unsigned long long span_raw   = 8;
   double             pulse_sps  = 2.0;
+  PyObject          *num_phases_obj = NULL;
   unsigned long long num_phases_raw = 1024;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|disdKdK", kwlist, &rate,
-                                    &compensate, &pulse_str, &beta, &span_raw,
-                                    &pulse_sps, &num_phases_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|disdOdO", kwlist, &rate,
+                                    &compensate, &pulse_str, &beta, &span_obj,
+                                    &pulse_sps, &num_phases_obj))
     return -1;
   int pulse = 0;
   if (strcmp (pulse_str, "iandd") == 0)
@@ -71,7 +73,45 @@ MatchedRateConverterObj_init (MatchedRateConverterObject *self, PyObject *args,
                     pulse_str);
       return -1;
     }
-  size_t span       = (size_t)span_raw;
+  if (span_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (span_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      span_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((span_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || span_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "span: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t span = (size_t)span_raw;
+  if (num_phases_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (num_phases_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      num_phases_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((num_phases_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || num_phases_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "num_phases: %S is out of range for size_t [0, %llu]",
+                        _ix, (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   size_t num_phases = (size_t)num_phases_raw;
   self->handle      = dp_RateConverter_create_matched (
       rate, compensate, pulse, beta, span, pulse_sps, num_phases);
@@ -120,16 +160,20 @@ MatchedRateConverterObj_execute (MatchedRateConverterObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char   *_kwlist[] = { "x", "out", NULL };
-  PyObject      *x_obj     = NULL;
-  PyArrayObject *x_arr     = NULL;
-  PyObject      *out_obj   = NULL;
+  static char *_kwlist[] = { "x", "out", NULL };
+  PyObject    *x_obj     = NULL;
+  PyObject    *out_obj   = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
-    return NULL;
+    {
+      return NULL;
+    }
+  const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
+  size_t                x_len = (size_t)PyArray_SIZE (x_arr);
   if (out_obj && out_obj != Py_None)
     {
       /* Require the exact dtype AND C-contiguity — either mismatch makes
@@ -167,9 +211,8 @@ MatchedRateConverterObj_execute (MatchedRateConverterObject *self,
           return NULL;
         }
       size_t n_out = dp_RateConverter_execute (
-          self->handle, (const float _Complex *)PyArray_DATA (x_arr),
-          (size_t)PyArray_SIZE (x_arr),
-          (float _Complex *)PyArray_DATA (out_arr), _cap);
+          self->handle, x, x_len, (float _Complex *)PyArray_DATA (out_arr),
+          _cap);
       Py_DECREF (x_arr);
       if ((size_t)(n_out) > (size_t)(_cap))
         {
@@ -219,9 +262,7 @@ MatchedRateConverterObj_execute (MatchedRateConverterObject *self,
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t          n_out = dp_RateConverter_execute (
-      self->handle, (const float _Complex *)PyArray_DATA (x_arr),
-      (size_t)PyArray_SIZE (x_arr), _d0, _cap);
+  size_t n_out = dp_RateConverter_execute (self->handle, x, x_len, _d0, _cap);
   Py_DECREF (x_arr);
   if ((size_t)(n_out) > (size_t)(_cap))
     {
@@ -270,17 +311,21 @@ MatchedRateConverterObj_execute_ctrl (MatchedRateConverterObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char   *_kwlist[] = { "x", "ctrl", "out", NULL };
-  PyObject      *x_obj     = NULL;
-  PyArrayObject *x_arr     = NULL;
-  double         ctrl      = 0;
-  PyObject      *out_obj   = NULL;
+  static char *_kwlist[] = { "x", "ctrl", "out", NULL };
+  PyObject    *x_obj     = NULL;
+  double       ctrl      = 0.0;
+  PyObject    *out_obj   = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "Od|O", _kwlist, &x_obj, &ctrl,
                                     &out_obj))
     return NULL;
-  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
-    return NULL;
+    {
+      return NULL;
+    }
+  const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
+  size_t                x_len = (size_t)PyArray_SIZE (x_arr);
   if (out_obj && out_obj != Py_None)
     {
       /* Require the exact dtype AND C-contiguity — either mismatch makes
@@ -318,8 +363,7 @@ MatchedRateConverterObj_execute_ctrl (MatchedRateConverterObject *self,
           return NULL;
         }
       size_t n_out = dp_RateConverter_execute_ctrl (
-          self->handle, (const float _Complex *)PyArray_DATA (x_arr),
-          (size_t)PyArray_SIZE (x_arr), ctrl,
+          self->handle, x, x_len, ctrl,
           (float _Complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (x_arr);
       if ((size_t)(n_out) > (size_t)(_cap))
@@ -370,9 +414,8 @@ MatchedRateConverterObj_execute_ctrl (MatchedRateConverterObject *self,
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t          n_out = dp_RateConverter_execute_ctrl (
-      self->handle, (const float _Complex *)PyArray_DATA (x_arr),
-      (size_t)PyArray_SIZE (x_arr), ctrl, _d0, _cap);
+  size_t n_out = dp_RateConverter_execute_ctrl (self->handle, x, x_len, ctrl,
+                                                _d0, _cap);
   Py_DECREF (x_arr);
   if ((size_t)(n_out) > (size_t)(_cap))
     {
@@ -423,7 +466,7 @@ MatchedRateConverterObj_execute_ctrl_push (MatchedRateConverterObject *self,
     }
   static char *_kwlist[] = { "x", "ctrl", "out", NULL };
   Py_complex   x_raw     = { 0.0, 0.0 };
-  double       ctrl      = 0;
+  double       ctrl      = 0.0;
   PyObject    *out_obj   = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "Dd|O", _kwlist, &x_raw, &ctrl,
                                     &out_obj))
@@ -617,7 +660,6 @@ MatchedRateConverter_getprop_rate (MatchedRateConverterObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_RateConverter_get_rate (self->handle));
 }
 static int
@@ -644,7 +686,6 @@ MatchedRateConverter_getprop_clipped (MatchedRateConverterObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyBool_FromLong ((long)(dp_RateConverter_get_clipped (self->handle)));
 }
 static PyObject *
@@ -656,7 +697,6 @@ MatchedRateConverter_getprop_narrow_pulse (MatchedRateConverterObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyBool_FromLong (
       (long)(dp_RateConverter_get_narrow_pulse (self->handle)));
 }
@@ -990,9 +1030,11 @@ static PyMethodDef MatchedRateConverterObj_methods[] = {
   { "get_state", (PyCFunction)MatchedRateConverterObj_get_state, METH_NOARGS,
     "Serialize this object's mutable state to bytes.\n"
     "\n"
-    "Captures exactly the state that evolves as the object runs, so a blob\n"
-    "taken now and restored later resumes from this point. Construction\n"
-    "parameters are not included: restore into an object built the same way.\n"
+    "Captures the state that evolves as the object runs, including any value\n"
+    "a setter changed after construction, so a blob taken now and restored\n"
+    "later resumes from this point. Construction parameters are not\n"
+    "restored: restore into an object built the same way. A core may check\n"
+    "some of them and refuse a blob built differently.\n"
     "\n"
     "The blob is opaque and always `state_bytes()` long. Its layout is an\n"
     "implementation detail of the C core and is not a stable format across\n"
@@ -1008,10 +1050,12 @@ static PyMethodDef MatchedRateConverterObj_methods[] = {
   { "set_state", (PyCFunction)MatchedRateConverterObj_set_state, METH_O,
     "Restore mutable state from a `get_state()` blob.\n"
     "\n"
-    "Overwrites the live state in place; the object keeps the parameters it\n"
-    "was constructed with. Length is validated against `state_bytes()`\n"
-    "before the blob is handed to the C core, and the core may reject it as\n"
-    "well.\n"
+    "Overwrites the live state in place, including any value a setter\n"
+    "changed after construction. Construction parameters are not restored:\n"
+    "restore into an object built the same way. Length is validated against\n"
+    "`state_bytes()` before the blob is handed to the C core, which may\n"
+    "reject it too: a core may check some construction parameters and refuse\n"
+    "a blob built differently.\n"
     "\n"
     "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
     "length differs from `state_bytes()` or the core rejects it, and\n"

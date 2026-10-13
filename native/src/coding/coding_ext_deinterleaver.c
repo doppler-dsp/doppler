@@ -43,15 +43,75 @@ DeinterleaverObj_init (DeinterleaverObject *self, PyObject *args,
                        PyObject *kwds)
 {
   static char       *kwlist[]      = { "rows", "cols", "unit_bits", NULL };
+  PyObject          *rows_obj      = NULL;
   unsigned long long rows_raw      = 0ULL;
+  PyObject          *cols_obj      = NULL;
   unsigned long long cols_raw      = 0ULL;
+  PyObject          *unit_bits_obj = NULL;
   unsigned long long unit_bits_raw = 1;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|KKK", kwlist, &rows_raw,
-                                    &cols_raw, &unit_bits_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|OOO", kwlist, &rows_obj,
+                                    &cols_obj, &unit_bits_obj))
     return -1;
-  size_t rows      = (size_t)rows_raw;
-  size_t cols      = (size_t)cols_raw;
+  if (rows_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (rows_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      rows_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((rows_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || rows_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "rows: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t rows = (size_t)rows_raw;
+  if (cols_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (cols_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      cols_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((cols_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || cols_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "cols: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t cols = (size_t)cols_raw;
+  if (unit_bits_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (unit_bits_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      unit_bits_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((unit_bits_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || unit_bits_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "unit_bits: %S is out of range for size_t [0, %llu]",
+                        _ix, (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   size_t unit_bits = (size_t)unit_bits_raw;
   self->handle     = dp_interleaver_create_rx (rows, cols, unit_bits);
   if (!self->handle)
@@ -464,7 +524,6 @@ Deinterleaver_getprop_block_bits (DeinterleaverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_interleaver_get_block_bits (self->handle));
 }
@@ -477,7 +536,6 @@ Deinterleaver_getprop_burst_len (DeinterleaverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_interleaver_get_burst_len (self->handle));
 }
@@ -490,7 +548,6 @@ Deinterleaver_getprop_separation (DeinterleaverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_interleaver_get_separation (self->handle));
 }

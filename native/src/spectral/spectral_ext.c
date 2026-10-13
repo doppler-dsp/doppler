@@ -301,11 +301,31 @@ _bind_find_peaks_f32 (PyObject *self, PyObject *args, PyObject *kwds)
   (void)self;
   static char       *_kwlist[]   = { "db", "n_peaks", "min_db", NULL };
   PyObject          *db_obj      = NULL;
+  PyObject          *n_peaks_obj = NULL;
   unsigned long long n_peaks_raw = 0ULL;
   float              min_db      = 0.0f;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OKf", _kwlist, &db_obj,
-                                    &n_peaks_raw, &min_db))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OOf", _kwlist, &db_obj,
+                                    &n_peaks_obj, &min_db))
     return NULL;
+  if (n_peaks_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (n_peaks_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      n_peaks_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((n_peaks_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || n_peaks_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "n_peaks: %S is out of range for size_t [0, %llu]",
+                        _ix, (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t         n_peaks = (size_t)n_peaks_raw;
   PyArrayObject *db_arr  = (PyArrayObject *)jm_array_arg (
       db_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS, "db");
@@ -325,7 +345,7 @@ _bind_find_peaks_f32 (PyObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   size_t     _max     = (size_t)_max_need;
-  dp_peak_t *_results = (dp_peak_t *)malloc (_max * sizeof (dp_peak_t));
+  dp_peak_t *_results = (dp_peak_t *)PyMem_Malloc (_max * sizeof (dp_peak_t));
   if (!_results)
     {
       Py_DECREF (db_arr);
@@ -335,7 +355,7 @@ _bind_find_peaks_f32 (PyObject *self, PyObject *args, PyObject *kwds)
   Py_DECREF (db_arr);
   if ((size_t)(_n) > (size_t)(_max))
     {
-      free (_results);
+      PyMem_Free (_results);
       PyErr_Format (PyExc_RuntimeError,
                     "find_peaks_f32: wrote %zu elements into a buffer of %zu",
                     (size_t)(_n), (size_t)(_max));
@@ -344,7 +364,7 @@ _bind_find_peaks_f32 (PyObject *self, PyObject *args, PyObject *kwds)
   PyObject *_lst = PyList_New ((Py_ssize_t)_n);
   if (!_lst)
     {
-      free (_results);
+      PyMem_Free (_results);
       return NULL;
     }
   for (size_t _i = 0; _i < _n; _i++)
@@ -354,13 +374,13 @@ _bind_find_peaks_f32 (PyObject *self, PyObject *args, PyObject *kwds)
           PyFloat_FromDouble ((double)_results[_i].amplitude_db));
       if (!_tup)
         {
-          free (_results);
+          PyMem_Free (_results);
           Py_DECREF (_lst);
           return NULL;
         }
       PyList_SET_ITEM (_lst, (Py_ssize_t)_i, _tup);
     }
-  free (_results);
+  PyMem_Free (_results);
   return _lst;
 }
 

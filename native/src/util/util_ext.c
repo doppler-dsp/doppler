@@ -91,9 +91,29 @@ _bind_next_pow_two (PyObject *self, PyObject *args, PyObject *kwds)
 {
   (void)self;
   static char       *_kwlist[] = { "n", NULL };
+  PyObject          *n_obj     = NULL;
   unsigned long long n_raw     = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &n_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &n_obj))
     return NULL;
+  if (n_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (n_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      n_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((n_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || n_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "n: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t n = (size_t)n_raw;
   return PyLong_FromUnsignedLongLong ((unsigned long long)dp_next_pow_two (n));
 }
@@ -133,9 +153,29 @@ _bind_ema_alpha_decim (PyObject *self, PyObject *args, PyObject *kwds)
   (void)self;
   static char       *_kwlist[] = { "alpha", "d", NULL };
   double             alpha     = 0.0;
+  PyObject          *d_obj     = NULL;
   unsigned long long d_raw     = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "dK", _kwlist, &alpha, &d_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "dO", _kwlist, &alpha, &d_obj))
     return NULL;
+  if (d_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (d_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      d_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((d_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || d_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "d: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t d = (size_t)d_raw;
   return PyFloat_FromDouble (dp_ema_alpha_decim (alpha, d));
 }

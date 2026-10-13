@@ -43,16 +43,56 @@ NPRMeasureObj_init (NPRMeasureObject *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[]
       = { "n", "fs", "full_scale", "bits", "dynamic_range_db", NULL };
+  PyObject          *n_obj            = NULL;
   unsigned long long n_raw            = 8192;
   double             fs               = 1.0;
   double             full_scale       = 1.0;
+  PyObject          *bits_obj         = NULL;
   unsigned long long bits_raw         = 0;
   double             dynamic_range_db = 0.0;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|KddKd", kwlist, &n_raw, &fs,
-                                    &full_scale, &bits_raw, &dynamic_range_db))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|OddOd", kwlist, &n_obj, &fs,
+                                    &full_scale, &bits_obj, &dynamic_range_db))
     return -1;
-  size_t n     = (size_t)n_raw;
+  if (n_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (n_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      n_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((n_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || n_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "n: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t n = (size_t)n_raw;
+  if (bits_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (bits_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      bits_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((bits_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || bits_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "bits: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   size_t bits  = (size_t)bits_raw;
   self->handle = dp_nprmeas_create (n, fs, full_scale, bits, dynamic_range_db);
   if (!self->handle)
@@ -175,16 +215,20 @@ NPRMeasureObj_spectrum_dbfs (NPRMeasureObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char   *_kwlist[] = { "x", "out", NULL };
-  PyObject      *x_obj     = NULL;
-  PyArrayObject *x_arr     = NULL;
-  PyObject      *out_obj   = NULL;
+  static char *_kwlist[] = { "x", "out", NULL };
+  PyObject    *x_obj     = NULL;
+  PyObject    *out_obj   = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = jm_array_arg (x_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS, "x");
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
-    return NULL;
+    {
+      return NULL;
+    }
+  const float *x     = (const float *)PyArray_DATA (x_arr);
+  size_t       x_len = (size_t)PyArray_SIZE (x_arr);
   if (out_obj && out_obj != Py_None)
     {
       /* Require the exact dtype AND C-contiguity — either mismatch makes
@@ -222,8 +266,7 @@ NPRMeasureObj_spectrum_dbfs (NPRMeasureObject *self, PyObject *args,
           return NULL;
         }
       size_t n_out = dp_nprmeas_spectrum_dbfs (
-          self->handle, (const float *)PyArray_DATA (x_arr),
-          (size_t)PyArray_SIZE (x_arr), (float *)PyArray_DATA (out_arr), _cap);
+          self->handle, x, x_len, (float *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (x_arr);
       if ((size_t)(n_out) > (size_t)(_cap))
         {
@@ -273,9 +316,7 @@ NPRMeasureObj_spectrum_dbfs (NPRMeasureObject *self, PyObject *args,
       return NULL;
     }
   float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = dp_nprmeas_spectrum_dbfs (
-      self->handle, (const float *)PyArray_DATA (x_arr),
-      (size_t)PyArray_SIZE (x_arr), _d0, _cap);
+  size_t n_out = dp_nprmeas_spectrum_dbfs (self->handle, x, x_len, _d0, _cap);
   Py_DECREF (x_arr);
   if ((size_t)(n_out) > (size_t)(_cap))
     {

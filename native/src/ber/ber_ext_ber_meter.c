@@ -43,12 +43,33 @@ BerMeterObj_init (BerMeterObject *self, PyObject *args, PyObject *kwds)
 {
   static char       *kwlist[] = { "m", "target_errors", "conf", NULL };
   int                m        = 4;
+  PyObject          *target_errors_obj = NULL;
   unsigned long long target_errors_raw = 200;
   double             conf              = 0.99;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|iKd", kwlist, &m,
-                                    &target_errors_raw, &conf))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|iOd", kwlist, &m,
+                                    &target_errors_obj, &conf))
     return -1;
+  if (target_errors_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (target_errors_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      target_errors_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((target_errors_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || target_errors_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (
+              PyExc_OverflowError,
+              "target_errors: %S is out of range for size_t [0, %llu]", _ix,
+              (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   size_t target_errors = (size_t)target_errors_raw;
   self->handle         = dp_ber_meter_create (m, target_errors, conf);
   if (!self->handle)
@@ -114,18 +135,78 @@ BerMeterObj_align (BerMeterObject *self, PyObject *args, PyObject *kwds)
   static char *_kwlist[]
       = { "rx", "t0", "n_marker", "period", "lag_span", "pfa", NULL };
   PyObject          *rx_obj       = NULL;
+  PyObject          *t0_obj       = NULL;
   unsigned long long t0_raw       = 0;
+  PyObject          *n_marker_obj = NULL;
   unsigned long long n_marker_raw = 0;
+  PyObject          *period_obj   = NULL;
   unsigned long long period_raw   = 0;
   int                lag_span     = 0;
   double             pfa          = 0.0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|KKKid", _kwlist, &rx_obj,
-                                    &t0_raw, &n_marker_raw, &period_raw,
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|OOOid", _kwlist, &rx_obj,
+                                    &t0_obj, &n_marker_obj, &period_obj,
                                     &lag_span, &pfa))
     return NULL;
-  size_t         t0       = (size_t)t0_raw;
-  size_t         n_marker = (size_t)n_marker_raw;
-  size_t         period   = (size_t)period_raw;
+  if (t0_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (t0_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      t0_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((t0_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || t0_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "t0: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t t0 = (size_t)t0_raw;
+  if (n_marker_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (n_marker_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      n_marker_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((n_marker_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || n_marker_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "n_marker: %S is out of range for size_t [0, %llu]",
+                        _ix, (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t n_marker = (size_t)n_marker_raw;
+  if (period_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (period_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      period_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((period_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || period_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "period: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t         period = (size_t)period_raw;
   PyArrayObject *rx_arr
       = jm_array_arg (rx_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "rx");
   if (!rx_arr)
@@ -134,8 +215,15 @@ BerMeterObj_align (BerMeterObject *self, PyObject *args, PyObject *kwds)
     }
   const float _Complex *rx     = (const float _Complex *)PyArray_DATA (rx_arr);
   size_t                rx_len = (size_t)PyArray_SIZE (rx_arr);
-  int y = dp_ber_meter_align (self->handle, rx, rx_len, t0, n_marker, period,
-                              lag_span, pfa);
+  /* nogil: GIL released across the pure-C kernel — sound only when
+   * this object is not shared across threads concurrently (one
+   * object per stream); the kernel touches only this object's
+   * state/buffers and the caller's input. */
+  int y;
+  Py_BEGIN_ALLOW_THREADS
+    y = dp_ber_meter_align (self->handle, rx, rx_len, t0, n_marker, period,
+                            lag_span, pfa);
+  Py_END_ALLOW_THREADS
   Py_DECREF (rx_arr);
   return PyLong_FromLong ((long)y);
 }
@@ -150,12 +238,52 @@ BerMeterObj_score (BerMeterObject *self, PyObject *args, PyObject *kwds)
     }
   static char       *_kwlist[] = { "rx", "lo", "hi", NULL };
   PyObject          *rx_obj    = NULL;
+  PyObject          *lo_obj    = NULL;
   unsigned long long lo_raw    = 0;
+  PyObject          *hi_obj    = NULL;
   unsigned long long hi_raw    = 0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|KK", _kwlist, &rx_obj,
-                                    &lo_raw, &hi_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|OO", _kwlist, &rx_obj,
+                                    &lo_obj, &hi_obj))
     return NULL;
-  size_t         lo = (size_t)lo_raw;
+  if (lo_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (lo_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      lo_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((lo_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || lo_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "lo: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t lo = (size_t)lo_raw;
+  if (hi_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (hi_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      hi_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((hi_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || hi_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "hi: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t         hi = (size_t)hi_raw;
   PyArrayObject *rx_arr
       = jm_array_arg (rx_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "rx");
@@ -165,7 +293,14 @@ BerMeterObj_score (BerMeterObject *self, PyObject *args, PyObject *kwds)
     }
   const float _Complex *rx     = (const float _Complex *)PyArray_DATA (rx_arr);
   size_t                rx_len = (size_t)PyArray_SIZE (rx_arr);
-  size_t y = dp_ber_meter_score (self->handle, rx, rx_len, lo, hi);
+  /* nogil: GIL released across the pure-C kernel — sound only when
+   * this object is not shared across threads concurrently (one
+   * object per stream); the kernel touches only this object's
+   * state/buffers and the caller's input. */
+  size_t y;
+  Py_BEGIN_ALLOW_THREADS
+    y = dp_ber_meter_score (self->handle, rx, rx_len, lo, hi);
+  Py_END_ALLOW_THREADS
   Py_DECREF (rx_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -290,12 +425,52 @@ BerMeterObj_interval (BerMeterObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   static char       *_kwlist[]   = { "errors", "symbols", NULL };
+  PyObject          *errors_obj  = NULL;
   unsigned long long errors_raw  = 0ULL;
+  PyObject          *symbols_obj = NULL;
   unsigned long long symbols_raw = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "KK", _kwlist, &errors_raw,
-                                    &symbols_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO", _kwlist, &errors_obj,
+                                    &symbols_obj))
     return NULL;
-  size_t errors  = (size_t)errors_raw;
+  if (errors_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (errors_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      errors_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((errors_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || errors_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "errors: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t errors = (size_t)errors_raw;
+  if (symbols_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (symbols_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      symbols_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((symbols_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || symbols_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "symbols: %S is out of range for size_t [0, %llu]",
+                        _ix, (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t symbols = (size_t)symbols_raw;
   if (!BerMeterObj_interval_type)
     {
@@ -383,7 +558,6 @@ BerMeter_getprop_errors (BerMeterObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_ber_meter_get_errors (self->handle));
 }
@@ -395,7 +569,6 @@ BerMeter_getprop_symbols (BerMeterObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_ber_meter_get_symbols (self->handle));
 }
@@ -407,7 +580,6 @@ BerMeter_getprop_bit_errors (BerMeterObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_ber_meter_get_bit_errors (self->handle));
 }
@@ -419,7 +591,6 @@ BerMeter_getprop_bits (BerMeterObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_ber_meter_get_bits (self->handle));
 }
@@ -431,7 +602,6 @@ BerMeter_getprop_skipped (BerMeterObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_ber_meter_get_skipped (self->handle));
 }
@@ -443,7 +613,6 @@ BerMeter_getprop_m (BerMeterObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromLong ((long)dp_ber_meter_get_m (self->handle));
 }
 static PyObject *
@@ -455,7 +624,6 @@ BerMeter_getprop_target_errors (BerMeterObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_ber_meter_get_target_errors (self->handle));
 }
@@ -467,7 +635,6 @@ BerMeter_getprop_conf (BerMeterObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_ber_meter_get_conf (self->handle));
 }
 static PyObject *
@@ -478,7 +645,6 @@ BerMeter_getprop_enough (BerMeterObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromLong ((long)dp_ber_meter_get_enough (self->handle));
 }
 static PyObject *
@@ -489,7 +655,6 @@ BerMeter_getprop_lag (BerMeterObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromLong ((long)dp_ber_meter_get_lag (self->handle));
 }
 static PyObject *
@@ -500,7 +665,6 @@ BerMeter_getprop_phase (BerMeterObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_ber_meter_get_phase (self->handle));
 }
 static PyObject *
@@ -511,7 +675,6 @@ BerMeter_getprop_align_stat (BerMeterObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_ber_meter_get_align_stat (self->handle));
 }
 static PyObject *
@@ -523,7 +686,6 @@ BerMeter_getprop_align_margin_db (BerMeterObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_ber_meter_get_align_margin_db (self->handle));
 }
 static PyObject *
@@ -535,7 +697,6 @@ BerMeter_getprop_align_runner_db (BerMeterObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_ber_meter_get_align_runner_db (self->handle));
 }
 static PyObject *
@@ -547,7 +708,6 @@ BerMeter_getprop_align_occurrences (BerMeterObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_ber_meter_get_align_occurrences (self->handle));
 }
@@ -559,7 +719,6 @@ BerMeter_getprop_align_slips (BerMeterObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_ber_meter_get_align_slips (self->handle));
 }
@@ -572,7 +731,6 @@ BerMeter_getprop_align_saturated (BerMeterObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromLong (
       (long)dp_ber_meter_get_align_saturated (self->handle));
 }
@@ -584,7 +742,6 @@ BerMeter_getprop_align_ok (BerMeterObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromLong ((long)dp_ber_meter_get_align_ok (self->handle));
 }
 
@@ -996,9 +1153,11 @@ static PyMethodDef BerMeterObj_methods[] = {
   { "get_state", (PyCFunction)BerMeterObj_get_state, METH_NOARGS,
     "Serialize this object's mutable state to bytes.\n"
     "\n"
-    "Captures exactly the state that evolves as the object runs, so a blob\n"
-    "taken now and restored later resumes from this point. Construction\n"
-    "parameters are not included: restore into an object built the same way.\n"
+    "Captures the state that evolves as the object runs, including any value\n"
+    "a setter changed after construction, so a blob taken now and restored\n"
+    "later resumes from this point. Construction parameters are not\n"
+    "restored: restore into an object built the same way. A core may check\n"
+    "some of them and refuse a blob built differently.\n"
     "\n"
     "The blob is opaque and always `state_bytes()` long. Its layout is an\n"
     "implementation detail of the C core and is not a stable format across\n"
@@ -1013,10 +1172,12 @@ static PyMethodDef BerMeterObj_methods[] = {
   { "set_state", (PyCFunction)BerMeterObj_set_state, METH_O,
     "Restore mutable state from a `get_state()` blob.\n"
     "\n"
-    "Overwrites the live state in place; the object keeps the parameters it\n"
-    "was constructed with. Length is validated against `state_bytes()`\n"
-    "before the blob is handed to the C core, and the core may reject it as\n"
-    "well.\n"
+    "Overwrites the live state in place, including any value a setter\n"
+    "changed after construction. Construction parameters are not restored:\n"
+    "restore into an object built the same way. Length is validated against\n"
+    "`state_bytes()` before the blob is handed to the C core, which may\n"
+    "reject it too: a core may check some construction parameters and refuse\n"
+    "a blob built differently.\n"
     "\n"
     "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
     "length differs from `state_bytes()` or the core rejects it, and\n"

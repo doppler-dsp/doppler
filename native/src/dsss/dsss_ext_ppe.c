@@ -45,12 +45,32 @@ PolynomialPhaseEstimatorObj_init (PolynomialPhaseEstimatorObject *self,
                                   PyObject *args, PyObject *kwds)
 {
   static char       *kwlist[]    = { "max_len", "max_rate", NULL };
+  PyObject          *max_len_obj = NULL;
   unsigned long long max_len_raw = 4096;
   double             max_rate    = 0.0;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|Kd", kwlist, &max_len_raw,
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|Od", kwlist, &max_len_obj,
                                     &max_rate))
     return -1;
+  if (max_len_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (max_len_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      max_len_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((max_len_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || max_len_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "max_len: %S is out of range for size_t [0, %llu]",
+                        _ix, (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   size_t max_len = (size_t)max_len_raw;
   self->handle   = dp_ppe_create (max_len, max_rate);
   if (!self->handle)

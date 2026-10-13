@@ -52,7 +52,9 @@ PersistentBurstCaptureObj_init (PersistentBurstCaptureObject *self,
           NULL };
   PyObject          *preamble_obj        = NULL;
   PyObject          *path                = NULL; /* fspath -> bytes */
+  PyObject          *burst_len_obj       = NULL;
   unsigned long long burst_len_raw       = 8192;
+  PyObject          *reps_obj            = NULL;
   unsigned long long reps_raw            = 5;
   double             fs                  = 1.0;
   double             cn0_dbhz            = ACQ_CN0_NONE;
@@ -61,18 +63,61 @@ PersistentBurstCaptureObj_init (PersistentBurstCaptureObject *self,
   double             pd                  = 0.9;
   const char        *noise_mode_str      = "mean";
   double             doppler_rate        = 0.0;
+  PyObject          *rate_hypotheses_obj = NULL;
   unsigned long long rate_hypotheses_raw = 1;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "O&O|KKdddddsdK", kwlist, PyUnicode_FSConverter, &path,
-          &preamble_obj, &burst_len_raw, &reps_raw, &fs, &cn0_dbhz,
+          args, kwds, "O&O|OOdddddsdO", kwlist, PyUnicode_FSConverter, &path,
+          &preamble_obj, &burst_len_obj, &reps_obj, &fs, &cn0_dbhz,
           &doppler_uncertainty, &pfa, &pd, &noise_mode_str, &doppler_rate,
-          &rate_hypotheses_raw))
+          &rate_hypotheses_obj))
     {
       Py_XDECREF (path);
       return -1;
     }
-  size_t burst_len  = (size_t)burst_len_raw;
+  if (burst_len_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (burst_len_obj);
+      if (_ix == NULL)
+        {
+          Py_XDECREF (path);
+          return -1;
+        }
+      burst_len_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((burst_len_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || burst_len_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "burst_len: %S is out of range for size_t [0, %llu]",
+                        _ix, (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          Py_XDECREF (path);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t burst_len = (size_t)burst_len_raw;
+  if (reps_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (reps_obj);
+      if (_ix == NULL)
+        {
+          Py_XDECREF (path);
+          return -1;
+        }
+      reps_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((reps_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || reps_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "reps: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          Py_XDECREF (path);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   size_t reps       = (size_t)reps_raw;
   int    noise_mode = 0;
   if (strcmp (noise_mode_str, "mean") == 0)
@@ -91,6 +136,28 @@ PersistentBurstCaptureObj_init (PersistentBurstCaptureObject *self,
                     noise_mode_str);
       Py_XDECREF (path);
       return -1;
+    }
+  if (rate_hypotheses_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (rate_hypotheses_obj);
+      if (_ix == NULL)
+        {
+          Py_XDECREF (path);
+          return -1;
+        }
+      rate_hypotheses_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((rate_hypotheses_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || rate_hypotheses_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (
+              PyExc_OverflowError,
+              "rate_hypotheses: %S is out of range for size_t [0, %llu]", _ix,
+              (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          Py_XDECREF (path);
+          return -1;
+        }
+      Py_DECREF (_ix);
     }
   size_t         rate_hypotheses = (size_t)rate_hypotheses_raw;
   PyArrayObject *preamble_arr    = jm_array_arg (
@@ -147,16 +214,20 @@ PersistentBurstCaptureObj_push (PersistentBurstCaptureObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char   *_kwlist[] = { "x", "out", NULL };
-  PyObject      *x_obj     = NULL;
-  PyArrayObject *x_arr     = NULL;
-  PyObject      *out_obj   = NULL;
+  static char *_kwlist[] = { "x", "out", NULL };
+  PyObject    *x_obj     = NULL;
+  PyObject    *out_obj   = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
-    return NULL;
+    {
+      return NULL;
+    }
+  const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
+  size_t                x_len = (size_t)PyArray_SIZE (x_arr);
   if (out_obj && out_obj != Py_None)
     {
       /* Require the exact dtype AND C-contiguity — either mismatch makes
@@ -196,13 +267,10 @@ PersistentBurstCaptureObj_push (PersistentBurstCaptureObject *self,
        * this object is not shared across threads concurrently (one
        * object per stream); the kernel touches only this object's
        * state/buffers and the caller's input. */
-      const float _Complex *_ng0
-          = (const float _Complex *)PyArray_DATA (x_arr);
-      size_t          _ng1 = (size_t)PyArray_SIZE (x_arr);
-      float _Complex *_ng2 = (float _Complex *)PyArray_DATA (out_arr);
+      float _Complex *_ng0 = (float _Complex *)PyArray_DATA (out_arr);
       size_t          n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out = dp_burst_capture_push (self->handle, _ng0, _ng1, _ng2, _cap);
+        n_out = dp_burst_capture_push (self->handle, x, x_len, _ng0, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       if ((size_t)(n_out) > (size_t)(_cap))
@@ -257,11 +325,9 @@ PersistentBurstCaptureObj_push (PersistentBurstCaptureObject *self,
    * this object is not shared across threads concurrently (one
    * object per stream); the kernel touches only this object's
    * state/buffers and the caller's input. */
-  const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (x_arr);
-  size_t                _ng1 = (size_t)PyArray_SIZE (x_arr);
-  size_t                n_out;
+  size_t n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = dp_burst_capture_push (self->handle, _ng0, _ng1, _d0, _cap);
+    n_out = dp_burst_capture_push (self->handle, x, x_len, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   if ((size_t)(n_out) > (size_t)(_cap))
@@ -739,13 +805,54 @@ PersistentBurstCaptureObj_configure_search_raw (
       return NULL;
     }
   static char       *_kwlist[]        = { "doppler_bins", "n_noncoh", NULL };
+  PyObject          *doppler_bins_obj = NULL;
   unsigned long long doppler_bins_raw = 0ULL;
+  PyObject          *n_noncoh_obj     = NULL;
   unsigned long long n_noncoh_raw     = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "KK", _kwlist,
-                                    &doppler_bins_raw, &n_noncoh_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO", _kwlist,
+                                    &doppler_bins_obj, &n_noncoh_obj))
     return NULL;
+  if (doppler_bins_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (doppler_bins_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      doppler_bins_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((doppler_bins_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || doppler_bins_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (
+              PyExc_OverflowError,
+              "doppler_bins: %S is out of range for size_t [0, %llu]", _ix,
+              (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t doppler_bins = (size_t)doppler_bins_raw;
-  size_t n_noncoh     = (size_t)n_noncoh_raw;
+  if (n_noncoh_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (n_noncoh_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      n_noncoh_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((n_noncoh_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || n_noncoh_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "n_noncoh: %S is out of range for size_t [0, %llu]",
+                        _ix, (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t n_noncoh = (size_t)n_noncoh_raw;
   int _rc = dp_burst_capture_configure_search_raw (self->handle, doppler_bins,
                                                    n_noncoh);
   if (_rc != 0)
@@ -767,9 +874,29 @@ PersistentBurstCaptureObj_release (PersistentBurstCaptureObject *self,
       return NULL;
     }
   static char       *_kwlist[] = { "i", NULL };
+  PyObject          *i_obj     = NULL;
   unsigned long long i_raw     = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &i_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &i_obj))
     return NULL;
+  if (i_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (i_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      i_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((i_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || i_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "i: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t i   = (size_t)i_raw;
   int    _rc = dp_burst_capture_release (self->handle, i);
   if (_rc != 0)
@@ -859,7 +986,6 @@ PersistentBurstCapture_getprop_preamble_start (
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_burst_capture_get_preamble_start (self->handle));
 }
@@ -872,7 +998,6 @@ PersistentBurstCapture_getprop_doppler_hz_est (
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (
       dp_burst_capture_get_doppler_hz_est (self->handle));
 }
@@ -885,7 +1010,6 @@ PersistentBurstCapture_getprop_doppler_res_hz (
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (
       dp_burst_capture_get_doppler_res_hz (self->handle));
 }
@@ -898,7 +1022,6 @@ PersistentBurstCapture_getprop_cn0_dbhz_est (
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_burst_capture_get_cn0_dbhz_est (self->handle));
 }
 static PyObject *
@@ -969,7 +1092,6 @@ PersistentBurstCapture_getprop_doppler_rate (
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_burst_capture_get_doppler_rate (self->handle));
 }
 static PyObject *
@@ -981,7 +1103,6 @@ PersistentBurstCapture_getprop_rate_hypotheses (
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_burst_capture_get_rate_hypotheses (self->handle));
 }
@@ -994,7 +1115,6 @@ PersistentBurstCapture_getprop_pd_predicted (
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_burst_capture_get_pd_predicted (self->handle));
 }
 static PyObject *
@@ -1006,7 +1126,6 @@ PersistentBurstCapture_getprop_pd_burst (PersistentBurstCaptureObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_burst_capture_get_pd_burst (self->handle));
 }
 static PyObject *
@@ -1018,7 +1137,6 @@ PersistentBurstCapture_getprop_psl_db (PersistentBurstCaptureObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_burst_capture_get_psl_db (self->handle));
 }
 static PyObject *
@@ -1030,7 +1148,6 @@ PersistentBurstCapture_getprop_eta (PersistentBurstCaptureObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_burst_capture_get_eta (self->handle));
 }
 static PyObject *
@@ -1042,7 +1159,6 @@ PersistentBurstCapture_getprop_eta_nc (PersistentBurstCaptureObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_burst_capture_get_eta_nc (self->handle));
 }
 static PyObject *
@@ -1054,7 +1170,6 @@ PersistentBurstCapture_getprop_straddle_loss (
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (
       dp_burst_capture_get_straddle_loss (self->handle));
 }
@@ -1067,7 +1182,6 @@ PersistentBurstCapture_getprop_doppler_bins (
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_burst_capture_get_doppler_bins (self->handle));
 }
@@ -1080,7 +1194,6 @@ PersistentBurstCapture_getprop_n_noncoh (PersistentBurstCaptureObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_burst_capture_get_n_noncoh (self->handle));
 }
@@ -1093,7 +1206,6 @@ PersistentBurstCapture_getprop_code_bins (PersistentBurstCaptureObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_burst_capture_get_code_bins (self->handle));
 }
@@ -1106,7 +1218,6 @@ PersistentBurstCapture_getprop_doppler_span_hz (
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (
       dp_burst_capture_get_doppler_span_hz (self->handle));
 }
@@ -1119,7 +1230,6 @@ PersistentBurstCapture_getprop_pending (PersistentBurstCaptureObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_burst_capture_get_pending (self->handle));
 }
@@ -1132,7 +1242,6 @@ PersistentBurstCapture_getprop_dropped (PersistentBurstCaptureObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_burst_capture_get_dropped (self->handle));
 }
@@ -1145,7 +1254,6 @@ PersistentBurstCapture_getprop_n_bursts (PersistentBurstCaptureObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_burst_capture_get_n_bursts (self->handle));
 }
@@ -1744,9 +1852,11 @@ static PyMethodDef PersistentBurstCaptureObj_methods[] = {
   { "get_state", (PyCFunction)PersistentBurstCaptureObj_get_state, METH_NOARGS,
     "Serialize this object's mutable state to bytes.\n"
     "\n"
-    "Captures exactly the state that evolves as the object runs, so a blob\n"
-    "taken now and restored later resumes from this point. Construction\n"
-    "parameters are not included: restore into an object built the same way.\n"
+    "Captures the state that evolves as the object runs, including any value\n"
+    "a setter changed after construction, so a blob taken now and restored\n"
+    "later resumes from this point. Construction parameters are not\n"
+    "restored: restore into an object built the same way. A core may check\n"
+    "some of them and refuse a blob built differently.\n"
     "\n"
     "The blob is opaque and always `state_bytes()` long. Its layout is an\n"
     "implementation detail of the C core and is not a stable format across\n"
@@ -1762,10 +1872,12 @@ static PyMethodDef PersistentBurstCaptureObj_methods[] = {
   { "set_state", (PyCFunction)PersistentBurstCaptureObj_set_state, METH_O,
     "Restore mutable state from a `get_state()` blob.\n"
     "\n"
-    "Overwrites the live state in place; the object keeps the parameters it\n"
-    "was constructed with. Length is validated against `state_bytes()`\n"
-    "before the blob is handed to the C core, and the core may reject it as\n"
-    "well.\n"
+    "Overwrites the live state in place, including any value a setter\n"
+    "changed after construction. Construction parameters are not restored:\n"
+    "restore into an object built the same way. Length is validated against\n"
+    "`state_bytes()` before the blob is handed to the C core, which may\n"
+    "reject it too: a core may check some construction parameters and refuse\n"
+    "a blob built differently.\n"
     "\n"
     "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
     "length differs from `state_bytes()` or the core rejects it, and\n"

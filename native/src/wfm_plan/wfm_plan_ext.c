@@ -156,9 +156,29 @@ static PyObject *
 Plan_at (PlanObject *self, PyObject *args)
 {
   double             snr      = 0.0;
+  PyObject          *seed_obj = NULL;
   unsigned long long seed_raw = 0ULL;
-  if (!PyArg_ParseTuple (args, "dK", &snr, &seed_raw))
+  if (!PyArg_ParseTuple (args, "dO", &snr, &seed_obj))
     return NULL;
+  if (seed_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (seed_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      seed_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((seed_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || seed_raw > (unsigned long long)UINT64_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "seed: %S is out of range for uint64_t [0, %llu]", _ix,
+                        (unsigned long long)UINT64_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   uint64_t seed = (uint64_t)seed_raw;
   if (self->closed)
     {

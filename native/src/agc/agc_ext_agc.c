@@ -283,7 +283,6 @@ AGC_getprop_applied_gain_db (AGCObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_agc_get_applied_gain_db (self->handle));
 }
 static PyObject *
@@ -379,8 +378,24 @@ AGC_setprop_decim (AGCObject *self, PyObject *value, void *Py_UNUSED (closure))
       return -1;
     }
   unsigned long long v_raw = 0ULL;
-  if (!PyArg_Parse (value, "K", &v_raw))
-    return -1;
+  {
+    PyObject *_ix = PyNumber_Index (value);
+    if (_ix == NULL)
+      {
+        return -1;
+      }
+    v_raw = PyLong_AsUnsignedLongLong (_ix);
+    if ((v_raw == (unsigned long long)-1 && PyErr_Occurred ())
+        || v_raw > (unsigned long long)SIZE_MAX)
+      {
+        PyErr_Format (PyExc_OverflowError,
+                      "decim: %S is out of range for size_t [0, %llu]", _ix,
+                      (unsigned long long)SIZE_MAX);
+        Py_DECREF (_ix);
+        return -1;
+      }
+    Py_DECREF (_ix);
+  }
   size_t v            = (size_t)v_raw;
   self->handle->decim = v;
   return 0;
@@ -431,8 +446,25 @@ AGC_setprop_gain_update_period (AGCObject *self, PyObject *value,
       return -1;
     }
   unsigned long long v_raw = 0ULL;
-  if (!PyArg_Parse (value, "K", &v_raw))
-    return -1;
+  {
+    PyObject *_ix = PyNumber_Index (value);
+    if (_ix == NULL)
+      {
+        return -1;
+      }
+    v_raw = PyLong_AsUnsignedLongLong (_ix);
+    if ((v_raw == (unsigned long long)-1 && PyErr_Occurred ())
+        || v_raw > (unsigned long long)SIZE_MAX)
+      {
+        PyErr_Format (
+            PyExc_OverflowError,
+            "gain_update_period: %S is out of range for size_t [0, %llu]", _ix,
+            (unsigned long long)SIZE_MAX);
+        Py_DECREF (_ix);
+        return -1;
+      }
+    Py_DECREF (_ix);
+  }
   size_t v                         = (size_t)v_raw;
   self->handle->gain_update_period = v;
   return 0;
@@ -680,9 +712,11 @@ static PyMethodDef AGCObj_methods[] = {
   { "get_state", (PyCFunction)AGCObj_get_state, METH_NOARGS,
     "Serialize this object's mutable state to bytes.\n"
     "\n"
-    "Captures exactly the state that evolves as the object runs, so a blob\n"
-    "taken now and restored later resumes from this point. Construction\n"
-    "parameters are not included: restore into an object built the same way.\n"
+    "Captures the state that evolves as the object runs, including any value\n"
+    "a setter changed after construction, so a blob taken now and restored\n"
+    "later resumes from this point. Construction parameters are not\n"
+    "restored: restore into an object built the same way. A core may check\n"
+    "some of them and refuse a blob built differently.\n"
     "\n"
     "The blob is opaque and always `state_bytes()` long. Its layout is an\n"
     "implementation detail of the C core and is not a stable format across\n"
@@ -697,10 +731,12 @@ static PyMethodDef AGCObj_methods[] = {
   { "set_state", (PyCFunction)AGCObj_set_state, METH_O,
     "Restore mutable state from a `get_state()` blob.\n"
     "\n"
-    "Overwrites the live state in place; the object keeps the parameters it\n"
-    "was constructed with. Length is validated against `state_bytes()`\n"
-    "before the blob is handed to the C core, and the core may reject it as\n"
-    "well.\n"
+    "Overwrites the live state in place, including any value a setter\n"
+    "changed after construction. Construction parameters are not restored:\n"
+    "restore into an object built the same way. Length is validated against\n"
+    "`state_bytes()` before the blob is handed to the C core, which may\n"
+    "reject it too: a core may check some construction parameters and refuse\n"
+    "a blob built differently.\n"
     "\n"
     "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
     "length differs from `state_bytes()` or the core rejects it, and\n"

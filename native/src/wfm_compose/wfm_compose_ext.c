@@ -141,7 +141,7 @@ static const char *const _enum_endian[] = {
 };
 
 static int
-_jm_parse_range (PyObject *o, double *lo, double *hi, int *is_range)
+_jm_parse_range (PyObject *o, PyObject **lo, PyObject **hi)
 {
   if (PySequence_Check (o) && !PyUnicode_Check (o) && !PyBytes_Check (o))
     {
@@ -149,29 +149,21 @@ _jm_parse_range (PyObject *o, double *lo, double *hi, int *is_range)
         {
           PyErr_SetString (PyExc_ValueError,
                            "range must be a (low, high) pair");
-          return 0;
+          return -1;
         }
-      PyObject *a   = PySequence_GetItem (o, 0);
-      PyObject *b   = PySequence_GetItem (o, 1);
-      double    dlo = a ? PyFloat_AsDouble (a) : -1.0;
-      double    dhi = b ? PyFloat_AsDouble (b) : -1.0;
-      Py_XDECREF (a);
-      Py_XDECREF (b);
-      if (PyErr_Occurred ())
-        return 0;
-      *lo       = dlo;
-      *hi       = dhi;
-      *is_range = 1;
+      *lo = PySequence_GetItem (o, 0);
+      *hi = *lo ? PySequence_GetItem (o, 1) : NULL;
+      if (!*hi)
+        {
+          Py_XDECREF (*lo);
+          return -1;
+        }
       return 1;
     }
-  {
-    double v = PyFloat_AsDouble (o);
-    if (PyErr_Occurred ())
-      return 0;
-    *lo       = v;
-    *is_range = 0;
-  }
-  return 1;
+  Py_INCREF (o);
+  *lo = o;
+  *hi = NULL;
+  return 0;
 }
 
 typedef struct
@@ -555,11 +547,13 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   long long          seed_raw         = 0;
   int                sps              = 1;
   int                pn_length        = 15;
+  PyObject          *pn_poly_obj      = NULL;
   unsigned long long pn_poly_raw      = 0;
   const char        *lfsr             = "galois";
   PyObject          *level            = NULL;
   int                background       = 0;
   PyObject          *f_end            = NULL;
+  PyObject          *span_obj         = NULL;
   unsigned long long span_raw         = 0;
   PyObject          *doppler          = NULL;
   PyObject          *doppler_rate     = NULL;
@@ -571,6 +565,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   int                rrc_span         = 8;
   PyObject          *symbols          = NULL;
   PyObject          *acq_code         = NULL;
+  PyObject          *acq_reps_obj     = NULL;
   unsigned long long acq_reps_raw     = 1;
   PyObject          *data_code        = NULL;
   PyObject          *sync             = NULL;
@@ -580,6 +575,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   PyObject          *frame            = NULL;
   PyObject          *bits             = NULL;
   PyObject          *data             = NULL;
+  PyObject          *data_len_obj     = NULL;
   unsigned long long data_len_raw     = 0;
   PyObject          *fill             = NULL;
   double             fs               = 1e6;
@@ -670,13 +666,13 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
       }
     }
   if (!PyArg_ParseTupleAndKeywords (
-          args, _kw, "|sOOsLiiKsOiOKOOdsssdiOOKOOOdiOOOKOd", kwlist, &type,
-          &freq, &snr, &snr_mode, &seed_raw, &sps, &pn_length, &pn_poly_raw,
-          &lfsr, &level, &background, &f_end, &span_raw, &doppler,
+          args, _kw, "|sOOsLiiOsOiOOOOdsssdiOOOOOOdiOOOOOd", kwlist, &type,
+          &freq, &snr, &snr_mode, &seed_raw, &sps, &pn_length, &pn_poly_obj,
+          &lfsr, &level, &background, &f_end, &span_obj, &doppler,
           &doppler_rate, &carrier_hz, &doppler_lifetime, &modulation, &pulse,
-          &rrc_beta, &rrc_span, &symbols, &acq_code, &acq_reps_raw, &data_code,
+          &rrc_beta, &rrc_span, &symbols, &acq_code, &acq_reps_obj, &data_code,
           &sync, &crc, &symbol_rate, &dsss_code_only, &frame, &bits, &data,
-          &data_len_raw, &fill, &fs))
+          &data_len_obj, &fill, &fs))
     {
       if (_kw_owned)
         Py_DECREF (_kw);
@@ -704,20 +700,35 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   }
   if (freq != NULL)
     {
-      double _lo, _hi;
-      int    _r;
-      if (!_jm_parse_range (freq, &_lo, &_hi, &_r))
+      PyObject *_a = NULL, *_b = NULL;
+      int       _r = _jm_parse_range (freq, &_a, &_b);
+      if (_r < 0)
         return -1;
-      self->src.freq = (double)_lo;
+      double _lo = 0.0;
+      if (!PyArg_Parse (_a, "d", &_lo))
+        {
+          Py_DECREF (_a);
+          Py_XDECREF (_b);
+          return -1;
+        }
+      Py_DECREF (_a);
       if (_r)
         {
-          self->src.freq_hi = (double)_hi;
+          double _hi = 0.0;
+          if (!PyArg_Parse (_b, "d", &_hi))
+            {
+              Py_DECREF (_b);
+              return -1;
+            }
+          Py_DECREF (_b);
+          self->src.freq_hi = _hi;
           self->src.ranged |= WFM_RANGE_FREQ;
         }
       else
         {
           self->src.ranged &= ~(unsigned)WFM_RANGE_FREQ;
         }
+      self->src.freq = _lo;
     }
   else
     {
@@ -725,20 +736,35 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
     }
   if (snr != NULL)
     {
-      double _lo, _hi;
-      int    _r;
-      if (!_jm_parse_range (snr, &_lo, &_hi, &_r))
+      PyObject *_a = NULL, *_b = NULL;
+      int       _r = _jm_parse_range (snr, &_a, &_b);
+      if (_r < 0)
         return -1;
-      self->src.snr = (double)_lo;
+      double _lo = 0.0;
+      if (!PyArg_Parse (_a, "d", &_lo))
+        {
+          Py_DECREF (_a);
+          Py_XDECREF (_b);
+          return -1;
+        }
+      Py_DECREF (_a);
       if (_r)
         {
-          self->src.snr_hi = (double)_hi;
+          double _hi = 0.0;
+          if (!PyArg_Parse (_b, "d", &_hi))
+            {
+              Py_DECREF (_b);
+              return -1;
+            }
+          Py_DECREF (_b);
+          self->src.snr_hi = _hi;
           self->src.ranged |= WFM_RANGE_SNR;
         }
       else
         {
           self->src.ranged &= ~(unsigned)WFM_RANGE_SNR;
         }
+      self->src.snr = _lo;
     }
   else
     {
@@ -766,8 +792,27 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   self->src.seed      = seed;
   self->src.sps       = sps;
   self->src.pn_length = pn_length;
-  uint64_t pn_poly    = (uint64_t)pn_poly_raw;
-  self->src.pn_poly   = pn_poly;
+  if (pn_poly_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (pn_poly_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      pn_poly_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((pn_poly_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || pn_poly_raw > (unsigned long long)UINT64_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "pn_poly: %S is out of range for uint64_t [0, %llu]",
+                        _ix, (unsigned long long)UINT64_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
+  uint64_t pn_poly  = (uint64_t)pn_poly_raw;
+  self->src.pn_poly = pn_poly;
   {
     int _i = _enum_index (_enum_wfm_lfsr, lfsr);
     if (_i < 0)
@@ -780,20 +825,35 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   }
   if (level != NULL)
     {
-      double _lo, _hi;
-      int    _r;
-      if (!_jm_parse_range (level, &_lo, &_hi, &_r))
+      PyObject *_a = NULL, *_b = NULL;
+      int       _r = _jm_parse_range (level, &_a, &_b);
+      if (_r < 0)
         return -1;
-      self->src.level = (double)_lo;
+      double _lo = 0.0;
+      if (!PyArg_Parse (_a, "d", &_lo))
+        {
+          Py_DECREF (_a);
+          Py_XDECREF (_b);
+          return -1;
+        }
+      Py_DECREF (_a);
       if (_r)
         {
-          self->src.level_hi = (double)_hi;
+          double _hi = 0.0;
+          if (!PyArg_Parse (_b, "d", &_hi))
+            {
+              Py_DECREF (_b);
+              return -1;
+            }
+          Py_DECREF (_b);
+          self->src.level_hi = _hi;
           self->src.ranged |= WFM_RANGE_LEVEL;
         }
       else
         {
           self->src.ranged &= ~(unsigned)WFM_RANGE_LEVEL;
         }
+      self->src.level = _lo;
     }
   else
     {
@@ -802,43 +862,92 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   self->src.background = background;
   if (f_end != NULL)
     {
-      double _lo, _hi;
-      int    _r;
-      if (!_jm_parse_range (f_end, &_lo, &_hi, &_r))
+      PyObject *_a = NULL, *_b = NULL;
+      int       _r = _jm_parse_range (f_end, &_a, &_b);
+      if (_r < 0)
         return -1;
-      self->src.f_end = (double)_lo;
+      double _lo = 0.0;
+      if (!PyArg_Parse (_a, "d", &_lo))
+        {
+          Py_DECREF (_a);
+          Py_XDECREF (_b);
+          return -1;
+        }
+      Py_DECREF (_a);
       if (_r)
         {
-          self->src.f_end_hi = (double)_hi;
+          double _hi = 0.0;
+          if (!PyArg_Parse (_b, "d", &_hi))
+            {
+              Py_DECREF (_b);
+              return -1;
+            }
+          Py_DECREF (_b);
+          self->src.f_end_hi = _hi;
           self->src.ranged |= WFM_RANGE_FEND;
         }
       else
         {
           self->src.ranged &= ~(unsigned)WFM_RANGE_FEND;
         }
+      self->src.f_end = _lo;
     }
   else
     {
       self->src.f_end = (double)0.0;
     }
+  if (span_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (span_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      span_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((span_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || span_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "span: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   size_t span    = (size_t)span_raw;
   self->src.span = span;
   if (doppler != NULL)
     {
-      double _lo, _hi;
-      int    _r;
-      if (!_jm_parse_range (doppler, &_lo, &_hi, &_r))
+      PyObject *_a = NULL, *_b = NULL;
+      int       _r = _jm_parse_range (doppler, &_a, &_b);
+      if (_r < 0)
         return -1;
-      self->src.doppler = (double)_lo;
+      double _lo = 0.0;
+      if (!PyArg_Parse (_a, "d", &_lo))
+        {
+          Py_DECREF (_a);
+          Py_XDECREF (_b);
+          return -1;
+        }
+      Py_DECREF (_a);
       if (_r)
         {
-          self->src.doppler_hi = (double)_hi;
+          double _hi = 0.0;
+          if (!PyArg_Parse (_b, "d", &_hi))
+            {
+              Py_DECREF (_b);
+              return -1;
+            }
+          Py_DECREF (_b);
+          self->src.doppler_hi = _hi;
           self->src.ranged |= WFM_RANGE_DOPPLER;
         }
       else
         {
           self->src.ranged &= ~(unsigned)WFM_RANGE_DOPPLER;
         }
+      self->src.doppler = _lo;
     }
   else
     {
@@ -846,20 +955,35 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
     }
   if (doppler_rate != NULL)
     {
-      double _lo, _hi;
-      int    _r;
-      if (!_jm_parse_range (doppler_rate, &_lo, &_hi, &_r))
+      PyObject *_a = NULL, *_b = NULL;
+      int       _r = _jm_parse_range (doppler_rate, &_a, &_b);
+      if (_r < 0)
         return -1;
-      self->src.doppler_rate = (double)_lo;
+      double _lo = 0.0;
+      if (!PyArg_Parse (_a, "d", &_lo))
+        {
+          Py_DECREF (_a);
+          Py_XDECREF (_b);
+          return -1;
+        }
+      Py_DECREF (_a);
       if (_r)
         {
-          self->src.doppler_rate_hi = (double)_hi;
+          double _hi = 0.0;
+          if (!PyArg_Parse (_b, "d", &_hi))
+            {
+              Py_DECREF (_b);
+              return -1;
+            }
+          Py_DECREF (_b);
+          self->src.doppler_rate_hi = _hi;
           self->src.ranged |= WFM_RANGE_DOPPLER_RATE;
         }
       else
         {
           self->src.ranged &= ~(unsigned)WFM_RANGE_DOPPLER_RATE;
         }
+      self->src.doppler_rate = _lo;
     }
   else
     {
@@ -907,6 +1031,25 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
           (uint8_t **)&self->src.acq_code.bits, &self->src.acq_code.len,
           acq_code))
     return -1;
+  if (acq_reps_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (acq_reps_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      acq_reps_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((acq_reps_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || acq_reps_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "acq_reps: %S is out of range for size_t [0, %llu]",
+                        _ix, (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   size_t acq_reps    = (size_t)acq_reps_raw;
   self->src.acq_reps = acq_reps;
   if (!_coerce_dp_wfm_source_bits_refuse_text (
@@ -932,6 +1075,25 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   if (!_coerce_dp_wfm_source_bits_refuse_text (
           (uint8_t **)&self->src.data.bits, &self->src.data.len, data))
     return -1;
+  if (data_len_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (data_len_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      data_len_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((data_len_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || data_len_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "data_len: %S is out of range for size_t [0, %llu]",
+                        _ix, (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   size_t data_len    = (size_t)data_len_raw;
   self->src.data_len = data_len;
   if (!_coerce_dp_wfm_source_bits_refuse_text (
@@ -979,28 +1141,43 @@ Synth_get_freq (SynthObject *self, void *closure)
 {
   (void)closure;
   if (self->src.ranged & WFM_RANGE_FREQ)
-    return Py_BuildValue ("(dd)", (double)self->src.freq,
-                          (double)self->src.freq_hi);
+    return Py_BuildValue ("(NN)", PyFloat_FromDouble (self->src.freq),
+                          PyFloat_FromDouble (self->src.freq_hi));
   return PyFloat_FromDouble (self->src.freq);
 }
 static int
 Synth_set_freq (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  double _lo, _hi;
-  int    _r;
-  if (!_jm_parse_range (value, &_lo, &_hi, &_r))
+  PyObject *_a = NULL, *_b = NULL;
+  int       _r = _jm_parse_range (value, &_a, &_b);
+  if (_r < 0)
     return -1;
-  self->src.freq = (double)_lo;
+  double _lo = 0.0;
+  if (!PyArg_Parse (_a, "d", &_lo))
+    {
+      Py_DECREF (_a);
+      Py_XDECREF (_b);
+      return -1;
+    }
+  Py_DECREF (_a);
   if (_r)
     {
-      self->src.freq_hi = (double)_hi;
+      double _hi = 0.0;
+      if (!PyArg_Parse (_b, "d", &_hi))
+        {
+          Py_DECREF (_b);
+          return -1;
+        }
+      Py_DECREF (_b);
+      self->src.freq_hi = _hi;
       self->src.ranged |= WFM_RANGE_FREQ;
     }
   else
     {
       self->src.ranged &= ~(unsigned)WFM_RANGE_FREQ;
     }
+  self->src.freq = _lo;
   return 0;
 }
 static PyObject *
@@ -1008,28 +1185,43 @@ Synth_get_snr (SynthObject *self, void *closure)
 {
   (void)closure;
   if (self->src.ranged & WFM_RANGE_SNR)
-    return Py_BuildValue ("(dd)", (double)self->src.snr,
-                          (double)self->src.snr_hi);
+    return Py_BuildValue ("(NN)", PyFloat_FromDouble (self->src.snr),
+                          PyFloat_FromDouble (self->src.snr_hi));
   return PyFloat_FromDouble (self->src.snr);
 }
 static int
 Synth_set_snr (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  double _lo, _hi;
-  int    _r;
-  if (!_jm_parse_range (value, &_lo, &_hi, &_r))
+  PyObject *_a = NULL, *_b = NULL;
+  int       _r = _jm_parse_range (value, &_a, &_b);
+  if (_r < 0)
     return -1;
-  self->src.snr = (double)_lo;
+  double _lo = 0.0;
+  if (!PyArg_Parse (_a, "d", &_lo))
+    {
+      Py_DECREF (_a);
+      Py_XDECREF (_b);
+      return -1;
+    }
+  Py_DECREF (_a);
   if (_r)
     {
-      self->src.snr_hi = (double)_hi;
+      double _hi = 0.0;
+      if (!PyArg_Parse (_b, "d", &_hi))
+        {
+          Py_DECREF (_b);
+          return -1;
+        }
+      Py_DECREF (_b);
+      self->src.snr_hi = _hi;
       self->src.ranged |= WFM_RANGE_SNR;
     }
   else
     {
       self->src.ranged &= ~(unsigned)WFM_RANGE_SNR;
     }
+  self->src.snr = _lo;
   return 0;
 }
 static PyObject *
@@ -1132,8 +1324,24 @@ Synth_set_pn_poly (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
   unsigned long long _v_raw = 0ULL;
-  if (!PyArg_Parse (value, "K", &_v_raw))
-    return -1;
+  {
+    PyObject *_ix = PyNumber_Index (value);
+    if (_ix == NULL)
+      {
+        return -1;
+      }
+    _v_raw = PyLong_AsUnsignedLongLong (_ix);
+    if ((_v_raw == (unsigned long long)-1 && PyErr_Occurred ())
+        || _v_raw > (unsigned long long)UINT64_MAX)
+      {
+        PyErr_Format (PyExc_OverflowError,
+                      "pn_poly: %S is out of range for uint64_t [0, %llu]",
+                      _ix, (unsigned long long)UINT64_MAX);
+        Py_DECREF (_ix);
+        return -1;
+      }
+    Py_DECREF (_ix);
+  }
   uint64_t _v       = (uint64_t)_v_raw;
   self->src.pn_poly = _v;
   return 0;
@@ -1175,28 +1383,43 @@ Synth_get_level (SynthObject *self, void *closure)
 {
   (void)closure;
   if (self->src.ranged & WFM_RANGE_LEVEL)
-    return Py_BuildValue ("(dd)", (double)self->src.level,
-                          (double)self->src.level_hi);
+    return Py_BuildValue ("(NN)", PyFloat_FromDouble (self->src.level),
+                          PyFloat_FromDouble (self->src.level_hi));
   return PyFloat_FromDouble (self->src.level);
 }
 static int
 Synth_set_level (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  double _lo, _hi;
-  int    _r;
-  if (!_jm_parse_range (value, &_lo, &_hi, &_r))
+  PyObject *_a = NULL, *_b = NULL;
+  int       _r = _jm_parse_range (value, &_a, &_b);
+  if (_r < 0)
     return -1;
-  self->src.level = (double)_lo;
+  double _lo = 0.0;
+  if (!PyArg_Parse (_a, "d", &_lo))
+    {
+      Py_DECREF (_a);
+      Py_XDECREF (_b);
+      return -1;
+    }
+  Py_DECREF (_a);
   if (_r)
     {
-      self->src.level_hi = (double)_hi;
+      double _hi = 0.0;
+      if (!PyArg_Parse (_b, "d", &_hi))
+        {
+          Py_DECREF (_b);
+          return -1;
+        }
+      Py_DECREF (_b);
+      self->src.level_hi = _hi;
       self->src.ranged |= WFM_RANGE_LEVEL;
     }
   else
     {
       self->src.ranged &= ~(unsigned)WFM_RANGE_LEVEL;
     }
+  self->src.level = _lo;
   return 0;
 }
 static PyObject *
@@ -1220,28 +1443,43 @@ Synth_get_f_end (SynthObject *self, void *closure)
 {
   (void)closure;
   if (self->src.ranged & WFM_RANGE_FEND)
-    return Py_BuildValue ("(dd)", (double)self->src.f_end,
-                          (double)self->src.f_end_hi);
+    return Py_BuildValue ("(NN)", PyFloat_FromDouble (self->src.f_end),
+                          PyFloat_FromDouble (self->src.f_end_hi));
   return PyFloat_FromDouble (self->src.f_end);
 }
 static int
 Synth_set_f_end (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  double _lo, _hi;
-  int    _r;
-  if (!_jm_parse_range (value, &_lo, &_hi, &_r))
+  PyObject *_a = NULL, *_b = NULL;
+  int       _r = _jm_parse_range (value, &_a, &_b);
+  if (_r < 0)
     return -1;
-  self->src.f_end = (double)_lo;
+  double _lo = 0.0;
+  if (!PyArg_Parse (_a, "d", &_lo))
+    {
+      Py_DECREF (_a);
+      Py_XDECREF (_b);
+      return -1;
+    }
+  Py_DECREF (_a);
   if (_r)
     {
-      self->src.f_end_hi = (double)_hi;
+      double _hi = 0.0;
+      if (!PyArg_Parse (_b, "d", &_hi))
+        {
+          Py_DECREF (_b);
+          return -1;
+        }
+      Py_DECREF (_b);
+      self->src.f_end_hi = _hi;
       self->src.ranged |= WFM_RANGE_FEND;
     }
   else
     {
       self->src.ranged &= ~(unsigned)WFM_RANGE_FEND;
     }
+  self->src.f_end = _lo;
   return 0;
 }
 static PyObject *
@@ -1255,8 +1493,24 @@ Synth_set_span (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
   unsigned long long _v_raw = 0ULL;
-  if (!PyArg_Parse (value, "K", &_v_raw))
-    return -1;
+  {
+    PyObject *_ix = PyNumber_Index (value);
+    if (_ix == NULL)
+      {
+        return -1;
+      }
+    _v_raw = PyLong_AsUnsignedLongLong (_ix);
+    if ((_v_raw == (unsigned long long)-1 && PyErr_Occurred ())
+        || _v_raw > (unsigned long long)SIZE_MAX)
+      {
+        PyErr_Format (PyExc_OverflowError,
+                      "span: %S is out of range for size_t [0, %llu]", _ix,
+                      (unsigned long long)SIZE_MAX);
+        Py_DECREF (_ix);
+        return -1;
+      }
+    Py_DECREF (_ix);
+  }
   size_t _v      = (size_t)_v_raw;
   self->src.span = _v;
   return 0;
@@ -1266,28 +1520,43 @@ Synth_get_doppler (SynthObject *self, void *closure)
 {
   (void)closure;
   if (self->src.ranged & WFM_RANGE_DOPPLER)
-    return Py_BuildValue ("(dd)", (double)self->src.doppler,
-                          (double)self->src.doppler_hi);
+    return Py_BuildValue ("(NN)", PyFloat_FromDouble (self->src.doppler),
+                          PyFloat_FromDouble (self->src.doppler_hi));
   return PyFloat_FromDouble (self->src.doppler);
 }
 static int
 Synth_set_doppler (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  double _lo, _hi;
-  int    _r;
-  if (!_jm_parse_range (value, &_lo, &_hi, &_r))
+  PyObject *_a = NULL, *_b = NULL;
+  int       _r = _jm_parse_range (value, &_a, &_b);
+  if (_r < 0)
     return -1;
-  self->src.doppler = (double)_lo;
+  double _lo = 0.0;
+  if (!PyArg_Parse (_a, "d", &_lo))
+    {
+      Py_DECREF (_a);
+      Py_XDECREF (_b);
+      return -1;
+    }
+  Py_DECREF (_a);
   if (_r)
     {
-      self->src.doppler_hi = (double)_hi;
+      double _hi = 0.0;
+      if (!PyArg_Parse (_b, "d", &_hi))
+        {
+          Py_DECREF (_b);
+          return -1;
+        }
+      Py_DECREF (_b);
+      self->src.doppler_hi = _hi;
       self->src.ranged |= WFM_RANGE_DOPPLER;
     }
   else
     {
       self->src.ranged &= ~(unsigned)WFM_RANGE_DOPPLER;
     }
+  self->src.doppler = _lo;
   return 0;
 }
 static PyObject *
@@ -1295,28 +1564,43 @@ Synth_get_doppler_rate (SynthObject *self, void *closure)
 {
   (void)closure;
   if (self->src.ranged & WFM_RANGE_DOPPLER_RATE)
-    return Py_BuildValue ("(dd)", (double)self->src.doppler_rate,
-                          (double)self->src.doppler_rate_hi);
+    return Py_BuildValue ("(NN)", PyFloat_FromDouble (self->src.doppler_rate),
+                          PyFloat_FromDouble (self->src.doppler_rate_hi));
   return PyFloat_FromDouble (self->src.doppler_rate);
 }
 static int
 Synth_set_doppler_rate (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  double _lo, _hi;
-  int    _r;
-  if (!_jm_parse_range (value, &_lo, &_hi, &_r))
+  PyObject *_a = NULL, *_b = NULL;
+  int       _r = _jm_parse_range (value, &_a, &_b);
+  if (_r < 0)
     return -1;
-  self->src.doppler_rate = (double)_lo;
+  double _lo = 0.0;
+  if (!PyArg_Parse (_a, "d", &_lo))
+    {
+      Py_DECREF (_a);
+      Py_XDECREF (_b);
+      return -1;
+    }
+  Py_DECREF (_a);
   if (_r)
     {
-      self->src.doppler_rate_hi = (double)_hi;
+      double _hi = 0.0;
+      if (!PyArg_Parse (_b, "d", &_hi))
+        {
+          Py_DECREF (_b);
+          return -1;
+        }
+      Py_DECREF (_b);
+      self->src.doppler_rate_hi = _hi;
       self->src.ranged |= WFM_RANGE_DOPPLER_RATE;
     }
   else
     {
       self->src.ranged &= ~(unsigned)WFM_RANGE_DOPPLER_RATE;
     }
+  self->src.doppler_rate = _lo;
   return 0;
 }
 static PyObject *
@@ -1517,8 +1801,24 @@ Synth_set_acq_reps (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
   unsigned long long _v_raw = 0ULL;
-  if (!PyArg_Parse (value, "K", &_v_raw))
-    return -1;
+  {
+    PyObject *_ix = PyNumber_Index (value);
+    if (_ix == NULL)
+      {
+        return -1;
+      }
+    _v_raw = PyLong_AsUnsignedLongLong (_ix);
+    if ((_v_raw == (unsigned long long)-1 && PyErr_Occurred ())
+        || _v_raw > (unsigned long long)SIZE_MAX)
+      {
+        PyErr_Format (PyExc_OverflowError,
+                      "acq_reps: %S is out of range for size_t [0, %llu]", _ix,
+                      (unsigned long long)SIZE_MAX);
+        Py_DECREF (_ix);
+        return -1;
+      }
+    Py_DECREF (_ix);
+  }
   size_t _v          = (size_t)_v_raw;
   self->src.acq_reps = _v;
   return 0;
@@ -1685,8 +1985,24 @@ Synth_set_data_len (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
   unsigned long long _v_raw = 0ULL;
-  if (!PyArg_Parse (value, "K", &_v_raw))
-    return -1;
+  {
+    PyObject *_ix = PyNumber_Index (value);
+    if (_ix == NULL)
+      {
+        return -1;
+      }
+    _v_raw = PyLong_AsUnsignedLongLong (_ix);
+    if ((_v_raw == (unsigned long long)-1 && PyErr_Occurred ())
+        || _v_raw > (unsigned long long)SIZE_MAX)
+      {
+        PyErr_Format (PyExc_OverflowError,
+                      "data_len: %S is out of range for size_t [0, %llu]", _ix,
+                      (unsigned long long)SIZE_MAX);
+        Py_DECREF (_ix);
+        return -1;
+      }
+    Py_DECREF (_ix);
+  }
   size_t _v          = (size_t)_v_raw;
   self->src.data_len = _v;
   return 0;
@@ -2213,20 +2529,78 @@ Segment_init (SegmentObject *self, PyObject *args, PyObject *kwds)
     PyObject *_o = PyDict_GetItemString (kw, "num_samples");
     if (_o)
       {
-        double _lo, _hi;
-        int    _r;
-        if (!_jm_parse_range (_o, &_lo, &_hi, &_r))
+        PyObject *_a = NULL, *_b = NULL;
+        int       _r = _jm_parse_range (_o, &_a, &_b);
+        if (_r < 0)
           goto fail;
-        self->num_samples = (size_t)_lo;
+        unsigned long long _lo_raw = 0ULL;
+        {
+          PyObject *_ix = PyNumber_Index (_a);
+          if (_ix == NULL)
+            {
+              {
+                Py_DECREF (_a);
+                Py_XDECREF (_b);
+                goto fail;
+              }
+            }
+          _lo_raw = PyLong_AsUnsignedLongLong (_ix);
+          if ((_lo_raw == (unsigned long long)-1 && PyErr_Occurred ())
+              || _lo_raw > (unsigned long long)SIZE_MAX)
+            {
+              PyErr_Format (
+                  PyExc_OverflowError,
+                  "num_samples: %S is out of range for size_t [0, %llu]", _ix,
+                  (unsigned long long)SIZE_MAX);
+              Py_DECREF (_ix);
+              {
+                Py_DECREF (_a);
+                Py_XDECREF (_b);
+                goto fail;
+              }
+            }
+          Py_DECREF (_ix);
+        }
+        size_t _lo = (size_t)_lo_raw;
+        Py_DECREF (_a);
         if (_r)
           {
-            self->num_samples_hi = (size_t)_hi;
+            unsigned long long _hi_raw = 0ULL;
+            {
+              PyObject *_ix = PyNumber_Index (_b);
+              if (_ix == NULL)
+                {
+                  {
+                    Py_DECREF (_b);
+                    goto fail;
+                  }
+                }
+              _hi_raw = PyLong_AsUnsignedLongLong (_ix);
+              if ((_hi_raw == (unsigned long long)-1 && PyErr_Occurred ())
+                  || _hi_raw > (unsigned long long)SIZE_MAX)
+                {
+                  PyErr_Format (
+                      PyExc_OverflowError,
+                      "num_samples: %S is out of range for size_t [0, %llu]",
+                      _ix, (unsigned long long)SIZE_MAX);
+                  Py_DECREF (_ix);
+                  {
+                    Py_DECREF (_b);
+                    goto fail;
+                  }
+                }
+              Py_DECREF (_ix);
+            }
+            size_t _hi = (size_t)_hi_raw;
+            Py_DECREF (_b);
+            self->num_samples_hi = _hi;
             self->ranged |= WFM_RANGE_NUM_SAMPLES;
           }
         else
           {
             self->ranged &= ~(unsigned)WFM_RANGE_NUM_SAMPLES;
           }
+        self->num_samples = _lo;
         if (PyDict_DelItemString (kw, "num_samples") < 0)
           goto fail;
       }
@@ -2235,20 +2609,78 @@ Segment_init (SegmentObject *self, PyObject *args, PyObject *kwds)
     PyObject *_o = PyDict_GetItemString (kw, "off_samples");
     if (_o)
       {
-        double _lo, _hi;
-        int    _r;
-        if (!_jm_parse_range (_o, &_lo, &_hi, &_r))
+        PyObject *_a = NULL, *_b = NULL;
+        int       _r = _jm_parse_range (_o, &_a, &_b);
+        if (_r < 0)
           goto fail;
-        self->off_samples = (size_t)_lo;
+        unsigned long long _lo_raw = 0ULL;
+        {
+          PyObject *_ix = PyNumber_Index (_a);
+          if (_ix == NULL)
+            {
+              {
+                Py_DECREF (_a);
+                Py_XDECREF (_b);
+                goto fail;
+              }
+            }
+          _lo_raw = PyLong_AsUnsignedLongLong (_ix);
+          if ((_lo_raw == (unsigned long long)-1 && PyErr_Occurred ())
+              || _lo_raw > (unsigned long long)SIZE_MAX)
+            {
+              PyErr_Format (
+                  PyExc_OverflowError,
+                  "off_samples: %S is out of range for size_t [0, %llu]", _ix,
+                  (unsigned long long)SIZE_MAX);
+              Py_DECREF (_ix);
+              {
+                Py_DECREF (_a);
+                Py_XDECREF (_b);
+                goto fail;
+              }
+            }
+          Py_DECREF (_ix);
+        }
+        size_t _lo = (size_t)_lo_raw;
+        Py_DECREF (_a);
         if (_r)
           {
-            self->off_samples_hi = (size_t)_hi;
+            unsigned long long _hi_raw = 0ULL;
+            {
+              PyObject *_ix = PyNumber_Index (_b);
+              if (_ix == NULL)
+                {
+                  {
+                    Py_DECREF (_b);
+                    goto fail;
+                  }
+                }
+              _hi_raw = PyLong_AsUnsignedLongLong (_ix);
+              if ((_hi_raw == (unsigned long long)-1 && PyErr_Occurred ())
+                  || _hi_raw > (unsigned long long)SIZE_MAX)
+                {
+                  PyErr_Format (
+                      PyExc_OverflowError,
+                      "off_samples: %S is out of range for size_t [0, %llu]",
+                      _ix, (unsigned long long)SIZE_MAX);
+                  Py_DECREF (_ix);
+                  {
+                    Py_DECREF (_b);
+                    goto fail;
+                  }
+                }
+              Py_DECREF (_ix);
+            }
+            size_t _hi = (size_t)_hi_raw;
+            Py_DECREF (_b);
+            self->off_samples_hi = _hi;
             self->ranged |= WFM_RANGE_OFF_SAMPLES;
           }
         else
           {
             self->ranged &= ~(unsigned)WFM_RANGE_OFF_SAMPLES;
           }
+        self->off_samples = _lo;
         if (PyDict_DelItemString (kw, "off_samples") < 0)
           goto fail;
       }
@@ -2258,8 +2690,24 @@ Segment_init (SegmentObject *self, PyObject *args, PyObject *kwds)
     if (_o)
       {
         unsigned long long _v_raw = 0ULL;
-        if (!PyArg_Parse (_o, "K", &_v_raw))
-          goto fail;
+        {
+          PyObject *_ix = PyNumber_Index (_o);
+          if (_ix == NULL)
+            {
+              goto fail;
+            }
+          _v_raw = PyLong_AsUnsignedLongLong (_ix);
+          if ((_v_raw == (unsigned long long)-1 && PyErr_Occurred ())
+              || _v_raw > (unsigned long long)SIZE_MAX)
+            {
+              PyErr_Format (PyExc_OverflowError,
+                            "repeats: %S is out of range for size_t [0, %llu]",
+                            _ix, (unsigned long long)SIZE_MAX);
+              Py_DECREF (_ix);
+              goto fail;
+            }
+          Py_DECREF (_ix);
+        }
         size_t _v     = (size_t)_v_raw;
         self->repeats = _v;
         if (PyDict_DelItemString (kw, "repeats") < 0)
@@ -2270,20 +2718,78 @@ Segment_init (SegmentObject *self, PyObject *args, PyObject *kwds)
     PyObject *_o = PyDict_GetItemString (kw, "delay_samples");
     if (_o)
       {
-        double _lo, _hi;
-        int    _r;
-        if (!_jm_parse_range (_o, &_lo, &_hi, &_r))
+        PyObject *_a = NULL, *_b = NULL;
+        int       _r = _jm_parse_range (_o, &_a, &_b);
+        if (_r < 0)
           goto fail;
-        self->delay_samples = (size_t)_lo;
+        unsigned long long _lo_raw = 0ULL;
+        {
+          PyObject *_ix = PyNumber_Index (_a);
+          if (_ix == NULL)
+            {
+              {
+                Py_DECREF (_a);
+                Py_XDECREF (_b);
+                goto fail;
+              }
+            }
+          _lo_raw = PyLong_AsUnsignedLongLong (_ix);
+          if ((_lo_raw == (unsigned long long)-1 && PyErr_Occurred ())
+              || _lo_raw > (unsigned long long)SIZE_MAX)
+            {
+              PyErr_Format (
+                  PyExc_OverflowError,
+                  "delay_samples: %S is out of range for size_t [0, %llu]",
+                  _ix, (unsigned long long)SIZE_MAX);
+              Py_DECREF (_ix);
+              {
+                Py_DECREF (_a);
+                Py_XDECREF (_b);
+                goto fail;
+              }
+            }
+          Py_DECREF (_ix);
+        }
+        size_t _lo = (size_t)_lo_raw;
+        Py_DECREF (_a);
         if (_r)
           {
-            self->delay_samples_hi = (size_t)_hi;
+            unsigned long long _hi_raw = 0ULL;
+            {
+              PyObject *_ix = PyNumber_Index (_b);
+              if (_ix == NULL)
+                {
+                  {
+                    Py_DECREF (_b);
+                    goto fail;
+                  }
+                }
+              _hi_raw = PyLong_AsUnsignedLongLong (_ix);
+              if ((_hi_raw == (unsigned long long)-1 && PyErr_Occurred ())
+                  || _hi_raw > (unsigned long long)SIZE_MAX)
+                {
+                  PyErr_Format (
+                      PyExc_OverflowError,
+                      "delay_samples: %S is out of range for size_t [0, %llu]",
+                      _ix, (unsigned long long)SIZE_MAX);
+                  Py_DECREF (_ix);
+                  {
+                    Py_DECREF (_b);
+                    goto fail;
+                  }
+                }
+              Py_DECREF (_ix);
+            }
+            size_t _hi = (size_t)_hi_raw;
+            Py_DECREF (_b);
+            self->delay_samples_hi = _hi;
             self->ranged |= WFM_RANGE_DELAY_SAMPLES;
           }
         else
           {
             self->ranged &= ~(unsigned)WFM_RANGE_DELAY_SAMPLES;
           }
+        self->delay_samples = _lo;
         if (PyDict_DelItemString (kw, "delay_samples") < 0)
           goto fail;
       }
@@ -2387,40 +2893,156 @@ Segment_sum (PyObject *cls, PyObject *args, PyObject *kwds)
         PyObject *_o = PyDict_GetItemString (kw, "num_samples");
         if (_o)
           {
-            double _lo, _hi;
-            int    _r;
-            if (!_jm_parse_range (_o, &_lo, &_hi, &_r))
+            PyObject *_a = NULL, *_b = NULL;
+            int       _r = _jm_parse_range (_o, &_a, &_b);
+            if (_r < 0)
               goto fail;
-            self->num_samples = (size_t)_lo;
+            unsigned long long _lo_raw = 0ULL;
+            {
+              PyObject *_ix = PyNumber_Index (_a);
+              if (_ix == NULL)
+                {
+                  {
+                    Py_DECREF (_a);
+                    Py_XDECREF (_b);
+                    goto fail;
+                  }
+                }
+              _lo_raw = PyLong_AsUnsignedLongLong (_ix);
+              if ((_lo_raw == (unsigned long long)-1 && PyErr_Occurred ())
+                  || _lo_raw > (unsigned long long)SIZE_MAX)
+                {
+                  PyErr_Format (
+                      PyExc_OverflowError,
+                      "num_samples: %S is out of range for size_t [0, %llu]",
+                      _ix, (unsigned long long)SIZE_MAX);
+                  Py_DECREF (_ix);
+                  {
+                    Py_DECREF (_a);
+                    Py_XDECREF (_b);
+                    goto fail;
+                  }
+                }
+              Py_DECREF (_ix);
+            }
+            size_t _lo = (size_t)_lo_raw;
+            Py_DECREF (_a);
             if (_r)
               {
-                self->num_samples_hi = (size_t)_hi;
+                unsigned long long _hi_raw = 0ULL;
+                {
+                  PyObject *_ix = PyNumber_Index (_b);
+                  if (_ix == NULL)
+                    {
+                      {
+                        Py_DECREF (_b);
+                        goto fail;
+                      }
+                    }
+                  _hi_raw = PyLong_AsUnsignedLongLong (_ix);
+                  if ((_hi_raw == (unsigned long long)-1 && PyErr_Occurred ())
+                      || _hi_raw > (unsigned long long)SIZE_MAX)
+                    {
+                      PyErr_Format (PyExc_OverflowError,
+                                    "num_samples: %S is out of range for "
+                                    "size_t [0, %llu]",
+                                    _ix, (unsigned long long)SIZE_MAX);
+                      Py_DECREF (_ix);
+                      {
+                        Py_DECREF (_b);
+                        goto fail;
+                      }
+                    }
+                  Py_DECREF (_ix);
+                }
+                size_t _hi = (size_t)_hi_raw;
+                Py_DECREF (_b);
+                self->num_samples_hi = _hi;
                 self->ranged |= WFM_RANGE_NUM_SAMPLES;
               }
             else
               {
                 self->ranged &= ~(unsigned)WFM_RANGE_NUM_SAMPLES;
               }
+            self->num_samples = _lo;
           }
       }
       {
         PyObject *_o = PyDict_GetItemString (kw, "off_samples");
         if (_o)
           {
-            double _lo, _hi;
-            int    _r;
-            if (!_jm_parse_range (_o, &_lo, &_hi, &_r))
+            PyObject *_a = NULL, *_b = NULL;
+            int       _r = _jm_parse_range (_o, &_a, &_b);
+            if (_r < 0)
               goto fail;
-            self->off_samples = (size_t)_lo;
+            unsigned long long _lo_raw = 0ULL;
+            {
+              PyObject *_ix = PyNumber_Index (_a);
+              if (_ix == NULL)
+                {
+                  {
+                    Py_DECREF (_a);
+                    Py_XDECREF (_b);
+                    goto fail;
+                  }
+                }
+              _lo_raw = PyLong_AsUnsignedLongLong (_ix);
+              if ((_lo_raw == (unsigned long long)-1 && PyErr_Occurred ())
+                  || _lo_raw > (unsigned long long)SIZE_MAX)
+                {
+                  PyErr_Format (
+                      PyExc_OverflowError,
+                      "off_samples: %S is out of range for size_t [0, %llu]",
+                      _ix, (unsigned long long)SIZE_MAX);
+                  Py_DECREF (_ix);
+                  {
+                    Py_DECREF (_a);
+                    Py_XDECREF (_b);
+                    goto fail;
+                  }
+                }
+              Py_DECREF (_ix);
+            }
+            size_t _lo = (size_t)_lo_raw;
+            Py_DECREF (_a);
             if (_r)
               {
-                self->off_samples_hi = (size_t)_hi;
+                unsigned long long _hi_raw = 0ULL;
+                {
+                  PyObject *_ix = PyNumber_Index (_b);
+                  if (_ix == NULL)
+                    {
+                      {
+                        Py_DECREF (_b);
+                        goto fail;
+                      }
+                    }
+                  _hi_raw = PyLong_AsUnsignedLongLong (_ix);
+                  if ((_hi_raw == (unsigned long long)-1 && PyErr_Occurred ())
+                      || _hi_raw > (unsigned long long)SIZE_MAX)
+                    {
+                      PyErr_Format (PyExc_OverflowError,
+                                    "off_samples: %S is out of range for "
+                                    "size_t [0, %llu]",
+                                    _ix, (unsigned long long)SIZE_MAX);
+                      Py_DECREF (_ix);
+                      {
+                        Py_DECREF (_b);
+                        goto fail;
+                      }
+                    }
+                  Py_DECREF (_ix);
+                }
+                size_t _hi = (size_t)_hi_raw;
+                Py_DECREF (_b);
+                self->off_samples_hi = _hi;
                 self->ranged |= WFM_RANGE_OFF_SAMPLES;
               }
             else
               {
                 self->ranged &= ~(unsigned)WFM_RANGE_OFF_SAMPLES;
               }
+            self->off_samples = _lo;
           }
       }
       {
@@ -2428,8 +3050,25 @@ Segment_sum (PyObject *cls, PyObject *args, PyObject *kwds)
         if (_o)
           {
             unsigned long long _v_raw = 0ULL;
-            if (!PyArg_Parse (_o, "K", &_v_raw))
-              goto fail;
+            {
+              PyObject *_ix = PyNumber_Index (_o);
+              if (_ix == NULL)
+                {
+                  goto fail;
+                }
+              _v_raw = PyLong_AsUnsignedLongLong (_ix);
+              if ((_v_raw == (unsigned long long)-1 && PyErr_Occurred ())
+                  || _v_raw > (unsigned long long)SIZE_MAX)
+                {
+                  PyErr_Format (
+                      PyExc_OverflowError,
+                      "repeats: %S is out of range for size_t [0, %llu]", _ix,
+                      (unsigned long long)SIZE_MAX);
+                  Py_DECREF (_ix);
+                  goto fail;
+                }
+              Py_DECREF (_ix);
+            }
             size_t _v     = (size_t)_v_raw;
             self->repeats = _v;
           }
@@ -2438,20 +3077,78 @@ Segment_sum (PyObject *cls, PyObject *args, PyObject *kwds)
         PyObject *_o = PyDict_GetItemString (kw, "delay_samples");
         if (_o)
           {
-            double _lo, _hi;
-            int    _r;
-            if (!_jm_parse_range (_o, &_lo, &_hi, &_r))
+            PyObject *_a = NULL, *_b = NULL;
+            int       _r = _jm_parse_range (_o, &_a, &_b);
+            if (_r < 0)
               goto fail;
-            self->delay_samples = (size_t)_lo;
+            unsigned long long _lo_raw = 0ULL;
+            {
+              PyObject *_ix = PyNumber_Index (_a);
+              if (_ix == NULL)
+                {
+                  {
+                    Py_DECREF (_a);
+                    Py_XDECREF (_b);
+                    goto fail;
+                  }
+                }
+              _lo_raw = PyLong_AsUnsignedLongLong (_ix);
+              if ((_lo_raw == (unsigned long long)-1 && PyErr_Occurred ())
+                  || _lo_raw > (unsigned long long)SIZE_MAX)
+                {
+                  PyErr_Format (
+                      PyExc_OverflowError,
+                      "delay_samples: %S is out of range for size_t [0, %llu]",
+                      _ix, (unsigned long long)SIZE_MAX);
+                  Py_DECREF (_ix);
+                  {
+                    Py_DECREF (_a);
+                    Py_XDECREF (_b);
+                    goto fail;
+                  }
+                }
+              Py_DECREF (_ix);
+            }
+            size_t _lo = (size_t)_lo_raw;
+            Py_DECREF (_a);
             if (_r)
               {
-                self->delay_samples_hi = (size_t)_hi;
+                unsigned long long _hi_raw = 0ULL;
+                {
+                  PyObject *_ix = PyNumber_Index (_b);
+                  if (_ix == NULL)
+                    {
+                      {
+                        Py_DECREF (_b);
+                        goto fail;
+                      }
+                    }
+                  _hi_raw = PyLong_AsUnsignedLongLong (_ix);
+                  if ((_hi_raw == (unsigned long long)-1 && PyErr_Occurred ())
+                      || _hi_raw > (unsigned long long)SIZE_MAX)
+                    {
+                      PyErr_Format (PyExc_OverflowError,
+                                    "delay_samples: %S is out of range for "
+                                    "size_t [0, %llu]",
+                                    _ix, (unsigned long long)SIZE_MAX);
+                      Py_DECREF (_ix);
+                      {
+                        Py_DECREF (_b);
+                        goto fail;
+                      }
+                    }
+                  Py_DECREF (_ix);
+                }
+                size_t _hi = (size_t)_hi_raw;
+                Py_DECREF (_b);
+                self->delay_samples_hi = _hi;
                 self->ranged |= WFM_RANGE_DELAY_SAMPLES;
               }
             else
               {
                 self->ranged &= ~(unsigned)WFM_RANGE_DELAY_SAMPLES;
               }
+            self->delay_samples = _lo;
           }
       }
       {
@@ -2507,28 +3204,88 @@ Segment_get_num_samples (SegmentObject *self, void *closure)
 {
   (void)closure;
   if (self->ranged & WFM_RANGE_NUM_SAMPLES)
-    return Py_BuildValue ("(nn)", (Py_ssize_t)self->num_samples,
-                          (Py_ssize_t)self->num_samples_hi);
+    return Py_BuildValue (
+        "(NN)",
+        PyLong_FromUnsignedLongLong ((unsigned long long)self->num_samples),
+        PyLong_FromUnsignedLongLong (
+            (unsigned long long)self->num_samples_hi));
   return PyLong_FromUnsignedLongLong ((unsigned long long)self->num_samples);
 }
 static int
 Segment_set_num_samples (SegmentObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  double _lo, _hi;
-  int    _r;
-  if (!_jm_parse_range (value, &_lo, &_hi, &_r))
+  PyObject *_a = NULL, *_b = NULL;
+  int       _r = _jm_parse_range (value, &_a, &_b);
+  if (_r < 0)
     return -1;
-  self->num_samples = (size_t)_lo;
+  unsigned long long _lo_raw = 0ULL;
+  {
+    PyObject *_ix = PyNumber_Index (_a);
+    if (_ix == NULL)
+      {
+        {
+          Py_DECREF (_a);
+          Py_XDECREF (_b);
+          return -1;
+        }
+      }
+    _lo_raw = PyLong_AsUnsignedLongLong (_ix);
+    if ((_lo_raw == (unsigned long long)-1 && PyErr_Occurred ())
+        || _lo_raw > (unsigned long long)SIZE_MAX)
+      {
+        PyErr_Format (PyExc_OverflowError,
+                      "num_samples: %S is out of range for size_t [0, %llu]",
+                      _ix, (unsigned long long)SIZE_MAX);
+        Py_DECREF (_ix);
+        {
+          Py_DECREF (_a);
+          Py_XDECREF (_b);
+          return -1;
+        }
+      }
+    Py_DECREF (_ix);
+  }
+  size_t _lo = (size_t)_lo_raw;
+  Py_DECREF (_a);
   if (_r)
     {
-      self->num_samples_hi = (size_t)_hi;
+      unsigned long long _hi_raw = 0ULL;
+      {
+        PyObject *_ix = PyNumber_Index (_b);
+        if (_ix == NULL)
+          {
+            {
+              Py_DECREF (_b);
+              return -1;
+            }
+          }
+        _hi_raw = PyLong_AsUnsignedLongLong (_ix);
+        if ((_hi_raw == (unsigned long long)-1 && PyErr_Occurred ())
+            || _hi_raw > (unsigned long long)SIZE_MAX)
+          {
+            PyErr_Format (
+                PyExc_OverflowError,
+                "num_samples: %S is out of range for size_t [0, %llu]", _ix,
+                (unsigned long long)SIZE_MAX);
+            Py_DECREF (_ix);
+            {
+              Py_DECREF (_b);
+              return -1;
+            }
+          }
+        Py_DECREF (_ix);
+      }
+      size_t _hi = (size_t)_hi_raw;
+      Py_DECREF (_b);
+      self->num_samples_hi = _hi;
       self->ranged |= WFM_RANGE_NUM_SAMPLES;
     }
   else
     {
       self->ranged &= ~(unsigned)WFM_RANGE_NUM_SAMPLES;
     }
+  self->num_samples = _lo;
   return 0;
 }
 static PyObject *
@@ -2536,28 +3293,88 @@ Segment_get_off_samples (SegmentObject *self, void *closure)
 {
   (void)closure;
   if (self->ranged & WFM_RANGE_OFF_SAMPLES)
-    return Py_BuildValue ("(nn)", (Py_ssize_t)self->off_samples,
-                          (Py_ssize_t)self->off_samples_hi);
+    return Py_BuildValue (
+        "(NN)",
+        PyLong_FromUnsignedLongLong ((unsigned long long)self->off_samples),
+        PyLong_FromUnsignedLongLong (
+            (unsigned long long)self->off_samples_hi));
   return PyLong_FromUnsignedLongLong ((unsigned long long)self->off_samples);
 }
 static int
 Segment_set_off_samples (SegmentObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  double _lo, _hi;
-  int    _r;
-  if (!_jm_parse_range (value, &_lo, &_hi, &_r))
+  PyObject *_a = NULL, *_b = NULL;
+  int       _r = _jm_parse_range (value, &_a, &_b);
+  if (_r < 0)
     return -1;
-  self->off_samples = (size_t)_lo;
+  unsigned long long _lo_raw = 0ULL;
+  {
+    PyObject *_ix = PyNumber_Index (_a);
+    if (_ix == NULL)
+      {
+        {
+          Py_DECREF (_a);
+          Py_XDECREF (_b);
+          return -1;
+        }
+      }
+    _lo_raw = PyLong_AsUnsignedLongLong (_ix);
+    if ((_lo_raw == (unsigned long long)-1 && PyErr_Occurred ())
+        || _lo_raw > (unsigned long long)SIZE_MAX)
+      {
+        PyErr_Format (PyExc_OverflowError,
+                      "off_samples: %S is out of range for size_t [0, %llu]",
+                      _ix, (unsigned long long)SIZE_MAX);
+        Py_DECREF (_ix);
+        {
+          Py_DECREF (_a);
+          Py_XDECREF (_b);
+          return -1;
+        }
+      }
+    Py_DECREF (_ix);
+  }
+  size_t _lo = (size_t)_lo_raw;
+  Py_DECREF (_a);
   if (_r)
     {
-      self->off_samples_hi = (size_t)_hi;
+      unsigned long long _hi_raw = 0ULL;
+      {
+        PyObject *_ix = PyNumber_Index (_b);
+        if (_ix == NULL)
+          {
+            {
+              Py_DECREF (_b);
+              return -1;
+            }
+          }
+        _hi_raw = PyLong_AsUnsignedLongLong (_ix);
+        if ((_hi_raw == (unsigned long long)-1 && PyErr_Occurred ())
+            || _hi_raw > (unsigned long long)SIZE_MAX)
+          {
+            PyErr_Format (
+                PyExc_OverflowError,
+                "off_samples: %S is out of range for size_t [0, %llu]", _ix,
+                (unsigned long long)SIZE_MAX);
+            Py_DECREF (_ix);
+            {
+              Py_DECREF (_b);
+              return -1;
+            }
+          }
+        Py_DECREF (_ix);
+      }
+      size_t _hi = (size_t)_hi_raw;
+      Py_DECREF (_b);
+      self->off_samples_hi = _hi;
       self->ranged |= WFM_RANGE_OFF_SAMPLES;
     }
   else
     {
       self->ranged &= ~(unsigned)WFM_RANGE_OFF_SAMPLES;
     }
+  self->off_samples = _lo;
   return 0;
 }
 static PyObject *
@@ -2571,8 +3388,24 @@ Segment_set_repeats (SegmentObject *self, PyObject *value, void *closure)
 {
   (void)closure;
   unsigned long long _v_raw = 0ULL;
-  if (!PyArg_Parse (value, "K", &_v_raw))
-    return -1;
+  {
+    PyObject *_ix = PyNumber_Index (value);
+    if (_ix == NULL)
+      {
+        return -1;
+      }
+    _v_raw = PyLong_AsUnsignedLongLong (_ix);
+    if ((_v_raw == (unsigned long long)-1 && PyErr_Occurred ())
+        || _v_raw > (unsigned long long)SIZE_MAX)
+      {
+        PyErr_Format (PyExc_OverflowError,
+                      "repeats: %S is out of range for size_t [0, %llu]", _ix,
+                      (unsigned long long)SIZE_MAX);
+        Py_DECREF (_ix);
+        return -1;
+      }
+    Py_DECREF (_ix);
+  }
   size_t _v     = (size_t)_v_raw;
   self->repeats = _v;
   return 0;
@@ -2582,28 +3415,88 @@ Segment_get_delay_samples (SegmentObject *self, void *closure)
 {
   (void)closure;
   if (self->ranged & WFM_RANGE_DELAY_SAMPLES)
-    return Py_BuildValue ("(nn)", (Py_ssize_t)self->delay_samples,
-                          (Py_ssize_t)self->delay_samples_hi);
+    return Py_BuildValue (
+        "(NN)",
+        PyLong_FromUnsignedLongLong ((unsigned long long)self->delay_samples),
+        PyLong_FromUnsignedLongLong (
+            (unsigned long long)self->delay_samples_hi));
   return PyLong_FromUnsignedLongLong ((unsigned long long)self->delay_samples);
 }
 static int
 Segment_set_delay_samples (SegmentObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  double _lo, _hi;
-  int    _r;
-  if (!_jm_parse_range (value, &_lo, &_hi, &_r))
+  PyObject *_a = NULL, *_b = NULL;
+  int       _r = _jm_parse_range (value, &_a, &_b);
+  if (_r < 0)
     return -1;
-  self->delay_samples = (size_t)_lo;
+  unsigned long long _lo_raw = 0ULL;
+  {
+    PyObject *_ix = PyNumber_Index (_a);
+    if (_ix == NULL)
+      {
+        {
+          Py_DECREF (_a);
+          Py_XDECREF (_b);
+          return -1;
+        }
+      }
+    _lo_raw = PyLong_AsUnsignedLongLong (_ix);
+    if ((_lo_raw == (unsigned long long)-1 && PyErr_Occurred ())
+        || _lo_raw > (unsigned long long)SIZE_MAX)
+      {
+        PyErr_Format (PyExc_OverflowError,
+                      "delay_samples: %S is out of range for size_t [0, %llu]",
+                      _ix, (unsigned long long)SIZE_MAX);
+        Py_DECREF (_ix);
+        {
+          Py_DECREF (_a);
+          Py_XDECREF (_b);
+          return -1;
+        }
+      }
+    Py_DECREF (_ix);
+  }
+  size_t _lo = (size_t)_lo_raw;
+  Py_DECREF (_a);
   if (_r)
     {
-      self->delay_samples_hi = (size_t)_hi;
+      unsigned long long _hi_raw = 0ULL;
+      {
+        PyObject *_ix = PyNumber_Index (_b);
+        if (_ix == NULL)
+          {
+            {
+              Py_DECREF (_b);
+              return -1;
+            }
+          }
+        _hi_raw = PyLong_AsUnsignedLongLong (_ix);
+        if ((_hi_raw == (unsigned long long)-1 && PyErr_Occurred ())
+            || _hi_raw > (unsigned long long)SIZE_MAX)
+          {
+            PyErr_Format (
+                PyExc_OverflowError,
+                "delay_samples: %S is out of range for size_t [0, %llu]", _ix,
+                (unsigned long long)SIZE_MAX);
+            Py_DECREF (_ix);
+            {
+              Py_DECREF (_b);
+              return -1;
+            }
+          }
+        Py_DECREF (_ix);
+      }
+      size_t _hi = (size_t)_hi_raw;
+      Py_DECREF (_b);
+      self->delay_samples_hi = _hi;
       self->ranged |= WFM_RANGE_DELAY_SAMPLES;
     }
   else
     {
       self->ranged &= ~(unsigned)WFM_RANGE_DELAY_SAMPLES;
     }
+  self->delay_samples = _lo;
   return 0;
 }
 static PyObject *

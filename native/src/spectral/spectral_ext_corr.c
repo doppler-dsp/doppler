@@ -43,14 +43,54 @@ CorrObj_init (CorrObject *self, PyObject *args, PyObject *kwds)
 {
   static char       *kwlist[]  = { "ref", "dwell", "nthreads", "n_out", NULL };
   PyObject          *ref_obj   = NULL;
+  PyObject          *dwell_obj = NULL;
   unsigned long long dwell_raw = 1;
   int                nthreads  = 1;
+  PyObject          *n_out_obj = NULL;
   unsigned long long n_out_raw = 0;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|KiK", kwlist, &ref_obj,
-                                    &dwell_raw, &nthreads, &n_out_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|OiO", kwlist, &ref_obj,
+                                    &dwell_obj, &nthreads, &n_out_obj))
     return -1;
-  size_t         dwell = (size_t)dwell_raw;
+  if (dwell_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (dwell_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      dwell_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((dwell_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || dwell_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "dwell: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t dwell = (size_t)dwell_raw;
+  if (n_out_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (n_out_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      n_out_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((n_out_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || n_out_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "n_out: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   size_t         n_out = (size_t)n_out_raw;
   PyArrayObject *ref_arr
       = jm_array_arg (ref_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "ref");
@@ -483,9 +523,11 @@ static PyMethodDef CorrObj_methods[] = {
   { "get_state", (PyCFunction)CorrObj_get_state, METH_NOARGS,
     "Serialize this object's mutable state to bytes.\n"
     "\n"
-    "Captures exactly the state that evolves as the object runs, so a blob\n"
-    "taken now and restored later resumes from this point. Construction\n"
-    "parameters are not included: restore into an object built the same way.\n"
+    "Captures the state that evolves as the object runs, including any value\n"
+    "a setter changed after construction, so a blob taken now and restored\n"
+    "later resumes from this point. Construction parameters are not\n"
+    "restored: restore into an object built the same way. A core may check\n"
+    "some of them and refuse a blob built differently.\n"
     "\n"
     "The blob is opaque and always `state_bytes()` long. Its layout is an\n"
     "implementation detail of the C core and is not a stable format across\n"
@@ -500,10 +542,12 @@ static PyMethodDef CorrObj_methods[] = {
   { "set_state", (PyCFunction)CorrObj_set_state, METH_O,
     "Restore mutable state from a `get_state()` blob.\n"
     "\n"
-    "Overwrites the live state in place; the object keeps the parameters it\n"
-    "was constructed with. Length is validated against `state_bytes()`\n"
-    "before the blob is handed to the C core, and the core may reject it as\n"
-    "well.\n"
+    "Overwrites the live state in place, including any value a setter\n"
+    "changed after construction. Construction parameters are not restored:\n"
+    "restore into an object built the same way. Length is validated against\n"
+    "`state_bytes()` before the blob is handed to the C core, which may\n"
+    "reject it too: a core may check some construction parameters and refuse\n"
+    "a blob built differently.\n"
     "\n"
     "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
     "length differs from `state_bytes()` or the core rejects it, and\n"

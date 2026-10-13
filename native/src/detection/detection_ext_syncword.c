@@ -183,11 +183,31 @@ SyncFinderObj_max_errors_for (SyncFinderObject *self, PyObject *args,
       return NULL;
     }
   static char       *_kwlist[]       = { "window_bits", "pfa", NULL };
+  PyObject          *window_bits_obj = NULL;
   unsigned long long window_bits_raw = 0ULL;
   double             pfa             = 0.0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Kd", _kwlist,
-                                    &window_bits_raw, &pfa))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Od", _kwlist,
+                                    &window_bits_obj, &pfa))
     return NULL;
+  if (window_bits_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (window_bits_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      window_bits_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((window_bits_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || window_bits_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "window_bits: %S is out of range for size_t [0, %llu]",
+                        _ix, (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t window_bits = (size_t)window_bits_raw;
   int    y = dp_syncword_max_errors_for (self->handle, window_bits, pfa);
   return PyLong_FromLong ((long)y);

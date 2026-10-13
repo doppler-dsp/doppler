@@ -42,15 +42,55 @@ static int
 FFT2DObj_init (FFT2DObject *self, PyObject *args, PyObject *kwds)
 {
   static char       *kwlist[] = { "ny", "nx", "sign", "nthreads", NULL };
+  PyObject          *ny_obj   = NULL;
   unsigned long long ny_raw   = 64;
+  PyObject          *nx_obj   = NULL;
   unsigned long long nx_raw   = 64;
   int                sign     = -1;
   int                nthreads = 1;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|KKii", kwlist, &ny_raw,
-                                    &nx_raw, &sign, &nthreads))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|OOii", kwlist, &ny_obj,
+                                    &nx_obj, &sign, &nthreads))
     return -1;
-  size_t ny    = (size_t)ny_raw;
+  if (ny_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (ny_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      ny_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((ny_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || ny_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "ny: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t ny = (size_t)ny_raw;
+  if (nx_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (nx_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      nx_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((nx_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || nx_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "nx: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   size_t nx    = (size_t)nx_raw;
   self->handle = dp_fft2d_create (ny, nx, sign, nthreads);
   if (!self->handle)

@@ -47,6 +47,7 @@ DespreaderObj_init (DespreaderObject *self, PyObject *args, PyObject *kwds)
     NULL
   };
   PyObject          *code_obj            = NULL;
+  PyObject          *sps_obj             = NULL;
   unsigned long long sps_raw             = 4;
   double             init_norm_freq      = 0.0;
   double             init_chip           = 0.0;
@@ -55,14 +56,54 @@ DespreaderObj_init (DespreaderObject *self, PyObject *args, PyObject *kwds)
   double             bn_fll              = 0.0;
   double             zeta                = 0.707;
   double             spacing             = 0.5;
+  PyObject          *periods_per_bit_obj = NULL;
   unsigned long long periods_per_bit_raw = 1;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|KdddddddK", kwlist,
-                                    &code_obj, &sps_raw, &init_norm_freq,
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|OdddddddO", kwlist,
+                                    &code_obj, &sps_obj, &init_norm_freq,
                                     &init_chip, &bn_carrier, &bn_code, &bn_fll,
-                                    &zeta, &spacing, &periods_per_bit_raw))
+                                    &zeta, &spacing, &periods_per_bit_obj))
     return -1;
-  size_t         sps             = (size_t)sps_raw;
+  if (sps_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (sps_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      sps_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((sps_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || sps_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "sps: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t sps = (size_t)sps_raw;
+  if (periods_per_bit_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (periods_per_bit_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      periods_per_bit_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((periods_per_bit_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || periods_per_bit_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (
+              PyExc_OverflowError,
+              "periods_per_bit: %S is out of range for size_t [0, %llu]", _ix,
+              (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   size_t         periods_per_bit = (size_t)periods_per_bit_raw;
   PyArrayObject *code_arr
       = jm_array_arg (code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "code");
@@ -109,16 +150,20 @@ DespreaderObj_steps (DespreaderObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char   *_kwlist[] = { "x", "out", NULL };
-  PyObject      *x_obj     = NULL;
-  PyArrayObject *x_arr     = NULL;
-  PyObject      *out_obj   = NULL;
+  static char *_kwlist[] = { "x", "out", NULL };
+  PyObject    *x_obj     = NULL;
+  PyObject    *out_obj   = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
-    return NULL;
+    {
+      return NULL;
+    }
+  const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
+  size_t                x_len = (size_t)PyArray_SIZE (x_arr);
   if (out_obj && out_obj != Py_None)
     {
       /* Require the exact dtype AND C-contiguity — either mismatch makes
@@ -159,13 +204,10 @@ DespreaderObj_steps (DespreaderObject *self, PyObject *args, PyObject *kwds)
        * this object is not shared across threads concurrently (one
        * object per stream); the kernel touches only this object's
        * state/buffers and the caller's input. */
-      const float _Complex *_ng0
-          = (const float _Complex *)PyArray_DATA (x_arr);
-      size_t          _ng1 = (size_t)PyArray_SIZE (x_arr);
-      float _Complex *_ng2 = (float _Complex *)PyArray_DATA (out_arr);
+      float _Complex *_ng0 = (float _Complex *)PyArray_DATA (out_arr);
       size_t          n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out = dp_despreader_steps (self->handle, _ng0, _ng1, _ng2, _cap);
+        n_out = dp_despreader_steps (self->handle, x, x_len, _ng0, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       if ((size_t)(n_out) > (size_t)(_cap))
@@ -219,11 +261,9 @@ DespreaderObj_steps (DespreaderObject *self, PyObject *args, PyObject *kwds)
    * this object is not shared across threads concurrently (one
    * object per stream); the kernel touches only this object's
    * state/buffers and the caller's input. */
-  const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (x_arr);
-  size_t                _ng1 = (size_t)PyArray_SIZE (x_arr);
-  size_t                n_out;
+  size_t n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = dp_despreader_steps (self->handle, _ng0, _ng1, _d0, _cap);
+    n_out = dp_despreader_steps (self->handle, x, x_len, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   if ((size_t)(n_out) > (size_t)(_cap))
@@ -271,16 +311,20 @@ DespreaderObj_bits (DespreaderObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char   *_kwlist[] = { "x", "out", NULL };
-  PyObject      *x_obj     = NULL;
-  PyArrayObject *x_arr     = NULL;
-  PyObject      *out_obj   = NULL;
+  static char *_kwlist[] = { "x", "out", NULL };
+  PyObject    *x_obj     = NULL;
+  PyObject    *out_obj   = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
-    return NULL;
+    {
+      return NULL;
+    }
+  const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
+  size_t                x_len = (size_t)PyArray_SIZE (x_arr);
   if (out_obj && out_obj != Py_None)
     {
       /* Require the exact dtype AND C-contiguity — either mismatch makes
@@ -321,13 +365,10 @@ DespreaderObj_bits (DespreaderObject *self, PyObject *args, PyObject *kwds)
        * this object is not shared across threads concurrently (one
        * object per stream); the kernel touches only this object's
        * state/buffers and the caller's input. */
-      const float _Complex *_ng0
-          = (const float _Complex *)PyArray_DATA (x_arr);
-      size_t   _ng1 = (size_t)PyArray_SIZE (x_arr);
-      uint8_t *_ng2 = (uint8_t *)PyArray_DATA (out_arr);
+      uint8_t *_ng0 = (uint8_t *)PyArray_DATA (out_arr);
       size_t   n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out = dp_despreader_bits (self->handle, _ng0, _ng1, _ng2, _cap);
+        n_out = dp_despreader_bits (self->handle, x, x_len, _ng0, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       if ((size_t)(n_out) > (size_t)(_cap))
@@ -381,11 +422,9 @@ DespreaderObj_bits (DespreaderObject *self, PyObject *args, PyObject *kwds)
    * this object is not shared across threads concurrently (one
    * object per stream); the kernel touches only this object's
    * state/buffers and the caller's input. */
-  const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (x_arr);
-  size_t                _ng1 = (size_t)PyArray_SIZE (x_arr);
-  size_t                n_out;
+  size_t n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = dp_despreader_bits (self->handle, _ng0, _ng1, _d0, _cap);
+    n_out = dp_despreader_bits (self->handle, x, x_len, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   if ((size_t)(n_out) > (size_t)(_cap))
@@ -515,11 +554,31 @@ DespreaderObj_configure_code_lock (DespreaderObject *self, PyObject *args,
     }
   static char       *_kwlist[]   = { "pfa", "n_looks", "ref_snr_db", NULL };
   double             pfa         = 0.0;
+  PyObject          *n_looks_obj = NULL;
   unsigned long long n_looks_raw = 0ULL;
   double             ref_snr_db  = 0.0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "dK|d", _kwlist, &pfa,
-                                    &n_looks_raw, &ref_snr_db))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "dO|d", _kwlist, &pfa,
+                                    &n_looks_obj, &ref_snr_db))
     return NULL;
+  if (n_looks_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (n_looks_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      n_looks_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((n_looks_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || n_looks_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "n_looks: %S is out of range for size_t [0, %llu]",
+                        _ix, (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t n_looks = (size_t)n_looks_raw;
   int    _rc = dp_despreader_configure_code_lock (self->handle, pfa, n_looks,
                                                   ref_snr_db);
@@ -607,7 +666,6 @@ Despreader_getprop_norm_freq (DespreaderObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_despreader_get_norm_freq (self->handle));
 }
 static int
@@ -634,7 +692,6 @@ Despreader_getprop_code_phase (DespreaderObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_despreader_get_code_phase (self->handle));
 }
 static PyObject *
@@ -646,7 +703,6 @@ Despreader_getprop_code_rate (DespreaderObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_despreader_get_code_rate (self->handle));
 }
 static PyObject *
@@ -658,7 +714,6 @@ Despreader_getprop_lock_metric (DespreaderObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_despreader_get_lock_metric (self->handle));
 }
 static PyObject *
@@ -670,7 +725,6 @@ Despreader_getprop_carrier_locked (DespreaderObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyBool_FromLong (
       (long)(dp_despreader_get_carrier_locked (self->handle)));
 }
@@ -683,7 +737,6 @@ Despreader_getprop_code_locked (DespreaderObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyBool_FromLong (
       (long)(dp_despreader_get_code_locked (self->handle)));
 }
@@ -696,7 +749,6 @@ Despreader_getprop_bit_phase (DespreaderObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_despreader_get_bit_phase (self->handle));
 }
@@ -709,7 +761,6 @@ Despreader_getprop_bn_carrier (DespreaderObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_despreader_get_bn_carrier (self->handle));
 }
 static int
@@ -735,7 +786,6 @@ Despreader_getprop_bn_code (DespreaderObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_despreader_get_bn_code (self->handle));
 }
 static int
@@ -1123,9 +1173,11 @@ static PyMethodDef DespreaderObj_methods[] = {
   { "get_state", (PyCFunction)DespreaderObj_get_state, METH_NOARGS,
     "Serialize this object's mutable state to bytes.\n"
     "\n"
-    "Captures exactly the state that evolves as the object runs, so a blob\n"
-    "taken now and restored later resumes from this point. Construction\n"
-    "parameters are not included: restore into an object built the same way.\n"
+    "Captures the state that evolves as the object runs, including any value\n"
+    "a setter changed after construction, so a blob taken now and restored\n"
+    "later resumes from this point. Construction parameters are not\n"
+    "restored: restore into an object built the same way. A core may check\n"
+    "some of them and refuse a blob built differently.\n"
     "\n"
     "The blob is opaque and always `state_bytes()` long. Its layout is an\n"
     "implementation detail of the C core and is not a stable format across\n"
@@ -1140,10 +1192,12 @@ static PyMethodDef DespreaderObj_methods[] = {
   { "set_state", (PyCFunction)DespreaderObj_set_state, METH_O,
     "Restore mutable state from a `get_state()` blob.\n"
     "\n"
-    "Overwrites the live state in place; the object keeps the parameters it\n"
-    "was constructed with. Length is validated against `state_bytes()`\n"
-    "before the blob is handed to the C core, and the core may reject it as\n"
-    "well.\n"
+    "Overwrites the live state in place, including any value a setter\n"
+    "changed after construction. Construction parameters are not restored:\n"
+    "restore into an object built the same way. Length is validated against\n"
+    "`state_bytes()` before the blob is handed to the C core, which may\n"
+    "reject it too: a core may check some construction parameters and refuse\n"
+    "a blob built differently.\n"
     "\n"
     "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
     "length differs from `state_bytes()` or the core rejects it, and\n"

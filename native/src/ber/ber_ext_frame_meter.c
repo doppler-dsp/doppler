@@ -42,12 +42,33 @@ static int
 FrameMeterObj_init (FrameMeterObject *self, PyObject *args, PyObject *kwds)
 {
   static char       *kwlist[]          = { "target_errors", "conf", NULL };
+  PyObject          *target_errors_obj = NULL;
   unsigned long long target_errors_raw = 200;
   double             conf              = 0.99;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|Kd", kwlist,
-                                    &target_errors_raw, &conf))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|Od", kwlist,
+                                    &target_errors_obj, &conf))
     return -1;
+  if (target_errors_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (target_errors_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      target_errors_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((target_errors_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || target_errors_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (
+              PyExc_OverflowError,
+              "target_errors: %S is out of range for size_t [0, %llu]", _ix,
+              (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   size_t target_errors = (size_t)target_errors_raw;
   self->handle         = dp_frame_meter_create (target_errors, conf);
   if (!self->handle)
@@ -245,7 +266,6 @@ FrameMeter_getprop_frames (FrameMeterObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_frame_meter_get_frames (self->handle));
 }
@@ -258,7 +278,6 @@ FrameMeter_getprop_sync_detected (FrameMeterObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_frame_meter_get_sync_detected (self->handle));
 }
@@ -271,7 +290,6 @@ FrameMeter_getprop_crc_passed (FrameMeterObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_frame_meter_get_crc_passed (self->handle));
 }
@@ -283,7 +301,6 @@ FrameMeter_getprop_errors (FrameMeterObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_frame_meter_get_errors (self->handle));
 }
@@ -295,7 +312,6 @@ FrameMeter_getprop_enough (FrameMeterObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromLong ((long)dp_frame_meter_get_enough (self->handle));
 }
 
@@ -482,9 +498,11 @@ static PyMethodDef FrameMeterObj_methods[] = {
   { "get_state", (PyCFunction)FrameMeterObj_get_state, METH_NOARGS,
     "Serialize this object's mutable state to bytes.\n"
     "\n"
-    "Captures exactly the state that evolves as the object runs, so a blob\n"
-    "taken now and restored later resumes from this point. Construction\n"
-    "parameters are not included: restore into an object built the same way.\n"
+    "Captures the state that evolves as the object runs, including any value\n"
+    "a setter changed after construction, so a blob taken now and restored\n"
+    "later resumes from this point. Construction parameters are not\n"
+    "restored: restore into an object built the same way. A core may check\n"
+    "some of them and refuse a blob built differently.\n"
     "\n"
     "The blob is opaque and always `state_bytes()` long. Its layout is an\n"
     "implementation detail of the C core and is not a stable format across\n"
@@ -499,10 +517,12 @@ static PyMethodDef FrameMeterObj_methods[] = {
   { "set_state", (PyCFunction)FrameMeterObj_set_state, METH_O,
     "Restore mutable state from a `get_state()` blob.\n"
     "\n"
-    "Overwrites the live state in place; the object keeps the parameters it\n"
-    "was constructed with. Length is validated against `state_bytes()`\n"
-    "before the blob is handed to the C core, and the core may reject it as\n"
-    "well.\n"
+    "Overwrites the live state in place, including any value a setter\n"
+    "changed after construction. Construction parameters are not restored:\n"
+    "restore into an object built the same way. Length is validated against\n"
+    "`state_bytes()` before the blob is handed to the C core, which may\n"
+    "reject it too: a core may check some construction parameters and refuse\n"
+    "a blob built differently.\n"
     "\n"
     "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
     "length differs from `state_bytes()` or the core rejects it, and\n"

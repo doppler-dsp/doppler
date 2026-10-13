@@ -184,7 +184,7 @@ main (void)
       for (int r = 0; r < ITERATIONS; r++)
         {
           t0 = jm_bench_now_ns ();
-          sink += (double)dp_psd_power_onesided (p, cap, out, cap);
+          sink += (double)dp_psd_power_onesided (p, out, cap);
           t1      = jm_bench_now_ns ();
           t_rd[r] = jm_bench_elapsed_sec (t0, t1);
         }

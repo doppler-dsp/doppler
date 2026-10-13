@@ -263,6 +263,43 @@ def test_band_power_is_none_for_no_complete_band(no_band):
     assert w.band_power(no_band, out=np.zeros(2, dtype=np.float32)) is None
 
 
+# ── #2184: the readouts are sized by the object, so they take no count ────
+
+_READOUT_LEN = {
+    "psd_db": lambda n: n,
+    "psd_dbhz": lambda n: n,
+    "power_twosided": lambda n: n,
+    "power_onesided": lambda n: n // 2 + 1,
+}
+
+
+@pytest.mark.parametrize("name", sorted(_READOUT_LEN))
+def test_readout_takes_no_count(name):
+    """A readout's length is the object's, so there is no count to pass.
+
+    jm synthesized a `count` keyword for every void-input readout, and the
+    kernels ignored it (`(void)cap;`): `power_onesided(5)` returned all
+    nfft/2+1 bins regardless.  `no_count` (jm#2233) removed it, so passing
+    one is now a TypeError rather than a number silently thrown away.
+    """
+    n = 64
+    w = PSD(n=n, fs=1.0, window="hann")
+    w.accumulate(_tone(n, 3))
+    read = getattr(w, name)
+    with pytest.raises(TypeError):
+        read(5)
+    with pytest.raises(TypeError):
+        read(count=5)
+    want = _READOUT_LEN[name](n)
+    assert getattr(w, f"{name}_max_out")() == want
+    fresh = read()
+    assert fresh.shape == (want,)
+    buf = np.zeros(want, dtype=np.float32)
+    got = read(out=buf)
+    assert np.shares_memory(got, buf)
+    np.testing.assert_array_equal(got, fresh)
+
+
 _ALPHA = "in exp mode 0 < alpha <= 1"
 _WINDOW = "a window whose taps sum to a finite nonzero value"
 _FS = "finite fs > 0"

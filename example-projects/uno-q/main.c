@@ -259,7 +259,7 @@ spectrum_peak (chain_t *c, double fs_out, float *db, double *f_hz,
                double *level_db)
 {
   dp_peak_t pk;
-  dp_psd_psd_db (c->psd, c->n, db, c->n);
+  dp_psd_psd_db (c->psd, db, c->n);
   /* A gate nothing falls under: the strongest local maximum, whatever it is.
    */
   size_t np = dp_find_peaks_f32 (db, c->n, 1, -1e30f, &pk);

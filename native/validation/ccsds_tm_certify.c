@@ -308,7 +308,7 @@ rand_spectrum (const ccsds_tm_rand_t *r, size_t nfft, size_t frames)
   float       *pw = malloc (nb * sizeof *pw);
   if (!pw)
     exit (1);
-  dp_psd_power_onesided (p, nb, pw, nb);
+  dp_psd_power_onesided (p, pw, nb);
 
   /* The floor is the MEDIAN bin, not the mean: a mean over a spectrum whose
      lines carry most of the power is dragged up by the thing being measured.

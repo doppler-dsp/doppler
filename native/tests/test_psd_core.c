@@ -147,7 +147,7 @@ main (void)
 
     /* psd_db before any frame → 0 (None in Python). */
     float db[64];
-    DP_CHECK (dp_psd_psd_db (w, N, db, N) == 0);
+    DP_CHECK (dp_psd_psd_db (w, db, N) == 0);
     dp_psd_destroy (w);
   }
 
@@ -353,7 +353,7 @@ main (void)
       x[i] = 1.0f + 0.0f * I;
     dp_psd_accumulate (w, x, N);
     float db[64];
-    DP_CHECK (dp_psd_psd_db (w, N, db, N) == N);
+    DP_CHECK (dp_psd_psd_db (w, db, N) == N);
     DP_CHECK (argmax (db, N) == N / 2); /* DC at index n/2 */
     dp_psd_destroy (w);
   }
@@ -376,7 +376,7 @@ main (void)
     dp_psd_accumulate (w, buf, 3 * N + 7);
     DP_CHECK (w->avg->count == 3);
     float db[64];
-    dp_psd_psd_db (w, N, db, N);
+    dp_psd_psd_db (w, db, N);
     DP_CHECK (argmax (db, N) == N / 2 + (size_t)k);
     dp_psd_destroy (w);
   }
@@ -389,8 +389,8 @@ main (void)
     fill_tone (x, 32, 5);
     dp_psd_accumulate (w, x, 32);
     float a[32], b[32];
-    dp_psd_psd_db (w, 32, a, 32);
-    dp_psd_psd_dbhz (w, 32, b, 32);
+    dp_psd_psd_db (w, a, 32);
+    dp_psd_psd_dbhz (w, b, 32);
     float off0 = a[0] - b[0];
     for (size_t i = 0; i < 32; i++)
       DP_CHECK (fabsf ((a[i] - b[i]) - off0) < 1e-3f);
@@ -490,7 +490,7 @@ main (void)
     dp_psd_reset (w);
     DP_CHECK (w->avg->count == 0);
     float db[64];
-    DP_CHECK (dp_psd_psd_db (w, N, db, N) == 0);
+    DP_CHECK (dp_psd_psd_db (w, db, N) == 0);
     dp_psd_destroy (w);
   }
 
@@ -507,11 +507,11 @@ main (void)
                                            pad, 1.0, 0, ACC_TRACE_MEAN, 0.1);
         dp_psd_accumulate_real (w, x, N);
         float  two[128];
-        size_t nfft = dp_psd_power_twosided (w, w->k.nfft, two, w->k.nfft);
+        size_t nfft = dp_psd_power_twosided (w, two, w->k.nfft);
         DP_CHECK (nfft == w->k.nfft);
         DP_CHECK (fabs (two[w->k.nfft / 2] - A * A) < 1e-3); /* DC bin */
         float one[65];
-        dp_psd_power_onesided (w, w->k.nfft / 2 + 1, one, w->k.nfft / 2 + 1);
+        dp_psd_power_onesided (w, one, w->k.nfft / 2 + 1);
         DP_CHECK (fabs (one[0] - A * A) < 1e-3); /* one-sided DC */
         dp_psd_destroy (w);
       }
@@ -538,8 +538,8 @@ main (void)
     fill_real_tone (x, N, 7, 0.5);
     dp_psd_accumulate_real (w, x, N);
     float two[64], one[33];
-    dp_psd_power_twosided (w, N, two, N);
-    size_t no = dp_psd_power_onesided (w, N / 2 + 1, one, N / 2 + 1);
+    dp_psd_power_twosided (w, two, N);
+    size_t no = dp_psd_power_onesided (w, one, N / 2 + 1);
     DP_CHECK (no == N / 2 + 1);
     double st = 0.0, so = 0.0;
     for (size_t i = 0; i < N; i++)
@@ -561,7 +561,7 @@ main (void)
                                            pad, 1.0, 0, ACC_TRACE_MEAN, 0.1);
         dp_psd_accumulate_real (w, x, N);
         float  two[128];
-        size_t nfft = dp_psd_power_twosided (w, w->k.nfft, two, w->k.nfft);
+        size_t nfft = dp_psd_power_twosided (w, two, w->k.nfft);
         for (size_t i = 0; i < nfft; i++)
           tot[pad] += two[i];
         dp_psd_destroy (w);
@@ -578,7 +578,7 @@ main (void)
                                        1.0, 0, ACC_TRACE_MEAN, 0.1);
     dp_psd_accumulate_real (w, x, N);
     float a[33];
-    dp_psd_power_onesided (w, N / 2 + 1, a, N / 2 + 1);
+    dp_psd_power_onesided (w, a, N / 2 + 1);
     dp_psd_reset (w);
     float buf[64 * 5];
     for (size_t f = 0; f < 5; f++)
@@ -586,7 +586,7 @@ main (void)
         buf[f * N + i] = x[i];
     dp_psd_accumulate_real (w, buf, 5 * N);
     float b[33];
-    dp_psd_power_onesided (w, N / 2 + 1, b, N / 2 + 1);
+    dp_psd_power_onesided (w, b, N / 2 + 1);
     for (size_t i = 0; i < N / 2 + 1; i++)
       DP_CHECK (fabsf (a[i] - b[i]) < 1e-6f * (fabsf (a[i]) + 1e-6f));
     dp_psd_destroy (w);
@@ -610,8 +610,8 @@ main (void)
     dp_psd_accumulate_real (mx, buf, 2 * N);
     dp_psd_accumulate_real (mn, buf, 2 * N);
     float pmx[64], pmn[64];
-    dp_psd_power_twosided (mx, N, pmx, N);
-    dp_psd_power_twosided (mn, N, pmn, N);
+    dp_psd_power_twosided (mx, pmx, N);
+    dp_psd_power_twosided (mn, pmn, N);
     for (size_t i = 0; i < N; i++)
       DP_CHECK (pmx[i] >= pmn[i] - 1e-6f);
     dp_psd_destroy (mx);
@@ -633,8 +633,8 @@ main (void)
     dp_psd_accumulate_real (w1, buf, N);     /* 1 frame  */
     dp_psd_accumulate_real (wK, buf, K * N); /* K frames */
     float p1[64], pK[64];
-    dp_psd_power_twosided (w1, N, p1, N);
-    dp_psd_power_twosided (wK, N, pK, N);
+    dp_psd_power_twosided (w1, p1, N);
+    dp_psd_power_twosided (wK, pK, N);
     /* white noise: the K-averaged spectrum is flatter (smaller spread). */
     DP_CHECK (stddev (pK, 1, N) < stddev (p1, 1, N));
     free (buf);
@@ -674,16 +674,16 @@ main (void)
         if (pass == 1)
           {
             dp_psd_accumulate (w, x, N);
-            DP_REQUIRE (dp_psd_power_twosided (w, N, buf, N) == N);
+            DP_REQUIRE (dp_psd_power_twosided (w, buf, N) == N);
             DP_REQUIRE (dp_psd_occupied_bw (w, 0.99) > 0.0);
             DP_REQUIRE (dp_psd_snr (w, -0.25, 0.25) != 0.0);
             dp_psd_reset (w);
           }
         for (size_t i = 0; i < N; i++)
           buf[i] = 42.0f;
-        DP_CHECK (dp_psd_power_twosided (w, N, buf, N) == 0);
-        DP_CHECK (dp_psd_power_onesided (w, N / 2 + 1, buf, N / 2 + 1) == 0);
-        DP_CHECK (dp_psd_psd_dbhz (w, N, buf, N) == 0);
+        DP_CHECK (dp_psd_power_twosided (w, buf, N) == 0);
+        DP_CHECK (dp_psd_power_onesided (w, buf, N / 2 + 1) == 0);
+        DP_CHECK (dp_psd_psd_dbhz (w, buf, N) == 0);
         DP_CHECK (dp_psd_band_power (w, bands, 2, buf, 1) == 0);
         int untouched = 1;
         for (size_t i = 0; i < N; i++)
@@ -720,16 +720,16 @@ main (void)
     dp_psd_accumulate (w4, x, N);
     dp_psd_accumulate (wb, x, N);
     float a[64], b[64], c[64];
-    dp_psd_power_twosided (w1, N, a, N);
-    dp_psd_power_twosided (w4, N, b, N);
-    dp_psd_power_twosided (wb, N, c, N);
+    dp_psd_power_twosided (w1, a, N);
+    dp_psd_power_twosided (w4, b, N);
+    dp_psd_power_twosided (wb, c, N);
     DP_CHECK (memcmp (a, b, sizeof a) == 0);
     DP_CHECK (memcmp (a, c, sizeof a) == 0);
-    dp_psd_power_onesided (w1, N / 2 + 1, a, N / 2 + 1);
-    dp_psd_power_onesided (w4, N / 2 + 1, b, N / 2 + 1);
+    dp_psd_power_onesided (w1, a, N / 2 + 1);
+    dp_psd_power_onesided (w4, b, N / 2 + 1);
     DP_CHECK (memcmp (a, b, (N / 2 + 1) * sizeof a[0]) == 0);
-    dp_psd_psd_db (w1, N, a, N);
-    dp_psd_psd_db (w4, N, b, N);
+    dp_psd_psd_db (w1, a, N);
+    dp_psd_psd_db (w4, b, N);
     const double step  = 20.0 * log10 (4.0);
     int          moved = 1;
     for (size_t i = 0; i < N; i++)
@@ -764,9 +764,8 @@ main (void)
     DP_CHECK (w->avg->count
               == 2); /* accumulate_real drops the 7-sample tail */
     float two[64], one[33];
-    DP_REQUIRE (dp_psd_power_twosided (w, N, two, N) == N);
-    DP_REQUIRE (dp_psd_power_onesided (w, N / 2 + 1, one, N / 2 + 1)
-                == N / 2 + 1);
+    DP_REQUIRE (dp_psd_power_twosided (w, two, N) == N);
+    DP_REQUIRE (dp_psd_power_onesided (w, one, N / 2 + 1) == N / 2 + 1);
     const size_t h    = N / 2;
     const double tot  = mean_f (two, N) * (double)N;
     const double tol  = 2.0 * 5.0 * log2 ((double)N) * ldexp (1.0, -24) * tot;
@@ -796,9 +795,8 @@ main (void)
                                        1.0, 0, ACC_TRACE_MEAN, 0.0);
     DP_REQUIRE (c != NULL);
     dp_psd_accumulate (c, z, N);
-    DP_REQUIRE (dp_psd_power_twosided (c, N, two, N) == N);
-    DP_REQUIRE (dp_psd_power_onesided (c, N / 2 + 1, one, N / 2 + 1)
-                == N / 2 + 1);
+    DP_REQUIRE (dp_psd_power_twosided (c, two, N) == N);
+    DP_REQUIRE (dp_psd_power_onesided (c, one, N / 2 + 1) == N / 2 + 1);
     int asym = 0;
     fold     = 1;
     for (size_t m = 1; m < h; m++)
@@ -852,7 +850,7 @@ main (void)
         for (size_t j = 0; j < 4; j++)
           dp_psd_accumulate (w, f[j], N);
         float got[64];
-        DP_REQUIRE (dp_psd_power_twosided (w, N, got, N) == N);
+        DP_REQUIRE (dp_psd_power_twosided (w, got, N) == N);
         int ok = 1;
         for (size_t i = 0; i < N; i++)
           {
@@ -908,14 +906,14 @@ main (void)
         DP_REQUIRE (fresh && w);
         float want[64], got[64];
         dp_psd_accumulate (fresh, b, N);
-        dp_psd_power_twosided (fresh, N, want, N);
+        dp_psd_power_twosided (fresh, want, N);
         dp_psd_accumulate (w, a, N);
-        dp_psd_power_twosided (w, N, got, N);
+        dp_psd_power_twosided (w, got, N);
         DP_REQUIRE (memcmp (got, want, sizeof got) != 0);
         dp_psd_reset (w);
         dp_psd_accumulate (w, b, N);
         DP_CHECK (w->avg->count == 1);
-        dp_psd_power_twosided (w, N, got, N);
+        dp_psd_power_twosided (w, got, N);
         DP_CHECK (memcmp (got, want, sizeof got) == 0);
         dp_psd_destroy (fresh);
         dp_psd_destroy (w);
@@ -953,8 +951,8 @@ main (void)
         float       *hz   = malloc (nfft * sizeof *hz);
         float       *db   = malloc (nfft * sizeof *db);
         DP_REQUIRE (hz && db);
-        DP_REQUIRE (dp_psd_psd_dbhz (w, nfft, hz, nfft) == nfft);
-        DP_REQUIRE (dp_psd_psd_db (w, nfft, db, nfft) == nfft);
+        DP_REQUIRE (dp_psd_psd_dbhz (w, hz, nfft) == nfft);
+        DP_REQUIRE (dp_psd_psd_db (w, db, nfft) == nfft);
         double       lin = 0.0;
         int          off = 1;
         const double want_off
@@ -1278,19 +1276,19 @@ main (void)
 
     for (size_t i = 0; i < N; i++)
       buf[i] = 42.0f;
-    DP_CHECK (dp_psd_power_twosided (w, N, buf, 5) == 5);
+    DP_CHECK (dp_psd_power_twosided (w, buf, 5) == 5);
     for (size_t i = 5; i < N; i++)
       DP_CHECK (buf[i] == 42.0f); /* tail untouched */
 
     for (size_t i = 0; i < N; i++)
       buf[i] = 42.0f;
-    DP_CHECK (dp_psd_psd_db (w, N, buf, 3) == 3);
+    DP_CHECK (dp_psd_psd_db (w, buf, 3) == 3);
     for (size_t i = 3; i < N; i++)
       DP_CHECK (buf[i] == 42.0f);
 
     for (size_t i = 0; i < N; i++)
       buf[i] = 42.0f;
-    DP_CHECK (dp_psd_psd_dbhz (w, N, buf, 3) == 3);
+    DP_CHECK (dp_psd_psd_dbhz (w, buf, 3) == 3);
     for (size_t i = 3; i < N; i++)
       DP_CHECK (buf[i] == 42.0f);
 
@@ -1298,16 +1296,16 @@ main (void)
      * loop-only clamp would still scribble at index half (== 32 here). */
     for (size_t i = 0; i < N; i++)
       buf[i] = 42.0f;
-    DP_CHECK (dp_psd_power_onesided (w, N / 2 + 1, buf, 4) == 4);
+    DP_CHECK (dp_psd_power_onesided (w, buf, 4) == 4);
     for (size_t i = 4; i < N; i++)
       DP_CHECK (buf[i] == 42.0f); /* in particular buf[32], the half index */
 
     /* Zero capacity emits nothing from any of them. */
     for (size_t i = 0; i < N; i++)
       buf[i] = 42.0f;
-    DP_CHECK (dp_psd_power_twosided (w, N, buf, 0) == 0);
-    DP_CHECK (dp_psd_power_onesided (w, N / 2 + 1, buf, 0) == 0);
-    DP_CHECK (dp_psd_psd_db (w, N, buf, 0) == 0);
+    DP_CHECK (dp_psd_power_twosided (w, buf, 0) == 0);
+    DP_CHECK (dp_psd_power_onesided (w, buf, 0) == 0);
+    DP_CHECK (dp_psd_psd_db (w, buf, 0) == 0);
     for (size_t i = 0; i < N; i++)
       DP_CHECK (buf[i] == 42.0f);
 
@@ -1378,12 +1376,12 @@ main (void)
               got_db[i] = got_p[i] = NAN;
 
             dp_psd_accumulate (ref, x, n);
-            DP_CHECK (dp_psd_psd_db (ref, nfft, want_db, nfft) == nfft);
-            DP_CHECK (dp_psd_power_twosided (ref, nfft, want_p, nfft) == nfft);
+            DP_CHECK (dp_psd_psd_db (ref, want_db, nfft) == nfft);
+            DP_CHECK (dp_psd_power_twosided (ref, want_p, nfft) == nfft);
 
             /* The kernel leaves the average alone: nothing accumulated. */
             dp_psd_frame_db (&k->k, x, got_db);
-            DP_CHECK (dp_psd_psd_db (k, nfft, got_p, nfft) == 0);
+            DP_CHECK (dp_psd_psd_db (k, got_p, nfft) == 0);
             DP_CHECK (memcmp (got_db, want_db, nfft * sizeof *got_db) == 0);
 
             /* raw power / cg^2 is exactly the two-sided readout */
@@ -1672,15 +1670,15 @@ main (void)
     dp_psd_accumulate (w, a, N);
     const size_t count0 = w->avg->count;
     float        db0[64], p0[64], db1[64], p1[64], scratch[64];
-    DP_REQUIRE (dp_psd_psd_db (w, N, db0, N) == N);
-    DP_REQUIRE (dp_psd_power_twosided (w, N, p0, N) == N);
+    DP_REQUIRE (dp_psd_psd_db (w, db0, N) == N);
+    DP_REQUIRE (dp_psd_power_twosided (w, p0, N) == N);
 
     dp_psd_frame_db (&w->k, b, scratch);
     dp_psd_frame_power (&w->k, b, scratch);
 
     DP_CHECK (w->avg->count == count0);
-    DP_CHECK (dp_psd_psd_db (w, N, db1, N) == N);
-    DP_CHECK (dp_psd_power_twosided (w, N, p1, N) == N);
+    DP_CHECK (dp_psd_psd_db (w, db1, N) == N);
+    DP_CHECK (dp_psd_power_twosided (w, p1, N) == N);
     DP_CHECK (memcmp (db0, db1, sizeof db0) == 0);
     DP_CHECK (memcmp (p0, p1, sizeof p0) == 0);
     dp_psd_destroy (w);
@@ -1716,7 +1714,7 @@ main (void)
           dp_psd_frame_db (&w->k, x, db);
           DP_CHECK (fabsf (db[at]) < TOL_DB);
           dp_psd_accumulate (w, x, N);
-          DP_CHECK (dp_psd_psd_db (w, nfft, db, nfft) == nfft);
+          DP_CHECK (dp_psd_psd_db (w, db, nfft) == nfft);
           DP_CHECK (fabsf (db[at]) < TOL_DB);
           free (db);
           dp_psd_destroy (w);
@@ -1745,7 +1743,7 @@ main (void)
     DP_CHECK (fabsf (df[N / 2 + (size_t)k]) < TOL_DB);
     DP_CHECK (memcmp (df, dbits, sizeof df) == 0);
     dp_psd_accumulate (wf, x, N);
-    DP_CHECK (dp_psd_psd_db (wf, N, df, N) == N);
+    DP_CHECK (dp_psd_psd_db (wf, df, N) == N);
     DP_CHECK (fabsf (df[N / 2 + (size_t)k]) < TOL_DB);
     dp_psd_destroy (wf);
     dp_psd_destroy (wb);
@@ -1773,7 +1771,7 @@ main (void)
     DP_CHECK (at_floor);
 
     dp_psd_accumulate (w, zero, N);
-    DP_CHECK (dp_psd_psd_db (w, N, db, N) == N);
+    DP_CHECK (dp_psd_psd_db (w, db, N) == N);
     at_floor = 1;
     for (size_t i = 0; i < N; i++)
       if (fabsf (db[i] + 200.0f) > 1e-4f)
@@ -1812,7 +1810,7 @@ main (void)
           dp_psd_frame_db (&w->k, x, db);
           DP_CHECK (argmax (db, nfft) == want);
           dp_psd_accumulate (w, x, N);
-          DP_CHECK (dp_psd_psd_db (w, nfft, db, nfft) == nfft);
+          DP_CHECK (dp_psd_psd_db (w, db, nfft) == nfft);
           DP_CHECK (argmax (db, nfft) == want);
           free (db);
           dp_psd_destroy (w);
@@ -1919,13 +1917,13 @@ main (void)
         for (size_t i = 0; i < 2 * nfft; i++)
           buf[i] = NAN;
         if (j == 0)
-          got = dp_psd_power_twosided (w, 2 * nfft, buf, 2 * nfft);
+          got = dp_psd_power_twosided (w, buf, 2 * nfft);
         else if (j == 1)
-          got = dp_psd_power_onesided (w, 2 * nfft, buf, 2 * nfft);
+          got = dp_psd_power_onesided (w, buf, 2 * nfft);
         else if (j == 2)
-          got = dp_psd_psd_db (w, 2 * nfft, buf, 2 * nfft);
+          got = dp_psd_psd_db (w, buf, 2 * nfft);
         else
-          got = dp_psd_psd_dbhz (w, 2 * nfft, buf, 2 * nfft);
+          got = dp_psd_psd_dbhz (w, buf, 2 * nfft);
         int written = 1, untouched = 1;
         for (size_t i = 0; i < r[j].want; i++)
           written &= isfinite (buf[i]) != 0;
@@ -2046,7 +2044,7 @@ main (void)
     DP_REQUIRE (one != NULL);
     dp_psd_accumulate (one, x, len);
     float ref[64];
-    DP_CHECK (dp_psd_power_twosided (one, 64, ref, 64) == 64);
+    DP_CHECK (dp_psd_power_twosided (one, ref, 64) == 64);
     const size_t chunk[] = { 1, 7, n - 1, n, n + 1, 3 * n + 5, 2 * n };
     for (size_t c = 0; c < sizeof chunk / sizeof chunk[0]; c++)
       {
@@ -2057,7 +2055,7 @@ main (void)
           dp_psd_accumulate (w, x + at,
                              (len - at < chunk[c]) ? len - at : chunk[c]);
         float got[64];
-        DP_CHECK (dp_psd_power_twosided (w, 64, got, 64) == 64);
+        DP_CHECK (dp_psd_power_twosided (w, got, 64) == 64);
         DP_CHECK (memcmp (got, ref, sizeof ref) == 0);
         dp_psd_destroy (w);
       }
@@ -2084,7 +2082,7 @@ main (void)
         DP_REQUIRE (one != NULL);
         dp_psd_accumulate (one, x, len);
         float ref[64];
-        DP_CHECK (dp_psd_power_twosided (one, 64, ref, 64) == 64);
+        DP_CHECK (dp_psd_power_twosided (one, ref, 64) == 64);
         for (size_t c = 0; c < sizeof chunk / sizeof chunk[0]; c++)
           {
             dp_psd_state_t *w
@@ -2095,7 +2093,7 @@ main (void)
               dp_psd_accumulate (w, x + at,
                                  (len - at < chunk[c]) ? len - at : chunk[c]);
             float got[64];
-            DP_CHECK (dp_psd_power_twosided (w, 64, got, 64) == 64);
+            DP_CHECK (dp_psd_power_twosided (w, got, 64) == 64);
             DP_CHECK (memcmp (got, ref, sizeof ref) == 0);
             dp_psd_destroy (w);
           }
@@ -2121,8 +2119,8 @@ main (void)
     for (size_t at = 0; at + n <= len; at += hop)
       dp_psd_accumulate (r, x + at, n);
     float got[64], ref[64];
-    DP_CHECK (dp_psd_power_twosided (w, 64, got, 64) == 64);
-    DP_CHECK (dp_psd_power_twosided (r, 64, ref, 64) == 64);
+    DP_CHECK (dp_psd_power_twosided (w, got, 64) == 64);
+    DP_CHECK (dp_psd_power_twosided (r, ref, 64) == 64);
     DP_CHECK (memcmp (got, ref, sizeof got) == 0);
     dp_psd_destroy (w);
     dp_psd_destroy (r);
@@ -2158,8 +2156,8 @@ main (void)
         dp_psd_accumulate (z, x, 2 * n + 9);
         dp_psd_accumulate (d, x, 2 * n + 9);
         float a[256], b[256];
-        DP_CHECK (dp_psd_power_twosided (z, 256, a, 256) == d->k.nfft);
-        DP_CHECK (dp_psd_power_twosided (d, 256, b, 256) == d->k.nfft);
+        DP_CHECK (dp_psd_power_twosided (z, a, 256) == d->k.nfft);
+        DP_CHECK (dp_psd_power_twosided (d, b, 256) == d->k.nfft);
         DP_CHECK (memcmp (a, b, d->k.nfft * sizeof *a) == 0);
         dp_psd_destroy (z);
         dp_psd_destroy (d);
@@ -2187,8 +2185,8 @@ main (void)
     dp_psd_accumulate (a, x + 5 * n + 11, len - (5 * n + 11));
     dp_psd_accumulate (b, x + 5 * n + 11, len - (5 * n + 11));
     float ra[64], rb[64];
-    DP_CHECK (dp_psd_power_twosided (a, 64, ra, 64) == 64);
-    DP_CHECK (dp_psd_power_twosided (b, 64, rb, 64) == 64);
+    DP_CHECK (dp_psd_power_twosided (a, ra, 64) == 64);
+    DP_CHECK (dp_psd_power_twosided (b, rb, 64) == 64);
     DP_CHECK (memcmp (ra, rb, sizeof ra) == 0);
     free (blob);
     dp_psd_destroy (a);
@@ -2215,12 +2213,12 @@ main (void)
     dp_psd_accumulate (src_h, x, len);
     dp_psd_accumulate (src, x + 3, len - 3);
     float before[64], after[64];
-    DP_CHECK (dp_psd_power_twosided (t, 64, before, 64) == 64);
+    DP_CHECK (dp_psd_power_twosided (t, before, 64) == 64);
     void *other = malloc (dp_psd_state_bytes (src_h));
     DP_REQUIRE (other != NULL);
     dp_psd_get_state (src_h, other);
     DP_CHECK (dp_psd_set_state (t, other) == DP_ERR_INVALID);
-    DP_CHECK (dp_psd_power_twosided (t, 64, after, 64) == 64);
+    DP_CHECK (dp_psd_power_twosided (t, after, 64) == 64);
     DP_CHECK (memcmp (before, after, sizeof before) == 0);
     /* A right-hop blob with its carried frame's magic clobbered. */
     void *dmg = malloc (dp_psd_state_bytes (src));
@@ -2230,7 +2228,7 @@ main (void)
          dmg)[sizeof (dp_state_hdr_t) + dp_acc_trace_state_bytes (src->avg)]
         ^= 0xFFu;
     DP_CHECK (dp_psd_set_state (t, dmg) == DP_ERR_INVALID);
-    DP_CHECK (dp_psd_power_twosided (t, 64, after, 64) == 64);
+    DP_CHECK (dp_psd_power_twosided (t, after, 64) == 64);
     DP_CHECK (memcmp (before, after, sizeof before) == 0);
     free (other);
     free (dmg);
@@ -2256,7 +2254,7 @@ main (void)
     dp_psd_accumulate (src, x, 300);
     dp_psd_accumulate (dst, x + 100, 200);
     float before[64], after[64];
-    DP_CHECK (dp_psd_power_twosided (dst, 64, before, 64) == 64);
+    DP_CHECK (dp_psd_power_twosided (dst, before, 64) == 64);
     void *blob = malloc (dp_psd_state_bytes (src));
     DP_REQUIRE (blob != NULL);
     dp_psd_get_state (src, blob);
@@ -2265,7 +2263,7 @@ main (void)
     h->version = 1;
     DP_CHECK (dp_psd_state_bytes (dst) == dp_psd_state_bytes (src));
     DP_CHECK (dp_psd_set_state (dst, blob) == DP_ERR_INVALID);
-    DP_CHECK (dp_psd_power_twosided (dst, 64, after, 64) == 64);
+    DP_CHECK (dp_psd_power_twosided (dst, after, 64) == 64);
     DP_CHECK (memcmp (before, after, sizeof before) == 0);
     free (blob);
     dp_psd_destroy (src);

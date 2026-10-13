@@ -83,13 +83,13 @@ _PSD — averaging power-spectral-density estimator (Welch's method), its per-fr
 |  int | [**dp\_psd\_kernel\_init**](#function-dp_psd_kernel_init) ([**dp\_psd\_kernel\_t**](structdp__psd__kernel__t.md) \* k, size\_t n, int window, float beta, size\_t pad, double full\_scale) <br>_Fill a kernel: the window, its gains, the scratch and the plan._  |
 |  double | [**dp\_psd\_noise\_floor**](#function-dp_psd_noise_floor) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Noise-floor estimate: median of the averaged dB spectrum._  |
 |  double | [**dp\_psd\_occupied\_bw**](#function-dp_psd_occupied_bw) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, double fraction) <br>_Occupied bandwidth in Hz holding_ `fraction` _of the total power._ |
-|  size\_t | [**dp\_psd\_power\_onesided**](#function-dp_psd_power_onesided) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, size\_t cap, float \* out, size\_t max\_out) <br>_Averaged linear power, one-sided (length nfft/2 + 1). Folds the DC-centred two-sided estimate onto_ `[0, fs/2]` _: the DC and Nyquist bins are kept as-is, every interior bin is the sum of its +k and -k halves (so a real-input tone reads 2\*avg\|_`X[k]` _\|^2 / cg^2 there). Coherent-gain normalised; full\_scale is NOT applied. Returns 0 before any accumulate._ |
+|  size\_t | [**dp\_psd\_power\_onesided**](#function-dp_psd_power_onesided) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, float \* out, size\_t max\_out) <br>_Averaged linear power, one-sided (length nfft/2 + 1). Folds the DC-centred two-sided estimate onto_ `[0, fs/2]` _: the DC and Nyquist bins are kept as-is, every interior bin is the sum of its +k and -k halves (so a real-input tone reads 2\*avg\|_`X[k]` _\|^2 / cg^2 there). Coherent-gain normalised; full\_scale is NOT applied. Returns 0 before any accumulate._ |
 |  size\_t | [**dp\_psd\_power\_onesided\_max\_out**](#function-dp_psd_power_onesided_max_out) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Output capacity hint for_ [_**dp\_psd\_power\_onesided()**_](psd__core_8h.md#function-dp_psd_power_onesided) _; equals nfft/2+1._ |
-|  size\_t | [**dp\_psd\_power\_twosided**](#function-dp_psd_power_twosided) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, size\_t cap, float \* out, size\_t max\_out) <br>_Averaged linear power, DC-centred two-sided (length nfft). Coherent-gain normalised (_ `out[k]` _= avg\|_`X[k]` _\|^2 / cg^2); full\_scale is NOT applied (callers that want a dBFS reference divide by full\_scale^2). This is the raw spectral estimate the measurement kernels integrate over. Returns 0 (and writes nothing) before any frame is accumulated._ |
+|  size\_t | [**dp\_psd\_power\_twosided**](#function-dp_psd_power_twosided) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, float \* out, size\_t max\_out) <br>_Averaged linear power, DC-centred two-sided (length nfft). Coherent-gain normalised (_ `out[k]` _= avg\|_`X[k]` _\|^2 / cg^2); full\_scale is NOT applied (callers that want a dBFS reference divide by full\_scale^2). This is the raw spectral estimate the measurement kernels integrate over. Returns 0 (and writes nothing) before any frame is accumulated._ |
 |  size\_t | [**dp\_psd\_power\_twosided\_max\_out**](#function-dp_psd_power_twosided_max_out) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Output capacity hint for_ [_**dp\_psd\_power\_twosided()**_](psd__core_8h.md#function-dp_psd_power_twosided) _; equals nfft._ |
-|  size\_t | [**dp\_psd\_psd\_db**](#function-dp_psd_psd_db) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, size\_t n, float \* out, size\_t max\_out) <br>_Averaged power spectrum in dB, DC-centred. Normalised by window coherent gain so a full-scale tone reads its true power (a unit-amplitude tone peaks near 0 dB). Returns 0 (Python None) before any frame is accumulated._  |
+|  size\_t | [**dp\_psd\_psd\_db**](#function-dp_psd_psd_db) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, float \* out, size\_t max\_out) <br>_Averaged power spectrum in dB, DC-centred. Normalised by window coherent gain so a full-scale tone reads its true power (a unit-amplitude tone peaks near 0 dB). Returns 0 (Python None) before any frame is accumulated._  |
 |  size\_t | [**dp\_psd\_psd\_db\_max\_out**](#function-dp_psd_psd_db_max_out) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Output capacity hint for psd\_db(); equals nfft._  |
-|  size\_t | [**dp\_psd\_psd\_dbhz**](#function-dp_psd_psd_dbhz) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, size\_t n, float \* out, size\_t max\_out) <br>_Averaged power spectral density in dB/Hz, DC-centred. Normalised by_ `fs * sum(w^2)` _(ENBW-aware), the standard one-sided-free PSD scaling. Differs from psd\_db() by the constant_`10*log10(cg^2/(fs*s2))` _. Returns 0 (Python None) before any frame is accumulated._ |
+|  size\_t | [**dp\_psd\_psd\_dbhz**](#function-dp_psd_psd_dbhz) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, float \* out, size\_t max\_out) <br>_Averaged power spectral density in dB/Hz, DC-centred. Normalised by_ `fs * sum(w^2)` _(ENBW-aware), the standard one-sided-free PSD scaling. Differs from psd\_db() by the constant_`10*log10(cg^2/(fs*s2))` _. Returns 0 (Python None) before any frame is accumulated._ |
 |  size\_t | [**dp\_psd\_psd\_dbhz\_max\_out**](#function-dp_psd_psd_dbhz_max_out) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Output capacity hint for psd\_dbhz(); equals nfft._  |
 |  void | [**dp\_psd\_reset**](#function-dp_psd_reset) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Discard the running average and any carried partial frame; the next accumulate re-seeds the average and starts the stream again._  |
 |  int | [**dp\_psd\_set\_state**](#function-dp_psd_set_state) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, const void \* blob) <br> |
@@ -810,7 +810,6 @@ _Averaged linear power, one-sided (length nfft/2 + 1). Folds the DC-centred two-
 ```C++
 size_t dp_psd_power_onesided (
     dp_psd_state_t * state,
-    size_t cap,
     float * out,
     size_t max_out
 ) 
@@ -824,7 +823,6 @@ size_t dp_psd_power_onesided (
 
 
 * `state` Must be non-NULL. 
-* `cap` Caller buffer capacity (must be &gt;= nfft/2 + 1). 
 * `out` Destination, at least nfft/2 + 1 float32 elements. 
 * `max_out` Capacity of `out` in elements. Emission stops there, so the return value is the number actually written. 
 
@@ -866,7 +864,6 @@ _Averaged linear power, DC-centred two-sided (length nfft). Coherent-gain normal
 ```C++
 size_t dp_psd_power_twosided (
     dp_psd_state_t * state,
-    size_t cap,
     float * out,
     size_t max_out
 ) 
@@ -880,7 +877,6 @@ size_t dp_psd_power_twosided (
 
 
 * `state` Must be non-NULL. 
-* `cap` Caller buffer capacity (must be &gt;= nfft). 
 * `out` Destination, at least nfft float32 elements. 
 * `max_out` Capacity of `out` in elements. Emission stops there, so the return value is the number actually written. 
 
@@ -922,7 +918,6 @@ _Averaged power spectrum in dB, DC-centred. Normalised by window coherent gain s
 ```C++
 size_t dp_psd_psd_db (
     dp_psd_state_t * state,
-    size_t n,
     float * out,
     size_t max_out
 ) 
@@ -936,7 +931,6 @@ size_t dp_psd_psd_db (
 
 
 * `state` Must be non-NULL. 
-* `n` Caller buffer capacity (ignored; buffer is pre-sized to nfft). 
 * `out` Destination, at least nfft float32 elements. 
 * `max_out` Capacity of `out` in elements. Emission stops there, so the return value is the number actually written. 
 
@@ -978,7 +972,6 @@ _Averaged power spectral density in dB/Hz, DC-centred. Normalised by_ `fs * sum(
 ```C++
 size_t dp_psd_psd_dbhz (
     dp_psd_state_t * state,
-    size_t n,
     float * out,
     size_t max_out
 ) 

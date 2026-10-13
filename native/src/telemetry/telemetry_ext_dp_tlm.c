@@ -243,12 +243,21 @@ TelemetryObj_probe (TelemetryObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char  *_kwlist[] = { "name", "decim", NULL };
-  const char   *name      = NULL;
-  unsigned long decim_raw = 1;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "s|k", _kwlist, &name,
+  static char *_kwlist[] = { "name", "decim", NULL };
+  const char  *name      = NULL;
+  /* Parsed wide and range-tested, not through `k`: `k` masks, so 2**32 + 3
+   * would register decim 3 and -1 would register 4294967295 (#2271). */
+  long long decim_raw = 1LL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "s|L", _kwlist, &name,
                                     &decim_raw))
     return NULL;
+  if (decim_raw < 0 || decim_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "decim: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)decim_raw, (long long)0, (long long)UINT32_MAX);
+      return NULL;
+    }
   uint32_t decim = (uint32_t)decim_raw;
   int      _rc   = dp_tlm_probe (self->handle, name, decim);
   if (_rc < 0)
@@ -292,12 +301,21 @@ TelemetryObj_set_decim (TelemetryObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char  *_kwlist[] = { "name", "decim", NULL };
-  const char   *name      = NULL;
-  unsigned long decim_raw = 0UL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "sk", _kwlist, &name,
+  static char *_kwlist[] = { "name", "decim", NULL };
+  const char  *name      = NULL;
+  /* Wide and range-tested for the same reason as probe(): `k` would retune a
+   * running probe to a wrapped factor (#2272). */
+  long long decim_raw = 0LL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "sL", _kwlist, &name,
                                     &decim_raw))
     return NULL;
+  if (decim_raw < 0 || decim_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "decim: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)decim_raw, (long long)0, (long long)UINT32_MAX);
+      return NULL;
+    }
   uint32_t decim = (uint32_t)decim_raw;
   int      _rc   = dp_tlm_set_decim (self->handle, name, decim);
   if (_rc != 0)
@@ -322,6 +340,16 @@ TelemetryObj_emit (TelemetryObject *self, PyObject *args, PyObject *kwds)
   double       v         = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "ld", _kwlist, &id_raw, &v))
     return NULL;
+  /* `long` is 64 bits on LP64, so the cast alone would alias 2**32 onto
+   * probe 0 and record into the wrong signal (#2270). */
+  if (id_raw < (long)INT32_MIN || id_raw > (long)INT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "id: %lld is out of range for int32_t [%lld, %lld]",
+                    (long long)id_raw, (long long)INT32_MIN,
+                    (long long)INT32_MAX);
+      return NULL;
+    }
   int32_t id  = (int32_t)id_raw;
   int     _rc = dp_tlm_emit_checked (self->handle, id, v);
   if (_rc != 0)

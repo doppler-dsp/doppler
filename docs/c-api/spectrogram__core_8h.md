@@ -72,6 +72,7 @@ _Streaming spectrogram: a stream of any-size chunks in, rows of nfft-bin spectra
 |  [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* | [**dp\_spectrogram\_create**](#function-dp_spectrogram_create) (size\_t nfft, size\_t hop, int window, float beta, int mode) <br>_Create a streaming spectrogram._  |
 |  void | [**dp\_spectrogram\_destroy**](#function-dp_spectrogram_destroy) ([**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s) <br>_Release a spectrogram and everything it owns._  |
 |  int64\_t | [**dp\_spectrogram\_flush**](#function-dp_spectrogram_flush) ([**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s, float \* row, size\_t row\_len) <br>_End the stream: write the one zero-padded row it still owes, if any._  |
+|  size\_t | [**dp\_spectrogram\_flush\_max\_out**](#function-dp_spectrogram_flush_max_out) (const [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s) <br>_Floats_ [_**dp\_spectrogram\_flush()**_](spectrogram__core_8h.md#function-dp_spectrogram_flush) _writes: nfft, the one row it can owe._ |
 |  void | [**dp\_spectrogram\_get\_state**](#function-dp_spectrogram_get_state) (const [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s, void \* blob) <br>_Serialize the configuration a row depends on, then the stream position, into_ `blob` _._ |
 |  size\_t | [**dp\_spectrogram\_pending**](#function-dp_spectrogram_pending) (const [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s) <br>_Samples pushed that no written row has covered yet._  |
 |  size\_t | [**dp\_spectrogram\_push**](#function-dp_spectrogram_push) ([**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) \* s, const float \_Complex \* in, size\_t n\_in, float \* out, size\_t max\_out) <br>_Push input, write every whole row it completes that fits._  |
@@ -288,8 +289,38 @@ The row sits on the hop grid: it starts at the next row start k\*hop, never at t
 
 **Returns:**
 
-Floats written: nfft, or 0 if no row was owed; -1 if the row is not exactly nfft floats long. 
+Floats written: nfft, or 0 if no row was owed; -1 if the row is not exactly nfft floats long. From Python, the owed row as a (1, nfft) matrix, or None when none was owed. 
 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_spectrogram\_flush\_max\_out 
+
+_Floats_ [_**dp\_spectrogram\_flush()**_](spectrogram__core_8h.md#function-dp_spectrogram_flush) _writes: nfft, the one row it can owe._
+```C++
+size_t dp_spectrogram_flush_max_out (
+    const dp_spectrogram_state_t * s
+) 
+```
+
+
+
+Sized by the object alone, since a flush owes at most one row. It is also the only row length [**dp\_spectrogram\_flush()**](spectrogram__core_8h.md#function-dp_spectrogram_flush) accepts.
+
+
+
+
+**Parameters:**
+
+
+* `s` Must be non-NULL. 
 
 
 

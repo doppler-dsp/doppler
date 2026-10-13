@@ -18,10 +18,9 @@ The C face is `#include "doppler/spectrogram/spectrogram_core.h"` and link
 ## In Python
 
 `push` returns the rows a chunk completes as a `(rows, nfft)` matrix, or
-`None` when it completes none. `flush` writes the zero-padded partial frame
-into a row of exactly `nfft` floats (returning it as `push` returns its rows
-is [#2181](https://github.com/doppler-dsp/doppler/issues/2181)). The two
-faces agree on the rows.
+`None` when it completes none. `flush` ends the stream the same way: the
+zero-padded partial frame as a `(1, nfft)` matrix, or `None` when no frame is
+owed. The two faces agree on the rows.
 
 ```python
 import numpy as np
@@ -35,9 +34,9 @@ for i in range(0, len(x), 37):  # chunks of any size give the same rows
     block = sp.push(x[i : i + 37])
     if block is not None:
         rows.append(block)
-tail = np.empty(256, np.float32)
-if sp.flush(tail):  # the trailing partial frame, if one is owed
-    rows.append(tail[None, :])
+tail = sp.flush()  # the trailing partial frame, if one is owed
+if tail is not None:
+    rows.append(tail)
 waterfall = np.concatenate(rows)
 
 assert waterfall.shape == (16, 256)

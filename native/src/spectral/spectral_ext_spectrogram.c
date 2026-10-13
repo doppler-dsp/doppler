@@ -382,6 +382,18 @@ SpectrogramObj_push (SpectrogramObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+SpectrogramObj_flush_max_out (SpectrogramObject *self,
+                              PyObject          *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (dp_spectrogram_flush_max_out (self->handle));
+}
+
+static PyObject *
 SpectrogramObj_flush (SpectrogramObject *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
@@ -389,39 +401,173 @@ SpectrogramObj_flush (SpectrogramObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char *_kwlist[] = { "row", NULL };
-  PyObject    *row_obj   = NULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &row_obj))
+  static char *_kwlist[] = { "out", NULL };
+  PyObject    *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|O", _kwlist, &out_obj))
     return NULL;
-  /* Require the exact dtype AND C-contiguity — either mismatch makes
-   * the marshal write into a temp copy, not the caller's buffer. */
-  if (!PyArray_Check (row_obj)
-      || PyArray_TYPE ((PyArrayObject *)row_obj) != NPY_FLOAT
-      || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)row_obj)
-      || !PyArray_ISWRITEABLE ((PyArrayObject *)row_obj))
+  dp_spectrogram_state_t *state = self->handle;
+  size_t                  _cols = (size_t)(state->nfft);
+  if (_cols == 0)
     {
-      PyErr_SetString (PyExc_TypeError, "row must be a writable, C-contiguous"
-                                        " ndarray of the output dtype");
+      PyErr_SetString (PyExc_RuntimeError,
+                       "Spectrogram.flush: out_cols evaluated to 0");
       return NULL;
     }
-  PyArrayObject *row_arr = jm_array_arg (
-      row_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "row");
-  if (!row_arr)
+  if (out_obj && out_obj != Py_None)
+    {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_FLOAT
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          return NULL;
+        }
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_FLOAT,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
+      if (!out_arr)
+        {
+          return NULL;
+        }
+      if (PyArray_NDIM (out_arr) != 2
+          || (size_t)PyArray_DIM (out_arr, 1) != _cols)
+        {
+          PyErr_Format (
+              PyExc_ValueError,
+              "out must be a 2-D array with %zu columns, shape (rows, %zu)",
+              _cols, _cols);
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = dp_spectrogram_flush_max_out (self->handle);
+      size_t _min_cap = _omax;
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      int64_t _rc = dp_spectrogram_flush (
+          self->handle, (float *)PyArray_DATA (out_arr), _cap);
+      if (_rc < 0)
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                        "flush: out must hold exactly nfft floats",
+                        (long long)_rc);
+          return NULL;
+        }
+      size_t n_out = (size_t)_rc;
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "Spectrogram.flush: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
+      if (!n_out)
+        {
+          Py_DECREF (out_arr);
+          Py_RETURN_NONE;
+        }
+      npy_intp _odim = (npy_intp)n_out;
+      if ((size_t)_odim % _cols != 0)
+        {
+          PyErr_Format (PyExc_RuntimeError,
+                        "Spectrogram.flush: kernel returned %zu elements, not "
+                        "a whole number of %zu-wide rows",
+                        (size_t)_odim, _cols);
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      npy_intp  _odims[2] = { _odim / (npy_intp)_cols, (npy_intp)_cols };
+      PyObject *_oview    = PyArray_SimpleNewFromData (2, _odims, NPY_FLOAT,
+                                                       PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
+      return _oview;
+    }
+  size_t _need = dp_spectrogram_flush_max_out (self->handle);
+  size_t _cap  = dp_spectrogram_flush_max_out (self->handle);
+  (void)_need;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "Spectrogram.flush: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_FLOAT);
+  if (!arr0)
     {
       return NULL;
     }
-  float  *row     = (float *)PyArray_DATA (row_arr);
-  size_t  row_len = (size_t)PyArray_SIZE (row_arr);
-  int64_t _rc     = dp_spectrogram_flush (self->handle, row, row_len);
-  Py_DECREF (row_arr);
+  float  *_d0 = (float *)PyArray_DATA ((PyArrayObject *)arr0);
+  int64_t _rc = dp_spectrogram_flush (self->handle, _d0, _cap);
   if (_rc < 0)
     {
+      Py_DECREF (arr0);
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
-                    "flush: row must hold exactly nfft floats",
+                    "flush: out must hold exactly nfft floats",
                     (long long)_rc);
       return NULL;
     }
-  return PyLong_FromLongLong ((long long)_rc);
+  size_t n_out = (size_t)_rc;
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "Spectrogram.flush: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
+  if (!n_out)
+    {
+      Py_DECREF (arr0);
+      Py_RETURN_NONE;
+    }
+  npy_intp _odim = (npy_intp)n_out;
+  if ((size_t)_odim % _cols != 0)
+    {
+      PyErr_Format (PyExc_RuntimeError,
+                    "Spectrogram.flush: kernel returned %zu elements, not a "
+                    "whole number of %zu-wide rows",
+                    (size_t)_odim, _cols);
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  npy_intp     _odims[2] = { _odim / (npy_intp)_cols, (npy_intp)_cols };
+  PyArray_Dims _rs0      = { _odims, 2 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  return arr0;
 }
 
 static PyObject *
@@ -781,16 +927,19 @@ static PyMethodDef SpectrogramObj_methods[] = {
     "    Output.\n" },
   { "flush", (PyCFunction)(void *)SpectrogramObj_flush,
     METH_VARARGS | METH_KEYWORDS,
-    "flush(row) -> int\n"
+    "flush(out) -> ndarray | None\n"
     "\n"
-    "End the stream: write the row a pending partial frame is owed into row.\n"
+    "End the stream: return the row a pending partial frame is owed.\n"
     "\n"
-    "row must be a writable float32 array of exactly nfft elements; any other "
-    "size\n"
-    "raises ValueError, and the owed frame stays owed. Returns nfft when a "
-    "frame was\n"
-    "owed and was written, 0 when none was owed. A flush restarts the "
-    "stream.\n"
+    "The row comes back as a (1, nfft) float32 matrix, the shape push "
+    "returns, or\n"
+    "None when no row was owed. Either way the stream restarts, as after "
+    "reset, so\n"
+    "a second flush returns None.\n"
+    "\n"
+    "An out array, if given, must be a float32 array of shape (1, nfft); any "
+    "other\n"
+    "shape raises ValueError, and the owed frame stays owed.\n"
     "\n"
     "The example uses hop 4, so the owed row starts on the hop grid, at "
     "sample 4:\n"
@@ -799,11 +948,10 @@ static PyMethodDef SpectrogramObj_methods[] = {
     ">>> from doppler.spectral import Spectrogram\n"
     ">>> sp = Spectrogram(nfft=8, hop=4, window=\"rect\")\n"
     ">>> _ = sp.push(np.ones(11, np.complex64))\n"
-    ">>> row = np.empty(8, np.float32)\n"
-    ">>> sp.flush(row)\n"
-    "8\n"
-    ">>> sp.flush(row)\n"
-    "0\n"
+    ">>> sp.flush().shape\n"
+    "(1, 8)\n"
+    ">>> sp.flush() is None\n"
+    "True\n"
     "\n"
     "The row sits on the hop grid: it starts at the next row start k*hop,\n"
     "never at the first sample no row covered, so it is the row a one-shot\n"
@@ -814,20 +962,26 @@ static PyMethodDef SpectrogramObj_methods[] = {
     "\n"
     "Parameters\n"
     "----------\n"
-    "row : npt.NDArray[np.float32]\n"
-    "    Room for nfft floats.\n"
+    "out : npt.NDArray[np.float32] | None\n"
+    "    Optional pre-allocated output buffer: a writable, C-contiguous 2-D\n"
+    "    array of shape (rows, cols), where cols is this method's fixed row\n"
+    "    width. When given, the result is written into it and the returned\n"
+    "    array is a (rows, cols) view of exactly the rows produced; when\n"
+    "    omitted, a fresh array is allocated.\n"
     "\n"
     "Returns\n"
     "-------\n"
-    "int\n"
+    "NDArray[np.float32] | None\n"
     "    Floats written: nfft, or 0 if no row was owed; -1 if the row is not\n"
-    "    exactly nfft floats long.\n"
+    "    exactly nfft floats long. From Python, the owed row as a (1, nfft)\n"
+    "    matrix, or None when none was owed. None when the C call writes no\n"
+    "    output.\n"
     "\n"
     "Raises\n"
     "------\n"
     "ValueError\n"
     "    If the C call returns a negative value. The exception message is\n"
-    "    ``flush: row must hold exactly nfft floats``, with the return code\n"
+    "    ``flush: out must hold exactly nfft floats``, with the return code\n"
     "    appended (gh-869).\n"
     "\n"
     "Examples\n"
@@ -836,7 +990,19 @@ static PyMethodDef SpectrogramObj_methods[] = {
     "    >>> from doppler.spectral import Spectrogram\n"
     "    >>> obj = Spectrogram(nfft=256, hop=0, window=\"hann\", beta=0.0, "
     "mode=\"power\")\n"
-    "    >>> y = obj.flush(np.zeros(4, dtype=np.float32))\n" },
+    "    >>> y = obj.flush()\n" },
+  { "flush_max_out", (PyCFunction)SpectrogramObj_flush_max_out, METH_NOARGS,
+    "flush_max_out() -> int\n"
+    "\n"
+    "Floats dp_spectrogram_flush() writes: nfft, the one row it can owe.\n"
+    "\n"
+    "Sized by the object alone, since a flush owes at most one row. It is\n"
+    "also the only row length dp_spectrogram_flush() accepts.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "rows_for", (PyCFunction)(void *)SpectrogramObj_rows_for,
     METH_VARARGS | METH_KEYWORDS,
     "rows_for(n_in) -> int\n"

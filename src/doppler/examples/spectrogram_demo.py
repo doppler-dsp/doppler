@@ -37,9 +37,9 @@ def stream_rows(
         if block is not None:  # None: this push completed no row
             rows.append(block)
         pos += size
-    tail = np.empty(nfft, np.float32)
-    if sp.flush(tail):  # a trailing partial frame, zero-padded, if one is owed
-        rows.append(tail[None, :])
+    tail = sp.flush()  # a trailing partial frame, zero-padded, if one is owed
+    if tail is not None:
+        rows.append(tail)
     return np.concatenate(rows)
 
 

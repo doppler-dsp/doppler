@@ -30,6 +30,7 @@ const jm_any_fn jm_bound_symbols_spectrogram[] = {
     (jm_any_fn)dp_spectrogram_push_max_out,
     (jm_any_fn)dp_spectrogram_rows_for,
     (jm_any_fn)dp_spectrogram_flush,
+    (jm_any_fn)dp_spectrogram_flush_max_out,
     (jm_any_fn)dp_spectrogram_pending,
     (jm_any_fn)dp_spectrogram_state_bytes,
     (jm_any_fn)dp_spectrogram_get_state,

@@ -20,6 +20,7 @@
 #include "dp_preamble_test.h"
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
+#include "dp_swept_test.h"
 #include "dp_test.h"
 
 #include <math.h>
@@ -3156,7 +3157,7 @@ test_a_sweeping_carrier_is_compensated (void)
   DP_CHECK (dp_burst_capture_get_rate_hypotheses (z) == 1);
   DP_CHECK (dp_burst_capture_get_rate_hypotheses (s) == 5);
 
-  static float _Complex x[LEN], out[4 * BURST];
+  static float _Complex x[LEN], out[4 * BURST], bb[BURST];
   const size_t cap  = sizeof out / sizeof *out;
   const size_t at[] = { 6001, 7333, 8090, 9217, 10000, 11111 };
   const size_t nat  = sizeof at / sizeof *at;
@@ -3172,13 +3173,10 @@ test_a_sweeping_carrier_is_compensated (void)
           x[i]           = re + im * I;
         }
       for (size_t i = 0; i < BURST; i++)
-        {
-          const double u = (double)i - 0.5 * (double)(RP * NP);
-          x[at[j] + i]
-              += (i < RP * NP ? zc[i % NP] : 1.0f)
-                 * (float _Complex)cexp (I * 2.0 * M_PI
-                                         * (f_mid * u + 0.5 * sweep * u * u));
-        }
+        bb[i] = i < RP * NP ? zc[i % NP] : 1.0f;
+      dp_swept_rotate (bb, BURST, 1.0, f_mid, sweep, 0.5 * (double)(RP * NP));
+      for (size_t i = 0; i < BURST; i++)
+        x[at[j] + i] += bb[i];
       dp_burst_capture_reset (s);
       (void)dp_burst_capture_push (s, x, LEN, out, cap);
       int hit = 0;
@@ -3226,13 +3224,11 @@ test_a_sweeping_carrier_is_compensated (void)
             x[i]           = re + im * I;
           }
         for (size_t i = 0; i < BURST; i++)
-          {
-            const double u = (double)i - 0.5 * (double)(RP * NP);
-            x[a0 + i]
-                += (i < RP * NP ? zc[i % NP] : 1.0f)
-                   * (float _Complex)cexp (
-                       I * 2.0 * M_PI * (f_mid * u + 0.5 * sweep * u * u));
-          }
+          bb[i] = i < RP * NP ? zc[i % NP] : 1.0f;
+        dp_swept_rotate (bb, BURST, 1.0, f_mid, sweep,
+                         0.5 * (double)(RP * NP));
+        for (size_t i = 0; i < BURST; i++)
+          x[a0 + i] += bb[i];
         for (int d = 0; d < 2; d++)
           {
             dp_burst_capture_reset (eng[d]);

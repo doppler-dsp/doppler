@@ -1641,7 +1641,7 @@ main (void)
         const double sf = sf_[c], ff = ff_[c], r = r_[c], ctr = ctr_[c];
         for (int i = 0; i < RN; i++)
           y[i] = 1.0f;
-        DP_REQUIRE (dp_swept_rotate (y, RN, sf, ff, r, ctr) == 0);
+        dp_swept_rotate (y, RN, sf, ff, r, ctr);
         double worst = 0.0;
         for (int i = 0; i < RN; i++)
           {

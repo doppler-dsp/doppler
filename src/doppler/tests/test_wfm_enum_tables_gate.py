@@ -416,6 +416,7 @@ _VIEW_TOML = (
     'enumerators = ["W_HANN"]\n'
 )
 _VIEW_C = """\
+/** Make one. The window is W_HANN; any other returns 0. */
 int make (int window)
 {
   /* SSOT: view=win_sub */
@@ -676,3 +677,137 @@ def test_the_refusal_must_be_the_next_line(tmp_path: Path) -> None:
     r = _run(tmp_path)
     assert r.returncode == 1
     assert "the line after `SSOT: view=win_sub` is not a refusal" in r.stdout
+
+
+# ── Rule 8's third statement: the refusal's own brief (#2204) ─────────────
+
+
+def test_a_brief_naming_a_value_past_the_view_fails(tmp_path: Path) -> None:
+    """The function holding the refusal documents the set C accepts: a
+    third statement of the view, held like the refusal. Adding W_RECT to the
+    prose without moving the refusal (or the view) is red (#2204)."""
+    _seed_view(
+        tmp_path,
+        c=_VIEW_C.replace("is W_HANN; any", "is W_HANN or W_RECT; any"),
+    )
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    assert (
+        "`make`'s doc comment names ['W_HANN', 'W_RECT'], but view win_sub"
+        " is ['W_HANN']"
+    ) in r.stdout, r.stdout
+
+
+def test_a_brief_naming_none_of_the_set_fails(tmp_path: Path) -> None:
+    """Prose that states the set in words names none of its enumerators,
+    so nothing could hold it: name them."""
+    _seed_view(
+        tmp_path,
+        c=_VIEW_C.replace("The window is W_HANN;", "The window is Hann;"),
+    )
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    assert "`make`'s doc comment names [], but view win_sub" in r.stdout
+
+
+def test_a_refusal_whose_function_has_no_doc_fails(tmp_path: Path) -> None:
+    """Fail-closed: a refusal whose function carries no doc comment, on its
+    definition or on a header declaration, has no brief to hold, and a
+    skipped check would read as a passed one."""
+    _seed_view(
+        tmp_path,
+        c=_VIEW_C.replace(
+            "/** Make one. The window is W_HANN; any other returns 0. */\n",
+            "",
+        ),
+    )
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    assert "`make` holds view win_sub's refusal but has no doc" in r.stdout
+
+
+def test_a_brief_on_the_header_declaration_is_read(tmp_path: Path) -> None:
+    """The real shape: the refusal sits in the .c, the brief on the public
+    declaration in native/inc. Read there, it holds; with W_RECT added
+    there, it is red."""
+    bare = _VIEW_C.replace(
+        "/** Make one. The window is W_HANN; any other returns 0. */\n", ""
+    )
+    h = "/** Make one. In C the window is W_HANN. */\nint make (int window);\n"
+    _seed_view(tmp_path, c=bare)
+    hdr = tmp_path / "native/inc/doppler/acq/acq_core.h"
+    hdr.parent.mkdir(parents=True, exist_ok=True)
+    hdr.write_text(h, encoding="utf-8")
+    r = _run(tmp_path)
+    assert r.returncode == 0, r.stdout
+
+    hdr.write_text(h.replace("W_HANN.", "W_HANN or W_RECT."), encoding="utf-8")
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    assert "`make`'s doc comment names ['W_HANN', 'W_RECT']" in r.stdout
+
+
+#: A three-name parent and a two-name view over it, for the order of the
+#: brief's names.
+_TRIO_H = """\
+/* SSOT: enum=trio */
+enum { T_A = 0, T_B = 1, T_C = 2 };
+"""
+_TRIO_TOML = (
+    '\n[[enum]]\nname = "trio"\nvalues = ["a", "b", "c"]\n'
+    'enumerators = ["T_A", "T_B", "T_C"]\n'
+    '\n[[enum]]\nname = "duo"\nvalues = ["a", "b"]\n'
+    'enumerators = ["T_A", "T_B"]\n'
+)
+_TRIO_C = """\
+/** Pick one. In C it is T_A or T_B; T_C returns 0. */
+int pick (int t)
+{
+  /* SSOT: view=duo */
+  if (t > T_B)
+    return 0;
+  return 1;
+}
+"""
+
+
+def test_a_brief_names_the_view_in_order(tmp_path: Path) -> None:
+    """The brief names the view's enumerators in the view's order, which is
+    the parent's: `T_B or T_A` states the set and garbles its order, so it
+    is red, and `T_A or T_B` passes. A value named again later (`T_C
+    returns 0`) is past the view, so it is red too."""
+    _seed_bound(tmp_path, header=_TRIO_H, manifest=_TRIO_TOML)
+    f = tmp_path / "native/src/acq/acq_core.c"
+    f.parent.mkdir(parents=True, exist_ok=True)
+
+    f.write_text(_TRIO_C.replace("; T_C returns 0", ""), encoding="utf-8")
+    r = _run(tmp_path)
+    assert r.returncode == 0, r.stdout
+
+    f.write_text(
+        _TRIO_C.replace("T_A or T_B; T_C returns 0", "T_B or T_A"),
+        encoding="utf-8",
+    )
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    assert "`pick`'s doc comment names ['T_B', 'T_A']" in r.stdout
+
+    f.write_text(_TRIO_C, encoding="utf-8")
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    assert "`pick`'s doc comment names ['T_A', 'T_B', 'T_C']" in r.stdout
+
+
+def test_the_gates_own_examples_hold() -> None:
+    """The examples in the gate's docstrings are claims about its C reader:
+    nothing else runs a script's doctests, so this does (#2204)."""
+    import doctest
+
+    sys.path.insert(0, str(SCRIPT.parent))
+    try:
+        import check_wfm_enum_tables as g
+    finally:
+        sys.path.remove(str(SCRIPT.parent))
+    r = doctest.testmod(g)
+    assert r.failed == 0
+    assert r.attempted >= 4, "the gate's examples were not found"

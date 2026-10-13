@@ -188,10 +188,17 @@ static PyObject *
 _bind_mls_poly (PyObject *self, PyObject *args, PyObject *kwds)
 {
   (void)self;
-  static char  *_kwlist[] = { "n", NULL };
-  unsigned long n_raw     = 0UL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "k", _kwlist, &n_raw))
+  static char *_kwlist[] = { "n", NULL };
+  long long    n_raw     = 0LL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "L", _kwlist, &n_raw))
     return NULL;
+  if (n_raw < 0 || n_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "n: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)n_raw, (long long)0, (long long)UINT32_MAX);
+      return NULL;
+    }
   uint32_t n = (uint32_t)n_raw;
   return PyLong_FromUnsignedLongLong ((unsigned long long)dp_mls_poly (n));
 }

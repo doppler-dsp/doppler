@@ -43,15 +43,30 @@ LockDetObj_init (LockDetObject *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[]
       = { "up_thresh", "down_thresh", "n_up", "n_down", NULL };
-  double        up_thresh   = 1.0;
-  double        down_thresh = 1.0;
-  unsigned long n_up_raw    = 1;
-  unsigned long n_down_raw  = 1;
+  double    up_thresh   = 1.0;
+  double    down_thresh = 1.0;
+  long long n_up_raw    = 1;
+  long long n_down_raw  = 1;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|ddkk", kwlist, &up_thresh,
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|ddLL", kwlist, &up_thresh,
                                     &down_thresh, &n_up_raw, &n_down_raw))
     return -1;
-  uint32_t n_up   = (uint32_t)n_up_raw;
+  if (n_up_raw < 0 || n_up_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "n_up: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)n_up_raw, (long long)0, (long long)UINT32_MAX);
+      return -1;
+    }
+  uint32_t n_up = (uint32_t)n_up_raw;
+  if (n_down_raw < 0 || n_down_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "n_down: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)n_down_raw, (long long)0,
+                    (long long)UINT32_MAX);
+      return -1;
+    }
   uint32_t n_down = (uint32_t)n_down_raw;
   self->handle    = dp_lockdet_create (up_thresh, down_thresh, n_up, n_down);
   if (!self->handle)
@@ -161,14 +176,29 @@ LockDetObj_configure (LockDetObject *self, PyObject *args, PyObject *kwds)
     }
   static char *_kwlist[]
       = { "up_thresh", "down_thresh", "n_up", "n_down", NULL };
-  double        up_thresh   = 0.0;
-  double        down_thresh = 0.0;
-  unsigned long n_up_raw    = 0UL;
-  unsigned long n_down_raw  = 0UL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddkk", _kwlist, &up_thresh,
+  double    up_thresh   = 0.0;
+  double    down_thresh = 0.0;
+  long long n_up_raw    = 0LL;
+  long long n_down_raw  = 0LL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddLL", _kwlist, &up_thresh,
                                     &down_thresh, &n_up_raw, &n_down_raw))
     return NULL;
-  uint32_t n_up   = (uint32_t)n_up_raw;
+  if (n_up_raw < 0 || n_up_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "n_up: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)n_up_raw, (long long)0, (long long)UINT32_MAX);
+      return NULL;
+    }
+  uint32_t n_up = (uint32_t)n_up_raw;
+  if (n_down_raw < 0 || n_down_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "n_down: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)n_down_raw, (long long)0,
+                    (long long)UINT32_MAX);
+      return NULL;
+    }
   uint32_t n_down = (uint32_t)n_down_raw;
   dp_lockdet_configure (self->handle, up_thresh, down_thresh, n_up, n_down);
   Py_RETURN_NONE;

@@ -47,9 +47,9 @@ GoldObj_init (GoldObject *self, PyObject *args, PyObject *kwds)
   unsigned long long seed_a_raw = 350;
   unsigned long long taps_b_raw = 567;
   unsigned long long seed_b_raw = 73;
-  unsigned long      length_raw = 10;
+  long long          length_raw = 10;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|KKKKk", kwlist, &taps_a_raw,
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|KKKKL", kwlist, &taps_a_raw,
                                     &seed_a_raw, &taps_b_raw, &seed_b_raw,
                                     &length_raw))
     return -1;
@@ -57,6 +57,14 @@ GoldObj_init (GoldObject *self, PyObject *args, PyObject *kwds)
   uint64_t seed_a = (uint64_t)seed_a_raw;
   uint64_t taps_b = (uint64_t)taps_b_raw;
   uint64_t seed_b = (uint64_t)seed_b_raw;
+  if (length_raw < 0 || length_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "length: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)length_raw, (long long)0,
+                    (long long)UINT32_MAX);
+      return -1;
+    }
   uint32_t length = (uint32_t)length_raw;
   self->handle    = dp_gold_create (taps_a, seed_a, taps_b, seed_b, length);
   if (!self->handle)

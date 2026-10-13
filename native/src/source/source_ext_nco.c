@@ -41,13 +41,20 @@ NCOObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 NCOObj_init (NCOObject *self, PyObject *args, PyObject *kwds)
 {
-  static char  *kwlist[]  = { "norm_freq", "nmax", NULL };
-  double        norm_freq = 0.0;
-  unsigned long nmax_raw  = 0;
+  static char *kwlist[]  = { "norm_freq", "nmax", NULL };
+  double       norm_freq = 0.0;
+  long long    nmax_raw  = 0;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|dk", kwlist, &norm_freq,
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|dL", kwlist, &norm_freq,
                                     &nmax_raw))
     return -1;
+  if (nmax_raw < 0 || nmax_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "nmax: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)nmax_raw, (long long)0, (long long)UINT32_MAX);
+      return -1;
+    }
   uint32_t nmax = (uint32_t)nmax_raw;
   self->handle  = dp_nco_create (norm_freq, nmax);
   if (!self->handle)
@@ -889,9 +896,16 @@ NCO_setprop_phase (NCOObject *self, PyObject *value, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return -1;
     }
-  unsigned long v_raw = 0UL;
-  if (!PyArg_Parse (value, "k", &v_raw))
+  long long v_raw = 0LL;
+  if (!PyArg_Parse (value, "L", &v_raw))
     return -1;
+  if (v_raw < 0 || v_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "phase: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)v_raw, (long long)0, (long long)UINT32_MAX);
+      return -1;
+    }
   uint32_t v = (uint32_t)v_raw;
   dp_nco_set_phase (self->handle, v);
   return 0;

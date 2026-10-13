@@ -79,6 +79,14 @@ I32ToF32_step (I32ToF32Object *self, PyObject *args)
   long x_raw = 0L;
   if (!PyArg_ParseTuple (args, "l", &x_raw))
     return NULL;
+  if (x_raw < (long)INT32_MIN || x_raw > (long)INT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "x: %lld is out of range for int32_t [%lld, %lld]",
+                    (long long)x_raw, (long long)INT32_MIN,
+                    (long long)INT32_MAX);
+      return NULL;
+    }
   int32_t x = (int32_t)x_raw;
   float   y = dp_i32_to_f32_step (self->handle, x);
   return PyFloat_FromDouble ((double)y);

@@ -42,13 +42,21 @@ InterruptObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 InterruptObj_init (InterruptObject *self, PyObject *args, PyObject *kwds)
 {
-  static char  *kwlist[]       = { "signals", "latency_ms", NULL };
-  PyObject     *signals_obj    = NULL;
-  unsigned long latency_ms_raw = 0;
+  static char *kwlist[]       = { "signals", "latency_ms", NULL };
+  PyObject    *signals_obj    = NULL;
+  long long    latency_ms_raw = 0;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|k", kwlist, &signals_obj,
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|L", kwlist, &signals_obj,
                                     &latency_ms_raw))
     return -1;
+  if (latency_ms_raw < 0 || latency_ms_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (
+          PyExc_OverflowError,
+          "latency_ms: %lld is out of range for uint32_t [%lld, %lld]",
+          (long long)latency_ms_raw, (long long)0, (long long)UINT32_MAX);
+      return -1;
+    }
   uint32_t       latency_ms  = (uint32_t)latency_ms_raw;
   PyArrayObject *signals_arr = jm_array_arg (
       signals_obj, NPY_INT32, NPY_ARRAY_C_CONTIGUOUS, "signals");

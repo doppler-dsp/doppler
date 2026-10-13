@@ -46,6 +46,14 @@ AccQ8_init (AccQ8Object *self, PyObject *args, PyObject *kwds)
 
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "|l", kwlist, &acc_raw))
     return -1;
+  if (acc_raw < (long)INT32_MIN || acc_raw > (long)INT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "acc: %lld is out of range for int32_t [%lld, %lld]",
+                    (long long)acc_raw, (long long)INT32_MIN,
+                    (long long)INT32_MAX);
+      return -1;
+    }
   int32_t acc  = (int32_t)acc_raw;
   self->handle = dp_acc_q8_create (acc);
   if (!self->handle)
@@ -79,6 +87,14 @@ AccQ8_step (AccQ8Object *self, PyObject *args)
   int x_raw = 0;
   if (!PyArg_ParseTuple (args, "i", &x_raw))
     return NULL;
+  if (x_raw < (int)INT8_MIN || x_raw > (int)INT8_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "x: %lld is out of range for int8_t [%lld, %lld]",
+                    (long long)x_raw, (long long)INT8_MIN,
+                    (long long)INT8_MAX);
+      return NULL;
+    }
   int8_t x = (int8_t)x_raw;
   dp_acc_q8_step (self->handle, x);
   Py_RETURN_NONE;
@@ -130,6 +146,14 @@ AccQ8_set_acc (AccQ8Object *self, PyObject *args)
   long v_raw = 0L;
   if (!PyArg_ParseTuple (args, "l", &v_raw))
     return NULL;
+  if (v_raw < (long)INT32_MIN || v_raw > (long)INT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "acc: %lld is out of range for int32_t [%lld, %lld]",
+                    (long long)v_raw, (long long)INT32_MIN,
+                    (long long)INT32_MAX);
+      return NULL;
+    }
   int32_t v = (int32_t)v_raw;
   dp_acc_q8_set_acc (self->handle, v);
   Py_RETURN_NONE;

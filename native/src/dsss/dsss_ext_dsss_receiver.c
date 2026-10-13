@@ -303,15 +303,30 @@ DsssReceiverObj_configure_lock_raw (DsssReceiverObject *self, PyObject *args,
   double       down_thresh = 0.0;
   unsigned long long n_looks_raw = 0ULL;
   double             alpha       = 0.0;
-  unsigned long      n_up_raw    = 0UL;
-  unsigned long      n_down_raw  = 0UL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddKdkk", _kwlist, &up_thresh,
+  long long          n_up_raw    = 0LL;
+  long long          n_down_raw  = 0LL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddKdLL", _kwlist, &up_thresh,
                                     &down_thresh, &n_looks_raw, &alpha,
                                     &n_up_raw, &n_down_raw))
     return NULL;
-  size_t   n_looks = (size_t)n_looks_raw;
-  uint32_t n_up    = (uint32_t)n_up_raw;
-  uint32_t n_down  = (uint32_t)n_down_raw;
+  size_t n_looks = (size_t)n_looks_raw;
+  if (n_up_raw < 0 || n_up_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "n_up: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)n_up_raw, (long long)0, (long long)UINT32_MAX);
+      return NULL;
+    }
+  uint32_t n_up = (uint32_t)n_up_raw;
+  if (n_down_raw < 0 || n_down_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "n_down: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)n_down_raw, (long long)0,
+                    (long long)UINT32_MAX);
+      return NULL;
+    }
+  uint32_t n_down = (uint32_t)n_down_raw;
   dp_dsss_receiver_configure_lock_raw (self->handle, up_thresh, down_thresh,
                                        n_looks, alpha, n_up, n_down);
   Py_RETURN_NONE;

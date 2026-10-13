@@ -89,7 +89,7 @@ static int
 SampleClock_init (SampleClockObject *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[] = { "fs", "resync", NULL };
-  double       fs       = 0;
+  double       fs       = 0.0;
   int          resync   = 0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "d|i", kwlist, &fs, &resync))
     {
@@ -117,10 +117,11 @@ SampleClock_init (SampleClockObject *self, PyObject *args, PyObject *kwds)
 static PyObject *
 SampleClock_pace (SampleClockObject *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[] = { "count", NULL };
-  size_t       count;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", kwlist, &count))
+  static char       *kwlist[]  = { "count", NULL };
+  unsigned long long count_raw = 0ULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", kwlist, &count_raw))
     return NULL;
+  size_t count = (size_t)count_raw;
   if (self->closed)
     {
       PyErr_SetString (PyExc_RuntimeError, "SampleClock is closed");
@@ -150,10 +151,11 @@ SampleClock_stamp (SampleClockObject *self, PyObject *args)
 static PyObject *
 SampleClock_stamp_at (SampleClockObject *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[] = { "n", NULL };
-  uint64_t     n;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", kwlist, &n))
+  static char       *kwlist[] = { "n", NULL };
+  unsigned long long n_raw    = 0ULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", kwlist, &n_raw))
     return NULL;
+  uint64_t n = (uint64_t)n_raw;
   if (self->closed)
     {
       PyErr_SetString (PyExc_RuntimeError, "SampleClock is closed");
@@ -169,13 +171,16 @@ SampleClock_track (SampleClockObject *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[]
       = { "observed_timestamp_ns", "n_at_observation", "tolerance_ns", NULL };
-  uint64_t observed_timestamp_ns;
-  uint64_t n_at_observation;
-  uint64_t tolerance_ns;
+  unsigned long long observed_timestamp_ns_raw = 0ULL;
+  unsigned long long n_at_observation_raw      = 0ULL;
+  unsigned long long tolerance_ns_raw          = 0ULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "KKK", kwlist,
-                                    &observed_timestamp_ns, &n_at_observation,
-                                    &tolerance_ns))
+                                    &observed_timestamp_ns_raw,
+                                    &n_at_observation_raw, &tolerance_ns_raw))
     return NULL;
+  uint64_t observed_timestamp_ns = (uint64_t)observed_timestamp_ns_raw;
+  uint64_t n_at_observation      = (uint64_t)n_at_observation_raw;
+  uint64_t tolerance_ns          = (uint64_t)tolerance_ns_raw;
   if (self->closed)
     {
       PyErr_SetString (PyExc_RuntimeError, "SampleClock is closed");

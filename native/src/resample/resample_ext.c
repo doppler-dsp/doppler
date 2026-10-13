@@ -86,15 +86,36 @@ static PyObject *
 _bind_ciccompmf (PyObject *self, PyObject *args, PyObject *kwds)
 {
   (void)self;
-  static char  *_kwlist[] = { "N", "R", "M", NULL };
-  unsigned long N_raw     = 0UL;
-  unsigned long R_raw     = 0UL;
-  unsigned long M_raw     = 0UL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "kkk", _kwlist, &N_raw, &R_raw,
+  static char *_kwlist[] = { "N", "R", "M", NULL };
+  long long    N_raw     = 0LL;
+  long long    R_raw     = 0LL;
+  long long    M_raw     = 0LL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "LLL", _kwlist, &N_raw, &R_raw,
                                     &M_raw))
     return NULL;
-  uint32_t N         = (uint32_t)N_raw;
-  uint32_t R         = (uint32_t)R_raw;
+  if (N_raw < 0 || N_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "N: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)N_raw, (long long)0, (long long)UINT32_MAX);
+      return NULL;
+    }
+  uint32_t N = (uint32_t)N_raw;
+  if (R_raw < 0 || R_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "R: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)R_raw, (long long)0, (long long)UINT32_MAX);
+      return NULL;
+    }
+  uint32_t R = (uint32_t)R_raw;
+  if (M_raw < 0 || M_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "M: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)M_raw, (long long)0, (long long)UINT32_MAX);
+      return NULL;
+    }
   uint32_t M         = (uint32_t)M_raw;
   size_t   _dim_need = (size_t)(M);
   if (_dim_need > (size_t)NPY_MAX_INTP)

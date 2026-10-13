@@ -41,22 +41,62 @@ ReedSolomonObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 ReedSolomonObj_init (ReedSolomonObject *self, PyObject *args, PyObject *kwds)
 {
-  static char  *kwlist[]        = { "nroots",     "symbol_bits", "field_poly",
-                                    "first_root", "root_stride", NULL };
-  unsigned long nroots_raw      = 0UL;
-  unsigned long symbol_bits_raw = 8;
-  unsigned long field_poly_raw  = 29;
-  unsigned long first_root_raw  = 1;
-  unsigned long root_stride_raw = 1;
+  static char *kwlist[]        = { "nroots",     "symbol_bits", "field_poly",
+                                   "first_root", "root_stride", NULL };
+  long long    nroots_raw      = 0LL;
+  long long    symbol_bits_raw = 8;
+  long long    field_poly_raw  = 29;
+  long long    first_root_raw  = 1;
+  long long    root_stride_raw = 1;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "k|kkkk", kwlist, &nroots_raw,
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "L|LLLL", kwlist, &nroots_raw,
                                     &symbol_bits_raw, &field_poly_raw,
                                     &first_root_raw, &root_stride_raw))
     return -1;
-  uint32_t nroots      = (uint32_t)nroots_raw;
+  if (nroots_raw < 0 || nroots_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "nroots: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)nroots_raw, (long long)0,
+                    (long long)UINT32_MAX);
+      return -1;
+    }
+  uint32_t nroots = (uint32_t)nroots_raw;
+  if (symbol_bits_raw < 0 || symbol_bits_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (
+          PyExc_OverflowError,
+          "symbol_bits: %lld is out of range for uint32_t [%lld, %lld]",
+          (long long)symbol_bits_raw, (long long)0, (long long)UINT32_MAX);
+      return -1;
+    }
   uint32_t symbol_bits = (uint32_t)symbol_bits_raw;
-  uint32_t field_poly  = (uint32_t)field_poly_raw;
-  uint32_t first_root  = (uint32_t)first_root_raw;
+  if (field_poly_raw < 0 || field_poly_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (
+          PyExc_OverflowError,
+          "field_poly: %lld is out of range for uint32_t [%lld, %lld]",
+          (long long)field_poly_raw, (long long)0, (long long)UINT32_MAX);
+      return -1;
+    }
+  uint32_t field_poly = (uint32_t)field_poly_raw;
+  if (first_root_raw < 0 || first_root_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (
+          PyExc_OverflowError,
+          "first_root: %lld is out of range for uint32_t [%lld, %lld]",
+          (long long)first_root_raw, (long long)0, (long long)UINT32_MAX);
+      return -1;
+    }
+  uint32_t first_root = (uint32_t)first_root_raw;
+  if (root_stride_raw < 0 || root_stride_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (
+          PyExc_OverflowError,
+          "root_stride: %lld is out of range for uint32_t [%lld, %lld]",
+          (long long)root_stride_raw, (long long)0, (long long)UINT32_MAX);
+      return -1;
+    }
   uint32_t root_stride = (uint32_t)root_stride_raw;
   self->handle         = dp_rs_codec_create (nroots, symbol_bits, field_poly,
                                              first_root, root_stride);

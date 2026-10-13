@@ -76,9 +76,16 @@ I16U32ToF32_step (I16U32ToF32Object *self, PyObject *args)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  unsigned long x_raw = 0UL;
-  if (!PyArg_ParseTuple (args, "k", &x_raw))
+  long long x_raw = 0LL;
+  if (!PyArg_ParseTuple (args, "L", &x_raw))
     return NULL;
+  if (x_raw < 0 || x_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "x: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)x_raw, (long long)0, (long long)UINT32_MAX);
+      return NULL;
+    }
   uint32_t x = (uint32_t)x_raw;
   float    y = dp_i16u32_to_f32_step (self->handle, x);
   return PyFloat_FromDouble ((double)y);

@@ -552,7 +552,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   PyObject          *freq             = NULL;
   PyObject          *snr              = NULL;
   const char        *snr_mode         = "auto";
-  unsigned long      seed_raw         = 0;
+  long long          seed_raw         = 0;
   int                sps              = 1;
   int                pn_length        = 15;
   unsigned long long pn_poly_raw      = 0;
@@ -670,7 +670,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
       }
     }
   if (!PyArg_ParseTupleAndKeywords (
-          args, _kw, "|sOOskiiKsOiOKOOdsssdiOOKOOOdiOOOKOd", kwlist, &type,
+          args, _kw, "|sOOsLiiKsOiOKOOdsssdiOOKOOOdiOOOKOd", kwlist, &type,
           &freq, &snr, &snr_mode, &seed_raw, &sps, &pn_length, &pn_poly_raw,
           &lfsr, &level, &background, &f_end, &span_raw, &doppler,
           &doppler_rate, &carrier_hz, &doppler_lifetime, &modulation, &pulse,
@@ -755,6 +755,13 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
       }
     self->src.snr_mode = _i;
   }
+  if (seed_raw < 0 || seed_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "seed: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)seed_raw, (long long)0, (long long)UINT32_MAX);
+      return -1;
+    }
   uint32_t seed       = (uint32_t)seed_raw;
   self->src.seed      = seed;
   self->src.sps       = sps;
@@ -1068,9 +1075,16 @@ static int
 Synth_set_seed (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  unsigned long _v_raw = 0UL;
-  if (!PyArg_Parse (value, "k", &_v_raw))
+  long long _v_raw = 0LL;
+  if (!PyArg_Parse (value, "L", &_v_raw))
     return -1;
+  if (_v_raw < 0 || _v_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "seed: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)_v_raw, (long long)0, (long long)UINT32_MAX);
+      return -1;
+    }
   uint32_t _v    = (uint32_t)_v_raw;
   self->src.seed = _v;
   return 0;

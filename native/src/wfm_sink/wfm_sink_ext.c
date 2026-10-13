@@ -104,7 +104,7 @@ static int
 StreamSink_init (StreamSinkObject *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[]    = { "endpoint", "sample_type", NULL };
-  const char  *endpoint    = 0;
+  const char  *endpoint    = NULL;
   const char  *sample_type = "cf32";
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "s|s", kwlist, &endpoint,
                                     &sample_type))
@@ -143,8 +143,8 @@ StreamSink_send (StreamSinkObject *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[] = { "iq", "fs", "fc", NULL };
   PyObject    *x_obj;
-  double       fs;
-  double       fc;
+  double       fs = 0.0;
+  double       fc = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "Odd", kwlist, &x_obj, &fs,
                                     &fc))
     return NULL;

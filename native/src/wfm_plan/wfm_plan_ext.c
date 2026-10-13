@@ -155,10 +155,11 @@ Plan_render (PlanObject *self, PyObject *args)
 static PyObject *
 Plan_at (PlanObject *self, PyObject *args)
 {
-  double             snr_raw  = 0;
-  unsigned long long seed_raw = 0;
-  if (!PyArg_ParseTuple (args, "dK", &snr_raw, &seed_raw))
+  double             snr      = 0.0;
+  unsigned long long seed_raw = 0ULL;
+  if (!PyArg_ParseTuple (args, "dK", &snr, &seed_raw))
     return NULL;
+  uint64_t seed = (uint64_t)seed_raw;
   if (self->closed)
     {
       PyErr_SetString (PyExc_RuntimeError, "Plan is closed");
@@ -178,7 +179,7 @@ Plan_at (PlanObject *self, PyObject *args)
   float _Complex *_out = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr);
   size_t          _got;
   Py_BEGIN_ALLOW_THREADS
-    _got = dp_wfm_plan_at (self->h, snr_raw, (uint64_t)seed_raw, _out);
+    _got = dp_wfm_plan_at (self->h, snr, seed, _out);
   Py_END_ALLOW_THREADS
   if ((size_t)(_got) > (size_t)(_n))
     {

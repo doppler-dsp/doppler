@@ -89,17 +89,21 @@ FarrowObj_delay (FarrowObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char   *_kwlist[] = { "x", "mu", "out", NULL };
-  PyObject      *x_obj     = NULL;
-  PyArrayObject *x_arr     = NULL;
-  double         mu        = 0;
-  PyObject      *out_obj   = NULL;
+  static char *_kwlist[] = { "x", "mu", "out", NULL };
+  PyObject    *x_obj     = NULL;
+  double       mu        = 0.0;
+  PyObject    *out_obj   = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "Od|O", _kwlist, &x_obj, &mu,
                                     &out_obj))
     return NULL;
-  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
-    return NULL;
+    {
+      return NULL;
+    }
+  const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
+  size_t                x_len = (size_t)PyArray_SIZE (x_arr);
   if (out_obj && out_obj != Py_None)
     {
       /* Require the exact dtype AND C-contiguity — either mismatch makes
@@ -140,13 +144,10 @@ FarrowObj_delay (FarrowObject *self, PyObject *args, PyObject *kwds)
        * this object is not shared across threads concurrently (one
        * object per stream); the kernel touches only this object's
        * state/buffers and the caller's input. */
-      const float _Complex *_ng0
-          = (const float _Complex *)PyArray_DATA (x_arr);
-      size_t          _ng1 = (size_t)PyArray_SIZE (x_arr);
-      float _Complex *_ng2 = (float _Complex *)PyArray_DATA (out_arr);
+      float _Complex *_ng0 = (float _Complex *)PyArray_DATA (out_arr);
       size_t          n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out = dp_farrow_delay (self->handle, _ng0, _ng1, mu, _ng2, _cap);
+        n_out = dp_farrow_delay (self->handle, x, x_len, mu, _ng0, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       if ((size_t)(n_out) > (size_t)(_cap))
@@ -200,11 +201,9 @@ FarrowObj_delay (FarrowObject *self, PyObject *args, PyObject *kwds)
    * this object is not shared across threads concurrently (one
    * object per stream); the kernel touches only this object's
    * state/buffers and the caller's input. */
-  const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (x_arr);
-  size_t                _ng1 = (size_t)PyArray_SIZE (x_arr);
-  size_t                n_out;
+  size_t n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = dp_farrow_delay (self->handle, _ng0, _ng1, mu, _d0, _cap);
+    n_out = dp_farrow_delay (self->handle, x, x_len, mu, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   if ((size_t)(n_out) > (size_t)(_cap))
@@ -303,7 +302,6 @@ Farrow_getprop_group_delay (FarrowObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_farrow_get_group_delay (self->handle));
 }
@@ -442,9 +440,11 @@ static PyMethodDef FarrowObj_methods[] = {
   { "get_state", (PyCFunction)FarrowObj_get_state, METH_NOARGS,
     "Serialize this object's mutable state to bytes.\n"
     "\n"
-    "Captures exactly the state that evolves as the object runs, so a blob\n"
-    "taken now and restored later resumes from this point. Construction\n"
-    "parameters are not included: restore into an object built the same way.\n"
+    "Captures the state that evolves as the object runs, including any value\n"
+    "a setter changed after construction, so a blob taken now and restored\n"
+    "later resumes from this point. Construction parameters are not\n"
+    "restored: restore into an object built the same way. A core may check\n"
+    "some of them and refuse a blob built differently.\n"
     "\n"
     "The blob is opaque and always `state_bytes()` long. Its layout is an\n"
     "implementation detail of the C core and is not a stable format across\n"
@@ -459,10 +459,12 @@ static PyMethodDef FarrowObj_methods[] = {
   { "set_state", (PyCFunction)FarrowObj_set_state, METH_O,
     "Restore mutable state from a `get_state()` blob.\n"
     "\n"
-    "Overwrites the live state in place; the object keeps the parameters it\n"
-    "was constructed with. Length is validated against `state_bytes()`\n"
-    "before the blob is handed to the C core, and the core may reject it as\n"
-    "well.\n"
+    "Overwrites the live state in place, including any value a setter\n"
+    "changed after construction. Construction parameters are not restored:\n"
+    "restore into an object built the same way. Length is validated against\n"
+    "`state_bytes()` before the blob is handed to the C core, which may\n"
+    "reject it too: a core may check some construction parameters and refuse\n"
+    "a blob built differently.\n"
     "\n"
     "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
     "length differs from `state_bytes()` or the core rejects it, and\n"

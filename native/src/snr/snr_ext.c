@@ -133,10 +133,30 @@ _bind_snr_data_aided_db_series (PyObject *self, PyObject *args, PyObject *kwds)
   static char       *_kwlist[]     = { "soft", "sign_bits", "window", NULL };
   PyObject          *soft_obj      = NULL;
   PyObject          *sign_bits_obj = NULL;
+  PyObject          *window_obj    = NULL;
   unsigned long long window_raw    = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OOK", _kwlist, &soft_obj,
-                                    &sign_bits_obj, &window_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OOO", _kwlist, &soft_obj,
+                                    &sign_bits_obj, &window_obj))
     return NULL;
+  if (window_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (window_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      window_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((window_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || window_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "window: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t         window   = (size_t)window_raw;
   PyArrayObject *soft_arr = (PyArrayObject *)jm_array_arg (
       soft_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "soft");
@@ -188,10 +208,30 @@ _bind_snr_m2m4_db_series (PyObject *self, PyObject *args, PyObject *kwds)
   (void)self;
   static char       *_kwlist[]  = { "x", "window", NULL };
   PyObject          *x_obj      = NULL;
+  PyObject          *window_obj = NULL;
   unsigned long long window_raw = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OK", _kwlist, &x_obj,
-                                    &window_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO", _kwlist, &x_obj,
+                                    &window_obj))
     return NULL;
+  if (window_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (window_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      window_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((window_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || window_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "window: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t         window = (size_t)window_raw;
   PyArrayObject *x_arr  = (PyArrayObject *)jm_array_arg (
       x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");

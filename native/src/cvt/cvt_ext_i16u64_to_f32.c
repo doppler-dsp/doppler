@@ -76,9 +76,29 @@ I16U64ToF32_step (I16U64ToF32Object *self, PyObject *args)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  PyObject          *x_obj = NULL;
   unsigned long long x_raw = 0ULL;
-  if (!PyArg_ParseTuple (args, "K", &x_raw))
+  if (!PyArg_ParseTuple (args, "O", &x_obj))
     return NULL;
+  if (x_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (x_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      x_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((x_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || x_raw > (unsigned long long)UINT64_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "x: %S is out of range for uint64_t [0, %llu]", _ix,
+                        (unsigned long long)UINT64_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   uint64_t x = (uint64_t)x_raw;
   float    y = dp_i16u64_to_f32_step (self->handle, x);
   return PyFloat_FromDouble ((double)y);

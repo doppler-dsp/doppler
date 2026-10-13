@@ -68,40 +68,182 @@ AsyncDsssPoolObj_init (AsyncDsssPoolObject *self, PyObject *args,
   PyObject          *code_obj                 = NULL;
   double             chip_rate                = 1000000.0;
   double             symbol_rate              = 1000.0;
+  PyObject          *spc_obj                  = NULL;
   unsigned long long spc_raw                  = 2;
   int                m                        = 2;
   double             cn0_dbhz                 = 55.0;
   double             pfa                      = 1e-3;
   double             pd                       = 0.9;
   double             doppler_uncertainty      = 100.0;
+  PyObject          *code_only_epochs_obj     = NULL;
   unsigned long long code_only_epochs_raw     = 813;
   double             doppler_rate             = 0.0;
+  PyObject          *max_peaks_obj            = NULL;
   unsigned long long max_peaks_raw            = 16;
+  PyObject          *n_slots_obj              = NULL;
   unsigned long long n_slots_raw              = 12;
   int                threads                  = 1;
   double             carrier_freq_hz          = 0.0;
   double             lost_confirm_s           = 2.0;
   double             max_emitter_on_time_secs = 900.0;
+  PyObject          *segments_obj             = NULL;
   unsigned long long segments_raw             = 4;
+  PyObject          *sps_obj                  = NULL;
   unsigned long long sps_raw                  = 8;
   int                differential             = 0;
   double             gain                     = 0.125;
+  PyObject          *pullin_intervals_obj     = NULL;
   unsigned long long pullin_intervals_raw     = 4;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "O|ddKiddddKdKKidddKKidK", kwlist, &code_obj, &chip_rate,
-          &symbol_rate, &spc_raw, &m, &cn0_dbhz, &pfa, &pd,
-          &doppler_uncertainty, &code_only_epochs_raw, &doppler_rate,
-          &max_peaks_raw, &n_slots_raw, &threads, &carrier_freq_hz,
-          &lost_confirm_s, &max_emitter_on_time_secs, &segments_raw, &sps_raw,
-          &differential, &gain, &pullin_intervals_raw))
+          args, kwds, "O|ddOiddddOdOOidddOOidO", kwlist, &code_obj, &chip_rate,
+          &symbol_rate, &spc_obj, &m, &cn0_dbhz, &pfa, &pd,
+          &doppler_uncertainty, &code_only_epochs_obj, &doppler_rate,
+          &max_peaks_obj, &n_slots_obj, &threads, &carrier_freq_hz,
+          &lost_confirm_s, &max_emitter_on_time_secs, &segments_obj, &sps_obj,
+          &differential, &gain, &pullin_intervals_obj))
     return -1;
-  size_t         spc              = (size_t)spc_raw;
-  size_t         code_only_epochs = (size_t)code_only_epochs_raw;
-  size_t         max_peaks        = (size_t)max_peaks_raw;
-  size_t         n_slots          = (size_t)n_slots_raw;
-  size_t         segments         = (size_t)segments_raw;
-  size_t         sps              = (size_t)sps_raw;
+  if (spc_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (spc_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      spc_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((spc_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || spc_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "spc: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t spc = (size_t)spc_raw;
+  if (code_only_epochs_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (code_only_epochs_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      code_only_epochs_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((code_only_epochs_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || code_only_epochs_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (
+              PyExc_OverflowError,
+              "code_only_epochs: %S is out of range for size_t [0, %llu]", _ix,
+              (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t code_only_epochs = (size_t)code_only_epochs_raw;
+  if (max_peaks_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (max_peaks_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      max_peaks_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((max_peaks_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || max_peaks_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "max_peaks: %S is out of range for size_t [0, %llu]",
+                        _ix, (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t max_peaks = (size_t)max_peaks_raw;
+  if (n_slots_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (n_slots_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      n_slots_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((n_slots_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || n_slots_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "n_slots: %S is out of range for size_t [0, %llu]",
+                        _ix, (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t n_slots = (size_t)n_slots_raw;
+  if (segments_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (segments_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      segments_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((segments_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || segments_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "segments: %S is out of range for size_t [0, %llu]",
+                        _ix, (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t segments = (size_t)segments_raw;
+  if (sps_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (sps_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      sps_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((sps_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || sps_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "sps: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t sps = (size_t)sps_raw;
+  if (pullin_intervals_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (pullin_intervals_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      pullin_intervals_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((pullin_intervals_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || pullin_intervals_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (
+              PyExc_OverflowError,
+              "pullin_intervals: %S is out of range for size_t [0, %llu]", _ix,
+              (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   size_t         pullin_intervals = (size_t)pullin_intervals_raw;
   PyArrayObject *code_arr
       = jm_array_arg (code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "code");
@@ -175,7 +317,14 @@ AsyncDsssPoolObj_push (AsyncDsssPoolObject *self, PyObject *args,
     }
   const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
   size_t                x_len = (size_t)PyArray_SIZE (x_arr);
-  size_t                y = dp_async_dsss_pool_push (self->handle, x, x_len);
+  /* nogil: GIL released across the pure-C kernel — sound only when
+   * this object is not shared across threads concurrently (one
+   * object per stream); the kernel touches only this object's
+   * state/buffers and the caller's input. */
+  size_t y;
+  Py_BEGIN_ALLOW_THREADS
+    y = dp_async_dsss_pool_push (self->handle, x, x_len);
+  Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -219,9 +368,29 @@ AsyncDsssPoolObj_status (AsyncDsssPoolObject *self, PyObject *args,
       return NULL;
     }
   static char       *_kwlist[] = { "slot", NULL };
+  PyObject          *slot_obj  = NULL;
   unsigned long long slot_raw  = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &slot_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &slot_obj))
     return NULL;
+  if (slot_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (slot_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      slot_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((slot_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || slot_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "slot: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t slot = (size_t)slot_raw;
   if (!AsyncDsssPoolObj_status_type)
     {
@@ -286,11 +455,31 @@ AsyncDsssPoolObj_symbols (AsyncDsssPoolObject *self, PyObject *args,
       return NULL;
     }
   static char       *_kwlist[] = { "slot", "out", NULL };
+  PyObject          *slot_obj  = NULL;
   unsigned long long slot_raw  = 0ULL;
   PyObject          *out_obj   = NULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K|O", _kwlist, &slot_raw,
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &slot_obj,
                                     &out_obj))
     return NULL;
+  if (slot_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (slot_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      slot_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((slot_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || slot_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "slot: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t slot = (size_t)slot_raw;
   if (out_obj && out_obj != Py_None)
     {
@@ -866,9 +1055,11 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
   { "get_state", (PyCFunction)AsyncDsssPoolObj_get_state, METH_NOARGS,
     "Serialize this object's mutable state to bytes.\n"
     "\n"
-    "Captures exactly the state that evolves as the object runs, so a blob\n"
-    "taken now and restored later resumes from this point. Construction\n"
-    "parameters are not included: restore into an object built the same way.\n"
+    "Captures the state that evolves as the object runs, including any value\n"
+    "a setter changed after construction, so a blob taken now and restored\n"
+    "later resumes from this point. Construction parameters are not\n"
+    "restored: restore into an object built the same way. A core may check\n"
+    "some of them and refuse a blob built differently.\n"
     "\n"
     "The blob is opaque and always `state_bytes()` long. Its layout is an\n"
     "implementation detail of the C core and is not a stable format across\n"
@@ -884,10 +1075,12 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
   { "set_state", (PyCFunction)AsyncDsssPoolObj_set_state, METH_O,
     "Restore mutable state from a `get_state()` blob.\n"
     "\n"
-    "Overwrites the live state in place; the object keeps the parameters it\n"
-    "was constructed with. Length is validated against `state_bytes()`\n"
-    "before the blob is handed to the C core, and the core may reject it as\n"
-    "well.\n"
+    "Overwrites the live state in place, including any value a setter\n"
+    "changed after construction. Construction parameters are not restored:\n"
+    "restore into an object built the same way. Length is validated against\n"
+    "`state_bytes()` before the blob is handed to the C core, which may\n"
+    "reject it too: a core may check some construction parameters and refuse\n"
+    "a blob built differently.\n"
     "\n"
     "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
     "length differs from `state_bytes()` or the core rejects it, and\n"

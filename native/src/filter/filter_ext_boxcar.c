@@ -43,12 +43,32 @@ MovingAverageObj_init (MovingAverageObject *self, PyObject *args,
                        PyObject *kwds)
 {
   static char       *kwlist[] = { "len", "gain", NULL };
+  PyObject          *len_obj  = NULL;
   unsigned long long len_raw  = 4;
   double             gain     = 1.0;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|Kd", kwlist, &len_raw,
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|Od", kwlist, &len_obj,
                                     &gain))
     return -1;
+  if (len_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (len_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      len_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((len_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || len_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "len: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   size_t len   = (size_t)len_raw;
   self->handle = dp_boxcar_create (len, gain);
   if (!self->handle)
@@ -238,7 +258,6 @@ MovingAverage_getprop_gain (MovingAverageObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_boxcar_get_gain (self->handle));
 }
 static int
@@ -393,9 +412,11 @@ static PyMethodDef MovingAverageObj_methods[] = {
   { "get_state", (PyCFunction)MovingAverageObj_get_state, METH_NOARGS,
     "Serialize this object's mutable state to bytes.\n"
     "\n"
-    "Captures exactly the state that evolves as the object runs, so a blob\n"
-    "taken now and restored later resumes from this point. Construction\n"
-    "parameters are not included: restore into an object built the same way.\n"
+    "Captures the state that evolves as the object runs, including any value\n"
+    "a setter changed after construction, so a blob taken now and restored\n"
+    "later resumes from this point. Construction parameters are not\n"
+    "restored: restore into an object built the same way. A core may check\n"
+    "some of them and refuse a blob built differently.\n"
     "\n"
     "The blob is opaque and always `state_bytes()` long. Its layout is an\n"
     "implementation detail of the C core and is not a stable format across\n"
@@ -411,10 +432,12 @@ static PyMethodDef MovingAverageObj_methods[] = {
   { "set_state", (PyCFunction)MovingAverageObj_set_state, METH_O,
     "Restore mutable state from a `get_state()` blob.\n"
     "\n"
-    "Overwrites the live state in place; the object keeps the parameters it\n"
-    "was constructed with. Length is validated against `state_bytes()`\n"
-    "before the blob is handed to the C core, and the core may reject it as\n"
-    "well.\n"
+    "Overwrites the live state in place, including any value a setter\n"
+    "changed after construction. Construction parameters are not restored:\n"
+    "restore into an object built the same way. Length is validated against\n"
+    "`state_bytes()` before the blob is handed to the C core, which may\n"
+    "reject it too: a core may check some construction parameters and refuse\n"
+    "a blob built differently.\n"
     "\n"
     "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
     "length differs from `state_bytes()` or the core rejects it, and\n"

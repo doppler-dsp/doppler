@@ -96,16 +96,20 @@ HalfbandDecimatorObj_execute (HalfbandDecimatorObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char   *_kwlist[] = { "x", "out", NULL };
-  PyObject      *x_obj     = NULL;
-  PyArrayObject *x_arr     = NULL;
-  PyObject      *out_obj   = NULL;
+  static char *_kwlist[] = { "x", "out", NULL };
+  PyObject    *x_obj     = NULL;
+  PyObject    *out_obj   = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
-    return NULL;
+    {
+      return NULL;
+    }
+  const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
+  size_t                x_len = (size_t)PyArray_SIZE (x_arr);
   if (out_obj && out_obj != Py_None)
     {
       /* Require the exact dtype AND C-contiguity — either mismatch makes
@@ -143,9 +147,8 @@ HalfbandDecimatorObj_execute (HalfbandDecimatorObject *self, PyObject *args,
           return NULL;
         }
       size_t n_out = dp_HalfbandDecimator_execute (
-          self->handle, (const float _Complex *)PyArray_DATA (x_arr),
-          (size_t)PyArray_SIZE (x_arr),
-          (float _Complex *)PyArray_DATA (out_arr), _cap);
+          self->handle, x, x_len, (float _Complex *)PyArray_DATA (out_arr),
+          _cap);
       Py_DECREF (x_arr);
       if ((size_t)(n_out) > (size_t)(_cap))
         {
@@ -195,9 +198,8 @@ HalfbandDecimatorObj_execute (HalfbandDecimatorObject *self, PyObject *args,
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t          n_out = dp_HalfbandDecimator_execute (
-      self->handle, (const float _Complex *)PyArray_DATA (x_arr),
-      (size_t)PyArray_SIZE (x_arr), _d0, _cap);
+  size_t          n_out
+      = dp_HalfbandDecimator_execute (self->handle, x, x_len, _d0, _cap);
   Py_DECREF (x_arr);
   if ((size_t)(n_out) > (size_t)(_cap))
     {
@@ -302,7 +304,6 @@ HalfbandDecimator_getprop_rate (HalfbandDecimatorObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_HalfbandDecimator_get_rate (self->handle));
 }
 static PyObject *
@@ -314,7 +315,6 @@ HalfbandDecimator_getprop_num_taps (HalfbandDecimatorObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_HalfbandDecimator_get_num_taps (self->handle));
 }
@@ -446,9 +446,11 @@ static PyMethodDef HalfbandDecimatorObj_methods[] = {
   { "get_state", (PyCFunction)HalfbandDecimatorObj_get_state, METH_NOARGS,
     "Serialize this object's mutable state to bytes.\n"
     "\n"
-    "Captures exactly the state that evolves as the object runs, so a blob\n"
-    "taken now and restored later resumes from this point. Construction\n"
-    "parameters are not included: restore into an object built the same way.\n"
+    "Captures the state that evolves as the object runs, including any value\n"
+    "a setter changed after construction, so a blob taken now and restored\n"
+    "later resumes from this point. Construction parameters are not\n"
+    "restored: restore into an object built the same way. A core may check\n"
+    "some of them and refuse a blob built differently.\n"
     "\n"
     "The blob is opaque and always `state_bytes()` long. Its layout is an\n"
     "implementation detail of the C core and is not a stable format across\n"
@@ -464,10 +466,12 @@ static PyMethodDef HalfbandDecimatorObj_methods[] = {
   { "set_state", (PyCFunction)HalfbandDecimatorObj_set_state, METH_O,
     "Restore mutable state from a `get_state()` blob.\n"
     "\n"
-    "Overwrites the live state in place; the object keeps the parameters it\n"
-    "was constructed with. Length is validated against `state_bytes()`\n"
-    "before the blob is handed to the C core, and the core may reject it as\n"
-    "well.\n"
+    "Overwrites the live state in place, including any value a setter\n"
+    "changed after construction. Construction parameters are not restored:\n"
+    "restore into an object built the same way. Length is validated against\n"
+    "`state_bytes()` before the blob is handed to the C core, which may\n"
+    "reject it too: a core may check some construction parameters and refuse\n"
+    "a blob built differently.\n"
     "\n"
     "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
     "length differs from `state_bytes()` or the core rejects it, and\n"

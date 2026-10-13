@@ -59,6 +59,7 @@ CarrierAcquisitionObj_init (CarrierAcquisitionObject *self, PyObject *args,
   double             sample_rate_hz   = 0.0;
   double             symbol_rate_hz   = 0.0;
   double             resolution_hz    = 0.0;
+  PyObject          *zero_pad_obj     = NULL;
   unsigned long long zero_pad_raw     = 4;
   const char        *window_str       = "hann";
   float              beta             = 0.0f;
@@ -67,14 +68,34 @@ CarrierAcquisitionObj_init (CarrierAcquisitionObject *self, PyObject *args,
   double             pd               = 0.9;
   double             design_snr       = 2.0;
   int                sequential_raw   = true;
+  PyObject          *max_n_blocks_obj = NULL;
   unsigned long long max_n_blocks_raw = 100000;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "dd|dKsfOdddpK", kwlist, &sample_rate_hz,
-          &symbol_rate_hz, &resolution_hz, &zero_pad_raw, &window_str, &beta,
+          args, kwds, "dd|dOsfOdddpO", kwlist, &sample_rate_hz,
+          &symbol_rate_hz, &resolution_hz, &zero_pad_obj, &window_str, &beta,
           &psd_template_obj, &pfa, &pd, &design_snr, &sequential_raw,
-          &max_n_blocks_raw))
+          &max_n_blocks_obj))
     return -1;
+  if (zero_pad_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (zero_pad_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      zero_pad_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((zero_pad_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || zero_pad_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "zero_pad: %S is out of range for size_t [0, %llu]",
+                        _ix, (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   size_t zero_pad = (size_t)zero_pad_raw;
   int    window   = 0;
   if (strcmp (window_str, "hann") == 0)
@@ -91,7 +112,27 @@ CarrierAcquisitionObj_init (CarrierAcquisitionObject *self, PyObject *args,
                     window_str);
       return -1;
     }
-  bool           sequential       = (int)sequential_raw;
+  bool sequential = (int)sequential_raw;
+  if (max_n_blocks_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (max_n_blocks_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      max_n_blocks_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((max_n_blocks_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || max_n_blocks_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (
+              PyExc_OverflowError,
+              "max_n_blocks: %S is out of range for size_t [0, %llu]", _ix,
+              (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   size_t         max_n_blocks     = (size_t)max_n_blocks_raw;
   PyArrayObject *psd_template_arr = NULL;
   size_t         psd_template_len = 0;
@@ -418,9 +459,11 @@ static PyMethodDef CarrierAcquisitionObj_methods[] = {
   { "get_state", (PyCFunction)CarrierAcquisitionObj_get_state, METH_NOARGS,
     "Serialize this object's mutable state to bytes.\n"
     "\n"
-    "Captures exactly the state that evolves as the object runs, so a blob\n"
-    "taken now and restored later resumes from this point. Construction\n"
-    "parameters are not included: restore into an object built the same way.\n"
+    "Captures the state that evolves as the object runs, including any value\n"
+    "a setter changed after construction, so a blob taken now and restored\n"
+    "later resumes from this point. Construction parameters are not\n"
+    "restored: restore into an object built the same way. A core may check\n"
+    "some of them and refuse a blob built differently.\n"
     "\n"
     "The blob is opaque and always `state_bytes()` long. Its layout is an\n"
     "implementation detail of the C core and is not a stable format across\n"
@@ -436,10 +479,12 @@ static PyMethodDef CarrierAcquisitionObj_methods[] = {
   { "set_state", (PyCFunction)CarrierAcquisitionObj_set_state, METH_O,
     "Restore mutable state from a `get_state()` blob.\n"
     "\n"
-    "Overwrites the live state in place; the object keeps the parameters it\n"
-    "was constructed with. Length is validated against `state_bytes()`\n"
-    "before the blob is handed to the C core, and the core may reject it as\n"
-    "well.\n"
+    "Overwrites the live state in place, including any value a setter\n"
+    "changed after construction. Construction parameters are not restored:\n"
+    "restore into an object built the same way. Length is validated against\n"
+    "`state_bytes()` before the blob is handed to the C core, which may\n"
+    "reject it too: a core may check some construction parameters and refuse\n"
+    "a blob built differently.\n"
     "\n"
     "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
     "length differs from `state_bytes()` or the core rejects it, and\n"

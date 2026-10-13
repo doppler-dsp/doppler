@@ -48,15 +48,17 @@ BurstDemodObj_init (BurstDemodObject *self, PyObject *args, PyObject *kwds)
           "carrier_hz", "max_rate", "est_segments", NULL };
   PyObject          *data_code_obj    = NULL;
   PyObject          *frame_obj        = NULL;
+  PyObject          *spc_obj          = NULL;
   unsigned long long spc_raw          = 4;
   double             chip_rate        = 1.0e6;
   double             carrier_hz       = 0.0;
   double             max_rate         = 0.0;
+  PyObject          *est_segments_obj = NULL;
   unsigned long long est_segments_raw = 10;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "OO|KdddK", kwlist, &data_code_obj, &frame_obj, &spc_raw,
-          &chip_rate, &carrier_hz, &max_rate, &est_segments_raw))
+          args, kwds, "OO|OdddO", kwlist, &data_code_obj, &frame_obj, &spc_obj,
+          &chip_rate, &carrier_hz, &max_rate, &est_segments_obj))
     return -1;
   const wfm_frame_desc_t *frame = NULL;
   if (frame_obj == Py_None || frame_obj == NULL)
@@ -93,7 +95,46 @@ BurstDemodObj_init (BurstDemodObject *self, PyObject *args, PyObject *kwds)
     return -1;
   Py_INCREF (frame_obj);
   Py_XSETREF (self->_frame_owner, frame_obj);
-  size_t         spc           = (size_t)spc_raw;
+  if (spc_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (spc_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      spc_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((spc_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || spc_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "spc: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t spc = (size_t)spc_raw;
+  if (est_segments_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (est_segments_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      est_segments_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((est_segments_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || est_segments_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (
+              PyExc_OverflowError,
+              "est_segments: %S is out of range for size_t [0, %llu]", _ix,
+              (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   size_t         est_segments  = (size_t)est_segments_raw;
   PyArrayObject *data_code_arr = jm_array_arg_hint (
       data_code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "data_code",
@@ -146,10 +187,30 @@ BurstDemodObj_set_preamble (BurstDemodObject *self, PyObject *args,
     }
   static char       *_kwlist[]    = { "acq_code", "reps", NULL };
   PyObject          *acq_code_obj = NULL;
+  PyObject          *reps_obj     = NULL;
   unsigned long long reps_raw     = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OK", _kwlist, &acq_code_obj,
-                                    &reps_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO", _kwlist, &acq_code_obj,
+                                    &reps_obj))
     return NULL;
+  if (reps_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (reps_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      reps_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((reps_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || reps_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "reps: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t         reps         = (size_t)reps_raw;
   PyArrayObject *acq_code_arr = jm_array_arg_hint (
       acq_code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "acq_code",
@@ -439,10 +500,30 @@ BurstDemodObj_set_prior (BurstDemodObject *self, PyObject *args,
     }
   static char       *_kwlist[] = { "f0_coarse", "start", NULL };
   double             f0_coarse = 0.0;
+  PyObject          *start_obj = NULL;
   unsigned long long start_raw = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "dK", _kwlist, &f0_coarse,
-                                    &start_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "dO", _kwlist, &f0_coarse,
+                                    &start_obj))
     return NULL;
+  if (start_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (start_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      start_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((start_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || start_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "start: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t start = (size_t)start_raw;
   dp_burst_demod_set_prior (self->handle, f0_coarse, start);
   Py_RETURN_NONE;
@@ -468,16 +549,20 @@ BurstDemodObj_demod (BurstDemodObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char   *_kwlist[] = { "x", "out", NULL };
-  PyObject      *x_obj     = NULL;
-  PyArrayObject *x_arr     = NULL;
-  PyObject      *out_obj   = NULL;
+  static char *_kwlist[] = { "x", "out", NULL };
+  PyObject    *x_obj     = NULL;
+  PyObject    *out_obj   = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
-    return NULL;
+    {
+      return NULL;
+    }
+  const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
+  size_t                x_len = (size_t)PyArray_SIZE (x_arr);
   if (out_obj && out_obj != Py_None)
     {
       /* Require the exact dtype AND C-contiguity — either mismatch makes
@@ -518,13 +603,10 @@ BurstDemodObj_demod (BurstDemodObject *self, PyObject *args, PyObject *kwds)
        * this object is not shared across threads concurrently (one
        * object per stream); the kernel touches only this object's
        * state/buffers and the caller's input. */
-      const float _Complex *_ng0
-          = (const float _Complex *)PyArray_DATA (x_arr);
-      size_t   _ng1 = (size_t)PyArray_SIZE (x_arr);
-      uint8_t *_ng2 = (uint8_t *)PyArray_DATA (out_arr);
+      uint8_t *_ng0 = (uint8_t *)PyArray_DATA (out_arr);
       size_t   n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out = dp_burst_demod_demod (self->handle, _ng0, _ng1, _ng2, _cap);
+        n_out = dp_burst_demod_demod (self->handle, x, x_len, _ng0, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       if ((size_t)(n_out) > (size_t)(_cap))
@@ -578,11 +660,9 @@ BurstDemodObj_demod (BurstDemodObject *self, PyObject *args, PyObject *kwds)
    * this object is not shared across threads concurrently (one
    * object per stream); the kernel touches only this object's
    * state/buffers and the caller's input. */
-  const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (x_arr);
-  size_t                _ng1 = (size_t)PyArray_SIZE (x_arr);
-  size_t                n_out;
+  size_t n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = dp_burst_demod_demod (self->handle, _ng0, _ng1, _d0, _cap);
+    n_out = dp_burst_demod_demod (self->handle, x, x_len, _d0, _cap);
   Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   if ((size_t)(n_out) > (size_t)(_cap))

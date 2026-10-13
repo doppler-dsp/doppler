@@ -82,16 +82,20 @@ RateConverterObj_execute (RateConverterObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char   *_kwlist[] = { "x", "out", NULL };
-  PyObject      *x_obj     = NULL;
-  PyArrayObject *x_arr     = NULL;
-  PyObject      *out_obj   = NULL;
+  static char *_kwlist[] = { "x", "out", NULL };
+  PyObject    *x_obj     = NULL;
+  PyObject    *out_obj   = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
-    return NULL;
+    {
+      return NULL;
+    }
+  const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
+  size_t                x_len = (size_t)PyArray_SIZE (x_arr);
   if (out_obj && out_obj != Py_None)
     {
       /* Require the exact dtype AND C-contiguity — either mismatch makes
@@ -129,9 +133,8 @@ RateConverterObj_execute (RateConverterObject *self, PyObject *args,
           return NULL;
         }
       size_t n_out = dp_RateConverter_execute (
-          self->handle, (const float _Complex *)PyArray_DATA (x_arr),
-          (size_t)PyArray_SIZE (x_arr),
-          (float _Complex *)PyArray_DATA (out_arr), _cap);
+          self->handle, x, x_len, (float _Complex *)PyArray_DATA (out_arr),
+          _cap);
       Py_DECREF (x_arr);
       if ((size_t)(n_out) > (size_t)(_cap))
         {
@@ -181,9 +184,7 @@ RateConverterObj_execute (RateConverterObject *self, PyObject *args,
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t          n_out = dp_RateConverter_execute (
-      self->handle, (const float _Complex *)PyArray_DATA (x_arr),
-      (size_t)PyArray_SIZE (x_arr), _d0, _cap);
+  size_t n_out = dp_RateConverter_execute (self->handle, x, x_len, _d0, _cap);
   Py_DECREF (x_arr);
   if ((size_t)(n_out) > (size_t)(_cap))
     {
@@ -232,17 +233,21 @@ RateConverterObj_execute_ctrl (RateConverterObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char   *_kwlist[] = { "x", "ctrl", "out", NULL };
-  PyObject      *x_obj     = NULL;
-  PyArrayObject *x_arr     = NULL;
-  double         ctrl      = 0;
-  PyObject      *out_obj   = NULL;
+  static char *_kwlist[] = { "x", "ctrl", "out", NULL };
+  PyObject    *x_obj     = NULL;
+  double       ctrl      = 0.0;
+  PyObject    *out_obj   = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "Od|O", _kwlist, &x_obj, &ctrl,
                                     &out_obj))
     return NULL;
-  x_arr = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
-    return NULL;
+    {
+      return NULL;
+    }
+  const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
+  size_t                x_len = (size_t)PyArray_SIZE (x_arr);
   if (out_obj && out_obj != Py_None)
     {
       /* Require the exact dtype AND C-contiguity — either mismatch makes
@@ -280,8 +285,7 @@ RateConverterObj_execute_ctrl (RateConverterObject *self, PyObject *args,
           return NULL;
         }
       size_t n_out = dp_RateConverter_execute_ctrl (
-          self->handle, (const float _Complex *)PyArray_DATA (x_arr),
-          (size_t)PyArray_SIZE (x_arr), ctrl,
+          self->handle, x, x_len, ctrl,
           (float _Complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (x_arr);
       if ((size_t)(n_out) > (size_t)(_cap))
@@ -332,9 +336,8 @@ RateConverterObj_execute_ctrl (RateConverterObject *self, PyObject *args,
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t          n_out = dp_RateConverter_execute_ctrl (
-      self->handle, (const float _Complex *)PyArray_DATA (x_arr),
-      (size_t)PyArray_SIZE (x_arr), ctrl, _d0, _cap);
+  size_t n_out = dp_RateConverter_execute_ctrl (self->handle, x, x_len, ctrl,
+                                                _d0, _cap);
   Py_DECREF (x_arr);
   if ((size_t)(n_out) > (size_t)(_cap))
     {
@@ -385,7 +388,7 @@ RateConverterObj_execute_ctrl_push (RateConverterObject *self, PyObject *args,
     }
   static char *_kwlist[] = { "x", "ctrl", "out", NULL };
   Py_complex   x_raw     = { 0.0, 0.0 };
-  double       ctrl      = 0;
+  double       ctrl      = 0.0;
   PyObject    *out_obj   = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "Dd|O", _kwlist, &x_raw, &ctrl,
                                     &out_obj))
@@ -578,7 +581,6 @@ RateConverter_getprop_rate (RateConverterObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_RateConverter_get_rate (self->handle));
 }
 static int
@@ -605,7 +607,6 @@ RateConverter_getprop_clipped (RateConverterObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyBool_FromLong ((long)(dp_RateConverter_get_clipped (self->handle)));
 }
 static PyObject *
@@ -617,7 +618,6 @@ RateConverter_getprop_narrow_pulse (RateConverterObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyBool_FromLong (
       (long)(dp_RateConverter_get_narrow_pulse (self->handle)));
 }
@@ -949,9 +949,11 @@ static PyMethodDef RateConverterObj_methods[] = {
   { "get_state", (PyCFunction)RateConverterObj_get_state, METH_NOARGS,
     "Serialize this object's mutable state to bytes.\n"
     "\n"
-    "Captures exactly the state that evolves as the object runs, so a blob\n"
-    "taken now and restored later resumes from this point. Construction\n"
-    "parameters are not included: restore into an object built the same way.\n"
+    "Captures the state that evolves as the object runs, including any value\n"
+    "a setter changed after construction, so a blob taken now and restored\n"
+    "later resumes from this point. Construction parameters are not\n"
+    "restored: restore into an object built the same way. A core may check\n"
+    "some of them and refuse a blob built differently.\n"
     "\n"
     "The blob is opaque and always `state_bytes()` long. Its layout is an\n"
     "implementation detail of the C core and is not a stable format across\n"
@@ -967,10 +969,12 @@ static PyMethodDef RateConverterObj_methods[] = {
   { "set_state", (PyCFunction)RateConverterObj_set_state, METH_O,
     "Restore mutable state from a `get_state()` blob.\n"
     "\n"
-    "Overwrites the live state in place; the object keeps the parameters it\n"
-    "was constructed with. Length is validated against `state_bytes()`\n"
-    "before the blob is handed to the C core, and the core may reject it as\n"
-    "well.\n"
+    "Overwrites the live state in place, including any value a setter\n"
+    "changed after construction. Construction parameters are not restored:\n"
+    "restore into an object built the same way. Length is validated against\n"
+    "`state_bytes()` before the blob is handed to the C core, which may\n"
+    "reject it too: a core may check some construction parameters and refuse\n"
+    "a blob built differently.\n"
     "\n"
     "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
     "length differs from `state_bytes()` or the core rejects it, and\n"

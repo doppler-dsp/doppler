@@ -44,18 +44,78 @@ Corr2DObj_init (Corr2DObject *self, PyObject *args, PyObject *kwds)
   static char *kwlist[]
       = { "ref", "dwell", "nthreads", "ny_out", "nx_out", "col_out", NULL };
   PyObject          *ref_obj    = NULL;
+  PyObject          *dwell_obj  = NULL;
   unsigned long long dwell_raw  = 1;
   int                nthreads   = 1;
+  PyObject          *ny_out_obj = NULL;
   unsigned long long ny_out_raw = 0;
+  PyObject          *nx_out_obj = NULL;
   unsigned long long nx_out_raw = 0;
   int                col_out    = -1;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|KiKKi", kwlist, &ref_obj,
-                                    &dwell_raw, &nthreads, &ny_out_raw,
-                                    &nx_out_raw, &col_out))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|OiOOi", kwlist, &ref_obj,
+                                    &dwell_obj, &nthreads, &ny_out_obj,
+                                    &nx_out_obj, &col_out))
     return -1;
-  size_t         dwell  = (size_t)dwell_raw;
-  size_t         ny_out = (size_t)ny_out_raw;
+  if (dwell_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (dwell_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      dwell_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((dwell_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || dwell_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "dwell: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t dwell = (size_t)dwell_raw;
+  if (ny_out_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (ny_out_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      ny_out_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((ny_out_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || ny_out_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "ny_out: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t ny_out = (size_t)ny_out_raw;
+  if (nx_out_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (nx_out_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      nx_out_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((nx_out_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || nx_out_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "nx_out: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   size_t         nx_out = (size_t)nx_out_raw;
   PyArrayObject *ref_arr
       = jm_array_arg (ref_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "ref");
@@ -543,9 +603,11 @@ static PyMethodDef Corr2DObj_methods[] = {
   { "get_state", (PyCFunction)Corr2DObj_get_state, METH_NOARGS,
     "Serialize this object's mutable state to bytes.\n"
     "\n"
-    "Captures exactly the state that evolves as the object runs, so a blob\n"
-    "taken now and restored later resumes from this point. Construction\n"
-    "parameters are not included: restore into an object built the same way.\n"
+    "Captures the state that evolves as the object runs, including any value\n"
+    "a setter changed after construction, so a blob taken now and restored\n"
+    "later resumes from this point. Construction parameters are not\n"
+    "restored: restore into an object built the same way. A core may check\n"
+    "some of them and refuse a blob built differently.\n"
     "\n"
     "The blob is opaque and always `state_bytes()` long. Its layout is an\n"
     "implementation detail of the C core and is not a stable format across\n"
@@ -560,10 +622,12 @@ static PyMethodDef Corr2DObj_methods[] = {
   { "set_state", (PyCFunction)Corr2DObj_set_state, METH_O,
     "Restore mutable state from a `get_state()` blob.\n"
     "\n"
-    "Overwrites the live state in place; the object keeps the parameters it\n"
-    "was constructed with. Length is validated against `state_bytes()`\n"
-    "before the blob is handed to the C core, and the core may reject it as\n"
-    "well.\n"
+    "Overwrites the live state in place, including any value a setter\n"
+    "changed after construction. Construction parameters are not restored:\n"
+    "restore into an object built the same way. Length is validated against\n"
+    "`state_bytes()` before the blob is handed to the C core, which may\n"
+    "reject it too: a core may check some construction parameters and refuse\n"
+    "a blob built differently.\n"
     "\n"
     "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
     "length differs from `state_bytes()` or the core rejects it, and\n"

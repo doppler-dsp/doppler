@@ -109,13 +109,14 @@ _bind_write_blue_header (PyObject *self, PyObject *args, PyObject *kwds)
   const char        *endian      = "le";
   double             fc          = 0.0;
   double             data_start  = 0.0;
+  PyObject          *total_obj   = NULL;
   unsigned long long total_raw   = 0;
   int                detached    = 1;
   double             t0          = 0.0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O&d|ssddKid", _kwlist,
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O&d|ssddOid", _kwlist,
                                     PyUnicode_FSConverter, &path, &fs,
                                     &sample_type, &endian, &fc, &data_start,
-                                    &total_raw, &detached, &t0))
+                                    &total_obj, &detached, &t0))
     {
       Py_XDECREF (path);
       return NULL;
@@ -137,6 +138,27 @@ _bind_write_blue_header (PyObject *self, PyObject *args, PyObject *kwds)
                     endian);
       Py_XDECREF (path);
       return NULL;
+    }
+  if (total_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (total_obj);
+      if (_ix == NULL)
+        {
+          Py_XDECREF (path);
+          return NULL;
+        }
+      total_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((total_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || total_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "total: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          Py_XDECREF (path);
+          return NULL;
+        }
+      Py_DECREF (_ix);
     }
   size_t total = (size_t)total_raw;
   int    _rc   = dp_write_blue_header (PyBytes_AS_STRING (path), fs,

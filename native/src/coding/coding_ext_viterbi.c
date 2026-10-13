@@ -45,10 +45,11 @@ ViterbiObj_init (ViterbiObject *self, PyObject *args, PyObject *kwds)
   PyObject          *poly_obj   = NULL;
   long long          k_raw      = 7;
   long long          invert_raw = 0;
+  PyObject          *depth_obj  = NULL;
   unsigned long long depth_raw  = 35;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|LLK", kwlist, &poly_obj,
-                                    &k_raw, &invert_raw, &depth_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|LLO", kwlist, &poly_obj,
+                                    &k_raw, &invert_raw, &depth_obj))
     return -1;
   if (k_raw < 0 || k_raw > (long long)UINT32_MAX)
     {
@@ -66,8 +67,27 @@ ViterbiObj_init (ViterbiObject *self, PyObject *args, PyObject *kwds)
                     (long long)UINT32_MAX);
       return -1;
     }
-  uint32_t       invert = (uint32_t)invert_raw;
-  size_t         depth  = (size_t)depth_raw;
+  uint32_t invert = (uint32_t)invert_raw;
+  if (depth_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (depth_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      depth_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((depth_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || depth_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "depth: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t         depth = (size_t)depth_raw;
   PyArrayObject *poly_arr
       = jm_array_arg (poly_obj, NPY_UINT32, NPY_ARRAY_C_CONTIGUOUS, "poly");
   if (!poly_arr)
@@ -430,9 +450,11 @@ static PyMethodDef ViterbiObj_methods[] = {
   { "get_state", (PyCFunction)ViterbiObj_get_state, METH_NOARGS,
     "Serialize this object's mutable state to bytes.\n"
     "\n"
-    "Captures exactly the state that evolves as the object runs, so a blob\n"
-    "taken now and restored later resumes from this point. Construction\n"
-    "parameters are not included: restore into an object built the same way.\n"
+    "Captures the state that evolves as the object runs, including any value\n"
+    "a setter changed after construction, so a blob taken now and restored\n"
+    "later resumes from this point. Construction parameters are not\n"
+    "restored: restore into an object built the same way. A core may check\n"
+    "some of them and refuse a blob built differently.\n"
     "\n"
     "The blob is opaque and always `state_bytes()` long. Its layout is an\n"
     "implementation detail of the C core and is not a stable format across\n"
@@ -447,10 +469,12 @@ static PyMethodDef ViterbiObj_methods[] = {
   { "set_state", (PyCFunction)ViterbiObj_set_state, METH_O,
     "Restore mutable state from a `get_state()` blob.\n"
     "\n"
-    "Overwrites the live state in place; the object keeps the parameters it\n"
-    "was constructed with. Length is validated against `state_bytes()`\n"
-    "before the blob is handed to the C core, and the core may reject it as\n"
-    "well.\n"
+    "Overwrites the live state in place, including any value a setter\n"
+    "changed after construction. Construction parameters are not restored:\n"
+    "restore into an object built the same way. Length is validated against\n"
+    "`state_bytes()` before the blob is handed to the C core, which may\n"
+    "reject it too: a core may check some construction parameters and refuse\n"
+    "a blob built differently.\n"
     "\n"
     "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
     "length differs from `state_bytes()` or the core rejects it, and\n"

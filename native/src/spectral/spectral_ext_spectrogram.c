@@ -42,16 +42,56 @@ static int
 SpectrogramObj_init (SpectrogramObject *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[] = { "nfft", "hop", "window", "beta", "mode", NULL };
+  PyObject    *nfft_obj = NULL;
   unsigned long long nfft_raw   = 256;
+  PyObject          *hop_obj    = NULL;
   unsigned long long hop_raw    = 0;
   const char        *window_str = "hann";
   float              beta       = 0.0f;
   const char        *mode_str   = "power";
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|KKsfs", kwlist, &nfft_raw,
-                                    &hop_raw, &window_str, &beta, &mode_str))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|OOsfs", kwlist, &nfft_obj,
+                                    &hop_obj, &window_str, &beta, &mode_str))
     return -1;
-  size_t nfft   = (size_t)nfft_raw;
+  if (nfft_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (nfft_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      nfft_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((nfft_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || nfft_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "nfft: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t nfft = (size_t)nfft_raw;
+  if (hop_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (hop_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      hop_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((hop_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || hop_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "hop: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   size_t hop    = (size_t)hop_raw;
   int    window = 0;
   if (strcmp (window_str, "hann") == 0)
@@ -394,9 +434,29 @@ SpectrogramObj_rows_for (SpectrogramObject *self, PyObject *args,
       return NULL;
     }
   static char       *_kwlist[] = { "n_in", NULL };
+  PyObject          *n_in_obj  = NULL;
   unsigned long long n_in_raw  = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &n_in_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &n_in_obj))
     return NULL;
+  if (n_in_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (n_in_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      n_in_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((n_in_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || n_in_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "n_in: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t n_in = (size_t)n_in_raw;
   size_t y    = dp_spectrogram_rows_for (self->handle, n_in);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
@@ -776,8 +836,7 @@ static PyMethodDef SpectrogramObj_methods[] = {
     "    >>> from doppler.spectral import Spectrogram\n"
     "    >>> obj = Spectrogram(nfft=256, hop=0, window=\"hann\", beta=0.0, "
     "mode=\"power\")\n"
-    "    >>> obj.flush(np.zeros(4, dtype=np.float32))\n"
-    "    0\n" },
+    "    >>> y = obj.flush(np.zeros(4, dtype=np.float32))\n" },
   { "rows_for", (PyCFunction)(void *)SpectrogramObj_rows_for,
     METH_VARARGS | METH_KEYWORDS,
     "rows_for(n_in) -> int\n"
@@ -857,9 +916,11 @@ static PyMethodDef SpectrogramObj_methods[] = {
   { "get_state", (PyCFunction)SpectrogramObj_get_state, METH_NOARGS,
     "Serialize this object's mutable state to bytes.\n"
     "\n"
-    "Captures exactly the state that evolves as the object runs, so a blob\n"
-    "taken now and restored later resumes from this point. Construction\n"
-    "parameters are not included: restore into an object built the same way.\n"
+    "Captures the state that evolves as the object runs, including any value\n"
+    "a setter changed after construction, so a blob taken now and restored\n"
+    "later resumes from this point. Construction parameters are not\n"
+    "restored: restore into an object built the same way. A core may check\n"
+    "some of them and refuse a blob built differently.\n"
     "\n"
     "The blob is opaque and always `state_bytes()` long. Its layout is an\n"
     "implementation detail of the C core and is not a stable format across\n"
@@ -874,10 +935,12 @@ static PyMethodDef SpectrogramObj_methods[] = {
   { "set_state", (PyCFunction)SpectrogramObj_set_state, METH_O,
     "Restore mutable state from a `get_state()` blob.\n"
     "\n"
-    "Overwrites the live state in place; the object keeps the parameters it\n"
-    "was constructed with. Length is validated against `state_bytes()`\n"
-    "before the blob is handed to the C core, and the core may reject it as\n"
-    "well.\n"
+    "Overwrites the live state in place, including any value a setter\n"
+    "changed after construction. Construction parameters are not restored:\n"
+    "restore into an object built the same way. Length is validated against\n"
+    "`state_bytes()` before the blob is handed to the C core, which may\n"
+    "reject it too: a core may check some construction parameters and refuse\n"
+    "a blob built differently.\n"
     "\n"
     "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
     "length differs from `state_bytes()` or the core rejects it, and\n"

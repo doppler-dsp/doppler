@@ -503,7 +503,6 @@ Reader_getprop_position (ReaderObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_wfm_reader_get_position (self->handle));
 }
@@ -516,7 +515,6 @@ Reader_getprop_follow_timeout_ms (ReaderObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLong (
       (unsigned long)dp_wfm_reader_get_follow_timeout_ms (self->handle));
 }
@@ -552,7 +550,6 @@ Reader_getprop_follow_grace_ms (ReaderObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLong (
       (unsigned long)dp_wfm_reader_get_follow_grace_ms (self->handle));
 }
@@ -588,7 +585,6 @@ Reader_getprop_ending (ReaderObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   long _v = (long)(dp_wfm_reader_get_ending (self->handle));
   if (_v < 0 || _v >= 4)
     {
@@ -608,7 +604,6 @@ Reader_getprop_file_type (ReaderObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   long _v = (long)(dp_wfm_reader_get_file_type (self->handle));
   if (_v < 0 || _v >= 4)
     {
@@ -628,7 +623,6 @@ Reader_getprop_sample_type (ReaderObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   long _v = (long)(dp_wfm_reader_get_sample_type (self->handle));
   if (_v < 0 || _v >= 10)
     {
@@ -648,7 +642,6 @@ Reader_getprop_mode (ReaderObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   long _v = (long)(dp_wfm_reader_get_mode (self->handle));
   if (_v < 0 || _v >= 2)
     {
@@ -668,7 +661,6 @@ Reader_getprop_endian (ReaderObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   long _v = (long)(dp_wfm_reader_get_endian (self->handle));
   if (_v < 0 || _v >= 2)
     {
@@ -688,7 +680,6 @@ Reader_getprop_fs (ReaderObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_wfm_reader_get_fs (self->handle));
 }
 static PyObject *
@@ -699,7 +690,6 @@ Reader_getprop_fc (ReaderObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_wfm_reader_get_fc (self->handle));
 }
 static PyObject *
@@ -710,7 +700,6 @@ Reader_getprop_fs_source (ReaderObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   long _v = (long)(dp_wfm_reader_get_fs_source (self->handle));
   if (_v < 0 || _v >= 3)
     {
@@ -730,7 +719,6 @@ Reader_getprop_t0 (ReaderObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_wfm_reader_get_t0 (self->handle));
 }
 static PyObject *
@@ -741,7 +729,6 @@ Reader_getprop_t0_source (ReaderObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   long _v = (long)(dp_wfm_reader_get_t0_source (self->handle));
   if (_v < 0 || _v >= 3)
     {
@@ -761,7 +748,6 @@ Reader_getprop_num_samples (ReaderObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_wfm_reader_get_num_samples (self->handle));
 }
@@ -773,7 +759,6 @@ Reader_getprop_fc_source (ReaderObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   long _v = (long)(dp_wfm_reader_get_fc_source (self->handle));
   if (_v < 0 || _v >= 6)
     {
@@ -793,7 +778,6 @@ Reader_getprop_trailing_bytes (ReaderObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dp_wfm_reader_get_trailing_bytes (self->handle));
 }

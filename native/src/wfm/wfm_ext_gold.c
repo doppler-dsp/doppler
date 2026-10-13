@@ -43,19 +43,99 @@ GoldObj_init (GoldObject *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[]
       = { "taps_a", "seed_a", "taps_b", "seed_b", "length", NULL };
+  PyObject          *taps_a_obj = NULL;
   unsigned long long taps_a_raw = 934;
+  PyObject          *seed_a_obj = NULL;
   unsigned long long seed_a_raw = 350;
+  PyObject          *taps_b_obj = NULL;
   unsigned long long taps_b_raw = 567;
+  PyObject          *seed_b_obj = NULL;
   unsigned long long seed_b_raw = 73;
   long long          length_raw = 10;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|KKKKL", kwlist, &taps_a_raw,
-                                    &seed_a_raw, &taps_b_raw, &seed_b_raw,
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|OOOOL", kwlist, &taps_a_obj,
+                                    &seed_a_obj, &taps_b_obj, &seed_b_obj,
                                     &length_raw))
     return -1;
+  if (taps_a_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (taps_a_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      taps_a_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((taps_a_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || taps_a_raw > (unsigned long long)UINT64_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "taps_a: %S is out of range for uint64_t [0, %llu]",
+                        _ix, (unsigned long long)UINT64_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   uint64_t taps_a = (uint64_t)taps_a_raw;
+  if (seed_a_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (seed_a_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      seed_a_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((seed_a_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || seed_a_raw > (unsigned long long)UINT64_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "seed_a: %S is out of range for uint64_t [0, %llu]",
+                        _ix, (unsigned long long)UINT64_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   uint64_t seed_a = (uint64_t)seed_a_raw;
+  if (taps_b_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (taps_b_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      taps_b_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((taps_b_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || taps_b_raw > (unsigned long long)UINT64_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "taps_b: %S is out of range for uint64_t [0, %llu]",
+                        _ix, (unsigned long long)UINT64_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   uint64_t taps_b = (uint64_t)taps_b_raw;
+  if (seed_b_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (seed_b_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      seed_b_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((seed_b_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || seed_b_raw > (unsigned long long)UINT64_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "seed_b: %S is out of range for uint64_t [0, %llu]",
+                        _ix, (unsigned long long)UINT64_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   uint64_t seed_b = (uint64_t)seed_b_raw;
   if (length_raw < 0 || length_raw > (long long)UINT32_MAX)
     {
@@ -379,9 +459,11 @@ static PyMethodDef GoldObj_methods[] = {
   { "get_state", (PyCFunction)GoldObj_get_state, METH_NOARGS,
     "Serialize this object's mutable state to bytes.\n"
     "\n"
-    "Captures exactly the state that evolves as the object runs, so a blob\n"
-    "taken now and restored later resumes from this point. Construction\n"
-    "parameters are not included: restore into an object built the same way.\n"
+    "Captures the state that evolves as the object runs, including any value\n"
+    "a setter changed after construction, so a blob taken now and restored\n"
+    "later resumes from this point. Construction parameters are not\n"
+    "restored: restore into an object built the same way. A core may check\n"
+    "some of them and refuse a blob built differently.\n"
     "\n"
     "The blob is opaque and always `state_bytes()` long. Its layout is an\n"
     "implementation detail of the C core and is not a stable format across\n"
@@ -396,10 +478,12 @@ static PyMethodDef GoldObj_methods[] = {
   { "set_state", (PyCFunction)GoldObj_set_state, METH_O,
     "Restore mutable state from a `get_state()` blob.\n"
     "\n"
-    "Overwrites the live state in place; the object keeps the parameters it\n"
-    "was constructed with. Length is validated against `state_bytes()`\n"
-    "before the blob is handed to the C core, and the core may reject it as\n"
-    "well.\n"
+    "Overwrites the live state in place, including any value a setter\n"
+    "changed after construction. Construction parameters are not restored:\n"
+    "restore into an object built the same way. Length is validated against\n"
+    "`state_bytes()` before the blob is handed to the C core, which may\n"
+    "reject it too: a core may check some construction parameters and refuse\n"
+    "a blob built differently.\n"
     "\n"
     "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
     "length differs from `state_bytes()` or the core rejects it, and\n"

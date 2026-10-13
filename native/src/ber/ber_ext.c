@@ -142,11 +142,31 @@ _bind_ber_lock_symbol (PyObject *self, PyObject *args, PyObject *kwds)
   (void)self;
   static char       *_kwlist[]   = { "flags", "sustain", "min_frac", NULL };
   PyObject          *flags_obj   = NULL;
+  PyObject          *sustain_obj = NULL;
   unsigned long long sustain_raw = 200;
   double             min_frac    = 0.9;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|Kd", _kwlist, &flags_obj,
-                                    &sustain_raw, &min_frac))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|Od", _kwlist, &flags_obj,
+                                    &sustain_obj, &min_frac))
     return NULL;
+  if (sustain_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (sustain_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      sustain_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((sustain_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || sustain_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "sustain: %S is out of range for size_t [0, %llu]",
+                        _ix, (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t         sustain   = (size_t)sustain_raw;
   PyArrayObject *flags_arr = (PyArrayObject *)jm_array_arg (
       flags_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "flags");
@@ -167,13 +187,53 @@ _bind_ber_evm_db (PyObject *self, PyObject *args, PyObject *kwds)
   (void)self;
   static char       *_kwlist[] = { "rx", "lo", "hi", "m", NULL };
   PyObject          *rx_obj    = NULL;
+  PyObject          *lo_obj    = NULL;
   unsigned long long lo_raw    = 0;
+  PyObject          *hi_obj    = NULL;
   unsigned long long hi_raw    = 0;
   int                m         = 4;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|KKi", _kwlist, &rx_obj,
-                                    &lo_raw, &hi_raw, &m))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|OOi", _kwlist, &rx_obj,
+                                    &lo_obj, &hi_obj, &m))
     return NULL;
-  size_t         lo     = (size_t)lo_raw;
+  if (lo_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (lo_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      lo_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((lo_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || lo_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "lo: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t lo = (size_t)lo_raw;
+  if (hi_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (hi_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      hi_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((hi_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || hi_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "hi: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t         hi     = (size_t)hi_raw;
   PyArrayObject *rx_arr = (PyArrayObject *)jm_array_arg (
       rx_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "rx");
@@ -192,13 +252,33 @@ static PyObject *
 _bind_ber_settle_from (PyObject *self, PyObject *args, PyObject *kwds)
 {
   (void)self;
-  static char *_kwlist[] = { "budget", "timing_lock", "carrier_lock", NULL };
+  static char *_kwlist[]  = { "budget", "timing_lock", "carrier_lock", NULL };
+  PyObject    *budget_obj = NULL;
   unsigned long long budget_raw   = 0ULL;
   int                timing_lock  = -1;
   int                carrier_lock = -1;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K|ii", _kwlist, &budget_raw,
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|ii", _kwlist, &budget_obj,
                                     &timing_lock, &carrier_lock))
     return NULL;
+  if (budget_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (budget_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      budget_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((budget_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || budget_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "budget: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t budget = (size_t)budget_raw;
   return PyLong_FromUnsignedLongLong ((unsigned long long)dp_ber_settle_from (
       budget, timing_lock, carrier_lock));

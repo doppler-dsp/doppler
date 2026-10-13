@@ -57,14 +57,15 @@ WriterObj_init (WriterObject *self, PyObject *args, PyObject *kwds)
   const char        *sample_type_str = "cf32";
   const char        *endian_str      = "le";
   double             fc              = 0.0;
+  PyObject          *total_obj       = NULL;
   unsigned long long total_raw       = 0;
   double             headroom        = 0.0;
   double             t0              = 0.0;
   int                sidecar_raw     = true;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "O&d|sssdKddp", kwlist, PyUnicode_FSConverter, &path,
-          &fs, &file_type_str, &sample_type_str, &endian_str, &fc, &total_raw,
+          args, kwds, "O&d|sssdOddp", kwlist, PyUnicode_FSConverter, &path,
+          &fs, &file_type_str, &sample_type_str, &endian_str, &fc, &total_obj,
           &headroom, &t0, &sidecar_raw))
     {
       Py_XDECREF (path);
@@ -132,6 +133,27 @@ WriterObj_init (WriterObject *self, PyObject *args, PyObject *kwds)
       Py_XDECREF (path);
       return -1;
     }
+  if (total_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (total_obj);
+      if (_ix == NULL)
+        {
+          Py_XDECREF (path);
+          return -1;
+        }
+      total_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((total_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || total_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "total: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          Py_XDECREF (path);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   size_t total   = (size_t)total_raw;
   bool   sidecar = (int)sidecar_raw;
   self->handle = dp_wfm_writer_create (PyBytes_AS_STRING (path), fs, file_type,
@@ -172,7 +194,14 @@ WriterObj_write (WriterObject *self, PyObject *args, PyObject *kwds)
     }
   const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
   size_t                x_len = (size_t)PyArray_SIZE (x_arr);
-  size_t                y     = dp_wfm_writer_write (self->handle, x, x_len);
+  /* nogil: GIL released across the pure-C kernel — sound only when
+   * this object is not shared across threads concurrently (one
+   * object per stream); the kernel touches only this object's
+   * state/buffers and the caller's input. */
+  size_t y;
+  Py_BEGIN_ALLOW_THREADS
+    y = dp_wfm_writer_write (self->handle, x, x_len);
+  Py_END_ALLOW_THREADS
   Py_DECREF (x_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -185,7 +214,14 @@ WriterObj_flush (WriterObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  int _rc = dp_wfm_writer_flush (self->handle);
+  /* nogil: GIL released across the pure-C kernel — sound only when
+   * this object is not shared across threads concurrently (one
+   * object per stream); the kernel touches only this object's
+   * state/buffers and the caller's input. */
+  int _rc;
+  Py_BEGIN_ALLOW_THREADS
+    _rc = dp_wfm_writer_flush (self->handle);
+  Py_END_ALLOW_THREADS
   if (_rc != 0)
     {
       PyErr_Format (PyExc_OSError, "%s (rc=%lld)", "flush failed",
@@ -274,8 +310,9 @@ WriterObj_add_keyword (WriterObject *self, PyObject *args, PyObject *kwds)
       const char *_s = PyUnicode_AsUTF8AndSize (value, &_n);
       if (!_s)
         return NULL;
-      if (dp_wfm_writer_add_keyword (self->handle, tag, _type, _s, (size_t)_n)
-          != 0)
+      int _rc = dp_wfm_writer_add_keyword (self->handle, tag, _type, _s,
+                                           (size_t)_n);
+      if (_rc != 0)
         {
           PyErr_SetString (PyExc_ValueError, "add_keyword failed");
           return NULL;
@@ -398,7 +435,6 @@ Writer_getprop_clip_fraction (WriterObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_wfm_writer_get_clip_fraction (self->handle));
 }
 static PyObject *
@@ -409,7 +445,6 @@ Writer_getprop_peak_dbfs (WriterObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dp_wfm_writer_get_peak_dbfs (self->handle));
 }
 static PyObject *
@@ -420,7 +455,6 @@ Writer_getprop_clipped (WriterObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyBool_FromLong ((long)(dp_wfm_writer_get_clipped (self->handle)));
 }
 

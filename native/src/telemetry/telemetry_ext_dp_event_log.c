@@ -159,16 +159,58 @@ EventLogObj_append (EventLogObject *self, PyObject *args, PyObject *kwds)
     }
   static char *_kwlist[] = { "sample_start", "label",        "sample_count",
                              "freq_hz",      "bandwidth_hz", NULL };
+  PyObject    *sample_start_obj       = NULL;
   unsigned long long sample_start_raw = 0ULL;
   const char        *label            = NULL;
+  PyObject          *sample_count_obj = NULL;
   unsigned long long sample_count_raw = 0;
   double             freq_hz          = 0.0;
   double             bandwidth_hz     = 0.0;
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "Ks|Kdd", _kwlist, &sample_start_raw, &label,
-          &sample_count_raw, &freq_hz, &bandwidth_hz))
+          args, kwds, "Os|Odd", _kwlist, &sample_start_obj, &label,
+          &sample_count_obj, &freq_hz, &bandwidth_hz))
     return NULL;
+  if (sample_start_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (sample_start_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      sample_start_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((sample_start_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || sample_start_raw > (unsigned long long)UINT64_MAX)
+        {
+          PyErr_Format (
+              PyExc_OverflowError,
+              "sample_start: %S is out of range for uint64_t [0, %llu]", _ix,
+              (unsigned long long)UINT64_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   uint64_t sample_start = (uint64_t)sample_start_raw;
+  if (sample_count_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (sample_count_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      sample_count_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((sample_count_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || sample_count_raw > (unsigned long long)UINT64_MAX)
+        {
+          PyErr_Format (
+              PyExc_OverflowError,
+              "sample_count: %S is out of range for uint64_t [0, %llu]", _ix,
+              (unsigned long long)UINT64_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   uint64_t sample_count = (uint64_t)sample_count_raw;
   int      _rc = dp_event_log_append (self->handle, sample_start, label,
                                       sample_count, freq_hz, bandwidth_hz);

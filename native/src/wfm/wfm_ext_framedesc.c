@@ -291,7 +291,14 @@ FrameDescObj_crc_ok (FrameDescObject *self, PyObject *args, PyObject *kwds)
     }
   const uint8_t *rx_bits     = (const uint8_t *)PyArray_DATA (rx_bits_arr);
   size_t         rx_bits_len = (size_t)PyArray_SIZE (rx_bits_arr);
-  int            y = dp_frame_crc_ok (self->handle, rx_bits, rx_bits_len);
+  /* nogil: GIL released across the pure-C kernel — sound only when
+   * this object is not shared across threads concurrently (one
+   * object per stream); the kernel touches only this object's
+   * state/buffers and the caller's input. */
+  int y;
+  Py_BEGIN_ALLOW_THREADS
+    y = dp_frame_crc_ok (self->handle, rx_bits, rx_bits_len);
+  Py_END_ALLOW_THREADS
   Py_DECREF (rx_bits_arr);
   return PyLong_FromLong ((long)y);
 }
@@ -485,10 +492,30 @@ FrameDescObj_add_derived (FrameDescObject *self, PyObject *args,
     }
   static char       *_kwlist[] = { "name", "bits", NULL };
   const char        *name      = NULL;
+  PyObject          *bits_obj  = NULL;
   unsigned long long bits_raw  = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "sK", _kwlist, &name,
-                                    &bits_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "sO", _kwlist, &name,
+                                    &bits_obj))
     return NULL;
+  if (bits_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (bits_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      bits_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((bits_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || bits_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "bits: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t bits = (size_t)bits_raw;
   int    _rc  = dp_frame_add_derived (self->handle, name, bits);
   if (_rc < 0)
@@ -512,10 +539,30 @@ FrameDescObj_add_data (FrameDescObject *self, PyObject *args, PyObject *kwds)
     }
   static char       *_kwlist[] = { "name", "len", NULL };
   const char        *name      = NULL;
+  PyObject          *len_obj   = NULL;
   unsigned long long len_raw   = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "sK", _kwlist, &name,
-                                    &len_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "sO", _kwlist, &name,
+                                    &len_obj))
     return NULL;
+  if (len_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (len_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      len_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((len_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || len_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "len: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t len = (size_t)len_raw;
   int    _rc = dp_frame_add_data (self->handle, name, len);
   if (_rc < 0)
@@ -625,19 +672,22 @@ FrameDescObj_deframe (FrameDescObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char   *_kwlist[]   = { "rx_bits", "out", NULL };
-  PyObject      *rx_bits_obj = NULL;
-  PyArrayObject *rx_bits_arr = NULL;
-  PyObject      *out_obj     = NULL;
+  static char *_kwlist[]   = { "rx_bits", "out", NULL };
+  PyObject    *rx_bits_obj = NULL;
+  PyObject    *out_obj     = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &rx_bits_obj,
                                     &out_obj))
     return NULL;
-  rx_bits_arr = jm_array_arg_hint (rx_bits_obj, NPY_UINT8,
-                                   NPY_ARRAY_C_CONTIGUOUS, "rx_bits",
-                                   "a bit field takes bits (a uint8 array); "
-                                   "build them from text with field_bits()");
+  PyArrayObject *rx_bits_arr = jm_array_arg_hint (
+      rx_bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "rx_bits",
+      "a bit field takes bits (a uint8 array); build them from text with "
+      "field_bits()");
   if (!rx_bits_arr)
-    return NULL;
+    {
+      return NULL;
+    }
+  const uint8_t *rx_bits     = (const uint8_t *)PyArray_DATA (rx_bits_arr);
+  size_t         rx_bits_len = (size_t)PyArray_SIZE (rx_bits_arr);
   if (out_obj && out_obj != Py_None)
     {
       /* Require the exact dtype AND C-contiguity — either mismatch makes
@@ -673,10 +723,9 @@ FrameDescObj_deframe (FrameDescObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (rx_bits_arr);
           return NULL;
         }
-      size_t n_out = dp_frame_deframe (
-          self->handle, (const uint8_t *)PyArray_DATA (rx_bits_arr),
-          (size_t)PyArray_SIZE (rx_bits_arr),
-          (uint8_t *)PyArray_DATA (out_arr), _cap);
+      size_t n_out
+          = dp_frame_deframe (self->handle, rx_bits, rx_bits_len,
+                              (uint8_t *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (rx_bits_arr);
       if ((size_t)(n_out) > (size_t)(_cap))
         {
@@ -724,10 +773,9 @@ FrameDescObj_deframe (FrameDescObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (rx_bits_arr);
       return NULL;
     }
-  uint8_t *_d0   = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t   n_out = dp_frame_deframe (
-      self->handle, (const uint8_t *)PyArray_DATA (rx_bits_arr),
-      (size_t)PyArray_SIZE (rx_bits_arr), _d0, _cap);
+  uint8_t *_d0 = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
+  size_t   n_out
+      = dp_frame_deframe (self->handle, rx_bits, rx_bits_len, _d0, _cap);
   Py_DECREF (rx_bits_arr);
   if ((size_t)(n_out) > (size_t)(_cap))
     {
@@ -871,9 +919,29 @@ FrameDescObj_field_off (FrameDescObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   static char       *_kwlist[] = { "i", NULL };
+  PyObject          *i_obj     = NULL;
   unsigned long long i_raw     = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &i_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &i_obj))
     return NULL;
+  if (i_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (i_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      i_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((i_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || i_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "i: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t i = (size_t)i_raw;
   size_t y = dp_frame_field_off (self->handle, i);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
@@ -888,9 +956,29 @@ FrameDescObj_field_bits (FrameDescObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   static char       *_kwlist[] = { "i", NULL };
+  PyObject          *i_obj     = NULL;
   unsigned long long i_raw     = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &i_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &i_obj))
     return NULL;
+  if (i_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (i_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      i_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((i_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || i_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "i: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t i = (size_t)i_raw;
   size_t y = dp_frame_field_bits (self->handle, i);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
@@ -906,9 +994,29 @@ FrameDescObj_stage_first (FrameDescObject *self, PyObject *args,
       return NULL;
     }
   static char       *_kwlist[] = { "i", NULL };
+  PyObject          *i_obj     = NULL;
   unsigned long long i_raw     = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &i_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &i_obj))
     return NULL;
+  if (i_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (i_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      i_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((i_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || i_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "i: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t i = (size_t)i_raw;
   size_t y = dp_frame_stage_first (self->handle, i);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
@@ -923,9 +1031,29 @@ FrameDescObj_stage_bits (FrameDescObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   static char       *_kwlist[] = { "i", NULL };
+  PyObject          *i_obj     = NULL;
   unsigned long long i_raw     = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &i_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &i_obj))
     return NULL;
+  if (i_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (i_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      i_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((i_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || i_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "i: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t i = (size_t)i_raw;
   size_t y = dp_frame_stage_bits (self->handle, i);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);

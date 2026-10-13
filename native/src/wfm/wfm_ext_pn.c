@@ -42,15 +42,55 @@ static int
 PNObj_init (PNObject *self, PyObject *args, PyObject *kwds)
 {
   static char       *kwlist[]   = { "poly", "seed", "length", "lfsr", NULL };
+  PyObject          *poly_obj   = NULL;
   unsigned long long poly_raw   = 0;
+  PyObject          *seed_obj   = NULL;
   unsigned long long seed_raw   = 0;
   long long          length_raw = 0;
   const char        *lfsr_str   = "galois";
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|KKLs", kwlist, &poly_raw,
-                                    &seed_raw, &length_raw, &lfsr_str))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|OOLs", kwlist, &poly_obj,
+                                    &seed_obj, &length_raw, &lfsr_str))
     return -1;
+  if (poly_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (poly_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      poly_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((poly_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || poly_raw > (unsigned long long)UINT64_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "poly: %S is out of range for uint64_t [0, %llu]", _ix,
+                        (unsigned long long)UINT64_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   uint64_t poly = (uint64_t)poly_raw;
+  if (seed_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (seed_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      seed_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((seed_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || seed_raw > (unsigned long long)UINT64_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "seed: %S is out of range for uint64_t [0, %llu]", _ix,
+                        (unsigned long long)UINT64_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   uint64_t seed = (uint64_t)seed_raw;
   if (length_raw < 0 || length_raw > (long long)UINT32_MAX)
     {
@@ -388,9 +428,11 @@ static PyMethodDef PNObj_methods[] = {
   { "get_state", (PyCFunction)PNObj_get_state, METH_NOARGS,
     "Serialize this object's mutable state to bytes.\n"
     "\n"
-    "Captures exactly the state that evolves as the object runs, so a blob\n"
-    "taken now and restored later resumes from this point. Construction\n"
-    "parameters are not included: restore into an object built the same way.\n"
+    "Captures the state that evolves as the object runs, including any value\n"
+    "a setter changed after construction, so a blob taken now and restored\n"
+    "later resumes from this point. Construction parameters are not\n"
+    "restored: restore into an object built the same way. A core may check\n"
+    "some of them and refuse a blob built differently.\n"
     "\n"
     "The blob is opaque and always `state_bytes()` long. Its layout is an\n"
     "implementation detail of the C core and is not a stable format across\n"
@@ -405,10 +447,12 @@ static PyMethodDef PNObj_methods[] = {
   { "set_state", (PyCFunction)PNObj_set_state, METH_O,
     "Restore mutable state from a `get_state()` blob.\n"
     "\n"
-    "Overwrites the live state in place; the object keeps the parameters it\n"
-    "was constructed with. Length is validated against `state_bytes()`\n"
-    "before the blob is handed to the C core, and the core may reject it as\n"
-    "well.\n"
+    "Overwrites the live state in place, including any value a setter\n"
+    "changed after construction. Construction parameters are not restored:\n"
+    "restore into an object built the same way. Length is validated against\n"
+    "`state_bytes()` before the blob is handed to the C core, which may\n"
+    "reject it too: a core may check some construction parameters and refuse\n"
+    "a blob built differently.\n"
     "\n"
     "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
     "length differs from `state_bytes()` or the core rejects it, and\n"

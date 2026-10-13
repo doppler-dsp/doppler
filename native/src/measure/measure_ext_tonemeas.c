@@ -44,24 +44,104 @@ ToneMeasureObj_init (ToneMeasureObject *self, PyObject *args, PyObject *kwds)
   static char       *kwlist[] = { "n",          "fs",   "n_harmonics",
                                   "full_scale", "bits", "dynamic_range_db",
                                   "dc_guard",   NULL };
+  PyObject          *n_obj    = NULL;
   unsigned long long n_raw    = 8192;
   double             fs       = 1.0;
+  PyObject          *n_harmonics_obj  = NULL;
   unsigned long long n_harmonics_raw  = 8;
   double             full_scale       = 1.0;
+  PyObject          *bits_obj         = NULL;
   unsigned long long bits_raw         = 0;
   double             dynamic_range_db = 0.0;
+  PyObject          *dc_guard_obj     = NULL;
   unsigned long long dc_guard_raw     = 0;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "|KdKdKdK", kwlist, &n_raw, &fs, &n_harmonics_raw,
-          &full_scale, &bits_raw, &dynamic_range_db, &dc_guard_raw))
+          args, kwds, "|OdOdOdO", kwlist, &n_obj, &fs, &n_harmonics_obj,
+          &full_scale, &bits_obj, &dynamic_range_db, &dc_guard_obj))
     return -1;
-  size_t n           = (size_t)n_raw;
+  if (n_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (n_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      n_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((n_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || n_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "n: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t n = (size_t)n_raw;
+  if (n_harmonics_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (n_harmonics_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      n_harmonics_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((n_harmonics_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || n_harmonics_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "n_harmonics: %S is out of range for size_t [0, %llu]",
+                        _ix, (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   size_t n_harmonics = (size_t)n_harmonics_raw;
-  size_t bits        = (size_t)bits_raw;
-  size_t dc_guard    = (size_t)dc_guard_raw;
-  self->handle = dp_tonemeas_create (n, fs, n_harmonics, full_scale, bits,
-                                     dynamic_range_db, dc_guard);
+  if (bits_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (bits_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      bits_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((bits_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || bits_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "bits: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t bits = (size_t)bits_raw;
+  if (dc_guard_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (dc_guard_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      dc_guard_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((dc_guard_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || dc_guard_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "dc_guard: %S is out of range for size_t [0, %llu]",
+                        _ix, (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t dc_guard = (size_t)dc_guard_raw;
+  self->handle    = dp_tonemeas_create (n, fs, n_harmonics, full_scale, bits,
+                                        dynamic_range_db, dc_guard);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_MemoryError, "dp_tonemeas_create returned NULL");
@@ -369,16 +449,20 @@ ToneMeasureObj_spectrum_dbfs (ToneMeasureObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char   *_kwlist[] = { "x", "out", NULL };
-  PyObject      *x_obj     = NULL;
-  PyArrayObject *x_arr     = NULL;
-  PyObject      *out_obj   = NULL;
+  static char *_kwlist[] = { "x", "out", NULL };
+  PyObject    *x_obj     = NULL;
+  PyObject    *out_obj   = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = jm_array_arg (x_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS, "x");
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!x_arr)
-    return NULL;
+    {
+      return NULL;
+    }
+  const float *x     = (const float *)PyArray_DATA (x_arr);
+  size_t       x_len = (size_t)PyArray_SIZE (x_arr);
   if (out_obj && out_obj != Py_None)
     {
       /* Require the exact dtype AND C-contiguity — either mismatch makes
@@ -416,8 +500,7 @@ ToneMeasureObj_spectrum_dbfs (ToneMeasureObject *self, PyObject *args,
           return NULL;
         }
       size_t n_out = dp_tonemeas_spectrum_dbfs (
-          self->handle, (const float *)PyArray_DATA (x_arr),
-          (size_t)PyArray_SIZE (x_arr), (float *)PyArray_DATA (out_arr), _cap);
+          self->handle, x, x_len, (float *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (x_arr);
       if ((size_t)(n_out) > (size_t)(_cap))
         {
@@ -467,9 +550,7 @@ ToneMeasureObj_spectrum_dbfs (ToneMeasureObject *self, PyObject *args,
       return NULL;
     }
   float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = dp_tonemeas_spectrum_dbfs (
-      self->handle, (const float *)PyArray_DATA (x_arr),
-      (size_t)PyArray_SIZE (x_arr), _d0, _cap);
+  size_t n_out = dp_tonemeas_spectrum_dbfs (self->handle, x, x_len, _d0, _cap);
   Py_DECREF (x_arr);
   if ((size_t)(n_out) > (size_t)(_cap))
     {

@@ -734,11 +734,13 @@ every hit of a dwell wears the winner's rate.
 
 **What it costs, and where the cost is paid.**
 
-- *Per-dwell work* is about `n` times: each hypothesis is a full slow-time
-    pass, CFAR-tested against its own surface (a reference taken over a max of
-    hypotheses is biased up, and the gate is derived for one). Measured, one
-    thread, ZC 127 × 16 at fs = 1: 43 µs a dwell uncompensated (D = 5), 418 µs
-    at `n = 5` (D = 9), 772 µs at `n = 9` (D = 10), about 85 µs a hypothesis.
+- *Work* is about `n` times per input sample: each hypothesis is a full
+    slow-time pass, CFAR-tested against its own surface (a reference taken
+    over a max of hypotheses is biased up, and the gate is derived for one).
+    A *dwell* costs more than `n` times, because the block also gets deeper
+    with `n`. Measured, one thread, ZC 127 × 16 at fs = 1: 43 µs a dwell
+    uncompensated (D = 5), 418 µs at `n = 5` (D = 9), 772 µs at `n = 9`
+    (D = 10), about 85 µs a hypothesis.
 - *False alarms* are priced, not hoped away: the per-cell Pfa is split over
     `n·searched_bins·code_bins` cells, so the gate rises with `n`. The
     hypotheses are strongly correlated, so that is conservative: measured per

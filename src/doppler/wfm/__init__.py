@@ -22,6 +22,6 @@ from .stage_kinds import STAGE_CRC16, STAGE_RS, STAGE_RANDOMISE, STAGE_CONV, STA
 from .sample_clock import SampleClock  # noqa: E402
 from .wfm_reader import Reader  # noqa: E402
 from .wfm_writer import Writer, write_blue_header  # noqa: E402
-from .compose import Synth, tone, bpsk, qpsk, pn, noise, Segment, Timeline, Composer, bits, chirp, Plan, prepare, PlanFromBlob, PlanFromFile, draws  # noqa: E402
+from .compose import Synth, tone, bpsk, qpsk, pn, noise, Segment, Timeline, Composer, bits, chirp, Plan, prepare, PlanFromBlob, PlanFromFile, draws, rotate  # noqa: E402
 
-__all__ = ["PN", "bpsk_map", "qpsk_map", "wfm_awgn_amplitude", "wfm_ebno_to_snr_db", "_SynthEngine", "mls_poly", "rrc_taps", "dsss_spread", "crc16", "Gold", "Writer", "Reader", "SampleClock", "write_blue_header", "rrc_h", "rc_h", "Frame", "FrameDesc", "FrameCheck", "StreamSink", "field_bits", "Synth", "tone", "bpsk", "qpsk", "pn", "noise", "Segment", "Timeline", "Composer", "bits", "chirp", "Plan", "prepare", "PlanFromBlob", "PlanFromFile", "draws", "STAGE_CRC16", "STAGE_RS", "STAGE_RANDOMISE", "STAGE_CONV", "STAGE_INTERLEAVE", "STAGE_USER"]
+__all__ = ["PN", "bpsk_map", "qpsk_map", "wfm_awgn_amplitude", "wfm_ebno_to_snr_db", "_SynthEngine", "mls_poly", "rrc_taps", "dsss_spread", "crc16", "Gold", "Writer", "Reader", "SampleClock", "write_blue_header", "rrc_h", "rc_h", "Frame", "FrameDesc", "FrameCheck", "StreamSink", "field_bits", "Synth", "tone", "bpsk", "qpsk", "pn", "noise", "Segment", "Timeline", "Composer", "bits", "chirp", "Plan", "prepare", "PlanFromBlob", "PlanFromFile", "draws", "rotate", "STAGE_CRC16", "STAGE_RS", "STAGE_RANDOMISE", "STAGE_CONV", "STAGE_INTERLEAVE", "STAGE_USER"]

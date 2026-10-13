@@ -420,3 +420,48 @@ doc = "Pin a chirp's sweep to `span` samples (no-op for non-chirp). Only the fir
 arg_type = "void"
 return_type = "void"
 params = [{ name = "span", type = "size_t" }]
+
+# The waveform-multiplication operator. dp_wfm_synth_prod is
+# (state, in, out, n) -> void; jm's block methods are count-returning, so the
+# C glue is hand-written in native/src/wfm/wfm_ext_wfm_synth_extra.c and this
+# row gives it its method-table entry and its stub.
+[[wfm_synth.extra_methods]]
+name = "prod"
+fn = "_SynthEngine_prod"
+flags = "METH_O"
+args = "x: NDArray[np.complex64]"
+returns = "NDArray[np.complex64]"
+doc = """Multiply a block by the synth's next output samples.
+
+``out[i] = x[i] * y[i]``, where ``y`` is what ``steps(len(x))`` would emit
+next. The synth advances exactly as ``steps(len(x))`` does, so split calls
+equal one call and an empty ``x`` does not advance it. A tone synth makes this
+a rotation, a chirp a swept rotation, noise a noise multiplier, PN/BPSK a
+modulation. ``x`` is not modified.
+
+Parameters
+----------
+x : NDArray[np.complex64]
+    1-D complex64 block to multiply.
+
+Returns
+-------
+NDArray[np.complex64]
+    A new array, ``x`` times the synth's next ``len(x)`` samples.
+
+Raises
+------
+TypeError
+    If ``x`` is not a complex64 ndarray.
+ValueError
+    If ``x`` is not 1-D.
+
+Examples
+--------
+>>> from doppler.wfm import _SynthEngine
+>>> import numpy as np
+>>> s = _SynthEngine(type="tone", fs=1.0, freq=0.25, snr=100.0)
+>>> y = s.prod(np.ones(4, np.complex64))
+>>> bool(np.allclose(y, [1, 1j, -1, -1j], atol=1e-5))
+True
+"""

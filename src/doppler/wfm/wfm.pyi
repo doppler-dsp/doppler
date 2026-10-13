@@ -508,6 +508,43 @@ class _SynthEngine:
         blob : bytes
             A `get_state()` blob from this type, exactly `state_bytes()` long.
         """
+
+    def prod(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
+        """Multiply a block by the synth's next output samples.
+
+        ``out[i] = x[i] * y[i]``, where ``y`` is what ``steps(len(x))`` would emit
+        next. The synth advances exactly as ``steps(len(x))`` does, so split calls
+        equal one call and an empty ``x`` does not advance it. A tone synth makes this
+        a rotation, a chirp a swept rotation, noise a noise multiplier, PN/BPSK a
+        modulation. ``x`` is not modified.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            1-D complex64 block to multiply.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            A new array, ``x`` times the synth's next ``len(x)`` samples.
+
+        Raises
+        ------
+        TypeError
+            If ``x`` is not a complex64 ndarray.
+        ValueError
+            If ``x`` is not 1-D.
+
+        Examples
+        --------
+        >>> from doppler.wfm import _SynthEngine
+        >>> import numpy as np
+        >>> s = _SynthEngine(type="tone", fs=1.0, freq=0.25, snr=100.0)
+        >>> y = s.prod(np.ones(4, np.complex64))
+        >>> bool(np.allclose(y, [1, 1j, -1, -1j], atol=1e-5))
+        True
+
+        """
     def get_wtype(self) -> int:
         """Return the active waveform type discriminant. Maps to the
         WFM_SYNTH_* enum: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk. Use this to

@@ -87,6 +87,8 @@ _Synth component API._ [More...](#detailed-description)
 |  int | [**dp\_wfm\_synth\_get\_sym\_pos**](#function-dp_wfm_synth_get_sym_pos) (const [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state) <br>_Return the current position within the current symbol (0..nsps-1). Reaches nsps and wraps to 0 each time a new symbol is consumed from the PN LFSR. Useful for frame alignment: sym\_pos==0 on a step boundary means the very next sample begins a fresh symbol._  |
 |  int | [**dp\_wfm\_synth\_get\_wtype**](#function-dp_wfm_synth_get_wtype) (const [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state) <br>_Return the active waveform type discriminant. Maps to the WFM\_SYNTH\_\* enum: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk. Use this to inspect which synthesis path is active at runtime._  |
 |  void | [**dp\_wfm\_synth\_noise\_steps**](#function-dp_wfm_synth_noise_steps) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, float \_Complex \* output, size\_t n) <br>_Generate n noise-only samples — the synth's additive-AWGN term with no signal — continuing the same noise RNG stream_ [_**dp\_wfm\_synth\_steps()**_](wfm__synth__core_8h.md#function-dp_wfm_synth_steps) _draws from (no reseed, identical chunked awgn call pattern, so a gap rendered here is the seamless continuation of the on-time noise). Writes exact zeros and advances nothing for a clean synth (no AWGN child). Used by the composer to carry a segment's noise floor through its off-time gap._ |
+|  void | [**dp\_wfm\_synth\_prod**](#function-dp_wfm_synth_prod) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, const float \_Complex \* in, float \_Complex \* out, size\_t n) <br>_Multiply a block by the synth's next output samples._ `out[i] = in[i] * y[i]` _for_`i = 0 .. n-1` _, where_`y` _is exactly what_[_**dp\_wfm\_synth\_steps()**_](wfm__synth__core_8h.md#function-dp_wfm_synth_steps) _would emit next. The synth advances by_`n` _samples just as dp\_wfm\_synth\_steps(state, ., n) would, so a split call sequence (3 + 5 + n) equals one call, and_`n == 0` _is a no-op that does not advance it._`out` _may equal_`in` _(in place). No new state, so the state blob is unchanged._ |
+|  size\_t | [**dp\_wfm\_synth\_prod\_max\_out**](#function-dp_wfm_synth_prod_max_out) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, size\_t n\_in) <br> |
 |  void | [**dp\_wfm\_synth\_reseed\_noise**](#function-dp_wfm_synth_reseed_noise) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, uint32\_t seed) <br>_Reseed only the additive-noise (AWGN) generator, leaving the signal (LO / PN code / data / pulse shaping) untouched. A no-op for a synth with no noise. Used by the composer to give each repeat a fresh noise realization while the underlying waveform stays bit-identical._  |
 |  void | [**dp\_wfm\_synth\_reset**](#function-dp_wfm_synth_reset) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state) <br>_Reset Synth to its post-create state. Resets the LO phase accumulator, AWGN internal state, and PN LFSR register to their initial values so the output sequence is perfectly reproducible from sample 0._  |
 |  int | [**dp\_wfm\_synth\_set\_bits**](#function-dp_wfm_synth_set_bits) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, const uint8\_t \* bits, size\_t n, int modulation) <br>_Attach a user bit pattern to a type=bits synth (no-op otherwise)._  |
@@ -582,6 +584,67 @@ void dp_wfm_synth_noise_steps (
 
 
         
+
+<hr>
+
+
+
+### function dp\_wfm\_synth\_prod 
+
+_Multiply a block by the synth's next output samples._ `out[i] = in[i] * y[i]` _for_`i = 0 .. n-1` _, where_`y` _is exactly what_[_**dp\_wfm\_synth\_steps()**_](wfm__synth__core_8h.md#function-dp_wfm_synth_steps) _would emit next. The synth advances by_`n` _samples just as dp\_wfm\_synth\_steps(state, ., n) would, so a split call sequence (3 + 5 + n) equals one call, and_`n == 0` _is a no-op that does not advance it._`out` _may equal_`in` _(in place). No new state, so the state blob is unchanged._
+```C++
+void dp_wfm_synth_prod (
+    dp_wfm_synth_state_t * state,
+    const float _Complex * in,
+    float _Complex * out,
+    size_t n
+) 
+```
+
+
+
+This is the general waveform-multiplication operator: with a tone synth it is a rotation, with a chirp synth a swept rotation, with noise a noise multiplier, with PN/BPSK a modulation.
+
+
+
+
+**Parameters:**
+
+
+* `state` Initialized Synth state returned by `dp_wfm_synth_create`. 
+* `in` Input block of `n` cf32 samples. 
+* `out` Output block of `n` cf32 samples (may alias `in`). 
+* `n` Number of samples. 
+```C++
+>>> from doppler.wfm import _SynthEngine
+>>> import numpy as np
+>>> s = _SynthEngine(type="tone", fs=1.0, freq=0.25, snr=100.0)
+>>> y = s.prod(np.ones(4, np.complex64))
+>>> bool(np.allclose(y, [1, 1j, -1, -1j], atol=1e-5))
+True
+```
+ 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_synth\_prod\_max\_out 
+
+```C++
+size_t dp_wfm_synth_prod_max_out (
+    dp_wfm_synth_state_t * state,
+    size_t n_in
+) 
+```
+
+
+
 
 <hr>
 

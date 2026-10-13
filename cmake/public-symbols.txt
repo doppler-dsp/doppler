@@ -1707,6 +1707,8 @@ dp_wfm_synth_get_state function
 dp_wfm_synth_get_sym_pos function
 dp_wfm_synth_get_wtype function
 dp_wfm_synth_noise_steps function
+dp_wfm_synth_prod function
+dp_wfm_synth_prod_max_out function
 dp_wfm_synth_reseed_noise function
 dp_wfm_synth_reset function
 dp_wfm_synth_set_bits function

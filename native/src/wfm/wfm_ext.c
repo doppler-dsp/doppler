@@ -72,11 +72,15 @@ jm_array_arg (PyObject *obj, int typenum, int requirements, const char *name)
 }
 #endif /* JM_ARRAY_ARG_DEFINED */
 
+#include "wfm_ext_pn.c"
+/* extra_methods (gh-1190): defined in the hand-written _extra.c,
+ * included after the types; declared here for the method tables. */
+static PyObject *_SynthEngine_prod (PyObject *, PyObject *);
 #include "wfm_ext_frame.c"
 #include "wfm_ext_framedesc.c"
 #include "wfm_ext_gold.c"
-#include "wfm_ext_pn.c"
 #include "wfm_ext_wfm_synth.c"
+#include "wfm_ext_wfm_synth_extra.c" /* hand-written — jm never modifies */
 
 static PyObject *
 _bind_bpsk_map (PyObject *self, PyObject *args, PyObject *kwds)

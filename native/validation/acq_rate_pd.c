@@ -52,6 +52,7 @@
 #include "doppler/awgn/awgn_core.h"
 #include "doppler/burst_capture/burst_capture_core.h"
 #include "doppler/dp_complex.h"
+#include "doppler/wfm_synth/wfm_synth_core.h"
 #include "dp_preamble_test.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
@@ -81,6 +82,23 @@ zadoff_chu (void)
   for (size_t k = 0; k < N; k++)
     ZC[k] = (float _Complex)cexp (-I * M_PI * 5.0 * (double)k * (double)(k + 1)
                                   / (double)N);
+}
+
+/* The preamble becomes ONE PERIOD of a repeated linear chirp from the shipped
+   waveform generator (the `chirp` type): the instantaneous frequency sweeps
+   -fs/4 .. +fs/4 over the period's N samples, untapered, the widest sweep the
+   geometry holds. The downstream use is exactly this -- a repeated chirp -- so
+   the rows below say the compensation is not a property of the Zadoff-Chu
+   preamble the rest of this program measures. */
+static void
+lfm_preamble (void)
+{
+  dp_wfm_synth_state_t *g = dp_xnn (
+      dp_wfm_synth_create (WFM_SYNTH_CHIRP, 1.0, -0.25, WFM_SYNTH_SNR_CLEAN, 0,
+                           1, 8, 7, 0, 0, 0.25));
+  dp_wfm_synth_set_chirp_span (g, N);
+  dp_wfm_synth_steps (g, ZC, N);
+  dp_wfm_synth_destroy (g);
 }
 
 static dp_burst_capture_state_t *
@@ -575,6 +593,41 @@ main (int argc, char **argv)
         DP_CHECK_MSG (prow[i].lo <= PFA,
                       "per-dwell Pfa is not significantly above the "
                       "target");
+  }
+
+  /* The same claims on a repeated LFM preamble. ZC stays the geometry above;
+     here the preamble is swapped for the generator's chirp and the design
+     point recomputed for it (cn0_for), then the capped depth against five
+     hypotheses. Two rows and one Pfa row: the claim is "the compensation is
+     not specific to ZC", which two counts and the false-alarm bound show;
+     the full grid above is ZC's. Measured in review at 1000 trials: capped
+     0.564, N = 5 0.921. */
+  {
+    lfm_preamble ();
+    const double cn0_l  = cn0_for (9, PD);
+    const size_t lrh[2] = { 1, 5 };
+    pd_row_t     lrow[2];
+    printf ("\nrepeated LFM (-fs/4 .. +fs/4), C/N0 %.2f dB\n", cn0_l);
+    printf ("%3s %3s %6s | %6s %6s %6s | %6s %6s %6s\n", "Rh", "D", "pred",
+            "engine", "lo95", "hi95", "captur", "lo95", "hi95");
+    for (size_t i = 0; i < 2; i++)
+      {
+        lrow[i] = measure_pd (lrh[i], 0, cn0_l, trials, 5151u + (uint32_t)i);
+        printf ("%3zu %3zu %6.3f | %6.3f %6.3f %6.3f | %6.3f %6.3f %6.3f\n",
+                lrow[i].rh, lrow[i].depth, lrow[i].pred, lrow[i].eng,
+                lrow[i].eng_lo, lrow[i].eng_hi, lrow[i].cap, lrow[i].cap_lo,
+                lrow[i].cap_hi);
+      }
+    DP_CHECK_MSG (lrow[1].cap_hi >= lrow[1].pred,
+                  "LFM: compensated capture delivers its pd_burst");
+    DP_CHECK_MSG (lrow[1].cap_lo > lrow[0].cap_hi,
+                  "LFM: compensation beats the capped depth, outside the "
+                  "intervals");
+    pfa_row_t lp = measure_pfa (5, cn0_l, dwells, 6161u);
+    printf ("LFM Pfa, Rh %zu D %zu: %.2e (95%%: %.2e - %.2e)\n", lp.rh,
+            lp.depth, lp.pfa, lp.lo, lp.hi);
+    DP_CHECK_MSG (lp.lo <= PFA,
+                  "LFM: per-dwell Pfa is not significantly above the target");
   }
   DP_TEST_END ("validate_acq_rate_pd");
 }

@@ -34,31 +34,29 @@
 #ifndef DP_SWEPT_TEST_H
 #define DP_SWEPT_TEST_H
 
+#include "doppler/clib_common.h"
 #include "doppler/wfm_synth/wfm_synth_core.h"
 #include <stddef.h>
 
 /**
  * Rotate `x[0..n-1]` in place by a swept carrier about sample `center`.
- *
- * @return 0 on success, -1 if the synth could not be built.
+ * A synth that cannot be built aborts (`dp_xnn`): a harness has no recovery.
  */
-static inline int
+static inline void
 dp_swept_rotate (float _Complex *x, size_t n, double fs, double f_mid,
                  double rate, double center)
 {
   const double          k     = rate / fs; /* Hz per sample */
   const double          f0    = f_mid - k * (center - 0.5);
   const int             swept = rate != 0.0;
-  dp_wfm_synth_state_t *s     = dp_wfm_synth_create (
-      swept ? WFM_SYNTH_CHIRP : WFM_SYNTH_TONE, fs, swept ? f0 : f_mid,
-      WFM_SYNTH_SNR_CLEAN, 0, 1, 8, 7, 0, 0, swept ? f0 + k * (double)n : 0.0);
-  if (!s)
-    return -1;
+  dp_wfm_synth_state_t *s     = dp_xnn (
+      dp_wfm_synth_create (swept ? WFM_SYNTH_CHIRP : WFM_SYNTH_TONE, fs,
+                           swept ? f0 : f_mid, WFM_SYNTH_SNR_CLEAN, 0, 1, 8, 7,
+                           0, 0, swept ? f0 + k * (double)n : 0.0));
   if (swept)
     dp_wfm_synth_set_chirp_span (s, n);
   dp_wfm_synth_prod (s, x, x, n);
   dp_wfm_synth_destroy (s);
-  return 0;
 }
 
 #endif /* DP_SWEPT_TEST_H */

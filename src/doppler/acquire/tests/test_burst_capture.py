@@ -12,7 +12,7 @@ import pytest
 
 from doppler.acquire import BurstCapture, PersistentBurstCapture
 from doppler.acquire.tests._preamble import code_preamble
-from doppler.wfm import PN
+from doppler.wfm import PN, rotate
 
 ACQ_SF, DATA_SF, REPS, SPC = 31, 8, 4, 4
 PAYLOAD_SYMS = 61
@@ -600,10 +600,13 @@ def _sweeping_burst(pre, reps, payload, at, total, f_mid, rate, sigma, seed):
     x = sigma * (
         rng.standard_normal(total) + 1j * rng.standard_normal(total)
     ).astype(np.complex64)
-    u = np.arange(reps * n + payload) - 0.5 * reps * n
-    ph = 2 * np.pi * (f_mid * u + 0.5 * rate * u * u)
     body = np.concatenate([np.tile(pre, reps), np.ones(payload)])
-    x[at : at + u.size] += (body * np.exp(1j * ph)).astype(np.complex64)
+    # The sweep is about the PREAMBLE's middle (center), the payload continues
+    # it: the library's own operator, not a private phase ramp.
+    swept = rotate(
+        body.astype(np.complex64), f_mid, rate, 1.0, center=0.5 * reps * n
+    )
+    x[at : at + swept.size] += swept
     return x
 
 

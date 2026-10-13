@@ -48,7 +48,7 @@ COVERAGE: dict[str, str] = {
     "draws": "test_compose.py",
     # a rotation by a swept carrier -- dedicated tests in test_synth_prod.py
     "rotate": "test_synth_prod.py",
-    "sweep_ends": "test_synth_prod.py",
+    "_sweep_ends": "test_synth_prod.py",
     # the Field text form's door -- dedicated tests in test_field_bits.py
     "field_bits": "test_field_bits.py",
     # factories

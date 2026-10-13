@@ -756,7 +756,10 @@ every hit of a dwell wears the winner's rate.
     1.11e-3), inside; `n = 5` 833 hits, 0.83e-3 (0.78 – 0.89e-3), below.
     Pooling the three `n = 4` runs gives 1.07e-3 (1.02 – 1.11e-3): about 7%
     over, small but real. The excess shrinks with `n` and belongs with the
-    uncompensated engine's (below, #2218); it is filed as #2287.
+    uncompensated engine's (below, #2218); it is filed as #2287. The 1e6-dwell counts come from a scratch copy of
+    `measure_pfa` run outside the tree (it reproduces the validator's 229 hits
+    exactly at 200000 dwells, seed 103); #2287 proposes a `--pfa` mode so the
+    run is repeatable from the tree.
 - *Refine follows.* Its coherent sum runs the whole preamble, so a sweep that
     the engine's short dwell tolerates collapses it: the capture named the
     wrong repetition for about half the bursts at high SNR. Refine tries the

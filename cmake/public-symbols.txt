@@ -84,6 +84,7 @@ dp_Resampler_reset function
 dp_Resampler_set_rate function
 dp_Resampler_set_state function
 dp_Resampler_state_bytes function
+dp__sweep_ends function
 dp_acc_cf64_add2d function
 dp_acc_cf64_create function
 dp_acc_cf64_destroy function
@@ -1433,7 +1434,6 @@ dp_sub_q8 function
 dp_sub_reasm_stats function
 dp_sub_recv function
 dp_sub_set_timeout function
-dp_sweep_ends function
 dp_symsync_configure function
 dp_symsync_configure_lock function
 dp_symsync_configure_lock_raw function

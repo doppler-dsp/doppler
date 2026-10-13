@@ -182,7 +182,7 @@ void dp_rc_h(const double *t, size_t t_len, double *out, double beta);
  * @endcode
  */
 size_t dp_field_bits(const char * spec, uint8_t *out, const char **why);
-void dp_sweep_ends(double fs, double f_mid, double rate, size_t n, double center, double *out);
+void dp__sweep_ends(double fs, double f_mid, double rate, size_t n, double center, double *out);
 #ifdef __cplusplus
 }
 #endif

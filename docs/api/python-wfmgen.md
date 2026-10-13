@@ -60,7 +60,7 @@ rotation, a chirp a swept rotation, noise a noise multiplier, PN/BPSK a
 modulation. `rotate(x, freq, rate, fs, center)` is the swept-carrier special
 case: it multiplies `x` by `exp(j 2 pi (freq u + rate u^2 / 2))` about a
 stated `center` sample (default the middle of `x`), to a constant phase.
-The chirp's start and end frequencies come from `sweep_ends(fs, f_mid, rate, n, center)`, the one C home of that arithmetic.
+The chirp's start and end frequencies come from the one C home of that arithmetic, `dp_wfm_synth_sweep_ends`, which Python reaches through the private `_sweep_ends`; `rotate` is the supported way in, and it refuses an `fs` that is not positive and finite.
 
 ```python
 import numpy as np

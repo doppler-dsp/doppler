@@ -42,6 +42,7 @@ Examples
 from __future__ import annotations
 
 import json as _json
+import math as _math
 from importlib.util import find_spec as _find_spec
 from typing import TYPE_CHECKING
 
@@ -561,19 +562,19 @@ def rotate(
         )
     if x.ndim != 1:
         raise ValueError(f"x must be 1-D (got {x.ndim}-D)")
-    if not fs > 0.0:
-        raise ValueError(f"fs must be positive (got {fs})")
+    if not (fs > 0.0 and _math.isfinite(fs)):
+        raise ValueError(f"fs must be positive and finite (got {fs})")
     n = x.size
     if n == 0:
         return x.copy()
     c = 0.5 * (n - 1) if center is None else float(center)
-    from .wfm import _SynthEngine, sweep_ends
+    from .wfm import _sweep_ends, _SynthEngine
 
     if rate == 0.0:
         synth = _SynthEngine(type="tone", fs=fs, freq=freq)
     else:
         # The centering arithmetic lives once, in C (dp_wfm_synth_sweep_ends).
-        f0, f_end = sweep_ends(fs, freq, rate, n, c)
+        f0, f_end = _sweep_ends(fs, freq, rate, n, c)
         synth = _SynthEngine(type="chirp", fs=fs, freq=f0, f_end=f_end)
         synth.set_chirp_span(n)
     return synth.prod(x)

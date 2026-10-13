@@ -3158,7 +3158,7 @@ def rrc_taps(beta: float, sps: int, span: int) -> NDArray[np.float32]:
     taps).
     """
 
-def sweep_ends(
+def _sweep_ends(
     fs: float,
     f_mid: float,
     rate: float,
@@ -3175,8 +3175,8 @@ def sweep_ends(
 
     Examples
     --------
-    >>> from doppler.wfm import sweep_ends
-    >>> f0, f_end = sweep_ends(1.0, 0.0, 1e-4, 1001, 500.0)
+    >>> from doppler.wfm import _sweep_ends
+    >>> f0, f_end = _sweep_ends(1.0, 0.0, 1e-4, 1001, 500.0)
     >>> round(float(f0), 6), round(float(f_end), 6)
     (-0.04995, 0.05015)
 

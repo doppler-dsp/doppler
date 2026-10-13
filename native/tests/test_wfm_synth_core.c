@@ -1577,7 +1577,12 @@ main (void)
           free (bb);
         }
 
-        /* (b) in place == out of place. */
+        /* (b) in place == out of place. It compares against `got`, the
+           out-of-place result (a) just pinned to the independent reference,
+           so it is only as strong as (a): a core that reads `out` instead
+           of `in` goes red here because (a) went red first, not because (b)
+           knows the right answer. What (b) adds is the aliasing itself --
+           out == in must not read an element it already overwrote. */
         memcpy (b1, x, sizeof x);
         dp_wfm_synth_prod (ip, b1, PN_N, b1);
         DP_CHECK_MSG (memcmp (b1, got, sizeof got) == 0,

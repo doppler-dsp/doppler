@@ -379,7 +379,7 @@ _bind_rrc_taps (PyObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-_bind_sweep_ends (PyObject *self, PyObject *args, PyObject *kwds)
+_bind__sweep_ends (PyObject *self, PyObject *args, PyObject *kwds)
 {
   (void)self;
   static char *_kwlist[]    = { "fs", "f_mid", "rate", "n", "center", NULL };
@@ -396,7 +396,7 @@ _bind_sweep_ends (PyObject *self, PyObject *args, PyObject *kwds)
   if (_dim_need > (size_t)NPY_MAX_INTP)
     {
       PyErr_Format (PyExc_OverflowError,
-                    "sweep_ends: output of %zu elements is too large",
+                    "_sweep_ends: output of %zu elements is too large",
                     _dim_need);
       return NULL;
     }
@@ -406,8 +406,8 @@ _bind_sweep_ends (PyObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  dp_sweep_ends (fs, f_mid, rate, n, center,
-                 (double *)PyArray_DATA ((PyArrayObject *)_out));
+  dp__sweep_ends (fs, f_mid, rate, n, center,
+                  (double *)PyArray_DATA ((PyArrayObject *)_out));
   return _out;
 }
 
@@ -665,7 +665,7 @@ static PyMethodDef wfm_module_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "Root-raised-cosine pulse-shaping taps (2*span*sps+1 unit-energy cf32 "
     "taps).\n" },
-  { "sweep_ends", (PyCFunction)(void *)_bind_sweep_ends,
+  { "_sweep_ends", (PyCFunction)(void *)_bind__sweep_ends,
     METH_VARARGS | METH_KEYWORDS,
     "Start and end frequency of the chirp that sweeps about a center.\n"
     "\n"
@@ -681,8 +681,8 @@ static PyMethodDef wfm_module_methods[] = {
     "\n"
     "Examples\n"
     "--------\n"
-    ">>> from doppler.wfm import sweep_ends\n"
-    ">>> f0, f_end = sweep_ends(1.0, 0.0, 1e-4, 1001, 500.0)\n"
+    ">>> from doppler.wfm import _sweep_ends\n"
+    ">>> f0, f_end = _sweep_ends(1.0, 0.0, 1e-4, 1001, 500.0)\n"
     ">>> round(float(f0), 6), round(float(f_end), 6)\n"
     "(-0.04995, 0.05015)\n" },
   { "dsss_spread", (PyCFunction)(void *)_bind_dsss_spread,

@@ -35,7 +35,7 @@ void dp_dsss_spread(const float _Complex *syms, size_t syms_len, const uint8_t *
 void dp_rrc_h(const double *t, size_t t_len, double *out, double beta);
 void dp_rc_h(const double *t, size_t t_len, double *out, double beta);
 size_t dp_field_bits(const char * spec, uint8_t *out, const char **why);
-void dp_sweep_ends(double fs, double f_mid, double rate, size_t n, double center, double *out);
+void dp__sweep_ends(double fs, double f_mid, double rate, size_t n, double center, double *out);
 #ifdef __cplusplus
 }
 #endif

@@ -53,6 +53,7 @@ _Wfmgen module — public C API._
 
 | Type | Name |
 | ---: | :--- |
+|  void | [**dp\_\_sweep\_ends**](#function-dp__sweep_ends) (double fs, double f\_mid, double rate, size\_t n, double center, double \* out) <br> |
 |  void | [**dp\_bpsk\_map**](#function-dp_bpsk_map) (const uint8\_t \* bits, size\_t bits\_len, float \_Complex \* out) <br>_Map binary bits {0, 1} to BPSK constellation symbols (cf32). The mapping is: 0 -&gt; +1 + 0j, 1 -&gt; -1 + 0j. Output is unit-power (each symbol has magnitude 1). The imaginary component is always zero. Typically used before a carrier multiply and noise addition to build a BPSK burst without the full Synth engine._  |
 |  uint16\_t | [**dp\_crc16**](#function-dp_crc16) (const uint8\_t \* bits, size\_t bits\_len) <br>_CRC-16-CCITT (poly 0x1021, init 0xFFFF) over a bit stream, MSB-first. The one frame CRC doppler's DSSS burst convention uses: the_ `dsss` _waveform appends it over the payload bits on transmit and_`BurstDemod` _validates it as_`frame_valid` _on receive (both call the same C kernel,_[_**dp\_crc16.h**_](dp__crc16_8h.md) _). Each input byte carries one bit (0/1) in its LSB — an unpacked bit array, not a packed byte-stream CRC. Transmit the result MSB-first._ |
 |  void | [**dp\_dsss\_spread**](#function-dp_dsss_spread) (const float \_Complex \* syms, size\_t syms\_len, const uint8\_t \* code, size\_t code\_len, int sf, float \_Complex \* out) <br> |
@@ -62,7 +63,6 @@ _Wfmgen module — public C API._
 |  void | [**dp\_rc\_h**](#function-dp_rc_h) (const double \* t, size\_t t\_len, double \* out, double beta) <br> |
 |  void | [**dp\_rrc\_h**](#function-dp_rrc_h) (const double \* t, size\_t t\_len, double \* out, double beta) <br> |
 |  void | [**dp\_rrc\_taps**](#function-dp_rrc_taps) (double beta, int sps, int span, float \* out) <br> |
-|  void | [**dp\_sweep\_ends**](#function-dp_sweep_ends) (double fs, double f\_mid, double rate, size\_t n, double center, double \* out) <br> |
 |  float | [**dp\_wfm\_awgn\_amplitude**](#function-dp_wfm_awgn_amplitude) (float snr\_db, float signal\_power) <br>_Compute the per-component AWGN amplitude for a target SNR. The AWGN engine uses equal-power I and Q noise: complex noise power is 2 \* amplitude². This function inverts that relationship for a given_ `signal_power` _and_`snr_db` _(measured over the full sample-rate bandwidth): amplitude = sqrt(signal\_power / (2 \* 10^(snr\_db / 10))). Pass the result directly to_`dp_awgn_create` _to get the exact noise level that corresponds to the requested SNR._ |
 |  float | [**dp\_wfm\_ebno\_to\_snr\_db**](#function-dp_wfm_ebno_to_snr_db) (float ebno\_db, int bits\_per\_symbol, float samples\_per\_symbol) <br>_Convert Eb/No (dB) to SNR (dB) over the full sample-rate band. Digital communication systems are typically specified in Eb/No; doppler uses an fs-band SNR internally. The conversion is: SNR\_fs = Eb/No + 10 log10(bits\_per\_symbol) - 10 log10(samples\_per\_symbol) For BPSK (bits\_per\_symbol=1, sps=8) at Eb/No=10 dB this gives ~0.97 dB. For QPSK (bits\_per\_symbol=2, sps=8) at Eb/No=10 dB this gives ~3.98 dB._  |
 
@@ -95,6 +95,26 @@ _Wfmgen module — public C API._
 
 ## Public Functions Documentation
 
+
+
+
+### function dp\_\_sweep\_ends 
+
+```C++
+void dp__sweep_ends (
+    double fs,
+    double f_mid,
+    double rate,
+    size_t n,
+    double center,
+    double * out
+) 
+```
+
+
+
+
+<hr>
 
 
 
@@ -382,26 +402,6 @@ void dp_rrc_taps (
     int sps,
     int span,
     float * out
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function dp\_sweep\_ends 
-
-```C++
-void dp_sweep_ends (
-    double fs,
-    double f_mid,
-    double rate,
-    size_t n,
-    double center,
-    double * out
 ) 
 ```
 

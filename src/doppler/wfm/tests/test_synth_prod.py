@@ -11,7 +11,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from doppler.wfm import _SynthEngine, rotate, sweep_ends
+from doppler.wfm import _sweep_ends, _SynthEngine, rotate
 
 
 def _x(n: int, seed: int = 3) -> np.ndarray:
@@ -157,13 +157,27 @@ def test_rotate_empty_and_errors():
         rotate([1, 2, 3], 0.1)  # type: ignore[arg-type]
     with pytest.raises(ValueError, match="1-D"):
         rotate(np.ones((2, 2), np.complex64), 0.1)
+
+
+@pytest.mark.parametrize(
+    "fs",
+    [0.0, -1.0, float("nan"), float("inf")],
+    ids=["zero", "negative", "nan", "inf"],
+)
+def test_rotate_refuses_a_sample_rate_that_is_not_positive_and_finite(fs):
+    # The centering arithmetic divides by fs (dp_wfm_synth_sweep_ends keeps
+    # its documented precondition fs > 0), so the public wrapper is where a
+    # bad rate is refused -- on an empty block too, which has no other
+    # reason to look at it.
     with pytest.raises(ValueError, match="fs"):
-        rotate(np.ones(4, np.complex64), 0.1, fs=0.0)
+        rotate(np.ones(4, np.complex64), 0.1, fs=fs)
+    with pytest.raises(ValueError, match="fs"):
+        rotate(np.zeros(0, np.complex64), 0.1, rate=1.0, fs=fs)
 
 
 def test_sweep_ends_is_the_one_home_of_the_centering_arithmetic():
     # f0 = f_mid - k*(center - 1/2); f_end = f0 + k*n; k = rate/fs per sample
-    f0, f_end = sweep_ends(2000.0, 300.0, 1e3, 1000, 100.0)
+    f0, f_end = _sweep_ends(2000.0, 300.0, 1e3, 1000, 100.0)
     assert f0 == pytest.approx(300.0 - 0.5 * (100.0 - 0.5), abs=1e-9)
     assert f_end == pytest.approx(f0 + 0.5 * 1000.0, abs=1e-9)
     # rotate puts the instantaneous frequency where sweep_ends says it will

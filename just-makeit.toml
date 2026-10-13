@@ -1062,7 +1062,7 @@ name = "span"
 type = "int"
 
 [[module.wfm.functions]]
-name = "sweep_ends"
+name = "_sweep_ends"
 doc = """Start and end frequency of the chirp that sweeps about a center.
 
 A chirp from ``f0`` to ``f_end`` pinned over ``n`` samples has instantaneous
@@ -1073,8 +1073,8 @@ up to one constant phase. This is the single copy of that arithmetic
 
 Examples
 --------
->>> from doppler.wfm import sweep_ends
->>> f0, f_end = sweep_ends(1.0, 0.0, 1e-4, 1001, 500.0)
+>>> from doppler.wfm import _sweep_ends
+>>> f0, f_end = _sweep_ends(1.0, 0.0, 1e-4, 1001, 500.0)
 >>> round(float(f0), 6), round(float(f_end), 6)
 (-0.04995, 0.05015)
 """

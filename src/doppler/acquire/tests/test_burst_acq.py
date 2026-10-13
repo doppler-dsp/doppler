@@ -473,7 +473,7 @@ def test_rate_hypotheses_buy_depth_over_the_cap():
     assert b.rate_hypotheses == 9 and b.doppler_bins == 15
 
 
-@pytest.mark.parametrize("n", [0, 65, 1000])
+@pytest.mark.parametrize("n", [65, 1000])
 def test_rate_hypotheses_out_of_range_is_a_value_error(n):
     with pytest.raises(ValueError, match="rate_hypotheses"):
         BurstAcquisition(_ZC, reps=8, doppler_rate=1e-6, rate_hypotheses=n)
@@ -484,7 +484,26 @@ def test_rate_hypotheses_need_a_rate_to_span():
     nothing to compensate."""
     with pytest.raises(ValueError, match="rate_hypotheses"):
         BurstAcquisition(_ZC, reps=8, rate_hypotheses=3)
+    with pytest.raises(ValueError, match="rate_hypotheses"):
+        BurstAcquisition(_ZC, reps=8, rate_hypotheses=0)  # auto, too
     assert BurstAcquisition(_ZC, reps=8, rate_hypotheses=1)  # one is fine
+
+
+def test_rate_hypotheses_zero_is_auto_and_minimal():
+    """0 picks the fewest hypotheses whose residual stops limiting the
+    depth, readable back as ``rate_hypotheses``: the engine it builds is the
+    explicit one of that size, and one fewer is shallower."""
+    f_epoch = 1.0 / _ZC.size
+    rate = f_epoch**2 / (2 * 5.5**2)  # a ceiling of 5 when capped
+    auto = BurstAcquisition(_ZC, reps=16, doppler_rate=rate, rate_hypotheses=0)
+    n = auto.rate_hypotheses
+    assert 1 < n <= 64
+    same = BurstAcquisition(_ZC, reps=16, doppler_rate=rate, rate_hypotheses=n)
+    assert same.doppler_bins == auto.doppler_bins
+    fewer = BurstAcquisition(
+        _ZC, reps=16, doppler_rate=rate, rate_hypotheses=n - 1
+    )
+    assert fewer.doppler_bins < auto.doppler_bins
 
 
 @pytest.mark.parametrize("sign", [-1, 1])

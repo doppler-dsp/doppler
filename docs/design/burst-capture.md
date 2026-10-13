@@ -689,6 +689,18 @@ multiplies each column before its slow-time FFT, and the tiled one (a
 `doppler_uncertainty` past the native span, PR #2210) multiplies inside every
 tile's block.
 
+`rate_hypotheses = 0` chooses `n`. For each `n` from 1 the sizer is run twice
+in effect: `D*(n)` is the depth it picks with the drift bound OFF, priced with
+`n` looks per cell, and `D_cap(n)` is the depth the residual `R/(n - 1)` allows
+(`n = 1`: `R` itself). The first `n` with `D_cap(n) >= D*(n)` is the first at
+which the hypotheses stop costing depth, so it is the smallest that does not
+trade sensitivity for work; if none does by 64, it is 64. At the design point
+below it picks `n = 4` at `D = 9`, where `n = 9` is `D = 10`: the same capture
+Pd (0.916 against 0.912, 250 trials) for under half the per-dwell work. A
+strong design point that a capped depth already serves picks `n = 1`. The
+choice reads back as `rate_hypotheses`, burst engines only, and like any
+`n > 1` it needs a `doppler_rate` to span.
+
 A block of one or two epochs cannot see a rate: at `D = 1` the de-chirp is
 `t = 0`, at `D = 2` it is `t = ±T/2`, and either way every hypothesis
 multiplies the block by one constant phase, so the `n` surfaces are the same

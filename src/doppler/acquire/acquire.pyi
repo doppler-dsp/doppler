@@ -1332,13 +1332,14 @@ class BurstAcquisition:
         `f_epoch/sqrt(2*doppler_rate)` repetitions (doppler#1482); 0 is no
         bound.
     rate_hypotheses : int, default 1
-        Doppler-rate hypotheses to search (>= 1, at most ACQ_RATE_HYPS_MAX); 1
-        searches none. Above 1 the engine COMPENSATES the rate rather than only
-        capping the depth: `doppler_rate` becomes the span `[-R, +R]`, the
-        coherent block is de-chirped at this many rates across it, and the
-        depth is bounded by the residual `R/(n - 1)` -- see
-        dp_acq_create_burst(), which owns the semantics. Needs a non-zero
-        `doppler_rate`.
+        Doppler-rate hypotheses to search (0 = auto, else 1 to
+        ACQ_RATE_HYPS_MAX); 1 searches none. Above 1 the engine COMPENSATES the
+        rate rather than only capping the depth: `doppler_rate` becomes the
+        span `[-R, +R]`, the coherent block is de-chirped at this many rates
+        across it, and the depth is bounded by the residual `R/(n - 1)` -- see
+        dp_acq_create_burst(), which owns the semantics, including 0 = auto
+        (the engine chooses the count; read it back from `engine->rate_hyps`).
+        Needs a non-zero `doppler_rate`.
 
     Raises
     ------
@@ -1346,8 +1347,8 @@ class BurstAcquisition:
         If construction fails. The exception message is ``BurstAcquisition:
         invalid parameter (need a non-empty preamble with finite, non-zero
         energy, reps >= 1, fs > 0, cn0_dbhz finite or NaN, doppler_uncertainty
-        >= 0, doppler_rate >= 0, 1 <= rate_hypotheses <= 64 (and doppler_rate >
-        0 above 1), 0 < pfa < 1, 0 < pd < 1)``.
+        >= 0, doppler_rate >= 0, 0 <= rate_hypotheses <= 64 (0 = auto;
+        doppler_rate > 0 unless 1), 0 < pfa < 1, 0 < pd < 1)``.
 
     Warns
     -----
@@ -1754,10 +1755,11 @@ class BurstAcquisition:
     @property
     def rate_hypotheses(self) -> int:
         """Doppler-rate hypotheses the engine searches, as given at
-        construction; 1 is none -- `doppler_rate` then only caps the coherent
-        depth. Above 1 `doppler_rate` is the span of the hypotheses and the
-        depth is bounded by the residual `doppler_rate/(rate_hypotheses -
-        1)`.
+        construction, or the count the engine chose when it was built with 0
+        (auto: the fewest whose residual stops limiting the depth); 1 is none
+        -- `doppler_rate` then only caps the coherent depth. Above 1
+        `doppler_rate` is the span of the hypotheses and the depth is bounded
+        by the residual `doppler_rate/(rate_hypotheses - 1)`.
         """
 
     @property
@@ -1866,19 +1868,22 @@ class BurstCapture:
         at `f_epoch/sqrt(2*doppler_rate)` repetitions (doppler#1482); 0 is no
         bound. With rate_hypotheses > 1 it is the span instead.
     rate_hypotheses : int, default 1
-        Doppler-rate hypotheses to search (>= 1, at most ACQ_RATE_HYPS_MAX); 1
-        searches none and doppler_rate only caps the depth. Above 1 the capture
-        COMPENSATES the rate: `doppler_rate` is the span `[-R, +R]`, the
-        acquisition de-chirps its coherent block at this many rates across it,
-        and the depth is bounded by the RESIDUAL, `R/(n - 1)` -- deeper blocks,
-        more sensitivity, about `n` times the per-dwell cost, and a false-alarm
-        budget split over the hypotheses (dp_acq_create_burst() owns the
-        semantics). Refine follows the engine: its coherent sum over the
-        preamble's periods tries the rates too, on a finer grid because it
-        integrates the whole preamble, and its Doppler cells widen by the shift
-        a rate puts between the detecting dwell's middle and the preamble's --
-        so a burst the engine found by rate is placed by rate. Needs a non-zero
-        doppler_rate (the span). Measured: validate_acq_rate_pd.
+        Doppler-rate hypotheses to search (0 = auto, else 1 to
+        ACQ_RATE_HYPS_MAX; auto picks the fewest the span needs, see
+        dp_acq_create_burst(), and dp_burst_capture_get_rate_hypotheses() reads
+        the choice); 1 searches none and doppler_rate only caps the depth.
+        Above 1 the capture COMPENSATES the rate: `doppler_rate` is the span
+        `[-R, +R]`, the acquisition de-chirps its coherent block at this many
+        rates across it, and the depth is bounded by the RESIDUAL, `R/(n - 1)`
+        -- deeper blocks, more sensitivity, about `n` times the per-dwell cost,
+        and a false-alarm budget split over the hypotheses
+        (dp_acq_create_burst() owns the semantics). Refine follows the engine:
+        its coherent sum over the preamble's periods tries the rates too, on a
+        finer grid because it integrates the whole preamble, and its Doppler
+        cells widen by the shift a rate puts between the detecting dwell's
+        middle and the preamble's -- so a burst the engine found by rate is
+        placed by rate. Needs a non-zero doppler_rate (the span). Measured:
+        validate_acq_rate_pd.
 
     Raises
     ------
@@ -1886,8 +1891,8 @@ class BurstCapture:
         If construction fails. The exception message is ``BurstCapture: invalid
         parameter (need a non-empty preamble with finite, non-zero energy, reps
         >= 1, fs > 0, burst_len >= 1, cn0_dbhz finite or NaN, doppler_rate >=
-        0, 1 <= rate_hypotheses <= 64 (and doppler_rate nonzero above 1), 0 <
-        pfa < 1, 0 < pd < 1)``.
+        0, 0 <= rate_hypotheses <= 64 (0 = auto; doppler_rate nonzero unless
+        1), 0 < pfa < 1, 0 < pd < 1)``.
 
     Warns
     -----
@@ -2418,10 +2423,12 @@ class BurstCapture:
     @property
     def rate_hypotheses(self) -> int:
         """Doppler-rate hypotheses the acquisition searches, as given at
-        construction; 1 is none -- `doppler_rate` then only caps the coherent
-        depth. Above 1 `doppler_rate` is the span of the hypotheses, the depth
-        is bounded by the residual `doppler_rate/(rate_hypotheses - 1)`, and
-        refine tries the rates too.
+        construction, or the count the acquisition chose when it was built with
+        0 (auto: the fewest whose residual stops limiting the depth); 1 is none
+        -- `doppler_rate` then only caps the coherent depth. Above 1
+        `doppler_rate` is the span of the hypotheses, the depth is bounded by
+        the residual `doppler_rate/(rate_hypotheses - 1)`, and refine tries the
+        rates too.
         """
 
     @property
@@ -2629,8 +2636,8 @@ class PersistentBurstCapture:
         If construction fails. The exception message is ``BurstCapture: invalid
         parameter (need a non-empty preamble with finite, non-zero energy, reps
         >= 1, fs > 0, burst_len >= 1, cn0_dbhz finite or NaN, doppler_rate >=
-        0, 1 <= rate_hypotheses <= 64 (and doppler_rate nonzero above 1), 0 <
-        pfa < 1, 0 < pd < 1)``.
+        0, 0 <= rate_hypotheses <= 64 (0 = auto; doppler_rate nonzero unless
+        1), 0 < pfa < 1, 0 < pd < 1)``.
 
     Warns
     -----
@@ -3155,10 +3162,12 @@ class PersistentBurstCapture:
     @property
     def rate_hypotheses(self) -> int:
         """Doppler-rate hypotheses the acquisition searches, as given at
-        construction; 1 is none -- `doppler_rate` then only caps the coherent
-        depth. Above 1 `doppler_rate` is the span of the hypotheses, the depth
-        is bounded by the residual `doppler_rate/(rate_hypotheses - 1)`, and
-        refine tries the rates too.
+        construction, or the count the acquisition chose when it was built with
+        0 (auto: the fewest whose residual stops limiting the depth); 1 is none
+        -- `doppler_rate` then only caps the coherent depth. Above 1
+        `doppler_rate` is the span of the hypotheses, the depth is bounded by
+        the residual `doppler_rate/(rate_hypotheses - 1)`, and refine tries the
+        rates too.
         """
 
     @property

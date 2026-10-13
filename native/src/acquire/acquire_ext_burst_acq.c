@@ -101,9 +101,9 @@ BurstAcquisitionObj_init (BurstAcquisitionObject *self, PyObject *args,
                        "BurstAcquisition: invalid parameter (need a "
                        "non-empty preamble with finite, non-zero energy, "
                        "reps >= 1, fs > 0, cn0_dbhz finite or NaN, "
-                       "doppler_uncertainty >= 0, doppler_rate >= 0, 1 <= "
-                       "rate_hypotheses <= 64 (and doppler_rate > 0 above "
-                       "1), 0 < pfa < 1, 0 < pd < 1)");
+                       "doppler_uncertainty >= 0, doppler_rate >= 0, 0 <= "
+                       "rate_hypotheses <= 64 (0 = auto; doppler_rate > 0 "
+                       "unless 1), 0 < pfa < 1, 0 < pd < 1)");
       return -1;
     }
   if (self->handle->underpowered)
@@ -657,10 +657,12 @@ static PyGetSetDef BurstAcquisition_getset[] = {
     "<= f_epoch/sqrt(2*doppler_rate). 0 is no bound.\n",
     NULL },
   { "rate_hypotheses", (getter)BurstAcquisition_getprop_rate_hypotheses, NULL,
-    "Doppler-rate hypotheses the engine searches, as given at construction; 1 "
-    "is none -- `doppler_rate` then only caps the coherent depth. Above 1 "
-    "`doppler_rate` is the span of the hypotheses and the depth is bounded by "
-    "the residual `doppler_rate/(rate_hypotheses - 1)`.\n",
+    "Doppler-rate hypotheses the engine searches, as given at construction, "
+    "or the count the engine chose when it was built with 0 (auto: the fewest "
+    "whose residual stops limiting the depth); 1 is none -- `doppler_rate` "
+    "then only caps the coherent depth. Above 1 `doppler_rate` is the span of "
+    "the hypotheses and the depth is bounded by the residual "
+    "`doppler_rate/(rate_hypotheses - 1)`.\n",
     NULL },
   { "cn0_dbhz", (getter)BurstAcquisition_getprop_cn0_dbhz, NULL,
     "Carrier-to-noise density used to size the search (dB-Hz).\n", NULL },
@@ -1006,15 +1008,18 @@ static PyTypeObject BurstAcquisitionObjType = {
     "    `f_epoch/sqrt(2*doppler_rate)` repetitions (doppler#1482); 0 is no\n"
     "    bound.\n"
     "rate_hypotheses : int, default 1\n"
-    "    Doppler-rate hypotheses to search (>= 1, at most ACQ_RATE_HYPS_MAX); "
-    "1\n"
-    "    searches none. Above 1 the engine COMPENSATES the rate rather than "
-    "only\n"
-    "    capping the depth: `doppler_rate` becomes the span `[-R, +R]`, the\n"
-    "    coherent block is de-chirped at this many rates across it, and the\n"
-    "    depth is bounded by the residual `R/(n - 1)` -- see\n"
-    "    dp_acq_create_burst(), which owns the semantics. Needs a non-zero\n"
-    "    `doppler_rate`.\n"
+    "    Doppler-rate hypotheses to search (0 = auto, else 1 to\n"
+    "    ACQ_RATE_HYPS_MAX); 1 searches none. Above 1 the engine COMPENSATES "
+    "the\n"
+    "    rate rather than only capping the depth: `doppler_rate` becomes the\n"
+    "    span `[-R, +R]`, the coherent block is de-chirped at this many "
+    "rates\n"
+    "    across it, and the depth is bounded by the residual `R/(n - 1)` -- "
+    "see\n"
+    "    dp_acq_create_burst(), which owns the semantics, including 0 = auto\n"
+    "    (the engine chooses the count; read it back from "
+    "`engine->rate_hyps`).\n"
+    "    Needs a non-zero `doppler_rate`.\n"
     "\n"
     "Raises\n"
     "------\n"
@@ -1023,9 +1028,8 @@ static PyTypeObject BurstAcquisitionObjType = {
     "    invalid parameter (need a non-empty preamble with finite, non-zero\n"
     "    energy, reps >= 1, fs > 0, cn0_dbhz finite or NaN, "
     "doppler_uncertainty\n"
-    "    >= 0, doppler_rate >= 0, 1 <= rate_hypotheses <= 64 (and "
-    "doppler_rate >\n"
-    "    0 above 1), 0 < pfa < 1, 0 < pd < 1)``.\n"
+    "    >= 0, doppler_rate >= 0, 0 <= rate_hypotheses <= 64 (0 = auto;\n"
+    "    doppler_rate > 0 unless 1), 0 < pfa < 1, 0 < pd < 1)``.\n"
     "\n"
     "Warns\n"
     "-----\n"

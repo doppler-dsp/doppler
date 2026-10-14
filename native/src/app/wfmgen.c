@@ -1147,8 +1147,17 @@ emit_to_stream (const emit_ctx_t *e)
      cannot be reversed and refuses sends once it reaches its
      publish-flushing phase, so an EOS issued after one may simply not go.
      Without this a subscriber has only silence to go on, and silence is
-     exactly what it cannot interpret. */
-  (void)dp_wfm_stream_sink_send_eos (sink);
+     exactly what it cannot interpret -- so a refused end is reported and
+     fails the exit like a refused block (#2011). */
+  int erc = dp_wfm_stream_sink_send_eos (sink);
+  if (erc != DP_OK)
+    {
+      (void)fprintf (stderr,
+                     "wfmgen: the stream refused the end-of-stream (error "
+                     "%d) -- subscribers will see silence, not an end\n",
+                     erc);
+      rc = 1;
+    }
 
   /* Drain BEFORE close, on every exit -- interrupted or finished. A send
      returns once the client has the block, not once the server does, so

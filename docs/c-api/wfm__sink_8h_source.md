@@ -44,8 +44,10 @@ DP_NODISCARD
 int dp_wfm_stream_sink_send(wfm_stream_sink_t *sink, const float _Complex *iq,
                          size_t n, double fs, double fc);
 
+DP_NODISCARD
 int dp_wfm_stream_sink_send_eos(wfm_stream_sink_t *sink);
 
+DP_NODISCARD
 int dp_wfm_stream_sink_drain(wfm_stream_sink_t *sink, int timeout_ms);
 
 void dp_wfm_stream_sink_close(wfm_stream_sink_t *sink);

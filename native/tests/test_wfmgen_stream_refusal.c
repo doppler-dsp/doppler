@@ -8,17 +8,20 @@
  * exited 0" did not mean the samples arrived. A broker cannot refuse on
  * cue, so this replaces the sink: libdoppler carries WEAK no-op stubs for
  * every dp_wfm_stream_sink_* symbol (wfm_sink_stub.c), and the strong
- * definitions below win the link. The same run is made twice, against a
- * sink that takes every block and one that refuses every block, so the
- * exit code is shown to follow the refusal and nothing else.
+ * definitions below win the link. The same run is made three times:
+ * against a sink that takes everything, one that refuses every block, and
+ * one that takes every block but refuses the end-of-stream (a subscriber
+ * then sees silence, not an end). The exit code follows the refusal and
+ * nothing else.
  */
 
 #include "doppler/wfm/wfm_sink.h"
 #include "doppler/wfm/wfmgen.h"
 #include "dp_test.h"
 
-static int refuse; /* the stand-in's one knob */
-static int sends;  /* blocks offered, refused or not */
+static int refuse;     /* refuse every block */
+static int refuse_eos; /* refuse the end-of-stream */
+static int sends;      /* blocks offered, refused or not */
 
 static struct wfm_stream_sink *const SINK = (struct wfm_stream_sink *)&refuse;
 
@@ -53,7 +56,7 @@ int
 dp_wfm_stream_sink_send_eos (wfm_stream_sink_t *sink)
 {
   (void)sink;
-  return DP_OK;
+  return refuse_eos ? DP_ERR_SEND : DP_OK;
 }
 
 int
@@ -121,6 +124,11 @@ main (void)
   DP_CHECK_MSG (dp_doppler_wfmgen (7, av) == 1,
                 "a refused block makes wfmgen exit 1, not 0");
   DP_CHECK (sends > 0);
+
+  refuse     = 0;
+  refuse_eos = 1;
+  DP_CHECK_MSG (dp_doppler_wfmgen (7, av) == 1,
+                "a refused end-of-stream makes wfmgen exit 1, not 0");
 
   DP_TEST_END ("test_wfmgen_stream_refusal");
 }

@@ -60,11 +60,11 @@ _NATS PUB sink for generated IQ (Phase B)._ [More...](#detailed-description)
 |  int | [**dp\_wfm\_stream\_sink\_available**](#function-dp_wfm_stream_sink_available) (void) <br>_1 if the real stream sink (libdoppler\_stream) is linked, else 0 (the pure-C core links only the weak no-op stubs). wfmgen checks this before the_ `--output nats://` _path._ |
 |  double | [**dp\_wfm\_stream\_sink\_clip\_fraction**](#function-dp_wfm_stream_sink_clip_fraction) (const [**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink) <br> |
 |  void | [**dp\_wfm\_stream\_sink\_close**](#function-dp_wfm_stream_sink_close) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink) <br>_Close the sink and destroy the publisher._  |
-|  int | [**dp\_wfm\_stream\_sink\_drain**](#function-dp_wfm_stream_sink_drain) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink, int timeout\_ms) <br>_Let everything already sent reach the server, then stop._  |
+|  [**DP\_NODISCARD**](clib__common_8h.md#define-dp_nodiscard) int | [**dp\_wfm\_stream\_sink\_drain**](#function-dp_wfm_stream_sink_drain) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink, int timeout\_ms) <br>_Let everything already sent reach the server, then stop._  |
 |  [**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* | [**dp\_wfm\_stream\_sink\_open**](#function-dp_wfm_stream_sink_open) (const char \* endpoint, int sample\_type) <br>_Open a stream sink (PUB) bound to a NATS subject._  |
 |  double | [**dp\_wfm\_stream\_sink\_peak**](#function-dp_wfm_stream_sink_peak) (const [**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink) <br> |
 |  [**DP\_NODISCARD**](clib__common_8h.md#define-dp_nodiscard) int | [**dp\_wfm\_stream\_sink\_send**](#function-dp_wfm_stream_sink_send) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink, const float \_Complex \* iq, size\_t n, double fs, double fc) <br>_Convert a cf32 block to the wire type and publish it._  |
-|  int | [**dp\_wfm\_stream\_sink\_send\_eos**](#function-dp_wfm_stream_sink_send_eos) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink) <br>_Tell subscribers this stream has ended._  |
+|  [**DP\_NODISCARD**](clib__common_8h.md#define-dp_nodiscard) int | [**dp\_wfm\_stream\_sink\_send\_eos**](#function-dp_wfm_stream_sink_send_eos) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink) <br>_Tell subscribers this stream has ended._  |
 |  void | [**dp\_wfm\_stream\_sink\_set\_gain**](#function-dp_wfm_stream_sink_set_gain) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink, double gain) <br> |
 |  void | [**dp\_wfm\_stream\_sink\_track\_clipping**](#function-dp_wfm_stream_sink_track_clipping) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink, int on) <br> |
 
@@ -210,7 +210,7 @@ Best-effort on its own: the client flushes what is still buffered for at most 50
 
 _Let everything already sent reach the server, then stop._ 
 ```C++
-int dp_wfm_stream_sink_drain (
+DP_NODISCARD int dp_wfm_stream_sink_drain (
     wfm_stream_sink_t * sink,
     int timeout_ms
 ) 
@@ -328,7 +328,7 @@ DP_NODISCARD int dp_wfm_stream_sink_send (
 
 
 
-A non-zero return is a block that never left this process: the client refuses publishes while a reconnect has 8 MiB pending, and a drained sink refuses outright. The stream goes on, so the next block may go; count the refusals and report them, as wfmgen does (#2011).
+A refused block never left this process: the client refuses publishes while a reconnect has 8 MiB pending, and a drained sink refuses outright. The stream goes on, so the next block may go; a caller that keeps sending counts the refusals and reports them, as wfmgen does (#2011).
 
 
 
@@ -362,7 +362,7 @@ A non-zero return is a block that never left this process: the client refuses pu
 
 _Tell subscribers this stream has ended._ 
 ```C++
-int dp_wfm_stream_sink_send_eos (
+DP_NODISCARD int dp_wfm_stream_sink_send_eos (
     wfm_stream_sink_t * sink
 ) 
 ```

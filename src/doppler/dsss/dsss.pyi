@@ -738,8 +738,9 @@ class BurstDespreader:
     ValueError
         If construction fails. The exception message is ``BurstDespreader:
         invalid parameter (need a code of at least sf chips, sf >= 1, sps >= 2,
-        a finite init_norm_freq and init_chip_phase, and finite bn_carrier and
-        bn_code >= 0)``.
+        a finite init_norm_freq and init_chip_phase, and bn_carrier and bn_code
+        within the loop filter's domain: finite, >= 0, and gains that do not
+        overflow)``.
 
     Examples
     --------
@@ -1009,8 +1010,9 @@ class BurstDespreader:
         ValueError
             On assignment, if ``dp_burst_despreader_set_bn_carrier`` refuses
             the value by returning non-zero. The exception message is
-            ``BurstDespreader: bn_carrier must be finite and >= 0``, with the
-            return code appended.
+            ``BurstDespreader: bn_carrier is outside the loop filter's domain
+            (finite, >= 0, and gains that do not overflow)``, with the return
+            code appended.
         """
     @bn_carrier.setter
     def bn_carrier(self, value: float) -> None: ...
@@ -1023,8 +1025,9 @@ class BurstDespreader:
         ValueError
             On assignment, if ``dp_burst_despreader_set_bn_code`` refuses the
             value by returning non-zero. The exception message is
-            ``BurstDespreader: bn_code must be finite and >= 0``, with the
-            return code appended.
+            ``BurstDespreader: bn_code is outside the loop filter's domain
+            (finite, >= 0, and gains that do not overflow)``, with the return
+            code appended.
         """
     @bn_code.setter
     def bn_code(self, value: float) -> None: ...

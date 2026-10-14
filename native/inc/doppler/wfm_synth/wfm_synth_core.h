@@ -1072,7 +1072,7 @@ void dp_wfm_synth_steps(
  * @param state  Initialized Synth state returned by ``dp_wfm_synth_create``.
  * @param in     Input block of ``n`` cf32 samples.
  * @param n      Number of samples.
- * @param out    Output block of ``n`` cf32 samples (may alias ``in``).
+ * @param out    Output block of ``n`` cf32 samples (may be the input block itself).
  * @code
  * >>> from doppler.wfm import Synth
  * >>> import numpy as np

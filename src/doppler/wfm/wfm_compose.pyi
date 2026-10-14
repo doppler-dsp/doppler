@@ -362,9 +362,8 @@ class Synth:
         leave the same synth state as one call and an empty ``x`` does not advance it;
         the product itself agrees across such call sequences to rounding (a few ulp
         of ``|x| * |y|``), not to the bit, because the compiler may contract the
-        multiply differently on different paths (arm64 under ``-ffast-math``). A tone
-        synth makes this a rotation, a chirp a swept rotation, noise a noise
-        multiplier, PN/BPSK a modulation. ``x`` is not modified.
+        multiply differently on different paths (arm64 under ``-ffast-math``).
+        ``x`` is not modified.
 
         This is the general waveform-multiplication operator: with a tone synth
         it is a rotation, with a chirp synth a swept rotation, with noise a
@@ -375,7 +374,7 @@ class Synth:
         x : npt.NDArray[np.complex64]
             Input.
         out : npt.NDArray[np.complex64] | None
-            Output block of ``n`` cf32 samples (may alias ``in``).
+            Output block of ``n`` cf32 samples (may be the input block itself).
 
         Returns
         -------

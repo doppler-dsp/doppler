@@ -669,6 +669,34 @@ _SynthEngine_prod (_SynthEngineObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &in_obj,
                                     &out_obj))
     return NULL;
+  /* strict (hand-patched until just-makeit#2271): jm's transplant into a
+   * sacred fragment drops the dtype/ndim/contiguity refusals that a
+   * generated wrapper (Synth.prod) renders, so mirror them here -- a view
+   * or a complex128 block must be an error, never a silent copy or cast.
+   * Retire this when jm renders `strict` here. */
+  if (!PyArray_Check (in_obj)
+      || PyArray_TYPE ((PyArrayObject *)in_obj) != NPY_COMPLEX64)
+    {
+      PyErr_Format (PyExc_TypeError,
+                    "x must be an ndarray of dtype np.complex64"
+                    " (got %R)",
+                    PyArray_Check (in_obj)
+                        ? (PyObject *)PyArray_DESCR ((PyArrayObject *)in_obj)
+                        : (PyObject *)Py_TYPE (in_obj));
+      return NULL;
+    }
+  if (PyArray_NDIM ((PyArrayObject *)in_obj) != 1
+      || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)in_obj))
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "x must be a 1-D C-contiguous array"
+                    " (got %d-D%s)",
+                    PyArray_NDIM ((PyArrayObject *)in_obj),
+                    PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)in_obj)
+                        ? ""
+                        : ", not contiguous");
+      return NULL;
+    }
   PyArrayObject *in_arr
       = jm_array_arg (in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!in_arr)
@@ -947,10 +975,8 @@ static PyMethodDef _SynthEngine_methods[] = {
     "ulp\n"
     "of ``|x| * |y|``), not to the bit, because the compiler may contract "
     "the\n"
-    "multiply differently on different paths (arm64 under ``-ffast-math``). A "
-    "tone\n"
-    "synth makes this a rotation, a chirp a swept rotation, noise a noise\n"
-    "multiplier, PN/BPSK a modulation. ``x`` is not modified.\n"
+    "multiply differently on different paths (arm64 under ``-ffast-math``).\n"
+    "``x`` is not modified.\n"
     "\n"
     "This is the general waveform-multiplication operator: with a tone synth\n"
     "it is a rotation, with a chirp synth a swept rotation, with noise a\n"
@@ -961,7 +987,7 @@ static PyMethodDef _SynthEngine_methods[] = {
     "x : npt.NDArray[np.complex64]\n"
     "    Input.\n"
     "out : npt.NDArray[np.complex64] | None\n"
-    "    Output block of ``n`` cf32 samples (may alias ``in``).\n"
+    "    Output block of ``n`` cf32 samples (may be the input block itself).\n"
     "\n"
     "Returns\n"
     "-------\n"

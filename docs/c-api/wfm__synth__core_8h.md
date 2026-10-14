@@ -614,7 +614,7 @@ This is the general waveform-multiplication operator: with a tone synth it is a 
 * `state` Initialized Synth state returned by `dp_wfm_synth_create`. 
 * `in` Input block of `n` cf32 samples. 
 * `n` Number of samples. 
-* `out` Output block of `n` cf32 samples (may alias `in`). 
+* `out` Output block of `n` cf32 samples (may be the input block itself). 
 ```C++
 >>> from doppler.wfm import Synth
 >>> import numpy as np

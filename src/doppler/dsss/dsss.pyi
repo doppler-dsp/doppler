@@ -1003,12 +1003,29 @@ class BurstDespreader:
     def bn_carrier(self) -> float:
         """Carrier (Costas) loop noise bandwidth, normalized to the symbol
         rate.
+
+        Raises
+        ------
+        ValueError
+            On assignment, if ``dp_burst_despreader_set_bn_carrier`` refuses
+            the value by returning non-zero. The exception message is
+            ``BurstDespreader: bn_carrier must be finite and >= 0``, with the
+            return code appended.
         """
     @bn_carrier.setter
     def bn_carrier(self, value: float) -> None: ...
     @property
     def bn_code(self) -> float:
-        """Code (DLL) loop noise bandwidth, normalized to the symbol rate."""
+        """Code (DLL) loop noise bandwidth, normalized to the symbol rate.
+
+        Raises
+        ------
+        ValueError
+            On assignment, if ``dp_burst_despreader_set_bn_code`` refuses the
+            value by returning non-zero. The exception message is
+            ``BurstDespreader: bn_code must be finite and >= 0``, with the
+            return code appended.
+        """
     @bn_code.setter
     def bn_code(self, value: float) -> None: ...
     @property

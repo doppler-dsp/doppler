@@ -82,11 +82,19 @@ return_type = "void"
 name = "bn_carrier"
 type = "double"
 writable = true
+# The setter refuses outside the loop filter's domain and keeps the
+# bandwidth (#2071); jm raises on its non-zero return (just-makeit#2182).
+error = "ValueError"
+error_message = "BurstDespreader: bn_carrier must be finite and >= 0"
 
 [[burst_despreader.properties]]
 name = "bn_code"
 type = "double"
 writable = true
+# The setter refuses outside the loop filter's domain and keeps the
+# bandwidth (#2071); jm raises on its non-zero return (just-makeit#2182).
+error = "ValueError"
+error_message = "BurstDespreader: bn_code must be finite and >= 0"
 
 [[burst_despreader.properties]]
 name = "norm_freq"

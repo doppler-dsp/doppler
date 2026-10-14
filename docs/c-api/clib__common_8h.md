@@ -141,6 +141,9 @@ External inline (JM\_FORCEINLINE), not `static inline` like its neighbours: the 
 A negative remainder within half an ulp of zero rounds `r + m` up to exactly `m`, outside the range; it folds to 0, its equal on the circle. The DLL's replica tap indexes the code with this result, and read `code[sf]`, one past the copy, at a spacing just off a phase-grid point (doppler#2110).
 
 
+The test is `y >= m`, not `y < m`: doppler builds with -ffast-math, and gcc 14 at -O1 and above rewrote `r + m < m` as `r < 0`, always true here, so for a constant period that spelling returned `m` at run time. Written this way a NaN `x` also stays NaN rather than folding to a plausible phase 0. test\_dll\_core pins both with run-time inputs, over a constant and a run-time period.
+
+
 
 
 **Parameters:**
@@ -153,7 +156,7 @@ A negative remainder within half an ulp of zero rounds `r + m` up to exactly `m`
 
 **Returns:**
 
-`x` modulo `m`, in `[0, m)`. 
+`x` modulo `m`, in `[0, m)`; NaN for a NaN `x`. 
 
 
 

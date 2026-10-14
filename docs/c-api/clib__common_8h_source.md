@@ -123,7 +123,7 @@ dp_fmod_pos (double x, double m)
   if (r >= 0.0)
     return r;
   double y = r + m;
-  return y < m ? y : 0.0;
+  return y >= m ? 0.0 : y;
 }
 
 double dp_lgamma (double x);

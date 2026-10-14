@@ -475,6 +475,10 @@ class _SynthEngine:
         multiply differently on different paths (arm64 under ``-ffast-math``).
         ``x`` is not modified.
 
+        ``Synth.prod`` refuses a strided, non-complex64 or non-1-D ``x``. The private
+        ``_SynthEngine.prod`` still copies a strided block and casts a complex128 one
+        silently, until just-makeit#2271 ships.
+
         This is the general waveform-multiplication operator: with a tone synth
         it is a rotation, with a chirp synth a swept rotation, with noise a
         noise multiplier, with PN/BPSK a modulation.

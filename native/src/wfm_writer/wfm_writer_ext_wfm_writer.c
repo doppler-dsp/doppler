@@ -194,14 +194,7 @@ WriterObj_write (WriterObject *self, PyObject *args, PyObject *kwds)
     }
   const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
   size_t                x_len = (size_t)PyArray_SIZE (x_arr);
-  /* nogil: GIL released across the pure-C kernel — sound only when
-   * this object is not shared across threads concurrently (one
-   * object per stream); the kernel touches only this object's
-   * state/buffers and the caller's input. */
-  size_t y;
-  Py_BEGIN_ALLOW_THREADS
-    y = dp_wfm_writer_write (self->handle, x, x_len);
-  Py_END_ALLOW_THREADS
+  size_t                y     = dp_wfm_writer_write (self->handle, x, x_len);
   Py_DECREF (x_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -214,14 +207,7 @@ WriterObj_flush (WriterObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* nogil: GIL released across the pure-C kernel — sound only when
-   * this object is not shared across threads concurrently (one
-   * object per stream); the kernel touches only this object's
-   * state/buffers and the caller's input. */
-  int _rc;
-  Py_BEGIN_ALLOW_THREADS
-    _rc = dp_wfm_writer_flush (self->handle);
-  Py_END_ALLOW_THREADS
+  int _rc = dp_wfm_writer_flush (self->handle);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_OSError, "%s (rc=%lld)", "flush failed",

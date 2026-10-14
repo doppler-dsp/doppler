@@ -252,14 +252,22 @@ StreamSink_send (StreamSinkObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   size_t                n_in    = (size_t)PyArray_SIZE (x_arr);
   const float _Complex *in_data = (const float _Complex *)PyArray_DATA (x_arr);
-  int                   r;
+  int                   _rc;
   jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
-    r = dp_wfm_stream_sink_send (self->h, in_data, n_in, fs, fc);
+    _rc = dp_wfm_stream_sink_send (self->h, in_data, n_in, fs, fc);
   Py_END_ALLOW_THREADS
   jm_inflight_leave (&self->_jm_inflight);
   Py_DECREF (x_arr);
-  return PyLong_FromLong ((long)r);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_OSError, "%s (rc=%lld)",
+                    "the stream refused the block; it never left this "
+                    "process",
+                    (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
 }
 
 static PyObject *
@@ -419,19 +427,26 @@ static PyMethodDef StreamSink_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "Convert a cf32 block to the wire type and publish it.\n"
     "\n"
+    "A non-zero return is a block that never left this process: the client\n"
+    "refuses publishes while a reconnect has 8 MiB pending, and a drained\n"
+    "sink refuses outright. The stream goes on, so the next block may go;\n"
+    "count the refusals and report them, as wfmgen does (#2011).\n"
+    "\n"
     "Parameters\n"
     "----------\n"
     "iq : npt.NDArray[np.complex64]\n"
-    "    Complex-float samples; @param n complex sample count.\n"
+    "    Complex-float samples.\n"
     "fs : float\n"
-    "    sample rate (Hz); @param fc center frequency (Hz) — wire header.\n"
+    "    Sample rate (Hz), carried in the wire header.\n"
     "fc : float\n"
-    "    the sink handle.\n"
+    "    Center frequency (Hz), carried in the wire header.\n"
     "\n"
-    "Returns\n"
-    "-------\n"
-    "int\n"
-    "    0 on success, non-zero on a send/allocation error.\n" },
+    "Raises\n"
+    "------\n"
+    "OSError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``the stream refused the block; it never left this process``, with\n"
+    "    the return code appended (gh-869).\n" },
   { "send_eos", (PyCFunction)StreamSink_send_eos, METH_VARARGS,
     "Tell subscribers this stream has ended.\n"
     "\n"

@@ -1496,6 +1496,7 @@ dp_tlm_read_max_out function
 dp_tlm_resize function
 dp_tlm_set_decim function
 dp_tlm_sink_close function
+dp_tlm_sink_lost function
 dp_tlm_sink_open function
 dp_tlm_sink_pump function
 dp_tlm_sink_sent function

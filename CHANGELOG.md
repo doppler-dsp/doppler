@@ -13,6 +13,68 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.70.0] - 2026-10-13
+
+### Breaking
+
+- **An integer outside its C type's range raises `OverflowError` instead of
+    wrapping, `uint64_t` and `size_t` included.** `int8_t` given `300` arrived
+    as `44`, `AWGN(seed=-1)` as `2**64 - 1`, a negative count as `SIZE_MAX`;
+    numpy integers are accepted now (jm gh-2144, gh-2220). `OverflowError` is
+    not a `ValueError`: widen an `except ValueError`. A few hand-written parses
+    still wrap: `FFT(n)`, the telemetry objects' counts, and `_SynthEngine`'s
+    `pn_poly` and `set_chirp_span` (#2279); `Telemetry.emit`, `.probe`,
+    `.set_decim` and `_SynthEngine`'s `seed` are fixed below.
+
+- **A `Segment`'s `num_samples`, `off_samples` and `delay_samples` take an
+    `int`: a float is now a `TypeError`.** They were parsed through a `double`,
+    so `num_samples=1e6` and `off_samples=(64.0, 128.0)` worked; pass
+    `int(...)`. A negative bound is an `OverflowError` (jm gh-2224). A JSON
+    scene goes through doppler's own reader and is unchanged (#2291).
+
+- **Ten methods now release the GIL while their kernel runs: use one object
+    per thread.** `AccTrace.accumulate`, `AsyncDsssPool.push`, `BerMeter.align`
+    and `.score`, `PSD.accumulate` and `.accumulate_real`, `Writer.write` and
+    `.flush`, `Frame.crc_ok` and `FrameDesc.crc_ok` were declared `nogil` but
+    held the GIL until jm gh-2259. Two threads on one `Writer` or `PSD` were
+    queued by it and now race, and `Writer.close()` while another thread is in
+    `write` can free the handle under it (#2294, #2289).
+
+### Added
+
+- **`rate_hypotheses=0` lets the engine choose the count (#2277).** It is the
+    fewest hypotheses whose residual stops limiting the depth, or 64 if none
+    does, read back as `rate_hypotheses`: 4 on the validator's geometry where
+    9 was set by hand, at the same capture Pd (0.916 against 0.912, 250
+    trials). Burst engines only; it needs a `doppler_rate` to span, and `0` was
+    refused before ([`burst-capture.md` §11.5](docs/design/burst-capture.md)).
+
+### Changed
+
+- **just-makeit pin 0.103.0 → 0.105.0.** Its behaviour changes are the three
+    Breaking entries above. `out=` for a `variable_output` method with params
+    (gh-2028) and the exact 64-bit composer JSON (gh-2139) reach no doppler
+    object: `Composer.to_json` and `from_json` are doppler's C.
+
+- **`test_acq_core` now fails when the tile-edge alias's hop flips sign.** A
+    sweep of off-grid tones across a negative and a positive tile edge (D = 5)
+    catches a flipped hop frequency or row (#2232); a direct call with the row
+    of the wrong tile pins the hop itself (#2275). Test-only.
+
+### Fixed
+
+- **`Telemetry.emit`, `.probe` and `.set_decim` raise `OverflowError` for an
+    out-of-range integer.** `emit(2**32, 1.0)` recorded into probe 0 (Linux
+    and macOS; Windows already refused it), and on every platform
+    `probe("x", decim=2**32 + 3)` registered decimation 3; the hand-written
+    binding never had jm's range test. They refuse now, as the generated
+    bindings do (#2270, #2271, #2272).
+
+- **`_SynthEngine` raises `OverflowError` for a `seed` outside `uint32_t`.**
+    The hand-written constructor parsed `seed` through `k`, which masks:
+    `seed=2**32 + 5` built a synth seeded 5, and `seed=-1` one seeded
+    `4294967295`. Both raise now, as the composer's `Synth` does (#2276).
+
 ## [0.69.0] - 2026-10-13
 
 ### Breaking
@@ -16880,6 +16942,7 @@ ______________________________________________________________________
 [0.68.0]: https://github.com/doppler-dsp/doppler/compare/v0.67.0...v0.68.0
 [0.69.0]: https://github.com/doppler-dsp/doppler/compare/v0.68.0...v0.69.0
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
+[0.70.0]: https://github.com/doppler-dsp/doppler/compare/v0.69.0...v0.70.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.69.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.70.0...HEAD

@@ -1433,7 +1433,7 @@ status = "open"
 [issue.2181]
 tier = 4
 title = "Spectrogram.flush() returns the owed row as (1, nfft) or None, at just-makeit#2233's tag"
-status = "open"
+status = "in review ([#2292](https://github.com/doppler-dsp/doppler/pull/2292))"
 
 [issue.2182]
 tier = 1
@@ -1448,7 +1448,7 @@ status = "open"
 [issue.2184]
 tier = 5
 title = "PSD readouts carry a meaningless count keyword and an ignored cap slot (adopt just-makeit#2233)"
-status = "open"
+status = "in review ([#2292](https://github.com/doppler-dsp/doppler/pull/2292))"
 
 [issue.2187]
 tier = 2
@@ -1528,4 +1528,29 @@ status = "open"
 [issue.2279]
 tier = 5
 title = "hand-owned fragments: six uint64_t / size_t parses use the masking K (dp_tlm x4, wfm_synth pn_poly and span), so a negative or over-wide int wraps"
+status = "open"
+
+[issue.2286]
+tier = 5
+title = "wfm_synth .prod(): ~60 lines of hand-written glue and a hand-edited sacred fragment, and no public Synth.prod, until jm 0.105.0"
+status = "open"
+
+[issue.2287]
+tier = 3
+title = "acq: per-dwell Pfa at rate_hypotheses n = 3 and n = 4 reads above the target (1.20e-3, 1.07e-3 at 1e6 dwells), with #2218"
+status = "open"
+
+[issue.2289]
+tier = 2
+title = "nogil: ten methods now really release the GIL (jm 0.105.0) and none has a thread test for a shared object"
+status = "open"
+
+[issue.2291]
+tier = 0
+title = "wfm_json.c converts JSON numbers to integer fields with bare casts: num_samples=1.5, -1, 2**32 and seed=-1, 2**32 are accepted (jm's hardened reader never reaches Composer.from_json)"
+status = "open"
+
+[issue.2294]
+tier = 0
+title = "Writer.write releases the GIL (jm 0.105.0), so close() from another thread can free the handle under a running write (use-after-free)"
 status = "open"

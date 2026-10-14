@@ -497,7 +497,9 @@ void dp_RateConverter_get_state (const dp_RateConverter_state_t *s, void *blob);
  *  @return DP_OK, or DP_ERR_INVALID if the blob's envelope or any stage's
  *          (or the AGC's) part rejects. Stages restore in order, so a later
  *          stage's refusal leaves the earlier ones restored until doppler#2104's
- *          transaction lands; each stage itself changes nothing it refuses. */
+ *          transaction lands. Within a stage, a CIC stage restores its CIC
+ *          before its compensator FIR, so a FIR refusal leaves the CIC
+ *          restored; every other stage changes nothing it refuses. */
 int dp_RateConverter_set_state (dp_RateConverter_state_t *s, const void *blob);
 
 /**

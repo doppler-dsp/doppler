@@ -33,10 +33,11 @@ class StreamSink:
     ) -> None:
         """Convert a cf32 block to the wire type and publish it.
 
-        A non-zero return is a block that never left this process: the client
-        refuses publishes while a reconnect has 8 MiB pending, and a drained
-        sink refuses outright. The stream goes on, so the next block may go;
-        count the refusals and report them, as wfmgen does (#2011).
+        A refused block never left this process: the client refuses publishes
+        while a reconnect has 8 MiB pending, and a drained sink refuses
+        outright. The stream goes on, so the next block may go; a caller that
+        keeps sending counts the refusals and reports them, as wfmgen does
+        (#2011).
 
         Parameters
         ----------

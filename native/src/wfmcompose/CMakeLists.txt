@@ -369,6 +369,8 @@ if(NOT WIN32)
     # wfmgen exits 1 when the stream refuses a block (doppler#2011). The
     # test defines every dp_wfm_stream_sink_* symbol itself, overriding
     # libdoppler's weak stubs, so a broker is not needed to refuse on cue.
+    # POSIX for its own reason: that override is the ELF/Mach-O weak-symbol
+    # seam (wfm_sink_stub.c). wfmgen.c is the same C on Windows.
     add_executable(test_wfmgen_stream_refusal
         ${CMAKE_SOURCE_DIR}/native/tests/test_wfmgen_stream_refusal.c)
     target_link_libraries(test_wfmgen_stream_refusal PRIVATE

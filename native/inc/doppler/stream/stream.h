@@ -542,6 +542,7 @@ extern "C"
    *         budget ran out with data still pending, DP_ERR_INVALID for a
    *         NULL context.
    */
+  DP_NODISCARD
   int dp_pub_flush (dp_pub_t *ctx, int timeout_ms);
 
   /**
@@ -619,6 +620,7 @@ extern "C"
    *         with the drain still in progress (the context is still safe
    *         to destroy), DP_ERR_INVALID for a NULL context.
    */
+  DP_NODISCARD
   int dp_stream_drain (dp_pub_t *ctx, int timeout_ms);
 
   /**

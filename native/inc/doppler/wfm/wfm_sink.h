@@ -66,10 +66,10 @@ wfm_stream_sink_t *dp_wfm_stream_sink_open(const char *endpoint, int sample_type
 /**
  * @brief Convert a cf32 block to the wire type and publish it.
  *
- * A non-zero return is a block that never left this process: the client
- * refuses publishes while a reconnect has 8 MiB pending, and a drained sink
- * refuses outright. The stream goes on, so the next block may go; count the
- * refusals and report them, as wfmgen does (#2011).
+ * A refused block never left this process: the client refuses publishes
+ * while a reconnect has 8 MiB pending, and a drained sink refuses outright.
+ * The stream goes on, so the next block may go; a caller that keeps sending
+ * counts the refusals and reports them, as wfmgen does (#2011).
  *
  * @param sink  The sink handle.
  * @param iq    Complex-float samples.
@@ -93,6 +93,7 @@ int dp_wfm_stream_sink_send(wfm_stream_sink_t *sink, const float _Complex *iq,
  * @param sink Sink; NULL is DP_OK (there is no stream to end).
  * @return DP_OK, or the stream layer's error.
  */
+DP_NODISCARD
 int dp_wfm_stream_sink_send_eos(wfm_stream_sink_t *sink);
 
 /**
@@ -114,6 +115,7 @@ int dp_wfm_stream_sink_send_eos(wfm_stream_sink_t *sink);
  *         if the budget ran out with the drain still in progress, in which
  *         case the sink is still safe to close.
  */
+DP_NODISCARD
 int dp_wfm_stream_sink_drain(wfm_stream_sink_t *sink, int timeout_ms);
 
 /**

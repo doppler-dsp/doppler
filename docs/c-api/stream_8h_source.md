@@ -158,11 +158,13 @@ extern "C"
 
   dp_pub_t *dp_pub_create_tlm (const char *endpoint);
 
+  DP_NODISCARD
   int dp_pub_flush (dp_pub_t *ctx, int timeout_ms);
 
   DP_NODISCARD
   int dp_pub_send_eos (dp_pub_t *ctx);
 
+  DP_NODISCARD
   int dp_stream_drain (dp_pub_t *ctx, int timeout_ms);
 
   void dp_pub_destroy (dp_pub_t *ctx);

@@ -125,6 +125,9 @@ for block in Composer([scene]).stream(block=4096):
     sink.send(block, 500_000, 2.4e9)
     clock.pace(len(block))                 # throttle to fs
     samples, hdr = sub.recv(timeout_ms=50)
+sink.drain(5000)    # wait for the server; raises if the tail did not arrive
+sink.close()
+sub.close()
 print(clock.samples, clock.underruns, clock.max_lateness)
 ```
 

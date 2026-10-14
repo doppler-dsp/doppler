@@ -13,6 +13,31 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.71.0] - 2026-10-14
+
+### Breaking
+
+- **PSD's four readouts take no `count`: delete the `count` argument.**
+    `psd_db`, `psd_dbhz`, `power_twosided` and `power_onesided` take only
+    `out=`. In C, `dp_psd_psd_db`, `dp_psd_psd_dbhz`, `dp_psd_power_twosided`
+    and `dp_psd_power_onesided` drop their unused second parameter (#2184).
+
+- **`row = sp.flush()` replaces `sp.flush(buf)`.** `Spectrogram.flush()`
+    returns the last, zero-padded row, on the same hop grid as the rows
+    `push` returns, as a `(1, nfft)` matrix, or `None` if every sample is
+    already in a row; an `out=` buffer must be `(1, nfft)`. The new
+    `flush_max_out()`, and C's `dp_spectrogram_flush_max_out`, give that
+    row's length (#2181).
+
+### Changed
+
+- **`Writer.write` and `.flush` hold the GIL again**, so a `close()` from
+    another thread can no longer free a `Writer` under a running write
+    (#2294). Of the ten methods v0.70.0 listed as releasing the GIL, the other
+    eight still do: `PSD.accumulate`, `PSD.accumulate_real`,
+    `AccTrace.accumulate`, `BerMeter.align`, `BerMeter.score`,
+    `AsyncDsssPool.push`, `Frame.crc_ok` and `FrameDesc.crc_ok`.
+
 ## [0.70.0] - 2026-10-13
 
 ### Breaking
@@ -16943,6 +16968,7 @@ ______________________________________________________________________
 [0.69.0]: https://github.com/doppler-dsp/doppler/compare/v0.68.0...v0.69.0
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.70.0]: https://github.com/doppler-dsp/doppler/compare/v0.69.0...v0.70.0
+[0.71.0]: https://github.com/doppler-dsp/doppler/compare/v0.70.0...v0.71.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.70.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.71.0...HEAD

@@ -38,7 +38,7 @@ def _psd(nfft):
 
 
 def _check_peak(p, nfft, label):
-    spec = p.power_onesided(p.power_onesided_max_out())
+    spec = p.power_onesided()
     assert spec.shape == (nfft // 2 + 1,)
     peak = int(np.argmax(spec))
     assert peak == nfft // 64, (
@@ -99,7 +99,7 @@ def test_bench_power_onesided(benchmark, tone, nfft):
     cap = p.power_onesided_max_out()
     out = np.empty(cap, dtype=np.float32)
 
-    spec = benchmark(p.power_onesided, cap, out=out)
+    spec = benchmark(p.power_onesided, out=out)
 
     assert spec.shape == (nfft // 2 + 1,)
     assert int(np.argmax(spec)) == nfft // 64

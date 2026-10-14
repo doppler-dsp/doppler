@@ -14,7 +14,13 @@
  *   power_onesided     per CALL -- the read-out a display does once per
  *                      refresh, not once per sample. Reported per call
  *                      because quoting it per sample would flatter it by
- *                      the number of samples that went in.
+ *                      the number of samples that went in. A round times
+ *                      a batch of calls (RD_SPAN), not one: a single call
+ *                      at 1024 bins is about 15 steps of the clock, so its
+ *                      cell moved in 7% steps (#2143). Each round is then
+ *                      divided by its batch and recorded with a unit count
+ *                      of 1, so the JSON's stats, its ops and the printed
+ *                      line are all per call.
  *   fft / frame_power / frame_linear / frame_db / accumulate_frame
  *                      per FRAME, the Spectrogram's row kernel and the
  *                      transform inside it (#1894 A4, the design's U3), and
@@ -69,6 +75,10 @@
 #define KROUNDS 30 /* the per-frame kernel section's rounds */
 #define NKERN 5    /* its transform sizes */
 #define NKIND 5    /* fft, frame_power, frame_db, accumulate, frame_linear */
+/* power_onesided's round: as many calls as read RD_SPAN bins' worth of
+   spectrum, at least 4, so a round is a few us at every nfft and one clock
+   step a fraction of a percent of it */
+#define RD_SPAN 16384
 
 /* One timed pass of the per-frame section: `reps` frames of one kind. */
 typedef struct
@@ -181,12 +191,17 @@ main (void)
       if (!out)
         return 1;
       static double t_rd[ITERATIONS];
+      const int calls = RD_SPAN / nffts[k] < 4 ? 4 : (int)(RD_SPAN / nffts[k]);
       for (int r = 0; r < ITERATIONS; r++)
         {
           t0 = jm_bench_now_ns ();
-          sink += (double)dp_psd_power_onesided (p, out, cap);
-          t1      = jm_bench_now_ns ();
-          t_rd[r] = jm_bench_elapsed_sec (t0, t1);
+          for (int c = 0; c < calls; c++)
+            sink += (double)dp_psd_power_onesided (p, out, cap);
+          t1 = jm_bench_now_ns ();
+          /* Per call, not per round: the report reads stats.mean as
+             time per call, and jm_bench's ops is iters / mean, so the
+             batch goes into the time and the unit count stays 1. */
+          t_rd[r] = jm_bench_elapsed_sec (t0, t1) / calls;
         }
       (void)snprintf (name, sizeof name, "power_onesided[nfft=%zu]", nffts[k]);
       jm_bench_add (&_bench, name, t_rd, ITERATIONS, 1);

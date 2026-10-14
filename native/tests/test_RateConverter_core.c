@@ -413,8 +413,8 @@ stage_refusal_is_returned (double rate, int compensate, uint32_t magic,
           ok = dp_RateConverter_set_state (s, blob) == DP_ERR_INVALID;
         }
       if (!ok)
-        fprintf (stderr, "  rate %g: a refused stage part was not reported\n",
-                 rate);
+        DP_TEST_ERR ("  rate %g: a refused stage part was not reported\n",
+                     rate);
     }
   free (blob);
   dp_RateConverter_destroy (s);

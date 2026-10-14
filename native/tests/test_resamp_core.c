@@ -261,8 +261,8 @@ forged_head_refused (double rate)
       dp_resamp_get_state (r, now);
       if (rc != DP_ERR_INVALID || memcmp (now, before, sb) != 0)
         {
-          fprintf (stderr, "  rate %.2f: forged head %zu taken\n", rate,
-                   forged[k]);
+          DP_TEST_ERR ("  rate %.2f: forged head %zu taken\n", rate,
+                       forged[k]);
           ok = 0;
         }
     }

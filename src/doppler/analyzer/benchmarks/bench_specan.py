@@ -20,8 +20,11 @@ it is what a sweeping or scrolling display calls between blocks, and it
 claims not to rebuild the plan.
 
 The C benchmark (``native/benchmarks/bench_specan_core.c``) measures the
-same rows over the same stimulus; the gap between the two faces is the
-binding's per-call overhead, which is what a Python benchmark is for.
+same rows over the same block shape; the gap between the two faces is the
+binding's per-call overhead, which is what a Python benchmark is for. Its
+tone is 0.031 cycles/sample; this one's is 2032/65536 (below), the same work
+for the mixer and the transform, and it keeps a replayed block
+phase-continuous.
 """
 
 import itertools
@@ -35,8 +38,16 @@ from doppler.source import LO
 BLOCK_64K = 65_536
 FS = 10.0e6
 SPAN = 2.0e6
-#: The tone, in normalised frequency -- 310 kHz, inside the +-1 MHz span.
-F_TONE = 0.031
+#: The tone, in normalised frequency -- 310.06 kHz, inside the +-1 MHz span.
+#: A whole number of cycles per block (2032), because every round replays
+#: the same block: at 0.031 (2031.616 cycles) each seam was a ~138 degree
+#: phase step, the decimated stream overruns the 16384-point window by ~393
+#: samples a call, so the seam walked across the rbw=500 window with the
+#: call count pytest-benchmark calibrates, and mid-window it pulled the
+#: peak below the 1 dB tolerance (or moved it a bin), so the row's verdict
+#: depended on the machine. LO's phase increment is then exact
+#: (2032 * 2**16), and a replayed block is the tone's next block bit for bit.
+F_TONE = 2032 / BLOCK_64K
 A_TONE = 0.5
 
 

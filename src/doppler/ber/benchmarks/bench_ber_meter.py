@@ -83,7 +83,8 @@ def test_bench_score(benchmark, meter, capture):
     assert meter.bit_errors == 2 * meter.errors
     if benchmark.stats:
         sec = benchmark.stats["min"]
-        benchmark.extra_info["MSa_s"] = BLOCK_64K / sec / 1e6
+        # Symbols, not samples: the capture is one value per symbol, so
+        # this row records Msym_s and no MSa_s.
         benchmark.extra_info["Msym_s"] = BLOCK_64K / sec / 1e6
 
 

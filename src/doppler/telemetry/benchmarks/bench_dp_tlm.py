@@ -62,7 +62,10 @@ def _emit_row(benchmark, values, decim):
     benchmark.pedantic(run, setup=lambda: _drain(tlm), rounds=ROUNDS)
 
     # One round is in the ring (setup drained the ones before it).
-    want = BLOCK_64K // decim
+    # Derived from what the probe keeps -- the first event, then every
+    # decim-th -- not BLOCK_64K // decim, which is right only when decim
+    # divides the block.
+    want = len(values[::decim])
     assert tlm.avail == want, (
         f"decim {decim}: {tlm.avail} records after one round, not {want} — "
         "a probe that stopped writing just looks faster"

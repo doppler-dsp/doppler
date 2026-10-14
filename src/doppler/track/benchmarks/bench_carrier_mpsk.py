@@ -74,10 +74,12 @@ def _stimulus(m):
 def test_bench_steps(benchmark, m, bn_fll):
     """One block through the loop, already locked from a primed call.
 
-    Built ONCE and primed outside the timed region: state carries across
-    calls by design — a streaming caller's contiguous blocks — so every
-    round times the tracking loop, which is what runs per sample in a
-    receiver, rather than a pull-in from cold.
+    Built ONCE and primed outside the timed region, so every round times
+    the tracking loop, which is what runs per sample in a receiver, rather
+    than a pull-in from cold. Every round REPLAYS the same block rather
+    than feeding the next one: each therefore opens on the block's
+    wrap-around phase step (`RESIDUAL` x 64k = 65.536 cycles), which the
+    locked loop absorbs well inside the `SETTLE` prompts the EVM skips.
     """
     x = _stimulus(m)
     c = CarrierMpsk(

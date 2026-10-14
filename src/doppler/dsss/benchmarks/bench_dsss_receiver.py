@@ -11,9 +11,9 @@ Two rows, the same split as the C twin
 does two different jobs at two very different per-sample costs and one
 blended figure is the average of a transient and a steady state:
 
-- ``search`` — 64k of noise, nothing to find. Every sample feeds the
-  embedded `Acquisition` (the 2-D correlation), nothing is emitted. The
-  price of listening.
+- ``search`` — 64k of noise, nothing to find, into a receiver reset before
+  each of a fixed `ROUNDS`. Every sample feeds the embedded `Acquisition`
+  (the 2-D correlation), nothing is emitted. The price of listening.
 - ``track``  — the receiver already locked, fed the NEXT contiguous 64k of
   the same capture each round: `Dll` -> `RateConverter` -> `MpskReceiver`
   per sample. What a continuous receiver pays for as long as it holds lock.
@@ -86,21 +86,42 @@ def _rate(benchmark):
 
 
 def test_bench_steps_search(benchmark):
-    """Listening: noise in, the acquisition searches, nothing is emitted."""
+    """Listening: noise in, the acquisition searches, nothing is emitted.
+
+    Reset before every round, through pedantic, not ``benchmark(rx.steps,
+    noise)`` on one receiver: a receiver fed for as many calls as
+    pytest-benchmark calibrates has a false-alarm exposure that grows with
+    that count, so the assert below could pass on one machine and fail on
+    another. Reset, every round is the same computation -- the same block
+    into the same state -- so the verdict cannot depend on how many rounds
+    run. The reset is in pedantic's untimed setup, and a reset receiver
+    searches a block at the same cost as a warm one: the acquisition's
+    work per block does not depend on what came before it.
+    """
     noise = np.ascontiguousarray(
         np.asarray(Synth(type="noise", fs=FS, seed=3).steps(BLOCK_64K)).astype(
             np.complex64
         )
     )
     rx = _receiver()
+    outs = []
 
-    out = np.asarray(benchmark(rx.steps, noise))
+    def fresh():
+        rx.reset()
+        return (noise,), {}
+
+    benchmark.pedantic(
+        lambda b: outs.append(np.asarray(rx.steps(b))),
+        setup=fresh,
+        rounds=ROUNDS,
+        warmup_rounds=1,
+    )
 
     # Asserted, because a false alarm would flip the receiver to tracking
     # and the rest of the rounds would time the other regime under this
     # one's name.
     assert rx.tracking == 0, "noise acquired a signal; this is not search"
-    assert out.size == 0, "the search row must emit nothing"
+    assert all(o.size == 0 for o in outs), "the search row must emit nothing"
     _rate(benchmark)
 
 

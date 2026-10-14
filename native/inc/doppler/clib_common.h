@@ -206,9 +206,16 @@ dp_fftfreq (size_t bin, size_t n, double fs)
  * `code[sf]`, one past the copy, at a spacing just off a phase-grid point
  * (doppler#2110).
  *
+ * The test is `y >= m`, not `y < m`: doppler builds with -ffast-math,
+ * and gcc 14 at -O1 and above rewrote `r + m < m` as `r < 0`, always true
+ * here, so for a constant period that spelling returned @p m at run time.
+ * Written this way a NaN @p x also stays NaN rather than folding to a
+ * plausible phase 0. test_dll_core pins both with run-time inputs, over a
+ * constant and a run-time period.
+ *
  * @param x  Any real value.
  * @param m  The period (> 0).
- * @return @p x modulo @p m, in `[0, m)`.
+ * @return @p x modulo @p m, in `[0, m)`; NaN for a NaN @p x.
  */
 JM_FORCEINLINE double
 dp_fmod_pos (double x, double m)
@@ -217,7 +224,7 @@ dp_fmod_pos (double x, double m)
   if (r >= 0.0)
     return r;
   double y = r + m;
-  return y < m ? y : 0.0;
+  return y >= m ? 0.0 : y;
 }
 
 /**

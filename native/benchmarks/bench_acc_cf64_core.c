@@ -149,9 +149,9 @@ main (void)
    * code alignment moved it 20% (doppler#1366). Now each round is ONE call
    * over BENCH_N samples, credited with BENCH_N, and the result is checked
    * before anything is recorded -- a kernel that stops doing the work makes
-   * this binary exit non-zero instead of publishing a faster number. (Under
-   * `jm bench` that exit is currently dropped and the component just goes
-   * missing from the snapshot: just-makeit#2181.)
+   * this binary exit non-zero instead of publishing a faster number:
+   * `jm bench` reports it as `failed bench_<comp>_core`, records none of
+   * the binary's rows, and exits 1 (just-makeit gh-2189, since 0.103.0).
    *
    * The sweep below the rows is the evidence the work is real: time per
    * call grows with n while time per sample stays put. It prints, and is

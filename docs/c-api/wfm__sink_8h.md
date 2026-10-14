@@ -63,7 +63,7 @@ _NATS PUB sink for generated IQ (Phase B)._ [More...](#detailed-description)
 |  int | [**dp\_wfm\_stream\_sink\_drain**](#function-dp_wfm_stream_sink_drain) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink, int timeout\_ms) <br>_Let everything already sent reach the server, then stop._  |
 |  [**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* | [**dp\_wfm\_stream\_sink\_open**](#function-dp_wfm_stream_sink_open) (const char \* endpoint, int sample\_type) <br>_Open a stream sink (PUB) bound to a NATS subject._  |
 |  double | [**dp\_wfm\_stream\_sink\_peak**](#function-dp_wfm_stream_sink_peak) (const [**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink) <br> |
-|  int | [**dp\_wfm\_stream\_sink\_send**](#function-dp_wfm_stream_sink_send) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink, const float \_Complex \* iq, size\_t n, double fs, double fc) <br>_Convert a cf32 block to the wire type and publish it._  |
+|  [**DP\_NODISCARD**](clib__common_8h.md#define-dp_nodiscard) int | [**dp\_wfm\_stream\_sink\_send**](#function-dp_wfm_stream_sink_send) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink, const float \_Complex \* iq, size\_t n, double fs, double fc) <br>_Convert a cf32 block to the wire type and publish it._  |
 |  int | [**dp\_wfm\_stream\_sink\_send\_eos**](#function-dp_wfm_stream_sink_send_eos) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink) <br>_Tell subscribers this stream has ended._  |
 |  void | [**dp\_wfm\_stream\_sink\_set\_gain**](#function-dp_wfm_stream_sink_set_gain) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink, double gain) <br> |
 |  void | [**dp\_wfm\_stream\_sink\_track\_clipping**](#function-dp_wfm_stream_sink_track_clipping) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink, int on) <br> |
@@ -101,13 +101,16 @@ _NATS PUB sink for generated IQ (Phase B)._ [More...](#detailed-description)
 Streams cf32 blocks (from synth or the composer) to a NATS subject using doppler's `dp_pub_*` wire layer (SIGS header, magic "SIGS"), converting to the requested wire sample type per block. This is the `--output nats://…` destination; a `dp_sub_*` receiver (e.g. native/examples/spectrum\_analyzer) reads the stream.
 
 
-Lifecycle: dp\_wfm\_stream\_sink\_open -&gt; dp\_wfm\_stream\_sink\_send\* -&gt; dp\_wfm\_stream\_sink\_close
+Lifecycle: dp\_wfm\_stream\_sink\_open -&gt; dp\_wfm\_stream\_sink\_send\* -&gt; dp\_wfm\_stream\_sink\_drain -&gt; dp\_wfm\_stream\_sink\_close
 
 
 
 ```C++
 wfm_stream_sink_t *s = dp_wfm_stream_sink_open("nats://127.0.0.1:4222/iq", 3); // ci16
-dp_wfm_stream_sink_send(s, iq, 4096, 1e6, 2.4e9);
+if (dp_wfm_stream_sink_send(s, iq, 4096, 1e6, 2.4e9) != 0)
+  fprintf(stderr, "block refused: it never left this process\n");
+if (dp_wfm_stream_sink_drain(s, 0) != 0)
+  fprintf(stderr, "the tail may not have reached the server\n");
 dp_wfm_stream_sink_close(s);
 ```
  
@@ -182,6 +185,9 @@ void dp_wfm_stream_sink_close (
 ) 
 ```
 
+
+
+Best-effort on its own: the client flushes what is still buffered for at most 500 ms and reports nothing, so a tail it cannot push out in that time is dropped silently. Call [**dp\_wfm\_stream\_sink\_drain()**](wfm__sink_8h.md#function-dp_wfm_stream_sink_drain) first on any run whose tail matters; close is then just the free.
 
 
 
@@ -311,7 +317,7 @@ Largest per-axis magnitude seen on an integer path (pre-clip, full-scale 1).
 
 _Convert a cf32 block to the wire type and publish it._ 
 ```C++
-int dp_wfm_stream_sink_send (
+DP_NODISCARD int dp_wfm_stream_sink_send (
     wfm_stream_sink_t * sink,
     const float _Complex * iq,
     size_t n,
@@ -322,22 +328,25 @@ int dp_wfm_stream_sink_send (
 
 
 
+A non-zero return is a block that never left this process: the client refuses publishes while a reconnect has 8 MiB pending, and a drained sink refuses outright. The stream goes on, so the next block may go; count the refusals and report them, as wfmgen does (#2011).
+
+
 
 
 **Parameters:**
 
 
-* `sink` the sink handle. 
-* `iq` Complex-float samples;
-* `n` complex sample count. 
-* `fs` sample rate (Hz);
-* `fc` center frequency (Hz) — wire header. 
+* `sink` The sink handle. 
+* `iq` Complex-float samples. 
+* `n` Complex sample count. 
+* `fs` Sample rate (Hz), carried in the wire header. 
+* `fc` Center frequency (Hz), carried in the wire header. 
 
 
 
 **Returns:**
 
-0 on success, non-zero on a send/allocation error. 
+0 on success, non-zero on a refused send or an allocation error. 
 
 
 

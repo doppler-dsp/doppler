@@ -53,6 +53,23 @@
              means "not yet". Every transport spells it the same way -- see \
              docs/design/io-termination.md. */
 
+/**
+ * @brief Marks a function whose status must not be dropped.
+ *
+ * A refusal nobody reads is invisible: the call returns DP_ERR_*, the
+ * caller carries on as if it had worked, and no flag can see it, because
+ * -Wunused-result only checks a function that asks for it (#1663). Put
+ * this in front of the return type of any function that returns a
+ * refusal, and gcc and clang warn at every call site that discards it; the
+ * library's -Werror builds fail there. A `(void)` cast does NOT silence
+ * gcc: handle the status. Empty where the compiler has no such attribute.
+ */
+#if defined(__GNUC__) || defined(__clang__)
+#define DP_NODISCARD __attribute__ ((warn_unused_result))
+#else
+#define DP_NODISCARD
+#endif
+
 #include "doppler/jm_perf.h"
 
 /* ------------------------------------------------------------------ */

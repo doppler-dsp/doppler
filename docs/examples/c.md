@@ -498,7 +498,8 @@ receives and prints power.
 
 /* Producer thread — rate/freq travel in the header the send builds */
 dp_push_t *ctx = dp_push_create("nats://127.0.0.1:4222/work", CF64);
-dp_push_send_cf64(ctx, samples, 1024, 1e6, 0.0);  /* samples, n, fs, fc */
+if (dp_push_send_cf64(ctx, samples, 1024, 1e6, 0.0) != DP_OK)  /* n, fs, fc */
+    fprintf(stderr, "send refused: %s\n", dp_ctx_last_error(ctx));
 dp_push_destroy(ctx);
 
 /* Consumer thread — recv hands back a library-owned message + header */

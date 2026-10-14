@@ -669,34 +669,6 @@ _SynthEngine_prod (_SynthEngineObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &in_obj,
                                     &out_obj))
     return NULL;
-  /* strict (hand-patched until just-makeit#2271): jm's transplant into a
-   * sacred fragment drops the dtype/ndim/contiguity refusals that a
-   * generated wrapper (Synth.prod) renders, so mirror them here -- a view
-   * or a complex128 block must be an error, never a silent copy or cast.
-   * Retire this when jm renders `strict` here. */
-  if (!PyArray_Check (in_obj)
-      || PyArray_TYPE ((PyArrayObject *)in_obj) != NPY_COMPLEX64)
-    {
-      PyErr_Format (PyExc_TypeError,
-                    "x must be an ndarray of dtype np.complex64"
-                    " (got %R)",
-                    PyArray_Check (in_obj)
-                        ? (PyObject *)PyArray_DESCR ((PyArrayObject *)in_obj)
-                        : (PyObject *)Py_TYPE (in_obj));
-      return NULL;
-    }
-  if (PyArray_NDIM ((PyArrayObject *)in_obj) != 1
-      || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)in_obj))
-    {
-      PyErr_Format (PyExc_ValueError,
-                    "x must be a 1-D C-contiguous array"
-                    " (got %d-D%s)",
-                    PyArray_NDIM ((PyArrayObject *)in_obj),
-                    PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)in_obj)
-                        ? ""
-                        : ", not contiguous");
-      return NULL;
-    }
   PyArrayObject *in_arr
       = jm_array_arg (in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
   if (!in_arr)
@@ -977,6 +949,12 @@ static PyMethodDef _SynthEngine_methods[] = {
     "the\n"
     "multiply differently on different paths (arm64 under ``-ffast-math``).\n"
     "``x`` is not modified.\n"
+    "\n"
+    "``Synth.prod`` refuses a strided, non-complex64 or non-1-D ``x``. The "
+    "private\n"
+    "``_SynthEngine.prod`` still copies a strided block and casts a "
+    "complex128 one\n"
+    "silently, until just-makeit#2271 ships.\n"
     "\n"
     "This is the general waveform-multiplication operator: with a tone synth\n"
     "it is a rotation, with a chirp synth a swept rotation, with noise a\n"

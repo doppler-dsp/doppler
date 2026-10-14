@@ -155,6 +155,94 @@ def test_close_finalises_the_blue_header(tmp_path, scene):
         assert r.num_samples == len(scene)
 
 
+# ── close() from another thread (#2294) ──────────────────────────────────────
+#
+# jm 0.105.0 made `nogil = true` really release the GIL, and for write() and
+# flush() that opened a use-after-free the GIL used to rule out: close() frees
+# the handle while holding the GIL, so a recorder thread inside write() and a
+# stopper thread calling close() raced. "A worker records, the main thread
+# stops it" is the obvious way to use a Writer. The manifest now declares both
+# methods without `nogil`, which serialises the two again; this is the test
+# that says so.
+#
+# It runs in a subprocess because the failure it guards against is a crash
+# (or heap corruption), and a crash in the test process would read as a dead
+# xdist worker instead of a failed test.
+
+_CLOSE_RACE = textwrap.dedent(
+    """
+    import pathlib, sys, tempfile, threading, time
+    import numpy as np
+    from doppler.wfm import Writer
+
+    n, rounds = int(sys.argv[1]), int(sys.argv[2])
+    x = np.zeros(n, dtype=np.complex64)
+    tmp = tempfile.TemporaryDirectory()
+    wrote = refused = 0
+    for i in range(rounds):
+        p = pathlib.Path(tmp.name) / f"cap{i}.raw"
+        w = Writer(p, file_type="raw", sample_type="ci16", fs=1e6)
+        result = {}
+        entered = threading.Event()
+
+        def record():
+            entered.set()
+            try:
+                result["n"] = w.write(x)
+            except RuntimeError as e:  # close() won the race: refused
+                result["refused"] = str(e)
+
+        t = threading.Thread(target=record)
+        t.start()
+        entered.wait()
+        time.sleep(0.02)  # let the recorder get inside write()
+        w.close()
+        t.join()
+        if "n" in result:
+            wrote += 1
+            assert result["n"] == n, result
+            assert p.stat().st_size == n * 4, (p.stat().st_size, n * 4)
+        else:
+            refused += 1
+        p.unlink()
+    print(wrote, refused)
+    """
+)
+
+
+def test_close_from_another_thread_cannot_free_a_running_write():
+    """A stopper thread's `close()` must not break a recorder's `write()`.
+
+    With the GIL held across `write()` the stopper simply waits, so the block
+    lands whole (or, if `close()` won the race, `write()` is refused with a
+    `RuntimeError` and nothing is written). With the GIL released, `close()`
+    frees the handle under the running kernel and the child crashes or
+    corrupts the heap.
+
+    A block of 2**24 samples takes about 120 ms to write, so the 20 ms head
+    start the stopper gets puts `close()` well inside it whenever the GIL is
+    released. That makes the overlap near-certain, not guaranteed: it is a
+    stress test of a race, not a proof, and it asserts that the child neither
+    crashes nor leaves a short or oversized capture, over several rounds.
+    """
+    out = subprocess.run(
+        [sys.executable, "-c", _CLOSE_RACE, str(1 << 24), "6"],
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    assert out.returncode == 0, (
+        f"the child died or failed (returncode {out.returncode}; a negative "
+        f"value is a signal, -11 is SIGSEGV): {out.stderr.strip()[-400:]}"
+    )
+    wrote, refused = (int(v) for v in out.stdout.split())
+    assert wrote + refused == 6
+    assert wrote >= 1, (
+        "close() won every round, so no write was ever in flight and the "
+        "race this test exists for never happened"
+    )
+
+
 def _run_under_fsize_limit(body: str) -> subprocess.CompletedProcess:
     """Run `body` in a subprocess with a 4 KiB RLIMIT_FSIZE.
 

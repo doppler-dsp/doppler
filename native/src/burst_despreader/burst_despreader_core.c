@@ -9,6 +9,13 @@
 #define M_PI 3.14159265358979323846
 #endif
 
+/* Both loops update once per symbol, so the loop-filter update period is one
+   unit and bn is normalized to the symbol rate; both share one damping.
+   create() asks the loop filter's domain at exactly the parameters it then
+   builds with, so the pair has one home. */
+static const double BD_LOOP_ZETA = 0.707;
+static const double BD_LOOP_T    = 1.0;
+
 /* Chip sign matching the transmit mapping (dp_wfm_dsss_spread): 0 -> +1, 1 ->
  * -1.
  */
@@ -56,8 +63,8 @@ dp_burst_despreader_create (const uint8_t *code, size_t code_len, size_t sf,
   /* dp_loop_filter_init trusts its embedders: the loop filter's own domain,
      asked of the one predicate it publishes (#2071). A NaN or infinite bn
      gave NaN gains that poisoned both loops from the first symbol. */
-  if (!dp_loop_filter_params_ok (bn_carrier, 0.707, 1.0)
-      || !dp_loop_filter_params_ok (bn_code, 0.707, 1.0))
+  if (!dp_loop_filter_params_ok (bn_carrier, BD_LOOP_ZETA, BD_LOOP_T)
+      || !dp_loop_filter_params_ok (bn_code, BD_LOOP_ZETA, BD_LOOP_T))
     return NULL;
 
   dp_burst_despreader_state_t *s = calloc (1, sizeof (*s));
@@ -79,10 +86,8 @@ dp_burst_despreader_create (const uint8_t *code, size_t code_len, size_t sf,
   s->seed_w    = init_norm_freq * 2.0 * M_PI; /* cycles/sample -> rad/sample */
   s->seed_chip = init_chip_phase;
 
-  /* Both loops update once per symbol, so the loop-filter update period is one
-   * "unit"; bn is the loop noise bandwidth normalized to the symbol rate. */
-  dp_loop_filter_init (&s->lf_car, bn_carrier, 0.707, 1.0);
-  dp_loop_filter_init (&s->lf_code, bn_code, 0.707, 1.0);
+  dp_loop_filter_init (&s->lf_car, bn_carrier, BD_LOOP_ZETA, BD_LOOP_T);
+  dp_loop_filter_init (&s->lf_code, bn_code, BD_LOOP_ZETA, BD_LOOP_T);
 
   burst_despreader_seed (s);
   return s;

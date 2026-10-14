@@ -27,7 +27,7 @@ def _engine() -> Synth:
 
 def test_synth_prod_is_the_elementwise_product_with_steps():
     x = _x(700)
-    a, b = _engine(), _engine()
+    a, b = (_SynthEngine(type="tone", freq=0.125) for _ in range(2))
     # numpy's complex multiply may differ from the C kernel's by an ulp (FMA
     # contraction); the C test pins the bit-exact product.
     np.testing.assert_allclose(
@@ -233,3 +233,19 @@ def test_the_generator_type_exposes_prod_too():
     np.testing.assert_allclose(
         a.prod(x), x * b.steps(300), rtol=1e-6, atol=1e-6
     )
+
+
+def test_the_engine_face_is_strict_too():
+    # `Synth.prod` refuses a strided or complex128 block (`strict`); the
+    # engine's body is jm-transplanted into a sacred fragment, which drops
+    # `strict` (just-makeit#2271), so the fragment carries a hand patch.
+    # This goes red if that patch is lost: a view or a wide block must be
+    # an error on the engine face too, never a silent copy or cast.
+    x = _x(128)
+    e = _SynthEngine(type="tone", freq=0.125)
+    with pytest.raises(ValueError, match="contiguous"):
+        e.prod(x[::2])
+    with pytest.raises(TypeError, match="complex64"):
+        e.prod(x.astype(np.complex128))
+    with pytest.raises(ValueError, match="1-D"):
+        e.prod(x.reshape(8, 16))

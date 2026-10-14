@@ -8,7 +8,7 @@
 # tier 2 a claim nothing measures   5 convergence and hygiene
 
 [meta]
-generated = "2026-10-13"
+generated = "2026-10-14"
 
 [issue.502]
 tier = 3
@@ -1203,7 +1203,7 @@ status = "open"
 [issue.2011]
 tier = 0
 title = "stream: producers ignore send failures (wfmgen exits 0 after dropping blocks; StreamSink.send returns an int) and close() loses the tail"
-status = "open"
+status = "in review ([#2300](https://github.com/doppler-dsp/doppler/pull/2300))"
 
 [issue.2012]
 tier = 1
@@ -1318,7 +1318,7 @@ status = "open"
 [issue.2071]
 tier = 2
 title = "burst_despreader: create() and set_bn_* pass an unvalidated bn to dp_loop_filter_init, which trusts its embedders to validate"
-status = "in review ([#2139](https://github.com/doppler-dsp/doppler/pull/2139))"
+status = "in review ([#2306](https://github.com/doppler-dsp/doppler/pull/2306))"
 
 [issue.2074]
 tier = 3
@@ -1383,7 +1383,7 @@ status = "open"
 [issue.2095]
 tier = 0
 title = "_SynthEngine.set_wtype(PN|BPSK|QPSK) on an engine created otherwise segfaults on the next step"
-status = "in review ([#2132](https://github.com/doppler-dsp/doppler/pull/2132))"
+status = "open"
 
 [issue.2104]
 tier = 2
@@ -1398,12 +1398,12 @@ status = "in review ([#2126](https://github.com/doppler-dsp/doppler/pull/2126))"
 [issue.2110]
 tier = 0
 title = "clib: dp_fmod_pos can return m (outside [0,m)), so dll_replica reads code[sf], one past the copy"
-status = "in review ([#2141](https://github.com/doppler-dsp/doppler/pull/2141))"
+status = "in review ([#2305](https://github.com/doppler-dsp/doppler/pull/2305))"
 
 [issue.2111]
 tier = 0
 title = "resamp: set_state trusts a forged delay_head, and the next output reads past delay_buf"
-status = "in review ([#2134](https://github.com/doppler-dsp/doppler/pull/2134))"
+status = "in review ([#2301](https://github.com/doppler-dsp/doppler/pull/2301))"
 
 [issue.2112]
 tier = 0
@@ -1430,11 +1430,6 @@ tier = 2
 title = "specan: the source/engine handshake is written three times and the copies disagree"
 status = "open"
 
-[issue.2181]
-tier = 4
-title = "Spectrogram.flush() returns the owed row as (1, nfft) or None, at just-makeit#2233's tag"
-status = "in review ([#2292](https://github.com/doppler-dsp/doppler/pull/2292))"
-
 [issue.2182]
 tier = 1
 title = "Validation reports restate header claims by hand; nothing ties a claim to its header sentence or its verdicts (deferred design)"
@@ -1444,11 +1439,6 @@ status = "open"
 tier = 4
 title = "PSD reads back hop, window, beta, pad and alpha, and PSD.mode by name"
 status = "open"
-
-[issue.2184]
-tier = 5
-title = "PSD readouts carry a meaningless count keyword and an ignored cap slot (adopt just-makeit#2233)"
-status = "in review ([#2292](https://github.com/doppler-dsp/doppler/pull/2292))"
 
 [issue.2187]
 tier = 2
@@ -1533,7 +1523,7 @@ status = "open"
 [issue.2286]
 tier = 5
 title = "wfm_synth .prod(): ~60 lines of hand-written glue and a hand-edited sacred fragment, and no public Synth.prod, until jm 0.105.0"
-status = "open"
+status = "in review ([#2297](https://github.com/doppler-dsp/doppler/pull/2297))"
 
 [issue.2287]
 tier = 3
@@ -1548,9 +1538,4 @@ status = "open"
 [issue.2291]
 tier = 0
 title = "wfm_json.c converts JSON numbers to integer fields with bare casts: num_samples=1.5, -1, 2**32 and seed=-1, 2**32 are accepted (jm's hardened reader never reaches Composer.from_json)"
-status = "open"
-
-[issue.2294]
-tier = 0
-title = "Writer.write releases the GIL (jm 0.105.0), so close() from another thread can free the handle under a running write (use-after-free)"
 status = "open"

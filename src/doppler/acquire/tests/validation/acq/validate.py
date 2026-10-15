@@ -1012,7 +1012,9 @@ def _sec_realized_pfa(d: Data) -> None:
     target = 1e-3
     e0 = _engine()
     frame = e0.code_bins * e0.doppler_bins
-    n = 20000
+    # 60,000 frames: enough that the ratchet below both passes an on-target
+    # detector and refuses the native pricing (see PFA_RATIO_RATCHET).
+    n = 60000
     d.pfa_hat = realized_pfa(_engine, frame, n, seed=5)
     d.pfa_ratio = d.pfa_hat / target
     d.pfa_sigma = pfa_sigma(d.pfa_hat, target, n)
@@ -1248,8 +1250,8 @@ def limits(d: Data) -> None:
     R.limit(
         d.pfa_within_ratchet,
         "the realized false-alarm rate stays inside its ratchet against "
-        "the configured target -- a RATCHET on a 20,000-frame run, whose "
-        "Poisson spread is ~+/-0.22: on target since doppler#2218 (F7), "
+        "the configured target -- a RATCHET on a 60,000-frame run, whose "
+        "Poisson spread is ~+/-0.13: on target since doppler#2218 (F7), "
         "and it may only shrink",
     )
     R.limit(

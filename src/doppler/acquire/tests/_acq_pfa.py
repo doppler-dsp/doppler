@@ -47,14 +47,16 @@ if TYPE_CHECKING:
 
 #: Ratchet on the realized-Pfa-to-target ratio. It may only SHRINK.
 #:
-#: 1.5 since doppler#2218 put the delivered rate on target (it was 2.2
-#: against a delivered ~1.65-1.85). It is not tighter because the runs that
-#: hold it are small: both measure at `pfa = 1e-3` over 20,000 frames, so an
-#: on-target detector expects 20 hits, and a bound of 30 is exceeded by
-#: chance about 1% of the time. The regression it must catch is the 2x of
-#: pricing the native cells (about 38 expected hits). A tighter bound needs
-#: more frames, which is doppler#2324's CI home for the Pfa rows.
-PFA_RATIO_RATCHET = 1.5
+#: 1.4 since doppler#2218 put the delivered rate on target (it was 2.2
+#: against a delivered ~1.65-1.85). Set by the error it must catch, at the
+#: frames that resolve it: the certification (the caller CI runs, through
+#: test_validation_limits) measures 60,000 frames at `pfa = 1e-3`. An
+#: on-target detector expects 60 hits and exceeds 84 by chance about 0.1% of
+#: the time; the native pricing expects ~111 and stays under 84 about 0.5%.
+#: At 20,000 frames no bound does both: that run of the native pricing read
+#: 1.45x, inside a 1.5 bound. The characterization still measures 20,000
+#: frames for its figure, where the same bound is a looser check.
+PFA_RATIO_RATCHET = 1.4
 
 
 def realized_pfa(

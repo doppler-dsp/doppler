@@ -737,7 +737,8 @@ n = 3–9 (#2287).
     every grid shape.
 - The certification measures the delivered rate against the target (§2.5,
     finding **F7**, now FIXED) and holds it with a ratchet that may only
-    shrink: 1.5×, the tightest its 20,000-frame run can hold.
+    shrink: 1.4× over 60,000 frames, which an on-target detector trips about
+    0.1% of the time and the native pricing escapes about 0.5%.
 - `validate_acq_block_coherent --check` pins the continuous engine's
     per-block rate at the configured one, and refuses the native pricing at
     over 4 sigma.

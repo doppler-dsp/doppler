@@ -124,9 +124,9 @@ Every claim above is about how the threshold is DERIVED. This one asks the only 
 
 | target pfa | realized | ratio | sigma | frames |
 |---|---|---|---|---|
-| 1e-03 | 7.50e-04 | 0.75x | -1.1 | 20000 |
+| 1e-03 | 8.67e-04 | 0.87x | -1.0 | 60000 |
 
-The detector delivers **0.75x** the false-alarm rate it was configured for (-1.1 sigma over 20000 noise frames). This run is deliberately cheap enough for `make validate-check`, so read it as a ratchet check rather than as the estimate: at a 1e-3 target, 20000 frames give ~20 expected hits and a Poisson spread near +/-0.22 on the ratio. The gate is priced over every row of the Doppler-interpolated surface its maximum ranges over (F7, fixed by doppler#2218); priced over the native rows it delivered ~1.8x. The count treats each interpolated row as a fresh look, which it nearly is in the tail, so the bound is conservative by a few percent (doppler#1064 holds the measured refinement). Ratcheted at 1.5x below.
+The detector delivers **0.87x** the false-alarm rate it was configured for (-1.0 sigma over 60000 noise frames). This run is deliberately cheap enough for `make validate-check`, so read it as a ratchet check rather than as the estimate: at a 1e-3 target, 60000 frames give ~60 expected hits and a Poisson spread near +/-0.13 on the ratio. The gate is priced over every row of the Doppler-interpolated surface its maximum ranges over (F7, fixed by doppler#2218); priced over the native rows it delivered ~1.8x. The count treats each interpolated row as a fresh look, which it nearly is in the tail, so the bound is conservative by a few percent (doppler#1064 holds the measured refinement). Ratcheted at 1.4x below.
 
 ### 2.6 The Pd it delivers, against the Pd it predicts
 
@@ -251,7 +251,7 @@ Claims a caller may rely on. A failure here is a regression, not a new finding. 
 | PASS | burst mode spends its budget on coherent depth: a weak signal uses more Doppler bins than a strong one |
 | PASS | the searched reach (doppler_bins * doppler_res_hz / 2) covers the requested uncertainty at 0.5x, 0.95x, 2x and 4x the native span |
 | PASS | the native span is chip_rate/(2*sf), as documented |
-| PASS | the realized false-alarm rate stays inside its ratchet against the configured target -- a RATCHET on a 20,000-frame run, whose Poisson spread is ~+/-0.22: on target since doppler#2218 (F7), and it may only shrink |
+| PASS | the realized false-alarm rate stays inside its ratchet against the configured target -- a RATCHET on a 60,000-frame run, whose Poisson spread is ~+/-0.13: on target since doppler#2218 (F7), and it may only shrink |
 | PASS | `pd_predicted` describes the Pd delivered over the uniform prior: measured 0.71 against 0.61 predicted at D=8, 50 dB-Hz -- never optimistic (within 2 sigma of 300 trials), never more than 0.15 pessimistic (§2.6) |
 | PASS | the per-cell threshold rises with the searched cell count — a tighter uncertainty prior buys sensitivity, not just runtime |
 | PASS | `underpowered` is set when the link cannot meet the requested pd and clear when it can |

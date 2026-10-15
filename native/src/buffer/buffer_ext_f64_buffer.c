@@ -17,6 +17,7 @@ typedef struct
 {
   PyObject_HEAD dp_f64_buffer_state_t *handle;
   dp_f64_buffer_state_t *_jm_parked;   /* gh-2187: freed by tp_dealloc */
+  jm_inflight_t          _jm_inflight; /* gh-2272: GIL-free calls running */
   size_t                 _jm_borrowed; /* last borrow's count */
 } F64BufferObject;
 
@@ -30,6 +31,7 @@ F64BufferObj_dealloc (F64BufferObject *self)
     dp_f64_destroy (self->handle);
   if (self->_jm_parked)
     dp_f64_destroy (self->_jm_parked);
+  jm_inflight_free (&self->_jm_inflight);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -205,14 +207,16 @@ F64BufferObj_wait (F64BufferObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (_ix);
     }
   size_t n = (size_t)n_raw;
-  /* nogil: GIL released across the pure-C kernel — sound only when
-   * this object is not shared across threads concurrently (one
-   * object per stream); the kernel touches only this object's
-   * state/buffers and the caller's input. */
+  /* nogil: GIL released across the pure-C kernel. Two calls on
+   * one object may run at once only if its kernel allows it; a
+   * teardown waits for a running call (gh-2272). */
   double _Complex *_p;
+  void            *_jm_h = self->handle;
+  jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
-    _p = dp_f64_wait_view (self->handle, n);
+    _p = dp_f64_wait_view (_jm_h, n);
   Py_END_ALLOW_THREADS
+  jm_inflight_leave (&self->_jm_inflight);
   if (!_p)
     {
       if (PyErr_CheckSignals ())

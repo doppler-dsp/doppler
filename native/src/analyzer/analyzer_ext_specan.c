@@ -16,6 +16,7 @@
 typedef struct
 {
   PyObject_HEAD dp_specan_state_t *handle;
+  jm_inflight_t _jm_inflight; /* gh-2272: GIL-free calls running */
 } SpecanObject;
 
 static void
@@ -23,6 +24,7 @@ SpecanObj_dealloc (SpecanObject *self)
 {
   if (self->handle)
     dp_specan_destroy (self->handle);
+  jm_inflight_free (&self->_jm_inflight);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -179,15 +181,17 @@ SpecanObj_execute (SpecanObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (x_arr);
           return NULL;
         }
-      /* nogil: GIL released across the pure-C kernel — sound only when
-       * this object is not shared across threads concurrently (one
-       * object per stream); the kernel touches only this object's
-       * state/buffers and the caller's input. */
+      /* nogil: GIL released across the pure-C kernel. Two calls on
+       * one object may run at once only if its kernel allows it; a
+       * teardown waits for a running call (gh-2272). */
       float *_ng0 = (float *)PyArray_DATA (out_arr);
       size_t n_out;
+      void  *_jm_h = self->handle;
+      jm_inflight_enter (&self->_jm_inflight);
       Py_BEGIN_ALLOW_THREADS
-        n_out = dp_specan_execute (self->handle, x, x_len, _ng0, _cap);
+        n_out = dp_specan_execute (_jm_h, x, x_len, _ng0, _cap);
       Py_END_ALLOW_THREADS
+      jm_inflight_leave (&self->_jm_inflight);
       Py_DECREF (x_arr);
       if ((size_t)(n_out) > (size_t)(_cap))
         {
@@ -241,14 +245,16 @@ SpecanObj_execute (SpecanObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float *_d0 = (float *)PyArray_DATA ((PyArrayObject *)arr0);
-  /* nogil: GIL released across the pure-C kernel — sound only when
-   * this object is not shared across threads concurrently (one
-   * object per stream); the kernel touches only this object's
-   * state/buffers and the caller's input. */
+  /* nogil: GIL released across the pure-C kernel. Two calls on
+   * one object may run at once only if its kernel allows it; a
+   * teardown waits for a running call (gh-2272). */
   size_t n_out;
+  void  *_jm_h = self->handle;
+  jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
-    n_out = dp_specan_execute (self->handle, x, x_len, _d0, _cap);
+    n_out = dp_specan_execute (_jm_h, x, x_len, _d0, _cap);
   Py_END_ALLOW_THREADS
+  jm_inflight_leave (&self->_jm_inflight);
   Py_DECREF (x_arr);
   if ((size_t)(n_out) > (size_t)(_cap))
     {
@@ -478,8 +484,16 @@ SpecanObj_destroy (SpecanObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      dp_specan_destroy (self->handle);
+      void *_jm_st = self->handle;
       self->handle = NULL;
+      /* gh-2272: a GIL-free call may still be running on this
+         object; new ones are refused from here, so wait for those. */
+      if (jm_inflight_wait (&self->_jm_inflight) < 0)
+        {
+          self->handle = _jm_st;
+          return NULL;
+        }
+      dp_specan_destroy (_jm_st);
     }
   Py_RETURN_NONE;
 }
@@ -497,8 +511,16 @@ SpecanObj_exit (SpecanObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      dp_specan_destroy (self->handle);
+      void *_jm_st = self->handle;
       self->handle = NULL;
+      /* gh-2272: a GIL-free call may still be running on this
+         object; new ones are refused from here, so wait for those. */
+      if (jm_inflight_wait (&self->_jm_inflight) < 0)
+        {
+          self->handle = _jm_st;
+          return NULL;
+        }
+      dp_specan_destroy (_jm_st);
     }
   Py_RETURN_NONE;
 }

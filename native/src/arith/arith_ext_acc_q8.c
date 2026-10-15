@@ -42,11 +42,11 @@ static int
 AccQ8_init (AccQ8Object *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[] = { "acc", NULL };
-  long         acc_raw  = 0;
+  long long    acc_raw  = 0;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|l", kwlist, &acc_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|L", kwlist, &acc_raw))
     return -1;
-  if (acc_raw < (long)INT32_MIN || acc_raw > (long)INT32_MAX)
+  if (acc_raw < (long long)INT32_MIN || acc_raw > (long long)INT32_MAX)
     {
       PyErr_Format (PyExc_OverflowError,
                     "acc: %lld is out of range for int32_t [%lld, %lld]",
@@ -143,10 +143,10 @@ AccQ8_set_acc (AccQ8Object *self, PyObject *args)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  long v_raw = 0L;
-  if (!PyArg_ParseTuple (args, "l", &v_raw))
+  long long v_raw = 0LL;
+  if (!PyArg_ParseTuple (args, "L", &v_raw))
     return NULL;
-  if (v_raw < (long)INT32_MIN || v_raw > (long)INT32_MAX)
+  if (v_raw < (long long)INT32_MIN || v_raw > (long long)INT32_MAX)
     {
       PyErr_Format (PyExc_OverflowError,
                     "acc: %lld is out of range for int32_t [%lld, %lld]",

@@ -78,11 +78,96 @@ jm_array_arg (PyObject *obj, int typenum, int requirements, const char *name)
 }
 #endif /* JM_ARRAY_ARG_DEFINED */
 
+#ifndef JM_INFLIGHT_DEFINED
+#define JM_INFLIGHT_DEFINED
+/* gh-2272: the GIL-free calls running on one object, so its explicit
+ * teardown can wait for them instead of freeing under them. `n` is read
+ * and written only with the GIL held. `idle` exists only once a teardown
+ * has had to wait: that teardown holds it, and the last call to leave
+ * gives it back. */
+typedef struct
+{
+  Py_ssize_t         n;
+  int                waiting;
+  PyThread_type_lock idle;
+} jm_inflight_t;
+
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__ ((unused))
+#endif
+static inline void
+jm_inflight_enter (jm_inflight_t *g)
+{
+  g->n++;
+}
+
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__ ((unused))
+#endif
+static inline void
+jm_inflight_leave (jm_inflight_t *g)
+{
+  if (--g->n == 0 && g->waiting)
+    {
+      g->waiting = 0;
+      PyThread_release_lock (g->idle);
+    }
+}
+
+/* Called with the GIL held, after the object refuses new calls. Returns
+ * with none running: 0, or -1 with MemoryError when no lock could be had,
+ * in which case nothing has been waited for. */
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__ ((unused))
+#endif
+static inline int
+jm_inflight_wait (jm_inflight_t *g)
+{
+  while (g->n > 0)
+    {
+      if (!g->idle)
+        {
+          g->idle = PyThread_allocate_lock ();
+          if (!g->idle)
+            {
+              PyErr_NoMemory ();
+              return -1;
+            }
+        }
+      /* Take the lock, then block on it again with the GIL released:
+       * the last jm_inflight_leave releases it. The GIL is dropped by
+       * function here, not by the macro pair, so the macro still marks
+       * exactly the calls a binding runs without it. */
+      (void)PyThread_acquire_lock (g->idle, NOWAIT_LOCK);
+      g->waiting        = 1;
+      PyThreadState *ts = PyEval_SaveThread ();
+      (void)PyThread_acquire_lock (g->idle, WAIT_LOCK);
+      PyEval_RestoreThread (ts);
+      PyThread_release_lock (g->idle);
+    }
+  return 0;
+}
+
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__ ((unused))
+#endif
+static inline void
+jm_inflight_free (jm_inflight_t *g)
+{
+  if (g->idle)
+    {
+      PyThread_free_lock (g->idle);
+      g->idle = NULL;
+    }
+}
+#endif /* JM_INFLIGHT_DEFINED */
+
 /* String-enum tables — order is the C int (the [[enum]] SSOT). */
 typedef struct
 {
   PyObject_HEAD dp_sample_clock_t *h;
   int                              closed;
+  jm_inflight_t _jm_inflight; /* gh-2272: GIL-free calls running */
 } SampleClockObject;
 
 static int
@@ -98,6 +183,14 @@ SampleClock_init (SampleClockObject *self, PyObject *args, PyObject *kwds)
 
   if (!self->closed && self->h)
     {
+      self->closed = 1;
+      /* gh-2272: a GIL-free call may still be running on this
+         object; new ones are refused from here, so wait for those. */
+      if (jm_inflight_wait (&self->_jm_inflight) < 0)
+        {
+          self->closed = 0;
+          return -1;
+        }
       free (self->h);
       self->h      = NULL;
       self->closed = 1;
@@ -148,9 +241,11 @@ SampleClock_pace (SampleClockObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   double r;
+  jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
     r = dp_sample_clock_pace (self->h, count);
   Py_END_ALLOW_THREADS
+  jm_inflight_leave (&self->_jm_inflight);
   return PyFloat_FromDouble (r);
 }
 
@@ -394,6 +489,14 @@ SampleClock_close (SampleClockObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->closed && self->h)
     {
+      self->closed = 1;
+      /* gh-2272: a GIL-free call may still be running on this
+         object; new ones are refused from here, so wait for those. */
+      if (jm_inflight_wait (&self->_jm_inflight) < 0)
+        {
+          self->closed = 0;
+          return NULL;
+        }
       free (self->h);
       self->closed = 1;
     }
@@ -407,6 +510,7 @@ SampleClock_dealloc (SampleClockObject *self)
     {
       free (self->h);
     }
+  jm_inflight_free (&self->_jm_inflight);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 

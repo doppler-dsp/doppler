@@ -11,7 +11,8 @@
  * arriving first would both read `ready == 0`, both call `dp_rs_init`, and --
  * the part that makes it undefined behaviour rather than a wasted
  * initialisation -- one could read `ccsds`'s tables while the other was
- * still filling them. `pthread_once` fixed it (gh-817).
+ * still filling them. `pthread_once` fixed it (gh-817); the guard is
+ * dp_once() now, the one every lazily built table uses (doppler#2328).
  *
  * The check has two halves, because the interesting failure is silent:
  *
@@ -26,7 +27,7 @@
  * Run under ThreadSanitizer (`make test-tsan`) this also fails on the race
  * ITSELF rather than on its consequences, which is the evidence the fix
  * actually wants: a benign-looking pass here proves the outcome, and TSan
- * proves the mechanism. Reverting rs.c's `pthread_once` to the old flag is
+ * proves the mechanism. Reverting rs.c's dp_once() to the old flag is
  * what makes both go red.
  */
 #include "doppler/ccsds_tm/ccsds_tm_rs.h"

@@ -30,8 +30,10 @@
  * a sample, and read up to 0.23 of Pd high.
  *
  * Usage:
- *   validate_capture_dwell_pd           every D, 1000 trials a row: reports,
- *                                       decides nothing
+ *   validate_capture_dwell_pd           every D, 1000 trials a row, held to
+ *                                       the --check bounds at EVERY D (it
+ *                                       used to report and decide nothing,
+ *                                       doppler#1566)
  *   validate_capture_dwell_pd --check   the spot checks CTest runs, 300
  *                                       trials each, at D = 1 (the smallest
  *                                       CFAR reference), D = 4 (a whole
@@ -332,8 +334,10 @@ main (int argc, char **argv)
                   r.meas, r.se, r.meas - r.eng, r.wrong);
         /* pd_burst holds for the engine it models, on both sides of
            (R + 1)/2 and at the most dwells: never optimistic beyond 2
-           sigma, never conservative beyond 0.15 -- acq's own bounds. */
-        if (check)
+           sigma, never conservative beyond 0.15 -- acq's own bounds. The
+           check holds three depths and the full run all eight; --emit's
+           rows are decided by the report it feeds. */
+        if (!emit)
           {
             DP_CHECK (r.eng >= r.pred - 2.0 * r.eng_se);
             DP_CHECK (r.eng - r.pred <= 0.15);

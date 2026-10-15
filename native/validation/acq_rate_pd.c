@@ -45,13 +45,19 @@
  *                                  auto (0) hypotheses and fewer trials:
  *                                  compensation delivers what it predicts,
  *                                  beats the capped depth, and holds Pfa
+ *   validate_acq_rate_pd --pfa-check
+ *                                  the noise rows alone, at the dwells that
+ *                                  resolve the error each row must catch
+ *                                  (pfa_check()), in parallel; CTest runs
+ *                                  it as validate_acq_rate_pd_pfa
  *
- * Both modes assert the same claims.
+ * The first two modes assert the same claims.
  */
 #include "doppler/acq/acq_core.h"
 #include "doppler/awgn/awgn_core.h"
 #include "doppler/burst_capture/burst_capture_core.h"
 #include "doppler/dp_complex.h"
+#include "doppler/dp_parallel.h"
 #include "doppler/wfm_synth/wfm_synth_core.h"
 #include "dp_preamble_test.h"
 #include "dp_rng_test.h"
@@ -320,6 +326,61 @@ measure_pfa (size_t rh, double cn0, double dwells_wanted, uint32_t seed)
   return r;
 }
 
+/* --pfa-check: the per-dwell Pfa rows CI holds (doppler#2324), at the design
+   point where nine hypotheses predict PD, each not significantly above the
+   target. The dwells are set by the error each row must catch. Pricing the
+   native cells instead of the interpolated ones (doppler#2218) doubles the
+   base rate, and that crosses the target on the rows near it: 1 (0.95x of
+   it), 3 (0.60x) and auto (0.65x). 100000 dwells resolve that there; Rh = 1
+   then reads ~1.9e-3, its 95% lower bound ~1.65e-3. On 5 (0.52x) and 9
+   (0.22x) a doubling stays at or under the target, so no affordable count
+   catches it, and 20000 dwells hold them under it as they are. Each row is
+   its own engine, noise and seed, so the rows run in parallel and the counts
+   do not depend on the schedule; the heaviest go first. */
+typedef struct
+{
+  size_t    rh;
+  double    dwells;
+  uint32_t  seed;
+  double    cn0;
+  pfa_row_t row;
+} pfa_job_t;
+
+static void
+pfa_job (size_t i, void *ctx)
+{
+  pfa_job_t *j = (pfa_job_t *)ctx + i;
+  j->row       = measure_pfa (j->rh, j->cn0, j->dwells, j->seed);
+}
+
+static int
+pfa_check (void)
+{
+  zadoff_chu ();
+  const double cn0    = cn0_for (9, PD);
+  pfa_job_t    jobs[] = {
+    { 0, 1.0e5, 7000u, cn0, { 0 } }, { 3, 1.0e5, 7003u, cn0, { 0 } },
+    { 9, 2.0e4, 7009u, cn0, { 0 } }, { 5, 2.0e4, 7005u, cn0, { 0 } },
+    { 1, 1.0e5, 7001u, cn0, { 0 } },
+  };
+  const size_t n = sizeof jobs / sizeof *jobs;
+  dp_parallel_for (n, pfa_job, jobs, 0);
+  printf ("noise only at C/N0 %.2f dB (where Rh = 9 predicts Pd %g): the "
+          "share of dwells above the gate, target pfa %g\n",
+          cn0, PD, PFA);
+  printf ("%4s %3s %3s %9s %7s %9s %9s %9s\n", "ask", "Rh", "D", "dwells",
+          "hits", "pfa", "lo95", "hi95");
+  for (size_t i = 0; i < n; i++)
+    {
+      const pfa_row_t *r = &jobs[i].row;
+      printf ("%4zu %3zu %3zu %9.0f %7.0f %9.2e %9.2e %9.2e\n", jobs[i].rh,
+              r->rh, r->depth, r->dwells, r->hits, r->pfa, r->lo, r->hi);
+      DP_CHECK_MSG (r->lo <= PFA,
+                    "per-dwell Pfa is not significantly above the target");
+    }
+  DP_TEST_END ("validate_acq_rate_pd --pfa-check");
+}
+
 typedef struct
 {
   size_t rh, depth;
@@ -431,6 +492,8 @@ measure_rate (size_t rh, double design, double sig, double rate, int trials,
 int
 main (int argc, char **argv)
 {
+  if (argc > 1 && strcmp (argv[1], "--pfa-check") == 0)
+    return pfa_check ();
   const int    check  = (argc > 1 && strcmp (argv[1], "--check") == 0);
   const int    trials = check ? 250 : 1000;
   const double dwells = check ? 1.0e4 : 2.0e5;
@@ -584,15 +647,14 @@ main (int argc, char **argv)
                         "auto beats the capped depth, outside the "
                         "intervals");
         }
-    /* Pfa: the hypotheses are priced. The rows with Rh > 1 are not
-       significantly above the target. (Rh = 1 is the engine as it ran
-       before compensation existed, and reads about twice the target at
-       this geometry -- reported above, not this program's to hold.) */
+    /* Pfa: every row, the uncompensated one included, is not significantly
+       above the target. Rh = 1 read about twice it until the gate was
+       priced over the interpolated cells its maximum ranges over
+       (doppler#2218); the rows with Rh > 1 sit under it, because each
+       hypothesis is priced as a full look (#2287). */
     for (size_t i = 0; i < NRH; i++)
-      if (prow[i].rh > 1)
-        DP_CHECK_MSG (prow[i].lo <= PFA,
-                      "per-dwell Pfa is not significantly above the "
-                      "target");
+      DP_CHECK_MSG (prow[i].lo <= PFA,
+                    "per-dwell Pfa is not significantly above the target");
   }
 
   /* The same claims on a repeated LFM preamble. ZC stays the geometry above;

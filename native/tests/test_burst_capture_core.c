@@ -3500,9 +3500,11 @@ test_refine_searches_a_denser_rate_grid (void)
  * preamble, and the event reports the hypothesis that won, not the detecting
  * dwell's. A swept burst placed a quarter of a grid step from one hypothesis,
  * on either sign and at the span's edge, must come back with exactly that
- * hypothesis; the last-event read-back says the same. Well above the design
- * point (noise 20 dB under the burst), where the contract says the nearest
- * hypothesis wins every time.
+ * hypothesis; the last-event read-back says the same. The noise sits 17 dB
+ * under the burst (sigma 0.1 per component), about 7 dB over this capture's
+ * 10 dB design point: these seeded streams each name the nearest hypothesis,
+ * which is what this pins. How often that holds at each level, on and off
+ * the grid, is validate_acq_rate_pd's event-rate rows.
  */
 static int
 test_each_event_carries_refines_rate (void)
@@ -3615,6 +3617,8 @@ test_each_event_carries_refines_rate (void)
     DP_REQUIRE (z != NULL);
     dp_burst_capture_reset (z);
     (void)dp_burst_capture_push (z, x, LEN, out, cap);
+    DP_REQUIRE_MSG (dp_burst_capture_ready (z) > 0,
+                    "the capture without hypotheses still emits");
     for (size_t k = 0; k < dp_burst_capture_ready (z); k++)
       DP_CHECK (dp_burst_capture_event_at (z, k)->doppler_rate_hz_s == 0.0);
     dp_burst_capture_destroy (z);

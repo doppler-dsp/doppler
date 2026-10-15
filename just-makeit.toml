@@ -112,20 +112,13 @@ c_deps = [
 # satisfies the manifest again.
 # jm 0.51.0 (gh-823 Ask B) added a THIRD constructor-drift axis -- optionality --
 # and made the whole kwargs-drift class fail `jm status --check` rather than
-# qualify the "OK" line. It found three in doppler. One was a real, shipping
-# defect and is FIXED: CarrierAcquisition's published constructor could not be
-# called as documented (see the 0.42.0 CHANGELOG). A second, Resampler's
-# undeclared `bank=`, is fixed too: c179bc663 declared it as an optional array
-# init-param and made the fragment jm-generated (doppler#635). The one below is
-# the same CLASS of divergence but does not break a documented call, so it is
-# exempted here rather than rushed:
-#
-#   wfm_ext_wfm_synth.c -- positional ORDER drift on `_SynthEngine`, which is
-#     underscore-private (the public `wfm.Synth` is compose.py's wrapper) and is
-#     only ever constructed with keywords, in tests. Keyword callers bind
-#     correctly, so nothing is currently wrong; a positional caller would bind
-#     silently to the wrong fields, which is why it is tracked rather than
-#     accepted forever.
+# qualify the "OK" line. It found three in doppler, and all three are FIXED.
+# CarrierAcquisition's published constructor could not be called as documented
+# (see the 0.42.0 CHANGELOG). Resampler's undeclared `bank=` became an optional
+# array init-param with a jm-generated fragment (c179bc663, doppler#635). And
+# `_SynthEngine`'s positional ORDER drift ended when its fragment was adopted
+# (doppler#1886): the binding now takes the manifest's order, as the owner
+# ruled, so the entry that exempted it is gone.
 #
 # NB `status_allow` matches PATHS, not findings, so each entry also accepts that
 # file's stale/missing classification -- it is broader than the reason it was
@@ -159,7 +152,6 @@ c_deps = [
 status_allow = [
     "zensical.toml",
     "CMakePresets.json",
-    "native/src/wfm/wfm_ext_wfm_synth.c",
     "native/tests/jm_test.h",
     # The three deliberate UNWIRED cores (jm gh-984). Each is scoped to its
     # COMPONENT, never to `CMakeLists.txt` itself: naming the file would
@@ -1065,11 +1057,12 @@ type = "int"
 name = "_sweep_ends"
 doc = """Start and end frequency of the chirp that sweeps about a center.
 
-A chirp from ``f0`` to ``f_end`` pinned over ``n`` samples has instantaneous
-frequency ``f_mid + rate*u`` Hz at sample ``i``, ``u = (i - center)/fs``
-seconds, so it multiplies a block by ``exp(j*2*pi*(f_mid*u + rate*u**2/2))``
-up to one constant phase. This is the single copy of that arithmetic
-(``dp_wfm_synth_sweep_ends``); ``doppler.wfm.rotate`` takes it from here.
+A chirp from ``f0`` to ``f_end`` pinned over ``n`` samples has
+instantaneous frequency ``f_mid + rate*u`` Hz at sample ``i``,
+``u = (i - center)/fs`` seconds, so it multiplies a block by
+``exp(j*2*pi*(f_mid*u + rate*u**2/2))`` up to one constant phase. This is
+the single copy of that arithmetic (``dp_wfm_synth_sweep_ends``);
+``doppler.wfm.rotate`` takes it from here.
 
 Examples
 --------

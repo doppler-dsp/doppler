@@ -2443,7 +2443,7 @@ Synth_gen_prod (SynthObject *self, PyObject *args, PyObject *kwds)
       || PyArray_TYPE ((PyArrayObject *)in_obj) != NPY_COMPLEX64)
     {
       PyErr_Format (PyExc_TypeError,
-                    "in must be an ndarray of dtype np.complex64"
+                    "x must be an ndarray of dtype np.complex64"
                     " (got %R)",
                     PyArray_Check (in_obj)
                         ? (PyObject *)PyArray_DESCR ((PyArrayObject *)in_obj)
@@ -2454,7 +2454,7 @@ Synth_gen_prod (SynthObject *self, PyObject *args, PyObject *kwds)
       || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)in_obj))
     {
       PyErr_Format (PyExc_ValueError,
-                    "in must be a 1-D C-contiguous array"
+                    "x must be a 1-D C-contiguous array"
                     " (got %d-D%s)",
                     PyArray_NDIM ((PyArrayObject *)in_obj),
                     PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)in_obj)
@@ -2496,16 +2496,17 @@ Synth_gen_prod (SynthObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      /* nogil: GIL released across the pure-C kernel — sound only when
-       * this object is not shared across threads concurrently (one
-       * object per stream); the kernel touches only this object's
-       * state/buffers and the caller's input. */
+      /* nogil: GIL released across the pure-C kernel. Two calls on
+       * one object may run at once only if its kernel allows it; a
+       * teardown waits for a running call (gh-2272). */
       const float _Complex *_ng0
           = (const float _Complex *)PyArray_DATA (in_arr);
       float _Complex *_ng1 = (float _Complex *)PyArray_DATA (out_arr);
+      jm_inflight_enter (&self->_jm_inflight);
       Py_BEGIN_ALLOW_THREADS
         dp_wfm_synth_prod (self->_gen, _ng0, (size_t)n, _ng1);
       Py_END_ALLOW_THREADS
+      jm_inflight_leave (&self->_jm_inflight);
       Py_DECREF (in_arr);
       return (PyObject *)out_arr;
     }
@@ -2516,15 +2517,16 @@ Synth_gen_prod (SynthObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (in_arr);
       return NULL;
     }
-  /* nogil: GIL released across the pure-C kernel — sound only when
-   * this object is not shared across threads concurrently (one
-   * object per stream); the kernel touches only this object's
-   * state/buffers and the caller's input. */
+  /* nogil: GIL released across the pure-C kernel. Two calls on
+   * one object may run at once only if its kernel allows it; a
+   * teardown waits for a running call (gh-2272). */
   const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (in_arr);
   float _Complex *_ng1 = (float _Complex *)PyArray_DATA ((PyArrayObject *)out);
+  jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
     dp_wfm_synth_prod (self->_gen, _ng0, (size_t)n, _ng1);
   Py_END_ALLOW_THREADS
+  jm_inflight_leave (&self->_jm_inflight);
   Py_DECREF (in_arr);
   return out;
 }
@@ -2588,24 +2590,17 @@ static PyMethodDef Synth_methods[] = {
     "\n"
     "Multiply a block by the synth's next output samples.\n"
     "\n"
-    "``out[i] = x[i] * y[i]``, where ``y`` is what ``steps(len(x))`` would "
-    "emit\n"
-    "next. The synth advances exactly as ``steps(len(x))`` does, so split "
-    "calls\n"
-    "leave the same synth state as one call and an empty ``x`` does not "
-    "advance it;\n"
-    "the product itself agrees across such call sequences to rounding (a few "
-    "ulp\n"
-    "of ``|x| * |y|``), not to the bit, because the compiler may contract "
-    "the\n"
-    "multiply differently on different paths (arm64 under ``-ffast-math``).\n"
-    "``x`` is not modified.\n"
+    "``out[i] = x[i] * y[i]``, where ``y`` is what ``steps(len(x))`` would\n"
+    "emit next. The synth advances exactly as ``steps(len(x))`` does, so\n"
+    "split calls leave the same synth state as one call and an empty ``x``\n"
+    "does not advance it; the product itself agrees across such call\n"
+    "sequences to rounding (a few ulp of ``|x| * |y|``), not to the bit,\n"
+    "because the compiler may contract the multiply differently on different\n"
+    "paths (arm64 under ``-ffast-math``). ``x`` is not modified.\n"
     "\n"
-    "``Synth.prod`` refuses a strided, non-complex64 or non-1-D ``x``. The "
-    "private\n"
-    "``_SynthEngine.prod`` still copies a strided block and casts a "
-    "complex128 one\n"
-    "silently, until just-makeit#2271 ships.\n"
+    "``x`` must be a 1-D C-contiguous complex64 array: a strided,\n"
+    "non-complex64 or non-1-D block is refused (``ValueError`` /\n"
+    "``TypeError``), never copied or cast.\n"
     "\n"
     "This is the general waveform-multiplication operator: with a tone synth\n"
     "it is a rotation, with a chirp synth a swept rotation, with noise a\n"

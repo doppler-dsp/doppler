@@ -934,6 +934,42 @@ main (void)
           resumed = 0;
       DP_CHECK_MSG (resumed, "part ++ cont == ref across a split in the data "
                              "section, into the next frame");
+
+      /* The window is a setter's value, so it travels in the blob (#2022):
+         a synth restored WITHOUT dp_wfm_synth_set_dsss_window resumes the
+         framed stream all the same. */
+      dp_wfm_synth_state_t *d = dp_wfm_synth_create (
+          WFM_SYNTH_DSSS, fs, 0.0, 100.0, 1, 9, (int)spc, 7, 0, 0, 0.0);
+      DP_CHECK (dp_wfm_synth_set_dsss_cont (d, code, sf, cps,
+                                            WFM_DSSS_DATA_BITS, pay18, 18)
+                == 0);
+      DP_CHECK (dp_wfm_synth_set_state (d, blob) == 0);
+      float _Complex *e = malloc (n * sizeof *e);
+      memcpy (e, b, cut * sizeof *e);
+      dp_wfm_synth_steps (d, e + cut, n - cut);
+      int carried = 1;
+      for (size_t i = 0; i < n; i++)
+        if (a[i] != e[i])
+          carried = 0;
+      DP_CHECK_MSG (carried, "the blob carries the window: a synth never "
+                             "given one resumes the framed stream");
+
+      /* ...and is checked by the setter's own rule. The window's two u64s
+         follow the fixed fields: sym_pos (u32), cur_re/cur_im (f32 x2), six
+         u64 counters, then cur_data/primed/data_ended (one byte each). */
+      const size_t at_win = sizeof (dp_state_hdr_t) + 4 + 8 + 6 * 8 + 3;
+      uint64_t     got_w = 0, got_f = 0;
+      memcpy (&got_w, (unsigned char *)blob + at_win, 8);
+      memcpy (&got_f, (unsigned char *)blob + at_win + 8, 8);
+      DP_CHECK_MSG (got_w == W && got_f == F,
+                    "the window sits where the forge below writes it");
+      const uint64_t bad_w = (uint64_t)F + 1u; /* exceeds a non-zero frame */
+      memcpy ((unsigned char *)blob + at_win, &bad_w, 8);
+      DP_CHECK_MSG (dp_wfm_synth_set_state (d, blob) == DP_ERR_INVALID,
+                    "a blob whose window breaks set_dsss_window's rule is "
+                    "refused");
+      free (e);
+      dp_wfm_synth_destroy (d);
 #undef CHIP_BIT
       free (blob);
       free (a);

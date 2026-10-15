@@ -500,7 +500,9 @@ dp_wfm_synth_reseed_noise (dp_wfm_synth_state_t *state, uint32_t seed)
  * has run, so a mid-stream hand-off resumes the shaped waveform
  * bit-for-bit. A REFILL rewrites bits[] with each frame it pulls, so there
  * the frame is state: v3 carries it, then the refill's own sub-blob
- * (doppler#1681), last so every fixed-size field precedes it.
+ * (doppler#1681), last so every fixed-size field precedes it. v5 carries the
+ * DSSS window (dp_wfm_synth_set_dsss_window), a setter's value, so a synth
+ * restored without the call resumes the framed stream (#2022).
  */
 size_t
 dp_wfm_synth_state_bytes (const dp_wfm_synth_state_t *s)
@@ -520,6 +522,7 @@ dp_wfm_synth_state_bytes (const dp_wfm_synth_state_t *s)
              + sizeof (uint8_t)                          /* cur_data     */
              + sizeof (uint8_t)                          /* primed       */
              + sizeof (uint8_t)                          /* data_ended   */
+             + 2 * sizeof (uint64_t)                     /* dsss window  */
              + 6;                                        /* presence     */
   if (s->fir)
     b += dp_fir_state_bytes (s->fir);
@@ -555,6 +558,8 @@ dp_wfm_synth_get_state (const dp_wfm_synth_state_t *s, void *blob)
   dp_w_bytes (&_w, &s->cur_data, 1);
   dp_w_bytes (&_w, &s->primed, 1);
   dp_w_bytes (&_w, &s->data_ended, 1);
+  dp_w_u64 (&_w, (uint64_t)s->code_only_symbols);
+  dp_w_u64 (&_w, (uint64_t)s->frame_symbols);
   uint8_t pres[6] = { s->fir != NULL,  s->shaper != NULL, s->lo != NULL,
                       s->awgn != NULL, s->pn != NULL,     s->refill != NULL };
   dp_w_bytes (&_w, pres, 6);
@@ -605,6 +610,14 @@ dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
   /* In the blob since v3: a refill's end is its source's, which the
      sub-blob below restores, so it is carried rather than re-derived. */
   dp_r_bytes (&_r, &s->data_ended, 1);
+  /* In the blob since v5, checked by its setter's own predicate: the
+     window restores whether or not this synth was given one. */
+  const uint64_t code_only = dp_r_u64 (&_r);
+  const uint64_t frame     = dp_r_u64 (&_r);
+  if (frame && code_only > frame)
+    return DP_ERR_INVALID;
+  s->code_only_symbols = (size_t)code_only;
+  s->frame_symbols     = (size_t)frame;
   uint8_t pres[6] = { 0 }; /* dp_r_bytes writes nothing on an errored reader */
   dp_r_bytes (&_r, pres, 6);
   /* the blob's child set must match this instance's config (same wtype,

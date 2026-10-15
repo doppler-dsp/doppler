@@ -747,7 +747,8 @@ every hit of a dwell wears the winner's rate.
     the interpolated surface, times `code_bins`), so the gate rises with `n`.
     The hypotheses are strongly correlated, so that is conservative: measured
     per dwell against a target of 1e-3 (200,000 dwells each), `n = 1, 3, 5, 9`
-    read 0.95e-3, 0.60e-3, 0.52e-3 and 0.22e-3 (#2287).
+    read 0.95e-3, 0.60e-3, 0.52e-3 and 0.22e-3 (#2287). CI holds them, each
+    not significantly above the target, in `validate_acq_rate_pd_pfa` (#2324).
 - *Refine follows.* Its coherent sum runs the whole preamble, so a sweep that
     the engine's short dwell tolerates collapses it: the capture named the
     wrong repetition for about half the bursts at high SNR. Refine tries the

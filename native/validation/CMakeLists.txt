@@ -578,10 +578,17 @@ add_executable(validate_acq_rate_pd
 target_include_directories(validate_acq_rate_pd
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
-target_link_libraries(validate_acq_rate_pd PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
+# Threads::Threads: --pfa-check runs its noise rows across dp_parallel.h.
+target_link_libraries(validate_acq_rate_pd
+                      PRIVATE doppler_lib_static Threads::Threads ${DP_MATH_LIBRARY})
 dp_gnu_compile_options(validate_acq_rate_pd PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_acq_rate_pd
          COMMAND validate_acq_rate_pd --check)
+# The per-dwell Pfa rows at the dwells that resolve a doubled rate where it
+# would cross the target (doppler#2324): the --check run's 10000 dwells
+# cannot, which is how a 2x false-alarm rate went unseen (doppler#2218).
+add_test(NAME validate_acq_rate_pd_pfa
+         COMMAND validate_acq_rate_pd --pfa-check)
 
 # The pool's lifecycle soak: emitters from the shipped synth with its
 # window, each through the shipped doppler_channel at its own Doppler,

@@ -76,10 +76,10 @@ I32ToF32_step (I32ToF32Object *self, PyObject *args)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  long x_raw = 0L;
-  if (!PyArg_ParseTuple (args, "l", &x_raw))
+  long long x_raw = 0LL;
+  if (!PyArg_ParseTuple (args, "L", &x_raw))
     return NULL;
-  if (x_raw < (long)INT32_MIN || x_raw > (long)INT32_MAX)
+  if (x_raw < (long long)INT32_MIN || x_raw > (long long)INT32_MAX)
     {
       PyErr_Format (PyExc_OverflowError,
                     "x: %lld is out of range for int32_t [%lld, %lld]",

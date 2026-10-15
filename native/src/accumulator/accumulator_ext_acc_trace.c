@@ -16,6 +16,7 @@
 typedef struct
 {
   PyObject_HEAD dp_acc_trace_state_t *handle;
+  jm_inflight_t _jm_inflight; /* gh-2272: GIL-free calls running */
 } AccTraceObject;
 
 static void
@@ -23,6 +24,7 @@ AccTraceObj_dealloc (AccTraceObject *self)
 {
   if (self->handle)
     dp_acc_trace_destroy (self->handle);
+  jm_inflight_free (&self->_jm_inflight);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -118,13 +120,15 @@ AccTraceObj_accumulate (AccTraceObject *self, PyObject *args, PyObject *kwds)
     }
   const float *p     = (const float *)PyArray_DATA (p_arr);
   size_t       p_len = (size_t)PyArray_SIZE (p_arr);
-  /* nogil: GIL released across the pure-C kernel — sound only when
-   * this object is not shared across threads concurrently (one
-   * object per stream); the kernel touches only this object's
-   * state/buffers and the caller's input. */
+  /* nogil: GIL released across the pure-C kernel. Two calls on
+   * one object may run at once only if its kernel allows it; a
+   * teardown waits for a running call (gh-2272). */
+  void *_jm_h = self->handle;
+  jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
-    dp_acc_trace_accumulate (self->handle, p, p_len);
+    dp_acc_trace_accumulate (_jm_h, p, p_len);
   Py_END_ALLOW_THREADS
+  jm_inflight_leave (&self->_jm_inflight);
   Py_DECREF (p_arr);
   Py_RETURN_NONE;
 }
@@ -403,8 +407,16 @@ AccTraceObj_destroy (AccTraceObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      dp_acc_trace_destroy (self->handle);
+      void *_jm_st = self->handle;
       self->handle = NULL;
+      /* gh-2272: a GIL-free call may still be running on this
+         object; new ones are refused from here, so wait for those. */
+      if (jm_inflight_wait (&self->_jm_inflight) < 0)
+        {
+          self->handle = _jm_st;
+          return NULL;
+        }
+      dp_acc_trace_destroy (_jm_st);
     }
   Py_RETURN_NONE;
 }
@@ -422,8 +434,16 @@ AccTraceObj_exit (AccTraceObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      dp_acc_trace_destroy (self->handle);
+      void *_jm_st = self->handle;
       self->handle = NULL;
+      /* gh-2272: a GIL-free call may still be running on this
+         object; new ones are refused from here, so wait for those. */
+      if (jm_inflight_wait (&self->_jm_inflight) < 0)
+        {
+          self->handle = _jm_st;
+          return NULL;
+        }
+      dp_acc_trace_destroy (_jm_st);
     }
   Py_RETURN_NONE;
 }

@@ -67,6 +67,7 @@
 #include "doppler/wfm_synth/wfm_synth_core.h"
 #include "dp_preamble_test.h"
 #include "dp_rng_test.h"
+#include "dp_swept_test.h"
 #include "dp_test.h"
 #include <math.h>
 #include <stdint.h>
@@ -230,11 +231,10 @@ measure_pd (size_t rh, int midpoint, double cn0, int trials, uint32_t seed)
                     ? per[i % N]
                     : (float _Complex)cexp (I * M_PI / 2.0
                                             * (double)(dp_xs32 (&st) >> 30));
-          const double u = (double)i - 0.5 * dur; /* about the preamble */
-          x[at + i] = v
-                      * (float _Complex)cexp (
-                          I * 2.0 * M_PI * (f_mid * u + 0.5 * rate * u * u));
+          x[at + i] = v;
         }
+      /* The sweep is about the PREAMBLE's middle; the payload continues it. */
+      dp_swept_rotate (x + at, BURST, 1.0, f_mid, rate, 0.5 * dur);
       dp_awgn_generate (g, len, nz, len);
       for (size_t i = 0; i < len; i++)
         x[i] += nz[i];
@@ -521,11 +521,9 @@ measure_rate (size_t rh, double design, double sig, double rate, int trials,
                     ? per[i % N]
                     : (float _Complex)cexp (I * M_PI / 2.0
                                             * (double)(dp_xs32 (&st) >> 30));
-          const double u = (double)i - 0.5 * dur;
-          x[at + i] = v
-                      * (float _Complex)cexp (
-                          I * 2.0 * M_PI * (f_mid * u + 0.5 * rate * u * u));
+          x[at + i] = v;
         }
+      dp_swept_rotate (x + at, BURST, 1.0, f_mid, rate, 0.5 * dur);
       dp_awgn_generate (g, len, nz, len);
       for (size_t i = 0; i < len; i++)
         x[i] += nz[i];
@@ -621,11 +619,9 @@ measure_event_rate (size_t rh, double design, double sig, double base,
                     ? per[i % N]
                     : (float _Complex)cexp (I * M_PI / 2.0
                                             * (double)(dp_xs32 (&st) >> 30));
-          const double u = (double)i - 0.5 * dur;
-          x[at + i] = v
-                      * (float _Complex)cexp (
-                          I * 2.0 * M_PI * (f_mid * u + 0.5 * rate * u * u));
+          x[at + i] = v;
         }
+      dp_swept_rotate (x + at, BURST, 1.0, f_mid, rate, 0.5 * dur);
       dp_awgn_generate (g, len, nz, len);
       for (size_t i = 0; i < len; i++)
         x[i] += nz[i];

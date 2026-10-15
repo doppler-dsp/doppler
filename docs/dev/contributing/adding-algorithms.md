@@ -281,6 +281,9 @@ two refinements are held in `test_burst_capture_core.c` by cases a search of
 wrong repetition ([#2219](https://github.com/doppler-dsp/doppler/issues/2219)).
 Only when no such scenario exists is the seeded point estimate pinned, as a
 regression pin, not a significance test, and the validator says which it is.
+A seeded pin can also stay beside exact guards as a broad backstop: the
+validator's one now watches for any regression of 0.015-0.04 that its
+intervals cannot see, not only the two the tests hold.
 
 Two more habits the same validator shows. **Run the claim on a second
 signal**: the compensation was measured on a Zadoff-Chu preamble, but the

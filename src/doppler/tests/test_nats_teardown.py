@@ -26,20 +26,43 @@ every box that lacks one — which for a race that only shows up on a loaded CI
 runner is the worst of both worlds. So the fixture is a process that traps
 SIGTERM and keeps writing into the store afterwards, which is the one
 property of nats-server the recipe has to survive.
+
+**The recipe's first step is aimed away from the suite's broker.** It
+purges every `DP_WORK_*` stream (`scripts/nats_streams.py --delete`), and
+run against the broker the other xdist workers share, that deleted their
+work queues mid-test: a Pull read elsewhere stopped short at whatever frame
+it had reached, five times in 200 CI runs (#2319). So the purge is pointed
+at a port that refuses connections, `docker` (the recipe removes a
+container named `nats`, which on a docker dev box IS the shared broker) is
+a stand-in on PATH, and with a broker up, a sentinel work queue on the
+shared broker has to survive the recipe.
 """
 
 from __future__ import annotations
 
 import os
+import socket
 import subprocess
 import sys
 import textwrap
+import uuid
 from typing import TYPE_CHECKING
 
+import pytest
+
+from doppler.tests._nats import (
+    HOST,
+    PORT,
+    delete_stream_if_present,
+    nats_available,
+)
 from doppler.tests._repo import repo_root
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from pathlib import Path
+
+    from doppler.stream import Push
 
 REPO = repo_root(__file__)
 
@@ -84,13 +107,53 @@ WRITER = textwrap.dedent(
 )
 
 
-def test_nats_down_waits_for_the_writer(tmp_path: Path) -> None:
+@pytest.fixture
+def refused_port() -> Iterator[int]:
+    """A loopback port that refuses connections, for as long as the test.
+
+    Bound and never listened on, so nothing else can take it and a connect
+    is refused at once -- which `--quiet-when-absent` reads as "no broker,
+    nothing to do".
+    """
+    with socket.socket() as s:
+        s.bind((HOST, 0))
+        yield s.getsockname()[1]
+
+
+@pytest.fixture
+def shared_queue() -> Iterator[Push | None]:
+    """A work queue on the suite's shared broker, or None without one.
+
+    It stands for every other worker's queue in flight while this test runs.
+    """
+    if not nats_available():
+        yield None
+        return
+    from doppler.stream import CF32, Push
+
+    tag = f"dp-teardown-sentinel-{uuid.uuid4().hex[:10]}"
+    push = Push(f"nats://{HOST}:{PORT}/{tag}", CF32)  # provisions it
+    try:
+        yield push
+    finally:
+        delete_stream_if_present(push)
+        push.close()
+
+
+def test_nats_down_waits_for_the_writer(
+    tmp_path: Path, refused_port: int, shared_queue: Push | None
+) -> None:
     """The store is gone, and the recipe reports success, with a writer
     still flushing when the teardown starts."""
     store = tmp_path / "doppler-nats-store"
     # The real layout, so a reader of a failure sees the path CI printed.
     msgs = store / "jetstream" / "$G" / "streams" / "DP_WORK_test" / "msgs"
     pidfile = tmp_path / "doppler-nats.pid"
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    docker = bindir / "docker"
+    docker.write_text('#!/bin/sh\necho "$@" >> "$0.calls"\n', "utf-8")
+    docker.chmod(0o755)
 
     writer = subprocess.Popen(
         [
@@ -113,6 +176,8 @@ def test_nats_down_waits_for_the_writer(tmp_path: Path) -> None:
             **os.environ,
             "TMPDIR": str(tmp_path),
             "NATS_PIDFILE": str(pidfile),
+            "NATS_STREAMS_PORT": str(refused_port),
+            "PATH": f"{bindir}{os.pathsep}{os.environ['PATH']}",
         }
         proc = subprocess.run(
             ["make", "nats-down"],
@@ -137,3 +202,26 @@ def test_nats_down_waits_for_the_writer(tmp_path: Path) -> None:
         f"or too short:\n{proc.stdout}\n{proc.stderr}"
     )
     assert not pidfile.exists(), "nats-down must clear the pidfile"
+
+    # Where the purge went. Without a broker on the box this is the only
+    # evidence: a purge sent to the shared port finds nothing there either,
+    # and exits 0 just the same.
+    assert f"no broker on {HOST}:{refused_port}" in proc.stdout, (
+        "the recipe's purge was not aimed at the refused port, so it went "
+        f"to the broker the suite shares (#2319):\n{proc.stdout}"
+    )
+    calls = docker.with_name("docker.calls")
+    assert calls.exists() and "rm -f nats" in calls.read_text("utf-8"), (
+        "the recipe's container removal did not reach the stand-in, so it "
+        "ran the real docker against the shared broker's container"
+    )
+    if shared_queue is not None:
+        # Strict on purpose: deleting a stream that is gone raises "Not
+        # Found", so this succeeds only if the recipe left the queue alone.
+        try:
+            shared_queue.delete_stream()
+        except RuntimeError as exc:
+            raise AssertionError(
+                "nats-down deleted a work queue on the shared broker: every "
+                "other xdist worker's queue in flight went with it (#2319)"
+            ) from exc

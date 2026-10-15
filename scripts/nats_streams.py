@@ -34,6 +34,14 @@ Two modes, one home for the logic:
 and left alone, so a stream belonging to something else on a shared
 broker cannot be removed by accident.
 
+The guard is about WHAT, not WHERE. Against the broker a parallel test
+suite shares, `--delete` removes every other worker's work queue in the
+middle of its test: `test_nats_teardown` drove `make nats-down` at the
+shared broker, and a Pull read elsewhere stopped short when its stream
+vanished (#2319). `--port` says where; a caller that reaches this through
+`make` sets `NATS_STREAMS_PORT` instead, the way `NATS_PIDFILE` aims the
+rest of `nats-down`.
+
 Stdlib only, speaking the NATS wire protocol over a socket -- there is no
 NATS client in this project's dependency tree and adding one to clean up
 after ourselves would be its own kind of debt.
@@ -44,6 +52,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import json
+import os
 import socket
 import sys
 import time
@@ -221,6 +230,16 @@ def main() -> int:
         "parallel suite's queues are untouched); may not widen it",
     )
     ap.add_argument(
+        "--port",
+        type=int,
+        # A string from the environment goes through `type` like a typed
+        # value would, so a bad one is a usage error, not a traceback.
+        default=os.environ.get("NATS_STREAMS_PORT", PORT),
+        help=f"the broker's client port (default {PORT}, or "
+        "$NATS_STREAMS_PORT): a test aims a purge away from the broker "
+        "the rest of the suite is using",
+    )
+    ap.add_argument(
         "--quiet-when-absent",
         action="store_true",
         help="exit 0 when no broker is listening (teardown after a run that "
@@ -235,7 +254,7 @@ def main() -> int:
         return 2
 
     try:
-        nc = Nats()
+        nc = Nats(port=args.port)
     except NatsError as e:
         if args.quiet_when_absent:
             print(f"nats-streams: no broker — nothing to do ({e})")

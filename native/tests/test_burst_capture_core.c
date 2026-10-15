@@ -3218,7 +3218,8 @@ test_a_sweeping_carrier_is_compensated (void)
      Both place most of these seeded bursts. The capped one used to place 6
      of 60: refine, keyed on the engine's count, searched no rates and the
      sweep collapsed its sum. Keyed on the declared rate it places 59
-     (doppler#2219), so this pins that, and the depth the de-chirp buys is
+     (doppler#2219), and this holds it to at least 48 of 60; the depth the
+     de-chirp buys is
      validate_acq_rate_pd's to show, on engine Pd 3 dB under the design
      point where the capped depth is underpowered. */
   {

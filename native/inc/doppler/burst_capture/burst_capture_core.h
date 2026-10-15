@@ -137,8 +137,8 @@ typedef struct
                             whole preamble rather than one dwell: it is the
                             grid point nearest the carrier's rate in every
                             event 23 dB over the design point, on or off the
-                            grid. At the design point it is in 88% to 93% of
-                            events whose rate is ON a grid point, but in 57%
+                            grid. At the design point it is in 82% to 89% of
+                            events whose rate is ON a grid point, but in 51%
                             of those 0.4 of a step off one, where the
                             neighbouring point is only 0.6 of a step away
                             (validate_acq_rate_pd's event-rate rows;

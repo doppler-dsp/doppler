@@ -48,7 +48,7 @@ Every number below is the soak's regression subset: 2 emitters from the shipped 
 
 | C/N0 dB-Hz | stints (scored) | missed | false releases | double assignments (blocks) | released past 2 intervals / past 1 | on-time releases | seeds matching no emitter | hits dropped | most assigned |
 |---|---|---|---|---|---|---|---|---|---|
-| 45 | 3 (3) | 0 | 0 | 0 | 0 / 0 | 1 | 1 | 0 | 3 of 12 |
+| 45 | 3 (3) | 0 | 0 | 0 | 0 / 0 | 1 | 0 | 0 | 2 of 12 |
 
 ### 2.2 Time to a slot, and the seed
 
@@ -68,7 +68,7 @@ At 45 dB-Hz the emitter's own data blocks seed it in the first block or two — 
 
 | C/N0 dB-Hz | heap after warm-up MiB | largest first-use step KiB | growth since the last first use KiB | resident high-water mark MiB |
 |---|---|---|---|---|
-| 45 | 501.6 | 0.1 | +0.0 | 254.1 → 254.1 |
+| 45 | 501.6 | 5.7 | +0.0 | 253.8 → 253.8 |
 
 The heap is sampled once a second after a warm-up and re-based at every slot's first tracking — a receiver builds its track chain on its first seed, a first-use step kept apart from growth with time (section 5.1). The searcher's block and surface at D = 154 are the half gigabyte.
 
@@ -80,7 +80,7 @@ The heap is sampled once a second after a warm-up and re-based at every slot's f
 
 - **F3 · FIXED** — The refine's dwell was floored at `refine_min_blocks` (seven): sized for detection alone it shrank to two blocks at 45 dB-Hz, where one hand-over in sixty fell outside the tracking chain's pull-in (section 12.16, #1265). Superseded — the pool is on cell receivers, which build no refine chain, and the knob is gone (section 12.28, #1283).
 
-- **F4 · BY DESIGN** — The searcher's false alarms are part of the lifecycle: at pfa 1e-3 a noise peak seeds a free slot, refines to nothing, reports tracking with both flags down and is released one interval later. The realized rate is about twice the configured one (#1064). No expectation may therefore be a count of slots. It is an identification instead, and the two rules that meet there stay apart: the pool occupies a slot by the **seed code phase** alone (hence a zone at every Doppler), while this harness, which has the truth, confirms whose slot it is on both coordinates. `n_slots` carries the headroom.
+- **F4 · BY DESIGN** — The searcher's false alarms are part of the lifecycle: at pfa 1e-3 a noise peak seeds a free slot, refines to nothing, reports tracking with both flags down and is released one interval later. The realized rate is the configured one since doppler#2218 (it was about twice that). No expectation may therefore be a count of slots. It is an identification instead, and the two rules that meet there stay apart: the pool occupies a slot by the **seed code phase** alone (hence a zone at every Doppler), while this harness, which has the truth, confirms whose slot it is on both coordinates. `n_slots` carries the headroom.
 
 - **F5 · CONFIRMED** — Each receiver builds its track chain on its first seed and frees it on reset (#1269) — a per-transition allocation, not a leak: the heap is flat once every slot has been used once, and the soak reports the first-use step apart from growth. The refine chain that was also built per seed went with the hand-off flavour (section 12.28, #1283).
 

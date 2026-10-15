@@ -188,7 +188,7 @@ constructors accept it: any finite `cn0_dbhz` is a design point, and NaN
 
     | preamble                                                              | Δ Pd                  | mean \|delay error\| | reads as                            |
     | --------------------------------------------------------------------- | --------------------- | -------------------- | ----------------------------------- |
-    | code, 31 chips × 4 (control: §2.6 measured 0.740 ± 0.025, this 0.695) | +0.08                 | 0.4 samples          | the harness reproduces §2.6         |
+    | code, 31 chips × 4 (control: §2.6 measured 0.710 ± 0.026, this 0.695) | +0.08                 | 0.4 samples          | the harness reproduces §2.6         |
     | random-phase QPSK, 96                                                 | +0.04 / +0.05 / +0.04 | 0.2–0.3              | conservative                        |
     | Zadoff-Chu, 127                                                       | +0.04 / +0.05 / +0.05 | 0.7–2.5              | conservative                        |
     | chirp, 128                                                            | +0.08 / +0.12 / +0.08 | 0.3                  | conservative: the ridge slide above |
@@ -816,7 +816,8 @@ prior was undetectable at any C/N0 — a Pd ceiling of (D−1)/D, and the
 between-channel hole of #1179. Fixed to search to the edge. The Pd model
 (`acq_mean_pd`) now derates slow-time scalloping over the *interpolated*
 bin the peak search samples rather than the native one: at D=8, 50 dB-Hz
-it read 0.47 where the engine measures 0.72; it reads 0.63 now, and stays
+it read 0.47 where the engine measured 0.72. It reads 0.61 against 0.71
+measured now, with the gate priced over the interpolated surface (#2218), and stays
 conservative because the Marcum form does not credit the maximum over an
 interpolated surface under H1 (the H1 face of §9.1's maximum).
 

@@ -300,6 +300,31 @@ def test_interleaved_refuses_a_c_set_short_of_the_tree(
     assert not published.exists() or not any(published.rglob("*.json"))
 
 
+def test_a_failed_bench_run_replays_its_stderr(tmp_path, monkeypatch, capsys):
+    """A failed `make bench` stops the measurement with the benchmark's own
+    reason on stderr, not a bare CalledProcessError (#2062). `jm bench`
+    fails a run whose binary exited non-zero (just-makeit#2189), and the
+    binary said why on stderr, so the run must capture it to replay it."""
+    inter = _load("bench_interleaved")
+    why = 'jm_bench: row "push[nfft=1024,hop=64]": out of memory\n'
+
+    class _Failed:
+        returncode = 2
+        stderr = why
+
+    seen = {}
+
+    def fake_run(cmd, cwd, **kw):
+        seen.update(kw)
+        return _Failed()
+
+    monkeypatch.setattr(inter, "_run", fake_run)
+    with pytest.raises(SystemExit, match=r"`make bench` failed .*exit 2"):
+        inter.bench_once(str(tmp_path))
+    assert seen["stderr"] is inter.subprocess.PIPE
+    assert why in capsys.readouterr().err
+
+
 def test_interleaved_publishes_a_whole_run(tmp_path, monkeypatch):
     """The precondition: with every component recorded, both builds publish,
     so the refusal above is the check and not a path that never works."""

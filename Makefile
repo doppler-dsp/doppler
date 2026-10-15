@@ -4690,7 +4690,8 @@ bench-python: ## Time the Python microbenchmarks (serial; pytest-benchmark)
 # The bench box keeps ONE clone, not one per release (docs/dev/release.md
 # §2b): fetch, then bench-preflight, then `git checkout --detach`, then
 # bench-interleaved. The preflight clears the previous release's snapshot
-# and rendered page once origin/main has them byte for byte; `git checkout`
+# and rendered page once origin/main has the same content (compared as
+# `git status` does, line endings converted); `git checkout`
 # refuses while they are still there. Anything main lacks, anything staged
 # and not committed, and any symlink refuses instead, touching nothing.
 # bench-interleaved runs the same check first.

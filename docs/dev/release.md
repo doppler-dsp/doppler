@@ -107,7 +107,8 @@ leaves its snapshot in the clone, untracked until its PR merges, and
 `docs/benchmarks.md` modified. A clone per release kept every copy: 26
 clones, about 10 GB, by 2026-10-14. In one clone, `git checkout` of the
 next release commit refuses while the previous copy is there.
-`make bench-preflight` clears it once origin/main has it byte for byte. It
+`make bench-preflight` clears it once origin/main has the same content,
+compared the way `git status` compares (line endings converted). It
 refuses, without touching anything, over any result main lacks or holds
 differently, one staged and not committed, or a symlink: publish that
 through its PR, or remove it.

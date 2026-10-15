@@ -127,16 +127,19 @@ def clear_published_copies(base: str = "origin/main", root=None) -> int:
     So, for every untracked file and every modified tracked file under
     `BENCH_OUTPUTS`:
 
-    - **On** ``base`` **byte for byte**: a stale copy. The untracked file is
-      removed and the tracked one restored (``git checkout -- <file>``),
-      which loses nothing, because ``base`` has the bytes. What was cleared
-      is printed.
+    - **On** ``base`` **as the same blob**: a stale copy. Each file is
+      hashed with its path's filters (``.gitattributes``, ``core.autocrlf``)
+      the way ``git status`` compares, so a CRLF-only copy of main's file on
+      a Windows checkout is the same blob. The untracked file is removed and
+      the tracked one restored (``git checkout -- <file>``), which loses
+      nothing, because ``base`` has the content. What was cleared is
+      printed.
     - **Absent from** ``base`` **or different**: an unpublished result.
       Nothing is measured over it; the run is refused, with what to do,
       and no file is touched, stale ones included. A file STAGED but not
       committed, and a symlink, are refused the same way: checkout would
-      carry the one into the next commit, and the other cannot be
-      compared byte for byte.
+      carry the one into the next commit, and the other cannot be hashed
+      as a file.
 
     ``base``'s remote is fetched first, and a failed fetch refuses: a stale
     ``base`` would call a published snapshot unpublished, or the reverse.
@@ -203,8 +206,11 @@ def clear_published_copies(base: str = "origin/main", root=None) -> int:
     ]
     hashed = {}
     if regular:
+        # WITH the paths' filters, as `git status` compares. Raw bytes
+        # (--no-filters) made every CRLF copy of an LF blob "differ" on a
+        # Windows checkout, so the gate refused everything there.
         h = _run(
-            ["git", "hash-object", "--no-filters", "--stdin-paths"],
+            ["git", "hash-object", "--stdin-paths"],
             root,
             input="\n".join(regular) + "\n",
             capture_output=True,
@@ -254,7 +260,7 @@ def clear_published_copies(base: str = "origin/main", root=None) -> int:
         _prune_empty(os.path.join(root, unit.rstrip("/")), root)
         print(
             f"bench-preflight: cleared {unit} ({len(ps)} file(s) {base} "
-            "already has, byte for byte)"
+            "already has, as git compares it)"
         )
     return 0
 

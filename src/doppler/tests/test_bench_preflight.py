@@ -5,7 +5,8 @@ Each release is measured in a clone that keeps its snapshot untracked, and
 release kept them all: 26 clones, about 10 GB, by 2026-10-14. So the box
 keeps ONE clone, and `scripts/bench_interleaved.clear_published_copies` (run
 by `make bench-preflight`, and first by `make bench-interleaved`) clears what
-origin/main already has byte for byte, and refuses over anything it lacks.
+origin/main already has, compared as `git status` compares it, and refuses
+over anything it lacks.
 
 Each case is a scratch origin and a box clone, because what the preflight
 decides is a relation between the clone and origin/main after a fetch. The
@@ -63,9 +64,11 @@ def _git(cwd: Path, *args: str) -> str:
 
 
 def _write(repo: Path, rel: str, text: str) -> None:
+    """Exactly these bytes: a text-mode write is CRLF on Windows, and the
+    tests are about the gate, not the platform."""
     path = repo / rel
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
+    path.write_bytes(text.encode("utf-8"))
 
 
 @pytest.fixture
@@ -117,6 +120,23 @@ def test_a_copy_main_has_is_cleared_and_the_checkout_then_works(
     assert _git(box, "status", "--porcelain") == ""
     # The point of clearing it: the next release commit checks out.
     _git(box, "checkout", "-q", "--detach", "origin/main")
+
+
+def test_a_crlf_copy_of_mains_file_is_cleared_under_autocrlf(
+    box: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """On a Windows checkout (`core.autocrlf=true`) a copy of main's file
+    arrives CRLF. Git calls it the same content, and so must the preflight.
+    Hashed as raw bytes, every such copy "differed", and the gate refused
+    everything on Windows. Safe, and useless there."""
+    _git(box, "config", "core.autocrlf", "true")
+    _write(box, f"{SET}/native.json", SNAPSHOT.replace("\n", "\r\n"))
+    _write(box, PAGE, RENDERED.replace("\n", "\r\n"))
+    assert _preflight(box) == 0
+    out = capsys.readouterr().out
+    assert f"cleared {SET}/" in out and f"cleared {PAGE}" in out
+    assert not (box / SET).exists()
+    assert _git(box, "status", "--porcelain") == ""
 
 
 def test_a_snapshot_that_differs_from_mains_refuses(

@@ -766,7 +766,7 @@ dev = [
     { name = "clang-tidy", specifier = "==22.1.8" },
     { name = "doppler-dsp", extras = ["specan-web"] },
     { name = "jsonschema", specifier = ">=4.18" },
-    { name = "just-makeit", git = "https://github.com/just-buildit/just-makeit?rev=9506ccf9f835b8831f47fe9a5e8ddc9ab258109b" },
+    { name = "just-makeit", git = "https://github.com/just-buildit/just-makeit?rev=54090f24868a951d11a0672dcb2ab176640092b8" },
     { name = "matplotlib", marker = "python_full_version == '3.9.*'", specifier = "<3.10" },
     { name = "matplotlib", marker = "python_full_version >= '3.10'", specifier = ">=3.10.9" },
     { name = "mdformat", marker = "python_full_version >= '3.10'", specifier = "==1.0.0" },
@@ -1239,7 +1239,7 @@ wheels = [
 [[package]]
 name = "just-makeit"
 version = "0.105.2"
-source = { git = "https://github.com/just-buildit/just-makeit?rev=9506ccf9f835b8831f47fe9a5e8ddc9ab258109b#9506ccf9f835b8831f47fe9a5e8ddc9ab258109b" }
+source = { git = "https://github.com/just-buildit/just-makeit?rev=54090f24868a951d11a0672dcb2ab176640092b8#54090f24868a951d11a0672dcb2ab176640092b8" }
 dependencies = [
     { name = "tomli", marker = "python_full_version < '3.11'" },
     { name = "tomlkit" },

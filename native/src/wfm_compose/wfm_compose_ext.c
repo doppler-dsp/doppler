@@ -5938,8 +5938,12 @@ Composer_stream (ComposerObject *self, PyObject *args, PyObject *kwds)
         return NULL;
     }
 
+  /* tp_alloc ZEROES the object, so a field nobody below names (gh-2272's
+     inflight count and lock) starts empty rather than as garbage that
+     dealloc would free (gh-2292). */
   ComposerStreamObject *it
-      = PyObject_New (ComposerStreamObject, &ComposerStreamType);
+      = (ComposerStreamObject *)ComposerStreamType.tp_alloc (
+          &ComposerStreamType, 0);
   if (!it)
     return NULL;
   Py_INCREF (self);

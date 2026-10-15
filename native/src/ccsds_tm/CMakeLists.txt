@@ -40,11 +40,13 @@ target_include_directories(ccsds_tm_core PUBLIC
 # being called from it.
 # detection_core: dp_syncword.h's binomial tail calls dp_lgamma(), which
 # is defined beside marcum_q() (the library's one reentrant lgamma, #1260).
-# No Threads::Threads: rs.c's tables were built under `pthread_once`
-# (gh-817), which needed it on glibc before 2.34; they are built under
-# dp_once() now, C11 atomics with no link dependency (doppler#2328).
+# dp_once_core because rs.c's field tables and desc.c's marker bits are
+# built under dp_once() (doppler#2328; rs.c's private `pthread_once` before
+# it, gh-817). PUBLIC so every consumer -- the tests, the benches, and the
+# .so -- links it and the -pthread it carries, which glibc before 2.34
+# needs for `pthread_once`.
 target_link_libraries(ccsds_tm_core PUBLIC conv_core rs_core wfm_frame_core cvt_core
-                                           detection_core)
+                                           detection_core dp_once_core)
 
 # ── tests ───────────────────────────────────────────────────────────────────
 add_executable(test_ccsds_tm_rand

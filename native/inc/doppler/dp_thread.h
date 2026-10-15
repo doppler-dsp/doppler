@@ -24,12 +24,13 @@
  * | `pthread_cond_wait`      | `SleepConditionVariableSRW`            |
  * | `pthread_create`/`join`  | `_beginthreadex` / `WaitForSingleObject` |
  * | `sysconf(_SC_NPROCESSORS_ONLN)` | `GetActiveProcessorCount`       |
- * | `pthread_once`           | dp_once() -- one C11-atomics version   |
- * |                          | for both, in dp_once.h (included here) |
+ * | `pthread_once`           | `InitOnceExecuteOnce`, both behind     |
+ * |                          | dp_once() (dp_once.h, included here)   |
  *
- * A one-time build has its own header because the tables it guards live in
- * components that start no thread (AWGN, LO, CCSDS): they include dp_once.h
- * alone and pull in neither `<windows.h>` nor `<pthread.h>` (doppler#2328).
+ * A one-time build has its own header and its own dp_once.c because the
+ * tables it guards live in components that start no thread (AWGN, LO,
+ * CCSDS): they include dp_once.h alone, and `<windows.h>` stays inside
+ * dp_once.c (doppler#2328).
  *
  * `_beginthreadex` rather than `CreateThread`: a thread that touches the CRT
  * (these do -- malloc, and the capture writer does file I/O) needs the CRT's

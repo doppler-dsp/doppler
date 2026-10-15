@@ -279,11 +279,20 @@ target_include_directories(dp_interrupt_obj PUBLIC
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/native/inc>
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/native/inc>)
 set_target_properties(dp_interrupt_obj PROPERTIES POSITION_INDEPENDENT_CODE ON)
+# dp_once is core for the same kind of reason (doppler#2328): the AWGN, LO
+# and CCSDS components each build a table under it, so it cannot belong to
+# any one of them. Folded into both libraries here, as objects; the
+# components reach it through dp_once_core below.
+add_library(dp_once_obj OBJECT native/src/dp_once.c)
+target_include_directories(dp_once_obj PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/native/inc>
+    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/native/inc>)
+set_target_properties(dp_once_obj PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 add_library(doppler_lib SHARED native/src/doppler_lib.c
-    $<TARGET_OBJECTS:dp_interrupt_obj>)
+    $<TARGET_OBJECTS:dp_interrupt_obj> $<TARGET_OBJECTS:dp_once_obj>)
 add_library(doppler_lib_static STATIC native/src/doppler_lib.c
-    $<TARGET_OBJECTS:dp_interrupt_obj>)
+    $<TARGET_OBJECTS:dp_interrupt_obj> $<TARGET_OBJECTS:dp_once_obj>)
 # The vendored code libdoppler.a embeds (cJSON, pffft, pocketfft) is respelled
 # dp__v_* after the archive is built (#1565): a consumer that links its own
 # cJSON would otherwise fail at its link on duplicate definitions. GNU objcopy
@@ -462,6 +471,16 @@ set_target_properties(doppler_lib_static PROPERTIES EXPORT_NAME doppler-static)
 # `undefined reference to pthread_once` in CI's Debian 10 job while every
 # glibc >= 2.34 box linked it clean, pthread being folded into libc there.
 find_package(Threads REQUIRED)
+
+# dp_once as a link edge, for the components: awgn_core, lo_core and
+# ccsds_tm_core link it PUBLIC (awgn_extra.cmake, lo_extra.cmake, ccsds_tm's
+# CMakeLists), so every test, bench and extension module that links one of
+# them links dp_once and the -pthread `pthread_once` needs on glibc < 2.34.
+# STATIC rather than the OBJECT library itself: an object library's objects
+# reach only the target that names it, not that target's consumers.
+add_library(dp_once_core STATIC $<TARGET_OBJECTS:dp_once_obj>)
+target_link_libraries(dp_once_core PUBLIC Threads::Threads)
+set_target_properties(dp_once_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # The NATS stream layer (libdoppler_stream, doppler.stream, StreamSink) builds
 # wherever the vendored nats.c does. On Windows that is an MSVC-style

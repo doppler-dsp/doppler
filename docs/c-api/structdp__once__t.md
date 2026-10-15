@@ -36,7 +36,7 @@ _The state of one one-time build; start it at_ [_**DP\_ONCE\_INIT**_](dp__once_8
 
 | Type | Name |
 | ---: | :--- |
-|  atomic\_int | [**state**](#variable-state)  <br> |
+|  pthread\_once\_t | [**once**](#variable-once)  <br> |
 
 
 
@@ -86,15 +86,15 @@ _The state of one one-time build; start it at_ [_**DP\_ONCE\_INIT**_](dp__once_8
 
 
 
-### variable state 
+### variable once 
 
 ```C++
-atomic_int dp_once_t::state;
+pthread_once_t dp_once_t::once;
 ```
 
 
 
-0 not started, 1 building, 2 built 
+the platform's once control 
 
 
         

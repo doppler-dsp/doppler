@@ -12,33 +12,22 @@
 #ifndef DP_ONCE_H
 #define DP_ONCE_H
 
-#include <stdatomic.h>
-
+#ifdef _WIN32
 typedef struct
 {
-  atomic_int state; 
+  void *opaque; 
 } dp_once_t;
-
 #define DP_ONCE_INIT { 0 }
-
-static inline void
-dp_once (dp_once_t *once, void (*fn) (void))
+#else
+#include <pthread.h>
+typedef struct
 {
-  if (atomic_load_explicit (&once->state, memory_order_acquire) == 2)
-    return;
-  int idle = 0;
-  if (atomic_compare_exchange_strong_explicit (&once->state, &idle, 1,
-                                               memory_order_acq_rel,
-                                               memory_order_acquire))
-    {
-      fn ();
-      atomic_store_explicit (&once->state, 2, memory_order_release);
-      return;
-    }
-  /* Another thread is building: wait for its release store. */
-  while (atomic_load_explicit (&once->state, memory_order_acquire) != 2)
-    ;
-}
+  pthread_once_t once; 
+} dp_once_t;
+#define DP_ONCE_INIT { PTHREAD_ONCE_INIT }
+#endif
+
+void dp_once (dp_once_t *once, void (*fn) (void));
 
 #endif /* DP_ONCE_H */
 ```

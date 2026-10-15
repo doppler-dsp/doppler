@@ -708,7 +708,8 @@ def test_each_event_carries_refines_rate(tmp_path):
     whole preamble on refine's own grid, and the read-back is the last
     event's (doppler#2219). At this span and 16 repetitions refine's grid is
     nine points over [-R, +R], so 0.75 R is one of them: a sweep just off it
-    comes back as exactly that point. Without hypotheses the field is 0.
+    comes back as exactly that point. Without a declared rate the field is
+    0; one hypothesis WITH a rate still searches refine's grid.
     The persistent view carries the same field."""
     pre = _zc()
     rate = 9e-7
@@ -735,9 +736,9 @@ def test_each_event_carries_refines_rate(tmp_path):
         got = float(rows[-1]["doppler_rate_hz_s"])
         assert got == pytest.approx(0.75 * rate, rel=1e-9)
         assert cap.doppler_rate_hz_s == float(ev[-1]["doppler_rate_hz_s"])
-    plain = BurstCapture(pre, **kw)
+    plain = BurstCapture(pre, **{**kw, "doppler_rate": 0.0})
     plain.push(x)
-    assert len(plain.events()) > 0, "the capped capture still emits"
+    assert len(plain.events()) > 0, "a capture with no rate still emits"
     assert all(float(e["doppler_rate_hz_s"]) == 0.0 for e in plain.events())
 
 

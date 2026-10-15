@@ -4,6 +4,7 @@
     then frees, and a later call raises `RuntimeError` (gh-2272), as does
     `wfm.Reader.read_follow`; the hand-written `doppler.stream` does not
     (#2063). `help(wfm.Synth)` and the seven source factories now print the
-    stub's docs (gh-2283). An out-of-range `int32_t` gets jm's range message
-    on Windows too (gh-2269, read from the parse, not run there). Skips
+    stub's docs (gh-2283). An out-of-range `int32_t` to a generated binding
+    gets jm's range message on Windows too (gh-2269, read from the parse,
+    not run there); the hand-written `Telemetry.emit` is #2280. Skips
     0.105.1 and 0.105.2, whose `stream()` iterator crashed when freed.

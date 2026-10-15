@@ -168,11 +168,11 @@ def _compile_and_run(blockid, code, tmp_path, run=True, extra_cflags=()):
     # dp_pull_* wire layer + vendored nats.c) is a deliberately separate,
     # optional component -- CMakeLists.txt: "a consumer that wants ... the
     # dp_pub_*/dp_sub_* wire layer links `doppler::stream` alongside
-    # `doppler::doppler[-static]`". Link it (+ pthread) whenever present so
-    # streaming snippets resolve exactly like that documented consumer
-    # recipe; --start-group/--end-group makes the link order-independent
-    # regardless of which archive references the other's symbols. Harmless
-    # for non-streaming snippets -- a static archive only pulls in members
+    # `doppler::doppler[-static]`". Link it whenever present so streaming
+    # snippets resolve exactly like that documented consumer recipe;
+    # --start-group/--end-group makes the link order-independent regardless
+    # of which archive references the other's symbols. Harmless for
+    # non-streaming snippets -- a static archive only pulls in members
     # actually referenced.
     stream_lib = BUILD_DIR / "libdoppler_stream.a"
     archives = (
@@ -180,7 +180,12 @@ def _compile_and_run(blockid, code, tmp_path, run=True, extra_cflags=()):
         if stream_lib.exists()
         else [str(lib)]
     )
-    libs = ["-lm"] + (["-lpthread"] if stream_lib.exists() else [])
+    # `-lm -lpthread` always: the documented static link line, the one
+    # `make link-check` pins. libdoppler.a itself calls pthread_once (every
+    # lazily built table is under dp_once, doppler#2328), which glibc before
+    # 2.34 keeps in libpthread, so an AWGN, LO or CCSDS snippet needs it with
+    # or without the stream archive.
+    libs = ["-lm", "-lpthread"]
     compile_cmd = [
         _cc(),
         str(src),

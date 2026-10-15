@@ -495,8 +495,9 @@ CarrierNda_setprop_bn (CarrierNdaObject *self, PyObject *value,
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
-                    "CarrierNda: bn is outside the loop's domain (need bn >= "
-                    "0, finite, whose loop gains come out finite)",
+                    "CarrierNda: bn is outside the loop filter's domain "
+                    "(need bn >= 0, finite, whose loop gains come out "
+                    "finite)",
                     (long long)_rc);
       return -1;
     }
@@ -554,8 +555,8 @@ static PyGetSetDef CarrierNda_getset[] = {
     "ValueError\n"
     "    On assignment, if ``dp_carrier_nda_set_bn`` refuses the value by\n"
     "    returning non-zero. The exception message is ``CarrierNda: bn is\n"
-    "    outside the loop's domain (need bn >= 0, finite, whose loop gains\n"
-    "    come out finite)``, with the return code appended.\n",
+    "    outside the loop filter's domain (need bn >= 0, finite, whose loop\n"
+    "    gains come out finite)``, with the return code appended.\n",
     NULL },
   { "m", (getter)CarrierNda_getprop_m, NULL,
     "constellation order M (2, 4, 8).\n", NULL },

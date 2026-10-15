@@ -789,7 +789,7 @@ Despreader_setprop_bn_carrier (DespreaderObject *self, PyObject *value,
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
-                    "Despreader: bn_carrier is outside the carrier loop's "
+                    "Despreader: bn_carrier is outside the loop filter's "
                     "domain (need bn_carrier >= 0, finite, whose loop gains "
                     "come out finite)",
                     (long long)_rc);
@@ -823,7 +823,7 @@ Despreader_setprop_bn_code (DespreaderObject *self, PyObject *value,
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
-                    "Despreader: bn_code is outside the code loop's domain "
+                    "Despreader: bn_code is outside the loop filter's domain "
                     "(need bn_code >= 0, finite, whose loop gains come out "
                     "finite)",
                     (long long)_rc);
@@ -867,7 +867,7 @@ static PyGetSetDef Despreader_getset[] = {
     "ValueError\n"
     "    On assignment, if ``dp_despreader_set_bn_carrier`` refuses the\n"
     "    value by returning non-zero. The exception message is ``Despreader:\n"
-    "    bn_carrier is outside the carrier loop's domain (need bn_carrier >=\n"
+    "    bn_carrier is outside the loop filter's domain (need bn_carrier >=\n"
     "    0, finite, whose loop gains come out finite)``, with the return\n"
     "    code appended.\n",
     NULL },
@@ -880,7 +880,7 @@ static PyGetSetDef Despreader_getset[] = {
     "ValueError\n"
     "    On assignment, if ``dp_despreader_set_bn_code`` refuses the value\n"
     "    by returning non-zero. The exception message is ``Despreader:\n"
-    "    bn_code is outside the code loop's domain (need bn_code >= 0,\n"
+    "    bn_code is outside the loop filter's domain (need bn_code >= 0,\n"
     "    finite, whose loop gains come out finite)``, with the return code\n"
     "    appended.\n",
     NULL },

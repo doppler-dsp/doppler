@@ -175,7 +175,7 @@ writable = true
 # The C setter refuses and keeps the value; jm raises on its
 # non-zero return (just-makeit#2182, doppler#1987).
 error = "ValueError"
-error_message = "Despreader: bn_carrier is outside the carrier loop's domain (need bn_carrier >= 0, finite, whose loop gains come out finite)"
+error_message = "Despreader: bn_carrier is outside the loop filter's domain (need bn_carrier >= 0, finite, whose loop gains come out finite)"
 
 [[despreader.properties]]
 name = "bn_code"
@@ -184,4 +184,4 @@ writable = true
 # The C setter refuses and keeps the value; jm raises on its
 # non-zero return (just-makeit#2182, doppler#1987).
 error = "ValueError"
-error_message = "Despreader: bn_code is outside the code loop's domain (need bn_code >= 0, finite, whose loop gains come out finite)"
+error_message = "Despreader: bn_code is outside the loop filter's domain (need bn_code >= 0, finite, whose loop gains come out finite)"

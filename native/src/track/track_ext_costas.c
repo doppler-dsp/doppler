@@ -452,8 +452,8 @@ Costas_setprop_bn (CostasObject *self, PyObject *value,
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
-                    "Costas: bn is outside the loop's domain (need bn >= 0, "
-                    "finite, whose loop gains come out finite)",
+                    "Costas: bn is outside the loop filter's domain (need bn "
+                    ">= 0, finite, whose loop gains come out finite)",
                     (long long)_rc);
       return -1;
     }
@@ -549,8 +549,8 @@ static PyGetSetDef Costas_getset[] = {
     "ValueError\n"
     "    On assignment, if ``dp_costas_set_bn`` refuses the value by\n"
     "    returning non-zero. The exception message is ``Costas: bn is\n"
-    "    outside the loop's domain (need bn >= 0, finite, whose loop gains\n"
-    "    come out finite)``, with the return code appended.\n",
+    "    outside the loop filter's domain (need bn >= 0, finite, whose loop\n"
+    "    gains come out finite)``, with the return code appended.\n",
     NULL },
   { "norm_freq", (getter)Costas_getprop_norm_freq,
     (setter)Costas_setprop_norm_freq, "Norm freq.\n", NULL },

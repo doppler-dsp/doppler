@@ -75,7 +75,8 @@ def test_a_refused_retune_changes_nothing(name):
     for _ in range(2):
         for bad in (float("nan"), 1e200):
             with pytest.raises(
-                ValueError, match=f"{name}: bn is outside the loop's domain"
+                ValueError,
+                match=f"{name}: bn is outside the loop filter's domain",
             ):
                 loop.bn = bad
     assert loop.bn == bn

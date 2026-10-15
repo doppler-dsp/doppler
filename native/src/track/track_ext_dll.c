@@ -664,8 +664,8 @@ Dll_setprop_bn (DllObject *self, PyObject *value, void *Py_UNUSED (closure))
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
-                    "Dll: bn is outside the loop's domain (need bn >= 0, "
-                    "finite, whose loop gains come out finite)",
+                    "Dll: bn is outside the loop filter's domain (need bn >= "
+                    "0, finite, whose loop gains come out finite)",
                     (long long)_rc);
       return -1;
     }
@@ -762,9 +762,9 @@ static PyGetSetDef Dll_getset[] = {
     "------\n"
     "ValueError\n"
     "    On assignment, if ``dp_dll_set_bn`` refuses the value by returning\n"
-    "    non-zero. The exception message is ``Dll: bn is outside the loop's\n"
-    "    domain (need bn >= 0, finite, whose loop gains come out finite)``,\n"
-    "    with the return code appended.\n",
+    "    non-zero. The exception message is ``Dll: bn is outside the loop\n"
+    "    filter's domain (need bn >= 0, finite, whose loop gains come out\n"
+    "    finite)``, with the return code appended.\n",
     NULL },
   { "code_phase", (getter)Dll_getprop_code_phase, NULL, "Code phase.\n",
     NULL },

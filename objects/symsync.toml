@@ -117,7 +117,7 @@ writable = true
 # The C setter refuses and keeps the value; jm raises on its
 # non-zero return (just-makeit#2182, doppler#1987).
 error = "ValueError"
-error_message = "SymbolSync: bn is outside the loop's domain (need bn >= 0, finite, whose loop gains come out finite)"
+error_message = "SymbolSync: bn is outside the loop filter's domain (need bn >= 0, finite, whose loop gains come out finite)"
 
 [[symsync.properties]]
 name = "timing_error"

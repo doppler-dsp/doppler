@@ -658,8 +658,8 @@ class Costas:
         ValueError
             On assignment, if ``dp_costas_set_bn`` refuses the value by
             returning non-zero. The exception message is ``Costas: bn is
-            outside the loop's domain (need bn >= 0, finite, whose loop gains
-            come out finite)``, with the return code appended.
+            outside the loop filter's domain (need bn >= 0, finite, whose loop
+            gains come out finite)``, with the return code appended.
         """
     @bn.setter
     def bn(self, value: float) -> None: ...
@@ -1491,9 +1491,9 @@ class Dll:
         ------
         ValueError
             On assignment, if ``dp_dll_set_bn`` refuses the value by returning
-            non-zero. The exception message is ``Dll: bn is outside the loop's
-            domain (need bn >= 0, finite, whose loop gains come out finite)``,
-            with the return code appended.
+            non-zero. The exception message is ``Dll: bn is outside the loop
+            filter's domain (need bn >= 0, finite, whose loop gains come out
+            finite)``, with the return code appended.
         """
     @bn.setter
     def bn(self, value: float) -> None: ...
@@ -2000,8 +2000,8 @@ class SymbolSync:
         ValueError
             On assignment, if ``dp_symsync_set_bn`` refuses the value by
             returning non-zero. The exception message is ``SymbolSync: bn is
-            outside the loop's domain (need bn >= 0, finite, whose loop gains
-            come out finite)``, with the return code appended.
+            outside the loop filter's domain (need bn >= 0, finite, whose loop
+            gains come out finite)``, with the return code appended.
         """
     @bn.setter
     def bn(self, value: float) -> None: ...
@@ -2810,8 +2810,8 @@ class CarrierMpsk:
         ValueError
             On assignment, if ``dp_carrier_mpsk_set_bn`` refuses the value by
             returning non-zero. The exception message is ``CarrierMpsk: bn is
-            outside the loop's domain (need bn >= 0, finite, whose loop gains
-            come out finite)``, with the return code appended.
+            outside the loop filter's domain (need bn >= 0, finite, whose loop
+            gains come out finite)``, with the return code appended.
         """
     @bn.setter
     def bn(self, value: float) -> None: ...
@@ -3234,8 +3234,8 @@ class CarrierNda:
         ValueError
             On assignment, if ``dp_carrier_nda_set_bn`` refuses the value by
             returning non-zero. The exception message is ``CarrierNda: bn is
-            outside the loop's domain (need bn >= 0, finite, whose loop gains
-            come out finite)``, with the return code appended.
+            outside the loop filter's domain (need bn >= 0, finite, whose loop
+            gains come out finite)``, with the return code appended.
         """
     @bn.setter
     def bn(self, value: float) -> None: ...

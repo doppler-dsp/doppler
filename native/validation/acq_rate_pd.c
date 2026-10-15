@@ -45,18 +45,31 @@
  *                                  auto (0) hypotheses and fewer trials:
  *                                  compensation delivers what it predicts,
  *                                  beats the capped depth, and holds Pfa
+ *   validate_acq_rate_pd --pfa-check
+ *                                  the noise rows alone, at the dwells that
+ *                                  resolve the error each row must catch
+ *                                  (pfa_check()), in parallel; CTest runs
+ *                                  it as validate_acq_rate_pd_pfa
+ *   validate_acq_rate_pd --pfa-smoke
+ *                                  the same parallel rows on two chunks of
+ *                                  dwells, each checked against itself run
+ *                                  alone; CTest runs it as
+ *                                  validate_acq_rate_pd_pfa_smoke, and so
+ *                                  does `make test-tsan`
  *
- * Both modes assert the same claims.
+ * The first two modes assert the same claims.
  */
 #include "doppler/acq/acq_core.h"
 #include "doppler/awgn/awgn_core.h"
 #include "doppler/burst_capture/burst_capture_core.h"
 #include "doppler/dp_complex.h"
+#include "doppler/dp_parallel.h"
 #include "doppler/wfm_synth/wfm_synth_core.h"
 #include "dp_preamble_test.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -271,18 +284,43 @@ measure_pd (size_t rh, int midpoint, double cn0, int trials, uint32_t seed)
 
 typedef struct
 {
-  size_t rh, depth;
-  double dwells, hits, pfa, lo, hi;
+  size_t   rh, depth;
+  double   dwells, hits, pfa, lo, hi;
+  uint64_t noise; /* FNV-1a over the noise drawn, when asked for */
 } pfa_row_t;
+
+/* FNV-1a over a buffer's bytes, continuing from `h`. */
+static uint64_t
+fnv1a (uint64_t h, const void *buf, size_t n)
+{
+  const unsigned char *b = buf;
+  for (size_t i = 0; i < n; i++)
+    h = (h ^ b[i]) * 1099511628211ull;
+  return h;
+}
 
 /* Noise only, straight through the engine at the design C/N0: the share of
    dwells that clear the gate. The engine reports at most one hit a dwell
    (max_peaks 1), so hits/dwells is the per-dwell false-alarm rate the
-   `pfa` parameter targets. */
+   `pfa` parameter targets. With `fingerprint` set, the row also hashes
+   every sample of noise it drew, so a smoke run can compare what two
+   schedules fed the engine; it is off where it would cost (the full rows
+   hash gigabytes).
+
+   The noise source is made BEFORE the engine, which changes no count (a
+   seeded generator draws the same stream whenever it is made) and is what
+   lets --pfa-smoke see the rows' first use of the AWGN sine table under
+   TSan. Made after it, the engine's own synchronization orders the rows'
+   first dp_awgn_create calls, so TSan reports nothing: a plain flag back
+   in awgn_core.c went unreported 3 runs in 3 that way, and is reported 3 in
+   3 this way (doppler#2324, #2328). */
 static pfa_row_t
-measure_pfa (size_t rh, double cn0, double dwells_wanted, uint32_t seed)
+measure_pfa (size_t rh, double cn0, double dwells_wanted, uint32_t seed,
+             int fingerprint)
 {
-  pfa_row_t       r = { 0 };
+  pfa_row_t        r = { .noise = 14695981039346656037ull };
+  dp_awgn_state_t *g = dp_xnn (
+      dp_awgn_create (seed, dp_awgn_amplitude_for_snr ((float)cn0, 1.0f)));
   dp_acq_state_t *a
       = dp_acq_create_burst (ZC, N, REPS, 1.0, cn0, 0.0, PFA, PD, 0, RATE, rh);
   if (!a)
@@ -290,17 +328,17 @@ measure_pfa (size_t rh, double cn0, double dwells_wanted, uint32_t seed)
       DP_TEST_ERR ("engine at Rh=%zu refused\n", rh);
       abort ();
     }
-  r.rh                       = a->rate_hyps; /* what auto chose, else rh */
-  r.depth                    = a->coherent_bins;
-  const size_t     per_dwell = a->frame_n;
-  const size_t     chunk     = 64u * per_dwell;
-  float _Complex  *nz        = dp_xmalloc (chunk * sizeof *nz);
-  acq_result_t     res[64];
-  dp_awgn_state_t *g = dp_xnn (
-      dp_awgn_create (seed, dp_awgn_amplitude_for_snr ((float)cn0, 1.0f)));
+  r.rh                      = a->rate_hyps; /* what auto chose, else rh */
+  r.depth                   = a->coherent_bins;
+  const size_t    per_dwell = a->frame_n;
+  const size_t    chunk     = 64u * per_dwell;
+  float _Complex *nz        = dp_xmalloc (chunk * sizeof *nz);
+  acq_result_t    res[64];
   while (r.dwells < dwells_wanted)
     {
       dp_awgn_generate (g, chunk, nz, chunk);
+      if (fingerprint)
+        r.noise = fnv1a (r.noise, nz, chunk * sizeof *nz);
       size_t off = 0;
       while (off < chunk)
         {
@@ -318,6 +356,109 @@ measure_pfa (size_t rh, double cn0, double dwells_wanted, uint32_t seed)
   free (nz);
   dp_acq_destroy (a);
   return r;
+}
+
+/* --pfa-check: the per-dwell Pfa rows CI holds (doppler#2324), at the design
+   point where nine hypotheses predict PD, each not significantly above the
+   target. A row goes red when its Wilson 95% lower bound passes PFA: 120 hits
+   or more in 100032 dwells, 29 or more in 20032.
+
+   Only Rh = 1 DETECTS. Pricing the native cells instead of the interpolated
+   ones (doppler#2218) doubles the base rate. At the rates the full run
+   measures (200000 dwells a row, doppler#2287), the exact Poisson odds at
+   these counts are:
+
+     row    rate   dwells   on target: false red   doubled: escapes
+     1      0.95x  100000   0.76%                  ~0
+     3      0.60x  100000   ~0                     49%
+     auto   0.65x  100000   ~0                     18%
+     5      0.52x   20000   ~0                     95%
+     9      0.22x   20000   ~0                     100%
+
+   So 3 and auto are BACKSTOPS: a doubling only just crosses the target
+   there, and resolving 1.2-1.3x would take two to four times the dwells. 5
+   and 9 hold "under the target" as they are. The rows are seeded, so these
+   odds say which draw CI runs, not how often a run flakes; on that draw the
+   #2218 sabotage turns 1 and 3 red. The exact guards for #2218 are the C pin
+   (test_acq_core.c's _acq_pfa_split_check) and `make lint-acq-pfa-split`,
+   which holds every pricing site to acq_band_cells().
+
+   Each row is its own engine, noise and seed, so the rows run in parallel
+   and their counts do not depend on the schedule; the heaviest go first.
+   --pfa-smoke holds that claim: the same fan-out on two chunks of dwells,
+   each row equal to itself run alone in dwells, hits and every sample of
+   noise drawn. It is labelled `threaded`, so `make test-tsan` runs it, and
+   a race in what the rows share (the lazily built tables, doppler#2328)
+   halts it there. */
+typedef struct
+{
+  size_t    rh;
+  double    dwells;
+  uint32_t  seed;
+  double    cn0;
+  int       fingerprint;
+  pfa_row_t row;
+} pfa_job_t;
+
+static void
+pfa_job (size_t i, void *ctx)
+{
+  pfa_job_t *j = (pfa_job_t *)ctx + i;
+  j->row = measure_pfa (j->rh, j->cn0, j->dwells, j->seed, j->fingerprint);
+}
+
+static int
+pfa_check (int smoke)
+{
+  zadoff_chu ();
+  const double cn0    = cn0_for (9, PD);
+  pfa_job_t    jobs[] = {
+    { 0, 1.0e5, 7000u, cn0, 0, { 0 } }, { 3, 1.0e5, 7003u, cn0, 0, { 0 } },
+    { 9, 2.0e4, 7009u, cn0, 0, { 0 } }, { 5, 2.0e4, 7005u, cn0, 0, { 0 } },
+    { 1, 1.0e5, 7001u, cn0, 0, { 0 } },
+  };
+  const size_t n = sizeof jobs / sizeof *jobs;
+  if (smoke)
+    for (size_t i = 0; i < n; i++)
+      {
+        jobs[i].dwells      = 128.0; /* two chunks of 64 */
+        jobs[i].fingerprint = 1;
+      }
+  dp_parallel_for (n, pfa_job, jobs, 0);
+  if (smoke)
+    {
+      for (size_t i = 0; i < n; i++)
+        {
+          const pfa_row_t *r = &jobs[i].row;
+          const pfa_row_t  a
+              = measure_pfa (jobs[i].rh, cn0, jobs[i].dwells, jobs[i].seed, 1);
+          printf ("ask %zu: Rh %zu D %zu, %.0f dwells, %.0f hits, noise "
+                  "%016llx\n",
+                  jobs[i].rh, r->rh, r->depth, r->dwells, r->hits,
+                  (unsigned long long)r->noise);
+          DP_CHECK_MSG (r->rh == a.rh && r->depth == a.depth
+                            && r->dwells == a.dwells && r->hits == a.hits,
+                        "a row run in parallel counts what it counts alone");
+          DP_CHECK_MSG (r->noise == a.noise,
+                        "a row run in parallel draws the noise it draws "
+                        "alone, sample for sample");
+        }
+      DP_TEST_END ("validate_acq_rate_pd --pfa-smoke");
+    }
+  printf ("noise only at C/N0 %.2f dB (where Rh = 9 predicts Pd %g): the "
+          "share of dwells above the gate, target pfa %g\n",
+          cn0, PD, PFA);
+  printf ("%4s %3s %3s %9s %7s %9s %9s %9s\n", "ask", "Rh", "D", "dwells",
+          "hits", "pfa", "lo95", "hi95");
+  for (size_t i = 0; i < n; i++)
+    {
+      const pfa_row_t *r = &jobs[i].row;
+      printf ("%4zu %3zu %3zu %9.0f %7.0f %9.2e %9.2e %9.2e\n", jobs[i].rh,
+              r->rh, r->depth, r->dwells, r->hits, r->pfa, r->lo, r->hi);
+      DP_CHECK_MSG (r->lo <= PFA,
+                    "per-dwell Pfa is not significantly above the target");
+    }
+  DP_TEST_END ("validate_acq_rate_pd --pfa-check");
 }
 
 typedef struct
@@ -431,6 +572,10 @@ measure_rate (size_t rh, double design, double sig, double rate, int trials,
 int
 main (int argc, char **argv)
 {
+  if (argc > 1 && strcmp (argv[1], "--pfa-check") == 0)
+    return pfa_check (0);
+  if (argc > 1 && strcmp (argv[1], "--pfa-smoke") == 0)
+    return pfa_check (1);
   const int    check  = (argc > 1 && strcmp (argv[1], "--check") == 0);
   const int    trials = check ? 250 : 1000;
   const double dwells = check ? 1.0e4 : 2.0e5;
@@ -482,7 +627,7 @@ main (int argc, char **argv)
   pfa_row_t prow[12];
   for (size_t i = 0; i < NRH; i++)
     {
-      prow[i] = measure_pfa (RH[i], cn0, dwells, 99u + (uint32_t)i);
+      prow[i] = measure_pfa (RH[i], cn0, dwells, 99u + (uint32_t)i, 0);
       printf ("%3zu %3zu %9.0f %7.0f %9.2e %9.2e %9.2e\n", prow[i].rh,
               prow[i].depth, prow[i].dwells, prow[i].hits, prow[i].pfa,
               prow[i].lo, prow[i].hi);
@@ -587,15 +732,14 @@ main (int argc, char **argv)
                         "auto beats the capped depth, outside the "
                         "intervals");
         }
-    /* Pfa: the hypotheses are priced. The rows with Rh > 1 are not
-       significantly above the target. (Rh = 1 is the engine as it ran
-       before compensation existed, and reads about twice the target at
-       this geometry -- reported above, not this program's to hold.) */
+    /* Pfa: every row, the uncompensated one included, is not significantly
+       above the target. Rh = 1 read about twice it until the gate was
+       priced over the interpolated cells its maximum ranges over
+       (doppler#2218); the rows with Rh > 1 sit under it, because each
+       hypothesis is priced as a full look (#2287). */
     for (size_t i = 0; i < NRH; i++)
-      if (prow[i].rh > 1)
-        DP_CHECK_MSG (prow[i].lo <= PFA,
-                      "per-dwell Pfa is not significantly above the "
-                      "target");
+      DP_CHECK_MSG (prow[i].lo <= PFA,
+                    "per-dwell Pfa is not significantly above the target");
   }
 
   /* The same claims on a repeated LFM preamble. ZC stays the geometry above;
@@ -627,7 +771,7 @@ main (int argc, char **argv)
     DP_CHECK_MSG (lrow[1].cap_lo > lrow[0].cap_hi,
                   "LFM: compensation beats the capped depth, outside the "
                   "intervals");
-    pfa_row_t lp = measure_pfa (5, cn0_l, dwells, 6161u);
+    pfa_row_t lp = measure_pfa (5, cn0_l, dwells, 6161u, 0);
     printf ("LFM Pfa, Rh %zu D %zu: %.2e (95%%: %.2e - %.2e)\n", lp.rh,
             lp.depth, lp.pfa, lp.lo, lp.hi);
     DP_CHECK_MSG (lp.lo <= PFA,

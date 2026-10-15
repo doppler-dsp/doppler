@@ -16,6 +16,7 @@
 typedef struct
 {
   PyObject_HEAD dp_async_dsss_pool_state_t *handle;
+  jm_inflight_t _jm_inflight; /* gh-2272: GIL-free calls running */
 } AsyncDsssPoolObject;
 
 static void
@@ -23,6 +24,7 @@ AsyncDsssPoolObj_dealloc (AsyncDsssPoolObject *self)
 {
   if (self->handle)
     dp_async_dsss_pool_destroy (self->handle);
+  jm_inflight_free (&self->_jm_inflight);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -317,14 +319,16 @@ AsyncDsssPoolObj_push (AsyncDsssPoolObject *self, PyObject *args,
     }
   const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
   size_t                x_len = (size_t)PyArray_SIZE (x_arr);
-  /* nogil: GIL released across the pure-C kernel — sound only when
-   * this object is not shared across threads concurrently (one
-   * object per stream); the kernel touches only this object's
-   * state/buffers and the caller's input. */
+  /* nogil: GIL released across the pure-C kernel. Two calls on
+   * one object may run at once only if its kernel allows it; a
+   * teardown waits for a running call (gh-2272). */
   size_t y;
+  void  *_jm_h = self->handle;
+  jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
-    y = dp_async_dsss_pool_push (self->handle, x, x_len);
+    y = dp_async_dsss_pool_push (_jm_h, x, x_len);
   Py_END_ALLOW_THREADS
+  jm_inflight_leave (&self->_jm_inflight);
   Py_DECREF (x_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -801,8 +805,16 @@ AsyncDsssPoolObj_destroy (AsyncDsssPoolObject *self,
 {
   if (self->handle)
     {
-      dp_async_dsss_pool_destroy (self->handle);
+      void *_jm_st = self->handle;
       self->handle = NULL;
+      /* gh-2272: a GIL-free call may still be running on this
+         object; new ones are refused from here, so wait for those. */
+      if (jm_inflight_wait (&self->_jm_inflight) < 0)
+        {
+          self->handle = _jm_st;
+          return NULL;
+        }
+      dp_async_dsss_pool_destroy (_jm_st);
     }
   Py_RETURN_NONE;
 }
@@ -821,8 +833,16 @@ AsyncDsssPoolObj_exit (AsyncDsssPoolObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      dp_async_dsss_pool_destroy (self->handle);
+      void *_jm_st = self->handle;
       self->handle = NULL;
+      /* gh-2272: a GIL-free call may still be running on this
+         object; new ones are refused from here, so wait for those. */
+      if (jm_inflight_wait (&self->_jm_inflight) < 0)
+        {
+          self->handle = _jm_st;
+          return NULL;
+        }
+      dp_async_dsss_pool_destroy (_jm_st);
     }
   Py_RETURN_NONE;
 }

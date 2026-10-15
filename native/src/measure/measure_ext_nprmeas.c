@@ -16,6 +16,7 @@
 typedef struct
 {
   PyObject_HEAD dp_nprmeas_state_t *handle;
+  jm_inflight_t _jm_inflight; /* gh-2272: GIL-free calls running */
 } NPRMeasureObject;
 
 static void
@@ -23,6 +24,7 @@ NPRMeasureObj_dealloc (NPRMeasureObject *self)
 {
   if (self->handle)
     dp_nprmeas_destroy (self->handle);
+  jm_inflight_free (&self->_jm_inflight);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -168,15 +170,17 @@ NPRMeasureObj_analyze (NPRMeasureObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
     }
-  /* nogil: GIL released across the pure-C kernel — sound only when
-   * this object is not shared across threads concurrently (one
-   * object per stream); the kernel touches only this object's
-   * state/buffers and the caller's input. */
+  /* nogil: GIL released across the pure-C kernel. Two calls on
+   * one object may run at once only if its kernel allows it; a
+   * teardown waits for a running call (gh-2272). */
   npr_meas_t _r;
+  void      *_jm_h = self->handle;
+  jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
-    _r = dp_nprmeas_analyze (self->handle, x, x_len, active_lo, active_hi,
-                             notch_lo, notch_hi, guard_hz);
+    _r = dp_nprmeas_analyze (_jm_h, x, x_len, active_lo, active_hi, notch_lo,
+                             notch_hi, guard_hz);
   Py_END_ALLOW_THREADS
+  jm_inflight_leave (&self->_jm_inflight);
   Py_DECREF (x_arr);
   PyObject *_o = PyStructSequence_New (NPRMeasureObj_analyze_type);
   if (!_o)
@@ -399,8 +403,16 @@ NPRMeasureObj_destroy (NPRMeasureObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      dp_nprmeas_destroy (self->handle);
+      void *_jm_st = self->handle;
       self->handle = NULL;
+      /* gh-2272: a GIL-free call may still be running on this
+         object; new ones are refused from here, so wait for those. */
+      if (jm_inflight_wait (&self->_jm_inflight) < 0)
+        {
+          self->handle = _jm_st;
+          return NULL;
+        }
+      dp_nprmeas_destroy (_jm_st);
     }
   Py_RETURN_NONE;
 }
@@ -418,8 +430,16 @@ NPRMeasureObj_exit (NPRMeasureObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      dp_nprmeas_destroy (self->handle);
+      void *_jm_st = self->handle;
       self->handle = NULL;
+      /* gh-2272: a GIL-free call may still be running on this
+         object; new ones are refused from here, so wait for those. */
+      if (jm_inflight_wait (&self->_jm_inflight) < 0)
+        {
+          self->handle = _jm_st;
+          return NULL;
+        }
+      dp_nprmeas_destroy (_jm_st);
     }
   Py_RETURN_NONE;
 }

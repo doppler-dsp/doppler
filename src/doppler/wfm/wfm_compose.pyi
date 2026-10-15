@@ -9,7 +9,16 @@ from doppler.wfm import FrameDesc
 
 @disjoint_base
 class Synth:
-    """Synth.
+    """One additive source within a segment: a `synth` config + its level.
+
+    The nine synth fields mirror `dp_wfm_synth_create()` (minus `fs`, which is
+    the segment's — one receiver, one sample rate). `level` is the source's
+    average power in dBFS (≤0); the segment sums its sources, each scaled by
+    `10^(level/20)`.
+
+    Any of `freq`/`snr`/`level`/`f_end` may be a per-repeat uniform draw: set
+    the matching `WFM_RANGE_*` bit in `ranged`, leave the scalar as `lo`, and
+    put `hi` in the `*_hi` companion (see the `ranged` enum).
 
     Parameters
     ----------
@@ -344,7 +353,13 @@ class Synth:
 
 @disjoint_base
 class Segment:
-    """Segment.
+    """One composer segment: one or more sources summed over the same span,
+    then a trailing off-time gap.
+
+    A 1-source segment is byte-identical to driving that source's `synth`
+    directly. `num_samples` is the on-time; `off_samples` is a trailing gap of
+    zeros. Durations in seconds are `round(duration * fs)` — the caller
+    resolves.
 
     Parameters
     ----------
@@ -735,7 +750,9 @@ class Composer:
             as fast as possible.
         """
     def to_dict(self) -> dict:
-        """Serialise the composer state to a dict."""
+        """Serialise the resolved composition (repeat, continuous, segments) to
+        a dict.
+        """
     def _draws_json(self) -> str:
         """Serialise as _draws_json."""
     def to_sigmf(
@@ -752,22 +769,109 @@ class Composer:
     def __enter__(self) -> Composer: ...
     def __exit__(self, *exc) -> None: ...
     @classmethod
-    def from_json(cls, json: str) -> Composer: ...
+    def from_json(cls, json: str) -> Composer:
+        """Build a Composer from a JSON spec."""
     @classmethod
-    def from_file(cls, path: str) -> Composer: ...
-    def to_json(self) -> str: ...
+    def from_file(cls, path: str) -> Composer:
+        """Build a Composer from a JSON spec file."""
+    def to_json(self) -> str:
+        """Serialise the spec as JSON."""
 
 def tone(**kw: Any) -> Synth:
-    """Return a Synth configured as a *tone* source."""
+    """Return a Synth configured as a *tone* source.
+
+    Parameters
+    ----------
+    **kw : Any
+        Any keyword Synth takes with ``type="tone"``; ``help(Synth)`` lists
+        them.
+
+    Returns
+    -------
+    Synth
+        The configured Synth.
+    """
 def noise(**kw: Any) -> Synth:
-    """Return a Synth configured as a *noise* source."""
+    """Return a Synth configured as a *noise* source.
+
+    Parameters
+    ----------
+    **kw : Any
+        Any keyword Synth takes with ``type="noise"``; ``help(Synth)``
+        lists them.
+
+    Returns
+    -------
+    Synth
+        The configured Synth.
+    """
 def pn(**kw: Any) -> Synth:
-    """Return a Synth configured as a *pn* source."""
+    """Return a Synth configured as a *pn* source.
+
+    Parameters
+    ----------
+    **kw : Any
+        Any keyword Synth takes with ``type="pn"``; ``help(Synth)`` lists
+        them.
+
+    Returns
+    -------
+    Synth
+        The configured Synth.
+    """
 def bpsk(**kw: Any) -> Synth:
-    """Return a Synth configured as a *bpsk* source."""
+    """Return a Synth configured as a *bpsk* source.
+
+    Parameters
+    ----------
+    **kw : Any
+        Any keyword Synth takes with ``type="bpsk"``; ``help(Synth)`` lists
+        them.
+
+    Returns
+    -------
+    Synth
+        The configured Synth.
+    """
 def qpsk(**kw: Any) -> Synth:
-    """Return a Synth configured as a *qpsk* source."""
+    """Return a Synth configured as a *qpsk* source.
+
+    Parameters
+    ----------
+    **kw : Any
+        Any keyword Synth takes with ``type="qpsk"``; ``help(Synth)`` lists
+        them.
+
+    Returns
+    -------
+    Synth
+        The configured Synth.
+    """
 def chirp(**kw: Any) -> Synth:
-    """Return a Synth configured as a *chirp* source."""
+    """Return a Synth configured as a *chirp* source.
+
+    Parameters
+    ----------
+    **kw : Any
+        Any keyword Synth takes with ``type="chirp"``; ``help(Synth)``
+        lists them.
+
+    Returns
+    -------
+    Synth
+        The configured Synth.
+    """
 def bits(**kw: Any) -> Synth:
-    """Return a Synth configured as a *bits* source."""
+    """Return a Synth configured as a *bits* source.
+
+    Parameters
+    ----------
+    **kw : Any
+        Any keyword Synth takes with ``type="bits"``; ``help(Synth)`` lists
+        them.
+
+    Returns
+    -------
+    Synth
+        The configured Synth.
+    """

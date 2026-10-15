@@ -555,15 +555,15 @@ def main(out_path: str | Path | None = None) -> None:
         f"({pfa_ratio:.2f}x the {PFA:.0e} target, "
         f"{pfa_sigma(pfa_hat, PFA, n_noise):+.1f} sigma)"
     )
-    # The detector delivers MORE false alarms than asked for, because the
-    # threshold is sized from the native cell count while the peak search
-    # runs on the interpolated surface -- doppler#1064, and the sweep model
-    # below has to predict from what is delivered, not from what was
-    # requested. Ratcheted so the gap cannot widen unnoticed.
+    # The gate is priced over the interpolated surface its maximum ranges
+    # over (doppler#2218), so the delivered rate is on target, or a few
+    # percent under it; priced over the native cells it was ~1.8x. The
+    # sweep model below still predicts from what is DELIVERED, not from what
+    # was requested. Ratcheted so a regression back toward 2x is caught.
     assert pfa_ratio <= PFA_RATIO_RATCHET, (
         f"realized Pfa {pfa_hat:.2e} is {pfa_ratio:.2f}x the {PFA:.0e} "
-        f"target, past the {PFA_RATIO_RATCHET}x ratchet -- the threshold "
-        f"model has drifted further from the surface it gates (doppler#1064)"
+        f"target, past the {PFA_RATIO_RATCHET}x ratchet -- the gate is no "
+        f"longer priced over the cells its maximum ranges over (doppler#2218)"
     )
 
     # gh-394: is a blind, overlapping-dwell sweep's false-alarm rate well

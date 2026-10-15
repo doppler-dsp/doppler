@@ -58,8 +58,8 @@
  *   validate_acq_block_coherent --check    the spot checks CTest runs: the
  *                                          aligned floor and the straddles'
  *                                          concentration, pfa within its
- *                                          binomial band (#1064's interp
- *                                          factor included), D = 154
+ *                                          binomial band of the configured
+ *                                          rate (#2218), D = 154
  *                                          detecting at a C/N0 where D = 1
  *                                          does not, and the dilated
  *                                          block's cost against the still
@@ -552,23 +552,24 @@ main (int argc, char **argv)
         fired += b.hit;
       }
     /* The slow-time axis is interpolated `interp`-fold and the maximum runs
-       over the interpolated surface while the threshold's N counts native
-       cells -- doppler#1064, the open finding on the burst engine, which
-       the continuous engine inherits with its slow-time axis. The realized
-       rate is therefore 1 - (1 - pfa)^interp, and that is what is pinned:
-       the CFAR counts every row of every tile, and #1064 is #1064. */
-    const double expect = 1.0 - pow (1.0 - pfa, (double)a->interp);
+       over the interpolated surface, so the gate is priced over every row
+       of it, in every tile (acq_band_cells, doppler#2218). The realized
+       rate is the configured one, and that is what is pinned. Priced over
+       the native rows instead, it was 1 - (1 - pfa)^interp: 37 of these
+       100 blocks against the 20 asked for, which this check refuses at
+       over 4 sigma. */
+    const double expect = pfa;
     double       sd     = sqrt (expect * (1.0 - expect) * blocks);
     printf ("\npfa per block, D = %zu, %zu tiles, interp %zu, configured "
-            "%.2f: %d of %d blocks fired (expected %.0f +- %.0f: "
-            "1 - (1 - pfa)^interp, doppler#1064)\n",
+            "%.2f: %d of %d blocks fired (expected %.0f +- %.0f, the "
+            "configured rate)\n",
             a->coherent_bins, a->window_bins, a->interp, pfa, fired, blocks,
             expect * blocks, sd);
     if (check)
       DP_CHECK_MSG (fabs ((double)fired - expect * blocks) <= 3.0 * sd,
-                    "the realized pfa is the configured one over the "
-                    "interpolated cells (#1064): the CFAR counts every row "
-                    "of every tile");
+                    "the realized pfa is the configured one: the gate is "
+                    "priced over every interpolated row of every tile "
+                    "(#2218)");
     dp_acq_destroy (a);
   }
 

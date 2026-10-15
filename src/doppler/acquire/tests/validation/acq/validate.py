@@ -807,10 +807,10 @@ def _sec_measured_pd(d: Data) -> None:
     R.md()
     R.md(
         f"The model is conservative by {d.pd_measured - d.pd_model:+.3f}. "
-        "What remains is the H1 face of F7: the detector takes the maximum "
-        "over an interpolated surface, and the Marcum form credits the "
-        "on-grid cell only. That is the right side to err on for sizing, "
-        "and it is the same mechanism doppler#1064 tracks on H0."
+        "What remains is the H1 face of F7's mechanism: the detector takes "
+        "the maximum over an interpolated surface, and the Marcum form "
+        "credits the on-grid cell only. That is the right side to err on "
+        "for sizing; on H0 the same maximum is priced since doppler#2218."
     )
     R.md()
 
@@ -1036,15 +1036,13 @@ def _sec_realized_pfa(d: Data) -> None:
         f"`make validate-check`, so read it as a ratchet check rather than "
         f"as the estimate: at a 1e-3 target, {n} frames give ~{n * 1e-3:.0f} "
         f"expected hits and a Poisson spread near "
-        f"+/-{(n * 1e-3) ** 0.5 / (n * 1e-3):.2f} on the ratio. The precise "
-        f"figure is **1.65 +/- 0.05** delivered, measured at 1e-2 over 60,000 "
-        f"frames and decomposing into 0.89 (the native model, conservative) "
-        f"x 1.86 (what interpolation adds). The threshold ladder is "
-        f"sized from the NATIVE cell count while the peak search runs on the "
-        f"Doppler-interpolated surface, and a maximum over a finer sampling "
-        f"of the same band-limited process is stochastically larger -- the "
-        f"scalloping-loss win of #1002, applied to H0. See F7 and "
-        f"doppler#1064; ratcheted at {PFA_RATIO_RATCHET}x below."
+        f"+/-{(n * 1e-3) ** 0.5 / (n * 1e-3):.2f} on the ratio. The gate "
+        f"is priced over every row of the Doppler-interpolated surface its "
+        f"maximum ranges over (F7, fixed by doppler#2218); priced over the "
+        f"native rows it delivered ~1.8x. The count treats each "
+        f"interpolated row as a fresh look, which it nearly is in the tail, "
+        f"so the bound is conservative by a few percent (doppler#1064 holds "
+        f"the measured refinement). Ratcheted at {PFA_RATIO_RATCHET}x below."
     )
     R.md()
 
@@ -1146,44 +1144,30 @@ def review(d: Data) -> None:
 
     R.find(
         "F7",
-        "CONFIRMED",
-        "**The detector delivers ~1.8x the false-alarm rate it is "
-        "configured for.** `acq_commit_thresholds()` sizes `pfa_cell` from "
-        "the NATIVE cell count `searched_bins * code_bins`, with no term "
-        "for `ACQ_DOPPLER_INTERP` -- argued in `acq_core.c` on the grounds "
-        "that frequency-domain zero-padding adds no new *information*. "
-        "That is true, and it is not the relevant argument: the detector "
-        "takes the MAXIMUM over the surface rather than integrating it, and "
-        "the maximum of a band-limited process sampled finely is "
-        "stochastically larger than the same process sampled coarsely. "
-        "Interpolation finds noise peaks that used to fall between bins -- "
-        "the scalloping-loss win of #1002 (~3.9 dB -> ~0.9 dB), applied to "
-        "H0. Measured over 60,000 noise frames at pfa=1e-2 with only the "
-        "interpolation factor changed, it decomposed into two errors of "
-        "OPPOSITE sign: `N_eff(1)/N` = **0.89 +/- 0.04** and "
-        "`N_eff(2)/N_eff(1)` = **1.86 +/- 0.09**, netting **1.65 +/- 0.05** "
-        "delivered to a caller. The 0.89 was read then as adjacent DFT bins "
-        "not being perfectly independent. It was not: at an even coherent "
-        "depth the full-band search never looked at its outermost native "
-        "bin (doppler#1183), so 7 of the 8 counted bins were searched -- "
-        "7/8 = 0.875. With the band searched to its edge the conservative "
-        "half is gone and the delivered ratio moves toward the "
-        "interpolation factor alone (\u00a72.5 re-measures it). Quoting 1.86 "
-        "alone would be quoting the ratio between two BUILDS rather than the "
-        "rate anyone experiences. The FORM is right: the ratio held across "
-        "three decades of target (1.65/1.40/1.50 at 1e-2/1e-3/1e-4 with "
-        "interpolation on), which is a multiplicative cell-count error and "
-        "not a miscalibrated per-cell threshold -- that would drift with "
-        "the target. `pd_predicted` and "
-        "`underpowered` derive from the same `pfa_cell`, so the link-budget "
-        "prediction is optimistic by the same factor -- and conservative by "
-        "a larger one, because the Marcum form does not credit the maximum "
-        "over an interpolated surface under H1 (\u00a72.6). Ratcheted at "
-        "2.2x by the limit below so the gap cannot widen unnoticed; "
-        "the fix is NOT a Bonferroni over `interp` (the interpolated cells "
-        "are correlated, so that over-corrects and costs sensitivity) but "
-        "the ratio between the expected maxima of the two surfaces. "
-        "doppler#1064.",
+        "FIXED",
+        "**The detector delivered ~1.8x the false-alarm rate it was "
+        "configured for; it now delivers the configured rate.** "
+        "`acq_commit_thresholds()` sized `pfa_cell` from the NATIVE cell "
+        "count `searched_bins * code_bins`, while the gate's maximum runs "
+        "over the Doppler-INTERPOLATED surface. Zero-padding adds no new "
+        "*information*, but a maximum over a finer sampling of the same "
+        "band-limited process is stochastically larger: interpolation finds "
+        "noise peaks that used to fall between bins, the scalloping-loss win "
+        "of #1002 (~3.9 dB -> ~0.9 dB) applied to H0. The 0.89 'conservative "
+        "native model' once quoted beside it was doppler#1183 (an even depth "
+        "never searched its outermost bin), not cell correlation: with the "
+        "band searched to its edge the native maximum is on target, and the "
+        "delivered ratio was the interpolation factor alone (1.86-1.93x at "
+        "1e-3 on the burst engine, doppler#2218). doppler#2218 prices the "
+        "gate over the cells the maximum ranges over (`acq_band_cells`: "
+        "every searched row of the interpolated surface, times "
+        "`code_bins`), at all three sites that price one. That is a "
+        "never-exceed bound: an interpolated row is correlated with its "
+        "native neighbours, so the count is conservative by what that "
+        "correlation is worth (0.95-0.97x measured at 1e-3, 1e6 dwells a "
+        "row), about 0.015 dB of sensitivity. The measured per-geometry "
+        "`N_eff` that would recover it is doppler#1064's open refinement. "
+        "\u00a72.5 re-measures the delivered rate.",
     )
 
     # ── 4. limits ─────────────────────────────────────────────────────────
@@ -1264,8 +1248,9 @@ def limits(d: Data) -> None:
     R.limit(
         d.pfa_within_ratchet,
         "the realized false-alarm rate stays inside its ratchet against "
-        "the configured target -- a RATCHET, not a bound: it sits at "
-        "~1.8x today (F7, doppler#1064) and may only shrink",
+        "the configured target -- a RATCHET on a 20,000-frame run, whose "
+        "Poisson spread is ~+/-0.22: on target since doppler#2218 (F7), "
+        "and it may only shrink",
     )
     R.limit(
         d.pd_model_conservative and d.pd_model_close,

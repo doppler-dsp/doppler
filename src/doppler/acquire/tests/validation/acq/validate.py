@@ -1026,8 +1026,9 @@ def _sec_realized_pfa(d: Data) -> None:
     target = 1e-3
     e0 = _engine()
     frame = e0.code_bins * e0.doppler_bins
-    # 60,000 frames: enough that the ratchet below both passes an on-target
-    # detector and refuses the native pricing (see PFA_RATIO_RATCHET).
+    # 60,000 frames: enough that the ratchet below passes an on-target
+    # detector (about 0.1% false red) and refuses the native pricing in about
+    # 98 runs of 100 (see PFA_RATIO_RATCHET; the exact guard is the C pin).
     n = 60000
     d.pfa_hat = realized_pfa(_engine, frame, n, seed=5)
     d.pfa_ratio = d.pfa_hat / target

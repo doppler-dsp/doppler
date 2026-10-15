@@ -743,9 +743,10 @@ priced: these rows now sit under the target, not over it).
     on-target detector trips it about 0.1% of the time, and the native
     pricing, which measures 1.76× on that engine (21 seeds), escapes it about
     2% of the time.
-- `validate_acq_block_coherent --check` pins the continuous engine's
-    per-block rate at the configured one, and refuses the native pricing at
-    over 4 sigma.
+- `validate_acq_block_coherent --check` holds the continuous engine's
+    per-block rate at the configured one over 400 blocks, which detects the
+    native pricing rather than pinning one draw: put back, it fired 127 of
+    400, past the band's edge (104) by close to three of its own sigma.
 - The characterization predicts its sweep counts from the *delivered* rate
     rather than the configured one.
 

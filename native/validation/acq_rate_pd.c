@@ -572,28 +572,32 @@ measure_rate (size_t rh, double design, double sig, double rate, int trials,
 /* What a captured EVENT's doppler_rate_hz_s says, against the truth
    (doppler#2219): refine's winning hypothesis, from the whole preamble on
    refine's own grid. The burst synthesis of measure_rate, into a capture
-   built at `design`; `hits` counts events placed within TOL of the true start
+   built at `design`, the carrier sweeping at `base` plus `off` of refine's
+   own grid step; `hits` counts events placed within TOL of the true start
    and `nearest` those naming refine's grid point nearest the truth. */
 static rate_row_t
-measure_event_rate (size_t rh, double design, double sig, double rate,
-                    int trials, uint32_t seed)
+measure_event_rate (size_t rh, double design, double sig, double base,
+                    double off, int trials, uint32_t seed)
 {
   rate_row_t                r = { 0 };
   dp_burst_capture_state_t *s = make (rh, design);
   r.rh                        = rh;
   r.sig                       = sig;
-  r.rate                      = rate;
   r.depth                     = dp_burst_capture_get_doppler_bins (s);
-  const size_t     R          = s->rate_ph_n;
-  const double     step       = 2.0 * RATE / (double)(R - 1);
-  const size_t     lead_max   = 3u * r.depth * N;
-  const size_t     len = lead_max + BURST + 2u * s->refine_span + 4u * N;
-  float _Complex  *x   = dp_xmalloc (len * sizeof *x);
-  float _Complex  *nz  = dp_xmalloc (len * sizeof *nz);
-  float _Complex  *per = dp_xmalloc (N * sizeof *per);
-  const size_t     cap = dp_burst_capture_push_max_out (s, len);
-  float _Complex  *out = dp_xmalloc ((cap ? cap : 1) * sizeof *out);
-  dp_awgn_state_t *g   = dp_xnn (
+  const size_t R              = s->rate_ph_n;
+  const double step           = 2.0 * RATE / (double)(R - 1);
+  /* The truth: `base` moved by `off` of THIS capture's own grid step, so an
+     off-grid row stays off the grid whatever R refine's sizing chooses. */
+  const double rate         = base + off * step;
+  r.rate                    = rate;
+  const size_t     lead_max = 3u * r.depth * N;
+  const size_t     len      = lead_max + BURST + 2u * s->refine_span + 4u * N;
+  float _Complex  *x        = dp_xmalloc (len * sizeof *x);
+  float _Complex  *nz       = dp_xmalloc (len * sizeof *nz);
+  float _Complex  *per      = dp_xmalloc (N * sizeof *per);
+  const size_t     cap      = dp_burst_capture_push_max_out (s, len);
+  float _Complex  *out      = dp_xmalloc ((cap ? cap : 1) * sizeof *out);
+  dp_awgn_state_t *g        = dp_xnn (
       dp_awgn_create (seed, dp_awgn_amplitude_for_snr ((float)sig, 1.0f)));
   const double dur  = (double)(REPS * N);
   const double span = 1.0 / (2.0 * (double)N) - RATE * 0.5 * dur;
@@ -743,8 +747,9 @@ main (int argc, char **argv)
      doppler_rate_hz_s, doppler#2219): refine's winning hypothesis from the
      whole preamble. Three truths: on the grid at 0 and at the span's edge,
      and OFF it, 0.4 of refine's grid step above 0 -- the real case, a
-     carrier whose rate no hypothesis matches. Refine's grid at Rh = 9 is
-     nine points, so the step is 2 * RATE / 8. Gated where the contract
+     carrier whose rate no hypothesis matches. The step is the capture's
+     own (2 * RATE / (R - 1) for refine's R), so the row stays 0.4 off
+     whatever R refine's sizing chooses. Gated where the contract
      claims it, 23 dB over the design point; the design point and 3 dB over
      are printed. */
   printf ("\nevent rate: Rh = 9, captured events placed within %.0f "
@@ -755,13 +760,14 @@ main (int argc, char **argv)
   rate_row_t er[9];
   size_t     ner = 0;
   {
-    const double sigs[3]   = { cn0, cn0 + 3.0, cn0 + 23.0 };
-    const double truths[3] = { 0.0, RATE, 0.4 * (2.0 * RATE / 8.0) };
+    const double sigs[3]  = { cn0, cn0 + 3.0, cn0 + 23.0 };
+    const double bases[3] = { 0.0, RATE, 0.0 };
+    const double offs[3]  = { 0.0, 0.0, 0.4 };
     for (int i = check ? 2 : 0; i < 3; i++)
       for (int k = 0; k < 3; k++)
         {
           er[ner] = measure_event_rate (
-              9, cn0, sigs[i], truths[k], check ? 100 : 200,
+              9, cn0, sigs[i], bases[k], offs[k], check ? 100 : 200,
               9777u + 10u * (uint32_t)i + (uint32_t)k);
           const rate_row_t *q = &er[ner++];
           printf ("%7.2f %+9.1e %6ld | %6ld %6.1f%% %6.1f%%\n", q->sig,

@@ -24,6 +24,7 @@
 #include "dp_preamble_test.h"
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
+#include "dp_swept_test.h"
 #include "dp_test.h"
 #include <float.h>
 #include <math.h>
@@ -952,19 +953,16 @@ _acq_wideband_default_depth_check (void)
 
 /* A repeated preamble whose carrier SWEEPS: `n` samples of `code` (chips
  * held `spc` samples, repeating), mixed by exp(j 2 pi (f_mid u + rate u^2/2))
- * with u the time from the middle of the `n` samples, seconds. */
+ * with u the time from the middle of the `n` samples, seconds. The sweep is
+ * the library's own operator (dp_swept_test.h), not a private phase ramp. */
 static void
 _chirp_stream (const uint8_t *code, size_t sf, size_t spc, double fs, size_t n,
                double f_mid, double rate, float _Complex *x)
 {
   const size_t nx = sf * spc;
   for (size_t k = 0; k < n; k++)
-    {
-      const double u  = ((double)k - 0.5 * (double)n) / fs;
-      const double ph = 2.0 * M_PI * (f_mid * u + 0.5 * rate * u * u);
-      const float  v  = (code[(k % nx) / spc] & 1u) ? -1.0f : 1.0f;
-      x[k]            = v * (float _Complex) (cos (ph) + I * sin (ph));
-    }
+    x[k] = (code[(k % nx) / spc] & 1u) ? -1.0f : 1.0f;
+  dp_swept_rotate (x, n, fs, f_mid, rate, 0.5 * (double)n);
 }
 
 /* rate_hypotheses = 0 (auto): the engine picks the smallest count whose

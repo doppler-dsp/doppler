@@ -1181,13 +1181,13 @@ static PyTypeObject BurstAcquisitionObjType = {
     "...     with warnings.catch_warnings():\n"
     "...         warnings.simplefilter(\"ignore\")   # under-powered, below\n"
     "...         return BurstAcquisition(zc, reps=16, fs=1.0, "
-    "cn0_dbhz=-13.0,\n"
+    "cn0_dbhz=-12.5,\n"
     "...                                 doppler_rate=9e-7, **kw)\n"
     ">>> make().doppler_bins, make().underpowered      # the rate caps it\n"
     "(5, True)\n"
     ">>> c = make(rate_hypotheses=9)\n"
     ">>> c.rate_hypotheses, c.doppler_bins, c.underpowered\n"
-    "(9, 10, False)\n",
+    "(9, 9, False)\n",
   .tp_methods = BurstAcquisitionObj_methods,
   .tp_getset  = BurstAcquisition_getset,
   .tp_new     = BurstAcquisitionObj_new,

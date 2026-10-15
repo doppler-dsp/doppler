@@ -129,13 +129,13 @@ extern "C"
    * >>> def make(**kw):
    * ...     with warnings.catch_warnings():
    * ...         warnings.simplefilter("ignore")   # under-powered, below
-   * ...         return BurstAcquisition(zc, reps=16, fs=1.0, cn0_dbhz=-13.0,
+   * ...         return BurstAcquisition(zc, reps=16, fs=1.0, cn0_dbhz=-12.5,
    * ...                                 doppler_rate=9e-7, **kw)
    * >>> make().doppler_bins, make().underpowered      # the rate caps it
    * (5, True)
    * >>> c = make(rate_hypotheses=9)
    * >>> c.rate_hypotheses, c.doppler_bins, c.underpowered
-   * (9, 10, False)
+   * (9, 9, False)
    *
    * @endcode
    */

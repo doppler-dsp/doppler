@@ -797,6 +797,22 @@ outside the intervals. A capture still places a few percent fewer bursts than
 its engine detects, compensated or not (0.905–0.935 against 0.958–0.984
 above), which is refine's own cost, open in #2341.
 
+**Not a property of the Zadoff-Chu sequence.** The validator repeats the
+claims on two more preamble families of the same 127 × 16 geometry, each from
+the shipped waveform generator at its own design point: a repeated LFM chirp
+(−fs/4 to +fs/4 a period) and a PN m-sequence on `dp_mls_poly(7)`. Capped
+(`n = 1`) against `n = 5`, 1000 trials a row:
+
+| preamble |      C/N0 | capped capture (`pd_burst`)  | `n = 5` capture (`pd_burst`) | 3 dB under, engine: capped vs `n = 5`          |
+| :------- | --------: | :--------------------------- | :--------------------------- | :--------------------------------------------- |
+| LFM      | −14.00 dB | 0.924, 0.906 – 0.939 (0.842) | 0.915, 0.896 – 0.931 (0.917) | 0.471 (0.440 – 0.502) vs 0.760 (0.733 – 0.785) |
+| PN       | −12.75 dB | 0.879, 0.857 – 0.898 (0.847) | 0.925, 0.907 – 0.940 (0.911) | 0.554 (0.523 – 0.585) vs 0.742 (0.714 – 0.768) |
+
+Both captures deliver their `pd_burst` within the interval. Compensation's
+depth beats the capped depth 3 dB under the design point, outside the
+intervals, at the engine and at the capture (LFM 0.362 against 0.603, PN 0.465
+against 0.624). Each family's Pfa is held too.
+
 **Two things this does not say.** The uncompensated row's Pfa was a separate
 finding, since fixed: the engine read **1.97e-3** a dwell against a target of
 1e-3, because its gate was priced over the native cells while its maximum

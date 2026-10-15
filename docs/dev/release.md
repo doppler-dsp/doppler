@@ -109,7 +109,8 @@ clones, about 10 GB, by 2026-10-14. In one clone, `git checkout` of the
 next release commit refuses while the previous copy is there.
 `make bench-preflight` clears it once origin/main has it byte for byte. It
 refuses, without touching anything, over any result main lacks or holds
-differently: publish that through its PR, or remove it.
+differently, one staged and not committed, or a symlink: publish that
+through its PR, or remove it.
 `bench-interleaved` runs the same check first.
 
 First put the CPU

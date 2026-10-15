@@ -133,7 +133,10 @@ def clear_published_copies(base: str = "origin/main", root=None) -> int:
       is printed.
     - **Absent from** ``base`` **or different**: an unpublished result.
       Nothing is measured over it; the run is refused, with what to do,
-      and no file is touched, stale ones included.
+      and no file is touched, stale ones included. A file STAGED but not
+      committed, and a symlink, are refused the same way: checkout would
+      carry the one into the next commit, and the other cannot be
+      compared byte for byte.
 
     ``base``'s remote is fetched first, and a failed fetch refuses: a stale
     ``base`` would call a published snapshot unpublished, or the reverse.
@@ -175,7 +178,11 @@ def clear_published_copies(base: str = "origin/main", root=None) -> int:
     # Working tree against the INDEX, the same pair `git checkout -- f`
     # restores between: what is staged is never what this drops.
     modified = lines("diff", "-z", "--name-only", "--diff-filter=M")
-    paths = untracked + modified
+    # Staged and not committed: neither untracked nor different from the
+    # index, so neither list above sees it, and `git checkout` carries it
+    # into the next commit. It is refused, never cleared.
+    staged = lines("diff", "-z", "--cached", "--name-only", "HEAD")
+    paths = list(dict.fromkeys(untracked + modified + staged))
     if not paths:
         print(
             f"bench-preflight: no bench outputs here that {base} lacks "
@@ -187,27 +194,49 @@ def clear_published_copies(base: str = "origin/main", root=None) -> int:
     for entry in lines("ls-tree", "-r", "-z", base):
         meta, path = entry.split("\t", 1)
         tree[path] = meta.split()[2]
-    hashed = _run(
-        ["git", "hash-object", "--no-filters", "--stdin-paths"],
-        root,
-        input="\n".join(paths) + "\n",
-        capture_output=True,
-        check=True,
-    ).stdout.split()
+    # Git lists a symlink as a file and hash-object follows it, so a
+    # dangling one, or one to a directory, cannot be hashed: refused by name.
+    regular = [
+        p
+        for p in paths
+        if p not in staged and not os.path.islink(os.path.join(root, p))
+    ]
+    hashed = {}
+    if regular:
+        h = _run(
+            ["git", "hash-object", "--no-filters", "--stdin-paths"],
+            root,
+            input="\n".join(regular) + "\n",
+            capture_output=True,
+        )
+        if h.returncode != 0:
+            print(
+                "bench-preflight: cannot read a bench output to compare it "
+                f"with {base}, so nothing was touched:\n{h.stderr.strip()}"
+            )
+            return 2
+        hashed = dict(zip(regular, h.stdout.split()))
 
     units = {}  # unit -> [(path, why-not-stale or None)]
-    for path, sha in zip(paths, hashed):
+    for path in paths:
         why = None
-        if path not in tree:
+        if path in staged:
+            why = f"{path} is staged and not committed"
+        elif path not in hashed:
+            why = f"{path} is a symlink"
+        elif path not in tree:
             why = f"{path} is not on {base}"
-        elif tree[path] != sha:
+        elif tree[path] != hashed[path]:
             why = f"{path} differs from {base}'s"
         units.setdefault(_unit(path), []).append((path, why))
 
     refused = {u: [w for _, w in ps if w] for u, ps in units.items()}
     refused = {u: ws for u, ws in refused.items() if ws}
     if refused:  # all or nothing: a refusal touches no file
-        print(f"bench-preflight: unpublished results here, not on {base}:")
+        print(
+            f"bench-preflight: results here that {base} does not clear; "
+            "nothing was touched:"
+        )
         for unit, whys in refused.items():
             print(f"  {unit}")
             for why in whys:

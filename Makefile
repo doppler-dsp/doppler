@@ -4691,7 +4691,8 @@ bench-python: ## Time the Python microbenchmarks (serial; pytest-benchmark)
 # §2b): fetch, then bench-preflight, then `git checkout --detach`, then
 # bench-interleaved. The preflight clears the previous release's snapshot
 # and rendered page once origin/main has them byte for byte; `git checkout`
-# refuses while they are still there. Anything main lacks refuses instead.
+# refuses while they are still there. Anything main lacks, anything staged
+# and not committed, and any symlink refuses instead, touching nothing.
 # bench-interleaved runs the same check first.
 bench-preflight: ## Clear the last release's bench outputs once main has them
 	uv run python scripts/bench_interleaved.py --preflight \

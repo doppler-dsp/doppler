@@ -160,6 +160,36 @@ def test_a_refusal_clears_nothing_not_even_the_stale_copy(
     assert (box / PAGE).read_text(encoding="utf-8") == RENDERED
 
 
+def test_a_staged_snapshot_refuses_even_one_main_has(
+    box: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Staged, a file is neither untracked nor different from the index,
+    and `git checkout` carries it into the next release's commit."""
+    _write(box, f"{SET}/native.json", SNAPSHOT)  # main's bytes, exactly
+    _git(box, "add", SET)
+    assert _preflight(box) == 2
+    assert f"{SET}/native.json is staged and not committed" in (
+        capsys.readouterr().out
+    )
+    assert _git(box, "diff", "--cached", "--name-only") == f"{SET}/native.json"
+
+
+@pytest.mark.parametrize(
+    "target", ["missing.json", "."], ids=["dangling", "dir"]
+)
+def test_a_symlink_refuses_by_name_and_touches_nothing(
+    box: Path, target: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    link = box / SET / "native.json"
+    link.parent.mkdir(parents=True)
+    link.symlink_to(target)
+    _write(box, PAGE, RENDERED)  # stale, and must survive the refusal
+    assert _preflight(box) == 2
+    assert f"{SET}/native.json is a symlink" in capsys.readouterr().out
+    assert link.is_symlink()
+    assert (box / PAGE).read_text(encoding="utf-8") == RENDERED
+
+
 def test_a_failed_fetch_refuses(
     box: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

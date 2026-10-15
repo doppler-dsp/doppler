@@ -1711,9 +1711,12 @@ static PyMethodDef BurstCaptureObj_methods[] = {
     "2*doppler_rate/(R - 1); 0 without rate hypotheses. A hypothesis, not a "
     "fit, from the whole preamble rather than one dwell: it is the grid point "
     "nearest the carrier's rate in every event 23 dB over the design point, "
-    "and in 88% to 93% of events at it (validate_acq_rate_pd's event-rate "
-    "rows; docs/design/burst-capture.md). Appended last, so positional "
-    "initialisers do not shift (doppler#2219).\n" },
+    "on or off the grid. At the design point it is in 88% to 93% of events "
+    "whose rate is ON a grid point, but in 57% of those 0.4 of a step off "
+    "one, where the neighbouring point is only 0.6 of a step away "
+    "(validate_acq_rate_pd's event-rate rows; docs/design/burst-capture.md). "
+    "Appended last, so positional initialisers do not shift "
+    "(doppler#2219).\n" },
   { "events_max_out", (PyCFunction)BurstCaptureObj_events_max_out,
     METH_VARARGS,
     "events_max_out(n) -> int\n"

@@ -80,6 +80,10 @@ with Subscriber("nats://127.0.0.1:4222/iq") as sub:
     with Publisher("nats://127.0.0.1:4222/iq", CF64) as pub:
         iq = np.exp(2j * np.pi * 1e3 * np.arange(1000) / 1e6)   # complex128
         pub.send(iq, sample_rate=1e6, center_freq=2.4e9)
+        # A send returns once the client holds the frame; close() then
+        # flushes for at most 500 ms and reports nothing. drain() waits
+        # for the server and raises if the tail could not get there.
+        pub.drain()
 
     samples, header = sub.recv(timeout_ms=1000)
     assert len(samples) == 1000

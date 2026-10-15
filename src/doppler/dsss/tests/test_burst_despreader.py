@@ -42,6 +42,42 @@ def test_create_validates():
         BurstDespreader(np.zeros(2, np.uint8), sf=8, sps=2)
 
 
+# 1e200 is finite, but its loop gains overflow: the predicate refuses it.
+_BAD_BN = [float("nan"), float("inf"), -0.01, 1e200]
+
+
+@pytest.mark.parametrize("bad", _BAD_BN)
+@pytest.mark.parametrize("which", ["bn_carrier", "bn_code"])
+def test_create_refuses_a_bandwidth_outside_the_loop_filter_domain(
+    which: str, bad: float
+) -> None:
+    """A NaN, infinite, negative or overflowing bandwidth gave NaN loop
+    gains from the first symbol (#2071): refused, by the loop filter's own
+    predicate."""
+    code = np.ones(31, np.uint8)
+    with pytest.raises(
+        ValueError,
+        match="bn_carrier and bn_code within the loop filter's domain",
+    ):
+        BurstDespreader(code, sf=31, sps=SPS, **{which: bad})
+
+
+@pytest.mark.parametrize("bad", _BAD_BN)
+@pytest.mark.parametrize("which", ["bn_carrier", "bn_code"])
+def test_a_refused_bandwidth_leaves_the_loop_as_it_was(
+    which: str, bad: float
+) -> None:
+    """The setter refuses in C, the binding raises ValueError on that
+    status (just-makeit#2182), and the loop keeps its bandwidth."""
+    d = BurstDespreader(np.ones(31, np.uint8), sf=31, sps=SPS)
+    before = getattr(d, which)
+    with pytest.raises(
+        ValueError, match=f"{which} is outside the loop filter's domain"
+    ):
+        setattr(d, which, bad)
+    assert getattr(d, which) == before
+
+
 def test_genie_payload_zero_offset():
     rng = np.random.default_rng(0)
     code, syms, tx = _burst(rng, 31, 60)

@@ -117,8 +117,10 @@ BurstDespreaderObj_init (BurstDespreaderObject *self, PyObject *args,
     {
       PyErr_SetString (PyExc_ValueError,
                        "BurstDespreader: invalid parameter (need a code of "
-                       "at least sf chips, sf >= 1, sps >= 2, and a finite "
-                       "init_norm_freq and init_chip_phase)");
+                       "at least sf chips, sf >= 1, sps >= 2, a finite "
+                       "init_norm_freq and init_chip_phase, and bn_carrier "
+                       "and bn_code within the loop filter's domain: finite, "
+                       ">= 0, and gains that do not overflow)");
       return -1;
     }
   return 0;
@@ -600,7 +602,16 @@ BurstDespreader_setprop_bn_carrier (BurstDespreaderObject *self,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  dp_burst_despreader_set_bn_carrier (self->handle, v);
+  int _rc = dp_burst_despreader_set_bn_carrier (self->handle, v);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "BurstDespreader: bn_carrier is outside the loop "
+                    "filter's domain (finite, >= 0, and gains that do not "
+                    "overflow)",
+                    (long long)_rc);
+      return -1;
+    }
   return 0;
 }
 static PyObject *
@@ -626,7 +637,15 @@ BurstDespreader_setprop_bn_code (BurstDespreaderObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  dp_burst_despreader_set_bn_code (self->handle, v);
+  int _rc = dp_burst_despreader_set_bn_code (self->handle, v);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "BurstDespreader: bn_code is outside the loop filter's "
+                    "domain (finite, >= 0, and gains that do not overflow)",
+                    (long long)_rc);
+      return -1;
+    }
   return 0;
 }
 static PyObject *
@@ -717,11 +736,30 @@ BurstDespreader_getprop_stat_n (BurstDespreaderObject *self,
 static PyGetSetDef BurstDespreader_getset[] = {
   { "bn_carrier", (getter)BurstDespreader_getprop_bn_carrier,
     (setter)BurstDespreader_setprop_bn_carrier,
-    "Carrier (Costas) loop noise bandwidth, normalized to the symbol rate.\n",
+    "Carrier (Costas) loop noise bandwidth, normalized to the symbol\n"
+    "rate.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    On assignment, if ``dp_burst_despreader_set_bn_carrier`` refuses\n"
+    "    the value by returning non-zero. The exception message is\n"
+    "    ``BurstDespreader: bn_carrier is outside the loop filter's domain\n"
+    "    (finite, >= 0, and gains that do not overflow)``, with the return\n"
+    "    code appended.\n",
     NULL },
   { "bn_code", (getter)BurstDespreader_getprop_bn_code,
     (setter)BurstDespreader_setprop_bn_code,
-    "Code (DLL) loop noise bandwidth, normalized to the symbol rate.\n",
+    "Code (DLL) loop noise bandwidth, normalized to the symbol rate.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    On assignment, if ``dp_burst_despreader_set_bn_code`` refuses the\n"
+    "    value by returning non-zero. The exception message is\n"
+    "    ``BurstDespreader: bn_code is outside the loop filter's domain\n"
+    "    (finite, >= 0, and gains that do not overflow)``, with the return\n"
+    "    code appended.\n",
     NULL },
   { "norm_freq", (getter)BurstDespreader_getprop_norm_freq,
     (setter)BurstDespreader_setprop_norm_freq,
@@ -1110,7 +1148,11 @@ static PyTypeObject BurstDespreaderObjType = {
     "    If construction fails. The exception message is ``BurstDespreader:\n"
     "    invalid parameter (need a code of at least sf chips, sf >= 1, sps >= "
     "2,\n"
-    "    and a finite init_norm_freq and init_chip_phase)``.\n"
+    "    a finite init_norm_freq and init_chip_phase, and bn_carrier and "
+    "bn_code\n"
+    "    within the loop filter's domain: finite, >= 0, and gains that do "
+    "not\n"
+    "    overflow)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

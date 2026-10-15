@@ -347,17 +347,24 @@ dp_doppler_channel_set_state (dp_doppler_channel_state_t *state,
                                     DOPPLER_CHANNEL_STATE_VERSION);
   if (rc != DP_OK)
     return rc;
+  /* DECODE the channel's own fields, restore the CHILD, then COMMIT: the
+     fields are written only once the resampler has accepted its sub-blob,
+     so a refusal changes nothing (doppler#2104). They used to be written
+     first, and a refused child left them holding the blob's values. */
   dp_reader_t r = dp_reader_init (blob, total);
   (void)dp_r_reserve (&r, sizeof (dp_state_hdr_t)); /* skip the envelope */
-  state->n_in       = dp_r_u64 (&r);
-  state->n_out      = dp_r_u64 (&r);
-  state->prof_d     = dp_r_f64 (&r);
-  state->profiled   = (uint8_t)(dp_r_u64 (&r) != 0u);
-  const void *child = dp_r_reserve (&r, dp_resamp_state_bytes (state->rs));
-  if (!child)
-    return DP_ERR_INVALID;
-  /* The child blob is self-validating — a wrong resampler payload is rejected
-     by dp_resamp_set_state's own envelope check, not silently reinterpreted.
-   */
-  return dp_resamp_set_state (state->rs, child);
+  const uint64_t n_in     = dp_r_u64 (&r);
+  const uint64_t n_out    = dp_r_u64 (&r);
+  const double   prof_d   = dp_r_f64 (&r);
+  const uint8_t  profiled = (uint8_t)(dp_r_u64 (&r) != 0u);
+  /* The child blob is self-validating -- a wrong resampler payload is
+     rejected by dp_resamp_set_state's own checks, not silently
+     reinterpreted -- and they all run before it writes. DP_R_CHILD, so this
+     site joins doppler#2104's sweep to the transacted form. */
+  DP_R_CHILD (&r, dp_resamp, state->rs);
+  state->n_in     = n_in;
+  state->n_out    = n_out;
+  state->prof_d   = prof_d;
+  state->profiled = profiled;
+  return DP_OK;
 }

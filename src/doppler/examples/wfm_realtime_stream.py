@@ -94,6 +94,10 @@ def main() -> None:
                     f"{time.perf_counter() - t0:10.3f}"
                 )
 
+    # Drain before close: close() is a best-effort flush, 500 ms and no
+    # failure report, so a tail it cannot push out is dropped silently.
+    # drain() waits for the server and raises if it could not get there.
+    sink.drain(5000)
     sink.close()
     sub.close()
 

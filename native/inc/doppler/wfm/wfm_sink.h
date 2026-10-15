@@ -8,11 +8,15 @@
  * destination; a `dp_sub_*` receiver (e.g. native/examples/spectrum_analyzer) reads
  * the stream.
  *
- * Lifecycle: dp_wfm_stream_sink_open -> dp_wfm_stream_sink_send* -> dp_wfm_stream_sink_close
+ * Lifecycle: dp_wfm_stream_sink_open -> dp_wfm_stream_sink_send* ->
+ * dp_wfm_stream_sink_drain -> dp_wfm_stream_sink_close
  *
  * @code
  * wfm_stream_sink_t *s = dp_wfm_stream_sink_open("nats://127.0.0.1:4222/iq", 3); // ci16
- * dp_wfm_stream_sink_send(s, iq, 4096, 1e6, 2.4e9);
+ * if (dp_wfm_stream_sink_send(s, iq, 4096, 1e6, 2.4e9) != 0)
+ *   fprintf(stderr, "block refused: it never left this process\n");
+ * if (dp_wfm_stream_sink_drain(s, 0) != 0)
+ *   fprintf(stderr, "the tail may not have reached the server\n");
  * dp_wfm_stream_sink_close(s);
  * @endcode
  */
@@ -61,11 +65,20 @@ wfm_stream_sink_t *dp_wfm_stream_sink_open(const char *endpoint, int sample_type
 
 /**
  * @brief Convert a cf32 block to the wire type and publish it.
- * @param sink  the sink handle.
- * @param iq  Complex-float samples; @param n complex sample count.
- * @param fs  sample rate (Hz); @param fc center frequency (Hz) — wire header.
- * @return 0 on success, non-zero on a send/allocation error.
+ *
+ * A refused block never left this process: the client refuses publishes
+ * while a reconnect has 8 MiB pending, and a drained sink refuses outright.
+ * The stream goes on, so the next block may go; a caller that keeps sending
+ * counts the refusals and reports them, as wfmgen does (#2011).
+ *
+ * @param sink  The sink handle.
+ * @param iq    Complex-float samples.
+ * @param n     Complex sample count.
+ * @param fs    Sample rate (Hz), carried in the wire header.
+ * @param fc    Center frequency (Hz), carried in the wire header.
+ * @return 0 on success, non-zero on a refused send or an allocation error.
  */
+DP_NODISCARD
 int dp_wfm_stream_sink_send(wfm_stream_sink_t *sink, const float _Complex *iq,
                          size_t n, double fs, double fc);
 
@@ -80,6 +93,7 @@ int dp_wfm_stream_sink_send(wfm_stream_sink_t *sink, const float _Complex *iq,
  * @param sink Sink; NULL is DP_OK (there is no stream to end).
  * @return DP_OK, or the stream layer's error.
  */
+DP_NODISCARD
 int dp_wfm_stream_sink_send_eos(wfm_stream_sink_t *sink);
 
 /**
@@ -101,9 +115,19 @@ int dp_wfm_stream_sink_send_eos(wfm_stream_sink_t *sink);
  *         if the budget ran out with the drain still in progress, in which
  *         case the sink is still safe to close.
  */
+DP_NODISCARD
 int dp_wfm_stream_sink_drain(wfm_stream_sink_t *sink, int timeout_ms);
 
-/** @brief Close the sink and destroy the publisher. @param sink May be NULL. */
+/**
+ * @brief Close the sink and destroy the publisher.
+ *
+ * Best-effort on its own: the client flushes what is still buffered for at
+ * most 500 ms and reports nothing, so a tail it cannot push out in that
+ * time is dropped silently. Call dp_wfm_stream_sink_drain() first on any
+ * run whose tail matters; close is then just the free.
+ *
+ * @param sink May be NULL.
+ */
 void dp_wfm_stream_sink_close(wfm_stream_sink_t *sink);
 
 /* Clip detection, mirroring wfm_writer (peak always tracked on the integer

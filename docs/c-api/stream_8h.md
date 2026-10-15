@@ -120,7 +120,8 @@ Requires a running `nats-server` (`nats-server -js` for the PUSH/PULL JetStream 
 // Transmitter
 dp_pub_t *pub = dp_pub_create("nats://127.0.0.1:4222/iq", CF64);
 double _Complex samples[1024] = { ... };
-dp_pub_send_cf64(pub, samples, 1024, 1e6, 2.4e9);
+if (dp_pub_send_cf64(pub, samples, 1024, 1e6, 2.4e9) != DP_OK)
+  fprintf(stderr, "send refused: %s\n", dp_ctx_last_error(pub));
 dp_pub_destroy(pub);
 
 // Receiver (zero-copy)

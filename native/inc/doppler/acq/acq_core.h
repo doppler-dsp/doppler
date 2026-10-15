@@ -523,7 +523,10 @@ extern "C"
     float  threshold; /**< CFAR gate on test_stat (theta); coherent path.   */
     float  eta;       /**< Raw per-cell Rayleigh amplitude threshold.       */
     float  eta_nc;    /**< Non-coherent CFAR threshold (order-N_nc Marcum).  */
-    double pfa_cell;  /**< Sidak per-cell false-alarm probability.          */
+    double pfa_cell;  /**< Sidak per-cell false-alarm probability, split
+                           over the cells a dwell's maximum ranges over:
+                           the in-band rows of the interpolated surface,
+                           times code_bins, times the rate hypotheses.  */
     double pd;        /**< Target detection probability.                    */
     double pd_predicted;  /**< Predicted Pd at cn0_dbhz and the chosen
                                grid of ONE dwell lying wholly inside the
@@ -774,8 +777,9 @@ extern "C"
    *   a true rate can sit from a hypothesis, `R/(n - 1)`, so `coherent_bins`
    *   can grow by up to `sqrt(n - 1)` at a fixed span.
    * - **False alarms.** A dwell now offers `n` looks at each cell: the
-   *   per-cell Pfa is split over `n * searched_bins * code_bins` cells and the
-   *   gate is the larger count's. Each hypothesis is CFAR-tested against its
+   *   per-cell Pfa is split over `n` times the cells the dwell's maximum
+   *   ranges over (every searched row of the Doppler-interpolated surface,
+   *   times `code_bins`), and the gate is the larger count's. Each hypothesis is CFAR-tested against its
    *   own surface and the dwell takes the strongest; acq_result_t::
    *   doppler_rate_hz_s names the winner.
    * - **Cost.** A dwell does `n` slow-time passes (and a recompute of the

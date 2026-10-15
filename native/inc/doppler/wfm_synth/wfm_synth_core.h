@@ -765,8 +765,11 @@ int dp_wfm_synth_set_dsss_cont(dp_wfm_synth_state_t *state, const uint8_t *code,
  * epoch. This is the multi-emitter waveform's frame — 450 code-only symbols
  * then 4500 of data in the application it was written for — and the
  * searcher's coherent depth is what the window makes possible.
- * Configuration, not running state: it is kept by reset() and is not
- * serialized. The order against dp_wfm_synth_set_dsss_cont() does not matter.
+ * Configuration, not running state: reset() keeps it. Like every setter's
+ * value it travels in the state blob (v5), so a synth restored without this
+ * call resumes the framed stream; a blob whose window breaks the rule below
+ * is refused. The order against dp_wfm_synth_set_dsss_cont() does not
+ * matter.
  *
  * @param state              Synth (no-op unless `wtype == WFM_SYNTH_DSSS`).
  * @param code_only_symbols  Pure-code symbols opening each frame, at most
@@ -1225,8 +1228,10 @@ void dp_wfm_synth_set_cur_im(dp_wfm_synth_state_t *state, float val);
    blob is v2, which carries its seed and amplitude, so the synth blob grew
    (#2084). A v3 blob is refused by its version (a clean one has the same
    length, so the version alone refuses it; a noisy one is also refused by
-   its length). */
-#define WFM_SYNTH_STATE_VERSION 4u
+   its length). v5: + the DSSS window (code_only_symbols, frame_symbols),
+   dp_wfm_synth_set_dsss_window's value (#2022); a v4 blob is shorter, so
+   its length refuses it as well as its version. */
+#define WFM_SYNTH_STATE_VERSION 5u
 size_t dp_wfm_synth_state_bytes (const dp_wfm_synth_state_t *state);
 void dp_wfm_synth_get_state (const dp_wfm_synth_state_t *state, void *blob);
 int dp_wfm_synth_set_state (dp_wfm_synth_state_t *state, const void *blob);

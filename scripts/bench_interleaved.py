@@ -20,10 +20,14 @@ per-benchmark best, which cancels that drift:
    ``benchmarks/published/v<version>/``.
 
 This replaces the two manual `bench-publish` passes — one command publishes
-both columns. Run it on a representative machine.
+both columns. Run it on a representative machine, from ONE persistent clone
+(docs/dev/release.md §2b). It first clears the previous release's outputs
+once main has them, and refuses over any main lacks
+(`clear_published_copies`).
 
 Usage::
 
+    make bench-preflight                             # before `git checkout`
     make bench-interleaved VERSION=0.10.1            # K=5 passes
     python scripts/bench_interleaved.py 0.10.1 -k 7
 """
@@ -86,6 +90,186 @@ def bench_args_set(environ=None) -> str:
         return env["BENCH_ARGS"].strip()
     m = re.search(r"(?:^|\s)BENCH_ARGS=(\S*)", env.get("MAKEFLAGS", ""))
     return m.group(1) if m else ""
+
+
+#: What a release's bench run leaves in the clone it ran from: the snapshot
+#: (untracked until its PR merges) and the page `make bench-docs` renders
+#: from it (tracked, so left modified). Paths are relative to the root.
+BENCH_OUTPUTS = ("benchmarks/published", "docs/benchmarks.md")
+
+
+def _unit(path: str) -> str:
+    """The thing a path belongs to, as a report names it: a snapshot's
+    version directory, or the file itself.
+
+    >>> _unit("benchmarks/published/v0.71.0/native-c.json")
+    'benchmarks/published/v0.71.0/'
+    >>> _unit("docs/benchmarks.md")
+    'docs/benchmarks.md'
+    """
+    parts = path.split("/")
+    if path.startswith("benchmarks/published/") and len(parts) > 3:
+        return "/".join(parts[:3]) + "/"
+    return path
+
+
+def clear_published_copies(base: str = "origin/main", root=None) -> int:
+    """Remove the bench outputs ``base`` already holds; refuse any it lacks.
+
+    Each release is measured in a clone, and the run leaves its snapshot
+    there untracked, with ``docs/benchmarks.md`` modified. Once the
+    snapshot's PR merges, that copy is redundant, and nothing removed it:
+    26 per-release clones, about 10 GB, on the bench box by 2026-10-14.
+    In ONE persistent clone it is worse than disk, because ``git checkout``
+    of the next release commit refuses while the copy is there, identical
+    or not.
+
+    So, for every untracked file and every modified tracked file under
+    `BENCH_OUTPUTS`:
+
+    - **On** ``base`` **as the same blob**: a stale copy. Each file is
+      hashed with its path's filters (``.gitattributes``, ``core.autocrlf``)
+      the way ``git status`` compares, so a CRLF-only copy of main's file on
+      a Windows checkout is the same blob. The untracked file is removed and
+      the tracked one restored (``git checkout -- <file>``), which loses
+      nothing, because ``base`` has the content. What was cleared is
+      printed.
+    - **Absent from** ``base`` **or different**: an unpublished result.
+      Nothing is measured over it; the run is refused, with what to do,
+      and no file is touched, stale ones included. A file STAGED but not
+      committed, and a symlink, are refused the same way: checkout would
+      carry the one into the next commit, and the other cannot be hashed
+      as a file.
+
+    ``base``'s remote is fetched first, and a failed fetch refuses: a stale
+    ``base`` would call a published snapshot unpublished, or the reverse.
+
+    Returns 0 when nothing unpublished remains, else 2.
+    """
+    root = root or REPO
+    remotes = _run(["git", "remote"], root, capture_output=True)
+    remote = next(
+        (r for r in remotes.stdout.split() if base.startswith(r + "/")), None
+    )
+    if remote:
+        f = _run(
+            ["git", "fetch", "--quiet", remote], root, capture_output=True
+        )
+        if f.returncode != 0:
+            print(
+                f"bench-preflight: `git fetch {remote}` failed, so whether a "
+                f"snapshot is on {base} cannot be known:\n"
+                f"{(f.stderr or f.stdout).strip()}"
+            )
+            return 2
+    ok = _run(
+        ["git", "rev-parse", "--verify", "--quiet", base + "^{commit}"],
+        root,
+        capture_output=True,
+    )
+    if ok.returncode != 0:
+        print(f"bench-preflight: {base} does not name a commit here")
+        return 2
+
+    def lines(*args):
+        out = _run(
+            ["git", *args, "--", *BENCH_OUTPUTS], root, capture_output=True
+        )
+        return [p for p in out.stdout.split("\0") if p]
+
+    untracked = lines("ls-files", "-z", "--others", "--exclude-standard")
+    # Working tree against the INDEX, the same pair `git checkout -- f`
+    # restores between: what is staged is never what this drops.
+    modified = lines("diff", "-z", "--name-only", "--diff-filter=M")
+    # Staged and not committed: neither untracked nor different from the
+    # index, so neither list above sees it, and `git checkout` carries it
+    # into the next commit. It is refused, never cleared.
+    staged = lines("diff", "-z", "--cached", "--name-only", "HEAD")
+    paths = list(dict.fromkeys(untracked + modified + staged))
+    if not paths:
+        print(
+            f"bench-preflight: no bench outputs here that {base} lacks "
+            f"(checked {', '.join(BENCH_OUTPUTS)})"
+        )
+        return 0
+
+    tree = {}
+    for entry in lines("ls-tree", "-r", "-z", base):
+        meta, path = entry.split("\t", 1)
+        tree[path] = meta.split()[2]
+    # Git lists a symlink as a file and hash-object follows it, so a
+    # dangling one, or one to a directory, cannot be hashed: refused by name.
+    regular = [
+        p
+        for p in paths
+        if p not in staged and not os.path.islink(os.path.join(root, p))
+    ]
+    hashed = {}
+    if regular:
+        # WITH the paths' filters, as `git status` compares. Raw bytes
+        # (--no-filters) made every CRLF copy of an LF blob "differ" on a
+        # Windows checkout, so the gate refused everything there.
+        h = _run(
+            ["git", "hash-object", "--stdin-paths"],
+            root,
+            input="\n".join(regular) + "\n",
+            capture_output=True,
+        )
+        if h.returncode != 0:
+            print(
+                "bench-preflight: cannot read a bench output to compare it "
+                f"with {base}, so nothing was touched:\n{h.stderr.strip()}"
+            )
+            return 2
+        hashed = dict(zip(regular, h.stdout.split()))
+
+    units = {}  # unit -> [(path, why-not-stale or None)]
+    for path in paths:
+        why = None
+        if path in staged:
+            why = f"{path} is staged and not committed"
+        elif path not in hashed:
+            why = f"{path} is a symlink"
+        elif path not in tree:
+            why = f"{path} is not on {base}"
+        elif tree[path] != hashed[path]:
+            why = f"{path} differs from {base}'s"
+        units.setdefault(_unit(path), []).append((path, why))
+
+    refused = {u: [w for _, w in ps if w] for u, ps in units.items()}
+    refused = {u: ws for u, ws in refused.items() if ws}
+    if refused:  # all or nothing: a refusal touches no file
+        print(
+            f"bench-preflight: results here that {base} does not clear; "
+            "nothing was touched:"
+        )
+        for unit, whys in refused.items():
+            print(f"  {unit}")
+            for why in whys:
+                print(f"    {why}")
+        print(
+            "Publish each through its PR, or remove it, then run this again."
+        )
+        return 2
+    for unit, ps in units.items():
+        for path, _ in ps:
+            if path in modified:
+                _run(["git", "checkout", "--", path], root, check=True)
+            else:
+                os.remove(os.path.join(root, path))
+        _prune_empty(os.path.join(root, unit.rstrip("/")), root)
+        print(
+            f"bench-preflight: cleared {unit} ({len(ps)} file(s) {base} "
+            "already has, as git compares it)"
+        )
+    return 0
+
+
+def _prune_empty(path: str, root: str) -> None:
+    """Remove ``path`` and its parents while empty, stopping at ``root``."""
+    while os.path.isdir(path) and path != root and not os.listdir(path):
+        os.rmdir(path)
+        path = os.path.dirname(path)
 
 
 def _remove_worktrees(wts):
@@ -208,11 +392,21 @@ def _provenance(commit: str, base: str) -> str:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("version")
+    ap.add_argument("version", nargs="?")
     ap.add_argument("-k", "--passes", type=int, default=5)
     # The ref bench-commits-check holds a stamp to (BENCH_COMMIT_BASE).
     ap.add_argument("--base", default="origin/main")
+    ap.add_argument(
+        "--preflight",
+        action="store_true",
+        help="only clear the bench outputs --base already has (make "
+        "bench-preflight, run before checking out the next commit)",
+    )
     a = ap.parse_args()
+    if a.preflight:
+        return clear_published_copies(a.base)
+    if not a.version:
+        ap.error("a version is required unless --preflight is given")
     ver = "v" + a.version.lstrip("v")
 
     # A release is measured over the WHOLE suite: refuse a filter before any
@@ -224,6 +418,11 @@ def main() -> int:
             "`make bench` would inherit it; a release is measured over the "
             "whole suite. Run it without BENCH_ARGS."
         )
+        return 2
+
+    # The last release's outputs, before this one writes its own beside
+    # them: a copy main has goes, an unpublished one stops the run.
+    if clear_published_copies(a.base) != 0:
         return 2
 
     # Refuse BEFORE the hour of building and measuring, not after: a snapshot

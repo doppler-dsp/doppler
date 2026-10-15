@@ -256,6 +256,9 @@ def _fake_interleaved(inter, monkeypatch, tmp_path, c_names):
     monkeypatch.delenv("MAKEFLAGS", raising=False)
     monkeypatch.delenv("BENCH_ARGS", raising=False)
     monkeypatch.setattr(inter, "machine_not_ready", lambda: [])
+    # The preflight fetches and reads the real clone (test_bench_preflight
+    # covers it); these tests are about what the measurement publishes.
+    monkeypatch.setattr(inter, "clear_published_copies", lambda base: 0)
     monkeypatch.setattr(
         inter, "setup_worktree", lambda b, commit: str(tmp_path / b)
     )

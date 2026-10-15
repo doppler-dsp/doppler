@@ -3312,6 +3312,169 @@ test_a_sweeping_carrier_is_compensated (void)
   return 0;
 }
 
+/* The scenario refine's two rate guards below share (doppler#2219): a
+ * 127-chip Zadoff-Chu preamble repeated 16 times, then 1000 QPSK symbols,
+ * on a carrier sweeping at `sweep` cycles/sample^2 about the preamble's
+ * middle, placed at `at` in noise `snr_db` per sample above the burst's
+ * unit power. The payload and the noise are seeded from the case (the
+ * search's own seeds, ri and ai being the rate's and offset's grid
+ * indices), so each case is one fixed stream. */
+enum
+{
+  RG_NP    = 127,
+  RG_RP    = 16,
+  RG_PAY   = 1000,
+  RG_BURST = RG_RP * RG_NP + RG_PAY
+};
+
+static void
+rg_stream (float _Complex *x, size_t len, size_t at, double sweep,
+           double snr_db, int ri, int ai)
+{
+  float _Complex zc[RG_NP];
+  for (size_t k = 0; k < RG_NP; k++)
+    zc[k] = (float _Complex)cexp (-I * M_PI * 5.0 * (double)k * (double)(k + 1)
+                                  / (double)RG_NP);
+  memset (x, 0, len * sizeof *x);
+  uint32_t st = 7u + (uint32_t)(ri * 31 + ai);
+  for (size_t i = 0; i < RG_BURST; i++)
+    {
+      const float _Complex v
+          = i < RG_RP * RG_NP
+                ? zc[i % RG_NP]
+                : (float _Complex)cexp (I * M_PI / 2.0
+                                        * (double)(dp_xs32 (&st) >> 30));
+      const double t = (double)i - 0.5 * (double)(RG_RP * RG_NP);
+      x[at + i]      = v * (float _Complex)cexp (I * M_PI * sweep * t * t);
+    }
+  const double sig = sqrt (1.0 / (2.0 * pow (10.0, snr_db / 10.0)));
+  uint32_t     gs  = 1234u + (uint32_t)(ri * 131 + ai * 7);
+  for (size_t i = 0; i < len; i++)
+    {
+      /* Named locals: two draws in one expression have no defined order. */
+      const float re = (float)(sig * dp_gauss (&gs));
+      const float im = (float)(sig * dp_gauss (&gs));
+      x[i] += re + im * I;
+    }
+}
+
+/* Whether a capture of rg_stream() places the preamble exactly. */
+static int
+rg_placed (dp_burst_capture_state_t *s, size_t at, double sweep, double snr_db,
+           int ri, int ai)
+{
+  static float _Complex x[1u << 16];
+  static float _Complex out[1u << 16];
+  const size_t len = 3u * s->acq->engine->coherent_bins * RG_NP + RG_BURST
+                     + 2u * s->refine_span + 4u * RG_NP;
+  if (len > sizeof x / sizeof *x
+      || dp_burst_capture_push_max_out (s, len) > sizeof out / sizeof *out)
+    {
+      DP_TEST_ERR ("rg_placed: a stream of %zu samples outgrows the "
+                   "buffers\n",
+                   len);
+      return 0;
+    }
+  rg_stream (x, len, at, sweep, snr_db, ri, ai);
+  dp_burst_capture_reset (s);
+  (void)dp_burst_capture_push (s, x, len, out, sizeof out / sizeof *out);
+  for (size_t k = 0; k < dp_burst_capture_ready (s); k++)
+    {
+      const burst_capture_event_t *ev = dp_burst_capture_event_at (s, k);
+      if (ev && ev->preamble_start == at)
+        return 1;
+    }
+  return 0;
+}
+
+/** Refine widens its Doppler cells by what a rate moves the carrier between
+ *  the detecting dwell and the preamble (doppler#2219).
+ *
+ * The engine reads the carrier at its dwell's middle and refine's sum is
+ * centred on the preamble's; with a deep dwell (D = 11 of 16) and a rate
+ * near the span's edge, the carrier moves several of refine's fine cells
+ * between the two. Without the allowance refine scores the right
+ * repetition at the wrong Doppler and names its neighbour (127 or 254
+ * samples off). Each case was chosen from a search of 4,536 scenarios as
+ * one where that holds for this AND a second noise generator, at both
+ * levels below and at the neighbouring rates; removing the allowance
+ * (`burst_capture_rate_cells` returning 0) turns it red, the denser rate
+ * grid's removal does not. Deterministic: this replaces the seeded
+ * capture-Pd pin `validate_acq_rate_pd --check` carried for it. */
+static int
+test_refine_widens_its_cells_by_the_rate (void)
+{
+  float _Complex zc[RG_NP];
+  for (size_t k = 0; k < RG_NP; k++)
+    zc[k] = (float _Complex)cexp (-I * M_PI * 5.0 * (double)k * (double)(k + 1)
+                                  / (double)RG_NP);
+  const double              span = 9.0e-7;
+  dp_burst_capture_state_t *s    = dp_burst_capture_create (
+      zc, RG_NP, RG_BURST, RG_RP, 1.0, -15.0, 0.0, 1e-3, 0.9, 0, span, 5);
+  DP_REQUIRE (s != NULL);
+  /* The scenario's premise: a deep engine with rates, so the allowance is
+     non-zero. A sizing change that moves either sends this test back to
+     the search rather than letting it pass on a scenario that no longer
+     exercises anything. */
+  const size_t D = s->acq->engine->coherent_bins;
+  DP_REQUIRE_MSG (D == 11 && s->acq->engine->rate_hyps == 5,
+                  "the engine is sized as the scenario was chosen");
+  static const struct
+  {
+    double rate; /* of the span */
+    size_t twelfth;
+  } c[] = { { 0.8, 4 }, { 0.9, 4 }, { -0.9, 3 }, { -0.9, 5 } };
+  for (size_t j = 0; j < sizeof c / sizeof *c; j++)
+    for (int up = 6; up <= 12; up += 6)
+      {
+        const size_t at = D * RG_NP + c[j].twelfth * D * RG_NP / 12u;
+        const int    ri = (int)lround (c[j].rate * 10.0) + 10;
+        DP_CHECK_MSG (rg_placed (s, at, c[j].rate * span, -15.0 + up, ri,
+                                 (int)c[j].twelfth),
+                      "a burst at the rate span's edge is placed exactly");
+      }
+  dp_burst_capture_destroy (s);
+  return 0;
+}
+
+/** Refine searches a rate grid denser than the engine's when the engine's is
+ *  too coarse for the whole preamble (doppler#2219).
+ *
+ * Two hypotheses (D = 5) leave a rate between them -- 0, here -- unmatched
+ * by up to the span. Across a dwell of 5 periods that costs the engine
+ * little; across refine's 16 it leaves about 3 rad of quadratic phase at
+ * the preamble's ends, and the collapsed sum names another repetition.
+ * Refine's own grid (nine hypotheses, the drift rule at 16 periods) holds
+ * it. Chosen as above: removing the denser grid (`burst_capture_rate_hyps`
+ * returning the engine's count) turns every case red; removing the cell
+ * allowance turns none. Deterministic, like the test above. */
+static int
+test_refine_searches_a_denser_rate_grid (void)
+{
+  float _Complex zc[RG_NP];
+  for (size_t k = 0; k < RG_NP; k++)
+    zc[k] = (float _Complex)cexp (-I * M_PI * 5.0 * (double)k * (double)(k + 1)
+                                  / (double)RG_NP);
+  dp_burst_capture_state_t *s = dp_burst_capture_create (
+      zc, RG_NP, RG_BURST, RG_RP, 1.0, -13.0, 0.0, 1e-3, 0.9, 0, 9.0e-7, 2);
+  DP_REQUIRE (s != NULL);
+  const size_t D = s->acq->engine->coherent_bins;
+  DP_REQUIRE_MSG (D == 5 && s->acq->engine->rate_hyps == 2,
+                  "the engine is sized as the scenario was chosen");
+  DP_CHECK_MSG (s->rate_ph_n > s->acq->engine->rate_hyps,
+                "refine's rate grid is denser than the engine's");
+  for (size_t twelfth = 4; twelfth <= 7; twelfth++)
+    for (int up = 6; up <= 12; up += 6)
+      {
+        const size_t at = D * RG_NP + twelfth * D * RG_NP / 12u;
+        DP_CHECK_MSG (rg_placed (s, at, 0.0, -13.0 + up, 10, (int)twelfth),
+                      "a rate between the engine's hypotheses is placed "
+                      "exactly");
+      }
+  dp_burst_capture_destroy (s);
+  return 0;
+}
+
 /** A tiled capture anchors each hit at its own dwell (doppler#2090).
  *
  * Past the native span the engine tiles Doppler: its rows are W frequency
@@ -3515,6 +3678,10 @@ main (void)
   if (test_a_tiled_capture_anchors_at_its_dwell ())
     return 1;
   if (test_a_sweeping_carrier_is_compensated ())
+    return 1;
+  if (test_refine_widens_its_cells_by_the_rate ())
+    return 1;
+  if (test_refine_searches_a_denser_rate_grid ())
     return 1;
   if (test_a_tiled_burst_after_a_window_is_not_shadowed ())
     return 1;

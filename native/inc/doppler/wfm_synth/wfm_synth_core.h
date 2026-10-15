@@ -563,18 +563,20 @@ void dp_wfm_synth_set_chirp_span(dp_wfm_synth_state_t *state, size_t span);
 /**
  * @brief Attach a user bit pattern to a type=bits synth (no-op otherwise).
  *
- * Copies @p n bits (each 0/1) into the synth; @p modulation maps them to
- * symbols (0=none → 0/1 amplitude, 1=bpsk → ±1, 2=qpsk → Gray-coded ±1/√2,
- * two bits per symbol). The pattern is oversampled by the create-time `sps`
- * and sent ONCE: one pass is `n * sps` samples (`n/2 * sps` for qpsk), and the
- * output is silent after it (doppler#1718 deleted the cycle; a payload that
- * goes on is a data source, dp_wfm_synth_set_refill). Replaces any
- * previous pattern; resets the read position. Safe to call repeatedly.
+ * Copies @p n bits (each 0/1) into the synth; @p modulation is the bits per
+ * symbol, mapping them to symbols (0=none → 0/1 amplitude, 1=bpsk → ±1,
+ * 2=qpsk, 3=8psk: each symbol's bits read MSB-first as a Gray label into
+ * `mpsk_constellation()`, see `wfm_synth_bit_symbol`). The pattern is
+ * oversampled by the create-time `sps` and sent ONCE: one pass is `n * sps`
+ * samples (`n / modulation * sps` for a PSK), and the output is silent after
+ * it (doppler#1718 deleted the cycle; a payload that goes on is a data
+ * source, dp_wfm_synth_set_refill). Replaces any previous pattern; resets
+ * the read position. Safe to call repeatedly.
  *
  * @param state  Must be non-NULL.
  * @param bits   Array of @p n bytes, each 0 or 1.
  * @param n      Number of bits (> 0).
- * @param modulation  0=none, 1=bpsk, 2=qpsk.
+ * @param modulation  0=none, 1=bpsk, 2=qpsk, 3=8psk.
  * @return 0 on success; -1 on bad args or allocation failure.
  */
 int dp_wfm_synth_set_bits(dp_wfm_synth_state_t *state, const uint8_t *bits, size_t n,

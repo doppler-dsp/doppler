@@ -357,17 +357,17 @@ class Synth:
     ) -> NDArray[np.complex64]:
         """Multiply a block by the synth's next output samples.
 
-        ``out[i] = x[i] * y[i]``, where ``y`` is what ``steps(len(x))`` would emit
-        next. The synth advances exactly as ``steps(len(x))`` does, so split calls
-        leave the same synth state as one call and an empty ``x`` does not advance it;
-        the product itself agrees across such call sequences to rounding (a few ulp
-        of ``|x| * |y|``), not to the bit, because the compiler may contract the
-        multiply differently on different paths (arm64 under ``-ffast-math``).
-        ``x`` is not modified.
+        ``out[i] = x[i] * y[i]``, where ``y`` is what ``steps(len(x))`` would
+        emit next. The synth advances exactly as ``steps(len(x))`` does, so
+        split calls leave the same synth state as one call and an empty ``x``
+        does not advance it; the product itself agrees across such call
+        sequences to rounding (a few ulp of ``|x| * |y|``), not to the bit,
+        because the compiler may contract the multiply differently on different
+        paths (arm64 under ``-ffast-math``). ``x`` is not modified.
 
-        ``Synth.prod`` refuses a strided, non-complex64 or non-1-D ``x``. The private
-        ``_SynthEngine.prod`` still copies a strided block and casts a complex128 one
-        silently, until just-makeit#2271 ships.
+        ``x`` must be a 1-D C-contiguous complex64 array: a strided,
+        non-complex64 or non-1-D block is refused (``ValueError`` /
+        ``TypeError``), never copied or cast.
 
         This is the general waveform-multiplication operator: with a tone synth
         it is a rotation, with a chirp synth a swept rotation, with noise a

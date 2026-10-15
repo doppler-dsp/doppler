@@ -714,7 +714,7 @@ int dp_wfm_synth_set_bits (
 
 
 
-Copies `n` bits (each 0/1) into the synth; `modulation` maps them to symbols (0=none → 0/1 amplitude, 1=bpsk → ±1, 2=qpsk → Gray-coded ±1/√2, two bits per symbol). The pattern is oversampled by the create-time `sps` and sent ONCE: one pass is `n * sps` samples (`n/2 * sps` for qpsk), and the output is silent after it (doppler#1718 deleted the cycle; a payload that goes on is a data source, dp\_wfm\_synth\_set\_refill). Replaces any previous pattern; resets the read position. Safe to call repeatedly.
+Copies `n` bits (each 0/1) into the synth; `modulation` is the bits per symbol, mapping them to symbols (0=none → 0/1 amplitude, 1=bpsk → ±1, 2=qpsk, 3=8psk: each symbol's bits read MSB-first as a Gray label into `mpsk_constellation()`, see `wfm_synth_bit_symbol`). The pattern is oversampled by the create-time `sps` and sent ONCE: one pass is `n * sps` samples (`n / modulation * sps` for a PSK), and the output is silent after it (doppler#1718 deleted the cycle; a payload that goes on is a data source, dp\_wfm\_synth\_set\_refill). Replaces any previous pattern; resets the read position. Safe to call repeatedly.
 
 
 
@@ -725,7 +725,7 @@ Copies `n` bits (each 0/1) into the synth; `modulation` maps them to symbols (0=
 * `state` Must be non-NULL. 
 * `bits` Array of `n` bytes, each 0 or 1. 
 * `n` Number of bits (&gt; 0). 
-* `modulation` 0=none, 1=bpsk, 2=qpsk. 
+* `modulation` 0=none, 1=bpsk, 2=qpsk, 3=8psk. 
 
 
 

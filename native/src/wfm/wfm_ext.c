@@ -156,11 +156,22 @@ jm_inflight_free (jm_inflight_t *g)
 }
 #endif /* JM_INFLIGHT_DEFINED */
 
+#include "wfm_ext_pn.c"
+/* extra_methods (gh-1190): defined in the hand-written _extra.c,
+ * included after the types; declared here for the method tables. */
+static PyObject *_SynthEngine_set_rrc (PyObject *, PyObject *);
+static PyObject *_SynthEngine_set_bits (PyObject *, PyObject *);
+static PyObject *_SynthEngine_set_dsss_chips (PyObject *, PyObject *);
+static PyObject *_SynthEngine_set_dsss_cont (PyObject *, PyObject *,
+                                             PyObject *);
+static PyObject *_SynthEngine_set_dsss_window (PyObject *, PyObject *,
+                                               PyObject *);
+static PyObject *_SynthEngine_set_symbols (PyObject *, PyObject *);
 #include "wfm_ext_frame.c"
 #include "wfm_ext_framedesc.c"
 #include "wfm_ext_gold.c"
-#include "wfm_ext_pn.c"
 #include "wfm_ext_wfm_synth.c"
+#include "wfm_ext_wfm_synth_extra.c" /* hand-written — jm never modifies */
 
 static PyObject *
 _bind_bpsk_map (PyObject *self, PyObject *args, PyObject *kwds)
@@ -769,15 +780,13 @@ static PyMethodDef wfm_module_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "Start and end frequency of the chirp that sweeps about a center.\n"
     "\n"
-    "A chirp from ``f0`` to ``f_end`` pinned over ``n`` samples has "
-    "instantaneous\n"
-    "frequency ``f_mid + rate*u`` Hz at sample ``i``, ``u = (i - "
-    "center)/fs``\n"
-    "seconds, so it multiplies a block by ``exp(j*2*pi*(f_mid*u + "
-    "rate*u**2/2))``\n"
-    "up to one constant phase. This is the single copy of that arithmetic\n"
-    "(``dp_wfm_synth_sweep_ends``); ``doppler.wfm.rotate`` takes it from "
-    "here.\n"
+    "A chirp from ``f0`` to ``f_end`` pinned over ``n`` samples has\n"
+    "instantaneous frequency ``f_mid + rate*u`` Hz at sample ``i``,\n"
+    "``u = (i - center)/fs`` seconds, so it multiplies a block by\n"
+    "``exp(j*2*pi*(f_mid*u + rate*u**2/2))`` up to one constant phase. This "
+    "is\n"
+    "the single copy of that arithmetic (``dp_wfm_synth_sweep_ends``);\n"
+    "``doppler.wfm.rotate`` takes it from here.\n"
     "\n"
     "Examples\n"
     "--------\n"

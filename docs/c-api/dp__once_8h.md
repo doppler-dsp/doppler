@@ -10,7 +10,7 @@
 
 _Run a function exactly once, however many threads ask at once._ [More...](#detailed-description)
 
-* `#include <stdatomic.h>`
+* `#include <pthread.h>`
 
 
 
@@ -53,9 +53,7 @@ _Run a function exactly once, however many threads ask at once._ [More...](#deta
 
 
 
-
-
-## Public Static Functions
+## Public Functions
 
 | Type | Name |
 | ---: | :--- |
@@ -85,11 +83,13 @@ _Run a function exactly once, however many threads ask at once._ [More...](#deta
 
 
 
+
+
 ## Macros
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**DP\_ONCE\_INIT**](dp__once_8h.md#define-dp_once_init)  `{ 0 }`<br>_The initializer for a_ [_**dp\_once\_t**_](structdp__once__t.md) _whose build has not run._ |
+| define  | [**DP\_ONCE\_INIT**](dp__once_8h.md#define-dp_once_init)  `{ PTHREAD\_ONCE\_INIT }`<br>_The initializer for a_ [_**dp\_once\_t**_](structdp__once__t.md) _whose build has not run._ |
 
 ## Detailed Description
 
@@ -97,14 +97,14 @@ _Run a function exactly once, however many threads ask at once._ [More...](#deta
 The library builds some tables lazily, on first use: the AWGN and LO sine LUTs, the CCSDS Reed-Solomon field tables and its marker's bits. A plain `static int ready` flag guarding such a table is a DATA RACE, not a harmless double build. Nothing orders the flag's store after the table's stores for another thread, so that thread can see `ready == 1` and read a table still being written (arm64 reorders those stores, and so may the compiler). Two threads can also both see 0 and both write. First use is concurrent in shipped code: `Plan.prepare` fans the per-source builds across [**dp\_parallel.h**](dp__parallel_8h.md), and every block method releases the GIL (doppler#2328, gh-817).
 
 
-dp\_once() is the one guard for all of them. It is C11 atomics only, the same `<stdatomic.h>` the library already uses in [**dp\_parallel.h**](dp__parallel_8h.md) and dp\_interrupt.c, so it adds no link dependency: `pthread_once` would need Threads::Threads on every component that builds a table, on glibc before 2.34. The first caller to claim the state builds; every other caller waits until the build is finished, then returns, so no caller ever sees a partial table. The wait is a spin, which costs at most one build's length, once per process.
+[**dp\_once()**](dp__once_8h.md#function-dp_once) is the one guard for all of them, and it is the platform's own once primitive behind one signature: `pthread_once` on POSIX, `InitOnceExecuteOnce` on Windows, the pair rs.c used privately since gh-817. The first caller runs the build; every other caller BLOCKS in the primitive until it has finished, then returns and sees everything it wrote. A blocked waiter sleeps rather than spins, so a waiter that outranks the builder on its core cannot starve it, and an oversubscribed machine spends nothing on the wait. glibc also restarts, in a forked child, a once whose build `fork()` interrupted, where a hand-rolled flag would wait forever.
 
 
-The library is C99 plus `<stdatomic.h>`, and that combination is already accepted on every toolchain it builds with  gcc, clang and clang-cl  with [**dp\_parallel.h**](dp__parallel_8h.md) as the precedent; this header uses the same subset (`atomic_int`, explicit-order loads, stores and compare-exchange). It is listed in [**dp\_thread.h**](dp__thread_8h.md)'s table as the `pthread_once` row. 
+The implementation lives in dp\_once.c, so `<windows.h>` stays in that one file: a component that builds a table includes this header and pulls in `<pthread.h>` at most. On glibc before 2.34 `pthread_once` needs `-lpthread`, which the `dp_once_core` target carries for every component that links it. 
 
 
     
-## Public Static Functions Documentation
+## Public Functions Documentation
 
 
 
@@ -113,7 +113,7 @@ The library is C99 plus `<stdatomic.h>`, and that combination is already accepte
 
 _Run_ `fn` _once, and return only after it has finished._
 ```C++
-static inline void dp_once (
+void dp_once (
     dp_once_t * once,
     void(*)(void) fn
 ) 
@@ -121,7 +121,7 @@ static inline void dp_once (
 
 
 
-Every caller, on any thread, returns after the single call of `fn` has completed, and sees everything `fn` wrote. The callers that lose the race to run it spin until it is done.
+Every caller, on any thread, returns after the single call of `fn` has completed, and sees everything `fn` wrote. The callers that lose the race to run it block until it is done.
 
 
 
@@ -130,7 +130,7 @@ Every caller, on any thread, returns after the single call of `fn` has completed
 
 
 * `once` Its state, statically initialized with [**DP\_ONCE\_INIT**](dp__once_8h.md#define-dp_once_init). 
-* `fn` The build; it must not call dp\_once() on the same `once`.
+* `fn` The build; it must not call [**dp\_once()**](dp__once_8h.md#function-dp_once) on the same `once`.
 
 
 ```C++
@@ -163,7 +163,7 @@ dp_once (&table_once, table_build);
 
 _The initializer for a_ [_**dp\_once\_t**_](structdp__once__t.md) _whose build has not run._
 ```C++
-#define DP_ONCE_INIT `{ 0 }`
+#define DP_ONCE_INIT `{ PTHREAD_ONCE_INIT }`
 ```
 
 

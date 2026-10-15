@@ -57,7 +57,8 @@ static const uint8_t T_DUAL_TO_CONV[8]
  * pair, and the guard stayed private: desc.c said it built its marker "in
  * the shape rs.c already uses" and used a plain flag, and the AWGN and LO
  * sine tables did the same (doppler#2328). dp_once() is now the one guard
- * for every lazily built table, C11 atomics with no link dependency. */
+ * for every lazily built table, the same two primitives behind one
+ * signature. */
 static rs_t ccsds;
 
 static void

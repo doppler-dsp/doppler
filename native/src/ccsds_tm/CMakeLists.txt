@@ -38,14 +38,15 @@ target_include_directories(ccsds_tm_core PUBLIC
 # component's kernels the two would form a cycle. That is why the kernels
 # travel to the general assembler as a table (dp_ccsds_tm_frame_ops) instead of
 # being called from it.
-# Threads::Threads because rs.c derives its field tables under
-# `pthread_once` (gh-817). PUBLIC so every consumer -- the tests, the
-# benches, and the .so -- picks up -pthread transitively, the same way
-# wfm_compose_core carries it for dp_parallel.
 # detection_core: dp_syncword.h's binomial tail calls dp_lgamma(), which
 # is defined beside marcum_q() (the library's one reentrant lgamma, #1260).
+# dp_once_core because rs.c's field tables and desc.c's marker bits are
+# built under dp_once() (doppler#2328; rs.c's private `pthread_once` before
+# it, gh-817). PUBLIC so every consumer -- the tests, the benches, and the
+# .so -- links it and the -pthread it carries, which glibc before 2.34
+# needs for `pthread_once`.
 target_link_libraries(ccsds_tm_core PUBLIC conv_core rs_core wfm_frame_core cvt_core
-                                           detection_core Threads::Threads)
+                                           detection_core dp_once_core)
 
 # ── tests ───────────────────────────────────────────────────────────────────
 add_executable(test_ccsds_tm_rand

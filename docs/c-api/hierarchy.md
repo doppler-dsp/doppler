@@ -104,6 +104,7 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) _M-PSK receiver state._ 
 * **struct** [**dp\_nco\_state\_t**](structdp__nco__state__t.md) _NCO state._ 
 * **struct** [**dp\_nprmeas\_state\_t**](structdp__nprmeas__state__t.md) _NPRMeasure state: owned window, FFT plan and one-sided power scratch._ 
+* **struct** [**dp\_once\_t**](structdp__once__t.md) _The state of one one-time build; start it at_ [_**DP\_ONCE\_INIT**_](dp__once_8h.md#define-dp_once_init) _._
 * **struct** [**dp\_peak\_t**](structdp__peak__t.md) _One spectral peak returned by_ [_**dp\_find\_peaks\_f32()**_](spectral__core_8h.md#function-dp_find_peaks_f32) _._
 * **struct** [**dp\_pf\_shared\_t**](structdp__pf__shared__t.md) 
 * **struct** [**dp\_pn\_state\_t**](structdp__pn__state__t.md) 

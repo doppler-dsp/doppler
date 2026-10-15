@@ -152,6 +152,7 @@
 * **DP\_ISOTIME\_NSEC** ([**dp\_isotime.h**](dp__isotime_8h.md))
 * **DP\_ISOTIME\_SEC** ([**dp\_isotime.h**](dp__isotime_8h.md))
 * **DP\_ISOTIME\_USEC** ([**dp\_isotime.h**](dp__isotime_8h.md))
+* **DP\_ONCE\_INIT** ([**dp\_once.h**](dp__once_8h.md))
 * **DP\_SUMSQ\_F32** ([**dp\_simd.h**](dp__simd_8h.md))
 * **DP\_DEFINE\_POD\_STATE** ([**dp\_state.h**](dp__state_8h.md))
 * **DP\_DEFINE\_POD\_STATE\_TLM** ([**dp\_state.h**](dp__state_8h.md))

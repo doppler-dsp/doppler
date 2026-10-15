@@ -17,6 +17,7 @@ Here is a list of all files with brief descriptions:
             * **file** [**dp\_interrupt.h**](dp__interrupt_8h.md) _Asking a blocking wait to stop, whatever it is waiting on._     
             * **file** [**dp\_interrupt\_pyadopt.h**](dp__interrupt__pyadopt_8h.md)     
             * **file** [**dp\_isotime.h**](dp__isotime_8h.md) _ISO 8601 UTC timestamps in both spellings — filename-safe_ **basic** _for names doppler writes,_**extended** _for the wire formats that mandate it._    
+            * **file** [**dp\_once.h**](dp__once_8h.md) _Run a function exactly once, however many threads ask at once._     
             * **file** [**dp\_parallel.h**](dp__parallel_8h.md)     
             * **file** [**dp\_simd.h**](dp__simd_8h.md) _doppler's own composite SIMD reductions, layered over_ `jm_simd.h` _._    
             * **file** [**dp\_state.h**](dp__state_8h.md)     

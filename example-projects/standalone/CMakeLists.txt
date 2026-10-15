@@ -25,37 +25,35 @@ project(awgn_example C)
 # Linking mode (build-tree only):
 #   -DDOPPLER_LINK=static   link libdoppler.a  (default, no runtime dep)
 #   -DDOPPLER_LINK=shared   link libdoppler.so (smaller binary, needs rpath)
+#
+# Either way the targets come from doppler's own package config. A build
+# tree writes one too (doppler-config.cmake, doppler-targets.cmake), so this
+# file never restates doppler's link interface. It used to, as an IMPORTED
+# target linking only `m`, and that copy went stale the day libdoppler.a
+# first needed -lpthread on glibc < 2.34 (doppler#2328).
 # ---------------------------------------------------------------------------
 
 set(DOPPLER_LINK "static" CACHE STRING "Link mode: static or shared")
 
 if(DEFINED DOPPLER_BUILD_DIR)
-    get_filename_component(_dp_src "${DOPPLER_BUILD_DIR}/.." ABSOLUTE)
-    set(_inc "${_dp_src}/native/inc;${DOPPLER_BUILD_DIR}/native/inc")
-
+    # <!-- doc-version:start -->
+    find_package(doppler 0.71.0 CONFIG REQUIRED
+                 PATHS "${DOPPLER_BUILD_DIR}" NO_DEFAULT_PATH)
+    # <!-- doc-version:end -->
     if(DOPPLER_LINK STREQUAL "shared")
-        add_library(doppler::doppler SHARED IMPORTED GLOBAL)
-        set_target_properties(doppler::doppler PROPERTIES
-            IMPORTED_LOCATION
-                "${DOPPLER_BUILD_DIR}/libdoppler.so"
-            INTERFACE_INCLUDE_DIRECTORIES "${_inc}"
-            INTERFACE_LINK_LIBRARIES     "m")
+        set(_dp_target doppler::doppler)
     else()
-        add_library(doppler::doppler STATIC IMPORTED GLOBAL)
-        set_target_properties(doppler::doppler PROPERTIES
-            IMPORTED_LOCATION
-                "${DOPPLER_BUILD_DIR}/libdoppler.a"
-            INTERFACE_INCLUDE_DIRECTORIES "${_inc}"
-            INTERFACE_LINK_LIBRARIES      "m")
+        set(_dp_target doppler::doppler-static)
     endif()
 else()
     # <!-- doc-version:start -->
     find_package(doppler 0.71.0 REQUIRED)
     # <!-- doc-version:end -->
+    set(_dp_target doppler::doppler)
 endif()
 
 add_executable(awgn_example main.c)
-target_link_libraries(awgn_example PRIVATE doppler::doppler)
+target_link_libraries(awgn_example PRIVATE ${_dp_target})
 
 # Bake the build-tree rpath so the binary runs without LD_LIBRARY_PATH.
 if(DEFINED DOPPLER_BUILD_DIR AND DOPPLER_LINK STREQUAL "shared")

@@ -3814,15 +3814,21 @@ test-examples-c: build ## Smoke-test every standalone C example
 	@bash scripts/smoke-c-examples.sh $(EXAMPLE_BIN_DIR) $(C_EXAMPLE_TIMEOUT)
 # Through the example's own Makefile, for the reason burst-pipeline-check
 # gives: its README tells a reader to run `make DOPPLER_BUILD_DIR=... run`, so
-# that is the command this has to prove still works.
+# that is the command this has to prove still works. Quiet on success, the
+# real configure/compiler/linker error on failure: this step printed only
+# FAIL when glibc 2.28 could not resolve pthread_once (doppler#2328), and the
+# cause had to be reconstructed from source.
 	@echo "Building standalone example..."
+	@mkdir -p $(STANDALONE_BUILD_DIR)
 	@printf "  %-24s" "awgn_example"; \
 	if $(MAKE) --no-print-directory -C example-projects/standalone \
 	       BUILD_DIR=$(abspath $(STANDALONE_BUILD_DIR)) \
-	       DOPPLER_BUILD_DIR=$(abspath $(BUILD_DIR)) run > /dev/null 2>&1; then \
+	       DOPPLER_BUILD_DIR=$(abspath $(BUILD_DIR)) run \
+	       > $(abspath $(STANDALONE_BUILD_DIR))/awgn_example.log 2>&1; then \
 	    echo "PASS"; \
 	else \
-	    echo "FAIL"; exit 1; \
+	    echo "FAIL"; cat $(abspath $(STANDALONE_BUILD_DIR))/awgn_example.log; \
+	    exit 1; \
 	fi
 	@$(MAKE) --no-print-directory test-example-downstream
 	@echo "All C example smoke tests passed."

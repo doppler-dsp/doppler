@@ -27,7 +27,16 @@ typedef struct
 #define DP_ONCE_INIT { PTHREAD_ONCE_INIT }
 #endif
 
-void dp_once (dp_once_t *once, void (*fn) (void));
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
+  void dp_once (dp_once_t *once, void (*fn) (void));
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* DP_ONCE_H */
 ```

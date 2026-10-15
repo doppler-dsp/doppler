@@ -55,31 +55,40 @@ typedef struct
 #define DP_ONCE_INIT { PTHREAD_ONCE_INIT }
 #endif
 
-/**
- * @brief Run @p fn once, and return only after it has finished.
- *
- * Every caller, on any thread, returns after the single call of @p fn has
- * completed, and sees everything @p fn wrote. The callers that lose the
- * race to run it block until it is done.
- *
- * @param once  Its state, statically initialized with #DP_ONCE_INIT.
- * @param fn    The build; it must not call dp_once() on the same @p once.
- *
- * @code
- * static float     table[256];
- * static dp_once_t table_once = DP_ONCE_INIT;
- *
- * static void
- * table_build (void)
- * {
- *   for (int i = 0; i < 256; i++)
- *     table[i] = (float)i;
- * }
- *
- * // In every function that reads the table:
- * dp_once (&table_once, table_build);
- * @endcode
- */
-void dp_once (dp_once_t *once, void (*fn) (void));
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
+  /**
+   * @brief Run @p fn once, and return only after it has finished.
+   *
+   * Every caller, on any thread, returns after the single call of @p fn has
+   * completed, and sees everything @p fn wrote. The callers that lose the
+   * race to run it block until it is done.
+   *
+   * @param once  Its state, statically initialized with #DP_ONCE_INIT.
+   * @param fn    The build; it must not call dp_once() on the same @p once.
+   *
+   * @code
+   * static float     table[256];
+   * static dp_once_t table_once = DP_ONCE_INIT;
+   *
+   * static void
+   * table_build (void)
+   * {
+   *   for (int i = 0; i < 256; i++)
+   *     table[i] = (float)i;
+   * }
+   *
+   * // In every function that reads the table:
+   * dp_once (&table_once, table_build);
+   * @endcode
+   */
+  void dp_once (dp_once_t *once, void (*fn) (void));
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* DP_ONCE_H */

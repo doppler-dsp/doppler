@@ -258,9 +258,10 @@ add_executable(validate_rx_dynamics
 target_include_directories(validate_rx_dynamics
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
-# Threads::Threads explicitly: dp_tlm_capture's writer thread is the only
-# pthread user any validator pulls in, and doppler_lib_static aggregates it as
-# OBJECT sources, which carry no usage requirement to propagate. On glibc >=
+# Threads::Threads explicitly: dp_tlm_capture's writer thread is a pthread
+# user (dp_parallel.h, behind the validators below, is another), and
+# doppler_lib_static aggregates them as OBJECT sources, which carry no usage
+# requirement to propagate. On glibc >=
 # 2.34 pthread_create lives in libc proper so this links by accident; the
 # glibc 2.28 gate is where the missing -lpthread actually shows up.
 target_link_libraries(validate_rx_dynamics PRIVATE doppler_lib_static
@@ -589,6 +590,10 @@ add_test(NAME validate_acq_rate_pd
 # cannot, which is how a 2x false-alarm rate went unseen (doppler#2218).
 add_test(NAME validate_acq_rate_pd_pfa
          COMMAND validate_acq_rate_pd --pfa-check)
+# The same parallel rows on two chunks of dwells, each equal to itself run
+# alone: what TSan runs of the fan-out (labelled `threaded` below).
+add_test(NAME validate_acq_rate_pd_pfa_smoke
+         COMMAND validate_acq_rate_pd --pfa-smoke)
 
 # The pool's lifecycle soak: emitters from the shipped synth with its
 # window, each through the shipped doppler_channel at its own Doppler,
@@ -638,9 +643,20 @@ foreach(_dp_v IN LISTS _dp_validators)
   set_tests_properties(${_dp_v} PROPERTIES LABELS sweep)
 endforeach()
 
-# The exception, and the reason the label is not simply "validation":
-# rx_dynamics is the ONLY validator that starts a thread (dp_tlm_capture's
-# writer -- see the Threads::Threads note above), so it is the only one TSan
-# can say anything about. It costs 0.34s there. Labelled `threaded` instead of
-# `sweep`, so `-LE sweep` keeps it.
-set_tests_properties(validate_rx_dynamics PROPERTIES LABELS threaded)
+# The exceptions, and the reason the label is not simply "validation": a
+# validator that starts threads is one TSan can say something about, so it
+# is labelled `threaded` INSTEAD of `sweep` and `-LE sweep` keeps it. A test
+# with both labels would still be excluded, so a threaded validator whose
+# --check is too heavy to instrument gets a short entry of its own.
+# - rx_dynamics: dp_tlm_capture's writer thread (see the Threads::Threads
+#   note above). It costs 0.34s under TSan.
+# - acq_rate_pd_pfa_smoke: --pfa-check's rows fan out across dp_parallel.h,
+#   and its 1e5-dwell rows would cost TSan about 60x their 20 s. The smoke
+#   run is the same fan-out on two chunks of dwells (doppler#2324, #2328).
+# acq_surface_jitter and async_dsss_pool_soak start threads too and stay
+# `sweep`. Their library threads run under TSan elsewhere: the acq engine's
+# tile pool at 2, 4 and 8 threads in test_acq_core, the async pool across
+# threads in test_async_dsss_pool_core. What runs nowhere instrumented is
+# the soak harness's own emitter fan-out.
+set_tests_properties(validate_rx_dynamics validate_acq_rate_pd_pfa_smoke
+                     PROPERTIES LABELS threaded)

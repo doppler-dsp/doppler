@@ -745,8 +745,13 @@ priced: these rows now sit under the target, not over it).
     2% of the time.
 - `validate_acq_rate_pd_pfa`, in CI's sweep-validators job, holds the burst
     engine's per-dwell rows at the design point, each not significantly above
-    the target: n = 1, 3 and auto over 100,000 dwells, where a doubled rate
-    would cross it, and n = 5 and 9 over 20,000 (#2324).
+    the target: n = 1, 3 and auto over 100,000 dwells, and n = 5 and 9 over
+    20,000 (#2324). Only n = 1 detects a doubled rate (false red 0.76%,
+    escape about 0). On 3 and auto a doubling only just crosses the target,
+    so they are backstops that a doubling escapes 49% and 18% of the time.
+    The exact guards are the pin above and `make lint-acq-pfa-split`, which
+    holds every `dp_det_pfa_cell` call under `native/src/acq/` to
+    `acq_band_cells`.
 - `validate_acq_block_coherent --check` holds the continuous engine's
     per-block rate at the configured one over 400 blocks, which detects the
     native pricing rather than pinning one draw: put back, it fired 127 of

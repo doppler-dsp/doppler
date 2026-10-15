@@ -12,6 +12,8 @@
 #ifndef DP_THREAD_H
 #define DP_THREAD_H
 
+#include "doppler/dp_once.h"
+
 #ifdef _WIN32
 
 #ifndef _WIN32_WINNT

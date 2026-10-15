@@ -16,10 +16,11 @@
  *   cmake --build example-projects/standalone/build
  *   ./example-projects/standalone/build/awgn_example
  *
- * Or with plain gcc against the build tree (the core is pure C — only -lm):
+ * Or with plain gcc against the build tree (the core is pure C — the whole
+ * link line is -lm -lpthread):
  *   gcc -o awgn_example example-projects/standalone/main.c \
  *       -Inative/inc -Ibuild/native/inc \
- *       build/libdoppler.a -lm
+ *       build/libdoppler.a -lm -lpthread
  */
 
 #include <complex.h>

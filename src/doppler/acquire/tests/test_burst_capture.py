@@ -12,7 +12,7 @@ import pytest
 
 from doppler.acquire import BurstCapture, PersistentBurstCapture
 from doppler.acquire.tests._preamble import code_preamble
-from doppler.wfm import PN
+from doppler.wfm import PN, rotate
 
 ACQ_SF, DATA_SF, REPS, SPC = 31, 8, 4, 4
 PAYLOAD_SYMS = 61
@@ -600,16 +600,26 @@ def _sweeping_burst(pre, reps, payload, at, total, f_mid, rate, sigma, seed):
     x = sigma * (
         rng.standard_normal(total) + 1j * rng.standard_normal(total)
     ).astype(np.complex64)
-    u = np.arange(reps * n + payload) - 0.5 * reps * n
-    ph = 2 * np.pi * (f_mid * u + 0.5 * rate * u * u)
     body = np.concatenate([np.tile(pre, reps), np.ones(payload)])
-    x[at : at + u.size] += (body * np.exp(1j * ph)).astype(np.complex64)
+    # The sweep is about the PREAMBLE's middle (center), the payload continues
+    # it: the library's own operator, not a private phase ramp.
+    swept = rotate(
+        body.astype(np.complex64), f_mid, rate, 1.0, center=0.5 * reps * n
+    )
+    x[at : at + swept.size] += swept
     return x
 
 
 def test_rate_hypotheses_buy_depth_and_the_power_to_meet_pd():
     """Capped, the depth cannot meet the requested pd at this C/N0; with the
-    rates searched the residual drift allows twice the depth, and it can."""
+    rates searched the residual drift allows nearly twice the depth, and it
+    can.
+
+    -12.5 dB, a quarter dB above the validator's design point, so neither
+    side sits on the knife-edge: capped (D = 5) predicts 0.872 and nine
+    rates (D = 9) 0.918, against pd 0.9. The gate is priced over the
+    interpolated surface since doppler#2218, which moved the design point
+    from -13.0 up by a quarter dB."""
     import warnings
 
     pre = _zc()
@@ -617,7 +627,7 @@ def test_rate_hypotheses_buy_depth_and_the_power_to_meet_pd():
         "burst_len": 2432,
         "reps": 16,
         "fs": 1.0,
-        "cn0_dbhz": -13.0,
+        "cn0_dbhz": -12.5,
         "doppler_rate": 9e-7,
     }
     with warnings.catch_warnings():
@@ -626,7 +636,7 @@ def test_rate_hypotheses_buy_depth_and_the_power_to_meet_pd():
     assert capped.rate_hypotheses == 1 and capped.doppler_bins == 5
     assert capped.underpowered
     cap = BurstCapture(pre, rate_hypotheses=9, **kw)
-    assert cap.rate_hypotheses == 9 and cap.doppler_bins == 10
+    assert cap.rate_hypotheses == 9 and cap.doppler_bins == 9
     assert not cap.underpowered
 
 
@@ -651,8 +661,9 @@ def test_rate_hypotheses_need_a_rate_to_span():
 
 
 def test_rate_hypotheses_zero_is_auto():
-    """0 chooses the count: at the validator's design point it picks fewer
-    than nine and still meets pd at the depth nine does."""
+    """0 chooses the count: at -13 dB, where nine falls just short of pd at
+    depth 10 (each hypothesis is priced as a full look), it picks fewer than
+    nine and meets pd at that depth (n = 4: 0.906 against 0.9)."""
     kw = {
         "burst_len": 2432,
         "reps": 16,
@@ -695,12 +706,55 @@ def test_a_swept_burst_is_placed_exactly_with_the_rates(tmp_path):
             assert at in starts, f"burst at {at} captured at {starts}"
 
 
-def test_a_swept_burst_at_the_design_cn0_needs_the_engines_rates():
+def test_each_event_carries_refines_rate(tmp_path):
+    """Each event names refine's winning Doppler-rate hypothesis, from the
+    whole preamble on refine's own grid, and the read-back is the last
+    event's (doppler#2219). At this span and 16 repetitions refine's grid is
+    nine points over [-R, +R], so 0.75 R is one of them: a sweep just off it
+    comes back as exactly that point. Without a declared rate the field is
+    0; one hypothesis WITH a rate still searches refine's grid.
+    The persistent view carries the same field."""
+    pre = _zc()
+    rate = 9e-7
+    kw = {
+        "burst_len": 16 * 127 + 400,
+        "reps": 16,
+        "fs": 1.0,
+        "cn0_dbhz": 10.0,
+        "doppler_rate": rate,
+    }
+    x = _sweeping_burst(pre, 16, 400, 7333, 26000, 0.0, 0.76 * rate, 0.1, 2219)
+    for cap in (
+        BurstCapture(pre, rate_hypotheses=5, **kw),
+        PersistentBurstCapture(
+            tmp_path / "ring.cf32", pre, rate_hypotheses=5, **kw
+        ),
+    ):
+        cap.reset()
+        cap.push(x)
+        ev = cap.events()
+        assert "doppler_rate_hz_s" in ev.dtype.names
+        rows = [e for e in ev if int(e["preamble_start"]) == 7333]
+        assert rows, "the swept burst is placed exactly"
+        got = float(rows[-1]["doppler_rate_hz_s"])
+        assert got == pytest.approx(0.75 * rate, rel=1e-9)
+        assert cap.doppler_rate_hz_s == float(ev[-1]["doppler_rate_hz_s"])
+    plain = BurstCapture(pre, **{**kw, "doppler_rate": 0.0})
+    plain.push(x)
+    assert len(plain.events()) > 0, "a capture with no rate still emits"
+    assert all(float(e["doppler_rate_hz_s"]) == 0.0 for e in plain.events())
+
+
+def test_a_swept_burst_at_the_design_cn0_is_placed_by_either_depth():
     """At the design C/N0 (noise at -13 dB per sample) the engine runs deep
     (D > 2) and its own rate search decides the detection; the test above
     runs at 10 dB-Hz, D = 1, where only refine's rates are exercised. Nine
-    hypotheses place most of the seeded bursts; one, capped at a shallower
-    depth, misses most of them."""
+    hypotheses place most of the seeded bursts, and so does one capped at a
+    shallower depth: refine searches its rate grid whenever a rate is
+    declared (doppler#2219). Keyed on the engine's count, the capped one
+    missed most of them, which this test used to credit to the engine's
+    depth. What depth buys is validate_acq_rate_pd's to show, on engine Pd 3
+    dB under the design point."""
     import warnings
 
     pre = _zc()
@@ -727,5 +781,5 @@ def test_a_swept_burst_at_the_design_cn0_needs_the_engines_rates():
             cap.reset()
             cap.push(x)
             got[name] += at in [int(e[0]) for e in cap.events()]
-    assert got["deep"] >= 0.8 * trials
-    assert got["deep"] >= got["capped"] + trials // 5, got
+    assert got["deep"] >= 0.8 * trials, got
+    assert got["capped"] >= 0.8 * trials, got

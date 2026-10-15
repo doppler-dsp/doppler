@@ -17,7 +17,7 @@ import pytest
 
 from doppler.acquire import Acquisition, BurstAcquisition
 from doppler.acquire.tests._preamble import code_preamble
-from doppler.wfm import PN, mls_poly
+from doppler.wfm import PN, mls_poly, rotate
 
 SF = 31  # length-31 MLS (5-stage), matches test_acq_continuous.py's CODE
 CODE = np.asarray(PN(poly=mls_poly(5), seed=1, length=5).generate(SF)).astype(
@@ -451,9 +451,13 @@ def _sweeping_stream(pre, reps, f_mid, rate):
     """`reps` repetitions of `pre` whose carrier sweeps at `rate`, about the
     stream's middle (normalized: fs = 1, so rates are cycles/sample^2)."""
     n = pre.size
-    u = np.arange(reps * n) - 0.5 * reps * n
-    ph = 2 * np.pi * (f_mid * u + 0.5 * rate * u * u)
-    return (np.tile(pre, reps) * np.exp(1j * ph)).astype(np.complex64)
+    return rotate(
+        np.tile(pre, reps).astype(np.complex64),
+        f_mid,
+        rate,
+        1.0,
+        center=0.5 * reps * n,
+    )
 
 
 def test_rate_hypotheses_default_to_none():

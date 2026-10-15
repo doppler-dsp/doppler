@@ -9,51 +9,30 @@ frames to resolve a small excursion — but that is a difference in `n_frames`,
 not in the measurement. A second implementation of it would be a second
 convention, and this repo has paid for that four times over.
 
-**Why the number is not simply the target.** `acq_commit_thresholds()` sizes
-the per-cell false-alarm probability from the NATIVE cell count:
+**Why it is worth measuring at all.** The gate is a maximum over the
+Doppler-INTERPOLATED surface, and `acq_commit_thresholds()` prices it with a
+Sidak split over the cells that maximum ranges over (`acq_band_cells()` in
+`native/src/acq/acq_core.c`: every searched row of the interpolated surface,
+times `code_bins`, times the rate hypotheses). That is the one definition;
+this module only measures what it delivers.
 
-    pfa_cell = 1 - (1 - pfa) ** (1 / (searched_bins * code_bins))
+Until doppler#2218 the split counted the NATIVE cells, with no term for
+`ACQ_DOPPLER_INTERP`, on the grounds that zero-padding adds no new
+*information*. True, and not the relevant property: a maximum over a finer
+sampling of the same band-limited process is stochastically larger, so
+interpolation found noise peaks that used to fall between bins (the
+scalloping-loss win of doppler#1002, applied to H0). Every D > 1 engine
+delivered about twice its target: 1.86-1.93x at 1e-3 on the burst engine,
+1e6 dwells a row, against 0.94-0.99x for a maximum over the native rows only.
+(The 0.89 "conservative native model" once quoted beside it was doppler#1183,
+an even depth never searching its outermost bin, not cell correlation.)
 
-with no term for `ACQ_DOPPLER_INTERP`. That is deliberate and argued in
-`native/src/acq/acq_core.c` — frequency-domain zero-padding is exact
-band-limited interpolation, so the added rows carry no new *information*.
-
-The argument is true and it is not the relevant one, because the detector
-takes the **maximum** over the surface rather than integrating it. The
-maximum of a band-limited process sampled finely is stochastically larger
-than the maximum of the same process sampled coarsely: interpolation finds
-noise peaks that previously fell between bins and were missed. That is the
-same mechanism as the scalloping-loss win it was added for (doppler#1002,
-~3.9 dB -> ~0.9 dB), applied to H0.
-
-**Measured, and it decomposes into two errors of opposite sign.** 60,000
-pure-noise frames at `pfa = 1e-2` (the highest-count point, so the tightest
-bars), `doppler_bins = 8`, `n_noncoh = 1`, identical build and seed with only
-`ACQ_DOPPLER_INTERP` changed:
-
-    N_eff(1) / N            0.89 +/- 0.04   the native model is CONSERVATIVE
-    N_eff(2) / N_eff(1)     1.86 +/- 0.09   what interpolation adds
-    N_eff(2) / N            1.65 +/- 0.05   what a caller actually gets
-
-The two partly cancel, which is why the delivered rate is 1.65x rather than
-1.86x. Quoting 1.86 as "the" error would be quoting the ratio between two
-BUILDS, not the rate anyone experiences -- and a correction of 1.86 applied to
-a model that is already 11% conservative would land at 0.89 of target.
-
-`N_eff(1) < N` because adjacent DFT bins of a white-noise transform are not
-perfectly independent, so the Sidak count slightly overstates the looks. That
-direction is safe: fewer false alarms than asked for.
-
-**The form of the calculation is right; only `N` is wrong.** The ratio holds
-across three decades of target -- 1.65 / 1.40 / 1.50 at 1e-2 / 1e-3 / 1e-4
-with interpolation on, 0.89 / 0.77 / 0.83 with it off -- which is the
-signature of a multiplicative cell-count error. A miscalibrated per-cell
-threshold, or an unaccounted CFAR estimation loss from a finite reference
-window, would DRIFT with the target instead. Neither does.
-
-Tracked as doppler#1064. Until it is fixed, both callers ratchet against the
-measured ratio rather than asserting the target, so the gap cannot widen
-unnoticed and closing it is a ratchet that only shrinks.
+Priced over the interpolated cells the rate is a never-exceed bound: each
+interpolated row is correlated with its native neighbours, so counting it as
+a full look over-counts slightly. Measured 0.95-0.97x at 1e-3, which is
+about 0.015 dB of sensitivity. The measured per-geometry `N_eff` that would
+recover it is doppler#1064, still open. Both callers ratchet the realized
+ratio so that a regression back toward 2x is caught.
 """
 
 from __future__ import annotations
@@ -66,17 +45,22 @@ import numpy as np
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-#: Ratchet on the realized-Pfa-to-target ratio with doppler#1002's Doppler
-#: interpolation active. It may only SHRINK; 1.0 is the goal and closing
-#: doppler#1064 earns it.
+#: Ratchet on the realized-Pfa-to-target ratio. It may only SHRINK.
 #:
-#: Set at 2.2 against a best estimate of 1.65 +/- 0.05, which is deliberate
-#: headroom rather than slack: the certification measures at `pfa = 1e-3`
-#: over 20,000 frames, where 20 expected hits give the estimate a Poisson
-#: spread of roughly +/-0.22 -- so a bound any tighter would go red on a
-#: run that found nothing wrong. Tighten it when the measurement gets
-#: cheaper, or when the defect is fixed and the ratio collapses to ~0.9.
-PFA_RATIO_RATCHET = 2.2
+#: 1.4 since doppler#2218 put the delivered rate on target (it was 2.2
+#: against a delivered ~1.65-1.85). A BACKSTOP: the exact guard is the C pin,
+#: test_acq_core.c's _acq_pfa_split_check, which holds pfa_cell to the band
+#: mask's cell count. This catches what slips past it, at the frames that
+#: resolve it: the certification (the caller CI runs, through
+#: test_validation_limits) measures 60,000 frames at `pfa = 1e-3`. An
+#: on-target detector expects 60 hits and exceeds 84 by chance about 0.1% of
+#: the time. The native pricing, put back, measured 1.76x on this engine
+#: (21 seeds, mean 105 hits; the certification's seed 102), which stays at
+#: or under 84 about 2% of the time (none of the 21 did). At 20,000 frames no
+#: bound does both: that run read 1.45x, inside a 1.5 bound. The
+#: characterization still measures 20,000 frames for its figure, where the
+#: same bound is a looser check (about 3% false red).
+PFA_RATIO_RATCHET = 1.4
 
 
 def realized_pfa(

@@ -16,6 +16,7 @@
 typedef struct
 {
   PyObject_HEAD dp_mpsk_receiver_state_t *handle;
+  jm_inflight_t _jm_inflight; /* gh-2272: GIL-free calls running */
 } MpskReceiverObject;
 
 static void
@@ -23,6 +24,7 @@ MpskReceiverObj_dealloc (MpskReceiverObject *self)
 {
   if (self->handle)
     dp_mpsk_receiver_destroy (self->handle);
+  jm_inflight_free (&self->_jm_inflight);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -264,15 +266,17 @@ MpskReceiverObj_steps (MpskReceiverObject *self, PyObject *args,
           Py_DECREF (x_arr);
           return NULL;
         }
-      /* nogil: GIL released across the pure-C kernel — sound only when
-       * this object is not shared across threads concurrently (one
-       * object per stream); the kernel touches only this object's
-       * state/buffers and the caller's input. */
+      /* nogil: GIL released across the pure-C kernel. Two calls on
+       * one object may run at once only if its kernel allows it; a
+       * teardown waits for a running call (gh-2272). */
       float _Complex *_ng0 = (float _Complex *)PyArray_DATA (out_arr);
       size_t          n_out;
+      void           *_jm_h = self->handle;
+      jm_inflight_enter (&self->_jm_inflight);
       Py_BEGIN_ALLOW_THREADS
-        n_out = dp_mpsk_receiver_steps (self->handle, x, x_len, _ng0, _cap);
+        n_out = dp_mpsk_receiver_steps (_jm_h, x, x_len, _ng0, _cap);
       Py_END_ALLOW_THREADS
+      jm_inflight_leave (&self->_jm_inflight);
       Py_DECREF (x_arr);
       if ((size_t)(n_out) > (size_t)(_cap))
         {
@@ -321,14 +325,16 @@ MpskReceiverObj_steps (MpskReceiverObject *self, PyObject *args,
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  /* nogil: GIL released across the pure-C kernel — sound only when
-   * this object is not shared across threads concurrently (one
-   * object per stream); the kernel touches only this object's
-   * state/buffers and the caller's input. */
+  /* nogil: GIL released across the pure-C kernel. Two calls on
+   * one object may run at once only if its kernel allows it; a
+   * teardown waits for a running call (gh-2272). */
   size_t n_out;
+  void  *_jm_h = self->handle;
+  jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
-    n_out = dp_mpsk_receiver_steps (self->handle, x, x_len, _d0, _cap);
+    n_out = dp_mpsk_receiver_steps (_jm_h, x, x_len, _d0, _cap);
   Py_END_ALLOW_THREADS
+  jm_inflight_leave (&self->_jm_inflight);
   Py_DECREF (x_arr);
   if ((size_t)(n_out) > (size_t)(_cap))
     {
@@ -425,15 +431,17 @@ MpskReceiverObj_bits (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (x_arr);
           return NULL;
         }
-      /* nogil: GIL released across the pure-C kernel — sound only when
-       * this object is not shared across threads concurrently (one
-       * object per stream); the kernel touches only this object's
-       * state/buffers and the caller's input. */
+      /* nogil: GIL released across the pure-C kernel. Two calls on
+       * one object may run at once only if its kernel allows it; a
+       * teardown waits for a running call (gh-2272). */
       uint8_t *_ng0 = (uint8_t *)PyArray_DATA (out_arr);
       size_t   n_out;
+      void    *_jm_h = self->handle;
+      jm_inflight_enter (&self->_jm_inflight);
       Py_BEGIN_ALLOW_THREADS
-        n_out = dp_mpsk_receiver_bits (self->handle, x, x_len, _ng0, _cap);
+        n_out = dp_mpsk_receiver_bits (_jm_h, x, x_len, _ng0, _cap);
       Py_END_ALLOW_THREADS
+      jm_inflight_leave (&self->_jm_inflight);
       Py_DECREF (x_arr);
       if ((size_t)(n_out) > (size_t)(_cap))
         {
@@ -482,14 +490,16 @@ MpskReceiverObj_bits (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   uint8_t *_d0 = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
-  /* nogil: GIL released across the pure-C kernel — sound only when
-   * this object is not shared across threads concurrently (one
-   * object per stream); the kernel touches only this object's
-   * state/buffers and the caller's input. */
+  /* nogil: GIL released across the pure-C kernel. Two calls on
+   * one object may run at once only if its kernel allows it; a
+   * teardown waits for a running call (gh-2272). */
   size_t n_out;
+  void  *_jm_h = self->handle;
+  jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
-    n_out = dp_mpsk_receiver_bits (self->handle, x, x_len, _d0, _cap);
+    n_out = dp_mpsk_receiver_bits (_jm_h, x, x_len, _d0, _cap);
   Py_END_ALLOW_THREADS
+  jm_inflight_leave (&self->_jm_inflight);
   Py_DECREF (x_arr);
   if ((size_t)(n_out) > (size_t)(_cap))
     {
@@ -910,8 +920,16 @@ MpskReceiverObj_destroy (MpskReceiverObject *self,
 {
   if (self->handle)
     {
-      dp_mpsk_receiver_destroy (self->handle);
+      void *_jm_st = self->handle;
       self->handle = NULL;
+      /* gh-2272: a GIL-free call may still be running on this
+         object; new ones are refused from here, so wait for those. */
+      if (jm_inflight_wait (&self->_jm_inflight) < 0)
+        {
+          self->handle = _jm_st;
+          return NULL;
+        }
+      dp_mpsk_receiver_destroy (_jm_st);
     }
   Py_RETURN_NONE;
 }
@@ -929,8 +947,16 @@ MpskReceiverObj_exit (MpskReceiverObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      dp_mpsk_receiver_destroy (self->handle);
+      void *_jm_st = self->handle;
       self->handle = NULL;
+      /* gh-2272: a GIL-free call may still be running on this
+         object; new ones are refused from here, so wait for those. */
+      if (jm_inflight_wait (&self->_jm_inflight) < 0)
+        {
+          self->handle = _jm_st;
+          return NULL;
+        }
+      dp_mpsk_receiver_destroy (_jm_st);
     }
   Py_RETURN_NONE;
 }

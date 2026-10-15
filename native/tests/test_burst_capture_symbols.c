@@ -54,6 +54,7 @@ const jm_any_fn jm_bound_symbols_burst_capture[] = {
     (jm_any_fn)dp_burst_capture_get_doppler_hz_est,
     (jm_any_fn)dp_burst_capture_get_doppler_res_hz,
     (jm_any_fn)dp_burst_capture_get_cn0_dbhz_est,
+    (jm_any_fn)dp_burst_capture_get_doppler_rate_hz_s,
     (jm_any_fn)dp_burst_capture_get_pending,
     (jm_any_fn)dp_burst_capture_get_dropped,
     (jm_any_fn)dp_burst_capture_get_n_bursts,

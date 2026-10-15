@@ -9,7 +9,16 @@ from doppler.wfm import FrameDesc
 
 @disjoint_base
 class Synth:
-    """Synth.
+    """One additive source within a segment: a `synth` config + its level.
+
+    The nine synth fields mirror `dp_wfm_synth_create()` (minus `fs`, which is
+    the segment's — one receiver, one sample rate). `level` is the source's
+    average power in dBFS (≤0); the segment sums its sources, each scaled by
+    `10^(level/20)`.
+
+    Any of `freq`/`snr`/`level`/`f_end` may be a per-repeat uniform draw: set
+    the matching `WFM_RANGE_*` bit in `ranged`, leave the scalar as `lo`, and
+    put `hi` in the `*_hi` companion (see the `ranged` enum).
 
     Parameters
     ----------
@@ -341,10 +350,69 @@ class Synth:
         A no-op before the first `steps()`/`step()`, which starts from sample 0
         anyway.
         """
+    def prod(
+        self,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
+    ) -> NDArray[np.complex64]:
+        """Multiply a block by the synth's next output samples.
+
+        ``out[i] = x[i] * y[i]``, where ``y`` is what ``steps(len(x))`` would
+        emit next. The synth advances exactly as ``steps(len(x))`` does, so
+        split calls leave the same synth state as one call and an empty ``x``
+        does not advance it; the product itself agrees across such call
+        sequences to rounding (a few ulp of ``|x| * |y|``), not to the bit,
+        because the compiler may contract the multiply differently on different
+        paths (arm64 under ``-ffast-math``). ``x`` is not modified.
+
+        ``x`` must be a 1-D C-contiguous complex64 array: a strided,
+        non-complex64 or non-1-D block is refused (``ValueError`` /
+        ``TypeError``), never copied or cast.
+
+        This is the general waveform-multiplication operator: with a tone synth
+        it is a rotation, with a chirp synth a swept rotation, with noise a
+        noise multiplier, with PN/BPSK a modulation.
+
+        Parameters
+        ----------
+        x : npt.NDArray[np.complex64]
+            Input.
+        out : npt.NDArray[np.complex64] | None
+            Output block of ``n`` cf32 samples (may be the input block itself).
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Output.
+
+        Raises
+        ------
+        ValueError
+            If `dp_wfm_source_to_synth` refuses this configuration; the message
+            is its reason.
+        RuntimeError
+            If `dp_wfm_source_to_synth` fails and gives no reason.
+
+        Examples
+        --------
+        >>> from doppler.wfm import Synth
+        >>> import numpy as np
+        >>> s = Synth(type="tone", fs=1.0, freq=0.25)
+        >>> y = s.prod(np.ones(4, np.complex64))
+        >>> bool(np.allclose(y, [1, 1j, -1, -1j], atol=1e-5))
+        True
+
+        """
 
 @disjoint_base
 class Segment:
-    """Segment.
+    """One composer segment: one or more sources summed over the same span,
+    then a trailing off-time gap.
+
+    A 1-source segment is byte-identical to driving that source's `synth`
+    directly. `num_samples` is the on-time; `off_samples` is a trailing gap of
+    zeros. Durations in seconds are `round(duration * fs)` — the caller
+    resolves.
 
     Parameters
     ----------
@@ -735,7 +803,9 @@ class Composer:
             as fast as possible.
         """
     def to_dict(self) -> dict:
-        """Serialise the composer state to a dict."""
+        """Serialise the resolved composition (repeat, continuous, segments) to
+        a dict.
+        """
     def _draws_json(self) -> str:
         """Serialise as _draws_json."""
     def to_sigmf(
@@ -752,22 +822,109 @@ class Composer:
     def __enter__(self) -> Composer: ...
     def __exit__(self, *exc) -> None: ...
     @classmethod
-    def from_json(cls, json: str) -> Composer: ...
+    def from_json(cls, json: str) -> Composer:
+        """Build a Composer from a JSON spec."""
     @classmethod
-    def from_file(cls, path: str) -> Composer: ...
-    def to_json(self) -> str: ...
+    def from_file(cls, path: str) -> Composer:
+        """Build a Composer from a JSON spec file."""
+    def to_json(self) -> str:
+        """Serialise the spec as JSON."""
 
 def tone(**kw: Any) -> Synth:
-    """Return a Synth configured as a *tone* source."""
+    """Return a Synth configured as a *tone* source.
+
+    Parameters
+    ----------
+    **kw : Any
+        Any keyword Synth takes with ``type="tone"``; ``help(Synth)`` lists
+        them.
+
+    Returns
+    -------
+    Synth
+        The configured Synth.
+    """
 def noise(**kw: Any) -> Synth:
-    """Return a Synth configured as a *noise* source."""
+    """Return a Synth configured as a *noise* source.
+
+    Parameters
+    ----------
+    **kw : Any
+        Any keyword Synth takes with ``type="noise"``; ``help(Synth)``
+        lists them.
+
+    Returns
+    -------
+    Synth
+        The configured Synth.
+    """
 def pn(**kw: Any) -> Synth:
-    """Return a Synth configured as a *pn* source."""
+    """Return a Synth configured as a *pn* source.
+
+    Parameters
+    ----------
+    **kw : Any
+        Any keyword Synth takes with ``type="pn"``; ``help(Synth)`` lists
+        them.
+
+    Returns
+    -------
+    Synth
+        The configured Synth.
+    """
 def bpsk(**kw: Any) -> Synth:
-    """Return a Synth configured as a *bpsk* source."""
+    """Return a Synth configured as a *bpsk* source.
+
+    Parameters
+    ----------
+    **kw : Any
+        Any keyword Synth takes with ``type="bpsk"``; ``help(Synth)`` lists
+        them.
+
+    Returns
+    -------
+    Synth
+        The configured Synth.
+    """
 def qpsk(**kw: Any) -> Synth:
-    """Return a Synth configured as a *qpsk* source."""
+    """Return a Synth configured as a *qpsk* source.
+
+    Parameters
+    ----------
+    **kw : Any
+        Any keyword Synth takes with ``type="qpsk"``; ``help(Synth)`` lists
+        them.
+
+    Returns
+    -------
+    Synth
+        The configured Synth.
+    """
 def chirp(**kw: Any) -> Synth:
-    """Return a Synth configured as a *chirp* source."""
+    """Return a Synth configured as a *chirp* source.
+
+    Parameters
+    ----------
+    **kw : Any
+        Any keyword Synth takes with ``type="chirp"``; ``help(Synth)``
+        lists them.
+
+    Returns
+    -------
+    Synth
+        The configured Synth.
+    """
 def bits(**kw: Any) -> Synth:
-    """Return a Synth configured as a *bits* source."""
+    """Return a Synth configured as a *bits* source.
+
+    Parameters
+    ----------
+    **kw : Any
+        Any keyword Synth takes with ``type="bits"``; ``help(Synth)`` lists
+        them.
+
+    Returns
+    -------
+    Synth
+        The configured Synth.
+    """

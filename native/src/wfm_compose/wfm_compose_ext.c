@@ -79,6 +79,90 @@ jm_array_arg (PyObject *obj, int typenum, int requirements, const char *name)
 }
 #endif /* JM_ARRAY_ARG_DEFINED */
 
+#ifndef JM_INFLIGHT_DEFINED
+#define JM_INFLIGHT_DEFINED
+/* gh-2272: the GIL-free calls running on one object, so its explicit
+ * teardown can wait for them instead of freeing under them. `n` is read
+ * and written only with the GIL held. `idle` exists only once a teardown
+ * has had to wait: that teardown holds it, and the last call to leave
+ * gives it back. */
+typedef struct
+{
+  Py_ssize_t         n;
+  int                waiting;
+  PyThread_type_lock idle;
+} jm_inflight_t;
+
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__ ((unused))
+#endif
+static inline void
+jm_inflight_enter (jm_inflight_t *g)
+{
+  g->n++;
+}
+
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__ ((unused))
+#endif
+static inline void
+jm_inflight_leave (jm_inflight_t *g)
+{
+  if (--g->n == 0 && g->waiting)
+    {
+      g->waiting = 0;
+      PyThread_release_lock (g->idle);
+    }
+}
+
+/* Called with the GIL held, after the object refuses new calls. Returns
+ * with none running: 0, or -1 with MemoryError when no lock could be had,
+ * in which case nothing has been waited for. */
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__ ((unused))
+#endif
+static inline int
+jm_inflight_wait (jm_inflight_t *g)
+{
+  while (g->n > 0)
+    {
+      if (!g->idle)
+        {
+          g->idle = PyThread_allocate_lock ();
+          if (!g->idle)
+            {
+              PyErr_NoMemory ();
+              return -1;
+            }
+        }
+      /* Take the lock, then block on it again with the GIL released:
+       * the last jm_inflight_leave releases it. The GIL is dropped by
+       * function here, not by the macro pair, so the macro still marks
+       * exactly the calls a binding runs without it. */
+      (void)PyThread_acquire_lock (g->idle, NOWAIT_LOCK);
+      g->waiting        = 1;
+      PyThreadState *ts = PyEval_SaveThread ();
+      (void)PyThread_acquire_lock (g->idle, WAIT_LOCK);
+      PyEval_RestoreThread (ts);
+      PyThread_release_lock (g->idle);
+    }
+  return 0;
+}
+
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__ ((unused))
+#endif
+static inline void
+jm_inflight_free (jm_inflight_t *g)
+{
+  if (g->idle)
+    {
+      PyThread_free_lock (g->idle);
+      g->idle = NULL;
+    }
+}
+#endif /* JM_INFLIGHT_DEFINED */
+
 /* String-enum tables — order is the C int (the [[enum]] SSOT). */
 static int
 _enum_index (const char *const *tab, const char *s)
@@ -171,6 +255,7 @@ typedef struct
   PyObject_HEAD wfm_source_t src;
   double                     fs;
   dp_wfm_synth_state_t      *_gen;
+  jm_inflight_t _jm_inflight; /* gh-2272: GIL-free calls running */
 } SynthObject;
 
 static void
@@ -187,6 +272,7 @@ Synth_dealloc (SynthObject *self)
   free ((void *)self->src.data.bits);
   free ((void *)self->src.fill.bits);
   dp_wfm_frame_free ((wfm_frame_desc_t *)self->src.frame);
+  jm_inflight_free (&self->_jm_inflight);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -681,6 +767,12 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   if (_kw_owned)
     Py_DECREF (_kw);
   self->fs = fs;
+  /* gh-2272: a GIL-free call may still be running on this
+     object; new ones are refused from here, so wait for those. */
+  if (jm_inflight_wait (&self->_jm_inflight) < 0)
+    {
+      return -1;
+    }
   if (self->_gen)
     {
       dp_wfm_synth_destroy (self->_gen);
@@ -2311,9 +2403,11 @@ Synth_steps (SynthObject *self, PyObject *args)
   if (!arr)
     return NULL;
   float _Complex *out = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr);
+  jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
     dp_wfm_synth_steps (self->_gen, out, (size_t)n);
   Py_END_ALLOW_THREADS
+  jm_inflight_leave (&self->_jm_inflight);
   return arr;
 }
 
@@ -2332,6 +2426,109 @@ Synth_reset (SynthObject *self, PyObject *Py_UNUSED (ignored))
   if (self->_gen)
     dp_wfm_synth_reset (self->_gen);
   Py_RETURN_NONE;
+}
+
+static PyObject *
+Synth_gen_prod (SynthObject *self, PyObject *args, PyObject *kwds)
+{
+  if (Synth_ensure_gen (self) < 0)
+    return NULL;
+  static char *_kwlist[] = { "x", "out", NULL };
+  PyObject    *in_obj    = NULL;
+  PyObject    *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &in_obj,
+                                    &out_obj))
+    return NULL;
+  if (!PyArray_Check (in_obj)
+      || PyArray_TYPE ((PyArrayObject *)in_obj) != NPY_COMPLEX64)
+    {
+      PyErr_Format (PyExc_TypeError,
+                    "x must be an ndarray of dtype np.complex64"
+                    " (got %R)",
+                    PyArray_Check (in_obj)
+                        ? (PyObject *)PyArray_DESCR ((PyArrayObject *)in_obj)
+                        : (PyObject *)Py_TYPE (in_obj));
+      return NULL;
+    }
+  if (PyArray_NDIM ((PyArrayObject *)in_obj) != 1
+      || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)in_obj))
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "x must be a 1-D C-contiguous array"
+                    " (got %d-D%s)",
+                    PyArray_NDIM ((PyArrayObject *)in_obj),
+                    PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)in_obj)
+                        ? ""
+                        : ", not contiguous");
+      return NULL;
+    }
+  Py_INCREF (in_obj);
+  PyArrayObject *in_arr = (PyArrayObject *)in_obj;
+  Py_ssize_t     n      = PyArray_SIZE (in_arr);
+  if (out_obj && out_obj != Py_None)
+    {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          Py_DECREF (in_arr);
+          return NULL;
+        }
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
+      if (!out_arr)
+        {
+          Py_DECREF (in_arr);
+          return NULL;
+        }
+      if (PyArray_SIZE (out_arr) != n)
+        {
+          PyErr_Format (PyExc_ValueError, "out length %zd != input length %zd",
+                        (Py_ssize_t)PyArray_SIZE (out_arr), (Py_ssize_t)n);
+          Py_DECREF (out_arr);
+          Py_DECREF (in_arr);
+          return NULL;
+        }
+      /* nogil: GIL released across the pure-C kernel. Two calls on
+       * one object may run at once only if its kernel allows it; a
+       * teardown waits for a running call (gh-2272). */
+      const float _Complex *_ng0
+          = (const float _Complex *)PyArray_DATA (in_arr);
+      float _Complex *_ng1 = (float _Complex *)PyArray_DATA (out_arr);
+      jm_inflight_enter (&self->_jm_inflight);
+      Py_BEGIN_ALLOW_THREADS
+        dp_wfm_synth_prod (self->_gen, _ng0, (size_t)n, _ng1);
+      Py_END_ALLOW_THREADS
+      jm_inflight_leave (&self->_jm_inflight);
+      Py_DECREF (in_arr);
+      return (PyObject *)out_arr;
+    }
+  npy_intp  dims[] = { n };
+  PyObject *out    = PyArray_SimpleNew (1, dims, NPY_COMPLEX64);
+  if (!out)
+    {
+      Py_DECREF (in_arr);
+      return NULL;
+    }
+  /* nogil: GIL released across the pure-C kernel. Two calls on
+   * one object may run at once only if its kernel allows it; a
+   * teardown waits for a running call (gh-2272). */
+  const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (in_arr);
+  float _Complex *_ng1 = (float _Complex *)PyArray_DATA ((PyArrayObject *)out);
+  jm_inflight_enter (&self->_jm_inflight);
+  Py_BEGIN_ALLOW_THREADS
+    dp_wfm_synth_prod (self->_gen, _ng0, (size_t)n, _ng1);
+  Py_END_ALLOW_THREADS
+  jm_inflight_leave (&self->_jm_inflight);
+  Py_DECREF (in_arr);
+  return out;
 }
 
 static PyMethodDef Synth_methods[] = {
@@ -2387,6 +2584,56 @@ static PyMethodDef Synth_methods[] = {
     "\n"
     "A no-op before the first `steps()`/`step()`, which starts from sample 0\n"
     "anyway.\n" },
+  { "prod", (PyCFunction)(void (*) (void))Synth_gen_prod,
+    METH_VARARGS | METH_KEYWORDS,
+    "prod(x, out=None) -> ndarray\n"
+    "\n"
+    "Multiply a block by the synth's next output samples.\n"
+    "\n"
+    "``out[i] = x[i] * y[i]``, where ``y`` is what ``steps(len(x))`` would\n"
+    "emit next. The synth advances exactly as ``steps(len(x))`` does, so\n"
+    "split calls leave the same synth state as one call and an empty ``x``\n"
+    "does not advance it; the product itself agrees across such call\n"
+    "sequences to rounding (a few ulp of ``|x| * |y|``), not to the bit,\n"
+    "because the compiler may contract the multiply differently on different\n"
+    "paths (arm64 under ``-ffast-math``). ``x`` is not modified.\n"
+    "\n"
+    "``x`` must be a 1-D C-contiguous complex64 array: a strided,\n"
+    "non-complex64 or non-1-D block is refused (``ValueError`` /\n"
+    "``TypeError``), never copied or cast.\n"
+    "\n"
+    "This is the general waveform-multiplication operator: with a tone synth\n"
+    "it is a rotation, with a chirp synth a swept rotation, with noise a\n"
+    "noise multiplier, with PN/BPSK a modulation.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : npt.NDArray[np.complex64]\n"
+    "    Input.\n"
+    "out : npt.NDArray[np.complex64] | None\n"
+    "    Output block of ``n`` cf32 samples (may be the input block itself).\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.complex64]\n"
+    "    Output.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If `dp_wfm_source_to_synth` refuses this configuration; the message\n"
+    "    is its reason.\n"
+    "RuntimeError\n"
+    "    If `dp_wfm_source_to_synth` fails and gives no reason.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.wfm import Synth\n"
+    ">>> import numpy as np\n"
+    ">>> s = Synth(type=\"tone\", fs=1.0, freq=0.25)\n"
+    ">>> y = s.prod(np.ones(4, np.complex64))\n"
+    ">>> bool(np.allclose(y, [1, 1j, -1, -1j], atol=1e-5))\n"
+    "True\n" },
   { NULL, NULL, 0, NULL }
 };
 
@@ -2399,7 +2646,333 @@ static PyTypeObject SynthType = {
   .tp_dealloc = (destructor)Synth_dealloc,
   .tp_getset  = Synth_getset,
   .tp_methods = Synth_methods,
-  .tp_doc     = PyDoc_STR ("Synth — one composable source configuration."),
+  .tp_doc     = PyDoc_STR (
+      "One additive source within a segment: a `synth` config + its level.\n"
+      "\n"
+      "The nine synth fields mirror `dp_wfm_synth_create()` (minus `fs`, "
+      "which is\n"
+      "the segment's — one receiver, one sample rate). `level` is the "
+      "source's\n"
+      "average power in dBFS (≤0); the segment sums its sources, each scaled "
+      "by\n"
+      "`10^(level/20)`.\n"
+      "\n"
+      "Any of `freq`/`snr`/`level`/`f_end` may be a per-repeat uniform draw: "
+      "set\n"
+      "the matching `WFM_RANGE_*` bit in `ranged`, leave the scalar as `lo`, "
+      "and\n"
+      "put `hi` in the `*_hi` companion (see the `ranged` enum).\n"
+      "\n"
+      "Parameters\n"
+      "----------\n"
+      "type : str, default ``\"tone\"``\n"
+      "    Waveform type. tone: complex sinusoid. noise: AWGN. pn: PN "
+      "sequence\n"
+      "    (LFSR). bpsk/qpsk: PN-driven modulation. chirp: linear-FM sweep. "
+      "bits:\n"
+      "    a caller's bit pattern, with selectable modulation. symbols: a "
+      "caller's\n"
+      "    complex constellation stream. dsss: spread spectrum -- a two-code "
+      "burst\n"
+      "    (repeated preamble + data-code-spread frame) by default, or a\n"
+      "    continuous asynchronous stream when symbol_rate is set.\n"
+      "    One of ``\"tone\"``, ``\"noise\"``, ``\"pn\"``, ``\"bpsk\"``, "
+      "``\"qpsk\"``,\n"
+      "    ``\"chirp\"``, ``\"bits\"``, ``\"symbols\"``, ``\"dsss\"``.\n"
+      "freq : float | tuple[float, float], default 0.0\n"
+      "    Carrier or offset frequency in Hz; for chirp, the sweep start. "
+      "With fs\n"
+      "    = 1 it is in normalised cycles per sample.\n"
+      "snr : float | tuple[float, float], default 100.0\n"
+      "    Signal-to-noise ratio in dB, interpreted per snr_mode. 100 or more "
+      "is\n"
+      "    clean: no AWGN is added.\n"
+      "snr_mode : str, default ``\"auto\"``\n"
+      "    How snr is interpreted. auto: Es/N0 for bpsk/qpsk/dsss, and "
+      "relative to\n"
+      "    full scale for tone/noise/pn/chirp/bits/symbols -- bits included,\n"
+      "    because a bits frame has no symbol rate the engine can infer. fs: "
+      "dB\n"
+      "    relative to full scale. ebno: Eb/N0, per bit. esno: Es/N0, per "
+      "symbol;\n"
+      "    for a dsss burst the outer data symbol of len(data_code) chips x "
+      "sps\n"
+      "    samples, for a continuous dsss stream the fs/symbol_rate samples "
+      "the\n"
+      "    async symbol spans.\n"
+      "    One of ``\"auto\"``, ``\"fs\"``, ``\"ebno\"``, ``\"esno\"``.\n"
+      "seed : int, default 0\n"
+      "    PRNG and LFSR seed for the noise and PN streams. Deterministic: "
+      "vary it\n"
+      "    for run-to-run change. For a PN-sourced type it starts the\n"
+      "    pn_length-bit register, masked: a seed whose low pn_length bits "
+      "are\n"
+      "    zero starts the register at 1, as seed 0 does.\n"
+      "sps : int, default 1\n"
+      "    Samples per symbol (PSK) or per chip (PN): the oversampling "
+      "factor.\n"
+      "    Unused by noise, which records it as 0.\n"
+      "pn_length : int, default 15\n"
+      "    PN LFSR register length in bits, 2 to 64 for the PN-bearing types; "
+      "the\n"
+      "    sequence period is 2^pn_length - 1. Unused by noise, which records "
+      "it\n"
+      "    as 0.\n"
+      "pn_poly : int, default 0\n"
+      "    PN generator polynomial, in the Galois bit-vector convention; 0 "
+      "selects\n"
+      "    a maximal-length (MLS) polynomial for pn_length. It must fit the\n"
+      "    pn_length-bit register: a bit at or above it is refused, not "
+      "masked. A\n"
+      "    polynomial above 2^53 does not survive a JSON number, so a scene "
+      "file\n"
+      "    needs 0 (auto) for such a register.\n"
+      "lfsr : str, default ``\"galois\"``\n"
+      "    PN LFSR realisation. Both give the same period; fibonacci's chips "
+      "are\n"
+      "    galois's in reverse order.\n"
+      "    One of ``\"galois\"``, ``\"fibonacci\"``.\n"
+      "level : float | tuple[float, float], default 0.0\n"
+      "    Source power in dBFS (<= 0; 0 is unit power). Applies when summed "
+      "in a\n"
+      "    Segment or Composer, as a gain of 10^(level/20); a standalone\n"
+      "    Synth.steps() ignores it.\n"
+      "background : int, default 0\n"
+      "    Mark this source as part of the static background field (0/1).\n"
+      "    Plan.prepare() folds a contiguous leading run of background "
+      "sources\n"
+      "    into ONE pre-summed cache entry instead of caching each "
+      "separately, so\n"
+      "    a scene of many fixed emitters costs one buffer rather than "
+      "hundreds.\n"
+      "    The composite is overridable as a unit: it takes a single slot in\n"
+      "    gains/phases/enable and counts as one in n_sources(), so scaling "
+      "it\n"
+      "    trims the whole field while its members keep their relative "
+      "levels.\n"
+      "    Background sources must come first in the segment (a non-prefix\n"
+      "    ordering is rejected by prepare, since the fold would no longer\n"
+      "    reproduce compose bit-for-bit). Ignored by compose() and by "
+      "standalone\n"
+      "    Synth.steps().\n"
+      "f_end : float | tuple[float, float], default 0.0\n"
+      "    Chirp end frequency in Hz; ignored by other types.\n"
+      "span : int, default 0\n"
+      "    Chirp sweep length in samples: the frequency ramps from freq to "
+      "f_end\n"
+      "    over this many samples, then holds at f_end. 0 means the "
+      "enclosing\n"
+      "    Segment's num_samples. A standalone chirp (f_end != freq) must "
+      "declare\n"
+      "    it, so step(), steps(N) and any chunking of reads produce the "
+      "same\n"
+      "    waveform; generating one without it raises. Ignored by non-chirp "
+      "types.\n"
+      "doppler : float | tuple[float, float], default 0.0\n"
+      "    Clock Doppler in ppm: the received time base is rescaled by 1 +\n"
+      "    doppler*1e-6, so the symbol and chip rates move with the carrier "
+      "and a\n"
+      "    timing loop sees the error a carrier-only `freq` offset hides. "
+      "Accepts\n"
+      "    a (lo, hi) tuple drawn uniformly per repeat, like freq/snr. Zero\n"
+      "    doppler AND zero doppler_rate means no channel is built at all, so "
+      "a\n"
+      "    source that does not ask for Doppler renders exactly as it always "
+      "did.\n"
+      "doppler_rate : float | tuple[float, float], default 0.0\n"
+      "    Linear ramp on `doppler`, in ppm per second of elapsed stream "
+      "time. The\n"
+      "    channel runs through a segment's gaps as well as its on-time -- "
+      "an\n"
+      "    emitter does not stop moving because its burst ended -- so this is "
+      "per\n"
+      "    second, not per second of on-time. Accepts a (lo, hi) tuple drawn\n"
+      "    uniformly per repeat.\n"
+      "carrier_hz : float, default 0.0\n"
+      "    RF carrier in Hz that the ppm figures are referred to. It gives "
+      "the\n"
+      "    coherent carrier rotation that accompanies the time-base warp; 0 "
+      "warps\n"
+      "    the clock alone, with no carrier rotation -- a legitimate scene, "
+      "not an\n"
+      "    unset field. Independent of doppler/doppler_rate.\n"
+      "doppler_lifetime : str, default ``\"per_instance\"``\n"
+      "    How long this source's Doppler channel lives. per_instance: the "
+      "channel\n"
+      "    dies with each `repeats` instance, so the geometry restarts -- "
+      "the\n"
+      "    repeated-trial shape, which composes with a ranged doppler "
+      "re-drawn per\n"
+      "    instance. persist: one continuous pass carries across the "
+      "segment's\n"
+      "    gaps and repeat instances, keyed by (segment, source) position -- "
+      "the\n"
+      "    only lifetime under which doppler_rate accumulates across a "
+      "multi-burst\n"
+      "    scene. compose(), stream() and Plan.prepare() all honour both.\n"
+      "    One of ``\"per_instance\"``, ``\"persist\"``.\n"
+      "modulation : str, default ``\"bpsk\"``\n"
+      "    Symbol mapping of a bits pattern. none: the pattern shaped and "
+      "output\n"
+      "    as-is (NRZ). bpsk: +/-1 symbols. qpsk: Gray-coded symbols from "
+      "pairs of\n"
+      "    bits.\n"
+      "    One of ``\"none\"``, ``\"bpsk\"``, ``\"qpsk\"``.\n"
+      "pulse : str, default ``\"rect\"``\n"
+      "    Pulse shape per symbol or chip, for "
+      "pn/bpsk/qpsk/bits/symbols/dsss.\n"
+      "    rect: rectangular, no ISI filtering. rrc: root-raised cosine; see\n"
+      "    rrc_beta and rrc_span.\n"
+      "    One of ``\"rect\"``, ``\"rrc\"``.\n"
+      "rrc_beta : float, default 0.35\n"
+      "    RRC roll-off factor, in (0, 1], when pulse=rrc.\n"
+      "rrc_span : int, default 8\n"
+      "    RRC filter support in symbols when pulse=rrc, ONE-SIDED: the "
+      "filter has\n"
+      "    2*rrc_span*sps + 1 taps, unit energy (sum of h^2 = 1).\n"
+      "symbols : npt.NDArray[np.complex64] | None, default None\n"
+      "    For type=symbols: a complex constellation stream. Each element is "
+      "the\n"
+      "    output point itself, oversampled by sps, cycled, and RRC-shaped "
+      "with\n"
+      "    pulse=rrc, which generalises any modulation (pi/4-QPSK, QAM, "
+      "...).\n"
+      "acq_code : bytes | None, default None\n"
+      "    The preamble code, sent acq_reps times at the head of the frame "
+      "(a\n"
+      "    Field's *REPS on the command line and in a scene) -- the coherent\n"
+      "    pull-in target BurstDespreader.set_acq and BurstDemod.set_preamble "
+      "lock\n"
+      "    to. For type=dsss it is unmodulated chips ahead of the spread "
+      "frame;\n"
+      "    for type=bits it is the head of the bit pattern. Setting it is "
+      "what\n"
+      "    makes a source FRAMED.\n"
+      "acq_reps : int, default 1\n"
+      "    Preamble repetitions: periods of acq_code before the sync word. On "
+      "the\n"
+      "    command line and in a scene it is acq_code's *REPS.\n"
+      "data_code : bytes | None, default None\n"
+      "    For type=dsss: the payload spreading code, a second code distinct "
+      "from\n"
+      "    acq_code. Every frame bit (sync, payload, crc) is XOR-spread "
+      "across its\n"
+      "    full length, so len(data_code) is the spreading factor.\n"
+      "sync : bytes | None, default None\n"
+      "    RETIRED (doppler#1617): nothing reads it but the refusal. The\n"
+      "    frame-sync word is a field of the frame DESCRIPTION, so sync= is\n"
+      "    refused naming frame=; the CLI's --sync builds that description "
+      "for\n"
+      "    you, and a scene refuses the \"sync\" key.\n"
+      "crc : bytes | None, default None\n"
+      "    RETIRED (doppler#1617): nothing reads it but the refusal. A CRC is "
+      "a\n"
+      "    stage of the frame DESCRIPTION, so crc= is refused naming frame=,\n"
+      "    whatever its value (crc=\"none\" included); the CLI's --crc builds "
+      "that\n"
+      "    description for you, and a scene refuses the \"crc\" key.\n"
+      "symbol_rate : float, default 0.0\n"
+      "    For type=dsss: > 0 selects CONTINUOUS asynchronous mode. The "
+      "spreading\n"
+      "    code repeats endlessly and data rides on it at this symbol rate "
+      "(Hz),\n"
+      "    independent of the code-epoch rate (chips/symbol = "
+      "fs/sps/symbol_rate,\n"
+      "    non-integer). No preamble/sync/CRC frame; data comes from the "
+      "payload\n"
+      "    when supplied, else a seeded PN a receiver regenerates. Absent/0 "
+      "=\n"
+      "    burst.\n"
+      "dsss_code_only : int, default 0\n"
+      "    Continuous dsss data source: 1 = code-only (the pure spreading "
+      "code, no\n"
+      "    data modulation); 0 = data-modulated (the payload when supplied, "
+      "else\n"
+      "    the seeded PN). Ignored for burst dsss and non-dsss types.\n"
+      "frame : FrameDesc | str | None, default None\n"
+      "    A frame DESCRIPTION, the whole frame: fields in wire order, and "
+      "stages\n"
+      "    that each name the span they cover (crc16, rs, randomise, "
+      "interleave,\n"
+      "    conv, or a kind of your own). It is the only way a source says "
+      "anything\n"
+      "    but the common frame: a coding stage, a field of the caller's own "
+      "bits\n"
+      "    at a position of their choosing, a stage covering a span they "
+      "name.\n"
+      "    `wfmgen --frame FILE`, a scene's `frame` key and Python's `frame=` "
+      "(a\n"
+      "    FrameDesc or a Frame) all land here. When it is set it IS the "
+      "frame,\n"
+      "    and an unspread acq_code beside it is refused. NULL means the "
+      "common\n"
+      "    frame, `[preamble x reps | data]`, which `dp_wfm_frame_fixed()` "
+      "builds\n"
+      "    from acq_code and the data source; a sync word or a CRC is a field "
+      "or a\n"
+      "    stage of a description, never a flat field. A C caller's "
+      "description is\n"
+      "    borrowed, exactly as `wfm_seq_t` is borrowed elsewhere here, so it "
+      "must\n"
+      "    outlive the source. The composer and a Python source hold their "
+      "own\n"
+      "    copy (`dp_wfm_frame_copy()`), so a later change to the FrameDesc "
+      "does\n"
+      "    not reach them. On the Python face `frame=` is an input: read it "
+      "back\n"
+      "    from the composer's JSON (its getter is jm's, pending removal:\n"
+      "    doppler#1694). KERNELS stay in C by design. A description names a\n"
+      "    stage's KIND; the code that runs it is a `wfm_frame_ops_t` entry, "
+      "and a\n"
+      "    caller adding a genuinely new transform (convolutional "
+      "interleaving,\n"
+      "    say) writes that kernel in C and hands it to "
+      "`dp_wfm_frame_assemble`\n"
+      "    directly.\n"
+      "bits : bytes | None, default None\n"
+      "    RETIRED (doppler#1718): nothing reads it but the refusal. A "
+      "payload is\n"
+      "    drawn from a data source, so bits=, and its aliases payload= and\n"
+      "    pattern=, are refused naming data=; the CLI and a scene refuse "
+      "--bits\n"
+      "    and \"payload\" the same way.\n"
+      "data : bytes | None, default None\n"
+      "    A frame's payload drawn from a data source: a Field on the command "
+      "line\n"
+      "    and in a scene, a bit array in Python. The source is split into\n"
+      "    data_len-bit frames, one chunk per frame, and its last chunk is "
+      "padded\n"
+      "    from fill. For type=bits, bpsk/qpsk/pn framed, a dsss burst (one "
+      "burst\n"
+      "    per frame), and continuous dsss (one bit per data symbol, no "
+      "frame);\n"
+      "    not with data_from_file.\n"
+      "data_len : int, default 0\n"
+      "    Bits of the data source per frame: the data:LEN of the common "
+      "frame\n"
+      "    [preamble x reps | sync | data:LEN | crc]. 0 takes a finite "
+      "source\n"
+      "    whole, as one frame. A carried frame names its own data field, and "
+      "this\n"
+      "    is then 0 or that field's LEN. Continuous dsss has no frame, and\n"
+      "    refuses it.\n"
+      "fill : bytes | None, default None\n"
+      "    The bits that pad a data source's last frame when it does not "
+      "divide\n"
+      "    into data_len-bit frames, tiled from their first bit; stdin on a "
+      "framed\n"
+      "    source always needs them. Without them such a source is refused "
+      "before\n"
+      "    the first sample. A Field on the command line and in a scene, a "
+      "bit\n"
+      "    array in Python. Continuous dsss has no frame to pad, and refuses "
+      "it.\n"
+      "fs : float, default 1.0\n"
+      "    Sample rate in Hz, one per segment and shared by all its sources. "
+      "At\n"
+      "    the default 1.0 every frequency is normalised (cycles per "
+      "sample);\n"
+      "    state it whenever a scene is in real Hz.\n"),
 };
 
 /* Factory shared body: inject {type: <name>} into kwds, call the type. */
@@ -4246,9 +4819,13 @@ static PyGetSetDef Segment_getset[] = {
 static PyMethodDef Segment_methods[]
     = { { "sum", (PyCFunction)(void (*) (void))Segment_sum,
           METH_VARARGS | METH_KEYWORDS | METH_CLASS,
-          "sum(*sources, **segment_fields) -> Segment" },
+          "sum(*sources, **segment_fields) -> Segment\n"
+          "\n"
+          "Combine *sources* into a single Segment.\n" },
         { "add", (PyCFunction)Segment_add, METH_VARARGS,
-          "add(*others) -> Timeline" },
+          "add(*others) -> Timeline\n"
+          "\n"
+          "Append segments; return a Timeline.\n" },
         { NULL, NULL, 0, NULL } };
 
 static PyTypeObject SegmentType = {
@@ -4260,7 +4837,366 @@ static PyTypeObject SegmentType = {
   .tp_dealloc = (destructor)Segment_dealloc,
   .tp_getset  = Segment_getset,
   .tp_methods = Segment_methods,
-  .tp_doc = PyDoc_STR ("Segment — one segment: a list of sources + its span."),
+  .tp_doc     = PyDoc_STR (
+      "One composer segment: one or more sources summed over the same span,\n"
+      "then a trailing off-time gap.\n"
+      "\n"
+      "A 1-source segment is byte-identical to driving that source's `synth`\n"
+      "directly. `num_samples` is the on-time; `off_samples` is a trailing "
+      "gap of\n"
+      "zeros. Durations in seconds are `round(duration * fs)` — the caller\n"
+      "resolves.\n"
+      "\n"
+      "Parameters\n"
+      "----------\n"
+      "type : str, default ``\"tone\"``\n"
+      "    Waveform type. tone: complex sinusoid. noise: AWGN. pn: PN "
+      "sequence\n"
+      "    (LFSR). bpsk/qpsk: PN-driven modulation. chirp: linear-FM sweep. "
+      "bits:\n"
+      "    a caller's bit pattern, with selectable modulation. symbols: a "
+      "caller's\n"
+      "    complex constellation stream. dsss: spread spectrum -- a two-code "
+      "burst\n"
+      "    (repeated preamble + data-code-spread frame) by default, or a\n"
+      "    continuous asynchronous stream when symbol_rate is set.\n"
+      "    One of ``\"tone\"``, ``\"noise\"``, ``\"pn\"``, ``\"bpsk\"``, "
+      "``\"qpsk\"``,\n"
+      "    ``\"chirp\"``, ``\"bits\"``, ``\"symbols\"``, ``\"dsss\"``.\n"
+      "freq : float | tuple[float, float], default 0.0\n"
+      "    Carrier or offset frequency in Hz; for chirp, the sweep start. "
+      "With fs\n"
+      "    = 1 it is in normalised cycles per sample.\n"
+      "snr : float | tuple[float, float], default 100.0\n"
+      "    Signal-to-noise ratio in dB, interpreted per snr_mode. 100 or more "
+      "is\n"
+      "    clean: no AWGN is added.\n"
+      "snr_mode : str, default ``\"auto\"``\n"
+      "    How snr is interpreted. auto: Es/N0 for bpsk/qpsk/dsss, and "
+      "relative to\n"
+      "    full scale for tone/noise/pn/chirp/bits/symbols -- bits included,\n"
+      "    because a bits frame has no symbol rate the engine can infer. fs: "
+      "dB\n"
+      "    relative to full scale. ebno: Eb/N0, per bit. esno: Es/N0, per "
+      "symbol;\n"
+      "    for a dsss burst the outer data symbol of len(data_code) chips x "
+      "sps\n"
+      "    samples, for a continuous dsss stream the fs/symbol_rate samples "
+      "the\n"
+      "    async symbol spans.\n"
+      "    One of ``\"auto\"``, ``\"fs\"``, ``\"ebno\"``, ``\"esno\"``.\n"
+      "seed : int, default 0\n"
+      "    PRNG and LFSR seed for the noise and PN streams. Deterministic: "
+      "vary it\n"
+      "    for run-to-run change. For a PN-sourced type it starts the\n"
+      "    pn_length-bit register, masked: a seed whose low pn_length bits "
+      "are\n"
+      "    zero starts the register at 1, as seed 0 does.\n"
+      "sps : int, default 1\n"
+      "    Samples per symbol (PSK) or per chip (PN): the oversampling "
+      "factor.\n"
+      "    Unused by noise, which records it as 0.\n"
+      "pn_length : int, default 15\n"
+      "    PN LFSR register length in bits, 2 to 64 for the PN-bearing types; "
+      "the\n"
+      "    sequence period is 2^pn_length - 1. Unused by noise, which records "
+      "it\n"
+      "    as 0.\n"
+      "pn_poly : int, default 0\n"
+      "    PN generator polynomial, in the Galois bit-vector convention; 0 "
+      "selects\n"
+      "    a maximal-length (MLS) polynomial for pn_length. It must fit the\n"
+      "    pn_length-bit register: a bit at or above it is refused, not "
+      "masked. A\n"
+      "    polynomial above 2^53 does not survive a JSON number, so a scene "
+      "file\n"
+      "    needs 0 (auto) for such a register.\n"
+      "lfsr : str, default ``\"galois\"``\n"
+      "    PN LFSR realisation. Both give the same period; fibonacci's chips "
+      "are\n"
+      "    galois's in reverse order.\n"
+      "    One of ``\"galois\"``, ``\"fibonacci\"``.\n"
+      "level : float | tuple[float, float], default 0.0\n"
+      "    Source power in dBFS (<= 0; 0 is unit power). Applies when summed "
+      "in a\n"
+      "    Segment or Composer, as a gain of 10^(level/20); a standalone\n"
+      "    Synth.steps() ignores it.\n"
+      "background : int, default 0\n"
+      "    Mark this source as part of the static background field (0/1).\n"
+      "    Plan.prepare() folds a contiguous leading run of background "
+      "sources\n"
+      "    into ONE pre-summed cache entry instead of caching each "
+      "separately, so\n"
+      "    a scene of many fixed emitters costs one buffer rather than "
+      "hundreds.\n"
+      "    The composite is overridable as a unit: it takes a single slot in\n"
+      "    gains/phases/enable and counts as one in n_sources(), so scaling "
+      "it\n"
+      "    trims the whole field while its members keep their relative "
+      "levels.\n"
+      "    Background sources must come first in the segment (a non-prefix\n"
+      "    ordering is rejected by prepare, since the fold would no longer\n"
+      "    reproduce compose bit-for-bit). Ignored by compose() and by "
+      "standalone\n"
+      "    Synth.steps().\n"
+      "f_end : float | tuple[float, float], default 0.0\n"
+      "    Chirp end frequency in Hz; ignored by other types.\n"
+      "span : int, default 0\n"
+      "    Chirp sweep length in samples: the frequency ramps from freq to "
+      "f_end\n"
+      "    over this many samples, then holds at f_end. 0 means the "
+      "enclosing\n"
+      "    Segment's num_samples. A standalone chirp (f_end != freq) must "
+      "declare\n"
+      "    it, so step(), steps(N) and any chunking of reads produce the "
+      "same\n"
+      "    waveform; generating one without it raises. Ignored by non-chirp "
+      "types.\n"
+      "doppler : float | tuple[float, float], default 0.0\n"
+      "    Clock Doppler in ppm: the received time base is rescaled by 1 +\n"
+      "    doppler*1e-6, so the symbol and chip rates move with the carrier "
+      "and a\n"
+      "    timing loop sees the error a carrier-only `freq` offset hides. "
+      "Accepts\n"
+      "    a (lo, hi) tuple drawn uniformly per repeat, like freq/snr. Zero\n"
+      "    doppler AND zero doppler_rate means no channel is built at all, so "
+      "a\n"
+      "    source that does not ask for Doppler renders exactly as it always "
+      "did.\n"
+      "doppler_rate : float | tuple[float, float], default 0.0\n"
+      "    Linear ramp on `doppler`, in ppm per second of elapsed stream "
+      "time. The\n"
+      "    channel runs through a segment's gaps as well as its on-time -- "
+      "an\n"
+      "    emitter does not stop moving because its burst ended -- so this is "
+      "per\n"
+      "    second, not per second of on-time. Accepts a (lo, hi) tuple drawn\n"
+      "    uniformly per repeat.\n"
+      "carrier_hz : float, default 0.0\n"
+      "    RF carrier in Hz that the ppm figures are referred to. It gives "
+      "the\n"
+      "    coherent carrier rotation that accompanies the time-base warp; 0 "
+      "warps\n"
+      "    the clock alone, with no carrier rotation -- a legitimate scene, "
+      "not an\n"
+      "    unset field. Independent of doppler/doppler_rate.\n"
+      "doppler_lifetime : str, default ``\"per_instance\"``\n"
+      "    How long this source's Doppler channel lives. per_instance: the "
+      "channel\n"
+      "    dies with each `repeats` instance, so the geometry restarts -- "
+      "the\n"
+      "    repeated-trial shape, which composes with a ranged doppler "
+      "re-drawn per\n"
+      "    instance. persist: one continuous pass carries across the "
+      "segment's\n"
+      "    gaps and repeat instances, keyed by (segment, source) position -- "
+      "the\n"
+      "    only lifetime under which doppler_rate accumulates across a "
+      "multi-burst\n"
+      "    scene. compose(), stream() and Plan.prepare() all honour both.\n"
+      "    One of ``\"per_instance\"``, ``\"persist\"``.\n"
+      "modulation : str, default ``\"bpsk\"``\n"
+      "    Symbol mapping of a bits pattern. none: the pattern shaped and "
+      "output\n"
+      "    as-is (NRZ). bpsk: +/-1 symbols. qpsk: Gray-coded symbols from "
+      "pairs of\n"
+      "    bits.\n"
+      "    One of ``\"none\"``, ``\"bpsk\"``, ``\"qpsk\"``.\n"
+      "pulse : str, default ``\"rect\"``\n"
+      "    Pulse shape per symbol or chip, for "
+      "pn/bpsk/qpsk/bits/symbols/dsss.\n"
+      "    rect: rectangular, no ISI filtering. rrc: root-raised cosine; see\n"
+      "    rrc_beta and rrc_span.\n"
+      "    One of ``\"rect\"``, ``\"rrc\"``.\n"
+      "rrc_beta : float, default 0.35\n"
+      "    RRC roll-off factor, in (0, 1], when pulse=rrc.\n"
+      "rrc_span : int, default 8\n"
+      "    RRC filter support in symbols when pulse=rrc, ONE-SIDED: the "
+      "filter has\n"
+      "    2*rrc_span*sps + 1 taps, unit energy (sum of h^2 = 1).\n"
+      "symbols : npt.NDArray[np.complex64] | None, default None\n"
+      "    For type=symbols: a complex constellation stream. Each element is "
+      "the\n"
+      "    output point itself, oversampled by sps, cycled, and RRC-shaped "
+      "with\n"
+      "    pulse=rrc, which generalises any modulation (pi/4-QPSK, QAM, "
+      "...).\n"
+      "acq_code : bytes | None, default None\n"
+      "    The preamble code, sent acq_reps times at the head of the frame "
+      "(a\n"
+      "    Field's *REPS on the command line and in a scene) -- the coherent\n"
+      "    pull-in target BurstDespreader.set_acq and BurstDemod.set_preamble "
+      "lock\n"
+      "    to. For type=dsss it is unmodulated chips ahead of the spread "
+      "frame;\n"
+      "    for type=bits it is the head of the bit pattern. Setting it is "
+      "what\n"
+      "    makes a source FRAMED.\n"
+      "acq_reps : int, default 1\n"
+      "    Preamble repetitions: periods of acq_code before the sync word. On "
+      "the\n"
+      "    command line and in a scene it is acq_code's *REPS.\n"
+      "data_code : bytes | None, default None\n"
+      "    For type=dsss: the payload spreading code, a second code distinct "
+      "from\n"
+      "    acq_code. Every frame bit (sync, payload, crc) is XOR-spread "
+      "across its\n"
+      "    full length, so len(data_code) is the spreading factor.\n"
+      "sync : bytes | None, default None\n"
+      "    RETIRED (doppler#1617): nothing reads it but the refusal. The\n"
+      "    frame-sync word is a field of the frame DESCRIPTION, so sync= is\n"
+      "    refused naming frame=; the CLI's --sync builds that description "
+      "for\n"
+      "    you, and a scene refuses the \"sync\" key.\n"
+      "crc : bytes | None, default None\n"
+      "    RETIRED (doppler#1617): nothing reads it but the refusal. A CRC is "
+      "a\n"
+      "    stage of the frame DESCRIPTION, so crc= is refused naming frame=,\n"
+      "    whatever its value (crc=\"none\" included); the CLI's --crc builds "
+      "that\n"
+      "    description for you, and a scene refuses the \"crc\" key.\n"
+      "symbol_rate : float, default 0.0\n"
+      "    For type=dsss: > 0 selects CONTINUOUS asynchronous mode. The "
+      "spreading\n"
+      "    code repeats endlessly and data rides on it at this symbol rate "
+      "(Hz),\n"
+      "    independent of the code-epoch rate (chips/symbol = "
+      "fs/sps/symbol_rate,\n"
+      "    non-integer). No preamble/sync/CRC frame; data comes from the "
+      "payload\n"
+      "    when supplied, else a seeded PN a receiver regenerates. Absent/0 "
+      "=\n"
+      "    burst.\n"
+      "dsss_code_only : int, default 0\n"
+      "    Continuous dsss data source: 1 = code-only (the pure spreading "
+      "code, no\n"
+      "    data modulation); 0 = data-modulated (the payload when supplied, "
+      "else\n"
+      "    the seeded PN). Ignored for burst dsss and non-dsss types.\n"
+      "frame : FrameDesc | str | None, default None\n"
+      "    A frame DESCRIPTION, the whole frame: fields in wire order, and "
+      "stages\n"
+      "    that each name the span they cover (crc16, rs, randomise, "
+      "interleave,\n"
+      "    conv, or a kind of your own). It is the only way a source says "
+      "anything\n"
+      "    but the common frame: a coding stage, a field of the caller's own "
+      "bits\n"
+      "    at a position of their choosing, a stage covering a span they "
+      "name.\n"
+      "    `wfmgen --frame FILE`, a scene's `frame` key and Python's `frame=` "
+      "(a\n"
+      "    FrameDesc or a Frame) all land here. When it is set it IS the "
+      "frame,\n"
+      "    and an unspread acq_code beside it is refused. NULL means the "
+      "common\n"
+      "    frame, `[preamble x reps | data]`, which `dp_wfm_frame_fixed()` "
+      "builds\n"
+      "    from acq_code and the data source; a sync word or a CRC is a field "
+      "or a\n"
+      "    stage of a description, never a flat field. A C caller's "
+      "description is\n"
+      "    borrowed, exactly as `wfm_seq_t` is borrowed elsewhere here, so it "
+      "must\n"
+      "    outlive the source. The composer and a Python source hold their "
+      "own\n"
+      "    copy (`dp_wfm_frame_copy()`), so a later change to the FrameDesc "
+      "does\n"
+      "    not reach them. On the Python face `frame=` is an input: read it "
+      "back\n"
+      "    from the composer's JSON (its getter is jm's, pending removal:\n"
+      "    doppler#1694). KERNELS stay in C by design. A description names a\n"
+      "    stage's KIND; the code that runs it is a `wfm_frame_ops_t` entry, "
+      "and a\n"
+      "    caller adding a genuinely new transform (convolutional "
+      "interleaving,\n"
+      "    say) writes that kernel in C and hands it to "
+      "`dp_wfm_frame_assemble`\n"
+      "    directly.\n"
+      "bits : bytes | None, default None\n"
+      "    RETIRED (doppler#1718): nothing reads it but the refusal. A "
+      "payload is\n"
+      "    drawn from a data source, so bits=, and its aliases payload= and\n"
+      "    pattern=, are refused naming data=; the CLI and a scene refuse "
+      "--bits\n"
+      "    and \"payload\" the same way.\n"
+      "data : bytes | None, default None\n"
+      "    A frame's payload drawn from a data source: a Field on the command "
+      "line\n"
+      "    and in a scene, a bit array in Python. The source is split into\n"
+      "    data_len-bit frames, one chunk per frame, and its last chunk is "
+      "padded\n"
+      "    from fill. For type=bits, bpsk/qpsk/pn framed, a dsss burst (one "
+      "burst\n"
+      "    per frame), and continuous dsss (one bit per data symbol, no "
+      "frame);\n"
+      "    not with data_from_file.\n"
+      "data_len : int, default 0\n"
+      "    Bits of the data source per frame: the data:LEN of the common "
+      "frame\n"
+      "    [preamble x reps | sync | data:LEN | crc]. 0 takes a finite "
+      "source\n"
+      "    whole, as one frame. A carried frame names its own data field, and "
+      "this\n"
+      "    is then 0 or that field's LEN. Continuous dsss has no frame, and\n"
+      "    refuses it.\n"
+      "fill : bytes | None, default None\n"
+      "    The bits that pad a data source's last frame when it does not "
+      "divide\n"
+      "    into data_len-bit frames, tiled from their first bit; stdin on a "
+      "framed\n"
+      "    source always needs them. Without them such a source is refused "
+      "before\n"
+      "    the first sample. A Field on the command line and in a scene, a "
+      "bit\n"
+      "    array in Python. Continuous dsss has no frame to pad, and refuses "
+      "it.\n"
+      "fs : float, default 1.0\n"
+      "    Sample rate in Hz, one per segment and shared by all its sources. "
+      "At\n"
+      "    the default 1.0 every frequency is normalised (cycles per "
+      "sample);\n"
+      "    state it whenever a scene is in real Hz.\n"
+      "num_samples : int | tuple[int, int], default 0\n"
+      "    Segment on-time in samples, before the trailing gap: 0 derives it "
+      "from\n"
+      "    the sources, or 1024 when they set none. A finite data source sets "
+      "its\n"
+      "    frames, a lone dsss burst one burst, and a stream runs to its end. "
+      "A\n"
+      "    count beside a finite data source or a lone dsss burst is "
+      "refused,\n"
+      "    since they set the length; give repeats for more.\n"
+      "off_samples : int | tuple[int, int], default 0\n"
+      "    Trailing gap after the on-time, in samples. It carries the noise "
+      "floor\n"
+      "    or hard zeros, per gap_noise.\n"
+      "repeats : int, default 1\n"
+      "    Play the segment this many times back-to-back (each instance = "
+      "delay +\n"
+      "    on-time + trailing gap) before advancing. Ranged fields re-draw "
+      "and the\n"
+      "    AWGN is fresh per instance; the signal (codes, payload, PN phase) "
+      "stays\n"
+      "    fixed. 0 and 1 both mean one instance.\n"
+      "delay_samples : int | tuple[int, int], default 0\n"
+      "    Leading gap before the on-time, in samples: the burst arrives "
+      "after\n"
+      "    this delay, and the gap carries the noise floor like off_samples.\n"
+      "    Ranged like off_samples and re-drawn per repeats instance, so a "
+      "(lo,\n"
+      "    hi) delay is per-burst arrival jitter. Use off_samples for "
+      "inter-burst\n"
+      "    spacing, delay_samples for arrival jitter.\n"
+      "gap_noise : str, default ``\"auto\"``\n"
+      "    Gap policy for this segment's delay and trailing gap. auto: gaps "
+      "carry\n"
+      "    the segment's noise floor -- the sources' AWGN keeps running while "
+      "the\n"
+      "    signal stops (clean scenes still get exact-zero gaps). off: gaps "
+      "are\n"
+      "    hard zeros.\n"
+      "    One of ``\"auto\"``, ``\"off\"``.\n"),
 };
 
 typedef struct
@@ -4337,7 +5273,9 @@ static PyGetSetDef Timeline_getset[]
 
 static PyMethodDef Timeline_methods[]
     = { { "add", (PyCFunction)Timeline_add, METH_VARARGS,
-          "add(*segments) -> Timeline" },
+          "add(*segments) -> Timeline\n"
+          "\n"
+          "Append and return self.\n" },
         { NULL, NULL, 0, NULL } };
 
 static PyTypeObject TimelineType = {
@@ -4351,7 +5289,7 @@ static PyTypeObject TimelineType = {
   .tp_as_mapping = &Timeline_as_mapping,
   .tp_getset     = Timeline_getset,
   .tp_methods    = Timeline_methods,
-  .tp_doc        = PyDoc_STR ("Timeline — segments played back-to-back."),
+  .tp_doc        = PyDoc_STR ("Timeline.\n"),
 };
 
 static PyTypeObject ComposerType; /* fwd: from_json/from_file alloc */
@@ -4360,6 +5298,7 @@ typedef struct
 {
   PyObject_HEAD dp_wfm_compose_state_t *state;
   int                                   destroyed;
+  jm_inflight_t _jm_inflight; /* gh-2272: GIL-free calls running */
 } ComposerObject;
 
 /* Build a transient wfm_segment_t[] from a list of Segment objects. Each
@@ -4580,6 +5519,7 @@ Composer_dealloc (ComposerObject *self)
 {
   if (!self->destroyed && self->state)
     dp_wfm_compose_destroy (self->state);
+  jm_inflight_free (&self->_jm_inflight);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -4753,9 +5693,11 @@ Composer_execute (ComposerObject *self, PyObject *args)
     return NULL;
   float _Complex *out = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr);
   size_t          got;
+  jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
     got = dp_wfm_compose_execute (self->state, out, (size_t)max);
   Py_END_ALLOW_THREADS
+  jm_inflight_leave (&self->_jm_inflight);
   if ((size_t)(got) > (size_t)(max))
     {
       Py_DECREF (arr);
@@ -4812,9 +5754,11 @@ Composer_compose (ComposerObject *self, PyObject *args, PyObject *kwds)
       float _Complex *out
           = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr);
       size_t got;
+      jm_inflight_enter (&self->_jm_inflight);
       Py_BEGIN_ALLOW_THREADS
         got = dp_wfm_compose_execute (self->state, out, (size_t)block);
       Py_END_ALLOW_THREADS
+      jm_inflight_leave (&self->_jm_inflight);
       if (got == 0)
         {
           Py_DECREF (arr);
@@ -4919,8 +5863,16 @@ Composer_close (ComposerObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->destroyed && self->state)
     {
-      dp_wfm_compose_destroy (self->state);
+      /* gh-2272: refuse new calls, then wait for a running one. */
       self->destroyed = 1;
+      /* gh-2272: a GIL-free call may still be running on this
+         object; new ones are refused from here, so wait for those. */
+      if (jm_inflight_wait (&self->_jm_inflight) < 0)
+        {
+          self->destroyed = 0;
+          return NULL;
+        }
+      dp_wfm_compose_destroy (self->state);
     }
   Py_RETURN_NONE;
 }
@@ -5038,6 +5990,7 @@ typedef struct
   Py_ssize_t              block;
   double                  realtime;
   void                   *clk;
+  jm_inflight_t           _jm_inflight; /* gh-2272: GIL-free calls running */
 } ComposerStreamObject;
 
 static PyTypeObject ComposerStreamType;
@@ -5047,6 +6000,7 @@ ComposerStream_dealloc (ComposerStreamObject *self)
 {
   if (self->clk)
     dp_sample_clock_destroy (self->clk);
+  jm_inflight_free (&self->_jm_inflight);
   Py_XDECREF (self->composer);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
@@ -5080,9 +6034,11 @@ ComposerStream_next (ComposerStreamObject *self)
     {
       if (!self->clk)
         self->clk = dp_sample_clock_create (self->realtime, 0);
+      jm_inflight_enter (&self->_jm_inflight);
       Py_BEGIN_ALLOW_THREADS
         dp_sample_clock_pace (self->clk, (size_t)n);
       Py_END_ALLOW_THREADS
+      jm_inflight_leave (&self->_jm_inflight);
     }
   return blk;
 }
@@ -5135,8 +6091,12 @@ Composer_stream (ComposerObject *self, PyObject *args, PyObject *kwds)
         return NULL;
     }
 
+  /* tp_alloc ZEROES the object, so a field nobody below names (gh-2272's
+     inflight count and lock) starts empty rather than as garbage that
+     dealloc would free (gh-2292). */
   ComposerStreamObject *it
-      = PyObject_New (ComposerStreamObject, &ComposerStreamType);
+      = (ComposerStreamObject *)ComposerStreamType.tp_alloc (
+          &ComposerStreamType, 0);
   if (!it)
     return NULL;
   Py_INCREF (self);
@@ -5355,30 +6315,56 @@ Composer_to_sigmf (ComposerObject *self, PyObject *args, PyObject *kwds)
 }
 static PyMethodDef Composer_methods[] = {
   { "execute", (PyCFunction)Composer_execute, METH_VARARGS,
-    "execute(n) -> ndarray[complex64]" },
+    "execute(n) -> ndarray[complex64]\n"
+    "\n"
+    "Execute for *n* samples.\n" },
   { "compose", (PyCFunction)(void (*) (void))Composer_compose,
     METH_VARARGS | METH_KEYWORDS,
-    "compose(block=4096) -> ndarray[complex64]" },
-  { "close", (PyCFunction)Composer_close, METH_NOARGS, "close() -> None" },
+    "compose(block=4096) -> ndarray[complex64]\n"
+    "\n"
+    "Compose the full sequence into one array.\n" },
+  { "close", (PyCFunction)Composer_close, METH_NOARGS,
+    "close() -> None\n"
+    "\n"
+    "Release native resources.\n" },
   { "__enter__", (PyCFunction)Composer_enter, METH_NOARGS, NULL },
   { "__exit__", (PyCFunction)Composer_exit, METH_VARARGS, NULL },
   { "stream", (PyCFunction)(void (*) (void))Composer_stream,
     METH_VARARGS | METH_KEYWORDS,
-    "stream(block=4096, realtime=0.0) -> iterator\n\nrealtime is the SAMPLE "
-    "RATE in Hz to pace against -- pass your fs (e.g. realtime=10e6), not a "
-    "speed multiplier. 0 streams as fast as possible." },
+    "stream(block=4096, realtime=0.0) -> iterator\n"
+    "\n"
+    "Iterate the sequence in blocks.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "block : int\n"
+    "    Samples per yielded array.\n"
+    "realtime : float\n"
+    "    Sample rate in **Hz** to pace against — pass\n"
+    "    your ``fs`` (e.g. ``realtime=10e6``), not a\n"
+    "    speed multiplier. ``0`` (the default) streams\n"
+    "    as fast as possible.\n" },
   { "to_dict", (PyCFunction)Composer_to_dict, METH_NOARGS,
-    "to_dict() -> dict (resolved repeat/continuous/segments)" },
+    "to_dict() -> dict\n"
+    "\n"
+    "Serialise the resolved composition (repeat, continuous, segments) to\n"
+    "a dict.\n" },
   { "_draws_json", (PyCFunction)Composer__draws_json, METH_NOARGS,
     "_draws_json(...) -> str" },
   { "to_sigmf", (PyCFunction)(void (*) (void))Composer_to_sigmf,
     METH_VARARGS | METH_KEYWORDS, "to_sigmf(...) -> str" },
   { "from_json", (PyCFunction)Composer_from_json, METH_VARARGS | METH_CLASS,
-    "from_json(json) -> Composer" },
+    "from_json(json) -> Composer\n"
+    "\n"
+    "Build a Composer from a JSON spec.\n" },
   { "from_file", (PyCFunction)Composer_from_file, METH_VARARGS | METH_CLASS,
-    "from_file(path) -> Composer" },
+    "from_file(path) -> Composer\n"
+    "\n"
+    "Build a Composer from a JSON spec file.\n" },
   { "to_json", (PyCFunction)Composer_to_json, METH_NOARGS,
-    "to_json() -> str" },
+    "to_json() -> str\n"
+    "\n"
+    "Serialise the spec as JSON.\n" },
   { NULL, NULL, 0, NULL }
 };
 
@@ -5391,25 +6377,138 @@ static PyTypeObject ComposerType = {
   .tp_dealloc = (destructor)Composer_dealloc,
   .tp_getset  = Composer_getset,
   .tp_methods = Composer_methods,
-  .tp_doc     = PyDoc_STR ("Composer — multi-segment composer."),
+  .tp_doc     = PyDoc_STR (
+      "Composer.\n"
+      "\n"
+      "Parameters\n"
+      "----------\n"
+      "segments : Segment | Timeline | list[Segment] | None, default None\n"
+      "    Initial segment list.\n"
+      "repeat : bool, default False\n"
+      "    Loop the sequence after the last segment.\n"
+      "continuous : bool, default False\n"
+      "    Never finish; execute always returns the requested count.\n"),
 };
 
-static PyMethodDef _methods[]
-    = { { "tone", (PyCFunction)(void (*) (void))_factory_tone,
-          METH_VARARGS | METH_KEYWORDS, "tone(**kw) -> Synth" },
-        { "noise", (PyCFunction)(void (*) (void))_factory_noise,
-          METH_VARARGS | METH_KEYWORDS, "noise(**kw) -> Synth" },
-        { "pn", (PyCFunction)(void (*) (void))_factory_pn,
-          METH_VARARGS | METH_KEYWORDS, "pn(**kw) -> Synth" },
-        { "bpsk", (PyCFunction)(void (*) (void))_factory_bpsk,
-          METH_VARARGS | METH_KEYWORDS, "bpsk(**kw) -> Synth" },
-        { "qpsk", (PyCFunction)(void (*) (void))_factory_qpsk,
-          METH_VARARGS | METH_KEYWORDS, "qpsk(**kw) -> Synth" },
-        { "chirp", (PyCFunction)(void (*) (void))_factory_chirp,
-          METH_VARARGS | METH_KEYWORDS, "chirp(**kw) -> Synth" },
-        { "bits", (PyCFunction)(void (*) (void))_factory_bits,
-          METH_VARARGS | METH_KEYWORDS, "bits(**kw) -> Synth" },
-        { NULL, NULL, 0, NULL } };
+static PyMethodDef _methods[] = {
+  { "tone", (PyCFunction)(void (*) (void))_factory_tone,
+    METH_VARARGS | METH_KEYWORDS,
+    "tone(**kw) -> Synth\n"
+    "\n"
+    "Return a Synth configured as a *tone* source.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "**kw : Any\n"
+    "    Any keyword Synth takes with ``type=\"tone\"``; ``help(Synth)`` "
+    "lists\n"
+    "    them.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "Synth\n"
+    "    The configured Synth.\n" },
+  { "noise", (PyCFunction)(void (*) (void))_factory_noise,
+    METH_VARARGS | METH_KEYWORDS,
+    "noise(**kw) -> Synth\n"
+    "\n"
+    "Return a Synth configured as a *noise* source.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "**kw : Any\n"
+    "    Any keyword Synth takes with ``type=\"noise\"``; ``help(Synth)``\n"
+    "    lists them.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "Synth\n"
+    "    The configured Synth.\n" },
+  { "pn", (PyCFunction)(void (*) (void))_factory_pn,
+    METH_VARARGS | METH_KEYWORDS,
+    "pn(**kw) -> Synth\n"
+    "\n"
+    "Return a Synth configured as a *pn* source.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "**kw : Any\n"
+    "    Any keyword Synth takes with ``type=\"pn\"``; ``help(Synth)`` lists\n"
+    "    them.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "Synth\n"
+    "    The configured Synth.\n" },
+  { "bpsk", (PyCFunction)(void (*) (void))_factory_bpsk,
+    METH_VARARGS | METH_KEYWORDS,
+    "bpsk(**kw) -> Synth\n"
+    "\n"
+    "Return a Synth configured as a *bpsk* source.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "**kw : Any\n"
+    "    Any keyword Synth takes with ``type=\"bpsk\"``; ``help(Synth)`` "
+    "lists\n"
+    "    them.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "Synth\n"
+    "    The configured Synth.\n" },
+  { "qpsk", (PyCFunction)(void (*) (void))_factory_qpsk,
+    METH_VARARGS | METH_KEYWORDS,
+    "qpsk(**kw) -> Synth\n"
+    "\n"
+    "Return a Synth configured as a *qpsk* source.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "**kw : Any\n"
+    "    Any keyword Synth takes with ``type=\"qpsk\"``; ``help(Synth)`` "
+    "lists\n"
+    "    them.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "Synth\n"
+    "    The configured Synth.\n" },
+  { "chirp", (PyCFunction)(void (*) (void))_factory_chirp,
+    METH_VARARGS | METH_KEYWORDS,
+    "chirp(**kw) -> Synth\n"
+    "\n"
+    "Return a Synth configured as a *chirp* source.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "**kw : Any\n"
+    "    Any keyword Synth takes with ``type=\"chirp\"``; ``help(Synth)``\n"
+    "    lists them.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "Synth\n"
+    "    The configured Synth.\n" },
+  { "bits", (PyCFunction)(void (*) (void))_factory_bits,
+    METH_VARARGS | METH_KEYWORDS,
+    "bits(**kw) -> Synth\n"
+    "\n"
+    "Return a Synth configured as a *bits* source.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "**kw : Any\n"
+    "    Any keyword Synth takes with ``type=\"bits\"``; ``help(Synth)`` "
+    "lists\n"
+    "    them.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "Synth\n"
+    "    The configured Synth.\n" },
+  { NULL, NULL, 0, NULL }
+};
 
 static struct PyModuleDef _moduledef = { PyModuleDef_HEAD_INIT,
                                          "wfm_compose",

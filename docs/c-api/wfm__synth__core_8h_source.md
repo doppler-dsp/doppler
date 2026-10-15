@@ -460,6 +460,15 @@ void dp_wfm_synth_steps(
     float _Complex          *output,
     size_t               n);
 
+void dp_wfm_synth_prod(
+    dp_wfm_synth_state_t *state,
+    const float _Complex *in,
+    size_t                n,
+    float _Complex       *out);
+
+void dp_wfm_synth_sweep_ends(double fs, double f_mid, double rate, size_t n,
+                             double center, double *f0, double *f_end);
+
 int dp_wfm_synth_get_wtype(const dp_wfm_synth_state_t *state);
 
 void dp_wfm_synth_set_wtype(dp_wfm_synth_state_t *state, int val);
@@ -493,8 +502,10 @@ void dp_wfm_synth_set_cur_im(dp_wfm_synth_state_t *state, float val);
    blob is v2, which carries its seed and amplitude, so the synth blob grew
    (#2084). A v3 blob is refused by its version (a clean one has the same
    length, so the version alone refuses it; a noisy one is also refused by
-   its length). */
-#define WFM_SYNTH_STATE_VERSION 4u
+   its length). v5: + the DSSS window (code_only_symbols, frame_symbols),
+   dp_wfm_synth_set_dsss_window's value (#2022); a v4 blob is shorter, so
+   its length refuses it as well as its version. */
+#define WFM_SYNTH_STATE_VERSION 5u
 size_t dp_wfm_synth_state_bytes (const dp_wfm_synth_state_t *state);
 void dp_wfm_synth_get_state (const dp_wfm_synth_state_t *state, void *blob);
 int dp_wfm_synth_set_state (dp_wfm_synth_state_t *state, const void *blob);

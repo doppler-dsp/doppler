@@ -200,6 +200,7 @@ result_fields = [
   { name = "doppler_hz_est", type = "double" },
   { name = "doppler_res_hz", type = "double" },
   { name = "cn0_dbhz_est", type = "double" },
+  { name = "doppler_rate_hz_s", type = "double" },
 ]
 
 [[burst_capture.methods]]
@@ -254,6 +255,11 @@ doc = "Acquisition's native Doppler bin width = fs/(len(preamble)*coherent_bins)
 name = "cn0_dbhz_est"
 type = "double"
 doc = "Estimated carrier-to-noise density of the most recent window (dB-Hz), backed out of the hit's test statistic. A LOWER BOUND: it tracks the true C/N0 while receiver noise dominates the CFAR estimate, then saturates at the code's own autocorrelation-sidelobe floor once the true C/N0 exceeds what this code and geometry can resolve -- a real ceiling, not a fault."
+
+[[burst_capture.properties]]
+name = "doppler_rate_hz_s"
+type = "double"
+doc = "Refine's winning Doppler-rate hypothesis for the most recent window, Hz/s: the rate whose de-chirp made the whole preamble's coherent sum largest at its start, from refine's grid over [-doppler_rate, +doppler_rate] (at least as dense as the acquisition's, and searched whenever a rate is declared, even with one acquisition hypothesis). 0 without a declared rate. A hypothesis, not a fit: it names the grid point nearest the carrier's rate well above the design point, and less often near it (validate_acq_rate_pd's event-rate rows)."
 
 [[burst_capture.properties]]
 name = "burst_len"

@@ -279,11 +279,20 @@ target_include_directories(dp_interrupt_obj PUBLIC
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/native/inc>
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/native/inc>)
 set_target_properties(dp_interrupt_obj PROPERTIES POSITION_INDEPENDENT_CODE ON)
+# dp_once is core for the same kind of reason (doppler#2328): the AWGN, LO
+# and CCSDS components each build a table under it, so it cannot belong to
+# any one of them. Folded into both libraries here, as objects; the
+# components reach it through dp_once_core below.
+add_library(dp_once_obj OBJECT native/src/dp_once.c)
+target_include_directories(dp_once_obj PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/native/inc>
+    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/native/inc>)
+set_target_properties(dp_once_obj PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 add_library(doppler_lib SHARED native/src/doppler_lib.c
-    $<TARGET_OBJECTS:dp_interrupt_obj>)
+    $<TARGET_OBJECTS:dp_interrupt_obj> $<TARGET_OBJECTS:dp_once_obj>)
 add_library(doppler_lib_static STATIC native/src/doppler_lib.c
-    $<TARGET_OBJECTS:dp_interrupt_obj>)
+    $<TARGET_OBJECTS:dp_interrupt_obj> $<TARGET_OBJECTS:dp_once_obj>)
 # The vendored code libdoppler.a embeds (cJSON, pffft, pocketfft) is respelled
 # dp__v_* after the archive is built (#1565): a consumer that links its own
 # cJSON would otherwise fail at its link on duplicate definitions. GNU objcopy
@@ -452,8 +461,8 @@ set_target_properties(doppler_lib_static PROPERTIES EXPORT_NAME doppler-static)
 # the optional libdoppler_stream component below).
 #
 # Threads::Threads is PUBLIC on the ARCHIVE and must stay that way. A component
-# that needs pthread carries it PUBLIC on its own target (ccsds_tm_core for
-# rs.c's `pthread_once`, wfm_compose_core for dp_parallel), but every component
+# that needs pthread carries it PUBLIC on its own target (wfm_compose_core
+# for dp_parallel, the acq and stream cores), but every component
 # is folded in here as $<TARGET_OBJECTS:...> — objects, not a link edge — and
 # that drops the usage requirement on the floor. Nothing else re-stated it, so
 # the archive's link interface carried no pthread and a consumer that pulled a
@@ -462,6 +471,16 @@ set_target_properties(doppler_lib_static PROPERTIES EXPORT_NAME doppler-static)
 # `undefined reference to pthread_once` in CI's Debian 10 job while every
 # glibc >= 2.34 box linked it clean, pthread being folded into libc there.
 find_package(Threads REQUIRED)
+
+# dp_once as a link edge, for the components: awgn_core, lo_core and
+# ccsds_tm_core link it PUBLIC (awgn_extra.cmake, lo_extra.cmake, ccsds_tm's
+# CMakeLists), so every test, bench and extension module that links one of
+# them links dp_once and the -pthread `pthread_once` needs on glibc < 2.34.
+# STATIC rather than the OBJECT library itself: an object library's objects
+# reach only the target that names it, not that target's consumers.
+add_library(dp_once_core STATIC $<TARGET_OBJECTS:dp_once_obj>)
+target_link_libraries(dp_once_core PUBLIC Threads::Threads)
+set_target_properties(dp_once_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # The NATS stream layer (libdoppler_stream, doppler.stream, StreamSink) builds
 # wherever the vendored nats.c does. On Windows that is an MSVC-style
@@ -1129,7 +1148,8 @@ target_include_directories(
 #            delegate: rrc_taps/dsss_spread to wfm_dsp_core,
 #            wfm_awgn_amplitude to awgn_core, ccsds_asm_bits to
 #            ccsds_tm_core, field_bits to wfm_frame_core (and the pn/gold/cvt
-#            that one needs). Not one of those is reimplemented here, which
+#            that one needs), sweep_ends to wfm_synth_core (and the
+#            lo/fir/resamp that one needs). Not one of those is reimplemented here, which
 #            is the whole reason the link line is longer than the header
 add_executable(bench_measure_core native/benchmarks/bench_measure_core.c)
 target_link_libraries(bench_measure_core PRIVATE measure_core spectral_core ${DP_MATH_LIBRARY})
@@ -1141,7 +1161,8 @@ add_executable(bench_wfm_core native/benchmarks/bench_wfm_core.c)
 target_link_libraries(
   bench_wfm_core PRIVATE wfm_core wfm_dsp_core awgn_core ccsds_tm_core
                          conv_core rs_core wfm_frame_core pn_core gold_core
-                         cvt_core ${DP_MATH_LIBRARY})
+                         cvt_core wfm_synth_core lo_core fir_core resamp_core
+                         ${DP_MATH_LIBRARY})
 target_include_directories(
   bench_wfm_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                          ${CMAKE_SOURCE_DIR}/native/benchmarks)
@@ -1204,6 +1225,19 @@ add_executable(test_dp_interrupt native/tests/test_dp_interrupt.c
     $<TARGET_OBJECTS:dp_interrupt_obj>)
 target_include_directories(test_dp_interrupt PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 add_test(NAME test_dp_interrupt COMMAND test_dp_interrupt)
+
+# dp_once and every table built under it (doppler#2328): the first AWGN, LO
+# and CCSDS frame made from eight threads at once, in a fresh process. Its
+# proof is `make test-tsan`, which runs it: a plain flag back in a table's
+# guard is a data race TSan names even when the outputs happen to agree.
+add_executable(test_dp_once native/tests/test_dp_once.c)
+target_include_directories(test_dp_once
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(test_dp_once PRIVATE doppler_lib_static Threads::Threads
+                                           ${DP_MATH_LIBRARY})
+add_test(NAME test_dp_once COMMAND test_dp_once)
+set_tests_properties(test_dp_once PROPERTIES LABELS threaded)
 
 add_executable(test_dp_state native/tests/test_dp_state.c)
 target_include_directories(test_dp_state

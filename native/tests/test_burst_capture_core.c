@@ -20,6 +20,7 @@
 #include "dp_preamble_test.h"
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
+#include "dp_swept_test.h"
 #include "dp_test.h"
 
 #include <math.h>
@@ -987,8 +988,9 @@ test_a_refused_blob_changes_nothing (void)
   /* The blob's layout, as get_state writes it; the last line proves it. */
   const size_t E      = sizeof (burst_capture_pending_t);
   const size_t o_fed  = sizeof (dp_state_hdr_t);
-  const size_t o_sup  = o_fed + 7u * 8u;
-  const size_t o_pend = sizeof (dp_state_hdr_t) + 8u * 8u;
+  const size_t o_rate = o_fed + 7u * 8u; /* the last event's rate         */
+  const size_t o_sup  = o_fed + 8u * 8u;
+  const size_t o_pend = sizeof (dp_state_hdr_t) + 9u * 8u;
   const size_t o_q    = o_pend + 2u * sizeof (uint32_t);
   const size_t o_n    = o_q + a->q_cap * E;
   const size_t o_an
@@ -1006,7 +1008,7 @@ test_a_refused_blob_changes_nothing (void)
   live.n_phase  = 1u;
   live.phase[0] = (uint32_t)(live.anchor % P);
 
-  static const char *const what[10]
+  static const char *const what[13]
       = { "(A) phases past their array",
           "(A) anchors out of order",
           "(B) look-back longer than the stream",
@@ -1016,8 +1018,11 @@ test_a_refused_blob_changes_nothing (void)
           "(2) suppression past the stream position",
           "(3) NaN Doppler",
           "(3) infinite C/N0",
-          "(3) NaN peak" };
-  for (size_t c = 0; c < 10u; c++)
+          "(3) NaN peak",
+          "(3) NaN rate on a queued burst",
+          "(3) queued rate past the span",
+          "(3) NaN rate on the last event" };
+  for (size_t c = 0; c < 13u; c++)
     {
       memcpy (bad, blob, cb);
       burst_capture_pending_t e0 = live, e1 = live;
@@ -1067,8 +1072,22 @@ test_a_refused_blob_changes_nothing (void)
         case 8:
           e0.cn0_dbhz = INFINITY;
           break;
-        default:
+        case 9:
           e0.peak_mag = NAN;
+          break;
+        case 10:
+          e0.doppler_rate_hz_s = NAN;
+          break;
+        case 11:
+          /* Every hypothesis lies in [-doppler_rate, +doppler_rate]. */
+          e0.doppler_rate_hz_s = 2.0 * a->acq->engine->doppler_rate + 1.0;
+          break;
+        default:
+          {
+            const double nan_rate = NAN;
+            memcpy (bad + o_rate, &nan_rate, sizeof nan_rate);
+            pending = 0u;
+          }
           break;
         }
       if (pending)
@@ -3156,7 +3175,7 @@ test_a_sweeping_carrier_is_compensated (void)
   DP_CHECK (dp_burst_capture_get_rate_hypotheses (z) == 1);
   DP_CHECK (dp_burst_capture_get_rate_hypotheses (s) == 5);
 
-  static float _Complex x[LEN], out[4 * BURST];
+  static float _Complex x[LEN], out[4 * BURST], bb[BURST];
   const size_t cap  = sizeof out / sizeof *out;
   const size_t at[] = { 6001, 7333, 8090, 9217, 10000, 11111 };
   const size_t nat  = sizeof at / sizeof *at;
@@ -3172,13 +3191,10 @@ test_a_sweeping_carrier_is_compensated (void)
           x[i]           = re + im * I;
         }
       for (size_t i = 0; i < BURST; i++)
-        {
-          const double u = (double)i - 0.5 * (double)(RP * NP);
-          x[at[j] + i]
-              += (i < RP * NP ? zc[i % NP] : 1.0f)
-                 * (float _Complex)cexp (I * 2.0 * M_PI
-                                         * (f_mid * u + 0.5 * sweep * u * u));
-        }
+        bb[i] = i < RP * NP ? zc[i % NP] : 1.0f;
+      dp_swept_rotate (bb, BURST, 1.0, f_mid, sweep, 0.5 * (double)(RP * NP));
+      for (size_t i = 0; i < BURST; i++)
+        x[at[j] + i] += bb[i];
       dp_burst_capture_reset (s);
       (void)dp_burst_capture_push (s, x, LEN, out, cap);
       int hit = 0;
@@ -3196,9 +3212,14 @@ test_a_sweeping_carrier_is_compensated (void)
      refine's rates are exercised. Here the noise sits at the C/N0 the engine
      is sized for (-13 dB per sample at fs = 1), so the engine itself runs deep
      (D > 2) and its own de-chirp decides the detection: nine hypotheses
-     against one, the one capped by the drift bound at a shallower depth. The
-     bursts are seeded, so the counts are a regression pin; the margin is
-     what the engine's de-chirp is worth here (measured 0.91 against 0.55). */
+     against one, the one capped by the drift bound at a shallower depth.
+     Both place most of these seeded bursts. The capped one used to place 6
+     of 60: refine, keyed on the engine's count, searched no rates and the
+     sweep collapsed its sum. Keyed on the declared rate it places 59
+     (doppler#2219), and this holds it to at least 48 of 60; the depth the
+     de-chirp buys is
+     validate_acq_rate_pd's to show, on engine Pd 3 dB under the design
+     point where the capped depth is underpowered. */
   {
     enum
     {
@@ -3226,13 +3247,11 @@ test_a_sweeping_carrier_is_compensated (void)
             x[i]           = re + im * I;
           }
         for (size_t i = 0; i < BURST; i++)
-          {
-            const double u = (double)i - 0.5 * (double)(RP * NP);
-            x[a0 + i]
-                += (i < RP * NP ? zc[i % NP] : 1.0f)
-                   * (float _Complex)cexp (
-                       I * 2.0 * M_PI * (f_mid * u + 0.5 * sweep * u * u));
-          }
+          bb[i] = i < RP * NP ? zc[i % NP] : 1.0f;
+        dp_swept_rotate (bb, BURST, 1.0, f_mid, sweep,
+                         0.5 * (double)(RP * NP));
+        for (size_t i = 0; i < BURST; i++)
+          x[a0 + i] += bb[i];
         for (int d = 0; d < 2; d++)
           {
             dp_burst_capture_reset (eng[d]);
@@ -3252,8 +3271,9 @@ test_a_sweeping_carrier_is_compensated (void)
     DP_TEST_ERR ("  DEEP %zu CAPPED %zu of %d\n", got[0], got[1], TRIALS);
     DP_CHECK_MSG (got[0] >= (TRIALS * 8) / 10,
                   "the de-chirping engine places most swept bursts");
-    DP_CHECK_MSG (got[0] >= got[1] + TRIALS / 5,
-                  "without the rates the same bursts are missed");
+    DP_CHECK_MSG (got[1] >= (TRIALS * 8) / 10,
+                  "one hypothesis with a declared rate places most swept "
+                  "bursts too");
     dp_burst_capture_destroy (sd);
     dp_burst_capture_destroy (zd);
   }
@@ -3309,6 +3329,353 @@ test_a_sweeping_carrier_is_compensated (void)
   }
   dp_burst_capture_destroy (s);
   dp_burst_capture_destroy (z);
+  return 0;
+}
+
+/* The scenario refine's two rate guards below share (doppler#2219): a
+ * 127-chip Zadoff-Chu preamble repeated 16 times, then 1000 QPSK symbols,
+ * on a carrier sweeping at `sweep` cycles/sample^2 about the preamble's
+ * middle, placed at `at` in noise `snr_db` per sample above the burst's
+ * unit power. The payload and the noise are seeded from the case (the
+ * search's own seeds, ri and ai being the rate's and offset's grid
+ * indices), so each case is one fixed stream. */
+enum
+{
+  RG_NP    = 127,
+  RG_RP    = 16,
+  RG_PAY   = 1000,
+  RG_BURST = RG_RP * RG_NP + RG_PAY
+};
+
+static void
+rg_stream (float _Complex *x, size_t len, size_t at, double sweep,
+           double snr_db, int ri, int ai)
+{
+  float _Complex zc[RG_NP];
+  for (size_t k = 0; k < RG_NP; k++)
+    zc[k] = (float _Complex)cexp (-I * M_PI * 5.0 * (double)k * (double)(k + 1)
+                                  / (double)RG_NP);
+  memset (x, 0, len * sizeof *x);
+  uint32_t st = 7u + (uint32_t)(ri * 31 + ai);
+  for (size_t i = 0; i < RG_BURST; i++)
+    {
+      const float _Complex v
+          = i < RG_RP * RG_NP
+                ? zc[i % RG_NP]
+                : (float _Complex)cexp (I * M_PI / 2.0
+                                        * (double)(dp_xs32 (&st) >> 30));
+      const double t = (double)i - 0.5 * (double)(RG_RP * RG_NP);
+      x[at + i]      = v * (float _Complex)cexp (I * M_PI * sweep * t * t);
+    }
+  const double sig = sqrt (1.0 / (2.0 * pow (10.0, snr_db / 10.0)));
+  uint32_t     gs  = 1234u + (uint32_t)(ri * 131 + ai * 7);
+  for (size_t i = 0; i < len; i++)
+    {
+      /* Named locals: two draws in one expression have no defined order. */
+      const float re = (float)(sig * dp_gauss (&gs));
+      const float im = (float)(sig * dp_gauss (&gs));
+      x[i] += re + im * I;
+    }
+}
+
+/* Whether a capture of rg_stream() places the preamble exactly. */
+static int
+rg_placed (dp_burst_capture_state_t *s, size_t at, double sweep, double snr_db,
+           int ri, int ai)
+{
+  static float _Complex x[1u << 16];
+  static float _Complex out[1u << 16];
+  const size_t len = 3u * s->acq->engine->coherent_bins * RG_NP + RG_BURST
+                     + 2u * s->refine_span + 4u * RG_NP;
+  if (len > sizeof x / sizeof *x
+      || dp_burst_capture_push_max_out (s, len) > sizeof out / sizeof *out)
+    {
+      DP_TEST_ERR ("rg_placed: a stream of %zu samples outgrows the "
+                   "buffers\n",
+                   len);
+      return 0;
+    }
+  rg_stream (x, len, at, sweep, snr_db, ri, ai);
+  dp_burst_capture_reset (s);
+  (void)dp_burst_capture_push (s, x, len, out, sizeof out / sizeof *out);
+  for (size_t k = 0; k < dp_burst_capture_ready (s); k++)
+    {
+      const burst_capture_event_t *ev = dp_burst_capture_event_at (s, k);
+      if (ev && ev->preamble_start == at)
+        return 1;
+    }
+  return 0;
+}
+
+/** Refine widens its Doppler cells by what a rate moves the carrier between
+ *  the detecting dwell and the preamble (doppler#2219).
+ *
+ * The engine reads the carrier at its dwell's middle and refine's sum is
+ * centred on the preamble's; with a deep dwell (D = 11 of 16) and a rate
+ * near the span's edge, the carrier moves several of refine's fine cells
+ * between the two. Without the allowance refine scores the right
+ * repetition at the wrong Doppler and names its neighbour (127 or 254
+ * samples off). Each case was chosen from a search of 4,536 scenarios as
+ * one where that holds for this AND a second noise generator, at both
+ * levels below and at the neighbouring rates; removing the allowance
+ * (`burst_capture_rate_cells` returning 0) turns it red, the denser rate
+ * grid's removal does not. Deterministic: this replaces the seeded
+ * capture-Pd pin `validate_acq_rate_pd --check` carried for it. */
+static int
+test_refine_widens_its_cells_by_the_rate (void)
+{
+  float _Complex zc[RG_NP];
+  for (size_t k = 0; k < RG_NP; k++)
+    zc[k] = (float _Complex)cexp (-I * M_PI * 5.0 * (double)k * (double)(k + 1)
+                                  / (double)RG_NP);
+  const double              span = 9.0e-7;
+  dp_burst_capture_state_t *s    = dp_burst_capture_create (
+      zc, RG_NP, RG_BURST, RG_RP, 1.0, -15.0, 0.0, 1e-3, 0.9, 0, span, 5);
+  DP_REQUIRE (s != NULL);
+  /* The scenario's premise: a deep engine with rates, so the allowance is
+     non-zero. A sizing change that moves either sends this test back to
+     the search rather than letting it pass on a scenario that no longer
+     exercises anything. */
+  const size_t D = s->acq->engine->coherent_bins;
+  DP_REQUIRE_MSG (D == 11 && s->acq->engine->rate_hyps == 5,
+                  "the engine is sized as the scenario was chosen");
+  static const struct
+  {
+    double rate; /* of the span */
+    size_t twelfth;
+  } c[] = { { 0.8, 4 }, { 0.9, 4 }, { -0.9, 3 }, { -0.9, 5 } };
+  for (size_t j = 0; j < sizeof c / sizeof *c; j++)
+    for (int up = 6; up <= 12; up += 6)
+      {
+        const size_t at = D * RG_NP + c[j].twelfth * D * RG_NP / 12u;
+        const int    ri = (int)lround (c[j].rate * 10.0) + 10;
+        DP_CHECK_MSG (rg_placed (s, at, c[j].rate * span, -15.0 + up, ri,
+                                 (int)c[j].twelfth),
+                      "a burst at the rate span's edge is placed exactly");
+      }
+  dp_burst_capture_destroy (s);
+  return 0;
+}
+
+/** Refine searches a rate grid denser than the engine's when the engine's is
+ *  too coarse for the whole preamble (doppler#2219).
+ *
+ * Two hypotheses (D = 5) leave a rate between them -- 0, here -- unmatched
+ * by up to the span. Across a dwell of 5 periods that costs the engine
+ * little; across refine's 16 it leaves about 3 rad of quadratic phase at
+ * the preamble's ends, and the collapsed sum names another repetition.
+ * Refine's own grid (nine hypotheses, the drift rule at 16 periods) holds
+ * it. Chosen as above: removing the denser grid (`burst_capture_rate_hyps`
+ * returning the engine's count) turns every case red; removing the cell
+ * allowance turns none. Deterministic, like the test above. */
+static int
+test_refine_searches_a_denser_rate_grid (void)
+{
+  float _Complex zc[RG_NP];
+  for (size_t k = 0; k < RG_NP; k++)
+    zc[k] = (float _Complex)cexp (-I * M_PI * 5.0 * (double)k * (double)(k + 1)
+                                  / (double)RG_NP);
+  dp_burst_capture_state_t *s = dp_burst_capture_create (
+      zc, RG_NP, RG_BURST, RG_RP, 1.0, -13.0, 0.0, 1e-3, 0.9, 0, 9.0e-7, 2);
+  DP_REQUIRE (s != NULL);
+  const size_t D = s->acq->engine->coherent_bins;
+  DP_REQUIRE_MSG (D == 5 && s->acq->engine->rate_hyps == 2,
+                  "the engine is sized as the scenario was chosen");
+  DP_CHECK_MSG (s->rate_ph_n > s->acq->engine->rate_hyps,
+                "refine's rate grid is denser than the engine's");
+  for (size_t twelfth = 4; twelfth <= 7; twelfth++)
+    for (int up = 6; up <= 12; up += 6)
+      {
+        const size_t at = D * RG_NP + twelfth * D * RG_NP / 12u;
+        DP_CHECK_MSG (rg_placed (s, at, 0.0, -13.0 + up, 10, (int)twelfth),
+                      "a rate between the engine's hypotheses is placed "
+                      "exactly");
+      }
+  dp_burst_capture_destroy (s);
+  return 0;
+}
+
+/** Each event carries refine's winning rate hypothesis (doppler#2219).
+ *
+ * Refine scores every preamble position, Doppler cell and rate hypothesis of
+ * its own grid -- at least as dense as the engine's -- over the WHOLE
+ * preamble, and the event reports the hypothesis that won, not the detecting
+ * dwell's. A swept burst placed a quarter of a grid step from one hypothesis,
+ * on either sign and at the span's edge, must come back with exactly that
+ * hypothesis; the last-event read-back says the same. The noise sits 17 dB
+ * under the burst (sigma 0.1 per component), about 7 dB over this capture's
+ * 10 dB design point: these seeded streams each name the nearest hypothesis,
+ * which is what this pins. How often that holds at each level, on and off
+ * the grid, is validate_acq_rate_pd's event-rate rows.
+ */
+static int
+test_each_event_carries_refines_rate (void)
+{
+  enum
+  {
+    NP    = 127,
+    RP    = 16,
+    PAY   = 400,
+    BURST = RP * NP + PAY,
+    LEN   = 26000
+  };
+  const double span = 9.0e-7;
+  float _Complex zc[NP];
+  for (size_t k = 0; k < NP; k++)
+    zc[k] = (float _Complex)cexp (-I * M_PI * 5.0 * (double)k * (double)(k + 1)
+                                  / (double)NP);
+  dp_burst_capture_state_t *s = dp_burst_capture_create (
+      zc, NP, BURST, RP, 1.0, 10.0, 0.0, 1e-3, 0.9, 0, span, 5);
+  DP_REQUIRE (s != NULL);
+  const size_t R = s->rate_ph_n;
+  DP_REQUIRE_MSG (R >= 5, "refine searches a rate grid");
+  const double step = 2.0 * span / (double)(R - 1);
+
+  static float _Complex x[LEN], out[4 * BURST];
+  const size_t cap = sizeof out / sizeof *out;
+  /* Grid indices: both edges, the middle (rate 0), and two between. */
+  const size_t hs[]   = { 0, 1, R / 2, R - 2, R - 1 };
+  const double offs[] = { 0.25, -0.25 };
+  const size_t at[]   = { 6001, 7333, 9217 };
+  size_t       n      = 0;
+  for (size_t a = 0; a < sizeof hs / sizeof *hs; a++)
+    for (size_t b = 0; b < 2; b++)
+      {
+        const size_t h = hs[a];
+        /* A quarter step inward from an edge stays inside the span. */
+        const double off   = (h == 0 ? 0.25 : h == R - 1 ? -0.25 : offs[b]);
+        const double truth = dp_acq_rate_hypothesis (span, R, h) + off * step;
+        const size_t where = at[n % 3u];
+        uint32_t     st    = 2219u + (uint32_t)n++;
+        for (size_t i = 0; i < LEN; i++)
+          {
+            /* Named locals: two draws in one expression have no defined
+               order. */
+            const float re = (float)(0.1 * dp_gauss (&st));
+            const float im = (float)(0.1 * dp_gauss (&st));
+            x[i]           = re + im * I;
+          }
+        for (size_t i = 0; i < BURST; i++)
+          {
+            const double u = (double)i - 0.5 * (double)(RP * NP);
+            x[where + i] += (i < RP * NP ? zc[i % NP] : 1.0f)
+                            * (float _Complex)cexp (I * M_PI * truth * u * u);
+          }
+        dp_burst_capture_reset (s);
+        (void)dp_burst_capture_push (s, x, LEN, out, cap);
+        const burst_capture_event_t *got = NULL;
+        for (size_t k = 0; k < dp_burst_capture_ready (s); k++)
+          {
+            const burst_capture_event_t *ev = dp_burst_capture_event_at (s, k);
+            if (ev && ev->preamble_start == where)
+              got = ev;
+          }
+        DP_CHECK_MSG (got != NULL, "the swept burst is placed exactly");
+        if (!got)
+          continue;
+        if (got->doppler_rate_hz_s != dp_acq_rate_hypothesis (span, R, h))
+          DP_TEST_ERR ("  truth %.3e: event %.3e, nearest %.3e\n", truth,
+                       got->doppler_rate_hz_s,
+                       dp_acq_rate_hypothesis (span, R, h));
+        DP_CHECK_MSG (got->doppler_rate_hz_s
+                          == dp_acq_rate_hypothesis (span, R, h),
+                      "the event's rate is the hypothesis nearest the "
+                      "carrier's");
+        DP_CHECK_MSG (dp_burst_capture_get_doppler_rate_hz_s (s)
+                          == dp_burst_capture_event_at (
+                                 s, dp_burst_capture_ready (s) - 1u)
+                                 ->doppler_rate_hz_s,
+                      "the read-back is the last event's rate");
+      }
+
+  /* The rate is state: a capture restored from this one's blob reports the
+     same last-event rate, and gives back the same bytes. The last case above
+     ends near the span's edge, so the rate is far from 0 and a restore that
+     dropped it would read 0. */
+  {
+    const double last = dp_burst_capture_get_doppler_rate_hz_s (s);
+    DP_REQUIRE (last != 0.0);
+    const size_t   nb   = dp_burst_capture_state_bytes (s);
+    unsigned char *blob = malloc (nb), *back = malloc (nb);
+    DP_REQUIRE (blob && back);
+    dp_burst_capture_get_state (s, blob);
+    dp_burst_capture_state_t *t = dp_burst_capture_create (
+        zc, NP, BURST, RP, 1.0, 10.0, 0.0, 1e-3, 0.9, 0, span, 5);
+    DP_REQUIRE (t != NULL);
+    DP_CHECK (dp_burst_capture_set_state (t, blob) == DP_OK);
+    DP_CHECK_MSG (dp_burst_capture_get_doppler_rate_hz_s (t) == last,
+                  "a restored capture reports the same last-event rate");
+    dp_burst_capture_get_state (t, back);
+    DP_CHECK (memcmp (back, blob, nb) == 0);
+    dp_burst_capture_destroy (t);
+    free (blob);
+    free (back);
+  }
+
+  /* Without a declared rate there is no rate to report: 0, as documented.
+     (One hypothesis WITH a rate still searches refine's grid,
+     doppler#2219, so the zero case is the capture that declares none.) */
+  {
+    dp_burst_capture_state_t *z = dp_burst_capture_create (
+        zc, NP, BURST, RP, 1.0, 10.0, 0.0, 1e-3, 0.9, 0, 0.0, 1);
+    DP_REQUIRE (z != NULL);
+    dp_burst_capture_reset (z);
+    (void)dp_burst_capture_push (z, x, LEN, out, cap);
+    DP_REQUIRE_MSG (dp_burst_capture_ready (z) > 0,
+                    "the capture without a declared rate still emits");
+    for (size_t k = 0; k < dp_burst_capture_ready (z); k++)
+      DP_CHECK (dp_burst_capture_event_at (z, k)->doppler_rate_hz_s == 0.0);
+    dp_burst_capture_destroy (z);
+  }
+  dp_burst_capture_destroy (s);
+  return 0;
+}
+
+/** One acquisition hypothesis with a declared rate still gets refine's rate
+ *  grid (doppler#2219).
+ *
+ * The capped depth -- `rate_hypotheses` 1 with a `doppler_rate` -- is what
+ * every DsssBurstReceiver builds. Its engine still detects a sweeping burst,
+ * but refine's coherent sum runs the whole preamble, which the sweep
+ * collapses; keyed on the engine's count, refine searched no rates and named
+ * the wrong repetition (127 or 254 samples off) in about 40% of the bursts
+ * its engine found. Keyed on the declared rate it searches its own grid and
+ * places them. The cases are a search's (the refine guards' scenario at one
+ * hypothesis, design -15 dB, D = 5), chosen where the old keying misses at
+ * both noise levels: a sweep at 0.9 of the span, either sign. */
+static int
+test_refine_searches_rates_with_one_hypothesis (void)
+{
+  float _Complex zc[RG_NP];
+  for (size_t k = 0; k < RG_NP; k++)
+    zc[k] = (float _Complex)cexp (-I * M_PI * 5.0 * (double)k * (double)(k + 1)
+                                  / (double)RG_NP);
+  const double              span = 9.0e-7;
+  dp_burst_capture_state_t *s    = dp_burst_capture_create (
+      zc, RG_NP, RG_BURST, RG_RP, 1.0, -15.0, 0.0, 1e-3, 0.9, 0, span, 1);
+  DP_REQUIRE (s != NULL);
+  const size_t D = s->acq->engine->coherent_bins;
+  DP_REQUIRE_MSG (D == 5 && s->acq->engine->rate_hyps == 1,
+                  "the capped engine is sized as the scenario was chosen");
+  DP_CHECK_MSG (s->rate_ph_n > 1,
+                "refine searches a rate grid with one acquisition "
+                "hypothesis");
+  static const struct
+  {
+    int    ri; /* the search's rate index: rate = span * (ri / 10 - 1) */
+    size_t twelfth;
+  } c[] = { { 1, 1 }, { 1, 2 }, { 1, 4 }, { 1, 10 }, { 19, 1 } };
+  for (size_t j = 0; j < sizeof c / sizeof *c; j++)
+    for (int up = 6; up <= 12; up += 6)
+      {
+        const size_t at    = D * RG_NP + c[j].twelfth * D * RG_NP / 12u;
+        const double sweep = span * ((double)c[j].ri / 10.0 - 1.0);
+        DP_CHECK_MSG (
+            rg_placed (s, at, sweep, -15.0 + up, c[j].ri, (int)c[j].twelfth),
+            "a swept burst is placed exactly with one acquisition "
+            "hypothesis");
+      }
+  dp_burst_capture_destroy (s);
   return 0;
 }
 
@@ -3515,6 +3882,14 @@ main (void)
   if (test_a_tiled_capture_anchors_at_its_dwell ())
     return 1;
   if (test_a_sweeping_carrier_is_compensated ())
+    return 1;
+  if (test_refine_widens_its_cells_by_the_rate ())
+    return 1;
+  if (test_refine_searches_a_denser_rate_grid ())
+    return 1;
+  if (test_each_event_carries_refines_rate ())
+    return 1;
+  if (test_refine_searches_rates_with_one_hypothesis ())
     return 1;
   if (test_a_tiled_burst_after_a_window_is_not_shadowed ())
     return 1;

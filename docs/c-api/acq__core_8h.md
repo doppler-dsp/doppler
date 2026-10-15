@@ -673,7 +673,7 @@ The within-repetition rotation loss keeps the engine's `sinc` model: it is the z
 
 **What hypotheses change**, when `rate_hypotheses` is `n > 1`:
 * **Depth.** The drift bound is applied to the RESIDUAL rate, the farthest a true rate can sit from a hypothesis, `R/(n - 1)`, so `coherent_bins` can grow by up to `sqrt(n - 1)` at a fixed span.
-* **False alarms.** A dwell now offers `n` looks at each cell: the per-cell Pfa is split over `n * searched_bins * code_bins` cells and the gate is the larger count's. Each hypothesis is CFAR-tested against its own surface and the dwell takes the strongest; [**acq\_result\_t**](structacq__result__t.md):: doppler\_rate\_hz\_s names the winner.
+* **False alarms.** A dwell now offers `n` looks at each cell: the per-cell Pfa is split over `n` times the cells the dwell's maximum ranges over (every searched row of the Doppler-interpolated surface, times `code_bins`), and the gate is the larger count's. Each hypothesis is CFAR-tested against its own surface and the dwell takes the strongest; [**acq\_result\_t**](structacq__result__t.md):: doppler\_rate\_hz\_s names the winner.
 * **Cost.** A dwell does `n` slow-time passes (and a recompute of the winner when it was not the last): about `n` times the per-dwell cost.
 * **Pd.** The model prices a rate ON a hypothesis. Between two, the coherent gain falls with the residual; the depth bound limits that to half a slow-time row, and validate\_acq\_rate\_pd measures it (a rate half a spacing from every hypothesis, the worst case, against a rate drawn uniformly).
 

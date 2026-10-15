@@ -563,18 +563,20 @@ void dp_wfm_synth_set_chirp_span(dp_wfm_synth_state_t *state, size_t span);
 /**
  * @brief Attach a user bit pattern to a type=bits synth (no-op otherwise).
  *
- * Copies @p n bits (each 0/1) into the synth; @p modulation maps them to
- * symbols (0=none → 0/1 amplitude, 1=bpsk → ±1, 2=qpsk → Gray-coded ±1/√2,
- * two bits per symbol). The pattern is oversampled by the create-time `sps`
- * and sent ONCE: one pass is `n * sps` samples (`n/2 * sps` for qpsk), and the
- * output is silent after it (doppler#1718 deleted the cycle; a payload that
- * goes on is a data source, dp_wfm_synth_set_refill). Replaces any
- * previous pattern; resets the read position. Safe to call repeatedly.
+ * Copies @p n bits (each 0/1) into the synth; @p modulation is the bits per
+ * symbol, mapping them to symbols (0=none → 0/1 amplitude, 1=bpsk → ±1,
+ * 2=qpsk, 3=8psk: each symbol's bits read MSB-first as a Gray label into
+ * `mpsk_constellation()`, see `wfm_synth_bit_symbol`). The pattern is
+ * oversampled by the create-time `sps` and sent ONCE: one pass is `n * sps`
+ * samples (`n / modulation * sps` for a PSK), and the output is silent after
+ * it (doppler#1718 deleted the cycle; a payload that goes on is a data
+ * source, dp_wfm_synth_set_refill). Replaces any previous pattern; resets
+ * the read position. Safe to call repeatedly.
  *
  * @param state  Must be non-NULL.
  * @param bits   Array of @p n bytes, each 0 or 1.
  * @param n      Number of bits (> 0).
- * @param modulation  0=none, 1=bpsk, 2=qpsk.
+ * @param modulation  0=none, 1=bpsk, 2=qpsk, 3=8psk.
  * @return 0 on success; -1 on bad args or allocation failure.
  */
 int dp_wfm_synth_set_bits(dp_wfm_synth_state_t *state, const uint8_t *bits, size_t n,
@@ -763,8 +765,11 @@ int dp_wfm_synth_set_dsss_cont(dp_wfm_synth_state_t *state, const uint8_t *code,
  * epoch. This is the multi-emitter waveform's frame — 450 code-only symbols
  * then 4500 of data in the application it was written for — and the
  * searcher's coherent depth is what the window makes possible.
- * Configuration, not running state: it is kept by reset() and is not
- * serialized. The order against dp_wfm_synth_set_dsss_cont() does not matter.
+ * Configuration, not running state: reset() keeps it. Like every setter's
+ * value it travels in the state blob (v5), so a synth restored without this
+ * call resumes the framed stream; a blob whose window breaks the rule below
+ * is refused. The order against dp_wfm_synth_set_dsss_cont() does not
+ * matter.
  *
  * @param state              Synth (no-op unless `wtype == WFM_SYNTH_DSSS`).
  * @param code_only_symbols  Pure-code symbols opening each frame, at most
@@ -1051,6 +1056,65 @@ void dp_wfm_synth_steps(
     size_t               n);
 
 /**
+ * @brief Multiply a block by the synth's next output samples.
+ * ``out[i] = in[i] * y[i]`` for ``i = 0 .. n-1``, where ``y`` is exactly
+ * what dp_wfm_synth_steps() would emit next.  The synth advances by ``n``
+ * samples just as dp_wfm_synth_steps(state, ., n) would, EXACTLY: a split call
+ * sequence (3 + 5 + n) leaves the same synth state as one call, and the
+ * synth samples ``y`` are the same, and ``n == 0`` is a no-op that does not
+ * advance it.  The PRODUCT agrees across such sequences to rounding, not to
+ * the bit: the compiler may contract the multiply differently on the vector
+ * body and the scalar tail, split calls and in place vs out of place (the
+ * -ffast-math builds do on arm64; see the note in dp_wfm_synth_steps()), so
+ * compare products with a few ulp of ``|in| * |y|``, and drive a single call
+ * path where byte-for-byte matters.  ``out`` may equal ``in`` (in place).  No
+ * new state, so the state blob is unchanged.
+ *
+ * This is the general waveform-multiplication operator: with a tone synth it
+ * is a rotation, with a chirp synth a swept rotation, with noise a noise
+ * multiplier, with PN/BPSK a modulation.
+ *
+ * @param state  Initialized Synth state returned by ``dp_wfm_synth_create``.
+ * @param in     Input block of ``n`` cf32 samples.
+ * @param n      Number of samples.
+ * @param out    Output block of ``n`` cf32 samples (may be the input block itself).
+ * @code
+ * >>> from doppler.wfm import Synth
+ * >>> import numpy as np
+ * >>> s = Synth(type="tone", fs=1.0, freq=0.25)
+ * >>> y = s.prod(np.ones(4, np.complex64))
+ * >>> bool(np.allclose(y, [1, 1j, -1, -1j], atol=1e-5))
+ * True
+ * @endcode
+ */
+void dp_wfm_synth_prod(
+    dp_wfm_synth_state_t *state,
+    const float _Complex *in,
+    size_t                n,
+    float _Complex       *out);
+
+/**
+ * @brief Start and end frequency of the chirp that sweeps about a center.
+ * A chirp with ``freq = *f0``, ``f_end = *f_end`` and
+ * dp_wfm_synth_set_chirp_span(n) has instantaneous frequency
+ * ``f_mid + rate*u`` (Hz) at sample ``i``, ``u = (i - center)/fs`` seconds,
+ * and so multiplies a block by ``exp(j*2*pi*(f_mid*u + rate*u^2/2))`` up to
+ * one constant phase (the synth's phase is 0 at sample 0, the formula's at
+ * ``u = 0``).  The synth's increment lands after its sample, hence the
+ * half-sample in ``*f0``.  Pure arithmetic: no state, nothing allocated.
+ *
+ * @param fs      Sample rate, Hz (> 0).
+ * @param f_mid   Frequency at the center, Hz.
+ * @param rate    Sweep, Hz per second.
+ * @param n       Samples the sweep spans (pass to set_chirp_span).
+ * @param center  Sample index of ``u = 0`` (need not be an integer).
+ * @param f0      Out: chirp start frequency, Hz.
+ * @param f_end   Out: chirp end frequency, Hz.
+ */
+void dp_wfm_synth_sweep_ends(double fs, double f_mid, double rate, size_t n,
+                             double center, double *f0, double *f_end);
+
+/**
  * @brief Return the active waveform type discriminant.
  * Maps to the WFM_SYNTH_* enum: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk.
  * Use this to inspect which synthesis path is active at runtime.
@@ -1164,8 +1228,10 @@ void dp_wfm_synth_set_cur_im(dp_wfm_synth_state_t *state, float val);
    blob is v2, which carries its seed and amplitude, so the synth blob grew
    (#2084). A v3 blob is refused by its version (a clean one has the same
    length, so the version alone refuses it; a noisy one is also refused by
-   its length). */
-#define WFM_SYNTH_STATE_VERSION 4u
+   its length). v5: + the DSSS window (code_only_symbols, frame_symbols),
+   dp_wfm_synth_set_dsss_window's value (#2022); a v4 blob is shorter, so
+   its length refuses it as well as its version. */
+#define WFM_SYNTH_STATE_VERSION 5u
 size_t dp_wfm_synth_state_bytes (const dp_wfm_synth_state_t *state);
 void dp_wfm_synth_get_state (const dp_wfm_synth_state_t *state, void *blob);
 int dp_wfm_synth_set_state (dp_wfm_synth_state_t *state, const void *blob);

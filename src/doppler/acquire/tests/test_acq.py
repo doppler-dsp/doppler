@@ -235,13 +235,18 @@ def test_config_physics(cn0_dbhz, want_db):
     assert not a.underpowered and a.pd_burst >= PD
 
     nx, db = a.code_bins, a.doppler_bins
-    db * nx
     snr = math.sqrt(10.0 ** (cn0_dbhz / 10.0) / a.fs)
 
-    # Sidak over the searched cells (du=0 → all db Doppler bins).
-    pfa_cell = 1.0 - (1.0 - PFA) ** (1.0 / (db * nx))
-    eta = det_threshold(pfa_cell)
-    assert a.pfa_cell == pytest.approx(pfa_cell, rel=1e-9)
+    # The split: pfa_cell is the Sidak share of PFA over a whole number of
+    # searched cells, at least every native one. WHICH number -- every row
+    # of the Doppler-interpolated surface the maximum ranges over -- is
+    # pinned exactly against the engine's band mask in C
+    # (test_acq_core.c, _acq_pfa_split_check; doppler#2218). A copy of
+    # that count here would be a second definition of it.
+    n_cells = math.log1p(-PFA) / math.log1p(-a.pfa_cell)
+    assert n_cells == pytest.approx(round(n_cells), rel=1e-6)
+    assert round(n_cells) % nx == 0 and round(n_cells) >= db * nx
+    eta = det_threshold(a.pfa_cell)
     assert a.eta == pytest.approx(eta, rel=1e-5)
     assert a.threshold == pytest.approx(eta * SQRT_2_OVER_PI, rel=1e-5)
 
@@ -474,8 +479,6 @@ def test_config_burst_never_autosplits():
     period (doppler#1181). The continuous engine keeps the lever: every one
     of its looks carries signal.
     """
-    pfa_cell = 1.0 - (1.0 - PFA) ** (1.0 / N)
-    eta = det_threshold(pfa_cell)
     cn0 = 42.0  # too weak for 16 coherent reps to reach Pd
     snr = math.sqrt(10.0 ** (cn0 / 10.0) / (CHIP_RATE * SPS))
     a = BurstAcquisition(
@@ -490,7 +493,7 @@ def test_config_burst_never_autosplits():
     # ceiling: a 16-deep dwell straddles the preamble's edge at nearly every
     # alignment (doppler#1498).
     assert a.doppler_bins == 15
-    assert det_pd(snr, N, eta) < PD  # coherent-only falls short
+    assert det_pd(snr, N, a.eta) < PD  # coherent-only falls short
     assert a.n_noncoh == 1  # ... and it STAYS coherent
     assert a.eta_nc == 0.0  # the non-coherent gate is unused
     assert a.pd_burst < PD and a.underpowered  # and says so

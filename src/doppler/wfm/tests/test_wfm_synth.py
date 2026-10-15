@@ -5,6 +5,8 @@ the string ``type``/``snr_mode`` choices, MLS PN behaviour, the LFM chirp
 sweep, and the auto-resolved SNR (Es/No for the modulated types).
 """
 
+import sys
+
 import numpy as np
 import pytest
 
@@ -269,6 +271,57 @@ def test_engine_keeps_the_uint32_edge_seed_distinct():
     assert not np.array_equal(
         top, _SynthEngine(type="noise", seed=5).steps(16)
     )
+
+
+@pytest.mark.parametrize("wtype", ["noise", "pn"])
+def test_engine_default_seed_is_the_documented_one(wtype):
+    # #2335: the header, the manifest and the stub all say the default seed
+    # is 1, and the hand-owned binding initialised it to 0. The rendered
+    # binding takes the manifest's default, so an engine built without a
+    # seed draws seed 1's stream, not seed 0's.
+    got = _SynthEngine(type=wtype, snr=10.0).steps(64)
+    assert np.array_equal(
+        got, _SynthEngine(type=wtype, snr=10.0, seed=1).steps(64)
+    )
+    assert not np.array_equal(
+        got, _SynthEngine(type=wtype, snr=10.0, seed=0).steps(64)
+    )
+
+
+# --- _SynthEngine pn_poly and set_chirp_span ranges (#2279) -----------------
+#
+# Both were parsed through `K`, which masks: pn_poly=-1 arrived as 2**64 - 1
+# and span=2**64 + 5 as 5, with no error. Adopting the fragment to jm
+# (#1886) renders both through jm's range-checked uint64_t / size_t parse.
+# Each gets a refusal and an accepted edge, so a check that is too strict
+# fails as surely as one that masks.
+
+
+@pytest.mark.parametrize("bad", [-1, 2**64, 2**64 + 5])
+def test_engine_refuses_a_pn_poly_outside_uint64(bad):
+    with pytest.raises(OverflowError, match="pn_poly"):
+        _SynthEngine(type="tone", pn_poly=bad)
+
+
+def test_engine_takes_the_uint64_edge_pn_poly():
+    # A tone ignores pn_poly, so only the parse can refuse the top of the
+    # range, and it must not.
+    assert _SynthEngine(type="tone", pn_poly=2**64 - 1).steps(4).size == 4
+
+
+@pytest.mark.parametrize("bad", [-1, 2 * sys.maxsize + 2, 2**70])
+def test_engine_refuses_a_chirp_span_outside_size_t(bad):
+    s = _SynthEngine(type="chirp", freq=0.0, f_end=0.25)
+    with pytest.raises(OverflowError, match="span"):
+        s.set_chirp_span(bad)
+
+
+def test_engine_takes_the_size_t_edge_chirp_span():
+    # SIZE_MAX is 2 * sys.maxsize + 1 wherever size_t and Py_ssize_t share a
+    # width, which is every platform doppler builds on.
+    s = _SynthEngine(type="chirp", freq=0.0, f_end=0.25)
+    s.set_chirp_span(2 * sys.maxsize + 1)
+    assert s.steps(4).size == 4
 
 
 # ── RRC pulse shaping ────────────────────────────────────────────────────────

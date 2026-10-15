@@ -22,11 +22,20 @@
  * over the sum stays inside half a slow-time row of it. Hypotheses enough
  * to leave no more than that across the span, never fewer than the
  * engine's (a caller who asked for more gets them), and none at all when
- * the engine has none: the sum as it ran. */
+ * no rate is declared: the sum as it ran.
+ *
+ * Keyed on the DECLARED rate, not the engine's count (doppler#2219). An
+ * engine with one hypothesis and a rate -- the capped depth, and every
+ * DsssBurstReceiver -- still sees a sweep, and refine's coherent sum over
+ * the whole preamble is what a sweep collapses: keyed on the count, that
+ * capture placed 0.555 of the bursts its engine detected 0.946 of
+ * (validate_acq_rate_pd's full run, 1000 trials, Rh = 1 at the design
+ * point, on the private phase ramp it then swept with); keyed on the rate,
+ * the row reads 0.905 on the library's rotation. */
 static size_t
 burst_capture_rate_hyps (const dp_acq_state_t *eng, size_t reps)
 {
-  if (eng->rate_hyps < 2)
+  if (!(eng->doppler_rate > 0.0))
     return 1;
   /* The engine's drift rule at refine's depth, from the engine's own home
      for it (dp_acq_rate_hypotheses_for), never fewer than the engine's. */
@@ -70,11 +79,11 @@ burst_capture_rate_phasors (dp_burst_capture_state_t *s)
  * `fs / (P * reps * IP)`. Clamped to half the native span per side, reps *
  * IP / 2 cells: past that the cells only re-score wrapped duplicates, and an
  * unbounded `doppler_rate` would wrap the allocations they size. Zero without
- * rate hypotheses -- the engine and refine as they ran. */
+ * a declared rate, keyed like burst_capture_rate_hyps() (doppler#2219). */
 static size_t
 burst_capture_rate_cells (const dp_acq_state_t *eng, size_t reps)
 {
-  if (eng->rate_hyps < 2)
+  if (!(eng->doppler_rate > 0.0))
     return 0;
   const double per  = (double)eng->code_bins / eng->fs;
   const double want = 0.5 * eng->doppler_rate
@@ -359,18 +368,19 @@ dp_burst_capture_reset (dp_burst_capture_state_t *state)
      rewinds for exactly this reason; reset() has to agree with it. */
   DP_STORE_REL (&state->hist->head, 0u);
   DP_STORE_REL (&state->hist->tail, 0u);
-  state->samples_fed    = 0;
-  state->pending        = 0;
-  state->q_head         = 0;
-  state->ev_len         = 0;
-  state->det_len        = 0;
-  state->suppress_until = 0;
-  state->suppress_base  = 0;
-  state->horizon        = UINT64_MAX;
-  state->preamble_start = 0;
-  state->doppler_hz_est = 0.0;
-  state->doppler_res_hz = 0.0;
-  state->cn0_dbhz_est   = 0.0;
+  state->samples_fed       = 0;
+  state->pending           = 0;
+  state->q_head            = 0;
+  state->ev_len            = 0;
+  state->det_len           = 0;
+  state->suppress_until    = 0;
+  state->suppress_base     = 0;
+  state->horizon           = UINT64_MAX;
+  state->preamble_start    = 0;
+  state->doppler_hz_est    = 0.0;
+  state->doppler_res_hz    = 0.0;
+  state->cn0_dbhz_est      = 0.0;
+  state->doppler_rate_hz_s = 0.0;
   /* `dropped` and `n_bursts` deliberately survive: a lost burst stays lost,
      and a lifetime count that reset() zeroed would report a clean stream. */
 }
@@ -487,6 +497,9 @@ burst_capture_refine_reach (const dp_burst_capture_state_t *s, uint64_t anchor,
  * @param anchor Coarse code epoch from the hit.
  * @param doppler_hz The detecting engine's Doppler estimate, Hz.
  * @param start  Written with the refined stream-absolute preamble start.
+ * @param rate   Written with the winning rate hypothesis, Hz/s: the one
+ *               whose de-chirp made that start's sum largest, from refine's
+ *               own grid (0 without hypotheses, doppler#2219).
  * @param score  Written with that start's power, |sum over reps|^2 at its
  *               best Doppler cell, so burst_capture_refine_phases() can
  *               compare one phase against another.
@@ -495,7 +508,8 @@ burst_capture_refine_reach (const dp_burst_capture_state_t *s, uint64_t anchor,
  */
 static int
 burst_capture_refine (dp_burst_capture_state_t *s, uint64_t anchor,
-                      double doppler_hz, uint64_t *start, double *score)
+                      double doppler_hz, uint64_t *start, double *rate,
+                      double *score)
 {
   size_t       P    = s->code_period;
   size_t       reps = s->reps;
@@ -571,7 +585,7 @@ burst_capture_refine (dp_burst_capture_state_t *s, uint64_t anchor,
   const double _Complex *rph = s->rate_ph;
 
   double best   = -1.0;
-  size_t best_k = 0;
+  size_t best_k = 0, best_h = 0;
   for (size_t k = 0; k + reps <= n_pos; k++)
     for (size_t j = 0; j < nf; j++)
       for (size_t h = 0; h < R_h; h++)
@@ -585,10 +599,12 @@ burst_capture_refine (dp_burst_capture_state_t *s, uint64_t anchor,
             {
               best   = pk;
               best_k = k;
+              best_h = h;
             }
         }
 
   *start = lo + (uint64_t)(best_k * P);
+  *rate  = dp_acq_rate_hypothesis (eng->doppler_rate, R_h, best_h);
   *score = best;
   return 1;
 }
@@ -656,7 +672,7 @@ static int
 burst_capture_refine_phases (dp_burst_capture_state_t *s,
                              burst_capture_pending_t  *e)
 {
-  double         best = -1.0;
+  double         best = -1.0, pick_rate = 0.0;
   uint64_t       pick = 0;
   const uint32_t n    = e->n_phase ? e->n_phase : 1u;
   for (uint32_t i = 0; i < n; i++)
@@ -665,16 +681,18 @@ burst_capture_refine_phases (dp_burst_capture_state_t *s,
       if (!burst_capture_phase_anchor (s, e, i, &a))
         continue;
       uint64_t start = 0;
-      double   score = 0.0;
-      if (!burst_capture_refine (s, a, e->doppler_hz, &start, &score))
+      double   score = 0.0, rate = 0.0;
+      if (!burst_capture_refine (s, a, e->doppler_hz, &start, &rate, &score))
         return 0;
       if (score > best)
         {
-          best = score;
-          pick = start;
+          best      = score;
+          pick      = start;
+          pick_rate = rate;
         }
     }
-  e->start = pick;
+  e->start             = pick;
+  e->doppler_rate_hz_s = pick_rate;
   return 1;
 }
 
@@ -958,6 +976,7 @@ burst_capture_emit (dp_burst_capture_state_t *s)
   s->doppler_hz_est         = e->doppler_hz;
   s->cn0_dbhz_est           = e->cn0_dbhz;
   s->doppler_res_hz         = eng->doppler_res_hz;
+  s->doppler_rate_hz_s      = e->doppler_rate_hz_s;
   s->n_bursts++;
 
   /* ...and the same event into this burst's OWN row. One push can complete
@@ -969,6 +988,7 @@ burst_capture_emit (dp_burst_capture_state_t *s)
     r->doppler_hz_est        = s->doppler_hz_est;
     r->doppler_res_hz        = s->doppler_res_hz;
     r->cn0_dbhz_est          = s->cn0_dbhz_est;
+    r->doppler_rate_hz_s     = s->doppler_rate_hz_s;
   }
 
   const uint64_t start = e->start;
@@ -1203,7 +1223,8 @@ dp_burst_capture_push (dp_burst_capture_state_t *state,
                       cand->refined  = 0;
                       cand->doppler_hz
                           = acq_bin_doppler_hz (e, hits[i].doppler_bin);
-                      cand->cn0_dbhz = hits[i].cn0_dbhz_est;
+                      cand->cn0_dbhz          = hits[i].cn0_dbhz_est;
+                      cand->doppler_rate_hz_s = 0.0;
                       /* A later anchor can pass the entries queued after it
                          -- the merge took the FIRST candidate within
                          refine_span, not the nearest -- so it moves back
@@ -1244,6 +1265,7 @@ dp_burst_capture_push (dp_burst_capture_state_t *state,
               q->shadowed   = shadow;
               q->doppler_hz = acq_bin_doppler_hz (e, hits[i].doppler_bin);
               q->cn0_dbhz   = hits[i].cn0_dbhz_est;
+              q->doppler_rate_hz_s = 0.0; /* refine's, once refined */
               state->pending++;
               /* Into anchor order. A hit within a frame of the newest anchor
                  merges rather than landing here, so this is the tail in
@@ -1435,6 +1457,12 @@ dp_burst_capture_get_cn0_dbhz_est (const dp_burst_capture_state_t *state)
   return state->cn0_dbhz_est;
 }
 
+double
+dp_burst_capture_get_doppler_rate_hz_s (const dp_burst_capture_state_t *state)
+{
+  return state->doppler_rate_hz_s;
+}
+
 size_t
 dp_burst_capture_get_pending (const dp_burst_capture_state_t *state)
 {
@@ -1569,6 +1597,16 @@ dp_burst_capture_get_doppler_span_hz (const dp_burst_capture_state_t *state)
 
 /* ── Serializable state ──────────────────────────────────────────────── */
 
+/* Whether a blob's rate reading is one refine could have written: finite and
+   on the engine's span (every hypothesis is in [-doppler_rate, +doppler_rate],
+   and the edges are computed, so a relative ulp of slack). */
+static int
+burst_capture_rate_ok (const dp_burst_capture_state_t *s, double rate)
+{
+  const double span = s->acq->engine->doppler_rate;
+  return isfinite (rate) && fabs (rate) <= span * (1.0 + 1e-12);
+}
+
 size_t
 dp_burst_capture_state_bytes (const dp_burst_capture_state_t *s)
 {
@@ -1579,7 +1617,7 @@ dp_burst_capture_state_bytes (const dp_burst_capture_state_t *s)
      coincidence. Both variable regions are fixed-size with a length prefix. */
   return sizeof (dp_state_hdr_t)
          + sizeof (uint64_t) * 4u /* samples_fed, n_bursts, dropped, start  */
-         + sizeof (double) * 3u   /* the event's doubles                    */
+         + sizeof (double) * 4u   /* the event's doubles                    */
          + sizeof (uint64_t)      /* suppress_until                         */
          + sizeof (uint32_t) * 2u /* pending, q_head                        */
          + sizeof (burst_capture_pending_t) * s->q_cap
@@ -1613,6 +1651,7 @@ dp_burst_capture_get_state (const dp_burst_capture_state_t *s, void *blob)
   dp_w_f64 (&_w, s->doppler_hz_est);
   dp_w_f64 (&_w, s->doppler_res_hz);
   dp_w_f64 (&_w, s->cn0_dbhz_est);
+  dp_w_f64 (&_w, s->doppler_rate_hz_s);
   dp_w_u64 (&_w, s->suppress_until);
 
   /* The detections in flight. Omitting these would resume a capture that had
@@ -1683,6 +1722,7 @@ dp_burst_capture_set_state (dp_burst_capture_state_t *s, const void *blob)
   const double         doppler_hz_est = dp_r_f64 (&_r);
   const double         doppler_res_hz = dp_r_f64 (&_r);
   const double         cn0_dbhz_est   = dp_r_f64 (&_r);
+  const double         rate_hz_s      = dp_r_f64 (&_r);
   const uint64_t       suppress_until = dp_r_u64 (&_r);
   const uint32_t       pending        = dp_r_u32 (&_r);
   const uint32_t       q_head         = dp_r_u32 (&_r);
@@ -1721,7 +1761,8 @@ dp_burst_capture_set_state (dp_burst_capture_state_t *s, const void *blob)
      stream position (a detection is made from samples acq has taken), and a
      refined start within the range refine chooses from -- between the first
      candidate of its earliest phase and the last of its latest. */
-  if (pending > s->q_cap || q_head >= s->q_cap)
+  if (pending > s->q_cap || q_head >= s->q_cap
+      || !burst_capture_rate_ok (s, rate_hz_s))
     return DP_ERR_INVALID;
   uint64_t prev = 0;
   for (size_t j = 0; j < pending; j++)
@@ -1733,7 +1774,8 @@ dp_burst_capture_set_state (dp_burst_capture_state_t *s, const void *blob)
       /* Acquisition gives every hit finite values; a NaN Doppler would reach
          refine's (size_t)ceil() over the cell grid. */
       if (!isfinite (o.doppler_hz) || !isfinite (o.cn0_dbhz)
-          || !isfinite (o.peak_mag))
+          || !isfinite (o.peak_mag)
+          || !burst_capture_rate_ok (s, o.doppler_rate_hz_s))
         return DP_ERR_INVALID;
       if (o.anchor > fed || (j && o.anchor < prev))
         return DP_ERR_INVALID;
@@ -1808,17 +1850,18 @@ dp_burst_capture_set_state (dp_burst_capture_state_t *s, const void *blob)
   free (undo);
 
   /* COMMIT. Every check has passed; nothing below can fail. */
-  s->samples_fed    = fed;
-  s->n_bursts       = n_bursts;
-  s->dropped        = dropped;
-  s->preamble_start = preamble_start;
-  s->doppler_hz_est = doppler_hz_est;
-  s->doppler_res_hz = doppler_res_hz;
-  s->cn0_dbhz_est   = cn0_dbhz_est;
-  s->suppress_until = suppress_until;
-  s->suppress_base  = suppress_until;
-  s->pending        = pending;
-  s->q_head         = q_head;
+  s->samples_fed       = fed;
+  s->n_bursts          = n_bursts;
+  s->dropped           = dropped;
+  s->preamble_start    = preamble_start;
+  s->doppler_hz_est    = doppler_hz_est;
+  s->doppler_res_hz    = doppler_res_hz;
+  s->cn0_dbhz_est      = cn0_dbhz_est;
+  s->doppler_rate_hz_s = rate_hz_s;
+  s->suppress_until    = suppress_until;
+  s->suppress_base     = suppress_until;
+  s->pending           = pending;
+  s->q_head            = q_head;
   memcpy (s->q, q, s->q_cap * sizeof *s->q);
   if (s->backed)
     {

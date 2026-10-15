@@ -54,13 +54,17 @@ search — an honest operating curve, not the on-bin best case.
 
 **Right — Pfa vs Es/N0.** The false-alarm rate, measured on the noise-only
 (silence) frames. It is set by the engine's CFAR threshold and is **independent
-of the signal**, so it stays flat across the whole sweep — but above the
-configured `pfa = 1e-3`, not on it. The solid line is the achieved rate over a
-20 000-frame noise-only run: `1.85e-3`, 1.85× the target. The threshold is
-sized from the native cell count while the peak search runs on the
-interpolated surface, which offers the noise more chances
-([#1064](https://github.com/doppler-dsp/doppler/issues/1064)); a ratchet holds
-the ratio under 2.2× until that is fixed. The squares are the noisier
+of the signal**, so it stays flat across the whole sweep, at or just under
+the configured `pfa = 1e-3`. The solid line is the achieved rate over a
+20 000-frame noise-only run: `8.5e-4`, 0.85× the target (−0.7 sigma). The
+gate is priced over every row of the Doppler-interpolated surface its
+maximum ranges over, a never-exceed bound
+([#2218](https://github.com/doppler-dsp/doppler/issues/2218); the measured
+refinement is [#1064](https://github.com/doppler-dsp/doppler/issues/1064)).
+Priced over the native rows, it fired at 1.85×. This run holds the ratio under
+1.4×, a loose check at 20 000 frames (an on-target detector exceeds it by
+chance about 3% of the time); the certification holds the same bound over
+60 000. The squares are the noisier
 per-Es/N0 estimates.
 
 ## How it works

@@ -500,7 +500,9 @@ dp_wfm_synth_reseed_noise (dp_wfm_synth_state_t *state, uint32_t seed)
  * has run, so a mid-stream hand-off resumes the shaped waveform
  * bit-for-bit. A REFILL rewrites bits[] with each frame it pulls, so there
  * the frame is state: v3 carries it, then the refill's own sub-blob
- * (doppler#1681), last so every fixed-size field precedes it.
+ * (doppler#1681), last so every fixed-size field precedes it. v5 carries the
+ * DSSS window (dp_wfm_synth_set_dsss_window), a setter's value, so a synth
+ * restored without the call resumes the framed stream (#2022).
  */
 size_t
 dp_wfm_synth_state_bytes (const dp_wfm_synth_state_t *s)
@@ -520,6 +522,7 @@ dp_wfm_synth_state_bytes (const dp_wfm_synth_state_t *s)
              + sizeof (uint8_t)                          /* cur_data     */
              + sizeof (uint8_t)                          /* primed       */
              + sizeof (uint8_t)                          /* data_ended   */
+             + 2 * sizeof (uint64_t)                     /* dsss window  */
              + 6;                                        /* presence     */
   if (s->fir)
     b += dp_fir_state_bytes (s->fir);
@@ -555,6 +558,8 @@ dp_wfm_synth_get_state (const dp_wfm_synth_state_t *s, void *blob)
   dp_w_bytes (&_w, &s->cur_data, 1);
   dp_w_bytes (&_w, &s->primed, 1);
   dp_w_bytes (&_w, &s->data_ended, 1);
+  dp_w_u64 (&_w, (uint64_t)s->code_only_symbols);
+  dp_w_u64 (&_w, (uint64_t)s->frame_symbols);
   uint8_t pres[6] = { s->fir != NULL,  s->shaper != NULL, s->lo != NULL,
                       s->awgn != NULL, s->pn != NULL,     s->refill != NULL };
   dp_w_bytes (&_w, pres, 6);
@@ -605,6 +610,14 @@ dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
   /* In the blob since v3: a refill's end is its source's, which the
      sub-blob below restores, so it is carried rather than re-derived. */
   dp_r_bytes (&_r, &s->data_ended, 1);
+  /* In the blob since v5, checked by its setter's own predicate: the
+     window restores whether or not this synth was given one. */
+  const uint64_t code_only = dp_r_u64 (&_r);
+  const uint64_t frame     = dp_r_u64 (&_r);
+  if (frame && code_only > frame)
+    return DP_ERR_INVALID;
+  s->code_only_symbols = (size_t)code_only;
+  s->frame_symbols     = (size_t)frame;
   uint8_t pres[6] = { 0 }; /* dp_r_bytes writes nothing on an errored reader */
   dp_r_bytes (&_r, pres, 6);
   /* the blob's child set must match this instance's config (same wtype,
@@ -995,6 +1008,49 @@ dp_wfm_synth_steps (dp_wfm_synth_state_t *state, float _Complex *output,
   state->cur_im       = cim;
   state->bit_idx      = bit_idx;
   state->sym_read_idx = sidx;
+}
+
+void
+dp_wfm_synth_sweep_ends (double fs, double f_mid, double rate, size_t n,
+                         double center, double *f0, double *f_end)
+{
+  /* The synth's chirp phase at sample i is f0*i + k*i*(i-1)/2 (each
+   * increment lands AFTER its sample), so matching f(u) = f_mid + rate*u
+   * about `center` puts the start at f_mid - k*(center - 1/2), with k the
+   * slope in Hz per sample. This is the ONE copy of that arithmetic: the C
+   * test helper and doppler.wfm.rotate both take it from here. */
+  const double k = rate / fs;
+  *f0            = f_mid - k * (center - 0.5);
+  *f_end         = *f0 + k * (double)n;
+}
+
+void
+dp_wfm_synth_prod (dp_wfm_synth_state_t *state, const float _Complex *in,
+                   size_t n, float _Complex *out)
+{
+  /* The operator, not a second generator: the synth's own block kernel
+   * fills a small scratch and the product is one multiply per sample. The
+   * synth therefore advances exactly as dp_wfm_synth_steps(state, ., n)
+   * would: a split call sequence leaves the same synth state as one call
+   * (steps is chunk invariant). The PRODUCT agrees across such sequences to
+   * rounding, not to the bit -- the compiler may contract the multiply into
+   * an FMA differently on different paths (arm64 under -ffast-math, see the
+   * note on dp_wfm_synth_steps' kernel) -- so callers compare it with a few
+   * ulp of |in| * |y|. Reading in[i] only after scratch[i] exists, and
+   * writing out[i] last, is what makes out == in safe. */
+  enum
+  {
+    PCH = 256
+  };
+  float _Complex scratch[PCH];
+  for (size_t done = 0; done < n;)
+    {
+      size_t m = (n - done < (size_t)PCH) ? (n - done) : (size_t)PCH;
+      dp_wfm_synth_steps (state, scratch, m);
+      for (size_t i = 0; i < m; i++)
+        out[done + i] = in[done + i] * scratch[i];
+      done += m;
+    }
 }
 
 void

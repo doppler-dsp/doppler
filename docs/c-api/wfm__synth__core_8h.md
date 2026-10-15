@@ -87,6 +87,7 @@ _Synth component API._ [More...](#detailed-description)
 |  int | [**dp\_wfm\_synth\_get\_sym\_pos**](#function-dp_wfm_synth_get_sym_pos) (const [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state) <br>_Return the current position within the current symbol (0..nsps-1). Reaches nsps and wraps to 0 each time a new symbol is consumed from the PN LFSR. Useful for frame alignment: sym\_pos==0 on a step boundary means the very next sample begins a fresh symbol._  |
 |  int | [**dp\_wfm\_synth\_get\_wtype**](#function-dp_wfm_synth_get_wtype) (const [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state) <br>_Return the active waveform type discriminant. Maps to the WFM\_SYNTH\_\* enum: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk. Use this to inspect which synthesis path is active at runtime._  |
 |  void | [**dp\_wfm\_synth\_noise\_steps**](#function-dp_wfm_synth_noise_steps) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, float \_Complex \* output, size\_t n) <br>_Generate n noise-only samples — the synth's additive-AWGN term with no signal — continuing the same noise RNG stream_ [_**dp\_wfm\_synth\_steps()**_](wfm__synth__core_8h.md#function-dp_wfm_synth_steps) _draws from (no reseed, identical chunked awgn call pattern, so a gap rendered here is the seamless continuation of the on-time noise). Writes exact zeros and advances nothing for a clean synth (no AWGN child). Used by the composer to carry a segment's noise floor through its off-time gap._ |
+|  void | [**dp\_wfm\_synth\_prod**](#function-dp_wfm_synth_prod) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, const float \_Complex \* in, size\_t n, float \_Complex \* out) <br>_Multiply a block by the synth's next output samples._ `out[i] = in[i] * y[i]` _for_`i = 0 .. n-1` _, where_`y` _is exactly what_[_**dp\_wfm\_synth\_steps()**_](wfm__synth__core_8h.md#function-dp_wfm_synth_steps) _would emit next. The synth advances by_`n` _samples just as dp\_wfm\_synth\_steps(state, ., n) would, EXACTLY: a split call sequence (3 + 5 + n) leaves the same synth state as one call, and the synth samples_`y` _are the same, and_`n == 0` _is a no-op that does not advance it. The PRODUCT agrees across such sequences to rounding, not to the bit: the compiler may contract the multiply differently on the vector body and the scalar tail, split calls and in place vs out of place (the -ffast-math builds do on arm64; see the note in_[_**dp\_wfm\_synth\_steps()**_](wfm__synth__core_8h.md#function-dp_wfm_synth_steps) _), so compare products with a few ulp of_`|in| * |y|` _, and drive a single call path where byte-for-byte matters._`out` _may equal_`in` _(in place). No new state, so the state blob is unchanged._ |
 |  void | [**dp\_wfm\_synth\_reseed\_noise**](#function-dp_wfm_synth_reseed_noise) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, uint32\_t seed) <br>_Reseed only the additive-noise (AWGN) generator, leaving the signal (LO / PN code / data / pulse shaping) untouched. A no-op for a synth with no noise. Used by the composer to give each repeat a fresh noise realization while the underlying waveform stays bit-identical._  |
 |  void | [**dp\_wfm\_synth\_reset**](#function-dp_wfm_synth_reset) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state) <br>_Reset Synth to its post-create state. Resets the LO phase accumulator, AWGN internal state, and PN LFSR register to their initial values so the output sequence is perfectly reproducible from sample 0._  |
 |  int | [**dp\_wfm\_synth\_set\_bits**](#function-dp_wfm_synth_set_bits) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, const uint8\_t \* bits, size\_t n, int modulation) <br>_Attach a user bit pattern to a type=bits synth (no-op otherwise)._  |
@@ -108,6 +109,7 @@ _Synth component API._ [More...](#detailed-description)
 |  const char \* | [**dp\_wfm\_synth\_state\_refusal**](#function-dp_wfm_synth_state_refusal) (const [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state) <br>_Why the synth's state cannot be serialized, or NULL when it can._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**dp\_wfm\_synth\_step**](#function-dp_wfm_synth_step) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state) <br>_Generate one output sample from internal state. Advances the PN LFSR (modulated types only, on symbol boundaries), the LO phase accumulator, and the AWGN engine, then returns the mixed result:_ `sym * carrier + noise` _. Inlined and hot-path annotated so tight per-sample loops pay no call overhead._ |
 |  void | [**dp\_wfm\_synth\_steps**](#function-dp_wfm_synth_steps) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, float \_Complex \* output, size\_t n) <br>_Generate a block of output samples. Calls_ [_**dp\_wfm\_synth\_step()**_](wfm__synth__core_8h.md#function-dp_wfm_synth_step) _in a tight loop, writing each cf32 sample into_`output` _. The Python binding returns a freshly allocated NumPy complex64 array; ownership is transferred to the caller._ |
+|  void | [**dp\_wfm\_synth\_sweep\_ends**](#function-dp_wfm_synth_sweep_ends) (double fs, double f\_mid, double rate, size\_t n, double center, double \* f0, double \* f\_end) <br>_Start and end frequency of the chirp that sweeps about a center. A chirp with_ `freq = *f0` _,_`f_end = *f_end` _and dp\_wfm\_synth\_set\_chirp\_span(n) has instantaneous frequency_`f_mid + rate*u` _(Hz) at sample_`i` _,_`u = (i - center)/fs` _seconds, and so multiplies a block by_`exp(j*2*pi*(f_mid*u + rate*u^2/2))` _up to one constant phase (the synth's phase is 0 at sample 0, the formula's at_`u = 0` _). The synth's increment lands after its sample, hence the half-sample in_`*f0` _. Pure arithmetic: no state, nothing allocated._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**wfm\_synth\_bit\_next**](#function-wfm_synth_bit_next) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* s, unsigned \* bit) <br>_The next bit of the pattern, or none once the data has ended._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float \_Complex | [**wfm\_synth\_bit\_symbol**](#function-wfm_synth_bit_symbol) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* s) <br>_Next symbol from the user bit pattern — one mapping, every M._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**wfm\_synth\_bps**](#function-wfm_synth_bps) (int type) <br>_Bits carried by one symbol of_ `type` _— the_`bps` _an Eb/No needs._ |
@@ -151,7 +153,7 @@ _Synth component API._ [More...](#detailed-description)
 | define  | [**WFM\_DSSS\_ENDED**](wfm__synth__core_8h.md#define-wfm_dsss_ended)  `2u`<br> |
 | define  | [**WFM\_SYNTH\_SNR\_CLEAN**](wfm__synth__core_8h.md#define-wfm_synth_snr_clean)  `100.0`<br> |
 | define  | [**WFM\_SYNTH\_STATE\_MAGIC**](wfm__synth__core_8h.md#define-wfm_synth_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('W','F','M','S')`<br> |
-| define  | [**WFM\_SYNTH\_STATE\_VERSION**](wfm__synth__core_8h.md#define-wfm_synth_state_version)  `4u`<br> |
+| define  | [**WFM\_SYNTH\_STATE\_VERSION**](wfm__synth__core_8h.md#define-wfm_synth_state_version)  `5u`<br> |
 
 ## Detailed Description
 
@@ -587,6 +589,51 @@ void dp_wfm_synth_noise_steps (
 
 
 
+### function dp\_wfm\_synth\_prod 
+
+_Multiply a block by the synth's next output samples._ `out[i] = in[i] * y[i]` _for_`i = 0 .. n-1` _, where_`y` _is exactly what_[_**dp\_wfm\_synth\_steps()**_](wfm__synth__core_8h.md#function-dp_wfm_synth_steps) _would emit next. The synth advances by_`n` _samples just as dp\_wfm\_synth\_steps(state, ., n) would, EXACTLY: a split call sequence (3 + 5 + n) leaves the same synth state as one call, and the synth samples_`y` _are the same, and_`n == 0` _is a no-op that does not advance it. The PRODUCT agrees across such sequences to rounding, not to the bit: the compiler may contract the multiply differently on the vector body and the scalar tail, split calls and in place vs out of place (the -ffast-math builds do on arm64; see the note in_[_**dp\_wfm\_synth\_steps()**_](wfm__synth__core_8h.md#function-dp_wfm_synth_steps) _), so compare products with a few ulp of_`|in| * |y|` _, and drive a single call path where byte-for-byte matters._`out` _may equal_`in` _(in place). No new state, so the state blob is unchanged._
+```C++
+void dp_wfm_synth_prod (
+    dp_wfm_synth_state_t * state,
+    const float _Complex * in,
+    size_t n,
+    float _Complex * out
+) 
+```
+
+
+
+This is the general waveform-multiplication operator: with a tone synth it is a rotation, with a chirp synth a swept rotation, with noise a noise multiplier, with PN/BPSK a modulation.
+
+
+
+
+**Parameters:**
+
+
+* `state` Initialized Synth state returned by `dp_wfm_synth_create`. 
+* `in` Input block of `n` cf32 samples. 
+* `n` Number of samples. 
+* `out` Output block of `n` cf32 samples (may be the input block itself). 
+```C++
+>>> from doppler.wfm import Synth
+>>> import numpy as np
+>>> s = Synth(type="tone", fs=1.0, freq=0.25)
+>>> y = s.prod(np.ones(4, np.complex64))
+>>> bool(np.allclose(y, [1, 1j, -1, -1j], atol=1e-5))
+True
+```
+ 
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_wfm\_synth\_reseed\_noise 
 
 _Reseed only the additive-noise (AWGN) generator, leaving the signal (LO / PN code / data / pulse shaping) untouched. A no-op for a synth with no noise. Used by the composer to give each repeat a fresh noise realization while the underlying waveform stays bit-identical._ 
@@ -667,7 +714,7 @@ int dp_wfm_synth_set_bits (
 
 
 
-Copies `n` bits (each 0/1) into the synth; `modulation` maps them to symbols (0=none → 0/1 amplitude, 1=bpsk → ±1, 2=qpsk → Gray-coded ±1/√2, two bits per symbol). The pattern is oversampled by the create-time `sps` and sent ONCE: one pass is `n * sps` samples (`n/2 * sps` for qpsk), and the output is silent after it (doppler#1718 deleted the cycle; a payload that goes on is a data source, dp\_wfm\_synth\_set\_refill). Replaces any previous pattern; resets the read position. Safe to call repeatedly.
+Copies `n` bits (each 0/1) into the synth; `modulation` is the bits per symbol, mapping them to symbols (0=none → 0/1 amplitude, 1=bpsk → ±1, 2=qpsk, 3=8psk: each symbol's bits read MSB-first as a Gray label into `mpsk_constellation()`, see `wfm_synth_bit_symbol`). The pattern is oversampled by the create-time `sps` and sent ONCE: one pass is `n * sps` samples (`n / modulation * sps` for a PSK), and the output is silent after it (doppler#1718 deleted the cycle; a payload that goes on is a data source, dp\_wfm\_synth\_set\_refill). Replaces any previous pattern; resets the read position. Safe to call repeatedly.
 
 
 
@@ -678,7 +725,7 @@ Copies `n` bits (each 0/1) into the synth; `modulation` maps them to symbols (0=
 * `state` Must be non-NULL. 
 * `bits` Array of `n` bytes, each 0 or 1. 
 * `n` Number of bits (&gt; 0). 
-* `modulation` 0=none, 1=bpsk, 2=qpsk. 
+* `modulation` 0=none, 1=bpsk, 2=qpsk, 3=8psk. 
 
 
 
@@ -909,7 +956,7 @@ int dp_wfm_synth_set_dsss_window (
 
 
 
-The frame is on the DATA clock: of every `frame_symbols` symbols, the first `code_only_symbols` carry the pure spreading code and no data, and the rest carry the payload, running on from the previous frame. The symbol clock is the stream's own free-running one (see wfm\_synth\_cont\_dsss\_chip), so a frame edge lands at whatever chip phase it lands at: the chip and data clocks have no fixed relation, and no frame edge is synchronous with a code epoch. This is the multi-emitter waveform's frame — 450 code-only symbols then 4500 of data in the application it was written for — and the searcher's coherent depth is what the window makes possible. Configuration, not running state: it is kept by reset() and is not serialized. The order against [**dp\_wfm\_synth\_set\_dsss\_cont()**](wfm__synth__core_8h.md#function-dp_wfm_synth_set_dsss_cont) does not matter.
+The frame is on the DATA clock: of every `frame_symbols` symbols, the first `code_only_symbols` carry the pure spreading code and no data, and the rest carry the payload, running on from the previous frame. The symbol clock is the stream's own free-running one (see wfm\_synth\_cont\_dsss\_chip), so a frame edge lands at whatever chip phase it lands at: the chip and data clocks have no fixed relation, and no frame edge is synchronous with a code epoch. This is the multi-emitter waveform's frame — 450 code-only symbols then 4500 of data in the application it was written for — and the searcher's coherent depth is what the window makes possible. Configuration, not running state: reset() keeps it. Like every setter's value it travels in the state blob (v5), so a synth restored without this call resumes the framed stream; a blob whose window breaks the rule below is refused. The order against [**dp\_wfm\_synth\_set\_dsss\_cont()**](wfm__synth__core_8h.md#function-dp_wfm_synth_set_dsss_cont) does not matter.
 
 
 
@@ -1372,6 +1419,45 @@ void dp_wfm_synth_steps (
 
 
 
+### function dp\_wfm\_synth\_sweep\_ends 
+
+_Start and end frequency of the chirp that sweeps about a center. A chirp with_ `freq = *f0` _,_`f_end = *f_end` _and dp\_wfm\_synth\_set\_chirp\_span(n) has instantaneous frequency_`f_mid + rate*u` _(Hz) at sample_`i` _,_`u = (i - center)/fs` _seconds, and so multiplies a block by_`exp(j*2*pi*(f_mid*u + rate*u^2/2))` _up to one constant phase (the synth's phase is 0 at sample 0, the formula's at_`u = 0` _). The synth's increment lands after its sample, hence the half-sample in_`*f0` _. Pure arithmetic: no state, nothing allocated._
+```C++
+void dp_wfm_synth_sweep_ends (
+    double fs,
+    double f_mid,
+    double rate,
+    size_t n,
+    double center,
+    double * f0,
+    double * f_end
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `fs` Sample rate, Hz (&gt; 0). 
+* `f_mid` Frequency at the center, Hz. 
+* `rate` Sweep, Hz per second. 
+* `n` Samples the sweep spans (pass to set\_chirp\_span). 
+* `center` Sample index of `u = 0` (need not be an integer). 
+* `f0` Out: chirp start frequency, Hz. 
+* `f_end` Out: chirp end frequency, Hz. 
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function wfm\_synth\_bit\_next 
 
 _The next bit of the pattern, or none once the data has ended._ 
@@ -1700,7 +1786,7 @@ double eb_db = wfm_synth_snr_over_fs (2, wfm_synth_bps (WFM_SYNTH_QPSK),
 ### define WFM\_SYNTH\_STATE\_VERSION 
 
 ```C++
-#define WFM_SYNTH_STATE_VERSION `4u`
+#define WFM_SYNTH_STATE_VERSION `5u`
 ```
 
 

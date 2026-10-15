@@ -188,11 +188,11 @@ constructors accept it: any finite `cn0_dbhz` is a design point, and NaN
 
     | preamble                                                              | Δ Pd                  | mean \|delay error\| | reads as                            |
     | --------------------------------------------------------------------- | --------------------- | -------------------- | ----------------------------------- |
-    | code, 31 chips × 4 (control: §2.6 measured 0.740 ± 0.025, this 0.729) | +0.08                 | 0.4 samples          | the harness reproduces §2.6         |
-    | random-phase QPSK, 96                                                 | +0.04 / +0.04 / +0.04 | 0.2–0.3              | conservative                        |
-    | Zadoff-Chu, 127                                                       | +0.04 / +0.05 / +0.04 | 0.9–2.6              | conservative                        |
+    | code, 31 chips × 4 (control: §2.6 measured 0.710 ± 0.026, this 0.695) | +0.08                 | 0.4 samples          | the harness reproduces §2.6         |
+    | random-phase QPSK, 96                                                 | +0.04 / +0.05 / +0.04 | 0.2–0.3              | conservative                        |
+    | Zadoff-Chu, 127                                                       | +0.04 / +0.05 / +0.05 | 0.7–2.5              | conservative                        |
     | chirp, 128                                                            | +0.08 / +0.12 / +0.08 | 0.3                  | conservative: the ridge slide above |
-    | QPSK 96, 5-tap low-passed                                             | +0.07 / +0.10 / +0.05 | 0.4                  | conservative                        |
+    | QPSK 96, 5-tap low-passed                                             | +0.06 / +0.10 / +0.05 | 0.3–0.4              | conservative                        |
 
     Every class keeps the "never optimistic" contract. The shaped template
     broke it (−0.01 to −0.03 at 3σ, #1483) until the model priced the CFAR
@@ -216,9 +216,10 @@ constructors accept it: any finite `cn0_dbhz` is a design point, and NaN
     smears the carrier across slow-time rows, which the Pd model does not
     carry. Measured on 16 repetitions of Zadoff-Chu 127 under a 1.5 MHz/s
     ramp (`native/validation/acq_template_pd.c`): an engine told nothing is
-    sized at D = 10, predicts 0.91 and delivers 0.84. Told the rate, it caps
-    at D = 4, reports under-powered, predicts 0.42 and delivers 0.46
-    (measured 2026-09-24, 3000 trials).
+    sized at D = 10, predicts 0.91 and delivers 0.85. Told the rate, it caps
+    at D = 4, reports under-powered, predicts 0.42 and delivers 0.45
+    (measured 2026-10-15, after #2218 priced the gate over the interpolated
+    surface; 3000 trials).
 
 - **Which repetition** the burst starts in is the capture's to resolve, not
     the detector's (`BurstCapture`). So is a dwell that runs into the data after
@@ -582,13 +583,14 @@ ______________________________________________________________________
     is hundreds of channels. The fan-out makes that cheap; the orchestration is the
     real work.
 
-- **Doppler interpolation moves the H0 tail, and the threshold does not yet
-    know.** The full treatment is [§9.1](#91-what-pfa-means-for-a-peak-detector)
-    below; the short version is that `pfa_cell` is sized from a *sample count*
-    where the quantity that governs the false-alarm rate is a property of the
-    *surface*, and interpolation changes the former without changing the
-    latter.
-    [#1064](https://github.com/doppler-dsp/doppler/issues/1064)
+- **Doppler interpolation moves the H0 tail, and the threshold prices it
+    (doppler#2218).** The full treatment is [§9.1](#91-what-pfa-means-for-a-peak-detector)
+    below; the short version is that the quantity that governs the
+    false-alarm rate is a property of the *surface*, while `pfa_cell` is sized
+    from a *sample count* of it. Counting the interpolated surface's samples
+    is a never-exceed bound on that quantity, a few percent conservative;
+    the measured refinement is
+    [#1064](https://github.com/doppler-dsp/doppler/issues/1064).
 
 ______________________________________________________________________
 
@@ -628,10 +630,12 @@ if the surface were `N` independent cells then
 pfa = 1 - (1 - p)^N        ->        p = 1 - (1 - pfa)^(1/N)
 ```
 
-which is exactly what `acq_commit_thresholds()` computes, with
-`N = searched_bins · code_bins`. For a critically sampled DFT this is a good
-model: adjacent bins of a white-noise transform are very nearly uncorrelated,
-so the sample count and the independent-cell count nearly coincide.
+which is what `acq_commit_thresholds()` computed until doppler#2218, with
+`N = searched_bins · code_bins`. For the NATIVE surface of a critically
+sampled DFT that is a good model: adjacent bins of a white-noise transform
+are very nearly uncorrelated, so the native sample count and its
+independent-cell count nearly coincide. A maximum over the native rows only
+delivers 0.94–0.99× the target (below).
 
 **The gate reads the interpolated maximum; the report reads the native one.**
 Both `acq_compute_stat()` and `acq_compute_stat_nc()` deliberately compute two
@@ -641,8 +645,8 @@ gate fires. `nat` is restricted to *native* rows and sets the reported
 `doppler_bin`, because every consumer scales that by `doppler_res_hz` and a
 half-bin row would make the estimate jitter by a whole bin on noise.
 
-That split is the defect in one line: **the gate is decided by a maximum over
-the interpolated surface, while the threshold that gate compares against is
+That split was the defect in one line: **the gate was decided by a maximum
+over the interpolated surface, while the threshold it compared against was
 sized from the native cell count.**
 
 **Why that stops being true under interpolation.** The sampled surface is not
@@ -683,64 +687,77 @@ padding by `L` walks the estimate toward the true value:
 realized_pfa / target  ~=  N_eff(L) / N_eff(1)
 ```
 
-**Measured**, 60,000 pure-noise frames at `pfa = 1e-2` (the highest-count
-point, so the tightest bars), `doppler_bins = 8`, `n_noncoh = 1`, identical
-build and seed with only `ACQ_DOPPLER_INTERP` changed:
+**Measured** with a scratch harness, not in the tree, around the burst engine
+`validate_acq_rate_pd` builds (Zadoff-Chu 127 × 16 at fs = 1, `pfa = 1e-3`, no
+rate hypotheses), 1e6 noise dwells a row (doppler#2218). With `keep_surface`
+on, each row reads three statistics off the SAME dwells, from the engine's own
+surface and CFAR reference, as multiples of the target:
 
-| quantity              | measured        | what it says                       |
-| --------------------- | --------------- | ---------------------------------- |
-| `N_eff(1) / N`        | **0.89 ± 0.04** | the native model is *conservative* |
-| `N_eff(2) / N_eff(1)` | **1.86 ± 0.09** | what interpolation adds            |
-| `N_eff(2) / N`        | **1.65 ± 0.05** | what a caller actually gets        |
+|   D | shipped then: interpolated max, native `N` | native-only max | interpolated max, `N · L` (shipped now) |
+| --: | -----------------------------------------: | --------------: | --------------------------------------: |
+|   2 |                                      1.90× |           0.98× |                                       — |
+|   3 |                                      1.86× |           0.94× |                                  0.947× |
+|   5 |                                      1.92× |           0.97× |                                  0.946× |
+|   7 |                                      1.93× |           0.99× |                                  0.945× |
 
-Both arms run `n_noncoh = 1`, so this isolates the maximum-over-cells half
-with the per-cell sum reduced to a single look — the cleanest place to see the
-effect, and the configuration the characterization pins for its
-one-push-one-decision assumption.
+A PN m-sequence at D = 5 reads 1.88×, 0.98× and 0.969×. Holding the CFAR
+reference at its long-run mean instead of estimating it per dwell changes none
+of them by more than the intervals (±0.06–0.09).
 
-**Two errors of opposite sign, and they partly cancel.** `N_eff(1) < N`
-because adjacent DFT bins of a white-noise transform are not perfectly
-independent, so the Šidák count slightly overstates the looks — a *safe*
-direction, delivering fewer false alarms than asked for. Interpolation then
-overshoots it. The net is 1.65×, not 1.86×, and the distinction is
-load-bearing: 1.86 is the ratio between two *builds*, not the rate any caller
-experiences, and a correction of 1.86 applied to a model already 11%
-conservative would land at 0.89 of target.
+So `N_eff(2)/N_eff(1)` is 1.93–1.98 here: each interpolated row is nearly a
+full extra look in the deep tail. A half-bin row's correlation with its native
+neighbors is about 0.64, which a cell probability near 1e-6 all but ignores.
+The earlier measurement (60,000 frames at `pfa = 1e-2`, `doppler_bins = 8`)
+read 1.65× delivered and decomposed it as 0.89 × 1.86. Its 0.89 was not cell
+correlation but doppler#1183: an even depth never searched its outermost bin,
+so 7 of 8 counted bins were searched (0.875). With the band searched to its
+edge, the delivered ratio was the interpolation factor alone.
 
-`pd_predicted` and `underpowered` read the same `pfa_cell`, so they are
-optimistic by the same factor.
+**The shipped bound, and the refinement left open.** Since doppler#2218 the
+split is over the cells the maximum ranges over: `acq_band_cells()`, every
+searched row of the interpolated surface times `code_bins`, times the rate
+hypotheses. It is the one count all three sites that price a gate use.
+Counting each interpolated row as an independent look over-counts by exactly
+what its correlation is worth, so this is a **never-exceed bound**: the
+delivered rate is at or below the target (0.945–0.969× above). Its cost is the
+gate's rise past what the tail requires, `Δη/η ≈ ln(1/ratio)/η²`: about
+0.015 dB of sensitivity at the burst engine's 0.95×, and at most about 0.12 dB
+where native cells are themselves correlated (an oversampled code). The
+correction that would recover that margin is the measured `N_eff(L)/N_eff(1)`
+per grid geometry. It is bounded above by `L` and close to it, and it is
+[#1064](https://github.com/doppler-dsp/doppler/issues/1064), still open.
 
-**Only `N` is wrong — the form is right.** The ratio holds across three
-decades of target: 1.65 / 1.40 / 1.50 at 1e-2 / 1e-3 / 1e-4 with interpolation
-on, and 0.89 / 0.77 / 0.83 with it off. That constancy is the signature of a
-multiplicative cell-count error. A miscalibrated per-cell threshold, or an
-unaccounted CFAR estimation loss from a finite reference window, would
-**drift** with the target instead. Neither does, which clears
-`det_threshold()`, `det_threshold_noncoherent()` and the `sqrt(2/pi)`
-mean-estimator conversion.
+Rate hypotheses are the same question on another axis. Each one is priced as
+an independent look at each cell, but neighboring hypotheses are strongly
+correlated, so the delivered rate falls to 0.60, 0.52 and 0.22 of the target
+at n = 3, 5 and 9 (#2287, which reported the opposite before the base was
+priced: these rows now sit under the target, not over it).
 
-That `N_eff(2)/N_eff(1)` sits just under `L = 2` is not a coincidence and is
-also not a derivation: it says the interstitial samples contribute *nearly* an
-independent look each at this bandwidth. Since that depends on the surface's
-correlation, it is a number to **measure per grid geometry**, not a constant to
-hard-code.
+**Where this is enforced.**
 
-**Why the obvious correction is wrong.** Sizing from `N · L` treats every
-interpolated sample as an independent test. They are not — they are
-correlated by construction, since interpolation is a deterministic function of
-the native samples. A Bonferroni over `N · L` therefore over-corrects, raising
-`eta` further than the tail requires and giving away detection sensitivity to
-buy a false-alarm rate that was already met. `acq_core.c` warns about exactly
-this failure direction. The correction wanted is `N_eff(L) / N_eff(1)`, which
-is bounded above by `L` and, as measured, close to it here but not equal.
-
-**Where this is enforced.** The certification measures the realized rate
-against the configured target (§2.5), records the gap as finding **F7**, and
-holds it with a ratchet that may only shrink — closing
-[#1064](https://github.com/doppler-dsp/doppler/issues/1064) is what earns
-`1.0`. The characterization predicts its sweep counts from the *delivered*
-rate rather than the configured one; predicting from the target is what made
-it fail against a detector that was obeying its own threshold exactly.
+- `test_acq_core.c` pins `pfa_cell` to the band mask's in-band cell count on
+    every grid shape.
+- The certification measures the delivered rate against the target (§2.5,
+    finding **F7**, now FIXED) and holds it with a ratchet that may only
+    shrink: 1.4× over 60,000 frames. That is a backstop to the pin above: an
+    on-target detector trips it about 0.1% of the time, and the native
+    pricing, which measures 1.76× on that engine (21 seeds), escapes it about
+    2% of the time.
+- `validate_acq_rate_pd_pfa`, in CI's sweep-validators job, holds the burst
+    engine's per-dwell rows at the design point, each not significantly above
+    the target: n = 1, 3 and auto over 100,000 dwells, and n = 5 and 9 over
+    20,000 (#2324). Only n = 1 detects a doubled rate (false red 0.76%,
+    escape about 0). On 3 and auto a doubling only just crosses the target,
+    so they are backstops that a doubling escapes 49% and 18% of the time.
+    The exact guards are the pin above and `make lint-acq-pfa-split`, which
+    holds every `dp_det_pfa_cell` call under `native/src/acq/` to
+    `acq_band_cells`.
+- `validate_acq_block_coherent --check` holds the continuous engine's
+    per-block rate at the configured one over 400 blocks, which detects the
+    native pricing rather than pinning one draw: put back, it fired 127 of
+    400, past the band's edge (104) by about 2.5 of its own sigma.
+- The characterization predicts its sweep counts from the *delivered* rate
+    rather than the configured one.
 
 ______________________________________________________________________
 
@@ -814,9 +831,10 @@ prior was undetectable at any C/N0 — a Pd ceiling of (D−1)/D, and the
 between-channel hole of #1179. Fixed to search to the edge. The Pd model
 (`acq_mean_pd`) now derates slow-time scalloping over the *interpolated*
 bin the peak search samples rather than the native one: at D=8, 50 dB-Hz
-it read 0.47 where the engine measures 0.72; it reads 0.63 now, and stays
+it read 0.47 where the engine measured 0.72. It reads 0.61 against 0.71
+measured now, with the gate priced over the interpolated surface (#2218), and stays
 conservative because the Marcum form does not credit the maximum over an
-interpolated surface under H1 (the H1 face of #1064).
+interpolated surface under H1 (the H1 face of §9.1's maximum).
 
 **P4 (orchestration) — shipped.** `src/doppler/dsss/orchestrator.py`
 (`Acquirer`/`CoarseChannel`) implements thread-pool fan-out over

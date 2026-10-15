@@ -16,6 +16,7 @@
 typedef struct
 {
   PyObject_HEAD dp_syncword_state_t *handle;
+  jm_inflight_t _jm_inflight; /* gh-2272: GIL-free calls running */
 } SyncFinderObject;
 
 static void
@@ -23,6 +24,7 @@ SyncFinderObj_dealloc (SyncFinderObject *self)
 {
   if (self->handle)
     dp_syncword_destroy (self->handle);
+  jm_inflight_free (&self->_jm_inflight);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -127,14 +129,16 @@ SyncFinderObj_find (SyncFinderObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
     }
-  /* nogil: GIL released across the pure-C kernel — sound only when
-   * this object is not shared across threads concurrently (one
-   * object per stream); the kernel touches only this object's
-   * state/buffers and the caller's input. */
+  /* nogil: GIL released across the pure-C kernel. Two calls on
+   * one object may run at once only if its kernel allows it; a
+   * teardown waits for a running call (gh-2272). */
   syncword_hit_t _r;
+  void          *_jm_h = self->handle;
+  jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
-    _r = dp_syncword_find (self->handle, bits, bits_len, max_errors);
+    _r = dp_syncword_find (_jm_h, bits, bits_len, max_errors);
   Py_END_ALLOW_THREADS
+  jm_inflight_leave (&self->_jm_inflight);
   Py_DECREF (bits_arr);
   PyObject *_o = PyStructSequence_New (SyncFinderObj_find_type);
   if (!_o)
@@ -233,8 +237,16 @@ SyncFinderObj_destroy (SyncFinderObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      dp_syncword_destroy (self->handle);
+      void *_jm_st = self->handle;
       self->handle = NULL;
+      /* gh-2272: a GIL-free call may still be running on this
+         object; new ones are refused from here, so wait for those. */
+      if (jm_inflight_wait (&self->_jm_inflight) < 0)
+        {
+          self->handle = _jm_st;
+          return NULL;
+        }
+      dp_syncword_destroy (_jm_st);
     }
   Py_RETURN_NONE;
 }
@@ -252,8 +264,16 @@ SyncFinderObj_exit (SyncFinderObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      dp_syncword_destroy (self->handle);
+      void *_jm_st = self->handle;
       self->handle = NULL;
+      /* gh-2272: a GIL-free call may still be running on this
+         object; new ones are refused from here, so wait for those. */
+      if (jm_inflight_wait (&self->_jm_inflight) < 0)
+        {
+          self->handle = _jm_st;
+          return NULL;
+        }
+      dp_syncword_destroy (_jm_st);
     }
   Py_RETURN_NONE;
 }

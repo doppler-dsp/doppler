@@ -294,12 +294,12 @@ decision already made.
     per dwell over-credited small D by up to 0.05). The sizer meets `pd` with
     it, and `underpowered` reads it
     ([#1498](https://github.com/doppler-dsp/doppler/issues/1498)). With each
-    depth at `pd_burst` = 0.6, the engine delivers 0.64–0.71 against it
+    depth at `pd_burst` = 0.6, the engine delivers 0.64–0.70 against it
     (`native/validation/capture_dwell_pd.c`): conservative within acq's
     bounds at every D. D = 1 was 0.045 optimistic until the model priced the
     CFAR reference, 127 cells there and inflated by the burst itself
     ([#1501](https://github.com/doppler-dsp/doppler/issues/1501)). The
-    capture then loses a further 0.01–0.05 after the engine detects, which
+    capture then loses a further 0.00–0.02 after the engine detects, which
     the model's margin covers but does not price
     ([#1502](https://github.com/doppler-dsp/doppler/issues/1502)). The delay
     must be continuous: a first run put every burst on a whole sample and
@@ -695,9 +695,10 @@ in effect: `D*(n)` is the depth it picks with the drift bound OFF, priced with
 (`n = 1`: `R` itself). The first `n` with `D_cap(n) >= D*(n)` is the first at
 which the hypotheses stop costing depth, so it is the smallest that does not
 trade sensitivity for work; if none does by 64, it is 64. At the design point
-below it picks `n = 4` at `D = 9`, where `n = 9` is `D = 10`: the same capture
-Pd (0.916 against 0.912, 250 trials) for under half the per-dwell work. A
-strong design point that a capped depth already serves picks `n = 1`. The
+below it picks `n = 3` at `D = 8`, where `n = 9` is `D = 9`: a capture Pd of
+0.927 (95% 0.909 – 0.942) against `n = 9`'s 0.932 (0.915 – 0.946) at 1000
+trials, the same within the intervals, with a third of the hypotheses a
+dwell (the table below). A strong design point that a capped depth already serves picks `n = 1`. The
 choice reads back as `rate_hypotheses`, burst engines only, and like any
 `n > 1` it needs a `doppler_rate` to span.
 
@@ -715,17 +716,18 @@ design point. Adjacent hypotheses differ by at most π/4 of phase at the
 block's edges at the depth the residual bound allows, so at the C/N0 the
 engine was sized for noise picks among neighbours, and a dwell straddling the
 preamble's edge integrates part payload and often names ±R. Measured by
-`validate_acq_rate_pd`'s reported-rate rows (`n = 9`, `D = 10`, design
-−13 dB-Hz, 200 seeded bursts a row):
+`validate_acq_rate_pd`'s reported-rate rows (`n = 9`, `D = 9`, design
+−12.75 dB-Hz, 200 seeded bursts a row):
 
-| signal | true rate | all hits naming the nearest | full-block hits naming it |
-| ------ | --------- | --------------------------: | ------------------------: |
-| −13 dB | 0         |                       20.4% |            29.5% (of 112) |
-| −13 dB | +R        |                       53.3% |            66.1% (of 118) |
-| +10 dB | 0         |                       39.2% |             100% (of 119) |
-| +10 dB | +R        |                       51.5% |             100% (of 121) |
+| signal    | true rate | all hits naming the nearest | full-block hits naming it |
+| --------- | --------- | --------------------------: | ------------------------: |
+| −12.75 dB | 0         |                       15.0% |            18.3% (of 142) |
+| −12.75 dB | +R        |                       52.5% |            60.3% (of 151) |
+| +10.25 dB | 0         |                       39.8% |             100% (of 158) |
+| +10.25 dB | +R        |                       56.1% |             100% (of 165) |
 
-About three hits in four come from straddling dwells. The 23-dB-over rows are
+About half the hits at the design point, and seven in ten well above it, come
+from straddling dwells. The 23-dB-over rows are
 gated (95% of the full-block hits, with at least 40 of them); the others are
 printed and not claimed. Detection is unaffected, since the surface that wins
 is a good one whichever neighbour it is; treat the value as a seed. With
@@ -740,55 +742,107 @@ every hit of a dwell wears the winner's rate.
     A *dwell* costs more than `n` times, because the block also gets deeper
     with `n`. Measured, one thread, ZC 127 × 16 at fs = 1: 43 µs a dwell
     uncompensated (D = 5), 418 µs at `n = 5` (D = 9), 772 µs at `n = 9`
-    (D = 10), about 85 µs a hypothesis.
+    (D = 10), about 85 µs a hypothesis. Refine's own rate grid is paid once
+    a burst, not a dwell: searched with one acquisition hypothesis and a
+    declared rate (nine rows instead of one), it adds about 0.42 ms to a
+    40,000-sample push carrying one burst, 2.52 ms against 2.93 ms (#2219).
 - *False alarms* are priced, not hoped away: the per-cell Pfa is split over
-    `n·searched_bins·code_bins` cells, so the gate rises with `n`. The
-    hypotheses are strongly correlated, so that is conservative: measured per
-    dwell against a target of 1e-3, `n = 3, 5, 9` read 1.06e-3, 0.89e-3,
-    0.59e-3, none significantly above it.
+    `n` times the cells a dwell's maximum ranges over (every searched row of
+    the interpolated surface, times `code_bins`), so the gate rises with `n`.
+    The hypotheses are strongly correlated, so that is conservative: measured
+    per dwell against a target of 1e-3 (200,000 dwells each), `n = 1, 3, 5, 9`
+    read 0.95e-3, 0.60e-3, 0.52e-3 and 0.22e-3 (#2287). CI holds them, each
+    not significantly above the target, in `validate_acq_rate_pd_pfa` (#2324).
 - *Refine follows.* Its coherent sum runs the whole preamble, so a sweep that
     the engine's short dwell tolerates collapses it: the capture named the
     wrong repetition for about half the bursts at high SNR. Refine tries the
     same rates (on a grid denser than the engine's whenever the engine's is
-    too coarse for `reps` periods, the drift rule at that depth), and widens
+    too coarse for `reps` periods, the drift rule at that depth), whenever a
+    rate is DECLARED, so with one acquisition hypothesis too (#2219), and widens
     its Doppler cells by the shift a rate puts between the detecting dwell's
     middle and the preamble's. Each of those two is worth about 0.02 of Pd on
     the validator's trials.
 
 **What it buys, measured** (`native/validation/acq_rate_pd.c`; ZC 127 × 16,
 fs = 1, rate span ±9e-7 cycles/sample², so a carrier at the span's rate
-sweeps 0.0018 of fs across the preamble; C/N0 −13 dB, where `n = 9` predicts a burst Pd of 0.9;
-1000 trials a row; Wilson 95%):
+sweeps 0.0018 of fs across the preamble; C/N0 −12.75 dB, where `n = 9` predicts a burst Pd of 0.9;
+1000 trials a row; Wilson 95%; the swept carrier is the library's own
+rotation, `dp_swept_rotate`, not a private phase ramp):
 
-|   n |   D | rate drawn | `pd_burst` | engine |   capture | capture 95%   |
-| --: | --: | :--------- | ---------: | -----: | --------: | :------------ |
-|   1 |   5 | uniform    |      0.849 |  0.945 | **0.546** | 0.515 – 0.577 |
-|   3 |   8 | uniform    |      0.899 |  0.976 |     0.912 | 0.893 – 0.928 |
-|   3 |   8 | midpoint   |      0.899 |  0.979 |     0.916 | 0.897 – 0.932 |
-|   5 |   9 | uniform    |      0.907 |  0.988 |     0.930 | 0.912 – 0.944 |
-|   5 |   9 | midpoint   |      0.907 |  0.984 |     0.927 | 0.909 – 0.942 |
-|   9 |  10 | uniform    |      0.904 |  0.985 |     0.912 | 0.893 – 0.928 |
-|   9 |  10 | midpoint   |      0.904 |  0.977 |     0.918 | 0.899 – 0.933 |
+|   n |   D | rate drawn    | `pd_burst` | engine |   capture | capture 95%   |
+| --: | --: | :------------ | ---------: | -----: | --------: | :------------ |
+|   1 |   5 | uniform       |      0.848 |  0.958 | **0.905** | 0.885 – 0.922 |
+|   3 |   8 | uniform       |      0.903 |  0.981 |     0.919 | 0.900 – 0.934 |
+|   3 |   8 | midpoint      |      0.903 |  0.984 |     0.935 | 0.918 – 0.949 |
+|   5 |   9 | uniform       |      0.911 |  0.982 |     0.926 | 0.908 – 0.941 |
+|   5 |   9 | midpoint      |      0.911 |  0.983 |     0.931 | 0.914 – 0.945 |
+|   9 |   9 | uniform       |      0.900 |  0.978 |     0.932 | 0.915 – 0.946 |
+|   9 |   9 | midpoint      |      0.900 |  0.984 |     0.913 | 0.894 – 0.929 |
+|   3 |   8 | uniform, auto |      0.903 |  0.979 |     0.927 | 0.909 – 0.942 |
 
 *midpoint* puts every trial's rate exactly half a spacing from the nearest
 hypothesis, the worst case the depth bound is derived against; *uniform* draws
 it over the span. `pd_burst` prices a rate ON a hypothesis, and the table is
 the evidence that the half-spacing residual costs nothing beyond what the
 bound already allows: the worst case reads the same as the average.
-Uncompensated, the same C/N0 delivers 0.55: the engine still sees the burst
-(0.945) and refine loses it.
+Uncompensated, one hypothesis with the rate declared, the capture delivers
+0.905, above its own `pd_burst`. It used to deliver 0.555: the engine saw the
+burst (0.946 then) and refine lost it, because refine searched rates only when the
+engine had several hypotheses. Keyed on the declared rate, refine keeps what
+the engine finds (#2219). What hypotheses still buy is the engine's depth,
+and that shows where the capped depth is underpowered, 3 dB under the design
+point: engine Pd 0.542 capped against 0.747 for `n = 5` (what auto picks at
+that C/N0; at the design point it picks `n = 3`) and 0.685 for `n = 9`,
+outside the intervals. A capture still places a few percent fewer bursts than
+its engine detects, compensated or not (0.905–0.935 against 0.958–0.984
+above), which is refine's own cost, open in #2341.
 
-**Two things this does not say.** The uncompensated row's Pfa is a separate
-finding: the engine as it ran before this section reads **1.97e-3** a dwell
-against a target of 1e-3 (393 hits in 200000 dwells, 95% 1.78 – 2.17e-3).
-That row is the code path this change leaves untouched when `n = 1`, so it is
-reported here and filed, not fixed here. And the tiled grid is covered by the
-C tests (rate found, either sign, in a tile off the centre) but not by the
+**Not a property of the Zadoff-Chu sequence.** The validator repeats the
+claims on two more preamble families of the same 127 × 16 geometry, each from
+the shipped waveform generator at its own design point: a repeated LFM chirp
+(−fs/4 to +fs/4 a period) and a PN m-sequence on `dp_mls_poly(7)`. Capped
+(`n = 1`) against `n = 5`, 1000 trials a row:
+
+| preamble |      C/N0 | capped capture (`pd_burst`)  | `n = 5` capture (`pd_burst`) | 3 dB under, engine: capped vs `n = 5`          |
+| :------- | --------: | :--------------------------- | :--------------------------- | :--------------------------------------------- |
+| LFM      | −14.00 dB | 0.924, 0.906 – 0.939 (0.842) | 0.915, 0.896 – 0.931 (0.917) | 0.471 (0.440 – 0.502) vs 0.760 (0.733 – 0.785) |
+| PN       | −12.75 dB | 0.879, 0.857 – 0.898 (0.847) | 0.925, 0.907 – 0.940 (0.911) | 0.554 (0.523 – 0.585) vs 0.742 (0.714 – 0.768) |
+
+Both captures deliver their `pd_burst` within the interval. Compensation's
+depth beats the capped depth 3 dB under the design point, outside the
+intervals, at the engine and at the capture (LFM 0.362 against 0.603, PN 0.465
+against 0.624). Each family's Pfa is held too.
+
+**Two things this does not say.** The uncompensated row's Pfa was a separate
+finding, since fixed: the engine read **1.97e-3** a dwell against a target of
+1e-3, because its gate was priced over the native cells while its maximum
+runs over the Doppler-interpolated surface (#2218, the mechanism in
+[DSSS acquisition §9.1](dsss-acquisition.md#91-what-pfa-means-for-a-peak-detector)).
+Priced over the surface, it reads 0.95e-3. And the tiled grid is covered by
+the C tests (rate found, either sign, in a tile off the centre) but not by the
 Monte-Carlo above.
 
 Hits carry the winning hypothesis as `doppler_rate_hz_s` (BurstAcquisition's
-last field); a capture's events do not yet, because the queue, the blob and the
-event record all carry a hit and would change together.
+last field): the detecting dwell's, so reliable only from a block wholly inside
+the preamble. A capture's **events** carry refine's instead (#2219): the
+hypothesis whose de-chirp made the whole preamble's coherent sum largest at the
+refined start, on refine's own grid, which is at least as dense as the
+engine's. It is the better estimate by construction, from the whole preamble
+rather than one dwell, and it measures so (`validate_acq_rate_pd`'s
+event-rate rows, beside its rows for the hits). At 23 dB over the design
+point every captured event names the grid point nearest the truth: 100% at
+rate 0, at the span's edge, and off the grid, 0.4 of a step from a
+hypothesis. Under the same conditions the engine's hits name it 40% and 56%
+of the time (at 0 and the edge), and only the full-block ones, wholly inside
+the preamble, reach 100%: the event gets there whichever dwell anchored the
+burst. Nearer the design point the off-grid case is the one to read. There
+the event is the nearest in 82% and 89% of events on the grid (all the hits
+manage 15% and 52%, the full-block hits 18% and 60%), but in only 51% off it:
+a rate 0.4 of a step from one hypothesis is 0.6 from the next, and at that
+signal level noise picks the neighbour often. 3 dB over, 94% and 96% on the
+grid and 65% off it. The queue,
+the blob (version 6) and the event record carry it together, and a blob of
+the earlier layout (version 5) is refused.
 
 ## 10. See also
 

@@ -16,6 +16,7 @@
 typedef struct
 {
   PyObject_HEAD dp_burst_acq_state_t *handle;
+  jm_inflight_t _jm_inflight; /* gh-2272: GIL-free calls running */
 } BurstAcquisitionObject;
 
 static void
@@ -23,6 +24,7 @@ BurstAcquisitionObj_dealloc (BurstAcquisitionObject *self)
 {
   if (self->handle)
     dp_burst_acq_destroy (self->handle);
+  jm_inflight_free (&self->_jm_inflight);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -192,15 +194,17 @@ BurstAcquisitionObj_push (BurstAcquisitionObject *self, PyObject *args)
     }
   size_t       n_in = (size_t)PyArray_SIZE (in_arr);
   acq_result_t results[1024];
-  /* nogil: GIL released across the pure-C kernel — sound only when
-   * this object is not shared across threads concurrently (one
-   * object per stream); the kernel touches only this object's
-   * state/buffers and the caller's input. */
+  /* nogil: GIL released across the pure-C kernel. Two calls on
+   * one object may run at once only if its kernel allows it; a
+   * teardown waits for a running call (gh-2272). */
   const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (in_arr);
   size_t                n_out;
+  void                 *_jm_h = self->handle;
+  jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
-    n_out = dp_burst_acq_push (self->handle, _ng0, n_in, results, 1024);
+    n_out = dp_burst_acq_push (_jm_h, _ng0, n_in, results, 1024);
   Py_END_ALLOW_THREADS
+  jm_inflight_leave (&self->_jm_inflight);
   Py_DECREF (in_arr);
   if ((size_t)(n_out) > (size_t)(1024))
     {
@@ -790,8 +794,16 @@ BurstAcquisitionObj_destroy (BurstAcquisitionObject *self,
 {
   if (self->handle)
     {
-      dp_burst_acq_destroy (self->handle);
+      void *_jm_st = self->handle;
       self->handle = NULL;
+      /* gh-2272: a GIL-free call may still be running on this
+         object; new ones are refused from here, so wait for those. */
+      if (jm_inflight_wait (&self->_jm_inflight) < 0)
+        {
+          self->handle = _jm_st;
+          return NULL;
+        }
+      dp_burst_acq_destroy (_jm_st);
     }
   Py_RETURN_NONE;
 }
@@ -810,8 +822,16 @@ BurstAcquisitionObj_exit (BurstAcquisitionObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      dp_burst_acq_destroy (self->handle);
+      void *_jm_st = self->handle;
       self->handle = NULL;
+      /* gh-2272: a GIL-free call may still be running on this
+         object; new ones are refused from here, so wait for those. */
+      if (jm_inflight_wait (&self->_jm_inflight) < 0)
+        {
+          self->handle = _jm_st;
+          return NULL;
+        }
+      dp_burst_acq_destroy (_jm_st);
     }
   Py_RETURN_NONE;
 }
@@ -1181,13 +1201,13 @@ static PyTypeObject BurstAcquisitionObjType = {
     "...     with warnings.catch_warnings():\n"
     "...         warnings.simplefilter(\"ignore\")   # under-powered, below\n"
     "...         return BurstAcquisition(zc, reps=16, fs=1.0, "
-    "cn0_dbhz=-13.0,\n"
+    "cn0_dbhz=-12.5,\n"
     "...                                 doppler_rate=9e-7, **kw)\n"
     ">>> make().doppler_bins, make().underpowered      # the rate caps it\n"
     "(5, True)\n"
     ">>> c = make(rate_hypotheses=9)\n"
     ">>> c.rate_hypotheses, c.doppler_bins, c.underpowered\n"
-    "(9, 10, False)\n",
+    "(9, 9, False)\n",
   .tp_methods = BurstAcquisitionObj_methods,
   .tp_getset  = BurstAcquisition_getset,
   .tp_new     = BurstAcquisitionObj_new,

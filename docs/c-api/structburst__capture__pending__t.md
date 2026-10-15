@@ -39,6 +39,7 @@ _One detection between acquisition and emission._ [More...](#detailed-descriptio
 |  uint64\_t | [**anchor**](#variable-anchor)  <br> |
 |  double | [**cn0\_dbhz**](#variable-cn0_dbhz)  <br> |
 |  double | [**doppler\_hz**](#variable-doppler_hz)  <br> |
+|  double | [**doppler\_rate\_hz\_s**](#variable-doppler_rate_hz_s)  <br> |
 |  uint32\_t | [**n\_phase**](#variable-n_phase)  <br> |
 |  double | [**peak\_mag**](#variable-peak_mag)  <br> |
 |  uint32\_t | [**phase**](#variable-phase)  <br> |
@@ -145,6 +146,24 @@ double burst_capture_pending_t::doppler_hz;
 
 
 Signed coarse Doppler, Hz. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable doppler\_rate\_hz\_s 
+
+```C++
+double burst_capture_pending_t::doppler_rate_hz_s;
+```
+
+
+
+Refine's winning rate hypothesis, Hz/s; valid once `refined` (doppler#2219). 
  
 
 

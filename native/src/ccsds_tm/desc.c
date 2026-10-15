@@ -27,6 +27,7 @@
  * bits each stage is handed, and that is exactly what the description states.
  */
 #include "doppler/ccsds_tm/ccsds_tm_frame.h"
+#include "doppler/dp_once.h"
 
 #include <string.h>
 
@@ -64,19 +65,21 @@ enum
  * A description carries a pointer to a field's bits, so the pattern needs a
  * home that outlives the call -- and it must not become a second
  * transcription of 0x1ACFFC1D, which is the whole reason
- * dp_ccsds_tm_asm_bits() exists. Filled lazily, in the shape rs.c already uses
- * for its tables. */
-static uint8_t asm_pattern[CCSDS_TM_ASM_BITS];
-static int     asm_ready = 0;
+ * dp_ccsds_tm_asm_bits() exists. Filled lazily under dp_once(), the guard
+ * rs.c builds its tables under. */
+static uint8_t   asm_pattern[CCSDS_TM_ASM_BITS];
+static dp_once_t asm_once = DP_ONCE_INIT;
+
+static void
+asm_build (void)
+{
+  dp_ccsds_tm_asm_bits (asm_pattern);
+}
 
 static const uint8_t *
 marker_bits (void)
 {
-  if (!asm_ready)
-    {
-      dp_ccsds_tm_asm_bits (asm_pattern);
-      asm_ready = 1;
-    }
+  dp_once (&asm_once, asm_build);
   return asm_pattern;
 }
 

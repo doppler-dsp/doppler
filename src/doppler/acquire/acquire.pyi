@@ -1401,13 +1401,13 @@ class BurstAcquisition:
     >>> def make(**kw):
     ...     with warnings.catch_warnings():
     ...         warnings.simplefilter("ignore")   # under-powered, below
-    ...         return BurstAcquisition(zc, reps=16, fs=1.0, cn0_dbhz=-13.0,
+    ...         return BurstAcquisition(zc, reps=16, fs=1.0, cn0_dbhz=-12.5,
     ...                                 doppler_rate=9e-7, **kw)
     >>> make().doppler_bins, make().underpowered      # the rate caps it
     (5, True)
     >>> c = make(rate_hypotheses=9)
     >>> c.rate_hypotheses, c.doppler_bins, c.underpowered
-    (9, 10, False)
+    (9, 9, False)
 
     """
 
@@ -1937,12 +1937,12 @@ class BurstCapture:
     ...     with warnings.catch_warnings():
     ...         warnings.simplefilter("ignore")   # under-powered, below
     ...         return BurstCapture(zc, burst_len=2432, reps=16, fs=1.0,
-    ...                             cn0_dbhz=-13.0, doppler_rate=9e-7, **kw)
+    ...                             cn0_dbhz=-12.5, doppler_rate=9e-7, **kw)
     >>> make().doppler_bins, make().underpowered      # the rate caps it
     (5, True)
     >>> c = make(rate_hypotheses=9)
     >>> c.rate_hypotheses, c.doppler_bins, c.underpowered
-    (9, 10, False)
+    (9, 9, False)
 
     """
 
@@ -2367,6 +2367,18 @@ class BurstCapture:
         then saturates at the code's own autocorrelation-sidelobe floor once
         the true C/N0 exceeds what this code and geometry can resolve -- a real
         ceiling, not a fault.
+        """
+
+    @property
+    def doppler_rate_hz_s(self) -> float:
+        """Refine's winning Doppler-rate hypothesis for the most recent window,
+        Hz/s: the rate whose de-chirp made the whole preamble's coherent sum
+        largest at its start, from refine's grid over [-doppler_rate,
+        +doppler_rate] (at least as dense as the acquisition's, and searched
+        whenever a rate is declared, even with one acquisition hypothesis). 0
+        without a declared rate. A hypothesis, not a fit: it names the grid
+        point nearest the carrier's rate well above the design point, and less
+        often near it (validate_acq_rate_pd's event-rate rows).
         """
 
     @property
@@ -3110,6 +3122,18 @@ class PersistentBurstCapture:
         then saturates at the code's own autocorrelation-sidelobe floor once
         the true C/N0 exceeds what this code and geometry can resolve -- a real
         ceiling, not a fault.
+        """
+
+    @property
+    def doppler_rate_hz_s(self) -> float:
+        """Refine's winning Doppler-rate hypothesis for the most recent window,
+        Hz/s: the rate whose de-chirp made the whole preamble's coherent sum
+        largest at its start, from refine's grid over [-doppler_rate,
+        +doppler_rate] (at least as dense as the acquisition's, and searched
+        whenever a rate is declared, even with one acquisition hypothesis). 0
+        without a declared rate. A hypothesis, not a fit: it names the grid
+        point nearest the carrier's rate well above the design point, and less
+        often near it (validate_acq_rate_pd's event-rate rows).
         """
 
     @property

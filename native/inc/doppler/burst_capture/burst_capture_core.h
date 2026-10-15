@@ -92,11 +92,13 @@
 
 /** @brief State blob magic — a wrong blob is rejected, not reinterpreted. */
 #define BURST_CAPTURE_STATE_MAGIC DP_FOURCC ('B', 'C', 'A', 'P')
-/** @brief State blob layout version. 5: the blob carries the whole ring, and
- *  `dropped` counts look-back discarded while a burst still needed it, not
- *  refused input (doppler#2015), so a v4 blob is refused rather than carried
- *  over. */
-#define BURST_CAPTURE_STATE_VERSION 5u
+/** @brief State blob layout version. 6: every queued burst and the last
+ *  event carry refine's winning rate hypothesis (doppler#2219). 5: the blob
+ *  carries the whole ring, and `dropped` counts look-back discarded while a
+ *  burst still needed it, not refused input (doppler#2015). An older blob is
+ *  refused rather than carried over: a v5 blob, written by v0.66.0 through
+ *  v0.71.0, is restored by the release that wrote it. */
+#define BURST_CAPTURE_STATE_VERSION 6u
 
 #ifdef __cplusplus
 extern "C" {
@@ -122,6 +124,27 @@ typedef struct
   double   doppler_hz_est; /**< Signed coarse Doppler, Hz.                 */
   double   doppler_res_hz; /**< Acquisition's native bin width, Hz.        */
   double   cn0_dbhz_est;   /**< C/N0 lower bound from the hit, dB-Hz.      */
+  double   doppler_rate_hz_s; /**< Refine's winning rate hypothesis, Hz/s:
+                            the rate whose de-chirp made the whole
+                            preamble's coherent sum largest at
+                            preamble_start. One of refine's R grid points
+                            from -doppler_rate to +doppler_rate, spaced
+                            2*doppler_rate/(R - 1); 0 without a declared
+                            rate (doppler_rate 0). Refine searches the
+                            grid whenever a rate is declared, with one
+                            acquisition hypothesis or many (doppler#2219).
+                            A hypothesis, not a fit, from the
+                            whole preamble rather than one dwell: it is the
+                            grid point nearest the carrier's rate in every
+                            event 23 dB over the design point, on or off the
+                            grid. At the design point it is in 82% to 89% of
+                            events whose rate is ON a grid point, but in 51%
+                            of those 0.4 of a step off one, where the
+                            neighbouring point is only 0.6 of a step away
+                            (validate_acq_rate_pd's event-rate rows;
+                            docs/design/burst-capture.md).
+                            Appended last, so positional initialisers do
+                            not shift (doppler#2219). */
 } burst_capture_event_t;
 
 /**
@@ -195,6 +218,8 @@ typedef struct
                             CRC), not this object's: dp_burst_capture_release()
                             gives the span back, and the next push() drops
                             whatever is still shadowed (doppler#1181).      */
+  double   doppler_rate_hz_s; /**< Refine's winning rate hypothesis, Hz/s;
+                            valid once `refined` (doppler#2219).           */
 } burst_capture_pending_t;
 
 /**
@@ -239,6 +264,7 @@ typedef struct
   double   doppler_hz_est; /**< Signed coarse Doppler, Hz.                  */
   double   doppler_res_hz; /**< Width of that estimate.                     */
   double   cn0_dbhz_est;   /**< C/N0 lower bound, dB-Hz (saturating).       */
+  double   doppler_rate_hz_s; /**< Refine's winning rate hypothesis, Hz/s. */
 
   /* ── Refine scratch (docs/design/dsss-burst-receiver.md §3.4) ───────── */
   double _Complex *cell_buf; /**< Refine's cells: dp_acq_cell_corr_grid() of
@@ -535,12 +561,12 @@ typedef struct
  * ...     with warnings.catch_warnings():
  * ...         warnings.simplefilter("ignore")   # under-powered, below
  * ...         return BurstCapture(zc, burst_len=2432, reps=16, fs=1.0,
- * ...                             cn0_dbhz=-13.0, doppler_rate=9e-7, **kw)
+ * ...                             cn0_dbhz=-12.5, doppler_rate=9e-7, **kw)
  * >>> make().doppler_bins, make().underpowered      # the rate caps it
  * (5, True)
  * >>> c = make(rate_hypotheses=9)
  * >>> c.rate_hypotheses, c.doppler_bins, c.underpowered
- * (9, 10, False)
+ * (9, 9, False)
  * @endcode
  */
 dp_burst_capture_state_t *dp_burst_capture_create (
@@ -945,6 +971,7 @@ uint64_t dp_burst_capture_get_preamble_start(const dp_burst_capture_state_t *sta
 double dp_burst_capture_get_doppler_hz_est(const dp_burst_capture_state_t *state);
 double dp_burst_capture_get_doppler_res_hz(const dp_burst_capture_state_t *state);
 double dp_burst_capture_get_cn0_dbhz_est(const dp_burst_capture_state_t *state);
+double dp_burst_capture_get_doppler_rate_hz_s(const dp_burst_capture_state_t *state);
 size_t dp_burst_capture_get_pending(const dp_burst_capture_state_t *state);
 uint64_t dp_burst_capture_get_dropped(const dp_burst_capture_state_t *state);
 uint64_t dp_burst_capture_get_n_bursts(const dp_burst_capture_state_t *state);

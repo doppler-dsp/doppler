@@ -72,11 +72,106 @@ jm_array_arg (PyObject *obj, int typenum, int requirements, const char *name)
 }
 #endif /* JM_ARRAY_ARG_DEFINED */
 
+#ifndef JM_INFLIGHT_DEFINED
+#define JM_INFLIGHT_DEFINED
+/* gh-2272: the GIL-free calls running on one object, so its explicit
+ * teardown can wait for them instead of freeing under them. `n` is read
+ * and written only with the GIL held. `idle` exists only once a teardown
+ * has had to wait: that teardown holds it, and the last call to leave
+ * gives it back. */
+typedef struct
+{
+  Py_ssize_t         n;
+  int                waiting;
+  PyThread_type_lock idle;
+} jm_inflight_t;
+
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__ ((unused))
+#endif
+static inline void
+jm_inflight_enter (jm_inflight_t *g)
+{
+  g->n++;
+}
+
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__ ((unused))
+#endif
+static inline void
+jm_inflight_leave (jm_inflight_t *g)
+{
+  if (--g->n == 0 && g->waiting)
+    {
+      g->waiting = 0;
+      PyThread_release_lock (g->idle);
+    }
+}
+
+/* Called with the GIL held, after the object refuses new calls. Returns
+ * with none running: 0, or -1 with MemoryError when no lock could be had,
+ * in which case nothing has been waited for. */
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__ ((unused))
+#endif
+static inline int
+jm_inflight_wait (jm_inflight_t *g)
+{
+  while (g->n > 0)
+    {
+      if (!g->idle)
+        {
+          g->idle = PyThread_allocate_lock ();
+          if (!g->idle)
+            {
+              PyErr_NoMemory ();
+              return -1;
+            }
+        }
+      /* Take the lock, then block on it again with the GIL released:
+       * the last jm_inflight_leave releases it. The GIL is dropped by
+       * function here, not by the macro pair, so the macro still marks
+       * exactly the calls a binding runs without it. */
+      (void)PyThread_acquire_lock (g->idle, NOWAIT_LOCK);
+      g->waiting        = 1;
+      PyThreadState *ts = PyEval_SaveThread ();
+      (void)PyThread_acquire_lock (g->idle, WAIT_LOCK);
+      PyEval_RestoreThread (ts);
+      PyThread_release_lock (g->idle);
+    }
+  return 0;
+}
+
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__ ((unused))
+#endif
+static inline void
+jm_inflight_free (jm_inflight_t *g)
+{
+  if (g->idle)
+    {
+      PyThread_free_lock (g->idle);
+      g->idle = NULL;
+    }
+}
+#endif /* JM_INFLIGHT_DEFINED */
+
+#include "wfm_ext_pn.c"
+/* extra_methods (gh-1190): defined in the hand-written _extra.c,
+ * included after the types; declared here for the method tables. */
+static PyObject *_SynthEngine_set_rrc (PyObject *, PyObject *);
+static PyObject *_SynthEngine_set_bits (PyObject *, PyObject *);
+static PyObject *_SynthEngine_set_dsss_chips (PyObject *, PyObject *);
+static PyObject *_SynthEngine_set_dsss_cont (PyObject *, PyObject *,
+                                             PyObject *);
+static PyObject *_SynthEngine_set_dsss_window (PyObject *, PyObject *,
+                                               PyObject *);
+static PyObject *_SynthEngine_set_symbols (PyObject *, PyObject *);
 #include "wfm_ext_frame.c"
 #include "wfm_ext_framedesc.c"
 #include "wfm_ext_gold.c"
-#include "wfm_ext_pn.c"
 #include "wfm_ext_wfm_synth.c"
+#include "wfm_ext_wfm_synth_extra.c" /* hand-written — jm never modifies */
 
 static PyObject *
 _bind_bpsk_map (PyObject *self, PyObject *args, PyObject *kwds)
@@ -375,6 +470,59 @@ _bind_rrc_taps (PyObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+_bind__sweep_ends (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  (void)self;
+  static char *_kwlist[]    = { "fs", "f_mid", "rate", "n", "center", NULL };
+  double       fs           = 0.0;
+  double       f_mid        = 0.0;
+  double       rate         = 0.0;
+  PyObject    *n_obj        = NULL;
+  unsigned long long n_raw  = 0ULL;
+  double             center = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "dddOd", _kwlist, &fs, &f_mid,
+                                    &rate, &n_obj, &center))
+    return NULL;
+  if (n_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (n_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      n_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((n_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || n_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "n: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t n         = (size_t)n_raw;
+  size_t _dim_need = (size_t)(2);
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "_sweep_ends: output of %zu elements is too large",
+                    _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
+  PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_DOUBLE, 0);
+  if (!_out)
+    {
+      return NULL;
+    }
+  dp__sweep_ends (fs, f_mid, rate, n, center,
+                  (double *)PyArray_DATA ((PyArrayObject *)_out));
+  return _out;
+}
+
+static PyObject *
 _bind_dsss_spread (PyObject *self, PyObject *args, PyObject *kwds)
 {
   (void)self;
@@ -628,6 +776,24 @@ static PyMethodDef wfm_module_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "Root-raised-cosine pulse-shaping taps (2*span*sps+1 unit-energy cf32 "
     "taps).\n" },
+  { "_sweep_ends", (PyCFunction)(void *)_bind__sweep_ends,
+    METH_VARARGS | METH_KEYWORDS,
+    "Start and end frequency of the chirp that sweeps about a center.\n"
+    "\n"
+    "A chirp from ``f0`` to ``f_end`` pinned over ``n`` samples has\n"
+    "instantaneous frequency ``f_mid + rate*u`` Hz at sample ``i``,\n"
+    "``u = (i - center)/fs`` seconds, so it multiplies a block by\n"
+    "``exp(j*2*pi*(f_mid*u + rate*u**2/2))`` up to one constant phase. This "
+    "is\n"
+    "the single copy of that arithmetic (``dp_wfm_synth_sweep_ends``);\n"
+    "``doppler.wfm.rotate`` takes it from here.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.wfm import _sweep_ends\n"
+    ">>> f0, f_end = _sweep_ends(1.0, 0.0, 1e-4, 1001, 500.0)\n"
+    ">>> round(float(f0), 6), round(float(f_end), 6)\n"
+    "(-0.04995, 0.05015)\n" },
   { "dsss_spread", (PyCFunction)(void *)_bind_dsss_spread,
     METH_VARARGS | METH_KEYWORDS,
     "Direct-sequence spread syms by the ±1 chip code; yields len(syms)*sf "

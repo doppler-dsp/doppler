@@ -84,6 +84,7 @@ dp_Resampler_reset function
 dp_Resampler_set_rate function
 dp_Resampler_set_state function
 dp_Resampler_state_bytes function
+dp__sweep_ends function
 dp_acc_cf64_add2d function
 dp_acc_cf64_create function
 dp_acc_cf64_destroy function
@@ -349,6 +350,7 @@ dp_burst_capture_get_code_bins function
 dp_burst_capture_get_doppler_bins function
 dp_burst_capture_get_doppler_hz_est function
 dp_burst_capture_get_doppler_rate function
+dp_burst_capture_get_doppler_rate_hz_s function
 dp_burst_capture_get_doppler_res_hz function
 dp_burst_capture_get_doppler_span_hz function
 dp_burst_capture_get_dropped function
@@ -1193,6 +1195,7 @@ dp_nprmeas_spectrum_dbfs function
 dp_nprmeas_spectrum_dbfs_max_out function
 dp_nrz_to_bin function
 dp_obw_from_power function
+dp_once function
 dp_pn_create function
 dp_pn_create_mls function
 dp_pn_destroy function
@@ -1708,6 +1711,7 @@ dp_wfm_synth_get_state function
 dp_wfm_synth_get_sym_pos function
 dp_wfm_synth_get_wtype function
 dp_wfm_synth_noise_steps function
+dp_wfm_synth_prod function
 dp_wfm_synth_reseed_noise function
 dp_wfm_synth_reset function
 dp_wfm_synth_set_bits function
@@ -1730,6 +1734,7 @@ dp_wfm_synth_state_bytes function
 dp_wfm_synth_state_refusal function
 dp_wfm_synth_step function
 dp_wfm_synth_steps function
+dp_wfm_synth_sweep_ends function
 dp_wfm_why_count_derived data
 dp_wfm_why_dsss_cont_no_data_code data
 dp_wfm_why_dsss_cont_rate data

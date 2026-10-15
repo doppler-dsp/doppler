@@ -460,6 +460,52 @@ class _SynthEngine:
             Sweep length in samples (> 0).
         """
 
+    def prod(
+        self,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
+    ) -> NDArray[np.complex64]:
+        """Multiply a block by the synth's next output samples.
+
+        ``out[i] = x[i] * y[i]``, where ``y`` is what ``steps(len(x))`` would
+        emit next. The synth advances exactly as ``steps(len(x))`` does, so
+        split calls leave the same synth state as one call and an empty ``x``
+        does not advance it; the product itself agrees across such call
+        sequences to rounding (a few ulp of ``|x| * |y|``), not to the bit,
+        because the compiler may contract the multiply differently on different
+        paths (arm64 under ``-ffast-math``). ``x`` is not modified.
+
+        ``x`` must be a 1-D C-contiguous complex64 array: a strided,
+        non-complex64 or non-1-D block is refused (``ValueError`` /
+        ``TypeError``), never copied or cast.
+
+        This is the general waveform-multiplication operator: with a tone synth
+        it is a rotation, with a chirp synth a swept rotation, with noise a
+        noise multiplier, with PN/BPSK a modulation.
+
+        Parameters
+        ----------
+        x : npt.NDArray[np.complex64]
+            Input.
+        out : npt.NDArray[np.complex64] | None
+            Output block of ``n`` cf32 samples (may be the input block itself).
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Output.
+
+        Examples
+        --------
+        >>> from doppler.wfm import Synth
+        >>> import numpy as np
+        >>> s = Synth(type="tone", fs=1.0, freq=0.25)
+        >>> y = s.prod(np.ones(4, np.complex64))
+        >>> bool(np.allclose(y, [1, 1j, -1, -1j], atol=1e-5))
+        True
+
+        """
+
     def state_bytes(self) -> int:
         """Size in bytes of this object's serialized state.
 
@@ -515,6 +561,173 @@ class _SynthEngine:
         ----------
         blob : bytes
             A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
+
+    def set_rrc(self, taps: npt.ArrayLike) -> None:
+        """Enable root-raised-cosine pulse shaping with real FIR taps.
+
+        Replaces the rectangular sample-and-hold of a symbol synth (pn, bpsk,
+        qpsk, bits, symbols, dsss) with the pulse ``taps``, typically
+        ``doppler.wfm.rrc_taps(beta, sps, span)``. The taps are scaled by
+        ``sqrt(sps)`` internally for unit transmit power, so pass them raw. A
+        no-op for tone, noise and chirp. Replaces any existing shaper and
+        clears its delay line.
+
+        Parameters
+        ----------
+        taps : array_like
+            Real FIR taps, coerced to float32 and copied.
+
+        Raises
+        ------
+        ValueError
+            ``taps`` is empty on a symbol synth, or the shaper could not be
+            allocated.
+        """
+
+    def set_bits(self, pattern: npt.ArrayLike, modulation: int = ...) -> None:
+        """Attach a user bit pattern to a type='bits' synth.
+
+        The pattern is oversampled by the create-time ``sps`` and sent ONCE:
+        one pass is ``len(pattern) * sps`` samples (divided by ``modulation``
+        for a PSK), and the output is silent after it. Replaces any previous
+        pattern and resets the read position. A no-op on any other waveform
+        type.
+
+        Parameters
+        ----------
+        pattern : array_like
+            Bits, each 0 or 1, coerced to uint8 and copied.
+        modulation : int, default 1
+            Bits per symbol: 0 = none (0/1 amplitude), 1 = bpsk, 2 = qpsk,
+            3 = 8psk. A PSK symbol's bits are read MSB-first as a Gray label
+            into the library's ``mpsk_constellation`` mapping.
+
+        Raises
+        ------
+        ValueError
+            ``pattern`` is empty, or ``modulation`` is not 0 to 3, on a
+            type='bits' synth.
+        """
+
+    def set_dsss_chips(self, chips: npt.ArrayLike) -> None:
+        """Attach an already-assembled DSSS burst to a type='dsss' synth.
+
+        One chip per element, BPSK-mapped by the synth and held for the
+        create-time ``sps`` samples (samples per chip here). One pass is one
+        burst, sent once, then silence. Assemble the burst from a frame
+        description: the unspread preamble, then every bit of a ``Frame``'s
+        ``bits()`` spread by the data code. Replaces any previous pattern and
+        resets the read position. A no-op on any other waveform type.
+
+        Parameters
+        ----------
+        chips : array_like
+            Burst chips, each 0 or 1, coerced to uint8 and copied.
+
+        Raises
+        ------
+        ValueError
+            ``chips`` is empty, on a type='dsss' synth.
+        """
+
+    def set_dsss_cont(
+        self,
+        code: npt.ArrayLike,
+        chips_per_symbol: float,
+        data: str = ...,
+        payload: npt.ArrayLike | None = ...,
+    ) -> None:
+        """Configure a type='dsss' synth for continuous asynchronous
+        generation.
+
+        The spreading ``code`` repeats endlessly, and data rides on it at
+        ``chips_per_symbol`` chips a symbol. A non-integer value is the normal,
+        asynchronous case: symbol edges land mid-epoch. Chips are generated per
+        sample, so the stream has no length. A no-op on any other waveform
+        type.
+
+        Parameters
+        ----------
+        code : array_like
+            Spreading code chips, each 0 or 1, coerced to uint8 and copied.
+        chips_per_symbol : float
+            ``chip_rate / symbol_rate``, at least 1.
+        data : {'prbs', 'none', 'bits'}, default 'prbs'
+            The data-symbol source: 'none' is the pure code, 'prbs' the synth's
+            own seeded PN (a receiver regenerates it with ``doppler.wfm.PN``),
+            and 'bits' the ``payload``, one bit a data symbol, sent once.
+        payload : array_like, optional
+            Payload bits, each 0 or 1. Supplying it forces ``data='bits'``.
+
+        Raises
+        ------
+        ValueError
+            ``data`` is not one of the three, or the geometry is invalid: no
+            code, ``chips_per_symbol < 1``, no payload for 'bits', or no valid
+            ``pn_length`` for 'prbs'.
+        """
+
+    def set_dsss_window(
+        self,
+        code_only_symbols: int,
+        frame_symbols: int,
+    ) -> None:
+        """Give the continuous DSSS stream a frame with a pure-code window.
+
+        The frame is on the data clock: of every ``frame_symbols`` symbols, the
+        first ``code_only_symbols`` carry the pure code and no data, and the
+        rest carry the payload, running on across frames. The symbol clock
+        free-runs through the window, so a frame edge lands at no particular
+        chip phase. Configuration, not running state: ``reset()`` keeps it. The
+        order against ``set_dsss_cont`` does not matter. A no-op on any other
+        waveform type.
+
+        Parameters
+        ----------
+        code_only_symbols : int
+            Pure-code symbols opening each frame, at most ``frame_symbols``.
+        frame_symbols : int
+            Frame length in symbols. 0 means no window: the stream exactly as
+            without this call.
+
+        Raises
+        ------
+        ValueError
+            A count is negative, or ``code_only_symbols`` exceeds a non-zero
+            ``frame_symbols``.
+        """
+
+    def set_symbols(self, symbols: npt.ArrayLike) -> None:
+        """Attach a complex-symbol stream to a type='symbols' synth.
+
+        Each element is the constellation point itself, with no bit-to-symbol
+        map, so any modulation is "compute the symbols, pass them in". The
+        stream is oversampled by the create-time ``sps``, cycled to fill every
+        request, and RRC-shaped when ``set_rrc`` is active. Replaces any
+        previous stream and resets the read position. A no-op on any other
+        waveform type.
+
+        Parameters
+        ----------
+        symbols : array_like
+            Complex symbols, cast to complex64 and copied.
+
+        Raises
+        ------
+        ValueError
+            ``symbols`` is empty, on a type='symbols' synth.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wfm import _SynthEngine
+        >>> s = _SynthEngine(
+        ...     type="symbols", fs=1.0, freq=0.0, snr=100.0, sps=4)
+        >>> s.set_symbols(np.array([1+0j, 1j, -1+0j, -1j], np.complex64))
+        >>> bool(np.array_equal(s.steps(16)[::4], [1, 1j, -1, -1j]))
+        True
+
         """
     def get_wtype(self) -> int:
         """Return the active waveform type discriminant. Maps to the
@@ -3131,6 +3344,31 @@ def field_bits(spec: str) -> NDArray[np.uint8]:
 def rrc_taps(beta: float, sps: int, span: int) -> NDArray[np.float32]:
     """Root-raised-cosine pulse-shaping taps (2*span*sps+1 unit-energy cf32
     taps).
+    """
+
+def _sweep_ends(
+    fs: float,
+    f_mid: float,
+    rate: float,
+    n: int,
+    center: float,
+) -> NDArray[np.float64]:
+    """Start and end frequency of the chirp that sweeps about a center.
+
+    A chirp from ``f0`` to ``f_end`` pinned over ``n`` samples has
+    instantaneous frequency ``f_mid + rate*u`` Hz at sample ``i``,
+    ``u = (i - center)/fs`` seconds, so it multiplies a block by
+    ``exp(j*2*pi*(f_mid*u + rate*u**2/2))`` up to one constant phase. This is
+    the single copy of that arithmetic (``dp_wfm_synth_sweep_ends``);
+    ``doppler.wfm.rotate`` takes it from here.
+
+    Examples
+    --------
+    >>> from doppler.wfm import _sweep_ends
+    >>> f0, f_end = _sweep_ends(1.0, 0.0, 1e-4, 1001, 500.0)
+    >>> round(float(f0), 6), round(float(f_end), 6)
+    (-0.04995, 0.05015)
+
     """
 
 def dsss_spread(

@@ -16,6 +16,7 @@
 typedef struct
 {
   PyObject_HEAD dp_burst_capture_state_t *handle;
+  jm_inflight_t _jm_inflight; /* gh-2272: GIL-free calls running */
 } BurstCaptureObject;
 
 static void
@@ -23,6 +24,7 @@ BurstCaptureObj_dealloc (BurstCaptureObject *self)
 {
   if (self->handle)
     dp_burst_capture_destroy (self->handle);
+  jm_inflight_free (&self->_jm_inflight);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -262,15 +264,17 @@ BurstCaptureObj_push (BurstCaptureObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (x_arr);
           return NULL;
         }
-      /* nogil: GIL released across the pure-C kernel — sound only when
-       * this object is not shared across threads concurrently (one
-       * object per stream); the kernel touches only this object's
-       * state/buffers and the caller's input. */
+      /* nogil: GIL released across the pure-C kernel. Two calls on
+       * one object may run at once only if its kernel allows it; a
+       * teardown waits for a running call (gh-2272). */
       float _Complex *_ng0 = (float _Complex *)PyArray_DATA (out_arr);
       size_t          n_out;
+      void           *_jm_h = self->handle;
+      jm_inflight_enter (&self->_jm_inflight);
       Py_BEGIN_ALLOW_THREADS
-        n_out = dp_burst_capture_push (self->handle, x, x_len, _ng0, _cap);
+        n_out = dp_burst_capture_push (_jm_h, x, x_len, _ng0, _cap);
       Py_END_ALLOW_THREADS
+      jm_inflight_leave (&self->_jm_inflight);
       Py_DECREF (x_arr);
       if ((size_t)(n_out) > (size_t)(_cap))
         {
@@ -319,14 +323,16 @@ BurstCaptureObj_push (BurstCaptureObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  /* nogil: GIL released across the pure-C kernel — sound only when
-   * this object is not shared across threads concurrently (one
-   * object per stream); the kernel touches only this object's
-   * state/buffers and the caller's input. */
+  /* nogil: GIL released across the pure-C kernel. Two calls on
+   * one object may run at once only if its kernel allows it; a
+   * teardown waits for a running call (gh-2272). */
   size_t n_out;
+  void  *_jm_h = self->handle;
+  jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
-    n_out = dp_burst_capture_push (self->handle, x, x_len, _d0, _cap);
+    n_out = dp_burst_capture_push (_jm_h, x, x_len, _d0, _cap);
   Py_END_ALLOW_THREADS
+  jm_inflight_leave (&self->_jm_inflight);
   Py_DECREF (x_arr);
   if ((size_t)(n_out) > (size_t)(_cap))
     {
@@ -605,22 +611,25 @@ BurstCaptureObj_events_get_dtype (void)
       Py_INCREF (BurstCaptureObj_events_dtype);
       return BurstCaptureObj_events_dtype;
     }
-  names = Py_BuildValue ("[ssss]", "preamble_start", "doppler_hz_est",
-                         "doppler_res_hz", "cn0_dbhz_est");
+  names
+      = Py_BuildValue ("[sssss]", "preamble_start", "doppler_hz_est",
+                       "doppler_res_hz", "cn0_dbhz_est", "doppler_rate_hz_s");
   if (!names)
     goto done;
-  formats = PyList_New (4);
+  formats = PyList_New (5);
   if (!formats)
     goto done;
   PyList_SET_ITEM (formats, 0, (PyObject *)PyArray_DescrFromType (NPY_UINT64));
   PyList_SET_ITEM (formats, 1, (PyObject *)PyArray_DescrFromType (NPY_DOUBLE));
   PyList_SET_ITEM (formats, 2, (PyObject *)PyArray_DescrFromType (NPY_DOUBLE));
   PyList_SET_ITEM (formats, 3, (PyObject *)PyArray_DescrFromType (NPY_DOUBLE));
+  PyList_SET_ITEM (formats, 4, (PyObject *)PyArray_DescrFromType (NPY_DOUBLE));
   offsets = Py_BuildValue (
-      "[nnnn]", (Py_ssize_t)offsetof (burst_capture_event_t, preamble_start),
+      "[nnnnn]", (Py_ssize_t)offsetof (burst_capture_event_t, preamble_start),
       (Py_ssize_t)offsetof (burst_capture_event_t, doppler_hz_est),
       (Py_ssize_t)offsetof (burst_capture_event_t, doppler_res_hz),
-      (Py_ssize_t)offsetof (burst_capture_event_t, cn0_dbhz_est));
+      (Py_ssize_t)offsetof (burst_capture_event_t, cn0_dbhz_est),
+      (Py_ssize_t)offsetof (burst_capture_event_t, doppler_rate_hz_s));
   if (!offsets)
     goto done;
   spec = Py_BuildValue ("{s:O,s:O,s:O,s:n}", "names", names, "formats",
@@ -1016,6 +1025,18 @@ BurstCapture_getprop_cn0_dbhz_est (BurstCaptureObject *self,
   return PyFloat_FromDouble (dp_burst_capture_get_cn0_dbhz_est (self->handle));
 }
 static PyObject *
+BurstCapture_getprop_doppler_rate_hz_s (BurstCaptureObject *self,
+                                        void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (
+      dp_burst_capture_get_doppler_rate_hz_s (self->handle));
+}
+static PyObject *
 BurstCapture_getprop_burst_len (BurstCaptureObject *self,
                                 void               *Py_UNUSED (closure))
 {
@@ -1274,6 +1295,16 @@ static PyGetSetDef BurstCapture_getset[] = {
     "C/N0 exceeds what this code and geometry can resolve -- a real ceiling, "
     "not a fault.\n",
     NULL },
+  { "doppler_rate_hz_s", (getter)BurstCapture_getprop_doppler_rate_hz_s, NULL,
+    "Refine's winning Doppler-rate hypothesis for the most recent window, "
+    "Hz/s: the rate whose de-chirp made the whole preamble's coherent sum "
+    "largest at its start, from refine's grid over [-doppler_rate, "
+    "+doppler_rate] (at least as dense as the acquisition's, and searched "
+    "whenever a rate is declared, even with one acquisition hypothesis). 0 "
+    "without a declared rate. A hypothesis, not a fit: it names the grid "
+    "point nearest the carrier's rate well above the design point, and less "
+    "often near it (validate_acq_rate_pd's event-rate rows).\n",
+    NULL },
   { "burst_len", (getter)BurstCapture_getprop_burst_len, NULL,
     "Samples in one emitted window -- the burst length this capture was built "
     "for, and the stride of a row in push()'s return.\n",
@@ -1455,8 +1486,16 @@ BurstCaptureObj_destroy (BurstCaptureObject *self,
 {
   if (self->handle)
     {
-      dp_burst_capture_destroy (self->handle);
+      void *_jm_st = self->handle;
       self->handle = NULL;
+      /* gh-2272: a GIL-free call may still be running on this
+         object; new ones are refused from here, so wait for those. */
+      if (jm_inflight_wait (&self->_jm_inflight) < 0)
+        {
+          self->handle = _jm_st;
+          return NULL;
+        }
+      dp_burst_capture_destroy (_jm_st);
     }
   Py_RETURN_NONE;
 }
@@ -1474,8 +1513,16 @@ BurstCaptureObj_exit (BurstCaptureObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      dp_burst_capture_destroy (self->handle);
+      void *_jm_st = self->handle;
       self->handle = NULL;
+      /* gh-2272: a GIL-free call may still be running on this
+         object; new ones are refused from here, so wait for those. */
+      if (jm_inflight_wait (&self->_jm_inflight) < 0)
+        {
+          self->handle = _jm_st;
+          return NULL;
+        }
+      dp_burst_capture_destroy (_jm_st);
     }
   Py_RETURN_NONE;
 }
@@ -1679,7 +1726,22 @@ static PyMethodDef BurstCaptureObj_methods[] = {
     "doppler_res_hz : float\n"
     "    Acquisition's native bin width, Hz.\n"
     "cn0_dbhz_est : float\n"
-    "    C/N0 lower bound from the hit, dB-Hz.\n" },
+    "    C/N0 lower bound from the hit, dB-Hz.\n"
+    "doppler_rate_hz_s : float\n"
+    "    Refine's winning rate hypothesis, Hz/s: the rate whose de-chirp made "
+    "the whole preamble's coherent sum largest at preamble_start. One of "
+    "refine's R grid points from -doppler_rate to +doppler_rate, spaced "
+    "2*doppler_rate/(R - 1); 0 without a declared rate (doppler_rate 0). "
+    "Refine searches the grid whenever a rate is declared, with one "
+    "acquisition hypothesis or many (doppler#2219). A hypothesis, not a fit, "
+    "from the whole preamble rather than one dwell: it is the grid point "
+    "nearest the carrier's rate in every event 23 dB over the design point, "
+    "on or off the grid. At the design point it is in 82% to 89% of events "
+    "whose rate is ON a grid point, but in 51% of those 0.4 of a step off "
+    "one, where the neighbouring point is only 0.6 of a step away "
+    "(validate_acq_rate_pd's event-rate rows; docs/design/burst-capture.md). "
+    "Appended last, so positional initialisers do not shift "
+    "(doppler#2219).\n" },
   { "events_max_out", (PyCFunction)BurstCaptureObj_events_max_out,
     METH_VARARGS,
     "events_max_out(n) -> int\n"
@@ -2019,13 +2081,13 @@ static PyTypeObject BurstCaptureObjType = {
     "...     with warnings.catch_warnings():\n"
     "...         warnings.simplefilter(\"ignore\")   # under-powered, below\n"
     "...         return BurstCapture(zc, burst_len=2432, reps=16, fs=1.0,\n"
-    "...                             cn0_dbhz=-13.0, doppler_rate=9e-7, "
+    "...                             cn0_dbhz=-12.5, doppler_rate=9e-7, "
     "**kw)\n"
     ">>> make().doppler_bins, make().underpowered      # the rate caps it\n"
     "(5, True)\n"
     ">>> c = make(rate_hypotheses=9)\n"
     ">>> c.rate_hypotheses, c.doppler_bins, c.underpowered\n"
-    "(9, 10, False)\n",
+    "(9, 9, False)\n",
   .tp_methods = BurstCaptureObj_methods,
   .tp_getset  = BurstCapture_getset,
   .tp_new     = BurstCaptureObj_new,

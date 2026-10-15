@@ -795,12 +795,19 @@ the preamble. A capture's **events** carry refine's instead (#2219): the
 hypothesis whose de-chirp made the whole preamble's coherent sum largest at the
 refined start, on refine's own grid, which is at least as dense as the
 engine's. It is the better estimate by construction, from the whole preamble
-rather than one dwell, and it measures so. At 23 dB over the design point
-every captured event names the grid point nearest the truth (100/100 at rate
-0 and at the span's edge, `validate_acq_rate_pd`'s event-rate rows), where the
-same bursts' hits name it 41% and 56% of the time. At the design point it
-is the nearest in 88% and 93% of events, where all the hits manage 19% and
-55% and the full-block hits 26% and 67%; 3 dB over, 93% and 96%. The queue,
+rather than one dwell, and it measures so (`validate_acq_rate_pd`'s
+event-rate rows, beside its rows for the hits). At 23 dB over the design
+point every captured event names the grid point nearest the truth: 100% at
+rate 0, at the span's edge, and off the grid, 0.4 of a step from a
+hypothesis. Under the same conditions the engine's hits name it 40% and 55%
+of the time (at 0 and the edge), and only the full-block ones, wholly inside
+the preamble, reach 100%: the event gets there whichever dwell anchored the
+burst. Nearer the design point the off-grid case is the one to read. There
+the event is the nearest in 88% and 93% of events on the grid (all the hits
+manage 19% and 55%, the full-block hits 26% and 67%), but in only 57% off it:
+a rate 0.4 of a step from one hypothesis is 0.6 from the next, and at that
+signal level noise picks the neighbour often. 3 dB over, 93% and 96% on the
+grid and 65% off it. The queue,
 the blob (version 6) and the event record carry it together, and a blob of
 the earlier layout (version 5) is refused.
 

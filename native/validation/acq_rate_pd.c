@@ -596,22 +596,27 @@ main (int argc, char **argv)
 
   /* The EVENT's rate, against the truth (burst_capture_event_t's
      doppler_rate_hz_s, doppler#2219): refine's winning hypothesis from the
-     whole preamble. Gated where the contract claims it, 23 dB over the
-     design point; the design point and 3 dB over are printed. */
+     whole preamble. Three truths: on the grid at 0 and at the span's edge,
+     and OFF it, 0.4 of refine's grid step above 0 -- the real case, a
+     carrier whose rate no hypothesis matches. Refine's grid at Rh = 9 is
+     nine points, so the step is 2 * RATE / 8. Gated where the contract
+     claims it, 23 dB over the design point; the design point and 3 dB over
+     are printed. */
   printf ("\nevent rate: Rh = 9, captured events placed within %.0f "
           "samples\n",
           TOL);
   printf ("%7s %9s %6s | %6s %7s %7s\n", "sig dB", "true rate", "events",
           "near", "near %", "+-R %");
-  rate_row_t er[8];
+  rate_row_t er[9];
   size_t     ner = 0;
   {
-    const double sigs[3] = { cn0, cn0 + 3.0, cn0 + 23.0 };
+    const double sigs[3]   = { cn0, cn0 + 3.0, cn0 + 23.0 };
+    const double truths[3] = { 0.0, RATE, 0.4 * (2.0 * RATE / 8.0) };
     for (int i = check ? 2 : 0; i < 3; i++)
-      for (int k = 0; k < 2; k++)
+      for (int k = 0; k < 3; k++)
         {
           er[ner] = measure_event_rate (
-              9, cn0, sigs[i], k ? RATE : 0.0, check ? 100 : 200,
+              9, cn0, sigs[i], truths[k], check ? 100 : 200,
               9777u + 10u * (uint32_t)i + (uint32_t)k);
           const rate_row_t *q = &er[ner++];
           printf ("%7.2f %+9.1e %6ld | %6ld %6.1f%% %6.1f%%\n", q->sig,

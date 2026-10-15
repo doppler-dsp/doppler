@@ -28,7 +28,9 @@
  * engine with one hypothesis and a rate -- the capped depth, and every
  * DsssBurstReceiver -- still sees a sweep, and refine's coherent sum over
  * the whole preamble is what a sweep collapses: keyed on the count, that
- * capture placed 0.544 of the bursts its engine detected 0.956 of. */
+ * capture placed 0.555 of the bursts its engine detected 0.946 of
+ * (validate_acq_rate_pd's full run, 1000 trials, Rh = 1 at the design
+ * point); keyed on the rate, 0.896 (the same run's row). */
 static size_t
 burst_capture_rate_hyps (const dp_acq_state_t *eng, size_t reps)
 {

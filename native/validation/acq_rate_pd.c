@@ -852,6 +852,19 @@ main (int argc, char **argv)
     DP_CHECK_MSG (und[1].eng_lo > und[0].eng_hi,
                   "auto's depth beats the capped depth 3 dB under the "
                   "design point, outside the intervals");
+    /* And the depth reaches the CAPTURE: the compensated capture places
+       more than the capped one there, outside the intervals. Gated for
+       auto, which separates in this run and the full one (--check: 0.672
+       [0.612, 0.727] against 0.492 [0.431, 0.554]). Not for n = 9: refine's
+       own cost eats more of its depth at the capture (engine 0.732 ->
+       capture 0.600 in --check, 0.706 -> 0.587 in the full run, against
+       auto's 0.768 -> 0.672), and at 250 trials its interval overlaps the
+       capped one (0.538 against 0.554). It separates only in the full run
+       (0.556 against 0.503), so it is printed, not claimed, and the loss is
+       doppler#2341's. */
+    DP_CHECK_MSG (und[1].cap_lo > und[0].cap_hi,
+                  "auto's depth reaches the capture 3 dB under the design "
+                  "point, outside the intervals");
     /* The reported rate: the rows 23 dB over the design point are the ones
        the contract claims. From a block wholly inside the preamble the
        winning hypothesis is the nearest to the truth (measured 111/111 and
@@ -945,6 +958,9 @@ main (int argc, char **argv)
       }
     DP_CHECK_MSG (lu[1].eng_lo > lu[0].eng_hi,
                   "LFM: compensation's depth beats the capped depth 3 dB "
+                  "under the design point, outside the intervals");
+    DP_CHECK_MSG (lu[1].cap_lo > lu[0].cap_hi,
+                  "LFM: compensation's depth reaches the capture 3 dB "
                   "under the design point, outside the intervals");
     pfa_row_t lp = measure_pfa (5, cn0_l, dwells, 6161u, 0);
     printf ("LFM Pfa, Rh %zu D %zu: %.2e (95%%: %.2e - %.2e)\n", lp.rh,

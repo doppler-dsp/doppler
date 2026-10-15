@@ -746,7 +746,7 @@ priced: these rows now sit under the target, not over it).
 - `validate_acq_block_coherent --check` holds the continuous engine's
     per-block rate at the configured one over 400 blocks, which detects the
     native pricing rather than pinning one draw: put back, it fired 127 of
-    400, past the band's edge (104) by close to three of its own sigma.
+    400, past the band's edge (104) by about 2.5 of its own sigma.
 - The characterization predicts its sweep counts from the *delivered* rate
     rather than the configured one.
 

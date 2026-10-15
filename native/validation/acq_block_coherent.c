@@ -558,11 +558,11 @@ main (int argc, char **argv)
        the native rows instead it fired about a third of the blocks at
        0.20 (measured 37 of 100, and 127 of these 400 with the native count
        put back), and this check DETECTS that rather than pinning one draw:
-       400 blocks put its mean past the band's edge (80 +- 24) by close to
-       three of its own sigma, an escape of well under 1%. At 100 blocks the
-       band was 8..32, and a native-priced draw landed inside it a quarter
-       to half of the time. The exact guard is the cell count, pinned to the
-       band mask in test_acq_core.c. */
+       400 blocks put it past the band's edge (80 +- 24) by about 2.5 of
+       its own sigma at the measured rate, an escape of well under 1%. At 100
+       blocks the band was 8..32, and a native-priced draw landed inside it a
+       quarter to half of the time. The exact guard is the cell count, pinned
+       to the band mask in test_acq_core.c. */
     const double expect = pfa;
     double       sd     = sqrt (expect * (1.0 - expect) * blocks);
     printf ("\npfa per block, D = %zu, %zu tiles, interp %zu, configured "

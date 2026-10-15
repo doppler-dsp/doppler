@@ -461,8 +461,8 @@ row of it, in every tile (doppler#2218). Priced over the native rows, as it was
 until then, the same runs read 64 of 300 and 37 of 100, which is
 1 − (1 − pfa)^2 within a sigma both times. The `--check` holds the realized
 rate at the configured one over 400 blocks. The native pricing, put back,
-fired 127 of them, past the band's edge (104) by close to three of its own
-sigma, so the check detects it rather than pinning one draw. The exact guard
+fired 127 of them, past the band's edge (104) by about 2.5 of its own sigma,
+so the check detects it rather than pinning one draw. The exact guard
 is the cell count, pinned to the band mask in `test_acq_core.c`.
 
 **Sensitivity** (5 Mcps, one look, 20 trials, realized Pd and the mean

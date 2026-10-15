@@ -167,7 +167,11 @@ A filtered run cannot become a release's numbers by either publish path.
 that lacks any of the tree's `native/benchmarks/bench_*_core.c` (a bench
 that crashed records nothing, so this catches that too), and
 `make bench-interleaved` refuses a set `BENCH_ARGS` before it builds,
-because its inner `make bench` runs would inherit it.
+because its inner `make bench` runs would inherit it. It also refuses
+while the clone holds a result origin/main lacks, after clearing the
+outputs main already has: `make bench-preflight`, which the
+[release procedure](../release.md#2b-refresh-the-benchmarks-page) runs
+before checking out the commit to measure.
 
 **How many are not jm components is printed by the gate, not written here.**
 `make bench-coverage-check` counts them from the tree on every run and says

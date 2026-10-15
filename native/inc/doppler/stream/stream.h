@@ -21,7 +21,8 @@
  * // Transmitter
  * dp_pub_t *pub = dp_pub_create("nats://127.0.0.1:4222/iq", CF64);
  * double _Complex samples[1024] = { ... };
- * dp_pub_send_cf64(pub, samples, 1024, 1e6, 2.4e9);
+ * if (dp_pub_send_cf64(pub, samples, 1024, 1e6, 2.4e9) != DP_OK)
+ *   fprintf(stderr, "send refused: %s\n", dp_ctx_last_error(pub));
  * dp_pub_destroy(pub);
  *
  * // Receiver (zero-copy)
@@ -431,6 +432,7 @@ extern "C"
    *         payload_bytes. The limit is checked before multiplying, so
    *         a count whose byte size wraps is refused, not sent.
    */
+  DP_NODISCARD
   int dp_pub_send_ci32 (dp_pub_t *ctx, const int32_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
@@ -439,6 +441,7 @@ extern "C"
    * @brief Send an array of CF64 samples via a Publisher.
    * @copydetails dp_pub_send_ci32
    */
+  DP_NODISCARD
   int dp_pub_send_cf64 (dp_pub_t *ctx, const double _Complex *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
@@ -447,6 +450,7 @@ extern "C"
    * @brief Send an array of CI8 samples via a Publisher.
    * @copydetails dp_pub_send_ci32
    */
+  DP_NODISCARD
   int dp_pub_send_ci8 (dp_pub_t *ctx, const int8_t *samples,
                        size_t num_samples, double sample_rate,
                        double center_freq);
@@ -455,6 +459,7 @@ extern "C"
    * @brief Send an array of CI16 samples via a Publisher.
    * @copydetails dp_pub_send_ci32
    */
+  DP_NODISCARD
   int dp_pub_send_ci16 (dp_pub_t *ctx, const int16_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
@@ -463,6 +468,7 @@ extern "C"
    * @brief Send an array of CF32 samples via a Publisher.
    * @copydetails dp_pub_send_ci32
    */
+  DP_NODISCARD
   int dp_pub_send_cf32 (dp_pub_t *ctx, const float _Complex *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
@@ -483,6 +489,7 @@ extern "C"
    * @param center_freq  Wire-header field; 0.0 if not meaningful.
    * @return DP_OK (0) on success, negative error code on failure.
    */
+  DP_NODISCARD
   int dp_pub_send_tlm16 (dp_pub_t *ctx, const void *records,
                          size_t num_records, double sample_rate,
                          double center_freq);
@@ -535,6 +542,7 @@ extern "C"
    *         budget ran out with data still pending, DP_ERR_INVALID for a
    *         NULL context.
    */
+  DP_NODISCARD
   int dp_pub_flush (dp_pub_t *ctx, int timeout_ms);
 
   /**
@@ -563,6 +571,7 @@ extern "C"
    *         NULL context, @ref DP_ERR_CLOSED if the context is already
    *         draining or closed.
    */
+  DP_NODISCARD
   int dp_pub_send_eos (dp_pub_t *ctx);
 
   /**
@@ -611,6 +620,7 @@ extern "C"
    *         with the drain still in progress (the context is still safe
    *         to destroy), DP_ERR_INVALID for a NULL context.
    */
+  DP_NODISCARD
   int dp_stream_drain (dp_pub_t *ctx, int timeout_ms);
 
   /**
@@ -716,6 +726,7 @@ extern "C"
    * @brief Send CI32 samples via a Push socket.
    * @copydetails dp_pub_send_ci32
    */
+  DP_NODISCARD
   int dp_push_send_ci32 (dp_push_t *ctx, const int32_t *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
@@ -724,24 +735,28 @@ extern "C"
    * @brief Send CF64 samples via a Push socket.
    * @copydetails dp_pub_send_ci32
    */
+  DP_NODISCARD
   int dp_push_send_cf64 (dp_push_t *ctx, const double _Complex *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
 
   /** @brief Send CI8 samples via a Push socket.
    *  @copydetails dp_pub_send_ci32 */
+  DP_NODISCARD
   int dp_push_send_ci8 (dp_push_t *ctx, const int8_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
 
   /** @brief Send CI16 samples via a Push socket.
    *  @copydetails dp_pub_send_ci32 */
+  DP_NODISCARD
   int dp_push_send_ci16 (dp_push_t *ctx, const int16_t *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
 
   /** @brief Send CF32 samples via a Push socket.
    *  @copydetails dp_pub_send_ci32 */
+  DP_NODISCARD
   int dp_push_send_cf32 (dp_push_t *ctx, const float _Complex *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
@@ -814,6 +829,7 @@ extern "C"
    *         is refused before narrowing to nats.c's int length,
    *         which sent a truncated or empty message with DP_OK.
    */
+  DP_NODISCARD
   int dp_req_send (dp_req_t *ctx, const void *data, size_t size);
 
   /**
@@ -845,48 +861,59 @@ extern "C"
    *         is refused before narrowing to nats.c's int length,
    *         which sent a truncated or empty message with DP_OK.
    */
+  DP_NODISCARD
   int dp_rep_send (dp_rep_t *ctx, const void *data, size_t size);
 
   /* -- Signal-frame send/recv (data plane) ------------------------------ */
 
   /** @brief Send CI32 signal frame as a request. */
+  DP_NODISCARD
   int dp_req_send_ci32 (dp_req_t *ctx, const int32_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
   /** @brief Send CF64 signal frame as a request. */
+  DP_NODISCARD
   int dp_req_send_cf64 (
       dp_req_t *ctx, const double _Complex *samples, size_t num_samples,
       double sample_rate,
       double center_freq); /** @brief Send CI8 signal frame as a request. */
+  DP_NODISCARD
   int dp_req_send_ci8 (dp_req_t *ctx, const int8_t *samples,
                        size_t num_samples, double sample_rate,
                        double center_freq);
   /** @brief Send CI16 signal frame as a request. */
+  DP_NODISCARD
   int dp_req_send_ci16 (dp_req_t *ctx, const int16_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
   /** @brief Send CF32 signal frame as a request. */
+  DP_NODISCARD
   int dp_req_send_cf32 (dp_req_t *ctx, const float _Complex *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
 
   /** @brief Send CI32 signal frame as a reply. */
+  DP_NODISCARD
   int dp_rep_send_ci32 (dp_rep_t *ctx, const int32_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
   /** @brief Send CF64 signal frame as a reply. */
+  DP_NODISCARD
   int dp_rep_send_cf64 (
       dp_rep_t *ctx, const double _Complex *samples, size_t num_samples,
       double sample_rate,
       double center_freq); /** @brief Send CI8 signal frame as a reply. */
+  DP_NODISCARD
   int dp_rep_send_ci8 (dp_rep_t *ctx, const int8_t *samples,
                        size_t num_samples, double sample_rate,
                        double center_freq);
   /** @brief Send CI16 signal frame as a reply. */
+  DP_NODISCARD
   int dp_rep_send_ci16 (dp_rep_t *ctx, const int16_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
   /** @brief Send CF32 signal frame as a reply. */
+  DP_NODISCARD
   int dp_rep_send_cf32 (dp_rep_t *ctx, const float _Complex *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);

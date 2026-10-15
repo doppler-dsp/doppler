@@ -57,11 +57,11 @@
 |  void | [**dp\_pull\_set\_timeout**](#function-dp_pull_set_timeout) ([**dp\_pull\_t**](group__types.md#typedef-dp_pull_t) \* ctx, int timeout\_ms) <br>_Set receive timeout for a Pull socket._  |
 |  [**dp\_push\_t**](group__types.md#typedef-dp_push_t) \* | [**dp\_push\_create**](#function-dp_push_create) (const char \* endpoint, [**dp\_sample\_type\_t**](dp__format_8h.md#enum-dp_sample_type_t) sample\_type) <br>_Create a Push producer and connect to_ `endpoint` _._ |
 |  void | [**dp\_push\_destroy**](#function-dp_push_destroy) ([**dp\_push\_t**](group__types.md#typedef-dp_push_t) \* ctx) <br>_Destroy a Push context and release all resources._  |
-|  int | [**dp\_push\_send\_cf32**](#function-dp_push_send_cf32) ([**dp\_push\_t**](group__types.md#typedef-dp_push_t) \* ctx, const float \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CF32 samples via a Push socket._  |
-|  int | [**dp\_push\_send\_cf64**](#function-dp_push_send_cf64) ([**dp\_push\_t**](group__types.md#typedef-dp_push_t) \* ctx, const double \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CF64 samples via a Push socket._  |
-|  int | [**dp\_push\_send\_ci16**](#function-dp_push_send_ci16) ([**dp\_push\_t**](group__types.md#typedef-dp_push_t) \* ctx, const int16\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CI16 samples via a Push socket._  |
-|  int | [**dp\_push\_send\_ci32**](#function-dp_push_send_ci32) ([**dp\_push\_t**](group__types.md#typedef-dp_push_t) \* ctx, const int32\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CI32 samples via a Push socket._  |
-|  int | [**dp\_push\_send\_ci8**](#function-dp_push_send_ci8) ([**dp\_push\_t**](group__types.md#typedef-dp_push_t) \* ctx, const int8\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CI8 samples via a Push socket._  |
+|  [**DP\_NODISCARD**](clib__common_8h.md#define-dp_nodiscard) int | [**dp\_push\_send\_cf32**](#function-dp_push_send_cf32) ([**dp\_push\_t**](group__types.md#typedef-dp_push_t) \* ctx, const float \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CF32 samples via a Push socket._  |
+|  [**DP\_NODISCARD**](clib__common_8h.md#define-dp_nodiscard) int | [**dp\_push\_send\_cf64**](#function-dp_push_send_cf64) ([**dp\_push\_t**](group__types.md#typedef-dp_push_t) \* ctx, const double \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CF64 samples via a Push socket._  |
+|  [**DP\_NODISCARD**](clib__common_8h.md#define-dp_nodiscard) int | [**dp\_push\_send\_ci16**](#function-dp_push_send_ci16) ([**dp\_push\_t**](group__types.md#typedef-dp_push_t) \* ctx, const int16\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CI16 samples via a Push socket._  |
+|  [**DP\_NODISCARD**](clib__common_8h.md#define-dp_nodiscard) int | [**dp\_push\_send\_ci32**](#function-dp_push_send_ci32) ([**dp\_push\_t**](group__types.md#typedef-dp_push_t) \* ctx, const int32\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CI32 samples via a Push socket._  |
+|  [**DP\_NODISCARD**](clib__common_8h.md#define-dp_nodiscard) int | [**dp\_push\_send\_ci8**](#function-dp_push_send_ci8) ([**dp\_push\_t**](group__types.md#typedef-dp_push_t) \* ctx, const int8\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CI8 samples via a Push socket._  |
 
 
 
@@ -310,7 +310,7 @@ void dp_push_destroy (
 
 _Send CF32 samples via a Push socket._ 
 ```
-int dp_push_send_cf32 (
+DP_NODISCARD int dp_push_send_cf32 (
     dp_push_t * ctx,
     const float _Complex * samples,
     size_t num_samples,
@@ -352,7 +352,7 @@ DP\_OK (0) on success, negative error code on failure; DP\_ERR\_TOO\_LARGE when 
 
 _Send CF64 samples via a Push socket._ 
 ```
-int dp_push_send_cf64 (
+DP_NODISCARD int dp_push_send_cf64 (
     dp_push_t * ctx,
     const double _Complex * samples,
     size_t num_samples,
@@ -394,7 +394,7 @@ DP\_OK (0) on success, negative error code on failure; DP\_ERR\_TOO\_LARGE when 
 
 _Send CI16 samples via a Push socket._ 
 ```
-int dp_push_send_ci16 (
+DP_NODISCARD int dp_push_send_ci16 (
     dp_push_t * ctx,
     const int16_t * samples,
     size_t num_samples,
@@ -436,7 +436,7 @@ DP\_OK (0) on success, negative error code on failure; DP\_ERR\_TOO\_LARGE when 
 
 _Send CI32 samples via a Push socket._ 
 ```
-int dp_push_send_ci32 (
+DP_NODISCARD int dp_push_send_ci32 (
     dp_push_t * ctx,
     const int32_t * samples,
     size_t num_samples,
@@ -478,7 +478,7 @@ DP\_OK (0) on success, negative error code on failure; DP\_ERR\_TOO\_LARGE when 
 
 _Send CI8 samples via a Push socket._ 
 ```
-int dp_push_send_ci8 (
+DP_NODISCARD int dp_push_send_ci8 (
     dp_push_t * ctx,
     const int8_t * samples,
     size_t num_samples,

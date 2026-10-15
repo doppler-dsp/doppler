@@ -112,6 +112,7 @@
 | define  | [**DP\_ERR\_SEND**](clib__common_8h.md#define-dp_err_send)  `(-2)`<br> |
 | define  | [**DP\_ERR\_TIMEOUT**](clib__common_8h.md#define-dp_err_timeout)  `(-5)`<br> |
 | define  | [**DP\_ERR\_TOO\_LARGE**](clib__common_8h.md#define-dp_err_too_large)  `(-7)`<br> |
+| define  | [**DP\_NODISCARD**](clib__common_8h.md#define-dp_nodiscard)  <br>_Marks a function whose status must not be dropped._  |
 | define  | [**DP\_OK**](clib__common_8h.md#define-dp_ok)  `0`<br> |
 
 ## Public Functions Documentation
@@ -552,6 +553,24 @@ Operation timed out.
 
 
 Frame exceeds transport max payload. 
+
+
+        
+
+<hr>
+
+
+
+### define DP\_NODISCARD 
+
+_Marks a function whose status must not be dropped._ 
+```C++
+#define DP_NODISCARD 
+```
+
+
+
+A refusal nobody reads is invisible: the call returns DP\_ERR\_\*, the caller carries on as if it had worked, and no flag can see it, because -Wunused-result only checks a function that asks for it (#1663). Put this in front of the return type of any function that returns a refusal, and gcc and clang warn at every call site that discards it; the library's -Werror builds fail there. A `(void)` cast does NOT silence gcc: handle the status. Empty where the compiler has no such attribute. 
 
 
         

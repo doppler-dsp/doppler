@@ -609,7 +609,14 @@ def _sweeping_burst(pre, reps, payload, at, total, f_mid, rate, sigma, seed):
 
 def test_rate_hypotheses_buy_depth_and_the_power_to_meet_pd():
     """Capped, the depth cannot meet the requested pd at this C/N0; with the
-    rates searched the residual drift allows twice the depth, and it can."""
+    rates searched the residual drift allows nearly twice the depth, and it
+    can.
+
+    -12.5 dB, a quarter dB above the validator's design point, so neither
+    side sits on the knife-edge: capped (D = 5) predicts 0.872 and nine
+    rates (D = 9) 0.918, against pd 0.9. The gate is priced over the
+    interpolated surface since doppler#2218, which moved the design point
+    from -13.0 up by a quarter dB."""
     import warnings
 
     pre = _zc()
@@ -617,7 +624,7 @@ def test_rate_hypotheses_buy_depth_and_the_power_to_meet_pd():
         "burst_len": 2432,
         "reps": 16,
         "fs": 1.0,
-        "cn0_dbhz": -13.0,
+        "cn0_dbhz": -12.5,
         "doppler_rate": 9e-7,
     }
     with warnings.catch_warnings():
@@ -626,7 +633,7 @@ def test_rate_hypotheses_buy_depth_and_the_power_to_meet_pd():
     assert capped.rate_hypotheses == 1 and capped.doppler_bins == 5
     assert capped.underpowered
     cap = BurstCapture(pre, rate_hypotheses=9, **kw)
-    assert cap.rate_hypotheses == 9 and cap.doppler_bins == 10
+    assert cap.rate_hypotheses == 9 and cap.doppler_bins == 9
     assert not cap.underpowered
 
 
@@ -651,8 +658,9 @@ def test_rate_hypotheses_need_a_rate_to_span():
 
 
 def test_rate_hypotheses_zero_is_auto():
-    """0 chooses the count: at the validator's design point it picks fewer
-    than nine and still meets pd at the depth nine does."""
+    """0 chooses the count: at -13 dB, where nine falls just short of pd at
+    depth 10 (each hypothesis is priced as a full look), it picks fewer than
+    nine and meets pd at that depth (n = 4: 0.906 against 0.9)."""
     kw = {
         "burst_len": 2432,
         "reps": 16,

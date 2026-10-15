@@ -1581,9 +1581,10 @@ PROJECT = DOPPLER
 
 define RELEASE_BRANCH_NOTES
 @echo "  - if perf-relevant code changed since the last release (release.md"
-@echo "    §2b): make bench-interleaved VERSION=$(VERSION) && make bench-docs"
-@echo "    (on a representative machine), then commit benchmarks/published +"
-@echo "    docs/benchmarks.md"
+@echo "    §2b), in the bench box's one clone: git fetch origin &&"
+@echo "    make bench-preflight && git checkout --detach origin/main, then"
+@echo "    make bench-interleaved VERSION=$(VERSION) && make bench-docs,"
+@echo "    then commit benchmarks/published + docs/benchmarks.md"
 endef
 
 # The script is VENDORED from canonical (just-buildit.github.io) and held to it
@@ -1687,8 +1688,8 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 check-wheel-tags release-wheel-tags \
                 release-smoke-packages \
                 bench-python \
-                bench-interleaved bench-publish bench-docs bench-stream \
-                bench-report bench-restamp \
+                bench-preflight bench-interleaved bench-publish bench-docs \
+                bench-stream bench-report bench-restamp \
                 docker-runtime docker-sdk docker-downstream docker-stream \
                 docker-examples smoke-image
 
@@ -4700,9 +4701,24 @@ test-example-downstream-python: ## Build + test the downstream example (Python)
 bench-python: ## Time the Python microbenchmarks (serial; pytest-benchmark)
 	uv run pytest $(PYTEST_BENCH_DIRS) -v $(PYTEST_SELECT) $(PYTEST_ARGS)
 
+# The bench box keeps ONE clone, not one per release (docs/dev/release.md
+# §2b): fetch, then bench-preflight, then `git checkout --detach`, then
+# bench-interleaved. The preflight clears the previous release's snapshot
+# and rendered page once origin/main has the same content (compared as
+# `git status` does, line endings converted); `git checkout`
+# refuses while they are still there. Anything main lacks, anything staged
+# and not committed, and any symlink refuses instead, touching nothing.
+# bench-interleaved runs the same check first.
+bench-preflight: ## Clear the last release's bench outputs once main has them
+	uv run python scripts/bench_interleaved.py --preflight \
+	    --base $(BENCH_COMMIT_BASE)
+
 bench-interleaved: ## Measure portable + native alternately, denoised (VERSION=)
 ifndef VERSION
-	@echo "usage: make bench-interleaved VERSION=X.Y.Z [K=5]"; exit 1
+	@echo "usage: make bench-interleaved VERSION=X.Y.Z [K=5]"
+	@echo "  in the bench box's one clone, after: git fetch origin &&"
+	@echo "  make bench-preflight && git checkout --detach origin/main"
+	@exit 1
 endif
 	uv run python scripts/bench_interleaved.py $(VERSION) $(if $(K),-k $(K),) \
 	    --base $(BENCH_COMMIT_BASE)

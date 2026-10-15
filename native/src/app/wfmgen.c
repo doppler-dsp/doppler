@@ -1104,12 +1104,24 @@ emit_to_stream (const emit_ctx_t *e)
   float _Complex buf[BLK];
   size_t n;
   double rate = e->fs;
+  /* A refused send is a block that never left this process: during a
+     reconnect the client stops taking publishes once 8 MiB is pending.
+     The stream goes on -- the next block may go -- but the exit says so,
+     because "wfmgen exited 0" has to mean the samples arrived (#2011). */
+  size_t lost_blocks = 0, lost_samples = 0;
+  int    first_refusal = DP_OK;
   /* Each frame header carries its own fs, so a scene whose segments
      differ is described honestly: a block never spans two rates, and each
      frame states its own (doppler#1733). 0 is the end. */
   while ((n = dp_wfm_compose_execute_rate (e->comp, buf, BLK, &rate)) > 0)
     {
-      dp_wfm_stream_sink_send (sink, buf, n, rate, o->fc);
+      int src = dp_wfm_stream_sink_send (sink, buf, n, rate, o->fc);
+      if (src != DP_OK)
+        {
+          if (lost_blocks++ == 0)
+            first_refusal = src;
+          lost_samples += n;
+        }
       if (e->clk)
         {
           dp_sample_clock_set_rate (e->clk, rate);
@@ -1121,13 +1133,31 @@ emit_to_stream (const emit_ctx_t *e)
   int rc = report_clip (
       dp_wfm_stream_sink_peak (sink), dp_wfm_stream_sink_clip_fraction (sink),
       o->sample_type, o->headroom, o->clip_report, o->clip_error);
+  if (lost_blocks)
+    {
+      (void)fprintf (stderr,
+                     "wfmgen: the stream refused %zu block(s), %zu "
+                     "sample(s) (first error %d) -- they never left this "
+                     "process\n",
+                     lost_blocks, lost_samples, first_refusal);
+      rc = 1;
+    }
 
   /* Say the stream has ended BEFORE draining. The order matters: a drain
      cannot be reversed and refuses sends once it reaches its
      publish-flushing phase, so an EOS issued after one may simply not go.
      Without this a subscriber has only silence to go on, and silence is
-     exactly what it cannot interpret. */
-  (void)dp_wfm_stream_sink_send_eos (sink);
+     exactly what it cannot interpret -- so a refused end is reported and
+     fails the exit like a refused block (#2011). */
+  int erc = dp_wfm_stream_sink_send_eos (sink);
+  if (erc != DP_OK)
+    {
+      (void)fprintf (stderr,
+                     "wfmgen: the stream refused the end-of-stream (error "
+                     "%d) -- subscribers will see silence, not an end\n",
+                     erc);
+      rc = 1;
+    }
 
   /* Drain BEFORE close, on every exit -- interrupted or finished. A send
      returns once the client has the block, not once the server does, so

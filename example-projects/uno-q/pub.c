@@ -147,7 +147,9 @@ main (int argc, char **argv)
       samples += pairs;
     }
 
-  dp_pub_send_eos (pub);
+  if (dp_pub_send_eos (pub) != DP_OK)
+    (void)fprintf (stderr, "pub: end-of-stream refused; subscribers will "
+                           "see silence, not an end\n");
   int drained = dp_stream_drain (pub, 5000);
   if (push)
     dp_push_destroy ((dp_push_t *)pub);

@@ -26,6 +26,7 @@ PREFIX="$HOME/.local/doppler"
 #include <doppler/stream/stream.h>
 #include <complex.h>
 #include <math.h>
+#include <stdio.h>
 
 int main(void) {
     dp_pub_t *tx = dp_pub_create("nats://127.0.0.1:4222/iq", CF64);
@@ -36,9 +37,11 @@ int main(void) {
         samples[i] = cos(phase) + sin(phase) * _Complex_I;
     }
 
-    dp_pub_send_cf64(tx, samples, 1000, 1e6, 2.4e9);
+    int rc = dp_pub_send_cf64(tx, samples, 1000, 1e6, 2.4e9);
+    if (rc != DP_OK)
+        fprintf(stderr, "send refused: %s\n", dp_ctx_last_error(tx));
     dp_pub_destroy(tx);
-    return 0;
+    return rc == DP_OK ? 0 : 1;
 }
 ```
 
@@ -81,7 +84,8 @@ round-robin across every connected `Pull`.
 
 // Producer
 dp_push_t *push = dp_push_create("nats://127.0.0.1:4222/work", CF64);
-dp_push_send_cf64(push, samples, count, 1e6, 2.4e9);
+if (dp_push_send_cf64(push, samples, count, 1e6, 2.4e9) != DP_OK)
+    fprintf(stderr, "send refused: %s\n", dp_ctx_last_error(push));
 dp_push_destroy(push);
 
 // Consumer
@@ -114,6 +118,7 @@ samples = np.array([1+2j, 3+4j, 5+6j], dtype=np.complex128)
 
 with Publisher("nats://127.0.0.1:4222/iq", CF64) as pub:
     pub.send(samples, sample_rate=1e6, center_freq=2.4e9)
+    pub.drain()  # close() alone flushes best-effort and reports nothing
 
 with Subscriber("nats://127.0.0.1:4222/iq") as sub:
     data, hdr = sub.recv(timeout_ms=500)

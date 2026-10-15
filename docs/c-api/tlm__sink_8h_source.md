@@ -27,6 +27,8 @@ extern "C"
 
   uint64_t dp_tlm_sink_sent (const dp_tlm_sink_t *sink);
 
+  uint64_t dp_tlm_sink_lost (const dp_tlm_sink_t *sink);
+
   void dp_tlm_sink_close (dp_tlm_sink_t *sink);
 
 #ifdef __cplusplus

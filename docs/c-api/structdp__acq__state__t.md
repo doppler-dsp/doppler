@@ -1159,7 +1159,7 @@ double dp_acq_state_t::pfa_cell;
 
 
 
-Sidak per-cell false-alarm probability. 
+Sidak per-cell false-alarm probability, split over the cells a dwell's maximum ranges over: the in-band rows of the interpolated surface, times code\_bins, times the rate hypotheses. 
  
 
 

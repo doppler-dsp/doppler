@@ -71,6 +71,19 @@ burst_from_code (const uint8_t *code, size_t code_len, size_t reps, size_t spc,
                            doppler_rate, 1);
 }
 
+/* The cells a dwell's maximum ranges over, counted from the engine's own
+ * band mask (1 = outside the searched band): what the gate's Sidak split
+ * must be over (doppler#2218). `native_only` keeps the native rows. */
+static size_t
+band_cells (const dp_acq_state_t *a, int native_only)
+{
+  const size_t itp = a->interp ? a->interp : 1;
+  size_t       c   = 0;
+  for (size_t k = 0; k < a->n_surf; k++)
+    c += !a->band_mask[k] && (!native_only || (k / a->code_bins) % itp == 0);
+  return c;
+}
+
 /* ── dp_acq_run pure-transducer (state in/out) round-trip
  * ───────────────────── The stateless elastic face: state_in == NULL resets
  * then processes; a fresh engine + state_in reproduces an uninterrupted run; a
@@ -358,6 +371,66 @@ _acq_band_edge_check (void)
         }
       dp_acq_destroy (a);
     }
+  return 0;
+}
+
+/* The gate is priced over the cells its maximum ranges over (doppler#2218).
+ * A dwell's statistic is the largest cell of the Doppler-INTERPOLATED
+ * surface inside the band mask, and an interpolated row is nearly a fresh
+ * chance for noise in the deep tail: priced over the native cells instead,
+ * every D > 1 engine fired at 1.86-1.93x its pfa. So on every grid shape --
+ * the full band at even D, a band a prior narrows (sb < D) at even and odd
+ * D, no interpolation (D = 1), a non-coherent grid, and a tiled continuous
+ * engine -- pfa_cell is the Sidak split over exactly the mask's in-band
+ * cells, which is more than the native ones wherever the surface is
+ * interpolated. An exact equality: the engine counts the band by formula
+ * (acq_band_cells), this counts the mask cell by cell, so a drift either
+ * way is red. */
+static int
+_acq_pfa_split_check (void)
+{
+  const size_t spc = 4, sf = 31, reps = 8;
+  const double crate = 1.0e6, bin_hz = crate / (double)sf / (double)reps;
+  struct
+  {
+    double du;
+    size_t D, nc;
+  } grids[] = {
+    { 0.0, 8, 1 },    /* the full band, even D            */
+    { bin_hz, 8, 1 }, /* narrowed: sb = 3 of 8             */
+    { bin_hz, 7, 1 }, /* narrowed at odd D: sb = 3 of 7    */
+    { 0.0, 1, 1 },    /* D = 1: nothing to interpolate     */
+    { 0.0, 4, 3 },    /* non-coherent looks over the surface */
+  };
+  for (size_t g = 0; g < sizeof grids / sizeof grids[0]; g++)
+    {
+      dp_acq_state_t *a
+          = burst_from_code (CODE31, sf, reps, spc, crate, ACQ_CN0_NONE,
+                             grids[g].du, 1e-3, 0.9, 0, 0.0);
+      DP_REQUIRE (a != NULL);
+      DP_REQUIRE (dp_acq_configure_search_raw (a, grids[g].D, grids[g].nc)
+                  == 0);
+      DP_REQUIRE (a->coherent_bins == grids[g].D);
+      if (grids[g].du > 0.0)
+        DP_CHECK (a->searched_bins == 3
+                  && a->searched_bins < a->coherent_bins);
+      DP_CHECK_MSG (a->pfa_cell
+                        == dp_det_pfa_cell (1e-3, (double)band_cells (a, 0)),
+                    "the Sidak split is over the band mask's surface cells");
+      if (a->interp > 1)
+        DP_CHECK_MSG (band_cells (a, 0) > band_cells (a, 1),
+                      "an interpolated surface offers more cells than its "
+                      "native rows");
+      else
+        DP_CHECK (band_cells (a, 0) == band_cells (a, 1));
+      dp_acq_destroy (a);
+    }
+  /* A tiled continuous engine with block depth inside the tiles. */
+  dp_acq_state_t *c = dp_acq_create_continuous (CODE7, 7, 2, crate, 0.0, 60.0,
+                                                200.0e3, 1e-2, 0.9, 0, 7, 0.0);
+  DP_REQUIRE (c != NULL && c->window_bins > 1 && c->interp > 1);
+  DP_CHECK (c->pfa_cell == dp_det_pfa_cell (1e-2, (double)band_cells (c, 0)));
+  dp_acq_destroy (c);
   return 0;
 }
 
@@ -1037,13 +1110,12 @@ _acq_rate_hypotheses_check (void)
         want              = want > reps ? reps : want < 1 ? 1 : want;
         DP_CHECK (a->coherent_bins == want);
         DP_CHECK (a->coherent_bins >= last);
-        /* And every hypothesis is another look at each cell: the gate is
-           the one for searched_bins * code_bins * n of them. */
-        DP_CHECK (
-            fabs ((double)a->eta
-                  - dp_det_threshold (dp_det_pfa_cell (
-                      1e-3, (double)(a->searched_bins * a->code_bins * n))))
-            < 1e-4);
+        /* And every hypothesis is another look at each cell the maximum
+           ranges over: the gate is the one for n times the band's cells. */
+        DP_CHECK (fabs ((double)a->eta
+                        - dp_det_threshold (dp_det_pfa_cell (
+                            1e-3, (double)(band_cells (a, 0) * n))))
+                  < 1e-4);
         last = a->coherent_bins;
         dp_acq_destroy (a);
       }
@@ -2979,6 +3051,7 @@ main (void)
   (void)_acq_half_bin_check ();
   (void)_acq_band_edge_check ();
   (void)_acq_band_mask_check ();
+  (void)_acq_pfa_split_check ();
   (void)_acq_wideband_check ();
   (void)_acq_wideband_coherent_center_check ();
   (void)_acq_wideband_default_depth_check ();
@@ -3614,9 +3687,12 @@ main (void)
     DP_CHECK (c->blk != NULL && c->frame_n == nx);
     DP_CHECK_MSG (c->searched_bins == tiles * D,
                   "the CFAR counts every row of every tile");
-    DP_CHECK (fabs (c->pfa_cell
-                    - (1.0 - pow (1.0 - 1e-2, 1.0 / (double)(tiles * D * nx))))
-              < 1e-12);
+    /* ...and the gate's split is over every one of those rows, all
+       interpolated: the maximum ranges over the whole surface. */
+    DP_CHECK (band_cells (c, 0) == c->n_surf);
+    DP_CHECK (
+        fabs (c->pfa_cell - (1.0 - pow (1.0 - 1e-2, 1.0 / (double)c->n_surf)))
+        < 1e-12);
     DP_CHECK (fabs (c->doppler_res_hz - f_epoch / (double)D) < 1e-9);
     /* At 70 dB-Hz the sizer needs one look (measured: 7 at D = 1 and 60
        dB-Hz, 2 at D = 4, 1 at D = 8), so one block is one decision. */

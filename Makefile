@@ -193,7 +193,7 @@ LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format \
                version-literals text-encoding cmake-script-policy \
                why-param doc-claims public-symbols curl-fail \
                warnings-exempt stock-images uv-pin uv-lock tlm-name-join \
-               ring-internals named-args
+               ring-internals named-args acq-pfa-split
 FORMAT_TOOLS = ruff-format ruff mdformat named-args clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -381,6 +381,13 @@ LINT_gnu-flags = $(UV) run python scripts/check_gnu_flags.py
 # threads (#1260). dp_lgamma() in clib_common.h wraps lgamma_r() once; a
 # bare lgamma in library C is the next race. No allowlist.
 LINT_lgamma-reentrant = $(UV) run python scripts/check_lgamma_sites.py
+
+# The acquisition engine prices a gate at three sites, and only the commit
+# site has an exact pin (test_acq_core.c). Each must split pfa over the one
+# count, acq_band_cells(): a hand count of the native cells re-inlined at
+# the sizer or the non-coherent ascend fired the engine at about twice its
+# pfa and passed every test (doppler#2218).
+LINT_acq-pfa-split = $(UV) run python scripts/check_acq_pfa_split.py
 
 # Path.read_text() without an encoding decodes with the locale codec, which
 # is cp1252 on Windows: the first Windows run of the suite lost three test

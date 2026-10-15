@@ -50,6 +50,7 @@ _BurstCapture state._ [More...](#detailed-description)
 |  size\_t | [**det\_cap**](#variable-det_cap)  <br> |
 |  size\_t | [**det\_len**](#variable-det_len)  <br> |
 |  double | [**doppler\_hz\_est**](#variable-doppler_hz_est)  <br> |
+|  double | [**doppler\_rate\_hz\_s**](#variable-doppler_rate_hz_s)  <br> |
 |  double | [**doppler\_res\_hz**](#variable-doppler_res_hz)  <br> |
 |  uint64\_t | [**dropped**](#variable-dropped)  <br> |
 |  [**burst\_capture\_event\_t**](structburst__capture__event__t.md) \* | [**ev**](#variable-ev)  <br> |
@@ -378,6 +379,23 @@ double dp_burst_capture_state_t::doppler_hz_est;
 
 Signed coarse Doppler, Hz. 
  
+
+
+        
+
+<hr>
+
+
+
+### variable doppler\_rate\_hz\_s 
+
+```C++
+double dp_burst_capture_state_t::doppler_rate_hz_s;
+```
+
+
+
+Refine's winning rate hypothesis, Hz/s. 
 
 
         

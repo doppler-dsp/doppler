@@ -16,6 +16,7 @@
 typedef struct
 {
   PyObject_HEAD dp_frame_state_t *handle;
+  jm_inflight_t _jm_inflight; /* gh-2272: GIL-free calls running */
 } FrameDescObject;
 
 static void
@@ -23,6 +24,7 @@ FrameDescObj_dealloc (FrameDescObject *self)
 {
   if (self->handle)
     dp_frame_destroy (self->handle);
+  jm_inflight_free (&self->_jm_inflight);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -184,15 +186,17 @@ FrameDescObj_bits (FrameDescObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      /* nogil: GIL released across the pure-C kernel — sound only when
-       * this object is not shared across threads concurrently (one
-       * object per stream); the kernel touches only this object's
-       * state/buffers and the caller's input. */
+      /* nogil: GIL released across the pure-C kernel. Two calls on
+       * one object may run at once only if its kernel allows it; a
+       * teardown waits for a running call (gh-2272). */
       uint8_t *_ng0 = (uint8_t *)PyArray_DATA (out_arr);
       size_t   n_out;
+      void    *_jm_h = self->handle;
+      jm_inflight_enter (&self->_jm_inflight);
       Py_BEGIN_ALLOW_THREADS
-        n_out = dp_frame_bits (self->handle, (size_t)n, _ng0, _cap);
+        n_out = dp_frame_bits (_jm_h, (size_t)n, _ng0, _cap);
       Py_END_ALLOW_THREADS
+      jm_inflight_leave (&self->_jm_inflight);
       if ((size_t)(n_out) > (size_t)(_cap))
         {
           Py_DECREF (out_arr);
@@ -237,14 +241,16 @@ FrameDescObj_bits (FrameDescObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   uint8_t *_d0 = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
-  /* nogil: GIL released across the pure-C kernel — sound only when
-   * this object is not shared across threads concurrently (one
-   * object per stream); the kernel touches only this object's
-   * state/buffers and the caller's input. */
+  /* nogil: GIL released across the pure-C kernel. Two calls on
+   * one object may run at once only if its kernel allows it; a
+   * teardown waits for a running call (gh-2272). */
   size_t n_out;
+  void  *_jm_h = self->handle;
+  jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
-    n_out = dp_frame_bits (self->handle, (size_t)n, _d0, _cap);
+    n_out = dp_frame_bits (_jm_h, (size_t)n, _d0, _cap);
   Py_END_ALLOW_THREADS
+  jm_inflight_leave (&self->_jm_inflight);
   if ((size_t)(n_out) > (size_t)(_cap))
     {
       Py_DECREF (arr0);
@@ -291,14 +297,16 @@ FrameDescObj_crc_ok (FrameDescObject *self, PyObject *args, PyObject *kwds)
     }
   const uint8_t *rx_bits     = (const uint8_t *)PyArray_DATA (rx_bits_arr);
   size_t         rx_bits_len = (size_t)PyArray_SIZE (rx_bits_arr);
-  /* nogil: GIL released across the pure-C kernel — sound only when
-   * this object is not shared across threads concurrently (one
-   * object per stream); the kernel touches only this object's
-   * state/buffers and the caller's input. */
-  int y;
+  /* nogil: GIL released across the pure-C kernel. Two calls on
+   * one object may run at once only if its kernel allows it; a
+   * teardown waits for a running call (gh-2272). */
+  int   y;
+  void *_jm_h = self->handle;
+  jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
-    y = dp_frame_crc_ok (self->handle, rx_bits, rx_bits_len);
+    y = dp_frame_crc_ok (_jm_h, rx_bits, rx_bits_len);
   Py_END_ALLOW_THREADS
+  jm_inflight_leave (&self->_jm_inflight);
   Py_DECREF (rx_bits_arr);
   return PyLong_FromLong ((long)y);
 }
@@ -858,14 +866,16 @@ FrameDescObj_check (FrameDescObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
     }
-  /* nogil: GIL released across the pure-C kernel — sound only when
-   * this object is not shared across threads concurrently (one
-   * object per stream); the kernel touches only this object's
-   * state/buffers and the caller's input. */
+  /* nogil: GIL released across the pure-C kernel. Two calls on
+   * one object may run at once only if its kernel allows it; a
+   * teardown waits for a running call (gh-2272). */
   frame_check_t _r;
+  void         *_jm_h = self->handle;
+  jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
-    _r = dp_frame_check (self->handle, rx_bits, rx_bits_len);
+    _r = dp_frame_check (_jm_h, rx_bits, rx_bits_len);
   Py_END_ALLOW_THREADS
+  jm_inflight_leave (&self->_jm_inflight);
   Py_DECREF (rx_bits_arr);
   PyObject *_o = PyStructSequence_New (FrameDescObj_check_type);
   if (!_o)
@@ -1154,8 +1164,16 @@ FrameDescObj_destroy (FrameDescObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      dp_frame_destroy (self->handle);
+      void *_jm_st = self->handle;
       self->handle = NULL;
+      /* gh-2272: a GIL-free call may still be running on this
+         object; new ones are refused from here, so wait for those. */
+      if (jm_inflight_wait (&self->_jm_inflight) < 0)
+        {
+          self->handle = _jm_st;
+          return NULL;
+        }
+      dp_frame_destroy (_jm_st);
     }
   Py_RETURN_NONE;
 }
@@ -1173,8 +1191,16 @@ FrameDescObj_exit (FrameDescObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      dp_frame_destroy (self->handle);
+      void *_jm_st = self->handle;
       self->handle = NULL;
+      /* gh-2272: a GIL-free call may still be running on this
+         object; new ones are refused from here, so wait for those. */
+      if (jm_inflight_wait (&self->_jm_inflight) < 0)
+        {
+          self->handle = _jm_st;
+          return NULL;
+        }
+      dp_frame_destroy (_jm_st);
     }
   Py_RETURN_NONE;
 }

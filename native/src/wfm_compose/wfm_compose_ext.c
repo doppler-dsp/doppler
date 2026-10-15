@@ -79,6 +79,90 @@ jm_array_arg (PyObject *obj, int typenum, int requirements, const char *name)
 }
 #endif /* JM_ARRAY_ARG_DEFINED */
 
+#ifndef JM_INFLIGHT_DEFINED
+#define JM_INFLIGHT_DEFINED
+/* gh-2272: the GIL-free calls running on one object, so its explicit
+ * teardown can wait for them instead of freeing under them. `n` is read
+ * and written only with the GIL held. `idle` exists only once a teardown
+ * has had to wait: that teardown holds it, and the last call to leave
+ * gives it back. */
+typedef struct
+{
+  Py_ssize_t         n;
+  int                waiting;
+  PyThread_type_lock idle;
+} jm_inflight_t;
+
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__ ((unused))
+#endif
+static inline void
+jm_inflight_enter (jm_inflight_t *g)
+{
+  g->n++;
+}
+
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__ ((unused))
+#endif
+static inline void
+jm_inflight_leave (jm_inflight_t *g)
+{
+  if (--g->n == 0 && g->waiting)
+    {
+      g->waiting = 0;
+      PyThread_release_lock (g->idle);
+    }
+}
+
+/* Called with the GIL held, after the object refuses new calls. Returns
+ * with none running: 0, or -1 with MemoryError when no lock could be had,
+ * in which case nothing has been waited for. */
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__ ((unused))
+#endif
+static inline int
+jm_inflight_wait (jm_inflight_t *g)
+{
+  while (g->n > 0)
+    {
+      if (!g->idle)
+        {
+          g->idle = PyThread_allocate_lock ();
+          if (!g->idle)
+            {
+              PyErr_NoMemory ();
+              return -1;
+            }
+        }
+      /* Take the lock, then block on it again with the GIL released:
+       * the last jm_inflight_leave releases it. The GIL is dropped by
+       * function here, not by the macro pair, so the macro still marks
+       * exactly the calls a binding runs without it. */
+      (void)PyThread_acquire_lock (g->idle, NOWAIT_LOCK);
+      g->waiting        = 1;
+      PyThreadState *ts = PyEval_SaveThread ();
+      (void)PyThread_acquire_lock (g->idle, WAIT_LOCK);
+      PyEval_RestoreThread (ts);
+      PyThread_release_lock (g->idle);
+    }
+  return 0;
+}
+
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__ ((unused))
+#endif
+static inline void
+jm_inflight_free (jm_inflight_t *g)
+{
+  if (g->idle)
+    {
+      PyThread_free_lock (g->idle);
+      g->idle = NULL;
+    }
+}
+#endif /* JM_INFLIGHT_DEFINED */
+
 /* String-enum tables — order is the C int (the [[enum]] SSOT). */
 static int
 _enum_index (const char *const *tab, const char *s)
@@ -171,6 +255,7 @@ typedef struct
   PyObject_HEAD wfm_source_t src;
   double                     fs;
   dp_wfm_synth_state_t      *_gen;
+  jm_inflight_t _jm_inflight; /* gh-2272: GIL-free calls running */
 } SynthObject;
 
 static void
@@ -187,6 +272,7 @@ Synth_dealloc (SynthObject *self)
   free ((void *)self->src.data.bits);
   free ((void *)self->src.fill.bits);
   dp_wfm_frame_free ((wfm_frame_desc_t *)self->src.frame);
+  jm_inflight_free (&self->_jm_inflight);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -681,6 +767,12 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   if (_kw_owned)
     Py_DECREF (_kw);
   self->fs = fs;
+  /* gh-2272: a GIL-free call may still be running on this
+     object; new ones are refused from here, so wait for those. */
+  if (jm_inflight_wait (&self->_jm_inflight) < 0)
+    {
+      return -1;
+    }
   if (self->_gen)
     {
       dp_wfm_synth_destroy (self->_gen);
@@ -2311,9 +2403,11 @@ Synth_steps (SynthObject *self, PyObject *args)
   if (!arr)
     return NULL;
   float _Complex *out = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr);
+  jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
     dp_wfm_synth_steps (self->_gen, out, (size_t)n);
   Py_END_ALLOW_THREADS
+  jm_inflight_leave (&self->_jm_inflight);
   return arr;
 }
 
@@ -4360,6 +4454,7 @@ typedef struct
 {
   PyObject_HEAD dp_wfm_compose_state_t *state;
   int                                   destroyed;
+  jm_inflight_t _jm_inflight; /* gh-2272: GIL-free calls running */
 } ComposerObject;
 
 /* Build a transient wfm_segment_t[] from a list of Segment objects. Each
@@ -4580,6 +4675,7 @@ Composer_dealloc (ComposerObject *self)
 {
   if (!self->destroyed && self->state)
     dp_wfm_compose_destroy (self->state);
+  jm_inflight_free (&self->_jm_inflight);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -4753,9 +4849,11 @@ Composer_execute (ComposerObject *self, PyObject *args)
     return NULL;
   float _Complex *out = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr);
   size_t          got;
+  jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
     got = dp_wfm_compose_execute (self->state, out, (size_t)max);
   Py_END_ALLOW_THREADS
+  jm_inflight_leave (&self->_jm_inflight);
   if ((size_t)(got) > (size_t)(max))
     {
       Py_DECREF (arr);
@@ -4812,9 +4910,11 @@ Composer_compose (ComposerObject *self, PyObject *args, PyObject *kwds)
       float _Complex *out
           = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr);
       size_t got;
+      jm_inflight_enter (&self->_jm_inflight);
       Py_BEGIN_ALLOW_THREADS
         got = dp_wfm_compose_execute (self->state, out, (size_t)block);
       Py_END_ALLOW_THREADS
+      jm_inflight_leave (&self->_jm_inflight);
       if (got == 0)
         {
           Py_DECREF (arr);
@@ -4919,8 +5019,16 @@ Composer_close (ComposerObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->destroyed && self->state)
     {
-      dp_wfm_compose_destroy (self->state);
+      /* gh-2272: refuse new calls, then wait for a running one. */
       self->destroyed = 1;
+      /* gh-2272: a GIL-free call may still be running on this
+         object; new ones are refused from here, so wait for those. */
+      if (jm_inflight_wait (&self->_jm_inflight) < 0)
+        {
+          self->destroyed = 0;
+          return NULL;
+        }
+      dp_wfm_compose_destroy (self->state);
     }
   Py_RETURN_NONE;
 }
@@ -5038,6 +5146,7 @@ typedef struct
   Py_ssize_t              block;
   double                  realtime;
   void                   *clk;
+  jm_inflight_t           _jm_inflight; /* gh-2272: GIL-free calls running */
 } ComposerStreamObject;
 
 static PyTypeObject ComposerStreamType;
@@ -5047,6 +5156,7 @@ ComposerStream_dealloc (ComposerStreamObject *self)
 {
   if (self->clk)
     dp_sample_clock_destroy (self->clk);
+  jm_inflight_free (&self->_jm_inflight);
   Py_XDECREF (self->composer);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
@@ -5080,9 +5190,11 @@ ComposerStream_next (ComposerStreamObject *self)
     {
       if (!self->clk)
         self->clk = dp_sample_clock_create (self->realtime, 0);
+      jm_inflight_enter (&self->_jm_inflight);
       Py_BEGIN_ALLOW_THREADS
         dp_sample_clock_pace (self->clk, (size_t)n);
       Py_END_ALLOW_THREADS
+      jm_inflight_leave (&self->_jm_inflight);
     }
   return blk;
 }

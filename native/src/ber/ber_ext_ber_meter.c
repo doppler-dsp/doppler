@@ -16,6 +16,7 @@
 typedef struct
 {
   PyObject_HEAD dp_ber_meter_state_t *handle;
+  jm_inflight_t _jm_inflight; /* gh-2272: GIL-free calls running */
 } BerMeterObject;
 
 static void
@@ -23,6 +24,7 @@ BerMeterObj_dealloc (BerMeterObject *self)
 {
   if (self->handle)
     dp_ber_meter_destroy (self->handle);
+  jm_inflight_free (&self->_jm_inflight);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -215,15 +217,17 @@ BerMeterObj_align (BerMeterObject *self, PyObject *args, PyObject *kwds)
     }
   const float _Complex *rx     = (const float _Complex *)PyArray_DATA (rx_arr);
   size_t                rx_len = (size_t)PyArray_SIZE (rx_arr);
-  /* nogil: GIL released across the pure-C kernel — sound only when
-   * this object is not shared across threads concurrently (one
-   * object per stream); the kernel touches only this object's
-   * state/buffers and the caller's input. */
-  int y;
+  /* nogil: GIL released across the pure-C kernel. Two calls on
+   * one object may run at once only if its kernel allows it; a
+   * teardown waits for a running call (gh-2272). */
+  int   y;
+  void *_jm_h = self->handle;
+  jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
-    y = dp_ber_meter_align (self->handle, rx, rx_len, t0, n_marker, period,
-                            lag_span, pfa);
+    y = dp_ber_meter_align (_jm_h, rx, rx_len, t0, n_marker, period, lag_span,
+                            pfa);
   Py_END_ALLOW_THREADS
+  jm_inflight_leave (&self->_jm_inflight);
   Py_DECREF (rx_arr);
   return PyLong_FromLong ((long)y);
 }
@@ -293,14 +297,16 @@ BerMeterObj_score (BerMeterObject *self, PyObject *args, PyObject *kwds)
     }
   const float _Complex *rx     = (const float _Complex *)PyArray_DATA (rx_arr);
   size_t                rx_len = (size_t)PyArray_SIZE (rx_arr);
-  /* nogil: GIL released across the pure-C kernel — sound only when
-   * this object is not shared across threads concurrently (one
-   * object per stream); the kernel touches only this object's
-   * state/buffers and the caller's input. */
+  /* nogil: GIL released across the pure-C kernel. Two calls on
+   * one object may run at once only if its kernel allows it; a
+   * teardown waits for a running call (gh-2272). */
   size_t y;
+  void  *_jm_h = self->handle;
+  jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
-    y = dp_ber_meter_score (self->handle, rx, rx_len, lo, hi);
+    y = dp_ber_meter_score (_jm_h, rx, rx_len, lo, hi);
   Py_END_ALLOW_THREADS
+  jm_inflight_leave (&self->_jm_inflight);
   Py_DECREF (rx_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -814,8 +820,16 @@ BerMeterObj_destroy (BerMeterObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      dp_ber_meter_destroy (self->handle);
+      void *_jm_st = self->handle;
       self->handle = NULL;
+      /* gh-2272: a GIL-free call may still be running on this
+         object; new ones are refused from here, so wait for those. */
+      if (jm_inflight_wait (&self->_jm_inflight) < 0)
+        {
+          self->handle = _jm_st;
+          return NULL;
+        }
+      dp_ber_meter_destroy (_jm_st);
     }
   Py_RETURN_NONE;
 }
@@ -833,8 +847,16 @@ BerMeterObj_exit (BerMeterObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      dp_ber_meter_destroy (self->handle);
+      void *_jm_st = self->handle;
       self->handle = NULL;
+      /* gh-2272: a GIL-free call may still be running on this
+         object; new ones are refused from here, so wait for those. */
+      if (jm_inflight_wait (&self->_jm_inflight) < 0)
+        {
+          self->handle = _jm_st;
+          return NULL;
+        }
+      dp_ber_meter_destroy (_jm_st);
     }
   Py_RETURN_NONE;
 }

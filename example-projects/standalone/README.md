@@ -55,11 +55,12 @@ make run-python
 
 ### Without CMake
 
-The core is pure C, so `-lm` is the only extra:
+The core is pure C, so `-lm -lpthread` is the whole link line (glibc 2.34
+and later fold pthread into libc, where `-lpthread` is harmless):
 
 ```sh
 cc main.c -o awgn_example -I ../../native/inc -I ../../build/native/inc \
-   ../../build/libdoppler.a -lm
+   ../../build/libdoppler.a -lm -lpthread
 ```
 
 ## Copying it

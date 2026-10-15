@@ -274,9 +274,13 @@ uniformly, a noise-only Pfa row per configuration, and the **same assertions in
 `make validate`, [#1566](https://github.com/doppler-dsp/doppler/issues/1566)).
 Where an effect is smaller than the interval -- two refinements worth 0.02 of Pd
 against a +-0.04 interval -- the trials are seeded, so the effect is measured
-**paired**, by ablating it on the identical trials, and the seeded point
-estimate is pinned. That is a regression pin, not a significance test, and the
-validator says which it is.
+**paired**, by ablating it on the identical trials. Then look for the
+scenario where it decides the outcome, and guard that deterministically: the
+two refinements are held in `test_burst_capture_core.c` by cases a search of
+4,536 scenarios under each ablation found, where removing either names the
+wrong repetition ([#2219](https://github.com/doppler-dsp/doppler/issues/2219)).
+Only when no such scenario exists is the seeded point estimate pinned, as a
+regression pin, not a significance test, and the validator says which it is.
 
 Two more habits the same validator shows. **Run the claim on a second
 signal**: the compensation was measured on a Zadoff-Chu preamble, but the

@@ -531,19 +531,14 @@ main (int argc, char **argv)
                         "compensated engine delivers its pd_burst");
           DP_CHECK_MSG (rows[k].cap_hi >= rows[k].pred,
                         "compensated capture delivers its pd_burst");
-          /* The trials are seeded, so a second run draws the SAME 250
-             bursts and the point estimate is a regression pin, not a
-             significance test. It is what holds refine's two rate
-             refinements -- the Doppler cells widened by the shift a rate
-             puts between the detecting dwell and the preamble, and a rate
-             grid denser than the engine's -- because each is worth about
-             0.02 here and a 95% interval (+-0.04) cannot see 0.02. Taken
-             away, the uniform rows read 0.880-0.884 against a pin of
-             pred - 0.015 = 0.889-0.892; with them, 0.904-0.912. */
-          if (!rows[k].midpoint)
-            DP_CHECK_MSG (rows[k].cap >= rows[k].pred - 0.015,
-                          "compensated capture is within 0.015 of its "
-                          "pd_burst on the seeded trials");
+          /* Refine's two rate refinements -- the Doppler cells widened by
+             the shift a rate puts between the detecting dwell and the
+             preamble, and a rate grid denser than the engine's -- are each
+             worth about 0.02 of capture Pd here, which a 95% interval
+             (+-0.04) cannot see. They are held deterministically in
+             test_burst_capture_core.c instead, each by a scenario where
+             removing it names the wrong repetition (doppler#2219); a
+             seeded point-estimate pin used to stand in for them here. */
         }
     /* And it is worth having: the most compensated capture beats the
        capped depth, outside both intervals. */

@@ -741,7 +741,10 @@ every hit of a dwell wears the winner's rate.
     A *dwell* costs more than `n` times, because the block also gets deeper
     with `n`. Measured, one thread, ZC 127 × 16 at fs = 1: 43 µs a dwell
     uncompensated (D = 5), 418 µs at `n = 5` (D = 9), 772 µs at `n = 9`
-    (D = 10), about 85 µs a hypothesis.
+    (D = 10), about 85 µs a hypothesis. Refine's own rate grid is paid once
+    a burst, not a dwell: searched with one acquisition hypothesis and a
+    declared rate (nine rows instead of one), it adds about 0.42 ms to a
+    40,000-sample push carrying one burst, 2.52 ms against 2.93 ms (#2219).
 - *False alarms* are priced, not hoped away: the per-cell Pfa is split over
     `n` times the cells a dwell's maximum ranges over (every searched row of
     the interpolated surface, times `code_bins`), so the gate rises with `n`.
@@ -753,7 +756,8 @@ every hit of a dwell wears the winner's rate.
     the engine's short dwell tolerates collapses it: the capture named the
     wrong repetition for about half the bursts at high SNR. Refine tries the
     same rates (on a grid denser than the engine's whenever the engine's is
-    too coarse for `reps` periods, the drift rule at that depth), and widens
+    too coarse for `reps` periods, the drift rule at that depth), whenever a
+    rate is DECLARED, so with one acquisition hypothesis too (#2219), and widens
     its Doppler cells by the shift a rate puts between the detecting dwell's
     middle and the preamble's. Each of those two is worth about 0.02 of Pd on
     the validator's trials.
@@ -765,7 +769,7 @@ sweeps 0.0018 of fs across the preamble; C/N0 −12.75 dB, where `n = 9` predict
 
 |   n |   D | rate drawn | `pd_burst` | engine |   capture | capture 95%   |
 | --: | --: | :--------- | ---------: | -----: | --------: | :------------ |
-|   1 |   5 | uniform    |      0.848 |  0.946 | **0.555** | 0.524 – 0.586 |
+|   1 |   5 | uniform    |      0.848 |  0.946 | **0.896** | 0.876 – 0.913 |
 |   3 |   8 | uniform    |      0.903 |  0.978 |     0.918 | 0.899 – 0.933 |
 |   3 |   8 | midpoint   |      0.903 |  0.980 |     0.927 | 0.909 – 0.942 |
 |   5 |   9 | uniform    |      0.911 |  0.989 |     0.940 | 0.924 – 0.953 |
@@ -778,8 +782,16 @@ hypothesis, the worst case the depth bound is derived against; *uniform* draws
 it over the span. `pd_burst` prices a rate ON a hypothesis, and the table is
 the evidence that the half-spacing residual costs nothing beyond what the
 bound already allows: the worst case reads the same as the average.
-Uncompensated, the same C/N0 delivers 0.56: the engine still sees the burst
-(0.946) and refine loses it.
+Uncompensated, one hypothesis with the rate declared, the capture delivers
+0.896, above its own `pd_burst`. It used to deliver 0.555: the engine saw the
+burst (0.946) and refine lost it, because refine searched rates only when the
+engine had several hypotheses. Keyed on the declared rate, refine keeps what
+the engine finds (#2219). What hypotheses still buy is the engine's depth,
+and that shows where the capped depth is underpowered, 3 dB under the design
+point: engine Pd 0.537 capped against 0.738 for `n = 5` (auto) and 0.706
+for `n = 9`, outside the intervals. A capture still places a few percent fewer
+bursts than its engine detects, compensated or not (0.92–0.94 against
+0.98–0.99 above), which is refine's own cost, open in #2341.
 
 **Two things this does not say.** The uncompensated row's Pfa was a separate
 finding, since fixed: the engine read **1.97e-3** a dwell against a target of

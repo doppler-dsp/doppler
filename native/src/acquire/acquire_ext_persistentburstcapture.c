@@ -1307,10 +1307,11 @@ static PyGetSetDef PersistentBurstCapture_getset[] = {
     "Refine's winning Doppler-rate hypothesis for the most recent window, "
     "Hz/s: the rate whose de-chirp made the whole preamble's coherent sum "
     "largest at its start, from refine's grid over [-doppler_rate, "
-    "+doppler_rate] (at least as dense as the acquisition's). 0 without rate "
-    "hypotheses. A hypothesis, not a fit: it names the grid point nearest the "
-    "carrier's rate well above the design point, and less often near it "
-    "(validate_acq_rate_pd's event-rate rows).\n",
+    "+doppler_rate] (at least as dense as the acquisition's, and searched "
+    "whenever a rate is declared, even with one acquisition hypothesis). 0 "
+    "without a declared rate. A hypothesis, not a fit: it names the grid "
+    "point nearest the carrier's rate well above the design point, and less "
+    "often near it (validate_acq_rate_pd's event-rate rows).\n",
     NULL },
   { "burst_len", (getter)PersistentBurstCapture_getprop_burst_len, NULL,
     "Samples in one emitted window -- the burst length this capture was built "
@@ -1728,8 +1729,10 @@ static PyMethodDef PersistentBurstCaptureObj_methods[] = {
     "    Refine's winning rate hypothesis, Hz/s: the rate whose de-chirp made "
     "the whole preamble's coherent sum largest at preamble_start. One of "
     "refine's R grid points from -doppler_rate to +doppler_rate, spaced "
-    "2*doppler_rate/(R - 1); 0 without rate hypotheses. A hypothesis, not a "
-    "fit, from the whole preamble rather than one dwell: it is the grid point "
+    "2*doppler_rate/(R - 1); 0 without a declared rate (doppler_rate 0). "
+    "Refine searches the grid whenever a rate is declared, with one "
+    "acquisition hypothesis or many (doppler#2219). A hypothesis, not a fit, "
+    "from the whole preamble rather than one dwell: it is the grid point "
     "nearest the carrier's rate in every event 23 dB over the design point, "
     "on or off the grid. At the design point it is in 88% to 93% of events "
     "whose rate is ON a grid point, but in 57% of those 0.4 of a step off "

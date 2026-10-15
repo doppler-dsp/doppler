@@ -127,10 +127,11 @@ main (void)
       t1      = jm_bench_now_ns ();
       t_al[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "align", t_al, ITERATIONS, NSYM);
-  printf ("  %-14s %7.2f ns/sym  %8.3f ms per capture  (once, not per "
-          "window)\n",
-          "align", min_sec (t_al, ITERATIONS) / (double)NSYM * 1e9,
+  /* ONE unit per round, not NSYM: align's cost is set by the marker and
+     the lag span, not by the capture length it is handed, so crediting it
+     with NSYM symbols published a throughput the call does not have. */
+  jm_bench_add (&_bench, "align", t_al, ITERATIONS, 1);
+  printf ("  %-14s %8.3f ms per capture  (once, not per window)\n", "align",
           min_sec (t_al, ITERATIONS) * 1e3);
 
   printf ("\n  align/score = %.2fx -- with a 256-symbol marker and a\n"

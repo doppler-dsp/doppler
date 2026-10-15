@@ -703,6 +703,44 @@ def test_a_swept_burst_is_placed_exactly_with_the_rates(tmp_path):
             assert at in starts, f"burst at {at} captured at {starts}"
 
 
+def test_each_event_carries_refines_rate(tmp_path):
+    """Each event names refine's winning Doppler-rate hypothesis, from the
+    whole preamble on refine's own grid, and the read-back is the last
+    event's (doppler#2219). At this span and 16 repetitions refine's grid is
+    nine points over [-R, +R], so 0.75 R is one of them: a sweep just off it
+    comes back as exactly that point. Without hypotheses the field is 0.
+    The persistent view carries the same field."""
+    pre = _zc()
+    rate = 9e-7
+    kw = {
+        "burst_len": 16 * 127 + 400,
+        "reps": 16,
+        "fs": 1.0,
+        "cn0_dbhz": 10.0,
+        "doppler_rate": rate,
+    }
+    x = _sweeping_burst(pre, 16, 400, 7333, 26000, 0.0, 0.76 * rate, 0.1, 2219)
+    for cap in (
+        BurstCapture(pre, rate_hypotheses=5, **kw),
+        PersistentBurstCapture(
+            tmp_path / "ring.cf32", pre, rate_hypotheses=5, **kw
+        ),
+    ):
+        cap.reset()
+        cap.push(x)
+        ev = cap.events()
+        assert "doppler_rate_hz_s" in ev.dtype.names
+        rows = [e for e in ev if int(e["preamble_start"]) == 7333]
+        assert rows, "the swept burst is placed exactly"
+        got = float(rows[-1]["doppler_rate_hz_s"])
+        assert got == pytest.approx(0.75 * rate, rel=1e-9)
+        assert cap.doppler_rate_hz_s == float(ev[-1]["doppler_rate_hz_s"])
+    plain = BurstCapture(pre, **kw)
+    plain.push(x)
+    assert len(plain.events()) > 0, "the capped capture still emits"
+    assert all(float(e["doppler_rate_hz_s"]) == 0.0 for e in plain.events())
+
+
 def test_a_swept_burst_at_the_design_cn0_needs_the_engines_rates():
     """At the design C/N0 (noise at -13 dB per sample) the engine runs deep
     (D > 2) and its own rate search decides the detection; the test above

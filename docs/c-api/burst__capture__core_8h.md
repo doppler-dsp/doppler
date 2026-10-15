@@ -85,6 +85,7 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 |  size\_t | [**dp\_burst\_capture\_get\_doppler\_bins**](#function-dp_burst_capture_get_doppler_bins) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_Doppler hypotheses searched: the coherent depth, or the window-tile count past the native span_  _acq\_grid\_bins() (doppler#1512)._ |
 |  double | [**dp\_burst\_capture\_get\_doppler\_hz\_est**](#function-dp_burst_capture_get_doppler_hz_est) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br> |
 |  double | [**dp\_burst\_capture\_get\_doppler\_rate**](#function-dp_burst_capture_get_doppler_rate) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_Doppler rate (Hz/s) the coherent depth is bounded against; 0 is no bound._  |
+|  double | [**dp\_burst\_capture\_get\_doppler\_rate\_hz\_s**](#function-dp_burst_capture_get_doppler_rate_hz_s) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br> |
 |  double | [**dp\_burst\_capture\_get\_doppler\_res\_hz**](#function-dp_burst_capture_get_doppler_res_hz) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br> |
 |  double | [**dp\_burst\_capture\_get\_doppler\_span\_hz**](#function-dp_burst_capture_get_doppler_span_hz) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_Unambiguous Doppler half-range, Hz (+/- this)._  |
 |  uint64\_t | [**dp\_burst\_capture\_get\_dropped**](#function-dp_burst_capture_get_dropped) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br> |
@@ -145,7 +146,7 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 | define  | [**BURST\_CAPTURE\_MAX\_PHASES**](burst__capture__core_8h.md#define-burst_capture_max_phases)  `4u`<br> |
 | define  | [**BURST\_CAPTURE\_REFINE\_INTERP**](burst__capture__core_8h.md#define-burst_capture_refine_interp)  `4u`<br> |
 | define  | [**BURST\_CAPTURE\_STATE\_MAGIC**](burst__capture__core_8h.md#define-burst_capture_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('B', 'C', 'A', 'P')`<br>_State blob magic — a wrong blob is rejected, not reinterpreted._  |
-| define  | [**BURST\_CAPTURE\_STATE\_VERSION**](burst__capture__core_8h.md#define-burst_capture_state_version)  `5u`<br>_State blob layout version. 5: the blob carries the whole ring, and_ `dropped` _counts look-back discarded while a burst still needed it, not refused input (doppler#2015), so a v4 blob is refused rather than carried over._ |
+| define  | [**BURST\_CAPTURE\_STATE\_VERSION**](burst__capture__core_8h.md#define-burst_capture_state_version)  `6u`<br>_State blob layout version. 6: every queued burst and the last event carry refine's winning rate hypothesis (doppler#2219). 5: the blob carries the whole ring, and_ `dropped` _counts look-back discarded while a burst still needed it, not refused input (doppler#2015). An older blob is refused rather than carried over: a v5 blob, written by v0.66.0 through v0.71.0, is restored by the release that wrote it._ |
 
 ## Detailed Description
 
@@ -628,6 +629,21 @@ double dp_burst_capture_get_doppler_hz_est (
 _Doppler rate (Hz/s) the coherent depth is bounded against; 0 is no bound._ 
 ```C++
 double dp_burst_capture_get_doppler_rate (
+    const dp_burst_capture_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_burst\_capture\_get\_doppler\_rate\_hz\_s 
+
+```C++
+double dp_burst_capture_get_doppler_rate_hz_s (
     const dp_burst_capture_state_t * state
 ) 
 ```
@@ -1242,9 +1258,9 @@ _State blob magic — a wrong blob is rejected, not reinterpreted._
 
 ### define BURST\_CAPTURE\_STATE\_VERSION 
 
-_State blob layout version. 5: the blob carries the whole ring, and_ `dropped` _counts look-back discarded while a burst still needed it, not refused input (doppler#2015), so a v4 blob is refused rather than carried over._
+_State blob layout version. 6: every queued burst and the last event carry refine's winning rate hypothesis (doppler#2219). 5: the blob carries the whole ring, and_ `dropped` _counts look-back discarded while a burst still needed it, not refused input (doppler#2015). An older blob is refused rather than carried over: a v5 blob, written by v0.66.0 through v0.71.0, is restored by the release that wrote it._
 ```C++
-#define BURST_CAPTURE_STATE_VERSION `5u`
+#define BURST_CAPTURE_STATE_VERSION `6u`
 ```
 
 

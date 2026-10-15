@@ -987,8 +987,9 @@ test_a_refused_blob_changes_nothing (void)
   /* The blob's layout, as get_state writes it; the last line proves it. */
   const size_t E      = sizeof (burst_capture_pending_t);
   const size_t o_fed  = sizeof (dp_state_hdr_t);
-  const size_t o_sup  = o_fed + 7u * 8u;
-  const size_t o_pend = sizeof (dp_state_hdr_t) + 8u * 8u;
+  const size_t o_rate = o_fed + 7u * 8u; /* the last event's rate         */
+  const size_t o_sup  = o_fed + 8u * 8u;
+  const size_t o_pend = sizeof (dp_state_hdr_t) + 9u * 8u;
   const size_t o_q    = o_pend + 2u * sizeof (uint32_t);
   const size_t o_n    = o_q + a->q_cap * E;
   const size_t o_an
@@ -1006,7 +1007,7 @@ test_a_refused_blob_changes_nothing (void)
   live.n_phase  = 1u;
   live.phase[0] = (uint32_t)(live.anchor % P);
 
-  static const char *const what[10]
+  static const char *const what[13]
       = { "(A) phases past their array",
           "(A) anchors out of order",
           "(B) look-back longer than the stream",
@@ -1016,8 +1017,11 @@ test_a_refused_blob_changes_nothing (void)
           "(2) suppression past the stream position",
           "(3) NaN Doppler",
           "(3) infinite C/N0",
-          "(3) NaN peak" };
-  for (size_t c = 0; c < 10u; c++)
+          "(3) NaN peak",
+          "(3) NaN rate on a queued burst",
+          "(3) queued rate past the span",
+          "(3) NaN rate on the last event" };
+  for (size_t c = 0; c < 13u; c++)
     {
       memcpy (bad, blob, cb);
       burst_capture_pending_t e0 = live, e1 = live;
@@ -1067,8 +1071,22 @@ test_a_refused_blob_changes_nothing (void)
         case 8:
           e0.cn0_dbhz = INFINITY;
           break;
-        default:
+        case 9:
           e0.peak_mag = NAN;
+          break;
+        case 10:
+          e0.doppler_rate_hz_s = NAN;
+          break;
+        case 11:
+          /* Every hypothesis lies in [-doppler_rate, +doppler_rate]. */
+          e0.doppler_rate_hz_s = 2.0 * a->acq->engine->doppler_rate + 1.0;
+          break;
+        default:
+          {
+            const double nan_rate = NAN;
+            memcpy (bad + o_rate, &nan_rate, sizeof nan_rate);
+            pending = 0u;
+          }
           break;
         }
       if (pending)
@@ -3312,6 +3330,136 @@ test_a_sweeping_carrier_is_compensated (void)
   return 0;
 }
 
+/** Each event carries refine's winning rate hypothesis (doppler#2219).
+ *
+ * Refine scores every preamble position, Doppler cell and rate hypothesis of
+ * its own grid -- at least as dense as the engine's -- over the WHOLE
+ * preamble, and the event reports the hypothesis that won, not the detecting
+ * dwell's. A swept burst placed a quarter of a grid step from one hypothesis,
+ * on either sign and at the span's edge, must come back with exactly that
+ * hypothesis; the last-event read-back says the same. Well above the design
+ * point (noise 20 dB under the burst), where the contract says the nearest
+ * hypothesis wins every time.
+ */
+static int
+test_each_event_carries_refines_rate (void)
+{
+  enum
+  {
+    NP    = 127,
+    RP    = 16,
+    PAY   = 400,
+    BURST = RP * NP + PAY,
+    LEN   = 26000
+  };
+  const double span = 9.0e-7;
+  float _Complex zc[NP];
+  for (size_t k = 0; k < NP; k++)
+    zc[k] = (float _Complex)cexp (-I * M_PI * 5.0 * (double)k * (double)(k + 1)
+                                  / (double)NP);
+  dp_burst_capture_state_t *s = dp_burst_capture_create (
+      zc, NP, BURST, RP, 1.0, 10.0, 0.0, 1e-3, 0.9, 0, span, 5);
+  DP_REQUIRE (s != NULL);
+  const size_t R = s->rate_ph_n;
+  DP_REQUIRE_MSG (R >= 5, "refine searches a rate grid");
+  const double step = 2.0 * span / (double)(R - 1);
+
+  static float _Complex x[LEN], out[4 * BURST];
+  const size_t cap = sizeof out / sizeof *out;
+  /* Grid indices: both edges, the middle (rate 0), and two between. */
+  const size_t hs[]   = { 0, 1, R / 2, R - 2, R - 1 };
+  const double offs[] = { 0.25, -0.25 };
+  const size_t at[]   = { 6001, 7333, 9217 };
+  size_t       n      = 0;
+  for (size_t a = 0; a < sizeof hs / sizeof *hs; a++)
+    for (size_t b = 0; b < 2; b++)
+      {
+        const size_t h = hs[a];
+        /* A quarter step inward from an edge stays inside the span. */
+        const double off   = (h == 0 ? 0.25 : h == R - 1 ? -0.25 : offs[b]);
+        const double truth = dp_acq_rate_hypothesis (span, R, h) + off * step;
+        const size_t where = at[n % 3u];
+        uint32_t     st    = 2219u + (uint32_t)n++;
+        for (size_t i = 0; i < LEN; i++)
+          {
+            /* Named locals: two draws in one expression have no defined
+               order. */
+            const float re = (float)(0.1 * dp_gauss (&st));
+            const float im = (float)(0.1 * dp_gauss (&st));
+            x[i]           = re + im * I;
+          }
+        for (size_t i = 0; i < BURST; i++)
+          {
+            const double u = (double)i - 0.5 * (double)(RP * NP);
+            x[where + i] += (i < RP * NP ? zc[i % NP] : 1.0f)
+                            * (float _Complex)cexp (I * M_PI * truth * u * u);
+          }
+        dp_burst_capture_reset (s);
+        (void)dp_burst_capture_push (s, x, LEN, out, cap);
+        const burst_capture_event_t *got = NULL;
+        for (size_t k = 0; k < dp_burst_capture_ready (s); k++)
+          {
+            const burst_capture_event_t *ev = dp_burst_capture_event_at (s, k);
+            if (ev && ev->preamble_start == where)
+              got = ev;
+          }
+        DP_CHECK_MSG (got != NULL, "the swept burst is placed exactly");
+        if (!got)
+          continue;
+        if (got->doppler_rate_hz_s != dp_acq_rate_hypothesis (span, R, h))
+          DP_TEST_ERR ("  truth %.3e: event %.3e, nearest %.3e\n", truth,
+                       got->doppler_rate_hz_s,
+                       dp_acq_rate_hypothesis (span, R, h));
+        DP_CHECK_MSG (got->doppler_rate_hz_s
+                          == dp_acq_rate_hypothesis (span, R, h),
+                      "the event's rate is the hypothesis nearest the "
+                      "carrier's");
+        DP_CHECK_MSG (dp_burst_capture_get_doppler_rate_hz_s (s)
+                          == dp_burst_capture_event_at (
+                                 s, dp_burst_capture_ready (s) - 1u)
+                                 ->doppler_rate_hz_s,
+                      "the read-back is the last event's rate");
+      }
+
+  /* The rate is state: a capture restored from this one's blob reports the
+     same last-event rate, and gives back the same bytes. The last case above
+     ends near the span's edge, so the rate is far from 0 and a restore that
+     dropped it would read 0. */
+  {
+    const double last = dp_burst_capture_get_doppler_rate_hz_s (s);
+    DP_REQUIRE (last != 0.0);
+    const size_t   nb   = dp_burst_capture_state_bytes (s);
+    unsigned char *blob = malloc (nb), *back = malloc (nb);
+    DP_REQUIRE (blob && back);
+    dp_burst_capture_get_state (s, blob);
+    dp_burst_capture_state_t *t = dp_burst_capture_create (
+        zc, NP, BURST, RP, 1.0, 10.0, 0.0, 1e-3, 0.9, 0, span, 5);
+    DP_REQUIRE (t != NULL);
+    DP_CHECK (dp_burst_capture_set_state (t, blob) == DP_OK);
+    DP_CHECK_MSG (dp_burst_capture_get_doppler_rate_hz_s (t) == last,
+                  "a restored capture reports the same last-event rate");
+    dp_burst_capture_get_state (t, back);
+    DP_CHECK (memcmp (back, blob, nb) == 0);
+    dp_burst_capture_destroy (t);
+    free (blob);
+    free (back);
+  }
+
+  /* Without hypotheses there is no rate to report: 0, as documented. */
+  {
+    dp_burst_capture_state_t *z = dp_burst_capture_create (
+        zc, NP, BURST, RP, 1.0, 10.0, 0.0, 1e-3, 0.9, 0, span, 1);
+    DP_REQUIRE (z != NULL);
+    dp_burst_capture_reset (z);
+    (void)dp_burst_capture_push (z, x, LEN, out, cap);
+    for (size_t k = 0; k < dp_burst_capture_ready (z); k++)
+      DP_CHECK (dp_burst_capture_event_at (z, k)->doppler_rate_hz_s == 0.0);
+    dp_burst_capture_destroy (z);
+  }
+  dp_burst_capture_destroy (s);
+  return 0;
+}
+
 /** A tiled capture anchors each hit at its own dwell (doppler#2090).
  *
  * Past the native span the engine tiles Doppler: its rows are W frequency
@@ -3515,6 +3663,8 @@ main (void)
   if (test_a_tiled_capture_anchors_at_its_dwell ())
     return 1;
   if (test_a_sweeping_carrier_is_compensated ())
+    return 1;
+  if (test_each_event_carries_refines_rate ())
     return 1;
   if (test_a_tiled_burst_after_a_window_is_not_shadowed ())
     return 1;

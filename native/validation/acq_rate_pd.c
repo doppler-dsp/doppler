@@ -428,6 +428,83 @@ measure_rate (size_t rh, double design, double sig, double rate, int trials,
   return r;
 }
 
+/* What a captured EVENT's doppler_rate_hz_s says, against the truth
+   (doppler#2219): refine's winning hypothesis, from the whole preamble on
+   refine's own grid. The burst synthesis of measure_rate, into a capture
+   built at `design`; `hits` counts events placed within TOL of the true start
+   and `nearest` those naming refine's grid point nearest the truth. */
+static rate_row_t
+measure_event_rate (size_t rh, double design, double sig, double rate,
+                    int trials, uint32_t seed)
+{
+  rate_row_t                r = { 0 };
+  dp_burst_capture_state_t *s = make (rh, design);
+  r.rh                        = rh;
+  r.sig                       = sig;
+  r.rate                      = rate;
+  r.depth                     = dp_burst_capture_get_doppler_bins (s);
+  const size_t     R          = s->rate_ph_n;
+  const double     step       = 2.0 * RATE / (double)(R - 1);
+  const size_t     lead_max   = 3u * r.depth * N;
+  const size_t     len = lead_max + BURST + 2u * s->refine_span + 4u * N;
+  float _Complex  *x   = dp_xmalloc (len * sizeof *x);
+  float _Complex  *nz  = dp_xmalloc (len * sizeof *nz);
+  float _Complex  *per = dp_xmalloc (N * sizeof *per);
+  const size_t     cap = dp_burst_capture_push_max_out (s, len);
+  float _Complex  *out = dp_xmalloc ((cap ? cap : 1) * sizeof *out);
+  dp_awgn_state_t *g   = dp_xnn (
+      dp_awgn_create (seed, dp_awgn_amplitude_for_snr ((float)sig, 1.0f)));
+  const double dur  = (double)(REPS * N);
+  const double span = 1.0 / (2.0 * (double)N) - RATE * 0.5 * dur;
+  uint32_t     st   = seed;
+  for (int t = 0; t < trials; t++)
+    {
+      const size_t at
+          = r.depth * N + (size_t)(dp_uni (&st) * (double)(2u * r.depth * N));
+      const double f_mid = (2.0 * dp_uni (&st) - 1.0) * span;
+      const double frac  = dp_uni (&st);
+      dp_preamble_shift (ZC, N, frac, per);
+      memset (x, 0, len * sizeof *x);
+      for (size_t i = 0; i < BURST; i++)
+        {
+          float _Complex v
+              = i < REPS * N
+                    ? per[i % N]
+                    : (float _Complex)cexp (I * M_PI / 2.0
+                                            * (double)(dp_xs32 (&st) >> 30));
+          const double u = (double)i - 0.5 * dur;
+          x[at + i] = v
+                      * (float _Complex)cexp (
+                          I * 2.0 * M_PI * (f_mid * u + 0.5 * rate * u * u));
+        }
+      dp_awgn_generate (g, len, nz, len);
+      for (size_t i = 0; i < len; i++)
+        x[i] += nz[i];
+      dp_burst_capture_reset (s);
+      (void)dp_burst_capture_push (s, x, len, out, cap);
+      for (size_t k = 0; k < dp_burst_capture_ready (s); k++)
+        {
+          const burst_capture_event_t *ev = dp_burst_capture_event_at (s, k);
+          if (!ev
+              || fabs ((double)ev->preamble_start - ((double)at + frac)) > TOL)
+            continue;
+          r.hits++;
+          if (fabs (ev->doppler_rate_hz_s - rate) <= 0.5 * step + 1e-15)
+            r.nearest++;
+          if (fabs (fabs (ev->doppler_rate_hz_s) - RATE) < 1e-15)
+            r.edge++;
+          break;
+        }
+    }
+  dp_awgn_destroy (g);
+  free (out);
+  free (per);
+  free (nz);
+  free (x);
+  dp_burst_capture_destroy (s);
+  return r;
+}
+
 int
 main (int argc, char **argv)
 {
@@ -517,6 +594,33 @@ main (int argc, char **argv)
         }
   }
 
+  /* The EVENT's rate, against the truth (burst_capture_event_t's
+     doppler_rate_hz_s, doppler#2219): refine's winning hypothesis from the
+     whole preamble. Gated where the contract claims it, 23 dB over the
+     design point; the design point and 3 dB over are printed. */
+  printf ("\nevent rate: Rh = 9, captured events placed within %.0f "
+          "samples\n",
+          TOL);
+  printf ("%7s %9s %6s | %6s %7s %7s\n", "sig dB", "true rate", "events",
+          "near", "near %", "+-R %");
+  rate_row_t er[8];
+  size_t     ner = 0;
+  {
+    const double sigs[3] = { cn0, cn0 + 3.0, cn0 + 23.0 };
+    for (int i = check ? 2 : 0; i < 3; i++)
+      for (int k = 0; k < 2; k++)
+        {
+          er[ner] = measure_event_rate (
+              9, cn0, sigs[i], k ? RATE : 0.0, check ? 100 : 200,
+              9777u + 10u * (uint32_t)i + (uint32_t)k);
+          const rate_row_t *q = &er[ner++];
+          printf ("%7.2f %+9.1e %6ld | %6ld %6.1f%% %6.1f%%\n", q->sig,
+                  q->rate, q->hits, q->nearest,
+                  q->hits ? 100.0 * (double)q->nearest / (double)q->hits : 0.0,
+                  q->hits ? 100.0 * (double)q->edge / (double)q->hits : 0.0);
+        }
+  }
+
   /* The same claims in both modes: a sweep that asserted nothing would fail
      `make validate` for it (doppler#1566), and the full rows are a longer
      look at what the spot check pins. */
@@ -566,6 +670,19 @@ main (int argc, char **argv)
                         "enough full-block hits to read the rate from");
           DP_CHECK_MSG (rr[k].full_near * 100 >= rr[k].full * 95,
                         "a full block well above design names the nearest "
+                        "rate hypothesis");
+        }
+    /* The event's rate, where its contract claims it: 23 dB over the
+       design point, refine's whole-preamble winner is the grid point nearest
+       the truth. A handful of events is not a measurement, so the row must
+       have them. */
+    for (size_t k = 0; k < ner; k++)
+      if (er[k].sig > cn0 + 20.0)
+        {
+          DP_CHECK_MSG (er[k].hits >= 40,
+                        "enough captured events to read the rate from");
+          DP_CHECK_MSG (er[k].nearest * 100 >= er[k].hits * 95,
+                        "an event well above design names the nearest "
                         "rate hypothesis");
         }
     /* Auto (rate_hypotheses = 0) is worth having: it picks FEWER hypotheses

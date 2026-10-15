@@ -790,8 +790,19 @@ the C tests (rate found, either sign, in a tile off the centre) but not by the
 Monte-Carlo above.
 
 Hits carry the winning hypothesis as `doppler_rate_hz_s` (BurstAcquisition's
-last field); a capture's events do not yet, because the queue, the blob and the
-event record all carry a hit and would change together.
+last field): the detecting dwell's, so reliable only from a block wholly inside
+the preamble. A capture's **events** carry refine's instead (#2219): the
+hypothesis whose de-chirp made the whole preamble's coherent sum largest at the
+refined start, on refine's own grid, which is at least as dense as the
+engine's. It is the better estimate by construction, from the whole preamble
+rather than one dwell, and it measures so. At 23 dB over the design point
+every captured event names the grid point nearest the truth (100/100 at rate
+0 and at the span's edge, `validate_acq_rate_pd`'s event-rate rows), where the
+same bursts' hits name it 41% and 56% of the time. At the design point it
+is the nearest in 88% and 93% of events, where all the hits manage 19% and
+55% and the full-block hits 26% and 67%; 3 dB over, 93% and 96%. The queue,
+the blob (version 6) and the event record carry it together, and a blob of
+the earlier layout (version 5) is refused.
 
 ## 10. See also
 

@@ -611,22 +611,25 @@ PersistentBurstCaptureObj_events_get_dtype (void)
       Py_INCREF (PersistentBurstCaptureObj_events_dtype);
       return PersistentBurstCaptureObj_events_dtype;
     }
-  names = Py_BuildValue ("[ssss]", "preamble_start", "doppler_hz_est",
-                         "doppler_res_hz", "cn0_dbhz_est");
+  names
+      = Py_BuildValue ("[sssss]", "preamble_start", "doppler_hz_est",
+                       "doppler_res_hz", "cn0_dbhz_est", "doppler_rate_hz_s");
   if (!names)
     goto done;
-  formats = PyList_New (4);
+  formats = PyList_New (5);
   if (!formats)
     goto done;
   PyList_SET_ITEM (formats, 0, (PyObject *)PyArray_DescrFromType (NPY_UINT64));
   PyList_SET_ITEM (formats, 1, (PyObject *)PyArray_DescrFromType (NPY_DOUBLE));
   PyList_SET_ITEM (formats, 2, (PyObject *)PyArray_DescrFromType (NPY_DOUBLE));
   PyList_SET_ITEM (formats, 3, (PyObject *)PyArray_DescrFromType (NPY_DOUBLE));
+  PyList_SET_ITEM (formats, 4, (PyObject *)PyArray_DescrFromType (NPY_DOUBLE));
   offsets = Py_BuildValue (
-      "[nnnn]", (Py_ssize_t)offsetof (burst_capture_event_t, preamble_start),
+      "[nnnnn]", (Py_ssize_t)offsetof (burst_capture_event_t, preamble_start),
       (Py_ssize_t)offsetof (burst_capture_event_t, doppler_hz_est),
       (Py_ssize_t)offsetof (burst_capture_event_t, doppler_res_hz),
-      (Py_ssize_t)offsetof (burst_capture_event_t, cn0_dbhz_est));
+      (Py_ssize_t)offsetof (burst_capture_event_t, cn0_dbhz_est),
+      (Py_ssize_t)offsetof (burst_capture_event_t, doppler_rate_hz_s));
   if (!offsets)
     goto done;
   spec = Py_BuildValue ("{s:O,s:O,s:O,s:n}", "names", names, "formats",
@@ -1025,6 +1028,18 @@ PersistentBurstCapture_getprop_cn0_dbhz_est (
   return PyFloat_FromDouble (dp_burst_capture_get_cn0_dbhz_est (self->handle));
 }
 static PyObject *
+PersistentBurstCapture_getprop_doppler_rate_hz_s (
+    PersistentBurstCaptureObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (
+      dp_burst_capture_get_doppler_rate_hz_s (self->handle));
+}
+static PyObject *
 PersistentBurstCapture_getprop_burst_len (PersistentBurstCaptureObject *self,
                                           void *Py_UNUSED (closure))
 {
@@ -1286,6 +1301,16 @@ static PyGetSetDef PersistentBurstCapture_getset[] = {
     "saturates at the code's own autocorrelation-sidelobe floor once the true "
     "C/N0 exceeds what this code and geometry can resolve -- a real ceiling, "
     "not a fault.\n",
+    NULL },
+  { "doppler_rate_hz_s",
+    (getter)PersistentBurstCapture_getprop_doppler_rate_hz_s, NULL,
+    "Refine's winning Doppler-rate hypothesis for the most recent window, "
+    "Hz/s: the rate whose de-chirp made the whole preamble's coherent sum "
+    "largest at its start, from refine's grid over [-doppler_rate, "
+    "+doppler_rate] (at least as dense as the acquisition's). 0 without rate "
+    "hypotheses. A hypothesis, not a fit: it names the grid point nearest the "
+    "carrier's rate well above the design point, and less often near it "
+    "(validate_acq_rate_pd's event-rate rows).\n",
     NULL },
   { "burst_len", (getter)PersistentBurstCapture_getprop_burst_len, NULL,
     "Samples in one emitted window -- the burst length this capture was built "
@@ -1698,7 +1723,17 @@ static PyMethodDef PersistentBurstCaptureObj_methods[] = {
     "doppler_res_hz : float\n"
     "    Acquisition's native bin width, Hz.\n"
     "cn0_dbhz_est : float\n"
-    "    C/N0 lower bound from the hit, dB-Hz.\n" },
+    "    C/N0 lower bound from the hit, dB-Hz.\n"
+    "doppler_rate_hz_s : float\n"
+    "    Refine's winning rate hypothesis, Hz/s: the rate whose de-chirp made "
+    "the whole preamble's coherent sum largest at preamble_start. One of "
+    "refine's R grid points from -doppler_rate to +doppler_rate, spaced "
+    "2*doppler_rate/(R - 1); 0 without rate hypotheses. A hypothesis, not a "
+    "fit, from the whole preamble rather than one dwell: it is the grid point "
+    "nearest the carrier's rate in every event 23 dB over the design point, "
+    "and in 88% to 93% of events at it (validate_acq_rate_pd's event-rate "
+    "rows; docs/design/burst-capture.md). Appended last, so positional "
+    "initialisers do not shift (doppler#2219).\n" },
   { "events_max_out", (PyCFunction)PersistentBurstCaptureObj_events_max_out,
     METH_VARARGS,
     "events_max_out(n) -> int\n"

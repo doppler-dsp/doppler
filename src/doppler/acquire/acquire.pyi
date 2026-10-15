@@ -2370,6 +2370,17 @@ class BurstCapture:
         """
 
     @property
+    def doppler_rate_hz_s(self) -> float:
+        """Refine's winning Doppler-rate hypothesis for the most recent window,
+        Hz/s: the rate whose de-chirp made the whole preamble's coherent sum
+        largest at its start, from refine's grid over [-doppler_rate,
+        +doppler_rate] (at least as dense as the acquisition's). 0 without rate
+        hypotheses. A hypothesis, not a fit: it names the grid point nearest
+        the carrier's rate well above the design point, and less often near it
+        (validate_acq_rate_pd's event-rate rows).
+        """
+
+    @property
     def burst_len(self) -> int:
         """Samples in one emitted window -- the burst length this capture was
         built for, and the stride of a row in push()'s return.
@@ -3110,6 +3121,17 @@ class PersistentBurstCapture:
         then saturates at the code's own autocorrelation-sidelobe floor once
         the true C/N0 exceeds what this code and geometry can resolve -- a real
         ceiling, not a fault.
+        """
+
+    @property
+    def doppler_rate_hz_s(self) -> float:
+        """Refine's winning Doppler-rate hypothesis for the most recent window,
+        Hz/s: the rate whose de-chirp made the whole preamble's coherent sum
+        largest at its start, from refine's grid over [-doppler_rate,
+        +doppler_rate] (at least as dense as the acquisition's). 0 without rate
+        hypotheses. A hypothesis, not a fit: it names the grid point nearest
+        the carrier's rate well above the design point, and less often near it
+        (validate_acq_rate_pd's event-rate rows).
         """
 
     @property

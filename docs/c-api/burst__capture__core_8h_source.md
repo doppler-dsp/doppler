@@ -34,7 +34,7 @@
 #define BURST_CAPTURE_EDGE_TWINS 4u
 
 #define BURST_CAPTURE_STATE_MAGIC DP_FOURCC ('B', 'C', 'A', 'P')
-#define BURST_CAPTURE_STATE_VERSION 5u
+#define BURST_CAPTURE_STATE_VERSION 6u
 
 #ifdef __cplusplus
 extern "C" {
@@ -46,6 +46,7 @@ typedef struct
   double   doppler_hz_est; 
   double   doppler_res_hz; 
   double   cn0_dbhz_est;   
+  double   doppler_rate_hz_s; 
 } burst_capture_event_t;
 
 typedef struct
@@ -68,6 +69,7 @@ typedef struct
   uint32_t n_phase;    
   int      refined;    
   int      shadowed;   
+  double   doppler_rate_hz_s; 
 } burst_capture_pending_t;
 
 typedef struct
@@ -87,6 +89,7 @@ typedef struct
   double   doppler_hz_est; 
   double   doppler_res_hz; 
   double   cn0_dbhz_est;   
+  double   doppler_rate_hz_s; 
   /* ── Refine scratch (docs/design/dsss-burst-receiver.md §3.4) ───────── */
   double _Complex *cell_buf; 
   double *cell_f;           
@@ -240,6 +243,7 @@ uint64_t dp_burst_capture_get_preamble_start(const dp_burst_capture_state_t *sta
 double dp_burst_capture_get_doppler_hz_est(const dp_burst_capture_state_t *state);
 double dp_burst_capture_get_doppler_res_hz(const dp_burst_capture_state_t *state);
 double dp_burst_capture_get_cn0_dbhz_est(const dp_burst_capture_state_t *state);
+double dp_burst_capture_get_doppler_rate_hz_s(const dp_burst_capture_state_t *state);
 size_t dp_burst_capture_get_pending(const dp_burst_capture_state_t *state);
 uint64_t dp_burst_capture_get_dropped(const dp_burst_capture_state_t *state);
 uint64_t dp_burst_capture_get_n_bursts(const dp_burst_capture_state_t *state);

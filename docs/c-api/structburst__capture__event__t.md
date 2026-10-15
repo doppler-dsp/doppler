@@ -38,6 +38,7 @@ _One captured burst's event, as_ `events()` _hands it back._[More...](#detailed-
 | ---: | :--- |
 |  double | [**cn0\_dbhz\_est**](#variable-cn0_dbhz_est)  <br> |
 |  double | [**doppler\_hz\_est**](#variable-doppler_hz_est)  <br> |
+|  double | [**doppler\_rate\_hz\_s**](#variable-doppler_rate_hz_s)  <br> |
 |  double | [**doppler\_res\_hz**](#variable-doppler_res_hz)  <br> |
 |  uint64\_t | [**preamble\_start**](#variable-preamble_start)  <br> |
 
@@ -127,6 +128,23 @@ double burst_capture_event_t::doppler_hz_est;
 
 Signed coarse Doppler, Hz. 
  
+
+
+        
+
+<hr>
+
+
+
+### variable doppler\_rate\_hz\_s 
+
+```C++
+double burst_capture_event_t::doppler_rate_hz_s;
+```
+
+
+
+Refine's winning rate hypothesis, Hz/s: the rate whose de-chirp made the whole preamble's coherent sum largest at preamble\_start. One of refine's R grid points from -doppler\_rate to +doppler\_rate, spaced 2\*doppler\_rate/(R - 1); 0 without rate hypotheses. A hypothesis, not a fit, from the whole preamble rather than one dwell: it is the grid point nearest the carrier's rate in every event 23 dB over the design point, and in 88% to 93% of events at it (validate\_acq\_rate\_pd's event-rate rows; docs/design/burst-capture.md). Appended last, so positional initialisers do not shift (doppler#2219). 
 
 
         

@@ -695,9 +695,10 @@ in effect: `D*(n)` is the depth it picks with the drift bound OFF, priced with
 (`n = 1`: `R` itself). The first `n` with `D_cap(n) >= D*(n)` is the first at
 which the hypotheses stop costing depth, so it is the smallest that does not
 trade sensitivity for work; if none does by 64, it is 64. At the design point
-below it picks `n = 4` at `D = 9`, where `n = 9` is `D = 10`: the same capture
-Pd (0.916 against 0.912, 250 trials) for under half the per-dwell work. A
-strong design point that a capped depth already serves picks `n = 1`. The
+below it picks `n = 3` at `D = 8`, where `n = 9` is `D = 9`: a capture Pd of
+0.927 (95% 0.909 – 0.942) against `n = 9`'s 0.932 (0.915 – 0.946) at 1000
+trials, the same within the intervals, with a third of the hypotheses a
+dwell (the table below). A strong design point that a capped depth already serves picks `n = 1`. The
 choice reads back as `rate_hypotheses`, burst engines only, and like any
 `n > 1` it needs a `doppler_rate` to span.
 
@@ -720,10 +721,10 @@ preamble's edge integrates part payload and often names ±R. Measured by
 
 | signal    | true rate | all hits naming the nearest | full-block hits naming it |
 | --------- | --------- | --------------------------: | ------------------------: |
-| −12.75 dB | 0         |                       18.6% |            26.4% (of 140) |
-| −12.75 dB | +R        |                       54.8% |            67.1% (of 152) |
-| +10.25 dB | 0         |                       40.0% |             100% (of 158) |
-| +10.25 dB | +R        |                       55.3% |             100% (of 165) |
+| −12.75 dB | 0         |                       15.0% |            18.3% (of 142) |
+| −12.75 dB | +R        |                       52.5% |            60.3% (of 151) |
+| +10.25 dB | 0         |                       39.8% |             100% (of 158) |
+| +10.25 dB | +R        |                       56.1% |             100% (of 165) |
 
 About half the hits at the design point, and seven in ten well above it, come
 from straddling dwells. The 23-dB-over rows are
@@ -765,17 +766,19 @@ every hit of a dwell wears the winner's rate.
 **What it buys, measured** (`native/validation/acq_rate_pd.c`; ZC 127 × 16,
 fs = 1, rate span ±9e-7 cycles/sample², so a carrier at the span's rate
 sweeps 0.0018 of fs across the preamble; C/N0 −12.75 dB, where `n = 9` predicts a burst Pd of 0.9;
-1000 trials a row; Wilson 95%):
+1000 trials a row; Wilson 95%; the swept carrier is the library's own
+rotation, `dp_swept_rotate`, not a private phase ramp):
 
-|   n |   D | rate drawn | `pd_burst` | engine |   capture | capture 95%   |
-| --: | --: | :--------- | ---------: | -----: | --------: | :------------ |
-|   1 |   5 | uniform    |      0.848 |  0.946 | **0.896** | 0.876 – 0.913 |
-|   3 |   8 | uniform    |      0.903 |  0.978 |     0.918 | 0.899 – 0.933 |
-|   3 |   8 | midpoint   |      0.903 |  0.980 |     0.927 | 0.909 – 0.942 |
-|   5 |   9 | uniform    |      0.911 |  0.989 |     0.940 | 0.924 – 0.953 |
-|   5 |   9 | midpoint   |      0.911 |  0.984 |     0.933 | 0.916 – 0.947 |
-|   9 |   9 | uniform    |      0.900 |  0.979 |     0.926 | 0.908 – 0.941 |
-|   9 |   9 | midpoint   |      0.900 |  0.983 |     0.921 | 0.903 – 0.936 |
+|   n |   D | rate drawn    | `pd_burst` | engine |   capture | capture 95%   |
+| --: | --: | :------------ | ---------: | -----: | --------: | :------------ |
+|   1 |   5 | uniform       |      0.848 |  0.958 | **0.905** | 0.885 – 0.922 |
+|   3 |   8 | uniform       |      0.903 |  0.981 |     0.919 | 0.900 – 0.934 |
+|   3 |   8 | midpoint      |      0.903 |  0.984 |     0.935 | 0.918 – 0.949 |
+|   5 |   9 | uniform       |      0.911 |  0.982 |     0.926 | 0.908 – 0.941 |
+|   5 |   9 | midpoint      |      0.911 |  0.983 |     0.931 | 0.914 – 0.945 |
+|   9 |   9 | uniform       |      0.900 |  0.978 |     0.932 | 0.915 – 0.946 |
+|   9 |   9 | midpoint      |      0.900 |  0.984 |     0.913 | 0.894 – 0.929 |
+|   3 |   8 | uniform, auto |      0.903 |  0.979 |     0.927 | 0.909 – 0.942 |
 
 *midpoint* puts every trial's rate exactly half a spacing from the nearest
 hypothesis, the worst case the depth bound is derived against; *uniform* draws
@@ -783,15 +786,15 @@ it over the span. `pd_burst` prices a rate ON a hypothesis, and the table is
 the evidence that the half-spacing residual costs nothing beyond what the
 bound already allows: the worst case reads the same as the average.
 Uncompensated, one hypothesis with the rate declared, the capture delivers
-0.896, above its own `pd_burst`. It used to deliver 0.555: the engine saw the
-burst (0.946) and refine lost it, because refine searched rates only when the
+0.905, above its own `pd_burst`. It used to deliver 0.555: the engine saw the
+burst (0.946 then) and refine lost it, because refine searched rates only when the
 engine had several hypotheses. Keyed on the declared rate, refine keeps what
 the engine finds (#2219). What hypotheses still buy is the engine's depth,
 and that shows where the capped depth is underpowered, 3 dB under the design
-point: engine Pd 0.537 capped against 0.738 for `n = 5` (auto) and 0.706
+point: engine Pd 0.542 capped against 0.747 for `n = 5` (auto) and 0.685
 for `n = 9`, outside the intervals. A capture still places a few percent fewer
-bursts than its engine detects, compensated or not (0.92–0.94 against
-0.98–0.99 above), which is refine's own cost, open in #2341.
+bursts than its engine detects, compensated or not (0.91–0.94 against
+0.98 above), which is refine's own cost, open in #2341.
 
 **Two things this does not say.** The uncompensated row's Pfa was a separate
 finding, since fixed: the engine read **1.97e-3** a dwell against a target of
@@ -812,14 +815,14 @@ rather than one dwell, and it measures so (`validate_acq_rate_pd`'s
 event-rate rows, beside its rows for the hits). At 23 dB over the design
 point every captured event names the grid point nearest the truth: 100% at
 rate 0, at the span's edge, and off the grid, 0.4 of a step from a
-hypothesis. Under the same conditions the engine's hits name it 40% and 55%
+hypothesis. Under the same conditions the engine's hits name it 40% and 56%
 of the time (at 0 and the edge), and only the full-block ones, wholly inside
 the preamble, reach 100%: the event gets there whichever dwell anchored the
 burst. Nearer the design point the off-grid case is the one to read. There
-the event is the nearest in 88% and 93% of events on the grid (all the hits
-manage 19% and 55%, the full-block hits 26% and 67%), but in only 57% off it:
+the event is the nearest in 82% and 89% of events on the grid (all the hits
+manage 15% and 52%, the full-block hits 18% and 60%), but in only 51% off it:
 a rate 0.4 of a step from one hypothesis is 0.6 from the next, and at that
-signal level noise picks the neighbour often. 3 dB over, 93% and 96% on the
+signal level noise picks the neighbour often. 3 dB over, 94% and 96% on the
 grid and 65% off it. The queue,
 the blob (version 6) and the event record carry it together, and a blob of
 the earlier layout (version 5) is refused.

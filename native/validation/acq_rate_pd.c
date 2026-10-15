@@ -850,13 +850,15 @@ main (int argc, char **argv)
                   "design point, outside the intervals");
     /* And the depth reaches the CAPTURE: the compensated capture places
        more than the capped one there, outside the intervals. Gated for
-       auto, which separates in this run and the full one (--check: 0.672
-       [0.612, 0.727] against 0.492 [0.431, 0.554]). Not for n = 9: refine's
-       own cost eats more of its depth at the capture (engine 0.732 ->
-       capture 0.600 in --check, 0.706 -> 0.587 in the full run, against
-       auto's 0.768 -> 0.672), and at 250 trials its interval overlaps the
-       capped one (0.538 against 0.554). It separates only in the full run
-       (0.556 against 0.503), so it is printed, not claimed, and the loss is
+       auto, which separates in this run and the full one (--check: 0.620
+       [0.558, 0.678] against 0.456 [0.395, 0.518]; full: 0.629 [0.599,
+       0.658] against 0.465 [0.434, 0.496]). Not for n = 9. On the library's
+       rotation it separates in both runs too (--check 0.628 [0.567, 0.686],
+       full 0.592 [0.561, 0.622]), but on the private phase ramp this
+       stimulus replaced, its 250-trial interval overlapped the capped one
+       (0.538 against 0.554): whether it separates at --check depends on the
+       draw, so it is printed, not claimed. The capture's loss against its
+       engine (0.704 -> 0.628 here, 0.685 -> 0.592 in the full run) is
        doppler#2341's. */
     DP_CHECK_MSG (und[1].cap_lo > und[0].cap_hi,
                   "auto's depth reaches the capture 3 dB under the design "
@@ -919,9 +921,9 @@ main (int argc, char **argv)
      not specific to ZC", which two counts and the false-alarm bound show;
      the full grid above is ZC's. As above, the capped capture delivers its
      own pd_burst at the design point, and the depth comparison is the
-     engines' 3 dB under it. Full run (1000 trials): the capped capture 0.910
-     against its pd_burst of 0.842 (engine 0.979); 3 dB under, engine Pd 0.493
-     capped against 0.755 at N = 5. */
+     engines' 3 dB under it. Full run (1000 trials, the library's rotation):
+     the capped capture 0.924 against its pd_burst of 0.842 (engine 0.982);
+     3 dB under, engine Pd 0.471 capped against 0.760 at N = 5. */
   {
     lfm_preamble ();
     const double cn0_l  = cn0_for (9, PD);

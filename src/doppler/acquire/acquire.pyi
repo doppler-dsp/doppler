@@ -2374,10 +2374,11 @@ class BurstCapture:
         """Refine's winning Doppler-rate hypothesis for the most recent window,
         Hz/s: the rate whose de-chirp made the whole preamble's coherent sum
         largest at its start, from refine's grid over [-doppler_rate,
-        +doppler_rate] (at least as dense as the acquisition's). 0 without rate
-        hypotheses. A hypothesis, not a fit: it names the grid point nearest
-        the carrier's rate well above the design point, and less often near it
-        (validate_acq_rate_pd's event-rate rows).
+        +doppler_rate] (at least as dense as the acquisition's, and searched
+        whenever a rate is declared, even with one acquisition hypothesis). 0
+        without a declared rate. A hypothesis, not a fit: it names the grid
+        point nearest the carrier's rate well above the design point, and less
+        often near it (validate_acq_rate_pd's event-rate rows).
         """
 
     @property
@@ -3128,10 +3129,11 @@ class PersistentBurstCapture:
         """Refine's winning Doppler-rate hypothesis for the most recent window,
         Hz/s: the rate whose de-chirp made the whole preamble's coherent sum
         largest at its start, from refine's grid over [-doppler_rate,
-        +doppler_rate] (at least as dense as the acquisition's). 0 without rate
-        hypotheses. A hypothesis, not a fit: it names the grid point nearest
-        the carrier's rate well above the design point, and less often near it
-        (validate_acq_rate_pd's event-rate rows).
+        +doppler_rate] (at least as dense as the acquisition's, and searched
+        whenever a rate is declared, even with one acquisition hypothesis). 0
+        without a declared rate. A hypothesis, not a fit: it names the grid
+        point nearest the carrier's rate well above the design point, and less
+        often near it (validate_acq_rate_pd's event-rate rows).
         """
 
     @property

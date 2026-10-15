@@ -708,7 +708,8 @@ def test_each_event_carries_refines_rate(tmp_path):
     whole preamble on refine's own grid, and the read-back is the last
     event's (doppler#2219). At this span and 16 repetitions refine's grid is
     nine points over [-R, +R], so 0.75 R is one of them: a sweep just off it
-    comes back as exactly that point. Without hypotheses the field is 0.
+    comes back as exactly that point. Without a declared rate the field is
+    0; one hypothesis WITH a rate still searches refine's grid.
     The persistent view carries the same field."""
     pre = _zc()
     rate = 9e-7
@@ -735,18 +736,22 @@ def test_each_event_carries_refines_rate(tmp_path):
         got = float(rows[-1]["doppler_rate_hz_s"])
         assert got == pytest.approx(0.75 * rate, rel=1e-9)
         assert cap.doppler_rate_hz_s == float(ev[-1]["doppler_rate_hz_s"])
-    plain = BurstCapture(pre, **kw)
+    plain = BurstCapture(pre, **{**kw, "doppler_rate": 0.0})
     plain.push(x)
-    assert len(plain.events()) > 0, "the capped capture still emits"
+    assert len(plain.events()) > 0, "a capture with no rate still emits"
     assert all(float(e["doppler_rate_hz_s"]) == 0.0 for e in plain.events())
 
 
-def test_a_swept_burst_at_the_design_cn0_needs_the_engines_rates():
+def test_a_swept_burst_at_the_design_cn0_is_placed_by_either_depth():
     """At the design C/N0 (noise at -13 dB per sample) the engine runs deep
     (D > 2) and its own rate search decides the detection; the test above
     runs at 10 dB-Hz, D = 1, where only refine's rates are exercised. Nine
-    hypotheses place most of the seeded bursts; one, capped at a shallower
-    depth, misses most of them."""
+    hypotheses place most of the seeded bursts, and so does one capped at a
+    shallower depth: refine searches its rate grid whenever a rate is
+    declared (doppler#2219). Keyed on the engine's count, the capped one
+    missed most of them, which this test used to credit to the engine's
+    depth. What depth buys is validate_acq_rate_pd's to show, on engine Pd 3
+    dB under the design point."""
     import warnings
 
     pre = _zc()
@@ -773,5 +778,5 @@ def test_a_swept_burst_at_the_design_cn0_needs_the_engines_rates():
             cap.reset()
             cap.push(x)
             got[name] += at in [int(e[0]) for e in cap.events()]
-    assert got["deep"] >= 0.8 * trials
-    assert got["deep"] >= got["capped"] + trials // 5, got
+    assert got["deep"] >= 0.8 * trials, got
+    assert got["capped"] >= 0.8 * trials, got

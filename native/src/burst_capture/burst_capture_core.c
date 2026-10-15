@@ -22,11 +22,19 @@
  * over the sum stays inside half a slow-time row of it. Hypotheses enough
  * to leave no more than that across the span, never fewer than the
  * engine's (a caller who asked for more gets them), and none at all when
- * the engine has none: the sum as it ran. */
+ * no rate is declared: the sum as it ran.
+ *
+ * Keyed on the DECLARED rate, not the engine's count (doppler#2219). An
+ * engine with one hypothesis and a rate -- the capped depth, and every
+ * DsssBurstReceiver -- still sees a sweep, and refine's coherent sum over
+ * the whole preamble is what a sweep collapses: keyed on the count, that
+ * capture placed 0.555 of the bursts its engine detected 0.946 of
+ * (validate_acq_rate_pd's full run, 1000 trials, Rh = 1 at the design
+ * point); keyed on the rate, 0.896 (the same run's row). */
 static size_t
 burst_capture_rate_hyps (const dp_acq_state_t *eng, size_t reps)
 {
-  if (eng->rate_hyps < 2)
+  if (!(eng->doppler_rate > 0.0))
     return 1;
   /* The engine's drift rule at refine's depth, from the engine's own home
      for it (dp_acq_rate_hypotheses_for), never fewer than the engine's. */
@@ -70,11 +78,11 @@ burst_capture_rate_phasors (dp_burst_capture_state_t *s)
  * `fs / (P * reps * IP)`. Clamped to half the native span per side, reps *
  * IP / 2 cells: past that the cells only re-score wrapped duplicates, and an
  * unbounded `doppler_rate` would wrap the allocations they size. Zero without
- * rate hypotheses -- the engine and refine as they ran. */
+ * a declared rate, keyed like burst_capture_rate_hyps() (doppler#2219). */
 static size_t
 burst_capture_rate_cells (const dp_acq_state_t *eng, size_t reps)
 {
-  if (eng->rate_hyps < 2)
+  if (!(eng->doppler_rate > 0.0))
     return 0;
   const double per  = (double)eng->code_bins / eng->fs;
   const double want = 0.5 * eng->doppler_rate

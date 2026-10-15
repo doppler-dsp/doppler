@@ -129,8 +129,11 @@ typedef struct
                             preamble's coherent sum largest at
                             preamble_start. One of refine's R grid points
                             from -doppler_rate to +doppler_rate, spaced
-                            2*doppler_rate/(R - 1); 0 without rate
-                            hypotheses. A hypothesis, not a fit, from the
+                            2*doppler_rate/(R - 1); 0 without a declared
+                            rate (doppler_rate 0). Refine searches the
+                            grid whenever a rate is declared, with one
+                            acquisition hypothesis or many (doppler#2219).
+                            A hypothesis, not a fit, from the
                             whole preamble rather than one dwell: it is the
                             grid point nearest the carrier's rate in every
                             event 23 dB over the design point, on or off the

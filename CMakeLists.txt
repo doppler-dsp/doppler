@@ -452,8 +452,8 @@ set_target_properties(doppler_lib_static PROPERTIES EXPORT_NAME doppler-static)
 # the optional libdoppler_stream component below).
 #
 # Threads::Threads is PUBLIC on the ARCHIVE and must stay that way. A component
-# that needs pthread carries it PUBLIC on its own target (ccsds_tm_core for
-# rs.c's `pthread_once`, wfm_compose_core for dp_parallel), but every component
+# that needs pthread carries it PUBLIC on its own target (wfm_compose_core
+# for dp_parallel, the acq and stream cores), but every component
 # is folded in here as $<TARGET_OBJECTS:...> — objects, not a link edge — and
 # that drops the usage requirement on the floor. Nothing else re-stated it, so
 # the archive's link interface carried no pthread and a consumer that pulled a
@@ -1204,6 +1204,19 @@ add_executable(test_dp_interrupt native/tests/test_dp_interrupt.c
     $<TARGET_OBJECTS:dp_interrupt_obj>)
 target_include_directories(test_dp_interrupt PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 add_test(NAME test_dp_interrupt COMMAND test_dp_interrupt)
+
+# dp_once and every table built under it (doppler#2328): the first AWGN, LO
+# and CCSDS frame made from eight threads at once, in a fresh process. Its
+# proof is `make test-tsan`, which runs it: a plain flag back in a table's
+# guard is a data race TSan names even when the outputs happen to agree.
+add_executable(test_dp_once native/tests/test_dp_once.c)
+target_include_directories(test_dp_once
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(test_dp_once PRIVATE doppler_lib_static Threads::Threads
+                                           ${DP_MATH_LIBRARY})
+add_test(NAME test_dp_once COMMAND test_dp_once)
+set_tests_properties(test_dp_once PROPERTIES LABELS threaded)
 
 add_executable(test_dp_state native/tests/test_dp_state.c)
 target_include_directories(test_dp_state

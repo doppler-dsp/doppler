@@ -10,6 +10,7 @@
 
 _The threading primitives doppler uses, with one platform split._ [More...](#detailed-description)
 
+* `#include "doppler/dp_once.h"`
 * `#include <pthread.h>`
 * `#include <sched.h>`
 * `#include <time.h>`
@@ -132,11 +133,16 @@ The Windows side is Vista-era and deliberately not `pthreads-win32`:
 |`pthread_cond_t`   |`CONDITION_VARIABLE`    |
 |`pthread_cond_wait`   |`SleepConditionVariableSRW`    |
 |`pthread_create`/`join`   |`_beginthreadex` / `WaitForSingleObject`    |
-|`sysconf(_SC_NPROCESSORS_ONLN)`   |`GetActiveProcessorCount`   |
+|`sysconf(_SC_NPROCESSORS_ONLN)`   |`GetActiveProcessorCount`    |
+|`pthread_once`   |dp\_once()  one C11-atomics version    |
+||for both, in [**dp\_once.h**](dp__once_8h.md) (included here)   |
 
 
 
 
+
+
+A one-time build has its own header because the tables it guards live in components that start no thread (AWGN, LO, CCSDS): they include [**dp\_once.h**](dp__once_8h.md) alone and pull in neither `<windows.h>` nor `<pthread.h>` (doppler#2328).
 
 
 `_beginthreadex` rather than `CreateThread`: a thread that touches the CRT (these do  malloc, and the capture writer does file I/O) needs the CRT's per-thread state initialised, and `CreateThread` does not do it.

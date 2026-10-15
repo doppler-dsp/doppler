@@ -4018,8 +4018,10 @@ abi-check: ## Verify the built libraries are portable and C++-free (Linux)
 # by hand ON PURPOSE: this target answers what a downstream typing the
 # command gets, so taking the flags from pkg-config would make it agree with
 # itself rather than with the docs. pthread joined the line when rs.c moved
-# to `pthread_once`; on glibc >= 2.34 it is folded into libc and omitting it
-# still links, which is exactly why a gate that names it is worth having.
+# to `pthread_once`; rs.c uses dp_once now (doppler#2328), and dp_parallel
+# and the capture writer are what need it. On glibc >= 2.34 it is folded
+# into libc and omitting it still links, which is exactly why a gate that
+# names it is worth having.
 # A consumer with its OWN cJSON / nats.c links doppler statically, and doppler
 # keeps its own copies (#1565). The archives embed both; before their symbols
 # were respelled dp__v_* this failed at the consumer's link -- `multiple

@@ -87,6 +87,7 @@
 #include "doppler/awgn/awgn_core.h"
 
 #include "doppler/dp_complex.h"
+#include "doppler/dp_once.h"
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -99,17 +100,24 @@
 #define LUT_SIZE (1u << LUT_BITS)
 #define LUT_QTR (LUT_SIZE >> 2u)
 
-static float lut[LUT_SIZE];
-static int   lut_ready = 0;
+static float     lut[LUT_SIZE];
+static dp_once_t lut_once = DP_ONCE_INIT;
 
+static void
+lut_build (void)
+{
+  for (unsigned i = 0; i < LUT_SIZE; i++)
+    lut[i] = sinf (2.0f * (float)M_PI * (float)i / (float)LUT_SIZE);
+}
+
+/* Built on the first dp_awgn_create, which several threads can make at once
+   (Plan.prepare's parallel builds; any GIL-free caller): dp_once, never a
+   plain ready flag, which let a thread read a half-written table
+   (doppler#2328). */
 static void
 lut_init (void)
 {
-  if (lut_ready)
-    return;
-  for (unsigned i = 0; i < LUT_SIZE; i++)
-    lut[i] = sinf (2.0f * (float)M_PI * (float)i / (float)LUT_SIZE);
-  lut_ready = 1;
+  dp_once (&lut_once, lut_build);
 }
 
 /* ------------------------------------------------------------------ */

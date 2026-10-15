@@ -24,6 +24,12 @@
  * | `pthread_cond_wait`      | `SleepConditionVariableSRW`            |
  * | `pthread_create`/`join`  | `_beginthreadex` / `WaitForSingleObject` |
  * | `sysconf(_SC_NPROCESSORS_ONLN)` | `GetActiveProcessorCount`       |
+ * | `pthread_once`           | dp_once() -- one C11-atomics version   |
+ * |                          | for both, in dp_once.h (included here) |
+ *
+ * A one-time build has its own header because the tables it guards live in
+ * components that start no thread (AWGN, LO, CCSDS): they include dp_once.h
+ * alone and pull in neither `<windows.h>` nor `<pthread.h>` (doppler#2328).
  *
  * `_beginthreadex` rather than `CreateThread`: a thread that touches the CRT
  * (these do -- malloc, and the capture writer does file I/O) needs the CRT's
@@ -35,6 +41,8 @@
  */
 #ifndef DP_THREAD_H
 #define DP_THREAD_H
+
+#include "doppler/dp_once.h"
 
 #ifdef _WIN32
 

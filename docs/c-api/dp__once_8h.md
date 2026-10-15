@@ -134,6 +134,9 @@ Every caller, on any thread, returns after the single call of `fn` has completed
 
 
 ```C++
+#include <doppler/dp_once.h>
+#include <stdio.h>
+
 static float     table[256];
 static dp_once_t table_once = DP_ONCE_INIT;
 
@@ -144,8 +147,20 @@ table_build (void)
     table[i] = (float)i;
 }
 
-// In every function that reads the table:
-dp_once (&table_once, table_build);
+// Every function that reads the table calls dp_once first.
+static float
+table_at (int i)
+{
+  dp_once (&table_once, table_build);
+  return table[i];
+}
+
+int
+main (void)
+{
+  printf ("%g\n", table_at (255)); // 255
+  return 0;
+}
 ```
  
 

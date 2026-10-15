@@ -3214,9 +3214,13 @@ test_a_sweeping_carrier_is_compensated (void)
      refine's rates are exercised. Here the noise sits at the C/N0 the engine
      is sized for (-13 dB per sample at fs = 1), so the engine itself runs deep
      (D > 2) and its own de-chirp decides the detection: nine hypotheses
-     against one, the one capped by the drift bound at a shallower depth. The
-     bursts are seeded, so the counts are a regression pin; the margin is
-     what the engine's de-chirp is worth here (measured 0.91 against 0.55). */
+     against one, the one capped by the drift bound at a shallower depth.
+     Both place most of these seeded bursts. The capped one used to place 6
+     of 60: refine, keyed on the engine's count, searched no rates and the
+     sweep collapsed its sum. Keyed on the declared rate it places 59
+     (doppler#2219), so this pins that, and the depth the de-chirp buys is
+     validate_acq_rate_pd's to show, on engine Pd 3 dB under the design
+     point where the capped depth is underpowered. */
   {
     enum
     {
@@ -3270,8 +3274,9 @@ test_a_sweeping_carrier_is_compensated (void)
     DP_TEST_ERR ("  DEEP %zu CAPPED %zu of %d\n", got[0], got[1], TRIALS);
     DP_CHECK_MSG (got[0] >= (TRIALS * 8) / 10,
                   "the de-chirping engine places most swept bursts");
-    DP_CHECK_MSG (got[0] >= got[1] + TRIALS / 5,
-                  "without the rates the same bursts are missed");
+    DP_CHECK_MSG (got[1] >= (TRIALS * 8) / 10,
+                  "one hypothesis with a declared rate places most swept "
+                  "bursts too");
     dp_burst_capture_destroy (sd);
     dp_burst_capture_destroy (zd);
   }
@@ -3610,19 +3615,69 @@ test_each_event_carries_refines_rate (void)
     free (back);
   }
 
-  /* Without hypotheses there is no rate to report: 0, as documented. */
+  /* Without a declared rate there is no rate to report: 0, as documented.
+     (One hypothesis WITH a rate still searches refine's grid,
+     doppler#2219, so the zero case is the capture that declares none.) */
   {
     dp_burst_capture_state_t *z = dp_burst_capture_create (
-        zc, NP, BURST, RP, 1.0, 10.0, 0.0, 1e-3, 0.9, 0, span, 1);
+        zc, NP, BURST, RP, 1.0, 10.0, 0.0, 1e-3, 0.9, 0, 0.0, 1);
     DP_REQUIRE (z != NULL);
     dp_burst_capture_reset (z);
     (void)dp_burst_capture_push (z, x, LEN, out, cap);
     DP_REQUIRE_MSG (dp_burst_capture_ready (z) > 0,
-                    "the capture without hypotheses still emits");
+                    "the capture without a declared rate still emits");
     for (size_t k = 0; k < dp_burst_capture_ready (z); k++)
       DP_CHECK (dp_burst_capture_event_at (z, k)->doppler_rate_hz_s == 0.0);
     dp_burst_capture_destroy (z);
   }
+  dp_burst_capture_destroy (s);
+  return 0;
+}
+
+/** One acquisition hypothesis with a declared rate still gets refine's rate
+ *  grid (doppler#2219).
+ *
+ * The capped depth -- `rate_hypotheses` 1 with a `doppler_rate` -- is what
+ * every DsssBurstReceiver builds. Its engine still detects a sweeping burst,
+ * but refine's coherent sum runs the whole preamble, which the sweep
+ * collapses; keyed on the engine's count, refine searched no rates and named
+ * the wrong repetition (127 or 254 samples off) in about 40% of the bursts
+ * its engine found. Keyed on the declared rate it searches its own grid and
+ * places them. The cases are a search's (the refine guards' scenario at one
+ * hypothesis, design -15 dB, D = 5), chosen where the old keying misses at
+ * both noise levels: a sweep at 0.9 of the span, either sign. */
+static int
+test_refine_searches_rates_with_one_hypothesis (void)
+{
+  float _Complex zc[RG_NP];
+  for (size_t k = 0; k < RG_NP; k++)
+    zc[k] = (float _Complex)cexp (-I * M_PI * 5.0 * (double)k * (double)(k + 1)
+                                  / (double)RG_NP);
+  const double              span = 9.0e-7;
+  dp_burst_capture_state_t *s    = dp_burst_capture_create (
+      zc, RG_NP, RG_BURST, RG_RP, 1.0, -15.0, 0.0, 1e-3, 0.9, 0, span, 1);
+  DP_REQUIRE (s != NULL);
+  const size_t D = s->acq->engine->coherent_bins;
+  DP_REQUIRE_MSG (D == 5 && s->acq->engine->rate_hyps == 1,
+                  "the capped engine is sized as the scenario was chosen");
+  DP_CHECK_MSG (s->rate_ph_n > 1,
+                "refine searches a rate grid with one acquisition "
+                "hypothesis");
+  static const struct
+  {
+    int    ri; /* the search's rate index: rate = span * (ri / 10 - 1) */
+    size_t twelfth;
+  } c[] = { { 1, 1 }, { 1, 2 }, { 1, 4 }, { 1, 10 }, { 19, 1 } };
+  for (size_t j = 0; j < sizeof c / sizeof *c; j++)
+    for (int up = 6; up <= 12; up += 6)
+      {
+        const size_t at    = D * RG_NP + c[j].twelfth * D * RG_NP / 12u;
+        const double sweep = span * ((double)c[j].ri / 10.0 - 1.0);
+        DP_CHECK_MSG (
+            rg_placed (s, at, sweep, -15.0 + up, c[j].ri, (int)c[j].twelfth),
+            "a swept burst is placed exactly with one acquisition "
+            "hypothesis");
+      }
   dp_burst_capture_destroy (s);
   return 0;
 }
@@ -3836,6 +3891,8 @@ main (void)
   if (test_refine_searches_a_denser_rate_grid ())
     return 1;
   if (test_each_event_carries_refines_rate ())
+    return 1;
+  if (test_refine_searches_rates_with_one_hypothesis ())
     return 1;
   if (test_a_tiled_burst_after_a_window_is_not_shadowed ())
     return 1;

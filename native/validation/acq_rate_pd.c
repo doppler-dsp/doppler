@@ -588,8 +588,12 @@ measure_event_rate (size_t rh, double design, double sig, double base,
   const double step           = 2.0 * RATE / (double)(R - 1);
   /* The truth: `base` moved by `off` of THIS capture's own grid step, so an
      off-grid row stays off the grid whatever R refine's sizing chooses. */
-  const double rate         = base + off * step;
-  r.rate                    = rate;
+  /* `base` in [-1, 1] of the span, snapped to the nearest point of THIS
+     capture's grid (0 is a grid point only for odd R), then moved by `off`
+     of its step. */
+  const size_t hb   = (size_t)lround (0.5 * (base + 1.0) * (double)(R - 1));
+  const double rate = dp_acq_rate_hypothesis (RATE, R, hb) + off * step;
+  r.rate            = rate;
   const size_t     lead_max = 3u * r.depth * N;
   const size_t     len      = lead_max + BURST + 2u * s->refine_span + 4u * N;
   float _Complex  *x        = dp_xmalloc (len * sizeof *x);
@@ -761,7 +765,7 @@ main (int argc, char **argv)
   size_t     ner = 0;
   {
     const double sigs[3]  = { cn0, cn0 + 3.0, cn0 + 23.0 };
-    const double bases[3] = { 0.0, RATE, 0.0 };
+    const double bases[3] = { 0.0, 1.0, 0.0 }; /* of the span */
     const double offs[3]  = { 0.0, 0.0, 0.4 };
     for (int i = check ? 2 : 0; i < 3; i++)
       for (int k = 0; k < 3; k++)
@@ -808,15 +812,46 @@ main (int argc, char **argv)
                           "compensated capture is within 0.015 of its "
                           "pd_burst on the seeded trials");
         }
-    /* And it is worth having: the most compensated capture beats the
-       capped depth, outside both intervals. */
     const pd_row_t *base = &rows[0], *top = &rows[0];
     for (size_t k = 0; k < nrows; k++)
       if (!rows[k].midpoint && !rows[k].autorow && rows[k].rh >= top->rh)
         top = &rows[k];
-    DP_CHECK_MSG (top->cap_lo > base->cap_hi,
-                  "compensation beats the capped depth, outside the "
-                  "intervals");
+    /* The capped capture delivers ITS pd_burst too, the same promise the
+       compensated rows keep. Refine searches its rate grid whenever a rate
+       is declared (doppler#2219), so one acquisition hypothesis no longer
+       collapses refine's sum: keyed on the engine's count, this row's
+       capture read 0.555 against its prediction of 0.848 (and its engine's
+       0.946). */
+    DP_CHECK_MSG (base->cap_hi >= base->pred,
+                  "the capped capture delivers its pd_burst");
+    /* And compensation is worth having for what it claims, DEPTH: 3 dB
+       under the design point, where the capped engine is underpowered, the
+       compensated engine detects more, outside both intervals. Engine Pd,
+       because depth is the engine's; at the design point the capped engine
+       already reads ~0.95 and a capture comparison measured refine, not
+       depth (doppler#2219). */
+    pd_row_t     und[3];
+    const double cu = cn0 - 3.0;
+    {
+      const size_t urh[3] = { 1, 0, top->rh };
+      printf ("\ndepth, 3 dB under the design point (C/N0 %.2f dB)\n", cu);
+      printf ("%3s %3s %6s | %6s %6s %6s | %6s %6s %6s\n", "Rh", "D", "pred",
+              "engine", "lo95", "hi95", "captur", "lo95", "hi95");
+      for (size_t i = 0; i < 3; i++)
+        {
+          und[i] = measure_pd (urh[i], 0, cu, trials, 4242u + (uint32_t)i);
+          printf ("%3zu %3zu %6.3f | %6.3f %6.3f %6.3f | %6.3f %6.3f %6.3f\n",
+                  und[i].rh, und[i].depth, und[i].pred, und[i].eng,
+                  und[i].eng_lo, und[i].eng_hi, und[i].cap, und[i].cap_lo,
+                  und[i].cap_hi);
+        }
+    }
+    DP_CHECK_MSG (und[2].eng_lo > und[0].eng_hi,
+                  "compensation's depth beats the capped depth 3 dB under "
+                  "the design point, outside the intervals");
+    DP_CHECK_MSG (und[1].eng_lo > und[0].eng_hi,
+                  "auto's depth beats the capped depth 3 dB under the "
+                  "design point, outside the intervals");
     /* The reported rate: the rows 23 dB over the design point are the ones
        the contract claims. From a block wholly inside the preamble the
        winning hypothesis is the nearest to the truth (measured 111/111 and
@@ -847,7 +882,8 @@ main (int argc, char **argv)
     /* Auto (rate_hypotheses = 0) is worth having: it picks FEWER hypotheses
        than the most compensated explicit count -- the cost of a dwell is
        proportional to the count -- and delivers what that count does, no
-       worse outside the intervals, and beats the capped depth. */
+       worse outside the intervals (its depth against the capped one is
+       checked 3 dB under, above). */
     for (size_t k = 0; k < nrows; k++)
       if (rows[k].autorow)
         {
@@ -856,9 +892,6 @@ main (int argc, char **argv)
                         "explicit count");
           DP_CHECK_MSG (rows[k].cap_hi >= top->cap_lo,
                         "auto is no worse than the most compensated count");
-          DP_CHECK_MSG (rows[k].cap_lo > base->cap_hi,
-                        "auto beats the capped depth, outside the "
-                        "intervals");
         }
     /* Pfa: every row, the uncompensated one included, is not significantly
        above the target. Rh = 1 read about twice it until the gate was
@@ -875,9 +908,11 @@ main (int argc, char **argv)
      point recomputed for it (cn0_for), then the capped depth against five
      hypotheses. Two rows and one Pfa row: the claim is "the compensation is
      not specific to ZC", which two counts and the false-alarm bound show;
-     the full grid above is ZC's. Capture Pd, capped against N = 5: 0.552
-     against 0.924 in this --check run (250 trials), 0.564 against 0.921 in
-     the reviewer's 1000-trial run. */
+     the full grid above is ZC's. As above, the capped capture delivers its
+     own pd_burst at the design point, and the depth comparison is the
+     engines' 3 dB under it. Full run (1000 trials): the capped capture 0.910
+     against its pd_burst of 0.842 (engine 0.979); 3 dB under, engine Pd 0.493
+     capped against 0.755 at N = 5. */
   {
     lfm_preamble ();
     const double cn0_l  = cn0_for (9, PD);
@@ -896,9 +931,21 @@ main (int argc, char **argv)
       }
     DP_CHECK_MSG (lrow[1].cap_hi >= lrow[1].pred,
                   "LFM: compensated capture delivers its pd_burst");
-    DP_CHECK_MSG (lrow[1].cap_lo > lrow[0].cap_hi,
-                  "LFM: compensation beats the capped depth, outside the "
-                  "intervals");
+    DP_CHECK_MSG (lrow[0].cap_hi >= lrow[0].pred,
+                  "LFM: the capped capture delivers its pd_burst");
+    pd_row_t lu[2];
+    for (size_t i = 0; i < 2; i++)
+      {
+        lu[i]
+            = measure_pd (lrh[i], 0, cn0_l - 3.0, trials, 5252u + (uint32_t)i);
+        printf ("%3zu %3zu %6.3f | %6.3f %6.3f %6.3f | %6.3f %6.3f %6.3f"
+                "  (3 dB under)\n",
+                lu[i].rh, lu[i].depth, lu[i].pred, lu[i].eng, lu[i].eng_lo,
+                lu[i].eng_hi, lu[i].cap, lu[i].cap_lo, lu[i].cap_hi);
+      }
+    DP_CHECK_MSG (lu[1].eng_lo > lu[0].eng_hi,
+                  "LFM: compensation's depth beats the capped depth 3 dB "
+                  "under the design point, outside the intervals");
     pfa_row_t lp = measure_pfa (5, cn0_l, dwells, 6161u, 0);
     printf ("LFM Pfa, Rh %zu D %zu: %.2e (95%%: %.2e - %.2e)\n", lp.rh,
             lp.depth, lp.pfa, lp.lo, lp.hi);

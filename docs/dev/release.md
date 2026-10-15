@@ -102,6 +102,16 @@ update for each way uv gets installed.
 `bench-interleaved` says which commit it measures, and whether origin/main
 has it, before and after the run.
 
+**Measure from one clone per box, not a clone per release.** Each run
+leaves its snapshot in the clone, untracked until its PR merges, and
+`docs/benchmarks.md` modified. A clone per release kept every copy: 26
+clones, about 10 GB, by 2026-10-14. In one clone, `git checkout` of the
+next release commit refuses while the previous copy is there.
+`make bench-preflight` clears it once origin/main has it byte for byte. It
+refuses, without touching anything, over any result main lacks or holds
+differently: publish that through its PR, or remove it.
+`bench-interleaved` runs the same check first.
+
 First put the CPU
 in a peak, repeatable state — the published `doppler_meta` records the governor
 either way, but `powersave` understates the numbers:
@@ -109,7 +119,10 @@ either way, but `powersave` understates the numbers:
 ```sh
 sudo cpupower frequency-set -g performance   # peak, repeatable; quiesce other load
 
-git fetch origin && git checkout --detach origin/main   # measure what main has
+cd ~/doppler-bench                     # the box's one clone (any path)
+git fetch origin
+make bench-preflight                   # clears the last release's outputs
+git checkout --detach origin/main      # measure what main has
 make bench-interleaved VERSION=X.Y.Z   # builds portable + native, runs them
                                        # alternately, keeps the per-bench best
 make bench-docs                        # render docs/benchmarks.md (two columns)

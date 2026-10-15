@@ -791,10 +791,11 @@ burst (0.946 then) and refine lost it, because refine searched rates only when t
 engine had several hypotheses. Keyed on the declared rate, refine keeps what
 the engine finds (#2219). What hypotheses still buy is the engine's depth,
 and that shows where the capped depth is underpowered, 3 dB under the design
-point: engine Pd 0.542 capped against 0.747 for `n = 5` (auto) and 0.685
-for `n = 9`, outside the intervals. A capture still places a few percent fewer
-bursts than its engine detects, compensated or not (0.91–0.94 against
-0.98 above), which is refine's own cost, open in #2341.
+point: engine Pd 0.542 capped against 0.747 for `n = 5` (what auto picks at
+that C/N0; at the design point it picks `n = 3`) and 0.685 for `n = 9`,
+outside the intervals. A capture still places a few percent fewer bursts than
+its engine detects, compensated or not (0.905–0.935 against 0.958–0.984
+above), which is refine's own cost, open in #2341.
 
 **Two things this does not say.** The uncompensated row's Pfa was a separate
 finding, since fixed: the engine read **1.97e-3** a dwell against a target of

@@ -30,7 +30,8 @@
  * the whole preamble is what a sweep collapses: keyed on the count, that
  * capture placed 0.555 of the bursts its engine detected 0.946 of
  * (validate_acq_rate_pd's full run, 1000 trials, Rh = 1 at the design
- * point); keyed on the rate, 0.896 (the same run's row). */
+ * point, on the private phase ramp it then swept with); keyed on the rate,
+ * the row reads 0.905 on the library's rotation. */
 static size_t
 burst_capture_rate_hyps (const dp_acq_state_t *eng, size_t reps)
 {

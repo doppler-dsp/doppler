@@ -115,6 +115,7 @@
 * [**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md)
 * [**dp\_nco\_state\_t**](structdp__nco__state__t.md)
 * [**dp\_nprmeas\_state\_t**](structdp__nprmeas__state__t.md)
+* [**dp\_once\_t**](structdp__once__t.md)
 * [**dp\_peak\_t**](structdp__peak__t.md)
 * [**dp\_pf\_shared\_t**](structdp__pf__shared__t.md)
 * [**dp\_pn\_state\_t**](structdp__pn__state__t.md)

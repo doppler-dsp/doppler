@@ -3814,15 +3814,21 @@ test-examples-c: build ## Smoke-test every standalone C example
 	@bash scripts/smoke-c-examples.sh $(EXAMPLE_BIN_DIR) $(C_EXAMPLE_TIMEOUT)
 # Through the example's own Makefile, for the reason burst-pipeline-check
 # gives: its README tells a reader to run `make DOPPLER_BUILD_DIR=... run`, so
-# that is the command this has to prove still works.
+# that is the command this has to prove still works. Quiet on success, the
+# real configure/compiler/linker error on failure: this step printed only
+# FAIL when glibc 2.28 could not resolve pthread_once (doppler#2328), and the
+# cause had to be reconstructed from source.
 	@echo "Building standalone example..."
+	@mkdir -p $(STANDALONE_BUILD_DIR)
 	@printf "  %-24s" "awgn_example"; \
 	if $(MAKE) --no-print-directory -C example-projects/standalone \
 	       BUILD_DIR=$(abspath $(STANDALONE_BUILD_DIR)) \
-	       DOPPLER_BUILD_DIR=$(abspath $(BUILD_DIR)) run > /dev/null 2>&1; then \
+	       DOPPLER_BUILD_DIR=$(abspath $(BUILD_DIR)) run \
+	       > $(abspath $(STANDALONE_BUILD_DIR))/awgn_example.log 2>&1; then \
 	    echo "PASS"; \
 	else \
-	    echo "FAIL"; exit 1; \
+	    echo "FAIL"; cat $(abspath $(STANDALONE_BUILD_DIR))/awgn_example.log; \
+	    exit 1; \
 	fi
 	@$(MAKE) --no-print-directory test-example-downstream
 	@echo "All C example smoke tests passed."
@@ -4025,8 +4031,9 @@ abi-check: ## Verify the built libraries are portable and C++-free (Linux)
 # by hand ON PURPOSE: this target answers what a downstream typing the
 # command gets, so taking the flags from pkg-config would make it agree with
 # itself rather than with the docs. pthread joined the line when rs.c moved
-# to `pthread_once`; on glibc >= 2.34 it is folded into libc and omitting it
-# still links, which is exactly why a gate that names it is worth having.
+# to `pthread_once`, which dp_once (doppler#2328) now calls for every lazily
+# built table. On glibc >= 2.34 it is folded into libc and omitting it still
+# links, which is exactly why a gate that names it is worth having.
 # A consumer with its OWN cJSON / nats.c links doppler statically, and doppler
 # keeps its own copies (#1565). The archives embed both; before their symbols
 # were respelled dp__v_* this failed at the consumer's link -- `multiple

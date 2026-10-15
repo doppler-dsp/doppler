@@ -665,6 +665,7 @@
 * **odd\_I** ([**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md))
 * **odd\_Q** ([**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md))
 * **odd\_head** ([**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md), [**hbdecim\_state\_t**](structhbdecim__state__t.md))
+* **once** ([**dp\_once\_t**](structdp__once__t.md))
 * **off** ([**dp\_reader\_t**](structdp__reader__t.md), [**dp\_writer\_t**](structdp__writer__t.md), [**wfm\_draw\_t**](structwfm__draw__t.md), [**wfm\_span\_t**](structwfm__span__t.md), [**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 * **offset\_db** ([**dp\_specan\_state\_t**](structdp__specan__state__t.md))
 * **out0** ([**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md))

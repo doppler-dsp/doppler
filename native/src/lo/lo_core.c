@@ -13,6 +13,7 @@
  * strictly worse than one.  See docs/design/nco.md §10.
  */
 #include "doppler/lo/lo_core.h"
+#include "doppler/dp_once.h"
 
 #include <math.h>
 #include <string.h>
@@ -36,19 +37,25 @@
 
 /* Definition of the LUT declared `extern` in lo_core.h.  Filled lazily by
  * lut_init() on the first dp_lo_create()/dp_lo_init(); read-only afterwards.
+ * Under dp_once, never a plain ready flag: the first create can come from
+ * several threads at once (Plan.prepare's parallel builds, any GIL-free
+ * caller), and a flag let one read a half-written table (doppler#2328).
  */
-float      dp_lo_sin_lut[LO_LUT_SIZE];
-static int lut_ready = 0;
+float            dp_lo_sin_lut[LO_LUT_SIZE];
+static dp_once_t lut_once = DP_ONCE_INIT;
+
+static void
+lut_build (void)
+{
+  for (unsigned i = 0; i < LO_LUT_SIZE; i++)
+    dp_lo_sin_lut[i]
+        = sinf (2.0f * (float)M_PI * (float)i / (float)LO_LUT_SIZE);
+}
 
 static void
 lut_init (void)
 {
-  if (lut_ready)
-    return;
-  for (unsigned i = 0; i < LO_LUT_SIZE; i++)
-    dp_lo_sin_lut[i]
-        = sinf (2.0f * (float)M_PI * (float)i / (float)LO_LUT_SIZE);
-  lut_ready = 1;
+  dp_once (&lut_once, lut_build);
 }
 
 /* ================================================================== */

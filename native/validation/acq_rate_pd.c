@@ -1003,7 +1003,12 @@ main (int argc, char **argv)
   }
 
   /* And on a PN preamble, the binary m-sequence family: the same two counts,
-     the same claims, the design point recomputed for it. */
+     the same claims, the design point recomputed for it. Neither this block
+     nor LFM's guards the de-chirp itself: with it removed and the depth
+     kept, both depth checks stay green, because depth is what they measure.
+     test_acq_core.c's sweep test holds it exactly (the winning hypothesis
+     at +-1e7 Hz/s, either sign, :1147), and ZC's reported-rate rows above
+     hold it statistically. */
   {
     DP_CHECK_MSG (pn_preamble (),
                   "the PN preamble is one m-sequence period: its periodic "

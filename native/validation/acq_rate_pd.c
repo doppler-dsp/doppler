@@ -38,6 +38,13 @@
  *              95% interval. The sizer prices `Rh` times the cells; this
  *              measures whether that is enough.
  *
+ *   Preambles  the grid above is ZC's. Two more families repeat its claims
+ *              at their own design points, capped against five hypotheses:
+ *              a repeated LFM chirp and a PN m-sequence of the same length
+ *              (dp_mls_poly(7)), both from the shipped waveform generator.
+ *              The compensation is a property of the sweep, not of the ZC
+ *              sequence, and these rows are what says so.
+ *
  * Usage:
  *   validate_acq_rate_pd           every hypothesis count, 1000 trials a row,
  *                                  200000 noise dwells a row
@@ -64,6 +71,7 @@
 #include "doppler/burst_capture/burst_capture_core.h"
 #include "doppler/dp_complex.h"
 #include "doppler/dp_parallel.h"
+#include "doppler/wfm/wfm_core.h"
 #include "doppler/wfm_synth/wfm_synth_core.h"
 #include "dp_preamble_test.h"
 #include "dp_rng_test.h"
@@ -113,6 +121,33 @@ lfm_preamble (void)
   dp_wfm_synth_set_chirp_span (g, N);
   dp_wfm_synth_steps (g, ZC, N);
   dp_wfm_synth_destroy (g);
+}
+
+/* The preamble becomes ONE PERIOD of the shipped PN generator (the `pn`
+   type) on the maximal-length polynomial dp_mls_poly(7): 127 BPSK chips at
+   one sample a chip, the Zadoff-Chu period's length, so the rows below
+   differ from ZC's in the sequence alone. A binary m-sequence is the other
+   preamble family in use, and its periodic autocorrelation is two-valued
+   (N at lag 0, -1 at every other lag) where ZC's is ideal. Returns whether
+   the generated period has exactly that autocorrelation, which is what
+   makes it one m-sequence period and not a shorter or unbalanced one. */
+static int
+pn_preamble (void)
+{
+  dp_wfm_synth_state_t *g = dp_xnn (
+      dp_wfm_synth_create (WFM_SYNTH_PN, 1.0, 0.0, WFM_SYNTH_SNR_CLEAN, 0, 1,
+                           1, 7, dp_mls_poly (7), 0, 0.0));
+  dp_wfm_synth_steps (g, ZC, N);
+  dp_wfm_synth_destroy (g);
+  for (size_t lag = 0; lag < N; lag++)
+    {
+      double r = 0.0;
+      for (size_t k = 0; k < N; k++)
+        r += crealf (ZC[k]) * crealf (ZC[(k + lag) % N]);
+      if (fabs (r - (lag ? -1.0 : (double)N)) > 1e-3)
+        return 0;
+    }
+  return 1;
 }
 
 static dp_burst_capture_state_t *
@@ -965,6 +1000,54 @@ main (int argc, char **argv)
             lp.depth, lp.pfa, lp.lo, lp.hi);
     DP_CHECK_MSG (lp.lo <= PFA,
                   "LFM: per-dwell Pfa is not significantly above the target");
+  }
+
+  /* And on a PN preamble, the binary m-sequence family: the same two counts,
+     the same claims, the design point recomputed for it. */
+  {
+    DP_CHECK_MSG (pn_preamble (),
+                  "the PN preamble is one m-sequence period: its periodic "
+                  "autocorrelation is N at lag 0 and -1 at every other");
+    const double cn0_p  = cn0_for (9, PD);
+    const size_t prh[2] = { 1, 5 };
+    pd_row_t     prw[2];
+    printf ("\nrepeated PN (m-sequence, dp_mls_poly(7)), C/N0 %.2f dB\n",
+            cn0_p);
+    printf ("%3s %3s %6s | %6s %6s %6s | %6s %6s %6s\n", "Rh", "D", "pred",
+            "engine", "lo95", "hi95", "captur", "lo95", "hi95");
+    for (size_t i = 0; i < 2; i++)
+      {
+        prw[i] = measure_pd (prh[i], 0, cn0_p, trials, 7171u + (uint32_t)i);
+        printf ("%3zu %3zu %6.3f | %6.3f %6.3f %6.3f | %6.3f %6.3f %6.3f\n",
+                prw[i].rh, prw[i].depth, prw[i].pred, prw[i].eng,
+                prw[i].eng_lo, prw[i].eng_hi, prw[i].cap, prw[i].cap_lo,
+                prw[i].cap_hi);
+      }
+    DP_CHECK_MSG (prw[1].cap_hi >= prw[1].pred,
+                  "PN: compensated capture delivers its pd_burst");
+    DP_CHECK_MSG (prw[0].cap_hi >= prw[0].pred,
+                  "PN: the capped capture delivers its pd_burst");
+    pd_row_t pu[2];
+    for (size_t i = 0; i < 2; i++)
+      {
+        pu[i]
+            = measure_pd (prh[i], 0, cn0_p - 3.0, trials, 7272u + (uint32_t)i);
+        printf ("%3zu %3zu %6.3f | %6.3f %6.3f %6.3f | %6.3f %6.3f %6.3f"
+                "  (3 dB under)\n",
+                pu[i].rh, pu[i].depth, pu[i].pred, pu[i].eng, pu[i].eng_lo,
+                pu[i].eng_hi, pu[i].cap, pu[i].cap_lo, pu[i].cap_hi);
+      }
+    DP_CHECK_MSG (pu[1].eng_lo > pu[0].eng_hi,
+                  "PN: compensation's depth beats the capped depth 3 dB "
+                  "under the design point, outside the intervals");
+    DP_CHECK_MSG (pu[1].cap_lo > pu[0].cap_hi,
+                  "PN: compensation's depth reaches the capture 3 dB "
+                  "under the design point, outside the intervals");
+    pfa_row_t pp = measure_pfa (5, cn0_p, dwells, 8181u, 0);
+    printf ("PN Pfa, Rh %zu D %zu: %.2e (95%%: %.2e - %.2e)\n", pp.rh,
+            pp.depth, pp.pfa, pp.lo, pp.hi);
+    DP_CHECK_MSG (pp.lo <= PFA,
+                  "PN: per-dwell Pfa is not significantly above the target");
   }
   DP_TEST_END ("validate_acq_rate_pd");
 }

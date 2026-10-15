@@ -743,6 +743,10 @@ priced: these rows now sit under the target, not over it).
     on-target detector trips it about 0.1% of the time, and the native
     pricing, which measures 1.76× on that engine (21 seeds), escapes it about
     2% of the time.
+- `validate_acq_rate_pd_pfa`, in CI's sweep-validators job, holds the burst
+    engine's per-dwell rows at the design point, each not significantly above
+    the target: n = 1, 3 and auto over 100,000 dwells, where a doubled rate
+    would cross it, and n = 5 and 9 over 20,000 (#2324).
 - `validate_acq_block_coherent --check` holds the continuous engine's
     per-block rate at the configured one over 400 blocks, which detects the
     native pricing rather than pinning one draw: put back, it fired 127 of

@@ -531,7 +531,15 @@ SymbolSync_setprop_bn (SymbolSyncObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  dp_symsync_set_bn (self->handle, v);
+  int _rc = dp_symsync_set_bn (self->handle, v);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "SymbolSync: bn is outside the loop's domain (need bn >= "
+                    "0, finite, whose loop gains come out finite)",
+                    (long long)_rc);
+      return -1;
+    }
   return 0;
 }
 static PyObject *
@@ -577,24 +585,34 @@ SymbolSync_getprop_locked (SymbolSyncObject *self, void *Py_UNUSED (closure))
   return PyBool_FromLong ((long)(dp_symsync_get_locked (self->handle)));
 }
 
-static PyGetSetDef SymbolSync_getset[]
-    = { { "bn", (getter)SymbolSync_getprop_bn, (setter)SymbolSync_setprop_bn,
-          "loop noise bandwidth (retained).\n", NULL },
-        { "timing_error", (getter)SymbolSync_getprop_timing_error, NULL,
-          "Timing error.\n", NULL },
-        { "rate", (getter)SymbolSync_getprop_rate, NULL, "Rate.\n", NULL },
-        { "lock_stat", (getter)SymbolSync_getprop_lock_stat, NULL,
-          "Last block-averaged lock statistic: "
-          "mean(2*(|on-time|^2-|mid-symbol|^2)/(|on-time|^2+|mid-symbol|^2)) "
-          "over the configured avgs looks; compare against the configured "
-          "threshold (see configure_lock).\n",
-          NULL },
-        { "locked", (getter)SymbolSync_getprop_locked, NULL,
-          "Current timing-lock decision: True after the verify count of "
-          "consecutive above-threshold decisions, False again after the drop "
-          "count of consecutive below-threshold ones (see configure_lock).\n",
-          NULL },
-        { NULL, NULL, NULL, NULL, NULL } };
+static PyGetSetDef SymbolSync_getset[] = {
+  { "bn", (getter)SymbolSync_getprop_bn, (setter)SymbolSync_setprop_bn,
+    "loop noise bandwidth (retained).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    On assignment, if ``dp_symsync_set_bn`` refuses the value by\n"
+    "    returning non-zero. The exception message is ``SymbolSync: bn is\n"
+    "    outside the loop's domain (need bn >= 0, finite, whose loop gains\n"
+    "    come out finite)``, with the return code appended.\n",
+    NULL },
+  { "timing_error", (getter)SymbolSync_getprop_timing_error, NULL,
+    "Timing error.\n", NULL },
+  { "rate", (getter)SymbolSync_getprop_rate, NULL, "Rate.\n", NULL },
+  { "lock_stat", (getter)SymbolSync_getprop_lock_stat, NULL,
+    "Last block-averaged lock statistic: "
+    "mean(2*(|on-time|^2-|mid-symbol|^2)/(|on-time|^2+|mid-symbol|^2)) over "
+    "the configured avgs looks; compare against the configured threshold (see "
+    "configure_lock).\n",
+    NULL },
+  { "locked", (getter)SymbolSync_getprop_locked, NULL,
+    "Current timing-lock decision: True after the verify count of consecutive "
+    "above-threshold decisions, False again after the drop count of "
+    "consecutive below-threshold ones (see configure_lock).\n",
+    NULL },
+  { NULL, NULL, NULL, NULL, NULL }
+};
 
 static PyObject *
 SymbolSyncObj_destroy (SymbolSyncObject *self, PyObject *Py_UNUSED (ignored))

@@ -785,7 +785,16 @@ Despreader_setprop_bn_carrier (DespreaderObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  dp_despreader_set_bn_carrier (self->handle, v);
+  int _rc = dp_despreader_set_bn_carrier (self->handle, v);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "Despreader: bn_carrier is outside the carrier loop's "
+                    "domain (need bn_carrier >= 0, finite, whose loop gains "
+                    "come out finite)",
+                    (long long)_rc);
+      return -1;
+    }
   return 0;
 }
 static PyObject *
@@ -810,7 +819,16 @@ Despreader_setprop_bn_code (DespreaderObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  dp_despreader_set_bn_code (self->handle, v);
+  int _rc = dp_despreader_set_bn_code (self->handle, v);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "Despreader: bn_code is outside the code loop's domain "
+                    "(need bn_code >= 0, finite, whose loop gains come out "
+                    "finite)",
+                    (long long)_rc);
+      return -1;
+    }
   return 0;
 }
 
@@ -841,9 +859,31 @@ static PyGetSetDef Despreader_getset[] = {
   { "bit_phase", (getter)Despreader_getprop_bit_phase, NULL,
     "detected bit boundary (argmax flip_hist).\n", NULL },
   { "bn_carrier", (getter)Despreader_getprop_bn_carrier,
-    (setter)Despreader_setprop_bn_carrier, "Bn carrier.\n", NULL },
+    (setter)Despreader_setprop_bn_carrier,
+    "Bn carrier.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    On assignment, if ``dp_despreader_set_bn_carrier`` refuses the\n"
+    "    value by returning non-zero. The exception message is ``Despreader:\n"
+    "    bn_carrier is outside the carrier loop's domain (need bn_carrier >=\n"
+    "    0, finite, whose loop gains come out finite)``, with the return\n"
+    "    code appended.\n",
+    NULL },
   { "bn_code", (getter)Despreader_getprop_bn_code,
-    (setter)Despreader_setprop_bn_code, "Bn code.\n", NULL },
+    (setter)Despreader_setprop_bn_code,
+    "Bn code.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    On assignment, if ``dp_despreader_set_bn_code`` refuses the value\n"
+    "    by returning non-zero. The exception message is ``Despreader:\n"
+    "    bn_code is outside the code loop's domain (need bn_code >= 0,\n"
+    "    finite, whose loop gains come out finite)``, with the return code\n"
+    "    appended.\n",
+    NULL },
   { NULL, NULL, NULL, NULL, NULL }
 };
 

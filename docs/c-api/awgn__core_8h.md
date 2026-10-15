@@ -551,7 +551,7 @@ int dp_awgn_set_amplitude (
 
 
 
-An `val` outside [**dp\_awgn\_amplitude\_ok()**](awgn__core_8h.md#function-dp_awgn_amplitude_ok) is refused and the amplitude stays as it was, so a caller that drops the return keeps a valid sigma rather than gaining a bad one. The Python property cannot raise the refusal yet (doppler#1987, waiting on just-makeit#2182), so there it is silent.
+An `val` outside [**dp\_awgn\_amplitude\_ok()**](awgn__core_8h.md#function-dp_awgn_amplitude_ok) is refused and the amplitude stays as it was, so a caller that drops the return keeps a valid sigma rather than gaining a bad one. The Python property raises ValueError on the refusal (doppler#1987).
 
 
 

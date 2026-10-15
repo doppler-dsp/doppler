@@ -655,12 +655,32 @@ class Despreader:
 
     @property
     def bn_carrier(self) -> float:
-        """Bn carrier."""
+        """Bn carrier.
+
+        Raises
+        ------
+        ValueError
+            On assignment, if ``dp_despreader_set_bn_carrier`` refuses the
+            value by returning non-zero. The exception message is ``Despreader:
+            bn_carrier is outside the carrier loop's domain (need bn_carrier >=
+            0, finite, whose loop gains come out finite)``, with the return
+            code appended.
+        """
     @bn_carrier.setter
     def bn_carrier(self, value: float) -> None: ...
     @property
     def bn_code(self) -> float:
-        """Bn code."""
+        """Bn code.
+
+        Raises
+        ------
+        ValueError
+            On assignment, if ``dp_despreader_set_bn_code`` refuses the value
+            by returning non-zero. The exception message is ``Despreader:
+            bn_code is outside the code loop's domain (need bn_code >= 0,
+            finite, whose loop gains come out finite)``, with the return code
+            appended.
+        """
     @bn_code.setter
     def bn_code(self, value: float) -> None: ...
     def destroy(self) -> None:

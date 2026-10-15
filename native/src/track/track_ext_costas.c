@@ -448,7 +448,15 @@ Costas_setprop_bn (CostasObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  dp_costas_set_bn (self->handle, v);
+  int _rc = dp_costas_set_bn (self->handle, v);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "Costas: bn is outside the loop's domain (need bn >= 0, "
+                    "finite, whose loop gains come out finite)",
+                    (long long)_rc);
+      return -1;
+    }
   return 0;
 }
 static PyObject *
@@ -532,24 +540,33 @@ Costas_setprop_bn_fll (CostasObject *self, PyObject *value,
   return 0;
 }
 
-static PyGetSetDef Costas_getset[]
-    = { { "bn", (getter)Costas_getprop_bn, (setter)Costas_setprop_bn,
-          "PLL loop noise bandwidth (retained).\n", NULL },
-        { "norm_freq", (getter)Costas_getprop_norm_freq,
-          (setter)Costas_setprop_norm_freq, "Norm freq.\n", NULL },
-        { "lock_metric", (getter)Costas_getprop_lock_metric, NULL,
-          "EMA of |Re P|/|P| (1 = locked).\n", NULL },
-        { "locked", (getter)Costas_getprop_locked, NULL,
-          "Current carrier lock decision: True after the verify count of "
-          "consecutive above-threshold symbols, False again after the drop "
-          "count of consecutive below-threshold ones (see configure_lock).\n",
-          NULL },
-        { "last_error", (getter)Costas_getprop_last_error, NULL,
-          "last PLL discriminator (loop stress).\n", NULL },
-        { "bn_fll", (getter)Costas_getprop_bn_fll,
-          (setter)Costas_setprop_bn_fll,
-          "FLL-assist bandwidth (0 = pure PLL).\n", NULL },
-        { NULL, NULL, NULL, NULL, NULL } };
+static PyGetSetDef Costas_getset[] = {
+  { "bn", (getter)Costas_getprop_bn, (setter)Costas_setprop_bn,
+    "PLL loop noise bandwidth (retained).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    On assignment, if ``dp_costas_set_bn`` refuses the value by\n"
+    "    returning non-zero. The exception message is ``Costas: bn is\n"
+    "    outside the loop's domain (need bn >= 0, finite, whose loop gains\n"
+    "    come out finite)``, with the return code appended.\n",
+    NULL },
+  { "norm_freq", (getter)Costas_getprop_norm_freq,
+    (setter)Costas_setprop_norm_freq, "Norm freq.\n", NULL },
+  { "lock_metric", (getter)Costas_getprop_lock_metric, NULL,
+    "EMA of |Re P|/|P| (1 = locked).\n", NULL },
+  { "locked", (getter)Costas_getprop_locked, NULL,
+    "Current carrier lock decision: True after the verify count of "
+    "consecutive above-threshold symbols, False again after the drop count of "
+    "consecutive below-threshold ones (see configure_lock).\n",
+    NULL },
+  { "last_error", (getter)Costas_getprop_last_error, NULL,
+    "last PLL discriminator (loop stress).\n", NULL },
+  { "bn_fll", (getter)Costas_getprop_bn_fll, (setter)Costas_setprop_bn_fll,
+    "FLL-assist bandwidth (0 = pure PLL).\n", NULL },
+  { NULL, NULL, NULL, NULL, NULL }
+};
 
 static PyObject *
 CostasObj_destroy (CostasObject *self, PyObject *Py_UNUSED (ignored))

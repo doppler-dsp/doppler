@@ -651,7 +651,16 @@ class Costas:
 
     @property
     def bn(self) -> float:
-        """PLL loop noise bandwidth (retained)."""
+        """PLL loop noise bandwidth (retained).
+
+        Raises
+        ------
+        ValueError
+            On assignment, if ``dp_costas_set_bn`` refuses the value by
+            returning non-zero. The exception message is ``Costas: bn is
+            outside the loop's domain (need bn >= 0, finite, whose loop gains
+            come out finite)``, with the return code appended.
+        """
     @bn.setter
     def bn(self, value: float) -> None: ...
     @property
@@ -1476,7 +1485,16 @@ class Dll:
 
     @property
     def bn(self) -> float:
-        """loop noise bandwidth (retained)."""
+        """loop noise bandwidth (retained).
+
+        Raises
+        ------
+        ValueError
+            On assignment, if ``dp_dll_set_bn`` refuses the value by returning
+            non-zero. The exception message is ``Dll: bn is outside the loop's
+            domain (need bn >= 0, finite, whose loop gains come out finite)``,
+            with the return code appended.
+        """
     @bn.setter
     def bn(self, value: float) -> None: ...
     @property
@@ -1975,7 +1993,16 @@ class SymbolSync:
 
     @property
     def bn(self) -> float:
-        """loop noise bandwidth (retained)."""
+        """loop noise bandwidth (retained).
+
+        Raises
+        ------
+        ValueError
+            On assignment, if ``dp_symsync_set_bn`` refuses the value by
+            returning non-zero. The exception message is ``SymbolSync: bn is
+            outside the loop's domain (need bn >= 0, finite, whose loop gains
+            come out finite)``, with the return code appended.
+        """
     @bn.setter
     def bn(self, value: float) -> None: ...
     @property
@@ -2776,7 +2803,16 @@ class CarrierMpsk:
 
     @property
     def bn(self) -> float:
-        """PLL loop noise bandwidth (retained)."""
+        """PLL loop noise bandwidth (retained).
+
+        Raises
+        ------
+        ValueError
+            On assignment, if ``dp_carrier_mpsk_set_bn`` refuses the value by
+            returning non-zero. The exception message is ``CarrierMpsk: bn is
+            outside the loop's domain (need bn >= 0, finite, whose loop gains
+            come out finite)``, with the return code appended.
+        """
     @bn.setter
     def bn(self, value: float) -> None: ...
     @property
@@ -3191,7 +3227,16 @@ class CarrierNda:
 
     @property
     def bn(self) -> float:
-        """PLL loop noise bandwidth (retained)."""
+        """PLL loop noise bandwidth (retained).
+
+        Raises
+        ------
+        ValueError
+            On assignment, if ``dp_carrier_nda_set_bn`` refuses the value by
+            returning non-zero. The exception message is ``CarrierNda: bn is
+            outside the loop's domain (need bn >= 0, finite, whose loop gains
+            come out finite)``, with the return code appended.
+        """
     @bn.setter
     def bn(self, value: float) -> None: ...
     @property

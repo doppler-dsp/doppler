@@ -660,7 +660,15 @@ Dll_setprop_bn (DllObject *self, PyObject *value, void *Py_UNUSED (closure))
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  dp_dll_set_bn (self->handle, v);
+  int _rc = dp_dll_set_bn (self->handle, v);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "Dll: bn is outside the loop's domain (need bn >= 0, "
+                    "finite, whose loop gains come out finite)",
+                    (long long)_rc);
+      return -1;
+    }
   return 0;
 }
 static PyObject *
@@ -746,35 +754,45 @@ Dll_getprop_noise_est (DllObject *self, void *Py_UNUSED (closure))
   return PyFloat_FromDouble (dp_dll_get_noise_est (self->handle));
 }
 
-static PyGetSetDef Dll_getset[]
-    = { { "bn", (getter)Dll_getprop_bn, (setter)Dll_setprop_bn,
-          "loop noise bandwidth (retained).\n", NULL },
-        { "code_phase", (getter)Dll_getprop_code_phase, NULL, "Code phase.\n",
-          NULL },
-        { "code_rate", (getter)Dll_getprop_code_rate, NULL,
-          "chips advanced per nominal chip (~1.0).\n", NULL },
-        { "last_error", (getter)Dll_getprop_last_error, NULL,
-          "last discriminator output (loop stress).\n", NULL },
-        { "segments", (getter)Dll_getprop_segments, NULL,
-          "partial correlations per epoch (1 = full).\n", NULL },
-        { "symbol_window", (getter)Dll_getprop_symbol_window, NULL,
-          "The lock detector's coherent window in partials when "
-          "set_symbol_period is on (0 = off) -- size n_looks from it.\n",
-          NULL },
-        { "locked", (getter)Dll_getprop_locked, NULL,
-          "Current lock decision: True after the verify count of consecutive "
-          "above-threshold N-look decisions, False again after the drop count "
-          "of consecutive below-threshold ones (see configure_lock).\n",
-          NULL },
-        { "lock_stat", (getter)Dll_getprop_lock_stat, NULL,
-          "Last code-lock test statistic R = sqrt(2*sum|P|^2 / E|O|^2); "
-          "compare against det_threshold_noncoherent(pfa, n_looks).\n",
-          NULL },
-        { "noise_est", (getter)Dll_getprop_noise_est, NULL,
-          "Current CFAR noise-power estimate E|O|^2 from the off-peak (noise) "
-          "tap EMA.\n",
-          NULL },
-        { NULL, NULL, NULL, NULL, NULL } };
+static PyGetSetDef Dll_getset[] = {
+  { "bn", (getter)Dll_getprop_bn, (setter)Dll_setprop_bn,
+    "loop noise bandwidth (retained).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    On assignment, if ``dp_dll_set_bn`` refuses the value by returning\n"
+    "    non-zero. The exception message is ``Dll: bn is outside the loop's\n"
+    "    domain (need bn >= 0, finite, whose loop gains come out finite)``,\n"
+    "    with the return code appended.\n",
+    NULL },
+  { "code_phase", (getter)Dll_getprop_code_phase, NULL, "Code phase.\n",
+    NULL },
+  { "code_rate", (getter)Dll_getprop_code_rate, NULL,
+    "chips advanced per nominal chip (~1.0).\n", NULL },
+  { "last_error", (getter)Dll_getprop_last_error, NULL,
+    "last discriminator output (loop stress).\n", NULL },
+  { "segments", (getter)Dll_getprop_segments, NULL,
+    "partial correlations per epoch (1 = full).\n", NULL },
+  { "symbol_window", (getter)Dll_getprop_symbol_window, NULL,
+    "The lock detector's coherent window in partials when set_symbol_period "
+    "is on (0 = off) -- size n_looks from it.\n",
+    NULL },
+  { "locked", (getter)Dll_getprop_locked, NULL,
+    "Current lock decision: True after the verify count of consecutive "
+    "above-threshold N-look decisions, False again after the drop count of "
+    "consecutive below-threshold ones (see configure_lock).\n",
+    NULL },
+  { "lock_stat", (getter)Dll_getprop_lock_stat, NULL,
+    "Last code-lock test statistic R = sqrt(2*sum|P|^2 / E|O|^2); compare "
+    "against det_threshold_noncoherent(pfa, n_looks).\n",
+    NULL },
+  { "noise_est", (getter)Dll_getprop_noise_est, NULL,
+    "Current CFAR noise-power estimate E|O|^2 from the off-peak (noise) tap "
+    "EMA.\n",
+    NULL },
+  { NULL, NULL, NULL, NULL, NULL }
+};
 
 static PyObject *
 DllObj_destroy (DllObject *self, PyObject *Py_UNUSED (ignored))

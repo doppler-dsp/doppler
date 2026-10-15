@@ -455,13 +455,15 @@ Five things this settles:
 
 **Pfa per block** (pure noise, D = 16, 21 tiles, 300 blocks): configured
 0.10, realized **37 of 300 = 0.12** (expected 30 ± 5); configured 0.20 over
-100 blocks, 26 (20 ± 4). The slow-time axis is interpolated twofold and the
+400 blocks, 85 (80 ± 8). The slow-time axis is interpolated twofold and the
 maximum runs over the interpolated surface, so the gate is priced over every
 row of it, in every tile (doppler#2218). Priced over the native rows, as it was
-until then, the same runs read 64 and 37, which is 1 − (1 − pfa)^2 within a
-sigma both times. The `--check` pins the realized rate at the configured one
-and refuses the native pricing at over 4 sigma; the cell count is pinned to
-the band mask in `test_acq_core.c`.
+until then, the same runs read 64 of 300 and 37 of 100, which is
+1 − (1 − pfa)^2 within a sigma both times. The `--check` holds the realized
+rate at the configured one over 400 blocks. The native pricing, put back,
+fired 127 of them, past the band's edge (104) by close to three of its own
+sigma, so the check detects it rather than pinning one draw. The exact guard
+is the cell count, pinned to the band mask in `test_acq_core.c`.
 
 **Sensitivity** (5 Mcps, one look, 20 trials, realized Pd and the mean
 peak-to-gate ratio):

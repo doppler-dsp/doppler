@@ -694,11 +694,19 @@ def _sec_threshold(d: Data) -> None:
                 str(a.doppler_bins),
                 f"{a.pfa_cell:.3e}",
                 f"{a.eta:.4f}",
+                str(bool(a.underpowered)),
             ]
         )
         csv.append([mult, a.doppler_bins, a.pfa_cell, a.eta])
     R.table(
-        ["uncertainty", "doppler_bins", "pfa per cell", "threshold eta"], rows
+        [
+            "uncertainty",
+            "doppler_bins",
+            "pfa per cell",
+            "threshold eta",
+            "underpowered",
+        ],
+        rows,
     )
     _csv(HERE / "data" / "threshold.csv", "mult,bins,pfa_cell,eta", csv)
     d.thresh_rows = rows
@@ -706,7 +714,13 @@ def _sec_threshold(d: Data) -> None:
     R.md(
         f"The threshold rises from {etas[0]:.3f} to {etas[-1]:.3f} across a "
         f"16x range of uncertainty. A caller who can bound the Doppler "
-        f"tighter is buying sensitivity, not just runtime."
+        f"tighter is buying sensitivity, not just runtime. No engine here "
+        f"meets `pd` at 45 dB-Hz with eight repetitions (`underpowered`), so "
+        f"`doppler_bins` is the sizer's best-effort depth -- the one with the "
+        f"most burst Pd above that depth's own false-alarm floor -- and "
+        f"re-pricing a gate can reorder that ranking: the tiled rows moved "
+        f"from D = 1 to D = 7 inside each tile when the gate began counting "
+        f"the interpolated rows (doppler#2218)."
     )
     R.md()
     weak = BurstAcquisition(

@@ -61,8 +61,10 @@ gate is priced over every row of the Doppler-interpolated surface its
 maximum ranges over, a never-exceed bound
 ([#2218](https://github.com/doppler-dsp/doppler/issues/2218); the measured
 refinement is [#1064](https://github.com/doppler-dsp/doppler/issues/1064)).
-Priced over the native rows, it fired at 1.85×. A ratchet holds the ratio
-under 1.4×. The squares are the noisier
+Priced over the native rows, it fired at 1.85×. This run holds the ratio under
+1.4×, a loose check at 20 000 frames (an on-target detector exceeds it by
+chance about 3% of the time); the certification holds the same bound over
+60 000. The squares are the noisier
 per-Es/N0 estimates.
 
 ## How it works

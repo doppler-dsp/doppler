@@ -235,7 +235,6 @@ def test_config_physics(cn0_dbhz, want_db):
     assert not a.underpowered and a.pd_burst >= PD
 
     nx, db = a.code_bins, a.doppler_bins
-    db * nx
     snr = math.sqrt(10.0 ** (cn0_dbhz / 10.0) / a.fs)
 
     # The split: pfa_cell is the Sidak share of PFA over a whole number of

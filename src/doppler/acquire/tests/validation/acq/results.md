@@ -106,15 +106,15 @@ Exact at four phases including the wrap-around shoulder — the code phase is a 
 
 The per-cell false-alarm rate is the system rate divided across every searched cell, so a search that grows also raises the bar on each cell. That is the price of coverage, and it is why a tighter uncertainty prior makes a **more sensitive** detector rather than merely a faster one.
 
-| uncertainty | doppler_bins | pfa per cell | threshold eta |
-|---|---|---|---|
-| 0.25 x span | 8 | 1.614e-06 | 5.1647 |
-| 0.5 x span | 8 | 8.965e-07 | 5.2773 |
-| 1 x span | 7 | 5.763e-07 | 5.3603 |
-| 2 x span | 21 | 1.921e-07 | 5.5615 |
-| 4 x span | 35 | 1.153e-07 | 5.6526 |
+| uncertainty | doppler_bins | pfa per cell | threshold eta | underpowered |
+|---|---|---|---|---|
+| 0.25 x span | 8 | 1.614e-06 | 5.1647 | True |
+| 0.5 x span | 8 | 8.965e-07 | 5.2773 | True |
+| 1 x span | 7 | 5.763e-07 | 5.3603 | True |
+| 2 x span | 21 | 1.921e-07 | 5.5615 | True |
+| 4 x span | 35 | 1.153e-07 | 5.6526 | True |
 
-The threshold rises from 5.165 to 5.653 across a 16x range of uncertainty. A caller who can bound the Doppler tighter is buying sensitivity, not just runtime.
+The threshold rises from 5.165 to 5.653 across a 16x range of uncertainty. A caller who can bound the Doppler tighter is buying sensitivity, not just runtime. No engine here meets `pd` at 45 dB-Hz with eight repetitions (`underpowered`), so `doppler_bins` is the sizer's best-effort depth -- the one with the most burst Pd above that depth's own false-alarm floor -- and re-pricing a gate can reorder that ranking: the tiled rows moved from D = 1 to D = 7 inside each tile when the gate began counting the interpolated rows (doppler#2218).
 
 **The engine says when it could not meet the request.** At `cn0_dbhz = 10` with two repetitions `underpowered` is True, and at 70 dB-Hz with eight it is False. The flag is the difference between a detector that is configured for the link and one that merely constructed.
 

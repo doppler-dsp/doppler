@@ -687,10 +687,11 @@ padding by `L` walks the estimate toward the true value:
 realized_pfa / target  ~=  N_eff(L) / N_eff(1)
 ```
 
-**Measured** on the burst engine (`validate_acq_rate_pd`'s Zadoff-Chu 127 × 16
-at fs = 1, `pfa = 1e-3`, no rate hypotheses), 1e6 noise dwells a row. Each row
-reads three statistics off the SAME dwells, from the engine's own surface and
-CFAR reference (doppler#2218), as multiples of the target:
+**Measured** with a scratch harness, not in the tree, around the burst engine
+`validate_acq_rate_pd` builds (Zadoff-Chu 127 × 16 at fs = 1, `pfa = 1e-3`, no
+rate hypotheses), 1e6 noise dwells a row (doppler#2218). With `keep_surface`
+on, each row reads three statistics off the SAME dwells, from the engine's own
+surface and CFAR reference, as multiples of the target:
 
 |   D | shipped then: interpolated max, native `N` | native-only max | interpolated max, `N · L` (shipped now) |
 | --: | -----------------------------------------: | --------------: | --------------------------------------: |
@@ -728,8 +729,9 @@ per grid geometry. It is bounded above by `L` and close to it, and it is
 
 Rate hypotheses are the same question on another axis. Each one is priced as
 an independent look at each cell, but neighboring hypotheses are strongly
-correlated, so the delivered rate falls to 0.22–0.65× of the target at
-n = 3–9 (#2287).
+correlated, so the delivered rate falls to 0.60, 0.52 and 0.22 of the target
+at n = 3, 5 and 9 (#2287, which reported the opposite before the base was
+priced: these rows now sit under the target, not over it).
 
 **Where this is enforced.**
 
@@ -737,8 +739,10 @@ n = 3–9 (#2287).
     every grid shape.
 - The certification measures the delivered rate against the target (§2.5,
     finding **F7**, now FIXED) and holds it with a ratchet that may only
-    shrink: 1.4× over 60,000 frames, which an on-target detector trips about
-    0.1% of the time and the native pricing escapes about 0.5%.
+    shrink: 1.4× over 60,000 frames. That is a backstop to the pin above: an
+    on-target detector trips it about 0.1% of the time, and the native
+    pricing, which measures 1.76× on that engine (21 seeds), escapes it about
+    2% of the time.
 - `validate_acq_block_coherent --check` pins the continuous engine's
     per-block rate at the configured one, and refuses the native pricing at
     over 4 sigma.

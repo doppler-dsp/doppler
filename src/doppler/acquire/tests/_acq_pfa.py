@@ -48,14 +48,18 @@ if TYPE_CHECKING:
 #: Ratchet on the realized-Pfa-to-target ratio. It may only SHRINK.
 #:
 #: 1.4 since doppler#2218 put the delivered rate on target (it was 2.2
-#: against a delivered ~1.65-1.85). Set by the error it must catch, at the
-#: frames that resolve it: the certification (the caller CI runs, through
+#: against a delivered ~1.65-1.85). A BACKSTOP: the exact guard is the C pin,
+#: test_acq_core.c's _acq_pfa_split_check, which holds pfa_cell to the band
+#: mask's cell count. This catches what slips past it, at the frames that
+#: resolve it: the certification (the caller CI runs, through
 #: test_validation_limits) measures 60,000 frames at `pfa = 1e-3`. An
 #: on-target detector expects 60 hits and exceeds 84 by chance about 0.1% of
-#: the time; the native pricing expects ~111 and stays under 84 about 0.5%.
-#: At 20,000 frames no bound does both: that run of the native pricing read
-#: 1.45x, inside a 1.5 bound. The characterization still measures 20,000
-#: frames for its figure, where the same bound is a looser check.
+#: the time. The native pricing, put back, measured 1.76x on this engine
+#: (21 seeds, mean 105 hits; the certification's seed 102), which stays at
+#: or under 84 about 2% of the time (none of the 21 did). At 20,000 frames no
+#: bound does both: that run read 1.45x, inside a 1.5 bound. The
+#: characterization still measures 20,000 frames for its figure, where the
+#: same bound is a looser check (about 3% false red).
 PFA_RATIO_RATCHET = 1.4
 
 

@@ -539,7 +539,7 @@ main (int argc, char **argv)
   /* ── pfa per block: pure noise at D = 16 ───────────────────────────── */
   {
     const double    pfa    = check ? 0.2 : 0.1;
-    const int       blocks = check ? 100 : 300;
+    const int       blocks = check ? 400 : 300;
     dp_acq_state_t *a      = engine_open (code, 5.0e6, 31, pfa);
     ONE_LOOK (a);
     int fired = 0;
@@ -554,10 +554,15 @@ main (int argc, char **argv)
     /* The slow-time axis is interpolated `interp`-fold and the maximum runs
        over the interpolated surface, so the gate is priced over every row
        of it, in every tile (acq_band_cells, doppler#2218). The realized
-       rate is the configured one, and that is what is pinned. Priced over
-       the native rows instead, it was 1 - (1 - pfa)^interp: 37 of these
-       100 blocks against the 20 asked for, which this check refuses at
-       over 4 sigma. */
+       rate is the configured one, and that is what is held. Priced over
+       the native rows instead it fired about a third of the blocks at
+       0.20 (measured 37 of 100, and 127 of these 400 with the native count
+       put back), and this check DETECTS that rather than pinning one draw:
+       400 blocks put its mean past the band's edge (80 +- 24) by close to
+       three of its own sigma, an escape of well under 1%. At 100 blocks the
+       band was 8..32, and a native-priced draw landed inside it a quarter
+       to half of the time. The exact guard is the cell count, pinned to the
+       band mask in test_acq_core.c. */
     const double expect = pfa;
     double       sd     = sqrt (expect * (1.0 - expect) * blocks);
     printf ("\npfa per block, D = %zu, %zu tiles, interp %zu, configured "

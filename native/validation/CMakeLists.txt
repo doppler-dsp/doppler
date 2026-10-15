@@ -657,6 +657,6 @@ endforeach()
 # `sweep`. Their library threads run under TSan elsewhere: the acq engine's
 # tile pool at 2, 4 and 8 threads in test_acq_core, the async pool across
 # threads in test_async_dsss_pool_core. What runs nowhere instrumented is
-# the soak harness's own emitter fan-out.
+# the soak harness's own emitter fan-out (doppler#2330).
 set_tests_properties(validate_rx_dynamics validate_acq_rate_pd_pfa_smoke
                      PROPERTIES LABELS threaded)

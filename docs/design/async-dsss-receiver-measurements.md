@@ -454,15 +454,16 @@ Five things this settles:
     pool keys its zone on the code axis alone (§8.2, §12.14).
 
 **Pfa per block** (pure noise, D = 16, 21 tiles, 300 blocks): configured
-0.10, realized **64 of 300 = 0.21**; configured 0.20 over 100 blocks, 37.
-That is 1 − (1 − pfa)^2 to within a sigma both times: the slow-time axis is
-interpolated twofold and the maximum runs over the interpolated surface
-while the threshold's N counts native cells — **doppler#1064**, the open
-finding on the burst engine, which the continuous engine inherits with its
-slow-time axis. The CFAR counts every row of every tile (the cell count is
-pinned in `test_acq_core.c`); the factor is #1064's, and the `--check`
-pins the realized rate against `1 − (1 − pfa)^interp` so the finding cannot
-be mistaken for a regression, or a fix for one.
+0.10, realized **37 of 300 = 0.12** (expected 30 ± 5); configured 0.20 over
+400 blocks, 85 (80 ± 8). The slow-time axis is interpolated twofold and the
+maximum runs over the interpolated surface, so the gate is priced over every
+row of it, in every tile (doppler#2218). Priced over the native rows, as it was
+until then, the same runs read 64 of 300 and 37 of 100, which is
+1 − (1 − pfa)^2 within a sigma both times. The `--check` holds the realized
+rate at the configured one over 400 blocks. The native pricing, put back,
+fired 127 of them, past the band's edge (104) by about 2.5 of its own sigma,
+so the check detects it rather than pinning one draw. The exact guard
+is the cell count, pinned to the band mask in `test_acq_core.c`.
 
 **Sensitivity** (5 Mcps, one look, 20 trials, realized Pd and the mean
 peak-to-gate ratio):

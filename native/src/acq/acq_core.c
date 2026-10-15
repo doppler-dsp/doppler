@@ -119,6 +119,30 @@ acq_in_doppler_band (const dp_acq_state_t *st, size_t k)
   return fold <= ((st->searched_bins - 1) / 2) * st->interp;
 }
 
+static size_t acq_interp_for (size_t D, size_t window_bins);
+
+/* The cells a dwell's maximum ranges over: the SURFACE rows
+ * acq_in_doppler_band() admits, times code_bins. This is the count the
+ * Sidak split divides the false-alarm budget over, at every site that
+ * prices a gate (acq_commit_thresholds, acq_ascend_n_noncoh, the burst
+ * sizer), so a gate is priced over exactly the cells its peak search can
+ * pick. Counting native cells instead fired every D > 1 engine at about
+ * twice its `pfa` (doppler#2218; see ACQ_DOPPLER_INTERP).
+ *
+ * The rows are the band predicate's, counted: every row of the full band
+ * and of every wideband tile (sb * interp), else the rows within
+ * (sb - 1) / 2 native bins of DC on the fine grid, which is
+ * (sb - 1) * interp + 1 of them. test_acq_core.c pins this count to the
+ * committed band_mask's, so the two cannot drift apart. */
+static size_t
+acq_band_cells (size_t D, size_t sb, size_t window_bins, size_t cb)
+{
+  const size_t interp = acq_interp_for (D, window_bins);
+  const size_t rows
+      = (window_bins > 1 || sb >= D) ? sb * interp : (sb - 1) * interp + 1;
+  return rows * cb;
+}
+
 /* Doppler-axis interpolation of the SLOW-TIME FFT.
  *
  * 2 halves the worst-case scalloping loss of the slow-time transform from
@@ -145,9 +169,16 @@ acq_in_doppler_band (const dp_acq_state_t *st, size_t k)
  * axis is this engine's.
  *
  * Frequency-domain zero-padding is exact band-limited interpolation, so the
- * added rows carry no new information -- which is why the threshold ladder
- * stays sized from the NATIVE cell count `n`. Interpolation changes where
- * the surface is sampled, not how many independent chances the noise gets. */
+ * added rows carry no new INFORMATION -- but they are new CHANCES for a
+ * maximum. The gate is applied to the largest cell of the interpolated
+ * surface, and a half-bin row sits between two native ones with a
+ * correlation of about 0.64 to each, which a deep-tail exceedance (a cell
+ * probability near 1e-6) all but ignores: on noise the interpolated surface
+ * behaves like ~0.96 * interp * n independent cells, not n. Sized from the
+ * native count, every D > 1 engine fired at 1.86-1.93x its `pfa`
+ * (doppler#2218, 1e6 dwells a row at D = 2..7, Zadoff-Chu and PN alike; a
+ * native-only maximum read 0.94-0.99x). So the ladder is sized from the
+ * cells the search ranges over, acq_band_cells(). */
 #define ACQ_DOPPLER_INTERP 2u
 
 /* The native row a surface pick reports: the surface is the Doppler axis
@@ -1098,7 +1129,8 @@ acq_commit_thresholds (dp_acq_state_t *st, double pfa, double pd, double snr,
   st->doppler_res_hz = st->chip_rate / ((double)st->sf * (double)D);
   /* Every rate hypothesis is another independent look at each cell. */
   st->pfa_cell = dp_det_pfa_cell (
-      pfa, (double)(st->searched_bins * cb * acq_rate_count (st)));
+      pfa, (double)(acq_band_cells (D, st->searched_bins, st->window_bins, cb)
+                    * acq_rate_count (st)));
   double umax       = acq_intra_umax (D, st->searched_bins, du, span);
   st->straddle_loss = acq_straddle_loss (D, st->searched_bins, &st->shape, du,
                                          span, st->interp);
@@ -1156,14 +1188,15 @@ acq_commit_thresholds (dp_acq_state_t *st, double pfa, double pd, double snr,
  * optimistic -- then the count escalates until the AVERAGED Pd meets the
  * target. */
 static size_t
-acq_ascend_n_noncoh (double snr, size_t D, size_t sb, size_t cb, double pfa,
-                     double pd, const acq_shape_t *sh, double du, double span,
-                     double k_ref)
+acq_ascend_n_noncoh (double snr, size_t D, size_t sb, size_t window_bins,
+                     size_t cb, double pfa, double pd, const acq_shape_t *sh,
+                     double du, double span, double k_ref)
 {
   const size_t interp = acq_interp_for (D, 1);
   const double umax   = acq_intra_umax (D, sb, du, span);
-  const double pc     = dp_det_pfa_cell (pfa, (double)(sb * cb));
-  const double sloss  = acq_straddle_loss (D, sb, sh, du, span, interp);
+  const double pc
+      = dp_det_pfa_cell (pfa, (double)acq_band_cells (D, sb, window_bins, cb));
+  const double sloss = acq_straddle_loss (D, sb, sh, du, span, interp);
 
   int    k  = dp_det_n_noncoh (snr * sloss, (int)(D * cb), pd, pc,
                                (int)ACQ_N_NONCOH_SAFETY_CEILING);
@@ -1309,7 +1342,8 @@ acq_auto_config_burst (const dp_acq_state_t *st, double pfa, double pd,
                                           : acq_searched_bins (D, du, span);
       double       umax = acq_intra_umax (D, sb, du, span);
       double       pc   = dp_det_pfa_cell (
-          pfa, (double)(sb * cb * acq_rate_count_at (st->rate_hyps, D)));
+          pfa, (double)(acq_band_cells (D, sb, window_bins, cb)
+                        * acq_rate_count_at (st->rate_hyps, D)));
       double       eta   = dp_det_threshold (pc);
       const double k_ref = st->noise_mode == DET_NOISE_MEAN
                                ? (double)(window_bins * D * cb)
@@ -1366,7 +1400,7 @@ acq_auto_config_continuous (const dp_acq_state_t *st, size_t D, double pfa,
   *out_window_bins = window_bins;
   /* The searched Doppler cells are the tiles times the rows inside each. */
   *out_nc = acq_ascend_n_noncoh (
-      snr, D, window_bins * D, cb, pfa, pd, &st->shape, du, span,
+      snr, D, window_bins * D, window_bins, cb, pfa, pd, &st->shape, du, span,
       st->noise_mode == DET_NOISE_MEAN ? (double)(window_bins * D * cb) : 0.0);
 }
 

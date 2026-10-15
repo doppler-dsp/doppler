@@ -70,7 +70,7 @@ validate_capture_dwell_pd               2.7  # prices the CFAR reference (dopple
 validate_acq_rate_pd                   44.9  # CI 44.9 s on 43276ec51 (the sweep job): the auto row and the repeated-LFM rows; re-record from the sweep job (make validation-time-baseline)
 validate_ratesync_scurve                22.1
 validate_tracker_through_window         17.2
-validate_acq_block_coherent             14.8
+validate_acq_block_coherent             21.4  # its Pfa row went 100 -> 400 blocks (doppler#2218 review): +2.8 s here x the 2.35 CI factor, so it DETECTS the native pricing instead of pinning one draw
 validate_costas_pullin                  11.9
 validate_dll_aid_jitter                  9.9
 validate_rx_battery                      9.0

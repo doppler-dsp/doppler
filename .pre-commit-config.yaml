@@ -136,6 +136,15 @@ repos:
         language: system
         pass_filenames: false
 
+      # Every gate the acq engine prices splits pfa over acq_band_cells(), the
+      # cells its maximum ranges over; a hand count of the native cells fired
+      # it at about twice its pfa (doppler#2218).
+      - id: acq-pfa-split
+        name: the acq gate is priced over one cell count
+        entry: make -s lint-acq-pfa-split
+        language: system
+        pass_filenames: false
+
       # A benchmark's monotonic clock is jm_bench_now_ns(), in the vendored
       # jm_bench.h. 85 benchmarks carried a private elapsed_sec() and opened
       # CLOCK_MONOTONIC themselves -- which the UCRT does not have, so none of

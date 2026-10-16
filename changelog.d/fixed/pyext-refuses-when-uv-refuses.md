@@ -1,9 +1,7 @@
 - **`make pyext` no longer builds for the system Python when uv refuses.**
-    When uv was installed but refused to run (most often: not the pinned
-    version), the interpreter choice quietly fell back to `python3` from
-    `PATH`, so the extension was built for the wrong interpreter. `pyext`,
-    `coverage` and `warnings-check` now fail with uv's reason and the two
-    ways out (`UV=` the pinned uv, or `PYTHON_EXECUTABLE=`). The `python3`
-    fallback still applies on a machine with no uv at all, and `UV=` is now
-    honoured
+    A uv that refused (most often: not the pinned version) used to fall
+    back to `python3` silently; `pyext`, `coverage`, `warnings-check` and
+    the downstream Python build now fail with uv's reason, as does an
+    empty `PYTHON_EXECUTABLE=`. Only the interpreter probe honors `UV=`
+    here; `pyext`'s `uv sync` is #2370's
     ([#2364](https://github.com/doppler-dsp/doppler/issues/2364)).

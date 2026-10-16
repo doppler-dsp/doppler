@@ -120,6 +120,8 @@ CMAKE       := cmake
 #      `python-executable-check` (below). It used to fall through to case 2
 #      silently, so `pyext` built for the system Python -- the stale-.so
 #      mismatch CLAUDE.md warns about -- and nothing said so.
+#   Empty by any route -- `PYTHON_EXECUTABLE=` given empty, or case 2 with
+#   no python3 -- is case 4's refusal too, with its own reason.
 #
 # `$(or $(UV),uv)` because `UV = uv` is defined further down, under Tooling,
 # and this block is expanded NOW; a `UV=` on the command line is already
@@ -140,10 +142,20 @@ ifeq ($(firstword $(_PY_PROBE)),ok)
 PYTHON_EXECUTABLE := $(wordlist 2,$(words $(_PY_PROBE)),$(_PY_PROBE))
 else
 PYTHON_EXECUTABLE :=
-_PY_ERROR := $(or $(shell $(_PY_UV) run python -c pass 2>&1 >/dev/null \
-    | head -n 1),`$(_PY_UV) run python` failed)
+# uv's error line, not a `warning:` printed ahead of it; the first line of
+# any kind when uv says nothing starting `error`.
+_PY_ERROR := $(or $(shell out=$$($(_PY_UV) run python -c pass 2>&1 \
+    >/dev/null); printf '%s\n' "$$out" | grep -m1 '^error' \
+    || printf '%s\n' "$$out" | head -n 1),`$(_PY_UV) run python` failed)
 endif
 endif
+endif
+# Whichever way it came out empty -- an explicit `PYTHON_EXECUTABLE=`, or no
+# uv and no python3 -- there is nothing to build for, and an empty value
+# would silently drop -DPython3_EXECUTABLE and let CMake pick one.
+ifeq ($(strip $(PYTHON_EXECUTABLE)),)
+_PY_ERROR := $(or $(_PY_ERROR),PYTHON_EXECUTABLE is empty (set empty, or \
+    no uv and no python3 on PATH))
 endif
 
 # $(call CONTAINER_CHECKOUT,<build dir>) -- the `docker run` flags for "this
@@ -1019,15 +1031,15 @@ endef
 _PY_ERROR_Q = '$(subst ','\'',$(_PY_ERROR))'
 python-executable-check: ## Fail when there is no interpreter to build for
 	@if [ -n $(_PY_ERROR_Q) ]; then \
-	  echo "python-executable-check: $(_PY_UV) run python failed, so there"; \
-	  echo "  is no venv interpreter to build for:"; \
+	  echo "python-executable-check: no interpreter to build for:"; \
 	  printf '    %s\n' $(_PY_ERROR_Q); \
 	  echo "  Fix uv (or pass UV=<the pinned uv>), or name one with"; \
 	  echo "  PYTHON_EXECUTABLE=<python>. Not falling back to python3: that"; \
 	  echo "  builds the extension for the wrong interpreter (#2364)."; \
 	  exit 1; \
 	fi
-pyext coverage warnings-check: python-executable-check
+pyext coverage warnings-check test-example-downstream-python: \
+    python-executable-check
 
 # `wheel` used to be a .PHONY with no rule: advertised in help, exiting 0 with
 # no wheel produced. This is what it should always have been.
@@ -1338,7 +1350,7 @@ $(CMAKE) -B $(COV_DIR) -S . \
     -DCMAKE_C_COMPILER=clang \
     $(CCACHE_FLAGS) \
     -DDOPPLER_COVERAGE=ON -DBUILD_PYTHON=ON \
-    -DPython3_EXECUTABLE=$(PYTHON_EXECUTABLE) \
+    $(PY_CMAKE_FLAG) \
     -DPYTHON_PACKAGE_DIR=$(CURDIR)/$(COV_DIR)/pkg/doppler \
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
     $(CMAKE_ARGS)
@@ -4727,7 +4739,7 @@ test-example-downstream-python: ## Build + test the downstream example (Python)
 	@cmake -B $(DOWNSTREAM_BUILD_DIR)-py $(DOWNSTREAM_DIR) \
 	    -Ddoppler_DIR=$(abspath $(BUILD_DIR)) \
 	    -DBUILD_PYTHON=ON \
-	    -DPython3_EXECUTABLE=$$(uv run python -c 'import sys; print(sys.executable)') \
+	    $(PY_CMAKE_FLAG) \
 	    -DCMAKE_BUILD_TYPE=Release \
 	    > $(DOWNSTREAM_BUILD_DIR)-py.log 2>&1 \
 	    || { echo "  configure FAILED"; cat $(DOWNSTREAM_BUILD_DIR)-py.log; exit 1; }

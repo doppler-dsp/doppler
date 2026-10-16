@@ -13,12 +13,13 @@ run.
 
 from __future__ import annotations
 
-import os
 import stat
 import subprocess
 from typing import TYPE_CHECKING
 
-from doppler.tests._repo import repo_root
+import pytest
+
+from doppler.tests._repo import nested_make_env, repo_root
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -36,11 +37,7 @@ def _fake_uv(tmp_path: Path, body: str) -> Path:
 
 def _make(*args: str, env: dict[str, str] | None = None):
     """Run make in the repo; PYTHON_EXECUTABLE/JUST_BUILDIT_PYTHON unset."""
-    base = {
-        k: v
-        for k, v in os.environ.items()
-        if k not in ("PYTHON_EXECUTABLE", "JUST_BUILDIT_PYTHON", "MAKEFLAGS")
-    }
+    base = nested_make_env("PYTHON_EXECUTABLE", "JUST_BUILDIT_PYTHON")
     return subprocess.run(
         ["make", "-s", "-C", str(REPO), *args],
         capture_output=True,
@@ -58,13 +55,43 @@ def test_a_refusing_uv_fails_the_check_and_says_why(tmp_path: Path) -> None:
     assert "Not falling back to python3" in out, out
 
 
-def test_pyext_goes_through_the_check(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "target",
+    ["pyext", "coverage", "warnings-check", "test-example-downstream-python"],
+)
+def test_each_python_target_goes_through_the_check(
+    tmp_path: Path, target: str
+) -> None:
     """A dry run prints the check's recipe ahead of the build."""
     uv = _fake_uv(tmp_path, f'echo "{REFUSAL}" >&2\nexit 2\n')
-    r = _make("-n", "pyext", f"UV={uv}")
+    r = _make("-n", target, f"UV={uv}")
     out = r.stdout + r.stderr
     assert "python-executable-check:" in out, out
     assert "-DPython3_EXECUTABLE=" not in out, out
+
+
+def test_the_reason_is_uvs_error_not_a_warning_before_it(
+    tmp_path: Path,
+) -> None:
+    uv = _fake_uv(
+        tmp_path,
+        'echo "warning: a notice uv prints first" >&2\n'
+        f'echo "{REFUSAL}" >&2\nexit 2\n',
+    )
+    r = _make("python-executable-check", f"UV={uv}")
+    out = r.stdout + r.stderr
+    assert r.returncode != 0, out
+    assert REFUSAL in out, out
+    assert "a notice uv prints first" not in out, out
+
+
+def test_an_empty_explicit_interpreter_is_refused(tmp_path: Path) -> None:
+    """`PYTHON_EXECUTABLE=` given empty would drop the CMake flag."""
+    uv = _fake_uv(tmp_path, 'echo "/fake/venv/bin/python"\n')
+    r = _make("python-executable-check", f"UV={uv}", "PYTHON_EXECUTABLE=")
+    out = r.stdout + r.stderr
+    assert r.returncode != 0, out
+    assert "PYTHON_EXECUTABLE is empty" in out, out
 
 
 def test_no_uv_at_all_still_falls_back_to_python3(tmp_path: Path) -> None:

@@ -12,7 +12,9 @@ Each case runs the real target with PATH limited to a temp dir holding
 `cut` and, where the case needs one, a fake `docker`, so the result does not
 depend on what the machine has installed. `DOXYGEN_VERSION` is set to a
 version no doxygen reports, so the local doxygen (CI has the real one)
-never matches and the target always takes the image path.
+never matches and the target always takes the image path. The passing
+case stands in for the image too: its fake docker reports the pin and then
+"runs" the gate, which is the path a machine with real docker takes.
 """
 
 from __future__ import annotations
@@ -75,6 +77,7 @@ def test_an_image_that_will_not_run_is_named(tmp_path: Path) -> None:
     out = r.stdout + r.stderr
     assert r.returncode != 0, out
     assert "docker could not run doxygen" in out, out
+    assert "(exit 125)" in out, out
     assert "Cannot connect to the Docker daemon" in out, out
     assert "CI has moved" not in out, out
 
@@ -87,3 +90,27 @@ def test_a_different_version_in_the_image_still_says_ci_moved(
     assert r.returncode != 0, out
     assert f"ships doxygen 1.10.0, not {PIN}" in out, out
     assert "CI has moved" in out, out
+
+
+def test_an_image_that_reports_no_version_is_named(tmp_path: Path) -> None:
+    r = _run(tmp_path, docker="exit 0\n")
+    out = r.stdout + r.stderr
+    assert r.returncode != 0, out
+    assert "reported no doxygen version" in out, out
+    assert "CI has moved" not in out, out
+
+
+def test_an_image_at_the_pin_runs_the_gate(tmp_path: Path) -> None:
+    """The passing path: the image reports the pin, and the gate runs in it."""
+    r = _run(
+        tmp_path,
+        docker=(
+            'for a in "$@"; do\n'
+            f'  [ "$a" = "--version" ] && {{ echo "{PIN}"; exit 0; }}\n'
+            "done\n"
+            "echo GATE-RAN\n"
+        ),
+    )
+    out = r.stdout + r.stderr
+    assert r.returncode == 0, out
+    assert "GATE-RAN" in out, out

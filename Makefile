@@ -1111,6 +1111,11 @@ DOXYGEN_IMAGE_CHECK = \
       echo "  message above (daemon not running, image not pulled, ...)."; \
       exit 1; }; \
   got=$$(printf '%s\n' "$$ver" | cut -d' ' -f1); \
+  if [ -z "$$got" ]; then \
+      echo "doxygen: $(CI_IMAGE) ran but reported no doxygen version."; \
+      echo "  Nothing is known about CI's doxygen from this; check the image."; \
+      exit 1; \
+  fi; \
   if [ "$$got" != "$(DOXYGEN_VERSION)" ]; then \
       echo "doxygen: the CI image ships doxygen $$got, not $(DOXYGEN_VERSION)."; \
       echo "  CI runs the doxygen job INSIDE that image, so CI has moved too."; \

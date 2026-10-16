@@ -1,10 +1,11 @@
-- **The benchmarks page is readable now.** It opens with twelve headline
-    kernels in plain words, each with its portable and native numbers and a
-    trend across every release, then shows every benchmark one family at a
-    time, in a table that scrolls in its own box with search, a C/Python
-    filter and three sorts. A row opens a chart of both builds across
-    releases. Every release is converted to one quantity, time per unit, so
-    a trend is continuous; it breaks where a row's round changed size. Each
-    row's plain name, unit and definition come from
+- **The benchmarks page reads in MSa/s.** Every stream kernel reads in
+    input samples per second, whatever its own unit; bit, chip and symbol
+    rows read in their own rate, and setup and read-outs in time per call.
+    Enter your sample rate and each stream row shows its headroom, the
+    ×-margin over real time on the measured machine. Twelve headline
+    kernels open the page; below them every benchmark sits in a family
+    tab, with search, a C/Python filter and five sorts, and a row opens a
+    chart of both builds across releases that breaks where its round
+    changed size. Names, units and definitions come from
     `benchmarks/labels.toml`, and `make lint` refuses a new published row
     without one ([#2372](https://github.com/doppler-dsp/doppler/issues/2372)).

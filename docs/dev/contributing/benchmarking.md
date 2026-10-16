@@ -258,8 +258,10 @@ Each `bench_<component>_core.c` uses the header-only `jm_bench.h` library
 1. **Allocate** input/output buffers and create the DSP object.
 1. **Warm up** — run a few iterations before timing starts.
 1. **Time** — outer loop of `ITERATIONS` independent rounds; inner loop
-    of `BENCH_N` calls; `clock_gettime(CLOCK_MONOTONIC)` around the inner
-    loop.
+    of `BENCH_N` calls; `jm_bench_now_ns()` around the inner loop, and
+    `jm_bench_elapsed_sec()` between the two reads. The clock lives in
+    `jm_bench.h` once, so it ports once: the `bench-timer` gate refuses a
+    private `clock_gettime` in `native/benchmarks`.
 1. **Record** — `jm_bench_add_unit()` stores the per-round elapsed times
     and names what one round counted: its `iters` units of `unit`.
 1. **Write JSON** — `jm_bench_write_json()` computes stats, writes
@@ -377,18 +379,17 @@ Settle once before any config is timed, then alternate:
 
 ```c
 /* One settle for the process, not one per configuration. */
-clock_gettime(CLOCK_MONOTONIC, &w0);
-do { run(0); clock_gettime(CLOCK_MONOTONIC, &w1); }
-while (elapsed_sec(&w0, &w1) < WARMUP_S);
+uint64_t w0 = jm_bench_now_ns ();
+do { run (0); }
+while (jm_bench_elapsed_sec (w0, jm_bench_now_ns ()) < WARMUP_S);
 
 /* Rounds on the OUTSIDE, configurations on the inside. */
 for (int r = 0; r < ITERATIONS; r++)
   for (int d = 0; d < NCONFIG; d++)
     {
-      clock_gettime(CLOCK_MONOTONIC, &t0);
-      run(d);
-      clock_gettime(CLOCK_MONOTONIC, &t1);
-      t[d][r] = elapsed_sec(&t0, &t1);
+      uint64_t t0 = jm_bench_now_ns ();
+      run (d);
+      t[d][r] = jm_bench_elapsed_sec (t0, jm_bench_now_ns ());
     }
 ```
 

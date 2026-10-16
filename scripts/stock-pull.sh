@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # stock-pull.sh — pull stock images through STOCK_REGISTRY, retrying a rate
-# limit. The one place a stock image is pulled (doppler#1979).
+# limit and falling back to STOCK_MIRROR. The one place a stock image is
+# pulled (doppler#1979, #2256).
 #
 #   scripts/stock-pull.sh IMAGE...
 #   STOCK_REGISTRY=<registry> scripts/stock-pull.sh --dockerfile FILE...
@@ -31,6 +32,25 @@
 # unretried pull; scripts/check_stock_images.py (make lint-stock-images)
 # requires both halves.
 #
+# A DATA quota is not a rate (#2256). ECR Public answers `toomanyrequests:
+# Data limit exceeded` once an IP has pulled its anonymous volume, and that
+# outlasted the whole 75 s window in every leg logged so far. So that
+# message stops the retries at once, and the image is pulled from
+# STOCK_MIRROR instead, as is one whose retries ran out: the same Docker
+# Official Image under the same tag (the index digests of every tag doppler
+# pulls matched on both registries on 2026-10-16; a tag can move on
+# either). It is then tagged with the primary's name, so the `docker run
+# --pull=never` and the FROM that name it find it in the local store. A
+# permanent failure is not sent to the mirror: a tag the primary does not
+# have is a typo, not an outage. Only an image named under STOCK_REGISTRY
+# has a mirror.
+#
+# Each pull prints the image's size as docker reports it, an upper bound on
+# the bytes it pulled: under a volume quota, the biggest pullers are the
+# number to read.
+#
+#   STOCK_MIRROR          the fallback registry; the Makefile sets it. Unset,
+#                         there is none.
 #   STOCK_PULL_ATTEMPTS   tries per image, default 5
 #   STOCK_PULL_DELAY      seconds before the first retry, doubling; default 5
 #                         (5+10+20+40 = 75 s at most for one image)
@@ -75,31 +95,83 @@ transient() {
         <<<"$1"
 }
 
+# A quota that a retry seconds later cannot clear (#2256).
+quota() {
+    grep -Eiq 'data limit exceeded' <<<"$1"
+}
+
+# try_pull REF: 0 when pulled, 1 on a failure no retry or mirror fixes, 3
+# when a transient failure outlasted the retries or a quota was met. Sets
+# `tries` to the attempts made.
+try_pull() {
+    local ref=$1 wait=$delay out
+    tries=1
+    while :; do
+        if out="$("$docker" pull --quiet "$ref" 2>&1)"; then
+            return 0
+        fi
+        # The quota first: its wording need not carry a code transient()
+        # knows, and it is what the mirror is for.
+        if quota "$out"; then
+            printf '%s\n' "$out" >&2
+            return 3
+        fi
+        if ! transient "$out"; then
+            printf '%s\n' "$out" >&2
+            return 1
+        fi
+        if [ "$tries" -ge "$attempts" ]; then
+            printf '%s\n' "$out" >&2
+            return 3
+        fi
+        echo "stock-pull: $ref: $(tail -n1 <<<"$out") -- retry $((tries + 1))/$attempts in ${wait}s" >&2
+        sleep "$wait"
+        tries=$((tries + 1))
+        wait=$((wait * 2))
+    done
+}
+
+# The image's size in MB as `docker image inspect` reports it, or `?`: the
+# unpacked layers (and, on the containerd store, the compressed content
+# too), so never less than the pull transferred.
+size_mb() {
+    local b
+    b="$("$docker" image inspect --format '{{.Size}}' "$1" 2>/dev/null)" || b=
+    if [[ "$b" =~ ^[0-9]+$ ]]; then
+        echo "$((b / 1000000)) MB"
+    else
+        echo "? MB"
+    fi
+}
+
 pull() {
-    local img=$1 n=1 wait=$delay out
+    local img=$1 rc=0 alt="" how=""
     if "$docker" image inspect "$img" >/dev/null 2>&1; then
         echo "stock-pull: $img (already present)"
         return 0
     fi
-    while :; do
-        if out="$("$docker" pull --quiet "$img" 2>&1)"; then
-            if [ "$n" -gt 1 ]; then
-                echo "stock-pull: $img (attempt $n of $attempts)"
-            else
-                echo "stock-pull: $img"
-            fi
-            return 0
+    try_pull "$img" || rc=$?
+    [ "$tries" -gt 1 ] && how=" (attempt $tries of $attempts)"
+    if [ "$rc" -eq 3 ] && [ -n "${STOCK_MIRROR:-}" ] &&
+        [ -n "${STOCK_REGISTRY:-}" ] &&
+        [[ "$img" == "$STOCK_REGISTRY/"* ]]; then
+        alt="$STOCK_MIRROR/${img#"$STOCK_REGISTRY/"}"
+        echo "stock-pull: $img: no pull after $tries attempt(s);" \
+            "trying $alt" >&2
+        rc=0
+        try_pull "$alt" || rc=$?
+        if [ "$rc" -eq 0 ]; then
+            "$docker" tag "$alt" "$img"
+            how=" (from $alt)"
+        else
+            img=$alt
         fi
-        if ! transient "$out" || [ "$n" -ge "$attempts" ]; then
-            printf '%s\n' "$out" >&2
-            echo "stock-pull: FAILED $img after $n attempt(s)" >&2
-            return 1
-        fi
-        echo "stock-pull: $img: $(tail -n1 <<<"$out") -- retry $((n + 1))/$attempts in ${wait}s" >&2
-        sleep "$wait"
-        n=$((n + 1))
-        wait=$((wait * 2))
-    done
+    fi
+    if [ "$rc" -ne 0 ]; then
+        echo "stock-pull: FAILED $img after $tries attempt(s)" >&2
+        return 1
+    fi
+    echo "stock-pull: $img$how, $(size_mb "$img")"
 }
 
 for img in "$@"; do

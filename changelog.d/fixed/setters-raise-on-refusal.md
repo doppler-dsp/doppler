@@ -1,0 +1,8 @@
+- **Nine writable properties raise `ValueError` on a value their C setter
+    refuses, instead of ignoring it.** `AccTrace.alpha`, `AWGN.amplitude`,
+    `Despreader.bn_carrier`/`bn_code` and `bn` on `CarrierMpsk`,
+    `CarrierNda`, `Costas`, `Dll` and `SymbolSync` each already refused a
+    value outside its domain in C and kept the old one. The Python setter
+    dropped that status, so the assignment looked as if it had worked. The
+    value still stays put, and the assignment now raises, so code that may
+    assign an out-of-range value catches `ValueError` (#1987).

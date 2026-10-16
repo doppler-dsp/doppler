@@ -291,8 +291,9 @@ def _fake_interleaved(inter, monkeypatch, tmp_path, c_names):
 def test_interleaved_refuses_a_c_set_short_of_the_tree(
     tmp_path, monkeypatch, capsys
 ):
-    """A bench that crashed in every pass wrote no JSON and jm skips it, so
-    the merged set lacks it: refused, nothing written."""
+    """A merged set short of the tree's C benchmarks is refused, nothing
+    written. jm fails a crashed binary first (just-makeit#2189); this is the
+    backstop for a set short any other way."""
     inter = _load("bench_interleaved")
     published = _fake_interleaved(inter, monkeypatch, tmp_path, ["fir"])
     assert inter.main() == 1

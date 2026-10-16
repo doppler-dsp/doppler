@@ -147,6 +147,9 @@ BLAZING_CFLAGS ?= -march=native
 # change is a one-line edit here. Versions live in pyproject.toml's `dev` group
 # and are pinned by uv.lock — which is what makes local and CI resolve
 # identically, and why the hook config resolves no lock-managed tool itself.
+# Override it with an ABSOLUTE path, or a name on PATH: a few recipes `cd`
+# into a subproject before running $(UV), where a relative UV= no longer
+# names the same file.
 UV         = uv
 
 # A BARE interpreter, deliberately not `$(UV) run python`, and the exception
@@ -527,7 +530,10 @@ LINT_stock-images = $(UV) run python scripts/check_stock_images.py \
 # every project command on any other version. This holds the INSTALLERS to
 # it: setup-uv only through the composite action with `version-file`, every
 # other installer through UV_VERSION.
-LINT_uv-pin = $(UV) run python scripts/check_uv_pin.py
+# scripts/.bare-uv-allow (rule 4) may only shrink from its state at the merge
+# base with UV_PIN_BASE, read the way STOCK_IMAGES_BASE's list is.
+UV_PIN_BASE ?= origin/main
+LINT_uv-pin = $(UV) run python scripts/check_uv_pin.py --base $(UV_PIN_BASE)
 
 # The artifact half: the committed uv.lock is exactly what the pinned uv
 # writes. Checking the pin cannot establish that -- a textual merge or a hand

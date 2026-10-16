@@ -315,6 +315,19 @@ ALLOW = "scripts/.bare-uv-allow"
         # A shell substitution is a bare call too.
         "\tcmake -DPy=$$(uv run python -c 'print(1)')\n",
         "\tcd sub && uv run --project $(CURDIR) tool\n",
+        # make's ignore-errors prefix still runs it (#2370 review).
+        "\t-uv sync\n",
+        "\t@-uv run x\n",
+        # A global flag before the subcommand.
+        "\tuv -q sync\n",
+        "\tuv --project . run x\n",
+        "\tuv version\n",
+        "X := $(shell uv run x)\n",
+        # A continuation joins the call onto the logical line it starts.
+        "\techo a \\\n\t  uv run x\n",
+        # A shell comment ends at the newline, backslash or not: the next
+        # physical line runs.
+        "\t@# note \\\n\tuv run x\n",
     ],
 )
 def test_a_bare_uv_in_a_makefile_is_refused(tmp_path: Path, line: str) -> None:
@@ -331,6 +344,7 @@ def test_uv_through_the_variable_passes(tmp_path: Path) -> None:
         "\t$(UV) sync --group dev\n"
         "\tcmake -DPy=$$($(UV) run python -c 'print(1)')\n"
         "\t@# a recipe comment may say uv sync\n"
+        "\tmake foo-uv sync\n"
         "# so may a makefile comment: uv run pytest\n"
     )
     r = _run(_seed(tmp_path, files={"Makefile": mk, "sub/rules.mk": mk}))
@@ -364,3 +378,75 @@ def test_a_stale_allow_entry_fails(tmp_path: Path) -> None:
     r = _run(_seed(tmp_path, files=files))
     assert r.returncode == 1, r.stdout
     assert "matches no makefile line" in r.stdout, r.stdout
+
+
+def test_an_allow_entry_matching_two_lines_fails(tmp_path: Path) -> None:
+    """An entry exempts exactly one line, so a short one cannot cover many."""
+    files = {
+        "Makefile": "t:\n\tuv run a\n\tuv run b\n",
+        ALLOW: "uv run -- too short to name one line\n",
+    }
+    r = _run(_seed(tmp_path, files=files))
+    assert r.returncode == 1, r.stdout
+    assert "matches 2 lines" in r.stdout, r.stdout
+
+
+def _git(root: Path, *args: str) -> None:
+    subprocess.run(
+        ["git", "-c", "user.name=t", "-c", "user.email=t@t", *args],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+
+
+def _ratchet_repo(tmp_path: Path, base_allow: str | None) -> Path:
+    """A checkout whose `base` branch holds ``base_allow`` as the list
+    (None: no list there), and whose HEAD is one commit past it."""
+    files = {"Makefile": "t:\n\tuv run keep-me\n\tuv run new-one\n"}
+    if base_allow is not None:
+        files[ALLOW] = base_allow
+    root = _seed(tmp_path, files=files)
+    _git(root, "init", "-q", "-b", "base")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-q", "-m", "base")
+    _git(root, "checkout", "-q", "-b", "head")
+    return root
+
+
+def test_an_allow_entry_the_base_lacks_is_refused(tmp_path: Path) -> None:
+    """The list only shrinks: a new entry fails even with a reason."""
+    keep = "uv run keep-me -- an old entry\n"
+    root = _ratchet_repo(tmp_path, keep)
+    (root / ALLOW).write_text(
+        keep + "uv run new-one -- a new entry\n", encoding="utf-8"
+    )
+    _git(root, "commit", "-q", "-am", "grow the list")
+    r = _run(root, "--base", "base")
+    assert r.returncode == 1, r.stdout
+    assert "`uv run new-one` is not in the list at the merge base" in (
+        r.stdout
+    ), r.stdout
+    assert "keep-me` is not" not in r.stdout, r.stdout
+
+
+def test_the_change_that_brings_the_list_adds_nothing(tmp_path: Path) -> None:
+    """No list at the base: the first list is its own baseline."""
+    root = _ratchet_repo(tmp_path, None)
+    (root / ALLOW).parent.mkdir(parents=True)
+    (root / ALLOW).write_text(
+        "uv run keep-me -- one\nuv run new-one -- two\n", encoding="utf-8"
+    )
+    _git(root, "add", "-A")
+    _git(root, "commit", "-q", "-m", "bring the list")
+    r = _run(root, "--base", "base")
+    assert r.returncode == 0, r.stdout
+
+
+def test_an_unreadable_base_fails_closed(tmp_path: Path) -> None:
+    both = "uv run keep-me -- one\nuv run new-one -- two\n"
+    root = _ratchet_repo(tmp_path, both)
+    assert _run(root, "--base", "base").returncode == 0
+    r = _run(root, "--base", "no-such-ref")
+    assert r.returncode == 1, r.stdout
+    assert "cannot resolve no-such-ref" in r.stdout, r.stdout

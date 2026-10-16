@@ -37,8 +37,9 @@ INSTALL uv to the same value:
    name it -- and a bare spelling is a call it does not reach: ``make pyext
    UV=...`` still failed at its last step, a bare ``uv sync``. Lines that
    must stay bare for now are listed in ``scripts/.bare-uv-allow`` with
-   their reason; an entry that no longer matches a line fails, so the list
-   only shrinks.
+   their reason. The list is a ratchet: an entry must match exactly one
+   logical makefile line, one that matches none fails, and with ``--base``
+   one the list at the merge base did not hold is refused.
 
 Files are every tracked file (``git ls-files``; every file under ``--root``
 when it is not a checkout), less prose -- ``docs/``, ``*.md``, the changelog
@@ -51,6 +52,7 @@ must be exactly what the pinned uv writes, which no amount of pin-checking
 can establish.
 
 Usage:  python3 scripts/check_uv_pin.py [--root DIR] [--print-version]
+                                        [--base REF]
 Exit 0 when the pin is exact and every installer reads it. With
 ``--print-version``, print the pinned version (the Makefile's UV_VERSION).
 Runs on the floor Python: ``yaml`` is imported only by the check itself, and
@@ -103,11 +105,17 @@ _END = re.compile(r"\s(?:\|\|?|&&|;)\s|\)\s*$")
 
 #: Rule 4's files and the bare form it refuses. `uv` must not be the tail of
 #: a longer word or path (`$(UV)` is upper case, so it never matches), and a
-#: shell substitution `$$(uv run ...)` is a bare call like any other.
+#: shell substitution `$$(uv run ...)` is a bare call like any other. After
+#: a word and a `-` (`foo-uv`) it is another name; after a lone `-` it is
+#: make's ignore-errors prefix, and `-uv sync` or `@-uv run` runs a bare uv.
+#: Global flags may come before the subcommand (`uv -q sync`,
+#: `uv --project . run`), each with at most one value; backtracking leaves
+#: the subcommand for the alternation.
 _MAKEFILE = re.compile(r"(?:^|/)(?:GNU)?[Mm]akefile$|\.mk$")
 _BARE_UV = re.compile(
-    r"(?<![\w./-])uv\s+(?:run|sync|lock|pip|build|venv|tool|export|tree"
-    r"|add|remove|cache|python)\b"
+    r"(?<![\w./])(?<!\w-)uv\s+(?:-\S+(?:\s+[^-\s]\S*)?\s+)*"
+    r"(?:run|sync|lock|pip|build|venv|tool|export|tree|add|remove|cache"
+    r"|python|version|init|publish|format)\b"
 )
 #: Rule 4's allowlist, relative to the root: `<line text> -- <reason>`.
 BARE_UV_ALLOW = "scripts/.bare-uv-allow"
@@ -249,34 +257,105 @@ def installer_offenders(root: Path, files: list[str]) -> list[str]:
     return bad
 
 
-def bare_uv_offenders(root: Path, files: list[str]) -> list[str]:
+def _past_recipe_comment(physical: list[str], n: int, line: str) -> str:
+    """``line`` less a leading recipe comment on its FIRST physical line.
+
+    A recipe's ``@# ...`` is a shell comment, and the shell ends a comment
+    at the newline: a ``\\`` at its end is part of the comment, not a
+    continuation, so the next physical line runs. Only the first physical
+    line is prose; the rest of the logical line is still checked.
+    """
+    first = physical[n - 1].rstrip()
+    if not first.lstrip().startswith("@#"):
+        return line
+    if not first.endswith("\\"):
+        return ""
+    return line[len(first) :]
+
+
+def _allow_keys(text: str) -> list[str]:
+    """The entry keys of a BARE_UV_ALLOW text: the one reader, for the list
+    as it is and as the merge base had it."""
+    keys = []
+    for raw in text.splitlines():
+        line = raw.strip()
+        if line and not line.startswith("#"):
+            keys.append(line.partition(" -- ")[0].strip())
+    return keys
+
+
+def added_allow_entries(root: Path, base: str, keys: list[str]) -> list[str]:
+    """BARE_UV_ALLOW entries the list at the merge base with ``base`` lacks.
+
+    The list only shrinks, so an entry it did not have is refused even with
+    a reason: the line is spelled $(UV) instead. The read is
+    _gitbase.added_since_base, the one ratchet read. Its ``since`` is the
+    list itself, because the gate predates the list: the change that brings
+    the list (doppler#2369) has no baseline and adds nothing. A tree that
+    is not a checkout has no base; a base git cannot read fails closed.
+    """
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from _gitbase import BaseUnreadableError, added_since_base, in_git_repo
+
+    if not in_git_repo(root):
+        return []
+    try:
+        added = added_since_base(
+            root, base, BARE_UV_ALLOW, keys, _allow_keys, since=BARE_UV_ALLOW
+        )
+    except BaseUnreadableError:
+        return [
+            f"{BARE_UV_ALLOW}: cannot resolve {base}, so an ADDED entry "
+            "cannot be told from an old one. Fetch it: git fetch --no-tags "
+            "--depth=1 origin +refs/heads/main:refs/remotes/origin/main"
+        ]
+    return [
+        f"{BARE_UV_ALLOW}: `{k}` is not in the list at the merge base with "
+        f"{base} -- the list only shrinks; spell the line $(UV) instead"
+        for k in added
+    ]
+
+
+def bare_uv_offenders(
+    root: Path, files: list[str], base: str | None = None
+) -> list[str]:
     """``path:line: text`` for each makefile line running a bare uv, plus
-    each BARE_UV_ALLOW entry that is unreasoned or matches nothing."""
+    each BARE_UV_ALLOW entry that is unreasoned, matches no line or more
+    than one, or (with ``base``) is new since the merge base."""
     allow, bad = read_bare_uv_allow(root)
-    used: set[str] = set()
+    hits: dict[str, list[str]] = {k: [] for k in allow}
     for rel in files:
         if not _MAKEFILE.search(rel):
             continue
         text = (root / rel).read_text(encoding="utf-8")
+        physical = text.splitlines()
         for n, line in _logical_lines(text):
-            # A recipe's `@# ...` is a shell comment: prose, not a call.
-            if line.lstrip().startswith("@#"):
-                continue
+            line = _past_recipe_comment(physical, n, line)
             if not _BARE_UV.search(line):
                 continue
             allowed = [k for k in allow if k in line]
+            for k in allowed:
+                hits[k].append(f"{rel}:{n}")
             if allowed:
-                used.update(allowed)
                 continue
             bad.append(
                 f"{rel}:{n}: bare uv -- `{line.strip()[:70]}`; "
                 "spell it $(UV) so UV= reaches it"
             )
-    for key in sorted(set(allow) - used):
-        bad.append(
-            f"{BARE_UV_ALLOW}: `{key}` matches no makefile line -- its "
-            "reason is gone; remove the entry"
-        )
+    for key in sorted(allow):
+        if not hits[key]:
+            bad.append(
+                f"{BARE_UV_ALLOW}: `{key}` matches no makefile line -- its "
+                "reason is gone; remove the entry"
+            )
+        elif len(hits[key]) > 1:
+            bad.append(
+                f"{BARE_UV_ALLOW}: `{key}` matches {len(hits[key])} lines "
+                f"({', '.join(hits[key])}) -- an entry exempts exactly one; "
+                "quote more of the line"
+            )
+    if base is not None:
+        bad += added_allow_entries(root, base, list(allow))
     return bad
 
 
@@ -337,6 +416,12 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--root", type=Path, default=ROOT)
     ap.add_argument("--print-version", action="store_true")
+    ap.add_argument(
+        "--base",
+        default=None,
+        help=f"ref whose merge base holds the {BARE_UV_ALLOW} this one may "
+        "only shrink from (rule 4); unset, that check is skipped",
+    )
     args = ap.parse_args()
     root = args.root.resolve()
 
@@ -363,7 +448,7 @@ def main() -> int:
         return 1
     setup_bad, n_steps = setup_uv_offenders(root, files)
     bad += setup_bad + installer_offenders(root, files)
-    bad += bare_uv_offenders(root, files)
+    bad += bare_uv_offenders(root, files, args.base)
     for b in bad:
         print(f"check_uv_pin: {b}")
     if bad:

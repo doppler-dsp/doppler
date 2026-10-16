@@ -7,7 +7,8 @@ over ``iterations`` after). These cases seed a small tree -- snapshots, a
 jm manifest, a label table -- and check what the page is built from:
 
 - a value is seconds per unit in every release, and the trend BREAKS where
-  a C row's round changed size, instead of drawing a jump that is not real;
+  its value changed meaning (`breaks`: a unit, or before units a round
+  size, or a Python rate key), instead of drawing a jump that is not real;
 - only rows the newest release measures are shown; a retired row is gone;
 - a row's family comes from the manifest's module lists;
 - the label gate refuses an unlabelled row, a label without a field or for

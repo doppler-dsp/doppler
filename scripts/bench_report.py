@@ -794,7 +794,7 @@ def seconds_per_unit(suite: str, bench: dict):
     The one quantity every release is converted to (#2372). ``MSa_s``, where
     a C row carries it, is samples per second, so a unit is a sample. A C
     row without it is ``stats.mean`` over ``stats.iterations`` -- what
-    jm_bench's ``mean_per_unit`` is, and what v0.43.0 to v0.72.0 never
+    jm_bench's ``mean_per_unit`` is, and what no release before v0.73.0
     wrote. A Python row is per unit of the rate it records (`_py_rate`),
     else per call: pytest-benchmark's mean is already per call, whatever
     its ``iterations`` says. ``basis`` is what the value is per; `breaks`
@@ -944,13 +944,14 @@ def breaks(bases: list, units: list) -> list:
 
     ``bases[i]`` is what release i's value is per (`seconds_per_unit`),
     ``units[i]`` the unit that release recorded, None for a C row from
-    before #2314 (v0.43.0 to v0.72.0). What breaks depends on the row:
+    before #2314 (every release before v0.73.0). What breaks depends on
+    the row:
 
     - a C row between two releases that both recorded a unit breaks where
       the UNIT changed. A round that only grew, same unit, is the same
       quantity, and a break there would hide a real since-last change;
-    - a C row where either release recorded no unit -- inside v0.43.0 to
-      v0.72.0, or across into the first set with units, v0.73.0 -- has only
+    - a C row where either release recorded no unit -- any two before
+      v0.73.0, or across into the first set with units, v0.73.0 -- has only
       its round to go on, so a change in ``iterations`` breaks. (v0.73.0
       changes no row's ``iterations``, so it breaks nothing there.)
     - a Python row breaks where its rate key changed: per call one release,
@@ -988,8 +989,8 @@ def since_last(p: list, brk: list) -> tuple:
     ``p`` is seconds per unit per release, None where unmeasured, and
     ``change`` is how much faster the newest is than the previous release
     that measured the row (``prev / newest - 1``, four significant digits).
-    A break between the two (``brk``: a release whose basis changed) makes
-    them different quantities, so there is no change to report: ``(None,
+    A break between the two (``brk``, from `breaks`) makes them different
+    quantities, so there is no change to report: ``(None,
     True)``. A row the newest release measures for the first time is
     ``(None, False)``.
 
@@ -1016,8 +1017,9 @@ def page_data(root: str = ".") -> dict:
 
     ``rows`` holds every row the newest release measures, each with its
     seconds per unit in every release (``p`` portable, ``n`` native; None
-    where a release did not measure it), the indices where its basis changed
-    (``brk``), its family, unit and, when the label table has one, its
+    where a release did not measure it), the indices where its value changed
+    meaning (``brk``, from `breaks`), its since-last change (``sl``, from
+    `since_last`), its family, unit and, when the label table has one, its
     label. ``problems`` lists what the label gate refuses: a row no family
     claims, a label whose unit contradicts the snapshot.
     """
@@ -1190,15 +1192,17 @@ def label_problems(
 
     ``history`` False skips the one check that asks git -- whether a label
     for an unpublished row is pending or dead (`unpublished_labels`) --
-    for `cmd_page`: the Docs job checks the page out at depth 1, where the
-    newest release's commit cannot be read, and the gate's home is
-    `make lint` (bench-coverage-check), whose checkout has the history. The
-    page draws no unpublished row, so it does not need the answer.
+    for ``cmd_page --check`` only: the Docs job checks the page out at
+    depth 1, where the newest release's commit cannot be read, and the
+    gate's home is `make lint` (bench-coverage-check), whose checkout has
+    the history. The page draws no unpublished row, so it does not need
+    the answer; the writer, `make bench-docs`, asks it.
 
     Every row the newest release measures has a label in LABELS or a line in
-    LABELS_EXEMPT; a label carries a name, a unit and a definition, and only
-    for a live row; an exempt line names a live, unlabelled row; and, with
-    ``base``, the exempt list holds nothing its merge base did not.
+    LABELS_EXEMPT; a label carries a name, a unit, a definition and a
+    count, and is for a live row or a pending one (`unpublished_labels`);
+    an exempt line names a live, unlabelled row; and, with ``base``, the
+    exempt list holds nothing its merge base did not.
     """
     data = page_data(root)
     bad = list(data["problems"])
@@ -1226,8 +1230,8 @@ def label_problems(
             bad.append(f"{LABELS_EXEMPT}: `{rid}` is no live row {FIXABLE}")
     for rid in sorted(live - set(labels) - set(exempt)):
         bad.append(
-            f"`{rid}` has no label: give it a name, unit and definition in "
-            f"{LABELS}"
+            f"`{rid}` has no label: give it a name, unit, definition and "
+            f"count (`samples`, or `domain` and `count`) in {LABELS}"
         )
     if base:
         for rid in added_since_base(
@@ -1519,7 +1523,7 @@ def render_page(root: str = ".") -> str:
         " kernel. A dashed line is a *break*: a release where the row's value"
         " changed meaning, so the line breaks rather than draw a jump that is"
         " not real. A C row breaks where its recorded unit changed; a release"
-        " from before C rows recorded one (v0.43.0 to v0.72.0) has only its"
+        " from before C rows recorded one (before v0.73.0) has only its"
         " round to go on, so there a round that changed size breaks. A"
         " Python row breaks where the rate it records changed, per call one"
         " release and per bit the next.",

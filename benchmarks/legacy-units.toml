@@ -1,5 +1,5 @@
 # Units for C rows published before the snapshots recorded them
-# (v0.43.0 to v0.72.0, doppler#2314), so the benchmarks page can read them
+# (every release before v0.73.0, doppler#2314), so the benchmarks page can read them
 # in samples per second now (#2372) instead of inferring from the name.
 #
 # Generated, not hand-written: each value is the `extra_info.unit` that

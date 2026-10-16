@@ -460,6 +460,16 @@ input that is not samples (an RS codeword read as 2,040 coded bits), or
 row's own rate key names its unit where it records one: `MSa_s`,
 `Mbit_s`, `Mchip_s`, `Msym_s`, `Mevent_s`, `Mframe_s`, `Mrecord_s`.
 
+**The count is checked only against a unit the page knows.** For a
+sample, bin or pair the gate refuses a `samples` that contradicts the
+unit (a bin is 1, a pair 2). A unit word the page has no table entry for
+(`blk`, `byte`) is read through the label alone, so its count is the
+author's to get right: a bench recording per `blk` of 1,024 samples needs
+`samples = 1024`, and `samples = 1` would print 1/1,024 of the true rate
+with nothing to refuse it. For a unit many benches will share, add it to
+`UNIT_SAMPLES` or `UNIT_DOMAIN` in `scripts/bench_report.py` instead, and
+the count is checked.
+
 **Label a new row in the PR that adds it.** `make lint`
 (`bench-coverage-check`) refuses a published row with neither a label nor
 a line in `benchmarks/.labels-exempt`, and that list only shrinks, so a

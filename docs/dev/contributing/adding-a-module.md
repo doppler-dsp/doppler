@@ -570,8 +570,10 @@ A new **module** also needs a family on the benchmarks page:
 families its rows belong to.
 
 Give each new row, C and Python, a label in `benchmarks/labels.toml` in
-the same PR: a plain name, its unit and a one-sentence definition, which
-is what [the benchmarks page](../../benchmarks.md) shows. Nothing checks
+the same PR: a plain name, its unit, a one-sentence definition and its
+count (`samples = N`, or `domain` and `count`; the gate refuses a label
+without one), which is what [the benchmarks page](../../benchmarks.md)
+shows. Nothing checks
 this at PR time yet ([#2390](https://github.com/doppler-dsp/doppler/issues/2390)):
 `make lint` sees only rows a release has published, so a missing or
 mistyped label surfaces when the next release is measured

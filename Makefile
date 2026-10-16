@@ -92,7 +92,13 @@ STOCK_REGISTRY      ?= public.ecr.aws/docker/library
 # rate limit with backoff (#1979): before a `docker run --pull=never`, and as
 # `$(STOCK_PULL) --dockerfile F` before a `docker build -f F`, because
 # BuildKit does not retry a FROM. `make lint-stock-images` holds every site.
-STOCK_PULL          = STOCK_REGISTRY=$(STOCK_REGISTRY) bash scripts/stock-pull.sh
+# When ECR Public refuses an IP its anonymous data quota, the helper pulls
+# the same tag from STOCK_MIRROR, Google's anonymous mirror of the official
+# images, at the same digests (checked 2026-10-16 for every tag doppler
+# pulls), and names it as the primary's (#2256).
+STOCK_MIRROR        ?= mirror.gcr.io/library
+STOCK_PULL          = STOCK_REGISTRY=$(STOCK_REGISTRY) \
+                      STOCK_MIRROR=$(STOCK_MIRROR) bash scripts/stock-pull.sh
 
 # The uv pin, read from pyproject.toml's [tool.uv] required-version by the
 # script that gates it -- one parser for one declaration (doppler#1940).
@@ -723,7 +729,8 @@ TEST_ALL_DEPS = test test-examples test-python test-examples-python
 # a fresh runner, wrong for a dev box running it twice.
 nats-up: ## Start the NATS JetStream broker the nats:// stream tests need
 	@docker rm -f nats >/dev/null 2>&1 || true
-	@STOCK_REGISTRY=$(STOCK_REGISTRY) bash scripts/start-nats.sh
+	@STOCK_REGISTRY=$(STOCK_REGISTRY) STOCK_MIRROR=$(STOCK_MIRROR) \
+	    bash scripts/start-nats.sh
 	@$(NATS_STREAMS) --check
 
 # The remedy `nats-up` names. Deleting is prefix-guarded to DP_WORK_*, so a
@@ -1091,9 +1098,31 @@ DOXYGEN_CMD      = doxygen Doxyfile
 # The version assertion moved with it: an upstream bump in the image must fail
 # LOUDLY here rather than silently changing generated output, so both fallback
 # paths below check the image's doxygen against DOXYGEN_VERSION first.
+#
+# "CI has moved" is said only when the image RAN and reported another version.
+# A missing docker, or an image that would not run, used to reach the same
+# message with an empty version -- "ships doxygen , not 1.9.8" -- and told the
+# reader to bump a pin that was right (#2362). Each now says what is missing;
+# docker's own stderr is left visible, since it is the reason.
 DOXYGEN_IMAGE_CHECK = \
-  got=$$(docker run --rm $(CI_IMAGE) doxygen --version 2>/dev/null \
-         | cut -d' ' -f1); \
+  if ! command -v docker >/dev/null 2>&1; then \
+      echo "doxygen: the local doxygen is not $(DOXYGEN_VERSION), and docker is"; \
+      echo "  not installed, so CI's doxygen cannot run from $(CI_IMAGE)."; \
+      echo "  Install doxygen $(DOXYGEN_VERSION), or docker."; \
+      exit 1; \
+  fi; \
+  ver=$$(docker run --rm $(CI_IMAGE) doxygen --version) || { \
+      rc=$$?; \
+      echo "doxygen: docker could not run doxygen in $(CI_IMAGE) (exit $$rc)."; \
+      echo "  Nothing is known about CI's doxygen from this; see docker's"; \
+      echo "  message above (daemon not running, image not pulled, ...)."; \
+      exit 1; }; \
+  got=$$(printf '%s\n' "$$ver" | cut -d' ' -f1); \
+  if [ -z "$$got" ]; then \
+      echo "doxygen: $(CI_IMAGE) ran but reported no doxygen version."; \
+      echo "  Nothing is known about CI's doxygen from this; check the image."; \
+      exit 1; \
+  fi; \
   if [ "$$got" != "$(DOXYGEN_VERSION)" ]; then \
       echo "doxygen: the CI image ships doxygen $$got, not $(DOXYGEN_VERSION)."; \
       echo "  CI runs the doxygen job INSIDE that image, so CI has moved too."; \

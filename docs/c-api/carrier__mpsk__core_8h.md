@@ -77,7 +77,7 @@ _M-PSK carrier-tracking loop (integer-NCO de-rotation + decision PLL)._ [More...
 |  void | [**dp\_carrier\_mpsk\_get\_state**](#function-dp_carrier_mpsk_get_state) (const [**dp\_carrier\_mpsk\_state\_t**](structdp__carrier__mpsk__state__t.md) \* state, void \* blob) <br>_Serialize the full loop state into_ `blob` _._ |
 |  void | [**dp\_carrier\_mpsk\_init**](#function-dp_carrier_mpsk_init) ([**dp\_carrier\_mpsk\_state\_t**](structdp__carrier__mpsk__state__t.md) \* s, double bn, double zeta, double init\_norm\_freq, size\_t tsamps, double bn\_fll, int m) <br>_Initialise an M-PSK carrier loop in place (no allocation)._  |
 |  void | [**dp\_carrier\_mpsk\_reset**](#function-dp_carrier_mpsk_reset) ([**dp\_carrier\_mpsk\_state\_t**](structdp__carrier__mpsk__state__t.md) \* state) <br>_Re-seed the loop to its create-time frequency/phase; keep config._  |
-|  int | [**dp\_carrier\_mpsk\_set\_bn**](#function-dp_carrier_mpsk_set_bn) ([**dp\_carrier\_mpsk\_state\_t**](structdp__carrier__mpsk__state__t.md) \* state, double val) <br>_Retune bn, keeping zeta:_ [_**dp\_carrier\_mpsk\_configure()**_](carrier__mpsk__core_8h.md#function-dp_carrier_mpsk_configure) _'s refusal and status. As a writable property it refuses without raising until just-buildit/just-makeit#2182: the value stays put._ |
+|  int | [**dp\_carrier\_mpsk\_set\_bn**](#function-dp_carrier_mpsk_set_bn) ([**dp\_carrier\_mpsk\_state\_t**](structdp__carrier__mpsk__state__t.md) \* state, double val) <br>_Retune bn, keeping zeta:_ [_**dp\_carrier\_mpsk\_configure()**_](carrier__mpsk__core_8h.md#function-dp_carrier_mpsk_configure) _'s refusal and status. As a writable property a refusal raises ValueError and the value stays put (doppler#1987)._ |
 |  void | [**dp\_carrier\_mpsk\_set\_bn\_fll**](#function-dp_carrier_mpsk_set_bn_fll) ([**dp\_carrier\_mpsk\_state\_t**](structdp__carrier__mpsk__state__t.md) \* state, double val) <br> |
 |  void | [**dp\_carrier\_mpsk\_set\_norm\_freq**](#function-dp_carrier_mpsk_set_norm_freq) ([**dp\_carrier\_mpsk\_state\_t**](structdp__carrier__mpsk__state__t.md) \* state, double val) <br> |
 |  int | [**dp\_carrier\_mpsk\_set\_state**](#function-dp_carrier_mpsk_set_state) ([**dp\_carrier\_mpsk\_state\_t**](structdp__carrier__mpsk__state__t.md) \* state, const void \* blob) <br>_Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects._  |
@@ -557,7 +557,7 @@ Returns the NCO to the seed carrier passed at construction, zeroes the integrate
 
 ### function dp\_carrier\_mpsk\_set\_bn 
 
-_Retune bn, keeping zeta:_ [_**dp\_carrier\_mpsk\_configure()**_](carrier__mpsk__core_8h.md#function-dp_carrier_mpsk_configure) _'s refusal and status. As a writable property it refuses without raising until just-buildit/just-makeit#2182: the value stays put._
+_Retune bn, keeping zeta:_ [_**dp\_carrier\_mpsk\_configure()**_](carrier__mpsk__core_8h.md#function-dp_carrier_mpsk_configure) _'s refusal and status. As a writable property a refusal raises ValueError and the value stays put (doppler#1987)._
 ```C++
 int dp_carrier_mpsk_set_bn (
     dp_carrier_mpsk_state_t * state,

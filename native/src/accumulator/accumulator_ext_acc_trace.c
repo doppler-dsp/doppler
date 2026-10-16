@@ -367,7 +367,14 @@ AccTrace_setprop_alpha (AccTraceObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  dp_acc_trace_set_alpha (self->handle, v);
+  int _rc = dp_acc_trace_set_alpha (self->handle, v);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "AccTrace: alpha must lie in (0, 1] in exp mode",
+                    (long long)_rc);
+      return -1;
+    }
   return 0;
 }
 static PyObject *
@@ -395,7 +402,15 @@ AccTrace_getprop_mode (AccTraceObject *self, void *Py_UNUSED (closure))
 static PyGetSetDef AccTrace_getset[] = {
   { "n", (getter)AccTrace_getprop_n, NULL, "Trace length (bins).\n", NULL },
   { "alpha", (getter)AccTrace_getprop_alpha, (setter)AccTrace_setprop_alpha,
-    "EMA smoothing factor (exp mode).\n", NULL },
+    "EMA smoothing factor (exp mode).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    On assignment, if ``dp_acc_trace_set_alpha`` refuses the value by\n"
+    "    returning non-zero. The exception message is ``AccTrace: alpha must\n"
+    "    lie in (0, 1] in exp mode``, with the return code appended.\n",
+    NULL },
   { "count", (getter)AccTrace_getprop_count, NULL,
     "Frames folded in so far.\n", NULL },
   { "mode", (getter)AccTrace_getprop_mode, NULL, "Reduction mode.\n", NULL },

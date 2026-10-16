@@ -13,16 +13,13 @@ def test_invalid_amplitude_raises(amplitude):
         AWGN(0, amplitude)
 
 
-def test_invalid_amplitude_setter_keeps_old_value():
-    """The property does not raise: an invalid assignment is ignored and the
-    amplitude keeps its old value, so a bad sigma is never taken."""
-    # The setter is silent here; the C setter returns DP_ERR_INVALID. When
-    # just-makeit#2182 ships and objects/awgn.toml declares error="ValueError",
-    # this becomes pytest.raises (#1987), as test_acc_trace.py's does.
+@pytest.mark.parametrize("amplitude", [float("nan"), float("inf"), -1.0])
+def test_invalid_amplitude_setter_raises_and_keeps_old_value(amplitude):
+    """An invalid assignment raises, and the amplitude keeps its old value,
+    so a bad sigma is never taken (#1987)."""
     obj = AWGN(0, 0.5)
-    obj.amplitude = -1.0
-    assert obj.amplitude == 0.5
-    obj.amplitude = float("nan")
+    with pytest.raises(ValueError, match="AWGN: amplitude must be finite"):
+        obj.amplitude = amplitude
     assert obj.amplitude == 0.5
     obj.destroy()
 

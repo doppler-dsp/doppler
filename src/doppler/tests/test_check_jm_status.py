@@ -41,6 +41,11 @@ def _repo(
         f = root / rel
         f.parent.mkdir(parents=True, exist_ok=True)
         f.write_text("stale\n", encoding="utf-8")
+    # As at the real root, where .gitignore holds the declined jm_test.h:
+    # an untracked header is ignored, not merely unstaged.
+    (root / ".gitignore").write_text(
+        "".join(f"{p}\n" for p in untracked or []), encoding="utf-8"
+    )
     if committed:
         _RUN([*git, "add", "--", *committed], check=True)
         _RUN([*git, "commit", "-qm", "init"], check=True)
@@ -278,10 +283,10 @@ def test_jm_still_compares_every_committed_header(
     release that reclassified one of these would leave the gate green for
     good. Ask the pinned jm directly, for every header each project
     commits."""
-    createonly = pytest.importorskip(
-        "just_makeit._createonly",
-        reason="jm is a dev-group dependency; absent, nothing to ask",
-    )
+    # Imported, not importorskip'd: a jm that moved this module would
+    # otherwise skip on every leg, and nothing fails a run on a skip.
+    from just_makeit import _createonly as createonly
+
     proj = ROOT / project
     out = _RUN(
         ["git", "-C", str(proj), "ls-files", "-z", "--", *spec],
@@ -294,3 +299,17 @@ def test_jm_still_compares_every_committed_header(
     assert headers, f"no committed jm_*.h under {project}"
     for rel in headers:
         assert createonly.is_versioned(rel, proj), rel
+
+
+def test_an_inherited_git_dir_is_ignored(monkeypatch, tmp_path: Path):
+    """`git rebase -x 'make lint'` exports GIT_DIR. With it set, git takes
+    the downstream example's directory for the top of the work tree and
+    lists nothing there, so a stale committed header would pass."""
+    mod = _load()
+    proj = tmp_path / "proj"
+    _repo(proj, ["native/benchmarks/jm_bench.h"])
+    other = tmp_path / "other"
+    _RUN(["git", "init", "-q", str(other)], check=True)
+    monkeypatch.setenv("GIT_DIR", str(other / ".git"))
+    paths = ["native/benchmarks/jm_bench.h"]
+    assert mod.tracked(proj, paths) == paths

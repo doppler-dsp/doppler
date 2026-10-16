@@ -40,13 +40,14 @@ The comparison is jm's own: ``outdated`` diffs each file against the tree
 formatters run. Nothing here renders a template, so there is no second
 implementation to drift from the first.
 
-``--fix`` re-vendors: it deletes each outdated ``jm_*.h`` and runs
+``--fix`` re-vendors: it deletes each outdated, tracked ``jm_*.h`` and runs
 ``just-makeit apply``, which writes a missing create-only file from the
 pinned template. That is the one way jm offers to replace one, and it is
 why this check can fail a CI run: there is a command that clears it. It
 refuses a header with uncommitted changes, which deleting would lose.
-just-makeit#2285 asks ``apply`` to refresh a JM harness header itself; when
-that ships, ``--fix`` and ``make jm-revendor`` can go.
+just-makeit#2285 would have ``apply`` refresh a JM harness header only when
+generated code needs a symbol the header lacks; a fix like the 32-row cap
+adds none, so ``--fix`` stays until jm can replace a stale header itself.
 
 Usage (from the project root; the Makefile is the driver)::
 
@@ -78,6 +79,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -118,11 +120,17 @@ def _git(root: Path, *args: str) -> str:
     """Run ``git *args`` in *root* and return its stdout.
 
     A failure raises: a gate that cannot ask git which headers are committed
-    must not read the answer as "none".
+    must not read the answer as "none". Git finds the repository from
+    *root*, as a person running the command would: an inherited ``GIT_*``
+    variable is dropped, because ``git rebase -x 'make lint'`` exports
+    ``GIT_DIR``, and with it set git takes the downstream example's
+    directory for the top of the work tree and lists nothing there.
     """
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
     return subprocess.run(
         ["git", *args],
         cwd=root,
+        env=env,
         stdout=subprocess.PIPE,
         text=True,
         check=True,
@@ -201,12 +209,14 @@ def check(root: Path) -> int:
 
 
 def fix(root: Path) -> int:
-    """Re-vendor every outdated ``jm_*.h`` in *root* through ``apply``.
+    """Re-vendor every outdated, tracked ``jm_*.h`` in *root* (``apply``).
 
     It needs jm's report to know what is stale, so a status that wrote
     none, or one without its ``outdated`` list, fails rather than reading
     as "nothing to re-vendor". A header with uncommitted changes is refused
-    before anything is deleted: re-vendoring would lose them silently.
+    before anything in *root* is deleted: re-vendoring would lose them
+    silently. (``make jm-revendor`` runs this once per project, so a refusal
+    in the second leaves the first re-vendored.)
     """
     rc, report = status(root)
     if "outdated" not in report:

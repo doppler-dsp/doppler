@@ -525,8 +525,8 @@ replica_word_matches_its_definition (void)
             worst = e;
         }
       if (!(worst < 1e-5))
-        (void)fprintf (stderr, "  sf=%zu: replica off its definition by %g\n",
-                       sf, worst);
+        (void)DP_TEST_ERR ("  sf=%zu: replica off its definition by %g\n", sf,
+                           worst);
       DP_CHECK (worst < 1e-5);
       dp_dll_destroy (d);
       free (code);
@@ -553,9 +553,8 @@ tap_words_off (const dp_dll_state_t *d, const char *when)
         gap = 4294967296.0 - gap;
       if (gap > 1.0)
         {
-          (void)fprintf (stderr,
-                         "  %s: tap word %d is %u, its input says %.1f\n",
-                         when, k, have[k], want[k]);
+          (void)DP_TEST_ERR ("  %s: tap word %d is %u, its input says %.1f\n",
+                             when, k, have[k], want[k]);
           off++;
         }
     }

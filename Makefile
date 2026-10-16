@@ -996,6 +996,7 @@ DOCS_PREPARE = @rm -f zensical.toml
 # standard's — one implementation again, which is what criterion 5 asked for.
 define DOCS_CHECK_PRE_CMDS
 uv run python scripts/check_api_docs.py
+uv run python scripts/bench_report.py --page --out docs/benchmarks.md --check
 uv run python scripts/check_docstring_coverage.py --check
 uv run python scripts/check_nav_index.py
 uv run python scripts/check_wfmgen_flag_docs.py
@@ -1815,8 +1816,16 @@ bench-commits-check: ## Fail when a published benchmark names a commit main cann
 # checked -- a tested component with no benchmark, and a benchmark no runner
 # can reach -- because this repo has now had both, and the second one looks
 # fixed from every angle except the snapshot it never appears in.
+#
+# It also holds the benchmarks page's label table (#2372): every row the
+# newest published release measures has a plain name, unit and definition in
+# benchmarks/labels.toml, or a line in benchmarks/.labels-exempt -- which may
+# only shrink against BENCH_LABELS_BASE's merge base.
+BENCH_LABELS_BASE ?= origin/main
 bench-coverage-check: ## Verify every tested component has a benchmark that runs
 	@uv run python scripts/check_bench_coverage.py
+	@uv run python scripts/bench_report.py --check-labels \
+	    --base $(BENCH_LABELS_BASE)
 
 # On `lint` rather than `drift-check`, because drift-check structurally
 # CANNOT see this: a `_kwlist` lives in the wrapper body of a sacred

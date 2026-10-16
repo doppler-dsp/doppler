@@ -1,0 +1,86 @@
+# The benchmarks page's label table (doppler#2372): one declaration per
+# published row, keyed by the row's ID as `scripts/bench_report.py` builds it
+# (`c:<component>::<row>`, `py:<module>::<test>`).
+#
+#   name        what a reader calls it, in plain words
+#   unit        what ONE of the row's units is -- what the time is per. It
+#               must match the unit the snapshot records (#2314), when it
+#               records one.
+#   definition  one sentence: what one round does, and what the unit counts
+#   headline    true for the "At a glance" set, shown in this file's order
+#
+# `make lint` (bench-coverage-check) refuses a published row with no label
+# here and no line in benchmarks/.labels-exempt, which only shrinks: label
+# a row, then delete its exempt line.
+
+["c:fft::execute_cf32[n=4096]"]
+name = "FFT, complex float, 4,096 points"
+unit = "bin"
+definition = "One forward transform of 4,096 complex float samples (cf32), out of place; the time is per output bin, so a whole transform is 4,096 times it."
+headline = true
+
+["c:psd::accumulate[nfft=1024]"]
+name = "Power spectrum, 1,024 bins (Welch)"
+unit = "sample"
+definition = "Welch power-spectral-density accumulation (window, 1,024-point FFT, magnitude squared, average) over a 65,536-sample block; throughput counts input samples."
+headline = true
+
+["c:fir::execute[taps=15,real]"]
+name = "FIR filter, 15 real taps"
+unit = "sample"
+definition = "A 15-tap real-coefficient FIR filter over complex input, 65,536 samples per round; throughput counts input samples."
+headline = true
+
+["c:ddc::execute[rate=0.50]"]
+name = "Down-converter, decimate by 2"
+unit = "in_sample"
+definition = "Digital down-converter: mix to baseband, filter and decimate by 2; throughput counts input samples."
+headline = true
+
+["c:resamp::execute[rate=1.0001,block=20480]"]
+name = "Arbitrary resampler, ratio 1.0001"
+unit = "sample"
+definition = "Polyphase resampler at a ratio of 1.0001, fed in blocks of 20,480 samples; throughput counts input samples."
+headline = true
+
+["c:costas::steps"]
+name = "Costas carrier loop"
+unit = "sample"
+definition = "A Costas loop tracking a BPSK carrier: phase detector, loop filter and NCO, per input sample."
+headline = true
+
+["c:dll::steps"]
+name = "Delay-locked loop (code tracking)"
+unit = "sample"
+definition = "An early-prompt-late delay-locked loop tracking a spreading code, per input sample."
+headline = true
+
+["c:symsync::steps"]
+name = "Symbol timing recovery"
+unit = "sample"
+definition = "A Gardner-style symbol synchronizer with an interpolating resampler, per input sample."
+headline = true
+
+["c:mpsk_receiver::steps[sps=4,agc=0]"]
+name = "M-PSK receiver, 4 samples per symbol"
+unit = "sample"
+definition = "The full M-PSK receive chain (timing, carrier, decisions) at 4 samples per symbol with the AGC off, per input sample."
+headline = true
+
+["c:acq::native_nc256"]
+name = "DSSS acquisition, 256-chip code"
+unit = "sample"
+definition = "A full code-phase by Doppler search for a 256-chip spreading code; throughput counts searched input samples."
+headline = true
+
+["c:rs::decode[e=8]"]
+name = "Reed-Solomon decode, 8 errors"
+unit = "codeword"
+definition = "CCSDS Reed-Solomon (255,223) decode of one codeword carrying 8 symbol errors."
+headline = true
+
+["py:i16_to_f32::test_bench_steps_64k"]
+name = "int16 to float, from Python"
+unit = "sample"
+definition = "Converting a 65,536-sample int16 I/Q block to float through the Python binding, so the wheel's call overhead is included."
+headline = true

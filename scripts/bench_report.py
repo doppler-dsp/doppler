@@ -50,6 +50,8 @@ import json
 import os
 import re
 import subprocess
+import sys
+from pathlib import Path
 
 PUBLISHED = "benchmarks/published"
 LOCAL = "benchmarks/history"
@@ -528,162 +530,586 @@ def cmd_publish(version, build) -> int:
 # ── render the page ──────────────────────────────────────────────────────────
 
 
-def _speedup(portable, native, throughput):
-    """Native-vs-portable as a signed %: higher throughput / lower time = +."""
-    if not portable or not native:
-        return None
-    return (
-        (native / portable - 1.0) * 100.0
-        if throughput
-        else (portable / native - 1.0) * 100.0
-    )
+# ── the benchmarks page (#2372) ──────────────────────────────────────────────
+#
+# The page is generated from the committed snapshots alone: one row per
+# benchmark that the NEWEST release still measures (a retired row is dropped),
+# with its value in every release converted to ONE quantity -- seconds per
+# unit -- so a trend is continuous across the releases that recorded it
+# differently. docs/javascripts/benchmarks.js draws the cards, the family
+# tables and the charts from the JSON this embeds; everything a reader needs
+# without JavaScript (the headline numbers, the definitions) is plain
+# markdown. `--check` re-renders and compares, so the page cannot drift from
+# the data or from the label table.
+
+#: Plain name, unit and one-sentence definition per row: the label table.
+LABELS = "benchmarks/labels.toml"
+#: Live rows that have no label yet. A RATCHET: it only shrinks.
+LABELS_EXEMPT = "benchmarks/.labels-exempt"
+#: The jm manifest: which module each object belongs to.
+MANIFEST = "just-makeit.toml"
+
+#: The families the page groups rows into, in tab order.
+FAMILIES = (
+    ("spectral", "Spectra & measurement"),
+    ("filter", "Filters & rate change"),
+    ("track", "Tracking & sync"),
+    ("acq", "Acquisition & DSSS"),
+    ("wfm", "Waveforms & coding"),
+    ("data", "Conversion, buffers & streams"),
+)
+
+#: Every jm module's family. A module missing here fails the label gate, so
+#: a new module is filed the day it lands. Objects reach a module through
+#: the manifest's `[module.*].objects`, not through a second list here.
+MODULE_FAMILY = {
+    "spectral": "spectral",
+    "measure": "spectral",
+    "analyzer": "spectral",
+    "ber": "spectral",
+    "snr": "spectral",
+    "filter": "filter",
+    "resample": "filter",
+    "ddc": "filter",
+    "delay": "filter",
+    "interp": "filter",
+    "agc": "filter",
+    "track": "track",
+    "detection": "track",
+    "acquire": "acq",
+    "dsss": "acq",
+    "wfm": "wfm",
+    "wfm_compose": "wfm",
+    "wfm_plan": "wfm",
+    "wfm_sink": "wfm",
+    "source": "wfm",
+    "coding": "wfm",
+    "ccsds": "wfm",
+    "mpsk": "wfm",
+    "impairment": "wfm",
+    "cvt": "data",
+    "accumulator": "data",
+    "arith": "data",
+    "buffer": "data",
+    "stream": "data",
+    "wfm_reader": "data",
+    "wfm_writer": "data",
+    "telemetry": "data",
+    "interrupt": "data",
+    "sample_clock": "data",
+    "util": "data",
+}
+
+#: C bench components that are neither a manifest object nor a module name:
+#: c_deps and helpers benchmarked on their own. Exact names only -- a
+#: substring rule filed `loop_filter` under filters and `carrier_acq` under
+#: whatever matched first.
+COMPONENT_MODULE = {
+    "ccsds_tm": "ccsds",
+    "conv": "coding",
+    "resamp": "resample",
+    "rs": "coding",
+    "timing": "sample_clock",
+}
+
+#: Units a reader wants as a rate (samples per second), not a time.
+RATE_UNITS = ("sample", "in_sample", "in_pair")
+
+try:  # 3.11+; tomli is the same parser, marker-gated in the dev group
+    import tomllib as _toml
+except ImportError:  # pragma: no cover - the floor Python
+    import tomli as _toml  # type: ignore[no-redef]
 
 
-def _two_col_rows(rel, suite, throughput):
-    """(disp, per, portable_val, native_val, speedup_pct) for the metric.
+def row_id(suite: str, bench: dict) -> str:
+    """The page's stable key for one benchmark row.
 
-    ``per`` is what a latency value is per -- a call, a frame, a bin, or
-    for a C row measured before units were recorded, a round (#2314).
+    ``c:<component>::<row>`` for a C row (jm_bench already names it
+    ``component::row``) and ``py:<module>::<test>`` for a Python one, the
+    bench file's stem without its ``bench_`` prefix.
+
+    >>> row_id("c", {"name": "costas::steps"})
+    'c:costas::steps'
+    >>> row_id("python", {"name": "bench_i16_to_f32::test_bench_steps_64k"})
+    'py:i16_to_f32::test_bench_steps_64k'
     """
-    keys = set()
+    if suite == "c":
+        return "c:" + bench["name"]
+    return "py:" + bench["name"].removeprefix("bench_")
+
+
+def seconds_per_unit(suite: str, bench: dict):
+    """(seconds per unit, basis) for one row, or None.
+
+    The one quantity every release is converted to (#2372). ``MSa_s``, where
+    a row carries it, is samples per second, so a unit is a sample. A C row
+    without it is ``stats.mean`` over ``stats.iterations`` -- what jm_bench's
+    ``mean_per_unit`` is, and what v0.43.0 to v0.72.0 never wrote. A Python
+    row times one call per round. ``basis`` is what the value is per; the
+    trend breaks where it changes between releases.
+
+    >>> rnd = {"mean": 4e-5, "iterations": 8}
+    >>> seconds_per_unit("c", {"stats": rnd, "extra_info": {}})
+    (5e-06, ('it', 8))
+    >>> seconds_per_unit("c", {"stats": rnd, "extra_info": {"MSa_s": 0.2}})
+    (5e-06, ('it', 8))
+    >>> seconds_per_unit("python", {"stats": {"mean": 2e-6}, "extra_info": {}})
+    (2e-06, ('call',))
+    """
+    stats = bench.get("stats", {})
+    mean = stats.get("mean")
+    if not (isinstance(mean, (int, float)) and mean > 0):
+        return None
+    msas = (bench.get("extra_info") or {}).get("MSa_s")
+    if suite == "c":
+        iters = stats.get("iterations") or 1
+        basis = ("it", iters)
+        if isinstance(msas, (int, float)) and msas > 0:
+            return 1.0 / (msas * 1e6), basis
+        return mean / iters, basis
+    if isinstance(msas, (int, float)) and msas > 0:
+        return 1.0 / (msas * 1e6), ("sample",)
+    return float(mean), ("call",)
+
+
+def _recorded_unit(suite: str, bench: dict):
+    """The unit the snapshot itself states, or None (#2314)."""
+    if suite == "c":
+        return (bench.get("extra_info") or {}).get("unit")
+    has_rate = (bench.get("extra_info") or {}).get("MSa_s") is not None
+    return "sample" if has_rate else "call"
+
+
+def _component(suite: str, bench: dict) -> str:
+    if suite == "c":
+        return bench["name"].split("::", 1)[0]
+    m = re.search(r"src/doppler/([^/]+)/", bench.get("fullname", ""))
+    return m.group(1) if m else ""
+
+
+def module_of(suite: str, component: str, obj2mod: dict, modules) -> str:
+    """The jm module a row belongs to, or '' when nothing claims it.
+
+    A Python row's component IS its module (the bench file's package). A C
+    component is a manifest object, a module name, or an exact
+    COMPONENT_MODULE entry, in that order.
+    """
+    if suite != "c":
+        return component if component in modules else ""
+    if component in obj2mod:
+        return obj2mod[component]
+    if component in modules:
+        return component
+    return COMPONENT_MODULE.get(component, "")
+
+
+def read_manifest(root: str = ".") -> tuple[dict, list]:
+    """({object: module}, [modules]) from just-makeit.toml."""
+    with open(os.path.join(root, MANIFEST), "rb") as fh:
+        mods = _toml.load(fh).get("module", {})
+    obj2mod = {
+        o: m
+        for m, v in mods.items()
+        if isinstance(v, dict)
+        for o in v.get("objects", [])
+    }
+    return obj2mod, list(mods)
+
+
+def read_labels(root: str = ".") -> dict:
+    """{row id: {name, unit, definition, headline}} from LABELS, in order."""
+    path = os.path.join(root, LABELS)
+    if not os.path.exists(path):
+        return {}
+    with open(path, "rb") as fh:
+        return dict(_toml.load(fh))
+
+
+def read_exempt(text: str) -> list:
+    """The row ids an exempt list holds; `#` comments and blanks out."""
+    return [
+        s.strip()
+        for s in text.splitlines()
+        if s.strip() and not s.lstrip().startswith("#")
+    ]
+
+
+def _raw_releases(root: str = PUBLISHED) -> list:
+    """[(version, {build: {suite: [bench, ...]}, meta})] oldest first."""
+    out = []
+    for d in glob.glob(os.path.join(root, "v*")):
+        v = os.path.basename(d)
+        if _version_key(v) is None:
+            continue
+        builds, meta = {}, {}
+        for b in BUILDS:
+            suites = {}
+            pj = os.path.join(d, f"{b}.json")
+            if os.path.exists(pj):
+                with open(pj, encoding="utf-8") as fh:
+                    data = json.load(fh)
+                suites["python"] = data.get("benchmarks", [])
+                if not meta:
+                    m = data.get("doppler_meta") or data.get("doppler_build")
+                    cpu = data.get("machine_info", {}).get("cpu")
+                    meta = dict(m or {})
+                    meta["cpu"] = (
+                        cpu.get("brand_raw") if isinstance(cpu, dict) else cpu
+                    )
+            cj = os.path.join(d, f"{b}-c.json")
+            if os.path.exists(cj):
+                with open(cj, encoding="utf-8") as fh:
+                    suites["c"] = json.load(fh).get("benchmarks", [])
+            if suites:
+                builds[b] = suites
+        if builds:
+            out.append((v, builds, meta))
+    return sorted(out, key=lambda t: _version_key(t[0]))
+
+
+def _sig(x):
+    """Four significant digits: what a chart can show, a third the bytes."""
+    return None if x is None else float(f"{x:.4g}")
+
+
+def page_data(root: str = ".") -> dict:
+    """Everything the page draws, from the committed snapshots.
+
+    ``rows`` holds every row the newest release measures, each with its
+    seconds per unit in every release (``p`` portable, ``n`` native; None
+    where a release did not measure it), the indices where its basis changed
+    (``brk``), its family, unit and, when the label table has one, its
+    label. ``problems`` lists what the label gate refuses: a row no family
+    claims, a label whose unit contradicts the snapshot.
+    """
+    releases = _raw_releases(os.path.join(root, PUBLISHED))
+    versions = [v for v, _, _ in releases]
+    obj2mod, modules = read_manifest(root)
+    labels = read_labels(root)
+    if not releases:
+        return {"versions": [], "rows": [], "problems": []}
+    _, newest, _ = releases[-1]
+    live = {}
     for b in BUILDS:
-        if b in rel:
-            for k, e in rel[b]["suites"].get(suite, {}).items():
-                if (e["msas"] is not None) == throughput:
-                    keys.add(k)
-    rows = []
-    for k in keys:
-        p = rel.get("portable", {}).get("suites", {}).get(suite, {}).get(k)
-        n = rel.get("native", {}).get("suites", {}).get(suite, {}).get(k)
-        disp = (p or n)["disp"]
-        per = (p or n)["per"]
-        pv = (p["msas"] if throughput else p["mean"]) if p else None
-        nv = (n["msas"] if throughput else n["mean"]) if n else None
-        rows.append((disp, per, pv, nv, _speedup(pv, nv, throughput)))
-    # headline ordering: fastest throughput / slowest time first
-    rows.sort(
-        key=lambda r: (
-            -(r[2] or r[3] or 0) if throughput else (r[2] or r[3] or 0)
+        for suite, benches in newest.get(b, {}).items():
+            for bench in benches:
+                live.setdefault(row_id(suite, bench), (suite, bench))
+
+    rows, problems = [], []
+    for rid in sorted(live):
+        suite, bench = live[rid]
+        comp = _component(suite, bench)
+        mod = module_of(suite, comp, obj2mod, modules)
+        fam = MODULE_FAMILY.get(mod, "")
+        if not fam:
+            problems.append(
+                f"{rid}: no family -- component `{comp}` is no manifest "
+                "object or module and not in COMPONENT_MODULE"
+                if not mod
+                else f"{rid}: module `{mod}` is not in MODULE_FAMILY"
+            )
+        series = {b: [None] * len(versions) for b in BUILDS}
+        bases = [None] * len(versions)
+        recorded = None
+        for i, (_, builds, _) in enumerate(releases):
+            for b in BUILDS:
+                for x in builds.get(b, {}).get(suite, []):
+                    if row_id(suite, x) != rid:
+                        continue
+                    got = seconds_per_unit(suite, x)
+                    if got is None:
+                        continue
+                    series[b][i] = _sig(got[0])
+                    if b == "portable" or bases[i] is None:
+                        bases[i] = got[1]
+                    recorded = _recorded_unit(suite, x) or recorded
+        brk, prev = [], None
+        for i, basis in enumerate(bases):
+            if basis is None:
+                continue
+            if prev is not None and basis != prev:
+                brk.append(i)
+            prev = basis
+        label = labels.get(rid)
+        unit = recorded or (label or {}).get("unit") or "iter"
+        if label and recorded and label.get("unit") != recorded:
+            problems.append(
+                f"{rid}: labelled unit `{label.get('unit')}` but the "
+                f"snapshot records `{recorded}`"
+            )
+        last_basis = next(b for b in reversed(bases) if b is not None)
+        rows.append(
+            {
+                "id": rid,
+                "k": "c" if suite == "c" else "py",
+                "comp": comp,
+                "mod": mod,
+                "fam": fam,
+                "unit": unit,
+                "it": last_basis[1] if last_basis[0] == "it" else 1,
+                "p": series["portable"],
+                "n": series["native"],
+                "brk": brk,
+            }
         )
-    )
-    return rows
+    for m in modules:
+        if m not in MODULE_FAMILY:
+            problems.append(f"module `{m}` is not in MODULE_FAMILY")
+    meta = {}
+    for v, _, m in releases:
+        meta[v] = {
+            k: m.get(k)
+            for k in ("measured_at", "commit", "compiler", "cpu", "kernel")
+        }
+    head = [
+        rid
+        for rid, lab in labels.items()
+        if lab.get("headline") and rid in live
+    ]
+    return {
+        "versions": versions,
+        "meta": meta,
+        "families": [{"id": f, "title": t} for f, t in FAMILIES],
+        "labels": {
+            rid: {
+                "name": lab.get("name", ""),
+                "def": lab.get("definition", ""),
+            }
+            for rid, lab in labels.items()
+            if rid in live
+        },
+        "head": head,
+        "rows": rows,
+        "problems": problems,
+    }
 
 
-def cmd_page(published, out_path) -> int:
-    if not published:
-        msg = (
-            f"No published snapshots under {PUBLISHED}/ — "
-            "run `make bench && make bench-publish ...` first."
+def label_problems(root: str = ".", base: str | None = None) -> list:
+    """What the label gate refuses (#2372), as messages.
+
+    Every row the newest release measures has a label in LABELS or a line in
+    LABELS_EXEMPT; a label carries a name, a unit and a definition, and only
+    for a live row; an exempt line names a live, unlabelled row; and, with
+    ``base``, the exempt list holds nothing its merge base did not.
+    """
+    data = page_data(root)
+    bad = list(data["problems"])
+    live = {r["id"] for r in data["rows"]}
+    labels = read_labels(root)
+    for rid, lab in labels.items():
+        if rid not in live:
+            bad.append(f"{LABELS}: `{rid}` is no live row -- remove the label")
+        for key in ("name", "unit", "definition"):
+            if not str(lab.get(key, "")).strip():
+                bad.append(f"{LABELS}: `{rid}` has no {key}")
+    path = os.path.join(root, LABELS_EXEMPT)
+    text = ""
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
+    exempt = read_exempt(text)
+    for rid in exempt:
+        if rid in labels:
+            bad.append(
+                f"{LABELS_EXEMPT}: `{rid}` is labelled now -- remove the line"
+            )
+        elif rid not in live:
+            bad.append(
+                f"{LABELS_EXEMPT}: `{rid}` is no live row -- remove the line"
+            )
+    for rid in sorted(live - set(labels) - set(exempt)):
+        bad.append(
+            f"`{rid}` has no label: give it a name, unit and definition in "
+            f"{LABELS}"
         )
-        if not out_path:
-            print(msg)
-        else:
-            with open(out_path, "w", encoding="utf-8") as fh:
-                fh.write("# Benchmarks\n\n_No published numbers yet._\n")
-        return 1
-    versions = list(published)
+    if base:
+        # A sibling module; this file may be loaded by path, not run.
+        here = os.path.dirname(os.path.abspath(__file__))
+        if here not in sys.path:
+            sys.path.insert(0, here)
+        from _gitbase import added_since_base
+
+        for rid in added_since_base(
+            Path(root),
+            base,
+            LABELS_EXEMPT,
+            exempt,
+            read_exempt,
+            since=LABELS,
+        ):
+            bad.append(
+                f"{LABELS_EXEMPT}: `{rid}` was added -- the list only "
+                "shrinks; label the row instead"
+            )
+    return bad
+
+
+def _fmt_row(row: dict, secs) -> str:
+    """One value as the static table shows it: a rate or a time per unit."""
+    if secs is None:
+        return "—"
+    if row["unit"] in RATE_UNITS:
+        return fmt_tput(1.0 / secs / 1e6)
+    return f"{fmt_time(secs)} / {row['unit'].replace('_', ' ')}"
+
+
+def render_page(root: str = ".") -> str:
+    """The whole of docs/benchmarks.md, as text."""
+    data = page_data(root)
+    versions = data["versions"]
+    if not versions:
+        return "# Benchmarks\n\n_No published numbers yet._\n"
     latest = versions[-1]
-    rel = published[latest]
-    ref = rel.get("portable") or rel.get("native")
-    cpu = ref["machine"].get("cpu")
-    cpu = cpu.get("brand_raw") if isinstance(cpu, dict) else (cpu or "?")
-    pyv = ref["machine"].get("python_version", "?")
-    pb = rel.get("portable", {}).get("meta", {})
-    nb = rel.get("native", {}).get("meta", {})
-    m = pb or nb  # shared environment (same machine/session)
-
+    m = data["meta"][latest]
+    rows = {r["id"]: r for r in data["rows"]}
+    pmeta = _raw_releases(os.path.join(root, PUBLISHED))[-1][2]
     L = [
         "<!-- generated by `make bench-docs`"
-        " (scripts/bench_report.py --page);"
-        " regenerate on a representative machine, don't hand-edit -->",
+        " (scripts/bench_report.py --page); don't hand-edit. The labels"
+        " come from benchmarks/labels.toml -->",
         "# Benchmarks",
         "",
-        f"Representative single-machine numbers for **{latest}**,"
-        " committed by hand — *not* from CI"
-        " (shared runners aren't hardware-representative).",
+        "How fast is doppler, and is it getting faster? These are"
+        " single-machine numbers measured by hand for each release, not in"
+        " CI. Each release is measured in two builds: **portable** is the"
+        " PyPI wheel, and **native** is built from source for this CPU"
+        " ([builds](#builds)). The trend under each number covers every"
+        " release measured on this machine.",
         "",
-        "Two builds are shown so you can see the from-source upside:",
-        "",
-        f"- **portable** — `{pb.get('flags', '?')}` — the shipped PyPI wheel.",
-        f"- **native** — `{nb.get('flags', '?')}` — `-DDOPPLER_NATIVE=ON`, "
-        "built from source for this CPU.",
-        "",
-        "**Environment** "
-        f"— measured {m.get('measured_at', '?')[:19].replace('T', ' ')} UTC, "
-        f"doppler `{m.get('commit', '?')}`, {m.get('compiler', '?')}.",
-        "",
-        f"- CPU: **{cpu}** — {m.get('cores', '?')} threads, governor "
-        f"`{m.get('cpu_governor') or '?'}`, boost {m.get('cpu_boost') or '?'}"
+        f"**{latest}** — measured"
+        f" {(m.get('measured_at') or '?')[:10]} on **{m.get('cpu') or '?'}**,"
+        f" doppler `{m.get('commit') or '?'}`, {m.get('compiler') or '?'},"
+        f" {m.get('kernel') or '?'}"
         + (
-            f", platform profile `{m['platform_profile']}`"
-            if m.get("platform_profile")
+            f"; fastest core class only (cpus"
+            f" {_cpu_ranges(pmeta['pinned_cpus'])})"
+            if pmeta.get("pinned_cpus")
             else ""
         )
-        + (
-            f", measured on the fastest core class only "
-            f"(cpus {_cpu_ranges(m['pinned_cpus'])})"
-            if m.get("pinned_cpus")
-            else ""
-        ),
-        f"- OS: {m.get('kernel', '?')}, {m.get('glibc') or 'glibc ?'}",
-        f"- Libs: Python {m.get('python', pyv)}, NumPy "
-        f"{m.get('numpy') or '?'}, CMake {m.get('cmake') or '?'}",
+        + ".",
         "",
-        "Throughput is **MSa/s** (higher is better); latency ops are mean "
-        "time per the unit each row names -- **/ call**, **/ frame**, ... "
-        "(lower is better). A C row measured before its unit was recorded "
-        "reads **/ round of N**: the whole round, not one call. "
-        "*from src* = native vs portable.",
+        "## At a glance",
         "",
-        "> The two builds are measured **interleaved** (alternating runs, "
-        "per-benchmark best), so *from src* reflects the real build"
-        " difference. Big gains are vectorizable kernels under AVX-512;"
-        " overhead-bound benches (tiny per-call work) sit near 0% because"
-        " the build can't help where Python-call overhead dominates.",
+        '<div class="dp-bench" id="dp-bench-cards"></div>',
+        "",
+        "| benchmark | portable | native | from src |",
+        "| --- | ---: | ---: | ---: |",
+    ]
+    for i, rid in enumerate(data["head"], 1):
+        r, lab = rows[rid], data["labels"][rid]
+        p, n = r["p"][-1], r["n"][-1]
+        src = f"{(p / n - 1) * 100:+.0f}%" if p and n else "—"
+        L.append(
+            f"| [{lab['name']}](#d{i}) | {_fmt_row(r, p)} |"
+            f" {_fmt_row(r, n)} | {src} |"
+        )
+    L += [
+        "",
+        "## Every benchmark, by family",
+        "",
+        f"{len(rows)} benchmarks, grouped by family. Click a row for its"
+        " chart across releases, its unit and how to reproduce it.",
+        "",
+        '<div class="dp-bench" id="dp-bench-browser"></div>',
+        "",
+        "<noscript>The family tables and charts need JavaScript. The numbers"
+        " themselves are in <code>benchmarks/published/</code>.</noscript>",
         "",
     ]
-    for suite in SUITES:
-        if not any(b in rel and rel[b]["suites"].get(suite) for b in BUILDS):
-            continue
-        L += [f"## {SUITE_LABEL[suite]}", ""]
-        for throughput in (True, False):
-            rows = _two_col_rows(rel, suite, throughput)
-            if not rows:
-                continue
-            fmt = fmt_tput if throughput else fmt_time
-            head = "throughput" if throughput else "time"
-            L += [
-                f"### {'Throughput' if throughput else 'Latency'}",
-                "",
-                f"| benchmark | portable {head} | native {head} | from src |",
-                "| --- | ---: | ---: | ---: |",
-            ]
-            for disp, per, pv, nv, sp in rows:
-                # A latency value says what it is per: a C round is many
-                # units, and only its own row knows which (#2314).
-                tail = "" if throughput else f" / {per}"
-                pc = fmt(pv) + tail if pv else "—"
-                nc = fmt(nv) + tail if nv else "—"
-                spc = f"{sp:+.0f}%" if sp is not None else "—"
-                L.append(f"| `{disp}` | {pc} | {nc} | {spc} |")
-            L.append("")
+    L += _transport_section(latest, root)
+    L += [
+        "## Notes and definitions",
+        "",
+        "### Headline kernels",
+        "",
+    ]
+    for i, rid in enumerate(data["head"], 1):
+        lab = data["labels"][rid]
+        L.append(
+            f'{i}. <span id="d{i}"></span>**{lab["name"]}.** {lab["def"]}'
+            f" `{rid.split(':', 1)[1]}`"
+        )
+    L += [
+        "",
+        "### Terms",
+        "",
+        '<span id="builds"></span>**Builds.** *portable* is the shipped'
+        " wheel; *native* is `-DDOPPLER_NATIVE=ON` (`-march=native`), built"
+        " from source for this CPU. The two are measured interleaved,"
+        " alternating runs, keeping each benchmark's best.",
+        "",
+        '<span id="from-src"></span>**From src.** How much faster the native'
+        " build is than the wheel on the same benchmark: portable time ÷"
+        " native time − 1. Kernels that vectorize gain the most;"
+        " call-overhead-bound rows sit near 0%.",
+        "",
+        '<span id="since-last"></span>**Since last.** Portable speed against'
+        " the previous release that measured the row. Changes under 3% are"
+        " grey: repeat runs of an unchanged tree move about that much.",
+        "",
+        '<span id="trend"></span>**Trend.** One point per release, portable'
+        " build, drawn as speed (higher is faster). A gap is a release that"
+        " did not measure the row. A dashed line marks a release where the"
+        " row's round changed size, so its per-unit value changed meaning"
+        " there; the line breaks rather than draw a jump that is not real.",
+        "",
+        '<span id="units"></span>**Units.** A C row times a round of *N*'
+        " units and reports time per unit: a call, a sample, a bin, a frame,"
+        " a codeword. Rows whose unit is a sample read as throughput."
+        " A row from before the snapshots recorded units (v0.43.0 to"
+        " v0.72.0), with no label to supply one, reads *per iter*: the round"
+        " divided by its iteration count.",
+        "",
+        '<span id="row-ids"></span>**Row IDs.** The small monospace line'
+        " under each name is the benchmark's own ID: what"
+        ' `make bench BENCH_ARGS="--c-only <component>"` (C) or'
+        " `make bench-python` (Python) reports it as.",
+        "",
+    ]
+    blob = {k: v for k, v in data.items() if k != "problems"}
+    payload = json.dumps(blob, separators=(",", ":"), sort_keys=True)
+    # `</` cannot appear inside a <script> element, and JSON allows `\/`.
+    payload = payload.replace("</", "<\\/")
+    L.append(
+        f'<script type="application/json" id="dp-bench-data">{payload}'
+        "</script>"
+    )
+    return "\n".join(L).rstrip("\n") + "\n"
 
-    L += _transport_section(latest)
 
-    if len(versions) >= 2:
-        L += _history_section(published)
-
-    text = "\n".join(L).rstrip("\n") + "\n"
+def cmd_page(out_path, check=False, root=".") -> int:
+    """Write docs/benchmarks.md, or with ``check`` compare against it."""
+    bad = label_problems(root)
+    if bad:
+        for b in bad:
+            print(f"bench-labels: {b}")
+        return 1
+    text = render_page(root)
+    if check:
+        target = out_path or "docs/benchmarks.md"
+        try:
+            with open(os.path.join(root, target), encoding="utf-8") as fh:
+                have = fh.read()
+        except OSError:
+            have = None
+        if have == text:
+            print(f"bench-docs: {target} matches the published snapshots")
+            return 0
+        print(
+            f"bench-docs: {target} is stale against benchmarks/published "
+            "or benchmarks/labels.toml -- run `make bench-docs`"
+        )
+        return 1
     if out_path:
-        with open(out_path, "w", encoding="utf-8") as fh:
+        with open(os.path.join(root, out_path), "w", encoding="utf-8") as fh:
             fh.write(text)
-        print(f"wrote {out_path} ({cpu}, {len(versions)} release(s))")
+        print(f"wrote {out_path}")
     else:
-        print(text)
+        print(text, end="")
     return 0
 
 
-def _transport_section(version):
+def _transport_section(version, root="."):
     """Render the wire-transport benchmark (scripts/bench_stream.py) if a
     ``stream.json`` was captured for this release. Absent on releases predating
     the transport bench — silently skipped.
@@ -692,7 +1118,7 @@ def _transport_section(version):
     ZMQ was subsequently removed, so newer snapshots carry only "nats". Both
     shapes render here — the table's columns follow whatever transports are
     actually present in the snapshot."""
-    path = os.path.join(PUBLISHED, version, "stream.json")
+    path = os.path.join(root, PUBLISHED, version, "stream.json")
     if not os.path.exists(path):
         return []
     with open(path) as fh:
@@ -763,53 +1189,6 @@ def _transport_section(version):
     return L
 
 
-def _history_section(published):
-    """Portable-build MSa/s of throughput benches across releases (the wheel
-    trend users actually track)."""
-    versions = list(published)
-    L = [
-        "## Release history (portable build)",
-        "",
-        "Portable-build throughput across releases — the wheel numbers. "
-        "Comparable only across releases measured on the same machine.",
-        "",
-    ]
-    for suite in SUITES:
-        # benchmarks present (throughput) in the latest portable build
-        latest = published[versions[-1]].get("portable")
-        if not latest:
-            continue
-        keys = [
-            k
-            for k, e in latest["suites"].get(suite, {}).items()
-            if e["msas"] is not None
-        ]
-        if not keys:
-            continue
-        keys.sort(key=lambda k: -latest["suites"][suite][k]["msas"])
-        L += [
-            f"### {SUITE_LABEL[suite]}",
-            "",
-            "| benchmark | " + " | ".join(versions) + " |",
-            "| --- |" + " ---: |" * len(versions),
-        ]
-        for k in keys:
-            cells = []
-            for v in versions:
-                e = (
-                    published[v]
-                    .get("portable", {})
-                    .get("suites", {})
-                    .get(suite, {})
-                    .get(k)
-                )
-                cells.append(fmt_tput(e["msas"]) if e and e["msas"] else "—")
-            disp = latest["suites"][suite][k]["disp"]
-            L.append(f"| `{disp}` | " + " | ".join(cells) + " |")
-        L.append("")
-    return L
-
-
 # ── stdout comparison (portable trend, quick check) ──────────────────────────
 
 
@@ -861,6 +1240,22 @@ def main() -> int:
     )
     p.add_argument("--out", default=None, help="write --page here")
     p.add_argument(
+        "--check",
+        action="store_true",
+        help="with --page: fail unless --out already holds the page",
+    )
+    p.add_argument(
+        "--check-labels",
+        action="store_true",
+        help="fail unless every published row is labelled or exempt",
+    )
+    p.add_argument(
+        "--base",
+        default=None,
+        help="with --check-labels: the exempt list may not grow past "
+        "this ref's merge base",
+    )
+    p.add_argument(
         "--publish",
         metavar="VERSION",
         help="stamp THIS machine's latest run into published/",
@@ -869,8 +1264,15 @@ def main() -> int:
     a = p.parse_args()
     if a.publish:
         return cmd_publish(a.publish, a.build)
+    if a.check_labels:
+        bad = label_problems(".", a.base)
+        for b in bad:
+            print(f"bench-labels: {b}")
+        if not bad:
+            print("bench-labels: every published row is labelled or exempt")
+        return 1 if bad else 0
     if a.page:
-        return cmd_page(load_published(), a.out)
+        return cmd_page(a.out, check=a.check)
     return cmd_compare(load_published())
 
 

@@ -70,6 +70,10 @@ writable = true
 # mode alpha must stay in (0, 1].  Without `field` jm calls
 # dp_acc_trace_set_alpha, which applies create()'s rule (#1911 (c)).
 expr = "self->handle->alpha"
+# The C setter refuses and keeps the value; jm raises on its
+# non-zero return (just-makeit#2182, doppler#1987).
+error = "ValueError"
+error_message = "AccTrace: alpha must lie in (0, 1] in exp mode"
 
 [[acc_trace.properties]]
 name = "count"

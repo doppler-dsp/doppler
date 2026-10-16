@@ -65,7 +65,7 @@ member: one the probe cannot see (an ``out=`` buffer) is no evidence.
   twin instead, since that is the only other value it has.
 - **Values are deduplicated by what the probe observes,** and a property's
   by its readback starting from a FRESH object's: a setter that refuses
-  silently (#1987) leaves the readback where it was, and that value is the
+  without raising leaves the readback where it was, and that value is the
   default by another name.
 - **Inert:** every value M takes leaves the object exactly as the uncalled
   twin. A call that hands back a value is a reader, ``READS``, if it is
@@ -867,7 +867,7 @@ def _accepted(
     """Values M takes without raising, deduplicated by what the probe
     observes, with their observations; and whether every call handed back
     a value. A property's are deduplicated by readback too, starting from a
-    FRESH object's: a setter that refuses silently (#1987) leaves the
+    FRESH object's: a setter that refuses without raising leaves the
     readback where it was, and that value is no other value."""
     vals: list[Any] = []
     refs: list[tuple] = []

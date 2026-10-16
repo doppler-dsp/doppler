@@ -90,14 +90,15 @@ def test_modes_that_never_read_alpha_accept_any(mode, alpha):
 
 
 @pytest.mark.parametrize("alpha", BAD_ALPHAS)
-def test_exp_setter_keeps_alpha_on_refusal(alpha):
+def test_exp_setter_refuses_and_keeps_alpha(alpha):
     # The setter applies create()'s rule in C (dp_acc_trace_set_alpha): a
-    # refused value leaves alpha as it was, so the trace stays an average.
-    # It does so SILENTLY: jm cannot yet render a property setter that
-    # raises (just-makeit#2182). When it can, this becomes pytest.raises
-    # (#1987).
+    # refused value raises and leaves alpha as it was, so the trace stays an
+    # average (#1987).
     a = AccTrace(n=2, mode="exp", alpha=0.5)
-    a.alpha = alpha
+    with pytest.raises(
+        ValueError, match=r"AccTrace: alpha must lie in \(0, 1\]"
+    ):
+        a.alpha = alpha
     assert a.alpha == 0.5
     a.accumulate(np.array([10.0, 20.0], dtype=np.float32))
     a.accumulate(np.array([2.0, 4.0], dtype=np.float32))

@@ -1,0 +1,622 @@
+# The benchmarks page's label table (doppler#2372): one declaration per
+# published row, keyed by the row's ID as `scripts/bench_report.py` builds it
+# (`c:<component>::<row>`, `py:<module>::<test>`).
+#
+#   name        what a reader calls it, in plain words
+#   unit        what ONE of the row's units is -- what the time is per. It
+#               must match the unit the snapshot records (#2314), when it
+#               records one.
+#   definition  one sentence: what one round does, and what the unit counts
+#   samples     input samples ONE unit consumes: the page reads the row in
+#               samples per second (a bin or a sample is 1, an input pair 2,
+#               a PSD frame its nfft). Must agree with the recorded unit.
+#   domain      instead of samples, for input that is not samples: "sym",
+#   count       "bit", "codeword" with how many of them one unit is (an RS
+#               codeword read in coded bits: domain "bit", count 2040); or
+#               domain "call" for setup and control, read as time per call
+#   headline    true for the "At a glance" set, shown in this file's order
+#
+# `make lint` (bench-coverage-check) refuses a published row with no label
+# here and no line in benchmarks/.labels-exempt, which only shrinks: label
+# a row, then delete its exempt line.
+
+["c:fft::execute_cf32[n=4096]"]
+name = "FFT, complex float, 4,096 points"
+unit = "bin"
+definition = "Forward transforms of 4,096 complex float samples (cf32), out of place; throughput counts input samples, and one transform consumes 4,096."
+samples = 1
+headline = true
+
+["c:psd::accumulate[nfft=1024]"]
+name = "Power spectrum, 1,024 bins (Welch)"
+unit = "sample"
+definition = "Welch power-spectral-density accumulation (window, 1,024-point FFT, magnitude squared, average) over a 65,536-sample block; throughput counts input samples."
+samples = 1
+headline = true
+
+["c:fir::execute[taps=15,real]"]
+name = "FIR filter, 15 real taps"
+unit = "sample"
+definition = "A 15-tap real-coefficient FIR filter over complex input, 65,536 samples per round; throughput counts input samples."
+samples = 1
+headline = true
+
+["c:ddc::execute[rate=0.50]"]
+name = "Down-converter, decimate by 2"
+unit = "in_sample"
+definition = "Digital down-converter: mix to baseband, filter and decimate by 2; throughput counts input samples."
+samples = 1
+headline = true
+
+["c:resamp::execute[rate=1.0001,block=20480]"]
+name = "Arbitrary resampler, ratio 1.0001"
+unit = "sample"
+definition = "Polyphase resampler at a ratio of 1.0001, fed in blocks of 20,480 samples; throughput counts input samples."
+samples = 1
+headline = true
+
+["c:costas::steps"]
+name = "Costas carrier loop"
+unit = "sample"
+definition = "A Costas loop tracking a BPSK carrier: phase detector, loop filter and NCO, per input sample."
+samples = 1
+headline = true
+
+["c:dll::steps"]
+name = "Delay-locked loop (code tracking)"
+unit = "sample"
+definition = "An early-prompt-late delay-locked loop tracking a spreading code, per input sample."
+samples = 1
+headline = true
+
+["c:symsync::steps"]
+name = "Symbol timing recovery"
+unit = "sample"
+definition = "A Gardner-style symbol synchronizer with an interpolating resampler, per input sample."
+samples = 1
+headline = true
+
+["c:mpsk_receiver::steps[sps=4,agc=0]"]
+name = "M-PSK receiver, 4 samples per symbol"
+unit = "sample"
+definition = "The full M-PSK receive chain (timing, carrier, decisions) at 4 samples per symbol with the AGC off, per input sample."
+samples = 1
+headline = true
+
+["c:acq::native_nc256"]
+name = "DSSS acquisition, Gold-1023, 256 epochs"
+unit = "sample"
+definition = "A code-phase search for a 1,023-chip Gold code at 2 samples per chip, integrating 256 epochs non-coherently, with no Doppler search (one frequency window); throughput counts searched input samples."
+samples = 1
+headline = true
+
+["c:rs::decode[e=8]"]
+name = "Reed-Solomon decode, 8 errors"
+unit = "codeword"
+definition = "CCSDS Reed-Solomon (255,223) decode, each codeword carrying 8 symbol errors; coded data, so it reads in bits per second: one codeword is 255 bytes, 2,040 bits."
+domain = "bit"
+count = 2040
+headline = true
+
+["py:i16_to_f32::test_bench_steps_64k"]
+name = "int16 to float, from Python"
+unit = "sample"
+definition = "Converting a block of 65,536 real int16 values to float through the Python binding, so the wheel's call overhead is included."
+samples = 1
+headline = true
+
+# Read-outs and design-time calls. Each records a per-bin unit, but none
+# runs at the sample rate -- a display reads a spectrum once per refresh,
+# a window is built once and cached -- so per-sample throughput would
+# flatter them by the size of the block. `domain = "call"` reads them as
+# time per call, and `count` is how many recorded units one call is.
+
+["c:acc_trace::value"]
+name = "Trace read-out, 4,096 bins"
+unit = "bin"
+definition = "Reading a 4,096-bin averaged trace out of the accumulator, once per display refresh: a read-out, not a stream, so it reads as time per call."
+domain = "call"
+count = 4096
+
+["c:psd::power_onesided[nfft=1024]"]
+name = "Power spectrum read-out, 1,024 points"
+unit = "call"
+definition = "Reading the one-sided power spectrum (513 bins) out of a 1,024-point Welch estimate, once per display refresh: per call, because per sample would flatter it by every sample that went in."
+domain = "call"
+count = 1
+
+["c:psd::power_onesided[nfft=4096]"]
+name = "Power spectrum read-out, 4,096 points"
+unit = "call"
+definition = "Reading the one-sided power spectrum (2,049 bins) out of a 4,096-point Welch estimate, once per display refresh: per call, because per sample would flatter it by every sample that went in."
+domain = "call"
+count = 1
+
+["c:psd::power_onesided[nfft=16384]"]
+name = "Power spectrum read-out, 16,384 points"
+unit = "call"
+definition = "Reading the one-sided power spectrum (8,193 bins) out of a 16,384-point Welch estimate, once per display refresh: per call, because per sample would flatter it by every sample that went in."
+domain = "call"
+count = 1
+
+["c:spectral::kaiser_window[4096]"]
+name = "Kaiser window design, 4,096 points"
+unit = "bin"
+definition = "Building a 4,096-point Kaiser window (beta 8.6), which a caller does once and caches: the price of rebuilding it per frame, read as time per call."
+domain = "call"
+count = 4096
+
+["c:spectral::hann_window[4096]"]
+name = "Hann window design, 4,096 points"
+unit = "bin"
+definition = "Building a 4,096-point Hann window, which a caller does once and caches: the price of rebuilding it per frame, read as time per call."
+domain = "call"
+count = 4096
+
+["c:spectral::blackman_harris_window[4096]"]
+name = "Blackman-Harris window design, 4,096 points"
+unit = "bin"
+definition = "Building a 4,096-point Blackman-Harris window, which a caller does once and caches: the price of rebuilding it per frame, read as time per call."
+domain = "call"
+count = 4096
+
+["c:spectral::kaiser_enbw[4096]"]
+name = "Window noise bandwidth, 4,096 points"
+unit = "bin"
+definition = "The equivalent noise bandwidth of a 4,096-point window, a property computed once per window and cached, read as time per call."
+domain = "call"
+count = 4096
+
+# Bit-stream rows from Python. Their input is bits, not samples, so they
+# read in bits per second like their C twins; these record no rate of their
+# own, so the label gives the count per call.
+
+["py:syncword::test_bench_find_64k"]
+name = "Sync-word search, 64k bits, from Python"
+unit = "call"
+definition = "Searching 65,536 random bits for the 32-bit CCSDS marker with up to 4 errors allowed, which is absent, so every offset is examined; the input is bits, read in bits per second like the C row."
+domain = "bit"
+count = 65536
+
+["py:interleaver::test_bench_interleave[1-8192]"]
+name = "Block interleave, 8,192 bits by bit, from Python"
+unit = "call"
+definition = "Interleaving 8,192 hard bits at depth 8, permuted one bit at a time, through the Python binding; the input is bits, read in bits per second."
+domain = "bit"
+count = 8192
+
+["py:interleaver::test_bench_interleave[1-65536]"]
+name = "Block interleave, 65,536 bits by bit, from Python"
+unit = "call"
+definition = "Interleaving 65,536 hard bits at depth 8, permuted one bit at a time, through the Python binding; the input is bits, read in bits per second."
+domain = "bit"
+count = 65536
+
+["py:interleaver::test_bench_interleave[8-8192]"]
+name = "Block interleave, 8,192 bits by octet, from Python"
+unit = "call"
+definition = "Interleaving 8,192 hard bits at depth 8, permuted one octet at a time, through the Python binding; the input is bits, read in bits per second."
+domain = "bit"
+count = 8192
+
+["py:interleaver::test_bench_interleave[8-65536]"]
+name = "Block interleave, 65,536 bits by octet, from Python"
+unit = "call"
+definition = "Interleaving 65,536 hard bits at depth 8, permuted one octet at a time, through the Python binding; the input is bits, read in bits per second."
+domain = "bit"
+count = 65536
+
+["py:interleaver::test_bench_deinterleave_soft[8192]"]
+name = "Soft deinterleave, 8,192 LLRs, from Python"
+unit = "call"
+definition = "Deinterleaving 8,192 float log-likelihood ratios, one per coded bit, at depth 8 through the Python binding; read in bits per second."
+domain = "bit"
+count = 8192
+
+["py:interleaver::test_bench_deinterleave_soft[65536]"]
+name = "Soft deinterleave, 65,536 LLRs, from Python"
+unit = "call"
+definition = "Deinterleaving 65,536 float log-likelihood ratios, one per coded bit, at depth 8 through the Python binding; read in bits per second."
+domain = "bit"
+count = 65536
+
+# Stream rows recorded per call: each call consumes a block of input
+# samples, so they read in samples per second like the rest of the stream,
+# and `samples` is the block one call consumes.
+
+["c:tonemeas::analyze[n=4096]"]
+name = "Single-tone ADC metrics, 4,096-sample capture"
+unit = "call"
+definition = "Single-tone ADC metrics (SINAD, SFDR, ENOB) over a real capture of 4,096 samples: window, FFT and the metric sums, one capture per call. A whole-capture measurement, read in input samples per second so it compares with its Python face and the stream it is taken from."
+samples = 4096
+
+["c:tonemeas::analyze[n=16384]"]
+name = "Single-tone ADC metrics, 16,384-sample capture"
+unit = "call"
+definition = "Single-tone ADC metrics (SINAD, SFDR, ENOB) over a real capture of 16,384 samples: window, FFT and the metric sums, one capture per call. A whole-capture measurement, read in input samples per second so it compares with its Python face and the stream it is taken from."
+samples = 16384
+
+["c:tonemeas::analyze[n=65536]"]
+name = "Single-tone ADC metrics, 65,536-sample capture"
+unit = "call"
+definition = "Single-tone ADC metrics (SINAD, SFDR, ENOB) over a real capture of 65,536 samples: window, FFT and the metric sums, one capture per call. A whole-capture measurement, read in input samples per second so it compares with its Python face and the stream it is taken from."
+samples = 65536
+
+["c:tonemeas::analyze_complex[n=4096]"]
+name = "Single-tone ADC metrics, complex, 4,096-sample capture"
+unit = "call"
+definition = "Single-tone metrics over a complex capture of 4,096 samples: window, FFT and the metric sums, one capture per call. A whole-capture measurement, read in input samples per second so it compares with its Python face and the stream it is taken from."
+samples = 4096
+
+["c:tonemeas::analyze_complex[n=16384]"]
+name = "Single-tone ADC metrics, complex, 16,384-sample capture"
+unit = "call"
+definition = "Single-tone metrics over a complex capture of 16,384 samples: window, FFT and the metric sums, one capture per call. A whole-capture measurement, read in input samples per second so it compares with its Python face and the stream it is taken from."
+samples = 16384
+
+["c:tonemeas::analyze_complex[n=65536]"]
+name = "Single-tone ADC metrics, complex, 65,536-sample capture"
+unit = "call"
+definition = "Single-tone metrics over a complex capture of 65,536 samples: window, FFT and the metric sums, one capture per call. A whole-capture measurement, read in input samples per second so it compares with its Python face and the stream it is taken from."
+samples = 65536
+
+["c:imdmeas::analyze[n=4096]"]
+name = "Two-tone intermodulation metrics, 4,096-sample capture"
+unit = "call"
+definition = "Two-tone intermodulation metrics of 4,096 samples: window, FFT and the metric sums, one capture per call. A whole-capture measurement, read in input samples per second so it compares with its Python face and the stream it is taken from."
+samples = 4096
+
+["c:imdmeas::analyze[n=16384]"]
+name = "Two-tone intermodulation metrics, 16,384-sample capture"
+unit = "call"
+definition = "Two-tone intermodulation metrics of 16,384 samples: window, FFT and the metric sums, one capture per call. A whole-capture measurement, read in input samples per second so it compares with its Python face and the stream it is taken from."
+samples = 16384
+
+["c:imdmeas::analyze[n=65536]"]
+name = "Two-tone intermodulation metrics, 65,536-sample capture"
+unit = "call"
+definition = "Two-tone intermodulation metrics of 65,536 samples: window, FFT and the metric sums, one capture per call. A whole-capture measurement, read in input samples per second so it compares with its Python face and the stream it is taken from."
+samples = 65536
+
+["c:nprmeas::analyze[n=4096]"]
+name = "Noise power ratio, 4,096-sample capture"
+unit = "call"
+definition = "Noise power ratio of 4,096 samples: window, FFT and the metric sums, one capture per call. A whole-capture measurement, read in input samples per second so it compares with its Python face and the stream it is taken from."
+samples = 4096
+
+["c:nprmeas::analyze[n=16384]"]
+name = "Noise power ratio, 16,384-sample capture"
+unit = "call"
+definition = "Noise power ratio of 16,384 samples: window, FFT and the metric sums, one capture per call. A whole-capture measurement, read in input samples per second so it compares with its Python face and the stream it is taken from."
+samples = 16384
+
+["c:nprmeas::analyze[n=65536]"]
+name = "Noise power ratio, 65,536-sample capture"
+unit = "call"
+definition = "Noise power ratio of 65,536 samples: window, FFT and the metric sums, one capture per call. A whole-capture measurement, read in input samples per second so it compares with its Python face and the stream it is taken from."
+samples = 65536
+
+["c:burst_demod::demod[clean]"]
+name = "Burst demodulator, clean"
+unit = "call"
+definition = "One whole burst of 28,600 samples demodulated end to end (acquire the preamble, find the sync word, despread the payload, check the CRC) with no carrier offset, so acquisition converges at once; read in input samples per second, so it compares with the sample rate feeding it."
+samples = 28600
+
+["c:burst_demod::demod[offset]"]
+name = "Burst demodulator, offset"
+unit = "call"
+definition = "One whole burst of 28,600 samples demodulated end to end (acquire the preamble, find the sync word, despread the payload, check the CRC) with a real frequency offset with a matching prior; read in input samples per second, so it compares with the sample rate feeding it."
+samples = 28600
+
+["c:burst_demod::demod[chirp]"]
+name = "Burst demodulator, chirp"
+unit = "call"
+definition = "One whole burst of 28,600 samples demodulated end to end (acquire the preamble, find the sync word, despread the payload, check the CRC) with a frequency offset plus a Doppler rate, so the rate search engages; read in input samples per second, so it compares with the sample rate feeding it."
+samples = 28600
+
+["py:spectrogram::test_bench_push"]
+name = "Spectrogram push, from Python"
+unit = "call"
+definition = "One push of 8,192 complex samples into a 256-point, hop-256 Hann spectrogram through the Python binding, rows out; read in input samples per second."
+samples = 8192
+
+["py:util::test_ema_block_python_loop[1000]"]
+name = "EMA in a Python loop, 1,000 samples"
+unit = "call"
+definition = "An exponential moving average driven one sample at a time from a pure-Python loop over 1,000 samples: what the C objects avoid by looping internally, read in samples per second."
+samples = 1000
+
+["py:util::test_ema_block_python_loop[100000]"]
+name = "EMA in a Python loop, 100,000 samples"
+unit = "call"
+definition = "An exponential moving average driven one sample at a time from a pure-Python loop over 100,000 samples: what the C objects avoid by looping internally, read in samples per second."
+samples = 100000
+
+["py:async_dsss_pool::test_push_epoch"]
+name = "Async DSSS pool, one epoch, from Python"
+unit = "call"
+definition = "One push of a 2,046-sample epoch (a Gold-1023 code at 2 samples per chip) through twelve idle receivers and the searcher, through the Python binding; read in input samples per second."
+samples = 2046
+
+# Reed-Solomon from Python, one CCSDS (255,223) codeword per call. Coded
+# data, so these read in bits per second like the C headline row: one
+# codeword is 255 bytes, 2,040 bits.
+
+["py:rs_codec::test_bench_encode"]
+name = "Reed-Solomon encode, from Python"
+unit = "call"
+definition = "Encoding 223 information bytes into one CCSDS (255,223) codeword through the Python binding, which allocates the output; read in coded bits per second, 2,040 per codeword."
+domain = "bit"
+count = 2040
+
+["py:rs_codec::test_bench_decode_clean"]
+name = "Reed-Solomon decode, no errors, from Python"
+unit = "call"
+definition = "Decoding one clean CCSDS (255,223) codeword in place through the Python binding: the syndromes, all zero, are the whole cost; read in coded bits per second."
+domain = "bit"
+count = 2040
+
+["py:rs_codec::test_bench_decode_full"]
+name = "Reed-Solomon decode, 16 errors, from Python"
+unit = "call"
+definition = "Copying one CCSDS (255,223) codeword, damaging 16 bytes and decoding it through the Python binding, the whole Berlekamp-Massey, Chien and Forney chain; read in coded bits per second."
+domain = "bit"
+count = 2040
+
+["py:rs_codec::test_bench_codeword_ok"]
+name = "Reed-Solomon codeword check, from Python"
+unit = "call"
+definition = "Checking one CCSDS (255,223) codeword's syndromes and nothing else through the Python binding, a receiver's cheap error detector; read in coded bits per second."
+domain = "bit"
+count = 2040
+
+# Rows the tree measures that no release has published yet: v0.73.0 is the
+# first to record them. A label for an unpublished row is pending until
+# then (`make lint` checks it against the commit the newest release was
+# measured at), so a new row is labelled in the PR that adds it.
+
+["c:acq::op2M_U50k_D61_t1_nc1"]
+name = "DSSS search, 2 Mcps, ±50 kHz, depth 61, 1 thread"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 2 Mcps over ±50 kHz of Doppler, block-coherent depth D = 61 under a 500 Hz/s rate bound, the roll fanned across 1 thread; throughput counts searched input samples."
+samples = 1
+
+["c:acq::op2M_U50k_D61_t4_nc1"]
+name = "DSSS search, 2 Mcps, ±50 kHz, depth 61, 4 threads"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 2 Mcps over ±50 kHz of Doppler, block-coherent depth D = 61 under a 500 Hz/s rate bound, the roll fanned across 4 threads; throughput counts searched input samples."
+samples = 1
+
+["c:acq::op5M_U50k_D154_t1_nc1"]
+name = "DSSS search, 5 Mcps, ±50 kHz, depth 154, 1 thread"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 5 Mcps over ±50 kHz of Doppler, block-coherent depth D = 154 under a 500 Hz/s rate bound, the roll fanned across 1 thread; throughput counts searched input samples."
+samples = 1
+
+["c:acq::op5M_U50k_D154_t2_nc1"]
+name = "DSSS search, 5 Mcps, ±50 kHz, depth 154, 2 threads"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 5 Mcps over ±50 kHz of Doppler, block-coherent depth D = 154 under a 500 Hz/s rate bound, the roll fanned across 2 threads; throughput counts searched input samples."
+samples = 1
+
+["c:acq::op5M_U50k_D154_t4_nc1"]
+name = "DSSS search, 5 Mcps, ±50 kHz, depth 154, 4 threads"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 5 Mcps over ±50 kHz of Doppler, block-coherent depth D = 154 under a 500 Hz/s rate bound, the roll fanned across 4 threads; throughput counts searched input samples."
+samples = 1
+
+["c:acq::op5M_U50k_D154_t8_nc1"]
+name = "DSSS search, 5 Mcps, ±50 kHz, depth 154, 8 threads"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 5 Mcps over ±50 kHz of Doppler, block-coherent depth D = 154 under a 500 Hz/s rate bound, the roll fanned across 8 threads; throughput counts searched input samples."
+samples = 1
+
+["c:acq::op5M_U5k_D154_t1_nc1"]
+name = "DSSS search, 5 Mcps, ±5 kHz, depth 154, 1 thread"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 5 Mcps over ±5 kHz of Doppler, block-coherent depth D = 154 under a 500 Hz/s rate bound, the roll fanned across 1 thread; throughput counts searched input samples."
+samples = 1
+
+["c:acq::op5M_U5k_D154_t4_nc1"]
+name = "DSSS search, 5 Mcps, ±5 kHz, depth 154, 4 threads"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 5 Mcps over ±5 kHz of Doppler, block-coherent depth D = 154 under a 500 Hz/s rate bound, the roll fanned across 4 threads; throughput counts searched input samples."
+samples = 1
+
+["c:psd::frame_linear[nfft=16384]"]
+name = "PSD frame, linear power, 16,384 points"
+unit = "frame"
+definition = "One 16,384-point frame of the PSD kernel (window, FFT, power, the per-bin normalisation, no dB conversion); a frame consumes 16,384 input samples, so it reads in samples per second."
+samples = 16384
+
+["c:psd::frame_linear[nfft=4096]"]
+name = "PSD frame, linear power, 4,096 points"
+unit = "frame"
+definition = "One 4,096-point frame of the PSD kernel (window, FFT, power, the per-bin normalisation, no dB conversion); a frame consumes 4,096 input samples, so it reads in samples per second."
+samples = 4096
+
+["c:spectrogram::direct[nfft=1024,hop=512]"]
+name = "Spectrogram rows by hand, 1,024 points, hop 512"
+unit = "sample"
+definition = "The same dB rows as a 1,024-point, hop-512 spectrogram push, from a hand-written loop over the block with no ring, carry or copy: a measuring stick for the push path, not a library call; per input sample."
+samples = 1
+
+["c:spectrogram::direct[nfft=16384,hop=8192]"]
+name = "Spectrogram rows by hand, 16,384 points, hop 8,192"
+unit = "sample"
+definition = "The same dB rows as a 16,384-point, hop-8,192 spectrogram push, from a hand-written loop over the block with no ring, carry or copy: a measuring stick for the push path, not a library call; per input sample."
+samples = 1
+
+["c:spectrogram::direct[nfft=256,hop=128]"]
+name = "Spectrogram rows by hand, 256 points, hop 128"
+unit = "sample"
+definition = "The same dB rows as a 256-point, hop-128 spectrogram push, from a hand-written loop over the block with no ring, carry or copy: a measuring stick for the push path, not a library call; per input sample."
+samples = 1
+
+["c:spectrogram::direct[nfft=4096,hop=2048]"]
+name = "Spectrogram rows by hand, 4,096 points, hop 2,048"
+unit = "sample"
+definition = "The same dB rows as a 4,096-point, hop-2,048 spectrogram push, from a hand-written loop over the block with no ring, carry or copy: a measuring stick for the push path, not a library call; per input sample."
+samples = 1
+
+["c:spectrogram::direct[nfft=65536,hop=32768]"]
+name = "Spectrogram rows by hand, 65,536 points, hop 32,768"
+unit = "sample"
+definition = "The same dB rows as a 65,536-point, hop-32,768 spectrogram push, from a hand-written loop over the block with no ring, carry or copy: a measuring stick for the push path, not a library call; per input sample."
+samples = 1
+
+["c:spectrogram::push[nfft=1024,hop=1024,chunk=1024]"]
+name = "Spectrogram push, 1,024 points, hop 1,024, 1,024-sample chunks"
+unit = "sample"
+definition = "A 1,024-point, hop-1,024 streaming spectrogram (dB rows) fed its block 1,024 samples per push, as a socket or pull source delivers it; per input sample."
+samples = 1
+
+["c:spectrogram::push[nfft=1024,hop=1024,chunk=16384]"]
+name = "Spectrogram push, 1,024 points, hop 1,024, 16,384-sample chunks"
+unit = "sample"
+definition = "A 1,024-point, hop-1,024 streaming spectrogram (dB rows) fed its block 16,384 samples per push, as a socket or pull source delivers it; per input sample."
+samples = 1
+
+["c:spectrogram::push[nfft=1024,hop=1024,chunk=1]"]
+name = "Spectrogram push, 1,024 points, hop 1,024, 1-sample chunks"
+unit = "sample"
+definition = "A 1,024-point, hop-1,024 streaming spectrogram (dB rows) fed its block 1 sample per push, as a socket or pull source delivers it; per input sample."
+samples = 1
+
+["c:spectrogram::push[nfft=1024,hop=512,chunk=256]"]
+name = "Spectrogram push, 1,024 points, hop 512, 256-sample chunks"
+unit = "sample"
+definition = "A 1,024-point, hop-512 streaming spectrogram (dB rows) fed its block 256 samples per push, as a socket or pull source delivers it; per input sample."
+samples = 1
+
+["c:spectrogram::push[nfft=1024,hop=512]"]
+name = "Spectrogram push, 1,024 points, hop 512"
+unit = "sample"
+definition = "A 1,024-point, hop-512 streaming spectrogram (dB rows) fed its whole block in one push; per input sample."
+samples = 1
+
+["c:spectrogram::push[nfft=1024,hop=64,chunk=1024]"]
+name = "Spectrogram push, 1,024 points, hop 64, 1,024-sample chunks"
+unit = "sample"
+definition = "A 1,024-point, hop-64 streaming spectrogram (dB rows) fed its block 1,024 samples per push, as a socket or pull source delivers it; per input sample."
+samples = 1
+
+["c:spectrogram::push[nfft=1024,hop=64,chunk=16384]"]
+name = "Spectrogram push, 1,024 points, hop 64, 16,384-sample chunks"
+unit = "sample"
+definition = "A 1,024-point, hop-64 streaming spectrogram (dB rows) fed its block 16,384 samples per push, as a socket or pull source delivers it; per input sample."
+samples = 1
+
+["c:spectrogram::push[nfft=1024,hop=64,chunk=1]"]
+name = "Spectrogram push, 1,024 points, hop 64, 1-sample chunks"
+unit = "sample"
+definition = "A 1,024-point, hop-64 streaming spectrogram (dB rows) fed its block 1 sample per push, as a socket or pull source delivers it; per input sample."
+samples = 1
+
+["c:spectrogram::push[nfft=1024,hop=64,chunk=256]"]
+name = "Spectrogram push, 1,024 points, hop 64, 256-sample chunks"
+unit = "sample"
+definition = "A 1,024-point, hop-64 streaming spectrogram (dB rows) fed its block 256 samples per push, as a socket or pull source delivers it; per input sample."
+samples = 1
+
+["c:spectrogram::push[nfft=1024,hop=64]"]
+name = "Spectrogram push, 1,024 points, hop 64"
+unit = "sample"
+definition = "A 1,024-point, hop-64 streaming spectrogram (dB rows) fed its whole block in one push; per input sample."
+samples = 1
+
+["c:spectrogram::push[nfft=16384,hop=8192]"]
+name = "Spectrogram push, 16,384 points, hop 8,192"
+unit = "sample"
+definition = "A 16,384-point, hop-8,192 streaming spectrogram (dB rows) fed its whole block in one push; per input sample."
+samples = 1
+
+["c:spectrogram::push[nfft=256,hop=128,chunk=256]"]
+name = "Spectrogram push, 256 points, hop 128, 256-sample chunks"
+unit = "sample"
+definition = "A 256-point, hop-128 streaming spectrogram (dB rows) fed its block 256 samples per push, as a socket or pull source delivers it; per input sample."
+samples = 1
+
+["c:spectrogram::push[nfft=256,hop=128]"]
+name = "Spectrogram push, 256 points, hop 128"
+unit = "sample"
+definition = "A 256-point, hop-128 streaming spectrogram (dB rows) fed its whole block in one push; per input sample."
+samples = 1
+
+["c:spectrogram::push[nfft=4096,hop=2048,chunk=256]"]
+name = "Spectrogram push, 4,096 points, hop 2,048, 256-sample chunks"
+unit = "sample"
+definition = "A 4,096-point, hop-2,048 streaming spectrogram (dB rows) fed its block 256 samples per push, as a socket or pull source delivers it; per input sample."
+samples = 1
+
+["c:spectrogram::push[nfft=4096,hop=2048]"]
+name = "Spectrogram push, 4,096 points, hop 2,048"
+unit = "sample"
+definition = "A 4,096-point, hop-2,048 streaming spectrogram (dB rows) fed its whole block in one push; per input sample."
+samples = 1
+
+["c:spectrogram::push[nfft=65536,hop=32768]"]
+name = "Spectrogram push, 65,536 points, hop 32,768"
+unit = "sample"
+definition = "A 65,536-point, hop-32,768 streaming spectrogram (dB rows) fed its whole block in one push; per input sample."
+samples = 1
+
+# The rest of the Reed-Solomon rows, in coded bits like the headline row:
+# every one is a CCSDS RS(255,223) codeword, 255 bytes, 2,040 bits, so the
+# family reads in one unit and sorts against itself.
+
+["c:rs::encode"]
+name = "Reed-Solomon encode"
+unit = "codeword"
+definition = "Encoding one CCSDS RS(255,223) codeword: 223 information bytes through the generator polynomial into 32 parity bytes; read in coded bits per second, 2,040 per codeword."
+domain = "bit"
+count = 2040
+
+["c:rs::verify"]
+name = "Reed-Solomon codeword check"
+unit = "codeword"
+definition = "Checking one CCSDS RS(255,223) codeword's syndromes and nothing else, the clean path a receiver's error detector runs; read in coded bits per second, 2,040 per codeword."
+domain = "bit"
+count = 2040
+
+["c:rs::decode[e=0]"]
+name = "Reed-Solomon decode, no errors"
+unit = "codeword"
+definition = "Decoding one clean CCSDS RS(255,223) codeword: the syndromes, all zero, are the whole cost; read in coded bits per second, 2,040 per codeword."
+domain = "bit"
+count = 2040
+
+["c:rs::decode[e=16]"]
+name = "Reed-Solomon decode, 16 errors"
+unit = "codeword"
+definition = "Decoding one CCSDS RS(255,223) codeword carrying 16 symbol errors, the most the code corrects: the full Berlekamp-Massey, Chien and Forney chain; read in coded bits per second, 2,040 per codeword."
+domain = "bit"
+count = 2040
+
+["c:rs_codec::encode"]
+name = "Reed-Solomon object encode"
+unit = "codeword"
+definition = "Encoding one CCSDS RS(255,223) codeword through the rs_codec object; read in coded bits per second, 2,040 per codeword."
+domain = "bit"
+count = 2040
+
+["c:rs_codec::encode_kernel"]
+name = "Reed-Solomon encode kernel"
+unit = "codeword"
+definition = "Encoding one CCSDS RS(255,223) codeword through the bare kernel the rs_codec object wraps, so the gap to the object row is the wrapper; read in coded bits per second, 2,040 per codeword."
+domain = "bit"
+count = 2040
+
+["c:rs_codec::decode[e=0]"]
+name = "Reed-Solomon object decode, no errors"
+unit = "codeword"
+definition = "Copying one clean CCSDS RS(255,223) codeword and decoding it in place through the rs_codec object; read in coded bits per second, 2,040 per codeword."
+domain = "bit"
+count = 2040
+
+["c:rs_codec::decode[e=E]"]
+name = "Reed-Solomon object decode, 16 errors"
+unit = "codeword"
+definition = "Copying one CCSDS RS(255,223) codeword, damaging 16 symbols (the most the code corrects) and decoding it in place through the rs_codec object; read in coded bits per second, 2,040 per codeword."
+domain = "bit"
+count = 2040

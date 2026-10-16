@@ -447,6 +447,44 @@ Resampler::execute[rate=1.0001,block=1024]
 This prevents collisions when multiple components export methods with
 the same name (`step`, `get`, `dump`, etc.).
 
+### The benchmarks page reads every row through a label
+
+[The benchmarks page](../../benchmarks.md) shows each published row with a
+plain name, its unit and a one-sentence definition from
+`benchmarks/labels.toml`, keyed by the row's ID: `c:<component>::<row>`
+for a C row, `py:<module>::<test>` for a Python one. The label also says
+how the row reads: `samples = N` (the input samples one recorded unit
+consumes, so the row reads in samples per second), `domain`/`count` for
+input that is not samples (an RS codeword read as 2,040 coded bits), or
+`domain = "call"` for setup and read-outs, read as time per call. A Python
+row's own rate key names its unit where it records one: `MSa_s`,
+`Mbit_s`, `Mchip_s`, `Msym_s`, `Mevent_s`, `Mframe_s`, `Mrecord_s`.
+
+**The count is checked only against a unit the page knows.** For a
+sample, bin or pair the gate refuses a `samples` that contradicts the
+unit (a bin is 1, a pair 2). A unit word the page has no table entry for
+(`blk`, `byte`) is read through the label alone, so its count is the
+author's to get right: a bench recording per `blk` of 1,024 samples needs
+`samples = 1024`, and `samples = 1` would print 1/1,024 of the true rate
+with nothing to refuse it. For a unit many benches will share, add it to
+`UNIT_SAMPLES` or `UNIT_DOMAIN` in `scripts/bench_report.py` instead, and
+the count is checked.
+
+**Label a new row in the PR that adds it.** `make lint`
+(`bench-coverage-check`) refuses a published row with neither a label nor
+a line in `benchmarks/.labels-exempt`, and that list only shrinks, so a
+row a release publishes for the first time cannot be exempted then. A
+label for a row no release has published yet is held as pending -- the
+gate checks it was added after the newest release was measured -- and
+the release that first measures the row makes it live.
+
+**Nothing checks a PR's own rows yet.** The gate sees only the rows a
+release has published, so a new row with no label, a unit change that
+contradicts its label, or a pending label with a mistyped ID surfaces at
+the next release's `make bench-docs`, not in the PR. A PR-time check
+needs each row's name and unit without timing it; that is
+[#2390](https://github.com/doppler-dsp/doppler/issues/2390).
+
 ______________________________________________________________________
 
 ## Saving history — when and how

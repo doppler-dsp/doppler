@@ -564,6 +564,21 @@ the full suite comes from the *filename* (`conftest.py`'s
 `module::case` label from it). See [Benchmarking](benchmarking.md) for
 the full naming convention.
 
+A new **module** also needs a family on the benchmarks page:
+`make lint` refuses one missing from `MODULE_FAMILY` in
+`scripts/bench_report.py` -- add a line naming which of the page's six
+families its rows belong to.
+
+Give each new row, C and Python, a label in `benchmarks/labels.toml` in
+the same PR: a plain name, its unit, a one-sentence definition and its
+count (`samples = N`, or `domain` and `count`; the gate refuses a label
+without one), which is what [the benchmarks page](../../benchmarks.md)
+shows. Nothing checks
+this at PR time yet ([#2390](https://github.com/doppler-dsp/doppler/issues/2390)):
+`make lint` sees only rows a release has published, so a missing or
+mistyped label surfaces when the next release is measured
+([Benchmarking](benchmarking.md#the-benchmarks-page-reads-every-row-through-a-label)).
+
 CI commits a snapshot automatically on every push to `main` and on every
 release tag — no manual step required. Run locally when you want an
 immediate result during development:

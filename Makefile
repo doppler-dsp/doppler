@@ -1089,6 +1089,7 @@ DOCS_PREPARE = @rm -f zensical.toml
 # standard's — one implementation again, which is what criterion 5 asked for.
 define DOCS_CHECK_PRE_CMDS
 $(UV) run python scripts/check_api_docs.py
+$(UV) run python scripts/bench_report.py --page --out docs/benchmarks.md --check
 $(UV) run python scripts/check_docstring_coverage.py --check
 $(UV) run python scripts/check_nav_index.py
 $(UV) run python scripts/check_wfmgen_flag_docs.py
@@ -1697,12 +1698,15 @@ endef
 # (just-buildit/just-buildit.github.io#29). Inert until that lands.
 PROJECT = DOPPLER
 
+# A pointer, not the steps: docs/dev/release.md §2b is their one home. A
+# copy here went stale the day the label gate added a step (#2373 review):
+# followed at v0.73.0 it skipped `bench-labels-fix` and left the label files
+# uncommitted, so the release PR's lint went red.
 define RELEASE_BRANCH_NOTES
-@echo "  - if perf-relevant code changed since the last release (release.md"
-@echo "    §2b), in the bench box's one clone: git fetch origin &&"
-@echo "    make bench-preflight && git checkout --detach origin/main, then"
-@echo "    make bench-interleaved VERSION=$(VERSION) && make bench-docs,"
-@echo "    then commit benchmarks/published + docs/benchmarks.md"
+@echo "  - if perf-relevant code changed since the last release, refresh"
+@echo "    the benchmarks for $(VERSION) in the bench box's one clone,"
+@echo "    exactly as docs/dev/release.md §2b lists (it is the one copy of"
+@echo "    those steps: measure, fix the labels, render, commit)"
 endef
 
 # The script is VENDORED from canonical (just-buildit.github.io) and held to it
@@ -1807,6 +1811,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 release-smoke-packages \
                 bench-python \
                 bench-preflight bench-interleaved bench-publish bench-docs \
+                bench-labels-fix \
                 bench-stream bench-report bench-restamp \
                 docker-runtime docker-sdk docker-downstream docker-stream \
                 docker-examples smoke-image
@@ -1834,9 +1839,11 @@ HOOK_DISPATCH_EXEMPT = check-yaml check-toml end-of-file-fixer trailing-whitespa
 # docs/benchmarks.md rendered from them. None of them is compiled, imported
 # or executed by the test matrix, so treating them as source ran the whole
 # matrix twice per release (the PR, then main) over code its parent had
-# already passed. The Docs workflow still builds the site from them, so a
-# broken asset is still caught -- just not by re-running the C/Python tests.
-CI_INERT_RE = ^(CHANGELOG\.md|changelog\.d/.+|docs/assets/[^/]+\.png|benchmarks/published/.+|docs/benchmarks\.md)$$
+# already passed. The page's label files move with a release too
+# (`make bench-labels-fix`), and they feed only the page and `make lint`.
+# The Docs workflow still builds the site from them, so a broken asset is
+# still caught -- just not by re-running the C/Python tests.
+CI_INERT_RE = ^(CHANGELOG\.md|changelog\.d/.+|docs/assets/[^/]+\.png|benchmarks/published/.+|benchmarks/[^/]*\.toml|benchmarks/\.labels-exempt|docs/benchmarks\.md)$$
 
 # THE one declaration of what doppler's docs are, for standard.mk's
 # `make ci-docs` (canonical; just-makeit#1801). A diff touching any of these
@@ -1844,8 +1851,10 @@ CI_INERT_RE = ^(CHANGELOG\.md|changelog\.d/.+|docs/assets/[^/]+\.png|benchmarks/
 # job docs cannot break (CODE_ONLY in ci.yml). A deletion outside
 # CI_DOCS_DIRS is never docs-only. README.md is generated from
 # docs/index.md, so the two move together; benchmarks/published/ feeds the
-# site and nothing compiled.
-CI_DOCS_RE = ^(docs/|benchmarks/published/|mkdocs[^/]*\.yml$$|CHANGELOG\.md$$|changelog\.d/|README\.md$$|CONTRIBUTING\.md$$)
+# site and nothing compiled, and so do the page's label files
+# (benchmarks/*.toml, benchmarks/.labels-exempt), which `make lint` --
+# never skipped -- gates.
+CI_DOCS_RE = ^(docs/|benchmarks/published/|benchmarks/[^/]*\.toml$$|benchmarks/\.labels-exempt$$|mkdocs[^/]*\.yml$$|CHANGELOG\.md$$|changelog\.d/|README\.md$$|CONTRIBUTING\.md$$)
 
 include standard.mk
 
@@ -1933,8 +1942,16 @@ bench-commits-check: ## Fail when a published benchmark names a commit main cann
 # checked -- a tested component with no benchmark, and a benchmark no runner
 # can reach -- because this repo has now had both, and the second one looks
 # fixed from every angle except the snapshot it never appears in.
+#
+# It also holds the benchmarks page's label table (#2372): every row the
+# newest published release measures has a plain name, unit and definition in
+# benchmarks/labels.toml, or a line in benchmarks/.labels-exempt -- which may
+# only shrink against BENCH_LABELS_BASE's merge base.
+BENCH_LABELS_BASE ?= origin/main
 bench-coverage-check: ## Verify every tested component has a benchmark that runs
 	@$(UV) run python scripts/check_bench_coverage.py
+	@$(UV) run python scripts/bench_report.py --check-labels \
+	    --base $(BENCH_LABELS_BASE)
 
 # On `lint` rather than `drift-check`, because drift-check structurally
 # CANNOT see this: a `_kwlist` lives in the wrapper body of a sacred
@@ -4869,6 +4886,17 @@ endif
 
 bench-docs: ## Render docs/benchmarks.md from the published numbers
 	$(UV) run python scripts/bench_report.py --page --out docs/benchmarks.md
+
+# The label gate's housekeeping (#2372): delete the legacy-units entries and
+# exempt lines it refuses only because they are no longer needed -- a row
+# that records its own unit now, is labelled now, or is retired. A release
+# measured after #2314 records every C row's unit, so its PR runs this once
+# and benchmarks/legacy-units.toml goes. Labels are never touched. An exempt
+# line goes as soon as the newest release lacks its row, so a row missing
+# from ONE set (a broker-dependent Python bench that skipped) needs a label,
+# not its old line, when it returns: check the removals it prints.
+bench-labels-fix: ## Delete the legacy-unit and exempt lines the label gate refuses
+	$(UV) run python scripts/bench_report.py --fix-labels
 
 # A set measured on a branch that was then squash- or rebase-merged names a
 # commit main never receives, which bench-commits-check refuses (#1322).

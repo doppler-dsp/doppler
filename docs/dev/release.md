@@ -127,11 +127,31 @@ make bench-preflight                   # clears the last release's outputs
 git checkout --detach origin/main      # measure what main has
 make bench-interleaved VERSION=X.Y.Z   # builds portable + native, runs them
                                        # alternately, keeps the per-bench best
+make bench-labels-fix                  # delete label lines the new set retired
 make bench-docs                        # render docs/benchmarks.md (two columns)
 git switch -c bench/vX.Y.Z
-git add benchmarks/published docs/benchmarks.md
+git add benchmarks/published docs/benchmarks.md benchmarks/
 git commit -m "docs: publish benchmarks for vX.Y.Z (<cpu>)"
 ```
+
+`make bench-docs` refuses until every row the new set publishes has a
+label in `benchmarks/labels.toml` or a line in `benchmarks/.labels-exempt`
+(the label gate, #2372), and each refusal says what to do. Two kinds are
+routine at a release, and `make bench-labels-fix` clears both: a
+`benchmarks/legacy-units.toml` entry whose row records its own unit now
+(the first set measured after #2314, v0.73.0, records every C row's unit,
+so the fix deletes the whole file), and an exempt line whose row the new
+set no longer measures -- read the lines it prints, because a row missing
+from this one set only (a Python bench whose broker was down) loses its
+exempt line too, and needs a label when it comes back. A row the set
+publishes for the first time needs
+a label written, not an exempt line -- the exempt list only shrinks -- and
+it should already have one: a new row is labelled in the PR that adds it,
+where the gate holds the label as pending until a release measures the
+row. Nothing checks that at PR time yet
+([#2390](https://github.com/doppler-dsp/doppler/issues/2390)), so this is
+where a forgotten or mistyped label first shows. A label the new set was measured with but that names no row it
+recorded is reported as dead: a retired row, or a mistyped ID.
 
 If a set was measured on a branch head instead, it can be restamped after
 the merge, but **only if that exact tree landed on main unchanged** (the

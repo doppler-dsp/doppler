@@ -103,6 +103,9 @@ _DLL state._ [More...](#detailed-description)
 |  size\_t | [**sps**](#variable-sps)  <br> |
 |  float \_Complex \* | [**sums**](#variable-sums)  <br> |
 |  double | [**sym\_period**](#variable-sym_period)  <br> |
+|  uint32\_t | [**tap\_grid**](#variable-tap_grid)  <br> |
+|  uint32\_t | [**tap\_off**](#variable-tap_off)  <br> |
+|  uint32\_t | [**tap\_spacing**](#variable-tap_spacing)  <br> |
 |  [**dll\_tlm\_t**](structdll__tlm__t.md) | [**tlm**](#variable-tlm)  <br> |
 |  int | [**wrap\_await**](#variable-wrap_await)  <br> |
 |  int | [**wrap\_pending**](#variable-wrap_pending)  <br> |
@@ -1342,6 +1345,60 @@ double dp_dll_state_t::sym_period;
 
 
 data-symbol period, partials (0 = off). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tap\_grid 
+
+```C++
+uint32_t dp_dll_state_t::tap_grid;
+```
+
+
+
+the grid origin, a quarter chip. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tap\_off 
+
+```C++
+uint32_t dp_dll_state_t::tap_off;
+```
+
+
+
+`off_chips`. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tap\_spacing 
+
+```C++
+uint32_t dp_dll_state_t::tap_spacing;
+```
+
+
+
+`spacing`. 
  
 
 

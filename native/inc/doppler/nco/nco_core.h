@@ -63,6 +63,22 @@
  * phase only; norm_freq and nmax are unchanged. Serializable via the
  * standard bytes interface (dp_state.h).
  *
+ * ## 3. Reading a phase word on a grid — integer, no division
+ *
+ *   nco_dwell_center    a sample's dwell-CENTER word: phase + phase_inc/2
+ *   nco_word_to_grid    word -> its point on an n-point grid over one
+ *                       period, and the 32-bit fraction to the next point
+ *   nco_frac_to_weight  that fraction -> a float weight, truncated
+ *
+ * A table read at an NCO's phase -- a code replica, a sine LUT, a
+ * polyphase bank -- is a word on a grid of n points per period. The grid
+ * is the caller's: it picks `n`, and moves the grid's origin or a tap by
+ * ADDING a constant word (nco_norm_phase_to_word of the offset as a
+ * fraction of the period, computed once, off the per-sample path). The
+ * period's wrap is the word's own overflow, so no tap is folded, and one
+ * 32x32->64 multiply gives the point and the weight. The scaled step
+ * (nco_step_u32_scaled) is this read with the fraction dropped.
+ *
  * Lifecycle: dp_nco_create -> (steps / reset)* -> dp_nco_destroy. Owners that
  * want it by value (symsync, dll, resamp) embed the struct and set
  * phase/phase_inc/norm_freq directly.
@@ -457,6 +473,82 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
   } dp_nco_state_t;
 
   /**
+   * @brief A sample's dwell-CENTER phase word: the phase half an increment
+   *        on.
+   *
+   * A received sample is a zero-order hold over its dwell interval
+   * `[phase, phase + phase_inc)`. A table read at the dwell's START treats
+   * every sample as landing at the first instant of its hold, which biases
+   * a correlation by half a sample's worth of phase: measured on the Dll's
+   * code taps, an S-curve offset from zero by exactly 0.5/sps chips, gone
+   * when the taps read at the dwell's midpoint instead (an autocorrelation
+   * must satisfy R(tau) = R(-tau)). Read before the step advances the
+   * phase.
+   *
+   * @param state  NCO state.  Must be non-NULL.
+   * @return `phase + phase_inc / 2`, wrapping as a phase word.
+   */
+  JM_FORCEINLINE uint32_t
+  nco_dwell_center (const dp_nco_state_t *state)
+  {
+    return state->phase + (state->phase_inc >> 1);
+  }
+
+  /**
+   * @brief Where a phase word lands on an n-point grid over one period:
+   *        the point at or before it, and the fraction to the next.
+   *
+   * `(uint64_t)word * n` is the word's position in grid points as 32.32
+   * fixed point: the high word is the point, in `[0, n)`, and the low word
+   * the fraction of a point past it, times 2^32. Exact -- no rounding, no
+   * division -- for any word and any `n` up to 2^32. Point `n - 1`'s
+   * neighbor is point 0: the caller wraps the NEXT index, since only it
+   * knows what a point holds (nco_dwell_center has the sampling rule; see
+   * the overview for moving the grid's origin).
+   *
+   * @code
+   * uint32_t frac;
+   * uint32_t i = nco_word_to_grid (0x80000000u, 10, &frac); // half way
+   * // i == 5, frac == 0: exactly on point 5 of 10
+   * @endcode
+   *
+   * @param word  Any phase word.
+   * @param n     Grid points per period, >= 1.
+   * @param frac  Out: the fraction of a point past `i`, times 2^32.
+   *              Must be non-NULL.
+   * @return The grid point at or before @p word, in `[0, n)`.
+   */
+  JM_FORCEINLINE uint32_t
+  nco_word_to_grid (uint32_t word, uint32_t n, uint32_t *frac)
+  {
+    const uint64_t g = (uint64_t)word * n;
+    *frac            = (uint32_t)g;
+    return (uint32_t)(g >> 32);
+  }
+
+  /**
+   * @brief nco_word_to_grid()'s fraction as a float interpolation weight,
+   *        TRUNCATED.
+   *
+   * The fraction's top 24 bits -- a float's whole significand -- scaled by
+   * 2^-24: exact, with no rounding anywhere (a 24-bit integer is
+   * representable, the scale is a power of two). The weight is therefore
+   * `frac / 2^32` truncated, in `[0, 1 - 2^-24]`: it never reaches 1, so a
+   * read never lands on the next point by rounding, the same rule as every
+   * other conversion in this header (truncate, never round). A bare
+   * `(float)frac` would round to nearest and give 1.0f for the top 128
+   * fractions.
+   *
+   * @param frac  A fraction of a grid point, times 2^32.
+   * @return The weight toward the next point, in `[0, 1)`.
+   */
+  JM_FORCEINLINE float
+  nco_frac_to_weight (uint32_t frac)
+  {
+    return (float)(frac >> 8) * 0x1p-24f;
+  }
+
+  /**
    * @brief Emit the current raw phase, then advance the accumulator.
    *
    * Single-sample form, suitable for inlining into another module's own
@@ -489,9 +581,9 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
   nco_step_u32_scaled (dp_nco_state_t *state)
   {
     uint32_t ph   = state->phase;
-    uint32_t nmax = state->nmax;
+    uint32_t nmax = state->nmax, frac;
     state->phase  = ph + state->phase_inc;
-    return nmax == 0 ? ph : (uint32_t)(((uint64_t)ph * nmax) >> 32);
+    return nmax == 0 ? ph : nco_word_to_grid (ph, nmax, &frac);
   }
 
   /**
@@ -541,9 +633,9 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
   nco_step_u32_scaled_ctrl (dp_nco_state_t *state, double ctrl)
   {
     uint32_t ph   = state->phase;
-    uint32_t nmax = state->nmax;
+    uint32_t nmax = state->nmax, frac;
     state->phase  = ph + state->phase_inc + nco_norm_freq_to_inc (ctrl);
-    return nmax == 0 ? ph : (uint32_t)(((uint64_t)ph * nmax) >> 32);
+    return nmax == 0 ? ph : nco_word_to_grid (ph, nmax, &frac);
   }
 
   /**

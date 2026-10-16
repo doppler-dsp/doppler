@@ -789,10 +789,10 @@
 * **dp\_detector2d\_state\_bytes** ([**detector2d\_core.h**](detector2d__core_8h.md))
 * **dll\_accumulate** ([**dll\_core.h**](dll__core_8h.md))
 * **dll\_chip\_sign** ([**dll\_core.h**](dll__core_8h.md))
-* **dll\_dwell\_center\_chip\_pos** ([**dll\_core.h**](dll__core_8h.md))
 * **dll\_lock\_accumulate** ([**dll\_core.h**](dll__core_8h.md))
-* **dll\_replica** ([**dll\_core.h**](dll__core_8h.md))
+* **dll\_replica\_word** ([**dll\_core.h**](dll__core_8h.md))
 * **dll\_steer** ([**dll\_core.h**](dll__core_8h.md))
+* **dll\_tap\_base** ([**dll\_core.h**](dll__core_8h.md))
 * **dll\_update** ([**dll\_core.h**](dll__core_8h.md))
 * **dp\_dll\_configure** ([**dll\_core.h**](dll__core_8h.md))
 * **dp\_dll\_configure\_lock** ([**dll\_core.h**](dll__core_8h.md))
@@ -1863,6 +1863,8 @@
 ## n
 
 * **nco\_add\_ovf\_** ([**nco\_core.h**](nco__core_8h.md))
+* **nco\_dwell\_center** ([**nco\_core.h**](nco__core_8h.md))
+* **nco\_frac\_to\_weight** ([**nco\_core.h**](nco__core_8h.md))
 * **nco\_norm\_fold\_** ([**nco\_core.h**](nco__core_8h.md))
 * **nco\_norm\_freq\_to\_inc** ([**nco\_core.h**](nco__core_8h.md))
 * **nco\_norm\_phase\_to\_word** ([**nco\_core.h**](nco__core_8h.md))
@@ -1875,6 +1877,7 @@
 * **nco\_step\_u32\_ovf\_ctrl** ([**nco\_core.h**](nco__core_8h.md))
 * **nco\_step\_u32\_scaled** ([**nco\_core.h**](nco__core_8h.md))
 * **nco\_step\_u32\_scaled\_ctrl** ([**nco\_core.h**](nco__core_8h.md))
+* **nco\_word\_to\_grid** ([**nco\_core.h**](nco__core_8h.md))
 * **nco\_word\_to\_norm** ([**nco\_core.h**](nco__core_8h.md))
 
 

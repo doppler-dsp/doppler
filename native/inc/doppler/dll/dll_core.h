@@ -204,6 +204,15 @@ typedef struct {
     /* ── lock detector (always on): offset-tap CFAR noise ref + N-look test  */
     float _Complex acc_o;     /**< offset (noise) correlator accumulator.     */
     double off_chips;        /**< this look's offset code phase, whole chips. */
+    /* The taps' offsets as PHASE WORDS (fractions of one period in 32 bits,
+       the code NCO's unit), DERIVED from sf, spacing and off_chips by
+       dll_taps_refresh(), from draw_offset() (which init, create and reset
+       reach by seed(), after configure_geometry() sets sf and spacing) and
+       from set_state -- so the per-sample taps add words and never divide
+       (dll_tap_base(), doppler#2397). */
+    uint32_t tap_grid;       /**< the grid origin, a quarter chip.          */
+    uint32_t tap_spacing;    /**< `spacing`.                                */
+    uint32_t tap_off;        /**< `off_chips`.                              */
     double noise_guard;      /**< chips around P/E/L the offset must avoid.   */
     uint32_t rng;            /**< xorshift32 state for the random offset.    */
     double noise_ema;        /**< EMA of offset power; estimates E|O|^2.      */
@@ -257,7 +266,7 @@ dll_chip_sign(uint8_t c)
 }
 
 /**
- * @brief Sub-chip code replica at fractional code phase @p c (one tap).
+ * @brief Sub-chip code replica at one tap's phase word.
  *
  * The code is treated as held at a fixed 2 samples/chip, sampled at
  * chip-relative positions {0.25, 0.75} (a quarter and three-quarters into
@@ -279,21 +288,30 @@ dll_chip_sign(uint8_t c)
  * model was mathematically fancier but did not, on its own, fix the
  * long-run false-lock that motivated this redesign; this one does.
  *
+ * The tap's phase is a PHASE WORD: its code phase as a fraction of one
+ * period in 32 bits, the code NCO's own unit, already moved to the grid's
+ * origin a quarter chip in (dll_tap_base()). nco_word_to_grid() reads it
+ * on the 2*sf-point grid -- the NCO header's grid face, which any table
+ * read at an NCO's phase shares -- so a tap costs no division, no fmod and
+ * no double, which is where the loop's time went when a tap was a chip
+ * count in double (doppler#2397).
+ *
  * @param s  DLL state (for the code and period length).
- * @param c  Code phase of the tap, chips (any real value; wrapped mod sf).
+ * @param w  The tap's phase word, from dll_tap_base() plus a tap offset.
  * @return Linearly-interpolated ±1 replica value for this tap and sample.
  */
 JM_FORCEINLINE float
-dll_replica(const dp_dll_state_t *s, double c)
+dll_replica_word(const dp_dll_state_t *s, uint32_t w)
 {
-    double sfd2 = 2.0 * (double)s->sf;
-    double p = dp_fmod_pos(c * 2.0 - 0.5, sfd2);
-    size_t i = (size_t)p;
-    double mu = p - (double)i;
-    size_t j = (i + 1 >= (size_t)sfd2) ? 0 : i + 1;
-    float v0 = dll_chip_sign(s->code[i >> 1]);
-    float v1 = dll_chip_sign(s->code[j >> 1]);
-    return (float)((1.0 - mu) * v0 + mu * v1);
+    uint32_t     frac;
+    const size_t i  = nco_word_to_grid(w, (uint32_t)(2u * s->sf), &frac);
+    size_t       c1 = (i + 1) >> 1; /* the next point's chip */
+    if (c1 == s->sf)
+        c1 = 0;
+    const float mu = nco_frac_to_weight(frac);
+    const float v0 = dll_chip_sign(s->code[i >> 1]);
+    const float v1 = dll_chip_sign(s->code[c1]);
+    return v0 + mu * (v1 - v0);
 }
 
 /* Cycles -> u32 phase delta: nco_norm_freq_to_inc() (native/inc/doppler/nco/nco_core.h)
@@ -328,29 +346,23 @@ void dp_dll_init(dp_dll_state_t *s, const uint8_t *code, size_t code_len, size_t
               double init_chip, double bn, double zeta, double spacing);
 
 /**
- * @brief This sample's dwell-CENTER code phase, chips.
+ * @brief This sample's prompt tap as a phase word: its dwell CENTER
+ *        (nco_dwell_center(), the zero-order-hold rule), on the replica
+ *        grid's origin.
  *
- * A received sample is a zero-order hold over its dwell interval
- * `[chip_pos, chip_pos + step)`, `step` = one `phase_inc` in chip units
- * (~1/sps). Evaluating the replica taps at the dwell's START (the raw
- * pre-advance `chip_pos`) treats every sample as landing at the very
- * first instant of its hold interval rather than at the interval's
- * continuous-time representative point — this biases the correlation by
- * half a sample's worth of chip phase (0.5/sps chips). Found via a
- * direct symmetry check: the autocorrelation of a real signal must
- * satisfy R(tau) = R(-tau), and the S-curve didn't — it was offset from
- * tau=0 by exactly 0.5/sps, vanishing when taps are evaluated at the
- * dwell midpoint instead. Advancing by half of `phase_inc` before
- * deriving the chip position gives that midpoint.
+ * The result is the code NCO's own phase word, so it wraps over the period
+ * as the word overflows, less `tap_grid`, the quarter chip that puts it on
+ * dll_replica_word()'s grid. Every other tap is this plus a constant word:
+ * `tap_spacing` either side for early and late, `tap_off` for the noise
+ * tap.
  *
  * @param s  DLL state.
- * @return   Dwell-center code phase, chips.
+ * @return   The prompt tap's phase word.
  */
-JM_FORCEINLINE double
-dll_dwell_center_chip_pos(const dp_dll_state_t *s)
+JM_FORCEINLINE uint32_t
+dll_tap_base(const dp_dll_state_t *s)
 {
-    uint32_t mid = s->code_nco.phase + (s->code_nco.phase_inc >> 1);
-    return ((double)mid / 4294967296.0) * (double)s->sf;
+    return nco_dwell_center(&s->code_nco) - s->tap_grid;
 }
 
 /**
@@ -358,11 +370,12 @@ dll_dwell_center_chip_pos(const dp_dll_state_t *s)
  * advance.
  *
  * Correlates the carrier-wiped sample @p d against the early, prompt and late
- * code taps at this sample's dwell-CENTER phase (@ref
- * dll_dwell_center_chip_pos, wrapped over the periodic code), then advances
- * the embedded fixed-point NCO by one sample and re-derives `chip_pos` from
- * its POST-advance (dwell-START-of-next-sample) phase (never independently
- * accumulated — see @ref dp_dll_state_t::chip_pos). Inline, zero call overhead.
+ * code taps at this sample's dwell-CENTER phase (@ref dll_tap_base, the taps
+ * `tap_spacing` either side, all wrapping over the periodic code as phase
+ * words), then advances the embedded fixed-point NCO by one sample and
+ * re-derives `chip_pos` from its POST-advance (dwell-START-of-next-sample)
+ * phase (never independently accumulated — see @ref
+ * dp_dll_state_t::chip_pos). Inline, zero call overhead.
  *
  * @param s  DLL state.  Must be non-NULL.
  * @param d  One carrier-wiped input sample.
@@ -376,20 +389,14 @@ dll_dwell_center_chip_pos(const dp_dll_state_t *s)
 JM_FORCEINLINE JM_HOT int
 dll_accumulate(dp_dll_state_t *s, float _Complex d)
 {
-    double sfd = (double)s->sf;
-    double cp = dll_dwell_center_chip_pos(s);
-    double ce = cp + s->spacing;
-    if (ce >= sfd)
-        ce -= sfd;
-    double cl = cp - s->spacing;
-    if (cl < 0.0)
-        cl += sfd;
-    s->acc_p += d * dll_replica(s, cp);
-    s->acc_e += d * dll_replica(s, ce);
-    s->acc_l += d * dll_replica(s, cl);
+    const uint32_t p = dll_tap_base(s);
+    s->acc_p += d * dll_replica_word(s, p);
+    s->acc_e += d * dll_replica_word(s, p + s->tap_spacing);
+    s->acc_l += d * dll_replica_word(s, p - s->tap_spacing);
     /* nco_step_u32_ovf() (native/inc/doppler/nco/nco_core.h) is the ONE shared
        primitive for "advance one sample, report whether it wrapped" --
        this used to be a private inline reimplementation of exactly that. */
+    double sfd = (double)s->sf;
     uint8_t carry;
     (void)nco_step_u32_ovf(&s->code_nco, &carry);
     s->chip_pos = ((double)s->code_nco.phase / 4294967296.0) * sfd;
@@ -400,13 +407,13 @@ dll_accumulate(dp_dll_state_t *s, float _Complex d)
  * @brief Per-sample offset (noise) tap for the always-on lock detector.
  *
  * The composition sibling of dll_accumulate(): correlates the input against
- * the code at this epoch's random off-peak offset, feeding the CFAR noise
- * reference. Call it on the same sample stream as dll_accumulate() and
- * BEFORE it (both taps evaluate this sample's dwell-CENTER chip phase, @ref
- * dll_dwell_center_chip_pos — dll_accumulate() hasn't advanced the NCO yet,
- * so the two calls see the same phase). A composer that skips this (and
- * dp_dll_lock_look()/dp_dll_lock_epoch()) simply leaves the lock detector idle —
- * locked stays 0, lock_stat/noise_est stay 0.
+ * the code at this epoch's random off-peak offset (`tap_off` from the
+ * prompt), feeding the CFAR noise reference. Call it on the same sample
+ * stream as dll_accumulate() and BEFORE it (both taps evaluate this
+ * sample's dwell-CENTER phase, @ref dll_tap_base — dll_accumulate() hasn't
+ * advanced the NCO yet, so the two calls see the same phase). A composer
+ * that skips this (and dp_dll_lock_look()/dp_dll_lock_epoch()) simply leaves
+ * the lock detector idle — locked stays 0, lock_stat/noise_est stay 0.
  *
  * @param s  DLL state.  Must be non-NULL.
  * @param d  One carrier-wiped input sample (same sample as dll_accumulate).
@@ -414,10 +421,7 @@ dll_accumulate(dp_dll_state_t *s, float _Complex d)
 JM_FORCEINLINE JM_HOT void
 dll_lock_accumulate(dp_dll_state_t *s, float _Complex d)
 {
-    double co = dll_dwell_center_chip_pos(s) + s->off_chips;
-    if (co >= (double)s->sf)
-        co -= (double)s->sf;
-    s->acc_o += d * dll_replica(s, co);
+    s->acc_o += d * dll_replica_word(s, dll_tap_base(s) + s->tap_off);
 }
 
 /**
@@ -610,8 +614,9 @@ dp_dll_state_t *dp_dll_create(const uint8_t *code, size_t code_len, size_t sps, 
  * so any finite value is a phase); `bn` and `zeta` inside
  * dp_loop_filter_params_ok(); and `0 < spacing < code_len/2`, where the
  * early and late taps are distinct -- at 0 they coincide, at half the code
- * they meet round the wrap, and a NaN made dll_replica read 2^62 chips past
- * the end of the code.
+ * they meet round the wrap, and a NaN is a phase word nothing can round to
+ * (it read 2^62 chips past the end of the code when a tap was a chip
+ * count).
  *
  * dp_dll_create() refuses outside it. A composer that builds its DLL through
  * an abort-on-NULL wrapper, or embeds one by value through dp_dll_init(),
@@ -1279,7 +1284,7 @@ int dp_dll_set_telemetry(dp_dll_state_t *state, dp_tlm_t * tlm, const char * pre
  * pointers, NOT part of the whole-struct snapshot) are packed/restored
  * field-wise when segments > 1. */
 #define DLL_STATE_MAGIC DP_FOURCC ('D','L','L',' ')
-#define DLL_STATE_VERSION 13u /* v13: wrap_pending/wrap_await (#1287); v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
+#define DLL_STATE_VERSION 14u /* v14: the taps' phase words (#2397); v13: wrap_pending/wrap_await (#1287); v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
                                 (the loop steers once per symbol on the
                                 aided window).
                                 v8: symbol-period aid fields + rings;

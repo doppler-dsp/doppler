@@ -5,9 +5,9 @@ The record (``docs/design/spectrogram-measurements.md``) quotes runs of
 best pass and deletes the per-pass snapshots with its worktrees, so each
 run's passes were saved as they were written and are committed beside its
 script, one directory per run with a ``<build>/`` directory per build. Each
-run's script (``u1u4.py``, ``b2094.py``) owns only its tables. This module
-is the rest, once, so the two cannot disagree on how a cell is computed or
-checked:
+run's script (``u1u4.py``, ``b2094.py``, ``b2062.py``) owns only its tables.
+This module is the rest, once, so they cannot disagree on how a cell is
+computed or checked:
 
 - a row's cost in one pass is ``stats.min / stats.iterations``, in ns per
   the bench's unit (a sample for a Spectrogram row, a frame for PSD's

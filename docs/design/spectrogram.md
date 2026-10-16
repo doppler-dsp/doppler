@@ -268,6 +268,11 @@ method and its caveats are in the record under the same number.
     allocates **28·`nfft` fewer bytes**, virtual and not resident (derived:
     12 heap plus the ring's 16 memfd, counted once), and no benchmark row
     moves by more than its own round-to-round spread.
+- **§5.15** — The per-push overhead does not depend on `hop`: about 4.6 ns
+    at `hop` 64, 256 and 1024. A chunk of 1 therefore costs 4% more per
+    sample than one block at `hop` 64, and 66% more at 1024. From 256
+    samples per push on, the chunk size does not show, at every hop
+    measured. The carry's copy is 0.7–1.4% at `hop = nfft/2` too.
 
 The framer's cost against the hand-written loop is a property of the ring, and
 is recorded with it in [the ring's measurements](ring-buffer-measurements.md).

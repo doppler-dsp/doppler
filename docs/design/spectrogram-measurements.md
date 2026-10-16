@@ -389,7 +389,7 @@ that completes one row, that push is mostly the row itself: about 7 µs at
 `hop` 256 only (#2061), so U2 *against `hop`* is unmeasured. The bench now
 has them at `hop` 64 and 1024 too, beside U1's `nfft/2` rows. The 32-row cap
 that kept them out went with the jm_bench.h re-vendor. They are measured in
-#2062's run on this machine.
+#2062's run on this machine: entry 5.15.
 
 ### 5.8 Where a row's time goes (2026-10-10) — U3
 
@@ -797,3 +797,113 @@ the dB side.
 This run's merged set (`benchmarks/published/v0.66.0-b2094/`) stays on the
 measuring machine; its `doppler_meta` is `b2094/meta.json`. It is a
 characterization, not a release's published numbers.
+
+### 5.15 Row latency against `hop`, and U1 at `nfft/2` (2026-10-16) — #2062
+
+**Why this run.** Entry 5.6 measured U1 at `hop` `nfft/4` and `nfft`, and
+entry 5.7 measured U2 at `hop` 256 only. The rows between them were in the
+bench but past `jm_bench.h`'s 32-row cap, which dropped every row after the
+32nd without a word (just-makeit#2188). With jm 0.106.0's header vendored
+(#2357), the Spectrogram bench records all 53 of its rows, and this run
+measures the ones 5.6 and 5.7 could not.
+
+**Method: 5.6's, with one difference.** One run of
+`make bench-interleaved VERSION=0.73.0-2062 K=5` at **e13a27fc1**, a commit
+on main, on **cachyos-x8664-ai465**, from 07:28 to 09:35 UTC:
+
+- The compiler, the two builds' flags, the governor, boost, platform profile
+    and pinning (cpus 0–3 and 10–13) are 5.6's, as the run's merged
+    `doppler_meta` records them (`b2062/meta.json`).
+- **The difference:** the kernel is 7.2.10-1-cachyos; 5.6 ran on 7.2.9-2.
+- No other job was started on the machine. Load was not logged.
+
+The ten per-pass snapshots, filtered to the `spectrogram::` rows, are in
+`docs/design/spectrogram-measurements/b2062/`. Every table below is the
+output of `docs/design/spectrogram-measurements/b2062.py` on them, and its
+`--check` is in `make docs-invariants`. A cell is computed as in 5.6. The
+decision rules are 5.6's, set before its run and not revisited here:
+
+- **U1** closes if push/direct is at most 1.05 at every shape, and is
+    falsified if the ratio scatters more than 5% across passes.
+- **U2's** model gets no refit and must hold to 10%.
+
+**U1 at the midpoint hop.** The same `push` and `direct` pair as 5.6, at
+`hop = nfft/2`:
+
+<!-- spectrogram-b2062:u1:start -->
+
+| nfft   | hop    | push, ns/sample | direct, ns/sample | push − direct | push/direct   | worst pass    | ratio spread |
+| ------ | ------ | --------------- | ----------------- | ------------- | ------------- | ------------- | ------------ |
+| 256    | 128    | 13.236 / 13.119 | 13.148 / 13.034   | 0.096 / 0.089 | 1.007 / 1.007 | 1.010 / 1.010 | 0.5% / 0.5%  |
+| 1,024  | 512    | 13.563 / 13.334 | 13.428 / 13.222   | 0.130 / 0.117 | 1.010 / 1.009 | 1.012 / 1.010 | 0.4% / 0.6%  |
+| 4,096  | 2,048  | 13.684 / 13.393 | 13.549 / 13.295   | 0.128 / 0.103 | 1.009 / 1.008 | 1.013 / 1.010 | 0.5% / 0.4%  |
+| 16,384 | 8,192  | 13.794 / 13.432 | 13.621 / 13.256   | 0.191 / 0.176 | 1.014 / 1.013 | 1.014 / 1.016 | 0.2% / 0.5%  |
+| 65,536 | 32,768 | 14.356 / 13.823 | 14.252 / 13.756   | 0.104 / 0.144 | 1.007 / 1.011 | 1.011 / 1.012 | 0.6% / 1.5%  |
+
+<!-- spectrogram-b2062:u1:end -->
+
+**The answer to U1 at `nfft/2`: closed, as at `nfft/4` and `nfft`.** The
+worst single pass anywhere is 1.016 (native, 16,384/8,192), so the 1.05 rule
+holds at every shape in every pass, and the ratio scatters at most 1.5%. The
+copy costs 0.09 to 0.19 ns per sample, inside 5.6's range. The median ratio,
+1.007 to 1.014, falls between 5.6's two hops: a half hop computes two rows
+per `nfft` samples, where a quarter hop computes four and a full hop one,
+and each sample is copied once either way.
+
+**U2 against `hop`.** 5.7's model at `nfft` 1024, at three hops. *c_s* is the
+one-push row's per-sample cost; *c_p* is the chunk-1 row's per-sample cost
+minus *c_s*; a chunk of *C* samples should cost `c_s + c_p / C` per sample:
+
+<!-- spectrogram-b2062:u2:start -->
+
+| hop   | *c_s*, ns/sample  | spread      | chunk 1, ns/sample | *c_p*, ns per push |
+| ----- | ----------------- | ----------- | ------------------ | ------------------ |
+| 64    | 106.937 / 105.021 | 1.9% / 3.7% | 111.520 / 109.599  | 4.583 / 4.578      |
+| 256   | 26.922 / 26.464   | 1.9% / 3.5% | 31.630 / 31.058    | 4.709 / 4.594      |
+| 1,024 | 6.903 / 6.812     | 2.0% / 3.6% | 11.461 / 11.386    | 4.558 / 4.573      |
+
+| hop   | chunk  | measured, ns/sample | predicted `c_s + c_p/C` | error         |
+| ----- | ------ | ------------------- | ----------------------- | ------------- |
+| 64    | 256    | 106.767 / 104.863   | 106.955 / 105.039       | -0.2% / -0.2% |
+| 64    | 1,024  | 106.667 / 104.772   | 106.941 / 105.025       | -0.3% / -0.2% |
+| 64    | 16,384 | 106.612 / 104.756   | 106.937 / 105.021       | -0.3% / -0.3% |
+| 256   | 256    | 26.948 / 26.485     | 26.940 / 26.482         | +0.0% / +0.0% |
+| 256   | 1,024  | 26.923 / 26.447     | 26.926 / 26.469         | -0.0% / -0.1% |
+| 256   | 16,384 | 26.922 / 26.448     | 26.922 / 26.465         | +0.0% / -0.1% |
+| 1,024 | 256    | 6.919 / 6.832       | 6.921 / 6.830           | -0.0% / +0.0% |
+| 1,024 | 1,024  | 6.905 / 6.831       | 6.908 / 6.817           | -0.0% / +0.2% |
+| 1,024 | 16,384 | 6.904 / 6.827       | 6.903 / 6.812           | +0.0% / +0.2% |
+
+<!-- spectrogram-b2062:u2:end -->
+
+**The answer to U2 against `hop`: the model holds to 0.3% at every hop, with
+no refit.**
+
+- ***c_p* does not depend on `hop`.** It is 4.56 to 4.71 ns per push at
+    `hop` 64, 256 and 1024, in both builds: the push's own overhead, paid
+    once per call whatever the row rate.
+- ***c_s* scales with the rows per sample.** It falls about fourfold per
+    fourfold hop (3.97 and 3.90 portable, 3.97 and 3.89 native), so it is
+    close to one row's cost per `hop` samples.
+- **So the chunk-1 penalty, *c_p* / *c_s*, grows with `hop`.** It is about
+    4% at `hop` 64, 17% at 256 (5.7's figure) and 66–67% at 1024.
+- **As in 5.7, the 0.3% tests only *c_s*.** From 256 samples on, `c_p / C`
+    is at most 0.018 ns, 0.26% of *c_s* even at `hop` 1024. The chunk size
+    stays invisible from 256 samples on at every hop measured.
+- **The `hop` 256 rows repeat 5.7's.** *c_s* is 26.922 / 26.464 here,
+    against 27.787 / 26.391 there, inside 5.7's own 3.7% / 3.1% spread. *c_p*
+    is 4.709 / 4.594 against 4.640 / 4.607.
+
+**What this does not cover.**
+
+- **Chunks between 1 and 256 are unmeasured.** That is where `c_p / C` is
+    visible. By the model, a chunk of 16 at `hop` 1024 would cost about 4%
+    more per sample than one block, but no row measures it.
+- **U2 is still at `nfft` 1024 only.**
+- U3 and U4 were not re-measured.
+- The run is one machine and one compiler, like every entry in this record.
+
+This run's merged set (`benchmarks/published/v0.73.0-2062/`) was removed from
+the measuring machine after its `doppler_meta` was saved as
+`b2062/meta.json`. It is a characterization, not a release's published
+numbers.

@@ -193,3 +193,9 @@ def test_a_report_without_its_outdated_list_fails(
     monkeypatch.chdir(tmp_path)
     assert mod.main(argv) == 2
     assert not any(c[-1:] == ["apply"] for c in calls)
+
+
+def test_vendored_outdated_refuses_a_report_without_the_list():
+    """Its own guard, not only its callers': a missing key is an error."""
+    with pytest.raises(KeyError):
+        _load().vendored_outdated({"entries": []})

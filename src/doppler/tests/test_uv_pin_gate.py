@@ -16,7 +16,9 @@ required-version``, and two gates hold it:
 
 from __future__ import annotations
 
+import importlib.util
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -71,6 +73,15 @@ def _seed(
         f.parent.mkdir(parents=True, exist_ok=True)
         f.write_text(text, encoding="utf-8")
     return tmp_path
+
+
+def _load():
+    """Import the gate by path (scripts/ is not a package)."""
+    spec = importlib.util.spec_from_file_location("check_uv_pin", SCRIPT)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 def _run(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -404,10 +415,21 @@ def test_a_stale_allow_entry_fails(tmp_path: Path) -> None:
         "\t${UV} tool run some-tool\n",
         "\t$(UV) tool -q run some-tool\n",
         "\t$(HOME)/.local/bin/uvx some-tool\n",
-        # `--with` adds a package the lock does not hold.
+        # uv by path, and a make variable that names it.
+        "\t.venv/bin/uv tool run some-tool\n",
+        "\t$(HOME)/.local/bin/uv tool run some-tool\n",
+        "\t$(_PY_UV) tool run some-tool\n",
+        "\t-uv tool run some-tool\n",
+        # `--with` and its kin add a package the lock does not hold, among
+        # uv's own options: after `run` (and its global flags), or after
+        # $(DEV_RUN), and past an option's value.
         "\t$(UV) run --with diff-cover diff-cover cov.lcov\n",
         "\t$(DEV_RUN) --with some-tool some-tool\n",
+        "\t$(DEV_RUN) -w some-tool some-tool\n",
+        "\t$(UV) run --with=some-tool some-tool\n",
+        "\t$(UV) -q run --with some-tool some-tool\n",
         "\t$(UV) run --group dev --with-requirements r.txt x\n",
+        "\t$(_PY_UV) run --python 3.12 --with-editable ./x x\n",
         # A recipe comment ends at the newline: the line after a `\` runs.
         "\t@# a note \\\n\tuvx some-tool\n",
     ],
@@ -429,7 +451,15 @@ def test_a_locked_tool_through_dev_run_passes(tmp_path: Path) -> None:
         "# a comment may say uvx diff-cover\n"
         "\t@# so may a recipe comment: uvx diff-cover\n"
         # Names that only contain the word are not a run of it.
-        "\tscripts/uvx_helper.sh\n\tfoo-uvx --version\n"
+        "\tscripts/uvx_helper.sh\n\tscripts/uvx-helper.sh\n"
+        "\tfoo-uvx --version\n\trm -f build/uvx.log\n"
+        "\tfoo-uv tool run x\n\tmyuv tool run x\n"
+        # An option after the command is the command's, not uv's.
+        "\t$(UV) run pytest --with-coverage\n"
+        "\t$(DEV_RUN) ./configure --with-openssl\n"
+        "\t$(DEV_RUN) auditwheel repair x.whl -w dist/\n"
+        "\t$(UV) run --frozen pytest -w dist\n"
+        "\t$(UV) run --group dev --python 3.12 pytest --with x\n"
     )
     r = _run(_seed(tmp_path, files={"Makefile": mk}))
     assert r.returncode == 0, r.stdout
@@ -551,3 +581,23 @@ def test_deleting_the_list_then_recreating_it_with_an_entry_fails(
     assert "`uv run new-one` is not in the list at the merge base" in (
         r.stdout
     ), r.stdout
+
+
+def test_the_valued_run_options_are_the_pinned_uvs():
+    """RUN_VALUED tells uv's own options from the command's, so it must be
+    the set of value-taking options the pinned uv's `uv run --help` lists:
+    an option missing from it would end the scan early and miss a
+    `--with` after it. `UV` is the uv that `make test-python` runs pytest
+    under -- the pin, not whichever uv PATH reaches first."""
+    uv = os.environ.get("UV")
+    assert uv, "UV is unset: run this through `make test-python`"
+    out = subprocess.run(
+        [uv, "run", "--help"], capture_output=True, text=True, check=True
+    ).stdout
+    valued = set()
+    for m in re.finditer(
+        r"^\s+(?:(-\w), )?(--[\w-]+)[ =]<[^>]+>", out, re.MULTILINE
+    ):
+        valued.update(x for x in m.groups() if x)
+    assert valued, out[:400]
+    assert set(_load().RUN_VALUED) == valued

@@ -123,21 +123,109 @@ _BARE_UV = re.compile(
     r"|python|version|init|publish|format)\b"
 )
 #: Rule 4's other half: a tool run outside the lock. Three forms, each with
-#: the same `-` prefix and global flags as _BARE_UV, by any spelling of uv
-#: (bare, `$(UV)`, `${UV}`):
+#: make's `@`/`-` prefixes and uv's global flags, by uv's spellings: bare,
+#: by path (`.venv/bin/uv`), or a make variable whose name ends in UV
+#: (`$(UV)`, `${UV}`, `$(_PY_UV)`):
 #:
-#: - `uvx`, bare or by path (`$(HOME)/.local/bin/uvx`), but not the head of
-#:   a longer name (`uvx_helper`);
+#: - `uvx`, bare or by path, as a word of its own: not `uvx_helper`,
+#:   `uvx-helper.sh` or `foo-uvx`;
 #: - `uv tool run`, with flags before or after `tool`;
-#: - `uv run --with X` (and `--with-requirements`/`--with-editable`), or
-#:   `$(DEV_RUN) --with X`: the extra package resolves outside the lock.
-_ANY_UV = r"(?:\$\(UV\)|\$\{UV\}|(?<![\w./])(?<!\w-)uv)"
+#: - `uv run` given `--with`/`-w`/`--with-requirements`/`--with-editable`
+#:   among uv's OWN options, or `$(DEV_RUN)` given one: the package resolves
+#:   outside the lock (`_run_with`). An option after the command is the
+#:   command's (`pytest --with-coverage`), not uv's.
+_ANY_UV = r"(?:\$[({]\w*UV[)}]|(?<![\w.])(?<!\w-)(?:[\w.$(){}/-]*/)?uv(?=\s))"
 _FLAGS = r"(?:-\S+(?:\s+[^-\s]\S*)?\s+)*"
 _UNLOCKED_TOOL = re.compile(
-    r"(?<![\w.])(?<!\w-)uvx\b"
+    r"(?<![\w.])(?<!\w-)uvx(?=\s|$)"
     rf"|{_ANY_UV}\s+{_FLAGS}tool\s+{_FLAGS}run\b"
-    rf"|(?:{_ANY_UV}\s+{_FLAGS}run\b|\$[({{]DEV_RUN[)}}])[^;&|]*?\s--with\b"
 )
+#: Where `uv run`'s own options start: after `run`, or after `$(DEV_RUN)`
+#: (`$(UV) run --group dev`).
+_RUN = re.compile(rf"{_ANY_UV}\s+{_FLAGS}run(?=\s|$)|\$[({{]DEV_RUN[)}}]")
+#: The `uv run` options that add a package from outside the lock.
+_RUN_WITH = frozenset(
+    {"--with", "-w", "--with-requirements", "--with-editable"}
+)
+#: The `uv run` options (its own and uv's global ones) that take a value, so
+#: the token after one is that value, not the command. From the pinned uv's
+#: `uv run --help`; test_uv_pin_gate.py derives the same set from that help
+#: and fails when the pin's set moves.
+RUN_VALUED = frozenset(
+    {
+        "--allow-insecure-host",
+        "--cache-dir",
+        "--color",
+        "--config-file",
+        "--config-setting",
+        "--config-settings-package",
+        "--default-index",
+        "--directory",
+        "--env-file",
+        "--exclude-newer",
+        "--exclude-newer-package",
+        "--extra",
+        "--extra-index-url",
+        "--find-links",
+        "--fork-strategy",
+        "--group",
+        "--index",
+        "--index-strategy",
+        "--index-url",
+        "--keyring-provider",
+        "--link-mode",
+        "--no-binary-package",
+        "--no-build-isolation-package",
+        "--no-build-package",
+        "--no-editable-package",
+        "--no-extra",
+        "--no-group",
+        "--no-sources-package",
+        "--only-group",
+        "--package",
+        "--prerelease",
+        "--prerelease-package",
+        "--project",
+        "--python",
+        "--python-platform",
+        "--refresh-package",
+        "--reinstall-package",
+        "--resolution",
+        "--upgrade-group",
+        "--upgrade-package",
+        "--with",
+        "--with-editable",
+        "--with-requirements",
+        "-C",
+        "-P",
+        "-f",
+        "-i",
+        "-p",
+        "-w",
+    }
+)
+
+
+def _run_with(line: str) -> bool:
+    """Whether a `uv run` in ``line`` adds a package with `--with` or its
+    kin among uv's own options, which end at the command: the first token
+    that is neither an option nor the value of one in RUN_VALUED."""
+    for m in _RUN.finditer(line):
+        toks = line[m.end() :].split()
+        i = 0
+        while i < len(toks) and toks[i].startswith("-"):
+            name, eq, _ = toks[i].partition("=")
+            if name in _RUN_WITH:
+                return True
+            i += 2 if name in RUN_VALUED and not eq else 1
+    return False
+
+
+def _unlocked_tool(line: str) -> bool:
+    """Whether ``line`` runs a tool outside the lock (the three forms)."""
+    return bool(_UNLOCKED_TOOL.search(line)) or _run_with(line)
+
+
 #: Rule 4's allowlist, relative to the root: `<line text> -- <reason>`.
 BARE_UV_ALLOW = "scripts/.bare-uv-allow"
 
@@ -369,7 +457,7 @@ def bare_uv_offenders(
         physical = text.splitlines()
         for n, line in _logical_lines(text):
             line = _past_recipe_comment(physical, n, line)
-            if _UNLOCKED_TOOL.search(line):
+            if _unlocked_tool(line):
                 bad.append(
                     f"{rel}:{n}: runs a tool outside the lock -- "
                     f"`{line.strip()[:70]}`; pin it in the dev group and run "

@@ -1,4 +1,4 @@
-- **A C benchmark row now reads per call, not per round.** The benchmark
+- **A C benchmark row now reads per unit, not per round.** The benchmark
     page printed each C row's round time as "time/call", so
     `acc_f32::step`, 65,536 calls per round, read 39 µs for a 0.6 ns call.
     Every C row now names what it counts (call, sample, frame, bit, ...),

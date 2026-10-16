@@ -1,0 +1,9 @@
+# Makefile lines that may still run a BARE uv -- read by
+# scripts/check_uv_pin.py, rule 4 (doppler#2369). A RATCHET: it only shrinks.
+#
+# Every other uv call in a makefile is spelled $(UV), so `UV=<the pinned uv>`
+# -- the way out on a box whose uv is not the pin -- reaches it. Each line
+# here is `<text found in the makefile line> -- <why it stays bare>`; a line
+# with no reason is refused, and an entry whose text no longer appears in any
+# makefile fails the gate, so it is deleted in the change that retires its
+# reason. Text, not a line number, so unrelated edits do not move it.

@@ -25,10 +25,20 @@ import stat
 import subprocess
 from typing import TYPE_CHECKING
 
+from doppler.tests._platform import posix_only
 from doppler.tests._repo import repo_root
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+# The case narrows PATH to a temp dir holding `cut` and a `#!/bin/sh` fake
+# docker. On Windows that drops sh.exe, so mingw make falls back to cmd.exe
+# and the recipe cannot run at all; and doxygen-check runs on the Linux leg
+# only, so there is no Windows behaviour here to test.
+pytestmark = posix_only(
+    "narrows PATH to a fake #!/bin/sh docker, which drops the sh.exe mingw "
+    "make needs; doxygen-check runs on Linux only"
+)
 
 REPO = repo_root(__file__)
 PIN = "0.0.0-test"

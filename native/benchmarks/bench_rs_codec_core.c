@@ -115,8 +115,10 @@ main (void)
         t1      = jm_bench_now_ns ();
         t_c4[r] = jm_bench_elapsed_sec (t0, t1);
       }
-    jm_bench_add (&_bench, "create[J=8]", t_c8, ITERATIONS, CREATES);
-    jm_bench_add (&_bench, "create[J=4]", t_c4, ITERATIONS, CREATES);
+    jm_bench_add_unit (&_bench, "create[J=8]", t_c8, ITERATIONS, CREATES,
+                       "create");
+    jm_bench_add_unit (&_bench, "create[J=4]", t_c4, ITERATIONS, CREATES,
+                       "create");
     printf ("  %-16s %8.2f us/call\n", "create[J=8]",
             min_sec (t_c8, ITERATIONS) / CREATES * 1e6);
     printf ("  %-16s %8.2f us/call\n", "create[J=4]",
@@ -143,8 +145,10 @@ main (void)
         t1       = jm_bench_now_ns ();
         t_ker[r] = jm_bench_elapsed_sec (t0, t1);
       }
-    jm_bench_add (&_bench, "encode", t_obj, ITERATIONS, CODEWORDS);
-    jm_bench_add (&_bench, "encode_kernel", t_ker, ITERATIONS, CODEWORDS);
+    jm_bench_add_unit (&_bench, "encode", t_obj, ITERATIONS, CODEWORDS,
+                       "codeword");
+    jm_bench_add_unit (&_bench, "encode_kernel", t_ker, ITERATIONS, CODEWORDS,
+                       "codeword");
 
     const double so = min_sec (t_obj, ITERATIONS) / CODEWORDS;
     const double sk = min_sec (t_ker, ITERATIONS) / CODEWORDS;
@@ -178,8 +182,10 @@ main (void)
         t1      = jm_bench_now_ns ();
         t_de[r] = jm_bench_elapsed_sec (t0, t1);
       }
-    jm_bench_add (&_bench, "decode[e=0]", t_d0, ITERATIONS, CODEWORDS);
-    jm_bench_add (&_bench, "decode[e=E]", t_de, ITERATIONS, CODEWORDS);
+    jm_bench_add_unit (&_bench, "decode[e=0]", t_d0, ITERATIONS, CODEWORDS,
+                       "codeword");
+    jm_bench_add_unit (&_bench, "decode[e=E]", t_de, ITERATIONS, CODEWORDS,
+                       "codeword");
     printf ("  %-16s %8.2f us/codeword\n", "decode[e=0]",
             min_sec (t_d0, ITERATIONS) / CODEWORDS * 1e6);
     printf ("  %-16s %8.2f us/codeword\n", "decode[e=E]",

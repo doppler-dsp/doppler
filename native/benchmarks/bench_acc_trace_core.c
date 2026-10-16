@@ -160,7 +160,8 @@ main (void)
           t1          = jm_bench_now_ns ();
           t_acc[m][r] = jm_bench_elapsed_sec (t0, t1);
         }
-      jm_bench_add (&_bench, mname[m], t_acc[m], ITERATIONS, NBINS * FRAMES);
+      jm_bench_add_unit (&_bench, mname[m], t_acc[m], ITERATIONS,
+                         NBINS * FRAMES, "bin");
       double s = min_sec (t_acc[m], ITERATIONS) / (FRAMES * (double)NBINS);
       printf ("  %-22s %7.3f ns/bin  %8.1f Mbin/s\n", mname[m], s * 1e9,
               1.0 / s / 1e6);
@@ -180,7 +181,7 @@ main (void)
       t1       = jm_bench_now_ns ();
       t_val[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "value", t_val, ITERATIONS, NBINS);
+  jm_bench_add_unit (&_bench, "value", t_val, ITERATIONS, NBINS, "bin");
   printf ("  %-22s %7.3f ns/bin  (read-out, once per display refresh)\n",
           "value", min_sec (t_val, ITERATIONS) / NBINS * 1e9);
   dp_acc_trace_destroy (a);

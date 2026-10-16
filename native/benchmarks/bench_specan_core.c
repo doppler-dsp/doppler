@@ -97,7 +97,8 @@ main (void)
         }
       char name[64];
       (void)snprintf (name, sizeof name, "execute[rbw=%.0fk]", rbws[k] / 1e3);
-      jm_bench_add (&_bench, name, t_ex[k], ITERATIONS, BLOCK);
+      jm_bench_add_unit (&_bench, name, t_ex[k], ITERATIONS, BLOCK,
+                         JM_BENCH_SAMPLE);
       printf ("  %-24s %7.2f ns/sample  %8.1f MSa/s  (%zu bins)\n", name,
               min_sec (t_ex[k], ITERATIONS) / BLOCK * 1e9,
               (double)BLOCK / min_sec (t_ex[k], ITERATIONS) / 1e6, got);
@@ -112,7 +113,8 @@ main (void)
               t1      = jm_bench_now_ns ();
               t_rt[r] = jm_bench_elapsed_sec (t0, t1);
             }
-          jm_bench_add (&_bench, "retune", t_rt, ITERATIONS, 1);
+          jm_bench_add_unit (&_bench, "retune", t_rt, ITERATIONS, 1,
+                             JM_BENCH_CALL);
           printf ("  %-24s %7.3f us/call   (between blocks, not per "
                   "sample)\n",
                   "retune", min_sec (t_rt, ITERATIONS) * 1e6);

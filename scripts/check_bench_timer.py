@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Gate: a benchmark reads the monotonic clock through `jm_bench_now_ns()`.
+"""Gate: a benchmark times and records through jm_bench.h's primitives.
+
+Two rules, one scan of `native/benchmarks`: the clock is `jm_bench_now_ns()`
+(below), and every row names its unit through `jm_bench_add_unit()` (at the
+end).
 
 Every generated benchmark used to open its own `clock_gettime(CLOCK_MONOTONIC)`
 and carry its own `elapsed_sec()` helper -- 85 private copies of one
@@ -29,8 +33,23 @@ interval `nanosleep`s -- a different clock for a different job, and that
 benchmark is POSIX-only by its own `if(NOT WIN32)` CMake guard, so it is
 neither a duplicate of the bench timer nor a Windows problem.
 
+A row names its unit (#2314). A row is one ROUND of `iters` units of work,
+and the report prints its time per unit -- so it must know whether a unit is
+a call, a sample, a frame. Before jm 0.106.0 a row recorded no unit at all,
+and the page printed every C row's round as one call: 545 of v0.71.0's 566
+published C rows read a whole round as "time/call", as they had in every
+release from v0.43.0. jm 0.106.0's `jm_bench_add()` still does not ask: it
+records every row as calls, which would label `acc_f32::steps`, one call
+over 65,536 samples, the same way as `acc_f32::step`, 65,536 calls of one
+sample each. So a bare `jm_bench_add()` is banned: every
+row goes through `jm_bench_add_unit()` (or doppler's `dp_bench_record()`,
+which forwards its unit), and the author says what one of `iters` is. The
+gate cannot tell whether the noun is RIGHT; it only stops the silent
+default. Whether a unit is well formed is jm's rule, checked by jm when the
+row is recorded -- not restated here, where it would drift from jm's.
+
 Usage:  python3 scripts/check_bench_timer.py
-Exit 0 when every benchmark times through jm_bench.h.
+Exit 0 when every benchmark times and records through jm_bench.h.
 """
 
 from __future__ import annotations
@@ -52,6 +71,9 @@ MONOTONIC = re.compile(r"(?<![\w])CLOCK_MONOTONIC(?![\w])")
 # The helper coming back. `jm_bench_elapsed_sec` is the sanctioned one and
 # ends in the same characters, so the lookbehind is load-bearing.
 HELPER = re.compile(r"(?<![\w])elapsed_sec(?![\w])")
+# A row recorded without its unit. `jm_bench_add_unit` shares the prefix;
+# the `\s*\(` right after the name is what tells them apart.
+UNITLESS = re.compile(r"(?<![\w])jm_bench_add\s*\(")
 
 
 def offenders(root: Path = ROOT) -> list[tuple[str, int, str]]:
@@ -67,7 +89,11 @@ def offenders(root: Path = ROOT) -> list[tuple[str, int, str]]:
         ):
             if line.lstrip().startswith(("*", "/*", "//")):
                 continue  # prose about the clock is not a call
-            if MONOTONIC.search(line) or HELPER.search(line):
+            if (
+                MONOTONIC.search(line)
+                or HELPER.search(line)
+                or UNITLESS.search(line)
+            ):
                 found.append((rel, i + 1, line.strip()))
     return found
 
@@ -82,18 +108,39 @@ def main() -> int:
     ap.add_argument("--root", type=Path, default=ROOT)
     found = offenders(ap.parse_args().root)
     if not found:
-        print("bench-timer: every benchmark times through jm_bench_now_ns()")
+        print(
+            "bench-timer: every benchmark times through jm_bench_now_ns()"
+            " and names each row's unit"
+        )
         return 0
-    print("bench-timer: a private benchmark timer is opened here --")
-    for rel, n, line in found:
-        print(f"  {rel}:{n}: {line}")
-    print(
-        "  Use jm_bench_now_ns() / jm_bench_elapsed_sec(t0, t1) from\n"
-        "  native/benchmarks/jm_bench.h instead. They are already included:\n"
-        "  the clock lives there once so it can be ported once -- the UCRT\n"
-        "  has no clock_gettime, and a private copy is a benchmark that\n"
-        "  cannot build on Windows and drifts from the other 105."
-    )
+    timers = [f for f in found if not UNITLESS.search(f[2])]
+    rows = [f for f in found if UNITLESS.search(f[2])]
+    if timers:
+        print("bench-timer: a private benchmark timer is opened here --")
+        for rel, n, line in timers:
+            print(f"  {rel}:{n}: {line}")
+        print(
+            "  Use jm_bench_now_ns() / jm_bench_elapsed_sec(t0, t1) from\n"
+            "  native/benchmarks/jm_bench.h instead. They are already\n"
+            "  included: the clock lives there once so it can be ported\n"
+            "  once -- the UCRT has no clock_gettime, and a private copy is\n"
+            "  a benchmark that cannot build on Windows and drifts from the\n"
+            "  other 105."
+        )
+    if rows:
+        print("bench-timer: a row is recorded without its unit --")
+        for rel, n, line in rows:
+            print(f"  {rel}:{n}: {line}")
+        print(
+            "  Use jm_bench_add_unit(..., unit), where unit is what ONE of\n"
+            "  `iters` is: JM_BENCH_SAMPLE for one call over `iters`\n"
+            "  samples or a loop of `iters` one-sample step() calls (as\n"
+            "  jm's scaffold labels it), JM_BENCH_CALL for a loop of\n"
+            "  calls that are not one sample each (a getter, a setter),\n"
+            '  JM_BENCH_FRAME, or the counted noun ("bit", "codeword").\n'
+            "  jm_bench_add() records every row as calls, and the report\n"
+            "  prints time per unit from it (#2314)."
+        )
     return 1
 
 

@@ -80,7 +80,8 @@ main (void)
         sink += crealf (out[BENCH_N - 1]);
         times[r] = jm_bench_elapsed_sec (t0, t1);
       }
-    jm_bench_add (&_bench, "step", times, ITERATIONS, BENCH_N);
+    jm_bench_add_unit (&_bench, "step", times, ITERATIONS, BENCH_N,
+                       JM_BENCH_SAMPLE);
     report ("step", times);
     (void)sink;
     dp_carrier_nda_destroy (c);
@@ -99,7 +100,8 @@ main (void)
         t1       = jm_bench_now_ns ();
         times[r] = jm_bench_elapsed_sec (t0, t1);
       }
-    jm_bench_add (&_bench, "steps", times, ITERATIONS, BENCH_N);
+    jm_bench_add_unit (&_bench, "steps", times, ITERATIONS, BENCH_N,
+                       JM_BENCH_SAMPLE);
     report ("steps", times);
     dp_carrier_nda_destroy (c);
   }

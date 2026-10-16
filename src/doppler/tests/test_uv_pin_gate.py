@@ -16,7 +16,9 @@ required-version``, and two gates hold it:
 
 from __future__ import annotations
 
+import importlib.util
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -71,6 +73,15 @@ def _seed(
         f.parent.mkdir(parents=True, exist_ok=True)
         f.write_text(text, encoding="utf-8")
     return tmp_path
+
+
+def _load():
+    """Import the gate by path (scripts/ is not a package)."""
+    spec = importlib.util.spec_from_file_location("check_uv_pin", SCRIPT)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 def _run(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -385,6 +396,104 @@ def test_a_stale_allow_entry_fails(tmp_path: Path) -> None:
     assert "matches no makefile line" in r.stdout, r.stdout
 
 
+@pytest.mark.parametrize(
+    "line",
+    [
+        "\tuvx diff-cover cov.lcov --fail-under=80\n",
+        "\t$(UV) tool run diff-cover cov.lcov\n",
+        "\tuv tool run diff-cover cov.lcov\n",
+        "GATE_CMD = uvx some-tool --check\n",
+        "\t-uvx some-tool\n",
+        "\tuv -q tool run some-tool\n",
+        # make's prefixes, and the two substitutions (#2374 review).
+        "\t@uvx some-tool\n",
+        "\t@-uvx some-tool\n",
+        "\tv=$$(uvx some-tool --version)\n",
+        "V := $(shell uvx some-tool --version)\n",
+        # uv's other spellings: make's brace form, flags after `tool`,
+        # and a uvx named by its path.
+        "\t${UV} tool run some-tool\n",
+        "\t$(UV) tool -q run some-tool\n",
+        "\t$(HOME)/.local/bin/uvx some-tool\n",
+        # uv by path, and a make variable that names it.
+        "\t.venv/bin/uv tool run some-tool\n",
+        "\t$(HOME)/.local/bin/uv tool run some-tool\n",
+        "\t$(_PY_UV) tool run some-tool\n",
+        "\t-uv tool run some-tool\n",
+        # `--with` and its kin add a package the lock does not hold, among
+        # uv's own options: after `run` (and its global flags), or after
+        # $(DEV_RUN), and past an option's value.
+        "\t$(UV) run --with diff-cover diff-cover cov.lcov\n",
+        "\t$(DEV_RUN) --with some-tool some-tool\n",
+        "\t$(DEV_RUN) -w some-tool some-tool\n",
+        "\t$(UV) run --with=some-tool some-tool\n",
+        "\t$(UV) -q run --with some-tool some-tool\n",
+        "\t$(UV) run --group dev --with-requirements r.txt x\n",
+        "\t$(_PY_UV) run --python 3.12 --with-editable ./x x\n",
+        # past a hidden option or an alias that takes a value, which
+        # `uv run --help` never lists (#2374 review)
+        "\t$(UV) run --trusted-host pypi.org --with some-tool x\n",
+        "\t$(UV) run --preview-features f --with some-tool x\n",
+        "\t$(UV) run --preview-feature f --with some-tool x\n",
+        "\t$(UV) run --python-preference system --with some-tool x\n",
+        "\t$(UV) run --python-fetch automatic --with some-tool x\n",
+        "\t$(UV) run --max-recursion-depth 3 --with some-tool x\n",
+        "\t$(UV) run --config-settings k=v --with some-tool x\n",
+        # short flags clustered, or a short option's value attached
+        "\t$(UV) run -qw some-tool x\n",
+        "\t$(UV) run -wsome-tool x\n",
+        "\t$(UV) run -qp 3.12 --with some-tool x\n",
+        # A recipe comment ends at the newline: the line after a `\` runs.
+        "\t@# a note \\\n\tuvx some-tool\n",
+    ],
+)
+def test_a_tool_run_outside_the_lock_is_refused(
+    tmp_path: Path, line: str
+) -> None:
+    """uvx / `uv tool run` resolve the tool unpinned (doppler#2371): even a
+    $(UV) spelling is refused -- the tool belongs in the dev group."""
+    r = _run(_seed(tmp_path, files={"Makefile": "t:\n" + line}))
+    assert r.returncode == 1, r.stdout
+    assert "Makefile:2: runs a tool outside the lock" in r.stdout, r.stdout
+
+
+def test_a_locked_tool_through_dev_run_passes(tmp_path: Path) -> None:
+    mk = (
+        "UV = uv\nDEV_RUN = $(UV) run --group dev\n"
+        "t:\n\t$(DEV_RUN) diff-cover cov.lcov --fail-under=80\n"
+        "# a comment may say uvx diff-cover\n"
+        "\t@# so may a recipe comment: uvx diff-cover\n"
+        # Names that only contain the word are not a run of it.
+        "\tscripts/uvx_helper.sh\n\tscripts/uvx-helper.sh\n"
+        "\tfoo-uvx --version\n\trm -f build/uvx.log\n"
+        "\tfoo-uv tool run x\n\tmyuv tool run x\n"
+        # An option after the command is the command's, not uv's.
+        "\t$(UV) run pytest --with-coverage\n"
+        "\t$(DEV_RUN) ./configure --with-openssl\n"
+        "\t$(DEV_RUN) auditwheel repair x.whl -w dist/\n"
+        "\t$(UV) run --frozen pytest -w dist\n"
+        "\t$(UV) run --group dev --python 3.12 pytest --with x\n"
+        "\t$(UV) run -q pytest -w dist\n"
+        "\t$(UV) run -qp 3.12 pytest --with x\n"
+        "\t$(UV) run -Ck=v pytest -w dist\n"
+    )
+    r = _run(_seed(tmp_path, files={"Makefile": mk}))
+    assert r.returncode == 0, r.stdout
+
+
+def test_an_allow_entry_cannot_exempt_a_tool_run(tmp_path: Path) -> None:
+    """The bare-uv list exempts a bare uv, never a tool run outside the
+    lock: the uvx check runs first, so the entry matches nothing."""
+    files = {
+        "Makefile": "t:\n\tuvx some-tool\n",
+        ALLOW: "uvx some-tool -- an entry that tries to exempt it\n",
+    }
+    r = _run(_seed(tmp_path, files=files))
+    assert r.returncode == 1, r.stdout
+    assert "Makefile:2: runs a tool outside the lock" in r.stdout, r.stdout
+    assert "matches no makefile line" in r.stdout, r.stdout
+
+
 def test_an_allow_entry_matching_two_lines_fails(tmp_path: Path) -> None:
     """An entry exempts exactly one line, so a short one cannot cover many."""
     files = {
@@ -488,3 +597,53 @@ def test_deleting_the_list_then_recreating_it_with_an_entry_fails(
     assert "`uv run new-one` is not in the list at the merge base" in (
         r.stdout
     ), r.stdout
+
+
+def test_the_valued_run_options_are_the_pinned_uvs():
+    """RUN_VALUED tells uv's own options from the command's, so it must be
+    the set of value-taking options the pinned uv's `uv run --help` lists:
+    an option missing from it would end the scan early and miss a
+    `--with` after it. The uv asked is the one `make test-python` runs
+    pytest under (`$UV`), else the one on PATH -- the coverage job runs
+    pytest directly -- and either must be the pin, or the help is the
+    wrong one to compare with."""
+    gate = _load()
+    uv = os.environ.get("UV") or shutil.which("uv")
+    assert uv, "no uv: run through `make test-python`, or put uv on PATH"
+    pin, problem = gate.read_pin(REPO)
+    assert pin, problem
+    ver = subprocess.run(
+        [uv, "--version"], capture_output=True, text=True, check=True
+    ).stdout.split()[1]
+    assert ver == pin, f"{uv} is uv {ver}, not the pin {pin}"
+    out = subprocess.run(
+        [uv, "run", "--help"], capture_output=True, text=True, check=True
+    ).stdout
+    valued = set()
+    for m in re.finditer(
+        r"^\s+(?:(-\w), )?(--[\w-]+)[ =]<[^>]+>", out, re.MULTILINE
+    ):
+        valued.update(x for x in m.groups() if x)
+    assert valued, out[:400]
+    assert set(gate.RUN_VALUED) == valued
+    # The unlisted spellings are the ones the help hides: once the help
+    # shows one, it belongs in RUN_VALUED instead.
+    assert not (gate.RUN_VALUED_UNLISTED & valued)
+
+
+def test_the_unlisted_options_were_read_from_the_pinned_uv():
+    """`uv run --help` hides RUN_VALUED_UNLISTED's spellings, so the test
+    above cannot see a hidden option a newer uv adds. The set names the uv
+    it was read from, and a pin bump fails here until someone moves the
+    version -- which is the moment to re-read that uv's CLI source
+    (crates/uv-cli/src/lib.rs). It cannot make them read it."""
+    gate = _load()
+    pin, problem = gate.read_pin(REPO)
+    assert pin, problem
+    assert pin == gate.RUN_VALUED_UNLISTED_UV, (
+        f"the uv pin is {pin}; scripts/check_uv_pin.py's "
+        f"RUN_VALUED_UNLISTED was read from uv "
+        f"{gate.RUN_VALUED_UNLISTED_UV}'s crates/uv-cli/src/lib.rs. Read "
+        f"uv {pin}'s copy for the hidden and alias `uv run` options that "
+        "take a value, update the set, then RUN_VALUED_UNLISTED_UV."
+    )

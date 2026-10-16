@@ -88,9 +88,11 @@ make coverage-gate COV_BASE=origin/main   # diff-cover, --fail-under=90
 `coverage` is in the `ci-passed` required set, so a PR whose **added/changed C
 lines** fall below `COV_PATCH_MIN` (90%) is blocked. It's a *patch* gate, not a
 global threshold — the existing tree is never retroactively gated, and pure
-`.py`/`.rs` diffs (no C coverage data) aren't counted. `diff-cover` is fetched
-on demand via `uvx` (self-contained — no external service). The lcov's `SF:`
-paths are relativized so they match the git diff.
+`.py`/`.rs` diffs (no C coverage data) aren't counted. `diff-cover` is a dev
+dependency pinned exactly in `pyproject.toml` and `uv.lock`, and the gate runs
+it through `$(DEV_RUN)` (`uv run --group dev`), so a local run gets CI's
+version. It is self-contained: no external service. The lcov's `SF:` paths are
+relativized so they match the git diff.
 
 ## Notes / caveats
 

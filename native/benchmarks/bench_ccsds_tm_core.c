@@ -133,7 +133,8 @@ main (void)
           t1          = jm_bench_now_ns ();
           t_enc[c][r] = jm_bench_elapsed_sec (t0, t1);
         }
-      jm_bench_add (&_bench, names[c], t_enc[c], ITERATIONS, FRAMES);
+      jm_bench_add_unit (&_bench, names[c], t_enc[c], ITERATIONS, FRAMES,
+                         JM_BENCH_FRAME);
       report_frame (names[c], t_enc[c]);
       free (out);
     }
@@ -153,7 +154,8 @@ main (void)
       t1        = jm_bench_now_ns ();
       t_rand[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "randomise", t_rand, ITERATIONS, FRAMES);
+  jm_bench_add_unit (&_bench, "randomise", t_rand, ITERATIONS, FRAMES,
+                     JM_BENCH_FRAME);
   report_frame ("randomise", t_rand);
 
   /* The outer code alone, both directions, at the same depth. */
@@ -172,7 +174,8 @@ main (void)
       t1       = jm_bench_now_ns ();
       t_rse[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "rs_encode_block", t_rse, ITERATIONS, FRAMES);
+  jm_bench_add_unit (&_bench, "rs_encode_block", t_rse, ITERATIONS, FRAMES,
+                     JM_BENCH_FRAME);
   report_frame ("rs_encode_block", t_rse);
 
   for (int r = 0; r < ITERATIONS; r++)
@@ -186,7 +189,8 @@ main (void)
       t1       = jm_bench_now_ns ();
       t_rsd[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "rs_decode_block", t_rsd, ITERATIONS, FRAMES);
+  jm_bench_add_unit (&_bench, "rs_decode_block", t_rsd, ITERATIONS, FRAMES,
+                     JM_BENCH_FRAME);
   report_frame ("rs_decode_block", t_rsd);
 
   /* The sync search, per received bit. */
@@ -212,7 +216,8 @@ main (void)
       t1       = jm_bench_now_ns ();
       t_asm[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "asm_find", t_asm, ITERATIONS, SEARCH_BITS);
+  jm_bench_add_unit (&_bench, "asm_find", t_asm, ITERATIONS, SEARCH_BITS,
+                     "bit");
   printf ("  %-24s %8.2f ns/bit   %8.2f Mbit/s scanned\n", "asm_find",
           min_sec (t_asm, ITERATIONS) / (double)SEARCH_BITS * 1e9,
           (double)SEARCH_BITS / min_sec (t_asm, ITERATIONS) / 1e6);

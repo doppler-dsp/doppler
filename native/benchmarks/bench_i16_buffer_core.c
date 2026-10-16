@@ -42,8 +42,8 @@ main (void)
       uint64_t t1 = jm_bench_now_ns ();
       times[r]    = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "write_some_view+peek_view", times, ITERATIONS,
-                BENCH_N);
+  jm_bench_add_unit (&_bench, "write_some_view+peek_view", times, ITERATIONS,
+                     BENCH_N, JM_BENCH_SAMPLE);
 
   jm_bench_write_json (&_bench, "i16_buffer");
   dp_i16_destroy (ab);

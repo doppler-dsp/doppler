@@ -88,7 +88,7 @@ main (void)
         }
       char name[64];
       (void)snprintf (name, sizeof name, "analyze[n=%zu]", n);
-      jm_bench_add (&_bench, name, t_an[k], ITERATIONS, 1);
+      jm_bench_add_unit (&_bench, name, t_an[k], ITERATIONS, 1, JM_BENCH_CALL);
       printf ("  %-22s %8.1f us/capture  %7.2f ns/sample\n", name,
               min_sec (t_an[k], ITERATIONS) * 1e6,
               min_sec (t_an[k], ITERATIONS) / (double)n * 1e9);

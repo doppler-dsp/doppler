@@ -7,6 +7,10 @@ stopped them -- the duplication only surfaced because the UCRT has neither
 call, so every benchmark failed to compile on Windows. jm 0.76.4 (gh-1341)
 put the clock in the vendored `jm_bench.h`; the gate is what keeps it there.
 
+The same gate also requires every row to name its unit through
+`jm_bench_add_unit()` (#2314): `jm_bench_add()` records every row as calls,
+and the report divides a round by `iters` per that unit.
+
 The cases below are about the gate's own failure modes, not about timing.
 Each seeds a fake tree and points `--root` at it, because a gate that can
 only run against the real tree cannot be sabotaged: you would have to break
@@ -141,3 +145,35 @@ def test_one_offender_among_many_is_still_found(tmp_path: Path) -> None:
     r = _run(_seed(tmp_path, files))
     assert r.returncode == 1, r.stdout + r.stderr
     assert "bench_z_core.c" in r.stdout
+
+
+# #2314: a row names its unit. The gate folds this in rather than growing a
+# second scan of the same tree.
+UNIT_ROW = CLEAN.replace(
+    "  return (int)s;",
+    '  jm_bench_add_unit (&b, "steps", &s, 1, 4096, JM_BENCH_SAMPLE);\n'
+    "  return (int)s;",
+)
+UNITLESS_ROW = CLEAN.replace(
+    "  return (int)s;",
+    '  jm_bench_add (&b, "steps", &s, 1, 4096);\n  return (int)s;',
+)
+
+
+def test_a_row_that_names_its_unit_passes(tmp_path: Path) -> None:
+    """`jm_bench_add_unit` starts with the banned name -- hence `\\s*\\(`."""
+    r = _run(_seed(tmp_path, {"bench_a_core.c": UNIT_ROW}))
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_a_row_recorded_without_its_unit_fails(tmp_path: Path) -> None:
+    r = _run(_seed(tmp_path, {"bench_a_core.c": UNITLESS_ROW}))
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "without its unit" in r.stdout
+    assert "bench_a_core.c" in r.stdout
+
+
+def test_jm_bench_h_may_define_the_unitless_call(tmp_path: Path) -> None:
+    """jm_bench.h is where jm_bench_add() is defined; it is not a row."""
+    r = _run(_seed(tmp_path, {"jm_bench.h": UNITLESS_ROW}))
+    assert r.returncode == 0, r.stdout + r.stderr

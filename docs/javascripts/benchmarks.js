@@ -36,11 +36,12 @@
   }
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-  // A row's value in its own terms: a rate, or time per call for setup.
+  // A row's value in its own terms: a rate, or time per call for setup and
+  // read-outs, whose `cnt` is how many recorded units one call is.
   const rateOf = (r, s) => (r.dom && s != null ? r.cnt / s : null);
   function fmtVal(r, s, plain) {
     if (s == null) return "—";
-    const out = r.dom ? fmtRate(r.cnt / s, r.dom) : fmtTime(s) + " / call";
+    const out = r.dom ? fmtRate(r.cnt / s, r.dom) : fmtTime(s * r.cnt) + " / call";
     if (plain) return out;
     return r.dom ? out.replace(/ (\S+)$/, " <small>$1</small>")
       : out.replace(" / call", " <small>/ call</small>");
@@ -142,7 +143,7 @@
   function bigChart(r, V, tip) {
     const NV = V.length, LAST = NV - 1;
     const W = 640, H = 240, L = 72, R = 12, T = 14, B = 34;
-    const conv = (s) => (s == null ? null : r.dom ? r.cnt / s : s);
+    const conv = (s) => (s == null ? null : r.dom ? r.cnt / s : s * r.cnt);
     const P = r.p.map(conv), N = r.n.map(conv);
     const all = P.concat(N).filter((v) => v != null);
     let lo = Math.min(...all), hi = Math.max(...all);
@@ -370,7 +371,8 @@
       const counts = r.dom
         ? r.cnt.toLocaleString() + " " + noun + (r.cnt === 1 ? "" : "s") + " per " +
           unitWord(r) + (r.inf ? ", inferred from the name" : "")
-        : "not a stream rate, so it reads as time per call";
+        : "not a stream rate, so it reads as time per call" + (r.cnt > 1
+          ? " (" + r.cnt.toLocaleString() + " " + unitWord(r) + "s per call)" : "");
       const dl = [
         ["What it times", lab ? esc(lab.def)
           : "No definition yet: this row is on benchmarks/.labels-exempt."],

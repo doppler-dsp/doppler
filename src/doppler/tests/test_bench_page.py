@@ -291,10 +291,52 @@ def test_a_stream_row_reads_in_samples_and_rs_in_bits(tmp_path: Path) -> None:
     }
     data = _load().page_data(str(_tree(tmp_path, rel, label)))
     fft = _row(data, "c:costas::fft[nfft=256]")
-    assert (fft["cnt"], fft["dom"], fft["inf"]) == (256, "Sa", False)
+    assert (fft["cnt"], fft["dom"], fft["inf"]) == (256, "Sa", True)
     rs = _row(data, "c:costas::decode[e=8]")
     assert (rs["cnt"], rs["dom"]) == (2040, "bit")
     assert _row(data, "c:costas::get")["dom"] is None
+
+
+def test_a_read_out_is_time_per_call_not_a_rate(tmp_path: Path) -> None:
+    """A read-out is no stream (#2372 review): a per-call row whose name
+    carries an nfft is not nfft samples per call, and a read-out recorded
+    per bin reads per call once its label says `domain = "call"`, with
+    the call's time the bin's times the label's count."""
+    label = (
+        '["c:costas::value"]\nname = "Read-out"\nunit = "bin"\n'
+        'definition = "One read-out of 4,096 bins."\n'
+        'domain = "call"\ncount = 4096\n'
+    )
+    rel = {
+        "v0.71.0": [
+            _c("costas::power[nfft=1024]", 1e-6, 1, {"unit": "call"}),
+            _c("costas::value", 4096e-10, 4096, {"unit": "bin"}),
+        ]
+    }
+    tree = _tree(tmp_path, rel, label, exempt=["c:costas::power[nfft=1024]"])
+    br = _load()
+    data = br.page_data(str(tree))
+    assert br.label_problems(str(tree)) == []
+    power = _row(data, "c:costas::power[nfft=1024]")
+    assert (power["dom"], power["cnt"]) == (None, 1)
+    value = _row(data, "c:costas::value")
+    assert (value["dom"], value["cnt"]) == (None, 4096)
+    assert br._fmt_row(value, value["p"][-1]) == "409.60 ns / call"
+
+
+def test_every_count_read_from_a_name_is_inferred(tmp_path: Path) -> None:
+    """Only a label or a recorded unit states a count; the name does not."""
+    rel = {
+        "v0.71.0": [
+            _c("costas::step", 1e-3, 4096),
+            _c("costas::steps", 1e-3, 4096, {"unit": "sample"}),
+            _c("costas::fft[nfft=256]", 1e-3, 64, {"unit": "frame"}),
+        ]
+    }
+    data = _load().page_data(str(_tree(tmp_path, rel)))
+    assert _row(data, "c:costas::step")["inf"] is True
+    assert _row(data, "c:costas::fft[nfft=256]")["inf"] is True
+    assert _row(data, "c:costas::steps")["inf"] is False
 
 
 def test_a_legacy_unit_is_used_then_must_go(tmp_path: Path) -> None:

@@ -104,3 +104,65 @@ unit = "sample"
 definition = "Converting a 65,536-sample int16 I/Q block to float through the Python binding, so the wheel's call overhead is included."
 samples = 1
 headline = true
+
+# Read-outs and design-time calls. Each records a per-bin unit, but none
+# runs at the sample rate -- a display reads a spectrum once per refresh,
+# a window is built once and cached -- so per-sample throughput would
+# flatter them by the size of the block. `domain = "call"` reads them as
+# time per call, and `count` is how many recorded units one call is.
+
+["c:acc_trace::value"]
+name = "Trace read-out, 4,096 bins"
+unit = "bin"
+definition = "Reading a 4,096-bin averaged trace out of the accumulator, once per display refresh: a read-out, not a stream, so it reads as time per call."
+domain = "call"
+count = 4096
+
+["c:psd::power_onesided[nfft=1024]"]
+name = "Power spectrum read-out, 1,024 points"
+unit = "call"
+definition = "Reading the one-sided power spectrum (513 bins) out of a 1,024-point Welch estimate, once per display refresh: per call, because per sample would flatter it by every sample that went in."
+domain = "call"
+count = 1
+
+["c:psd::power_onesided[nfft=4096]"]
+name = "Power spectrum read-out, 4,096 points"
+unit = "call"
+definition = "Reading the one-sided power spectrum (2,049 bins) out of a 4,096-point Welch estimate, once per display refresh: per call, because per sample would flatter it by every sample that went in."
+domain = "call"
+count = 1
+
+["c:psd::power_onesided[nfft=16384]"]
+name = "Power spectrum read-out, 16,384 points"
+unit = "call"
+definition = "Reading the one-sided power spectrum (8,193 bins) out of a 16,384-point Welch estimate, once per display refresh: per call, because per sample would flatter it by every sample that went in."
+domain = "call"
+count = 1
+
+["c:spectral::kaiser_window[4096]"]
+name = "Kaiser window design, 4,096 points"
+unit = "bin"
+definition = "Building a 4,096-point Kaiser window (beta 8.6), which a caller does once and caches: the price of rebuilding it per frame, read as time per call."
+domain = "call"
+count = 4096
+
+["c:spectral::hann_window[4096]"]
+name = "Hann window design, 4,096 points"
+unit = "bin"
+definition = "Building a 4,096-point Hann window, which a caller does once and caches: the price of rebuilding it per frame, read as time per call."
+domain = "call"
+count = 4096
+
+["c:spectral::blackman_harris_window[4096]"]
+name = "Blackman-Harris window design, 4,096 points"
+unit = "bin"
+definition = "Building a 4,096-point Blackman-Harris window, which a caller does once and caches: the price of rebuilding it per frame, read as time per call."
+domain = "call"
+count = 4096
+
+["c:spectral::kaiser_enbw[4096]"]
+name = "Window noise bandwidth, 4,096 points"
+unit = "bin"
+definition = "The equivalent noise bandwidth of a 4,096-point window, a property computed once per window and cached, read as time per call."
+domain = "call"
+count = 4096

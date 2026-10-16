@@ -670,57 +670,68 @@ STREAM_OP = re.compile(
 
 
 def rate_of(rid: str, unit, label=None):
-    """``(count, domain, inferred)`` for one row, or None for setup/control.
+    """``(count, domain, inferred)`` for one row.
 
     ``count`` units of ``domain`` per recorded unit: ``(1, "Sa", False)``
     for a sample row, ``(2040, "bit", False)`` for an RS codeword read in
-    coded bits. A label's ``samples`` or ``domain``/``count`` decides; else
-    the unit; else the operation's name, and the result says it is inferred.
+    coded bits. ``domain`` None is setup, control or a read-out, which reads
+    as time per call, and ``count`` is then how many recorded units one call
+    is (a read-out of 4,096 bins recorded per bin is 4,096).
+
+    A label's ``samples`` or ``domain``/``count`` decides; else the recorded
+    unit; else the operation's name. A count read from the NAME -- a
+    frame's ``nfft``, a Python call's ``64k``, a one-sample ``step`` -- is
+    ``inferred``, because nothing the snapshot records states it.
 
     >>> rate_of("c:fft::execute_cf32[n=4096]", "bin")
     (1, 'Sa', False)
     >>> rate_of("c:psd::fft[nfft=256]", "frame")
-    (256, 'Sa', False)
+    (256, 'Sa', True)
     >>> rs = {"domain": "bit", "count": 2040}
     >>> rate_of("c:rs::decode[e=8]", "codeword", rs)
     (2040, 'bit', False)
-    >>> rate_of("c:acc_f32::get", "call") is None
-    True
+    >>> rate_of("c:acc_f32::get", "call")
+    (1, None, False)
+    >>> rate_of("c:psd::power_onesided[nfft=1024]", "call")
+    (1, None, False)
+    >>> rate_of("c:acc_trace::value", "bin", {"domain": "call", "count": 4096})
+    (4096, None, False)
     >>> rate_of("c:acc_f32::step", None)
     (1, 'Sa', True)
     >>> rate_of("py:i16_to_f32::test_bench_steps_64k", "call")
-    (65536, 'Sa', False)
+    (65536, 'Sa', True)
     """
     label = label or {}
+    if label.get("domain") == "call":
+        return int(label.get("count", 1)), None, False
     if "samples" in label:
         return int(label["samples"]), "Sa", False
-    if label.get("domain") == "call":
-        return None
     if label.get("domain"):
         return int(label.get("count", 1)), label["domain"], False
     op = rid.split("::", 1)[1] if "::" in rid else rid
-    nfft = re.search(r"nfft\s*=\s*(\d+)", op)
     if unit in UNIT_SAMPLES:
         return UNIT_SAMPLES[unit], "Sa", False
-    if unit == "frame":
-        return (
-            (int(nfft.group(1)), "Sa", False) if nfft else (1, "frame", False)
-        )
     if unit in UNIT_DOMAIN:
         return 1, UNIT_DOMAIN[unit], False
     if unit in CONTROL_UNITS or CONTROL_OP.search(op):
-        return None
-    guess = unit is None
+        return 1, None, False
+    # Past here the count comes from the row's name, never from the
+    # snapshot, so every result says so.
+    if unit == "frame":
+        nfft = re.search(r"nfft\s*=\s*(\d+)", op)
+        return (
+            (int(nfft.group(1)), "Sa", True) if nfft else (1, "frame", False)
+        )
     blk = re.search(r"(\d+)k(?![a-z])", op, re.I)
     if rid.startswith("py:") and blk and STREAM_OP.search(op):
-        return int(blk.group(1)) * 1024, "Sa", guess
-    if re.search(r"(^|_)steps?(_|$|\[)", op):
-        return 1, "Sa", guess
-    if unit == "call" and nfft:
-        return int(nfft.group(1)), "Sa", False
+        return int(blk.group(1)) * 1024, "Sa", True
+    if re.search(r"(^|_)step(_|$|\[)", op) or (
+        unit is None and re.search(r"(^|_)steps(_|$|\[)", op)
+    ):
+        return 1, "Sa", True
     if unit is None and STREAM_OP.search(op):
         return 1, "Sa", True
-    return None
+    return 1, None, False
 
 
 def label_count_problem(rid: str, label: dict, unit):
@@ -742,7 +753,7 @@ def label_count_problem(rid: str, label: dict, unit):
             f"{rid}: label counts {label['samples']} samples per unit, but "
             f"the snapshot's unit `{unit}` is {want}"
         )
-    if label.get("domain") and want is not None:
+    if label.get("domain") not in (None, "call") and want is not None:
         return (
             f"{rid}: label reads in `{label['domain']}`, but the snapshot's "
             f"unit `{unit}` is samples"
@@ -1007,10 +1018,11 @@ def page_data(root: str = ".") -> dict:
                 "mod": mod,
                 "fam": fam,
                 "unit": unit,
-                # count of `dom` per unit; dom None = setup/control
-                "cnt": rate[0] if rate else None,
-                "dom": rate[1] if rate else None,
-                "inf": bool(rate and rate[2]),
+                # `cnt` of `dom` per unit; dom None = setup/control, and
+                # then `cnt` is how many units one call is
+                "cnt": rate[0],
+                "dom": rate[1],
+                "inf": rate[2],
                 "it": last_basis[1] if last_basis[0] == "it" else 1,
                 "p": series["portable"],
                 "n": series["native"],
@@ -1142,12 +1154,23 @@ def fmt_rate(per_sec: float, dom: str) -> str:
 
 
 def _fmt_row(row: dict, secs) -> str:
-    """One value as the static table shows it: its rate, or time per call."""
+    """One value as the static table shows it: its rate, or time per call.
+
+    ``secs`` is per recorded unit; a setup or read-out row's ``cnt`` is how
+    many of those one call is, so its time per call is ``secs * cnt``.
+
+    >>> _fmt_row({"dom": "Sa", "cnt": 1}, 1.5e-9)
+    '667 MSa/s'
+    >>> _fmt_row({"dom": None, "cnt": 4096}, 1e-10)
+    '409.60 ns / call'
+    >>> _fmt_row({"dom": None, "cnt": 1}, None)
+    '—'
+    """
     if secs is None:
         return "—"
     if row["dom"]:
         return fmt_rate(row["cnt"] / secs, row["dom"])
-    return f"{fmt_time(secs)} / call"
+    return f"{fmt_time(secs * row['cnt'])} / call"
 
 
 def render_page(root: str = ".") -> str:
@@ -1259,10 +1282,12 @@ def render_page(root: str = ".") -> str:
         " `nfft`; a Python call over a 64k block counts 65,536. Rows whose"
         " input is not samples read in their own rate: symbols, bits or"
         " codewords per second. Setup and control calls (create, reset,"
-        " retune, configure) are not stream rates and read as time per call."
-        " The count comes from the row's label, else its recorded unit, else"
-        " its name, and then says *inferred*: a row from before the snapshots"
-        " recorded units (v0.43.0 to v0.72.0) with no label to supply one.",
+        " retune, configure) and read-outs (a spectrum read once per display"
+        " refresh, a window built once and cached) are not stream rates and"
+        " read as time per call. The count comes from the row's label, else"
+        " its recorded unit, else its name -- a frame's `nfft`, a `64k`"
+        " block, a one-sample `step` -- and a count read from the name says"
+        " *inferred*.",
         "",
         '<span id="headroom"></span>**Headroom.** Throughput ÷ your sample'
         " rate, for stream rows. ×1 is exactly real time on this machine, one"

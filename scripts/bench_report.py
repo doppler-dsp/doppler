@@ -797,8 +797,8 @@ def seconds_per_unit(suite: str, bench: dict):
     jm_bench's ``mean_per_unit`` is, and what v0.43.0 to v0.72.0 never
     wrote. A Python row is per unit of the rate it records (`_py_rate`),
     else per call: pytest-benchmark's mean is already per call, whatever
-    its ``iterations`` says. ``basis`` is what the value is per; the trend
-    breaks where it changes between releases.
+    its ``iterations`` says. ``basis`` is what the value is per; `breaks`
+    says which change of it, and of the recorded unit, breaks a trend.
 
     >>> rnd = {"mean": 4e-5, "iterations": 8}
     >>> seconds_per_unit("c", {"stats": rnd, "extra_info": {}})
@@ -939,27 +939,27 @@ def _sig(x):
     return None if x is None else float(f"{x:.4g}")
 
 
-def breaks(bases: list, units: list, legacy_unit=None) -> list:
+def breaks(bases: list, units: list) -> list:
     """Indices of the releases where a row's value changed meaning.
 
     ``bases[i]`` is what release i's value is per (`seconds_per_unit`),
     ``units[i]`` the unit that release recorded, None for a C row from
-    before #2314 (v0.43.0 to v0.72.0). What breaks a trend is the UNIT
-    changing: a round that only grew, same unit, is the same quantity, and
-    a break there would hide a real change since the last release. Between
-    two releases that recorded no unit, the round's size is all there is to
-    go on, so a change in ``iterations`` breaks. From a unit-less release to
-    one with a unit, the earlier one's unit is ``legacy_unit`` (its
-    legacy-units.toml entry), and only a different unit breaks; with no
-    entry -- the file is deleted the release units arrive -- the round's
-    size decides, as it did before.
+    before #2314 (v0.43.0 to v0.72.0). What breaks depends on the row:
+
+    - a C row between two releases that both recorded a unit breaks where
+      the UNIT changed. A round that only grew, same unit, is the same
+      quantity, and a break there would hide a real since-last change;
+    - a C row where either release recorded no unit -- inside v0.43.0 to
+      v0.72.0, or across into the first set with units, v0.73.0 -- has only
+      its round to go on, so a change in ``iterations`` breaks. (v0.73.0
+      changes no row's ``iterations``, so it breaks nothing there.)
+    - a Python row breaks where its rate key changed: per call one release,
+      per bit (``Mbit_s``) the next.
 
     >>> c = [("it", 4096), ("it", 65536), ("it", 65536), ("it", 1)]
-    >>> breaks(c, [None, None, "sample", "sample"], "sample")
+    >>> breaks(c, [None, None, "sample", "sample"])
     [1]
     >>> breaks(c[2:], ["sample", "call"])
-    [1]
-    >>> breaks([("it", 8), ("it", 8)], [None, "call"], "sample")
     [1]
     >>> breaks([("it", 8), ("it", 8)], [None, "call"])
     []
@@ -972,17 +972,10 @@ def breaks(bases: list, units: list, legacy_unit=None) -> list:
             continue
         if prev is not None:
             pb, pu = prev
-            if basis[0] != "it" or (pu is None and units[i] is None):
-                changed = basis != pb
-            elif (pu or legacy_unit) is None or (
-                units[i] or legacy_unit
-            ) is None:
-                # Into the first set with units, once legacy-units.toml is
-                # gone (`make bench-labels-fix` deletes it at that release),
-                # the old unit is unknown: the round's size is what is left.
-                changed = basis != pb
+            if basis[0] == "it" and pu is not None and units[i] is not None:
+                changed = pu != units[i]
             else:
-                changed = (pu or legacy_unit) != (units[i] or legacy_unit)
+                changed = basis != pb
             if changed:
                 out.append(i)
         prev = basis, units[i]
@@ -1116,7 +1109,7 @@ def page_data(root: str = ".") -> dict:
                         series[b][i] = None
                 if all(series[b][i] is None for b in BUILDS):
                     bases[i] = None
-        brk = breaks(bases, units, legacy.get(rid))
+        brk = breaks(bases, units)
         sl, slb = since_last(series["portable"], brk)
         unit = unit or "iter"
         last_basis = next(
@@ -1509,17 +1502,21 @@ def render_page(root: str = ".") -> str:
         "",
         '<span id="since-last"></span>**Since last.** Portable speed against'
         " the previous release that measured the row. Changes under 3% are"
-        " grey: repeat runs of an unchanged tree move about that much. Where"
-        " the row's round changed size in between, the two are different"
-        " quantities and it reads *break*.",
+        " grey: repeat runs of an unchanged tree move about that much. Across"
+        " a [break](#trend) the two are different quantities, and it reads"
+        " *break*.",
         "",
         '<span id="trend"></span>**Trend.** One point per release, portable'
         " build, drawn as speed (higher is faster). A gap is a release that"
         " did not measure the row, or measured it faster than"
         f" {CEILING_MSA_S / 1000:.0f} GSa/s: a hollow benchmark, not a fast"
-        " kernel. A dashed line marks a release where the"
-        " row's round changed size, so its per-unit value changed meaning"
-        " there; the line breaks rather than draw a jump that is not real.",
+        " kernel. A dashed line is a *break*: a release where the row's value"
+        " changed meaning, so the line breaks rather than draw a jump that is"
+        " not real. A C row breaks where its recorded unit changed; a release"
+        " from before C rows recorded one (v0.43.0 to v0.72.0) has only its"
+        " round to go on, so there a round that changed size breaks. A"
+        " Python row breaks where the rate it records changed, per call one"
+        " release and per bit the next.",
         "",
         '<span id="units"></span>**Units.** Every row that processes a'
         " stream reads in **samples per second**: input samples consumed,"
@@ -1564,8 +1561,14 @@ def render_page(root: str = ".") -> str:
 
 
 def cmd_page(out_path, check=False, root=".") -> int:
-    """Write docs/benchmarks.md, or with ``check`` compare against it."""
-    bad = label_problems(root, history=False)
+    """Write docs/benchmarks.md, or with ``check`` compare against it.
+
+    Writing (`make bench-docs`, at a release) runs the whole label gate,
+    so a dead label -- a retired row, a renamed one -- shows there. The
+    ``check`` path (`docs-check`, the Docs job's depth-1 checkout) skips
+    the one question that needs history; `make lint` asks it.
+    """
+    bad = label_problems(root, history=not check)
     if bad:
         for b in bad:
             print(f"bench-labels: {b}")

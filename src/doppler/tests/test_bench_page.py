@@ -608,8 +608,9 @@ def test_an_unreadable_release_commit_fails_the_gate_not_the_page(
 ) -> None:
     """In a clone that cannot read the newest release's commit, a label
     for an unpublished row can be neither pending nor dead: the gate
-    (`make lint`, full history) fails closed, while the page check (the
-    Docs job, a depth-1 checkout -- #2373's red Docs run) does not ask."""
+    (`make lint`, full history) and the page writer fail closed, while the
+    page check (the Docs job, a depth-1 checkout -- #2373's red Docs run)
+    does not ask."""
     rel = {"v0.71.0": [_c("costas::steps", 1e-3, 4096, {"unit": "sample"})]}
     tree = _tree(tmp_path, rel, LABEL + NEW_LABEL)
     (tree / "docs").mkdir()
@@ -619,7 +620,10 @@ def test_an_unreadable_release_commit_fails_the_gate_not_the_page(
     br = _load()
     bad = br.label_problems(str(tree))
     assert any("cannot be read" in b for b in bad), bad
-    assert br.cmd_page("docs/benchmarks.md", root=str(tree)) == 0
+    # the writer (`make bench-docs`, on the bench box) runs the whole gate
+    assert br.cmd_page("docs/benchmarks.md", root=str(tree)) == 1
+    page = tree / "docs" / "benchmarks.md"
+    page.write_text(br.render_page(str(tree)), encoding="utf-8")
     assert br.cmd_page("docs/benchmarks.md", check=True, root=str(tree)) == 0
 
 
@@ -639,29 +643,34 @@ def test_a_name_recorded_twice_keeps_its_first_value(tmp_path: Path) -> None:
 def test_a_unit_change_breaks_a_trend_and_a_bigger_round_does_not(
     tmp_path: Path,
 ) -> None:
-    """From v0.73.0 every C row records its unit (#2373 review): a round
-    that only grew is the same quantity, so its since-last change is
-    real; a changed unit is a different quantity and breaks. Into the
-    first set with units, the legacy unit stands in for the old ones."""
+    """From v0.73.0 every C row records its unit (#2373 review): between
+    two releases with units, a round that only grew is the same quantity,
+    so its since-last change is real, and a changed unit breaks. Across
+    into the first set with units, only the round is known on both sides,
+    so a round that changed size breaks there. The tree is one the label
+    gate accepts: no legacy-units.toml, as after `make bench-labels-fix`."""
     rel = {
         "v0.72.0": [
             _c("costas::steps", 1e-3, 4096),
             _c("costas::get", 1e-6, 1),
+            _c("costas::fold", 1e-3, 4096),
         ],
         "v0.73.0": [
             _c("costas::steps", 1e-3, 4096, {"unit": "sample"}),
             _c("costas::get", 1e-6, 1, {"unit": "call"}),
+            _c("costas::fold", 2e-3, 8192, {"unit": "sample"}),
         ],
         "v0.74.0": [
             _c("costas::steps", 8e-3, 65536, {"unit": "sample"}),
             _c("costas::get", 1e-6, 1, {"unit": "bin"}),
+            _c("costas::fold", 2e-3, 8192, {"unit": "sample"}),
         ],
     }
-    tree = _tree(tmp_path, rel)
-    (tree / "benchmarks" / "legacy-units.toml").write_text(
-        '"c:costas::steps" = "sample"\n"c:costas::get" = "bin"\n', "utf-8"
-    )
-    data = _load().page_data(str(tree))
+    ids = ["c:costas::steps", "c:costas::get", "c:costas::fold"]
+    tree = _tree(tmp_path, rel, exempt=ids)
+    br = _load()
+    assert br.label_problems(str(tree)) == []
+    data = br.page_data(str(tree))
     steps = _row(data, "c:costas::steps")
     assert steps["brk"] == []
     # values carry four significant digits, so `sl` does too
@@ -669,7 +678,8 @@ def test_a_unit_change_breaks_a_trend_and_a_bigger_round_does_not(
         1e-3 / 4096 / (8e-3 / 65536) - 1, rel=1e-3
     )
     get = _row(data, "c:costas::get")
-    assert (get["brk"], get["sl"], get["slb"]) == ([1, 2], None, True)
+    assert (get["brk"], get["sl"], get["slb"]) == ([2], None, True)
+    assert _row(data, "c:costas::fold")["brk"] == [1]
 
 
 def test_an_unknown_unit_word_is_refused(tmp_path: Path) -> None:
@@ -706,3 +716,21 @@ def test_the_first_set_with_units_does_not_break_without_legacy_units(
     }
     row = _row(_load().page_data(str(_tree(tmp_path, rel))), "c:costas::steps")
     assert (row["brk"], row["slb"]) == ([], False)
+
+
+def test_writing_the_page_reports_a_dead_label(tmp_path: Path) -> None:
+    """`make bench-docs` at a release is where a retired or renamed row's
+    label first shows (#2373 review): the writer runs the whole gate, and
+    only the depth-1 --check skips the history question."""
+    rel = {"v0.71.0": [_c("costas::steps", 1e-3, 4096, {"unit": "sample"})]}
+    tree = _tree(tmp_path, rel, LABEL)
+    (tree / "docs").mkdir()
+    _git(tree, "init", "-q", "-b", "main")
+    (tree / "benchmarks" / "labels.toml").write_text(
+        LABEL + NEW_LABEL, encoding="utf-8"
+    )
+    # measured WITH the new row's label, and no such row recorded: dead
+    _stamp(tree, "v0.71.0", _commit(tree, "measured with the label"))
+    br = _load()
+    assert br.cmd_page("docs/benchmarks.md", root=str(tree)) == 1
+    assert not (tree / "docs" / "benchmarks.md").exists()

@@ -191,7 +191,7 @@
       const xx = x(b - 0.5).toFixed(1);
       g += '<line class="dpb-brk" x1="' + xx + '" x2="' + xx + '" y1="' + T +
         '" y2="' + (H - B) + '"/><text class="dpb-axis" x="' + (+xx + 4) +
-        '" y="' + (T + 10) + '">round size changed</text>';
+        '" y="' + (T + 10) + '">meaning changed</text>';
     }
     const line = (a, cls) => segments(a, r.brk).map((seg) => seg.length === 1
       ? '<circle class="' + cls + '-dot" cx="' + x(seg[0]).toFixed(1) + '" cy="' +
@@ -357,9 +357,10 @@
         esc(r.id.slice(r.id.indexOf(":") + 1)) + "</div></td>" +
         '<td class="dpb-v">' + fmtVal(r, r.p[LAST]) + '</td><td class="dpb-v">' +
         fmtVal(r, r.n[LAST]) + "</td><td>" + chip(speedup(r.p[LAST], r.n[LAST])) +
-        "</td><td>" + (r.slb ? '<span class="dpb-flat" title="the round' +
-          ' changed size since the last release, so the two are different' +
-          ' quantities">break</span>' : chip(r.sl)) + "</td><td>" + headChip(headroom(r, r.p[LAST])) +
+        "</td><td>" + (r.slb ? '<a class="dpb-flat" href="#trend" title="the' +
+          ' value changed meaning since the last release (a new unit, or an' +
+          ' old round of a new size), so the two are different quantities">' +
+          "break</a>" : chip(r.sl)) + "</td><td>" + headChip(headroom(r, r.p[LAST])) +
         '</td><td class="dpb-trend">' + spark(r, NV, 132, 28) + "</td></tr>";
     }
     function detailHTML(r) {
@@ -387,7 +388,7 @@
           " per round" : "")],
         ["Measured since", V[first]],
         ["Breaks", r.brk.length ? r.brk.map((i) => V[i]).join(", ") +
-          ": the round changed size" : "none"],
+          ': the value changed meaning (<a href="#trend">why</a>)' : "none"],
         ["Reproduce", "<code>" + esc(repro) + "</code>"],
         ["ID", "<code>" + esc(r.id.slice(r.id.indexOf(":") + 1)) + "</code>"],
       ];

@@ -104,22 +104,28 @@ def _cells(text: str) -> list[list[str]]:
     return rows
 
 
-def runs(data: Path, commit: str) -> Runs:
+def runs(data: Path, commit: str, meta: bool = True) -> Runs:
     """Every pass of both builds of one run, held to its commit and count.
 
-    When the run's merged ``doppler_meta`` is committed beside its passes
-    (``meta.json``, one block per build), each block must name the same
-    commit: that file is what the record's machine and governor claims cite.
+    The run's merged ``doppler_meta`` is committed beside its passes
+    (``meta.json``, one block per build), and each block must name the same
+    commit: that file is what the record's machine and governor claims
+    cite, and the merged set it came from is not kept. ``meta=False`` is
+    for the one run that predates it (u1u4, whose ``doppler_meta`` was
+    never committed); for every other run a missing file is refused, so
+    deleting it cannot leave the record citing nothing.
     """
     P = {b: load(data, b, commit) for b in BUILDS}
     if any(len(P[b]) != PASSES for b in BUILDS):
         raise SystemExit(f"expected {PASSES} passes per build in {data}")
-    meta = data / "meta.json"
-    if meta.exists():
-        m = json.loads(meta.read_text(encoding="utf-8"))
+    path = data / "meta.json"
+    if meta and not path.exists():
+        raise SystemExit(f"{path}: missing -- the run's doppler_meta")
+    if path.exists():
+        m = json.loads(path.read_text(encoding="utf-8"))
         bad = [b for b in BUILDS if m[b]["commit"] != commit]
         if bad:
-            raise SystemExit(f"{meta}: {bad} not measured at {commit}")
+            raise SystemExit(f"{path}: {bad} not measured at {commit}")
     return P
 
 
@@ -129,6 +135,7 @@ def main(
     commit: str,
     blocks: dict[str, Callable[[Runs], str]],
     doc: str,
+    meta: bool = True,
 ) -> int:
     """Print, ``--write`` or ``--check`` one run's tables in the record."""
     ap = argparse.ArgumentParser(description=doc.splitlines()[0])
@@ -136,7 +143,7 @@ def main(
     mode.add_argument("--write", action="store_true")
     mode.add_argument("--check", action="store_true")
     a = ap.parse_args()
-    P = runs(data, commit)
+    P = runs(data, commit, meta)
     rendered = {name: f(P) for name, f in blocks.items()}
     if not (a.write or a.check):
         for name, body in rendered.items():

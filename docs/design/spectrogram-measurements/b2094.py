@@ -251,7 +251,7 @@ def cross(P: Runs) -> str:
     whose rotation gained two rows, and the three dB pushes that gained a
     power row beside them) are kept apart from the rest.
     """
-    A = runs(u1u4.DATA, u1u4.COMMIT)
+    A = runs(u1u4.DATA, u1u4.COMMIT, meta=False)
     shared = sorted(set(A["portable"][0]) & set(P["portable"][0]))
     moved = {f"spectrogram::push[nfft={n},hop={h}]" for n, h in ROWS}
 
@@ -303,7 +303,7 @@ def onesided(P: Runs) -> str:
     this refuses: the step is a claim the data is checked against. A move
     is the median's change here over 5.6's, also in steps.
     """
-    A = runs(u1u4.DATA, u1u4.COMMIT)
+    A = runs(u1u4.DATA, u1u4.COMMIT, meta=False)
     out = []
     for n in ONESIDED:
         k = _psd("power_onesided", n)

@@ -801,21 +801,37 @@ characterization, not a release's published numbers.
 ### 5.15 Row latency against `hop`, and U1 at `nfft/2` (2026-10-16) — #2062
 
 **Why this run.** Entry 5.6 measured U1 at `hop` `nfft/4` and `nfft`, and
-entry 5.7 measured U2 at `hop` 256 only. The rows between them were in the
-bench but past `jm_bench.h`'s 32-row cap, which dropped every row after the
-32nd without a word (just-makeit#2188). With jm 0.106.0's header vendored
-(#2357), the Spectrogram bench records all 53 of its rows, and this run
-measures the ones 5.6 and 5.7 could not.
+entry 5.7 measured U2 at `hop` 256 only. The other rows were held out of the
+bench on purpose: it stopped at 29 rows, because `jm_bench.h` kept at most
+32 and dropped the rest without a word (just-makeit#2188). 5.6 and 5.7 lost
+no row; they had none to lose. With jm 0.106.0's header vendored (#2357),
+the Spectrogram bench records all 53 of its rows, and this run measures the
+ones 5.6 and 5.7 could not.
 
-**Method: 5.6's, with one difference.** One run of
+**Method: 5.6's procedure, on different code.** One run of
 `make bench-interleaved VERSION=0.73.0-2062 K=5` at **e13a27fc1**, a commit
 on main, on **cachyos-x8664-ai465**, from 07:28 to 09:35 UTC:
 
-- The compiler, the two builds' flags, the governor, boost, platform profile
-    and pinning (cpus 0–3 and 10–13) are 5.6's, as the run's merged
-    `doppler_meta` records them (`b2062/meta.json`).
-- **The difference:** the kernel is 7.2.10-1-cachyos; 5.6 ran on 7.2.9-2.
+- **The same:** the compiler, the two builds' flags, the governor, boost,
+    platform profile and pinning (cpus 0–3 and 10–13) are 5.6's, as the
+    run's merged `doppler_meta` records them (`b2062/meta.json`).
+- **The machine:** the Linux kernel is 7.2.10-1-cachyos; 5.6 ran on
+    7.2.9-2.
+- **The code under test** is 308 commits on from 5.6's c1ae84190. That
+    includes the Spectrogram holding PSD's frame kernel instead of a PSD
+    (#1894), which entry 5.10 measured as moving no row by more than its
+    own spread.
+- **The bench changed too.** Three of the one-push dB rows (`hop`
+    `nfft/4` at `nfft` 256, 1024 and 65,536) are now timed beside a power
+    twin (5.14), where 5.6 timed each beside its direct row alone. The
+    re-vendored `jm_bench.h` records each row's unit.
 - No other job was started on the machine. Load was not logged.
+
+**So this run is not 5.6's numbers re-measured, and a cross-run comparison
+reads as such.** Of the 29 rows the two runs share, every portable row is
+1.8–3.8% faster here, and every native row is within −0.4% and +1.1%. A
+change in the machine alone would not pick one build. The tables below
+compare rows only within this run.
 
 The ten per-pass snapshots, filtered to the `spectrogram::` rows, are in
 `docs/design/spectrogram-measurements/b2062/`. Every table below is the
@@ -856,11 +872,11 @@ minus *c_s*; a chunk of *C* samples should cost `c_s + c_p / C` per sample:
 
 <!-- spectrogram-b2062:u2:start -->
 
-| hop   | *c_s*, ns/sample  | spread      | chunk 1, ns/sample | *c_p*, ns per push |
-| ----- | ----------------- | ----------- | ------------------ | ------------------ |
-| 64    | 106.937 / 105.021 | 1.9% / 3.7% | 111.520 / 109.599  | 4.583 / 4.578      |
-| 256   | 26.922 / 26.464   | 1.9% / 3.5% | 31.630 / 31.058    | 4.709 / 4.594      |
-| 1,024 | 6.903 / 6.812     | 2.0% / 3.6% | 11.461 / 11.386    | 4.558 / 4.573      |
+| hop   | *c_s*, ns/sample  | spread      | chunk 1, ns/sample | chunk 1 spread | *c_p*, ns per push |
+| ----- | ----------------- | ----------- | ------------------ | -------------- | ------------------ |
+| 64    | 106.937 / 105.021 | 1.9% / 3.7% | 111.520 / 109.599  | 1.8% / 3.5%    | 4.583 / 4.578      |
+| 256   | 26.922 / 26.464   | 1.9% / 3.5% | 31.630 / 31.058    | 2.3% / 3.1%    | 4.709 / 4.594      |
+| 1,024 | 6.903 / 6.812     | 2.0% / 3.6% | 11.461 / 11.386    | 6.6% / 1.9%    | 4.558 / 4.573      |
 
 | hop   | chunk  | measured, ns/sample | predicted `c_s + c_p/C` | error         |
 | ----- | ------ | ------------------- | ----------------------- | ------------- |
@@ -879,20 +895,27 @@ minus *c_s*; a chunk of *C* samples should cost `c_s + c_p / C` per sample:
 **The answer to U2 against `hop`: the model holds to 0.3% at every hop, with
 no refit.**
 
-- ***c_p* does not depend on `hop`.** It is 4.56 to 4.71 ns per push at
-    `hop` 64, 256 and 1024, in both builds: the push's own overhead, paid
-    once per call whatever the row rate.
+- ***c_p* does not depend on `hop`.** Its medians are 4.56 to 4.71 ns per
+    push at `hop` 64, 256 and 1024, in both builds, and the per-pass values
+    overlap at every hop: the push's own overhead, paid once per call
+    whatever the row rate. It rests on the chunk-1 row alone, whose spread
+    is up to 6.6% (portable, `hop` 1024: one pass slow).
 - ***c_s* scales with the rows per sample.** It falls about fourfold per
-    fourfold hop (3.97 and 3.90 portable, 3.97 and 3.89 native), so it is
-    close to one row's cost per `hop` samples.
+    fourfold hop: 3.97 and 3.90 portable, 3.97 and 3.88 native. *c_s* times
+    `hop` fits a fixed cost per row plus a small one per sample: 6.83 µs
+    per row and 0.23 ns per sample portable, 6.71 µs and 0.26 ns native. The
+    per-sample term is why the step is a little under four.
 - **So the chunk-1 penalty, *c_p* / *c_s*, grows with `hop`.** It is about
     4% at `hop` 64, 17% at 256 (5.7's figure) and 66–67% at 1024.
 - **As in 5.7, the 0.3% tests only *c_s*.** From 256 samples on, `c_p / C`
-    is at most 0.018 ns, 0.26% of *c_s* even at `hop` 1024. The chunk size
-    stays invisible from 256 samples on at every hop measured.
-- **The `hop` 256 rows repeat 5.7's.** *c_s* is 26.922 / 26.464 here,
-    against 27.787 / 26.391 there, inside 5.7's own 3.7% / 3.1% spread. *c_p*
-    is 4.709 / 4.594 against 4.640 / 4.607.
+    is at most 0.018 ns, 0.26% of *c_s* even at `hop` 1024. Read pass by
+    pass, a chunked row is within 0.7% of its one-block row at every hop and
+    chunk measured, in both directions, so the residue below that is not
+    resolved.
+- ***c_p* repeats 5.7's; *c_s* does not, quite.** At `hop` 256, *c_p* is
+    4.709 / 4.594 against 5.7's 4.640 / 4.607. *c_s* is 26.922 / 26.464
+    against 27.787 / 26.391: the portable build's 3.1% is the run-to-run
+    shift above, not a change to the model.
 
 **What this does not cover.**
 
@@ -907,3 +930,11 @@ This run's merged set (`benchmarks/published/v0.73.0-2062/`) was removed from
 the measuring machine after its `doppler_meta` was saved as
 `b2062/meta.json`. It is a characterization, not a release's published
 numbers.
+
+**A correction to 5.9 and 5.14.** Both say their run's merged set stays on
+the measuring machine. On 2026-10-16 neither `v0.66.0-a4/` nor
+`v0.66.0-b2094/` is there: `~/doppler-bench/benchmarks/published/` holds
+neither, and the clone they were written in was removed that day. 5.12's
+`doppler_meta` survives as `b2094/meta.json`. 5.6's was never committed, so
+its machine claims rest on the entry's own text. `_record.py` now refuses a
+run with no `meta.json`, waived only for 5.6's.

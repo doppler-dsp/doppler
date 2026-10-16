@@ -55,19 +55,21 @@ The goals, each of which is a thing a test can fail:
 | G7  | **Backpressure loses nothing.** A short output buffer slows the stream down; it never drops input.                                                                    |
 
 What is **not known**, and is therefore what the characterization measures
-rather than confirms (all six are now answered, in the record's §5.4 to §5.9):
+rather than confirms (all six are now answered, in the record's §5.4 to §5.9
+and §5.15):
 
-- **U1 — the carry's copy against a bypass. ANSWERED (§5.6): no bypass.**
-    Every sample goes through the ring, and that copy costs 0.06–0.24 ns per
-    sample: at most 3.3% of a sample's cost at any `nfft` from 256 to 65536
-    and `hop` of `nfft`/4 or `nfft`, under the 5% that would have justified a
-    second path.
-- **U2 — row latency. ANSWERED at `hop` 256 only (§5.7).** None in samples:
-    a row comes back with the push that delivers its last sample. In time, a
-    push costs `c_s + c_p/C` per sample, with a 4.6 ns per-push overhead, so
-    chunks of 1 cost 17% more than one block and from 256 samples on the
-    chunk size is invisible. U2 against `hop` has its bench rows and waits
-    on their measurement run (#2062).
+- **U1 — the carry's copy against a bypass. ANSWERED (§5.6, §5.15): no
+    bypass.** Every sample goes through the ring, and that copy costs
+    0.06–0.24 ns per sample: at most 3.3% of a sample's cost at any `nfft`
+    from 256 to 65536 and `hop` of `nfft`/4, `nfft`/2 or `nfft`, under the
+    5% that would have justified a second path.
+- **U2 — row latency. ANSWERED at `nfft` 1024 (§5.7, §5.15).** None in
+    samples: a row comes back with the push that delivers its last sample.
+    In time, a push costs `c_s + c_p/C` per sample, with a per-push overhead
+    of about 4.6 ns whatever the `hop`. So chunks of 1 cost 4% more than one
+    block at `hop` 64, 17% at 256 and 66–67% at 1024, and from 256 samples
+    on a chunked push is within 0.7% of one block. Chunks between 1 and 256
+    are not measured.
 - **U3 — where a row's time goes. ANSWERED (§5.8): the dB conversion
     dominates.** It is 70–83% of a row, at about 5.3 ns per bin: a divide, a
     clamp, a double `log10` and a cast, which the bench does not separate.
@@ -268,11 +270,12 @@ method and its caveats are in the record under the same number.
     allocates **28·`nfft` fewer bytes**, virtual and not resident (derived:
     12 heap plus the ring's 16 memfd, counted once), and no benchmark row
     moves by more than its own round-to-round spread.
-- **§5.15** — The per-push overhead does not depend on `hop`: about 4.6 ns
-    at `hop` 64, 256 and 1024. A chunk of 1 therefore costs 4% more per
-    sample than one block at `hop` 64, and 66% more at 1024. From 256
-    samples per push on, the chunk size does not show, at every hop
-    measured. The carry's copy is 0.7–1.4% at `hop = nfft/2` too.
+- **§5.15** — At `nfft` 1024, the per-push overhead does not depend on
+    `hop`: about 4.6 ns at `hop` 64, 256 and 1024. So a chunk of 1 costs 4%
+    more per sample than one block at `hop` 64, and 66–67% more at 1024.
+    From 256 samples per push on, a chunked push is within 0.7% of one
+    block at every hop measured. The carry's copy is 0.7–1.4% of a sample's
+    cost at `hop = nfft/2` too.
 
 The framer's cost against the hand-written loop is a property of the ring, and
 is recorded with it in [the ring's measurements](ring-buffer-measurements.md).

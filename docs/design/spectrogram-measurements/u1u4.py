@@ -63,51 +63,65 @@ def ratio(n: int, h: int) -> Callable[[Pass], float]:
     )
 
 
+#: U1's columns, shared with b2062.py's U1 at another hop.
+U1_HEAD = [
+    "nfft",
+    "hop",
+    "push, ns/sample",
+    "direct, ns/sample",
+    "push − direct",
+    "push/direct",
+    "worst pass",
+    "ratio spread",
+]
+
+
+def u1_row(P: Runs, n: int, h: int) -> list[str]:
+    """One (nfft, hop)'s U1 cells: push and direct, their difference and
+    ratio, the worst pass's ratio and the ratio's spread."""
+    a = f"nfft={n},hop={h}"
+    pk, dk = f"spectrogram::push[{a}]", f"spectrogram::direct[{a}]"
+    r = ratio(n, h)
+    return [
+        f"{n:,}",
+        f"{h:,}",
+        both(P, lambda q: med(q, lambda p: p[pk]), ".3f"),
+        both(P, lambda q: med(q, lambda p: p[dk]), ".3f"),
+        both(P, lambda q: med(q, lambda p: p[pk] - p[dk]), ".3f"),
+        both(P, lambda q: med(q, r), ".3f"),
+        both(P, lambda q: max(r(p) for p in q), ".3f"),
+        both(P, lambda q: spread(q, r), ".1%"),
+    ]
+
+
 def u1(P: Runs) -> str:
-    rows = []
-    for n in SIZES:
-        for h in (n // 4, n):
-            a = f"nfft={n},hop={h}"
-            pk, dk = f"spectrogram::push[{a}]", f"spectrogram::direct[{a}]"
-            r = ratio(n, h)
-            rows.append(
-                [
-                    f"{n:,}",
-                    f"{h:,}",
-                    both(P, lambda q, k=pk: med(q, lambda p: p[k]), ".3f"),
-                    both(P, lambda q, k=dk: med(q, lambda p: p[k]), ".3f"),
-                    both(
-                        P,
-                        lambda q, x=pk, y=dk: med(q, lambda p: p[x] - p[y]),
-                        ".3f",
-                    ),
-                    both(P, lambda q, r=r: med(q, r), ".3f"),
-                    both(P, lambda q, r=r: max(r(p) for p in q), ".3f"),
-                    both(P, lambda q, r=r: spread(q, r), ".1%"),
-                ]
-            )
     return table(
-        [
-            "nfft",
-            "hop",
-            "push, ns/sample",
-            "direct, ns/sample",
-            "push − direct",
-            "push/direct",
-            "worst pass",
-            "ratio spread",
-        ],
-        rows,
+        U1_HEAD, [u1_row(P, n, h) for n in SIZES for h in (n // 4, n)]
     )
 
 
+def push(h: int, chunk: int = 0) -> str:
+    """The U2 row at nfft 1024 and ``hop`` h: one push, or chunks of C."""
+    c = f",chunk={chunk}" if chunk else ""
+    return f"spectrogram::push[nfft=1024,hop={h}{c}]"
+
+
+def cs(q: list[Pass], h: int = 256) -> float:
+    """*c_s*: the one-push row's per-sample cost."""
+    return med(q, lambda p: p[push(h)])
+
+
+def cp(q: list[Pass], h: int = 256) -> float:
+    """*c_p*: the chunk-1 row's per-sample cost less *c_s*."""
+    return med(q, lambda p: p[push(h, 1)]) - cs(q, h)
+
+
+def pred(q: list[Pass], c: int, h: int = 256) -> float:
+    """The model's per-sample cost for chunks of ``c``: c_s + c_p / C."""
+    return cs(q, h) + cp(q, h) / c
+
+
 def u2(P: Runs) -> str:
-    def cs(q: list[Pass]) -> float:
-        return med(q, lambda p: p[BASE])
-
-    def cp(q: list[Pass]) -> float:
-        return med(q, lambda p: p[ONE]) - cs(q)
-
     rows = [
         [
             "1",
@@ -117,20 +131,16 @@ def u2(P: Runs) -> str:
         ]
     ]
     for c in (256, 1024, 16384):
-        k = f"spectrogram::push[nfft=1024,hop=256,chunk={c}]"
-
-        def pred(q: list[Pass], c: int = c) -> float:
-            return cs(q) + cp(q) / c
-
+        k = push(256, c)
         rows.append(
             [
                 f"{c:,}",
                 both(P, lambda q, k=k: med(q, lambda p: p[k]), ".3f"),
-                both(P, pred, ".3f"),
+                both(P, lambda q, c=c: pred(q, c), ".3f"),
                 both(
                     P,
-                    lambda q, k=k, pred=pred: (
-                        (med(q, lambda p: p[k]) - pred(q)) / pred(q)
+                    lambda q, k=k, c=c: (
+                        (med(q, lambda p: p[k]) - pred(q, c)) / pred(q, c)
                     ),
                     "+.1%",
                 ),
@@ -235,4 +245,6 @@ BLOCKS = {"u1": u1, "u2": u2, "u3": u3, "u4": u4}
 
 
 if __name__ == "__main__":
-    sys.exit(main("u1u4", DATA, COMMIT, BLOCKS, __doc__))
+    # The first rendered run: its doppler_meta was never committed, so it
+    # has no meta.json, and _record's requirement is waived for it alone.
+    sys.exit(main("u1u4", DATA, COMMIT, BLOCKS, __doc__, meta=False))

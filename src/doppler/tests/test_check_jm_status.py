@@ -1,4 +1,4 @@
-"""`scripts/check_jm_status.py`: jm's drift verdict plus stale vendored headers.
+"""`check_jm_status.py`: jm's drift verdict plus stale vendored headers.
 
 The script runs one `just-makeit status --check --json` and must (a) keep
 jm's exit code as the drift verdict, (b) fail when a `jm_*.h` is in the

@@ -63,6 +63,17 @@ main (void)
         t1       = jm_bench_now_ns ();
         times[r] = jm_bench_elapsed_sec (t0, t1);
       }
+    /* The row is acquisition cost only while nothing locks. A receiver
+       that locks on silence -- a false alarm -- would have spent some of
+       these rounds tracking, so refuse rather than record a mix (#2363). */
+    if (dp_dsss_receiver_get_tracking (rx))
+      {
+        (void)fprintf (stderr,
+                       "bench_dsss_receiver: search locked on silence; the "
+                       "row would mix tracking into acquisition cost -- "
+                       "check the detector's false-alarm rate\n");
+        return 1;
+      }
     jm_bench_add (&_bench, "search", times, ITERATIONS, BENCH_N);
     double sum = 0.0;
     for (int r = 0; r < ITERATIONS; r++)
@@ -120,19 +131,23 @@ main (void)
 
     /* Every round must run, and on a locked receiver (#2363). `times[]` is
        shared with the search row above, so a round that does not run keeps
-       a SEARCH timing and the row records it as tracking; and a receiver
-       that never locked would time acquisition under the "track" name.
-       The signal has two blocks of slack past ITERATIONS for the lock, so
-       either one means acquisition changed -- refuse rather than record. */
+       a SEARCH timing and the row records it as tracking. The acquisition
+       loop above exits unlocked only once the signal is used up, so the
+       old loop then ran no rounds at all and the "track" row was a copy of
+       the search row. The `pos` test is what keeps every round's reads
+       inside `x`; `!tracking` guards the lock itself. The signal has two
+       blocks of slack past ITERATIONS for the lock, so failing either
+       means acquisition changed -- refuse rather than record. */
     if (!dp_dsss_receiver_get_tracking (rx)
         || pos + (size_t)ITERATIONS * BENCH_N > total)
       {
-        fprintf (stderr,
-                 "bench_dsss_receiver: track needs a lock with %d blocks of "
-                 "signal left; locked=%d after %zu of %zu samples. The row "
-                 "would record search timings or acquisition as tracking -- "
-                 "lengthen n_track or check acquisition\n",
-                 ITERATIONS, dp_dsss_receiver_get_tracking (rx), pos, total);
+        (void)fprintf (
+            stderr,
+            "bench_dsss_receiver: track needs a lock with %d blocks of "
+            "signal left; locked=%d after %zu of %zu samples. The row "
+            "would record search timings or acquisition as tracking -- "
+            "lengthen n_track or check acquisition\n",
+            ITERATIONS, dp_dsss_receiver_get_tracking (rx), pos, total);
         return 1;
       }
 

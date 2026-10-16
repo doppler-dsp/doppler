@@ -497,6 +497,13 @@ def cmd_publish(version, build) -> int:
 # markdown. `--check` re-renders and compares, so the page cannot drift from
 # the data or from the label table.
 
+#: The global the page's data lands in, which benchmarks.js reads. The data
+#: is a script that ASSIGNS it, never an inert ``<script type=...
+#: id=...>`` block found by id: the site's instant navigation re-creates
+#: each inline script in a page it swaps in with its text alone, so an
+#: attribute does not survive a click from another page (#2391).
+PAGE_DATA = "dpBenchData"
+
 #: Plain name, unit and one-sentence definition per row: the label table.
 LABELS = "benchmarks/labels.toml"
 #: Live rows that have no label yet. A RATCHET: it only shrinks.
@@ -1560,13 +1567,12 @@ def render_page(root: str = ".") -> str:
         for k, v in data.items()
         if k != "problems" and not k.startswith("_")
     }
+    # ASCII-only JSON is a JavaScript expression (U+2028 and U+2029 arrive
+    # as \u escapes), so the assignment needs no attribute; see PAGE_DATA.
     payload = json.dumps(blob, separators=(",", ":"), sort_keys=True)
     # `</` cannot appear inside a <script> element, and JSON allows `\/`.
     payload = payload.replace("</", "<\\/")
-    L.append(
-        f'<script type="application/json" id="dp-bench-data">{payload}'
-        "</script>"
-    )
+    L.append(f"<script>window.{PAGE_DATA} = {payload};</script>")
     return "\n".join(L).rstrip("\n") + "\n"
 
 

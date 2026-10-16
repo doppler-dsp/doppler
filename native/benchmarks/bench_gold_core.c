@@ -68,7 +68,7 @@ main (void)
       t1       = jm_bench_now_ns ();
       t_gen[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "generate", t_gen, ITERATIONS, BENCH_N);
+  jm_bench_add_unit (&_bench, "generate", t_gen, ITERATIONS, BENCH_N, "chip");
   {
     double s = min_sec (t_gen, ITERATIONS);
     printf ("  %-14s %7.2f ns/chip  %8.1f Mchip/s\n", "generate",

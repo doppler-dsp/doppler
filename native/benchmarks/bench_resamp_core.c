@@ -89,7 +89,8 @@ main (void)
           char name[64];
           snprintf (name, sizeof (name), "execute[rate=%.4f,block=%zu]", rate,
                     block);
-          jm_bench_add (&bench, name, times, ITERATIONS, TOTAL_PER_ROUND);
+          jm_bench_add_unit (&bench, name, times, ITERATIONS, TOTAL_PER_ROUND,
+                             JM_BENCH_SAMPLE);
 
           double mean = 0.0;
           for (int i = 0; i < ITERATIONS; i++)

@@ -165,7 +165,8 @@ main (void)
           t_acc[k][r] = jm_bench_elapsed_sec (t0, t1);
         }
       (void)snprintf (name, sizeof name, "accumulate[nfft=%zu]", nffts[k]);
-      jm_bench_add (&_bench, name, t_acc[k], ITERATIONS, BLOCK);
+      jm_bench_add_unit (&_bench, name, t_acc[k], ITERATIONS, BLOCK,
+                         JM_BENCH_SAMPLE);
       printf ("  %-26s %7.2f ns/sample  %8.1f MSa/s\n", name,
               min_sec (t_acc[k], ITERATIONS) / BLOCK * 1e9,
               (double)BLOCK / min_sec (t_acc[k], ITERATIONS) / 1e6);
@@ -179,7 +180,8 @@ main (void)
         }
       (void)snprintf (name, sizeof name, "accumulate_real[nfft=%zu]",
                       nffts[k]);
-      jm_bench_add (&_bench, name, t_real[k], ITERATIONS, BLOCK);
+      jm_bench_add_unit (&_bench, name, t_real[k], ITERATIONS, BLOCK,
+                         JM_BENCH_SAMPLE);
       printf ("  %-26s %7.2f ns/sample  %8.1f MSa/s\n", name,
               min_sec (t_real[k], ITERATIONS) / BLOCK * 1e9,
               (double)BLOCK / min_sec (t_real[k], ITERATIONS) / 1e6);
@@ -202,7 +204,7 @@ main (void)
           t_rd[r] = jm_bench_elapsed_sec (t0, t1) / calls;
         }
       (void)snprintf (name, sizeof name, "power_onesided[nfft=%zu]", nffts[k]);
-      jm_bench_add (&_bench, name, t_rd, ITERATIONS, 1);
+      jm_bench_add_unit (&_bench, name, t_rd, ITERATIONS, 1, JM_BENCH_CALL);
       printf ("  %-26s %7.2f us/call    (%zu bins)\n\n", name,
               min_sec (t_rd, ITERATIONS) * 1e6, cap);
       free (out);

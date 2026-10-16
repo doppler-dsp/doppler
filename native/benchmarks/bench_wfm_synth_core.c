@@ -46,7 +46,7 @@ bench_cfg (const char *name, int type, int sps, int pnlen, int lfsr,
   mean /= ITERATIONS;
   double msas = (double)BENCH_N / mean / 1e6;
   printf ("  %-26s %8.1f MSa/s  (%.2f GSa/s)\n", name, msas, msas / 1000.0);
-  jm_bench_add (bench, name, times, ITERATIONS, BENCH_N);
+  jm_bench_add_unit (bench, name, times, ITERATIONS, BENCH_N, JM_BENCH_SAMPLE);
 
   dp_wfm_synth_destroy (obj);
 }
@@ -88,7 +88,7 @@ bench_cfg_rrc (const char *name, int type, int sps, int pnlen, double snr,
   mean /= ITERATIONS;
   double msas = (double)BENCH_N / mean / 1e6;
   printf ("  %-26s %8.1f MSa/s  (%.2f GSa/s)\n", name, msas, msas / 1000.0);
-  jm_bench_add (bench, name, times, ITERATIONS, BENCH_N);
+  jm_bench_add_unit (bench, name, times, ITERATIONS, BENCH_N, JM_BENCH_SAMPLE);
 
   dp_wfm_synth_destroy (obj);
 }
@@ -152,7 +152,7 @@ bench_cfg_bits (const char *name, int sps, int mod, float _Complex *out,
   mean /= ITERATIONS;
   double msas = (double)BENCH_N / mean / 1e6;
   printf ("  %-26s %8.1f MSa/s  (%.2f GSa/s)\n", name, msas, msas / 1000.0);
-  jm_bench_add (bench, name, times, ITERATIONS, BENCH_N);
+  jm_bench_add_unit (bench, name, times, ITERATIONS, BENCH_N, JM_BENCH_SAMPLE);
 
   dp_wfm_synth_destroy (obj);
 }

@@ -23,8 +23,10 @@ flags, CPU state, library versions) so the page is self-describing and a
 regression is diagnosable.
 
 Metric: throughput benches record ``extra_info["MSa_s"]`` → **MSa/s, higher is
-better**; latency ops (no sample count) → **mean time per call, lower is
-better**.
+better**; latency ops (no sample count) → **mean time per the row's unit,
+lower is better**: per call for a Python row, per ``extra_info.unit`` for a
+C row (``stats.mean_per_unit``), and per round for a C row recorded before
+jm_bench named its unit (#2314).
 
 Workflow / commands
 -------------------
@@ -83,17 +85,57 @@ def _display_name(suite: str, bench: dict) -> str:
     return name
 
 
+def _per_unit(b):
+    """(seconds, per) for one benchmark row: its time and what it is per.
+
+    A pytest-benchmark row times one call per round, so its ``mean`` is
+    per call. A C row times one ROUND of ``iterations`` units of work;
+    jm_bench (0.106.0+, gh-2282) names that unit in ``extra_info.unit``
+    and writes ``stats.mean_per_unit`` = ``mean / iterations``, which is
+    the time to report (#2314). A C row from before that (v0.43.0 to
+    v0.72.0) names no unit, so its mean cannot be divided honestly: it is
+    reported per round, with the round's size, unless the round was one
+    call.
+
+    >>> rnd = {"mean": 4e-5, "iterations": 65536}
+    >>> _per_unit(
+    ...     {
+    ...         "stats": {**rnd, "mean_per_unit": 6e-10},
+    ...         "extra_info": {"unit": "call"},
+    ...     }
+    ... )
+    (6e-10, 'call')
+    >>> _per_unit({"stats": rnd, "extra_info": {}})
+    (4e-05, 'round of 65,536')
+    >>> _per_unit({"stats": {"mean": 2e-7, "iterations": 1}})
+    (2e-07, 'call')
+    """
+    stats = b.get("stats", {})
+    mean = float(stats["mean"])
+    unit = b.get("extra_info", {}).get("unit")
+    if unit:
+        return float(stats["mean_per_unit"]), unit
+    iters = stats.get("iterations") or 1
+    return mean, "call" if iters == 1 else f"round of {iters:,}"
+
+
 def _parse(data, suite):
-    """{fullname: {disp, mean, msas}} for one snapshot's benchmarks."""
+    """{fullname: {disp, mean, per, msas}} for one snapshot's benchmarks.
+
+    ``mean`` is the row's time per ``per`` (see `_per_unit`), not
+    necessarily the raw ``stats.mean``.
+    """
     out = {}
     for b in data.get("benchmarks", []):
         mean = b.get("stats", {}).get("mean")
         if not (isinstance(mean, (int, float)) and mean > 0):
             continue
         msas = b.get("extra_info", {}).get("MSa_s")
+        secs, per = _per_unit(b)
         out[b.get("fullname") or b["name"]] = {
             "disp": _display_name(suite, b),
-            "mean": float(mean),
+            "mean": secs,
+            "per": per,
             "msas": float(msas) if isinstance(msas, (int, float)) else None,
         }
     return out
@@ -498,7 +540,11 @@ def _speedup(portable, native, throughput):
 
 
 def _two_col_rows(rel, suite, throughput):
-    """(disp, portable_val, native_val, speedup_pct) for the chosen metric."""
+    """(disp, per, portable_val, native_val, speedup_pct) for the metric.
+
+    ``per`` is what a latency value is per -- a call, a frame, a bin, or
+    for a C row measured before units were recorded, a round (#2314).
+    """
     keys = set()
     for b in BUILDS:
         if b in rel:
@@ -510,13 +556,14 @@ def _two_col_rows(rel, suite, throughput):
         p = rel.get("portable", {}).get("suites", {}).get(suite, {}).get(k)
         n = rel.get("native", {}).get("suites", {}).get(suite, {}).get(k)
         disp = (p or n)["disp"]
+        per = (p or n)["per"]
         pv = (p["msas"] if throughput else p["mean"]) if p else None
         nv = (n["msas"] if throughput else n["mean"]) if n else None
-        rows.append((disp, pv, nv, _speedup(pv, nv, throughput)))
+        rows.append((disp, per, pv, nv, _speedup(pv, nv, throughput)))
     # headline ordering: fastest throughput / slowest time first
     rows.sort(
         key=lambda r: (
-            -(r[1] or r[2] or 0) if throughput else (r[1] or r[2] or 0)
+            -(r[2] or r[3] or 0) if throughput else (r[2] or r[3] or 0)
         )
     )
     return rows
@@ -531,7 +578,7 @@ def cmd_page(published, out_path) -> int:
         if not out_path:
             print(msg)
         else:
-            with open(out_path, "w") as fh:
+            with open(out_path, "w", encoding="utf-8") as fh:
                 fh.write("# Benchmarks\n\n_No published numbers yet._\n")
         return 1
     versions = list(published)
@@ -583,7 +630,10 @@ def cmd_page(published, out_path) -> int:
         f"{m.get('numpy') or '?'}, CMake {m.get('cmake') or '?'}",
         "",
         "Throughput is **MSa/s** (higher is better); latency ops are mean "
-        "**time/call** (lower is better). *from src* = native vs portable.",
+        "time per the unit each row names -- **/ call**, **/ frame**, ... "
+        "(lower is better). A C row measured before its unit was recorded "
+        "reads **/ round of N**: the whole round, not one call. "
+        "*from src* = native vs portable.",
         "",
         "> The two builds are measured **interleaved** (alternating runs, "
         "per-benchmark best), so *from src* reflects the real build"
@@ -601,16 +651,19 @@ def cmd_page(published, out_path) -> int:
             if not rows:
                 continue
             fmt = fmt_tput if throughput else fmt_time
-            head = "throughput" if throughput else "time/call"
+            head = "throughput" if throughput else "time"
             L += [
                 f"### {'Throughput' if throughput else 'Latency'}",
                 "",
                 f"| benchmark | portable {head} | native {head} | from src |",
                 "| --- | ---: | ---: | ---: |",
             ]
-            for disp, pv, nv, sp in rows:
-                pc = fmt(pv) if pv else "—"
-                nc = fmt(nv) if nv else "—"
+            for disp, per, pv, nv, sp in rows:
+                # A latency value says what it is per: a C round is many
+                # units, and only its own row knows which (#2314).
+                tail = "" if throughput else f" / {per}"
+                pc = fmt(pv) + tail if pv else "—"
+                nc = fmt(nv) + tail if nv else "—"
                 spc = f"{sp:+.0f}%" if sp is not None else "—"
                 L.append(f"| `{disp}` | {pc} | {nc} | {spc} |")
             L.append("")
@@ -622,7 +675,7 @@ def cmd_page(published, out_path) -> int:
 
     text = "\n".join(L).rstrip("\n") + "\n"
     if out_path:
-        with open(out_path, "w") as fh:
+        with open(out_path, "w", encoding="utf-8") as fh:
             fh.write(text)
         print(f"wrote {out_path} ({cpu}, {len(versions)} release(s))")
     else:

@@ -43,7 +43,8 @@ main (void)
     }
   printf ("  %-26s %8.1f M/s\n", "stamp",
           BENCH_N / (times[0] > 0 ? times[0] : 1e-9) / 1e6);
-  jm_bench_add (&bench, "stamp", times, ITERATIONS, BENCH_N);
+  jm_bench_add_unit (&bench, "stamp", times, ITERATIONS, BENCH_N,
+                     JM_BENCH_CALL);
 
   /* pace() with an impossible fs → every deadline is past, never sleeps;
      measures the per-call scheduling overhead (clock read + math). */
@@ -56,7 +57,8 @@ main (void)
       t1       = jm_bench_now_ns ();
       times[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&bench, "pace (no-wait overhead)", times, ITERATIONS, BENCH_N);
+  jm_bench_add_unit (&bench, "pace (no-wait overhead)", times, ITERATIONS,
+                     BENCH_N, JM_BENCH_CALL);
 
   (void)sink;
   jm_bench_write_json (&bench, "timing");

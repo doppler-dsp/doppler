@@ -63,7 +63,8 @@ main (void)
         t1       = jm_bench_now_ns ();
         times[r] = jm_bench_elapsed_sec (t0, t1);
       }
-    jm_bench_add (&_bench, "search", times, ITERATIONS, BENCH_N);
+    jm_bench_add_unit (&_bench, "search", times, ITERATIONS, BENCH_N,
+                       JM_BENCH_SAMPLE);
     double sum = 0.0;
     for (int r = 0; r < ITERATIONS; r++)
       sum += times[r];
@@ -126,7 +127,8 @@ main (void)
         times[r] = jm_bench_elapsed_sec (t0, t1);
         pos += BENCH_N;
       }
-    jm_bench_add (&_bench, "track", times, ITERATIONS, BENCH_N);
+    jm_bench_add_unit (&_bench, "track", times, ITERATIONS, BENCH_N,
+                       JM_BENCH_SAMPLE);
     double sum = 0.0;
     for (int r = 0; r < ITERATIONS; r++)
       sum += times[r];

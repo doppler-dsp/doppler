@@ -105,7 +105,8 @@ main (void)
       t1       = jm_bench_now_ns ();
       t_enc[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "encode", t_enc, ITERATIONS, BENCH_N);
+  jm_bench_add_unit (&_bench, "encode", t_enc, ITERATIONS, BENCH_N,
+                     "codeword");
   report ("encode", t_enc, k);
 
   static double t_ok[ITERATIONS];
@@ -118,7 +119,7 @@ main (void)
       t1      = jm_bench_now_ns ();
       t_ok[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "verify", t_ok, ITERATIONS, BENCH_N);
+  jm_bench_add_unit (&_bench, "verify", t_ok, ITERATIONS, BENCH_N, "codeword");
   report ("verify", t_ok, k);
 
   /* Error counts: none, half the capability, all of it. `dp_rs_decode` mutates
@@ -172,7 +173,8 @@ main (void)
           t1          = jm_bench_now_ns ();
           t_dec[c][r] = jm_bench_elapsed_sec (t0, t1);
         }
-      jm_bench_add (&_bench, names[c], t_dec[c], ITERATIONS, BENCH_N);
+      jm_bench_add_unit (&_bench, names[c], t_dec[c], ITERATIONS, BENCH_N,
+                         "codeword");
       report (names[c], t_dec[c], k);
       free (corrupt);
     }

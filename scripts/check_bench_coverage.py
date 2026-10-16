@@ -212,9 +212,10 @@ def implausible(published: Path = PUBLISHED) -> dict[str, float]:
 
     Only benchmarks above CEILING_MSA_S are returned. Reads every
     ``*.json`` of the newest ``v<X.Y.Z>`` directory that carries
-    ``extra_info["MSa_s"]`` (the Python suite's throughput; the C suite's
-    rows have no such key), taking the larger figure when the portable and
-    native builds both publish one.
+    ``extra_info["MSa_s"]`` -- the Python suite's throughput, and the C
+    suite's sample-unit rows once jm_bench names a row's unit (#2314; a C
+    row before that has no such key) -- taking the larger figure when the
+    portable and native builds both publish one.
     """
     versions = [
         d
@@ -272,15 +273,21 @@ def _py_records(path: Path) -> bool:
 #: calling nothing.
 #:
 #: TWO spellings, because there are two ways to record and the gate must
-#: see both: `jm_bench_add` direct, or `dp_bench_record` from doppler's own
-#: native/benchmarks/dp_bench.h, which records AND prints the min-derived
-#: rate. The alias is only safe while it really does record, so
+#: see both: jm's recorder direct (`jm_bench_add_unit`, or `jm_bench_add`,
+#: which records calls -- `_JM_RECORD`), or `dp_bench_record` from
+#: doppler's own native/benchmarks/dp_bench.h, which records AND prints the
+#: min-derived rate. The alias is only safe while it really does record, so
 #: `_alias_records()` below re-derives that from the header on every run
 #: rather than trusting this comment -- a helper that stopped calling
 #: `jm_bench_add` would otherwise hand every caller a way to look measured
 #: while writing an empty array, which is precisely the failure this whole
 #: file exists to catch, reintroduced one level down.
-_ADD_CALL = re.compile(r"^[^*/]*\b(?:jm_bench_add|dp_bench_record)\s*\(", re.M)
+#: jm's recorder. jm 0.106.0 (gh-2282) added `jm_bench_add_unit`, which every
+#: doppler row now calls so the row names its unit (#2314).
+_JM_RECORD = r"jm_bench_add(?:_unit)?"
+_ADD_CALL = re.compile(
+    rf"^[^*/]*\b(?:{_JM_RECORD}|dp_bench_record)\s*\(", re.M
+)
 
 #: The helper the alias above trusts.
 _ALIAS_HEADER = BENCH / "dp_bench.h"
@@ -298,7 +305,7 @@ def _alias_records() -> bool:
         return False
     text = _ALIAS_HEADER.read_text(encoding="utf-8")
     body = text.partition(_ALIAS_NAME + " (")[2]
-    return bool(re.search(r"^[^*/]*\bjm_bench_add\s*\(", body, re.M))
+    return bool(re.search(rf"^[^*/]*\b{_JM_RECORD}\s*\(", body, re.M))
 
 
 #: The component name a benchmark writes its JSON under.

@@ -204,7 +204,8 @@ main (void)
           t1         = jm_bench_now_ns ();
           t_dm[k][r] = jm_bench_elapsed_sec (t0, t1);
         }
-      jm_bench_add (&_bench, rname[k], t_dm[k], ITERATIONS, 1);
+      jm_bench_add_unit (&_bench, rname[k], t_dm[k], ITERATIONS, 1,
+                         JM_BENCH_CALL);
       double sec = min_sec (t_dm[k], ITERATIONS);
       printf ("  %-18s %8.3f ms/burst  %7.2f ns/sample  %7.1f bursts/s\n",
               rname[k], sec * 1e3, sec / (double)n * 1e9, 1.0 / sec);

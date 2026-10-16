@@ -79,7 +79,8 @@ main (void)
           teardown;                                                           \
           dp_tlm_destroy (t);                                                 \
         }                                                                     \
-      jm_bench_add (&_bench, label, times, ITERATIONS, BLOCKS);               \
+      jm_bench_add_unit (&_bench, label, times, ITERATIONS, BLOCKS,           \
+                         "boundary");                                         \
       _s = 0.0;                                                               \
       for (int r = 0; r < ITERATIONS; r++)                                    \
         _s += times[r];                                                       \

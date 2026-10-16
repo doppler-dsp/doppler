@@ -148,16 +148,30 @@
     let lo = Math.min(...all), hi = Math.max(...all);
     const pad = (hi - lo) * 0.12 || hi * 0.05;
     lo = Math.max(0, lo - pad); hi = hi + pad;
+    // The reader's rate. Within about 2x of the range the axis stretches to
+    // take it in; further out an edge marker says where it is. A chart that
+    // said nothing would read as "no constraint" -- exactly when the reader
+    // is most at ease.
+    const rv = r.dom === "Sa" ? RATE * 1e6 : null;
+    if (rv != null && rv < lo && rv >= lo / 2) lo = rv * 0.9;
+    if (rv != null && rv > hi && rv <= hi * 2) hi = rv * 1.1;
     const x = (i) => L + (W - L - R) * i / Math.max(1, NV - 1);
     const y = (v) => T + (H - T - B) * (1 - (v - lo) / (hi - lo));
     const lab = (v) => (r.dom ? fmtRate(v, r.dom) : fmtTime(v));
     let g = "";
-    // The reader's rate, where it falls inside the chart.
-    if (r.dom === "Sa" && RATE * 1e6 > lo && RATE * 1e6 < hi) {
-      const yr = y(RATE * 1e6).toFixed(1);
+    if (rv != null && rv >= lo && rv <= hi) {
+      const yr = y(rv).toFixed(1);
       g += '<line class="dpb-rate" x1="' + L + '" x2="' + (W - R) + '" y1="' + yr +
         '" y2="' + yr + '"/><text class="dpb-rate-t" x="' + (W - R - 4) + '" y="' +
         (+yr - 5) + '" text-anchor="end">your rate, ' + RATE + " MSa/s</text>";
+    } else if (rv != null) {
+      const below = rv < lo, h = headroom(r, r.p[LAST]);
+      const ye = below ? H - B - 4 : T + 10;
+      const arrow = below ? "▼" : "▲";
+      g += '<text class="dpb-rate-t dpb-rate-edge" x="' + (W - R - 4) + '" y="' + ye +
+        '" text-anchor="end">' + arrow + " your rate " + RATE + " MSa/s is " +
+        (below ? "below" : "above") + (h != null ? ", ×" + (h >= 10 ? Math.round(h)
+          : h.toFixed(h < 1 ? 2 : 1)) + (h < 1 ? " behind" : "") : "") + "</text>";
     }
     for (let k = 0; k <= 4; k++) {
       const v = lo + (hi - lo) * k / 4, yy = y(v).toFixed(1);
@@ -168,7 +182,7 @@
     const step = Math.ceil(NV / 8);
     // Regular ticks stop short of the last release, whose label is drawn
     // on its own and would otherwise overprint the tick before it.
-    for (let i = 0; i <= LAST - Math.ceil(step / 2); i += step) {
+    for (let i = 0; i <= LAST - step; i += step) {
       g += '<text class="dpb-axis" x="' + x(i).toFixed(1) + '" y="' + (H - 12) +
         '" text-anchor="middle">' + V[i] + "</text>";
     }

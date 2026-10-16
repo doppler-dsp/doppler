@@ -3564,7 +3564,7 @@ endif
 	@sed -i 's/^jm_version = ".*"/jm_version = "$(JM)"/' just-makeit.toml
 	@$(MAKE) --no-print-directory docs-relink
 	@$(LOCK_CMD)
-	@echo "jm-pin: pinned $(JM). Next: make jm-apply, then make drift-check."
+	@echo "jm-pin: pinned $(JM). Next: make jm-apply, make jm-revendor, then make drift-check."
 
 # `jm upgrade` is the migration step a jm release can ask for (0.75.0: the
 # `complex` -> `_Complex` respelling of the sacred headers, which `apply`
@@ -3573,7 +3573,7 @@ endif
 jm-upgrade: ## Run just-makeit's project migration (after `make jm-pin`)
 	$(UV) sync --group dev --no-install-project
 	$(UV) run just-makeit upgrade
-	@echo "jm-upgrade: done. Next: make jm-apply, then the full gate set."
+	@echo "jm-upgrade: done. Next: make jm-apply, make jm-revendor, then the full gate set."
 
 jm-apply: ## Regenerate jm-owned glue from the manifest (then run drift-check)
 	$(UV) sync --group dev --no-install-project
@@ -3642,9 +3642,10 @@ drift-check: ## jm manifest drift gate (CI's 'jm manifest drift')
 	$(UV) sync --group dev --no-install-project
 # ONE status per project, as --check --json: jm's exit code stays the drift
 # verdict, and the same report says whether a vendored jm_*.h is behind the
-# pin (#2377). doppler keeps jm's headers verbatim, so a difference is a stale
-# copy; jm lists it as OUTDATED and counts it as nothing, which is how
-# jm_bench.h kept its 32-row cap three releases past the fix.
+# pin (#2377). doppler keeps the jm headers it commits verbatim, so a
+# difference is a stale copy; jm lists it as OUTDATED and counts it as nothing,
+# which is how jm_bench.h kept its 32-row cap three releases past the fix. An
+# untracked one (the root's declined jm_test.h) is not checked.
 	$(UV) run python scripts/check_jm_status.py
 	@echo "── downstream jm example ──"
 # The example is a just-makeit project in its own right, so its generated

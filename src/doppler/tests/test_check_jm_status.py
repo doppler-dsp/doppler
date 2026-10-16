@@ -2,10 +2,11 @@
 
 The script runs one `just-makeit status --check --json` and must (a) keep
 jm's exit code as the drift verdict, (b) fail when a `jm_*.h` is in the
-report's `outdated` list -- jm's own file, so a difference is a stale copy
-(#2377) -- and (c) leave every other create-only file advisory, as jm does.
-These tests feed it jm's report shape through a fake `subprocess.run`, so
-they hold without a jm run; `make drift-check` exercises the real one.
+report's `outdated` list and committed -- jm's own file, so a difference is
+a stale copy (#2377) -- and (c) leave every other create-only file, and an
+untracked header, advisory. These tests feed it jm's report shape through a
+fake `subprocess.run` inside a real git repo, so they hold without a jm run;
+`make drift-check` exercises the real one.
 """
 
 from __future__ import annotations
@@ -23,7 +24,26 @@ from doppler.tests._repo import repo_root
 if TYPE_CHECKING:
     from pathlib import Path
 
-SCRIPT = repo_root(__file__) / "scripts" / "check_jm_status.py"
+ROOT = repo_root(__file__)
+SCRIPT = ROOT / "scripts" / "check_jm_status.py"
+#: The real one: `_fake` replaces the module's, and git must still run.
+_RUN = subprocess.run
+
+
+def _repo(
+    root: Path, committed: list[str], untracked: list[str] | None = None
+) -> None:
+    """A git repo at *root* with *committed* files committed and
+    *untracked* files written beside them, each holding "stale"."""
+    git = ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-C", str(root)]
+    _RUN(["git", "init", "-q", str(root)], check=True)
+    for rel in [*committed, *(untracked or [])]:
+        f = root / rel
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text("stale\n", encoding="utf-8")
+    if committed:
+        _RUN([*git, "add", "--", *committed], check=True)
+        _RUN([*git, "commit", "-qm", "init"], check=True)
 
 
 def _load():
@@ -51,6 +71,8 @@ def _fake(
         ]
 
     def run(cmd, **kw: Any):
+        if cmd[0] == "git":
+            return _RUN(cmd, **kw)
         calls.append(cmd)
         out = json.dumps(report) if "--json" in cmd else ""
         return subprocess.CompletedProcess(cmd, rc, stdout=out)
@@ -61,6 +83,7 @@ def _fake(
 def test_a_stale_vendored_header_fails(monkeypatch, tmp_path: Path, capsys):
     mod = _load()
     calls: list = []
+    _repo(tmp_path, ["native/benchmarks/jm_bench.h"])
     _fake(
         monkeypatch,
         mod,
@@ -120,10 +143,8 @@ def test_fix_deletes_the_stale_header_then_applies(
 ):
     mod = _load()
     calls: list = []
+    _repo(tmp_path, ["native/benchmarks/jm_bench.h", "Makefile"])
     hdr = tmp_path / "native" / "benchmarks" / "jm_bench.h"
-    hdr.parent.mkdir(parents=True)
-    hdr.write_text("stale\n", encoding="utf-8")
-    (tmp_path / "Makefile").write_text("mine\n", encoding="utf-8")
     _fake(
         monkeypatch,
         mod,
@@ -160,7 +181,8 @@ def test_the_module_examples_hold():
     """The docstring's examples are part of the contract; nothing else
     runs doctests under scripts/."""
     mod = _load()
-    assert doctest.testmod(mod).failed == 0
+    got = doctest.testmod(mod)
+    assert got.attempted > 0 and got.failed == 0
 
 
 def test_an_allowed_stale_header_still_fails(
@@ -169,6 +191,7 @@ def test_an_allowed_stale_header_still_fails(
     """``status_allow`` cannot excuse a header doppler keeps verbatim."""
     mod = _load()
     calls: list = []
+    _repo(tmp_path, ["native/inc/doppler/jm_perf.h"])
     _fake(
         monkeypatch,
         mod,
@@ -199,3 +222,75 @@ def test_vendored_outdated_refuses_a_report_without_the_list():
     """Its own guard, not only its callers': a missing key is an error."""
     with pytest.raises(KeyError):
         _load().vendored_outdated({"entries": []})
+
+
+@pytest.mark.parametrize("argv", [[], ["--fix"]])
+def test_an_untracked_header_is_not_gated(
+    monkeypatch, tmp_path: Path, capsys, argv: list[str]
+):
+    """The root's declined jm_test.h: `jm apply` writes it into a checkout,
+    jm reports it OUTDATED once its template moves, and it is in no diff.
+    Neither the gate nor --fix may act on it; the committed header beside
+    it still fails."""
+    mod = _load()
+    calls: list = []
+    _repo(tmp_path, [], ["native/tests/jm_test.h"])
+    _fake(monkeypatch, mod, 0, ["native/tests/jm_test.h"], calls)
+    monkeypatch.chdir(tmp_path)
+    assert mod.main(argv) == 0
+    assert (tmp_path / "native" / "tests" / "jm_test.h").exists()
+    assert not any(c[-1:] == ["apply"] for c in calls)
+    assert "jm_test.h" not in capsys.readouterr().out
+
+
+def test_fix_refuses_a_header_with_uncommitted_edits(
+    monkeypatch, tmp_path: Path, capsys
+):
+    """Deleting it would lose the edit; nothing is deleted or applied."""
+    mod = _load()
+    calls: list = []
+    _repo(tmp_path, ["native/benchmarks/jm_bench.h"])
+    hdr = tmp_path / "native" / "benchmarks" / "jm_bench.h"
+    hdr.write_text("an edit\n", encoding="utf-8")
+    _fake(monkeypatch, mod, 0, ["native/benchmarks/jm_bench.h"], calls)
+    monkeypatch.chdir(tmp_path)
+    assert mod.main(["--fix"]) == 1
+    assert hdr.read_text(encoding="utf-8") == "an edit\n"
+    assert not any(c[-1:] == ["apply"] for c in calls)
+    assert "native/benchmarks/jm_bench.h" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "project, spec",
+    [
+        # The root's own headers, not the example's: each is classified
+        # against its own project.
+        (".", [".", ":(exclude)examples/downstream-jm"]),
+        ("examples/downstream-jm", ["."]),
+    ],
+)
+def test_jm_still_compares_every_committed_header(
+    project: str, spec: list[str]
+):
+    """The gate passes on an empty `outdated` list, so it cannot tell "all
+    current" from "jm stopped comparing these". jm compares a create-only
+    file only while its classifier calls it jm's (`is_versioned`); a jm
+    release that reclassified one of these would leave the gate green for
+    good. Ask the pinned jm directly, for every header each project
+    commits."""
+    createonly = pytest.importorskip(
+        "just_makeit._createonly",
+        reason="jm is a dev-group dependency; absent, nothing to ask",
+    )
+    proj = ROOT / project
+    out = _RUN(
+        ["git", "-C", str(proj), "ls-files", "-z", "--", *spec],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    mod = _load()
+    headers = [p for p in out.split("\0") if mod.VENDORED.search(p)]
+    assert headers, f"no committed jm_*.h under {project}"
+    for rel in headers:
+        assert createonly.is_versioned(rel, proj), rel

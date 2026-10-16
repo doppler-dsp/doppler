@@ -7,22 +7,33 @@ the verdict. This script runs that ONE status, as ``--check --json``, and
 keeps jm's verdict as its own. It then asks one more question of the same
 report.
 
-**Is every vendored ``jm_*.h`` the pinned jm's own render?** jm writes its C
-harness headers -- ``jm_bench.h``, ``jm_test.h``, ``jm_perf.h``, ``jm_simd.h``
--- once and never rewrites them (create-only). When a newer jm ships a fixed
-one, ``status`` lists the old copy under ``outdated`` and counts it as
-nothing. jm is right not to gate on the whole list: every create-only file is
-the project's to edit once written -- a Makefile, ``.gitignore``,
-``clib_common.h``, and the harness headers too (jm's ``_createonly`` says so
-of ``jm_test.h``: create-only "precisely so a project may extend it").
+**Is every ``jm_*.h`` doppler commits the pinned jm's own render?** jm writes
+its C harness headers -- ``jm_bench.h``, ``jm_test.h``, ``jm_perf.h``,
+``jm_simd.h`` -- once and never rewrites them (create-only). When a newer jm
+ships a fixed one, ``status`` lists the old copy under ``outdated`` and counts
+it as nothing. jm is right not to gate on the whole list: every create-only
+file is the project's to edit once written -- a Makefile, ``.gitignore``,
+``clib_common.h``, and the harness headers too (jm's ``_createonly`` says so of
+``jm_test.h``: create-only "precisely so a project may extend it").
 
 Gating the ``jm_*.h`` headers is doppler's POLICY, not jm's classification:
-doppler never edits one, so a fix jm ships reaches it by re-vendoring, and a
-copy that differs from the pinned render is a stale vendor, never an edit.
+doppler never edits one it commits, so a fix jm ships reaches it by
+re-vendoring, and a copy that differs from the pinned render is a stale
+vendor, never an edit.
 That is how ``jm_bench.h`` kept a 32-row cap for three releases after jm
 fixed it (just-makeit#2188, doppler#2062), with ``status`` saying OUTDATED on
 every run and nothing failing. A header doppler needs to extend gets its own
 file beside jm's, which this gate does not see.
+
+**Only the headers git tracks.** The root project DECLINES ``jm_test.h``: it
+is gitignored and ``status_allow``-ed missing, because doppler's C tests run
+on ``dp_test.h``. ``jm apply`` still writes one into every checkout that runs
+it, and jm compares whatever is on disk. Gating that file would turn every
+developer's ``make lint`` red on a file in no diff the day jm's template
+moves, while CI's fresh checkout has none and stays green -- and ``apply``
+could not clear it. So the report is filtered through ``git ls-files``
+(`tracked`); the downstream example, which commits its ``jm_test.h``, is
+still gated on it.
 
 The comparison is jm's own: ``outdated`` diffs each file against the tree
 ``apply`` renders for this project at this pin, placeholders filled and
@@ -32,7 +43,10 @@ implementation to drift from the first.
 ``--fix`` re-vendors: it deletes each outdated ``jm_*.h`` and runs
 ``just-makeit apply``, which writes a missing create-only file from the
 pinned template. That is the one way jm offers to replace one, and it is
-why this check can fail a CI run: there is a command that clears it.
+why this check can fail a CI run: there is a command that clears it. It
+refuses a header with uncommitted changes, which deleting would lose.
+just-makeit#2285 asks ``apply`` to refresh a JM harness header itself; when
+that ships, ``--fix`` and ``make jm-revendor`` can go.
 
 Usage (from the project root; the Makefile is the driver)::
 
@@ -70,7 +84,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
-#: A jm harness header, which doppler keeps verbatim (policy, not jm's).
+#: A jm harness header. One doppler commits it keeps verbatim (policy, not
+#: jm's); one it declines is untracked and never gated (see `tracked`).
 VENDORED = re.compile(r"(^|/)jm_[a-z0-9_]+\.h$")
 
 
@@ -97,6 +112,34 @@ def vendored_outdated(report: dict[str, Any]) -> list[str]:
     return sorted(
         e["path"] for e in report["outdated"] if VENDORED.search(e["path"])
     )
+
+
+def _git(root: Path, *args: str) -> str:
+    """Run ``git *args`` in *root* and return its stdout.
+
+    A failure raises: a gate that cannot ask git which headers are committed
+    must not read the answer as "none".
+    """
+    return subprocess.run(
+        ["git", *args],
+        cwd=root,
+        stdout=subprocess.PIPE,
+        text=True,
+        check=True,
+    ).stdout
+
+
+def tracked(root: Path, paths: list[str]) -> list[str]:
+    """The members of *paths* (relative to *root*) that git tracks.
+
+    jm reports a create-only file that is on disk, committed or not, and
+    ``apply`` writes the root's declined ``jm_test.h`` into every checkout
+    that runs it. Only a committed header is doppler's copy to keep current.
+    """
+    if not paths:
+        return []
+    have = set(_git(root, "ls-files", "-z", "--", *paths).split("\0"))
+    return [p for p in paths if p in have]
 
 
 def status(root: Path) -> tuple[int, dict[str, Any]]:
@@ -135,7 +178,7 @@ def check(root: Path) -> int:
             "jm's report shape and update this script (doppler#2377)."
         )
         return 2
-    stale = vendored_outdated(report)
+    stale = tracked(root, vendored_outdated(report))
     if stale:
         print(
             "check_jm_status: vendored jm header(s) behind the pinned "
@@ -144,14 +187,14 @@ def check(root: Path) -> int:
         for p in stale:
             print(f"  {p}")
         print(
-            "  doppler keeps jm's headers verbatim, so a difference is a "
-            "stale copy, not an edit.\n"
+            "  doppler keeps the jm headers it commits verbatim, so a "
+            "difference is a stale copy, not an edit.\n"
             "  Re-vendor: make jm-revendor   (deletes each one, then "
             "`just-makeit apply` writes the pinned render)"
         )
         return 1
     print(
-        f"check_jm_status: OK -- no drift; every vendored jm_*.h in "
+        f"check_jm_status: OK -- no drift; every committed jm_*.h in "
         f"{root.resolve().name} is the pinned jm's render"
     )
     return 0
@@ -162,13 +205,22 @@ def fix(root: Path) -> int:
 
     It needs jm's report to know what is stale, so a status that wrote
     none, or one without its ``outdated`` list, fails rather than reading
-    as "nothing to re-vendor".
+    as "nothing to re-vendor". A header with uncommitted changes is refused
+    before anything is deleted: re-vendoring would lose them silently.
     """
     rc, report = status(root)
     if "outdated" not in report:
         print("check_jm_status: no report from jm; nothing was changed")
         return rc or 2
-    stale = vendored_outdated(report)
+    stale = tracked(root, vendored_outdated(report))
+    edited = _git(root, "status", "--porcelain", "--", *stale) if stale else ""
+    if edited:
+        print(
+            "check_jm_status: uncommitted changes to a header it would "
+            "re-vendor; commit or discard them first (nothing was changed):"
+        )
+        sys.stdout.write(edited)
+        return 1
     for p in stale:
         (root / p).unlink()
         print(f"check_jm_status: re-vendoring {p}")

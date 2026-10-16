@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import stat
 import subprocess
+from pathlib import PurePath
 from typing import TYPE_CHECKING
 
 import pytest
@@ -28,11 +29,16 @@ REPO = repo_root(__file__)
 REFUSAL = "error: fake uv refuses (doppler#2364)"
 
 
-def _fake_uv(tmp_path: Path, body: str) -> Path:
+def _fake_uv(tmp_path: Path, body: str) -> str:
+    """A fake uv, as the POSIX path a recipe can run.
+
+    make hands `UV=` to its shell, where a Windows path's backslashes are
+    eaten as escapes (test_uv_pin_gate.py's lock gate has the same note;
+    ci.yml runs this suite on windows-latest)."""
     uv = tmp_path / "uv"
     uv.write_text("#!/bin/sh\n" + body, encoding="utf-8")
     uv.chmod(uv.stat().st_mode | stat.S_IXUSR)
-    return uv
+    return PurePath(uv).as_posix()
 
 
 def _make(*args: str, env: dict[str, str] | None = None):
@@ -95,7 +101,7 @@ def test_an_empty_explicit_interpreter_is_refused(tmp_path: Path) -> None:
 
 
 def test_no_uv_at_all_still_falls_back_to_python3(tmp_path: Path) -> None:
-    missing = tmp_path / "no-such-uv"
+    missing = PurePath(tmp_path / "no-such-uv").as_posix()
     check = _make("python-executable-check", f"UV={missing}")
     assert check.returncode == 0, check.stdout + check.stderr
     dry = _make("-n", "pyext", f"UV={missing}")

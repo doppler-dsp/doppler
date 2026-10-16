@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 from typing import TYPE_CHECKING
@@ -289,6 +290,40 @@ def test_check_catches_a_stale_page(tmp_path: Path) -> None:
     assert "Costas carrier loop" in page.read_text(encoding="utf-8")
     page.write_text("# Benchmarks\n", encoding="utf-8")
     assert br.cmd_page("docs/benchmarks.md", check=True, root=str(tree)) == 1
+
+
+def test_the_page_data_survives_instant_navigation(tmp_path: Path) -> None:
+    """The data is a script with no attribute, read by one name (#2391).
+
+    The site's instant navigation swaps a page in without a reload and
+    re-creates each inline ``<script>`` in it with its text alone. The
+    data used to be ``<script type="application/json" id="dp-bench-data">``:
+    reached by a click, it ran as JavaScript, threw, and the page drew
+    nothing -- while a reload drew everything. So the data is a script that
+    sets ``window.<PAGE_DATA>``, the one name benchmarks.js reads, and no
+    inline script on any docs page may lean on an attribute.
+    """
+    br = _load()
+    tree = _tree(
+        tmp_path, {"v0.71.0": [_c("costas::steps", 1e-3, 4096)]}, LABEL
+    )
+    page = br.render_page(str(tree))
+    scripts = re.findall(r"<script\b([^>]*)>(.*?)</script>", page, re.S)
+    assert [attrs for attrs, _ in scripts] == [""]
+    head = f"window.{br.PAGE_DATA} = "
+    body = scripts[0][1]
+    assert body.startswith(head) and body.endswith(";")
+    assert json.loads(body[len(head) : -1])["versions"] == ["v0.71.0"]
+
+    js = (repo_root() / "docs" / "javascripts" / "benchmarks.js").read_text(
+        encoding="utf-8"
+    )
+    assert len(re.findall(rf"=\s*window\.{br.PAGE_DATA}\s*;", js)) == 1
+
+    for md in sorted((repo_root() / "docs").rglob("*.md")):
+        text = md.read_text(encoding="utf-8")
+        for attrs in re.findall(r"<script\b([^>]*)>", text):
+            assert not attrs.strip() or "src=" in attrs, (str(md), attrs)
 
 
 def test_a_stream_row_reads_in_samples_and_rs_in_bits(tmp_path: Path) -> None:

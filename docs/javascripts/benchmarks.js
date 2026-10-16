@@ -1,10 +1,10 @@
 /* The benchmarks page (doppler#2372): headline cards, one family at a time,
-   and a chart per row, drawn from the JSON that `scripts/bench_report.py
-   --page` embeds in docs/benchmarks.md. Every value is seconds per unit;
-   each row also carries how many units of its domain one unit is (`cnt`,
-   `dom`), so a stream row reads in input samples per second and a setup row
-   (`dom` null) in time per call. Loaded on every page; does nothing where
-   that JSON is absent. */
+   and a chart per row, drawn from the data that `scripts/bench_report.py
+   --page` embeds in docs/benchmarks.md as `window.dpBenchData`. Every value
+   is seconds per unit; each row also carries how many units of its domain
+   one unit is (`cnt`, `dom`), so a stream row reads in input samples per
+   second and a setup row (`dom` null) in time per call. Loaded on every
+   page; does nothing on a page without the cards. */
 (function () {
   "use strict";
 
@@ -238,13 +238,16 @@
   }
 
   function init() {
-    const blob = document.getElementById("dp-bench-data");
+    // The data is a script on the page that sets this global
+    // (bench_report.py's PAGE_DATA), not an element found by id: instant
+    // navigation re-creates an inline script with its text alone, and runs
+    // it before document$ fires (#2391).
+    const D = window.dpBenchData;
     const cards = document.getElementById("dp-bench-cards");
     const browser = document.getElementById("dp-bench-browser");
     const ratebox = document.getElementById("dp-bench-rate");
-    if (!blob || !cards || !browser || browser.dataset.ready) return;
+    if (!D || !cards || !browser || browser.dataset.ready) return;
     browser.dataset.ready = "1";
-    const D = JSON.parse(blob.textContent);
     SUFFIX = D.suffix || {};
     const V = D.versions, NV = V.length, LAST = NV - 1;
     const rows = D.rows, labels = D.labels;

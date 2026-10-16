@@ -1466,7 +1466,7 @@ def render_page(root: str = ".") -> str:
         "",
         '<div class="dp-bench" id="dp-bench-cards"></div>',
         "",
-        "| benchmark | portable | native | from src |",
+        "| benchmark | portable | native | %Δ |",
         "| --- | ---: | ---: | ---: |",
     ]
     for i, rid in enumerate(data["head"], 1):
@@ -1512,7 +1512,7 @@ def render_page(root: str = ".") -> str:
         " from source for this CPU. The two are measured interleaved,"
         " alternating runs, keeping each benchmark's best.",
         "",
-        '<span id="from-src"></span>**From src.** How much faster the native'
+        '<span id="pct-delta"></span>**%Δ.** How much faster the native'
         " build is than the wheel on the same benchmark: portable time ÷"
         " native time − 1. Kernels that vectorize gain the most;"
         " call-overhead-bound rows sit near 0%.",

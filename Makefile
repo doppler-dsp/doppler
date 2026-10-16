@@ -4841,7 +4841,7 @@ test-example-downstream-python: ## Build + test the downstream example (Python)
 #
 # bench-interleaved is the canonical path: it builds portable + native in two
 # git worktrees and runs them alternately K times (K=5; override with K=N),
-# keeping the per-benchmark best so the *from src* column isn't corrupted by
+# keeping the per-benchmark best so the *%Δ* column isn't corrupted by
 # cross-run drift. bench-publish stamps a single build by hand if you need it.
 # The Python microbenchmarks, MEASURED -- serially, because pytest-benchmark
 # disables itself under xdist and a number it refuses to produce is better

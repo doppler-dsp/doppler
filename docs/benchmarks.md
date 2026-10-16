@@ -11,7 +11,7 @@ How fast is doppler, and is it getting faster? These are single-machine numbers 
 
 <div class="dp-bench" id="dp-bench-cards"></div>
 
-| benchmark | portable | native | from src |
+| benchmark | portable | native | %Δ |
 | --- | ---: | ---: | ---: |
 | [FFT, complex float, 4,096 points](#d1) | 669 MSa/s | 870 MSa/s | +30% |
 | [Power spectrum, 1,024 bins (Welch)](#d2) | 527 MSa/s | 693 MSa/s | +31% |
@@ -55,7 +55,7 @@ How fast is doppler, and is it getting faster? These are single-machine numbers 
 
 <span id="builds"></span>**Builds.** *portable* is the shipped wheel; *native* is `-DDOPPLER_NATIVE=ON` (`-march=native`), built from source for this CPU. The two are measured interleaved, alternating runs, keeping each benchmark's best.
 
-<span id="from-src"></span>**From src.** How much faster the native build is than the wheel on the same benchmark: portable time ÷ native time − 1. Kernels that vectorize gain the most; call-overhead-bound rows sit near 0%.
+<span id="pct-delta"></span>**%Δ.** How much faster the native build is than the wheel on the same benchmark: portable time ÷ native time − 1. Kernels that vectorize gain the most; call-overhead-bound rows sit near 0%.
 
 <span id="since-last"></span>**Since last.** Portable speed against the previous release that measured the row. Changes under 3% are grey: repeat runs of an unchanged tree move about that much. Across a [break](#trend) the two are different quantities, and it reads *break*.
 

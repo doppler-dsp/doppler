@@ -56,11 +56,12 @@
     return (x >= 0 ? "+" : "−") +
       Math.abs(x * 100).toFixed(Math.abs(x) < 0.1 ? 1 : 0) + "%";
   }
-  function chip(x, word) {
+  // `sym` leads, so a card reads "%Δ +30%" rather than "+30% %Δ".
+  function chip(x, sym) {
     if (x == null) return '<span class="dpb-flat">—</span>';
     const cls = Math.abs(x) < 0.03 ? "dpb-flat" : x > 0 ? "dpb-up" : "dpb-down";
-    return '<span class="dpb-delta ' + cls + '">' + pct(x) +
-      (word ? " " + word : "") + "</span>";
+    return '<span class="dpb-delta ' + cls + '">' + (sym ? sym + " " : "") +
+      pct(x) + "</span>";
   }
 
   /* ---- the reader's sample rate, remembered per viewer ---- */
@@ -300,7 +301,7 @@
           '" tabindex="-1">' + (i + 1) + "</a></sup></span>" +
           '<span class="dpb-big">' + fmtVal(r, p) + "</span>" + spark(r, NV, 240, 38) +
           '<span class="dpb-row"><span>native ' + esc(fmtVal(r, n, true)) + "</span>" +
-          chip(speedup(p, n), "from src") + "</span>" +
+          chip(speedup(p, n), "%Δ") + "</span>" +
           (r.dom === "Sa" ? '<span class="dpb-row"><span>at ' + RATE + " MSa/s</span>" +
             headChip(headroom(r, p)) + "</span>" : "") + "</button>";
       }).join("");
@@ -335,11 +336,11 @@
       '<option value="tput">by throughput</option>' +
       '<option value="head">by headroom</option>' +
       '<option value="delta">by change since last release</option>' +
-      '<option value="src">by from-src gain</option></select></label>' +
+      '<option value="src">by %Δ</option></select></label>' +
       '<span class="dpb-count"></span></div>' +
       '<div class="dpb-tablebox"><table class="dpb-table"><thead><tr>' +
       '<th scope="col">Benchmark</th><th scope="col">Portable</th>' +
-      '<th scope="col">Native</th><th scope="col"><a href="#from-src">From src</a></th>' +
+      '<th scope="col">Native</th><th scope="col"><a href="#pct-delta">%Δ</a></th>' +
       '<th scope="col"><a href="#since-last">Since last</a></th>' +
       '<th scope="col"><a href="#headroom">Headroom</a></th>' +
       '<th scope="col"><a href="#trend">Trend</a></th></tr></thead>' +

@@ -166,7 +166,7 @@ make bench-restamp VERSION=X.Y.Z     # doppler_meta.commit -> main's tree twin
 
 `bench-interleaved` builds both flavours in throwaway git worktrees, runs the
 suite alternately K times (default 5; `K=N` to override), and keeps each
-benchmark's lowest-mean run — so the *from src* column reflects the real build
+benchmark's lowest-mean run — so the *%Δ* column reflects the real build
 difference, not cross-run system drift. The measurement (not the build) is
 pinned to the CPU's **fastest core class**, read from `cpuinfo_max_freq`: on a
 heterogeneous part an unpinned benchmark is bimodal — the same binary measured

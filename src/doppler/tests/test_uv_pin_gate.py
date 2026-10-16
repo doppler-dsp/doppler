@@ -299,3 +299,68 @@ def test_a_lock_no_pinned_uv_wrote_is_refused(
     assert "is not what uv" in r.stdout
     # Read-only: the probe must not have repaired the copy behind our back.
     assert edit[1] in (tmp_path / "uv.lock").read_text(encoding="utf-8")
+
+
+# ── rule 4: a makefile runs uv through $(UV) (doppler#2369) ──────────────────
+
+ALLOW = "scripts/.bare-uv-allow"
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "\tuv run python scripts/x.py\n",
+        "\tuv sync --group dev\n",
+        "X_CMD = uv run pytest -q\n",
+        # A shell substitution is a bare call too.
+        "\tcmake -DPy=$$(uv run python -c 'print(1)')\n",
+        "\tcd sub && uv run --project $(CURDIR) tool\n",
+    ],
+)
+def test_a_bare_uv_in_a_makefile_is_refused(tmp_path: Path, line: str) -> None:
+    r = _run(_seed(tmp_path, files={"Makefile": "t:\n" + line}))
+    assert r.returncode == 1, r.stdout
+    assert "Makefile:2: bare uv" in r.stdout, r.stdout
+
+
+def test_uv_through_the_variable_passes(tmp_path: Path) -> None:
+    mk = (
+        "UV = uv\n"
+        "t:\n"
+        "\t$(UV) run python scripts/x.py\n"
+        "\t$(UV) sync --group dev\n"
+        "\tcmake -DPy=$$($(UV) run python -c 'print(1)')\n"
+        "\t@# a recipe comment may say uv sync\n"
+        "# so may a makefile comment: uv run pytest\n"
+    )
+    r = _run(_seed(tmp_path, files={"Makefile": mk, "sub/rules.mk": mk}))
+    assert r.returncode == 0, r.stdout
+
+
+def test_a_bare_uv_in_an_included_mk_is_refused(tmp_path: Path) -> None:
+    r = _run(_seed(tmp_path, files={"mk/x.mk": "t:\n\tuv run tool\n"}))
+    assert r.returncode == 1, r.stdout
+    assert "mk/x.mk:2: bare uv" in r.stdout, r.stdout
+
+
+def test_an_allowed_line_passes_and_needs_a_reason(tmp_path: Path) -> None:
+    files = {
+        "Makefile": "t:\n\tuv run keep-me\n",
+        ALLOW: "# header\nuv run keep-me -- stays bare because of a reason\n",
+    }
+    assert _run(_seed(tmp_path / "ok", files=files)).returncode == 0
+    files[ALLOW] = "uv run keep-me\n"
+    r = _run(_seed(tmp_path / "noreason", files=files))
+    assert r.returncode == 1, r.stdout
+    assert "no reason" in r.stdout, r.stdout
+
+
+def test_a_stale_allow_entry_fails(tmp_path: Path) -> None:
+    """The list only shrinks: an entry whose line is gone is red."""
+    files = {
+        "Makefile": "t:\n\t$(UV) run keep-me\n",
+        ALLOW: "uv run keep-me -- was bare until its fix landed\n",
+    }
+    r = _run(_seed(tmp_path, files=files))
+    assert r.returncode == 1, r.stdout
+    assert "matches no makefile line" in r.stdout, r.stdout

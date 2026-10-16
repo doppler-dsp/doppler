@@ -31,6 +31,15 @@ INSTALL uv to the same value:
    enforce ``required-version`` (measured), and the manylinux release leg's
    uv exists to run ``uvx auditwheel repair``.
 
+4. A makefile runs uv through ``$(UV)``, never a bare ``uv run``/``uv sync``
+   (doppler#2369). ``UV=<the pinned uv>`` is the way out on a box whose uv
+   is not the pin -- uv's own refusal and ``python-executable-check`` both
+   name it -- and a bare spelling is a call it does not reach: ``make pyext
+   UV=...`` still failed at its last step, a bare ``uv sync``. Lines that
+   must stay bare for now are listed in ``scripts/.bare-uv-allow`` with
+   their reason; an entry that no longer matches a line fails, so the list
+   only shrinks.
+
 Files are every tracked file (``git ls-files``; every file under ``--root``
 when it is not a checkout), less prose -- ``docs/``, ``*.md``, the changelog
 -- and ``vendor/``, the lockfile, and this gate and its test, which spell out
@@ -91,6 +100,36 @@ _ARG_DEFAULT = re.compile(r"^\s*ARG\s+UV_VERSION\s*=")
 _UV_TOKEN = re.compile(r"uv(?:\[[^\]]*\])?(?:[=<>!~].*)?")
 #: Where one command ends and the next begins.
 _END = re.compile(r"\s(?:\|\|?|&&|;)\s|\)\s*$")
+
+#: Rule 4's files and the bare form it refuses. `uv` must not be the tail of
+#: a longer word or path (`$(UV)` is upper case, so it never matches), and a
+#: shell substitution `$$(uv run ...)` is a bare call like any other.
+_MAKEFILE = re.compile(r"(?:^|/)(?:GNU)?[Mm]akefile$|\.mk$")
+_BARE_UV = re.compile(
+    r"(?<![\w./-])uv\s+(?:run|sync|lock|pip|build|venv|tool|export|tree"
+    r"|add|remove|cache|python)\b"
+)
+#: Rule 4's allowlist, relative to the root: `<line text> -- <reason>`.
+BARE_UV_ALLOW = "scripts/.bare-uv-allow"
+
+
+def read_bare_uv_allow(root: Path) -> tuple[dict[str, str], list[str]]:
+    """({line text: reason}, problems) from BARE_UV_ALLOW; absent is empty."""
+    path = root / BARE_UV_ALLOW
+    allow: dict[str, str] = {}
+    bad: list[str] = []
+    if not path.is_file():
+        return allow, bad
+    for n, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        key, sep, why = line.partition(" -- ")
+        if not sep or not why.strip():
+            bad.append(f"{BARE_UV_ALLOW}:{n}: no reason -- `{line[:60]}`")
+            continue
+        allow[key.strip()] = why.strip()
+    return allow, bad
 
 
 def read_pin(root: Path) -> tuple[str | None, str | None]:
@@ -210,6 +249,37 @@ def installer_offenders(root: Path, files: list[str]) -> list[str]:
     return bad
 
 
+def bare_uv_offenders(root: Path, files: list[str]) -> list[str]:
+    """``path:line: text`` for each makefile line running a bare uv, plus
+    each BARE_UV_ALLOW entry that is unreasoned or matches nothing."""
+    allow, bad = read_bare_uv_allow(root)
+    used: set[str] = set()
+    for rel in files:
+        if not _MAKEFILE.search(rel):
+            continue
+        text = (root / rel).read_text(encoding="utf-8")
+        for n, line in _logical_lines(text):
+            # A recipe's `@# ...` is a shell comment: prose, not a call.
+            if line.lstrip().startswith("@#"):
+                continue
+            if not _BARE_UV.search(line):
+                continue
+            allowed = [k for k in allow if k in line]
+            if allowed:
+                used.update(allowed)
+                continue
+            bad.append(
+                f"{rel}:{n}: bare uv -- `{line.strip()[:70]}`; "
+                "spell it $(UV) so UV= reaches it"
+            )
+    for key in sorted(set(allow) - used):
+        bad.append(
+            f"{BARE_UV_ALLOW}: `{key}` matches no makefile line -- its "
+            "reason is gone; remove the entry"
+        )
+    return bad
+
+
 def _steps_using_setup_uv(doc: object) -> list[dict]:
     """Every mapping in ``doc`` whose ``uses`` is astral-sh/setup-uv."""
     found: list[dict] = []
@@ -293,6 +363,7 @@ def main() -> int:
         return 1
     setup_bad, n_steps = setup_uv_offenders(root, files)
     bad += setup_bad + installer_offenders(root, files)
+    bad += bare_uv_offenders(root, files)
     for b in bad:
         print(f"check_uv_pin: {b}")
     if bad:

@@ -42,7 +42,8 @@ main (void)
         t1       = jm_bench_now_ns ();
         times[r] = jm_bench_elapsed_sec (t0, t1);
       }
-    jm_bench_add (&_bench, "decimate", times, ITERATIONS, BENCH_N);
+    jm_bench_add_unit (&_bench, "decimate", times, ITERATIONS, BENCH_N,
+                       JM_BENCH_SAMPLE);
   }
 
   jm_bench_write_json (&_bench, "cic");

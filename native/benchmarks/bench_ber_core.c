@@ -86,7 +86,7 @@ main (void)
       t1       = jm_bench_now_ns ();
       t_evm[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "evm_db", t_evm, ITERATIONS, BENCH_N);
+  jm_bench_add_unit (&_bench, "evm_db", t_evm, ITERATIONS, BENCH_N, "symbol");
   {
     double s = min_sec (t_evm, ITERATIONS);
     printf ("  %-16s %8.2f ns/sym   %8.3f ms per %d-symbol window\n", "evm_db",
@@ -103,7 +103,8 @@ main (void)
       t1       = jm_bench_now_ns ();
       t_ser[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "theory_ser", t_ser, ITERATIONS, SCALAR_N);
+  jm_bench_add_unit (&_bench, "theory_ser", t_ser, ITERATIONS, SCALAR_N,
+                     JM_BENCH_CALL);
 
   for (int r = 0; r < ITERATIONS; r++)
     {
@@ -113,7 +114,8 @@ main (void)
       t1       = jm_bench_now_ns ();
       t_ber[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "theory_ber", t_ber, ITERATIONS, SCALAR_N);
+  jm_bench_add_unit (&_bench, "theory_ber", t_ber, ITERATIONS, SCALAR_N,
+                     JM_BENCH_CALL);
 
   for (int r = 0; r < ITERATIONS; r++)
     {
@@ -123,7 +125,8 @@ main (void)
       t1     = jm_bench_now_ns ();
       t_q[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "qfunc", t_q, ITERATIONS, SCALAR_N);
+  jm_bench_add_unit (&_bench, "qfunc", t_q, ITERATIONS, SCALAR_N,
+                     JM_BENCH_CALL);
 
   printf ("  %-16s %8.2f ns/call\n", "theory_ser",
           min_sec (t_ser, ITERATIONS) / SCALAR_N * 1e9);

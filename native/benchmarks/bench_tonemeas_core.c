@@ -95,7 +95,7 @@ main (void)
           t_re[k][r] = jm_bench_elapsed_sec (t0, t1);
         }
       (void)snprintf (name, sizeof name, "analyze[n=%zu]", n);
-      jm_bench_add (&_bench, name, t_re[k], ITERATIONS, 1);
+      jm_bench_add_unit (&_bench, name, t_re[k], ITERATIONS, 1, JM_BENCH_CALL);
       printf ("  %-24s %8.1f us/capture  %7.2f ns/sample\n", name,
               min_sec (t_re[k], ITERATIONS) * 1e6,
               min_sec (t_re[k], ITERATIONS) / (double)n * 1e9);
@@ -108,7 +108,7 @@ main (void)
           t_cx[k][r] = jm_bench_elapsed_sec (t0, t1);
         }
       (void)snprintf (name, sizeof name, "analyze_complex[n=%zu]", n);
-      jm_bench_add (&_bench, name, t_cx[k], ITERATIONS, 1);
+      jm_bench_add_unit (&_bench, name, t_cx[k], ITERATIONS, 1, JM_BENCH_CALL);
       printf ("  %-24s %8.1f us/capture  %7.2f ns/sample\n", name,
               min_sec (t_cx[k], ITERATIONS) * 1e6,
               min_sec (t_cx[k], ITERATIONS) / (double)n * 1e9);

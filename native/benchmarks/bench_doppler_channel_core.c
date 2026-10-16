@@ -139,7 +139,8 @@ main (void)
           t1         = jm_bench_now_ns ();
           t_ex[k][r] = jm_bench_elapsed_sec (t0, t1);
         }
-      jm_bench_add (&_bench, rname[k], t_ex[k], ITERATIONS, BENCH_N);
+      jm_bench_add_unit (&_bench, rname[k], t_ex[k], ITERATIONS, BENCH_N,
+                         JM_BENCH_SAMPLE);
       printf ("  %-20s %7.2f ns/sample  %8.1f MSa/s\n", rname[k],
               min_sec (t_ex[k], ITERATIONS) / BENCH_N * 1e9,
               (double)BENCH_N / min_sec (t_ex[k], ITERATIONS) / 1e6);
@@ -189,7 +190,8 @@ main (void)
         t1      = jm_bench_now_ns ();
         t_pf[r] = jm_bench_elapsed_sec (t0, t1);
       }
-    jm_bench_add (&_bench, "execute[profile]", t_pf, ITERATIONS, BENCH_N);
+    jm_bench_add_unit (&_bench, "execute[profile]", t_pf, ITERATIONS, BENCH_N,
+                       JM_BENCH_SAMPLE);
     printf ("  %-20s %7.2f ns/sample  %8.1f MSa/s\n", "execute[profile]",
             min_sec (t_pf, ITERATIONS) / BENCH_N * 1e9,
             (double)BENCH_N / min_sec (t_pf, ITERATIONS) / 1e6);

@@ -1112,6 +1112,7 @@ $(UV) run python scripts/check_out_param_guard.py
 $(UV) run python scripts/check_c_api_link_refs.py
 $(UV) run python docs/design/spectrogram-measurements/u1u4.py --check
 $(UV) run python docs/design/spectrogram-measurements/b2094.py --check
+$(UV) run python docs/design/spectrogram-measurements/b2062.py --check
 endef
 
 # docs-check's invariants WITHOUT the site build, so pre-commit can run them.

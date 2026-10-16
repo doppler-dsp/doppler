@@ -32,7 +32,8 @@ main (void)
         t1             = jm_bench_now_ns ();
         _times_push[r] = jm_bench_elapsed_sec (t0, t1);
       }
-    jm_bench_add (&_bench, "push", _times_push, ITERATIONS, BENCH_N);
+    jm_bench_add_unit (&_bench, "push", _times_push, ITERATIONS, BENCH_N,
+                       JM_BENCH_SAMPLE);
     {
       double _s = 0.0;
       for (int r = 0; r < ITERATIONS; r++)
@@ -55,7 +56,8 @@ main (void)
         t1              = jm_bench_now_ns ();
         _times_write[r] = jm_bench_elapsed_sec (t0, t1);
       }
-    jm_bench_add (&_bench, "write", _times_write, ITERATIONS, BENCH_N);
+    jm_bench_add_unit (&_bench, "write", _times_write, ITERATIONS, BENCH_N,
+                       JM_BENCH_SAMPLE);
     {
       double _s = 0.0;
       for (int r = 0; r < ITERATIONS; r++)

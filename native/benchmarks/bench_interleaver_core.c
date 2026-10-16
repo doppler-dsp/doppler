@@ -77,7 +77,7 @@ main (void)
           t1       = jm_bench_now_ns ();                                      \
           times[r] = jm_bench_elapsed_sec (t0, t1);                           \
         }                                                                     \
-      jm_bench_add (&_bench, label, times, ITERATIONS, BITS);                 \
+      jm_bench_add_unit (&_bench, label, times, ITERATIONS, BITS, "bit");     \
       _s = 0.0;                                                               \
       for (int r = 0; r < ITERATIONS; r++)                                    \
         _s += times[r];                                                       \

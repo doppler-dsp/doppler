@@ -131,7 +131,8 @@ main (void)
 
       char name[32];
       snprintf (name, sizeof name, "find[n=%zu]", nm);
-      jm_bench_add (&_bench, name, t_find, ITERATIONS, SEARCH_BITS);
+      jm_bench_add_unit (&_bench, name, t_find, ITERATIONS, SEARCH_BITS,
+                         "bit");
 
       const double s_min = min_sec (t_find, ITERATIONS);
       printf ("  %-14s %8.2f ns/bit  %8.2f Mbit/s  (%.2f ns/bit/tap)\n", name,
@@ -161,8 +162,8 @@ main (void)
         t1       = jm_bench_now_ns ();
         t_thr[r] = jm_bench_elapsed_sec (t0, t1);
       }
-    jm_bench_add (&_bench, "max_errors_for[n=32]", t_thr, ITERATIONS,
-                  THRESH_CALLS);
+    jm_bench_add_unit (&_bench, "max_errors_for[n=32]", t_thr, ITERATIONS,
+                       THRESH_CALLS, JM_BENCH_CALL);
     printf ("\n  %-14s %8.2f us/call\n", "max_errors_for",
             min_sec (t_thr, ITERATIONS) / (double)THRESH_CALLS * 1e6);
     dp_syncword_destroy (f);

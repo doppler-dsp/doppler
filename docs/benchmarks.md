@@ -14,7 +14,7 @@ Two builds are shown so you can see the from-source upside:
 - OS: 7.2.10-1-cachyos, glibc 2.44
 - Libs: Python 3.13.13, NumPy 2.4.5, CMake 4.4.4
 
-Throughput is **MSa/s** (higher is better); latency ops are mean **time/call** (lower is better). *from src* = native vs portable.
+Throughput is **MSa/s** (higher is better); latency ops are mean time per the unit each row names -- **/ call**, **/ frame**, ... (lower is better). A C row measured before its unit was recorded reads **/ round of N**: the whole round, not one call. *from src* = native vs portable.
 
 > The two builds are measured **interleaved** (alternating runs, per-benchmark best), so *from src* reflects the real build difference. Big gains are vectorizable kernels under AVX-512; overhead-bound benches (tiny per-call work) sit near 0% because the build can't help where Python-call overhead dominates.
 
@@ -63,8 +63,8 @@ Throughput is **MSa/s** (higher is better); latency ops are mean **time/call** (
 | `pn::bench_pn::test_bench_generate[galois,len=11]` | 1.01 GSa/s | 1.01 GSa/s | -0% |
 | `pn::bench_pn::test_bench_generate[galois,len=23]` | 1.01 GSa/s | 1.01 GSa/s | -0% |
 | `pn::bench_pn::test_bench_generate[fibonacci,len=11]` | 1.01 GSa/s | 1.01 GSa/s | -0% |
-| `pn::bench_pn::test_bench_generate[fibonacci,len=15]` | 1.01 GSa/s | 1.01 GSa/s | +0% |
 | `pn::bench_pn::test_bench_generate[galois,len=15]` | 1.01 GSa/s | 1.01 GSa/s | +0% |
+| `pn::bench_pn::test_bench_generate[fibonacci,len=15]` | 1.01 GSa/s | 1.01 GSa/s | +0% |
 | `gold::bench_gold::test_bench_generate` | 1.01 GSa/s | 1.01 GSa/s | -0% |
 | `pn::bench_pn::test_bench_generate[fibonacci,len=23]` | 1.01 GSa/s | 1.01 GSa/s | +0% |
 | `compose::bench_compose::test_bench_writer[blue-cf32]` | 689.2 MSa/s | 687.7 MSa/s | -0% |
@@ -182,705 +182,705 @@ Throughput is **MSa/s** (higher is better); latency ops are mean **time/call** (
 
 ### Latency
 
-| benchmark | portable time/call | native time/call | from src |
+| benchmark | portable time | native time | from src |
 | --- | ---: | ---: | ---: |
-| `dp_interrupt_guard::bench_dp_interrupt_guard::test_interrupted` | 19.20 ns | 19.17 ns | +0% |
-| `acc_q8::bench_acc_q8::test_bench_step` | 22.61 ns | 22.51 ns | +0% |
-| `acc_q15::bench_acc_q15::test_bench_step` | 22.88 ns | 22.72 ns | +1% |
-| `lockdet::bench_lockdet::test_bench_step` | 23.64 ns | 23.65 ns | -0% |
-| `loop_filter::bench_loop_filter::test_bench_step` | 23.89 ns | 23.85 ns | +0% |
-| `i16u32_to_f32::bench_i16u32_to_f32::test_bench_step` | 23.96 ns | 23.93 ns | +0% |
-| `i32_to_f32::bench_i32_to_f32::test_bench_step` | 24.00 ns | 24.13 ns | -1% |
-| `uq15_to_f32::bench_uq15_to_f32::test_bench_step` | 24.53 ns | 24.43 ns | +0% |
-| `i8_to_f32::bench_i8_to_f32::test_bench_step` | 24.57 ns | 24.69 ns | -0% |
-| `u8_to_f32::bench_u8_to_f32::test_bench_step[shift]` | 24.61 ns | 24.72 ns | -0% |
-| `u8_to_f32::bench_u8_to_f32::test_bench_step[midpoint]` | 24.68 ns | 24.79 ns | -0% |
-| `i16u64_to_f32::bench_i16u64_to_f32::test_bench_step` | 24.73 ns | 24.84 ns | -0% |
-| `i16_to_f32::bench_i16_to_f32::test_bench_step` | 24.74 ns | 24.56 ns | +1% |
-| `adc::bench_adc::test_bench_step` | 27.54 ns | 27.53 ns | +0% |
-| `detection::bench_detection::test_bench_det_threshold_power` | 28.36 ns | 29.02 ns | -2% |
-| `f32_to_i32::bench_f32_to_i32::test_bench_step` | 28.36 ns | 28.30 ns | +0% |
-| `boxcar::bench_boxcar::test_bench_step` | 28.44 ns | 28.63 ns | -1% |
-| `timing::bench_timing::test_bench_stamp` | 29.30 ns | 29.29 ns | +0% |
-| `util::bench_util::test_ema_step_pure_python` | 31.79 ns | 31.75 ns | +0% |
-| `detection::bench_detection::test_bench_det_threshold` | 32.50 ns | 31.99 ns | +2% |
-| `util::bench_util::test_ema_step_binding` | 32.65 ns | 32.72 ns | -0% |
-| `detection::bench_detection::test_bench_marcum_q_large_a` | 35.03 ns | 35.37 ns | -1% |
-| `dp_interrupt_guard::bench_dp_interrupt_guard::test_interrupt_and_resume` | 36.20 ns | 35.84 ns | +1% |
-| `util::bench_util::test_ema_alpha_decim_binding` | 47.26 ns | 47.22 ns | +0% |
-| `specan::bench_specan::test_bench_retune` | 50.43 ns | 50.81 ns | -1% |
-| `wfm_synth::bench_wfm_synth::test_bench_step` | 60.83 ns | 60.82 ns | +0% |
-| `f32_to_i8::bench_f32_to_i8::test_bench_step` | 64.20 ns | 64.85 ns | -1% |
-| `f32_to_uq15::bench_f32_to_uq15::test_bench_step` | 69.90 ns | 69.71 ns | +0% |
-| `f32_to_i16::bench_f32_to_i16::test_bench_step` | 70.30 ns | 71.53 ns | -2% |
-| `f32_to_i16u32::bench_f32_to_i16u32::test_bench_step` | 70.62 ns | 70.78 ns | -0% |
-| `f32_to_i16u64::bench_f32_to_i16u64::test_bench_step` | 71.41 ns | 71.23 ns | +0% |
-| `timing::bench_timing::test_bench_pace_nowait` | 84.07 ns | 83.91 ns | +0% |
-| `agc::bench_agc::test_bench_step` | 89.87 ns | 86.44 ns | +4% |
-| `detection::bench_detection::test_bench_det_pd_m1` | 111.47 ns | 106.52 ns | +5% |
-| `syncword::bench_syncword::test_bench_find_call_overhead` | 114.43 ns | 114.24 ns | +0% |
-| `frame::bench_frame::test_bench_bits_1` | 121.88 ns | 119.50 ns | +2% |
-| `wfm_reader::bench_wfm_reader::test_seek_midpoint` | 152.62 ns | 159.96 ns | -5% |
-| `detection::bench_detection::test_bench_marcum_q_m4` | 180.29 ns | 179.66 ns | +0% |
-| `detection::bench_detection::test_bench_marcum_q_m1` | 202.88 ns | 203.44 ns | -0% |
-| `detection::bench_detection::test_bench_det_pd_power_m4` | 207.35 ns | 204.80 ns | +1% |
-| `detection::bench_detection::test_bench_det_pd_m4` | 207.45 ns | 204.55 ns | +1% |
-| `frame::bench_frame::test_bench_bits_16` | 231.89 ns | 228.92 ns | +1% |
-| `field_bits::bench_field_bits::test_bench_field_bits[0x1ACFFC1D]` | 235.55 ns | 246.07 ns | -4% |
-| `syncword::bench_syncword::test_bench_max_errors_for` | 261.25 ns | 259.68 ns | +1% |
-| `dp_interrupt_guard::bench_dp_interrupt_guard::test_arm_disarm` | 276.19 ns | 270.70 ns | +2% |
-| `psd::bench_psd::test_bench_power_onesided[1024]` | 308.65 ns | 244.40 ns | +26% |
-| `acc_trace::bench_acc_trace::test_bench_value` | 389.61 ns | 342.85 ns | +14% |
-| `burst_despreader::bench_burst_despreader::test_bench_construct` | 393.66 ns | 393.53 ns | +0% |
-| `detection::bench_detection::test_bench_det_pd_m16` | 436.71 ns | 432.79 ns | +1% |
-| `rs_codec::bench_rs_codec::test_bench_create` | 655.71 ns | 782.74 ns | -16% |
-| `psd::bench_psd::test_bench_power_onesided[4096]` | 813.07 ns | 694.89 ns | +17% |
-| `frame::bench_frame::test_bench_crc_ok` | 911.91 ns | 927.40 ns | -2% |
-| `field_bits::bench_field_bits::test_bench_field_bits[pn:1023:10*4]` | 1.24 µs | 1.26 µs | -2% |
-| `interleaver::bench_interleaver::test_bench_interleave[8-8192]` | 1.43 µs | 1.62 µs | -12% |
-| `psd::bench_psd::test_bench_power_onesided[16384]` | 2.77 µs | 2.36 µs | +17% |
-| `field_bits::bench_field_bits::test_bench_field_bits[pn:4095:12]` | 4.32 µs | 4.32 µs | +0% |
-| `field_bits::bench_field_bits::test_bench_field_bits[gold:4096:10:0x3a6:0x15e]` | 4.50 µs | 4.52 µs | -0% |
-| `u8_to_f32::bench_u8_to_f32::test_bench_steps_64k[shift]` | 4.89 µs | 2.56 µs | +91% |
-| `rs_codec::bench_rs_codec::test_bench_encode` | 5.63 µs | 2.97 µs | +89% |
-| `u8_to_f32::bench_u8_to_f32::test_bench_steps_64k[midpoint]` | 5.75 µs | 2.99 µs | +92% |
-| `field_bits::bench_field_bits::test_bench_field_bits[0xa5a5a5a5a5a5a5a5a5a5a5]` | 6.44 µs | 6.04 µs | +7% |
-| `spectrogram::bench_spectrogram::test_bench_create` | 7.14 µs | 6.86 µs | +4% |
-| `interleaver::bench_interleaver::test_bench_interleave[1-8192]` | 10.01 µs | 11.64 µs | -14% |
-| `interleaver::bench_interleaver::test_bench_interleave[8-65536]` | 10.06 µs | 11.65 µs | -14% |
-| `interleaver::bench_interleaver::test_bench_deinterleave_soft[8192]` | 11.62 µs | 10.42 µs | +12% |
-| `spectrogram::bench_spectrogram::test_bench_push` | 13.56 µs | 11.20 µs | +21% |
-| `frame_meter::bench_frame_meter::test_bench_fer` | 15.04 µs | 15.20 µs | -1% |
-| `dp_tlm::bench_dp_tlm::test_bench_read` | 15.22 µs | 15.20 µs | +0% |
-| `rs_codec::bench_rs_codec::test_bench_decode_clean` | 19.01 µs | 18.99 µs | +0% |
-| `rs_codec::bench_rs_codec::test_bench_codeword_ok` | 19.02 µs | 18.99 µs | +0% |
-| `conv_enc::bench_conv_enc::test_bench_encode[8192]` | 24.57 µs | 22.39 µs | +10% |
-| `conv_enc::bench_conv_enc::test_bench_constraint_length[9]` | 24.57 µs | 22.40 µs | +10% |
-| `conv_enc::bench_conv_enc::test_bench_constraint_length[3]` | 24.58 µs | 22.39 µs | +10% |
-| `conv_enc::bench_conv_enc::test_bench_constraint_length[5]` | 24.58 µs | 22.44 µs | +10% |
-| `conv_enc::bench_conv_enc::test_bench_constraint_length[7]` | 24.58 µs | 22.40 µs | +10% |
-| `detection::bench_detection::test_bench_det_dwell_power` | 26.65 µs | 26.40 µs | +1% |
-| `detection::bench_detection::test_bench_det_dwell` | 26.69 µs | 26.47 µs | +1% |
-| `rs_codec::bench_rs_codec::test_bench_decode_full` | 26.72 µs | 26.59 µs | +1% |
-| `detection::bench_detection::test_bench_det_snr_m16` | 32.57 µs | 32.41 µs | +0% |
-| `detection::bench_detection::test_bench_det_snr_power_m4` | 32.72 µs | 32.60 µs | +0% |
-| `detection::bench_detection::test_bench_det_snr_m4` | 32.75 µs | 32.59 µs | +0% |
-| `util::bench_util::test_ema_block_python_loop[1000]` | 34.65 µs | 34.42 µs | +1% |
-| `f32_to_i32::bench_f32_to_i32::test_bench_steps_64k` | 36.50 µs | 23.69 µs | +54% |
-| `lockdet::bench_lockdet::test_bench_steps_64k` | 39.31 µs | 26.50 µs | +48% |
-| `interleaver::bench_interleaver::test_bench_interleave[1-65536]` | 78.36 µs | 91.36 µs | -14% |
-| `syncword::bench_syncword::test_bench_find_64k` | 87.02 µs | 58.62 µs | +48% |
-| `interleaver::bench_interleaver::test_bench_deinterleave_soft[65536]` | 91.34 µs | 81.69 µs | +12% |
-| `wfm_writer::bench_wfm_writer::test_write_64k[cf32]` | 99.28 µs | 98.73 µs | +1% |
-| `detector::bench_detector::test_bench_push_64k` | 114.98 µs | 100.03 µs | +15% |
-| `wfm_reader::bench_wfm_reader::test_read_64k` | 122.40 µs | 127.18 µs | -4% |
-| `f32_to_i8::bench_f32_to_i8::test_bench_steps_64k` | 130.26 µs | 143.28 µs | -9% |
-| `loop_filter::bench_loop_filter::test_bench_steps_64k` | 156.50 µs | 169.53 µs | -8% |
-| `frame_meter::bench_frame_meter::test_bench_add` | 184.49 µs | 184.94 µs | -0% |
-| `conv_enc::bench_conv_enc::test_bench_encode[65536]` | 195.09 µs | 177.76 µs | +10% |
-| `boxcar::bench_boxcar::test_bench_steps_64k` | 195.54 µs | 195.52 µs | +0% |
-| `detector2d::bench_detector2d::test_bench_push_64k` | 216.10 µs | 248.74 µs | -13% |
-| `wfm_writer::bench_wfm_writer::test_write_64k[ci16]` | 325.84 µs | 338.66 µs | -4% |
-| `viterbi::bench_viterbi::test_bench_constraint_length[3]` | 338.48 µs | 383.91 µs | -12% |
-| `dp_event_log::bench_dp_event_log::test_bench_append` | 363.63 µs | 347.57 µs | +5% |
-| `viterbi::bench_viterbi::test_bench_constraint_length[5]` | 456.80 µs | 502.58 µs | -9% |
-| `dp_tlm_capture::bench_dp_tlm_capture::test_bench_uninstrumented` | 488.02 µs | 470.48 µs | +4% |
-| `dp_tlm_capture::bench_dp_tlm_capture::test_bench_attached_no_capture` | 488.67 µs | 467.41 µs | +5% |
-| `dp_tlm_capture::bench_dp_tlm_capture::test_bench_captured` | 554.85 µs | 540.62 µs | +3% |
-| `viterbi::bench_viterbi::test_bench_decode[8192]` | 638.24 µs | 663.12 µs | -4% |
-| `dp_event_log::bench_dp_event_log::test_bench_append_with_fields` | 694.54 µs | 672.22 µs | +3% |
-| `dp_event_log::bench_dp_event_log::test_bench_finalize` | 728.00 µs | 721.36 µs | +1% |
-| `viterbi::bench_viterbi::test_bench_constraint_length[7]` | 758.51 µs | 800.66 µs | -5% |
-| `ber_meter::bench_ber_meter::test_bench_align` | 796.75 µs | 806.39 µs | -1% |
-| `mpsk_receiver_r::bench_mpsk_receiver_r::test_bench_steps_64k` | 835.11 µs | 873.16 µs | -4% |
-| `mpsk_receiver_r::bench_mpsk_receiver_r::test_bench_steps_64k_telemetry_detached` | 835.87 µs | 874.64 µs | -4% |
-| `mpsk_receiver_r::bench_mpsk_receiver_r::test_bench_steps_64k_telemetry_attached` | 968.62 µs | 1.01 ms | -4% |
-| `mpsk_receiver::bench_mpsk_receiver::test_bench_steps_64k` | 1.13 ms | 1.13 ms | -0% |
-| `mpsk_receiver::bench_mpsk_receiver::test_bench_steps_64k_telemetry_detached` | 1.13 ms | 1.13 ms | -0% |
-| `async_dsss_pool::bench_async_dsss_pool::test_push_epoch` | 1.28 ms | 1.15 ms | +12% |
-| `mpsk_receiver::bench_mpsk_receiver::test_bench_steps_64k_telemetry_attached` | 1.37 ms | 1.37 ms | +0% |
-| `ber_meter::bench_ber_meter::test_bench_score` | 1.51 ms | 1.59 ms | -5% |
-| `viterbi::bench_viterbi::test_bench_constraint_length[9]` | 1.72 ms | 1.72 ms | +0% |
-| `dp_tlm::bench_dp_tlm::test_bench_decimated` | 1.78 ms | 1.78 ms | +0% |
-| `dp_tlm::bench_dp_tlm::test_bench_emit` | 2.49 ms | 2.49 ms | -0% |
-| `util::bench_util::test_ema_block_python_loop[100000]` | 3.45 ms | 3.47 ms | -0% |
-| `viterbi::bench_viterbi::test_bench_decode[65536]` | 5.31 ms | 5.55 ms | -4% |
-| `burst_capture::bench_burst_capture::test_bench_construct` | 6.61 ms | 6.51 ms | +1% |
-| `burst_acq::bench_burst_acq::test_bench_construct` | 6.61 ms | 6.53 ms | +1% |
-| `dsss_burst_receiver::bench_dsss_burst_receiver::test_bench_construct` | 6.62 ms | 6.54 ms | +1% |
+| `dp_interrupt_guard::bench_dp_interrupt_guard::test_interrupted` | 19.20 ns / call | 19.17 ns / call | +0% |
+| `acc_q8::bench_acc_q8::test_bench_step` | 22.61 ns / call | 22.51 ns / call | +0% |
+| `acc_q15::bench_acc_q15::test_bench_step` | 22.88 ns / call | 22.72 ns / call | +1% |
+| `lockdet::bench_lockdet::test_bench_step` | 23.64 ns / call | 23.65 ns / call | -0% |
+| `loop_filter::bench_loop_filter::test_bench_step` | 23.89 ns / call | 23.85 ns / call | +0% |
+| `i16u32_to_f32::bench_i16u32_to_f32::test_bench_step` | 23.96 ns / call | 23.93 ns / call | +0% |
+| `i32_to_f32::bench_i32_to_f32::test_bench_step` | 24.00 ns / call | 24.13 ns / call | -1% |
+| `uq15_to_f32::bench_uq15_to_f32::test_bench_step` | 24.53 ns / call | 24.43 ns / call | +0% |
+| `i8_to_f32::bench_i8_to_f32::test_bench_step` | 24.57 ns / call | 24.69 ns / call | -0% |
+| `u8_to_f32::bench_u8_to_f32::test_bench_step[shift]` | 24.61 ns / call | 24.72 ns / call | -0% |
+| `u8_to_f32::bench_u8_to_f32::test_bench_step[midpoint]` | 24.68 ns / call | 24.79 ns / call | -0% |
+| `i16u64_to_f32::bench_i16u64_to_f32::test_bench_step` | 24.73 ns / call | 24.84 ns / call | -0% |
+| `i16_to_f32::bench_i16_to_f32::test_bench_step` | 24.74 ns / call | 24.56 ns / call | +1% |
+| `adc::bench_adc::test_bench_step` | 27.54 ns / call | 27.53 ns / call | +0% |
+| `detection::bench_detection::test_bench_det_threshold_power` | 28.36 ns / call | 29.02 ns / call | -2% |
+| `f32_to_i32::bench_f32_to_i32::test_bench_step` | 28.36 ns / call | 28.30 ns / call | +0% |
+| `boxcar::bench_boxcar::test_bench_step` | 28.44 ns / call | 28.63 ns / call | -1% |
+| `timing::bench_timing::test_bench_stamp` | 29.30 ns / call | 29.29 ns / call | +0% |
+| `util::bench_util::test_ema_step_pure_python` | 31.79 ns / call | 31.75 ns / call | +0% |
+| `detection::bench_detection::test_bench_det_threshold` | 32.50 ns / call | 31.99 ns / call | +2% |
+| `util::bench_util::test_ema_step_binding` | 32.65 ns / call | 32.72 ns / call | -0% |
+| `detection::bench_detection::test_bench_marcum_q_large_a` | 35.03 ns / call | 35.37 ns / call | -1% |
+| `dp_interrupt_guard::bench_dp_interrupt_guard::test_interrupt_and_resume` | 36.20 ns / call | 35.84 ns / call | +1% |
+| `util::bench_util::test_ema_alpha_decim_binding` | 47.26 ns / call | 47.22 ns / call | +0% |
+| `specan::bench_specan::test_bench_retune` | 50.43 ns / call | 50.81 ns / call | -1% |
+| `wfm_synth::bench_wfm_synth::test_bench_step` | 60.83 ns / call | 60.82 ns / call | +0% |
+| `f32_to_i8::bench_f32_to_i8::test_bench_step` | 64.20 ns / call | 64.85 ns / call | -1% |
+| `f32_to_uq15::bench_f32_to_uq15::test_bench_step` | 69.90 ns / call | 69.71 ns / call | +0% |
+| `f32_to_i16::bench_f32_to_i16::test_bench_step` | 70.30 ns / call | 71.53 ns / call | -2% |
+| `f32_to_i16u32::bench_f32_to_i16u32::test_bench_step` | 70.62 ns / call | 70.78 ns / call | -0% |
+| `f32_to_i16u64::bench_f32_to_i16u64::test_bench_step` | 71.41 ns / call | 71.23 ns / call | +0% |
+| `timing::bench_timing::test_bench_pace_nowait` | 84.07 ns / call | 83.91 ns / call | +0% |
+| `agc::bench_agc::test_bench_step` | 89.87 ns / call | 86.44 ns / call | +4% |
+| `detection::bench_detection::test_bench_det_pd_m1` | 111.47 ns / call | 106.52 ns / call | +5% |
+| `syncword::bench_syncword::test_bench_find_call_overhead` | 114.43 ns / call | 114.24 ns / call | +0% |
+| `frame::bench_frame::test_bench_bits_1` | 121.88 ns / call | 119.50 ns / call | +2% |
+| `wfm_reader::bench_wfm_reader::test_seek_midpoint` | 152.62 ns / call | 159.96 ns / call | -5% |
+| `detection::bench_detection::test_bench_marcum_q_m4` | 180.29 ns / call | 179.66 ns / call | +0% |
+| `detection::bench_detection::test_bench_marcum_q_m1` | 202.88 ns / call | 203.44 ns / call | -0% |
+| `detection::bench_detection::test_bench_det_pd_power_m4` | 207.35 ns / call | 204.80 ns / call | +1% |
+| `detection::bench_detection::test_bench_det_pd_m4` | 207.45 ns / call | 204.55 ns / call | +1% |
+| `frame::bench_frame::test_bench_bits_16` | 231.89 ns / call | 228.92 ns / call | +1% |
+| `field_bits::bench_field_bits::test_bench_field_bits[0x1ACFFC1D]` | 235.55 ns / call | 246.07 ns / call | -4% |
+| `syncword::bench_syncword::test_bench_max_errors_for` | 261.25 ns / call | 259.68 ns / call | +1% |
+| `dp_interrupt_guard::bench_dp_interrupt_guard::test_arm_disarm` | 276.19 ns / call | 270.70 ns / call | +2% |
+| `psd::bench_psd::test_bench_power_onesided[1024]` | 308.65 ns / call | 244.40 ns / call | +26% |
+| `acc_trace::bench_acc_trace::test_bench_value` | 389.61 ns / call | 342.85 ns / call | +14% |
+| `burst_despreader::bench_burst_despreader::test_bench_construct` | 393.66 ns / call | 393.53 ns / call | +0% |
+| `detection::bench_detection::test_bench_det_pd_m16` | 436.71 ns / call | 432.79 ns / call | +1% |
+| `rs_codec::bench_rs_codec::test_bench_create` | 655.71 ns / call | 782.74 ns / call | -16% |
+| `psd::bench_psd::test_bench_power_onesided[4096]` | 813.07 ns / call | 694.89 ns / call | +17% |
+| `frame::bench_frame::test_bench_crc_ok` | 911.91 ns / call | 927.40 ns / call | -2% |
+| `field_bits::bench_field_bits::test_bench_field_bits[pn:1023:10*4]` | 1.24 µs / call | 1.26 µs / call | -2% |
+| `interleaver::bench_interleaver::test_bench_interleave[8-8192]` | 1.43 µs / call | 1.62 µs / call | -12% |
+| `psd::bench_psd::test_bench_power_onesided[16384]` | 2.77 µs / call | 2.36 µs / call | +17% |
+| `field_bits::bench_field_bits::test_bench_field_bits[pn:4095:12]` | 4.32 µs / call | 4.32 µs / call | +0% |
+| `field_bits::bench_field_bits::test_bench_field_bits[gold:4096:10:0x3a6:0x15e]` | 4.50 µs / call | 4.52 µs / call | -0% |
+| `u8_to_f32::bench_u8_to_f32::test_bench_steps_64k[shift]` | 4.89 µs / call | 2.56 µs / call | +91% |
+| `rs_codec::bench_rs_codec::test_bench_encode` | 5.63 µs / call | 2.97 µs / call | +89% |
+| `u8_to_f32::bench_u8_to_f32::test_bench_steps_64k[midpoint]` | 5.75 µs / call | 2.99 µs / call | +92% |
+| `field_bits::bench_field_bits::test_bench_field_bits[0xa5a5a5a5a5a5a5a5a5a5a5]` | 6.44 µs / call | 6.04 µs / call | +7% |
+| `spectrogram::bench_spectrogram::test_bench_create` | 7.14 µs / call | 6.86 µs / call | +4% |
+| `interleaver::bench_interleaver::test_bench_interleave[1-8192]` | 10.01 µs / call | 11.64 µs / call | -14% |
+| `interleaver::bench_interleaver::test_bench_interleave[8-65536]` | 10.06 µs / call | 11.65 µs / call | -14% |
+| `interleaver::bench_interleaver::test_bench_deinterleave_soft[8192]` | 11.62 µs / call | 10.42 µs / call | +12% |
+| `spectrogram::bench_spectrogram::test_bench_push` | 13.56 µs / call | 11.20 µs / call | +21% |
+| `frame_meter::bench_frame_meter::test_bench_fer` | 15.04 µs / call | 15.20 µs / call | -1% |
+| `dp_tlm::bench_dp_tlm::test_bench_read` | 15.22 µs / call | 15.20 µs / call | +0% |
+| `rs_codec::bench_rs_codec::test_bench_decode_clean` | 19.01 µs / call | 18.99 µs / call | +0% |
+| `rs_codec::bench_rs_codec::test_bench_codeword_ok` | 19.02 µs / call | 18.99 µs / call | +0% |
+| `conv_enc::bench_conv_enc::test_bench_encode[8192]` | 24.57 µs / call | 22.39 µs / call | +10% |
+| `conv_enc::bench_conv_enc::test_bench_constraint_length[9]` | 24.57 µs / call | 22.40 µs / call | +10% |
+| `conv_enc::bench_conv_enc::test_bench_constraint_length[3]` | 24.58 µs / call | 22.39 µs / call | +10% |
+| `conv_enc::bench_conv_enc::test_bench_constraint_length[5]` | 24.58 µs / call | 22.44 µs / call | +10% |
+| `conv_enc::bench_conv_enc::test_bench_constraint_length[7]` | 24.58 µs / call | 22.40 µs / call | +10% |
+| `detection::bench_detection::test_bench_det_dwell_power` | 26.65 µs / call | 26.40 µs / call | +1% |
+| `detection::bench_detection::test_bench_det_dwell` | 26.69 µs / call | 26.47 µs / call | +1% |
+| `rs_codec::bench_rs_codec::test_bench_decode_full` | 26.72 µs / call | 26.59 µs / call | +1% |
+| `detection::bench_detection::test_bench_det_snr_m16` | 32.57 µs / call | 32.41 µs / call | +0% |
+| `detection::bench_detection::test_bench_det_snr_power_m4` | 32.72 µs / call | 32.60 µs / call | +0% |
+| `detection::bench_detection::test_bench_det_snr_m4` | 32.75 µs / call | 32.59 µs / call | +0% |
+| `util::bench_util::test_ema_block_python_loop[1000]` | 34.65 µs / call | 34.42 µs / call | +1% |
+| `f32_to_i32::bench_f32_to_i32::test_bench_steps_64k` | 36.50 µs / call | 23.69 µs / call | +54% |
+| `lockdet::bench_lockdet::test_bench_steps_64k` | 39.31 µs / call | 26.50 µs / call | +48% |
+| `interleaver::bench_interleaver::test_bench_interleave[1-65536]` | 78.36 µs / call | 91.36 µs / call | -14% |
+| `syncword::bench_syncword::test_bench_find_64k` | 87.02 µs / call | 58.62 µs / call | +48% |
+| `interleaver::bench_interleaver::test_bench_deinterleave_soft[65536]` | 91.34 µs / call | 81.69 µs / call | +12% |
+| `wfm_writer::bench_wfm_writer::test_write_64k[cf32]` | 99.28 µs / call | 98.73 µs / call | +1% |
+| `detector::bench_detector::test_bench_push_64k` | 114.98 µs / call | 100.03 µs / call | +15% |
+| `wfm_reader::bench_wfm_reader::test_read_64k` | 122.40 µs / call | 127.18 µs / call | -4% |
+| `f32_to_i8::bench_f32_to_i8::test_bench_steps_64k` | 130.26 µs / call | 143.28 µs / call | -9% |
+| `loop_filter::bench_loop_filter::test_bench_steps_64k` | 156.50 µs / call | 169.53 µs / call | -8% |
+| `frame_meter::bench_frame_meter::test_bench_add` | 184.49 µs / call | 184.94 µs / call | -0% |
+| `conv_enc::bench_conv_enc::test_bench_encode[65536]` | 195.09 µs / call | 177.76 µs / call | +10% |
+| `boxcar::bench_boxcar::test_bench_steps_64k` | 195.54 µs / call | 195.52 µs / call | +0% |
+| `detector2d::bench_detector2d::test_bench_push_64k` | 216.10 µs / call | 248.74 µs / call | -13% |
+| `wfm_writer::bench_wfm_writer::test_write_64k[ci16]` | 325.84 µs / call | 338.66 µs / call | -4% |
+| `viterbi::bench_viterbi::test_bench_constraint_length[3]` | 338.48 µs / call | 383.91 µs / call | -12% |
+| `dp_event_log::bench_dp_event_log::test_bench_append` | 363.63 µs / call | 347.57 µs / call | +5% |
+| `viterbi::bench_viterbi::test_bench_constraint_length[5]` | 456.80 µs / call | 502.58 µs / call | -9% |
+| `dp_tlm_capture::bench_dp_tlm_capture::test_bench_uninstrumented` | 488.02 µs / call | 470.48 µs / call | +4% |
+| `dp_tlm_capture::bench_dp_tlm_capture::test_bench_attached_no_capture` | 488.67 µs / call | 467.41 µs / call | +5% |
+| `dp_tlm_capture::bench_dp_tlm_capture::test_bench_captured` | 554.85 µs / call | 540.62 µs / call | +3% |
+| `viterbi::bench_viterbi::test_bench_decode[8192]` | 638.24 µs / call | 663.12 µs / call | -4% |
+| `dp_event_log::bench_dp_event_log::test_bench_append_with_fields` | 694.54 µs / call | 672.22 µs / call | +3% |
+| `dp_event_log::bench_dp_event_log::test_bench_finalize` | 728.00 µs / call | 721.36 µs / call | +1% |
+| `viterbi::bench_viterbi::test_bench_constraint_length[7]` | 758.51 µs / call | 800.66 µs / call | -5% |
+| `ber_meter::bench_ber_meter::test_bench_align` | 796.75 µs / call | 806.39 µs / call | -1% |
+| `mpsk_receiver_r::bench_mpsk_receiver_r::test_bench_steps_64k` | 835.11 µs / call | 873.16 µs / call | -4% |
+| `mpsk_receiver_r::bench_mpsk_receiver_r::test_bench_steps_64k_telemetry_detached` | 835.87 µs / call | 874.64 µs / call | -4% |
+| `mpsk_receiver_r::bench_mpsk_receiver_r::test_bench_steps_64k_telemetry_attached` | 968.62 µs / call | 1.01 ms / call | -4% |
+| `mpsk_receiver::bench_mpsk_receiver::test_bench_steps_64k` | 1.13 ms / call | 1.13 ms / call | -0% |
+| `mpsk_receiver::bench_mpsk_receiver::test_bench_steps_64k_telemetry_detached` | 1.13 ms / call | 1.13 ms / call | -0% |
+| `async_dsss_pool::bench_async_dsss_pool::test_push_epoch` | 1.28 ms / call | 1.15 ms / call | +12% |
+| `mpsk_receiver::bench_mpsk_receiver::test_bench_steps_64k_telemetry_attached` | 1.37 ms / call | 1.37 ms / call | +0% |
+| `ber_meter::bench_ber_meter::test_bench_score` | 1.51 ms / call | 1.59 ms / call | -5% |
+| `viterbi::bench_viterbi::test_bench_constraint_length[9]` | 1.72 ms / call | 1.72 ms / call | +0% |
+| `dp_tlm::bench_dp_tlm::test_bench_decimated` | 1.78 ms / call | 1.78 ms / call | +0% |
+| `dp_tlm::bench_dp_tlm::test_bench_emit` | 2.49 ms / call | 2.49 ms / call | -0% |
+| `util::bench_util::test_ema_block_python_loop[100000]` | 3.45 ms / call | 3.47 ms / call | -0% |
+| `viterbi::bench_viterbi::test_bench_decode[65536]` | 5.31 ms / call | 5.55 ms / call | -4% |
+| `burst_capture::bench_burst_capture::test_bench_construct` | 6.61 ms / call | 6.51 ms / call | +1% |
+| `burst_acq::bench_burst_acq::test_bench_construct` | 6.61 ms / call | 6.53 ms / call | +1% |
+| `dsss_burst_receiver::bench_dsss_burst_receiver::test_bench_construct` | 6.62 ms / call | 6.54 ms / call | +1% |
 
 ## C (jm_bench)
 
 ### Latency
 
-| benchmark | portable time/call | native time/call | from src |
+| benchmark | portable time | native time | from src |
 | --- | ---: | ---: | ---: |
-| `specan::retune` | 19.06 ns | 19.42 ns | -2% |
-| `frame::bits[1]` | 20.59 ns | 20.59 ns | +0% |
-| `frame::bits[16]` | 138.10 ns | 137.95 ns | +0% |
-| `psd::power_onesided[nfft=1024]` | 166.09 ns | 134.90 ns | +23% |
-| `acc_trace::value` | 257.09 ns | 224.71 ns | +14% |
-| `fft::execute_inplace_cf32[n=256]` | 280.23 ns | 231.33 ns | +21% |
-| `fft::execute_ci8[n=256]` | 307.50 ns | 243.48 ns | +26% |
-| `fft::execute_ci16[n=256]` | 338.43 ns | 241.55 ns | +40% |
-| `fft::execute_cf32[n=256]` | 366.03 ns | 301.92 ns | +21% |
-| `dp_tlm_capture::uncaptured` | 435.24 ns | 442.06 ns | -2% |
-| `psd::power_onesided[nfft=4096]` | 644.35 ns | 555.24 ns | +16% |
-| `acc_trace::fold[exp,nfft=256]` | 687.23 ns | 479.67 ns | +43% |
-| `fft::execute_cf64[n=256]` | 783.27 ns | 552.73 ns | +42% |
-| `frame::crc_ok` | 838.02 ns | 847.19 ns | -1% |
-| `acc_trace::fold[mean,nfft=256]` | 875.53 ns | 378.47 ns | +131% |
-| `filter::design_lowpass[fstop=0.400,taps=39]` | 1.07 µs | 1.07 µs | +0% |
-| `interleaver::octet-1x8k` | 1.49 µs | 1.69 µs | -12% |
-| `corr::execute[accumulate][n=1024]` | 1.50 µs | 1.07 µs | +41% |
-| `i16_buffer::write_some_view+peek_view` | 2.05 µs | 2.05 µs | +0% |
-| `psd::power_onesided[nfft=16384]` | 2.57 µs | 2.25 µs | +14% |
-| `acc_trace::fold[exp,nfft=1024]` | 2.58 µs | 1.70 µs | +52% |
-| `corr::execute[dump][n=1024]` | 2.85 µs | 2.12 µs | +35% |
-| `filter::design_lowpass[fstop=0.260,taps=123]` | 3.29 µs | 3.27 µs | +1% |
-| `awgn::generate(n=1024)` | 3.33 µs | 3.32 µs | +0% |
-| `acc_trace::fold[mean,nfft=1024]` | 3.39 µs | 1.29 µs | +163% |
-| `i32_to_f32::steps` | 3.44 µs | 2.10 µs | +64% |
-| `i16_to_f32::steps` | 3.62 µs | 1.91 µs | +90% |
-| `pn::store_floor` | 3.64 µs | 1.32 µs | +175% |
-| `carrier_acq::steps[pad=4]` | 3.92 µs | 3.62 µs | +8% |
-| `cvt::bin_to_nrz` | 4.33 µs | 1.48 µs | +193% |
-| `i8_to_f32::steps` | 4.54 µs | 2.39 µs | +90% |
-| `u8_to_f32::steps[shift]` | 4.68 µs | 2.33 µs | +101% |
-| `f32_buffer::write_some_view+peek_view` | 4.78 µs | 4.93 µs | -3% |
-| `i16u32_to_f32::steps` | 4.92 µs | 2.46 µs | +100% |
-| `uq15_to_f32::steps` | 5.03 µs | 2.00 µs | +152% |
-| `arith::dot_q8` | 5.33 µs | 2.54 µs | +110% |
-| `u8_to_f32::steps[midpoint]` | 5.54 µs | 2.81 µs | +97% |
-| `fft::execute_inplace_cf32[n=4096]` | 5.88 µs | 4.55 µs | +29% |
-| `acc_trace::fold[minhold,nfft=256]` | 6.12 µs | 3.31 µs | +85% |
-| `fft::execute_cf32[n=4096]` | 6.12 µs | 4.71 µs | +30% |
-| `fft::execute_ci8[n=4096]` | 6.13 µs | 4.56 µs | +35% |
-| `rs_codec::create[J=4]` | 6.20 µs | 6.03 µs | +3% |
-| `fft::execute_ci16[n=4096]` | 6.20 µs | 4.75 µs | +31% |
-| `acc_trace::fold[maxhold,nfft=256]` | 6.33 µs | 3.38 µs | +87% |
-| `i16u64_to_f32::steps` | 6.72 µs | 3.47 µs | +94% |
-| `wfm::bpsk_map[8192]` | 6.94 µs | 3.36 µs | +107% |
-| `arith::mul_q8` | 8.40 µs | 3.81 µs | +120% |
-| `arith::shl_q8` | 9.65 µs | 4.11 µs | +135% |
-| `acc_trace::accumulate[exp]` | 9.71 µs | 6.39 µs | +52% |
-| `acc_f32::steps` | 9.77 µs | 2.45 µs | +298% |
-| `spectral::kaiser_enbw[4096]` | 9.86 µs | 4.41 µs | +124% |
-| `interleaver::soft` | 10.01 µs | 10.20 µs | -2% |
-| `acc_trace::fold[exp,nfft=4096]` | 10.26 µs | 6.91 µs | +49% |
-| `wfm::dsss_spread[sf=31,512sym]` | 10.38 µs | 5.79 µs | +79% |
-| `arith::sub_q8` | 10.74 µs | 4.60 µs | +133% |
-| `arith::add_q8` | 10.75 µs | 4.62 µs | +133% |
-| `f64_buffer::write_some_view+peek_view` | 11.07 µs | 11.08 µs | -0% |
-| `interleaver::bit-1x8k` | 11.76 µs | 13.07 µs | -10% |
-| `frame::data pipe` | 11.78 µs | 11.04 µs | +7% |
-| `dp_tlm_capture::boundary` | 12.18 µs | 11.42 µs | +7% |
-| `acc_trace::accumulate[mean]` | 12.58 µs | 5.35 µs | +135% |
-| `filter::design_lowpass[fstop=0.215,taps=485]` | 12.59 µs | 12.54 µs | +0% |
-| `acc_q15::steps` | 13.02 µs | 6.73 µs | +94% |
-| `acquire::dp_fftfreq_index (inlined)` | 13.03 µs | 6.94 µs | +88% |
-| `acc_q15::step` | 13.05 µs | 6.74 µs | +94% |
-| `dp_interrupt_guard::raw_load` | 13.05 µs | 13.06 µs | -0% |
-| `dp_tlm::detached` | 13.06 µs | 13.05 µs | +0% |
-| `i32_to_f32::step` | 13.07 µs | 13.07 µs | -0% |
-| `i8_to_f32::step` | 13.11 µs | 13.11 µs | -0% |
-| `i16_to_f32::step` | 13.12 µs | 13.14 µs | -0% |
-| `arith::mul_q15` | 13.14 µs | 5.36 µs | +145% |
-| `i16u64_to_f32::step` | 13.20 µs | 13.07 µs | +1% |
-| `interleaver::deep` | 13.22 µs | 11.68 µs | +13% |
-| `awgn::generate(n=4096)` | 13.34 µs | 13.21 µs | +1% |
-| `i16u32_to_f32::step` | 13.34 µs | 13.47 µs | -1% |
-| `arith::shl_i64` | 13.39 µs | 8.60 µs | +56% |
-| `acc_trace::fold[mean,nfft=4096]` | 13.41 µs | 5.34 µs | +151% |
-| `acc_q8::step` | 15.32 µs | 15.30 µs | +0% |
-| `acc_q8::steps` | 15.32 µs | 15.31 µs | +0% |
-| `u8_to_f32::step[midpoint]` | 15.63 µs | 13.07 µs | +20% |
-| `u8_to_f32::step[shift]` | 15.63 µs | 13.15 µs | +19% |
-| `nco::steps_u32` | 15.77 µs | 15.78 µs | -0% |
-| `uq15_to_f32::step` | 15.79 µs | 13.18 µs | +20% |
-| `fft::execute_cf64[n=4096]` | 16.10 µs | 8.34 µs | +93% |
-| `wfm::field_bits[pn:1023:10*4]` | 17.22 µs | 17.32 µs | -1% |
-| `wfm::qpsk_map[8192]` | 18.25 µs | 7.98 µs | +129% |
-| `carrier_acq::steps[pad=16]` | 18.41 µs | 17.03 µs | +8% |
-| `dp_tlm::decimated` | 18.56 µs | 18.32 µs | +1% |
-| `arith::shl_q15` | 18.64 µs | 8.18 µs | +128% |
-| `wfm::mls_poly` | 19.53 µs | 19.51 µs | +0% |
-| `resample::kaiser_num_taps` | 19.70 µs | 19.54 µs | +1% |
-| `util::repeated_multiply` | 20.15 µs | 8.52 µs | +137% |
-| `nprmeas::analyze[n=4096]` | 20.60 µs | 17.10 µs | +20% |
-| `nco::steps_u32_ovf` | 21.06 µs | 21.02 µs | +0% |
-| `arith::add_q15` | 21.42 µs | 9.17 µs | +133% |
-| `arith::sub_q15` | 21.42 µs | 9.18 µs | +133% |
-| `imdmeas::analyze[n=4096]` | 22.12 µs | 18.36 µs | +21% |
-| `nco::steps_u32_scaled` | 23.58 µs | 23.76 µs | -1% |
-| `frame_meter::get_frames` | 23.84 µs | 24.12 µs | -1% |
-| `acc_trace::fold[minhold,nfft=1024]` | 23.96 µs | 12.79 µs | +87% |
-| `measure::measure_rec_nfft` | 24.42 µs | 23.09 µs | +6% |
-| `acc_trace::fold[maxhold,nfft=1024]` | 24.48 µs | 12.89 µs | +90% |
-| `measure::measure_dr_from_bits[inline]` | 24.61 µs | 26.04 µs | -6% |
-| `lo::steps` | 24.85 µs | 24.98 µs | -1% |
-| `resample::kaiser_beta` | 25.17 µs | 24.90 µs | +1% |
-| `acc_trace::accumulate[maxhold]` | 25.36 µs | 6.77 µs | +274% |
-| `lo::step` | 25.40 µs | 25.71 µs | -1% |
-| `tonemeas::analyze[n=4096]` | 25.40 µs | 23.28 µs | +9% |
-| `detection::det_threshold` | 25.62 µs | 25.71 µs | -0% |
-| `wfm::field_parse[0x..,4096 bits]` | 25.94 µs | 25.91 µs | +0% |
-| `arith::dot_q15` | 26.03 µs | 5.32 µs | +389% |
-| `measure::measure_proc_gain` | 26.09 µs | 26.09 µs | -0% |
-| `detection::det_ema_alpha` | 26.71 µs | 29.94 µs | -11% |
-| `fft::execute_cf32[n=16384]` | 26.80 µs | 20.31 µs | +32% |
-| `fft::execute_inplace_cf32[n=16384]` | 26.99 µs | 20.84 µs | +29% |
-| `fft::execute_ci8[n=16384]` | 27.37 µs | 20.07 µs | +36% |
-| `fft::execute_ci16[n=16384]` | 27.57 µs | 20.66 µs | +33% |
-| `spectral::find_peaks_f32[4096,n=8]` | 28.30 µs | 29.25 µs | -3% |
-| `arith::shr_i64` | 29.74 µs | 8.74 µs | +240% |
-| `corr::execute[accumulate][n=16384]` | 30.09 µs | 21.38 µs | +41% |
-| `wfm_synth::tone  clean` | 30.41 µs | 21.13 µs | +44% |
-| `acc_trace::accumulate[minhold]` | 31.03 µs | 6.41 µs | +384% |
-| `lockdet::steps` | 31.30 µs | 34.26 µs | -9% |
-| `carrier_acq::steps[pad=4,seq]` | 33.27 µs | 29.60 µs | +12% |
-| `tonemeas::analyze_complex[n=4096]` | 34.43 µs | 31.33 µs | +10% |
-| `arith::shr_q15` | 34.57 µs | 3.91 µs | +785% |
-| `f32_to_i32::step` | 35.37 µs | 35.16 µs | +1% |
-| `f32_to_i32::steps` | 35.97 µs | 21.17 µs | +70% |
-| `snr::data_aided_db` | 38.44 µs | 18.65 µs | +106% |
-| `acc_f32::madd2d` | 39.03 µs | 39.04 µs | -0% |
-| `acc_f32::add2d` | 39.04 µs | 39.03 µs | +0% |
-| `acc_f32::madd` | 39.07 µs | 39.05 µs | +0% |
-| `acc_cf64::add2d` | 39.10 µs | 39.13 µs | -0% |
-| `acc_cf64::step` | 39.10 µs | 39.14 µs | -0% |
-| `acc_f32::step` | 39.11 µs | 39.14 µs | -0% |
-| `acc_cf64::steps` | 39.13 µs | 19.59 µs | +100% |
-| `acc_cf64::madd2d` | 39.23 µs | 39.19 µs | +0% |
-| `acc_cf64::madd` | 39.25 µs | 39.21 µs | +0% |
-| `lockdet::step` | 39.87 µs | 46.69 µs | -15% |
-| `acc_trace::fold[exp,nfft=16384]` | 40.40 µs | 26.48 µs | +53% |
-| `loop_filter::step` | 45.17 µs | 59.78 µs | -24% |
-| `nco::steps_u32_ctrl` | 45.17 µs | 41.47 µs | +9% |
-| `frame::assemble plain` | 46.67 µs | 46.62 µs | +0% |
-| `conv_enc::encode[k=9]` | 47.94 µs | 42.52 µs | +13% |
-| `conv_enc::encode[k=7]` | 47.95 µs | 42.49 µs | +13% |
-| `conv_enc::encode[through the object]` | 47.95 µs | 42.53 µs | +13% |
-| `conv_enc::encode[k=5]` | 47.96 µs | 42.62 µs | +13% |
-| `conv::encode` | 47.97 µs | 42.53 µs | +13% |
-| `conv_enc::encode[raw kernel]` | 47.98 µs | 42.63 µs | +13% |
-| `conv_enc::encode[k=3]` | 47.99 µs | 42.49 µs | +13% |
-| `acc_f32::dump` | 52.05 µs | 52.04 µs | +0% |
-| `wfm::crc16[8192]` | 52.05 µs | 52.05 µs | -0% |
-| `acc_cf64::dump` | 52.06 µs | 52.05 µs | +0% |
-| `acc_f32::get` | 52.06 µs | 52.07 µs | -0% |
-| `acc_cf64::get` | 52.06 µs | 52.06 µs | +0% |
-| `adc::step` | 52.11 µs | 40.69 µs | +28% |
-| `acquire::bin_to_signed (wrapper, not inlinable)` | 52.20 µs | 52.16 µs | +0% |
-| `dp_interrupt_guard::arm_disarm` | 52.20 µs | 52.20 µs | +0% |
-| `boxcar::step` | 52.28 µs | 52.22 µs | +0% |
-| `dp_interrupt_guard::interrupted` | 52.57 µs | 52.15 µs | +1% |
-| `acc_trace::fold[mean,nfft=16384]` | 53.45 µs | 22.83 µs | +134% |
-| `spectral::obw_from_power[4096]` | 53.77 µs | 43.60 µs | +23% |
-| `nco::steps_u32_scaled_ctrl` | 55.47 µs | 51.23 µs | +8% |
-| `frame_meter::sync_miss` | 56.86 µs | 65.82 µs | -14% |
-| `frame::data pn:0` | 57.09 µs | 57.03 µs | +0% |
-| `corr::execute[dump][n=16384]` | 57.65 µs | 42.61 µs | +35% |
-| `buffer::write_wait_consume[i16,chunk=1024]` | 58.25 µs | 54.79 µs | +6% |
-| `buffer::write_wait_consume[i16,chunk=1000]` | 58.47 µs | 55.17 µs | +6% |
-| `adc::steps` | 58.90 µs | 23.96 µs | +146% |
-| `psd::fft[nfft=256]` | 62.88 µs | 51.80 µs | +21% |
-| `pn::generate[fibonacci,len=23]` | 65.04 µs | 65.12 µs | -0% |
-| `pn::generate[fibonacci,len=15]` | 65.06 µs | 65.18 µs | -0% |
-| `pn::generate[galois,len=23]` | 65.06 µs | 65.08 µs | -0% |
-| `pn::generate[fibonacci,len=11]` | 65.07 µs | 65.13 µs | -0% |
-| `pn::generate[galois,len=15]` | 65.16 µs | 65.08 µs | +0% |
-| `pn::generate[galois,len=11]` | 65.35 µs | 65.37 µs | -0% |
-| `gold::generate` | 65.53 µs | 66.02 µs | -1% |
-| `wfm::field_bits[pn:4095:12]` | 65.83 µs | 65.82 µs | +0% |
-| `dp_tlm::emit` | 67.00 µs | 68.38 µs | -2% |
-| `frame_meter::add` | 70.56 µs | 72.02 µs | -2% |
-| `wfm_synth::pn    n=40 baseband(64b)` | 71.27 µs | 68.09 µs | +5% |
-| `wfm_synth::pn    fibonacci baseband` | 71.27 µs | 68.20 µs | +4% |
-| `wfm_synth::pn    baseband clean` | 71.27 µs | 68.12 µs | +5% |
-| `nco::steps_u32_ovf_ctrl` | 74.79 µs | 77.06 µs | -3% |
-| `psd::fft[nfft=1024]` | 75.88 µs | 59.23 µs | +28% |
-| `rs_codec::create[J=8]` | 76.37 µs | 76.67 µs | -0% |
-| `fft::execute_cf64[n=16384]` | 76.57 µs | 39.75 µs | +93% |
-| `wfm_synth::bpsk  clean` | 77.56 µs | 77.61 µs | -0% |
-| `util::two_product` | 78.90 µs | 91.10 µs | -13% |
-| `timing::stamp` | 81.34 µs | 80.79 µs | +1% |
-| `wfm_synth::qpsk  clean` | 85.92 µs | 86.15 µs | -0% |
-| `buffer::write_wait_consume[f32,chunk=1024]` | 86.17 µs | 47.75 µs | +80% |
-| `buffer::write_wait_consume[f32,chunk=1000]` | 86.37 µs | 47.80 µs | +81% |
-| `cic::decimate` | 86.90 µs | 85.10 µs | +2% |
-| `measure::dp_coherent_freq[N=4096]` | 87.75 µs | 87.63 µs | +0% |
-| `psd::fft[nfft=4096]` | 89.76 µs | 70.74 µs | +27% |
-| `nprmeas::analyze[n=16384]` | 90.79 µs | 74.98 µs | +21% |
-| `psd::frame_power[nfft=256]` | 91.47 µs | 75.25 µs | +22% |
-| `ddc::execute[rate=0.05]` | 92.19 µs | 91.38 µs | +1% |
-| `ddc::execute[rate=0.50]` | 93.38 µs | 101.04 µs | -8% |
-| `buffer::write_some_peek_consume[f32,in=3000,frame=1024]` | 94.58 µs | 58.84 µs | +61% |
-| `buffer::framer_feed_next[f32,in=3000,frame=1024]` | 94.75 µs | 58.76 µs | +61% |
-| `imdmeas::analyze[n=16384]` | 95.56 µs | 80.32 µs | +19% |
-| `acc_trace::fold[minhold,nfft=4096]` | 96.89 µs | 50.81 µs | +91% |
-| `mpsk::soft_demap[m=2]` | 97.73 µs | 95.75 µs | +2% |
-| `acc_trace::fold[maxhold,nfft=4096]` | 98.46 µs | 50.79 µs | +94% |
-| `psd::frame_linear[nfft=256]` | 101.99 µs | 81.55 µs | +25% |
-| `psd::frame_power[nfft=1024]` | 103.63 µs | 83.12 µs | +25% |
-| `arith::shr_q8` | 104.09 µs | 1.99 µs | +5134% |
-| `psd::fft[nfft=16384]` | 106.14 µs | 82.54 µs | +29% |
-| `tonemeas::analyze[n=16384]` | 109.20 µs | 95.36 µs | +15% |
-| `psd::accumulate_frame[nfft=256]` | 109.58 µs | 86.28 µs | +27% |
-| `psd::frame_linear[nfft=1024]` | 113.64 µs | 89.45 µs | +27% |
-| `psd::accumulate_real[nfft=1024]` | 114.02 µs | 86.54 µs | +32% |
-| `ddc::execute[rate=0.10]` | 114.19 µs | 117.33 µs | -3% |
-| `psd::frame_power[nfft=4096]` | 116.77 µs | 94.76 µs | +23% |
-| `delay::write` | 117.13 µs | 65.07 µs | +80% |
-| `delay::push` | 117.42 µs | 52.32 µs | +124% |
-| `util::ema_step` | 117.76 µs | 117.76 µs | +0% |
-| `util::raw_incremental` | 117.85 µs | 118.18 µs | -0% |
-| `fft::execute_cf32[n=65536]` | 118.02 µs | 91.50 µs | +29% |
-| `wfm_reader::raw cf32 (reinterpret)` | 118.93 µs | 119.55 µs | -1% |
-| `wfm_compose::execute[seg=262144,boundaries=1]` | 121.20 µs | 84.37 µs | +44% |
-| `wfm_compose::execute[seg=16384,boundaries=16]` | 121.96 µs | 85.12 µs | +43% |
-| `fft::execute_inplace_cf32[n=65536]` | 122.43 µs | 95.46 µs | +28% |
-| `RateConverter::CIC(0.125)` | 123.46 µs | 121.03 µs | +2% |
-| `psd::accumulate_frame[nfft=1024]` | 124.03 µs | 95.75 µs | +30% |
-| `psd::accumulate[nfft=1024]` | 124.27 µs | 94.59 µs | +31% |
-| `fft::execute_ci8[n=65536]` | 124.31 µs | 92.84 µs | +34% |
-| `wfm_compose::execute[seg=4096,boundaries=64]` | 124.45 µs | 87.30 µs | +43% |
-| `fft::execute_ci16[n=65536]` | 125.44 µs | 95.55 µs | +31% |
-| `psd::accumulate_real[nfft=4096]` | 126.21 µs | 96.97 µs | +30% |
-| `ddcr::execute[rate=0.25]` | 129.45 µs | 133.40 µs | -3% |
-| `ddcr::execute_ctrl[rate=0.25]` | 130.02 µs | 134.28 µs | -3% |
-| `f32_to_uq15::steps` | 130.16 µs | 143.16 µs | -9% |
-| `f32_to_i16u32::steps` | 130.24 µs | 143.23 µs | -9% |
-| `f32_to_i16u64::steps` | 130.40 µs | 143.56 µs | -9% |
-| `psd::frame_power[nfft=16384]` | 131.30 µs | 108.44 µs | +21% |
-| `ddc::execute[rate=0.25]` | 132.68 µs | 145.56 µs | -9% |
-| `ddc::execute_ctrl[rate=0.25]` | 135.57 µs | 148.41 µs | -9% |
-| `psd::accumulate[nfft=4096]` | 135.64 µs | 104.62 µs | +30% |
-| `psd::accumulate_frame[nfft=4096]` | 136.18 µs | 104.42 µs | +30% |
-| `wfm_compose::execute[seg=1024,boundaries=256]` | 136.25 µs | 98.62 µs | +38% |
-| `wfm_reader::raw ci16 (rescale)` | 136.60 µs | 136.51 µs | +0% |
-| `syncword::find[n=32]` | 137.45 µs | 92.58 µs | +48% |
-| `farrow::delay_cubic` | 138.12 µs | 249.84 µs | -45% |
-| `psd::accumulate_real[nfft=16384]` | 138.76 µs | 105.32 µs | +32% |
-| `f32_to_i8::steps` | 143.09 µs | 143.11 µs | -0% |
-| `f32_to_i16::steps` | 143.16 µs | 143.16 µs | +0% |
-| `f32_to_i16u64::step` | 143.24 µs | 130.23 µs | +10% |
-| `f32_to_i16::step` | 143.24 µs | 130.24 µs | +10% |
-| `f32_to_i8::step` | 143.27 µs | 143.28 µs | -0% |
-| `f32_to_i16u32::step` | 143.29 µs | 130.26 µs | +10% |
-| `wfm_reader::blue cf32 (parse+raw)` | 143.38 µs | 143.37 µs | +0% |
-| `f32_to_uq15::step` | 143.51 µs | 130.49 µs | +10% |
-| `farrow::delay_parabolic` | 143.65 µs | 246.40 µs | -42% |
-| `tonemeas::analyze_complex[n=16384]` | 145.11 µs | 130.86 µs | +11% |
-| `wfm_synth::bits  bpsk sps=8` | 146.20 µs | 141.53 µs | +3% |
-| `carrier_acq::steps[pad=16,seq]` | 150.60 µs | 138.49 µs | +9% |
-| `psd::accumulate_frame[nfft=16384]` | 150.94 µs | 120.15 µs | +26% |
-| `psd::accumulate[nfft=16384]` | 151.41 µs | 117.84 µs | +28% |
-| `loop_filter::steps` | 156.60 µs | 169.51 µs | -8% |
-| `costas::steps` | 156.68 µs | 173.51 µs | -10% |
-| `RateConverter::HB(0.5)` | 158.53 µs | 179.87 µs | -12% |
-| `acc_trace::fold[exp,nfft=65536]` | 161.38 µs | 105.91 µs | +52% |
-| `fir::execute[taps=15,real]` | 164.83 µs | 56.93 µs | +190% |
-| `fft2d::execute_cf32[256x256]` | 167.56 µs | 146.64 µs | +14% |
-| `farrow::delay_linear` | 169.79 µs | 246.56 µs | -31% |
-| `spectral::magnitude_db_cf32[4096]` | 171.60 µs | 144.83 µs | +18% |
-| `fft2d::execute_inplace_cf32[256x256]` | 171.95 µs | 150.58 µs | +14% |
-| `wfm_synth::bits  qpsk sps=8` | 172.77 µs | 173.88 µs | -1% |
-| `buffer::write_wait_consume[f64,chunk=1024]` | 185.82 µs | 107.55 µs | +73% |
-| `buffer::write_wait_consume[f64,chunk=1000]` | 187.02 µs | 108.65 µs | +72% |
-| `hbdecim_q15::execute[taps=32,K_pad=16]` | 194.61 µs | 169.05 µs | +15% |
-| `boxcar::steps` | 195.68 µs | 196.23 µs | -0% |
-| `RateConverter::CIC+Rs(0.1)` | 199.33 µs | 215.82 µs | -8% |
-| `acc_trace::fold[mean,nfft=65536]` | 209.78 µs | 94.76 µs | +121% |
-| `awgn::generate(n=65536)` | 211.38 µs | 213.45 µs | -1% |
-| `hbdecim_q15::execute[taps=34,K_pad=32]` | 213.69 µs | 178.22 µs | +20% |
-| `wfm_writer::blue cf32` | 215.22 µs | 201.68 µs | +7% |
-| `wfm_writer::raw cf32 (memcpy)` | 219.43 µs | 208.47 µs | +5% |
-| `wfm_synth::noise (AWGN)` | 219.77 µs | 219.44 µs | +0% |
-| `ppe::doppler` | 222.33 µs | 208.40 µs | +7% |
-| `wfm_synth::bpsk  rrc sps=16` | 224.79 µs | 173.45 µs | +30% |
-| `async_dsss_pool::push[12 slots, all cores]` | 228.13 µs | 207.42 µs | +10% |
-| `measure::dp_coherent_freq[N=30030]` | 232.02 µs | 231.89 µs | +0% |
-| `RateConverter::HB2(0.25)` | 237.50 µs | 268.02 µs | -11% |
-| `detector::push[chunk=16384]` | 241.21 µs | 180.35 µs | +34% |
-| `detector::push[chunk=1024,no-detections]` | 241.51 µs | 180.79 µs | +34% |
-| `detector::push[chunk=1024]` | 241.73 µs | 181.46 µs | +33% |
-| `wfm_synth::tone  +noise` | 241.90 µs | 238.93 µs | +1% |
-| `detector::push[chunk=64]` | 245.80 µs | 185.30 µs | +33% |
-| `wfm_synth::bpsk  rrc sps=8` | 250.38 µs | 196.25 µs | +28% |
-| `lo::cexpf_baseline` | 251.87 µs | 241.04 µs | +4% |
-| `wfm_synth::qpsk  rrc sps=8` | 252.98 µs | 198.23 µs | +28% |
-| `syncword::find[n=64]` | 254.98 µs | 152.04 µs | +68% |
-| `ddcr::execute_ctrl_push[rate=0.25]` | 265.76 µs | 274.30 µs | -3% |
-| `ccsds_tm::asm_find` | 267.13 µs | 177.67 µs | +50% |
-| `resample::ciccompmf[M=5]` | 269.40 µs | 269.84 µs | -0% |
-| `dp_tlm::full` | 271.26 µs | 271.25 µs | +0% |
-| `Resampler::reset` | 273.66 µs | 273.32 µs | +0% |
-| `hbdecim_q15::execute[taps=64,K_pad=32]` | 275.88 µs | 178.64 µs | +54% |
-| `fft2d::execute_cf32[1024x64]` | 276.43 µs | 259.03 µs | +7% |
-| `fft2d::execute_inplace_cf32[1024x64]` | 278.84 µs | 261.47 µs | +7% |
-| `wfm_reader::blue seek (strided)` | 283.79 µs | 283.85 µs | -0% |
-| `fft2d::execute_inplace_cf32[64x1024]` | 290.51 µs | 279.57 µs | +4% |
-| `fft2d::execute_cf32[64x1024]` | 290.54 µs | 279.43 µs | +4% |
-| `interp_table::execute[nearest]` | 290.84 µs | 288.69 µs | +1% |
-| `wfm_synth::bpsk  +noise` | 291.33 µs | 292.75 µs | -0% |
-| `fft2d::execute_cf32[16x4096]` | 294.14 µs | 276.69 µs | +6% |
-| `hbdecim_q15::execute[taps=66,K_pad=48]` | 294.81 µs | 185.82 µs | +59% |
-| `wfm_synth::bits  amplitude sps=1` | 295.03 µs | 278.00 µs | +6% |
-| `dsss_burst_receiver::push_idle` | 295.78 µs | 285.38 µs | +4% |
-| `fft2d::execute_inplace_cf32[16x4096]` | 297.10 µs | 279.18 µs | +6% |
-| `wfm_synth::qpsk  +noise` | 299.16 µs | 301.27 µs | -1% |
-| `interp_table::execute[cubic]` | 303.61 µs | 301.87 µs | +1% |
-| `interp_table::execute[linear]` | 305.80 µs | 299.62 µs | +2% |
-| `wfm_synth::bpsk  rrc sps=4` | 306.87 µs | 256.18 µs | +20% |
-| `ddc::execute[rate=0.77]` | 311.46 µs | 368.20 µs | -15% |
-| `buffer::framer_feed_next[f32,in=3000,frame=1024,hop=256]` | 316.19 µs | 173.76 µs | +82% |
-| `buffer::write_some_peek_consume[f32,in=3000,frame=1024,hop=256]` | 316.48 µs | 174.30 µs | +82% |
-| `wfm_synth::pn    +LO +noise` | 320.73 µs | 312.04 µs | +3% |
-| `async_dsss_pool::push[12 slots, serial]` | 330.97 µs | 304.26 µs | +9% |
-| `spectral::magnitude_db_cf64[4096]` | 332.72 µs | 332.75 µs | -0% |
-| `fft::execute_cf64[n=65536]` | 347.00 µs | 180.77 µs | +92% |
-| `wfm_writer::raw ci8 (quantise)` | 353.96 µs | 341.00 µs | +4% |
-| `wfm_writer::raw ci16 (quantise)` | 358.23 µs | 332.32 µs | +8% |
-| `syncword::max_errors_for[n=32]` | 359.19 µs | 357.93 µs | +0% |
-| `dsss_burst_receiver::push_burst` | 360.46 µs | 337.90 µs | +7% |
-| `symsync::steps` | 371.08 µs | 371.23 µs | -0% |
-| `acc_trace::fold[minhold,nfft=16384]` | 385.17 µs | 200.26 µs | +92% |
-| `acc_trace::fold[maxhold,nfft=16384]` | 386.74 µs | 195.47 µs | +98% |
-| `fir::execute[taps=15,complex]` | 387.98 µs | 95.94 µs | +304% |
-| `RateConverter::Resamp(1/3)` | 390.34 µs | 425.12 µs | -8% |
-| `specan::execute[rbw=100k]` | 392.47 µs | 394.36 µs | -0% |
-| `specan::execute[rbw=10k]` | 394.09 µs | 348.28 µs | +13% |
-| `nprmeas::analyze[n=65536]` | 396.48 µs | 332.93 µs | +19% |
-| `detector2d::push[128x128]` | 402.65 µs | 354.92 µs | +13% |
-| `detector2d::push[128x128,no-detections]` | 405.33 µs | 356.51 µs | +14% |
-| `imdmeas::analyze[n=65536]` | 413.49 µs | 370.18 µs | +12% |
-| `specan::execute[rbw=1k]` | 420.13 µs | 390.12 µs | +8% |
-| `burst_despreader::steps[sf=31]` | 425.61 µs | 413.97 µs | +3% |
-| `spectrogram::push[nfft=256,hop=64,mode=power]` | 430.15 µs | 348.42 µs | +23% |
-| `corr2d::single_row_fast_path` | 430.92 µs | 304.79 µs | +41% |
-| `burst_despreader::steps[sf=15]` | 431.27 µs | 430.84 µs | +0% |
-| `psd::frame_db[nfft=256]` | 431.79 µs | 435.00 µs | -1% |
-| `burst_despreader::steps[sf=63]` | 434.73 µs | 428.94 µs | +1% |
-| `spectral::hann_window[4096]` | 437.96 µs | 438.51 µs | -0% |
-| `spectrogram::direct[nfft=256,hop=256]` | 439.18 µs | 430.21 µs | +2% |
-| `psd::frame_db[nfft=1024]` | 442.08 µs | 442.53 µs | -0% |
-| `spectrogram::push[nfft=256,hop=256]` | 444.61 µs | 436.90 µs | +2% |
-| `spectrogram::push[nfft=256,hop=256,chunk=256]` | 446.00 µs | 439.16 µs | +2% |
-| `spectrogram::direct[nfft=1024,hop=1024]` | 452.08 µs | 444.98 µs | +2% |
-| `burst_acq::push[sf=15,spc=2]` | 453.06 µs | 449.95 µs | +1% |
-| `psd::frame_db[nfft=4096]` | 453.70 µs | 449.36 µs | +1% |
-| `spectrogram::push[nfft=1024,hop=1024]` | 459.56 µs | 448.98 µs | +2% |
-| `spectrogram::push[nfft=1024,hop=1024,chunk=256]` | 462.57 µs | 461.31 µs | +0% |
-| `tonemeas::analyze[n=65536]` | 465.04 µs | 412.65 µs | +13% |
-| `psd::frame_db[nfft=16384]` | 467.34 µs | 461.42 µs | +1% |
-| `spectrogram::direct[nfft=4096,hop=4096]` | 468.76 µs | 455.58 µs | +3% |
-| `fft2d::execute_cf64[1024x64]` | 470.33 µs | 356.60 µs | +32% |
-| `psd::fft[nfft=65536]` | 472.76 µs | 389.27 µs | +21% |
-| `fft2d::execute_cf64[16x4096]` | 476.18 µs | 377.26 µs | +26% |
-| `spectrogram::push[nfft=4096,hop=4096]` | 478.59 µs | 460.83 µs | +4% |
-| `frame::assemble cadu` | 479.82 µs | 458.90 µs | +5% |
-| `spectrogram::push[nfft=4096,hop=4096,chunk=256]` | 481.06 µs | 464.48 µs | +4% |
-| `ccsds::asm_bits` | 482.81 µs | 52.35 µs | +822% |
-| `ccsds::dp_ccsds_tm_asm_bits` | 483.32 µs | 52.05 µs | +829% |
-| `agc::steps` | 484.28 µs | 470.67 µs | +3% |
-| `syncword::find[n=128]` | 489.03 µs | 263.36 µs | +86% |
-| `spectrogram::push[nfft=1024,hop=256,mode=power]` | 490.39 µs | 400.57 µs | +22% |
-| `fft2d::execute_cf64[64x1024]` | 490.52 µs | 376.33 µs | +30% |
-| `frame::pipe+cadu` | 494.92 µs | 471.93 µs | +5% |
-| `carrier_nda::step` | 522.13 µs | 503.06 µs | +4% |
-| `detection::det_pd[dwell=1]` | 525.11 µs | 519.17 µs | +1% |
-| `carrier_nda::steps` | 533.50 µs | 511.47 µs | +4% |
-| `fft2d::execute_cf64[256x256]` | 537.00 µs | 410.91 µs | +31% |
-| `corr2d::multi_row_general_path` | 539.43 µs | 408.83 µs | +32% |
-| `mpsk::demap[m=2]` | 540.91 µs | 523.90 µs | +3% |
-| `mpsk::diff_demap[m=2]` | 556.64 µs | 548.53 µs | +1% |
-| `util::ema_alpha_decim` | 557.66 µs | 521.91 µs | +7% |
-| `burst_demod::demod[clean]` | 561.20 µs | 366.58 µs | +53% |
-| `ddc::execute_ctrl_push[rate=0.25]` | 578.71 µs | 581.71 µs | -1% |
-| `psd::frame_power[nfft=65536]` | 580.88 µs | 490.77 µs | +18% |
-| `cvt::int_to_bin` | 600.23 µs | 586.51 µs | +2% |
-| `tonemeas::analyze_complex[n=65536]` | 612.88 µs | 554.11 µs | +11% |
-| `psd::frame_linear[nfft=65536]` | 618.65 µs | 509.25 µs | +21% |
-| `detection::marcum_q[m=1]` | 627.64 µs | 623.75 µs | +1% |
-| `burst_demod::demod[offset]` | 633.67 µs | 534.43 µs | +19% |
-| `detector2d::push[1024x16]` | 633.99 µs | 573.05 µs | +11% |
-| `mpsk::demap[m=8]` | 644.21 µs | 635.47 µs | +1% |
-| `mpsk::soft_demap[m=4]` | 652.10 µs | 627.21 µs | +4% |
-| `detector2d::push[16x1024]` | 654.29 µs | 617.45 µs | +6% |
-| `psd::accumulate_frame[nfft=65536]` | 662.39 µs | 555.98 µs | +19% |
-| `mpsk::map[m=2]` | 664.91 µs | 586.74 µs | +13% |
-| `rs::encode` | 665.33 µs | 703.91 µs | -5% |
-| `mpsk::demap[m=4]` | 675.22 µs | 671.14 µs | +1% |
-| `dsss_receiver::search` | 675.60 µs | 1.13 ms | -40% |
-| `mpsk::diff_map[m=2]` | 676.01 µs | 590.55 µs | +14% |
-| `mpsk::diff_demap[m=8]` | 680.46 µs | 676.59 µs | +1% |
-| `detection::marcum_q[m=4]` | 703.28 µs | 697.27 µs | +1% |
-| `mpsk::diff_demap[m=4]` | 708.94 µs | 700.58 µs | +1% |
-| `mpsk::map[m=8]` | 709.30 µs | 625.65 µs | +13% |
-| `burst_acq::push[sf=15,spc=4]` | 715.04 µs | 643.15 µs | +11% |
-| `mpsk::map[m=4]` | 717.51 µs | 632.87 µs | +13% |
-| `fir::execute[taps=63,real]` | 717.93 µs | 220.73 µs | +225% |
-| `mpsk::diff_map[m=8]` | 727.93 µs | 574.67 µs | +27% |
-| `async_dsss_receiver::steps[warm]` | 730.26 µs | 653.85 µs | +12% |
-| `mpsk::diff_map[m=4]` | 731.00 µs | 601.20 µs | +22% |
-| `rs_codec::encode_kernel` | 732.20 µs | 701.68 µs | +4% |
-| `rs_codec::encode` | 733.43 µs | 702.65 µs | +4% |
-| `async_dsss_receiver::steps[cell]` | 739.57 µs | 667.32 µs | +11% |
-| `ber_meter::align` | 802.12 µs | 814.02 µs | -1% |
-| `RateConverter::Interp(2.0)` | 807.82 µs | 659.81 µs | +22% |
-| `detection::det_q_inv` | 815.10 µs | 769.67 µs | +6% |
-| `burst_acq::push[sf=63,spc=2]` | 818.32 µs | 689.69 µs | +19% |
-| `ber_meter::score` | 824.53 µs | 980.96 µs | -16% |
-| `burst_acq::push[sf=63,spc=4]` | 889.63 µs | 773.08 µs | +15% |
-| `wfm::rc_h[4096]` | 915.88 µs | 900.12 µs | +2% |
-| `wfm::rrc_h[4096]` | 919.59 µs | 904.61 µs | +2% |
-| `ratesync::steps[gardner,sps=8]` | 924.35 µs | 825.60 µs | +12% |
-| `ppe::chirp` | 930.70 µs | 844.67 µs | +10% |
-| `spectral::noise_floor_db[4096]` | 944.10 µs | 913.04 µs | +3% |
-| `ber::qfunc` | 947.52 µs | 915.89 µs | +3% |
-| `cvt::hex_to_bin` | 953.23 µs | 941.85 µs | +1% |
-| `syncword::find[n=256]` | 963.06 µs | 491.82 µs | +96% |
-| `detection::det_pd[dwell=64]` | 970.16 µs | 963.50 µs | +1% |
-| `wfm::rrc_taps[sps=4,span=8]` | 970.28 µs | 956.02 µs | +1% |
-| `mpsk::soft_demap[m=8]` | 984.01 µs | 900.12 µs | +9% |
-| `ratesync::steps[dttl,sps=8]` | 988.31 µs | 906.38 µs | +9% |
-| `spectrogram::direct[nfft=16384,hop=16384]` | 998.61 µs | 954.29 µs | +5% |
-| `ratesync::steps[gardner,sps=4]` | 1.01 ms | 918.80 µs | +10% |
-| `spectrogram::push[nfft=16384,hop=16384]` | 1.02 ms | 977.11 µs | +5% |
-| `ccsds_tm::rs_encode_block` | 1.03 ms | 1.00 ms | +2% |
-| `mpsk_receiver::steps[sps=4,agc=0]` | 1.06 ms | 1.06 ms | +0% |
-| `doppler_channel::execute[profile]` | 1.09 ms | 959.43 µs | +14% |
-| `doppler_channel::execute[ramp]` | 1.09 ms | 856.21 µs | +28% |
-| `doppler_channel::execute[static]` | 1.09 ms | 856.76 µs | +28% |
-| `mpsk_receiver::steps[sps=8,agc=0]` | 1.10 ms | 1.08 ms | +2% |
-| `ratesync::steps[dttl,sps=4]` | 1.10 ms | 992.25 µs | +11% |
-| `fir::execute[taps=63,complex]` | 1.16 ms | 524.20 µs | +121% |
-| `ber::theory_ser` | 1.17 ms | 1.13 ms | +3% |
-| `carrier_mpsk::steps[m=2]` | 1.19 ms | 1.18 ms | +1% |
-| `carrier_mpsk::steps[m=2,fll]` | 1.24 ms | 1.23 ms | +1% |
-| `spectral::blackman_harris_window[4096]` | 1.32 ms | 1.31 ms | +1% |
-| `ber::evm_db` | 1.35 ms | 1.35 ms | -0% |
-| `ber::theory_ber` | 1.35 ms | 1.33 ms | +2% |
-| `spectral::kaiser_window[4096]` | 1.40 ms | 1.40 ms | +0% |
-| `carrier_mpsk::steps[m=8]` | 1.45 ms | 1.17 ms | +24% |
-| `dll::steps` | 1.46 ms | 1.31 ms | +12% |
-| `timing::pace (no-wait overhead)` | 1.50 ms | 1.51 ms | -1% |
-| `acc_trace::fold[minhold,nfft=65536]` | 1.53 ms | 784.88 µs | +95% |
-| `despreader::steps` | 1.54 ms | 1.38 ms | +12% |
-| `carrier_mpsk::steps[m=4]` | 1.54 ms | 1.25 ms | +23% |
-| `carrier_mpsk::steps[m=4,fll]` | 1.55 ms | 1.26 ms | +23% |
-| `acc_trace::fold[maxhold,nfft=65536]` | 1.55 ms | 776.11 µs | +100% |
-| `carrier_mpsk::steps[m=8,fll]` | 1.57 ms | 1.23 ms | +28% |
-| `mpsk_receiver::steps[sps=4,agc=1]` | 1.57 ms | 1.51 ms | +4% |
-| `mpsk_receiver::steps[sps=8,agc=1]` | 1.58 ms | 1.54 ms | +2% |
-| `ccsds_tm::randomise` | 1.62 ms | 1.60 ms | +1% |
-| `ccsds_tm::frame_encode[rand]` | 1.63 ms | 1.61 ms | +1% |
-| `detection::det_dwell[max=256]` | 1.68 ms | 1.68 ms | +0% |
-| `spectrogram::direct[nfft=256,hop=64]` | 1.74 ms | 1.71 ms | +2% |
-| `spectrogram::push[nfft=256,hop=64]` | 1.75 ms | 1.72 ms | +2% |
-| `spectrogram::push[nfft=256,hop=64,chunk=256]` | 1.76 ms | 1.73 ms | +2% |
-| `spectrogram::direct[nfft=4096,hop=1024]` | 1.76 ms | 1.71 ms | +3% |
-| `spectrogram::push[nfft=4096,hop=1024]` | 1.77 ms | 1.71 ms | +4% |
-| `spectrogram::direct[nfft=1024,hop=256]` | 1.78 ms | 1.73 ms | +3% |
-| `spectrogram::push[nfft=4096,hop=1024,chunk=256]` | 1.78 ms | 1.72 ms | +4% |
-| `spectrogram::push[nfft=1024,hop=256]` | 1.79 ms | 1.73 ms | +3% |
-| `spectrogram::push[nfft=1024,hop=256,chunk=16384]` | 1.79 ms | 1.74 ms | +3% |
-| `spectrogram::push[nfft=1024,hop=256,chunk=1024]` | 1.79 ms | 1.74 ms | +3% |
-| `spectrogram::push[nfft=1024,hop=256,chunk=256]` | 1.80 ms | 1.76 ms | +2% |
-| `agc::step` | 1.85 ms | 1.60 ms | +16% |
-| `dsss_receiver::track` | 1.89 ms | 1.76 ms | +8% |
-| `detection::det_snr[dwell=8]` | 1.90 ms | 1.89 ms | +1% |
-| `psd::frame_db[nfft=65536]` | 1.93 ms | 1.90 ms | +2% |
-| `spectrogram::push[nfft=1024,hop=256,chunk=1]` | 2.10 ms | 2.05 ms | +2% |
-| `burst_capture::push[quiet]` | 2.33 ms | 2.04 ms | +14% |
-| `burst_capture::push[4 bursts, file-backed]` | 2.36 ms | 2.17 ms | +9% |
-| `burst_capture::push[4 bursts]` | 2.36 ms | 2.17 ms | +9% |
-| `buffer::two_thread_write_wait_consume[f32,frame=64]` | 2.48 ms | 2.49 ms | -1% |
-| `viterbi::decode[depth=35]` | 2.66 ms | 2.86 ms | -7% |
-| `ccsds_tm::frame_encode[rs+rand]` | 2.89 ms | 2.84 ms | +2% |
-| `dp_event_log::noflush` | 3.34 ms | 3.40 ms | -2% |
-| `acq::native_nc90` | 3.41 ms | 4.33 ms | -21% |
-| `spectrogram::direct[nfft=16384,hop=4096]` | 3.47 ms | 3.35 ms | +3% |
-| `dp_tlm_capture::drain` | 3.49 ms | 3.26 ms | +7% |
-| `spectrogram::push[nfft=16384,hop=4096]` | 3.49 ms | 3.36 ms | +4% |
-| `fir::execute[taps=255,real]` | 3.75 ms | 1.26 ms | +198% |
-| `viterbi::decode[depth=96]` | 3.76 ms | 4.12 ms | -9% |
-| `dp_event_log::bare` | 3.77 ms | 3.77 ms | -0% |
-| `fir::execute[taps=255,complex]` | 3.85 ms | 3.06 ms | +26% |
-| `resample::ciccompmf[M=19]` | 4.11 ms | 4.04 ms | +2% |
-| `spectrogram::direct[nfft=65536,hop=65536]` | 4.16 ms | 3.91 ms | +6% |
-| `spectrogram::push[nfft=65536,hop=65536]` | 4.23 ms | 3.99 ms | +6% |
-| `ccsds_tm::frame_encode[full]` | 4.82 ms | 4.54 ms | +6% |
-| `spectrogram::push[nfft=65536,hop=16384,mode=power]` | 4.82 ms | 3.91 ms | +23% |
-| `HalfbandDecimator::execute[block=32768]` | 4.90 ms | 5.54 ms | -12% |
-| `HalfbandDecimator::execute[block=65536]` | 4.91 ms | 5.52 ms | -11% |
-| `HalfbandDecimator::execute[block=1024]` | 4.94 ms | 5.58 ms | -11% |
-| `HalfbandDecimator::execute[block=8192]` | 4.95 ms | 5.56 ms | -11% |
-| `rs::decode[e=0]` | 4.97 ms | 4.98 ms | -0% |
-| `rs::verify` | 4.97 ms | 4.98 ms | -0% |
-| `rs_codec::decode[e=0]` | 4.97 ms | 4.96 ms | +0% |
-| `rs::decode[e=8]` | 5.69 ms | 5.72 ms | -1% |
-| `burst_demod::demod[chirp]` | 5.70 ms | 5.06 ms | +13% |
-| `ccsds_tm::rs_decode_block` | 6.36 ms | 6.37 ms | -0% |
-| `acq::op2M_U5k_nc51` | 6.49 ms | 4.97 ms | +31% |
-| `rs_codec::decode[e=E]` | 6.54 ms | 6.50 ms | +1% |
-| `rs::decode[e=16]` | 6.60 ms | 6.63 ms | -1% |
-| `acq::native_nc176` | 6.66 ms | 8.41 ms | -21% |
-| `async_dsss_receiver::steps[cold]` | 6.73 ms | 6.44 ms | +4% |
-| `wfm_reader::csv cf32 (text parse)` | 9.23 ms | 9.24 ms | -0% |
-| `dp_event_log::fields` | 9.38 ms | 9.24 ms | +2% |
-| `acq::native_nc256` | 9.69 ms | 12.31 ms | -21% |
-| `wfm_writer::csv cf32 (text)` | 9.97 ms | 10.04 ms | -1% |
-| `resamp::execute[rate=0.5000,block=819200]` | 11.75 ms | 13.34 ms | -12% |
-| `acq::op2M_U5k_nc96` | 12.15 ms | 9.45 ms | +29% |
-| `acq::op5M_U5k_nc225` | 13.82 ms | 10.31 ms | +34% |
-| `spectrogram::direct[nfft=65536,hop=16384]` | 14.50 ms | 13.70 ms | +6% |
-| `spectrogram::push[nfft=65536,hop=16384]` | 14.54 ms | 13.80 ms | +5% |
-| `resamp::execute[rate=0.5000,block=20480]` | 14.68 ms | 16.64 ms | -12% |
-| `resamp::execute[rate=0.5000,block=409600]` | 14.69 ms | 16.57 ms | -11% |
-| `resamp::execute[rate=0.5000,block=1024]` | 14.71 ms | 16.82 ms | -13% |
-| `acq::op5M_U5k_nc256` | 15.73 ms | 11.29 ms | +39% |
-| `resamp::execute[rate=1.0001,block=819200]` | 15.98 ms | 13.45 ms | +19% |
-| `acq::op2M_U5k_nc137` | 17.32 ms | 13.25 ms | +31% |
-| `acq::op2M_U17k_nc54` | 17.52 ms | 13.87 ms | +26% |
-| `resamp::execute[rate=0.9999,block=819200]` | 17.56 ms | 22.17 ms | -21% |
-| `detection::det_threshold_noncoherent[n=8]` | 19.27 ms | 19.55 ms | -1% |
-| `resamp::execute[rate=1.0001,block=20480]` | 19.98 ms | 16.79 ms | +19% |
-| `resamp::execute[rate=1.0001,block=1024]` | 19.98 ms | 16.78 ms | +19% |
-| `resamp::execute[rate=1.0001,block=409600]` | 20.00 ms | 16.81 ms | +19% |
-| `resamp::execute[rate=2.0000,block=819200]` | 20.19 ms | 16.54 ms | +22% |
-| `async_dsss_receiver::steps[cell,op5M]` | 21.46 ms | 19.32 ms | +11% |
-| `async_dsss_receiver::steps[warm,op5M]` | 21.47 ms | 19.33 ms | +11% |
-| `resamp::execute[rate=0.9999,block=409600]` | 21.98 ms | 27.73 ms | -21% |
-| `resamp::execute[rate=0.9999,block=1024]` | 21.99 ms | 27.73 ms | -21% |
-| `resamp::execute[rate=0.9999,block=20480]` | 22.06 ms | 27.72 ms | -20% |
-| `resamp::execute[rate=2.0000,block=20480]` | 25.22 ms | 20.60 ms | +22% |
-| `resamp::execute[rate=2.0000,block=409600]` | 25.23 ms | 20.61 ms | +22% |
-| `resamp::execute[rate=2.0000,block=1024]` | 25.26 ms | 20.57 ms | +23% |
-| `acq::op5M_U50k_t4_nc254` | 29.74 ms | 22.64 ms | +31% |
-| `acq::op5M_U50k_t4_nc256` | 29.97 ms | 22.81 ms | +31% |
-| `acq::op5M_U17k_nc238` | 30.15 ms | 23.01 ms | +31% |
-| `acq::op5M_U50k_t8_nc254` | 31.70 ms | 24.82 ms | +28% |
-| `acq::op5M_U50k_t8_nc256` | 31.99 ms | 25.02 ms | +28% |
-| `acq::op5M_U17k_nc256` | 32.40 ms | 24.74 ms | +31% |
-| `acq::op2M_U17k_nc101` | 32.68 ms | 25.53 ms | +28% |
-| `snr::series[window=1024]` | 40.64 ms | 20.92 ms | +94% |
-| `wfm_reader::csv seek (scan)` | 45.84 ms | 45.77 ms | +0% |
-| `acq::op2M_U17k_nc144` | 46.51 ms | 36.77 ms | +26% |
-| `acq::op5M_U50k_t2_nc254` | 49.88 ms | 37.84 ms | +32% |
-| `acq::op5M_U50k_t2_nc256` | 49.90 ms | 38.06 ms | +31% |
-| `acq::op2M_U50k_nc57` | 50.11 ms | 37.71 ms | +33% |
-| `acq::wideband_nc112` | 65.42 ms | 49.81 ms | +31% |
-| `async_dsss_receiver::steps[cold,op5M]` | 81.29 ms | 74.02 ms | +10% |
-| `acq::op5M_U50k_nc254` | 90.57 ms | 68.73 ms | +32% |
-| `acq::op5M_U50k_nc256` | 90.97 ms | 69.30 ms | +31% |
-| `acq::op2M_U50k_nc107` | 93.93 ms | 71.47 ms | +31% |
-| `acq::wideband_nc215` | 124.94 ms | 99.20 ms | +26% |
-| `acq::op2M_U50k_nc151` | 132.35 ms | 100.87 ms | +31% |
-| `acq::wideband_nc256` | 149.50 ms | 117.22 ms | +28% |
-| `measure::measure_min_samples` | 202.57 ms | 201.34 ms | +1% |
-| `frame_meter::fer` | 338.03 ms | 341.83 ms | -1% |
+| `specan::retune` | 19.06 ns / call | 19.42 ns / call | -2% |
+| `frame::bits[1]` | 20.59 ns / call | 20.59 ns / call | +0% |
+| `frame::bits[16]` | 138.10 ns / round of 16 | 137.95 ns / round of 16 | +0% |
+| `psd::power_onesided[nfft=1024]` | 166.09 ns / call | 134.90 ns / call | +23% |
+| `acc_trace::value` | 257.09 ns / round of 4,096 | 224.71 ns / round of 4,096 | +14% |
+| `fft::execute_inplace_cf32[n=256]` | 280.23 ns / round of 256 | 231.33 ns / round of 256 | +21% |
+| `fft::execute_ci8[n=256]` | 307.50 ns / round of 256 | 243.48 ns / round of 256 | +26% |
+| `fft::execute_ci16[n=256]` | 338.43 ns / round of 256 | 241.55 ns / round of 256 | +40% |
+| `fft::execute_cf32[n=256]` | 366.03 ns / round of 256 | 301.92 ns / round of 256 | +21% |
+| `dp_tlm_capture::uncaptured` | 435.24 ns / round of 4,096 | 442.06 ns / round of 4,096 | -2% |
+| `psd::power_onesided[nfft=4096]` | 644.35 ns / call | 555.24 ns / call | +16% |
+| `acc_trace::fold[exp,nfft=256]` | 687.23 ns / round of 16 | 479.67 ns / round of 16 | +43% |
+| `fft::execute_cf64[n=256]` | 783.27 ns / round of 256 | 552.73 ns / round of 256 | +42% |
+| `frame::crc_ok` | 838.02 ns / call | 847.19 ns / call | -1% |
+| `acc_trace::fold[mean,nfft=256]` | 875.53 ns / round of 16 | 378.47 ns / round of 16 | +131% |
+| `filter::design_lowpass[fstop=0.400,taps=39]` | 1.07 µs / round of 39 | 1.07 µs / round of 39 | +0% |
+| `interleaver::octet-1x8k` | 1.49 µs / round of 8,192 | 1.69 µs / round of 8,192 | -12% |
+| `corr::execute[accumulate][n=1024]` | 1.50 µs / round of 1,024 | 1.07 µs / round of 1,024 | +41% |
+| `i16_buffer::write_some_view+peek_view` | 2.05 µs / round of 65,536 | 2.05 µs / round of 65,536 | +0% |
+| `psd::power_onesided[nfft=16384]` | 2.57 µs / call | 2.25 µs / call | +14% |
+| `acc_trace::fold[exp,nfft=1024]` | 2.58 µs / round of 16 | 1.70 µs / round of 16 | +52% |
+| `corr::execute[dump][n=1024]` | 2.85 µs / round of 1,024 | 2.12 µs / round of 1,024 | +35% |
+| `filter::design_lowpass[fstop=0.260,taps=123]` | 3.29 µs / round of 123 | 3.27 µs / round of 123 | +1% |
+| `awgn::generate(n=1024)` | 3.33 µs / round of 1,024 | 3.32 µs / round of 1,024 | +0% |
+| `acc_trace::fold[mean,nfft=1024]` | 3.39 µs / round of 16 | 1.29 µs / round of 16 | +163% |
+| `i32_to_f32::steps` | 3.44 µs / round of 65,536 | 2.10 µs / round of 65,536 | +64% |
+| `i16_to_f32::steps` | 3.62 µs / round of 65,536 | 1.91 µs / round of 65,536 | +90% |
+| `pn::store_floor` | 3.64 µs / round of 65,536 | 1.32 µs / round of 65,536 | +175% |
+| `carrier_acq::steps[pad=4]` | 3.92 µs / round of 65,536 | 3.62 µs / round of 65,536 | +8% |
+| `cvt::bin_to_nrz` | 4.33 µs / round of 65,536 | 1.48 µs / round of 65,536 | +193% |
+| `i8_to_f32::steps` | 4.54 µs / round of 65,536 | 2.39 µs / round of 65,536 | +90% |
+| `u8_to_f32::steps[shift]` | 4.68 µs / round of 65,536 | 2.33 µs / round of 65,536 | +101% |
+| `f32_buffer::write_some_view+peek_view` | 4.78 µs / round of 65,536 | 4.93 µs / round of 65,536 | -3% |
+| `i16u32_to_f32::steps` | 4.92 µs / round of 65,536 | 2.46 µs / round of 65,536 | +100% |
+| `uq15_to_f32::steps` | 5.03 µs / round of 65,536 | 2.00 µs / round of 65,536 | +152% |
+| `arith::dot_q8` | 5.33 µs / round of 131,072 | 2.54 µs / round of 131,072 | +110% |
+| `u8_to_f32::steps[midpoint]` | 5.54 µs / round of 65,536 | 2.81 µs / round of 65,536 | +97% |
+| `fft::execute_inplace_cf32[n=4096]` | 5.88 µs / round of 4,096 | 4.55 µs / round of 4,096 | +29% |
+| `acc_trace::fold[minhold,nfft=256]` | 6.12 µs / round of 16 | 3.31 µs / round of 16 | +85% |
+| `fft::execute_cf32[n=4096]` | 6.12 µs / round of 4,096 | 4.71 µs / round of 4,096 | +30% |
+| `fft::execute_ci8[n=4096]` | 6.13 µs / round of 4,096 | 4.56 µs / round of 4,096 | +35% |
+| `rs_codec::create[J=4]` | 6.20 µs / round of 200 | 6.03 µs / round of 200 | +3% |
+| `fft::execute_ci16[n=4096]` | 6.20 µs / round of 4,096 | 4.75 µs / round of 4,096 | +31% |
+| `acc_trace::fold[maxhold,nfft=256]` | 6.33 µs / round of 16 | 3.38 µs / round of 16 | +87% |
+| `i16u64_to_f32::steps` | 6.72 µs / round of 65,536 | 3.47 µs / round of 65,536 | +94% |
+| `wfm::bpsk_map[8192]` | 6.94 µs / round of 65,536 | 3.36 µs / round of 65,536 | +107% |
+| `arith::mul_q8` | 8.40 µs / round of 131,072 | 3.81 µs / round of 131,072 | +120% |
+| `arith::shl_q8` | 9.65 µs / round of 131,072 | 4.11 µs / round of 131,072 | +135% |
+| `acc_trace::accumulate[exp]` | 9.71 µs / round of 65,536 | 6.39 µs / round of 65,536 | +52% |
+| `acc_f32::steps` | 9.77 µs / round of 65,536 | 2.45 µs / round of 65,536 | +298% |
+| `spectral::kaiser_enbw[4096]` | 9.86 µs / round of 65,536 | 4.41 µs / round of 65,536 | +124% |
+| `interleaver::soft` | 10.01 µs / round of 8,192 | 10.20 µs / round of 8,192 | -2% |
+| `acc_trace::fold[exp,nfft=4096]` | 10.26 µs / round of 16 | 6.91 µs / round of 16 | +49% |
+| `wfm::dsss_spread[sf=31,512sym]` | 10.38 µs / round of 63,488 | 5.79 µs / round of 63,488 | +79% |
+| `arith::sub_q8` | 10.74 µs / round of 131,072 | 4.60 µs / round of 131,072 | +133% |
+| `arith::add_q8` | 10.75 µs / round of 131,072 | 4.62 µs / round of 131,072 | +133% |
+| `f64_buffer::write_some_view+peek_view` | 11.07 µs / round of 65,536 | 11.08 µs / round of 65,536 | -0% |
+| `interleaver::bit-1x8k` | 11.76 µs / round of 8,192 | 13.07 µs / round of 8,192 | -10% |
+| `frame::data pipe` | 11.78 µs / round of 32 | 11.04 µs / round of 32 | +7% |
+| `dp_tlm_capture::boundary` | 12.18 µs / round of 4,096 | 11.42 µs / round of 4,096 | +7% |
+| `acc_trace::accumulate[mean]` | 12.58 µs / round of 65,536 | 5.35 µs / round of 65,536 | +135% |
+| `filter::design_lowpass[fstop=0.215,taps=485]` | 12.59 µs / round of 485 | 12.54 µs / round of 485 | +0% |
+| `acc_q15::steps` | 13.02 µs / round of 65,536 | 6.73 µs / round of 65,536 | +94% |
+| `acquire::dp_fftfreq_index (inlined)` | 13.03 µs / round of 65,536 | 6.94 µs / round of 65,536 | +88% |
+| `acc_q15::step` | 13.05 µs / round of 65,536 | 6.74 µs / round of 65,536 | +94% |
+| `dp_interrupt_guard::raw_load` | 13.05 µs / round of 65,536 | 13.06 µs / round of 65,536 | -0% |
+| `dp_tlm::detached` | 13.06 µs / round of 65,536 | 13.05 µs / round of 65,536 | +0% |
+| `i32_to_f32::step` | 13.07 µs / round of 65,536 | 13.07 µs / round of 65,536 | -0% |
+| `i8_to_f32::step` | 13.11 µs / round of 65,536 | 13.11 µs / round of 65,536 | -0% |
+| `i16_to_f32::step` | 13.12 µs / round of 65,536 | 13.14 µs / round of 65,536 | -0% |
+| `arith::mul_q15` | 13.14 µs / round of 131,072 | 5.36 µs / round of 131,072 | +145% |
+| `i16u64_to_f32::step` | 13.20 µs / round of 65,536 | 13.07 µs / round of 65,536 | +1% |
+| `interleaver::deep` | 13.22 µs / round of 8,192 | 11.68 µs / round of 8,192 | +13% |
+| `awgn::generate(n=4096)` | 13.34 µs / round of 4,096 | 13.21 µs / round of 4,096 | +1% |
+| `i16u32_to_f32::step` | 13.34 µs / round of 65,536 | 13.47 µs / round of 65,536 | -1% |
+| `arith::shl_i64` | 13.39 µs / round of 131,072 | 8.60 µs / round of 131,072 | +56% |
+| `acc_trace::fold[mean,nfft=4096]` | 13.41 µs / round of 16 | 5.34 µs / round of 16 | +151% |
+| `acc_q8::step` | 15.32 µs / round of 65,536 | 15.30 µs / round of 65,536 | +0% |
+| `acc_q8::steps` | 15.32 µs / round of 65,536 | 15.31 µs / round of 65,536 | +0% |
+| `u8_to_f32::step[midpoint]` | 15.63 µs / round of 65,536 | 13.07 µs / round of 65,536 | +20% |
+| `u8_to_f32::step[shift]` | 15.63 µs / round of 65,536 | 13.15 µs / round of 65,536 | +19% |
+| `nco::steps_u32` | 15.77 µs / round of 65,536 | 15.78 µs / round of 65,536 | -0% |
+| `uq15_to_f32::step` | 15.79 µs / round of 65,536 | 13.18 µs / round of 65,536 | +20% |
+| `fft::execute_cf64[n=4096]` | 16.10 µs / round of 4,096 | 8.34 µs / round of 4,096 | +93% |
+| `wfm::field_bits[pn:1023:10*4]` | 17.22 µs / round of 65,472 | 17.32 µs / round of 65,472 | -1% |
+| `wfm::qpsk_map[8192]` | 18.25 µs / round of 65,536 | 7.98 µs / round of 65,536 | +129% |
+| `carrier_acq::steps[pad=16]` | 18.41 µs / round of 65,536 | 17.03 µs / round of 65,536 | +8% |
+| `dp_tlm::decimated` | 18.56 µs / round of 65,536 | 18.32 µs / round of 65,536 | +1% |
+| `arith::shl_q15` | 18.64 µs / round of 131,072 | 8.18 µs / round of 131,072 | +128% |
+| `wfm::mls_poly` | 19.53 µs / round of 8,192 | 19.51 µs / round of 8,192 | +0% |
+| `resample::kaiser_num_taps` | 19.70 µs / round of 8,192 | 19.54 µs / round of 8,192 | +1% |
+| `util::repeated_multiply` | 20.15 µs / round of 65,536 | 8.52 µs / round of 65,536 | +137% |
+| `nprmeas::analyze[n=4096]` | 20.60 µs / call | 17.10 µs / call | +20% |
+| `nco::steps_u32_ovf` | 21.06 µs / round of 65,536 | 21.02 µs / round of 65,536 | +0% |
+| `arith::add_q15` | 21.42 µs / round of 131,072 | 9.17 µs / round of 131,072 | +133% |
+| `arith::sub_q15` | 21.42 µs / round of 131,072 | 9.18 µs / round of 131,072 | +133% |
+| `imdmeas::analyze[n=4096]` | 22.12 µs / call | 18.36 µs / call | +21% |
+| `nco::steps_u32_scaled` | 23.58 µs / round of 65,536 | 23.76 µs / round of 65,536 | -1% |
+| `frame_meter::get_frames` | 23.84 µs / round of 10,000 | 24.12 µs / round of 10,000 | -1% |
+| `acc_trace::fold[minhold,nfft=1024]` | 23.96 µs / round of 16 | 12.79 µs / round of 16 | +87% |
+| `measure::measure_rec_nfft` | 24.42 µs / round of 8,192 | 23.09 µs / round of 8,192 | +6% |
+| `acc_trace::fold[maxhold,nfft=1024]` | 24.48 µs / round of 16 | 12.89 µs / round of 16 | +90% |
+| `measure::measure_dr_from_bits[inline]` | 24.61 µs / round of 8,192 | 26.04 µs / round of 8,192 | -6% |
+| `lo::steps` | 24.85 µs / round of 65,536 | 24.98 µs / round of 65,536 | -1% |
+| `resample::kaiser_beta` | 25.17 µs / round of 8,192 | 24.90 µs / round of 8,192 | +1% |
+| `acc_trace::accumulate[maxhold]` | 25.36 µs / round of 65,536 | 6.77 µs / round of 65,536 | +274% |
+| `lo::step` | 25.40 µs / round of 65,536 | 25.71 µs / round of 65,536 | -1% |
+| `tonemeas::analyze[n=4096]` | 25.40 µs / call | 23.28 µs / call | +9% |
+| `detection::det_threshold` | 25.62 µs / round of 8,192 | 25.71 µs / round of 8,192 | -0% |
+| `wfm::field_parse[0x..,4096 bits]` | 25.94 µs / round of 65,536 | 25.91 µs / round of 65,536 | +0% |
+| `arith::dot_q15` | 26.03 µs / round of 131,072 | 5.32 µs / round of 131,072 | +389% |
+| `measure::measure_proc_gain` | 26.09 µs / round of 8,192 | 26.09 µs / round of 8,192 | -0% |
+| `detection::det_ema_alpha` | 26.71 µs / round of 8,192 | 29.94 µs / round of 8,192 | -11% |
+| `fft::execute_cf32[n=16384]` | 26.80 µs / round of 16,384 | 20.31 µs / round of 16,384 | +32% |
+| `fft::execute_inplace_cf32[n=16384]` | 26.99 µs / round of 16,384 | 20.84 µs / round of 16,384 | +29% |
+| `fft::execute_ci8[n=16384]` | 27.37 µs / round of 16,384 | 20.07 µs / round of 16,384 | +36% |
+| `fft::execute_ci16[n=16384]` | 27.57 µs / round of 16,384 | 20.66 µs / round of 16,384 | +33% |
+| `spectral::find_peaks_f32[4096,n=8]` | 28.30 µs / round of 65,536 | 29.25 µs / round of 65,536 | -3% |
+| `arith::shr_i64` | 29.74 µs / round of 131,072 | 8.74 µs / round of 131,072 | +240% |
+| `corr::execute[accumulate][n=16384]` | 30.09 µs / round of 16,384 | 21.38 µs / round of 16,384 | +41% |
+| `wfm_synth::tone  clean` | 30.41 µs / round of 65,536 | 21.13 µs / round of 65,536 | +44% |
+| `acc_trace::accumulate[minhold]` | 31.03 µs / round of 65,536 | 6.41 µs / round of 65,536 | +384% |
+| `lockdet::steps` | 31.30 µs / round of 65,536 | 34.26 µs / round of 65,536 | -9% |
+| `carrier_acq::steps[pad=4,seq]` | 33.27 µs / round of 65,536 | 29.60 µs / round of 65,536 | +12% |
+| `tonemeas::analyze_complex[n=4096]` | 34.43 µs / call | 31.33 µs / call | +10% |
+| `arith::shr_q15` | 34.57 µs / round of 131,072 | 3.91 µs / round of 131,072 | +785% |
+| `f32_to_i32::step` | 35.37 µs / round of 65,536 | 35.16 µs / round of 65,536 | +1% |
+| `f32_to_i32::steps` | 35.97 µs / round of 65,536 | 21.17 µs / round of 65,536 | +70% |
+| `snr::data_aided_db` | 38.44 µs / round of 65,536 | 18.65 µs / round of 65,536 | +106% |
+| `acc_f32::madd2d` | 39.03 µs / round of 65,536 | 39.04 µs / round of 65,536 | -0% |
+| `acc_f32::add2d` | 39.04 µs / round of 65,536 | 39.03 µs / round of 65,536 | +0% |
+| `acc_f32::madd` | 39.07 µs / round of 65,536 | 39.05 µs / round of 65,536 | +0% |
+| `acc_cf64::add2d` | 39.10 µs / round of 65,536 | 39.13 µs / round of 65,536 | -0% |
+| `acc_cf64::step` | 39.10 µs / round of 65,536 | 39.14 µs / round of 65,536 | -0% |
+| `acc_f32::step` | 39.11 µs / round of 65,536 | 39.14 µs / round of 65,536 | -0% |
+| `acc_cf64::steps` | 39.13 µs / round of 65,536 | 19.59 µs / round of 65,536 | +100% |
+| `acc_cf64::madd2d` | 39.23 µs / round of 65,536 | 39.19 µs / round of 65,536 | +0% |
+| `acc_cf64::madd` | 39.25 µs / round of 65,536 | 39.21 µs / round of 65,536 | +0% |
+| `lockdet::step` | 39.87 µs / round of 65,536 | 46.69 µs / round of 65,536 | -15% |
+| `acc_trace::fold[exp,nfft=16384]` | 40.40 µs / round of 16 | 26.48 µs / round of 16 | +53% |
+| `loop_filter::step` | 45.17 µs / round of 65,536 | 59.78 µs / round of 65,536 | -24% |
+| `nco::steps_u32_ctrl` | 45.17 µs / round of 65,536 | 41.47 µs / round of 65,536 | +9% |
+| `frame::assemble plain` | 46.67 µs / round of 32 | 46.62 µs / round of 32 | +0% |
+| `conv_enc::encode[k=9]` | 47.94 µs / round of 16,384 | 42.52 µs / round of 16,384 | +13% |
+| `conv_enc::encode[k=7]` | 47.95 µs / round of 16,384 | 42.49 µs / round of 16,384 | +13% |
+| `conv_enc::encode[through the object]` | 47.95 µs / round of 16,384 | 42.53 µs / round of 16,384 | +13% |
+| `conv_enc::encode[k=5]` | 47.96 µs / round of 16,384 | 42.62 µs / round of 16,384 | +13% |
+| `conv::encode` | 47.97 µs / round of 16,384 | 42.53 µs / round of 16,384 | +13% |
+| `conv_enc::encode[raw kernel]` | 47.98 µs / round of 16,384 | 42.63 µs / round of 16,384 | +13% |
+| `conv_enc::encode[k=3]` | 47.99 µs / round of 16,384 | 42.49 µs / round of 16,384 | +13% |
+| `acc_f32::dump` | 52.05 µs / round of 65,536 | 52.04 µs / round of 65,536 | +0% |
+| `wfm::crc16[8192]` | 52.05 µs / round of 65,536 | 52.05 µs / round of 65,536 | -0% |
+| `acc_cf64::dump` | 52.06 µs / round of 65,536 | 52.05 µs / round of 65,536 | +0% |
+| `acc_f32::get` | 52.06 µs / round of 65,536 | 52.07 µs / round of 65,536 | -0% |
+| `acc_cf64::get` | 52.06 µs / round of 65,536 | 52.06 µs / round of 65,536 | +0% |
+| `adc::step` | 52.11 µs / round of 65,536 | 40.69 µs / round of 65,536 | +28% |
+| `acquire::bin_to_signed (wrapper, not inlinable)` | 52.20 µs / round of 65,536 | 52.16 µs / round of 65,536 | +0% |
+| `dp_interrupt_guard::arm_disarm` | 52.20 µs / round of 512 | 52.20 µs / round of 512 | +0% |
+| `boxcar::step` | 52.28 µs / round of 65,536 | 52.22 µs / round of 65,536 | +0% |
+| `dp_interrupt_guard::interrupted` | 52.57 µs / round of 65,536 | 52.15 µs / round of 65,536 | +1% |
+| `acc_trace::fold[mean,nfft=16384]` | 53.45 µs / round of 16 | 22.83 µs / round of 16 | +134% |
+| `spectral::obw_from_power[4096]` | 53.77 µs / round of 65,536 | 43.60 µs / round of 65,536 | +23% |
+| `nco::steps_u32_scaled_ctrl` | 55.47 µs / round of 65,536 | 51.23 µs / round of 65,536 | +8% |
+| `frame_meter::sync_miss` | 56.86 µs / round of 10,000 | 65.82 µs / round of 10,000 | -14% |
+| `frame::data pn:0` | 57.09 µs / round of 32 | 57.03 µs / round of 32 | +0% |
+| `corr::execute[dump][n=16384]` | 57.65 µs / round of 16,384 | 42.61 µs / round of 16,384 | +35% |
+| `buffer::write_wait_consume[i16,chunk=1024]` | 58.25 µs / round of 262,144 | 54.79 µs / round of 262,144 | +6% |
+| `buffer::write_wait_consume[i16,chunk=1000]` | 58.47 µs / round of 262,144 | 55.17 µs / round of 262,144 | +6% |
+| `adc::steps` | 58.90 µs / round of 65,536 | 23.96 µs / round of 65,536 | +146% |
+| `psd::fft[nfft=256]` | 62.88 µs / round of 256 | 51.80 µs / round of 256 | +21% |
+| `pn::generate[fibonacci,len=23]` | 65.04 µs / round of 65,536 | 65.12 µs / round of 65,536 | -0% |
+| `pn::generate[fibonacci,len=15]` | 65.06 µs / round of 65,536 | 65.18 µs / round of 65,536 | -0% |
+| `pn::generate[galois,len=23]` | 65.06 µs / round of 65,536 | 65.08 µs / round of 65,536 | -0% |
+| `pn::generate[fibonacci,len=11]` | 65.07 µs / round of 65,536 | 65.13 µs / round of 65,536 | -0% |
+| `pn::generate[galois,len=15]` | 65.16 µs / round of 65,536 | 65.08 µs / round of 65,536 | +0% |
+| `pn::generate[galois,len=11]` | 65.35 µs / round of 65,536 | 65.37 µs / round of 65,536 | -0% |
+| `gold::generate` | 65.53 µs / round of 65,536 | 66.02 µs / round of 65,536 | -1% |
+| `wfm::field_bits[pn:4095:12]` | 65.83 µs / round of 65,520 | 65.82 µs / round of 65,520 | +0% |
+| `dp_tlm::emit` | 67.00 µs / round of 65,536 | 68.38 µs / round of 65,536 | -2% |
+| `frame_meter::add` | 70.56 µs / round of 65,536 | 72.02 µs / round of 65,536 | -2% |
+| `wfm_synth::pn    n=40 baseband(64b)` | 71.27 µs / round of 65,536 | 68.09 µs / round of 65,536 | +5% |
+| `wfm_synth::pn    fibonacci baseband` | 71.27 µs / round of 65,536 | 68.20 µs / round of 65,536 | +4% |
+| `wfm_synth::pn    baseband clean` | 71.27 µs / round of 65,536 | 68.12 µs / round of 65,536 | +5% |
+| `nco::steps_u32_ovf_ctrl` | 74.79 µs / round of 65,536 | 77.06 µs / round of 65,536 | -3% |
+| `psd::fft[nfft=1024]` | 75.88 µs / round of 64 | 59.23 µs / round of 64 | +28% |
+| `rs_codec::create[J=8]` | 76.37 µs / round of 200 | 76.67 µs / round of 200 | -0% |
+| `fft::execute_cf64[n=16384]` | 76.57 µs / round of 16,384 | 39.75 µs / round of 16,384 | +93% |
+| `wfm_synth::bpsk  clean` | 77.56 µs / round of 65,536 | 77.61 µs / round of 65,536 | -0% |
+| `util::two_product` | 78.90 µs / round of 65,536 | 91.10 µs / round of 65,536 | -13% |
+| `timing::stamp` | 81.34 µs / round of 65,536 | 80.79 µs / round of 65,536 | +1% |
+| `wfm_synth::qpsk  clean` | 85.92 µs / round of 65,536 | 86.15 µs / round of 65,536 | -0% |
+| `buffer::write_wait_consume[f32,chunk=1024]` | 86.17 µs / round of 262,144 | 47.75 µs / round of 262,144 | +80% |
+| `buffer::write_wait_consume[f32,chunk=1000]` | 86.37 µs / round of 262,144 | 47.80 µs / round of 262,144 | +81% |
+| `cic::decimate` | 86.90 µs / round of 65,536 | 85.10 µs / round of 65,536 | +2% |
+| `measure::dp_coherent_freq[N=4096]` | 87.75 µs / round of 4,096 | 87.63 µs / round of 4,096 | +0% |
+| `psd::fft[nfft=4096]` | 89.76 µs / round of 16 | 70.74 µs / round of 16 | +27% |
+| `nprmeas::analyze[n=16384]` | 90.79 µs / call | 74.98 µs / call | +21% |
+| `psd::frame_power[nfft=256]` | 91.47 µs / round of 256 | 75.25 µs / round of 256 | +22% |
+| `ddc::execute[rate=0.05]` | 92.19 µs / round of 32,768 | 91.38 µs / round of 32,768 | +1% |
+| `ddc::execute[rate=0.50]` | 93.38 µs / round of 32,768 | 101.04 µs / round of 32,768 | -8% |
+| `buffer::write_some_peek_consume[f32,in=3000,frame=1024]` | 94.58 µs / round of 264,000 | 58.84 µs / round of 264,000 | +61% |
+| `buffer::framer_feed_next[f32,in=3000,frame=1024]` | 94.75 µs / round of 264,000 | 58.76 µs / round of 264,000 | +61% |
+| `imdmeas::analyze[n=16384]` | 95.56 µs / call | 80.32 µs / call | +19% |
+| `acc_trace::fold[minhold,nfft=4096]` | 96.89 µs / round of 16 | 50.81 µs / round of 16 | +91% |
+| `mpsk::soft_demap[m=2]` | 97.73 µs / round of 65,536 | 95.75 µs / round of 65,536 | +2% |
+| `acc_trace::fold[maxhold,nfft=4096]` | 98.46 µs / round of 16 | 50.79 µs / round of 16 | +94% |
+| `psd::frame_linear[nfft=256]` | 101.99 µs / round of 256 | 81.55 µs / round of 256 | +25% |
+| `psd::frame_power[nfft=1024]` | 103.63 µs / round of 64 | 83.12 µs / round of 64 | +25% |
+| `arith::shr_q8` | 104.09 µs / round of 131,072 | 1.99 µs / round of 131,072 | +5134% |
+| `psd::fft[nfft=16384]` | 106.14 µs / round of 4 | 82.54 µs / round of 4 | +29% |
+| `tonemeas::analyze[n=16384]` | 109.20 µs / call | 95.36 µs / call | +15% |
+| `psd::accumulate_frame[nfft=256]` | 109.58 µs / round of 256 | 86.28 µs / round of 256 | +27% |
+| `psd::frame_linear[nfft=1024]` | 113.64 µs / round of 64 | 89.45 µs / round of 64 | +27% |
+| `psd::accumulate_real[nfft=1024]` | 114.02 µs / round of 65,536 | 86.54 µs / round of 65,536 | +32% |
+| `ddc::execute[rate=0.10]` | 114.19 µs / round of 32,768 | 117.33 µs / round of 32,768 | -3% |
+| `psd::frame_power[nfft=4096]` | 116.77 µs / round of 16 | 94.76 µs / round of 16 | +23% |
+| `delay::write` | 117.13 µs / round of 65,536 | 65.07 µs / round of 65,536 | +80% |
+| `delay::push` | 117.42 µs / round of 65,536 | 52.32 µs / round of 65,536 | +124% |
+| `util::ema_step` | 117.76 µs / round of 65,536 | 117.76 µs / round of 65,536 | +0% |
+| `util::raw_incremental` | 117.85 µs / round of 65,536 | 118.18 µs / round of 65,536 | -0% |
+| `fft::execute_cf32[n=65536]` | 118.02 µs / round of 65,536 | 91.50 µs / round of 65,536 | +29% |
+| `wfm_reader::raw cf32 (reinterpret)` | 118.93 µs / round of 65,536 | 119.55 µs / round of 65,536 | -1% |
+| `wfm_compose::execute[seg=262144,boundaries=1]` | 121.20 µs / round of 262,144 | 84.37 µs / round of 262,144 | +44% |
+| `wfm_compose::execute[seg=16384,boundaries=16]` | 121.96 µs / round of 262,144 | 85.12 µs / round of 262,144 | +43% |
+| `fft::execute_inplace_cf32[n=65536]` | 122.43 µs / round of 65,536 | 95.46 µs / round of 65,536 | +28% |
+| `RateConverter::CIC(0.125)` | 123.46 µs / round of 65,536 | 121.03 µs / round of 65,536 | +2% |
+| `psd::accumulate_frame[nfft=1024]` | 124.03 µs / round of 64 | 95.75 µs / round of 64 | +30% |
+| `psd::accumulate[nfft=1024]` | 124.27 µs / round of 65,536 | 94.59 µs / round of 65,536 | +31% |
+| `fft::execute_ci8[n=65536]` | 124.31 µs / round of 65,536 | 92.84 µs / round of 65,536 | +34% |
+| `wfm_compose::execute[seg=4096,boundaries=64]` | 124.45 µs / round of 262,144 | 87.30 µs / round of 262,144 | +43% |
+| `fft::execute_ci16[n=65536]` | 125.44 µs / round of 65,536 | 95.55 µs / round of 65,536 | +31% |
+| `psd::accumulate_real[nfft=4096]` | 126.21 µs / round of 65,536 | 96.97 µs / round of 65,536 | +30% |
+| `ddcr::execute[rate=0.25]` | 129.45 µs / round of 32,768 | 133.40 µs / round of 32,768 | -3% |
+| `ddcr::execute_ctrl[rate=0.25]` | 130.02 µs / round of 32,768 | 134.28 µs / round of 32,768 | -3% |
+| `f32_to_uq15::steps` | 130.16 µs / round of 65,536 | 143.16 µs / round of 65,536 | -9% |
+| `f32_to_i16u32::steps` | 130.24 µs / round of 65,536 | 143.23 µs / round of 65,536 | -9% |
+| `f32_to_i16u64::steps` | 130.40 µs / round of 65,536 | 143.56 µs / round of 65,536 | -9% |
+| `psd::frame_power[nfft=16384]` | 131.30 µs / round of 4 | 108.44 µs / round of 4 | +21% |
+| `ddc::execute[rate=0.25]` | 132.68 µs / round of 32,768 | 145.56 µs / round of 32,768 | -9% |
+| `ddc::execute_ctrl[rate=0.25]` | 135.57 µs / round of 32,768 | 148.41 µs / round of 32,768 | -9% |
+| `psd::accumulate[nfft=4096]` | 135.64 µs / round of 65,536 | 104.62 µs / round of 65,536 | +30% |
+| `psd::accumulate_frame[nfft=4096]` | 136.18 µs / round of 16 | 104.42 µs / round of 16 | +30% |
+| `wfm_compose::execute[seg=1024,boundaries=256]` | 136.25 µs / round of 262,144 | 98.62 µs / round of 262,144 | +38% |
+| `wfm_reader::raw ci16 (rescale)` | 136.60 µs / round of 65,536 | 136.51 µs / round of 65,536 | +0% |
+| `syncword::find[n=32]` | 137.45 µs / round of 65,536 | 92.58 µs / round of 65,536 | +48% |
+| `farrow::delay_cubic` | 138.12 µs / round of 65,536 | 249.84 µs / round of 65,536 | -45% |
+| `psd::accumulate_real[nfft=16384]` | 138.76 µs / round of 65,536 | 105.32 µs / round of 65,536 | +32% |
+| `f32_to_i8::steps` | 143.09 µs / round of 65,536 | 143.11 µs / round of 65,536 | -0% |
+| `f32_to_i16::steps` | 143.16 µs / round of 65,536 | 143.16 µs / round of 65,536 | +0% |
+| `f32_to_i16u64::step` | 143.24 µs / round of 65,536 | 130.23 µs / round of 65,536 | +10% |
+| `f32_to_i16::step` | 143.24 µs / round of 65,536 | 130.24 µs / round of 65,536 | +10% |
+| `f32_to_i8::step` | 143.27 µs / round of 65,536 | 143.28 µs / round of 65,536 | -0% |
+| `f32_to_i16u32::step` | 143.29 µs / round of 65,536 | 130.26 µs / round of 65,536 | +10% |
+| `wfm_reader::blue cf32 (parse+raw)` | 143.38 µs / round of 65,536 | 143.37 µs / round of 65,536 | +0% |
+| `f32_to_uq15::step` | 143.51 µs / round of 65,536 | 130.49 µs / round of 65,536 | +10% |
+| `farrow::delay_parabolic` | 143.65 µs / round of 65,536 | 246.40 µs / round of 65,536 | -42% |
+| `tonemeas::analyze_complex[n=16384]` | 145.11 µs / call | 130.86 µs / call | +11% |
+| `wfm_synth::bits  bpsk sps=8` | 146.20 µs / round of 65,536 | 141.53 µs / round of 65,536 | +3% |
+| `carrier_acq::steps[pad=16,seq]` | 150.60 µs / round of 65,536 | 138.49 µs / round of 65,536 | +9% |
+| `psd::accumulate_frame[nfft=16384]` | 150.94 µs / round of 4 | 120.15 µs / round of 4 | +26% |
+| `psd::accumulate[nfft=16384]` | 151.41 µs / round of 65,536 | 117.84 µs / round of 65,536 | +28% |
+| `loop_filter::steps` | 156.60 µs / round of 65,536 | 169.51 µs / round of 65,536 | -8% |
+| `costas::steps` | 156.68 µs / round of 65,536 | 173.51 µs / round of 65,536 | -10% |
+| `RateConverter::HB(0.5)` | 158.53 µs / round of 65,536 | 179.87 µs / round of 65,536 | -12% |
+| `acc_trace::fold[exp,nfft=65536]` | 161.38 µs / round of 16 | 105.91 µs / round of 16 | +52% |
+| `fir::execute[taps=15,real]` | 164.83 µs / round of 65,536 | 56.93 µs / round of 65,536 | +190% |
+| `fft2d::execute_cf32[256x256]` | 167.56 µs / round of 65,536 | 146.64 µs / round of 65,536 | +14% |
+| `farrow::delay_linear` | 169.79 µs / round of 65,536 | 246.56 µs / round of 65,536 | -31% |
+| `spectral::magnitude_db_cf32[4096]` | 171.60 µs / round of 65,536 | 144.83 µs / round of 65,536 | +18% |
+| `fft2d::execute_inplace_cf32[256x256]` | 171.95 µs / round of 65,536 | 150.58 µs / round of 65,536 | +14% |
+| `wfm_synth::bits  qpsk sps=8` | 172.77 µs / round of 65,536 | 173.88 µs / round of 65,536 | -1% |
+| `buffer::write_wait_consume[f64,chunk=1024]` | 185.82 µs / round of 262,144 | 107.55 µs / round of 262,144 | +73% |
+| `buffer::write_wait_consume[f64,chunk=1000]` | 187.02 µs / round of 262,144 | 108.65 µs / round of 262,144 | +72% |
+| `hbdecim_q15::execute[taps=32,K_pad=16]` | 194.61 µs / round of 32,768 | 169.05 µs / round of 32,768 | +15% |
+| `boxcar::steps` | 195.68 µs / round of 65,536 | 196.23 µs / round of 65,536 | -0% |
+| `RateConverter::CIC+Rs(0.1)` | 199.33 µs / round of 65,536 | 215.82 µs / round of 65,536 | -8% |
+| `acc_trace::fold[mean,nfft=65536]` | 209.78 µs / round of 16 | 94.76 µs / round of 16 | +121% |
+| `awgn::generate(n=65536)` | 211.38 µs / round of 65,536 | 213.45 µs / round of 65,536 | -1% |
+| `hbdecim_q15::execute[taps=34,K_pad=32]` | 213.69 µs / round of 32,768 | 178.22 µs / round of 32,768 | +20% |
+| `wfm_writer::blue cf32` | 215.22 µs / round of 65,536 | 201.68 µs / round of 65,536 | +7% |
+| `wfm_writer::raw cf32 (memcpy)` | 219.43 µs / round of 65,536 | 208.47 µs / round of 65,536 | +5% |
+| `wfm_synth::noise (AWGN)` | 219.77 µs / round of 65,536 | 219.44 µs / round of 65,536 | +0% |
+| `ppe::doppler` | 222.33 µs / round of 4,096 | 208.40 µs / round of 4,096 | +7% |
+| `wfm_synth::bpsk  rrc sps=16` | 224.79 µs / round of 65,536 | 173.45 µs / round of 65,536 | +30% |
+| `async_dsss_pool::push[12 slots, all cores]` | 228.13 µs / round of 2,046 | 207.42 µs / round of 2,046 | +10% |
+| `measure::dp_coherent_freq[N=30030]` | 232.02 µs / round of 4,096 | 231.89 µs / round of 4,096 | +0% |
+| `RateConverter::HB2(0.25)` | 237.50 µs / round of 65,536 | 268.02 µs / round of 65,536 | -11% |
+| `detector::push[chunk=16384]` | 241.21 µs / round of 65,536 | 180.35 µs / round of 65,536 | +34% |
+| `detector::push[chunk=1024,no-detections]` | 241.51 µs / round of 65,536 | 180.79 µs / round of 65,536 | +34% |
+| `detector::push[chunk=1024]` | 241.73 µs / round of 65,536 | 181.46 µs / round of 65,536 | +33% |
+| `wfm_synth::tone  +noise` | 241.90 µs / round of 65,536 | 238.93 µs / round of 65,536 | +1% |
+| `detector::push[chunk=64]` | 245.80 µs / round of 65,536 | 185.30 µs / round of 65,536 | +33% |
+| `wfm_synth::bpsk  rrc sps=8` | 250.38 µs / round of 65,536 | 196.25 µs / round of 65,536 | +28% |
+| `lo::cexpf_baseline` | 251.87 µs / round of 65,536 | 241.04 µs / round of 65,536 | +4% |
+| `wfm_synth::qpsk  rrc sps=8` | 252.98 µs / round of 65,536 | 198.23 µs / round of 65,536 | +28% |
+| `syncword::find[n=64]` | 254.98 µs / round of 65,536 | 152.04 µs / round of 65,536 | +68% |
+| `ddcr::execute_ctrl_push[rate=0.25]` | 265.76 µs / round of 32,768 | 274.30 µs / round of 32,768 | -3% |
+| `ccsds_tm::asm_find` | 267.13 µs / round of 262,144 | 177.67 µs / round of 262,144 | +50% |
+| `resample::ciccompmf[M=5]` | 269.40 µs / round of 4,096 | 269.84 µs / round of 4,096 | -0% |
+| `dp_tlm::full` | 271.26 µs / round of 65,536 | 271.25 µs / round of 65,536 | +0% |
+| `Resampler::reset` | 273.66 µs / round of 65,536 | 273.32 µs / round of 65,536 | +0% |
+| `hbdecim_q15::execute[taps=64,K_pad=32]` | 275.88 µs / round of 32,768 | 178.64 µs / round of 32,768 | +54% |
+| `fft2d::execute_cf32[1024x64]` | 276.43 µs / round of 65,536 | 259.03 µs / round of 65,536 | +7% |
+| `fft2d::execute_inplace_cf32[1024x64]` | 278.84 µs / round of 65,536 | 261.47 µs / round of 65,536 | +7% |
+| `wfm_reader::blue seek (strided)` | 283.79 µs / round of 2,000 | 283.85 µs / round of 2,000 | -0% |
+| `fft2d::execute_inplace_cf32[64x1024]` | 290.51 µs / round of 65,536 | 279.57 µs / round of 65,536 | +4% |
+| `fft2d::execute_cf32[64x1024]` | 290.54 µs / round of 65,536 | 279.43 µs / round of 65,536 | +4% |
+| `interp_table::execute[nearest]` | 290.84 µs / round of 65,536 | 288.69 µs / round of 65,536 | +1% |
+| `wfm_synth::bpsk  +noise` | 291.33 µs / round of 65,536 | 292.75 µs / round of 65,536 | -0% |
+| `fft2d::execute_cf32[16x4096]` | 294.14 µs / round of 65,536 | 276.69 µs / round of 65,536 | +6% |
+| `hbdecim_q15::execute[taps=66,K_pad=48]` | 294.81 µs / round of 32,768 | 185.82 µs / round of 32,768 | +59% |
+| `wfm_synth::bits  amplitude sps=1` | 295.03 µs / round of 65,536 | 278.00 µs / round of 65,536 | +6% |
+| `dsss_burst_receiver::push_idle` | 295.78 µs / round of 8,192 | 285.38 µs / round of 8,192 | +4% |
+| `fft2d::execute_inplace_cf32[16x4096]` | 297.10 µs / round of 65,536 | 279.18 µs / round of 65,536 | +6% |
+| `wfm_synth::qpsk  +noise` | 299.16 µs / round of 65,536 | 301.27 µs / round of 65,536 | -1% |
+| `interp_table::execute[cubic]` | 303.61 µs / round of 65,536 | 301.87 µs / round of 65,536 | +1% |
+| `interp_table::execute[linear]` | 305.80 µs / round of 65,536 | 299.62 µs / round of 65,536 | +2% |
+| `wfm_synth::bpsk  rrc sps=4` | 306.87 µs / round of 65,536 | 256.18 µs / round of 65,536 | +20% |
+| `ddc::execute[rate=0.77]` | 311.46 µs / round of 32,768 | 368.20 µs / round of 32,768 | -15% |
+| `buffer::framer_feed_next[f32,in=3000,frame=1024,hop=256]` | 316.19 µs / round of 264,000 | 173.76 µs / round of 264,000 | +82% |
+| `buffer::write_some_peek_consume[f32,in=3000,frame=1024,hop=256]` | 316.48 µs / round of 264,000 | 174.30 µs / round of 264,000 | +82% |
+| `wfm_synth::pn    +LO +noise` | 320.73 µs / round of 65,536 | 312.04 µs / round of 65,536 | +3% |
+| `async_dsss_pool::push[12 slots, serial]` | 330.97 µs / round of 2,046 | 304.26 µs / round of 2,046 | +9% |
+| `spectral::magnitude_db_cf64[4096]` | 332.72 µs / round of 65,536 | 332.75 µs / round of 65,536 | -0% |
+| `fft::execute_cf64[n=65536]` | 347.00 µs / round of 65,536 | 180.77 µs / round of 65,536 | +92% |
+| `wfm_writer::raw ci8 (quantise)` | 353.96 µs / round of 65,536 | 341.00 µs / round of 65,536 | +4% |
+| `wfm_writer::raw ci16 (quantise)` | 358.23 µs / round of 65,536 | 332.32 µs / round of 65,536 | +8% |
+| `syncword::max_errors_for[n=32]` | 359.19 µs / round of 2,000 | 357.93 µs / round of 2,000 | +0% |
+| `dsss_burst_receiver::push_burst` | 360.46 µs / round of 8,192 | 337.90 µs / round of 8,192 | +7% |
+| `symsync::steps` | 371.08 µs / round of 65,536 | 371.23 µs / round of 65,536 | -0% |
+| `acc_trace::fold[minhold,nfft=16384]` | 385.17 µs / round of 16 | 200.26 µs / round of 16 | +92% |
+| `acc_trace::fold[maxhold,nfft=16384]` | 386.74 µs / round of 16 | 195.47 µs / round of 16 | +98% |
+| `fir::execute[taps=15,complex]` | 387.98 µs / round of 65,536 | 95.94 µs / round of 65,536 | +304% |
+| `RateConverter::Resamp(1/3)` | 390.34 µs / round of 65,536 | 425.12 µs / round of 65,536 | -8% |
+| `specan::execute[rbw=100k]` | 392.47 µs / round of 65,536 | 394.36 µs / round of 65,536 | -0% |
+| `specan::execute[rbw=10k]` | 394.09 µs / round of 65,536 | 348.28 µs / round of 65,536 | +13% |
+| `nprmeas::analyze[n=65536]` | 396.48 µs / call | 332.93 µs / call | +19% |
+| `detector2d::push[128x128]` | 402.65 µs / round of 65,536 | 354.92 µs / round of 65,536 | +13% |
+| `detector2d::push[128x128,no-detections]` | 405.33 µs / round of 65,536 | 356.51 µs / round of 65,536 | +14% |
+| `imdmeas::analyze[n=65536]` | 413.49 µs / call | 370.18 µs / call | +12% |
+| `specan::execute[rbw=1k]` | 420.13 µs / round of 65,536 | 390.12 µs / round of 65,536 | +8% |
+| `burst_despreader::steps[sf=31]` | 425.61 µs / round of 65,536 | 413.97 µs / round of 65,536 | +3% |
+| `spectrogram::push[nfft=256,hop=64,mode=power]` | 430.15 µs / round of 65,536 | 348.42 µs / round of 65,536 | +23% |
+| `corr2d::single_row_fast_path` | 430.92 µs / round of 32,736 | 304.79 µs / round of 32,736 | +41% |
+| `burst_despreader::steps[sf=15]` | 431.27 µs / round of 65,536 | 430.84 µs / round of 65,536 | +0% |
+| `psd::frame_db[nfft=256]` | 431.79 µs / round of 256 | 435.00 µs / round of 256 | -1% |
+| `burst_despreader::steps[sf=63]` | 434.73 µs / round of 65,536 | 428.94 µs / round of 65,536 | +1% |
+| `spectral::hann_window[4096]` | 437.96 µs / round of 65,536 | 438.51 µs / round of 65,536 | -0% |
+| `spectrogram::direct[nfft=256,hop=256]` | 439.18 µs / round of 65,536 | 430.21 µs / round of 65,536 | +2% |
+| `psd::frame_db[nfft=1024]` | 442.08 µs / round of 64 | 442.53 µs / round of 64 | -0% |
+| `spectrogram::push[nfft=256,hop=256]` | 444.61 µs / round of 65,536 | 436.90 µs / round of 65,536 | +2% |
+| `spectrogram::push[nfft=256,hop=256,chunk=256]` | 446.00 µs / round of 65,536 | 439.16 µs / round of 65,536 | +2% |
+| `spectrogram::direct[nfft=1024,hop=1024]` | 452.08 µs / round of 65,536 | 444.98 µs / round of 65,536 | +2% |
+| `burst_acq::push[sf=15,spc=2]` | 453.06 µs / round of 32,768 | 449.95 µs / round of 32,768 | +1% |
+| `psd::frame_db[nfft=4096]` | 453.70 µs / round of 16 | 449.36 µs / round of 16 | +1% |
+| `spectrogram::push[nfft=1024,hop=1024]` | 459.56 µs / round of 65,536 | 448.98 µs / round of 65,536 | +2% |
+| `spectrogram::push[nfft=1024,hop=1024,chunk=256]` | 462.57 µs / round of 65,536 | 461.31 µs / round of 65,536 | +0% |
+| `tonemeas::analyze[n=65536]` | 465.04 µs / call | 412.65 µs / call | +13% |
+| `psd::frame_db[nfft=16384]` | 467.34 µs / round of 4 | 461.42 µs / round of 4 | +1% |
+| `spectrogram::direct[nfft=4096,hop=4096]` | 468.76 µs / round of 65,536 | 455.58 µs / round of 65,536 | +3% |
+| `fft2d::execute_cf64[1024x64]` | 470.33 µs / round of 65,536 | 356.60 µs / round of 65,536 | +32% |
+| `psd::fft[nfft=65536]` | 472.76 µs / round of 4 | 389.27 µs / round of 4 | +21% |
+| `fft2d::execute_cf64[16x4096]` | 476.18 µs / round of 65,536 | 377.26 µs / round of 65,536 | +26% |
+| `spectrogram::push[nfft=4096,hop=4096]` | 478.59 µs / round of 65,536 | 460.83 µs / round of 65,536 | +4% |
+| `frame::assemble cadu` | 479.82 µs / round of 32 | 458.90 µs / round of 32 | +5% |
+| `spectrogram::push[nfft=4096,hop=4096,chunk=256]` | 481.06 µs / round of 65,536 | 464.48 µs / round of 65,536 | +4% |
+| `ccsds::asm_bits` | 482.81 µs / round of 65,536 | 52.35 µs / round of 65,536 | +822% |
+| `ccsds::dp_ccsds_tm_asm_bits` | 483.32 µs / round of 65,536 | 52.05 µs / round of 65,536 | +829% |
+| `agc::steps` | 484.28 µs / round of 65,536 | 470.67 µs / round of 65,536 | +3% |
+| `syncword::find[n=128]` | 489.03 µs / round of 65,536 | 263.36 µs / round of 65,536 | +86% |
+| `spectrogram::push[nfft=1024,hop=256,mode=power]` | 490.39 µs / round of 65,536 | 400.57 µs / round of 65,536 | +22% |
+| `fft2d::execute_cf64[64x1024]` | 490.52 µs / round of 65,536 | 376.33 µs / round of 65,536 | +30% |
+| `frame::pipe+cadu` | 494.92 µs / round of 32 | 471.93 µs / round of 32 | +5% |
+| `carrier_nda::step` | 522.13 µs / round of 65,536 | 503.06 µs / round of 65,536 | +4% |
+| `detection::det_pd[dwell=1]` | 525.11 µs / round of 4,096 | 519.17 µs / round of 4,096 | +1% |
+| `carrier_nda::steps` | 533.50 µs / round of 65,536 | 511.47 µs / round of 65,536 | +4% |
+| `fft2d::execute_cf64[256x256]` | 537.00 µs / round of 65,536 | 410.91 µs / round of 65,536 | +31% |
+| `corr2d::multi_row_general_path` | 539.43 µs / round of 32,736 | 408.83 µs / round of 32,736 | +32% |
+| `mpsk::demap[m=2]` | 540.91 µs / round of 65,536 | 523.90 µs / round of 65,536 | +3% |
+| `mpsk::diff_demap[m=2]` | 556.64 µs / round of 65,536 | 548.53 µs / round of 65,536 | +1% |
+| `util::ema_alpha_decim` | 557.66 µs / round of 65,536 | 521.91 µs / round of 65,536 | +7% |
+| `burst_demod::demod[clean]` | 561.20 µs / call | 366.58 µs / call | +53% |
+| `ddc::execute_ctrl_push[rate=0.25]` | 578.71 µs / round of 32,768 | 581.71 µs / round of 32,768 | -1% |
+| `psd::frame_power[nfft=65536]` | 580.88 µs / round of 4 | 490.77 µs / round of 4 | +18% |
+| `cvt::int_to_bin` | 600.23 µs / round of 65,536 | 586.51 µs / round of 65,536 | +2% |
+| `tonemeas::analyze_complex[n=65536]` | 612.88 µs / call | 554.11 µs / call | +11% |
+| `psd::frame_linear[nfft=65536]` | 618.65 µs / round of 4 | 509.25 µs / round of 4 | +21% |
+| `detection::marcum_q[m=1]` | 627.64 µs / round of 4,096 | 623.75 µs / round of 4,096 | +1% |
+| `burst_demod::demod[offset]` | 633.67 µs / call | 534.43 µs / call | +19% |
+| `detector2d::push[1024x16]` | 633.99 µs / round of 65,536 | 573.05 µs / round of 65,536 | +11% |
+| `mpsk::demap[m=8]` | 644.21 µs / round of 65,536 | 635.47 µs / round of 65,536 | +1% |
+| `mpsk::soft_demap[m=4]` | 652.10 µs / round of 65,536 | 627.21 µs / round of 65,536 | +4% |
+| `detector2d::push[16x1024]` | 654.29 µs / round of 65,536 | 617.45 µs / round of 65,536 | +6% |
+| `psd::accumulate_frame[nfft=65536]` | 662.39 µs / round of 4 | 555.98 µs / round of 4 | +19% |
+| `mpsk::map[m=2]` | 664.91 µs / round of 65,536 | 586.74 µs / round of 65,536 | +13% |
+| `rs::encode` | 665.33 µs / round of 256 | 703.91 µs / round of 256 | -5% |
+| `mpsk::demap[m=4]` | 675.22 µs / round of 65,536 | 671.14 µs / round of 65,536 | +1% |
+| `dsss_receiver::search` | 675.60 µs / round of 65,536 | 1.13 ms / round of 65,536 | -40% |
+| `mpsk::diff_map[m=2]` | 676.01 µs / round of 65,536 | 590.55 µs / round of 65,536 | +14% |
+| `mpsk::diff_demap[m=8]` | 680.46 µs / round of 65,536 | 676.59 µs / round of 65,536 | +1% |
+| `detection::marcum_q[m=4]` | 703.28 µs / round of 4,096 | 697.27 µs / round of 4,096 | +1% |
+| `mpsk::diff_demap[m=4]` | 708.94 µs / round of 65,536 | 700.58 µs / round of 65,536 | +1% |
+| `mpsk::map[m=8]` | 709.30 µs / round of 65,536 | 625.65 µs / round of 65,536 | +13% |
+| `burst_acq::push[sf=15,spc=4]` | 715.04 µs / round of 32,768 | 643.15 µs / round of 32,768 | +11% |
+| `mpsk::map[m=4]` | 717.51 µs / round of 65,536 | 632.87 µs / round of 65,536 | +13% |
+| `fir::execute[taps=63,real]` | 717.93 µs / round of 65,536 | 220.73 µs / round of 65,536 | +225% |
+| `mpsk::diff_map[m=8]` | 727.93 µs / round of 65,536 | 574.67 µs / round of 65,536 | +27% |
+| `async_dsss_receiver::steps[warm]` | 730.26 µs / round of 22,472 | 653.85 µs / round of 22,472 | +12% |
+| `mpsk::diff_map[m=4]` | 731.00 µs / round of 65,536 | 601.20 µs / round of 65,536 | +22% |
+| `rs_codec::encode_kernel` | 732.20 µs / round of 256 | 701.68 µs / round of 256 | +4% |
+| `rs_codec::encode` | 733.43 µs / round of 256 | 702.65 µs / round of 256 | +4% |
+| `async_dsss_receiver::steps[cell]` | 739.57 µs / round of 22,472 | 667.32 µs / round of 22,472 | +11% |
+| `ber_meter::align` | 802.12 µs / call | 814.02 µs / call | -1% |
+| `RateConverter::Interp(2.0)` | 807.82 µs / round of 65,536 | 659.81 µs / round of 65,536 | +22% |
+| `detection::det_q_inv` | 815.10 µs / round of 8,192 | 769.67 µs / round of 8,192 | +6% |
+| `burst_acq::push[sf=63,spc=2]` | 818.32 µs / round of 32,768 | 689.69 µs / round of 32,768 | +19% |
+| `ber_meter::score` | 824.53 µs / round of 65,536 | 980.96 µs / round of 65,536 | -16% |
+| `burst_acq::push[sf=63,spc=4]` | 889.63 µs / round of 32,768 | 773.08 µs / round of 32,768 | +15% |
+| `wfm::rc_h[4096]` | 915.88 µs / round of 65,536 | 900.12 µs / round of 65,536 | +2% |
+| `wfm::rrc_h[4096]` | 919.59 µs / round of 65,536 | 904.61 µs / round of 65,536 | +2% |
+| `ratesync::steps[gardner,sps=8]` | 924.35 µs / round of 65,536 | 825.60 µs / round of 65,536 | +12% |
+| `ppe::chirp` | 930.70 µs / round of 512 | 844.67 µs / round of 512 | +10% |
+| `spectral::noise_floor_db[4096]` | 944.10 µs / round of 65,536 | 913.04 µs / round of 65,536 | +3% |
+| `ber::qfunc` | 947.52 µs / round of 100,000 | 915.89 µs / round of 100,000 | +3% |
+| `cvt::hex_to_bin` | 953.23 µs / round of 65,536 | 941.85 µs / round of 65,536 | +1% |
+| `syncword::find[n=256]` | 963.06 µs / round of 65,536 | 491.82 µs / round of 65,536 | +96% |
+| `detection::det_pd[dwell=64]` | 970.16 µs / round of 4,096 | 963.50 µs / round of 4,096 | +1% |
+| `wfm::rrc_taps[sps=4,span=8]` | 970.28 µs / round of 66,560 | 956.02 µs / round of 66,560 | +1% |
+| `mpsk::soft_demap[m=8]` | 984.01 µs / round of 65,536 | 900.12 µs / round of 65,536 | +9% |
+| `ratesync::steps[dttl,sps=8]` | 988.31 µs / round of 65,536 | 906.38 µs / round of 65,536 | +9% |
+| `spectrogram::direct[nfft=16384,hop=16384]` | 998.61 µs / round of 131,072 | 954.29 µs / round of 131,072 | +5% |
+| `ratesync::steps[gardner,sps=4]` | 1.01 ms / round of 65,536 | 918.80 µs / round of 65,536 | +10% |
+| `spectrogram::push[nfft=16384,hop=16384]` | 1.02 ms / round of 131,072 | 977.11 µs / round of 131,072 | +5% |
+| `ccsds_tm::rs_encode_block` | 1.03 ms / round of 64 | 1.00 ms / round of 64 | +2% |
+| `mpsk_receiver::steps[sps=4,agc=0]` | 1.06 ms / round of 65,536 | 1.06 ms / round of 65,536 | +0% |
+| `doppler_channel::execute[profile]` | 1.09 ms / round of 65,536 | 959.43 µs / round of 65,536 | +14% |
+| `doppler_channel::execute[ramp]` | 1.09 ms / round of 65,536 | 856.21 µs / round of 65,536 | +28% |
+| `doppler_channel::execute[static]` | 1.09 ms / round of 65,536 | 856.76 µs / round of 65,536 | +28% |
+| `mpsk_receiver::steps[sps=8,agc=0]` | 1.10 ms / round of 65,536 | 1.08 ms / round of 65,536 | +2% |
+| `ratesync::steps[dttl,sps=4]` | 1.10 ms / round of 65,536 | 992.25 µs / round of 65,536 | +11% |
+| `fir::execute[taps=63,complex]` | 1.16 ms / round of 65,536 | 524.20 µs / round of 65,536 | +121% |
+| `ber::theory_ser` | 1.17 ms / round of 100,000 | 1.13 ms / round of 100,000 | +3% |
+| `carrier_mpsk::steps[m=2]` | 1.19 ms / round of 65,536 | 1.18 ms / round of 65,536 | +1% |
+| `carrier_mpsk::steps[m=2,fll]` | 1.24 ms / round of 65,536 | 1.23 ms / round of 65,536 | +1% |
+| `spectral::blackman_harris_window[4096]` | 1.32 ms / round of 65,536 | 1.31 ms / round of 65,536 | +1% |
+| `ber::evm_db` | 1.35 ms / round of 65,536 | 1.35 ms / round of 65,536 | -0% |
+| `ber::theory_ber` | 1.35 ms / round of 100,000 | 1.33 ms / round of 100,000 | +2% |
+| `spectral::kaiser_window[4096]` | 1.40 ms / round of 65,536 | 1.40 ms / round of 65,536 | +0% |
+| `carrier_mpsk::steps[m=8]` | 1.45 ms / round of 65,536 | 1.17 ms / round of 65,536 | +24% |
+| `dll::steps` | 1.46 ms / round of 65,536 | 1.31 ms / round of 65,536 | +12% |
+| `timing::pace (no-wait overhead)` | 1.50 ms / round of 65,536 | 1.51 ms / round of 65,536 | -1% |
+| `acc_trace::fold[minhold,nfft=65536]` | 1.53 ms / round of 16 | 784.88 µs / round of 16 | +95% |
+| `despreader::steps` | 1.54 ms / round of 65,536 | 1.38 ms / round of 65,536 | +12% |
+| `carrier_mpsk::steps[m=4]` | 1.54 ms / round of 65,536 | 1.25 ms / round of 65,536 | +23% |
+| `carrier_mpsk::steps[m=4,fll]` | 1.55 ms / round of 65,536 | 1.26 ms / round of 65,536 | +23% |
+| `acc_trace::fold[maxhold,nfft=65536]` | 1.55 ms / round of 16 | 776.11 µs / round of 16 | +100% |
+| `carrier_mpsk::steps[m=8,fll]` | 1.57 ms / round of 65,536 | 1.23 ms / round of 65,536 | +28% |
+| `mpsk_receiver::steps[sps=4,agc=1]` | 1.57 ms / round of 65,536 | 1.51 ms / round of 65,536 | +4% |
+| `mpsk_receiver::steps[sps=8,agc=1]` | 1.58 ms / round of 65,536 | 1.54 ms / round of 65,536 | +2% |
+| `ccsds_tm::randomise` | 1.62 ms / round of 64 | 1.60 ms / round of 64 | +1% |
+| `ccsds_tm::frame_encode[rand]` | 1.63 ms / round of 64 | 1.61 ms / round of 64 | +1% |
+| `detection::det_dwell[max=256]` | 1.68 ms / round of 64 | 1.68 ms / round of 64 | +0% |
+| `spectrogram::direct[nfft=256,hop=64]` | 1.74 ms / round of 65,536 | 1.71 ms / round of 65,536 | +2% |
+| `spectrogram::push[nfft=256,hop=64]` | 1.75 ms / round of 65,536 | 1.72 ms / round of 65,536 | +2% |
+| `spectrogram::push[nfft=256,hop=64,chunk=256]` | 1.76 ms / round of 65,536 | 1.73 ms / round of 65,536 | +2% |
+| `spectrogram::direct[nfft=4096,hop=1024]` | 1.76 ms / round of 65,536 | 1.71 ms / round of 65,536 | +3% |
+| `spectrogram::push[nfft=4096,hop=1024]` | 1.77 ms / round of 65,536 | 1.71 ms / round of 65,536 | +4% |
+| `spectrogram::direct[nfft=1024,hop=256]` | 1.78 ms / round of 65,536 | 1.73 ms / round of 65,536 | +3% |
+| `spectrogram::push[nfft=4096,hop=1024,chunk=256]` | 1.78 ms / round of 65,536 | 1.72 ms / round of 65,536 | +4% |
+| `spectrogram::push[nfft=1024,hop=256]` | 1.79 ms / round of 65,536 | 1.73 ms / round of 65,536 | +3% |
+| `spectrogram::push[nfft=1024,hop=256,chunk=16384]` | 1.79 ms / round of 65,536 | 1.74 ms / round of 65,536 | +3% |
+| `spectrogram::push[nfft=1024,hop=256,chunk=1024]` | 1.79 ms / round of 65,536 | 1.74 ms / round of 65,536 | +3% |
+| `spectrogram::push[nfft=1024,hop=256,chunk=256]` | 1.80 ms / round of 65,536 | 1.76 ms / round of 65,536 | +2% |
+| `agc::step` | 1.85 ms / round of 65,536 | 1.60 ms / round of 65,536 | +16% |
+| `dsss_receiver::track` | 1.89 ms / round of 65,536 | 1.76 ms / round of 65,536 | +8% |
+| `detection::det_snr[dwell=8]` | 1.90 ms / round of 64 | 1.89 ms / round of 64 | +1% |
+| `psd::frame_db[nfft=65536]` | 1.93 ms / round of 4 | 1.90 ms / round of 4 | +2% |
+| `spectrogram::push[nfft=1024,hop=256,chunk=1]` | 2.10 ms / round of 65,536 | 2.05 ms / round of 65,536 | +2% |
+| `burst_capture::push[quiet]` | 2.33 ms / round of 65,536 | 2.04 ms / round of 65,536 | +14% |
+| `burst_capture::push[4 bursts, file-backed]` | 2.36 ms / round of 65,536 | 2.17 ms / round of 65,536 | +9% |
+| `burst_capture::push[4 bursts]` | 2.36 ms / round of 65,536 | 2.17 ms / round of 65,536 | +9% |
+| `buffer::two_thread_write_wait_consume[f32,frame=64]` | 2.48 ms / round of 8,388,608 | 2.49 ms / round of 8,388,608 | -1% |
+| `viterbi::decode[depth=35]` | 2.66 ms / round of 16,384 | 2.86 ms / round of 16,384 | -7% |
+| `ccsds_tm::frame_encode[rs+rand]` | 2.89 ms / round of 64 | 2.84 ms / round of 64 | +2% |
+| `dp_event_log::noflush` | 3.34 ms / round of 4,096 | 3.40 ms / round of 4,096 | -2% |
+| `acq::native_nc90` | 3.41 ms / round of 184,140 | 4.33 ms / round of 184,140 | -21% |
+| `spectrogram::direct[nfft=16384,hop=4096]` | 3.47 ms / round of 131,072 | 3.35 ms / round of 131,072 | +3% |
+| `dp_tlm_capture::drain` | 3.49 ms / round of 4,096 | 3.26 ms / round of 4,096 | +7% |
+| `spectrogram::push[nfft=16384,hop=4096]` | 3.49 ms / round of 131,072 | 3.36 ms / round of 131,072 | +4% |
+| `fir::execute[taps=255,real]` | 3.75 ms / round of 65,536 | 1.26 ms / round of 65,536 | +198% |
+| `viterbi::decode[depth=96]` | 3.76 ms / round of 16,384 | 4.12 ms / round of 16,384 | -9% |
+| `dp_event_log::bare` | 3.77 ms / round of 4,096 | 3.77 ms / round of 4,096 | -0% |
+| `fir::execute[taps=255,complex]` | 3.85 ms / round of 65,536 | 3.06 ms / round of 65,536 | +26% |
+| `resample::ciccompmf[M=19]` | 4.11 ms / round of 4,096 | 4.04 ms / round of 4,096 | +2% |
+| `spectrogram::direct[nfft=65536,hop=65536]` | 4.16 ms / round of 524,288 | 3.91 ms / round of 524,288 | +6% |
+| `spectrogram::push[nfft=65536,hop=65536]` | 4.23 ms / round of 524,288 | 3.99 ms / round of 524,288 | +6% |
+| `ccsds_tm::frame_encode[full]` | 4.82 ms / round of 64 | 4.54 ms / round of 64 | +6% |
+| `spectrogram::push[nfft=65536,hop=16384,mode=power]` | 4.82 ms / round of 524,288 | 3.91 ms / round of 524,288 | +23% |
+| `HalfbandDecimator::execute[block=32768]` | 4.90 ms / round of 2,048,000 | 5.54 ms / round of 2,048,000 | -12% |
+| `HalfbandDecimator::execute[block=65536]` | 4.91 ms / round of 2,048,000 | 5.52 ms / round of 2,048,000 | -11% |
+| `HalfbandDecimator::execute[block=1024]` | 4.94 ms / round of 2,048,000 | 5.58 ms / round of 2,048,000 | -11% |
+| `HalfbandDecimator::execute[block=8192]` | 4.95 ms / round of 2,048,000 | 5.56 ms / round of 2,048,000 | -11% |
+| `rs::decode[e=0]` | 4.97 ms / round of 256 | 4.98 ms / round of 256 | -0% |
+| `rs::verify` | 4.97 ms / round of 256 | 4.98 ms / round of 256 | -0% |
+| `rs_codec::decode[e=0]` | 4.97 ms / round of 256 | 4.96 ms / round of 256 | +0% |
+| `rs::decode[e=8]` | 5.69 ms / round of 256 | 5.72 ms / round of 256 | -1% |
+| `burst_demod::demod[chirp]` | 5.70 ms / call | 5.06 ms / call | +13% |
+| `ccsds_tm::rs_decode_block` | 6.36 ms / round of 64 | 6.37 ms / round of 64 | -0% |
+| `acq::op2M_U5k_nc51` | 6.49 ms / round of 104,346 | 4.97 ms / round of 104,346 | +31% |
+| `rs_codec::decode[e=E]` | 6.54 ms / round of 256 | 6.50 ms / round of 256 | +1% |
+| `rs::decode[e=16]` | 6.60 ms / round of 256 | 6.63 ms / round of 256 | -1% |
+| `acq::native_nc176` | 6.66 ms / round of 360,096 | 8.41 ms / round of 360,096 | -21% |
+| `async_dsss_receiver::steps[cold]` | 6.73 ms / round of 44,943 | 6.44 ms / round of 44,943 | +4% |
+| `wfm_reader::csv cf32 (text parse)` | 9.23 ms / round of 65,536 | 9.24 ms / round of 65,536 | -0% |
+| `dp_event_log::fields` | 9.38 ms / round of 4,096 | 9.24 ms / round of 4,096 | +2% |
+| `acq::native_nc256` | 9.69 ms / round of 523,776 | 12.31 ms / round of 523,776 | -21% |
+| `wfm_writer::csv cf32 (text)` | 9.97 ms / round of 65,536 | 10.04 ms / round of 65,536 | -1% |
+| `resamp::execute[rate=0.5000,block=819200]` | 11.75 ms / round of 2,048,000 | 13.34 ms / round of 2,048,000 | -12% |
+| `acq::op2M_U5k_nc96` | 12.15 ms / round of 196,416 | 9.45 ms / round of 196,416 | +29% |
+| `acq::op5M_U5k_nc225` | 13.82 ms / round of 460,350 | 10.31 ms / round of 460,350 | +34% |
+| `spectrogram::direct[nfft=65536,hop=16384]` | 14.50 ms / round of 524,288 | 13.70 ms / round of 524,288 | +6% |
+| `spectrogram::push[nfft=65536,hop=16384]` | 14.54 ms / round of 524,288 | 13.80 ms / round of 524,288 | +5% |
+| `resamp::execute[rate=0.5000,block=20480]` | 14.68 ms / round of 2,048,000 | 16.64 ms / round of 2,048,000 | -12% |
+| `resamp::execute[rate=0.5000,block=409600]` | 14.69 ms / round of 2,048,000 | 16.57 ms / round of 2,048,000 | -11% |
+| `resamp::execute[rate=0.5000,block=1024]` | 14.71 ms / round of 2,048,000 | 16.82 ms / round of 2,048,000 | -13% |
+| `acq::op5M_U5k_nc256` | 15.73 ms / round of 523,776 | 11.29 ms / round of 523,776 | +39% |
+| `resamp::execute[rate=1.0001,block=819200]` | 15.98 ms / round of 2,048,000 | 13.45 ms / round of 2,048,000 | +19% |
+| `acq::op2M_U5k_nc137` | 17.32 ms / round of 280,302 | 13.25 ms / round of 280,302 | +31% |
+| `acq::op2M_U17k_nc54` | 17.52 ms / round of 110,484 | 13.87 ms / round of 110,484 | +26% |
+| `resamp::execute[rate=0.9999,block=819200]` | 17.56 ms / round of 2,048,000 | 22.17 ms / round of 2,048,000 | -21% |
+| `detection::det_threshold_noncoherent[n=8]` | 19.27 ms / round of 4,096 | 19.55 ms / round of 4,096 | -1% |
+| `resamp::execute[rate=1.0001,block=20480]` | 19.98 ms / round of 2,048,000 | 16.79 ms / round of 2,048,000 | +19% |
+| `resamp::execute[rate=1.0001,block=1024]` | 19.98 ms / round of 2,048,000 | 16.78 ms / round of 2,048,000 | +19% |
+| `resamp::execute[rate=1.0001,block=409600]` | 20.00 ms / round of 2,048,000 | 16.81 ms / round of 2,048,000 | +19% |
+| `resamp::execute[rate=2.0000,block=819200]` | 20.19 ms / round of 2,048,000 | 16.54 ms / round of 2,048,000 | +22% |
+| `async_dsss_receiver::steps[cell,op5M]` | 21.46 ms / round of 745,917 | 19.32 ms / round of 745,917 | +11% |
+| `async_dsss_receiver::steps[warm,op5M]` | 21.47 ms / round of 745,917 | 19.33 ms / round of 745,917 | +11% |
+| `resamp::execute[rate=0.9999,block=409600]` | 21.98 ms / round of 2,048,000 | 27.73 ms / round of 2,048,000 | -21% |
+| `resamp::execute[rate=0.9999,block=1024]` | 21.99 ms / round of 2,048,000 | 27.73 ms / round of 2,048,000 | -21% |
+| `resamp::execute[rate=0.9999,block=20480]` | 22.06 ms / round of 2,048,000 | 27.72 ms / round of 2,048,000 | -20% |
+| `resamp::execute[rate=2.0000,block=20480]` | 25.22 ms / round of 2,048,000 | 20.60 ms / round of 2,048,000 | +22% |
+| `resamp::execute[rate=2.0000,block=409600]` | 25.23 ms / round of 2,048,000 | 20.61 ms / round of 2,048,000 | +22% |
+| `resamp::execute[rate=2.0000,block=1024]` | 25.26 ms / round of 2,048,000 | 20.57 ms / round of 2,048,000 | +23% |
+| `acq::op5M_U50k_t4_nc254` | 29.74 ms / round of 519,684 | 22.64 ms / round of 519,684 | +31% |
+| `acq::op5M_U50k_t4_nc256` | 29.97 ms / round of 523,776 | 22.81 ms / round of 523,776 | +31% |
+| `acq::op5M_U17k_nc238` | 30.15 ms / round of 486,948 | 23.01 ms / round of 486,948 | +31% |
+| `acq::op5M_U50k_t8_nc254` | 31.70 ms / round of 519,684 | 24.82 ms / round of 519,684 | +28% |
+| `acq::op5M_U50k_t8_nc256` | 31.99 ms / round of 523,776 | 25.02 ms / round of 523,776 | +28% |
+| `acq::op5M_U17k_nc256` | 32.40 ms / round of 523,776 | 24.74 ms / round of 523,776 | +31% |
+| `acq::op2M_U17k_nc101` | 32.68 ms / round of 206,646 | 25.53 ms / round of 206,646 | +28% |
+| `snr::series[window=1024]` | 40.64 ms / round of 65,536 | 20.92 ms / round of 65,536 | +94% |
+| `wfm_reader::csv seek (scan)` | 45.84 ms / round of 20 | 45.77 ms / round of 20 | +0% |
+| `acq::op2M_U17k_nc144` | 46.51 ms / round of 294,624 | 36.77 ms / round of 294,624 | +26% |
+| `acq::op5M_U50k_t2_nc254` | 49.88 ms / round of 519,684 | 37.84 ms / round of 519,684 | +32% |
+| `acq::op5M_U50k_t2_nc256` | 49.90 ms / round of 523,776 | 38.06 ms / round of 523,776 | +31% |
+| `acq::op2M_U50k_nc57` | 50.11 ms / round of 116,622 | 37.71 ms / round of 116,622 | +33% |
+| `acq::wideband_nc112` | 65.42 ms / round of 229,152 | 49.81 ms / round of 229,152 | +31% |
+| `async_dsss_receiver::steps[cold,op5M]` | 81.29 ms / round of 1,491,833 | 74.02 ms / round of 1,491,833 | +10% |
+| `acq::op5M_U50k_nc254` | 90.57 ms / round of 519,684 | 68.73 ms / round of 519,684 | +32% |
+| `acq::op5M_U50k_nc256` | 90.97 ms / round of 523,776 | 69.30 ms / round of 523,776 | +31% |
+| `acq::op2M_U50k_nc107` | 93.93 ms / round of 218,922 | 71.47 ms / round of 218,922 | +31% |
+| `acq::wideband_nc215` | 124.94 ms / round of 439,890 | 99.20 ms / round of 439,890 | +26% |
+| `acq::op2M_U50k_nc151` | 132.35 ms / round of 308,946 | 100.87 ms / round of 308,946 | +31% |
+| `acq::wideband_nc256` | 149.50 ms / round of 523,776 | 117.22 ms / round of 523,776 | +28% |
+| `measure::measure_min_samples` | 202.57 ms / round of 8,192 | 201.34 ms / round of 8,192 | +1% |
+| `frame_meter::fer` | 338.03 ms / round of 10,000 | 341.83 ms / round of 10,000 | -1% |
 
 ## Release history (portable build)
 

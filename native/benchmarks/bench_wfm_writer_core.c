@@ -49,7 +49,7 @@ bench_cfg (const char *name, int ft, int stype, const float _Complex *x,
     }
   printf ("  %-26s %8.1f MSa/s\n", name,
           BENCH_N / (times[0] > 0 ? times[0] : 1e-9) / 1e6);
-  jm_bench_add (bench, name, times, ITERATIONS, BENCH_N);
+  jm_bench_add_unit (bench, name, times, ITERATIONS, BENCH_N, JM_BENCH_SAMPLE);
 }
 
 int

@@ -78,13 +78,15 @@ dp_bench_min (const double *t, int rounds)
  * @param rounds  Outer iteration count.
  * @param iters   Units of work per round -- so `ops` in the JSON is the
  *                natural throughput unit rather than calls per second.
- * @param unit    Noun for that unit ("sample", "bin", "bit", "call").
+ * @param unit    Noun for that unit ("sample", "bin", "bit", "call"),
+ *                written to the JSON as `extra_info.unit`; jm_bench's
+ *                rules for a unit apply (#2314).
  */
 static inline void
 dp_bench_record (jm_bench_t *b, const char *name, const double *t, int rounds,
                  size_t iters, const char *unit)
 {
-  jm_bench_add (b, name, t, rounds, (int)iters);
+  jm_bench_add_unit (b, name, t, rounds, (int)iters, unit);
   const double sec = dp_bench_min (t, rounds);
   printf ("  %-34s %9.3f ns/%-7s %9.2f M%s/s\n", name,
           sec / (double)iters * 1e9, unit, (double)iters / sec / 1e6, unit);

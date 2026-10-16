@@ -90,7 +90,8 @@ main (void)
       t1       = jm_bench_now_ns ();
       t_one[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "data_aided_db", t_one, ITERATIONS, BENCH_N);
+  jm_bench_add_unit (&_bench, "data_aided_db", t_one, ITERATIONS, BENCH_N,
+                     "symbol");
   printf ("  %-24s %7.2f ns/sym   %8.3f us/block\n", "data_aided_db",
           min_sec (t_one, ITERATIONS) / BENCH_N * 1e9,
           min_sec (t_one, ITERATIONS) * 1e6);
@@ -102,7 +103,8 @@ main (void)
       t1       = jm_bench_now_ns ();
       t_ser[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "series[window=1024]", t_ser, ITERATIONS, BENCH_N);
+  jm_bench_add_unit (&_bench, "series[window=1024]", t_ser, ITERATIONS,
+                     BENCH_N, "symbol");
   printf ("  %-24s %7.2f ns/sym   %8.3f us/block  (one per sample)\n",
           "series[window=1024]", min_sec (t_ser, ITERATIONS) / BENCH_N * 1e9,
           min_sec (t_ser, ITERATIONS) * 1e6);

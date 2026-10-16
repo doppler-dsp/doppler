@@ -138,7 +138,8 @@ main (void)
         }
       char name[64];
       (void)snprintf (name, sizeof name, "execute[block=%zu]", block);
-      jm_bench_add (&_bench, name, t_ex[k], ITERATIONS, TOTAL_PER_ROUND);
+      jm_bench_add_unit (&_bench, name, t_ex[k], ITERATIONS, TOTAL_PER_ROUND,
+                         JM_BENCH_SAMPLE);
       double sec = min_sec (t_ex[k], ITERATIONS);
       printf ("  %-26s %7.2f ns/sample  %8.1f MSa/s\n", name,
               sec / (double)TOTAL_PER_ROUND * 1e9,

@@ -66,8 +66,8 @@ rather than confirms (all six are now answered, in the record's §5.4 to §5.9):
     a row comes back with the push that delivers its last sample. In time, a
     push costs `c_s + c_p/C` per sample, with a 4.6 ns per-push overhead, so
     chunks of 1 cost 17% more than one block and from 256 samples on the
-    chunk size is invisible. U2 against `hop` waits on the bench's row cap
-    (#2062).
+    chunk size is invisible. U2 against `hop` has its bench rows and waits
+    on their measurement run (#2062).
 - **U3 — where a row's time goes. ANSWERED (§5.8): the dB conversion
     dominates.** It is 70–83% of a row, at about 5.3 ns per bin: a divide, a
     clamp, a double `log10` and a cast, which the bench does not separate.

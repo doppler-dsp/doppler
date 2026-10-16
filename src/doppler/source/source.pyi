@@ -993,8 +993,15 @@ class AWGN:
     @property
     def amplitude(self) -> float:
         """Per-component standard deviation. Assigning an invalid value (NaN,
-        infinite or negative) is ignored: the amplitude keeps its old value,
-        and the property does not raise.
+        infinite or negative) raises ValueError, and the amplitude keeps its
+        old value.
+
+        Raises
+        ------
+        ValueError
+            On assignment, if ``dp_awgn_set_amplitude`` refuses the value by
+            returning non-zero. The exception message is ``AWGN: amplitude must
+            be finite and >= 0``, with the return code appended.
         """
     @amplitude.setter
     def amplitude(self, value: float) -> None: ...

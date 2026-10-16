@@ -92,7 +92,13 @@ STOCK_REGISTRY      ?= public.ecr.aws/docker/library
 # rate limit with backoff (#1979): before a `docker run --pull=never`, and as
 # `$(STOCK_PULL) --dockerfile F` before a `docker build -f F`, because
 # BuildKit does not retry a FROM. `make lint-stock-images` holds every site.
-STOCK_PULL          = STOCK_REGISTRY=$(STOCK_REGISTRY) bash scripts/stock-pull.sh
+# When ECR Public refuses an IP its anonymous data quota, the helper pulls
+# the same tag from STOCK_MIRROR, Google's anonymous mirror of the official
+# images, at the same digests (checked 2026-10-16 for every tag doppler
+# pulls), and names it as the primary's (#2256).
+STOCK_MIRROR        ?= mirror.gcr.io/library
+STOCK_PULL          = STOCK_REGISTRY=$(STOCK_REGISTRY) \
+                      STOCK_MIRROR=$(STOCK_MIRROR) bash scripts/stock-pull.sh
 
 # The uv pin, read from pyproject.toml's [tool.uv] required-version by the
 # script that gates it -- one parser for one declaration (doppler#1940).
@@ -723,7 +729,8 @@ TEST_ALL_DEPS = test test-examples test-python test-examples-python
 # a fresh runner, wrong for a dev box running it twice.
 nats-up: ## Start the NATS JetStream broker the nats:// stream tests need
 	@docker rm -f nats >/dev/null 2>&1 || true
-	@STOCK_REGISTRY=$(STOCK_REGISTRY) bash scripts/start-nats.sh
+	@STOCK_REGISTRY=$(STOCK_REGISTRY) STOCK_MIRROR=$(STOCK_MIRROR) \
+	    bash scripts/start-nats.sh
 	@$(NATS_STREAMS) --check
 
 # The remedy `nats-up` names. Deleting is prefix-guarded to DP_WORK_*, so a

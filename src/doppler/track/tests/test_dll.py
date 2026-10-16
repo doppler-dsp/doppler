@@ -501,10 +501,10 @@ def test_configure_refuses_a_bad_loop_parameter():
     assert d.get_state() == ref.get_state()
 
 
-def test_a_nan_bandwidth_changes_nothing():
-    """The C setter refuses a NaN bandwidth. A jm writable property cannot
-    yet raise what its setter returns (just-buildit/just-makeit#2182), so the
-    refusal shows as the value staying put rather than a ValueError."""
+def test_a_nan_bandwidth_raises_and_changes_nothing():
+    """The C setter refuses a NaN bandwidth, the assignment raises, and the
+    value stays put (#1987)."""
     d = Dll(code=_code(), sps=2, bn=0.01)
-    d.bn = float("nan")
+    with pytest.raises(ValueError, match="Dll: bn is outside the loop"):
+        d.bn = float("nan")
     assert d.bn == 0.01

@@ -39,8 +39,7 @@
  *                                              dB conversion changes
  *                        accumulate_frame / fft
  *                                              #2094's measure of a frame
- *                      frame_linear runs at 256, 1024 and 65536 only (the
- *                      32-row cap). accumulate_frame - frame_power is NOT
+ *                      accumulate_frame - frame_power is NOT
  *                      bench_acc_trace_core.c's fold[mean]: in the pipeline
  *                      the window, FFT and power passes run first and evict
  *                      the trace, while that row folds into a trace just
@@ -88,7 +87,6 @@ typedef struct
   dp_fft_state_t *plan;
   float _Complex *spec;
   float          *out;
-  int             lin; /* frame_linear is timed at this size */
   double          t[NKIND][KROUNDS];
 } kern_t;
 
@@ -221,7 +219,6 @@ main (void)
           "  than halving it -- a real input does not buy half an FFT here.\n",
           (min_sec (t_acc[2], ITERATIONS) / min_sec (t_acc[0], ITERATIONS)));
 
-  int n_lin = 0; /* frame_linear rows, counted as configured */
   /* ── the per-frame kernel, and the transform inside it (#1894 A4) ── */
   {
     static const size_t ksz[NKERN]   = { 256, 1024, 4096, 16384, 65536 };
@@ -240,10 +237,6 @@ main (void)
       {
         kern_t *c = &kern[k];
         c->nfft   = ksz[k];
-        /* frame_linear at the ends of the range and the Spectrogram's 1024
-           only: the three rows the 32-row cap leaves */
-        c->lin = c->nfft == 256 || c->nfft == 1024 || c->nfft == 65536;
-        n_lin += c->lin;
         /* as many frames as fill one BLOCK, at least 4, so a pass of the
            largest transform is still several frames long */
         c->reps = BLOCK / c->nfft < 4 ? 4 : BLOCK / c->nfft;
@@ -267,9 +260,7 @@ main (void)
         for (int q = 0; q < NKIND; q++)
           {
             const int kind = (q + r) % NKIND;
-            if (kind == 4 && !kern[k].lin)
-              continue;
-            t0 = jm_bench_now_ns ();
+            t0             = jm_bench_now_ns ();
             kern_run (&kern[k], kind, xk);
             t1                 = jm_bench_now_ns ();
             kern[k].t[kind][r] = jm_bench_elapsed_sec (t0, t1);
@@ -279,8 +270,6 @@ main (void)
       {
         for (int kind = 0; kind < NKIND; kind++)
           {
-            if (kind == 4 && !kern[k].lin)
-              continue;
             char name[64];
             (void)snprintf (name, sizeof name, "%s[nfft=%zu]", kname[kind],
                             kern[k].nfft);
@@ -296,19 +285,6 @@ main (void)
     free (xk);
   }
 
-  /* Every row RECORDS, or nothing is written: jm_bench.h drops entries past
-     JM_BENCH_MAX_ENTRIES without a word (just-buildit/just-makeit#2188), so
-     the count is checked against the one the tables above DERIVE. A short
-     set then reaches the publish gate as a missing component (#2062). */
-  const int want
-      = (int)(sizeof nffts / sizeof *nffts) * 3 + NKERN * (NKIND - 1) + n_lin;
-  if (_bench.count != want)
-    {
-      (void)fprintf (stderr,
-                     "bench_psd: recorded %d rows of %d; writing none\n",
-                     _bench.count, want);
-      return 1;
-    }
   (void)sink;
   free (x);
   free (xr);

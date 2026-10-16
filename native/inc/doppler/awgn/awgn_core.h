@@ -116,8 +116,8 @@ extern "C"
   /**
    * @brief Return the current amplitude (per-component std dev).
    *
-   * Assigning an invalid value (NaN, infinite or negative) is ignored: the
-   * amplitude keeps its old value, and the property does not raise.
+   * Assigning an invalid value (NaN, infinite or negative) raises
+   * ValueError, and the amplitude keeps its old value (doppler#1987).
    * @code
    * >>> from doppler.source import AWGN
    * >>> gen = AWGN(seed=0, amplitude=1.0)

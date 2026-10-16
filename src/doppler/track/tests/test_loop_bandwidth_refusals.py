@@ -12,11 +12,18 @@ refusal as a ValueError (#1987), and the value and the serialized state stay
 put.
 """
 
+import re
+
 import pytest
 
 from doppler.track import CarrierMpsk, CarrierNda, Costas, SymbolSync
 
 LOOP = "bn >= 0 and zeta > 0, both finite, whose loop gains come out finite"
+# A setter's refusal: the whole message every loop's bn setter shares.
+SETTER = (
+    "bn is outside the loop filter's domain"
+    " (need bn >= 0, finite, whose loop gains come out finite)"
+)
 
 # Each loop at a configuration it builds; a case changes only the loop's
 # own bandwidth or damping.
@@ -76,7 +83,7 @@ def test_a_refused_retune_changes_nothing(name):
         for bad in (float("nan"), 1e200):
             with pytest.raises(
                 ValueError,
-                match=f"{name}: bn is outside the loop filter's domain",
+                match=re.escape(f"{name}: {SETTER}"),
             ):
                 loop.bn = bad
     assert loop.bn == bn

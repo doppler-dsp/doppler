@@ -4,5 +4,5 @@
     `CarrierNda`, `Costas`, `Dll` and `SymbolSync` each already refused a
     value outside its domain in C and kept the old one. The Python setter
     dropped that status, so the assignment looked as if it had worked. The
-    value still stays put; the assignment now says so
-    ([#1987](https://github.com/doppler-dsp/doppler/issues/1987)).
+    value still stays put, and the assignment now raises, so code that may
+    assign an out-of-range value catches `ValueError` (#1987).

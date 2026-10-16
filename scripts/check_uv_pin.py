@@ -307,8 +307,9 @@ def added_allow_entries(root: Path, base: str, keys: list[str]) -> list[str]:
     list itself, because the gate predates the list: the change that brings
     the list (doppler#2369) has no baseline and adds nothing. That is safe
     only because read_bare_uv_allow refuses a missing list: once main has
-    it, no change can delete it and later recreate it as a new baseline. A tree that
-    is not a checkout has no base; a base git cannot read fails closed.
+    it, no change can delete it and later recreate it as a new baseline.
+    A tree that is not a checkout has no base; a base git cannot read
+    fails closed.
     """
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from _gitbase import BaseUnreadableError, added_since_base, in_git_repo

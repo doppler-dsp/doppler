@@ -84,9 +84,9 @@ samples = 1
 headline = true
 
 ["c:acq::native_nc256"]
-name = "DSSS acquisition, 256-chip code"
+name = "DSSS acquisition, Gold-1023, 256 epochs"
 unit = "sample"
-definition = "A full code-phase by Doppler search for a 256-chip spreading code; throughput counts searched input samples."
+definition = "A code-phase search for a 1,023-chip Gold code at 2 samples per chip, integrating 256 epochs non-coherently, with no Doppler search (one frequency window); throughput counts searched input samples."
 samples = 1
 headline = true
 
@@ -101,7 +101,7 @@ headline = true
 ["py:i16_to_f32::test_bench_steps_64k"]
 name = "int16 to float, from Python"
 unit = "sample"
-definition = "Converting a 65,536-sample int16 I/Q block to float through the Python binding, so the wheel's call overhead is included."
+definition = "Converting a block of 65,536 real int16 values to float through the Python binding, so the wheel's call overhead is included."
 samples = 1
 headline = true
 

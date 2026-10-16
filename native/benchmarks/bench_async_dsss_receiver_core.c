@@ -1,36 +1,28 @@
-/* bench_async_dsss_receiver_core.c — acquire, refine, track, per sample.
+/* bench_async_dsss_receiver_core.c — the held cell receiver, per sample.
  *
- * A jm scaffold that recorded nothing until now (doppler#891), and the last
- * of the thirty. This is the composed asynchronous DSSS receiver: it
- * searches for a code phase it has not been told, refines the estimate, and
- * then tracks -- so unlike the tracking objects it changes what it is doing
- * partway through the block being measured.
+ * The receiver a pool's searcher drives (the cell mode, design section
+ * 12.22-12.24, #1283): seeded at the code's chip 0, no refine, the Dll
+ * coasting and steered once an interval. What it costs per input sample
+ * while it holds the code is what each assigned slot adds to a pool push
+ * (bench_async_dsss_pool_core.c), against the 100 ns-per-sample budget of
+ * design section 6.4.
  *
- * That is exactly why the stimulus is a real capture rather than noise.
- * Every stage exits early on a signal that is not there, so a benchmark
- * over noise would time the search giving up, forever, and report a
- * receiver several times faster than one that actually locks. The
- * precondition below refuses to time anything unless the receiver reaches
- * TRACKING and returns symbols.
+ * The stimulus is an async DSSS signal: the code runs continuously on the
+ * sample clock and the BPSK data changes at its own symbol rate, so a
+ * symbol is not a whole number of code periods. Each timed round feeds the
+ * NEXT contiguous block. The receiver must be tracking AND code-locked
+ * before the timed rounds and still after them, or nothing is recorded: a
+ * receiver that lost the code would time a different path and read as this
+ * one.
  *
- * The rows separate the two regimes a caller cares about, because they are
- * different costs and a single number is the average of a transient and a
- * steady state:
+ * Two waveforms, the two ends of the code-length axis: a 7-chip code
+ * (28-sample period), where the per-period work weighs most per sample, and
+ * the continuous async-DSSS operating point (section 6.1), a 1,023-chip
+ * code at 5 Mcps and 2 samples per chip, the top of the 2-5 Mcps range.
  *
- *   cold    a fresh receiver over the whole capture: silence, acquisition,
- *           refinement, then tracking. What a burst-mode receiver pays.
- *   warm    the same receiver re-fed the tracking half after it has locked.
- *           What a continuous receiver pays per sample once up.
- *
- * Timing is MIN over rounds, not mean, after a WARMUP_S settle.
- *
- * Two waveforms. The first is the toy the rows were first recorded on (a
- * 7-chip code, SF 7). The second is the continuous async-DSSS operating
- * point (docs/design/async-dsss-receiver.md §6.1): a 1023-chip code at
- * 5 Mcps, 2 samples per chip -- the top of the 2-5 Mcps range, which is
- * the receiver's worst case because it is priced per output sample. Its
- * warm row is what one assigned receiver costs per sample in the pool,
- * against the 100 ns-per-sample budget of §6.4.
+ * Not timed here (doppler#2386): acquisition and refinement, a one-time
+ * transient rather than a rate, and the searching flavor's steady state,
+ * which reads the same per sample as this one.
  */
 #include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
 #include "doppler/dp_complex.h"
@@ -41,18 +33,24 @@
 #include <stdlib.h>
 #include <time.h>
 
-#define N_SYM 400
+/* Samples per timed round. Before the first one the receiver is fed a
+   contiguous lead-in covering its pull-in (ASYNC_DSSS_RX_CELL_PULLIN
+   steering intervals) and two intervals more, and never under
+   MIN_LEAD_BLOCKS: at 5 Mcps the pull-in alone is about 19 blocks, and a
+   round timed inside it would time the pull-in (see lead_blocks()). */
+#define BLOCK 65536
+#define MIN_LEAD_BLOCKS 4
 #define ITERATIONS 20
-#define WARMUP_S 0.25
 
 typedef struct
 {
-  const char    *tag; /* row suffix; "" keeps the original names */
+  const char    *tag; /* row suffix */
   const uint8_t *code;
   size_t         sf;
   size_t         spc;
   double         chip_rate;
   double         sym_rate;
+  size_t         periods; /* the cell's steering interval, code periods */
 } wf_t;
 
 static const uint8_t CODE7[7] = { 1, 1, 1, 0, 1, 0, 0 };
@@ -76,240 +74,119 @@ xorshift32 (uint32_t *s)
   return *s;
 }
 
-/* A DSSS capture built here rather than pulled from native/tests's
-   dp_dsss_capture(): a benchmark that includes a test header acquires a
-   dependency on the test tree's build wiring, and this is 15 lines. */
-static size_t
-build_capture (const wf_t *w, float _Complex **out, size_t *pre_out)
+/* The capture: the code on the global sample index (chip 0 at sample 0,
+   where the cell is seeded), times a BPSK bit that changes every symbol.
+   Built here rather than pulled from native/tests's dp_dsss_capture(): a
+   benchmark that includes a test header acquires a dependency on the test
+   tree's build wiring. */
+static float _Complex *
+build_capture (const wf_t *w, size_t n)
 {
-  const size_t tsym
-      = (size_t)(w->chip_rate * (double)w->spc / w->sym_rate + 0.5);
-  const size_t    pre = w->sf * w->spc * 5 + 3;
-  const size_t    n   = pre + N_SYM * tsym;
-  float _Complex *x   = malloc (n * sizeof *x);
+  const double    tsym = w->chip_rate * (double)w->spc / w->sym_rate;
+  float _Complex *x    = malloc (n * sizeof *x);
   if (!x)
-    return 0;
-
-  for (size_t i = 0; i < pre; i++)
-    x[i] = 0.0f;
-
+    return NULL;
   uint32_t lfsr = 0xA57Bu;
-  size_t   p    = pre;
-  for (size_t s = 0; s < N_SYM; s++)
+  size_t   sym  = (size_t)-1;
+  float    a    = 1.0f;
+  for (size_t k = 0; k < n; k++)
     {
-      lfsr    = (lfsr >> 1) ^ (uint32_t)(-(int32_t)(lfsr & 1u) & 0xB400u);
-      float a = (lfsr & 1u) ? -1.0f : 1.0f;
-      for (size_t i = 0; i < tsym; i++)
+      size_t si = (size_t)((double)k / tsym);
+      if (si != sym)
         {
-          size_t chip = (i / w->spc) % w->sf;
-          x[p++]      = a * (w->code[chip] ? -1.0f : 1.0f);
+          lfsr = (lfsr >> 1) ^ (uint32_t)(-(int32_t)(lfsr & 1u) & 0xB400u);
+          a    = (lfsr & 1u) ? -1.0f : 1.0f;
+          sym  = si;
         }
+      x[k] = a * (w->code[(k / w->spc) % w->sf] ? -1.0f : 1.0f);
     }
-  *out     = x;
-  *pre_out = pre;
-  return n;
+  return x;
 }
 
-static dp_async_dsss_receiver_state_t *
-make_rx (const wf_t *w)
+/* Whole blocks covering the pull-in and two steering intervals more. */
+static size_t
+lead_blocks (const wf_t *w)
 {
-  return dp_async_dsss_receiver_create (
-      w->code, w->sf, w->chip_rate, w->sym_rate, w->spc, 2, 70.0, 1e-2, 0.9,
-      500.0, 4, 8, 0, 100.0, 4, 14.0, 32, 8, false, 100000, 0.0, 0.0);
+  const size_t interval = w->periods * w->sf * w->spc; /* samples */
+  const size_t need     = (ASYNC_DSSS_RX_CELL_PULLIN + 2u) * interval;
+  const size_t blocks   = (need + BLOCK - 1) / BLOCK;
+  return blocks < MIN_LEAD_BLOCKS ? MIN_LEAD_BLOCKS : blocks;
+}
+
+/* Tracking and holding the code, or a message naming what was lost. */
+static int
+held (const dp_async_dsss_receiver_state_t *rx, const wf_t *w,
+      const char *when)
+{
+  int trk = dp_async_dsss_receiver_get_tracking (rx);
+  int cl  = dp_async_dsss_receiver_get_code_locked (rx);
+  if (trk == 1 && cl == 1)
+    return 1;
+  (void)fprintf (stderr,
+                 "bench_async_dsss_receiver%s: %s, tracking=%d "
+                 "code_locked=%d -- a timing would measure a receiver that "
+                 "is not holding the code\n",
+                 w->tag, when, trk, cl);
+  return 0;
 }
 
 static int
 run_waveform (jm_bench_t *bench, const wf_t *w)
 {
-  uint64_t        t0, t1;
-  volatile size_t sink = 0;
-  char            name[JM_BENCH_NAME_LEN];
-
-  float _Complex *x   = NULL;
-  size_t          pre = 0;
-  size_t          n   = build_capture (w, &x, &pre);
-  if (n == 0)
+  const size_t    lead = lead_blocks (w);
+  const size_t    n    = (lead + ITERATIONS) * (size_t)BLOCK;
+  float _Complex *x    = build_capture (w, n);
+  if (!x)
     return 1;
 
-  dp_async_dsss_receiver_state_t *probe = make_rx (w);
-  if (!probe)
+  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create_cell (
+      w->code, w->sf, w->chip_rate, w->sym_rate, w->spc, 2, 70.0, 1e-2, 0.9, 4,
+      8, 0, 0.0, 0.0, w->periods, ASYNC_DSSS_RX_CELL_GAIN,
+      ASYNC_DSSS_RX_CELL_PULLIN);
+  if (!rx || dp_async_dsss_receiver_seed (rx, 0.0, 0.0, 70.0) != DP_OK)
     {
-      (void)fprintf (stderr, "bench_async_dsss_receiver: create NULL\n");
+      (void)fprintf (stderr,
+                     "bench_async_dsss_receiver%s: the cell mode did not "
+                     "open or seed\n",
+                     w->tag);
       return 1;
     }
-  size_t cap = dp_async_dsss_receiver_steps_max_out (probe);
-  if (cap == 0 || cap > n)
-    cap = n;
+  size_t cap = dp_async_dsss_receiver_steps_max_out (rx);
+  if (cap == 0 || cap > BLOCK)
+    cap = BLOCK;
   float _Complex *out = malloc (cap * sizeof *out);
   if (!out)
     return 1;
 
-  /* The precondition: a receiver that never locks would time the search's
-     give-up path and read fast. */
-  size_t got = dp_async_dsss_receiver_steps (probe, x, n, out, cap);
-  int    trk = dp_async_dsss_receiver_get_tracking (probe);
-  if (got == 0 || trk != 1)
+  volatile size_t sink = 0;
+  size_t          pos  = 0;
+  for (size_t b = 0; b < lead; b++, pos += BLOCK)
+    sink += dp_async_dsss_receiver_steps (rx, x + pos, BLOCK, out, cap);
+  if (!held (rx, w, "after the lead-in"))
+    return 1;
+
+  double times[ITERATIONS];
+  for (int r = 0; r < ITERATIONS; r++, pos += BLOCK)
     {
-      (void)fprintf (stderr,
-                     "bench_async_dsss_receiver%s: emitted %zu symbols, "
-                     "tracking=%d — the timings below would measure a "
-                     "receiver that never acquired\n",
-                     w->tag, got, trk);
-      return 1;
+      uint64_t t0 = jm_bench_now_ns ();
+      sink += dp_async_dsss_receiver_steps (rx, x + pos, BLOCK, out, cap);
+      uint64_t t1 = jm_bench_now_ns ();
+      times[r]    = jm_bench_elapsed_sec (t0, t1);
     }
-  dp_async_dsss_receiver_destroy (probe);
+  if (!held (rx, w, "after the timed rounds"))
+    return 1;
 
-  printf ("=== async_dsss_receiver benchmark%s ===\n", w->tag);
-  printf ("SF %zu, spc %zu, chip_rate %.3g, %d symbols, %zu samples, %d "
-          "rounds\n\n",
-          w->sf, w->spc, w->chip_rate, N_SYM, n, ITERATIONS);
-
-  /* Cold: a fresh receiver each round, over the whole capture. */
-  static double t_cold[ITERATIONS];
-  {
-    uint64_t w0, w1;
-    w0 = jm_bench_now_ns ();
-    do
-      {
-        dp_async_dsss_receiver_state_t *rx = make_rx (w);
-        sink += dp_async_dsss_receiver_steps (rx, x, n, out, cap);
-        dp_async_dsss_receiver_destroy (rx);
-        w1 = jm_bench_now_ns ();
-      }
-    while (jm_bench_elapsed_sec (w0, w1) < WARMUP_S);
-
-    for (int r = 0; r < ITERATIONS; r++)
-      {
-        dp_async_dsss_receiver_state_t *rx = make_rx (w);
-        t0                                 = jm_bench_now_ns ();
-        sink += dp_async_dsss_receiver_steps (rx, x, n, out, cap);
-        t1        = jm_bench_now_ns ();
-        t_cold[r] = jm_bench_elapsed_sec (t0, t1);
-        dp_async_dsss_receiver_destroy (rx);
-      }
-    (void)snprintf (name, sizeof name, "steps[cold%s]", w->tag);
-    jm_bench_add_unit (bench, name, t_cold, ITERATIONS, (int)n,
-                       JM_BENCH_SAMPLE);
-    double sec = min_sec (t_cold, ITERATIONS);
-    printf ("  %-20s %8.3f ms/capture  %7.2f ns/sample  %8.3f Msym/s\n", name,
-            sec * 1e3, sec / (double)n * 1e9, (double)N_SYM / sec / 1e6);
-  }
-
-  /* Warm: one receiver, already tracking, re-fed the tracking half. */
-  static double t_warm[ITERATIONS];
-  {
-    dp_async_dsss_receiver_state_t *rx = make_rx (w);
-    sink += dp_async_dsss_receiver_steps (rx, x, n, out, cap);
-    if (dp_async_dsss_receiver_get_tracking (rx) != 1)
-      {
-        (void)fprintf (stderr,
-                       "bench_async_dsss_receiver%s: warm receiver is not "
-                       "tracking — the rows below would not be steady "
-                       "state\n",
-                       w->tag);
-        return 1;
-      }
-    const size_t half = n / 2;
-    uint64_t     w0, w1;
-    w0 = jm_bench_now_ns ();
-    do
-      {
-        sink
-            += dp_async_dsss_receiver_steps (rx, x + half, n - half, out, cap);
-        w1 = jm_bench_now_ns ();
-      }
-    while (jm_bench_elapsed_sec (w0, w1) < WARMUP_S);
-
-    for (int r = 0; r < ITERATIONS; r++)
-      {
-        t0 = jm_bench_now_ns ();
-        sink
-            += dp_async_dsss_receiver_steps (rx, x + half, n - half, out, cap);
-        t1        = jm_bench_now_ns ();
-        t_warm[r] = jm_bench_elapsed_sec (t0, t1);
-      }
-    (void)snprintf (name, sizeof name, "steps[warm%s]", w->tag);
-    jm_bench_add_unit (bench, name, t_warm, ITERATIONS, (int)(n - half),
-                       JM_BENCH_SAMPLE);
-    double sec = min_sec (t_warm, ITERATIONS);
-    printf ("  %-20s %8.3f ms/block    %7.2f ns/sample  %6.2fx real time "
-            "on one core\n",
-            name, sec * 1e3, sec / (double)(n - half) * 1e9,
-            sec / (double)(n - half) * w->chip_rate * (double)w->spc);
-    dp_async_dsss_receiver_destroy (rx);
-  }
-
-  /* The cell mode (design section 12.22-12.24 as a mode of this receiver,
-     #1283): seeded at the capture's own chip 0, no refine, the Dll
-     coasting and steered once an interval -- the receiver a pool's
-     searcher drives. Its warm row is what one held cell costs per sample,
-     beside the searching flavor's warm row. */
-  static double t_cell[ITERATIONS];
-  {
-    const size_t                    periods = w->sf == 7 ? 100 : 154;
-    dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create_cell (
-        w->code, w->sf, w->chip_rate, w->sym_rate, w->spc, 2, 70.0, 1e-2, 0.9,
-        4, 8, 0, 0.0, 0.0, periods, ASYNC_DSSS_RX_CELL_GAIN,
-        ASYNC_DSSS_RX_CELL_PULLIN);
-    if (!rx || dp_async_dsss_receiver_seed (rx, 0.0, 0.0, 70.0) != DP_OK)
-      {
-        (void)fprintf (stderr,
-                       "bench_async_dsss_receiver%s: the cell mode "
-                       "did not open or seed\n",
-                       w->tag);
-        return 1;
-      }
-    sink += dp_async_dsss_receiver_steps (rx, x + pre, n - pre, out, cap);
-    if (dp_async_dsss_receiver_get_tracking (rx) != 1)
-      {
-        (void)fprintf (stderr,
-                       "bench_async_dsss_receiver%s: the cell receiver is "
-                       "not tracking -- the row below would not be steady "
-                       "state\n",
-                       w->tag);
-        return 1;
-      }
-    const size_t half = n / 2;
-    uint64_t     w0, w1;
-    w0 = jm_bench_now_ns ();
-    do
-      {
-        sink
-            += dp_async_dsss_receiver_steps (rx, x + half, n - half, out, cap);
-        w1 = jm_bench_now_ns ();
-      }
-    while (jm_bench_elapsed_sec (w0, w1) < WARMUP_S);
-    for (int r = 0; r < ITERATIONS; r++)
-      {
-        t0 = jm_bench_now_ns ();
-        sink
-            += dp_async_dsss_receiver_steps (rx, x + half, n - half, out, cap);
-        t1        = jm_bench_now_ns ();
-        t_cell[r] = jm_bench_elapsed_sec (t0, t1);
-      }
-    (void)snprintf (name, sizeof name, "steps[cell%s]", w->tag);
-    jm_bench_add_unit (bench, name, t_cell, ITERATIONS, (int)(n - half),
-                       JM_BENCH_SAMPLE);
-    double sec = min_sec (t_cell, ITERATIONS);
-    printf ("  %-20s %8.3f ms/block    %7.2f ns/sample  %6.2fx real time "
-            "on one core\n",
-            name, sec * 1e3, sec / (double)(n - half) * 1e9,
-            sec / (double)(n - half) * w->chip_rate * (double)w->spc);
-    dp_async_dsss_receiver_destroy (rx);
-  }
-  printf (
-      "\n  cell/warm per sample = %.2fx: the cell mode's steady state\n"
-      "  against the searching flavor's, the same chain past the Dll with\n"
-      "  Dll coasting and steered once an interval.\n",
-      (min_sec (t_cell, ITERATIONS)) / (min_sec (t_warm, ITERATIONS)));
-  printf ("\n  cold/warm per sample = %.2fx. The difference is acquisition\n"
-          "  and refinement, paid once per burst; the warm row is what a\n"
-          "  continuous receiver pays for as long as it holds lock. Sizing\n"
-          "  either job on the other number is off by that factor.\n\n",
-          (min_sec (t_cold, ITERATIONS) / (double)n)
-              / (min_sec (t_warm, ITERATIONS) / (double)(n - n / 2)));
+  char name[JM_BENCH_NAME_LEN];
+  (void)snprintf (name, sizeof name, "steps[cell,%s]", w->tag);
+  jm_bench_add_unit (bench, name, times, ITERATIONS, BLOCK, JM_BENCH_SAMPLE);
+  double sec = min_sec (times, ITERATIONS);
+  printf ("  %-28s %8.3f ms/block  %7.2f ns/sample  %6.2fx real time on "
+          "one core\n",
+          name, sec * 1e3, sec / (double)BLOCK * 1e9,
+          (double)BLOCK / sec / (w->chip_rate * (double)w->spc));
 
   (void)sink;
+  dp_async_dsss_receiver_destroy (rx);
   free (x);
   free (out);
   return 0;
@@ -330,9 +207,13 @@ main (void)
     code1023[c] = (uint8_t)(xorshift32 (&cseed) & 1u);
 
   const wf_t waveforms[] = {
-    { "", CODE7, 7, 4, 1.0e6, 35714.29 },
-    { ",op5M", code1023, 1023, 2, 5.0e6, 2700.0 },
+    { "sf=7", CODE7, 7, 4, 1.0e6, 35714.29, 100 },
+    { "sf=1023,5Mcps", code1023, 1023, 2, 5.0e6, 2700.0, 154 },
   };
+  printf ("=== async_dsss_receiver benchmark: the held cell ===\n");
+  printf ("block = %d samples, %d rounds after a lead-in past the "
+          "pull-in\n\n",
+          BLOCK, ITERATIONS);
   for (size_t i = 0; i < sizeof waveforms / sizeof waveforms[0]; i++)
     if (run_waveform (&_bench, &waveforms[i]) != 0)
       return 1;

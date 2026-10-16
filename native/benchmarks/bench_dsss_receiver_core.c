@@ -1,13 +1,15 @@
-/* bench_dsss_receiver_core.c — the composed receiver's two regimes.
+/* bench_dsss_receiver_core.c — the composed receiver, tracking.
  *
- *   search   — throughput while feeding the embedded Acquisition alone
- *              (2-D correlation/FFT cost, no despread/resample/demod).
  *   track    — throughput once locked: Dll -> RateConverter -> MpskReceiver
  *              per sample, the C-level equivalent of async_dsss_receiver_
  *              demo.py's _receive() loop.
  *
- * These have very different per-sample costs; reporting both separately
- * (rather than one blended number) is the point.
+ * The searching regime is timed from Python
+ * (src/doppler/dsss/benchmarks/bench_dsss_receiver.py,
+ * test_bench_steps_search), on a 1,023-chip code in real noise. A C search
+ * row over a block of zeros on a 7-chip code was cut (doppler#2386): with no
+ * noise the detector's reference is zero, which is not the idle case a
+ * receiver has.
  */
 #include "doppler/dp_complex.h"
 #include "doppler/dsss_receiver/dsss_receiver_core.h"
@@ -48,44 +50,6 @@ main (void)
 
   printf ("=== dsss_receiver benchmark ===\n");
   printf ("block = %d samples,  %d iterations\n\n", BENCH_N, ITERATIONS);
-
-  /* ── search: feed silence, never locks, pure Acquisition cost ─────────── */
-  {
-    dp_dsss_receiver_state_t *rx = dp_dsss_receiver_create (
-        CODE7, 7, 1.0e6, 35714.29, 4, 2, 45.0, 1e-2, 0.9, 500.0, 4, 8, 0);
-    float _Complex *x   = calloc (BENCH_N, sizeof *x);
-    float _Complex *out = malloc (BENCH_N * sizeof *out);
-    dp_dsss_receiver_steps (rx, x, BENCH_N, out, BENCH_N); /* warmup */
-    for (int r = 0; r < ITERATIONS; r++)
-      {
-        t0 = jm_bench_now_ns ();
-        dp_dsss_receiver_steps (rx, x, BENCH_N, out, BENCH_N);
-        t1       = jm_bench_now_ns ();
-        times[r] = jm_bench_elapsed_sec (t0, t1);
-      }
-    /* The row is acquisition cost only while nothing locks. A receiver
-       that locks on silence -- a false alarm -- would have spent some of
-       these rounds tracking, so refuse rather than record a mix (#2363). */
-    if (dp_dsss_receiver_get_tracking (rx))
-      {
-        (void)fprintf (stderr,
-                       "bench_dsss_receiver: search locked on silence; the "
-                       "row would mix tracking into acquisition cost -- "
-                       "check the detector's false-alarm rate\n");
-        return 1;
-      }
-    jm_bench_add_unit (&_bench, "search", times, ITERATIONS, BENCH_N,
-                       JM_BENCH_SAMPLE);
-    double sum = 0.0;
-    for (int r = 0; r < ITERATIONS; r++)
-      sum += times[r];
-    printf ("  search   %8.1f MSa/s (tracking=%d)\n",
-            (double)BENCH_N / (sum / ITERATIONS) / 1e6,
-            dp_dsss_receiver_get_tracking (rx));
-    free (x);
-    free (out);
-    dp_dsss_receiver_destroy (rx);
-  }
 
   /* ── track: acquire once on a real signal, then benchmark steady-state
    * despread/resample/demod throughput on further blocks of the same
@@ -130,15 +94,14 @@ main (void)
     printf ("  (locked after %zu samples, tracking=%d)\n", pos,
             dp_dsss_receiver_get_tracking (rx));
 
-    /* Every round must run, and on a locked receiver (#2363). `times[]` is
-       shared with the search row above, so a round that does not run keeps
-       a SEARCH timing and the row records it as tracking. The acquisition
-       loop above exits unlocked only once the signal is used up, so the
-       old loop then ran no rounds at all and the "track" row was a copy of
-       the search row. The `pos` test is what keeps every round's reads
-       inside `x`; `!tracking` guards the lock itself. The signal has two
-       blocks of slack past ITERATIONS for the lock, so failing either
-       means acquisition changed -- refuse rather than record. */
+    /* Every round must run, and on a locked receiver (#2363). The
+       acquisition loop above exits unlocked only once the signal is used
+       up, and a round that does not run leaves its `times[]` slot unset,
+       so the row would record garbage, or acquisition, as tracking. The
+       `pos` test is what keeps every round's reads inside `x`; `!tracking`
+       guards the lock itself. The signal has two blocks of slack past
+       ITERATIONS for the lock, so failing either means acquisition
+       changed -- refuse rather than record. */
     if (!dp_dsss_receiver_get_tracking (rx)
         || pos + (size_t)ITERATIONS * BENCH_N > total)
       {
@@ -146,7 +109,7 @@ main (void)
             stderr,
             "bench_dsss_receiver: track needs a lock with %d blocks of "
             "signal left; locked=%d after %zu of %zu samples. The row "
-            "would record search timings or acquisition as tracking -- "
+            "would record unset timings or acquisition as tracking -- "
             "lengthen n_track or check acquisition\n",
             ITERATIONS, dp_dsss_receiver_get_tracking (rx), pos, total);
         return 1;

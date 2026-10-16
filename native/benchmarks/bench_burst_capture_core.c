@@ -1,16 +1,14 @@
 /**
  * bench_burst_capture_core.c — what a capture costs per sample.
  *
- * `push()` is the only hot path, and it does three separable things: it
- * writes the ring, it drives the acquisition child, and it refines and copies
- * out a window when one completes. The two cases are measured separately
- * because they answer different questions — the SEARCH cost is what a
- * receiver pays on every sample of a quiet stream, and the BURST cost is what
- * a hit adds on top.
+ * `push()` is the only hot path: it writes the ring, drives the
+ * acquisition child, and refines and copies out a window when one
+ * completes. The row times all three on a block holding four bursts, and
+ * every timed push must hand back exactly four windows, or the row would
+ * time a capture that found nothing.
  *
- * The persistent flavour is measured against the anonymous one on the same
- * stream, because "does backing the ring with a file cost anything" is the
- * question the feature has to answer and a claim nobody times is prose.
+ * One row (doppler#2386): a quiet stream and a file-backed ring read the
+ * same per sample as this one, so they are not separate rows.
  */
 #include "doppler/burst_capture/burst_capture_core.h"
 #include "doppler/cvt/cvt_core.h"
@@ -23,11 +21,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#ifdef _WIN32
-#include <process.h> /* getpid, under its POSIX name; the UCRT has no <unistd.h> */
-#else
-#include <unistd.h>
-#endif
 
 #define ACQ_SF 31u
 #define DATA_SF 8u
@@ -37,6 +30,7 @@
 #define BURST_LEN ((REPS * ACQ_SF + PAYLOAD_SYMS * DATA_SF) * SPC)
 #define BENCH_N 65536
 #define ITERATIONS 30
+#define N_BURSTS 4u
 
 static float
 csign (uint8_t c)
@@ -59,7 +53,6 @@ build_codes (void)
     dcode[i] = (uint8_t)((i >> 1) & 1u);
 }
 
-static float _Complex x_quiet[BENCH_N];
 static float _Complex x_bursts[BENCH_N];
 static float _Complex out[16 * BURST_LEN];
 
@@ -99,11 +92,13 @@ build_stream (float _Complex *y, size_t n, size_t n_bursts)
     }
 }
 
-/** @brief Time ITERATIONS pushes of @p x through a fresh capture each round.
+/** @brief Time ITERATIONS pushes of @p x through a fresh capture each round;
+ *         nonzero when a capture fails to open or a push does not hand back
+ *         @p windows windows.
  */
-static void
-time_push (jm_bench_t *b, const char *name, const char *path,
-           const float _Complex *x, double *times)
+static int
+time_push (jm_bench_t *b, const char *name, const float _Complex *x,
+           size_t windows, double *times)
 {
   uint64_t t0, t1;
   for (int r = 0; r < ITERATIONS; r++)
@@ -116,30 +111,38 @@ time_push (jm_bench_t *b, const char *name, const char *path,
         pre[i] = nrz[i / SPC];
       const double              fs = 1.0e6 * SPC;
       dp_burst_capture_state_t *c
-          = path ? dp_burst_capture_create_backed (path, pre, ACQ_SF * SPC,
-                                                   BURST_LEN, REPS, fs, 55.0,
-                                                   0.0, 1e-3, 0.9, 0, 0.0, 1)
-                 : dp_burst_capture_create (pre, ACQ_SF * SPC, BURST_LEN, REPS,
-                                            fs, 55.0, 0.0, 1e-3, 0.9, 0, 0.0,
-                                            1);
+          = dp_burst_capture_create (pre, ACQ_SF * SPC, BURST_LEN, REPS, fs,
+                                     55.0, 0.0, 1e-3, 0.9, 0, 0.0, 1);
       if (!c)
-        return;
-      t0 = jm_bench_now_ns ();
-      (void)dp_burst_capture_push (c, x, BENCH_N, out,
-                                   sizeof out / sizeof *out);
-      t1       = jm_bench_now_ns ();
-      times[r] = jm_bench_elapsed_sec (t0, t1);
+        {
+          (void)fprintf (stderr, "bench_burst_capture: create NULL\n");
+          return 1;
+        }
+      t0         = jm_bench_now_ns ();
+      size_t got = dp_burst_capture_push (c, x, BENCH_N, out,
+                                          sizeof out / sizeof *out);
+      t1         = jm_bench_now_ns ();
+      times[r]   = jm_bench_elapsed_sec (t0, t1);
       dp_burst_capture_destroy (c);
+      if (got != windows * BURST_LEN)
+        {
+          (void)fprintf (stderr,
+                         "bench_burst_capture: %s handed back %zu samples, "
+                         "not %zu windows of %u -- the row would time a "
+                         "capture that missed its bursts\n",
+                         name, got, windows, (unsigned)BURST_LEN);
+          return 1;
+        }
     }
   jm_bench_add_unit (b, name, times, ITERATIONS, BENCH_N, JM_BENCH_SAMPLE);
+  return 0;
 }
 
 int
 main (void)
 {
   build_codes ();
-  build_stream (x_quiet, BENCH_N, 0);
-  build_stream (x_bursts, BENCH_N, 4);
+  build_stream (x_bursts, BENCH_N, N_BURSTS);
 
   jm_bench_t _bench = { 0 };
   printf ("=== burst_capture benchmark ===\n");
@@ -147,17 +150,8 @@ main (void)
           ITERATIONS, (unsigned)BURST_LEN);
 
   static double times[ITERATIONS];
-  time_push (&_bench, "push[quiet]", NULL, x_quiet, times);
-  time_push (&_bench, "push[4 bursts]", NULL, x_bursts, times);
-
-  /* The persistent flavour on the SAME stream: the comparison is the point,
-     so the two rows are directly subtractable. */
-  char path[256];
-  (void)snprintf (path, sizeof path, "/tmp/dp_bench_burst_capture_%d.cf32",
-                  (int)getpid ());
-  remove (path);
-  time_push (&_bench, "push[4 bursts, file-backed]", path, x_bursts, times);
-  remove (path);
+  if (time_push (&_bench, "push[4 bursts]", x_bursts, N_BURSTS, times) != 0)
+    return 1;
 
   jm_bench_write_json (&_bench, "burst_capture");
   return 0;

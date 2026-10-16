@@ -8,10 +8,13 @@
  * per-sample number the floor of any always-on receiver, and the one that
  * decides how many channels a box can watch at once.
  *
- * Swept over spreading factor and samples-per-chip, the two knobs that set
- * the size of the search: the correlator is SF long and the hypothesis grid
- * is spc wide, so the per-sample cost should track their product if the
- * search is done directly, and much less if it is done by transform.
+ * Spreading factor and samples-per-chip set the size of the search
+ * together, through the code period in samples (sf * spc): the correlator
+ * is that long, so the per-sample cost would track it if the search were
+ * done directly, and much less by transform. The rows are the period's two
+ * ends, 30 samples (sf 15, spc 2) and 252 (sf 63, spc 4) (doppler#2386).
+ * Every timed push must consume its whole block: the engine stops taking
+ * input when its result slots fill, and a short push would read fast.
  *
  * Timing is MIN over rounds, not mean, after a WARMUP_S settle.
  */
@@ -51,80 +54,100 @@ main (void)
   acq_result_t   *res = malloc (MAX_RESULTS * sizeof *res);
   if (!x || !res)
     return 1;
-  uint32_t lfsr = 0x77C3u;
+  /* Unit-variance complex Gaussian noise (Box-Muller), the case a detector
+     listens to between bursts. A structured +/-1 sequence is not: the CFAR
+     reads it as a stream of detections, the result slots fill, and the push
+     stops early (the consumption check below). */
+  uint32_t st = 0x77C3u;
   for (int i = 0; i < BENCH_N; i++)
     {
-      lfsr     = (lfsr >> 1) ^ (uint32_t)(-(int32_t)(lfsr & 1u) & 0xB400u);
-      double s = (lfsr & 1u) ? -1.0 : 1.0;
-      x[i]     = (float)s + (float)(0.02 * s) * I;
+      st ^= st << 13;
+      st ^= st >> 17;
+      st ^= st << 5;
+      double u1 = ((double)st + 1.0) / 4294967297.0;
+      st ^= st << 13;
+      st ^= st >> 17;
+      st ^= st << 5;
+      double u2  = ((double)st + 1.0) / 4294967297.0;
+      double mag = sqrt (-log (u1));
+      double th  = 6.283185307179586 * u2;
+      x[i]       = (float)(mag * cos (th)) + (float)(mag * sin (th)) * I;
     }
 
   printf ("=== burst_acq benchmark ===\n");
   printf ("block = %d samples, %d rounds\n\n", BENCH_N, ITERATIONS);
 
+  /* The code period's two ends, sf * spc = 30 and 252 samples. */
   const size_t   sfs[2]  = { 15, 63 };
   const size_t   spcs[2] = { 2, 4 };
-  static double  t_ps[2][2][ITERATIONS];
+  static double  t_ps[2][ITERATIONS];
   static uint8_t code[64];
 
   for (int k = 0; k < 2; k++)
-    for (int p = 0; p < 2; p++)
-      {
-        const size_t sf = sfs[k], spc = spcs[p];
-        for (size_t i = 0; i < sf; i++)
-          code[i] = (uint8_t)(((i * 2246822519u) >> 31) & 1u);
+    {
+      const size_t sf = sfs[k], spc = spcs[k];
+      for (size_t i = 0; i < sf; i++)
+        code[i] = (uint8_t)(((i * 2246822519u) >> 31) & 1u);
 
-        /* The preamble is the code's samples: bin_to_nrz, held spc. */
-        static float nrz[64];
-        static float _Complex pre[64 * 4];
-        (void)dp_bin_to_nrz (code, sf, nrz, 64);
-        for (size_t i = 0; i < sf * spc; i++)
-          pre[i] = nrz[i / spc];
-        dp_burst_acq_state_t *a
-            = dp_burst_acq_create (pre, sf * spc, 8, CHIP_RATE * (double)spc,
-                                   65.0, 0.0, 1e-2, 0.9, 0, 0.0, 1);
-        if (!a)
-          {
-            (void)fprintf (stderr,
-                           "bench_burst_acq: create(sf=%zu, spc=%zu) NULL\n",
-                           sf, spc);
-            return 1;
-          }
+      /* The preamble is the code's samples: bin_to_nrz, held spc. */
+      static float nrz[64];
+      static float _Complex pre[64 * 4];
+      (void)dp_bin_to_nrz (code, sf, nrz, 64);
+      for (size_t i = 0; i < sf * spc; i++)
+        pre[i] = nrz[i / spc];
+      dp_burst_acq_state_t *a
+          = dp_burst_acq_create (pre, sf * spc, 8, CHIP_RATE * (double)spc,
+                                 65.0, 0.0, 1e-2, 0.9, 0, 0.0, 1);
+      if (!a)
+        {
+          (void)fprintf (stderr,
+                         "bench_burst_acq: create(sf=%zu, spc=%zu) NULL\n", sf,
+                         spc);
+          return 1;
+        }
 
-        uint64_t w0, w1;
-        w0 = jm_bench_now_ns ();
-        do
-          {
-            dp_burst_acq_reset (a);
-            sink += dp_burst_acq_push (a, x, BENCH_N, res, MAX_RESULTS);
-            w1 = jm_bench_now_ns ();
-          }
-        while (jm_bench_elapsed_sec (w0, w1) < WARMUP_S);
+      uint64_t w0, w1;
+      w0 = jm_bench_now_ns ();
+      do
+        {
+          dp_burst_acq_reset (a);
+          sink += dp_burst_acq_push (a, x, BENCH_N, res, MAX_RESULTS);
+          w1 = jm_bench_now_ns ();
+        }
+      while (jm_bench_elapsed_sec (w0, w1) < WARMUP_S);
 
-        for (int r = 0; r < ITERATIONS; r++)
-          {
-            dp_burst_acq_reset (a);
-            t0 = jm_bench_now_ns ();
-            sink += dp_burst_acq_push (a, x, BENCH_N, res, MAX_RESULTS);
-            t1            = jm_bench_now_ns ();
-            t_ps[k][p][r] = jm_bench_elapsed_sec (t0, t1);
-          }
-        char name[64];
-        (void)snprintf (name, sizeof name, "push[sf=%zu,spc=%zu]", sf, spc);
-        jm_bench_add_unit (&_bench, name, t_ps[k][p], ITERATIONS, BENCH_N,
-                           JM_BENCH_SAMPLE);
-        double sec = min_sec (t_ps[k][p], ITERATIONS);
-        printf ("  %-22s %7.2f ns/sample  %8.1f MSa/s\n", name,
-                sec / (double)BENCH_N * 1e9, (double)BENCH_N / sec / 1e6);
-        dp_burst_acq_destroy (a);
-      }
+      for (int r = 0; r < ITERATIONS; r++)
+        {
+          dp_burst_acq_reset (a);
+          t0 = jm_bench_now_ns ();
+          sink += dp_burst_acq_push (a, x, BENCH_N, res, MAX_RESULTS);
+          t1         = jm_bench_now_ns ();
+          t_ps[k][r] = jm_bench_elapsed_sec (t0, t1);
+          if (dp_burst_acq_consumed (a) != BENCH_N)
+            {
+              (void)fprintf (stderr,
+                             "bench_burst_acq: push(sf=%zu, spc=%zu) took "
+                             "%zu of %d samples -- the row would credit "
+                             "samples it never read\n",
+                             sf, spc, dp_burst_acq_consumed (a), BENCH_N);
+              return 1;
+            }
+        }
+      char name[64];
+      (void)snprintf (name, sizeof name, "push[sf=%zu,spc=%zu]", sf, spc);
+      jm_bench_add_unit (&_bench, name, t_ps[k], ITERATIONS, BENCH_N,
+                         JM_BENCH_SAMPLE);
+      double sec = min_sec (t_ps[k], ITERATIONS);
+      printf ("  %-22s %7.2f ns/sample  %8.1f MSa/s\n", name,
+              sec / (double)BENCH_N * 1e9, (double)BENCH_N / sec / 1e6);
+      dp_burst_acq_destroy (a);
+    }
 
-  printf ("\n  sf 15 -> 63 costs %.2fx; spc 2 -> 4 costs %.2fx. A detector\n"
-          "  pays this whether or not a burst arrives, so it is the floor of\n"
-          "  an always-on receiver and what decides how many channels one\n"
-          "  box can watch.\n",
-          min_sec (t_ps[1][0], ITERATIONS) / min_sec (t_ps[0][0], ITERATIONS),
-          min_sec (t_ps[0][1], ITERATIONS) / min_sec (t_ps[0][0], ITERATIONS));
+  printf ("\n  a code period of 30 -> 252 samples (8.4x) costs %.2fx. A\n"
+          "  detector pays this whether or not a burst arrives, so it is the\n"
+          "  floor of an always-on receiver and what decides how many\n"
+          "  channels one box can watch.\n",
+          min_sec (t_ps[1], ITERATIONS) / min_sec (t_ps[0], ITERATIONS));
 
   (void)sink;
   free (x);

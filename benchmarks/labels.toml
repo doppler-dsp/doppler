@@ -83,12 +83,18 @@ definition = "The full M-PSK receive chain (timing, carrier, decisions) at 4 sam
 samples = 1
 headline = true
 
-["c:acq::native_nc256"]
-name = "DSSS acquisition, Gold-1023, 256 epochs"
+["c:acq::native_nc90"]
+name = "DSSS acquisition, 1,023-chip code, no Doppler search"
 unit = "sample"
-definition = "A code-phase search for a 1,023-chip Gold code at 2 samples per chip, integrating 256 epochs non-coherently, with no Doppler search (one frequency window); throughput counts searched input samples."
+definition = "A code-phase search for a 1,023-chip code at 3.069 Mcps and 2 samples per chip, with no Doppler search (one frequency window), pushed one 90-epoch non-coherent dwell (184,140 samples) at a time; throughput counts searched input samples."
 samples = 1
 headline = true
+
+["c:acq::native_nc256"]
+name = "DSSS acquisition, 1,023-chip code, 256 epochs"
+unit = "sample"
+definition = "A code-phase search for a 1,023-chip code at 2 samples per chip, integrating 256 epochs non-coherently, with no Doppler search (one frequency window); throughput counts searched input samples."
+samples = 1
 
 ["c:rs::decode[e=8]"]
 name = "Reed-Solomon decode, 8 errors"
@@ -299,19 +305,19 @@ samples = 65536
 ["c:burst_demod::demod[clean]"]
 name = "Burst demodulator, clean"
 unit = "call"
-definition = "One whole burst of 28,600 samples demodulated end to end (acquire the preamble, find the sync word, despread the payload, check the CRC) with no carrier offset, so acquisition converges at once; read in input samples per second, so it compares with the sample rate feeding it."
+definition = "One whole 28,600-sample burst demodulated with no carrier offset and an exact prior: estimate frequency from the preamble, dechirp, despread, find the sync word and slice 93 bits, checking no CRC; read in input samples per second."
 samples = 28600
 
 ["c:burst_demod::demod[offset]"]
 name = "Burst demodulator, offset"
 unit = "call"
-definition = "One whole burst of 28,600 samples demodulated end to end (acquire the preamble, find the sync word, despread the payload, check the CRC) with a real frequency offset with a matching prior; read in input samples per second, so it compares with the sample rate feeding it."
+definition = "One whole 28,600-sample burst demodulated under a frequency offset with a matching prior, rate search off: estimate frequency from the preamble, dechirp, despread, find the sync word and slice 93 bits, checking no CRC; read in input samples per second."
 samples = 28600
 
 ["c:burst_demod::demod[chirp]"]
 name = "Burst demodulator, chirp"
 unit = "call"
-definition = "One whole burst of 28,600 samples demodulated end to end (acquire the preamble, find the sync word, despread the payload, check the CRC) with a frequency offset plus a Doppler rate, so the rate search engages; read in input samples per second, so it compares with the sample rate feeding it."
+definition = "One whole 28,600-sample burst demodulated under a frequency offset plus a Doppler rate, so the chirp-rate search runs: estimate frequency and rate from the preamble, dechirp, despread, find the sync word and slice 93 bits, checking no CRC; read in input samples per second."
 samples = 28600
 
 ["py:spectrogram::test_bench_push"]
@@ -620,3 +626,183 @@ unit = "codeword"
 definition = "Copying one CCSDS RS(255,223) codeword, damaging 16 symbols (the most the code corrects) and decoding it in place through the rs_codec object; read in coded bits per second, 2,040 per codeword."
 domain = "bit"
 count = 2040
+
+# The DSSS family, after the cut (doppler#2386): one label per kept row
+# whose measurement the cut left unchanged.
+
+["c:acq::op2M_U50k_nc57"]
+name = "DSSS search, 2 Mcps, ±50 kHz, depth 1, 1 thread"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 2 Mcps over ±50 kHz of Doppler (53 frequency tiles, the operating range's worst case), depth D = 1 on 1 thread, pushed one 57-epoch non-coherent dwell at a time; throughput counts searched input samples."
+samples = 1
+
+["c:acq::op2M_U5k_nc51"]
+name = "DSSS search, 2 Mcps, ±5 kHz, depth 1, 1 thread"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 2 Mcps over ±5 kHz of Doppler (7 frequency tiles), depth D = 1 on 1 thread, pushed one 51-epoch non-coherent dwell at a time; throughput counts searched input samples."
+samples = 1
+
+["c:acq::op5M_U50k_nc254"]
+name = "DSSS search, 5 Mcps, ±50 kHz, depth 1, 1 thread"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 5 Mcps over ±50 kHz of Doppler (21 frequency tiles), depth D = 1 on 1 thread, pushed one 254-epoch non-coherent dwell at a time; throughput counts searched input samples."
+samples = 1
+
+["c:acq::op5M_U5k_nc225"]
+name = "DSSS search, 5 Mcps, ±5 kHz, depth 1, 1 thread"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 5 Mcps over ±5 kHz of Doppler (3 frequency tiles), depth D = 1 on 1 thread, pushed one 225-epoch non-coherent dwell at a time; throughput counts searched input samples."
+samples = 1
+
+["c:acq::op5M_U50k_t8_nc254"]
+name = "DSSS search, 5 Mcps, ±50 kHz, depth 1, 8 threads"
+unit = "sample"
+definition = "The 5 Mcps, ±50 kHz, depth D = 1 search (21 frequency tiles, 254-epoch dwells) with the tiles fanned across 8 threads; the published run is pinned to 4 cores and their SMT siblings (CPUs 0-3 and 10-13), so the 8 threads run two to a core; throughput counts searched input samples."
+samples = 1
+
+["c:acquire::bin_to_signed (wrapper, not inlinable)"]
+name = "FFT bin to signed index"
+unit = "call"
+definition = "One call of dp_bin_to_signed, which maps an FFT bin to its signed index in numpy's fftfreq order and lives in its own file, so a C caller cannot inline it; timed as 65,536 calls over an 8-bin grid, read per call."
+domain = "call"
+count = 1
+
+["py:acq::test_bench_tile_test_grid"]
+name = "Burst acquisition, 31-chip code, 16 periods, from Python"
+unit = "sample"
+definition = "One BurstAcquisition push of noise through the Python binding: a 31-chip maximal-length code at 4 samples per chip, searched over 16 code periods, so one push is one 1,984-sample tile (Doppler FFT, code correlation, CFAR); throughput counts input samples."
+samples = 1
+
+["py:acq::test_bench_tile_worked"]
+name = "Burst acquisition, 1,023-chip code, 10 periods, from Python"
+unit = "sample"
+definition = "One BurstAcquisition push of noise through the Python binding: a 1,023-chip maximal-length code at 2 samples per chip, searched over 10 code periods, so one push is one 20,460-sample tile (Doppler FFT, code correlation, CFAR); throughput counts input samples."
+samples = 1
+
+["py:carrier_acq::test_bench_steps_search[4]"]
+name = "Carrier search, zero-pad 4, from Python"
+unit = "sample"
+definition = "One steps() call through the Python binding on 65,536 samples of noise at 4 MSa/s, the detector in sequential mode with 4,096-sample blocks zero-padded to a 16,384-point transform; nothing fires, so all 16 blocks are folded and tested; throughput counts input samples."
+samples = 1
+
+["py:carrier_acq::test_bench_steps_search[16]"]
+name = "Carrier search, zero-pad 16, from Python"
+unit = "sample"
+definition = "One steps() call through the Python binding on 65,536 samples of noise at 4 MSa/s, the detector in sequential mode with 4,096-sample blocks zero-padded to a 65,536-point transform; nothing fires, so all 16 blocks are folded and tested; throughput counts input samples."
+samples = 1
+
+["c:async_dsss_pool::push[12 slots, serial]"]
+name = "Async DSSS pool, 12 receivers, one thread"
+unit = "sample"
+definition = "One push of the next 2,046 samples (one period of a 1,023-chip code at 5 Mcps, 2 samples per chip) through the searcher and twelve cell receivers on one thread, after a half-second warm-up on a clean one-emitter capture; throughput counts input samples."
+samples = 1
+
+["c:async_dsss_pool::push[12 slots, all cores]"]
+name = "Async DSSS pool, 12 receivers, all threads"
+unit = "sample"
+definition = "The one-thread row's push, with the searcher's tiles and the twelve receivers fanned across one thread per online logical CPU; the published run confines those threads to 8 logical CPUs (4 cores and their SMT siblings, doppler#2394). Throughput counts input samples."
+samples = 1
+
+["c:dsss_burst_receiver::push_idle"]
+name = "DSSS burst receiver listening, 31-chip preamble"
+unit = "sample"
+definition = "One push of an 8,192-sample block of complex noise into a freshly built receiver (construction untimed), searching for a 31-chip m-sequence preamble repeated 4 times at 1 Mcps and 4 samples per chip; throughput counts input samples."
+samples = 1
+
+["c:dsss_burst_receiver::push_burst"]
+name = "DSSS burst receiver, one burst per 8,192 samples"
+unit = "sample"
+definition = "The idle row's noise block carrying one complete 2,448-sample burst (the preamble, then a 61-bit frame of sync word, 32 data bits and CRC-16, spread by an 8-chip code): search, refinement and demodulation of one burst; throughput counts input samples."
+samples = 1
+
+["py:dsss_burst_receiver::test_bench_construct"]
+name = "DSSS burst receiver construction, from Python"
+unit = "call"
+definition = "Building one receiver through the Python binding for a 255-chip m-sequence preamble repeated 5 times and a 31-chip data code at 1 Mcps, 2 samples per chip: paid once per receiver, so it reads as time per call."
+domain = "call"
+count = 1
+
+["c:dsss_receiver::track"]
+name = "DSSS receiver tracking, 7-chip test code"
+unit = "sample"
+definition = "One receiver, locked untimed on a 7-chip test signal (1 Mcps, 4 samples per chip, alternating BPSK symbols four code periods long, zero Doppler), fed the next 65,536-sample block each round: carrier wipeoff, code loop, resampler and PSK demodulator; throughput counts input samples."
+samples = 1
+
+["py:dsss_receiver::test_bench_steps_search"]
+name = "DSSS receiver searching, Gold-1023 at 3 Mcps, from Python"
+unit = "sample"
+definition = "One receiver, reset untimed before each round, fed the same 65,536-sample noise block through the Python binding: the acquisition search for a 1,023-chip Gold code at 3 Mcps, 2 samples per chip, over ±100 Hz, emitting nothing; throughput counts input samples."
+samples = 1
+
+["py:widedoppler::test_bench_2d_roll[gps_16x2046-16-2046-79]"]
+name = "Wide-Doppler search by 2-D roll, 79 shifts, from Python"
+unit = "sample"
+definition = "One 2,046-sample epoch correlated at 79 Doppler shifts by the roll method, composed in Python: one forward FFT, then per shift a NumPy product with a pre-rolled code spectrum and an inverse FFT; throughput counts the epoch's 2,046 samples."
+samples = 1
+
+["py:widedoppler::test_bench_2d_roll[burst_5x4094-5-4094-49]"]
+name = "Wide-Doppler search by 2-D roll, 49 shifts, from Python"
+unit = "sample"
+definition = "One 4,094-sample epoch correlated at 49 Doppler shifts by the roll method, composed in Python: one forward FFT, then per shift a NumPy product with a pre-rolled code spectrum and an inverse FFT; throughput counts the epoch's 4,094 samples."
+samples = 1
+
+["py:widedoppler::test_bench_column_tile[gps_16x2046-16-2046-79]"]
+name = "Wide-Doppler bank tile, 16 by 2,046, from Python"
+unit = "sample"
+definition = "One mixer-bank channel: a Corr2D correlation of 16 epochs of 2,046 samples against a full 16-row reference (two 2-D FFTs and a product), 16 fine Doppler bins in one window; throughput counts all 32,736 input samples, and the bank needs 79 such tiles."
+samples = 1
+
+["py:widedoppler::test_bench_column_tile[burst_5x4094-5-4094-49]"]
+name = "Wide-Doppler bank tile, 5 by 4,094, from Python"
+unit = "sample"
+definition = "One mixer-bank channel: a Corr2D correlation of 5 epochs of 4,094 samples against a full 5-row reference (two 2-D FFTs and a product), 5 fine Doppler bins in one window; throughput counts all 20,470 input samples, and the bank needs 49 such tiles."
+samples = 1
+
+["c:burst_capture::push[4 bursts]"]
+name = "Burst capture, four bursts"
+unit = "sample"
+definition = "One push of 65,536 samples of weak noise carrying four 2,448-sample bursts (a 31-chip preamble at 4 samples per chip, repeated 4 times) into a fresh capture: search, refine and copy out all four windows; throughput counts input samples."
+samples = 1
+
+["c:burst_despreader::steps[sf=15]"]
+name = "Burst despreader, 15-chip code"
+unit = "sample"
+definition = "Carrier and code tracking loops on early, prompt and late correlators, one prompt symbol out per 15-chip code period at 4 samples per chip, over 65,536 pseudo-random ±1 samples per round; throughput counts input samples."
+samples = 1
+
+["c:burst_despreader::steps[sf=63]"]
+name = "Burst despreader, 63-chip code"
+unit = "sample"
+definition = "Carrier and code tracking loops on early, prompt and late correlators, one prompt symbol out per 63-chip code period at 4 samples per chip, over 65,536 pseudo-random ±1 samples per round; throughput counts input samples."
+samples = 1
+
+["c:despreader::steps"]
+name = "Continuous DSSS despreader, 127-chip code"
+unit = "sample"
+definition = "A Costas carrier loop and a delay-locked code loop sharing one integrate-and-dump, tracking a noiseless 127-chip code at 8 samples per chip with a small carrier offset, reset before each 65,536-sample round; throughput counts input samples."
+samples = 1
+
+["c:ppe::doppler"]
+name = "Frequency estimate, 4,096 samples"
+unit = "sample"
+definition = "One frequency estimate of a 4,096-sample tone with the chirp-rate search off: a Kaiser window, one 16,384-point zero-padded FFT, its magnitude in dB and a peak search; throughput counts input samples, 4,096 per estimate."
+samples = 1
+
+["c:ppe::chirp"]
+name = "Frequency and chirp-rate estimate, 512 samples"
+unit = "sample"
+definition = "One joint frequency and chirp-rate estimate of a 512-sample chirp, trying 53 chirp rates: each a dechirp, a 2,048-point zero-padded FFT, its magnitude in dB and a peak search; throughput counts input samples, 512 per estimate."
+samples = 1
+
+["py:burst_acq::test_bench_construct"]
+name = "Burst preamble search setup, from Python"
+unit = "call"
+definition = "Building one BurstAcquisition for a 255-chip preamble at 2 samples per chip, repeated 5 times and sized for 60 dB-Hz: the search is sized against its detection-probability model and its transforms set up; paid once per object."
+domain = "call"
+count = 1
+
+["py:burst_capture::test_bench_push_bursts"]
+name = "Burst capture, four bursts, from Python"
+unit = "sample"
+definition = "One push of 65,536 noisy samples carrying four 8,316-sample bursts (a 255-chip preamble at 2 samples per chip, repeated 5 times, 12 dB Es/N0) into a fresh BurstCapture through the Python binding; throughput counts input samples."
+samples = 1

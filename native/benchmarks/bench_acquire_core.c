@@ -1,17 +1,16 @@
-/* bench_acquire_core.c — benchmarks for the acquire module's
- * free functions (gh-1034).
+/* bench_acquire_core.c — the acquire module's one free function
+ * (gh-1034), as a C caller pays for it through the wrapper.
  *
- * There is one function, and the question worth asking about it is not "how
- * fast is a branch and a subtraction" — it is whether the SHAPE of the
- * design costs anything.
+ * `bin_to_signed` is a thin wrapper over the `static inline`
+ * `dp_fftfreq_index` (clib_common.h), in its own translation unit so the
+ * Python face can call the same code. A C caller therefore cannot inline it,
+ * and this row is the price of one call: what a hot C loop pays if it uses
+ * the wrapper instead of the inline.
  *
- * `dp_fftfreq_index` is a `static inline` in clib_common.h so every C caller
- * inlines it; `bin_to_signed` is a thin wrapper in its own translation unit
- * so the Python face can call the same code. The wrapper therefore CANNOT be
- * inlined by a C caller, and the two numbers below are what that costs. If
- * they are close, a C caller may use either freely; if the wrapper is much
- * slower, hot C paths should stay on the inline — which is exactly the
- * guidance the acquisition engine's per-hypothesis loop needs.
+ * There is no inline twin. With a grid size the compiler can see, the
+ * inlined loop is folded and vectorized, so it timed a loop rather than a
+ * call (about one cycle per "call") and could not be compared with this row
+ * (doppler#2386).
  */
 #include "doppler/acquire/acquire_core.h"
 #include "jm_bench.h"
@@ -32,23 +31,10 @@ main (void)
 
   uint64_t t0, t1;
   double   times[ITERATIONS];
-  /* A grid size that is not a compile-time constant, so neither call can be
-   * folded away; the accumulator is volatile for the same reason. */
+  /* The call sits in another translation unit, so it cannot be folded
+   * away; the accumulator is volatile so the loop's result is kept. */
   volatile long sink  = 0;
-  size_t        nbins = (size_t)(8 + (BENCH_N & 0));
-
-  for (int r = 0; r < ITERATIONS; r++)
-    {
-      t0       = jm_bench_now_ns ();
-      long acc = 0;
-      for (int i = 0; i < BENCH_N; i++)
-        acc += dp_fftfreq_index ((size_t)i % nbins, nbins);
-      sink     = acc;
-      t1       = jm_bench_now_ns ();
-      times[r] = jm_bench_elapsed_sec (t0, t1);
-    }
-  jm_bench_add_unit (&_bench, "dp_fftfreq_index (inlined)", times, ITERATIONS,
-                     BENCH_N, JM_BENCH_CALL);
+  const size_t  nbins = 8;
 
   for (int r = 0; r < ITERATIONS; r++)
     {

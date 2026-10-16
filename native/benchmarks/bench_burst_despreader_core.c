@@ -7,10 +7,11 @@
  * the symbol layer above it. So a per-symbol number here would flatter it
  * by SF, and both columns are printed for that reason.
  *
- * Swept over spreading factor, because SF is the link's own trade -- more
- * processing gain for more chips -- and the question is whether the
- * despreader's per-chip cost is flat in SF (so gain is bought at exactly
- * the chip rate) or grows with it.
+ * Measured at the two ends of the spreading-factor range, 15 and 63
+ * (doppler#2386), because SF is the link's own trade -- more processing
+ * gain for more chips -- and the question is whether the despreader's
+ * per-chip cost is flat in SF (so gain is bought at exactly the chip rate)
+ * or grows with it.
  *
  * Timing is MIN over rounds, not mean, after a WARMUP_S settle.
  */
@@ -60,11 +61,11 @@ main (void)
   printf ("block = %d samples, sps = %d, %d rounds\n\n", BENCH_N, SPS,
           ITERATIONS);
 
-  const size_t   sfs[3] = { 15, 31, 63 };
-  static double  t_st[3][ITERATIONS];
+  const size_t   sfs[2] = { 15, 63 };
+  static double  t_st[2][ITERATIONS];
   static uint8_t code[64];
 
-  for (int k = 0; k < 3; k++)
+  for (int k = 0; k < 2; k++)
     {
       const size_t sf = sfs[k];
       for (size_t i = 0; i < sf; i++)
@@ -123,7 +124,7 @@ main (void)
           "  gain is bought at exactly the chip rate and nothing more --\n"
           "  the symbol column falls with SF because each symbol simply\n"
           "  spans more chips.\n",
-          min_sec (t_st[2], ITERATIONS) / min_sec (t_st[0], ITERATIONS));
+          min_sec (t_st[1], ITERATIONS) / min_sec (t_st[0], ITERATIONS));
 
   (void)sink;
   free (x);

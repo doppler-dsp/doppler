@@ -8,7 +8,9 @@
 (function () {
   "use strict";
 
-  const SUFFIX = { Sa: "Sa/s", sym: "sym/s", bit: "bit/s", codeword: "cw/s", frame: "frames/s" };
+  // The rate suffix per domain comes from the page's JSON (bench_report's
+  // DOMAIN_SUFFIX), so the script and the static table print the same.
+  let SUFFIX = {};
   const NOUN = { Sa: "input sample", sym: "symbol", bit: "bit", codeword: "codeword", frame: "frame" };
   const PRESETS = [1, 2.4, 10, 20, 61.44, 125, 250];
   const GROUPS = [
@@ -243,6 +245,7 @@
     if (!blob || !cards || !browser || browser.dataset.ready) return;
     browser.dataset.ready = "1";
     const D = JSON.parse(blob.textContent);
+    SUFFIX = D.suffix || {};
     const V = D.versions, NV = V.length, LAST = NV - 1;
     const rows = D.rows, labels = D.labels;
     const byId = new Map(rows.map((r) => [r.id, r]));
@@ -445,7 +448,15 @@
         if (!part.length) continue;
         html += '<tr class="dpb-sep"><th colspan="' + COLS + '" scope="rowgroup">' +
           title + " <span>· " + note + " · " + part.length + "</span></th></tr>";
+        let dom = null;
         for (const r of part) {
+          // Sorted by throughput, the "other" group runs in blocks of one
+          // unit (bit/s, then chip/s...): a subheading marks each block.
+          if (gid === "other" && state.sort === "tput" && r.dom !== dom) {
+            dom = r.dom;
+            html += '<tr class="dpb-sub"><td colspan="' + COLS + '">' +
+              esc(SUFFIX[dom] || dom + "/s") + "</td></tr>";
+          }
           html += rowHTML(r);
           if (state.open === r.id) { const d = detailHTML(r); html += d.html; att = d.attach; }
         }

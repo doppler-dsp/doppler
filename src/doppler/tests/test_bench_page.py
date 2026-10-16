@@ -734,3 +734,18 @@ def test_writing_the_page_reports_a_dead_label(tmp_path: Path) -> None:
     br = _load()
     assert br.cmd_page("docs/benchmarks.md", root=str(tree)) == 1
     assert not (tree / "docs" / "benchmarks.md").exists()
+
+
+def test_a_label_with_a_count_reads_an_unknown_unit(tmp_path: Path) -> None:
+    """A unit word only one bench uses needs no edit to scripts/: a label
+    that states the count reads the row, and the gate accepts it."""
+    label = (
+        '["c:costas::steps"]\nname = "Bytes"\nunit = "byte"\n'
+        'definition = "Bytes in."\ndomain = "byte"\ncount = 1\n'
+    )
+    rel = {"v0.73.0": [_c("costas::steps", 1e-3, 4096, {"unit": "byte"})]}
+    br = _load()
+    tree = _tree(tmp_path, rel, label)
+    assert br.label_problems(str(tree)) == []
+    row = _row(br.page_data(str(tree)), "c:costas::steps")
+    assert (row["dom"], row["cnt"]) == ("byte", 1)

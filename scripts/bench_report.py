@@ -1087,13 +1087,17 @@ def page_data(root: str = ".") -> dict:
             why = label_count_problem(rid, label, known)
             if why:
                 problems.append(why)
-        if known and known not in KNOWN_UNITS:
+        reads = label and ("samples" in label or label.get("domain"))
+        if known and known not in KNOWN_UNITS and not reads:
             # jm_bench takes any unit word; one the page has no reading for
             # would otherwise fall through to "time per call" unannounced.
+            # A label with a count reads the row whatever the word is.
             problems.append(
                 f"{rid}: the snapshot records unit `{known}`, which the page "
-                "cannot read -- add it to UNIT_SAMPLES, UNIT_DOMAIN or "
-                "CONTROL_UNITS in scripts/bench_report.py"
+                f"cannot read -- give the row a label in {LABELS} with "
+                "`samples`, or `domain` and `count`; or, for a unit every "
+                "bench should share, add it to UNIT_SAMPLES or UNIT_DOMAIN "
+                "in scripts/bench_report.py"
             )
         rate = rate_of(rid, unit, label)
         if rate[1] == "Sa":
@@ -1170,6 +1174,8 @@ def page_data(root: str = ".") -> dict:
             if rid in live
         },
         "head": head,
+        # the rate suffix per domain, so the script prints what fmt_rate does
+        "suffix": DOMAIN_SUFFIX,
         "rows": rows,
         "problems": problems,
         # for fix_labels; never embedded in the page

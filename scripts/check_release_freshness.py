@@ -260,9 +260,9 @@ def main(argv: list[str] | None = None) -> int:
             f"({len(bench)} path(s), e.g. {bench[0]})."
         )
         print(
-            "  release.md §2b: measure both builds interleaved on the\n"
-            "  representative machine, then `make bench-publish`. Skipping\n"
-            "  is only correct when no perf-relevant code moved — it did."
+            "  Refresh the benchmarks exactly as docs/dev/release.md §2b\n"
+            "  lists (the one copy of those steps). Skipping is only\n"
+            "  correct when no perf-relevant code moved — it did."
         )
 
     unused = sorted(set(declared) - used)

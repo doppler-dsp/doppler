@@ -320,3 +320,10 @@
 }
 .dpb-rate { stroke: var(--dpb-bad); stroke-width: 1.2; stroke-dasharray: 6 4; }
 .dpb-rate-t { fill: var(--dpb-bad); font-size: 10px; }
+.md-typeset .dpb-table tr.dpb-sub td {
+  font-size: 0.6rem;
+  font-family: var(--md-code-font-family);
+  color: var(--md-default-fg-color--light);
+  padding-top: 0.5em;
+  border-top: 1px dashed var(--md-default-fg-color--lightest);
+}

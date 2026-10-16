@@ -1117,8 +1117,17 @@ def page_data(root: str = ".") -> dict:
     }
 
 
-def label_problems(root: str = ".", base: str | None = None) -> list:
+def label_problems(
+    root: str = ".", base: str | None = None, history: bool = True
+) -> list:
     """What the label gate refuses (#2372), as messages.
+
+    ``history`` False skips the one check that asks git -- whether a label
+    for an unpublished row is pending or dead (`unpublished_labels`) --
+    for `cmd_page`: the Docs job checks the page out at depth 1, where the
+    newest release's commit cannot be read, and the gate's home is
+    `make lint` (bench-coverage-check), whose checkout has the history. The
+    page draws no unpublished row, so it does not need the answer.
 
     Every row the newest release measures has a label in LABELS or a line in
     LABELS_EXEMPT; a label carries a name, a unit and a definition, and only
@@ -1131,8 +1140,9 @@ def label_problems(root: str = ".", base: str | None = None) -> list:
     labels = read_labels(root)
     newest = data["versions"][-1] if data["versions"] else None
     commit = (data.get("meta", {}).get(newest) or {}).get("commit")
-    _, dead = unpublished_labels(root, labels, live, newest, commit)
-    bad += dead
+    if history:
+        _, dead = unpublished_labels(root, labels, live, newest, commit)
+        bad += dead
     for rid, lab in labels.items():
         for key in ("name", "unit", "definition"):
             if not str(lab.get(key, "")).strip():
@@ -1487,7 +1497,7 @@ def render_page(root: str = ".") -> str:
 
 def cmd_page(out_path, check=False, root=".") -> int:
     """Write docs/benchmarks.md, or with ``check`` compare against it."""
-    bad = label_problems(root)
+    bad = label_problems(root, history=False)
     if bad:
         for b in bad:
             print(f"bench-labels: {b}")

@@ -595,3 +595,23 @@ def test_the_fixer_deletes_what_the_gate_only_wants_deleted(
     exempt = (tree / "benchmarks" / ".labels-exempt").read_text("utf-8")
     assert exempt == "# header\nc:acc_f32::step\n"
     assert br.label_problems(str(tree)) == []
+
+
+def test_an_unreadable_release_commit_fails_the_gate_not_the_page(
+    tmp_path: Path,
+) -> None:
+    """In a clone that cannot read the newest release's commit, a label
+    for an unpublished row can be neither pending nor dead: the gate
+    (`make lint`, full history) fails closed, while the page check (the
+    Docs job, a depth-1 checkout -- #2373's red Docs run) does not ask."""
+    rel = {"v0.71.0": [_c("costas::steps", 1e-3, 4096, {"unit": "sample"})]}
+    tree = _tree(tmp_path, rel, LABEL + NEW_LABEL)
+    (tree / "docs").mkdir()
+    _git(tree, "init", "-q", "-b", "main")
+    _commit(tree, "labels")
+    _stamp(tree, "v0.71.0", "0" * 40)
+    br = _load()
+    bad = br.label_problems(str(tree))
+    assert any("cannot be read" in b for b in bad), bad
+    assert br.cmd_page("docs/benchmarks.md", root=str(tree)) == 0
+    assert br.cmd_page("docs/benchmarks.md", check=True, root=str(tree)) == 0

@@ -52,8 +52,13 @@ def _seed(
     pyproject: str = PIN,
     composite: str | None = GOOD_COMPOSITE,
     files: dict[str, str] | None = None,
+    allow: str | None = "# the bare-uv allow list, empty\n",
 ) -> Path:
+    """A project tree. ``allow`` is the bare-uv list's text (None: no list),
+    unless ``files`` gives the list itself."""
     tmp_path.mkdir(parents=True, exist_ok=True)
+    if allow is not None:
+        files = {"scripts/.bare-uv-allow": allow, **(files or {})}
     (tmp_path / "pyproject.toml").write_text(
         '[project]\nname = "x"\n\n' + pyproject, encoding="utf-8"
     )
@@ -437,7 +442,7 @@ def _ratchet_repo(tmp_path: Path, base_allow: str | None) -> Path:
     files = {"Makefile": "t:\n\tuv run keep-me\n\tuv run new-one\n"}
     if base_allow is not None:
         files[ALLOW] = base_allow
-    root = _seed(tmp_path, files=files)
+    root = _seed(tmp_path, files=files, allow=None)
     _git(root, "init", "-q", "-b", "base")
     _git(root, "add", "-A")
     _git(root, "commit", "-q", "-m", "base")
@@ -481,3 +486,36 @@ def test_an_unreadable_base_fails_closed(tmp_path: Path) -> None:
     r = _run(root, "--base", "no-such-ref")
     assert r.returncode == 1, r.stdout
     assert "cannot resolve no-such-ref" in r.stdout, r.stdout
+
+
+def test_a_missing_list_is_refused(tmp_path: Path) -> None:
+    """Absent is not empty: a deletable list could come back as a new
+    baseline (#2370 review, the #1976 hole)."""
+    r = _run(_seed(tmp_path, files={"Makefile": "t:\n"}, allow=None))
+    assert r.returncode == 1, r.stdout
+    assert ".bare-uv-allow: missing" in r.stdout, r.stdout
+
+
+def test_deleting_the_list_then_recreating_it_with_an_entry_fails(
+    tmp_path: Path,
+) -> None:
+    """The base holds an emptied list. Deleting it is refused; recreating it
+    with an entry the base lacks is refused as an addition."""
+    root = _ratchet_repo(tmp_path, "# emptied\n")
+    (root / "Makefile").write_text("t:\n\t$(UV) run x\n", encoding="utf-8")
+    _git(root, "rm", "-q", ALLOW)
+    _git(root, "commit", "-q", "-am", "delete the list")
+    r = _run(root, "--base", "base")
+    assert r.returncode == 1, r.stdout
+    assert ".bare-uv-allow: missing" in r.stdout, r.stdout
+
+    (root / "Makefile").write_text("t:\n\tuv run new-one\n", encoding="utf-8")
+    (root / ALLOW).parent.mkdir(exist_ok=True)
+    (root / ALLOW).write_text("uv run new-one -- back\n", encoding="utf-8")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-q", "-m", "recreate it")
+    r = _run(root, "--base", "base")
+    assert r.returncode == 1, r.stdout
+    assert "`uv run new-one` is not in the list at the merge base" in (
+        r.stdout
+    ), r.stdout

@@ -132,22 +132,42 @@ _UNLOCKED_TOOL = re.compile(
 BARE_UV_ALLOW = "scripts/.bare-uv-allow"
 
 
-def read_bare_uv_allow(root: Path) -> tuple[dict[str, str], list[str]]:
-    """({line text: reason}, problems) from BARE_UV_ALLOW; absent is empty."""
-    path = root / BARE_UV_ALLOW
-    allow: dict[str, str] = {}
-    bad: list[str] = []
-    if not path.is_file():
-        return allow, bad
-    for n, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+def _parse_allow(text: str) -> list[tuple[int, str, str]]:
+    """(line number, key, reason) per BARE_UV_ALLOW entry: the one reader of
+    the format, for the list as it is and as the merge base had it. An entry
+    with no ` -- <reason>` has an empty reason."""
+    out = []
+    for n, raw in enumerate(text.splitlines(), 1):
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
-        key, sep, why = line.partition(" -- ")
-        if not sep or not why.strip():
-            bad.append(f"{BARE_UV_ALLOW}:{n}: no reason -- `{line[:60]}`")
+        key, _, why = line.partition(" -- ")
+        out.append((n, key.strip(), why.strip()))
+    return out
+
+
+def read_bare_uv_allow(root: Path) -> tuple[dict[str, str], list[str]]:
+    """({line text: reason}, problems) from BARE_UV_ALLOW.
+
+    The list must EXIST, even with no entries. A missing list read as empty
+    would let a change delete it -- passing, since an empty list gains
+    nothing -- and a later change recreate it with new entries, which
+    would pass too: the merge base has no list to be shrunk from. That is
+    the #1976 hole; refusing the absence closes it."""
+    path = root / BARE_UV_ALLOW
+    allow: dict[str, str] = {}
+    if not path.is_file():
+        return allow, [
+            f"{BARE_UV_ALLOW}: missing. It holds the makefile lines that may "
+            "run a bare uv, and only shrinks; with no entries left it stays, "
+            "empty but for its header"
+        ]
+    bad: list[str] = []
+    for n, key, why in _parse_allow(path.read_text(encoding="utf-8")):
+        if not why:
+            bad.append(f"{BARE_UV_ALLOW}:{n}: no reason -- `{key[:60]}`")
             continue
-        allow[key.strip()] = why.strip()
+        allow[key] = why
     return allow, bad
 
 
@@ -285,14 +305,8 @@ def _past_recipe_comment(physical: list[str], n: int, line: str) -> str:
 
 
 def _allow_keys(text: str) -> list[str]:
-    """The entry keys of a BARE_UV_ALLOW text: the one reader, for the list
-    as it is and as the merge base had it."""
-    keys = []
-    for raw in text.splitlines():
-        line = raw.strip()
-        if line and not line.startswith("#"):
-            keys.append(line.partition(" -- ")[0].strip())
-    return keys
+    """The entry keys of a BARE_UV_ALLOW text, through _parse_allow."""
+    return [key for _, key, _ in _parse_allow(text)]
 
 
 def added_allow_entries(root: Path, base: str, keys: list[str]) -> list[str]:
@@ -302,7 +316,9 @@ def added_allow_entries(root: Path, base: str, keys: list[str]) -> list[str]:
     a reason: the line is spelled $(UV) instead. The read is
     _gitbase.added_since_base, the one ratchet read. Its ``since`` is the
     list itself, because the gate predates the list: the change that brings
-    the list (doppler#2369) has no baseline and adds nothing. A tree that
+    the list (doppler#2369) has no baseline and adds nothing. That is safe
+    only because read_bare_uv_allow refuses a missing list: once main has
+    it, no change can delete it and later recreate it as a new baseline. A tree that
     is not a checkout has no base; a base git cannot read fails closed.
     """
     sys.path.insert(0, str(Path(__file__).resolve().parent))

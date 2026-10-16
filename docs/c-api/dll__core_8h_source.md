@@ -119,6 +119,15 @@ typedef struct {
     /* ── lock detector (always on): offset-tap CFAR noise ref + N-look test  */
     float _Complex acc_o;     
     double off_chips;        
+    /* The taps' offsets as PHASE WORDS (fractions of one period in 32 bits,
+       the code NCO's unit), DERIVED from sf, spacing and off_chips by
+       dll_taps_refresh(), from draw_offset() (which init, create and reset
+       reach by seed(), after configure_geometry() sets sf and spacing) and
+       from set_state -- so the per-sample taps add words and never divide
+       (dll_tap_base(), doppler#2397). */
+    uint32_t tap_grid;       
+    uint32_t tap_spacing;    
+    uint32_t tap_off;        
     double noise_guard;      
     uint32_t rng;            
     double noise_ema;        
@@ -166,16 +175,17 @@ dll_chip_sign(uint8_t c)
 }
 
 JM_FORCEINLINE float
-dll_replica(const dp_dll_state_t *s, double c)
+dll_replica_word(const dp_dll_state_t *s, uint32_t w)
 {
-    double sfd2 = 2.0 * (double)s->sf;
-    double p = dp_fmod_pos(c * 2.0 - 0.5, sfd2);
-    size_t i = (size_t)p;
-    double mu = p - (double)i;
-    size_t j = (i + 1 >= (size_t)sfd2) ? 0 : i + 1;
-    float v0 = dll_chip_sign(s->code[i >> 1]);
-    float v1 = dll_chip_sign(s->code[j >> 1]);
-    return (float)((1.0 - mu) * v0 + mu * v1);
+    uint32_t     frac;
+    const size_t i  = nco_word_to_grid(w, (uint32_t)(2u * s->sf), &frac);
+    size_t       c1 = (i + 1) >> 1; /* the next point's chip */
+    if (c1 == s->sf)
+        c1 = 0;
+    const float mu = nco_frac_to_weight(frac);
+    const float v0 = dll_chip_sign(s->code[i >> 1]);
+    const float v1 = dll_chip_sign(s->code[c1]);
+    return v0 + mu * (v1 - v0);
 }
 
 /* Cycles -> u32 phase delta: nco_norm_freq_to_inc() (native/inc/doppler/nco/nco_core.h)
@@ -188,30 +198,23 @@ dll_replica(const dp_dll_state_t *s, double c)
 void dp_dll_init(dp_dll_state_t *s, const uint8_t *code, size_t code_len, size_t sps,
               double init_chip, double bn, double zeta, double spacing);
 
-JM_FORCEINLINE double
-dll_dwell_center_chip_pos(const dp_dll_state_t *s)
+JM_FORCEINLINE uint32_t
+dll_tap_base(const dp_dll_state_t *s)
 {
-    uint32_t mid = s->code_nco.phase + (s->code_nco.phase_inc >> 1);
-    return ((double)mid / 4294967296.0) * (double)s->sf;
+    return nco_dwell_center(&s->code_nco) - s->tap_grid;
 }
 
 JM_FORCEINLINE JM_HOT int
 dll_accumulate(dp_dll_state_t *s, float _Complex d)
 {
-    double sfd = (double)s->sf;
-    double cp = dll_dwell_center_chip_pos(s);
-    double ce = cp + s->spacing;
-    if (ce >= sfd)
-        ce -= sfd;
-    double cl = cp - s->spacing;
-    if (cl < 0.0)
-        cl += sfd;
-    s->acc_p += d * dll_replica(s, cp);
-    s->acc_e += d * dll_replica(s, ce);
-    s->acc_l += d * dll_replica(s, cl);
+    const uint32_t p = dll_tap_base(s);
+    s->acc_p += d * dll_replica_word(s, p);
+    s->acc_e += d * dll_replica_word(s, p + s->tap_spacing);
+    s->acc_l += d * dll_replica_word(s, p - s->tap_spacing);
     /* nco_step_u32_ovf() (native/inc/doppler/nco/nco_core.h) is the ONE shared
        primitive for "advance one sample, report whether it wrapped" --
        this used to be a private inline reimplementation of exactly that. */
+    double sfd = (double)s->sf;
     uint8_t carry;
     (void)nco_step_u32_ovf(&s->code_nco, &carry);
     s->chip_pos = ((double)s->code_nco.phase / 4294967296.0) * sfd;
@@ -221,10 +224,7 @@ dll_accumulate(dp_dll_state_t *s, float _Complex d)
 JM_FORCEINLINE JM_HOT void
 dll_lock_accumulate(dp_dll_state_t *s, float _Complex d)
 {
-    double co = dll_dwell_center_chip_pos(s) + s->off_chips;
-    if (co >= (double)s->sf)
-        co -= (double)s->sf;
-    s->acc_o += d * dll_replica(s, co);
+    s->acc_o += d * dll_replica_word(s, dll_tap_base(s) + s->tap_off);
 }
 
 void dp_dll_lock_look(dp_dll_state_t *s, double norm);
@@ -332,7 +332,7 @@ int dp_dll_set_telemetry(dp_dll_state_t *state, dp_tlm_t * tlm, const char * pre
  * pointers, NOT part of the whole-struct snapshot) are packed/restored
  * field-wise when segments > 1. */
 #define DLL_STATE_MAGIC DP_FOURCC ('D','L','L',' ')
-#define DLL_STATE_VERSION 13u /* v13: wrap_pending/wrap_await (#1287); v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
+#define DLL_STATE_VERSION 14u /* v14: the taps' phase words (#2397); v13: wrap_pending/wrap_await (#1287); v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
                                 (the loop steers once per symbol on the
                                 aided window).
                                 v8: symbol-period aid fields + rings;

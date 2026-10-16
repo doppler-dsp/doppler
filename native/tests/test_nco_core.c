@@ -38,6 +38,7 @@
  *       current behaviour so its fix arrives as a visible change
  */
 #include "doppler/nco/nco_core.h"
+#include "dp_rng_test.h"
 #include "dp_test.h"
 #include <math.h>
 #include <stdio.h>
@@ -1102,6 +1103,87 @@ main (void)
        on a stopped oscillator. */
     DP_CHECK (nco_steer_scale (INFINITY, 2.0 / 3.0, 2.0) == 2.0);
     DP_CHECK (nco_steer_scale (NAN, 2.0 / 3.0, 2.0) == 2.0 / 3.0);
+  }
+
+  /* ----------------------------------------------------------------
+   * 18. Reading a word on a grid (doppler#2397): nco_word_to_grid,
+   *     nco_dwell_center, nco_frac_to_weight
+   * ---------------------------------------------------------------- */
+  {
+    /* Any n: the point and the fraction ARE the 64-bit product word * n,
+       split at bit 32 -- reassembled, they must give it back exactly, with
+       the point inside the grid. Grid sizes from a single point to the
+       largest, odd and even, and the Dll's 2*sf at sf 1,023. */
+    const uint32_t ns[] = { 1u, 2u, 3u, 7u, 14u, 2046u, 65537u, 0xFFFFFFFFu };
+    uint32_t       st   = 0x2397u;
+    int            bad  = 0;
+    for (unsigned k = 0; k < sizeof ns / sizeof *ns; k++)
+      for (int t = 0; t < 4096; t++)
+        {
+          uint32_t w;
+          if (t < 4) /* both ends of the period, and either side of half */
+            w = (uint32_t[]){ 0u, 0xFFFFFFFFu, 0x7FFFFFFFu, 0x80000000u }[t];
+          else
+            w = dp_xs32 (&st);
+          uint32_t       frac;
+          const uint32_t i = nco_word_to_grid (w, ns[k], &frac);
+          bad += i >= ns[k];
+          bad += (((uint64_t)i << 32) | frac) != (uint64_t)w * ns[k];
+        }
+    DP_CHECK (bad == 0);
+
+    /* A power-of-two grid is the word's top bits, and the fraction the
+       rest shifted up: an oracle that shares no arithmetic with the
+       multiply. */
+    st  = 0x51u;
+    bad = 0;
+    for (int b = 1; b < 32; b++)
+      for (int t = 0; t < 256; t++)
+        {
+          dp_xs32 (&st);
+          uint32_t frac;
+          bad += nco_word_to_grid (st, 1u << b, &frac) != st >> (32 - b);
+          bad += frac != st << b;
+        }
+    DP_CHECK (bad == 0);
+
+    /* Point k of an n-point grid, written as the word that lands exactly
+       on it where one exists (n a power of two), reads back as point k
+       with no fraction; the word just below it reads as point k - 1, a
+       hair short of the next. */
+    {
+      uint32_t frac;
+      DP_CHECK (nco_word_to_grid (0x80000000u, 10u, &frac) == 5u
+                && frac == 0u);
+      DP_CHECK (nco_word_to_grid (0x40000000u, 8u, &frac) == 2u && frac == 0u);
+      DP_CHECK (nco_word_to_grid (0x3FFFFFFFu, 8u, &frac) == 1u
+                && frac == 0xFFFFFFF8u);
+    }
+
+    /* The dwell center is half an increment on, wrapping as a word. */
+    {
+      dp_nco_state_t c = { 0 };
+      c.phase          = 0xFFFFFF00u;
+      c.phase_inc      = 0x200u;
+      DP_CHECK (nco_dwell_center (&c) == 0u); /* 0xFFFFFF00 + 0x100 */
+      c.phase     = 1000u;
+      c.phase_inc = 7u; /* an odd increment: the half step floors */
+      DP_CHECK (nco_dwell_center (&c) == 1003u);
+    }
+
+    /* The weight is the fraction of a point TRUNCATED to float's 24 bits:
+       exact at every 2^-24 step, never rounded, so the largest fraction
+       stays a step short of 1 -- (float)0xFFFFFFFF alone would round to
+       2^32 and make it exactly 1.0f -- and a fraction under one step is
+       zero. Monotone across the top, where rounding would collapse it. */
+    DP_CHECK (nco_frac_to_weight (0u) == 0.0f);
+    DP_CHECK (nco_frac_to_weight (0x80000000u) == 0.5f);
+    DP_CHECK (nco_frac_to_weight (0xFFu) == 0.0f);
+    DP_CHECK (nco_frac_to_weight (0x100u) == 0x1p-24f);
+    DP_CHECK (nco_frac_to_weight (0xFFFFFFFFu) == 1.0f - 0x1p-24f);
+    DP_CHECK (nco_frac_to_weight (0xFFFFFFFFu) < 1.0f);
+    DP_CHECK (nco_frac_to_weight (0xFFFFFE00u)
+              < nco_frac_to_weight (0xFFFFFF00u));
   }
 
   DP_TEST_END ("test_nco_core");

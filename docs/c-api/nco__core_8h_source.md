@@ -110,6 +110,26 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
     uint32_t nmax;      /* wrap target for steps_u32_scaled; 0 = raw   */
   } dp_nco_state_t;
 
+  JM_FORCEINLINE uint32_t
+  nco_dwell_center (const dp_nco_state_t *state)
+  {
+    return state->phase + (state->phase_inc >> 1);
+  }
+
+  JM_FORCEINLINE uint32_t
+  nco_word_to_grid (uint32_t word, uint32_t n, uint32_t *frac)
+  {
+    const uint64_t g = (uint64_t)word * n;
+    *frac            = (uint32_t)g;
+    return (uint32_t)(g >> 32);
+  }
+
+  JM_FORCEINLINE float
+  nco_frac_to_weight (uint32_t frac)
+  {
+    return (float)(frac >> 8) * 0x1p-24f;
+  }
+
   JM_FORCEINLINE JM_HOT uint32_t
   nco_step_u32 (dp_nco_state_t *state)
   {
@@ -122,9 +142,9 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
   nco_step_u32_scaled (dp_nco_state_t *state)
   {
     uint32_t ph   = state->phase;
-    uint32_t nmax = state->nmax;
+    uint32_t nmax = state->nmax, frac;
     state->phase  = ph + state->phase_inc;
-    return nmax == 0 ? ph : (uint32_t)(((uint64_t)ph * nmax) >> 32);
+    return nmax == 0 ? ph : nco_word_to_grid (ph, nmax, &frac);
   }
 
   JM_FORCEINLINE JM_HOT uint32_t
@@ -147,9 +167,9 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
   nco_step_u32_scaled_ctrl (dp_nco_state_t *state, double ctrl)
   {
     uint32_t ph   = state->phase;
-    uint32_t nmax = state->nmax;
+    uint32_t nmax = state->nmax, frac;
     state->phase  = ph + state->phase_inc + nco_norm_freq_to_inc (ctrl);
-    return nmax == 0 ? ph : (uint32_t)(((uint64_t)ph * nmax) >> 32);
+    return nmax == 0 ? ph : nco_word_to_grid (ph, nmax, &frac);
   }
 
   JM_FORCEINLINE JM_HOT uint32_t

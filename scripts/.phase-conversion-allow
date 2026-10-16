@@ -15,7 +15,6 @@
 # nothing to say about it. These are not conversions the rule is about.
 
 native/inc/doppler/adc/adc_core.h::* (1.0 / 4294967296.0); | inverse: scales a u32 down to the unit interval
-native/inc/doppler/dll/dll_core.h::return ((double)mid / 4294967296.0) * (double)s->sf; | inverse: phase word -> chips
 native/inc/doppler/dll/dll_core.h::s->chip_pos = ((double)s->code_nco.phase / 4294967296.0) * sfd; | inverse: phase word -> chips
 
 # ── SAFE: deliberate, guarded, and documented ─────────────────────────

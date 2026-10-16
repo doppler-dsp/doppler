@@ -473,6 +473,164 @@ refused_retune_changes_nothing (void)
   return fails;
 }
 
+/* The replica read at a PHASE WORD (doppler#2397) against its definition,
+ * in double: the code held at 2 samples/chip on a grid a quarter chip in,
+ * linearly interpolated between grid points. The word w is the tap's chip
+ * phase c = (w + tap_grid) / 2^32 * sf, already moved to the grid origin,
+ * so its grid position is 2c - 0.5 folded over 2*sf. Random words over the
+ * whole period, at a short code and a long one, plus the words on either
+ * side of the wrap, where the last grid point interpolates toward chip 0.
+ * The tolerance is the float weight's rounding and tap_grid's half word, a
+ * few 1e-7; a swapped weight or a missing wrap is an error near 2. Returns
+ * the number of failed checks. */
+static int
+replica_word_matches_its_definition (void)
+{
+  int          fails  = 0;
+  const size_t sfs[2] = { 7, 1023 };
+  for (int k = 0; k < 2; k++)
+    {
+      const size_t sf   = sfs[k];
+      uint8_t     *code = malloc (sf);
+      make_code (code, sf, 2397u + (uint32_t)sf);
+      dp_dll_state_t *d
+          = dp_dll_create (code, sf, 2, 0.0, 0.01, 0.707, 0.5, 1);
+      DP_CHECK (code != NULL && d != NULL);
+      if (!code || !d)
+        return fails + 1;
+      const double sf2   = 2.0 * (double)sf;
+      double       worst = 0.0;
+      uint32_t     rng   = 0x2397u;
+      for (int n = 0; n < 200000 + 4; n++)
+        {
+          uint32_t w;
+          if (n < 4) /* both sides of the wrap, and its two ends */
+            w = (uint32_t)((uint32_t[]){ 0u, 1u, 0xFFFFFFFFu,
+                                         0xFFFFFFFEu }[n]);
+          else
+            w = dp_xs32 (&rng);
+          const double c = ((double)(uint32_t)(w + d->tap_grid) / 4294967296.0)
+                           * (double)sf;
+          double       p = fmod (2.0 * c - 0.5 + sf2, sf2);
+          if (p >= sf2)
+            p -= sf2;
+          const size_t i  = (size_t)p;
+          const double mu = p - (double)i;
+          const size_t j  = (i + 1) % (2 * sf);
+          const double v0 = (code[i >> 1] & 1u) ? -1.0 : 1.0;
+          const double v1 = (code[j >> 1] & 1u) ? -1.0 : 1.0;
+          const double e  = fabs ((double)dll_replica_word (d, w)
+                                  - ((1.0 - mu) * v0 + mu * v1));
+          if (e > worst)
+            worst = e;
+        }
+      if (!(worst < 1e-5))
+        (void)DP_TEST_ERR ("  sf=%zu: replica off its definition by %g\n", sf,
+                           worst);
+      DP_CHECK (worst < 1e-5);
+      dp_dll_destroy (d);
+      free (code);
+    }
+  return fails;
+}
+
+/* Each tap's phase word is its input as a fraction of the period in 32
+ * bits, to within the half word llround leaves: tap_grid a quarter chip,
+ * tap_spacing the spacing, tap_off this look's noise offset. Returns the
+ * number of words that are not. */
+static int
+tap_words_off (const dp_dll_state_t *d, const char *when)
+{
+  const double per     = 4294967296.0 / (double)d->sf;
+  const double want[3] = { 0.25 * per, d->spacing * per, d->off_chips * per };
+  const uint32_t have[3] = { d->tap_grid, d->tap_spacing, d->tap_off };
+  int            off     = 0;
+  for (int k = 0; k < 3; k++)
+    {
+      /* The circular distance in words: 2^32 is the period itself. */
+      double gap = fabs ((double)have[k] - want[k]);
+      if (gap > 2147483648.0)
+        gap = 4294967296.0 - gap;
+      if (gap > 1.0)
+        {
+          (void)DP_TEST_ERR ("  %s: tap word %d is %u, its input says %.1f\n",
+                             when, k, have[k], want[k]);
+          off++;
+        }
+    }
+  return off;
+}
+
+/* The taps' phase words are DERIVED (doppler#2397), never stored apart from
+ * their inputs: right after create; after epochs whose boundaries redraw
+ * the noise offset; after reset; and after a set_state whose blob carries
+ * forged words, which must be recomputed from the blob's own spacing and
+ * offset rather than taken. Each writer of an input -- configure_geometry,
+ * draw_offset, set_state -- refreshes them; a writer that forgot would
+ * leave a tap reading the code at a stale phase, with no other symptom
+ * than a slightly wrong lock statistic. Returns the number of failed
+ * checks. */
+static int
+tap_words_track_their_inputs (void)
+{
+  int     fails = 0;
+  uint8_t code[31];
+  make_code (code, 31, 2397u);
+  dp_dll_state_t *d = dp_dll_create (code, 31, 2, 0.0, 0.01, 0.707, 0.5, 4);
+  DP_CHECK (d != NULL);
+  if (!d)
+    return fails;
+  DP_CHECK (tap_words_off (d, "after create") == 0);
+
+  /* Epochs of noise: each boundary draws a new offset. */
+  enum
+  {
+    N = 31 * 2 * 40
+  };
+  static float _Complex x[N], out[N];
+  uint32_t st = 7u;
+  for (size_t i = 0; i < N; i++)
+    x[i] = dp_bit (&st) - 0.5f * I;
+  const double off0  = d->off_chips;
+  int          moved = 0;
+  for (size_t b = 0; b < N; b += 31 * 2)
+    {
+      (void)dp_dll_steps (d, x + b, 31 * 2, out, N);
+      moved |= d->off_chips != off0;
+      DP_CHECK (tap_words_off (d, "after an epoch") == 0);
+    }
+  DP_CHECK (moved); /* the check above saw a redraw, not one offset */
+
+  dp_dll_reset (d);
+  DP_CHECK (tap_words_off (d, "after reset") == 0);
+
+  (void)dp_dll_steps (d, x, N / 2, out, N);
+  const size_t   nb   = dp_dll_state_bytes (d);
+  unsigned char *blob = malloc (nb);
+  DP_CHECK (blob != NULL);
+  if (!blob)
+    return fails;
+  dp_dll_get_state (d, blob);
+  /* Forge the three words in the blob's struct image (it follows the
+     envelope header): set_state must derive them, not take them. */
+  const uint32_t junk = 0x12345678u;
+  const size_t   base = sizeof (dp_state_hdr_t);
+  memcpy (blob + base + offsetof (dp_dll_state_t, tap_grid), &junk, 4);
+  memcpy (blob + base + offsetof (dp_dll_state_t, tap_spacing), &junk, 4);
+  memcpy (blob + base + offsetof (dp_dll_state_t, tap_off), &junk, 4);
+  dp_dll_state_t *e = dp_dll_create (code, 31, 2, 0.0, 0.01, 0.707, 0.5, 4);
+  DP_CHECK (e != NULL && dp_dll_set_state (e, blob) == DP_OK);
+  if (e)
+    {
+      DP_CHECK (tap_words_off (e, "after set_state of forged words") == 0);
+      DP_CHECK (e->off_chips == d->off_chips);
+      dp_dll_destroy (e);
+    }
+  free (blob);
+  dp_dll_destroy (d);
+  return fails;
+}
+
 /* set_state() refuses a forged blob or recomputes what a blob cannot be
  * trusted with (doppler#2103). An aided Dll is set up at a symbol period, so
  * the blob carries a real update interval and a held snapshot.
@@ -1859,6 +2017,8 @@ main (void)
   /* A refused retune changes nothing; a forged config is refused (#2103). */
   DP_CHECK (refused_retune_changes_nothing () == 0);
   DP_CHECK (forged_state_is_refused_or_recomputed () == 0);
+  DP_CHECK (replica_word_matches_its_definition () == 0);
+  DP_CHECK (tap_words_track_their_inputs () == 0);
   DP_CHECK (hold_then_retune_resumes_exact () == 0);
   DP_CHECK (coast_order_resumes_exact (0) == 0);
   DP_CHECK (coast_order_resumes_exact (1) == 0);

@@ -70,10 +70,10 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 | ---: | :--- |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**dll\_accumulate**](#function-dll_accumulate) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s, float \_Complex d) <br>_Per-sample early/prompt/late correlate + fixed-point code-phase advance._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float | [**dll\_chip\_sign**](#function-dll_chip_sign) (uint8\_t c) <br> |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**dll\_dwell\_center\_chip\_pos**](#function-dll_dwell_center_chip_pos) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s) <br>_This sample's dwell-CENTER code phase, chips._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dll\_lock\_accumulate**](#function-dll_lock_accumulate) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s, float \_Complex d) <br>_Per-sample offset (noise) tap for the always-on lock detector._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float | [**dll\_replica**](#function-dll_replica) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s, double c) <br>_Sub-chip code replica at fractional code phase_ `c` _(one tap)._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float | [**dll\_replica\_word**](#function-dll_replica_word) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s, uint32\_t w) <br>_Sub-chip code replica at one tap's phase word._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dll\_steer**](#function-dll_steer) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s, double ep, double lp, double pp) <br>_The code discriminator, its filter and the NCO steer_  _the ONE steer both correlation paths call (doppler#1280)._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint32\_t | [**dll\_tap\_base**](#function-dll_tap_base) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s) <br>_This sample's prompt tap as a phase word: its dwell CENTER (_ [_**nco\_dwell\_center()**_](nco__core_8h.md#function-nco_dwell_center) _, the zero-order-hold rule), on the replica grid's origin._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dll\_update**](#function-dll_update) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s) <br>_Per-period code discriminator + loop update + NCO steer on the dumped accumulators (the coherent full-epoch path)._  |
 |  int | [**dp\_dll\_configure**](#function-dp_dll_configure) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, double bn, double zeta) <br>_Recompute the loop gains for a new (bn, zeta); keep the code state._  |
 |  int | [**dp\_dll\_configure\_lock**](#function-dp_dll_configure_lock) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, double pfa, size\_t n\_looks, double ref\_snr\_db) <br>_Tune the always-on code-lock detector to a target (pfa, n\_looks)._  |
@@ -191,7 +191,7 @@ JM_FORCEINLINE  JM_HOT int dll_accumulate (
 
 
 
-Correlates the carrier-wiped sample `d` against the early, prompt and late code taps at this sample's dwell-CENTER phase ([**dll\_dwell\_center\_chip\_pos**](dll__core_8h.md#function-dll_dwell_center_chip_pos), wrapped over the periodic code), then advances the embedded fixed-point NCO by one sample and re-derives `chip_pos` from its POST-advance (dwell-START-of-next-sample) phase (never independently accumulated — see [**dp\_dll\_state\_t::chip\_pos**](structdp__dll__state__t.md#variable-chip_pos)). Inline, zero call overhead.
+Correlates the carrier-wiped sample `d` against the early, prompt and late code taps at this sample's dwell-CENTER phase ([**dll\_tap\_base**](dll__core_8h.md#function-dll_tap_base), the taps `tap_spacing` either side, all wrapping over the periodic code as phase words), then advances the embedded fixed-point NCO by one sample and re-derives `chip_pos` from its POST-advance (dwell-START-of-next-sample) phase (never independently accumulated — see [**dp\_dll\_state\_t::chip\_pos**](structdp__dll__state__t.md#variable-chip_pos)). Inline, zero call overhead.
 
 
 
@@ -237,43 +237,6 @@ JM_FORCEINLINE float dll_chip_sign (
 
 
 
-### function dll\_dwell\_center\_chip\_pos 
-
-_This sample's dwell-CENTER code phase, chips._ 
-```C++
-JM_FORCEINLINE double dll_dwell_center_chip_pos (
-    const dp_dll_state_t * s
-) 
-```
-
-
-
-A received sample is a zero-order hold over its dwell interval `[chip_pos, chip_pos + step)`, `step` = one `phase_inc` in chip units (~1/sps). Evaluating the replica taps at the dwell's START (the raw pre-advance `chip_pos`) treats every sample as landing at the very first instant of its hold interval rather than at the interval's continuous-time representative point — this biases the correlation by half a sample's worth of chip phase (0.5/sps chips). Found via a direct symmetry check: the autocorrelation of a real signal must satisfy R(tau) = R(-tau), and the S-curve didn't — it was offset from tau=0 by exactly 0.5/sps, vanishing when taps are evaluated at the dwell midpoint instead. Advancing by half of `phase_inc` before deriving the chip position gives that midpoint.
-
-
-
-
-**Parameters:**
-
-
-* `s` DLL state. 
-
-
-
-**Returns:**
-
-Dwell-center code phase, chips. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
 ### function dll\_lock\_accumulate 
 
 _Per-sample offset (noise) tap for the always-on lock detector._ 
@@ -286,7 +249,7 @@ JM_FORCEINLINE  JM_HOT void dll_lock_accumulate (
 
 
 
-The composition sibling of [**dll\_accumulate()**](dll__core_8h.md#function-dll_accumulate): correlates the input against the code at this epoch's random off-peak offset, feeding the CFAR noise reference. Call it on the same sample stream as [**dll\_accumulate()**](dll__core_8h.md#function-dll_accumulate) and BEFORE it (both taps evaluate this sample's dwell-CENTER chip phase, [**dll\_dwell\_center\_chip\_pos**](dll__core_8h.md#function-dll_dwell_center_chip_pos) — [**dll\_accumulate()**](dll__core_8h.md#function-dll_accumulate) hasn't advanced the NCO yet, so the two calls see the same phase). A composer that skips this (and [**dp\_dll\_lock\_look()**](dll__core_8h.md#function-dp_dll_lock_look)/dp\_dll\_lock\_epoch()) simply leaves the lock detector idle — locked stays 0, lock\_stat/noise\_est stay 0.
+The composition sibling of [**dll\_accumulate()**](dll__core_8h.md#function-dll_accumulate): correlates the input against the code at this epoch's random off-peak offset (`tap_off` from the prompt), feeding the CFAR noise reference. Call it on the same sample stream as [**dll\_accumulate()**](dll__core_8h.md#function-dll_accumulate) and BEFORE it (both taps evaluate this sample's dwell-CENTER phase, [**dll\_tap\_base**](dll__core_8h.md#function-dll_tap_base) — [**dll\_accumulate()**](dll__core_8h.md#function-dll_accumulate) hasn't advanced the NCO yet, so the two calls see the same phase). A composer that skips this (and [**dp\_dll\_lock\_look()**](dll__core_8h.md#function-dp_dll_lock_look)/dp\_dll\_lock\_epoch()) simply leaves the lock detector idle — locked stays 0, lock\_stat/noise\_est stay 0.
 
 
 
@@ -306,13 +269,13 @@ The composition sibling of [**dll\_accumulate()**](dll__core_8h.md#function-dll_
 
 
 
-### function dll\_replica 
+### function dll\_replica\_word 
 
-_Sub-chip code replica at fractional code phase_ `c` _(one tap)._
+_Sub-chip code replica at one tap's phase word._ 
 ```C++
-JM_FORCEINLINE float dll_replica (
+JM_FORCEINLINE float dll_replica_word (
     const dp_dll_state_t * s,
-    double c
+    uint32_t w
 ) 
 ```
 
@@ -321,13 +284,16 @@ JM_FORCEINLINE float dll_replica (
 The code is treated as held at a fixed 2 samples/chip, sampled at chip-relative positions {0.25, 0.75} (a quarter and three-quarters into each chip) and linearly interpolated at any fractional position — NOT at {0, 0.5}, which would confine the whole linear-interpolation transition zone to one side of each chip boundary (found during the initial port: a real bug, not a cosmetic asymmetry — it broke E/L symmetry around P badly enough to leave a large discriminator offset at perfect lock). Quarter/three-quarter placement centers the transition zone symmetrically on each boundary (spanning `[chip-0.25, chip+0.25)`), and both quarter-chip flat regions are pure `sign(code[chip])` (no table is materialised — the 2x-oversampled index converts straight back to a chip index via `>> 1`, same as an unshifted grid would, only the phase origin moves). A point-sample interpolation, not a dwell-width-aware blend: this replaces the earlier exact matched-filter integral (which varied its blend width with the sample's chip-phase dwell time) with the simpler, validated design from `docs/design/async-dsss-receiver.md` §3.6 — the dwell-integral model was mathematically fancier but did not, on its own, fix the long-run false-lock that motivated this redesign; this one does.
 
 
+The tap's phase is a PHASE WORD: its code phase as a fraction of one period in 32 bits, the code NCO's own unit, already moved to the grid's origin a quarter chip in ([**dll\_tap\_base()**](dll__core_8h.md#function-dll_tap_base)). [**nco\_word\_to\_grid()**](nco__core_8h.md#function-nco_word_to_grid) reads it on the 2\*sf-point grid  the NCO header's grid face, which any table read at an NCO's phase shares  so a tap costs no division, no fmod and no double, which is where the loop's time went when a tap was a chip count in double (doppler#2397).
+
+
 
 
 **Parameters:**
 
 
 * `s` DLL state (for the code and period length). 
-* `c` Code phase of the tap, chips (any real value; wrapped mod sf). 
+* `w` The tap's phase word, from [**dll\_tap\_base()**](dll__core_8h.md#function-dll_tap_base) plus a tap offset. 
 
 
 
@@ -377,6 +343,43 @@ The NCO free-runs at its own nominal rate (`1/tsamps` cycles/sample, set once in
 * `ep` Early power \|E\|^2 over the update's window. 
 * `lp` Late power \|L\|^2. 
 * `pp` Prompt power \|P\|^2 (the reference), on the same scale. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dll\_tap\_base 
+
+_This sample's prompt tap as a phase word: its dwell CENTER (_ [_**nco\_dwell\_center()**_](nco__core_8h.md#function-nco_dwell_center) _, the zero-order-hold rule), on the replica grid's origin._
+```C++
+JM_FORCEINLINE uint32_t dll_tap_base (
+    const dp_dll_state_t * s
+) 
+```
+
+
+
+The result is the code NCO's own phase word, so it wraps over the period as the word overflows, less `tap_grid`, the quarter chip that puts it on [**dll\_replica\_word()**](dll__core_8h.md#function-dll_replica_word)'s grid. Every other tap is this plus a constant word: `tap_spacing` either side for early and late, `tap_off` for the noise tap.
+
+
+
+
+**Parameters:**
+
+
+* `s` DLL state. 
+
+
+
+**Returns:**
+
+The prompt tap's phase word. 
+
 
 
 
@@ -1064,7 +1067,7 @@ int dp_dll_params_ok (
 
 
 
-`code_len >= 1` and `segments >= 1`; a finite `init_chip` (it is folded, so any finite value is a phase); `bn` and `zeta` inside [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok); and `0 < spacing < code_len/2`, where the early and late taps are distinct  at 0 they coincide, at half the code they meet round the wrap, and a NaN made dll\_replica read 2^62 chips past the end of the code.
+`code_len >= 1` and `segments >= 1`; a finite `init_chip` (it is folded, so any finite value is a phase); `bn` and `zeta` inside [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok); and `0 < spacing < code_len/2`, where the early and late taps are distinct  at 0 they coincide, at half the code they meet round the wrap, and a NaN is a phase word nothing can round to (it read 2^62 chips past the end of the code when a tap was a chip count).
 
 
 [**dp\_dll\_create()**](dll__core_8h.md#function-dp_dll_create) refuses outside it. A composer that builds its DLL through an abort-on-NULL wrapper, or embeds one by value through [**dp\_dll\_init()**](dll__core_8h.md#function-dp_dll_init), calls it first and refuses with its own error (doppler#2103).

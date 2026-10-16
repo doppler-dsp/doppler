@@ -1,5 +1,5 @@
 # Published benchmark rows with no label in benchmarks/labels.toml yet
-# (doppler#2372). A RATCHET: it only shrinks.
+# (doppler#2372). A RATCHET: it only shrinks; the burn-down is #2386.
 #
 # Read by `make lint` (bench-coverage-check, via scripts/bench_report.py
 # --check-labels). Every row the newest published release measures needs a

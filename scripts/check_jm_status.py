@@ -11,13 +11,18 @@ report.
 harness headers -- ``jm_bench.h``, ``jm_test.h``, ``jm_perf.h``, ``jm_simd.h``
 -- once and never rewrites them (create-only). When a newer jm ships a fixed
 one, ``status`` lists the old copy under ``outdated`` and counts it as
-nothing. jm is right not to gate on the whole list: a project's Makefile,
-``.gitignore`` and ``clib_common.h`` are create-only too, and edited on
-purpose. A ``jm_*.h`` is not -- the content is jm's (``_createonly`` classes
-each one ``JM``). When doppler's copy is behind, it is a stale vendor. That is
-how ``jm_bench.h`` kept a 32-row cap for three releases after jm fixed it
-(just-makeit#2188, doppler#2062), with ``status`` saying OUTDATED on every
-run and nothing failing.
+nothing. jm is right not to gate on the whole list: every create-only file is
+the project's to edit once written -- a Makefile, ``.gitignore``,
+``clib_common.h``, and the harness headers too (jm's ``_createonly`` says so
+of ``jm_test.h``: create-only "precisely so a project may extend it").
+
+Gating the ``jm_*.h`` headers is doppler's POLICY, not jm's classification:
+doppler never edits one, so a fix jm ships reaches it by re-vendoring, and a
+copy that differs from the pinned render is a stale vendor, never an edit.
+That is how ``jm_bench.h`` kept a 32-row cap for three releases after jm
+fixed it (just-makeit#2188, doppler#2062), with ``status`` saying OUTDATED on
+every run and nothing failing. A header doppler needs to extend gets its own
+file beside jm's, which this gate does not see.
 
 The comparison is jm's own: ``outdated`` diffs each file against the tree
 ``apply`` renders for this project at this pin, placeholders filled and
@@ -39,6 +44,8 @@ reader sees jm's own explanation. A passing run costs one status, as before.
 
 Examples
 --------
+An entry ``status_allow`` allows still counts (see `vendored_outdated`):
+
 >>> vendored_outdated(
 ...     {
 ...         "outdated": [
@@ -48,7 +55,7 @@ Examples
 ...         ]
 ...     }
 ... )
-['native/benchmarks/jm_bench.h']
+['native/benchmarks/jm_bench.h', 'native/inc/doppler/jm_perf.h']
 >>> vendored_outdated({"outdated": []})
 []
 """
@@ -63,7 +70,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-#: A jm harness header: content jm owns outright, never a project's edit.
+#: A jm harness header, which doppler keeps verbatim (policy, not jm's).
 VENDORED = re.compile(r"(^|/)jm_[a-z0-9_]+\.h$")
 
 
@@ -80,13 +87,15 @@ def vendored_outdated(report: dict[str, Any]) -> list[str]:
     """Paths in *report*'s ``outdated`` list that are a ``jm_*.h``.
 
     An entry ``allowed`` by ``[project] status_allow`` counts too: allowing
-    drift in a file jm owns would leave the stale copy this gate exists to
-    catch, so the allowance is not honored here.
+    drift in a header doppler keeps verbatim would leave the stale copy
+    this gate exists to catch, so the allowance is not honored here.
+
+    The list must be THERE. A report without it -- a jm that renamed the
+    key -- raises ``KeyError`` rather than reading as an empty list, which
+    would pass every run from then on: #2377 again.
     """
     return sorted(
-        e["path"]
-        for e in report.get("outdated", [])
-        if VENDORED.search(e["path"])
+        e["path"] for e in report["outdated"] if VENDORED.search(e["path"])
     )
 
 
@@ -119,6 +128,13 @@ def check(root: Path) -> int:
         # Drift. Re-run for the human report, which --json replaces.
         subprocess.run([*_jm(), "status", "--check"], cwd=root)
         return rc
+    if "outdated" not in report:
+        print(
+            "check_jm_status: jm's --json report has no `outdated` list, "
+            "so the vendored headers cannot be checked. Read the pinned "
+            "jm's report shape and update this script (doppler#2377)."
+        )
+        return 2
     stale = vendored_outdated(report)
     if stale:
         print(
@@ -128,8 +144,8 @@ def check(root: Path) -> int:
         for p in stale:
             print(f"  {p}")
         print(
-            "  These are jm's own files, so a difference is a stale copy, "
-            "not an edit.\n"
+            "  doppler keeps jm's headers verbatim, so a difference is a "
+            "stale copy, not an edit.\n"
             "  Re-vendor: make jm-revendor   (deletes each one, then "
             "`just-makeit apply` writes the pinned render)"
         )
@@ -142,8 +158,16 @@ def check(root: Path) -> int:
 
 
 def fix(root: Path) -> int:
-    """Re-vendor every outdated ``jm_*.h`` in *root* through ``apply``."""
-    _, report = status(root)
+    """Re-vendor every outdated ``jm_*.h`` in *root* through ``apply``.
+
+    It needs jm's report to know what is stale, so a status that wrote
+    none, or one without its ``outdated`` list, fails rather than reading
+    as "nothing to re-vendor".
+    """
+    rc, report = status(root)
+    if "outdated" not in report:
+        print("check_jm_status: no report from jm; nothing was changed")
+        return rc or 2
     stale = vendored_outdated(report)
     for p in stale:
         (root / p).unlink()

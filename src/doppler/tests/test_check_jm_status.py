@@ -10,6 +10,7 @@ they hold without a jm run; `make drift-check` exercises the real one.
 
 from __future__ import annotations
 
+import doctest
 import importlib.util
 import json
 import subprocess
@@ -33,12 +34,21 @@ def _load():
     return mod
 
 
-def _fake(monkeypatch, mod, rc: int, outdated: list[str], calls: list):
-    """jm answers with *rc* and an `outdated` list of *outdated* paths."""
-    report = {
-        "entries": [],
-        "outdated": [{"path": p, "allowed": False} for p in outdated],
-    }
+def _fake(
+    monkeypatch,
+    mod,
+    rc: int,
+    outdated: list[str] | None,
+    calls: list,
+    allowed: bool = False,
+):
+    """jm answers with *rc* and an `outdated` list of *outdated* paths
+    (None: a report with no `outdated` key at all)."""
+    report: dict[str, Any] = {"entries": []}
+    if outdated is not None:
+        report["outdated"] = [
+            {"path": p, "allowed": allowed} for p in outdated
+        ]
 
     def run(cmd, **kw: Any):
         calls.append(cmd)
@@ -84,9 +94,11 @@ def test_jm_drift_is_the_verdict_and_the_text_report_is_shown(
 ):
     mod = _load()
     calls: list = []
-    _fake(monkeypatch, mod, 1, [], calls)
+    # 3, not 1: the gate's own refusal is 1, so only jm's code passing
+    # through unchanged returns this.
+    _fake(monkeypatch, mod, 3, [], calls)
     monkeypatch.chdir(tmp_path)
-    assert mod.main([]) == 1
+    assert mod.main([]) == 3
     # One JSON run for the verdict, then the human report for the reader.
     assert calls[0][-3:] == ["status", "--check", "--json"]
     assert calls[1][-2:] == ["status", "--check"]
@@ -142,3 +154,42 @@ def test_which_paths_are_vendored(path: str, vendored: bool):
     mod = _load()
     got = mod.vendored_outdated({"outdated": [{"path": path}]})
     assert got == ([path] if vendored else [])
+
+
+def test_the_module_examples_hold():
+    """The docstring's examples are part of the contract; nothing else
+    runs doctests under scripts/."""
+    mod = _load()
+    assert doctest.testmod(mod).failed == 0
+
+
+def test_an_allowed_stale_header_still_fails(
+    monkeypatch, tmp_path: Path, capsys
+):
+    """``status_allow`` cannot excuse a header doppler keeps verbatim."""
+    mod = _load()
+    calls: list = []
+    _fake(
+        monkeypatch,
+        mod,
+        0,
+        ["native/inc/doppler/jm_perf.h"],
+        calls,
+        allowed=True,
+    )
+    monkeypatch.chdir(tmp_path)
+    assert mod.main([]) == 1
+    assert "native/inc/doppler/jm_perf.h" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("argv", [[], ["--fix"]])
+def test_a_report_without_its_outdated_list_fails(
+    monkeypatch, tmp_path: Path, argv: list[str]
+):
+    """A jm that renamed the key must not read as "nothing outdated"."""
+    mod = _load()
+    calls: list = []
+    _fake(monkeypatch, mod, 0, None, calls)
+    monkeypatch.chdir(tmp_path)
+    assert mod.main(argv) == 2
+    assert not any(c[-1:] == ["apply"] for c in calls)
